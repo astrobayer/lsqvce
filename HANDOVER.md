@@ -2403,6 +2403,18 @@ fixture now runs Ellmer's TRUE alternation — jointAccMapped feeds the
 driver's model.C back as the declared covariance each pass (covModel
 type 'acf', nearest-lag lookup, zero beyond nLag-1; pass 1 white);
 jointAcc reverted to its plain form (one way). MaxIter 8, Probes 200.
+**Round-2c (2026-08-19): red = `noArcs`, root cause rank deficiency.**
+The r2b 'acf' declaration of the nLag-truncated C is RANK DEFICIENT as a
+Toeplitz beyond 2*(nLag-1) rows — covModel's own documented sharp limit
+(nf >= m/2 + 1): at nLag = 10 the declared covariance dies at row 19 of
+every 96-row arc, chol failed, oneArc skipped ALL arcs, the driver
+raised noArcs. Cure per that same in-code doc: jointAccMapped maps
+Shat = dctI(model.C) onto a 64-frequency grid (>= 96/2 + 1 = 49) and
+declares covModel type 'psd' with psdMode 'toeplitz' — the toolbox's OWN
+PD-safe PSD->Cfcn route (spectrum floor + resolution guard); lagInterp
+DELETED (rule 8). Lesson for every model-feedback fixture: never declare
+a truncated ACV directly; go through 'psd' with nf >= m/2 + 1
+(commit 0db4b74).
 
 ### WP-34 — Keyed arc identity in `adjustVCEjoint`
 
