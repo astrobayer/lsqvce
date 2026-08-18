@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce_template</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce_template</div>
+<h1>lsqvce_template</h1>
+<div class="purpose">Starting point for your own least-squares adjustment case.</div>
+<h2>Syntax</h2>
+<pre class="syntax">L = lsqvce_template(procOpt)</pre>
+<h2>Description</h2>
+<p>Copy <code>template/lsqvce_template.m</code>, rename it, and fill in the two
+stubs at the bottom. It returns the cell array of Loaders the toolbox consumes:</p>
+<pre class="example">L = myCase(procOpt);
+R = lsqvce.adjustVCE(L, procOpt.days, ...
+        'verbose', procOpt.loggingLevel, ...
+        'logFid',  procOpt.loggingOverviewFileID) ...
+      .groupComponentsBy('obsType') ...
+      .run();
+R.summary();        % what each stream ended up as
+R.convergence();    % when the loop settled</pre>
+
+<div class="warn"><b>This file has two registers.</b>
+<code>buildLoaders</code> is real, runnable code &mdash; it derives one Loader
+per entry of <code>procOpt.observationGroups</code>. <code>myBuildDay</code> and
+<code>myEpochCov</code> are <b>stubs that error until you write them</b>. Running
+the file as shipped therefore gets you Loaders that error on first use; that is
+the expected state until the stubs are filled. A plausible fake would be worse
+than an honest stop.</div>
+
+<h2>What you write</h2>
+<table>
+<tr><th>Function</th><th>Returns</th><th>Required?</th></tr>
+<tr><td class="name">myBuildDay</td><td><code>.A</code> (m&times;nc), <code>.B</code> (m&times;nl), <code>.l</code> (m&times;1), <code>.t</code> (m&times;1), optional <code>.arcIdx</code>, <code>.nAxis</code></td><td>always</td></tr>
+<tr><td class="name">myEpochCov</td><td><code>.Cep</code> (nEpoch&times;d&times;d) and <code>.arc(i).epochs/.rows</code></td><td>multi-axis streams only</td></tr>
+</table>
+
+<div class="danger"><b><code>myBuildDay</code> must be DETERMINISTIC.</b> The
+accumulator reads every day a <i>second</i> time for the residual pass and must
+get identical data back. A random draw or a changing file corrupts the residuals
+<i>silently</i>, not loudly.</div>
+
+<div class="warn"><b>Rows are EPOCH-MAJOR for multi-axis streams</b>, i.e.
+[x&#8321; y&#8321; z&#8321; | x&#8322; y&#8322; z&#8322; | &hellip;]. The temporal
+correlation model strides by <code>nAxis</code>, so a stream stored axis-major
+comes out with its time law stretched by the axis count &mdash; and it will not
+announce itself.</div>
+
+<h2>procOpt is immutable input, not shared state</h2>
+<p><code>procOpt</code> is captured when <a href="lsqvce.makeLoader.html">makeLoader</a>
+is called and piped through unchanged for the whole run. It must <b>not</b> carry
+live cursors: a field like <code>iteridx</code> would freeze at its value on the
+first pass while the loop iterates around it, and your builder would silently
+read the wrong pass forever. The engine tracks these itself &mdash; use
+<code>ctx.pass</code> and <code>ctx.sysID</code>.</p>
+
+<h2>State each value once</h2>
+<p>Values your pipeline needs <i>before</i> any toolbox object exists stay in
+your configuration, and the toolbox is <b>fed from them</b>. Never type the same
+value in both places:</p>
+<table>
+<tr><th>Your field</th><th>Feeds</th><th>Note</th></tr>
+<tr><td class="name">procOpt.days</td><td>the <code>days</code> argument</td><td>positional</td></tr>
+<tr><td class="name">procOpt.loggingLevel</td><td><code>'verbose'</code></td><td>0 silent, 1 progress, 2 detail. <b>3 is rejected</b> (merged into 2)</td></tr>
+<tr><td class="name">procOpt.loggingOverviewFileID</td><td><code>'logFid'</code></td><td>&nbsp;</td></tr>
+<tr><td class="name">procOpt.showAndSaveGraphics</td><td>an <code>if</code> around hook attachment</td><td>not an option</td></tr>
+<tr><td class="name">procOpt.observationGroups</td><td><code>observationTypes</code> + <code>groupComponentsBy</code></td><td>a derivation, one Loader per group</td></tr>
+</table>
+<p><code>nc</code> and <code>nl</code> are <b>derived</b> from the
+<code>commonParams</code>/<code>localParams</code> row counts. There is no
+<code>nc</code> argument on <a href="lsqvce.adjustVCE.html">adjustVCE</a> or
+<a href="lsqvce.adjustBlock.html">adjustBlock</a>: the common-parameter count is
+stated once, where the parametrisation is defined.</p>
+
+<h2>Merging systems</h2>
+<p>Two satellites must share <b>one</b> system whenever an observation's design
+couples both of their <i>local</i> parameters &mdash; an inter-satellite range or
+range-rate does exactly this. The block-arrow model has one local block per
+system, so a coupling observation cannot span two of them; give both satellites'
+streams the same group entry and stack their locals. Streams that are merely
+correlated do <i>not</i> need merging &mdash; variance-component estimation
+handles that.</p>
+
+<div class="note"><b><code>systemId</code> must be numeric or a single char.</b>
+The accumulator indexes systems by <code>[store.sysID]</code>, which flattens a
+multi-char string into separate elements. Carry a readable label in
+<code>'name'</code> instead.</div>
+
+<h2>Optional plot hooks</h2>
+<p>A hook is a handle <i>you</i> write, <code>@(ctx) -&gt; figureHandle</code>. The
+engine calls it and owns the show/export/close entirely, so your hook only
+<i>builds</i> a figure. A hook that throws is logged and skipped &mdash; plots
+never break the solve. <code>postSolve</code> fires after each solve;
+<code>postModel</code> fires once after the stochastic model is fitted and its
+<code>ctx</code> additionally carries <code>.psd</code>, <code>.psdFreq</code>,
+<code>.acv</code> and <code>.arOrder</code>. The template carries a commented
+stub with the full <code>ctx</code> schema.</p>
+
+<h2>Errors</h2>
+<table>
+<tr><th>Identifier</th><th>Meaning</th></tr>
+<tr><td class="name">lsqvce_template:notImplemented</td><td>a stub was called before you wrote it</td></tr>
+<tr><td class="name">lsqvce_template:badProcOpt</td><td><code>procOpt</code> is missing a required field</td></tr>
+</table>
+
+<div class="seealso"><b>See also:</b> <a href="lsqvce.makeLoader.html">lsqvce.makeLoader</a>, <a href="lsqvce.adjustVCE.html">lsqvce.adjustVCE</a>, <a href="lsqvce.adjustBlock.html">lsqvce.adjustBlock</a>, <a href="lsqvce.Results.html">lsqvce.Results</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-19.</div>
+</body></html>

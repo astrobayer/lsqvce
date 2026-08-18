@@ -1,0 +1,118 @@
+function [a, b, s2] = ar2arma(aHi, s2Hi, q, opt)
+%LSQVCE.AR2ARMA  Reduce a high-order AR to a compact ARMA(p,q) (Durbin's method).
+%
+%   [a, b, s2] = LSQVCE.AR2ARMA(aHi, s2Hi, q, opt)
+%
+%   WHEN TO USE THIS
+%     Only when the PSD has sharp spectral LINES that a pure AR would need a
+%     very high order to represent -- for GRACE-FO that means the 1/rev and
+%     2/rev harmonics in KBR or accelerometer residuals. A narrow spectral peak
+%     is a near-unit-root pole pair; AR needs p ~ 100+ to place it accurately,
+%     while ARMA can place it with a handful of coefficients.
+%
+%     For a smooth coloured floor with no lines, do NOT use this: a plain AR
+%     of moderate order is simpler, always stationary, and just as accurate.
+%
+%   INPUT
+%     aHi   1 x (P+1)  high-order AR polynomial (P >> p), from LSQVCE.LEVINSONDURBIN
+%     s2Hi  scalar     its innovation variance
+%     q     scalar     desired MA order, >= 1
+%     opt   struct     .armaP  desired AR order (default 10)
+%                      .armaN  impulse-response length used in the fit (default 4096)
+%
+%   OUTPUT
+%     a, b  the ARMA(p,q) polynomials, both normalised to a(1) = b(1) = 1
+%     s2    innovation variance (carried over from the AR fit)
+%
+%   METHOD
+%     Durbin's two-stage procedure. The long AR is a nonparametric handle on
+%     the spectrum; its impulse response h = 1/A_hi(z) is then fitted by a
+%     compact rational form B(z)/A(z) using a Hankel least-squares solve.
+%
+%   STABILITY IS NOT GUARANTEED
+%     The Hankel fit can produce a non-stationary AR part. That is detected
+%     here and the function falls back to the input AR with a warning rather
+%     than returning a model whose autocovariance does not exist. If you see
+%     that warning, lower armaP or q, or simply use the pure AR.
+%
+%   ALWAYS VERIFY
+%     ARMA reduction is the least robust step in this toolbox. Check it:
+%         [a,b,s2] = lsqvce.ar2arma(aHi, s2Hi, q, opt);
+%         r_arma   = s2 * lsqvce.armaACV(a, b, 512);
+%         r_psd    = lsqvce.psd2acv(f, S, dt, 512);
+%         relErr   = norm(r_arma - r_psd) / norm(r_psd);   % want < 1e-3
+%     If relErr is worse than the plain AR it replaced, keep the AR.
+%
+%   EXAMPLE
+%     opt = struct('armaP',10, 'armaN',4096);
+%     [aHi, s2] = lsqvce.levinsonDurbin(r, 100);
+%     [a, b, s2] = lsqvce.ar2arma(aHi, s2, 2, opt);
+%     numel(a)-1, numel(b)-1        % 10, 2  instead of 100
+%
+%   ERRORS
+%     lsqvce:ar2arma:tooShort    the AR polynomial is shorter than the reduction
+%                                needs
+%     lsqvce:ar2arma:degenerate  the reduction produced a degenerate MA part
+%
+%   See also LSQVCE.LEVINSONDURBIN, LSQVCE.ARMAACV, LSQVCE.CHECKPSD
+%
+%   Generated with assistance from Claude (Anthropic), model Claude
+%   Opus 4.8.
+
+    narginchk(3,4);
+    if nargin < 4 || isempty(opt), opt = struct(); end
+
+    aHi = aHi(:).';
+    validateattributes(aHi,  {'double'}, {'row','finite','nonempty'}, mfilename, 'aHi', 1);
+    validateattributes(s2Hi, {'double'}, {'scalar','finite','positive'}, mfilename, 's2Hi', 2);
+    validateattributes(q,    {'numeric'}, {'scalar','integer','positive'}, mfilename, 'q', 3);
+
+    p = lsqvce.util.getfielddef(opt, 'armaP', 10);
+    n = lsqvce.util.getfielddef(opt, 'armaN', 4096);
+
+    validateattributes(p, {'numeric'}, {'scalar','integer','positive'}, mfilename, 'opt.armaP');
+    validateattributes(n, {'numeric'}, {'scalar','integer','positive'}, mfilename, 'opt.armaN');
+
+    p = double(p);  q = double(q);  n = double(n);
+
+    if n < 4*(p+q+1)
+        error('lsqvce:ar2arma:tooShort', ...
+            ['armaN = %d is too short to fit ARMA(%d,%d). Use at least %d.'], ...
+             n, p, q, 4*(p+q+1));
+    end
+
+    % --- stage 1: impulse response of the long AR --------------------------
+    h = filter(1, aHi, [1; zeros(n-1,1)]);
+
+    % --- stage 2: Hankel least squares for the AR part ---------------------
+    H  = hankel(h(q+1:end-p), h(end-p:end));
+    if size(H,1) < p
+        error('lsqvce:ar2arma:degenerate', ...
+              'The Hankel system is underdetermined (%d rows, %d unknowns).', ...
+              size(H,1), p);
+    end
+    aa = -H(:,2:end) \ H(:,1);
+    a  = [1; aa(:)].';
+
+    % --- MA part from the filtered impulse response ------------------------
+    hb = filter(a, 1, h);
+    if abs(hb(1)) < eps
+        lsqvce.util.log.warn('lsqvce:ar2arma:degenerateMA', ...
+                'The MA fit is degenerate; falling back to the AR model.');
+        a = aHi;  b = 1;  s2 = s2Hi;
+        return
+    end
+    b  = [1; hb(2:q+1)].';
+    b  = b / b(1);
+    s2 = s2Hi;
+
+    % --- stationarity guard -------------------------------------------------
+    rts = roots(a);
+    if ~isempty(rts) && max(abs(rts)) >= 1
+        lsqvce.util.log.warn('lsqvce:ar2arma:unstable', ...
+            ['The ARMA reduction produced a non-stationary AR part (max |root| ' ...
+             '= %.6f). Falling back to the input AR(%d). Lower armaP or q, or ' ...
+             'just use the pure AR.'], max(abs(rts)), numel(aHi)-1);
+        a = aHi;  b = 1;  s2 = s2Hi;
+    end
+end

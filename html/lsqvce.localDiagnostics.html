@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.localDiagnostics</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.localDiagnostics</div>
+<h1>lsqvce.localDiagnostics</h1>
+<div class="purpose">Stability test of a local block before pre-elimination.</div>
+<h2>Syntax</h2>
+<pre class="syntax">dg = LSQVCE.LOCALDIAGNOSTICS(Nll, opt) inspects the local normal matrix and</pre>
+<h2>Description</h2>
+<p>classifies its conditioning. Called by LSQVCE.BLOCKACCUMULATOR immediately before the Schur complement, because a singular Nll silently corrupts the COMMON block: pre-elimination forms</p>
+<pre class="example">Ncc_red = Ncc - Nlc&#x27; * inv(Nll) * Nlc</pre>
+<p>so any junk in inv(Nll) propagates straight into the parameters you care about. Diagnose before eliminating, never after.</p>
+<h3>Input</h3>
+<pre class="example">Nll  nl x nl  local normal matrix (symmetric)
+opt  struct   .TruncTol   rank tolerance, relative to lambda_max
+              .CondWarn   condition number -&gt; &#x27;ill-conditioned&#x27;
+              .CondAbort  condition number -&gt; &#x27;rank-deficient&#x27;</pre>
+<h3>Output</h3>
+<pre class="example">dg.eig         nl x 1  eigenvalues, descending
+dg.V           nl x nl eigenvectors, matching the sorted eigenvalues
+dg.condNll     spectral condition number lambda_max / lambda_min
+dg.rankDef     number of eigenvalues below TruncTol*lambda_max
+dg.spd         true if all eigenvalues are positive
+dg.diagDom     min|diag| / max|diag|, a cheap scaling check
+dg.nullDir     eigenvector of the smallest eigenvalue -- the direction
+               in local-parameter space that the data does not constrain
+dg.status      &#x27;ok&#x27; | &#x27;ill-conditioned&#x27; | &#x27;rank-deficient&#x27;
+dg.regUsed     &#x27;none&#x27; (filled in later by LSQVCE.APPLYREGULARISATION)
+dg.lambdaUsed  0      (idem)</pre>
+<h3>Reading The Result</h3>
+<pre class="example">dg.nullDir is the most actionable output. If it is concentrated on two
+local parameters, those two are not separately estimable from this
+system&#x27;s data -- e.g. an accelerometer bias and a once-per-rev empirical
+acceleration over a short arc. The fix is to remove one, not to
+regularise: regularisation biases the common block through the Schur
+complement.</pre>
+<pre class="example">dg.diagDom &lt;&lt; 1 means the local parameters are badly scaled relative to
+each other (e.g. bias in m/s^2 alongside a dimensionless scale factor).
+Rescale the columns of B; a large condNll caused purely by scaling is an
+artefact and Tikhonov with L = I would penalise the two parameters
+unequally.</pre>
+<h3>Typical Thresholds</h3>
+<pre class="example">CondWarn  = 1e8   double precision starts to bite past this
+CondAbort = 1e14  effectively singular; &#x27;auto&#x27; regularisation goes TSVD</pre>
+<h3>Example</h3>
+<pre class="example">opt = struct(&#x27;TruncTol&#x27;,1e-10, &#x27;CondWarn&#x27;,1e8, &#x27;CondAbort&#x27;,1e14);
+dg  = lsqvce.localDiagnostics(Nll, opt);
+if ~strcmp(dg.status,&#x27;ok&#x27;)
+    fprintf(&#x27;cond = %.2e, weakest direction:\n&#x27;, dg.condNll);
+    disp(dg.nullDir.&#x27;)
+end</pre>
+<div class="seealso"><b>See also:</b> <a href="lsqvce.applyRegularisation.html">lsqvce.applyRegularisation</a>, <a href="lsqvce.BlockAccumulator.html">lsqvce.BlockAccumulator</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+</body></html>

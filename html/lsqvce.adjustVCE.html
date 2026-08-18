@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.adjustVCE</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.adjustVCE</div>
+<h1>lsqvce.adjustVCE</h1>
+<div class="purpose">Iterative separable-GLS engine: it fits the temporal noise model and estimates the variance components, layered on recover.</div>
+<p><em>Renamed 2026-07-17 from <code>lsqvce.SeparableProblem</code> so it pairs by
+name with the in-memory shortcut <a href="lsqvce.adjust.html">lsqvce.adjust</a>
+(adjust = "just solve it"; adjustVCE = "solve and discover the stochastic
+model"). The old name was <strong>REMOVED</strong> on 2026-07-18 -- all aliases
+were dropped pre-release -- so constructing that class is now an undefined
+function. See <a href="lsqvce.SeparableProblem.html">the tombstone page</a>.</em></p>
+<div class="note"><b>"Separable" still appears, correctly, as a COVARIANCE
+MODEL.</b> <code>type = 'separable'</code> is one of the eight values
+<a href="lsqvce.covModel.html">lsqvce.covModel</a> accepts, and it names the
+mathematics: the covariance separates into a per-epoch spatial factor and a
+temporal law, <i>C</i> = &sigma;<sup>2</sup><b>D</b>(<b>R</b><sub>t</sub>
+&otimes; <b>I</b><sub>d</sub>)<b>D</b>. That type string was deliberately not
+renamed when the class was.</div>
+
+<h2>Syntax</h2>
+<pre class="syntax">P = lsqvce.adjustVCE(systems, days)
+P = lsqvce.adjustVCE(systems, days, Name, Value, ...)
+R = P.groupComponentsBy(key).stochasticModel(...).varianceComponents(...).outer(...).run()</pre>
+
+<h2>Description</h2>
+<p>The general separable generalised-least-squares engine. A single GLS solve is
+the job of <a href="lsqvce.adjustBlock.html">lsqvce.adjustBlock</a>; <em>discovering the
+covariance that solve should use</em> is the job of this class. Two things are
+unknown a-priori and, if wrong, bias the gravity field itself (not merely the
+formal errors): the <b>temporal correlation within</b> each observation stream
+(the SHAPE) and the <b>relative weighting between</b> streams (the SCALE).
+<code>adjustVCE</code> alternates the two until every stream is white and
+every variance component is one. It is a <b>handle</b> class with a fluent
+builder, so the configurators chain and mutate in place.</p>
+
+<h3>The model (per group g)</h3>
+<pre class="syntax">C_g = sigma_g^2 * D_g (R_{t,g} kron I_d) D_g</pre>
+<table>
+<tr><td class="name">D_g</td><td>FIXED per-epoch scaling from the loader (e.g. the PPP epoch covariance). Never estimated here.</td></tr>
+<tr><td class="name">R_{t,g}</td><td>TEMPORAL correlation, the same on every one of the d axes. ESTIMATED &mdash; the SHAPE.</td></tr>
+<tr><td class="name">sigma_g^2</td><td>one scalar variance component per group. ESTIMATED by VCE &mdash; the SCALE.</td></tr>
+<tr><td class="name">kron I_d</td><td>no cross-axis correlation; this is what makes the whitener separable and cheap (see <a href="lsqvce.separableWhiten.html">lsqvce.separableWhiten</a>).</td></tr>
+</table>
+
+<h3>The two-layer loop</h3>
+<pre class="syntax">initial weights (sigma_g^2 = 1, R_{t,g} = white)
+       |
+  (*)  v  SOLVE ......... lsqvce.adjustBlock (block-arrow GLS)
+       |
+       |  SHAPE (within group): re-estimate R_{t,g}
+       |    collectResiduals -> residualAcv -> selectArAcv
+       |
+       |  SCALE (between groups): VCE (Helmert), one sigma_g^2 per group
+       |    lsqvce.vce: sigma_g^2 = ||w_g||^2 / r_g  (redundancy pass)
+       |
+       |  REWEIGHT: push sigma_g and R_{t,g} back into the loaders as a
+       |    per-obsType covariance override -> next pass whitens with them
+       |
+       +-- repeat from (*) until CONVERGED</pre>
+<div class="note"><b>Wiring, not new numerics.</b> Every numerical step already
+exists and is tested: <a href="lsqvce.adjustBlock.html">adjustBlock</a>,
+<a href="lsqvce.separableWhiten.html">separableWhiten</a>,
+<a href="lsqvce.selectArAcv.html">selectArAcv</a>,
+<a href="lsqvce.residualAcv.html">residualAcv</a>,
+<a href="lsqvce.collectResiduals.html">collectResiduals</a>,
+<a href="lsqvce.redundancy.html">redundancy</a>,
+<a href="lsqvce.vce.html">vce</a>,
+<a href="lsqvce.diagnoseAccum.html">diagnoseAccum</a>. This class only alternates and
+connects them, threading the estimated covariance back through the loader's
+<code>opt.covOverride</code> hook.</div>
+
+<h3>Convergence (both gates, per group)</h3>
+<table>
+<tr><td class="name">WHITE</td><td>every stream's whitened residuals are serially uncorrelated (selectArAcv reports order 0 / 'white', or the achieved AR order has stopped changing).</td></tr>
+<tr><td class="name">BALANCED</td><td>every sigma_g^2 &asymp; 1 &mdash; VCE no longer wants to move weight.</td></tr>
+</table>
+
+<h2>Inputs</h2>
+<table>
+<tr><th>Name</th><th>Type / size</th><th>Description</th></tr>
+<tr><td class="name">nc</td><td>1&times;1 integer</td><td>Number of COMMON parameters (the shared field). Required.</td></tr>
+<tr><td class="name">systems</td><td>1&times;M cell | struct</td><td>Loader objects from <a href="lsqvce.makeLoader.html">lsqvce.makeLoader</a> (cell), or the struct-array spec recover accepts. Each obsType stream becomes a candidate VCE group. Required.</td></tr>
+<tr><td class="name">days</td><td>1&times;D numeric</td><td>Default day list for systems without their own (may be <code>[]</code>). Required.</td></tr>
+</table>
+
+<h3>Name-value options</h3>
+<table>
+<tr><th>Name</th><th>Values</th><th>Default</th></tr>
+<tr><td class="name">groupBy</td><td><code>'satObs'</code> | <code>'obsType'</code> | <code>'system'</code> | <code>'arc'</code> | function handle</td><td><code>'satObs'</code></td></tr>
+<tr><td class="name">maxOuter</td><td>1&times;1 outer SHAPE&harr;SCALE passes</td><td><code>6</code></td></tr>
+<tr><td class="name">backend</td><td><code>'qr'</code> | <code>'normal'</code></td><td><code>'qr'</code></td></tr>
+<tr><td class="name">reg</td><td>as recover</td><td><code>'none'</code></td></tr>
+<tr><td class="name">parallel</td><td><code>'serial'|'parfor'|'spmd'</code></td><td><code>'serial'</code></td></tr>
+<tr><td class="name">verbose</td><td>1&times;1 logical</td><td><code>true</code></td></tr>
+</table>
+
+<h3>Fluent configurators (each returns P, so they chain)</h3>
+<table>
+<tr><td class="name">P.groupComponentsBy(key)</td><td>set the SCALE grouping granularity</td></tr>
+<tr><td class="name">P.stochasticModel('maxOrder',p,'acvTol',t)</td><td>within-group AR whitening</td></tr>
+<tr><td class="name">P.varianceComponents('maxIter',n,'tol',t)</td><td>between-group VCE</td></tr>
+<tr><td class="name">P.outer('maxOuter',k,'tol',t)</td><td>outer convergence gate</td></tr>
+<tr><td class="name">P.axes(map)</td><td>declare nAxes per obsType (pos&rarr;3, else 1)</td></tr>
+</table>
+
+<h2>Outputs</h2>
+<table>
+<tr><th>Name</th><th>Type / size</th><th>Description</th></tr>
+<tr><td class="name">R</td><td>1&times;1 <a href="lsqvce.Results.html">lsqvce.Results</a></td><td>The same object recover returns, with the iteration trajectory attached. <code>R.report()</code>, <code>R.residuals()</code>, <code>R.acc</code> all work unchanged.</td></tr>
+</table>
+<h3>R.history (struct)</h3>
+<table>
+<tr><td class="name">.sigma</td><td>nOuter&times;nGroup variance-component trajectory</td></tr>
+<tr><td class="name">.groups</td><td>1&times;nGroup VCE group keys, aligned with .sigma</td></tr>
+<tr><td class="name">.arOrder</td><td>nOuter&times;nStream selected AR order per stream per pass</td></tr>
+<tr><td class="name">.streams</td><td>1&times;nStream stream keys (<code>satKey|obsType</code>)</td></tr>
+<tr><td class="name">.white</td><td>nOuter&times;nStream logical: stream declared white this pass</td></tr>
+<tr><td class="name">.converged</td><td>1&times;1 logical: both gates met</td></tr>
+<tr><td class="name">.nOuter</td><td>1&times;1 outer passes actually run</td></tr>
+</table>
+
+<h2>Example (synthetic, end to end)</h2>
+<pre class="example">[cfg, L] = demo_grace_dataLoader();     % GRACE-FO synthetic (examples/ folder)
+R = lsqvce.adjustVCE(cfg.nc, L, cfg.days) ...
+       .groupComponentsBy('obsType') ...
+       .stochasticModel('maxOrder',60,'acvTol',1e-3) ...
+       .varianceComponents('maxIter',10,'tol',5e-3) ...
+       .run();
+R.report();                     % the usual level-0..4 verdict
+disp(R.history.sigma(end,:));   % ~ [1 1 1 1] at truth</pre>
+
+<h2>User-specific adaptation</h2>
+<div class="warn"><b>Read before running on your own data.</b>
+<ol>
+<li><b>Loader.</b> Write <code>buildDay(day,obsType) -&gt; .A .B .l .t (.arcIdx)</code>
+and wrap it with <a href="lsqvce.makeLoader.html">lsqvce.makeLoader</a>, one
+Loader per satellite. Give each obsType an initial <code>cov</code> spec
+(<code>'diag'</code> with a per-epoch sigma for positions,
+<code>'arma'</code>/<code>'diag'</code> for range-rate). The loop refines
+<code>.ar</code> and <code>.sigma</code>; it does not invent D &mdash; your
+buildDay/cov must supply the fixed per-epoch scaling.</li>
+<li><b>nAxes per obsType.</b> 3-D position streams have nAxes=3 (x,y,z share one
+R_t); range-rate is scalar, nAxes=1. Default: <code>pos&rarr;3</code>, everything
+else&rarr;1. Override with <code>P.axes(map)</code>.</li>
+<li><b>VCE granularity.</b> Default one sigma per (satellite,obsType). If a group
+has too little redundancy (VCE warns), coarsen with
+<code>P.groupComponentsBy('obsType')</code>.</li>
+<li><b>Coupled observations (inter-satellite range-rate).</b> The block-arrow
+model has one local block per system, so an observation depending on <em>two</em>
+satellites' arc states (KBR/range-rate between C and D) cannot be a third system.
+Merge C and D into one system with a stacked local block
+<code>[y_C | y_D]</code> (<code>nl = nl_C + nl_D</code>) carrying all obsTypes;
+each obsType's <code>buildDay</code> fills the sub-columns it touches
+(<code>posC</code>&rarr;first block, <code>posD</code>&rarr;second, <code>rr</code>&rarr;both).
+Use distinct obsType names and group VCE by <code>'obsType'</code>. See
+<code>demo_grace_dataLoader</code> (examples/) for a worked template. (If the
+range-rate depends only on the gravity field, add it as a third system with
+<code>nl = 0</code> instead.)</li>
+<li><b>Independent systems.</b> A satellite with NO inter-satellite link (e.g. a
+positions-only spacecraft) is simply a SEPARATE loader with its own
+<code>sysID</code> and its own local block, sharing the common field. The demo
+adds satellite E this way (<code>sysID 2</code>, <code>posE</code> only) alongside
+the C/D pair, so <code>L = {Lpair, Le}</code> and VCE by <code>'obsType'</code>
+yields four components.</li>
+<li><b>Parametrisation pipe.</b> <code>demo_grace_dataLoader</code> passes the
+unknowns as <code>makeLoader</code>'s <code>'common'</code>/<code>'local'</code>
+14-column tables (so <code>nc</code>/<code>nl</code> are DERIVED) and a
+<code>'procOpt'</code> struct, all piped to the day-builder's 3rd/4th/5th args.</li>
+<li><b>Priors.</b> A decent starting sigma and AR order shorten the loop but are
+not required; sigma_g^2 = 1 and a white start both converge.</li>
+</ol></div>
+
+<h2>Loader-contract additions used by the loop</h2>
+<div class="note">Two optional additions to
+<a href="lsqvce.makeLoader.html">lsqvce.makeLoader</a> power the loop, both
+backward compatible:
+<ul>
+<li><code>opt.covOverride.bySys.(satKey).(obsType)</code> &mdash; a per-satellite
+covariance override (keyed on the injected <code>opt.sysID</code>). This is how a
+distinct sigma_g and AR law reach each stream while all loaders share one
+UserOpt. The old flat <code>opt.covOverride.(obsType)</code> form still works.</li>
+<li><code>'epochCov'</code>, an optional <code>@(day,obsType)</code> hook handing
+the fixed per-epoch D directly to <a href="lsqvce.residualAcv.html">residualAcv</a>
+for exact separable de-scaling. Without it, the loop falls back to the
+scalar-sigma whitened-residual path.</li>
+</ul></div>
+
+<h2>Empirical stochastic modelling: <code>P.empiricalStochastic()</code> and <code>P.validate(R)</code></h2>
+<p><code>empiricalStochastic()</code> is a single, named front door that runs
+<b>empirical stochastic modelling</b> of the observation noise end to end. It adds
+no new numerics &mdash; it fixes the canonical ordering of steps the loop already
+implements, checks the homogenisation precondition, and attaches the acceptance
+test. The observation noise covariance is <i>discovered</i> from the postfit
+residuals and iterated to self-consistency, then <i>validated</i> by the
+agreement of formal and empirical parameter errors (Ellmer 2018 &sect;6.5; Kvas
+et&nbsp;al. 2019 &mdash; see references below).</p>
+
+<pre class="syntax">R = P.groupComponentsBy('obsType').empiricalStochastic();   % homogenise -&gt; loop -&gt; validate
+R = P.empiricalStochastic('homogenise',true,'validate',true,'alpha',0.01,'report',true);
+E = P.validate(R);                              % the acceptance test, standalone</pre>
+
+<p>The steps, each mapped to the toolbox call that performs it:</p>
+<table>
+<tr><th>Step</th><th>What</th><th>Toolbox call</th></tr>
+<tr><td class="name">0 homogenise</td><td>Positions carry their fixed per-epoch PPP covariance as D (rotated to along/across/radial). Preflight only checks this; it never re-estimates D.</td><td class="name">epochCov / Cep (<a href="lsqvce.makeLoader.html">makeLoader</a>)</td></tr>
+<tr><td class="name">1 start white</td><td>sigma_g&sup2;=1, R_t=I unless a prior override is present.</td><td class="name">&mdash;</td></tr>
+<tr><td class="name">2 solve</td><td>One block-arrow GLS pass under the current covariance.</td><td class="name"><a href="lsqvce.adjustBlock.html">adjustBlock</a></td></tr>
+<tr><td class="name">3 postfit residuals</td><td>Descaled by the fixed D so the ACV is the temporal law only.</td><td class="name"><a href="lsqvce.residualAcv.html">residualAcv</a></td></tr>
+<tr><td class="name">4 shape (colour)</td><td>Re-fit the per-stream temporal AR law; whiteness by a Ljung&ndash;Box portmanteau test.</td><td class="name"><a href="lsqvce.selectArAcv.html">selectArAcv</a></td></tr>
+<tr><td class="name">5 scale (level)</td><td>One Helmert variance component per group, folded into the override.</td><td class="name"><a href="lsqvce.vce.html">vce</a></td></tr>
+<tr><td class="name">6 iterate</td><td>Repeat 2&ndash;5 until every stream is white and every sigma_g&sup2;&nbsp;&asymp;&nbsp;1 (typically ~3 passes).</td><td class="name">the loop</td></tr>
+<tr><td class="name">7 validate</td><td>Compare formal (sqrt(diag(Cxx))) against empirical error scale; report per-stream whiteness p-values and per-group sigma; single accept/reject verdict.</td><td class="name">P.validate</td></tr>
+</table>
+
+<div class="note"><b>Why the validation matters.</b> A self-consistent model
+(sigma0&nbsp;&rarr;&nbsp;1, residuals white) is necessary but not sufficient. The
+external check is that the <i>formal</i> parameter errors &mdash; which depend on
+both the geometry and the assumed noise &mdash; match the <i>empirical</i> error
+scale. Good agreement means the formal covariance can be trusted directly and no
+separate error calibration is needed (Kvas et&nbsp;al. 2019). <code>validate()</code>
+returns a struct with <code>.sigma0</code>, per-group <code>.sigma</code>/<code>.sigmaOffset</code>,
+per-stream <code>.pWhite</code>/<code>.white</code>, <code>.formalStd</code>,
+<code>.empOverForm</code> and the overall <code>.accepted</code> verdict; with
+<code>empiricalStochastic('validate',true)</code> it is also attached at <code>R.history.empiricalStochastic</code>.</div>
+
+<div class="warn"><b>Homogenisation warning.</b> If a 3-D position stream has no
+<code>epochCov</code>/<code>Cep</code>, step&nbsp;0 raises
+<code>lsqvce:adjustVCE:notHomogenised</code> &mdash; the loop still runs, but
+would whiten positions with a scalar sigma, which is not the separable model.
+Supply D via the loader, or pass <code>'homogenise',false</code> if the scalar D
+is deliberate.</div>
+
+<p class="purpose">References: Ellmer, M. (2018), <i>Contributions to GRACE
+Gravity Field Recovery</i>, doctoral thesis, TU Graz,
+doi:10.3217/978-3-85125-646-8 (&sect;6.5); Kvas, A. et&nbsp;al. (2019),
+<i>ITSG-Grace2018</i>, JGR Solid Earth 124(8), doi:10.1029/2019JB017415.</p>
+
+<div class="seealso"><b>See also:</b> <a href="lsqvce.adjustBlock.html">lsqvce.adjustBlock</a>, <a href="lsqvce.vce.html">lsqvce.vce</a>, <a href="lsqvce.iterateNoiseModel.html">lsqvce.iterateNoiseModel</a>, <a href="lsqvce.redundancy.html">lsqvce.redundancy</a>, <a href="lsqvce.selectArAcv.html">lsqvce.selectArAcv</a>, <a href="lsqvce.residualAcv.html">lsqvce.residualAcv</a>, <a href="lsqvce.separableWhiten.html">lsqvce.separableWhiten</a>, <a href="lsqvce.makeLoader.html">lsqvce.makeLoader</a>, <a href="lsqvce.Results.html">lsqvce.Results</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Created 2026-07-16 (CEST, UTC+02:00) with assistance from Claude (Anthropic), model Claude Opus 4.8.</div>
+</body></html>

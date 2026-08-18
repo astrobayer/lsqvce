@@ -1,0 +1,87 @@
+function r = armaACV(a, b, n)
+%LSQVCE.ARMAACV  Autocovariance of an ARMA(p,q) with unit innovation variance.
+%
+%   r = LSQVCE.ARMAACV(a, b, n) returns r(0:n-1) for the stationary process
+%
+%       A(z) x(k) = B(z) e(k),      var(e) = 1
+%
+%   with a = [1 a1 ... ap] and b = [1 b1 ... bq]. For a pure AR pass b = 1.
+%   Scale by the innovation variance to get the physical autocovariance:
+%   r_phys = sigma^2 * lsqvce.armaACV(a, b, n).
+%
+%   INPUT
+%     a    1 x (p+1)  AR polynomial, a(1) must be 1 (normalised)
+%     b    1 x (q+1)  MA polynomial, b(1) must be 1 (normalised)
+%     n    scalar     number of lags, >= 1
+%
+%   OUTPUT
+%     r    n x 1      autocovariance for unit innovation variance
+%
+%   METHOD
+%     Computed from the Wold (impulse-response) expansion via FFT rather than
+%     from the recursive Yule-Walker equations. This is deliberate: the
+%     recursion loses accuracy for near-unit-root AR polynomials, which is
+%     exactly the regime of a steep low-frequency noise floor. The impulse
+%     response is truncated once it has decayed below eps relative to its
+%     peak, so the FFT length adapts to the decay rate.
+%
+%   BEST PRACTICE
+%     The process must be stationary: all roots of a(z) strictly inside the
+%     unit circle. A near-unit root (|root| -> 1) means an extremely long
+%     correlation length, which makes the AR whitening filter memory p large
+%     and the batch overlap expensive. If lsqvce.checkPSD reports a marginally
+%     stable fit, the PSD probably has an unmodelled trend -- detrend the
+%     residuals before estimating it.
+%
+%   EXAMPLE
+%     % analytic check against ARMA(1,1): phi = 0.9, theta = 0.5
+%     r  = lsqvce.armaACV([1 -0.9], [1 0.5], 3);
+%     r0 = (1 + 2*0.9*0.5 + 0.5^2)/(1 - 0.9^2);   % = 9.7368
+%     r1 = 0.9*r0 + 0.5;                          % = 9.2632
+%     assert(abs(r(1)-r0)/r0 < 1e-8 && abs(r(2)-r1)/r1 < 1e-8)
+%
+%   ERRORS
+%     lsqvce:armaACV:zeroLeadingAR  the AR polynomial does not start with 1
+%     lsqvce:armaACV:nonStationary  the AR part has a root on or inside the unit
+%                                   circle, so no stationary ACV exists
+%
+%   See also LSQVCE.LEVINSONDURBIN, LSQVCE.ARMAWHITEN, LSQVCE.PSD2ACV
+%
+%   Generated with assistance from Claude (Anthropic), model Claude
+%   Opus 4.8.
+
+    narginchk(3,3);
+    a = a(:).';   b = b(:).';
+
+    validateattributes(a, {'double'}, {'row','finite','nonempty'}, mfilename, 'a', 1);
+    validateattributes(b, {'double'}, {'row','finite','nonempty'}, mfilename, 'b', 2);
+    validateattributes(n, {'numeric'}, {'scalar','integer','positive'}, mfilename, 'n', 3);
+
+    if a(1) == 0
+        error('lsqvce:armaACV:zeroLeadingAR', 'a(1) must be nonzero.');
+    end
+    a = a / a(1);   b = b / b(1);        % normalise
+
+    rts = roots(a);
+    if ~isempty(rts) && max(abs(rts)) >= 1
+        error('lsqvce:armaACV:nonStationary', ...
+            ['The AR polynomial is not stationary (max |root| = %.6f >= 1). ' ...
+             'The autocovariance does not exist. Detrend the data or reduce ' ...
+             'the AR order.'], max(abs(rts)));
+    end
+
+    n = double(n);
+
+    % Impulse response length: grow until it has decayed, capped for safety.
+    nh = max(4*n, 512);
+    for k = 1:8
+        h = filter(b, a, [1; zeros(nh-1,1)]);
+        if abs(h(end)) < eps*max(abs(h)) || nh >= 2^20, break, end
+        nh = 2*nh;
+    end
+
+    nfft = 2^nextpow2(2*nh);
+    R    = ifft(abs(fft(h, nfft)).^2, 'symmetric');
+    r    = R(1:n);
+    r    = r(:);
+end

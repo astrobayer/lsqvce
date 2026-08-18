@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<h1>lsqvce</h1>
+<div class="purpose">Judging a least-squares adjustment &mdash; and getting its
+stochastic model right &mdash; in batches.</div>
+
+<div class="note"><b>What lsqvce is.</b> One flat package that merges two
+lineages: a <b>streaming block-arrow accumulator</b> with per-arc variance
+component estimation (for gravity-field recovery), and a <b>per-observation
+diagnostics</b> layer (redundancy numbers, the five-level verdict, data
+snooping, robust reweighting, systematic-error tests). The bridge
+<code>diagnoseAccum</code> runs the full verdict on a gravity-recovery
+adjustment.</div>
+
+<h2>Getting started</h2>
+<p>Everything is streaming: <code>A</code> and <code>P</code> are supplied in
+batches and nothing of size <code>n</code> is ever formed. Cost is
+O(u&sup2;&middot;nk) time and O(u&sup2; + nk) memory per batch.</p>
+
+<pre class="example">% batchFcn(k) returns the k-th batch: A (nk x u), l (nk x 1), p (nk x 1)
+src = @(k) deal(A(idx{k},:), l(idx{k}), p(idx{k}));
+
+[sol, D, V] = adjust(u, src, numel(idx));
+
+if ~strcmp(V.verdict, 'PASS')
+    systematic(D);                        % smooth error?
+    [sol, D, REJ] = snoop(sol, D, src);   % iterative rejection
+end</pre>
+
+<div class="note"><b>batchFcn is called twice</b> &mdash; once to accumulate,
+once to diagnose &mdash; and must return identical data both times. This is
+checked; a mismatch is an error, not a silent misattribution.</div>
+
+<div class="note"><b>Not sure which front door to use?</b> See
+<a href="lsqvce_choosing.html">Choosing an engine &amp; VCE backend</a> &mdash;
+a decision flowchart (adjust / adjustBlock / adjustVCE) plus the exact-vs-Hutchinson
+cost curves. The runnable build-your-own-case guide is
+<code>examples/demo_workflow.m</code>.</div>
+
+<div class="note"><b>Starting your own case?</b> Copy
+<a href="lsqvce_template.html"><code>template/lsqvce_template.m</code></a> and
+fill in its two documented stubs. The GRACE-FO example
+(<code>examples/demo_grace_dataLoader.m</code>) is a worked case to read
+alongside it.</div>
+
+<h2>Gravity recovery workflow</h2>
+<pre class="example">% streaming block-arrow accumulate -> solve -> variance components -> verdict
+acc = BlockAccumulator(nc, 'Backend','qr', 'KeepLocal',true);
+acc.addSystem('GRACE-C', nl, graceLoaderC, days);
+acc.addSystem('GRACE-D', nl, graceLoaderD, days);
+
+vc  = vce(@(sig) buildAccumulator(cfg,sig), 'GroupBy','obsType');
+sol = vc.sol;                                   % solution at converged weights
+
+[dsol, src, nB] = diagnoseAccum(acc, sol);   % bridge to diagnostics
+D = diagnose(dsol, src, 'nBatch', nB);
+V = report(D);                           % the five levels</pre>
+
+<h2>The five levels of the report</h2>
+<p>The report is ordered so that a failure at one level invalidates the levels
+below it.</p>
+<table>
+<tr><th>Level</th><th>Question</th><th>Key output</th></tr>
+<tr><td><b>0 Integrity</b></td><td>Does the arithmetic hold?</td>
+    <td><code>sum(r_i) == n-u</code></td></tr>
+<tr><td><b>1 Global</b></td><td>Is the model consistent?</td>
+    <td>s0&sup2;/&sigma;0&sup2; vs &chi;&sup2;</td></tr>
+<tr><td><b>2 Localise</b></td><td>Where is it broken?</td>
+    <td>data snooping, contamination gauge</td></tr>
+<tr><td><b>3 Reliability</b></td><td><i>What can you not check?</i></td>
+    <td>redundancy numbers, MDB, quadrants</td></tr>
+<tr><td><b>4 Parameters</b></td><td>What do you actually know?</td>
+    <td>correlations, conditioning</td></tr>
+</table>
+
+<div class="danger"><b>Two hazards this toolbox exists to catch.</b>
+<br><br>
+<b>1. Pope's tau goes blind under contamination.</b> It divides by
+<code>s0</code>, which is estimated from data that <i>contain</i> the blunders.
+At 10% contamination a <b>100&sigma; blunder is undetectable</b>, and iterating
+does not rescue it. Use <code>'test','mad'</code>, and heed the contamination
+gauge.
+<br><br>
+<b>2. A small residual is not evidence of a good observation.</b> A residual
+reveals only the fraction <code>r_i</code> of any error present
+(E[&Delta;v] = &minus;r&middot;b, exactly). At <code>r = 0</code> a
+<b>40&sigma; blunder produces |w| = 0.000</b>. Read the <i>quadrants</i>, not
+<code>w</code> alone.</div>
+
+<h2>Function reference</h2>
+<h3>Solving</h3><table>
+<tr><td class="name"><a href="lsqvce.Accumulator.html">lsqvce.Accumulator</a></td><td></td></tr>
+<tr><td class="name"><a href="lsqvce.adjust.html">lsqvce.adjust</a></td><td>Solve, diagnose and judge a batch least-squares problem.</td></tr>
+<tr><td class="name"><a href="lsqvce.solveNonlinear.html">lsqvce.solveNonlinear</a></td><td>Iterated (Gauss-Newton) least squares in batches.</td></tr>
+<tr><td class="name"><a href="lsqvce.NormalEqSystem.html">lsqvce.NormalEqSystem</a></td><td></td></tr>
+<tr><td class="name"><a href="lsqvce.QRSystem.html">lsqvce.QRSystem</a></td><td></td></tr>
+<tr><td class="name"><a href="lsqvce.applyRegularisation.html">lsqvce.applyRegularisation</a></td><td>Regularise a local block before pre-elimination.</td></tr>
+</table>
+<h3>Access layer &mdash; one-call front door</h3><table>
+<tr><td class="name"><a href="lsqvce.adjustBlock.html">lsqvce.adjustBlock</a></td><td>One-call block-arrow adjustment: accumulate, solve, judge.</td></tr>
+<tr><td class="name"><a href="lsqvce.Results.html">lsqvce.Results</a></td><td>The outcome of a recovery: solution, diagnostics, provenance.</td></tr>
+<tr><td class="name"><a href="lsqvce.makeLoader.html">lsqvce.makeLoader</a></td><td>Turn a day-builder into an accumulator-ready Loader.</td></tr>
+<tr><td class="name"><a href="lsqvce.adjustVCE.html">lsqvce.adjustVCE</a></td><td>Iterative separable-GLS engine: SHAPE (temporal whitening) + SCALE (VCE), over adjustBlock.</td></tr>
+<tr><td class="name"><a href="lsqvce.resolveNc.html">lsqvce.resolveNc</a></td><td>Derive the common-parameter count nc from the systems themselves (single source of truth).</td></tr>
+</table>
+<h3>Gravity recovery &mdash; streaming block-arrow (merged from lsqAccum)</h3><table>
+<tr><td class="name"><a href="lsqvce.BlockAccumulator.html">lsqvce.BlockAccumulator</a></td><td></td></tr>
+<tr><td class="name"><a href="lsqvce.diagnoseAccum.html">lsqvce.diagnoseAccum</a></td><td>Bridge a block-arrow lsqvce.BlockAccumulator adjustment into LSQVCE diagnostics.</td></tr>
+<tr><td class="name"><a href="lsqvce.redundancy.html">lsqvce.redundancy</a></td><td>Per-group and per-observation redundancy, exactly.</td></tr>
+<tr><td class="name"><a href="lsqvce.leverage.html">lsqvce.leverage</a></td><td>Per-observation leverage h_ii of the JOINT system, exactly.</td></tr>
+<tr><td class="name"><a href="lsqvce.outliers.html">lsqvce.outliers</a></td><td>Data snooping (Baarda) using exact partial redundancy.</td></tr>
+<tr><td class="name"><a href="lsqvce.CommonPrior.html">lsqvce.CommonPrior</a></td><td></td></tr>
+<tr><td class="name"><a href="lsqvce.ReducedContribution.html">lsqvce.ReducedContribution</a></td><td></td></tr>
+<tr><td class="name"><a href="lsqvce.residuals.html">lsqvce.residuals</a></td><td>Second pass over the data to compute residuals.</td></tr>
+<tr><td class="name"><a href="lsqvce.mapreduce.html">lsqvce.mapreduce</a></td><td>Execution-strategy layer: serial | parfor | spmd.</td></tr>
+<tr><td class="name"><a href="lsqvce.PrefetchLoader.html">lsqvce.PrefetchLoader</a></td><td></td></tr>
+<tr><td class="name"><a href="lsqvce.synthLoader.html">lsqvce.synthLoader</a></td><td>Synthetic ground-truth loader -- and the loader TEMPLATE.</td></tr>
+</table>
+<h3>Separable-GLS helpers (the GRACE-FO template is examples/demo_grace_dataLoader.m)</h3><table>
+<tr><td class="name"><a href="lsqvce.collectResiduals.html">lsqvce.collectResiduals</a></td><td>Stack one residual field over the arcs of a stream.</td></tr>
+<tr><td class="name"><a href="lsqvce.residualAcv.html">lsqvce.residualAcv</a></td><td>Temporal autocovariance of de-scaled residuals.</td></tr>
+<tr><td class="name"><a href="lsqvce.whitenessCorr.html">lsqvce.whitenessCorr</a></td><td>Largest absolute autocorrelation over a lag range.</td></tr>
+<tr><td class="name"><a href="lsqvce.resolveSatSpecs.html">lsqvce.resolveSatSpecs</a></td><td>Per-satellite configuration: overrides over defaults.</td></tr>
+<tr><td class="name"><a href="lsqvce.normalizeSatList.html">lsqvce.normalizeSatList</a></td><td>Normalise a satellite list to a cell of scalar ids.</td></tr>
+<tr><td class="name"><a href="lsqvce.satKeyOf.html">lsqvce.satKeyOf</a></td><td>Valid struct field name for a satellite identifier.</td></tr>
+<tr><td class="name"><a href="lsqvce.selectArAcv.html">lsqvce.selectArAcv</a></td><td>Automatic AR-order selection by ACV (decorrelation) fidelity.</td></tr>
+</table>
+<h3>Combining data sets</h3><table>
+<tr><td class="name"><a href="lsqvce.BatchIndex.html">lsqvce.BatchIndex</a></td><td></td></tr>
+<tr><td class="name"><a href="lsqvce.Combine.html">lsqvce.Combine</a></td><td></td></tr>
+</table>
+<h3>Diagnostics</h3><table>
+<tr><td class="name"><a href="lsqvce.diagnose.html">lsqvce.diagnose</a></td><td>Second-pass per-observation diagnostics for a batch LSQ.</td></tr>
+<tr><td class="name"><a href="lsqvce.report.html">lsqvce.report</a></td><td>Judge a least-squares adjustment and say so in words.</td></tr>
+<tr><td class="name"><a href="lsqvce.systematic.html">lsqvce.systematic</a></td><td>Detect unmodelled systematic errors in the residuals.</td></tr>
+</table>
+<h3>Outliers &amp; robust</h3><table>
+<tr><td class="name"><a href="lsqvce.robust.html">lsqvce.robust</a></td><td>Robust (M-) estimation by iteratively reweighted least squares.</td></tr>
+<tr><td class="name"><a href="lsqvce.snoop.html">lsqvce.snoop</a></td><td>Iterative data snooping: reject outliers one at a time.</td></tr>
+</table>
+<h3>Stochastic model &mdash; VCE</h3><table>
+<tr><td class="name"><a href="lsqvce.vce.html">lsqvce.vce</a></td><td>Helmert variance component estimation, per arc.</td></tr>
+<tr><td class="name"><a href="lsqvce.varComp.html">lsqvce.varComp</a></td><td>Helmert variance-component estimation, streaming.</td></tr>
+<tr><td class="name"><a href="lsqvce.vceHutchinson.html">lsqvce.vceHutchinson</a></td><td>Helmert variance components via the Ellmer Hutchinson trace estimator (large common blocks; no dense inverse).</td></tr>
+<tr><td class="name"><a href="lsqvce.poolGroups.html">lsqvce.poolGroups</a></td><td>Suggest/build a coarser VCE grouping when a group's redundancy is too low for a reliable component.</td></tr>
+<tr><td class="name"><a href="lsqvce.traceEstimate.html">lsqvce.traceEstimate</a></td><td>Monte-Carlo (Hutchinson) trace estimator, Ellmer 2018 &sect;6.5.6 &mdash; opt-in VCE accelerator.</td></tr>
+<tr><td class="name"><a href="lsqvce.contribution.html">lsqvce.contribution</a></td><td>Per-group information share of the solution: Level 1 scalar share (exact), Level 2 per-parameter diagonal (streamed).</td></tr>
+<tr><td class="name"><a href="lsqvce.streamContribution.html">lsqvce.streamContribution</a></td><td>Matrix-free per-group N^-1 N_g^cc probing over one data sweep (never forms a group normal).</td></tr>
+</table>
+<h3>Stochastic model &mdash; joint VCE (Ellmer 2018 &sect;6.5)</h3><table>
+<tr><td class="name"><a href="lsqvce.adjustVCEjoint.html">lsqvce.adjustVCEjoint</a></td><td>The 10-step joint driver: co-estimate every variance component in one Helmert VCE per pass.</td></tr>
+<tr><td class="name"><a href="lsqvce.jointModelOpt.html">lsqvce.jointModelOpt</a></td><td>Adapter turning a driver model into loader UserOpt (encodes the three silently-failing conventions).</td></tr>
+<tr><td class="name"><a href="lsqvce.psdVCE.html">lsqvce.psdVCE</a></td><td>Per-frequency amplitude variance-component estimation.</td></tr>
+<tr><td class="name"><a href="lsqvce.arcVarianceFactors.html">lsqvce.arcVarianceFactors</a></td><td>Per-arc variance factors with gamma normalisation and robust mean.</td></tr>
+<tr><td class="name"><a href="lsqvce.redundancyLags.html">lsqvce.redundancyLags</a></td><td>Per-arc s_n = tr(Rbar V_n) and Omega_n kernel.</td></tr>
+<tr><td class="name"><a href="lsqvce.sharedProbe.html">lsqvce.sharedProbe</a></td><td>The once-per-iteration U^-1 Zbar shared probe block.</td></tr>
+<tr><td class="name"><a href="lsqvce.toeplitzCofactor.html">lsqvce.toeplitzCofactor</a></td><td>Toeplitz cofactor matrix from a lag sequence.</td></tr>
+<tr><td class="name"><a href="lsqvce.covComponent.html">lsqvce.covComponent</a></td><td>Lag/covariance component primitive (Ellmer eqs. 6.5.12-6.5.17).</td></tr>
+<tr><td class="name"><a href="lsqvce.dctI.html">lsqvce.dctI</a></td><td>Type-I discrete cosine transform.</td></tr>
+</table>
+<h3>Stochastic model &mdash; coloured noise / whitening</h3><table>
+<tr><td class="name"><a href="lsqvce.covModel.html">lsqvce.covModel</a></td><td>Build covariance / whitening operators for one arc.</td></tr>
+<tr><td class="name"><a href="lsqvce.separableWhiten.html">lsqvce.separableWhiten</a></td><td>Whiten multi-axis observations with a separable covariance.</td></tr>
+<tr><td class="name"><a href="lsqvce.varWhiten.html">lsqvce.varWhiten</a></td><td>Whiten multi-axis observations against a vector-AR model.</td></tr>
+<tr><td class="name"><a href="lsqvce.armaWhiten.html">lsqvce.armaWhiten</a></td><td>Apply an ARMA whitening filter column-wise (exact).</td></tr>
+<tr><td class="name"><a href="lsqvce.decorrFactor.html">lsqvce.decorrFactor</a></td><td>Decorrelation factor W with W&#x27;*W = inv(C).</td></tr>
+<tr><td class="name"><a href="lsqvce.levinsonDurbin.html">lsqvce.levinsonDurbin</a></td><td>Autocovariance -&gt; AR(p) coefficients (Levinson recursion).</td></tr>
+<tr><td class="name"><a href="lsqvce.whittle.html">lsqvce.whittle</a></td><td>Multichannel Levinson-Durbin: cross-ACV -&gt; VAR(p).</td></tr>
+<tr><td class="name"><a href="lsqvce.ar2arma.html">lsqvce.ar2arma</a></td><td>Reduce a high-order AR to a compact ARMA(p,q) (Durbin&#x27;s method).</td></tr>
+<tr><td class="name"><a href="lsqvce.armaACV.html">lsqvce.armaACV</a></td><td>Autocovariance of an ARMA(p,q) with unit innovation variance.</td></tr>
+<tr><td class="name"><a href="lsqvce.varACV.html">lsqvce.varACV</a></td><td>Cross-autocovariance of a stationary VAR(p) process.</td></tr>
+<tr><td class="name"><a href="lsqvce.psd2acv.html">lsqvce.psd2acv</a></td><td>One-sided PSD -&gt; autocovariance sequence (Wiener-Khinchin).</td></tr>
+<tr><td class="name"><a href="lsqvce.crossCorr.html">lsqvce.crossCorr</a></td><td>Cross-axis / temporal correlation of the whitened residuals.</td></tr>
+<tr><td class="name"><a href="lsqvce.selectArOrder.html">lsqvce.selectArOrder</a></td><td>Choose the AR order automatically, on the RIGHT criterion.</td></tr>
+<tr><td class="name"><a href="lsqvce.iterateNoiseModel.html">lsqvce.iterateNoiseModel</a></td><td>Iterate the covariance model until it is RIGHT, not assumed.</td></tr>
+<tr><td class="name"><a href="lsqvce.checkPSD.html">lsqvce.checkPSD</a></td><td>Verify that the AR/ARMA reduction reproduces the PSD.</td></tr>
+<tr><td class="name"><a href="lsqvce.gcvLambda.html">lsqvce.gcvLambda</a></td><td>Generalised cross-validation choice of the Tikhonov weight.</td></tr>
+</table>
+<h3>Model testing</h3><table>
+<tr><td class="name"><a href="lsqvce.ellipse.html">lsqvce.ellipse</a></td><td>Confidence ellipse for a pair of correlated parameters.</td></tr>
+<tr><td class="name"><a href="lsqvce.ftest.html">lsqvce.ftest</a></td><td>Is the extra parameter earning its place?</td></tr>
+</table>
+<h3>Free networks</h3><table>
+<tr><td class="name"><a href="lsqvce.datum.html">lsqvce.datum</a></td><td>Detect a datum defect and construct the datum matrix B.</td></tr>
+</table>
+<h3>Support</h3><table>
+<tr><td class="name"><a href="lsqvce.stat.html">lsqvce.stat</a></td><td></td></tr>
+</table>
+<h3>Utilities (+util)</h3><table>
+<tr><td class="name"><a href="lsqvce.util.getfielddef.html">lsqvce.util.getfielddef</a></td><td>Field value with a default.</td></tr>
+<tr><td class="name"><a href="lsqvce.util.mergeStruct.html">lsqvce.util.mergeStruct</a></td><td>Overlay the fields of t onto s.</td></tr>
+<tr><td class="name"><a href="lsqvce.util.log.html">lsqvce.util.log</a></td><td>Toolbox-wide logging: logfid (file) + logflag (screen).</td></tr>
+<tr><td class="name"><a href="lsqvce.util.verbosity.html">lsqvce.util.verbosity</a></td><td>Message levels (0 silent | 1 progress | 2 stage | 3 diagnostic) and the shared banner formatter.</td></tr>
+<tr><td class="name"><a href="lsqvce.util.showExport.html">lsqvce.util.showExport</a></td><td>Show a figure briefly, then export it as a PNG (adjustVCE plot hooks).</td></tr>
+</table>
+
+<h2>Manuals</h2>
+<div class="note"><b>The single master manual is
+<code>lsqvce_manual.pdf</code></b>, in the toolbox root: theory, every entry
+point with a workflow diagram, a step-by-step guide to adapting the template,
+interpretation and the reference tables, in one document. Rebuild it with
+<code>python3 docs_src/build_master_pdf.py</code>. The HTML pages below remain
+as the browsable, per-topic form of the same material.</div>
+<p>All documentation is HTML and travels with the toolbox (equations render
+offline). Open any of these from <code>doc lsqvce</code> or the Help browser:</p>
+<table>
+<tr><td class="name"><a href="lsqvce_user_manual.html">User Manual</a></td>
+    <td>theory, what you supply, reading the diagnosis, gravity recovery, step-by-step</td></tr>
+<tr><td class="name"><a href="lsqvce_reference_manual.html">Reference Manual</a></td>
+    <td>symbols, equations, matrix conventions, block-arrow QR, whitening</td></tr>
+<tr><td class="name"><a href="lsqvce_interpretation_guide.html">Interpretation Guide</a></td>
+    <td>what to run, and how to read what comes back</td></tr>
+<tr><td class="name"><a href="lsqvce_choosing.html">Choosing an engine</a></td>
+    <td>decision flowchart + exact-vs-Hutchinson cost curves</td></tr>
+<tr><td class="name"><a href="lsqvce_template.html">Your own case (template)</a></td>
+    <td>copy <code>template/lsqvce_template.m</code>, fill two stubs</td></tr>
+</table>
+
+<h2>Tests</h2>
+<pre class="example">run_all_lsqvce                    % THE gate: all 18 suites + a full log
+run_lsqvce                        % one suite, interactively</pre>
+<div class="warn"><b>Use <code>run_all_lsqvce</code>, not
+<code>runtests('tests')</code>.</b> <code>runtests</code> on a folder SKIPS a file
+that fails to load and still reports the remainder as green &mdash; a suite can
+look clean while an entire file never ran. <code>run_all_lsqvce</code> counts
+load failures as failures and writes <code>tests/last_run_all.txt</code>.</div>
+
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+</body></html>

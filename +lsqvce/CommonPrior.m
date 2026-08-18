@@ -1,0 +1,156 @@
+classdef CommonPrior
+%LSQVCE.COMMONPRIOR  Basis-agnostic regularisation of the COMMON parameters.
+%
+%   Adds a prior  K*x ~ x0  with weight 1/sigma^2, so the reduced system becomes
+%
+%       (Ncc_red + (1/sigma^2)*K'K) x = ncc_red + (1/sigma^2)*K'*x0
+%
+%   The toolbox never needs to know what basis you are using. K is just a matrix.
+%
+%   CONSTRUCTOR
+%     pri = LSQVCE.COMMONPRIOR(K)                    x0 = 0, sigma = 1
+%     pri = LSQVCE.COMMONPRIOR(K, x0)
+%     pri = LSQVCE.COMMONPRIOR(K, x0, sigma)
+%
+%   K IS THE SCIENCE -- CHOOSE IT DELIBERATELY
+%     K = eye(nc)                     plain damping (rarely what you want)
+%     K = diag(1./sigma_l)            Kaula: you build sigma_l = 1e-5./l.^2 from
+%                                     your own degree mapping. The toolbox never
+%                                     sees "spherical harmonic".
+%     K = L                           mascon smoothness: L is the graph Laplacian
+%                                     of the mascon adjacency (sparse). Penalises
+%                                     differences between neighbouring mascons.
+%     K = chol(inv(C_signal))         full signal-covariance prior from a
+%                                     background field.
+%     K = [zeros(k,n1) eye(k) zeros]  regularise a SUBSET only.
+%
+%     For a "regularise toward a background model" workflow, set x0 to that
+%     model's coefficients rather than zero.
+%
+%   SIGMA FROM VCE, NOT FROM A TUNING KNOB
+%     Treat the prior as a pseudo-observation group with its own variance
+%     component. Then lambda = sigma0^2 / sigma_prior^2 falls straight out of the
+%     Helmert iteration, and the prior's REDUNDANCY tells you how many degrees of
+%     freedom it is actually absorbing. That is far more informative than a bare
+%     lambda, and it works identically for spherical harmonics, mascons, or
+%     anything else.
+%
+%   THE DIAGNOSTIC THAT MATTERS
+%     [rK, absorbed] = pri.redundancy(Lc)
+%
+%       absorbed  =  nk - rK  =  trace(Sxx*K'K)/sigma^2
+%
+%     is the effective number of parameters constrained by the prior.
+%       absorbed -> 0   the prior is doing nothing; you do not need it
+%       absorbed -> nk  the prior is doing everything; you are recovering x0 and
+%                       the data is contributing almost nothing
+%     Report this. A lambda without it is uninterpretable.
+%
+%   THIS BIASES THE LOCAL PARAMETERS TOO
+%     Regularising the common block propagates into y_s through back-
+%     substitution -- the mirror image of the warning in LSQVCE.APPLYREGULARISATION.
+%     There is no free lunch in either direction.
+%
+%   L2 ONLY
+%     This is a normal-equation framework, so the prior is Gaussian / L2. If you
+%     want mascon L1 or total-variation regularisation -- which much of the
+%     mascon literature actually uses -- that is NOT a normal-equation problem
+%     and does not belong here. Use a proper convex solver.
+%
+%   EXAMPLE
+%     % Kaula on a spherical-harmonic field
+%     l   = degreeOfEachCoefficient(nc);          % you supply this
+%     sig = 1e-5 ./ l.^2;
+%     pri = lsqvce.CommonPrior(diag(1./sig), [], 1.0);
+%
+%     % mascon smoothness
+%     L   = masconLaplacian(adjacency);           % sparse, nk x nc
+%     pri = lsqvce.CommonPrior(L, [], 1.0);
+%
+%     sol = acc.solve('Prior', pri);
+%     lsqvce.util.log.msg('prior absorbed %.1f of %d DoF\n', sol.priorAbsorbed, pri.nk);
+%
+%   ERRORS
+%     lsqvce:prior:badTarget        the prior target has the wrong length
+%
+%   See also LSQVCE.BLOCKACCUMULATOR, LSQVCE.VCE, LSQVCE.APPLYREGULARISATION
+%
+%   Generated with assistance from Claude (Anthropic), model Claude
+%   Opus 4.8.
+
+    properties (SetAccess = immutable)
+        K            % nk x nc  constraint matrix
+        x0           % nk x 1   target (default zero)
+        sigma        % scalar   prior standard deviation
+        nk           % number of pseudo-observations
+        nc           % number of common parameters
+    end
+
+    methods
+        function o = CommonPrior(K, x0, sigma)
+            narginchk(1,3);
+            if nargin < 2 || isempty(x0),    x0    = [];  end
+            if nargin < 3 || isempty(sigma), sigma = 1.0; end
+
+            validateattributes(K, {'double'}, {'2d','nonempty','finite'}, ...
+                               'lsqvce.CommonPrior', 'K', 1);
+            validateattributes(sigma, {'double'}, {'scalar','positive','finite'}, ...
+                               'lsqvce.CommonPrior', 'sigma', 3);
+
+            o.K  = K;
+            o.nk = size(K,1);
+            o.nc = size(K,2);
+
+            if isempty(x0)
+                o.x0 = zeros(o.nk, 1);
+            else
+                x0 = x0(:);
+                if numel(x0) ~= o.nk
+                    error('lsqvce:prior:badTarget', ...
+                        ['x0 has %d elements but K has %d rows. x0 lives in the ' ...
+                         'CONSTRAINT space (K*x ~ x0), not the parameter space.'], ...
+                         numel(x0), o.nk);
+                end
+                o.x0 = x0;
+            end
+            o.sigma = sigma;
+        end
+
+        %------------------------------------------------------------------
+        function [N, n] = normals(o)
+        %NORMALS  Normal-equation contribution of the prior.
+            w  = 1/o.sigma;
+            Kw = o.K * w;
+            N  = Kw.' * Kw;
+            n  = Kw.' * (o.x0 * w);
+            N  = (N + N.')/2;
+        end
+
+        %------------------------------------------------------------------
+        function [rK, absorbed] = redundancy(o, Lc)
+        %REDUNDANCY  Redundancy of the prior, and the DoF it absorbs.
+        %
+        %   rK       = nk - trace(Sxx*K'K)/sigma^2
+        %   absorbed = nk - rK   -- the effective number of constrained params
+        %
+        %   Lc must be chol(N_total, 'lower') INCLUDING the prior's own
+        %   contribution, since Sxx is the inverse of the regularised matrix.
+            Y        = Lc \ o.K.';                 % nc x nk
+            absorbed = sum(Y(:).^2) / o.sigma^2;
+            rK       = o.nk - absorbed;
+        end
+
+        %------------------------------------------------------------------
+        function s = vtv(o, x)
+        %VTV  Weighted square sum of the prior's own residual.
+            v = (o.K * x(:) - o.x0) / o.sigma;
+            s = v.' * v;
+        end
+
+        %------------------------------------------------------------------
+        function o2 = withSigma(o, sigma)
+        %WITHSIGMA  A copy with a new sigma (for the VCE iteration).
+            o2 = lsqvce.CommonPrior(o.K, o.x0, sigma);
+        end
+    end
+end

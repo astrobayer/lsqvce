@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.collectResiduals</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.collectResiduals</div>
+<h1>lsqvce.collectResiduals</h1>
+<div class="purpose">Stack one residual field over the arcs of a stream.</div>
+<h2>Syntax</h2>
+<pre class="syntax">x = lsqvce.collectResiduals(res, satId, obsType)
+x = lsqvce.collectResiduals(res, satId, obsType, field)</pre>
+<h2>Description</h2>
+<p>Walks the collected-residual structure returned by LSQVCE.BLOCKACCUMULATOR/residuals and vertically concatenates one field of every arc that matches obsType (and satId, unless satId is empty).</p>
+<h3>Input</h3>
+<pre class="example">res      1x1   struct   Residual structure with res.sys(:).sysID and
+                        res.sys(:).obs(:).{obsType, v, w}. Required.
+satId    1x1   char|string|numeric|[]   Satellite id to select, or [] to
+                        pool across ALL satellites. Required (may be []).
+obsType  1xk   char|string   Observation type to select, e.g. &#x27;pos&#x27;.
+                        Required.
+field    1xk   char|string   Which per-arc field to stack:
+                        &#x27;w&#x27; whitened residuals | &#x27;v&#x27; raw residuals.
+                        (default &#x27;w&#x27;)</pre>
+<h3>Output</h3>
+<pre class="example">x        Mx1   double   Concatenation of the selected field over all
+                        matching arcs; [] if nothing matches.</pre>
+<h3>Example</h3>
+<pre class="example">w = lsqvce.collectResiduals(res, &#x27;C&#x27;, &#x27;pos&#x27;);       % GRACE-C, whitened
+vAll = lsqvce.collectResiduals(res, [], &#x27;rr&#x27;, &#x27;v&#x27;); % raw, both satellites</pre>
+<pre class="example">LSQVCE.WHITENESSCORR</pre>
+<p>Created 2026-07-15 13:40 (CEST, UTC+02:00) with assistance from Claude (Anthropic), model Claude Opus 4.8.</p>
+<div class="seealso"><b>See also:</b> <a href="lsqvce.BlockAccumulator.html">lsqvce.BlockAccumulator</a>, <a href="lsqvce.residualAcv.html">lsqvce.residualAcv</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+</body></html>

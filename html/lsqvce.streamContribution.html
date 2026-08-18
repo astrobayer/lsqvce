@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.streamContribution</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.streamContribution</div>
+<h1>lsqvce.streamContribution</h1>
+<div class="purpose">Streaming, matrix-free per-group N^-1 N_g^cc probes.</div>
+<h2>Description</h2>
+<pre class="example">out = LSQVCE.STREAMCONTRIBUTION(acc, sol)
+out = LSQVCE.STREAMCONTRIBUTION(acc, sol, &#x27;Name&#x27;, value, ...)
+
+The shared primitive behind BOTH the streaming Hutchinson VCE trace and the
+Level-2 contribution diagonal. For every group g it estimates, by Hutchinson
+probing over a SINGLE data sweep and WITHOUT ever forming N_g^cc,
+
+    t_g       = tr( N^-1 N_g^cc )              scalar contribution / redundancy
+    diag(C_g) = diag( N^-1 N_g^cc )   (nc x 1) per-parameter information share
+
+where N = Ncc_red = sum_g N_g^cc is the TOTAL reduced common normal (already
+factored once as chol) and N_g^cc is group g&#x27;s contribution to it. The
+group-summed invariants hold EXACTLY (up to probe noise): sum_g t_g = nc and
+sum_g diag(C_g) = ones(nc,1), because sum_g N_g^cc = N.
+
+MEMORY-HONEST DESIGN (why this exists)
+  N_g^cc is nc x nc and a group can span many arcs, so holding all G of them
+  is O(G*nc^2) and destroys the streaming property that makes adjustBlock
+  worth using. We never store a group normal. What Hutchinson needs is only
+  the ACTION N_g^cc*Z on an nc x Z probe block, and that action is exactly
+  group g&#x27;s contribution to a mat-vec, re-accumulated by STREAMING that
+  group&#x27;s arcs -- mirroring the exact leverage path in LSQVCE.REDUNDANCY:
+
+    N_g^cc Z = sum_{arc in g} A_arc&#x27; (A_arc Z)   -   Nlc_s&#x27; ( G_s Z )
+
+  with A_arc the whitened common design of the arc (m x nc), G_s = inv(Nll_s)
+  Nlc_s the per-SYSTEM Schur factor (built once, shared by all that system&#x27;s
+  arcs, identical to LSQVCE.LEVERAGEBLOCKS.G). The first term streams per arc;
+  the second is a single per-system correction applied once. All groups are
+  accumulated in ONE sweep -- each arc routes its A&#x27;(A Z) into its own group&#x27;s
+  nc x Z accumulator, so the cost is a handful of data passes independent of G.
+
+  N^-1 is then applied to the assembled N_g^cc Z through the shared Cholesky
+  Lc of N (two triangular solves), never by forming N^-1.
+
+RELATION TO THE EXACT PATH (read this before trusting the numbers)
+  The exact per-arc leverage path (LSQVCE.REDUNDANCY, LSQVCE.LEVERAGE) already
+  gives t_g EXACTLY as r_g = sum_{i in g}(1 - h_i), cheaply, and is the
+  DEFAULT and the authority. This estimator is an OPT-IN accelerator for very
+  large nc where the exact per-group DIAGONAL diag(N^-1 N_g^cc) would cost
+  O(G*nc^2) to form. LSQVCE.LEVERAGE documents that Hutchinson on the JOINT
+  leverage operator N^-1 N (trace u, energy in one mode) has 20-50% error and
+  was rejected there -- that caveat is real. Here the PER-GROUP operators
+  N^-1 N_g^cc have trace r_g (typically &lt;&lt; u) and the group-sum constraint is
+  exact, which tempers but does not remove the noise: always check .relSE and
+  prefer the exact path whenever it is affordable.</pre>
+<h3>Input</h3>
+<pre class="example">  acc   1x1 lsqvce.BlockAccumulator   built with &#x27;KeepLocal&#x27;, true (needs the
+                                      per-system Schur handles to re-stream)
+  sol   1x1 struct                    the solve output; must carry sol.x
+                                      (nc x 1, the common estimate). The
+                                      probed quadratic form A&#x27;A depends only
+                                      on the whitening (the variance
+                                      components), not on x, so sol is used
+                                      as a contract/consistency check that
+                                      the accumulator has been solved.
+
+OPTIONS (Name/Value)
+  &#x27;GroupBy&#x27;   char | function_handle  &#x27;arc&#x27; | &#x27;obsType&#x27; | &#x27;system&#x27; | &#x27;day&#x27;, or
+                                      a predicate @(sat,obsType,arc,day)-&gt;key
+                                      (default &#x27;system&#x27;). Same spec as
+                                      LSQVCE.REDUNDANCY / LSQVCE.VCE.
+  &#x27;Groups&#x27;    1xG cell | []           pin the group order (keys as returned by
+                                      GroupBy). [] discovers them in sweep
+                                      order (default []).
+  &#x27;Probes&#x27;    1x1 int                 Z, number of Hutchinson probes (default
+                                      100, Ellmer&#x27;s value).
+  &#x27;Seed&#x27;      1x1 int | []            RNG seed for reproducible probes
+                                      (default []: private stream, no global
+                                      side effect). Uses one FIXED probe block
+                                      across all groups so the group-sum
+                                      invariants hold on the SAME probes.
+  &#x27;WantDiag&#x27;  1x1 logical             also return the per-parameter diagonal
+                                      diag(N^-1 N_g^cc) per group (default
+                                      true). Set false for trace-only (§1.1).
+  &#x27;Verbose&#x27;   1x1 logical             progress banner (default false).</pre>
+<h3>Output</h3>
+<pre class="example">out   1x1 struct with fields
+  .group    1xG struct   per group, in the pinned/discovered order:
+              .key    the group key (as GroupBy returns it)
+              .trace  1x1     estimate of tr(N^-1 N_g^cc)
+              .diag   nc x 1  estimate of diag(N^-1 N_g^cc), or [] if
+                              &#x27;WantDiag&#x27; is false
+              .se     1x1     Monte-Carlo standard error of .trace
+              .relSE  1x1     .se / |.trace|  (NaN if .trace == 0)
+  .nc       1x1        common-parameter count (size of the probe space)
+  .probes   1x1        Z actually used
+  .traceSum 1x1        sum_g .trace  (should be ~ nc; the sanity check)
+  .note     char       provenance string</pre>
+<h3>Cost</h3>
+<pre class="example">One (batched) data sweep, plus Z triangular solves of size nc against the
+shared Lc. Total O(passes*nnz + Z*nc^2). Memory is the probe block (nc x Z)
+plus, transiently, one nc x Z group accumulator -- NOT O(G*nc^2).</pre>
+<h3>Example</h3>
+<pre class="example">  acc = lsqvce.BlockAccumulator(nc, &#x27;KeepLocal&#x27;, true);
+  ... addSystem(...) ...
+  sol = acc.solve();
+  c   = lsqvce.streamContribution(acc, sol, &#x27;GroupBy&#x27;,&#x27;system&#x27;, &#x27;Probes&#x27;,200);
+  share = [c.group.trace] ./ c.traceSum;      % relative info share per system
+  bar(c.group(1).diag);                       % per-coeff share of system 1
+
+See also LSQVCE.CONTRIBUTION, LSQVCE.REDUNDANCY, LSQVCE.LEVERAGEBLOCKS,
+         LSQVCE.TRACEESTIMATE, LSQVCE.VCE
+
+Created 2026-07-17 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
+model Claude Opus 4.8.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
+</body></html>

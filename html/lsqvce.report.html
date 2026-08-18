@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.report</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.report</div>
+<h1>lsqvce.report</h1>
+<div class="purpose">Judge a least-squares adjustment and say so in words.</div>
+<h2>Syntax</h2>
+<pre class="syntax">V = LSQVCE.REPORT(D) takes the struct from lsqvce.diagnose and prints a</pre>
+<h2>Description</h2>
+<p>verdict. It returns a struct of machine-readable findings so the same logic can drive an automated pipeline.</p>
+<p>The report is ordered so that a failure at one level invalidates the levels below it. It refuses to report parameter precision for an adjustment whose integrity checks failed, because a sigma computed from a broken system is not a conservative estimate -- it is a fabrication.</p>
+<h3>Levels</h3>
+<pre class="example">0  INTEGRITY   sum(r) == n-u, vPv &gt;= 0, vPv consistent between passes.
+               These test the CODE, not the data. Failure here means
+               every number below is meaningless.
+1  GLOBAL      variance factor vs chi-square.
+2  LOCALISE    outliers (data snooping), with Bonferroni.
+3  RELIABILITY redundancy numbers, MDB, external reliability.
+               This is the level that says which observations you are
+               NOT ABLE TO CHECK.
+4  PARAMETERS  correlations, conditioning, precision.</pre>
+<h3>Name-Value</h3>
+<pre class="example">&#x27;verbose&#x27;  true  print the report (default true)
+&#x27;width&#x27;    78    line width</pre>
+<h3>Output V</h3>
+<pre class="example">V.verdict   &#x27;PASS&#x27; | &#x27;PASS WITH WARNINGS&#x27; | &#x27;SUSPECT&#x27; | &#x27;INVALID&#x27;
+V.findings  cell array of struct(level, severity, code, msg)
+V.nError, V.nWarn, V.nNote</pre>
+<h3>Example</h3>
+<pre class="example">[~, D]  = lsqvce.adjust(u, src, 4, &#x27;verbose&#x27;, false);
+V = lsqvce.report(D);              % prints the five levels</pre>
+<pre class="example">% V.verdict    &#x27;PASS&#x27; | &#x27;PASS WITH WARNINGS&#x27; | &#x27;SUSPECT&#x27; | &#x27;INVALID&#x27;
+% V.findings   machine-readable: {level, severity, code, msg}</pre>
+<pre class="example">% Drive a pipeline off the codes rather than the text:
+codes = cellfun(@(f) f.code, V.findings, &#x27;UniformOutput&#x27;, false);
+if ismember(&#x27;SNOOP_CONTAMINATED&#x27;, codes)
+    error(&#x27;Pope is blind here -- re-run with test=mad.&#x27;);
+end</pre>
+<p>Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-11.</p>
+<div class="seealso"><b>See also:</b> <a href="lsqvce.diagnose.html">lsqvce.diagnose</a>, <a href="lsqvce.systematic.html">lsqvce.systematic</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+</body></html>

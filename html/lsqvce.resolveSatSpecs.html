@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.resolveSatSpecs</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.resolveSatSpecs</div>
+<h1>lsqvce.resolveSatSpecs</h1>
+<div class="purpose">Per-satellite configuration: overrides over defaults.</div>
+<h2>Syntax</h2>
+<pre class="syntax">[satSpecs, specFor] = lsqvce.resolveSatSpecs(satListCell, userSpec, defaults)</pre>
+<h2>Description</h2>
+<p>Produces one resolved configuration struct per satellite by layering per-satellite overrides (userSpec, matched by .satId) over shared defaults. Field-agnostic: it never hard-codes a knob name, so a caller adds a knob simply by adding a field to DEFAULTS.</p>
+<h3>Input</h3>
+<pre class="example">satListCell   1xN   cell     Satellite ids (see LSQVCE.NORMALIZESATLIST).
+                              Required.
+userSpec      1xM   struct|[] Struct array of overrides. Each element MUST
+                              have a .satId matching an entry of
+                              satListCell, plus any subset of the knobs in
+                              DEFAULTS. [] means &quot;no overrides&quot;. Required
+                              (may be []).
+defaults      1x1   struct   Fallback values; its field names ARE the
+                              configurable knobs (e.g. obsSpec, nl,
+                              arSelect, maxLag). Required.</pre>
+<h3>Output</h3>
+<pre class="example">satSpecs   1xN   struct   One element per satellite, in satListCell order.
+                          Fields: .satId, .key (= satKeyOf(satId)), and
+                          every field of DEFAULTS (override or fallback).
+specFor    1x1   function_handle   specFor(satId) -&gt; the element of
+                          satSpecs whose .satId matches (errors if none).</pre>
+<h3>Errors</h3>
+<pre class="example">lsqvce:resolveSatSpecs:badDefaults   defaults is not a struct
+lsqvce:resolveSatSpecs:badSatSpec    userSpec lacks a .satId field
+lsqvce:resolveSatSpecs:noSpec        specFor called with an unknown id</pre>
+<h3>Example</h3>
+<pre class="example">def = struct(&#x27;nl&#x27;, 12, &#x27;maxLag&#x27;, 128);
+us(1).satId = &#x27;D&#x27;;  us(1).nl = 9;                 % GRACE-D: fewer locals
+[S, specFor] = lsqvce.resolveSatSpecs({&#x27;C&#x27;,&#x27;D&#x27;}, us, def);
+specFor(&#x27;D&#x27;).nl    % -&gt; 9 ;   specFor(&#x27;C&#x27;).nl -&gt; 12 (default)</pre>
+<p>Created 2026-07-15 13:40 (CEST, UTC+02:00) with assistance from Claude (Anthropic), model Claude Opus 4.8.</p>
+<div class="seealso"><b>See also:</b> <a href="lsqvce.normalizeSatList.html">lsqvce.normalizeSatList</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+</body></html>

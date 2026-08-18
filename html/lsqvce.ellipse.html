@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.ellipse</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.ellipse</div>
+<h1>lsqvce.ellipse</h1>
+<div class="purpose">Confidence ellipse for a pair of correlated parameters.</div>
+<h2>Syntax</h2>
+<pre class="syntax">E = LSQVCE.ELLIPSE(D, [i j]) returns the confidence ellipse of parameters</pre>
+<h2>Description</h2>
+<p>i and j from the 2x2 submatrix of Qxx.</p>
+<p>WHEN THE REPORT SAYS &quot;look at the error ellipse instead&quot;, THIS IS IT.</p>
+<p>Two parameters correlated at 0.99 may each have a small standard deviation while being almost completely inseparable. The individual sigmas describe the two SIDES of a bounding box; the ellipse inside it can be a needle. The sigmas are then true but deeply misleading: they suggest you know each parameter to that precision, when in fact you only know one combination of them well and the orthogonal combination hardly at all.</p>
+<p>The ellipse says what you actually know. Its semi-major axis is the direction you know WORST, and its length is how badly.</p>
+<h3>Name-Value</h3>
+<pre class="example">&#x27;conf&#x27;     confidence level (default 0.95)
+&#x27;scale&#x27;    &#x27;apriori&#x27; (use sigma0) | &#x27;aposteriori&#x27; (use s0)  [default
+           &#x27;aposteriori&#x27;, matching what the report tabulates]
+&#x27;npts&#x27;     points on the returned outline (default 200)</pre>
+<h3>Output E</h3>
+<pre class="example">.semiMajor, .semiMinor    axis half-lengths at the requested confidence
+.angle                    orientation of the major axis, radians CCW from
+                          the +i axis
+.ratio                    semiMajor/semiMinor -- the elongation. Above
+                          ~10 the parameters are effectively one.
+.xy                       2 x npts outline, centred on the estimate
+.centre                   [x_i; x_j]
+.corr                     the correlation between them
+.sigInd                   [sigma_i; sigma_j] -- the misleading numbers
+.worstDir                 unit vector of the semi-major axis: the
+                          combination of the two parameters you know least</pre>
+<h3>Example</h3>
+<pre class="example">[~, D] = lsqvce.adjust(u, src, 4, &#x27;verbose&#x27;, false);
+E = lsqvce.ellipse(D, [1 2]);            % parameters 1 and 2</pre>
+<pre class="example">plot(E.xy(:,1), E.xy(:,2), &#x27;LineWidth&#x27;, 1.5);  hold on
+plot(E.centre(1), E.centre(2), &#x27;r+&#x27;);
+axis equal; grid on</pre>
+<pre class="example">% E.xy         npts x 2, ready for plot()
+% E.semiMajor  / E.semiMinor / E.angle
+% E.ratio      elongation -- large means the pair is poorly separated</pre>
+<pre class="example">% Draw this whenever |rho| &gt; 0.95: the individual sigmas are then
+% meaningless in isolation, however small they look.</pre>
+<p>Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-11.</p>
+<div class="seealso"><b>See also:</b> <a href="lsqvce.diagnose.html">lsqvce.diagnose</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+</body></html>

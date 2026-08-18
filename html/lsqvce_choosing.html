@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce: choosing an engine</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; Choosing an engine &amp; VCE backend</div>
+
+<h1>Choosing an engine &amp; VCE backend</h1>
+<p class="purpose">A decision aid: pick the right front door for your problem's size and
+structure, and the right variance-component backend for its scale.</p>
+
+<p>lsqvce has three solving front doors and two variance-component backends. This
+page is the map. For a runnable, build-your-own-case walk-through see
+<code>examples/demo_workflow.m</code>; for the six failure modes see
+<code>examples/demo_lsqvce.m</code>.</p>
+
+<h2>1. Which engine?</h2>
+<p>Pick by the SHAPE of the problem, not by taste.</p>
+<img src="lsqvce_decision.svg" alt="Engine decision flowchart" style="max-width:100%;height:auto;margin:12px 0;">
+
+<table>
+<tr><th>Engine</th><th>Use when</th><th>Cost / memory</th></tr>
+<tr><td class="name">lsqvce.adjust</td>
+    <td>Every observation sees the SAME <code>u</code> unknowns; one covariance;
+        no per-system nuisance parameters.</td>
+    <td>Flat normal/QR, <code>O(u&#179;)</code> solve; batches streamed so
+        <code>n</code> is never materialised.</td></tr>
+<tr><td class="name">lsqvce.adjustBlock</td>
+    <td>A shared COMMON block of <code>nc</code> unknowns plus PER-SYSTEM LOCAL
+        blocks (arc biases, scales) you want eliminated exactly.</td>
+    <td>Block-arrow Helmert reduction; forms only the reduced
+        <code>nc&#215;nc</code> common normal, one GLS solve.</td></tr>
+<tr><td class="name">lsqvce.adjustVCE</td>
+    <td>You do NOT know the noise model and want the data to supply it
+        (separable covariance, coloured noise, unknown sigma ratios).</td>
+    <td>adjustBlock inside an iterative SHAPE (temporal whitening) + SCALE (VCE)
+        loop until residuals whiten and components agree.</td></tr>
+</table>
+
+<div class="note"><b>Rule of thumb.</b> One parameter block, known noise &#8594;
+<code>adjust</code>. Common + per-system locals, known noise &#8594;
+<code>adjustBlock</code>. Must discover the noise model &#8594;
+<code>adjustVCE</code>.</div>
+
+<h2>2. Exact vs Hutchinson variance components</h2>
+<p>Once you need per-group variance components, there are two estimators. They
+give the SAME answer; they differ in cost and in what extra diagnostics they can
+produce.</p>
+
+<img src="lsqvce_cost_vce.svg" alt="Cost of exact vs Hutchinson VCE against u" style="max-width:100%;height:auto;margin:12px 0;">
+
+<table>
+<tr><th>Backend</th><th>Cost</th><th>Produces</th><th>Reach for it when</th></tr>
+<tr><td class="name">exact<br>(varComp default)</td>
+    <td><code>O(G&#183;u&#179;)</code> &mdash; forms
+        <code>N&#8315;&#185;N_g</code> per group.</td>
+    <td>Per-group components AND per-observation redundancy
+        <code>r&#8341;</code>, data snooping, (w,r) reliability, the
+        <code>&#931;r&#8341;=m&#8722;u</code> integrity guard.</td>
+    <td><code>u</code> up to a few thousand. Faster AND exact AND fully
+        diagnostic in that range.</td></tr>
+<tr><td class="name">hutchinson<br>(vceHutchinson,<br>or backend=hutchinson)</td>
+    <td><code>O(u&#179; + G&#183;Z&#183;u&#178;)</code> &mdash; one Cholesky,
+        then <code>Z</code> random probes per group; never forms
+        <code>N&#8315;&#185;</code>.</td>
+    <td>Per-group components and estimated <code>r_g</code> ONLY (each with a
+        Monte-Carlo standard error ~ <code>1/&#8730;Z</code>). No per-obs
+        <code>r&#8341;</code>, no snooping, no guard.</td>
+    <td><code>u</code> in the thousands (e.g. a high-degree gravity field),
+        where <code>O(G&#183;u&#179;)</code> dominates.</td></tr>
+</table>
+
+<div class="note"><b>Crossover.</b> The dominant terms cross at
+<code>u &#8776; Z</code> (probe count), so: exact below a few thousand unknowns,
+Hutchinson above. Larger <code>Z</code> tightens the estimate (error
+~ <code>1/&#8730;Z</code>) at linear cost; <code>Z=2000&#8211;4000</code> gives
+visibly tight agreement on well-conditioned problems.</div>
+
+<div class="warn"><b>Where Hutchinson is wired today.</b> The matrix-free backend
+is a REAL substitution on the FLAT path &mdash;
+<a href="lsqvce.vceHutchinson.html">lsqvce.vceHutchinson</a> and
+<a href="lsqvce.varComp.html">lsqvce.varComp</a><code>(...,'backend','hutchinson')</code>.
+On the block-arrow paths (<a href="lsqvce.vce.html">lsqvce.vce</a>,
+<code>Combine.varComp</code>) <code>'traceMethod','hutchinson'</code> is only a
+machinery check; the streaming block-arrow substitution is on the roadmap.</div>
+
+<h2>3. Minimal calls</h2>
+<pre class="example">% Flat, known noise
+[sol, D, V] = lsqvce.adjust(u, batchFcn, nBatch);
+
+% Common + per-system locals (loaders from lsqvce.makeLoader)
+R = lsqvce.adjustBlock({L1, L2}, days);
+
+% Discover the noise model (SHAPE + SCALE)
+R = lsqvce.adjustVCE({L1, L2}, days) ...
+        .groupComponentsBy('obsType').stochasticModel('maxOrder',60).varianceComponents('maxIter',8).run();
+
+% Variance components, exact (also gives r_i, snooping)
+VC = lsqvce.varComp(u, batchFcn, nBatch, groupFcn, nGroup);
+
+% Variance components, matrix-free (large u)
+VC = lsqvce.varComp(u, batchFcn, nBatch, groupFcn, nGroup, ...
+        'backend','hutchinson', 'probes',4000);</pre>
+
+<div class="seealso"><b>See also:</b> <a href="lsqvce.adjust.html">lsqvce.adjust</a>, <a href="lsqvce.adjustBlock.html">lsqvce.adjustBlock</a>, <a href="lsqvce.adjustVCE.html">lsqvce.adjustVCE</a>, <a href="lsqvce.varComp.html">lsqvce.varComp</a>, <a href="lsqvce.vceHutchinson.html">lsqvce.vceHutchinson</a>, <a href="lsqvce.vce.html">lsqvce.vce</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Choosing-an-engine guide generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-17 (CEST, UTC+02:00).</div>
+</body></html>

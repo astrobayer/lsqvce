@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce Reference Manual</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+.refs { font-size: 12px; color: #333; }
+.refs p { margin: 3px 0; text-indent: -22px; padding-left: 22px; }
+.toc { font-size: 13px; background: #fafafa; border: 1px solid #e3e3e3;
+       padding: 10px 14px; margin: 12px 0; }
+.toc a { text-decoration: none; }
+img.eq-inline { height: 1.05em; vertical-align: -0.15em; }
+.eq-display { text-align: center; margin: 0.9em 0; }
+.eq-display img { max-width: 100%; }
+</style>
+<!-- Equations are static PNG images (rendered from LaTeX at build time); the
+     pages contain no JavaScript and no external references. See docs_src/. -->
+</head><body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; Reference Manual</div>
+<h1>Reference Manual &mdash; symbols, equations, conventions</h1>
+<p class="purpose">Companion to the <a href="lsqvce_user_manual.html">User Manual</a>.
+Equation numbers here are self-contained. Everything is streaming and
+weight-based (<img class="eq-inline" src="eq/09dce5a54a92.png" alt="equation">, never variance).</p>
+
+<h2>Symbols</h2>
+<table>
+<tr><th>Symbol</th><th>Meaning</th></tr>
+<tr><td class="name"><img class="eq-inline" src="eq/29473c8be640.png" alt="equation"></td><td>observations, parameters, redundancy <img class="eq-inline" src="eq/9c30321a844a.png" alt="equation"></td></tr>
+<tr><td class="name"><img class="eq-inline" src="eq/73c188d1b1ae.png" alt="equation"></td><td>design (Jacobian), observations, errors</td></tr>
+<tr><td class="name"><img class="eq-inline" src="eq/6b8aa98fbefd.png" alt="equation"></td><td>observation cofactor and weight, <img class="eq-inline" src="eq/07b4aa3f6a56.png" alt="equation"></td></tr>
+<tr><td class="name"><img class="eq-inline" src="eq/b89a8ade4962.png" alt="equation"></td><td>a-priori and a-posteriori variance of unit weight</td></tr>
+<tr><td class="name"><img class="eq-inline" src="eq/9c93069dfcf5.png" alt="equation"></td><td>normal matrix <img class="eq-inline" src="eq/49f75f2cf6ca.png" alt="equation"> and right side <img class="eq-inline" src="eq/5102b2fe3780.png" alt="equation"></td></tr>
+<tr><td class="name"><img class="eq-inline" src="eq/223227bfe614.png" alt="equation"></td><td>parameter cofactor</td></tr>
+<tr><td class="name"><img class="eq-inline" src="eq/47535d002d7c.png" alt="equation"></td><td>residuals, residual cofactor</td></tr>
+<tr><td class="name"><img class="eq-inline" src="eq/d53b381d6a9b.png" alt="equation"></td><td>redundancy number and leverage, <img class="eq-inline" src="eq/f5bfd8932ee4.png" alt="equation"> (whitened)</td></tr>
+<tr><td class="name"><img class="eq-inline" src="eq/044f53abfe7e.png" alt="equation"></td><td>Baarda standardised residual, Pope tau</td></tr>
+<tr><td class="name"><img class="eq-inline" src="eq/926c92df6164.png" alt="equation"></td><td>common params, local params per arc, number of arcs</td></tr>
+</table>
+
+<h2>1. Estimator and dispersion</h2>
+<p>The Gauss&ndash;Markov model and its best linear unbiased estimate:</p>
+<div class="eq-display"><img src="eq/737730f09f59.png" alt="equation"></div>
+<div class="eq-display"><img src="eq/8fc6d26eec2d.png" alt="equation"></div>
+<p>Solved by whitening <img class="eq-inline" src="eq/88fb3e8ac843.png" alt="equation"> (with <img class="eq-inline" src="eq/6cb8eb517157.png" alt="equation">) and thin-QR
+<img class="eq-inline" src="eq/d27195474aae.png" alt="equation">, so the condition number is not squared [11,12]. The accumulator
+updates <img class="eq-inline" src="eq/72a78cf8a2a5.png" alt="equation"> (or <img class="eq-inline" src="eq/54df8395dbe6.png" alt="equation">) batch by batch.</p>
+
+<h2>2. Residuals, redundancy, reliability</h2>
+<div class="eq-display"><img src="eq/bc0705364c48.png" alt="equation"></div>
+<p>With the hat (influence) matrix <img class="eq-inline" src="eq/6a98135f70ea.png" alt="equation">, in whitened
+coordinates the leverage and partial redundancy of observation <img class="eq-inline" src="eq/e07148dff603.png" alt="equation"> are</p>
+<div class="eq-display"><img src="eq/8e8390547613.png" alt="equation"></div>
+<p>The last identity is what Level&nbsp;0 of the report checks exactly. The
+response of a residual to a single gross error <img class="eq-inline" src="eq/d84922458606.png" alt="equation"> in observation <img class="eq-inline" src="eq/e07148dff603.png" alt="equation"> is
+<img class="eq-inline" src="eq/0f2811048715.png" alt="equation">. Baarda&rsquo;s standardised residual and, when
+<img class="eq-inline" src="eq/17e88dd5f873.png" alt="equation"> is unknown, Pope&rsquo;s tau are</p>
+<div class="eq-display"><img src="eq/eeb95d862932.png" alt="equation"></div>
+<p>Internal reliability &mdash; the minimal detectable bias at test size
+<img class="eq-inline" src="eq/41ec56b1ea46.png" alt="equation">, power <img class="eq-inline" src="eq/c600322ad01f.png" alt="equation"> &mdash; and its propagation into the parameters
+(external reliability) are</p>
+<div class="eq-display"><img src="eq/c70da0c57c59.png" alt="equation"></div>
+<p>The MDB scales as <img class="eq-inline" src="eq/d06d66c1771a.png" alt="equation">: at <img class="eq-inline" src="eq/81dddefaf222.png" alt="equation"> it diverges &mdash; nothing
+can be checked there. References: redundancy and reliability [1,4,20]; tau [2];
+leverage by back-substitution through the stored triangular factor, not the
+Hutchinson trace estimator [13] (exact partial redundancies are cheap when <img class="eq-inline" src="eq/63e1913eb0e7.png" alt="equation">
+is small, and exactness matters for these bounds).</p>
+
+<h2>3. Variance components</h2>
+<p>For observation group <img class="eq-inline" src="eq/488e7330c530.png" alt="equation">, Helmert&rsquo;s variance factor is the group&rsquo;s
+weighted residual sum of squares over its partial redundancy [6,7,3]:</p>
+<div class="eq-display"><img src="eq/2e7cbe0ffa86.png" alt="equation"></div>
+<p>Förstner&rsquo;s simplification writes <img class="eq-inline" src="eq/8cd41803f004.png" alt="equation">. Iterate
+<img class="eq-inline" src="eq/bd1102219fd2.png" alt="equation"> to unity; only ratios are identifiable,
+so one group (or the pooled <img class="eq-inline" src="eq/99efdbc66edd.png" alt="equation">) fixes the gauge. VCE for gravity and
+regularisation: [9,10]. For <img class="eq-inline" src="eq/63e1913eb0e7.png" alt="equation"> in the thousands the trace
+<img class="eq-inline" src="eq/7ead5e96914c.png" alt="equation"> is estimated matrix-free with <img class="eq-inline" src="eq/b8fdbf81019c.png" alt="equation"> Hutchinson
+probes (<a href="lsqvce.vceHutchinson.html">lsqvce.vceHutchinson</a>); see
+<a href="lsqvce_choosing.html">Choosing an engine</a>.</p>
+
+<h3>3a. Relation to Ellmer (2018)</h3>
+<p>The matrix-free trace machinery here is Ellmer&rsquo;s [21, &sect;6.5.6]: the
+Hutchinson estimator [13] with Rademacher probes <img class="eq-inline" src="eq/c5475f5cfc21.png" alt="equation"> and the
+&ldquo;stacked&rdquo; form <img class="eq-inline" src="eq/0fc077e21531.png" alt="equation">, <img class="eq-inline" src="eq/203718c89cd2.png" alt="equation">, applied
+through the shared Cholesky factor so <img class="eq-inline" src="eq/886b29e2db72.png" alt="equation"> is never inverted. The between-group
+update <img class="eq-inline" src="eq/fa7438134d94.png" alt="equation"> with
+<img class="eq-inline" src="eq/049fdfab0569.png" alt="equation"> is
+his eq. (2.6.12). What this toolbox does <em>differently</em> is worth stating
+plainly, because it changes what the estimator is pointed at:</p>
+<ul>
+<li><b>Different operator.</b> Ellmer applies Hutchinson to the redundancy of the
+<em>temporal covariance components</em>, <img class="eq-inline" src="eq/28f68683e705.png" alt="equation"> over the
+lag matrices <img class="eq-inline" src="eq/09f291a9a999.png" alt="equation"> of one arc&rsquo;s noise model [21, eqs. (6.5.36)&ndash;(6.5.44)]
+&mdash; the SHAPE side. Here the same estimator is applied to the
+<em>between-group reduced common normal</em>,
+<img class="eq-inline" src="eq/c7f33b194a9d.png" alt="equation"> &mdash; the SCALE side and the contribution
+matrix <img class="eq-inline" src="eq/a75ba76578e7.png" alt="equation">. Same tool, different target.</li>
+<li><b>Streaming block-arrow form.</b> Ellmer factors the full normal matrix and
+treats <img class="eq-inline" src="eq/94a768d748ba.png" alt="equation"> monolithically. Here <img class="eq-inline" src="eq/bdb4f5dd7fce.png" alt="equation"> is formed by
+<em>streaming the arcs of group <img class="eq-inline" src="eq/488e7330c530.png" alt="equation"></em> after per-system local Schur
+elimination, never materialising any group normal (see &sect;4), so the memory
+cost is <img class="eq-inline" src="eq/f2394082943b.png" alt="equation">, not <img class="eq-inline" src="eq/987fe3ff644e.png" alt="equation">.</li>
+<li><b>Symmetric group split (new).</b> When one system&rsquo;s arcs span several
+VCE groups (e.g. grouping a merged pair-system by observation type), the
+system&rsquo;s Schur term cannot be assigned to a single group. We use the
+ordering-independent split
+<div class="eq-display"><img src="eq/c23efd02a8f8.png" alt="equation"></div>
+which partitions the reduced normal exactly (<img class="eq-inline" src="eq/300b198a0940.png" alt="equation">, so the
+group traces sum to <img class="eq-inline" src="eq/38e30b356ca7.png" alt="equation"> and the contribution diagonals to <img class="eq-inline" src="eq/adaaa0348398.png" alt="equation">).
+Ellmer&rsquo;s groups are uncorrelated (block-diagonal <img class="eq-inline" src="eq/ac901ffded22.png" alt="equation">), so this
+coupling does not arise in the thesis and the split is an addition here.</li>
+<li><b>Exact by default; diagonal as well as trace.</b> Ellmer uses Hutchinson as
+the production path because forming <img class="eq-inline" src="eq/72a78cf8a2a5.png" alt="equation"> explicitly is prohibitive. Here the
+<em>exact</em> per-arc leverage path is the default and the authority, with
+Hutchinson opt-in for large <img class="eq-inline" src="eq/38e30b356ca7.png" alt="equation">; and the same probes also yield the
+per-parameter contribution diagonal <img class="eq-inline" src="eq/4824cd456842.png" alt="equation">,
+which is beyond the scalar trace the VCE update needs
+(<a href="lsqvce.streamContribution.html">lsqvce.streamContribution</a>,
+<a href="lsqvce.contribution.html">lsqvce.contribution</a>).</li>
+</ul>
+
+<h2>4. Block-arrow system and QR pre-elimination</h2>
+<p>Gravity recovery stacks <img class="eq-inline" src="eq/ebf8e4456984.png" alt="equation"> arcs (or satellite-days) that share the <img class="eq-inline" src="eq/38e30b356ca7.png" alt="equation">
+common parameters (the field) but each carry their own <img class="eq-inline" src="eq/8776cc4160f8.png" alt="equation"> local nuisance
+parameters. Ordering locals first, then commons, the normal matrix is bordered
+block-diagonal &mdash; a block arrow. Eliminating every local block by its Schur
+complement leaves the reduced common system</p>
+<div class="eq-display"><img src="eq/5e0ce3d78173.png" alt="equation"></div>
+<p>Per-arc QR (the numerically preferred path): one Householder QR triangularises
+the <img class="eq-inline" src="eq/8776cc4160f8.png" alt="equation"> local columns and applies the same reflectors to the common columns
+and the whitened observations,</p>
+<div class="eq-display"><img src="eq/c86b75903275.png" alt="equation"></div>
+<p>The trailing rows <img class="eq-inline" src="eq/5ad3868d01e5.png" alt="equation"> are the arc&rsquo;s contribution to the common
+problem, cleaned of its nuisance parameters &mdash; a QR realisation of the Schur
+complement, formed without squaring the design. The accumulator appends each
+<img class="eq-inline" src="eq/5ad3868d01e5.png" alt="equation"> to a running QR of the reduced common system, so memory is
+<img class="eq-inline" src="eq/ed5747ca75b7.png" alt="equation"> independent of <img class="eq-inline" src="eq/ebf8e4456984.png" alt="equation">. Each local block follows by back-substitution,</p>
+<div class="eq-display"><img src="eq/864cf1a0a314.png" alt="equation"></div>
+<div class="warn"><b>Why the locals must be counted, not discarded.</b>
+Pre-elimination removes the locals from the solve, but they still spend degrees
+of freedom: each arc&rsquo;s locals absorb part of its own residual, lowering the
+redundancy numbers of that arc&rsquo;s observations. With <code>'KeepLocal',true</code>
+the per-arc factors are retained so
+<a href="lsqvce.diagnoseAccum.html">lsqvce.diagnoseAccum</a> rebuilds the full hat
+matrix and reports the true <img class="eq-inline" src="eq/4065c728cf59.png" alt="equation"> (hence MDB and reliability) rather than the
+inflated commons-only values [3,10]. Integrity check:
+<img class="eq-inline" src="eq/2a6ff6b199c1.png" alt="equation">.</div>
+
+<h2>5. Whitening coloured noise</h2>
+<p>If the noise is a stationary AR(<img class="eq-inline" src="eq/e3885c206a9a.png" alt="equation">) process with polynomial
+<img class="eq-inline" src="eq/168f2af84526.png" alt="equation">, the FIR recursion</p>
+<div class="eq-display"><img src="eq/e0d1d98b057e.png" alt="equation"></div>
+<p>whitens it; applying the same filter to every column of <img class="eq-inline" src="eq/a0a357b68d9e.png" alt="equation"> and to <img class="eq-inline" src="eq/63b3a26c892f.png" alt="equation">
+realises <img class="eq-inline" src="eq/07b4aa3f6a56.png" alt="equation"> implicitly &mdash; a banded operator, never the dense
+<img class="eq-inline" src="eq/56fb53190110.png" alt="equation"> matrix. For vector observations a VAR(<img class="eq-inline" src="eq/e3885c206a9a.png" alt="equation">) whitener generalises it
+with the exact stationary start-up for the first <img class="eq-inline" src="eq/e3885c206a9a.png" alt="equation"> epochs, so the operator
+equals the dense block-Cholesky GLS solve row for row. When the covariance
+separates in space and time, <img class="eq-inline" src="eq/07b26b2c014a.png" alt="equation">, the whitener is the
+Kronecker product</p>
+<div class="eq-display"><img src="eq/d7a13b0394ea.png" alt="equation"></div>
+<p>(<a href="lsqvce.separableWhiten.html">lsqvce.separableWhiten</a>) &mdash; what
+makes per-epoch vector data affordable. Orders are chosen by information criteria
+and validated by a Ljung&ndash;Box test on the whitened residuals [17].</p>
+<p><a href="lsqvce.selectArAcv.html">lsqvce.selectArAcv</a> chooses the AR order
+without a candidate grid: one Levinson recursion yields the innovation variance of
+every lower order through the reflection coefficients <img class="eq-inline" src="eq/521b9731ba88.png" alt="equation">,
+<img class="eq-inline" src="eq/24849128ae5a.png" alt="equation">, and it returns the smallest order whose
+refitted autocovariance is within <code>AcvTol</code> &mdash; the same decorrelation
+target the whiteness test uses. It guards two failure modes a single AR cannot fix:
+a near-unit root (detrend first) and a plateau above tolerance (sharp 1/rev, 2/rev
+lines &mdash; move to <a href="lsqvce.ar2arma.html">lsqvce.ar2arma</a>).</p>
+<div class="note"><b>Separable pipeline (two layers).</b> The model is
+<img class="eq-inline" src="eq/d3382c93dbf8.png" alt="equation">. Whitening estimates the
+temporal SHAPE <img class="eq-inline" src="eq/fb244958df1d.png" alt="equation"> <i>within</i> each group; variance-component estimation
+(&sect;3) estimates the SCALE <img class="eq-inline" src="eq/26f63f172b7d.png" alt="equation"> <i>between</i> groups. The loop
+iterates solve &rarr; whiten &rarr; VCE-reweight and converges only when every
+stream is white AND every <img class="eq-inline" src="eq/af6bdf55679e.png" alt="equation">. Driven end to end by
+<a href="lsqvce.adjustVCE.html">lsqvce.adjustVCE</a>.</div>
+
+<div class="seealso"><b>See also:</b>
+<a href="lsqvce_user_manual.html">User Manual</a>,
+<a href="lsqvce_choosing.html">Choosing an engine</a>,
+<a href="lsqvce.redundancy.html">lsqvce.redundancy</a>,
+<a href="lsqvce.vce.html">lsqvce.vce</a>,
+<a href="lsqvce.adjustBlock.html">lsqvce.adjustBlock</a>,
+<a href="lsqvce.separableWhiten.html">lsqvce.separableWhiten</a></div>
+<h2 id="refs">References</h2>
+<div class="refs">
+<p>[1] Baarda, W. (1968). <i>A Testing Procedure for Use in Geodetic Networks.</i> Netherlands Geodetic Commission, Publications on Geodesy, New Series, 2(5). Delft.</p>
+<p>[2] Pope, A. J. (1976). <i>The Statistics of Residuals and the Detection of Outliers.</i> NOAA Technical Report NOS 65 NGS 1. Rockville, MD.</p>
+<p>[3] Koch, K.-R. (1999). <i>Parameter Estimation and Hypothesis Testing in Linear Models,</i> 2nd ed. Springer, Berlin.</p>
+<p>[4] Teunissen, P. J. G. (2006). <i>Testing Theory: an Introduction,</i> 2nd ed. VSSD, Delft.</p>
+<p>[5] Teunissen, P. J. G. (2003). <i>Adjustment Theory: an Introduction.</i> VSSD, Delft.</p>
+<p>[6] Förstner, W. (1979). Ein Verfahren zur Schätzung von Varianz- und Kovarianzkomponenten. <i>Allgemeine Vermessungs-Nachrichten,</i> 86, 446&ndash;453.</p>
+<p>[7] Helmert, F. R. (1907). <i>Die Ausgleichungsrechnung nach der Methode der kleinsten Quadrate,</i> 2nd ed. Teubner, Leipzig.</p>
+<p>[8] Grafarend, E. W. &amp; Schaffrin, B. (1993). <i>Ausgleichungsrechnung in linearen Modellen.</i> BI-Wissenschaftsverlag, Mannheim.</p>
+<p>[9] Koch, K.-R. &amp; Kusche, J. (2002). Regularization of geopotential determination from satellite data by variance components. <i>Journal of Geodesy,</i> 76(5), 259&ndash;268.</p>
+<p>[10] Kusche, J. (2003). A Monte-Carlo technique for weight estimation in satellite geodesy. <i>Journal of Geodesy,</i> 76(11&ndash;12), 641&ndash;652.</p>
+<p>[11] Golub, G. H. &amp; Van Loan, C. F. (2013). <i>Matrix Computations,</i> 4th ed. Johns Hopkins University Press, Baltimore.</p>
+<p>[12] Björck, Å. (1996). <i>Numerical Methods for Least Squares Problems.</i> SIAM, Philadelphia.</p>
+<p>[13] Hutchinson, M. F. (1990). A stochastic estimator of the trace of the influence matrix for Laplacian smoothing splines. <i>Communications in Statistics &ndash; Simulation and Computation,</i> 19(2), 433&ndash;450.</p>
+<p>[14] Klees, R., Ditmar, P. &amp; Broersen, P. (2003). How to handle colored observation noise in large least-squares problems. <i>Journal of Geodesy,</i> 76(11&ndash;12), 629&ndash;640.</p>
+<p>[15] Ditmar, P., Kuznetsov, V., van Eck van der Sluijs, A. A., Schrama, E. &amp; Klees, R. (2006). A model of the Earth&rsquo;s gravity field. <i>Journal of Geodesy,</i> 79(10&ndash;11), 586&ndash;601.</p>
+<p>[16] Durbin, J. (1959). Efficient estimation of parameters in moving-average models. <i>Biometrika,</i> 46(3&ndash;4), 306&ndash;316.</p>
+<p>[17] Ljung, G. M. &amp; Box, G. E. P. (1978). On a measure of lack of fit in time series models. <i>Biometrika,</i> 65(2), 297&ndash;303.</p>
+<p>[18] Wen, H. Y., Kruizinga, G., Paik, M., et al. (2019). <i>GRACE-FO Level-1 Data Product User Handbook.</i> JPL D-56935, Jet Propulsion Laboratory, Pasadena.</p>
+<p>[19] Kornfeld, R. P., Arnold, B. W., Gross, M. A., et al. (2019). GRACE-FO: the Gravity Recovery and Climate Experiment Follow-On mission. <i>Journal of Spacecraft and Rockets,</i> 56(3), 931&ndash;951.</p>
+<p>[20] Schaffrin, B. (1997). Reliability measures for correlated observations. <i>Journal of Surveying Engineering,</i> 123(3), 126&ndash;137.</p>
+<p>[21] Ellmer, M. (2018). <i>Contributions to GRACE Gravity Field Recovery: Improvements in Dynamic Orbit Integration, Stochastic Modelling of the Antenna Offset Correction, and Co-Estimation of Satellite Orbits.</i> PhD thesis, Graz University of Technology.</p>
+</div><div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Reference Manual moved from PDF to HTML (equations rendered from LaTeX to static PNG images). Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-17 (CEST, UTC+02:00).</div>
+</body></html>

@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.adjust</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.adjust</div>
+<h1>lsqvce.adjust</h1>
+<div class="purpose">Solve, diagnose and judge a batch least-squares problem.</div>
+<h2>Syntax</h2>
+<pre class="syntax">[sol, D, V] = LSQVCE.ADJUST(u, batchFcn, nBatch) runs the whole pipeline:</pre>
+<h2>Description</h2>
+<p>accumulate -&gt; solve -&gt; second-pass diagnostics -&gt; verdict.</p>
+<p>batchFcn is a handle with signature</p>
+<pre class="example">[A, l, p] = batchFcn(k)      k = 1 .. nBatch</pre>
+<p>where A is nk x u, l is nk x 1, and p is the nk x 1 weight vector (the diagonal of P), or [] for unit weights.</p>
+<p>It is called TWICE per batch -- once to accumulate, once to diagnose -- and must return identical data both times. If reading from disk is expensive, cache inside the closure; if the batches are cheap to regenerate, don&#x27;t bother.</p>
+<p>NAME-VALUE  (all forwarded, see Accumulator/diagnose/report)</p>
+<pre class="example">&#x27;method&#x27;      &#x27;qr&#x27; (default) | &#x27;normal&#x27;
+&#x27;sigma0&#x27;      a-priori sigma0                       (default 1)
+&#x27;alpha&#x27;       significance per test                 (default 1e-3)
+&#x27;bonferroni&#x27;  correct for n simultaneous tests      (default true)
+&#x27;beta&#x27;        MDB type-II error                     (default 0.20)
+&#x27;rWeak&#x27;       weak-control threshold                (default 0.10)
+&#x27;test&#x27;        &#x27;auto&#x27; | &#x27;pope&#x27; | &#x27;baarda&#x27;            (default &#x27;auto&#x27;)
+&#x27;store&#x27;       &#x27;all&#x27; | &#x27;flagged&#x27; | &#x27;none&#x27;            (default &#x27;all&#x27;)
+&#x27;verbose&#x27;     print the report                      (default true)</pre>
+<h3>Example</h3>
+<pre class="example">% Two blunders planted at observations 40 and 150.
+rng(0);  n = 200;  u = 4;
+A  = randn(n,u);   xt = randn(u,1);
+sg = 0.5 + rand(n,1);   p = 1 ./ sg.^2;      % p = WEIGHT = 1/sigma^2
+l  = A*xt + sg.*randn(n,1);
+l([40 150]) = l([40 150]) + 12*sg([40 150]);</pre>
+<pre class="example">idx = reshape(1:n, [], 4);                   % 4 batches of 50
+src = @(k) deal(A(idx(:,k),:), l(idx(:,k)), p(idx(:,k)));</pre>
+<pre class="example">[sol, D, V] = lsqvce.adjust(u, src, 4);</pre>
+<pre class="example">% V.verdict      -&gt; &#x27;PASS WITH WARNINGS&#x27;
+% D.flagIdx      -&gt; [40 150]      both blunders found
+% D.s0           -&gt; 1.675         variance factor inflated by them
+% D.sumRRelErr   -&gt; 0             the integrity identity holds</pre>
+<p>Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-11.</p>
+<div class="seealso"><b>See also:</b> <a href="lsqvce.diagnose.html">lsqvce.diagnose</a>, <a href="lsqvce.report.html">lsqvce.report</a>, <a href="lsqvce.snoop.html">lsqvce.snoop</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+</body></html>

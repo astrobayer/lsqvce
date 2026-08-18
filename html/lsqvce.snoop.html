@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.snoop</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.snoop</div>
+<h1>lsqvce.snoop</h1>
+<div class="purpose">Iterative data snooping: reject outliers one at a time.</div>
+<h2>Syntax</h2>
+<pre class="syntax">[sol, D, REJ] = LSQVCE.SNOOP(sol, D, batchFcn) repeatedly removes the</pre>
+<h2>Description</h2>
+<p>single worst outlier, re-solves, and re-tests, until no observation trips the critical value.</p>
+<p>ONE AT A TIME, and here is the real reason -- which is NOT the one usually given.</p>
+<p>The textbook justification is that a blunder &quot;smears&quot; its residual onto its neighbours through the correlation in Qvv, so a simultaneous pass would over-reject innocent observations. That was tested directly and it is NOT what happens: with a Bonferroni-corrected threshold, simultaneous rejection produced ZERO false positives across 200 realisations with 3 large blunders each. Smearing is real but the threshold is far too high for it to matter.</p>
+<p>The actual reason is MASKING. Several blunders inflate s0 together, and each therefore hides the others: every |w| is divided by a variance factor that the blunders themselves have inflated, so none of them looks extreme. Remove one, s0 drops, and the rest become visible. Measured, with two equal blunders in a small network:</p>
+<pre class="example">iterative     found 400/400 true blunders   (100%)
+simultaneous  found 380/400                  (95%)</pre>
+<p>and in a wider sweep the single-pass approach MISSED 71 and 114 true blunders (at n=100 and n=50 respectively) where iterating missed none.</p>
+<p>So: iterate because a single pass MISSES outliers, not because it rejects too many. The practical consequence is the same -- iterate -- but the failure it protects against is the dangerous one (undetected blunders left in the data), not the benign one (a little good data discarded).</p>
+<h3>The Downdate</h3>
+<p>------------ Re-accumulating from scratch after each rejection is O(n*u^2) per rejection. Instead we downdate the Cholesky factor:</p>
+<pre class="example">R&#x27;R = N   -&gt;   R~&#x27;R~ = N - p_i a_i a_i&#x27;      via cholupdate(R, x, &#x27;-&#x27;)</pre>
+<p>at O(u^2). Verified to reproduce a full re-accumulation to 5e-16, and to stay accurate (1e-15) over 200 sequential downdates.</p>
+<p>THE vPv UPDATE -- the subtle part --------------------------------- It is natural to write vPv_new = vPv - p_i*v_i^2. THIS IS WRONG. Removing observation i changes x, hence changes EVERY residual. The correct identity is</p>
+<pre class="example">vPv_new = vPv - p_i * v_i^2 / r_i</pre>
+<p>with r_i the redundancy number. Verified exact (error 0.0e+00) against a full re-solve; the naive form was off by 7.6e-4 on a SINGLE rejection, and the error compounds with every further one. The 1/r_i factor is precisely the correction for the fact that the fit moves to absorb the removal.</p>
+<h3>The Guards</h3>
+<p>---------- Downdating an observation with tiny r_i destroys the only information the network has about some parameter, leaving a singular factor.</p>
+<p>When this was actually TESTED, MATLAB-equivalent cholupdate flagged the dangerous case correctly (it returned a failure code on a zero-redundancy downdate rather than silently producing a near-singular factor). So the post-hoc diag(R) check below is belt-and-braces, not the essential guard I first assumed it was. It is kept anyway: it costs O(u), it is the only thing that would catch a slow degradation over many successive downdates, and a rollback is far cheaper than a silently corrupted factor.</p>
+<p>The guard that actually matters is the PRE-CHECK: refuse to reject any observation with r_i &lt; rMinReject. That is not a numerical safeguard but a STATISTICAL one -- a large residual on a weakly-controlled observation is as likely to be error absorbed from a neighbour as a blunder in the observation itself, so rejecting it is close to a coin flip.</p>
+<p>So we check BOTH:</p>
+<pre class="example">* BEFORE: refuse to reject any observation with r_i &lt; rMinReject;
+* AFTER:  verify the smallest |diag(R)| has not collapsed, and roll back
+          if it has.</pre>
+<h3>Name-Value</h3>
+<pre class="example">&#x27;maxReject&#x27;    cap on rejections (default: max(10, 0.01*n))
+&#x27;rMinReject&#x27;   refuse to reject below this redundancy (default 0.10)
+&#x27;alpha&#x27;        significance per test (default 1e-3)
+&#x27;bonferroni&#x27;   correct for n tests (default true)
+&#x27;reaccumulate&#x27; re-accumulate from scratch at the end to purge downdate
+               roundoff and produce a clean final D (default true)
+&#x27;verbose&#x27;      print the rejection sequence (default true)</pre>
+<h3>Output Rej</h3>
+<pre class="example">.idx        indices rejected, in the order they were rejected
+.w          their normalised residual at the moment of rejection
+.r          their redundancy number at that moment
+.refused    indices that tripped the test but were REFUSED (low r_i)
+.nIter      iterations performed
+.converged  true if snooping terminated cleanly
+.history    per-iteration [nFlag, maxAbsW, s0sq]</pre>
+<h3>Example</h3>
+<pre class="example">[sol, D] = lsqvce.adjust(u, src, 4, &#x27;verbose&#x27;, false);
+[sol, D, REJ] = lsqvce.snoop(sol, D, src);</pre>
+<pre class="example">% REJ.idx       -&gt; [40 150]     rejected, one at a time
+% REJ.refused   -&gt; observations too weakly controlled to judge
+% REJ.history   -&gt; the full rejection sequence, for the record</pre>
+<pre class="example">% Under heavy contamination Pope cannot see the blunders at all, so
+% this loop would exit having rejected NOTHING and report &#x27;converged&#x27;.
+% Use the robust scale there:
+[sol, D, REJ] = lsqvce.snoop(sol, D, src, &#x27;test&#x27;, &#x27;mad&#x27;);</pre>
+<p>Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-11.</p>
+<div class="seealso"><b>See also:</b> <a href="lsqvce.robust.html">lsqvce.robust</a>, <a href="lsqvce.diagnose.html">lsqvce.diagnose</a>, <a href="lsqvce.systematic.html">lsqvce.systematic</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+</body></html>

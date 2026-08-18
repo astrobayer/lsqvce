@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.varComp</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.varComp</div>
+<h1>lsqvce.varComp</h1>
+<div class="purpose">Helmert variance-component estimation, streaming.</div>
+<h2>Syntax</h2>
+<pre class="syntax">VC = LSQVCE.VARCOMP(u, batchFcn, nBatch, groupFcn, nGroup) estimates a</pre>
+<h2>Description</h2>
+<p>separate variance factor for each observation group, iterating until they agree. Use this when the global test rejects but the residuals are clean and structureless -- i.e. when the problem is the WEIGHTS, not the data.</p>
+<p>This is the right tool when combining heterogeneous observation types whose relative weighting you do not actually know a priori (the usual case when, say, a range-rate instrument is combined with an interferometric one: both vendors quote a noise figure, and at least one of them is wrong).</p>
+<h3>Inputs</h3>
+<pre class="example">groupFcn  g = groupFcn(k) returns an nk x 1 vector of group indices in
+          1..nGroup for the observations in batch k.
+nGroup    number of variance components.</pre>
+<h3>Method</h3>
+<pre class="example">Rigorous Helmert requires the nGroup x nGroup matrix
+    H_ij = tr(Qxx N_i Qxx N_j),  N_i = A_i&#x27; P_i A_i
+which needs only u x u accumulations per group -- perfectly streamable.
+The right-hand side is q_i = v_i&#x27; P_i v_i. Solving H s = q gives the
+variance components. We iterate: rescale P_i by 1/s_i, re-solve, repeat.</pre>
+<pre class="example">The simplified (Foerstner) estimator
+    s_i = v_i&#x27;P_i v_i / r_i,   r_i = n_i - tr(Qxx N_i)
+is also returned, since it is what most textbooks actually use and it
+converges to the same fixed point. Rigorous is the default.</pre>
+<h3>Name-Value</h3>
+<pre class="example">&#x27;method&#x27;   &#x27;rigorous&#x27; (default) | &#x27;simplified&#x27;
+&#x27;maxIter&#x27;  30
+&#x27;tol&#x27;      1e-6      convergence on max|s_i - 1|
+&#x27;verbose&#x27;  true
+&#x27;minObs&#x27;   10        below this a group&#x27;s component is not estimable
+&#x27;traceMethod&#x27; &#x27;exact&#x27; (default) | &#x27;hutchinson&#x27;. Entry-point parity with
+             lsqvce.vce / lsqvce.redundancy. EXACT stays default and
+             authoritative; the redundancy traces tr(Qxx N_g) and the Helmert
+             matrix tr(Qxx N_i Qxx N_j) are always formed exactly and drive the
+             estimate. With &#x27;hutchinson&#x27; those numbers are UNCHANGED; the
+             estimator (Ellmer 2018 6.5.6, lsqvce.traceEstimate) adds a machinery
+             check tr(N^-1 N)=u on the final normal, returned in VC.traceEstimate.
+             It is NOT a per-group redundancy replacement (roadmap item 0).
+&#x27;probes&#x27;    100       number of Hutchinson probes Z.
+&#x27;traceSeed&#x27; []        RNG seed for reproducible probes (default: global stream).
+&#x27;backend&#x27;   &#x27;exact&#x27; (default) | &#x27;hutchinson&#x27;. Which estimator computes the
+             VARIANCE COMPONENTS (distinct from &#x27;traceMethod&#x27;, which only adds a
+             machinery check). With &#x27;hutchinson&#x27; the WHOLE estimation is delegated
+             to lsqvce.vceHutchinson -- the matrix-free Ellmer path that never
+             forms the dense inverse. Use it only for LARGE u (thousands); below
+             that the exact backend is faster AND exact AND gives the diagnostics.
+             Strict Ellmer: the returned VC is then vceHutchinson&#x27;s SUBSET struct
+             (no per-obs fields; adds .redundSE, .estimator=&#x27;hutchinson&#x27;). If
+             &#x27;checkD&#x27; is supplied it FALLS BACK to exact and warns. Roadmap
+             item 0, tier T2 (an opt-in SCALE backend).
+&#x27;seed&#x27;      []        RNG seed forwarded to the Hutchinson backend (falls back
+                       to &#x27;traceSeed&#x27;). Ignored by the exact backend.
+&#x27;reprobe&#x27;   true      forwarded to the Hutchinson backend.</pre>
+<h3>Output Vc</h3>
+<pre class="example">.s          nGroup x 1  final variance components (converged: all ~1)
+.scale      nGroup x 1  cumulative weight scaling applied: P_i -&gt; P_i/scale_i
+.sigma      nGroup x 1  implied sigma per group = sqrt(scale)
+.nObs       nGroup x 1
+.redund     nGroup x 1  partial redundancy per group
+.iter, .converged, .history
+.traceEstimate  present ONLY with &#x27;traceMethod&#x27;,&#x27;hutchinson&#x27;: struct
+                (.value/.expected/.relErr/.se/.relSE/.probes/.note) from the
+                machinery check tr(N^-1 N)=u. Not a per-group redundancy.</pre>
+<h3>Example</h3>
+<pre class="example">% Two sensors observe the same arcs. Their quoted noise levels are
+% almost never both right -- let the DATA say what the ratio is.
+g    = [ones(n/2,1); 2*ones(n/2,1)];        % sensor 1 | sensor 2
+gsrc = @(k) g(idx(:,k));</pre>
+<pre class="example">VC = lsqvce.varComp(u, src, 4, gsrc, 2);</pre>
+<pre class="example">% VC.sigma        the recovered sigma scale per group
+% VC.resolution   its 1-sigma sampling noise (~0.5*sqrt(2/r_g))
+% VC.significant  is the correction BIGGER than that noise?</pre>
+<pre class="example">% Do not &quot;correct&quot; your weights by 5%% when the resolution is 6%%.
+if any(VC.significant)
+    fprintf(&#x27;sigma ratio = %%.3f\n&#x27;, VC.sigma(2)/VC.sigma(1));
+end</pre>
+<p>Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-11.</p>
+<div class="seealso"><b>See also:</b> <a href="lsqvce.diagnose.html">lsqvce.diagnose</a>, <a href="lsqvce.Combine.html">lsqvce.Combine</a>, <a href="lsqvce.vce.html">lsqvce.vce</a>, <a href="lsqvce.redundancy.html">lsqvce.redundancy</a>, <a href="lsqvce.traceEstimate.html">lsqvce.traceEstimate</a>, <a href="lsqvce.vceHutchinson.html">lsqvce.vceHutchinson</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+</body></html>

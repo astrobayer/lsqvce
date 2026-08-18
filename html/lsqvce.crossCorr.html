@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.crossCorr</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.crossCorr</div>
+<h1>lsqvce.crossCorr</h1>
+<div class="purpose">Cross-axis / temporal correlation of the whitened residuals.</div>
+<h2>Syntax</h2>
+<pre class="syntax">c = LSQVCE.CROSSCORR(w, d, &#x27;Name&#x27;, value, ...)</pre>
+<h2>Description</h2>
+<p>THE DIAGNOSTIC THAT TELLS YOU WHETHER YOUR SEPARABLE MODEL IS SAFE.</p>
+<p>Under a CORRECT separable covariance the whitened residuals are white in time AND across axes, so R(0) = I and R(tau&gt;0) = 0. Departures from that diagnose exactly WHICH part of the model is wrong -- and the four cases call for four different fixes, which is why a single &quot;is it white&quot; test is not enough.</p>
+<h3>Input</h3>
+<pre class="example">w    m x 1     whitened residuals, EPOCH-MAJOR: [x1 y1 z1 x2 y2 z2 ...]
+d    scalar    number of axes (3 for a 3-D position)</pre>
+<h3>Options</h3>
+<pre class="example">&#x27;MaxLag&#x27;  default 20 epochs
+&#x27;Alpha&#x27;   significance level (default 0.05 -&gt; band 1.96/sqrt(nEpoch))
+&#x27;Plot&#x27;    default false</pre>
+<h3>Output</h3>
+<pre class="example">c.R        (maxLag+1) x d x d   empirical cross-covariance R(tau)
+c.band     significance band per element
+c.verdict  &#x27;ok&#x27; | &#x27;cross-axis-zero-lag&#x27; | &#x27;ar-order-low&#x27; | &#x27;needs-var&#x27;
+c.advice   what to do about it</pre>
+<h3>Reading The Verdict</h3>
+<pre class="example">&#x27;ok&#x27;
+    R(0) = I, R(tau&gt;0) = 0. The separable model is adequate. Done.</pre>
+<pre class="example">&#x27;cross-axis-zero-lag&#x27;   R(0) has significant OFF-diagonals
+    The axes are correlated AT THE SAME EPOCH. Your per-epoch covariance
+    is wrong -- almost always because you supplied a diagonal sigma when
+    your kinematic PPP actually gives you the full 3x3 (the vertical is
+    2-3x worse than horizontal AND correlated with it). Fix D, not the
+    temporal model. This is the most common failure and the easiest fix.</pre>
+<pre class="example">&#x27;ar-order-low&#x27;          R(tau&gt;0) has a nonzero DIAGONAL
+    Leftover TEMPORAL correlation within each axis. Raise the AR order.
+    See LSQVCE.SELECTARORDER.</pre>
+<pre class="example">&#x27;needs-var&#x27;             R(tau&gt;0) has significant OFF-diagonals
+    Genuine cross-axis TEMPORAL correlation: axis i at epoch k correlates
+    with axis j at epoch k-tau. Separability FAILS. You need a vector-AR
+    (VAR) model with matrix coefficients. This toolbox does not implement
+    that yet -- but this test tells you empirically whether you need it,
+    rather than assuming either way.</pre>
+<h3>Run This Before Trusting Vce Or Outlier Detection</h3>
+<pre class="example">Both assume the weighting is right. If R(0) is far from I, both are biased.</pre>
+<h3>Example</h3>
+<pre class="example">res = acc.residuals(sol);
+w   = vertcat(res.sys(1).obs.w);
+c   = lsqvce.crossCorr(w, 3, &#x27;Plot&#x27;, true);</pre>
+<pre class="example">fprintf(&#x27;%s: %s\n&#x27;, c.verdict, c.advice);
+disp(squeeze(c.R(1,:,:)))          % R(0) -- should be the identity</pre>
+<div class="seealso"><b>See also:</b> <a href="lsqvce.selectArOrder.html">lsqvce.selectArOrder</a>, <a href="lsqvce.residuals.html">lsqvce.residuals</a>, <a href="lsqvce.covModel.html">lsqvce.covModel</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+</body></html>

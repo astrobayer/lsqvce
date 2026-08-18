@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.dctI</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.dctI</div>
+<h1>lsqvce.dctI</h1>
+<div class="purpose">Type-I discrete cosine transform (covariance &lt;-&gt; PSD pairing).</div>
+<h2>Description</h2>
+<pre class="example">y      = LSQVCE.DCTI(x)
+y      = LSQVCE.DCTI(x, &#x27;Name&#x27;, value, ...)
+[y, X] = LSQVCE.DCTI(...)
+
+The discrete transform Ellmer (2018, eqs. 6.5.12-6.5.14) uses to pair the
+discretised autocovariance function C^n_xx with the power spectral density
+S^j_xx of a wide-sense-stationary noise process:  S = X C  and  C = X^-1 S.
+For the ORTHONORMAL normalisation (the default) X is self-inverse (X^-1 = X),
+so the same call inverts itself.</pre>
+<h3>THE MATRIX (Rao &amp; Yip 1990; Ellmer eq. 6.5.12)</h3>
+<pre class="example">  X_mn = sqrt(2/(N-1)) * k_m k_n cos( m n pi / (N-1) ),   m,n in [0,N),
+with the endpoint weights k_i selected by &#x27;Norm&#x27;:
+  &#x27;ortho&#x27;  (default)  k_0 = k_{N-1} = 1/sqrt(2), else 1  -&gt; X orthonormal,
+                      self-inverse (X X = I). Numerically sound; standard
+                      type-I DCT (== scipy dct type=1, norm=&#x27;ortho&#x27;).
+  &#x27;ellmer&#x27;            k_0 = 1/sqrt(2), else 1 (the thesis as literally
+                      written). NOT orthonormal but well-conditioned
+                      (cond ~ 1.5); inverse is via &#x27;Inverse&#x27;,true (uses X^-1).
+                      Use for bit-exact ITSG-Grace2016 reproduction. The two
+                      normalisations differ only in the Nyquist-bin scaling
+                      (a sqrt(2) factor on the highest-frequency amplitude).</pre>
+<h3>Input</h3>
+<pre class="example">  x    N x K double   K columns of length-N sequences to transform (each
+                      column independently). N &gt;= 2. A row vector is treated
+                      as one column. For the covariance-&gt;PSD direction pass
+                      the autocovariance C^n_xx (n = 0..N-1) as x.
+
+OPTIONS (Name/Value)
+  &#x27;Norm&#x27;     char     &#x27;ortho&#x27; (default) | &#x27;ellmer&#x27;  (see above)
+  &#x27;Inverse&#x27;  logical  false (default) forward S = X C; true applies the
+                      inverse C = X^-1 S. For &#x27;ortho&#x27; the inverse equals the
+                      forward (X is self-inverse) so this is a no-op flag
+                      there; for &#x27;ellmer&#x27; it forms and applies X^-1.</pre>
+<h3>Output</h3>
+<pre class="example">  y    N x K double   the transform of each column of x
+  X    N x N double   the transform matrix actually applied (X for forward,
+                      X^-1 for inverse). Handy to reuse across many columns
+                      or to cache; forming it is O(N^2).
+
+INVARIANTS (tested)
+  &#x27;ortho&#x27;:  X = X.&#x27;,  X*X = I  (self-inverse, symmetric)
+  round-trip: dctI(dctI(x)) = x for &#x27;ortho&#x27;; and for &#x27;ellmer&#x27;
+              dctI(dctI(x,&#x27;Norm&#x27;,&#x27;ellmer&#x27;),&#x27;Norm&#x27;,&#x27;ellmer&#x27;,&#x27;Inverse&#x27;,true)=x</pre>
+<h3>Example</h3>
+<pre class="example">  C = [1.0 0.5 0.2 0.05 0.0].&#x27;;        % an autocovariance sequence
+  S = lsqvce.dctI(C);                  % its type-I DCT (a PSD proxy)
+  C2 = lsqvce.dctI(S);                 % ortho is self-inverse -&gt; C2 == C
+  max(abs(C - C2))                     % ~ 1e-15
+
+See also LSQVCE.PSD2ACV, LSQVCE.TOEPLITZCOFACTOR, LSQVCE.COVCOMPONENT
+
+Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
+model Claude Opus 4.8.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
+</body></html>

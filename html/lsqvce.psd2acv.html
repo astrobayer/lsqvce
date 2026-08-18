@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.psd2acv</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.psd2acv</div>
+<h1>lsqvce.psd2acv</h1>
+<div class="purpose">One-sided PSD -&gt; autocovariance sequence (Wiener-Khinchin).</div>
+<h2>Syntax</h2>
+<pre class="syntax">r = LSQVCE.PSD2ACV(f, S, dt, n) returns the autocovariance r(0:n-1) at lag</pre>
+<h2>Description</h2>
+<p>spacing dt, obtained from the one-sided power spectral density S(f) by</p>
+<pre class="example">r(tau) = int_0^{fNy} S(f) * cos(2*pi*f*tau) df</pre>
+<p>evaluated with trapezoidal quadrature on the supplied frequency grid.</p>
+<h3>Input</h3>
+<pre class="example">f    nf x 1  frequency grid [Hz], strictly increasing, f &gt;= 0
+S    nf x 1  one-sided PSD [unit^2/Hz], S &gt;= 0
+dt   scalar  lag spacing [s], &gt; 0 (the sampling interval of the data)
+n    scalar  number of lags to return, &gt;= 1</pre>
+<h3>Output</h3>
+<pre class="example">r    n x 1   autocovariance, r(1) = r(0) = variance of the process</pre>
+<h3>Convention</h3>
+<pre class="example">One-sided: var(x) = trapz(f, S) = r(0). If your PSD is two-sided, halve
+the frequencies and double S, or simply pass S_two_sided*2 over f &gt;= 0.
+A factor-of-two error here shows up as sigma0 ~ sqrt(2) or 1/sqrt(2),
+not as an obvious failure -- check r(1) against var(residuals).</pre>
+<h3>Accuracy</h3>
+<pre class="example">The quadrature error is set by the frequency grid, not by n. A grid that
+is too coarse near a spectral peak biases r(0) low. Use &gt;= 2048 points
+and make sure the grid resolves the narrowest feature of S. Verify with
+  assert(abs(r(1) - trapz(f,S))/r(1) &lt; 1e-10)   % identity at tau = 0</pre>
+<h3>Best Practice</h3>
+<pre class="example">Do not extend f beyond the Nyquist frequency 1/(2*dt) of the data: power
+above Nyquist is aliased in the observations but not in this integral,
+which would make r inconsistent with the sampled process.</pre>
+<h3>Example</h3>
+<pre class="example">% PSD of an AR(1) with phi = 0.9, innovation sigma = 1, dt = 5 s
+dt = 5;  a = [1 -0.9];
+f  = linspace(0, 0.5/dt, 4096).&#x27;;
+H  = 1 ./ (exp(-1i*2*pi*f*dt*(0:1)) * a(:));
+S  = 1^2 * dt * 2 * abs(H).^2;              % one-sided
+r  = lsqvce.psd2acv(f, S, dt, 5);
+r(1)                                        % ~ 1/(1-0.9^2) = 5.263</pre>
+<div class="seealso"><b>See also:</b> <a href="lsqvce.levinsonDurbin.html">lsqvce.levinsonDurbin</a>, <a href="lsqvce.armaACV.html">lsqvce.armaACV</a>, <a href="lsqvce.checkPSD.html">lsqvce.checkPSD</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+</body></html>

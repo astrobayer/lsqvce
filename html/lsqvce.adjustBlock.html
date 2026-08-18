@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.adjustBlock</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.adjustBlock</div>
+<h1>lsqvce.adjustBlock</h1>
+<div class="purpose">One-call block-arrow adjustment: accumulate, solve, judge.</div>
+<p><em>Renamed 2026-07-17 from <code>lsqvce.recover</code> so the streaming
+block-arrow solve pairs by name with <a href="lsqvce.adjust.html">lsqvce.adjust</a>
+(flat, in-memory) and <a href="lsqvce.adjustVCE.html">lsqvce.adjustVCE</a>
+(iterative + variance components). The old name was <strong>REMOVED</strong> on
+2026-07-18 -- all aliases were dropped pre-release -- so calling
+<code>lsqvce.recover</code> is now an undefined function. See
+<a href="lsqvce.recover.html">the tombstone page</a>.</em></p>
+<h2>Syntax</h2>
+<pre class="syntax">R = lsqvce.adjustBlock(systems, days)
+R = lsqvce.adjustBlock(systems, days, Name, Value, ...)</pre>
+<h2>Description</h2>
+<p>The single front door over the streaming pipeline. It builds an
+<a href="lsqvce.BlockAccumulator.html">lsqvce.BlockAccumulator</a>, adds every
+system, solves the reduced common system, bridges the result into the
+diagnostics (<a href="lsqvce.diagnoseAccum.html">lsqvce.diagnoseAccum</a> /
+<a href="lsqvce.diagnose.html">lsqvce.diagnose</a>), and returns an
+<a href="lsqvce.Results.html">lsqvce.Results</a> object that carries the
+solution, the per-observation diagnostics, and the accumulator itself. The
+six-step dance (accumulator &rarr; addSystem &rarr; solve &rarr; diagnoseAccum
+&rarr; diagnose &rarr; report) becomes one line; the lower layers stay
+reachable on <code>R</code> for experts (<code>R.acc</code>,
+<code>R.diag</code>).</p>
+<p>This performs ONE GLS solve with whatever covariance the loaders supply. The
+iterative separable refinement (temporal whitening + VCE reweighting) is layered
+on top by <code>lsqvce.adjustVCE</code>; adjustBlock is its base.</p>
+<h2>Inputs</h2>
+<table>
+<tr><th>Name</th><th>Type / size</th><th>Description</th></tr>
+<tr><td class="name">nc</td><td>1&times;1 integer</td><td>Number of COMMON parameters (the shared field). Required.</td></tr>
+<tr><td class="name">systems</td><td>1&times;M struct | cell</td><td>The systems to combine. Either a struct array with fields <code>.sysID</code>, <code>.nl</code>, <code>.loader</code> (and optional <code>.days</code>), or a cell array of Loader objects from <a href="lsqvce.makeLoader.html">lsqvce.makeLoader</a>. Required.</td></tr>
+<tr><td class="name">days</td><td>1&times;D numeric</td><td>Default day list for systems that do not carry their own (may be <code>[]</code> when every system specifies its days). Required.</td></tr>
+</table>
+<h3>Name-value options</h3>
+<table>
+<tr><th>Name</th><th>Values</th><th>Default</th></tr>
+<tr><td class="name">backend</td><td><code>'qr'</code> | <code>'normal'</code></td><td><code>'qr'</code></td></tr>
+<tr><td class="name">reg</td><td><code>'none'|'tikhonov'|'tsvd'|'lm'|'auto'</code></td><td><code>'none'</code></td></tr>
+<tr><td class="name">regLambda</td><td>1&times;1 regularisation weight</td><td><code>0</code></td></tr>
+<tr><td class="name">regMatrix</td><td>p&times;nc regularisation matrix</td><td><code>[]</code></td></tr>
+<tr><td class="name">parallel</td><td><code>'serial'|'parfor'|'spmd'</code></td><td><code>'serial'</code></td></tr>
+<tr><td class="name">verbose</td><td>1&times;1 logical</td><td><code>false</code></td></tr>
+<tr><td class="name">showSeconds</td><td>1&times;1 seconds to display each plot-hook figure (0 = export only; &lt;0 = show and leave open)</td><td><code>0</code></td></tr>
+<tr><td class="name">exportDir</td><td>char, folder for plot-hook PNGs (<code>''</code> = do not export)</td><td><code>''</code></td></tr>
+</table>
+<h3>Plot hooks (single-solve, postSolve only)</h3>
+<p>If a loader was built with <a href="lsqvce.makeLoader.html">lsqvce.makeLoader</a>'s
+<code>'plotPostSolve'</code>, <code>adjustBlock</code> fires that hook once per
+(system,obsType) stream AFTER the solve &mdash; exactly as the
+<a href="lsqvce.adjustVCE.html">lsqvce.adjustVCE</a> postSolve seam
+does, keyed <code>'satKey|obsType'</code>. The hook receives ONE ctx struct
+(<code>.stage='postSolve'</code>, <code>.stream</code>, <code>.satKey</code>,
+<code>.obsType</code>, <code>.sysID</code>, <code>.pass=1</code>, <code>.R</code>
+(the Results), <code>.x</code>, <code>.exportDir</code>, <code>.showSeconds</code>)
+and returns a figure; the engine owns the timed show and PNG export via
+<a href="lsqvce.util.showExport.html">lsqvce.util.showExport</a>. A throwing or
+figure-less hook is logged (<code>lsqvce:adjustBlock:plotHookFailed</code>) and skipped
+&mdash; plots NEVER break the solve. There is NO <code>'plotPostModel'</code> seam
+here: <code>adjustBlock</code> does ONE GLS solve and estimates no stochastic model, so
+postModel has nothing to fire on; use
+<a href="lsqvce.adjustVCE.html">lsqvce.adjustVCE</a> for that. Raw
+4-arg closures (not Loader objects) carry no hooks and are skipped.</p>
+<h2>Outputs</h2>
+<table>
+<tr><th>Name</th><th>Type / size</th><th>Description</th></tr>
+<tr><td class="name">R</td><td>1&times;1 <a href="lsqvce.Results.html">lsqvce.Results</a></td><td>Solution + diagnostics + accumulator: <code>R.x</code>, <code>R.sigma0</code>, <code>R.report()</code>, <code>R.redundancy</code>, <code>R.acc</code>, &hellip;</td></tr>
+</table>
+<h2>Example</h2>
+<pre class="example">cov.pos = struct('type','arma','ar',[1 -1.6 0.9 -0.25],'ma',1,'sigma',0.7);
+cov.kbr = struct('type','diag','sigma',0.2);
+Lc = lsqvce.makeLoader(@(d,ot) buildDayC(d,ot), 'sysID','C', 'nl',4, ...
+         'obsTypes',{'pos','kbr'}, 'cov',cov, 'arcs',2);
+R  = lsqvce.adjustBlock({Lc}, 1:3);
+R.report();          % levels 0-4
+xhat = R.x;          % common-parameter estimate</pre>
+<div class="seealso"><b>See also:</b> <a href="lsqvce.Results.html">lsqvce.Results</a>, <a href="lsqvce.makeLoader.html">lsqvce.makeLoader</a>, <a href="lsqvce.adjustVCE.html">lsqvce.adjustVCE</a>, <a href="lsqvce.BlockAccumulator.html">lsqvce.BlockAccumulator</a>, <a href="lsqvce.diagnoseAccum.html">lsqvce.diagnoseAccum</a>, <a href="lsqvce.diagnose.html">lsqvce.diagnose</a>, <a href="lsqvce.report.html">lsqvce.report</a>, <a href="lsqvce.util.showExport.html">lsqvce.util.showExport</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-16.</div>
+</body></html>

@@ -1,0 +1,210 @@
+classdef PrefetchLoader < handle
+%LSQVCE.PREFETCHLOADER  Overlap loader I/O with accumulation (ROADMAP 3.3).
+%
+%   pf  = lsqvce.PrefetchLoader(dataFcn, dayList);
+%   acc.addSystem(sysID, nl, pf.handle(), dayList);
+%
+%   While the accumulator consumes day d, a background worker
+%   (parfeval + backgroundPool) already loads day d+1 -- the whole day, all
+%   obsTypes and arcs, in one future. Worth it exactly when the loader is
+%   I/O-BOUND (real L1B reads, RINEX parsing); for a cheap in-memory loader
+%   the copy overhead loses. Profile first.
+%
+%   MEMORY
+%     Exactly ONE extra day is ever resident (the prefetched one). The
+%     depth-one policy is deliberate: deeper pipelines multiply peak memory
+%     for no additional overlap once loading is slower than accumulating.
+%
+%   CORRECTNESS CONTRACT
+%     * The wrapped loader must be DETERMINISTIC (the toolbox already
+%       requires this for the residuals pass) and worker-safe -- it runs on a
+%       background worker. persistent caches inside it are worker-local and
+%       fine.
+%     * Served data is byte-identical to a direct call: the future's result
+%       IS a dataFcn result, cached and handed out. Nothing is recomputed or
+%       approximated. Verified serially in tests/test_v4.m by comparing full
+%       accumulations through the wrapper against the bare loader.
+%     * Out-of-order access (the redundancy pass under parfor visits arcs in
+%       task order) simply MISSES the cache and falls through to a direct
+%       call -- correct, just not accelerated. This wrapper targets the
+%       ACCUMULATION pass, which is strictly day-ordered.
+%
+%   GRACEFUL DEGRADATION
+%     No Parallel Computing Toolbox, no backgroundPool, or 'Enable' false ->
+%     pure passthrough. The wrapper never becomes a hard dependency.
+%
+%   NOT tested on a live pool in the build environment (no MATLAB+PCT
+%   there): the passthrough and cache-serving logic is what the test suite
+%   pins down; confirm the actual overlap with a profile run on real
+%   hardware.
+%
+%   OPTIONS (name-value)
+%     'Enable'   'auto' (default: on iff backgroundPool is available) |
+%                true | false
+%
+%   ERRORS
+%     lsqvce:prefetch:badLoader     the wrapped loader is not a struct of closures
+%
+%   See also LSQVCE.BLOCKACCUMULATOR, LSQVCE.SYNTHLOADER, LSQVCE.MAPREDUCE
+%
+%   Generated with assistance from Claude (Anthropic), model Claude
+%   Opus 4.8.
+
+    properties (SetAccess = private)
+        dataFcn                 % the wrapped loader
+        dayList                 % day sequence, defines "next day"
+        enabled = false         % background prefetch active?
+        hits    = 0             % served from prefetch
+        misses  = 0             % fell through to a direct call
+    end
+
+    properties (Access = private)
+        fut      = []           % pending parfeval future ([] if none)
+        futDay   = []           % day the future is loading
+        cacheDay = []           % day currently cached
+        cache    = []           % containers.Map arcKey -> arc struct
+    end
+
+    methods
+        function o = PrefetchLoader(dataFcn, dayList, varargin)
+        %PREFETCHLOADER  Construct a loader that prefetches the next day in the
+        %   background (parfeval) while the current one is consumed. See classdef
+        %   header for options. INPUT dataFcn 4-arg loader; dayList 1xD days.
+            narginchk(2, inf);
+            if ~isa(dataFcn, 'function_handle')
+                error('lsqvce:prefetch:badLoader', ...
+                      'dataFcn must be a function handle.');
+            end
+            p = inputParser;
+            p.addParameter('Enable', 'auto');
+            p.parse(varargin{:});
+            en = p.Results.Enable;
+
+            o.dataFcn = dataFcn;
+            o.dayList = dayList(:).';
+
+            if islogical(en)
+                o.enabled = en && o.poolOK();
+                if en && ~o.enabled
+                    lsqvce.util.log.warn('lsqvce:prefetch:noPool', ...
+                        ['Prefetch requested but no backgroundPool is ' ...
+                         'available; running as a passthrough.']);
+                end
+            else
+                o.enabled = o.poolOK();
+            end
+        end
+
+        function f = handle(o)
+        %HANDLE  The @(d,ot,a,uo) function handle to give the accumulator.
+            f = @(d, ot, a, uo) o.fetch(d, ot, a, uo);
+        end
+
+        function out = fetch(o, d, ot, a, uo)
+            % meta calls: pass through, and use the moment to trigger the
+            % prefetch of the NEXT day (we now know a new day is starting)
+            if (ischar(d) || isstring(d)) && strcmp(d, 'meta')
+                out = o.dataFcn(d, ot, a, uo);
+                if o.enabled
+                    o.kick(ot, uo);            % ot carries the day here
+                end
+                return
+            end
+
+            if ~o.enabled
+                out = o.dataFcn(d, ot, a, uo);
+                return
+            end
+
+            % day switch: harvest the future if it holds this day
+            if ~isequal(o.cacheDay, d)
+                o.harvest(d);
+            end
+
+            key = sprintf('%s|%s', string(ot), string(a));
+            if isequal(o.cacheDay, d) && ~isempty(o.cache) && o.cache.isKey(key)
+                out = o.cache(key);
+                o.hits = o.hits + 1;
+            else
+                out = o.dataFcn(d, ot, a, uo);   % miss: direct, still correct
+                o.misses = o.misses + 1;
+            end
+        end
+
+        function delete(o)
+        %DELETE  Destructor: cancel any in-flight prefetch future.
+            if ~isempty(o.fut)
+                try cancel(o.fut); catch, end
+            end
+        end
+    end
+
+    methods (Access = private)
+        function tf = poolOK(~)
+            % Availability of the background pool. NOTE: do NOT test
+            % exist('backgroundPool','file') == 2 -- backgroundPool ships as a
+            % packaged/built-in function, so exist() returns 5 (built-in) or 0,
+            % never 2, and the ==2 form wrongly reports "unavailable" even with
+            % the Parallel Computing Toolbox installed. Check the license + ver,
+            % then that backgroundPool resolves at all (any nonzero exist code),
+            % preferring the class check which is packaging-independent.
+            tf = license('test', 'Distrib_Computing_Toolbox') ...
+                 && ~isempty(ver('parallel')) ...
+                 && ( exist('parallel.pool.BackgroundPool', 'class') ~= 0 ...
+                      || exist('backgroundPool', 'file') ~= 0 );
+        end
+
+        function kick(o, dNow, uo)
+        %KICK  Submit the future for the day AFTER dNow, unless already done.
+            k = find(o.dayList == dNow, 1);
+            if isempty(k) || k == numel(o.dayList), return, end
+            dNext = o.dayList(k+1);
+            if isequal(o.futDay, dNext) || isequal(o.cacheDay, dNext)
+                return
+            end
+            if ~isempty(o.fut)
+                try cancel(o.fut); catch, end
+            end
+            try
+                o.fut = parfeval(backgroundPool, ...
+                                 @lsqvce.PrefetchLoader.loadWholeDay, 1, ...
+                                 o.dataFcn, dNext, uo);
+                o.futDay = dNext;
+            catch
+                o.fut = []; o.futDay = [];
+                o.enabled = false;             % degrade once, stay honest
+            end
+        end
+
+        function harvest(o, d)
+        %HARVEST  Collect a completed prefetch for day d into the cache (drops any
+        %   stale future/cache first); silent no-op if the future is missing/mismatched.
+            o.cacheDay = [];  o.cache = [];
+            if isempty(o.fut) || ~isequal(o.futDay, d), return, end
+            try
+                o.cache    = fetchOutputs(o.fut);
+                o.cacheDay = d;
+            catch
+                o.cache = []; o.cacheDay = [];  % future failed: fall through
+            end
+            o.fut = []; o.futDay = [];
+        end
+    end
+
+    methods (Static, Hidden)
+        function C = loadWholeDay(dataFcn, d, uo)
+        %LOADWHOLEDAY  Runs ON THE BACKGROUND WORKER: one whole day.
+            C = containers.Map('KeyType','char','ValueType','any');
+            meta = dataFcn('meta', d, [], uo);
+            for ot = 1:numel(meta.obsTypes)
+                uo.obsType = meta.obsTypes{ot};
+                arcs = meta.arcs{ot};
+                for a = arcs(:).'
+                    uo.day = d;  uo.arc = a;
+                    C(sprintf('%s|%s', string(uo.obsType), string(a))) = ...
+                        dataFcn(d, uo.obsType, a, uo);
+                end
+            end
+        end
+    end
+end

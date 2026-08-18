@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.varWhiten</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.varWhiten</div>
+<h1>lsqvce.varWhiten</h1>
+<div class="purpose">Whiten multi-axis observations against a vector-AR model.</div>
+<h2>Syntax</h2>
+<pre class="syntax">[Aw,Bw,lw] = LSQVCE.VARWHITEN(Avar, Sigma, G, d, A, B, l, isFirstBatch)</pre>
+<h2>Description</h2>
+<p>The case LSQVCE.CROSSCORR flags as &#x27;needs-var&#x27;: axes cross-correlated IN TIME (axis i at epoch k with axis j at epoch k-tau), which the separable model cannot represent. The whitener is a MATRIX FIR:</p>
+<pre class="example">w_t = L^-1 * ( z_t - sum_{k=1}^p A_k z_{t-k} ),   L*L&#x27; = Sigma</pre>
+<p>applied down epochs, plus an exact stationary startup for the first p epochs (the block analogue of LSQVCE.ARMAWHITEN&#x27;s startup rows). Cost O(nEpoch * p * d^2) -- for d = 3 essentially the scalar cost times 9.</p>
+<h3>Exactness</h3>
+<pre class="example">With the startup block, the operator equals the dense block-Cholesky
+inverse chol(C)^-1 ROW FOR ROW (C the block-Toeplitz covariance):
+relative difference ~1e-10, and the GLS solution through it matches the
+dense solve to 1e-9 (validation/v6verify.py tests 5-6). Not an
+approximation.</pre>
+<p>ROW ORDERING -- EPOCH-MAJOR, exactly as LSQVCE.SEPARABLEWHITEN</p>
+<pre class="example">[x1 y1 z1 x2 y2 z2 ...]   and m must be a whole multiple of d.</pre>
+<h3>Batching</h3>
+<pre class="example">On any batch after the first the FIR restarts from zero state; the
+first p EPOCHS (p*d rows) are transient and must be overlapped and
+discarded -- LSQVCE.BLOCKACCUMULATOR does this from arc.filterMemory = p*d and
+rounds batches to whole epochs from arc.nAxis = d. Same contract as the
+scalar filter path; same failure mode if the overlap is forced to 0.</pre>
+<h3>Input</h3>
+<pre class="example">Avar    d x d x p     VAR coefficient matrices (LSQVCE.WHITTLE output)
+Sigma   d x d         innovation covariance
+G       d x d x &gt;=p   Gamma(0..) for the startup block (LSQVCE.VARACV, or
+                      the empirical cross-ACV the model was fitted on)
+d       scalar        number of axes
+A, B    m x *         design blocks, epoch-major rows (may be m x 0)
+l       m x 1         observations, epoch-major
+isFirstBatch          true -&gt; exact stationary startup for epochs 1..p</pre>
+<div class="seealso"><b>See also:</b> <a href="lsqvce.whittle.html">lsqvce.whittle</a>, <a href="lsqvce.varACV.html">lsqvce.varACV</a>, <a href="lsqvce.separableWhiten.html">lsqvce.separableWhiten</a>, <a href="lsqvce.armaWhiten.html">lsqvce.armaWhiten</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+</body></html>

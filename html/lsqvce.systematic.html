@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.systematic</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.systematic</div>
+<h1>lsqvce.systematic</h1>
+<div class="purpose">Detect unmodelled systematic errors in the residuals.</div>
+<h2>Syntax</h2>
+<pre class="syntax">S = LSQVCE.SYSTEMATIC(D) runs three complementary tests on the normalised</pre>
+<h2>Description</h2>
+<p>residuals from lsqvce.diagnose. This closes the single largest blind spot in the rest of the toolbox.</p>
+<h3>Why This Exists</h3>
+<p>--------------- A smooth unmodelled signal -- a thermal drift, an unmodelled bias that varies with elevation, a once-per-revolution term you forgot -- produces NO single large residual. Data snooping therefore reports a perfectly clean result while the parameters are quietly corrupted. Meanwhile the global chi-square test rejects, because the residuals ARE too large in aggregate.</p>
+<p>That combination -- inflated variance factor, zero outliers -- is the signature of a systematic error, and until now the toolbox could only tell you to go and plot something. Demonstrated on a sinusoid of amplitude 0.8 sigma: s0^2 = 1.33 (inflated), Bonferroni snooping flagged 0 observations, and the three tests below returned p = 5e-5, p &lt; 1e-16 and p = 3e-9.</p>
+<h3>The Three Tests</h3>
+<p>--------------- (a) RUNS TEST on sign(w). Distribution-free. Counts sign changes: a drift</p>
+<pre class="example">produces too few. Weak on smooth signals, strong on steps.</pre>
+<p>(b) LJUNG-BOX on w, lags 1..h. Detects autocorrelation of any shape.</p>
+<pre class="example">Powerful, but see the caveat below.</pre>
+<p>(c) BINNED MEANS of w against each supplied covariate. In bin b the mean</p>
+<pre class="example">of w has standard deviation 1/sqrt(n_b) under H0, so z_b = mean_b *
+sqrt(n_b). Bonferroni over the bins. This is effectively a score test
+for an omitted parameter, and it is the WORKHORSE: in testing it
+reached 84-100% power where the runs test managed 1-9%.</pre>
+<p>(a) and (b) require the residuals to be ORDERED along the systematic -- they see the sequence you hand them. (c) does not: it works on any covariate directly. Pass covariates and let (c) do the work.</p>
+<p>CAVEAT ON LJUNG-BOX -- and it is an honest one. Least-squares residuals are NOT independent, even when the observation errors are: cov(v) = sigma0^2 * Qvv, and Qvv is not diagonal. Normalising to w removes the variance but not the correlation. Ljung-Box therefore OVER-REJECTS, and the effect grows with u/n. Measured false-alarm rate at a nominal 1%:</p>
+<pre class="example">u/n = 0.060  -&gt;  1.6%
+u/n = 0.012  -&gt;  1.3%
+u/n = 0.003  -&gt;  0.6%   (within noise of nominal)</pre>
+<p>Geodetic problems live at u/n &lt;&lt; 0.01, where it is harmless. The toolbox warns when u/n &gt; 0.05, and it leads with the binned test, which is exact.</p>
+<h3>Name-Value</h3>
+<pre class="example">&#x27;covariates&#x27;  struct: each field is an n x 1 vector to bin against.
+              e.g. struct(&#x27;time&#x27;, t, &#x27;elev&#x27;, e, &#x27;azim&#x27;, az)
+              THIS IS THE IMPORTANT ONE. Supply everything you have.
+&#x27;nbins&#x27;       bins per covariate (default 10)
+&#x27;lags&#x27;        Ljung-Box lags h (default 10)
+&#x27;alpha&#x27;       significance (default 0.01)
+&#x27;verbose&#x27;     print (default true)</pre>
+<h3>Output S</h3>
+<pre class="example">.runs      struct(z, p, nRuns, expected)
+.ljungBox  struct(Q, p, h, reliable)
+.bins      struct array, one per covariate:
+           (name, z, p, worstBin, worstZ, edges, counts, means)
+.detected  true if any test rejects at alpha
+.worst     name of the most significant finding</pre>
+<h3>Example</h3>
+<pre class="example">% The failure that snooping CANNOT see. A smooth drift produces no
+% single large residual: the variance factor inflates, the flag list
+% stays clean, and THAT COMBINATION is the signature.
+[~, D] = lsqvce.adjust(u, src, 4, &#x27;verbose&#x27;, false);</pre>
+<pre class="example">t = (1:n).&#x27;;
+S = lsqvce.systematic(D, &#x27;covariates&#x27;, ...
+                       struct(&#x27;time&#x27;, t, &#x27;elev&#x27;, elev));</pre>
+<pre class="example">% S.detected     did anything fire?
+% S.ljungBox.p   autocorrelation in the residual sequence
+% S.runs.p       distribution-free sign test
+% S.bins         one entry per covariate: .name, .p, .worstBin</pre>
+<pre class="example">% The COVARIATE ranking lives in S.bins -- S.worst ranks every test,
+% and a drift in time necessarily also trips Ljung-Box.
+[~, iw] = min([S.bins.p]);
+fprintf(&#x27;worst covariate: %s\n&#x27;, S.bins(iw).name);</pre>
+<p>Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-11.</p>
+<div class="seealso"><b>See also:</b> <a href="lsqvce.diagnose.html">lsqvce.diagnose</a>, <a href="lsqvce.ftest.html">lsqvce.ftest</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+</body></html>

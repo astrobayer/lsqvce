@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.ar2arma</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.ar2arma</div>
+<h1>lsqvce.ar2arma</h1>
+<div class="purpose">Reduce a high-order AR to a compact ARMA(p,q) (Durbin&#x27;s method).</div>
+<h2>Syntax</h2>
+<pre class="syntax">[a, b, s2] = LSQVCE.AR2ARMA(aHi, s2Hi, q, opt)</pre>
+<h2>Description</h2>
+<h3>When To Use This</h3>
+<pre class="example">Only when the PSD has sharp spectral LINES that a pure AR would need a
+very high order to represent -- for GRACE-FO that means the 1/rev and
+2/rev harmonics in KBR or accelerometer residuals. A narrow spectral peak
+is a near-unit-root pole pair; AR needs p ~ 100+ to place it accurately,
+while ARMA can place it with a handful of coefficients.</pre>
+<pre class="example">For a smooth coloured floor with no lines, do NOT use this: a plain AR
+of moderate order is simpler, always stationary, and just as accurate.</pre>
+<h3>Input</h3>
+<pre class="example">aHi   1 x (P+1)  high-order AR polynomial (P &gt;&gt; p), from LSQVCE.LEVINSONDURBIN
+s2Hi  scalar     its innovation variance
+q     scalar     desired MA order, &gt;= 1
+opt   struct     .armaP  desired AR order (default 10)
+                 .armaN  impulse-response length used in the fit (default 4096)</pre>
+<h3>Output</h3>
+<pre class="example">a, b  the ARMA(p,q) polynomials, both normalised to a(1) = b(1) = 1
+s2    innovation variance (carried over from the AR fit)</pre>
+<h3>Method</h3>
+<pre class="example">Durbin&#x27;s two-stage procedure. The long AR is a nonparametric handle on
+the spectrum; its impulse response h = 1/A_hi(z) is then fitted by a
+compact rational form B(z)/A(z) using a Hankel least-squares solve.</pre>
+<h3>Stability Is Not Guaranteed</h3>
+<pre class="example">The Hankel fit can produce a non-stationary AR part. That is detected
+here and the function falls back to the input AR with a warning rather
+than returning a model whose autocovariance does not exist. If you see
+that warning, lower armaP or q, or simply use the pure AR.</pre>
+<h3>Always Verify</h3>
+<pre class="example">ARMA reduction is the least robust step in this toolbox. Check it:
+    [a,b,s2] = lsqvce.ar2arma(aHi, s2Hi, q, opt);
+    r_arma   = s2 * lsqvce.armaACV(a, b, 512);
+    r_psd    = lsqvce.psd2acv(f, S, dt, 512);
+    relErr   = norm(r_arma - r_psd) / norm(r_psd);   % want &lt; 1e-3
+If relErr is worse than the plain AR it replaced, keep the AR.</pre>
+<h3>Example</h3>
+<pre class="example">opt = struct(&#x27;armaP&#x27;,10, &#x27;armaN&#x27;,4096);
+[aHi, s2] = lsqvce.levinsonDurbin(r, 100);
+[a, b, s2] = lsqvce.ar2arma(aHi, s2, 2, opt);
+numel(a)-1, numel(b)-1        % 10, 2  instead of 100</pre>
+<div class="seealso"><b>See also:</b> <a href="lsqvce.levinsonDurbin.html">lsqvce.levinsonDurbin</a>, <a href="lsqvce.armaACV.html">lsqvce.armaACV</a>, <a href="lsqvce.checkPSD.html">lsqvce.checkPSD</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+</body></html>

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.ftest</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.ftest</div>
+<h1>lsqvce.ftest</h1>
+<div class="purpose">Is the extra parameter earning its place?</div>
+<h2>Syntax</h2>
+<pre class="syntax">F = LSQVCE.FTEST(solFull, solRed) tests whether the additional parameters</pre>
+<h2>Description</h2>
+<p>in the FULL model give a statistically significant improvement in fit over the REDUCED (nested) model.</p>
+<pre class="example">F = [ (vPv_red - vPv_full) / (u_full - u_red) ] / s0sq_full
+    ~ F(u_full - u_red,  r_full)   under H0 (the extra params are zero)</pre>
+<p>The reduced model must be strictly NESTED inside the full one -- same observations, same weights, a subset of the parameters. This is checked as far as it can be: n must match, and vPv_red &gt;= vPv_full (adding freedom can only improve the fit, so a reduced model that fits BETTER means the two solutions are not what you think they are).</p>
+<h3>Why You Need This</h3>
+<p>----------------- The report tells you that a LOW variance factor may mean over- parameterisation -- the model has enough freedom to absorb the noise, which produces a beautiful fit and meaningless parameters. That warning is useless without a way to act on it. This is the way to act on it.</p>
+<p>The temptation is to look at the t-statistic x_j / sigma_j for each parameter and drop the insignificant ones. That is fine for ONE parameter, but it is wrong for several at once when they are correlated: two parameters can each be individually insignificant while their JOINT contribution is highly significant (and vice versa). The F-test asks the right question -- does this GROUP of parameters, taken together, earn its keep.</p>
+<h3>Name-Value</h3>
+<pre class="example">&#x27;alpha&#x27;    significance (default 0.05 -- model selection is not blunder
+           detection, and 0.001 here would retain almost nothing)
+&#x27;verbose&#x27;  print (default true)</pre>
+<h3>Output F</h3>
+<pre class="example">.F, .p, .df1, .df2, .crit
+.significant   true if the extra parameters are justified
+.dvPv          the improvement in vPv</pre>
+<h3>Example</h3>
+<pre class="example">% Is the extra parameter justified, or is it fitting noise?
+accF = lsqvce.Accumulator(u+1); accF.add([A extra], l, p);
+accR = lsqvce.Accumulator(u);   accR.add(A,         l, p);</pre>
+<pre class="example">F = lsqvce.ftest(accF.solve(), accR.solve());</pre>
+<pre class="example">% F.significant   false for a pure-noise column (measured p = 0.548)
+% F.p             the p-value</pre>
+<pre class="example">% The test assumes the REDUCED model is correct. If a systematic error
+% is present, both models are wrong and the p-value means nothing --
+% pass &#x27;checkD&#x27; and it will refuse:
+F = lsqvce.ftest(sF, sR, &#x27;checkD&#x27;, S);</pre>
+<p>Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-11.</p>
+<div class="seealso"><b>See also:</b> <a href="lsqvce.systematic.html">lsqvce.systematic</a>, <a href="lsqvce.adjust.html">lsqvce.adjust</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+</body></html>

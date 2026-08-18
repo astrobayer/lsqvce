@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.vceHutchinson</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.vceHutchinson</div>
+<h1>lsqvce.vceHutchinson</h1>
+<div class="purpose">Helmert variance components via the Ellmer (2018) stochastic (Hutchinson) trace estimator &mdash; a speed-oriented sibling of <a href="lsqvce.varComp.html">lsqvce.varComp</a> for large common blocks.</div>
+
+<h2>Syntax</h2>
+<pre class="syntax">VC = lsqvce.vceHutchinson(u, batchFcn, nBatch, groupFcn, nGroup)
+VC = lsqvce.vceHutchinson(..., Name, Value)</pre>
+
+<h2>Description</h2>
+<p>Estimates a separate variance factor per observation group, iterating until they agree &mdash; exactly like <a href="lsqvce.varComp.html">lsqvce.varComp</a>, but it <b>never forms the dense inverse</b> <code>Qxx = N&#8315;&#185;</code> and never forms the O(u&#179;) products <code>Qxx&middot;N_g</code>. Every trace it needs is estimated with <code>Z</code> random probes against the Cholesky factor of the normal matrix (Ellmer eq. 6.5.40&ndash;6.5.48, via <a href="lsqvce.traceEstimate.html">lsqvce.traceEstimate</a>). This is the "full per-group Hutchinson" path, built as a <b>separate entry point</b> so the exact <a href="lsqvce.varComp.html">varComp</a> / <a href="lsqvce.adjustVCE.html">adjustVCE</a> paths are untouched.</p>
+
+<div class="warn"><b>When to use it &mdash; and when not to.</b> Use it only when <code>u</code> (the common-parameter count) is large: thousands of unknowns, e.g. a high-degree gravity field. The cost is O(u&#179; + G&middot;Z&middot;u&#178;) versus varComp's O(G&middot;u&#179;); the crossover is <code>u &asymp; Z</code>, so the speedup is roughly <code>u/Z</code> and only materialises for <code>u</code> in the thousands. Below a few thousand unknowns, <a href="lsqvce.varComp.html">lsqvce.varComp</a> is <b>both faster and exact and gives the per-observation diagnostics</b> &mdash; prefer it. This function also trades accuracy for speed: every trace carries a Monte-Carlo error ~ 1/&radic;Z, worse on low-redundancy or near-rank-deficient groups.</div>
+
+<div class="danger"><b>Strict Ellmer &mdash; what this deliberately does NOT produce.</b> The estimator returns only per-group scalar traces, so it <b>cannot</b> return the per-observation redundancies <code>r_i = 1 &minus; h_i</code>. It therefore does not provide, and must not be used for: per-observation redundancy, data snooping / outlier flags (<a href="lsqvce.snoop.html">snoop</a> / <a href="lsqvce.outliers.html">outliers</a>), the (w,r) reliability / MDB numbers, or the integrity guard <code>&Sigma;r_i = m &minus; u</code>. If you need any of those, use <a href="lsqvce.varComp.html">lsqvce.varComp</a> (exact). This function returns only the per-group components, their scales, and the estimated per-group partial redundancies <code>r_g</code>.</div>
+
+<h2>Inputs</h2>
+<p>Identical to <a href="lsqvce.varComp.html">lsqvce.varComp</a>: <code>u</code> (common-parameter count), <code>batchFcn</code> (<code>[A,l,p] = batchFcn(k)</code>), <code>nBatch</code>, <code>groupFcn</code> (<code>g = groupFcn(k)</code>, group indices 1..nGroup), <code>nGroup</code>.</p>
+
+<h3>Name-value options</h3>
+<table>
+<tr><th>Name</th><th>Type</th><th>Default</th></tr>
+<tr><td class="name">method</td><td><code>'rigorous'</code> | <code>'simplified'</code></td><td><code>'rigorous'</code></td></tr>
+<tr><td class="name">maxIter</td><td>1&times;1</td><td><code>30</code></td></tr>
+<tr><td class="name">tol</td><td>1&times;1</td><td><code>1e-6</code> (on max|s_g&minus;1|)</td></tr>
+<tr><td class="name">verbose</td><td>1&times;1 logical</td><td><code>true</code></td></tr>
+<tr><td class="name">minObs</td><td>1&times;1</td><td><code>10</code></td></tr>
+<tr><td class="name">probes</td><td>1&times;1</td><td><code>100</code> (Z, Ellmer's value; larger reduces error ~1/&radic;Z at linear cost)</td></tr>
+<tr><td class="name">seed</td><td>1&times;1</td><td><code>[]</code> (global stream; set for reproducible probes)</td></tr>
+<tr><td class="name">reprobe</td><td>1&times;1 logical</td><td><code>true</code> (fresh probe block each iteration)</td></tr>
+</table>
+
+<h2>Outputs</h2>
+<p><code>VC</code> is a <b>subset</b> of varComp's struct (no per-obs fields): <code>.s</code>, <code>.scale</code>, <code>.sigma</code>, <code>.nObs</code>, <code>.redund</code> (estimated r_g), <code>.redundSE</code> (its Monte-Carlo standard error), <code>.iter</code>, <code>.converged</code>, <code>.history</code>, <code>.method</code>, <code>.estimable</code>, <code>.resolution</code>, <code>.probes</code>, and <code>.estimator = 'hutchinson'</code>.</p>
+
+<div class="note"><b>Method (matrix-free, Ellmer eq. 6.5.48 shared factor).</b> With <code>N = U'U</code> and <code>Ubar = U&#8315;&#185; raw</code> for a raw u&times;Z Rademacher block: <code>tr(N&#8315;&#185; N_g) &asymp; tr(Ubar' N_g Ubar)</code> gives the redundancies, and <code>tr(N&#8315;&#185; N_i N&#8315;&#185; N_j) &asymp; &Sigma;(W_i &middot; W_j)</code> with <code>W_g = U&#8315;&#7488;(N_g Ubar)</code> gives the Helmert matrix. <code>Ubar</code> and each <code>W_g</code> are formed once per iteration and reused, so no u&times;u inverse and no O(u&#179;) product ever appears.</div>
+
+<h2>Example</h2>
+<pre class="example">% Large common block: estimate 2 variance components without a dense inverse.
+VC = lsqvce.vceHutchinson(u, batchFcn, nBatch, groupFcn, 2, ...
+         'probes', 200, 'seed', 1);
+VC.sigma        % per-group sigma scales
+VC.redund       % estimated partial redundancies (+/- VC.redundSE)</pre>
+
+<div class="seealso"><b>See also:</b> <a href="lsqvce.varComp.html">lsqvce.varComp</a>, <a href="lsqvce.vce.html">lsqvce.vce</a>, <a href="lsqvce.traceEstimate.html">lsqvce.traceEstimate</a>, <a href="lsqvce.adjustVCE.html">lsqvce.adjustVCE</a>, <a href="lsqvce.redundancy.html">lsqvce.redundancy</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-17.</div>
+</body></html>

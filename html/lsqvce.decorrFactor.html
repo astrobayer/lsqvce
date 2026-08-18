@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.decorrFactor</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.decorrFactor</div>
+<h1>lsqvce.decorrFactor</h1>
+<div class="purpose">Decorrelation factor W with W&#x27;*W = inv(C).</div>
+<h2>Syntax</h2>
+<pre class="syntax">W = LSQVCE.DECORRFACTOR(C) returns the upper-triangular W = chol(C)^-1, so</pre>
+<h2>Description</h2>
+<p>that whitening a batch is Aw = W*A and the weighted normals A&#x27;*inv(C)*A become Aw&#x27;*Aw.</p>
+<p>[W, info] = LSQVCE.DECORRFACTOR(C) also returns</p>
+<pre class="example">info.method   &#x27;chol&#x27; | &#x27;eig-floored&#x27;
+info.rcond    reciprocal condition estimate of C
+info.floored  number of eigenvalues floored (0 if method is &#x27;chol&#x27;)</pre>
+<p>W = LSQVCE.DECORRFACTOR(C, tol) sets the relative eigenvalue floor used only by the rescue path (default 1e-10).</p>
+<h3>Input</h3>
+<pre class="example">C    n x n   covariance of one batch, symmetric positive definite
+tol  scalar  relative eigenvalue floor for the rescue path, default 1e-10</pre>
+<h3>Cost</h3>
+<pre class="example">O(n^3) and O(n^2) memory. This is the expensive path. If the noise is
+AR or ARMA, use the filter form (LSQVCE.ARMAWHITEN) instead: O(n*p) and no
+matrix at all, with identical normal equations. Only use this factor for
+covariances with no rational spectral representation.</pre>
+<h3>Batch Size</h3>
+<pre class="example">At n = 5000 the matrix is 200 MB and the Cholesky is ~40 GFLOP. That,
+not memory, is the practical ceiling on BatchSize for the dense path.</pre>
+<h3>Not Positive Definite</h3>
+<pre class="example">If the Cholesky fails, a factor is built from the SYMMETRIC eigen-
+decomposition with the eigenvalues floored at tol*lambda_max, and a
+warning is issued. This rescues the run but the weighting is no longer
+the one you specified -- an indefinite covariance usually means the PSD
+had negative values, or the batch straddles a data gap with an
+inconsistent model.</pre>
+<pre class="example">The floor must NOT be eps: flooring at eps*lambda_max leaves C with
+condition number ~1/eps, so the resulting W satisfies W*C*W&#x27; = I only to
+~1e-1. The default 1e-10 gives ~1e-7, which is usable. Tighten tol only
+if you understand why the covariance was indefinite.</pre>
+<h3>Example</h3>
+<pre class="example">r = lsqvce.armaACV([1 -0.9], 1, 100);
+W = lsqvce.decorrFactor(toeplitz(r));
+norm(W.&#x27;*W - inv(toeplitz(r))) / norm(inv(toeplitz(r)))    % ~ 1e-14</pre>
+<div class="seealso"><b>See also:</b> <a href="lsqvce.armaWhiten.html">lsqvce.armaWhiten</a>, <a href="lsqvce.covModel.html">lsqvce.covModel</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+</body></html>

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.traceEstimate</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.traceEstimate</div>
+<h1>lsqvce.traceEstimate</h1>
+<p class="purpose">Monte-Carlo (Hutchinson) trace estimator &mdash; Ellmer (2018) &sect;6.5.6.</p>
+
+<h2>Syntax</h2>
+<pre class="syntax">out = lsqvce.traceEstimate(X)
+out = lsqvce.traceEstimate(X, 'Name', value, ...)
+out = lsqvce.traceEstimate(Xfun, 'size', P, ...)     % matrix-free</pre>
+
+<h2>Description</h2>
+<p>Estimates <code>trace(X)</code> for a P&times;P matrix without forming or inverting it, by probing it with random vectors &mdash; the estimator of Hutchinson (1990) as applied in Ellmer (2018, &sect;6.5.6, eqs. 6.5.39&ndash;6.5.43) to the variance-component redundancies of ITSG-Grace:</p>
+<pre class="example">trace(X)  ~=  (1/Z) sum_z  z_z' X z_z
+          =   trace( Zbar' X Zbar ),   Zbar = Z / sqrt(Z)</pre>
+<p>with <code>Z = [z1 .. zZ]</code> a P&times;Z matrix of independent <b>Rademacher</b> probes (entries &plusmn;1 with probability &frac12;, eq. 6.5.40). The estimator is <b>unbiased</b>; its variance falls as O(1/Z). The neglected off-diagonal cross terms <code>z_i' X z_j</code> (i&ne;j) have zero expectation.</p>
+
+<div class="note"><b>Matrix-free is the point.</b> Ellmer never forms X = U<sup>&minus;T</sup> N<sub>g</sub> U<sup>&minus;1</sup>. He forms <code>Ubar = U\Zbar</code> <i>once</i> (U is the global normal-matrix Cholesky, shared by every arc), then each trace is <code>trace(Ubar' N_g Ubar)</code>. Pass X as a handle <code>@(V)-&gt;X*V</code> and supply the shared probe block via <code>'probes'</code> to exploit this (eq. 6.5.48/6.5.61), turning the whole redundancy sweep into O(Z) solves instead of O(P<sup>3</sup>).</div>
+
+<h2>Inputs</h2>
+<table>
+<tr><th>Name</th><th>Description</th></tr>
+<tr><td class="name">X</td><td>P&times;P double, or a function handle <code>@(V)-&gt;X*V</code> applying X to a P&times;k block (matrix-free; requires <code>'size'</code>).</td></tr>
+<tr><td class="name">'probes'</td><td>P&times;Z double: a fixed raw &plusmn;1 probe block to reuse across many traces (e.g. a shared U<sup>&minus;1</sup> solve). Overrides NumProbes/Size/Seed.</td></tr>
+<tr><td class="name">'numProbes'</td><td>Z, number of probes (default 100, Ellmer's value).</td></tr>
+<tr><td class="name">'size'</td><td>P, required when X is a function handle.</td></tr>
+<tr><td class="name">'seed'</td><td>RNG seed for reproducible probes (default []: global stream). Uses a private stream, so it never disturbs the caller's RNG.</td></tr>
+<tr><td class="name">'distribution'</td><td><code>'rademacher'</code> (default) | <code>'gaussian'</code>.</td></tr>
+</table>
+
+<h2>Outputs</h2>
+<table>
+<tr><th>Name</th><th>Description</th></tr>
+<tr><td class="name">t</td><td>the trace estimate (unbiased).</td></tr>
+<tr><td class="name">info.se</td><td>Monte-Carlo standard error sqrt(var(q)/Z), q_z = z'Xz. The true trace lies within ~2&middot;se of t with ~95% confidence.</td></tr>
+<tr><td class="name">info.relse</td><td>se/|t| &mdash; read this before trusting a single estimate.</td></tr>
+<tr><td class="name">info.perProbe</td><td>1&times;Z per-probe forms z'Xz (the summands of eq. 6.5.39).</td></tr>
+<tr><td class="name">info.Z, .P, .distribution</td><td>probe count, dimension, distribution used.</td></tr>
+</table>
+
+<div class="warn"><b>When NOT to trust it.</b> The relative error scales like sqrt(Var/Z), and Var depends on the matrix: for a near-rank-one operator (&#8214;M&#8214;<sub>F</sub>/trace(M) ~ 1) even Z=100 can leave tens of percent of error. This is why the toolbox keeps the <b>exact</b> leverage path (<a href="lsqvce.leverage.html">lsqvce.leverage</a> / <a href="lsqvce.redundancy.html">lsqvce.redundancy</a>) as the default and offers this estimator only <b>opt-in</b> (<code>'traceMethod','hutchinson'</code>). Ellmer probes the better-conditioned operator U<sup>&minus;T</sup> N<sub>g</sub> U<sup>&minus;1</sup> (redundancies in [0,1]) and averages over many arcs and iterations, which is why Z=100 suffices there.</div>
+
+<h2>Example &mdash; shared-probe reuse (eq. 6.5.48)</h2>
+<pre class="example">U    = chol(N);                       % N = U'*U, computed once
+raw  = sign(randn(size(N,1), 100));   % raw Rademacher probes
+Ubar = U \ raw;                        % ONE triangular solve, shared
+for g = 1:nGroup                      % tr(N^-1 N_g) = tr(Ubar' N_g Ubar)
+    t(g) = lsqvce.traceEstimate(@(Z) Ng{g}*Z, 'probes', Ubar, 'size', size(N,1));
+end</pre>
+
+<p class="purpose">References: Hutchinson, M.F. (1990), Comm. Statist. Simulation Comput. 19(2), 433&ndash;450. Ellmer, M. (2018), <i>Contributions to GRACE Gravity Field Recovery</i>, doctoral thesis, TU Graz, doi:10.3217/978-3-85125-646-8 (&sect;6.5.6).</p>
+
+<div class="seealso"><b>See also:</b> <a href="lsqvce.redundancy.html">lsqvce.redundancy</a>, <a href="lsqvce.vce.html">lsqvce.vce</a>, <a href="lsqvce.leverage.html">lsqvce.leverage</a>, <a href="lsqvce.varComp.html">lsqvce.varComp</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Created 2026-07-16 (CEST, UTC+02:00) with assistance from Claude (Anthropic), model Claude Opus 4.8.</div>
+</body></html>

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.util.getfielddef</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.util.log</div>
+<h1>lsqvce.util.log</h1>
+<div class="purpose">Toolbox-wide logging: one file identifier (logfid) and one screen flag (logflag).</div>
+
+<h2>Description</h2>
+<p>The whole lsqvce toolbox routes its status text <em>and</em> its warnings through
+this one place, so a caller can capture everything to a log file and decide
+independently whether it also appears on screen. Every <code>fprintf</code> and
+<code>warning</code> inside the toolbox was replaced by <code>lsqvce.util.log.msg</code>
+and <code>lsqvce.util.log.warn</code>.</p>
+
+<h2>Two settings (persistent for the session)</h2>
+<table>
+<tr><th>Name</th><th>Type</th><th>Meaning</th></tr>
+<tr><td class="name">logfid</td><td>1&times;1 file id</td><td>Receives ALL output ("standard output"). Default 1 (command window). Set to an <code>fopen</code> fid to capture status text and warnings to a file.</td></tr>
+<tr><td class="name">logflag</td><td>1&times;1 logical</td><td>When true (default) output ALSO appears on screen. When false, output goes ONLY to logfid &mdash; nothing on screen (use a real file logfid for a quiet run).</td></tr>
+</table>
+
+<h2>API</h2>
+<table>
+<tr><th>Call</th><th>Effect</th></tr>
+<tr><td class="name">lsqvce.util.log.set('fid',logfid,'screen',logflag)</td><td>Configure either/both settings.</td></tr>
+<tr><td class="name">[fid,screen] = lsqvce.util.log.get()</td><td>Read the current settings.</td></tr>
+<tr><td class="name">lsqvce.util.log.reset()</td><td>Restore defaults (1, true).</td></tr>
+<tr><td class="name">lsqvce.util.log.msg(fmt,...)</td><td>Status line (printf-style), replaces <code>fprintf</code>.</td></tr>
+<tr><td class="name">lsqvce.util.log.warn(id,fmt,...)</td><td>Raise a real warning (lastwarn / state preserved), mirror to logfid, screen only if logflag.</td></tr>
+</table>
+
+<div class="note">On <b>parallel workers</b> the state is per-process; each worker starts at the default (1, true) unless set inside the worker. For a single captured log, run serially or collect on the client.</div>
+
+<h2>Example</h2>
+<pre class="example">fid = fopen('vce.log', 'w');
+lsqvce.util.log.set('fid', fid, 'screen', false);   % file only, quiet run
+R = lsqvce.adjustVCE(L, days).run();      % all output captured
+lsqvce.util.log.reset();
+fclose(fid);
+
+% or straight from the entry point:
+R = lsqvce.adjustVCE(L, days, 'LogFid', fid, 'LogFlag', false).run();</pre>
+
+<div class="seealso"><b>See also:</b> <a href="lsqvce.adjustVCE.html">lsqvce.adjustVCE</a>, <a href="lsqvce.util.getfielddef.html">lsqvce.util.getfielddef</a>, <a href="lsqvce.util.mergeStruct.html">lsqvce.util.mergeStruct</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Created 2026-07-16 (CEST, UTC+02:00) with assistance from Claude (Anthropic), model Claude Opus 4.8.</div>
+</body></html>

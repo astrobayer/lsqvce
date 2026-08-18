@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.Results</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.Results</div>
+<h1>lsqvce.Results</h1>
+<div class="purpose">The outcome of a recovery: solution, diagnostics, provenance.</div>
+<h2>Syntax</h2>
+<pre class="syntax">R = lsqvce.Results(sol, D, acc, diagSol, batchFcn, nBatch, systems)</pre>
+<h2>Description</h2>
+<p>Returned by <a href="lsqvce.adjustBlock.html">lsqvce.adjustBlock</a> (and, later,
+<code>lsqvce.adjustVCE</code>). It gathers everything a user needs to
+read and judge an adjustment in one object, and keeps the lower layers reachable
+for experts. You rarely construct it yourself; you receive it from recover and
+call <code>R.report()</code>.</p>
+<h2>Properties (read-only)</h2>
+<table>
+<tr><th>Name</th><th>Type / size</th><th>Description</th></tr>
+<tr><td class="name">x</td><td>nc&times;1 double</td><td>Common-parameter estimate (the field).</td></tr>
+<tr><td class="name">sigma0</td><td>1&times;1 double</td><td>A-posteriori variance factor (global).</td></tr>
+<tr><td class="name">converged</td><td>1&times;1 logical</td><td>Did the pipeline converge? (true for a single solve.)</td></tr>
+<tr><td class="name">diag</td><td>1&times;1 struct</td><td>Per-observation diagnostics from <a href="lsqvce.diagnose.html">lsqvce.diagnose</a>.</td></tr>
+<tr><td class="name">history</td><td>1&times;I struct</td><td>Per-iteration record (empty for a single solve).</td></tr>
+<tr><td class="name">noise</td><td>1&times;1 struct</td><td>Fitted noise models per stream (empty until the VCE loop fills it).</td></tr>
+<tr><td class="name">sol</td><td>1&times;1 struct</td><td>Raw output of <code>acc.solve()</code>.</td></tr>
+<tr><td class="name">acc</td><td>1&times;1 <a href="lsqvce.BlockAccumulator.html">lsqvce.BlockAccumulator</a></td><td>The accumulator (re-solve, inspect blocks, get residuals).</td></tr>
+<tr><td class="name">source</td><td>1&times;1 struct</td><td>Bridged solution from <a href="lsqvce.diagnoseAccum.html">lsqvce.diagnoseAccum</a>.</td></tr>
+<tr><td class="name">batchFcn</td><td>1&times;1 function_handle</td><td>Re-reader used by <a href="lsqvce.diagnose.html">lsqvce.diagnose</a>.</td></tr>
+<tr><td class="name">nBatch</td><td>1&times;1 double</td><td>Batch count from the bridge.</td></tr>
+<tr><td class="name">systems</td><td>1&times;M struct</td><td>The resolved system specs (sysID/nl/dayList).</td></tr>
+</table>
+<h2>Methods</h2>
+<table>
+<tr><th>Call</th><th>Returns</th></tr>
+<tr><td class="name">R.report(Name,Value,...)</td><td>Print/return the level-0..4 verdict (<a href="lsqvce.report.html">lsqvce.report</a>); options pass through (e.g. <code>'verbose'</code>, <code>'width'</code>).</td></tr>
+<tr><td class="name">R.redundancy()</td><td>Total redundancy sum(r_i) = n &minus; u.</td></tr>
+<tr><td class="name">R.residuals(Name,Value)</td><td>Whitened/raw residuals (<code>acc.residuals</code>).</td></tr>
+<tr><td class="name">R.contribution(Name,Value)</td><td>Per-group information share of this solution.</td></tr>
+<tr><td class="name">R.convergence(Name,Value)</td><td>Per-<strong>iteration</strong> trajectory: when the loop settled. Needs <code>.history</code>.</td></tr>
+<tr><td class="name">R.summary()</td><td>Per-<strong>stream</strong> final state: sigma, AR order, whiteness. Needs <code>.history</code>.</td></tr>
+<tr><td class="name">disp(R)</td><td>One-screen summary.</td></tr>
+</table>
+<h2>The two iteration readers</h2>
+<p><code>convergence()</code> and <code>summary()</code> read the same
+<code>R.history</code> and reduce it along <em>opposite</em> axes, which is why
+both exist:</p>
+<table>
+<tr><th>Method</th><th>One row per</th><th>Reduced across</th><th>Answers</th></tr>
+<tr><td class="name">R.convergence()</td><td>iteration</td><td>streams</td><td>When did the loop settle, and did it?</td></tr>
+<tr><td class="name">R.summary()</td><td>stream</td><td>iterations</td><td>What did each stream end up as?</td></tr>
+</table>
+<p>A converged loop can still hide one stream that never whitened: the per-pass
+view reports only the worst p-value, without naming its owner. Both raise
+<code>lsqvce:Results:noHistory</code> on a Results from a single solve, which
+does not iterate.</p>
+<h2>Example</h2>
+<pre class="example">R = lsqvce.adjustBlock(systems, days);
+R.report('verbose', true);
+if ~R.converged, warning('did not converge'); end
+x = R.x;   s0 = R.sigma0;</pre>
+<div class="seealso"><b>See also:</b> <a href="lsqvce.adjustBlock.html">lsqvce.adjustBlock</a>, <a href="lsqvce.report.html">lsqvce.report</a>, <a href="lsqvce.diagnose.html">lsqvce.diagnose</a>, <a href="lsqvce.BlockAccumulator.html">lsqvce.BlockAccumulator</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-16.</div>
+</body></html>

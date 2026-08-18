@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.makeLoader</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.makeLoader</div>
+<h1>lsqvce.makeLoader</h1>
+<div class="purpose">Turn a day-builder into an accumulator-ready Loader.</div>
+<h2>Syntax</h2>
+<pre class="syntax">L = lsqvce.makeLoader(buildDay, Name, Value, ...)</pre>
+<h2>Description</h2>
+<p>You write the ONE part that is genuinely yours &mdash; reading your data for
+a day and returning its design matrix and observations &mdash; and makeLoader
+supplies the protocol the accumulator expects (the <code>'meta'</code> discovery
+call, the per-arc slicing, a single-day cache, and the covariance/whitener via
+<a href="lsqvce.covModel.html">lsqvce.covModel</a>). The result
+plugs straight into <a href="lsqvce.adjustBlock.html">lsqvce.adjustBlock</a> or
+<a href="lsqvce.BlockAccumulator.html">lsqvce.BlockAccumulator</a>/addSystem.</p>
+<h3>The part you write</h3>
+<p><code>buildDay(day, obsType)</code> &mdash; or the parameter-driven form
+<code>buildDay(day, obsType, common, local, procOpt)</code> &mdash; returns a struct with</p>
+<table>
+<tr><th>Field</th><th>Size</th><th>Description</th></tr>
+<tr><td class="name">.A</td><td>m&times;nc</td><td>common design matrix for the whole day</td></tr>
+<tr><td class="name">.B</td><td>m&times;nl</td><td>local design matrix (may be sparse)</td></tr>
+<tr><td class="name">.l</td><td>m&times;1</td><td>observations</td></tr>
+<tr><td class="name">.t</td><td>m&times;1</td><td>epoch timestamps [s]</td></tr>
+<tr><td class="name">.arcIdx</td><td>1&times;nArc cell</td><td>row-index vectors, one per arc (optional; omitted &rarr; whole day is one arc)</td></tr>
+</table>
+<div class="warn"><b>Determinism required.</b> The accumulator reads each day a
+second time for residuals and must get identical data back. Seed any RNG from
+<code>(day, obsType)</code>, never from wall-clock or an un-seeded stream.</div>
+<div class="note"><b>Arity-aware call.</b> buildDay is called with as many of the
+<b>five</b> arguments as it declares, so an existing <code>@(day,obsType)</code>
+builder keeps working unchanged, while a builder that also takes
+<code>(common, local, procOpt)</code> receives the parametrisation arrays and
+processing options. <code>common</code> and <code>local</code> have <b>one row
+per unknown</b> and 14 columns; <code>nc</code> and <code>nl</code> are
+<b>derived</b> from their row counts.</div>
+<h2>Inputs</h2>
+<table>
+<tr><th>Name</th><th>Type / size</th><th>Description</th></tr>
+<tr><td class="name">buildDay</td><td>1&times;1 function_handle</td><td><code>@(day,obsType)</code> day builder (above). Required.</td></tr>
+</table>
+<h3>Name-value options</h3>
+<table>
+<tr><th>Name</th><th>Type / size</th><th>Default</th></tr>
+<tr><td class="name">observationTypes</td><td>1&times;T cellstr/string</td><td>required, e.g. <code>{'pos','kbr'}</code> <em>(alias: <code>obsTypes</code>)</em></td></tr>
+<tr><td class="name">covariance</td><td>1&times;1 struct</td><td>required; <code>.(obsType)</code> = a covariance spec for <a href="lsqvce.covModel.html">lsqvce.covModel</a> <em>(alias: <code>cov</code>)</em></td></tr>
+<tr><td class="name">arcs</td><td>scalar | vector | struct</td><td><code>1</code> (one arc/day). Scalar N &rarr; arcs 1:N; vector &rarr; those ids; struct &rarr; <code>.(obsType)</code> per type</td></tr>
+<tr><td class="name">systemId</td><td>1&times;1</td><td><code>1</code> <em>(alias: <code>sysID</code>)</em></td></tr>
+<tr><td class="name">numLocal</td><td>1&times;1</td><td><code>[]</code> (set on L or in the adjustBlock spec; DERIVED from <code>localParams</code> when given) <em>(alias: <code>nl</code>)</em></td></tr>
+<tr><td class="name">commonParams</td><td>R&times;14 cell</td><td><code>{}</code>; parametrisation of the COMMON unknowns (one row per unknown), piped to buildDay's 3rd arg. <code>nc</code> derived as <code>size(.,1)</code>. Shared across systems &mdash; every loader must pass the same value. <em>(alias: <code>common</code>)</em></td></tr>
+<tr><td class="name">localParams</td><td>R&times;14 cell</td><td><code>{}</code>; parametrisation of the LOCAL unknowns, piped to buildDay's 4th arg. <code>nl</code> derived as <code>size(.,1)</code>. <em>(alias: <code>local</code>)</em></td></tr>
+<tr><td class="name">processingOptions</td><td>1&times;1 struct</td><td><code>struct()</code>; free-form processing options, piped to buildDay's 5th arg. <em>(alias: <code>procOpt</code>)</em></td></tr>
+<tr><td class="name">epochCovariance</td><td>function_handle</td><td><code>[]</code>; <code>@(day,obsType)</code> exposing the fixed per-epoch scaling D for exact separable de-scaling. <em>(alias: <code>epochCov</code>)</em></td></tr>
+<tr><td class="name">plotPostSolve</td><td>handle | Map | struct</td><td><code>[]</code>; per-obsType plot hook <code>@(ctx)-&gt;figHandle</code> fired by <a href="lsqvce.adjustVCE.html">adjustVCE</a> after each solve, BEFORE residuals. A single handle broadcasts to all this loader's obsTypes; a Map/struct keys by obsType.</td></tr>
+<tr><td class="name">plotPostModel</td><td>handle | Map | struct</td><td><code>[]</code>; same, fired ONCE after the stochastic model is estimated (ctx also carries the fitted model and VCE weight).</td></tr>
+<tr><td class="name">days</td><td>1&times;D</td><td><code>[]</code></td></tr>
+<tr><td class="name">name</td><td>char</td><td><code>''</code></td></tr>
+<tr><td class="name">cache</td><td>1&times;1 logical</td><td><code>true</code> (keep a one-day cache)</td></tr>
+</table>
+<p><em>The terse aliases (obsTypes, cov, sysID, nl, common, local, procOpt,
+epochCov) are DEPRECATED but still accepted for one version; using one emits a
+one-time deprecation notice. Prefer the canonical long forms above.</em></p>
+<h2>Outputs</h2>
+<table>
+<tr><th>Name</th><th>Type</th><th>Description</th></tr>
+<tr><td class="name">L</td><td>1&times;1 struct</td><td>A Loader object with <code>.closure</code> (the 4-arg accumulator callback, handles the <code>'meta'</code> sentinel), <code>.meta</code>, <code>.batch</code>, <code>.day</code>, the carried <code>.sysID/.nl/.obsTypes/.cov/.name/.days</code>, the derived <code>.nc</code> and the piped <code>.common/.local/.procOpt</code>, and <code>.isLoader = true</code>.</td></tr>
+</table>
+<h2>Example</h2>
+<pre class="example">cov.pos = struct('type','arma','ar',[1 -1.6 0.9 -0.25],'ma',1,'sigma',0.7);
+L = lsqvce.makeLoader(@(d,ot) myBuildDay(d,ot), ...
+        'observationTypes',{'pos'}, 'covariance',cov, 'arcs',2, 'systemId','C', 'numLocal',4);
+R = lsqvce.adjustBlock({L}, 1:3);</pre>
+<div class="seealso"><b>See also:</b> <a href="lsqvce.adjustBlock.html">lsqvce.adjustBlock</a>, <a href="lsqvce.synthLoader.html">lsqvce.synthLoader</a>, <a href="lsqvce.covModel.html">lsqvce.covModel</a>, <a href="lsqvce.BlockAccumulator.html">lsqvce.BlockAccumulator</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-16.</div>
+</body></html>

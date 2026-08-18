@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.poolGroups</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.poolGroups</div>
+
+<h1>lsqvce.poolGroups</h1>
+<p class="purpose">Suggest (or build) a coarser VCE grouping for groups whose
+redundancy is too low to estimate a reliable variance component.</p>
+
+<pre class="syntax">pool = lsqvce.poolGroups(vc)
+pool = lsqvce.poolGroups(vc, Name, Value, ...)</pre>
+
+<p>A variance component estimated from <code>r_g</code> observations has a relative
+standard error of about <code>0.5*sqrt(2/r_g)</code>, so below a redundancy floor
+the estimated <code>sigma_g</code> is mostly noise. The remedy is to POOL such
+groups with a neighbour (or with each other) so their combined redundancy clears
+the floor. This helper reads a finished VCE result, identifies the under-redundant
+groups, and returns a remapping from the old group keys to pooled keys plus a
+ready-to-use grouping function for the next pass.</p>
+
+<div class="warn"><b>It does not re-solve.</b> Pooling changes the grouping, which
+changes the whole VCE fixed point, so the honest workflow is: pool &rarr; re-run
+VCE with the new grouping &rarr; re-check. This function gives you the new
+grouping; you re-run.</div>
+
+<h2>Input</h2>
+<table>
+<tr><th>Name</th><th>Size</th><th>Type</th><th>Description</th></tr>
+<tr><td class="name">vc</td><td>1&times;1</td><td>struct</td>
+    <td>a result from <a href="lsqvce.vce.html">lsqvce.vce</a> or
+        <a href="lsqvce.varComp.html">lsqvce.varComp</a>, carrying at least
+        <code>.groups</code> (1&times;G keys), <code>.r</code> (G&times;1 redundancy),
+        and optionally <code>.sigma</code> (used by the 'nearest' strategy and the
+        printed report).</td></tr>
+</table>
+
+<h2>Name-value options</h2>
+<table>
+<tr><th>Name</th><th>Default</th><th>Description</th></tr>
+<tr><td class="name">floor</td><td>50</td>
+    <td>redundancy floor <code>r_min</code>; a group with <code>r_g &lt; floor</code>
+        is a pooling candidate.</td></tr>
+<tr><td class="name">strategy</td><td>'mergeLow'</td>
+    <td><code>'mergeLow'</code> merges ALL below-floor groups into one pooled group;
+        <code>'nearest'</code> merges each below-floor group into the above-floor
+        group whose <code>sigma</code> is closest (needs <code>vc.sigma</code>).</td></tr>
+<tr><td class="name">poolKey</td><td>'pooledLow'</td>
+    <td>label for the merged group under <code>'mergeLow'</code>.</td></tr>
+<tr><td class="name">verbose</td><td>true</td><td>print a short report.</td></tr>
+</table>
+
+<h2>Output</h2>
+<table>
+<tr><th>Field</th><th>Size</th><th>Type</th><th>Description</th></tr>
+<tr><td class="name">.map</td><td>&mdash;</td><td>containers.Map</td>
+    <td>oldKey (char) &rarr; newKey (char); identity unless pooled.</td></tr>
+<tr><td class="name">.newGroups</td><td>1&times;Gnew</td><td>cell</td>
+    <td>distinct new group keys after pooling.</td></tr>
+<tr><td class="name">.remap</td><td>1&times;1</td><td>function_handle</td>
+    <td><code>@(oldKey) -&gt; newKey</code>; compose with your existing groupBy.</td></tr>
+<tr><td class="name">.indexRemap</td><td>G&times;1</td><td>double</td>
+    <td><code>newIndex(oldIndex)</code>, for numeric-index groupings.</td></tr>
+<tr><td class="name">.pooled</td><td>1&times;P</td><td>cell</td>
+    <td>the old keys that were pooled.</td></tr>
+<tr><td class="name">.floor</td><td>1&times;1</td><td>double</td><td>the floor used.</td></tr>
+<tr><td class="name">.changed</td><td>1&times;1</td><td>logical</td>
+    <td>true if any pooling happened.</td></tr>
+</table>
+
+<h2>Example</h2>
+<pre class="example">vc  = lsqvce.vce(accFcn, 'groupBy','obsType');   % some groups thin
+pl  = lsqvce.poolGroups(vc, 'floor', 80);
+if pl.changed
+    % re-run VCE with the coarser grouping (string-key example):
+    newGroupBy = @(varargin) pl.remap(oldGroupBy(varargin{:}));
+    vc2 = lsqvce.vce(accFcn, 'groupBy', newGroupBy);
+end</pre>
+
+<div class="seealso"><b>See also:</b>
+<a href="lsqvce.vce.html">lsqvce.vce</a>,
+<a href="lsqvce.varComp.html">lsqvce.varComp</a>,
+<a href="lsqvce.redundancy.html">lsqvce.redundancy</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-17 (CEST, UTC+02:00).</div>
+</body></html>

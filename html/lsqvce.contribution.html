@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.contribution</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.contribution</div>
+<h1>lsqvce.contribution</h1>
+<div class="purpose">Per-group information share of the solution (contribution).</div>
+<h2>Description</h2>
+<pre class="example">con = LSQVCE.CONTRIBUTION(acc, sol)
+con = LSQVCE.CONTRIBUTION(acc, sol, &#x27;Name&#x27;, value, ...)
+
+Quantifies how much each system / observation-type / group determines the
+common (gravity) solution -- the &quot;contribution matrix&quot; C_g = N^-1 N_g^cc, with
+the defining property sum_g C_g = I. Two levels of detail:
+
+LEVEL 1 -- the scalar SHARE (default, exact, cheap).
+  share_g = tr(C_g) / u_red = r_g / sum_g r_g, the fraction of the effectively
+  determined parameters attributable to group g. r_g is the EXACT per-group
+  redundancy from LSQVCE.REDUNDANCY (r_g = sum_{i in g}(1 - h_i)); no probing,
+  no approximation. The shares sum to 1.
+
+LEVEL 2 -- the per-parameter DIAGONAL (opt-in, streamed, approximate).
+  diag(C_g) = diag(N^-1 N_g^cc), one value per common parameter: the fraction
+  of information on THAT coefficient coming from group g (the interpretable
+  GRACE view -- e.g. which system pins the low degrees vs the high). Computed
+  matrix-free by LSQVCE.STREAMCONTRIBUTION (Hutchinson probes over one data
+  sweep), so it never forms N_g^cc. The diagonals sum to ones(nc,1) across
+  groups (exactly, up to probe noise, because sum_g N_g^cc = N). This is a
+  stochastic estimate: check con.group(k).relSE.
+
+WEIGHT DEPENDENCE (read this)
+  N and every N_g^cc depend on the whitening, so the contribution is
+  WEIGHT-DEPENDENT and is only meaningful at the CONVERGED variance
+  components. Call this AFTER the VCE loop has settled (on the final acc/sol),
+  not per outer pass. In LSQVCE.ADJUSTVCE the Level-1 share is already tracked
+  per pass in R.history.contribution; this function is the standalone /
+  Level-2 door.</pre>
+<h3>Input</h3>
+<pre class="example">  acc   1x1 lsqvce.BlockAccumulator   built with &#x27;KeepLocal&#x27;, true
+  sol   1x1 struct                    solve output carrying sol.x (nc x 1)
+
+OPTIONS (Name/Value)
+  &#x27;GroupBy&#x27;      char | fh   &#x27;system&#x27; (default) | &#x27;obsType&#x27; | &#x27;day&#x27; | &#x27;arc&#x27; |
+                             @(sat,obsType,arc,day)-&gt;key. Same spec as
+                             LSQVCE.REDUNDANCY / LSQVCE.VCE.
+  &#x27;Level&#x27;        1x1 int     1 (share only, default) or 2 (also the diagonal).
+  &#x27;Probes&#x27;       1x1 int     Hutchinson probes for Level 2 (default 100).
+  &#x27;Seed&#x27;         1x1 int|[]  RNG seed for reproducible Level-2 probes ([]).
+  &#x27;MinRedundancy&#x27; 1x1        passed to LSQVCE.REDUNDANCY (default 50).
+  &#x27;Verbose&#x27;      1x1 logical progress banner (default false).</pre>
+<h3>Output</h3>
+<pre class="example">con   1x1 struct with fields
+  .group   1xG struct, in GroupBy order:
+             .key    the group key
+             .r      1x1     exact redundancy r_g = tr(N^-1 N_g^cc)
+             .share  1x1     r_g / sum_g r_g  (Level-1 scalar share, sums 1)
+             .diag   nc x 1  diag(N^-1 N_g^cc) (Level 2 only, else [])
+             .relSE  1x1     relative MC standard error of the streamed
+                             trace (Level 2 only, else NaN)
+  .u        1x1        total parameters (m - redundancy = sum of r plus ...)
+  .rTotal   1x1        sum_g r_g = m - u_full (the exact denominator)
+  .level    1x1        1 or 2 (what was computed)
+  .nc       1x1        common-parameter count (Level 2; else [])
+  .note     char       provenance / weight-dependence reminder</pre>
+<h3>Example</h3>
+<pre class="example">  R   = P.run();                              % adjustVCE, converged
+  acc = R.history ... ;                       % or a direct BlockAccumulator
+  con = lsqvce.contribution(acc, sol, &#x27;GroupBy&#x27;,&#x27;obsType&#x27;, &#x27;Level&#x27;,2);
+  [con.group.share]                           % scalar share per stream
+  bar(con.group(1).diag);                     % per-coefficient share, group 1
+
+See also LSQVCE.STREAMCONTRIBUTION, LSQVCE.REDUNDANCY, LSQVCE.VCE,
+         LSQVCE.ADJUSTVCE
+
+Created 2026-07-17 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
+model Claude Opus 4.8.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
+</body></html>

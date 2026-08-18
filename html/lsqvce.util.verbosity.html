@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.util.verbosity</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.util.verbosity</div>
+<h1>lsqvce.util.verbosity</h1>
+<div class="purpose">Message levels and banner formatting, in one place.</div>
+<h2>Description</h2>
+<pre class="example">The toolbox used a BOOLEAN &#x27;verbose&#x27;, which forced one decision on two
+different audiences: someone watching a long run wants a progress line per
+outer pass, while someone debugging a stream that will not whiten wants the
+per-stream detail behind it. One flag cannot serve both, so the output was
+either too sparse to diagnose or too noisy to watch. This class replaces the
+flag with four LEVELS, and owns the banner vocabulary so every line in the
+toolbox is laid out the same way.</pre>
+<h3>The Levels</h3>
+<pre class="example">  0  SILENT      nothing at all.
+  1  PROGRESS    the shape of the run: outer passes, stage start/done with
+                 timings, the convergence verdict. The default, and what you
+                 want when watching a long job.
+  2  STAGE       adds per-item detail underneath each stage: per-stream AR
+                 orders and whiteness, per-group shares, per-day accumulation
+                 and residual progress, conditioning in the solve.
+  3  DIAGNOSTIC  adds everything the engine can say about WHY: inner VCE
+                 iterations, per-stream sigmas, fallbacks taken, numbers that
+                 are normally implied rather than printed.
+
+Each level INCLUDES the ones below it, so a check is always &quot;is the current
+level at least L&quot;, never an equality test. Use the predicates:
+
+  if lsqvce.util.verbosity.atLeast(v, 2), ... end     % explicit
+  if lsqvce.util.verbosity.stage(v),      ... end     % same thing, named
+
+BACKWARD COMPATIBILITY (this is why nothing broke)
+  Every public &#x27;verbose&#x27; option still accepts a LOGICAL, and RESOLVE maps it:
+  false -&gt; 0 (SILENT) and true -&gt; 1 (PROGRESS). Those are exactly the two
+  behaviours the boolean used to select, so existing calls, tests and demos
+  keep their meaning. Levels 2 and 3 are new capability, reachable only by
+  passing a number.</pre>
+<h3>THE BANNER VOCABULARY (why it is centralised)</h3>
+<pre class="example">Banners were written by hand at ~30 call sites and had drifted: &#x27;[GATE ]&#x27;
+carried a trailing pad, &#x27;[CONTRIB]&#x27; was wider than everything around it,
+and the same stage appeared as &#x27;[SHAPE]&#x27; and &#x27;[shape   ]&#x27;. Misaligned
+banners make a log hard to scan, which matters because reading the log is
+how defects are caught here (HANDOVER  4d). BANNER enforces one width:
+
+  lsqvce.util.verbosity.banner(&#x27;SCALE&#x27;)   -&gt; &#x27;[SCALE   ]&#x27;
+  lsqvce.util.verbosity.banner(&#x27;shape&#x27;)   -&gt; &#x27;[shape   ]&#x27;
+
+CASE IS MEANINGFUL and is preserved, not normalised:
+  UPPERCASE  an outer-loop STAGE          [SCALE   ] [SOLVE   ] [GATE    ]
+  lowercase  per-item detail under a stage [shape   ] [accum   ] [redund  ]
+So the eye can separate &quot;where the loop is&quot; from &quot;what it is doing there&quot;
+without reading the words.</pre>
+<h3>Example</h3>
+<pre class="example">  v = lsqvce.util.verbosity.resolve(2);          % or true / false / 0..3
+  if lsqvce.util.verbosity.progress(v)
+      lsqvce.util.log.msg(&#x27;%s starting\n&#x27;, lsqvce.util.verbosity.banner(&#x27;SCALE&#x27;));
+  end
+  if lsqvce.util.verbosity.stage(v)
+      lsqvce.util.log.msg(&#x27;%s stream %s: AR(%d)\n&#x27;, ...
+          lsqvce.util.verbosity.banner(&#x27;shape&#x27;), key, p);
+  end
+
+See also LSQVCE.UTIL.LOG, LSQVCE.ADJUSTVCE
+
+Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
+model Claude Opus 4.8.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
+</body></html>
