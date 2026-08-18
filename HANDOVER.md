@@ -105,7 +105,9 @@ These do not expire between chats. They are the same rules v1 was built under
     `tests/ci_gate.m` on every push — and the local MATLAB run remains (a)
     the postflight second platform and (b) the run for suites CI skips,
     currently `test_parallel`. The zip/log loop stays valid for chat rounds
-    without repo access.)*
+    without repo access. Amended 2026-08-18 (user decision): a round that
+    ends with a READY PULL REQUEST ships NO zip — the PR is the deliverable;
+    zips remain for rounds without a merge-ready PR.)*
 
 ### The working loop (identical to v1 §4b)
 - There is no MATLAB in the sandbox. Validation is STRUCTURAL (function/end
@@ -208,8 +210,8 @@ order of work: 32 → 33 → 34 → 35 → 36 → 40 → 37 → 38 → 41 → 39
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 32 | Fix `vce` 'hutchinson': redundancy, not trace (F-01) | — | IN PROGRESS — 2026-08-18: fix + tests on `claude/wp-32` (9d2d02f); CI GREEN; POSTFLIGHT GREEN via MCP bridge (Windows R2026a: 515/515, test_contribution 12/12 incl. both new tests, 201.5 s); **PR #2 OPEN** (both worlds green, postflight quoted). WAITING: user review + MERGE → DONE (date + PR #2 + merge hash). Round note §9 WP-32 |
-| 33 | Joint paths: locals in residual + projector (F-03) | — | OPEN |
+| 32 | Fix `vce` 'hutchinson': redundancy, not trace (F-01) | — | DONE (2026-08-18, PR #2, merge e167cee; CI green both contexts after a setup-matlab cache-restore hang was resolved per the incident runbook, postflight green 515/515 on Windows R2026a; evidence + round note §9 WP-32) |
+| 33 | Joint paths: locals in residual + projector (F-03) | — | IN PROGRESS — 2026-08-18: fix + tests on `claude/wp-33` (7f16773); CI GREEN (attempt 4 after the setup-matlab incident); POSTFLIGHT GREEN via MCP bridge (Windows R2026a: 519/519, test_ellmer 58/58) recorded BEFORE the bridge became unavailable; **PR #3 OPEN** (both worlds green, postflight quoted). Coloured-PSD test deferred to round 2 (user decision pending, see PR). WAITING: user review + MERGE → DONE. Round note §9 WP-33 |
 | 34 | Keyed arc identity in `adjustVCEjoint` (F-02) | — | OPEN |
 | 35 | `psdVCE` floor policy + negative sigma2 guard (F-04, F-05) | — | OPEN |
 | 36 | One probe generator, honest RNG contract (F-06) | — | OPEN |
@@ -2276,6 +2278,15 @@ v10review; matlab full gate). Postflight via MCP bridge on Windows R2026a:
 ci_gate GREEN, 515/515, 0 incomplete, 201.5 s (18:39 local). PR #2 opened
 with both verdicts quoted. Housekeeping ridden on this branch: WP-30 DONE
 flip + ci.yml `cache: true` (fed1761).
+**INCIDENT (2026-08-18, after the record push; pinned for every polling
+session):** both runs on 669e3c4 hung >30 min INSIDE setup-matlab — the
+first two runs to RESTORE the just-saved `cache: true` entry, started
+simultaneously. Resolution per the Auth-note runbook (Actions RW): read
+/jobs with step elapsed FIRST (>15 min in setup-matlab = hang, not a slow
+suite); cancel + re-run the affected run(s); one re-run went green in
+~90 s, PROVING the cache entry intact — so never delete the cache while a
+twin restore succeeds; the second run needed one more cancel+re-run.
+Merge followed with both contexts green.
 
 ### WP-33 — Joint paths: subtract B*y and absorb locals in the projector
 
@@ -2293,6 +2304,66 @@ flip + ci.yml `cache: true` (fed1761).
 > WITH nl > 0 (the accuracy test the suite lacks; tolerance from the probe
 > se); PSD recovery corr > 0.95 on a coloured synthetic with locals;
 > nl = 0 regression: results identical to the old path.
+
+**ROUND NOTE (2026-08-18, WP-33 round 1, model Claude Fable 5; branch
+`claude/wp-33`, riding housekeeping: WP-32 DONE flip + the setup-matlab
+cache-restore incident runbook).** THE ONE SHARED IMPLEMENTATION (rule 3):
+new package-private `+lsqvce/private/jointArcParts.m` — per arc
+AtilBar = W^-T(A - B G), Bbar = W^-T B, ebar = W^-T(l - A x - B y); both
+drivers call it. KERNEL: `redundancyLags` gains 'LocalBbar'/'LocalLl';
+with them Rbar = Sigma^-1 - Rt Rt' - K K', K = W^-1(W^-T B)Ll^-T — the
+EXACT local block (nl columns, same row-dot pattern as Rt), while the
+shared probe now covers the REDUCED AtilBar, i.e. the operator U actually
+factors; the block identity [A B]Njoint^-1[A B]' = Atil Sxx Atil' +
+B Nll^-1 B' is validated dense in v10review.py T3c (2e-17) and the fixed
+alpha2/s_0 in T3d. nl = 0 branch keeps the pre-fix expressions VERBATIM
+(bitwise). DRIVERS: adjustVCEjoint.sweepArcs and adjustVCE.sweepStreamLags
+recover y once per system and pass (Nll_r \ (nl_r - Nlc x), exactly as
+redundancy), build G and Ll = chol(Nll,'lower') once, and route every arc
+through jointArcParts; lagsPooledOverAxes threads the sliced local rows
+symmetrically; new error ids lsqvce:adjustVCEjoint:localNotPD /
+lsqvce:adjustVCE:localNotPD. TESTS (test_ellmer; no new suite files):
+dense joint-projector parity incl. the DISCRIMINATING s_0 = N-(nc+nl)
+(0.5 tol vs a 2.0 gap to the common-only N-nc); alpha2 ~ 1 at truth on
+white noise WITH nl>0, pieces formed exactly as the drivers form them,
+PLUS the pre-fix contrast alpha2Old > 1.5 asserted — the §6.1
+fail-on-old-code lever (construction sanity in Python: new 1.004, old
+2.14); bitwise nl = 0 regression (empty LocalBbar == no option, NO
+tolerance); driver-level flat-PSD check on the white jointCfg fixture
+with nl = 2 (leakage of the arc-parameter signal shows up as PSD
+structure). The spec's coloured-synthetic PSD-corr test is DEFERRED to
+the WP-33 round-2 note pending the postflight verdict on the four tests
+above (the white-fixture driver check covers the leakage mechanism; a
+coloured fixture needs a new synthetic and its runtime budget — decide
+with the user if round 1 lands green).
+**Round-1 CI red + fix (2026-08-18, same day):** the dense parity test
+itself was wrong twice — it built G/Nll/Nred in the RAW metric while the
+fixture's W is coloured (the reduction lives in the WHITENED metric, which
+is exactly what the drivers' st.Nll_r/st.Nlc carry), and it asserted
+s_0 = N-(nc+nl), which holds only for WHITE arcs (s_0 = trace(Rbar); on
+the coloured fixture the exact value is trace(RbarEx) = 27.68, with the
+pre-fix common-only projector a structural 3.18 higher — now the
+discriminating assertion, 0.5 tol). The KERNEL and DRIVERS needed no
+change: the whitened-metric limit agrees with the joint reference to
+2.5e-16 (Python, seedable mirror). Note the round-1 CI also proved the
+suite-wide safety of the driver rewiring: 487/488, the sole red being
+this test's own reference.
+**Evidence + incidents (2026-08-18, evening):** POSTFLIGHT via MCP bridge
+GREEN — 519/519, 0 incomplete, 186.2 s (20:53 local), test_ellmer 58/58 —
+recorded BEFORE the bridge became unavailable (user, same evening: bridge
+gone for now; CI GREEN SUFFICES this round, local MATLAB testing resumes
+later — a D.4 verification-mode note for FUTURE rounds, no debt for this
+WP since its postflight is on record). CI: setup-matlab wedged across
+FOUR attempts on 7f16773; escalation extends the incident runbook: the
+cache list showed THREE entries with the IDENTICAL key (1.71 GB each —
+every wedged run re-saved on its exit path), all deleted via the caches
+API; a subsequent NO-cache attempt still wedged (800 s) → the cache is
+EXONERATED, upstream transient (MathWorks CDN suspected; GitHub status
+operational); attempt 4 ran green. Runbook addition: on repeated wedges,
+LIST the caches — duplicate keys are a symptom, not the root cause; a
+wedge without any cache present proves upstream. PR #3 opened with both
+verdicts; zip-shipping rule amended in §0 rule 10 (user decision: no zip
+when a PR is ready).
 
 ### WP-34 — Keyed arc identity in `adjustVCEjoint`
 

@@ -182,6 +182,13 @@ classdef adjustVCE < handle
 %     the problem.
 %
 %   See also LSQVCE.ADJUSTBLOCK, LSQVCE.VCE, LSQVCE.REDUNDANCY,
+%
+%   Updated 2026-08-18 (CEST, UTC+02:00), WP-33 (fixes F-03, CRITICAL):
+%   sweepStreamLags subtracts the per-system local fit B*y and absorbs the
+%   local block exactly into the per-lag projector (shared jointArcParts +
+%   redundancyLags 'LocalBbar'/'LocalLl'; axis pooling threads the sliced
+%   local rows symmetrically). nl = 0 paths are verbatim unchanged. With
+%   assistance from Claude (Anthropic), model Claude Fable 5.
 %            LSQVCE.SELECTARACV, LSQVCE.RESIDUALACV,
 %            LSQVCE.SEPARABLEWHITEN, LSQVCE.MAKELOADER, LSQVCE.RESULTS
 %
@@ -1446,7 +1453,7 @@ classdef adjustVCE < handle
             end
         end
 
-        function [om, sn] = lagsPooledOverAxes(obj, Abar, W, UiZ, ebar, nAx, nE, nLag) %#ok<INUSL>
+        function [om, sn] = lagsPooledOverAxes(obj, Abar, W, UiZ, ebar, nAx, nE, nLag, Bbar, LlS) %#ok<INUSL>
         %LAGSPOOLEDOVERAXES  Per-lag Omega and s down EPOCHS, pooled over axes.
         %   Rows are epoch-major (row = (epoch-1)*nAx + axis). Under the
         %   separable model the per-epoch de-scale leaves exactly R_t kron I_d,
@@ -1483,8 +1490,16 @@ classdef adjustVCE < handle
                 [Wa, pdv] = chol(Sa);            % re-factor, do NOT slice W
                 if pdv > 0, continue, end
                 try
-                    ra = lsqvce.redundancyLags(Abar(rows,:), Wa, UiZ, ...
-                                               ebar(rows), maxLag);
+                    % WP-33: the local rows are sliced exactly like the common
+                    % ones (symmetric treatment under the separable model).
+                    if nargin >= 10 && ~isempty(Bbar) && size(Bbar,2) > 0
+                        ra = lsqvce.redundancyLags(Abar(rows,:), Wa, UiZ, ...
+                                 ebar(rows), maxLag, ...
+                                 'LocalBbar', Bbar(rows,:), 'LocalLl', LlS);
+                    else
+                        ra = lsqvce.redundancyLags(Abar(rows,:), Wa, UiZ, ...
+                                                   ebar(rows), maxLag);
+                    end
                 catch
                     continue
                 end
@@ -1564,6 +1579,25 @@ classdef adjustVCE < handle
             x      = sol.x(:);
             st     = acc.getStore(sysID);
             uo     = st.uo;
+            % WP-33: this system's local solution and Schur pieces, ONCE per
+            % sweep -- exactly as LSQVCE.REDUNDANCY recovers them. The arc
+            % residual becomes ebar = W^-T(l - A x - B y) and the per-lag
+            % projector absorbs the local block exactly (jointArcParts +
+            % redundancyLags 'LocalBbar'/'LocalLl'); nl = 0 stays verbatim.
+            nlS = size(st.Nlc, 1);
+            if nlS > 0
+                ySys = st.Nll_r \ (st.nl_r - st.Nlc * x(1:size(st.Nlc,2)));
+                Gsys = st.Nll_r \ st.Nlc;
+                [LlS, plS] = chol((st.Nll_r + st.Nll_r.')/2, 'lower');
+                if plS > 0
+                    error('lsqvce:adjustVCE:localNotPD', ...
+                         ['System %s: the local normal matrix is not ' ...
+                          'positive definite -- the local block cannot be ' ...
+                          'absorbed into the projector.'], string(sysID));
+                end
+            else
+                ySys = [];  Gsys = [];  LlS = [];
+            end
             for d = st.dayList(:).'
                 meta = st.dataFcn('meta', d, [], uo);
                 oti  = find(strcmp(meta.obsTypes, ot), 1);
@@ -1658,9 +1692,11 @@ classdef adjustVCE < handle
                         end
                         continue
                     end
-                    Abar = W.' \ arc.A;
-                    lbar = W.' \ arc.l(:);
-                    ebar = lbar - Abar * x(1:size(Abar,2));
+                    % WP-33: full-vector residual + reduced common design.
+                    Barc = zeros(m, 0);
+                    if isfield(arc,'B') && ~isempty(arc.B), Barc = arc.B; end
+                    [Abar, Bbar, ebar] = jointArcParts(arc.A, Barc, ...
+                        arc.l(:), W, x(1:size(arc.A,2)), ySys, Gsys);
 
                     % AXIS STRIDE. Rows are EPOCH-MAJOR:
                     %     row = (epoch-1)*nAx + axis
@@ -1681,10 +1717,13 @@ classdef adjustVCE < handle
                     nE = floor(m / nAx);
                     if nAx > 1 && nE >= 2
                         [om, sn] = obj.lagsPooledOverAxes(Abar, W, UiZ, ebar, ...
-                                                          nAx, nE, nLag);
+                                                          nAx, nE, nLag, ...
+                                                          Bbar, LlS);
                     else
                         rr = lsqvce.redundancyLags(Abar, W, UiZ, ebar, ...
-                                                   min(nLag, m));
+                                                   min(nLag, m), ...
+                                                   'LocalBbar', Bbar, ...
+                                                   'LocalLl', LlS);
                         om = rr.omega;  sn = rr.s;
                     end
                     if isempty(om)

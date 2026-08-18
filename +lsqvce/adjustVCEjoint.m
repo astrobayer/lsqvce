@@ -32,7 +32,8 @@ function out = adjustVCEjoint(accFcn, varargin)
 %            -> acc.solve() and chol(acc.reducedNormalMatrix())
 %     6    draw Zbar and form U^-1 Zbar ONCE for all arcs
 %            -> LSQVCE.SHAREDPROBE
-%     7    decorrelated residuals ehat_bar = Delta_lbar - Abar Delta_xhat
+%     7    decorrelated residuals ebar = W^-T (l - A x - B y), the FULL
+%          Table-6.2 vector (WP-33; the local fit is subtracted per system)
 %            -> re-streamed per arc via the store's dataFcn
 %     8    Rtilde, etilde, and from them Omega and s per lag
 %            -> LSQVCE.REDUNDANCYLAGS
@@ -103,6 +104,12 @@ function out = adjustVCEjoint(accFcn, varargin)
 %
 %   Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Opus 4.8.
+%   Updated 2026-08-18 (CEST, UTC+02:00), WP-33 (fixes F-03, CRITICAL): step
+%   7 subtracts the per-system local fit B*y (recovered once per pass as
+%   redundancy does) and the per-lag projector absorbs the local block
+%   exactly -- shared implementation jointArcParts + redundancyLags
+%   'LocalBbar'/'LocalLl'; evidence v10review.py T3. With assistance from
+%   Claude (Anthropic), model Claude Fable 5.
 
     p = inputParser;  p.FunctionName = 'lsqvce.adjustVCEjoint';
     p.addParameter('NumLags' , 60, @(v) isscalar(v) && v >= 2 && v == floor(v));
@@ -218,12 +225,31 @@ function [omegaT, sT, nArc] = sweepArcs(acc, sol, UiZ, nLag, C, sigma2, v)
     for k = 1:numel(ids)
         st = acc.getStore(ids(k));
         uo = st.uo;
+        % WP-33: recover this system's LOCAL solution and Schur pieces ONCE
+        % per pass, exactly as LSQVCE.REDUNDANCY does -- the residual is the
+        % full-vector one (Ellmer step 7, Table 6.2) and the projector gains
+        % the exact local block via jointArcParts + redundancyLags.
+        nlS = size(st.Nlc, 1);
+        if nlS > 0
+            ySys = st.Nll_r \ (st.nl_r - st.Nlc * x);
+            Gsys = st.Nll_r \ st.Nlc;
+            [LlS, plS] = chol((st.Nll_r + st.Nll_r.')/2, 'lower');
+            if plS > 0
+                error('lsqvce:adjustVCEjoint:localNotPD', ...
+                     ['System %s: the local normal matrix is not positive ' ...
+                      'definite -- the local block cannot be absorbed into ' ...
+                      'the projector.'], string(st.sysID));
+            end
+        else
+            ySys = [];  Gsys = [];  LlS = [];
+        end
         for d = st.dayList(:).'
             meta = st.dataFcn('meta', d, [], uo);
             for ot = 1:numel(meta.obsTypes)
                 obsType = meta.obsTypes{ot};
                 for a = meta.arcs{ot}(:).'
-                    [om, sn] = oneArc(st, obsType, a, d, uo, UiZ, nLag, x);
+                    [om, sn] = oneArc(st, obsType, a, d, uo, UiZ, nLag, x, ...
+                                      ySys, Gsys, LlS);
                     if isempty(om), continue, end
                     nArc = nArc + 1;
                     % weight by the CURRENT arc factor and lag covariance
@@ -240,9 +266,13 @@ function [omegaT, sT, nArc] = sweepArcs(acc, sol, UiZ, nLag, C, sigma2, v)
 end
 
 %==========================================================================
-function [om, sn] = oneArc(st, obsType, arc, day, uo, UiZ, nLag, x)
+function [om, sn] = oneArc(st, obsType, arc, day, uo, UiZ, nLag, x, ySys, Gsys, LlS)
 %ONEARC  Decorrelate one arc, form its residual, and return the per-lag Omega
 %   and s from LSQVCE.REDUNDANCYLAGS. Returns [] for a data gap.
+%   WP-33: ySys/Gsys/LlS are the system's local solution, Schur factor and
+%   local Cholesky (computed once per pass by sweepArcs); the residual is
+%   ebar = W^-T(l - A x - B y) and the projector absorbs the local block
+%   exactly (jointArcParts + redundancyLags 'LocalBbar'/'LocalLl').
     uo.obsType = obsType;
     uo.day     = day;
     uo.arc     = arc;
@@ -278,11 +308,15 @@ function [om, sn] = oneArc(st, obsType, arc, day, uo, UiZ, nLag, x)
               string(day), string(arc));
     end
 
-    Abar = W.' \ A;                          % W^-T A
-    lbar = W.' \ l;
-    ebar = lbar - Abar * x(1:size(Abar,2));  % step 7 (common block only)
-
-    r  = lsqvce.redundancyLags(Abar, W, UiZ, ebar, min(nLag, m));
+    % Step 7 with the FULL Table-6.2 vector: subtract B*y, reduce the common
+    % design (Atil = A - B G) so the shared probe matches the factored N, and
+    % hand the exact local block to the projector (WP-33, fixes F-03).
+    B = zeros(m, 0);
+    if isfield(a, 'B') && ~isempty(a.B), B = a.B; end
+    [AtilBar, Bbar, ebar] = jointArcParts(A, B, l, W, x(1:size(A,2)), ...
+                                          ySys, Gsys);
+    r  = lsqvce.redundancyLags(AtilBar, W, UiZ, ebar, min(nLag, m), ...
+                               'LocalBbar', Bbar, 'LocalLl', LlS);
     om = padTo(r.omega, nLag);
     sn = padTo(r.s    , nLag);
 end

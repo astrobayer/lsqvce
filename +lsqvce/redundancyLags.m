@@ -59,6 +59,21 @@ function out = redundancyLags(Abar, W, UiZ, ebar, nMaxLag, varargin)
 %                          for long arcs this is the one big object, and the
 %                          unrolled sums never need it materialised beyond the
 %                          diagonals actually touched. Use only for testing.
+%     'LocalBbar' N x nl double  the arc's DECORRELATED local design W^-T B
+%                          (WP-33, fixes F-03). When given (with 'LocalLl'),
+%                          the projector gains the EXACT local block: with
+%                          Atil = A - B G the joint hat splits (leverage block
+%                          identities) as Atil Sxx Atil' + B Nll^-1 B', so
+%                              Rbar = Sigma^-1 - Rt Rt' - K K',
+%                              K    = W^-1 (W^-T B) Ll^-T,   nl exact columns.
+%                          Abar must then be the REDUCED AtilBar = W^-T(A-BG)
+%                          (see the private jointArcParts helper) -- only that
+%                          pairing probes the operator U factors. Default []:
+%                          the pre-WP-33 common-only projector, VERBATIM
+%                          (nl = 0 arcs are bitwise unchanged).
+%     'LocalLl'  nl x nl double  the SYSTEM's lower Cholesky factor
+%                          chol(Nll,'lower') (as LSQVCE.LEVERAGEBLOCKS.Ll);
+%                          required with 'LocalBbar'.
 %
 %   OUTPUT
 %     out   1x1 struct
@@ -75,7 +90,10 @@ function out = redundancyLags(Abar, W, UiZ, ebar, nMaxLag, varargin)
 %     s_0     == trace(Rbar)
 %     s_n     == trace(Rbar * V_n) for the explicit V_n (LSQVCE.COVCOMPONENT)
 %     Omega_n == etilde' * V_n * etilde == ehat' Sigma^-T V_n Sigma^-1 ehat
-%     Rbar    -> Sigma^-1 - Sigma^-1 A N^-1 A' Sigma^-1  as Z -> inf
+%     Rbar    -> Sigma^-1 - Sigma^-1 A N^-1 A' Sigma^-1  as Z -> inf  (nl = 0)
+%     Rbar    -> Sigma^-1 - Sigma^-1 [A B] Njoint^-1 [A B]' Sigma^-1 as Z ->
+%                inf, when 'LocalBbar'/'LocalLl' are given with AtilBar
+%                (v10review.py T3c: block realisation == joint inverse)
 %
 %   EXAMPLE
 %     % Sigma = W'W for this arc; A its design; N = U'U the accumulated normals.
@@ -96,9 +114,15 @@ function out = redundancyLags(Abar, W, UiZ, ebar, nMaxLag, varargin)
 %
 %   Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Opus 4.8.
+%   Updated 2026-08-18 (CEST, UTC+02:00), WP-33 (fixes F-03, CRITICAL): the
+%   projector can now absorb the LOCAL parameter block exactly via
+%   'LocalBbar'/'LocalLl' (see OPTIONS); the nl = 0 path is verbatim the old
+%   code. With assistance from Claude (Anthropic), model Claude Fable 5.
 
     p = inputParser;  p.FunctionName = 'lsqvce.redundancyLags';
     p.addParameter('WantRbar', false, @(v) isscalar(v) && (islogical(v) || isnumeric(v)));
+    p.addParameter('LocalBbar', [], @(v) isempty(v) || isnumeric(v));
+    p.addParameter('LocalLl',   [], @(v) isempty(v) || isnumeric(v));
     p.parse(varargin{:});
     o = p.Results;
 
@@ -121,8 +145,36 @@ function out = redundancyLags(Abar, W, UiZ, ebar, nMaxLag, varargin)
     nMaxLag = min(nMaxLag, N);
     Z = size(UiZ, 2);
 
+    % ---- the EXACT local block (WP-33, fixes F-03) ------------------------
+    %   With the local design present, the joint hat splits by the leverage
+    %   block identities (LSQVCE.LEVERAGE) into
+    %       [A B] N_joint^-1 [A B]' = Atil Sxx Atil' + B Nll^-1 B',
+    %   Atil = A - B G. The FIRST term is what the shared probe covers when
+    %   the caller passes AtilBar (see LSQVCE private jointArcParts); the
+    %   SECOND is exact and cheap: K = W^-1 W^-T B Ll^-T has only nl columns,
+    %   so its sub-diagonal row-dots cost the same O(N*nl) pattern as Rt.
+    hasLocal = ~isempty(o.LocalBbar) && size(o.LocalBbar, 2) > 0;
+    if hasLocal
+        nl = size(o.LocalBbar, 2);
+        if size(o.LocalBbar, 1) ~= N
+            error('lsqvce:redundancyLags:badLocal', ...
+                  'LocalBbar has %d rows but the arc has %d.', ...
+                  size(o.LocalBbar,1), N);
+        end
+        if ~isequal(size(o.LocalLl), [nl nl])
+            error('lsqvce:redundancyLags:badLocal', ...
+                 ['LocalLl must be the nl x nl lower Cholesky factor of the ' ...
+                  'system''s Nll (got %dx%d for nl = %d).'], ...
+                  size(o.LocalLl,1), size(o.LocalLl,2), nl);
+        end
+        K = W \ (o.LocalBbar / o.LocalLl.');    % Sigma^-1-metric local block
+    end
+
     % ---- Rtilde = W^-1 (Abar * UiZ)                              (eq. 6.5.48)
     %   W is upper triangular with Sigma = W'W, so W^-1 X is a backslash solve.
+    %   With locals, Abar must be the REDUCED AtilBar = W^-T (A - B G): only
+    %   then is the probed operator the one U factors (see the block identity
+    %   above).
     Rt = W \ (Abar * UiZ);                       % N x Z
 
     % ---- s_n WITHOUT forming the dense Rbar                (eqs. 6.5.51-6.5.52)
@@ -134,13 +186,26 @@ function out = redundancyLags(Abar, W, UiZ, ebar, nMaxLag, varargin)
     %   dense N x N Rbar. This is what keeps a long arc affordable.
     X = W \ eye(N);                              % N x N upper triangular = W^-1
     s = zeros(nMaxLag, 1);
-    % n = 0 is trivial: trace(Rbar) = trace(Sinv) - trace(Rt*Rt')
-    s(1) = sum(X(:).^2) - sum(Rt(:).^2);         % tr(XX') = sum(X.^2)
-    for n = 1:nMaxLag-1
-        idx = 1:(N-n);
-        dSinv = sum(X(idx+n, :) .* X(idx, :), 2);        % Sinv sub-diagonal
-        dRt   = sum(Rt(idx+n, :) .* Rt(idx, :), 2);      % (Rt Rt') sub-diagonal
-        s(n+1) = 2 * sum(dSinv - dRt);
+    if hasLocal
+        % Rbar = Sinv - Rt*Rt' - K*K': one more row-dot per sub-diagonal.
+        s(1) = sum(X(:).^2) - sum(Rt(:).^2) - sum(K(:).^2);
+        for n = 1:nMaxLag-1
+            idx = 1:(N-n);
+            dSinv = sum(X(idx+n, :) .* X(idx, :), 2);
+            dRt   = sum(Rt(idx+n, :) .* Rt(idx, :), 2);
+            dK    = sum(K(idx+n, :)  .* K(idx, :),  2);
+            s(n+1) = 2 * sum(dSinv - dRt - dK);
+        end
+    else
+        % nl = 0: the pre-WP-33 expressions VERBATIM (bitwise regression path).
+        % n = 0 is trivial: trace(Rbar) = trace(Sinv) - trace(Rt*Rt')
+        s(1) = sum(X(:).^2) - sum(Rt(:).^2);     % tr(XX') = sum(X.^2)
+        for n = 1:nMaxLag-1
+            idx = 1:(N-n);
+            dSinv = sum(X(idx+n, :) .* X(idx, :), 2);    % Sinv sub-diagonal
+            dRt   = sum(Rt(idx+n, :) .* Rt(idx, :), 2);  % (Rt Rt') sub-diagonal
+            s(n+1) = 2 * sum(dSinv - dRt);
+        end
     end
 
     % ---- Omega_n from the whitened residual              (eqs. 6.5.54-6.5.56)
@@ -163,5 +228,8 @@ function out = redundancyLags(Abar, W, UiZ, ebar, nMaxLag, varargin)
         % Testing/diagnostic path ONLY: this is the dense N x N object the main
         % path deliberately avoids. Sigma^-1 = X*X' with X = W^-1.
         out.Rbar = X * X.' - Rt * Rt.';
+        if hasLocal
+            out.Rbar = out.Rbar - K * K.';
+        end
     end
 end
