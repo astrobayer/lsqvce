@@ -1,7 +1,8 @@
-function results = run_all_lsqvce(root)
+function results = run_all_lsqvce(root, skip)
 %RUN_ALL_LSQVCE  Run every lsqvce test suite file-by-file and print a summary.
 %   results = run_all_lsqvce()          uses the folder this file lives in
 %   results = run_all_lsqvce(root)      root is the toolbox root (contains +lsqvce)
+%   results = run_all_lsqvce(root, skip)  additionally skips the named suites
 %
 %   WHY FILE-BY-FILE, NOT runtests('tests','IncludeSubfolders',true)
 %     Each accum test file defines a local helper makeCfg(); running the whole
@@ -9,6 +10,17 @@ function results = run_all_lsqvce(root)
 %     invocation short enough to finish under a 4-minute MCP timeout and makes a
 %     hang attributable to a single file. It also isolates the parallel suites,
 %     which spin up a pool.
+%
+%   INPUT
+%     root  1x1 char/string  toolbox root (contains +lsqvce). Default: the
+%                            parent of the folder this file lives in.
+%     skip  1xS cell/string  suite names (file names WITHOUT extension, e.g.
+%                            'test_parallel') to SKIP. Skipped suites are
+%                            printed in the summary AND recorded in the log
+%                            file, so a skip is always visible, never silent.
+%                            Default: {} (skip nothing). The POLICY of what
+%                            to skip and when lives in CI_GATE (one place per
+%                            decision); this argument is only the mechanism.
 %
 %   OUTPUT
 %     results  1xF struct  one row per suite file with fields
@@ -26,13 +38,30 @@ function results = run_all_lsqvce(root)
 %   name -- one gate, one implementation. Use RUN_LSQVCE for a single suite or a
 %   name pattern while iterating.
 %
-%   See also RUN_LSQVCE
+%   ERRORS
+%     run_all_lsqvce:noToolbox   root does not contain a +lsqvce package.
+%     run_all_lsqvce:badSkip     skip is not a cell array of char / string
+%                                array of suite names.
+%
+%   See also RUN_LSQVCE, CI_GATE
 %
 %   Created 2026-07-16 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Opus 4.8.
+%   Updated 2026-08-18 (CEST, UTC+02:00): added the `skip` argument (WP-30;
+%   the CI gate skips pool suites on runners without PCT — visibly, in the
+%   summary and the log). With assistance from Claude (Anthropic), model
+%   Claude Fable 5.
     if nargin < 1 || isempty(root)
         here = fileparts(mfilename('fullpath'));   % .../tests
         root = fileparts(here);                    % toolbox root
+    end
+    if nargin < 2 || isempty(skip)
+        skip = {};
+    end
+    if isstring(skip), skip = cellstr(skip); end
+    if ~iscellstr(skip)                                        %#ok<ISCLSTR>
+        error('run_all_lsqvce:badSkip', ...
+            'skip must be a cell array of char or a string array of suite names.');
     end
     if exist(fullfile(root, '+lsqvce'), 'dir') ~= 7
         error('run_all_lsqvce:noToolbox', ...
@@ -58,7 +87,8 @@ function results = run_all_lsqvce(root)
         fullfile(root,'tests','test_reliability.m'), ...
         fullfile(root,'tests','test_adjustBlock.m'), ...
         fullfile(root,'tests','test_adjustVCE.m'), ...
-        fullfile(root,'tests','test_contribution.m') };
+        fullfile(root,'tests','test_contribution.m'), ...
+        fullfile(root,'tests','test_ci_gate.m') };
     % Note: test_speed.m is a benchmark, not a pass/fail suite; run it manually.
 
     results = struct('name', {}, 'passed', {}, 'total', {}, ...
@@ -70,9 +100,18 @@ function results = run_all_lsqvce(root)
     % duplicated function name in test_util, 2026-07-19). Counted now.
     loadErrors = {};
     capture = {};
+    skipped = {};
     for i = 1:numel(suites)
         f = suites{i};
         [~, nm] = fileparts(f);
+        if ismember(nm, skip)
+            % A skip is a DECISION, so it is printed like a result line and
+            % written to the log below - a suite that silently vanishes is
+            % the same failure class as one that fails to load (§0a-2).
+            fprintf('  %-20s : SKIPPED (requested via the skip argument)\n', nm);
+            skipped{end+1} = nm;                               %#ok<AGROW>
+            continue
+        end
         if exist(f, 'file') ~= 2
             fprintf('  %-20s : MISSING (%s)\n', nm, f);
             continue
@@ -114,6 +153,10 @@ function results = run_all_lsqvce(root)
     totalSecs = sum([results.secs], 'omitnan');
     fprintf('\n==== GRAND TOTAL : %d / %d passed, %d failed  (%.1fs) ====\n', ...
             grandP, grandT, grandF, totalSecs);
+    if ~isempty(skipped)
+        fprintf('==== %d SUITE(S) SKIPPED ON REQUEST: %s ====\n', ...
+                numel(skipped), strjoin(skipped, ', '));
+    end
     if ~isempty(loadErrors)
         fprintf(['==== %d FILE(S) FAILED TO LOAD - THE TOTAL ABOVE IS ' ...
                  'INCOMPLETE ====\n'], numel(loadErrors));
@@ -133,6 +176,12 @@ function results = run_all_lsqvce(root)
         fprintf(fid, 'total  : %.1f s wall clock\n', totalSecs);
         fprintf(fid, 'result : %d / %d passed, %d failed\n', ...
                 grandP, grandT, grandF);
+        if ~isempty(skipped)
+            % On the HEADLINE, same reason as the load errors: the first
+            % line anyone reads must say the run was not the full set.
+            fprintf(fid, 'result : %d SUITE(S) SKIPPED ON REQUEST: %s\n', ...
+                    numel(skipped), strjoin(skipped, ', '));
+        end
         if isempty(loadErrors)
             fprintf(fid, '\n');
         else

@@ -1,0 +1,14 @@
+# HANDOVER.md §5 WP-30 D4 (pinned 2026-08-17/18)
+*.asv
+*.autosave
+tests/last_run_all.txt
+exports/
+.DS_Store
+
+# MEASUREMENT DATA NEVER ENTERS GIT (pinned 2026-08-17): the gate runs on
+# synthetic fixtures only; real-data campaigns reference local paths.
+data/
+
+# Local copies of third-party reference texts (public repo: no
+# redistribution - see references/README.md).
+references/local/

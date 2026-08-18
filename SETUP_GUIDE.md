@@ -154,8 +154,10 @@ at claude.ai/code — handy from the phone, less scriptable.
 WP-30 section from `HANDOVER.md`, attach the current zip. That round
 delivers `.github/workflows/ci.yml` (checks `audit` + `matlab`, MATLAB
 R2026a on GitHub's machines), `tests/ci_gate.m`, `CLAUDE.md`,
-`.gitignore`, `.gitattributes`, `references/` (the two theses) — and
-asks you the LICENSE question.
+`.gitignore`, `.gitattributes`, `references/README.md` (citations; the
+thesis texts stay OUT of the public repo — drop local copies into the
+gitignored `references/local/` for repo-based sessions) — and asks you
+the LICENSE question.
 
 **4.2** Commit and push; the **Actions** tab must show `audit` and
 `matlab` green on `main`. The very first `matlab` run installs MATLAB

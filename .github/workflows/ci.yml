@@ -1,0 +1,45 @@
+# lsqvce CI - the D8 gate (HANDOVER.md §5 WP-30, D2 reference).
+# Hosted variant ONLY (public repo => matlab-actions licenses MATLAB free).
+# The MATLAB release is PINNED to the user's local R2026a - the local run
+# has been the ground truth, so CI must match it, not "latest".
+# Checks `audit` + `matlab` are the branch-protection requirements on main.
+name: lsqvce CI
+
+on:
+  push:            # EVERY branch: the session polls check-runs per push,
+  pull_request:    # and the PR is opened only after these are green.
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:                       # < 1 min, no MATLAB: fail fast
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: pip install numpy
+      - run: python docs_src/audit_tree.py
+      - run: for f in validation/v10review.py; do python "$f"; done
+
+  matlab:
+    needs: audit
+    runs-on: ubuntu-latest
+    env:
+      LSQVCE_CI: 1             # ci_gate: skip pool suites (printed in the
+                               # log), cap pools at 2, headless figures
+    steps:
+      - uses: actions/checkout@v6
+      - uses: matlab-actions/setup-matlab@v3
+        with:
+          release: R2026a      # == the user's local release (pinned)
+          # products: Parallel_Computing_Toolbox   # lift the test_parallel
+          #   skip in tests/ci_gate.m in the SAME commit that enables this.
+      - uses: matlab-actions/run-command@v3
+        with:
+          command: lsqvce_setup; ci_gate
+      - uses: actions/upload-artifact@v4
+        if: always()           # the log is wanted MOST when the run is red
+        with: { name: run_all_log, path: tests/last_run_all.txt }
