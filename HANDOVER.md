@@ -208,7 +208,7 @@ order of work: 32 → 33 → 34 → 35 → 36 → 40 → 37 → 38 → 41 → 39
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 32 | Fix `vce` 'hutchinson': redundancy, not trace (F-01) | — | IN PROGRESS — 2026-08-18: fix + tests on `claude/wp-32` (9d2d02f); CI GREEN; POSTFLIGHT GREEN via MCP bridge (Windows R2026a: 515/515, test_contribution 12/12 incl. both new tests, 201.5 s); **PR #2 OPEN** (both worlds green, postflight quoted). WAITING: user review + MERGE → DONE (date + PR #2 + merge hash). Round note §9 WP-32 |
+| 32 | Fix `vce` 'hutchinson': redundancy, not trace (F-01) | — | DONE (2026-08-18, PR #2, merge e167cee; CI green both contexts after a setup-matlab cache-restore hang was resolved per the incident runbook, postflight green 515/515 on Windows R2026a; evidence + round note §9 WP-32) |
 | 33 | Joint paths: locals in residual + projector (F-03) | — | OPEN |
 | 34 | Keyed arc identity in `adjustVCEjoint` (F-02) | — | OPEN |
 | 35 | `psdVCE` floor policy + negative sigma2 guard (F-04, F-05) | — | OPEN |
@@ -2276,6 +2276,15 @@ v10review; matlab full gate). Postflight via MCP bridge on Windows R2026a:
 ci_gate GREEN, 515/515, 0 incomplete, 201.5 s (18:39 local). PR #2 opened
 with both verdicts quoted. Housekeeping ridden on this branch: WP-30 DONE
 flip + ci.yml `cache: true` (fed1761).
+**INCIDENT (2026-08-18, after the record push; pinned for every polling
+session):** both runs on 669e3c4 hung >30 min INSIDE setup-matlab — the
+first two runs to RESTORE the just-saved `cache: true` entry, started
+simultaneously. Resolution per the Auth-note runbook (Actions RW): read
+/jobs with step elapsed FIRST (>15 min in setup-matlab = hang, not a slow
+suite); cancel + re-run the affected run(s); one re-run went green in
+~90 s, PROVING the cache entry intact — so never delete the cache while a
+twin restore succeeds; the second run needed one more cancel+re-run.
+Merge followed with both contexts green.
 
 ### WP-33 — Joint paths: subtract B*y and absorb locals in the projector
 
