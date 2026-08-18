@@ -105,7 +105,9 @@ These do not expire between chats. They are the same rules v1 was built under
     `tests/ci_gate.m` on every push — and the local MATLAB run remains (a)
     the postflight second platform and (b) the run for suites CI skips,
     currently `test_parallel`. The zip/log loop stays valid for chat rounds
-    without repo access.)*
+    without repo access. Amended 2026-08-18 (user decision): a round that
+    ends with a READY PULL REQUEST ships NO zip — the PR is the deliverable;
+    zips remain for rounds without a merge-ready PR.)*
 
 ### The working loop (identical to v1 §4b)
 - There is no MATLAB in the sandbox. Validation is STRUCTURAL (function/end
@@ -209,7 +211,7 @@ order of work: 32 → 33 → 34 → 35 → 36 → 40 → 37 → 38 → 41 → 39
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
 | 32 | Fix `vce` 'hutchinson': redundancy, not trace (F-01) | — | DONE (2026-08-18, PR #2, merge e167cee; CI green both contexts after a setup-matlab cache-restore hang was resolved per the incident runbook, postflight green 515/515 on Windows R2026a; evidence + round note §9 WP-32) |
-| 33 | Joint paths: locals in residual + projector (F-03) | — | IN PROGRESS — 2026-08-18: fix + tests on branch `claude/wp-33` (round note in §9 WP-33); D8 loop pending: CI, postflight, PR |
+| 33 | Joint paths: locals in residual + projector (F-03) | — | IN PROGRESS — 2026-08-18: fix + tests on `claude/wp-33` (7f16773); CI GREEN (attempt 4 after the setup-matlab incident); POSTFLIGHT GREEN via MCP bridge (Windows R2026a: 519/519, test_ellmer 58/58) recorded BEFORE the bridge became unavailable; **PR #3 OPEN** (both worlds green, postflight quoted). Coloured-PSD test deferred to round 2 (user decision pending, see PR). WAITING: user review + MERGE → DONE. Round note §9 WP-33 |
 | 34 | Keyed arc identity in `adjustVCEjoint` (F-02) | — | OPEN |
 | 35 | `psdVCE` floor policy + negative sigma2 guard (F-04, F-05) | — | OPEN |
 | 36 | One probe generator, honest RNG contract (F-06) | — | OPEN |
@@ -2346,6 +2348,22 @@ change: the whitened-metric limit agrees with the joint reference to
 2.5e-16 (Python, seedable mirror). Note the round-1 CI also proved the
 suite-wide safety of the driver rewiring: 487/488, the sole red being
 this test's own reference.
+**Evidence + incidents (2026-08-18, evening):** POSTFLIGHT via MCP bridge
+GREEN — 519/519, 0 incomplete, 186.2 s (20:53 local), test_ellmer 58/58 —
+recorded BEFORE the bridge became unavailable (user, same evening: bridge
+gone for now; CI GREEN SUFFICES this round, local MATLAB testing resumes
+later — a D.4 verification-mode note for FUTURE rounds, no debt for this
+WP since its postflight is on record). CI: setup-matlab wedged across
+FOUR attempts on 7f16773; escalation extends the incident runbook: the
+cache list showed THREE entries with the IDENTICAL key (1.71 GB each —
+every wedged run re-saved on its exit path), all deleted via the caches
+API; a subsequent NO-cache attempt still wedged (800 s) → the cache is
+EXONERATED, upstream transient (MathWorks CDN suspected; GitHub status
+operational); attempt 4 ran green. Runbook addition: on repeated wedges,
+LIST the caches — duplicate keys are a symptom, not the root cause; a
+wedge without any cache present proves upstream. PR #3 opened with both
+verdicts; zip-shipping rule amended in §0 rule 10 (user decision: no zip
+when a PR is ready).
 
 ### WP-34 — Keyed arc identity in `adjustVCEjoint`
 
