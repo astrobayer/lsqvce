@@ -795,24 +795,23 @@ end
 
 function test_adjustVCEjoint_psd_recovery_coloured_with_locals(tc)
     % WP-33 round 2 (the deferred spec test): on a COLOURED synthetic WITH
-    % local parameters the converged PSD must correlate > 0.95 with the true
-    % ARMA spectrum (truth on the estimator's own grid: the DCT-I of the
-    % theoretical ACV, the toolbox's ACV<->PSD convention). Pre-fix, the
-    % omitted B*y folded the arc-parameter signal into the low lags and the
-    % common-only projector mis-sized s_n -- corr falls under the bar, so
-    % this test fails on the old code (the §6.1 lever for round 2). The
-    % fixture GENERATES AR(2) noise and jointAccMapped feeds the driver's
-    % CURRENT model.C back into the declared covariance each pass (covModel
-    % type 'acf') -- the honest Ellmer alternation: the estimator both
-    % finds the colour and re-whitens with it. Round-2a/2b lessons: a
-    % truth-whitening fixture tests nothing (corr -0.31), and a FIXED white
-    % weighting biases Shat toward the non-delta prior (corr 0.65).
+    % local parameters the estimated PSD must correlate > 0.95 with the true
+    % ARMA spectrum on the estimator's own DCT-I grid. DESIGN (r2d, the
+    % regime psdVCE's own reference validates at corr 0.9999): OPEN-LOOP
+    % single pass -- the loader declares WHITE while generating AR(2), and
+    % C0 = [1; 1e-3 ...] makes Sprior ~ flat (psdVCE's documented
+    % near-delta start), so pass-1 Shat = alpha2 .* Sprior IS the recovered
+    % noise spectrum, free of the closed-loop compounding that sank r2b/r2c
+    % (corr 0.65 / 0.64; lessons in HANDOVER §9 WP-33). Pre-WP-33 the
+    % omitted B*y folds the arc-parameter signal into the low-frequency
+    % bins and the common-only projector mis-sizes s_n -- corr collapses,
+    % so this test FAILS on the old code (the §6.1 lever).
     cfg  = jointCfgColoured();
     nLag = 10;
     w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
-    r = lsqvce.adjustVCEjoint(@(model) jointAccMapped(cfg, model), ...
-            'NumLags', nLag, 'MaxIter', 8, 'Probes', 200, 'Seed', 13, ...
-            'Verbose', false);
+    r = lsqvce.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
+            'NumLags', nLag, 'MaxIter', 1, 'Probes', 300, 'Seed', 13, ...
+            'C0', [1; 1e-3*ones(nLag-1,1)], 'Verbose', false);
     Strue = lsqvce.dctI(lsqvce.armaACV(cfg.cov.pos.ar, cfg.cov.pos.ma, nLag));
     Strue = abs(Strue(:));
     cc = corrcoef(r.Shat(:), Strue);
@@ -832,61 +831,33 @@ function cfg = jointCfgColoured()
     cfg.y    = containers.Map('KeyType','double','ValueType','any');
     cfg.y(92) = randn(rs, cfg.nl, 1);
     cfg.obsTypes   = {'pos'};
-    cfg.arcsPerDay = 6;                % jointAcc streams ONE day: 6 x 96 rows
+    cfg.arcsPerDay = 8;                % jointAcc streams ONE day: 8 x 96 rows
     cfg.mArc       = 96;
     cfg.dt         = 5;
     cfg.seed       = 9223;             % distinct seed -> distinct cache key
     cfg.collinear  = false;
     cfg.collinearEps = 1e-7;
     cfg.cov.pos = struct('type','arma', 'ar',[1 -0.75 0.4], 'ma',1, 'sigma',1.0);
-    % The DECLARED covariance is owned by jointAccMapped (white on pass 1,
-    % then the driver's own model.C via covModel type 'acf') -- never the
-    % truth: a loader that whitens with cfg.cov's ARMA hands the estimator
-    % pre-whitened residuals and the correct Shat is FLAT (round-2a lesson).
-end
-
-function acc = jointAccMapped(cfg, model)
-    % The coloured sibling of jointAcc: maps the driver's CURRENT lag-domain
-    % covariance model.C into the loader's DECLARED covariance (type 'acf':
-    % C interpolated over |dt| lags, zero beyond nLag-1), so each outer pass
-    % re-whitens with the latest estimate -- Ellmer's alternation, end to
-    % end. Pass 1 (or an empty model) declares white. Generation always
-    % follows cfg.cov (synthLoader).
-    uo = struct();
-    if ~isempty(model) && isfield(model, 'C') && ~isempty(model.C)
-        % r2c: declare the CURRENT estimate through the toolbox's own PSD
-        % route. A raw nLag-truncated lag covariance is RANK DEFICIENT as a
-        % Toeplitz beyond 2*(nLag-1) rows (covModel's documented sharp
-        % limit: nf >= m/2 + 1), so chol failed on every 96-row arc and the
-        % driver raised noArcs (round-2b red). Cure per that same doc:
-        % upsample the spectrum to nf >= mArc/2 + 1 frequencies, then
-        % covModel 'psd' + psdMode 'toeplitz' builds a PD, floored Cfcn.
-        C     = model.C(:);
-        Shat  = lsqvce.dctI(C);                  % lag cov -> PSD (toolbox
-        Shat  = max(Shat(:), 0);                 %  ACV<->PSD convention)
-        fNyq  = 1/(2*cfg.dt);
-        fC    = (0:numel(C)-1).' * fNyq/(numel(C)-1);   % DCT-I grid
-        fD    = linspace(0, fNyq, 64).';         % 64 >= 96/2 + 1 = 49
-        SD    = max(interp1(fC, Shat, fD, 'pchip'), 0);
-        uo.covOverride.pos = struct('type','psd', 'f', fD, 'S', SD, ...
-                                    'sigma', 1);
-        uo.psdMode = 'toeplitz';                 % dense Cfcn (oneArc needs it)
-    else
-        uo.covOverride.pos = struct('type','diag', 'sigma', 1.0);
-    end
-    acc = lsqvce.BlockAccumulator(cfg.nc, 'KeepLocal', true, 'Verbose', false, ...
-                                  'UserOpt', uo);
-    for s = cfg.sats
-        acc.addSystem(s, cfg.nl, ...
-            @(d,ot,a,uo2) lsqvce.synthLoader(cfg, s, d, ot, a, uo2), 1);
-    end
+    % GENERATION follows cfg.cov (AR(2)); the DECLARED covariance is forced
+    % WHITE via covOverride in jointCfgColouredOverride -- never the truth
+    % (whitening with the truth hands the estimator pre-whitened residuals
+    % and the correct Shat is FLAT, the round-2a lesson) and never a
+    % fed-back estimate (the closed loop compounds its own declaration
+    % error, rounds 2b/2c).
+    cfg.override = struct('covOverride', struct('pos', ...
+                          struct('type','diag','sigma',1.0)));
 end
 
 function acc = jointAcc(cfg, model) %#ok<INUSD>
     % Rebuild the accumulator. A production caller would map model.C / model.sigma2
     % into the loader's covariance; here the fixture keeps the weighting fixed so
-    % the test exercises the DRIVER's plumbing, not the loader's.
-    acc = lsqvce.BlockAccumulator(cfg.nc, 'KeepLocal', true, 'Verbose', false);
+    % the test exercises the DRIVER's plumbing, not the loader's. A cfg.override
+    % (the coloured fixture) reaches the loader as UserOpt -- e.g. DECLARE white
+    % while GENERATING coloured (the open-loop recovery design, r2d).
+    uo = struct();
+    if isfield(cfg, 'override'), uo = cfg.override; end
+    acc = lsqvce.BlockAccumulator(cfg.nc, 'KeepLocal', true, 'Verbose', false, ...
+                                  'UserOpt', uo);
     for s = cfg.sats
         acc.addSystem(s, cfg.nl, ...
             @(d,ot,a,uo) lsqvce.synthLoader(cfg, s, d, ot, a, uo), 1);

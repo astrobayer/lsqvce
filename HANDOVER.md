@@ -2415,6 +2415,22 @@ PD-safe PSD->Cfcn route (spectrum floor + resolution guard); lagInterp
 DELETED (rule 8). Lesson for every model-feedback fixture: never declare
 a truncated ACV directly; go through 'psd' with nf >= m/2 + 1
 (commit 0db4b74).
+**Round-2d (2026-08-19): r2c red at corr 0.638 — closed loop retired.**
+Signal-to-noise arithmetic (round note is the record): the AR(2) truth
+has CV 0.85 across 10 bins and the per-bin dof (~58) put PURE estimation
+noise at corr ~0.97 — the deficit was SYSTEMATIC: the feedback fixture's
+own declaration error (pchip-upsampled Shat -> psd2acv -> chol) compounds
+over the passes; psdVCE's in-help reference reaches corr 0.9999 in the
+OPEN-LOOP regime. The WP's spec tests the F-03 fix, not a fixture's
+ability to close the feedback loop losslessly — so r2d measures open
+loop: declare WHITE (cfg.override -> jointAcc UserOpt), generate AR(2),
+C0 = [1; 1e-3...] (psdVCE's documented near-delta start, Sprior ~ flat),
+MaxIter 1, Probes 300, 8 arcs x 96 rows: pass-1 Shat = alpha2 .* Sprior
+IS the recovery. jointAccMapped and the psd-feedback plumbing DELETED
+(rule 8); jointAcc gained the cfg.override pass-through. The closed-loop
+mechanics lessons (r2a truth-whitening, r2b prior bias, r2c rank
+deficiency nf >= m/2+1) stay pinned above — they are real operating
+knowledge for production model-feedback loaders.
 
 ### WP-34 — Keyed arc identity in `adjustVCEjoint`
 
