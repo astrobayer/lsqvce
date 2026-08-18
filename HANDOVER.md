@@ -2334,6 +2334,18 @@ the WP-33 round-2 note pending the postflight verdict on the four tests
 above (the white-fixture driver check covers the leakage mechanism; a
 coloured fixture needs a new synthetic and its runtime budget — decide
 with the user if round 1 lands green).
+**Round-1 CI red + fix (2026-08-18, same day):** the dense parity test
+itself was wrong twice — it built G/Nll/Nred in the RAW metric while the
+fixture's W is coloured (the reduction lives in the WHITENED metric, which
+is exactly what the drivers' st.Nll_r/st.Nlc carry), and it asserted
+s_0 = N-(nc+nl), which holds only for WHITE arcs (s_0 = trace(Rbar); on
+the coloured fixture the exact value is trace(RbarEx) = 27.68, with the
+pre-fix common-only projector a structural 3.18 higher — now the
+discriminating assertion, 0.5 tol). The KERNEL and DRIVERS needed no
+change: the whitened-metric limit agrees with the joint reference to
+2.5e-16 (Python, seedable mirror). Note the round-1 CI also proved the
+suite-wide safety of the driver rewiring: 487/488, the sole red being
+this test's own reference.
 
 ### WP-34 — Keyed arc identity in `adjustVCEjoint`
 

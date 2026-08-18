@@ -677,15 +677,21 @@ function test_redundancyLags_local_block_matches_joint_inverse(tc)
     N = 24;  P = 3;  nl = 2;  Z = 4000;
     [Sig, W] = spdToeplitz(N);
     A = randn(N, P);  B = randn(N, nl);
-    Nll = B.'*B;  Nlc = B.'*A;
+    % The reduction lives in the WHITENED metric -- the accumulator whitens
+    % before accumulating, so st.Nll_r / st.Nlc (which the drivers hand to
+    % jointArcParts) are Bw'Bw / Bw'Aw. Build the reference the same way; a
+    % raw-metric G here is the mistake this test made in round 1 (CI red,
+    % systematic 0.1-0.2 offsets).
+    Aw = W.'\A;   Bw = W.'\B;
+    Nll = Bw.'*Bw;  Nlc = Bw.'*Aw;
     G   = Nll \ Nlc;
-    Atil = A - B*G;
-    Nred = Atil.'*Atil;                       % the reduced common normal
+    AtilBar = Aw - Bw*G;                      % = W^-T (A - B G), whitened G
+    Nred = AtilBar.'*AtilBar;                 % the reduced common normal
     U    = chol((Nred+Nred.')/2);
     sp   = lsqvce.sharedProbe(U, 'numProbes', Z, 'seed', 5);
     Ll   = chol((Nll+Nll.')/2, 'lower');
-    r = lsqvce.redundancyLags(W.'\Atil, W, sp.UiZ, [], 3, ...
-            'LocalBbar', W.'\B, 'LocalLl', Ll, 'WantRbar', true);
+    r = lsqvce.redundancyLags(AtilBar, W, sp.UiZ, [], 3, ...
+            'LocalBbar', Bw, 'LocalLl', Ll, 'WantRbar', true);
     % Reference: the JOINT projector with Njoint from the WHITENED designs
     % (the accumulator whitens), Sig^-1 - Sig^-1-metric hat of [A B]:
     Sinv = Sig \ eye(N);
@@ -695,9 +701,16 @@ function test_redundancyLags_local_block_matches_joint_inverse(tc)
     tolR = 6/sqrt(Z);                         % Hutchinson-limit tolerance
     verifyEqual(tc, r.Rbar, RbarEx, 'AbsTol', tolR, ...
         'Rbar must converge to the JOINT projector (locals absorbed)');
-    % s_0 discriminates the fix: N-(nc+nl) = 19 vs the common-only N-nc = 21.
-    verifyEqual(tc, r.s(1), N - (P + nl), 'AbsTol', 0.5, ...
-        's_0 must approach N - (nc + nl), not N - nc');
+    % s_0 = trace(Rbar). For COLOURED Sigma this is NOT N-(nc+nl) (that holds
+    % only for white arcs -- asserted in the alpha2 test); the exact value is
+    % trace(RbarEx), and the pre-fix common-only projector sits a structural
+    % ~3.2 higher on this fixture -- the 0.5 tolerance discriminates.
+    s0Ex = trace(RbarEx);
+    verifyEqual(tc, r.s(1), s0Ex, 'AbsTol', 0.5, ...
+        's_0 must equal trace of the JOINT Rbar');
+    RcomOld = Sinv - (W\Aw)*((Aw.'*Aw)\(W\Aw).');   % the pre-WP-33 projector
+    verifyGreaterThan(tc, trace(RcomOld) - s0Ex, 1.0, ...
+        'the common-only s_0 must sit measurably above the joint one');
 end
 
 function test_joint_alpha2_unity_at_truth_with_locals(tc)
