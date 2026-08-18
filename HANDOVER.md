@@ -184,7 +184,7 @@ suggestion except the temporal prior between days; adoption record: §3.8):
 | 27 | `neqExchange` — SINEX + GROOPS NEQ I/O | 2,8 | DONE (2026-08-16, user-confirmed; see reconciliation) |
 | 28 | Sketched diagnostics (randomised leverage) | 11,17 | DONE (2026-08-16, user-confirmed; see reconciliation) |
 | 29 | Metamorphic test suite | 18,19 | DONE (2026-08-16, user-confirmed; see reconciliation) |
-| 30 | Development workflow: public GitHub + hosted CI + cloud-session loop (D8) | — | IN PROGRESS — 2026-08-18: full deliverable set on branch `claude/wp-30` (`ci.yml`, `ci_gate` + `gateVerdict` + `test_ci_gate`, run_all `skip` mechanism, `CLAUDE.md`, `.gitignore`/`.gitattributes`, `references/README.md` + gitignored `local/` slot); round note in §5 WP-30. NEXT: CI green on the branch, red test, USER postflight (MCP bridge), PR, merge. DONE = merged to `main`, checks green, date + PR + hash |
+| 30 | Development workflow: public GitHub + hosted CI + cloud-session loop (D8) | — | IN PROGRESS — 2026-08-18: deliverables on branch `claude/wp-30` (5a1b7c8); CI GREEN on the branch (`audit`+`matlab`, run 32143388026, 482/482, test_parallel skip visible); RED TEST passed (audit finding, branch deleted); evidence in §5 WP-30 round note. WAITING: user postflight (Windows R2026a), branch protection (Guide 4.4), LICENSE decision → then PR. DONE = merged to `main`, checks green, date + PR + hash |
 | 31 | GPU backend | 7,20 | GATED — open only on WP-20 evidence |
 
 Rules for the ledger: one row per WP; status is OPEN → IN PROGRESS → DONE
@@ -1542,7 +1542,7 @@ setup-matlab@v3 R2026a, `LSQVCE_CI=1`, `lsqvce_setup; ci_gate`, log
 artifact `if: always()`); `tests/ci_gate.m` — the ONE CI entry, judgment
 factored into the PURE `tests/private/gateVerdict.m` so the verdict is
 unit-testable WITHOUT recursively re-running the suite; new suite
-`tests/test_ci_gate.m` (15 test points: green case, every red condition —
+`tests/test_ci_gate.m` (14 test points: green case, every red condition —
 load error, fail, incomplete, forgotten-on-disk, phantom, missing/empty
 log — reason accumulation, input validation; §6.1 fail-on-old-code: the
 gate does not exist on the old tree); `run_all_lsqvce` gained the `skip`
@@ -1562,6 +1562,34 @@ licence. LICENSE for the repo itself: still the OPEN USER DECISION
 (public, all rights reserved until pinned). SETUP_GUIDE 4.1 aligned with
 what actually ships. Postflight and PR: WAITING at the user's PC per the
 loop. CI evidence of this branch: next dated line below.
+
+**CI EVIDENCE (2026-08-18, recorded from the check-runs API + the log
+artifact).** Branch `claude/wp-30`, commit 5a1b7c8: `audit` GREEN (9 s;
+audit_tree 15 checks clean + v10review T1–T7 pass on the runner) and
+`matlab` GREEN (6 m 17 s incl. MATLAB R2026a install; run
+32143388026). Log artifact read per §0: **482/482 passed, 0 failed, 0
+incomplete**, headline records `1 SUITE(S) SKIPPED ON REQUEST:
+test_parallel` (the LSQVCE_CI policy, visible as designed); coverage
+identity 19 run + 1 skipped + 1 excluded = 20 test_*.m on disk (the new
+`test_ci_gate` ran, 14/14, 0.6 s); warning inventory = only the known
+intentional warn-path warnings (datum auto-detect, rejection cap);
+wall clock 270.5 s, dominated by test_adjustVCE (232.1 s, expected: VCE
+outer loops). The D2 headless question is hereby VERIFIED: all four
+figure-opening suites passed on the display-less runner. **RED TEST
+(same date):** branch `claude/wp-30-redtest` = a green-running suite
+file deliberately absent from the runner list; verdict RED at the
+FIRST gate — audit FINDING `[tests] test_redtest_dummy is on disk but
+NOT in run_all_lsqvce` (static disk-vs-list check, fail-fast, saves the
+MATLAB minutes), `matlab` skipped. Layering, not duplication: the
+audit catches this class statically; `gateVerdict` additionally
+catches at runtime what statics cannot (load errors, skip accounting,
+phantom entries, fails/incompletes, the log artifact) — pinned by
+test_ci_gate. Bare `runtests` would have been green on that branch.
+Red-test branch deleted after recording. An UNMERGEABLE red PR
+additionally requires branch protection = USER step (Guide 4.4; the
+session token deliberately has no Administration scope). Remaining
+before the PR: user postflight on Windows R2026a + branch protection +
+the LICENSE decision.
 
 *The sections D1–D5 below predate the D6 decision and are kept as the
 evaluation record; D6 is the operative design.*
