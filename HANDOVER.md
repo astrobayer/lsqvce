@@ -184,7 +184,7 @@ suggestion except the temporal prior between days; adoption record: §3.8):
 | 27 | `neqExchange` — SINEX + GROOPS NEQ I/O | 2,8 | DONE (2026-08-16, user-confirmed; see reconciliation) |
 | 28 | Sketched diagnostics (randomised leverage) | 11,17 | DONE (2026-08-16, user-confirmed; see reconciliation) |
 | 29 | Metamorphic test suite | 18,19 | DONE (2026-08-16, user-confirmed; see reconciliation) |
-| 30 | Development workflow: public GitHub + hosted CI + cloud-session loop (D8) | — | IN PROGRESS — 2026-08-18: deliverables + LICENSE(MIT) on `claude/wp-30`; CI GREEN per commit; RED TEST passed; POSTFLIGHT GREEN via MCP bridge (Windows R2026a: 513/513, 0 incomplete) after TWO real findings fixed (exist()-probe false-negative under -batch in test guard AND PrefetchLoader → ONE probe lsqvce.util.hasBackgroundPool); evidence §5 WP-30. **PR #1 OPEN** (2026-08-18, both worlds green, postflight quoted in the body). WAITING on user: branch protection (Guide 4.4) + review + MERGE → then this row flips DONE (date + PR #1 + merge hash) |
+| 30 | Development workflow: public GitHub + hosted CI + cloud-session loop (D8) | — | DONE (2026-08-18, PR #1, merge 6ddd415; CI green per commit incl. both PR contexts, red test passed, postflight green via MCP bridge on Windows R2026a 513/513; branch protection on `main` requiring `audit`+`matlab` set by the user the same day; evidence + deviations in §5 WP-30 round notes) |
 | 31 | GPU backend | 7,20 | GATED — open only on WP-20 evidence |
 
 Rules for the ledger: one row per WP; status is OPEN → IN PROGRESS → DONE
@@ -208,7 +208,7 @@ order of work: 32 → 33 → 34 → 35 → 36 → 40 → 37 → 38 → 41 → 39
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 32 | Fix `vce` 'hutchinson': redundancy, not trace (F-01) | — | OPEN |
+| 32 | Fix `vce` 'hutchinson': redundancy, not trace (F-01) | — | IN PROGRESS — 2026-08-18: fix + tests on `claude/wp-32` (9d2d02f); CI GREEN; POSTFLIGHT GREEN via MCP bridge (Windows R2026a: 515/515, test_contribution 12/12 incl. both new tests, 201.5 s); **PR #2 OPEN** (both worlds green, postflight quoted). WAITING: user review + MERGE → DONE (date + PR #2 + merge hash). Round note §9 WP-32 |
 | 33 | Joint paths: locals in residual + projector (F-03) | — | OPEN |
 | 34 | Keyed arc identity in `adjustVCEjoint` (F-02) | — | OPEN |
 | 35 | `psdVCE` floor policy + negative sigma2 guard (F-04, F-05) | — | OPEN |
@@ -2244,6 +2244,38 @@ the FULL suite and audit after it).
 > (3) a regression test that FAILS on the old code (sigma inflation > 5x).
 > Port v10review.py T2 into the MATLAB suite. No API change beyond the
 > corrected numbers.
+
+**ROUND NOTE (2026-08-18, WP-32 round 1, model Claude Fable 5; branch
+`claude/wp-32`, riding housekeeping: WP-30 DONE flip + ci.yml
+`cache: true`).** DERIVATION (documented in the streamContribution OUTPUT
+block, validated in v10review.py T2d to 1e-8 against dense joint-inverse
+h-sums, incl. sub-system splits): the streamed cc-attribution is the
+symmetrized Schur split N_g^cc = Mcc_g - 1/2(Nlc_g'G + Nlc'G_g); the exact
+per-group remainder from the leverage-block identities is
+local_g = tr((Nll^-1 + G Sxx G') B_g'B_g) - tr(B_g'A_g Sxx G'), collapsing
+to nl_s for whole-system groups; then r_g = n_g - local_g - tr(N^-1 N_g^cc)
+equals n_g - sum_{i in g} h_i and sums to m-u. IMPLEMENTED:
+streamContribution's ONE sweep additionally streams B_g'B_g + row counts
+(arcCommonProbe extended), builds X = Sxx G'/G Sxx G' once per system (one
+nc-solve), and outputs .n/.localAbsorbed/.r/.rSE per group (.trace keeps
+its meaning: the Level-1 cc-attribution); vce 'hutchinson' divides by .r
+in the loop AND reports it as vc.r (false identity in the help lines 36-38
+and both comment blocks killed); v10review.py extended with T2d/T2e
+(corrected split == exact; corrected iteration recovers truth [1.0396,
+1.9766] vs truth [1,2] while the old path gives [8.4, 1.6e23]). TESTS in
+test_contribution (suite already owned the hutchinson wiring; no new
+files): (1) parity streamed-vs-exact r per obsType group (cuts across all
+3 systems) within 3x MC se; (2) exact partitions (sum local = sum nl to
+1e-6, sum r = m-u within 3x rSE); (3) regression test_vce_hutchinson_
+regression_F01 with NO escape hatch — fails on the old code via
+convergence, sum(vc.r) (old: ~nc=6 vs m-u), 20% sigma agreement, and the
+explicit >5x-inflation guard; the old wiring test's false-identity prose
+corrected. No API change: fields added, names kept.
+**Evidence (2026-08-18):** CI green on 9d2d02f (audit incl. extended
+v10review; matlab full gate). Postflight via MCP bridge on Windows R2026a:
+ci_gate GREEN, 515/515, 0 incomplete, 201.5 s (18:39 local). PR #2 opened
+with both verdicts quoted. Housekeeping ridden on this branch: WP-30 DONE
+flip + ci.yml `cache: true` (fed1761).
 
 ### WP-33 — Joint paths: subtract B*y and absorb locals in the projector
 

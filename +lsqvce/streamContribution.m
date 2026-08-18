@@ -88,6 +88,24 @@ function out = streamContribution(acc, sol, varargin)
 %                                   'WantDiag' is false
 %                   .se     1x1     Monte-Carlo standard error of .trace
 %                   .relSE  1x1     .se / |.trace|  (NaN if .trace == 0)
+%                   .n      1x1     observation rows in the group (exact count
+%                                   from the same sweep)
+%                   .localAbsorbed 1x1  EXACT local dof absorbed by the group:
+%                                   local_g = tr((Nll^-1 + G Sxx G') B_g'B_g)
+%                                           - tr(B_g'A_g Sxx G')
+%                                   from the leverage-block identities
+%                                   inv(N)_ll = Nll^-1 + G Sxx G' and
+%                                   inv(N)_lc = -G Sxx (LSQVCE.LEVERAGE); a
+%                                   whole-system group gives exactly nl_s. No
+%                                   probes enter this term.
+%                   .r      1x1     STREAMED REDUNDANCY (WP-32, fixes F-01):
+%                                   r_g = .n - .localAbsorbed - .trace
+%                                   == n_g - sum_{i in g} h_i in expectation,
+%                                   with sum_g .r = m - u. THIS is the Helmert
+%                                   denominator; .trace alone is only the
+%                                   cc-attribution (sums to nc, NOT m-u).
+%                   .rSE    1x1     Monte-Carlo se of .r (== .se: the local
+%                                   term and the count are exact)
 %       .nc       1x1        common-parameter count (size of the probe space)
 %       .probes   1x1        Z actually used
 %       .traceSum 1x1        sum_g .trace  (should be ~ nc; the sanity check)
@@ -119,6 +137,13 @@ function out = streamContribution(acc, sol, varargin)
 %   See also LSQVCE.CONTRIBUTION, LSQVCE.REDUNDANCY, LSQVCE.LEVERAGEBLOCKS,
 %            LSQVCE.TRACEESTIMATE, LSQVCE.VCE
 %
+%   Updated 2026-08-18 (CEST, UTC+02:00), WP-32: every group additionally
+%   carries .n, .localAbsorbed and the streamed redundancy .r/.rSE (see the
+%   OUTPUT block for the derivation); arcCommonProbe streams B_g'B_g and the
+%   row count in the same pass; per-system leverage blocks X = Sxx G' and
+%   G Sxx G' are built once per system with one nc-solve. Numerical evidence:
+%   validation/v10review.py T2d/T2e. With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 %   Created 2026-07-17 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Opus 4.8.
 
@@ -175,9 +200,16 @@ function out = streamContribution(acc, sol, varargin)
     for k = 1:nSys
         st = acc.getStore(ids(k));
         G  = st.Nll_r \ st.Nlc;                      % nl x nc
+        % WP-32: the exact local-absorbed term needs the two leverage-block
+        % identities inv(N)_ll = Nll^-1 + G Sxx G' and inv(N)_lc = -G Sxx
+        % (LSQVCE.LEVERAGE). One nc-solve per system yields X = Sxx G';
+        % everything else is nl x nl.
+        X   = Lc.' \ (Lc \ G.');                    % Sxx G', nc x nl
+        GSG = G * X;                                 % G Sxx G', nl x nl
         stores{k} = struct('sysID', st.sysID, 'dataFcn', st.dataFcn, ...
                            'uo', st.uo, 'dayList', st.dayList, ...
-                           'Nlc', st.Nlc, 'Nllr', st.Nll_r, 'GZ', G * Z);
+                           'Nlc', st.Nlc, 'Nllr', st.Nll_r, 'GZ', G * Z, ...
+                           'X', X, 'GSG', GSG);
     end
 
     % ---- group bookkeeping (pinned order if 'Groups' given) --------------
@@ -191,6 +223,8 @@ function out = streamContribution(acc, sol, varargin)
     nG0   = numel(keys);
     AccAZ = repmat({zeros(nc, o.Probes)}, 1, nG0);    % sum_arc A'(A Z), nc x Z
     Corr  = repmat({zeros(nc, o.Probes)}, 1, nG0);    % -1/2 Schur term, nc x Z
+    nObs  = zeros(1, nG0);                            % n_g, rows per group
+    locA  = zeros(1, nG0);                            % exact local absorbed
 
     % ---- ONE data sweep: symmetric Schur decomposition -------------------
     %   N_g^cc = Ncc_g - 1/2 ( Nlc_g' inv(Nll_s) Nlc_s + Nlc_s' inv(Nll_s) Nlc_g )
@@ -208,6 +242,8 @@ function out = streamContribution(acc, sol, varargin)
         % Accumulate this system's per-group A'(AZ) and cross block Nlc_g^(s).
         gAZ  = {};                                    % local: this system's groups
         gNlc = {};                                    % Nlc_g^(s), nl x nc each
+        gMll = {};                                    % B_g'B_g,   nl x nl each
+        gN   = [];                                    % rows per local group
         gIdx = [];                                    % global group index per local
         for d = st.dayList(:).'
             meta = st.dataFcn('meta', d, [], uo);
@@ -223,6 +259,8 @@ function out = streamContribution(acc, sol, varargin)
                         gi = numel(keys);
                         AccAZ{gi} = zeros(nc, o.Probes); %#ok<AGROW>
                         Corr{gi}  = zeros(nc, o.Probes); %#ok<AGROW>
+                        nObs(gi)  = 0;                   %#ok<AGROW>
+                        locA(gi)  = 0;                   %#ok<AGROW>
                     end
                     lg = find(gIdx == gi, 1);
                     if isempty(lg)
@@ -230,11 +268,15 @@ function out = streamContribution(acc, sol, varargin)
                         lg          = numel(gIdx);
                         gAZ{lg}     = zeros(nc, o.Probes);   %#ok<AGROW>
                         gNlc{lg}    = zeros(size(st.Nlc));    %#ok<AGROW> % nl x nc
+                        gMll{lg}    = zeros(size(st.Nlc,1));  %#ok<AGROW> % nl x nl
+                        gN(lg)      = 0;                      %#ok<AGROW>
                     end
-                    [AZ, NlcArc] = arcCommonProbe(st, obsType, a, d, uo, Z);
+                    [AZ, NlcArc, MllArc, nArc] = arcCommonProbe(st, obsType, a, d, uo, Z);
                     if ~isempty(AZ)
                         gAZ{lg}  = gAZ{lg}  + AZ;
                         gNlc{lg} = gNlc{lg} + NlcArc;
+                        gMll{lg} = gMll{lg} + MllArc;
+                        gN(lg)   = gN(lg)   + nArc;
                     end
                 end
             end
@@ -248,6 +290,16 @@ function out = streamContribution(acc, sol, varargin)
             half = 0.5 * ( NlcG.' * st.GZ + st.Nlc.' * GgZ );   % nc x Z
             AccAZ{gi} = AccAZ{gi} + gAZ{lg};
             Corr{gi}  = Corr{gi}  + half;
+            % WP-32: the EXACT local dof absorbed by this group (no probes):
+            %   local_g = tr((Nll^-1 + G Sxx G') Mll_g) - tr(Nlc_g Sxx G')
+            % from the leverage-block identities. For a whole-system group it
+            % collapses to nl_s exactly; per group it completes the streamed
+            % cc-attribution to the true absorbed dof sum_{i in g} h_i.
+            MllG     = gMll{lg};                      % B_g'B_g, nl x nl
+            locA(gi) = locA(gi) + trace(st.Nllr \ MllG) ...
+                                + trace(st.GSG * MllG) ...
+                                - trace(NlcG * st.X);
+            nObs(gi) = nObs(gi) + gN(lg);
         end
         if o.Verbose
             lsqvce.util.log.msg('%sstreamed system %s\n', lsqvce.util.verbosity.banner('Contribution'), ...
@@ -262,7 +314,11 @@ function out = streamContribution(acc, sol, varargin)
     end
 
     % ---- apply N^-1 and reduce to trace / diagonal per group -------------
-    grp = struct('key', {}, 'trace', {}, 'diag', {}, 'se', {}, 'relSE', {});
+    % WP-32: alongside the cc-attribution trace, every group now carries the
+    % STREAMED REDUNDANCY  r_g = n_g - local_g - tr(N^-1 N_g^cc). Only the
+    % trace term is stochastic, so r inherits the trace's Monte-Carlo se.
+    grp = struct('key', {}, 'trace', {}, 'diag', {}, 'se', {}, 'relSE', {}, ...
+                 'n', {}, 'localAbsorbed', {}, 'r', {}, 'rSE', {});
     traceSum = 0;
     for gi = 1:nG
         NgZ  = AccAZ{gi} - Corr{gi};                  % N_g^cc Z, nc x Z
@@ -278,7 +334,9 @@ function out = streamContribution(acc, sol, varargin)
             dG = [];
         end
         grp(gi) = struct('key', keyVals{gi}, 'trace', tG, 'diag', dG, ...
-                         'se', se, 'relSE', rse); %#ok<AGROW>
+                         'se', se, 'relSE', rse, ...
+                         'n', nObs(gi), 'localAbsorbed', locA(gi), ...
+                         'r', nObs(gi) - locA(gi) - tG, 'rSE', se); %#ok<AGROW>
         traceSum = traceSum + tG;
     end
 
@@ -296,10 +354,13 @@ function out = streamContribution(acc, sol, varargin)
 end
 
 %==========================================================================
-function [AZ, Nlc] = arcCommonProbe(st, obsType, arc, day, uo, Z)
-%ARCCOMMONPROBE  Stream one arc, return A_w'(A_w Z) and the cross block B_w'A_w.
-%   AZ  (nc x Z)  the arc's contribution to sum_arc A'(A Z)
-%   Nlc (nl x nc) the arc's whitened cross block B_w' A_w, summed over batches
+function [AZ, Nlc, Mll, nRows] = arcCommonProbe(st, obsType, arc, day, uo, Z)
+%ARCCOMMONPROBE  Stream one arc: A_w'(A_w Z), cross block B_w'A_w, local Gram.
+%   AZ    (nc x Z)  the arc's contribution to sum_arc A'(A Z)
+%   Nlc   (nl x nc) the arc's whitened cross block B_w' A_w, summed over batches
+%   Mll   (nl x nl) the arc's whitened local Gram B_w' B_w (WP-32: feeds the
+%                   exact local-absorbed term of the streamed redundancy)
+%   nRows (1 x 1)   observation rows this arc contributes (n_g bookkeeping)
 %   Whitening is applied EXACTLY as the exact leverage path (LSQVCE.REDUNDANCY),
 %   so grouping/scaling stay consistent. Returns [] for a data gap.
     uo.obsType = obsType;
@@ -307,7 +368,7 @@ function [AZ, Nlc] = arcCommonProbe(st, obsType, arc, day, uo, Z)
     uo.arc     = arc;
     a = st.dataFcn(day, obsType, arc, uo);
     if isempty(a) || ~isfield(a, 'l') || isempty(a.l)
-        AZ = [];  Nlc = [];  return
+        AZ = [];  Nlc = [];  Mll = [];  nRows = 0;  return
     end
 
     nc  = size(Z, 1);
@@ -324,8 +385,10 @@ function [AZ, Nlc] = arcCommonProbe(st, obsType, arc, day, uo, Z)
     hasW = isfield(a, 'Wfcn') && ~isempty(a.Wfcn);
     hasC = isfield(a, 'Cfcn') && ~isempty(a.Cfcn);
 
-    AZ  = zeros(nc, size(Z, 2));
-    Nlc = zeros(nl, nc);
+    AZ    = zeros(nc, size(Z, 2));
+    Nlc   = zeros(nl, nc);
+    Mll   = zeros(nl, nl);
+    nRows = m;
     for i0 = 1:bs:m
         i1   = min(i0+bs-1, m);
         j0   = max(1, i0-nOv);
@@ -345,6 +408,7 @@ function [AZ, Nlc] = arcCommonProbe(st, obsType, arc, day, uo, Z)
         Bw  = Bb(keep, :);
         AZ  = AZ  + Aw.' * (Aw * Z);         % nc x Z, streamed
         Nlc = Nlc + Bw.' * Aw;               % nl x nc, this arc's cross block
+        Mll = Mll + Bw.' * Bw;               % nl x nl, this arc's local Gram
     end
 end
 

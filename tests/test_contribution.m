@@ -5,13 +5,18 @@ function tests = test_contribution
 %   Covers the two defining invariants (sum_g tr(N^-1 N_g^cc) = nc and
 %   sum_g diag(N^-1 N_g^cc) = ones(nc,1)), agreement of the streamed trace with a
 %   high-probe reference, the Level-1/Level-2 outputs of lsqvce.contribution, and
-%   that 'TraceMethod','hutchinson' in lsqvce.vce substitutes the streamed trace
+%   that 'TraceMethod','hutchinson' in lsqvce.vce divides by the streamed
+%   redundancy r_g = n_g - local_g - tr(N^-1 N_g^cc) (WP-32, fixes F-01)
 %   while leaving vtv exact.
 %
 %   Fixture: the seeded synthetic multi-system / multi-obsType problem also used
 %   by test_reliability (three systems, obsTypes pos/kbr), built through
 %   lsqvce.synthLoader so the arcs are deterministic across passes.
 %
+%   Updated 2026-08-18 (CEST, UTC+02:00), WP-32: hutchinson wiring prose
+%   corrected + two new tests (streamed-redundancy parity/partition; the
+%   F-01 regression that FAILS on the pre-fix code). With assistance from
+%   Claude (Anthropic), model Claude Fable 5.
 %   Created 2026-07-17 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Opus 4.8.
     tests = functiontests(localfunctions);
@@ -131,11 +136,12 @@ end
 
 %% ===================================================== vce hutchinson wiring
 function test_vce_hutchinson_matches_exact_sigma(tc)
-    % The §1.1 wiring substitutes ONLY the per-group trace r_g = tr(N^-1 N_g^cc);
-    % vtv stays exact. The load-bearing property is therefore that the streamed
-    % r_g approximates the exact r_g AT THE SAME WEIGHTS -- which then makes the
-    % two loops track each other. Assert that directly (robust to how many outer
-    % iterations this synthetic problem needs), plus a looser end-sigma check.
+    % The §1.1 wiring estimates the REDUNDANCY r_g = n_g - local_g -
+    % tr(N^-1 N_g^cc) matrix-free (WP-32; only the cc-trace is stochastic);
+    % vtv stays exact. The load-bearing property is that the streamed r_g
+    % approximates the exact r_g AT THE SAME WEIGHTS -- which then makes the
+    % two loops track each other. Assert that directly (robust to how many
+    % outer iterations this synthetic problem needs), plus an end-sigma check.
     cfg = tc.TestData.cfg;
     accFcn = @(sig) buildAcc(cfg, sig);
     groups = {'pos','kbr'};
@@ -179,6 +185,80 @@ function test_vce_hutchinson_matches_exact_sigma(tc)
         verifyTrue(tc, all(isfinite(vcE.sigma)) && all(isfinite(vcH.sigma)), ...
             'both paths must produce finite sigmas');
     end
+end
+
+%% ===================================== WP-32: streamed redundancy (F-01 fix)
+function test_streamed_redundancy_partitions_and_matches_exact(tc)
+    % Spec tests (1)+(2) of WP-32 on the standing block-arrow fixture, with
+    % obsType groups that CUT ACROSS every system (the general sub-system
+    % split). (a) Parity: per group the streamed r must sit within 3x its own
+    % Monte-Carlo se of the exact leverage-sum redundancy. (b) Partitions:
+    % the EXACT pieces must partition exactly -- sum_g n_g = m (row count),
+    % sum_g localAbsorbed_g = sum_s nl_s (block identity: whole systems),
+    % sum_g trace_g ~ nc -- hence sum_g r_g ~ m - u.
+    cfg = tc.TestData.cfg;
+    w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
+    acc = buildAcc(cfg, []);
+    sol = acc.solve();
+    groups = {'pos','kbr'};
+    sc = lsqvce.streamContribution(acc, sol, 'GroupBy','obsType', ...
+             'Groups', groups, 'Probes', 2000, 'Seed', 21, 'WantDiag', false);
+    red = lsqvce.redundancy(acc, sol, 'GroupBy','obsType', ...
+             'Collect', false, 'Verbose', false);
+
+    sk = cellstr(string({sc.group.key}));
+    rk = cellstr(string({red.group.key}));
+    for k = 1:numel(groups)
+        [~, is] = ismember(char(string(groups{k})), sk);
+        [~, ir] = ismember(char(string(groups{k})), rk);
+        tol = 3*sc.group(is).rSE + 1e-6*sc.group(is).n;
+        verifyEqual(tc, sc.group(is).r, red.group(ir).r, 'AbsTol', tol, ...
+            sprintf('group %s: streamed r within 3x MC se of exact r', ...
+                    groups{k}));
+    end
+
+    nSys = numel(cfg.sats);
+    u    = cfg.nc + nSys*cfg.nl;
+    m    = sum([sc.group.n]);
+    verifyEqual(tc, sum([sc.group.localAbsorbed]), nSys*cfg.nl, ...
+        'AbsTol', 1e-6, 'exact local dof must partition to sum_s nl_s');
+    rTol = 3*sqrt(sum([sc.group.rSE].^2));
+    verifyEqual(tc, sum([sc.group.r]), m - u, 'AbsTol', rTol, ...
+        'streamed redundancies must sum to m - u');
+end
+
+function test_vce_hutchinson_regression_F01(tc)
+    % Spec test (3) + the v10review.py T2 port: this test FAILS on the
+    % pre-WP-32 code, where 'hutchinson' divided by tr(N^-1 N_g^cc). There
+    % (T2a/b/c, measured): sum_g denominator ~ nc = 6 instead of m-u
+    % (hundreds), and sigma inflated 8.4x / diverged to 1e23. On the fixed
+    % code both loops estimate the SAME quantity, so they must both converge
+    % and agree -- NO escape hatch.
+    cfg = tc.TestData.cfg;
+    accFcn = @(sig) buildAcc(cfg, sig);
+    groups = {'pos','kbr'};
+    w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
+
+    vcE = lsqvce.vce(accFcn, 'GroupBy','obsType', 'Groups',groups, ...
+                     'MaxIter',20, 'Tol',1e-3, 'Verbose',false, ...
+                     'TraceMethod','exact');
+    vcH = lsqvce.vce(accFcn, 'GroupBy','obsType', 'Groups',groups, ...
+                     'MaxIter',20, 'Tol',1e-3, 'Verbose',false, ...
+                     'TraceMethod','hutchinson', 'Probes',1500, 'TraceSeed',9);
+
+    verifyTrue(tc, vcE.converged, 'exact loop must converge on the fixture');
+    verifyTrue(tc, vcH.converged, ...
+        'hutchinson loop must converge (F-01: the old denominator diverged)');
+    % T2a port: BOTH paths report the redundancy, so vc.r sums agree (~m-u);
+    % the old code summed to ~nc = 6 here and fails this by orders of magnitude.
+    verifyEqual(tc, sum(vcH.r)/sum(vcE.r), 1, 'AbsTol', 0.20, ...
+        'hutchinson vc.r must sum to ~m-u like the exact path');
+    % T2b/c port: the sigmas agree; in particular NO >5x inflation.
+    rel = abs(vcH.sigma - vcE.sigma) ./ max(abs(vcE.sigma), 1e-6);
+    verifyTrue(tc, all(rel < 0.20), ...
+        sprintf('hutchinson sigma within 20%% of exact (max rel %.3f)', max(rel)));
+    verifyTrue(tc, all(vcH.sigma ./ vcE.sigma < 5), ...
+        'the F-01 inflation (>5x) must be gone');
 end
 
 %% ===================================================== local fixtures

@@ -35,6 +35,9 @@ jobs:
       - uses: matlab-actions/setup-matlab@v3
         with:
           release: R2026a      # == the user's local release (pinned)
+          cache: true          # cache the MATLAB install between runs
+                               # (user decision 2026-08-18: cuts the ~5 min
+                               # setup to seconds after the first run)
           # products: Parallel_Computing_Toolbox   # lift the test_parallel
           #   skip in tests/ci_gate.m in the SAME commit that enables this.
       - uses: matlab-actions/run-command@v3
