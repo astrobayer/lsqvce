@@ -208,7 +208,7 @@ order of work: 32 → 33 → 34 → 35 → 36 → 40 → 37 → 38 → 41 → 39
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 32 | Fix `vce` 'hutchinson': redundancy, not trace (F-01) | — | IN PROGRESS — 2026-08-18: fix + tests on branch `claude/wp-32` (round note in §9 WP-32); D8 loop pending: CI, postflight, PR |
+| 32 | Fix `vce` 'hutchinson': redundancy, not trace (F-01) | — | IN PROGRESS — 2026-08-18: fix + tests on `claude/wp-32` (9d2d02f); CI GREEN; POSTFLIGHT GREEN via MCP bridge (Windows R2026a: 515/515, test_contribution 12/12 incl. both new tests, 201.5 s); **PR #2 OPEN** (both worlds green, postflight quoted). WAITING: user review + MERGE → DONE (date + PR #2 + merge hash). Round note §9 WP-32 |
 | 33 | Joint paths: locals in residual + projector (F-03) | — | OPEN |
 | 34 | Keyed arc identity in `adjustVCEjoint` (F-02) | — | OPEN |
 | 35 | `psdVCE` floor policy + negative sigma2 guard (F-04, F-05) | — | OPEN |
@@ -2271,6 +2271,11 @@ regression_F01 with NO escape hatch — fails on the old code via
 convergence, sum(vc.r) (old: ~nc=6 vs m-u), 20% sigma agreement, and the
 explicit >5x-inflation guard; the old wiring test's false-identity prose
 corrected. No API change: fields added, names kept.
+**Evidence (2026-08-18):** CI green on 9d2d02f (audit incl. extended
+v10review; matlab full gate). Postflight via MCP bridge on Windows R2026a:
+ci_gate GREEN, 515/515, 0 incomplete, 201.5 s (18:39 local). PR #2 opened
+with both verdicts quoted. Housekeeping ridden on this branch: WP-30 DONE
+flip + ci.yml `cache: true` (fed1761).
 
 ### WP-33 — Joint paths: subtract B*y and absorb locals in the projector
 
