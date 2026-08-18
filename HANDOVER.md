@@ -208,7 +208,7 @@ order of work: 32 → 33 → 34 → 35 → 36 → 40 → 37 → 38 → 41 → 39
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 32 | Fix `vce` 'hutchinson': redundancy, not trace (F-01) | — | OPEN |
+| 32 | Fix `vce` 'hutchinson': redundancy, not trace (F-01) | — | IN PROGRESS — 2026-08-18: fix + tests on branch `claude/wp-32` (round note in §9 WP-32); D8 loop pending: CI, postflight, PR |
 | 33 | Joint paths: locals in residual + projector (F-03) | — | OPEN |
 | 34 | Keyed arc identity in `adjustVCEjoint` (F-02) | — | OPEN |
 | 35 | `psdVCE` floor policy + negative sigma2 guard (F-04, F-05) | — | OPEN |
@@ -2244,6 +2244,33 @@ the FULL suite and audit after it).
 > (3) a regression test that FAILS on the old code (sigma inflation > 5x).
 > Port v10review.py T2 into the MATLAB suite. No API change beyond the
 > corrected numbers.
+
+**ROUND NOTE (2026-08-18, WP-32 round 1, model Claude Fable 5; branch
+`claude/wp-32`, riding housekeeping: WP-30 DONE flip + ci.yml
+`cache: true`).** DERIVATION (documented in the streamContribution OUTPUT
+block, validated in v10review.py T2d to 1e-8 against dense joint-inverse
+h-sums, incl. sub-system splits): the streamed cc-attribution is the
+symmetrized Schur split N_g^cc = Mcc_g - 1/2(Nlc_g'G + Nlc'G_g); the exact
+per-group remainder from the leverage-block identities is
+local_g = tr((Nll^-1 + G Sxx G') B_g'B_g) - tr(B_g'A_g Sxx G'), collapsing
+to nl_s for whole-system groups; then r_g = n_g - local_g - tr(N^-1 N_g^cc)
+equals n_g - sum_{i in g} h_i and sums to m-u. IMPLEMENTED:
+streamContribution's ONE sweep additionally streams B_g'B_g + row counts
+(arcCommonProbe extended), builds X = Sxx G'/G Sxx G' once per system (one
+nc-solve), and outputs .n/.localAbsorbed/.r/.rSE per group (.trace keeps
+its meaning: the Level-1 cc-attribution); vce 'hutchinson' divides by .r
+in the loop AND reports it as vc.r (false identity in the help lines 36-38
+and both comment blocks killed); v10review.py extended with T2d/T2e
+(corrected split == exact; corrected iteration recovers truth [1.0396,
+1.9766] vs truth [1,2] while the old path gives [8.4, 1.6e23]). TESTS in
+test_contribution (suite already owned the hutchinson wiring; no new
+files): (1) parity streamed-vs-exact r per obsType group (cuts across all
+3 systems) within 3x MC se; (2) exact partitions (sum local = sum nl to
+1e-6, sum r = m-u within 3x rSE); (3) regression test_vce_hutchinson_
+regression_F01 with NO escape hatch — fails on the old code via
+convergence, sum(vc.r) (old: ~nc=6 vs m-u), 20% sigma agreement, and the
+explicit >5x-inflation guard; the old wiring test's false-identity prose
+corrected. No API change: fields added, names kept.
 
 ### WP-33 — Joint paths: subtract B*y and absorb locals in the projector
 

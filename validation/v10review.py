@@ -149,6 +149,67 @@ check("T2c trace denominator inflates without bound or lands >5x off the truth",
       np.all(sig_hu / truth > 5.0),
       "confirms +lsqvce/vce.m lines 173-186/229-236 substitute the wrong quantity")
 
+# --- WP-32 FIX (added 2026-08-18): r_g = n_g - local_g - tr(N^-1 N_g^cc) ---
+# The streamed cc-attribution is the SYMMETRIZED Schur split
+#   N_g^cc = Mcc_g - 1/2 (Nlc_g' G_s + Nlc_s' G_g),   G_* = inv(Nll_s) Nlc_*
+# (what lsqvce.streamContribution probes). The exact per-group remainder from
+# the leverage block identities (inv(N)_ll = Nll^-1 + G Sxx G',
+# inv(N)_lc = -G Sxx) is
+#   local_g = tr((Nll^-1 + G Sxx G') Mll_g) - tr(Nlc_g Sxx G')
+# which collapses to nl_s exactly for whole-system groups. Then
+#   r_g = n_g - local_g - tr(Sxx N_g^cc)  ==  n_g - sum_{i in g} h_i  exactly.
+print("\n--- T2d/T2e: the WP-32 corrected streamed redundancy ---------------------")
+ok_split = True
+sum_rfix = 0.0
+for k in range(2):
+    S, Nll, Nlc, Aw, Bw = (per[k]["S"], per[k]["Nll"], per[k]["Nlc"],
+                           per[k]["Aw"], per[k]["Bw"])
+    G = np.linalg.solve(Nll, Nlc)
+    X = Sxx @ G.T                      # Sxx G'  (nc x nl)
+    GSG = G @ X                        # G Sxx G'
+    iNll = np.linalg.inv(Nll)
+    a, b = spans[k]
+    n = b - a
+    half = n // 2
+    for i0, i1 in [(0, half), (half, n)]:
+        Ag, Bg = Aw[i0:i1], Bw[i0:i1]
+        Mll, Nlcg = Bg.T @ Bg, Bg.T @ Ag
+        Ng_cc = Ag.T @ Ag - 0.5 * (Nlcg.T @ G + Nlc.T @ np.linalg.solve(Nll, Nlcg))
+        t_g = np.trace(Sxx @ Ng_cc)
+        local = np.trace((iNll + GSG) @ Mll) - np.trace(Nlcg @ X)
+        r_fix = (i1 - i0) - local - t_g
+        r_ex = (i1 - i0) - Hfull[a + i0:a + i1].sum()
+        ok_split &= abs(r_fix - r_ex) < 1e-8
+        sum_rfix += r_fix
+    loc_sys = (np.trace((iNll + GSG) @ (Bw.T @ Bw))
+               - np.trace((Bw.T @ Aw) @ X))
+    ok_split &= abs(loc_sys - sysdef[k]["nl"]) < 1e-8
+check("T2d corrected split == exact h-sums per SUB-system group; whole-system "
+      "local_g == nl_s; sum_g r_g = m-u",
+      ok_split and abs(sum_rfix - (m_tot - u_tot)) < 1e-6,
+      f"sum r_fix = {sum_rfix:.6f} (m-u = {m_tot - u_tot})")
+
+
+def iterate_sigma_fix(n_it=80):
+    sig = np.array([1.0, 1.0])
+    for _ in range(n_it):
+        Nr, _, out = assemble(sig)
+        Sx = np.linalg.inv(Nr)
+        den = np.array([s["n"] - s["nl"] - np.trace(Sx @ o["S"])
+                        for s, o in zip(sysdef, out)])
+        upd = np.sqrt(np.array([o["vtv"] for o in out]) / den)
+        sig = sig * upd
+        if np.max(np.abs(upd - 1)) < 1e-12:
+            break
+    return sig
+
+
+sig_fx = iterate_sigma_fix()
+check("T2e corrected denominator recovers the truth within 3x its resolution "
+      "(exact-trace limit)",
+      np.all(np.abs(sig_fx / truth - 1) < 3 * resol),
+      f"sigma_fix = {np.round(sig_fx, 4)} vs truth {truth}")
+
 # ---------------------------------------------------------------------------
 # T3  FINDING F3: joint-path residual omits B*y; projector omits locals
 # ---------------------------------------------------------------------------

@@ -32,24 +32,32 @@ function vc = vce(accFcn, varargin)
 %     'tol'         convergence on max|sigma_new/sigma_old - 1| (default 1e-3)
 %     'minRedundancy'  default 50
 %     'verbose'     default true
-%     'traceMethod' 'exact' (default) | 'hutchinson'. 'exact' uses the per-arc
-%                   redundancies r_g = sum_{i in g}(1 - h_i). 'hutchinson'
-%                   REPLACES the per-group common-block trace r_g = tr(N^-1
-%                   N_g^cc) with a matrix-free STREAMED estimate
-%                   (LSQVCE.STREAMCONTRIBUTION), used inside every Helmert
-%                   iteration AND for the final vc.r -- an OPT-IN accelerator for
-%                   very large nc where the exact O(nc^2)/arc leverage is dear.
-%                   vtv (the residual sum of squares) stays EXACT; only the trace
-%                   is estimated. The final pass also fills vc.red.traceEstimate.
-%                   Being stochastic it adds noise to sigma -- prefer 'exact'
-%                   whenever affordable; see the accuracy note in LSQVCE.LEVERAGE.
+%     'traceMethod' 'exact' (default) | 'hutchinson'. Both estimate the SAME
+%                   quantity, the group redundancy r_g = sum_{i in g}(1-h_i) =
+%                   n_g - (local dof absorbed by g) - tr(N^-1 N_g^cc). 'exact'
+%                   sums the per-arc leverages. 'hutchinson' streams it
+%                   matrix-free (LSQVCE.STREAMCONTRIBUTION .r): the count and
+%                   the local term are EXACT from the same sweep, only the
+%                   common-block trace is a Monte-Carlo estimate -- an OPT-IN
+%                   accelerator for very large nc where the exact O(nc^2)/arc
+%                   leverage is dear. vtv (the residual sum of squares) stays
+%                   EXACT. NOTE r_g is NOT tr(N^-1 N_g^cc): that trace is only
+%                   the absorbed cc-attribution (it sums to nc, while
+%                   sum_g r_g = m-u); using it as the Helmert denominator
+%                   inflates sigma without bound (finding F-01, fixed WP-32;
+%                   evidence validation/v10review.py T2). The final pass also
+%                   fills vc.red.traceEstimate. Being stochastic it adds noise
+%                   to sigma -- prefer 'exact' whenever affordable; see the
+%                   accuracy note in LSQVCE.LEVERAGE.
 %     'probes'      1x1  number of Hutchinson probes Z (default 100, Ellmer's).
 %     'traceSeed'   1x1  RNG seed for reproducible probes (default []).
 %
 %   OUTPUT
 %     vc.sigma      final variance components (one per group)
 %     vc.groups     the group keys, aligned with sigma
-%     vc.r          final redundancy per group (streamed trace in 'hutchinson')
+%     vc.r          final redundancy per group; in 'hutchinson' the streamed
+%                   estimate n_g - local_g - tr(N^-1 N_g^cc), consistent with
+%                   the loop's denominator (sum_g vc.r ~ m-u on both paths)
 %     vc.history    nIter x nGroup, the sigma trajectory
 %     vc.converged  logical
 %     vc.nIter
@@ -95,6 +103,13 @@ function vc = vce(accFcn, varargin)
 %
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
+%   Updated 2026-08-18 (CEST, UTC+02:00), WP-32 (fixes F-01, CRITICAL):
+%   'hutchinson' now divides by the streamed REDUNDANCY
+%   r_g = n_g - local_g - tr(N^-1 N_g^cc) (LSQVCE.STREAMCONTRIBUTION .r)
+%   instead of substituting the bare cc-trace, which sums to nc rather than
+%   m-u and inflated sigma without bound; vc.r follows. Evidence:
+%   validation/v10review.py T2. With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 
     narginchk(1,inf);
     if ~isa(accFcn, 'function_handle')
@@ -164,12 +179,16 @@ function vc = vce(accFcn, varargin)
         rg(loc)  = [red.group.r];
         vtv(loc) = [red.group.vtv];
 
-        % ---- Level 1.1: streaming Hutchinson trace substitution ----------
+        % ---- Level 1.1: streaming Hutchinson REDUNDANCY (WP-32) ----------
         % 'exact' (default) keeps the per-arc redundancies above. 'hutchinson'
-        % REPLACES the per-group common-block trace r_g = tr(N^-1 N_g^cc) with a
-        % matrix-free streamed estimate (LSQVCE.STREAMCONTRIBUTION) -- the payoff
-        % regime is very large nc, where the exact O(nc^2)/arc leverage is dear.
-        % vtv stays EXACT (the residual pass is unchanged); only the trace moves.
+        % estimates the SAME r_g matrix-free (LSQVCE.STREAMCONTRIBUTION .r):
+        % r_g = n_g - local_g - tr(N^-1 N_g^cc), count and local term exact,
+        % only the cc-trace Monte-Carlo -- the payoff regime is very large nc,
+        % where the exact O(nc^2)/arc leverage is dear. vtv stays EXACT (the
+        % residual pass is unchanged). NEVER substitute the bare .trace here:
+        % it sums to nc, not m-u, and the Helmert update then divides by a
+        % denominator that is orders of magnitude too small (F-01: measured
+        % 8.4x inflation / divergence to 1e23; v10review.py T2b/c).
         if strcmpi(o.traceMethod, 'hutchinson')
             sc = lsqvce.streamContribution(acc, sol, 'GroupBy', o.groupBy, ...
                      'Groups', groups, 'Probes', o.probes, 'Seed', o.traceSeed, ...
@@ -182,7 +201,7 @@ function vc = vce(accFcn, varargin)
                      'the redundancy grouping -- the loader must be ' ...
                      'deterministic across passes.']);
             end
-            rg(loc2) = [sc.group.trace];
+            rg(loc2) = [sc.group.r];
         end
 
         rg  = max(rg, 1);                            % guard
@@ -220,8 +239,9 @@ function vc = vce(accFcn, varargin)
                          'TraceSeed', o.traceSeed);
 
     % Per-group redundancy aligned to the pinned group order. In 'hutchinson'
-    % mode substitute the streamed trace so vc.r (and the Level-1 contribution
-    % share vc.r./sum(vc.r)) is consistent with the trace used in the loop.
+    % mode vc.r is the STREAMED REDUNDANCY (WP-32: n_g - local_g - trace, the
+    % same estimator the loop divides by), so vc.r is consistent across both
+    % paths and sum(vc.r) ~ m-u either way.
     rFinal = zeros(1, nG);
     [~, locF] = ismember(cellstr(string({red.group.key})), ...
                          cellstr(string(groups)));
@@ -232,7 +252,7 @@ function vc = vce(accFcn, varargin)
                   'WantDiag', false, 'Verbose', false);
         [~, locS] = ismember(cellstr(string({scF.group.key})), ...
                              cellstr(string(groups)));
-        rFinal(locS) = [scF.group.trace];
+        rFinal(locS) = [scF.group.r];
     end
 
     vc = struct('sigma', sig, 'groups', {groups}, 'r', rFinal, ...
