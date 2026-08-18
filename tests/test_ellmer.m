@@ -800,7 +800,9 @@ function test_adjustVCEjoint_psd_recovery_coloured_with_locals(tc)
     % theoretical ACV, the toolbox's ACV<->PSD convention). Pre-fix, the
     % omitted B*y folded the arc-parameter signal into the low lags and the
     % common-only projector mis-sized s_n -- corr falls under the bar, so
-    % this test fails on the old code (the §6.1 lever for round 2).
+    % this test fails on the old code (the §6.1 lever for round 2). The
+    % fixture GENERATES AR(2) noise but DECLARES white (covOverride), so
+    % the spectral VCE has actual colour to recover.
     cfg  = jointCfgColoured();
     nLag = 10;
     w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
@@ -833,13 +835,25 @@ function cfg = jointCfgColoured()
     cfg.collinear  = false;
     cfg.collinearEps = 1e-7;
     cfg.cov.pos = struct('type','arma', 'ar',[1 -0.75 0.4], 'ma',1, 'sigma',1.0);
+    % GENERATE the AR(2) colour (cfg.cov) but DECLARE white to the
+    % accumulator (covOverride) -- otherwise the loader whitens with the
+    % truth, the residuals the estimator sees are already white, and the
+    % correct Shat is FLAT (the round-2a lesson: corr = -0.31 against a
+    % peaked truth). The estimator's job here is to FIND the colour.
+    cfg.userOpt.covOverride.pos = struct('type','diag', 'sigma', 1.0);
 end
 
 function acc = jointAcc(cfg, model) %#ok<INUSD>
     % Rebuild the accumulator. A production caller would map model.C / model.sigma2
     % into the loader's covariance; here the fixture keeps the weighting fixed so
-    % the test exercises the DRIVER's plumbing, not the loader's.
-    acc = lsqvce.BlockAccumulator(cfg.nc, 'KeepLocal', true, 'Verbose', false);
+    % the test exercises the DRIVER's plumbing, not the loader's. cfg.userOpt
+    % (optional) reaches the loader -- the coloured fixture uses it to DECLARE
+    % white while GENERATING coloured noise (synthLoader: generation reads
+    % cfg.cov, the declared covariance honours opt.covOverride).
+    uo = struct();
+    if isfield(cfg, 'userOpt'), uo = cfg.userOpt; end
+    acc = lsqvce.BlockAccumulator(cfg.nc, 'KeepLocal', true, 'Verbose', false, ...
+                                  'UserOpt', uo);
     for s = cfg.sats
         acc.addSystem(s, cfg.nl, ...
             @(d,ot,a,uo) lsqvce.synthLoader(cfg, s, d, ot, a, uo), 1);

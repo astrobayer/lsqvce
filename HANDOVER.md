@@ -2386,6 +2386,16 @@ under the bar). Calibration note: the psdVCE help's own study reached
 0.945 from a flat start on ITS fixture; this fixture is sized richer
 (arcs per frequency), and a near-miss on CI means MORE ARCS, not a
 lower bar.
+**Round-2a CI red + lesson (2026-08-19):** corr = -0.31 — not a
+near-miss but a FIXTURE-SEMANTICS error: jointAcc's loader whitens with
+cfg.cov, so with cfg.cov = ARMA the estimator saw ALREADY-WHITE
+residuals and the correct Shat was FLAT (which is exactly why the white
+flat-PSD test passes). Fix: generate coloured, DECLARE white —
+cfg.userOpt.covOverride.pos = diag(1) threaded through jointAcc
+('UserOpt'); synthLoader generates from cfg.cov (line 186) and declares
+cm after the covOverride merge (147-150). Pinned as the fixture rule:
+a spectral-recovery test needs truth-vs-declared DECOUPLING, or it
+tests whitening, not estimation.
 
 ### WP-34 — Keyed arc identity in `adjustVCEjoint`
 
