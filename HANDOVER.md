@@ -211,7 +211,7 @@ order of work: 32 → 33 → 34 → 35 → 36 → 40 → 37 → 38 → 41 → 39
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
 | 32 | Fix `vce` 'hutchinson': redundancy, not trace (F-01) | — | DONE (2026-08-18, PR #2, merge e167cee; CI green both contexts after a setup-matlab cache-restore hang was resolved per the incident runbook, postflight green 515/515 on Windows R2026a; evidence + round note §9 WP-32) |
-| 33 | Joint paths: locals in residual + projector (F-03) | — | IN PROGRESS — 2026-08-18: fix + tests on `claude/wp-33` (7f16773); CI GREEN (attempt 4 after the setup-matlab incident); POSTFLIGHT GREEN via MCP bridge (Windows R2026a: 519/519, test_ellmer 58/58) recorded BEFORE the bridge became unavailable; **PR #3 OPEN** (both worlds green, postflight quoted). Coloured-PSD test deferred to round 2 (user decision pending, see PR). WAITING: user review + MERGE → DONE. Round note §9 WP-33 |
+| 33 | Joint paths: locals in residual + projector (F-03) | — | IN PROGRESS — round 1 MERGED (2026-08-18, PR #3, 7d7c14c; CI + pre-outage postflight green). ROUND 2 (2026-08-19, user decision) on `claude/wp-33-r2`: the deferred coloured-synthetic PSD-recovery test (corr > 0.95 with locals) + the single-run CI trigger scheme (user decision, see §0/§5 amendments); D8 loop pending |
 | 34 | Keyed arc identity in `adjustVCEjoint` (F-02) | — | OPEN |
 | 35 | `psdVCE` floor policy + negative sigma2 guard (F-04, F-05) | — | OPEN |
 | 36 | One probe generator, honest RNG contract (F-06) | — | OPEN |
@@ -1460,8 +1460,14 @@ stays optional.
 **The corrected D8 loop (postflight amendment, same night):** THINK —
 discussion and design in chat/Projects (these sessions), decisions pinned
 HERE. PROMPT — the WP prompt is handed to Claude in chat or Cowork; the
-SESSION'S CONTAINER (Appendix-D pipeline) opens a BRANCH, develops, and
-PUSHES — no pull request yet.
+SESSION'S CONTAINER (Appendix-D pipeline) opens a BRANCH, develops,
+PUSHES, and opens a DRAFT pull request immediately after the first push
+*(amended 2026-08-19, user decision: `ci.yml` now triggers on
+`pull_request` + push-to-`main` only — the previous all-branches `push`
+trigger ran every check TWICE once a PR existed, doubling MathWorks
+downloads and racing parallel cache saves, the duplicate-key incident's
+root exposure; the draft PR restores one merge-preview verdict per dev
+push, and `main` keeps its own post-merge run)*.
 CI — `ci.yml` triggers on EVERY push to EVERY branch (checks `audit` +
 `matlab`; setup-matlab@v3, release R2026a, free on the public repo;
 centrepiece `tests/ci_gate.m`); the session POLLS the check-runs API at
@@ -2364,6 +2370,22 @@ LIST the caches — duplicate keys are a symptom, not the root cause; a
 wedge without any cache present proves upstream. PR #3 opened with both
 verdicts; zip-shipping rule amended in §0 rule 10 (user decision: no zip
 when a PR is ready).
+**ROUND 2 (2026-08-19, model Claude Fable 5; branch `claude/wp-33-r2`).**
+User decisions this round: (a) the WP-33 spec's coloured PSD test lands
+as round 2 (not WP-40); (b) CI runs ONCE per push — `ci.yml` triggers
+rescoped to `pull_request` + push-to-`main`, the loop opens a DRAFT PR
+after the first push (D8 loop text and CLAUDE.md amended; motive: the
+double-run scheme doubled MathWorks downloads and raced cache saves).
+Shipped: test_adjustVCEjoint_psd_recovery_coloured_with_locals on the
+new jointCfgColoured fixture (one system, nl = 2, stationary AR(2)
+[1 -0.75 0.4] — v10review T4's — one day, 6 arcs x 96 rows, nLag 10,
+default non-delta start, MaxIter 6, Probes 150); truth on the
+estimator's own grid via dctI(armaACV), corr > 0.95 asserted — fails on
+the pre-WP-33 code (arc-parameter leakage + mis-sized s_n pull corr
+under the bar). Calibration note: the psdVCE help's own study reached
+0.945 from a flat start on ITS fixture; this fixture is sized richer
+(arcs per frequency), and a near-miss on CI means MORE ARCS, not a
+lower bar.
 
 ### WP-34 — Keyed arc identity in `adjustVCEjoint`
 

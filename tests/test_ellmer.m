@@ -16,8 +16,9 @@ function tests = test_ellmer
 %   in-residual-and-projector fix (F-03) -- dense joint-projector parity,
 %   alpha2 ~ 1 at truth WITH locals (+ the pre-fix contrast, so the test
 %   fails on the old code), the bitwise nl = 0 regression, and the flat-PSD
-%   driver check. With assistance from Claude (Anthropic), model Claude
-%   Fable 5.
+%   driver check. Round 2 (same date): the deferred coloured-synthetic
+%   PSD-recovery test (corr > 0.95 with locals) + its jointCfgColoured
+%   fixture. With assistance from Claude (Anthropic), model Claude Fable 5.
 %   Created 2026-07-18 (CEST, UTC+02:00) with assistance from
 %   Claude (Anthropic), model Claude Opus 4.8.
     tests = functiontests(localfunctions);
@@ -790,6 +791,48 @@ function test_adjustVCEjoint_flat_psd_on_white_noise_with_locals(tc)
     verifyTrue(tc, max(S)/min(S) < 3.0, ...
         sprintf(['white truth => flat PSD: max/min = %.2f (arc-parameter ' ...
                  'leakage shows up as structure)'], max(S)/min(S)));
+end
+
+function test_adjustVCEjoint_psd_recovery_coloured_with_locals(tc)
+    % WP-33 round 2 (the deferred spec test): on a COLOURED synthetic WITH
+    % local parameters the converged PSD must correlate > 0.95 with the true
+    % ARMA spectrum (truth on the estimator's own grid: the DCT-I of the
+    % theoretical ACV, the toolbox's ACV<->PSD convention). Pre-fix, the
+    % omitted B*y folded the arc-parameter signal into the low lags and the
+    % common-only projector mis-sized s_n -- corr falls under the bar, so
+    % this test fails on the old code (the §6.1 lever for round 2).
+    cfg  = jointCfgColoured();
+    nLag = 10;
+    w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
+    r = lsqvce.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
+            'NumLags', nLag, 'MaxIter', 6, 'Probes', 150, 'Seed', 13, ...
+            'Verbose', false);
+    Strue = lsqvce.dctI(lsqvce.armaACV(cfg.cov.pos.ar, cfg.cov.pos.ma, nLag));
+    Strue = abs(Strue(:));
+    cc = corrcoef(r.Shat(:), Strue);
+    verifyGreaterThan(tc, cc(1,2), 0.95, ...
+        sprintf('PSD recovery with locals: corr = %.3f (need > 0.95)', cc(1,2)));
+end
+
+function cfg = jointCfgColoured()
+    % The coloured sibling of jointCfg: same block-arrow layout, ARMA noise
+    % (the stationary AR(2) of v10review T4) and enough arcs per frequency
+    % for the spectral VCE to settle (one day, 6 arcs x 96 rows, nLag = 10).
+    cfg.nc   = 3;
+    cfg.nl   = 2;
+    cfg.sats = 92;                     % distinct from jointCfg's 91
+    rs = RandStream('mt19937ar', 'Seed', 23);
+    cfg.x_c  = randn(rs, cfg.nc, 1);
+    cfg.y    = containers.Map('KeyType','double','ValueType','any');
+    cfg.y(92) = randn(rs, cfg.nl, 1);
+    cfg.obsTypes   = {'pos'};
+    cfg.arcsPerDay = 6;                % jointAcc streams ONE day: 6 x 96 rows
+    cfg.mArc       = 96;
+    cfg.dt         = 5;
+    cfg.seed       = 9223;             % distinct seed -> distinct cache key
+    cfg.collinear  = false;
+    cfg.collinearEps = 1e-7;
+    cfg.cov.pos = struct('type','arma', 'ar',[1 -0.75 0.4], 'ma',1, 'sigma',1.0);
 end
 
 function acc = jointAcc(cfg, model) %#ok<INUSD>
