@@ -801,13 +801,17 @@ function test_adjustVCEjoint_psd_recovery_coloured_with_locals(tc)
     % omitted B*y folded the arc-parameter signal into the low lags and the
     % common-only projector mis-sized s_n -- corr falls under the bar, so
     % this test fails on the old code (the §6.1 lever for round 2). The
-    % fixture GENERATES AR(2) noise but DECLARES white (covOverride), so
-    % the spectral VCE has actual colour to recover.
+    % fixture GENERATES AR(2) noise and jointAccMapped feeds the driver's
+    % CURRENT model.C back into the declared covariance each pass (covModel
+    % type 'acf') -- the honest Ellmer alternation: the estimator both
+    % finds the colour and re-whitens with it. Round-2a/2b lessons: a
+    % truth-whitening fixture tests nothing (corr -0.31), and a FIXED white
+    % weighting biases Shat toward the non-delta prior (corr 0.65).
     cfg  = jointCfgColoured();
     nLag = 10;
     w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
-    r = lsqvce.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
-            'NumLags', nLag, 'MaxIter', 6, 'Probes', 150, 'Seed', 13, ...
+    r = lsqvce.adjustVCEjoint(@(model) jointAccMapped(cfg, model), ...
+            'NumLags', nLag, 'MaxIter', 8, 'Probes', 200, 'Seed', 13, ...
             'Verbose', false);
     Strue = lsqvce.dctI(lsqvce.armaACV(cfg.cov.pos.ar, cfg.cov.pos.ma, nLag));
     Strue = abs(Strue(:));
@@ -835,25 +839,48 @@ function cfg = jointCfgColoured()
     cfg.collinear  = false;
     cfg.collinearEps = 1e-7;
     cfg.cov.pos = struct('type','arma', 'ar',[1 -0.75 0.4], 'ma',1, 'sigma',1.0);
-    % GENERATE the AR(2) colour (cfg.cov) but DECLARE white to the
-    % accumulator (covOverride) -- otherwise the loader whitens with the
-    % truth, the residuals the estimator sees are already white, and the
-    % correct Shat is FLAT (the round-2a lesson: corr = -0.31 against a
-    % peaked truth). The estimator's job here is to FIND the colour.
-    cfg.userOpt.covOverride.pos = struct('type','diag', 'sigma', 1.0);
+    % The DECLARED covariance is owned by jointAccMapped (white on pass 1,
+    % then the driver's own model.C via covModel type 'acf') -- never the
+    % truth: a loader that whitens with cfg.cov's ARMA hands the estimator
+    % pre-whitened residuals and the correct Shat is FLAT (round-2a lesson).
+end
+
+function acc = jointAccMapped(cfg, model)
+    % The coloured sibling of jointAcc: maps the driver's CURRENT lag-domain
+    % covariance model.C into the loader's DECLARED covariance (type 'acf':
+    % C interpolated over |dt| lags, zero beyond nLag-1), so each outer pass
+    % re-whitens with the latest estimate -- Ellmer's alternation, end to
+    % end. Pass 1 (or an empty model) declares white. Generation always
+    % follows cfg.cov (synthLoader).
+    uo = struct();
+    if ~isempty(model) && isfield(model, 'C') && ~isempty(model.C)
+        C = model.C(:);
+        uo.covOverride.pos = struct('type','acf', 'sigma', 1, ...
+            'acf', @(dT, o) lagInterp(C, abs(dT) / cfg.dt));
+    else
+        uo.covOverride.pos = struct('type','diag', 'sigma', 1.0);
+    end
+    acc = lsqvce.BlockAccumulator(cfg.nc, 'KeepLocal', true, 'Verbose', false, ...
+                                  'UserOpt', uo);
+    for s = cfg.sats
+        acc.addSystem(s, cfg.nl, ...
+            @(d,ot,a,uo2) lsqvce.synthLoader(cfg, s, d, ot, a, uo2), 1);
+    end
+end
+
+function v = lagInterp(C, lagIdx)
+    % Nearest-lag lookup of a covariance sequence, zero beyond its length.
+    k = round(lagIdx);
+    v = zeros(size(k));
+    m = (k >= 0) & (k <= numel(C) - 1);
+    v(m) = C(k(m) + 1);
 end
 
 function acc = jointAcc(cfg, model) %#ok<INUSD>
     % Rebuild the accumulator. A production caller would map model.C / model.sigma2
     % into the loader's covariance; here the fixture keeps the weighting fixed so
-    % the test exercises the DRIVER's plumbing, not the loader's. cfg.userOpt
-    % (optional) reaches the loader -- the coloured fixture uses it to DECLARE
-    % white while GENERATING coloured noise (synthLoader: generation reads
-    % cfg.cov, the declared covariance honours opt.covOverride).
-    uo = struct();
-    if isfield(cfg, 'userOpt'), uo = cfg.userOpt; end
-    acc = lsqvce.BlockAccumulator(cfg.nc, 'KeepLocal', true, 'Verbose', false, ...
-                                  'UserOpt', uo);
+    % the test exercises the DRIVER's plumbing, not the loader's.
+    acc = lsqvce.BlockAccumulator(cfg.nc, 'KeepLocal', true, 'Verbose', false);
     for s = cfg.sats
         acc.addSystem(s, cfg.nl, ...
             @(d,ot,a,uo) lsqvce.synthLoader(cfg, s, d, ot, a, uo), 1);

@@ -2396,6 +2396,13 @@ cfg.userOpt.covOverride.pos = diag(1) threaded through jointAcc
 cm after the covOverride merge (147-150). Pinned as the fixture rule:
 a spectral-recovery test needs truth-vs-declared DECOUPLING, or it
 tests whitening, not estimation.
+**Round-2b (same day): corr 0.65 with FIXED white weighting** — the
+psdVCE update is relative to the PRIOR spectrum, so freezing the
+declared covariance biases Shat toward the non-delta C0. Fix: the
+fixture now runs Ellmer's TRUE alternation — jointAccMapped feeds the
+driver's model.C back as the declared covariance each pass (covModel
+type 'acf', nearest-lag lookup, zero beyond nLag-1; pass 1 white);
+jointAcc reverted to its plain form (one way). MaxIter 8, Probes 200.
 
 ### WP-34 — Keyed arc identity in `adjustVCEjoint`
 
