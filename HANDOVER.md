@@ -8,7 +8,12 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-08-17, night (v2) — APPENDIX-D ALIGNMENT:
+Last substantive update: 2026-08-18 — WP-30 ROUND 1 (container session,
+Appendix-D pipeline): full deliverable set on branch `claude/wp-30`
+(ci.yml, ci_gate/gateVerdict/test_ci_gate, run_all skip mechanism,
+CLAUDE.md, ignore/attributes, references policy); §0 loop + §9.0
+preamble amended per D4; ledger row IN PROGRESS; round note in §5 WP-30.
+Preceding entry: 2026-08-17, night (v2) — APPENDIX-D ALIGNMENT:
 the user's proven pipeline (BEST_PRACTICE_v4-1.md, now in references/)
 makes the chat/Cowork CONTAINER the execution vehicle, authenticated by
 a fine-grained PAT (Contents/PR/Actions RW, D.3 handling rules) — the
@@ -95,7 +100,12 @@ These do not expire between chats. They are the same rules v1 was built under
    (https://github.com/matlab/rules/blob/main/matlab-coding-standards.md).
 10. **Always provide a WRAP after changes.** The user downloads the zip, runs
     the suite in MATLAB, and returns the log AS AN UPLOADED .txt FILE (large
-    pastes are lost in transit).
+    pastes are lost in transit). *(Amended 2026-08-18, WP-30 round, per the
+    D4 mapping: from WP-30's merge on, CI GREEN IS THE GATE — `ci.yml` runs
+    `tests/ci_gate.m` on every push — and the local MATLAB run remains (a)
+    the postflight second platform and (b) the run for suites CI skips,
+    currently `test_parallel`. The zip/log loop stays valid for chat rounds
+    without repo access.)*
 
 ### The working loop (identical to v1 §4b)
 - There is no MATLAB in the sandbox. Validation is STRUCTURAL (function/end
@@ -103,8 +113,10 @@ These do not expire between chats. They are the same rules v1 was built under
   script, ported in WP-0). **The user's MATLAB run is the ground truth.**
 - Ship the ENTIRE tree as ONE zip per round via `present_files` — never a
   partial file set.
-- Run the full suite with the ONE runner `run_all_lsqvce` (superseded by
-  `tests/ci_gate.m` once WP-30 lands); read the log,
+- Run the full suite with the ONE runner `run_all_lsqvce`; from WP-30
+  (branch pushed 2026-08-18) the CI/postflight entry is `tests/ci_gate.m`,
+  which CALLS that same runner and adds the coverage-and-log verdict — one
+  implementation, one gate on top; read the log,
   not just the pass count: check what LOADED, the warning inventory, and the
   per-suite seconds.
 
@@ -172,7 +184,7 @@ suggestion except the temporal prior between days; adoption record: §3.8):
 | 27 | `neqExchange` — SINEX + GROOPS NEQ I/O | 2,8 | DONE (2026-08-16, user-confirmed; see reconciliation) |
 | 28 | Sketched diagnostics (randomised leverage) | 11,17 | DONE (2026-08-16, user-confirmed; see reconciliation) |
 | 29 | Metamorphic test suite | 18,19 | DONE (2026-08-16, user-confirmed; see reconciliation) |
-| 30 | Development workflow: public GitHub + hosted CI + cloud-session loop (D8) | — | OPEN — D8 corrected 2026-08-17: PUBLIC repo (free hosted MATLAB), container-as-developer per BEST_PRACTICE Appendix D (fine-grained PAT), MANDATORY MCP postflight before PRs; design §5 WP-30; run with §9.0 preamble |
+| 30 | Development workflow: public GitHub + hosted CI + cloud-session loop (D8) | — | IN PROGRESS — 2026-08-18: deliverables + LICENSE(MIT) on `claude/wp-30`; CI GREEN per commit; RED TEST passed; POSTFLIGHT GREEN via MCP bridge (Windows R2026a: 513/513, 0 incomplete) after TWO real findings fixed (exist()-probe false-negative under -batch in test guard AND PrefetchLoader → ONE probe lsqvce.util.hasBackgroundPool); evidence §5 WP-30. **PR #1 OPEN** (2026-08-18, both worlds green, postflight quoted in the body). WAITING on user: branch protection (Guide 4.4) + review + MERGE → then this row flips DONE (date + PR #1 + merge hash) |
 | 31 | GPU backend | 7,20 | GATED — open only on WP-20 evidence |
 
 Rules for the ledger: one row per WP; status is OPEN → IN PROGRESS → DONE
@@ -1418,9 +1430,9 @@ HOSTED CI, CLAUDE-SIDE PROMPTING, transferable to other projects.**
 makes MATLAB on GitHub-hosted runners FREE (Route A; the batch-token
 route B and the runner bridge are OBSOLETE for this project). The earlier
 privacy requirement is withdrawn by the user; consequences are binding:
-measurement data and secrets NEVER enter the repo (already pinned), and a
-LICENSE choice is now an OPEN USER DECISION (pin the answer here; until
-then the repo is public with all rights reserved). (2) The work-package
+measurement data and secrets NEVER enter the repo (already pinned), and
+the LICENSE is **MIT** (USER DECISION, pinned 2026-08-18; `LICENSE` file
+at the root, (c) 2026 Matthias Weigelt). (2) The work-package
 prompt is given ON THE CLAUDE SIDE — in chat/Projects or via Cowork — NOT
 via GitHub triggers: no @claude action, no `claude.yml`, no issue
 template. The execution vehicle (per the author's PROVEN pipeline,
@@ -1520,6 +1532,95 @@ New-repo checklist: copy `ci.yml`, swap the gate command and toolchain
 step, write the gate and `CLAUDE.md`, grant the repo to Claude's GitHub
 access, protect `main`. Lift `ci.yml` into a reusable `workflow_call`
 only when a second MATLAB repo exists.
+
+**ROUND NOTE (2026-08-18, WP-30 round 1; container session per Appendix D,
+model Claude Fable 5).** Shipped on branch `claude/wp-30`:
+`.github/workflows/ci.yml` (D2 reference, corrected to the deliverable
+spec: `push` on ALL branches + `pull_request`; audit job = audit_tree +
+v10review on python 3.12/numpy, verified exit 0 in-session; matlab job =
+setup-matlab@v3 R2026a, `LSQVCE_CI=1`, `lsqvce_setup; ci_gate`, log
+artifact `if: always()`); `tests/ci_gate.m` — the ONE CI entry, judgment
+factored into the PURE `tests/private/gateVerdict.m` so the verdict is
+unit-testable WITHOUT recursively re-running the suite; new suite
+`tests/test_ci_gate.m` (14 test points: green case, every red condition —
+load error, fail, incomplete, forgotten-on-disk, phantom, missing/empty
+log — reason accumulation, input validation; §6.1 fail-on-old-code: the
+gate does not exist on the old tree); `run_all_lsqvce` gained the `skip`
+MECHANISM (prints + logs every skip on the headline; POLICY stays in
+ci_gate, rule 3), and `test_ci_gate` was added to its suite list so the
+gate's own coverage identity holds (19 test_*.m on disk = 19 in list,
+test_speed excluded as the documented benchmark); `CLAUDE.md` (pointer
+per D3 tier 2, token-handling rules restated); `.gitignore` /
+`.gitattributes` per D4 (+ `references/local/`). DEVIATION, pinned: the
+thesis FULL TEXTS are NOT committed — the repo is PUBLIC and neither
+document states a redistribution licence; `references/README.md` carries
+the full citations + open-access pointers, and the gitignored
+`references/local/` is the drop-in slot for repo-based sessions (the
+migration item's need — sessions without chat-project knowledge — is met
+without republication). The user may overrule with evidence of a CC
+licence. LICENSE for the repo itself: **MIT** (user decision
+2026-08-18, `LICENSE` committed in this round). SETUP_GUIDE 4.1 aligned with
+what actually ships. Postflight and PR: WAITING at the user's PC per the
+loop. CI evidence of this branch: next dated line below.
+
+**CI EVIDENCE (2026-08-18, recorded from the check-runs API + the log
+artifact).** Branch `claude/wp-30`, commit 5a1b7c8: `audit` GREEN (9 s;
+audit_tree 15 checks clean + v10review T1–T7 pass on the runner) and
+`matlab` GREEN (6 m 17 s incl. MATLAB R2026a install; run
+32143388026). Log artifact read per §0: **482/482 passed, 0 failed, 0
+incomplete**, headline records `1 SUITE(S) SKIPPED ON REQUEST:
+test_parallel` (the LSQVCE_CI policy, visible as designed); coverage
+identity 19 run + 1 skipped + 1 excluded = 20 test_*.m on disk (the new
+`test_ci_gate` ran, 14/14, 0.6 s); warning inventory = only the known
+intentional warn-path warnings (datum auto-detect, rejection cap);
+wall clock 270.5 s, dominated by test_adjustVCE (232.1 s, expected: VCE
+outer loops). The D2 headless question is hereby VERIFIED: all four
+figure-opening suites passed on the display-less runner. **RED TEST
+(same date):** branch `claude/wp-30-redtest` = a green-running suite
+file deliberately absent from the runner list; verdict RED at the
+FIRST gate — audit FINDING `[tests] test_redtest_dummy is on disk but
+NOT in run_all_lsqvce` (static disk-vs-list check, fail-fast, saves the
+MATLAB minutes), `matlab` skipped. Layering, not duplication: the
+audit catches this class statically; `gateVerdict` additionally
+catches at runtime what statics cannot (load errors, skip accounting,
+phantom entries, fails/incompletes, the log artifact) — pinned by
+test_ci_gate. Bare `runtests` would have been green on that branch.
+Red-test branch deleted after recording. An UNMERGEABLE red PR
+additionally requires branch protection = USER step (Guide 4.4; the
+session token deliberately has no Administration scope).
+
+**POSTFLIGHT (2026-08-18, run BY CLAUDE via the MATLAB MCP bridge —
+user decision of the same day: the bridge session IS the postflight
+vehicle when present).** Platform: the user's Windows 11, MATLAB
+R2026a Update 4, PCT 16 workers; branch checked out at each step,
+gate = detached `matlab -batch postflight_run` (wrapper around
+`lsqvce_setup; ci_gate`) polled with `isfile` per Appendix D.2 step 6.
+THREE runs, TWO REAL FINDINGS — exactly what the second platform is
+for, since CI SKIPS test_parallel: (1) `hasBackgroundPool`'s
+exist()-based probe (class+file) is FALSE-NEGATIVE under `matlab
+-batch` (measured: license=1, ver=1, class=0, file=0 while
+backgroundPool starts with 16 workers) — the prefetch test silently
+filtered on every batch run (7bf5c83). (2) The SAME pattern sat in
+PRODUCTION code: `PrefetchLoader.poolOK` — prefetch silently degraded
+to passthrough in every batch campaign. Fix: ONE probe
+`lsqvce.util.hasBackgroundPool` (probe-by-USE, full help, HTML page,
+Contents/helptoc/index rows); `poolOK` and the local test guard
+DELETED (rules 3+8), all call sites redirected; consistency test
+`testBackgroundPoolGuardAgreesWithUse` pins probe == use and FAILS on
+the old code under -batch (§6.1) (ce94c2a). INFRA lesson, pinned for
+every future detached run: launch as `start "" /min cmd /c "matlab
+-batch <script> > log 2>&1"` — WITHOUT the full stdout/stderr
+redirection the spawned MATLAB inherits the bridge call's dying
+console handle and dies mid-run with iolib:badbit (`-logfile` does not
+protect against this; observed on run 1). FINAL VERDICT: ci_gate
+GREEN, **513/513 passed, 0 failed, 0 incomplete**, test_parallel
+31/31 INCLUDING the previously-filtered prefetch test, 185.4 s wall
+clock (2026-08-18 17:25 local). Both worlds now agree: CI green
+(Linux, 482/482 + visible skip) AND postflight green (Windows,
+513/513, nothing skipped). Also gitignored: `custom_toolbox.json`,
+`helpsearch-v*/` (builddocsearchdb artifacts of lsqvce_setup, found
+dirtying the postflight tree). Remaining before merge: branch
+protection (user, Guide 4.4).
 
 *The sections D1–D5 below predate the D6 decision and are kept as the
 evaluation record; D6 is the operative design.*
@@ -2109,7 +2210,10 @@ the FULL suite and audit after it).
 > (a single folder, `lsqvce/`, since the 2026-08-17 restructure). Think step by step and motivate every answer. Read
 > `HANDOVER.md` FIRST: §0 (rules), §1 (R2 ledger), §8 (the finding
 > this WP fixes, with its evidence), §6 (test/doc guidelines) are binding.
-> The Ellmer (2018) and Kvas (2019) theses are in the project knowledge;
+> The Ellmer (2018) and Kvas (2019) theses are cited in
+> `references/README.md`; their texts are in the chat project knowledge
+> and, for repo-based sessions, in the gitignored `references/local/`
+> (NOT redistributed in the public repo — WP-30 round note, 2026-08-18);
 > equation numbers refer to Ellmer unless said otherwise. Rules that bind
 > every WP: single point of access, no aliases, full help text with
 > typed/dimensioned INPUT/OUTPUT and an ERRORS section, the Claude stamp

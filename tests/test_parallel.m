@@ -17,6 +17,12 @@ function tests = test_parallel
 %   Run:  results = runtests('tests/test_parallel');  disp(table(results))
 %
 %   See also TEST_V3, TEST_LSQACCUM, TEST_PRECISION
+%
+%   Updated 2026-08-18 (CEST, UTC+02:00): pool guard moved to the ONE probe
+%   lsqvce.util.hasBackgroundPool (probe-by-USE; local exist()-based guard
+%   deleted - it was false-negative under `matlab -batch`, WP-30 postflight
+%   finding) + consistency test testBackgroundPoolGuardAgreesWithUse. With
+%   assistance from Claude (Anthropic), model Claude Fable 5.
     tests = functiontests(localfunctions);
 end
 
@@ -611,7 +617,7 @@ function testPrefetchServesFromCacheWhenPrimed(tc)
 % Simulate a harvested future by priming the cache path via loadWholeDay,
 % then verify hit/miss accounting and that a cold day falls through
 % correctly. Exercises fetch() logic without a pool.
-    tc.assumeTrue(hasBackgroundPool(), 'backgroundPool not available');
+    tc.assumeTrue(lsqvce.util.hasBackgroundPool(), 'backgroundPool not available');
     cfg  = tc.TestData.cfg;
     days = 1:3;
     pf = lsqvce.PrefetchLoader(binder(cfg, 1), days, 'Enable', true);
@@ -628,6 +634,25 @@ function testPrefetchServesFromCacheWhenPrimed(tc)
     tc.verifyEqual(sol.x, sr.x, 'RelTol', 1e-14);   % identical data served
     tc.verifyGreaterThan(pf.hits, 0);               % it actually prefetched
 end
+function testBackgroundPoolGuardAgreesWithUse(tc)
+% §6.1 regression for the WP-30 postflight finding (2026-08-18): the guard
+% must agree with the ground truth - does CALLING backgroundPool work? The
+% old exist()-based guard said NO under `matlab -batch` while the call
+% succeeded, silently filtering the prefetch coverage on every batch/gate
+% run. This test FAILS on that code under -batch and pins the contract.
+    if ~hasPCT()
+        works = false;                       % probe must say false here too
+    else
+        try
+            backgroundPool;
+            works = true;
+        catch
+            works = false;
+        end
+    end
+    tc.verifyEqual(lsqvce.util.hasBackgroundPool(), works, ...
+        'lsqvce.util.hasBackgroundPool must match a use-probe of backgroundPool.');
+end
 
 %% =================================================================== helpers
 function ok = hasPCT()
@@ -635,17 +660,6 @@ function ok = hasPCT()
          ~isempty(ver('parallel'));
 end
 
-function ok = hasBackgroundPool()
-% Robust availability check for MATLAB's backgroundPool. Do NOT use
-% exist('backgroundPool','file') == 2: backgroundPool ships as a packaged/
-% built-in function, so exist() returns 5 (built-in) or 0, never 2 -- the ==2
-% form falsely reports "unavailable" even with the PCT installed. Check the
-% toolbox, then that the pool resolves at all (class check is packaging-
-% independent; the file check is a fallback).
-    ok = hasPCT() && ...
-         ( exist('parallel.pool.BackgroundPool', 'class') ~= 0 || ...
-           exist('backgroundPool', 'file') ~= 0 );
-end
 
 function [A, Sig] = stableVAR()
 % A stationary VAR(2), d = 3, with genuine cross-axis coupling.
