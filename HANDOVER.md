@@ -184,7 +184,7 @@ suggestion except the temporal prior between days; adoption record: §3.8):
 | 27 | `neqExchange` — SINEX + GROOPS NEQ I/O | 2,8 | DONE (2026-08-16, user-confirmed; see reconciliation) |
 | 28 | Sketched diagnostics (randomised leverage) | 11,17 | DONE (2026-08-16, user-confirmed; see reconciliation) |
 | 29 | Metamorphic test suite | 18,19 | DONE (2026-08-16, user-confirmed; see reconciliation) |
-| 30 | Development workflow: public GitHub + hosted CI + cloud-session loop (D8) | — | IN PROGRESS — 2026-08-18: deliverables on branch `claude/wp-30` (5a1b7c8); CI GREEN on the branch (`audit`+`matlab`, run 32143388026, 482/482, test_parallel skip visible); RED TEST passed (audit finding, branch deleted); evidence in §5 WP-30 round note. WAITING: user postflight (Windows R2026a), branch protection (Guide 4.4), LICENSE decision → then PR. DONE = merged to `main`, checks green, date + PR + hash |
+| 30 | Development workflow: public GitHub + hosted CI + cloud-session loop (D8) | — | IN PROGRESS — 2026-08-18: deliverables + LICENSE(MIT) on `claude/wp-30`; CI GREEN per commit; RED TEST passed; POSTFLIGHT GREEN via MCP bridge (Windows R2026a: 513/513, 0 incomplete) after TWO real findings fixed (exist()-probe false-negative under -batch in test guard AND PrefetchLoader → ONE probe lsqvce.util.hasBackgroundPool); evidence §5 WP-30. NEXT: PR (both worlds green), branch protection (user, Guide 4.4), user MERGE. DONE = merged to `main`, checks green, date + PR + hash |
 | 31 | GPU backend | 7,20 | GATED — open only on WP-20 evidence |
 
 Rules for the ledger: one row per WP; status is OPEN → IN PROGRESS → DONE
@@ -1587,9 +1587,40 @@ phantom entries, fails/incompletes, the log artifact) — pinned by
 test_ci_gate. Bare `runtests` would have been green on that branch.
 Red-test branch deleted after recording. An UNMERGEABLE red PR
 additionally requires branch protection = USER step (Guide 4.4; the
-session token deliberately has no Administration scope). Remaining
-before the PR: user postflight on Windows R2026a + branch protection +
-the LICENSE decision.
+session token deliberately has no Administration scope).
+
+**POSTFLIGHT (2026-08-18, run BY CLAUDE via the MATLAB MCP bridge —
+user decision of the same day: the bridge session IS the postflight
+vehicle when present).** Platform: the user's Windows 11, MATLAB
+R2026a Update 4, PCT 16 workers; branch checked out at each step,
+gate = detached `matlab -batch postflight_run` (wrapper around
+`lsqvce_setup; ci_gate`) polled with `isfile` per Appendix D.2 step 6.
+THREE runs, TWO REAL FINDINGS — exactly what the second platform is
+for, since CI SKIPS test_parallel: (1) `hasBackgroundPool`'s
+exist()-based probe (class+file) is FALSE-NEGATIVE under `matlab
+-batch` (measured: license=1, ver=1, class=0, file=0 while
+backgroundPool starts with 16 workers) — the prefetch test silently
+filtered on every batch run (7bf5c83). (2) The SAME pattern sat in
+PRODUCTION code: `PrefetchLoader.poolOK` — prefetch silently degraded
+to passthrough in every batch campaign. Fix: ONE probe
+`lsqvce.util.hasBackgroundPool` (probe-by-USE, full help, HTML page,
+Contents/helptoc/index rows); `poolOK` and the local test guard
+DELETED (rules 3+8), all call sites redirected; consistency test
+`testBackgroundPoolGuardAgreesWithUse` pins probe == use and FAILS on
+the old code under -batch (§6.1) (ce94c2a). INFRA lesson, pinned for
+every future detached run: launch as `start "" /min cmd /c "matlab
+-batch <script> > log 2>&1"` — WITHOUT the full stdout/stderr
+redirection the spawned MATLAB inherits the bridge call's dying
+console handle and dies mid-run with iolib:badbit (`-logfile` does not
+protect against this; observed on run 1). FINAL VERDICT: ci_gate
+GREEN, **513/513 passed, 0 failed, 0 incomplete**, test_parallel
+31/31 INCLUDING the previously-filtered prefetch test, 185.4 s wall
+clock (2026-08-18 17:25 local). Both worlds now agree: CI green
+(Linux, 482/482 + visible skip) AND postflight green (Windows,
+513/513, nothing skipped). Also gitignored: `custom_toolbox.json`,
+`helpsearch-v*/` (builddocsearchdb artifacts of lsqvce_setup, found
+dirtying the postflight tree). Remaining before merge: branch
+protection (user, Guide 4.4).
 
 *The sections D1–D5 below predate the D6 decision and are kept as the
 evaluation record; D6 is the operative design.*
