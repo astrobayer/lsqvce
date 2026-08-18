@@ -854,9 +854,23 @@ function acc = jointAccMapped(cfg, model)
     % follows cfg.cov (synthLoader).
     uo = struct();
     if ~isempty(model) && isfield(model, 'C') && ~isempty(model.C)
-        C = model.C(:);
-        uo.covOverride.pos = struct('type','acf', 'sigma', 1, ...
-            'acf', @(dT, o) lagInterp(C, abs(dT) / cfg.dt));
+        % r2c: declare the CURRENT estimate through the toolbox's own PSD
+        % route. A raw nLag-truncated lag covariance is RANK DEFICIENT as a
+        % Toeplitz beyond 2*(nLag-1) rows (covModel's documented sharp
+        % limit: nf >= m/2 + 1), so chol failed on every 96-row arc and the
+        % driver raised noArcs (round-2b red). Cure per that same doc:
+        % upsample the spectrum to nf >= mArc/2 + 1 frequencies, then
+        % covModel 'psd' + psdMode 'toeplitz' builds a PD, floored Cfcn.
+        C     = model.C(:);
+        Shat  = lsqvce.dctI(C);                  % lag cov -> PSD (toolbox
+        Shat  = max(Shat(:), 0);                 %  ACV<->PSD convention)
+        fNyq  = 1/(2*cfg.dt);
+        fC    = (0:numel(C)-1).' * fNyq/(numel(C)-1);   % DCT-I grid
+        fD    = linspace(0, fNyq, 64).';         % 64 >= 96/2 + 1 = 49
+        SD    = max(interp1(fC, Shat, fD, 'pchip'), 0);
+        uo.covOverride.pos = struct('type','psd', 'f', fD, 'S', SD, ...
+                                    'sigma', 1);
+        uo.psdMode = 'toeplitz';                 % dense Cfcn (oneArc needs it)
     else
         uo.covOverride.pos = struct('type','diag', 'sigma', 1.0);
     end
@@ -866,14 +880,6 @@ function acc = jointAccMapped(cfg, model)
         acc.addSystem(s, cfg.nl, ...
             @(d,ot,a,uo2) lsqvce.synthLoader(cfg, s, d, ot, a, uo2), 1);
     end
-end
-
-function v = lagInterp(C, lagIdx)
-    % Nearest-lag lookup of a covariance sequence, zero beyond its length.
-    k = round(lagIdx);
-    v = zeros(size(k));
-    m = (k >= 0) & (k <= numel(C) - 1);
-    v(m) = C(k(m) + 1);
 end
 
 function acc = jointAcc(cfg, model) %#ok<INUSD>
