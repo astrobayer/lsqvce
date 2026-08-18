@@ -17,6 +17,11 @@ function tests = test_parallel
 %   Run:  results = runtests('tests/test_parallel');  disp(table(results))
 %
 %   See also TEST_V3, TEST_LSQACCUM, TEST_PRECISION
+%
+%   Updated 2026-08-18 (CEST, UTC+02:00): hasBackgroundPool() probes by USE
+%   (exist() is false-negative under `matlab -batch`; WP-30 postflight
+%   finding) + consistency test testBackgroundPoolGuardAgreesWithUse. With
+%   assistance from Claude (Anthropic), model Claude Fable 5.
     tests = functiontests(localfunctions);
 end
 
@@ -628,6 +633,22 @@ function testPrefetchServesFromCacheWhenPrimed(tc)
     tc.verifyEqual(sol.x, sr.x, 'RelTol', 1e-14);   % identical data served
     tc.verifyGreaterThan(pf.hits, 0);               % it actually prefetched
 end
+function testBackgroundPoolGuardAgreesWithUse(tc)
+% §6.1 regression for the WP-30 postflight finding (2026-08-18): the guard
+% must agree with the ground truth - does CALLING backgroundPool work? The
+% old exist()-based guard said NO under `matlab -batch` while the call
+% succeeded, silently filtering the prefetch coverage on every batch/gate
+% run. This test FAILS on that code under -batch and pins the contract.
+    tc.assumeTrue(hasPCT(), 'PCT not installed');
+    try
+        backgroundPool;
+        works = true;
+    catch
+        works = false;
+    end
+    tc.verifyEqual(hasBackgroundPool(), works, ...
+        'hasBackgroundPool() must match a use-probe of backgroundPool.');
+end
 
 %% =================================================================== helpers
 function ok = hasPCT()
@@ -636,15 +657,23 @@ function ok = hasPCT()
 end
 
 function ok = hasBackgroundPool()
-% Robust availability check for MATLAB's backgroundPool. Do NOT use
-% exist('backgroundPool','file') == 2: backgroundPool ships as a packaged/
-% built-in function, so exist() returns 5 (built-in) or 0, never 2 -- the ==2
-% form falsely reports "unavailable" even with the PCT installed. Check the
-% toolbox, then that the pool resolves at all (class check is packaging-
-% independent; the file check is a fallback).
-    ok = hasPCT() && ...
-         ( exist('parallel.pool.BackgroundPool', 'class') ~= 0 || ...
-           exist('backgroundPool', 'file') ~= 0 );
+% Availability check for MATLAB's backgroundPool: PROBE BY USE, not by
+% metadata. exist('backgroundPool','file') == 2 was wrong (packaged/builtin
+% functions return 5 or 0), and the exist-based replacement (class + file)
+% is FALSE-NEGATIVE under `matlab -batch`: measured 2026-08-18 on R2026a
+% Update 4 / Windows 11, lic=1 ver=1 class=0 file=0 while backgroundPool
+% itself starts fine with 16 workers (WP-30 postflight finding; the CI
+% skips this suite, so only the local gate could catch it). Calling the
+% function is the only probe that answers the actual question; the lazy
+% singleton it starts is used by the prefetch tests anyway.
+    ok = hasPCT();
+    if ~ok, return; end
+    try
+        backgroundPool;
+        ok = true;
+    catch
+        ok = false;
+    end
 end
 
 function [A, Sig] = stableVAR()
