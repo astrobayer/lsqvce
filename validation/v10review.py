@@ -239,6 +239,29 @@ check("T3b omitting B*y biases alpha2 by > 2x on an nl>0 system",
       al_wrong / al_right > 2.0,
       "confirms adjustVCEjoint.m:283 and adjustVCE.m sweepStreamLags residual")
 
+# --- WP-33 FIX (added 2026-08-18): joint projector via block identities ----
+# R_bar = Sigma^-1 - Sigma^-1 [A B] inv(N_joint) [A B]' Sigma^-1 realised
+# WITHOUT the joint inverse:  [A B] N^-1 [A B]' = Atil Sxx Atil' + B Nll^-1 B'
+# with Atil = A - B G, G = Nll^-1 Nlc, Sxx = inv(Ncc_red) -- the same Lc/Ll/G
+# blocks lsqvce.leverage uses. The kernel realises the two terms as
+# Rt (shared probe on Atil_bar, stochastic) and K = W^-1 W^-T B Ll^-T (EXACT).
+print("\n--- T3c/T3d: the WP-33 corrected joint projector -------------------------")
+G1 = np.linalg.solve(B.T @ B, B.T @ A)
+Atil = A - B @ G1
+Sxx1 = np.linalg.inv(Ncc1)
+hat_blocks = Atil @ Sxx1 @ Atil.T + B @ np.linalg.solve(B.T @ B, B.T)
+hat_joint = M @ np.linalg.solve(Nf, M.T)
+check("T3c block realisation == joint-inverse hat (no joint inverse formed)",
+      np.allclose(hat_blocks, hat_joint, atol=1e-9),
+      f"max|diff| = {np.max(np.abs(hat_blocks - hat_joint)):.2e}")
+# s_0 of the fixed kernel (Z->inf limit): n - tr(hat) = n - (nc + nl); and the
+# consistent pair (e_right, s0_full) is what the fixed drivers now form.
+s0_fix = n - np.trace(hat_blocks)
+al_fix = (e_right @ e_right) / s0_fix
+check("T3d fixed kernel: s_0 -> n-(nc+nl) and alpha2 -> 1 at truth",
+      abs(s0_fix - s0_full) < 1e-8 and abs(al_fix - 1) < 0.15,
+      f"s0 = {s0_fix:.6f} (n-u_s = {s0_full}), alpha2 = {al_fix:.4f}")
+
 # ---------------------------------------------------------------------------
 # T4  levinsonDurbin + armaACV transcriptions vs. ground truth
 # ---------------------------------------------------------------------------

@@ -209,7 +209,7 @@ order of work: 32 → 33 → 34 → 35 → 36 → 40 → 37 → 38 → 41 → 39
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
 | 32 | Fix `vce` 'hutchinson': redundancy, not trace (F-01) | — | DONE (2026-08-18, PR #2, merge e167cee; CI green both contexts after a setup-matlab cache-restore hang was resolved per the incident runbook, postflight green 515/515 on Windows R2026a; evidence + round note §9 WP-32) |
-| 33 | Joint paths: locals in residual + projector (F-03) | — | OPEN |
+| 33 | Joint paths: locals in residual + projector (F-03) | — | IN PROGRESS — 2026-08-18: fix + tests on branch `claude/wp-33` (round note in §9 WP-33); D8 loop pending: CI, postflight, PR |
 | 34 | Keyed arc identity in `adjustVCEjoint` (F-02) | — | OPEN |
 | 35 | `psdVCE` floor policy + negative sigma2 guard (F-04, F-05) | — | OPEN |
 | 36 | One probe generator, honest RNG contract (F-06) | — | OPEN |
@@ -2302,6 +2302,38 @@ Merge followed with both contexts green.
 > WITH nl > 0 (the accuracy test the suite lacks; tolerance from the probe
 > se); PSD recovery corr > 0.95 on a coloured synthetic with locals;
 > nl = 0 regression: results identical to the old path.
+
+**ROUND NOTE (2026-08-18, WP-33 round 1, model Claude Fable 5; branch
+`claude/wp-33`, riding housekeeping: WP-32 DONE flip + the setup-matlab
+cache-restore incident runbook).** THE ONE SHARED IMPLEMENTATION (rule 3):
+new package-private `+lsqvce/private/jointArcParts.m` — per arc
+AtilBar = W^-T(A - B G), Bbar = W^-T B, ebar = W^-T(l - A x - B y); both
+drivers call it. KERNEL: `redundancyLags` gains 'LocalBbar'/'LocalLl';
+with them Rbar = Sigma^-1 - Rt Rt' - K K', K = W^-1(W^-T B)Ll^-T — the
+EXACT local block (nl columns, same row-dot pattern as Rt), while the
+shared probe now covers the REDUCED AtilBar, i.e. the operator U actually
+factors; the block identity [A B]Njoint^-1[A B]' = Atil Sxx Atil' +
+B Nll^-1 B' is validated dense in v10review.py T3c (2e-17) and the fixed
+alpha2/s_0 in T3d. nl = 0 branch keeps the pre-fix expressions VERBATIM
+(bitwise). DRIVERS: adjustVCEjoint.sweepArcs and adjustVCE.sweepStreamLags
+recover y once per system and pass (Nll_r \ (nl_r - Nlc x), exactly as
+redundancy), build G and Ll = chol(Nll,'lower') once, and route every arc
+through jointArcParts; lagsPooledOverAxes threads the sliced local rows
+symmetrically; new error ids lsqvce:adjustVCEjoint:localNotPD /
+lsqvce:adjustVCE:localNotPD. TESTS (test_ellmer; no new suite files):
+dense joint-projector parity incl. the DISCRIMINATING s_0 = N-(nc+nl)
+(0.5 tol vs a 2.0 gap to the common-only N-nc); alpha2 ~ 1 at truth on
+white noise WITH nl>0, pieces formed exactly as the drivers form them,
+PLUS the pre-fix contrast alpha2Old > 1.5 asserted — the §6.1
+fail-on-old-code lever (construction sanity in Python: new 1.004, old
+2.14); bitwise nl = 0 regression (empty LocalBbar == no option, NO
+tolerance); driver-level flat-PSD check on the white jointCfg fixture
+with nl = 2 (leakage of the arc-parameter signal shows up as PSD
+structure). The spec's coloured-synthetic PSD-corr test is DEFERRED to
+the WP-33 round-2 note pending the postflight verdict on the four tests
+above (the white-fixture driver check covers the leakage mechanism; a
+coloured fixture needs a new synthetic and its runtime budget — decide
+with the user if round 1 lands green).
 
 ### WP-34 — Keyed arc identity in `adjustVCEjoint`
 

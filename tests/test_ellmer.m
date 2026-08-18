@@ -12,6 +12,12 @@ function tests = test_ellmer
 %
 %   Run with:  results = runtests('tests/test_ellmer.m')
 %
+%   Updated 2026-08-18 (CEST, UTC+02:00), WP-33: four tests for the locals-
+%   in-residual-and-projector fix (F-03) -- dense joint-projector parity,
+%   alpha2 ~ 1 at truth WITH locals (+ the pre-fix contrast, so the test
+%   fails on the old code), the bitwise nl = 0 regression, and the flat-PSD
+%   driver check. With assistance from Claude (Anthropic), model Claude
+%   Fable 5.
 %   Created 2026-07-18 (CEST, UTC+02:00) with assistance from
 %   Claude (Anthropic), model Claude Opus 4.8.
     tests = functiontests(localfunctions);
@@ -660,6 +666,117 @@ function cfg = jointCfg()
     cfg.collinear  = false;
     cfg.collinearEps = 1e-7;
     cfg.cov.pos = struct('type','diag','sigma',0.5);
+end
+
+%% =============================== WP-33: locals in residual + projector (F-03)
+function test_redundancyLags_local_block_matches_joint_inverse(tc)
+    % Kernel exactness (spec: R_bar = Sig^-1 - Sig^-1 [A B] Njoint^-1 [A B]'
+    % Sig^-1, realised with the leverage block identities, NO joint inverse).
+    % Probe-limit check against the dense joint hat; mirrors v10review.py T3c.
+    rng(33);
+    N = 24;  P = 3;  nl = 2;  Z = 4000;
+    [Sig, W] = spdToeplitz(N);
+    A = randn(N, P);  B = randn(N, nl);
+    Nll = B.'*B;  Nlc = B.'*A;
+    G   = Nll \ Nlc;
+    Atil = A - B*G;
+    Nred = Atil.'*Atil;                       % the reduced common normal
+    U    = chol((Nred+Nred.')/2);
+    sp   = lsqvce.sharedProbe(U, 'numProbes', Z, 'seed', 5);
+    Ll   = chol((Nll+Nll.')/2, 'lower');
+    r = lsqvce.redundancyLags(W.'\Atil, W, sp.UiZ, [], 3, ...
+            'LocalBbar', W.'\B, 'LocalLl', Ll, 'WantRbar', true);
+    % Reference: the JOINT projector with Njoint from the WHITENED designs
+    % (the accumulator whitens), Sig^-1 - Sig^-1-metric hat of [A B]:
+    Sinv = Sig \ eye(N);
+    Mw = [W.'\A, W.'\B];                     % whitened joint design
+    Nj = Mw.'*Mw;
+    RbarEx = Sinv - (W\Mw)*(Nj\(W\Mw).');
+    tolR = 6/sqrt(Z);                         % Hutchinson-limit tolerance
+    verifyEqual(tc, r.Rbar, RbarEx, 'AbsTol', tolR, ...
+        'Rbar must converge to the JOINT projector (locals absorbed)');
+    % s_0 discriminates the fix: N-(nc+nl) = 19 vs the common-only N-nc = 21.
+    verifyEqual(tc, r.s(1), N - (P + nl), 'AbsTol', 0.5, ...
+        's_0 must approach N - (nc + nl), not N - nc');
+end
+
+function test_joint_alpha2_unity_at_truth_with_locals(tc)
+    % THE accuracy assertion the suite lacked (F-03): on WHITE noise with
+    % nl > 0, at the joint least-squares solution, pooled Omega_0/s_0 must be
+    % ~1. The pieces are formed EXACTLY as the fixed drivers form them
+    % (y per system, Atil = A - B G, ebar = l - A x - B y). The pre-WP-33
+    % formation (raw Abar, ebar without B*y, common-only projector) measured
+    % alpha2 = 4.04 on this construction (v10review.py T3) -- asserted as the
+    % contrast so this test FAILS on the old code by construction.
+    rng(20260816);
+    nc = 4;  nl = 3;  nArc = 6;  m = 120;
+    x_true = randn(nc,1);  y_true = randn(nl,1);
+    As = cell(nArc,1);  Bs = cell(nArc,1);  ls = cell(nArc,1);
+    Ncc = zeros(nc);  Nll = zeros(nl);  Nlc = zeros(nl,nc);
+    ncv = zeros(nc,1);  nlv = zeros(nl,1);
+    for k = 1:nArc
+        As{k} = randn(m, nc);  Bs{k} = randn(m, nl);
+        ls{k} = As{k}*x_true + Bs{k}*y_true + randn(m,1);   % white, sigma = 1
+        Ncc = Ncc + As{k}.'*As{k};   Nll = Nll + Bs{k}.'*Bs{k};
+        Nlc = Nlc + Bs{k}.'*As{k};
+        ncv = ncv + As{k}.'*ls{k};   nlv = nlv + Bs{k}.'*ls{k};
+    end
+    Nred = Ncc - Nlc.'*(Nll\Nlc);
+    nred = ncv - Nlc.'*(Nll\nlv);
+    x = Nred \ nred;                         % the joint common solution
+    y = Nll \ (nlv - Nlc*x);                 % per-system local recovery
+    G  = Nll \ Nlc;
+    Ll = chol((Nll+Nll.')/2, 'lower');
+    U  = chol((Nred+Nred.')/2);
+    sp = lsqvce.sharedProbe(U, 'numProbes', 800, 'seed', 7);
+    W  = eye(m);                              % white noise
+    om0 = 0;  s0 = 0;  om0Old = 0;  s0Old = 0;
+    for k = 1:nArc
+        Atil = As{k} - Bs{k}*G;
+        eNew = ls{k} - As{k}*x - Bs{k}*y;
+        r = lsqvce.redundancyLags(Atil, W, sp.UiZ, eNew, 1, ...
+                'LocalBbar', Bs{k}, 'LocalLl', Ll);
+        om0 = om0 + r.omega(1);  s0 = s0 + r.s(1);
+        eOld = ls{k} - As{k}*x;               % the pre-fix residual
+        rOld = lsqvce.redundancyLags(As{k}, W, sp.UiZ, eOld, 1);
+        om0Old = om0Old + rOld.omega(1);  s0Old = s0Old + rOld.s(1);
+    end
+    alpha2    = om0    / s0;
+    alpha2Old = om0Old / s0Old;
+    % tolerance: probe se of s_0 plus the chi2 spread of Omega_0/dof
+    dof = nArc*m - (nc + nl);
+    tol = 3*sqrt(2/dof) + 3*(nc/sqrt(800))/dof + 0.02;
+    verifyEqual(tc, alpha2, 1, 'AbsTol', tol, ...
+        'alpha2 must be ~1 at truth on white noise WITH locals');
+    verifyTrue(tc, alpha2Old > 1.5, ...
+        'the pre-WP-33 formation must stay measurably biased (the contrast)');
+end
+
+function test_redundancyLags_nl0_path_bitwise_unchanged(tc)
+    % Spec regression: with NO local columns the new machinery must be a
+    % NO-OP -- bitwise: the nl = 0 branch keeps the pre-WP-33 expressions
+    % verbatim, and an explicit empty LocalBbar routes to that same branch.
+    [Abar, W, sp, ebar] = lagFixture(tc, 20, 3, 60);
+    a = lsqvce.redundancyLags(Abar, W, sp.UiZ, ebar, 5);
+    b = lsqvce.redundancyLags(Abar, W, sp.UiZ, ebar, 5, ...
+            'LocalBbar', zeros(20,0), 'LocalLl', []);
+    verifyEqual(tc, b.s,     a.s);            % NO tolerance: bitwise
+    verifyEqual(tc, b.omega, a.omega);
+end
+
+function test_adjustVCEjoint_flat_psd_on_white_noise_with_locals(tc)
+    % Driver-level accuracy (spec 1 at the adjustVCEjoint level): on the
+    % white (diag) fixture WITH nl = 2 locals the estimated PSD must stay
+    % FLAT -- no arc-parameter signal folded into the "noise". Pre-WP-33 the
+    % omitted B*y inflated the low lags (Omega_0 x3.8, T3).
+    cfg  = jointCfg();
+    r = lsqvce.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
+            'NumLags', 6, 'MaxIter', 2, 'Probes', 200, 'Seed', 11, ...
+            'Verbose', false);
+    S = r.Shat / median(r.Shat);
+    verifyTrue(tc, max(S)/min(S) < 3.0, ...
+        sprintf(['white truth => flat PSD: max/min = %.2f (arc-parameter ' ...
+                 'leakage shows up as structure)'], max(S)/min(S)));
 end
 
 function acc = jointAcc(cfg, model) %#ok<INUSD>
