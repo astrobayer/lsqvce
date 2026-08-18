@@ -1430,9 +1430,9 @@ HOSTED CI, CLAUDE-SIDE PROMPTING, transferable to other projects.**
 makes MATLAB on GitHub-hosted runners FREE (Route A; the batch-token
 route B and the runner bridge are OBSOLETE for this project). The earlier
 privacy requirement is withdrawn by the user; consequences are binding:
-measurement data and secrets NEVER enter the repo (already pinned), and a
-LICENSE choice is now an OPEN USER DECISION (pin the answer here; until
-then the repo is public with all rights reserved). (2) The work-package
+measurement data and secrets NEVER enter the repo (already pinned), and
+the LICENSE is **MIT** (USER DECISION, pinned 2026-08-18; `LICENSE` file
+at the root, (c) 2026 Matthias Weigelt). (2) The work-package
 prompt is given ON THE CLAUDE SIDE — in chat/Projects or via Cowork — NOT
 via GitHub triggers: no @claude action, no `claude.yml`, no issue
 template. The execution vehicle (per the author's PROVEN pipeline,
@@ -1558,8 +1558,8 @@ the full citations + open-access pointers, and the gitignored
 `references/local/` is the drop-in slot for repo-based sessions (the
 migration item's need — sessions without chat-project knowledge — is met
 without republication). The user may overrule with evidence of a CC
-licence. LICENSE for the repo itself: still the OPEN USER DECISION
-(public, all rights reserved until pinned). SETUP_GUIDE 4.1 aligned with
+licence. LICENSE for the repo itself: **MIT** (user decision
+2026-08-18, `LICENSE` committed in this round). SETUP_GUIDE 4.1 aligned with
 what actually ships. Postflight and PR: WAITING at the user's PC per the
 loop. CI evidence of this branch: next dated line below.
 
