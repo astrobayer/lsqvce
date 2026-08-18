@@ -184,7 +184,7 @@ suggestion except the temporal prior between days; adoption record: §3.8):
 | 27 | `neqExchange` — SINEX + GROOPS NEQ I/O | 2,8 | DONE (2026-08-16, user-confirmed; see reconciliation) |
 | 28 | Sketched diagnostics (randomised leverage) | 11,17 | DONE (2026-08-16, user-confirmed; see reconciliation) |
 | 29 | Metamorphic test suite | 18,19 | DONE (2026-08-16, user-confirmed; see reconciliation) |
-| 30 | Development workflow: public GitHub + hosted CI + cloud-session loop (D8) | — | IN PROGRESS — 2026-08-18: deliverables + LICENSE(MIT) on `claude/wp-30`; CI GREEN per commit; RED TEST passed; POSTFLIGHT GREEN via MCP bridge (Windows R2026a: 513/513, 0 incomplete) after TWO real findings fixed (exist()-probe false-negative under -batch in test guard AND PrefetchLoader → ONE probe lsqvce.util.hasBackgroundPool); evidence §5 WP-30. NEXT: PR (both worlds green), branch protection (user, Guide 4.4), user MERGE. DONE = merged to `main`, checks green, date + PR + hash |
+| 30 | Development workflow: public GitHub + hosted CI + cloud-session loop (D8) | — | IN PROGRESS — 2026-08-18: deliverables + LICENSE(MIT) on `claude/wp-30`; CI GREEN per commit; RED TEST passed; POSTFLIGHT GREEN via MCP bridge (Windows R2026a: 513/513, 0 incomplete) after TWO real findings fixed (exist()-probe false-negative under -batch in test guard AND PrefetchLoader → ONE probe lsqvce.util.hasBackgroundPool); evidence §5 WP-30. **PR #1 OPEN** (2026-08-18, both worlds green, postflight quoted in the body). WAITING on user: branch protection (Guide 4.4) + review + MERGE → then this row flips DONE (date + PR #1 + merge hash) |
 | 31 | GPU backend | 7,20 | GATED — open only on WP-20 evidence |
 
 Rules for the ledger: one row per WP; status is OPEN → IN PROGRESS → DONE
