@@ -110,6 +110,7 @@
       <tocitem target="html/lsqvce.util.log.html">lsqvce.util.log</tocitem>
       <tocitem target="html/lsqvce.util.verbosity.html">lsqvce.util.verbosity</tocitem>
       <tocitem target="html/lsqvce.util.showExport.html">lsqvce.util.showExport</tocitem>
+      <tocitem target="html/lsqvce.util.hasBackgroundPool.html">lsqvce.util.hasBackgroundPool</tocitem>
     </tocitem>
   </tocitem>
 </toc>

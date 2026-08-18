@@ -184,6 +184,8 @@
 %                    a missing field, used across the option plumbing)
 %   util.mergeStruct - Overlay the fields of one struct onto another (how the
 %                    fluent configurators merge Name/Value into the opt structs)
+%   util.hasBackgroundPool - True when backgroundPool can actually START
+%                    (probe-by-USE; the ONE pool-availability decision)
 %   Combine        - multi-dataset combination
 %   BatchIndex     - batch bookkeeping
 %   synthLoader    - synthetic ground truth and the LOADER TEMPLATE

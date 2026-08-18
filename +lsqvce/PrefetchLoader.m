@@ -49,6 +49,12 @@ classdef PrefetchLoader < handle
 %
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
+%   Updated 2026-08-18 (CEST, UTC+02:00): pool availability now probed by
+%   the ONE probe lsqvce.util.hasBackgroundPool (probe-by-USE; the private
+%   exist()-based poolOK was false-negative under `matlab -batch` and made
+%   prefetch silently degrade to passthrough in batch runs - WP-30
+%   postflight finding). With assistance from Claude (Anthropic), model
+%   Claude Fable 5.
 
     properties (SetAccess = private)
         dataFcn                 % the wrapped loader
@@ -84,14 +90,14 @@ classdef PrefetchLoader < handle
             o.dayList = dayList(:).';
 
             if islogical(en)
-                o.enabled = en && o.poolOK();
+                o.enabled = en && lsqvce.util.hasBackgroundPool();
                 if en && ~o.enabled
                     lsqvce.util.log.warn('lsqvce:prefetch:noPool', ...
                         ['Prefetch requested but no backgroundPool is ' ...
                          'available; running as a passthrough.']);
                 end
             else
-                o.enabled = o.poolOK();
+                o.enabled = lsqvce.util.hasBackgroundPool();
             end
         end
 
@@ -140,20 +146,6 @@ classdef PrefetchLoader < handle
     end
 
     methods (Access = private)
-        function tf = poolOK(~)
-            % Availability of the background pool. NOTE: do NOT test
-            % exist('backgroundPool','file') == 2 -- backgroundPool ships as a
-            % packaged/built-in function, so exist() returns 5 (built-in) or 0,
-            % never 2, and the ==2 form wrongly reports "unavailable" even with
-            % the Parallel Computing Toolbox installed. Check the license + ver,
-            % then that backgroundPool resolves at all (any nonzero exist code),
-            % preferring the class check which is packaging-independent.
-            tf = license('test', 'Distrib_Computing_Toolbox') ...
-                 && ~isempty(ver('parallel')) ...
-                 && ( exist('parallel.pool.BackgroundPool', 'class') ~= 0 ...
-                      || exist('backgroundPool', 'file') ~= 0 );
-        end
-
         function kick(o, dNow, uo)
         %KICK  Submit the future for the day AFTER dNow, unless already done.
             k = find(o.dayList == dNow, 1);
