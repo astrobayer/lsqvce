@@ -12,6 +12,11 @@ function tests = test_ellmer
 %
 %   Run with:  results = runtests('tests/test_ellmer.m')
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-34: two tests + fixtures for
+%   the keyed arc identity in adjustVCEjoint (F-02) -- induced mid-run
+%   non-PD skip with keyed alignment/kept-factor/skip-report assertions,
+%   and the vanished-enumeration arcMismatch error. With assistance from
+%   Claude (Anthropic), model Claude Fable 5.
 %   Updated 2026-08-18 (CEST, UTC+02:00), WP-33: four tests for the locals-
 %   in-residual-and-projector fix (F-03) -- dense joint-projector parity,
 %   alpha2 ~ 1 at truth WITH locals (+ the pre-fix contrast, so the test
@@ -820,6 +825,112 @@ function test_adjustVCEjoint_psd_recovery_coloured_with_locals(tc)
     verifyGreaterThan(tc, cc(1,2), 0.85, ...
         sprintf('coloured-chain accuracy floor: corr = %.3f (need > 0.85)', ...
                 cc(1,2)));
+end
+
+%% ========================== WP-34: keyed arc identity in adjustVCEjoint (F-02)
+function test_joint_keyed_skip_keeps_factors_aligned(tc)
+    % Spec test (a)+(b): induce a mid-run skip (one arc's covariance goes
+    % non-PD on pass 2) and verify the factors stay ALIGNED BY KEY. Exact
+    % assertions: the key sets are pinned and identical across runs; the
+    % skip is reported as {2, key, 'nonPD'}; the SKIPPED arc's factor is
+    % byte-identical to its own pass-1 value (kept, per the WP contract).
+    % The OTHER arcs are compared with tolerance, NOT byte-identically:
+    % arcVarianceFactors normalises by gammaBar (eqs. 6.5.29-30), a mean
+    % over the PRESENT arcs, so removing one column renormalises every
+    % factor by construction -- byte identity across a changed arc set
+    % would require decoupling the estimator (deviation pinned in the
+    % HANDOVER round note). On the pre-WP-34 code these assertions ERROR
+    % (no out.arcKeys/out.skips) and the alignment itself is the F-02
+    % shift -- the §6.1 lever.
+    cfg = jointCfg();
+    badArc = 2;                          % skipped on pass 2 in run B
+    w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
+    runA1 = lsqvce.adjustVCEjoint(@(m) jointAccPDToggle(cfg, m, [], badArc), ...
+                'NumLags', 6, 'MaxIter', 1, 'Probes', 150, 'Seed', 5, ...
+                'Verbose', false);
+    runA  = lsqvce.adjustVCEjoint(@(m) jointAccPDToggle(cfg, m, [], badArc), ...
+                'NumLags', 6, 'MaxIter', 2, 'Probes', 150, 'Seed', 5, ...
+                'Verbose', false);
+    runB  = lsqvce.adjustVCEjoint(@(m) jointAccPDToggle(cfg, m, 2, badArc), ...
+                'NumLags', 6, 'MaxIter', 2, 'Probes', 150, 'Seed', 5, ...
+                'Verbose', false);
+
+    verifyEqual(tc, runB.arcKeys, runA.arcKeys, ...
+        'the pinned arc identity must not depend on skips');
+    kSkip = find(contains(runA.arcKeys, sprintf('_a%d', badArc)) & ...
+                 contains(runA.arcKeys, '_d1_'));
+    verifyNumElements(tc, kSkip, 1);
+    verifyEqual(tc, size(runB.skips, 1), 1, 'exactly one skip reported');
+    verifyEqual(tc, runB.skips{1,1}, 2,        'skip pass');
+    verifyEqual(tc, runB.skips{1,2}, runA.arcKeys{kSkip}, 'skip key');
+    verifyEqual(tc, runB.skips{1,3}, 'nonPD',  'skip reason');
+    verifyEmpty(tc, runA.skips, 'the control run must not skip');
+    % the skipped arc KEEPS its pass-1 factor -- byte-identical:
+    verifyEqual(tc, runB.sigma2(kSkip), runA1.sigma2(kSkip));
+    % the others: same keys, values within the gammaBar renormalisation
+    others = setdiff(1:numel(runA.arcKeys), kSkip);
+    verifyEqual(tc, runB.sigma2(others), runA.sigma2(others), ...
+        'RelTol', 0.15, 'non-skipped factors track the no-skip run');
+end
+
+function test_joint_arc_mismatch_raises(tc)
+    % Spec test (c): an arc that VANISHES FROM THE ENUMERATION on pass 2 is
+    % an identity error, not a skip -- arcMismatch, mirroring vce's
+    % groupMismatch contract ("the loader must be deterministic").
+    cfg = jointCfg();
+    w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
+    verifyError(tc, @() lsqvce.adjustVCEjoint( ...
+            @(m) jointAccDropArc(cfg, m, 2), ...
+            'NumLags', 6, 'MaxIter', 2, 'Probes', 150, 'Seed', 5, ...
+            'Verbose', false), ...
+        'lsqvce:adjustVCEjoint:arcMismatch');
+end
+
+function acc = jointAccPDToggle(cfg, model, badIter, badArc)
+    % jointAcc with a per-arc covariance override: identity normally, but
+    % NON-PD for arc badArc while model.iter == badIter (the WP-34 mid-run
+    % skip trigger; the covariance model updating between passes is exactly
+    % the realistic F-02 scenario). [] badIter = never (the control run).
+    it = 0;
+    if ~isempty(model) && isfield(model, 'iter'), it = model.iter; end
+    bad = ~isempty(badIter) && it == badIter;
+    fcn = @(tb, o) pdToggleCov(numel(tb), o, bad, badArc);
+    uo  = struct('covOverride', struct('pos', ...
+                 struct('type','custom', 'fcn', fcn, 'sigma', 1)));
+    cfgO = cfg;  cfgO.override = uo;
+    acc = jointAcc(cfgO, model);
+end
+
+function Sig = pdToggleCov(m, o, bad, badArc)
+    Sig = eye(m);
+    if bad && isfield(o, 'arc') && isequal(o.arc, badArc)
+        Sig = -eye(m);                   % decisively non-PD, chol fails
+    end
+end
+
+function acc = jointAccDropArc(cfg, model, dropIter)
+    % jointAcc whose META drops the last arc from pass dropIter on -- the
+    % enumeration itself changes, which must raise arcMismatch. Mirrors
+    % jointAcc (addSystem only; the driver streams the data itself).
+    it = 0;
+    if ~isempty(model) && isfield(model, 'iter'), it = model.iter; end
+    drop = it >= dropIter;
+    acc = lsqvce.BlockAccumulator(cfg.nc, 'KeepLocal', true, 'Verbose', false);
+    for s = cfg.sats
+        acc.addSystem(s, cfg.nl, ...
+            @(d, ot, a, uo2) dropArcLoader(cfg, s, d, ot, a, uo2, drop), 1);
+    end
+end
+
+function out = dropArcLoader(cfg, s, d, ot, a, uo2, drop)
+    % synthLoader pass-through; in META mode (first loader argument is the
+    % literal 'meta') the last arc is removed from the enumeration when
+    % `drop` is armed -- an identity change, not a skip.
+    out = lsqvce.synthLoader(cfg, s, d, ot, a, uo2);
+    if drop && (ischar(d) || isstring(d)) && strcmp(char(d), 'meta') ...
+            && isstruct(out) && isfield(out, 'arcs')
+        out.arcs{1} = out.arcs{1}(1:end-1);
+    end
 end
 
 function cfg = jointCfgColoured()

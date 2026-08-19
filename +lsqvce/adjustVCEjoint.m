@@ -77,7 +77,14 @@ function out = adjustVCEjoint(accFcn, varargin)
 %     out  1x1 struct
 %       .C         nLag x 1   the converged covariance function
 %       .Shat      nLag x 1   the converged PSD amplitudes
-%       .sigma2    M x 1      the converged arc variance factors
+%       .sigma2    M x 1      the converged arc variance factors, ALIGNED TO
+%                             .arcKeys (the pass-1 enumeration order; WP-34)
+%       .arcKeys   M x 1 cell arc keys s<sys>_<obsType>_d<day>_a<arc> pinned
+%                             on pass 1 (LSQVCE.REDUNDANCY's 'arc' format) --
+%                             the ONE identity .sigma2 and Sigma2_0 align to
+%       .skips     S x 3 cell {pass, key, reason} for every arc skipped in
+%                             any pass ('gap' | 'nonPD'); a skipped arc KEEPS
+%                             its previous factor
 %       .acc       1x1        the final accumulator
 %       .sol       1x1        the final solution struct
 %       .converged 1x1 logical whether max|alpha2-1| fell below Tol
@@ -104,12 +111,25 @@ function out = adjustVCEjoint(accFcn, varargin)
 %
 %   Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Opus 4.8.
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-34 (fixes F-02, CRITICAL): arc
+%   factors are matched by KEY (s<sys>_<obsType>_d<day>_a<arc>, pinned on
+%   the pass-1 enumeration), never by position; skipped arcs keep their
+%   previous factor and are counted in out.skips; a changed key set raises
+%   arcMismatch. New outputs .arcKeys/.skips; Sigma2_0 aligns to .arcKeys.
+%   With assistance from Claude (Anthropic), model Claude Fable 5.
 %   Updated 2026-08-18 (CEST, UTC+02:00), WP-33 (fixes F-03, CRITICAL): step
 %   7 subtracts the per-system local fit B*y (recovered once per pass as
 %   redundancy does) and the per-lag projector absorbs the local block
 %   exactly -- shared implementation jointArcParts + redundancyLags
 %   'LocalBbar'/'LocalLl'; evidence v10review.py T3. With assistance from
 %   Claude (Anthropic), model Claude Fable 5.
+%     lsqvce:adjustVCEjoint:arcMismatch  the arc KEY SET changed between
+%                                        passes (the loader must be
+%                                        deterministic; a covariance failure
+%                                        is a SKIP, a vanished enumeration
+%                                        entry is an identity error) (WP-34)
+%     lsqvce:adjustVCEjoint:badSigma2_0  Sigma2_0 does not match the pass-1
+%                                        arc count (align to out.arcKeys)
 
     p = inputParser;  p.FunctionName = 'lsqvce.adjustVCEjoint';
     p.addParameter('NumLags' , 60, @(v) isscalar(v) && v >= 2 && v == floor(v));
@@ -140,9 +160,11 @@ function out = adjustVCEjoint(accFcn, varargin)
     end
     sigma2 = o.Sigma2_0(:);              % may be empty; sized on first sweep
 
-    hist = struct('maxDev', [], 'Shat', []);
+    hist = struct('maxDev', [], 'Shat', [], 'skips', {cell(0,3)});
     converged = false;
     accF = []; solF = []; Shat = [];
+    pinnedKeys = {};                     % WP-34: pass-1 arc identity
+    s2Map = [];                          % keyed factors; built on pass 1
 
     for it = 1:o.MaxIter
         % ---- steps 1-5: build under the current model, accumulate, solve --
@@ -164,22 +186,68 @@ function out = adjustVCEjoint(accFcn, varargin)
         sp = lsqvce.sharedProbe(U, 'numProbes', o.Probes, 'seed', o.Seed);
 
         % ---- steps 7-8: re-stream arcs, per-lag Omega and s ---------------
-        [omegaT, sT, nArc] = sweepArcs(acc, sol, sp.UiZ, nLag, C, sigma2, v);
+        % WP-34 (fixes F-02): arcs are KEYED, the factor map is pinned on the
+        % PASS-1 ENUMERATION, and a skipped arc keeps its previous factor --
+        % one skip can no longer shift every later arc's factor by position.
+        [omegaT, sT, keys, keysAll, skips] = ...
+            sweepArcs(acc, sol, sp.UiZ, nLag, C, s2Map, v);
+        nArc = numel(keys);
         if nArc == 0
             error('lsqvce:adjustVCEjoint:noArcs', ...
                   'No arcs were enumerated -- nothing to estimate from.');
         end
-        if isempty(sigma2) || numel(sigma2) ~= nArc
-            sigma2 = ones(nArc, 1);       % eq. 6.5.62 default, now that M known
+        if isempty(pinnedKeys)
+            % Pass 1: pin the arc identity on the ENUMERATION (skipped arcs
+            % included -- a pass-1 skip keeps the default factor 1).
+            pinnedKeys = keysAll;
+            s2Map = containers.Map('KeyType','char', 'ValueType','double');
+            if isempty(o.Sigma2_0)
+                for kk = 1:numel(pinnedKeys), s2Map(pinnedKeys{kk}) = 1; end
+            else
+                if numel(o.Sigma2_0) ~= numel(pinnedKeys)
+                    error('lsqvce:adjustVCEjoint:badSigma2_0', ...
+                        ['Sigma2_0 has %d entries but pass 1 enumerated %d ' ...
+                         'arcs (see out.arcKeys for the pinned order).'], ...
+                         numel(o.Sigma2_0), numel(pinnedKeys));
+                end
+                for kk = 1:numel(pinnedKeys)
+                    s2Map(pinnedKeys{kk}) = o.Sigma2_0(kk);
+                end
+            end
+        elseif ~isequal(sort(keysAll), sort(pinnedKeys))
+            missing = setdiff(pinnedKeys, keysAll);
+            newk    = setdiff(keysAll, pinnedKeys);
+            error('lsqvce:adjustVCEjoint:arcMismatch', ...
+                ['The arc key set changed between passes -- the loader must ' ...
+                 'be deterministic across passes (an arc that merely fails ' ...
+                 'its covariance is SKIPPED and kept, but one that vanishes ' ...
+                 'from the enumeration is an identity error). Missing: %s. ' ...
+                 'New: %s.'], ...
+                strjoin([missing, {'(none)'}], ', '), ...
+                strjoin([newk,    {'(none)'}], ', '));
+        end
+        if ~isempty(skips)
+            for kk = 1:size(skips, 1)
+                hist.skips(end+1, :) = {it, skips{kk,1}, skips{kk,2}}; %#ok<AGROW>
+            end
+            if v
+                lsqvce.util.log.msg(['  [joint %2d] SKIPPED %d arc(s) this ' ...
+                    'pass (factors kept): %s\n'], it, size(skips,1), ...
+                    strjoin(skips(:,1).', ', '));
+            end
         end
 
         % ---- step 9: co-update the PSD AND the arc factors ----------------
+        s2Cols = cellfun(@(k) s2Map(k), keys(:));    % survived, keyed lookup
         pv = lsqvce.psdVCE(omegaT, sT, C, 'Norm', o.Norm);
-        av = lsqvce.arcVarianceFactors(omegaT, sT, sigma2, ...
+        av = lsqvce.arcVarianceFactors(omegaT, sT, s2Cols, ...
                                        'Norm', o.Norm, 'MeanType', o.MeanType);
-        Shat   = pv.Shat;
-        C      = pv.Cnew;
-        sigma2 = av.sigma2;
+        Shat = pv.Shat;
+        C    = pv.Cnew;
+        for kk = 1:nArc
+            s2Map(keys{kk}) = av.sigma2(kk);         % keyed write-back
+        end
+        sigma2 = cellfun(@(k) s2Map(k), pinnedKeys(:));   % pinned order
 
         hist.maxDev(it,1)  = pv.maxDev;              %#ok<AGROW>
         hist.Shat(it,:)    = Shat(:).';              %#ok<AGROW>
@@ -207,19 +275,34 @@ function out = adjustVCEjoint(accFcn, varargin)
 
     out = struct('C', C, 'Shat', Shat, 'sigma2', sigma2, 'acc', accF, ...
                  'sol', solF, 'converged', converged, 'nIter', numel(hist.maxDev), ...
-                 'history', hist);
+                 'history', hist, ...
+                 'arcKeys', {pinnedKeys(:)}, ...
+                 'skips', {hist.skips});
 end
 
 %==========================================================================
-function [omegaT, sT, nArc] = sweepArcs(acc, sol, UiZ, nLag, C, sigma2, v)
+function [omegaT, sT, keys, keysAll, skips] = sweepArcs(acc, sol, UiZ, nLag, C, s2Map, v)
 %SWEEPARCS  Steps 7-8: re-stream every arc, returning the WEIGHTED per-lag
 %   temporal vectors Omega^m_n and s^m_n (eqs. 6.5.22-6.5.23), one COLUMN per
 %   arc. Mirrors the arc enumeration used by LSQVCE.REDUNDANCY and
 %   LSQVCE.STREAMCONTRIBUTION, so grouping and whitening stay consistent.
+%   WP-34 (fixes F-02): every arc is KEYED s<sys>_<obsType>_d<day>_a<arc>
+%   (LSQVCE.REDUNDANCY's 'arc' key format, verbatim). OUTPUTS:
+%     keys     1 x M   cell  keys of the arcs that produced columns, ALIGNED
+%                            to the columns of omegaT/sT
+%     keysAll  1 x Ma  cell  keys of every ENUMERATED arc (the identity the
+%                            caller pins on pass 1)
+%     skips    S x 2   cell  {key, reason} for every arc skipped THIS pass
+%   The arc factor is looked up BY KEY in s2Map (containers.Map; missing or
+%   empty map -> 1), never by position: one skip can no longer shift every
+%   later arc's factor.
     ids    = acc.systemIDs();
     x      = sol.x(:);
     omegaT = [];
     sT     = [];
+    keys   = {};
+    keysAll = {};
+    skips  = cell(0, 2);
     nArc   = 0;
 
     for k = 1:numel(ids)
@@ -248,14 +331,25 @@ function [omegaT, sT, nArc] = sweepArcs(acc, sol, UiZ, nLag, C, sigma2, v)
             for ot = 1:numel(meta.obsTypes)
                 obsType = meta.obsTypes{ot};
                 for a = meta.arcs{ot}(:).'
-                    [om, sn] = oneArc(st, obsType, a, d, uo, UiZ, nLag, x, ...
-                                      ySys, Gsys, LlS);
-                    if isempty(om), continue, end
+                    key = sprintf('s%s_%s_d%s_a%s', string(st.sysID), ...
+                                  string(obsType), string(d), string(a));
+                    keysAll{end+1} = key;                    %#ok<AGROW>
+                    [om, sn, why] = oneArc(st, obsType, a, d, uo, UiZ, ...
+                                           nLag, x, ySys, Gsys, LlS);
+                    if isempty(om)
+                        skips(end+1, :) = {key, why};        %#ok<AGROW>
+                        continue
+                    end
                     nArc = nArc + 1;
-                    % weight by the CURRENT arc factor and lag covariance
-                    if nArc <= numel(sigma2), s2 = sigma2(nArc); else, s2 = 1; end
-                    omegaT(:, nArc) = s2 * C .* om;   %#ok<AGROW>
-                    sT(:, nArc)     = s2 * C .* sn;   %#ok<AGROW>
+                    % weight by THIS ARC'S factor (keyed, F-02) and lag cov
+                    if ~isempty(s2Map) && isKey(s2Map, key)
+                        s2 = s2Map(key);
+                    else
+                        s2 = 1;                              % pass 1 default
+                    end
+                    keys{end+1}     = key;                   %#ok<AGROW>
+                    omegaT(:, nArc) = s2 * C .* om;          %#ok<AGROW>
+                    sT(:, nArc)     = s2 * C .* sn;          %#ok<AGROW>
                 end
             end
         end
@@ -266,9 +360,11 @@ function [omegaT, sT, nArc] = sweepArcs(acc, sol, UiZ, nLag, C, sigma2, v)
 end
 
 %==========================================================================
-function [om, sn] = oneArc(st, obsType, arc, day, uo, UiZ, nLag, x, ySys, Gsys, LlS)
+function [om, sn, why] = oneArc(st, obsType, arc, day, uo, UiZ, nLag, x, ySys, Gsys, LlS)
 %ONEARC  Decorrelate one arc, form its residual, and return the per-lag Omega
-%   and s from LSQVCE.REDUNDANCYLAGS. Returns [] for a data gap.
+%   and s from LSQVCE.REDUNDANCYLAGS. WP-34: a skipped arc REPORTS why --
+%   `why` is '' on success, 'gap' (no data) or 'nonPD' (covariance not
+%   positive definite this pass); silence was finding F-02's accomplice.
 %   WP-33: ySys/Gsys/LlS are the system's local solution, Schur factor and
 %   local Cholesky (computed once per pass by sweepArcs); the residual is
 %   ebar = W^-T(l - A x - B y) and the projector absorbs the local block
@@ -276,9 +372,10 @@ function [om, sn] = oneArc(st, obsType, arc, day, uo, UiZ, nLag, x, ySys, Gsys, 
     uo.obsType = obsType;
     uo.day     = day;
     uo.arc     = arc;
+    why = '';
     a = st.dataFcn(day, obsType, arc, uo);
     if isempty(a) || ~isfield(a, 'l') || isempty(a.l)
-        om = [];  sn = [];  return
+        om = [];  sn = [];  why = 'gap';  return
     end
 
     A = a.A;  l = a.l(:);
@@ -292,7 +389,7 @@ function [om, sn] = oneArc(st, obsType, arc, day, uo, UiZ, nLag, x, ySys, Gsys, 
         if isvector(Sig), Sig = diag(Sig(:)); end
         [W, pd] = chol((Sig + Sig.')/2);
         if pd > 0
-            om = [];  sn = [];  return       % non-PD arc: skip rather than fail
+            om = [];  sn = [];  why = 'nonPD';  return   % skipped, REPORTED
         end
     else
         % A Wfcn-only loader hands back a whitening OPERATOR, not the explicit

@@ -211,8 +211,8 @@ order of work: 32 → 33 → 34 → 35 → 36 → 40 → 37 → 38 → 41 → 39
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
 | 32 | Fix `vce` 'hutchinson': redundancy, not trace (F-01) | — | DONE (2026-08-18, PR #2, merge e167cee; CI green both contexts after a setup-matlab cache-restore hang was resolved per the incident runbook, postflight green 515/515 on Windows R2026a; evidence + round note §9 WP-32) |
-| 33 | Joint paths: locals in residual + projector (F-03) | — | IN PROGRESS — round 1 MERGED (PR #3, 7d7c14c). Round 2 on `claude/wp-33-r2`: after r2a–r2f (six pinned lessons incl. finding F-15, alternation bistability → WP-40) the coloured test stands as an ACCURACY FLOOR corr > 0.85, CI GREEN (2098968, 489/489); **PR #4 ready** — OPEN USER DECISIONS in the PR: (a) veto on the 0.85 floor vs the spec's measured-unattainable 0.95, (b) F-15 scope on WP-40. POSTFLIGHT DEBT (bridge away). DONE = merged |
-| 34 | Keyed arc identity in `adjustVCEjoint` (F-02) | — | OPEN |
+| 33 | Joint paths: locals in residual + projector (F-03) | — | DONE (2026-08-19: round 1 PR #3 merge 7d7c14c, round 2 PR #4 merge 24cfe6c; CI green 489/489; user approved the 0.85 accuracy floor + F-15→WP-40 scope by merging; postflight: round 1 green pre-outage, round 2 = D.4 DEBT until the bridge returns; six r2 lessons + F-15 pinned in §9 WP-33) |
+| 34 | Keyed arc identity in `adjustVCEjoint` (F-02) | — | IN PROGRESS — 2026-08-19: fix + tests on `claude/wp-34` (round note §9 WP-34); draft-PR loop; POSTFLIGHT DEBT (bridge away) |
 | 35 | `psdVCE` floor policy + negative sigma2 guard (F-04, F-05) | — | OPEN |
 | 36 | One probe generator, honest RNG contract (F-06) | — | OPEN |
 | 37 | `redundancyLags` without dense W^-1 + hot-loop tolls (F-09) | — | OPEN |
@@ -2511,6 +2511,37 @@ LSQVCE_CI; the corr value prints only on failure — the floor held).**
 > covariance non-PD on pass 2) and verify (a) the other arcs' factors are
 > byte-identical to the no-skip run, (b) the skip is reported; plus the
 > mismatch error test.
+
+**ROUND NOTE (2026-08-19, WP-34 round 1, model Claude Fable 5; branch
+`claude/wp-34`, riding the WP-33 DONE flip).** IMPLEMENTED in
+adjustVCEjoint only: every enumerated arc gets the key
+s<sys>_<obsType>_d<day>_a<arc> (redundancy's 'arc' keyFcn format,
+verbatim); the factor store is a containers.Map PINNED on the PASS-1
+ENUMERATION (skipped-on-pass-1 arcs included, default 1; Sigma2_0 aligns
+to that order, out.arcKeys exposes it); lookups and write-backs are BY
+KEY — a skip cannot shift later arcs; oneArc now RETURNS its skip reason
+('gap'|'nonPD') and sweepArcs records {key, reason}; a key set that
+changes between passes raises lsqvce:adjustVCEjoint:arcMismatch
+(vanished-from-enumeration = identity error, covariance failure = kept
+skip); skips accumulate in hist.skips and out.skips with the pass
+number; verbose prints a per-pass skip summary. New outputs
+.arcKeys/.skips; errors arcMismatch/badSigma2_0. TESTS (test_ellmer):
+induced non-PD on pass 2 via a covModel 'custom' override closed over
+model.iter (the realistic F-02 trigger — the covariance model updating
+mid-run); assertions: pinned keys equal across runs, skip reported as
+{2, key, 'nonPD'}, the SKIPPED arc's factor BYTE-IDENTICAL to its own
+pass-1 value (a MaxIter-1 control run), others RelTol 0.15 against the
+no-skip run; plus the arcMismatch error test (meta drops the last arc
+from pass 2). DEVIATION, pinned with motivation: the spec's "other arcs
+byte-identical to the no-skip run" is unattainable by construction —
+arcVarianceFactors normalises every factor by gammaBar (eqs. 6.5.29-30),
+a mean over the arcs PRESENT, so removing one column renormalises all
+factors; byte identity would require decoupling the estimator. The
+byte-level guarantee is therefore placed where it truly holds (the kept
+factor of the skipped arc), the alignment guarantee on the keys, and the
+tolerance comparison (0.15) bounds the gammaBar renormalisation. §6.1:
+both tests ERROR on the pre-fix code (no arcKeys/skips outputs) and the
+alignment contract did not exist.
 
 ### WP-35 — Amplitude and factor sanity: psdVCE floor policy, negative sigma2
 
