@@ -137,12 +137,16 @@ end
 
 %% ============================================ input validation: accumulator
 function testAccumulatorRejectsBadConstruction(tc)
-    tc.verifyError(@() lsqvce.BlockAccumulator(0),  'MATLAB:expectedPositive');
-    tc.verifyError(@() lsqvce.BlockAccumulator(-3), 'MATLAB:expectedPositive');
+    % WP-39 c2: the ctor's scalar constraint and enum checks moved into
+    % the typed arguments signature -- expected ids follow the migration
+    % (the b1-r3 rule); the CondWarn<=CondAbort cross-check stays a body
+    % check with its lsqvce: id.
+    tc.verifyError(@() lsqvce.BlockAccumulator(0),  'MATLAB:validators:mustBePositive');
+    tc.verifyError(@() lsqvce.BlockAccumulator(-3), 'MATLAB:validators:mustBePositive');
     tc.verifyError(@() lsqvce.BlockAccumulator(5, 'Backend','bogus'), ...
-                   'MATLAB:InputParser:ArgumentFailedValidation');
+                   'MATLAB:validators:mustBeMember');
     tc.verifyError(@() lsqvce.BlockAccumulator(5, 'Reg','bogus'), ...
-                   'MATLAB:InputParser:ArgumentFailedValidation');
+                   'MATLAB:validators:mustBeMember');
     tc.verifyError(@() lsqvce.BlockAccumulator(5, 'CondWarn',1e15, 'CondAbort',1e10), ...
                    'lsqvce:accum:badThresholds');
 end

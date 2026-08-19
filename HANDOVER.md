@@ -2943,7 +2943,19 @@ the isa contract check stays in the body with its documented lsqvce: id
 mustBeMember levers (BlockAccumulator Backend, adjustVCE VceMode), a
 typed-constraint check, and BOTH legs of the Enable contract. DOCS:
 five pages regenerated, help casing swept + stamps, the release note
-declares the WP-39 rollout COMPLETE. **With c2 green, WP-39 closes --
+declares the WP-39 rollout COMPLETE.
+**c2 round 2 (2026-08-19): two standing contract tests moved with the
+migration** (the b1-r3 rule's mirror, both caught by CI as designed):
+test_ellmer's VceMode-rejection now expects mustBeMember (was the
+parser's ArgumentFailedValidation), and test_reliability's
+bad-construction test moves ALL FOUR preempted expectations --
+nc<=0 twice (expectedPositive -> validators:mustBePositive; the old
+validateattributes id) and the two bogus-enum checks
+(ArgumentFailedValidation -> validators:mustBeMember). The
+CondWarn<=CondAbort cross-check keeps its lsqvce:accum:badThresholds
+body id, green. Also this round: the ctor's dead narginchk(2,inf)
+deleted (the arguments block enforces arity; missing positionals =
+MATLAB:minrhs; rule 8). **With c2 green, WP-39 closes --
 and with it the R2 track (F-01..F-15, every finding addressed or
 formally dispositioned).** Remaining after R2: the self-hosted runner
 migration (settles ALL postflight debts on its first green full run)
