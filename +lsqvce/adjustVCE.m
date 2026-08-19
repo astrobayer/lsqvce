@@ -290,7 +290,9 @@ classdef adjustVCE < handle
             opt.ShowSeconds (1,1) double = 0
             opt.ExportDir (1,1) string = ""
         end
-            narginchk(2, inf);
+            % WP-39 c2: the old narginchk(2, inf) is dead -- the arguments
+            % block enforces the arity first (missing positionals surface
+            % MATLAB:minrhs) -- and is deleted (rule 8).
             obj.nc      = lsqvce.resolveNc(systems);
             obj.systems = systems;
             obj.days    = days;
