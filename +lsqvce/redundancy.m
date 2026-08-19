@@ -100,11 +100,17 @@ function red = redundancy(acc, sol, varargin)
 %     end
 %
 %   ERRORS
-%     lsqvce:redundancy:badGroupBy  the grouping key is not a known name or handle
+%     lsqvce:makeKeyFcn:badGroupBy  the grouping key is not a known name or
+%                   handle (WP-38: the one shared key resolver)
 %     lsqvce:redundancy:noStore     nothing was retained; re-run with 'store','all'
 %
 %   See also LSQVCE.LEVERAGE, LSQVCE.VCE, LSQVCE.OUTLIERS, LSQVCE.RESIDUALS
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-38 (fixes F-08): the key
+%   presets and the batch-and-whiten skeleton live in the ONE private
+%   makeKeyFcn / arcBatchWhiten (byte-identical numerics; the GroupBy
+%   error id is now lsqvce:makeKeyFcn:badGroupBy). With assistance from
+%   Claude (Anthropic), model Claude Fable 5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-37: the arc-task enumeration
 %   caches the meta calls and PREALLOCATES the task array (the old
 %   tasks(end+1) growth copied O(nTask^2)). With assistance from Claude
@@ -440,68 +446,22 @@ function P = combinePartials(P, Q)
 end
 
 %==========================================================================
-function f = makeKeyFcn(g)
-%MAKEKEYFCN  Resolve a GroupBy spec into a key function f(sat,obsType,arc,day).
-%   INPUT  g  char | function_handle   a preset name ('arc' | 'obsType' |
-%             'system' | 'day') or a custom @(sat,obsType,arc,day)->char handle.
-%   OUTPUT f  1x1 function_handle       @(sat,obsType,arc,day) -> group key char
-%            (a handle is passed through unchanged; an unknown name errors).
-    if isa(g, 'function_handle')
-        f = g;  return
-    end
-    switch lower(g)
-        case 'arc',     f = @(s,ot,a,d) sprintf('s%s_%s_d%s_a%s', ...
-                                    string(s), string(ot), string(d), string(a));
-        case 'obstype', f = @(s,ot,a,d) sprintf('%s', string(ot));
-        case 'system',  f = @(s,ot,a,d) sprintf('s%s', string(s));
-        case 'day',     f = @(s,ot,a,d) sprintf('d%s', string(d));
-        otherwise
-            error('lsqvce:redundancy:badGroupBy', ...
-                ['GroupBy must be ''arc'', ''obsType'', ''system'', ''day'' ' ...
-                 'or a function handle (got ''%s'').'], g);
-    end
-end
 
 %==========================================================================
 function [h, v] = arcLeverageAndResidual(arc, x, y, uo, blk)
 %ARCLEVERAGEANDRESIDUAL  Whiten one arc, then get h and v, batched.
+%   WP-38 (fixes F-08): the batch/overlap/whitening skeleton lives in the
+%   ONE private arcBatchWhiten; this callback keeps the numeric payload
+%   and the exact accumulation order (byte-identical outputs).
 
-    m   = size(arc.A,1);
-    bs  = lsqvce.util.getfielddef(uo, 'BatchSize', 20000);
-    nOv = lsqvce.util.getfielddef(uo, 'BatchOverlap', []);
-    if isempty(nOv)
-        nOv = lsqvce.util.getfielddef(arc, 'filterMemory', 0);
-    end
-    bs  = max(1, min(round(bs),  m));
-    nOv = max(0, min(round(nOv), bs-1));
+    m = size(arc.A, 1);
+    h = zeros(m, 1);
+    v = zeros(m, 1);
+    arcBatchWhiten(arc, uo, @perBatch);
 
-    hasW = isfield(arc,'Wfcn') && ~isempty(arc.Wfcn);
-    hasC = isfield(arc,'Cfcn') && ~isempty(arc.Cfcn);
-
-    h = zeros(m,1);
-    v = zeros(m,1);
-
-    for i0 = 1:bs:m
-        i1   = min(i0+bs-1, m);
-        j0   = max(1, i0-nOv);
-        idx  = j0:i1;
-        keep = (i0-j0+1):numel(idx);
-        rows = i0:i1;
-
-        Ab = arc.A(idx,:);
-        Bb = arc.B(idx,:);
-        lb = arc.l(idx);  lb = lb(:);
-
-        if hasW
-            [Ab, Bb, lb] = arc.Wfcn(idx, Ab, Bb, lb, uo);
-        elseif hasC
-            W  = lsqvce.decorrFactor(arc.Cfcn(idx, uo));
-            Ab = W*Ab;  Bb = W*Bb;  lb = W*lb;
-        end
-
+    function perBatch(rows, keep, Ab, Bb, lb)
         hb = lsqvce.leverage(Ab, Bb, blk);
         vb = lb - Ab*x - Bb*y;
-
         h(rows) = hb(keep);
         v(rows) = vb(keep);
     end

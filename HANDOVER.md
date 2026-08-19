@@ -225,7 +225,7 @@ order.**):
 | 35 | psdVCE floor policy + negative-factor clamp (F-04, F-05) | — | DONE (2026-08-19, PR #6, merge 827ee6b; CI green 493/493 — the run that also validated the self-healing setup live: attempt-1 wedge killed at 720 s, attempt-2 restore 90 s; POSTFLIGHT DEBT until the runner/bridge returns; round note §9 WP-35) |
 | 36 | One probe generator, honest RNG contract (F-06) | — | DONE (2026-08-19, PR #7, merge 74ab106; CI green 498/498 — the WP's own changes green on the FIRST pass, the sole round-1 red was the test's own traceEstimate-returns-a-scalar mistake; POSTFLIGHT DEBT; round note §9 WP-36) |
 | 37 | `redundancyLags` without dense W^-1 + hot-loop tolls (F-09) | — | DONE (2026-08-19, PR #8, merge 66ffb81; CI green FIRST pass 501/501 incl. the N=4000 speed lever; GS/Levinson validated in Python to 1e-14 pre-port; POSTFLIGHT DEBT; round note §9 WP-37) |
-| 38 | Deduplicate keys / arc batching + audit lock (F-08) | 33,36 | OPEN |
+| 38 | Deduplicate keys / arc batching + audit lock (F-08) | 33,36 | IN PROGRESS — 2026-08-19: fix + lock on `claude/wp-38` (round note §9 WP-38); draft-PR loop; POSTFLIGHT DEBT |
 | 39 | `arguments` blocks + Name-Value casing, whole surface (F-07) | 32–38,40,41 | OPEN |
 | 40 | Method polish: gates, clamps, whiteness (F-10…F-13; + F-15 alternation bistability) | 32 | DONE (2026-08-19, TWO rounds: r1 F-10…F-13 PR #9 merge 736807d, CI 505/505; r2 F-15 PR #10 merge 8ca16b9, CI 507/507 after six diagnosis rounds with the psd2acv-faithful mirror; ALL THREE r2 decisions ACCEPTED by the user 2026-08-19 — detailed in the DECISION RECORD below the round notes (§9 WP-40); POSTFLIGHT DEBT both rounds; round notes §9 WP-40) |
 | 41 | Documentation truth sweep (F-12, F-14) | 32,33,36,40 | OPEN |
@@ -2738,6 +2738,28 @@ magnitude. NO API change.
 > identical fixture numbers. Add an audit_tree.py check that fails on a
 > second definition of the key presets or the batching loop, so the
 > duplication cannot return.
+
+**ROUND NOTE (2026-08-19, WP-38 round 1, model Claude Fable 5; branch
+`claude/wp-38`, riding the WP-40 DONE flip + the DECISION RECORD for the
+three accepted r2 decisions + the WP-42 backlog entry).** ONE
+`+lsqvce/private/makeKeyFcn.m` (the redundancy wording verbatim, presets
+arc/obsType/system/day + handle pass-through) replaces the two verbatim
+copies in redundancy and streamContribution; adjustVCE.vceGroupKeyFcn is
+a DIFFERENT class-scoped scheme and deliberately NOT unified (documented
+in the new help). ONE `+lsqvce/private/arcBatchWhiten.m` owns the
+batch/overlap/Wfcn-Cfcn skeleton; the two callers keep their numeric
+payloads and accumulation order as NESTED callbacks — byte-identical
+outputs by construction (the shared Cfcn branch also whitens lb, which
+the probe callback simply ignores: outputs unchanged, documented). AUDIT
+LOCK: audit_tree.py check 10b fails on any second definition of either
+name or a definition outside +lsqvce/private/ — red-tested by planting a
+copy (exit 1, clean FINDING line) and restoring (exit 0). **PINNED
+MINI-DEVIATION (user approves by merge): the GroupBy error id unifies to
+lsqvce:makeKeyFcn:badGroupBy** (was lsqvce:redundancy:/
+lsqvce:streamContribution:badGroupBy; no test asserted the old ids; both
+help ERRORS sections updated). No public surface change; the suite's
+byte-identity is carried by the standing fixtures (§6.1 lever = the
+audit lock itself, which FAILS on the pre-WP-38 tree).
 
 ### WP-39 — `arguments` blocks and Name-Value casing across the surface
 
