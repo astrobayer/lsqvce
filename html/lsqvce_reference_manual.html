@@ -95,7 +95,11 @@ jointModelOpt, diagnose, snoop, outliers, residuals, ftest, ellipse,
 crossCorr, systematic, selectArOrder, report</code>);
 <code>robust</code> follows the <code>adjust</code> pattern (canonical
 names + typed validators on <code>inputParser</code>, kept for its
-documented pass-through to <code>diagnose</code>). Remaining functions follow in the staged WP-39
+documented pass-through to <code>diagnose</code>). Round c1 covers the
+infrastructure functions (<code>makeLoader, mapreduce, datum,
+toeplitzCofactor, dctI</code>); <code>solveNonlinear</code> follows the
+<code>adjust</code> pattern (pass-through kept, canonical names + typed
+validators). The class surface (round c2) completes the migration. Remaining functions follow in the staged WP-39
 rollout.</div>
 <h2>Symbols</h2>
 <table>

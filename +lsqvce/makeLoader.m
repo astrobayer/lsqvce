@@ -1,4 +1,4 @@
-function L = makeLoader(buildDay, varargin)
+function L = makeLoader(buildDay, opt)
 %LSQVCE.MAKELOADER  Turn a day-builder into an accumulator-ready Loader.
 %   L = lsqvce.makeLoader(buildDay, Name, Value, ...)
 %
@@ -174,6 +174,11 @@ function L = makeLoader(buildDay, varargin)
 %   See also LSQVCE.ADJUSTBLOCK, LSQVCE.SYNTHLOADER, LSQVCE.COVMODEL,
 %            LSQVCE.BLOCKACCUMULATOR, LSQVCE.ADJUSTVCE
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (c) c1 (F-07):
+%   typed `arguments` signature, canonical UpperCamelCase option names
+%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+%   case-sensitive lowercase). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 %   Created 2026-07-16 12:20 (CEST, UTC+02:00) with assistance from
 %   Claude (Anthropic), model Claude Opus 4.8.
 %   Updated 2026-07-17 (CEST, UTC+02:00): documented the Loader contract
@@ -182,49 +187,33 @@ function L = makeLoader(buildDay, varargin)
 %   canonical long forms (observationTypes/covariance/systemId/numLocal/
 %   commonParams/localParams/processingOptions/epochCovariance); the old terse
 %   names still work for one version (warn once). Claude Opus 4.8.
+arguments
+    buildDay
+    opt.ObservationTypes = {}
+    opt.Covariance (1,1) struct = struct()
+    opt.Arcs = 1
+    opt.SystemId = 1
+    opt.NumLocal double {mustBeScalarOrEmpty} = []
+    opt.NumCommon double {mustBeScalarOrEmpty} = []
+    opt.Days double = []
+    opt.Name (1,1) string = ""
+    opt.Cache (1,1) logical = true
+    opt.EpochCovariance = []
+    opt.CommonParams cell = {}
+    opt.LocalParams cell = {}
+    opt.ProcessingOptions (1,1) struct = struct()
+    opt.PlotPostSolve = []
+    opt.PlotPostModel = []
+end
+
     narginchk(1, inf);
     if ~isa(buildDay, 'function_handle')
         error('lsqvce:makeLoader:buildDay', 'buildDay must be a function handle.');
     end
-    p = inputParser;  p.FunctionName = 'lsqvce.makeLoader';
-    % PartialMatching OFF: several deprecated aliases are PREFIXES of their
-    % canonical names ('cov' of 'covariance', 'common' of 'commonParams', 'local'
-    % of 'localParams'), so prefix matching would make them ambiguous and error.
-    % Exact-name matching keeps every option unambiguous.
-    p.PartialMatching = false;
-    % Every option has ONE name. Short aliases (obsTypes/cov/sysID/nl/nc/
-    % epochCov/common/local/procOpt) were removed 2026-07-18: two ways to say
-    % one thing is exactly the ambiguity this toolbox keeps tripping over.
-    p.addParameter('observationTypes', {}, @(c) iscellstr(c) || isstring(c) || ischar(c));
-    p.addParameter('covariance', struct(), @isstruct);
-    p.addParameter('arcs',     1);
-    p.addParameter('systemId', 1);
-    p.addParameter('numLocal', []);
-    p.addParameter('numCommon', []);
-    p.addParameter('days',     []);
-    p.addParameter('name',     '');
-    p.addParameter('cache',    true, @(v) islogical(v) && isscalar(v));
-    p.addParameter('epochCovariance', [], @(f) isempty(f) || isa(f,'function_handle'));
-    % Parametrisation: two 14-column cell arrays, one ROW per unknown, piped
-    % through to buildDay (3rd/4th args) so ONE generic builder can be parameter
-    % driven instead of hard-coding the design. nc/nl are DERIVED from their row
-    % counts (see below). processingOptions is a free-form struct piped through
-    % as buildDay's 5th arg.
-    p.addParameter('commonParams', {}, @(c) iscell(c));
-    p.addParameter('localParams',  {}, @(c) iscell(c));
-    p.addParameter('processingOptions', struct(), @isstruct);
-    % Optional per-obsType PLOT HOOKS fired by LSQVCE.ADJUSTVCE. Each is
-    % either a single function handle @(ctx)->figHandle applied to EVERY obsType
-    % of this loader, or a containers.Map / struct keyed by obsType -> handle for
-    % per-obsType control. 'plotPostSolve' fires after each solve, BEFORE the
-    % residual pass (ctx carries the estimate); 'plotPostModel' fires ONCE after
-    % the stochastic model is estimated (ctx carries the AR/PSD and VCE weight).
-    % The engine owns the timed show + PNG export (ShowSeconds/ExportDir), so the
-    % handle only builds and RETURNS a figure. See LSQVCE.ADJUSTVCE/plots.
-    p.addParameter('plotPostSolve', [], @isPlotSpec);
-    p.addParameter('plotPostModel', [], @isPlotSpec);
-    p.parse(varargin{:});
-    o = p.Results;
+    % WP-39 stage (c) c1: typed `arguments` signature (canonical
+    % UpperCamelCase; legacy casings keep matching -- MATLAB NV
+    % semantics; enum VALUES case-sensitive lowercase).
+    o = struct('observationTypes', {opt.ObservationTypes}, 'covariance', opt.Covariance, 'arcs', opt.Arcs, 'systemId', opt.SystemId, 'numLocal', opt.NumLocal, 'numCommon', opt.NumCommon, 'days', opt.Days, 'name', char(opt.Name), 'cache', opt.Cache, 'epochCovariance', opt.EpochCovariance, 'commonParams', {opt.CommonParams}, 'localParams', {opt.LocalParams}, 'processingOptions', opt.ProcessingOptions, 'plotPostSolve', opt.PlotPostSolve, 'plotPostModel', opt.PlotPostModel);
 
     % ---- map long option names onto the short internal fields -------------
     % Canonical long names only. The resolved value is written onto the SHORT

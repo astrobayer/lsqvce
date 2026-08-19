@@ -86,16 +86,23 @@ INVARIANTS (tested)
   Q positive definite iff the sequence is a valid (PD) autocovariance;
     LSQVCE.DECORRFACTOR floors non-PD sequences and reports it.</pre>
 <h3>Example</h3>
-<pre class="example">  c = [1 0.5 0.2 0.05].&#x27;;
-  Q = lsqvce.toeplitzCofactor(c);            % 4x4 symmetric Toeplitz
-  W = lsqvce.decorrFactor(Q);                % whitener chol(Q)^-1
-  % long arc, matrix-free:
-  q = lsqvce.toeplitzCofactor(c, &#x27;Form&#x27;,&#x27;apply&#x27;);
-  y = q(randn(4, 8));                        % = Q * X, never forms Q
+<pre class="example">c = [1 0.5 0.2 0.05].&#x27;;
+Q = lsqvce.toeplitzCofactor(c);            % 4x4 symmetric Toeplitz
+W = lsqvce.decorrFactor(Q);                % whitener chol(Q)^-1
+% long arc, matrix-free:
+q = lsqvce.toeplitzCofactor(c, &#x27;Form&#x27;,&#x27;apply&#x27;);
+y = q(randn(4, 8));                        % = Q * X, never forms Q</pre>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:toeplitzCofactor:empty  the autocovariance is empty
 
 See also LSQVCE.COVCOMPONENT, LSQVCE.DCTI, LSQVCE.DECORRFACTOR,
          LSQVCE.PSD2ACV
 
+Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (c) c1 (F-07):
+typed `arguments` signature, canonical UpperCamelCase option names
+(legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+case-sensitive lowercase). With assistance from Claude (Anthropic),
+model Claude Fable 5.
 Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Opus 4.8.</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
