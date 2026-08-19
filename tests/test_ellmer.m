@@ -841,12 +841,20 @@ function cfg = jointCfgColoured()
     cfg.collinear  = false;
     cfg.collinearEps = 1e-7;
     cfg.cov.pos = struct('type','arma', 'ar',[1 -0.75 0.4], 'ma',1, 'sigma',1.0);
-    % GENERATION follows cfg.cov (AR(2)); the DECLARED covariance is owned
-    % by jointAccMapped (never the truth — round-2a lesson: truth-whitening
-    % makes the correct Shat flat and the test vacuous).
+    % r2f: the floor test's premise is FIXED-WHITE DECLARED weighting while
+    % GENERATING AR(2). r2e switched the test call to jointAcc but dropped
+    % the override, so the loader declared cfg.cov — THE TRUTH — and the
+    % r2a trap returned (alpha2 ~ 1, Shat ~ spectrum of the default C0,
+    % CI corr 0.182). White must be declared explicitly; jointAcc threads
+    % cfg.override into the loader's UserOpt:
+    cfg.override = struct('covOverride', struct('pos', ...
+                          struct('type','diag','sigma',1.0)));
 end
 
-function acc = jointAccMapped(cfg, model)
+function acc = jointAccMapped(cfg, model) %#ok<DEFNU>
+    % NOT called by the r2f floor test: kept as the documented CLOSED-LOOP
+    % reproduction fixture for finding F-15 (alternation bistability, §8;
+    % queued on WP-40) and the wp33_loop_mirror.py cross-reference.
     % The coloured fixture's CLOSED LOOP (Ellmer's alternation, r2c route):
     % the driver's current model.C is declared back as the covariance via
     % the toolbox's PD-safe 'psd' path — Shat = dctI(C) upsampled to 160

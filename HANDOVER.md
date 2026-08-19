@@ -2483,6 +2483,19 @@ Test design r2e: jointAccMapped restored (psd route, nf = 160 >=
 sharp regression sentinel), corr over bins 2:end (psdVCE DEFINES
 Shat(1)=Shat(2); the AR(2) truth peaks at DC, so including bin 1 only
 imports the ZeroFreqRule as an error term).
+**Round-2f (2026-08-19): r2e red at corr 0.182 — the r2a trap resurfaced
+in the plumbing.** r2e's test premise is FIXED-WHITE declared weighting
+(pass-1 floor, default C0), but the call was switched to jointAcc while
+the white cfg.override was dropped — the loader therefore declared
+cfg.cov, THE TRUTH, and truth-whitening made Shat track the C0 prior
+(alpha2 ~ 1): corr 0.182 on the runner. This also independently
+CORROBORATES r2e's measurements: the failure mode is exactly the r2a
+lesson, not the floor design. Fix: cfg.override (white diag) restored in
+jointCfgColoured (jointAcc threads it as UserOpt); jointAccMapped kept,
+annotated as the F-15 closed-loop reproduction fixture (not called by
+the floor test). The USER VETO on the lowered 0.85 floor (spec said
+0.95, measured ceiling min 0.921 open-loop) remains OPEN and is asked in
+PR #4.
 
 ### WP-34 — Keyed arc identity in `adjustVCEjoint`
 
