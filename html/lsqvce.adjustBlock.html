@@ -43,80 +43,111 @@ a { color: #0b5ea8; }
 <div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.adjustBlock</div>
 <h1>lsqvce.adjustBlock</h1>
 <div class="purpose">One-call block-arrow adjustment: accumulate, solve, judge.</div>
-<p><em>Renamed 2026-07-17 from <code>lsqvce.recover</code> so the streaming
-block-arrow solve pairs by name with <a href="lsqvce.adjust.html">lsqvce.adjust</a>
-(flat, in-memory) and <a href="lsqvce.adjustVCE.html">lsqvce.adjustVCE</a>
-(iterative + variance components). The old name was <strong>REMOVED</strong> on
-2026-07-18 -- all aliases were dropped pre-release -- so calling
-<code>lsqvce.recover</code> is now an undefined function. See
-<a href="lsqvce.recover.html">the tombstone page</a>.</em></p>
-<h2>Syntax</h2>
-<pre class="syntax">R = lsqvce.adjustBlock(systems, days)
-R = lsqvce.adjustBlock(systems, days, Name, Value, ...)</pre>
 <h2>Description</h2>
-<p>The single front door over the streaming pipeline. It builds an
-<a href="lsqvce.BlockAccumulator.html">lsqvce.BlockAccumulator</a>, adds every
-system, solves the reduced common system, bridges the result into the
-diagnostics (<a href="lsqvce.diagnoseAccum.html">lsqvce.diagnoseAccum</a> /
-<a href="lsqvce.diagnose.html">lsqvce.diagnose</a>), and returns an
-<a href="lsqvce.Results.html">lsqvce.Results</a> object that carries the
+<pre class="example">R = lsqvce.adjustBlock(systems, days)
+R = lsqvce.adjustBlock(systems, days, Name, Value, ...)
+
+The single front door over the streaming pipeline. It builds a
+LSQVCE.BLOCKACCUMULATOR, adds every system, solves the reduced common
+system, bridges the result into the diagnostics (LSQVCE.DIAGNOSEACCUM /
+LSQVCE.DIAGNOSE), and returns a LSQVCE.RESULTS object that carries the
 solution, the per-observation diagnostics, and the accumulator itself. The
-six-step dance (accumulator &rarr; addSystem &rarr; solve &rarr; diagnoseAccum
-&rarr; diagnose &rarr; report) becomes one line; the lower layers stay
-reachable on <code>R</code> for experts (<code>R.acc</code>,
-<code>R.diag</code>).</p>
-<p>This performs ONE GLS solve with whatever covariance the loaders supply. The
-iterative separable refinement (temporal whitening + VCE reweighting) is layered
-on top by <code>lsqvce.adjustVCE</code>; adjustBlock is its base.</p>
-<h2>Inputs</h2>
-<table>
-<tr><th>Name</th><th>Type / size</th><th>Description</th></tr>
-<tr><td class="name">nc</td><td>1&times;1 integer</td><td>Number of COMMON parameters (the shared field). Required.</td></tr>
-<tr><td class="name">systems</td><td>1&times;M struct | cell</td><td>The systems to combine. Either a struct array with fields <code>.sysID</code>, <code>.nl</code>, <code>.loader</code> (and optional <code>.days</code>), or a cell array of Loader objects from <a href="lsqvce.makeLoader.html">lsqvce.makeLoader</a>. Required.</td></tr>
-<tr><td class="name">days</td><td>1&times;D numeric</td><td>Default day list for systems that do not carry their own (may be <code>[]</code> when every system specifies its days). Required.</td></tr>
-</table>
-<h3>Name-value options</h3>
-<table>
-<tr><th>Name</th><th>Values</th><th>Default</th></tr>
-<tr><td class="name">backend</td><td><code>'qr'</code> | <code>'normal'</code></td><td><code>'qr'</code></td></tr>
-<tr><td class="name">reg</td><td><code>'none'|'tikhonov'|'tsvd'|'lm'|'auto'</code></td><td><code>'none'</code></td></tr>
-<tr><td class="name">regLambda</td><td>1&times;1 regularisation weight</td><td><code>0</code></td></tr>
-<tr><td class="name">regMatrix</td><td>p&times;nc regularisation matrix</td><td><code>[]</code></td></tr>
-<tr><td class="name">parallel</td><td><code>'serial'|'parfor'|'spmd'</code></td><td><code>'serial'</code></td></tr>
-<tr><td class="name">verbose</td><td>1&times;1 logical</td><td><code>false</code></td></tr>
-<tr><td class="name">showSeconds</td><td>1&times;1 seconds to display each plot-hook figure (0 = export only; &lt;0 = show and leave open)</td><td><code>0</code></td></tr>
-<tr><td class="name">exportDir</td><td>char, folder for plot-hook PNGs (<code>''</code> = do not export)</td><td><code>''</code></td></tr>
-</table>
-<h3>Plot hooks (single-solve, postSolve only)</h3>
-<p>If a loader was built with <a href="lsqvce.makeLoader.html">lsqvce.makeLoader</a>'s
-<code>'plotPostSolve'</code>, <code>adjustBlock</code> fires that hook once per
-(system,obsType) stream AFTER the solve &mdash; exactly as the
-<a href="lsqvce.adjustVCE.html">lsqvce.adjustVCE</a> postSolve seam
-does, keyed <code>'satKey|obsType'</code>. The hook receives ONE ctx struct
-(<code>.stage='postSolve'</code>, <code>.stream</code>, <code>.satKey</code>,
-<code>.obsType</code>, <code>.sysID</code>, <code>.pass=1</code>, <code>.R</code>
-(the Results), <code>.x</code>, <code>.exportDir</code>, <code>.showSeconds</code>)
-and returns a figure; the engine owns the timed show and PNG export via
-<a href="lsqvce.util.showExport.html">lsqvce.util.showExport</a>. A throwing or
-figure-less hook is logged (<code>lsqvce:adjustBlock:plotHookFailed</code>) and skipped
-&mdash; plots NEVER break the solve. There is NO <code>'plotPostModel'</code> seam
-here: <code>adjustBlock</code> does ONE GLS solve and estimates no stochastic model, so
-postModel has nothing to fire on; use
-<a href="lsqvce.adjustVCE.html">lsqvce.adjustVCE</a> for that. Raw
-4-arg closures (not Loader objects) carry no hooks and are skipped.</p>
-<h2>Outputs</h2>
-<table>
-<tr><th>Name</th><th>Type / size</th><th>Description</th></tr>
-<tr><td class="name">R</td><td>1&times;1 <a href="lsqvce.Results.html">lsqvce.Results</a></td><td>Solution + diagnostics + accumulator: <code>R.x</code>, <code>R.sigma0</code>, <code>R.report()</code>, <code>R.redundancy</code>, <code>R.acc</code>, &hellip;</td></tr>
-</table>
-<h2>Example</h2>
-<pre class="example">cov.pos = struct('type','arma','ar',[1 -1.6 0.9 -0.25],'ma',1,'sigma',0.7);
-cov.kbr = struct('type','diag','sigma',0.2);
-Lc = lsqvce.makeLoader(@(d,ot) buildDayC(d,ot), 'sysID','C', 'nl',4, ...
-         'obsTypes',{'pos','kbr'}, 'cov',cov, 'arcs',2);
+six-step dance (accumulator -&gt; addSystem -&gt; solve -&gt; diagnoseAccum -&gt; diagnose
+-&gt; report) becomes one line; the lower layers stay reachable on R for
+experts (R.acc, R.diag).
+
+This performs ONE GLS solve with whatever covariance the loaders supply.
+The iterative separable refinement (temporal whitening + VCE reweighting)
+is layered on top by LSQVCE.ADJUSTVCE; adjustBlock is its base.</pre>
+<h3>Input</h3>
+<pre class="example">  systems  1xM   struct|cell  The systems to combine. Two accepted forms:
+           (a) struct array with fields
+                 .sysID   1x1        system identifier (numeric/char/string)
+                 .nl      1x1        number of LOCAL parameters
+                 .nc      1x1        number of COMMON parameters (shared by
+                                     every system; declared here beside .nl)
+                 .loader  1x1        a Loader from LSQVCE.MAKELOADER, or a raw
+                                     4-arg loader closure
+                                     @(day,obsType,arcID,opt)
+                 .days    1xD  (opt) per-system day list; else the DAYS arg
+           (b) cell array of Loader objects (LSQVCE.MAKELOADER), each of which
+               already carries its own .sysID, .nl, .nc and (optionally) .days.
+                           Required.
+  days     1xD   numeric   Default day list for systems that do not carry
+                           their own. Required (may be [] if every system
+                           specifies .days).
+
+NOTE ON nc. There is no nc argument. The common-parameter count is DERIVED
+from the systems (LSQVCE.RESOLVENC): from L.nc for a Loader, which is itself
+the number of rows in its &#x27;commonParams&#x27; table, or from the .nc field of a
+raw spec. Stating it separately would let the same number be written twice
+and disagree, which is exactly the bug this removes.
+
+  Name/Value options ([] or omitted -&gt; defaults):
+    &#x27;backend&#x27;    char   &#x27;qr&#x27; | &#x27;normal&#x27;                     (default &#x27;qr&#x27;)
+    &#x27;reg&#x27;        char   &#x27;none&#x27;|&#x27;tikhonov&#x27;|&#x27;tsvd&#x27;|&#x27;lm&#x27;|&#x27;auto&#x27;(default &#x27;none&#x27;)
+    &#x27;regLambda&#x27;  1x1    regularisation weight               (default 0)
+    &#x27;regMatrix&#x27;  pxnc   regularisation matrix               (default [])
+    &#x27;parallel&#x27;   char   &#x27;serial&#x27;|&#x27;parfor&#x27;|&#x27;spmd&#x27;            (default &#x27;serial&#x27;)
+    &#x27;verbose&#x27;    1x1    logical, accumulator chatter        (default false)
+    &#x27;showSeconds&#x27; 1x1   seconds to display each plot-hook figure (default 0
+                        = export only; &lt;0 = show and LEAVE OPEN). Engine-side
+                        knob, mirrors LSQVCE.ADJUSTVCE.
+    &#x27;exportDir&#x27;  char   folder for plot-hook PNGs (&#x27;&#x27; = do not export).
+
+PLOT HOOKS (single-solve, postSolve only)
+  If a loader was built with LSQVCE.MAKELOADER&#x27;s &#x27;plotPostSolve&#x27;, adjustBlock
+  fires that hook once per (system,obsType) stream AFTER the solve, exactly
+  as the LSQVCE.ADJUSTVCE postSolve seam does, keyed &#x27;satKey|obsType&#x27;. The
+  hook receives ONE ctx struct (.stage=&#x27;postSolve&#x27;, .stream, .satKey,
+  .obsType, .sysID, .pass=1, .R (the Results), .x, .exportDir, .showSeconds)
+  and returns a figure; the engine owns the timed show + PNG export via
+  LSQVCE.UTIL.SHOWEXPORT. A throwing or figure-less hook is logged
+  (&#x27;lsqvce:adjustBlock:plotHookFailed&#x27;) and skipped -- plots NEVER break the
+  solve. There is NO &#x27;plotPostModel&#x27; seam here: adjustBlock does ONE GLS solve
+  with the loaders&#x27; covariance and estimates no stochastic model, so
+  postModel has nothing to fire on; use LSQVCE.ADJUSTVCE for that.
+  Raw 4-arg closures (not Loader objects) carry no hooks and are skipped.</pre>
+<h3>Output</h3>
+<pre class="example">R        1x1   lsqvce.Results   Solution + diagnostics + accumulator.
+                         R.x, R.sigma0, R.report(), R.redundancy, R.acc, ...
+                         (see LSQVCE.RESULTS).</pre>
+<h3>Example</h3>
+<pre class="example">cov.pos = struct(&#x27;type&#x27;,&#x27;arma&#x27;,&#x27;ar&#x27;,[1 -1.6 0.9 -0.25],&#x27;ma&#x27;,1,&#x27;sigma&#x27;,0.7);
+cov.kbr = struct(&#x27;type&#x27;,&#x27;diag&#x27;,&#x27;sigma&#x27;,0.2);
+Lc = lsqvce.makeLoader(@(d,ot) buildDayC(d,ot), &#x27;sysID&#x27;,&#x27;C&#x27;, &#x27;nl&#x27;,4, ...
+         &#x27;obsTypes&#x27;,{&#x27;pos&#x27;,&#x27;kbr&#x27;}, &#x27;cov&#x27;,cov, &#x27;arcs&#x27;,2);
 R  = lsqvce.adjustBlock({Lc}, 1:3);
 R.report();          % levels 0-4
 xhat = R.x;          % common-parameter estimate</pre>
-<div class="seealso"><b>See also:</b> <a href="lsqvce.Results.html">lsqvce.Results</a>, <a href="lsqvce.makeLoader.html">lsqvce.makeLoader</a>, <a href="lsqvce.adjustVCE.html">lsqvce.adjustVCE</a>, <a href="lsqvce.BlockAccumulator.html">lsqvce.BlockAccumulator</a>, <a href="lsqvce.diagnoseAccum.html">lsqvce.diagnoseAccum</a>, <a href="lsqvce.diagnose.html">lsqvce.diagnose</a>, <a href="lsqvce.report.html">lsqvce.report</a>, <a href="lsqvce.util.showExport.html">lsqvce.util.showExport</a></div>
-<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-16.</div>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:adjustBlock:badSystems  systems is neither a struct array nor a
+                                 cell of loaders
+  lsqvce:adjustBlock:badCell     a cell entry is not a loader struct
+  lsqvce:adjustBlock:badStruct   a system struct is missing a required field
+  lsqvce:adjustBlock:badLoader   a loader&#x27;s .loader is not a function handle
+  lsqvce:adjustBlock:noDays      no day list, and none derivable from the
+                                 loaders (set &#x27;days&#x27; on either)
+
+See also LSQVCE.RESULTS, LSQVCE.MAKELOADER, LSQVCE.ADJUSTVCE,
+         LSQVCE.BLOCKACCUMULATOR, LSQVCE.DIAGNOSEACCUM, LSQVCE.DIAGNOSE,
+         LSQVCE.REPORT, LSQVCE.UTIL.SHOWEXPORT
+
+Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (a) (F-07): typed
+`arguments` signature; option names are UpperCamelCase (Backend, Reg,
+RegLambda, RegMatrix, Parallel, Verbose, ShowSeconds, ExportDir) with
+EXACT-name matching, and enum VALUES are case-sensitive lowercase
+(mustBeMember; strcmpi used to accept any casing) -- release note in
+HANDOVER §9 WP-39. With assistance from Claude (Anthropic), model
+Claude Fable 5.
+Created 2026-07-16 12:20 (CEST, UTC+02:00) with assistance from
+Claude (Anthropic), model Claude Opus 4.8.
+Updated 2026-07-17 (CEST, UTC+02:00): added the postSolve plot-hook seam
+(&#x27;showSeconds&#x27;/&#x27;exportDir&#x27;), entry-point parity with adjustVCE.
+Renamed 2026-07-17 from RECOVER -&gt; ADJUSTBLOCK (block-arrow adjustment;
+pairs with LSQVCE.ADJUST and LSQVCE.ADJUSTVCE). The old name was REMOVED on
+2026-07-18 along with every other alias (pre-release; one name per thing).
+Claude (Anthropic), model Claude Opus 4.8.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

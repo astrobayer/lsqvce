@@ -75,6 +75,22 @@ R.report();""")]
         'adjustVCE is for.', 'note')]
 
     # ---- 3.3 adjustVCE ----------------------------------------------------
+    st += [P('Option names and typed signatures (v2.1, WP-39).  '
+             'Public entry points are migrating from <code>inputParser</code> '
+             'to typed <code>arguments</code> blocks. Three things change for '
+             'callers: (i)&nbsp;every Name-Value option has ONE canonical '
+             'UpperCamelCase name, stated in the function help '
+             '(<code>Backend</code>, <code>MaxIter</code>, '
+             '<code>Verbose</code>, &hellip;); (ii)&nbsp;matching is '
+             'EXACT-name -- the old case-insensitive matching is gone, so '
+             '<code>\'backend\'</code> or <code>\'maxiter\'</code> now '
+             'error; (iii)&nbsp;enum VALUES are case-sensitive lowercase '
+             '(<code>\'qr\'</code>, not <code>\'QR\'</code>) and unknown '
+             'option names are rejected instead of ignored. Migrated so far: '
+             '<code>adjustBlock</code>, <code>adjustVCEjoint</code>, '
+             '<code>iterateNoiseModel</code>; the remaining surface follows '
+             'in the same release (see the release notes in the repository '
+             'history).', 'body')]
     st += [P('3.3&nbsp;&nbsp;adjustVCE -- the iterative loop', 'h2')]
     st += [P('The same solve as adjustBlock, run repeatedly, with two '
              'estimation steps between passes. After each solve the residuals '

@@ -1,4 +1,4 @@
-function out = adjustVCEjoint(accFcn, varargin)
+function out = adjustVCEjoint(accFcn, opt)
 %LSQVCE.ADJUSTVCEJOINT  Joint (co-estimated) stochastic-model loop.
 %
 %   out = LSQVCE.ADJUSTVCEJOINT(accFcn)
@@ -129,6 +129,11 @@ function out = adjustVCEjoint(accFcn, varargin)
 %
 %   Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Opus 4.8.
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (a) (F-07): typed
+%   `arguments` signature replaces inputParser. Option names were already
+%   UpperCamelCase and are UNCHANGED, but matching is now EXACT-name and
+%   unknown names error (inputParser matched case-insensitively). With
+%   assistance from Claude (Anthropic), model Claude Fable 5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-40 r2 (F-15): optional
 %   stabilised alternation -- 'StepSchedule','decay' (Robbins-Monro damped
 %   psdVCE update) and 'AvgTail' (Polyak tail average of the returned
@@ -154,22 +159,26 @@ function out = adjustVCEjoint(accFcn, varargin)
 %     lsqvce:adjustVCEjoint:badSigma2_0  Sigma2_0 does not match the pass-1
 %                                        arc count (align to out.arcKeys)
 
-    p = inputParser;  p.FunctionName = 'lsqvce.adjustVCEjoint';
-    p.addParameter('NumLags' , 60, @(v) isscalar(v) && v >= 2 && v == floor(v));
-    p.addParameter('C0'      , []);
-    p.addParameter('Sigma2_0', []);
-    p.addParameter('MaxIter' , 10, @(v) isscalar(v) && v >= 1);
-    p.addParameter('Tol'     , 1e-2, @(v) isscalar(v) && v > 0);
-    p.addParameter('Probes'  , 100, @(v) isscalar(v) && v >= 1);
-    p.addParameter('Seed'    , []);
-    p.addParameter('Norm'    , 'ortho');
-    p.addParameter('MeanType', 'robust');
-    p.addParameter('StepSchedule', 'none', ...
-        @(s) any(strcmpi(s, {'none','decay'})));
-    p.addParameter('AvgTail', 0, @(v) isscalar(v) && v >= 0 && v == floor(v));
-    p.addParameter('Verbose' , false, @(v) isscalar(v));
-    p.parse(varargin{:});
-    o = p.Results;
+    % WP-39 stage (a): typed `arguments` signature (rule 5) replaces
+    % inputParser. Names were already UpperCamelCase here; matching is now
+    % EXACT-name (arguments-block semantics) -- see the release note in
+    % HANDOVER §9 WP-39.
+arguments
+    accFcn (1,1) function_handle
+    opt.NumLags  (1,1) double {mustBeInteger, mustBeGreaterThanOrEqual(opt.NumLags, 2)} = 60
+    opt.C0       double = []
+    opt.Sigma2_0 double = []
+    opt.MaxIter  (1,1) double {mustBeInteger, mustBePositive} = 10
+    opt.Tol      (1,1) double {mustBePositive} = 1e-2
+    opt.Probes   (1,1) double {mustBeInteger, mustBePositive} = 100
+    opt.Seed     double {mustBeScalarOrEmpty} = []
+    opt.Norm     (1,1) string = "ortho"
+    opt.MeanType (1,1) string = "robust"
+    opt.StepSchedule (1,1) string {mustBeMember(opt.StepSchedule, ["none","decay"])} = "none"
+    opt.AvgTail  (1,1) double {mustBeInteger, mustBeNonnegative} = 0
+    opt.Verbose  (1,1) logical = false
+end
+    o = opt;
     v = logical(o.Verbose);
 
     nLag = o.NumLags;

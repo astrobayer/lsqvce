@@ -395,3 +395,24 @@ function cfg = synthCfg()
     cfg.cov.pos = struct('type','arma','ar',[1 -1.6 0.9 -0.25],'ma',1,'sigma',0.7);
     cfg.cov.kbr = struct('type','diag','sigma',0.2);
 end
+
+%% ============================ WP-39 stage (a): typed signature (F-07)
+function test_signature_typed_arguments(tc)
+    % WP-39 (fails on the old code): the typed `arguments` block rejects
+    % what inputParser tolerated -- unknown names, WRONG-CASE names (the
+    % old lowercase 'backend' etc.), and wrong types/enum casings.
+    sys = struct('sysID', 1, 'nl', 2, 'nc', 3, ...
+                 'loader', @(varargin) struct('A',[],'B',[],'l',[]));
+    mustErr = { ...
+        @() lsqvce.adjustBlock(sys, 1, 'backend', 'qr'), ...     % old casing
+        @() lsqvce.adjustBlock(sys, 1, 'Backend', 'QR'), ...     % enum casing
+        @() lsqvce.adjustBlock(sys, 1, 'Backend', 'cholesky'),...% bad enum
+        @() lsqvce.adjustBlock(sys, 1, 'RegLambda', -1), ...     % sign
+        @() lsqvce.adjustBlock(sys, 1, 'NoSuchOption', 1) };
+    for k = 1:numel(mustErr)
+        ok = false;
+        try, mustErr{k}(); catch, ok = true; end
+        verifyTrue(tc, ok, sprintf('signature case %d must error', k));
+    end
+end
+

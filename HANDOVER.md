@@ -2779,6 +2779,36 @@ audit lock itself, which FAILS on the pre-WP-38 tree).
 > identifier), plus the untouched-numerics regression on the standing
 > fixture. This package lands LAST.
 
+**ROUND NOTE (2026-08-19, WP-39 stage (a) round a1, model Claude Fable 5;
+branch `claude/wp-39`, riding the WP-41 DONE flip). Staging WITHIN (a),
+honest to the sweep load:** a1 = the three front doors with 0-2 call
+sites — adjustVCEjoint (names already UpperCamel, parser→arguments
+only), adjustBlock (Backend/Reg/RegLambda/RegMatrix/Parallel/Verbose/
+ShowSeconds/ExportDir; enum VALUES now case-sensitive lowercase via
+mustBeMember where strcmpi accepted any casing; 0 name-value call
+sites), iterateNoiseModel (UpdateTypes/MaxIter/SigmaTol/WhiteFactor/
+WhiteLags/MaxLag/OrderGrid/AcvTol/Detrend/Verbose; both call sites were
+already UpperCamel). a2 = adjust (64 lowercase call sites!) + the
+adjustVCE fluent configurators (37 sites, mergeNV) — next round. LESSON
+(pinned, cost one audit red): the `arguments` block goes AFTER the help
+comment block — placed before it, MATLAB help/doc go blind and the page
+builder finds nothing. UpdateTypes' data-dependent default
+(fieldnames(cov0)) is kept via the documented {} sentinel. SIGNATURE
+TESTS (fail on the old code): the old lowercase names now ERROR (the
+release-break lever), unknown names error, enum-casing and type
+violations error — loose id checks (try/catch) for release robustness.
+DOCS per the user's instruction: help OPTIONS sections renamed + stamps;
+three HTML pages regenerated; the USER MANUAL gains an "Option names and
+typed signatures" paragraph — edited in the LIVE html (build_manuals is
+1.4C-stale-guarded and would revert shipped fixes) AND authored in
+master_content_b.py for the eventual back-port.
+**RELEASE NOTE (collect for the version bump):** WP-39 migrates the
+public surface to typed `arguments` blocks. Name-Value names are
+UpperCamelCase and EXACT-match; previously-tolerated sloppy casings
+('backend', 'maxiter', …) now error. Enum values are case-sensitive
+lowercase. Unknown option names error instead of being ignored.
+Migrated in a1: adjustBlock, adjustVCEjoint, iterateNoiseModel.
+
 ### WP-40 — Method polish: gates, clamps, whiteness
 
 > Fix findings F-10, F-11, F-12 (gate half), F-13 (HANDOVER §8.3). vce:

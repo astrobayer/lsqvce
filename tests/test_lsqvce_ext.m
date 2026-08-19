@@ -855,6 +855,25 @@ function test_noise_iteration_perarc_whiteness_smoke(tc)
         'per-arc pooled maxAcf must be finite and non-negative');
 end
 
+function test_noise_iteration_signature_typed_arguments(tc)
+    % WP-39 stage (a) (fails on the old code): iterateNoiseModel's typed
+    % `arguments` block with UpperCamelCase names -- the old lowercase
+    % 'maxIter' etc. no longer match, unknown names error, types are
+    % enforced.
+    accFcn = @(cov) struct();                    % never reached: parse errors first
+    cov0 = struct('pos', struct('type','diag','sigma',1));
+    mustErr = { ...
+        @() lsqvce.iterateNoiseModel(accFcn, cov0, 'maxIter', 2), ...
+        @() lsqvce.iterateNoiseModel(accFcn, cov0, 'MaxLag', 4), ...
+        @() lsqvce.iterateNoiseModel(accFcn, cov0, 'Detrend', 'yes'), ...
+        @() lsqvce.iterateNoiseModel(accFcn, cov0, 'NoSuchOption', 1) };
+    for k = 1:numel(mustErr)
+        ok = false;
+        try, mustErr{k}(); catch, ok = true; end
+        verifyTrue(tc, ok, sprintf('signature case %d must error', k));
+    end
+end
+
 function cfg = extNoiseCfg()
     % Minimal serial fixture for the noise iteration (one satellite, one
     % day, white truth): small enough for CI, large enough for the

@@ -1,4 +1,4 @@
-function out = iterateNoiseModel(accFcn, cov0, varargin)
+function out = iterateNoiseModel(accFcn, cov0, opt)
 %LSQVCE.ITERATENOISEMODEL  Iterate the covariance model until it is RIGHT, not assumed.
 %
 %   out = LSQVCE.ITERATENOISEMODEL(accFcn, cov0, 'Name', value, ...)
@@ -30,21 +30,21 @@ function out = iterateNoiseModel(accFcn, cov0, varargin)
 %             legitimate start)
 %
 %   OPTIONS
-%     'updateTypes' cellstr of obsTypes whose model is re-estimated
+%     'UpdateTypes' cellstr of obsTypes whose model is re-estimated
 %                   (default: all fields of cov0)
-%     'maxIter'     default 4 (2 is typical)
-%     'sigmaTol'    |sigma0 - 1| tolerance (default 0.05)
-%     'whiteFactor' whiteness band = WhiteFactor/sqrt(n) on max |acf(w)| over
+%     'MaxIter'     default 4 (2 is typical)
+%     'SigmaTol'    |sigma0 - 1| tolerance (default 0.05)
+%     'WhiteFactor' whiteness band = WhiteFactor/sqrt(n) on max |acf(w)| over
 %                   lags 1..WhiteLags (default 3)
-%     'whiteLags'   default 5
-%     'maxLag'      lags of the empirical ACV used for the AR fit
+%     'WhiteLags'   default 5
+%     'MaxLag'      lags of the empirical ACV used for the AR fit
 %                   (default 128)
-%     'orderGrid'   AR orders to try (default [2 5 10 20 30 40 60])
-%     'acvTol'      target relative ACV fidelity of the fit (default 5e-2 --
+%     'OrderGrid'   AR orders to try (default [2 5 10 20 30 40 60])
+%     'AcvTol'      target relative ACV fidelity of the fit (default 5e-2 --
 %                   the EMPIRICAL acv carries sampling noise; do not chase it
 %                   below its own scatter)
-%     'detrend'     subtract the per-arc mean before the ACV (default true)
-%     'verbose'     default true
+%     'Detrend'     subtract the per-arc mean before the ACV (default true)
+%     'Verbose'     default true
 %
 %   OUTPUT
 %     out.cov        the converged covariance specs ('arma' type, ar + sigma)
@@ -88,12 +88,32 @@ function out = iterateNoiseModel(accFcn, cov0, varargin)
 %
 %   See also LSQVCE.SELECTARORDER, LSQVCE.CHECKPSD, LSQVCE.VCE, LSQVCE.RESIDUALS
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (a) (F-07): typed
+%   `arguments` signature; option names are UpperCamelCase (UpdateTypes,
+%   MaxIter, SigmaTol, WhiteFactor, WhiteLags, MaxLag, OrderGrid, AcvTol,
+%   Detrend, Verbose) with EXACT-name matching -- the old lowercase names
+%   no longer match (release note, HANDOVER §9 WP-39). With assistance
+%   from Claude (Anthropic), model Claude Fable 5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-40 (fixes F-13): the
 %   whiteness statistic (maxAcf) pools per arc -- no lagged product
 %   crosses an arc boundary, mirroring pooledACV. With assistance from
 %   Claude (Anthropic), model Claude Fable 5.
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
+arguments
+    accFcn (1,1) function_handle
+    cov0   (1,1) struct
+    opt.UpdateTypes cell = {}
+    opt.MaxIter  (1,1) double {mustBeInteger, mustBePositive} = 4
+    opt.SigmaTol (1,1) double {mustBePositive} = 0.05
+    opt.WhiteFactor (1,1) double {mustBePositive} = 3
+    opt.WhiteLags (1,1) double {mustBeInteger, mustBePositive} = 5
+    opt.MaxLag   (1,1) double {mustBeInteger, mustBeGreaterThanOrEqual(opt.MaxLag, 8)} = 128
+    opt.OrderGrid (1,:) double = [2 5 10 20 30 40 60]
+    opt.AcvTol   (1,1) double {mustBePositive} = 5e-2
+    opt.Detrend  (1,1) logical = true
+    opt.Verbose  (1,1) logical = true
+end
 
     narginchk(2, inf);
     if ~isa(accFcn, 'function_handle')
@@ -105,19 +125,15 @@ function out = iterateNoiseModel(accFcn, cov0, varargin)
               'cov0 must be a struct with one covariance spec per obsType.');
     end
 
-    p = inputParser;  p.FunctionName = 'lsqvce.iterateNoiseModel';
-    p.addParameter('updateTypes', fieldnames(cov0), @iscellstr);
-    p.addParameter('maxIter'    , 4,    @(v) isscalar(v) && v >= 1);
-    p.addParameter('sigmaTol'   , 0.05, @(v) isscalar(v) && v > 0);
-    p.addParameter('whiteFactor', 3,    @(v) isscalar(v) && v > 0);
-    p.addParameter('whiteLags'  , 5,    @(v) isscalar(v) && v >= 1);
-    p.addParameter('maxLag'     , 128,  @(v) isscalar(v) && v >= 8);
-    p.addParameter('orderGrid'  , [2 5 10 20 30 40 60]);
-    p.addParameter('acvTol'     , 5e-2, @(v) isscalar(v) && v > 0);
-    p.addParameter('detrend'    , true, @(v) islogical(v) && isscalar(v));
-    p.addParameter('verbose'    , true, @(v) (islogical(v) || isnumeric(v)) && isscalar(v));
-    p.parse(varargin{:});
-    o = p.Results;
+    % WP-39 stage (a): typed `arguments` signature; names UpperCamelCase
+    % (release note in HANDOVER §9 WP-39). UpdateTypes defaults to all
+    % obsTypes in cov0 -- the sentinel [] keeps that data-dependent default.
+    o = struct('updateTypes', {opt.UpdateTypes}, 'maxIter', opt.MaxIter, ...
+               'sigmaTol', opt.SigmaTol, 'whiteFactor', opt.WhiteFactor, ...
+               'whiteLags', opt.WhiteLags, 'maxLag', opt.MaxLag, ...
+               'orderGrid', opt.OrderGrid, 'acvTol', opt.AcvTol, ...
+               'detrend', opt.Detrend, 'verbose', opt.Verbose);
+    if isempty(o.updateTypes), o.updateTypes = fieldnames(cov0); end
 
     cov  = cov0;
     hist = struct([]);

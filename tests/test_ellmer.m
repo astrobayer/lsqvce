@@ -847,6 +847,24 @@ function test_joint_alpha2_unity_at_truth_with_locals(tc)
 end
 
 %% ======================= WP-37: structured Sigma^-1 sums, no dense W^-1 (F-09)
+function test_joint_signature_typed_arguments(tc)
+    % WP-39 stage (a) (fails on the old code): adjustVCEjoint's typed
+    % `arguments` block -- unknown names error, StepSchedule is a strict
+    % member set, Probes must be a positive integer. Names were already
+    % UpperCamelCase; matching is now EXACT.
+    accFcn = @(varargin) struct();               % never reached: parse errors first
+    mustErr = { ...
+        @() lsqvce.adjustVCEjoint(accFcn, 'probes', 30), ...        % old-style lowercase
+        @() lsqvce.adjustVCEjoint(accFcn, 'StepSchedule', 'Decay'), ...
+        @() lsqvce.adjustVCEjoint(accFcn, 'Probes', 2.5), ...
+        @() lsqvce.adjustVCEjoint(accFcn, 'NoSuchOption', 1) };
+    for k = 1:numel(mustErr)
+        ok = false;
+        try, mustErr{k}(); catch, ok = true; end
+        verifyTrue(tc, ok, sprintf('signature case %d must error', k));
+    end
+end
+
 function test_lags_structured_sums_match_dense_toeplitz(tc)
     % Agreement at 1e-12 (spec): the Levinson + Gohberg-Semencul path must
     % reproduce s_n from the dense reference X = W\eye(N) on the standing
