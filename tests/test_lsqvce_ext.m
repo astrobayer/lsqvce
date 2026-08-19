@@ -833,6 +833,25 @@ function test_poolGroups_errors_on_missing_fields(tc)
 end
 
 %% ================================== WP-40: per-arc whiteness pooling (F-13)
+function test_stageB_signature_redundancy(tc)
+    % WP-39 stage (b) (F-07): redundancy's enum-value lever with the
+    % specific mustBeMember id ('Hutchinson' passed the old strcmpi).
+    ok = false;
+    try
+        lsqvce.redundancy([], [], 'TraceMethod', 'Hutchinson');
+    catch e
+        ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
+    end
+    verifyTrue(tc, ok, 'redundancy TraceMethod ''Hutchinson'' must fail');
+    ok = false;
+    try
+        lsqvce.redundancy([], [], 'Parallel', 'PARFOR');
+    catch e
+        ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
+    end
+    verifyTrue(tc, ok, 'redundancy Parallel ''PARFOR'' must fail (value casing)');
+end
+
 function test_noise_iteration_signature_types(tc)
     % WP-39 (F-07), corrected premise (round a1-2): NV names match
     % case-insensitively even under arguments; what the typed signature

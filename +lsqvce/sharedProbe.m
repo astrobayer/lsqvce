@@ -1,4 +1,4 @@
-function out = sharedProbe(U, varargin)
+function out = sharedProbe(U, opt)
 %LSQVCE.SHAREDPROBE  The once-per-iteration shared probe block UiZ = U^-1*Zbar.
 %
 %   out = LSQVCE.SHAREDPROBE(U)
@@ -26,17 +26,20 @@ function out = sharedProbe(U, varargin)
 %                         whitened [A l], which IS this U -- see the note below).
 %
 %   OPTIONS (Name/Value)
-%     'numProbes' 1x1 int      Z, number of probes (default 100, Ellmer's value)
-%     'seed'      1x1 int|[]   RNG seed for reproducible probes (default []).
+%   (WP-39 stage (b): canonical UpperCamelCase names below; legacy
+%   casings still match -- MATLAB NV semantics -- and enum VALUES are
+%   case-sensitive lowercase.)
+%     'NumProbes' 1x1 int      Z, number of probes (default 100, Ellmer's value)
+%     'Seed'      1x1 int|[]   RNG seed for reproducible probes (default []).
 %                              Empty: a seed is drawn ONCE from the package's
 %                              private session stream (probeMatrix contract,
 %                              WP-36). Either way a private RandStream is used
 %                              and the global RNG is
 %                              never disturbed.
-%     'probes'    P x Z double a FIXED raw +1/-1 probe block to use instead of
+%     'Probes'    P x Z double a FIXED raw +1/-1 probe block to use instead of
 %                              drawing one (normalisation is applied here).
-%                              Overrides 'numProbes'/'seed'.
-%     'distribution' char      'rademacher' (default) | 'gaussian'
+%                              Overrides 'NumProbes'/'Seed'.
+%     'Distribution' char      'rademacher' (default) | 'gaussian'
 %
 %   OUTPUT
 %     out   1x1 struct
@@ -51,7 +54,7 @@ function out = sharedProbe(U, varargin)
 %     and re-factoring N. That is strictly better conditioned than chol(A'A).
 %
 %   EXAMPLE
-%     sp  = lsqvce.sharedProbe(U, 'numProbes', 100, 'seed', 42);
+%     sp  = lsqvce.sharedProbe(U, 'NumProbes', 100, 'Seed', 42);
 %     for each arc
 %         r = lsqvce.redundancyLags(Abar, W, sp.UiZ, ebar, 60);   % reuse sp.UiZ
 %     end
@@ -63,6 +66,10 @@ function out = sharedProbe(U, varargin)
 %   See also LSQVCE.REDUNDANCYLAGS, LSQVCE.TRACEESTIMATE,
 %            LSQVCE.STREAMCONTRIBUTION
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) (F-07): typed
+%   `arguments` signature, canonical UpperCamelCase option names (legacy
+%   casings keep matching; enum VALUES case-sensitive lowercase). With
+%   assistance from Claude (Anthropic), model Claude Fable 5.
 %   Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Opus 4.8.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-36 (fixes F-06): probes come
@@ -70,15 +77,19 @@ function out = sharedProbe(U, varargin)
 %   session-stream draw, global RNG untouched; seeded realisations
 %   unchanged). With assistance from Claude (Anthropic), model Claude
 %   Fable 5.
+arguments
+    U (:,:) double
+    opt.NumProbes (1,1) double {mustBeInteger, mustBePositive} = 100
+    opt.Seed double {mustBeScalarOrEmpty} = []
+    opt.Probes double = []
+    opt.Distribution (1,1) string {mustBeMember(opt.Distribution, ["rademacher","gaussian"])} = "rademacher"
+end
 
-    p = inputParser;  p.FunctionName = 'lsqvce.sharedProbe';
-    p.addParameter('numProbes'   , 100, @(v) isscalar(v) && v >= 1 && v == floor(v));
-    p.addParameter('seed'        , []);
-    p.addParameter('probes'      , [], @(v) isnumeric(v));
-    p.addParameter('distribution', 'rademacher', ...
-                   @(s) any(strcmpi(s, {'rademacher','gaussian'})));
-    p.parse(varargin{:});
-    o = p.Results;
+    % WP-39 stage (b): typed `arguments` signature (canonical UpperCamel:
+    % NumProbes, Seed, Probes, Distribution -- legacy lowercase keeps
+    % matching, MATLAB NV semantics; enum VALUES case-sensitive lowercase).
+    o = struct('numProbes', opt.NumProbes, 'seed', opt.Seed, ...
+               'probes', opt.Probes, 'distribution', char(opt.Distribution));
 
     P = size(U, 1);
     if size(U, 2) ~= P

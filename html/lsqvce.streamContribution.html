@@ -102,6 +102,9 @@ RELATION TO THE EXACT PATH (read this before trusting the numbers)
                                       the accumulator has been solved.
 
 OPTIONS (Name/Value)
+(WP-39 stage (b): canonical UpperCamelCase names below; legacy
+casings still match -- MATLAB NV semantics -- and enum VALUES are
+case-sensitive lowercase.)
   &#x27;GroupBy&#x27;   char | function_handle  &#x27;arc&#x27; | &#x27;obsType&#x27; | &#x27;system&#x27; | &#x27;day&#x27;, or
                                       a predicate @(sat,obsType,arc,day)-&gt;key
                                       (default &#x27;system&#x27;). Same spec as
@@ -176,6 +179,10 @@ bar(c.group(1).diag);                       % per-coeff share of system 1</pre>
 See also LSQVCE.CONTRIBUTION, LSQVCE.REDUNDANCY, LSQVCE.LEVERAGEBLOCKS,
          LSQVCE.TRACEESTIMATE, LSQVCE.VCE
 
+Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) (F-07): typed
+`arguments` signature, canonical UpperCamelCase option names (legacy
+casings keep matching; enum VALUES case-sensitive lowercase). With
+assistance from Claude (Anthropic), model Claude Fable 5.
 Updated 2026-08-19 (CEST, UTC+02:00), WP-38 (fixes F-08): key presets
 and the batch-and-whiten skeleton live in the ONE private makeKeyFcn /
 arcBatchWhiten (byte-identical numerics; GroupBy error id now

@@ -67,14 +67,20 @@ NORMALISATION
                       whitened [A l], which IS this U -- see the note below).
 
 OPTIONS (Name/Value)
-  &#x27;numProbes&#x27; 1x1 int      Z, number of probes (default 100, Ellmer&#x27;s value)
-  &#x27;seed&#x27;      1x1 int|[]   RNG seed for reproducible probes (default []).
-                           Uses a private RandStream, so the global RNG is
+(WP-39 stage (b): canonical UpperCamelCase names below; legacy
+casings still match -- MATLAB NV semantics -- and enum VALUES are
+case-sensitive lowercase.)
+  &#x27;NumProbes&#x27; 1x1 int      Z, number of probes (default 100, Ellmer&#x27;s value)
+  &#x27;Seed&#x27;      1x1 int|[]   RNG seed for reproducible probes (default []).
+                           Empty: a seed is drawn ONCE from the package&#x27;s
+                           private session stream (probeMatrix contract,
+                           WP-36). Either way a private RandStream is used
+                           and the global RNG is
                            never disturbed.
-  &#x27;probes&#x27;    P x Z double a FIXED raw +1/-1 probe block to use instead of
+  &#x27;Probes&#x27;    P x Z double a FIXED raw +1/-1 probe block to use instead of
                            drawing one (normalisation is applied here).
-                           Overrides &#x27;numProbes&#x27;/&#x27;seed&#x27;.
-  &#x27;distribution&#x27; char      &#x27;rademacher&#x27; (default) | &#x27;gaussian&#x27;</pre>
+                           Overrides &#x27;NumProbes&#x27;/&#x27;Seed&#x27;.
+  &#x27;Distribution&#x27; char      &#x27;rademacher&#x27; (default) | &#x27;gaussian&#x27;</pre>
 <h3>Output</h3>
 <pre class="example">  out   1x1 struct
     .UiZ     P x Z double   U^-1 * Zbar, the shared block to pass around
@@ -87,16 +93,28 @@ QR NOTE
   satisfies N = R&#x27;*R, so R IS Ellmer&#x27;s U -- pass it directly and skip forming
   and re-factoring N. That is strictly better conditioned than chol(A&#x27;A).</pre>
 <h3>Example</h3>
-<pre class="example">  sp  = lsqvce.sharedProbe(U, &#x27;numProbes&#x27;, 100, &#x27;seed&#x27;, 42);
-  for each arc
-      r = lsqvce.redundancyLags(Abar, W, sp.UiZ, ebar, 60);   % reuse sp.UiZ
-  end
+<pre class="example">sp  = lsqvce.sharedProbe(U, &#x27;NumProbes&#x27;, 100, &#x27;Seed&#x27;, 42);
+for each arc
+    r = lsqvce.redundancyLags(Abar, W, sp.UiZ, ebar, 60);   % reuse sp.UiZ
+end</pre>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:sharedProbe:notSquare  the operator is not square
+  lsqvce:sharedProbe:badProbes  the probe count is not a positive integer
 
 See also LSQVCE.REDUNDANCYLAGS, LSQVCE.TRACEESTIMATE,
          LSQVCE.STREAMCONTRIBUTION
 
+Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) (F-07): typed
+`arguments` signature, canonical UpperCamelCase option names (legacy
+casings keep matching; enum VALUES case-sensitive lowercase). With
+assistance from Claude (Anthropic), model Claude Fable 5.
 Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
-model Claude Opus 4.8.</pre>
+model Claude Opus 4.8.
+Updated 2026-08-19 (CEST, UTC+02:00), WP-36 (fixes F-06): probes come
+from the ONE private generator probeMatrix (empty seed = private
+session-stream draw, global RNG untouched; seeded realisations
+unchanged). With assistance from Claude (Anthropic), model Claude
+Fable 5.</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
 <div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

@@ -95,14 +95,26 @@ vectors (see &#x27;omegaT&#x27;, &#x27;sT&#x27; below) and does the spectral hal
                             S^j that alpha2_j scales (eq. 6.5.19).
 
 OPTIONS (Name/Value)
+(WP-39 stage (b): canonical UpperCamelCase names below; legacy
+casings still match -- MATLAB NV semantics -- and enum VALUES are
+case-sensitive lowercase.)
   &#x27;Norm&#x27;            char    DCT normalisation, &#x27;ortho&#x27; (default) | &#x27;ellmer&#x27;
+  &#x27;Gamma&#x27;  1x1 in (0,1], default 1.  Damping exponent of the
+           multiplicative update, Shat = alpha2.^Gamma .* Sprior
+           (WP-40 r2, F-15): 1 is Ellmer&#x27;s plain step; a closed-loop
+           caller passes a DECAYING Gamma per pass to stabilise the
+           alternation.
                             (see LSQVCE.DCTI).
   &#x27;ZeroFreqRule&#x27;    char    how to treat the zero-frequency amplitude, which
                             is ill-defined for a zero-mean process (Ellmer
                             §6.5.6, &quot;Estimation of the Zero-Frequency&quot;):
                             &#x27;lowest&#x27; (default) replace Shat^0 by the lowest
                             non-zero frequency amplitude; &#x27;keep&#x27; leave as is.
-  &#x27;MinAmplitude&#x27;    1x1     floor applied to Shat to keep the PSD strictly
+  &#x27;MinAmplitude&#x27;    1x1     FLOOR applied to Shat (max(Shat, MinAmplitude);
+                            negative estimates land ON the floor, they are
+                            never abs()-folded -- WP-35/F-04, see the
+                            policy comment at the update line) to keep the
+                            PSD strictly
                             positive (default 1e-12). A PSD must be &gt;= 0.
   &#x27;Smooth&#x27;          1x1     half-width of a moving average applied to the
                             estimated amplitudes (default 0 = off). The
@@ -131,16 +143,31 @@ OPTIONS (Name/Value)
   .maxDev    1x1       max|alpha2 - 1|, the convergence measure
   .degenerate 1x1 logical  true if the start had no support beyond lag 0</pre>
 <h3>Example</h3>
-<pre class="example">  % per arc: r = lsqvce.redundancyLags(...); weight by sigma2_m and Cprior
-  omegaT(:,m) = sig2(m) * Cprior .* r.omega;
-  sT(:,m)     = sig2(m) * Cprior .* r.s;
-  p = lsqvce.psdVCE(omegaT, sT, Cprior);
-  Cprior = p.Cnew;                       % next iteration&#x27;s covariance
-  p.maxDev                               % -&gt; 0 as the model settles
+<pre class="example">% per arc: r = lsqvce.redundancyLags(...); weight by sigma2_m and Cprior
+omegaT(:,m) = sig2(m) * Cprior .* r.omega;
+sT(:,m)     = sig2(m) * Cprior .* r.s;
+p = lsqvce.psdVCE(omegaT, sT, Cprior);
+Cprior = p.Cnew;                       % next iteration&#x27;s covariance
+p.maxDev                               % -&gt; 0 as the model settles</pre>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:psdVCE:arcMismatch     the arc list disagrees with the residuals
+  lsqvce:psdVCE:shapeMismatch   the spectral shape has the wrong length
 
 See also LSQVCE.DCTI, LSQVCE.REDUNDANCYLAGS, LSQVCE.TOEPLITZCOFACTOR,
          LSQVCE.ARCVARIANCEFACTORS
 
+Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) (F-07): typed
+`arguments` signature, canonical UpperCamelCase option names (legacy
+casings keep matching; enum VALUES case-sensitive lowercase). With
+assistance from Claude (Anthropic), model Claude Fable 5.
+Updated 2026-08-19 (CEST, UTC+02:00), WP-40 r2 (F-15): optional damped
+update &#x27;Gamma&#x27; (alpha2.^Gamma, default 1 = unchanged). With assistance
+from Claude (Anthropic), model Claude Fable 5.
+Updated 2026-08-19 (CEST, UTC+02:00), WP-35 (fixes F-04): negative
+amplitude estimates are FLOORED at MinAmplitude, never abs()-folded --
+abs injected ~2x the power at zero-power bins (v10review.py T6); bins
+with genuine positive power are unchanged. With assistance from Claude
+(Anthropic), model Claude Fable 5.
 Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Opus 4.8.</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>

@@ -286,6 +286,43 @@ function test_stream_default_seed_global_rng_untouched(tc)
         'an empty Seed must never touch the global stream');
 end
 
+%% ============================ WP-39 stage (b): typed-signature enforcement
+function test_stageB_signatures_contribution_family(tc)
+    % WP-39 stage (b) (F-07): enum VALUES are the fails-on-old levers --
+    % the a1-2 lesson says assert the SPECIFIC validator id
+    % (MATLAB:validators:mustBeMember), which the old inputParser code
+    % could not produce (it threw InputParser:ArgumentFailedValidation).
+    dummy = @(s) s;
+    ok = false;
+    try
+        lsqvce.vce(dummy, 'TraceMethod', 'Exact');
+    catch e
+        ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
+    end
+    verifyTrue(tc, ok, 'vce TraceMethod ''Exact'' must fail mustBeMember');
+    ok = false;
+    try
+        lsqvce.streamContribution([], [], 'Probes', 0);
+    catch e
+        ok = startsWith(e.identifier, 'MATLAB:validators:');
+    end
+    verifyTrue(tc, ok, 'streamContribution Probes = 0 must fail the signature');
+    ok = false;
+    try
+        lsqvce.contribution([], [], 'Level', 3);
+    catch e
+        ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
+    end
+    verifyTrue(tc, ok, 'contribution Level = 3 must fail mustBeMember');
+    ok = false;
+    try
+        lsqvce.sharedProbe(eye(3), 'Distribution', 'Rademacher');
+    catch e
+        ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
+    end
+    verifyTrue(tc, ok, 'sharedProbe Distribution ''Rademacher'' must fail');
+end
+
 function test_vce_freezeR_freezes_and_warns(tc)
     % WP-40 (fixes F-10; fails on the old code, which had no 'freezeR' and
     % SILENTLY floored r_g to 1): with freezeR = Inf every group is below

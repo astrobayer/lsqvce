@@ -1,4 +1,4 @@
-function con = contribution(acc, sol, varargin)
+function con = contribution(acc, sol, opt)
 %LSQVCE.CONTRIBUTION  Per-group information share of the solution (contribution).
 %
 %   con = LSQVCE.CONTRIBUTION(acc, sol)
@@ -36,6 +36,9 @@ function con = contribution(acc, sol, varargin)
 %     sol   1x1 struct                    solve output carrying sol.x (nc x 1)
 %
 %   OPTIONS (Name/Value)
+%   (WP-39 stage (b): canonical UpperCamelCase names below; legacy
+%   casings still match -- MATLAB NV semantics -- and enum VALUES are
+%   case-sensitive lowercase.)
 %     'GroupBy'      char | fh   'system' (default) | 'obsType' | 'day' | 'arc' |
 %                                @(sat,obsType,arc,day)->key. Same spec as
 %                                LSQVCE.REDUNDANCY / LSQVCE.VCE.
@@ -76,18 +79,26 @@ function con = contribution(acc, sol, varargin)
 %   See also LSQVCE.STREAMCONTRIBUTION, LSQVCE.REDUNDANCY, LSQVCE.VCE,
 %            LSQVCE.ADJUSTVCE
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) (F-07): typed
+%   `arguments` signature, canonical UpperCamelCase option names (legacy
+%   casings keep matching; enum VALUES case-sensitive lowercase). With
+%   assistance from Claude (Anthropic), model Claude Fable 5.
 %   Created 2026-07-17 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Opus 4.8.
+arguments
+    acc
+    sol
+    opt.GroupBy = 'system'
+    opt.Level (1,1) double {mustBeMember(opt.Level, [1 2])} = 1
+    opt.Probes (1,1) double {mustBeInteger, mustBePositive} = 100
+    opt.Seed double {mustBeScalarOrEmpty} = []
+    opt.MinRedundancy (1,1) double {mustBePositive} = 50
+    opt.Verbose (1,1) logical = false
+end
 
-    p = inputParser;
-    p.addParameter('GroupBy'      , 'system');
-    p.addParameter('Level'        , 1, @(v) isscalar(v) && any(v == [1 2]));
-    p.addParameter('Probes'       , 100, @(v) isscalar(v) && v >= 1 && v == floor(v));
-    p.addParameter('Seed'         , []);
-    p.addParameter('MinRedundancy', 50);
-    p.addParameter('Verbose'      , false, @(v) isscalar(v));
-    p.parse(varargin{:});
-    o = p.Results;
+    % WP-39 stage (b): typed `arguments` signature (names already
+    % UpperCamelCase; NAME matching case-insensitive per MATLAB semantics).
+    o = opt;
 
     % ---- Level 1: exact per-group cc-trace share -------------------------
     red = lsqvce.redundancy(acc, sol, 'GroupBy', o.GroupBy, ...

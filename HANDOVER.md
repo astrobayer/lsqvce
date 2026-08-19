@@ -2846,6 +2846,54 @@ Legacy name casings continue to match (MATLAB name-value semantics).
 Breaking: enum values are case-sensitive lowercase ('qr', not 'QR';
 'decay', not 'Decay'); wrongly-typed or out-of-range option values and
 unknown option names now error at the signature.
+**ROUND NOTE (2026-08-19, WP-39 stage (b) = b1, model Claude Fable 5;
+branch `claude/wp-39` continuing past the PR #14 merge).** MIGRATED to
+typed `arguments` signatures, canonical UpperCamelCase, lowercase
+o-struct mappings keeping bodies untouched: vce, varComp (typed
+positionals; CheckD left untyped so both [] and the diagnose struct
+pass), redundancy (Parallel default "" via char()), redundancyLags
+(names were UpperCamel; ebar/nMaxLag stay REQUIRED positionals — an
+optional draft would have changed the contract, caught pre-commit),
+streamContribution, contribution, psdVCE, sharedProbe (lowercase ->
+NumProbes/Seed/Probes/Distribution; 18 legacy call sites keep working
+via MATLAB's case-insensitive NV matching — no churn sweep, the a2
+decision). PLACEMENT LESSON (caught by the page builder's "no help
+block" skip): an `arguments` block inserted BETWEEN the function line
+and the help comment silently kills `help`/`doc` for the function —
+MATLAB help must directly follow the signature; all eight blocks moved
+AFTER the help, and the a1 trio was verified unaffected. INTERNAL
+FORWARDING verified: vce->redundancy lowercase pairs ride the same
+case-insensitive matching; string enums flow into the remaining
+inputParser consumers (dctI) unchanged. TESTS (a1-2 lesson): the
+fails-on-old levers assert the SPECIFIC MATLAB:validators:mustBeMember
+id, unreachable for the old strcmpi/inputParser code — vce 'Exact',
+varComp 'Rigorous', redundancy 'Hutchinson'/'PARFOR', psdVCE 'Lowest',
+sharedProbe 'Rademacher'; plus typed-constraint checks (Probes 0, Level
+3, Gamma 1.5, nMaxLag 0, non-integer u). DOCS: help OPTIONS casing swept
+(help lines only, scripted token map), casing note + stamp per file,
+eight HTML pages regenerated, reference-manual release note extended.
+REMAINING: stage (b) round 2 = the diagnostics family (diagnose,
+residuals, report, outliers, robust, ftest, crossCorr, ellipse,
+selectArOrder), then stage (c) primitives.
+**b1 round 2 (2026-08-19): field-completeness repair.** CI red (17
+errors, all one cause): varComp's b1 arguments block DROPPED three of
+the twelve old options (backend/seed/reprobe) — the body read o.backend
+into a struct that never carried it. Fixed by restoring Backend/Seed/
+Reprobe (typed, canonical) and extending the o-struct mapping. LESSON
+PINNED, mechanical and reusable: after any parser->arguments migration,
+diff the set of o.<field> READS in the body against the MAPPED fields
+(or the declared opt.* names when o = opt) — a five-line Python check
+now run for all eight b1 functions: ALL COMPLETE. The old parse block is
+the option inventory; migrate against IT, not against the help text.
+**b1 round 3 (2026-08-19): the last red = a documented-ERRORS contract
+moved.** redundancyLags' nMaxLag <= 0 now fails mustBePositive AT THE
+SIGNATURE where the body used to throw lsqvce:redundancyLags:badNMaxLag
+(the contract test caught it -- working as designed). RULE adopted and
+release-noted: scalar per-argument constraints live in the typed
+signature and surface MATLAB validator ids; CROSS-ARGUMENT shape checks
+stay in the body with their lsqvce: ids (badW/badUiZ unchanged and
+green). Test, ERRORS help and the reference-manual release note updated
+accordingly.
 
 **Round a2 (2026-08-19): adjust + the fluent configurators — two PINNED
 DEVIATIONS (user approves by merge), both consequences of the corrected

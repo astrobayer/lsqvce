@@ -1,4 +1,4 @@
-function out = redundancyLags(Abar, W, UiZ, ebar, nMaxLag, varargin)
+function out = redundancyLags(Abar, W, UiZ, ebar, nMaxLag, opt)
 %LSQVCE.REDUNDANCYLAGS  Per-lag redundancies s_n and residual sums Omega_n.
 %
 %   out = LSQVCE.REDUNDANCYLAGS(Abar, W, UiZ, ebar, nMaxLag)
@@ -58,6 +58,9 @@ function out = redundancyLags(Abar, W, UiZ, ebar, nMaxLag, varargin)
 %                             n = 0..nMaxLag-1.
 %
 %   OPTIONS (Name/Value)
+%   (WP-39 stage (b): canonical UpperCamelCase names below; legacy
+%   casings still match -- MATLAB NV semantics -- and enum VALUES are
+%   case-sensitive lowercase.)
 %     'WantRbar' logical   also return the dense Rbar (N x N). Default false --
 %                          for long arcs this is the one big object, and the
 %                          unrolled sums never need it materialised beyond the
@@ -110,11 +113,19 @@ function out = redundancyLags(Abar, W, UiZ, ebar, nMaxLag, varargin)
 %     lsqvce:redundancyLags:badEbar      the mean-residual argument is malformed
 %     lsqvce:redundancyLags:badW         the weight argument is malformed
 %     lsqvce:redundancyLags:badUiZ       the probe matrix has the wrong shape
-%     lsqvce:redundancyLags:badNMaxLag   the lag count is not a positive integer
+%     MATLAB:validators:mustBePositive / mustBeInteger  nMaxLag not a
+%                   positive integer (WP-39: the scalar constraint sits
+%                   in the typed signature; the old badNMaxLag body check
+%                   is gone -- cross-argument shape checks below keep
+%                   their lsqvce: identifiers)
 %
 %   See also LSQVCE.COVCOMPONENT, LSQVCE.TOEPLITZCOFACTOR, LSQVCE.DCTI,
 %            LSQVCE.TRACEESTIMATE, LSQVCE.STREAMCONTRIBUTION
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) (F-07): typed
+%   `arguments` signature, canonical UpperCamelCase option names (legacy
+%   casings keep matching; enum VALUES case-sensitive lowercase). With
+%   assistance from Claude (Anthropic), model Claude Fable 5.
 %   Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Opus 4.8.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-37 (fixes F-09): the dense
@@ -127,13 +138,21 @@ function out = redundancyLags(Abar, W, UiZ, ebar, nMaxLag, varargin)
 %   projector can now absorb the LOCAL parameter block exactly via
 %   'LocalBbar'/'LocalLl' (see OPTIONS); the nl = 0 path is verbatim the old
 %   code. With assistance from Claude (Anthropic), model Claude Fable 5.
+arguments
+    Abar (:,:) double
+    W (:,:) double
+    UiZ (:,:) double
+    ebar double
+    nMaxLag (1,1) double {mustBeInteger, mustBePositive}
+    opt.WantRbar (1,1) logical = false
+    opt.LocalBbar double = []
+    opt.LocalLl double = []
+end
 
-    p = inputParser;  p.FunctionName = 'lsqvce.redundancyLags';
-    p.addParameter('WantRbar', false, @(v) isscalar(v) && (islogical(v) || isnumeric(v)));
-    p.addParameter('LocalBbar', [], @(v) isempty(v) || isnumeric(v));
-    p.addParameter('LocalLl',   [], @(v) isempty(v) || isnumeric(v));
-    p.parse(varargin{:});
-    o = p.Results;
+    % WP-39 stage (b): typed `arguments` signature (names were already
+    % UpperCamelCase; NAME matching stays case-insensitive per MATLAB
+    % semantics).
+    o = opt;
 
     [N, P] = size(Abar);
     if size(W,1) ~= N || size(W,2) ~= N
@@ -147,10 +166,9 @@ function out = redundancyLags(Abar, W, UiZ, ebar, nMaxLag, varargin)
               'must be U^-1*Zbar with U the factor of the P x P normal matrix.'], ...
               size(UiZ,1), P);
     end
-    if ~(isscalar(nMaxLag) && nMaxLag == floor(nMaxLag) && nMaxLag >= 1)
-        error('lsqvce:redundancyLags:badNMaxLag', ...
-              'nMaxLag must be a positive integer (got %g).', nMaxLag);
-    end
+    % WP-39 b1 r3: the positive-integer check lives in the typed signature
+    % ({mustBeInteger, mustBePositive}); the old body check is dead and
+    % deleted (rule 8).
     nMaxLag = min(nMaxLag, N);
     Z = size(UiZ, 2);
 

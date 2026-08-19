@@ -78,6 +78,9 @@ WEIGHT DEPENDENCE (read this)
   sol   1x1 struct                    solve output carrying sol.x (nc x 1)
 
 OPTIONS (Name/Value)
+(WP-39 stage (b): canonical UpperCamelCase names below; legacy
+casings still match -- MATLAB NV semantics -- and enum VALUES are
+case-sensitive lowercase.)
   &#x27;GroupBy&#x27;      char | fh   &#x27;system&#x27; (default) | &#x27;obsType&#x27; | &#x27;day&#x27; | &#x27;arc&#x27; |
                              @(sat,obsType,arc,day)-&gt;key. Same spec as
                              LSQVCE.REDUNDANCY / LSQVCE.VCE.
@@ -116,6 +119,10 @@ OPTIONS (Name/Value)
 See also LSQVCE.STREAMCONTRIBUTION, LSQVCE.REDUNDANCY, LSQVCE.VCE,
          LSQVCE.ADJUSTVCE
 
+Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) (F-07): typed
+`arguments` signature, canonical UpperCamelCase option names (legacy
+casings keep matching; enum VALUES case-sensitive lowercase). With
+assistance from Claude (Anthropic), model Claude Fable 5.
 Created 2026-07-17 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Opus 4.8.</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>

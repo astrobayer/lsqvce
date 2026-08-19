@@ -67,39 +67,42 @@ common way to produce a confident wrong answer.</pre>
                            EMPTY, meaning unit weights; the function must
                            accept that (WP-41: previously undocumented).</pre>
 <h3>Options</h3>
-<pre class="example">&#x27;groups&#x27;      cellstr / numeric vector of group keys, in the order that
-              sigma is indexed. If omitted, taken from the first pass.
-&#x27;groupBy&#x27;     as LSQVCE.REDUNDANCY (default &#x27;arc&#x27;)
-&#x27;sigma0&#x27;      initial sigmas (default all ones)
-&#x27;maxIter&#x27;     default 8
-&#x27;tol&#x27;         convergence on max|sigma_new/sigma_old - 1| (default 1e-3)
-&#x27;minRedundancy&#x27;  default 50
-&#x27;freezeR&#x27;  1x1 &gt; 0, default 1.  Estimability threshold of the sigma
-           UPDATE (WP-40, fixes F-10; distinct from &#x27;minRedundancy&#x27;,
-           which is LSQVCE.REDUNDANCY&#x27;s per-observation testability
-           knob): a group with r_g &lt; freezeR keeps its current sigma
-           this pass (upd = 1) and is warned about once -- the old code
-           silently floored r_g to 1, biasing sigma^2 = vtv/1 LOW.
-&#x27;verbose&#x27;     default true
-&#x27;traceMethod&#x27; &#x27;exact&#x27; (default) | &#x27;hutchinson&#x27;. Both estimate the SAME
-              quantity, the group redundancy r_g = sum_{i in g}(1-h_i) =
-              n_g - (local dof absorbed by g) - tr(N^-1 N_g^cc). &#x27;exact&#x27;
-              sums the per-arc leverages. &#x27;hutchinson&#x27; streams it
-              matrix-free (LSQVCE.STREAMCONTRIBUTION .r): the count and
-              the local term are EXACT from the same sweep, only the
-              common-block trace is a Monte-Carlo estimate -- an OPT-IN
-              accelerator for very large nc where the exact O(nc^2)/arc
-              leverage is dear. vtv (the residual sum of squares) stays
-              EXACT. NOTE r_g is NOT tr(N^-1 N_g^cc): that trace is only
-              the absorbed cc-attribution (it sums to nc, while
-              sum_g r_g = m-u); using it as the Helmert denominator
-              inflates sigma without bound (finding F-01, fixed WP-32;
-              evidence validation/v10review.py T2). The final pass also
-              fills vc.red.traceEstimate. Being stochastic it adds noise
-              to sigma -- prefer &#x27;exact&#x27; whenever affordable; see the
-              accuracy note in LSQVCE.LEVERAGE.
-&#x27;probes&#x27;      1x1  number of Hutchinson probes Z (default 100, Ellmer&#x27;s).
-&#x27;traceSeed&#x27;   1x1  RNG seed for reproducible probes (default []).</pre>
+<pre class="example">(WP-39 stage (b): canonical UpperCamelCase names below; legacy
+casings still match -- MATLAB NV semantics -- and enum VALUES are
+case-sensitive lowercase.)
+  &#x27;Groups&#x27;      cellstr / numeric vector of group keys, in the order that
+                sigma is indexed. If omitted, taken from the first pass.
+  &#x27;GroupBy&#x27;     as LSQVCE.REDUNDANCY (default &#x27;arc&#x27;)
+  &#x27;Sigma0&#x27;      initial sigmas (default all ones)
+  &#x27;MaxIter&#x27;     default 8
+  &#x27;Tol&#x27;         convergence on max|sigma_new/sigma_old - 1| (default 1e-3)
+  &#x27;MinRedundancy&#x27;  default 50
+  &#x27;FreezeR&#x27;  1x1 &gt; 0, default 1.  Estimability threshold of the sigma
+             UPDATE (WP-40, fixes F-10; distinct from &#x27;MinRedundancy&#x27;,
+             which is LSQVCE.REDUNDANCY&#x27;s per-observation testability
+             knob): a group with r_g &lt; freezeR keeps its current sigma
+             this pass (upd = 1) and is warned about once -- the old code
+             silently floored r_g to 1, biasing sigma^2 = vtv/1 LOW.
+  &#x27;Verbose&#x27;     default true
+  &#x27;TraceMethod&#x27; &#x27;exact&#x27; (default) | &#x27;hutchinson&#x27;. Both estimate the SAME
+                quantity, the group redundancy r_g = sum_{i in g}(1-h_i) =
+                n_g - (local dof absorbed by g) - tr(N^-1 N_g^cc). &#x27;exact&#x27;
+                sums the per-arc leverages. &#x27;hutchinson&#x27; streams it
+                matrix-free (LSQVCE.STREAMCONTRIBUTION .r): the count and
+                the local term are EXACT from the same sweep, only the
+                common-block trace is a Monte-Carlo estimate -- an OPT-IN
+                accelerator for very large nc where the exact O(nc^2)/arc
+                leverage is dear. vtv (the residual sum of squares) stays
+                EXACT. NOTE r_g is NOT tr(N^-1 N_g^cc): that trace is only
+                the absorbed cc-attribution (it sums to nc, while
+                sum_g r_g = m-u); using it as the Helmert denominator
+                inflates sigma without bound (finding F-01, fixed WP-32;
+                evidence validation/v10review.py T2). The final pass also
+                fills vc.red.traceEstimate. Being stochastic it adds noise
+                to sigma -- prefer &#x27;exact&#x27; whenever affordable; see the
+                accuracy note in LSQVCE.LEVERAGE.
+  &#x27;Probes&#x27;      1x1  number of Hutchinson probes Z (default 100, Ellmer&#x27;s).
+  &#x27;TraceSeed&#x27;   1x1  RNG seed for reproducible probes (default []).</pre>
 <h3>Output</h3>
 <pre class="example">vc.sigma      final variance components (one per group)
 vc.groups     the group keys, aligned with sigma
@@ -137,7 +140,7 @@ INTERPRETING THE RESULT
   noise is genuinely higher.</pre>
 <h3>Example</h3>
 <pre class="example">accFcn = @(sig) buildAccumulator(cfg, sig);   % you write this
-vc = lsqvce.vce(accFcn, &#x27;groupBy&#x27;,&#x27;arc&#x27;, &#x27;maxIter&#x27;,6);
+vc = lsqvce.vce(accFcn, &#x27;GroupBy&#x27;,&#x27;arc&#x27;, &#x27;MaxIter&#x27;,6);
 
 bar(vc.sigma);  xlabel(&#x27;arc&#x27;);  ylabel(&#x27;\sigma_g&#x27;);
 yline(1, &#x27;r--&#x27;);
@@ -153,8 +156,12 @@ See also LSQVCE.REDUNDANCY, LSQVCE.LEVERAGE, LSQVCE.OUTLIERS
 
 Generated with assistance from Claude (Anthropic), model Claude
 Opus 4.8.
+Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) (F-07): typed
+`arguments` signature, canonical UpperCamelCase option names (legacy
+casings keep matching; enum VALUES case-sensitive lowercase). With
+assistance from Claude (Anthropic), model Claude Fable 5.
 Updated 2026-08-19 (CEST, UTC+02:00), WP-40 (fixes F-10): groups with
-r_g &lt; &#x27;freezeR&#x27; are FROZEN and warned about instead of silently
+r_g &lt; &#x27;FreezeR&#x27; are FROZEN and warned about instead of silently
 floored. With assistance from Claude (Anthropic), model Claude Fable 5.
 Updated 2026-08-19 (CEST, UTC+02:00), WP-36 (fixes F-06): an empty
 TraceSeed is pinned ONCE up front from the package-private probe

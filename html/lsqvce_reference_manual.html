@@ -72,10 +72,23 @@ validators and the case-sensitive <code>Method</code> enum, but stays on
 unmatched options to <code>lsqvce.diagnose</code>, which an
 <code>arguments</code> block cannot express; the fluent
 <code>adjustVCE</code> configurators keep their canonicalising merge for
-the same reason.
+the same reason. Stage (b) migrates the VCE core to typed
+<code>arguments</code> signatures: <code>vce</code>, <code>varComp</code>,
+<code>redundancy</code>, <code>redundancyLags</code>,
+<code>streamContribution</code>, <code>contribution</code>,
+<code>psdVCE</code>, <code>sharedProbe</code> &mdash; canonical
+UpperCamelCase names (legacy casings keep matching), typed constraints,
+unknown-name rejection, and case-sensitive lowercase enum values
+(<code>'exact'</code>, <code>'rigorous'</code>, <code>'rademacher'</code>,
+<code>'lowest'</code>, &hellip;).
 Enum values (e.g. <code>'QR'</code>) and out-of-range or wrongly-typed
 option values now error at the signature; unknown option names are
-rejected. Remaining functions follow in the staged WP-39
+rejected. Scalar positional constraints also moved into the typed
+signatures and now surface MATLAB validator identifiers (e.g.
+<code>MATLAB:validators:mustBePositive</code> for
+<code>redundancyLags</code>'s <code>nMaxLag</code>) where handwritten
+<code>lsqvce:</code> checks used to fire; cross-argument shape checks
+keep their <code>lsqvce:</code> identifiers. Remaining functions follow in the staged WP-39
 rollout.</div>
 <h2>Symbols</h2>
 <table>
