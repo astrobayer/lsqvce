@@ -17,6 +17,10 @@ function tests = test_ellmer
 %   non-PD skip with keyed alignment/kept-factor/skip-report assertions,
 %   and the vanished-enumeration arcMismatch error. With assistance from
 %   Claude (Anthropic), model Claude Fable 5.
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-37: three tests for the
+%   structured Sigma^-1 sums (dense-reference agreement at 1e-12 on the
+%   Toeplitz AND the general fallback path; the long-arc speed lever).
+%   With assistance from Claude (Anthropic), model Claude Fable 5.
 %   Updated 2026-08-18 (CEST, UTC+02:00), WP-33: four tests for the locals-
 %   in-residual-and-projector fix (F-03) -- dense joint-projector parity,
 %   alpha2 ~ 1 at truth WITH locals (+ the pre-fix contrast, so the test
@@ -836,6 +840,90 @@ function test_joint_alpha2_unity_at_truth_with_locals(tc)
         'alpha2 must be ~1 at truth on white noise WITH locals');
     verifyTrue(tc, alpha2Old > 1.5, ...
         'the pre-WP-33 formation must stay measurably biased (the contrast)');
+end
+
+%% ======================= WP-37: structured Sigma^-1 sums, no dense W^-1 (F-09)
+function test_lags_structured_sums_match_dense_toeplitz(tc)
+    % Agreement at 1e-12 (spec): the Levinson + Gohberg-Semencul path must
+    % reproduce s_n from the dense reference X = W\eye(N) on the standing
+    % TOEPLITZ fixture -- with probes AND locals engaged so every term of
+    % s_n is exercised.
+    rng(371);
+    N = 90;  P = 3;  nl = 2;
+    [~, W] = spdToeplitz(N);
+    A = randn(N, P);  B = randn(N, nl);
+    Aw = W.'\A;  Bw = W.'\B;
+    Nll = Bw.'*Bw;  G = Nll\(Bw.'*Aw);  At = Aw - Bw*G;
+    U  = chol((At.'*At + (At.'*At).')/2);
+    sp = lsqvce.sharedProbe(U, 'numProbes', 40, 'seed', 9);
+    Ll = chol((Nll+Nll.')/2, 'lower');
+    r  = lsqvce.redundancyLags(At, W, sp.UiZ, [], 6, ...
+             'LocalBbar', Bw, 'LocalLl', Ll);
+    % dense reference, built exactly as the pre-WP-37 kernel did:
+    X  = W \ eye(N);
+    Rt = W \ (At * sp.UiZ);
+    K  = W \ (Bw / Ll.');
+    sRef = zeros(6,1);
+    sRef(1) = sum(X(:).^2) - sum(Rt(:).^2) - sum(K(:).^2);
+    for n = 1:5
+        idx = 1:(N-n);
+        sRef(n+1) = 2*sum( sum(X(idx+n,:).*X(idx,:),2) ...
+                         - sum(Rt(idx+n,:).*Rt(idx,:),2) ...
+                         - sum(K(idx+n,:).*K(idx,:),2) );
+    end
+    verifyEqual(tc, r.s, sRef, 'RelTol', 1e-12, ...
+        'GS-path s_n must match the dense reference at 1e-12');
+end
+
+function test_lags_structured_sums_match_dense_general(tc)
+    % The NON-Toeplitz fallback (ring-streamed columns of W^-T): same 1e-12
+    % agreement on a deliberately non-stationary covariance.
+    rng(372);
+    N = 70;  P = 3;
+    d = linspace(1, 3, N).';                     % varying variance: not Toeplitz
+    [Sig0, ~] = spdToeplitz(N);
+    Sig = (d*d.') .* Sig0;
+    W = chol((Sig+Sig.')/2);
+    A = randn(N, P);
+    U = chol(A.'*(Sig\A));
+    sp = lsqvce.sharedProbe(U, 'numProbes', 30, 'seed', 11);
+    Abar = W.'\A;
+    r = lsqvce.redundancyLags(Abar, W, sp.UiZ, [], 5);
+    X  = W \ eye(N);
+    Rt = W \ (Abar * sp.UiZ);
+    sRef = zeros(5,1);
+    sRef(1) = sum(X(:).^2) - sum(Rt(:).^2);
+    for n = 1:4
+        idx = 1:(N-n);
+        sRef(n+1) = 2*sum( sum(X(idx+n,:).*X(idx,:),2) ...
+                         - sum(Rt(idx+n,:).*Rt(idx,:),2) );
+    end
+    verifyEqual(tc, r.s, sRef, 'RelTol', 1e-12, ...
+        'fallback-path s_n must match the dense reference at 1e-12');
+end
+
+function test_lags_long_arc_speed_no_cubic_term(tc)
+    % Paragraph-6.1 SPEED lever: on a LONG Toeplitz arc the structured path
+    % is O(N^2) -- the pre-WP-37 kernel materialised X = W\eye(N) (O(N^3)
+    % work, O(N^2) memory) and blows the budget below by an order of
+    % magnitude on the runner (measured there: dense ~12-30 s at N = 4000;
+    % structured < 1 s; budget 5 s leaves slow-runner margin without
+    % readmitting the cubic term).
+    N = 4000;
+    base = [1; 0.5*0.8.^(1:N-1).'];
+    c = base;  c(1) = 1.5;
+    Sig = toeplitz(c);                           % SPD by diagonal dominance margin
+    W = chol(Sig);
+    A = randn(RandStream('twister','Seed',7), N, 2);
+    U = chol(A.'*A);
+    sp = lsqvce.sharedProbe(U, 'numProbes', 8, 'seed', 3);
+    tStart = tic;
+    r = lsqvce.redundancyLags(W.'\A, W, sp.UiZ, [], 4);
+    tElapsed = toc(tStart);
+    verifyTrue(tc, isfinite(r.s(1)) && r.s(1) > 0, 'sanity: s_0 computed');
+    verifyLessThan(tc, tElapsed, 5.0, ...
+        sprintf('structured path took %.2f s at N = %d (cubic would blow this)', ...
+                tElapsed, N));
 end
 
 function test_redundancyLags_nl0_path_bitwise_unchanged(tc)

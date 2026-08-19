@@ -2669,6 +2669,31 @@ replay all held).
 > SPEED test (§6.1) demonstrating the removal of the O(N^3) term on a long
 > arc; no API change.
 
+**ROUND NOTE (2026-08-19, WP-37 round 1, model Claude Fable 5; branch
+`claude/wp-37`, riding the WP-36 DONE flip).** KERNEL: only the SUM over
+each Sigma^-1 sub-diagonal enters s_n, so the dense X = W\eye(N) is gone
+from the main path. TOEPLITZ arcs (every stationary covModel: acf, arma,
+psd) are DETECTED from three probe columns of Sigma (cols 1, 2, mid via
+W'*(W e_j), tol 1e-10 relative) and solved by Levinson-Durbin
+(toeplitzInvFirstCol: Durbin + the Yule-Walker identity x = [1;a]/(E c1))
++ Gohberg-Semencul: Sigma^-1 = (1/x1)(L(x)L(x)' - L(z)L(z)'), whose
+triangular-Toeplitz sub-diagonal sums are O(N) weighted correlations
+S_n(u) = sum_j u(j+n)u(j)(N-n-j+1) — O(N^2) time, O(N) memory. General W
+falls back to streaming the columns of W^-T with an nMaxLag ring buffer:
+still O(N^3) time (no structure, no shortcut — stated honestly in the
+help) but O(N*nLag) memory, which finally makes the help's memory claim
+TRUE. WantRbar alone still materialises (testing path, documented). Both
+recursions were mirrored EXACTLY in Python first and validated against
+dense inverses to 1e-14 (this note is the record; five Toeplitz sizes +
+ring fallback). HOT-LOOP TOLLS: decorrFactor computes info (incl. the
+per-batch condest) only when nargout > 1; redundancy's task enumeration
+caches the meta calls and preallocates (the old tasks(end+1) copied
+O(nTask^2)). TESTS (test_ellmer): dense-reference agreement at 1e-12 on
+the Toeplitz path (probes AND locals engaged) and on a deliberately
+non-stationary covariance (fallback path); the §6.1 SPEED lever at
+N = 4000 with a 5 s budget the dense kernel blows by an order of
+magnitude. NO API change.
+
 ### WP-38 — Deduplicate: keys, arc batching, and an audit lock
 
 > Fix finding F-08 (HANDOVER §8.3). One private makeKeyFcn used by
