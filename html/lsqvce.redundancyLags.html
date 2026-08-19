@@ -150,10 +150,11 @@ r.s(1)          % s_0</pre>
 <pre class="example">  lsqvce:redundancyLags:badEbar      the mean-residual argument is malformed
   lsqvce:redundancyLags:badW         the weight argument is malformed
   lsqvce:redundancyLags:badUiZ       the probe matrix has the wrong shape
-  MATLAB:validators:mustBePositive  nMaxLag &lt; 1 (WP-39: the scalar
-                constraint sits in the typed signature; the old
-                lsqvce:redundancyLags:badNMaxLag body check is gone --
-                cross-argument shape checks below keep lsqvce: ids)
+  MATLAB:validators:mustBePositive / mustBeInteger  nMaxLag not a
+                positive integer (WP-39: the scalar constraint sits
+                in the typed signature; the old badNMaxLag body check
+                is gone -- cross-argument shape checks below keep
+                their lsqvce: identifiers)
 
 See also LSQVCE.COVCOMPONENT, LSQVCE.TOEPLITZCOFACTOR, LSQVCE.DCTI,
          LSQVCE.TRACEESTIMATE, LSQVCE.STREAMCONTRIBUTION

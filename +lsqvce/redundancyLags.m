@@ -113,10 +113,11 @@ function out = redundancyLags(Abar, W, UiZ, ebar, nMaxLag, opt)
 %     lsqvce:redundancyLags:badEbar      the mean-residual argument is malformed
 %     lsqvce:redundancyLags:badW         the weight argument is malformed
 %     lsqvce:redundancyLags:badUiZ       the probe matrix has the wrong shape
-%     MATLAB:validators:mustBePositive  nMaxLag < 1 (WP-39: the scalar
-%                   constraint sits in the typed signature; the old
-%                   lsqvce:redundancyLags:badNMaxLag body check is gone --
-%                   cross-argument shape checks below keep lsqvce: ids)
+%     MATLAB:validators:mustBePositive / mustBeInteger  nMaxLag not a
+%                   positive integer (WP-39: the scalar constraint sits
+%                   in the typed signature; the old badNMaxLag body check
+%                   is gone -- cross-argument shape checks below keep
+%                   their lsqvce: identifiers)
 %
 %   See also LSQVCE.COVCOMPONENT, LSQVCE.TOEPLITZCOFACTOR, LSQVCE.DCTI,
 %            LSQVCE.TRACEESTIMATE, LSQVCE.STREAMCONTRIBUTION
@@ -165,10 +166,9 @@ end
               'must be U^-1*Zbar with U the factor of the P x P normal matrix.'], ...
               size(UiZ,1), P);
     end
-    if ~(isscalar(nMaxLag) && nMaxLag == floor(nMaxLag) && nMaxLag >= 1)
-        error('lsqvce:redundancyLags:badNMaxLag', ...
-              'nMaxLag must be a positive integer (got %g).', nMaxLag);
-    end
+    % WP-39 b1 r3: the positive-integer check lives in the typed signature
+    % ({mustBeInteger, mustBePositive}); the old body check is dead and
+    % deleted (rule 8).
     nMaxLag = min(nMaxLag, N);
     Z = size(UiZ, 2);
 
