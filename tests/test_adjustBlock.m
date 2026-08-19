@@ -398,25 +398,21 @@ end
 
 %% ============================ WP-39 stage (a): typed signature (F-07)
 %% =========================== WP-39 stage (a): typed-signature enforcement
-function test_block_signature_exact_names_and_enums(tc)
-    % WP-39 (F-07; fails on the old code): lowercase 'backend' passed the
-    % old case-insensitive inputParser and must ERROR now; enum VALUES are
-    % case-sensitive lowercase under mustBeMember (the old strcmpi
-    % validators accepted 'QR').
+function test_block_signature_types_and_enum_values(tc)
+    % WP-39 (F-07), premise CORRECTED in round a1-2: MATLAB matches
+    % comma-syntax name-value NAMES case-insensitively (and partially)
+    % even under arguments blocks, so lowercase 'backend' still WORKS --
+    % the true breaks are (1) enum VALUES, now case-sensitive lowercase
+    % under mustBeMember where strcmpi accepted 'QR' (the fails-on-old
+    % lever), and (2) typed constraints firing at the signature.
     ok = false;
     try
-        lsqvce.adjustBlock({}, [], 'backend', 'qr');   % legacy casing
+        lsqvce.adjustBlock({}, [], 'Backend', 'QR');   % enum VALUE casing
     catch e
         ok = startsWith(e.identifier, 'MATLAB:');
     end
-    verifyTrue(tc, ok, 'lowercase ''backend'' must be rejected (exact-name)');
-    ok = false;
-    try
-        lsqvce.adjustBlock({}, [], 'Backend', 'QR');   % enum casing
-    catch e
-        ok = startsWith(e.identifier, 'MATLAB:');
-    end
-    verifyTrue(tc, ok, 'Backend value ''QR'' must be rejected (case-sensitive)');
+    verifyTrue(tc, ok, ...
+        'Backend value ''QR'' must be rejected (case-sensitive mustBeMember)');
     ok = false;
     try
         lsqvce.adjustBlock({}, [], 'RegLambda', -1);   % typed constraint
@@ -424,6 +420,13 @@ function test_block_signature_exact_names_and_enums(tc)
         ok = startsWith(e.identifier, 'MATLAB:');
     end
     verifyTrue(tc, ok, 'negative RegLambda must be rejected by the signature');
+    ok = false;
+    try
+        lsqvce.adjustBlock({}, [], 'Backend', 'qr', 'nosuchopt', 1);
+    catch e
+        ok = startsWith(e.identifier, 'MATLAB:');
+    end
+    verifyTrue(tc, ok, 'an unknown option name must be rejected');
 end
 
 function test_signature_typed_arguments(tc)

@@ -131,9 +131,13 @@ function out = adjustVCEjoint(accFcn, opt)
 %   model Claude Opus 4.8.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (a) (F-07): typed
 %   `arguments` signature replaces inputParser. Option names were already
-%   UpperCamelCase and are UNCHANGED, but matching is now EXACT-name and
-%   unknown names error (inputParser matched case-insensitively). With
-%   assistance from Claude (Anthropic), model Claude Fable 5.
+%   UpperCamelCase and are UNCHANGED. NOTE (premise corrected round a1-2,
+%   measured on CI): MATLAB matches comma-syntax Name-Value NAMES
+%   case-insensitively even under arguments blocks, so legacy casings
+%   keep working; what tightened are the typed constraints, unknown-name
+%   rejection, and enum VALUE casing (StepSchedule accepts exactly
+%   "none"/"decay" -- strcmpi used to take 'Decay'). With assistance from
+%   Claude (Anthropic), model Claude Fable 5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-40 r2 (F-15): optional
 %   stabilised alternation -- 'StepSchedule','decay' (Robbins-Monro damped
 %   psdVCE update) and 'AvgTail' (Polyak tail average of the returned
@@ -160,9 +164,10 @@ function out = adjustVCEjoint(accFcn, opt)
 %                                        arc count (align to out.arcKeys)
 
     % WP-39 stage (a): typed `arguments` signature (rule 5) replaces
-    % inputParser. Names were already UpperCamelCase here; matching is now
-    % EXACT-name (arguments-block semantics) -- see the release note in
-    % HANDOVER §9 WP-39.
+    % inputParser. Names were already UpperCamelCase here; NV name
+    % matching stays case-insensitive (MATLAB semantics, measured round
+    % a1-2) -- the typed constraints and enum-value casing are what
+    % tightened. Release note: HANDOVER §9 WP-39.
 arguments
     accFcn (1,1) function_handle
     opt.NumLags  (1,1) double {mustBeInteger, mustBeGreaterThanOrEqual(opt.NumLags, 2)} = 60

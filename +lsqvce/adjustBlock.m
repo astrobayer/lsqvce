@@ -40,8 +40,9 @@ function R = adjustBlock(systems, days, opt)
 %   raw spec. Stating it separately would let the same number be written twice
 %   and disagree, which is exactly the bug this removes.
 %
-%     Name/Value options (WP-39: EXACT UpperCamelCase names; enum values
-%     are case-sensitive lowercase):
+%     Name/Value options (WP-39: canonical UpperCamelCase names -- legacy
+%     casings still match, MATLAB NV semantics; enum VALUES are
+%     case-sensitive lowercase):
 %       'Backend'    string 1x1  "qr" | "normal"                (default "qr")
 %       'Reg'        string 1x1  "none"|"tikhonov"|"tsvd"|"lm"|"auto"
 %                                                               (default "none")
@@ -99,7 +100,8 @@ function R = adjustBlock(systems, days, opt)
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (a) (F-07): typed
 %   `arguments` signature; option names are UpperCamelCase (Backend, Reg,
 %   RegLambda, RegMatrix, Parallel, Verbose, ShowSeconds, ExportDir) with
-%   EXACT-name matching, and enum VALUES are case-sensitive lowercase
+%   case-insensitive NAME matching kept (MATLAB NV semantics, measured
+%   round a1-2), and enum VALUES are case-sensitive lowercase
 %   (mustBeMember; strcmpi used to accept any casing) -- release note in
 %   HANDOVER §9 WP-39. With assistance from Claude (Anthropic), model
 %   Claude Fable 5.
@@ -126,7 +128,8 @@ end
     narginchk(2, inf);
     % WP-39 stage (a): typed `arguments` signature; names UpperCamelCase
     % (was backend/reg/regLambda/regMatrix/parallel/verbose/showSeconds/
-    % exportDir -- release note in HANDOVER §9 WP-39). Enum values are now
+    % exportDir -- release note in HANDOVER §9 WP-39; NV NAME matching
+    % stays case-insensitive per MATLAB semantics). Enum values are now
     % case-sensitive lowercase (mustBeMember), where strcmpi used to accept
     % any casing.
     o = struct('backend', char(opt.Backend), 'reg', char(opt.Reg), ...

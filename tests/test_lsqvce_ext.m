@@ -833,26 +833,34 @@ function test_poolGroups_errors_on_missing_fields(tc)
 end
 
 %% ================================== WP-40: per-arc whiteness pooling (F-13)
-function test_noise_iteration_signature_exact_names(tc)
-    % WP-39 (F-07; fails on the old code): lowercase 'maxiter' passed the
-    % old case-insensitive inputParser and must ERROR now; typed
-    % constraints fire before any accumulator work.
+function test_noise_iteration_signature_types(tc)
+    % WP-39 (F-07), corrected premise (round a1-2): NV names match
+    % case-insensitively even under arguments; what the typed signature
+    % enforces here are the constraints (MaxLag >= 8, integer MaxIter)
+    % and unknown-name rejection -- all before any accumulator work.
     dummy = @(cov) cov;
     cov0 = struct('pos', struct('type','diag','sigma',1));
     ok = false;
     try
-        lsqvce.iterateNoiseModel(dummy, cov0, 'maxiter', 2);  % legacy casing
-    catch e
-        ok = startsWith(e.identifier, 'MATLAB:');
-    end
-    verifyTrue(tc, ok, 'lowercase ''maxiter'' must be rejected (exact-name)');
-    ok = false;
-    try
-        lsqvce.iterateNoiseModel(dummy, cov0, 'MaxLag', 4);   % < 8
+        lsqvce.iterateNoiseModel(dummy, cov0, 'MaxLag', 4);
     catch e
         ok = startsWith(e.identifier, 'MATLAB:');
     end
     verifyTrue(tc, ok, 'MaxLag < 8 must be rejected by the signature');
+    ok = false;
+    try
+        lsqvce.iterateNoiseModel(dummy, cov0, 'MaxIter', 2.5);
+    catch e
+        ok = startsWith(e.identifier, 'MATLAB:');
+    end
+    verifyTrue(tc, ok, 'non-integer MaxIter must be rejected by the signature');
+    ok = false;
+    try
+        lsqvce.iterateNoiseModel(dummy, cov0, 'NoSuchOption', 1);
+    catch e
+        ok = startsWith(e.identifier, 'MATLAB:');
+    end
+    verifyTrue(tc, ok, 'an unknown option name must be rejected');
 end
 
 function test_noise_iteration_perarc_whiteness_smoke(tc)

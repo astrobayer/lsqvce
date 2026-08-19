@@ -2824,6 +2824,28 @@ configurators (37 sites; mergeNV is case-insensitive and canonicalises
 to the stored UpperCamel field names — the a2 migration replaces mergeNV
 semantics with exact-name arguments and sweeps the remaining lowercase
 sites). Stages (b) VCE/diagnostics layer and (c) primitives follow.
+**Round a1-2 (2026-08-19, same day): PREMISE CORRECTED by CI
+measurement.** The a1 red (test_adjustBlock: lowercase 'backend' not
+rejected) exposed that MATLAB matches comma-syntax Name-Value NAMES
+case-insensitively (and partially) EVEN under `arguments` blocks -- the
+"EXACT-name matching" premise of the F-07 casing break was WRONG, and
+the two "passing" lowercase tests were FALSE POSITIVES (the
+dummy-driven body crashed with a MATLAB:-prefixed id that satisfied the
+loose check; lesson pinned: a loose id-prefix check must not share its
+prefix with plausible body errors -- pick levers whose old/new
+behaviour differs at the SIGNATURE). CORRECTED across help, both live
+manuals, master_content_b and the tests: legacy name casings KEEP
+WORKING (good for users); the real breaks are (1) enum VALUE casing
+(mustBeMember vs strcmpi -- the fails-on-old lever: 'Decay'/'QR'),
+(2) typed constraints firing at the signature, (3) unknown option names
+rejected instead of tolerated. **RELEASE NOTE (corrected, supersedes
+the a1 text):** WP-39 (staged): lsqvce.adjustVCEjoint,
+lsqvce.adjustBlock and lsqvce.iterateNoiseModel now use typed
+`arguments` signatures with canonical UpperCamelCase option names.
+Legacy name casings continue to match (MATLAB name-value semantics).
+Breaking: enum values are case-sensitive lowercase ('qr', not 'QR';
+'decay', not 'Decay'); wrongly-typed or out-of-range option values and
+unknown option names now error at the signature.
 
 **ROUND NOTE (2026-08-19, WP-39 stage (a) round a1, model Claude Fable 5;
 branch `claude/wp-39`, riding the WP-41 DONE flip). Staging WITHIN (a),

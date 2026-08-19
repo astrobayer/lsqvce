@@ -196,11 +196,13 @@ disp(R.history.sigma);        % per-pass variance components</pre>
 The public surface is migrating from <code>inputParser</code> to typed
 <code>arguments</code> signatures. The canonical option names are
 <b>UpperCamelCase</b> (<code>'MaxIter'</code>, <code>'Backend'</code>,
-<code>'Verbose'</code>, &hellip;) and matching is <b>exact-name</b>:
-migrated functions (<code>adjustVCEjoint</code>, <code>adjustBlock</code>,
-<code>iterateNoiseModel</code> so far) no longer accept the sloppy casings
-the old case-insensitive parser tolerated, and enum <i>values</i> such as
-<code>"qr"</code> are case-sensitive lowercase. Each function's help states
+<code>'Verbose'</code>, &hellip;). Name matching itself remains
+case-insensitive (MATLAB name-value semantics, verified on CI), so legacy
+casings keep working &mdash; but the migrated functions
+(<code>adjustVCEjoint</code>, <code>adjustBlock</code>,
+<code>iterateNoiseModel</code> so far) now enforce typed constraints,
+reject unknown option names, and match enum <i>values</i> such as
+<code>"qr"</code> case-sensitively in lowercase. Each function's help states
 its canonical names; the release notes list the break.</div>
 <p>Under the hood these drive a <a href="lsqvce.BlockAccumulator.html">lsqvce.BlockAccumulator</a>
 (kept reachable on <code>R.acc</code> for experts). The diagnostics bridge

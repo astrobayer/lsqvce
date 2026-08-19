@@ -91,9 +91,11 @@ function out = iterateNoiseModel(accFcn, cov0, opt)
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (a) (F-07): typed
 %   `arguments` signature; option names are UpperCamelCase (UpdateTypes,
 %   MaxIter, SigmaTol, WhiteFactor, WhiteLags, MaxLag, OrderGrid, AcvTol,
-%   Detrend, Verbose) with EXACT-name matching -- the old lowercase names
-%   no longer match (release note, HANDOVER §9 WP-39). With assistance
-%   from Claude (Anthropic), model Claude Fable 5.
+%   Detrend, Verbose). NOTE (premise corrected round a1-2, measured on
+%   CI): NV NAMES still match case-insensitively (MATLAB semantics) --
+%   what tightened are the typed constraints and unknown-name rejection
+%   (release note, HANDOVER §9 WP-39). With assistance from Claude
+%   (Anthropic), model Claude Fable 5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-40 (fixes F-13): the
 %   whiteness statistic (maxAcf) pools per arc -- no lagged product
 %   crosses an arc boundary, mirroring pooledACV. With assistance from

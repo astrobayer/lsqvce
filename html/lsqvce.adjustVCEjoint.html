@@ -169,9 +169,13 @@ Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Opus 4.8.
 Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (a) (F-07): typed
 `arguments` signature replaces inputParser. Option names were already
-UpperCamelCase and are UNCHANGED, but matching is now EXACT-name and
-unknown names error (inputParser matched case-insensitively). With
-assistance from Claude (Anthropic), model Claude Fable 5.
+UpperCamelCase and are UNCHANGED. NOTE (premise corrected round a1-2,
+measured on CI): MATLAB matches comma-syntax Name-Value NAMES
+case-insensitively even under arguments blocks, so legacy casings
+keep working; what tightened are the typed constraints, unknown-name
+rejection, and enum VALUE casing (StepSchedule accepts exactly
+&quot;none&quot;/&quot;decay&quot; -- strcmpi used to take &#x27;Decay&#x27;). With assistance from
+Claude (Anthropic), model Claude Fable 5.
 Updated 2026-08-19 (CEST, UTC+02:00), WP-40 r2 (F-15): optional
 stabilised alternation -- &#x27;StepSchedule&#x27;,&#x27;decay&#x27; (Robbins-Monro damped
 psdVCE update) and &#x27;AvgTail&#x27; (Polyak tail average of the returned

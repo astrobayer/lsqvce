@@ -866,34 +866,34 @@ function test_joint_signature_typed_arguments(tc)
 end
 
 %% =========================== WP-39 stage (a): typed-signature enforcement
-function test_joint_signature_exact_names_and_types(tc)
-    % WP-39 (F-07; fails on the old code): the arguments block matches
-    % Name-Value names EXACTLY -- the old inputParser accepted any casing,
-    % so lowercase 'numlags' PASSED there and must ERROR now. Wrong types
-    % must error before any body code runs. IDs are checked loosely
-    % ('MATLAB:' prefix) for release robustness.
+function test_joint_signature_types_and_enum_values(tc)
+    % WP-39 (F-07), corrected premise (round a1-2): NV names match
+    % case-insensitively even under arguments; the enforced breaks are
+    % enum VALUE casing (StepSchedule 'Decay' passed the old strcmpi,
+    % fails mustBeMember now -- the fails-on-old lever), typed
+    % constraints, and unknown-name rejection.
     dummy = @(s) s;
     ok = false;
     try
-        lsqvce.adjustVCEjoint(dummy, 'numlags', 12);   % legacy casing
+        lsqvce.adjustVCEjoint(dummy, 'StepSchedule', 'Decay');
     catch e
         ok = startsWith(e.identifier, 'MATLAB:');
     end
-    verifyTrue(tc, ok, 'lowercase ''numlags'' must be rejected (exact-name)');
+    verifyTrue(tc, ok, 'StepSchedule ''Decay'' must be rejected (value casing)');
     ok = false;
     try
-        lsqvce.adjustVCEjoint(dummy, 'MaxIter', 'three');  % wrong type
+        lsqvce.adjustVCEjoint(dummy, 'MaxIter', 'three');
     catch e
         ok = startsWith(e.identifier, 'MATLAB:');
     end
     verifyTrue(tc, ok, 'non-numeric MaxIter must be rejected by the signature');
     ok = false;
     try
-        lsqvce.adjustVCEjoint(dummy, 'StepSchedule', 'Decay');  % enum casing
+        lsqvce.adjustVCEjoint(dummy, 'NoSuchOption', 1);
     catch e
         ok = startsWith(e.identifier, 'MATLAB:');
     end
-    verifyTrue(tc, ok, 'StepSchedule value matching is case-sensitive now');
+    verifyTrue(tc, ok, 'an unknown option name must be rejected');
 end
 
 function test_lags_structured_sums_match_dense_toeplitz(tc)
