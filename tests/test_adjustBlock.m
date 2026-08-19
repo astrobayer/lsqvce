@@ -395,3 +395,56 @@ function cfg = synthCfg()
     cfg.cov.pos = struct('type','arma','ar',[1 -1.6 0.9 -0.25],'ma',1,'sigma',0.7);
     cfg.cov.kbr = struct('type','diag','sigma',0.2);
 end
+
+%% ============================ WP-39 stage (a): typed signature (F-07)
+%% =========================== WP-39 stage (a): typed-signature enforcement
+function test_block_signature_types_and_enum_values(tc)
+    % WP-39 (F-07), premise CORRECTED in round a1-2: MATLAB matches
+    % comma-syntax name-value NAMES case-insensitively (and partially)
+    % even under arguments blocks, so lowercase 'backend' still WORKS --
+    % the true breaks are (1) enum VALUES, now case-sensitive lowercase
+    % under mustBeMember where strcmpi accepted 'QR' (the fails-on-old
+    % lever), and (2) typed constraints firing at the signature.
+    ok = false;
+    try
+        lsqvce.adjustBlock({}, [], 'Backend', 'QR');   % enum VALUE casing
+    catch e
+        ok = startsWith(e.identifier, 'MATLAB:');
+    end
+    verifyTrue(tc, ok, ...
+        'Backend value ''QR'' must be rejected (case-sensitive mustBeMember)');
+    ok = false;
+    try
+        lsqvce.adjustBlock({}, [], 'RegLambda', -1);   % typed constraint
+    catch e
+        ok = startsWith(e.identifier, 'MATLAB:');
+    end
+    verifyTrue(tc, ok, 'negative RegLambda must be rejected by the signature');
+    ok = false;
+    try
+        lsqvce.adjustBlock({}, [], 'Backend', 'qr', 'nosuchopt', 1);
+    catch e
+        ok = startsWith(e.identifier, 'MATLAB:');
+    end
+    verifyTrue(tc, ok, 'an unknown option name must be rejected');
+end
+
+function test_signature_typed_arguments(tc)
+    % WP-39 (fails on the old code): the typed `arguments` block rejects
+    % what inputParser tolerated -- unknown names, WRONG-CASE names (the
+    % old lowercase 'backend' etc.), and wrong types/enum casings.
+    sys = struct('sysID', 1, 'nl', 2, 'nc', 3, ...
+                 'loader', @(varargin) struct('A',[],'B',[],'l',[]));
+    mustErr = { ...
+        @() lsqvce.adjustBlock(sys, 1, 'backend', 'qr'), ...     % old casing
+        @() lsqvce.adjustBlock(sys, 1, 'Backend', 'QR'), ...     % enum casing
+        @() lsqvce.adjustBlock(sys, 1, 'Backend', 'cholesky'),...% bad enum
+        @() lsqvce.adjustBlock(sys, 1, 'RegLambda', -1), ...     % sign
+        @() lsqvce.adjustBlock(sys, 1, 'NoSuchOption', 1) };
+    for k = 1:numel(mustErr)
+        ok = false;
+        try, mustErr{k}(); catch, ok = true; end
+        verifyTrue(tc, ok, sprintf('signature case %d must error', k));
+    end
+end
+

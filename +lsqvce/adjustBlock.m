@@ -1,4 +1,4 @@
-function R = adjustBlock(systems, days, varargin)
+function R = adjustBlock(systems, days, opt)
 %LSQVCE.ADJUSTBLOCK  One-call block-arrow adjustment: accumulate, solve, judge.
 %   R = lsqvce.adjustBlock(systems, days)
 %   R = lsqvce.adjustBlock(systems, days, Name, Value, ...)
@@ -40,17 +40,21 @@ function R = adjustBlock(systems, days, varargin)
 %   raw spec. Stating it separately would let the same number be written twice
 %   and disagree, which is exactly the bug this removes.
 %
-%     Name/Value options ([] or omitted -> defaults):
-%       'backend'    char   'qr' | 'normal'                     (default 'qr')
-%       'reg'        char   'none'|'tikhonov'|'tsvd'|'lm'|'auto'(default 'none')
-%       'regLambda'  1x1    regularisation weight               (default 0)
-%       'regMatrix'  pxnc   regularisation matrix               (default [])
-%       'parallel'   char   'serial'|'parfor'|'spmd'            (default 'serial')
-%       'verbose'    1x1    logical, accumulator chatter        (default false)
-%       'showSeconds' 1x1   seconds to display each plot-hook figure (default 0
-%                           = export only; <0 = show and LEAVE OPEN). Engine-side
-%                           knob, mirrors LSQVCE.ADJUSTVCE.
-%       'exportDir'  char   folder for plot-hook PNGs ('' = do not export).
+%     Name/Value options (WP-39: canonical UpperCamelCase names -- legacy
+%     casings still match, MATLAB NV semantics; enum VALUES are
+%     case-sensitive lowercase):
+%       'Backend'    string 1x1  "qr" | "normal"                (default "qr")
+%       'Reg'        string 1x1  "none"|"tikhonov"|"tsvd"|"lm"|"auto"
+%                                                               (default "none")
+%       'RegLambda'  double 1x1 >= 0  regularisation weight     (default 0)
+%       'RegMatrix'  double p x nc    regularisation matrix     (default [])
+%       'Parallel'   string 1x1  "serial"|"parfor"|"spmd"       (default "serial")
+%       'Verbose'    logical 1x1  accumulator chatter           (default false)
+%       'ShowSeconds' double 1x1  seconds to display each plot-hook figure
+%                            (default 0 = export only; < 0 = show and
+%                            LEAVE OPEN -- the v1 contract, unchanged).
+%                            Engine-side knob, mirrors LSQVCE.ADJUSTVCE.
+%       'ExportDir'  string 1x1  folder for plot-hook PNGs ("" = do not export).
 %
 %   PLOT HOOKS (single-solve, postSolve only)
 %     If a loader was built with LSQVCE.MAKELOADER's 'plotPostSolve', adjustBlock
@@ -93,6 +97,14 @@ function R = adjustBlock(systems, days, varargin)
 %            LSQVCE.BLOCKACCUMULATOR, LSQVCE.DIAGNOSEACCUM, LSQVCE.DIAGNOSE,
 %            LSQVCE.REPORT, LSQVCE.UTIL.SHOWEXPORT
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (a) (F-07): typed
+%   `arguments` signature; option names are UpperCamelCase (Backend, Reg,
+%   RegLambda, RegMatrix, Parallel, Verbose, ShowSeconds, ExportDir) with
+%   case-insensitive NAME matching kept (MATLAB NV semantics, measured
+%   round a1-2), and enum VALUES are case-sensitive lowercase
+%   (mustBeMember; strcmpi used to accept any casing) -- release note in
+%   HANDOVER §9 WP-39. With assistance from Claude (Anthropic), model
+%   Claude Fable 5.
 %   Created 2026-07-16 12:20 (CEST, UTC+02:00) with assistance from
 %   Claude (Anthropic), model Claude Opus 4.8.
 %   Updated 2026-07-17 (CEST, UTC+02:00): added the postSolve plot-hook seam
@@ -101,18 +113,29 @@ function R = adjustBlock(systems, days, varargin)
 %   pairs with LSQVCE.ADJUST and LSQVCE.ADJUSTVCE). The old name was REMOVED on
 %   2026-07-18 along with every other alias (pre-release; one name per thing).
 %   Claude (Anthropic), model Claude Opus 4.8.
+arguments
+    systems
+    days
+    opt.Backend  (1,1) string {mustBeMember(opt.Backend, ["normal","qr"])} = "qr"
+    opt.Reg      (1,1) string {mustBeMember(opt.Reg, ["none","tikhonov","tsvd","lm","auto"])} = "none"
+    opt.RegLambda (1,1) double {mustBeNonnegative} = 0
+    opt.RegMatrix double = []
+    opt.Parallel (1,1) string {mustBeMember(opt.Parallel, ["serial","parfor","spmd"])} = "serial"
+    opt.Verbose  (1,1) logical = false
+    opt.ShowSeconds (1,1) double = 0
+    opt.ExportDir (1,1) string = ""
+end
     narginchk(2, inf);
-    p = inputParser;  p.FunctionName = 'lsqvce.adjustBlock';
-    p.addParameter('backend',  'qr',    @(s) any(strcmpi(s, {'normal','qr'})));
-    p.addParameter('reg',      'none',  @(s) any(strcmpi(s, {'none','tikhonov','tsvd','lm','auto'})));
-    p.addParameter('regLambda', 0);
-    p.addParameter('regMatrix', []);
-    p.addParameter('parallel', 'serial',@(s) any(strcmpi(s, {'serial','parfor','spmd'})));
-    p.addParameter('verbose',   false,  @(v) (islogical(v) || isnumeric(v)) && isscalar(v));
-    p.addParameter('showSeconds', 0,    @(v) isscalar(v) && isnumeric(v));
-    p.addParameter('exportDir',  '',    @(v) ischar(v) || isstring(v));
-    p.parse(varargin{:});
-    o = p.Results;
+    % WP-39 stage (a): typed `arguments` signature; names UpperCamelCase
+    % (was backend/reg/regLambda/regMatrix/parallel/verbose/showSeconds/
+    % exportDir -- release note in HANDOVER §9 WP-39; NV NAME matching
+    % stays case-insensitive per MATLAB semantics). Enum values are now
+    % case-sensitive lowercase (mustBeMember), where strcmpi used to accept
+    % any casing.
+    o = struct('backend', char(opt.Backend), 'reg', char(opt.Reg), ...
+               'regLambda', opt.RegLambda, 'regMatrix', opt.RegMatrix, ...
+               'parallel', char(opt.Parallel), 'verbose', opt.Verbose, ...
+               'showSeconds', opt.ShowSeconds, 'exportDir', char(opt.ExportDir));
 
     [specs, loaders] = normalizeSystems(systems, days);
 

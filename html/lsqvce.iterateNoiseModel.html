@@ -43,20 +43,22 @@ a { color: #0b5ea8; }
 <div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.iterateNoiseModel</div>
 <h1>lsqvce.iterateNoiseModel</h1>
 <div class="purpose">Iterate the covariance model until it is RIGHT, not assumed.</div>
-<h2>Syntax</h2>
-<pre class="syntax">out = LSQVCE.ITERATENOISEMODEL(accFcn, cov0, &#x27;Name&#x27;, value, ...)</pre>
 <h2>Description</h2>
+<pre class="example">out = LSQVCE.ITERATENOISEMODEL(accFcn, cov0, &#x27;Name&#x27;, value, ...)</pre>
 <h3>The Problem This Closes</h3>
 <pre class="example">The covariance model is normally assumed, then only SELF-CONSISTENCY is
 checked (sigma0 -&gt; 1). But the PSD you would estimate from residuals
 comes from a solution that already assumed a PSD -- circular. This
-helper breaks the circle by iterating:</pre>
-<pre class="example">solve -&gt; residuals in the ORIGINAL metric -&gt; empirical ACV -&gt;
-re-fit AR (order on ACV fidelity) -&gt; re-solve -&gt; check</pre>
-<pre class="example">and declaring victory only when BOTH hold:
+helper breaks the circle by iterating:
+
+   solve -&gt; residuals in the ORIGINAL metric -&gt; empirical ACV -&gt;
+   re-fit AR (order on ACV fidelity) -&gt; re-solve -&gt; check
+
+and declaring victory only when BOTH hold:
    sigma0 ~ 1          the noise LEVEL is right
-   acf(w) ~ delta      the noise COLOUR is right</pre>
-<pre class="example">Converges in 2 iterations from a completely wrong start (white assumed,
+   acf(w) ~ delta      the noise COLOUR is right
+
+Converges in 2 iterations from a completely wrong start (white assumed,
 AR(2) true) -- measured in validation/v4verify.py, which also verifies
 that the converged model matches the TRUE ACV, not merely a
 self-consistent one.</pre>
@@ -68,21 +70,21 @@ self-consistent one.</pre>
 cov0    the initial spec struct (your best a-priori guess; white is a
         legitimate start)</pre>
 <h3>Options</h3>
-<pre class="example">&#x27;updateTypes&#x27; cellstr of obsTypes whose model is re-estimated
+<pre class="example">&#x27;UpdateTypes&#x27; cellstr of obsTypes whose model is re-estimated
               (default: all fields of cov0)
-&#x27;maxIter&#x27;     default 4 (2 is typical)
-&#x27;sigmaTol&#x27;    |sigma0 - 1| tolerance (default 0.05)
-&#x27;whiteFactor&#x27; whiteness band = WhiteFactor/sqrt(n) on max |acf(w)| over
+&#x27;MaxIter&#x27;     default 4 (2 is typical)
+&#x27;SigmaTol&#x27;    |sigma0 - 1| tolerance (default 0.05)
+&#x27;WhiteFactor&#x27; whiteness band = WhiteFactor/sqrt(n) on max |acf(w)| over
               lags 1..WhiteLags (default 3)
-&#x27;whiteLags&#x27;   default 5
-&#x27;maxLag&#x27;      lags of the empirical ACV used for the AR fit
+&#x27;WhiteLags&#x27;   default 5
+&#x27;MaxLag&#x27;      lags of the empirical ACV used for the AR fit
               (default 128)
-&#x27;orderGrid&#x27;   AR orders to try (default [2 5 10 20 30 40 60])
-&#x27;acvTol&#x27;      target relative ACV fidelity of the fit (default 5e-2 --
+&#x27;OrderGrid&#x27;   AR orders to try (default [2 5 10 20 30 40 60])
+&#x27;AcvTol&#x27;      target relative ACV fidelity of the fit (default 5e-2 --
               the EMPIRICAL acv carries sampling noise; do not chase it
               below its own scatter)
-&#x27;detrend&#x27;     subtract the per-arc mean before the ACV (default true)
-&#x27;verbose&#x27;     default true</pre>
+&#x27;Detrend&#x27;     subtract the per-arc mean before the ACV (default true)
+&#x27;Verbose&#x27;     default true</pre>
 <h3>Output</h3>
 <pre class="example">out.cov        the converged covariance specs (&#x27;arma&#x27; type, ar + sigma)
 out.sol        the final solution under the converged model
@@ -110,8 +112,31 @@ model.</pre>
 cov0.kbr = struct(&#x27;type&#x27;,&#x27;diag&#x27;,&#x27;sigma&#x27;,1);
 accFcn   = @(cov) buildAccumulator(cfg, cov);    % you write this
 it = lsqvce.iterateNoiseModel(accFcn, cov0);
-fprintf(&#x27;%s after %d iterations, sigma0 = %.4f\n&#x27;, ...
+lsqvce.util.log.msg(&#x27;%safter %d iterations, sigma0 = %.4f\n&#x27;, ...
         string(it.converged), it.nIter, it.sol.sigma0);</pre>
-<div class="seealso"><b>See also:</b> <a href="lsqvce.selectArOrder.html">lsqvce.selectArOrder</a>, <a href="lsqvce.checkPSD.html">lsqvce.checkPSD</a>, <a href="lsqvce.vce.html">lsqvce.vce</a>, <a href="lsqvce.residuals.html">lsqvce.residuals</a></div>
-<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:iterateNoiseModel:badAccFcn   the accumulator handle is not callable
+  lsqvce:iterateNoiseModel:badCov0     the starting covariance spec is malformed
+  lsqvce:iterateNoiseModel:noObsType   the stream has no observation type
+  lsqvce:iterateNoiseModel:tooShort    the series is too short to fit the
+                                       requested model order
+
+See also LSQVCE.SELECTARORDER, LSQVCE.CHECKPSD, LSQVCE.VCE, LSQVCE.RESIDUALS
+
+Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (a) (F-07): typed
+`arguments` signature; option names are UpperCamelCase (UpdateTypes,
+MaxIter, SigmaTol, WhiteFactor, WhiteLags, MaxLag, OrderGrid, AcvTol,
+Detrend, Verbose). NOTE (premise corrected round a1-2, measured on
+CI): NV NAMES still match case-insensitively (MATLAB semantics) --
+what tightened are the typed constraints and unknown-name rejection
+(release note, HANDOVER §9 WP-39). With assistance from Claude
+(Anthropic), model Claude Fable 5.
+Updated 2026-08-19 (CEST, UTC+02:00), WP-40 (fixes F-13): the
+whiteness statistic (maxAcf) pools per arc -- no lagged product
+crosses an arc boundary, mirroring pooledACV. With assistance from
+Claude (Anthropic), model Claude Fable 5.
+Generated with assistance from Claude (Anthropic), model Claude
+Opus 4.8.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

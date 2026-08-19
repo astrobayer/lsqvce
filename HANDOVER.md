@@ -226,9 +226,9 @@ order.**):
 | 36 | One probe generator, honest RNG contract (F-06) | — | DONE (2026-08-19, PR #7, merge 74ab106; CI green 498/498 — the WP's own changes green on the FIRST pass, the sole round-1 red was the test's own traceEstimate-returns-a-scalar mistake; POSTFLIGHT DEBT; round note §9 WP-36) |
 | 37 | `redundancyLags` without dense W^-1 + hot-loop tolls (F-09) | — | DONE (2026-08-19, PR #8, merge 66ffb81; CI green FIRST pass 501/501 incl. the N=4000 speed lever; GS/Levinson validated in Python to 1e-14 pre-port; POSTFLIGHT DEBT; round note §9 WP-37) |
 | 38 | Deduplicate keys / arc batching + audit lock (F-08) | 33,36 | DONE (2026-08-19, PR #11, merge 74d2f64; CI green FIRST pass 507/507 byte-identical; audit lock 10b live, red-tested; GroupBy error-id unification approved by merge; POSTFLIGHT DEBT; round note §9 WP-38) |
-| 39 | `arguments` blocks + Name-Value casing, whole surface (F-07) | 32–38,40,41 | OPEN |
+| 39 | `arguments` blocks + Name-Value casing (F-07) | all | IN PROGRESS — 2026-08-19 stage (a) front doors on `claude/wp-39` (round note §9 WP-39); staged per the prompt; draft-PR loop; POSTFLIGHT DEBT |
 | 40 | Method polish: gates, clamps, whiteness (F-10…F-13; + F-15 alternation bistability) | 32 | DONE (2026-08-19, TWO rounds: r1 F-10…F-13 PR #9 merge 736807d, CI 505/505; r2 F-15 PR #10 merge 8ca16b9, CI 507/507 after six diagnosis rounds with the psd2acv-faithful mirror; ALL THREE r2 decisions ACCEPTED by the user 2026-08-19 — detailed in the DECISION RECORD below the round notes (§9 WP-40); POSTFLIGHT DEBT both rounds; round notes §9 WP-40) |
-| 41 | Documentation truth sweep (F-12, F-14) | 32,33,36,40 | IN PROGRESS — 2026-08-19 on `claude/wp-41` (round note §9 WP-41); draft-PR loop; docs-only |
+| 41 | Documentation truth sweep (F-12, F-14) | 32,33,36,40 | DONE (2026-08-19, PR #12, merge 739e578; CI green 507/507, zero fixture movement; stub rule + all claim fixes approved by merge; round note §9 WP-41) |
 
 ---
 
@@ -2778,6 +2778,104 @@ audit lock itself, which FAILS on the pre-WP-38 tree).
 > migrated function (wrong type/size/name errors with the documented
 > identifier), plus the untouched-numerics regression on the standing
 > fixture. This package lands LAST.
+
+**ROUND NOTE (2026-08-19, WP-39 stage (a) round 1 = a1, model Claude
+Fable 5; branch `claude/wp-39`, riding the WP-41 DONE flip).** MIGRATED
+to typed `arguments` signatures with EXACT UpperCamelCase names:
+(1) adjustVCEjoint — names were already UpperCamel, UNCHANGED; validators
+became mustBe*; Norm/MeanType are now string-typed and flow into
+psdVCE/dctI's inputParser unchanged (inputParser accepts strings).
+(2) adjustBlock — Backend/Reg/RegLambda/RegMatrix/Parallel/Verbose/
+ShowSeconds/ExportDir (was lowercase); enum VALUES case-sensitive
+lowercase via mustBeMember (strcmpi used to accept any casing); the v1
+"ShowSeconds < 0 = show and leave open" contract PRESERVED (an initial
+mustBeNonnegative draft would have broken it — caught pre-commit, help
+states the v1 contract). Zero call sites needed sweeping.
+(3) iterateNoiseModel — UpdateTypes/MaxIter/SigmaTol/WhiteFactor/
+WhiteLags/MaxLag/OrderGrid/AcvTol/Detrend/Verbose; the data-dependent
+UpdateTypes default (all fields of cov0) kept via the {} sentinel; both
+existing call sites already used UpperCamel, no sweep.
+TESTS (one per function, the fails-on-old lever = a LEGACY-lowercase
+name that the old case-insensitive inputParser ACCEPTED and the
+arguments block must reject; ids checked loosely via the 'MATLAB:'
+prefix for release robustness): test_ellmer (joint: 'numlags', wrong
+type, enum casing), test_adjustBlock ('backend', 'Backend'="QR",
+RegLambda<0), test_lsqvce_ext ('maxiter', MaxLag<8).
+DOCS: three HTML pages regenerated from the corrected help
+(delete+rebuild); the LIVE manuals edited BY HAND because
+build_manuals.py is _STALE_GUARDed (rebuilding would revert shipped
+fixes, HISTORY 1.4C): user manual gets the Name-Value-casing callout AND
+its fluent example switched to the canonical UpperCamel names (mergeNV
+is case-insensitive today, so the old lowercase example worked but
+breaks at a2 — fixed ahead), reference manual gets the RELEASE NOTE
+listing the exact old->new name breaks.
+**RELEASE NOTE (verbatim, for the repository notes):** "WP-39 (staged):
+lsqvce.adjustVCEjoint, lsqvce.adjustBlock and lsqvce.iterateNoiseModel
+now use typed `arguments` signatures. Option names are EXACT
+UpperCamelCase (adjustBlock: backend/reg/regLambda/regMatrix/parallel/
+verbose/showSeconds/exportDir -> Backend/Reg/RegLambda/RegMatrix/
+Parallel/Verbose/ShowSeconds/ExportDir; iterateNoiseModel: updateTypes/
+maxIter/sigmaTol/whiteFactor/whiteLags/maxLag/orderGrid/acvTol/detrend/
+verbose -> UpperCamel equivalents). Previously-tolerated sloppy casings
+and enum-value casings (e.g. 'QR') now error."
+**DEFERRED to stage (a) round 2 (a2), deliberately:** lsqvce.adjust
+(64 lowercase call sites to sweep) and the adjustVCE fluent
+configurators (37 sites; mergeNV is case-insensitive and canonicalises
+to the stored UpperCamel field names — the a2 migration replaces mergeNV
+semantics with exact-name arguments and sweeps the remaining lowercase
+sites). Stages (b) VCE/diagnostics layer and (c) primitives follow.
+**Round a1-2 (2026-08-19, same day): PREMISE CORRECTED by CI
+measurement.** The a1 red (test_adjustBlock: lowercase 'backend' not
+rejected) exposed that MATLAB matches comma-syntax Name-Value NAMES
+case-insensitively (and partially) EVEN under `arguments` blocks -- the
+"EXACT-name matching" premise of the F-07 casing break was WRONG, and
+the two "passing" lowercase tests were FALSE POSITIVES (the
+dummy-driven body crashed with a MATLAB:-prefixed id that satisfied the
+loose check; lesson pinned: a loose id-prefix check must not share its
+prefix with plausible body errors -- pick levers whose old/new
+behaviour differs at the SIGNATURE). CORRECTED across help, both live
+manuals, master_content_b and the tests: legacy name casings KEEP
+WORKING (good for users); the real breaks are (1) enum VALUE casing
+(mustBeMember vs strcmpi -- the fails-on-old lever: 'Decay'/'QR'),
+(2) typed constraints firing at the signature, (3) unknown option names
+rejected instead of tolerated. **RELEASE NOTE (corrected, supersedes
+the a1 text):** WP-39 (staged): lsqvce.adjustVCEjoint,
+lsqvce.adjustBlock and lsqvce.iterateNoiseModel now use typed
+`arguments` signatures with canonical UpperCamelCase option names.
+Legacy name casings continue to match (MATLAB name-value semantics).
+Breaking: enum values are case-sensitive lowercase ('qr', not 'QR';
+'decay', not 'Decay'); wrongly-typed or out-of-range option values and
+unknown option names now error at the signature.
+
+**ROUND NOTE (2026-08-19, WP-39 stage (a) round a1, model Claude Fable 5;
+branch `claude/wp-39`, riding the WP-41 DONE flip). Staging WITHIN (a),
+honest to the sweep load:** a1 = the three front doors with 0-2 call
+sites — adjustVCEjoint (names already UpperCamel, parser→arguments
+only), adjustBlock (Backend/Reg/RegLambda/RegMatrix/Parallel/Verbose/
+ShowSeconds/ExportDir; enum VALUES now case-sensitive lowercase via
+mustBeMember where strcmpi accepted any casing; 0 name-value call
+sites), iterateNoiseModel (UpdateTypes/MaxIter/SigmaTol/WhiteFactor/
+WhiteLags/MaxLag/OrderGrid/AcvTol/Detrend/Verbose; both call sites were
+already UpperCamel). a2 = adjust (64 lowercase call sites!) + the
+adjustVCE fluent configurators (37 sites, mergeNV) — next round. LESSON
+(pinned, cost one audit red): the `arguments` block goes AFTER the help
+comment block — placed before it, MATLAB help/doc go blind and the page
+builder finds nothing. UpdateTypes' data-dependent default
+(fieldnames(cov0)) is kept via the documented {} sentinel. SIGNATURE
+TESTS (fail on the old code): the old lowercase names now ERROR (the
+release-break lever), unknown names error, enum-casing and type
+violations error — loose id checks (try/catch) for release robustness.
+DOCS per the user's instruction: help OPTIONS sections renamed + stamps;
+three HTML pages regenerated; the USER MANUAL gains an "Option names and
+typed signatures" paragraph — edited in the LIVE html (build_manuals is
+1.4C-stale-guarded and would revert shipped fixes) AND authored in
+master_content_b.py for the eventual back-port.
+**RELEASE NOTE (collect for the version bump):** WP-39 migrates the
+public surface to typed `arguments` blocks. Name-Value names are
+UpperCamelCase and EXACT-match; previously-tolerated sloppy casings
+('backend', 'maxiter', …) now error. Enum values are case-sensitive
+lowercase. Unknown option names error instead of being ignored.
+Migrated in a1: adjustBlock, adjustVCEjoint, iterateNoiseModel.
 
 ### WP-40 — Method polish: gates, clamps, whiteness
 

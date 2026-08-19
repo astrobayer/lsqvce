@@ -833,6 +833,36 @@ function test_poolGroups_errors_on_missing_fields(tc)
 end
 
 %% ================================== WP-40: per-arc whiteness pooling (F-13)
+function test_noise_iteration_signature_types(tc)
+    % WP-39 (F-07), corrected premise (round a1-2): NV names match
+    % case-insensitively even under arguments; what the typed signature
+    % enforces here are the constraints (MaxLag >= 8, integer MaxIter)
+    % and unknown-name rejection -- all before any accumulator work.
+    dummy = @(cov) cov;
+    cov0 = struct('pos', struct('type','diag','sigma',1));
+    ok = false;
+    try
+        lsqvce.iterateNoiseModel(dummy, cov0, 'MaxLag', 4);
+    catch e
+        ok = startsWith(e.identifier, 'MATLAB:');
+    end
+    verifyTrue(tc, ok, 'MaxLag < 8 must be rejected by the signature');
+    ok = false;
+    try
+        lsqvce.iterateNoiseModel(dummy, cov0, 'MaxIter', 2.5);
+    catch e
+        ok = startsWith(e.identifier, 'MATLAB:');
+    end
+    verifyTrue(tc, ok, 'non-integer MaxIter must be rejected by the signature');
+    ok = false;
+    try
+        lsqvce.iterateNoiseModel(dummy, cov0, 'NoSuchOption', 1);
+    catch e
+        ok = startsWith(e.identifier, 'MATLAB:');
+    end
+    verifyTrue(tc, ok, 'an unknown option name must be rejected');
+end
+
 function test_noise_iteration_perarc_whiteness_smoke(tc)
     % WP-40 (F-13): maxAcf now pools PER ARC (no lagged product crosses an
     % arc boundary, mirroring pooledACV). This serial smoke drives the NEW
@@ -853,6 +883,25 @@ function test_noise_iteration_perarc_whiteness_smoke(tc)
     mx = [it.history(1).obsType.maxAcf];
     verifyTrue(tc, all(isfinite(mx)) && all(mx >= 0), ...
         'per-arc pooled maxAcf must be finite and non-negative');
+end
+
+function test_noise_iteration_signature_typed_arguments(tc)
+    % WP-39 stage (a) (fails on the old code): iterateNoiseModel's typed
+    % `arguments` block with UpperCamelCase names -- the old lowercase
+    % 'maxIter' etc. no longer match, unknown names error, types are
+    % enforced.
+    accFcn = @(cov) struct();                    % never reached: parse errors first
+    cov0 = struct('pos', struct('type','diag','sigma',1));
+    mustErr = { ...
+        @() lsqvce.iterateNoiseModel(accFcn, cov0, 'maxIter', 2), ...
+        @() lsqvce.iterateNoiseModel(accFcn, cov0, 'MaxLag', 4), ...
+        @() lsqvce.iterateNoiseModel(accFcn, cov0, 'Detrend', 'yes'), ...
+        @() lsqvce.iterateNoiseModel(accFcn, cov0, 'NoSuchOption', 1) };
+    for k = 1:numel(mustErr)
+        ok = false;
+        try, mustErr{k}(); catch, ok = true; end
+        verifyTrue(tc, ok, sprintf('signature case %d must error', k));
+    end
 end
 
 function cfg = extNoiseCfg()
