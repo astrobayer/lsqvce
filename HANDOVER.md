@@ -214,8 +214,8 @@ order of work: 32 → 33 → 34 → 35 → 36 → 40 → 37 → 38 → 41 → 39
 | 33 | Joint paths: locals in residual + projector (F-03) | — | DONE (2026-08-19: round 1 PR #3 merge 7d7c14c, round 2 PR #4 merge 24cfe6c; CI green 489/489; user approved the 0.85 accuracy floor + F-15→WP-40 scope by merging; postflight: round 1 green pre-outage, round 2 = D.4 DEBT until the bridge returns; six r2 lessons + F-15 pinned in §9 WP-33) |
 | 34 | Keyed arc identity in `adjustVCEjoint` (F-02) | — | IN PROGRESS — 2026-08-19: fix + tests on `claude/wp-34` (round note §9 WP-34); draft-PR loop; POSTFLIGHT DEBT (bridge away) |
 | 35 | psdVCE floor policy + negative-factor clamp (F-04, F-05) | — | DONE (2026-08-19, PR #6, merge 827ee6b; CI green 493/493 — the run that also validated the self-healing setup live: attempt-1 wedge killed at 720 s, attempt-2 restore 90 s; POSTFLIGHT DEBT until the runner/bridge returns; round note §9 WP-35) |
-| 36 | One probe generator, honest RNG contract (F-06) | — | IN PROGRESS — 2026-08-19: fix + tests on `claude/wp-36` (round note §9 WP-36); draft-PR loop; POSTFLIGHT DEBT (runner deferred) |
-| 37 | `redundancyLags` without dense W^-1 + hot-loop tolls (F-09) | — | OPEN |
+| 36 | One probe generator, honest RNG contract (F-06) | — | DONE (2026-08-19, PR #7, merge 74ab106; CI green 498/498 — the WP's own changes green on the FIRST pass, the sole round-1 red was the test's own traceEstimate-returns-a-scalar mistake; POSTFLIGHT DEBT; round note §9 WP-36) |
+| 37 | `redundancyLags` without dense W^-1 + hot-loop tolls (F-09) | — | IN PROGRESS — 2026-08-19: fix + tests on `claude/wp-37` (round note §9 WP-37); draft-PR loop; POSTFLIGHT DEBT |
 | 38 | Deduplicate keys / arc batching + audit lock (F-08) | 33,36 | OPEN |
 | 39 | `arguments` blocks + Name-Value casing, whole surface (F-07) | 32–38,40,41 | OPEN |
 | 40 | Method polish: gates, clamps, whiteness (F-10…F-13; + F-15 alternation bistability, registered 2026-08-19) | 32 | OPEN |
