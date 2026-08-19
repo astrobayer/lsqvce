@@ -2649,6 +2649,12 @@ same-seed-identical-probes across sharedProbe/traceEstimate (via the
 invariance half (needs the accumulator fixture) + the vce
 traceSeedUsed replay test (vc.r and sigma bitwise; FAILS pre-fix: field
 absent, final pass drew fresh probes).
+**Round-1 red + fix (2026-08-19):** one failure, MY test's API mistake —
+traceEstimate returns the SCALAR estimate, the draft dot-indexed
+`.trace` on a double (MATLAB:structRefFromNonStruct). Everything the WP
+actually changed ran green on the first CI pass (497/498: invariance,
+cross-caller identity via Zbar, stream invariance, and the vce bitwise
+replay all held).
 
 ### WP-37 — `redundancyLags` without the dense W^-1 (+ small hot-loop tolls)
 

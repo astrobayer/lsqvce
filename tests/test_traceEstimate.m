@@ -280,9 +280,11 @@ function testSameSeedIdenticalProbesAcrossCallers(tc)
     verifyEqual(tc, unique(abs(raw(:))), 1, ...
         'Rademacher probes must be exactly +-1');
     M  = spd(n, 5);
+    % traceEstimate returns the scalar estimate (not a struct) - round-1
+    % lesson: my draft dot-indexed a double.
     t1 = lsqvce.traceEstimate(M, 'NumProbes', Zn, 'Seed', sd);
     t2 = lsqvce.traceEstimate(M, 'Probes', raw);
-    verifyEqual(tc, t1.trace, t2.trace, 'AbsTol', 4*eps(t2.trace), ...
+    verifyEqual(tc, t1, t2, 'AbsTol', 4*eps(t2), ...
         'same seed => the identical probe block in every caller');
 end
 
