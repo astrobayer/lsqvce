@@ -2937,6 +2937,16 @@ the class surface: BlockAccumulator (ctor options already canonical),
 Combine (FOUR parsers across methods), Accumulator, adjustVCE ctor
 (21 options), BatchIndex, PrefetchLoader, Results -- then WP-39 and the
 R2 track close.
+**c1 round 2 (2026-08-19):** two reds. (1) makeLoader's PROTECTIVE
+contract test (removed terse aliases must error) moved to the
+signature-level id — arguments blocks reject unknown NV names with
+MATLAB:TooManyInputs, not the parser's UnmatchedParameter; the b1-r3
+rule extended: unknown-name rejection ids also live at the signature
+now. (2) An arity bug in MY c1 test: solveNonlinear takes FOUR
+positionals; the draft passed two, 'Method' landed as nBatch and the
+parser never saw the pair — fixed with the full positional set. Lesson:
+signature tests must satisfy the POSITIONAL contract before probing the
+NV surface.
 
 **Round a2 (2026-08-19): adjust + the fluent configurators — two PINNED
 DEVIATIONS (user approves by merge), both consequences of the corrected

@@ -879,7 +879,11 @@ function test_stageC1_signatures_enum_values(tc)
     verifyTrue(tc, ok, 'mapreduce Mode ''Serial'' must fail');
     ok = false;
     try
-        lsqvce.solveNonlinear(@(x) deal(x, eye(2)), [0;0], 'Method', 'QR');
+        % round-2 fix: solveNonlinear takes FOUR positionals (u, batchFcn,
+        % nBatch, x0) -- the first draft passed two, so 'Method' landed as
+        % nBatch and the parser never saw the pair.
+        lsqvce.solveNonlinear(2, @(k, x) deal(randn(4,2), randn(4,1), []), ...
+                              1, [0; 0], 'Method', 'QR');
     catch e
         ok = strcmp(e.identifier, 'MATLAB:InputParser:ArgumentFailedValidation');
     end
