@@ -55,6 +55,11 @@ function vc = vce(accFcn, varargin)
 %   OUTPUT
 %     vc.sigma      final variance components (one per group)
 %     vc.groups     the group keys, aligned with sigma
+%     vc.traceSeedUsed  probe seed actually used: the given TraceSeed, or
+%                   the seed pinned up front from the private stream when
+%                   TraceSeed was empty ('hutchinson', WP-36; replay with
+%                   'TraceSeed', vc.traceSeedUsed reproduces vc bit-
+%                   identically); [] on the 'exact' path
 %     vc.r          final redundancy per group; in 'hutchinson' the streamed
 %                   estimate n_g - local_g - tr(N^-1 N_g^cc), consistent with
 %                   the loop's denominator (sum_g vc.r ~ m-u on both paths)
@@ -103,6 +108,11 @@ function vc = vce(accFcn, varargin)
 %
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-36 (fixes F-06): an empty
+%   TraceSeed is pinned ONCE up front from the package-private probe
+%   stream (global RNG untouched), so the final vc.r probes with the
+%   loop's identical Z; new output vc.traceSeedUsed. With assistance from
+%   Claude (Anthropic), model Claude Fable 5.
 %   Updated 2026-08-18 (CEST, UTC+02:00), WP-32 (fixes F-01, CRITICAL):
 %   'hutchinson' now divides by the streamed REDUNDANCY
 %   r_g = n_g - local_g - tr(N^-1 N_g^cc) (LSQVCE.STREAMCONTRIBUTION .r)
@@ -132,6 +142,15 @@ function vc = vce(accFcn, varargin)
     p.addParameter('traceSeed'    , [],    @(v) isempty(v) || (isscalar(v) && isnumeric(v)));
     p.parse(varargin{:});
     o = p.Results;
+    % WP-36 (fixes F-06): with 'hutchinson' and an EMPTY TraceSeed, pin one
+    % concrete seed up front (drawn from the package-private probe stream,
+    % global RNG untouched). Every loop pass AND the final vc.r pass then
+    % probe with IDENTICAL Z, so vc.r is exactly the converged loop
+    % redundancy -- previously the final pass drew fresh probes and vc.r
+    % was a different realisation than the denominators the loop used.
+    if strcmpi(o.traceMethod, 'hutchinson') && isempty(o.traceSeed)
+        [~, o.traceSeed] = probeMatrix(1, 1, 'rademacher', []);
+    end
 
     % ---- pass 0: discover the groups --------------------------------------
     groups = o.groups;
@@ -257,7 +276,13 @@ function vc = vce(accFcn, varargin)
 
     vc = struct('sigma', sig, 'groups', {groups}, 'r', rFinal, ...
                 'history', hist, 'converged', conv, 'nIter', it, ...
-                'sol', sol, 'red', red, 'acc', acc);
+                'sol', sol, 'red', red, 'acc', acc, ...
+                'traceSeedUsed', o.traceSeed);   % [] on 'exact'; the pinned
+                                                 % probe seed otherwise
+                                                 % (WP-36: replay with
+                                                 % 'TraceSeed', this value
+                                                 % reproduces vc bit-
+                                                 % identically)
 
     if lsqvce.util.verbosity.progress(o.verbose)
         lsqvce.util.log.msg('%s%s after %d iterations\n', lsqvce.util.verbosity.banner('Variance components'), ...

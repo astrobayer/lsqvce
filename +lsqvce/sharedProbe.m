@@ -28,7 +28,10 @@ function out = sharedProbe(U, varargin)
 %   OPTIONS (Name/Value)
 %     'numProbes' 1x1 int      Z, number of probes (default 100, Ellmer's value)
 %     'seed'      1x1 int|[]   RNG seed for reproducible probes (default []).
-%                              Uses a private RandStream, so the global RNG is
+%                              Empty: a seed is drawn ONCE from the package's
+%                              private session stream (probeMatrix contract,
+%                              WP-36). Either way a private RandStream is used
+%                              and the global RNG is
 %                              never disturbed.
 %     'probes'    P x Z double a FIXED raw +1/-1 probe block to use instead of
 %                              drawing one (normalisation is applied here).
@@ -62,6 +65,11 @@ function out = sharedProbe(U, varargin)
 %
 %   Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Opus 4.8.
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-36 (fixes F-06): probes come
+%   from the ONE private generator probeMatrix (empty seed = private
+%   session-stream draw, global RNG untouched; seeded realisations
+%   unchanged). With assistance from Claude (Anthropic), model Claude
+%   Fable 5.
 
     p = inputParser;  p.FunctionName = 'lsqvce.sharedProbe';
     p.addParameter('numProbes'   , 100, @(v) isscalar(v) && v >= 1 && v == floor(v));
@@ -88,12 +96,9 @@ function out = sharedProbe(U, varargin)
         Z = size(raw, 2);
     else
         Z = o.numProbes;
-        if isempty(o.seed)
-            raw = drawProbes(P, Z, o.distribution, []);
-        else
-            raw = drawProbes(P, Z, o.distribution, ...
-                             RandStream('twister', 'Seed', o.seed));
-        end
+        % WP-36 (fixes F-06): the ONE generator; empty seed = a private
+        % session-stream draw, the global RNG is never touched.
+        raw = probeMatrix(P, Z, o.distribution, o.seed);
     end
 
     Zbar = raw / sqrt(Z);                    % eq. 6.5.43 normalisation
@@ -102,14 +107,3 @@ function out = sharedProbe(U, varargin)
     out = struct('UiZ', UiZ, 'Zbar', Zbar, 'probes', Z, 'P', P);
 end
 
-%==========================================================================
-function raw = drawProbes(P, Z, dist, rs)
-%DRAWPROBES  Raw (un-normalised) probe block, Rademacher or Gaussian.
-    if strcmpi(dist, 'gaussian')
-        if isempty(rs), raw = randn(P, Z); else, raw = randn(rs, P, Z); end
-    else
-        if isempty(rs), g = randn(P, Z);    else, g = randn(rs, P, Z);   end
-        raw = sign(g);
-        raw(raw == 0) = 1;                   % sign(0) -> +1
-    end
-end

@@ -124,6 +124,12 @@ function [t, info] = traceEstimate(M, varargin)
 %
 %   See also LSQVCE.REDUNDANCY, LSQVCE.VCE, LSQVCE.LEVERAGE, LSQVCE.DECORRFACTOR
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-36 (fixes F-06): probes from
+%   the ONE private generator probeMatrix -- empty seed draws from the
+%   package-private session stream (global RNG untouched, as the help
+%   always promised); the Rademacher recipe is unified to sign(randn), so
+%   seeded realisations differ from pre-WP-36 (unbiasedness unaffected).
+%   With assistance from Claude (Anthropic), model Claude Fable 5.
 %   Created 2026-07-16 (CEST, UTC+02:00) with assistance from
 %   Claude (Anthropic), model Claude Opus 4.8.
 
@@ -176,17 +182,14 @@ function [t, info] = traceEstimate(M, varargin)
         Z    = size(rawZ, 2);
     else
         Z = o.numProbes;
-        if isempty(o.seed)
-            rs = RandStream.getGlobalStream();
-        else
-            rs = RandStream('twister', 'Seed', o.seed);   % private, no global side effect
-        end
-        switch dist
-            case 'rademacher'
-                rawZ = 2 * (randi(rs, [0 1], P, Z)) - 1;   % {-1,+1}
-            case 'gaussian'
-                rawZ = randn(rs, P, Z);
-        end
+        % WP-36 (fixes F-06): the ONE generator. Before the fix, an empty
+        % seed drew from -- and ADVANCED -- the global stream (the comment
+        % claimed otherwise), and this function used the 2*randi-1
+        % Rademacher recipe while the other callers used sign(randn): a
+        % SEEDED trace therefore reproduces here but its realisation
+        % differs from pre-WP-36 values (documented; the estimator is
+        % unbiased under either recipe).
+        rawZ = probeMatrix(P, Z, dist, o.seed);
     end
     Zbar = rawZ / sqrt(Z);
 
