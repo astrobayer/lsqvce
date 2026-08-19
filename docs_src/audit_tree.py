@@ -367,6 +367,34 @@ def check_spec_fields():
         print('   %d definition(s), one field list' % n)
 
 
+def check_dedup_lock():
+    print('\n10b. dedup lock: ONE makeKeyFcn / ONE arcBatchWhiten (WP-38, F-08)')
+    # These two skeletons existed as verbatim copies in redundancy.m and
+    # streamContribution.m until WP-38; a silent re-copy would let the
+    # grouping keys or the batch/whitening semantics drift apart again.
+    # The lock: each name is DEFINED exactly once, and only under
+    # +lsqvce/private/.
+    pat = re.compile(r'^\s*function\s+(?:(?:\[[^\]]*\]|[\w~]+)\s*=\s*)?'
+                     r'(makeKeyFcn|arcBatchWhiten)\s*\(', re.M)
+    hits = {}
+    for d in ('+lsqvce', 'tests', 'examples'):
+        for f in glob.glob(d + '/**/*.m', recursive=True):
+            raw = open(f, encoding='utf-8', errors='replace').read()
+            code = '\n'.join(l for l in raw.split('\n')
+                             if not l.lstrip().startswith('%'))
+            for m in pat.finditer(code):
+                hits.setdefault(m.group(1), []).append(f)
+    ok = True
+    for name in ('makeKeyFcn', 'arcBatchWhiten'):
+        where = hits.get(name, [])
+        want = os.path.join('+lsqvce', 'private', name + '.m')
+        if len(where) != 1 or os.path.normpath(where[0]) != os.path.normpath(want):
+            note('dedup-lock', '%s must be defined EXACTLY once, in %s (found: %s)'
+                 % (name, want, ', '.join(where) or 'nowhere'))
+            ok = False
+    if ok:
+        print('    OK - both defined once, under +lsqvce/private/')
+
 def check_duplicate_functions():
     print('\n10. no duplicated function names within a file')
     # MATLAB refuses to load a file that defines the same function twice, so the
@@ -585,6 +613,7 @@ def main():
     check_banners()
     check_spec_fields()
     check_duplicate_functions()
+    check_dedup_lock()
     check_deprecated_words()
     check_addpath_targets()
     check_html_examples()

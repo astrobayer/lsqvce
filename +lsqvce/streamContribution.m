@@ -127,7 +127,8 @@ function out = streamContribution(acc, sol, varargin)
 %   ERRORS
 %     lsqvce:streamContribution:badSol      the solution struct is not from this
 %                                           accumulator
-%     lsqvce:streamContribution:badGroupBy  the grouping key is unknown
+%     lsqvce:makeKeyFcn:badGroupBy  the grouping key is unknown (WP-38:
+%                   the one shared key resolver)
 %     lsqvce:streamContribution:noStore     nothing was retained; re-run with
 %                                           'store','all'
 %     lsqvce:streamContribution:noArcs      a system declares no arcs
@@ -137,6 +138,11 @@ function out = streamContribution(acc, sol, varargin)
 %   See also LSQVCE.CONTRIBUTION, LSQVCE.REDUNDANCY, LSQVCE.LEVERAGEBLOCKS,
 %            LSQVCE.TRACEESTIMATE, LSQVCE.VCE
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-38 (fixes F-08): key presets
+%   and the batch-and-whiten skeleton live in the ONE private makeKeyFcn /
+%   arcBatchWhiten (byte-identical numerics; GroupBy error id now
+%   lsqvce:makeKeyFcn:badGroupBy). With assistance from Claude
+%   (Anthropic), model Claude Fable 5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-36 (fixes F-06): probes from
 %   the ONE private generator probeMatrix; empty seed = private
 %   session-stream draw, global RNG untouched; seeded realisations
@@ -377,36 +383,18 @@ function [AZ, Nlc, Mll, nRows] = arcCommonProbe(st, obsType, arc, day, uo, Z)
     nc  = size(Z, 1);
     nl  = size(a.B, 2);
     m   = size(a.A, 1);
-    bs  = lsqvce.util.getfielddef(uo, 'BatchSize', 20000);
-    nOv = lsqvce.util.getfielddef(uo, 'BatchOverlap', []);
-    if isempty(nOv)
-        nOv = lsqvce.util.getfielddef(a, 'filterMemory', 0);
-    end
-    bs  = max(1, min(round(bs),  m));
-    nOv = max(0, min(round(nOv), bs-1));
-
-    hasW = isfield(a, 'Wfcn') && ~isempty(a.Wfcn);
-    hasC = isfield(a, 'Cfcn') && ~isempty(a.Cfcn);
-
+    % WP-38 (fixes F-08): the batch/overlap/whitening skeleton lives in the
+    % ONE private arcBatchWhiten; this callback keeps the payload and the
+    % accumulation order (byte-identical outputs). NOTE the shared Cfcn
+    % branch also whitens lb (the leverage path's behaviour) -- this
+    % callback never touches lb, so the outputs are unchanged.
     AZ    = zeros(nc, size(Z, 2));
     Nlc   = zeros(nl, nc);
     Mll   = zeros(nl, nl);
     nRows = m;
-    for i0 = 1:bs:m
-        i1   = min(i0+bs-1, m);
-        j0   = max(1, i0-nOv);
-        idx  = j0:i1;
-        keep = (i0-j0+1):numel(idx);
+    arcBatchWhiten(a, uo, @perBatch);
 
-        Ab = a.A(idx, :);
-        Bb = a.B(idx, :);
-        lb = a.l(idx);  lb = lb(:);
-        if hasW
-            [Ab, Bb, lb] = a.Wfcn(idx, Ab, Bb, lb, uo);
-        elseif hasC
-            W  = lsqvce.decorrFactor(a.Cfcn(idx, uo));
-            Ab = W*Ab;  Bb = W*Bb;
-        end
+    function perBatch(~, keep, Ab, Bb, ~)
         Aw  = Ab(keep, :);                   % rows that belong to this batch
         Bw  = Bb(keep, :);
         AZ  = AZ  + Aw.' * (Aw * Z);         % nc x Z, streamed
@@ -416,23 +404,3 @@ function [AZ, Nlc, Mll, nRows] = arcCommonProbe(st, obsType, arc, day, uo, Z)
 end
 
 %==========================================================================
-function f = makeKeyFcn(g)
-%MAKEKEYFCN  Resolve a GroupBy spec into a key function f(sat,obsType,arc,day).
-%   Mirrors LSQVCE.REDUNDANCY so grouping is identical across the two paths.
-%   INPUT  g  char | function_handle
-%   OUTPUT f  1x1 function_handle  @(sat,obsType,arc,day) -> group key
-    if isa(g, 'function_handle')
-        f = g;  return
-    end
-    switch lower(g)
-        case 'arc',     f = @(s,ot,a,d) sprintf('s%s_%s_d%s_a%s', ...
-                                    string(s), string(ot), string(d), string(a));
-        case 'obstype', f = @(s,ot,a,d) sprintf('%s', string(ot));
-        case 'system',  f = @(s,ot,a,d) sprintf('s%s', string(s));
-        case 'day',     f = @(s,ot,a,d) sprintf('d%s', string(d));
-        otherwise
-            error('lsqvce:streamContribution:badGroupBy', ...
-                ['GroupBy must be ''arc'', ''obsType'', ''system'', ''day'' ' ...
-                 'or a function handle (got ''%s'').'], g);
-    end
-end
