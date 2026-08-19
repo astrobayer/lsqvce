@@ -1,4 +1,4 @@
-function V = report(D, varargin)
+function V = report(D, opt)
 %LSQVCE.REPORT  Judge a least-squares adjustment and say so in words.
 %
 %   V = LSQVCE.REPORT(D) takes the struct from lsqvce.diagnose and prints a
@@ -47,17 +47,26 @@ function V = report(D, varargin)
 %           error('Pope is blind here -- re-run with test=mad.');
 %       end
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
+%   typed `arguments` signature, canonical UpperCamelCase option names
+%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+%   case-sensitive lowercase). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 %   See also LSQVCE.DIAGNOSE, LSQVCE.SYSTEMATIC.
 %
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
 
-ip = inputParser;
-addParameter(ip, 'verbose', true, @(x) islogical(x) && isscalar(x));
-addParameter(ip, 'width',   78,   @(x) isnumeric(x) && isscalar(x));
-parse(ip, varargin{:});
-verbose = ip.Results.verbose;
-W = ip.Results.width;
+% WP-39 b2: typed `arguments` signature (canonical Verbose/Width;
+% legacy casings keep matching -- MATLAB NV semantics).
+arguments
+    D
+    opt.Verbose (1,1) logical = true
+    opt.Width (1,1) double {mustBeGreaterThanOrEqual(opt.Width, 40)} = 78
+end
+
+verbose = opt.Verbose;
+W = opt.Width;
 
 F = {};   % findings
     function push(lvl, sev, code, fmt, varargin)

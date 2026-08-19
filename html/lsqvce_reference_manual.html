@@ -88,7 +88,14 @@ signatures and now surface MATLAB validator identifiers (e.g.
 <code>MATLAB:validators:mustBePositive</code> for
 <code>redundancyLags</code>'s <code>nMaxLag</code>) where handwritten
 <code>lsqvce:</code> checks used to fire; cross-argument shape checks
-keep their <code>lsqvce:</code> identifiers. Remaining functions follow in the staged WP-39
+keep their <code>lsqvce:</code> identifiers. Round b2 extends the
+migration across the remaining VCE helpers and the diagnostics layer
+(<code>arcVarianceFactors, poolGroups, vceHutchinson, traceEstimate,
+jointModelOpt, diagnose, snoop, outliers, residuals, ftest, ellipse,
+crossCorr, systematic, selectArOrder, report</code>);
+<code>robust</code> follows the <code>adjust</code> pattern (canonical
+names + typed validators on <code>inputParser</code>, kept for its
+documented pass-through to <code>diagnose</code>). Remaining functions follow in the staged WP-39
 rollout.</div>
 <h2>Symbols</h2>
 <table>

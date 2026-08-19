@@ -1,4 +1,4 @@
-function S = systematic(D, varargin)
+function S = systematic(D, opt)
 %LSQVCE.SYSTEMATIC  Detect unmodelled systematic errors in the residuals.
 %
 %   S = LSQVCE.SYSTEMATIC(D) runs three complementary tests on the normalised
@@ -100,21 +100,29 @@ function S = systematic(D, varargin)
 %     lsqvce:systematic:badCovariate  the covariate is not a vector matching the
 %                                     residual length
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
+%   typed `arguments` signature, canonical UpperCamelCase option names
+%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+%   case-sensitive lowercase). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 %   See also LSQVCE.DIAGNOSE, LSQVCE.FTEST.
 %
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
 
-ip = inputParser;
-ip.FunctionName = 'lsqvce.systematic';
-addRequired (ip, 'D', @(s) isstruct(s) && isfield(s, 'w'));
-addParameter(ip, 'covariates', struct(), @isstruct);
-addParameter(ip, 'nbins',  10,   @(x) isscalar(x) && x >= 2);
-addParameter(ip, 'lags',   10,   @(x) isscalar(x) && x >= 1);
-addParameter(ip, 'alpha',  0.01, @(x) isscalar(x) && x > 0 && x < 1);
-addParameter(ip, 'verbose', true, @(x) islogical(x) && isscalar(x));
-parse(ip, D, varargin{:});
-o = ip.Results;
+% WP-39 stage (b) b2: typed `arguments` signature (canonical
+% UpperCamelCase; legacy casings keep matching -- MATLAB NV
+% semantics; enum VALUES case-sensitive lowercase).
+arguments
+    D
+    opt.Covariates (1,1) struct = struct()
+    opt.NBins (1,1) double {mustBeGreaterThanOrEqual(opt.NBins,2)} = 10
+    opt.Lags (1,1) double {mustBeGreaterThanOrEqual(opt.Lags,1)} = 10
+    opt.Alpha (1,1) double {mustBePositive, mustBeLessThan(opt.Alpha,1)} = 0.01
+    opt.Verbose (1,1) logical = true
+end
+
+o = struct('covariates', opt.Covariates, 'nbins', opt.NBins, 'lags', opt.Lags, 'alpha', opt.Alpha, 'verbose', opt.Verbose);
 
 if ~isfield(D, 'w')
     error('lsqvce:systematic:noResiduals', ...

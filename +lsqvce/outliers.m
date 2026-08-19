@@ -1,4 +1,4 @@
-function out = outliers(acc, sol, varargin)
+function out = outliers(acc, sol, opt)
 %LSQVCE.OUTLIERS  Data snooping (Baarda) using exact partial redundancy.
 %
 %   out = LSQVCE.OUTLIERS(acc, sol, 'Name', value, ...)
@@ -54,20 +54,31 @@ function out = outliers(acc, sol, varargin)
 %     acc2 = buildAccumulator(cfg, opt);
 %     sol2 = acc2.solve();
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
+%   typed `arguments` signature, canonical UpperCamelCase option names
+%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+%   case-sensitive lowercase). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 %   See also LSQVCE.REDUNDANCY, LSQVCE.LEVERAGE, LSQVCE.VCE
 %
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
 
+arguments
+    acc
+    sol
+    opt.Threshold (1,1) double {mustBePositive} = 4.0
+    opt.GroupBy = 'arc'
+    opt.MinRedundancy (1,1) double {mustBeNonnegative} = 0.05
+    opt.Verbose (1,1) logical = true
+end
+
     narginchk(2,inf);
 
-    p = inputParser;  p.FunctionName = 'lsqvce.outliers';
-    p.addParameter('threshold'    , 4.0,  @(v) isscalar(v) && v > 0);
-    p.addParameter('groupBy'      , 'arc');
-    p.addParameter('minRedundancy', 0.05, @(v) isscalar(v) && v >= 0);
-    p.addParameter('verbose'      , true, @(v) (islogical(v) || isnumeric(v)) && isscalar(v));
-    p.parse(varargin{:});
-    o = p.Results;
+    % WP-39 stage (b) b2: typed `arguments` signature (canonical
+    % UpperCamelCase; legacy casings keep matching -- MATLAB NV
+    % semantics; enum VALUES case-sensitive lowercase).
+    o = struct('threshold', opt.Threshold, 'groupBy', opt.GroupBy, 'minRedundancy', opt.MinRedundancy, 'verbose', opt.Verbose);
 
     red = lsqvce.redundancy(acc, sol, 'GroupBy', o.groupBy, ...
                          'Collect', true, 'Verbose', false);

@@ -1,4 +1,4 @@
-function [sol, D, REJ] = snoop(sol, D, batchFcn, varargin)
+function [sol, D, REJ] = snoop(sol, D, batchFcn, opt)
 %LSQVCE.SNOOP  Iterative data snooping: reject outliers one at a time.
 %
 %   [sol, D, REJ] = LSQVCE.SNOOP(sol, D, batchFcn) repeatedly removes the
@@ -130,31 +130,36 @@ function [sol, D, REJ] = snoop(sol, D, batchFcn, varargin)
 %                                  estimate has broken down; the data are not
 %                                  a few blunders on a good model
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
+%   typed `arguments` signature, canonical UpperCamelCase option names
+%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+%   case-sensitive lowercase). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 %   See also LSQVCE.ROBUST, LSQVCE.DIAGNOSE, LSQVCE.SYSTEMATIC.
 %
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
 
-ip = inputParser;
-ip.FunctionName = 'lsqvce.snoop';
-addParameter(ip, 'maxReject',    [],    @(x) isempty(x) || (isscalar(x) && x >= 0));
-addParameter(ip, 'rMinReject',   0.10,  @(x) isscalar(x) && x >= 0 && x <= 1);
-addParameter(ip, 'alpha',        1e-3,  @(x) isscalar(x) && x > 0 && x < 1);
-addParameter(ip, 'bonferroni',   true,  @islogical);
-addParameter(ip, 'reaccumulate', true,  @islogical);
-addParameter(ip, 'verbose',      true,  @islogical);
-addParameter(ip, 'nBatch',       [],    @(x) isempty(x) || isscalar(x));
-addParameter(ip, 'test',         'pope', ...
-             @(t) any(strcmpi(t, {'pope','mad'})));
-addParameter(ip, 'force',        false, @islogical);
-% Hard ceiling on the REJECTED FRACTION. This is the one guard that does not
-% depend on any estimator being reliable: past ~40% contamination every
-% scale-based indicator switches itself off, but "you are asking me to delete
-% a third of your data" remains true regardless.
-addParameter(ip, 'maxRejectFrac', 0.25, ...
-             @(x) isscalar(x) && x > 0 && x <= 1);
-parse(ip, varargin{:});
-o = ip.Results;
+% WP-39 stage (b) b2: typed `arguments` signature (canonical
+% UpperCamelCase; legacy casings keep matching -- MATLAB NV
+% semantics; enum VALUES case-sensitive lowercase).
+arguments
+    sol
+    D
+    batchFcn
+    opt.MaxReject double {mustBeScalarOrEmpty} = []
+    opt.RMinReject (1,1) double {mustBeNonnegative, mustBeLessThanOrEqual(opt.RMinReject,1)} = 0.10
+    opt.Alpha (1,1) double {mustBePositive, mustBeLessThan(opt.Alpha,1)} = 1e-3
+    opt.Bonferroni (1,1) logical = true
+    opt.Reaccumulate (1,1) logical = true
+    opt.Verbose (1,1) logical = true
+    opt.NBatch double {mustBeScalarOrEmpty} = []
+    opt.Test (1,1) string {mustBeMember(opt.Test, ["pope","mad"])} = "pope"
+    opt.Force (1,1) logical = false
+    opt.MaxRejectFrac (1,1) double {mustBePositive, mustBeLessThanOrEqual(opt.MaxRejectFrac,1)} = 0.25
+end
+
+o = struct('maxReject', opt.MaxReject, 'rMinReject', opt.RMinReject, 'alpha', opt.Alpha, 'bonferroni', opt.Bonferroni, 'reaccumulate', opt.Reaccumulate, 'verbose', opt.Verbose, 'nBatch', opt.NBatch, 'test', char(opt.Test), 'force', opt.Force, 'maxRejectFrac', opt.MaxRejectFrac);
 
 nB = o.nBatch;
 if isempty(nB), nB = D.nBatch; end

@@ -1,4 +1,4 @@
-function E = ellipse(D, pair, varargin)
+function E = ellipse(D, pair, opt)
 %LSQVCE.ELLIPSE  Confidence ellipse for a pair of correlated parameters.
 %
 %   E = LSQVCE.ELLIPSE(D, [i j]) returns the confidence ellipse of parameters
@@ -59,18 +59,28 @@ function E = ellipse(D, pair, varargin)
 %     lsqvce:ellipse:badPair        the parameter pair is not two valid indices
 %     lsqvce:ellipse:samePair       both indices are the same parameter
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
+%   typed `arguments` signature, canonical UpperCamelCase option names
+%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+%   case-sensitive lowercase). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 %   See also LSQVCE.DIAGNOSE.
 %
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
 
-ip = inputParser;
-addParameter(ip, 'conf',  0.95, @(x) isscalar(x) && x > 0 && x < 1);
-addParameter(ip, 'scale', 'aposteriori', ...
-             @(s) any(strcmpi(s, {'apriori', 'aposteriori'})));
-addParameter(ip, 'npts',  200,  @(x) isscalar(x) && x >= 8);
-parse(ip, varargin{:});
-o = ip.Results;
+% WP-39 stage (b) b2: typed `arguments` signature (canonical
+% UpperCamelCase; legacy casings keep matching -- MATLAB NV
+% semantics; enum VALUES case-sensitive lowercase).
+arguments
+    D
+    pair
+    opt.Conf (1,1) double {mustBePositive, mustBeLessThan(opt.Conf,1)} = 0.95
+    opt.Scale (1,1) string {mustBeMember(opt.Scale, ["apriori","aposteriori"])} = "aposteriori"
+    opt.NPts (1,1) double {mustBeGreaterThanOrEqual(opt.NPts,8)} = 200
+end
+
+o = struct('conf', opt.Conf, 'scale', char(opt.Scale), 'npts', opt.NPts);
 
 if numel(pair) ~= 2 || any(pair < 1) || any(pair > D.u) || any(pair ~= fix(pair))
     error('lsqvce:ellipse:badPair', ...

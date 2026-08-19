@@ -94,6 +94,11 @@ function [sol, D, ROB] = robust(u, batchFcn, nBatch, varargin)
 %
 %       bad = find(ROB.factor < 0.5);        % the suspects
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
+%   canonical UpperCamelCase option names + typed validators on
+%   inputParser, which stays BY DESIGN (KeepUnmatched forwards to
+%   LSQVCE.DIAGNOSE -- the adjust pattern; pinned deviation §9 WP-39).
+%   With assistance from Claude (Anthropic), model Claude Fable 5.
 %   See also LSQVCE.SNOOP, LSQVCE.DIAGNOSE.
 %
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
@@ -102,17 +107,26 @@ function [sol, D, ROB] = robust(u, batchFcn, nBatch, varargin)
 ip = inputParser;
 ip.FunctionName = 'lsqvce.robust';
 ip.KeepUnmatched = true;
-addParameter(ip, 'influence', 'huber', ...
-             @(s) any(strcmpi(s, {'huber','igg3','bisquare'})));
-addParameter(ip, 'tuning',  [],    @(x) isempty(x) || isnumeric(x));
-addParameter(ip, 'maxIter', 30,    @(x) isscalar(x) && x >= 1);
-addParameter(ip, 'tol',     1e-8,  @(x) isscalar(x) && x > 0);
-addParameter(ip, 'datumB',  [],    @(x) isempty(x) || isnumeric(x));
-addParameter(ip, 'method',  'qr');
-addParameter(ip, 'sigma0',  1);
-addParameter(ip, 'verbose', true,  @islogical);
+% WP-39 b2, PINNED DEVIATION (the adjust pattern): robust KEEPS
+% inputParser BY DESIGN -- KeepUnmatched forwards unmatched options to
+% LSQVCE.DIAGNOSE. Canonical UpperCamelCase names + typed validators;
+% enum VALUES case-sensitive lowercase (strcmp); the o remap keeps the
+% body untouched.
+addParameter(ip, 'Influence', 'huber', ...
+             @(s) (ischar(s) || isstring(s)) && any(strcmp(char(s), {'huber','igg3','bisquare'})));
+addParameter(ip, 'Tuning',  [],    @(x) isempty(x) || isnumeric(x));
+addParameter(ip, 'MaxIter', 30,    @(x) isscalar(x) && x >= 1 && x == floor(x));
+addParameter(ip, 'Tol',     1e-8,  @(x) isscalar(x) && x > 0);
+addParameter(ip, 'DatumB',  [],    @(x) isempty(x) || isnumeric(x));
+addParameter(ip, 'Method',  'qr',  @(s) (ischar(s) || isstring(s)) && any(strcmp(char(s), {'qr','normal'})));
+addParameter(ip, 'Sigma0',  1,     @(x) isnumeric(x) && isscalar(x) && x > 0);
+addParameter(ip, 'Verbose', true,  @(v) (islogical(v) || isnumeric(v)) && isscalar(v));
 parse(ip, varargin{:});
-o = ip.Results;
+r_ = ip.Results;
+o  = struct('influence', char(r_.Influence), 'tuning', r_.Tuning, ...
+            'maxIter', r_.MaxIter, 'tol', r_.Tol, 'datumB', r_.DatumB, ...
+            'method', char(r_.Method), 'sigma0', r_.Sigma0, ...
+            'verbose', r_.Verbose);
 
 infl = lower(o.influence);
 switch infl

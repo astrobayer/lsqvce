@@ -1,4 +1,4 @@
-function [t, info] = traceEstimate(M, varargin)
+function [t, info] = traceEstimate(M, opt)
 %LSQVCE.TRACEESTIMATE  Stochastic (Hutchinson) trace estimator, Ellmer 2018 6.5.6.
 %
 %   t = LSQVCE.TRACEESTIMATE(M)
@@ -124,6 +124,11 @@ function [t, info] = traceEstimate(M, varargin)
 %
 %   See also LSQVCE.REDUNDANCY, LSQVCE.VCE, LSQVCE.LEVERAGE, LSQVCE.DECORRFACTOR
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
+%   typed `arguments` signature, canonical UpperCamelCase option names
+%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+%   case-sensitive lowercase). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-36 (fixes F-06): probes from
 %   the ONE private generator probeMatrix -- empty seed draws from the
 %   package-private session stream (global RNG untouched, as the help
@@ -133,17 +138,21 @@ function [t, info] = traceEstimate(M, varargin)
 %   Created 2026-07-16 (CEST, UTC+02:00) with assistance from
 %   Claude (Anthropic), model Claude Opus 4.8.
 
+arguments
+    M
+    opt.Probes double = []
+    opt.NumProbes (1,1) double {mustBeInteger, mustBePositive} = 100
+    opt.Size double {mustBeScalarOrEmpty} = []
+    opt.Seed double {mustBeScalarOrEmpty} = []
+    opt.Distribution (1,1) string {mustBeMember(opt.Distribution, ["rademacher","gaussian"])} = "rademacher"
+end
+
     narginchk(1, inf);
 
-    p = inputParser;  p.FunctionName = 'lsqvce.traceEstimate';
-    p.addParameter('probes',       [],   @(v) isnumeric(v) && ismatrix(v));
-    p.addParameter('numProbes',    100,  @(v) isscalar(v) && v >= 1 && v == floor(v));
-    p.addParameter('size',         [],   @(v) isempty(v) || (isscalar(v) && v >= 1));
-    p.addParameter('seed',         [],   @(v) isempty(v) || (isscalar(v) && isnumeric(v)));
-    p.addParameter('distribution', 'rademacher', ...
-                   @(s) any(strcmpi(s, {'rademacher','gaussian'})));
-    p.parse(varargin{:});
-    o = p.Results;
+    % WP-39 stage (b) b2: typed `arguments` signature (canonical
+    % UpperCamelCase; legacy casings keep matching -- MATLAB NV
+    % semantics; enum VALUES case-sensitive lowercase).
+    o = struct('probes', opt.Probes, 'numProbes', opt.NumProbes, 'size', opt.Size, 'seed', opt.Seed, 'distribution', char(opt.Distribution));
     dist = lower(o.distribution);
 
     isHandle = isa(M, 'function_handle');

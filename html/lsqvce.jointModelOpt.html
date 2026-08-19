@@ -106,10 +106,19 @@ OPTIONS (Name/Value)
 
 NOTE: the &#x27;vceMode&#x27;,&#x27;joint&#x27; path on LSQVCE.ADJUSTVCE does this internally
 (see its covOverrideOpt), so this helper is for callers driving
-LSQVCE.ADJUSTVCEJOINT themselves.
+LSQVCE.ADJUSTVCEJOINT themselves.</pre>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:jointModelOpt:badModel   the model spec is unrecognised
+  lsqvce:jointModelOpt:badStream  the stream key is unknown
+  lsqvce:jointModelOpt:badC       the cross-covariance has the wrong shape
 
 See also LSQVCE.ADJUSTVCEJOINT, LSQVCE.ADJUSTVCE, LSQVCE.COVMODEL
 
+Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
+typed `arguments` signature, canonical UpperCamelCase option names
+(legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+case-sensitive lowercase). With assistance from Claude (Anthropic),
+model Claude Fable 5.
 Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Opus 4.8.</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>

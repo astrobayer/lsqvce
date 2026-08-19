@@ -1,4 +1,4 @@
-function D = diagnose(sol, batchFcn, varargin)
+function D = diagnose(sol, batchFcn, opt)
 %LSQVCE.DIAGNOSE  Second-pass per-observation diagnostics for a batch LSQ.
 %
 %   D = LSQVCE.DIAGNOSE(sol, batchFcn) sweeps the observations a second time
@@ -81,29 +81,37 @@ function D = diagnose(sol, batchFcn, varargin)
 %     lsqvce:diagnose:noRobustScale   a robust scale was requested but the
 %                                     residuals cannot support one
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
+%   typed `arguments` signature, canonical UpperCamelCase option names
+%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+%   case-sensitive lowercase). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 %   See also LSQVCE.ADJUST, LSQVCE.REPORT, LSQVCE.SNOOP.
 %
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
 
-ip = inputParser;
-ip.FunctionName = 'lsqvce.diagnose';
-addRequired (ip, 'sol',      @(s) isstruct(s) && all(isfield(s, {'x','R','n','u','r'})));
-addRequired (ip, 'batchFcn', @(f) isa(f, 'function_handle'));
-addParameter(ip, 'nBatch',     [],      @(x) isempty(x) || (isscalar(x) && x >= 1));
-addParameter(ip, 'alpha',      1e-3,    @(x) isscalar(x) && x > 0 && x < 1);
-addParameter(ip, 'bonferroni', true,    @(x) islogical(x) && isscalar(x));
-addParameter(ip, 'beta',       0.20,    @(x) isscalar(x) && x > 0 && x < 1);
-addParameter(ip, 'rMin',       1e-6,    @(x) isscalar(x) && x >= 0);
-addParameter(ip, 'rWeak',      0.10,    @(x) isscalar(x) && x >= 0 && x <= 1);
-addParameter(ip, 'test',       'auto',  @(s) any(strcmpi(s, {'auto','pope','baarda','mad'})));
-addParameter(ip, 'robustCheck', true,   @(x) islogical(x) && isscalar(x));
-addParameter(ip, 'store',      'all',   @(s) any(strcmpi(s, {'all','flagged','none'})));
-addParameter(ip, 'nWorst',     1000,    @(x) isscalar(x) && x >= 0);
-addParameter(ip, 'verify',     true,    @(x) islogical(x) && isscalar(x));
-addParameter(ip, 'progress',   false,   @(x) islogical(x) && isscalar(x));
-parse(ip, sol, batchFcn, varargin{:});
-o = ip.Results;
+% WP-39 stage (b) b2: typed `arguments` signature (canonical
+% UpperCamelCase; legacy casings keep matching -- MATLAB NV
+% semantics; enum VALUES case-sensitive lowercase).
+arguments
+    sol
+    batchFcn
+    opt.NBatch double {mustBeScalarOrEmpty} = []
+    opt.Alpha (1,1) double {mustBePositive, mustBeLessThan(opt.Alpha,1)} = 1e-3
+    opt.Bonferroni (1,1) logical = true
+    opt.Beta (1,1) double {mustBePositive, mustBeLessThan(opt.Beta,1)} = 0.20
+    opt.RMin (1,1) double {mustBeNonnegative} = 1e-6
+    opt.RWeak (1,1) double {mustBeNonnegative, mustBeLessThanOrEqual(opt.RWeak,1)} = 0.10
+    opt.Test (1,1) string {mustBeMember(opt.Test, ["auto","pope","baarda","mad"])} = "auto"
+    opt.RobustCheck (1,1) logical = true
+    opt.Store (1,1) string {mustBeMember(opt.Store, ["all","flagged","none"])} = "all"
+    opt.NWorst (1,1) double {mustBeNonnegative} = 1000
+    opt.Verify (1,1) logical = true
+    opt.Progress (1,1) logical = false
+end
+
+o = struct('nBatch', opt.NBatch, 'alpha', opt.Alpha, 'bonferroni', opt.Bonferroni, 'beta', opt.Beta, 'rMin', opt.RMin, 'rWeak', opt.RWeak, 'test', char(opt.Test), 'robustCheck', opt.RobustCheck, 'store', char(opt.Store), 'nWorst', opt.NWorst, 'verify', opt.Verify, 'progress', opt.Progress);
 
 nB = o.nBatch;
 if isempty(nB)

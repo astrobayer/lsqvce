@@ -2894,6 +2894,29 @@ signature and surface MATLAB validator ids; CROSS-ARGUMENT shape checks
 stay in the body with their lsqvce: ids (badW/badUiZ unchanged and
 green). Test, ERRORS help and the reference-manual release note updated
 accordingly.
+**ROUND NOTE b2 (2026-08-19): the remaining VCE helpers + the full
+diagnostics layer.** MIGRATED to typed `arguments` (canonical
+UpperCamel, lowercase o-struct mappings keep bodies untouched, the
+field-completeness check green for all): arcVarianceFactors, poolGroups
+(Strategy members are mergeLow/NEAREST -- a guessed mergeAll in the
+first spec was caught by the post-hoc grep, fixed pre-commit),
+vceHutchinson, traceEstimate, jointModelOpt, diagnose, snoop, outliers,
+residuals, ftest, ellipse, crossCorr, systematic, selectArOrder, and
+report (whose SECOND option 'width' the early survey missed -- the
+verbatim parse block was the inventory, per the b1 lesson).
+**PINNED DEVIATION (user approves by merge): robust follows the adjust
+pattern** -- inputParser stays (KeepUnmatched forwards unmatched options
+to lsqvce.diagnose), canonical UpperCamelCase names + typed validators,
+enum VALUES case-sensitive via strcmp, and an r_-remap keeps the body
+untouched. TESTS: one grouped b2 signature test (test_lsqvce_ext) with
+per-function enum-VALUE levers asserting mustBeMember's specific id
+(traceEstimate Distribution, poolGroups Strategy, ellipse Scale,
+jointModelOpt PsdMode) and robust's case-sensitive Influence through
+the parser's own ArgumentFailedValidation id. DOCS: 16 stamps, 16 pages
+regenerated, the reference-manual release note extended. Stage (c)
+(infrastructure/classes: BlockAccumulator, Combine, makeLoader,
+adjustVCE ctor, Accumulator, mapreduce, datum, solveNonlinear,
+toeplitzCofactor, dctI, BatchIndex, PrefetchLoader, Results) remains.
 
 **Round a2 (2026-08-19): adjust + the fluent configurators — two PINNED
 DEVIATIONS (user approves by merge), both consequences of the corrected

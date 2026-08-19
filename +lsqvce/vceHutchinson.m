@@ -1,4 +1,4 @@
-function VC = vceHutchinson(u, batchFcn, nBatch, groupFcn, nGroup, varargin)
+function VC = vceHutchinson(u, batchFcn, nBatch, groupFcn, nGroup, opt)
 %LSQVCE.VCEHUTCHINSON  Helmert variance components via the Ellmer (2018) 6.5.6
 %   stochastic (Hutchinson) trace estimator -- a SPEED-ORIENTED sibling of
 %   LSQVCE.VARCOMP for LARGE common blocks.
@@ -92,6 +92,11 @@ function VC = vceHutchinson(u, batchFcn, nBatch, groupFcn, nGroup, varargin)
 %                                       cannot be split between groups
 %     lsqvce:vceHutchinson:singular     a group has no redundancy of its own
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
+%   typed `arguments` signature, canonical UpperCamelCase option names
+%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+%   case-sensitive lowercase). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 %   See also LSQVCE.VARCOMP, LSQVCE.VCE, LSQVCE.TRACEESTIMATE, LSQVCE.ADJUSTVCE,
 %            LSQVCE.REDUNDANCY.
 %
@@ -99,6 +104,22 @@ function VC = vceHutchinson(u, batchFcn, nBatch, groupFcn, nGroup, varargin)
 %   2026-07-17 (CEST, UTC+02:00). Implements HISTORY_v1.md roadmap item 0, tier T1
 %   (a separate strict-Ellmer entry point; the streaming block-arrow variant
 %   remains future work).
+
+arguments
+    u
+    batchFcn
+    nBatch
+    groupFcn
+    nGroup
+    opt.Method (1,1) string {mustBeMember(opt.Method, ["rigorous","simplified"])} = "rigorous"
+    opt.MaxIter (1,1) double {mustBeInteger, mustBePositive} = 30
+    opt.Tol (1,1) double {mustBePositive} = 1e-6
+    opt.Verbose (1,1) logical = true
+    opt.MinObs (1,1) double {mustBeGreaterThanOrEqual(opt.MinObs,1)} = 10
+    opt.Probes (1,1) double {mustBeInteger, mustBePositive} = 100
+    opt.Seed double {mustBeScalarOrEmpty} = []
+    opt.Reprobe (1,1) logical = true
+end
 
     narginchk(5, inf);
     validateattributes(u,      {'numeric'}, {'scalar','integer','positive'}, mfilename, 'u', 1);
@@ -111,17 +132,10 @@ function VC = vceHutchinson(u, batchFcn, nBatch, groupFcn, nGroup, varargin)
         error('lsqvce:vceHutchinson:badGroupFcn', 'groupFcn must be a function handle.');
     end
 
-    ip = inputParser;  ip.FunctionName = 'lsqvce.vceHutchinson';
-    ip.addParameter('method',  'rigorous', @(s) any(strcmpi(s, {'rigorous','simplified'})));
-    ip.addParameter('maxIter', 30,   @(x) isscalar(x) && x >= 1);
-    ip.addParameter('tol',     1e-6, @(x) isscalar(x) && x > 0);
-    ip.addParameter('verbose', true, @islogical);
-    ip.addParameter('minObs',  10,   @(x) isscalar(x) && x >= 1);
-    ip.addParameter('probes',  100,  @(v) isscalar(v) && v >= 1 && v == floor(v));
-    ip.addParameter('seed',    [],   @(v) isempty(v) || (isscalar(v) && isnumeric(v)));
-    ip.addParameter('reprobe', true, @(v) islogical(v) && isscalar(v));
-    parse(ip, varargin{:});
-    o = ip.Results;
+    % WP-39 stage (b) b2: typed `arguments` signature (canonical
+    % UpperCamelCase; legacy casings keep matching -- MATLAB NV
+    % semantics; enum VALUES case-sensitive lowercase).
+    o = struct('method', char(opt.Method), 'maxIter', opt.MaxIter, 'tol', opt.Tol, 'verbose', opt.Verbose, 'minObs', opt.MinObs, 'probes', opt.Probes, 'seed', opt.Seed, 'reprobe', opt.Reprobe);
     rigorous = strcmpi(o.method, 'rigorous');
     Z = o.probes;
 

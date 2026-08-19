@@ -852,6 +852,50 @@ function test_stageB_signature_redundancy(tc)
     verifyTrue(tc, ok, 'redundancy Parallel ''PARFOR'' must fail (value casing)');
 end
 
+function test_stageB2_signatures_enum_values(tc)
+    % WP-39 stage (b) b2 (F-07): enum-VALUE casing is the fails-on-old
+    % lever (mustBeMember where strcmpi used to accept any casing),
+    % asserted with the SPECIFIC validator id per the a1-2/b1 lessons.
+    ok = false;
+    try
+        lsqvce.traceEstimate(@(x) x, 'Distribution', 'Gaussian', 'Size', 4);
+    catch e
+        ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
+    end
+    verifyTrue(tc, ok, 'traceEstimate Distribution ''Gaussian'' must fail');
+    ok = false;
+    try
+        lsqvce.poolGroups(struct(), 'Strategy', 'MergeLow');
+    catch e
+        ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
+    end
+    verifyTrue(tc, ok, 'poolGroups Strategy ''MergeLow'' must fail');
+    ok = false;
+    try
+        lsqvce.ellipse(eye(2), 1, 'Scale', 'Aposteriori');
+    catch e
+        ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
+    end
+    verifyTrue(tc, ok, 'ellipse Scale ''Aposteriori'' must fail');
+    ok = false;
+    try
+        lsqvce.jointModelOpt('psd', {}, 'PsdMode', 'Toeplitz');
+    catch e
+        ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
+    end
+    verifyTrue(tc, ok, 'jointModelOpt PsdMode ''Toeplitz'' must fail');
+    % robust keeps inputParser (pass-through deviation): its lever is the
+    % now-case-sensitive enum VALUE through the parser's own id.
+    ok = false;
+    try
+        lsqvce.robust(2, @(k) deal(randn(8,2), randn(8,1), []), 1, ...
+                      'Influence', 'Huber');
+    catch e
+        ok = strcmp(e.identifier, 'MATLAB:InputParser:ArgumentFailedValidation');
+    end
+    verifyTrue(tc, ok, 'robust Influence ''Huber'' must fail (case-sensitive)');
+end
+
 function test_noise_iteration_signature_types(tc)
     % WP-39 (F-07), corrected premise (round a1-2): NV names match
     % case-insensitively even under arguments; what the typed signature

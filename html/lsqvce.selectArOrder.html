@@ -43,10 +43,11 @@ a { color: #0b5ea8; }
 <div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.selectArOrder</div>
 <h1>lsqvce.selectArOrder</h1>
 <div class="purpose">Choose the AR order automatically, on the RIGHT criterion.</div>
-<h2>Syntax</h2>
-<pre class="syntax">info = LSQVCE.SELECTARORDER(cm, dt, &#x27;Name&#x27;, value, ...)</pre>
 <h2>Description</h2>
-<p>Selects the AR order by ACV FIDELITY -- how well the fitted model reproduces the autocovariance implied by your PSD -- not by AIC or BIC.</p>
+<pre class="example">info = LSQVCE.SELECTARORDER(cm, dt, &#x27;Name&#x27;, value, ...)
+
+Selects the AR order by ACV FIDELITY -- how well the fitted model reproduces
+the autocovariance implied by your PSD -- not by AIC or BIC.</pre>
 <h3>Why Not Aic/Bic</h3>
 <pre class="example">They target PREDICTION error. We want DECORRELATION fidelity. These are
 not the same objective, and the difference bites: AIC will happily select
@@ -74,28 +75,45 @@ info.a           the AR polynomial
 info.verdict     &#x27;good&#x27; | &#x27;marginal&#x27; | &#x27;bad&#x27;
 info.curve       struct array: p, acvRelErr, aic, bic, maxRoot
 info.warnings    cellstr of actionable warnings</pre>
-<p>THE GUARDS -- each catches a real failure mode</p>
-<pre class="example">1. NEAR-UNIT ROOT (|root| &gt; 0.999)
-   The fit is chasing a pole at f = 0. The PSD probably has an unmodelled
-   trend. Raising the order makes this WORSE, not better -- detrend the
-   residuals before estimating the PSD.</pre>
-<pre class="example">2. PLATEAU
-   The error stops improving before reaching tolerance. AR simply cannot
-   represent this spectrum -- usually sharp spectral lines (1/rev, 2/rev).
-   Use psdMode = &#x27;arma&#x27; (LSQVCE.AR2ARMA) or fall back to &#x27;toeplitz&#x27;.</pre>
-<pre class="example">3. filterMemory vs BatchSize
-   A large p means a large batch overlap. If p approaches BatchSize/10 you
-   are recomputing most rows. Raise BatchSize (free on the filter path) or
-   accept a looser AcvTol.</pre>
-<p>RULES OF THUMB (5 s sampling)</p>
-<pre class="example">white / near-white ........ p = 0..2
-smooth coloured floor ..... p = 20..40
-floor + orbital harmonics . p = 60..100, or an ARMA</pre>
-<p>p scales with the correlation length in SAMPLES, so halving dt roughly doubles the p you need.</p>
+<h3>THE GUARDS -- each catches a real failure mode</h3>
+<pre class="example">  1. NEAR-UNIT ROOT (|root| &gt; 0.999)
+     The fit is chasing a pole at f = 0. The PSD probably has an unmodelled
+     trend. Raising the order makes this WORSE, not better -- detrend the
+     residuals before estimating the PSD.
+
+  2. PLATEAU
+     The error stops improving before reaching tolerance. AR simply cannot
+     represent this spectrum -- usually sharp spectral lines (1/rev, 2/rev).
+     Use psdMode = &#x27;arma&#x27; (LSQVCE.AR2ARMA) or fall back to &#x27;toeplitz&#x27;.
+
+  3. filterMemory vs BatchSize
+     A large p means a large batch overlap. If p approaches BatchSize/10 you
+     are recomputing most rows. Raise BatchSize (free on the filter path) or
+     accept a looser AcvTol.
+
+RULES OF THUMB (5 s sampling)
+  white / near-white ........ p = 0..2
+  smooth coloured floor ..... p = 20..40
+  floor + orbital harmonics . p = 60..100, or an ARMA
+p scales with the correlation length in SAMPLES, so halving dt roughly
+doubles the p you need.</pre>
 <h3>Example</h3>
 <pre class="example">info = lsqvce.selectArOrder(cfg.cov.pos, 5, &#x27;acvTol&#x27;, 1e-3, &#x27;plot&#x27;, true);
 assert(strcmp(info.verdict,&#x27;good&#x27;), strjoin(info.warnings, &#x27; | &#x27;));
 opt.arOrder = info.p;                       % feed it to the accumulator</pre>
-<div class="seealso"><b>See also:</b> <a href="lsqvce.checkPSD.html">lsqvce.checkPSD</a>, <a href="lsqvce.levinsonDurbin.html">lsqvce.levinsonDurbin</a>, <a href="lsqvce.ar2arma.html">lsqvce.ar2arma</a>, <a href="lsqvce.crossCorr.html">lsqvce.crossCorr</a></div>
-<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:selectAR:badModel  the candidate model spec is unrecognised
+  lsqvce:selectAR:noFit     no order in the search range produced a fit
+
+Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
+typed `arguments` signature, canonical UpperCamelCase option names
+(legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+case-sensitive lowercase). With assistance from Claude (Anthropic),
+model Claude Fable 5.
+See also LSQVCE.CHECKPSD, LSQVCE.LEVINSONDURBIN, LSQVCE.AR2ARMA, LSQVCE.CROSSCORR
+
+Generated with assistance from Claude (Anthropic), model Claude
+Opus 4.8.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

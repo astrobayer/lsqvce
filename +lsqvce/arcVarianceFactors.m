@@ -1,4 +1,4 @@
-function out = arcVarianceFactors(omegaT, sT, sigma2, varargin)
+function out = arcVarianceFactors(omegaT, sT, sigma2, opt)
 %LSQVCE.ARCVARIANCEFACTORS  Relative per-arc variance factors within a group.
 %
 %   out = LSQVCE.ARCVARIANCEFACTORS(omegaT, sT, sigma2)
@@ -81,6 +81,11 @@ function out = arcVarianceFactors(omegaT, sT, sigma2, varargin)
 %
 %   See also LSQVCE.PSDVCE, LSQVCE.REDUNDANCYLAGS, LSQVCE.DCTI
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
+%   typed `arguments` signature, canonical UpperCamelCase option names
+%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+%   case-sensitive lowercase). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-35 (fixes F-05): negative /
 %   degenerate sigma2hat_m are clamped at ClampEps (documented above), the
 %   arcs are warned about, and .clamped reports the mask; healthy inputs
@@ -89,14 +94,20 @@ function out = arcVarianceFactors(omegaT, sT, sigma2, varargin)
 %   Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Opus 4.8.
 
-    p = inputParser;  p.FunctionName = 'lsqvce.arcVarianceFactors';
-    p.addParameter('Norm'    , 'ortho');
-    p.addParameter('MeanType', 'robust', ...
-                   @(s) any(strcmpi(s, {'robust','plain'})));
-    p.addParameter('TrimFrac', 0.25, @(v) isscalar(v) && v >= 0 && v < 0.5);
-    p.addParameter('ClampEps', 1e-8, @(v) isscalar(v) && v > 0);
-    p.parse(varargin{:});
-    o = p.Results;
+    % WP-39 stage (b) b2: typed `arguments` signature (canonical
+    % UpperCamelCase; legacy casings keep matching -- MATLAB NV
+    % semantics; enum VALUES case-sensitive lowercase).
+arguments
+    omegaT
+    sT
+    sigma2
+    opt.Norm (1,1) string = "ortho"
+    opt.MeanType (1,1) string {mustBeMember(opt.MeanType, ["robust","plain"])} = "robust"
+    opt.TrimFrac (1,1) double {mustBeGreaterThanOrEqual(opt.TrimFrac,0), mustBeLessThan(opt.TrimFrac,0.5)} = 0.25
+    opt.ClampEps (1,1) double {mustBePositive} = 1e-8
+end
+
+    o = struct('Norm', char(opt.Norm), 'MeanType', char(opt.MeanType), 'TrimFrac', opt.TrimFrac, 'ClampEps', opt.ClampEps);
 
     sigma2 = sigma2(:);
     M      = numel(sigma2);
