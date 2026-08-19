@@ -348,6 +348,51 @@ function test_helmert_recovers_known_weight_error(tc)
     verifyEqual(tc, ratio, 3, 'RelTol', 0.12);
 end
 
+function test_varComp_negative_component_freezes_not_nukes(tc)
+    % WP-40 (fixes F-11; fails on the old code, whose s(bad) = 1e-6 divided
+    % the group's CUMULATIVE variance by 1e6): a two-group rig (group 2:
+    % tiny true noise, 6 obs on 4 shared params) drives the rigorous
+    % Helmert component of group 2 negative. The seed is searched
+    % deterministically (twister; the first firing seed is stable across
+    % runs), the pathology is detected via the lsqvce:varComp:negative
+    % warning, and the treatment is asserted: the component is FROZEN --
+    % every cumulative scale stays O(1), never scale*1e-6.
+    w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
+    fired = false;
+    % Round-1 lesson: with m2 = 6 the group sat below varComp's minObs
+    % default (10) and was excluded from estimation entirely -- the
+    % negative branch can only fire for ESTIMABLE groups. m2 = 12 with a
+    % tiny true variance goes negative in ~1/3 of seeds (Python frequency
+    % check in the round note), so the deterministic seed search is safe.
+    for seed = 1:40
+        rs = RandStream('mt19937ar', 'Seed', seed);
+        u = 4;  m1 = 80;  m2 = 12;
+        A1 = randn(rs, m1, u);  A2 = randn(rs, m2, u);
+        xt = randn(rs, u, 1);
+        l1 = A1*xt + 1.00*randn(rs, m1, 1);
+        l2 = A2*xt + sqrt(0.03)*randn(rs, m2, 1);
+        A  = [A1; A2];  l = [l1; l2];  p = ones(m1+m2, 1);
+        g  = [ones(m1,1); 2*ones(m2,1)];
+        batchFcn = @(k) deal(A, l, p);               % one batch, all obs
+        groupFcn = @(k) g;
+        lastwarn('', '');
+        VC = lsqvce.varComp(u, batchFcn, 1, groupFcn, 2, ...
+                            'maxIter', 1, 'verbose', false);
+        [~, wid] = lastwarn;
+        if strcmp(wid, 'lsqvce:varComp:negative')
+            fired = true;
+            verifyTrue(tc, all(VC.scale > 1e-3), ...
+                ['a negative component must FREEZE its group (scale stays ' ...
+                 'O(1)) -- the old 1e-6 clamp nuked the cumulative scale']);
+            verifyTrue(tc, any(VC.s == 1), ...
+                'the frozen group must carry s = 1 for the pass');
+            break
+        end
+    end
+    verifyTrue(tc, fired, ...
+        'fixture sanity: no seed in 1:40 produced a negative component');
+end
+
 function test_helmert_no_false_correction(tc)
     % When the weights are already right, the estimator must not invent a
     % correction beyond its own sampling noise.

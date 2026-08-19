@@ -31,6 +31,12 @@ function vc = vce(accFcn, varargin)
 %     'maxIter'     default 8
 %     'tol'         convergence on max|sigma_new/sigma_old - 1| (default 1e-3)
 %     'minRedundancy'  default 50
+%     'freezeR'  1x1 > 0, default 1.  Estimability threshold of the sigma
+%                UPDATE (WP-40, fixes F-10; distinct from 'minRedundancy',
+%                which is LSQVCE.REDUNDANCY's per-observation testability
+%                knob): a group with r_g < freezeR keeps its current sigma
+%                this pass (upd = 1) and is warned about once -- the old code
+%                silently floored r_g to 1, biasing sigma^2 = vtv/1 LOW.
 %     'verbose'     default true
 %     'traceMethod' 'exact' (default) | 'hutchinson'. Both estimate the SAME
 %                   quantity, the group redundancy r_g = sum_{i in g}(1-h_i) =
@@ -108,6 +114,9 @@ function vc = vce(accFcn, varargin)
 %
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-40 (fixes F-10): groups with
+%   r_g < 'freezeR' are FROZEN and warned about instead of silently
+%   floored. With assistance from Claude (Anthropic), model Claude Fable 5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-36 (fixes F-06): an empty
 %   TraceSeed is pinned ONCE up front from the package-private probe
 %   stream (global RNG untouched), so the final vc.r probes with the
@@ -134,6 +143,7 @@ function vc = vce(accFcn, varargin)
     p.addParameter('maxIter'      , 8,    @(v) isscalar(v) && v >= 1);
     p.addParameter('tol'          , 1e-3, @(v) isscalar(v) && v > 0);
     p.addParameter('minRedundancy', 50);
+    p.addParameter('freezeR'      , 1,    @(v) isscalar(v) && v > 0);
     p.addParameter('verbose'      , true, @(v) (islogical(v) || isnumeric(v)) && isscalar(v));
     % Opt-in Hutchinson trace estimator (Ellmer 2018 6.5.6), forwarded to
     % LSQVCE.REDUNDANCY. Default 'exact' keeps the exact per-arc redundancies.
@@ -178,6 +188,7 @@ function vc = vce(accFcn, varargin)
         lsqvce.util.log.msg('%s%d groups, grouping by ''%s''\n', lsqvce.util.verbosity.banner('Variance components'), nG, groupByLabel(o.groupBy));
     end
 
+    warnedFreeze = false;                        % WP-40: one warning per run
     for it = 1:o.maxIter
         acc = accFcn(sig);
         sol = acc.solve();
@@ -223,8 +234,25 @@ function vc = vce(accFcn, varargin)
             rg(loc2) = [sc.group.r];
         end
 
-        rg  = max(rg, 1);                            % guard
-        upd = sqrt(vtv ./ rg);                       % sigma_new / sigma_old
+        % WP-40 (fixes F-10): varComp-style estimability instead of the old
+        % SILENT rg = max(rg,1) -- which biased sigma^2 = vtv/1 LOW for any
+        % group with true r_g < 1, without a word. A group below freezeR
+        % redundant observations has no estimable factor this pass: its
+        % sigma is FROZEN (upd = 1) and the group is warned about once.
+        frozen = rg(:) < o.freezeR;
+        if any(frozen) && ~warnedFreeze
+            warnedFreeze = true;
+            fk = find(frozen);
+            lsqvce.util.log.warn('lsqvce:vce:lowRedundancy', ...
+               ['%d group(s) have redundancy below freezeR = %g and their ' ...
+                'sigma is FROZEN this pass (not estimable): %s (r_g = %s). ' ...
+                'Merge tiny groups or lower freezeR knowingly.'], ...
+                numel(fk), o.freezeR, ...
+                strjoin(cellstr(string(groups(fk))), ', '), ...
+                mat2str(round(rg(fk(:)).', 3)));
+        end
+        upd = ones(size(rg));
+        upd(~frozen) = sqrt(vtv(~frozen) ./ rg(~frozen));
         sig = sig .* upd;
         hist(it,:) = sig;
 

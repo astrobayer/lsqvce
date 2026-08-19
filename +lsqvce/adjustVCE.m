@@ -183,6 +183,11 @@ classdef adjustVCE < handle
 %
 %   See also LSQVCE.ADJUSTBLOCK, LSQVCE.VCE, LSQVCE.REDUNDANCY,
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-40 (fixes F-12, gate half):
+%   'joint' convergence additionally requires the LAST joint pass to meet
+%   the outer Tol (hist.jointMaxDev(end) <= Tol) -- shapeStable alone
+%   degenerated from pass 2. With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 %   Updated 2026-08-18 (CEST, UTC+02:00), WP-33 (fixes F-03, CRITICAL):
 %   sweepStreamLags subtracts the per-system local fit B*y and absorbs the
 %   local block exactly into the per-lag projector (shared jointArcParts +
@@ -598,6 +603,16 @@ classdef adjustVCE < handle
                 dsig   = max(abs(vc.sigma(:) - 1));
                 balanced = dsig < obj.outerOpt.Tol;
                 shapeStable = all(ordr(:).' == prevOrder) || all(white);
+                % WP-40 (fixes F-12, gate half): in JOINT mode shapeStable
+                % degenerates from pass 2 (the nLag values it compares are
+                % constants), so the spectral convergence jinfo.maxDev was
+                % never enforced -- a run could declare convergence with the
+                % PSD still moving. The gate now additionally requires the
+                % LAST joint pass to satisfy the outer Tol.
+                jointSettled = true;
+                if strcmp(obj.vceMode, 'joint') && ~isempty(hist.jointMaxDev)
+                    jointSettled = hist.jointMaxDev(end) <= obj.outerOpt.Tol;
+                end
                 prevOrder = ordr(:).';
 
                 if lsqvce.util.verbosity.progress(v)
@@ -622,7 +637,7 @@ classdef adjustVCE < handle
                     end
                     % NB: `converged` is not assigned until the gate below, so
                     % recompute the predicate rather than read a stale value.
-                    if balanced && (all(white) || shapeStable)
+                    if balanced && jointSettled && (all(white) || shapeStable)
                         tail = 'converged';
                     else
                         tail = 'another pass';
@@ -656,7 +671,7 @@ classdef adjustVCE < handle
                         lsqvce.util.verbosity.banner('Variance components'), ...
                         sigmaLine(vc.groups, vc.sigma));
                 end
-                if balanced && (all(white) || shapeStable)
+                if balanced && jointSettled && (all(white) || shapeStable)
                     converged = true;
                     if lsqvce.util.verbosity.progress(v)
                         lsqvce.util.log.msg('%sCONVERGED after %d pass(es)\n', lsqvce.util.verbosity.banner('Convergence'), it);

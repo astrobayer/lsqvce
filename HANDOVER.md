@@ -206,7 +206,16 @@ WP-30 deferred).
 
 
 R2 track (opened 2026-08-16 by the second review, §8; prompts in §9;
-order of work: 32 → 33 → 34 → 35 → 36 → 40 → 37 → 38 → 41 → 39):
+order of work: 32 → 33 → 34 → 35 → 36 → 40 → 37 → 38 → 41 → 39.
+**Order amendment (2026-08-19, user decision, option A):** WP-37 was
+executed BEFORE WP-40 — a session process error (the order line above was
+not consulted at WP start; only the ledger rows were), caught by the USER
+after WP-37 had gone green. Technical impact assessed as none (WP-37 was
+confined to redundancyLags internals + two tolls, no API change; WP-40's
+targets are disjoint). Approved actual order: 36 → 37 → 40 → 38 → 41 → 39.
+**Process rule, binding for every session incl. parallel ones: read THIS
+order line before opening any WP — the ledger alone does not carry the
+order.**):
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
@@ -215,10 +224,10 @@ order of work: 32 → 33 → 34 → 35 → 36 → 40 → 37 → 38 → 41 → 39
 | 34 | Keyed arc identity in `adjustVCEjoint` (F-02) | — | IN PROGRESS — 2026-08-19: fix + tests on `claude/wp-34` (round note §9 WP-34); draft-PR loop; POSTFLIGHT DEBT (bridge away) |
 | 35 | psdVCE floor policy + negative-factor clamp (F-04, F-05) | — | DONE (2026-08-19, PR #6, merge 827ee6b; CI green 493/493 — the run that also validated the self-healing setup live: attempt-1 wedge killed at 720 s, attempt-2 restore 90 s; POSTFLIGHT DEBT until the runner/bridge returns; round note §9 WP-35) |
 | 36 | One probe generator, honest RNG contract (F-06) | — | DONE (2026-08-19, PR #7, merge 74ab106; CI green 498/498 — the WP's own changes green on the FIRST pass, the sole round-1 red was the test's own traceEstimate-returns-a-scalar mistake; POSTFLIGHT DEBT; round note §9 WP-36) |
-| 37 | `redundancyLags` without dense W^-1 + hot-loop tolls (F-09) | — | IN PROGRESS — 2026-08-19: fix + tests on `claude/wp-37` (round note §9 WP-37); draft-PR loop; POSTFLIGHT DEBT |
+| 37 | `redundancyLags` without dense W^-1 + hot-loop tolls (F-09) | — | DONE (2026-08-19, PR #8, merge 66ffb81; CI green FIRST pass 501/501 incl. the N=4000 speed lever; GS/Levinson validated in Python to 1e-14 pre-port; POSTFLIGHT DEBT; round note §9 WP-37) |
 | 38 | Deduplicate keys / arc batching + audit lock (F-08) | 33,36 | OPEN |
 | 39 | `arguments` blocks + Name-Value casing, whole surface (F-07) | 32–38,40,41 | OPEN |
-| 40 | Method polish: gates, clamps, whiteness (F-10…F-13; + F-15 alternation bistability, registered 2026-08-19) | 32 | OPEN |
+| 40 | Method polish: gates, clamps, whiteness (F-10…F-13; + F-15 alternation bistability, registered 2026-08-19) | 32 | IN PROGRESS — 2026-08-19 round 1 (F-10…F-13) on `claude/wp-40`, PR #9 (round note §9 WP-40); F-15 = round 2 by design; draft-PR loop; POSTFLIGHT DEBT |
 | 41 | Documentation truth sweep (F-12, F-14) | 32,33,36,40 | OPEN |
 
 ---
@@ -2735,6 +2744,43 @@ magnitude. NO API change.
 > history documents it. iterateNoiseModel: maxAcf pools per-arc (no lagged
 > product crosses an arc), mirroring pooledACV. Tests: one per change,
 > each failing on the old code; fixture regression for the healthy paths.
+
+**ROUND NOTE (2026-08-19, WP-40 round 1 = F-10…F-13, model Claude Fable 5;
+branch `claude/wp-40`, PR #9; rides the WP-37 DONE flip + the ORDER
+AMENDMENT (user option A) + the binding read-the-order-line process
+rule). F-15 is round 2 by design (WP-33 two-round pattern; repro fixtures
+jointAccMapped + validation/wp33_loop_mirror.py stand ready).**
+F-10 (vce): the silent rg = max(rg,1) is replaced by varComp-style
+estimability — new documented option 'freezeR' (default 1; deliberately
+distinct from 'minRedundancy', redundancy's per-observation testability
+knob passed through): groups with r_g < freezeR keep their sigma for the
+pass (upd = 1), warned ONCE per run (lsqvce:vce:lowRedundancy, keys +
+r_g); healthy groups bitwise unchanged. F-11 (varComp): a negative
+rigorous component FREEZES its group (s = 1) instead of s = 1e-6 — the
+old clamp multiplied the CUMULATIVE scale by 1e-6 and fed a 1e6
+reweighting oscillation; warning + help motivate the choice. F-12 gate
+half (adjustVCE.run): joint convergence additionally requires
+hist.jointMaxDev(end) <= outer Tol at BOTH gate sites — shapeStable
+degenerated from pass 2; the claims half stays with WP-41. F-13
+(iterateNoiseModel): maxAcf pools PER ARC (per-arc mean removal, pooled
+numerators/denominator, no boundary products) via the new
+gatherResidualArcs; dead gatherResiduals DELETED (rule 8). TESTS: freezeR
+= Inf freeze+warn with sigma bitwise at start (pre-fix: option unknown);
+negative-component freeze on a deterministic seed-searched two-group rig,
+scale stays O(1) (pre-fix: 1e-6); joint-gate NOT-converged while
+jointMaxDev(end) > Tol (pre-fix: converged); F-13 serial smoke on a new
+minimal fixture. **PINNED DEVIATION (user approves by merge): the F-13
+fails-on-old DISCRIMINATION needs arc-mean-structured whitened residuals
+that only runner-tier fixtures produce — deferred to test_parallel on the
+self-hosted runner; CI carries the smoke + healthy-path regression.**
+**Round-1 red + fix (2026-08-19, same day):** the F-11 rig's group 2 had
+m2 = 6 observations — BELOW varComp's minObs default of 10, so it was
+excluded from estimation and the negative branch (bad = s<=0 &
+estimable) could never fire: 0/25 seeds. Rig fixed to m2 = 12 with true
+sigma^2 = 0.03; Python frequency check: negative in 14/40 seeds (first
+firing seed 2), so the deterministic seed search over 1:40 is safe.
+Lesson: an estimability-gated pathology test must first PASS the
+estimability gate.
 
 ### WP-41 — Documentation truth sweep
 
