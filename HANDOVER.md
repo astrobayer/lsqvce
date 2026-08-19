@@ -2582,7 +2582,16 @@ Shat(2) == MinAmplitude exactly where the old abs left 0.5*Sprior(2) =
 positive, deterministic); constructed negative alpha2 — .clamped flag,
 exact ClampEps value, no negative factor leaves (old code: negative
 escapes, no field); healthy no-op — .clamped all-false and sigma2
-byte-equal to gamma2/gammaBar^2 (plain mean, closed formula).
+matches gamma2/gammaBar^2 within 4 eps (plain mean, closed formula).
+**Round-1 CI red + fixes (same day):** (a) the zero-power fixture fed
+per-LAG ratios, but psdVCE forms alpha2 IN THE FREQUENCY DOMAIN (Omega
+and s are DCT-I transformed first, 6.5.25-26) — the fixture now picks
+the target frequency-domain pair and inverse-transforms (ortho DCT-I is
+self-inverse); (b) the no-op test's byte-identity claim was too strong:
+the function's internal pooling differs from the closed formula by
+summation order (CI-measured 2.6e-16 rel) — the honest regression is
+mask all-false + 4-eps formula match, and the true byte guarantee is
+that the clamp branch never executes on healthy input.
 
 ### WP-36 — One probe generator, honest RNG contract
 

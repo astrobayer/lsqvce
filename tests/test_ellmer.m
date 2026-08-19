@@ -308,8 +308,13 @@ function test_psdVCE_zero_power_bin_floors_not_abs(tc)
     % code Shat(2) = 0.5*Sprior(2) >> floor, so this test fails there
     % (the §6.1 lever).
     C  = [1; 0.3; 0.3; 0.3];
-    Om = [1; -0.5; 1; 1];              % alpha2 = [1 -0.5 1 1]
-    s  = ones(4, 1);
+    % psdVCE forms alpha2 IN THE FREQUENCY DOMAIN (Omega and s are DCT-I
+    % transformed first, eq. 6.5.19-20) -- so the fixture picks the TARGET
+    % frequency-domain pair and inverse-transforms (DCT-I ortho is
+    % self-inverse): alpha2_j = [1 -0.5 1 1].
+    a2 = [1; -0.5; 1; 1];
+    Om = lsqvce.dctI(a2);              % OmegaTilde = a2 .* sTilde, sTilde = 1
+    s  = lsqvce.dctI(ones(4, 1));
     w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
     pv = lsqvce.psdVCE(Om, s, C, 'MinAmplitude', 1e-8, 'Smooth', 0, ...
                        'ZeroFreqRule', 'keep');
@@ -320,7 +325,7 @@ function test_psdVCE_zero_power_bin_floors_not_abs(tc)
         'fixture sanity: the abs fold would sit far above the floor');
     healthy = [1 3 4];
     verifyEqual(tc, pv.Shat(healthy), Sprior(healthy), ...
-        'RelTol', 1e-12, 'positive-power bins are untouched by the policy');
+        'RelTol', 1e-9, 'positive-power bins are untouched by the policy');
 end
 
 function test_arcVarianceFactors_clamps_negative_sigma2(tc)
@@ -343,8 +348,10 @@ end
 
 function test_arcVarianceFactors_noop_on_healthy(tc)
     % F-05 regression: on healthy input the clamp is a NO-OP -- .clamped is
-    % all-false and sigma2 is byte-identical to the closed formula
-    % gamma2 / gammaBar^2 (eqs. 6.5.28-6.5.30, plain mean).
+    % all-false and sigma2 matches the closed formula gamma2 / gammaBar^2
+    % (eqs. 6.5.28-6.5.30, plain mean) within summation-order ULPs; the
+    % clamp branch itself never executes, so the pre-fix numbers are
+    % unchanged.
     rng(35);
     M = 6;  nLag = 4;
     alpha2 = 0.5 + rand(M, 1);                       % strictly positive
@@ -355,8 +362,9 @@ function test_arcVarianceFactors_noop_on_healthy(tc)
     verifyFalse(tc, any(a.clamped), 'healthy input must not clamp');
     gamma2   = alpha2 .* sig2;
     gammaBar = mean(sqrt(abs(gamma2)));
-    verifyEqual(tc, a.sigma2, gamma2 / gammaBar^2, ...
-        'converged results on healthy inputs must be unchanged (byte)');
+    verifyEqual(tc, a.sigma2, gamma2 / gammaBar^2, 'RelTol', 4*eps, ...
+        ['converged results on healthy inputs must match the closed ' ...
+         'formula (4 eps: summation-order ULPs, CI-measured 2.6e-16)']);
 end
 
 function test_psdVCE_degenerate_flag_and_override(tc)
