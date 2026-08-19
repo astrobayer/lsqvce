@@ -2773,6 +2773,14 @@ minimal fixture. **PINNED DEVIATION (user approves by merge): the F-13
 fails-on-old DISCRIMINATION needs arc-mean-structured whitened residuals
 that only runner-tier fixtures produce — deferred to test_parallel on the
 self-hosted runner; CI carries the smoke + healthy-path regression.**
+**Round-1 red + fix (2026-08-19, same day):** the F-11 rig's group 2 had
+m2 = 6 observations — BELOW varComp's minObs default of 10, so it was
+excluded from estimation and the negative branch (bad = s<=0 &
+estimable) could never fire: 0/25 seeds. Rig fixed to m2 = 12 with true
+sigma^2 = 0.03; Python frequency check: negative in 14/40 seeds (first
+firing seed 2), so the deterministic seed search over 1:40 is safe.
+Lesson: an estimability-gated pathology test must first PASS the
+estimability gate.
 
 ### WP-41 — Documentation truth sweep
 

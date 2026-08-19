@@ -359,13 +359,18 @@ function test_varComp_negative_component_freezes_not_nukes(tc)
     % every cumulative scale stays O(1), never scale*1e-6.
     w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
     fired = false;
-    for seed = 1:25
+    % Round-1 lesson: with m2 = 6 the group sat below varComp's minObs
+    % default (10) and was excluded from estimation entirely -- the
+    % negative branch can only fire for ESTIMABLE groups. m2 = 12 with a
+    % tiny true variance goes negative in ~1/3 of seeds (Python frequency
+    % check in the round note), so the deterministic seed search is safe.
+    for seed = 1:40
         rs = RandStream('mt19937ar', 'Seed', seed);
-        u = 4;  m1 = 80;  m2 = 6;
+        u = 4;  m1 = 80;  m2 = 12;
         A1 = randn(rs, m1, u);  A2 = randn(rs, m2, u);
         xt = randn(rs, u, 1);
         l1 = A1*xt + 1.00*randn(rs, m1, 1);
-        l2 = A2*xt + 0.05*randn(rs, m2, 1);
+        l2 = A2*xt + sqrt(0.03)*randn(rs, m2, 1);
         A  = [A1; A2];  l = [l1; l2];  p = ones(m1+m2, 1);
         g  = [ones(m1,1); 2*ones(m2,1)];
         batchFcn = @(k) deal(A, l, p);               % one batch, all obs
@@ -385,7 +390,7 @@ function test_varComp_negative_component_freezes_not_nukes(tc)
         end
     end
     verifyTrue(tc, fired, ...
-        'fixture sanity: no seed in 1:25 produced a negative component');
+        'fixture sanity: no seed in 1:40 produced a negative component');
 end
 
 function test_helmert_no_false_correction(tc)
