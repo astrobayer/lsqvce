@@ -79,6 +79,15 @@ function [Aw, Bw, lw] = varWhiten(Avar, Sigma, G, d, A, B, l, isFirstBatch)
     end
     nE = m / d;
 
+    % WP-43 (T-03a family): the help text promises badSigma for "not d x d",
+    % but only the PD half was enforced -- a wrong-sized PD Sigma fell through
+    % to a raw dimension error deeper in. The documented id is the contract.
+    if ~isequal(size(Sigma), [d d])
+        error('lsqvce:varWhiten:badSigma', ...
+              'Sigma must be %d x %d; got %d x %d.', ...
+              d, d, size(Sigma,1), size(Sigma,2));
+    end
+
     [Lf, fail] = chol(Sigma, 'lower');
     if fail > 0
         error('lsqvce:varWhiten:badSigma', ...

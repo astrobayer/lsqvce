@@ -38,6 +38,7 @@ end
 
 %% =================================================== 2. SYSTEMATIC ERRORS
 function test_systematic_detects_drift(tc)
+% categories: contract
     % A smooth unmodelled signal produces NO single large residual: data
     % snooping is blind to it. The systematic tests must catch it.
     rs = RandStream('mt19937ar', 'Seed', 11);
@@ -58,6 +59,7 @@ function test_systematic_detects_drift(tc)
 end
 
 function test_systematic_quiet_on_clean_data(tc)
+% categories: contract
     % Must not cry wolf: a clean adjustment has no systematic structure.
     nFalse = 0;  M = 20;
     for m = 1:M
@@ -80,6 +82,7 @@ function test_systematic_quiet_on_clean_data(tc)
 end
 
 function test_systematic_runs_test_is_calibrated(tc)
+% categories: precision, robustness
     % The runs-test z must be ~N(0,1) on clean, INDEPENDENT residuals.
     zs = zeros(60, 1);
     for m = 1:60
@@ -100,6 +103,7 @@ end
 
 %% ================================================ 4. DATUM / FREE NETWORK
 function test_datum_finds_levelling_defect(tc)
+% categories: precision
     % A levelling network measures only HEIGHT DIFFERENCES. The overall level
     % is unobservable: exactly one datum defect, with null vector ones(u,1).
     u = 6;
@@ -122,6 +126,7 @@ function test_datum_finds_levelling_defect(tc)
 end
 
 function test_freenetwork_residuals_are_datum_invariant(tc)
+% categories: precision, robustness
     % The KEY property. The datum is a choice; the FIT is not. Residuals,
     % redundancy numbers and w must be identical whatever datum you pick.
     u = 6;
@@ -164,6 +169,7 @@ function test_freenetwork_residuals_are_datum_invariant(tc)
 end
 
 function test_freenetwork_rank_is_reduced(tc)
+% categories: robustness
     u = 5;
     edges = [1 2; 2 3; 3 4; 4 5; 1 5; 2 4];
     A = zeros(size(edges,1), u);
@@ -187,6 +193,7 @@ end
 
 %% ============================================= 5. NONLINEAR
 function test_nonlinear_converges_to_truth(tc)
+% categories: precision
     % 2-D resection: distances from known stations to an unknown point.
     % Genuinely nonlinear, so re-linearisation is mandatory.
     stations = [0 0; 10 0; 10 10; 0 10; 5 12];
@@ -212,6 +219,7 @@ function test_nonlinear_converges_to_truth(tc)
 end
 
 function test_nonlinear_reports_divergence(tc)
+% categories: contract, robustness
     % A deliberately unsolvable start must NOT silently return a wrong answer.
     function [A, l, p] = bad(~, x)
         A = [1; 1];  l = [exp(x(1)); -exp(x(1))];  p = [1; 1];
@@ -236,6 +244,7 @@ end
 
 %% ================================================= 8. ROBUST ESTIMATION
 function test_robust_downweights_outliers(tc)
+% categories: precision, robustness
     rs = RandStream('mt19937ar','Seed',31);
     n = 400; u = 5;
     A = randn(rs, n, u);
@@ -258,6 +267,7 @@ function test_robust_downweights_outliers(tc)
 end
 
 function test_robust_matches_ls_on_clean_data(tc)
+% categories: contract
     % With no outliers, robust must reduce to (nearly) ordinary least squares.
     rs = RandStream('mt19937ar','Seed',41);
     n = 300; u = 4;
@@ -280,6 +290,7 @@ end
 
 %% ======================================================== 9. F-TEST
 function test_ftest_rejects_unneeded_parameter(tc)
+% categories: contract
     % The full model has an extra column that explains NOTHING. The F-test
     % must NOT declare it significant.
     rs = RandStream('mt19937ar','Seed',51);
@@ -300,6 +311,7 @@ function test_ftest_rejects_unneeded_parameter(tc)
 end
 
 function test_ftest_accepts_needed_parameter(tc)
+% categories: contract
     % Now the extra column carries real signal. It MUST be significant.
     rs = RandStream('mt19937ar','Seed',61);
     n = 500; u = 4;
@@ -321,6 +333,7 @@ end
 
 %% ===================================================== 10. ELLIPSE
 function test_ellipse_matches_eig_of_submatrix(tc)
+% categories: precision
     rs = RandStream('mt19937ar','Seed',71);
     n = 300; u = 5;
     A = randn(rs, n, u);
@@ -343,6 +356,7 @@ function test_ellipse_matches_eig_of_submatrix(tc)
 end
 
 function test_ellipse_circular_when_uncorrelated(tc)
+% categories: precision, robustness | tags: diagnostics
     % Orthogonal, equally-weighted columns -> a circle.
     n = 200;
     A = [ones(n,1), zeros(n,1)];
@@ -361,6 +375,7 @@ end
 
 %% ============================================ ROBUST SCALE / CONTAMINATION
 function test_pope_breaks_down_and_mad_does_not(tc)
+% categories: reference, robustness
     % THE blind spot. With 10% contamination, Pope's tau is BLIND: the
     % blunders inflate s0, and tau divides by s0, so they hide one another.
     % Measured: at 10% contamination Pope detects 0%, MAD detects 100%.
@@ -390,6 +405,7 @@ function test_pope_breaks_down_and_mad_does_not(tc)
 end
 
 function test_contamination_flag_fires(tc)
+% categories: robustness | tags: diagnostics
     rs = RandStream('mt19937ar','Seed',10000);
     n = 50; u = 8;
     A = randn(rs, n, u);
@@ -410,6 +426,7 @@ function test_contamination_flag_fires(tc)
 end
 
 function test_contamination_flag_quiet_on_clean_data(tc)
+% categories: robustness
     % It must not cry wolf: measured 0/300 false alarms.
     nFire = 0;  M = 25;
     for m = 1:M
@@ -429,6 +446,7 @@ function test_contamination_flag_quiet_on_clean_data(tc)
 end
 
 function test_mad_scale_is_unbiased(tc)
+% categories: precision
     % E[MAD] = 1 on clean data, so the robust test is correctly calibrated.
     mads = zeros(40,1);
     for m = 1:40
@@ -447,6 +465,7 @@ end
 
 %% ==================================================== 6. SPARSE PATH
 function test_sparse_matches_dense(tc)
+% categories: precision, robustness
     % Sparse must give BIT-COMPARABLE answers, not merely similar ones.
     rs = RandStream('mt19937ar','Seed',91);
     u = 60; n = 400; bw = 4;
@@ -479,6 +498,7 @@ function test_sparse_matches_dense(tc)
 end
 
 function test_sparse_diagnostics_identical(tc)
+% categories: precision
     % Redundancy numbers must be identical -- this is where a permutation bug
     % would show up as plausible numbers on the WRONG observations.
     rs = RandStream('mt19937ar','Seed',101);
@@ -506,6 +526,7 @@ function test_sparse_diagnostics_identical(tc)
 end
 
 function test_sparse_qr_is_refused(tc)
+% categories: contract, robustness
     % A sparse running QR factor fills in immediately; refusing is honest.
     verifyError(tc, ...
         @() lsqvce.Accumulator(10, 'method','qr', 'sparse', true), ...
@@ -514,6 +535,7 @@ end
 
 %% ============================= ESCALATION LADDER / CONTAMINATION GAUGE
 function test_fhat_quiet_on_clean_data(tc)
+% categories: contract
     % The threshold is calibrated, not guessed. fhat has a FLOOR on clean data
     % (P(|Z|>2.5) = 0.0124) and its sd is 1.30x binomial because the residuals
     % satisfy u constraints and share a MAD estimated from the same sample.
@@ -534,6 +556,7 @@ function test_fhat_quiet_on_clean_data(tc)
 end
 
 function test_fhat_floor_is_exact(tc)
+% categories: precision
     % The floor must be the exact normal tail mass, not a magic number.
     rs = RandStream('mt19937ar','Seed', 55);
     n = 400; u = 6;
@@ -545,6 +568,7 @@ function test_fhat_floor_is_exact(tc)
 end
 
 function test_ladder_escalates_with_contamination(tc)
+% categories: robustness
     % clean -> severe -> refuse as the contamination grows.
     function lvl = levelAt(frac)
         rs = RandStream('mt19937ar','Seed', 2200);
@@ -566,6 +590,7 @@ function test_ladder_escalates_with_contamination(tc)
 end
 
 function test_breakdown_detected_by_backstop(tc)
+% categories: robustness | tags: diagnostics
     % At >=50% contamination EVERY scale-based indicator switches itself off:
     % the s0/MAD ratio falls BELOW its clean value (0.94 vs 1.02) and fhat
     % collapses to 0, because the MAD has adopted the blunders as its reference
@@ -589,6 +614,7 @@ function test_breakdown_detected_by_backstop(tc)
 end
 
 function test_snoop_refuses_when_too_contaminated(tc)
+% categories: contract, robustness
     rs = RandStream('mt19937ar','Seed', 2200);
     n = 300; u = 8;
     A = randn(rs, n, u);  xt = randn(rs, u, 1);
@@ -608,6 +634,7 @@ function test_snoop_refuses_when_too_contaminated(tc)
 end
 
 function test_snoop_force_overrides_refusal(tc)
+% categories: contract, robustness
     rs = RandStream('mt19937ar','Seed', 2200);
     n = 300; u = 8;
     A = randn(rs, n, u);  xt = randn(rs, u, 1);
@@ -627,6 +654,7 @@ end
 
 %% ================================== (w, r) JOINT DIAGNOSTIC
 function test_untested_quadrant_is_reported(tc)
+% categories: contract | tags: diagnostics
     % A levelling net with a dangling spur. The spur observations have r = 0:
     % a 40-sigma blunder there produces |w| = 0.000. A w-only report shows a
     % beautiful small residual on a grossly wrong observation.
@@ -658,6 +686,7 @@ function test_untested_quadrant_is_reported(tc)
 end
 
 function test_blunder_at_zero_redundancy_is_invisible(tc)
+% categories: contract
     % The mechanism: E[dv_i] = -r_i * b_i, so at r_i = 0 the residual reveals
     % NOTHING, whatever the blunder.
     rs = RandStream('mt19937ar','Seed', 13);
@@ -677,6 +706,7 @@ function test_blunder_at_zero_redundancy_is_invisible(tc)
 end
 
 function test_mdb_envelope_quantiles(tc)
+% categories: robustness
     rs = RandStream('mt19937ar','Seed', 17);
     n = 400; u = 6;
     A = randn(rs, n, u);
@@ -693,6 +723,7 @@ end
 
 %% ===================================== NUMERICAL ROBUSTNESS
 function test_poisoned_vPv_returns_nan(tc)
+% categories: contract, robustness
     % A cancellation-poisoned vPv must NOT be returned as a plausible number.
     % Measured, it was 89% wrong at sigma=1e-6 and off by 1e6 at 1e-9. A number
     % that wrong gets quoted; a NaN gets investigated.
@@ -709,6 +740,7 @@ function test_poisoned_vPv_returns_nan(tc)
 end
 
 function test_cond_is_flagged_as_a_bound_when_sparse(tc)
+% categories: contract | tags: diagnostics
     % svd() rejects sparse input, so condEst falls back to the extreme-diagonal
     % ratio -- a LOWER BOUND. The report must not present it as exact.
     rs = RandStream('mt19937ar','Seed', 91);
@@ -733,6 +765,7 @@ end
 
 %% ===================================== INTERACTION GUARDS
 function test_varComp_refuses_contaminated_data(tc)
+% categories: contract, reference, robustness
     % Blunders inflate a group's variance component -> the group is
     % DOWN-WEIGHTED -> its residuals shrink -> the blunders hide further. The
     % same self-masking pathology as Pope's tau, one level up.
@@ -757,6 +790,7 @@ function test_varComp_refuses_contaminated_data(tc)
 end
 
 function test_ftest_warns_when_premise_violated(tc)
+% categories: contract
     % The F-test divides the improvement in fit by the residual variance, which
     % is only meaningful when that variance is NOISE. With a systematic error
     % present it compares two wrong things.
@@ -783,6 +817,7 @@ end
 
 %% ===================================== poolGroups (VCE group-pooling helper)
 function test_poolGroups_no_pooling_when_all_above_floor(tc)
+% categories: contract
     vc = struct('groups', {{'a','b','c'}}, 'r', [120; 90; 200], ...
                 'sigma', [1;1;1]);
     pl = lsqvce.poolGroups(vc, 'floor', 50, 'verbose', false);
@@ -792,6 +827,7 @@ function test_poolGroups_no_pooling_when_all_above_floor(tc)
 end
 
 function test_poolGroups_mergeLow_merges_thin_groups(tc)
+% categories: robustness
     % b and c are below the floor -> both map to the pooled key; a stays.
     vc = struct('groups', {{'a','b','c'}}, 'r', [120; 20; 15], ...
                 'sigma', [1;2;3]);
@@ -808,6 +844,7 @@ function test_poolGroups_mergeLow_merges_thin_groups(tc)
 end
 
 function test_poolGroups_nearest_attaches_to_closest_sigma(tc)
+% categories: contract
     % low group 'c' (sigma 2.9) should attach to the above-floor group whose
     % sigma is closest: 'b' (sigma 3.0), not 'a' (sigma 1.0).
     vc = struct('groups', {{'a','b','c'}}, 'r', [200; 150; 10], ...
@@ -820,6 +857,7 @@ function test_poolGroups_nearest_attaches_to_closest_sigma(tc)
 end
 
 function test_poolGroups_remap_handle_and_numeric_keys(tc)
+% categories: contract
     % numeric group keys must normalise to char and the remap handle must work.
     vc = struct('groups', {{1, 2, 3}}, 'r', [120; 20; 200], 'sigma', [1;1;1]);
     pl = lsqvce.poolGroups(vc, 'floor', 50, 'verbose', false);
@@ -828,12 +866,14 @@ function test_poolGroups_remap_handle_and_numeric_keys(tc)
 end
 
 function test_poolGroups_errors_on_missing_fields(tc)
+% categories: contract
     verifyError(tc, @() lsqvce.poolGroups(struct('groups', {{'a'}}), ...
         'verbose', false), 'lsqvce:poolGroups:badInput');
 end
 
 %% ================================== WP-40: per-arc whiteness pooling (F-13)
 function test_stageB_signature_redundancy(tc)
+% categories: contract, robustness
     % WP-39 stage (b) (F-07): redundancy's enum-value lever with the
     % specific mustBeMember id ('Hutchinson' passed the old strcmpi).
     ok = false;
@@ -853,6 +893,7 @@ function test_stageB_signature_redundancy(tc)
 end
 
 function test_stageC1_signatures_enum_values(tc)
+% categories: contract
     % WP-39 stage (c) c1 (F-07): enum-VALUE levers with the specific
     % mustBeMember id; solveNonlinear via the parser's own id (adjust
     % pattern, pinned deviation).
@@ -891,6 +932,7 @@ function test_stageC1_signatures_enum_values(tc)
 end
 
 function test_stageC2_signatures_classes(tc)
+% categories: contract
     % WP-39 stage (c) c2 (F-07): the class front doors. Enum-VALUE casing
     % is the fails-on-old lever (mustBeMember's specific id); positional
     % arity satisfied per the c1 lesson; arguments fire BEFORE any ctor
@@ -930,6 +972,7 @@ function test_stageC2_signatures_classes(tc)
 end
 
 function test_stageB2_signatures_enum_values(tc)
+% categories: contract
     % WP-39 stage (b) b2 (F-07): enum-VALUE casing is the fails-on-old
     % lever (mustBeMember where strcmpi used to accept any casing),
     % asserted with the SPECIFIC validator id per the a1-2/b1 lessons.
@@ -974,6 +1017,7 @@ function test_stageB2_signatures_enum_values(tc)
 end
 
 function test_noise_iteration_signature_types(tc)
+% categories: contract
     % WP-39 (F-07), corrected premise (round a1-2): NV names match
     % case-insensitively even under arguments; what the typed signature
     % enforces here are the constraints (MaxLag >= 8, integer MaxIter)
@@ -1004,6 +1048,7 @@ function test_noise_iteration_signature_types(tc)
 end
 
 function test_noise_iteration_perarc_whiteness_smoke(tc)
+% categories: robustness | tags: diagnostics
     % WP-40 (F-13): maxAcf now pools PER ARC (no lagged product crosses an
     % arc boundary, mirroring pooledACV). This serial smoke drives the NEW
     % pooling end to end on CI: with the CORRECT covariance declared, the
@@ -1026,6 +1071,7 @@ function test_noise_iteration_perarc_whiteness_smoke(tc)
 end
 
 function test_noise_iteration_signature_typed_arguments(tc)
+% categories: contract
     % WP-39 stage (a) (fails on the old code): iterateNoiseModel's typed
     % `arguments` block with UpperCamelCase names -- the old lowercase
     % 'maxIter' etc. no longer match, unknown names error, types are

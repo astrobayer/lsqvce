@@ -13,16 +13,19 @@ end
 
 %% ================================================= getfielddef
 function testGetFieldPresent(tc)
+% categories: contract
     s = struct('arOrder', 30, 'type', 'psd');
     tc.verifyEqual(lsqvce.util.getfielddef(s, 'arOrder', 99), 30);
 end
 
 function testGetFieldMissingReturnsDefault(tc)
+% categories: contract
     s = struct('arOrder', 30);
     tc.verifyEqual(lsqvce.util.getfielddef(s, 'nope', 99), 99);
 end
 
 function testGetFieldEmptyIsAbsent(tc)
+% categories: robustness
 % The distinction the function exists to make: an empty field means "use the
 % default", NOT "use []". This is why 'BatchOverlap',[] selects the safe
 % default overlap instead of zero (zero overlap silently destroys accuracy).
@@ -31,17 +34,20 @@ function testGetFieldEmptyIsAbsent(tc)
 end
 
 function testGetFieldNonStruct(tc)
+% categories: contract
     tc.verifyEqual(lsqvce.util.getfielddef([], 'x', 5), 5);
     tc.verifyEqual(lsqvce.util.getfielddef('not a struct', 'x', 5), 5);
 end
 
 function testGetFieldNonScalarStructUsesDefault(tc)
+% categories: contract
     s(1).x = 1; s(2).x = 2;                 % 1x2 struct array -> not scalar
     tc.verifyEqual(lsqvce.util.getfielddef(s, 'x', 42), 42);
 end
 
 %% ================================================= mergeStruct
 function testMergeOverrides(tc)
+% categories: contract
     a = struct('type', 'psd', 'arOrder', 30);
     b = struct('arOrder', 60);
     c = lsqvce.util.mergeStruct(a, b);
@@ -50,6 +56,7 @@ function testMergeOverrides(tc)
 end
 
 function testMergeAddsNewField(tc)
+% categories: contract
     a = struct('type', 'psd');
     c = lsqvce.util.mergeStruct(a, struct('sigma', 2.5));
     tc.verifyEqual(c.type, 'psd');
@@ -57,17 +64,20 @@ function testMergeAddsNewField(tc)
 end
 
 function testMergeEmptyOverlayIsNoOp(tc)
+% categories: robustness
     a = struct('type', 'psd', 'arOrder', 30);
     tc.verifyEqual(lsqvce.util.mergeStruct(a, struct()), a);
     tc.verifyEqual(lsqvce.util.mergeStruct(a, []), a);
 end
 
 function testMergeNonStructBase(tc)
+% categories: contract
     b = struct('x', 1);
     tc.verifyEqual(lsqvce.util.mergeStruct([], b), b);
 end
 
 function testMergeCovOverridePattern(tc)
+% categories: contract
 % The real use: overlay a runtime covariance override onto a static spec.
     covStatic = struct('type', 'diag', 'sigma', 1.0);
     covRun    = struct('sigma', 2.5);
@@ -78,6 +88,7 @@ end
 
 %% ================================================= lsqvce.util.log
 function testLogDefaultsAreOneAndTrue(tc)
+% categories: contract
     lsqvce.util.log.reset();
     [fid, screen] = lsqvce.util.log.get();
     tc.verifyEqual(fid, 1);
@@ -85,6 +96,7 @@ function testLogDefaultsAreOneAndTrue(tc)
 end
 
 function testLogMsgWritesToFile(tc)
+% categories: contract
     % msg must write to logfid; with a file fid and screen=false, the text lands
     % in the file and NOT on screen.
     f = [tempname, '.log'];
@@ -99,6 +111,7 @@ function testLogMsgWritesToFile(tc)
 end
 
 function testLogWarnRaisesAndMirrors(tc)
+% categories: contract
     % warn must raise a real MATLAB warning (catchable) AND mirror to the file.
     f = [tempname, '.log'];
     fid = fopen(f, 'w');
@@ -117,6 +130,7 @@ function testLogWarnRaisesAndMirrors(tc)
 end
 
 function testLogSetPartial(tc)
+% categories: contract
     lsqvce.util.log.reset();
     lsqvce.util.log.set('screen', false);        % set only one field
     [fid, screen] = lsqvce.util.log.get();
@@ -126,6 +140,7 @@ function testLogSetPartial(tc)
 end
 
 function testLogStartParallelSafeWithoutPool(tc)
+% categories: contract, robustness
     % startParallel must be a safe no-op when the PCT / a pool is unavailable:
     % it returns [] and does NOT disturb the (fid, screen) state. With a pool it
     % returns a DataQueue; either way stopParallel must clean up without error.
@@ -150,6 +165,7 @@ function testLogStartParallelSafeWithoutPool(tc)
 end
 
 function testLogSendToQueueFalseOnClient(tc)
+% categories: robustness
     % On the CLIENT (no worker task), sendToQueue must return false even after a
     % sink is installed, so client-side msg/warn still emit locally as before.
     lsqvce.util.log.reset();
@@ -166,6 +182,7 @@ function testLogSendToQueueFalseOnClient(tc)
 end
 
 function testLogDrainWritesToFid(tc)
+% categories: robustness
     % The client-side drain callback must write a {kind,txt} worker message to
     % the captured fid, prefixing warnings like warn does.
     f = [tempname, '.log'];  fid = fopen(f, 'w');
@@ -187,18 +204,21 @@ end
 
 %% ================================================= showExport
 function testShowExportEmptyIsNoOp(tc)
+% categories: robustness
     % A hook that returned [] must produce no file and no error.
     out = lsqvce.util.showExport([], 'nope', 0, tempdir);
     tc.verifyEqual(out, '');
 end
 
 function testShowExportInvalidHandleIsNoOp(tc)
+% categories: contract
     % A non-figure value must be a silent no-op (never break the solve).
     out = lsqvce.util.showExport(42, 'nope', 0, tempdir);
     tc.verifyEqual(out, '');
 end
 
 function testShowExportWritesPng(tc)
+% categories: robustness
     % With a real figure and an export dir, a PNG must appear with the sanitised
     % name (the 'satKey|obsType' pipe becomes '_'). Skipped if no display/figure.
     d = fullfile(tempdir, sprintf('lsqvce_figtest_%d', randi(1e6)));
@@ -217,6 +237,7 @@ function testShowExportWritesPng(tc)
 end
 
 function testShowExportSanitisesPipe(tc)
+% categories: contract | tags: diagnostics
     % A raw stream key with '|' must be sanitised in the file name.
     d = fullfile(tempdir, sprintf('lsqvce_figtest_%d', randi(1e6)));
     f = [];
@@ -239,6 +260,7 @@ end
 % fail here instead of in front of a user.
 
 function testVerbosityLogicalMapsToOldBehaviour(tc)
+% categories: contract
     % The boolean must keep its exact former meaning, or every existing call
     % site silently changes what it prints.
     tc.verifyEqual(lsqvce.util.verbosity.resolve(false), 0);
@@ -246,12 +268,14 @@ function testVerbosityLogicalMapsToOldBehaviour(tc)
 end
 
 function testVerbosityNumericLevelsPassThrough(tc)
+% categories: contract
     for lvl = 0:2
         tc.verifyEqual(lsqvce.util.verbosity.resolve(lvl), lvl);
     end
 end
 
 function testVerbosityRejectsRetiredLevelThree(tc)
+% categories: contract
     % Level 3 was merged into 2 on 2026-07-19. Erroring is deliberate: someone
     % asking for 3 wants MORE output, and silently clamping to 2 would leave
     % them wondering why nothing changed.
@@ -259,10 +283,12 @@ function testVerbosityRejectsRetiredLevelThree(tc)
 end
 
 function testVerbosityEmptyDefaultsToProgress(tc)
+% categories: robustness
     tc.verifyEqual(lsqvce.util.verbosity.resolve([]), 1);
 end
 
 function testVerbosityRejectsBadLevel(tc)
+% categories: contract
     tc.verifyError(@() lsqvce.util.verbosity.resolve(4), 'lsqvce:verbosity:badLevel');
     tc.verifyError(@() lsqvce.util.verbosity.resolve(-1), 'lsqvce:verbosity:badLevel');
     tc.verifyError(@() lsqvce.util.verbosity.resolve(1.5), 'lsqvce:verbosity:badLevel');
@@ -271,6 +297,7 @@ function testVerbosityRejectsBadLevel(tc)
 end
 
 function testVerbosityPredicatesAreCumulative(tc)
+% categories: contract
     % Each level INCLUDES those below it. A regression to equality testing
     % (v == 2) would silence detail at a higher level, so pin the whole grid.
     want = [false false      % v = 0
@@ -285,6 +312,7 @@ function testVerbosityPredicatesAreCumulative(tc)
 end
 
 function testVerbosityBannersAllShareOneWidth(tc)
+% categories: contract | tags: diagnostics
     % The point of centralising: the 2026-07-18 log showed '[resid ]' 499 times
     % and '[resid   ]' 63 times -- the same tag at two widths in ONE run.
     tags = {'Variance components','Adjustment','Stochastic model','Convergence', ...
@@ -298,6 +326,7 @@ function testVerbosityBannersAllShareOneWidth(tc)
 end
 
 function testVerbosityBannerIsPlainWordsNotBrackets(tc)
+% categories: contract
     % Labels are human-readable words, NOT bracketed abbreviations: the old
     % '[SCALE   ]' invented a term ('scale' is not what anyone calls
     % variance-component estimation) and then repeated the message text.
@@ -307,6 +336,7 @@ function testVerbosityBannerIsPlainWordsNotBrackets(tc)
 end
 
 function testVerbosityBannerPreservesCase(tc)
+% categories: contract
     % BANNER must not normalise case: the capitalisation convention is enforced
     % at the call sites (all labels are Capitalised since 2026-07-18), and a
     % function that silently re-cased its input would hide a call site that
@@ -316,6 +346,7 @@ function testVerbosityBannerPreservesCase(tc)
 end
 
 function testAllStageLabelsAreCapitalised(tc)
+% categories: robustness
     % The convention itself, checked where it actually lives -- the call sites.
     % A lowercase label would break the column's visual consistency and is the
     % kind of thing that creeps back in one call site at a time.
@@ -335,6 +366,7 @@ function testAllStageLabelsAreCapitalised(tc)
 end
 
 function testVerbosityBannerKeepsOverlongTagWhole(tc)
+% categories: contract
     % A label wider than the column loses alignment rather than losing letters --
     % the visible break is the cue to widen WIDTH or shorten the label.
     s = lsqvce.util.verbosity.banner('an extremely long stage label');
@@ -342,11 +374,13 @@ function testVerbosityBannerKeepsOverlongTagWhole(tc)
 end
 
 function testVerbosityRejectsBadTag(tc)
+% categories: contract
     tc.verifyError(@() lsqvce.util.verbosity.banner(''),  'lsqvce:verbosity:badTag');
     tc.verifyError(@() lsqvce.util.verbosity.banner(42),  'lsqvce:verbosity:badTag');
 end
 
 function testVerbosityDescribe(tc)
+% categories: contract
     tc.verifyEqual(lsqvce.util.verbosity.describe(0), 'silent');
     tc.verifyEqual(lsqvce.util.verbosity.describe(false), 'silent');
     tc.verifyEqual(lsqvce.util.verbosity.describe(true), 'progress');
@@ -354,6 +388,7 @@ function testVerbosityDescribe(tc)
 end
 
 function testVerbosityBannerRendersThroughLog(tc)
+% categories: contract
     % END-TO-END on the real output path: a banner written via log.msg must
     % arrive in the log file with its brackets and padding INTACT and with a
     % real newline -- not the two characters backslash-n. This is precisely the
@@ -373,6 +408,7 @@ function testVerbosityBannerRendersThroughLog(tc)
 end
 
 function testLogSingleArgExpandsEscapes(tc)
+% categories: contract | tags: diagnostics
     % REGRESSION GUARD (2026-07-18). Callers write log.msg('TEXT\n') expecting
     % FPRINTF semantics. render() used to return a lone argument untouched and
     % emit() writes with fprintf(fid,'%s',txt), which expands nothing -- so the
@@ -392,6 +428,7 @@ function testLogSingleArgExpandsEscapes(tc)
 end
 
 function testLogSingleArgKeepsEscapedPercent(tc)
+% categories: contract
     % The flip side of expanding escapes: a caller written against fprintf spells
     % a literal percent '%%', and it must still arrive as one '%'.
     f = [tempname, '.log'];  fid = fopen(f, 'w');
@@ -405,6 +442,7 @@ end
 
 %% ================================================= stage-detail layout
 function testDurationFormatsAsClock(tc)
+% categories: contract
     tc.verifyEqual(lsqvce.util.verbosity.duration(0.519), '00:00:00.519');
     tc.verifyEqual(lsqvce.util.verbosity.duration(1.204), '00:00:01.204');
     tc.verifyEqual(lsqvce.util.verbosity.duration(0),     '00:00:00.000');
@@ -412,6 +450,7 @@ function testDurationFormatsAsClock(tc)
 end
 
 function testDurationRoundingCarries(tc)
+% categories: contract
     % 59.9996 s must not render as ':60.000'. The millisecond rounding has to
     % carry into seconds/minutes/hours or the clock shows an impossible time.
     tc.verifyEqual(lsqvce.util.verbosity.duration(59.9996), '00:01:00.000');
@@ -419,6 +458,7 @@ function testDurationRoundingCarries(tc)
 end
 
 function testDurationHandlesNonFinite(tc)
+% categories: robustness
     tc.verifyEqual(lsqvce.util.verbosity.duration(NaN), '--:--:--.---');
     tc.verifyEqual(lsqvce.util.verbosity.duration(Inf), '--:--:--.---');
     % A negative elapsed time (clock skew) clamps rather than printing '-1'.
@@ -426,6 +466,7 @@ function testDurationHandlesNonFinite(tc)
 end
 
 function testStageDetailRendersTheAgreedLayout(tc)
+% categories: contract
     % The layout is a user-facing SPECIFICATION, not an implementation detail.
     tc.verifyEqual(lsqvce.util.verbosity.heading('Compute the residuals'), ...
         sprintf('\nCompute the residuals\n'), ...
@@ -438,6 +479,7 @@ function testStageDetailRendersTheAgreedLayout(tc)
 end
 
 function testTypeLineCarriesTheSystemIndex(tc)
+% categories: contract
     % The first index is the SYSTEM. It was hardcoded to 1, so every system's
     % types printed as {1,k} and system 2's lines claimed to be system 1's.
     a = lsqvce.util.verbosity.typeLine(1, 1, 'posC', 'pair', '', 0.5);
@@ -447,6 +489,7 @@ function testTypeLineCarriesTheSystemIndex(tc)
 end
 
 function testTypeLineAlignsItsColumns(tc)
+% categories: contract
     % Names differ in length; the count and time columns must still line up.
     a = lsqvce.util.verbosity.typeLine(1, 1, 'posC', 'demo-CD-pair', '1400 obs', 0.5);
     b = lsqvce.util.verbosity.typeLine(2, 1, 'rr',   'E',            '900 obs',  1.5);
@@ -455,6 +498,7 @@ function testTypeLineAlignsItsColumns(tc)
 end
 
 function testStreamLineIsSharedByEveryPerStreamBlock(tc)
+% categories: contract
     % Stochastic model, Contribution and Convergence all use this one shape, so
     % the blocks of a pass read as one document instead of three formats.
     a = lsqvce.util.verbosity.streamLine('posC', 'demo-CD-pair', 'AR(12)   white');
@@ -466,6 +510,7 @@ function testStreamLineIsSharedByEveryPerStreamBlock(tc)
 end
 
 function testFieldBlockIsSetApartByBlankLines(tc)
+% categories: contract | tags: diagnostics
     % A system summary is followed by the NEXT system's work, so it needs a gap
     % on both sides or the two run together.
     s = lsqvce.util.verbosity.fieldBlock('System 1 "demo-CD-pair"', ...
@@ -476,6 +521,7 @@ function testFieldBlockIsSetApartByBlankLines(tc)
 end
 
 function testEveryPerStreamBlockSharesOneColumn(tc)
+% categories: contract
     % Stochastic model, Contribution and Convergence must line up. Convergence
     % used to indent its rows by the 21-character stage-label column while the
     % other two started at 2, so the three tables of one pass stepped in and
@@ -494,6 +540,7 @@ function testEveryPerStreamBlockSharesOneColumn(tc)
 end
 
 function testLabelledRowKeepsOverlongLabelWhole(tc)
+% categories: contract
     % A label wider than the column pushes the value right rather than being
     % truncated -- losing the name is worse than losing the alignment, and the
     % visible break is the cue to widen STREAMCOL.
@@ -502,4 +549,19 @@ function testLabelledRowKeepsOverlongLabelWhole(tc)
     tc.verifyTrue(contains(s, 'aVeryLongObservationType'));
     tc.verifyTrue(contains(s, 'aVeryLongSystemName'));
     tc.verifyTrue(endsWith(strtrim(s), 'x'));
+end
+
+%% ===================================================== hasBackgroundPool
+function testHasBackgroundPoolContract(tc)
+% categories: contract
+% WP-43 (audit check 16): the probe's whole contract is "1x1 logical, never
+% throws" -- the ERRORS block documents (none). Its behaviour tests live in
+% the CI-skipped test_parallel; the CONTRACT must hold on every platform,
+% including one without the PCT, so it is asserted here in a CI-run suite.
+% Determinism: the probe answers an environment question, so two calls in
+% the same session must agree.
+    tf = lsqvce.util.hasBackgroundPool();
+    tc.verifyClass(tf, 'logical');
+    tc.verifySize(tf, [1 1]);
+    tc.verifyEqual(lsqvce.util.hasBackgroundPool(), tf);
 end

@@ -8,7 +8,13 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-08-18 — WP-30 ROUND 1 (container session,
+Last substantive update: 2026-08-19 — R3 OPENED (WP-43, test-category
+scrutiny per the adapted BEST_PRACTICE §3.3 taxonomy): §6.1.2 rewritten to
+the six categories + two cross-cutting tags, §6.1.4 authority table added,
+§10 review record (findings T-01…T-08), audit check 16 (countability gate),
+571 declared test points, 8 contract gaps closed, 3 contract defects fixed
+(T-03a), WP-44 proposed. Ledger: §10.
+Preceding entry: 2026-08-18 — WP-30 ROUND 1 (container session,
 Appendix-D pipeline): full deliverable set on branch `claude/wp-30`
 (ci.yml, ci_gate/gateVerdict/test_ci_gate, run_all skip mechanism,
 CLAUDE.md, ignore/attributes, references policy); §0 loop + §9.0
@@ -1906,33 +1912,65 @@ records: pass/fail/incomplete, WHICH FILES LOADED, per-suite seconds, and
 the warning inventory by identifier. A green gate means: 0 failed AND every
 suite loaded AND no NEW warning identifier AND no speed budget exceeded.
 
-**6.1.2 The test kinds — every WP states which it ships.**
-- CONTRACT tests: the promises in the help text. Input validation fires the
-  DOCUMENTED identifier (and only that one); dimension/type of every output;
-  determinism where promised; state-carrying calls are order/batch
-  invariant; error messages name the offending field. Documented-id ↔
-  code-id agreement is ALSO enforced statically (audit check, v1 check 14).
-- PRECISION tests: against an independent dense/analytic reference, with an
-  explicit tolerance and a comment saying where the tolerance comes from
-  (machine-eps scaling argument or a measured Python number). House
-  tolerances: exact-identity checks <= 1e-10 relative; factorisation
-  round-trips <= 1e-12; Monte-Carlo quantities within 4/sqrt(Z). Never
-  loosen a tolerance to make a test pass — that is a finding.
-- SPEED tests: `timeit`/`tic-toc` medians with a RELATIVE budget (vs a
-  recorded baseline op on the same machine, e.g. "sweep <= 25x one dense
-  chol of the largest arc"), so budgets survive hardware changes; absolute
-  seconds are LOGGED, not asserted. Speed suites are marked so the runner
-  reports them separately.
-- METAMORPHIC tests (added 2026-07-19; WP-29 hosts the pipeline suite):
-  invariance/equivariance properties — permutation, rescaling, split-merge,
-  duplication, worker count — asserted through the public API. Each
-  property states whether the expectation is BITWISE (fixed-order
-  reductions) or eps-level, and why.
+**6.1.2 The test categories — every test point declares which it ships.**
+*(Rewritten 2026-08-19, WP-43: the adapted taxonomy from
+references/BEST_PRACTICE_v4-1.md §3.3, user decision. The former four-kind
+list is superseded; METAMORPHIC is no longer a category of its own — its
+properties classify as contract (order/batch invariance where promised),
+robustness (worker count) or vectorisation (split/merge), which is where
+the WP-29 suite's points now sit.)*
+
+| Category | Asserts |
+|---|---|
+| contract | The promises in the help text: output shapes and types, argument rejection with the DOCUMENTED identifier and only that one, determinism where promised, error messages naming the offending field. Documented-id <-> code-id agreement is ALSO enforced statically (audit check 14). |
+| reference | Agreement with an outside authority — a published example, a second toolkit/language, real data. |
+| precision | The numerical claim, with an explicit tolerance AND a comment saying where the tolerance came from. House starting points: exact-identity <= 1e-10 relative; factorisation round-trips <= 1e-12; Monte-Carlo quantities within 4/sqrt(Z) (a 2.93-sigma bar, NOT containment). Never loosen a tolerance to make a test pass — that is a finding. |
+| speed | A RELATIVE budget against a recorded baseline on the same machine (medians; absolute seconds are LOGGED, not asserted; speed suites marked so the runner reports them separately). |
+| robustness | Behaviour at and beyond the edge of validity: degeneracy CONSTRUCTED FROM THE ALGEBRA, conditioning, boundary and empty inputs, non-finite propagation, reproducibility under worker count. |
+| vectorisation | A batched call equals the same inputs one at a time — the single cheapest reference test in a vectorised language, and the one most often assumed. Each such property states whether the expectation is BITWISE or eps-level, and why. |
+
+Two CROSS-CUTTING TAGS, not categories: `diagnostics` (does every measured
+number reach the report) and `provenance` (does every result carry the
+metadata saying where it came from).
+
+MECHANICS (binding, enforced by audit check 16):
+- Every test point carries `% categories: <list>` as the FIRST line after
+  its function signature, optionally `| tags: <list>`. Only the six
+  category names and the two tag names are legal vocabulary.
+- The unit x category matrix is DERIVED per run from the `lsqvce.<name>`
+  references in each test body — no second bookkeeping file to drift —
+  and printed by the audit; gaps show as rows, not as absences nobody
+  notices.
+- A public unit with zero `contract` coverage is RED unless
+  `tests/category_exemptions.csv` carries a reasoned row. An exemption is
+  a claim that the test is IMPOSSIBLE, not inconvenient; `contract` may
+  never be exempted for a function that validates its arguments.
+- TOLERANCE PROVENANCE: every 'AbsTol'/'RelTol' carries a `tol:` comment
+  (same line or up to three lines above) naming its origin. Enforced RED
+  in the swept suites listed in the audit (start: test_signalCore,
+  test_precision); elsewhere the unannotated count is REPORTED as the
+  standing debt number, driven to zero suite by suite (WP-39 rollout
+  pattern).
 
 **6.1.3 Regression discipline.** Every defect fixed during v2 gets a named
 regression test citing the WP section that records it (the v1 habit that
 worked). Randomness is seeded per test. Tests that need a pool carry an
 assumption filter and are counted as incomplete, not skipped silently.
+
+**6.1.4 The authority table (added 2026-08-19, WP-43).** One table listing
+every external authority the `reference` tests consume, what it certifies,
+and where it is consumed — so gaps show up as empty rows rather than as an
+absence nobody notices. Amend this table in the same edit that adds or
+retires an authority.
+
+| Authority | Certifies | Consumed by |
+|---|---|---|
+| Ellmer (2018) doctoral thesis | dctI norm convention, PSD-VCE update law, joint-mode default constants | test_ellmer (17 references), §8 review evidence |
+| Kvas (2019) doctoral thesis | design record for the VCE iteration/combination architecture | design sections §2–§3 (no direct numeric consumption — empty row, deliberate) |
+| Baarda / Pope test theory (textbook) | normCrit, delta0/MDB, tau bounds, snooping thresholds | test_lsqvce (test_normCrit_textbook, test_delta0_textbook, tau tests), test_lsqvce_opts (baarda_vs_pope) |
+| Closed-form ARMA(1,1)/AR ACV algebra | armaACV, levinsonDurbin, psd2acv identities | test_precision, test_lsqAccum, test_signalCore |
+| Python mirrors (second language): v8verify.py, v9verify.py, v10review.py, wp33_loop_mirror.py | measured tolerances and loop behaviour pre-port | tol: comments in test_signalCore/test_streamUtils/test_precision; §9 WP-33/40 round notes |
+| GROOPS / SINEX NEQ files (real data exchange) | neqExchange round-trip | WP-27 suite |
 
 ### 6.2 Documentation guidelines
 
@@ -3277,3 +3315,56 @@ the v1 doc: retargeted.) (8) Eight HTML pages regenerated from the
 corrected help via build_missing_pages (delete+rebuild); audit green.
 The r6 StepSchedule/AvgTail claims were NOT touched, per the binding
 DECISION RECORD (a).
+
+---
+
+## 10. REVIEW R3 — TEST-CATEGORY SCRUTINY & THE COUNTABILITY GATE
+
+*(Opened 2026-08-19 by user request: scrutinise the toolbox against the
+adapted test taxonomy of references/BEST_PRACTICE_v4-1.md §3.3 — six
+categories contract / reference / precision / speed / robustness /
+vectorisation plus the two cross-cutting tags diagnostics / provenance —
+and extend the tests where required. Session model: Claude Fable 5.)*
+
+### 10.1 Method
+
+The count was made MECHANICAL before it was made: every one of the 563
+pre-existing test points received a `% categories:` declaration
+(body-evidence classification: verifyError/identifier asserts -> contract,
+Rel/AbsTol asserts -> precision, timeit -> speed, and so on; try/catch
+identifier checks were widened to contract in a second pass), and the new
+audit check 16 derives the unit x category matrix from the `lsqvce.<name>`
+references in each test body — no second bookkeeping file to drift. The
+matrix is printed on every audit run; this section records only the
+FINDINGS, because the matrix regenerates itself.
+
+### 10.2 Findings T-01…T-08, dispositions
+
+| # | Finding (measured evidence) | Disposition |
+|---|---|---|
+| T-01 | Categories not countable: no declarations, §6.1.2 predated the adapted taxonomy (no reference/robustness/vectorisation as named kinds, no cross-cutting tags) | FIXED this round: §6.1.2 rewritten, 563+8 declarations, audit check 16 (red on missing/unknown declarations and on contract gaps without an exemption row) |
+| T-02 | Tolerance provenance: 257 Rel/AbsTol assertions, 14 with an origin comment (5%) — the category's defining requirement | MECHANISM this round: `tol:` convention pinned in §6.1.2; RED in the swept suites (test_signalCore, test_precision — 33 assertions annotated with honest per-site derivations); remaining debt 233, REPORTED by the audit every run, drive to 0 suite by suite (WP-39 rollout pattern) |
+| T-03 | 8 public units with documented rejection ids but no direct contract test: ReducedContribution (the ONE unit with zero direct tests — both ids unexercised), ar2arma, collectResiduals, residualAcv, varWhiten, whittle, stat, util.hasBackgroundPool. Sub-finding: varWhiten/whittle coverage lived ONLY in the CI-skipped test_parallel | FIXED this round: direct contract tests in the CI-run family suites (combine, signalCore, streamUtils, lsqvce, util); exemption ledger created and EMPTY BY OUTCOME |
+| T-03a | Contract DEFECTS found by writing the promised tests: (i) collectResiduals documents badRes for an absent field but threw raw MATLAB:nonExistentField; (ii) varWhiten documents badSigma for "not d x d" but only enforced the PD half; (iii) ar2arma's tooShort ERRORS line described the AR length while the code checks armaN | FIXED this round: (i)/(ii) code now fires the documented id naming the offending field (help text is the contract); (iii) help wording corrected to the code's actual check |
+| T-04 | Non-finite propagation asserted only on the accumulator observation path; the signal kernels reject via validateattributes 'finite' but nothing pinned that guard | FIXED this round: testSignalKernelsRejectNonFiniteAtTheDoor (test_reliability) pins psd2acv/levinsonDurbin/armaACV rejection so a refactor cannot drop it silently |
+| T-05 | provenance tag: Results carries structural provenance (source, batchFcn, systems, history) but NO run metadata — no toolbox version, no RNG seed record, no options snapshot, no timestamp; nothing in the tree can answer "which run produced this file" a month later | OPEN — PROPOSED WP-44 (API addition, needs user approval; see §10.3). NOT silently implemented: an API change is a decision, not a test extension |
+| T-06 | diagnostics tag: measured numbers DO reach the report (report() machine-readable findings; adjustVCE messaging levels carry per-group sigma at level 2) — the relevant tests now carry the tag | NO ACTION beyond tagging; re-review if report surface changes |
+| T-07 | armaWhiten batched-equals-column-at-a-time never asserted — the single cheapest vectorisation reference test, assumed since v1 | FIXED this round: testArmaWhitenBatchedEqualsColumnAtATime (test_precision), expectation stated eps-level (10*eps) with the BLAS multi-RHS reason |
+| T-08 | reference authorities existed (Ellmer thesis, Baarda/Pope textbook values, closed forms, four Python mirrors) but no standing table of who certifies what | FIXED this round: §6.1.4 authority table; amend it in the same edit that adds/retires an authority |
+
+### 10.3 Proposed WP-44 (NOT scheduled — user decision required)
+
+**WP-44: run provenance in Results (T-05).** Scope sketch: an immutable
+`meta` property on lsqvce.Results carrying toolbox version, MATLAB release,
+UTC timestamp, the RNG seed(s) in effect, and the resolved options struct;
+populated by the constructors, surfaced by report level 0, covered by
+provenance-tagged contract tests. Entry criterion: the user wants result
+files answerable to "where did this come from" without the run log. Until
+picked up, this row lives here — deliberately NOT in the ledger.
+
+### R3 ledger
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 43 | Test-category audit: adapted taxonomy, countability gate (check 16), gap closure | — | IN PROGRESS (2026-08-19, branch `claude/wp-43`) |
+| 44 | Run provenance in Results (T-05) | 43 | PROPOSED — awaiting user decision (§10.3) |

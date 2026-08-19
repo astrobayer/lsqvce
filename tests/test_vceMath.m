@@ -23,6 +23,7 @@ end
 
 %% ================================================== leverage (the core)
 function testLeverageEqualsBruteForceHatMatrix(tc)
+% categories: precision, reference
 % h_ii from the block-arrow inverse must equal the diagonal of the explicit
 % joint hat matrix. This is the foundation of VCE and outlier detection: if it
 % is wrong, both give plausible but wrong answers.
@@ -69,6 +70,7 @@ function testLeverageEqualsBruteForceHatMatrix(tc)
 end
 
 function testRedundancyIdentity(tc)
+% categories: precision
 % sum(r_i) = m - u exactly. The strongest global check available.
     rs = RandStream('mt19937ar','Seed',5);
     nc = 6;  nl = 3;  nSys = 4;  m = 150;
@@ -97,6 +99,7 @@ end
 
 %% ================================================== VCE
 function testVCERecoversVarianceComponents(tc)
+% categories: precision
 % The end-to-end claim: Helmert VCE recovers the true per-group sigma from a
 % deliberately wrong start.
     rs = RandStream('mt19937ar','Seed',77);
@@ -158,6 +161,7 @@ function testVCERecoversVarianceComponents(tc)
 end
 
 function testOutlierDetection(tc)
+% categories: contract
 % Data snooping with the correct sqrt(r_i) normalisation.
     rs = RandStream('mt19937ar','Seed',9);
     nc = 18;  nl = 4;  m = 700;
@@ -184,6 +188,7 @@ function testOutlierDetection(tc)
 end
 
 function testRawResidualWouldMissHighLeverageOutlier(tc)
+% categories: precision, robustness
 % WHY the sqrt(r_i) normalisation matters: an observation with high leverage is
 % fitted almost exactly by construction, so its RAW residual is small even when
 % it is badly wrong. This test shows the normalisation catching what the raw
@@ -218,6 +223,7 @@ end
 
 %% ================================================== common-part prior
 function testPriorEqualsAugmentedLeastSquares(tc)
+% categories: precision
 % The prior must be algebraically exact: identical to stacking K*x ~ x0 as extra
 % observation rows.
     rs = RandStream('mt19937ar','Seed',17);
@@ -247,6 +253,7 @@ function testPriorEqualsAugmentedLeastSquares(tc)
 end
 
 function testPriorAbsorbedDoFBounds(tc)
+% categories: precision
 % absorbed = nk - r_K must lie in [0, nk], and must respond correctly to sigma:
 % a strong prior absorbs nearly everything, a weak one almost nothing.
     rs = RandStream('mt19937ar','Seed',19);
@@ -272,6 +279,7 @@ function testPriorAbsorbedDoFBounds(tc)
 end
 
 function testPriorIsBasisAgnostic(tc)
+% categories: precision, robustness
 % K is just a matrix. Identity, Kaula, a mascon Laplacian, a subset selector --
 % all must work without the toolbox knowing what basis it is.
     rs = RandStream('mt19937ar','Seed',23);
@@ -300,6 +308,7 @@ function testPriorIsBasisAgnostic(tc)
 end
 
 function testPriorRescuesRankDeficientCommon(tc)
+% categories: robustness
 % A datum defect in the common block: without a prior the normal matrix is
 % singular; with one it is solvable.
     rs = RandStream('mt19937ar','Seed',29);
@@ -317,6 +326,7 @@ function testPriorRescuesRankDeficientCommon(tc)
 end
 
 function testPriorRejectsBadTarget(tc)
+% categories: contract
     K = eye(6);
     tc.verifyError(@() lsqvce.CommonPrior(K, ones(3,1)), 'lsqvce:prior:badTarget');
     tc.verifyError(@() lsqvce.CommonPrior(K, [], -1),    'MATLAB:lsqvce:CommonPrior:expectedPositive');
@@ -324,6 +334,7 @@ end
 
 %% ================================================== separable multi-axis
 function testSeparableWhitenEqualsDenseCholesky(tc)
+% categories: precision
 % The separable whitener must reproduce the dense Cholesky of the full
 % (nEpoch*d) x (nEpoch*d) covariance.
     rs = RandStream('mt19937ar','Seed',31);
@@ -350,6 +361,7 @@ function testSeparableWhitenEqualsDenseCholesky(tc)
 end
 
 function testSeparableWithFullEpochCovariance(tc)
+% categories: precision
 % The realistic case: a full 3x3 per-epoch covariance from kinematic PPP, where
 % the vertical is worse than horizontal AND correlated with it.
     rs = RandStream('mt19937ar','Seed',37);
@@ -377,6 +389,7 @@ function testSeparableWithFullEpochCovariance(tc)
 end
 
 function testSeparableRejectsPartialEpoch(tc)
+% categories: contract
     a = [1 -0.5];  r = lsqvce.armaACV(a, 1, 4);
     sig = ones(10, 3);
     A = zeros(29, 2);  B = zeros(29, 1);  l = zeros(29, 1);   % 29 is not 3*k
@@ -386,12 +399,14 @@ end
 
 %% ================================================== cross-correlation
 function testCrossCorrWhiteIsOK(tc)
+% categories: contract | tags: diagnostics
     rs = RandStream('mt19937ar','Seed',41);
     c = lsqvce.crossCorr(randn(rs, 4000*3, 1), 3, 'MaxLag', 15);
     tc.verifyEqual(c.verdict, 'ok');
 end
 
 function testCrossCorrDetectsCrossAxis(tc)
+% categories: contract | tags: diagnostics
 % R(0) with off-diagonals -> the per-epoch covariance is wrong.
     rs = RandStream('mt19937ar','Seed',43);
     nE = 4000;  d = 3;
@@ -403,6 +418,7 @@ function testCrossCorrDetectsCrossAxis(tc)
 end
 
 function testCrossCorrDetectsARTooLow(tc)
+% categories: contract | tags: diagnostics
 % R(tau>0) with a nonzero DIAGONAL -> leftover temporal colour.
     rs = RandStream('mt19937ar','Seed',47);
     nE = 4000;  d = 3;
@@ -414,6 +430,7 @@ function testCrossCorrDetectsARTooLow(tc)
 end
 
 function testCrossCorrDetectsNeedsVAR(tc)
+% categories: contract | tags: diagnostics
 % R(tau>0) with OFF-diagonals -> genuine cross-axis TEMPORAL correlation.
 % Separability fails; a VAR is required. This is the case the toolbox cannot
 % handle, and it must say so rather than silently mis-weighting.
@@ -430,6 +447,7 @@ end
 
 %% ================================================== AR order selection
 function testSelectAROrderFindsSufficientOrder(tc)
+% categories: contract | tags: diagnostics
     dt = 5;
     a  = [1 -1.6 0.9 -0.25];
     f  = linspace(1e-9, 0.5/dt, 4096).';
@@ -443,6 +461,7 @@ function testSelectAROrderFindsSufficientOrder(tc)
 end
 
 function testSelectAROrderReportsCurve(tc)
+% categories: contract
     dt = 5;
     a  = [1 -1.6 0.9 -0.25];
     f  = linspace(1e-9, 0.5/dt, 2048).';
@@ -457,6 +476,7 @@ function testSelectAROrderReportsCurve(tc)
 end
 
 function testSelectAROrderFlagsHopelessSpectrum(tc)
+% categories: contract | tags: diagnostics
 % A razor-sharp spectral line: AR cannot represent it at low order and must say
 % so rather than returning a silently bad filter.
     dt = 1;
@@ -471,6 +491,7 @@ end
 
 %% ================================================== block-diagonal Schur
 function testBlockSchurEqualsDenseSchur(tc)
+% categories: precision
 % Arc-wise local parameters make Nll block diagonal. The block path must give
 % exactly the same reduced normals as the dense path.
     rs = RandStream('mt19937ar','Seed',59);
@@ -511,6 +532,7 @@ function testBlockSchurEqualsDenseSchur(tc)
 end
 
 function testBlockSchurIsFaster(tc)
+% categories: speed
 % O(nArc*blk^3) versus O((nArc*blk)^3): the block Schur elimination avoids the
 % dense factorisation of the full local matrix. The asymptotic win only shows up
 % once the dense cube dominates LAPACK's constant factor, so this uses a LARGE

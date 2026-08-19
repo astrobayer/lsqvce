@@ -13,6 +13,7 @@ function tests = test_adjustBlock
 end
 
 function testAdjustBlockResultHasNoIterationHistory(tc)
+% categories: contract, robustness | tags: diagnostics
     % adjustBlock is a SINGLE SOLVE: it returns a Results but never calls
     % setIterative, so .history stays empty. The two iteration readers must
     % therefore refuse CLEANLY -- naming the engine that does populate a history
@@ -36,6 +37,7 @@ end
 
 %% ============================================================ recover paths
 function testRecoverSynthClosure(tc)
+% categories: contract, precision
     cfg = synthCfg();
     loader = @(d,ot,a,uo) lsqvce.synthLoader(cfg, 1, d, ot, a, uo);
     sys = struct('sysID',1, 'nl',cfg.nl, 'nc',cfg.nc, 'loader',loader);
@@ -48,6 +50,7 @@ function testRecoverSynthClosure(tc)
 end
 
 function testRecoverMakeLoaderCell(tc)
+% categories: precision
     cfg = buildCfg();
     L = lsqvce.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
             'observationTypes',{'pos','kbr'}, 'covariance',cfg.cov, 'arcs',cfg.arcsPerDay, ...
@@ -58,6 +61,7 @@ function testRecoverMakeLoaderCell(tc)
 end
 
 function testResultsAccessors(tc)
+% categories: robustness | tags: diagnostics
     cfg = buildCfg();
     L = lsqvce.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
             'observationTypes',{'pos','kbr'}, 'covariance',cfg.cov, 'arcs',cfg.arcsPerDay, ...
@@ -74,6 +78,7 @@ end
 
 %% ============================================================ makeLoader unit
 function testMakeLoaderMeta(tc)
+% categories: contract | tags: provenance
     cfg = buildCfg();
     L = lsqvce.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
             'observationTypes',{'pos','kbr'}, 'covariance',cfg.cov, 'arcs',2, 'numLocal',4, 'numCommon',6);
@@ -88,6 +93,7 @@ function testMakeLoaderMeta(tc)
 end
 
 function testMakeLoaderValidation(tc)
+% categories: contract
     cfg = buildCfg();
     tc.verifyError(@() lsqvce.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
         'covariance',cfg.cov, 'arcs',2), 'lsqvce:makeLoader:noObsTypes');
@@ -100,6 +106,7 @@ end
 
 %% ==================================================== option names
 function testMakeLoaderCanonicalNames(tc)
+% categories: contract
     % Every option has ONE name. Building with them must warn about nothing.
     cfg = buildCfg();
     ws = warning('off', 'all'); c = onCleanup(@() warning(ws)); %#ok<NASGU>
@@ -114,6 +121,7 @@ function testMakeLoaderCanonicalNames(tc)
 end
 
 function testMakeLoaderShortAliasesRemoved(tc)
+% categories: contract
     % The terse aliases (sysID/nl/nc/cov/obsTypes/...) were REMOVED 2026-07-18.
     % inputParser has PartialMatching off, so an old name is now an unmatched
     % parameter and must ERROR rather than silently doing nothing.
@@ -131,12 +139,14 @@ end
 
 %% ============================================================ recover errors
 function testRecoverErrors(tc)
+% categories: contract
     tc.verifyError(@() lsqvce.adjustBlock({1}, 1:3), 'lsqvce:adjustBlock:badCell');
     tc.verifyError(@() lsqvce.adjustBlock(struct('sysID',1,'nl',4,'nc',6), 1:3), ...
                    'lsqvce:adjustBlock:badStruct');
 end
 
 function testShapeIsValidatedBeforeNcIsDerived(tc)
+% categories: contract | tags: diagnostics
     % REGRESSION GUARD (2026-07-18). adjustBlock derives nc with lsqvce.resolveNc
     % and validates the shape of `systems` with normalizeSystems. The ORDER is
     % load-bearing: deriving nc first makes every malformed `systems` report the
@@ -165,6 +175,7 @@ end
 
 %% ====================================================== parametrisation pipe
 function testParamBackCompatTwoArg(tc)
+% categories: contract
     % An existing 2-arg buildDay must keep working unchanged when common/local
     % are supplied to makeLoader (callBuildDay passes only what it declares).
     cfg = buildCfg();
@@ -176,6 +187,7 @@ function testParamBackCompatTwoArg(tc)
 end
 
 function testParamPipedToFiveArgBuilder(tc)
+% categories: contract
     % A 5-arg builder must RECEIVE common/local/procOpt exactly as passed.
     cfg = buildCfg();
     common = paramRows(6);  local = paramRows(4);
@@ -190,6 +202,7 @@ function testParamPipedToFiveArgBuilder(tc)
 end
 
 function testParamDerivesNcNl(tc)
+% categories: contract
     % nc = rows(common), nl = rows(local), carried on L.
     cfg = buildCfg();
     L = lsqvce.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
@@ -200,6 +213,7 @@ function testParamDerivesNcNl(tc)
 end
 
 function testParamNlConflictErrors(tc)
+% categories: contract
     % Passing both 'nl' and 'local' with disagreeing counts must error.
     cfg = buildCfg();
     tc.verifyError(@() lsqvce.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
@@ -208,6 +222,7 @@ function testParamNlConflictErrors(tc)
 end
 
 function testParamColumnCountValidated(tc)
+% categories: contract
     % A parametrisation array without 14 columns must be rejected.
     cfg = buildCfg();
     tc.verifyError(@() lsqvce.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
@@ -217,6 +232,7 @@ end
 
 %% ====================================================== plot-hook options
 function testPlotHookSingleHandleBroadcast(tc)
+% categories: contract, robustness
     % A single handle is broadcast to every obsType of the loader.
     cfg = buildCfg();
     h = @(ctx) [];
@@ -229,6 +245,7 @@ function testPlotHookSingleHandleBroadcast(tc)
 end
 
 function testPlotHookPerObsTypeMap(tc)
+% categories: contract
     % A per-obsType map is passed through, keeping only the named obsTypes.
     cfg = buildCfg();
     m = containers.Map({'pos'}, {@(ctx) []});
@@ -240,6 +257,7 @@ function testPlotHookPerObsTypeMap(tc)
 end
 
 function testPlotHookBadHandleErrors(tc)
+% categories: contract
     % A non-handle value in a map must be rejected.
     cfg = buildCfg();
     m = containers.Map({'pos'}, {42});
@@ -250,6 +268,7 @@ end
 
 %% ======================================== recover postSolve plot hooks
 function testRecoverFiresPostSolveHook(tc)
+% categories: contract
     % A postSolve hook on the loader must fire once per obsType after recover's
     % single solve, with a well-formed ctx. The hook records into a handle
     % object and returns [] (no figure), so it needs no display.
@@ -277,6 +296,7 @@ function testRecoverFiresPostSolveHook(tc)
 end
 
 function testRecoverRawClosureIgnoresPlotOpts(tc)
+% categories: contract, precision
     % Loader contract: a RAW 4-arg closure carries none of the optional Loader
     % fields, so the postSolve plot seam must be a silent no-op even when
     % ShowSeconds/ExportDir are set -- it must never look for .plotPostSolve on a
@@ -290,6 +310,7 @@ function testRecoverRawClosureIgnoresPlotOpts(tc)
 end
 
 function testRecoverNoHookIsNoOp(tc)
+% categories: contract
     % A loader with no plot hook (the common case) must solve exactly as before
     % and never touch showExport. Just assert it runs and returns Results.
     cfg = buildCfg();
@@ -301,6 +322,7 @@ function testRecoverNoHookIsNoOp(tc)
 end
 
 function testRecoverHookFailureNeverBreaksSolve(tc)
+% categories: contract, precision, robustness
     % A throwing hook must be logged and skipped -- the solve still returns a
     % valid Results. Mirrors the adjustVCE guarantee.
     cfg = buildCfg();
@@ -404,6 +426,7 @@ end
 %% ============================ WP-39 stage (a): typed signature (F-07)
 %% =========================== WP-39 stage (a): typed-signature enforcement
 function test_block_signature_types_and_enum_values(tc)
+% categories: contract
     % WP-39 (F-07), premise CORRECTED in round a1-2: MATLAB matches
     % comma-syntax name-value NAMES case-insensitively (and partially)
     % even under arguments blocks, so lowercase 'backend' still WORKS --
@@ -435,6 +458,7 @@ function test_block_signature_types_and_enum_values(tc)
 end
 
 function test_signature_typed_arguments(tc)
+% categories: contract
     % WP-39 (fails on the old code): the typed `arguments` block rejects
     % what inputParser tolerated -- unknown names, WRONG-CASE names (the
     % old lowercase 'backend' etc.), and wrong types/enum casings.

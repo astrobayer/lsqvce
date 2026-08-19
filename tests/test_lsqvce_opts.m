@@ -44,6 +44,7 @@ end
 
 %% ======================================= INPUT VALIDATION / EDGE CASES
 function test_empty_batch_is_legal(tc)
+% categories: robustness
     % A batch source that returns an empty batch (e.g. a data gap) must be
     % tolerated, not crash. This happens constantly with real data.
     [A, l, p] = prob(100, 4, 1);
@@ -64,18 +65,21 @@ function [A, l, p] = emptyMiddle(Af, lf, pf, k)
 end
 
 function test_mismatched_l_length_errors(tc)
+% categories: contract
     acc = lsqvce.Accumulator(3);
     verifyError(tc, @() acc.add(randn(10,3), randn(9,1), ones(10,1)), ...
         'lsqvce:acc:badL');
 end
 
 function test_wrong_column_count_errors(tc)
+% categories: contract
     acc = lsqvce.Accumulator(5);
     verifyError(tc, @() acc.add(randn(10,3), randn(10,1), ones(10,1)), ...
         'lsqvce:acc:badA');
 end
 
 function test_non_spd_weight_matrix_errors(tc)
+% categories: contract
     % A weight matrix is an inverse covariance: it MUST be SPD. The commonest
     % user error is passing the covariance instead of its inverse; a clear
     % error message is worth more than a silent wrong answer.
@@ -86,6 +90,7 @@ function test_non_spd_weight_matrix_errors(tc)
 end
 
 function test_solving_twice_errors(tc)
+% categories: contract
     acc = lsqvce.Accumulator(3);
     acc.add(randn(20,3), randn(20,1), ones(20,1));
     acc.solve();
@@ -94,11 +99,13 @@ function test_solving_twice_errors(tc)
 end
 
 function test_no_data_errors(tc)
+% categories: contract
     acc = lsqvce.Accumulator(3);
     verifyError(tc, @() acc.solve(), 'lsqvce:acc:noData');
 end
 
 function test_zero_weight_warns(tc)
+% categories: contract, robustness
     % Zero-weighting an observation does NOT remove it: it still counts toward
     % n, which inflates the redundancy and biases s0 downward. Remove it
     % instead. The toolbox must say so.
@@ -110,6 +117,7 @@ end
 
 %% ========================================================= ACCUMULATOR
 function test_qr_and_normal_agree(tc)
+% categories: precision
     [A, l, p] = prob(400, 6, 11);
     B = chop(A, l, p, 7);
     xs = zeros(6, 2);
@@ -123,6 +131,7 @@ function test_qr_and_normal_agree(tc)
 end
 
 function test_sigma0_scales_the_ratio_not_the_fit(tc)
+% categories: precision, reference | tags: diagnostics
     % sigma0 is an a-priori scale. Changing it must NOT move x or v -- it only
     % rescales the variance ratio and the Baarda statistic.
     [A, l, p] = prob(300, 5, 21);
@@ -140,6 +149,7 @@ end
 
 %% ============================================================ DIAGNOSE
 function test_store_none_still_gives_scalars(tc)
+% categories: precision, robustness | tags: diagnostics
     % 'store','none' must still produce every SUMMARY statistic -- it only
     % suppresses the per-observation arrays. That is the whole point: at
     % n = 1e8 you cannot hold 5 arrays of size n, but you still need the verdict.
@@ -156,6 +166,7 @@ function test_store_none_still_gives_scalars(tc)
 end
 
 function test_store_flagged_keeps_the_flags(tc)
+% categories: contract
     [A, l, p] = prob(500, 5, 33, [7 250 400]);
     B = chop(A, l, p, 5);
     [~, D] = lsqvce.adjust(5, srcOf(B), 5, 'verbose', false, ...
@@ -165,6 +176,7 @@ function test_store_flagged_keeps_the_flags(tc)
 end
 
 function test_baarda_vs_pope(tc)
+% categories: precision, reference, robustness
     % Baarda divides by the A PRIORI sigma0; Pope by the ESTIMATED s0. On clean
     % data with sigma0 correct they agree closely; the DIFFERENCE only appears
     % under contamination (which is what makes Pope fragile -- see the ext suite).
@@ -180,6 +192,7 @@ function test_baarda_vs_pope(tc)
 end
 
 function test_bonferroni_raises_the_threshold(tc)
+% categories: precision
     [A, l, p] = prob(2000, 6, 51);
     B = chop(A, l, p, 8);
     [~, D0] = lsqvce.adjust(6, srcOf(B), 8, 'verbose', false, 'bonferroni', false);
@@ -190,6 +203,7 @@ function test_bonferroni_raises_the_threshold(tc)
 end
 
 function test_rWeak_changes_the_quadrants(tc)
+% categories: contract
     [A, l, p] = prob(300, 5, 61);
     B = chop(A, l, p, 3);
     [~, Da] = lsqvce.adjust(5, srcOf(B), 3, 'verbose', false, 'rWeak', 0.01);
@@ -201,6 +215,7 @@ end
 
 %% ============================================================== SNOOP
 function test_snoop_removes_the_planted_outliers(tc)
+% categories: contract
     bad = [17 400 700];
     [A, l, p] = prob(800, 6, 71, bad);
     B = chop(A, l, p, 8);
@@ -214,6 +229,7 @@ function test_snoop_removes_the_planted_outliers(tc)
 end
 
 function test_snoop_refuses_low_redundancy(tc)
+% categories: robustness
     % Rejecting a weakly-controlled observation is close to a coin flip: its
     % residual is as likely to be error absorbed from a NEIGHBOUR. snoop must
     % refuse and say so, not quietly delete it.
@@ -232,6 +248,7 @@ function test_snoop_refuses_low_redundancy(tc)
 end
 
 function test_snoop_maxReject_cap(tc)
+% categories: contract
     bad = 10:10:200;
     [A, l, p] = prob(800, 6, 91, bad);
     B = chop(A, l, p, 8);
@@ -243,6 +260,7 @@ function test_snoop_maxReject_cap(tc)
 end
 
 function test_snoop_reaccumulate_gives_clean_solution(tc)
+% categories: precision
     % After rejecting, the final solve must be a FRESH accumulation, not a
     % sequence of downdates -- otherwise downdate roundoff accumulates into
     % the reported answer.
@@ -262,6 +280,7 @@ end
 
 %% ============================================================= ROBUST
 function test_robust_huber_and_bisquare(tc)
+% categories: contract
     bad = [30 150 300];
     [A, l, p] = prob(400, 5, 111, bad);
     B = chop(A, l, p, 4);
@@ -274,6 +293,7 @@ function test_robust_huber_and_bisquare(tc)
 end
 
 function test_robust_converges(tc)
+% categories: contract
     [A, l, p] = prob(300, 5, 121, [40 200]);
     B = chop(A, l, p, 3);
     [~, ~, ROB] = lsqvce.robust(5, srcOf(B), 3, 'verbose', false);
@@ -282,6 +302,7 @@ function test_robust_converges(tc)
 end
 
 function test_robust_weights_in_unit_interval(tc)
+% categories: contract
     [A, l, p] = prob(300, 5, 131, [40 200]);
     B = chop(A, l, p, 3);
     [~, ~, ROB] = lsqvce.robust(5, srcOf(B), 3, 'verbose', false);
@@ -291,6 +312,7 @@ end
 
 %% ============================================================ ELLIPSE
 function test_ellipse_confidence_scales_axes(tc)
+% categories: precision
     [A, l, p] = prob(400, 4, 141);
     B = chop(A, l, p, 4);
     [~, D] = lsqvce.adjust(4, srcOf(B), 4, 'verbose', false);
@@ -304,6 +326,7 @@ function test_ellipse_confidence_scales_axes(tc)
 end
 
 function test_ellipse_returns_a_drawable_boundary(tc)
+% categories: contract, robustness
     [A, l, p] = prob(300, 4, 151);
     B = chop(A, l, p, 3);
     [~, D] = lsqvce.adjust(4, srcOf(B), 3, 'verbose', false);
@@ -313,6 +336,7 @@ function test_ellipse_returns_a_drawable_boundary(tc)
 end
 
 function test_ellipse_rejects_bad_pair(tc)
+% categories: contract
     [A, l, p] = prob(200, 3, 161);
     B = chop(A, l, p, 2);
     [~, D] = lsqvce.adjust(3, srcOf(B), 2, 'verbose', false);
@@ -322,6 +346,7 @@ end
 
 %% ======================================================= SOLVENONLINEAR
 function test_nonlinear_history_is_monotone(tc)
+% categories: contract
     % The residual sum of squares must DECREASE at every Gauss-Newton step on
     % a well-behaved problem. If it does not, the linearisation is wrong.
     stations = [0 0; 10 0; 10 10; 0 10; 5 12];
@@ -345,6 +370,7 @@ function test_nonlinear_history_is_monotone(tc)
 end
 
 function test_nonlinear_respects_maxIter(tc)
+% categories: contract
     function [A, l, p] = slow(~, x)
         A = 1;  l = 0.999*x;  p = 1;      % converges very slowly
     end
@@ -355,6 +381,7 @@ end
 
 %% ============================================================== DATUM
 function test_datum_user_supplied_basis(tc)
+% categories: contract
     u = 5;
     edges = [1 2; 2 3; 3 4; 4 5; 1 3];
     A = zeros(size(edges,1), u);
@@ -370,6 +397,7 @@ function test_datum_user_supplied_basis(tc)
 end
 
 function test_datum_no_defect(tc)
+% categories: robustness
     % A full-rank N has NO datum defect: the function must say so, not
     % hallucinate a null space out of rounding noise.
     rs = RandStream('mt19937ar','Seed', 181);
@@ -381,6 +409,7 @@ end
 
 %% ========================================================== SYSTEMATIC
 function test_systematic_finds_the_right_covariate(tc)
+% categories: robustness
     % A drift in TIME and no structure in a second, irrelevant covariate.
     % systematic() must name the right one.
     rs = RandStream('mt19937ar','Seed', 191);
@@ -409,6 +438,7 @@ function test_systematic_finds_the_right_covariate(tc)
 end
 
 function test_systematic_ljungbox_on_correlated_residuals(tc)
+% categories: contract
     % An AR(1) error process leaves autocorrelated residuals. Ljung-Box must
     % catch it even though NO single residual is large.
     rs = RandStream('mt19937ar','Seed', 201);
@@ -427,6 +457,7 @@ end
 
 %% ============================================================ VARCOMP
 function test_varcomp_simplified_and_rigorous_agree(tc)
+% categories: precision
     rs = RandStream('mt19937ar','Seed', 211);
     u = 6; ng = 500; n = 2*ng;
     A = randn(rs, n, u);  xt = randn(rs, u, 1);
@@ -449,6 +480,7 @@ function test_varcomp_simplified_and_rigorous_agree(tc)
 end
 
 function test_varcomp_reports_resolution(tc)
+% categories: precision, robustness | tags: diagnostics
     % A variance component estimated from r_g observations has a relative
     % standard error ~ 0.5*sqrt(2/r_g). Quoting a correction smaller than its
     % own noise is meaningless, and the toolbox must say so.
@@ -471,6 +503,7 @@ end
 
 %% ============================================================= REPORT
 function test_report_returns_machine_readable_findings(tc)
+% categories: contract | tags: diagnostics
     [A, l, p] = prob(400, 5, 231, [10 200]);
     B = chop(A, l, p, 4);
     [~, ~, V] = lsqvce.adjust(5, srcOf(B), 4, 'verbose', false);
@@ -482,6 +515,7 @@ function test_report_returns_machine_readable_findings(tc)
 end
 
 function test_report_verdict_invalid_on_zero_redundancy(tc)
+% categories: contract | tags: diagnostics
     A = randn(5,5);  l = randn(5,1);
     acc = lsqvce.Accumulator(5);
     acc.add(A, l, ones(5,1));
@@ -496,6 +530,7 @@ end
 
 %% ================================ CORRELATED BATCHES (block-diagonal P)
 function test_correlated_diagnostics_match_dense(tc)
+% categories: precision, reference
     % P is block-diagonal with the BATCHES as blocks: correlation within a
     % batch, independence between. Baarda's GENERALISED statistic handles this
     % directly on the physical observations -- no whitening, no loss of
@@ -536,6 +571,7 @@ function test_correlated_diagnostics_match_dense(tc)
 end
 
 function test_correlated_integrity_identity(tc)
+% categories: precision, robustness
     % sum(r_i) == n - u must hold for correlated observations too.
     %
     % THIS TEST CAUGHT A REAL BUG. r_i is a leverage complement bounded in
@@ -564,6 +600,7 @@ function test_correlated_integrity_identity(tc)
 end
 
 function test_correlated_finds_the_physical_outlier(tc)
+% categories: contract
     % The generalised statistic must identify the PHYSICAL observation, not a
     % linear combination. This is why we do not whiten.
     rs = RandStream('mt19937ar','Seed', 321);
@@ -589,6 +626,7 @@ function test_correlated_finds_the_physical_outlier(tc)
 end
 
 function test_correlated_reduces_to_diagonal(tc)
+% categories: precision
     % Feeding a DIAGONAL matrix as a full matrix must give bit-comparable
     % results to feeding the vector. The generalised form is a strict
     % generalisation, not a separate algorithm.
@@ -616,6 +654,7 @@ function test_correlated_reduces_to_diagonal(tc)
 end
 
 function test_snoop_refuses_correlated(tc)
+% categories: contract, robustness
     % Removing one observation from a correlated block changes the covariance
     % of every SURVIVING observation in that block (a Schur complement, not a
     % row deletion), so the rank-one Cholesky downdate does not apply.

@@ -31,6 +31,7 @@ end
 
 %% ============================================ filter vs dense
 function testFilterBeatsDenseWhitening(tc)
+% categories: speed
 % The central performance claim. The FIR filter is O(m*p); the dense Cholesky
 % is O(b^3). At realistic batch sizes the filter must win outright.
     a = [1 -1.6 0.9 -0.25];   s = 0.7;   p = 3;
@@ -51,6 +52,7 @@ function testFilterBeatsDenseWhitening(tc)
 end
 
 function testFilterAdvantageGrowsWithBatchSize(tc)
+% categories: speed
 % O(m*p) vs O(b^3): the speed ratio must GROW with the batch size. If it does
 % not, the dense path is being used by accident somewhere.
     a = [1 -1.6 0.9 -0.25];   s = 0.7;
@@ -75,6 +77,7 @@ function testFilterAdvantageGrowsWithBatchSize(tc)
 end
 
 function testFilterScalesLinearly(tc)
+% categories: speed
 % Doubling the arc length must roughly double the filter cost, not quadruple
 % it. Tolerance is generous because timing on a shared machine is noisy.
     a = [1 -1.6 0.9 -0.25];   s = 0.7;
@@ -97,6 +100,7 @@ end
 
 %% ============================================ backend cost
 function testQROverheadIsAcceptable(tc)
+% categories: speed
 % QR buys a squared condition number for roughly 2x the flops. If it costs
 % much more than 3x, something is wrong (e.g. R is not being truncated).
     cfg = tc.TestData.cfg;
@@ -109,6 +113,7 @@ function testQROverheadIsAcceptable(tc)
 end
 
 function testTriangularFactorStaysBounded(tc)
+% categories: contract, speed
 % The QR factor must be truncated to dim+1 rows after every batch. If it were
 % not, memory would grow linearly with the number of observations.
     dim = 12;
@@ -122,6 +127,7 @@ end
 
 %% ============================================ accumulator scaling
 function testCostScalesLinearlyWithDays(tc)
+% categories: speed
 % Doubling the number of days must roughly double the runtime. Anything
 % superlinear means something is accumulating that should not be.
     cfg = tc.TestData.cfg;
@@ -136,6 +142,7 @@ function testCostScalesLinearlyWithDays(tc)
 end
 
 function testMemoryIsIndependentOfDays(tc)
+% categories: contract, speed
 % The whole point of the lazy loader: peak memory must NOT grow with the
 % campaign length. The accumulator holds only (nc+nl+1)^2 plus one arc.
     cfg    = tc.TestData.cfg;
@@ -157,6 +164,7 @@ function testMemoryIsIndependentOfDays(tc)
 end
 
 function testBatchSizeDoesNotChangeCostOrder(tc)
+% categories: speed
 % With a filter covariance, BatchSize should barely affect the runtime -- the
 % cost is O(m*p) either way. A strong dependence means the dense path is being
 % taken by mistake.
@@ -175,6 +183,7 @@ end
 
 %% ============================================ primitive cost
 function testLevinsonIsQuadratic(tc)
+% categories: speed
 % Levinson-Durbin is O(p^2). Doubling the order must roughly quadruple the
 % cost -- and stay far below the O(p^3) of a direct Yule-Walker solve.
     r = lsqvce.armaACV([1 -1.6 0.9 -0.25], 1, 401);
@@ -189,6 +198,7 @@ function testLevinsonIsQuadratic(tc)
 end
 
 function testPSD2ACVIsLinearInLags(tc)
+% categories: speed
     f = linspace(0, 0.1, 4096).';
     S = exp(-f/0.01);
 
@@ -201,6 +211,7 @@ end
 
 %% ============================================ realistic throughput
 function testRealisticArcThroughput(tc)
+% categories: speed
 % A sanity floor, deliberately loose so it cannot go flaky: one day of 5 s
 % data (17280 epochs) across 2 obs types must accumulate in reasonable time.
 % The purpose is to catch an accidental O(m^2) regression, not to benchmark.

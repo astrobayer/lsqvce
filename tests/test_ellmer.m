@@ -39,6 +39,7 @@ end
 
 %% ============================================ dctI: orthonormal DCT-I
 function test_dctI_ortho_is_self_inverse(tc)
+% categories: precision
     % The orthonormal type-I DCT is symmetric and self-inverse: X = X.', X*X = I.
     for N = [2 3 5 8 16 33]
         [~, X] = lsqvce.dctI(zeros(N,1));         % forward matrix
@@ -48,6 +49,7 @@ function test_dctI_ortho_is_self_inverse(tc)
 end
 
 function test_dctI_ortho_round_trip(tc)
+% categories: precision
     % ortho is self-inverse, so dctI(dctI(x)) == x with no Inverse flag.
     rng(1);
     x = randn(12, 4);
@@ -57,6 +59,7 @@ function test_dctI_ortho_round_trip(tc)
 end
 
 function test_dctI_row_in_row_out(tc)
+% categories: precision, vectorisation
     x = 1:6;
     y = lsqvce.dctI(x);
     verifyTrue(tc, isrow(y), 'a row input must give a row output');
@@ -64,6 +67,7 @@ function test_dctI_row_in_row_out(tc)
 end
 
 function test_dctI_ellmer_norm_invertible(tc)
+% categories: precision, reference
     % The Ellmer-literal normalisation is NOT orthonormal but is well conditioned
     % (cond ~ 1.5); its inverse round-trips via 'Inverse',true.
     rng(2);
@@ -76,6 +80,7 @@ function test_dctI_ellmer_norm_invertible(tc)
 end
 
 function test_dctI_ortho_vs_ellmer_differ_at_nyquist(tc)
+% categories: reference
     % The two normalisations differ only in the highest-frequency (Nyquist) bin.
     [~, Xo] = lsqvce.dctI(zeros(8,1), 'Norm', 'ortho');
     [~, Xe] = lsqvce.dctI(zeros(8,1), 'Norm', 'ellmer');
@@ -89,17 +94,20 @@ function test_dctI_ortho_vs_ellmer_differ_at_nyquist(tc)
 end
 
 function test_dctI_too_short_errors(tc)
+% categories: contract
     verifyError(tc, @() lsqvce.dctI(1), 'lsqvce:dctI:tooShort');
 end
 
 %% ============================================ covComponent: V_n banded apply
 function test_covComponent_n0_is_identity(tc)
+% categories: precision
     rng(3);
     x = randn(7, 2);
     verifyEqual(tc, lsqvce.covComponent(x, 0), x, 'AbsTol', 0);
 end
 
 function test_covComponent_matches_dense_Vn(tc)
+% categories: precision
     % The banded apply equals the explicit V_n * x for every lag.
     N = 6;
     rng(4);
@@ -112,6 +120,7 @@ function test_covComponent_matches_dense_Vn(tc)
 end
 
 function test_covComponent_sums_to_toeplitz(tc)
+% categories: precision, reference
     % sum_n c(n) V_n * x == toeplitz(c) * x  (Ellmer eq. 6.5.17).
     N = 8;
     rng(5);
@@ -125,6 +134,7 @@ function test_covComponent_sums_to_toeplitz(tc)
 end
 
 function test_covComponent_lag_too_large_errors(tc)
+% categories: contract
     verifyError(tc, @() lsqvce.covComponent(ones(4,1), 4), ...
         'lsqvce:covComponent:lagTooLarge');
     verifyError(tc, @() lsqvce.covComponent(ones(4,1), -1), ...
@@ -133,6 +143,7 @@ end
 
 %% ============================================ toeplitzCofactor
 function test_toeplitzCofactor_dense_is_toeplitz(tc)
+% categories: precision
     c = [1; 0.5; 0.2; 0.05];
     Q = lsqvce.toeplitzCofactor(c);
     verifyEqual(tc, Q, toeplitz(c), 'AbsTol', 1e-14);
@@ -140,6 +151,7 @@ function test_toeplitzCofactor_dense_is_toeplitz(tc)
 end
 
 function test_toeplitzCofactor_apply_matches_dense(tc)
+% categories: precision
     c = [1; 0.5; 0.2; 0.05; 0.01];
     q = lsqvce.toeplitzCofactor(c, 'Form', 'apply');
     rng(6);
@@ -148,6 +160,7 @@ function test_toeplitzCofactor_apply_matches_dense(tc)
 end
 
 function test_toeplitzCofactor_whitens_via_decorr(tc)
+% categories: precision
     % A valid PD autocovariance -> chol(Q)^-1 whitens: W Q W' = I.
     c = [1; 0.4; 0.1];               % clearly PD
     Q = lsqvce.toeplitzCofactor(c);
@@ -156,6 +169,7 @@ function test_toeplitzCofactor_whitens_via_decorr(tc)
 end
 
 function test_toeplitzCofactor_warns_on_bad_acv(tc)
+% categories: contract
     % |c(n)| > c(0) is not a valid autocovariance -> a warning (not an error).
     verifyWarning(tc, @() lsqvce.toeplitzCofactor([1; 2; 0.1]), ...
         'lsqvce:toeplitzCofactor:notACV');
@@ -163,6 +177,7 @@ end
 
 %% ============================================ Phase B: shared probe
 function test_sharedProbe_shapes_and_solve(tc)
+% categories: contract, precision
     % UiZ must satisfy U*UiZ == Zbar, and carry the documented shapes.
     rng(20);
     P = 5;  Z = 30;
@@ -177,6 +192,7 @@ function test_sharedProbe_shapes_and_solve(tc)
 end
 
 function test_sharedProbe_rademacher_normalisation(tc)
+% categories: precision
     % Zbar = raw/sqrt(Z) with raw entries +-1, so every entry is +-1/sqrt(Z).
     P = 4;  Z = 16;
     U = eye(P);
@@ -185,6 +201,7 @@ function test_sharedProbe_rademacher_normalisation(tc)
 end
 
 function test_sharedProbe_seed_reproducible(tc)
+% categories: precision | tags: provenance
     U = chol(eye(6)*2);
     a = lsqvce.sharedProbe(U, 'numProbes', 20, 'seed', 11);
     b = lsqvce.sharedProbe(U, 'numProbes', 20, 'seed', 11);
@@ -192,6 +209,7 @@ function test_sharedProbe_seed_reproducible(tc)
 end
 
 function test_sharedProbe_accepts_fixed_probes(tc)
+% categories: precision
     P = 3;  Z = 5;
     U = chol(eye(P)*3);
     raw = sign(randn(P,Z));  raw(raw==0) = 1;
@@ -200,12 +218,14 @@ function test_sharedProbe_accepts_fixed_probes(tc)
 end
 
 function test_sharedProbe_rejects_nonsquare(tc)
+% categories: contract
     verifyError(tc, @() lsqvce.sharedProbe(ones(3,4)), ...
         'lsqvce:sharedProbe:notSquare');
 end
 
 %% ============================================ Phase B: per-lag redundancy
 function test_redundancyLags_s_matches_dense_trace(tc)
+% categories: precision
     % The memory-honest sub-diagonal sums must equal trace(Rbar*V_n) exactly for
     % the SAME Rbar (this is an algebraic identity, not a Monte-Carlo question).
     [Abar, W, sp, ebar, N] = lagFixture(tc, 12, 4, 200);
@@ -219,6 +239,7 @@ function test_redundancyLags_s_matches_dense_trace(tc)
 end
 
 function test_redundancyLags_omega_matches_quadratic(tc)
+% categories: precision
     % Omega_n == etilde' V_n etilde, with etilde = Sigma^-1 ehat.
     [Abar, W, sp, ebar, N] = lagFixture(tc, 11, 3, 100);
     nLag = 5;
@@ -232,6 +253,7 @@ function test_redundancyLags_omega_matches_quadratic(tc)
 end
 
 function test_redundancyLags_Rbar_converges_to_exact(tc)
+% categories: precision
     % With many probes, Rbar -> Sigma^-1 - Sigma^-1 A N^-1 A' Sigma^-1.
     rng(31);
     N = 10;  P = 3;
@@ -249,6 +271,7 @@ function test_redundancyLags_Rbar_converges_to_exact(tc)
 end
 
 function test_redundancyLags_omega_skipped_when_no_residual(tc)
+% categories: robustness
     [Abar, W, sp, ~, ~] = lagFixture(tc, 8, 2, 50);
     r = lsqvce.redundancyLags(Abar, W, sp.UiZ, [], 4);
     verifyTrue(tc, all(isnan(r.omega)), 'empty ebar must give NaN omega');
@@ -256,6 +279,7 @@ function test_redundancyLags_omega_skipped_when_no_residual(tc)
 end
 
 function test_redundancyLags_rejects_bad_shapes(tc)
+% categories: contract
     [Abar, W, sp, ebar, ~] = lagFixture(tc, 9, 3, 40);
     verifyError(tc, @() lsqvce.redundancyLags(Abar, W(1:3,1:3), sp.UiZ, ebar, 3), ...
         'lsqvce:redundancyLags:badW');
@@ -271,6 +295,7 @@ end
 
 %% ============================================ Phase C: per-frequency PSD VCE
 function test_psdVCE_identity_when_omega_equals_s(tc)
+% categories: precision
     % If Omega == s then alpha2 == 1 at every frequency, so the PSD is unchanged:
     % the estimator is at a fixed point and reports convergence.
     rng(50);
@@ -283,6 +308,7 @@ function test_psdVCE_identity_when_omega_equals_s(tc)
 end
 
 function test_psdVCE_amplitudes_stay_positive(tc)
+% categories: contract
     % A PSD is non-negative by definition, whatever the inputs do.
     rng(51);
     N = 12;  M = 5;
@@ -293,6 +319,7 @@ function test_psdVCE_amplitudes_stay_positive(tc)
 end
 
 function test_psdVCE_covariance_may_go_negative(tc)
+% categories: reference
     % The POINT of estimating in the spectral domain: a positive PSD inverts to a
     % covariance function that is free to change sign (Ellmer eq. 6.5.19 note).
     N = 8;
@@ -303,6 +330,7 @@ function test_psdVCE_covariance_may_go_negative(tc)
 end
 
 function test_psdVCE_warns_on_degenerate_white_start(tc)
+% categories: contract, robustness
     % C = [1 0 0 ...] annihilates every lag n>0 in the weighting, so those lags
     % can never update: the iteration "converges" to the wrong PSD. Must warn.
     N = 8;  M = 3;
@@ -314,6 +342,7 @@ end
 
 %% ===================== WP-35: floor policy + negative-factor clamp (F-04/05)
 function test_psdVCE_zero_power_bin_floors_not_abs(tc)
+% categories: precision
     % F-04 pin: a bin whose pooled alpha2 is NEGATIVE must land ON the
     % MinAmplitude floor -- never at |alpha2|*Sprior (the abs fold injected
     % ~2x the power at zero-power bins, v10review T6). On the pre-WP-35
@@ -341,6 +370,7 @@ function test_psdVCE_zero_power_bin_floors_not_abs(tc)
 end
 
 function test_arcVarianceFactors_clamps_negative_sigma2(tc)
+% categories: contract
     % F-05 pin: a constructed negative alpha2 (one arc's Omega column
     % negative) must NOT leave as a negative variance factor: it is clamped
     % at ClampEps, warned about, and flagged in .clamped. Pre-WP-35 the
@@ -359,6 +389,7 @@ function test_arcVarianceFactors_clamps_negative_sigma2(tc)
 end
 
 function test_arcVarianceFactors_noop_on_healthy(tc)
+% categories: precision, reference
     % F-05 regression: on healthy input the clamp is a NO-OP -- .clamped is
     % all-false and sigma2 matches the closed formula gamma2 / gammaBar^2
     % (eqs. 6.5.28-6.5.30, plain mean) within summation-order ULPs; the
@@ -380,6 +411,7 @@ function test_arcVarianceFactors_noop_on_healthy(tc)
 end
 
 function test_psdVCE_degenerate_flag_and_override(tc)
+% categories: robustness
     N = 8;  M = 3;
     Cdelta = [1; zeros(N-1,1)];
     p = lsqvce.psdVCE(rand(N,M), rand(N,M), Cdelta, 'AllowDegenerate', true);
@@ -390,6 +422,7 @@ function test_psdVCE_degenerate_flag_and_override(tc)
 end
 
 function test_psdVCE_zero_frequency_rule(tc)
+% categories: contract, precision
     rng(52);
     N = 9;  M = 3;
     C  = [1; 0.35.^(1:N-1).'];
@@ -401,6 +434,7 @@ function test_psdVCE_zero_frequency_rule(tc)
 end
 
 function test_psdVCE_rejects_bad_shapes(tc)
+% categories: contract
     N = 6;
     C = [1; 0.2*ones(N-1,1)];
     verifyError(tc, @() lsqvce.psdVCE(rand(N-1,3), rand(N-1,3), C), ...
@@ -411,6 +445,7 @@ end
 
 %% ============================================ Phase D: arc-wise variance factors
 function test_arcVarianceFactors_plain_mean_normalises_to_one(tc)
+% categories: precision, reference
     % With the PLAIN mean (eq. 6.5.29) the mean of the arc FACTORS (not their
     % squares) is exactly 1 -- Ellmer's stated normalisation property.
     rng(60);
@@ -423,6 +458,7 @@ function test_arcVarianceFactors_plain_mean_normalises_to_one(tc)
 end
 
 function test_arcVarianceFactors_robust_resists_outliers(tc)
+% categories: contract
     % The robust central-half mean must sit below the outlier-inflated plain mean
     % (that is the entire reason GROOPS uses it).
     rng(61);
@@ -437,6 +473,7 @@ function test_arcVarianceFactors_robust_resists_outliers(tc)
 end
 
 function test_arcVarianceFactors_gamma_detour_shapes(tc)
+% categories: contract, precision
     rng(62);
     N = 7;  M = 9;
     sig2 = rand(M,1) + 0.5;
@@ -449,6 +486,7 @@ function test_arcVarianceFactors_gamma_detour_shapes(tc)
 end
 
 function test_arcVarianceFactors_small_M_falls_back(tc)
+% categories: robustness
     % With too few arcs to trim, the robust mean must degrade gracefully.
     rng(63);
     N = 5;
@@ -460,6 +498,7 @@ function test_arcVarianceFactors_small_M_falls_back(tc)
 end
 
 function test_arcVarianceFactors_rejects_arc_mismatch(tc)
+% categories: contract
     verifyError(tc, ...
         @() lsqvce.arcVarianceFactors(rand(5,3), rand(5,3), ones(4,1)), ...
         'lsqvce:arcVarianceFactors:arcMismatch');
@@ -467,6 +506,7 @@ end
 
 %% ============================================ Phase E: joint loop driver
 function test_adjustVCEjoint_runs_and_returns_shapes(tc)
+% categories: contract, robustness
     % End-to-end: the ten-step loop must run on a real accumulator and return a
     % PSD, a covariance function, and one variance factor per arc.
     cfg  = jointCfg();
@@ -483,6 +523,7 @@ function test_adjustVCEjoint_runs_and_returns_shapes(tc)
 end
 
 function test_adjustVCEjoint_history_grows_per_iteration(tc)
+% categories: contract, robustness
     cfg  = jointCfg();
     nLag = 6;
     r = lsqvce.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
@@ -495,6 +536,7 @@ function test_adjustVCEjoint_history_grows_per_iteration(tc)
 end
 
 function test_adjustVCEjoint_model_reaches_accFcn(tc)
+% categories: contract
     % The driver must hand the CURRENT model to accFcn each pass (steps 1-3),
     % so the caller can rebuild Sigma from it. containers.Map is a HANDLE, so
     % the closure below can record into it without a nested function.
@@ -512,6 +554,7 @@ function test_adjustVCEjoint_model_reaches_accFcn(tc)
 end
 
 function test_adjustVCEjoint_default_start_is_not_degenerate(tc)
+% categories: contract, robustness
     % The default C0 must NOT be a delta -- that start is a degenerate fixed
     % point of the weighting (see LSQVCE.PSDVCE). A delta start DOES warn; the
     % default must not.
@@ -525,6 +568,7 @@ function test_adjustVCEjoint_default_start_is_not_degenerate(tc)
 end
 
 function test_adjustVCEjoint_rejects_bad_C0(tc)
+% categories: contract
     cfg = jointCfg();
     verifyError(tc, ...
         @() lsqvce.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
@@ -534,17 +578,20 @@ end
 
 %% ============================================ vceMode flag on adjustVCE
 function test_vceMode_defaults_to_separate(tc)
+% categories: contract
     P = lsqvce.adjustVCE(modeSpec(), 1, 'verbose', false);
     verifyEqual(tc, P.vceMode, 'separate', ...
         'the alternating loop must remain the default');
 end
 
 function test_vceMode_constructor_flag(tc)
+% categories: contract
     P = lsqvce.adjustVCE(modeSpec(), 1, 'vceMode', 'joint', 'verbose', false);
     verifyEqual(tc, P.vceMode, 'joint');
 end
 
 function test_vceMode_rejects_unknown(tc)
+% categories: contract
     % WP-39 c2: the ctor's VceMode enum moved from inputParser to
     % mustBeMember -- the expected id follows the migration (b1-r3 rule).
     verifyError(tc, ...
@@ -553,6 +600,7 @@ function test_vceMode_rejects_unknown(tc)
 end
 
 function test_joint_fluent_switches_mode_and_sets_opts(tc)
+% categories: contract
     % .joint(...) both switches the mode and configures it, so no separate flag
     % is needed -- the call reads as the intent.
     P = lsqvce.adjustVCE(modeSpec(), 1, 'verbose', false);
@@ -564,6 +612,7 @@ function test_joint_fluent_switches_mode_and_sets_opts(tc)
 end
 
 function test_separate_fluent_switches_back(tc)
+% categories: contract
     P = lsqvce.adjustVCE(modeSpec(), 1, 'verbose', false);
     P = P.joint('numLags', 12);
     verifyEqual(tc, P.vceMode, 'joint');
@@ -575,6 +624,7 @@ function test_separate_fluent_switches_back(tc)
 end
 
 function test_joint_defaults_are_ellmer_values(tc)
+% categories: reference, robustness
     P = lsqvce.adjustVCE(modeSpec(), 1, 'verbose', false);
     verifyEqual(tc, P.jointOpt.Probes  , 100, 'Ellmer uses Z = 100');
     verifyEqual(tc, P.jointOpt.NumLags , 60);
@@ -586,6 +636,7 @@ end
 
 %% ============================================ jointModelOpt (accFcn contract)
 function test_jointModelOpt_takes_sqrt_of_variance(tc)
+% categories: precision
     % CONVENTION 1: model.sigma2 is a VARIANCE, a covariance spec's sigma is a
     % STANDARD DEVIATION. Getting this wrong does not error -- the VCE loop just
     % diverges -- so assert the sqrt explicitly.
@@ -597,6 +648,7 @@ function test_jointModelOpt_takes_sqrt_of_variance(tc)
 end
 
 function test_jointModelOpt_places_override_bySys(tc)
+% categories: contract
     % CONVENTION 2: loaders read opt.covOverride.bySys.(satKey).(obsType).
     model = struct('C', [1; 0.3], 'sigma2', [], 'iter', 1);
     uo = lsqvce.jointModelOpt(model, {'x1|posC', 'x2|rr'});
@@ -608,6 +660,7 @@ function test_jointModelOpt_places_override_bySys(tc)
 end
 
 function test_jointModelOpt_sets_psdMode_on_useropt(tc)
+% categories: contract
     % CONVENTION 3: psdMode is read from the UserOpt, NOT from the spec. It must
     % appear at the top level or covModel silently uses its 'ar' default.
     model = struct('C', [1; 0.2], 'sigma2', 1, 'iter', 1);
@@ -619,6 +672,7 @@ function test_jointModelOpt_sets_psdMode_on_useropt(tc)
 end
 
 function test_jointModelOpt_acf_reproduces_the_covariance(tc)
+% categories: precision
     % The handle must return c(|lag|) over a LAG MATRIX, and zero beyond the
     % modelled range -- that is how covModel's 'acf' type calls it.
     c = [1; 0.5; 0.2];
@@ -636,6 +690,7 @@ function test_jointModelOpt_acf_reproduces_the_covariance(tc)
 end
 
 function test_jointModelOpt_accepts_cell_streams(tc)
+% categories: contract
     model = struct('C', [1; 0.3], 'sigma2', 1, 'iter', 1);
     uo = lsqvce.jointModelOpt(model, {{1, 'pos'}});
     verifyTrue(tc, isfield(uo.covOverride.bySys, 'x1'), ...
@@ -643,6 +698,7 @@ function test_jointModelOpt_accepts_cell_streams(tc)
 end
 
 function test_jointModelOpt_rejects_bad_input(tc)
+% categories: contract
     verifyError(tc, @() lsqvce.jointModelOpt(struct('a',1), {'x1|pos'}), ...
         'lsqvce:jointModelOpt:badModel');
     verifyError(tc, @() lsqvce.jointModelOpt( ...
@@ -655,6 +711,7 @@ end
 
 %% ============================================ axis stride (epoch-major lags)
 function test_axis_pooling_recovers_temporal_law(tc)
+% categories: precision
     % REGRESSION GUARD for the joint sweep's axis stride.
     %
     % Rows of a d-axis stream are EPOCH-MAJOR (row = (epoch-1)*d + axis), so a
@@ -757,6 +814,7 @@ end
 
 %% =============================== WP-33: locals in residual + projector (F-03)
 function test_redundancyLags_local_block_matches_joint_inverse(tc)
+% categories: precision
     % Kernel exactness (spec: R_bar = Sig^-1 - Sig^-1 [A B] Njoint^-1 [A B]'
     % Sig^-1, realised with the leverage block identities, NO joint inverse).
     % Probe-limit check against the dense joint hat; mirrors v10review.py T3c.
@@ -801,6 +859,7 @@ function test_redundancyLags_local_block_matches_joint_inverse(tc)
 end
 
 function test_joint_alpha2_unity_at_truth_with_locals(tc)
+% categories: precision
     % THE accuracy assertion the suite lacked (F-03): on WHITE noise with
     % nl > 0, at the joint least-squares solution, pooled Omega_0/s_0 must be
     % ~1. The pieces are formed EXACTLY as the fixed drivers form them
@@ -854,6 +913,7 @@ end
 
 %% ======================= WP-37: structured Sigma^-1 sums, no dense W^-1 (F-09)
 function test_joint_signature_typed_arguments(tc)
+% categories: contract
     % WP-39 stage (a) (fails on the old code): adjustVCEjoint's typed
     % `arguments` block -- unknown names error, StepSchedule is a strict
     % member set, Probes must be a positive integer. Names were already
@@ -873,6 +933,7 @@ end
 
 %% =========================== WP-39 stage (a): typed-signature enforcement
 function test_stageB_signatures_psd_and_lags(tc)
+% categories: contract
     % WP-39 stage (b) (F-07): psdVCE's enum-value lever (specific
     % mustBeMember id) and redundancyLags' typed positionals.
     ok = false;
@@ -899,6 +960,7 @@ function test_stageB_signatures_psd_and_lags(tc)
 end
 
 function test_joint_signature_types_and_enum_values(tc)
+% categories: contract
     % WP-39 (F-07), corrected premise (round a1-2): NV names match
     % case-insensitively even under arguments; the enforced breaks are
     % enum VALUE casing (StepSchedule 'Decay' passed the old strcmpi,
@@ -929,6 +991,7 @@ function test_joint_signature_types_and_enum_values(tc)
 end
 
 function test_lags_structured_sums_match_dense_toeplitz(tc)
+% categories: precision
     % Agreement at 1e-12 (spec): the Levinson + Gohberg-Semencul path must
     % reproduce s_n from the dense reference X = W\eye(N) on the standing
     % TOEPLITZ fixture -- with probes AND locals engaged so every term of
@@ -961,6 +1024,7 @@ function test_lags_structured_sums_match_dense_toeplitz(tc)
 end
 
 function test_lags_structured_sums_match_dense_general(tc)
+% categories: precision
     % The NON-Toeplitz fallback (ring-streamed columns of W^-T): same 1e-12
     % agreement on a deliberately non-stationary covariance.
     rng(372);
@@ -988,6 +1052,7 @@ function test_lags_structured_sums_match_dense_general(tc)
 end
 
 function test_lags_long_arc_speed_no_cubic_term(tc)
+% categories: robustness, speed
     % Paragraph-6.1 SPEED lever: on a LONG Toeplitz arc the structured path
     % is O(N^2) -- the pre-WP-37 kernel materialised X = W\eye(N) (O(N^3)
     % work, O(N^2) memory) and blows the budget below by an order of
@@ -1012,6 +1077,7 @@ function test_lags_long_arc_speed_no_cubic_term(tc)
 end
 
 function test_redundancyLags_nl0_path_bitwise_unchanged(tc)
+% categories: robustness
     % Spec regression: with NO local columns the new machinery must be a
     % NO-OP -- bitwise: the nl = 0 branch keeps the pre-WP-33 expressions
     % verbatim, and an explicit empty LocalBbar routes to that same branch.
@@ -1024,6 +1090,7 @@ function test_redundancyLags_nl0_path_bitwise_unchanged(tc)
 end
 
 function test_adjustVCEjoint_flat_psd_on_white_noise_with_locals(tc)
+% categories: contract
     % Driver-level accuracy (spec 1 at the adjustVCEjoint level): on the
     % white (diag) fixture WITH nl = 2 locals the estimated PSD must stay
     % FLAT -- no arc-parameter signal folded into the "noise". Pre-WP-33 the
@@ -1039,6 +1106,7 @@ function test_adjustVCEjoint_flat_psd_on_white_noise_with_locals(tc)
 end
 
 function test_joint_stabilised_alternation_beats_collapse(tc)
+% categories: robustness
     % WP-40 r2 (F-15; fails on the old code: the options are unknown): the
     % closed-loop repro fixture (jointAccMapped, the F-15 vehicle) run WITH
     % 'StepSchedule','decay' + 'AvgTail',4 must stay far above the undamped
@@ -1071,6 +1139,7 @@ function test_joint_stabilised_alternation_beats_collapse(tc)
 end
 
 function test_joint_default_schedule_is_plain_step(tc)
+% categories: contract
     % Backward compatibility: 'StepSchedule','none' (the default) must be
     % BITWISE the old path -- one pass with and without the explicit default
     % options must agree exactly.
@@ -1087,6 +1156,7 @@ function test_joint_default_schedule_is_plain_step(tc)
 end
 
 function test_adjustVCEjoint_psd_recovery_coloured_with_locals(tc)
+% categories: robustness
     % WP-33 round 2, FINAL SHAPE (r2e; full measurement record in HANDOVER
     % §9 WP-33): an ACCURACY FLOOR for the whole coloured chain with local
     % parameters -- corr(Shat, Strue) > 0.85 at MaxIter 1 with the default
@@ -1117,6 +1187,7 @@ end
 
 %% ========================== WP-34: keyed arc identity in adjustVCEjoint (F-02)
 function test_joint_keyed_skip_keeps_factors_aligned(tc)
+% categories: precision, robustness
     % Spec test (a)+(b): induce a mid-run skip (one arc's covariance goes
     % non-PD on pass 2) and verify the factors stay ALIGNED BY KEY. Exact
     % assertions: the key sets are pinned and identical across runs; the
@@ -1162,6 +1233,7 @@ function test_joint_keyed_skip_keeps_factors_aligned(tc)
 end
 
 function test_joint_arc_mismatch_raises(tc)
+% categories: contract, reference, robustness
     % Spec test (c): an arc that VANISHES FROM THE ENUMERATION on pass 2 is
     % an identity error, not a skip -- arcMismatch, mirroring vce's
     % groupMismatch contract ("the loader must be deterministic").

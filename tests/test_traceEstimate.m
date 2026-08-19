@@ -45,6 +45,7 @@ end
 
 %% =================================================== unbiasedness
 function test_unbiased_over_many_seeds(tc)
+% categories: precision
     % E[estimate] = trace(M) exactly. Average over K independent probe sets;
     % the mean has standard error se_single/sqrt(K), so with K=400 and Z=100 the
     % mean is many sigma inside a 1% band for this well-conditioned matrix.
@@ -58,6 +59,7 @@ function test_unbiased_over_many_seeds(tc)
 end
 
 function test_single_estimate_within_error_band(tc)
+% categories: contract
     % A single estimate must lie within ~4 standard errors of the truth (that
     % band holds with overwhelming probability for a fixed seed).
     M = tc.TestData.M;  exactTr = tc.TestData.tr;
@@ -68,6 +70,7 @@ end
 
 %% =================================================== the estimator identity
 function test_matches_trace_of_ZbarMZbar(tc)
+% categories: precision
     % The returned scalar must EXACTLY equal trace(Zbar'*M*Zbar) for the probe
     % block it used (eq. 6.5.43), to floating-point. We reproduce the probe
     % block by passing it in explicitly.
@@ -81,6 +84,7 @@ function test_matches_trace_of_ZbarMZbar(tc)
 end
 
 function test_perProbe_mean_is_estimate(tc)
+% categories: precision
     % info.perProbe are the un-normalised z'Mz; their MEAN is the estimate.
     M = spd(50, 5);
     [t, info] = lsqvce.traceEstimate(M, 'NumProbes', 80, 'Seed', 9);
@@ -91,6 +95,7 @@ end
 
 %% =================================================== matrix-free path
 function test_matrixfree_equals_explicit(tc)
+% categories: precision
     % Passing M as an operator @(Z)->M*Z with the SAME probe block must give the
     % identical scalar as passing M explicitly with that probe block.
     M = spd(70, 21);  P = size(M,1);  Z = 64;
@@ -103,6 +108,7 @@ function test_matrixfree_equals_explicit(tc)
 end
 
 function test_matrixfree_needs_size(tc)
+% categories: contract
     % A function-handle M with no Probes and no Size must error clearly.
     threw = false;
     try
@@ -114,6 +120,7 @@ function test_matrixfree_needs_size(tc)
 end
 
 function test_shared_probes_reuse(tc)
+% categories: precision, reference
     % Ellmer's optimisation (eq. 6.5.48): form Ubar = U^-1 * Zbar with ONE
     % triangular solve against the global Cholesky factor U (N = U'*U), then
     % reuse it across several N_g to estimate tr(N^-1 N_g) = tr(Ubar' N_g Ubar),
@@ -140,6 +147,7 @@ end
 
 %% =================================================== error law
 function test_error_shrinks_like_one_over_sqrtZ(tc)
+% categories: contract
     % Doubling Z twice (x4) should roughly HALVE the reported standard error.
     % Compare Z and 4Z; the ratio se(Z)/se(4Z) should be ~2 (allow a wide band,
     % since se is itself a random estimate).
@@ -152,6 +160,7 @@ function test_error_shrinks_like_one_over_sqrtZ(tc)
 end
 
 function test_relse_reported(tc)
+% categories: precision
     M = tc.TestData.M;
     [t, info] = lsqvce.traceEstimate(M, 'NumProbes', 100, 'Seed', 2);
     verifyEqual(tc, info.relse, info.se / abs(t), 'AbsTol', 1e-12);
@@ -160,6 +169,7 @@ end
 
 %% =================================================== distributions
 function test_gaussian_also_unbiased(tc)
+% categories: precision
     % Gaussian probes are also unbiased (higher variance than Rademacher).
     M = tc.TestData.M;  exactTr = tc.TestData.tr;
     K = 400;  ests = zeros(1, K);
@@ -171,6 +181,7 @@ function test_gaussian_also_unbiased(tc)
 end
 
 function test_rademacher_beats_gaussian_variance(tc)
+% categories: contract
     % For a fixed Z, Rademacher has lower single-estimate variance than Gaussian
     % (equal diagonal weight, no self-term variance). Compare spread over seeds.
     M = tc.TestData.M;  K = 300;
@@ -185,6 +196,7 @@ end
 
 %% =================================================== validation & hygiene
 function test_rejects_nonsquare(tc)
+% categories: contract
     threw = false;
     try
         lsqvce.traceEstimate(randn(4,5));
@@ -195,6 +207,7 @@ function test_rejects_nonsquare(tc)
 end
 
 function test_operator_size_mismatch_caught(tc)
+% categories: contract
     % An operator that returns the wrong-sized block must be caught.
     threw = false;
     try
@@ -206,6 +219,7 @@ function test_operator_size_mismatch_caught(tc)
 end
 
 function test_seed_does_not_touch_global_rng(tc)
+% categories: contract
     % A seeded call must use a PRIVATE stream and leave the global RNG untouched,
     % so it never perturbs a caller's reproducible pipeline.
     rng(12345, 'twister');
@@ -221,6 +235,7 @@ function test_seed_does_not_touch_global_rng(tc)
 end
 
 function test_determinism_same_seed(tc)
+% categories: precision
     M = tc.TestData.M;
     t1 = lsqvce.traceEstimate(M, 'NumProbes', 100, 'Seed', 77);
     t2 = lsqvce.traceEstimate(M, 'NumProbes', 100, 'Seed', 77);
@@ -229,6 +244,7 @@ end
 
 %% =================================================== redundancy-seam identity
 function test_redundancy_seam_trNinvN_is_nc(tc)
+% categories: precision
     % The opt-in 'TraceMethod','hutchinson' path in LSQVCE.REDUNDANCY runs a
     % machinery check on the reduced common normal: it estimates tr(N^-1 N),
     % which is EXACTLY nc, using the same matrix-free operator the seam builds
@@ -249,6 +265,7 @@ end
 
 %% ================================ WP-36: one probe generator, honest RNG (F-06)
 function testDefaultSeedLeavesGlobalRNGUntouched(tc)
+% categories: robustness
     % THE F-06 lever (fails on the pre-fix code, which drew default-seeded
     % probes from -- and advanced -- the global stream): calling the probe
     % consumers with an EMPTY seed must leave the global RNG state
@@ -267,6 +284,7 @@ function testDefaultSeedLeavesGlobalRNGUntouched(tc)
 end
 
 function testSameSeedIdenticalProbesAcrossCallers(tc)
+% categories: precision
     % The one-generator contract: the SAME (n, Z, dist, seed) yields
     % BIT-IDENTICAL probes in every caller. Observable without reaching into
     % private scope: sharedProbe with U = I returns Zbar = raw/sqrt(Z), and

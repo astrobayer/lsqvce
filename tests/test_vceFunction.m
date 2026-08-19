@@ -20,6 +20,7 @@ end
 
 %% ===================================================== lsqvce.vce (the function)
 function testVceFunctionRecoversComponents(tc)
+% categories: precision
 % Call lsqvce.vce end to end. Two obsTypes with DIFFERENT true sigma; start
 % from a deliberately wrong (all-ones) weighting; the recovered ratio must
 % match the truth. Only the RATIO is identifiable (global sigma0 is free).
@@ -38,6 +39,7 @@ function testVceFunctionRecoversComponents(tc)
 end
 
 function testVceIdentityAtConvergence(tc)
+% categories: precision
 % At the fixed point the whitened per-group vtv/r must be ~1 (the update is a
 % no-op), and the global redundancy identity sum(r)=m-u must hold.
     cfg = tc.TestData.cfg;
@@ -57,6 +59,7 @@ function testVceIdentityAtConvergence(tc)
 end
 
 function testVceConvergesFast(tc)
+% categories: contract | tags: diagnostics
     cfg = tc.TestData.cfg;
     accFcn = @(sigma) buildVceAcc(cfg, 1:3, sigma);
     vc = lsqvce.vce(accFcn, 'GroupBy','obsType', 'Groups', {'pos','kbr'}, ...
@@ -67,6 +70,7 @@ end
 
 %% ============================================= lsqvce.diagnoseAccum (the bridge)
 function testFromAccumSolContract(tc)
+% categories: contract | tags: diagnostics
 % The bridge must return a sol carrying exactly the fields lsqvce.diagnose
 % needs, with the FULL parameter count and the redundancy identity.
     cfg = tc.TestData.cfg;
@@ -87,6 +91,7 @@ function testFromAccumSolContract(tc)
 end
 
 function testFromAccumCommonMatchesReduced(tc)
+% categories: precision | tags: diagnostics
 % The full block-arrow x the bridge builds must reproduce the Schur-reduced
 % common solution to machine precision (v7verify.py test 4).
     cfg = tc.TestData.cfg;
@@ -98,6 +103,7 @@ function testFromAccumCommonMatchesReduced(tc)
 end
 
 function testFromAccumBatchesReproduceNormals(tc)
+% categories: precision | tags: diagnostics
 % Streaming the bridge's batches through the normal equations must rebuild the
 % same full-width R (up to sign): N = R'R and sum(r_i) = n - u.
     cfg = tc.TestData.cfg;
@@ -127,6 +133,7 @@ function testFromAccumBatchesReproduceNormals(tc)
 end
 
 function testFromAccumRequiresKeepLocal(tc)
+% categories: contract | tags: diagnostics
 % Without KeepLocal the bridge cannot back-substitute the locals -> it must
 % error, not silently return a wrong full x.
     cfg = tc.TestData.cfg;

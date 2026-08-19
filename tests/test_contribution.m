@@ -44,6 +44,7 @@ end
 
 %% ===================================================== primitive invariants
 function test_stream_trace_sum_equals_nc(tc)
+% categories: precision
     % sum_g tr(N^-1 N_g^cc) = nc EXACTLY (up to probe noise), because the
     % symmetric per-group decomposition partitions N. Holds for any grouping.
     [acc, sol, cfg] = solvedProblem(tc);
@@ -55,6 +56,7 @@ function test_stream_trace_sum_equals_nc(tc)
 end
 
 function test_stream_diag_sums_to_ones(tc)
+% categories: contract, precision
     % sum_g diag(N^-1 N_g^cc) = ones(nc,1) EXACTLY on the shared probe block,
     % because the same probes are used for every group and sum_g N_g^cc = N.
     [acc, sol, cfg] = solvedProblem(tc);
@@ -72,6 +74,7 @@ function test_stream_diag_sums_to_ones(tc)
 end
 
 function test_stream_trace_matches_reference(tc)
+% categories: precision
     % The streamed per-group trace estimates the common-block redundancy. Check
     % each group is close to a high-probe reference streamed trace.
     [acc, sol, ~] = solvedProblem(tc);
@@ -90,6 +93,7 @@ function test_stream_trace_matches_reference(tc)
 end
 
 function test_stream_seed_reproducible(tc)
+% categories: precision | tags: provenance
     % Same seed => identical probes => identical estimates.
     [acc, sol, ~] = solvedProblem(tc);
     a = lsqvce.streamContribution(acc, sol, 'GroupBy','system', 'Probes',100, 'Seed',3);
@@ -99,6 +103,7 @@ function test_stream_seed_reproducible(tc)
 end
 
 function test_stream_requires_keeplocal(tc)
+% categories: contract
     % Without KeepLocal the per-system Schur handles are gone -> clear error.
     cfg = tc.TestData.cfg;
     acc = lsqvce.BlockAccumulator(cfg.nc, 'KeepLocal', false, 'Verbose', false);
@@ -110,6 +115,7 @@ end
 
 %% ===================================================== contribution() wrapper
 function test_contribution_level1_shares_sum_to_one(tc)
+% categories: precision, robustness
     [acc, sol, ~] = solvedProblem(tc);
     con = lsqvce.contribution(acc, sol, 'GroupBy', 'obsType', 'Level', 1);
     verifyEqual(tc, con.level, 1);
@@ -124,6 +130,7 @@ function test_contribution_level1_shares_sum_to_one(tc)
 end
 
 function test_contribution_level2_diagonal(tc)
+% categories: contract, precision, robustness
     [acc, sol, cfg] = solvedProblem(tc);
     con = lsqvce.contribution(acc, sol, 'GroupBy', 'system', 'Level', 2, ...
                               'Probes', 300, 'Seed', 5);
@@ -142,6 +149,7 @@ end
 
 %% ===================================================== vce hutchinson wiring
 function test_vce_hutchinson_matches_exact_sigma(tc)
+% categories: precision, robustness
     % The §1.1 wiring estimates the REDUNDANCY r_g = n_g - local_g -
     % tr(N^-1 N_g^cc) matrix-free (WP-32; only the cc-trace is stochastic);
     % vtv stays exact. The load-bearing property is that the streamed r_g
@@ -195,6 +203,7 @@ end
 
 %% ===================================== WP-32: streamed redundancy (F-01 fix)
 function test_streamed_redundancy_partitions_and_matches_exact(tc)
+% categories: precision
     % Spec tests (1)+(2) of WP-32 on the standing block-arrow fixture, with
     % obsType groups that CUT ACROSS every system (the general sub-system
     % split). (a) Parity: per group the streamed r must sit within 3x its own
@@ -234,6 +243,7 @@ function test_streamed_redundancy_partitions_and_matches_exact(tc)
 end
 
 function test_vce_hutchinson_regression_F01(tc)
+% categories: precision | tags: diagnostics
     % Spec test (3) + the v10review.py T2 port: this test FAILS on the
     % pre-WP-32 code, where 'hutchinson' divided by tr(N^-1 N_g^cc). There
     % (T2a/b/c, measured): sum_g denominator ~ nc = 6 instead of m-u
@@ -269,6 +279,7 @@ end
 
 %% ================================ WP-36: one probe generator, honest RNG (F-06)
 function test_stream_default_seed_global_rng_untouched(tc)
+% categories: robustness | tags: provenance
     % streamContribution's half of the F-06 invariance lever (the other
     % consumers are covered in test_traceEstimate): an EMPTY Seed must leave
     % the global RNG state bit-identical. Fails on the pre-fix code (probes
@@ -288,6 +299,7 @@ end
 
 %% ============================ WP-39 stage (b): typed-signature enforcement
 function test_stageB_signatures_contribution_family(tc)
+% categories: contract
     % WP-39 stage (b) (F-07): enum VALUES are the fails-on-old levers --
     % the a1-2 lesson says assert the SPECIFIC validator id
     % (MATLAB:validators:mustBeMember), which the old inputParser code
@@ -324,6 +336,7 @@ function test_stageB_signatures_contribution_family(tc)
 end
 
 function test_vce_freezeR_freezes_and_warns(tc)
+% categories: robustness
     % WP-40 (fixes F-10; fails on the old code, which had no 'freezeR' and
     % SILENTLY floored r_g to 1): with freezeR = Inf every group is below
     % the estimability threshold -- sigma must stay at its start BITWISE
@@ -344,6 +357,7 @@ function test_vce_freezeR_freezes_and_warns(tc)
 end
 
 function test_vce_hutchinson_final_reuses_loop_probes(tc)
+% categories: robustness
     % WP-36 in vce: an EMPTY TraceSeed is pinned once up front, exposed as
     % vc.traceSeedUsed, and a replay with that seed reproduces vc.r and
     % sigma BIT-IDENTICALLY -- the "final pass probes with the loop's Z"
@@ -417,6 +431,7 @@ end
 
 %% ============================================== the Results access point
 function test_results_contribution_matches_direct_call(tc)
+% categories: precision
     % R.contribution(...) must be exactly lsqvce.contribution(R.acc, R.sol, ...).
     % It exists because Level 2 is NOT run automatically at convergence -- it
     % costs an extra streamed sweep -- so the user has to ask for it, and asking
@@ -434,6 +449,7 @@ function test_results_contribution_matches_direct_call(tc)
 end
 
 function test_results_contribution_forwards_level2(tc)
+% categories: contract
     % The Name/Value pairs must reach lsqvce.contribution unchanged, or the
     % accessor would quietly cap the caller at Level 1.
     cfg = tc.TestData.cfg;

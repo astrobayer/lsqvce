@@ -32,6 +32,7 @@ end
 
 %% ===================================================== mapreduce (the layer)
 function testMapreduceSerialCollect(tc)
+% categories: contract
 % Without Reduce: a cell of per-task results, in task order.
     [out, info] = lsqvce.mapreduce(5, @(j) j^2, 'Mode', 'serial');
     tc.verifyEqual([out{:}], (1:5).^2);
@@ -39,6 +40,7 @@ function testMapreduceSerialCollect(tc)
 end
 
 function testMapreduceSerialOrderedReduce(tc)
+% categories: contract
 % With Reduce: identical to the hand-written loop, term for term.
     red = @(a, t) a + t;
     out = lsqvce.mapreduce(7, @(j) 1/j, 'Mode','serial', 'Reduce',red, 'Init',0);
@@ -48,6 +50,7 @@ function testMapreduceSerialOrderedReduce(tc)
 end
 
 function testMapreduceThresholdFallsBackToSerial(tc)
+% categories: robustness
 % A parallel request below the threshold must run serially and say why.
     [out, info] = lsqvce.mapreduce(3, @(j) j, 'Mode','parfor', 'Threshold',100);
     tc.verifyEqual([out{:}], 1:3);
@@ -56,6 +59,7 @@ function testMapreduceThresholdFallsBackToSerial(tc)
 end
 
 function testMapreduceSpmdWithoutCombineFallsBack(tc)
+% categories: robustness
 % 'spmd' without a Combine function cannot reduce on the workers.
     tc.assumeTrue(hasPCT(), 'Parallel Computing Toolbox not available');
     [~, info] = lsqvce.mapreduce(20, @(j) j, 'Mode','spmd', 'Threshold',1);
@@ -63,6 +67,7 @@ function testMapreduceSpmdWithoutCombineFallsBack(tc)
 end
 
 function testMapreduceParforMatchesSerial(tc)
+% categories: precision, robustness
     tc.assumeTrue(hasPCT(), 'Parallel Computing Toolbox not available');
     f = @(j) struct('v', sin(j) + j^2);
     red = @(a, t) a + t.v;
@@ -74,6 +79,7 @@ function testMapreduceParforMatchesSerial(tc)
 end
 
 function testMapreduceSpmdMatchesSerialToTolerance(tc)
+% categories: precision, robustness
 % spmd reduces on the workers: summation order differs, so tolerance, never
 % isequal (ROADMAP 3.5 caveat 2).
     tc.assumeTrue(hasPCT(), 'Parallel Computing Toolbox not available');
@@ -88,6 +94,7 @@ end
 
 %% ======================================================== addSystems
 function testAddSystemsEqualsSequentialAddSystem(tc)
+% categories: precision | tags: diagnostics
 % Same systems, same order: addSystems (serial) must reproduce the addSystem
 % loop. The merge is applied in input order, so this is tight.
     cfg  = tc.TestData.cfg;
@@ -110,6 +117,7 @@ function testAddSystemsEqualsSequentialAddSystem(tc)
 end
 
 function testAddSystemsRejectsDuplicates(tc)
+% categories: contract
     cfg = tc.TestData.cfg;
     acc = lsqvce.BlockAccumulator(cfg.nc, 'Verbose', false);
     sp  = specsFor(cfg, 1:2);
@@ -129,6 +137,7 @@ function testAddSystemsRejectsDuplicates(tc)
 end
 
 function testAddSystemsParforMatchesSerial(tc)
+% categories: precision, robustness
     tc.assumeTrue(hasPCT(), 'Parallel Computing Toolbox not available');
     cfg  = tc.TestData.cfg;
     days = 1:2;
@@ -148,6 +157,7 @@ end
 
 %% ================================================ redundancy, refactored
 function testRedundancyMatchesIndependentBruteForce(tc)
+% categories: precision, reference
 % The refactored task/reduce pass must reproduce a from-scratch reference
 % that never touches the accumulator internals: rebuild every system's
 % normals directly from the loader, form the leverage blocks, and sum
@@ -198,6 +208,7 @@ function testRedundancyMatchesIndependentBruteForce(tc)
 end
 
 function testRedundancyParforMatchesSerial(tc)
+% categories: precision, robustness
     tc.assumeTrue(hasPCT(), 'Parallel Computing Toolbox not available');
     cfg  = tc.TestData.cfg;
     days = 1:2;
@@ -219,6 +230,7 @@ function testRedundancyParforMatchesSerial(tc)
 end
 
 function testRedundancySpmdMatchesSerialToTolerance(tc)
+% categories: precision, robustness
     tc.assumeTrue(hasPCT(), 'Parallel Computing Toolbox not available');
     cfg  = tc.TestData.cfg;
     days = 1:2;
@@ -243,6 +255,7 @@ end
 
 %% ============================================== iterateNoiseModel (ROADMAP 2.3)
 function testPsdIterateConvergesFromWhiteStart(tc)
+% categories: precision
 % Start with the WRONG model (white assumed, AR(3) true): after iteration
 % sigma0 must be ~1 and the recovered model must match the TRUE ACV.
 %
@@ -280,6 +293,7 @@ function testPsdIterateConvergesFromWhiteStart(tc)
 end
 
 function testPsdIterateCorrectModelConvergesImmediately(tc)
+% categories: contract
     cfg  = tc.TestData.cfg;
     days = 1:3;
     accFcn = @(cov) buildWithCov(cfg, days, cov);
@@ -290,6 +304,7 @@ end
 
 %% ==================================== per-obsType quick-look (ROADMAP 2.4)
 function testResidualsPerObsTypeQuickLook(tc)
+% categories: precision | tags: diagnostics
     cfg  = tc.TestData.cfg;
     days = 1:3;
     acc = lsqvce.BlockAccumulator(cfg.nc, 'Verbose',false);
@@ -312,6 +327,7 @@ end
 
 %% ============================== dense-path boundary bias (ROADMAP 2.2)
 function testDensePathBoundaryBiasIsBenign(tc)
+% categories: precision
 % The measured 2.2 result, reproduced small: batching the DENSE path with NO
 % overlap does not bias the estimate -- each batch is whitened with its exact
 % marginal covariance, so only cross-batch information is lost. At b = 4L the
@@ -355,6 +371,7 @@ end
 
 %% ==================== day-distributed accumulation (v4.1, ROADMAP 3.2)
 function testMergeRawQREqualsFusedAdd(tc)
+% categories: precision
 % QRSystem.mergeRaw: two systems built separately then merged must equal one
 % system fed everything -- in N, n, ltl and m, NOT in R itself.
     rs = RandStream('mt19937ar', 'Seed', 21);
@@ -381,6 +398,7 @@ function testMergeRawQREqualsFusedAdd(tc)
 end
 
 function testMergeRawRejectsDimensionMismatch(tc)
+% categories: contract
     qa = lsqvce.QRSystem(4);  qb = lsqvce.QRSystem(5);
     tc.verifyError(@() qa.mergeRaw(qb), 'lsqvce:qr:badMerge');
     na = lsqvce.NormalEqSystem(4);  nb = lsqvce.NormalEqSystem(5);
@@ -388,6 +406,7 @@ function testMergeRawRejectsDimensionMismatch(tc)
 end
 
 function testDistributeDaysEqualsFusedSerial(tc)
+% categories: precision, robustness
 % 'DistributeDays' with Mode below the pool threshold runs the DISTRIBUTED
 % code path serially through mapreduce: per-day partials + mergeRaw, no PCT
 % needed. Must match the fused loop to the measured summation-order gap.
@@ -418,6 +437,7 @@ function testDistributeDaysEqualsFusedSerial(tc)
 end
 
 function testDistributeDaysResidualsStillReproduce(tc)
+% categories: precision, robustness
 % The second pass (residuals) re-runs the loader against the stored Schur
 % blocks. Those blocks now come from merged day partials -- sigma0 must still
 % reproduce, or the KeepLocal bookkeeping broke.
@@ -435,6 +455,7 @@ function testDistributeDaysResidualsStillReproduce(tc)
 end
 
 function testDistributeDaysParforMatchesSerial(tc)
+% categories: precision, robustness
     tc.assumeTrue(hasPCT(), 'Parallel Computing Toolbox not available');
     cfg  = tc.TestData.cfg;
     days = 1:4;
@@ -453,6 +474,7 @@ end
 
 %% ======================================== VAR path (v4.2, ROADMAP 3.1)
 function testVarACVYuleWalker(tc)
+% categories: precision, reference
 % Gamma(0) - sum A_k Gamma(k)' = Sigma and the lag recursion, exactly.
     [A, Sig] = stableVAR();
     p = size(A, 3);
@@ -472,11 +494,13 @@ function testVarACVYuleWalker(tc)
 end
 
 function testVarACVRejectsNonStationary(tc)
+% categories: contract
     A = zeros(2,2,1);  A(:,:,1) = 1.05*eye(2);
     tc.verifyError(@() lsqvce.varACV(A, eye(2), 5), 'lsqvce:varACV:notStationary');
 end
 
 function testWhittleRecoversGenerator(tc)
+% categories: precision, reference
 % Whittle on the exact ACV must return the generating (A_k, Sigma), and
 % overfitting must make the extra matrices vanish -- the order-sufficiency
 % signature.
@@ -493,6 +517,7 @@ function testWhittleRecoversGenerator(tc)
 end
 
 function testVarWhitenEqualsDenseDecorrelation(tc)
+% categories: precision
 % The matrix FIR + exact block startup against the dense route through the
 % factory's own Cfcn: identical normal equations.
     [A, Sig] = stableVAR();
@@ -514,6 +539,7 @@ function testVarWhitenEqualsDenseDecorrelation(tc)
 end
 
 function testVarGLSThroughAccumulatorBatched(tc)
+% categories: precision, robustness
 % End to end: VAR noise, 'var' model via the factory, TWO batches with the
 % automatic p*d-row overlap and epoch rounding (arc.nAxis). Batched must
 % equal whole-arc, and sigma0 ~ 1 under the true model.
@@ -554,6 +580,7 @@ end
 
 %% ================== spmd day distribution + prefetch (v4.2, ROADMAP 3.3)
 function testDistributeDaysSpmdMatchesSerial(tc)
+% categories: precision, robustness
     tc.assumeTrue(hasPCT(), 'Parallel Computing Toolbox not available');
     cfg  = tc.TestData.cfg;
     days = 1:4;
@@ -572,6 +599,7 @@ function testDistributeDaysSpmdMatchesSerial(tc)
 end
 
 function testPrefetchLoaderPassthroughIsExact(tc)
+% categories: contract
 % Disabled (and auto-disabled without a backgroundPool) the wrapper is a pure
 % passthrough: the accumulation through it must be BIT-identical.
     cfg  = tc.TestData.cfg;
@@ -592,6 +620,7 @@ function testPrefetchLoaderPassthroughIsExact(tc)
 end
 
 function testPrefetchLoadWholeDayMatchesDirectCalls(tc)
+% categories: robustness, vectorisation
 % The function that runs on the background worker, executed serially: its
 % cache must hold exactly what direct loader calls return.
     cfg = tc.TestData.cfg;
@@ -614,6 +643,7 @@ function testPrefetchLoadWholeDayMatchesDirectCalls(tc)
 end
 
 function testPrefetchServesFromCacheWhenPrimed(tc)
+% categories: precision
 % Simulate a harvested future by priming the cache path via loadWholeDay,
 % then verify hit/miss accounting and that a cold day falls through
 % correctly. Exercises fetch() logic without a pool.
@@ -635,6 +665,7 @@ function testPrefetchServesFromCacheWhenPrimed(tc)
     tc.verifyGreaterThan(pf.hits, 0);               % it actually prefetched
 end
 function testBackgroundPoolGuardAgreesWithUse(tc)
+% categories: robustness, vectorisation
 % §6.1 regression for the WP-30 postflight finding (2026-08-18): the guard
 % must agree with the ground truth - does CALLING backgroundPool work? The
 % old exist()-based guard said NO under `matlab -batch` while the call

@@ -47,6 +47,15 @@ function x = collectResiduals(res, satId, obsType, field)
     for iSys = 1:numel(res.sys)
         if ~isempty(satId) && ~isequal(res.sys(iSys).sysID, satId), continue, end
         arcObs = res.sys(iSys).obs;
+        % WP-43 (T-03a): the help text promises badRes for an ABSENT FIELD,
+        % but a missing field used to surface as a raw MATLAB:nonExistentField
+        % from the dynamic access below. The documented id is the contract;
+        % fire it here and name the offending field.
+        if ~isempty(arcObs) && ~isfield(arcObs, field)
+            error('lsqvce:collectResiduals:badRes', ...
+                  'the arcs carry no field ''%s'' (expected ''w'' or ''v'').', ...
+                  field);
+        end
         for iArc = 1:numel(arcObs)
             if strcmp(arcObs(iArc).obsType, obsType)
                 x = [x; arcObs(iArc).(field)(:)];         %#ok<AGROW>

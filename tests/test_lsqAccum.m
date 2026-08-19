@@ -42,6 +42,7 @@ end
 
 %% ---------------------------------------------------- signal-processing core
 function testPSD2ACVMatchesAnalyticAR(tc)
+% categories: precision, reference
 % PSD of a known AR(3) -> ACV must match the analytic ARMA ACV.
     a = [1 -1.6 0.9 -0.25];  s = 0.7;  dt = 5;
     r_ana = s^2 * lsqvce.armaACV(a, 1, 64);
@@ -53,6 +54,7 @@ function testPSD2ACVMatchesAnalyticAR(tc)
 end
 
 function testLevinsonRecoversAR(tc)
+% categories: precision
 % Levinson-Durbin on the exact ACV must return the generating coefficients.
     a = [1 -1.6 0.9 -0.25];  s = 0.7;
     r = s^2 * lsqvce.armaACV(a, 1, 8);
@@ -62,6 +64,7 @@ function testLevinsonRecoversAR(tc)
 end
 
 function testFilterEqualsCholeskyWhitening(tc)
+% categories: precision
 % THE key invariant: the FIR whitening filter and the dense Cholesky
 % decorrelation give the SAME Y'*Y (they differ by an orthogonal rotation).
     a = [1 -1.6 0.9 -0.25];  s = 0.7;  n = 300;
@@ -75,6 +78,7 @@ function testFilterEqualsCholeskyWhitening(tc)
 end
 
 function testARMAACVAgainstBruteForce(tc)
+% categories: precision, reference
 % ARMA ACV via the FFT/Wold expansion vs a direct long simulation moment.
     a = [1 -0.9];  b = [1 0.5];
     r = lsqvce.armaACV(a, b, 5);
@@ -88,6 +92,7 @@ end
 
 %% ---------------------------------------------------------- core estimation
 function testRecoversTruthWhiteNoise(tc)
+% categories: precision
     cfg = tc.TestData.cfg;
     cfg.cov.pos = struct('type','diag','sigma',0.05);
     cfg.cov.kbr = struct('type','diag','sigma',0.05);
@@ -96,6 +101,7 @@ function testRecoversTruthWhiteNoise(tc)
 end
 
 function testSigma0IsUnbiased(tc)
+% categories: precision
 % With a correctly specified covariance, sigma0 must be ~1.
     cfg = tc.TestData.cfg;
     sol = runIt(cfg, 1:5, 'Backend','qr', 'Verbose',false);
@@ -103,6 +109,7 @@ function testSigma0IsUnbiased(tc)
 end
 
 function testBackendsAgree(tc)
+% categories: precision
 % Well-conditioned problem: normal and QR must give the same answer.
     cfg = tc.TestData.cfg;
     s1 = runIt(cfg, 1:3, 'Backend','normal', 'Verbose',false);
@@ -112,6 +119,7 @@ function testBackendsAgree(tc)
 end
 
 function testPreeliminationEqualsJointSolve(tc)
+% categories: precision
 % Pre-elimination must be algebraically exact: the reduced solution equals
 % the monolithic joint solve for [x_c; y_1; y_2; y_3].
     cfg = tc.TestData.cfg;
@@ -125,6 +133,7 @@ function testPreeliminationEqualsJointSolve(tc)
 end
 
 function testBackSubstitutionRecoversLocals(tc)
+% categories: precision
     cfg = tc.TestData.cfg;
     days = 1:2;
     acc = lsqvce.BlockAccumulator(cfg.nc, 'Backend','qr', 'Verbose',false);
@@ -142,6 +151,7 @@ end
 
 %% -------------------------------------------------------------- batching
 function testBatchOverlapExactness(tc)
+% categories: vectorisation
 % Batching with overlap >= filter memory must reproduce the unbatched result.
 % With zero overlap the filter transient leaks in and the solution degrades.
     cfg = tc.TestData.cfg;
@@ -161,6 +171,7 @@ function testBatchOverlapExactness(tc)
 end
 
 function testAutoOverlapFromFilterMemory(tc)
+% categories: precision, vectorisation
 % With BatchOverlap unset, the loader's filterMemory must be picked up.
     cfg = tc.TestData.cfg;
     ref = runIt(cfg, 1:2, 'Backend','qr','BatchSize',1e9, 'Verbose',false);
@@ -169,6 +180,7 @@ function testAutoOverlapFromFilterMemory(tc)
 end
 
 function testBatchSizeInvariance(tc)
+% categories: precision, robustness, vectorisation
     cfg = tc.TestData.cfg;
     x = [];
     for bs = [50 137 400 1e9]
@@ -180,6 +192,7 @@ end
 
 %% ------------------------------------------------------ PSD -> AR pathway
 function testPSDModeMatchesToeplitz(tc)
+% categories: precision, vectorisation
 % The AR reduction of a PSD must give the same normals as the dense Toeplitz.
     cfg = tc.TestData.cfg;
     a = [1 -1.6 0.9 -0.25];  s = 0.7;  dt = cfg.dt;
@@ -200,6 +213,7 @@ function testPSDModeMatchesToeplitz(tc)
 end
 
 function testCheckPSD(tc)
+% categories: contract
     dt = 5;  a = [1 -1.6 0.9 -0.25];  s = 0.7;
     f = linspace(1e-9, 0.5/dt, 4096).';
     H = 1 ./ (exp(-1i*2*pi*f*dt*(0:3)) * a(:));
@@ -211,6 +225,7 @@ end
 
 %% ------------------------------------------- conditioning & regularisation
 function testQRBeatsNormalWhenIllConditioned(tc)
+% categories: robustness
 % QR avoids squaring the condition number. Measured on the backend in ISOLATION:
 % in the full pipeline the effect is masked once regularisation engages, because
 % then the regularisation sets the accuracy for both backends alike.
@@ -235,6 +250,7 @@ function testQRBeatsNormalWhenIllConditioned(tc)
 end
 
 function testDiagnosticsFlagIllConditioning(tc)
+% categories: robustness
     cfg = tc.TestData.cfg;
     cfg.collinear = true;  cfg.collinearEps = 1e-9;
     acc = lsqvce.BlockAccumulator(cfg.nc, 'Backend','qr','Verbose',false);
@@ -245,6 +261,7 @@ function testDiagnosticsFlagIllConditioning(tc)
 end
 
 function testTikhonovReducesLocalCondition(tc)
+% categories: robustness
     cfg = tc.TestData.cfg;
     cfg.collinear = true;  cfg.collinearEps = 1e-10;
     acc = lsqvce.BlockAccumulator(cfg.nc, 'Backend','qr', 'Reg','tikhonov', ...
@@ -256,6 +273,7 @@ function testTikhonovReducesLocalCondition(tc)
 end
 
 function testAutoRegSelectsByStatus(tc)
+% categories: robustness
     cfg = tc.TestData.cfg;
     % well conditioned -> no regularisation
     a1 = lsqvce.BlockAccumulator(cfg.nc,'Reg','auto','Verbose',false);
@@ -270,6 +288,7 @@ function testAutoRegSelectsByStatus(tc)
 end
 
 function testTSVDHandlesExactRankDeficiency(tc)
+% categories: robustness
 % Exactly duplicated local column -> singular Nll. TSVD must still solve.
     cfg = tc.TestData.cfg;
     cfg.collinear = true;  cfg.collinearEps = 0;      % exact duplication
@@ -282,6 +301,7 @@ end
 
 %% ----------------------------------------------------------------- residuals
 function testResidualsReproduceSigma0(tc)
+% categories: precision
 % The second pass must recompute exactly the same sigma0 as accumulation.
     cfg = tc.TestData.cfg;
     days = 1:3;
@@ -293,6 +313,7 @@ function testResidualsReproduceSigma0(tc)
 end
 
 function testResidualsAreWhite(tc)
+% categories: precision
 % With a correctly specified covariance the whitened residuals must have
 % unit variance and negligible lag-1 autocorrelation.
     cfg = tc.TestData.cfg;
@@ -308,6 +329,7 @@ function testResidualsAreWhite(tc)
 end
 
 function testLocalCovarianceIsPD(tc)
+% categories: precision
     cfg = tc.TestData.cfg;
     acc = lsqvce.BlockAccumulator(cfg.nc,'Backend','qr','Verbose',false);
     for s = cfg.sats, acc.addSystem(s, cfg.nl, binder(cfg,s), 1:2); end
@@ -319,6 +341,7 @@ end
 
 %% ---------------------------------------------------------------- plumbing
 function testUserOptReachesLoader(tc)
+% categories: contract
 % opt must be forwarded to the loader on every call.
     cfg = tc.TestData.cfg;
     seen = false;
@@ -339,6 +362,7 @@ function testUserOptReachesLoader(tc)
 end
 
 function testEmptyArcIsSkipped(tc)
+% categories: robustness, vectorisation
     cfg = tc.TestData.cfg;
     function out = gappy(d, ot, a, uo)
         out = lsqvce.synthLoader(cfg, 1, d, ot, a, uo);
@@ -387,6 +411,7 @@ end
 
 %% ============================================ verbosity is inherited, not reset
 function testResidualsInheritTheAccumulatorVerbosity(tc)
+% categories: robustness
     % REGRESSION GUARD (2026-07-18). LSQVCE.RESIDUALS defaults its own 'verbose'
     % to TRUE -- right for a direct call, wrong for one made THROUGH an
     % accumulator that was already told to be quiet. Because the forwarder did
@@ -412,6 +437,7 @@ function testResidualsInheritTheAccumulatorVerbosity(tc)
 end
 
 function testResidualsExplicitVerboseStillWins(tc)
+% categories: robustness
     % Inheriting must not take the choice away: an explicit 'Verbose' passed by
     % the caller overrides the accumulator's level in both directions.
     cfg  = baseCfg();

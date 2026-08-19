@@ -82,12 +82,14 @@ end
 
 %% ===================================================== construction
 function test_construct_defaults(tc)
+% categories: contract
     [P, ~] = makeVCEBuilder(tc);
     verifyClass(tc, P, 'lsqvce.adjustVCE');
     verifyEqual(tc, P.nc, tc.TestData.cfg.nc);
 end
 
 function test_construct_nc_is_derived(tc)
+% categories: contract
     % nc is no longer an argument: it comes from the loaders' 'commonParams'
     % parametrisation, so it can be stated only ONCE. Assert the derived value
     % matches the parametrisation the demo built.
@@ -98,6 +100,7 @@ function test_construct_nc_is_derived(tc)
 end
 
 function test_construct_without_systems_errors(tc)
+% categories: contract, robustness
     % With no systems there is nothing to derive nc from, and that must be a
     % clear error rather than a silent nc = 0.
     verifyError(tc, @() lsqvce.adjustVCE({}, 1, 'Verbose', false), ...
@@ -105,6 +108,7 @@ function test_construct_without_systems_errors(tc)
 end
 
 function test_fluent_returns_self(tc)
+% categories: contract
     [P, ~] = makeVCEBuilder(tc);
     q = P.groupComponentsBy('obsType').stochasticModel('MaxOrder', 20).varianceComponents('MaxIter', 4) ...
          .iteration('MaxOuter', 3);
@@ -116,6 +120,7 @@ end
 
 %% ===================================================== stream discovery
 function test_streams_via_history(tc)
+% categories: contract
     [P, cfg] = makeVCEBuilder(tc, 'MaxOuter', 1);
     R = P.run();
     nStream = numel(cfg.allObsTypes);     % posC, posD, rr (pair) + posE (indep)
@@ -124,6 +129,7 @@ function test_streams_via_history(tc)
 end
 
 function test_convergence_table_shape(tc)
+% categories: contract | tags: diagnostics
     % convergence() must return one row per outer pass with the documented
     % columns, and history must now carry per-pass whiteness p-values.
     [P, cfg] = makeVCEBuilder(tc, 'MaxOuter', 2); %#ok<ASGLU>
@@ -147,6 +153,7 @@ function test_convergence_table_shape(tc)
 end
 
 function test_convergence_errors_without_history(tc)
+% categories: contract, robustness | tags: diagnostics
     % Calling convergence on a RESULTS with no iterative history is an error.
     % Build a minimal valid Results (single-solve shape) whose history is empty.
     sol = struct('x', zeros(3,1), 'sigma0', 1);
@@ -158,6 +165,7 @@ function test_convergence_errors_without_history(tc)
 end
 
 function test_summary_is_per_stream(tc)
+% categories: contract, precision | tags: diagnostics
     % summary() is the COMPLEMENT of convergence(): one row per STREAM (reduced
     % across passes), where convergence() is one row per PASS (reduced across
     % streams). This test pins that shape difference -- it is the whole reason
@@ -196,6 +204,7 @@ end
 
 %% ===================================================== contribution share (Level 1)
 function test_contribution_history_shape(tc)
+% categories: contract
     % R.history.contribution is the Level-1 relative info share, one row per
     % outer pass, one column per VCE group -- same shape as .sigma, aligned to
     % .groups (so trajectories always line up for plotting).
@@ -209,6 +218,7 @@ function test_contribution_history_shape(tc)
 end
 
 function test_contribution_rows_sum_to_one(tc)
+% categories: precision, robustness
     % Each pass' finite shares sum to 1 (Sigma_g share_g = 1), and every entry
     % is a NaN or a fraction in [0,1]. NaN marks a group with no finite
     % redundancy -- it must not silently become 0.
@@ -229,6 +239,7 @@ function test_contribution_rows_sum_to_one(tc)
 end
 
 function test_contribution_matches_redundancy_share(tc)
+% categories: precision, robustness
     % The share is exactly r_g / sum_g r_g from the SAME vce/redundancy path.
     % Reproduce vc.r at the final weighting via a single vce call on the built
     % accumulator and confirm the last history row equals r/sum(r).
@@ -246,6 +257,7 @@ end
 
 %% ===================================================== joint mode, end to end
 function test_joint_mode_runs_end_to_end(tc)
+% categories: contract, reference, robustness
     % The joint branch of run() must EXECUTE, not merely be configurable. The
     % vceMode flag tests in test_ellmer only check option plumbing; this drives
     % the real loop on the demo fixture (a merged C/D pair sharing one local
@@ -261,6 +273,7 @@ function test_joint_mode_runs_end_to_end(tc)
 end
 
 function test_joint_gate_requires_settled_spectrum(tc)
+% categories: robustness
     % WP-40 (fixes F-12, gate half; fails on the old code): shapeStable
     % degenerates from pass 2 (constant nLag comparison), so the old gate
     % declared convergence once the FACTORS were balanced -- with the PSD
@@ -284,6 +297,7 @@ function test_joint_gate_requires_settled_spectrum(tc)
 end
 
 function test_joint_updates_every_stream(tc)
+% categories: contract
     % THE REGRESSION THIS EXISTS FOR: a stream whose arcs are all skipped is
     % left silently unmodelled while the others move, which biases the result.
     % Every discovered stream must receive an updated noise model each pass.
@@ -301,6 +315,7 @@ function test_joint_updates_every_stream(tc)
 end
 
 function test_joint_history_shapes(tc)
+% categories: contract, robustness
     % The joint pass fills the same history columns as the separable pass, so
     % downstream plots and convergence() keep working unchanged.
     [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 2);
@@ -317,6 +332,7 @@ function test_joint_history_shapes(tc)
 end
 
 function test_separate_mode_unaffected_by_joint_fields(tc)
+% categories: robustness
     % The default path must be untouched: joint history columns stay empty and
     % the AR shape still drives arOrder.
     [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 1);
@@ -329,6 +345,7 @@ end
 
 %% ===================================================== loader-contract additions
 function test_covOverride_bySys(tc)
+% categories: precision
     % A bySys override for the merged pair system (sysID 1) must rescale the
     % whitener. bySys is keyed by makeValidName(string(sysID)) -> 'x1'.
     [cfg, L] = demo_grace_dataLoader();
@@ -348,6 +365,7 @@ function test_covOverride_bySys(tc)
 end
 
 function test_covOverride_flat_backcompat(tc)
+% categories: contract
     % The old flat opt.covOverride.(obsType) form must still work.
     [cfg, L] = demo_grace_dataLoader();
     Lcd = L{1};
@@ -357,6 +375,7 @@ function test_covOverride_flat_backcompat(tc)
 end
 
 function test_epochCov_hook_carried(tc)
+% categories: contract
     hook = @(day, obsType) struct('day', day, 'obsType', obsType);
     cov.rr = struct('type','diag','sigma',1);
     L = lsqvce.makeLoader(@(d,ot) makeTinyDay(), 'observationTypes', {'rr'}, ...
@@ -368,6 +387,7 @@ end
 
 %% ===================================================== SCALE (VCE) recovers weights
 function test_scale_recovers_relative_weights(tc)
+% categories: precision
     % Truth: posC/posD/rr have distinct noise levels (0.8, 1.3, 1.6). Starting
     % from a-priori sigma = 1, the loop must recover the RELATIVE weighting
     % between streams -- the quantity that actually biases the gravity field.
@@ -391,6 +411,7 @@ end
 
 %% ===================================================== SHAPE whitens streams
 function test_shape_flags_white_rr(tc)
+% categories: robustness
     % rr is truly white; it should be declared white (AR order 0).
     [P, cfg] = makeVCEBuilder(tc, 'MaxOuter', 3);
     R = P.run();
@@ -403,6 +424,7 @@ end
 
 %% ===================================================== end-to-end result object
 function test_run_returns_results(tc)
+% categories: contract | tags: diagnostics
     [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 4);
     R = P.run();
     verifyClass(tc, R, 'lsqvce.Results');
@@ -413,6 +435,7 @@ function test_run_returns_results(tc)
 end
 
 function test_history_shapes(tc)
+% categories: contract
     [P, cfg] = makeVCEBuilder(tc, 'MaxOuter', 5);
     R = P.run();
     n = R.history.nOuter;
@@ -424,6 +447,7 @@ end
 
 %% ===================================================== grouping knob
 function test_groupComponentsBy_obsType_coarsens(tc)
+% categories: contract
     % obsType grouping keys on ALL obsTypes -> one component each.
     [P, cfg] = makeVCEBuilder(tc, 'MaxOuter', 2);
     P.groupComponentsBy('obsType');
@@ -432,6 +456,7 @@ function test_groupComponentsBy_obsType_coarsens(tc)
 end
 
 function test_independent_satellite_E(tc)
+% categories: contract
     % The demo now has a SECOND, independent system: satellite E, sysID 2, with
     % ONLY a 3-D position stream (posE) and its own local block. Check the loader
     % topology and that posE appears as its own stream/group end to end.
@@ -451,6 +476,7 @@ end
 
 %% ===================================================== separable covariance
 function test_covModel_separable_whitens(tc)
+% categories: contract, precision
     % A separable arc whitened by its own model must have ~unit-variance,
     % temporally white output. Build data as D (R_t kron I_3) D and check.
     d = 3;  nE = 400;  dt = 5;
@@ -475,6 +501,7 @@ function test_covModel_separable_whitens(tc)
 end
 
 function test_shape_emits_separable_for_positions(tc)
+% categories: contract
     % The position streams must end up on a 'separable' model; rr on diag/arma.
     [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 3);
     R = P.run();
@@ -491,6 +518,7 @@ end
 
 %% ===================================================== plot hooks
 function test_plot_hooks_fire(tc)
+% categories: contract
     % Attach recording postSolve/postModel hooks to the demo loaders and check
     % they FIRE per (system,obsType). The hook returns [] (so showExport is a
     % no-op, no figure needed) and records its ctx.stage/ctx.stream to a file.
@@ -531,6 +559,7 @@ function recordCtx(tmp, ctx)
 end
 
 function test_plot_ctx_schema_fields(tc)
+% categories: contract
     % The documented plot-hook context (schema 1) must carry the estimates and
     % their standard deviations, the common parametrisation labels and the
     % processingOptions on BOTH stages, and the estimated PSD/ACV/AR order on
@@ -594,6 +623,7 @@ end
 
 %% ===================================================== determinism
 function test_deterministic(tc)
+% categories: precision
     % TWO claims, and they need different fixtures.
     %
     % (1) THE SOLVE is deterministic: same loaders in, same estimate out. Both
@@ -616,6 +646,7 @@ end
 
 %% ===================================================== empirical stochastic modelling
 function test_esm_returns_results(tc)
+% categories: contract, robustness | tags: diagnostics
     % empiricalStochastic() must return the SAME kind of object run() does,
     % with the loop having executed (history populated).
     [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 3);
@@ -626,6 +657,7 @@ function test_esm_returns_results(tc)
 end
 
 function test_esm_matches_run(tc)
+% categories: precision | tags: diagnostics
     % empiricalStochastic() delegates the loop to run(), so on the deterministic
     % data the common-parameter solution must be identical.
     [P1, ~] = makeVCEBuilder(tc, 'MaxOuter', 3);
@@ -637,6 +669,7 @@ function test_esm_matches_run(tc)
 end
 
 function test_esm_attaches_validation(tc)
+% categories: contract | tags: diagnostics
     % With Validate true, R.history.empiricalStochastic must carry the acceptance evidence.
     [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 4);
     R = P.groupComponentsBy('obsType').empiricalStochastic('Report', false);
@@ -651,6 +684,7 @@ function test_esm_attaches_validation(tc)
 end
 
 function test_esm_no_validate(tc)
+% categories: contract | tags: diagnostics
     % Validate false -> no empiricalStochastic sub-struct, but the solve still returns.
     [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 3);
     R = P.groupComponentsBy('obsType').empiricalStochastic('Validate', false, 'Report', false);
@@ -659,6 +693,7 @@ function test_esm_no_validate(tc)
 end
 
 function test_validate_on_run_result(tc)
+% categories: contract, precision | tags: diagnostics
     % validate() must work standalone on a Results from run().
     [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 4);
     R = P.groupComponentsBy('obsType').run();
@@ -673,6 +708,7 @@ function test_validate_on_run_result(tc)
 end
 
 function test_validate_converged_accepts(tc)
+% categories: contract | tags: diagnostics
     % On the synthetic truth the loop converges, sigma0 ~ 1 and streams whiten,
     % so the verdict should ACCEPT the model.
     [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 6);
@@ -684,6 +720,7 @@ function test_validate_converged_accepts(tc)
 end
 
 function test_validate_rejects_non_results(tc)
+% categories: contract
     [P, ~] = makeVCEBuilder(tc);
     threw = false;
     try
@@ -695,6 +732,7 @@ function test_validate_rejects_non_results(tc)
 end
 
 function test_homogenise_warns_when_scalar_positions(tc)
+% categories: contract, robustness | tags: diagnostics
     % The step-0 homogenisation PREFLIGHT must warn when a multi-axis (3-D
     % position) stream carries NO fixed per-epoch D (no epochCov hook): the loop
     % would then whiten positions with a scalar sigma, not the separable model.
@@ -782,6 +820,7 @@ end
 % read the CAPTURED LOG TEXT back and assert on it.
 
 function testMessagingLevelZeroIsSilent(tc)
+% categories: contract, robustness | tags: diagnostics
     % Level 0 silences STATUS output. It does NOT silence warnings, and must
     % not: a run that failed to converge has to say so whatever the verbosity,
     % or a silent batch job hides its own failure. lsqvce.util.log.warn raises a
@@ -803,6 +842,7 @@ function testMessagingLevelZeroIsSilent(tc)
 end
 
 function testMessagingLevelOneShowsStagesAndConvergence(tc)
+% categories: contract | tags: diagnostics
     txt = captureRun(tc, 1);
     % The shape of the run: which stage the loop is in, and the verdict.
     verifyTrue(tc, contains(txt, 'Variance components'), 'stage label missing');
@@ -818,6 +858,7 @@ function testMessagingLevelOneShowsStagesAndConvergence(tc)
 end
 
 function testMessagingLevelOneWithholdsDetail(tc)
+% categories: contract | tags: diagnostics
     % Level 1 is the shape of the run. Per-day accumulation would repeat every
     % outer pass and bury the stage structure, so it belongs at level 2.
     txt = captureRun(tc, 1);
@@ -828,6 +869,7 @@ function testMessagingLevelOneWithholdsDetail(tc)
 end
 
 function testMessagingLevelTwoAddsStageDetail(tc)
+% categories: contract | tags: diagnostics
     txt = captureRun(tc, 2);
     verifyTrue(tc, contains(txt, 'Accumulate the normal matrix'), ...
         ['level 2 must show the per-day accumulation block -- this is the ' ...
@@ -838,6 +880,7 @@ function testMessagingLevelTwoAddsStageDetail(tc)
 end
 
 function testMessagingBlocksAllStartAtTheSameColumn(tc)
+% categories: robustness | tags: diagnostics
     % Stochastic model, Contribution, Convergence and Residuals must line up.
     % Residuals was the last hold-out: its title sat in the 21-character LABEL
     % COLUMN with 'vtv = ...' on the same line, and its rows were indented to
@@ -859,6 +902,7 @@ function testMessagingBlocksAllStartAtTheSameColumn(tc)
 end
 
 function testMessagingLevelTwoAddsPerGroupSigma(tc)
+% categories: contract | tags: diagnostics
     % The per-GROUP view differs from the per-stream table whenever several
     % streams share one component. It lived at level 3 until 2026-07-19.
     txt = captureRun(tc, 2);
@@ -866,6 +910,7 @@ function testMessagingLevelTwoAddsPerGroupSigma(tc)
 end
 
 function testMessagingLevelsAreCumulative(tc)
+% categories: contract | tags: diagnostics
     % THE PROPERTY WORTH PINNING. The levels are defined as cumulative, so
     % anything visible at level k must still be visible at every level above it.
     % An equality test anywhere in the engine (`v == 2` instead of `>= 2`) would
