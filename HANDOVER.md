@@ -227,7 +227,7 @@ order.**):
 | 37 | `redundancyLags` without dense W^-1 + hot-loop tolls (F-09) | — | DONE (2026-08-19, PR #8, merge 66ffb81; CI green FIRST pass 501/501 incl. the N=4000 speed lever; GS/Levinson validated in Python to 1e-14 pre-port; POSTFLIGHT DEBT; round note §9 WP-37) |
 | 38 | Deduplicate keys / arc batching + audit lock (F-08) | 33,36 | OPEN |
 | 39 | `arguments` blocks + Name-Value casing, whole surface (F-07) | 32–38,40,41 | OPEN |
-| 40 | Method polish: gates, clamps, whiteness (F-10…F-13; + F-15 alternation bistability, registered 2026-08-19) | 32 | IN PROGRESS — 2026-08-19 round 1 (F-10…F-13) on `claude/wp-40`, PR #9 (round note §9 WP-40); round 1 (F-10…F-13) DONE (PR #9, merge 736807d; F-13 deviation approved by merge). Round 2 (F-15) 2026-08-19 on `claude/wp-40-r2` (round note §9 WP-40); draft-PR loop; POSTFLIGHT DEBT |
+| 40 | Method polish: gates, clamps, whiteness (F-10…F-13; + F-15 alternation bistability) | 32 | DONE (2026-08-19, TWO rounds: r1 F-10…F-13 PR #9 merge 736807d, CI 505/505; r2 F-15 PR #10 merge 8ca16b9, CI 507/507 after six diagnosis rounds with the psd2acv-faithful mirror; ALL THREE r2 decisions ACCEPTED by the user 2026-08-19 — detailed in the DECISION RECORD below the round notes (§9 WP-40); POSTFLIGHT DEBT both rounds; round notes §9 WP-40) |
 | 41 | Documentation truth sweep (F-12, F-14) | 32,33,36,40 | OPEN |
 
 ---
@@ -2903,6 +2903,39 @@ wp33_loop_mirror.py docstring supersedes its old grids. USER DECISIONS
 at PR #10: (a) accept the honest bar + production guidance, (b) F-15
 severity under the new picture, (c) whether deeper method work
 (monotone/trust-region alternation) gets its own WP.
+
+**DECISION RECORD (2026-08-19, USER: "All open decisions accepted" —
+detailed here for later pickup, binding):**
+**(a) Honest bar + production guidance — ACCEPTED, now BINDING policy.**
+The closed-loop spectral VCE through the psd2acv declaration path is
+operated OPEN LOOP or with AT MOST 3 damped passes
+('StepSchedule','decay' + 'AvgTail' <= 4) in any production
+configuration; the stabilised-loop test contract is the
+DAMAGE-LIMITATION floor corr > 0.5 (undamped contrast ~0.18) and no
+session may raise it back toward an accuracy bar without new
+faithful-mirror evidence. The corrected StepSchedule/AvgTail help claims
+are the authoritative wording (WP-41's doc sweep must NOT "improve" them
+back).
+**(b) F-15 severity — ACCEPTED as UNDERSTOOD + GUIDED; F-15 CLOSES with
+WP-40.** The pathology is real (bistable/counterproductive closed loop),
+the mechanism is measured (declaration-path feedback; six exonerated
+suspects listed in the §8 disposition + round notes), the mitigation
+limits damage, and the pinned guidance avoids the regime. §8 keeps the
+full record; no open finding remains under F-15.
+**(c) Deeper method work — ACCEPTED as a BACKLOG entry, NOT scheduled:**
+**WP-42 (BACKLOG, user-approved 2026-08-19 for later pickup):
+monotone/trust-region alternation.** Scope sketch: replace the
+multiplicative alpha2 step by a monotone-descent or trust-region update
+of the declared spectrum (candidates: line search on the whitened-domain
+negative log-likelihood; a KL/Itakura-Saito trust region per pass);
+INSTRUMENT: the psd2acv-FAITHFUL mirror kernel (wp33_loop_mirror.py, r6)
+is the mandatory pre-port evidence tool; ENTRY CRITERIA: a production
+need for closed-loop operation (e.g. arcs too heterogeneous for one
+open-loop pass) or a research interest in beating the open-loop 0.96
+reference; SUCCESS CRITERIA: faithful-mirror P(corr < open-loop-quality)
+materially reduced across the 8x96 and 16x256 grids, THEN the MATLAB
+port. Until picked up, the row lives here — deliberately NOT in the R2
+ledger (the R2 track closes with 38/41/39).
 
 ### WP-41 — Documentation truth sweep
 
