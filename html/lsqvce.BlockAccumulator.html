@@ -40,6 +40,221 @@ a { color: #0b5ea8; }
           font-size: 12px; color: #888; }
 </style></head>
 <body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.BlockAccumulator</div>
 <h1>lsqvce.BlockAccumulator</h1>
-<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+<div class="purpose">Batched least squares with per-system pre-elimination.</div>
+<h2>Description</h2>
+<pre class="example">Solves the multi-system adjustment
+
+    l_s = A_s*x_c + B_s*y_s + v_s ,      C{v_s} = sigma0^2 * Q_s
+
+where x_c are COMMON parameters shared by every system (gravity field
+coefficients, ...) and y_s are LOCAL parameters specific to system s
+(accelerometer bias and scale, ambiguities, ...). The local parameters are
+pre-eliminated by Schur complement after each system, so the global normal
+matrix stays nc x nc no matter how many systems or local parameters exist.
+
+Data arrive through a lazy callback. Nothing is precomputed and nothing is
+retained: peak memory is one arc of (A,B,l) plus one batch covariance.
+
+CONSTRUCTOR
+  acc = LSQVCE.BLOCKACCUMULATOR(nc, &#x27;Name&#x27;, value, ...)</pre>
+<h3>Options</h3>
+<pre class="example">  &#x27;Backend&#x27;      &#x27;qr&#x27; (default) | &#x27;normal&#x27;
+                 &#x27;qr&#x27; keeps cond(A); &#x27;normal&#x27; squares it. Use &#x27;qr&#x27; unless
+                 you have measured that the conditioning is benign.
+  &#x27;BatchSize&#x27;    max observation rows per batch (default 20000)
+                 With a filter covariance the cost is O(m*p), so this can
+                 be the whole arc. With a dense covariance it is O(b^3):
+                 b = 5000 is already a 200 MB matrix and ~40 GFLOP.
+  &#x27;BatchOverlap&#x27; rows of overlap between batches (default [] = auto)
+                 Leave empty. The accumulator then reads arc.filterMemory
+                 from the loader, which LSQVCE.COVMODELFACTORY sets. Forcing
+                 it to 0 with a filter covariance costs ~12 orders of
+                 magnitude of accuracy. See BATCH OVERLAP below.
+  &#x27;Reg&#x27;          &#x27;none&#x27; (default) | &#x27;tikhonov&#x27; | &#x27;tsvd&#x27; | &#x27;lm&#x27; | &#x27;auto&#x27;
+                 Regularisation of the LOCAL block, applied before the
+                 Schur complement. See LSQVCE.APPLYREGULARISATION.
+  &#x27;RegLambda&#x27;    Tikhonov/LM weight; 0 with &#x27;tikhonov&#x27; triggers GCV.
+  &#x27;RegMatrix&#x27;    L in lambda*||L*y||^2 (default identity).
+  &#x27;TruncTol&#x27;     rank tolerance relative to lambda_max (default 1e-10)
+  &#x27;CondWarn&#x27;     cond(Nll) above this -&gt; &#x27;ill-conditioned&#x27; (default 1e8)
+  &#x27;CondAbort&#x27;    cond(Nll) above this -&gt; &#x27;rank-deficient&#x27;  (default 1e14)
+  &#x27;KeepLocal&#x27;    keep the Schur blocks so the local parameters can be
+                 recovered and residuals computed (default true)
+  &#x27;Verbose&#x27;      print one line per system (default true)
+  &#x27;Parallel&#x27;     &#x27;serial&#x27; (default) | &#x27;parfor&#x27; | &#x27;spmd&#x27;
+                 Execution strategy for addSystems and for the
+                 redundancy/VCE data pass (LSQVCE.REDUNDANCY, LSQVCE.VCE).
+                 &#x27;serial&#x27; is the tested reference. See PARALLELISM below.
+  &#x27;ParallelThreshold&#x27;  minimum task count before a parallel schedule is
+                 used (default 8); below it, pool overhead loses.
+  &#x27;DistributeDays&#x27;  false (default). With true and &#x27;Parallel&#x27; active,
+                 addSystem distributes the accumulation over DAYS: one raw
+                 partial system per day, merged in day order. This is the
+                 right axis for few-systems / many-days campaigns
+                 (GRACE-FO: 2 satellites, hundreds of days), where the
+                 addSystems ceiling (= nSys) is useless. The QR backend
+                 merges compressed triangular factors directly -- no
+                 normal-form detour, the conditioning advantage survives
+                 (validation/v5verify.py). addSystems disables it inside
+                 its workers: system-level OR day-level, never nested.
+  &#x27;UserOpt&#x27;      struct forwarded verbatim to every loader call
+
+METHODS
+  addSystem(sysID, nl, dataFcn, dayList)   accumulate and pre-eliminate
+  addSystems(specs)                        several systems, parallelisable
+  sol = solve()                            solve for the common parameters
+  y   = backSubstitute(sysID, x)           recover one system&#x27;s locals
+  Cyy = localCovariance(sysID, Cxx)        their covariance
+  res = residuals(sol, ...)                second pass over the data
+  tbl = report()                           per-system diagnostics table</pre>
+<h3>The Loader Contract</h3>
+<pre class="example">dataFcn is called with exactly two signatures:
+
+  meta = dataFcn(&#x27;meta&#x27;, day, [], opt)
+    .obsTypes  {1 x nOT} cellstr, e.g. {&#x27;pos&#x27;,&#x27;kbr&#x27;}
+    .arcs      {1 x nOT} cell, arcs{k} = arc IDs for obs type k
+
+  arc = dataFcn(day, obsType, arcID, opt)
+    .A             m x nc   common design
+    .B             m x nl   local design
+    .l             m x 1    observed minus computed
+    .t             m x 1    epochs (optional)
+    .Wfcn          @(idx,A,B,l,opt) -&gt; whitened A,B,l   (preferred)
+    .Cfcn          @(idx,opt) -&gt; dense batch covariance (fallback)
+    .filterMemory  required BatchOverlap (set by LSQVCE.COVMODELFACTORY)
+
+The accumulator visits day -&gt; obsType -&gt; arc and releases each arc
+immediately. Return an empty arc (l = []) for a data gap; it is skipped.
+
+opt carries UserOpt plus the injected context sysID, nc, nl, day,
+obsType, arc, BatchSize. Put STATIC loader state (paths, sensor
+parameters, covariance specs) in a cfg struct captured by the closure,
+not in opt.</pre>
+<h3>Why The Loader Is A Callback</h3>
+<pre class="example">  A day of GRACE-FO data across several observation types does not fit in
+  memory alongside its covariance, and a whole campaign certainly does not.
+  The callback lets the accumulator pull one arc at a time. If even a
+  single day of A is too large, make the loader arc-aware and build only
+  the rows of the requested arc.
+
+BATCH OVERLAP -- THE ONE THING TO GET RIGHT
+  A whitening filter restarts its state at every batch, so the first p rows
+  of each batch are transient. Overlapping by the filter memory p and
+  discarding the overlap makes the batched result identical to filtering
+  the whole arc. Measured (AR(3) noise, BatchSize = 100):
+
+      BatchOverlap = p (auto) -&gt;  1.6e-15  relative error
+      BatchOverlap = 0        -&gt;  1.3e-03  relative error
+
+  A factor of 1e12, and it fails silently. Leave &#x27;BatchOverlap&#x27; unset.
+
+PARALLELISM -- WHERE IT PAYS AND WHERE IT DOES NOT
+  The block-arrow structure makes the key quantities SUMS of independent
+  per-arc / per-system contributions -- a clean reduction, no
+  approximation (proven in validation/v4verify.py). Two places pay:
+
+    * The redundancy / VCE data pass (LSQVCE.REDUNDANCY), parallel over
+      arcs. This is where the hours go at global SH scale: ~4 h/iter at
+      d/o 90 serial; with 16 workers plausibly 30-40 min. Build your
+      workflow around parallelising THIS.
+    * addSystems, parallel over systems. Ceiling = number of systems
+      (2 for GRACE-FO) -- a rounding error next to the redundancy pass.
+    * addSystem with &#x27;DistributeDays&#x27;: parallel over days WITHIN a
+      system, one raw partial per day merged in day order (v4.1). The
+      axis that actually scales for a 2-satellite mission over months.
+      Day-partial grouping changes the summation order vs the fused
+      loop: agreement to ~1e-13 relative, not bit-identical
+      (measured, v5verify.py tests 2 and 6).
+
+  Deliberately NOT parallelised:
+    * batches within an arc: the filter overlap couples them; sequential
+      by construction.
+    * the dense chol/qr/\ of the reduced normals: already multithreaded
+      by BLAS/LAPACK. A parfor there would fight the BLAS threads.
+
+  &#x27;serial&#x27; and &#x27;parfor&#x27; reduce in the SAME order (per-task partials,
+  combined on the client in task order), so they differ only through
+  multithreaded-BLAS rounding inside a task. &#x27;spmd&#x27; reduces on the
+  workers and matches serial to ~1e-10 relative, not bit-identical --
+  regression tests against it need a tolerance, never isequal.
+
+REGULARISATION BIASES THE COMMON BLOCK
+  Pre-elimination forms Ncc - Nlc&#x27;*inv(Nll)*Nlc, so any bias introduced
+  into inv(Nll) propagates into x_c. Damping the local block is NOT a free
+  way to dispose of a nuisance parameter. If a local parameter is
+  inestimable by construction, remove it. LSQVCE.LOCALDIAGNOSTICS returns
+  .nullDir, the combination the data does not constrain.</pre>
+<h3>Example</h3>
+<pre class="example">nc = 12;  nl = 6;  days = 1:30;
+
+opt = struct(&#x27;psdMode&#x27;,&#x27;ar&#x27;, &#x27;arOrder&#x27;,40);
+acc = lsqvce.BlockAccumulator(nc, ...
+        &#x27;Backend&#x27;,&#x27;qr&#x27;, &#x27;BatchSize&#x27;,20000, &#x27;Reg&#x27;,&#x27;auto&#x27;, &#x27;UserOpt&#x27;,opt);
+
+for s = [1 2]
+    loader = @(d,ot,a,uo) myLoader(cfg, s, d, ot, a, uo);
+    acc.addSystem(s, nl, loader, days);
+end
+
+sol = acc.solve();                     % common parameters
+y   = acc.backSubstitute(1, sol.x);    % satellite 1 bias / scale
+res = acc.residuals(sol);              % second pass
+disp(acc.report())
+
+lsqvce.util.log.msg(&#x27;sigma0 = %.4f (want ~1)\n&#x27;, sol.sigma0);</pre>
+<h3>Errors</h3>
+<pre class="example">  The system declaration is wrong (raised at construction)
+    lsqvce:accum:noSystems        no system specs at all
+    lsqvce:accum:badSpecs         a spec is not a struct with the required
+                                  fields
+    lsqvce:accum:duplicateSystem  two systems share a sysID; ids must be
+                                  unique and numeric or a SINGLE char
+    lsqvce:accum:badLoader        a spec&#x27;s loader is not a function handle
+    lsqvce:accum:noArcs           a system declares no arcs
+    lsqvce:accum:noDays           no day list and none derivable
+    lsqvce:accum:badMeta          the loader&#x27;s meta() returned the wrong shape
+    lsqvce:accum:metaMismatch     meta() disagrees with the spec (obsTypes
+                                  or arc count)
+    lsqvce:accum:badThresholds    a conditioning threshold is not a positive
+                                  scalar
+
+  A day returned by YOUR buildDay does not fit the declaration
+    lsqvce:accum:badArc           an arc index is outside 1..nArc
+    lsqvce:accum:arcBadNc         the arc&#x27;s A has the wrong column count
+    lsqvce:accum:arcBadNl         the arc&#x27;s B has the wrong column count
+    lsqvce:accum:arcRowMismatch   A, B and l disagree on their row count
+    lsqvce:accum:arcNotFinite     the arc carries NaN or Inf
+    lsqvce:accum:notWholeEpochs   a multi-axis arc does not contain whole
+                                  epochs: rows MUST be epoch-major and the
+                                  arc must set nAxis = d
+
+  The regularisation prior is malformed
+    lsqvce:accum:badPrior         the prior is not a struct of the expected
+                                  shape
+    lsqvce:accum:priorSize        its dimension disagrees with nc
+    lsqvce:accum:priorNotPD       the prior covariance is not positive
+                                  definite
+
+  Asked for something the accumulator does not have
+    lsqvce:accum:noStore          residuals or diagnostics were requested but
+                                  nothing was retained (&#x27;store&#x27;,&#x27;none&#x27;)
+    lsqvce:accum:unknownSystem    no system carries the requested sysID
+    lsqvce:accum:badX             the estimate handed back has the wrong length
+    lsqvce:accum:badCxx           likewise for the covariance
+    lsqvce:accum:localNotRedundant  an arc&#x27;s local block has no redundancy,
+                                  so its variance factor is undefined
+
+Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (c) c2 (F-07):
+typed `arguments` signatures, canonical UpperCamelCase option names
+(legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+case-sensitive lowercase). With assistance from Claude (Anthropic),
+model Claude Fable 5.
+See also LSQVCE.COVMODELFACTORY, LSQVCE.RESIDUALS, LSQVCE.CHECKPSD, LSQVCE.QRSYSTEM
+
+Generated with assistance from Claude (Anthropic), model Claude
+Opus 4.8.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

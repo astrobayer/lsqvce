@@ -43,59 +43,68 @@ a { color: #0b5ea8; }
 <div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.Results</div>
 <h1>lsqvce.Results</h1>
 <div class="purpose">The outcome of a recovery: solution, diagnostics, provenance.</div>
-<h2>Syntax</h2>
-<pre class="syntax">R = lsqvce.Results(sol, D, acc, diagSol, batchFcn, nBatch, systems)</pre>
 <h2>Description</h2>
-<p>Returned by <a href="lsqvce.adjustBlock.html">lsqvce.adjustBlock</a> (and, later,
-<code>lsqvce.adjustVCE</code>). It gathers everything a user needs to
-read and judge an adjustment in one object, and keeps the lower layers reachable
-for experts. You rarely construct it yourself; you receive it from recover and
-call <code>R.report()</code>.</p>
-<h2>Properties (read-only)</h2>
-<table>
-<tr><th>Name</th><th>Type / size</th><th>Description</th></tr>
-<tr><td class="name">x</td><td>nc&times;1 double</td><td>Common-parameter estimate (the field).</td></tr>
-<tr><td class="name">sigma0</td><td>1&times;1 double</td><td>A-posteriori variance factor (global).</td></tr>
-<tr><td class="name">converged</td><td>1&times;1 logical</td><td>Did the pipeline converge? (true for a single solve.)</td></tr>
-<tr><td class="name">diag</td><td>1&times;1 struct</td><td>Per-observation diagnostics from <a href="lsqvce.diagnose.html">lsqvce.diagnose</a>.</td></tr>
-<tr><td class="name">history</td><td>1&times;I struct</td><td>Per-iteration record (empty for a single solve).</td></tr>
-<tr><td class="name">noise</td><td>1&times;1 struct</td><td>Fitted noise models per stream (empty until the VCE loop fills it).</td></tr>
-<tr><td class="name">sol</td><td>1&times;1 struct</td><td>Raw output of <code>acc.solve()</code>.</td></tr>
-<tr><td class="name">acc</td><td>1&times;1 <a href="lsqvce.BlockAccumulator.html">lsqvce.BlockAccumulator</a></td><td>The accumulator (re-solve, inspect blocks, get residuals).</td></tr>
-<tr><td class="name">source</td><td>1&times;1 struct</td><td>Bridged solution from <a href="lsqvce.diagnoseAccum.html">lsqvce.diagnoseAccum</a>.</td></tr>
-<tr><td class="name">batchFcn</td><td>1&times;1 function_handle</td><td>Re-reader used by <a href="lsqvce.diagnose.html">lsqvce.diagnose</a>.</td></tr>
-<tr><td class="name">nBatch</td><td>1&times;1 double</td><td>Batch count from the bridge.</td></tr>
-<tr><td class="name">systems</td><td>1&times;M struct</td><td>The resolved system specs (sysID/nl/dayList).</td></tr>
-</table>
-<h2>Methods</h2>
-<table>
-<tr><th>Call</th><th>Returns</th></tr>
-<tr><td class="name">R.report(Name,Value,...)</td><td>Print/return the level-0..4 verdict (<a href="lsqvce.report.html">lsqvce.report</a>); options pass through (e.g. <code>'verbose'</code>, <code>'width'</code>).</td></tr>
-<tr><td class="name">R.redundancy()</td><td>Total redundancy sum(r_i) = n &minus; u.</td></tr>
-<tr><td class="name">R.residuals(Name,Value)</td><td>Whitened/raw residuals (<code>acc.residuals</code>).</td></tr>
-<tr><td class="name">R.contribution(Name,Value)</td><td>Per-group information share of this solution.</td></tr>
-<tr><td class="name">R.convergence(Name,Value)</td><td>Per-<strong>iteration</strong> trajectory: when the loop settled. Needs <code>.history</code>.</td></tr>
-<tr><td class="name">R.summary()</td><td>Per-<strong>stream</strong> final state: sigma, AR order, whiteness. Needs <code>.history</code>.</td></tr>
-<tr><td class="name">disp(R)</td><td>One-screen summary.</td></tr>
-</table>
-<h2>The two iteration readers</h2>
-<p><code>convergence()</code> and <code>summary()</code> read the same
-<code>R.history</code> and reduce it along <em>opposite</em> axes, which is why
-both exist:</p>
-<table>
-<tr><th>Method</th><th>One row per</th><th>Reduced across</th><th>Answers</th></tr>
-<tr><td class="name">R.convergence()</td><td>iteration</td><td>streams</td><td>When did the loop settle, and did it?</td></tr>
-<tr><td class="name">R.summary()</td><td>stream</td><td>iterations</td><td>What did each stream end up as?</td></tr>
-</table>
-<p>A converged loop can still hide one stream that never whitened: the per-pass
-view reports only the worst p-value, without naming its owner. Both raise
-<code>lsqvce:Results:noHistory</code> on a Results from a single solve, which
-does not iterate.</p>
-<h2>Example</h2>
+<pre class="example">R = lsqvce.Results(sol, D, acc, diagSol, batchFcn, nBatch, systems)
+
+Returned by LSQVCE.ADJUSTBLOCK (and, later, LSQVCE.ADJUSTVCE). It gathers
+everything a user needs to read and judge an adjustment in one object, and
+keeps the lower layers reachable for experts. You rarely construct it
+yourself; you receive it from adjustBlock and call R.report().
+
+PROPERTIES (read-only)
+  x          nc x 1   double   Common-parameter estimate (the field).
+  sigma0     1x1      double   A-posteriori variance factor (global).
+  converged  1x1      logical  Did the pipeline converge? (true for a single
+                               solve; set by the iterative engines.)
+  diag       1x1      struct   Per-observation diagnostics (LSQVCE.DIAGNOSE):
+                               redundancy, leverage, w-tests, MDB, ...
+  history    1xI      struct   Per-iteration record (empty for a single
+                               solve; filled by LSQVCE.ADJUSTVCE).
+  noise      1x1      struct   Fitted noise models per stream (empty until
+                               the separable/VCE loop populates it).
+  sol        1x1      struct   Raw output of acc.solve() (.x, .sigma0, ...).
+  acc        1x1      lsqvce.BlockAccumulator   The accumulator (drop here
+                               to re-solve, inspect blocks, get residuals).
+  source     1x1      struct   Bridged solution from LSQVCE.DIAGNOSEACCUM.
+  batchFcn   1x1      function_handle   Re-reader used by LSQVCE.DIAGNOSE.
+  nBatch     1x1      double   Batch count from the bridge.
+  systems    1xM      struct   The resolved system specs (sysID/nl/dayList).
+
+METHODS
+  V = R.report(Name,Value,...)   Print/return the level-0..4 verdict
+                                 (LSQVCE.REPORT); options pass straight through.
+  r = R.redundancy()             Total redundancy sum(r_i) = n - u.
+  res = R.residuals(Name,Value)  Whitened/raw residuals (acc.residuals).
+  con = R.contribution(...)      Per-group information share.
+  T = R.convergence(Name,Value)  Per-ITERATION trajectory: when the loop
+                                 settled (needs .history).
+  T = R.summary()                Per-STREAM final state: sigma, AR order,
+                                 whiteness (needs .history).
+  disp(R)                        One-screen summary.</pre>
+<h3>THE TWO ITERATION READERS ARE COMPLEMENTARY. convergence() reduces across</h3>
+<pre class="example">STREAMS (one row per pass); summary() reduces across PASSES (one row per
+stream). A converged loop can still hide a single stream that never
+whitened -- the per-pass view reports the worst p-value without naming it.</pre>
+<h3>Example</h3>
 <pre class="example">R = lsqvce.adjustBlock(systems, days);
-R.report('verbose', true);
-if ~R.converged, warning('did not converge'); end
+R.report(&#x27;Level&#x27;, 2);
+if ~R.converged, lsqvce.util.log.warn(&#x27;did not converge&#x27;); end
 x = R.x;   s0 = R.sigma0;</pre>
-<div class="seealso"><b>See also:</b> <a href="lsqvce.adjustBlock.html">lsqvce.adjustBlock</a>, <a href="lsqvce.report.html">lsqvce.report</a>, <a href="lsqvce.diagnose.html">lsqvce.diagnose</a>, <a href="lsqvce.BlockAccumulator.html">lsqvce.BlockAccumulator</a></div>
-<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-16.</div>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:Results:noHistory      an iteration reader was called on a
+                                single-solve Results (adjustBlock does not
+                                iterate); use the result of adjustVCE
+
+See also LSQVCE.ADJUSTBLOCK, LSQVCE.ADJUSTVCE, LSQVCE.REPORT,
+         LSQVCE.DIAGNOSE, LSQVCE.BLOCKACCUMULATOR
+
+Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (c) c2 (F-07):
+typed `arguments` signatures, canonical UpperCamelCase option names
+(legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+case-sensitive lowercase). With assistance from Claude (Anthropic),
+model Claude Fable 5.
+Created 2026-07-16 12:20 (CEST, UTC+02:00) with assistance from
+Claude (Anthropic), model Claude Opus 4.8.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

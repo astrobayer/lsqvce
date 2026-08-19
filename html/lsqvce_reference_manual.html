@@ -95,7 +95,20 @@ jointModelOpt, diagnose, snoop, outliers, residuals, ftest, ellipse,
 crossCorr, systematic, selectArOrder, report</code>);
 <code>robust</code> follows the <code>adjust</code> pattern (canonical
 names + typed validators on <code>inputParser</code>, kept for its
-documented pass-through to <code>diagnose</code>). Round c1 covers the
+documented pass-through to <code>diagnose</code>). Stage (c) closes the
+migration: c1 covered the infrastructure functions
+(<code>datum, dctI, makeLoader, mapreduce, toeplitzCofactor</code>;
+<code>solveNonlinear</code> keeps the adjust pattern), c2 the class
+front doors (<code>BatchIndex, PrefetchLoader</code> &mdash; whose
+<code>Enable</code> keeps its "auto"|true|false contract, now guarded by
+<code>lsqvce:prefetch:badEnable</code> &mdash; <code>Results.convergence,
+BlockAccumulator</code>, and the <code>adjustVCE</code> constructor plus
+its <code>plots/empiricalStochastic/validate</code> methods, whose
+option defaults remain the live object state). The fluent configurators
+keep their canonicalising merge (round a2). With c2 the WP-39 rollout
+is COMPLETE: every public entry point either carries a typed
+<code>arguments</code> signature or a documented inputParser deviation
+for its pass-through. Round c1 covers the
 infrastructure functions (<code>makeLoader, mapreduce, datum,
 toeplitzCofactor, dctI</code>); <code>solveNonlinear</code> follows the
 <code>adjust</code> pattern (pass-through kept, canonical names + typed

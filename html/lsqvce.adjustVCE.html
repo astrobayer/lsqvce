@@ -115,16 +115,16 @@ WIRING, NOT NEW NUMERICS
                            Required (may be [] if every loader carries days).
 
   Name/Value options ([] or omitted -&gt; defaults):
-    &#x27;groupBy&#x27;   char|fh  grouping granularity for the variance-component step (same name
+    &#x27;GroupBy&#x27;   char|fh  grouping granularity for the variance-component step (same name
                          and meaning as in lsqvce.vce/redundancy/outliers):
                          &#x27;satObs&#x27; (default) one component per
                          (satellite,obsType); &#x27;obsType&#x27;; &#x27;system&#x27;; &#x27;arc&#x27;;
                          or @(sysID,obsType,arc,day)-&gt;key. Also settable via
                          groupComponentsBy().
-    &#x27;maxOuter&#x27;  1x1  outer stochastic model &lt;-&gt; variance components iterations             (default 6)
-    &#x27;backend&#x27;   char &#x27;qr&#x27; | &#x27;normal&#x27;                          (default &#x27;qr&#x27;)
-    &#x27;reg&#x27;       char passed to adjustBlock                        (default &#x27;none&#x27;)
-    &#x27;parallel&#x27;  char &#x27;serial&#x27;|&#x27;parfor&#x27;|&#x27;spmd&#x27;                 (default &#x27;serial&#x27;)
+    &#x27;MaxOuter&#x27;  1x1  outer stochastic model &lt;-&gt; variance components iterations             (default 6)
+    &#x27;Backend&#x27;   char &#x27;qr&#x27; | &#x27;normal&#x27;                          (default &#x27;qr&#x27;)
+    &#x27;Reg&#x27;       char passed to adjustBlock                        (default &#x27;none&#x27;)
+    &#x27;Parallel&#x27;  char &#x27;serial&#x27;|&#x27;parfor&#x27;|&#x27;spmd&#x27;                 (default &#x27;serial&#x27;)
     &#x27;verbose&#x27;   1x1  logical | 0..2 message level             (default 1)
                      0 SILENT     nothing
                      1 PROGRESS   outer passes, stage start/done + timing,
@@ -135,17 +135,17 @@ WIRING, NOT NEW NUMERICS
                                   system conditioning, inner VCE iterations
                      A LOGICAL still works and keeps its old meaning
                      (false -&gt; 0, true -&gt; 1). See LSQVCE.UTIL.VERBOSITY.
-    &#x27;logFid&#x27;    1x1  file identifier for ALL toolbox output (&quot;standard
+    &#x27;LogFid&#x27;    1x1  file identifier for ALL toolbox output (&quot;standard
                      output&quot;). Default: leaves the global log state as-is
                      (initially 1 = command window). Set to an fopen fid to
                      capture status text AND warnings to a file. Sets the
                      toolbox-wide state; see LSQVCE.UTIL.LOG.
-    &#x27;logFlag&#x27;   1x1  logical: also show output on screen (default: leave
+    &#x27;LogFlag&#x27;   1x1  logical: also show output on screen (default: leave
                      as-is, initially true). false + a file LogFid =&gt; quiet
                      run, everything captured to the file only.
-    &#x27;showSeconds&#x27; 1x1  seconds to display each hook figure (default 0 =
+    &#x27;ShowSeconds&#x27; 1x1  seconds to display each hook figure (default 0 =
                      export only, no pause). &lt; 0 = show and LEAVE OPEN.
-    &#x27;exportDir&#x27; char  folder for the hook PNGs (&#x27;&#x27; = do not export).
+    &#x27;ExportDir&#x27; char  folder for the hook PNGs (&#x27;&#x27; = do not export).
 
 PLOT HOOKS (per system + obsType)
   Per-(system,obsType) plots are driven by function handles you attach to
@@ -164,7 +164,7 @@ PLOT HOOKS (per system + obsType)
   ctx.arOrder. See PLOTCONTEXT for the full field list. Local parameters are
   NOT in ctx (they are summarised to the log after each solve instead).
   Your handle only BUILDS and RETURNS a figure (or returns nothing to just
-  record); the engine shows it for &#x27;showSeconds&#x27; and exports
+  record); the engine shows it for &#x27;ShowSeconds&#x27; and exports
   &lt;ExportDir&gt;/&lt;stage&gt;_&lt;sys&gt;_&lt;obsType&gt;_pass&lt;k&gt;.png.
   A hook that errors is logged and skipped -- plots never break
   the solve. Set the two engine knobs via the constructor or P.plots(...).
@@ -174,7 +174,7 @@ FLUENT CONFIGURATORS (each returns P, so they chain)
   P.stochasticModel(&#x27;MaxOrder&#x27;,p,&#x27;AcvTol&#x27;,t)   the temporal noise model
   P.varianceComponents(&#x27;MaxIter&#x27;,n,&#x27;Tol&#x27;,t)    the Helmert variance components
   P.iteration(&#x27;MaxOuter&#x27;,k,&#x27;Tol&#x27;,t) the outer convergence gate
-  P.plots(&#x27;showSeconds&#x27;,s,&#x27;exportDir&#x27;,d)  configure the plot-hook show/export
+  P.plots(&#x27;ShowSeconds&#x27;,s,&#x27;ExportDir&#x27;,d)  configure the plot-hook show/export
 
 RUN
   R = P.run()   -&gt;  1x1 lsqvce.Results, with the iteration trajectory
@@ -225,6 +225,11 @@ EXAMPLE (synthetic, end to end)
 
   See also LSQVCE.ADJUSTBLOCK, LSQVCE.VCE, LSQVCE.REDUNDANCY,
 
+  Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (c) c2 (F-07):
+  typed `arguments` signatures, canonical UpperCamelCase option names
+  (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+  case-sensitive lowercase). With assistance from Claude (Anthropic),
+  model Claude Fable 5.
   Updated 2026-08-19 (CEST, UTC+02:00), WP-41 (docs only, F-12 claims
   half + F-14): the &#x27;joint&#x27; mode claim corrected (pooled spectrum +
   stream scales; NO per-arc factors -- that is ADJUSTVCEJOINT); the

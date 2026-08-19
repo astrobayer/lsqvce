@@ -2917,6 +2917,37 @@ regenerated, the reference-manual release note extended. Stage (c)
 (infrastructure/classes: BlockAccumulator, Combine, makeLoader,
 adjustVCE ctor, Accumulator, mapreduce, datum, solveNonlinear,
 toeplitzCofactor, dctI, BatchIndex, PrefetchLoader, Results) remains.
+**ROUND NOTE c2 (2026-08-19) -- THE R2-CLOSING ROUND.** The seven class
+files: Accumulator + Combine already carried arguments blocks (arrived
+in earlier merged commits). MIGRATED: BatchIndex ('By' enum
+sensor/day/both; the old lower() call dropped -- the enum is
+case-sensitive lowercase now); PrefetchLoader ('Enable' keeps its v1
+"auto"|true|false contract -- UNTYPED in the block since a mustBeMember
+would kill the logical form, validated in-body with the NEW id
+lsqvce:prefetch:badEnable); Results.convergence (Plot/Stream);
+BlockAccumulator ctor (nc typed positional; 16 opts, names unchanged
+UpperCamel; Backend/Reg/Parallel via mustBeMember; Verbose UNTYPED =
+the historical logical-or-level contract; the r remap keeps the ctor
+body untouched incl. the CondWarn<=CondAbort cross-check with its
+lsqvce:accum:badThresholds id); adjustVCE ctor (GroupBy untyped --
+accepts handles; VceMode enum; LogFid/LogFlag empty-sentinels; o remap
+replaces o = p.Results FIRST OCCURRENCE ONLY -- two identical lines
+exist for other methods, the global-replace assert caught it) and the
+three option-taking methods plots / empiricalStochastic / validate,
+whose arguments DEFAULTS reference the live object state
+(obj.plotOpt.*, obj.shapeOpt.WhiteAlpha, verbosity.progress(obj.verbose)
+-- legal: defaults may reference earlier-declared arguments); validate's
+narginchk replaced by the block (missing R now = MATLAB:minrhs) while
+the isa contract check stays in the body with its documented lsqvce: id
+(the b1-r3 rule). TESTS: grouped c2 signature test with the
+mustBeMember levers (BlockAccumulator Backend, adjustVCE VceMode), a
+typed-constraint check, and BOTH legs of the Enable contract. DOCS:
+five pages regenerated, help casing swept + stamps, the release note
+declares the WP-39 rollout COMPLETE. **With c2 green, WP-39 closes --
+and with it the R2 track (F-01..F-15, every finding addressed or
+formally dispositioned).** Remaining after R2: the self-hosted runner
+migration (settles ALL postflight debts on its first green full run)
+and the WP-42 backlog.
 **ROUND NOTE c1 (2026-08-19): the infrastructure functions.** MIGRATED
 to typed `arguments` (canonical UpperCamel, o-struct mappings, bodies
 untouched): makeLoader (15 options; the body's long->short o aliasing

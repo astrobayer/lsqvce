@@ -890,6 +890,45 @@ function test_stageC1_signatures_enum_values(tc)
     verifyTrue(tc, ok, 'solveNonlinear Method ''QR'' must fail (case-sensitive)');
 end
 
+function test_stageC2_signatures_classes(tc)
+    % WP-39 stage (c) c2 (F-07): the class front doors. Enum-VALUE casing
+    % is the fails-on-old lever (mustBeMember's specific id); positional
+    % arity satisfied per the c1 lesson; arguments fire BEFORE any ctor
+    % body work, so light dummies suffice.
+    ok = false;
+    try
+        lsqvce.BlockAccumulator(3, 'Backend', 'QR');
+    catch e
+        ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
+    end
+    verifyTrue(tc, ok, 'BlockAccumulator Backend ''QR'' must fail');
+    ok = false;
+    try
+        lsqvce.adjustVCE({}, [], 'VceMode', 'Joint');
+    catch e
+        ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
+    end
+    verifyTrue(tc, ok, 'adjustVCE VceMode ''Joint'' must fail');
+    ok = false;
+    try
+        lsqvce.BlockAccumulator(3, 'CondWarn', -1);
+    catch e
+        ok = startsWith(e.identifier, 'MATLAB:validators:');
+    end
+    verifyTrue(tc, ok, 'BlockAccumulator CondWarn < 0 must fail the signature');
+    % PrefetchLoader's 'Enable' keeps its v1 "auto"|true|false contract:
+    % untyped at the signature, validated in the body with the new
+    % lsqvce id -- both legs asserted.
+    L = struct('load', @(d) struct(), 'days', 1);
+    ok = false;
+    try
+        lsqvce.PrefetchLoader(@(d) L, 1, 'Enable', 'sometimes');
+    catch e
+        ok = strcmp(e.identifier, 'lsqvce:prefetch:badEnable');
+    end
+    verifyTrue(tc, ok, 'Enable ''sometimes'' must fail the body contract check');
+end
+
 function test_stageB2_signatures_enum_values(tc)
     % WP-39 stage (b) b2 (F-07): enum-VALUE casing is the fails-on-old
     % lever (mustBeMember where strcmpi used to accept any casing),

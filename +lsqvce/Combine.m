@@ -169,18 +169,17 @@ end
 
 methods
 
-function obj = Combine(uC, varargin)
+function obj = Combine(uC, opt)
 %COMBINE  Construct a multi-system combiner over uC common parameters (see header).
-    ip = inputParser;
-    ip.FunctionName = 'lsqvce.Combine';
-    addRequired(ip, 'uC', @(x) isnumeric(x) && isscalar(x) && x >= 1 ...
-                             && x == fix(x));
-    addParameter(ip, 'method', 'qr', ...
-                 @(s) any(strcmpi(s, {'qr','normal'})));
-    parse(ip, uC, varargin{:});
-
-    obj.uC     = double(ip.Results.uC);
-    obj.method = lower(ip.Results.method);
+arguments
+    uC (1,1) double {mustBeInteger, mustBePositive}
+    opt.Method (1,1) string {mustBeMember(opt.Method, ["qr","normal"])} = "qr"
+end
+    % WP-39 stage (c) c2: typed `arguments` signature (canonical
+    % UpperCamelCase; legacy casings keep matching; enum VALUES
+    % case-sensitive lowercase).
+    obj.uC     = double(uC);
+    obj.method = char(opt.Method);
 
     switch obj.method
         case 'normal'
@@ -192,7 +191,7 @@ function obj = Combine(uC, varargin)
 end
 
 %% ------------------------------------------------------------- addSystem
-function addSystem(obj, uL, batchFcn, nBatch, varargin)
+function addSystem(obj, uL, batchFcn, nBatch, opt)
 %ADDSYSTEM  Fold one data set in, eliminating its local parameters.
 %
 %   ADDSYSTEM(uL, batchFcn, nBatch) where
@@ -202,15 +201,20 @@ function addSystem(obj, uL, batchFcn, nBatch, varargin)
 %   Name-value:
 %       'name'   a label for the report (default 'system <i>')
 
+arguments
+    obj
+    uL (1,1) double {mustBeInteger, mustBeNonnegative}
+    batchFcn (1,1) function_handle
+    nBatch (1,1) double {mustBeInteger, mustBePositive}
+    opt.Name (1,1) string = ""
+end
     if obj.finalized
         error('lsqvce:combine:finalized', ...
               'This combination has already been solved.');
     end
 
-    ip = inputParser;
-    addParameter(ip, 'name', '', @(s) ischar(s) || isstring(s));
-    parse(ip, varargin{:});
-    nm = char(ip.Results.name);
+    % WP-39 c2: typed `arguments` signature (canonical 'Name').
+    nm = char(opt.Name);
     if isempty(nm), nm = sprintf('system %d', obj.nSys + 1); end
 
     if ~isnumeric(uL) || ~isscalar(uL) || uL < 0 || uL ~= fix(uL)
@@ -398,7 +402,7 @@ function recordSystem(obj, nm, uL, nBatch, ns, Rll, Rlc, dl, S, t, batchFcn)
 end
 
 %% ----------------------------------------------------------------- solve
-function sol = solve(obj, varargin)
+function sol = solve(obj, opt)
 %SOLVE  Solve the reduced system and back-substitute the local parameters.
 %
 %   sol has fields
@@ -409,10 +413,12 @@ function sol = solve(obj, varargin)
 %     r                   redundancy = n - uTotal   <-- NOT n - uC
 %     vPv, s0sq           weighted residual sum of squares, variance factor
 
-    ip = inputParser;
-    addParameter(ip, 'sigma0', 1, @(x) isnumeric(x) && isscalar(x) && x > 0);
-    parse(ip, varargin{:});
-    sigma0 = ip.Results.sigma0;
+    % WP-39 c2: typed `arguments` signature (canonical 'Sigma0').
+arguments
+    obj
+    opt.Sigma0 (1,1) double {mustBePositive} = 1
+end
+    sigma0 = opt.Sigma0;
 
     if obj.nSys == 0
         error('lsqvce:combine:noSystems', 'No data sets were added.');
@@ -508,7 +514,7 @@ function sol = solve(obj, varargin)
 end
 
 %% -------------------------------------------------------------- diagnose
-function D = diagnose(obj, sol, varargin)
+function D = diagnose(obj, sol, opt)
 %DIAGNOSE  Per-observation diagnostics for the combined solution.
 %
 %   D = cmb.diagnose(sol) replays every system's batches and produces v, r_i,
@@ -540,16 +546,21 @@ function D = diagnose(obj, sol, varargin)
 %   freedom. Using n - uC would inflate r and deflate s0 -- silently, and in
 %   the optimistic direction. This is checked: sum(r_i) must equal n - u_total.
 
-    ip = inputParser;
-    addParameter(ip, 'alpha',      1e-3, @(x) isscalar(x) && x > 0 && x < 1);
-    addParameter(ip, 'bonferroni', true, @islogical);
-    addParameter(ip, 'beta',       0.20, @(x) isscalar(x) && x > 0 && x < 1);
-    addParameter(ip, 'rMin',       1e-6, @(x) isscalar(x) && x >= 0);
-    addParameter(ip, 'rWeak',      0.10, @(x) isscalar(x) && x >= 0);
-    addParameter(ip, 'test',       'pope', ...
-                 @(s) any(strcmpi(s, {'pope','baarda','mad'})));
-    parse(ip, varargin{:});
-    o = ip.Results;
+    % WP-39 c2: typed `arguments` signature (canonical UpperCamel; legacy
+    % casings keep matching; enum VALUES case-sensitive lowercase).
+arguments
+    obj
+    sol (1,1) struct
+    opt.Alpha (1,1) double {mustBePositive, mustBeLessThan(opt.Alpha,1)} = 1e-3
+    opt.Bonferroni (1,1) logical = true
+    opt.Beta (1,1) double {mustBePositive, mustBeLessThan(opt.Beta,1)} = 0.20
+    opt.RMin (1,1) double {mustBeNonnegative} = 1e-6
+    opt.RWeak (1,1) double {mustBeNonnegative} = 0.10
+    opt.Test (1,1) string {mustBeMember(opt.Test, ["pope","baarda","mad"])} = "pope"
+end
+    o = struct('alpha', opt.Alpha, 'bonferroni', opt.Bonferroni, ...
+               'beta', opt.Beta, 'rMin', opt.RMin, 'rWeak', opt.RWeak, ...
+               'test', char(opt.Test));
 
     QCC = sol.QCC;
     xC  = sol.xC;
@@ -674,7 +685,7 @@ function D = diagnose(obj, sol, varargin)
 end
 
 %% --------------------------------------------------------------- varComp
-function VC = varComp(obj, sol, groupFcn, nGroup, varargin)
+function VC = varComp(obj, sol, groupFcn, nGroup, opt)
 %VARCOMP  Helmert variance components across sensors (or any grouping).
 %
 %   VC = cmb.varComp(sol, groupFcn, nGroup) estimates a separate variance
@@ -712,12 +723,17 @@ function VC = varComp(obj, sol, groupFcn, nGroup, varargin)
 %     'tol'      (default 1e-6)
 %     'verbose'  (default true)
 
-    ip = inputParser;
-    addParameter(ip, 'maxIter', 25,   @(x) isscalar(x) && x >= 1);
-    addParameter(ip, 'tol',     1e-6, @(x) isscalar(x) && x > 0);
-    addParameter(ip, 'verbose', true, @islogical);
-    parse(ip, varargin{:});
-    o = ip.Results;
+    % WP-39 c2: typed `arguments` signature (canonical UpperCamel).
+arguments
+    obj
+    sol (1,1) struct
+    groupFcn (1,1) function_handle
+    nGroup (1,1) double {mustBeInteger, mustBePositive}
+    opt.MaxIter (1,1) double {mustBeInteger, mustBePositive} = 25
+    opt.Tol (1,1) double {mustBePositive} = 1e-6
+    opt.Verbose (1,1) logical = true
+end
+    o = struct('maxIter', opt.MaxIter, 'tol', opt.Tol, 'verbose', opt.Verbose);
 
     scale = ones(nGroup, 1);
     converged = false;

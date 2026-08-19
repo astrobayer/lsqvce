@@ -208,6 +208,11 @@ classdef BlockAccumulator < handle
 %       lsqvce:accum:localNotRedundant  an arc's local block has no redundancy,
 %                                     so its variance factor is undefined
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (c) c2 (F-07):
+%   typed `arguments` signatures, canonical UpperCamelCase option names
+%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+%   case-sensitive lowercase). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 %   See also LSQVCE.COVMODELFACTORY, LSQVCE.RESIDUALS, LSQVCE.CHECKPSD, LSQVCE.QRSYSTEM
 %
 %   Generated with assistance from Claude (Anthropic), model Claude
@@ -225,45 +230,44 @@ classdef BlockAccumulator < handle
 
     methods
         %------------------------------------------------------------------
-        function obj = BlockAccumulator(nc, varargin)
+        function obj = BlockAccumulator(nc, opt)
         %BLOCKACCUMULATOR  Construct a streaming block-arrow accumulator over nc
         %   common parameters. See the classdef header for the full option list
         %   ('Backend','KeepLocal','Verbose',...). INPUT nc 1x1 common count;
         %   Name/Value options. OUTPUT obj the accumulator handle.
-            p = inputParser;
-            p.FunctionName = 'lsqvce.BlockAccumulator';
-            p.addRequired ('nc', @(v) validateattributes(v, {'numeric'}, ...
-                            {'scalar','integer','positive'}));
-            p.addParameter('Backend'     , 'qr', ...
-                            @(s) any(strcmpi(s, {'normal','qr'})));
-            p.addParameter('BatchSize'   , 20000, @(v) validateattributes(v, ...
-                            {'numeric'}, {'scalar','positive'}));
-            p.addParameter('BatchOverlap', [], @(v) isempty(v) || ...
-                            (isscalar(v) && v >= 0));
-            p.addParameter('Reg'         , 'none', @(s) any(strcmpi(s, ...
-                            {'none','tikhonov','tsvd','lm','auto'})));
-            p.addParameter('RegLambda'   , 0);
-            p.addParameter('RegMatrix'   , []);
-            p.addParameter('TruncTol'    , 1e-10, @(v) isscalar(v) && v > 0 && v < 1);
-            p.addParameter('CondWarn'    , 1e8,  @(v) isscalar(v) && v > 0);
-            p.addParameter('CondAbort'   , 1e14, @(v) isscalar(v) && v > 0);
-            p.addParameter('LocalBlockSize', [], @(v) isempty(v) || ...
-                            (isscalar(v) && v > 0 && v == round(v)));
-            p.addParameter('KeepLocal'   , true, @(v) islogical(v) && isscalar(v));
-            % A LOGICAL (historical) or a level 0..2; resolved to a number
-            % below so every gate is a level comparison. See
-            % LSQVCE.UTIL.VERBOSITY.
-            p.addParameter('Verbose'     , true, ...
-                @(v) (islogical(v) || isnumeric(v)) && isscalar(v));
-            p.addParameter('Parallel'    , 'serial', @(s) any(strcmpi(s, ...
-                            {'serial','parfor','spmd'})));
-            p.addParameter('ParallelThreshold', 8, @(v) isscalar(v) && v >= 0);
-            p.addParameter('DistributeDays', false, ...
-                           @(v) islogical(v) && isscalar(v));
-            p.addParameter('UserOpt'     , struct(), @isstruct);
-            p.parse(nc, varargin{:});
-
-            r = p.Results;
+            % WP-39 c2: typed `arguments` signature (canonical UpperCamel --
+            % unchanged names; legacy casings keep matching, MATLAB NV
+            % semantics; enum VALUES case-sensitive lowercase). The r remap
+            % keeps the ctor body untouched; Verbose keeps its historical
+            % logical-or-level contract (untyped here, resolved below).
+        arguments
+            nc (1,1) double {mustBeInteger, mustBePositive}
+            opt.Backend (1,1) string {mustBeMember(opt.Backend, ["normal","qr"])} = "qr"
+            opt.BatchSize (1,1) double {mustBePositive} = 20000
+            opt.BatchOverlap double {mustBeScalarOrEmpty} = []
+            opt.Reg (1,1) string {mustBeMember(opt.Reg, ["none","tikhonov","tsvd","lm","auto"])} = "none"
+            opt.RegLambda (1,1) double {mustBeNonnegative} = 0
+            opt.RegMatrix double = []
+            opt.TruncTol (1,1) double {mustBePositive, mustBeLessThan(opt.TruncTol,1)} = 1e-10
+            opt.CondWarn (1,1) double {mustBePositive} = 1e8
+            opt.CondAbort (1,1) double {mustBePositive} = 1e14
+            opt.LocalBlockSize double {mustBeScalarOrEmpty} = []
+            opt.KeepLocal (1,1) logical = true
+            opt.Verbose = true
+            opt.Parallel (1,1) string {mustBeMember(opt.Parallel, ["serial","parfor","spmd"])} = "serial"
+            opt.ParallelThreshold (1,1) double {mustBeNonnegative} = 8
+            opt.DistributeDays (1,1) logical = false
+            opt.UserOpt (1,1) struct = struct()
+        end
+            r = struct('nc', nc, 'Backend', char(opt.Backend), ...
+                       'BatchSize', opt.BatchSize, 'BatchOverlap', opt.BatchOverlap, ...
+                       'Reg', char(opt.Reg), 'RegLambda', opt.RegLambda, ...
+                       'RegMatrix', opt.RegMatrix, 'TruncTol', opt.TruncTol, ...
+                       'CondWarn', opt.CondWarn, 'CondAbort', opt.CondAbort, ...
+                       'LocalBlockSize', opt.LocalBlockSize, 'KeepLocal', opt.KeepLocal, ...
+                       'Verbose', opt.Verbose, 'Parallel', char(opt.Parallel), ...
+                       'ParallelThreshold', opt.ParallelThreshold, ...
+                       'DistributeDays', opt.DistributeDays, 'UserOpt', opt.UserOpt);
             if r.CondWarn > r.CondAbort
                 error('lsqvce:accum:badThresholds', ...
                       'CondWarn (%.1e) must not exceed CondAbort (%.1e).', ...
