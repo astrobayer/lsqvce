@@ -21,7 +21,10 @@ function vc = vce(accFcn, varargin)
 %     accFcn   @(sigma) -> acc   a function that BUILDS AND RUNS a fresh
 %                                accumulator with the given per-group sigmas.
 %                                It must return the accumulator (already fully
-%                                accumulated, not yet solved).
+%                                accumulated, not yet solved). On the FIRST
+%                                pass it is called as accFcn([]) -- sigma is
+%                                EMPTY, meaning unit weights; the function must
+%                                accept that (WP-41: previously undocumented).
 %
 %   OPTIONS
 %     'groups'      cellstr / numeric vector of group keys, in the order that

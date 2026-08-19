@@ -43,7 +43,7 @@ classdef verbosity
 %     log of 2026-07-18 showed '[resid ]' 499 times and '[resid   ]' 63 times --
 %     the SAME tag at two widths in ONE run. Misaligned labels make a log hard to
 %     scan, which matters because reading the log is how defects are caught here
-%     (HANDOVER 4d). BANNER puts every label in one column.
+%     (HISTORY_v1.md 4d). BANNER puts every label in one column.
 %
 %     They are PLAIN WORDS, not abbreviations. The abbreviated form was dropped
 %     because the codes were invented rather than geodetic -- 'scale' and 'shape'

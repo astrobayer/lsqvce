@@ -38,86 +38,82 @@ a { color: #0b5ea8; }
            font-size: 13px; }
 .footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
           font-size: 12px; color: #888; }
-</style></head></head>
+</style></head>
 <body>
 <div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.poolGroups</div>
-
 <h1>lsqvce.poolGroups</h1>
-<p class="purpose">Suggest (or build) a coarser VCE grouping for groups whose
-redundancy is too low to estimate a reliable variance component.</p>
+<div class="purpose">Suggest (or build) a coarser VCE grouping for groups whose</div>
+<h2>Description</h2>
+<pre class="example">redundancy is too low to estimate a reliable variance component.
 
-<pre class="syntax">pool = lsqvce.poolGroups(vc)
-pool = lsqvce.poolGroups(vc, Name, Value, ...)</pre>
+A variance component estimated from r_g observations has a relative standard
+error of about 0.5*sqrt(2/r_g), so below a redundancy FLOOR the estimated
+sigma_g is mostly noise. The usual remedy is to POOL such groups with a
+neighbour (or with each other) so their combined redundancy clears the floor.
+This helper reads a finished VCE result, identifies the under-redundant
+groups, and returns a remapping from the old group keys to pooled keys, plus
+a ready-to-use grouping function you can feed back into the next VCE pass.
 
-<p>A variance component estimated from <code>r_g</code> observations has a relative
-standard error of about <code>0.5*sqrt(2/r_g)</code>, so below a redundancy floor
-the estimated <code>sigma_g</code> is mostly noise. The remedy is to POOL such
-groups with a neighbour (or with each other) so their combined redundancy clears
-the floor. This helper reads a finished VCE result, identifies the under-redundant
-groups, and returns a remapping from the old group keys to pooled keys plus a
-ready-to-use grouping function for the next pass.</p>
+IT DOES NOT RE-SOLVE. Pooling changes the grouping, which changes the whole
+VCE fixed point, so the honest workflow is: pool -&gt; re-run VCE with the new
+grouping -&gt; re-check. This function gives you the new grouping; you re-run.
 
-<div class="warn"><b>It does not re-solve.</b> Pooling changes the grouping, which
-changes the whole VCE fixed point, so the honest workflow is: pool &rarr; re-run
-VCE with the new grouping &rarr; re-check. This function gives you the new
-grouping; you re-run.</div>
+pool = LSQVCE.POOLGROUPS(vc) uses the default floor and the default strategy
+(&#x27;mergeLow&#x27;: merge every below-floor group into ONE pooled group).
 
-<h2>Input</h2>
-<table>
-<tr><th>Name</th><th>Size</th><th>Type</th><th>Description</th></tr>
-<tr><td class="name">vc</td><td>1&times;1</td><td>struct</td>
-    <td>a result from <a href="lsqvce.vce.html">lsqvce.vce</a> or
-        <a href="lsqvce.varComp.html">lsqvce.varComp</a>, carrying at least
-        <code>.groups</code> (1&times;G keys), <code>.r</code> (G&times;1 redundancy),
-        and optionally <code>.sigma</code> (used by the 'nearest' strategy and the
-        printed report).</td></tr>
-</table>
+pool = LSQVCE.POOLGROUPS(vc, Name, Value, ...) sets the options below.</pre>
+<h3>Input</h3>
+<pre class="example">vc        1x1 struct   a result from LSQVCE.VCE or LSQVCE.VARCOMP, carrying
+                       at least:
+                         .groups  1xG cell/│ the group keys (labels)
+                         .r       Gx1 double  redundancy per group (r_g)
+                         .sigma   Gx1 double  variance components (optional,
+                                  used only for the printed report)</pre>
+<h3>Name-Value</h3>
+<pre class="example">  &#x27;floor&#x27;    1x1 double  redundancy floor r_min below which a group is judged
+                         under-redundant (default 50). A group with r_g &lt;
+                         floor is a pooling candidate.
+  &#x27;strategy&#x27; char        how to pool the candidates:
+               &#x27;mergeLow&#x27;  (default) merge ALL below-floor groups into one
+                           pooled group keyed &#x27;pooledLow&#x27;. Simple and safe.
+               &#x27;nearest&#x27;   merge each below-floor group into the ABOVE-floor
+                           group whose sigma is closest (needs vc.sigma). Keeps
+                           components physically similar together.
+  &#x27;poolKey&#x27;  char        the label for the merged group under &#x27;mergeLow&#x27;
+                         (default &#x27;pooledLow&#x27;).
+  &#x27;verbose&#x27;  1x1 logical print a short report (default true).
 
-<h2>Name-value options</h2>
-<table>
-<tr><th>Name</th><th>Default</th><th>Description</th></tr>
-<tr><td class="name">floor</td><td>50</td>
-    <td>redundancy floor <code>r_min</code>; a group with <code>r_g &lt; floor</code>
-        is a pooling candidate.</td></tr>
-<tr><td class="name">strategy</td><td>'mergeLow'</td>
-    <td><code>'mergeLow'</code> merges ALL below-floor groups into one pooled group;
-        <code>'nearest'</code> merges each below-floor group into the above-floor
-        group whose <code>sigma</code> is closest (needs <code>vc.sigma</code>).</td></tr>
-<tr><td class="name">poolKey</td><td>'pooledLow'</td>
-    <td>label for the merged group under <code>'mergeLow'</code>.</td></tr>
-<tr><td class="name">verbose</td><td>true</td><td>print a short report.</td></tr>
-</table>
-
-<h2>Output</h2>
-<table>
-<tr><th>Field</th><th>Size</th><th>Type</th><th>Description</th></tr>
-<tr><td class="name">.map</td><td>&mdash;</td><td>containers.Map</td>
-    <td>oldKey (char) &rarr; newKey (char); identity unless pooled.</td></tr>
-<tr><td class="name">.newGroups</td><td>1&times;Gnew</td><td>cell</td>
-    <td>distinct new group keys after pooling.</td></tr>
-<tr><td class="name">.remap</td><td>1&times;1</td><td>function_handle</td>
-    <td><code>@(oldKey) -&gt; newKey</code>; compose with your existing groupBy.</td></tr>
-<tr><td class="name">.indexRemap</td><td>G&times;1</td><td>double</td>
-    <td><code>newIndex(oldIndex)</code>, for numeric-index groupings.</td></tr>
-<tr><td class="name">.pooled</td><td>1&times;P</td><td>cell</td>
-    <td>the old keys that were pooled.</td></tr>
-<tr><td class="name">.floor</td><td>1&times;1</td><td>double</td><td>the floor used.</td></tr>
-<tr><td class="name">.changed</td><td>1&times;1</td><td>logical</td>
-    <td>true if any pooling happened.</td></tr>
-</table>
-
-<h2>Example</h2>
-<pre class="example">vc  = lsqvce.vce(accFcn, 'groupBy','obsType');   % some groups thin
-pl  = lsqvce.poolGroups(vc, 'floor', 80);
+OUTPUT  pool  (1x1 struct)
+  .map        containers.Map  oldKey (char) -&gt; newKey (char). Every original
+              group key maps to itself unless it was pooled.
+  .newGroups  1xGnew cell     the distinct new group keys after pooling.
+  .remap      function_handle  @(oldKey) -&gt; newKey, a thin wrapper over .map
+              you can compose with your existing groupBy to produce the new
+              grouping. If your groupBy returns numeric indices, use
+              .indexRemap instead.
+  .indexRemap Gx1 double      newIndex(oldIndex): maps an old 1..G group index
+              to a new 1..Gnew index, for numeric-index groupings.
+  .pooled     1xP cell        the old keys that were pooled (r_g &lt; floor).
+  .floor      1x1 double      the floor used.
+  .changed    1x1 logical     true if any pooling happened.</pre>
+<h3>Example</h3>
+<pre class="example">vc  = lsqvce.vce(accFcn, &#x27;groupBy&#x27;,&#x27;obsType&#x27;);   % some groups thin
+pl  = lsqvce.poolGroups(vc, &#x27;floor&#x27;, 80);
 if pl.changed
     % re-run VCE with the coarser grouping (string-key example):
     newGroupBy = @(varargin) pl.remap(oldGroupBy(varargin{:}));
-    vc2 = lsqvce.vce(accFcn, 'groupBy', newGroupBy);
+    vc2 = lsqvce.vce(accFcn, &#x27;groupBy&#x27;, newGroupBy);
 end</pre>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:poolGroups:badInput    the group specification is malformed
+  lsqvce:poolGroups:needSigma   pooling needs per-group variance factors
+  lsqvce:poolGroups:sizeMismatch  the group and sigma lists differ in length
 
-<div class="seealso"><b>See also:</b>
-<a href="lsqvce.vce.html">lsqvce.vce</a>,
-<a href="lsqvce.varComp.html">lsqvce.varComp</a>,
-<a href="lsqvce.redundancy.html">lsqvce.redundancy</a></div>
-<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-17 (CEST, UTC+02:00).</div>
+See also LSQVCE.VCE, LSQVCE.VARCOMP, LSQVCE.REDUNDANCY.
+
+Created 2026-07-17 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
+model Claude Opus 4.8. Implements HISTORY_v1.md roadmap item 4 (VCE group-pooling
+helper): it SUGGESTS/builds a coarser grouping; the caller re-runs VCE.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

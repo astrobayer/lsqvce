@@ -52,22 +52,26 @@ either too sparse to diagnose or too noisy to watch. This class replaces the
 flag with four LEVELS, and owns the banner vocabulary so every line in the
 toolbox is laid out the same way.</pre>
 <h3>The Levels</h3>
-<pre class="example">  0  SILENT      nothing at all.
-  1  PROGRESS    the shape of the run: outer passes, stage start/done with
-                 timings, the convergence verdict. The default, and what you
-                 want when watching a long job.
-  2  STAGE       adds per-item detail underneath each stage: per-stream AR
-                 orders and whiteness, per-group shares, per-day accumulation
-                 and residual progress, conditioning in the solve.
-  3  DIAGNOSTIC  adds everything the engine can say about WHY: inner VCE
-                 iterations, per-stream sigmas, fallbacks taken, numbers that
-                 are normally implied rather than printed.
+<pre class="example">  0  SILENT    nothing at all.
+  1  PROGRESS  the shape of the run: outer passes, each stage&#x27;s start/done
+               with timings, and the convergence report. The default, and
+               what you want when watching a long job.
+  2  DETAIL    everything else: per-day accumulation and residuals, per-stream
+               AR order and whiteness, per-group shares and sigmas, the
+               conditioning of each system, inner VCE iterations, fallbacks.
+
+THERE USED TO BE A LEVEL 3 (STAGE / DIAGNOSTIC were separate). It was
+dropped on 2026-07-19: once the inner accumulator stopped repeating its
+per-day block on every Helmert iteration, the only thing level 3 still added
+over level 2 was the per-group sigmas -- too thin a difference to justify a
+tier, and a user then has to guess which of two &quot;verbose&quot; levels they want.
+One detail level, or none.
 
 Each level INCLUDES the ones below it, so a check is always &quot;is the current
 level at least L&quot;, never an equality test. Use the predicates:
 
   if lsqvce.util.verbosity.atLeast(v, 2), ... end     % explicit
-  if lsqvce.util.verbosity.stage(v),      ... end     % same thing, named
+  if lsqvce.util.verbosity.detail(v),     ... end     % same thing, named
 
 BACKWARD COMPATIBILITY (this is why nothing broke)
   Every public &#x27;verbose&#x27; option still accepts a LOGICAL, and RESOLVE maps it:
@@ -75,30 +79,44 @@ BACKWARD COMPATIBILITY (this is why nothing broke)
   behaviours the boolean used to select, so existing calls, tests and demos
   keep their meaning. Levels 2 and 3 are new capability, reachable only by
   passing a number.</pre>
-<h3>THE BANNER VOCABULARY (why it is centralised)</h3>
-<pre class="example">Banners were written by hand at ~30 call sites and had drifted: &#x27;[GATE ]&#x27;
-carried a trailing pad, &#x27;[CONTRIB]&#x27; was wider than everything around it,
-and the same stage appeared as &#x27;[SHAPE]&#x27; and &#x27;[shape   ]&#x27;. Misaligned
-banners make a log hard to scan, which matters because reading the log is
-how defects are caught here (HANDOVER  4d). BANNER enforces one width:
+<h3>THE STAGE LABELS (why they are centralised, and why they are words)</h3>
+<pre class="example">Labels were written by hand at ~30 call sites and had drifted. The MATLAB
+log of 2026-07-18 showed &#x27;[resid ]&#x27; 499 times and &#x27;[resid   ]&#x27; 63 times --
+the SAME tag at two widths in ONE run. Misaligned labels make a log hard to
+scan, which matters because reading the log is how defects are caught here
+(HISTORY_v1.md 4d). BANNER puts every label in one column.
 
-  lsqvce.util.verbosity.banner(&#x27;SCALE&#x27;)   -&gt; &#x27;[SCALE   ]&#x27;
-  lsqvce.util.verbosity.banner(&#x27;shape&#x27;)   -&gt; &#x27;[shape   ]&#x27;
+They are PLAIN WORDS, not abbreviations. The abbreviated form was dropped
+because the codes were invented rather than geodetic -- &#x27;scale&#x27; and &#x27;shape&#x27;
+are not what anyone calls variance-component estimation and stochastic
+modelling -- and because a tag that abbreviates the message merely repeats
+it. Compare:
 
-CASE IS MEANINGFUL and is preserved, not normalised:
-  UPPERCASE  an outer-loop STAGE          [SCALE   ] [SOLVE   ] [GATE    ]
-  lowercase  per-item detail under a stage [shape   ] [accum   ] [redund  ]
-So the eye can separate &quot;where the loop is&quot; from &quot;what it is doing there&quot;
-without reading the words.</pre>
+  [SCALE   ] variance-component estimation between groups   (says it twice)
+  Variance components   estimating between groups           (says it once)
+
+EVERY LABEL IS CAPITALISED (user decision, 2026-07-18). An earlier version
+used case to mark stage-vs-detail (&#x27;Variance components&#x27; against
+&#x27;residuals&#x27;), but the hierarchy is already carried by INDENTATION -- detail
+sits under the stage it belongs to -- so case was a second, weaker signal
+for the same thing, and a log with mixed capitalisation just reads as
+inconsistent. BANNER still preserves whatever case it is given; the
+convention is enforced by the call sites, not by this function.</pre>
 <h3>Example</h3>
-<pre class="example">  v = lsqvce.util.verbosity.resolve(2);          % or true / false / 0..3
-  if lsqvce.util.verbosity.progress(v)
-      lsqvce.util.log.msg(&#x27;%s starting\n&#x27;, lsqvce.util.verbosity.banner(&#x27;SCALE&#x27;));
-  end
-  if lsqvce.util.verbosity.stage(v)
-      lsqvce.util.log.msg(&#x27;%s stream %s: AR(%d)\n&#x27;, ...
-          lsqvce.util.verbosity.banner(&#x27;shape&#x27;), key, p);
-  end
+<pre class="example">v = lsqvce.util.verbosity.resolve(2);          % or true / false / 0..2
+if lsqvce.util.verbosity.progress(v)
+    lsqvce.util.log.msg(&#x27;%s estimating between groups ...\n&#x27;, ...
+        lsqvce.util.verbosity.banner(&#x27;Variance components&#x27;));
+end
+if lsqvce.util.verbosity.detail(v)
+    lsqvce.util.log.msg(&#x27;%s %s: AR(%d)\n&#x27;, ...
+        lsqvce.util.verbosity.banner(&#x27;Stochastic model&#x27;), key, p);
+end</pre>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:verbosity:badLevel  not a scalar, or outside 0..2 (level 3 was
+                             merged into 2; a silent clamp would leave a
+                             caller wondering why nothing changed)
+  lsqvce:verbosity:badTag    an unknown message tag
 
 See also LSQVCE.UTIL.LOG, LSQVCE.ADJUSTVCE
 

@@ -12,7 +12,7 @@ function VC = vceHutchinson(u, batchFcn, nBatch, groupFcn, nGroup, varargin)
 %   LSQVCE.TRACEESTIMATE, but INLINES it so the shared factor Ubar = U^-1 raw
 %   (eq. 6.5.48) and the per-group blocks W_g are formed once and reused across
 %   every group and group pair -- the reuse that makes it fast. This is the "full
-%   per-group Hutchinson" path (HANDOVER roadmap item 0), built as a SEPARATE
+%   per-group Hutchinson" path (HISTORY_v1.md roadmap item 0), built as a SEPARATE
 %   ENTRY POINT so the exact LSQVCE.VARCOMP / LSQVCE.ADJUSTVCE paths are untouched.
 %
 %   WHEN TO USE IT (and when NOT to)
@@ -96,7 +96,7 @@ function VC = vceHutchinson(u, batchFcn, nBatch, groupFcn, nGroup, varargin)
 %            LSQVCE.REDUNDANCY.
 %
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
-%   2026-07-17 (CEST, UTC+02:00). Implements HANDOVER roadmap item 0, tier T1
+%   2026-07-17 (CEST, UTC+02:00). Implements HISTORY_v1.md roadmap item 0, tier T1
 %   (a separate strict-Ellmer entry point; the streaming block-arrow variant
 %   remains future work).
 

@@ -45,8 +45,9 @@ function out = redundancyLags(Abar, W, UiZ, ebar, nMaxLag, varargin)
 %     Abar     N x P double   the arc's DECORRELATED design matrix, Abar = W^-T A
 %                             (whitened exactly as the accumulator whitened it)
 %     W        N x N double   the arc's whitening factor with Sigma = W'*W (upper
-%                             triangular, as from chol(Sigma)). May also be given
-%                             as a struct with fields .W (see 'Solver' below).
+%                             triangular, as from chol(Sigma)). (WP-41: the old
+%                             "struct with fields .W / 'Solver'" sentence
+%                             described an option that never existed -- removed.)
 %     UiZ      P x Z double   the SHARED U^-1*Zbar block, computed once by the
 %                             caller from the factored normal matrix N = U'*U and
 %                             a Rademacher probe block scaled by 1/sqrt(Z)

@@ -72,7 +72,7 @@ function pool = poolGroups(vc, varargin)
 %   See also LSQVCE.VCE, LSQVCE.VARCOMP, LSQVCE.REDUNDANCY.
 %
 %   Created 2026-07-17 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
-%   model Claude Opus 4.8. Implements HANDOVER roadmap item 4 (VCE group-pooling
+%   model Claude Opus 4.8. Implements HISTORY_v1.md roadmap item 4 (VCE group-pooling
 %   helper): it SUGGESTS/builds a coarser grouping; the caller re-runs VCE.
 
     ip = inputParser;  ip.FunctionName = 'lsqvce.poolGroups';

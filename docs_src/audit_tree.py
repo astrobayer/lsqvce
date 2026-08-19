@@ -223,7 +223,24 @@ def check_doc_coverage():
         m = ('+lsqvce/+util/%s.m' % n[len('util.'):]) if n.startswith('util.') \
             else ('+lsqvce/%s.m' % n)
         if not os.path.exists(m):
-            print('   note: %s has no backing .m (redirect stub?)' % page)
+            # WP-41 decision (user-approved by PR merge): redirect stubs for
+            # REMOVED v1 names are KEPT for old bookmarks -- but only under a
+            # formal rule, enforced here: the page must (a) redirect a name
+            # that appears in the removed/renamed registry below, (b) carry
+            # "(removed)" in its <title>, and (c) meta-refresh to a live
+            # page. Anything else without a backing .m is a FINDING.
+            stubOK = {'lsqvce.recover.html', 'lsqvce.SeparableProblem.html'}
+            pageBase = os.path.basename(page)
+            pth = page if os.path.exists(page) else os.path.join('html', page)
+            raw = open(pth, encoding='utf-8', errors='replace').read()
+            isStub = ('(removed)' in raw.split('</title>')[0]
+                      and 'http-equiv="refresh"' in raw)
+            if pageBase in stubOK and isStub:
+                print('   OK stub: %s (removed-name redirect, kept by the '
+                      'WP-41 decision)' % page)
+            else:
+                note('doc-coverage', '%s has no backing .m and is not an '
+                     'approved removed-name redirect stub' % page)
 
 
 def check_links():

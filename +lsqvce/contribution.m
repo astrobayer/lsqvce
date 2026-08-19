@@ -49,8 +49,14 @@ function con = contribution(acc, sol, varargin)
 %     con   1x1 struct with fields
 %       .group   1xG struct, in GroupBy order:
 %                  .key    the group key
-%                  .r      1x1     exact redundancy r_g = tr(N^-1 N_g^cc)
-%                  .share  1x1     r_g / sum_g r_g  (Level-1 scalar share, sums 1)
+%                  .r      1x1     exact cc-attribution trace t_g = tr(N^-1 N_g^cc)
+%                                  (kept under the historical field name .r; it
+%                                  is NOT the redundancy -- WP-32, F-01:
+%                                  r_g = n_g - local_g - t_g)
+%                  .share  1x1     t_g / sum_g t_g  (Level-1 REDUNDANCY-trace
+%                                  share, sums to 1; contrast the Level-2
+%                                  absorbed-information DIAGONAL h_i, which
+%                                  attributes information per observation)
 %                  .diag   nc x 1  diag(N^-1 N_g^cc) (Level 2 only, else [])
 %                  .relSE  1x1     relative MC standard error of the streamed
 %                                  trace (Level 2 only, else NaN)
@@ -83,7 +89,7 @@ function con = contribution(acc, sol, varargin)
     p.parse(varargin{:});
     o = p.Results;
 
-    % ---- Level 1: exact per-group redundancy share -----------------------
+    % ---- Level 1: exact per-group cc-trace share -------------------------
     red = lsqvce.redundancy(acc, sol, 'GroupBy', o.GroupBy, ...
                             'MinRedundancy', o.MinRedundancy, ...
                             'Collect', false, 'Verbose', logical(o.Verbose));
