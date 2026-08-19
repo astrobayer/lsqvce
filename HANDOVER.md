@@ -2814,7 +2814,18 @@ Shat/C, via psdVCE's exact dctI inverse; the loop iterates on raw C).
 TESTS: the F-15 repro fixture (jointAccMapped) with decay+tail4 must
 clear corr > 0.8 (mirror-measured min ~0.89 leaves probe margin; fails
 pre-fix: options unknown); bitwise default regression (one pass, explicit
-defaults == omitted). F-15 §8 disposition updated: mechanism identified,
+defaults == omitted).
+**Round-2 CI red #2 (2026-08-19, this session):** still
+psd2acv:expectedNonnegative, contiguous stack pinned: psd2acv:61 <-
+covModel:409 (the 'toeplitz' psd2acv) <- covModel:213 <- synthLoader:152,
+i.e. FIVE LINES BELOW the elementwise max() floor -- statically
+impossible under my reading of max() semantics, so the floor is replaced
+by indexed sanitation (S(~isfinite(S) | S < fl*Smax) = fl*Smax) plus a
+diagnostic assert (lsqvce:covModel:psdSanitationEscape names min(S),
+#nonfinite, fl, Smax) so any residual escape reports its value class
+instead of failing downstream. LATENT BUG found during the chase and
+fixed: synthLoader:224, the GENERATION path's psd2acv, was the toolbox's
+one call with RAW cm.S -- now floored identically. F-15 §8 disposition updated: mechanism identified,
 mitigation shipped opt-in, severity call = user by merge.
 
 ### WP-41 — Documentation truth sweep

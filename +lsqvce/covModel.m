@@ -396,7 +396,19 @@ function [Cfcn, Wfcn, info] = psdModel(cm, t, dt, opt, info)
     if ~isfinite(Smax) || Smax <= 0
         error('lsqvce:covModel:degeneratePSD', 'The PSD is zero or non-finite everywhere.');
     end
-    S = max(S, fl*Smax);
+    % WP-40 r2 hardening: the elementwise max() floor SHOULD already heal
+    % every negative/NaN entry, yet CI observed psd2acv rejecting S as
+    % non-nonnegative directly below (stack pinned in the WP-40 r2 round
+    % note). Sanitize by explicit indexing -- beyond doubt for every value
+    % class -- and assert with diagnostics so any residual escape names its
+    % value instead of failing five lines downstream.
+    S(~isfinite(S) | S < fl*Smax) = fl*Smax;
+    if any(S <= 0) || any(~isfinite(S))
+        error('lsqvce:covModel:psdSanitationEscape', ...
+             ['PSD sanitation escape: min(S) = %.6e, #nonfinite = %d, ' ...
+              'fl = %.3e, Smax = %.6e. Report this state.'], ...
+              min(S), sum(~isfinite(S)), fl, Smax);
+    end
 
     Cfcn = [];
     Wfcn = [];
