@@ -2848,6 +2848,28 @@ semantics exactly; Gamma == 1 stays verbatim. Lesson pinned: a mitigation
 port must replicate the MEASUREMENT INSTRUMENT's semantics, not a
 plausible variant of them. F-15 §8 disposition updated: mechanism identified,
 mitigation shipped opt-in, severity call = user by merge.
+**Round-5 DIAGNOSIS SESSION (2026-08-19, measurements only — no code
+push; pinned so no session repeats them).** Round-4 red: corr 0.734 vs
+bar 0.8 (the mirror had measured 0.87-0.91). Three suspects EXONERATED
+by extending the mirror: (1) PROBE NOISE — shared-probe Hutchinson at
+Z = 300 is indistinguishable from exact s_n in the mirror (the common
+space is only nc = 3 dimensional); 12 runs identical to three decimals.
+(2) ARC-FACTOR COUPLING — the driver's s2*C weighting of the pooled
+omegaT/sT columns was mirrored (incl. the gammaBar trimmed-robust
+renormalisation): NO effect on this homogeneous-arc fixture (factors sit
+at ~1). (3) SEED TAIL — 40 data seeds at 12 iters + tail-4: min 0.877,
+p5 0.905, P(corr < 0.8) = 0.00 — MATLAB's 0.734 lies OUTSIDE the mirror
+distribution, so a genuine mirror<->MATLAB implementation difference
+remains. PRIME REMAINING SUSPECT: the DECLARATION path — the mirror
+zero-extends a 64-bin dctI acv beyond lag 64, while MATLAB goes covModel
+'psd'/psdMode 'toeplitz' through psd2acv (full m-lag cosine transform +
+its own floor): a different declared Sigma means a different whitening
+trajectory. NEXT STEP: make the mirror's declaration psd2acv-faithful
+and re-measure; if the gap closes, the cure is spectral-declaration
+resolution/smoothing, not more damping. SIDE FINDING (pinned): LONGER
+schedules are WORSE — 20 iters + tail-8 over the same 40 seeds: min
+0.773, P(<0.8) = 0.03; the decayed late steps drift and the longer tail
+averages over the drift. Keep 12/4 until understood.
 
 ### WP-41 — Documentation truth sweep
 
