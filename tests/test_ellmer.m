@@ -1181,10 +1181,18 @@ function acc = jointAccMapped(cfg, model) %#ok<DEFNU>
     if ~isempty(model) && isfield(model, 'C') && ~isempty(model.C)
         C     = model.C(:);
         Shat  = max(lsqvce.dctI(C), 0);
+        % WP-40 r2 hardening: under the STABILISED loop the fed-back C can
+        % produce interpolation edge cases the zero-clamp below does not
+        % cover on every path (CI: psd2acv rejected a non-nonnegative S
+        % inside the declaration; MATLAB's max() also heals NaN). Declare
+        % with a strictly positive floor relative to the spectrum's peak --
+        % psdModel floors again internally, so this changes nothing for
+        % healthy spectra.
+        sFloor = 1e-12 * max([Shat(:); realmin]);
         fNyq  = 1/(2*cfg.dt);
         fC    = (0:numel(C)-1).' * fNyq/(numel(C)-1);
         fD    = linspace(0, fNyq, 160).';        % 160 >= 256/2 + 1
-        SD    = max(interp1(fC, Shat(:), fD, 'pchip'), 0);
+        SD    = max(interp1(fC, Shat(:), fD, 'pchip'), sFloor);
         uo.covOverride.pos = struct('type','psd', 'f', fD, 'S', SD, ...
                                     'sigma', 1);
         uo.psdMode = 'toeplitz';
