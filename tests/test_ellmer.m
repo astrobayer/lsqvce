@@ -300,6 +300,65 @@ function test_psdVCE_warns_on_degenerate_white_start(tc)
         'lsqvce:psdVCE:degenerateStart');
 end
 
+%% ===================== WP-35: floor policy + negative-factor clamp (F-04/05)
+function test_psdVCE_zero_power_bin_floors_not_abs(tc)
+    % F-04 pin: a bin whose pooled alpha2 is NEGATIVE must land ON the
+    % MinAmplitude floor -- never at |alpha2|*Sprior (the abs fold injected
+    % ~2x the power at zero-power bins, v10review T6). On the pre-WP-35
+    % code Shat(2) = 0.5*Sprior(2) >> floor, so this test fails there
+    % (the §6.1 lever).
+    C  = [1; 0.3; 0.3; 0.3];
+    Om = [1; -0.5; 1; 1];              % alpha2 = [1 -0.5 1 1]
+    s  = ones(4, 1);
+    w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
+    pv = lsqvce.psdVCE(Om, s, C, 'MinAmplitude', 1e-8, 'Smooth', 0, ...
+                       'ZeroFreqRule', 'keep');
+    Sprior = lsqvce.dctI(C);
+    verifyEqual(tc, pv.Shat(2), 1e-8, ...
+        'a negative-alpha2 bin must sit exactly ON the floor');
+    verifyGreaterThan(tc, 0.5*abs(Sprior(2)), 1e-6, ...
+        'fixture sanity: the abs fold would sit far above the floor');
+    healthy = [1 3 4];
+    verifyEqual(tc, pv.Shat(healthy), Sprior(healthy), ...
+        'RelTol', 1e-12, 'positive-power bins are untouched by the policy');
+end
+
+function test_arcVarianceFactors_clamps_negative_sigma2(tc)
+    % F-05 pin: a constructed negative alpha2 (one arc's Omega column
+    % negative) must NOT leave as a negative variance factor: it is clamped
+    % at ClampEps, warned about, and flagged in .clamped. Pre-WP-35 the
+    % factor left negative and .clamped did not exist -- both assertions
+    % fail there (§6.1).
+    omegaT = [ones(3,1), ones(3,1), -0.4*ones(3,1)];   % arc 3: alpha2 < 0
+    sT     = ones(3, 3);
+    sig2   = ones(3, 1);
+    w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
+    a = lsqvce.arcVarianceFactors(omegaT, sT, sig2, 'MeanType', 'plain');
+    verifyTrue(tc, a.clamped(3),  'the negative-alpha2 arc must be flagged');
+    verifyFalse(tc, any(a.clamped(1:2)), 'healthy arcs must not be flagged');
+    verifyEqual(tc, a.sigma2(3), 1e-8, ...
+        'the clamped factor must equal the documented default ClampEps');
+    verifyTrue(tc, all(a.sigma2 > 0), 'no negative factor may leave');
+end
+
+function test_arcVarianceFactors_noop_on_healthy(tc)
+    % F-05 regression: on healthy input the clamp is a NO-OP -- .clamped is
+    % all-false and sigma2 is byte-identical to the closed formula
+    % gamma2 / gammaBar^2 (eqs. 6.5.28-6.5.30, plain mean).
+    rng(35);
+    M = 6;  nLag = 4;
+    alpha2 = 0.5 + rand(M, 1);                       % strictly positive
+    sT     = ones(nLag, M);
+    omegaT = repmat(alpha2.', nLag, 1);              % per-arc ratio = alpha2
+    sig2   = 0.8 + 0.4*rand(M, 1);
+    a = lsqvce.arcVarianceFactors(omegaT, sT, sig2, 'MeanType', 'plain');
+    verifyFalse(tc, any(a.clamped), 'healthy input must not clamp');
+    gamma2   = alpha2 .* sig2;
+    gammaBar = mean(sqrt(abs(gamma2)));
+    verifyEqual(tc, a.sigma2, gamma2 / gammaBar^2, ...
+        'converged results on healthy inputs must be unchanged (byte)');
+end
+
 function test_psdVCE_degenerate_flag_and_override(tc)
     N = 8;  M = 3;
     Cdelta = [1; zeros(N-1,1)];
