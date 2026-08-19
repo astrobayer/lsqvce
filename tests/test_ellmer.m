@@ -902,9 +902,15 @@ function acc = jointAccPDToggle(cfg, model, badIter, badArc)
 end
 
 function Sig = pdToggleCov(m, o, bad, badArc)
+    % INDEFINITE, not negative definite: one -0.5 eigenvalue with max eig
+    % 1 > 0 means the ACCUMULATOR survives (decorrFactor floors negative
+    % directions with a warning -- the robust production path) while the
+    % sweep's strict chol fails and oneArc SKIPS -- exactly the realistic
+    % mid-run F-02 trigger (round-1 lesson: -eye kills decorrFactor during
+    % accumulation before any sweep runs, notPD hard error).
     Sig = eye(m);
     if bad && isfield(o, 'arc') && isequal(o.arc, badArc)
-        Sig = -eye(m);                   % decisively non-PD, chol fails
+        Sig(1, 1) = -0.5;                % indefinite: chol fails, eig-max > 0
     end
 end
 

@@ -2542,6 +2542,16 @@ factor of the skipped arc), the alignment guarantee on the keys, and the
 tolerance comparison (0.15) bounds the gammaBar renormalisation. §6.1:
 both tests ERROR on the pre-fix code (no arcKeys/skips outputs) and the
 alignment contract did not exist.
+**Round-1 CI red + fix (2026-08-19):** the -eye trigger fired during
+ACCUMULATION — decorrFactor hard-errors when NO eigenvalue is positive
+(notPD, max = -1), so the pass-2 accumulator died before any sweep.
+Corrected trigger: INDEFINITE Sig (one -0.5 eigenvalue, max eig 1 > 0):
+decorrFactor floors the negative direction with a warning and
+accumulation proceeds (the robust production path), while the sweep's
+strict chol fails and oneArc skips — the honest mid-run scenario. Lesson
+for skip-inducing fixtures: the accumulator and the sweep gate covariances
+DIFFERENTLY (floor-and-warn vs skip); pick the trigger for the stage
+under test.
 
 ### WP-35 — Amplitude and factor sanity: psdVCE floor policy, negative sigma2
 
