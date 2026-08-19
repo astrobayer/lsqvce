@@ -207,6 +207,14 @@ WP-30 deferred).
 
 R2 track (opened 2026-08-16 by the second review, §8; prompts in §9;
 order of work: 32 → 33 → 34 → 35 → 36 → 40 → 37 → 38 → 41 → 39.
+**R2 TRACK CLOSED (2026-08-19, WP-39 merge ff1ef9e):** all fifteen
+findings F-01…F-15 addressed (F-15 closed UNDERSTOOD+GUIDED, §8
+disposition). Every public front door now carries a typed
+`arguments` signature with canonical UpperCamelCase names, or a pinned
+pass-through deviation (adjust, robust, solveNonlinear, the fluent
+configurators) with the same canonical surface. Open beyond the track:
+the runner migration (first green full run settles all postflight
+debts WP-33-r2…39) and the WP-42 backlog.
 **Order amendment (2026-08-19, user decision, option A):** WP-37 was
 executed BEFORE WP-40 — a session process error (the order line above was
 not consulted at WP start; only the ledger rows were), caught by the USER
@@ -226,7 +234,7 @@ order.**):
 | 36 | One probe generator, honest RNG contract (F-06) | — | DONE (2026-08-19, PR #7, merge 74ab106; CI green 498/498 — the WP's own changes green on the FIRST pass, the sole round-1 red was the test's own traceEstimate-returns-a-scalar mistake; POSTFLIGHT DEBT; round note §9 WP-36) |
 | 37 | `redundancyLags` without dense W^-1 + hot-loop tolls (F-09) | — | DONE (2026-08-19, PR #8, merge 66ffb81; CI green FIRST pass 501/501 incl. the N=4000 speed lever; GS/Levinson validated in Python to 1e-14 pre-port; POSTFLIGHT DEBT; round note §9 WP-37) |
 | 38 | Deduplicate keys / arc batching + audit lock (F-08) | 33,36 | DONE (2026-08-19, PR #11, merge 74d2f64; CI green FIRST pass 507/507 byte-identical; audit lock 10b live, red-tested; GroupBy error-id unification approved by merge; POSTFLIGHT DEBT; round note §9 WP-38) |
-| 39 | `arguments` blocks + Name-Value casing (F-07) | all | IN PROGRESS — 2026-08-19 stages (a) a1+a1-2+a2 (PRs #13, #14 MERGED), (b) b1+b2 (PRs #15, #16 MERGED), (c) c1 (PR #17 MERGED) + c2 = the class front doors, R2-CLOSING round, PR pending (round notes §9 WP-39); POSTFLIGHT DEBT |
+| 39 | `arguments` blocks + Name-Value casing (F-07) | all | DONE — 2026-08-19, staged rollout complete: (a) a1+a1-2+a2 (PRs #13, #14), (b) b1+b2 (PRs #15, #16), (c) c1+c2 (PRs #17, #18), merge ff1ef9e (round notes + pinned deviations §9 WP-39); POSTFLIGHT DEBT |
 | 40 | Method polish: gates, clamps, whiteness (F-10…F-13; + F-15 alternation bistability) | 32 | DONE (2026-08-19, TWO rounds: r1 F-10…F-13 PR #9 merge 736807d, CI 505/505; r2 F-15 PR #10 merge 8ca16b9, CI 507/507 after six diagnosis rounds with the psd2acv-faithful mirror; ALL THREE r2 decisions ACCEPTED by the user 2026-08-19 — detailed in the DECISION RECORD below the round notes (§9 WP-40); POSTFLIGHT DEBT both rounds; round notes §9 WP-40) |
 | 41 | Documentation truth sweep (F-12, F-14) | 32,33,36,40 | DONE (2026-08-19, PR #12, merge 739e578; CI green 507/507, zero fixture movement; stub rule + all claim fixes approved by merge; round note §9 WP-41) |
 
