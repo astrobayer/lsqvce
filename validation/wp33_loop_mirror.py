@@ -1,11 +1,19 @@
 """wp33_loop_mirror.py — faithful Python mirror of the adjustVCEjoint
-closed loop (declared covariance fed back, EXACT s_n instead of probes) on
-the coloured block-arrow fixture. Written 2026-08-19 during WP-33 round 2
-to explain the corr 0.64/0.65 reds: the grid at the bottom is the EVIDENCE
-for finding F-15 (HANDOVER §8) — the alternation is seed-fragile/bistable
-(corr can crash to negative values for unlucky draws, and MORE arcs can
-make it WORSE), while longer arcs stabilise it. Run: python3 wp33_loop_mirror.py
-(numpy + scipy). Model Claude Fable 5."""
+closed loop (declared covariance fed back, EXACT s_n instead of probes).
+Written 2026-08-19 (WP-33 r2) as the F-15 evidence; EXTENDED 2026-08-19
+(WP-40 r2) with the post-WP-35 floor update, the damping exponent, the
+Robbins-Monro schedule ('rm2': gamma_t = 2/(2+it)) and Polyak tail
+averaging. MEASURED GRIDS (8 seeds each, corr over bins 2:end):
+  undamped floor:  min -0.21 (8x96) / 0.08 (16x96) / -0.66 (16x128) / 0.97 (16x256)
+  rm2 decay:       min  0.87 / 0.90 / 0.89 / 0.91
+  rm2 + tail4:     min  0.89 / 0.92 / 0.91 / 0.93
+  tail4 alone:     does NOT rescue the undamped collapse
+Also measured: the WP-35 floor does NOT cure F-15 (some seeds worsen);
+the ZeroFreqRule and nLag-resolution suspects are exonerated (shifting,
+not stabilising). Conclusion: stochastic-approximation instability of
+the undamped multiplicative step -> the decay schedule is the cure,
+shipped opt-in as adjustVCEjoint StepSchedule/AvgTail + psdVCE Gamma.
+Run: python3 wp33_loop_mirror.py (numpy + scipy). Model Claude Fable 5."""
 # Faithful Python mirror of the adjustVCEjoint closed loop on the coloured
 # fixture (exact s_n via dense Rbar, no probes): find the honest config with
 # corr > 0.95, and quantify the DC-rule effect.
@@ -37,7 +45,7 @@ def theoretical_acv(ar, nlag):
     return np.array([h[:4000-l] @ h[l:] for l in range(nlag)])
 
 def run(nArc=8, m=96, nLag=10, iters=8, dc_rule=True, seed=1,
-        ar=(1,-0.75,0.4), nc=3, nl=2):
+        ar=(1,-0.75,0.4), nc=3, nl=2, update='abs', gamma=1.0, schedule=None, avgTail=0):
     rng = np.random.default_rng(seed)
     acv_t = theoretical_acv(np.array(ar), m)
     SigT = toeplitz(acv_t)                      # true noise covariance
@@ -48,6 +56,7 @@ def run(nArc=8, m=96, nLag=10, iters=8, dc_rule=True, seed=1,
     L = [a@xT + b@yT + Wt.T@rng.normal(size=m) for a, b in zip(A, B)]
 
     C = np.r_[1.0, 0.3*np.ones(nLag-1)]        # the driver's default C0
+    tail = []
     for it in range(iters):
         # declared covariance from C: upsampled psd route (as jointAccMapped r2c)
         Sh = np.maximum(dctI_ortho(C).ravel(), 0)
@@ -95,9 +104,20 @@ def run(nArc=8, m=96, nLag=10, iters=8, dc_rule=True, seed=1,
         Omj = OmT.sum(1); sj = sT.sum(1)
         alpha2 = np.where(np.abs(sj) > 0, Omj/sj, 1.0)
         Sprior = dctI_ortho(C).ravel()
-        Shat = np.maximum(np.abs(alpha2*Sprior), 1e-6)
+        if update == 'abs':                       # PRE-WP-35 (the F-15 grid)
+            Shat = np.maximum(np.abs(alpha2*Sprior), 1e-6)
+        else:                                     # POST-WP-35: FLOOR, never abs
+            a2 = np.where(alpha2 > 0, alpha2, np.nan)
+            a2 = np.nan_to_num(a2, nan=1.0)       # nonpositive: hold (floored)
+            g = gamma
+            if schedule == 'rm':   g = 1.0/(1+it)          # Robbins-Monro decay
+            if schedule == 'rm2':  g = 2.0/(2+it)
+            Shat = np.maximum((a2**g)*Sprior, 1e-6)
         if dc_rule: Shat[0] = Shat[1]
         C = dctI_ortho(Shat).ravel()
+        if avgTail: tail.append(np.log(Shat))
+    if avgTail and len(tail) >= avgTail:
+        Shat = np.exp(np.mean(tail[-avgTail:], axis=0))    # Polyak tail average
     St = dctI_ortho(theoretical_acv(np.array(ar), nLag)).ravel()
     Stc = St.copy()
     if dc_rule: Stc[0] = Stc[1]
@@ -106,7 +126,10 @@ def run(nArc=8, m=96, nLag=10, iters=8, dc_rule=True, seed=1,
 
 if __name__ == "__main__":
     import numpy as _np
-    for cfg in [dict(nArc=8, m=96, iters=8), dict(nArc=16, m=192, iters=10),
-                dict(nArc=16, m=256, iters=10)]:
-        nodc = [run(seed=s, **cfg)[2] for s in range(1, 9)]
-        print(cfg, _np.round(nodc, 3), " min:", round(min(nodc), 3))
+    for cfg in [dict(nArc=8, m=96, iters=12), dict(nArc=16, m=96, iters=12),
+                dict(nArc=16, m=128, iters=12), dict(nArc=16, m=256, iters=12)]:
+        raw = [run(seed=s, update='floor', **cfg)[2] for s in range(1, 9)]
+        stb = [run(seed=s, update='floor', schedule='rm2', avgTail=4, **cfg)[2]
+               for s in range(1, 9)]
+        print(f"{cfg['nArc']}x{cfg['m']:3d}  undamped min {min(raw):+.3f}   "
+              f"rm2+tail4 min {min(stb):+.3f}")

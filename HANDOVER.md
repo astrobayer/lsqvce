@@ -221,13 +221,13 @@ order.**):
 |----|-------|-----------|--------|
 | 32 | Fix `vce` 'hutchinson': redundancy, not trace (F-01) | — | DONE (2026-08-18, PR #2, merge e167cee; CI green both contexts after a setup-matlab cache-restore hang was resolved per the incident runbook, postflight green 515/515 on Windows R2026a; evidence + round note §9 WP-32) |
 | 33 | Joint paths: locals in residual + projector (F-03) | — | DONE (2026-08-19: round 1 PR #3 merge 7d7c14c, round 2 PR #4 merge 24cfe6c; CI green 489/489; user approved the 0.85 accuracy floor + F-15→WP-40 scope by merging; postflight: round 1 green pre-outage, round 2 = D.4 DEBT until the bridge returns; six r2 lessons + F-15 pinned in §9 WP-33) |
-| 34 | Keyed arc identity in `adjustVCEjoint` (F-02) | — | IN PROGRESS — 2026-08-19: fix + tests on `claude/wp-34` (round note §9 WP-34); draft-PR loop; POSTFLIGHT DEBT (bridge away) |
+| 34 | Keyed arc identity in `adjustVCEjoint` (F-02) | — | DONE (2026-08-19, PR #5, merge af440dd; CI green 491/491; deviation approved by merge: byte guarantee on the kept factor, RelTol 0.15 renormalisation bound; POSTFLIGHT DEBT; round note §9 WP-34) |
 | 35 | psdVCE floor policy + negative-factor clamp (F-04, F-05) | — | DONE (2026-08-19, PR #6, merge 827ee6b; CI green 493/493 — the run that also validated the self-healing setup live: attempt-1 wedge killed at 720 s, attempt-2 restore 90 s; POSTFLIGHT DEBT until the runner/bridge returns; round note §9 WP-35) |
 | 36 | One probe generator, honest RNG contract (F-06) | — | DONE (2026-08-19, PR #7, merge 74ab106; CI green 498/498 — the WP's own changes green on the FIRST pass, the sole round-1 red was the test's own traceEstimate-returns-a-scalar mistake; POSTFLIGHT DEBT; round note §9 WP-36) |
 | 37 | `redundancyLags` without dense W^-1 + hot-loop tolls (F-09) | — | DONE (2026-08-19, PR #8, merge 66ffb81; CI green FIRST pass 501/501 incl. the N=4000 speed lever; GS/Levinson validated in Python to 1e-14 pre-port; POSTFLIGHT DEBT; round note §9 WP-37) |
 | 38 | Deduplicate keys / arc batching + audit lock (F-08) | 33,36 | OPEN |
 | 39 | `arguments` blocks + Name-Value casing, whole surface (F-07) | 32–38,40,41 | OPEN |
-| 40 | Method polish: gates, clamps, whiteness (F-10…F-13; + F-15 alternation bistability, registered 2026-08-19) | 32 | IN PROGRESS — 2026-08-19 round 1 (F-10…F-13) on `claude/wp-40`, PR #9 (round note §9 WP-40); F-15 = round 2 by design; draft-PR loop; POSTFLIGHT DEBT |
+| 40 | Method polish: gates, clamps, whiteness (F-10…F-13; + F-15 alternation bistability, registered 2026-08-19) | 32 | IN PROGRESS — 2026-08-19 round 1 (F-10…F-13) on `claude/wp-40`, PR #9 (round note §9 WP-40); round 1 (F-10…F-13) DONE (PR #9, merge 736807d; F-13 deviation approved by merge). Round 2 (F-15) 2026-08-19 on `claude/wp-40-r2` (round note §9 WP-40); draft-PR loop; POSTFLIGHT DEBT |
 | 41 | Documentation truth sweep (F-12, F-14) | 32,33,36,40 | OPEN |
 
 ---
@@ -2208,8 +2208,19 @@ bistable fixed point, not estimation noise (SNR arithmetic puts pure
 noise at ~0.97). LONG arcs stabilise (16x256: min 0.968 over 8 seeds).
 Evidence: validation/wp33_loop_mirror.py (full-pipeline Python mirror).
 Mechanism suspects: abs()+floor can lock a sign-flipped branch; the
-ZeroFreqRule coupling. Disposition: registered here; candidate for WP-40
-(damped/relaxed update or a monotone step).
+ZeroFreqRule coupling. **DISPOSITION UPDATE (2026-08-19, WP-40 r2): both
+suspects EXONERATED by measurement (the WP-35 floor does not cure it —
+some seeds worsen; ZeroFreqRule off and higher nLag only SHIFT the
+failures). Mechanism identified: stochastic-approximation instability of
+the undamped multiplicative step (per-bin estimation noise re-amplified
+through the re-whitening). MITIGATION SHIPPED, opt-in: psdVCE 'Gamma'
+(damped update) + adjustVCEjoint 'StepSchedule','decay' (Robbins-Monro
+Gamma_it = 2/(2+it)) + 'AvgTail' (Polyak tail averaging). Mirror-measured
+across the grid: worst-seed corr from -0.66 to ~0.9 at nearly unchanged
+ceiling; defaults are bitwise the old path. Residual risk: the undamped
+default remains bistable — RECOMMENDATION for production closed loops:
+'StepSchedule','decay','AvgTail',4. Severity after mitigation: user call
+(approve by merging PR; suggest MITIGATED).**
 
 ### 8.4 What is RIGHT (so nobody "fixes" it)
 
@@ -2781,6 +2792,30 @@ sigma^2 = 0.03; Python frequency check: negative in 14/40 seeds (first
 firing seed 2), so the deterministic seed search over 1:40 is safe.
 Lesson: an estimability-gated pathology test must first PASS the
 estimability gate.
+
+**ROUND NOTE (2026-08-19, WP-40 round 2 = F-15, model Claude Fable 5;
+branch `claude/wp-40-r2`; rides the WP-34 DONE flip). MEASUREMENT SERIES
+(all in validation/wp33_loop_mirror.py, permanently extended; 8 seeds per
+cell, corr over bins 2:end):** (1) The mirror still modelled the
+PRE-WP-35 abs update — re-measured under the shipped FLOOR semantics: the
+instability PERSISTS and some seeds WORSEN (8x96 seed 8: 0.94 -> -0.21;
+16x128 seed 5: 0.63 -> -0.64) — the abs suspect is dead. (2) ZeroFreqRule
+off and nLag 10->16->24 only SHIFT which seeds fail — both suspects
+exonerated. (3) Constant damping (gamma 0.3..0.7) kills the collapses but
+lowers the ceiling (under-converged). (4) THE CURE: Robbins-Monro decay
+gamma_it = 2/(2+it) — full early steps, averaging later — lifts the
+worst-seed corr to 0.87-0.91 across ALL grids; Polyak tail averaging of
+the returned spectrum adds ~0.02 (and does NOTHING without the decay:
+averaging cannot rescue an undamped collapse). SHIPPED, all defaults
+bitwise-old: psdVCE 'Gamma' (the primitive, alpha2.^Gamma); adjustVCEjoint
+'StepSchedule' ('none'|'decay') computing Gamma_it and threading it, and
+'AvgTail' (log-domain Polyak average applied ONLY to the returned
+Shat/C, via psdVCE's exact dctI inverse; the loop iterates on raw C).
+TESTS: the F-15 repro fixture (jointAccMapped) with decay+tail4 must
+clear corr > 0.8 (mirror-measured min ~0.89 leaves probe margin; fails
+pre-fix: options unknown); bitwise default regression (one pass, explicit
+defaults == omitted). F-15 §8 disposition updated: mechanism identified,
+mitigation shipped opt-in, severity call = user by merge.
 
 ### WP-41 — Documentation truth sweep
 

@@ -17,6 +17,10 @@ function tests = test_ellmer
 %   non-PD skip with keyed alignment/kept-factor/skip-report assertions,
 %   and the vanished-enumeration arcMismatch error. With assistance from
 %   Claude (Anthropic), model Claude Fable 5.
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-40 r2 (F-15): the stabilised
+%   alternation test (decay + tail averaging clears the floor on the F-15
+%   repro fixture) and the bitwise default regression. With assistance
+%   from Claude (Anthropic), model Claude Fable 5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-37: three tests for the
 %   structured Sigma^-1 sums (dense-reference agreement at 1e-12 on the
 %   Toeplitz AND the general fallback path; the long-arc speed lever).
@@ -951,6 +955,43 @@ function test_adjustVCEjoint_flat_psd_on_white_noise_with_locals(tc)
     verifyTrue(tc, max(S)/min(S) < 3.0, ...
         sprintf(['white truth => flat PSD: max/min = %.2f (arc-parameter ' ...
                  'leakage shows up as structure)'], max(S)/min(S)));
+end
+
+function test_joint_stabilised_alternation_beats_collapse(tc)
+    % WP-40 r2 (F-15; fails on the old code: the options are unknown): the
+    % closed-loop repro fixture (jointAccMapped, the F-15 vehicle) run WITH
+    % 'StepSchedule','decay' + 'AvgTail',4 must clear the accuracy floor.
+    % The undamped loop is bistable on this volume class (mirror grid:
+    % worst seed corr -0.21 at 8x96); the stabilised update is mirror-
+    % measured at min ~0.89 across all grids, so 0.8 leaves probe-noise
+    % margin without readmitting the collapse.
+    cfg  = jointCfgColoured();
+    nLag = 10;
+    w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
+    r = lsqvce.adjustVCEjoint(@(model) jointAccMapped(cfg, model), ...
+            'NumLags', nLag, 'MaxIter', 12, 'Probes', 300, 'Seed', 13, ...
+            'StepSchedule', 'decay', 'AvgTail', 4, 'Verbose', false);
+    Strue = lsqvce.dctI(lsqvce.armaACV(cfg.cov.pos.ar, cfg.cov.pos.ma, nLag));
+    Strue = abs(Strue(:));
+    cc = corrcoef(r.Shat(2:end), Strue(2:end));
+    verifyGreaterThan(tc, cc(1,2), 0.8, ...
+        sprintf('stabilised closed loop: corr = %.3f (need > 0.8)', cc(1,2)));
+end
+
+function test_joint_default_schedule_is_plain_step(tc)
+    % Backward compatibility: 'StepSchedule','none' (the default) must be
+    % BITWISE the old path -- one pass with and without the explicit default
+    % options must agree exactly.
+    cfg = jointCfg();
+    w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
+    a = lsqvce.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
+            'NumLags', 6, 'MaxIter', 1, 'Probes', 100, 'Seed', 5, ...
+            'Verbose', false);
+    b = lsqvce.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
+            'NumLags', 6, 'MaxIter', 1, 'Probes', 100, 'Seed', 5, ...
+            'StepSchedule', 'none', 'AvgTail', 0, 'Verbose', false);
+    verifyEqual(tc, b.Shat, a.Shat);             % NO tolerance: bitwise
+    verifyEqual(tc, b.C,    a.C);
 end
 
 function test_adjustVCEjoint_psd_recovery_coloured_with_locals(tc)
