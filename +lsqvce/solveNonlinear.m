@@ -100,6 +100,11 @@ function [sol, D, V, IT] = solveNonlinear(u, batchFcn, nBatch, x0, varargin)
 %     lsqvce:nonlin:nonFinite  the model returned NaN or Inf at the current
 %                              iterate
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (c) c1 (F-07):
+%   canonical UpperCamelCase option names + typed validators on
+%   inputParser, which stays BY DESIGN (KeepUnmatched pass-through --
+%   the adjust pattern; pinned deviation §9 WP-39). With assistance from
+%   Claude (Anthropic), model Claude Fable 5.
 %   See also LSQVCE.ADJUST, LSQVCE.ACCUMULATOR.
 %
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
@@ -108,16 +113,25 @@ function [sol, D, V, IT] = solveNonlinear(u, batchFcn, nBatch, x0, varargin)
 ip = inputParser;
 ip.FunctionName = 'lsqvce.solveNonlinear';
 ip.KeepUnmatched = true;
-addParameter(ip, 'maxIter', 30,    @(x) isscalar(x) && x >= 1);
-addParameter(ip, 'tolX',    1e-3,  @(x) isscalar(x) && x > 0);
-addParameter(ip, 'tolF',    1e-10, @(x) isscalar(x) && x > 0);
-addParameter(ip, 'lambda0', 1e-6,  @(x) isscalar(x) && x >= 0);
-addParameter(ip, 'datumB',  [],    @(x) isempty(x) || isnumeric(x));
-addParameter(ip, 'method',  'qr');
-addParameter(ip, 'sigma0',  1);
-addParameter(ip, 'verbose', true,  @islogical);
+% WP-39 c1, PINNED DEVIATION (the adjust pattern): solveNonlinear KEEPS
+% inputParser BY DESIGN (KeepUnmatched forwards to the linear solve /
+% diagnostics chain). Canonical UpperCamelCase names + typed validators;
+% enum VALUES case-sensitive lowercase (strcmp); the o remap keeps the
+% body untouched.
+addParameter(ip, 'MaxIter', 30,    @(x) isscalar(x) && x >= 1 && x == floor(x));
+addParameter(ip, 'TolX',    1e-3,  @(x) isscalar(x) && x > 0);
+addParameter(ip, 'TolF',    1e-10, @(x) isscalar(x) && x > 0);
+addParameter(ip, 'Lambda0', 1e-6,  @(x) isscalar(x) && x >= 0);
+addParameter(ip, 'DatumB',  [],    @(x) isempty(x) || isnumeric(x));
+addParameter(ip, 'Method',  'qr',  @(s) (ischar(s) || isstring(s)) && any(strcmp(char(s), {'qr','normal'})));
+addParameter(ip, 'Sigma0',  1,     @(x) isnumeric(x) && isscalar(x) && x > 0);
+addParameter(ip, 'Verbose', true,  @(v) (islogical(v) || isnumeric(v)) && isscalar(v));
 parse(ip, varargin{:});
-o = ip.Results;
+r_ = ip.Results;
+o  = struct('maxIter', r_.MaxIter, 'tolX', r_.TolX, 'tolF', r_.TolF, ...
+            'lambda0', r_.Lambda0, 'datumB', r_.DatumB, ...
+            'method', char(r_.Method), 'sigma0', r_.Sigma0, ...
+            'verbose', r_.Verbose);
 
 x   = x0(:);
 if numel(x) ~= u

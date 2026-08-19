@@ -852,6 +852,44 @@ function test_stageB_signature_redundancy(tc)
     verifyTrue(tc, ok, 'redundancy Parallel ''PARFOR'' must fail (value casing)');
 end
 
+function test_stageC1_signatures_enum_values(tc)
+    % WP-39 stage (c) c1 (F-07): enum-VALUE levers with the specific
+    % mustBeMember id; solveNonlinear via the parser's own id (adjust
+    % pattern, pinned deviation).
+    ok = false;
+    try
+        lsqvce.dctI([1;2;3], 'Norm', 'Ortho');
+    catch e
+        ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
+    end
+    verifyTrue(tc, ok, 'dctI Norm ''Ortho'' must fail (value casing)');
+    ok = false;
+    try
+        lsqvce.toeplitzCofactor([1;0.5;0.2], 'Form', 'Dense');
+    catch e
+        ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
+    end
+    verifyTrue(tc, ok, 'toeplitzCofactor Form ''Dense'' must fail');
+    ok = false;
+    try
+        lsqvce.mapreduce(@(k) k, 3, 'Mode', 'Serial');
+    catch e
+        ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
+    end
+    verifyTrue(tc, ok, 'mapreduce Mode ''Serial'' must fail');
+    ok = false;
+    try
+        % round-2 fix: solveNonlinear takes FOUR positionals (u, batchFcn,
+        % nBatch, x0) -- the first draft passed two, so 'Method' landed as
+        % nBatch and the parser never saw the pair.
+        lsqvce.solveNonlinear(2, @(k, x) deal(randn(4,2), randn(4,1), []), ...
+                              1, [0; 0], 'Method', 'QR');
+    catch e
+        ok = strcmp(e.identifier, 'MATLAB:InputParser:ArgumentFailedValidation');
+    end
+    verifyTrue(tc, ok, 'solveNonlinear Method ''QR'' must fail (case-sensitive)');
+end
+
 function test_stageB2_signatures_enum_values(tc)
     % WP-39 stage (b) b2 (F-07): enum-VALUE casing is the fails-on-old
     % lever (mustBeMember where strcmpi used to accept any casing),

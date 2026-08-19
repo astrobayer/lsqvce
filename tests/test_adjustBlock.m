@@ -118,10 +118,15 @@ function testMakeLoaderShortAliasesRemoved(tc)
     % inputParser has PartialMatching off, so an old name is now an unmatched
     % parameter and must ERROR rather than silently doing nothing.
     cfg = buildCfg();
+    % WP-39 c1: the unknown-name rejection moved from inputParser into the
+    % typed arguments signature -- the id is now MATLAB:TooManyInputs (the
+    % arguments-block unknown-NV id). The protective contract (a removed
+    % terse alias must ERROR, never silently no-op) is unchanged and
+    % release-noted with the b1-r3 rule.
     tc.verifyError(@() lsqvce.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
             'observationTypes',{'pos'}, 'covariance',cfg.cov, ...
             'sysID',3, 'numLocal',4, 'numCommon',6), ...
-        'MATLAB:InputParser:UnmatchedParameter');
+        'MATLAB:TooManyInputs');
 end
 
 %% ============================================================ recover errors

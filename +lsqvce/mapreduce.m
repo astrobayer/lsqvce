@@ -1,4 +1,4 @@
-function [out, info] = mapreduce(nTask, taskFcn, varargin)
+function [out, info] = mapreduce(nTask, taskFcn, opt)
 %LSQVCE.MAPREDUCE  Execution-strategy layer: serial | parfor | spmd.
 %
 %   [out, info] = LSQVCE.MAPREDUCE(nTask, taskFcn, 'Name', value, ...)
@@ -66,10 +66,27 @@ function [out, info] = mapreduce(nTask, taskFcn, varargin)
 %   ERRORS
 %     lsqvce:mapreduce:badTask      a task descriptor is malformed
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (c) c1 (F-07):
+%   typed `arguments` signature, canonical UpperCamelCase option names
+%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+%   case-sensitive lowercase). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 %   See also LSQVCE.BLOCKACCUMULATOR, LSQVCE.REDUNDANCY, LSQVCE.VCE
 %
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
+
+arguments
+    nTask
+    taskFcn
+    opt.Mode (1,1) string {mustBeMember(opt.Mode, ["serial","parfor","spmd"])} = "serial"
+    opt.Threshold (1,1) double {mustBeNonnegative} = 8
+    opt.Reduce = []
+    opt.Init = []
+    opt.Combine = []
+    opt.AutoPool (1,1) logical = true
+    opt.Verbose (1,1) logical = false
+end
 
     narginchk(2, inf);
     validateattributes(nTask, {'numeric'}, {'scalar','integer','nonnegative'}, ...
@@ -78,16 +95,10 @@ function [out, info] = mapreduce(nTask, taskFcn, varargin)
         error('lsqvce:mapreduce:badTask', 'taskFcn must be a function handle.');
     end
 
-    p = inputParser;  p.FunctionName = 'lsqvce.mapreduce';
-    p.addParameter('mode'     , 'serial', @(s) any(strcmpi(s, {'serial','parfor','spmd'})));
-    p.addParameter('threshold', 8,    @(v) isscalar(v) && v >= 0);
-    p.addParameter('reduce'   , []);
-    p.addParameter('init'     , []);
-    p.addParameter('combine'  , []);
-    p.addParameter('autoPool' , true, @(v) islogical(v) && isscalar(v));
-    p.addParameter('verbose'  , false, @(v) (islogical(v) || isnumeric(v)) && isscalar(v));
-    p.parse(varargin{:});
-    o = p.Results;
+    % WP-39 stage (c) c1: typed `arguments` signature (canonical
+    % UpperCamelCase; legacy casings keep matching -- MATLAB NV
+    % semantics; enum VALUES case-sensitive lowercase).
+    o = struct('mode', char(opt.Mode), 'threshold', opt.Threshold, 'reduce', opt.Reduce, 'init', opt.Init, 'combine', opt.Combine, 'autoPool', opt.AutoPool, 'verbose', opt.Verbose);
 
     mode = lower(o.mode);
     info = struct('mode', mode, 'fallback', '', 'nWorkers', 1);

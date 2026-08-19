@@ -1,4 +1,4 @@
-function [y, X] = dctI(x, varargin)
+function [y, X] = dctI(x, opt)
 %LSQVCE.DCTI  Type-I discrete cosine transform (covariance <-> PSD pairing).
 %
 %   y      = LSQVCE.DCTI(x)
@@ -59,14 +59,24 @@ function [y, X] = dctI(x, varargin)
 %
 %   See also LSQVCE.PSD2ACV, LSQVCE.TOEPLITZCOFACTOR, LSQVCE.COVCOMPONENT
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (c) c1 (F-07):
+%   typed `arguments` signature, canonical UpperCamelCase option names
+%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+%   case-sensitive lowercase). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 %   Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Opus 4.8.
 
-    p = inputParser;  p.FunctionName = 'lsqvce.dctI';
-    p.addParameter('Norm'   , 'ortho', @(s) any(strcmpi(s, {'ortho','ellmer'})));
-    p.addParameter('Inverse', false,   @(v) isscalar(v) && (islogical(v) || isnumeric(v)));
-    p.parse(varargin{:});
-    o = p.Results;
+    % WP-39 stage (c) c1: typed `arguments` signature (canonical
+    % UpperCamelCase; legacy casings keep matching -- MATLAB NV
+    % semantics; enum VALUES case-sensitive lowercase).
+arguments
+    x
+    opt.Norm (1,1) string {mustBeMember(opt.Norm, ["ortho","ellmer"])} = "ortho"
+    opt.Inverse (1,1) logical = false
+end
+
+    o = struct('Norm', char(opt.Norm), 'Inverse', logical(opt.Inverse));
     inv = logical(o.Inverse);
 
     wasRow = isrow(x);

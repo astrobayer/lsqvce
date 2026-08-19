@@ -43,47 +43,68 @@ a { color: #0b5ea8; }
 <div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.solveNonlinear</div>
 <h1>lsqvce.solveNonlinear</h1>
 <div class="purpose">Iterated (Gauss-Newton) least squares in batches.</div>
-<h2>Syntax</h2>
-<pre class="syntax">[sol, D, V, IT] = LSQVCE.SOLVENONLINEAR(u, batchFcn, nBatch, x0)</pre>
 <h2>Description</h2>
-<p>re-linearises and re-solves until convergence, then diagnoses the CONVERGED solution.</p>
-<p>batchFcn now takes the current estimate:</p>
-<pre class="example">[A, w, p] = batchFcn(k, x)</pre>
-<p>where A is the Jacobian d(model)/dx AT x, and w is the reduced observation vector  w = l - f(x)  (the &quot;observed minus computed&quot;). The step solves A*dx = w, and x &lt;- x + dx.</p>
+<pre class="example">[sol, D, V, IT] = LSQVCE.SOLVENONLINEAR(u, batchFcn, nBatch, x0)
+re-linearises and re-solves until convergence, then diagnoses the CONVERGED
+solution.
+
+batchFcn now takes the current estimate:
+    [A, w, p] = batchFcn(k, x)
+where A is the Jacobian d(model)/dx AT x, and w is the reduced observation
+vector  w = l - f(x)  (the &quot;observed minus computed&quot;). The step solves
+A*dx = w, and x &lt;- x + dx.</pre>
 <h3>Why This Belongs In The Toolbox</h3>
-<p>------------------------------- Everything else here assumes a linear model. In practice you re-linearise, and the loop is easy to get subtly wrong in a way that silently poisons the diagnostics:</p>
-<pre class="example">* vPv must be evaluated AT THE CONVERGED POINT. Using the vPv from the
-  last accumulation (which was formed at the PREVIOUS x) biases the
-  variance factor. The bias is exactly the improvement of the final step,
-  so it is largest when you stop early -- i.e. precisely when you are
-  least entitled to trust it.
-* The redundancy is still n - rank, but a wrongly converged solution
-  inflates vPv and can look like an outlier problem or a systematic.</pre>
-<p>So the loop is owned here, and the final diagnose() is run on a FRESH accumulation at the converged x.</p>
-<h3>Convergence</h3>
-<p>----------- Declared when EITHER</p>
-<pre class="example">max|dx_j / sigma_x_j| &lt; &#x27;tolX&#x27;          (step is small vs. its own noise)</pre>
-<p>OR  |vPv_k - vPv_{k-1}| / vPv_k &lt; &#x27;tolF&#x27;    (the fit stops improving) The first is the meaningful one: a step much smaller than the parameter&#x27;s own standard deviation cannot change any conclusion. A pure |dx| &lt; eps test is scale-dependent and therefore meaningless across mixed units (metres and radians in the same vector).</p>
-<h3>Damping</h3>
-<p>------- Pure Gauss-Newton diverges if the starting point is poor. A Levenberg damping term is applied: solve (N + lam*diag(N)) dx = b, with lam reduced on a successful step and increased on a failed one. Set &#x27;lambda0&#x27; = 0 for undamped Gauss-Newton.</p>
+<pre class="example">-------------------------------
+Everything else here assumes a linear model. In practice you re-linearise,
+and the loop is easy to get subtly wrong in a way that silently poisons the
+diagnostics:
+
+  * vPv must be evaluated AT THE CONVERGED POINT. Using the vPv from the
+    last accumulation (which was formed at the PREVIOUS x) biases the
+    variance factor. The bias is exactly the improvement of the final step,
+    so it is largest when you stop early -- i.e. precisely when you are
+    least entitled to trust it.
+  * The redundancy is still n - rank, but a wrongly converged solution
+    inflates vPv and can look like an outlier problem or a systematic.
+
+So the loop is owned here, and the final diagnose() is run on a FRESH
+accumulation at the converged x.
+
+CONVERGENCE
+-----------
+Declared when EITHER
+    max|dx_j / sigma_x_j| &lt; &#x27;tolX&#x27;          (step is small vs. its own noise)
+OR  |vPv_k - vPv_{k-1}| / vPv_k &lt; &#x27;tolF&#x27;    (the fit stops improving)
+The first is the meaningful one: a step much smaller than the parameter&#x27;s
+own standard deviation cannot change any conclusion. A pure |dx| &lt; eps test
+is scale-dependent and therefore meaningless across mixed units (metres and
+radians in the same vector).
+
+DAMPING
+-------
+Pure Gauss-Newton diverges if the starting point is poor. A Levenberg
+damping term is applied: solve (N + lam*diag(N)) dx = b, with lam reduced
+on a successful step and increased on a failed one. Set &#x27;lambda0&#x27; = 0 for
+undamped Gauss-Newton.</pre>
 <h3>Name-Value</h3>
-<pre class="example">&#x27;maxIter&#x27;  30
-&#x27;tolX&#x27;     1e-3    step size relative to sigma_x
-&#x27;tolF&#x27;     1e-10   relative change in vPv
-&#x27;lambda0&#x27;  1e-6    initial Levenberg damping (0 = pure Gauss-Newton)
-&#x27;datumB&#x27;   []      free-network datum (see lsqvce.Accumulator)
-&#x27;method&#x27;   &#x27;qr&#x27;
-&#x27;sigma0&#x27;   1
-&#x27;verbose&#x27;  true
-... plus everything lsqvce.diagnose accepts</pre>
-<h3>Output It</h3>
-<pre class="example">.x          per-iteration parameter estimates (u x nIter)
-.vPv        per-iteration weighted residual sum of squares
-.dxNorm     per-iteration max|dx/sigma_x|
-.lambda     per-iteration damping
-.converged  logical
-.nIter
-.reason     &#x27;tolX&#x27; | &#x27;tolF&#x27; | &#x27;maxIter&#x27; | &#x27;diverged&#x27;</pre>
+<pre class="example">  &#x27;maxIter&#x27;  30
+  &#x27;tolX&#x27;     1e-3    step size relative to sigma_x
+  &#x27;tolF&#x27;     1e-10   relative change in vPv
+  &#x27;lambda0&#x27;  1e-6    initial Levenberg damping (0 = pure Gauss-Newton)
+  &#x27;datumB&#x27;   []      free-network datum (see lsqvce.Accumulator)
+  &#x27;method&#x27;   &#x27;qr&#x27;
+  &#x27;sigma0&#x27;   1
+  &#x27;verbose&#x27;  true
+  ... plus everything lsqvce.diagnose accepts
+
+OUTPUT IT
+  .x          per-iteration parameter estimates (u x nIter)
+  .vPv        per-iteration weighted residual sum of squares
+  .dxNorm     per-iteration max|dx/sigma_x|
+  .lambda     per-iteration damping
+  .converged  logical
+  .nIter
+  .reason     &#x27;tolX&#x27; | &#x27;tolF&#x27; | &#x27;maxIter&#x27; | &#x27;diverged&#x27;</pre>
 <h3>Example</h3>
 <pre class="example">% 2-D resection: distances from known stations to an unknown point.
 % batchFcn takes (k, x) and returns the Jacobian AT x.
@@ -97,15 +118,35 @@ a { color: #0b5ea8; }
 %       A  = [dx./rr, dy./rr];      % d(range)/d(x)
 %       l  = d - rr;                % observed MINUS computed
 %       p  = ones(numel(d),1) / 0.01^2;
-%   end</pre>
-<pre class="example">st = [0 0; 10 0; 10 10; 0 10; 5 12];
-d  = sqrt(sum((st - [4.2 6.7]).^2, 2)) + 0.01*randn(5,1);</pre>
-<pre class="example">[sol, D, V, IT] = lsqvce.solveNonlinear( ...
-                      2, @(k,x) resect(k,x,st,d), 1, [1;1]);</pre>
-<pre class="example">% sol.x     -&gt; [4.208; 6.707]     truth was [4.2; 6.7]
+%   end
+
+st = [0 0; 10 0; 10 10; 0 10; 5 12];
+d  = sqrt(sum((st - [4.2 6.7]).^2, 2)) + 0.01*randn(5,1);
+
+[sol, D, V, IT] = lsqvce.solveNonlinear( ...
+                      2, @(k,x) resect(k,x,st,d), 1, [1;1]);
+
+% sol.x     -&gt; [4.208; 6.707]     truth was [4.2; 6.7]
 % IT.nIter  -&gt; 5                  IT.reason -&gt; &#x27;tolX&#x27;
 % IT.vPv    -&gt; the history; it must DECREASE at every step</pre>
-<p>Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-11.</p>
-<div class="seealso"><b>See also:</b> <a href="lsqvce.adjust.html">lsqvce.adjust</a>, <a href="lsqvce.Accumulator.html">lsqvce.Accumulator</a></div>
-<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+<h3>Input</h3>
+<pre class="example">x0        u x 1  double  starting point
+modelFcn  1x1    fh      [A, l] = modelFcn(x) -- the linearised model at x
+varargin  Name/Value: &#x27;maxIter&#x27;, &#x27;tol&#x27;, &#x27;damping&#x27;, &#x27;verbose&#x27;</pre>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:nonlin:badX0      the starting point has the wrong length
+  lsqvce:nonlin:nonFinite  the model returned NaN or Inf at the current
+                           iterate
+
+Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (c) c1 (F-07):
+canonical UpperCamelCase option names + typed validators on
+inputParser, which stays BY DESIGN (KeepUnmatched pass-through --
+the adjust pattern; pinned deviation §9 WP-39). With assistance from
+Claude (Anthropic), model Claude Fable 5.
+See also LSQVCE.ADJUST, LSQVCE.ACCUMULATOR.
+
+Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
+2026-07-11.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

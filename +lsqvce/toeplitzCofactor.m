@@ -1,4 +1,4 @@
-function out = toeplitzCofactor(c, varargin)
+function out = toeplitzCofactor(c, opt)
 %LSQVCE.TOEPLITZCOFACTOR  Symmetric Toeplitz cofactor matrix from a lag vector.
 %
 %   Q     = LSQVCE.TOEPLITZCOFACTOR(c)                 (dense N x N)
@@ -58,14 +58,24 @@ function out = toeplitzCofactor(c, varargin)
 %   See also LSQVCE.COVCOMPONENT, LSQVCE.DCTI, LSQVCE.DECORRFACTOR,
 %            LSQVCE.PSD2ACV
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (c) c1 (F-07):
+%   typed `arguments` signature, canonical UpperCamelCase option names
+%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+%   case-sensitive lowercase). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 %   Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Opus 4.8.
 
-    p = inputParser;  p.FunctionName = 'lsqvce.toeplitzCofactor';
-    p.addParameter('Form' , 'dense', @(s) any(strcmpi(s, {'dense','apply'})));
-    p.addParameter('Check', true,    @(v) isscalar(v) && (islogical(v) || isnumeric(v)));
-    p.parse(varargin{:});
-    o = p.Results;
+    % WP-39 stage (c) c1: typed `arguments` signature (canonical
+    % UpperCamelCase; legacy casings keep matching -- MATLAB NV
+    % semantics; enum VALUES case-sensitive lowercase).
+arguments
+    c
+    opt.Form (1,1) string {mustBeMember(opt.Form, ["dense","apply"])} = "dense"
+    opt.Check (1,1) logical = true
+end
+
+    o = struct('Form', char(opt.Form), 'Check', opt.Check);
 
     c = c(:);
     N = numel(c);

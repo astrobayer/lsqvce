@@ -2917,6 +2917,36 @@ regenerated, the reference-manual release note extended. Stage (c)
 (infrastructure/classes: BlockAccumulator, Combine, makeLoader,
 adjustVCE ctor, Accumulator, mapreduce, datum, solveNonlinear,
 toeplitzCofactor, dctI, BatchIndex, PrefetchLoader, Results) remains.
+**ROUND NOTE c1 (2026-08-19): the infrastructure functions.** MIGRATED
+to typed `arguments` (canonical UpperCamel, o-struct mappings, bodies
+untouched): makeLoader (15 options; the body's long->short o aliasing
+at its top is FED by the mapping -- the completeness checker's
+single-struct regex flags it as a false positive, noted), mapreduce,
+datum, toeplitzCofactor, dctI (the hot primitive: internal callers
+already pass canonical 'Norm'/'Inverse'; enum members ortho/ellmer now
+case-sensitive). **PINNED DEVIATION (user approves by merge):
+solveNonlinear follows the adjust pattern** (KeepUnmatched forwards to
+the solve/diagnostics chain; canonical names + typed validators; r_
+remap keeps the body untouched). Standing contract tests checked and
+unaffected (makeLoader badDay is a closure-body check; dctI tooShort is
+a positional body check). Grouped c1 signature test with enum-VALUE
+levers (dctI Norm, toeplitzCofactor Form, mapreduce Mode via
+mustBeMember's id; solveNonlinear Method via the parser's id). Six
+stamps, six pages regenerated, release note extended. REMAINING = c2,
+the class surface: BlockAccumulator (ctor options already canonical),
+Combine (FOUR parsers across methods), Accumulator, adjustVCE ctor
+(21 options), BatchIndex, PrefetchLoader, Results -- then WP-39 and the
+R2 track close.
+**c1 round 2 (2026-08-19):** two reds. (1) makeLoader's PROTECTIVE
+contract test (removed terse aliases must error) moved to the
+signature-level id — arguments blocks reject unknown NV names with
+MATLAB:TooManyInputs, not the parser's UnmatchedParameter; the b1-r3
+rule extended: unknown-name rejection ids also live at the signature
+now. (2) An arity bug in MY c1 test: solveNonlinear takes FOUR
+positionals; the draft passed two, 'Method' landed as nBatch and the
+parser never saw the pair — fixed with the full positional set. Lesson:
+signature tests must satisfy the POSITIONAL contract before probing the
+NV surface.
 
 **Round a2 (2026-08-19): adjust + the fluent configurators — two PINNED
 DEVIATIONS (user approves by merge), both consequences of the corrected

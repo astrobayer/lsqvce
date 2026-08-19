@@ -43,10 +43,15 @@ a { color: #0b5ea8; }
 <div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.mapreduce</div>
 <h1>lsqvce.mapreduce</h1>
 <div class="purpose">Execution-strategy layer: serial | parfor | spmd.</div>
-<h2>Syntax</h2>
-<pre class="syntax">[out, info] = LSQVCE.MAPREDUCE(nTask, taskFcn, &#x27;Name&#x27;, value, ...)</pre>
 <h2>Description</h2>
-<p>Runs taskFcn(j) for j = 1:nTask under one of three schedules and combines the results. This is the ONE place in the toolbox where parallelism lives: the algorithms (LSQVCE.BLOCKACCUMULATOR/addSystems, LSQVCE.REDUNDANCY) only describe independent tasks and a reduction, and this layer decides how to run them. Do not sprinkle parfor through the algorithms -- it couples parallelism to the math and makes both untestable.</p>
+<pre class="example">[out, info] = LSQVCE.MAPREDUCE(nTask, taskFcn, &#x27;Name&#x27;, value, ...)
+
+Runs taskFcn(j) for j = 1:nTask under one of three schedules and combines
+the results. This is the ONE place in the toolbox where parallelism lives:
+the algorithms (LSQVCE.BLOCKACCUMULATOR/addSystems, LSQVCE.REDUNDANCY) only describe
+independent tasks and a reduction, and this layer decides how to run them.
+Do not sprinkle parfor through the algorithms -- it couples parallelism to
+the math and makes both untestable.</pre>
 <h3>Why This Is Exact</h3>
 <pre class="example">Every parallelised quantity in this toolbox is a plain SUM (or ordered
 collection) of independent per-task contributions -- proven in
@@ -76,24 +81,37 @@ taskFcn  @(j) -&gt; result of task j. Must be pure: no shared mutable
             fails, falls back to serial with a warning.
 &#x27;Verbose&#x27;   default false</pre>
 <h3>Output</h3>
-<pre class="example">out   cell array of task results, or the reduced value
-info  .mode      the schedule actually used
-      .fallback  &#x27;&#x27; or the reason a parallel request ran serially
-      .nWorkers  pool size used (1 for serial)</pre>
-<h3>Determinism -- Read This Once</h3>
-<pre class="example">&#x27;serial&#x27; and &#x27;parfor&#x27; share the IDENTICAL reduction order: parfor only
-scrambles which worker computes a task; the per-task results are then
-reduced on the client in task order. Differences against serial can
-therefore come only from multithreaded BLAS inside a task, not from the
-schedule. &#x27;spmd&#x27; reduces on the workers (that is its point -- per-task
-results are never shipped), so its summation order differs and results
-match serial only to ~1e-10 relative, NOT bit-identical. Regression
-tests against &#x27;spmd&#x27; need a tolerance, never isequal.</pre>
+<pre class="example">  out   cell array of task results, or the reduced value
+  info  .mode      the schedule actually used
+        .fallback  &#x27;&#x27; or the reason a parallel request ran serially
+        .nWorkers  pool size used (1 for serial)
+
+DETERMINISM -- READ THIS ONCE
+  &#x27;serial&#x27; and &#x27;parfor&#x27; share the IDENTICAL reduction order: parfor only
+  scrambles which worker computes a task; the per-task results are then
+  reduced on the client in task order. Differences against serial can
+  therefore come only from multithreaded BLAS inside a task, not from the
+  schedule. &#x27;spmd&#x27; reduces on the workers (that is its point -- per-task
+  results are never shipped), so its summation order differs and results
+  match serial only to ~1e-10 relative, NOT bit-identical. Regression
+  tests against &#x27;spmd&#x27; need a tolerance, never isequal.</pre>
 <h3>Example</h3>
 <pre class="example">% sum of expensive per-task scalars, exactly like the redundancy pass
 f = @(j) struct(&#x27;r&#x27;, someCostlyThing(j));
 [tot, info] = lsqvce.mapreduce(nArc, f, &#x27;Mode&#x27;, &#x27;parfor&#x27;, ...
                   &#x27;Reduce&#x27;, @(a, t) a + t.r, &#x27;Init&#x27;, 0);</pre>
-<div class="seealso"><b>See also:</b> <a href="lsqvce.BlockAccumulator.html">lsqvce.BlockAccumulator</a>, <a href="lsqvce.redundancy.html">lsqvce.redundancy</a>, <a href="lsqvce.vce.html">lsqvce.vce</a></div>
-<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:mapreduce:badTask      a task descriptor is malformed
+
+Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (c) c1 (F-07):
+typed `arguments` signature, canonical UpperCamelCase option names
+(legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+case-sensitive lowercase). With assistance from Claude (Anthropic),
+model Claude Fable 5.
+See also LSQVCE.BLOCKACCUMULATOR, LSQVCE.REDUNDANCY, LSQVCE.VCE
+
+Generated with assistance from Claude (Anthropic), model Claude
+Opus 4.8.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

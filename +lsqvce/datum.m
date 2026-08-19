@@ -1,4 +1,4 @@
-function [B, info] = datum(N, varargin)
+function [B, info] = datum(N, opt)
 %LSQVCE.DATUM  Detect a datum defect and construct the datum matrix B.
 %
 %   [B, info] = LSQVCE.DATUM(N) inspects a (possibly rank-deficient) normal
@@ -69,19 +69,27 @@ function [B, info] = datum(N, varargin)
 %                                   not a basis
 %     lsqvce:datum:zeroN            the normal matrix is empty or all zero
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (c) c1 (F-07):
+%   typed `arguments` signature, canonical UpperCamelCase option names
+%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+%   case-sensitive lowercase). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 %   See also LSQVCE.ACCUMULATOR, LSQVCE.ADJUST.
 %
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
 
-ip = inputParser;
-ip.FunctionName = 'lsqvce.datum';
-addRequired (ip, 'N', @(x) isnumeric(x) && ismatrix(x) && size(x,1) == size(x,2));
-addParameter(ip, 'datumB', [],    @(x) isempty(x) || isnumeric(x));
-addParameter(ip, 'tol', 1e-10, @(x) isscalar(x) && x > 0);
-addParameter(ip, 'verbose', true, @(x) islogical(x) && isscalar(x));
-parse(ip, N, varargin{:});
-o = ip.Results;
+% WP-39 stage (c) c1: typed `arguments` signature (canonical
+% UpperCamelCase; legacy casings keep matching -- MATLAB NV
+% semantics; enum VALUES case-sensitive lowercase).
+arguments
+    N
+    opt.DatumB double = []
+    opt.Tol (1,1) double {mustBePositive} = 1e-10
+    opt.Verbose (1,1) logical = true
+end
+
+o = struct('datumB', opt.DatumB, 'tol', opt.Tol, 'verbose', opt.Verbose);
 
 u = size(N, 1);
 N = (N + N') / 2;                    % symmetrise
