@@ -213,8 +213,8 @@ order of work: 32 → 33 → 34 → 35 → 36 → 40 → 37 → 38 → 41 → 39
 | 32 | Fix `vce` 'hutchinson': redundancy, not trace (F-01) | — | DONE (2026-08-18, PR #2, merge e167cee; CI green both contexts after a setup-matlab cache-restore hang was resolved per the incident runbook, postflight green 515/515 on Windows R2026a; evidence + round note §9 WP-32) |
 | 33 | Joint paths: locals in residual + projector (F-03) | — | DONE (2026-08-19: round 1 PR #3 merge 7d7c14c, round 2 PR #4 merge 24cfe6c; CI green 489/489; user approved the 0.85 accuracy floor + F-15→WP-40 scope by merging; postflight: round 1 green pre-outage, round 2 = D.4 DEBT until the bridge returns; six r2 lessons + F-15 pinned in §9 WP-33) |
 | 34 | Keyed arc identity in `adjustVCEjoint` (F-02) | — | IN PROGRESS — 2026-08-19: fix + tests on `claude/wp-34` (round note §9 WP-34); draft-PR loop; POSTFLIGHT DEBT (bridge away) |
-| 35 | `psdVCE` floor policy + negative sigma2 guard (F-04, F-05) | — | IN PROGRESS — 2026-08-19: fixes + 3 tests on `claude/wp-35` (round note §9 WP-35); draft-PR loop; POSTFLIGHT DEBT (bridge away) |
-| 36 | One probe generator, honest RNG contract (F-06) | — | OPEN |
+| 35 | psdVCE floor policy + negative-factor clamp (F-04, F-05) | — | DONE (2026-08-19, PR #6, merge 827ee6b; CI green 493/493 — the run that also validated the self-healing setup live: attempt-1 wedge killed at 720 s, attempt-2 restore 90 s; POSTFLIGHT DEBT until the runner/bridge returns; round note §9 WP-35) |
+| 36 | One probe generator, honest RNG contract (F-06) | — | IN PROGRESS — 2026-08-19: fix + tests on `claude/wp-36` (round note §9 WP-36); draft-PR loop; POSTFLIGHT DEBT (runner deferred) |
 | 37 | `redundancyLags` without dense W^-1 + hot-loop tolls (F-09) | — | OPEN |
 | 38 | Deduplicate keys / arc batching + audit lock (F-08) | 33,36 | OPEN |
 | 39 | `arguments` blocks + Name-Value casing, whole surface (F-07) | 32–38,40,41 | OPEN |
@@ -2318,6 +2318,14 @@ mathworks/matlab Docker image -- removes the MathWorks download entirely
 but needs a batch-licensing token as a repo secret (USER decision +
 setup); (b) a self-hosted runner on the user's PC is NOT recommended:
 on a PUBLIC repo, fork PRs would execute code on that machine.
+**RUNNER DECISION (2026-08-19, user):** the self-hosted-runner migration
+(private repo + runner on the user's Windows PC = ONE full-suite gate on
+the target platform, incl. test_parallel; triggerable from any Claude
+session via push / workflow_dispatch / re-run — GitHub is the
+dispatcher, no bridge needed) is APPROVED and DEFERRED ("we implement it
+later"; the user is away from the machine). Until then: hosted CI with
+the self-healing setup stays the gate; postflight debts keep accruing
+and are all settled by the first green full run on the runner.
 
 ### WP-33 — Joint paths: subtract B*y and absorb locals in the projector
 
@@ -2615,6 +2623,38 @@ that the clamp branch never executes on healthy input.
 > global-RNG invariance (state before == after with default seed);
 > reproducibility (same seed -> identical traces across the three callers);
 > vce final-vs-loop consistency.
+
+**ROUND NOTE (2026-08-19, WP-36 round 1, model Claude Fable 5; branch
+`claude/wp-36`, riding the WP-35 DONE flip + the runner
+approved-and-deferred decision).** THE ONE GENERATOR:
+`+lsqvce/private/probeMatrix.m` — seeded: RandStream('twister', seed),
+bit-identical across callers; EMPTY seed: a concrete seed is drawn ONCE
+from `+lsqvce/private/probeStream.m` (persistent 'threefry4x64_20',
+'shuffle' at first use — per-session, never the global stream) and
+RETURNED as seedUsed so callers can pin it. Rademacher recipe unified to
+sign(randn), sign(0)->+1 — the recipe TWO of the three callers already
+used, so their seeded realisations are unchanged; traceEstimate's seeded
+realisations CHANGE (it used 2*randi-1; unbiasedness unaffected —
+documented in its help). REWIRED: sharedProbe (local drawProbes DELETED,
+rule 8), streamContribution (the false "private stream" comment replaced
+by the now-true one), traceEstimate (the global-stream default is gone).
+VCE: an empty TraceSeed under 'hutchinson' is pinned ONCE up front via
+probeMatrix's seed draw, so every loop pass AND the final vc.r pass probe
+with IDENTICAL Z (vc.r == the converged loop redundancy); new output
+vc.traceSeedUsed (replay with it reproduces vc bit-identically). TESTS
+(no new suite files): test_traceEstimate — global-RNG invariance with
+empty seeds (rng state bitwise before==after; FAILS pre-fix) +
+same-seed-identical-probes across sharedProbe/traceEstimate (via the
+'Probes' bypass, 4-eps); test_contribution — streamContribution's
+invariance half (needs the accumulator fixture) + the vce
+traceSeedUsed replay test (vc.r and sigma bitwise; FAILS pre-fix: field
+absent, final pass drew fresh probes).
+**Round-1 red + fix (2026-08-19):** one failure, MY test's API mistake —
+traceEstimate returns the SCALAR estimate, the draft dot-indexed
+`.trace` on a double (MATLAB:structRefFromNonStruct). Everything the WP
+actually changed ran green on the first CI pass (497/498: invariance,
+cross-caller identity via Zbar, stream invariance, and the vce bitwise
+replay all held).
 
 ### WP-37 — `redundancyLags` without the dense W^-1 (+ small hot-loop tolls)
 

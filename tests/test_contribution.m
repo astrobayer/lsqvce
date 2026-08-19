@@ -13,6 +13,9 @@ function tests = test_contribution
 %   by test_reliability (three systems, obsTypes pos/kbr), built through
 %   lsqvce.synthLoader so the arcs are deterministic across passes.
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-36: stream global-RNG
+%   invariance + the vce traceSeedUsed replay test (final pass == loop
+%   probes). With assistance from Claude (Anthropic), model Claude Fable 5.
 %   Updated 2026-08-18 (CEST, UTC+02:00), WP-32: hutchinson wiring prose
 %   corrected + two new tests (streamed-redundancy parity/partition; the
 %   F-01 regression that FAILS on the pre-fix code). With assistance from
@@ -259,6 +262,48 @@ function test_vce_hutchinson_regression_F01(tc)
         sprintf('hutchinson sigma within 20%% of exact (max rel %.3f)', max(rel)));
     verifyTrue(tc, all(vcH.sigma ./ vcE.sigma < 5), ...
         'the F-01 inflation (>5x) must be gone');
+end
+
+%% ================================ WP-36: one probe generator, honest RNG (F-06)
+function test_stream_default_seed_global_rng_untouched(tc)
+    % streamContribution's half of the F-06 invariance lever (the other
+    % consumers are covered in test_traceEstimate): an EMPTY Seed must leave
+    % the global RNG state bit-identical. Fails on the pre-fix code (probes
+    % came from the global stream while the comment claimed otherwise).
+    cfg = tc.TestData.cfg;
+    w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
+    acc = buildAcc(cfg, []);
+    sol = acc.solve();
+    rng(31337, 'twister');
+    before = rng;
+    lsqvce.streamContribution(acc, sol, 'GroupBy','obsType', ...
+        'Groups', {'pos','kbr'}, 'Probes', 64, 'WantDiag', false);
+    after = rng;
+    verifyEqual(tc, after.State, before.State, ...
+        'an empty Seed must never touch the global stream');
+end
+
+function test_vce_hutchinson_final_reuses_loop_probes(tc)
+    % WP-36 in vce: an EMPTY TraceSeed is pinned once up front, exposed as
+    % vc.traceSeedUsed, and a replay with that seed reproduces vc.r and
+    % sigma BIT-IDENTICALLY -- the "final pass probes with the loop's Z"
+    % guarantee made observable. Fails on the pre-fix code (no
+    % traceSeedUsed field; the final pass drew fresh global-stream probes).
+    cfg = tc.TestData.cfg;
+    accFcn = @(sig) buildAcc(cfg, sig);
+    groups = {'pos','kbr'};
+    w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
+    vc1 = lsqvce.vce(accFcn, 'GroupBy','obsType', 'Groups',groups, ...
+                     'MaxIter',6, 'Tol',1e-3, 'Verbose',false, ...
+                     'TraceMethod','hutchinson', 'Probes',300);
+    verifyTrue(tc, isscalar(vc1.traceSeedUsed), ...
+        'the pinned probe seed must be exposed');
+    vc2 = lsqvce.vce(accFcn, 'GroupBy','obsType', 'Groups',groups, ...
+                     'MaxIter',6, 'Tol',1e-3, 'Verbose',false, ...
+                     'TraceMethod','hutchinson', 'Probes',300, ...
+                     'TraceSeed', vc1.traceSeedUsed);
+    verifyEqual(tc, vc2.r,     vc1.r,     'replay must reproduce vc.r bitwise');
+    verifyEqual(tc, vc2.sigma, vc1.sigma, 'replay must reproduce sigma bitwise');
 end
 
 %% ===================================================== local fixtures

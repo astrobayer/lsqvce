@@ -16,6 +16,10 @@ function tests = test_traceEstimate
 %   estimate use loose bounds (few * se), while the unbiasedness test averages
 %   over many seeds to drive the error down and can use a tight bound.
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-36: two tests for the ONE
+%   probe generator (global-RNG invariance with empty seeds -- fails on the
+%   pre-fix code -- and bit-identical probes across callers per seed).
+%   With assistance from Claude (Anthropic), model Claude Fable 5.
 %   Created 2026-07-16 (CEST, UTC+02:00) with assistance from
 %   Claude (Anthropic), model Claude Opus 4.8.
 
@@ -242,3 +246,45 @@ function test_redundancy_seam_trNinvN_is_nc(tc)
     verifyLessThan(tc, info.relse, 1e-6, ...
         'on the identity operator the probe variance is ~0');
 end
+
+%% ================================ WP-36: one probe generator, honest RNG (F-06)
+function testDefaultSeedLeavesGlobalRNGUntouched(tc)
+    % THE F-06 lever (fails on the pre-fix code, which drew default-seeded
+    % probes from -- and advanced -- the global stream): calling the probe
+    % consumers with an EMPTY seed must leave the global RNG state
+    % bit-identical. streamContribution's twin assertion lives in
+    % test_contribution (it needs the accumulator fixture).
+    rng(424242, 'twister');
+    before = rng;
+    U = chol(spd(12, 3) + 12*eye(12));
+    lsqvce.sharedProbe(U, 'numProbes', 8);
+    lsqvce.traceEstimate(spd(12, 4), 'NumProbes', 8);
+    lsqvce.traceEstimate(spd(12, 4), 'NumProbes', 8, 'Distribution', 'gaussian');
+    after = rng;
+    verifyEqual(tc, after.State, before.State, ...
+        'an empty seed must never touch the global stream');
+    verifyEqual(tc, after.Type, before.Type);
+end
+
+function testSameSeedIdenticalProbesAcrossCallers(tc)
+    % The one-generator contract: the SAME (n, Z, dist, seed) yields
+    % BIT-IDENTICAL probes in every caller. Observable without reaching into
+    % private scope: sharedProbe with U = I returns Zbar = raw/sqrt(Z), and
+    % traceEstimate fed that raw block via 'Probes' must equal its own
+    % seeded default path exactly.
+    n = 20;  Zn = 16;  sd = 77;
+    sp1 = lsqvce.sharedProbe(eye(n), 'numProbes', Zn, 'seed', sd);
+    sp2 = lsqvce.sharedProbe(eye(n), 'numProbes', Zn, 'seed', sd);
+    verifyEqual(tc, sp1.Zbar, sp2.Zbar);          % reproducible, bitwise
+    raw = sp1.Zbar * sqrt(Zn);
+    verifyEqual(tc, unique(abs(raw(:))), 1, ...
+        'Rademacher probes must be exactly +-1');
+    M  = spd(n, 5);
+    % traceEstimate returns the scalar estimate (not a struct) - round-1
+    % lesson: my draft dot-indexed a double.
+    t1 = lsqvce.traceEstimate(M, 'NumProbes', Zn, 'Seed', sd);
+    t2 = lsqvce.traceEstimate(M, 'Probes', raw);
+    verifyEqual(tc, t1, t2, 'AbsTol', 4*eps(t2), ...
+        'same seed => the identical probe block in every caller');
+end
+

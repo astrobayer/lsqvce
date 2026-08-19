@@ -137,6 +137,11 @@ function out = streamContribution(acc, sol, varargin)
 %   See also LSQVCE.CONTRIBUTION, LSQVCE.REDUNDANCY, LSQVCE.LEVERAGEBLOCKS,
 %            LSQVCE.TRACEESTIMATE, LSQVCE.VCE
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-36 (fixes F-06): probes from
+%   the ONE private generator probeMatrix; empty seed = private
+%   session-stream draw, global RNG untouched; seeded realisations
+%   unchanged. With assistance from Claude (Anthropic), model Claude
+%   Fable 5.
 %   Updated 2026-08-18 (CEST, UTC+02:00), WP-32: every group additionally
 %   carries .n, .localAbsorbed and the streamed redundancy .r/.rSE (see the
 %   OUTPUT block for the derivation); arcCommonProbe streams B_g'B_g and the
@@ -183,14 +188,12 @@ function out = streamContribution(acc, sol, varargin)
     end
 
     % ---- the fixed probe block (shared by ALL groups) --------------------
-    %   Rademacher +1/-1, a private stream so the global RNG is untouched.
-    if isempty(o.Seed)
-        Z = sign(randn(nc, o.Probes));
-    else
-        rs = RandStream('twister', 'Seed', o.Seed);
-        Z  = sign(randn(rs, nc, o.Probes));
-    end
-    Z(Z == 0) = 1;                                   % sign(0) -> +1
+    %   Rademacher +-1 from the ONE generator (WP-36, fixes F-06): a given
+    %   seed reproduces bit-identically across every caller; an empty seed
+    %   draws once from the package-private session stream -- the global RNG
+    %   is untouched (the promise this comment made before the fix while the
+    %   code advanced the global stream).
+    Z = probeMatrix(nc, o.Probes, 'rademacher', o.Seed);
 
     % ---- per-system broadcast state (serial, cheap) ----------------------
     %   G_s = inv(Nll_s) Nlc_s (nl x nc), the per-system Schur factor, identical
