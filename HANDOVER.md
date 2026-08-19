@@ -2825,7 +2825,19 @@ diagnostic assert (lsqvce:covModel:psdSanitationEscape names min(S),
 #nonfinite, fl, Smax) so any residual escape reports its value class
 instead of failing downstream. LATENT BUG found during the chase and
 fixed: synthLoader:224, the GENERATION path's psd2acv, was the toolbox's
-one call with RAW cm.S -- now floored identically. F-15 §8 disposition updated: mechanism identified,
+one call with RAW cm.S -- now floored identically.
+**Round-2 CI red #3 -> ROOT CAUSE (2026-08-19): the escaping S was
+COMPLEX.** The sanitation assert passed (real-part comparisons: complex
+values satisfy S > 0 elementwise on their real parts) while
+validateattributes 'nonnegative' rejects complex -- and the source is the
+new damped update itself: alpha2 can be negative at near-zero-power bins
+(the WP-35 finding), and a FRACTIONAL power of a negative ratio is
+complex; alpha2.^Gamma propagated complex Shat -> C -> the declared
+spectrum. Fix in the primitive: the WP-35 floor philosophy applies BEFORE
+the power -- Gamma < 1 uses max(alpha2,0).^Gamma; Gamma == 1 keeps the
+pre-existing expression VERBATIM (bitwise default regression). The
+indexed sanitation + diagnostic assert and the synthLoader generation
+floor stay (both are real hardening regardless). F-15 §8 disposition updated: mechanism identified,
 mitigation shipped opt-in, severity call = user by merge.
 
 ### WP-41 — Documentation truth sweep

@@ -187,7 +187,19 @@ function out = psdVCE(omegaT, sT, Cprior, varargin)
     % schedule in the CLOSED loop needs (see ADJUSTVCEJOINT 'StepSchedule';
     % the alternation is a stochastic approximation, and the undamped step
     % re-amplifies per-bin estimation noise -- the F-15 bistability).
-    Shat   = (alpha2 .^ o.Gamma) .* Sprior;
+    % WP-40 r2 round-3 fix (the CI complex-S escape, stack pinned in the
+    % round note): alpha2 CAN be negative at a (near-)zero-power bin -- the
+    % WP-35 policy floors it downstream FOR GAMMA = 1, but a FRACTIONAL
+    % power of a negative ratio is COMPLEX, and that complex Shat sailed
+    % through every real-part sanitation into psd2acv. The WP-35 floor
+    % philosophy therefore applies BEFORE the power: negative ratios are
+    % noise around zero and are floored to 0 first. Gamma == 1 keeps the
+    % pre-existing expression VERBATIM (the bitwise default regression).
+    if o.Gamma == 1
+        Shat = alpha2 .* Sprior;
+    else
+        Shat = (max(alpha2, 0) .^ o.Gamma) .* Sprior;
+    end
     % POLICY (WP-35, fixes F-04): FLOOR, never abs. A PSD is non-negative by
     % definition; a negative estimate at a (near-)zero-power bin is NOISE
     % around zero, and abs() FOLDS that noise -- E|x| = 2 E[x+] for zero-mean
