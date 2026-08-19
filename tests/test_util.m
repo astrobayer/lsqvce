@@ -234,7 +234,7 @@ end
 %% ================================================= verbosity levels
 % WHY THESE EXIST: until 2026-07-18 not one test asserted a single line of the
 % toolbox's own output -- every test ran with Verbose off. That is how a literal
-% '\n' bug survived until the user hit it by hand (HANDOVER 1, item 5). These
+% '\n' bug survived until the user hit it by hand (HISTORY_v1.md 1, item 5). These
 % tests assert the LEVEL LOGIC and the RENDERED TEXT, so messaging regressions
 % fail here instead of in front of a user.
 
