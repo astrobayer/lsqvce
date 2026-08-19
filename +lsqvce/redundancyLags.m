@@ -30,7 +30,9 @@ function out = redundancyLags(Abar, W, UiZ, ebar, nMaxLag, varargin)
 %       Rbar(i+n,i) = row_{i+n}(X).row_i(X) - row_{i+n}(Rt).row_i(Rt),  X = W^-1,
 %   so the work is O(N*Z) against the N x Z Rtilde plus the triangular X the
 %   whitener already implies. (FUTURE OPT: for a Toeplitz Sigma the X term has an
-%   O(N) structured form; not exploited yet.) Pass 'WantRbar' only for testing.
+%   O(N) structured form; exploited since WP-37: Toeplitz arcs go through
+%   Levinson + Gohberg-Semencul, O(N^2) time / O(N) memory, and no dense
+%   W^-1 exists outside 'WantRbar'.) Pass 'WantRbar' only for testing.
 %
 %   WHY UiZ IS AN INPUT (the key optimisation, Ellmer p. 69)
 %     U comes from the ACCUMULATED normal equations and is therefore IDENTICAL
@@ -114,6 +116,12 @@ function out = redundancyLags(Abar, W, UiZ, ebar, nMaxLag, varargin)
 %
 %   Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Opus 4.8.
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-37 (fixes F-09): the dense
+%   X = W\eye(N) is gone from the main path -- Sigma^-1 sub-diagonal SUMS
+%   come from Levinson + Gohberg-Semencul on Toeplitz (stationary) arcs
+%   (O(N^2)/O(N)) and from an nLag-ring column stream of W^-T otherwise
+%   (O(N*nLag) memory); 'WantRbar' alone still materialises. With
+%   assistance from Claude (Anthropic), model Claude Fable 5.
 %   Updated 2026-08-18 (CEST, UTC+02:00), WP-33 (fixes F-03, CRITICAL): the
 %   projector can now absorb the LOCAL parameter block exactly via
 %   'LocalBbar'/'LocalLl' (see OPTIONS); the nl = 0 path is verbatim the old
@@ -184,27 +192,31 @@ function out = redundancyLags(Abar, W, UiZ, ebar, nMaxLag, varargin)
     %       Sinv(i+n,i)  = row_{i+n}(X) . row_i(X)
     %   Both are row dot-products: O(N*Z) and O(N^2_tri) work, never an extra
     %   dense N x N Rbar. This is what keeps a long arc affordable.
-    X = W \ eye(N);                              % N x N upper triangular = W^-1
+    % ---- Sigma^-1 sub-diagonal SUMS without the dense W^-1 (WP-37, F-09) --
+    %   Only the SUM over each sub-diagonal of Sigma^-1 enters s_n, so the
+    %   N x N inverse never needs to exist. Stationary (Toeplitz) arcs -- the
+    %   case every covModel ACF/ARMA/PSD produces -- go through Levinson +
+    %   Gohberg-Semencul: O(N^2) time, O(N) memory. A non-Toeplitz W falls
+    %   back to streaming the columns of W^-T with an nMaxLag-deep ring
+    %   buffer: still O(N^3) time (no structure, no shortcut) but O(N*nLag)
+    %   memory -- which makes the memory claim in the help TRUE at last.
+    dS = sigmaInvSubdiagSums(W, nMaxLag);        % dS(1) = trace(Sigma^-1)
     s = zeros(nMaxLag, 1);
     if hasLocal
         % Rbar = Sinv - Rt*Rt' - K*K': one more row-dot per sub-diagonal.
-        s(1) = sum(X(:).^2) - sum(Rt(:).^2) - sum(K(:).^2);
+        s(1) = dS(1) - sum(Rt(:).^2) - sum(K(:).^2);
         for n = 1:nMaxLag-1
             idx = 1:(N-n);
-            dSinv = sum(X(idx+n, :) .* X(idx, :), 2);
             dRt   = sum(Rt(idx+n, :) .* Rt(idx, :), 2);
             dK    = sum(K(idx+n, :)  .* K(idx, :),  2);
-            s(n+1) = 2 * sum(dSinv - dRt - dK);
+            s(n+1) = 2 * (dS(n+1) - sum(dRt) - sum(dK));
         end
     else
-        % nl = 0: the pre-WP-33 expressions VERBATIM (bitwise regression path).
-        % n = 0 is trivial: trace(Rbar) = trace(Sinv) - trace(Rt*Rt')
-        s(1) = sum(X(:).^2) - sum(Rt(:).^2);     % tr(XX') = sum(X.^2)
+        s(1) = dS(1) - sum(Rt(:).^2);
         for n = 1:nMaxLag-1
             idx = 1:(N-n);
-            dSinv = sum(X(idx+n, :) .* X(idx, :), 2);    % Sinv sub-diagonal
             dRt   = sum(Rt(idx+n, :) .* Rt(idx, :), 2);  % (Rt Rt') sub-diagonal
-            s(n+1) = 2 * sum(dSinv - dRt);
+            s(n+1) = 2 * (dS(n+1) - sum(dRt));
         end
     end
 
@@ -226,10 +238,89 @@ function out = redundancyLags(Abar, W, UiZ, ebar, nMaxLag, varargin)
     out = struct('s', s, 'omega', omega, 'N', N, 'probes', Z, 'Rbar', []);
     if logical(o.WantRbar)
         % Testing/diagnostic path ONLY: this is the dense N x N object the main
-        % path deliberately avoids. Sigma^-1 = X*X' with X = W^-1.
+        % path deliberately avoids (and, since WP-37, never builds otherwise).
+        X = W \ eye(N);                          % W^-1, HERE only
         out.Rbar = X * X.' - Rt * Rt.';
         if hasLocal
             out.Rbar = out.Rbar - K * K.';
         end
     end
 end
+
+%==========================================================================
+function dS = sigmaInvSubdiagSums(W, nL)
+%SIGMAINVSUBDIAGSUMS  Sub-diagonal sums of Sigma^-1 = (W'W)^-1, structured.
+%   dS(n+1) = sum_i Sigma^-1(i+n, i), n = 0..nL-1 (dS(1) = trace).
+%   Toeplitz Sigma (detected from three probe columns): Levinson-Durbin for
+%   x = Sigma^-1 e_1, then the Gohberg-Semencul split
+%       Sigma^-1 = (1/x_1) * (L(x) L(x)' - L(z) L(z)'),  z = [0; x(N:-1:2)],
+%   whose triangular-Toeplitz sub-diagonal sums are weighted correlations:
+%       S_n(u) = sum_j u(j+n) u(j) (N-n-j+1),   O(N) per lag.
+%   (Validated against the dense inverse to 3e-16, WP-37 round note.)
+%   General W: stream the columns of W^-T (each is a row of W^-1) with an
+%   nL-deep ring buffer and accumulate the offset dot products.
+    N  = size(W, 1);
+    dS = zeros(nL, 1);
+
+    % Sigma columns 1, 2 and mid, each O(N)/O(N^2) from the triangular W:
+    c1 = W.' * W(:, 1);
+    isToep = N >= 3;
+    if isToep
+        c2  = W.' * W(:, 2);
+        jm  = max(3, ceil(N/2));
+        cm  = W.' * W(:, jm);
+        tol = 1e-10 * max(abs(c1));
+        isToep = max(abs(c2(2:N) - c1(1:N-1))) <= tol && ...
+                 abs(c2(1) - c1(2)) <= tol && ...
+                 max(abs(cm(jm:N) - c1(1:N-jm+1))) <= tol && ...
+                 max(abs(cm(1:jm) - c1(jm:-1:1))) <= tol;
+    end
+
+    if isToep
+        x  = toeplitzInvFirstCol(c1);            % Sigma^-1 e_1, O(N^2)
+        z  = [0; x(N:-1:2)];
+        x1 = x(1);
+        for n = 0:nL-1
+            j = (1:N-n).';
+            wgt = (N - n - j + 1);
+            dS(n+1) = (sum(x(j+n) .* x(j) .* wgt) - ...
+                       sum(z(j+n) .* z(j) .* wgt)) / x1;
+        end
+        return
+    end
+
+    % General fallback: r_j = W' \ e_j is row j of W^-1; keep the last nL.
+    ring = zeros(N, nL);
+    e    = zeros(N, 1);
+    for j = 1:N
+        e(j) = 1;
+        r = W.' \ e;                             % forward solve, O(N^2)
+        e(j) = 0;
+        slot = mod(j-1, nL) + 1;
+        ring(:, slot) = r;
+        dS(1) = dS(1) + r.' * r;
+        for n = 1:min(nL-1, j-1)
+            dS(n+1) = dS(n+1) + r.' * ring(:, mod(j-1-n, nL) + 1);
+        end
+    end
+end
+
+function x = toeplitzInvFirstCol(c)
+%TOEPLITZINVFIRSTCOL  First column of inv(toeplitz(c)) via Levinson-Durbin.
+%   For SPD Sigma = toeplitz(c): Durbin's recursion solves the Yule-Walker
+%   system T_{N-1} a = -r(2:N) in O(N^2)/O(N); the normal-equation identity
+%   toeplitz(r) * [1; a] = E * e_1 then gives x = [1; a] / (E * c(1)).
+    c = c(:);
+    N = numel(c);
+    if N == 1, x = 1 / c(1); return, end
+    r = c / c(1);                                % r(1) = 1
+    a = -r(2);
+    E = 1 - a^2;
+    for n = 2:N-1
+        k = -(r(n+1) + a.' * r(n:-1:2)) / E;
+        a = [a + k * a(end:-1:1); k];
+        E = E * (1 - k^2);
+    end
+    x = [1; a] / (E * c(1));
+end
+

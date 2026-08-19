@@ -105,6 +105,10 @@ function red = redundancy(acc, sol, varargin)
 %
 %   See also LSQVCE.LEVERAGE, LSQVCE.VCE, LSQVCE.OUTLIERS, LSQVCE.RESIDUALS
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-37: the arc-task enumeration
+%   caches the meta calls and PREALLOCATES the task array (the old
+%   tasks(end+1) growth copied O(nTask^2)). With assistance from Claude
+%   (Anthropic), model Claude Fable 5.
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
 
@@ -195,21 +199,40 @@ function red = redundancy(acc, sol, varargin)
     end
 
     % ---- phase 2: enumerate the independent arc-tasks (meta calls only) ---
-    tasks = struct('k', {}, 'day', {}, 'obsType', {}, 'arc', {});
+    % WP-37 (hot-loop toll): the meta calls are made ONCE and cached, the
+    % task count is summed, and the struct array is PREALLOCATED -- the
+    % previous tasks(end+1) growth re-copied the whole array per arc
+    % (O(nTask^2) copies on big campaigns).
+    metas = cell(nSys, 1);
+    nTask = 0;
     for k = 1:nSys
         st = stores{k};
-        uo = st.uo;
-        for d = st.dayList(:).'
-            meta = st.dataFcn('meta', d, [], uo);
+        days = st.dayList(:).';
+        mk = cell(numel(days), 1);
+        for di = 1:numel(days)
+            mk{di} = st.dataFcn('meta', days(di), [], st.uo);
+            for ot = 1:numel(mk{di}.obsTypes)
+                nTask = nTask + numel(mk{di}.arcs{ot});
+            end
+        end
+        metas{k} = mk;
+    end
+    tasks = repmat(struct('k',0,'day',0,'obsType','','arc',0), nTask, 1);
+    t = 0;
+    for k = 1:nSys
+        st = stores{k};
+        days = st.dayList(:).';
+        for di = 1:numel(days)
+            meta = metas{k}{di};
             for ot = 1:numel(meta.obsTypes)
                 for a = meta.arcs{ot}(:).'
-                    tasks(end+1) = struct('k', k, 'day', d, ...
-                        'obsType', meta.obsTypes{ot}, 'arc', a); %#ok<AGROW>
+                    t = t + 1;
+                    tasks(t) = struct('k', k, 'day', days(di), ...
+                        'obsType', meta.obsTypes{ot}, 'arc', a);
                 end
             end
         end
     end
-    nTask = numel(tasks);
 
     % ---- phase 3: the data pass, one task per arc --------------------------
     % Each task loads its arc, whitens it, and returns the per-arc sums

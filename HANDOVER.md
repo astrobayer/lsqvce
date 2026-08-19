@@ -214,8 +214,8 @@ order of work: 32 → 33 → 34 → 35 → 36 → 40 → 37 → 38 → 41 → 39
 | 33 | Joint paths: locals in residual + projector (F-03) | — | DONE (2026-08-19: round 1 PR #3 merge 7d7c14c, round 2 PR #4 merge 24cfe6c; CI green 489/489; user approved the 0.85 accuracy floor + F-15→WP-40 scope by merging; postflight: round 1 green pre-outage, round 2 = D.4 DEBT until the bridge returns; six r2 lessons + F-15 pinned in §9 WP-33) |
 | 34 | Keyed arc identity in `adjustVCEjoint` (F-02) | — | IN PROGRESS — 2026-08-19: fix + tests on `claude/wp-34` (round note §9 WP-34); draft-PR loop; POSTFLIGHT DEBT (bridge away) |
 | 35 | psdVCE floor policy + negative-factor clamp (F-04, F-05) | — | DONE (2026-08-19, PR #6, merge 827ee6b; CI green 493/493 — the run that also validated the self-healing setup live: attempt-1 wedge killed at 720 s, attempt-2 restore 90 s; POSTFLIGHT DEBT until the runner/bridge returns; round note §9 WP-35) |
-| 36 | One probe generator, honest RNG contract (F-06) | — | IN PROGRESS — 2026-08-19: fix + tests on `claude/wp-36` (round note §9 WP-36); draft-PR loop; POSTFLIGHT DEBT (runner deferred) |
-| 37 | `redundancyLags` without dense W^-1 + hot-loop tolls (F-09) | — | OPEN |
+| 36 | One probe generator, honest RNG contract (F-06) | — | DONE (2026-08-19, PR #7, merge 74ab106; CI green 498/498 — the WP's own changes green on the FIRST pass, the sole round-1 red was the test's own traceEstimate-returns-a-scalar mistake; POSTFLIGHT DEBT; round note §9 WP-36) |
+| 37 | `redundancyLags` without dense W^-1 + hot-loop tolls (F-09) | — | IN PROGRESS — 2026-08-19: fix + tests on `claude/wp-37` (round note §9 WP-37); draft-PR loop; POSTFLIGHT DEBT |
 | 38 | Deduplicate keys / arc batching + audit lock (F-08) | 33,36 | OPEN |
 | 39 | `arguments` blocks + Name-Value casing, whole surface (F-07) | 32–38,40,41 | OPEN |
 | 40 | Method polish: gates, clamps, whiteness (F-10…F-13; + F-15 alternation bistability, registered 2026-08-19) | 32 | OPEN |
@@ -2668,6 +2668,31 @@ replay all held).
 > with the current implementation on the standing fixture (1e-12), plus a
 > SPEED test (§6.1) demonstrating the removal of the O(N^3) term on a long
 > arc; no API change.
+
+**ROUND NOTE (2026-08-19, WP-37 round 1, model Claude Fable 5; branch
+`claude/wp-37`, riding the WP-36 DONE flip).** KERNEL: only the SUM over
+each Sigma^-1 sub-diagonal enters s_n, so the dense X = W\eye(N) is gone
+from the main path. TOEPLITZ arcs (every stationary covModel: acf, arma,
+psd) are DETECTED from three probe columns of Sigma (cols 1, 2, mid via
+W'*(W e_j), tol 1e-10 relative) and solved by Levinson-Durbin
+(toeplitzInvFirstCol: Durbin + the Yule-Walker identity x = [1;a]/(E c1))
++ Gohberg-Semencul: Sigma^-1 = (1/x1)(L(x)L(x)' - L(z)L(z)'), whose
+triangular-Toeplitz sub-diagonal sums are O(N) weighted correlations
+S_n(u) = sum_j u(j+n)u(j)(N-n-j+1) — O(N^2) time, O(N) memory. General W
+falls back to streaming the columns of W^-T with an nMaxLag ring buffer:
+still O(N^3) time (no structure, no shortcut — stated honestly in the
+help) but O(N*nLag) memory, which finally makes the help's memory claim
+TRUE. WantRbar alone still materialises (testing path, documented). Both
+recursions were mirrored EXACTLY in Python first and validated against
+dense inverses to 1e-14 (this note is the record; five Toeplitz sizes +
+ring fallback). HOT-LOOP TOLLS: decorrFactor computes info (incl. the
+per-batch condest) only when nargout > 1; redundancy's task enumeration
+caches the meta calls and preallocates (the old tasks(end+1) copied
+O(nTask^2)). TESTS (test_ellmer): dense-reference agreement at 1e-12 on
+the Toeplitz path (probes AND locals engaged) and on a deliberately
+non-stationary covariance (fallback path); the §6.1 SPEED lever at
+N = 4000 with a 5 s budget the dense kernel blows by an order of
+magnitude. NO API change.
 
 ### WP-38 — Deduplicate: keys, arc batching, and an audit lock
 

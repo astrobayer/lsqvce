@@ -55,6 +55,10 @@ function [W, info] = decorrFactor(C, tol)
 %
 %   See also LSQVCE.ARMAWHITEN, LSQVCE.COVMODEL
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-37: diagnostics (incl. the
+%   condest estimate) are computed only when info is requested
+%   (nargout > 1) -- the per-batch hot path pays nothing. With assistance
+%   from Claude (Anthropic), model Claude Fable 5.
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
 
@@ -67,12 +71,21 @@ function [W, info] = decorrFactor(C, tol)
     n = size(C,1);
     C = (C + C.')/2;                     % enforce symmetry
 
-    info = struct('method','chol', 'rcond',NaN, 'floored',0);
+    % WP-37 (hot-loop toll, F-09 rider): the diagnostics -- above all the
+    % condest() estimate -- are computed ONLY when the caller asks for info
+    % (nargout > 1). The accumulator calls this per batch with one output;
+    % condest on every healthy batch was pure overhead.
+    wantInfo = nargout > 1;
+    if wantInfo
+        info = struct('method','chol', 'rcond',NaN, 'floored',0);
+    end
 
     [L, fail] = chol(C, 'lower');
     if fail == 0
         W = L \ eye(n);                  % triangular solve, never inv()
-        info.rcond = 1/(condest(C) + realmin);
+        if wantInfo
+            info.rcond = 1/(condest(C) + realmin);
+        end
         return
     end
 
@@ -104,7 +117,9 @@ function [W, info] = decorrFactor(C, tol)
     % dense n x n diagonal and the O(n^3) product; this scales each ROW of V.' by
     % 1/sqrt(d), which is exactly diag(1./sqrt(d))*V.', at O(n^2).
     W            = (1./sqrt(d)) .* V.';
-    info.method  = 'eig-floored';
-    info.floored = nfl;
-    info.rcond   = min(d)/dmax;
+    if wantInfo
+        info.method  = 'eig-floored';
+        info.floored = nfl;
+        info.rcond   = min(d)/dmax;
+    end
 end
