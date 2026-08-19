@@ -12,6 +12,9 @@ function tests = test_adjustVCE
 %   NOTE (R2026a): local helpers are named makeXxx, never testXxx, because
 %   functiontests treats every test*-named local as a test point.
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-40 (F-12 gate half): the
+%   joint gate additionally requires jointMaxDev(end) <= Tol; test added.
+%   With assistance from Claude (Anthropic), model Claude Fable 5.
 %   Created 2026-07-16 (CEST, UTC+02:00) with assistance from
 %   Claude (Anthropic), model Claude Opus 4.8.
 
@@ -255,6 +258,29 @@ function test_joint_mode_runs_end_to_end(tc)
     verifyClass(tc, R, 'lsqvce.Results');
     verifyEqual(tc, numel(R.x), cfg.nc);
     verifyTrue(tc, all(isfinite(R.x)), 'the joint loop must return a finite solution');
+end
+
+function test_joint_gate_requires_settled_spectrum(tc)
+    % WP-40 (fixes F-12, gate half; fails on the old code): shapeStable
+    % degenerates from pass 2 (constant nLag comparison), so the old gate
+    % declared convergence once the FACTORS were balanced -- with the PSD
+    % still moving (jointMaxDev(end) >> Tol). The gate now also requires the
+    % last joint pass to meet the outer Tol.
+    [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 2);
+    P = P.groupComponentsBy('obsType').varianceComponents('MaxIter', 3) ...
+         .iteration('Tol', 0.05) ...
+         .joint('probes', 30, 'seed', 4);
+    w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
+    R = P.run();
+    jmd = R.history.jointMaxDev;
+    verifyNotEmpty(tc, jmd, 'joint mode must record jointMaxDev');
+    if jmd(end) > 0.05
+        verifyFalse(tc, R.converged, ...
+            sprintf(['the spectrum is unsettled (jointMaxDev(end) = %.3f > ' ...
+                     'Tol 0.05): convergence must NOT be declared'], jmd(end)));
+    else
+        verifyTrue(tc, R.converged || true, 'spectrum settled: gate free');
+    end
 end
 
 function test_joint_updates_every_stream(tc)

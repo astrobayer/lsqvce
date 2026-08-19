@@ -13,6 +13,9 @@ function tests = test_contribution
 %   by test_reliability (three systems, obsTypes pos/kbr), built through
 %   lsqvce.synthLoader so the arcs are deterministic across passes.
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-40 (F-10): the freezeR
+%   freeze-and-warn test. With assistance from Claude (Anthropic), model
+%   Claude Fable 5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-36: stream global-RNG
 %   invariance + the vce traceSeedUsed replay test (final pass == loop
 %   probes). With assistance from Claude (Anthropic), model Claude Fable 5.
@@ -281,6 +284,26 @@ function test_stream_default_seed_global_rng_untouched(tc)
     after = rng;
     verifyEqual(tc, after.State, before.State, ...
         'an empty Seed must never touch the global stream');
+end
+
+function test_vce_freezeR_freezes_and_warns(tc)
+    % WP-40 (fixes F-10; fails on the old code, which had no 'freezeR' and
+    % SILENTLY floored r_g to 1): with freezeR = Inf every group is below
+    % the estimability threshold -- sigma must stay at its start BITWISE
+    % (frozen, upd = 1) and the low-redundancy warning must fire once.
+    cfg = tc.TestData.cfg;
+    accFcn = @(sig) buildAcc(cfg, sig);
+    w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
+    fired = false;
+    ws = warning('query', 'lsqvce:vce:lowRedundancy'); %#ok<NASGU>
+    lastwarn('', '');
+    vc = lsqvce.vce(accFcn, 'GroupBy','obsType', 'Groups',{'pos','kbr'}, ...
+                    'MaxIter', 3, 'Verbose', false, 'FreezeR', Inf);
+    [~, wid] = lastwarn;
+    fired = strcmp(wid, 'lsqvce:vce:lowRedundancy');
+    verifyTrue(tc, fired, 'the low-redundancy warning must fire');
+    verifyEqual(tc, vc.sigma, ones(size(vc.sigma)), ...
+        'all groups frozen: sigma must stay at the start values bitwise');
 end
 
 function test_vce_hutchinson_final_reuses_loop_probes(tc)

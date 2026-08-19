@@ -831,3 +831,51 @@ function test_poolGroups_errors_on_missing_fields(tc)
     verifyError(tc, @() lsqvce.poolGroups(struct('groups', {{'a'}}), ...
         'verbose', false), 'lsqvce:poolGroups:badInput');
 end
+
+%% ================================== WP-40: per-arc whiteness pooling (F-13)
+function test_noise_iteration_perarc_whiteness_smoke(tc)
+    % WP-40 (F-13): maxAcf now pools PER ARC (no lagged product crosses an
+    % arc boundary, mirroring pooledACV). This serial smoke drives the NEW
+    % pooling end to end on CI: with the CORRECT covariance declared, the
+    % per-arc whiteness verdict must hold and the iteration must converge
+    % immediately. (The fails-on-old discrimination needs arc-mean-
+    % structured residuals only the runner-tier fixtures produce; recorded
+    % as a pinned deviation in the WP-40 round note, settled with
+    % test_parallel on the self-hosted runner.)
+    cfg = extNoiseCfg();
+    cov0 = cfg.cov;                                  % correct from the start
+    accFcn = @(cov) buildWithCovExt(cfg, 1, cov);
+    w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
+    it = lsqvce.iterateNoiseModel(accFcn, cov0, 'MaxIter', 2, ...
+                                  'Verbose', false);
+    verifyTrue(tc, it.converged, 'correct model: must converge immediately');
+    verifyEqual(tc, it.nIter, 1);
+    mx = [it.history(1).obsType.maxAcf];
+    verifyTrue(tc, all(isfinite(mx)) && all(mx >= 0), ...
+        'per-arc pooled maxAcf must be finite and non-negative');
+end
+
+function cfg = extNoiseCfg()
+    % Minimal serial fixture for the noise iteration (one satellite, one
+    % day, white truth): small enough for CI, large enough for the
+    % whiteness band.
+    cfg.nc = 3;  cfg.nl = 2;  cfg.sats = 71;
+    rs = RandStream('mt19937ar', 'Seed', 40);
+    cfg.x_c = randn(rs, cfg.nc, 1);
+    cfg.y = containers.Map('KeyType','double','ValueType','any');
+    cfg.y(71) = randn(rs, cfg.nl, 1);
+    cfg.obsTypes = {'pos'};
+    cfg.arcsPerDay = 4;  cfg.mArc = 220;  cfg.dt = 5;
+    cfg.seed = 4001;  cfg.collinear = false;  cfg.collinearEps = 1e-7;
+    cfg.cov.pos = struct('type','diag','sigma',1.0);
+end
+
+function acc = buildWithCovExt(cfg, days, cov)
+    uo = struct('covOverride', cov);
+    acc = lsqvce.BlockAccumulator(cfg.nc, 'Verbose', false, 'UserOpt', uo);
+    for s = cfg.sats
+        acc.addSystem(s, cfg.nl, ...
+            @(d,ot,a,uo2) lsqvce.synthLoader(cfg, s, d, ot, a, uo2), days);
+    end
+end
+

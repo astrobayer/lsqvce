@@ -108,6 +108,11 @@ function VC = varComp(u, batchFcn, nBatch, groupFcn, nGroup, varargin)
 %   See also LSQVCE.DIAGNOSE, LSQVCE.COMBINE, LSQVCE.VCE, LSQVCE.REDUNDANCY,
 %            LSQVCE.TRACEESTIMATE, LSQVCE.VCEHUTCHINSON.
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-40 (fixes F-11): a negative
+%   component FREEZES its group for the pass (s = 1) instead of clamping
+%   to 1e-6 -- the old clamp scaled the cumulative variance by 1e-6 and
+%   fed a 1e6 reweighting oscillation. With assistance from Claude
+%   (Anthropic), model Claude Fable 5.
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
 %   Updated 2026-07-17 (CEST, UTC+02:00): added 'traceMethod'/'probes'/
@@ -341,10 +346,16 @@ for it = 1:o.maxIter
         lsqvce.util.log.warn('lsqvce:varComp:negative', ...
             ['Group(s) %s produced a NEGATIVE variance component. This is a ' ...
              'known pathology of rigorous Helmert when a group has little ' ...
-             'partial redundancy. Clamped to a small positive value; consider ' ...
-             '''method'',''simplified'' or merging the group.'], ...
+             'partial redundancy. The component is FROZEN this pass (s = 1); ' ...
+             'consider ''method'',''simplified'' or merging the group.'], ...
              mat2str(find(bad).'));
-        s(bad) = 1e-6;
+        % WP-40 (fixes F-11): FREEZE, never a small clamp. s multiplies the
+        % CUMULATIVE scale, so the old s(bad) = 1e-6 divided that group's
+        % variance by 1e6 -- and the next pass reweighted it 1e6 STRONGER:
+        % oscillation fuel, not a guard. Freezing keeps the current scale,
+        % the warning above flags the pathology, and the group re-enters
+        % the estimation on the next pass with unchanged weight.
+        s(bad) = 1;
     end
     s(~estimable) = 1;
 

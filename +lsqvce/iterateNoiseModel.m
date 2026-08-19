@@ -88,6 +88,10 @@ function out = iterateNoiseModel(accFcn, cov0, varargin)
 %
 %   See also LSQVCE.SELECTARORDER, LSQVCE.CHECKPSD, LSQVCE.VCE, LSQVCE.RESIDUALS
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-40 (fixes F-13): the
+%   whiteness statistic (maxAcf) pools per arc -- no lagged product
+%   crosses an arc boundary, mirroring pooledACV. With assistance from
+%   Claude (Anthropic), model Claude Fable 5.
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
 
@@ -129,13 +133,17 @@ function out = iterateNoiseModel(accFcn, cov0, varargin)
         allWhite = true;
         for q = 1:numel(o.updateTypes)
             ot = o.updateTypes{q};
-            w  = gatherResiduals(res, ot, 'w');
-            n  = numel(w);
+            % WP-40 (fixes F-13): the whiteness statistic pools PER ARC --
+            % no lagged product crosses an arc boundary -- mirroring
+            % pooledACV. Concatenation put spurious correlation into the
+            % boundary products (a bias for many short arcs).
+            wArcs = gatherResidualArcs(res, ot, 'w');
+            n  = sum(cellfun(@numel, wArcs));
             if n < 10 * o.whiteLags
                 error('lsqvce:iterateNoiseModel:tooShort', ...
                     'obsType %s has only %d whitened residuals.', ot, n);
             end
-            mx = maxAcf(w, o.whiteLags);
+            mx = maxAcf(wArcs, o.whiteLags);
             band = o.whiteFactor / sqrt(n);
             e = struct('obsType', ot, 'maxAcf', mx, 'band', band, ...
                        'white', mx < band, 'order', NaN, 'sigmaInn', NaN, ...
@@ -195,32 +203,43 @@ function out = iterateNoiseModel(accFcn, cov0, varargin)
 end
 
 %==========================================================================
-function v = gatherResiduals(res, obsType, fld)
-%GATHERRESIDUALS  Concatenate one obsType's residuals across systems/arcs.
-    v = [];
+
+%==========================================================================
+function mx = maxAcf(wArcs, nLag)
+%MAXACF  max |acf| over lags 1..nLag, POOLED PER ARC (WP-40, fixes F-13).
+%   Arcs are independent realisations: the per-arc mean is removed and no
+%   lagged product crosses an arc boundary -- the same discipline as
+%   pooledACV. Numerators and the denominator pool over arcs.
+    nA  = numel(wArcs);
+    num = zeros(nLag, 1);
+    den = 0;
+    for a = 1:nA
+        w = wArcs{a}(:);
+        w = w - mean(w);
+        den = den + w.'*w;
+        for k = 1:min(nLag, numel(w)-1)
+            num(k) = num(k) + w(1:end-k).'*w(1+k:end);
+        end
+    end
+    mx = max(abs(num)) / den;
+end
+
+function C = gatherResidualArcs(res, obsType, fld)
+%GATHERRESIDUALARCS  One obsType's residuals as a per-arc cell (WP-40).
+%   Residuals per arc, for statistics that must not
+%   cross arc boundaries (maxAcf).
+    C = {};
     for k = 1:numel(res.sys)
         obs = res.sys(k).obs;
         for j = 1:numel(obs)
             if strcmp(obs(j).obsType, obsType)
-                v = [v; obs(j).(fld)(:)];                        %#ok<AGROW>
+                C{end+1} = obs(j).(fld)(:);                      %#ok<AGROW>
             end
         end
     end
-    if isempty(v)
+    if isempty(C)
         error('lsqvce:iterateNoiseModel:noObsType', ...
-            ['No residuals for obsType ''%s''. Was residuals() called with ' ...
-             '''Collect'', true, and does the loader emit this type?'], obsType);
-    end
-end
-
-%==========================================================================
-function mx = maxAcf(w, nLag)
-%MAXACF  max |acf| over lags 1..nLag (mean removed).
-    w  = w(:) - mean(w);
-    d  = w.'*w;
-    mx = 0;
-    for k = 1:nLag
-        mx = max(mx, abs(w(1:end-k).'*w(1+k:end)) / d);
+              'No residuals found for obsType %s.', obsType);
     end
 end
 
