@@ -98,6 +98,9 @@ function out = synthLoader(cfg, sat, day, obsType, arcID, opt)
 %
 %   See also LSQVCE.BLOCKACCUMULATOR, LSQVCE.COVMODEL
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-40 r2: the 'psd' GENERATION
+%   path floors cm.S before psd2acv (the one raw-S call in the toolbox).
+%   With assistance from Claude (Anthropic), model Claude Fable 5.
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
 
@@ -221,7 +224,14 @@ function e = synthNoise(rs, cm, M, dt)
     case 'psd'
         % Fit a long AR to the PSD and drive it -- exact for AR-type spectra,
         % and a close approximation otherwise.
-        [a, s2] = lsqvce.levinsonDurbin(lsqvce.psd2acv(cm.f, cm.S, dt, 201), 200);
+        % WP-40 r2 (latent-bug fix found while chasing F-15): this is the
+        % ONE psd2acv call fed RAW cm.S -- a fed-back or estimated PSD with
+        % negative ordinates crashed the GENERATION path while the modelling
+        % path (covModel.psdModel) floors. Same floor here.
+        Sgen = cm.S(:);
+        Sgen(~isfinite(Sgen) | Sgen < 0) = 0;
+        Sgen = max(Sgen, 1e-10 * max(Sgen));
+        [a, s2] = lsqvce.levinsonDurbin(lsqvce.psd2acv(cm.f, Sgen, dt, 201), 200);
         w = sqrt(s2) * randn(rs, M + nBurn, 1);
         e = filter(1, a, w);                    % COLOURING filter: 1/a
         e = e(nBurn+1:end);

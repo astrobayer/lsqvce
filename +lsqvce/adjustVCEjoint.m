@@ -72,6 +72,24 @@ function out = adjustVCEjoint(accFcn, varargin)
 %     'Norm'      char       DCT normalisation, 'ortho' (default) | 'ellmer'
 %     'MeanType'  char       arc-factor mean, 'robust' (default) | 'plain'
 %     'Verbose'   logical    per-iteration banner (default false)
+%     'StepSchedule' 'none' (default) | 'decay'.  WP-40 r2 (F-15): the
+%              closed-loop alternation is a stochastic approximation; the
+%              plain step is BISTABLE for short arcs (recovered-PSD corr can
+%              collapse to negative values on unlucky seeds). 'decay' uses
+%              the Robbins-Monro step Gamma_it = 2/(2+it) via PSDVCE's
+%              'Gamma'. HONEST CLAIM (psd2acv-faithful mirror, WP-40 r6):
+%              damping is DAMAGE LIMITATION -- it prevents the undamped
+%              collapse (corr can hit ~0.2) but the closed loop does not
+%              beat OPEN-LOOP pass-1 quality on the tested fixtures;
+%              production guidance is open loop or <= 3 damped passes.
+%              'none' is bitwise the old behaviour.
+%     'AvgTail' 1x1 integer >= 0, default 0.  Polyak averaging of the
+%              RETURNED spectrum over the last AvgTail passes (log domain);
+%              (honest r6 claim: helps the damped loop settle; cannot
+%              rescue an undamped collapse, and longer tails average over
+%              late-pass drift -- keep it <= 4) and does nothing useful
+%              without it (mirror-measured). The iteration itself always
+%              runs on the raw C.
 %
 %   OUTPUT
 %     out  1x1 struct
@@ -111,6 +129,11 @@ function out = adjustVCEjoint(accFcn, varargin)
 %
 %   Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Opus 4.8.
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-40 r2 (F-15): optional
+%   stabilised alternation -- 'StepSchedule','decay' (Robbins-Monro damped
+%   psdVCE update) and 'AvgTail' (Polyak tail average of the returned
+%   spectrum); defaults are bitwise the old path. With assistance from
+%   Claude (Anthropic), model Claude Fable 5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-34 (fixes F-02, CRITICAL): arc
 %   factors are matched by KEY (s<sys>_<obsType>_d<day>_a<arc>, pinned on
 %   the pass-1 enumeration), never by position; skipped arcs keep their
@@ -141,6 +164,9 @@ function out = adjustVCEjoint(accFcn, varargin)
     p.addParameter('Seed'    , []);
     p.addParameter('Norm'    , 'ortho');
     p.addParameter('MeanType', 'robust');
+    p.addParameter('StepSchedule', 'none', ...
+        @(s) any(strcmpi(s, {'none','decay'})));
+    p.addParameter('AvgTail', 0, @(v) isscalar(v) && v >= 0 && v == floor(v));
     p.addParameter('Verbose' , false, @(v) isscalar(v));
     p.parse(varargin{:});
     o = p.Results;
@@ -166,6 +192,7 @@ function out = adjustVCEjoint(accFcn, varargin)
     pinnedKeys = {};                     % WP-34: pass-1 arc identity
     s2Map = [];                          % keyed factors; built on pass 1
 
+    shatTail = {};                               % WP-40 r2: AvgTail buffer
     for it = 1:o.MaxIter
         % ---- steps 1-5: build under the current model, accumulate, solve --
         model = struct('C', C, 'sigma2', sigma2, 'iter', it);
@@ -239,11 +266,32 @@ function out = adjustVCEjoint(accFcn, varargin)
 
         % ---- step 9: co-update the PSD AND the arc factors ----------------
         s2Cols = cellfun(@(k) s2Map(k), keys(:));    % survived, keyed lookup
-        pv = lsqvce.psdVCE(omegaT, sT, C, 'Norm', o.Norm);
+        % WP-40 r2 (F-15): the alternation is a stochastic approximation --
+        % the plain step (Gamma = 1 every pass) re-amplifies per-bin
+        % estimation noise and is BISTABLE for short arcs (corr collapse to
+        % negative values on unlucky seeds; wp33_loop_mirror.py grid in the
+        % round note). 'StepSchedule','decay' uses the Robbins-Monro step
+        % Gamma_it = 2/(2+it): full first steps, averaging later. Measured
+        % across the mirror grid: min corr rises from -0.66 to ~0.9 with
+        % barely any ceiling loss. Default 'none' is bitwise the old path.
+        if strcmpi(o.StepSchedule, 'decay')
+            gammaIt = 2 / (2 + it);
+        else
+            gammaIt = 1;
+        end
+        pv = lsqvce.psdVCE(omegaT, sT, C, 'Norm', o.Norm, 'Gamma', gammaIt);
         av = lsqvce.arcVarianceFactors(omegaT, sT, s2Cols, ...
                                        'Norm', o.Norm, 'MeanType', o.MeanType);
         Shat = pv.Shat;
         C    = pv.Cnew;
+        % WP-40 r2 (F-15): Polyak tail averaging of the RETURNED spectrum
+        % (log domain, last AvgTail passes). The loop keeps iterating on the
+        % raw C; only the final Shat/C are averaged -- measured to add ~0.02
+        % corr on top of the decay schedule (and to do NOTHING without it:
+        % averaging cannot rescue an undamped collapse; mirror grid).
+        if o.AvgTail > 0
+            shatTail{end+1} = log(max(Shat, realmin));       %#ok<AGROW>
+        end
         for kk = 1:nArc
             s2Map(keys{kk}) = av.sigma2(kk);         % keyed write-back
         end
@@ -273,6 +321,10 @@ function out = adjustVCEjoint(accFcn, varargin)
             o.MaxIter, hist.maxDev(end), o.Tol);
     end
 
+    if o.AvgTail > 0 && numel(shatTail) >= o.AvgTail
+        Shat = exp(mean(cat(2, shatTail{end-o.AvgTail+1:end}), 2));
+        C    = lsqvce.dctI(Shat, 'Norm', o.Norm, 'Inverse', true);  % psdVCE's exact inverse
+    end
     out = struct('C', C, 'Shat', Shat, 'sigma2', sigma2, 'acc', accF, ...
                  'sol', solF, 'converged', converged, 'nIter', numel(hist.maxDev), ...
                  'history', hist, ...

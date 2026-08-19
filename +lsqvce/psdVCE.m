@@ -55,6 +55,11 @@ function out = psdVCE(omegaT, sT, Cprior, varargin)
 %
 %   OPTIONS (Name/Value)
 %     'Norm'            char    DCT normalisation, 'ortho' (default) | 'ellmer'
+%     'Gamma'  1x1 in (0,1], default 1.  Damping exponent of the
+%              multiplicative update, Shat = alpha2.^Gamma .* Sprior
+%              (WP-40 r2, F-15): 1 is Ellmer's plain step; a closed-loop
+%              caller passes a DECAYING Gamma per pass to stabilise the
+%              alternation.
 %                               (see LSQVCE.DCTI).
 %     'ZeroFreqRule'    char    how to treat the zero-frequency amplitude, which
 %                               is ill-defined for a zero-mean process (Ellmer
@@ -110,6 +115,9 @@ function out = psdVCE(omegaT, sT, Cprior, varargin)
 %   See also LSQVCE.DCTI, LSQVCE.REDUNDANCYLAGS, LSQVCE.TOEPLITZCOFACTOR,
 %            LSQVCE.ARCVARIANCEFACTORS
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-40 r2 (F-15): optional damped
+%   update 'Gamma' (alpha2.^Gamma, default 1 = unchanged). With assistance
+%   from Claude (Anthropic), model Claude Fable 5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-35 (fixes F-04): negative
 %   amplitude estimates are FLOORED at MinAmplitude, never abs()-folded --
 %   abs injected ~2x the power at zero-power bins (v10review.py T6); bins
@@ -120,6 +128,7 @@ function out = psdVCE(omegaT, sT, Cprior, varargin)
 
     p = inputParser;  p.FunctionName = 'lsqvce.psdVCE';
     p.addParameter('Norm'           , 'ortho');
+    p.addParameter('Gamma', 1, @(v) isscalar(v) && v > 0 && v <= 1);
     p.addParameter('ZeroFreqRule'   , 'lowest', ...
                    @(s) any(strcmpi(s, {'lowest','keep'})));
     p.addParameter('MinAmplitude'   , 1e-12, @(v) isscalar(v) && v >= 0);
@@ -172,7 +181,33 @@ function out = psdVCE(omegaT, sT, Cprior, varargin)
 
     % ---- updated amplitudes                                      (6.5.19) --
     Sprior = lsqvce.dctI(Cprior, 'Norm', o.Norm);
-    Shat   = alpha2 .* Sprior;
+    % WP-40 r2 (F-15): the damped multiplicative update. Gamma = 1 is the
+    % plain Ellmer step (default, bitwise-unchanged); Gamma < 1 contracts
+    % the fixed-point map, alpha2.^Gamma, which is what a decaying step
+    % schedule in the CLOSED loop needs (see ADJUSTVCEJOINT 'StepSchedule';
+    % the alternation is a stochastic approximation, and the undamped step
+    % re-amplifies per-bin estimation noise -- the F-15 bistability).
+    % WP-40 r2 round-3 fix (the CI complex-S escape, stack pinned in the
+    % round note): alpha2 CAN be negative at a (near-)zero-power bin -- the
+    % WP-35 policy floors it downstream FOR GAMMA = 1, but a FRACTIONAL
+    % power of a negative ratio is COMPLEX, and that complex Shat sailed
+    % through every real-part sanitation into psd2acv. The WP-35 floor
+    % philosophy therefore applies BEFORE the power: negative ratios are
+    % noise around zero and are floored to 0 first. Gamma == 1 keeps the
+    % pre-existing expression VERBATIM (the bitwise default regression).
+    if o.Gamma == 1
+        Shat = alpha2 .* Sprior;
+    else
+        % Round-4 fix: clamping to 0 created ABSORBING zero bins (Shat_j = 0
+        % => Sprior_j = 0 forever) and dropped the recovered corr to 0.51 on
+        % CI. The mirror's measured semantics (0.87-0.91,
+        % wp33_loop_mirror.py line ~111) are HOLD: a nonpositive ratio is
+        % unidentifiable noise at a dead bin, so it takes NO step this pass
+        % (alpha2 -> 1); the WP-35 MinAmplitude floor below still applies.
+        a2 = alpha2;
+        a2(~(a2 > 0)) = 1;                       % nonpositive/NaN: hold
+        Shat = (a2 .^ o.Gamma) .* Sprior;
+    end
     % POLICY (WP-35, fixes F-04): FLOOR, never abs. A PSD is non-negative by
     % definition; a negative estimate at a (near-)zero-power bin is NOISE
     % around zero, and abs() FOLDS that noise -- E|x| = 2 E[x+] for zero-mean

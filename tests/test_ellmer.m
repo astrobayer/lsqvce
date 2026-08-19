@@ -17,6 +17,10 @@ function tests = test_ellmer
 %   non-PD skip with keyed alignment/kept-factor/skip-report assertions,
 %   and the vanished-enumeration arcMismatch error. With assistance from
 %   Claude (Anthropic), model Claude Fable 5.
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-40 r2 (F-15): the stabilised
+%   alternation test (decay + tail averaging clears the floor on the F-15
+%   repro fixture) and the bitwise default regression. With assistance
+%   from Claude (Anthropic), model Claude Fable 5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-37: three tests for the
 %   structured Sigma^-1 sums (dense-reference agreement at 1e-12 on the
 %   Toeplitz AND the general fallback path; the long-arc speed lever).
@@ -953,6 +957,54 @@ function test_adjustVCEjoint_flat_psd_on_white_noise_with_locals(tc)
                  'leakage shows up as structure)'], max(S)/min(S)));
 end
 
+function test_joint_stabilised_alternation_beats_collapse(tc)
+    % WP-40 r2 (F-15; fails on the old code: the options are unknown): the
+    % closed-loop repro fixture (jointAccMapped, the F-15 vehicle) run WITH
+    % 'StepSchedule','decay' + 'AvgTail',4 must stay far above the undamped
+    % collapse (which hits 0.18 on this seed). Round-6 correction: the
+    % earlier "min ~0.89 across all grids" was measured on a mirror whose
+    % DECLARATION path was unfaithful (zero-extended dctI acv); the
+    % psd2acv-faithful mirror puts the stabilised seed floor at ~0.59 here
+    % and shows the closed loop never beating open-loop pass-1 quality
+    % (~0.96) at any tested volume -- full grid in the §9 WP-40 round-6
+    % note.
+    cfg  = jointCfgColoured();
+    nLag = 10;
+    w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
+    r = lsqvce.adjustVCEjoint(@(model) jointAccMapped(cfg, model), ...
+            'NumLags', nLag, 'MaxIter', 12, 'Probes', 300, 'Seed', 13, ...
+            'StepSchedule', 'decay', 'AvgTail', 4, 'Verbose', false);
+    Strue = lsqvce.dctI(lsqvce.armaACV(cfg.cov.pos.ar, cfg.cov.pos.ma, nLag));
+    Strue = abs(Strue(:));
+    cc = corrcoef(r.Shat(2:end), Strue(2:end));
+    % Round-6 bar (FAITHFUL-mirror measured; the 0.8 bar rested on the
+    % unfaithful mirror's 0.87-0.91 promise): with the psd2acv declaration
+    % the stabilised loop's seed floor is ~0.59 at this volume and the
+    % UNDAMPED loop collapses to 0.18 on this very seed (r2f record). The
+    % honest property is DAMAGE LIMITATION: the stabilised loop must stay
+    % far above the collapse. Production guidance (F-15 §8): open loop or
+    % <= 3 damped passes; the closed loop does not beat open-loop quality.
+    verifyGreaterThan(tc, cc(1,2), 0.5, ...
+        sprintf(['stabilised closed loop: corr = %.3f (damage-limitation ' ...
+                 'floor 0.5; undamped collapses to ~0.18 here)'], cc(1,2)));
+end
+
+function test_joint_default_schedule_is_plain_step(tc)
+    % Backward compatibility: 'StepSchedule','none' (the default) must be
+    % BITWISE the old path -- one pass with and without the explicit default
+    % options must agree exactly.
+    cfg = jointCfg();
+    w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
+    a = lsqvce.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
+            'NumLags', 6, 'MaxIter', 1, 'Probes', 100, 'Seed', 5, ...
+            'Verbose', false);
+    b = lsqvce.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
+            'NumLags', 6, 'MaxIter', 1, 'Probes', 100, 'Seed', 5, ...
+            'StepSchedule', 'none', 'AvgTail', 0, 'Verbose', false);
+    verifyEqual(tc, b.Shat, a.Shat);             % NO tolerance: bitwise
+    verifyEqual(tc, b.C,    a.C);
+end
+
 function test_adjustVCEjoint_psd_recovery_coloured_with_locals(tc)
     % WP-33 round 2, FINAL SHAPE (r2e; full measurement record in HANDOVER
     % §9 WP-33): an ACCURACY FLOOR for the whole coloured chain with local
@@ -1140,10 +1192,18 @@ function acc = jointAccMapped(cfg, model) %#ok<DEFNU>
     if ~isempty(model) && isfield(model, 'C') && ~isempty(model.C)
         C     = model.C(:);
         Shat  = max(lsqvce.dctI(C), 0);
+        % WP-40 r2 hardening: under the STABILISED loop the fed-back C can
+        % produce interpolation edge cases the zero-clamp below does not
+        % cover on every path (CI: psd2acv rejected a non-nonnegative S
+        % inside the declaration; MATLAB's max() also heals NaN). Declare
+        % with a strictly positive floor relative to the spectrum's peak --
+        % psdModel floors again internally, so this changes nothing for
+        % healthy spectra.
+        sFloor = 1e-12 * max([Shat(:); realmin]);
         fNyq  = 1/(2*cfg.dt);
         fC    = (0:numel(C)-1).' * fNyq/(numel(C)-1);
         fD    = linspace(0, fNyq, 160).';        % 160 >= 256/2 + 1
-        SD    = max(interp1(fC, Shat(:), fD, 'pchip'), 0);
+        SD    = max(interp1(fC, Shat(:), fD, 'pchip'), sFloor);
         uo.covOverride.pos = struct('type','psd', 'f', fD, 'S', SD, ...
                                     'sigma', 1);
         uo.psdMode = 'toeplitz';

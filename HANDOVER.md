@@ -221,13 +221,13 @@ order.**):
 |----|-------|-----------|--------|
 | 32 | Fix `vce` 'hutchinson': redundancy, not trace (F-01) | — | DONE (2026-08-18, PR #2, merge e167cee; CI green both contexts after a setup-matlab cache-restore hang was resolved per the incident runbook, postflight green 515/515 on Windows R2026a; evidence + round note §9 WP-32) |
 | 33 | Joint paths: locals in residual + projector (F-03) | — | DONE (2026-08-19: round 1 PR #3 merge 7d7c14c, round 2 PR #4 merge 24cfe6c; CI green 489/489; user approved the 0.85 accuracy floor + F-15→WP-40 scope by merging; postflight: round 1 green pre-outage, round 2 = D.4 DEBT until the bridge returns; six r2 lessons + F-15 pinned in §9 WP-33) |
-| 34 | Keyed arc identity in `adjustVCEjoint` (F-02) | — | IN PROGRESS — 2026-08-19: fix + tests on `claude/wp-34` (round note §9 WP-34); draft-PR loop; POSTFLIGHT DEBT (bridge away) |
+| 34 | Keyed arc identity in `adjustVCEjoint` (F-02) | — | DONE (2026-08-19, PR #5, merge af440dd; CI green 491/491; deviation approved by merge: byte guarantee on the kept factor, RelTol 0.15 renormalisation bound; POSTFLIGHT DEBT; round note §9 WP-34) |
 | 35 | psdVCE floor policy + negative-factor clamp (F-04, F-05) | — | DONE (2026-08-19, PR #6, merge 827ee6b; CI green 493/493 — the run that also validated the self-healing setup live: attempt-1 wedge killed at 720 s, attempt-2 restore 90 s; POSTFLIGHT DEBT until the runner/bridge returns; round note §9 WP-35) |
 | 36 | One probe generator, honest RNG contract (F-06) | — | DONE (2026-08-19, PR #7, merge 74ab106; CI green 498/498 — the WP's own changes green on the FIRST pass, the sole round-1 red was the test's own traceEstimate-returns-a-scalar mistake; POSTFLIGHT DEBT; round note §9 WP-36) |
 | 37 | `redundancyLags` without dense W^-1 + hot-loop tolls (F-09) | — | DONE (2026-08-19, PR #8, merge 66ffb81; CI green FIRST pass 501/501 incl. the N=4000 speed lever; GS/Levinson validated in Python to 1e-14 pre-port; POSTFLIGHT DEBT; round note §9 WP-37) |
 | 38 | Deduplicate keys / arc batching + audit lock (F-08) | 33,36 | OPEN |
 | 39 | `arguments` blocks + Name-Value casing, whole surface (F-07) | 32–38,40,41 | OPEN |
-| 40 | Method polish: gates, clamps, whiteness (F-10…F-13; + F-15 alternation bistability, registered 2026-08-19) | 32 | IN PROGRESS — 2026-08-19 round 1 (F-10…F-13) on `claude/wp-40`, PR #9 (round note §9 WP-40); F-15 = round 2 by design; draft-PR loop; POSTFLIGHT DEBT |
+| 40 | Method polish: gates, clamps, whiteness (F-10…F-13; + F-15 alternation bistability, registered 2026-08-19) | 32 | IN PROGRESS — 2026-08-19 round 1 (F-10…F-13) on `claude/wp-40`, PR #9 (round note §9 WP-40); round 1 (F-10…F-13) DONE (PR #9, merge 736807d; F-13 deviation approved by merge). Round 2 (F-15) 2026-08-19 on `claude/wp-40-r2` (round note §9 WP-40); draft-PR loop; POSTFLIGHT DEBT |
 | 41 | Documentation truth sweep (F-12, F-14) | 32,33,36,40 | OPEN |
 
 ---
@@ -2208,8 +2208,32 @@ bistable fixed point, not estimation noise (SNR arithmetic puts pure
 noise at ~0.97). LONG arcs stabilise (16x256: min 0.968 over 8 seeds).
 Evidence: validation/wp33_loop_mirror.py (full-pipeline Python mirror).
 Mechanism suspects: abs()+floor can lock a sign-flipped branch; the
-ZeroFreqRule coupling. Disposition: registered here; candidate for WP-40
-(damped/relaxed update or a monotone step).
+ZeroFreqRule coupling. **DISPOSITION UPDATE (2026-08-19, WP-40 r2): both
+suspects EXONERATED by measurement (the WP-35 floor does not cure it —
+some seeds worsen; ZeroFreqRule off and higher nLag only SHIFT the
+failures). Mechanism identified: stochastic-approximation instability of
+the undamped multiplicative step (per-bin estimation noise re-amplified
+through the re-whitening). MITIGATION SHIPPED, opt-in: psdVCE 'Gamma'
+(damped update) + adjustVCEjoint 'StepSchedule','decay' (Robbins-Monro
+Gamma_it = 2/(2+it)) + 'AvgTail' (Polyak tail averaging). Mirror-measured
+across the grid: worst-seed corr from -0.66 to ~0.9 at nearly unchanged
+ceiling; defaults are bitwise the old path. Residual risk: the undamped
+default remains bistable — RECOMMENDATION for production closed loops:
+'StepSchedule','decay','AvgTail',4. Severity after mitigation: user call
+(approve by merging PR; suggest MITIGATED).**
+**DISPOSITION UPDATE 2 (2026-08-19, WP-40 r6, psd2acv-FAITHFUL mirror):
+the r2 mitigation's accuracy promises were an artefact of an unfaithful
+mirror DECLARATION path (zero-extended dctI acv vs MATLAB's full m-lag
+psd2acv transform). Faithful result: the closed loop does not beat
+OPEN-LOOP pass-1 quality at ANY tested volume (open loop 16x256: min
+0.96/med 0.97; closed stabilised: P(corr<0.8) = 0.31 at 8x96, 0.75 at
+16x256 — the old "stable volume" was the artefact); decay+tail is
+DAMAGE LIMITATION (prevents the ~0.2 collapse), not restoration. Also
+falsified as cures: lag windows (Lc 10/20/30), pchip-vs-linear
+interpolation, log-shrinkage of the declaration (beta 0.5/0.7).
+PRODUCTION GUIDANCE (pinned in the adjustVCEjoint help): open loop or
+<= 3 damped passes. Severity call and any deeper method work (e.g. a
+monotone/trust-region alternation) = user, asked at PR #10.**
 
 ### 8.4 What is RIGHT (so nobody "fixes" it)
 
@@ -2781,6 +2805,104 @@ sigma^2 = 0.03; Python frequency check: negative in 14/40 seeds (first
 firing seed 2), so the deterministic seed search over 1:40 is safe.
 Lesson: an estimability-gated pathology test must first PASS the
 estimability gate.
+
+**ROUND NOTE (2026-08-19, WP-40 round 2 = F-15, model Claude Fable 5;
+branch `claude/wp-40-r2`; rides the WP-34 DONE flip). MEASUREMENT SERIES
+(all in validation/wp33_loop_mirror.py, permanently extended; 8 seeds per
+cell, corr over bins 2:end):** (1) The mirror still modelled the
+PRE-WP-35 abs update — re-measured under the shipped FLOOR semantics: the
+instability PERSISTS and some seeds WORSEN (8x96 seed 8: 0.94 -> -0.21;
+16x128 seed 5: 0.63 -> -0.64) — the abs suspect is dead. (2) ZeroFreqRule
+off and nLag 10->16->24 only SHIFT which seeds fail — both suspects
+exonerated. (3) Constant damping (gamma 0.3..0.7) kills the collapses but
+lowers the ceiling (under-converged). (4) THE CURE: Robbins-Monro decay
+gamma_it = 2/(2+it) — full early steps, averaging later — lifts the
+worst-seed corr to 0.87-0.91 across ALL grids; Polyak tail averaging of
+the returned spectrum adds ~0.02 (and does NOTHING without the decay:
+averaging cannot rescue an undamped collapse). SHIPPED, all defaults
+bitwise-old: psdVCE 'Gamma' (the primitive, alpha2.^Gamma); adjustVCEjoint
+'StepSchedule' ('none'|'decay') computing Gamma_it and threading it, and
+'AvgTail' (log-domain Polyak average applied ONLY to the returned
+Shat/C, via psdVCE's exact dctI inverse; the loop iterates on raw C).
+TESTS: the F-15 repro fixture (jointAccMapped) with decay+tail4 must
+clear corr > 0.8 (mirror-measured min ~0.89 leaves probe margin; fails
+pre-fix: options unknown); bitwise default regression (one pass, explicit
+defaults == omitted).
+**Round-2 CI red #2 (2026-08-19, this session):** still
+psd2acv:expectedNonnegative, contiguous stack pinned: psd2acv:61 <-
+covModel:409 (the 'toeplitz' psd2acv) <- covModel:213 <- synthLoader:152,
+i.e. FIVE LINES BELOW the elementwise max() floor -- statically
+impossible under my reading of max() semantics, so the floor is replaced
+by indexed sanitation (S(~isfinite(S) | S < fl*Smax) = fl*Smax) plus a
+diagnostic assert (lsqvce:covModel:psdSanitationEscape names min(S),
+#nonfinite, fl, Smax) so any residual escape reports its value class
+instead of failing downstream. LATENT BUG found during the chase and
+fixed: synthLoader:224, the GENERATION path's psd2acv, was the toolbox's
+one call with RAW cm.S -- now floored identically.
+**Round-2 CI red #3 -> ROOT CAUSE (2026-08-19): the escaping S was
+COMPLEX.** The sanitation assert passed (real-part comparisons: complex
+values satisfy S > 0 elementwise on their real parts) while
+validateattributes 'nonnegative' rejects complex -- and the source is the
+new damped update itself: alpha2 can be negative at near-zero-power bins
+(the WP-35 finding), and a FRACTIONAL power of a negative ratio is
+complex; alpha2.^Gamma propagated complex Shat -> C -> the declared
+spectrum. Fix in the primitive: the WP-35 floor philosophy applies BEFORE
+the power -- Gamma < 1 uses max(alpha2,0).^Gamma; Gamma == 1 keeps the
+pre-existing expression VERBATIM (bitwise default regression). The
+indexed sanitation + diagnostic assert and the synthLoader generation
+floor stay (both are real hardening regardless).
+**Round-4 (2026-08-19): the round-3 clamp was WRONG-VALUED.** max(alpha2,0)
+under Gamma < 1 creates ABSORBING ZERO bins (Shat_j = 0 -> Sprior_j = 0
+forever): the crash chain died but corr fell to 0.511. The mirror -- the
+instrument the 0.87-0.91 promises were measured on -- HOLDS at
+nonpositive ratios (a2 -> 1: an unidentifiable ratio takes no step this
+pass; wp33_loop_mirror.py, 'nonpositive: hold'). psdVCE now ports that
+semantics exactly; Gamma == 1 stays verbatim. Lesson pinned: a mitigation
+port must replicate the MEASUREMENT INSTRUMENT's semantics, not a
+plausible variant of them. F-15 §8 disposition updated: mechanism identified,
+mitigation shipped opt-in, severity call = user by merge.
+**Round-5 DIAGNOSIS SESSION (2026-08-19, measurements only — no code
+push; pinned so no session repeats them).** Round-4 red: corr 0.734 vs
+bar 0.8 (the mirror had measured 0.87-0.91). Three suspects EXONERATED
+by extending the mirror: (1) PROBE NOISE — shared-probe Hutchinson at
+Z = 300 is indistinguishable from exact s_n in the mirror (the common
+space is only nc = 3 dimensional); 12 runs identical to three decimals.
+(2) ARC-FACTOR COUPLING — the driver's s2*C weighting of the pooled
+omegaT/sT columns was mirrored (incl. the gammaBar trimmed-robust
+renormalisation): NO effect on this homogeneous-arc fixture (factors sit
+at ~1). (3) SEED TAIL — 40 data seeds at 12 iters + tail-4: min 0.877,
+p5 0.905, P(corr < 0.8) = 0.00 — MATLAB's 0.734 lies OUTSIDE the mirror
+distribution, so a genuine mirror<->MATLAB implementation difference
+remains. PRIME REMAINING SUSPECT: the DECLARATION path — the mirror
+zero-extends a 64-bin dctI acv beyond lag 64, while MATLAB goes covModel
+'psd'/psdMode 'toeplitz' through psd2acv (full m-lag cosine transform +
+its own floor): a different declared Sigma means a different whitening
+trajectory. NEXT STEP: make the mirror's declaration psd2acv-faithful
+and re-measure; if the gap closes, the cure is spectral-declaration
+resolution/smoothing, not more damping. SIDE FINDING (pinned): LONGER
+schedules are WORSE — 20 iters + tail-8 over the same 40 seeds: min
+0.773, P(<0.8) = 0.03; the decayed late steps drift and the longer tail
+averages over the drift. Keep 12/4 until understood.
+**Round-6 (2026-08-19): the mirror made FAITHFUL — the mitigation's
+promises fall, the honest claims ship (code commit 8f383f7; this note is
+its doc follow-up — the note's anchor missed the disposition wording in
+the code commit).** The declaration path was the gap: the mirror
+zero-extended a 64-bin dctI acv, MATLAB integrates the full m-lag
+psd2acv cosine transform. With the faithful kernel the mirror REPRODUCES
+MATLAB's regime (8x96 stabilised: min 0.668, P(corr<0.8) = 0.31 — the
+CI 0.734 sits inside), and the r2e "stable volume" 16x256 collapses to
+P(<0.8) = 0.75 while OPEN-LOOP pass 1 scores min 0.96/med 0.97 there.
+Further falsified as cures (16-seed grids each): lag windows on the
+declared acv (Lc 10/20/30), pchip-vs-linear interpolation, log-shrinkage
+of the declaration toward white (beta 0.7/0.5). SHIPPED in 8f383f7: the
+stabilised test asserts the honest property (damage-limitation floor 0.5
+with the undamped ~0.18 contrast in the message; the 0.8 bar rested on
+the unfaithful instrument); adjustVCEjoint's StepSchedule/AvgTail help
+claims corrected BEFORE they become F-14-class doc drift;
+wp33_loop_mirror.py docstring supersedes its old grids. USER DECISIONS
+at PR #10: (a) accept the honest bar + production guidance, (b) F-15
+severity under the new picture, (c) whether deeper method work
+(monotone/trust-region alternation) gets its own WP.
 
 ### WP-41 — Documentation truth sweep
 
