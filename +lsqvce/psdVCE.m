@@ -61,7 +61,11 @@ function out = psdVCE(omegaT, sT, Cprior, varargin)
 %                               §6.5.6, "Estimation of the Zero-Frequency"):
 %                               'lowest' (default) replace Shat^0 by the lowest
 %                               non-zero frequency amplitude; 'keep' leave as is.
-%     'MinAmplitude'    1x1     floor applied to Shat to keep the PSD strictly
+%     'MinAmplitude'    1x1     FLOOR applied to Shat (max(Shat, MinAmplitude);
+%                               negative estimates land ON the floor, they are
+%                               never abs()-folded -- WP-35/F-04, see the
+%                               policy comment at the update line) to keep the
+%                               PSD strictly
 %                               positive (default 1e-12). A PSD must be >= 0.
 %     'Smooth'          1x1     half-width of a moving average applied to the
 %                               estimated amplitudes (default 0 = off). The
@@ -106,6 +110,11 @@ function out = psdVCE(omegaT, sT, Cprior, varargin)
 %   See also LSQVCE.DCTI, LSQVCE.REDUNDANCYLAGS, LSQVCE.TOEPLITZCOFACTOR,
 %            LSQVCE.ARCVARIANCEFACTORS
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-35 (fixes F-04): negative
+%   amplitude estimates are FLOORED at MinAmplitude, never abs()-folded --
+%   abs injected ~2x the power at zero-power bins (v10review.py T6); bins
+%   with genuine positive power are unchanged. With assistance from Claude
+%   (Anthropic), model Claude Fable 5.
 %   Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Opus 4.8.
 
@@ -164,9 +173,14 @@ function out = psdVCE(omegaT, sT, Cprior, varargin)
     % ---- updated amplitudes                                      (6.5.19) --
     Sprior = lsqvce.dctI(Cprior, 'Norm', o.Norm);
     Shat   = alpha2 .* Sprior;
-    % A PSD is non-negative by definition; a negative estimate is noise, not
-    % signal, so floor it rather than propagate an invalid spectrum.
-    Shat   = max(abs(Shat), o.MinAmplitude);
+    % POLICY (WP-35, fixes F-04): FLOOR, never abs. A PSD is non-negative by
+    % definition; a negative estimate at a (near-)zero-power bin is NOISE
+    % around zero, and abs() FOLDS that noise -- E|x| = 2 E[x+] for zero-mean
+    % x, i.e. abs injects ~2x the power a floor admits (measured:
+    % validation/v10review.py T6). Bins with genuine positive power are
+    % untouched by either policy. The comment above this line always
+    % promised the floor; the code now keeps the promise.
+    Shat   = max(Shat, o.MinAmplitude);
     if o.Smooth > 0
         Shat = smoothSpectrum(Shat, o.Smooth);
         Shat = max(Shat, o.MinAmplitude);

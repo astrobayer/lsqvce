@@ -213,7 +213,7 @@ order of work: 32 → 33 → 34 → 35 → 36 → 40 → 37 → 38 → 41 → 39
 | 32 | Fix `vce` 'hutchinson': redundancy, not trace (F-01) | — | DONE (2026-08-18, PR #2, merge e167cee; CI green both contexts after a setup-matlab cache-restore hang was resolved per the incident runbook, postflight green 515/515 on Windows R2026a; evidence + round note §9 WP-32) |
 | 33 | Joint paths: locals in residual + projector (F-03) | — | DONE (2026-08-19: round 1 PR #3 merge 7d7c14c, round 2 PR #4 merge 24cfe6c; CI green 489/489; user approved the 0.85 accuracy floor + F-15→WP-40 scope by merging; postflight: round 1 green pre-outage, round 2 = D.4 DEBT until the bridge returns; six r2 lessons + F-15 pinned in §9 WP-33) |
 | 34 | Keyed arc identity in `adjustVCEjoint` (F-02) | — | IN PROGRESS — 2026-08-19: fix + tests on `claude/wp-34` (round note §9 WP-34); draft-PR loop; POSTFLIGHT DEBT (bridge away) |
-| 35 | `psdVCE` floor policy + negative sigma2 guard (F-04, F-05) | — | OPEN |
+| 35 | `psdVCE` floor policy + negative sigma2 guard (F-04, F-05) | — | IN PROGRESS — 2026-08-19: fixes + 3 tests on `claude/wp-35` (round note §9 WP-35); draft-PR loop; POSTFLIGHT DEBT (bridge away) |
 | 36 | One probe generator, honest RNG contract (F-06) | — | OPEN |
 | 37 | `redundancyLags` without dense W^-1 + hot-loop tolls (F-09) | — | OPEN |
 | 38 | Deduplicate keys / arc batching + audit lock (F-08) | 33,36 | OPEN |
@@ -2307,6 +2307,17 @@ suite); cancel + re-run the affected run(s); one re-run went green in
 ~90 s, PROVING the cache entry intact — so never delete the cache while a
 twin restore succeeds; the second run needed one more cancel+re-run.
 Merge followed with both contexts green.
+**RUNBOOK UPGRADE (2026-08-19, user decision after the THIRD wedge, on
+WP-35's run):** ci.yml now SELF-HEALS -- setup-matlab attempt 1 has
+`timeout-minutes: 12` + `continue-on-error`, a second attempt fires
+automatically when the first did not succeed, the job carries a 45-min
+backstop, and the check name `matlab` is unchanged (protection
+untouched). Manual cancel+re-run remains only for double wedges. Options
+recorded for the future if wedges persist: (a) run the matlab job in the
+mathworks/matlab Docker image -- removes the MathWorks download entirely
+but needs a batch-licensing token as a repo secret (USER decision +
+setup); (b) a self-hosted runner on the user's PC is NOT recommended:
+on a PUBLIC repo, fork PRs would execute code on that machine.
 
 ### WP-33 — Joint paths: subtract B*y and absorb locals in the projector
 
@@ -2564,6 +2575,34 @@ under test.
 > indices and the count, and return a .clamped mask; test with a constructed
 > negative alpha2. Do not change converged results on healthy inputs (add a
 > no-op regression test on the standing fixture).
+
+**ROUND NOTE (2026-08-19, WP-35 round 1, model Claude Fable 5; branch
+`claude/wp-35`).** F-04 DECISION: FLOOR, never abs — abs folds zero-mean
+noise at zero-power bins (E|x| = 2 E[x+]; T6 measured the 2x injection),
+a floor admits only MinAmplitude, and genuinely positive bins are
+identical under both; psdVCE line, comment, MinAmplitude help and stamp
+now all say the same thing. F-05: sigma2Hat = gamma2/gammaBar^2 is
+clamped at the new documented option ClampEps (default 1e-8, on the
+NORMALISED scale — healthy factors are O(1)); warn id
+lsqvce:arcVarianceFactors:clamped lists count + first 10 arc indices;
+new output .clamped (also on the badMean early return, all-false);
+healthy inputs byte-identical (the clamp branch only executes on
+any(clamped)). TESTS (test_ellmer, §6.1 each): zero-power-bin pin —
+Shat(2) == MinAmplitude exactly where the old abs left 0.5*Sprior(2) =
+0.202 (fixture signs verified: Sprior = [0.877 0.404 0.506 0.286], all
+positive, deterministic); constructed negative alpha2 — .clamped flag,
+exact ClampEps value, no negative factor leaves (old code: negative
+escapes, no field); healthy no-op — .clamped all-false and sigma2
+matches gamma2/gammaBar^2 within 4 eps (plain mean, closed formula).
+**Round-1 CI red + fixes (same day):** (a) the zero-power fixture fed
+per-LAG ratios, but psdVCE forms alpha2 IN THE FREQUENCY DOMAIN (Omega
+and s are DCT-I transformed first, 6.5.25-26) — the fixture now picks
+the target frequency-domain pair and inverse-transforms (ortho DCT-I is
+self-inverse); (b) the no-op test's byte-identity claim was too strong:
+the function's internal pooling differs from the closed formula by
+summation order (CI-measured 2.6e-16 rel) — the honest regression is
+mask all-false + 4-eps formula match, and the true byte guarantee is
+that the clamp branch never executes on healthy input.
 
 ### WP-36 — One probe generator, honest RNG contract
 

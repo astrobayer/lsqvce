@@ -55,11 +55,24 @@ function out = arcVarianceFactors(omegaT, sT, sigma2, varargin)
 %       .alpha2   M x 1   the raw cumulative factors alpha2_m (eq. 6.5.27)
 %       .gamma2   M x 1   the intermediate gamma2_m (eq. 6.5.28)
 %       .gammaBar 1x1     the normalising mean actually used
+%       .clamped  M x 1 logical  true where sigma2hat_m fell below ClampEps
+%                         (negative or degenerate alpha2) and was clamped to
+%                         it (WP-35, fixes F-05); all-false on healthy input
 %       .meanType char    which mean was applied
 %
 %   EXAMPLE
 %     a = lsqvce.arcVarianceFactors(omegaT, sT, sig2);
 %     sig2 = a.sigma2;                 % feed back into the next iteration
+%
+%   OPTIONS (Name/Value, in addition to 'MeanType'/'TrimFrac')
+%     'ClampEps' 1x1 double > 0, default 1e-8.  Floor for the NORMALISED arc
+%                factors (sigma2hat is already divided by gammaBar^2, so
+%                healthy factors are O(1)): any sigma2hat_m below it --
+%                negative gamma2 from a negative alpha2, or a degenerate
+%                ratio -- is clamped to ClampEps, warned about with the arc
+%                indices (id lsqvce:arcVarianceFactors:clamped) and flagged
+%                in .clamped. A negative variance factor must never leave
+%                this function: it weights a covariance downstream.
 %     mean(sqrt(a.sigma2))             % == 1 exactly only for 'plain'
 %
 %   ERRORS
@@ -68,6 +81,11 @@ function out = arcVarianceFactors(omegaT, sT, sigma2, varargin)
 %
 %   See also LSQVCE.PSDVCE, LSQVCE.REDUNDANCYLAGS, LSQVCE.DCTI
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-35 (fixes F-05): negative /
+%   degenerate sigma2hat_m are clamped at ClampEps (documented above), the
+%   arcs are warned about, and .clamped reports the mask; healthy inputs
+%   are byte-identical. With assistance from Claude (Anthropic), model
+%   Claude Fable 5.
 %   Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Opus 4.8.
 
@@ -76,6 +94,7 @@ function out = arcVarianceFactors(omegaT, sT, sigma2, varargin)
     p.addParameter('MeanType', 'robust', ...
                    @(s) any(strcmpi(s, {'robust','plain'})));
     p.addParameter('TrimFrac', 0.25, @(v) isscalar(v) && v >= 0 && v < 0.5);
+    p.addParameter('ClampEps', 1e-8, @(v) isscalar(v) && v > 0);
     p.parse(varargin{:});
     o = p.Results;
 
@@ -107,13 +126,43 @@ function out = arcVarianceFactors(omegaT, sT, sigma2, varargin)
            ['The normalising mean of the arc factors is %g, which cannot scale ' ...
             'anything. Leaving the arc factors unchanged this pass.'], gammaBar);
         out = struct('sigma2', sigma2, 'alpha2', alpha2, 'gamma2', gamma2, ...
-                     'gammaBar', gammaBar, 'meanType', lower(o.MeanType));
+                     'gammaBar', gammaBar, 'meanType', lower(o.MeanType), ...
+                     'clamped', false(size(sigma2)));
         return
     end
     sigma2Hat = gamma2 / gammaBar^2;
 
+    % ---- clamp (WP-35, fixes F-05) ---------------------------------------
+    %   gamma2 = alpha2 .* sigma2 can be NEGATIVE (a negative alpha2 on a
+    %   pathological arc), and a negative variance factor must never leave
+    %   this function: downstream it weights a covariance. Floor at
+    %   ClampEps -- an epsilon on the NORMALISED scale (sigma2Hat is already
+    %   divided by gammaBar^2, so healthy factors are O(1)) -- warn with the
+    %   arc indices and the count, and report the mask. On healthy inputs
+    %   the mask is all-false and sigma2Hat is untouched (the no-op
+    %   regression test pins that).
+    clamped = sigma2Hat < o.ClampEps;
+    if any(clamped)
+        idx = find(clamped);
+        show = idx(1:min(10, numel(idx)));
+        lsqvce.util.log.warn('lsqvce:arcVarianceFactors:clamped', ...
+           ['%d of %d arc variance factors were < ClampEps = %g (negative ' ...
+            'or degenerate alpha2) and were clamped to it. Arc indices: ' ...
+            '%s%s. Inspect those arcs -- a persistent clamp usually means ' ...
+            'a data problem, not a weighting one.'], ...
+            numel(idx), numel(sigma2Hat), o.ClampEps, ...
+            mat2str(show(:).'), ternary(numel(idx) > 10, ' ...', ''));
+        sigma2Hat(clamped) = o.ClampEps;
+    end
+
     out = struct('sigma2', sigma2Hat, 'alpha2', alpha2, 'gamma2', gamma2, ...
-                 'gammaBar', gammaBar, 'meanType', lower(o.MeanType));
+                 'gammaBar', gammaBar, 'meanType', lower(o.MeanType), ...
+                 'clamped', clamped);
+end
+
+function s = ternary(cond, a, b)
+%TERNARY  Inline conditional for the warning text.
+    if cond, s = a; else, s = b; end
 end
 
 %==========================================================================
