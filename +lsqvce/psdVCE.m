@@ -1,4 +1,4 @@
-function out = psdVCE(omegaT, sT, Cprior, varargin)
+function out = psdVCE(omegaT, sT, Cprior, opt)
 %LSQVCE.PSDVCE  Per-frequency PSD amplitude by variance component estimation.
 %
 %   out = LSQVCE.PSDVCE(omegaT, sT, Cprior)
@@ -54,6 +54,9 @@ function out = psdVCE(omegaT, sT, Cprior, varargin)
 %                               S^j that alpha2_j scales (eq. 6.5.19).
 %
 %   OPTIONS (Name/Value)
+%   (WP-39 stage (b): canonical UpperCamelCase names below; legacy
+%   casings still match -- MATLAB NV semantics -- and enum VALUES are
+%   case-sensitive lowercase.)
 %     'Norm'            char    DCT normalisation, 'ortho' (default) | 'ellmer'
 %     'Gamma'  1x1 in (0,1], default 1.  Damping exponent of the
 %              multiplicative update, Shat = alpha2.^Gamma .* Sprior
@@ -115,6 +118,10 @@ function out = psdVCE(omegaT, sT, Cprior, varargin)
 %   See also LSQVCE.DCTI, LSQVCE.REDUNDANCYLAGS, LSQVCE.TOEPLITZCOFACTOR,
 %            LSQVCE.ARCVARIANCEFACTORS
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) (F-07): typed
+%   `arguments` signature, canonical UpperCamelCase option names (legacy
+%   casings keep matching; enum VALUES case-sensitive lowercase). With
+%   assistance from Claude (Anthropic), model Claude Fable 5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-40 r2 (F-15): optional damped
 %   update 'Gamma' (alpha2.^Gamma, default 1 = unchanged). With assistance
 %   from Claude (Anthropic), model Claude Fable 5.
@@ -125,18 +132,22 @@ function out = psdVCE(omegaT, sT, Cprior, varargin)
 %   (Anthropic), model Claude Fable 5.
 %   Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Opus 4.8.
+arguments
+    omegaT (:,:) double
+    sT (:,:) double
+    Cprior double
+    opt.Norm (1,1) string = "ortho"
+    opt.Gamma (1,1) double {mustBePositive, mustBeLessThanOrEqual(opt.Gamma, 1)} = 1
+    opt.ZeroFreqRule (1,1) string {mustBeMember(opt.ZeroFreqRule, ["lowest","keep"])} = "lowest"
+    opt.MinAmplitude (1,1) double {mustBeNonnegative} = 1e-12
+    opt.Smooth (1,1) double {mustBeInteger, mustBeNonnegative} = 0
+    opt.AllowDegenerate (1,1) logical = false
+end
 
-    p = inputParser;  p.FunctionName = 'lsqvce.psdVCE';
-    p.addParameter('Norm'           , 'ortho');
-    p.addParameter('Gamma', 1, @(v) isscalar(v) && v > 0 && v <= 1);
-    p.addParameter('ZeroFreqRule'   , 'lowest', ...
-                   @(s) any(strcmpi(s, {'lowest','keep'})));
-    p.addParameter('MinAmplitude'   , 1e-12, @(v) isscalar(v) && v >= 0);
-    p.addParameter('Smooth'         , 0, @(v) isscalar(v) && v >= 0 && v == floor(v));
-    p.addParameter('AllowDegenerate', false, ...
-                   @(v) isscalar(v) && (islogical(v) || isnumeric(v)));
-    p.parse(varargin{:});
-    o = p.Results;
+    % WP-39 stage (b): typed `arguments` signature (names already
+    % UpperCamelCase; NAME matching case-insensitive per MATLAB semantics;
+    % enum VALUES case-sensitive lowercase).
+    o = opt;
 
     Cprior = Cprior(:);
     nLag   = numel(Cprior);

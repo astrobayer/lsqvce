@@ -43,29 +43,48 @@ a { color: #0b5ea8; }
 <div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.redundancy</div>
 <h1>lsqvce.redundancy</h1>
 <div class="purpose">Per-group and per-observation redundancy, exactly.</div>
-<h2>Syntax</h2>
-<pre class="syntax">red = LSQVCE.REDUNDANCY(acc, sol, &#x27;Name&#x27;, value, ...)</pre>
 <h2>Description</h2>
-<p>A second pass over the data that computes, for every observation,</p>
-<pre class="example">h_i = a_i&#x27; inv(N) a_i        leverage
-r_i = 1 - h_i                partial redundancy</pre>
-<p>and aggregates r_i into groups. This is the machinery behind LSQVCE.VCE and LSQVCE.OUTLIERS -- both are just different uses of the same numbers, so they share one data pass.</p>
+<pre class="example">red = LSQVCE.REDUNDANCY(acc, sol, &#x27;Name&#x27;, value, ...)
+
+A second pass over the data that computes, for every observation,
+
+    h_i = a_i&#x27; inv(N) a_i        leverage
+    r_i = 1 - h_i                partial redundancy
+
+and aggregates r_i into groups. This is the machinery behind LSQVCE.VCE and
+LSQVCE.OUTLIERS -- both are just different uses of the same numbers, so they
+share one data pass.</pre>
 <h3>Options</h3>
-<pre class="example">&#x27;groupBy&#x27;    &#x27;arc&#x27; (default) | &#x27;obsType&#x27; | &#x27;system&#x27; | &#x27;day&#x27; | function handle
-             @(sysID, obsType, arc, day) -&gt; group key (numeric or string)
-&#x27;minRedundancy&#x27;  warn if any group has r_g below this (default 50)
-&#x27;collect&#x27;    also return the per-observation h and r (default true)
-&#x27;verbose&#x27;    default true
-&#x27;parallel&#x27;   &#x27;serial&#x27; | &#x27;parfor&#x27; | &#x27;spmd&#x27;. Default: the accumulator&#x27;s
-             &#x27;parallel&#x27; option. The pass is parallel OVER ARCS: the
-             leverage blocks are built once per system and broadcast,
-             then each arc-task runs independently and the partial sums
-             are reduced in task order (proven exact in
-             validation/v4verify.py). This is THE pass to parallelise:
-             at global SH d/o 90 it is ~4 h serial per Helmert
-             iteration; with 16 workers plausibly 30-40 min. &#x27;spmd&#x27;
-             reduces on the workers (multi-node) and forces
-             &#x27;collect&#x27;, false.</pre>
+<pre class="example">(WP-39 stage (b): canonical UpperCamelCase names below; legacy
+casings still match -- MATLAB NV semantics -- and enum VALUES are
+case-sensitive lowercase.)
+  &#x27;GroupBy&#x27;    &#x27;arc&#x27; (default) | &#x27;obsType&#x27; | &#x27;system&#x27; | &#x27;day&#x27; | function handle
+               @(sysID, obsType, arc, day) -&gt; group key (numeric or string)
+  &#x27;MinRedundancy&#x27;  warn if any group has r_g below this (default 50)
+  &#x27;Collect&#x27;    also return the per-observation h and r (default true)
+  &#x27;Verbose&#x27;    default true
+  &#x27;Parallel&#x27;   &#x27;serial&#x27; | &#x27;parfor&#x27; | &#x27;spmd&#x27;. Default: the accumulator&#x27;s
+               &#x27;Parallel&#x27; option. The pass is parallel OVER ARCS: the
+               leverage blocks are built once per system and broadcast,
+               then each arc-task runs independently and the partial sums
+               are reduced in task order (proven exact in
+               validation/v4verify.py). This is THE pass to parallelise:
+               at global SH d/o 90 it is ~4 h serial per Helmert
+               iteration; with 16 workers plausibly 30-40 min. &#x27;spmd&#x27;
+               reduces on the workers (multi-node) and forces
+               &#x27;Collect&#x27;, false.
+  &#x27;TraceMethod&#x27; &#x27;exact&#x27; (default) | &#x27;hutchinson&#x27;. &#x27;exact&#x27; computes the
+               redundancies from the per-arc leverage below (exact,
+               O(nc^2)/arc). &#x27;hutchinson&#x27; ALSO runs the Monte-Carlo trace
+               estimator of Ellmer (2018, 6.5.6) via LSQVCE.TRACEESTIMATE and
+               returns it in red.traceEstimate. EXPERIMENTAL and OPT-IN: the
+               exact per-group r_g remain authoritative (the estimator gives
+               a per-group scalar only, not the per-observation r_i the
+               snooping and the sum(r)=m-u identity need). Intended as an
+               accelerator/cross-check at very large nc; read the accuracy
+               caveat in LSQVCE.LEVERAGE.
+  &#x27;Probes&#x27;     1x1  number of Hutchinson probes Z (default 100).
+  &#x27;TraceSeed&#x27;  1x1  RNG seed for reproducible probes (default []).</pre>
 <h3>Output</h3>
 <pre class="example">red.group(k).key       group identifier
 red.group(k).m         observations in the group
@@ -75,41 +94,73 @@ red.group(k).s0sq      vtv / r    -- the variance component of this group
 red.group(k).sigma0    sqrt(s0sq)
 red.obs(j).h, .r       per-observation, if Collect
 red.rTotal             sum over all groups
-red.check              |sum(r_g) - (m - u)|, must be ~0</pre>
+red.check              |sum(r_g) - (m - u)|, must be ~0
+red.traceEstimate      present only with &#x27;TraceMethod&#x27;,&#x27;hutchinson&#x27;: a
+                       struct (.value/.expected/.relErr/.se/.relSE/.probes/
+                       .note) with the Hutchinson estimate of tr(N^-1 N) on
+                       the reduced common normal (a known = nc machinery
+                       check on THIS adjustment&#x27;s conditioning).</pre>
 <h3>The Global Check</h3>
 <pre class="example">sum(r_i) over ALL observations must equal m - u exactly. This is the
 strongest available test that the block-arrow inverse algebra is right,
 and it is verified on every call. A nonzero red.check means something is
 structurally wrong -- do not trust the variance components.</pre>
 <h3>Cost -- Know This Before You Run It</h3>
-<pre class="example">One pass costs O(nc^3/3) + O(m*nc^2/2), i.e. about the SAME as one
-accumulation pass. Measured, at 25 GFLOP/s:</pre>
-<pre class="example">regional mascon    nc=300    m=2e6      ~4 s
-regional (large)   nc=2000   m=2e6      ~3 min
-global SH d/o 60   nc=3721   m=1e7      ~45 min
-global SH d/o 90   nc=8281   m=1e7      ~4 h
-global SH d/o 120  nc=14641  m=1e7      ~12 h</pre>
-<pre class="example">So VCE roughly DOUBLES the cost per Helmert iteration, and you need 2-4
-iterations. That is the honest price of exact per-arc redundancy. It is
-not reducible by a stochastic estimator -- that was tried and gives
-20-50% error on realistically conditioned normals (see LSQVCE.LEVERAGE).</pre>
-<h3>Choosing The Group</h3>
-<pre class="example">&#x27;arc&#x27; is the default and the physically meaningful unit: an arc is a
-contiguous data span whose noise level genuinely can differ from its
-neighbours. Do NOT group by batch -- a batch is an artefact of BatchSize,
-chosen for computational reasons, and grouping by it makes your variance
-components depend on a tuning parameter.</pre>
-<pre class="example">If arcs are short, r_g gets small and the variance component gets noisy:
-its relative precision is sqrt(2/r_g). At r_g = 50 that is 20%. Pool to
-&#x27;obsType&#x27; or &#x27;day&#x27; in that case; the warning fires automatically.</pre>
+<pre class="example">  One pass costs O(nc^3/3) + O(m*nc^2/2), i.e. about the SAME as one
+  accumulation pass. Measured, at 25 GFLOP/s:
+
+    regional mascon    nc=300    m=2e6      ~4 s
+    regional (large)   nc=2000   m=2e6      ~3 min
+    global SH d/o 60   nc=3721   m=1e7      ~45 min
+    global SH d/o 90   nc=8281   m=1e7      ~4 h
+    global SH d/o 120  nc=14641  m=1e7      ~12 h
+
+  So VCE roughly DOUBLES the cost per Helmert iteration, and you need 2-4
+  iterations. That is the honest price of exact per-arc redundancy. It is
+  not reducible by a stochastic estimator -- that was tried and gives
+  20-50% error on realistically conditioned normals (see LSQVCE.LEVERAGE).
+
+CHOOSING THE GROUP
+  &#x27;arc&#x27; is the default and the physically meaningful unit: an arc is a
+  contiguous data span whose noise level genuinely can differ from its
+  neighbours. Do NOT group by batch -- a batch is an artefact of BatchSize,
+  chosen for computational reasons, and grouping by it makes your variance
+  components depend on a tuning parameter.
+
+  If arcs are short, r_g gets small and the variance component gets noisy:
+  its relative precision is sqrt(2/r_g). At r_g = 50 that is 20%. Pool to
+  &#x27;obsType&#x27; or &#x27;day&#x27; in that case; the warning fires automatically.</pre>
 <h3>Example</h3>
 <pre class="example">sol = acc.solve();
-red = lsqvce.redundancy(acc, sol, &#x27;groupBy&#x27;, &#x27;arc&#x27;);
-disp(red.check)                             % must be ~1e-9</pre>
-<pre class="example">for k = 1:numel(red.group)
+red = lsqvce.redundancy(acc, sol, &#x27;GroupBy&#x27;, &#x27;arc&#x27;);
+disp(red.check)                             % must be ~1e-9
+
+for k = 1:numel(red.group)
     g = red.group(k);
-    fprintf(&#x27;%-16s r=%8.1f  sigma=%.4f\n&#x27;, string(g.key), g.r, g.sigma0);
+    lsqvce.util.log.msg(&#x27;%-16s r=%8.1f  sigma=%.4f\n&#x27;, string(g.key), g.r, g.sigma0);
 end</pre>
-<div class="seealso"><b>See also:</b> <a href="lsqvce.leverage.html">lsqvce.leverage</a>, <a href="lsqvce.vce.html">lsqvce.vce</a>, <a href="lsqvce.outliers.html">lsqvce.outliers</a>, <a href="lsqvce.residuals.html">lsqvce.residuals</a></div>
-<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:makeKeyFcn:badGroupBy  the grouping key is not a known name or
+                handle (WP-38: the one shared key resolver)
+  lsqvce:redundancy:noStore     nothing was retained; re-run with &#x27;store&#x27;,&#x27;all&#x27;
+
+See also LSQVCE.LEVERAGE, LSQVCE.VCE, LSQVCE.OUTLIERS, LSQVCE.RESIDUALS
+
+Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) (F-07): typed
+`arguments` signature, canonical UpperCamelCase option names (legacy
+casings keep matching; enum VALUES case-sensitive lowercase). With
+assistance from Claude (Anthropic), model Claude Fable 5.
+Updated 2026-08-19 (CEST, UTC+02:00), WP-38 (fixes F-08): the key
+presets and the batch-and-whiten skeleton live in the ONE private
+makeKeyFcn / arcBatchWhiten (byte-identical numerics; the GroupBy
+error id is now lsqvce:makeKeyFcn:badGroupBy). With assistance from
+Claude (Anthropic), model Claude Fable 5.
+Updated 2026-08-19 (CEST, UTC+02:00), WP-37: the arc-task enumeration
+caches the meta calls and PREALLOCATES the task array (the old
+tasks(end+1) growth copied O(nTask^2)). With assistance from Claude
+(Anthropic), model Claude Fable 5.
+Generated with assistance from Claude (Anthropic), model Claude
+Opus 4.8.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

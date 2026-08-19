@@ -1,4 +1,4 @@
-function red = redundancy(acc, sol, varargin)
+function red = redundancy(acc, sol, opt)
 %LSQVCE.REDUNDANCY  Per-group and per-observation redundancy, exactly.
 %
 %   red = LSQVCE.REDUNDANCY(acc, sol, 'Name', value, ...)
@@ -13,13 +13,16 @@ function red = redundancy(acc, sol, varargin)
 %   share one data pass.
 %
 %   OPTIONS
-%     'groupBy'    'arc' (default) | 'obsType' | 'system' | 'day' | function handle
+%   (WP-39 stage (b): canonical UpperCamelCase names below; legacy
+%   casings still match -- MATLAB NV semantics -- and enum VALUES are
+%   case-sensitive lowercase.)
+%     'GroupBy'    'arc' (default) | 'obsType' | 'system' | 'day' | function handle
 %                  @(sysID, obsType, arc, day) -> group key (numeric or string)
-%     'minRedundancy'  warn if any group has r_g below this (default 50)
-%     'collect'    also return the per-observation h and r (default true)
-%     'verbose'    default true
-%     'parallel'   'serial' | 'parfor' | 'spmd'. Default: the accumulator's
-%                  'parallel' option. The pass is parallel OVER ARCS: the
+%     'MinRedundancy'  warn if any group has r_g below this (default 50)
+%     'Collect'    also return the per-observation h and r (default true)
+%     'Verbose'    default true
+%     'Parallel'   'serial' | 'parfor' | 'spmd'. Default: the accumulator's
+%                  'Parallel' option. The pass is parallel OVER ARCS: the
 %                  leverage blocks are built once per system and broadcast,
 %                  then each arc-task runs independently and the partial sums
 %                  are reduced in task order (proven exact in
@@ -27,8 +30,8 @@ function red = redundancy(acc, sol, varargin)
 %                  at global SH d/o 90 it is ~4 h serial per Helmert
 %                  iteration; with 16 workers plausibly 30-40 min. 'spmd'
 %                  reduces on the workers (multi-node) and forces
-%                  'collect', false.
-%     'traceMethod' 'exact' (default) | 'hutchinson'. 'exact' computes the
+%                  'Collect', false.
+%     'TraceMethod' 'exact' (default) | 'hutchinson'. 'exact' computes the
 %                  redundancies from the per-arc leverage below (exact,
 %                  O(nc^2)/arc). 'hutchinson' ALSO runs the Monte-Carlo trace
 %                  estimator of Ellmer (2018, 6.5.6) via LSQVCE.TRACEESTIMATE and
@@ -38,8 +41,8 @@ function red = redundancy(acc, sol, varargin)
 %                  snooping and the sum(r)=m-u identity need). Intended as an
 %                  accelerator/cross-check at very large nc; read the accuracy
 %                  caveat in LSQVCE.LEVERAGE.
-%     'probes'     1x1  number of Hutchinson probes Z (default 100).
-%     'traceSeed'  1x1  RNG seed for reproducible probes (default []).
+%     'Probes'     1x1  number of Hutchinson probes Z (default 100).
+%     'TraceSeed'  1x1  RNG seed for reproducible probes (default []).
 %
 %   OUTPUT
 %     red.group(k).key       group identifier
@@ -51,7 +54,7 @@ function red = redundancy(acc, sol, varargin)
 %     red.obs(j).h, .r       per-observation, if Collect
 %     red.rTotal             sum over all groups
 %     red.check              |sum(r_g) - (m - u)|, must be ~0
-%     red.traceEstimate      present only with 'traceMethod','hutchinson': a
+%     red.traceEstimate      present only with 'TraceMethod','hutchinson': a
 %                            struct (.value/.expected/.relErr/.se/.relSE/.probes/
 %                            .note) with the Hutchinson estimate of tr(N^-1 N) on
 %                            the reduced common normal (a known = nc machinery
@@ -91,7 +94,7 @@ function red = redundancy(acc, sol, varargin)
 %
 %   EXAMPLE
 %     sol = acc.solve();
-%     red = lsqvce.redundancy(acc, sol, 'groupBy', 'arc');
+%     red = lsqvce.redundancy(acc, sol, 'GroupBy', 'arc');
 %     disp(red.check)                             % must be ~1e-9
 %
 %     for k = 1:numel(red.group)
@@ -106,6 +109,10 @@ function red = redundancy(acc, sol, varargin)
 %
 %   See also LSQVCE.LEVERAGE, LSQVCE.VCE, LSQVCE.OUTLIERS, LSQVCE.RESIDUALS
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) (F-07): typed
+%   `arguments` signature, canonical UpperCamelCase option names (legacy
+%   casings keep matching; enum VALUES case-sensitive lowercase). With
+%   assistance from Claude (Anthropic), model Claude Fable 5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-38 (fixes F-08): the key
 %   presets and the batch-and-whiten skeleton live in the ONE private
 %   makeKeyFcn / arcBatchWhiten (byte-identical numerics; the GroupBy
@@ -117,26 +124,29 @@ function red = redundancy(acc, sol, varargin)
 %   (Anthropic), model Claude Fable 5.
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
+arguments
+    acc
+    sol
+    opt.GroupBy = 'arc'
+    opt.MinRedundancy (1,1) double {mustBePositive} = 50
+    opt.Collect (1,1) logical = true
+    opt.Verbose (1,1) logical = true
+    opt.Parallel (1,1) string {mustBeMember(opt.Parallel, ["","serial","parfor","spmd"])} = ""
+    opt.TraceMethod (1,1) string {mustBeMember(opt.TraceMethod, ["exact","hutchinson"])} = "exact"
+    opt.Probes (1,1) double {mustBeInteger, mustBePositive} = 100
+    opt.TraceSeed double {mustBeScalarOrEmpty} = []
+end
 
     narginchk(2,inf);
 
-    p = inputParser;  p.FunctionName = 'lsqvce.redundancy';
-    p.addParameter('groupBy'      , 'arc');
-    p.addParameter('minRedundancy', 50, @(v) isscalar(v) && v > 0);
-    p.addParameter('collect'      , true,  @(v) islogical(v) && isscalar(v));
-    p.addParameter('verbose'      , true,  @(v) (islogical(v) || isnumeric(v)) && isscalar(v));
-    p.addParameter('parallel'     , '',    @(s) isempty(s) || any(strcmpi(s, ...
-                                    {'serial','parfor','spmd'})));
-    % TraceMethod: how the common-block redundancy trace tr(Sxx N_g^cc) is
-    % obtained. 'exact' (default) uses the per-arc leverage path below (exact,
-    % O(nc^2)/arc). 'hutchinson' uses the Monte-Carlo estimator of Ellmer (2018,
-    % 6.5.6) via LSQVCE.TRACEESTIMATE -- an OPT-IN accelerator for very large nc.
-    % See the accuracy caveat in LSQVCE.LEVERAGE. EXPERIMENTAL: see note below.
-    p.addParameter('traceMethod'  , 'exact', @(s) any(strcmpi(s, {'exact','hutchinson'})));
-    p.addParameter('probes'       , 100,   @(v) isscalar(v) && v >= 1 && v == floor(v));
-    p.addParameter('traceSeed'    , [],    @(v) isempty(v) || (isscalar(v) && isnumeric(v)));
-    p.parse(varargin{:});
-    o = p.Results;
+    % WP-39 stage (b): typed `arguments` signature (canonical UpperCamel;
+    % NAME matching case-insensitive per MATLAB semantics; enum VALUES
+    % case-sensitive lowercase). Lowercase mapping keeps the body untouched.
+    o = struct('groupBy', opt.GroupBy, 'minRedundancy', opt.MinRedundancy, ...
+               'collect', opt.Collect, 'verbose', opt.Verbose, ...
+               'parallel', char(opt.Parallel), ...
+               'traceMethod', char(opt.TraceMethod), 'probes', opt.Probes, ...
+               'traceSeed', opt.TraceSeed);
 
     useHutch = strcmpi(o.traceMethod, 'hutchinson');
     if useHutch

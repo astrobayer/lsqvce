@@ -98,6 +98,9 @@ O(P^3) + O(nArc * N*P*Z).</pre>
                           n = 0..nMaxLag-1.
 
 OPTIONS (Name/Value)
+(WP-39 stage (b): canonical UpperCamelCase names below; legacy
+casings still match -- MATLAB NV semantics -- and enum VALUES are
+case-sensitive lowercase.)
   &#x27;WantRbar&#x27; logical   also return the dense Rbar (N x N). Default false --
                        for long arcs this is the one big object, and the
                        unrolled sums never need it materialised beyond the
@@ -152,6 +155,10 @@ r.s(1)          % s_0</pre>
 See also LSQVCE.COVCOMPONENT, LSQVCE.TOEPLITZCOFACTOR, LSQVCE.DCTI,
          LSQVCE.TRACEESTIMATE, LSQVCE.STREAMCONTRIBUTION
 
+Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) (F-07): typed
+`arguments` signature, canonical UpperCamelCase option names (legacy
+casings keep matching; enum VALUES case-sensitive lowercase). With
+assistance from Claude (Anthropic), model Claude Fable 5.
 Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Opus 4.8.
 Updated 2026-08-19 (CEST, UTC+02:00), WP-37 (fixes F-09): the dense

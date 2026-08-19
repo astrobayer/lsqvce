@@ -2846,6 +2846,35 @@ Legacy name casings continue to match (MATLAB name-value semantics).
 Breaking: enum values are case-sensitive lowercase ('qr', not 'QR';
 'decay', not 'Decay'); wrongly-typed or out-of-range option values and
 unknown option names now error at the signature.
+**ROUND NOTE (2026-08-19, WP-39 stage (b) = b1, model Claude Fable 5;
+branch `claude/wp-39` continuing past the PR #14 merge).** MIGRATED to
+typed `arguments` signatures, canonical UpperCamelCase, lowercase
+o-struct mappings keeping bodies untouched: vce, varComp (typed
+positionals; CheckD left untyped so both [] and the diagnose struct
+pass), redundancy (Parallel default "" via char()), redundancyLags
+(names were UpperCamel; ebar/nMaxLag stay REQUIRED positionals — an
+optional draft would have changed the contract, caught pre-commit),
+streamContribution, contribution, psdVCE, sharedProbe (lowercase ->
+NumProbes/Seed/Probes/Distribution; 18 legacy call sites keep working
+via MATLAB's case-insensitive NV matching — no churn sweep, the a2
+decision). PLACEMENT LESSON (caught by the page builder's "no help
+block" skip): an `arguments` block inserted BETWEEN the function line
+and the help comment silently kills `help`/`doc` for the function —
+MATLAB help must directly follow the signature; all eight blocks moved
+AFTER the help, and the a1 trio was verified unaffected. INTERNAL
+FORWARDING verified: vce->redundancy lowercase pairs ride the same
+case-insensitive matching; string enums flow into the remaining
+inputParser consumers (dctI) unchanged. TESTS (a1-2 lesson): the
+fails-on-old levers assert the SPECIFIC MATLAB:validators:mustBeMember
+id, unreachable for the old strcmpi/inputParser code — vce 'Exact',
+varComp 'Rigorous', redundancy 'Hutchinson'/'PARFOR', psdVCE 'Lowest',
+sharedProbe 'Rademacher'; plus typed-constraint checks (Probes 0, Level
+3, Gamma 1.5, nMaxLag 0, non-integer u). DOCS: help OPTIONS casing swept
+(help lines only, scripted token map), casing note + stamp per file,
+eight HTML pages regenerated, reference-manual release note extended.
+REMAINING: stage (b) round 2 = the diagnostics family (diagnose,
+residuals, report, outliers, robust, ftest, crossCorr, ellipse,
+selectArOrder), then stage (c) primitives.
 
 **Round a2 (2026-08-19): adjust + the fluent configurators — two PINNED
 DEVIATIONS (user approves by merge), both consequences of the corrected

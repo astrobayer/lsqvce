@@ -1,4 +1,4 @@
-function VC = varComp(u, batchFcn, nBatch, groupFcn, nGroup, varargin)
+function VC = varComp(u, batchFcn, nBatch, groupFcn, nGroup, opt)
 %LSQVCE.VARCOMP  Helmert variance-component estimation, streaming.
 %
 %   VC = LSQVCE.VARCOMP(u, batchFcn, nBatch, groupFcn, nGroup) estimates a
@@ -29,12 +29,12 @@ function VC = varComp(u, batchFcn, nBatch, groupFcn, nGroup, varargin)
 %     converges to the same fixed point. Rigorous is the default.
 %
 %   NAME-VALUE
-%     'method'   'rigorous' (default) | 'simplified'
-%     'maxIter'  30
-%     'tol'      1e-6      convergence on max|s_i - 1|
-%     'verbose'  true
-%     'minObs'   10        below this a group's component is not estimable
-%     'traceMethod' 'exact' (default) | 'hutchinson'. Mirrors LSQVCE.VCE and
+%     'Method'   'rigorous' (default) | 'simplified'
+%     'MaxIter'  30
+%     'Tol'      1e-6      convergence on max|s_i - 1|
+%     'Verbose'  true
+%     'MinObs'   10        below this a group's component is not estimable
+%     'TraceMethod' 'exact' (default) | 'hutchinson'. Mirrors LSQVCE.VCE and
 %                 LSQVCE.REDUNDANCY for entry-point parity. EXACT IS DEFAULT and
 %                 authoritative: the redundancy traces tr(Qxx N_g) and the
 %                 Helmert matrix tr(Qxx N_i Qxx N_j) are always formed EXACTLY
@@ -48,10 +48,10 @@ function VC = varComp(u, batchFcn, nBatch, groupFcn, nGroup, varargin)
 %                 Hutchinson substitution (a per-group scalar r_g in place of
 %                 tr(Qxx N_g)) is a separate code path and is HISTORY_v1.md roadmap
 %                 item 0; see LSQVCE.REDUNDANCY's help for the structural reason.
-%     'probes'    1x1  number of Hutchinson probes Z (default 100, Ellmer's).
-%     'traceSeed' 1x1  RNG seed for reproducible probes (default []: global stream).
+%     'Probes'    1x1  number of Hutchinson probes Z (default 100, Ellmer's).
+%     'TraceSeed' 1x1  RNG seed for reproducible probes (default []: global stream).
 %     'backend'   'exact' (default) | 'hutchinson'. Which estimator computes the
-%                 VARIANCE COMPONENTS (distinct from 'traceMethod', which only
+%                 VARIANCE COMPONENTS (distinct from 'TraceMethod', which only
 %                 adds a machinery check to the exact backend). With 'hutchinson'
 %                 the WHOLE estimation is delegated to LSQVCE.VCEHUTCHINSON -- the
 %                 matrix-free Ellmer path that never forms the dense inverse Qxx.
@@ -59,11 +59,11 @@ function VC = varComp(u, batchFcn, nBatch, groupFcn, nGroup, varargin)
 %                 backend is faster AND exact AND gives the diagnostics. Strict
 %                 Ellmer: the returned VC is then VCEHUTCHINSON's SUBSET struct
 %                 (no per-obs fields; adds .redundSE, .estimator='hutchinson').
-%                 If 'checkD' is supplied it FALLS BACK to exact and warns (the
+%                 If 'CheckD' is supplied it FALLS BACK to exact and warns (the
 %                 contamination guard needs the per-observation path). This is
 %                 HISTORY_v1.md roadmap item 0, tier T2 (an opt-in VCE backend).
 %     'seed'      1x1  RNG seed forwarded to the Hutchinson backend (falls back to
-%                 'traceSeed' if omitted). Ignored by the exact backend.
+%                 'TraceSeed' if omitted). Ignored by the exact backend.
 %     'reprobe'   1x1  logical, forwarded to the Hutchinson backend (default true).
 %
 %   OUTPUT VC
@@ -73,10 +73,10 @@ function VC = varComp(u, batchFcn, nBatch, groupFcn, nGroup, varargin)
 %     .nObs       nGroup x 1
 %     .redund     nGroup x 1  partial redundancy per group
 %     .iter, .converged, .history
-%     .traceEstimate  present ONLY with 'traceMethod','hutchinson': a struct
+%     .traceEstimate  present ONLY with 'TraceMethod','hutchinson': a struct
 %                 (.value/.expected/.relErr/.se/.relSE/.probes/.note) from the
 %                 machinery check tr(N^-1 N)=u on the final normal. NOT a
-%                 per-group redundancy replacement (see 'traceMethod' above).
+%                 per-group redundancy replacement (see 'TraceMethod' above).
 %
 %   EXAMPLE
 %       % Two sensors observe the same arcs. Their quoted noise levels are
@@ -108,6 +108,10 @@ function VC = varComp(u, batchFcn, nBatch, groupFcn, nGroup, varargin)
 %   See also LSQVCE.DIAGNOSE, LSQVCE.COMBINE, LSQVCE.VCE, LSQVCE.REDUNDANCY,
 %            LSQVCE.TRACEESTIMATE, LSQVCE.VCEHUTCHINSON.
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) (F-07): typed
+%   `arguments` signature, canonical UpperCamelCase option names (legacy
+%   casings keep matching; enum VALUES case-sensitive lowercase). With
+%   assistance from Claude (Anthropic), model Claude Fable 5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-40 (fixes F-11): a negative
 %   component FREEZES its group for the pass (s = 1) instead of clamping
 %   to 1e-6 -- the old clamp scaled the cumulative variance by 1e-6 and
@@ -115,49 +119,43 @@ function VC = varComp(u, batchFcn, nBatch, groupFcn, nGroup, varargin)
 %   (Anthropic), model Claude Fable 5.
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
-%   Updated 2026-07-17 (CEST, UTC+02:00): added 'traceMethod'/'probes'/
-%   'traceSeed' (entry-point parity with lsqvce.vce/redundancy; exact stays
+%   Updated 2026-07-17 (CEST, UTC+02:00): added 'TraceMethod'/'Probes'/
+%   'TraceSeed' (entry-point parity with lsqvce.vce/redundancy; exact stays
 %   default, adds a Hutchinson machinery check). Claude (Anthropic), Opus 4.8.
 %   Updated 2026-07-17 (CEST, UTC+02:00): added 'backend','exact'|'hutchinson'
 %   (item 0 tier T2) delegating the Hutchinson backend to LSQVCE.VCEHUTCHINSON;
-%   falls back to exact + warn if 'checkD' is given. Claude (Anthropic), Opus 4.8.
+%   falls back to exact + warn if 'CheckD' is given. Claude (Anthropic), Opus 4.8.
+arguments
+    u (1,1) double {mustBeInteger, mustBePositive}
+    batchFcn (1,1) function_handle
+    nBatch (1,1) double {mustBeInteger, mustBePositive}
+    groupFcn (1,1) function_handle
+    nGroup (1,1) double {mustBeInteger, mustBePositive}
+    opt.Method (1,1) string {mustBeMember(opt.Method, ["rigorous","simplified"])} = "rigorous"
+    opt.MaxIter (1,1) double {mustBeInteger, mustBePositive} = 30
+    opt.Tol (1,1) double {mustBePositive} = 1e-6
+    opt.Verbose (1,1) logical = true
+    opt.MinObs (1,1) double {mustBeGreaterThanOrEqual(opt.MinObs, 1)} = 10
+    opt.CheckD = struct([])   % struct from lsqvce.diagnose, or [] (both accepted)
+    opt.TraceMethod (1,1) string {mustBeMember(opt.TraceMethod, ["exact","hutchinson"])} = "exact"
+    opt.Probes (1,1) double {mustBeInteger, mustBePositive} = 100
+    opt.TraceSeed double {mustBeScalarOrEmpty} = []
+end
 
-ip = inputParser;
-addParameter(ip, 'method',  'rigorous', @(s) any(strcmpi(s, {'rigorous','simplified'})));
-addParameter(ip, 'maxIter', 30,   @(x) isscalar(x) && x >= 1);
-addParameter(ip, 'tol',     1e-6, @(x) isscalar(x) && x > 0);
-addParameter(ip, 'verbose', true, @islogical);
-addParameter(ip, 'minObs',  10,   @(x) isscalar(x) && x >= 1);
-% Pass the struct from lsqvce.diagnose to enable the contamination guard.
-% Blunders and variance components self-mask; see the guard below.
-addParameter(ip, 'checkD',  [],   @(x) isempty(x) || isstruct(x));
-% TraceMethod: entry-point parity with lsqvce.vce / lsqvce.redundancy. EXACT is
-% the default and authoritative; 'hutchinson' adds a machinery check only (the
-% exact per-group traces are untouched). See the help block and roadmap item 0.
-addParameter(ip, 'traceMethod', 'exact', @(s) any(strcmpi(s, {'exact','hutchinson'})));
-addParameter(ip, 'probes',      100,     @(v) isscalar(v) && v >= 1 && v == floor(v));
-addParameter(ip, 'traceSeed',   [],      @(v) isempty(v) || (isscalar(v) && isnumeric(v)));
-% BACKEND: which estimator computes the variance components.
-%   'exact'      (default) -- form Qxx = N^-1 and the exact per-group traces
-%                below; also gives r_g exactly and honours 'checkD'/'traceMethod'.
-%   'hutchinson' -- delegate the WHOLE estimation to LSQVCE.VCEHUTCHINSON, the
-%                matrix-free Ellmer path (no dense inverse). For LARGE u only;
-%                strict Ellmer, so it cannot honour the contamination guard
-%                ('checkD') -- if that is supplied, it falls back to exact and
-%                warns. This is roadmap item 0 tier T2: an opt-in VCE backend.
-addParameter(ip, 'backend',     'exact', @(s) any(strcmpi(s, {'exact','hutchinson'})));
-% vceHutchinson uses 'seed'/'reprobe'; accept them here so they can be forwarded.
-addParameter(ip, 'seed',        [],      @(v) isempty(v) || (isscalar(v) && isnumeric(v)));
-addParameter(ip, 'reprobe',     true,    @(v) islogical(v) && isscalar(v));
-parse(ip, varargin{:});
-o = ip.Results;
+% WP-39 stage (b): typed `arguments` signature (canonical UpperCamel
+% names; NAME matching case-insensitive per MATLAB semantics; enum VALUES
+% case-sensitive lowercase). Lowercase mapping keeps the body untouched.
+o = struct('method', char(opt.Method), 'maxIter', opt.MaxIter, ...
+           'tol', opt.Tol, 'verbose', opt.Verbose, 'minObs', opt.MinObs, ...
+           'checkD', opt.CheckD, 'traceMethod', char(opt.TraceMethod), ...
+           'probes', opt.Probes, 'traceSeed', opt.TraceSeed);
 rigorous = strcmpi(o.method, 'rigorous');
 useHutch = strcmpi(o.traceMethod, 'hutchinson');
 
 % ---- BACKEND DISPATCH (item 0 tier T2) ------------------------------------
 % If the Hutchinson backend is requested, hand the whole problem to
 % LSQVCE.VCEHUTCHINSON (identical signature). Guard: the contamination check
-% needs the exact per-obs path, so fall back to exact + warn if 'checkD' given.
+% needs the exact per-obs path, so fall back to exact + warn if 'CheckD' given.
 if strcmpi(o.backend, 'hutchinson')
     if ~isempty(o.checkD)
         lsqvce.util.log.warn('lsqvce:varComp:hutchNoCheckD', ...
@@ -167,7 +165,7 @@ if strcmpi(o.backend, 'hutchinson')
              'still protects you. Clean the data first, then re-run with the ' ...
              'Hutchinson backend if you need the speed.']);
     else
-        % seed: prefer the vceHutchinson-style 'seed'; fall back to 'traceSeed'.
+        % seed: prefer the vceHutchinson-style 'seed'; fall back to 'TraceSeed'.
         hseed = o.seed;
         if isempty(hseed), hseed = o.traceSeed; end
         VC = lsqvce.vceHutchinson(u, batchFcn, nBatch, groupFcn, nGroup, ...
@@ -439,7 +437,7 @@ if lsqvce.util.verbosity.progress(o.verbose)
     end
 end
 
-% Resolution limit is returned regardless of 'verbose', because a caller
+% Resolution limit is returned regardless of 'Verbose', because a caller
 % driving this from a script needs it just as much as a human reading the
 % printout: it is the difference between a real weight correction and noise.
 resolOut = zeros(nGroup, 1);

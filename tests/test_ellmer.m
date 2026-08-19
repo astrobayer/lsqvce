@@ -866,6 +866,32 @@ function test_joint_signature_typed_arguments(tc)
 end
 
 %% =========================== WP-39 stage (a): typed-signature enforcement
+function test_stageB_signatures_psd_and_lags(tc)
+    % WP-39 stage (b) (F-07): psdVCE's enum-value lever (specific
+    % mustBeMember id) and redundancyLags' typed positionals.
+    ok = false;
+    try
+        lsqvce.psdVCE(ones(4,2), ones(4,2), ones(4,1), 'ZeroFreqRule', 'Lowest');
+    catch e
+        ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
+    end
+    verifyTrue(tc, ok, 'psdVCE ZeroFreqRule ''Lowest'' must fail mustBeMember');
+    ok = false;
+    try
+        lsqvce.psdVCE(ones(4,2), ones(4,2), ones(4,1), 'Gamma', 1.5);
+    catch e
+        ok = startsWith(e.identifier, 'MATLAB:validators:');
+    end
+    verifyTrue(tc, ok, 'psdVCE Gamma > 1 must fail the typed constraint');
+    ok = false;
+    try
+        lsqvce.redundancyLags(ones(6,2), eye(6), ones(2,3), [], 0);
+    catch e
+        ok = startsWith(e.identifier, 'MATLAB:validators:');
+    end
+    verifyTrue(tc, ok, 'redundancyLags nMaxLag = 0 must fail the signature');
+end
+
 function test_joint_signature_types_and_enum_values(tc)
     % WP-39 (F-07), corrected premise (round a1-2): NV names match
     % case-insensitively even under arguments; the enforced breaks are

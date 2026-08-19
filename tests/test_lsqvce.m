@@ -378,6 +378,27 @@ function test_adjust_typed_validators_and_enum_values(tc)
         'lowercase casing and forwarded options must keep working');
 end
 
+function test_stageB_signature_varComp(tc)
+    % WP-39 stage (b) (F-07): the enum-value lever with the specific
+    % mustBeMember id (the old strcmpi accepted 'Rigorous').
+    b = @(k) deal(randn(8,2), randn(8,1), ones(8,1));
+    g = @(k) ones(8,1);
+    ok = false;
+    try
+        lsqvce.varComp(2, b, 1, g, 1, 'Method', 'Rigorous');
+    catch e
+        ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
+    end
+    verifyTrue(tc, ok, 'varComp Method ''Rigorous'' must fail mustBeMember');
+    ok = false;
+    try
+        lsqvce.varComp(2.5, b, 1, g, 1);
+    catch e
+        ok = startsWith(e.identifier, 'MATLAB:validators:');
+    end
+    verifyTrue(tc, ok, 'non-integer u must fail the typed positional');
+end
+
 function test_varComp_negative_component_freezes_not_nukes(tc)
     % WP-40 (fixes F-11; fails on the old code, whose s(bad) = 1e-6 divided
     % the group's CUMULATIVE variance by 1e6): a two-group rig (group 2:

@@ -1,4 +1,4 @@
-function out = streamContribution(acc, sol, varargin)
+function out = streamContribution(acc, sol, opt)
 %LSQVCE.STREAMCONTRIBUTION  Streaming, matrix-free per-group N^-1 N_g^cc probes.
 %
 %   out = LSQVCE.STREAMCONTRIBUTION(acc, sol)
@@ -60,6 +60,9 @@ function out = streamContribution(acc, sol, varargin)
 %                                         the accumulator has been solved.
 %
 %   OPTIONS (Name/Value)
+%   (WP-39 stage (b): canonical UpperCamelCase names below; legacy
+%   casings still match -- MATLAB NV semantics -- and enum VALUES are
+%   case-sensitive lowercase.)
 %     'GroupBy'   char | function_handle  'arc' | 'obsType' | 'system' | 'day', or
 %                                         a predicate @(sat,obsType,arc,day)->key
 %                                         (default 'system'). Same spec as
@@ -138,6 +141,10 @@ function out = streamContribution(acc, sol, varargin)
 %   See also LSQVCE.CONTRIBUTION, LSQVCE.REDUNDANCY, LSQVCE.LEVERAGEBLOCKS,
 %            LSQVCE.TRACEESTIMATE, LSQVCE.VCE
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) (F-07): typed
+%   `arguments` signature, canonical UpperCamelCase option names (legacy
+%   casings keep matching; enum VALUES case-sensitive lowercase). With
+%   assistance from Claude (Anthropic), model Claude Fable 5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-38 (fixes F-08): key presets
 %   and the batch-and-whiten skeleton live in the ONE private makeKeyFcn /
 %   arcBatchWhiten (byte-identical numerics; GroupBy error id now
@@ -157,16 +164,20 @@ function out = streamContribution(acc, sol, varargin)
 %   model Claude Fable 5.
 %   Created 2026-07-17 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Opus 4.8.
+arguments
+    acc
+    sol
+    opt.GroupBy = 'system'
+    opt.Groups = []
+    opt.Probes (1,1) double {mustBeInteger, mustBePositive} = 100
+    opt.Seed double {mustBeScalarOrEmpty} = []
+    opt.WantDiag (1,1) logical = true
+    opt.Verbose (1,1) logical = false
+end
 
-    p = inputParser;
-    p.addParameter('GroupBy' , 'system');
-    p.addParameter('Groups'  , []);
-    p.addParameter('Probes'  , 100, @(v) isscalar(v) && v >= 1 && v == floor(v));
-    p.addParameter('Seed'    , []);
-    p.addParameter('WantDiag', true, @(v) isscalar(v) && (islogical(v) || isnumeric(v)));
-    p.addParameter('Verbose' , false, @(v) isscalar(v));
-    p.parse(varargin{:});
-    o = p.Results;
+    % WP-39 stage (b): typed `arguments` signature (names already
+    % UpperCamelCase; NAME matching case-insensitive per MATLAB semantics).
+    o = opt;
     wantDiag = logical(o.WantDiag);
 
     ids = acc.systemIDs();

@@ -70,12 +70,12 @@ METHOD
   is also returned, since it is what most textbooks actually use and it
   converges to the same fixed point. Rigorous is the default.</pre>
 <h3>Name-Value</h3>
-<pre class="example">  &#x27;method&#x27;   &#x27;rigorous&#x27; (default) | &#x27;simplified&#x27;
-  &#x27;maxIter&#x27;  30
-  &#x27;tol&#x27;      1e-6      convergence on max|s_i - 1|
-  &#x27;verbose&#x27;  true
-  &#x27;minObs&#x27;   10        below this a group&#x27;s component is not estimable
-  &#x27;traceMethod&#x27; &#x27;exact&#x27; (default) | &#x27;hutchinson&#x27;. Mirrors LSQVCE.VCE and
+<pre class="example">  &#x27;Method&#x27;   &#x27;rigorous&#x27; (default) | &#x27;simplified&#x27;
+  &#x27;MaxIter&#x27;  30
+  &#x27;Tol&#x27;      1e-6      convergence on max|s_i - 1|
+  &#x27;Verbose&#x27;  true
+  &#x27;MinObs&#x27;   10        below this a group&#x27;s component is not estimable
+  &#x27;TraceMethod&#x27; &#x27;exact&#x27; (default) | &#x27;hutchinson&#x27;. Mirrors LSQVCE.VCE and
               LSQVCE.REDUNDANCY for entry-point parity. EXACT IS DEFAULT and
               authoritative: the redundancy traces tr(Qxx N_g) and the
               Helmert matrix tr(Qxx N_i Qxx N_j) are always formed EXACTLY
@@ -89,10 +89,10 @@ METHOD
               Hutchinson substitution (a per-group scalar r_g in place of
               tr(Qxx N_g)) is a separate code path and is HISTORY_v1.md roadmap
               item 0; see LSQVCE.REDUNDANCY&#x27;s help for the structural reason.
-  &#x27;probes&#x27;    1x1  number of Hutchinson probes Z (default 100, Ellmer&#x27;s).
-  &#x27;traceSeed&#x27; 1x1  RNG seed for reproducible probes (default []: global stream).
+  &#x27;Probes&#x27;    1x1  number of Hutchinson probes Z (default 100, Ellmer&#x27;s).
+  &#x27;TraceSeed&#x27; 1x1  RNG seed for reproducible probes (default []: global stream).
   &#x27;backend&#x27;   &#x27;exact&#x27; (default) | &#x27;hutchinson&#x27;. Which estimator computes the
-              VARIANCE COMPONENTS (distinct from &#x27;traceMethod&#x27;, which only
+              VARIANCE COMPONENTS (distinct from &#x27;TraceMethod&#x27;, which only
               adds a machinery check to the exact backend). With &#x27;hutchinson&#x27;
               the WHOLE estimation is delegated to LSQVCE.VCEHUTCHINSON -- the
               matrix-free Ellmer path that never forms the dense inverse Qxx.
@@ -100,11 +100,11 @@ METHOD
               backend is faster AND exact AND gives the diagnostics. Strict
               Ellmer: the returned VC is then VCEHUTCHINSON&#x27;s SUBSET struct
               (no per-obs fields; adds .redundSE, .estimator=&#x27;hutchinson&#x27;).
-              If &#x27;checkD&#x27; is supplied it FALLS BACK to exact and warns (the
+              If &#x27;CheckD&#x27; is supplied it FALLS BACK to exact and warns (the
               contamination guard needs the per-observation path). This is
               HISTORY_v1.md roadmap item 0, tier T2 (an opt-in VCE backend).
   &#x27;seed&#x27;      1x1  RNG seed forwarded to the Hutchinson backend (falls back to
-              &#x27;traceSeed&#x27; if omitted). Ignored by the exact backend.
+              &#x27;TraceSeed&#x27; if omitted). Ignored by the exact backend.
   &#x27;reprobe&#x27;   1x1  logical, forwarded to the Hutchinson backend (default true).
 
 OUTPUT VC
@@ -114,10 +114,10 @@ OUTPUT VC
   .nObs       nGroup x 1
   .redund     nGroup x 1  partial redundancy per group
   .iter, .converged, .history
-  .traceEstimate  present ONLY with &#x27;traceMethod&#x27;,&#x27;hutchinson&#x27;: a struct
+  .traceEstimate  present ONLY with &#x27;TraceMethod&#x27;,&#x27;hutchinson&#x27;: a struct
               (.value/.expected/.relErr/.se/.relSE/.probes/.note) from the
               machinery check tr(N^-1 N)=u on the final normal. NOT a
-              per-group redundancy replacement (see &#x27;traceMethod&#x27; above).</pre>
+              per-group redundancy replacement (see &#x27;TraceMethod&#x27; above).</pre>
 <h3>Example</h3>
 <pre class="example">% Two sensors observe the same arcs. Their quoted noise levels are
 % almost never both right -- let the DATA say what the ratio is.
@@ -147,6 +147,10 @@ end</pre>
 See also LSQVCE.DIAGNOSE, LSQVCE.COMBINE, LSQVCE.VCE, LSQVCE.REDUNDANCY,
          LSQVCE.TRACEESTIMATE, LSQVCE.VCEHUTCHINSON.
 
+Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) (F-07): typed
+`arguments` signature, canonical UpperCamelCase option names (legacy
+casings keep matching; enum VALUES case-sensitive lowercase). With
+assistance from Claude (Anthropic), model Claude Fable 5.
 Updated 2026-08-19 (CEST, UTC+02:00), WP-40 (fixes F-11): a negative
 component FREEZES its group for the pass (s = 1) instead of clamping
 to 1e-6 -- the old clamp scaled the cumulative variance by 1e-6 and
@@ -154,12 +158,12 @@ fed a 1e6 reweighting oscillation. With assistance from Claude
 (Anthropic), model Claude Fable 5.
 Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 2026-07-11.
-Updated 2026-07-17 (CEST, UTC+02:00): added &#x27;traceMethod&#x27;/&#x27;probes&#x27;/
-&#x27;traceSeed&#x27; (entry-point parity with lsqvce.vce/redundancy; exact stays
+Updated 2026-07-17 (CEST, UTC+02:00): added &#x27;TraceMethod&#x27;/&#x27;Probes&#x27;/
+&#x27;TraceSeed&#x27; (entry-point parity with lsqvce.vce/redundancy; exact stays
 default, adds a Hutchinson machinery check). Claude (Anthropic), Opus 4.8.
 Updated 2026-07-17 (CEST, UTC+02:00): added &#x27;backend&#x27;,&#x27;exact&#x27;|&#x27;hutchinson&#x27;
 (item 0 tier T2) delegating the Hutchinson backend to LSQVCE.VCEHUTCHINSON;
-falls back to exact + warn if &#x27;checkD&#x27; is given. Claude (Anthropic), Opus 4.8.</pre>
+falls back to exact + warn if &#x27;CheckD&#x27; is given. Claude (Anthropic), Opus 4.8.</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
 <div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

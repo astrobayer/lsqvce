@@ -1,4 +1,4 @@
-function out = redundancyLags(Abar, W, UiZ, ebar, nMaxLag, varargin)
+function out = redundancyLags(Abar, W, UiZ, ebar, nMaxLag, opt)
 %LSQVCE.REDUNDANCYLAGS  Per-lag redundancies s_n and residual sums Omega_n.
 %
 %   out = LSQVCE.REDUNDANCYLAGS(Abar, W, UiZ, ebar, nMaxLag)
@@ -58,6 +58,9 @@ function out = redundancyLags(Abar, W, UiZ, ebar, nMaxLag, varargin)
 %                             n = 0..nMaxLag-1.
 %
 %   OPTIONS (Name/Value)
+%   (WP-39 stage (b): canonical UpperCamelCase names below; legacy
+%   casings still match -- MATLAB NV semantics -- and enum VALUES are
+%   case-sensitive lowercase.)
 %     'WantRbar' logical   also return the dense Rbar (N x N). Default false --
 %                          for long arcs this is the one big object, and the
 %                          unrolled sums never need it materialised beyond the
@@ -115,6 +118,10 @@ function out = redundancyLags(Abar, W, UiZ, ebar, nMaxLag, varargin)
 %   See also LSQVCE.COVCOMPONENT, LSQVCE.TOEPLITZCOFACTOR, LSQVCE.DCTI,
 %            LSQVCE.TRACEESTIMATE, LSQVCE.STREAMCONTRIBUTION
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) (F-07): typed
+%   `arguments` signature, canonical UpperCamelCase option names (legacy
+%   casings keep matching; enum VALUES case-sensitive lowercase). With
+%   assistance from Claude (Anthropic), model Claude Fable 5.
 %   Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Opus 4.8.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-37 (fixes F-09): the dense
@@ -127,13 +134,21 @@ function out = redundancyLags(Abar, W, UiZ, ebar, nMaxLag, varargin)
 %   projector can now absorb the LOCAL parameter block exactly via
 %   'LocalBbar'/'LocalLl' (see OPTIONS); the nl = 0 path is verbatim the old
 %   code. With assistance from Claude (Anthropic), model Claude Fable 5.
+arguments
+    Abar (:,:) double
+    W (:,:) double
+    UiZ (:,:) double
+    ebar double
+    nMaxLag (1,1) double {mustBeInteger, mustBePositive}
+    opt.WantRbar (1,1) logical = false
+    opt.LocalBbar double = []
+    opt.LocalLl double = []
+end
 
-    p = inputParser;  p.FunctionName = 'lsqvce.redundancyLags';
-    p.addParameter('WantRbar', false, @(v) isscalar(v) && (islogical(v) || isnumeric(v)));
-    p.addParameter('LocalBbar', [], @(v) isempty(v) || isnumeric(v));
-    p.addParameter('LocalLl',   [], @(v) isempty(v) || isnumeric(v));
-    p.parse(varargin{:});
-    o = p.Results;
+    % WP-39 stage (b): typed `arguments` signature (names were already
+    % UpperCamelCase; NAME matching stays case-insensitive per MATLAB
+    % semantics).
+    o = opt;
 
     [N, P] = size(Abar);
     if size(W,1) ~= N || size(W,2) ~= N

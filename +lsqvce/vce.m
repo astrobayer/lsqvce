@@ -1,4 +1,4 @@
-function vc = vce(accFcn, varargin)
+function vc = vce(accFcn, opt)
 %LSQVCE.VCE  Helmert variance component estimation, per arc.
 %
 %   vc = LSQVCE.VCE(accFcn, 'Name', value, ...)
@@ -27,21 +27,24 @@ function vc = vce(accFcn, varargin)
 %                                accept that (WP-41: previously undocumented).
 %
 %   OPTIONS
-%     'groups'      cellstr / numeric vector of group keys, in the order that
+%   (WP-39 stage (b): canonical UpperCamelCase names below; legacy
+%   casings still match -- MATLAB NV semantics -- and enum VALUES are
+%   case-sensitive lowercase.)
+%     'Groups'      cellstr / numeric vector of group keys, in the order that
 %                   sigma is indexed. If omitted, taken from the first pass.
-%     'groupBy'     as LSQVCE.REDUNDANCY (default 'arc')
-%     'sigma0'      initial sigmas (default all ones)
-%     'maxIter'     default 8
-%     'tol'         convergence on max|sigma_new/sigma_old - 1| (default 1e-3)
-%     'minRedundancy'  default 50
-%     'freezeR'  1x1 > 0, default 1.  Estimability threshold of the sigma
-%                UPDATE (WP-40, fixes F-10; distinct from 'minRedundancy',
+%     'GroupBy'     as LSQVCE.REDUNDANCY (default 'arc')
+%     'Sigma0'      initial sigmas (default all ones)
+%     'MaxIter'     default 8
+%     'Tol'         convergence on max|sigma_new/sigma_old - 1| (default 1e-3)
+%     'MinRedundancy'  default 50
+%     'FreezeR'  1x1 > 0, default 1.  Estimability threshold of the sigma
+%                UPDATE (WP-40, fixes F-10; distinct from 'MinRedundancy',
 %                which is LSQVCE.REDUNDANCY's per-observation testability
 %                knob): a group with r_g < freezeR keeps its current sigma
 %                this pass (upd = 1) and is warned about once -- the old code
 %                silently floored r_g to 1, biasing sigma^2 = vtv/1 LOW.
-%     'verbose'     default true
-%     'traceMethod' 'exact' (default) | 'hutchinson'. Both estimate the SAME
+%     'Verbose'     default true
+%     'TraceMethod' 'exact' (default) | 'hutchinson'. Both estimate the SAME
 %                   quantity, the group redundancy r_g = sum_{i in g}(1-h_i) =
 %                   n_g - (local dof absorbed by g) - tr(N^-1 N_g^cc). 'exact'
 %                   sums the per-arc leverages. 'hutchinson' streams it
@@ -58,8 +61,8 @@ function vc = vce(accFcn, varargin)
 %                   fills vc.red.traceEstimate. Being stochastic it adds noise
 %                   to sigma -- prefer 'exact' whenever affordable; see the
 %                   accuracy note in LSQVCE.LEVERAGE.
-%     'probes'      1x1  number of Hutchinson probes Z (default 100, Ellmer's).
-%     'traceSeed'   1x1  RNG seed for reproducible probes (default []).
+%     'Probes'      1x1  number of Hutchinson probes Z (default 100, Ellmer's).
+%     'TraceSeed'   1x1  RNG seed for reproducible probes (default []).
 %
 %   OUTPUT
 %     vc.sigma      final variance components (one per group)
@@ -100,7 +103,7 @@ function vc = vce(accFcn, varargin)
 %
 %   EXAMPLE
 %     accFcn = @(sig) buildAccumulator(cfg, sig);   % you write this
-%     vc = lsqvce.vce(accFcn, 'groupBy','arc', 'maxIter',6);
+%     vc = lsqvce.vce(accFcn, 'GroupBy','arc', 'MaxIter',6);
 %
 %     bar(vc.sigma);  xlabel('arc');  ylabel('\sigma_g');
 %     yline(1, 'r--');
@@ -117,8 +120,12 @@ function vc = vce(accFcn, varargin)
 %
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) (F-07): typed
+%   `arguments` signature, canonical UpperCamelCase option names (legacy
+%   casings keep matching; enum VALUES case-sensitive lowercase). With
+%   assistance from Claude (Anthropic), model Claude Fable 5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-40 (fixes F-10): groups with
-%   r_g < 'freezeR' are FROZEN and warned about instead of silently
+%   r_g < 'FreezeR' are FROZEN and warned about instead of silently
 %   floored. With assistance from Claude (Anthropic), model Claude Fable 5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-36 (fixes F-06): an empty
 %   TraceSeed is pinned ONCE up front from the package-private probe
@@ -132,6 +139,20 @@ function vc = vce(accFcn, varargin)
 %   m-u and inflated sigma without bound; vc.r follows. Evidence:
 %   validation/v10review.py T2. With assistance from Claude (Anthropic),
 %   model Claude Fable 5.
+arguments
+    accFcn (1,1) function_handle
+    opt.Groups = []
+    opt.GroupBy = 'arc'
+    opt.Sigma0 double = []
+    opt.MaxIter (1,1) double {mustBeInteger, mustBePositive} = 8
+    opt.Tol (1,1) double {mustBePositive} = 1e-3
+    opt.MinRedundancy (1,1) double {mustBePositive} = 50
+    opt.FreezeR (1,1) double {mustBePositive} = 1
+    opt.Verbose (1,1) logical = true
+    opt.TraceMethod (1,1) string {mustBeMember(opt.TraceMethod, ["exact","hutchinson"])} = "exact"
+    opt.Probes (1,1) double {mustBeInteger, mustBePositive} = 100
+    opt.TraceSeed double {mustBeScalarOrEmpty} = []
+end
 
     narginchk(1,inf);
     if ~isa(accFcn, 'function_handle')
@@ -139,22 +160,16 @@ function vc = vce(accFcn, varargin)
               'accFcn must be a function handle @(sigma) -> accumulator.');
     end
 
-    p = inputParser;  p.FunctionName = 'lsqvce.vce';
-    p.addParameter('groups'       , []);
-    p.addParameter('groupBy'      , 'arc');
-    p.addParameter('sigma0'       , []);
-    p.addParameter('maxIter'      , 8,    @(v) isscalar(v) && v >= 1);
-    p.addParameter('tol'          , 1e-3, @(v) isscalar(v) && v > 0);
-    p.addParameter('minRedundancy', 50);
-    p.addParameter('freezeR'      , 1,    @(v) isscalar(v) && v > 0);
-    p.addParameter('verbose'      , true, @(v) (islogical(v) || isnumeric(v)) && isscalar(v));
-    % Opt-in Hutchinson trace estimator (Ellmer 2018 6.5.6), forwarded to
-    % LSQVCE.REDUNDANCY. Default 'exact' keeps the exact per-arc redundancies.
-    p.addParameter('traceMethod'  , 'exact', @(s) any(strcmpi(s, {'exact','hutchinson'})));
-    p.addParameter('probes'       , 100,   @(v) isscalar(v) && v >= 1 && v == floor(v));
-    p.addParameter('traceSeed'    , [],    @(v) isempty(v) || (isscalar(v) && isnumeric(v)));
-    p.parse(varargin{:});
-    o = p.Results;
+    % WP-39 stage (b): typed `arguments` signature (canonical UpperCamel
+    % names; NV NAME matching stays case-insensitive per MATLAB semantics;
+    % enum VALUES case-sensitive lowercase). The lowercase o-struct keeps
+    % the body untouched.
+    o = struct('groups', {opt.Groups}, 'groupBy', opt.GroupBy, ...
+               'sigma0', opt.Sigma0, 'maxIter', opt.MaxIter, ...
+               'tol', opt.Tol, 'minRedundancy', opt.MinRedundancy, ...
+               'freezeR', opt.FreezeR, 'verbose', opt.Verbose, ...
+               'traceMethod', char(opt.TraceMethod), 'probes', opt.Probes, ...
+               'traceSeed', opt.TraceSeed);
     % WP-36 (fixes F-06): with 'hutchinson' and an EMPTY TraceSeed, pin one
     % concrete seed up front (drawn from the package-private probe stream,
     % global RNG untouched). Every loop pass AND the final vc.r pass then
