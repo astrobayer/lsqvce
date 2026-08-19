@@ -213,7 +213,7 @@ order of work: 32 → 33 → 34 → 35 → 36 → 40 → 37 → 38 → 41 → 39
 | 32 | Fix `vce` 'hutchinson': redundancy, not trace (F-01) | — | DONE (2026-08-18, PR #2, merge e167cee; CI green both contexts after a setup-matlab cache-restore hang was resolved per the incident runbook, postflight green 515/515 on Windows R2026a; evidence + round note §9 WP-32) |
 | 33 | Joint paths: locals in residual + projector (F-03) | — | DONE (2026-08-19: round 1 PR #3 merge 7d7c14c, round 2 PR #4 merge 24cfe6c; CI green 489/489; user approved the 0.85 accuracy floor + F-15→WP-40 scope by merging; postflight: round 1 green pre-outage, round 2 = D.4 DEBT until the bridge returns; six r2 lessons + F-15 pinned in §9 WP-33) |
 | 34 | Keyed arc identity in `adjustVCEjoint` (F-02) | — | IN PROGRESS — 2026-08-19: fix + tests on `claude/wp-34` (round note §9 WP-34); draft-PR loop; POSTFLIGHT DEBT (bridge away) |
-| 35 | `psdVCE` floor policy + negative sigma2 guard (F-04, F-05) | — | IN PROGRESS — 2026-08-19: fixes + 3 tests on `claude/wp-35` (round note §9 WP-35); draft-PR loop; POSTFLIGHT DEBT (bridge away) |
+| 35 | psdVCE floor policy + negative-factor clamp (F-04, F-05) | — | DONE (2026-08-19, PR #6, merge 827ee6b; CI green 493/493 — the run that also validated the self-healing setup live: attempt-1 wedge killed at 720 s, attempt-2 restore 90 s; POSTFLIGHT DEBT until the runner/bridge returns; round note §9 WP-35) |
 | 36 | One probe generator, honest RNG contract (F-06) | — | OPEN |
 | 37 | `redundancyLags` without dense W^-1 + hot-loop tolls (F-09) | — | OPEN |
 | 38 | Deduplicate keys / arc batching + audit lock (F-08) | 33,36 | OPEN |
@@ -2318,6 +2318,14 @@ mathworks/matlab Docker image -- removes the MathWorks download entirely
 but needs a batch-licensing token as a repo secret (USER decision +
 setup); (b) a self-hosted runner on the user's PC is NOT recommended:
 on a PUBLIC repo, fork PRs would execute code on that machine.
+**RUNNER DECISION (2026-08-19, user):** the self-hosted-runner migration
+(private repo + runner on the user's Windows PC = ONE full-suite gate on
+the target platform, incl. test_parallel; triggerable from any Claude
+session via push / workflow_dispatch / re-run — GitHub is the
+dispatcher, no bridge needed) is APPROVED and DEFERRED ("we implement it
+later"; the user is away from the machine). Until then: hosted CI with
+the self-healing setup stays the gate; postflight debts keep accruing
+and are all settled by the first green full run on the runner.
 
 ### WP-33 — Joint paths: subtract B*y and absorb locals in the projector
 
