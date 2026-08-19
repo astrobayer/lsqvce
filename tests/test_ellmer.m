@@ -261,8 +261,12 @@ function test_redundancyLags_rejects_bad_shapes(tc)
         'lsqvce:redundancyLags:badW');
     verifyError(tc, @() lsqvce.redundancyLags(Abar, W, sp.UiZ(1:2,:), ebar, 3), ...
         'lsqvce:redundancyLags:badUiZ');
+    % WP-39 b1: the scalar constraint moved INTO the typed signature --
+    % nMaxLag <= 0 now fails mustBePositive BEFORE the body (the
+    % cross-argument shape checks above keep their lsqvce: ids in the
+    % body). Contract change release-noted.
     verifyError(tc, @() lsqvce.redundancyLags(Abar, W, sp.UiZ, ebar, 0), ...
-        'lsqvce:redundancyLags:badNMaxLag');
+        'MATLAB:validators:mustBePositive');
 end
 
 %% ============================================ Phase C: per-frequency PSD VCE

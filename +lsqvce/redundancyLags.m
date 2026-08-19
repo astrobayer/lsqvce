@@ -113,7 +113,10 @@ function out = redundancyLags(Abar, W, UiZ, ebar, nMaxLag, opt)
 %     lsqvce:redundancyLags:badEbar      the mean-residual argument is malformed
 %     lsqvce:redundancyLags:badW         the weight argument is malformed
 %     lsqvce:redundancyLags:badUiZ       the probe matrix has the wrong shape
-%     lsqvce:redundancyLags:badNMaxLag   the lag count is not a positive integer
+%     MATLAB:validators:mustBePositive  nMaxLag < 1 (WP-39: the scalar
+%                   constraint sits in the typed signature; the old
+%                   lsqvce:redundancyLags:badNMaxLag body check is gone --
+%                   cross-argument shape checks below keep lsqvce: ids)
 %
 %   See also LSQVCE.COVCOMPONENT, LSQVCE.TOEPLITZCOFACTOR, LSQVCE.DCTI,
 %            LSQVCE.TRACEESTIMATE, LSQVCE.STREAMCONTRIBUTION

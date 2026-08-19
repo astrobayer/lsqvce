@@ -2885,6 +2885,15 @@ diff the set of o.<field> READS in the body against the MAPPED fields
 (or the declared opt.* names when o = opt) — a five-line Python check
 now run for all eight b1 functions: ALL COMPLETE. The old parse block is
 the option inventory; migrate against IT, not against the help text.
+**b1 round 3 (2026-08-19): the last red = a documented-ERRORS contract
+moved.** redundancyLags' nMaxLag <= 0 now fails mustBePositive AT THE
+SIGNATURE where the body used to throw lsqvce:redundancyLags:badNMaxLag
+(the contract test caught it -- working as designed). RULE adopted and
+release-noted: scalar per-argument constraints live in the typed
+signature and surface MATLAB validator ids; CROSS-ARGUMENT shape checks
+stay in the body with their lsqvce: ids (badW/badUiZ unchanged and
+green). Test, ERRORS help and the reference-manual release note updated
+accordingly.
 
 **Round a2 (2026-08-19): adjust + the fluent configurators — two PINNED
 DEVIATIONS (user approves by merge), both consequences of the corrected

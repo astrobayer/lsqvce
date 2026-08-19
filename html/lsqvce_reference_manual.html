@@ -83,7 +83,12 @@ unknown-name rejection, and case-sensitive lowercase enum values
 <code>'lowest'</code>, &hellip;).
 Enum values (e.g. <code>'QR'</code>) and out-of-range or wrongly-typed
 option values now error at the signature; unknown option names are
-rejected. Remaining functions follow in the staged WP-39
+rejected. Scalar positional constraints also moved into the typed
+signatures and now surface MATLAB validator identifiers (e.g.
+<code>MATLAB:validators:mustBePositive</code> for
+<code>redundancyLags</code>'s <code>nMaxLag</code>) where handwritten
+<code>lsqvce:</code> checks used to fire; cross-argument shape checks
+keep their <code>lsqvce:</code> identifiers. Remaining functions follow in the staged WP-39
 rollout.</div>
 <h2>Symbols</h2>
 <table>
