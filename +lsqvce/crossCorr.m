@@ -1,4 +1,4 @@
-function c = crossCorr(w, d, varargin)
+function c = crossCorr(w, d, opt)
 %LSQVCE.CROSSCORR  Cross-axis / temporal correlation of the whitened residuals.
 %
 %   c = LSQVCE.CROSSCORR(w, d, 'Name', value, ...)
@@ -59,19 +59,30 @@ function c = crossCorr(w, d, varargin)
 %     lsqvce.util.log.msg('%s: %s\n', c.verdict, c.advice);
 %     disp(squeeze(c.R(1,:,:)))          % R(0) -- should be the identity
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
+%   typed `arguments` signature, canonical UpperCamelCase option names
+%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+%   case-sensitive lowercase). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 %   See also LSQVCE.SELECTARORDER, LSQVCE.RESIDUALS, LSQVCE.COVMODEL
 %
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
 
+arguments
+    w
+    d
+    opt.MaxLag (1,1) double {mustBeInteger, mustBePositive} = 20
+    opt.Alpha (1,1) double {mustBePositive, mustBeLessThan(opt.Alpha,1)} = 0.05
+    opt.Plot (1,1) logical = false
+end
+
     narginchk(2,inf);
 
-    p = inputParser;  p.FunctionName = 'lsqvce.crossCorr';
-    p.addParameter('maxLag', 20,   @(v) isscalar(v) && v >= 1);
-    p.addParameter('alpha' , 0.05, @(v) isscalar(v) && v > 0 && v < 1);
-    p.addParameter('plot'  , false, @(v) islogical(v) && isscalar(v));
-    p.parse(varargin{:});
-    o = p.Results;
+    % WP-39 stage (b) b2: typed `arguments` signature (canonical
+    % UpperCamelCase; legacy casings keep matching -- MATLAB NV
+    % semantics; enum VALUES case-sensitive lowercase).
+    o = struct('maxLag', opt.MaxLag, 'alpha', opt.Alpha, 'plot', opt.Plot);
 
     validateattributes(w, {'double'}, {'vector','finite','nonempty'}, mfilename, 'w', 1);
     validateattributes(d, {'numeric'}, {'scalar','integer','positive'}, mfilename, 'd', 2);

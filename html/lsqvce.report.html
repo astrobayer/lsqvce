@@ -43,39 +43,59 @@ a { color: #0b5ea8; }
 <div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.report</div>
 <h1>lsqvce.report</h1>
 <div class="purpose">Judge a least-squares adjustment and say so in words.</div>
-<h2>Syntax</h2>
-<pre class="syntax">V = LSQVCE.REPORT(D) takes the struct from lsqvce.diagnose and prints a</pre>
 <h2>Description</h2>
-<p>verdict. It returns a struct of machine-readable findings so the same logic can drive an automated pipeline.</p>
-<p>The report is ordered so that a failure at one level invalidates the levels below it. It refuses to report parameter precision for an adjustment whose integrity checks failed, because a sigma computed from a broken system is not a conservative estimate -- it is a fabrication.</p>
-<h3>Levels</h3>
-<pre class="example">0  INTEGRITY   sum(r) == n-u, vPv &gt;= 0, vPv consistent between passes.
-               These test the CODE, not the data. Failure here means
-               every number below is meaningless.
-1  GLOBAL      variance factor vs chi-square.
-2  LOCALISE    outliers (data snooping), with Bonferroni.
-3  RELIABILITY redundancy numbers, MDB, external reliability.
-               This is the level that says which observations you are
-               NOT ABLE TO CHECK.
-4  PARAMETERS  correlations, conditioning, precision.</pre>
+<pre class="example">V = LSQVCE.REPORT(D) takes the struct from lsqvce.diagnose and prints a
+verdict. It returns a struct of machine-readable findings so the same logic
+can drive an automated pipeline.
+
+The report is ordered so that a failure at one level invalidates the levels
+below it. It refuses to report parameter precision for an adjustment whose
+integrity checks failed, because a sigma computed from a broken system is
+not a conservative estimate -- it is a fabrication.
+
+LEVELS
+  0  INTEGRITY   sum(r) == n-u, vPv &gt;= 0, vPv consistent between passes.
+                 These test the CODE, not the data. Failure here means
+                 every number below is meaningless.
+  1  GLOBAL      variance factor vs chi-square.
+  2  LOCALISE    outliers (data snooping), with Bonferroni.
+  3  RELIABILITY redundancy numbers, MDB, external reliability.
+                 This is the level that says which observations you are
+                 NOT ABLE TO CHECK.
+  4  PARAMETERS  correlations, conditioning, precision.</pre>
 <h3>Name-Value</h3>
-<pre class="example">&#x27;verbose&#x27;  true  print the report (default true)
-&#x27;width&#x27;    78    line width</pre>
-<h3>Output V</h3>
-<pre class="example">V.verdict   &#x27;PASS&#x27; | &#x27;PASS WITH WARNINGS&#x27; | &#x27;SUSPECT&#x27; | &#x27;INVALID&#x27;
-V.findings  cell array of struct(level, severity, code, msg)
-V.nError, V.nWarn, V.nNote</pre>
+<pre class="example">  &#x27;verbose&#x27;  true  print the report (default true)
+  &#x27;width&#x27;    78    line width
+
+OUTPUT V
+  V.verdict   &#x27;PASS&#x27; | &#x27;PASS WITH WARNINGS&#x27; | &#x27;SUSPECT&#x27; | &#x27;INVALID&#x27;
+  V.findings  cell array of struct(level, severity, code, msg)
+  V.nError, V.nWarn, V.nNote</pre>
+<h3>Input</h3>
+<pre class="example">D         1x1 struct  diagnostics from LSQVCE.DIAGNOSE
+varargin  Name/Value: &#x27;verbose&#x27;, &#x27;width&#x27;, &#x27;alpha&#x27;, &#x27;rWeak&#x27;, ...</pre>
 <h3>Example</h3>
-<pre class="example">[~, D]  = lsqvce.adjust(u, src, 4, &#x27;verbose&#x27;, false);
-V = lsqvce.report(D);              % prints the five levels</pre>
-<pre class="example">% V.verdict    &#x27;PASS&#x27; | &#x27;PASS WITH WARNINGS&#x27; | &#x27;SUSPECT&#x27; | &#x27;INVALID&#x27;
-% V.findings   machine-readable: {level, severity, code, msg}</pre>
-<pre class="example">% Drive a pipeline off the codes rather than the text:
-codes = cellfun(@(f) f.code, V.findings, &#x27;UniformOutput&#x27;, false);
-if ismember(&#x27;SNOOP_CONTAMINATED&#x27;, codes)
-    error(&#x27;Pope is blind here -- re-run with test=mad.&#x27;);
-end</pre>
-<p>Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-11.</p>
-<div class="seealso"><b>See also:</b> <a href="lsqvce.diagnose.html">lsqvce.diagnose</a>, <a href="lsqvce.systematic.html">lsqvce.systematic</a></div>
-<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+<pre class="example">    [~, D]  = lsqvce.adjust(u, src, 4, &#x27;verbose&#x27;, false);
+    V = lsqvce.report(D);              % prints the five levels
+
+    % V.verdict    &#x27;PASS&#x27; | &#x27;PASS WITH WARNINGS&#x27; | &#x27;SUSPECT&#x27; | &#x27;INVALID&#x27;
+    % V.findings   machine-readable: {level, severity, code, msg}
+
+    % Drive a pipeline off the codes rather than the text:
+    codes = cellfun(@(f) f.code, V.findings, &#x27;UniformOutput&#x27;, false);
+    if ismember(&#x27;SNOOP_CONTAMINATED&#x27;, codes)
+        error(&#x27;Pope is blind here -- re-run with test=mad.&#x27;);
+    end
+
+Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
+typed `arguments` signature, canonical UpperCamelCase option names
+(legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+case-sensitive lowercase). With assistance from Claude (Anthropic),
+model Claude Fable 5.
+See also LSQVCE.DIAGNOSE, LSQVCE.SYSTEMATIC.
+
+Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
+2026-07-11.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

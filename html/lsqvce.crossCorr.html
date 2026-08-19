@@ -43,49 +43,68 @@ a { color: #0b5ea8; }
 <div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.crossCorr</div>
 <h1>lsqvce.crossCorr</h1>
 <div class="purpose">Cross-axis / temporal correlation of the whitened residuals.</div>
-<h2>Syntax</h2>
-<pre class="syntax">c = LSQVCE.CROSSCORR(w, d, &#x27;Name&#x27;, value, ...)</pre>
 <h2>Description</h2>
-<p>THE DIAGNOSTIC THAT TELLS YOU WHETHER YOUR SEPARABLE MODEL IS SAFE.</p>
-<p>Under a CORRECT separable covariance the whitened residuals are white in time AND across axes, so R(0) = I and R(tau&gt;0) = 0. Departures from that diagnose exactly WHICH part of the model is wrong -- and the four cases call for four different fixes, which is why a single &quot;is it white&quot; test is not enough.</p>
+<pre class="example">c = LSQVCE.CROSSCORR(w, d, &#x27;Name&#x27;, value, ...)</pre>
+<h3>The Diagnostic That Tells You Whether Your Separable Model Is Safe.</h3>
+<pre class="example">Under a CORRECT separable covariance the whitened residuals are white in
+time AND across axes, so R(0) = I and R(tau&gt;0) = 0. Departures from that
+diagnose exactly WHICH part of the model is wrong -- and the four cases call
+for four different fixes, which is why a single &quot;is it white&quot; test is not
+enough.</pre>
 <h3>Input</h3>
 <pre class="example">w    m x 1     whitened residuals, EPOCH-MAJOR: [x1 y1 z1 x2 y2 z2 ...]
 d    scalar    number of axes (3 for a 3-D position)</pre>
 <h3>Options</h3>
-<pre class="example">&#x27;MaxLag&#x27;  default 20 epochs
-&#x27;Alpha&#x27;   significance level (default 0.05 -&gt; band 1.96/sqrt(nEpoch))
-&#x27;Plot&#x27;    default false</pre>
+<pre class="example">&#x27;maxLag&#x27;  default 20 epochs
+&#x27;alpha&#x27;   significance level (default 0.05 -&gt; band 1.96/sqrt(nEpoch))
+&#x27;plot&#x27;    default false</pre>
 <h3>Output</h3>
-<pre class="example">c.R        (maxLag+1) x d x d   empirical cross-covariance R(tau)
-c.band     significance band per element
-c.verdict  &#x27;ok&#x27; | &#x27;cross-axis-zero-lag&#x27; | &#x27;ar-order-low&#x27; | &#x27;needs-var&#x27;
-c.advice   what to do about it</pre>
-<h3>Reading The Verdict</h3>
-<pre class="example">&#x27;ok&#x27;
-    R(0) = I, R(tau&gt;0) = 0. The separable model is adequate. Done.</pre>
-<pre class="example">&#x27;cross-axis-zero-lag&#x27;   R(0) has significant OFF-diagonals
-    The axes are correlated AT THE SAME EPOCH. Your per-epoch covariance
-    is wrong -- almost always because you supplied a diagonal sigma when
-    your kinematic PPP actually gives you the full 3x3 (the vertical is
-    2-3x worse than horizontal AND correlated with it). Fix D, not the
-    temporal model. This is the most common failure and the easiest fix.</pre>
-<pre class="example">&#x27;ar-order-low&#x27;          R(tau&gt;0) has a nonzero DIAGONAL
-    Leftover TEMPORAL correlation within each axis. Raise the AR order.
-    See LSQVCE.SELECTARORDER.</pre>
-<pre class="example">&#x27;needs-var&#x27;             R(tau&gt;0) has significant OFF-diagonals
-    Genuine cross-axis TEMPORAL correlation: axis i at epoch k correlates
-    with axis j at epoch k-tau. Separability FAILS. You need a vector-AR
-    (VAR) model with matrix coefficients. This toolbox does not implement
-    that yet -- but this test tells you empirically whether you need it,
-    rather than assuming either way.</pre>
-<h3>Run This Before Trusting Vce Or Outlier Detection</h3>
-<pre class="example">Both assume the weighting is right. If R(0) is far from I, both are biased.</pre>
+<pre class="example">  c.R        (maxLag+1) x d x d   empirical cross-covariance R(tau)
+  c.band     significance band per element
+  c.verdict  &#x27;ok&#x27; | &#x27;cross-axis-zero-lag&#x27; | &#x27;ar-order-low&#x27; | &#x27;needs-var&#x27;
+  c.advice   what to do about it
+
+READING THE VERDICT
+  &#x27;ok&#x27;
+      R(0) = I, R(tau&gt;0) = 0. The separable model is adequate. Done.
+
+  &#x27;cross-axis-zero-lag&#x27;   R(0) has significant OFF-diagonals
+      The axes are correlated AT THE SAME EPOCH. Your per-epoch covariance
+      is wrong -- almost always because you supplied a diagonal sigma when
+      your kinematic PPP actually gives you the full 3x3 (the vertical is
+      2-3x worse than horizontal AND correlated with it). Fix D, not the
+      temporal model. This is the most common failure and the easiest fix.
+
+  &#x27;ar-order-low&#x27;          R(tau&gt;0) has a nonzero DIAGONAL
+      Leftover TEMPORAL correlation within each axis. Raise the AR order.
+      See LSQVCE.SELECTARORDER.
+
+  &#x27;needs-var&#x27;             R(tau&gt;0) has significant OFF-diagonals
+      Genuine cross-axis TEMPORAL correlation: axis i at epoch k correlates
+      with axis j at epoch k-tau. Separability FAILS. You need a vector-AR
+      (VAR) model with matrix coefficients. This toolbox does not implement
+      that yet -- but this test tells you empirically whether you need it,
+      rather than assuming either way.
+
+RUN THIS BEFORE TRUSTING VCE OR OUTLIER DETECTION
+  Both assume the weighting is right. If R(0) is far from I, both are biased.</pre>
 <h3>Example</h3>
-<pre class="example">res = acc.residuals(sol);
-w   = vertcat(res.sys(1).obs.w);
-c   = lsqvce.crossCorr(w, 3, &#x27;Plot&#x27;, true);</pre>
-<pre class="example">fprintf(&#x27;%s: %s\n&#x27;, c.verdict, c.advice);
-disp(squeeze(c.R(1,:,:)))          % R(0) -- should be the identity</pre>
-<div class="seealso"><b>See also:</b> <a href="lsqvce.selectArOrder.html">lsqvce.selectArOrder</a>, <a href="lsqvce.residuals.html">lsqvce.residuals</a>, <a href="lsqvce.covModel.html">lsqvce.covModel</a></div>
-<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+<pre class="example">  res = acc.residuals(sol);
+  w   = vertcat(res.sys(1).obs.w);
+  c   = lsqvce.crossCorr(w, 3, &#x27;plot&#x27;, true);
+
+  lsqvce.util.log.msg(&#x27;%s: %s\n&#x27;, c.verdict, c.advice);
+  disp(squeeze(c.R(1,:,:)))          % R(0) -- should be the identity
+
+Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
+typed `arguments` signature, canonical UpperCamelCase option names
+(legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+case-sensitive lowercase). With assistance from Claude (Anthropic),
+model Claude Fable 5.
+See also LSQVCE.SELECTARORDER, LSQVCE.RESIDUALS, LSQVCE.COVMODEL
+
+Generated with assistance from Claude (Anthropic), model Claude
+Opus 4.8.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

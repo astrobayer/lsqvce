@@ -1,4 +1,4 @@
-function uo = jointModelOpt(model, streams, varargin)
+function uo = jointModelOpt(model, streams, opt)
 %LSQVCE.JOINTMODELOPT  Turn a joint-mode model struct into loader UserOpt.
 %
 %   uo = LSQVCE.JOINTMODELOPT(model, streams)
@@ -75,16 +75,26 @@ function uo = jointModelOpt(model, streams, varargin)
 %
 %   See also LSQVCE.ADJUSTVCEJOINT, LSQVCE.ADJUSTVCE, LSQVCE.COVMODEL
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
+%   typed `arguments` signature, canonical UpperCamelCase option names
+%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+%   case-sensitive lowercase). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 %   Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Opus 4.8.
 
-    p = inputParser;  p.FunctionName = 'lsqvce.jointModelOpt';
-    p.addParameter('PsdMode', 'toeplitz', ...
-                   @(s) any(strcmpi(s, {'toeplitz','ar','arma'})));
-    p.addParameter('Sigma'  , 1, @(v) isscalar(v) && v > 0);
-    p.addParameter('Base'   , struct(), @isstruct);
-    p.parse(varargin{:});
-    o = p.Results;
+    % WP-39 stage (b) b2: typed `arguments` signature (canonical
+    % UpperCamelCase; legacy casings keep matching -- MATLAB NV
+    % semantics; enum VALUES case-sensitive lowercase).
+arguments
+    model
+    streams
+    opt.PsdMode (1,1) string {mustBeMember(opt.PsdMode, ["toeplitz","ar","arma"])} = "toeplitz"
+    opt.Sigma (1,1) double {mustBePositive} = 1
+    opt.Base (1,1) struct = struct()
+end
+
+    o = struct('PsdMode', char(opt.PsdMode), 'Sigma', opt.Sigma, 'Base', opt.Base);
 
     if ~isstruct(model) || ~isfield(model, 'C')
         error('lsqvce:jointModelOpt:badModel', ...

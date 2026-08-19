@@ -1,4 +1,4 @@
-function res = residuals(acc, sol, varargin)
+function res = residuals(acc, sol, opt)
 %LSQVCE.RESIDUALS  Second pass over the data to compute residuals.
 %
 %   res = LSQVCE.RESIDUALS(acc, sol, 'Name', value, ...)
@@ -80,20 +80,30 @@ function res = residuals(acc, sol, varargin)
 %     lsqvce:residuals:badSol       the solution is not from this accumulator
 %     lsqvce:residuals:noStore      nothing was retained; re-run with 'store','all'
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
+%   typed `arguments` signature, canonical UpperCamelCase option names
+%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+%   case-sensitive lowercase). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 %   See also LSQVCE.BLOCKACCUMULATOR, LSQVCE.CHECKPSD
 %
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
 
+arguments
+    acc
+    sol
+    opt.Whitened (1,1) logical = true
+    opt.Collect (1,1) logical = true
+    opt.Verbose (1,1) logical = true
+end
+
     narginchk(2,inf);
 
-    p = inputParser;
-    p.FunctionName = 'lsqvce.residuals';
-    p.addParameter('whitened', true,  @(v) islogical(v) && isscalar(v));
-    p.addParameter('collect' , true,  @(v) islogical(v) && isscalar(v));
-    p.addParameter('verbose' , true,  @(v) (islogical(v) || isnumeric(v)) && isscalar(v));
-    p.parse(varargin{:});
-    o = p.Results;
+    % WP-39 stage (b) b2: typed `arguments` signature (canonical
+    % UpperCamelCase; legacy casings keep matching -- MATLAB NV
+    % semantics; enum VALUES case-sensitive lowercase).
+    o = struct('whitened', opt.Whitened, 'collect', opt.Collect, 'verbose', opt.Verbose);
 
     if ~isstruct(sol) || ~isfield(sol,'x')
         error('lsqvce:residuals:badSol', 'sol must be the struct returned by acc.solve().');

@@ -43,10 +43,14 @@ a { color: #0b5ea8; }
 <div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.residuals</div>
 <h1>lsqvce.residuals</h1>
 <div class="purpose">Second pass over the data to compute residuals.</div>
-<h2>Syntax</h2>
-<pre class="syntax">res = LSQVCE.RESIDUALS(acc, sol, &#x27;Name&#x27;, value, ...)</pre>
 <h2>Description</h2>
-<p>Nothing is retained after accumulation, so residuals require a SECOND SWEEP through the loader. The local parameters are recovered by back- substitution from the stored Schur blocks, then v = l - A*x - B*y is formed arc by arc. The loader is called with exactly the same (day, obsType, arc) sequence as during accumulation and MUST return the same data.</p>
+<pre class="example">res = LSQVCE.RESIDUALS(acc, sol, &#x27;Name&#x27;, value, ...)
+
+Nothing is retained after accumulation, so residuals require a SECOND
+SWEEP through the loader. The local parameters are recovered by back-
+substitution from the stored Schur blocks, then v = l - A*x - B*y is formed
+arc by arc. The loader is called with exactly the same (day, obsType, arc)
+sequence as during accumulation and MUST return the same data.</pre>
 <h3>Input</h3>
 <pre class="example">acc   the LSQVCE.BLOCKACCUMULATOR, constructed with &#x27;KeepLocal&#x27;, true
 sol   the struct returned by acc.solve()</pre>
@@ -73,35 +77,55 @@ res.obsType(k)          .obsType .m .vtv .rms
                         to see &quot;kbr at 1.0, pos at 3.4&quot; before paying
                         for a full LSQVCE.VCE, not as a variance component.</pre>
 <h3>The Consistency Check</h3>
-<pre class="example">res.sigma0 must equal sol.sigma0. They are computed by completely
-different routes -- one from accumulated scalars during the first pass,
-one from explicit residuals during the second -- so agreement is a strong
-check that the whole chain is correct. A mismatch is reported as a
-warning and means one of:</pre>
-<pre class="example">* the loader is not deterministic (random data selection, a changing
-  option that alters the design matrix between passes)
-* a cache key in the loader is missing a field that opt varies over
-* the covariance model was changed between the two calls</pre>
-<pre class="example">Do not ignore that warning: if the two passes disagree, at least one of
-them is wrong, and you do not know which.</pre>
-<h3>Reading The Residuals</h3>
-<pre class="example">v  is in the original metric (metres, m/s, ...) and is still COLOURED --
-   plot it to see the physics: unmodelled signal, gaps, manoeuvres.
-w  is whitened and should be white noise with unit variance. It is the
-   diagnostic that tests the STOCHASTIC model:</pre>
-<pre class="example">std(w) ~ 1               the noise level is right
-acf(w) ~ delta           the noise COLOUR is right</pre>
-<pre class="example">If std(w) is fine but the ACF of w still shows structure, the AR order
-is too low -- go back to LSQVCE.CHECKPSD and raise it. This is the single
-most useful plot in the whole toolbox.</pre>
+<pre class="example">  res.sigma0 must equal sol.sigma0. They are computed by completely
+  different routes -- one from accumulated scalars during the first pass,
+  one from explicit residuals during the second -- so agreement is a strong
+  check that the whole chain is correct. A mismatch is reported as a
+  warning and means one of:
+
+    * the loader is not deterministic (random data selection, a changing
+      option that alters the design matrix between passes)
+    * a cache key in the loader is missing a field that opt varies over
+    * the covariance model was changed between the two calls
+
+  Do not ignore that warning: if the two passes disagree, at least one of
+  them is wrong, and you do not know which.
+
+READING THE RESIDUALS
+  v  is in the original metric (metres, m/s, ...) and is still COLOURED --
+     plot it to see the physics: unmodelled signal, gaps, manoeuvres.
+  w  is whitened and should be white noise with unit variance. It is the
+     diagnostic that tests the STOCHASTIC model:
+
+       std(w) ~ 1               the noise level is right
+       acf(w) ~ delta           the noise COLOUR is right
+
+     If std(w) is fine but the ACF of w still shows structure, the AR order
+     is too low -- go back to LSQVCE.CHECKPSD and raise it. This is the single
+     most useful plot in the whole toolbox.</pre>
 <h3>Example</h3>
 <pre class="example">sol = acc.solve();
-res = acc.residuals(sol);</pre>
-<pre class="example">w = vertcat(res.sys(1).obs.w);
-fprintf(&#x27;std(w) = %.4f (want 1)\n&#x27;, std(w));</pre>
-<pre class="example">[a, lags] = xcorr(w - mean(w), 100, &#x27;coeff&#x27;);
+res = acc.residuals(sol);
+
+w = vertcat(res.sys(1).obs.w);
+lsqvce.util.log.msg(&#x27;std(w) = %.4f (want 1)\n&#x27;, std(w));
+
+[a, lags] = xcorr(w - mean(w), 100, &#x27;coeff&#x27;);
 stem(lags(lags&gt;=0), a(lags&gt;=0)); yline([-1 1]*1.96/sqrt(numel(w)), &#x27;r--&#x27;);
 title(&#x27;ACF of whitened residuals -- should be white&#x27;);</pre>
-<div class="seealso"><b>See also:</b> <a href="lsqvce.BlockAccumulator.html">lsqvce.BlockAccumulator</a>, <a href="lsqvce.checkPSD.html">lsqvce.checkPSD</a></div>
-<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:residuals:badSol       the solution is not from this accumulator
+  lsqvce:residuals:noStore      nothing was retained; re-run with &#x27;store&#x27;,&#x27;all&#x27;
+
+Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
+typed `arguments` signature, canonical UpperCamelCase option names
+(legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+case-sensitive lowercase). With assistance from Claude (Anthropic),
+model Claude Fable 5.
+See also LSQVCE.BLOCKACCUMULATOR, LSQVCE.CHECKPSD
+
+Generated with assistance from Claude (Anthropic), model Claude
+Opus 4.8.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

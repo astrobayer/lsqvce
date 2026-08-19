@@ -1,4 +1,4 @@
-function F = ftest(solFull, solRed, varargin)
+function F = ftest(solFull, solRed, opt)
 %LSQVCE.FTEST  Is the extra parameter earning its place?
 %
 %   F = LSQVCE.FTEST(solFull, solRed) tests whether the additional parameters
@@ -66,20 +66,28 @@ function F = ftest(solFull, solRed, varargin)
 %     lsqvce:ftest:noRedundancy     the fuller model has no degrees of freedom left
 %     lsqvce:ftest:zeroVariance     the residual sum of squares is zero
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
+%   typed `arguments` signature, canonical UpperCamelCase option names
+%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+%   case-sensitive lowercase). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 %   See also LSQVCE.SYSTEMATIC, LSQVCE.ADJUST.
 %
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
 
-ip = inputParser;
-addParameter(ip, 'alpha', 0.05, @(x) isscalar(x) && x > 0 && x < 1);
-addParameter(ip, 'verbose', true, @islogical);
-% Pass the diagnose struct (or the systematic struct) to enable the validity
-% guard below. The F-test assumes the REDUCED model is correct; if both models
-% are wrong it compares two wrong things and its p-value means nothing.
-addParameter(ip, 'checkD', [], @(x) isempty(x) || isstruct(x));
-parse(ip, varargin{:});
-o = ip.Results;
+% WP-39 stage (b) b2: typed `arguments` signature (canonical
+% UpperCamelCase; legacy casings keep matching -- MATLAB NV
+% semantics; enum VALUES case-sensitive lowercase).
+arguments
+    solFull
+    solRed
+    opt.Alpha (1,1) double {mustBePositive, mustBeLessThan(opt.Alpha,1)} = 0.05
+    opt.Verbose (1,1) logical = true
+    opt.CheckD = []
+end
+
+o = struct('alpha', opt.Alpha, 'verbose', opt.Verbose, 'checkD', opt.CheckD);
 
 uF = solFull.rank;   if isempty(uF), uF = solFull.u; end
 uR = solRed.rank;    if isempty(uR), uR = solRed.u;  end

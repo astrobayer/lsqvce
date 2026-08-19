@@ -1,4 +1,4 @@
-function pool = poolGroups(vc, varargin)
+function pool = poolGroups(vc, opt)
 %LSQVCE.POOLGROUPS  Suggest (or build) a coarser VCE grouping for groups whose
 %   redundancy is too low to estimate a reliable variance component.
 %
@@ -71,19 +71,27 @@ function pool = poolGroups(vc, varargin)
 %
 %   See also LSQVCE.VCE, LSQVCE.VARCOMP, LSQVCE.REDUNDANCY.
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
+%   typed `arguments` signature, canonical UpperCamelCase option names
+%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+%   case-sensitive lowercase). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 %   Created 2026-07-17 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Opus 4.8. Implements HISTORY_v1.md roadmap item 4 (VCE group-pooling
 %   helper): it SUGGESTS/builds a coarser grouping; the caller re-runs VCE.
 
-    ip = inputParser;  ip.FunctionName = 'lsqvce.poolGroups';
-    ip.addRequired('vc', @isstruct);
-    ip.addParameter('floor',    50, @(v) isscalar(v) && v > 0);
-    ip.addParameter('strategy', 'mergeLow', ...
-                    @(s) any(strcmpi(s, {'mergeLow','nearest'})));
-    ip.addParameter('poolKey',  'pooledLow', @(s) ischar(s) || isstring(s));
-    ip.addParameter('verbose',  true, @(v) (islogical(v) || isnumeric(v)) && isscalar(v));
-    ip.parse(vc, varargin{:});
-    o = ip.Results;
+    % WP-39 stage (b) b2: typed `arguments` signature (canonical
+    % UpperCamelCase; legacy casings keep matching -- MATLAB NV
+    % semantics; enum VALUES case-sensitive lowercase).
+arguments
+    vc
+    opt.Floor (1,1) double {mustBePositive} = 50
+    opt.Strategy (1,1) string {mustBeMember(opt.Strategy, ["mergeLow","nearest"])} = "mergeLow"
+    opt.PoolKey (1,1) string = "pooledLow"
+    opt.Verbose (1,1) logical = true
+end
+
+    o = struct('floor', opt.Floor, 'strategy', char(opt.Strategy), 'poolKey', char(opt.PoolKey), 'verbose', opt.Verbose);
 
     if ~isfield(vc, 'groups') || ~isfield(vc, 'r')
         error('lsqvce:poolGroups:badInput', ...

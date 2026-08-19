@@ -1,4 +1,4 @@
-function info = selectArOrder(cm, dt, varargin)
+function info = selectArOrder(cm, dt, opt)
 %LSQVCE.SELECTARORDER  Choose the AR order automatically, on the RIGHT criterion.
 %
 %   info = LSQVCE.SELECTARORDER(cm, dt, 'Name', value, ...)
@@ -69,23 +69,34 @@ function info = selectArOrder(cm, dt, varargin)
 %     lsqvce:selectAR:badModel  the candidate model spec is unrecognised
 %     lsqvce:selectAR:noFit     no order in the search range produced a fit
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
+%   typed `arguments` signature, canonical UpperCamelCase option names
+%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+%   case-sensitive lowercase). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 %   See also LSQVCE.CHECKPSD, LSQVCE.LEVINSONDURBIN, LSQVCE.AR2ARMA, LSQVCE.CROSSCORR
 %
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
 
+arguments
+    cm
+    dt
+    opt.OrderGrid (1,:) double = [2 5 10 20 30 40 60 80 120 160]
+    opt.AcvTol (1,1) double {mustBePositive} = 1e-3
+    opt.CheckLags (1,1) double {mustBeGreaterThanOrEqual(opt.CheckLags,8)} = 512
+    opt.NData (1,1) double {mustBePositive} = 10000
+    opt.BatchSize (1,1) double {mustBePositive} = 20000
+    opt.Verbose (1,1) logical = true
+    opt.Plot (1,1) logical = false
+end
+
     narginchk(2,inf);
 
-    p = inputParser;  p.FunctionName = 'lsqvce.selectArOrder';
-    p.addParameter('orderGrid', [2 5 10 20 30 40 60 80 120 160]);
-    p.addParameter('acvTol'   , 1e-3, @(v) isscalar(v) && v > 0);
-    p.addParameter('checkLags', 512,  @(v) isscalar(v) && v >= 8);
-    p.addParameter('nData'    , 10000);
-    p.addParameter('batchSize', 20000);
-    p.addParameter('verbose'  , true,  @(v) (islogical(v) || isnumeric(v)) && isscalar(v));
-    p.addParameter('plot'     , false, @(v) islogical(v) && isscalar(v));
-    p.parse(varargin{:});
-    o = p.Results;
+    % WP-39 stage (b) b2: typed `arguments` signature (canonical
+    % UpperCamelCase; legacy casings keep matching -- MATLAB NV
+    % semantics; enum VALUES case-sensitive lowercase).
+    o = struct('orderGrid', opt.OrderGrid, 'acvTol', opt.AcvTol, 'checkLags', opt.CheckLags, 'nData', opt.NData, 'batchSize', opt.BatchSize, 'verbose', opt.Verbose, 'plot', opt.Plot);
 
     if ~isstruct(cm) || ~isfield(cm,'f') || ~isfield(cm,'S')
         error('lsqvce:selectAR:badModel', 'cm must have fields f and S.');
