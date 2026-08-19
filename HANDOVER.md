@@ -211,7 +211,7 @@ order of work: 32 → 33 → 34 → 35 → 36 → 40 → 37 → 38 → 41 → 39
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
 | 32 | Fix `vce` 'hutchinson': redundancy, not trace (F-01) | — | DONE (2026-08-18, PR #2, merge e167cee; CI green both contexts after a setup-matlab cache-restore hang was resolved per the incident runbook, postflight green 515/515 on Windows R2026a; evidence + round note §9 WP-32) |
-| 33 | Joint paths: locals in residual + projector (F-03) | — | IN PROGRESS — round 1 MERGED (2026-08-18, PR #3, 7d7c14c; CI + pre-outage postflight green). ROUND 2 (2026-08-19, user decision) on `claude/wp-33-r2`: the deferred coloured-synthetic PSD-recovery test (corr > 0.95 with locals) + the single-run CI trigger scheme (user decision, see §0/§5 amendments); D8 loop pending |
+| 33 | Joint paths: locals in residual + projector (F-03) | — | IN PROGRESS — round 1 MERGED (PR #3, 7d7c14c). Round 2 on `claude/wp-33-r2`: after r2a–r2f (six pinned lessons incl. finding F-15, alternation bistability → WP-40) the coloured test stands as an ACCURACY FLOOR corr > 0.85, CI GREEN (2098968, 489/489); **PR #4 ready** — OPEN USER DECISIONS in the PR: (a) veto on the 0.85 floor vs the spec's measured-unattainable 0.95, (b) F-15 scope on WP-40. POSTFLIGHT DEBT (bridge away). DONE = merged |
 | 34 | Keyed arc identity in `adjustVCEjoint` (F-02) | — | OPEN |
 | 35 | `psdVCE` floor policy + negative sigma2 guard (F-04, F-05) | — | OPEN |
 | 36 | One probe generator, honest RNG contract (F-06) | — | OPEN |
@@ -2495,7 +2495,9 @@ jointCfgColoured (jointAcc threads it as UserOpt); jointAccMapped kept,
 annotated as the F-15 closed-loop reproduction fixture (not called by
 the floor test). The USER VETO on the lowered 0.85 floor (spec said
 0.95, measured ceiling min 0.921 open-loop) remains OPEN and is asked in
-PR #4.
+PR #4. **r2f VERDICT (same day): CI GREEN — 489/489, 0 failed,
+test_ellmer 59/59 incl. the floor test (test_parallel skipped per
+LSQVCE_CI; the corr value prints only on failure — the floor held).**
 
 ### WP-34 — Keyed arc identity in `adjustVCEjoint`
 
