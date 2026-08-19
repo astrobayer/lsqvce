@@ -960,11 +960,14 @@ end
 function test_joint_stabilised_alternation_beats_collapse(tc)
     % WP-40 r2 (F-15; fails on the old code: the options are unknown): the
     % closed-loop repro fixture (jointAccMapped, the F-15 vehicle) run WITH
-    % 'StepSchedule','decay' + 'AvgTail',4 must clear the accuracy floor.
-    % The undamped loop is bistable on this volume class (mirror grid:
-    % worst seed corr -0.21 at 8x96); the stabilised update is mirror-
-    % measured at min ~0.89 across all grids, so 0.8 leaves probe-noise
-    % margin without readmitting the collapse.
+    % 'StepSchedule','decay' + 'AvgTail',4 must stay far above the undamped
+    % collapse (which hits 0.18 on this seed). Round-6 correction: the
+    % earlier "min ~0.89 across all grids" was measured on a mirror whose
+    % DECLARATION path was unfaithful (zero-extended dctI acv); the
+    % psd2acv-faithful mirror puts the stabilised seed floor at ~0.59 here
+    % and shows the closed loop never beating open-loop pass-1 quality
+    % (~0.96) at any tested volume -- full grid in the §9 WP-40 round-6
+    % note.
     cfg  = jointCfgColoured();
     nLag = 10;
     w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
@@ -974,8 +977,16 @@ function test_joint_stabilised_alternation_beats_collapse(tc)
     Strue = lsqvce.dctI(lsqvce.armaACV(cfg.cov.pos.ar, cfg.cov.pos.ma, nLag));
     Strue = abs(Strue(:));
     cc = corrcoef(r.Shat(2:end), Strue(2:end));
-    verifyGreaterThan(tc, cc(1,2), 0.8, ...
-        sprintf('stabilised closed loop: corr = %.3f (need > 0.8)', cc(1,2)));
+    % Round-6 bar (FAITHFUL-mirror measured; the 0.8 bar rested on the
+    % unfaithful mirror's 0.87-0.91 promise): with the psd2acv declaration
+    % the stabilised loop's seed floor is ~0.59 at this volume and the
+    % UNDAMPED loop collapses to 0.18 on this very seed (r2f record). The
+    % honest property is DAMAGE LIMITATION: the stabilised loop must stay
+    % far above the collapse. Production guidance (F-15 §8): open loop or
+    % <= 3 damped passes; the closed loop does not beat open-loop quality.
+    verifyGreaterThan(tc, cc(1,2), 0.5, ...
+        sprintf(['stabilised closed loop: corr = %.3f (damage-limitation ' ...
+                 'floor 0.5; undamped collapses to ~0.18 here)'], cc(1,2)));
 end
 
 function test_joint_default_schedule_is_plain_step(tc)

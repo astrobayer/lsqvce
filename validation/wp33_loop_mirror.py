@@ -3,11 +3,21 @@ closed loop (declared covariance fed back, EXACT s_n instead of probes).
 Written 2026-08-19 (WP-33 r2) as the F-15 evidence; EXTENDED 2026-08-19
 (WP-40 r2) with the post-WP-35 floor update, the damping exponent, the
 Robbins-Monro schedule ('rm2': gamma_t = 2/(2+it)) and Polyak tail
-averaging. MEASURED GRIDS (8 seeds each, corr over bins 2:end):
-  undamped floor:  min -0.21 (8x96) / 0.08 (16x96) / -0.66 (16x128) / 0.97 (16x256)
-  rm2 decay:       min  0.87 / 0.90 / 0.89 / 0.91
-  rm2 + tail4:     min  0.89 / 0.92 / 0.91 / 0.93
-  tail4 alone:     does NOT rescue the undamped collapse
+averaging. MEASURED GRIDS (8 seeds each, corr over bins 2:end) -- SUPERSEDED r6:
+  these numbers used a DECLARATION path that zero-extended a 64-bin dctI
+  acv; the psd2acv-FAITHFUL kernel (WP-40 r6, full table in HANDOVER §9
+  WP-40 round 6) gives materially different results:
+  rm2+tail4, 8x96 : min 0.668  P(corr<0.8) = 0.31  (40 seeds: min 0.59*)
+  rm2+tail4, 16x256: min 0.619  P(corr<0.8) = 0.75  (the old "stable
+                     volume" was the artefact)
+  OPEN LOOP pass 1, 16x256: min 0.960 / med 0.971
+  Exonerated by measurement: probe noise (Z=300 == exact at nc=3), the
+  s2*C arc-factor coupling, the seed tail, lag windows, pchip-vs-linear,
+  and declaration shrinkage. Conclusion: the closed loop through the
+  psd2acv declaration does NOT beat open-loop quality; decay+tail is
+  damage limitation. (*40-seed run used the pre-r6 old-kernel config for
+  points 1-3 of the exoneration; the faithful floors are the 16-seed
+  grids.)
 Also measured: the WP-35 floor does NOT cure F-15 (some seeds worsen);
 the ZeroFreqRule and nLag-resolution suspects are exonerated (shifting,
 not stabilising). Conclusion: stochastic-approximation instability of

@@ -77,12 +77,17 @@ function out = adjustVCEjoint(accFcn, varargin)
 %              plain step is BISTABLE for short arcs (recovered-PSD corr can
 %              collapse to negative values on unlucky seeds). 'decay' uses
 %              the Robbins-Monro step Gamma_it = 2/(2+it) via PSDVCE's
-%              'Gamma' -- measured across the mirror grid to lift the
-%              worst-seed corr from -0.66 to ~0.9 at nearly unchanged
-%              ceiling. 'none' is bitwise the old behaviour.
+%              'Gamma'. HONEST CLAIM (psd2acv-faithful mirror, WP-40 r6):
+%              damping is DAMAGE LIMITATION -- it prevents the undamped
+%              collapse (corr can hit ~0.2) but the closed loop does not
+%              beat OPEN-LOOP pass-1 quality on the tested fixtures;
+%              production guidance is open loop or <= 3 damped passes.
+%              'none' is bitwise the old behaviour.
 %     'AvgTail' 1x1 integer >= 0, default 0.  Polyak averaging of the
 %              RETURNED spectrum over the last AvgTail passes (log domain);
-%              adds ~0.02 corr ON TOP of 'decay' and does nothing useful
+%              (honest r6 claim: helps the damped loop settle; cannot
+%              rescue an undamped collapse, and longer tails average over
+%              late-pass drift -- keep it <= 4) and does nothing useful
 %              without it (mirror-measured). The iteration itself always
 %              runs on the raw C.
 %
