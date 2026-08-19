@@ -2221,6 +2221,19 @@ ceiling; defaults are bitwise the old path. Residual risk: the undamped
 default remains bistable — RECOMMENDATION for production closed loops:
 'StepSchedule','decay','AvgTail',4. Severity after mitigation: user call
 (approve by merging PR; suggest MITIGATED).**
+**DISPOSITION UPDATE 2 (2026-08-19, WP-40 r6, psd2acv-FAITHFUL mirror):
+the r2 mitigation's accuracy promises were an artefact of an unfaithful
+mirror DECLARATION path (zero-extended dctI acv vs MATLAB's full m-lag
+psd2acv transform). Faithful result: the closed loop does not beat
+OPEN-LOOP pass-1 quality at ANY tested volume (open loop 16x256: min
+0.96/med 0.97; closed stabilised: P(corr<0.8) = 0.31 at 8x96, 0.75 at
+16x256 — the old "stable volume" was the artefact); decay+tail is
+DAMAGE LIMITATION (prevents the ~0.2 collapse), not restoration. Also
+falsified as cures: lag windows (Lc 10/20/30), pchip-vs-linear
+interpolation, log-shrinkage of the declaration (beta 0.5/0.7).
+PRODUCTION GUIDANCE (pinned in the adjustVCEjoint help): open loop or
+<= 3 damped passes. Severity call and any deeper method work (e.g. a
+monotone/trust-region alternation) = user, asked at PR #10.**
 
 ### 8.4 What is RIGHT (so nobody "fixes" it)
 
@@ -2870,6 +2883,26 @@ resolution/smoothing, not more damping. SIDE FINDING (pinned): LONGER
 schedules are WORSE — 20 iters + tail-8 over the same 40 seeds: min
 0.773, P(<0.8) = 0.03; the decayed late steps drift and the longer tail
 averages over the drift. Keep 12/4 until understood.
+**Round-6 (2026-08-19): the mirror made FAITHFUL — the mitigation's
+promises fall, the honest claims ship (code commit 8f383f7; this note is
+its doc follow-up — the note's anchor missed the disposition wording in
+the code commit).** The declaration path was the gap: the mirror
+zero-extended a 64-bin dctI acv, MATLAB integrates the full m-lag
+psd2acv cosine transform. With the faithful kernel the mirror REPRODUCES
+MATLAB's regime (8x96 stabilised: min 0.668, P(corr<0.8) = 0.31 — the
+CI 0.734 sits inside), and the r2e "stable volume" 16x256 collapses to
+P(<0.8) = 0.75 while OPEN-LOOP pass 1 scores min 0.96/med 0.97 there.
+Further falsified as cures (16-seed grids each): lag windows on the
+declared acv (Lc 10/20/30), pchip-vs-linear interpolation, log-shrinkage
+of the declaration toward white (beta 0.7/0.5). SHIPPED in 8f383f7: the
+stabilised test asserts the honest property (damage-limitation floor 0.5
+with the undamped ~0.18 contrast in the message; the 0.8 bar rested on
+the unfaithful instrument); adjustVCEjoint's StepSchedule/AvgTail help
+claims corrected BEFORE they become F-14-class doc drift;
+wp33_loop_mirror.py docstring supersedes its old grids. USER DECISIONS
+at PR #10: (a) accept the honest bar + production guidance, (b) F-15
+severity under the new picture, (c) whether deeper method work
+(monotone/trust-region alternation) gets its own WP.
 
 ### WP-41 — Documentation truth sweep
 
