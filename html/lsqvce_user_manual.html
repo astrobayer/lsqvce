@@ -200,7 +200,9 @@ The public surface is migrating from <code>inputParser</code> to typed
 case-insensitive (MATLAB name-value semantics, verified on CI), so legacy
 casings keep working &mdash; but the migrated functions
 (<code>adjustVCEjoint</code>, <code>adjustBlock</code>,
-<code>iterateNoiseModel</code> so far) now enforce typed constraints,
+<code>iterateNoiseModel</code>, and &mdash; on its deliberate
+<code>inputParser</code> pass-through &mdash; <code>adjust</code> so far)
+now enforce typed constraints,
 reject unknown option names, and match enum <i>values</i> such as
 <code>"qr"</code> case-sensitively in lowercase. Each function's help states
 its canonical names; the release notes list the break.</div>

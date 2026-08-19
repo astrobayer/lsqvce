@@ -65,6 +65,14 @@ unchanged), <code>lsqvce.adjustBlock</code> (was
 <code>backend/reg/regLambda/regMatrix/parallel/verbose/showSeconds/exportDir</code>),
 <code>lsqvce.iterateNoiseModel</code> (was
 <code>updateTypes/maxIter/sigmaTol/whiteFactor/whiteLags/maxLag/orderGrid/acvTol/detrend/verbose</code>).
+Round a2: <code>lsqvce.adjust</code> carries canonical UpperCamelCase
+names (<code>Method/Sparse/DatumB/Sigma0/Verbose</code>) with typed
+validators and the case-sensitive <code>Method</code> enum, but stays on
+<code>inputParser</code> by design &mdash; its open pass-through forwards
+unmatched options to <code>lsqvce.diagnose</code>, which an
+<code>arguments</code> block cannot express; the fluent
+<code>adjustVCE</code> configurators keep their canonicalising merge for
+the same reason.
 Enum values (e.g. <code>'QR'</code>) and out-of-range or wrongly-typed
 option values now error at the signature; unknown option names are
 rejected. Remaining functions follow in the staged WP-39
