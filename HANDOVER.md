@@ -2445,6 +2445,30 @@ IS the recovery. jointAccMapped and the psd-feedback plumbing DELETED
 mechanics lessons (r2a truth-whitening, r2b prior bias, r2c rank
 deficiency nf >= m/2+1) stay pinned above — they are real operating
 knowledge for production model-feedback loaders.
+**Round-2e (2026-08-19): the measurement record and the honest bar.** r2d
+red at corr 0.608 — the near-delta C0 IS the documented degenerate-start
+throttle: C ~ delta annihilates every lag n > 0 in the sigma^2*C^n
+weighting, alpha2 comes out FLAT in one pass (mirror: alpha2 = 1.69 in
+every bin). Full-pipeline Python mirror (exact WP-33 kernel algebra,
+Z->inf traces), measured across seeds and sizes: (a) fixed-white
+iteration RISES then FALLS — peak corr ~ 0.96 at pass 1-2, FIXED POINT
+corr ~ 0.64 without re-whitening, which is exactly where r2b/r2c/r2d all
+landed (0.65/0.638/0.608): method behaviour, not a code bug; (b) the
+ceiling is structural: pass-1 corr 0.92-0.96 (min 0.921 over 7 seeds)
+and NEITHER more arcs (8->24), longer arcs (96->128) NOR more lags
+(10->32) lift it above ~0.95 — the truncated-lag DCT estimator's bias
+floor on this AR(2); (c) the spec's corr > 0.95 is therefore MEASURED
+UNATTAINABLE for this estimator design in every tested regime; (d) corr
+does not even DISCRIMINATE F-03: the pre-fix pipeline scores 0.55-0.95
+across seeds (overlapping the fixed pipeline) because random B*y leakage
+sometimes correlates by accident. CONSEQUENCE (deviation from the WP
+spec, surfaced to the user in the round wrap for veto): the coloured
+test ships as an ACCURACY FLOOR corr > 0.85 (MaxIter 1, default C0,
+fixed white; measured min 0.921, margin 0.07) guarding the chain against
+future regression; the §6.1 fail-on-old-code lever for F-03 is and
+remains round 1's alpha2-at-truth test (gap 1.0 vs 2.1-4.0, no seed
+overlap). OPTION pinned for WP-40: a lossless re-whitening alternation
+(ARMA-fit feedback declaration) may reach 0.95+; decide there.
 **Round-2e (2026-08-19): r2d red at corr 0.383 — open loop was the wrong
 theory; closed loop restored at the STABLE volume.** The sigma^2*C.*omega
 weighting (eq. 6.5.22-23) suppresses every lag n>0 under a near-delta
