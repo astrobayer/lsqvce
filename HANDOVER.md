@@ -2307,6 +2307,17 @@ suite); cancel + re-run the affected run(s); one re-run went green in
 ~90 s, PROVING the cache entry intact — so never delete the cache while a
 twin restore succeeds; the second run needed one more cancel+re-run.
 Merge followed with both contexts green.
+**RUNBOOK UPGRADE (2026-08-19, user decision after the THIRD wedge, on
+WP-35's run):** ci.yml now SELF-HEALS -- setup-matlab attempt 1 has
+`timeout-minutes: 12` + `continue-on-error`, a second attempt fires
+automatically when the first did not succeed, the job carries a 45-min
+backstop, and the check name `matlab` is unchanged (protection
+untouched). Manual cancel+re-run remains only for double wedges. Options
+recorded for the future if wedges persist: (a) run the matlab job in the
+mathworks/matlab Docker image -- removes the MathWorks download entirely
+but needs a batch-licensing token as a repo secret (USER decision +
+setup); (b) a self-hosted runner on the user's PC is NOT recommended:
+on a PUBLIC repo, fork PRs would execute code on that machine.
 
 ### WP-33 — Joint paths: subtract B*y and absorb locals in the projector
 
