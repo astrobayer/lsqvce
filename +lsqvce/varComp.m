@@ -50,7 +50,8 @@ function VC = varComp(u, batchFcn, nBatch, groupFcn, nGroup, opt)
 %                 item 0; see LSQVCE.REDUNDANCY's help for the structural reason.
 %     'Probes'    1x1  number of Hutchinson probes Z (default 100, Ellmer's).
 %     'TraceSeed' 1x1  RNG seed for reproducible probes (default []: global stream).
-%     'backend'   'exact' (default) | 'hutchinson'. Which estimator computes the
+%     'Backend'   "exact" (default) | "hutchinson" (VALUE case-sensitive,
+%                 WP-39). Which estimator computes the
 %                 VARIANCE COMPONENTS (distinct from 'TraceMethod', which only
 %                 adds a machinery check to the exact backend). With 'hutchinson'
 %                 the WHOLE estimation is delegated to LSQVCE.VCEHUTCHINSON -- the
@@ -62,9 +63,9 @@ function VC = varComp(u, batchFcn, nBatch, groupFcn, nGroup, opt)
 %                 If 'CheckD' is supplied it FALLS BACK to exact and warns (the
 %                 contamination guard needs the per-observation path). This is
 %                 HISTORY_v1.md roadmap item 0, tier T2 (an opt-in VCE backend).
-%     'seed'      1x1  RNG seed forwarded to the Hutchinson backend (falls back to
+%     'Seed'      1x1  RNG seed forwarded to the Hutchinson backend (falls back to
 %                 'TraceSeed' if omitted). Ignored by the exact backend.
-%     'reprobe'   1x1  logical, forwarded to the Hutchinson backend (default true).
+%     'Reprobe'   1x1  logical, forwarded to the Hutchinson backend (default true).
 %
 %   OUTPUT VC
 %     .s          nGroup x 1  final variance components (converged: all ~1)

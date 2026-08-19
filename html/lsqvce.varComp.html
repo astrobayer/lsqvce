@@ -91,7 +91,8 @@ METHOD
               item 0; see LSQVCE.REDUNDANCY&#x27;s help for the structural reason.
   &#x27;Probes&#x27;    1x1  number of Hutchinson probes Z (default 100, Ellmer&#x27;s).
   &#x27;TraceSeed&#x27; 1x1  RNG seed for reproducible probes (default []: global stream).
-  &#x27;backend&#x27;   &#x27;exact&#x27; (default) | &#x27;hutchinson&#x27;. Which estimator computes the
+  &#x27;Backend&#x27;   &quot;exact&quot; (default) | &quot;hutchinson&quot; (VALUE case-sensitive,
+              WP-39). Which estimator computes the
               VARIANCE COMPONENTS (distinct from &#x27;TraceMethod&#x27;, which only
               adds a machinery check to the exact backend). With &#x27;hutchinson&#x27;
               the WHOLE estimation is delegated to LSQVCE.VCEHUTCHINSON -- the
@@ -103,9 +104,9 @@ METHOD
               If &#x27;CheckD&#x27; is supplied it FALLS BACK to exact and warns (the
               contamination guard needs the per-observation path). This is
               HISTORY_v1.md roadmap item 0, tier T2 (an opt-in VCE backend).
-  &#x27;seed&#x27;      1x1  RNG seed forwarded to the Hutchinson backend (falls back to
+  &#x27;Seed&#x27;      1x1  RNG seed forwarded to the Hutchinson backend (falls back to
               &#x27;TraceSeed&#x27; if omitted). Ignored by the exact backend.
-  &#x27;reprobe&#x27;   1x1  logical, forwarded to the Hutchinson backend (default true).
+  &#x27;Reprobe&#x27;   1x1  logical, forwarded to the Hutchinson backend (default true).
 
 OUTPUT VC
   .s          nGroup x 1  final variance components (converged: all ~1)
