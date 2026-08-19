@@ -161,21 +161,20 @@ end
 
 methods
 
-function obj = Accumulator(u, varargin)
+function obj = Accumulator(u, opt)
 %ACCUMULATOR  Construct a flat streaming accumulator over u parameters (see header).
-    ip = inputParser;
-    ip.FunctionName = 'lsqvce.Accumulator';
-    addRequired(ip, 'u', @(x) isnumeric(x) && isscalar(x) && x >= 1 ...
-                            && x == fix(x));
-    addParameter(ip, 'method', 'qr', ...
-                 @(s) any(strcmpi(s, {'qr', 'normal'})));
-    addParameter(ip, 'sparse', false, @(x) islogical(x) && isscalar(x));
-    addParameter(ip, 'datumB', [], @(x) isempty(x) || isnumeric(x));
-    parse(ip, u, varargin{:});
-
-    obj.u      = double(ip.Results.u);
-    obj.method    = lower(ip.Results.method);
-    obj.useSparse = ip.Results.sparse;
+arguments
+    u (1,1) double {mustBeInteger, mustBePositive}
+    opt.Method (1,1) string {mustBeMember(opt.Method, ["qr","normal"])} = "qr"
+    opt.Sparse (1,1) logical = false
+    opt.DatumB double = []
+end
+    % WP-39 stage (c) c2: typed `arguments` signature (canonical
+    % UpperCamelCase; legacy casings keep matching -- MATLAB NV
+    % semantics; enum VALUES case-sensitive lowercase).
+    obj.u         = double(u);
+    obj.method    = char(opt.Method);
+    obj.useSparse = opt.Sparse;
 
     if obj.useSparse && strcmp(obj.method, 'qr')
         % A sparse QR would need a sparse Householder implementation; MATLAB's
@@ -191,7 +190,7 @@ function obj = Accumulator(u, varargin)
              'condN in the report.']);
     end
 
-    B = ip.Results.datumB;
+    B = opt.DatumB;
     if ~isempty(B)
         if size(B, 1) ~= obj.u
             error('lsqvce:acc:badDatum', ...
@@ -300,7 +299,7 @@ function add(obj, A, l, p)
 end
 
 %% ----------------------------------------------------------------- solve
-function sol = solve(obj, varargin)
+function sol = solve(obj, opt)
 %SOLVE  Produce the parameter estimate and the scalars needed downstream.
 %
 %   sol = SOLVE()  returns a struct with fields
@@ -341,12 +340,14 @@ function sol = solve(obj, varargin)
 %   must be physically -- the residuals do not care where you put the origin.
 %
 %   Name-value:
-%       'sigma0'  a-priori sigma0 (default 1)
+%       'Sigma0'  a-priori sigma0, scalar > 0 (default 1; WP-39 canonical)
 
-    ip = inputParser;
-    addParameter(ip, 'sigma0', 1, @(x) isnumeric(x) && isscalar(x) && x > 0);
-    parse(ip, varargin{:});
-    sigma0 = ip.Results.sigma0;
+    % WP-39 c2: typed `arguments` signature (canonical 'Sigma0').
+arguments
+    obj
+    opt.Sigma0 (1,1) double {mustBePositive} = 1
+end
+    sigma0 = opt.Sigma0;
 
     if obj.n == 0
         error('lsqvce:acc:noData', ...

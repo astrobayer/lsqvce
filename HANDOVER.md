@@ -226,7 +226,7 @@ order.**):
 | 36 | One probe generator, honest RNG contract (F-06) | — | DONE (2026-08-19, PR #7, merge 74ab106; CI green 498/498 — the WP's own changes green on the FIRST pass, the sole round-1 red was the test's own traceEstimate-returns-a-scalar mistake; POSTFLIGHT DEBT; round note §9 WP-36) |
 | 37 | `redundancyLags` without dense W^-1 + hot-loop tolls (F-09) | — | DONE (2026-08-19, PR #8, merge 66ffb81; CI green FIRST pass 501/501 incl. the N=4000 speed lever; GS/Levinson validated in Python to 1e-14 pre-port; POSTFLIGHT DEBT; round note §9 WP-37) |
 | 38 | Deduplicate keys / arc batching + audit lock (F-08) | 33,36 | DONE (2026-08-19, PR #11, merge 74d2f64; CI green FIRST pass 507/507 byte-identical; audit lock 10b live, red-tested; GroupBy error-id unification approved by merge; POSTFLIGHT DEBT; round note §9 WP-38) |
-| 39 | `arguments` blocks + Name-Value casing (F-07) | all | IN PROGRESS — 2026-08-19 stage (a) front doors on `claude/wp-39` (round note §9 WP-39); staged per the prompt; draft-PR loop; POSTFLIGHT DEBT |
+| 39 | `arguments` blocks + Name-Value casing (F-07) | all | IN PROGRESS — 2026-08-19 stages (a) a1+a1-2+a2 (PRs #13, #14 MERGED), (b) b1+b2 (PRs #15, #16 MERGED), (c) c1 (PR #17 MERGED) + c2 = the class front doors, R2-CLOSING round, PR pending (round notes §9 WP-39); POSTFLIGHT DEBT |
 | 40 | Method polish: gates, clamps, whiteness (F-10…F-13; + F-15 alternation bistability) | 32 | DONE (2026-08-19, TWO rounds: r1 F-10…F-13 PR #9 merge 736807d, CI 505/505; r2 F-15 PR #10 merge 8ca16b9, CI 507/507 after six diagnosis rounds with the psd2acv-faithful mirror; ALL THREE r2 decisions ACCEPTED by the user 2026-08-19 — detailed in the DECISION RECORD below the round notes (§9 WP-40); POSTFLIGHT DEBT both rounds; round notes §9 WP-40) |
 | 41 | Documentation truth sweep (F-12, F-14) | 32,33,36,40 | DONE (2026-08-19, PR #12, merge 739e578; CI green 507/507, zero fixture movement; stub rule + all claim fixes approved by merge; round note §9 WP-41) |
 
@@ -2917,6 +2917,49 @@ regenerated, the reference-manual release note extended. Stage (c)
 (infrastructure/classes: BlockAccumulator, Combine, makeLoader,
 adjustVCE ctor, Accumulator, mapreduce, datum, solveNonlinear,
 toeplitzCofactor, dctI, BatchIndex, PrefetchLoader, Results) remains.
+**ROUND NOTE c2 (2026-08-19) -- THE R2-CLOSING ROUND.** The seven class
+files: Accumulator + Combine already carried arguments blocks (arrived
+in earlier merged commits). MIGRATED: BatchIndex ('By' enum
+sensor/day/both; the old lower() call dropped -- the enum is
+case-sensitive lowercase now); PrefetchLoader ('Enable' keeps its v1
+"auto"|true|false contract -- UNTYPED in the block since a mustBeMember
+would kill the logical form, validated in-body with the NEW id
+lsqvce:prefetch:badEnable); Results.convergence (Plot/Stream);
+BlockAccumulator ctor (nc typed positional; 16 opts, names unchanged
+UpperCamel; Backend/Reg/Parallel via mustBeMember; Verbose UNTYPED =
+the historical logical-or-level contract; the r remap keeps the ctor
+body untouched incl. the CondWarn<=CondAbort cross-check with its
+lsqvce:accum:badThresholds id); adjustVCE ctor (GroupBy untyped --
+accepts handles; VceMode enum; LogFid/LogFlag empty-sentinels; o remap
+replaces o = p.Results FIRST OCCURRENCE ONLY -- two identical lines
+exist for other methods, the global-replace assert caught it) and the
+three option-taking methods plots / empiricalStochastic / validate,
+whose arguments DEFAULTS reference the live object state
+(obj.plotOpt.*, obj.shapeOpt.WhiteAlpha, verbosity.progress(obj.verbose)
+-- legal: defaults may reference earlier-declared arguments); validate's
+narginchk replaced by the block (missing R now = MATLAB:minrhs) while
+the isa contract check stays in the body with its documented lsqvce: id
+(the b1-r3 rule). TESTS: grouped c2 signature test with the
+mustBeMember levers (BlockAccumulator Backend, adjustVCE VceMode), a
+typed-constraint check, and BOTH legs of the Enable contract. DOCS:
+five pages regenerated, help casing swept + stamps, the release note
+declares the WP-39 rollout COMPLETE.
+**c2 round 2 (2026-08-19): two standing contract tests moved with the
+migration** (the b1-r3 rule's mirror, both caught by CI as designed):
+test_ellmer's VceMode-rejection now expects mustBeMember (was the
+parser's ArgumentFailedValidation), and test_reliability's
+bad-construction test moves ALL FOUR preempted expectations --
+nc<=0 twice (expectedPositive -> validators:mustBePositive; the old
+validateattributes id) and the two bogus-enum checks
+(ArgumentFailedValidation -> validators:mustBeMember). The
+CondWarn<=CondAbort cross-check keeps its lsqvce:accum:badThresholds
+body id, green. Also this round: the ctor's dead narginchk(2,inf)
+deleted (the arguments block enforces arity; missing positionals =
+MATLAB:minrhs; rule 8). **With c2 green, WP-39 closes --
+and with it the R2 track (F-01..F-15, every finding addressed or
+formally dispositioned).** Remaining after R2: the self-hosted runner
+migration (settles ALL postflight debts on its first green full run)
+and the WP-42 backlog.
 **ROUND NOTE c1 (2026-08-19): the infrastructure functions.** MIGRATED
 to typed `arguments` (canonical UpperCamel, o-struct mappings, bodies
 untouched): makeLoader (15 options; the body's long->short o aliasing

@@ -49,6 +49,11 @@ classdef PrefetchLoader < handle
 %
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (c) c2 (F-07):
+%   typed `arguments` signatures, canonical UpperCamelCase option names
+%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+%   case-sensitive lowercase). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 %   Updated 2026-08-18 (CEST, UTC+02:00): pool availability now probed by
 %   the ONE probe lsqvce.util.hasBackgroundPool (probe-by-USE; the private
 %   exist()-based poolOK was false-negative under `matlab -batch` and made
@@ -72,19 +77,30 @@ classdef PrefetchLoader < handle
     end
 
     methods
-        function o = PrefetchLoader(dataFcn, dayList, varargin)
+        function o = PrefetchLoader(dataFcn, dayList, opt)
         %PREFETCHLOADER  Construct a loader that prefetches the next day in the
         %   background (parfeval) while the current one is consumed. See classdef
         %   header for options. INPUT dataFcn 4-arg loader; dayList 1xD days.
+        arguments
+            dataFcn
+            dayList
+            opt.Enable = 'auto'
+        end
             narginchk(2, inf);
             if ~isa(dataFcn, 'function_handle')
                 error('lsqvce:prefetch:badLoader', ...
                       'dataFcn must be a function handle.');
             end
-            p = inputParser;
-            p.addParameter('Enable', 'auto');
-            p.parse(varargin{:});
-            en = p.Results.Enable;
+            % WP-39 c2: typed `arguments` signature. 'Enable' keeps its
+            % v1 contract "auto" | true | false, so it stays UNTYPED in
+            % the block (a mustBeMember would kill the logical form) and
+            % is validated here exactly as the body always consumed it.
+            en = opt.Enable;
+            if isstring(en), en = char(en); end
+            if ~(islogical(en) && isscalar(en)) && ~strcmp(en, 'auto')
+                error('lsqvce:prefetch:badEnable', ...
+                      '''Enable'' must be ''auto'', true or false.');
+            end
 
             o.dataFcn = dataFcn;
             o.dayList = dayList(:).';

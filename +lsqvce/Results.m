@@ -57,6 +57,11 @@ classdef Results < handle
 %   See also LSQVCE.ADJUSTBLOCK, LSQVCE.ADJUSTVCE, LSQVCE.REPORT,
 %            LSQVCE.DIAGNOSE, LSQVCE.BLOCKACCUMULATOR
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (c) c2 (F-07):
+%   typed `arguments` signatures, canonical UpperCamelCase option names
+%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+%   case-sensitive lowercase). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 %   Created 2026-07-16 12:20 (CEST, UTC+02:00) with assistance from
 %   Claude (Anthropic), model Claude Opus 4.8.
 
@@ -148,7 +153,7 @@ classdef Results < handle
         % why they live here and not on the builder: a finished Results must be
         % readable without the object that produced it.
 
-        function [T, varargout] = convergence(obj, varargin)
+        function [T, varargout] = convergence(obj, opt)
         %CONVERGENCE  Tabulate (and optionally plot) why the loop stopped.
         %   T = R.convergence() returns a per-iteration table of the
         %   variance-factor and stochastic-model trajectory recorded in
@@ -156,15 +161,15 @@ classdef Results < handle
         %   variance component oscillated -- the two reasons the loop fails to
         %   converge.
         %
-        %   T = R.convergence('plot', true) also draws two stacked panels:
+        %   T = R.convergence('Plot', true) also draws two stacked panels:
         %   max|sigma_g^2 - 1| per pass (the variance-factor criterion) and the
         %   per-stream Ljung-Box whiteness p-value per pass (the whiteness
         %   criterion), with the WhiteAlpha threshold marked. Returns [T, fh]
         %   with the figure handle.
         %
         %   NAME-VALUE
-        %     'plot'   1x1 logical  draw the panels (default false).
-        %     'stream' char/string  restrict the printed/plotted streams to those
+        %     'Plot'   1x1 logical  draw the panels (default false).
+        %     'Stream' char/string  restrict the printed/plotted streams to those
         %                           whose key CONTAINS this text (default '': all).
         %
         %   OUTPUT
@@ -179,7 +184,7 @@ classdef Results < handle
         %
         %   EXAMPLE
         %     R = lsqvce.adjustVCE(L, days).groupComponentsBy('obsType').run();
-        %     T = R.convergence('plot', true);   % table + diagnostic figure
+        %     T = R.convergence('Plot', true);   % table + diagnostic figure
         %     % a stream stuck at minWhitePval < WhiteAlpha for every pass needs a
         %     % higher stochasticModel MaxOrder or ARMA; an oscillating
         %     % maxSigmaOffset means too little group redundancy -- coarsen
@@ -191,11 +196,13 @@ classdef Results < handle
         %   (Anthropic), model Claude Opus 4.8. Moved here from
         %   LSQVCE.ADJUSTVCE: it is a POST-RUN READER of R.history and needed
         %   the builder object only to draw one threshold line.
-            ip = inputParser;  ip.FunctionName = 'lsqvce.Results.convergence';
-            ip.addParameter('plot',   false, @(v) islogical(v) && isscalar(v));
-            ip.addParameter('stream', '',    @(s) ischar(s) || isstring(s));
-            ip.parse(varargin{:});
-            o = ip.Results;
+            % WP-39 c2: typed `arguments` signature (canonical Plot/Stream).
+        arguments
+            obj
+            opt.Plot (1,1) logical = false
+            opt.Stream (1,1) string = ""
+        end
+            o = struct('plot', opt.Plot, 'stream', char(opt.Stream));
 
             h = obj.requireHistory('convergence');
             nPass = size(h.sigma, 1);

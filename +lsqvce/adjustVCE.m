@@ -75,16 +75,16 @@ classdef adjustVCE < handle
 %                              Required (may be [] if every loader carries days).
 %
 %     Name/Value options ([] or omitted -> defaults):
-%       'groupBy'   char|fh  grouping granularity for the variance-component step (same name
+%       'GroupBy'   char|fh  grouping granularity for the variance-component step (same name
 %                            and meaning as in lsqvce.vce/redundancy/outliers):
 %                            'satObs' (default) one component per
 %                            (satellite,obsType); 'obsType'; 'system'; 'arc';
 %                            or @(sysID,obsType,arc,day)->key. Also settable via
 %                            groupComponentsBy().
-%       'maxOuter'  1x1  outer stochastic model <-> variance components iterations             (default 6)
-%       'backend'   char 'qr' | 'normal'                          (default 'qr')
-%       'reg'       char passed to adjustBlock                        (default 'none')
-%       'parallel'  char 'serial'|'parfor'|'spmd'                 (default 'serial')
+%       'MaxOuter'  1x1  outer stochastic model <-> variance components iterations             (default 6)
+%       'Backend'   char 'qr' | 'normal'                          (default 'qr')
+%       'Reg'       char passed to adjustBlock                        (default 'none')
+%       'Parallel'  char 'serial'|'parfor'|'spmd'                 (default 'serial')
 %       'verbose'   1x1  logical | 0..2 message level             (default 1)
 %                        0 SILENT     nothing
 %                        1 PROGRESS   outer passes, stage start/done + timing,
@@ -95,17 +95,17 @@ classdef adjustVCE < handle
 %                                     system conditioning, inner VCE iterations
 %                        A LOGICAL still works and keeps its old meaning
 %                        (false -> 0, true -> 1). See LSQVCE.UTIL.VERBOSITY.
-%       'logFid'    1x1  file identifier for ALL toolbox output ("standard
+%       'LogFid'    1x1  file identifier for ALL toolbox output ("standard
 %                        output"). Default: leaves the global log state as-is
 %                        (initially 1 = command window). Set to an fopen fid to
 %                        capture status text AND warnings to a file. Sets the
 %                        toolbox-wide state; see LSQVCE.UTIL.LOG.
-%       'logFlag'   1x1  logical: also show output on screen (default: leave
+%       'LogFlag'   1x1  logical: also show output on screen (default: leave
 %                        as-is, initially true). false + a file LogFid => quiet
 %                        run, everything captured to the file only.
-%       'showSeconds' 1x1  seconds to display each hook figure (default 0 =
+%       'ShowSeconds' 1x1  seconds to display each hook figure (default 0 =
 %                        export only, no pause). < 0 = show and LEAVE OPEN.
-%       'exportDir' char  folder for the hook PNGs ('' = do not export).
+%       'ExportDir' char  folder for the hook PNGs ('' = do not export).
 %
 %   PLOT HOOKS (per system + obsType)
 %     Per-(system,obsType) plots are driven by function handles you attach to
@@ -124,7 +124,7 @@ classdef adjustVCE < handle
 %     ctx.arOrder. See PLOTCONTEXT for the full field list. Local parameters are
 %     NOT in ctx (they are summarised to the log after each solve instead).
 %     Your handle only BUILDS and RETURNS a figure (or returns nothing to just
-%     record); the engine shows it for 'showSeconds' and exports
+%     record); the engine shows it for 'ShowSeconds' and exports
 %     <ExportDir>/<stage>_<sys>_<obsType>_pass<k>.png.
 %     A hook that errors is logged and skipped -- plots never break
 %     the solve. Set the two engine knobs via the constructor or P.plots(...).
@@ -134,7 +134,7 @@ classdef adjustVCE < handle
 %     P.stochasticModel('MaxOrder',p,'AcvTol',t)   the temporal noise model
 %     P.varianceComponents('MaxIter',n,'Tol',t)    the Helmert variance components
 %     P.iteration('MaxOuter',k,'Tol',t) the outer convergence gate
-%     P.plots('showSeconds',s,'exportDir',d)  configure the plot-hook show/export
+%     P.plots('ShowSeconds',s,'ExportDir',d)  configure the plot-hook show/export
 %
 %   RUN
 %     R = P.run()   ->  1x1 lsqvce.Results, with the iteration trajectory
@@ -186,6 +186,11 @@ classdef adjustVCE < handle
 %
 %   See also LSQVCE.ADJUSTBLOCK, LSQVCE.VCE, LSQVCE.REDUNDANCY,
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (c) c2 (F-07):
+%   typed `arguments` signatures, canonical UpperCamelCase option names
+%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+%   case-sensitive lowercase). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-41 (docs only, F-12 claims
 %   half + F-14): the 'joint' mode claim corrected (pooled spectrum +
 %   stream scales; NO per-arc factors -- that is ADJUSTVCEJOINT); the
@@ -269,39 +274,49 @@ classdef adjustVCE < handle
 
     methods
         % ---- construction ------------------------------------------------
-        function obj = adjustVCE(systems, days, varargin)
-            narginchk(2, inf);
+        function obj = adjustVCE(systems, days, opt)
+        arguments
+            systems
+            days
+            opt.GroupBy = 'satObs'
+            opt.VceMode (1,1) string {mustBeMember(opt.VceMode, ["separate","joint"])} = "separate"
+            opt.MaxOuter (1,1) double {mustBeInteger, mustBePositive} = 6
+            opt.Backend (1,1) string {mustBeMember(opt.Backend, ["normal","qr"])} = "qr"
+            opt.Reg (1,1) string {mustBeMember(opt.Reg, ["none","tikhonov","tsvd","lm","auto"])} = "none"
+            opt.Parallel (1,1) string {mustBeMember(opt.Parallel, ["serial","parfor","spmd"])} = "serial"
+            opt.Verbose = true             % historical logical OR level 0..3
+            opt.LogFid double {mustBeScalarOrEmpty} = []
+            opt.LogFlag logical = logical([])
+            opt.ShowSeconds (1,1) double = 0
+            opt.ExportDir (1,1) string = ""
+        end
+            % WP-39 c2: the old narginchk(2, inf) is dead -- the arguments
+            % block enforces the arity first (missing positionals surface
+            % MATLAB:minrhs) -- and is deleted (rule 8).
             obj.nc      = lsqvce.resolveNc(systems);
             obj.systems = systems;
             obj.days    = days;
 
-            p = inputParser;  p.FunctionName = 'lsqvce.adjustVCE';
-            p.addParameter('groupBy', 'satObs');
-            p.addParameter('vceMode', 'separate', ...
-                @(s) any(strcmpi(s, {'separate','joint'})));
-            p.addParameter('maxOuter',  6,  @(v) isscalar(v) && v >= 1);
-            p.addParameter('backend',  'qr');
-            p.addParameter('reg',      'none');
-            p.addParameter('parallel', 'serial');
-            % Accepts the historical LOGICAL (false->silent, true->progress)
-            % or a level 0..3; see LSQVCE.UTIL.VERBOSITY.
-            p.addParameter('verbose',   true, ...
-                @(v) (islogical(v) || isnumeric(v)) && isscalar(v));
-            p.addParameter('logFid',    [],   @(v) isnumeric(v) && isscalar(v));
-            p.addParameter('logFlag',   [],   @(v) islogical(v) && isscalar(v));
-            p.addParameter('showSeconds', 0,  @(v) isscalar(v) && isnumeric(v));
-            p.addParameter('exportDir',  '',  @(v) ischar(v) || isstring(v));
-            p.parse(varargin{:});
+            % WP-39 c2: typed `arguments` signature (canonical UpperCamel --
+            % was lowercase; legacy casings keep matching, MATLAB NV semantics;
+            % enum VALUES case-sensitive lowercase). The o remap keeps the ctor
+            % body untouched; Verbose keeps the logical-or-level contract.
+            o = struct('groupBy', opt.GroupBy, 'vceMode', char(opt.VceMode), ...
+                       'maxOuter', opt.MaxOuter, 'backend', char(opt.Backend), ...
+                       'reg', char(opt.Reg), 'parallel', char(opt.Parallel), ...
+                       'verbose', opt.Verbose, 'logFid', opt.LogFid, ...
+                       'logFlag', opt.LogFlag, 'showSeconds', opt.ShowSeconds, ...
+                       'exportDir', char(opt.ExportDir));
             % Route all toolbox output (status + warnings) to logfid, on screen
             % only if logflag. These set the toolbox-wide log state (see
             % lsqvce.util.log); omit them to leave the current state untouched.
-            if ~isempty(p.Results.logFid) || ~isempty(p.Results.logFlag)
+            if ~isempty(o.logFid) || ~isempty(o.logFlag)
                 args = {};
-                if ~isempty(p.Results.logFid),  args = [args, {'fid',    p.Results.logFid}];  end
-                if ~isempty(p.Results.logFlag), args = [args, {'screen', p.Results.logFlag}]; end
+                if ~isempty(o.logFid),  args = [args, {'fid',    o.logFid}];  end
+                if ~isempty(o.logFlag), args = [args, {'screen', o.logFlag}]; end
                 lsqvce.util.log.set(args{:});
             end
-            o = p.Results;
+            % (o built above from the typed opt -- WP-39 c2)
 
             obj.vceGroups  = o.groupBy;
             obj.vceMode    = lower(char(o.vceMode));
@@ -436,21 +451,24 @@ classdef adjustVCE < handle
                        'mapping obsType to a component count.']);
             end
         end
-        function obj = plots(obj, varargin)
+        function obj = plots(obj, opt)
         %PLOTS  Configure the engine-side plot behaviour (the PER-ITEM plot
         %   HANDLES live on the loaders, via makeLoader's 'plotPostSolve' /
         %   'plotPostModel'; this only sets how they are shown and exported).
-        %     'showSeconds' seconds to display each figure (default 0 = export
+        %     'ShowSeconds' seconds to display each figure (default 0 = export
         %                   only, no pause). < 0 = show and LEAVE OPEN.
-        %     'exportDir'   folder for the PNGs ('' = do not export).
-            q = inputParser;  q.FunctionName = 'lsqvce.adjustVCE.plots';
-            q.addParameter('showSeconds', obj.plotOpt.ShowSeconds, ...
-                                          @(v) isscalar(v) && isnumeric(v));
-            q.addParameter('exportDir',   obj.plotOpt.ExportDir, ...
-                                          @(v) ischar(v) || isstring(v));
-            q.parse(varargin{:});
-            obj.plotOpt.ShowSeconds = double(q.Results.ShowSeconds);
-            obj.plotOpt.ExportDir   = char(q.Results.ExportDir);
+        %     'ExportDir'   folder for the PNGs ('' = do not export).
+            % WP-39 c2: typed `arguments` signature; the defaults are the
+            % CURRENT object state (arguments defaults may reference the
+            % earlier-declared obj). The "< 0 = show and LEAVE OPEN"
+            % contract is unchanged.
+        arguments
+            obj
+            opt.ShowSeconds (1,1) double = obj.plotOpt.ShowSeconds
+            opt.ExportDir (1,1) string = obj.plotOpt.ExportDir
+        end
+            obj.plotOpt.ShowSeconds = double(opt.ShowSeconds);
+            obj.plotOpt.ExportDir   = char(opt.ExportDir);
         end
 
         % ---- the loop ----------------------------------------------------
@@ -727,7 +745,7 @@ classdef adjustVCE < handle
         end
 
         % ---- empirical stochastic modelling (named front door over the loop) ----
-        function R = empiricalStochastic(obj, varargin)
+        function R = empiricalStochastic(obj, opt)
         %EMPIRICALSTOCHASTIC  Empirical stochastic modelling of the observation noise, as one call.
         %
         %   R = P.empiricalStochastic()
@@ -784,7 +802,7 @@ classdef adjustVCE < handle
         %     (R.history, R.noise, R.converged) is present unchanged.
         %
         %   OPTIONS (Name/Value; all optional)
-        %     'homogenise'  logical  run the step-0 preflight check (default true).
+        %     'Homogenise'  logical  run the step-0 preflight check (default true).
         %                            false to skip it (e.g. a positions-free,
         %                            scalar-only problem where D is a plain sigma).
         %     'validate'    logical  run the step-7 validation (default true).
@@ -820,17 +838,19 @@ classdef adjustVCE < handle
         %
         %   Created 2026-07-16 (CEST, UTC+02:00) with assistance from
         %   Claude (Anthropic), model Claude Opus 4.8.
-            p = inputParser;  p.FunctionName = 'lsqvce.adjustVCE.empiricalStochastic';
-            p.addParameter('homogenise', true,  @(v) islogical(v) && isscalar(v));
-            p.addParameter('validate',   true,  @(v) islogical(v) && isscalar(v));
-            p.addParameter('alpha',      obj.shapeOpt.WhiteAlpha, ...
-                                                 @(v) isscalar(v) && v > 0 && v < 1);
-            % 'report' is a plain on/off flag; its default follows whether
-            % the object prints at all (level >= 1), not the level itself.
-            p.addParameter('report',     lsqvce.util.verbosity.progress(obj.verbose), ...
-                                                 @(v) islogical(v) && isscalar(v));
-            p.parse(varargin{:});
-            o = p.Results;
+            % WP-39 c2: typed `arguments` signature; Alpha's and Report's
+            % defaults are the CURRENT object state ('Report' is a plain
+            % on/off flag whose default follows whether the object prints
+            % at all, level >= 1, not the level itself).
+        arguments
+            obj
+            opt.Homogenise (1,1) logical = true
+            opt.Validate (1,1) logical = true
+            opt.Alpha (1,1) double {mustBePositive, mustBeLessThan(opt.Alpha,1)} = obj.shapeOpt.WhiteAlpha
+            opt.Report (1,1) logical = lsqvce.util.verbosity.progress(obj.verbose)
+        end
+            o = struct('homogenise', opt.Homogenise, 'validate', opt.Validate, ...
+                       'alpha', opt.Alpha, 'report', opt.Report);
             v = obj.verbose;
 
             % ---- step 0: HOMOGENISE (preflight) ----------------------------
@@ -855,7 +875,7 @@ classdef adjustVCE < handle
 
 
         % ---- the validation (formal vs empirical error) ------------------
-        function E = validate(obj, R, varargin)
+        function E = validate(obj, R, opt)
         %VALIDATE  The acceptance test: formal vs empirical parameter errors.
         %
         %   E = P.validate(R)
@@ -885,9 +905,9 @@ classdef adjustVCE < handle
         %
         %   OPTIONS (Name/Value)
         %     'alpha'     1x1  whiteness significance (default obj.shapeOpt.WhiteAlpha).
-        %     'sigmaTol'  1x1  tolerance on |sigma_g^2 - 1| for the verdict
+        %     'SigmaTol'  1x1  tolerance on |sigma_g^2 - 1| for the verdict
         %                      (default = obj.outerOpt.Tol).
-        %     'sigma0Tol' 1x1  tolerance on |sigma0 - 1| for the verdict (default 0.05).
+        %     'Sigma0Tol' 1x1  tolerance on |sigma0 - 1| for the verdict (default 0.05).
         %     'report'    logical  print the one-screen summary (default obj.verbose).
         %
         %   OUTPUT
@@ -917,20 +937,25 @@ classdef adjustVCE < handle
         %
         %   Created 2026-07-16 (CEST, UTC+02:00) with assistance from
         %   Claude (Anthropic), model Claude Opus 4.8.
-            narginchk(2, inf);
+            % WP-39 c2: typed `arguments` signature (defaults from the
+            % CURRENT object state); the arguments block replaces
+            % narginchk (a missing R now surfaces MATLAB:minrhs), while
+            % the isa contract check on R stays in the body with its
+            % documented lsqvce: identifier (the b1-r3 rule).
+        arguments
+            obj
+            R
+            opt.Alpha (1,1) double {mustBePositive, mustBeLessThan(opt.Alpha,1)} = obj.shapeOpt.WhiteAlpha
+            opt.SigmaTol (1,1) double {mustBePositive} = obj.outerOpt.Tol
+            opt.Sigma0Tol (1,1) double {mustBePositive} = 0.05
+            opt.Report (1,1) logical = lsqvce.util.verbosity.progress(obj.verbose)
+        end
             if ~isa(R, 'lsqvce.Results')
                 error('lsqvce:adjustVCE:validateBadResults', ...
                       'validate expects an lsqvce.Results (from run/empiricalStochastic).');
             end
-            p = inputParser;  p.FunctionName = 'lsqvce.adjustVCE.validate';
-            p.addParameter('alpha',     obj.shapeOpt.WhiteAlpha, ...
-                                        @(x) isscalar(x) && x > 0 && x < 1);
-            p.addParameter('sigmaTol',  obj.outerOpt.Tol,  @(x) isscalar(x) && x > 0);
-            p.addParameter('sigma0Tol', 0.05,              @(x) isscalar(x) && x > 0);
-            p.addParameter('report',    lsqvce.util.verbosity.progress(obj.verbose), ...
-                                                       @(x) islogical(x) && isscalar(x));
-            p.parse(varargin{:});
-            o = p.Results;
+            o = struct('alpha', opt.Alpha, 'sigmaTol', opt.SigmaTol, ...
+                       'sigma0Tol', opt.Sigma0Tol, 'report', opt.Report);
 
             E = struct();
             E.alpha     = o.alpha;

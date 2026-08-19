@@ -84,6 +84,11 @@ classdef BatchIndex < handle
 %       lsqvce:batchIndex:countMismatch  the observation count does not match
 %                                        what was registered
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (c) c2 (F-07):
+%   typed `arguments` signatures, canonical UpperCamelCase option names
+%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+%   case-sensitive lowercase). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 %   See also LSQVCE.COMBINE, LSQVCE.VARCOMP.
 %
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
@@ -289,7 +294,7 @@ function g = dayGroups(obj, i)
 end
 
 %% ------------------------------------------------------------- attribute
-function T = attribute(obj, D, varargin)
+function T = attribute(obj, D, opt)
 %ATTRIBUTE  Turn per-observation diagnostics into a per-(sensor, day) summary.
 %
 %   T = bx.attribute(D) where D is the struct from Combine/diagnose.
@@ -298,14 +303,17 @@ function T = attribute(obj, D, varargin)
 %   "observation 4193". With it, it is "LRI, day 14, 3 flags, mean r = 0.42".
 %
 %   Name-value:
-%     'by'   'sensor' | 'day' | 'both'    (default 'both')
+%     'By'   'sensor' | 'day' | 'both'    (default 'both')
 
+arguments
+    obj
+    D
+    opt.By (1,1) string {mustBeMember(opt.By, ["sensor","day","both"])} = "both"
+end
     obj.requireLocked();
-    ip = inputParser;
-    addParameter(ip, 'by', 'both', ...
-                 @(s) any(strcmpi(s, {'sensor','day','both'})));
-    parse(ip, varargin{:});
-    by = lower(ip.Results.by);
+    % WP-39 c2: typed `arguments` signature (canonical 'By'; enum VALUE
+    % case-sensitive lowercase).
+    by = char(opt.By);
 
     rows = struct('system', {}, 'sensor', {}, 'day', {}, 'n', {}, ...
                   'nFlag', {}, 'meanR', {}, 'minR', {}, 'maxAbsW', {}, ...

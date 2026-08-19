@@ -545,9 +545,11 @@ function test_vceMode_constructor_flag(tc)
 end
 
 function test_vceMode_rejects_unknown(tc)
+    % WP-39 c2: the ctor's VceMode enum moved from inputParser to
+    % mustBeMember -- the expected id follows the migration (b1-r3 rule).
     verifyError(tc, ...
         @() lsqvce.adjustVCE(modeSpec(), 1, 'vceMode', 'sideways', 'verbose', false), ...
-        'MATLAB:InputParser:ArgumentFailedValidation');
+        'MATLAB:validators:mustBeMember');
 end
 
 function test_joint_fluent_switches_mode_and_sets_opts(tc)

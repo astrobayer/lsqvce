@@ -40,6 +40,100 @@ a { color: #0b5ea8; }
           font-size: 12px; color: #888; }
 </style></head>
 <body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.BatchIndex</div>
 <h1>lsqvce.BatchIndex</h1>
-<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+<div class="purpose">Bookkeeping for (system, sensor, day) batch hierarchies.</div>
+<h2>Description</h2>
+<pre class="example">The numerics do not need this. With PER-SYSTEM local parameters, a
+(sensor, day) batch is just another batch inside its system&#x27;s elimination
+block, and lsqvce.Combine already streams batches without caring where
+they came from. Verified: sensor x day batching gives bit-identical results
+to a flat structure, and the solution is invariant to batch ORDER to 3e-16.
+
+What you lose without this class is the ability to SAY ANYTHING USEFUL about
+a result. A flagged observation comes back as &quot;observation 4193&quot; instead of
+&quot;LRI, day 14, epoch 193&quot;. Variance components cannot be estimated per sensor
+-- which, for a KBR/LRI combination where the two instruments have genuinely
+different and probably mis-stated noise, is the whole point. And a single bad
+day cannot be identified as a bad day.
+
+This class is a thin map:
+
+    (system, sensor, day)  &lt;--&gt;  flat batch index k
+    observation index      --&gt;   (system, sensor, day, epoch)
+
+USAGE
+    bx = lsqvce.BatchIndex();
+    bx.addSystem(&#x27;GRACE-C&#x27;, {&#x27;KBR&#x27;,&#x27;LRI&#x27;,&#x27;GPS&#x27;}, days);
+    bx.addSystem(&#x27;GRACE-D&#x27;, {&#x27;KBR&#x27;,&#x27;LRI&#x27;},       days);
+
+    % register how many observations each (sys, sensor, day) actually has
+    bx.setCount(&#x27;GRACE-C&#x27;, &#x27;LRI&#x27;, datetime(2024,3,7), 8640);
+    ...
+    bx.lock();                       % no more registration
+
+    % now the batch source is indexed by a MEANINGFUL triple
+    src = @(i, k) myLoader(bx.decode(i, k));
+
+    % ... and the diagnostics can be attributed
+    T = bx.attribute(D);             % table: sensor, day, nFlag, mean r_i</pre>
+<h3>Example</h3>
+<pre class="example">bx = lsqvce.BatchIndex();
+bx.addSystem(&#x27;GRACE-C&#x27;, {&#x27;KBR&#x27;,&#x27;LRI&#x27;,&#x27;GPS&#x27;}, days);
+bx.addSystem(&#x27;GRACE-D&#x27;, {&#x27;KBR&#x27;,&#x27;LRI&#x27;},       days);
+
+% Register only the (sensor, day) triples that HAVE data. A sensor
+% that was down is simply never registered -- no empty batches needed.
+for d = days
+    bx.setCount(&#x27;GRACE-C&#x27;, &#x27;LRI&#x27;, d, 8640);
+end
+bx.lock();
+
+% The batch source is now indexed by a MEANINGFUL triple:
+src = @(i,k) myLoader(bx.decode(i,k));
+
+% ... and the diagnostics can be ATTRIBUTED. Without this, a flagged
+% observation is &quot;observation 4193&quot;. With it, &quot;LRI / day 14&quot;.
+bx.report(D);
+
+% Per-sensor variance components need the sensor group index:
+VC = cmb.varComp(sol, @(i,k) bx.sensorGroups(i){k}, nSensor);</pre>
+<h3>Errors</h3>
+<pre class="example">  The registration is malformed
+    lsqvce:batchIndex:badName        a name is not a valid identifier
+    lsqvce:batchIndex:badSystem      the system id is not numeric or a
+                                     single char
+    lsqvce:batchIndex:badSensors     the sensor list is not a cellstr
+    lsqvce:batchIndex:badBatch       the batch descriptor has the wrong shape
+    lsqvce:batchIndex:badCount       a count is not a positive integer
+    lsqvce:batchIndex:empty          nothing was registered
+
+  A name collides or is unknown
+    lsqvce:batchIndex:duplicateSystem  two systems share an id
+    lsqvce:batchIndex:duplicateSensor  two sensors share a name
+    lsqvce:batchIndex:duplicateBatch   two batches share a key
+    lsqvce:batchIndex:noSuchSystem     lookup of an unregistered system
+    lsqvce:batchIndex:noSuchSensor     lookup of an unregistered sensor
+    lsqvce:batchIndex:noBatches        a system carries no batches
+
+  The lock protocol was broken
+    lsqvce:batchIndex:locked         a registration after lock(); the index
+                                     is frozen so downstream row offsets
+                                     cannot shift under a running solve
+    lsqvce:batchIndex:notLocked      a query that needs final row offsets
+                                     before lock() was called
+    lsqvce:batchIndex:countMismatch  the observation count does not match
+                                     what was registered
+
+Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (c) c2 (F-07):
+typed `arguments` signatures, canonical UpperCamelCase option names
+(legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+case-sensitive lowercase). With assistance from Claude (Anthropic),
+model Claude Fable 5.
+See also LSQVCE.COMBINE, LSQVCE.VARCOMP.
+
+Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
+2026-07-11.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>
