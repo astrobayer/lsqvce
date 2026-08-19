@@ -227,7 +227,7 @@ order.**):
 | 37 | `redundancyLags` without dense W^-1 + hot-loop tolls (F-09) | — | DONE (2026-08-19, PR #8, merge 66ffb81; CI green FIRST pass 501/501 incl. the N=4000 speed lever; GS/Levinson validated in Python to 1e-14 pre-port; POSTFLIGHT DEBT; round note §9 WP-37) |
 | 38 | Deduplicate keys / arc batching + audit lock (F-08) | 33,36 | OPEN |
 | 39 | `arguments` blocks + Name-Value casing, whole surface (F-07) | 32–38,40,41 | OPEN |
-| 40 | Method polish: gates, clamps, whiteness (F-10…F-13; + F-15 alternation bistability, registered 2026-08-19) | 32 | OPEN |
+| 40 | Method polish: gates, clamps, whiteness (F-10…F-13; + F-15 alternation bistability, registered 2026-08-19) | 32 | IN PROGRESS — 2026-08-19 round 1 (F-10…F-13) on `claude/wp-40`, PR #9 (round note §9 WP-40); F-15 = round 2 by design; draft-PR loop; POSTFLIGHT DEBT |
 | 41 | Documentation truth sweep (F-12, F-14) | 32,33,36,40 | OPEN |
 
 ---
@@ -2744,6 +2744,35 @@ magnitude. NO API change.
 > history documents it. iterateNoiseModel: maxAcf pools per-arc (no lagged
 > product crosses an arc), mirroring pooledACV. Tests: one per change,
 > each failing on the old code; fixture regression for the healthy paths.
+
+**ROUND NOTE (2026-08-19, WP-40 round 1 = F-10…F-13, model Claude Fable 5;
+branch `claude/wp-40`, PR #9; rides the WP-37 DONE flip + the ORDER
+AMENDMENT (user option A) + the binding read-the-order-line process
+rule). F-15 is round 2 by design (WP-33 two-round pattern; repro fixtures
+jointAccMapped + validation/wp33_loop_mirror.py stand ready).**
+F-10 (vce): the silent rg = max(rg,1) is replaced by varComp-style
+estimability — new documented option 'freezeR' (default 1; deliberately
+distinct from 'minRedundancy', redundancy's per-observation testability
+knob passed through): groups with r_g < freezeR keep their sigma for the
+pass (upd = 1), warned ONCE per run (lsqvce:vce:lowRedundancy, keys +
+r_g); healthy groups bitwise unchanged. F-11 (varComp): a negative
+rigorous component FREEZES its group (s = 1) instead of s = 1e-6 — the
+old clamp multiplied the CUMULATIVE scale by 1e-6 and fed a 1e6
+reweighting oscillation; warning + help motivate the choice. F-12 gate
+half (adjustVCE.run): joint convergence additionally requires
+hist.jointMaxDev(end) <= outer Tol at BOTH gate sites — shapeStable
+degenerated from pass 2; the claims half stays with WP-41. F-13
+(iterateNoiseModel): maxAcf pools PER ARC (per-arc mean removal, pooled
+numerators/denominator, no boundary products) via the new
+gatherResidualArcs; dead gatherResiduals DELETED (rule 8). TESTS: freezeR
+= Inf freeze+warn with sigma bitwise at start (pre-fix: option unknown);
+negative-component freeze on a deterministic seed-searched two-group rig,
+scale stays O(1) (pre-fix: 1e-6); joint-gate NOT-converged while
+jointMaxDev(end) > Tol (pre-fix: converged); F-13 serial smoke on a new
+minimal fixture. **PINNED DEVIATION (user approves by merge): the F-13
+fails-on-old DISCRIMINATION needs arc-mean-structured whitened residuals
+that only runner-tier fixtures produce — deferred to test_parallel on the
+self-hosted runner; CI carries the smoke + healthy-path regression.**
 
 ### WP-41 — Documentation truth sweep
 
