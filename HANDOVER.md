@@ -2847,6 +2847,30 @@ Breaking: enum values are case-sensitive lowercase ('qr', not 'QR';
 'decay', not 'Decay'); wrongly-typed or out-of-range option values and
 unknown option names now error at the signature.
 
+**Round a2 (2026-08-19): adjust + the fluent configurators — two PINNED
+DEVIATIONS (user approves by merge), both consequences of the corrected
+a1-2 premise.** (1) `adjust` KEEPS inputParser BY DESIGN: its
+KeepUnmatched is a documented FEATURE (unmatched options forward to
+LSQVCE.DIAGNOSE via stripArgs — strcmpi, so any casing strips), which an
+arguments block cannot express. The F-07 substance lands anyway:
+canonical UpperCamelCase names on its five own options (inputParser
+matches case-insensitively — the 64 lowercase call sites keep working
+UNSWEPT, and under the corrected premise a sweep buys nothing: behaviour
+is identical to the arguments-migrated trio), TYPED validators on all
+five, and the case-sensitive lowercase enum value on 'Method' ('QR' now
+errors). The help states the pass-through contract explicitly; forwarded
+diagnose options keep diagnose's lowercase surface until its own stage.
+(2) The fluent configurators KEEP mergeNV: it already canonicalises
+case-insensitively to the stored UpperCamelCase fields — exactly
+MATLAB's NV semantics — and an arguments migration would need
+observable-change-free sentinel machinery; typed validation stays
+downstream. TEST (test_lsqvce): the a1-2 lesson applied — the two
+fails-on-old levers assert the SPECIFIC
+MATLAB:InputParser:ArgumentFailedValidation id (the old code had no
+validators, so that id was unreachable), plus an end-to-end
+pass-through+lowercase regression. The 64-site sweep is RETIRED as
+unnecessary (premise correction), not deferred.
+
 **ROUND NOTE (2026-08-19, WP-39 stage (a) round a1, model Claude Fable 5;
 branch `claude/wp-39`, riding the WP-41 DONE flip). Staging WITHIN (a),
 honest to the sweep load:** a1 = the three front doors with 0-2 call
