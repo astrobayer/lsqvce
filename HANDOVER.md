@@ -2837,7 +2837,16 @@ spectrum. Fix in the primitive: the WP-35 floor philosophy applies BEFORE
 the power -- Gamma < 1 uses max(alpha2,0).^Gamma; Gamma == 1 keeps the
 pre-existing expression VERBATIM (bitwise default regression). The
 indexed sanitation + diagnostic assert and the synthLoader generation
-floor stay (both are real hardening regardless). F-15 §8 disposition updated: mechanism identified,
+floor stay (both are real hardening regardless).
+**Round-4 (2026-08-19): the round-3 clamp was WRONG-VALUED.** max(alpha2,0)
+under Gamma < 1 creates ABSORBING ZERO bins (Shat_j = 0 -> Sprior_j = 0
+forever): the crash chain died but corr fell to 0.511. The mirror -- the
+instrument the 0.87-0.91 promises were measured on -- HOLDS at
+nonpositive ratios (a2 -> 1: an unidentifiable ratio takes no step this
+pass; wp33_loop_mirror.py, 'nonpositive: hold'). psdVCE now ports that
+semantics exactly; Gamma == 1 stays verbatim. Lesson pinned: a mitigation
+port must replicate the MEASUREMENT INSTRUMENT's semantics, not a
+plausible variant of them. F-15 §8 disposition updated: mechanism identified,
 mitigation shipped opt-in, severity call = user by merge.
 
 ### WP-41 — Documentation truth sweep

@@ -198,7 +198,15 @@ function out = psdVCE(omegaT, sT, Cprior, varargin)
     if o.Gamma == 1
         Shat = alpha2 .* Sprior;
     else
-        Shat = (max(alpha2, 0) .^ o.Gamma) .* Sprior;
+        % Round-4 fix: clamping to 0 created ABSORBING zero bins (Shat_j = 0
+        % => Sprior_j = 0 forever) and dropped the recovered corr to 0.51 on
+        % CI. The mirror's measured semantics (0.87-0.91,
+        % wp33_loop_mirror.py line ~111) are HOLD: a nonpositive ratio is
+        % unidentifiable noise at a dead bin, so it takes NO step this pass
+        % (alpha2 -> 1); the WP-35 MinAmplitude floor below still applies.
+        a2 = alpha2;
+        a2(~(a2 > 0)) = 1;                       % nonpositive/NaN: hold
+        Shat = (a2 .^ o.Gamma) .* Sprior;
     end
     % POLICY (WP-35, fixes F-04): FLOOR, never abs. A PSD is non-negative by
     % definition; a negative estimate at a (near-)zero-power bin is NOISE
