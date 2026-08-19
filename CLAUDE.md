@@ -26,7 +26,11 @@ matlab-mcp-server; ~4-min call window: detach long runs as
 
 - The gate is `ci_gate`, NEVER bare `runtests` (coverage identity §0a-2).
 - No aliases; one name per thing; single point of access.
-- One WP = one branch (`claude/wp-NN`) = one PR.
+- One WP = one branch (`claude/wp-NN`) = one PR. Open a DRAFT PR right
+  after the FIRST push (user decision 2026-08-19): `ci.yml` triggers on
+  `pull_request` + push-to-main only, so the draft is what gives every
+  dev push its ONE CI verdict (merge-preview context); mark it ready
+  after both gates are green.
 - The PR is opened ONLY after (1) CI green on the branch AND (2) the
   local MATLAB postflight is green; the postflight result is cited in
   the PR description. `git push --no-verify` is forbidden.

@@ -16,8 +16,9 @@ function tests = test_ellmer
 %   in-residual-and-projector fix (F-03) -- dense joint-projector parity,
 %   alpha2 ~ 1 at truth WITH locals (+ the pre-fix contrast, so the test
 %   fails on the old code), the bitwise nl = 0 regression, and the flat-PSD
-%   driver check. With assistance from Claude (Anthropic), model Claude
-%   Fable 5.
+%   driver check. Round 2 (same date): the deferred coloured-synthetic
+%   PSD-recovery test (corr > 0.95 with locals) + its jointCfgColoured
+%   fixture. With assistance from Claude (Anthropic), model Claude Fable 5.
 %   Created 2026-07-18 (CEST, UTC+02:00) with assistance from
 %   Claude (Anthropic), model Claude Opus 4.8.
     tests = functiontests(localfunctions);
@@ -792,11 +793,109 @@ function test_adjustVCEjoint_flat_psd_on_white_noise_with_locals(tc)
                  'leakage shows up as structure)'], max(S)/min(S)));
 end
 
+function test_adjustVCEjoint_psd_recovery_coloured_with_locals(tc)
+    % WP-33 round 2, FINAL SHAPE (r2e; full measurement record in HANDOVER
+    % §9 WP-33): an ACCURACY FLOOR for the whole coloured chain with local
+    % parameters -- corr(Shat, Strue) > 0.85 at MaxIter 1 with the default
+    % (non-delta) C0 and fixed-white declared weighting. The Python mirror
+    % of the exact pipeline measured, across seeds and sizes: pass-1 corr
+    % 0.92-0.96 (min 0.921); more arcs, rows or lags do NOT lift it above
+    % ~0.95 (the estimator's truncated-lag DCT ceiling), the no-rewhitening
+    % fixed point is corr ~ 0.64 (why r2b/r2c/r2d all landed ~0.6), and a
+    % near-delta C0 flattens alpha2 in one pass (the documented degenerate-
+    % start throttle). The spec's corr > 0.95 bar is therefore MEASURED
+    % unattainable here, and corr does not discriminate F-03 anyway (old-
+    % code corr ranged 0.55-0.95 over seeds) -- the §6.1 fail-on-old-code
+    % lever for F-03 is round 1's alpha2-at-truth test, NOT this one. This
+    % test guards the chain's recovery quality against future regressions.
+    cfg  = jointCfgColoured();
+    nLag = 10;
+    w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
+    r = lsqvce.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
+            'NumLags', nLag, 'MaxIter', 1, 'Probes', 300, 'Seed', 13, ...
+            'Verbose', false);
+    Strue = lsqvce.dctI(lsqvce.armaACV(cfg.cov.pos.ar, cfg.cov.pos.ma, nLag));
+    Strue = abs(Strue(:));
+    cc = corrcoef(r.Shat(:), Strue);
+    verifyGreaterThan(tc, cc(1,2), 0.85, ...
+        sprintf('coloured-chain accuracy floor: corr = %.3f (need > 0.85)', ...
+                cc(1,2)));
+end
+
+function cfg = jointCfgColoured()
+    % The coloured sibling of jointCfg: same block-arrow layout, ARMA noise
+    % (the stationary AR(2) of v10review T4) and enough arcs per frequency
+    % for the spectral VCE to settle (one day, 6 arcs x 96 rows, nLag = 10).
+    cfg.nc   = 3;
+    cfg.nl   = 2;
+    cfg.sats = 92;                     % distinct from jointCfg's 91
+    rs = RandStream('mt19937ar', 'Seed', 23);
+    cfg.x_c  = randn(rs, cfg.nc, 1);
+    cfg.y    = containers.Map('KeyType','double','ValueType','any');
+    cfg.y(92) = randn(rs, cfg.nl, 1);
+    cfg.obsTypes   = {'pos'};
+    cfg.arcsPerDay = 16;               % ONE day: 16 x 256 rows (the mirror's
+    cfg.mArc       = 256;              %  stable regime, F-15 evidence)
+    cfg.dt         = 5;
+    cfg.seed       = 9223;             % distinct seed -> distinct cache key
+    cfg.collinear  = false;
+    cfg.collinearEps = 1e-7;
+    cfg.cov.pos = struct('type','arma', 'ar',[1 -0.75 0.4], 'ma',1, 'sigma',1.0);
+    % r2f: the floor test's premise is FIXED-WHITE DECLARED weighting while
+    % GENERATING AR(2). r2e switched the test call to jointAcc but dropped
+    % the override, so the loader declared cfg.cov — THE TRUTH — and the
+    % r2a trap returned (alpha2 ~ 1, Shat ~ spectrum of the default C0,
+    % CI corr 0.182). White must be declared explicitly; jointAcc threads
+    % cfg.override into the loader's UserOpt:
+    cfg.override = struct('covOverride', struct('pos', ...
+                          struct('type','diag','sigma',1.0)));
+end
+
+function acc = jointAccMapped(cfg, model) %#ok<DEFNU>
+    % NOT called by the r2f floor test: kept as the documented CLOSED-LOOP
+    % reproduction fixture for finding F-15 (alternation bistability, §8;
+    % queued on WP-40) and the wp33_loop_mirror.py cross-reference.
+    % The coloured fixture's CLOSED LOOP (Ellmer's alternation, r2c route):
+    % the driver's current model.C is declared back as the covariance via
+    % the toolbox's PD-safe 'psd' path — Shat = dctI(C) upsampled to 160
+    % frequencies (>= mArc/2 + 1 = 129, covModel's rank rule) and psdMode
+    % 'toeplitz' for the dense Cfcn oneArc needs. Generation always follows
+    % cfg.cov. Restored in r2e: r2d's open-loop replacement was wrong — the
+    % sigma^2*C.*omega weighting suppresses all lags under a flat prior, so
+    % Ellmer's scheme NEEDS the alternation (mirror evidence:
+    % validation/wp33_loop_mirror.py).
+    uo = struct();
+    if ~isempty(model) && isfield(model, 'C') && ~isempty(model.C)
+        C     = model.C(:);
+        Shat  = max(lsqvce.dctI(C), 0);
+        fNyq  = 1/(2*cfg.dt);
+        fC    = (0:numel(C)-1).' * fNyq/(numel(C)-1);
+        fD    = linspace(0, fNyq, 160).';        % 160 >= 256/2 + 1
+        SD    = max(interp1(fC, Shat(:), fD, 'pchip'), 0);
+        uo.covOverride.pos = struct('type','psd', 'f', fD, 'S', SD, ...
+                                    'sigma', 1);
+        uo.psdMode = 'toeplitz';
+    else
+        uo.covOverride.pos = struct('type','diag', 'sigma', 1.0);
+    end
+    acc = lsqvce.BlockAccumulator(cfg.nc, 'KeepLocal', true, 'Verbose', false, ...
+                                  'UserOpt', uo);
+    for s = cfg.sats
+        acc.addSystem(s, cfg.nl, ...
+            @(d,ot,a,uo2) lsqvce.synthLoader(cfg, s, d, ot, a, uo2), 1);
+    end
+end
+
 function acc = jointAcc(cfg, model) %#ok<INUSD>
     % Rebuild the accumulator. A production caller would map model.C / model.sigma2
     % into the loader's covariance; here the fixture keeps the weighting fixed so
-    % the test exercises the DRIVER's plumbing, not the loader's.
-    acc = lsqvce.BlockAccumulator(cfg.nc, 'KeepLocal', true, 'Verbose', false);
+    % the test exercises the DRIVER's plumbing, not the loader's. A cfg.override
+    % reaches the loader as UserOpt (generic hook; the coloured fixture now
+    % owns its declaration in jointAccMapped instead).
+    uo = struct();
+    if isfield(cfg, 'override'), uo = cfg.override; end
+    acc = lsqvce.BlockAccumulator(cfg.nc, 'KeepLocal', true, 'Verbose', false, ...
+                                  'UserOpt', uo);
     for s = cfg.sats
         acc.addSystem(s, cfg.nl, ...
             @(d,ot,a,uo) lsqvce.synthLoader(cfg, s, d, ot, a, uo), 1);

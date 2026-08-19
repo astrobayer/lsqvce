@@ -6,8 +6,15 @@
 name: lsqvce CI
 
 on:
-  push:            # EVERY branch: the session polls check-runs per push,
-  pull_request:    # and the PR is opened only after these are green.
+  push:
+    branches: [main]   # the post-merge run on main (the DONE evidence)
+  pull_request:        # ONE run per dev push, on the MERGE PREVIEW commit.
+                       # User decision 2026-08-19: the previous push-on-all-
+                       # branches + pull_request pair ran everything TWICE
+                       # once a PR existed (doubled MathWorks downloads and
+                       # parallel cache saves - the duplicate-key incident).
+                       # The D8 loop now opens a DRAFT PR right after the
+                       # first push, so every push still gets its verdict.
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
