@@ -2976,3 +2976,30 @@ ledger (the R2 track closes with 38/41/39).
 > mean the v1 history. Re-run the
 > doc build and the audit; no .m logic changes (help-only edits inside .m
 > files are in scope).
+
+**ROUND NOTE (2026-08-19, WP-41 round 1, model Claude Fable 5; branch
+`claude/wp-41`, riding the WP-38 DONE flip). Docs only — the audit
+enforces zero logic drift.** (1) JOINT CLAIMS (F-12 half): adjustVCE's
+'joint' help now says what the mode does — pooled per-lag sums + stream
+scales per pass, NO per-arc factors — and points to ADJUSTVCEJOINT for
+the full ten-step co-estimation. (2) r_g CLAIMS: every
+"r_g = tr(N^-1 N_g^cc)" assertion is gone; contribution's .r field is
+documented as the cc-attribution trace it is (historical field name
+kept), the Level-1 share renamed to the trace share with the one-line
+Level-2 contrast; adjustVCE's .contribution doc likewise. (3) RNG
+sentences already carried WP-36's contract (checked, no drift found
+beyond WP-36's own edits). (4) redundancyLags' 'Solver'/struct-W ghost
+removed with an honest tombstone. (5) vce documents accFcn([]) = first
+pass, unit weights. (6) STUB DECISION (user approves by merge): the two
+removed-name redirect pages (lsqvce.recover, lsqvce.SeparableProblem)
+are KEPT — they already carry the "(removed)" title, a visible banner
+line and a 0-s refresh; audit check 4 now FORMALLY enforces the rule
+(only these two, only with title+refresh; red-tested with a planted
+ghost page: exit 1/0). (7) HANDOVER→HISTORY_v1.md retargeting in
+adjustVCE, redundancy, vceHutchinson, varComp, poolGroups, verbosity(*),
+run_lsqvce, test_adjustVCE — round-note references that genuinely mean
+HANDOVER.md stay. ((*) verbosity's line reads "HANDOVER 4d" and means
+the v1 doc: retargeted.) (8) Eight HTML pages regenerated from the
+corrected help via build_missing_pages (delete+rebuild); audit green.
+The r6 StepSchedule/AvgTail claims were NOT touched, per the binding
+DECISION RECORD (a).

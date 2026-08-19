@@ -120,7 +120,7 @@ function results = run_lsqvce(what, varargin)
             % DELEGATES to RUN_ALL_LSQVCE -- it does not re-implement it.
             %
             % This used to be `runtests(fullfile(root,'tests'))`, i.e. runtests
-            % on a FOLDER, which is the trap HANDOVER 1.7b removed: a file that
+            % on a FOLDER, which is the trap HISTORY_v1.md 1.7b removed: a file that
             % fails to LOAD is silently skipped and the remaining files still
             % report green, so the suite can look clean while an entire file
             % never ran. RUN_ALL_LSQVCE iterates the registered list, counts a

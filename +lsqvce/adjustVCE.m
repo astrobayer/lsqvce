@@ -145,8 +145,11 @@ classdef adjustVCE < handle
 %   OUTPUT of run() -- R.history (struct)
 %     .sigma      nOuter x nGroup   the variance-component trajectory
 %     .groups     1xnGroup cellstr  the VCE group keys, aligned with .sigma
-%     .contribution nOuter x nGroup Level-1 relative information share per group
-%                 per pass, share_g = r_g/sum_g r_g = tr(N^-1 N_g^cc)/(m-u), rows
+%     .contribution nOuter x nGroup Level-1 relative REDUNDANCY share per group
+%                 per pass, share_g = t_g/sum_g t_g with t_g = tr(N^-1 N_g^cc)
+%                 (the cc-attribution trace; NOT the redundancy r_g -- WP-32,
+%                 F-01: r_g = n_g - local_g - t_g. The Level-2 diagonal in
+%                 .contribDiag is the ABSORBED-information view instead), rows
 %                 sum to 1. WEIGHT-DEPENDENT: it moves across passes, the final
 %                 row is authoritative. NaN entries mark a group with no finite
 %                 redundancy. Plot it over passes to see the share settle.
@@ -183,6 +186,12 @@ classdef adjustVCE < handle
 %
 %   See also LSQVCE.ADJUSTBLOCK, LSQVCE.VCE, LSQVCE.REDUNDANCY,
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-41 (docs only, F-12 claims
+%   half + F-14): the 'joint' mode claim corrected (pooled spectrum +
+%   stream scales; NO per-arc factors -- that is ADJUSTVCEJOINT); the
+%   Level-1 history field documented as the cc-trace share it is (not a
+%   redundancy); v1-history prose retargeted to HISTORY_v1.md. With
+%   assistance from Claude (Anthropic), model Claude Fable 5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-40 (fixes F-12, gate half):
 %   'joint' convergence additionally requires the LAST joint pass to meet
 %   the outer Tol (hist.jointMaxDev(end) <= Tol) -- shapeStable alone
@@ -395,10 +404,15 @@ classdef adjustVCE < handle
         %     'separate' (default) alternates stochastic model then variance components, each with its own
         %     gate, and stops on a Ljung-Box whiteness test. Robust, interpretable,
         %     and the right choice for general work.
-        %     'joint' co-estimates every variance component at once. The two can
-        %     converge to DIFFERENT models, because the components are coupled --
-        %     the arc factor and the frequency amplitudes both scale the same
-        %     Sigma. Use it for Ellmer/ITSG fidelity.
+        %     'joint' pools the per-lag sums over ALL streams and updates the
+        %     spectrum and the per-stream scales together each outer pass --
+        %     it does NOT estimate per-arc factors (WP-41 claims fix, F-12:
+        %     the old sentence promised "every variance component at once").
+        %     The FULL ten-step co-estimation with keyed per-arc factors is
+        %     LSQVCE.ADJUSTVCEJOINT. The two can converge to DIFFERENT
+        %     models, because the components are coupled -- scales and
+        %     frequency amplitudes multiply the same Sigma. Use
+        %     LSQVCE.ADJUSTVCEJOINT for Ellmer/ITSG fidelity.
             obj.vceMode  = 'joint';
             obj.jointOpt = mergeNV(obj.jointOpt, varargin);
         end
@@ -458,7 +472,7 @@ classdef adjustVCE < handle
             hist.whitePval = [];
             hist.sigma   = [];
             hist.groups  = {};
-            hist.contribution = [];   % nOuter x nGroup relative info share (Level-1)
+            hist.contribution = [];   % nOuter x nGroup relative trace share (Level-1)
             hist.jointUpdated = [];   % nOuter x 1: streams updated per joint pass
             hist.jointMaxDev  = [];   % nOuter x 1: max|alpha2-1| per joint pass
 
@@ -516,7 +530,7 @@ classdef adjustVCE < handle
                 hist.sigma(it,:) = vc.sigma(:).';    %#ok<AGROW>
                 hist.groups      = vc.groups;
 
-                % ---------- CONTRIB (Level 1): relative information share ---
+                % ---------- CONTRIB (Level 1): relative cc-trace share ------
                 % share_g = r_g / sum_g r_g = tr(N^-1 N_g^cc) / (m-u), which
                 % sums to 1 over groups (Sigma_g share_g = 1). FREE: vc.r is
                 % already returned by lsqvce.vce (per-group redundancy, aligned
@@ -700,7 +714,7 @@ classdef adjustVCE < handle
             % needs it to draw the threshold line, and a Results must be
             % self-describing: requiring the builder object to interpret a
             % finished result is exactly the coupling that moved convergence()
-            % onto Results in the first place (HANDOVER 1.1a decision 6).
+            % onto Results in the first place (HISTORY_v1.md 1.1a decision 6).
             hist.whiteAlpha = obj.shapeOpt.WhiteAlpha;
             noise = obj.noiseSummary(ovr, streams);
             R.setIterative(hist, noise, converged);
@@ -2440,7 +2454,7 @@ function str = sigmaLine(groups, sigma)
 %   unity but not WHICH group it is -- so a loop stalled on one stubborn stream
 %   is indistinguishable from one drifting everywhere. This prints the per-group
 %   sigmas behind that summary, which is the first thing wanted when a run will
-%   not converge (see HANDOVER 1, "PER-STREAM SIGMAS in the convergence report").
+%   not converge (see HISTORY_v1.md 1, "PER-STREAM SIGMAS in the convergence report").
 %
 %   INPUT
 %     groups 1xnGroup   VCE group keys aligned with sigma; accepts a cellstr,

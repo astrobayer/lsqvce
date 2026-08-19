@@ -43,12 +43,16 @@ a { color: #0b5ea8; }
 <div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.vce</div>
 <h1>lsqvce.vce</h1>
 <div class="purpose">Helmert variance component estimation, per arc.</div>
-<h2>Syntax</h2>
-<pre class="syntax">vc = LSQVCE.VCE(accFcn, &#x27;Name&#x27;, value, ...)</pre>
 <h2>Description</h2>
-<p>Estimates one variance component per group by iterating</p>
-<pre class="example">sigma_g^2 = vtv_g / r_g</pre>
-<p>re-whitening the data with the updated sigmas at each step. Converges in 2-4 iterations from a badly wrong start (verified: recovers the truth from a 3x wrong initial weight in 2 iterations).</p>
+<pre class="example">vc = LSQVCE.VCE(accFcn, &#x27;Name&#x27;, value, ...)
+
+Estimates one variance component per group by iterating
+
+    sigma_g^2 = vtv_g / r_g
+
+re-whitening the data with the updated sigmas at each step. Converges in
+2-4 iterations from a badly wrong start (verified: recovers the truth from
+a 3x wrong initial weight in 2 iterations).</pre>
 <h3>Why You Want This</h3>
 <pre class="example">The relative weighting of observation types -- &#x27;pos&#x27; versus &#x27;kbr&#x27; -- is
 NOT known a priori, and getting it wrong biases the GRAVITY FIELD, not
@@ -58,7 +62,10 @@ common way to produce a confident wrong answer.</pre>
 <pre class="example">accFcn   @(sigma) -&gt; acc   a function that BUILDS AND RUNS a fresh
                            accumulator with the given per-group sigmas.
                            It must return the accumulator (already fully
-                           accumulated, not yet solved).</pre>
+                           accumulated, not yet solved). On the FIRST
+                           pass it is called as accFcn([]) -- sigma is
+                           EMPTY, meaning unit weights; the function must
+                           accept that (WP-41: previously undocumented).</pre>
 <h3>Options</h3>
 <pre class="example">&#x27;groups&#x27;      cellstr / numeric vector of group keys, in the order that
               sigma is indexed. If omitted, taken from the first pass.
@@ -67,39 +74,100 @@ common way to produce a confident wrong answer.</pre>
 &#x27;maxIter&#x27;     default 8
 &#x27;tol&#x27;         convergence on max|sigma_new/sigma_old - 1| (default 1e-3)
 &#x27;minRedundancy&#x27;  default 50
-&#x27;verbose&#x27;     default true</pre>
+&#x27;freezeR&#x27;  1x1 &gt; 0, default 1.  Estimability threshold of the sigma
+           UPDATE (WP-40, fixes F-10; distinct from &#x27;minRedundancy&#x27;,
+           which is LSQVCE.REDUNDANCY&#x27;s per-observation testability
+           knob): a group with r_g &lt; freezeR keeps its current sigma
+           this pass (upd = 1) and is warned about once -- the old code
+           silently floored r_g to 1, biasing sigma^2 = vtv/1 LOW.
+&#x27;verbose&#x27;     default true
+&#x27;traceMethod&#x27; &#x27;exact&#x27; (default) | &#x27;hutchinson&#x27;. Both estimate the SAME
+              quantity, the group redundancy r_g = sum_{i in g}(1-h_i) =
+              n_g - (local dof absorbed by g) - tr(N^-1 N_g^cc). &#x27;exact&#x27;
+              sums the per-arc leverages. &#x27;hutchinson&#x27; streams it
+              matrix-free (LSQVCE.STREAMCONTRIBUTION .r): the count and
+              the local term are EXACT from the same sweep, only the
+              common-block trace is a Monte-Carlo estimate -- an OPT-IN
+              accelerator for very large nc where the exact O(nc^2)/arc
+              leverage is dear. vtv (the residual sum of squares) stays
+              EXACT. NOTE r_g is NOT tr(N^-1 N_g^cc): that trace is only
+              the absorbed cc-attribution (it sums to nc, while
+              sum_g r_g = m-u); using it as the Helmert denominator
+              inflates sigma without bound (finding F-01, fixed WP-32;
+              evidence validation/v10review.py T2). The final pass also
+              fills vc.red.traceEstimate. Being stochastic it adds noise
+              to sigma -- prefer &#x27;exact&#x27; whenever affordable; see the
+              accuracy note in LSQVCE.LEVERAGE.
+&#x27;probes&#x27;      1x1  number of Hutchinson probes Z (default 100, Ellmer&#x27;s).
+&#x27;traceSeed&#x27;   1x1  RNG seed for reproducible probes (default []).</pre>
 <h3>Output</h3>
 <pre class="example">vc.sigma      final variance components (one per group)
 vc.groups     the group keys, aligned with sigma
-vc.r          final redundancy per group
+vc.traceSeedUsed  probe seed actually used: the given TraceSeed, or
+              the seed pinned up front from the private stream when
+              TraceSeed was empty (&#x27;hutchinson&#x27;, WP-36; replay with
+              &#x27;TraceSeed&#x27;, vc.traceSeedUsed reproduces vc bit-
+              identically); [] on the &#x27;exact&#x27; path
+vc.r          final redundancy per group; in &#x27;hutchinson&#x27; the streamed
+              estimate n_g - local_g - tr(N^-1 N_g^cc), consistent with
+              the loop&#x27;s denominator (sum_g vc.r ~ m-u on both paths)
 vc.history    nIter x nGroup, the sigma trajectory
 vc.converged  logical
 vc.nIter
 vc.sol        the final solution (from the converged weighting)
 vc.red        the final LSQVCE.REDUNDANCY output</pre>
 <h3>Cost</h3>
-<pre class="example">Each iteration = one accumulation pass + one redundancy pass, so roughly
-DOUBLE the cost of a plain solve, times the number of iterations. See
-LSQVCE.REDUNDANCY for measured timings; at global SH d/o 90 this is hours,
-which is expected and unavoidable for exact per-arc components.</pre>
-<p>PARALLELISM (v4)</p>
-<pre class="example">The redundancy passes inside each Helmert iteration honour the
-accumulator&#x27;s &#x27;parallel&#x27; option -- construct with
-lsqvce.BlockAccumulator(nc, &#x27;parallel&#x27;,&#x27;parfor&#x27;) and VCE inherits it with no
-change here. The arc tasks are independent, so this is where the hours
-go down (target: ~4 h -&gt; 30-40 min per iteration with 16 workers at
-d/o 90). See LSQVCE.MAPREDUCE for the determinism rules.</pre>
-<h3>Interpreting The Result</h3>
-<pre class="example">sigma_g far from 1 means the a-priori covariance for that group was wrong
-by that factor. A group whose sigma is inflated relative to its neighbours
-usually contains outliers -- run LSQVCE.OUTLIERS before concluding that its
-noise is genuinely higher.</pre>
+<pre class="example">  Each iteration = one accumulation pass + one redundancy pass, so roughly
+  DOUBLE the cost of a plain solve, times the number of iterations. See
+  LSQVCE.REDUNDANCY for measured timings; at global SH d/o 90 this is hours,
+  which is expected and unavoidable for exact per-arc components.
+
+PARALLELISM (v4)
+  The redundancy passes inside each Helmert iteration honour the
+  accumulator&#x27;s &#x27;Parallel&#x27; option -- construct with
+  lsqvce.BlockAccumulator(nc, &#x27;Parallel&#x27;,&#x27;parfor&#x27;) and VCE inherits it with no
+  change here. The arc tasks are independent, so this is where the hours
+  go down (target: ~4 h -&gt; 30-40 min per iteration with 16 workers at
+  d/o 90). See LSQVCE.MAPREDUCE for the determinism rules.
+
+INTERPRETING THE RESULT
+  sigma_g far from 1 means the a-priori covariance for that group was wrong
+  by that factor. A group whose sigma is inflated relative to its neighbours
+  usually contains outliers -- run LSQVCE.OUTLIERS before concluding that its
+  noise is genuinely higher.</pre>
 <h3>Example</h3>
 <pre class="example">accFcn = @(sig) buildAccumulator(cfg, sig);   % you write this
-vc = lsqvce.vce(accFcn, &#x27;groupBy&#x27;,&#x27;arc&#x27;, &#x27;maxIter&#x27;,6);</pre>
-<pre class="example">bar(vc.sigma);  xlabel(&#x27;arc&#x27;);  ylabel(&#x27;\sigma_g&#x27;);
+vc = lsqvce.vce(accFcn, &#x27;groupBy&#x27;,&#x27;arc&#x27;, &#x27;maxIter&#x27;,6);
+
+bar(vc.sigma);  xlabel(&#x27;arc&#x27;);  ylabel(&#x27;\sigma_g&#x27;);
 yline(1, &#x27;r--&#x27;);
-fprintf(&#x27;converged in %d iterations\n&#x27;, vc.nIter);</pre>
-<div class="seealso"><b>See also:</b> <a href="lsqvce.redundancy.html">lsqvce.redundancy</a>, <a href="lsqvce.leverage.html">lsqvce.leverage</a>, <a href="lsqvce.outliers.html">lsqvce.outliers</a></div>
-<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+lsqvce.util.log.msg(&#x27;converged in %d iterations\n&#x27;, vc.nIter);</pre>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:vce:badAccFcn           the accumulator handle is not callable
+  lsqvce:vce:badSigma0           the starting variance factor is not positive
+  lsqvce:vce:groupMismatch       the group labelling disagrees with the
+                                 accumulated batches
+  lsqvce:vce:hutchGroupMismatch  likewise, in the Hutchinson backend
+
+See also LSQVCE.REDUNDANCY, LSQVCE.LEVERAGE, LSQVCE.OUTLIERS
+
+Generated with assistance from Claude (Anthropic), model Claude
+Opus 4.8.
+Updated 2026-08-19 (CEST, UTC+02:00), WP-40 (fixes F-10): groups with
+r_g &lt; &#x27;freezeR&#x27; are FROZEN and warned about instead of silently
+floored. With assistance from Claude (Anthropic), model Claude Fable 5.
+Updated 2026-08-19 (CEST, UTC+02:00), WP-36 (fixes F-06): an empty
+TraceSeed is pinned ONCE up front from the package-private probe
+stream (global RNG untouched), so the final vc.r probes with the
+loop&#x27;s identical Z; new output vc.traceSeedUsed. With assistance from
+Claude (Anthropic), model Claude Fable 5.
+Updated 2026-08-18 (CEST, UTC+02:00), WP-32 (fixes F-01, CRITICAL):
+&#x27;hutchinson&#x27; now divides by the streamed REDUNDANCY
+r_g = n_g - local_g - tr(N^-1 N_g^cc) (LSQVCE.STREAMCONTRIBUTION .r)
+instead of substituting the bare cc-trace, which sums to nc rather than
+m-u and inflated sigma without bound; vc.r follows. Evidence:
+validation/v10review.py T2. With assistance from Claude (Anthropic),
+model Claude Fable 5.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

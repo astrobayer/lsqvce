@@ -38,7 +38,7 @@ function setupOnce(tc)
     % only cfg and throw the loaders away, so makeVCEBuilder regenerated the
     % whole thing (4 days x 2 arcs x 300 epochs) on each of its 27 calls --
     % 109 s of a 130 s suite, measured by the per-suite timing in
-    % run_all_lsqvce (HANDOVER task 6).
+    % run_all_lsqvce (HISTORY_v1.md task 6).
     %
     % SHARING LOADERS IS SAFE HERE, and the reason is worth stating because it
     % is not obvious: a loader is a STRUCT of closures over a shared
@@ -74,7 +74,7 @@ function [P, cfg] = makeVCEBuilder(tc, varargin)
 %   COST: the dataset is built ONCE in setupOnce and REUSED here, so this is
 %   cheap. Do not call demo_grace_dataLoader() directly in a test -- that
 %   regenerates 4 days x 2 arcs x 300 epochs and was worth 109 s of a 130 s
-%   suite before it was fixed (HANDOVER task 6).
+%   suite before it was fixed (HISTORY_v1.md task 6).
     cfg = tc.TestData.cfg;
     P   = lsqvce.adjustVCE(tc.TestData.loaders, cfg.days, ...
                            'Verbose', false, varargin{:});
@@ -773,7 +773,7 @@ end
 % WHY THIS EXISTS: until now NO test ran the engine with messaging ON, so
 % nothing checked that the right line appears at the right level from the right
 % place. The formatters were unit tested in test_util, but the WIRING was not,
-% and two real defects hid in exactly that gap (HANDOVER 1.7):
+% and two real defects hid in exactly that gap (HISTORY_v1.md 1.7):
 %   * lsqvce.residuals defaults verbose TRUE and the accumulator forwarded
 %     without the level, so a "silent" run still emitted 544 lines;
 %   * buildAccumulator hardcoded 'Verbose', false, so the level-2 per-day

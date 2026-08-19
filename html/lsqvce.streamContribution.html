@@ -129,6 +129,24 @@ OPTIONS (Name/Value)
                               &#x27;WantDiag&#x27; is false
               .se     1x1     Monte-Carlo standard error of .trace
               .relSE  1x1     .se / |.trace|  (NaN if .trace == 0)
+              .n      1x1     observation rows in the group (exact count
+                              from the same sweep)
+              .localAbsorbed 1x1  EXACT local dof absorbed by the group:
+                              local_g = tr((Nll^-1 + G Sxx G&#x27;) B_g&#x27;B_g)
+                                      - tr(B_g&#x27;A_g Sxx G&#x27;)
+                              from the leverage-block identities
+                              inv(N)_ll = Nll^-1 + G Sxx G&#x27; and
+                              inv(N)_lc = -G Sxx (LSQVCE.LEVERAGE); a
+                              whole-system group gives exactly nl_s. No
+                              probes enter this term.
+              .r      1x1     STREAMED REDUNDANCY (WP-32, fixes F-01):
+                              r_g = .n - .localAbsorbed - .trace
+                              == n_g - sum_{i in g} h_i in expectation,
+                              with sum_g .r = m - u. THIS is the Helmert
+                              denominator; .trace alone is only the
+                              cc-attribution (sums to nc, NOT m-u).
+              .rSE    1x1     Monte-Carlo se of .r (== .se: the local
+                              term and the count are exact)
   .nc       1x1        common-parameter count (size of the probe space)
   .probes   1x1        Z actually used
   .traceSum 1x1        sum_g .trace  (should be ~ nc; the sanity check)
@@ -138,16 +156,43 @@ OPTIONS (Name/Value)
 shared Lc. Total O(passes*nnz + Z*nc^2). Memory is the probe block (nc x Z)
 plus, transiently, one nc x Z group accumulator -- NOT O(G*nc^2).</pre>
 <h3>Example</h3>
-<pre class="example">  acc = lsqvce.BlockAccumulator(nc, &#x27;KeepLocal&#x27;, true);
-  ... addSystem(...) ...
-  sol = acc.solve();
-  c   = lsqvce.streamContribution(acc, sol, &#x27;GroupBy&#x27;,&#x27;system&#x27;, &#x27;Probes&#x27;,200);
-  share = [c.group.trace] ./ c.traceSum;      % relative info share per system
-  bar(c.group(1).diag);                       % per-coeff share of system 1
+<pre class="example">acc = lsqvce.BlockAccumulator(nc, &#x27;KeepLocal&#x27;, true);
+... addSystem(...) ...
+sol = acc.solve();
+c   = lsqvce.streamContribution(acc, sol, &#x27;GroupBy&#x27;,&#x27;system&#x27;, &#x27;Probes&#x27;,200);
+share = [c.group.trace] ./ c.traceSum;      % relative info share per system
+bar(c.group(1).diag);                       % per-coeff share of system 1</pre>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:streamContribution:badSol      the solution struct is not from this
+                                        accumulator
+  lsqvce:makeKeyFcn:badGroupBy  the grouping key is unknown (WP-38:
+                the one shared key resolver)
+  lsqvce:streamContribution:noStore     nothing was retained; re-run with
+                                        &#x27;store&#x27;,&#x27;all&#x27;
+  lsqvce:streamContribution:noArcs      a system declares no arcs
+  lsqvce:streamContribution:cNotPD      a contribution block is not positive
+                                        definite
 
 See also LSQVCE.CONTRIBUTION, LSQVCE.REDUNDANCY, LSQVCE.LEVERAGEBLOCKS,
          LSQVCE.TRACEESTIMATE, LSQVCE.VCE
 
+Updated 2026-08-19 (CEST, UTC+02:00), WP-38 (fixes F-08): key presets
+and the batch-and-whiten skeleton live in the ONE private makeKeyFcn /
+arcBatchWhiten (byte-identical numerics; GroupBy error id now
+lsqvce:makeKeyFcn:badGroupBy). With assistance from Claude
+(Anthropic), model Claude Fable 5.
+Updated 2026-08-19 (CEST, UTC+02:00), WP-36 (fixes F-06): probes from
+the ONE private generator probeMatrix; empty seed = private
+session-stream draw, global RNG untouched; seeded realisations
+unchanged. With assistance from Claude (Anthropic), model Claude
+Fable 5.
+Updated 2026-08-18 (CEST, UTC+02:00), WP-32: every group additionally
+carries .n, .localAbsorbed and the streamed redundancy .r/.rSE (see the
+OUTPUT block for the derivation); arcCommonProbe streams B_g&#x27;B_g and the
+row count in the same pass; per-system leverage blocks X = Sxx G&#x27; and
+G Sxx G&#x27; are built once per system with one nc-solve. Numerical evidence:
+validation/v10review.py T2d/T2e. With assistance from Claude (Anthropic),
+model Claude Fable 5.
 Created 2026-07-17 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Opus 4.8.</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>

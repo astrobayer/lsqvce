@@ -46,7 +46,7 @@ function VC = varComp(u, batchFcn, nBatch, groupFcn, nGroup, varargin)
 %                 estimator on THIS adjustment's conditioning WITHOUT yet
 %                 replacing the exact per-group r_g. The full per-group
 %                 Hutchinson substitution (a per-group scalar r_g in place of
-%                 tr(Qxx N_g)) is a separate code path and is HANDOVER roadmap
+%                 tr(Qxx N_g)) is a separate code path and is HISTORY_v1.md roadmap
 %                 item 0; see LSQVCE.REDUNDANCY's help for the structural reason.
 %     'probes'    1x1  number of Hutchinson probes Z (default 100, Ellmer's).
 %     'traceSeed' 1x1  RNG seed for reproducible probes (default []: global stream).
@@ -61,7 +61,7 @@ function VC = varComp(u, batchFcn, nBatch, groupFcn, nGroup, varargin)
 %                 (no per-obs fields; adds .redundSE, .estimator='hutchinson').
 %                 If 'checkD' is supplied it FALLS BACK to exact and warns (the
 %                 contamination guard needs the per-observation path). This is
-%                 HANDOVER roadmap item 0, tier T2 (an opt-in VCE backend).
+%                 HISTORY_v1.md roadmap item 0, tier T2 (an opt-in VCE backend).
 %     'seed'      1x1  RNG seed forwarded to the Hutchinson backend (falls back to
 %                 'traceSeed' if omitted). Ignored by the exact backend.
 %     'reprobe'   1x1  logical, forwarded to the Hutchinson backend (default true).
@@ -465,7 +465,7 @@ VC = struct('s', s, 'scale', scale, 'sigma', sqrt(scale), ...
 % tr(N^-1 N) = u exactly, so the estimate must return ~u. It validates the
 % estimator machinery end to end on THIS adjustment's normal (probe count,
 % conditioning) WITHOUT yet replacing the exact per-group r_g. The full
-% per-group substitution needs a group-level normal assembly and is HANDOVER
+% per-group substitution needs a group-level normal assembly and is HISTORY_v1.md
 % roadmap item 0. R is the Cholesky of the FINAL normal N from the loop above.
 if useHutch
     try
