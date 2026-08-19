@@ -218,7 +218,7 @@ order of work: 32 → 33 → 34 → 35 → 36 → 40 → 37 → 38 → 41 → 39
 | 37 | `redundancyLags` without dense W^-1 + hot-loop tolls (F-09) | — | OPEN |
 | 38 | Deduplicate keys / arc batching + audit lock (F-08) | 33,36 | OPEN |
 | 39 | `arguments` blocks + Name-Value casing, whole surface (F-07) | 32–38,40,41 | OPEN |
-| 40 | Method polish: gates, clamps, whiteness (F-10…F-13) | 32 | OPEN |
+| 40 | Method polish: gates, clamps, whiteness (F-10…F-13; + F-15 alternation bistability, registered 2026-08-19) | 32 | OPEN |
 | 41 | Documentation truth sweep (F-12, F-14) | 32,33,36,40 | OPEN |
 
 ---
@@ -2188,6 +2188,20 @@ weights convention lives in a code comment, not in the help INPUT block;
 — the v1 open item "merge the runners" is restated here, not re-opened.
 Fix: WP-41.
 
+**F-15 (MAJOR, NEW 2026-08-19, session finding — not from the blind
+review) Ellmer alternation is seed-fragile / bistable.** The closed-loop
+spectral VCE (declared covariance fed back each pass; psdVCE update
+alpha2.*Sprior with abs+floor+ZeroFreqRule) has an unstable branch: with
+EXACT s_n (no probes) the recovered-PSD correlation across data seeds
+swings 0.65..0.99 at 8 arcs x 96 rows, and MORE arcs on SHORT arcs make
+it WORSE (16x96: corr 0.12; 16x128: -0.28; 16x192: one seed -0.18) — a
+bistable fixed point, not estimation noise (SNR arithmetic puts pure
+noise at ~0.97). LONG arcs stabilise (16x256: min 0.968 over 8 seeds).
+Evidence: validation/wp33_loop_mirror.py (full-pipeline Python mirror).
+Mechanism suspects: abs()+floor can lock a sign-flipped branch; the
+ZeroFreqRule coupling. Disposition: registered here; candidate for WP-40
+(damped/relaxed update or a monotone step).
+
 ### 8.4 What is RIGHT (so nobody "fixes" it)
 
 The exact default paths are sound and verified: leverage block algebra
@@ -2431,6 +2445,20 @@ IS the recovery. jointAccMapped and the psd-feedback plumbing DELETED
 mechanics lessons (r2a truth-whitening, r2b prior bias, r2c rank
 deficiency nf >= m/2+1) stay pinned above — they are real operating
 knowledge for production model-feedback loaders.
+**Round-2e (2026-08-19): r2d red at corr 0.383 — open loop was the wrong
+theory; closed loop restored at the STABLE volume.** The sigma^2*C.*omega
+weighting (eq. 6.5.22-23) suppresses every lag n>0 under a near-delta
+prior (psdVCE's degenerate-start warning says exactly this) — open-loop
+flat-prior measurement is self-annihilating, 0.383 explained. A
+full-pipeline Python mirror (validation/wp33_loop_mirror.py, exact s_n)
+reproduces the r2b/r2c-range corr at 8x96 and EXPOSES finding F-15
+(alternation bistability — registered in §8, queued on the WP-40 row).
+Test design r2e: jointAccMapped restored (psd route, nf = 160 >=
+256/2+1), 16 arcs x 256 rows (mirror-stable: min 0.968/8 seeds), MaxIter
+10, Probes 300, seeds pinned (deterministic in MATLAB: the corr is a
+sharp regression sentinel), corr over bins 2:end (psdVCE DEFINES
+Shat(1)=Shat(2); the AR(2) truth peaks at DC, so including bin 1 only
+imports the ZeroFreqRule as an error term).
 
 ### WP-34 — Keyed arc identity in `adjustVCEjoint`
 

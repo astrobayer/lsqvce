@@ -795,26 +795,29 @@ end
 
 function test_adjustVCEjoint_psd_recovery_coloured_with_locals(tc)
     % WP-33 round 2 (the deferred spec test): on a COLOURED synthetic WITH
-    % local parameters the estimated PSD must correlate > 0.95 with the true
-    % ARMA spectrum on the estimator's own DCT-I grid. DESIGN (r2d, the
-    % regime psdVCE's own reference validates at corr 0.9999): OPEN-LOOP
-    % single pass -- the loader declares WHITE while generating AR(2), and
-    % C0 = [1; 1e-3 ...] makes Sprior ~ flat (psdVCE's documented
-    % near-delta start), so pass-1 Shat = alpha2 .* Sprior IS the recovered
-    % noise spectrum, free of the closed-loop compounding that sank r2b/r2c
-    % (corr 0.65 / 0.64; lessons in HANDOVER §9 WP-33). Pre-WP-33 the
-    % omitted B*y folds the arc-parameter signal into the low-frequency
-    % bins and the common-only projector mis-sizes s_n -- corr collapses,
-    % so this test FAILS on the old code (the §6.1 lever).
+    % local parameters the converged closed-loop PSD must correlate > 0.95
+    % with the true AR(2) spectrum. DESIGN (r2e): Ellmer's alternation via
+    % jointAccMapped (the sigma^2*C.*omega weighting NEEDS it — a flat
+    % declared prior suppresses every lag, the r2d lesson), 16 arcs x 256
+    % rows (the alternation is seed-fragile at smaller volumes and can even
+    % CRASH with more arcs on short ones: finding F-15, evidence
+    % validation/wp33_loop_mirror.py; the long-arc regime is stable, mirror
+    % min corr 0.968 over 8 seeds). Seeds are PINNED, so this run is
+    % deterministic — the corr value is a sharp regression sentinel. The
+    % correlation excludes bin 1: psdVCE's ZeroFreqRule 'lowest' DEFINES
+    % Shat(1) = Shat(2), so the DC bin carries no independent information.
+    % Pre-WP-33 the omitted B*y floods the low-frequency bins and the
+    % common-only projector mis-sizes s_n — corr collapses, so this test
+    % FAILS on the old code (the §6.1 lever).
     cfg  = jointCfgColoured();
     nLag = 10;
     w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
-    r = lsqvce.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
-            'NumLags', nLag, 'MaxIter', 1, 'Probes', 300, 'Seed', 13, ...
-            'C0', [1; 1e-3*ones(nLag-1,1)], 'Verbose', false);
+    r = lsqvce.adjustVCEjoint(@(model) jointAccMapped(cfg, model), ...
+            'NumLags', nLag, 'MaxIter', 10, 'Probes', 300, 'Seed', 13, ...
+            'Verbose', false);
     Strue = lsqvce.dctI(lsqvce.armaACV(cfg.cov.pos.ar, cfg.cov.pos.ma, nLag));
     Strue = abs(Strue(:));
-    cc = corrcoef(r.Shat(:), Strue);
+    cc = corrcoef(r.Shat(2:end), Strue(2:end));
     verifyGreaterThan(tc, cc(1,2), 0.95, ...
         sprintf('PSD recovery with locals: corr = %.3f (need > 0.95)', cc(1,2)));
 end
@@ -831,29 +834,56 @@ function cfg = jointCfgColoured()
     cfg.y    = containers.Map('KeyType','double','ValueType','any');
     cfg.y(92) = randn(rs, cfg.nl, 1);
     cfg.obsTypes   = {'pos'};
-    cfg.arcsPerDay = 8;                % jointAcc streams ONE day: 8 x 96 rows
-    cfg.mArc       = 96;
+    cfg.arcsPerDay = 16;               % ONE day: 16 x 256 rows (the mirror's
+    cfg.mArc       = 256;              %  stable regime, F-15 evidence)
     cfg.dt         = 5;
     cfg.seed       = 9223;             % distinct seed -> distinct cache key
     cfg.collinear  = false;
     cfg.collinearEps = 1e-7;
     cfg.cov.pos = struct('type','arma', 'ar',[1 -0.75 0.4], 'ma',1, 'sigma',1.0);
-    % GENERATION follows cfg.cov (AR(2)); the DECLARED covariance is forced
-    % WHITE via covOverride in jointCfgColouredOverride -- never the truth
-    % (whitening with the truth hands the estimator pre-whitened residuals
-    % and the correct Shat is FLAT, the round-2a lesson) and never a
-    % fed-back estimate (the closed loop compounds its own declaration
-    % error, rounds 2b/2c).
-    cfg.override = struct('covOverride', struct('pos', ...
-                          struct('type','diag','sigma',1.0)));
+    % GENERATION follows cfg.cov (AR(2)); the DECLARED covariance is owned
+    % by jointAccMapped (never the truth — round-2a lesson: truth-whitening
+    % makes the correct Shat flat and the test vacuous).
+end
+
+function acc = jointAccMapped(cfg, model)
+    % The coloured fixture's CLOSED LOOP (Ellmer's alternation, r2c route):
+    % the driver's current model.C is declared back as the covariance via
+    % the toolbox's PD-safe 'psd' path — Shat = dctI(C) upsampled to 160
+    % frequencies (>= mArc/2 + 1 = 129, covModel's rank rule) and psdMode
+    % 'toeplitz' for the dense Cfcn oneArc needs. Generation always follows
+    % cfg.cov. Restored in r2e: r2d's open-loop replacement was wrong — the
+    % sigma^2*C.*omega weighting suppresses all lags under a flat prior, so
+    % Ellmer's scheme NEEDS the alternation (mirror evidence:
+    % validation/wp33_loop_mirror.py).
+    uo = struct();
+    if ~isempty(model) && isfield(model, 'C') && ~isempty(model.C)
+        C     = model.C(:);
+        Shat  = max(lsqvce.dctI(C), 0);
+        fNyq  = 1/(2*cfg.dt);
+        fC    = (0:numel(C)-1).' * fNyq/(numel(C)-1);
+        fD    = linspace(0, fNyq, 160).';        % 160 >= 256/2 + 1
+        SD    = max(interp1(fC, Shat(:), fD, 'pchip'), 0);
+        uo.covOverride.pos = struct('type','psd', 'f', fD, 'S', SD, ...
+                                    'sigma', 1);
+        uo.psdMode = 'toeplitz';
+    else
+        uo.covOverride.pos = struct('type','diag', 'sigma', 1.0);
+    end
+    acc = lsqvce.BlockAccumulator(cfg.nc, 'KeepLocal', true, 'Verbose', false, ...
+                                  'UserOpt', uo);
+    for s = cfg.sats
+        acc.addSystem(s, cfg.nl, ...
+            @(d,ot,a,uo2) lsqvce.synthLoader(cfg, s, d, ot, a, uo2), 1);
+    end
 end
 
 function acc = jointAcc(cfg, model) %#ok<INUSD>
     % Rebuild the accumulator. A production caller would map model.C / model.sigma2
     % into the loader's covariance; here the fixture keeps the weighting fixed so
     % the test exercises the DRIVER's plumbing, not the loader's. A cfg.override
-    % (the coloured fixture) reaches the loader as UserOpt -- e.g. DECLARE white
-    % while GENERATING coloured (the open-loop recovery design, r2d).
+    % reaches the loader as UserOpt (generic hook; the coloured fixture now
+    % owns its declaration in jointAccMapped instead).
     uo = struct();
     if isfield(cfg, 'override'), uo = cfg.override; end
     acc = lsqvce.BlockAccumulator(cfg.nc, 'KeepLocal', true, 'Verbose', false, ...
