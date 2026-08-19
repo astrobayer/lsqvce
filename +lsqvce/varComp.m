@@ -140,6 +140,9 @@ arguments
     opt.TraceMethod (1,1) string {mustBeMember(opt.TraceMethod, ["exact","hutchinson"])} = "exact"
     opt.Probes (1,1) double {mustBeInteger, mustBePositive} = 100
     opt.TraceSeed double {mustBeScalarOrEmpty} = []
+    opt.Backend (1,1) string {mustBeMember(opt.Backend, ["exact","hutchinson"])} = "exact"
+    opt.Seed double {mustBeScalarOrEmpty} = []
+    opt.Reprobe (1,1) logical = true
 end
 
 % WP-39 stage (b): typed `arguments` signature (canonical UpperCamel
@@ -148,7 +151,9 @@ end
 o = struct('method', char(opt.Method), 'maxIter', opt.MaxIter, ...
            'tol', opt.Tol, 'verbose', opt.Verbose, 'minObs', opt.MinObs, ...
            'checkD', opt.CheckD, 'traceMethod', char(opt.TraceMethod), ...
-           'probes', opt.Probes, 'traceSeed', opt.TraceSeed);
+           'probes', opt.Probes, 'traceSeed', opt.TraceSeed, ...
+           'backend', char(opt.Backend), 'seed', opt.Seed, ...
+           'reprobe', opt.Reprobe);
 rigorous = strcmpi(o.method, 'rigorous');
 useHutch = strcmpi(o.traceMethod, 'hutchinson');
 

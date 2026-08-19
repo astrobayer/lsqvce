@@ -2875,6 +2875,16 @@ eight HTML pages regenerated, reference-manual release note extended.
 REMAINING: stage (b) round 2 = the diagnostics family (diagnose,
 residuals, report, outliers, robust, ftest, crossCorr, ellipse,
 selectArOrder), then stage (c) primitives.
+**b1 round 2 (2026-08-19): field-completeness repair.** CI red (17
+errors, all one cause): varComp's b1 arguments block DROPPED three of
+the twelve old options (backend/seed/reprobe) — the body read o.backend
+into a struct that never carried it. Fixed by restoring Backend/Seed/
+Reprobe (typed, canonical) and extending the o-struct mapping. LESSON
+PINNED, mechanical and reusable: after any parser->arguments migration,
+diff the set of o.<field> READS in the body against the MAPPED fields
+(or the declared opt.* names when o = opt) — a five-line Python check
+now run for all eight b1 functions: ALL COMPLETE. The old parse block is
+the option inventory; migrate against IT, not against the help text.
 
 **Round a2 (2026-08-19): adjust + the fluent configurators — two PINNED
 DEVIATIONS (user approves by merge), both consequences of the corrected
