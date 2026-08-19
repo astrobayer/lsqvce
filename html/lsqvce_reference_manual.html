@@ -56,6 +56,16 @@ img.eq-inline { height: 1.05em; vertical-align: -0.15em; }
 Equation numbers here are self-contained. Everything is streaming and
 weight-based (<img class="eq-inline" src="eq/09dce5a54a92.png" alt="equation">, never variance).</p>
 
+<div class="callout"><b>Release note — Name-Value casing (WP-39, 2026-08-19).</b>
+Migrated to typed <code>arguments</code> signatures with EXACT
+UpperCamelCase names so far: <code>lsqvce.adjustVCEjoint</code> (names
+unchanged), <code>lsqvce.adjustBlock</code> (was
+<code>backend/reg/regLambda/regMatrix/parallel/verbose/showSeconds/exportDir</code>),
+<code>lsqvce.iterateNoiseModel</code> (was
+<code>updateTypes/maxIter/sigmaTol/whiteFactor/whiteLags/maxLag/orderGrid/acvTol/detrend/verbose</code>).
+Previously-tolerated sloppy casings now error; enum values are
+case-sensitive lowercase. Remaining functions follow in the staged WP-39
+rollout.</div>
 <h2>Symbols</h2>
 <table>
 <tr><th>Symbol</th><th>Meaning</th></tr>

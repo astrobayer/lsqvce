@@ -833,6 +833,28 @@ function test_poolGroups_errors_on_missing_fields(tc)
 end
 
 %% ================================== WP-40: per-arc whiteness pooling (F-13)
+function test_noise_iteration_signature_exact_names(tc)
+    % WP-39 (F-07; fails on the old code): lowercase 'maxiter' passed the
+    % old case-insensitive inputParser and must ERROR now; typed
+    % constraints fire before any accumulator work.
+    dummy = @(cov) cov;
+    cov0 = struct('pos', struct('type','diag','sigma',1));
+    ok = false;
+    try
+        lsqvce.iterateNoiseModel(dummy, cov0, 'maxiter', 2);  % legacy casing
+    catch e
+        ok = startsWith(e.identifier, 'MATLAB:');
+    end
+    verifyTrue(tc, ok, 'lowercase ''maxiter'' must be rejected (exact-name)');
+    ok = false;
+    try
+        lsqvce.iterateNoiseModel(dummy, cov0, 'MaxLag', 4);   % < 8
+    catch e
+        ok = startsWith(e.identifier, 'MATLAB:');
+    end
+    verifyTrue(tc, ok, 'MaxLag < 8 must be rejected by the signature');
+end
+
 function test_noise_iteration_perarc_whiteness_smoke(tc)
     % WP-40 (F-13): maxAcf now pools PER ARC (no lagged product crosses an
     % arc boundary, mirroring pooledACV). This serial smoke drives the NEW

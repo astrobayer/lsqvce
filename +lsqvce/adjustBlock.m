@@ -40,17 +40,20 @@ function R = adjustBlock(systems, days, opt)
 %   raw spec. Stating it separately would let the same number be written twice
 %   and disagree, which is exactly the bug this removes.
 %
-%     Name/Value options ([] or omitted -> defaults):
-%       'backend'    char   'qr' | 'normal'                     (default 'qr')
-%       'reg'        char   'none'|'tikhonov'|'tsvd'|'lm'|'auto'(default 'none')
-%       'regLambda'  1x1    regularisation weight               (default 0)
-%       'regMatrix'  pxnc   regularisation matrix               (default [])
-%       'parallel'   char   'serial'|'parfor'|'spmd'            (default 'serial')
-%       'verbose'    1x1    logical, accumulator chatter        (default false)
-%       'showSeconds' 1x1   seconds to display each plot-hook figure (default 0
-%                           = export only; <0 = show and LEAVE OPEN). Engine-side
-%                           knob, mirrors LSQVCE.ADJUSTVCE.
-%       'exportDir'  char   folder for plot-hook PNGs ('' = do not export).
+%     Name/Value options (WP-39: EXACT UpperCamelCase names; enum values
+%     are case-sensitive lowercase):
+%       'Backend'    string 1x1  "qr" | "normal"                (default "qr")
+%       'Reg'        string 1x1  "none"|"tikhonov"|"tsvd"|"lm"|"auto"
+%                                                               (default "none")
+%       'RegLambda'  double 1x1 >= 0  regularisation weight     (default 0)
+%       'RegMatrix'  double p x nc    regularisation matrix     (default [])
+%       'Parallel'   string 1x1  "serial"|"parfor"|"spmd"       (default "serial")
+%       'Verbose'    logical 1x1  accumulator chatter           (default false)
+%       'ShowSeconds' double 1x1  seconds to display each plot-hook figure
+%                            (default 0 = export only; < 0 = show and
+%                            LEAVE OPEN -- the v1 contract, unchanged).
+%                            Engine-side knob, mirrors LSQVCE.ADJUSTVCE.
+%       'ExportDir'  string 1x1  folder for plot-hook PNGs ("" = do not export).
 %
 %   PLOT HOOKS (single-solve, postSolve only)
 %     If a loader was built with LSQVCE.MAKELOADER's 'plotPostSolve', adjustBlock
@@ -117,7 +120,7 @@ arguments
     opt.RegMatrix double = []
     opt.Parallel (1,1) string {mustBeMember(opt.Parallel, ["serial","parfor","spmd"])} = "serial"
     opt.Verbose  (1,1) logical = false
-    opt.ShowSeconds (1,1) double {mustBeNonnegative} = 0
+    opt.ShowSeconds (1,1) double = 0
     opt.ExportDir (1,1) string = ""
 end
     narginchk(2, inf);

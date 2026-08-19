@@ -397,6 +397,35 @@ function cfg = synthCfg()
 end
 
 %% ============================ WP-39 stage (a): typed signature (F-07)
+%% =========================== WP-39 stage (a): typed-signature enforcement
+function test_block_signature_exact_names_and_enums(tc)
+    % WP-39 (F-07; fails on the old code): lowercase 'backend' passed the
+    % old case-insensitive inputParser and must ERROR now; enum VALUES are
+    % case-sensitive lowercase under mustBeMember (the old strcmpi
+    % validators accepted 'QR').
+    ok = false;
+    try
+        lsqvce.adjustBlock({}, [], 'backend', 'qr');   % legacy casing
+    catch e
+        ok = startsWith(e.identifier, 'MATLAB:');
+    end
+    verifyTrue(tc, ok, 'lowercase ''backend'' must be rejected (exact-name)');
+    ok = false;
+    try
+        lsqvce.adjustBlock({}, [], 'Backend', 'QR');   % enum casing
+    catch e
+        ok = startsWith(e.identifier, 'MATLAB:');
+    end
+    verifyTrue(tc, ok, 'Backend value ''QR'' must be rejected (case-sensitive)');
+    ok = false;
+    try
+        lsqvce.adjustBlock({}, [], 'RegLambda', -1);   % typed constraint
+    catch e
+        ok = startsWith(e.identifier, 'MATLAB:');
+    end
+    verifyTrue(tc, ok, 'negative RegLambda must be rejected by the signature');
+end
+
 function test_signature_typed_arguments(tc)
     % WP-39 (fails on the old code): the typed `arguments` block rejects
     % what inputParser tolerated -- unknown names, WRONG-CASE names (the

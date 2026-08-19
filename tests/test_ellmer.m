@@ -865,6 +865,37 @@ function test_joint_signature_typed_arguments(tc)
     end
 end
 
+%% =========================== WP-39 stage (a): typed-signature enforcement
+function test_joint_signature_exact_names_and_types(tc)
+    % WP-39 (F-07; fails on the old code): the arguments block matches
+    % Name-Value names EXACTLY -- the old inputParser accepted any casing,
+    % so lowercase 'numlags' PASSED there and must ERROR now. Wrong types
+    % must error before any body code runs. IDs are checked loosely
+    % ('MATLAB:' prefix) for release robustness.
+    dummy = @(s) s;
+    ok = false;
+    try
+        lsqvce.adjustVCEjoint(dummy, 'numlags', 12);   % legacy casing
+    catch e
+        ok = startsWith(e.identifier, 'MATLAB:');
+    end
+    verifyTrue(tc, ok, 'lowercase ''numlags'' must be rejected (exact-name)');
+    ok = false;
+    try
+        lsqvce.adjustVCEjoint(dummy, 'MaxIter', 'three');  % wrong type
+    catch e
+        ok = startsWith(e.identifier, 'MATLAB:');
+    end
+    verifyTrue(tc, ok, 'non-numeric MaxIter must be rejected by the signature');
+    ok = false;
+    try
+        lsqvce.adjustVCEjoint(dummy, 'StepSchedule', 'Decay');  % enum casing
+    catch e
+        ok = startsWith(e.identifier, 'MATLAB:');
+    end
+    verifyTrue(tc, ok, 'StepSchedule value matching is case-sensitive now');
+end
+
 function test_lags_structured_sums_match_dense_toeplitz(tc)
     % Agreement at 1e-12 (spec): the Levinson + Gohberg-Semencul path must
     % reproduce s_n from the dense reference X = W\eye(N) on the standing

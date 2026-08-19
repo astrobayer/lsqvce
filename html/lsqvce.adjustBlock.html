@@ -83,17 +83,20 @@ the number of rows in its &#x27;commonParams&#x27; table, or from the .nc field 
 raw spec. Stating it separately would let the same number be written twice
 and disagree, which is exactly the bug this removes.
 
-  Name/Value options ([] or omitted -&gt; defaults):
-    &#x27;backend&#x27;    char   &#x27;qr&#x27; | &#x27;normal&#x27;                     (default &#x27;qr&#x27;)
-    &#x27;reg&#x27;        char   &#x27;none&#x27;|&#x27;tikhonov&#x27;|&#x27;tsvd&#x27;|&#x27;lm&#x27;|&#x27;auto&#x27;(default &#x27;none&#x27;)
-    &#x27;regLambda&#x27;  1x1    regularisation weight               (default 0)
-    &#x27;regMatrix&#x27;  pxnc   regularisation matrix               (default [])
-    &#x27;parallel&#x27;   char   &#x27;serial&#x27;|&#x27;parfor&#x27;|&#x27;spmd&#x27;            (default &#x27;serial&#x27;)
-    &#x27;verbose&#x27;    1x1    logical, accumulator chatter        (default false)
-    &#x27;showSeconds&#x27; 1x1   seconds to display each plot-hook figure (default 0
-                        = export only; &lt;0 = show and LEAVE OPEN). Engine-side
-                        knob, mirrors LSQVCE.ADJUSTVCE.
-    &#x27;exportDir&#x27;  char   folder for plot-hook PNGs (&#x27;&#x27; = do not export).
+  Name/Value options (WP-39: EXACT UpperCamelCase names; enum values
+  are case-sensitive lowercase):
+    &#x27;Backend&#x27;    string 1x1  &quot;qr&quot; | &quot;normal&quot;                (default &quot;qr&quot;)
+    &#x27;Reg&#x27;        string 1x1  &quot;none&quot;|&quot;tikhonov&quot;|&quot;tsvd&quot;|&quot;lm&quot;|&quot;auto&quot;
+                                                            (default &quot;none&quot;)
+    &#x27;RegLambda&#x27;  double 1x1 &gt;= 0  regularisation weight     (default 0)
+    &#x27;RegMatrix&#x27;  double p x nc    regularisation matrix     (default [])
+    &#x27;Parallel&#x27;   string 1x1  &quot;serial&quot;|&quot;parfor&quot;|&quot;spmd&quot;       (default &quot;serial&quot;)
+    &#x27;Verbose&#x27;    logical 1x1  accumulator chatter           (default false)
+    &#x27;ShowSeconds&#x27; double 1x1  seconds to display each plot-hook figure
+                         (default 0 = export only; &lt; 0 = show and
+                         LEAVE OPEN -- the v1 contract, unchanged).
+                         Engine-side knob, mirrors LSQVCE.ADJUSTVCE.
+    &#x27;ExportDir&#x27;  string 1x1  folder for plot-hook PNGs (&quot;&quot; = do not export).
 
 PLOT HOOKS (single-solve, postSolve only)
   If a loader was built with LSQVCE.MAKELOADER&#x27;s &#x27;plotPostSolve&#x27;, adjustBlock

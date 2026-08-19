@@ -2779,6 +2779,52 @@ audit lock itself, which FAILS on the pre-WP-38 tree).
 > identifier), plus the untouched-numerics regression on the standing
 > fixture. This package lands LAST.
 
+**ROUND NOTE (2026-08-19, WP-39 stage (a) round 1 = a1, model Claude
+Fable 5; branch `claude/wp-39`, riding the WP-41 DONE flip).** MIGRATED
+to typed `arguments` signatures with EXACT UpperCamelCase names:
+(1) adjustVCEjoint — names were already UpperCamel, UNCHANGED; validators
+became mustBe*; Norm/MeanType are now string-typed and flow into
+psdVCE/dctI's inputParser unchanged (inputParser accepts strings).
+(2) adjustBlock — Backend/Reg/RegLambda/RegMatrix/Parallel/Verbose/
+ShowSeconds/ExportDir (was lowercase); enum VALUES case-sensitive
+lowercase via mustBeMember (strcmpi used to accept any casing); the v1
+"ShowSeconds < 0 = show and leave open" contract PRESERVED (an initial
+mustBeNonnegative draft would have broken it — caught pre-commit, help
+states the v1 contract). Zero call sites needed sweeping.
+(3) iterateNoiseModel — UpdateTypes/MaxIter/SigmaTol/WhiteFactor/
+WhiteLags/MaxLag/OrderGrid/AcvTol/Detrend/Verbose; the data-dependent
+UpdateTypes default (all fields of cov0) kept via the {} sentinel; both
+existing call sites already used UpperCamel, no sweep.
+TESTS (one per function, the fails-on-old lever = a LEGACY-lowercase
+name that the old case-insensitive inputParser ACCEPTED and the
+arguments block must reject; ids checked loosely via the 'MATLAB:'
+prefix for release robustness): test_ellmer (joint: 'numlags', wrong
+type, enum casing), test_adjustBlock ('backend', 'Backend'="QR",
+RegLambda<0), test_lsqvce_ext ('maxiter', MaxLag<8).
+DOCS: three HTML pages regenerated from the corrected help
+(delete+rebuild); the LIVE manuals edited BY HAND because
+build_manuals.py is _STALE_GUARDed (rebuilding would revert shipped
+fixes, HISTORY 1.4C): user manual gets the Name-Value-casing callout AND
+its fluent example switched to the canonical UpperCamel names (mergeNV
+is case-insensitive today, so the old lowercase example worked but
+breaks at a2 — fixed ahead), reference manual gets the RELEASE NOTE
+listing the exact old->new name breaks.
+**RELEASE NOTE (verbatim, for the repository notes):** "WP-39 (staged):
+lsqvce.adjustVCEjoint, lsqvce.adjustBlock and lsqvce.iterateNoiseModel
+now use typed `arguments` signatures. Option names are EXACT
+UpperCamelCase (adjustBlock: backend/reg/regLambda/regMatrix/parallel/
+verbose/showSeconds/exportDir -> Backend/Reg/RegLambda/RegMatrix/
+Parallel/Verbose/ShowSeconds/ExportDir; iterateNoiseModel: updateTypes/
+maxIter/sigmaTol/whiteFactor/whiteLags/maxLag/orderGrid/acvTol/detrend/
+verbose -> UpperCamel equivalents). Previously-tolerated sloppy casings
+and enum-value casings (e.g. 'QR') now error."
+**DEFERRED to stage (a) round 2 (a2), deliberately:** lsqvce.adjust
+(64 lowercase call sites to sweep) and the adjustVCE fluent
+configurators (37 sites; mergeNV is case-insensitive and canonicalises
+to the stored UpperCamel field names — the a2 migration replaces mergeNV
+semantics with exact-name arguments and sweeps the remaining lowercase
+sites). Stages (b) VCE/diagnostics layer and (c) primitives follow.
+
 **ROUND NOTE (2026-08-19, WP-39 stage (a) round a1, model Claude Fable 5;
 branch `claude/wp-39`, riding the WP-41 DONE flip). Staging WITHIN (a),
 honest to the sweep load:** a1 = the three front doors with 0-2 call

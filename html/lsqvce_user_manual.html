@@ -187,11 +187,21 @@ R.report();
 % Iterative: discover the noise model (SHAPE) and group weights (SCALE)
 R = lsqvce.adjustVCE({Lc, Ld}, days) ...
         .groupComponentsBy('obsType') ...
-        .stochasticModel('maxOrder', 60, 'acvTol', 1e-3) ...
-        .varianceComponents('maxIter', 8, 'tol', 1e-3) ...
+        .stochasticModel('MaxOrder', 60, 'AcvTol', 1e-3) ...
+        .varianceComponents('MaxIter', 8, 'Tol', 1e-3) ...
         .run();
 R.report();
 disp(R.history.sigma);        % per-pass variance components</pre>
+<div class="callout"><b>Name-Value casing (WP-39, 2026-08-19).</b>
+The public surface is migrating from <code>inputParser</code> to typed
+<code>arguments</code> signatures. The canonical option names are
+<b>UpperCamelCase</b> (<code>'MaxIter'</code>, <code>'Backend'</code>,
+<code>'Verbose'</code>, &hellip;) and matching is <b>exact-name</b>:
+migrated functions (<code>adjustVCEjoint</code>, <code>adjustBlock</code>,
+<code>iterateNoiseModel</code> so far) no longer accept the sloppy casings
+the old case-insensitive parser tolerated, and enum <i>values</i> such as
+<code>"qr"</code> are case-sensitive lowercase. Each function's help states
+its canonical names; the release notes list the break.</div>
 <p>Under the hood these drive a <a href="lsqvce.BlockAccumulator.html">lsqvce.BlockAccumulator</a>
 (kept reachable on <code>R.acc</code> for experts). The diagnostics bridge
 <a href="lsqvce.diagnoseAccum.html">lsqvce.diagnoseAccum</a> rebuilds the full
