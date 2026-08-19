@@ -348,6 +348,36 @@ function test_helmert_recovers_known_weight_error(tc)
     verifyEqual(tc, ratio, 3, 'RelTol', 0.12);
 end
 
+function test_adjust_typed_validators_and_enum_values(tc)
+    % WP-39 round a2 (F-07): adjust keeps inputParser BY DESIGN (open
+    % pass-through to diagnose) but its five own options got typed
+    % validators and canonical names. Fails-on-old levers, checked with
+    % the SPECIFIC parser id (a loose 'MATLAB:' prefix is satisfied by
+    % body crashes -- the a1-2 lesson): the old code had NO validators,
+    % so these calls sailed into the body there.
+    src_ = @(k) deal(randn(8,2), randn(8,1), []);
+    ok = false;
+    try
+        lsqvce.adjust(2, src_, 1, 'Sigma0', 'abc');
+    catch e
+        ok = strcmp(e.identifier, 'MATLAB:InputParser:ArgumentFailedValidation');
+    end
+    verifyTrue(tc, ok, 'non-numeric Sigma0 must fail the typed validator');
+    ok = false;
+    try
+        lsqvce.adjust(2, src_, 1, 'Method', 'QR');
+    catch e
+        ok = strcmp(e.identifier, 'MATLAB:InputParser:ArgumentFailedValidation');
+    end
+    verifyTrue(tc, ok, 'Method ''QR'' must be rejected (case-sensitive enum value)');
+    % and the pass-through contract survives: lowercase casing + a
+    % forwarded diagnose option must still run end to end.
+    w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
+    [sol, D, V] = lsqvce.adjust(2, src_, 1, 'verbose', false, 'store', 'none'); %#ok<ASGLU>
+    verifyTrue(tc, isstruct(sol) || isobject(sol), ...
+        'lowercase casing and forwarded options must keep working');
+end
+
 function test_varComp_negative_component_freezes_not_nukes(tc)
     % WP-40 (fixes F-11; fails on the old code, whose s(bad) = 1e-6 divided
     % the group's CUMULATIVE variance by 1e6): a two-group rig (group 2:

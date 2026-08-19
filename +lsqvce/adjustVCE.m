@@ -2221,10 +2221,13 @@ end
 % ==========================================================================
 function s = mergeNV(s, nv)
 %MERGENV  Merge Name/Value pairs into struct S, matching field names
-%   CASE-INSENSITIVELY so the fluent options (.shape/.scale/.outer) accept the
-%   same lowerCamelCase spelling as the constructor's Name/Value options, e.g.
-%   .scale('maxIter',8) and .scale('maxIter',8) both hit the MaxIter field.
-%   Unknown names are added verbatim (validated downstream).
+%   CASE-INSENSITIVELY and canonicalises to the stored UpperCamelCase field
+%   (WP-39 round a2, PINNED DEVIATION: the fluent configurators KEEP this
+%   merge -- its case-insensitive-to-canonical matching is exactly MATLAB's
+%   own name-value semantics, and the sentinel machinery an arguments
+%   migration would need adds nothing a caller can observe. Canonical
+%   casing is UpperCamelCase; typed validation stays with the downstream
+%   consumers). Unknown names are added verbatim (validated downstream).
     fn = fieldnames(s);
     for i = 1:2:numel(nv)
         key = nv{i};

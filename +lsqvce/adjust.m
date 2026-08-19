@@ -25,16 +25,25 @@ function [sol, D, V] = adjust(u, batchFcn, nBatch, varargin)
 %                      leverage, flagIdx, MDB -- see LSQVCE.DIAGNOSE
 %     V    1x1 struct  the level-0..4 verdict -- see LSQVCE.REPORT
 %
-%   NAME-VALUE  (all forwarded, see Accumulator/diagnose/report)
-%     'method'      'qr' (default) | 'normal'
-%     'sigma0'      a-priori sigma0                       (default 1)
+%   NAME-VALUE  (WP-39: adjust's OWN five options carry canonical
+%   UpperCamelCase names with typed validators; any casing still matches
+%   (inputParser, case-insensitive -- same behaviour as the
+%   arguments-migrated functions). Every OTHER pair is FORWARDED verbatim
+%   to LSQVCE.DIAGNOSE -- the deliberate open pass-through that keeps
+%   this front door on inputParser; forwarded names below use diagnose's
+%   current lowercase surface until its own WP-39 stage.)
+%     'Method'      "qr" (default) | "normal" -- enum VALUE is
+%                   case-sensitive lowercase (WP-39)
+%     'Sparse'      logical, sparse accumulation           (default false)
+%     'DatumB'      datum constraint matrix                (default [])
+%     'Sigma0'      a-priori sigma0, scalar > 0           (default 1)
 %     'alpha'       significance per test                 (default 1e-3)
 %     'bonferroni'  correct for n simultaneous tests      (default true)
 %     'beta'        MDB type-II error                     (default 0.20)
 %     'rWeak'       weak-control threshold                (default 0.10)
 %     'test'        'auto' | 'pope' | 'baarda'            (default 'auto')
 %     'store'       'all' | 'flagged' | 'none'            (default 'all')
-%     'verbose'     print the report                      (default true)
+%     'Verbose'     print the report                      (default true)
 %
 %   EXAMPLE
 %       % Two blunders planted at observations 40 and 150.
@@ -54,24 +63,42 @@ function [sol, D, V] = adjust(u, batchFcn, nBatch, varargin)
 %       % D.s0           -> 1.675         variance factor inflated by them
 %       % D.sumRRelErr   -> 0             the integrity identity holds
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (a) round a2
+%   (F-07): canonical UpperCamelCase names + typed validators on the five
+%   own options; enum VALUE 'Method' case-sensitive lowercase; the open
+%   pass-through to LSQVCE.DIAGNOSE keeps this front door on inputParser
+%   BY DESIGN (pinned deviation, §9 WP-39). With assistance from Claude
+%   (Anthropic), model Claude Fable 5.
+%
 %   See also LSQVCE.DIAGNOSE, LSQVCE.REPORT, LSQVCE.SNOOP.
 %
 %
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
 
+% WP-39 stage (a) round a2 (F-07), PINNED DEVIATION: adjust KEEPS
+% inputParser BY DESIGN -- KeepUnmatched is a documented FEATURE here
+% (unmatched options are forwarded to LSQVCE.DIAGNOSE below), which an
+% `arguments` block cannot express. The F-07 substance lands anyway:
+% canonical UpperCamelCase parameter names (inputParser matches
+% case-insensitively, so every existing lowercase call site keeps
+% working -- the same behaviour the arguments-migrated functions have),
+% and TYPED validators on all five known options. Enum values are
+% case-sensitive lowercase (strcmp), matching the migrated trio.
 ip = inputParser;
 ip.KeepUnmatched = true;
-addParameter(ip, 'method',  'qr');
-addParameter(ip, 'sparse',  false);
-addParameter(ip, 'datumB',  []);
-addParameter(ip, 'sigma0',  1);
-addParameter(ip, 'verbose', true);
+addParameter(ip, 'Method',  'qr', ...
+    @(s) (ischar(s) || isstring(s)) && any(strcmp(char(s), {'qr','normal'})));
+addParameter(ip, 'Sparse',  false, @(v) islogical(v) && isscalar(v));
+addParameter(ip, 'DatumB',  [], @(v) isnumeric(v));
+addParameter(ip, 'Sigma0',  1, @(v) isnumeric(v) && isscalar(v) && v > 0);
+addParameter(ip, 'Verbose', true, ...
+    @(v) (islogical(v) || isnumeric(v)) && isscalar(v));
 parse(ip, varargin{:});
 
-accArgs = {'method', ip.Results.method, 'sparse', ip.Results.sparse};
-if ~isempty(ip.Results.datumB)
-    accArgs = [accArgs, {'datumB', ip.Results.datumB}];
+accArgs = {'method', ip.Results.Method, 'sparse', ip.Results.Sparse};
+if ~isempty(ip.Results.DatumB)
+    accArgs = [accArgs, {'datumB', ip.Results.DatumB}];
 end
 
 % ---------------------------------------------------------------- pass 1
@@ -80,15 +107,15 @@ for k = 1:nBatch
     [A, l, p] = callBatch(batchFcn, k);
     acc.add(A, l, p);
 end
-sol = acc.solve('sigma0', ip.Results.sigma0);
+sol = acc.solve('sigma0', ip.Results.Sigma0);
 
 % ---------------------------------------------------------------- pass 2
 dArgs = varargin;
-dArgs = stripArgs(dArgs, {'method', 'sigma0', 'verbose', 'sparse', 'datumB'});
+dArgs = stripArgs(dArgs, {'Method', 'Sigma0', 'Verbose', 'Sparse', 'DatumB'});  % strcmpi: any casing stripped
 D = lsqvce.diagnose(sol, batchFcn, 'nBatch', nBatch, dArgs{:});
 
 % ---------------------------------------------------------------- verdict
-V = lsqvce.report(D, 'verbose', ip.Results.verbose);
+V = lsqvce.report(D, 'verbose', ip.Results.Verbose);
 
 end
 
