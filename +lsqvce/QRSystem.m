@@ -193,16 +193,18 @@ classdef QRSystem < handle
             % supersedes it. A dof-free contribution legitimately carries
             % rho2 ~ 0 and is exempt.
             if red.dof > 0
-                % Threshold 13, MEASURED (2026-08-20, pf50): relerr(rho2)
-                % ~ eps*10^digitsLost -- at the 30/1e-4 regime the fold
-                % loses 11 digits yet the surviving ones give sigma0 good
-                % to 8e-5 (KEEP); the WP-49 deep probe sits at ~19 digits,
-                % rho2 destroyed (REFUSE). 13 separates the two measured
-                % cases (relerr ~ 2e-3 there) with two digits of margin
-                % each way. The normal route's 8 does NOT transfer: its
-                % error is kappa^2-amplified, this subtraction's is not.
+                % Threshold 15, MEASURED at three anchors (2026-08-20,
+                % pf50 r1/r1b): the 30/1e-4 block fixture folds at
+                % digitsLost = 13.4 (ltl_red 7.19e16 / rho2 3.06e3) and its
+                % sigma0 was measured GOOD to 8e-5 -- the eps*10^dl bound
+                % is ~50x pessimistic here; the WP-49 deep probe sits at
+                % ~19 digits with rho2 driven NEGATIVE (destroyed); the
+                % first pin at 13 knife-edged the proven-good fixture.
+                % 15 leaves 1.6 digits above measured-good and ~4 below
+                % measured-destroyed. The normal route's 8 does NOT
+                % transfer: its error is kappa^2-amplified, this one's not.
                 destroyed = rho2 <= 0 || (red.ltl > 0 && ...
-                    log10(max(red.ltl / max(rho2, realmin), 1)) > 13);
+                    log10(max(red.ltl / max(rho2, realmin), 1)) > 15);
                 if destroyed
                     lsqvce.util.log.warn('lsqvce:qr:cancellation', ...
                         ['The residual mass of a pre-eliminated contribution ' ...
