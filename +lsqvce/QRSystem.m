@@ -193,8 +193,16 @@ classdef QRSystem < handle
             % supersedes it. A dof-free contribution legitimately carries
             % rho2 ~ 0 and is exempt.
             if red.dof > 0
+                % Threshold 13, MEASURED (2026-08-20, pf50): relerr(rho2)
+                % ~ eps*10^digitsLost -- at the 30/1e-4 regime the fold
+                % loses 11 digits yet the surviving ones give sigma0 good
+                % to 8e-5 (KEEP); the WP-49 deep probe sits at ~19 digits,
+                % rho2 destroyed (REFUSE). 13 separates the two measured
+                % cases (relerr ~ 2e-3 there) with two digits of margin
+                % each way. The normal route's 8 does NOT transfer: its
+                % error is kappa^2-amplified, this subtraction's is not.
                 destroyed = rho2 <= 0 || (red.ltl > 0 && ...
-                    log10(max(red.ltl / max(rho2, realmin), 1)) > 8);
+                    log10(max(red.ltl / max(rho2, realmin), 1)) > 13);
                 if destroyed
                     lsqvce.util.log.warn('lsqvce:qr:cancellation', ...
                         ['The residual mass of a pre-eliminated contribution ' ...
@@ -256,11 +264,12 @@ classdef QRSystem < handle
             if o.vtvPoisoned
                 vtv = NaN;                 % refused at merge(); warned there
             elseif o.m > d
-                % WP-50 rotation guard: the residual row is computed by the
-                % rotations with absolute error ~ eps*sqrt(mass), so vtv is
-                % noise once log10(mass/vtv) passes ~2*15.6. Guard at 24
-                % (relative error of vtv ~ 2*eps*10^(dl/2) ~ 0.7% there;
-                % measured placement in 10.12).
+                % WP-50 rotation guard, MEASURED (pf50 ramp, 2026-08-20):
+                % the rotation route is robust far beyond the fold -- at
+                % log10(mass/vtv) = 21.3 the error is only 4e-7. The guard
+                % at 24 (relerr ~ 2*eps*10^(dl/2) ~ 2e-4) is a backstop for
+                % the exact-zero underflow and beyond; healthy use never
+                % reaches it.
                 mass = o.R(1:min(d+1, size(o.R,1)), end);
                 mass = mass.'*mass;
                 if mass > 0 && (vtv == 0 || ...

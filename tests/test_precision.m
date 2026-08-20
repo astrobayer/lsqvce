@@ -685,10 +685,15 @@ function testQrMergeFoldCancellationIsNaN(tc)
 
     accQ = lsqvce.BlockAccumulator(cfg.nc, 'Backend','qr', ...
                                    'KeepLocal',true, 'Verbose',false);
-    for s = cfg.sats
-        accQ.addSystem(s, cfg.nl, binder(cfg,s), 1:2);
-    end
-    solQ = verifyWarning(tc, @() accQ.solve(), 'lsqvce:qr:cancellation');
+    % the fold -- and therefore the warning -- happens at addSystem time,
+    % when the pre-eliminated contribution is merged (measured: the r0
+    % verifyWarning around solve() saw nothing and the id leaked into the
+    % runner inventory)
+    verifyWarning(tc, ...
+        @() arrayfun(@(s) accQ.addSystem(s, cfg.nl, binder(cfg,s), 1:2), ...
+                     cfg.sats), ...
+        'lsqvce:qr:cancellation');
+    solQ = accQ.solve();
     tc.verifyTrue(isnan(solQ.sigma0), ...
         'the destroyed residual mass must surface as NaN, not as 0');
 
