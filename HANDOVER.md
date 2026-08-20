@@ -8,7 +8,11 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-08-19 (later still) — WP-44 ROUND 1 on
+Last substantive update: 2026-08-20 — WP-44 DONE (PR #22 merged) and
+POSTFLIGHT SETTLEMENT: bridge back, full local run 574/574 GREEN on
+039041c incl. test_parallel (31/31, real pools) and test_speed (11/11)
+— ALL D.4 debts cleared (§10.6). R3 track fully closed.
+Preceding entry: 2026-08-19 (later still) — WP-44 ROUND 1 on
 branch `claude/wp-44` (run provenance: runMeta composer, Results.meta,
 producer call sites, report 'Provenance' NV, 3 tests, 2 HTML pages);
 round note §10.5; ledger row 44 IN PROGRESS.
@@ -242,14 +246,14 @@ order.**):
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
 | 32 | Fix `vce` 'hutchinson': redundancy, not trace (F-01) | — | DONE (2026-08-18, PR #2, merge e167cee; CI green both contexts after a setup-matlab cache-restore hang was resolved per the incident runbook, postflight green 515/515 on Windows R2026a; evidence + round note §9 WP-32) |
-| 33 | Joint paths: locals in residual + projector (F-03) | — | DONE (2026-08-19: round 1 PR #3 merge 7d7c14c, round 2 PR #4 merge 24cfe6c; CI green 489/489; user approved the 0.85 accuracy floor + F-15→WP-40 scope by merging; postflight: round 1 green pre-outage, round 2 = D.4 DEBT until the bridge returns; six r2 lessons + F-15 pinned in §9 WP-33) |
-| 34 | Keyed arc identity in `adjustVCEjoint` (F-02) | — | DONE (2026-08-19, PR #5, merge af440dd; CI green 491/491; deviation approved by merge: byte guarantee on the kept factor, RelTol 0.15 renormalisation bound; POSTFLIGHT DEBT; round note §9 WP-34) |
-| 35 | psdVCE floor policy + negative-factor clamp (F-04, F-05) | — | DONE (2026-08-19, PR #6, merge 827ee6b; CI green 493/493 — the run that also validated the self-healing setup live: attempt-1 wedge killed at 720 s, attempt-2 restore 90 s; POSTFLIGHT DEBT until the runner/bridge returns; round note §9 WP-35) |
-| 36 | One probe generator, honest RNG contract (F-06) | — | DONE (2026-08-19, PR #7, merge 74ab106; CI green 498/498 — the WP's own changes green on the FIRST pass, the sole round-1 red was the test's own traceEstimate-returns-a-scalar mistake; POSTFLIGHT DEBT; round note §9 WP-36) |
-| 37 | `redundancyLags` without dense W^-1 + hot-loop tolls (F-09) | — | DONE (2026-08-19, PR #8, merge 66ffb81; CI green FIRST pass 501/501 incl. the N=4000 speed lever; GS/Levinson validated in Python to 1e-14 pre-port; POSTFLIGHT DEBT; round note §9 WP-37) |
-| 38 | Deduplicate keys / arc batching + audit lock (F-08) | 33,36 | DONE (2026-08-19, PR #11, merge 74d2f64; CI green FIRST pass 507/507 byte-identical; audit lock 10b live, red-tested; GroupBy error-id unification approved by merge; POSTFLIGHT DEBT; round note §9 WP-38) |
-| 39 | `arguments` blocks + Name-Value casing (F-07) | all | DONE — 2026-08-19, staged rollout complete: (a) a1+a1-2+a2 (PRs #13, #14), (b) b1+b2 (PRs #15, #16), (c) c1+c2 (PRs #17, #18), merge ff1ef9e (round notes + pinned deviations §9 WP-39); POSTFLIGHT DEBT |
-| 40 | Method polish: gates, clamps, whiteness (F-10…F-13; + F-15 alternation bistability) | 32 | DONE (2026-08-19, TWO rounds: r1 F-10…F-13 PR #9 merge 736807d, CI 505/505; r2 F-15 PR #10 merge 8ca16b9, CI 507/507 after six diagnosis rounds with the psd2acv-faithful mirror; ALL THREE r2 decisions ACCEPTED by the user 2026-08-19 — detailed in the DECISION RECORD below the round notes (§9 WP-40); POSTFLIGHT DEBT both rounds; round notes §9 WP-40) |
+| 33 | Joint paths: locals in residual + projector (F-03) | — | DONE (2026-08-19: round 1 PR #3 merge 7d7c14c, round 2 PR #4 merge 24cfe6c; CI green 489/489; user approved the 0.85 accuracy floor + F-15→WP-40 scope by merging; postflight: round 1 green pre-outage, round 2 = D.4 DEBT until the bridge returns → SETTLED §10.6; six r2 lessons + F-15 pinned in §9 WP-33) |
+| 34 | Keyed arc identity in `adjustVCEjoint` (F-02) | — | DONE (2026-08-19, PR #5, merge af440dd; CI green 491/491; deviation approved by merge: byte guarantee on the kept factor, RelTol 0.15 renormalisation bound; POSTFLIGHT DEBT → SETTLED §10.6; round note §9 WP-34) |
+| 35 | psdVCE floor policy + negative-factor clamp (F-04, F-05) | — | DONE (2026-08-19, PR #6, merge 827ee6b; CI green 493/493 — the run that also validated the self-healing setup live: attempt-1 wedge killed at 720 s, attempt-2 restore 90 s; POSTFLIGHT DEBT → SETTLED §10.6 until the runner/bridge returns; round note §9 WP-35) |
+| 36 | One probe generator, honest RNG contract (F-06) | — | DONE (2026-08-19, PR #7, merge 74ab106; CI green 498/498 — the WP's own changes green on the FIRST pass, the sole round-1 red was the test's own traceEstimate-returns-a-scalar mistake; POSTFLIGHT DEBT → SETTLED §10.6; round note §9 WP-36) |
+| 37 | `redundancyLags` without dense W^-1 + hot-loop tolls (F-09) | — | DONE (2026-08-19, PR #8, merge 66ffb81; CI green FIRST pass 501/501 incl. the N=4000 speed lever; GS/Levinson validated in Python to 1e-14 pre-port; POSTFLIGHT DEBT → SETTLED §10.6; round note §9 WP-37) |
+| 38 | Deduplicate keys / arc batching + audit lock (F-08) | 33,36 | DONE (2026-08-19, PR #11, merge 74d2f64; CI green FIRST pass 507/507 byte-identical; audit lock 10b live, red-tested; GroupBy error-id unification approved by merge; POSTFLIGHT DEBT → SETTLED §10.6; round note §9 WP-38) |
+| 39 | `arguments` blocks + Name-Value casing (F-07) | all | DONE — 2026-08-19, staged rollout complete: (a) a1+a1-2+a2 (PRs #13, #14), (b) b1+b2 (PRs #15, #16), (c) c1+c2 (PRs #17, #18), merge ff1ef9e (round notes + pinned deviations §9 WP-39); POSTFLIGHT DEBT → SETTLED §10.6 |
+| 40 | Method polish: gates, clamps, whiteness (F-10…F-13; + F-15 alternation bistability) | 32 | DONE (2026-08-19, TWO rounds: r1 F-10…F-13 PR #9 merge 736807d, CI 505/505; r2 F-15 PR #10 merge 8ca16b9, CI 507/507 after six diagnosis rounds with the psd2acv-faithful mirror; ALL THREE r2 decisions ACCEPTED by the user 2026-08-19 — detailed in the DECISION RECORD below the round notes (§9 WP-40); POSTFLIGHT DEBT → SETTLED §10.6 both rounds; round notes §9 WP-40) |
 | 41 | Documentation truth sweep (F-12, F-14) | 32,33,36,40 | DONE (2026-08-19, PR #12, merge 739e578; CI green 507/507, zero fixture movement; stub rule + all claim fixes approved by merge; round note §9 WP-41) |
 
 ---
@@ -3458,9 +3462,43 @@ delete+rebuilt via build_missing_pages (WP-41 pattern). DESIGN NOTE: the
 provenance line prints through lsqvce.report, not a second printer in
 Results.report -- report owns ALL printing (rule 3).
 
+### 10.6 POSTFLIGHT SETTLEMENT (2026-08-20) — ALL D.4 DEBTS CLEARED
+
+The MCP bridge returned 2026-08-20. Full local postflight on the user's
+machine (Windows 11, MATLAB R2026a Update 4, PCT present), working copy at
+main head 039041c (= the PR #22 merge, so every WP through 44 is in the
+run). Executed in four batches to stay under the MCP call timeout
+(evaluate_matlab_code was non-functional in this bridge session — every
+step ran through run_matlab_file on written driver scripts; the drivers
+and their logs were removed after recording, self-deleting cleanup):
+
+| batch | scope | verdict |
+|---|---|---|
+| A | 10 light suites | 182/182 GREEN, 16.4 s |
+| B | 9 heavy suites (adjustVCE alone 45/45 in 140.9 s) | 350/350 GREEN, 152.5 s |
+| C | test_parallel ALONE — the CI-skipped suite, real pools (parfor + spmd + threads) | 31/31 GREEN, 11.5 s |
+| D | test_speed — reported separately by the runner (§6.1.2); relative budgets on THIS machine | 11/11 GREEN; throughput logged 4.9e6 obs/s |
+
+TOTAL 574/574 — exactly the static test-point count, so the 11-point gap
+between CI's 529+31 executed and the static count is fully explained by
+the separately-run speed suite; nothing is silently skipped anywhere.
+
+This one green full run on 039041c settles EVERY accumulated D.4 debt
+(rows 32–41, 43, 44 and the WP-30-era entries): each debt was "full local
+suite green when the bridge returns", main is a superset of every debtor
+merge, and the run included the two things CI cannot do — real pools and
+machine-local speed budgets. Standing policy unchanged: local postflight
+via the bridge before PR-open whenever the bridge is up; CI green remains
+the merge gate.
+
+BRIDGE LIMITATION (recorded for the next session):
+evaluate_matlab_code failed on every call this session while
+detect/check/run_matlab_file worked — drive everything through script
+files until proven otherwise.
+
 ### R3 ledger
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 43 | Test-category audit: adapted taxonomy, countability gate (check 16), gap closure | — | r1 DONE (2026-08-19, PR #20 merged by the user; r1 red 527/529 fixed same day, final head CI GREEN 529/529; POSTFLIGHT DEBT per D.4); r2 PR #21 READY (tol sweep 233→0 + full enforcement + guard d0; head efbe8be CI GREEN both contexts; DONE flips on the user's merge; round notes §10.4) |
-| 44 | Run provenance in Results (T-05) | 43 | IN PROGRESS — PR #22 READY (2026-08-19; head 4ea32c0 CI GREEN both contexts FIRST pass; POSTFLIGHT DEBT per D.4; DONE flips on the user's merge; round note §10.5) |
+| 43 | Test-category audit: adapted taxonomy, countability gate (check 16), gap closure | — | r1 DONE (2026-08-19, PR #20 merged by the user; r1 red 527/529 fixed same day, final head CI GREEN 529/529; POSTFLIGHT DEBT → SETTLED §10.6 per D.4); r2 PR #21 READY (tol sweep 233→0 + full enforcement + guard d0; head efbe8be CI GREEN both contexts; DONE flips on the user's merge; round notes §10.4) |
+| 44 | Run provenance in Results (T-05) | 43 | DONE (2026-08-20, PR #22 merged by the user, merge 039041c; CI green FIRST pass 4ea32c0; POSTFLIGHT DEBT → SETTLED §10.6; round note §10.5) |
