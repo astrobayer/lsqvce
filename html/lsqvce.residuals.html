@@ -61,21 +61,37 @@ sol   the struct returned by acc.solve()</pre>
                              Set false for a memory-light sigma0 check.
 &#x27;verbose&#x27;    true (default)</pre>
 <h3>Output</h3>
-<pre class="example">res.sys(k).sysID
-res.sys(k).y            local parameter estimate
-res.sys(k).Cyy          its covariance (commons&#x27; uncertainty propagated)
-res.sys(k).vtv          weighted residual square sum of this system
-res.sys(k).m            number of observations
-res.sys(k).rms          sqrt(vtv/m), in units of sigma0
-res.sys(k).obs(j)       .obsType .day .arc .t .v .w
-res.vtv, res.dof, res.s0sq, res.sigma0    recomputed globally
-res.obsType(k)          .obsType .m .vtv .rms
-                        per-obsType QUICK-LOOK: rms = sqrt(vtv/m) in
-                        units of sigma0. Uses m, not the exact
-                        redundancy, so it is biased low by
-                        1 - sqrt(r/m) (negligible when m &gt;&gt; u). Use it
-                        to see &quot;kbr at 1.0, pos at 3.4&quot; before paying
-                        for a full LSQVCE.VCE, not as a variance component.</pre>
+<pre class="example">  res.sys(k).sysID
+  res.sys(k).y            local parameter estimate
+  res.sys(k).Cyy          its covariance (commons&#x27; uncertainty propagated)
+  res.sys(k).vtv          weighted residual square sum of this system
+  res.sys(k).m            number of observations
+  res.sys(k).rms          sqrt(vtv/m), in units of sigma0
+  res.sys(k).obs(j)       .obsType .day .arc .t .v .w
+  res.vtv, res.dof, res.s0sq, res.sigma0    recomputed globally
+  res.supersedesSol       1x1 logical  true when THESE numbers supersede
+                          sol.vtv/sol.sigma0 (WP-49): either the backend
+                          NaN-poisoned a cancellation-destroyed vtv, or
+                          the two routes disagree beyond 1e-6
+  res.obsType(k)          .obsType .m .vtv .rms
+                          per-obsType QUICK-LOOK: rms = sqrt(vtv/m) in
+                          units of sigma0. Uses m, not the exact
+                          redundancy, so it is biased low by
+                          1 - sqrt(r/m) (negligible when m &gt;&gt; u). Use it
+                          to see &quot;kbr at 1.0, pos at 3.4&quot; before paying
+                          for a full LSQVCE.VCE, not as a variance component.
+
+WARNINGS
+  lsqvce:residuals:supersedesSol   the accumulated sigma0 is non-finite
+                                   (backend NaN-poisoned it); quote
+                                   res.sigma0/res.vtv instead
+  lsqvce:residuals:sigma0Mismatch  finite but disagreeing routes: the
+                                   loader changed between passes</pre>
+<h3>Accuracy</h3>
+<pre class="example">res.vtv is the DIRECT sum of squared (whitened) residuals, immune to
+the l&#x27;Pl - n&#x27;x cancellation of the accumulated route; the two agree
+to 1e-10 relative on healthy fixtures (regression-locked,
+test_precision) and res is the authority when they do not (WP-49).</pre>
 <h3>The Consistency Check</h3>
 <pre class="example">  res.sigma0 must equal sol.sigma0. They are computed by completely
   different routes -- one from accumulated scalars during the first pass,
@@ -124,6 +140,10 @@ case-sensitive lowercase). With assistance from Claude (Anthropic),
 model Claude Fable 5.
 See also LSQVCE.BLOCKACCUMULATOR, LSQVCE.CHECKPSD
 
+Updated 2026-08-20 (CEST, UTC+02:00), WP-49: NaN-aware supersede
+logic + res.supersedesSol; this pass is the documented authority for
+a cancellation-poisoned accumulated vtv. With assistance from Claude
+(Anthropic), model Claude Fable 5.
 Generated with assistance from Claude (Anthropic), model Claude
 Opus 4.8.</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>

@@ -168,6 +168,9 @@ classdef BlockAccumulator < handle
 %
 %   ERRORS
 %     The system declaration is wrong (raised at construction)
+%       lsqvce:accum:negativeVtv      (warning) v'Pv < 0 on the prior-folded
+%                                     solve -> NaN, superseded by
+%                                     lsqvce.residuals (WP-49)
 %       lsqvce:accum:noSystems        no system specs at all
 %       lsqvce:accum:badSpecs         a spec is not a struct with the required
 %                                     fields
@@ -478,7 +481,17 @@ classdef BlockAccumulator < handle
 
                 x   = Lc.' \ (Lc \ n);
                 vtv = ltl + obj.prior.x0.'*obj.prior.x0/obj.prior.sigma^2 - n.'*x;
-                vtv = max(vtv, 0);
+                if vtv < 0
+                    % WP-49: same rule as the backends -- a negative weighted
+                    % sum of squares is a cancellation artefact and must
+                    % leave as NaN, never clamped to a plausible 0.
+                    % lsqvce.residuals() supersedes it from a second pass.
+                    lsqvce.util.log.warn('lsqvce:accum:negativeVtv', ...
+                        ['v''Pv = %.3e is negative on the prior-folded solve ' ...
+                         '-- cancellation. RETURNING NaN; ' ...
+                         'lsqvce.residuals() recomputes it honestly.'], vtv);
+                    vtv = NaN;
+                end
 
                 [rK, priorAbsorbed] = obj.prior.redundancy(Lc);
                 dof  = m + obj.prior.nk - obj.nc;

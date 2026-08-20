@@ -36,13 +36,37 @@ classdef NormalEqSystem < handle
 %     end
 %     [x, Cxx, s0sq, dof] = acc.solve();
 %
+%   ACCURACY
+%     x from a Cholesky solve of N = A'A: relative error ~ eps*cond(A)^2
+%     (measured against the LAPACK QR reference in
+%     test_precision/testQRBeatsNormalOnIllConditioned: agrees at benign
+%     conditioning, loses ALL digits at cond(A) = 1e8 where QR keeps 8).
+%     vtv is formed as l'Pl - n'x and is cancellation-prone when the fit is
+%     tight; since WP-49 a value that is negative or has lost > 8 digits is
+%     returned as NaN, never as a plausible-looking number -- the honest
+%     value comes from LSQVCE.RESIDUALS' second pass, which supersedes it.
+%
 %   ERRORS
-%     lsqvce:normalEq:badWidth  a block's column count disagrees with the first
-%     lsqvce:normalEq:badMerge  merging two systems of different widths
-%     lsqvce:normalEq:noData    solve() before anything was added
+%     Accumulation:
+%       lsqvce:normalEq:badWidth      a block's column count disagrees with
+%                                     the first
+%       lsqvce:normalEq:badMerge      merging two systems of different widths
+%     Solve:
+%       lsqvce:normalEq:noData        solve() before anything was added
+%       lsqvce:normalEq:notSPD        the normal matrix is not positive
+%                                     definite (rank defect)
+%       lsqvce:normalEq:noRedundancy  m <= dim, sigma0 undefined
+%
+%   WARNINGS
+%     lsqvce:normalEq:negativeVtv     vtv < 0 (cancellation) -> vtv = NaN
+%     lsqvce:normalEq:cancellation    vtv lost > 8 digits    -> vtv = NaN
 %
 %   See also LSQVCE.QRSYSTEM, LSQVCE.BLOCKACCUMULATOR
 %
+%   Updated 2026-08-20 (CEST, UTC+02:00), WP-49: a poisoned vtv is returned
+%   as NaN (negative OR > 8 digits lost), never clamped to 0 or left as a
+%   wrong plausible number; both warnings name the lsqvce.residuals repair
+%   path. With assistance from Claude (Anthropic), model Claude Fable 5.
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
 
@@ -142,13 +166,36 @@ classdef NormalEqSystem < handle
                     ['Redundancy is %d (m = %d observations, %d parameters). ' ...
                      'sigma0 is undefined.'], dof, o.m, o.dim);
             end
+            % WP-49: the flat path's honesty applied here too. vtv was formed
+            % as l'Pl - n'x -- a difference of two nearly equal numbers when
+            % the fit is tight. A poisoned value must never leave as a
+            % plausible-looking number: NaN gets investigated, a wrong number
+            % gets quoted (measured on the flat path: 89% wrong at
+            % sigma = 1e-6, factor 1e6 at 1e-9).
             if vtv < 0
                 lsqvce.util.log.warn('lsqvce:normalEq:negativeVtv', ...
                     ['The weighted sum of squares v''Pv = %.3e is negative, ' ...
                      'which is impossible. This is a cancellation artefact of ' ...
                      'the normal equations -- the condition number is too ' ...
-                     'large for this backend. Switch to ''Backend'',''qr''.'], vtv);
-                vtv = 0;
+                     'large for this backend. RETURNING NaN for vtv/s0sq. ' ...
+                     'lsqvce.residuals() recomputes the number honestly from ' ...
+                     'a second pass and SUPERSEDES this one; to avoid the ' ...
+                     'problem entirely, switch to ''Backend'',''qr''.'], vtv);
+                vtv = NaN;
+            elseif o.ltl > 0
+                digitsLost = log10(max(o.ltl / max(vtv, realmin), 1));
+                if digitsLost > 8
+                    lsqvce.util.log.warn('lsqvce:normalEq:cancellation', ...
+                        ['vtv was formed as l''Pl - n''x and has lost about ' ...
+                         '%.0f significant digits to cancellation ' ...
+                         '(l''Pl = %.6e, vtv = %.6e). RETURNING NaN rather ' ...
+                         'than a plausible-looking number. ' ...
+                         'lsqvce.residuals() recomputes it honestly and ' ...
+                         'SUPERSEDES this value; to avoid the problem ' ...
+                         'entirely, switch to ''Backend'',''qr''.'], ...
+                         digitsLost, o.ltl, vtv);
+                    vtv = NaN;
+                end
             end
 
             s0sq = vtv / dof;
