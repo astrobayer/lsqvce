@@ -8,7 +8,11 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-08-20 — WP-44 DONE (PR #22 merged) and
+Last substantive update: 2026-08-20 (later) — WP-46 ROUND 1 (README
+de-drifted; §2.8 of the external geoMap handover adopted: ACCURACY block
++ §6.2.4 sync gate + audit check 17, red-tested); WP-45 REJECTED by the
+user (recorded §10.7).
+Preceding entry: 2026-08-20 — WP-44 DONE (PR #22 merged) and
 POSTFLIGHT SETTLEMENT: bridge back, full local run 574/574 GREEN on
 039041c incl. test_parallel (31/31, real pools) and test_speed (11/11)
 — ALL D.4 debts cleared (§10.6). R3 track fully closed.
@@ -1990,11 +1994,22 @@ retires an authority.
 H1 line `%LSQVCE.NAME  One-sentence purpose.`; call forms; a MOTIVATED
 description (why, and any measured numbers backing claims); `INPUT` and
 `OUTPUT` blocks with NAME, TYPE, DIMENSION, DESCRIPTION for every argument
-and field; `OPTIONS` with defaults; `ERRORS` grouped BY CAUSE ("your table
+and field; `OPTIONS` with defaults; an `ACCURACY` block *(added 2026-08-20,
+WP-46, adopted from the external geoMap handover §2.8)* stating the
+function's numerical claim, what it was measured against — naming the
+authority by its §6.1.4 row — and the tolerance achieved (where the
+measurement could only be taken in MATLAB, say so and give the re-derivation
+procedure); `ERRORS` grouped BY CAUSE ("your table
 is malformed" / "your assembleDay does not fit"), every id real; a runnable
 `EXAMPLE`; `See also` in caps; the Claude stamp AFTER `See also`:
 `Created <date> (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model <version>.` — updates append an `Updated <date> ...` line.
+ROLLOUT RULE for the ACCURACY block: binding for every NEW function and
+every function TOUCHED from 2026-08-20 on; NO bulk migration of the ~80
+existing help blocks — the source handover's own record (a 94-file
+help-text mutation producing three defects found only by reading the
+applied diff) is the pinned rationale, and it matches our WP-43 r2
+bulk-annotation lessons.
 
 **6.2.2 HTML + manual.** Every public name: a page in `html/` + entries in
 `Contents.m`, `helptoc.xml`, `html/index.html`; zero JavaScript/Java; every
@@ -2005,6 +2020,24 @@ AND LOOKING, never by "no exception" (v1 §1.3b/e lessons).
 **6.2.3 The audit is the gate.** `docs_src/audit_tree.py` (WP-0, extended
 per WP) must exit 0 before any ship. Checks are verified BOTH WAYS when
 added: fire on a broken tree, silent on a healthy one.
+
+**6.2.4 Documentation sync gate** *(added 2026-08-20, WP-46; adopted from
+the external geoMap handover §2.8.2, adapted)*. Every change ships its
+documentation in the SAME change — all surfaces, every time: help text,
+the HTML page, `Contents.m`, and (where a claim lives there) `README.md`
+and this handover. The audit cross-reads the surfaces and fails on
+disagreement; initial scope is check 17 (README title version ==
+Contents.m version, README suite/point-count claim == the tree's counts),
+extended surface-by-surface as claims are made machine-checkable rather
+than by trusting prose. Two adopted principles pinned for those
+extensions: (a) COUNT COMPLETENESS IN THE BUILT ARTEFACT, not the pipeline
+feeding it — a doc builder must report arguments documented vs arguments
+RENDERED, counted in the emitted HTML; (b) EVERY EXAMPLE IS CODE —
+extract and lint the help-text EXAMPLE blocks at build time so a stale
+example fails the build, not the reader (staged: report the
+extraction/lint count first, flip to red after the sweep — the WP-39/43
+rollout pattern). A generated manual is verified by rasterising and
+looking (already §6.2.2).
 
 ### 6.3 Coding standards
 The MATLAB coding standards linked in §0 rule 9, plus the house rules v1
@@ -3496,9 +3529,37 @@ evaluate_matlab_code failed on every call this session while
 detect/check/run_matlab_file worked — drive everything through script
 files until proven otherwise.
 
+### 10.7 WP-46 round notes
+
+**ROUND 1 (2026-08-20, model Claude Fable 5, branch `claude/wp-46`).**
+User instruction: fix the drifted README, adopt the external geoMap
+handover's §2.8 (documentation doctrine), report other adoptables.
+Shipped: (1) README de-drifted — status block to the current gate (20
+files / 574 points, CI both contexts, branch protection, MIT), Modules
+table gains adjustVCEjoint WITH the F-15 production guidance and the
+Results.meta provenance, Validation section carries the six-category
+taxonomy, the v1 bring-up section retitled as a dated record, and a new
+"Correctness history" section pointing at the two CRITICAL review fixes
+(F-01/F-03) — a README that quotes v1 claims owes the reader the review
+outcome; (2) §6.2.1 gains the ACCURACY block (authority named by its
+§6.1.4 row; binding for NEW/TOUCHED functions only — NO bulk migration,
+rationale pinned: the source project's 94-file mutation lesson + our own
+WP-43 r2 bulk-annotation lessons); (3) new §6.2.4 documentation sync
+gate; (4) audit check 17 (README title version == Contents.m; README
+"N suite files, M test points" == tree counts) — RED-TESTED three ways
+(planted wrong version, wrong count, removed claim; each fired; restored
+green). POSTFLIGHT: not applicable — zero .m files changed; the audit is
+the relevant gate (ran locally and in CI). Decision also recorded this
+round: WP-45 (suite economy) REJECTED by the user 2026-08-20 — the
+141 s of test_adjustVCE are test-design redundancy, not toolbox runtime
+(the speed suite covers that separately and is green at 4.9e6 obs/s);
+rejected, not deferred, so no fresh session re-proposes it.
+
 ### R3 ledger
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
 | 43 | Test-category audit: adapted taxonomy, countability gate (check 16), gap closure | — | r1 DONE (2026-08-19, PR #20 merged by the user; r1 red 527/529 fixed same day, final head CI GREEN 529/529; POSTFLIGHT DEBT → SETTLED §10.6 per D.4); r2 PR #21 READY (tol sweep 233→0 + full enforcement + guard d0; head efbe8be CI GREEN both contexts; DONE flips on the user's merge; round notes §10.4) |
 | 44 | Run provenance in Results (T-05) | 43 | DONE (2026-08-20, PR #22 merged by the user, merge 039041c; CI green FIRST pass 4ea32c0; POSTFLIGHT DEBT → SETTLED §10.6; round note §10.5) |
+| 45 | Suite economy (adjustVCE test-run cache) | — | REJECTED (user, 2026-08-20): test-environment cost only, toolbox speed separately gated by the speed suite; see §10.7 |
+| 46 | README truth + documentation doctrine (external §2.8 adoption) | — | IN PROGRESS (2026-08-20, branch `claude/wp-46`; round note §10.7) |
