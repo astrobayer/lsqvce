@@ -8,7 +8,12 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-08-20 (later) — WP-46 ROUND 1 (README
+Last substantive update: 2026-08-20 (later still) — WP-46 DONE (PR #24
+merged) and WP-47 ROUND 1 on branch `claude/wp-47`: gate hardening
+(declared-vs-executed rule 6, warning-inventory rule 7 + live probe,
+instruments/diagnosis doctrine, §6.1.4 status column); check 17's first
+live catch (574→581). Round note §10.8.
+Preceding entry: 2026-08-20 (later) — WP-46 ROUND 1 (README
 de-drifted; §2.8 of the external geoMap handover adopted: ACCURACY block
 + §6.2.4 sync gate + audit check 17, red-tested); WP-45 REJECTED by the
 user (recorded §10.7).
@@ -1968,6 +1973,15 @@ MECHANICS (binding, enforced by audit check 16):
   standing debt number, driven to zero suite by suite (WP-39 rollout
   pattern).
 
+**6.1.2b Diagnosis order** *(added 2026-08-20, WP-47; external handover
+§2.10)*. When a number is wrong: CONFIGURATION (replay the exact frozen
+script, never a recollection of it), then CRITERION (re-derive against the
+authority — corrected, never widened until it passes), then CODE —
+cheapest repair first. And never loosen a tolerance to make a test pass;
+that is a finding (already binding via §6.1.2). Cluster rule: unrelated
+failures sharing one symptom are SESSION STATE, not code — check the
+state before reading a single diff.
+
 **6.1.3 Regression discipline.** Every defect fixed during v2 gets a named
 regression test citing the WP section that records it (the v1 habit that
 worked). Randomness is seeded per test. Tests that need a pool carry an
@@ -1979,14 +1993,18 @@ and where it is consumed — so gaps show up as empty rows rather than as an
 absence nobody notices. Amend this table in the same edit that adds or
 retires an authority.
 
-| Authority | Certifies | Consumed by |
-|---|---|---|
-| Ellmer (2018) doctoral thesis | dctI norm convention, PSD-VCE update law, joint-mode default constants | test_ellmer (17 references), §8 review evidence |
-| Kvas (2019) doctoral thesis | design record for the VCE iteration/combination architecture | design sections §2–§3 (no direct numeric consumption — empty row, deliberate) |
-| Baarda / Pope test theory (textbook) | normCrit, delta0/MDB, tau bounds, snooping thresholds | test_lsqvce (test_normCrit_textbook, test_delta0_textbook, tau tests), test_lsqvce_opts (baarda_vs_pope) |
-| Closed-form ARMA(1,1)/AR ACV algebra | armaACV, levinsonDurbin, psd2acv identities | test_precision, test_lsqAccum, test_signalCore |
-| Python mirrors (second language): v8verify.py, v9verify.py, v10review.py, wp33_loop_mirror.py | measured tolerances and loop behaviour pre-port | tol: comments in test_signalCore/test_streamUtils/test_precision; §9 WP-33/40 round notes |
-| GROOPS / SINEX NEQ files (real data exchange) | neqExchange round-trip | WP-27 suite |
+*(Status column added 2026-08-20, WP-47 — adopted from the external
+geoMap oracle register: dated confirmations AND refutations, ☑ consumed
+and confirmed / ☐ open; the refutation discipline is the valuable half.)*
+
+| Authority | Certifies | Consumed by | Status |
+|---|---|---|---|
+| Ellmer (2018) doctoral thesis | dctI norm convention, PSD-VCE update law, joint-mode default constants | test_ellmer (17 references), §8 review evidence | ☑ consumed since the Ellmer WPs; PARTIAL REFUTATION 2026-08-19 (WP-40 r6): the closed-loop alternation as such does not beat open-loop pass-1 quality — F-15, production guidance pinned |
+| Kvas (2019) doctoral thesis | design record for the VCE iteration/combination architecture | design sections §2–§3 | ☐ no direct numeric consumption — empty row, deliberate |
+| Baarda / Pope test theory (textbook) | normCrit, delta0/MDB, tau bounds, snooping thresholds | test_lsqvce (test_normCrit_textbook, test_delta0_textbook, tau tests), test_lsqvce_opts (baarda_vs_pope) | ☑ confirmed at the quoted decimals; SCOPE FINDING (v1, 2026-07): Pope's tau goes blind under contamination — the README headline finding |
+| Closed-form ARMA(1,1)/AR ACV algebra | armaACV, levinsonDurbin, psd2acv identities | test_precision, test_lsqAccum, test_signalCore | ☑ confirmed 1e-9…1e-12 (tol: comments name the sites) |
+| Python mirrors (second language): v8verify.py, v9verify.py, v10review.py, wp33_loop_mirror.py | measured tolerances and loop behaviour pre-port | tol: comments in test_signalCore/test_streamUtils/test_precision; §9 WP-33/40 round notes | ☑ v8: 2e-16 (whitening); WP-37 GS/Levinson 1e-14 pre-port; wp33 mirror: the F-15 instrument — NOTE its own r6 lesson: an unfaithful mirror declaration path produced false accuracy promises, faithfulness is part of the oracle |
+| GROOPS / SINEX NEQ files (real data exchange) | neqExchange round-trip | WP-27 suite | ☑ round-trip green since WP-27 |
 
 ### 6.2 Documentation guidelines
 
@@ -2020,6 +2038,22 @@ AND LOOKING, never by "no exception" (v1 §1.3b/e lessons).
 **6.2.3 The audit is the gate.** `docs_src/audit_tree.py` (WP-0, extended
 per WP) must exit 0 before any ship. Checks are verified BOTH WAYS when
 added: fire on a broken tree, silent on a healthy one.
+*Extended 2026-08-20 (WP-47, adopted from the external geoMap handover
+§2.9), binding:*
+- every NEW audit/gate check ships its fault-injection red-test IN THE
+  SAME ROUND (plant the defect, see it fire, restore, see green — recorded
+  in the round note; checks 16/17 and gateVerdict rules 6/7 are the
+  precedents);
+- no count, structure or coverage claim from an instrument written in the
+  same session as the change it checks, unless the instrument was shown to
+  fail on a known defect — otherwise mark the claim PROVISIONAL in
+  writing;
+- a second gate must read something the first does not (the Python audit
+  and the MATLAB runner deliberately count declared points with SEPARATE
+  implementations of one definition);
+- a bulk mutator is proven on a scratch copy and its APPLIED DIFF is read
+  before it touches the tree; one case form is never enough; a one-shot
+  mutator is not shipped (our WP-43 r2 lessons are the local evidence).
 
 **6.2.4 Documentation sync gate** *(added 2026-08-20, WP-46; adopted from
 the external geoMap handover §2.8.2, adapted)*. Every change ships its
@@ -3555,6 +3589,44 @@ round: WP-45 (suite economy) REJECTED by the user 2026-08-20 — the
 (the speed suite covers that separately and is green at 4.9e6 obs/s);
 rejected, not deferred, so no fresh session re-proposes it.
 
+### 10.8 WP-47 round notes
+
+**ROUND 1 (2026-08-20, model Claude Fable 5, branch `claude/wp-47`).**
+User-approved bundle: every WP-46 recommendation except §2.6.3
+(verifyAndRecord). Shipped:
+(1) **declared-vs-executed per suite** (external 2.6.4): new
+`tests/private/declaredPoints.m` (static MATLAB counter, %{ %}-aware —
+the block-commented test IS the case a naive grep misses, and its unit
+test plants exactly that); run_all results gain `.declared`, the summary
+flags a mismatch, gateVerdict rule 6 reds on it naming both numbers. The
+Python audit (check 16) counts the same definition with deliberately
+SEPARATE code — the second gate reads something the first does not.
+(2) **warning inventory + single-allowed-identifier gate** (external 2.5):
+measured FIRST — the settlement-run captures and the CI logs show ZERO
+MATLAB warnings inside the suites (the only CI 'Warning' lines are runner
+environment noise outside the captures), so full enforcement is safe
+immediately. run_all turns `warning verbose` on for the run (restored via
+onCleanup), parses identifiers from each suite's capture ('<unidentified>'
+for a bare Warning line so nothing hides), prints and logs the inventory;
+gateVerdict rule 7 allows EXACTLY `lsqvce:internal:testProbe` and — the
+adopted "the gate must have something to see" — REQUIRES the probe in
+test_ci_gate's inventory when that suite ran (blind capture ≠ warning-free
+code). The live probe is testWarningProbeFires, fired un-suppressed.
+KNOWN LIMITATION pinned: warnings raised on parallel workers may not
+reach the capture.
+(3) **§6.2.3 instruments doctrine** (external 2.9): red-test in the same
+round, provisional-claim rule, second-gate independence, mutator
+discipline — our WP-43 r2 lessons cited as local evidence.
+(4) **§6.1.2b diagnosis order** (external 2.10): configuration →
+criterion → code; session-state cluster rule.
+(5) **§6.1.4 status column** (external oracle register): dated ☑/☐ with
+the REFUTATIONS carried (Ellmer closed-loop partial refutation F-15;
+Pope-tau scope finding; the wp33 mirror's own faithfulness lesson).
+LIVE CATCH: check 17 fired mid-round when the 7 new test points made the
+README's 574 stale (→ 581) — the WP-46 gate caught its first real drift
+one WP after shipping. Seven new test points, all category-declared,
+try/catch identifier pattern.
+
 ### R3 ledger
 
 | WP | title | depends on | status |
@@ -3562,4 +3634,5 @@ rejected, not deferred, so no fresh session re-proposes it.
 | 43 | Test-category audit: adapted taxonomy, countability gate (check 16), gap closure | — | r1 DONE (2026-08-19, PR #20 merged by the user; r1 red 527/529 fixed same day, final head CI GREEN 529/529; POSTFLIGHT DEBT → SETTLED §10.6 per D.4); r2 PR #21 READY (tol sweep 233→0 + full enforcement + guard d0; head efbe8be CI GREEN both contexts; DONE flips on the user's merge; round notes §10.4) |
 | 44 | Run provenance in Results (T-05) | 43 | DONE (2026-08-20, PR #22 merged by the user, merge 039041c; CI green FIRST pass 4ea32c0; POSTFLIGHT DEBT → SETTLED §10.6; round note §10.5) |
 | 45 | Suite economy (adjustVCE test-run cache) | — | REJECTED (user, 2026-08-20): test-environment cost only, toolbox speed separately gated by the speed suite; see §10.7 |
-| 46 | README truth + documentation doctrine (external §2.8 adoption) | — | IN PROGRESS (2026-08-20, branch `claude/wp-46`; round note §10.7) |
+| 46 | README truth + documentation doctrine (external §2.8 adoption) | — | DONE (2026-08-20, PR #24 merged by the user, merge c11512d; CI green FIRST pass; round note §10.7) |
+| 47 | Gate hardening: declared-vs-executed, warning inventory, instruments/diagnosis doctrine, authority status column (external 2.5/2.6.4/2.9/2.10 + oracle-register adoption; §2.6.3 excluded by user) | 46 | IN PROGRESS (2026-08-20, branch `claude/wp-47`; round note §10.8) |

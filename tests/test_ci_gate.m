@@ -160,3 +160,116 @@ function testRunAllRejectsBadSkip(tc)
 % anything runs, with the documented identifier.
     tc.verifyError(@() run_all_lsqvce([], 42), 'run_all_lsqvce:badSkip');
 end
+
+%% -------------------------------------------------- WP-47: declared count
+function testDeclaredMismatchIsRed(tc)
+% categories: contract, robustness | tags: diagnostics
+% WP-47 rule 6 (external handover 2.6.4): a suite that EXECUTES fewer points
+% than it DECLARES is hiding tests and must trip the gate -- and the reason
+% must name both numbers, because "which points vanished" is the first
+% question the reader asks.
+    r = greenRun47();
+    r(2).declared = 7;                       % declares 7, ran 5
+    v = gateVerdict(r, {}, {'test_a','test_b'}, {}, liveLog(tc));
+    tc.verifyFalse(v.ok);
+    tc.verifyTrue(any(contains(v.reasons, 'DECLARES 7')));
+    tc.verifyTrue(any(contains(v.reasons, 'RAN 5')));
+end
+
+function testLegacyResultsWithoutNewFieldsStayJudgeable(tc)
+% categories: contract, robustness
+% Pre-WP-47 result structs carry neither .declared nor .warnIds; rules 6/7
+% must simply not engage -- backward compatibility is part of the contract.
+    v = gateVerdict(greenRun(), {}, {'test_a','test_b'}, {}, liveLog(tc));
+    tc.verifyTrue(v.ok);
+end
+
+function testDeclaredPointsCounter(tc)
+% categories: contract, robustness
+% The MATLAB-side static counter (tests/private/declaredPoints): counts test
+% signatures, skips the entry point and %{ %} blocks -- the block-comment
+% case IS the mismatch a naive grep cannot see. Also the documented
+% rejection.
+    d = tempname;  mkdir(d);  tc.addTeardown(@() rmdir(d, 's'));
+    f = fullfile(d, 'test_fixture.m');
+    fid = fopen(f, 'w');
+    fprintf(fid, [ ...
+        'function tests = test_fixture\n' ...
+        'tests = functiontests(localfunctions);\n' ...
+        'end\n' ...
+        'function testAlpha(tc)\n', 'end\n' ...
+        '%%{\n' ...
+        'function testCommentedOut(tc)\n', 'end\n' ...
+        '%%}\n' ...
+        'function testBeta(tc)\n', 'end\n']);
+    fclose(fid);
+    tc.verifyEqual(declaredPoints(f), 2, ...
+        'the block-commented test must NOT be counted');
+    caught = MException.empty;
+    try
+        declaredPoints(fullfile(d, 'nope.m'));
+    catch e
+        caught = e;
+    end
+    tc.verifyNotEmpty(caught);
+    tc.verifyEqual(caught.identifier, 'lsqvce:declaredPoints:noFile');
+end
+
+%% ------------------------------------------------ WP-47: warning inventory
+function testForeignWarningIdentifierIsRed(tc)
+% categories: contract, robustness | tags: diagnostics
+% WP-47 rule 7 (external handover 2.5): exactly ONE identifier may appear in
+% a clean run's inventory. Any other is new and fails the gate -- no
+% allow-list to maintain, which is the point.
+    r = greenRun47();
+    r(1).warnIds = {'lsqvce:foo:surprise'};
+    v = gateVerdict(r, {}, {'test_a','test_b'}, {}, liveLog(tc));
+    tc.verifyFalse(v.ok);
+    tc.verifyTrue(any(contains(v.reasons, 'lsqvce:foo:surprise')));
+end
+
+function testUnidentifiedWarningIsRed(tc)
+% categories: contract, robustness
+% A warning line without an identifier is inventoried as '<unidentified>'
+% so it can never hide behind the parse.
+    r = greenRun47();
+    r(2).warnIds = {'<unidentified>'};
+    v = gateVerdict(r, {}, {'test_a','test_b'}, {}, liveLog(tc));
+    tc.verifyFalse(v.ok);
+end
+
+function testProbeAllowedAndRequiredWhenCiGateRan(tc)
+% categories: contract, robustness | tags: diagnostics
+% The single allowed identifier passes; and when test_ci_gate itself ran,
+% its probe MUST have reached the inventory -- an empty inventory there
+% means the capture plumbing is BLIND, which the pass count cannot see.
+    r = greenRun47();
+    r(3) = struct('name','test_ci_gate','passed',3,'total',3, ...
+                  'failed',0,'incomplete',0,'secs',0.2, ...
+                  'declared',3,'warnIds',{{'lsqvce:internal:testProbe'}});
+    v = gateVerdict(r, {}, {'test_a','test_b','test_ci_gate'}, {}, liveLog(tc));
+    tc.verifyTrue(v.ok, 'the probe identifier alone must stay green');
+
+    r(3).warnIds = {};                       % capture went blind
+    v = gateVerdict(r, {}, {'test_a','test_b','test_ci_gate'}, {}, liveLog(tc));
+    tc.verifyFalse(v.ok);
+    tc.verifyTrue(any(contains(v.reasons, 'BLIND')));
+end
+
+function testWarningProbeFires(tc)
+% categories: robustness | tags: diagnostics
+% THE LIVE PROBE (external handover 2.5): this warning is the one identifier
+% the gate allows, fired un-suppressed so the run_all capture has something
+% to see. If gateVerdict ever reports the capture BLIND, this test is where
+% the signal was supposed to enter. It must NOT be silenced.
+    warning('lsqvce:internal:testProbe', ...
+        'gate probe: this warning proves the inventory capture works');
+    tc.verifyTrue(true);
+end
+
+function r = greenRun47()
+%GREENRUN47  greenRun with the WP-47 fields present and healthy.
+    r = greenRun();
+    [r.declared] = deal(10, 5);
+    [r.warnIds]  = deal({}, {});
+end

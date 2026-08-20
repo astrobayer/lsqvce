@@ -18,13 +18,24 @@ function verdict = gateVerdict(results, skipped, onDisk, excluded, logFile)
 %        not on disk (coverage in BOTH directions: a forgotten new suite
 %        file and a stale runner entry both trip),
 %     5. the log file exists and is non-empty (the artifact the CI uploads
-%        and the postflight quotes must never be missing).
+%        and the postflight quotes must never be missing),
+%     6. every suite EXECUTED exactly the points it DECLARES (WP-47,
+%        results.declared vs .total; a suite that runs fewer points than
+%        it declares is hiding tests),
+%     7. the warning inventory holds NO identifier other than
+%        lsqvce:internal:testProbe, and when test_ci_gate ran its probe
+%        MUST be present (an empty inventory there means the capture is
+%        blind, not that the code is warning-free). Rules 6/7 apply only
+%        when the fields exist -- pre-WP-47 result structs stay judgeable.
 %
 %   INPUT
 %     results   1xF struct   as returned by RUN_ALL_LSQVCE: fields .name
 %                            (char), .passed, .total, .failed, .incomplete,
 %                            .secs (1x1 double each; .total is NaN for a
-%                            suite that failed to load).
+%                            suite that failed to load); since WP-47 also
+%                            .declared (1x1 double, NaN on load failure)
+%                            and .warnIds (1xW cell of char identifiers) --
+%                            both OPTIONAL, rules 6/7 engage when present.
 %     skipped   1xS cell     suite names (char, no extension) that were
 %                            skipped ON REQUEST (the skip argument of
 %                            RUN_ALL_LSQVCE). May be {}.
@@ -54,6 +65,10 @@ function verdict = gateVerdict(results, skipped, onDisk, excluded, logFile)
 %
 %   See also CI_GATE, RUN_ALL_LSQVCE
 %
+%   Updated 2026-08-20 (CEST, UTC+02:00), WP-47: rules 6 (declared vs
+%   executed, external handover 2.6.4) and 7 (single-allowed-identifier
+%   warning gate + capture-health probe, 2.5). With assistance from
+%   Claude (Anthropic), model Claude Fable 5.
 %   Created 2026-08-18 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.
 
@@ -111,6 +126,44 @@ function verdict = gateVerdict(results, skipped, onDisk, excluded, logFile)
     d = dir(logFile);
     if isempty(d) || d.bytes == 0
         reasons{end+1} = sprintf('log file missing or empty: %s.', logFile);
+    end
+
+    % 6. declared vs executed, per suite (WP-47, external handover 2.6.4):
+    %    a suite that EXECUTES fewer points than it DECLARES is hiding
+    %    tests, and the pass count alone cannot see it. Optional field for
+    %    backward compatibility with pre-WP-47 result structs.
+    if isfield(results, 'declared')
+        for k = 1:numel(results)
+            if ~isnan(results(k).total) && ~isnan(results(k).declared) ...
+                    && results(k).declared ~= results(k).total
+                reasons{end+1} = sprintf( ...
+                    '%s DECLARES %d test point(s) but RAN %d.', ...
+                    results(k).name, results(k).declared, ...
+                    results(k).total); %#ok<AGROW>
+            end
+        end
+    end
+
+    % 7. the warning inventory (WP-47, external handover 2.5): EXACTLY ONE
+    %    identifier may appear in a clean run, lsqvce:internal:testProbe --
+    %    no allow-list to maintain, which is the point. And when
+    %    test_ci_gate ran, the probe MUST have been seen: an empty
+    %    inventory there means the capture plumbing is broken, which is
+    %    indistinguishable from warning-free code otherwise.
+    if isfield(results, 'warnIds')
+        allW = unique([results.warnIds]);
+        foreign = setdiff(allW, {'lsqvce:internal:testProbe'});
+        if ~isempty(foreign)
+            reasons{end+1} = sprintf( ...
+                'new warning identifier(s) in the inventory: %s.', ...
+                strjoin(foreign, ', '));
+        end
+        ci = strcmp({results.name}, 'test_ci_gate');
+        if any(ci) && ~isnan(results(ci).total) ...
+                && ~ismember('lsqvce:internal:testProbe', results(ci).warnIds)
+            reasons{end+1} = ['warning capture is BLIND: test_ci_gate ran ' ...
+                'but its probe identifier never reached the inventory.'];
+        end
     end
 
     verdict.ok      = isempty(reasons);

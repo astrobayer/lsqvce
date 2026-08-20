@@ -1,6 +1,6 @@
 # lsqvce v1.0 — batch least squares: accumulate, estimate variance components, judge
 
-> **Status (2026-08-20).** Green everywhere: **20 suite files, 574 test
+> **Status (2026-08-20).** Green everywhere: **20 suite files, 581 test
 > points, 0 fail** — verified locally in MATLAB R2026a (including the
 > pool suites with real `parfor`/`spmd` workers and the machine-local
 > speed budgets) and on every push by GitHub Actions CI (a static `audit`
@@ -314,7 +314,7 @@ predicted shift = 1.765467 sigma      <- from the MDB formula
 realised  shift = 1.765467 sigma      <- inject the MDB, re-solve, measure
 ```
 
-MATLAB unit tests: run `run_all_lsqvce` for the full suite (20 files, 574
+MATLAB unit tests: run `run_all_lsqvce` for the full suite (20 files, 581
 test points, ~3 min locally; the speed suite is reported separately by
 design). `run_lsqvce('all')` delegates to it, so it is the same run;
 `run_lsqvce('<target>')` runs one suite or a name pattern while iterating.
@@ -634,7 +634,7 @@ re-run with `'qr'` only if you must. One cheap solve buys the answer.
 ## Verified in MATLAB R2026a (v1.0 bring-up record, 2026-07)
 
 *(A dated record of the first MATLAB execution — the current gate is the
-574-point suite in the status block above.)* **125 / 125 tests passed.**
+current suite in the status block above.)* **125 / 125 tests passed.**
 All four demos ran. The suite was finally executed in
 MATLAB rather than validated only through a Python port — and it found **four
 real bugs the port structurally could not see.**
