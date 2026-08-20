@@ -259,7 +259,6 @@ end
 function testPlotHookBadHandleErrors(tc)
 % categories: contract
     % A non-handle value in a map must be rejected.
-    muteWarn(tc, 'lsqvce:adjustBlock:plotHookFailed');   % provoked on purpose here (WP-47, gate rule 7)
     cfg = buildCfg();
     m = containers.Map({'pos'}, {42});
     tc.verifyError(@() lsqvce.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
@@ -273,7 +272,6 @@ function testRecoverFiresPostSolveHook(tc)
     % A postSolve hook on the loader must fire once per obsType after recover's
     % single solve, with a well-formed ctx. The hook records into a handle
     % object and returns [] (no figure), so it needs no display.
-    muteWarn(tc, 'lsqvce:adjustBlock:plotHookFailed');   % provoked on purpose here (WP-47, gate rule 7)
     cfg = buildCfg();
     rec = recorderHandle();
     h   = @(ctx) recordCtx(rec, ctx);
@@ -327,6 +325,7 @@ function testRecoverHookFailureNeverBreaksSolve(tc)
 % categories: contract, precision, robustness
     % A throwing hook must be logged and skipped -- the solve still returns a
     % valid Results. Mirrors the adjustVCE guarantee.
+    muteWarn(tc, 'lsqvce:adjustBlock:plotHookFailed');   % provoked on purpose here (WP-47, gate rule 7)
     cfg = buildCfg();
     h = @(ctx) error('boom:intentional', 'intentional');
     L = lsqvce.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...

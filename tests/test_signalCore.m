@@ -77,7 +77,6 @@ function testVarWhitenMatchesDenseGLS(tc)
 % the dense block-Cholesky GLS solve, row for row (docstring: rel diff ~1e-10;
 % v8verify.py: 2e-16). Everything is derived from the toolbox's own varACV so
 % the test is convention-independent.
-    muteWarn(tc, 'MATLAB:rankDeficientMatrix');   % provoked on purpose here (WP-47, gate rule 7)
     d  = 2;  nE = 40;  u = 3;
     A1 = cat(3, [0.4 0.1; -0.2 0.5]);          % VAR(1), stable
     Lsig  = [1.0 0.0; 0.3 0.8];
@@ -115,6 +114,7 @@ function testAr2armaRoundTrip(tc)
 % for. Build its exact ACV, fit a long AR, reduce to ARMA(p,q), and require the
 % reduced model's ACV to match the target. v8verify.py: relErr 1.3e-14.
     muteWarn(tc, 'lsqvce:ar2arma:unstable');   % provoked on purpose here (WP-47, gate rule 7)
+    muteWarn(tc, 'MATLAB:rankDeficientMatrix');   % provoked on purpose here (WP-47, gate rule 7)
     rad = 0.94;  ang = 2*pi*0.12;
     aTrue = real(poly([rad*exp(1i*ang), rad*exp(-1i*ang)]));   % [1 a1 a2]
     bTrue = [1.0 0.5];
@@ -143,6 +143,7 @@ function testAr2armaSmoothFloorStaysStable(tc)
 % return a normalised, stationary model -- or fall back to the AR with a
 % warning. Either way the returned AR part must be stationary.
     muteWarn(tc, 'lsqvce:ar2arma:unstable');   % provoked on purpose here (WP-47, gate rule 7)
+    muteWarn(tc, 'MATLAB:rankDeficientMatrix');   % provoked on purpose here (WP-47, gate rule 7)
     aAR = [1 -0.6 0.1];                        % smooth AR(2)
     rTarget = lsqvce.armaACV(aAR, 1, 128);
     [aHi, s2Hi] = lsqvce.levinsonDurbin(rTarget, 40);

@@ -303,7 +303,6 @@ function testPinvFallbackNeverCrashes(tc)
 % With Reg = 'none' and a singular local block, pre-elimination must fall back
 % to pinv and warn -- never abort. A day of processing should not be lost to
 % one bad arc.
-    muteWarn(tc, 'lsqvce:accum:pinvFallback');   % provoked on purpose here (WP-47, gate rule 7)
     cfg = tc.TestData.cfg;
     cfg.collinear = true;   cfg.collinearEps = 0;
 
