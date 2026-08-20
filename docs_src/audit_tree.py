@@ -615,6 +615,123 @@ def check_h1_names():
                     break
 
 
+def check_test_categories():
+    print('\n16. test categories are declared, counted per unit, and enforced')
+    # WHY (WP-43, HANDOVER par. 6.1.2 as amended 2026-08-19): the doctrine
+    # demands the categories be COUNTABLE mechanically, per unit. Another
+    # project's first such count found 46 of 81 functions short of at least
+    # one category AFTER nine green runs. This check makes the count a
+    # standing gate instead of a one-time review:
+    #   (a) every test point declares '% categories: ...' on the line after
+    #       its signature; only the six category names and the two
+    #       cross-cutting tags are legal vocabulary;
+    #   (b) the unit x category matrix is derived from the lsqvce.<name>
+    #       references in each test body (mechanical, no second bookkeeping
+    #       file to drift) and REPORTED every run;
+    #   (c) a public unit with zero 'contract' coverage is a FINDING unless
+    #       tests/category_exemptions.csv carries a reasoned row -- contract
+    #       may not be exempted for a function that validates its arguments;
+    #   (d) tolerance provenance: in the suites listed in TOL_SWEPT every
+    #       'AbsTol'/'RelTol' literal must carry a 'tol:' comment on the
+    #       same or one of the two preceding lines. Elsewhere the
+    #       unannotated count is REPORTED (the debt number to drive to 0).
+    cats_ok = {'contract', 'reference', 'precision', 'speed',
+               'robustness', 'vectorisation'}
+    tags_ok = {'diagnostics', 'provenance'}
+    TOL_SWEPT = ['tests/test_signalCore.m', 'tests/test_precision.m']
+
+    decl_re = re.compile(
+        r'^\s*% categories:\s*([a-z, ]+?)\s*(?:\|\s*tags:\s*([a-z, ]+?)\s*)?$')
+    fn_re = re.compile(r'function\s+(?:\w+\s*=\s*)?(test\w+)\s*\(')
+
+    unit_cat = {}          # unit -> set of categories reaching it
+    n_points = 0
+    for f in sorted(glob.glob('tests/test_*.m')):
+        lines = open(f, encoding='utf-8', errors='replace').read().split('\n')
+        starts = [(i, m.group(1)) for i, l in enumerate(lines)
+                  if (m := fn_re.match(l))
+                  and not re.match(r'function\s+tests\s*=', l)]
+        for k, (i, name) in enumerate(starts):
+            n_points += 1
+            end = starts[k + 1][0] if k + 1 < len(starts) else len(lines)
+            m = decl_re.match(lines[i + 1]) if i + 1 < len(lines) else None
+            if not m:
+                note('cat', '%s: %s has no "%% categories:" declaration'
+                     % (f, name))
+                continue
+            cats = {c.strip() for c in m.group(1).split(',') if c.strip()}
+            tags = {t.strip() for t in (m.group(2) or '').split(',')
+                    if t.strip()}
+            bad = (cats - cats_ok) | (tags - tags_ok)
+            if bad or not cats:
+                note('cat', '%s: %s declares unknown category/tag %s'
+                     % (f, name, sorted(bad)))
+                continue
+            body = '\n'.join(lines[i + 1:end])
+            for u in set(re.findall(r'lsqvce\.(util\.\w+|[A-Za-z]\w+)', body)):
+                unit_cat.setdefault(u, set()).update(cats)
+
+    units = []
+    for f in sorted(glob.glob('+lsqvce/**/*.m', recursive=True)):
+        if '/private/' in f:
+            continue
+        u = f.replace('+lsqvce/', '').replace('.m', '').replace('+util/',
+                                                                'util.')
+        if u != 'Contents':
+            units.append(u)
+
+    exempt = {}
+    if os.path.isfile('tests/category_exemptions.csv'):
+        for row in open('tests/category_exemptions.csv',
+                        encoding='utf-8'):
+            row = row.strip()
+            if not row or row.startswith('#') or row.startswith('unit,'):
+                continue
+            parts = row.split(',', 2)
+            if len(parts) == 3 and parts[2].strip():
+                exempt[(parts[0].strip(), parts[1].strip())] = parts[2]
+            else:
+                note('cat', 'category_exemptions.csv row lacks a reason: %r'
+                     % row)
+
+    print('   %d test points declared; unit x category coverage '
+          '(%d public units):' % (n_points, len(units)))
+    hdr = '   %-22s %s' % ('unit', ' '.join('%-6s' % c[:6] for c in sorted(
+        cats_ok)))
+    print(hdr)
+    gaps = 0
+    for u in units:
+        got = unit_cat.get(u, set())
+        row = ' '.join('%-6s' % ('x' if c in got else '.')
+                       for c in sorted(cats_ok))
+        missing = sorted(cats_ok - got)
+        print('   %-22s %s%s' % (u, row,
+                                 ('  gap: ' + ','.join(missing))
+                                 if missing else ''))
+        gaps += len(missing)
+        if 'contract' not in got and (u, 'contract') not in exempt:
+            note('cat', 'public unit %s has NO contract coverage and no '
+                 'exemption row' % u)
+    print('   category gaps in the matrix (informational): %d' % gaps)
+
+    # (d) tolerance provenance
+    tol_re = re.compile(r"'(Abs|Rel)Tol'")
+    debt = 0
+    for f in sorted(glob.glob('tests/test_*.m')):
+        lines = open(f, encoding='utf-8', errors='replace').read().split('\n')
+        for i, l in enumerate(lines):
+            if tol_re.search(l):
+                ctx = '\n'.join(lines[max(0, i - 3):i + 1])
+                if 'tol:' not in ctx:
+                    if f in TOL_SWEPT:
+                        note('cat', '%s:%d: tolerance without a "tol:" '
+                             'provenance comment (swept suite)' % (f, i + 1))
+                    else:
+                        debt += 1
+    print('   unannotated tolerances outside the swept suites: %d '
+          '(debt, drive to 0 suite by suite)' % debt)
+
+
 def main():
     if not os.path.isdir('+lsqvce'):
         sys.exit('run from the toolbox root (the folder holding +lsqvce)')
@@ -636,6 +753,7 @@ def main():
     check_html_examples()
     check_error_ids()
     check_h1_names()
+    check_test_categories()
     print('\n' + '=' * 60)
     if FINDINGS:
         print('%d finding(s).' % len(FINDINGS))

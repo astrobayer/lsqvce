@@ -50,8 +50,8 @@ function [a, b, s2] = ar2arma(aHi, s2Hi, q, opt)
 %     numel(a)-1, numel(b)-1        % 10, 2  instead of 100
 %
 %   ERRORS
-%     lsqvce:ar2arma:tooShort    the AR polynomial is shorter than the reduction
-%                                needs
+%     lsqvce:ar2arma:tooShort    opt.armaN is too short to fit the requested
+%                                ARMA(p,q); at least 4*(p+q+1) is needed
 %     lsqvce:ar2arma:degenerate  the reduction produced a degenerate MA part
 %
 %   See also LSQVCE.LEVINSONDURBIN, LSQVCE.ARMAACV, LSQVCE.CHECKPSD

@@ -1,0 +1,16 @@
+# Category exemption ledger (audit check 16, HANDOVER 6.1.2 / 10)
+#
+# One row per (unit, category) pair that is EXEMPT from coverage. An
+# exemption is a claim that the test is IMPOSSIBLE, not that it is
+# inconvenient -- and 'contract' may never be exempted for a function
+# that validates its arguments (rejected calls cost microseconds).
+# The audit goes red on a row without a reason, and on a 'contract'
+# gap without a row here.
+#
+# Format (CSV, three fields, reason must be non-empty):
+# unit,category,reason
+#
+# WP-43 round 1 (2026-08-19): EMPTY BY OUTCOME -- all eight contract
+# gaps the first mechanical count found were closed by direct tests
+# in the same round, none by exemption.
+unit,category,reason

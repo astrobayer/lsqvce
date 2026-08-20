@@ -35,6 +35,7 @@ end
 
 %% ------------------------------------------------------------------ green
 function testGreenRunIsGreen(tc)
+% categories: robustness | tags: diagnostics
     v = gateVerdict(greenRun(), {}, {'test_a','test_b'}, {}, liveLog(tc));
     tc.verifyTrue(v.ok);
     tc.verifyEmpty(v.reasons);
@@ -42,6 +43,7 @@ function testGreenRunIsGreen(tc)
 end
 
 function testSkippedAndExcludedAccountedFor(tc)
+% categories: contract | tags: diagnostics
 % The CI case: pool suite skipped, benchmark excluded - still green, and the
 % summary says so (a skip must be visible in the verdict, never silent).
     onDisk = {'test_a','test_b','test_parallel','test_speed'};
@@ -54,6 +56,7 @@ end
 
 %% -------------------------------------------------------------------- red
 function testFailedTestPointIsRed(tc)
+% categories: contract | tags: diagnostics
     r = greenRun();  r(2).failed = 1;  r(2).passed = 4;
     v = gateVerdict(r, {}, {'test_a','test_b'}, {}, liveLog(tc));
     tc.verifyFalse(v.ok);
@@ -61,6 +64,7 @@ function testFailedTestPointIsRed(tc)
 end
 
 function testIncompleteTestPointIsRed(tc)
+% categories: contract | tags: diagnostics
     r = greenRun();  r(1).incomplete = 2;
     v = gateVerdict(r, {}, {'test_a','test_b'}, {}, liveLog(tc));
     tc.verifyFalse(v.ok);
@@ -68,6 +72,7 @@ function testIncompleteTestPointIsRed(tc)
 end
 
 function testLoadErrorIsRed(tc)
+% categories: robustness | tags: diagnostics
 % §0a-2: run_all records a suite that failed to LOAD with total = NaN. That
 % must trip the gate even though the failed-count is 0 (the 2026-07-19
 % test_util lesson: 41 hidden tests behind a green headline).
@@ -81,6 +86,7 @@ function testLoadErrorIsRed(tc)
 end
 
 function testForgottenSuiteFileIsRed(tc)
+% categories: contract | tags: diagnostics
 % A new test_*.m on disk that the runner list does not know: the exact
 % regression the coverage identity exists for.
     v = gateVerdict(greenRun(), {}, {'test_a','test_b','test_new'}, {}, ...
@@ -90,6 +96,7 @@ function testForgottenSuiteFileIsRed(tc)
 end
 
 function testPhantomSuiteIsRed(tc)
+% categories: contract | tags: diagnostics
 % The other direction: the runner ran something that has no file on disk
 % (a stale list entry after a rename would look like this).
     v = gateVerdict(greenRun(), {}, {'test_a'}, {}, liveLog(tc));
@@ -98,6 +105,7 @@ function testPhantomSuiteIsRed(tc)
 end
 
 function testMissingLogIsRed(tc)
+% categories: contract | tags: diagnostics
     ghost = fullfile(tempdir, 'no_such_lsqvce_log_file.txt');
     v = gateVerdict(greenRun(), {}, {'test_a','test_b'}, {}, ghost);
     tc.verifyFalse(v.ok);
@@ -105,6 +113,7 @@ function testMissingLogIsRed(tc)
 end
 
 function testEmptyLogIsRed(tc)
+% categories: robustness | tags: diagnostics
     f = [tempname '.txt'];  fid = fopen(f, 'w');  fclose(fid);
     tc.addTeardown(@() delete(f));
     v = gateVerdict(greenRun(), {}, {'test_a','test_b'}, {}, f);
@@ -112,6 +121,7 @@ function testEmptyLogIsRed(tc)
 end
 
 function testAllReasonsAreListed(tc)
+% categories: contract | tags: diagnostics
 % Red causes must not shadow each other: a failure AND a coverage gap AND a
 % missing log yield three reasons, so the CI log names everything at once.
     r = greenRun();  r(1).failed = 3;  r(1).passed = 7;
@@ -123,16 +133,19 @@ end
 
 %% ------------------------------------------------------------- validation
 function testBadResultsErrors(tc)
+% categories: contract | tags: diagnostics
     tc.verifyError(@() gateVerdict(42, {}, {}, {}, 'x'), ...
                    'gateVerdict:badInput');
 end
 
 function testBadSkipTypeErrors(tc)
+% categories: contract | tags: diagnostics
     tc.verifyError(@() gateVerdict(greenRun(), 5, {'test_a','test_b'}, ...
                    {}, 'x'), 'gateVerdict:badInput');
 end
 
 function testStringInputsAreAccepted(tc)
+% categories: robustness | tags: diagnostics
 % String arrays must behave exactly like cellstr (no second way, but the
 % MATLAB string type is normalised, not rejected).
     v = gateVerdict(greenRun(), string.empty, ["test_a","test_b"], ...
@@ -142,6 +155,7 @@ end
 
 %% ------------------------------------------- runner mechanism (skip path)
 function testRunAllRejectsBadSkip(tc)
+% categories: contract
 % The mechanism half in run_all_lsqvce: a malformed skip must error before
 % anything runs, with the documented identifier.
     tc.verifyError(@() run_all_lsqvce([], 42), 'run_all_lsqvce:badSkip');

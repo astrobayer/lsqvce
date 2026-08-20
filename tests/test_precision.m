@@ -16,6 +16,7 @@ end
 
 %% ================================================== whitening exactness
 function testWhitenerIsExactInverseSquareRoot(tc)
+% categories: contract
 % THE central claim of the toolbox: the FIR whitening filter F satisfies
 % F'*F = inv(C) EXACTLY, not approximately. Everything else rests on this.
     a = [1 -1.6 0.9 -0.25];  s = 0.7;
@@ -34,6 +35,7 @@ function testWhitenerIsExactInverseSquareRoot(tc)
 end
 
 function testWhitenerIsTheCholeskyFactorItself(tc)
+% categories: precision
 % The FIR filter is not merely SOME square root of inv(C) -- it IS the Cholesky
 % inverse factor. Both are lower triangular, and the triangular square root is
 % unique up to sign, so they must coincide row for row.
@@ -47,6 +49,8 @@ function testWhitenerIsTheCholeskyFactorItself(tc)
     z = zeros(n, 0);
     [~, ~, F] = lsqvce.armaWhiten(a, 1, s, r, z, z, eye(n), true);
 
+    % tol: both sides are Cholesky factors of the same Toeplitz C (cond ~1e3);
+    % eps*cond*|W| ~ 1e-12; 1e-9 adds 3 decades of headroom
     tc.verifyEqual(F, W, 'AbsTol', 1e-9, ...
         'the FIR filter must reproduce chol(C)^-1 exactly');
 
@@ -57,11 +61,13 @@ function testWhitenerIsTheCholeskyFactorItself(tc)
     [~, ~, Xf] = lsqvce.armaWhiten(a, 1, s, r, z, z, X, true);
     [~, ~, lf] = lsqvce.armaWhiten(a, 1, s, r, z, z, l, true);
 
+    % tol: quadratic forms of the same whitener, eps-level; 1e-11 = 1e4*eps
     tc.verifyEqual(Xf.'*Xf, (W*X).'*(W*X), 'RelTol', 1e-11);
-    tc.verifyEqual(Xf.'*lf, (W*X).'*(W*l), 'RelTol', 1e-11);
+    tc.verifyEqual(Xf.'*lf, (W*X).'*(W*l), 'RelTol', 1e-11);  % tol: same source
 end
 
 function testSteadyStateRowsAreTheARCoefficients(tc)
+% categories: precision
 % Explicit structural check: away from the startup block, row k of the whitener
 % is [a(p+1) ... a(1)]/sigma placed at columns k-p..k. If this ever breaks, the
 % filter argument order has been swapped (numerator/denominator).
@@ -73,20 +79,26 @@ function testSteadyStateRowsAreTheARCoefficients(tc)
 
     expected = fliplr(a) / s;                    % [a3 a2 a1 1]/s
     for k = (p+1):n
+        % tol: steady-state rows are the AR stencil EXACTLY; 1e-12 = house
+        % factorisation round-trip bound (HANDOVER 6.1.2)
         tc.verifyEqual(F(k, k-p:k), expected, 'AbsTol', 1e-12, ...
             sprintf('row %d is not the AR whitening stencil', k));
     end
 end
 
 function testDecorrFactorIsExact(tc)
+% categories: precision
     r = lsqvce.armaACV([1 -0.9], 1, 120);
     C = toeplitz(r);
     W = lsqvce.decorrFactor(C);
+    % tol: exact identity through a solve with cond(C) ~ 20 for AR(1) phi=0.9;
+    % house exact-identity bound 1e-10 rel (HANDOVER 6.1.2)
     tc.verifyEqual(W.'*W, C \ eye(120), 'RelTol', 1e-10, 'AbsTol', 1e-9);
-    tc.verifyEqual(W*C*W.', eye(120), 'AbsTol', 1e-9);
+    tc.verifyEqual(W*C*W.', eye(120), 'AbsTol', 1e-9);   % tol: same source
 end
 
 function testDecorrFactorRescuePathIsUsable(tc)
+% categories: contract, precision
 % An indefinite covariance must still yield a factor with W*C*W' ~ I. Flooring
 % at eps (the old bug) gives cond ~ 1/eps and W*C*W' off by ~1e-1.
     rs = RandStream('mt19937ar','Seed',3);
@@ -104,19 +116,25 @@ function testDecorrFactorRescuePathIsUsable(tc)
     [V2, d2] = eig((C+C.')/2, 'vector');
     d2 = max(real(d2), 1e-10*max(real(d2)));
     Cf = real(V2)*diag(d2)*real(V2).';
+    % tol: the floored covariance is reconstructed through an eig at the
+    % 1e-10 eigenvalue floor; 1e-6 = floor * cond headroom, measured stable
     tc.verifyEqual(W*Cf*W.', eye(n), 'AbsTol', 1e-6);
 end
 
 %% ================================================== signal processing
 function testLevinsonExactOnKnownAR(tc)
+% categories: precision
     a0 = [1 -1.6 0.9 -0.25];  s0 = 0.7;
     r  = s0^2 * lsqvce.armaACV(a0, 1, 8);
     [a, s2] = lsqvce.levinsonDurbin(r, 3);
+    % tol: Levinson on the EXACT ACV of the generator is algebraically exact;
+    % 1e-11 = 1e4*eps for the recursion's error growth over p=3 steps
     tc.verifyEqual(a, a0, 'AbsTol', 1e-11);
-    tc.verifyEqual(sqrt(s2), s0, 'RelTol', 1e-11);
+    tc.verifyEqual(sqrt(s2), s0, 'RelTol', 1e-11);   % tol: same source
 end
 
 function testLevinsonReflectionCoefficients(tc)
+% categories: precision
 % |kappa| < 1 for every order iff the autocovariance is positive definite.
     r = lsqvce.armaACV([1 -1.6 0.9 -0.25], 1, 21);
     [~, ~, refl] = lsqvce.levinsonDurbin(r, 20);
@@ -124,16 +142,21 @@ function testLevinsonReflectionCoefficients(tc)
 end
 
 function testARMAACVAgainstClosedForm(tc)
+% categories: precision
     phi = 0.9;  th = 0.5;
     r  = lsqvce.armaACV([1 -phi], [1 th], 4);
     r0 = (1 + 2*phi*th + th^2)/(1 - phi^2);
     r1 = phi*r0 + th;
+    % tol: closed-form ARMA(1,1) ACV (textbook); FFT truncation of the
+    % impulse response is cut at eps relative -- 1e-9 is documented in the
+    % armaACV example (help text claims < 1e-8)
     tc.verifyEqual(r(1), r0, 'RelTol', 1e-9);
-    tc.verifyEqual(r(2), r1, 'RelTol', 1e-9);
-    tc.verifyEqual(r(3), phi*r1, 'RelTol', 1e-9);   % r_k = phi*r_{k-1}, k > q
+    tc.verifyEqual(r(2), r1, 'RelTol', 1e-9);   % tol: same source
+    tc.verifyEqual(r(3), phi*r1, 'RelTol', 1e-9);   % tol: same; r_k = phi*r_{k-1}, k > q
 end
 
 function testPSD2ACVSatisfiesParsevalAtZeroLag(tc)
+% categories: precision
 % r(0) = trapz(f, S) exactly -- an identity, not an approximation.
     dt = 5;
     f  = linspace(0, 0.5/dt, 8192).';
@@ -141,10 +164,13 @@ function testPSD2ACVSatisfiesParsevalAtZeroLag(tc)
     S  = 0.7^2 * dt * 2 * abs(H).^2;
 
     r = lsqvce.psd2acv(f, S, dt, 4);
+    % tol: r(0) = trapz(f,S) is the quadrature IDENTITY (same sum, same order);
+    % 1e-12 = house factorisation round-trip bound
     tc.verifyEqual(r(1), trapz(f, S), 'RelTol', 1e-12);
 end
 
 function testPSDToACVRoundTrip(tc)
+% categories: precision, reference
 % PSD of a known AR -> ACV must match the analytic ACV of that AR.
     dt = 5;  a = [1 -1.6 0.9 -0.25];  s = 0.7;
     f  = linspace(0, 0.5/dt, 8192).';
@@ -157,6 +183,7 @@ function testPSDToACVRoundTrip(tc)
 end
 
 function testCheckPSDVerdicts(tc)
+% categories: contract | tags: diagnostics
     dt = 5;  a = [1 -1.6 0.9 -0.25];
     f  = linspace(0, 0.5/dt, 4096).';
     H  = 1 ./ (exp(-1i*2*pi*f*dt*(0:3)) * a(:));
@@ -175,6 +202,7 @@ end
 
 %% ================================================== estimation exactness
 function testPreeliminationEqualsJointSolve(tc)
+% categories: contract
 % Pre-elimination is algebraically exact: the reduced solution must equal the
 % monolithic joint solve for [x_c; y_1; ...; y_S] to machine precision.
     cfg  = tc.TestData.cfg;
@@ -190,6 +218,7 @@ function testPreeliminationEqualsJointSolve(tc)
 end
 
 function testBackSubstitutionExact(tc)
+% categories: precision
     cfg  = tc.TestData.cfg;
     days = 1:2;
 
@@ -203,11 +232,12 @@ function testBackSubstitutionExact(tc)
     for k = 1:numel(cfg.sats)
         y    = acc.backSubstitute(cfg.sats(k), sol.x);
         yref = xf(cfg.nc + (k-1)*cfg.nl + (1:cfg.nl));
-        tc.verifyEqual(y, yref, 'RelTol', 1e-8);
+        tc.verifyEqual(y, yref, 'RelTol', 1e-8);   % tol: dense-vs-batched same algebra; 1e-8 = whitened-path house bound
     end
 end
 
 function testBatchOverlapGivesMachinePrecision(tc)
+% categories: vectorisation
 % With overlap = filter memory, batching is EXACT -- not merely accurate.
 % With overlap = 0 the filter transient leaks in and costs ~12 orders.
     cfg  = tc.TestData.cfg;
@@ -229,6 +259,7 @@ function testBatchOverlapGivesMachinePrecision(tc)
 end
 
 function testBatchSizeInvariance(tc)
+% categories: precision, robustness, vectorisation
 % The answer must not depend on how the arc was chopped up.
     cfg = tc.TestData.cfg;
     xRef = [];
@@ -238,6 +269,8 @@ function testBatchSizeInvariance(tc)
         if isempty(xRef)
             xRef = s.x;
         else
+            % tol: exact-identity claim (overlap makes batching exact);
+            % house exact-identity bound 1e-10 rel (HANDOVER 6.1.2)
             tc.verifyEqual(s.x, xRef, 'RelTol', 1e-10, ...
                 sprintf('BatchSize = %g changed the answer', bs));
         end
@@ -245,6 +278,7 @@ function testBatchSizeInvariance(tc)
 end
 
 function testPSDARMatchesDenseToeplitz(tc)
+% categories: precision, vectorisation
 % The AR filter path and the dense Cholesky path must give the same normals.
     cfg = tc.TestData.cfg;
     dt  = cfg.dt;  a = [1 -1.6 0.9 -0.25];
@@ -257,21 +291,27 @@ function testPSDARMatchesDenseToeplitz(tc)
     sTP = runAcc(cfg, 1:2, 'Backend','qr','BatchSize',400,'BatchOverlap',20, ...
                  'UserOpt', struct('psdMode','toeplitz'), 'Verbose',false);
 
+    % tol: AR(20) fit vs exact Toeplitz are DIFFERENT models of one PSD;
+    % 1e-6 is the measured model-agreement level (v10review.py), not eps
     tc.verifyEqual(sAR.x, sTP.x, 'RelTol', 1e-6);
 end
 
 function testWhitenModeCholMatchesFilter(tc)
+% categories: precision, vectorisation
 % Forcing the dense path must reproduce the filter path.
     cfg = tc.TestData.cfg;
     sF = runAcc(cfg, 1:2, 'Backend','qr','BatchSize',400,'BatchOverlap',10, ...
                 'UserOpt', struct('whitenMode','filter'), 'Verbose',false);
     sC = runAcc(cfg, 1:2, 'Backend','qr','BatchSize',400,'BatchOverlap',10, ...
                 'UserOpt', struct('whitenMode','chol'), 'Verbose',false);
+    % tol: filter vs chol whitening agree at the whitened-path level;
+    % 1e-6 measured across seeds (v10review.py), boundary rows differ
     tc.verifyEqual(sF.x, sC.x, 'RelTol', 1e-6);
 end
 
 %% ================================================== conditioning
 function testQRBeatsNormalOnIllConditioned(tc)
+% categories: robustness
 % The whole justification for the QR backend: cond(A) versus cond(A)^2.
 %
 % Measured on the BACKEND IN ISOLATION, because in the full pipeline the effect
@@ -308,6 +348,7 @@ function testQRBeatsNormalOnIllConditioned(tc)
 end
 
 function testNormalEquationsLoseTheAnswerAtHighCondition(tc)
+% categories: contract
 % The failure mode the QR backend exists to prevent. At cond(A) = 1e8 the normal
 % matrix has cond(A)^2 = 1e16 > 1/eps: the information is destroyed by forming
 % A'*A and NO solver can recover it afterwards.
@@ -332,6 +373,7 @@ function testNormalEquationsLoseTheAnswerAtHighCondition(tc)
 end
 
 function testRegularisationMasksBackendChoice(tc)
+% categories: precision, robustness
 % Worth knowing, and easy to misread: once the local block is singular enough
 % that TSVD engages, BOTH backends give the same answer -- the regularisation,
 % not the factorisation, sets the accuracy. Do not conclude from a full-pipeline
@@ -342,38 +384,50 @@ function testRegularisationMasksBackendChoice(tc)
     sN = runAcc(cfg, 1:2, 'Backend','normal', 'Reg','tsvd', 'Verbose',false);
     sQ = runAcc(cfg, 1:2, 'Backend','qr',     'Reg','tsvd', 'Verbose',false);
 
+    % tol: TSVD-regularised backends at collinearEps 1e-9; agreement is set
+    % by the truncation, 1e-6 measured stable across seeds
     tc.verifyEqual(sQ.x, sN.x, 'RelTol', 1e-6, ...
         'with TSVD engaged the two backends should agree');
 end
 
 function testBackendsAgreeWhenWellConditioned(tc)
+% categories: precision
     cfg = tc.TestData.cfg;
     sN = runAcc(cfg, 1:3, 'Backend','normal', 'Verbose',false);
     sQ = runAcc(cfg, 1:3, 'Backend','qr',     'Verbose',false);
+    % tol: well-conditioned problem, QR vs normal lose ~cond(A)^2*eps ~ 1e-10;
+    % 1e-8/1e-7 add headroom for the release-to-release LAPACK drift
     tc.verifyEqual(sQ.x,      sN.x,      'RelTol', 1e-8);
-    tc.verifyEqual(sQ.sigma0, sN.sigma0, 'RelTol', 1e-7);
+    tc.verifyEqual(sQ.sigma0, sN.sigma0, 'RelTol', 1e-7);   % tol: same source
 end
 
 %% ================================================== statistical fidelity
 function testSigma0IsUnbiased(tc)
+% categories: precision
 % With a correctly specified covariance, sigma0 -> 1. This is the end-to-end
 % check that the whitening, the batching and the ltl bookkeeping all agree.
     cfg = tc.TestData.cfg;
     sol = runAcc(cfg, 1:6, 'Backend','qr', 'Verbose',false);
+    % tol: sigma0^2 ~ chi2_r/r with r ~ 2e4 => sd(sigma0) ~ 1/sqrt(2r) ~ 5e-3;
+    % 0.05 = 10 sigma, a bright-line unbiasedness check, not containment
     tc.verifyEqual(sol.sigma0, 1, 'AbsTol', 0.05);
 end
 
 function testResidualPassReproducesSigma0(tc)
+% categories: precision
 % Two independent routes to sigma0 must agree to machine precision.
     cfg = tc.TestData.cfg;
     acc = lsqvce.BlockAccumulator(cfg.nc, 'Backend','qr', 'Verbose',false);
     for s = cfg.sats, acc.addSystem(s, cfg.nl, binder(cfg,s), 1:3); end
     sol = acc.solve();
     res = acc.residuals(sol, 'Verbose', false);
+    % tol: the residual pass recomputes the SAME quadratic form; house
+    % exact-identity bound 1e-10 rel (HANDOVER 6.1.2)
     tc.verifyEqual(res.sigma0, sol.sigma0, 'RelTol', 1e-10);
 end
 
 function testWhitenedResidualsAreWhite(tc)
+% categories: precision
 % The stochastic model is right iff the whitened residuals are white with unit
 % variance. This tests the noise COLOUR, not just its level.
     cfg = tc.TestData.cfg;
@@ -385,6 +439,8 @@ function testWhitenedResidualsAreWhite(tc)
     w = vertcat(res.sys(1).obs.w);
     n = numel(w);
 
+    % tol: sd(std) ~ 1/sqrt(2m) over the pooled residuals; 0.08 ~ 4/sqrt(Z)
+    % Monte-Carlo bar (HANDOVER 6.1.2), a 2.93-sigma test, not containment
     tc.verifyEqual(std(w), 1, 'AbsTol', 0.08);
 
     % lag-1..5 autocorrelation inside the 95% band of white noise
@@ -397,20 +453,24 @@ function testWhitenedResidualsAreWhite(tc)
 end
 
 function testCovarianceIsPositiveDefinite(tc)
+% categories: precision
     cfg = tc.TestData.cfg;
     acc = lsqvce.BlockAccumulator(cfg.nc, 'Backend','qr', 'Verbose',false);
     for s = cfg.sats, acc.addSystem(s, cfg.nl, binder(cfg,s), 1:3); end
     sol = acc.solve();
 
+    % tol: symmetry is enforced by construction; 1e-14 ~ 100*eps guards the
+    % accumulation order only
     tc.verifyEqual(sol.Cxx, sol.Cxx.', 'AbsTol', 1e-14);
     tc.verifyGreaterThan(min(eig(sol.Cxx)), 0);
 
     Cyy = acc.localCovariance(cfg.sats(1), sol.Cxx);
-    tc.verifyEqual(Cyy, Cyy.', 'AbsTol', 1e-14);
+    tc.verifyEqual(Cyy, Cyy.', 'AbsTol', 1e-14);   % tol: same source
     tc.verifyGreaterThan(min(eig(Cyy)), 0);
 end
 
 function testFormalErrorsMatchEmpiricalScatter(tc)
+% categories: precision, robustness, vectorisation
 % The strongest statistical test: repeat the estimation over many noise
 % realisations and check that the empirical scatter of x matches the formal
 % sigma from Cxx. This validates the covariance propagation end to end.
@@ -436,6 +496,8 @@ function testFormalErrorsMatchEmpiricalScatter(tc)
     % parameters has a fat tail with finite nRep (the worst of 6 sample-std
     % ratios), so it gets a looser bound. Sample scatter of each std is
     % 1/sqrt(2*(nRep-1)) ~ 9% at nRep = 60.
+    % tol: formal-vs-empirical scatter ratio over Z repeats; 0.10 ~ 4/sqrt(Z)
+    % Monte-Carlo bar (HANDOVER 6.1.2)
     tc.verifyEqual(mean(ratio), 1, 'AbsTol', 0.10, ...
         'formal errors are not calibrated on average');
     tc.verifyLessThan(max(abs(ratio - 1)), 0.35, ...
@@ -506,4 +568,32 @@ function [Af, lf] = assembleFull(cfg, days)
             end
         end
     end
+end
+
+%% ===================================================== vectorisation
+function testArmaWhitenBatchedEqualsColumnAtATime(tc)
+% categories: vectorisation
+% WP-43: the single cheapest reference test in a vectorised language, and the
+% one most often assumed -- whitening an n x k block in ONE call must equal
+% whitening the k columns one at a time. Both paths run filter() per column
+% and the same triangular startup solve, so the expectation is BITWISE for
+% the filter part; asserted at 10*eps relative only to stay robust to
+% multi-RHS BLAS kernels in the startup solve, which may order the flops
+% differently per column.                                    % tol: 10*eps
+    a = [1 -1.6 0.9 -0.25];   s = 0.7;   n = 300;   k = 7;
+    r = s^2 * lsqvce.armaACV(a, 1, n);
+    z = zeros(n, 0);
+    rs = RandStream('mt19937ar', 'Seed', 11);
+    X  = randn(rs, n, k);
+
+    [~, ~, Xw] = lsqvce.armaWhiten(a, 1, s, r, z, z, X, true);
+
+    Xcol = zeros(n, k);
+    for j = 1:k
+        [~, ~, Xcol(:, j)] = lsqvce.armaWhiten(a, 1, s, r, z, z, X(:, j), true);
+    end
+
+    % tol: 10*eps -- see the header of this test
+    tc.verifyEqual(Xw, Xcol, 'RelTol', 10*eps, ...
+        'batched whitening must equal column-at-a-time whitening');
 end

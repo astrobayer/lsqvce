@@ -18,6 +18,7 @@ end
 
 %% ============================================ input validation: primitives
 function testPSD2ACVRejectsBadInput(tc)
+% categories: contract
     f = linspace(0, 0.1, 100).';   S = ones(100,1);
     tc.verifyError(@() lsqvce.psd2acv(f, S(1:50), 5, 10), 'MATLAB:psd2acv:incorrectNumel');
     tc.verifyError(@() lsqvce.psd2acv(f, -S,      5, 10), 'MATLAB:psd2acv:expectedNonnegative');
@@ -28,6 +29,7 @@ function testPSD2ACVRejectsBadInput(tc)
 end
 
 function testPSD2ACVWarnsAboveNyquist(tc)
+% categories: contract
 % Power above Nyquist is aliased in the data but not in the integral, so the
 % resulting ACV would not match the sampled process.
     dt = 5;
@@ -37,6 +39,7 @@ function testPSD2ACVWarnsAboveNyquist(tc)
 end
 
 function testPSD2ACVZeroLagIdentity(tc)
+% categories: precision
     f = linspace(0, 0.1, 2048).';
     S = exp(-f/0.01);
     r = lsqvce.psd2acv(f, S, 5, 3);
@@ -44,6 +47,7 @@ function testPSD2ACVZeroLagIdentity(tc)
 end
 
 function testARMAACVRejectsNonStationary(tc)
+% categories: contract
 % A non-stationary AR has no autocovariance. Better to say so than to return
 % numbers that look plausible.
     tc.verifyError(@() lsqvce.armaACV([1 -1.5], 1, 10), 'lsqvce:armaACV:nonStationary');
@@ -52,12 +56,14 @@ function testARMAACVRejectsNonStationary(tc)
 end
 
 function testLevinsonRejectsBadInput(tc)
+% categories: contract
     r = lsqvce.armaACV([1 -0.9], 1, 5);
     tc.verifyError(@() lsqvce.levinsonDurbin(r, 10), 'lsqvce:levinson:orderTooHigh');
     tc.verifyError(@() lsqvce.levinsonDurbin([-1 0.5 0.2], 2), 'lsqvce:levinson:notPD');
 end
 
 function testLevinsonWarnsOnNonPDSequence(tc)
+% categories: contract
 % An autocovariance that is not positive definite (from a PSD with zeros, say)
 % must be caught, not silently turned into an unstable filter.
     r = [1 0.9 0.9 0.9 -0.9];             % not a valid ACV (Toeplitz has a negative eigenvalue)
@@ -66,6 +72,7 @@ function testLevinsonWarnsOnNonPDSequence(tc)
 end
 
 function testArmaWhitenRejectsSizeMismatch(tc)
+% categories: contract
     a = [1 -0.9];  r = lsqvce.armaACV(a, 1, 10);
     A = zeros(20, 3);   l = zeros(15, 1);
     tc.verifyError(@() lsqvce.armaWhiten(a, 1, 0.5, r, A, zeros(20,2), l, true), ...
@@ -75,12 +82,14 @@ function testArmaWhitenRejectsSizeMismatch(tc)
 end
 
 function testDecorrFactorRejectsNonCovariance(tc)
+% categories: contract
     C = -eye(5);
     tc.verifyError(@() lsqvce.decorrFactor(C), 'lsqvce:decorrFactor:notPD');
 end
 
 %% ============================================ input validation: covariance
 function testCovModelRejectsUnknownType(tc)
+% categories: contract
     t = (0:99).'*5;
     tc.verifyError(@() lsqvce.covModel(struct('type','bogus'), t, struct()), ...
                    'lsqvce:covModel:unknownType');
@@ -89,6 +98,7 @@ function testCovModelRejectsUnknownType(tc)
 end
 
 function testCovModelRejectsBadSigma(tc)
+% categories: contract
     t = (0:99).'*5;
     tc.verifyError(@() lsqvce.covModel(struct('type','diag','sigma',0), t, struct()), ...
                    'lsqvce:covModel:badSigma');
@@ -100,6 +110,7 @@ function testCovModelRejectsBadSigma(tc)
 end
 
 function testCovModelRejectsImpossibleWhitenMode(tc)
+% categories: contract
 % 'acf' and 'custom' have no filter form; asking for one must fail loudly
 % rather than quietly falling back to the dense path.
     t  = (0:99).'*5;
@@ -111,6 +122,7 @@ function testCovModelRejectsImpossibleWhitenMode(tc)
 end
 
 function testCovModelWarnsOnNegativePSD(tc)
+% categories: contract
 % A raw periodogram difference can go negative. It is not physical, and it
 % breaks the Levinson recursion downstream.
     t  = (0:99).'*5;
@@ -122,6 +134,7 @@ function testCovModelWarnsOnNegativePSD(tc)
 end
 
 function testCovModelFilterMemoryIsReported(tc)
+% categories: robustness
 % The accumulator relies on filterMemory to set the batch overlap. If it comes
 % back zero for a filter model, batching would silently corrupt the answer.
     t  = (0:999).'*5;
@@ -137,6 +150,7 @@ end
 
 %% ============================================ input validation: accumulator
 function testAccumulatorRejectsBadConstruction(tc)
+% categories: contract
     % WP-39 c2: the ctor's scalar constraint and enum checks moved into
     % the typed arguments signature -- expected ids follow the migration
     % (the b1-r3 rule); the CondWarn<=CondAbort cross-check stays a body
@@ -152,6 +166,7 @@ function testAccumulatorRejectsBadConstruction(tc)
 end
 
 function testAccumulatorRejectsBadSystem(tc)
+% categories: contract
     cfg = tc.TestData.cfg;
     acc = lsqvce.BlockAccumulator(cfg.nc, 'Verbose',false);
 
@@ -166,6 +181,7 @@ function testAccumulatorRejectsBadSystem(tc)
 end
 
 function testAccumulatorDetectsWrongArcDimensions(tc)
+% categories: contract
 % The loader is the most likely place for a bug. Every dimension is checked,
 % with an error message that names the day, obs type and arc.
     cfg = tc.TestData.cfg;
@@ -187,6 +203,7 @@ function testAccumulatorDetectsWrongArcDimensions(tc)
 end
 
 function testAccumulatorRejectsNaNObservations(tc)
+% categories: contract, robustness
 % NaN in l would propagate into the normal matrix and poison everything. The
 % loader must remove bad epochs; the accumulator cannot know which are valid.
     cfg = tc.TestData.cfg;
@@ -200,6 +217,7 @@ function testAccumulatorRejectsNaNObservations(tc)
 end
 
 function testAccumulatorRejectsBadMeta(tc)
+% categories: contract, robustness
     cfg = tc.TestData.cfg;
     function out = badMeta(d, ot, a, uo)                  %#ok<INUSD>
         if ischar(d), out = struct('obsTypes', {{'a','b'}}, 'arcs', {{1}});
@@ -213,6 +231,7 @@ end
 
 %% ============================================ degenerate data
 function testEmptyArcsAreSkipped(tc)
+% categories: robustness
 % Data gaps are normal. An empty arc must be skipped silently, not crash.
     cfg = tc.TestData.cfg;
     function out = gappy(d, ot, a, uo)
@@ -230,6 +249,7 @@ function testEmptyArcsAreSkipped(tc)
 end
 
 function testAllArcsEmptyIsAnError(tc)
+% categories: contract, robustness
 % A system that contributes nothing is a bug in the loader, not a valid state.
     cfg = tc.TestData.cfg;
     function out = allEmpty(d, ot, a, uo)
@@ -243,6 +263,7 @@ function testAllArcsEmptyIsAnError(tc)
 end
 
 function testNoRedundancyIsAnError(tc)
+% categories: contract
 % Fewer observations than parameters: sigma0 is undefined. Say so.
     cfg = tc.TestData.cfg;
     cfg.mArc = 2;   cfg.arcsPerDay = 1;   cfg.obsTypes = {'kbr'};
@@ -252,12 +273,14 @@ function testNoRedundancyIsAnError(tc)
 end
 
 function testSolveWithoutSystemsIsAnError(tc)
+% categories: contract, robustness
     acc = lsqvce.BlockAccumulator(5, 'Verbose',false);
     tc.verifyError(@() acc.solve(), 'lsqvce:accum:noSystems');
 end
 
 %% ============================================ rank deficiency
 function testExactRankDeficiencyIsRescued(tc)
+% categories: robustness
 % Two identical local columns -> Nll is exactly singular. With 'tsvd' the run
 % must complete; the pinv fallback must not be needed.
     cfg = tc.TestData.cfg;
@@ -273,6 +296,7 @@ function testExactRankDeficiencyIsRescued(tc)
 end
 
 function testPinvFallbackNeverCrashes(tc)
+% categories: contract, robustness
 % With Reg = 'none' and a singular local block, pre-elimination must fall back
 % to pinv and warn -- never abort. A day of processing should not be lost to
 % one bad arc.
@@ -286,6 +310,7 @@ function testPinvFallbackNeverCrashes(tc)
 end
 
 function testNullDirectionIdentifiesTheCulprit(tc)
+% categories: precision
 % The diagnostic that actually helps: which combination of local parameters is
 % unconstrained. For two collinear columns it must be their difference.
     cfg = tc.TestData.cfg;
@@ -305,6 +330,7 @@ function testNullDirectionIdentifiesTheCulprit(tc)
 end
 
 function testDiagnosticsFlagIllConditioning(tc)
+% categories: robustness
     cfg = tc.TestData.cfg;
     cfg.collinear = true;   cfg.collinearEps = 1e-9;
 
@@ -317,6 +343,7 @@ end
 
 %% ============================================ regularisation branches
 function testAutoRegDispatchesOnStatus(tc)
+% categories: robustness
     cfg = tc.TestData.cfg;
 
     a1 = lsqvce.BlockAccumulator(cfg.nc, 'Reg','auto', 'Verbose',false);
@@ -330,6 +357,7 @@ function testAutoRegDispatchesOnStatus(tc)
 end
 
 function testAllRegularisationBranchesRun(tc)
+% categories: robustness
     cfg = tc.TestData.cfg;
     cfg.collinear = true;   cfg.collinearEps = 1e-10;
 
@@ -345,6 +373,7 @@ function testAllRegularisationBranchesRun(tc)
 end
 
 function testRegMatrixDimensionIsChecked(tc)
+% categories: contract
     Nll = eye(4);   nl = ones(4,1);
     dg  = lsqvce.localDiagnostics(Nll, struct('TruncTol',1e-10));
     opt = struct('Reg','tikhonov', 'RegLambda',1, 'RegMatrix',eye(3), ...
@@ -354,6 +383,7 @@ function testRegMatrixDimensionIsChecked(tc)
 end
 
 function testGCVWarnsAtGridBoundary(tc)
+% categories: contract
 % GCV under-regularises when the residuals are still correlated. It must say so
 % rather than silently returning lambda ~ 0.
     N = diag([1 1 1 1]);          % perfectly conditioned -> no regularisation wanted
@@ -363,6 +393,7 @@ end
 
 %% ============================================ loader contract
 function testUserOptIsForwardedEverywhere(tc)
+% categories: contract
     cfg  = tc.TestData.cfg;
     seen = 0;
 
@@ -385,6 +416,7 @@ function testUserOptIsForwardedEverywhere(tc)
 end
 
 function testNonDeterministicLoaderIsDetected(tc)
+% categories: contract
 % The residual pass re-runs the loader. If it returns different data, sigma0
 % will not reproduce -- and that MUST be reported, because silently wrong
 % residuals are worse than none.
@@ -410,6 +442,7 @@ function testNonDeterministicLoaderIsDetected(tc)
 end
 
 function testKeepLocalFalseBlocksBackSubstitution(tc)
+% categories: contract, robustness
     cfg = tc.TestData.cfg;
     acc = lsqvce.BlockAccumulator(cfg.nc, 'KeepLocal',false, 'Verbose',false);
     acc.addSystem(1, cfg.nl, binder(cfg,1), 1);
@@ -419,6 +452,7 @@ function testKeepLocalFalseBlocksBackSubstitution(tc)
 end
 
 function testUnknownSystemIsAnError(tc)
+% categories: contract
     cfg = tc.TestData.cfg;
     acc = lsqvce.BlockAccumulator(cfg.nc, 'Verbose',false);
     acc.addSystem(1, cfg.nl, binder(cfg,1), 1);
@@ -428,6 +462,7 @@ end
 
 %% ============================================ reproducibility
 function testResultIsIndependentOfSystemOrder(tc)
+% categories: precision
 % Systems are independent. Adding them in a different order must change only
 % the floating-point rounding.
     cfg = tc.TestData.cfg;
@@ -445,6 +480,7 @@ function testResultIsIndependentOfSystemOrder(tc)
 end
 
 function testReportTableIsWellFormed(tc)
+% categories: contract | tags: diagnostics
     cfg = tc.TestData.cfg;
     acc = lsqvce.BlockAccumulator(cfg.nc, 'Verbose',false);
     for s = cfg.sats, acc.addSystem(s, cfg.nl, binder(cfg,s), 1:2); end
@@ -476,4 +512,33 @@ end
 
 function f = binder(cfg, s)
     f = @(d,ot,a,uo) lsqvce.synthLoader(cfg, s, d, ot, a, uo);
+end
+
+%% ===================================================== non-finite propagation
+function testSignalKernelsRejectNonFiniteAtTheDoor(tc)
+% categories: robustness
+% WP-43 (T-04): non-finite handling was asserted only on the accumulator
+% observation path. For the signal kernels the contract is REJECTION AT THE
+% DOOR (validateattributes 'finite') -- a NaN PSD sample or ACV value must
+% never yield a silently finite, wrong autocovariance or whitener. This test
+% pins that guard so a refactor cannot drop it unnoticed.
+    f = linspace(0, 0.1, 64).';
+    S = ones(64, 1);
+
+    Snan = S;  Snan(10) = NaN;
+    tc.verifyError(@() lsqvce.psd2acv(f, Snan, 5, 8), ...
+                   'MATLAB:psd2acv:expectedFinite');
+    fInf = f;  fInf(end) = Inf;
+    tc.verifyError(@() lsqvce.psd2acv(fInf, S, 5, 8), ...
+                   'MATLAB:psd2acv:expectedFinite');
+
+    r = 0.5.^(0:19);
+    rNan = r;  rNan(3) = NaN;
+    tc.verifyError(@() lsqvce.levinsonDurbin(rNan, 4), ...
+                   'MATLAB:levinsonDurbin:expectedFinite');
+
+    tc.verifyError(@() lsqvce.armaACV([1 NaN], 1, 8), ...
+                   'MATLAB:armaACV:expectedFinite');
+    tc.verifyError(@() lsqvce.armaACV([1 -0.5], [1 Inf], 8), ...
+                   'MATLAB:armaACV:expectedFinite');
 end

@@ -65,16 +65,19 @@ end
 
 %% ================================================ stat kernel
 function test_normCrit_textbook(tc)
+% categories: precision, reference
     % The classic Baarda threshold.
     verifyEqual(tc, lsqvce.stat.normCrit(0.001), 3.29053, 'AbsTol', 1e-4);
 end
 
 function test_delta0_textbook(tc)
+% categories: precision, reference
     % The classic MDB non-centrality, alpha=0.001 beta=0.20.
     verifyEqual(tc, lsqvce.stat.delta0(0.001, 0.20), 4.1321, 'AbsTol', 1e-3);
 end
 
 function test_chi2Inv_roundtrip(tc)
+% categories: precision
     % The only meaningful accuracy test of a quantile is that plugging it back
     % into the CDF returns the probability you asked for.
     for r = [1 2 5 10 100 1e4 1e6]
@@ -87,7 +90,33 @@ function test_chi2Inv_roundtrip(tc)
     end
 end
 
+function test_stat_contract_rejections(tc)
+% categories: contract
+% WP-43 (audit check 16): the stat kernel documents three rejection ids
+% (badProb, badDof, sizeMismatch) and none was exercised directly. Rejected
+% calls run before the body -- microseconds each. The badProb message must
+% name the calling quantile (the "offending field" promise of the contract).
+    % try/catch capture (WP-39 pattern): verifyError's output-argument form
+    % errored on the function-based TestCase in CI (round-1 red) -- assert
+    % the id AND the caller-naming message through the caught exception.
+    caught = MException.empty;
+    try
+        lsqvce.stat.chi2Inv(1.5, 5);
+    catch e
+        caught = e;
+    end
+    tc.verifyNotEmpty(caught, 'p outside (0,1) must be rejected');
+    tc.verifyEqual(caught.identifier, 'lsqvce:stat:badProb');
+    tc.verifySubstring(caught.message, 'chi2Inv');    % message names the caller
+    tc.verifyError(@() lsqvce.stat.chi2Inv(NaN, 5),   'lsqvce:stat:badProb');
+    tc.verifyError(@() lsqvce.stat.chi2Inv(0.5, 0),   'lsqvce:stat:badDof');
+    tc.verifyError(@() lsqvce.stat.tInv(0.9, -1),     'lsqvce:stat:badDof');
+    tc.verifyError(@() lsqvce.stat.chi2Inv([0.1 0.5], [1;2;3]), ...
+                   'lsqvce:stat:sizeMismatch');
+end
+
 function test_chi2Inv_singular_density(tc)
+% categories: precision, robustness
     % r = 1 makes the chi2 density diverge at the origin. A Newton iteration
     % in x stalls here; the log-space iteration must not.
     x = lsqvce.stat.chi2Inv(1e-6, 1);
@@ -95,6 +124,7 @@ function test_chi2Inv_singular_density(tc)
 end
 
 function test_tau_is_bounded_by_sqrt_r(tc)
+% categories: reference
     % Pope's tau cannot exceed sqrt(r). This is the formal statement that a
     % weak network cannot detect its own blunders, and the toolbox relies on
     % it to warn that snooping has become vacuous.
@@ -105,12 +135,14 @@ function test_tau_is_bounded_by_sqrt_r(tc)
 end
 
 function test_tau_tends_to_normal(tc)
+% categories: precision
     verifyEqual(tc, lsqvce.stat.tauCrit(0.001, 1e7), ...
                     lsqvce.stat.normCrit(0.001), 'AbsTol', 1e-3);
 end
 
 %% ================================================ accumulator
 function test_matches_dense_solution(tc)
+% categories: precision
     [A, l, p] = tc.TestData.mk(600, 7, 11);
     xd = (A' * diag(p) * A) \ (A' * diag(p) * l);
 
@@ -125,6 +157,7 @@ function test_matches_dense_solution(tc)
 end
 
 function test_invariant_to_batch_partition(tc)
+% categories: vectorisation
     % The whole point of a streaming accumulator: the answer must not depend
     % on how the caller happened to chop up the data.
     [A, l, p] = tc.TestData.mk(500, 6, 3);
@@ -140,6 +173,7 @@ function test_invariant_to_batch_partition(tc)
 end
 
 function test_vPv_cancellation_is_caught(tc)
+% categories: contract
     % A tight fit makes l'Pl - b'x catastrophically cancel. The normal-equation
     % path must WARN, and the QR path must not be affected.
     rs = RandStream('mt19937ar', 'Seed', 8);
@@ -161,6 +195,7 @@ function test_vPv_cancellation_is_caught(tc)
 end
 
 function test_rank_deficiency_errors_clearly(tc)
+% categories: contract, robustness | tags: diagnostics
     % Build an EXACTLY rank-deficient design (column 4 = col1 + col2). Use a
     % fixed stream so the test is deterministic; the solver must report the
     % rank defect via chol failure OR its rcond guard, never a hollow solve.
@@ -174,6 +209,7 @@ function test_rank_deficiency_errors_clearly(tc)
 end
 
 function test_negative_weight_rejected(tc)
+% categories: contract
     acc = lsqvce.Accumulator(3);
     p = ones(10,1);  p(4) = -1;
     verifyError(tc, @() acc.add(randn(10,3), randn(10,1), p), ...
@@ -181,6 +217,7 @@ function test_negative_weight_rejected(tc)
 end
 
 function test_nonfinite_rejected(tc)
+% categories: contract, robustness
     acc = lsqvce.Accumulator(3);
     A = randn(10,3);  A(2,2) = NaN;
     verifyError(tc, @() acc.add(A, randn(10,1), ones(10,1)), ...
@@ -188,6 +225,7 @@ function test_nonfinite_rejected(tc)
 end
 
 function test_correlated_batch_supported(tc)
+% categories: precision
     % A full SPD weight matrix for one batch must give the same answer as
     % feeding the whitened equivalent.
     rs = RandStream('mt19937ar','Seed',5);
@@ -203,6 +241,7 @@ end
 
 %% ================================================= diagnostics
 function test_redundancy_sum_identity(tc)
+% categories: precision
     % sum(r_i) == n - u, exactly. This identity is the toolbox's own integrity
     % check and must hold to machine precision.
     [A, l, p] = tc.TestData.mk(400, 5, 21);
@@ -212,6 +251,7 @@ function test_redundancy_sum_identity(tc)
 end
 
 function test_redundancy_in_unit_interval(tc)
+% categories: contract
     [A, l, p] = tc.TestData.mk(300, 6, 33);
     B = chop(A, l, p, 7);
     [~, D] = lsqvce.adjust(6, srcOf(B), 7, 'verbose', false);
@@ -220,6 +260,7 @@ function test_redundancy_in_unit_interval(tc)
 end
 
 function test_outliers_are_found(tc)
+% categories: contract
     [A, l, p] = tc.TestData.mk(800, 6, 77, [17 9; 400 -8; 700 7]);
     B = chop(A, l, p, 10);
     [~, D] = lsqvce.adjust(6, srcOf(B), 10, 'verbose', false, ...
@@ -229,6 +270,7 @@ function test_outliers_are_found(tc)
 end
 
 function test_uncontrolled_observation_no_nan(tc)
+% categories: precision, robustness | tags: diagnostics
     % A parameter seen by exactly one observation makes that observation
     % completely uncontrolled: r_i = 0 and w_i = 0/0. The code must clamp
     % rather than emit NaN, and must REPORT the observation as untestable.
@@ -251,6 +293,7 @@ function test_uncontrolled_observation_no_nan(tc)
 end
 
 function test_external_reliability_is_exact(tc)
+% categories: precision, reference
     % Inject exactly the MDB into the worst observation and check that the
     % parameter really moves by the predicted number of sigmas. This validates
     % the headline reliability claim against brute force.
@@ -271,6 +314,7 @@ function test_external_reliability_is_exact(tc)
 end
 
 function test_variance_factor_unbiased(tc)
+% categories: precision
     % Under a correct model E[s0^2] = sigma0^2 and sd = sqrt(2/r).
     M = 120;  n = 200;  u = 6;
     rat = zeros(M,1);
@@ -285,6 +329,7 @@ function test_variance_factor_unbiased(tc)
 end
 
 function test_bonferroni_suppresses_false_alarms(tc)
+% categories: contract
     % With n = 2000 and alpha = 1e-3 uncorrected, ~2 good observations are
     % flagged per realisation by chance. Bonferroni must remove essentially
     % all of them.
@@ -304,6 +349,7 @@ function test_bonferroni_suppresses_false_alarms(tc)
 end
 
 function test_second_pass_mismatch_detected(tc)
+% categories: contract | tags: diagnostics
     % If the caller's second-pass batch function does not reproduce the first
     % pass, every diagnostic would be silently attributed to the wrong
     % observation. That must be an error, not a surprise.
@@ -319,6 +365,7 @@ function test_second_pass_mismatch_detected(tc)
 end
 
 function test_zero_redundancy_is_flagged(tc)
+% categories: contract
     % n == u: the model fits exactly and nothing can be tested. The toolbox
     % must say so rather than reporting a meaningless perfect result.
     A = randn(5,5);  l = randn(5,1);
@@ -329,6 +376,7 @@ end
 
 %% =========================================== variance components
 function test_helmert_recovers_known_weight_error(tc)
+% categories: precision
     % Group 2's true sigma is 3x what we claim. Helmert must find that factor.
     rs = RandStream('mt19937ar','Seed',4);
     u = 6;  ng = 600;  nG = 2;  n = ng*nG;
@@ -349,6 +397,7 @@ function test_helmert_recovers_known_weight_error(tc)
 end
 
 function test_adjust_typed_validators_and_enum_values(tc)
+% categories: contract | tags: diagnostics
     % WP-39 round a2 (F-07): adjust keeps inputParser BY DESIGN (open
     % pass-through to diagnose) but its five own options got typed
     % validators and canonical names. Fails-on-old levers, checked with
@@ -379,6 +428,7 @@ function test_adjust_typed_validators_and_enum_values(tc)
 end
 
 function test_stageB_signature_varComp(tc)
+% categories: contract
     % WP-39 stage (b) (F-07): the enum-value lever with the specific
     % mustBeMember id (the old strcmpi accepted 'Rigorous').
     b = @(k) deal(randn(8,2), randn(8,1), ones(8,1));
@@ -400,6 +450,7 @@ function test_stageB_signature_varComp(tc)
 end
 
 function test_varComp_negative_component_freezes_not_nukes(tc)
+% categories: contract
     % WP-40 (fixes F-11; fails on the old code, whose s(bad) = 1e-6 divided
     % the group's CUMULATIVE variance by 1e6): a two-group rig (group 2:
     % tiny true noise, 6 obs on 4 shared params) drives the rigorous
@@ -445,6 +496,7 @@ function test_varComp_negative_component_freezes_not_nukes(tc)
 end
 
 function test_helmert_no_false_correction(tc)
+% categories: precision
     % When the weights are already right, the estimator must not invent a
     % correction beyond its own sampling noise.
     rs = RandStream('mt19937ar','Seed',17);
@@ -465,6 +517,7 @@ function test_helmert_no_false_correction(tc)
 end
 
 function test_helmert_redundancy_partition(tc)
+% categories: precision
     rs = RandStream('mt19937ar','Seed',9);
     u = 4;  ng = 300;  n = 2*ng;
     A = randn(rs,n,u);  l = randn(rs,n,1);  p = ones(n,1);
@@ -478,6 +531,7 @@ end
 
 %% ============================= varComp TraceMethod parity (Hutchinson)
 function test_varComp_exact_has_no_traceEstimate(tc)
+% categories: contract
     % Default 'exact' must NOT attach the estimator struct: it is opt-in.
     [u, src, gsrc, nb] = vcSmall();
     VC = lsqvce.varComp(u, src, nb, gsrc, 2, 'verbose', false);
@@ -486,6 +540,7 @@ function test_varComp_exact_has_no_traceEstimate(tc)
 end
 
 function test_varComp_hutchinson_check_returns_u(tc)
+% categories: precision
     % Machinery check: tr(N^-1 N) = u exactly; the estimate must return ~u.
     [u, src, gsrc, nb] = vcSmall();
     VC = lsqvce.varComp(u, src, nb, gsrc, 2, 'verbose', false, ...
@@ -499,6 +554,7 @@ function test_varComp_hutchinson_check_returns_u(tc)
 end
 
 function test_varComp_hutchinson_does_not_perturb_components(tc)
+% categories: reference
     % The exact per-group components are authoritative: turning the estimator
     % on must leave VC.s / VC.sigma / VC.redund bit-for-bit unchanged.
     [u, src, gsrc, nb] = vcSmall();
@@ -512,6 +568,7 @@ end
 
 %% ===================================== vceHutchinson (strict-Ellmer VCE path)
 function test_vceHutchinson_shape(tc)
+% categories: reference
     % Returns the documented struct, marked as the estimated path, and NO
     % per-observation fields (strict Ellmer).
     [u, src, gsrc, nb] = vcSmall();
@@ -526,6 +583,7 @@ function test_vceHutchinson_shape(tc)
 end
 
 function test_vceHutchinson_matches_varComp(tc)
+% categories: precision
     % TIER T3 validation: on the same problem, the estimated components and
     % redundancies must agree with EXACT varComp within the sampling band. With
     % a healthy probe count the agreement is tight.
@@ -542,6 +600,7 @@ function test_vceHutchinson_matches_varComp(tc)
 end
 
 function test_hutchinson_recovers_planted_ratio_like_demos(tc)
+% categories: precision
     % Guards the CLAIM the demos make (demo_lsqvce case 5, demo_workflow):
     % a 2-group problem where group 2 is 3x noisier but we CLAIM equal weights;
     % both the exact and the 'backend','hutchinson' paths must recover the true
@@ -569,6 +628,7 @@ function test_hutchinson_recovers_planted_ratio_like_demos(tc)
 end
 
 function test_vceHutchinson_simplified_matches(tc)
+% categories: precision
     % The simplified estimator (s_g = q_g / r_g) must also track exact varComp's
     % simplified path within the band.
     [u, src, gsrc, nb] = vcSmall();
@@ -579,6 +639,7 @@ function test_vceHutchinson_simplified_matches(tc)
 end
 
 function test_vceHutchinson_deterministic_with_seed(tc)
+% categories: contract
     % Same seed + same probe count -> identical result (reproducible).
     [u, src, gsrc, nb] = vcSmall();
     V1 = lsqvce.vceHutchinson(u, src, nb, gsrc, 2, 'verbose', false, 'probes', 300, 'seed', 9);
@@ -589,6 +650,7 @@ end
 
 %% ============================ varComp backend dispatch (item 0 tier T2)
 function test_varComp_backend_hutchinson_delegates(tc)
+% categories: contract
     % 'backend','hutchinson' hands the whole job to vceHutchinson: the returned
     % struct is the estimated one (marked, with a redundSE), not the exact path.
     [u, src, gsrc, nb] = vcSmall();
@@ -599,6 +661,7 @@ function test_varComp_backend_hutchinson_delegates(tc)
 end
 
 function test_varComp_backend_matches_exact(tc)
+% categories: precision
     % The delegated result must agree with the exact backend within the band.
     [u, src, gsrc, nb] = vcSmall();
     VCx = lsqvce.varComp(u, src, nb, gsrc, 2, 'verbose', false);                % exact
@@ -608,6 +671,7 @@ function test_varComp_backend_matches_exact(tc)
 end
 
 function test_varComp_backend_hutchinson_checkD_fallsback(tc)
+% categories: robustness | tags: diagnostics
     % Supplying 'checkD' must force a fallback to the EXACT backend (with a
     % warning), because the contamination guard needs the per-obs path. The
     % result is then the exact struct (no .estimator field).
@@ -622,6 +686,7 @@ end
 
 %% ==================================================== report
 function test_report_verdict_clean(tc)
+% categories: contract | tags: diagnostics
     [A, l, p] = tc.TestData.mk(500, 5, 91);
     B = chop(A, l, p, 6);
     [~, ~, V] = lsqvce.adjust(5, srcOf(B), 6, 'verbose', false);
@@ -632,6 +697,7 @@ function test_report_verdict_clean(tc)
 end
 
 function test_report_flags_uncontrolled(tc)
+% categories: contract | tags: diagnostics
     rs = RandStream('mt19937ar','Seed',31);
     n = 80; u = 5;
     A = randn(rs,n,u);

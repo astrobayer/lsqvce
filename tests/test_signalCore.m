@@ -23,6 +23,7 @@ end
 
 %% ===================================================== lsqvce.outliers
 function testOutliersFlagsInjectedBlunder(tc)
+% categories: contract
 % Wrap the synthetic loader so ONE arc carries a large spike, then confirm
 % lsqvce.outliers flags an observation in that arc and reports the correct
 % redundancy identity. The blunder is +15 sigma at a known epoch.
@@ -55,6 +56,7 @@ function testOutliersFlagsInjectedBlunder(tc)
 end
 
 function testOutliersCleanDataNoFalseStorm(tc)
+% categories: reference
 % On clean data the flag count must be a small fraction of n (Baarda at
 % threshold 4.0), and the redundancy identity must hold exactly.
     cfg  = tc.TestData.cfg;
@@ -70,6 +72,7 @@ end
 
 %% ===================================================== lsqvce.varWhiten
 function testVarWhitenMatchesDenseGLS(tc)
+% categories: precision, robustness
 % The vector-AR FIR whitener with the exact stationary startup must reproduce
 % the dense block-Cholesky GLS solve, row for row (docstring: rel diff ~1e-10;
 % v8verify.py: 2e-16). Everything is derived from the toolbox's own varACV so
@@ -99,12 +102,14 @@ function testVarWhitenMatchesDenseGLS(tc)
     [Aw, ~, lw] = lsqvce.varWhiten(A1, Sigma, G, d, Adesign, Bempty, l, true);
     xWhite  = (Aw.' * Aw) \ (Aw.' * lw);
 
+    % tol: v8verify.py measures 2e-16 rel; 1e-8 leaves 8 decades for BLAS drift
     tc.verifyEqual(xWhite, xDense, 'RelTol', 1e-8);
-    tc.verifyEqual(lw.' * lw, quadRef, 'RelTol', 1e-8);
+    tc.verifyEqual(lw.' * lw, quadRef, 'RelTol', 1e-8);   % tol: same source
 end
 
 %% ===================================================== lsqvce.ar2arma
 function testAr2armaRoundTrip(tc)
+% categories: precision
 % A resonant ARMA(2,1) -- a sharp spectral line, the 1/rev regime ar2arma is
 % for. Build its exact ACV, fit a long AR, reduce to ARMA(p,q), and require the
 % reduced model's ACV to match the target. v8verify.py: relErr 1.3e-14.
@@ -118,8 +123,9 @@ function testAr2armaRoundTrip(tc)
     opt = struct('armaP', 8, 'armaN', 4096);
     [a, b, s2] = lsqvce.ar2arma(aHi, s2Hi, 1, opt);
 
+    % tol: a(1)=1 exact by construction; 1e-12 = house factorisation round-trip
     tc.verifyEqual(a(1), 1, 'AbsTol', 1e-12);                  % normalisation
-    tc.verifyEqual(b(1), 1, 'AbsTol', 1e-12);
+    tc.verifyEqual(b(1), 1, 'AbsTol', 1e-12);               % tol: same source
     tc.verifyLessThan(max(abs(roots(a))), 1);                 % stationary
 
     rArma  = s2 * lsqvce.armaACV(a, b, nACV);
@@ -130,6 +136,7 @@ function testAr2armaRoundTrip(tc)
 end
 
 function testAr2armaSmoothFloorStaysStable(tc)
+% categories: precision, robustness
 % On a smooth coloured floor (a plain AR(2), no lines) the reduction must still
 % return a normalised, stationary model -- or fall back to the AR with a
 % warning. Either way the returned AR part must be stationary.
@@ -140,9 +147,45 @@ function testAr2armaSmoothFloorStaysStable(tc)
     warning('off', 'lsqvce:ar2arma:nonStationary');
     c = onCleanup(@() warning('on', 'lsqvce:ar2arma:nonStationary'));
     [a, b, ~] = lsqvce.ar2arma(aHi, s2Hi, 1, opt);
+    % tol: normalisation exact by construction; house round-trip bound 1e-12
     tc.verifyEqual(a(1), 1, 'AbsTol', 1e-12);
-    tc.verifyEqual(b(1), 1, 'AbsTol', 1e-12);
+    tc.verifyEqual(b(1), 1, 'AbsTol', 1e-12);               % tol: same source
     tc.verifyLessThan(max(abs(roots(a))), 1);
+end
+
+%% =================================================================== contract
+function testSignalKernelContractRejections(tc)
+% categories: contract
+% WP-43 (audit check 16): ar2arma, varWhiten and whittle validate their
+% arguments with documented ids, yet none of those rejections was exercised
+% by a CI-run suite -- varWhiten/whittle coverage lived ONLY in the CI-skipped
+% test_parallel. Rejected calls run before the body, so each check here costs
+% microseconds; contract may not be exempted for a validating function.
+    d = 2;
+    A1    = cat(3, [0.4 0.1; -0.2 0.5]);
+    Sigma = eye(d);
+    G     = lsqvce.varACV(A1, Sigma, 8);
+
+    % ar2arma: armaN too short for the requested ARMA(p,q) (< 4*(p+q+1))
+    tc.verifyError(@() lsqvce.ar2arma([1 -0.5], 1.0, 1, ...
+                       struct('armaP', 6, 'armaN', 8)), ...
+                   'lsqvce:ar2arma:tooShort');
+
+    % varWhiten: wrong coefficient shape / wrong Sigma size / partial epoch
+    m = d * 8;  X = zeros(m, 1);  Z = zeros(m, 0);
+    tc.verifyError(@() lsqvce.varWhiten(ones(3,2,1), Sigma, G, d, X, Z, X, true), ...
+                   'lsqvce:varWhiten:badA');
+    tc.verifyError(@() lsqvce.varWhiten(A1, eye(3), G, d, X, Z, X, true), ...
+                   'lsqvce:varWhiten:badSigma');       % wrong size (3x3, d=2)
+    tc.verifyError(@() lsqvce.varWhiten(A1, [1 2; 2 1], G, d, X, Z, X, true), ...
+                   'lsqvce:varWhiten:badSigma');       % right size, not PD
+    Xodd = zeros(m + 1, 1);
+    tc.verifyError(@() lsqvce.varWhiten(A1, Sigma, G, d, Xodd, zeros(m+1,0), ...
+                                        Xodd, true), ...
+                   'lsqvce:varWhiten:notWholeEpochs');
+
+    % whittle: malformed cross-ACV argument
+    tc.verifyError(@() lsqvce.whittle(ones(2,3,4), 1), 'lsqvce:whittle:badG');
 end
 
 %% =================================================================== helpers

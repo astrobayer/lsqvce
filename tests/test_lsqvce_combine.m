@@ -74,6 +74,7 @@ end
 
 %% ================================================ CORRECTNESS
 function test_matches_the_full_solution(tc)
+% categories: precision | tags: diagnostics
     S = arrowProblem(1, 5, [4 6 3], [60 80 50]);
     [xr, Qxx, vr, rr, vPvr] = denseRef(S);
 
@@ -91,6 +92,7 @@ function test_matches_the_full_solution(tc)
 end
 
 function test_backsubstituted_locals_are_exact(tc)
+% categories: precision
     S = arrowProblem(2, 4, [5 3], [70 60]);
     [xr, ~, ~, ~, ~] = denseRef(S);
 
@@ -107,6 +109,7 @@ function test_backsubstituted_locals_are_exact(tc)
 end
 
 function test_local_sigmas_include_the_inflation_term(tc)
+% categories: precision
     % Q_ii = Nll^-1 + S QCC S'.  The SECOND TERM IS NOT OPTIONAL: Nll^-1 alone
     % is the covariance with the common parameters held FIXED, but xC was
     % ESTIMATED and its uncertainty propagates into the locals. Dropping it
@@ -129,6 +132,7 @@ function test_local_sigmas_include_the_inflation_term(tc)
 end
 
 function test_residuals_match(tc)
+% categories: precision | tags: diagnostics
     S = arrowProblem(4, 4, [5 5 5], [60 60 60]);
     [~, ~, vr, ~, ~] = denseRef(S);
 
@@ -142,6 +146,7 @@ end
 
 %% ===================================== THE TWO TRAPS
 function test_redundancy_numbers_include_the_cross_term(tc)
+% categories: precision | tags: diagnostics
     % TRAP 1. a'Qxx a spans BOTH blocks:
     %     a'Qxx a = aC' Q_CC aC + 2 aC' Q_Ci aL + aL' Q_ii aL
     % Dropping the cross term (using only Q_CC, which is what the reduced
@@ -161,6 +166,7 @@ function test_redundancy_numbers_include_the_cross_term(tc)
 end
 
 function test_integrity_identity_uses_u_total(tc)
+% categories: precision | tags: diagnostics
     % TRAP 2. The redundancy is n - u_TOTAL, counting the ELIMINATED locals.
     % They were removed from the SOLVE, not from the MODEL: they still cost
     % degrees of freedom. Using n - uC deflates s0^2 by ~7% here -- and in the
@@ -184,6 +190,7 @@ end
 
 %% ================================================ ERRORS
 function test_singular_local_block_errors(tc)
+% categories: contract, robustness
     % A system whose own data do not determine its own locals cannot be
     % eliminated. You cannot remove a parameter the data never constrained.
     rs = RandStream('mt19937ar','Seed', 11);
@@ -200,6 +207,7 @@ function test_singular_local_block_errors(tc)
 end
 
 function test_common_block_undetermined_errors(tc)
+% categories: contract, robustness
     % If NO system constrains a common direction, the reduced system is
     % singular. That is a parameterisation defect, not a numerical accident.
     rs = RandStream('mt19937ar','Seed', 13);
@@ -216,6 +224,7 @@ function test_common_block_undetermined_errors(tc)
 end
 
 function test_wrong_AL_width_errors(tc)
+% categories: contract
     rs = RandStream('mt19937ar','Seed', 17);
     cmb = lsqvce.Combine(3);
     src = @(k) deal(randn(rs,20,3), randn(rs,20,2), randn(rs,20,1), ones(20,1));
@@ -224,6 +233,7 @@ function test_wrong_AL_width_errors(tc)
 end
 
 function test_correlated_batch_refused(tc)
+% categories: contract, robustness | tags: diagnostics
     % Combine does not support matrix weights inside an eliminated system: the
     % generalised (P Qvv P)_ii with a'Qxx a spanning both blocks was not
     % validated, and shipping unverified algebra is exactly the failure mode
@@ -241,6 +251,7 @@ end
 
 %% ================================================ STRUCTURE
 function test_system_with_no_locals(tc)
+% categories: precision, robustness
     % uL = 0 is legal: a data set that sees ONLY common parameters.
     S = arrowProblem(21, 4, [0 5], [50 60]);
     [xr, ~, ~, ~, ~] = denseRef(S);
@@ -252,6 +263,7 @@ function test_system_with_no_locals(tc)
 end
 
 function test_multiple_batches_per_system(tc)
+% categories: vectorisation
     % The result must not depend on how a system's data is chopped into
     % batches -- that is the whole premise of a streaming accumulator.
     S = arrowProblem(23, 4, [6 4], [90 80]);
@@ -275,6 +287,7 @@ function test_multiple_batches_per_system(tc)
 end
 
 function test_qr_beats_normal_when_ill_conditioned(tc)
+% categories: robustness
     % Forming N squares the condition number. Measured, at cond(A) = 2.4e8 the
     % normal-equation path has NO correct digits while Householder still has
     % eight. Verify the ORDERING here rather than a specific tolerance.
@@ -328,6 +341,7 @@ function test_qr_beats_normal_when_ill_conditioned(tc)
 end
 
 function test_scaling_claim(tc)
+% categories: contract
     % Not a numerical test -- a STRUCTURAL one. The running memory must be
     % O(uC^2 + max(uL)^2), never O(u_total^2).
     S = arrowProblem(41, 3, [4 4 4 4 4], [40 40 40 40 40]);
@@ -342,6 +356,7 @@ end
 
 %% ============================== SENSOR x DAY HIERARCHY (BatchIndex)
 function test_sensorday_batching_matches_flat(tc)
+% categories: precision
     % THE CLAIM: with PER-SYSTEM locals, a (sensor, day) batch is just another
     % batch inside its system's elimination block. Verify the sensor x day
     % structure gives IDENTICAL results to one batch per system.
@@ -397,6 +412,7 @@ function test_sensorday_batching_matches_flat(tc)
 end
 
 function test_batch_order_does_not_matter(tc)
+% categories: vectorisation
     % QR accumulation is order-independent. You may feed days and sensors in
     % any order and interleave them freely. Verified to 3e-16 in Python.
     rs = RandStream('mt19937ar','Seed', 511);
@@ -421,6 +437,7 @@ end
 
 %% ===================================================== BatchIndex
 function test_batchindex_decode(tc)
+% categories: contract
     bx = lsqvce.BatchIndex();
     bx.addSystem('GRACE-C', {'KBR','LRI'}, 1:3);
     for s = {'KBR','LRI'}
@@ -445,6 +462,7 @@ function test_batchindex_decode(tc)
 end
 
 function test_batchindex_missing_sensor_day(tc)
+% categories: robustness
     % A sensor that was down on a given day is simply not registered. No empty
     % batches, and no requirement that every sensor cover every day.
     bx = lsqvce.BatchIndex();
@@ -456,6 +474,7 @@ function test_batchindex_missing_sensor_day(tc)
 end
 
 function test_batchindex_rejects_double_registration(tc)
+% categories: contract
     % Registering the same (sensor, day) twice would DOUBLE-COUNT those
     % observations -- in the solve and in the diagnostics.
     bx = lsqvce.BatchIndex();
@@ -466,6 +485,7 @@ function test_batchindex_rejects_double_registration(tc)
 end
 
 function test_batchindex_requires_lock(tc)
+% categories: contract
     bx = lsqvce.BatchIndex();
     bx.addSystem('S', {'A'}, 1);
     bx.setCount('S', 'A', 1, 10);
@@ -473,6 +493,7 @@ function test_batchindex_requires_lock(tc)
 end
 
 function test_batchindex_unknown_sensor(tc)
+% categories: contract
     bx = lsqvce.BatchIndex();
     bx.addSystem('S', {'KBR'}, 1);
     verifyError(tc, @() bx.setCount('S', 'LRI', 1, 10), ...
@@ -480,6 +501,7 @@ function test_batchindex_unknown_sensor(tc)
 end
 
 function test_sensorgroups_length(tc)
+% categories: contract
     bx = lsqvce.BatchIndex();
     bx.addSystem('S', {'A','B'}, 1:2);
     bx.setCount('S','A',1,30);  bx.setCount('S','A',2,40);
@@ -499,6 +521,7 @@ end
 
 %% ============================ PER-SENSOR VARIANCE COMPONENTS
 function test_varcomp_recovers_sensor_noise(tc)
+% categories: precision
     % Two sensors observe the same arcs. Sensor 2 is truly 3x noisier, but we
     % CLAIM sigma = 1 for both. Helmert must find the factor.
     %
@@ -540,6 +563,7 @@ function test_varcomp_recovers_sensor_noise(tc)
 end
 
 function test_varcomp_no_false_correction(tc)
+% categories: precision
     % With CORRECT weights the estimator must not invent a correction beyond
     % its own resolution limit.
     rs = RandStream('mt19937ar','Seed', 531);
@@ -566,6 +590,7 @@ function test_varcomp_no_false_correction(tc)
 end
 
 function test_varcomp_reports_resolution(tc)
+% categories: precision, robustness
     rs = RandStream('mt19937ar','Seed', 541);
     uc = 4;  ul = 2;  nB = 10;  nk = 30;
     xt = randn(rs, uc+ul, 1);
@@ -582,4 +607,38 @@ function test_varcomp_reports_resolution(tc)
 
     verifyTrue(tc, all(isfinite(VC.resolution)));
     verifyEqual(tc, VC.resolution(1), 0.5*sqrt(2/VC.redund(1)), 'RelTol', 1e-9);
+end
+
+%% =================================================== ReducedContribution
+function test_reduced_contribution_contract(tc)
+% categories: contract
+% WP-43 (audit check 16): ReducedContribution was the ONE public unit with no
+% direct test -- both documented rejection ids were unexercised. Asserts the
+% help-text promises: constructor rejections with the documented ids (and only
+% those), column-vector normalisation of n, and immutability of every property.
+    N = eye(3);  n = (1:3).';  ltl = 2.5;  dof = 7;
+
+    % documented rejections, each with its id
+    tc.verifyError(@() lsqvce.ReducedContribution(ones(3,2), n, ltl, dof), ...
+                   'lsqvce:reduced:notSquare');
+    tc.verifyError(@() lsqvce.ReducedContribution(N, (1:4).', ltl, dof), ...
+                   'lsqvce:reduced:sizeMismatch');
+
+    % shapes and the row-input normalisation promise (n stored as a column)
+    red = lsqvce.ReducedContribution(N, 1:3, ltl, dof);
+    tc.verifyEqual(red.N,   N);
+    tc.verifyEqual(red.n,   n);                 % 1x3 in -> 3x1 stored
+    tc.verifyEqual(red.ltl, ltl);
+    tc.verifyEqual(red.dof, dof);
+
+    % immutable by design: every property refuses assignment
+    for p = {'N', 'n', 'ltl', 'dof'}
+        ok = false;
+        try
+            red.(p{1}) = 0;
+        catch e
+            ok = strcmp(e.identifier, 'MATLAB:class:SetProhibited');
+        end
+        tc.verifyTrue(ok, sprintf('property %s must be immutable', p{1}));
+    end
 end
