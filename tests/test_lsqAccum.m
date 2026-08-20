@@ -242,8 +242,7 @@ function testQRBeatsNormalWhenIllConditioned(tc)
 % then the regularisation sets the accuracy for both backends alike.
 % See test_precision for the detailed treatment.
     muteWarn(tc, 'lsqvce:accum:pinvFallback');   % provoked on purpose here (WP-47, gate rule 7)
-    muteWarn(tc, 'lsqvce:normalEq:negativeVtv');   % provoked on purpose here (WP-47, gate rule 7)
-    muteWarn(tc, 'lsqvce:normalEq:cancellation');   % same regime as negativeVtv above (WP-49: the tight-fit digits guard CAN fire here)
+    muteWarn(tc, 'lsqvce:normalEq:cancellation');   % tight-fit / ill-conditioned regime provoker (WP-49 unified id)
     rs = RandStream('mt19937ar','Seed',5);
     m = 800;  n = 8;
 

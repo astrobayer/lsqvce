@@ -168,9 +168,10 @@ classdef BlockAccumulator < handle
 %
 %   ERRORS
 %     The system declaration is wrong (raised at construction)
-%       lsqvce:accum:negativeVtv      (warning) v'Pv < 0 on the prior-folded
-%                                     solve -> NaN, superseded by
-%                                     lsqvce.residuals (WP-49)
+%       lsqvce:accum:cancellation     (warning) v'Pv on the prior-folded
+%                                     solve destroyed by cancellation
+%                                     (negative or > 8 digits lost) -> NaN,
+%                                     superseded by lsqvce.residuals (WP-49)
 %       lsqvce:accum:noSystems        no system specs at all
 %       lsqvce:accum:badSpecs         a spec is not a struct with the required
 %                                     fields
@@ -481,15 +482,20 @@ classdef BlockAccumulator < handle
 
                 x   = Lc.' \ (Lc \ n);
                 vtv = ltl + obj.prior.x0.'*obj.prior.x0/obj.prior.sigma^2 - n.'*x;
-                if vtv < 0
-                    % WP-49: same rule as the backends -- a negative weighted
-                    % sum of squares is a cancellation artefact and must
-                    % leave as NaN, never clamped to a plausible 0.
-                    % lsqvce.residuals() supersedes it from a second pass.
-                    lsqvce.util.log.warn('lsqvce:accum:negativeVtv', ...
-                        ['v''Pv = %.3e is negative on the prior-folded solve ' ...
-                         '-- cancellation. RETURNING NaN; ' ...
-                         'lsqvce.residuals() recomputes it honestly.'], vtv);
+                % WP-49: same rule and same guard as the backends -- one
+                % failure mode, one identifier per namespace. Negative OR
+                % > 8 digits lost against the total quadratic mass -> NaN;
+                % lsqvce.residuals() supersedes it from a second pass.
+                lPlTot = ltl + obj.prior.x0.'*obj.prior.x0/obj.prior.sigma^2;
+                poisoned = vtv < 0 || (lPlTot > 0 && ...
+                    log10(max(lPlTot / max(vtv, realmin), 1)) > 8);
+                if poisoned
+                    lsqvce.util.log.warn('lsqvce:accum:cancellation', ...
+                        ['v''Pv = %.3e on the prior-folded solve was ' ...
+                         'destroyed by cancellation (total quadratic mass ' ...
+                         '%.6e). RETURNING NaN; lsqvce.residuals() ' ...
+                         'recomputes it honestly and SUPERSEDES it.'], ...
+                         vtv, lPlTot);
                     vtv = NaN;
                 end
 

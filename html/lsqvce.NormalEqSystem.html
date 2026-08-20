@@ -97,8 +97,11 @@ value comes from LSQVCE.RESIDUALS&#x27; second pass, which supersedes it.</pre>
     lsqvce:normalEq:noRedundancy  m &lt;= dim, sigma0 undefined
 
 WARNINGS
-  lsqvce:normalEq:negativeVtv     vtv &lt; 0 (cancellation) -&gt; vtv = NaN
-  lsqvce:normalEq:cancellation    vtv lost &gt; 8 digits    -&gt; vtv = NaN
+  lsqvce:normalEq:cancellation    vtv negative OR &gt; 8 digits lost to the
+                                  l&#x27;Pl - n&#x27;x cancellation -&gt; vtv = NaN.
+                                  (The former lsqvce:normalEq:negativeVtv
+                                  was RETIRED in WP-49 -- breaking: one
+                                  failure mode, one identifier.)
 
 See also LSQVCE.QRSYSTEM, LSQVCE.BLOCKACCUMULATOR
 

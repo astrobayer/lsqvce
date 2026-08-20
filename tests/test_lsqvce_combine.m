@@ -299,8 +299,7 @@ function test_qr_beats_normal_when_ill_conditioned(tc)
     % Forming N squares the condition number. Measured, at cond(A) = 2.4e8 the
     % normal-equation path has NO correct digits while Householder still has
     % eight. Verify the ORDERING here rather than a specific tolerance.
-    muteWarn(tc, 'lsqvce:normalEq:negativeVtv');   % same regime as the precision sibling that flaked on CI: cond 2.4e8 on the normal path CAN round vPv negative (WP-47 r1e)
-    muteWarn(tc, 'lsqvce:normalEq:cancellation');   % same regime as negativeVtv above (WP-49: the tight-fit digits guard CAN fire here)
+    muteWarn(tc, 'lsqvce:normalEq:cancellation');   % tight-fit / ill-conditioned regime provoker (WP-49 unified id)
     rs = RandStream('mt19937ar','Seed', 31);
     uc = 5;  ul = 4;  n = 80;  nsys = 3;
     eps_ = 1e-7;

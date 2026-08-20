@@ -319,8 +319,7 @@ function testQRBeatsNormalOnIllConditioned(tc)
 % regularisation kicks in and sets the accuracy for both backends alike (see
 % testRegularisationMasksBackendChoice). The backend difference is real, but it
 % only shows where the design matrix is ill conditioned AND unregularised.
-    muteWarn(tc, 'lsqvce:normalEq:negativeVtv');   % provoked on purpose here (WP-47, gate rule 7)
-    muteWarn(tc, 'lsqvce:normalEq:cancellation');   % same regime as negativeVtv above (WP-49: the tight-fit digits guard CAN fire here)
+    muteWarn(tc, 'lsqvce:normalEq:cancellation');   % tight-fit / ill-conditioned regime provoker (WP-49 unified id)
     rs = RandStream('mt19937ar','Seed',5);
     m  = 800;   n = 8;
 
@@ -354,8 +353,7 @@ function testNormalEquationsLoseTheAnswerAtHighCondition(tc)
 % The failure mode the QR backend exists to prevent. At cond(A) = 1e8 the normal
 % matrix has cond(A)^2 = 1e16 > 1/eps: the information is destroyed by forming
 % A'*A and NO solver can recover it afterwards.
-    muteWarn(tc, 'lsqvce:normalEq:negativeVtv');   % CAN fire, nondeterministically: at cond(A)^2 ~ 1/eps whether vPv rounds negative is a BLAS coin flip -- flaked red on CI run 2 (WP-47 r1e)
-    muteWarn(tc, 'lsqvce:normalEq:cancellation');   % same regime as negativeVtv above (WP-49: the tight-fit digits guard CAN fire here)
+    muteWarn(tc, 'lsqvce:normalEq:cancellation');   % tight-fit / ill-conditioned regime provoker (WP-49 unified id)
     rs = RandStream('mt19937ar','Seed',11);
     m  = 800;   n = 8;
 
@@ -382,8 +380,7 @@ function testRegularisationMasksBackendChoice(tc)
 % that TSVD engages, BOTH backends give the same answer -- the regularisation,
 % not the factorisation, sets the accuracy. Do not conclude from a full-pipeline
 % test that the backend does not matter; test the backend in isolation.
-    muteWarn(tc, 'lsqvce:normalEq:negativeVtv');   % provoked on purpose here (WP-47, gate rule 7)
-    muteWarn(tc, 'lsqvce:normalEq:cancellation');   % same regime as negativeVtv above (WP-49: the tight-fit digits guard CAN fire here)
+    muteWarn(tc, 'lsqvce:normalEq:cancellation');   % tight-fit / ill-conditioned regime provoker (WP-49 unified id)
     cfg = tc.TestData.cfg;
     cfg.collinear = true;   cfg.collinearEps = 1e-9;
 
@@ -641,9 +638,14 @@ function testResidualPassSupersedesPoisonedSigma0(tc)
 % res.supersedesSol, and its number agrees with the QR backend's stable
 % route. The QR run on the same data is the second, independent route.
     cfg = tc.TestData.cfg;
-    cfg.x_c = 3e4 * (1:cfg.nc).';              % huge signal, tiny noise:
-    cfg.cov.pos.sigma = 1e-5;                  % the cancellation regime
-    cfg.cov.kbr.sigma = 1e-5;
+    % signal/noise chosen so the NORMAL route is destroyed (l'Pl/vtv ~ 1e11,
+    % far past the 8-digit guard) while QR's dynamic range (~3e5) stays well
+    % inside double precision -- QR must remain the valid second route. The
+    % first probe at 3e4/1e-5 broke QR TOO (sigma0 = 0; observation recorded
+    % in 10.11); this is the measured sweet spot.
+    cfg.x_c = 30 * (1:cfg.nc).';
+    cfg.cov.pos.sigma = 1e-4;
+    cfg.cov.kbr.sigma = 1e-4;
 
     accN = lsqvce.BlockAccumulator(cfg.nc, 'Backend','normal', ...
                                    'KeepLocal',true, 'Verbose',false);

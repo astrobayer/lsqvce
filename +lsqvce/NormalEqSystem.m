@@ -58,8 +58,11 @@ classdef NormalEqSystem < handle
 %       lsqvce:normalEq:noRedundancy  m <= dim, sigma0 undefined
 %
 %   WARNINGS
-%     lsqvce:normalEq:negativeVtv     vtv < 0 (cancellation) -> vtv = NaN
-%     lsqvce:normalEq:cancellation    vtv lost > 8 digits    -> vtv = NaN
+%     lsqvce:normalEq:cancellation    vtv negative OR > 8 digits lost to the
+%                                     l'Pl - n'x cancellation -> vtv = NaN.
+%                                     (The former lsqvce:normalEq:negativeVtv
+%                                     was RETIRED in WP-49 -- breaking: one
+%                                     failure mode, one identifier.)
 %
 %   See also LSQVCE.QRSYSTEM, LSQVCE.BLOCKACCUMULATOR
 %
@@ -172,30 +175,26 @@ classdef NormalEqSystem < handle
             % plausible-looking number: NaN gets investigated, a wrong number
             % gets quoted (measured on the flat path: 89% wrong at
             % sigma = 1e-6, factor 1e6 at 1e-9).
-            if vtv < 0
-                lsqvce.util.log.warn('lsqvce:normalEq:negativeVtv', ...
-                    ['The weighted sum of squares v''Pv = %.3e is negative, ' ...
-                     'which is impossible. This is a cancellation artefact of ' ...
-                     'the normal equations -- the condition number is too ' ...
-                     'large for this backend. RETURNING NaN for vtv/s0sq. ' ...
-                     'lsqvce.residuals() recomputes the number honestly from ' ...
-                     'a second pass and SUPERSEDES this one; to avoid the ' ...
-                     'problem entirely, switch to ''Backend'',''qr''.'], vtv);
+            % ONE failure mode, ONE identifier: a negative vtv is just the
+            % extreme of the same cancellation (sign at the eps-garbage
+            % level is a BLAS coin flip -- WP-47 r1e), so both branches
+            % speak as lsqvce:normalEq:cancellation. The former
+            % lsqvce:normalEq:negativeVtv id is RETIRED (breaking, WP-49;
+            % error identifiers are names and get no aliases).
+            poisoned = vtv < 0;
+            if ~poisoned && o.ltl > 0
+                poisoned = log10(max(o.ltl / max(vtv, realmin), 1)) > 8;
+            end
+            if poisoned
+                lsqvce.util.log.warn('lsqvce:normalEq:cancellation', ...
+                    ['vtv was formed as l''Pl - n''x and the cancellation ' ...
+                     'destroyed it (l''Pl = %.6e, vtv = %.6e%s). RETURNING ' ...
+                     'NaN rather than a plausible-looking number. ' ...
+                     'lsqvce.residuals() recomputes it honestly from a ' ...
+                     'second pass and SUPERSEDES this value; to avoid the ' ...
+                     'problem entirely, switch to ''Backend'',''qr''.'], ...
+                     o.ltl, vtv, ternaryChar(vtv < 0, ', negative', ''));
                 vtv = NaN;
-            elseif o.ltl > 0
-                digitsLost = log10(max(o.ltl / max(vtv, realmin), 1));
-                if digitsLost > 8
-                    lsqvce.util.log.warn('lsqvce:normalEq:cancellation', ...
-                        ['vtv was formed as l''Pl - n''x and has lost about ' ...
-                         '%.0f significant digits to cancellation ' ...
-                         '(l''Pl = %.6e, vtv = %.6e). RETURNING NaN rather ' ...
-                         'than a plausible-looking number. ' ...
-                         'lsqvce.residuals() recomputes it honestly and ' ...
-                         'SUPERSEDES this value; to avoid the problem ' ...
-                         'entirely, switch to ''Backend'',''qr''.'], ...
-                         digitsLost, o.ltl, vtv);
-                    vtv = NaN;
-                end
             end
 
             s0sq = vtv / dof;
@@ -213,4 +212,9 @@ classdef NormalEqSystem < handle
             m = o.m;
         end
     end
+end
+
+function c = ternaryChar(cond, a, b)
+%TERNARYCHAR  Inline char pick for the warning text.
+    if cond, c = a; else, c = b; end
 end
