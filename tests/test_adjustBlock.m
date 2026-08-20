@@ -477,3 +477,105 @@ function test_signature_typed_arguments(tc)
     end
 end
 
+
+%% ============================================================ run provenance
+function testResultsMetaContract(tc)
+% categories: contract | tags: provenance
+% WP-44 (T-05): every Results carries .meta from the ONE composer. Asserts
+% the documented field list (SUPERSET lock: fields are add-only, never
+% renamed), the field types, and immutability. try/catch identifier pattern
+% throughout (the WP-43 r1 lesson -- never the verifyError output form).
+    cfg = buildCfg();
+    L = lsqvce.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
+            'observationTypes',{'pos','kbr'}, 'covariance',cfg.cov, ...
+            'arcs',cfg.arcsPerDay, 'systemId',1, ...
+            'numLocal',cfg.nl, 'numCommon',cfg.nc);
+    R = lsqvce.adjustBlock({L}, 1:2);
+
+    m = R.meta;
+    tc.verifyClass(m, 'struct');
+    documented = {'toolboxVersion','matlabRelease','createdUTC','seeds','options'};
+    tc.verifyEmpty(setdiff(documented, fieldnames(m)), ...
+        'meta must carry AT LEAST the documented field list (add-only lock)');
+    tc.verifyClass(m.toolboxVersion, 'char');
+    tc.verifyClass(m.matlabRelease,  'char');
+    tc.verifyClass(m.createdUTC,     'char');
+    tc.verifyClass(m.seeds,          'struct');
+    tc.verifyClass(m.options,        'struct');
+    % ISO 8601 with trailing Z, as documented
+    tc.verifyTrue(~isempty(regexp(m.createdUTC, ...
+        '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$', 'once')), ...
+        'createdUTC must be ISO 8601 with a trailing Z');
+    % the version comes from Contents.m, the ONE source
+    txt = fileread(fullfile(fileparts(which('lsqvce.Contents')), 'Contents.m'));
+    tok = regexp(txt, '^%\s*Version\s+(\S+)', 'tokens', 'once', 'lineanchors');
+    tc.verifyEqual(m.toolboxVersion, tok{1}, ...
+        'toolboxVersion must equal the Contents.m version line');
+    % adjustBlock resolves no RNG seed: empty seeds, resolved options present
+    tc.verifyEmpty(fieldnames(m.seeds));
+    tc.verifyTrue(isfield(m.options, 'backend'), ...
+        'options must be the RESOLVED adjustBlock option struct');
+
+    % immutability
+    caught = MException.empty;
+    try
+        R.meta = struct();
+    catch e
+        caught = e;
+    end
+    tc.verifyNotEmpty(caught, 'meta must be immutable');
+    tc.verifyEqual(caught.identifier, 'MATLAB:class:SetProhibited');
+end
+
+function testResultsMetaDeterminismAndBareCtor(tc)
+% categories: robustness | tags: provenance
+% WP-44: (1) two runs with identical inputs/options give identical meta
+% EXCEPT .createdUTC; (2) a bare 7-argument construction still carries a
+% complete meta with empty seeds/options -- never a missing field.
+    cfg = buildCfg();
+    mk = @() lsqvce.adjustBlock({lsqvce.makeLoader( ...
+            @(d,ot) buildDayImpl(cfg,d,ot), ...
+            'observationTypes',{'pos','kbr'}, 'covariance',cfg.cov, ...
+            'arcs',cfg.arcsPerDay, 'systemId',1, ...
+            'numLocal',cfg.nl, 'numCommon',cfg.nc)}, 1:2);
+    m1 = mk().meta;   m2 = mk().meta;
+    m1c = rmfield(m1, 'createdUTC');   m2c = rmfield(m2, 'createdUTC');
+    tc.verifyEqual(m1c, m2c, ...
+        'identical runs must give identical meta up to createdUTC');
+
+    sol = struct('x', zeros(3,1), 'sigma0', 1);
+    Rb = lsqvce.Results(sol, struct(), [], struct(), @() deal([],[],[]), 0, []);
+    tc.verifyClass(Rb.meta, 'struct');
+    tc.verifyEmpty(setdiff({'toolboxVersion','matlabRelease','createdUTC', ...
+        'seeds','options'}, fieldnames(Rb.meta)), ...
+        'a bare construction must still carry the full meta');
+    tc.verifyEmpty(fieldnames(Rb.meta.seeds));
+    tc.verifyEmpty(fieldnames(Rb.meta.options));
+end
+
+function testReportPrintsTheProvenanceLine(tc)
+% categories: contract | tags: diagnostics, provenance
+% WP-44: R.report() forwards meta and the printed level-0 block carries the
+% ONE provenance line; the finding is machine-readable (code 'PROVENANCE');
+% a bare lsqvce.report(D) prints none of it.
+    cfg = buildCfg();
+    L = lsqvce.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
+            'observationTypes',{'pos','kbr'}, 'covariance',cfg.cov, ...
+            'arcs',cfg.arcsPerDay, 'systemId',1, ...
+            'numLocal',cfg.nl, 'numCommon',cfg.nc);
+    R = lsqvce.adjustBlock({L}, 1:2);
+
+    out = evalc('V = R.report();');
+    tc.verifyTrue(contains(out, 'run: lsqvce'), ...
+        'the printed report must carry the provenance line');
+    tc.verifyTrue(contains(out, R.meta.toolboxVersion));
+    codes = cellfun(@(f) f.code, V.findings, 'UniformOutput', false);
+    tc.verifyTrue(any(strcmp(codes, 'PROVENANCE')), ...
+        'the finding list must carry the PROVENANCE note');
+
+    % the standalone report has no provenance -- no line, no finding
+    out0 = evalc('V0 = lsqvce.report(R.diag);');
+    tc.verifyFalse(contains(out0, 'run: lsqvce'));
+    codes0 = cellfun(@(f) f.code, V0.findings, 'UniformOutput', false);
+    tc.verifyFalse(any(strcmp(codes0, 'PROVENANCE')));
+end

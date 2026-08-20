@@ -45,6 +45,7 @@ a { color: #0b5ea8; }
 <div class="purpose">The outcome of a recovery: solution, diagnostics, provenance.</div>
 <h2>Description</h2>
 <pre class="example">R = lsqvce.Results(sol, D, acc, diagSol, batchFcn, nBatch, systems)
+R = lsqvce.Results(sol, D, acc, diagSol, batchFcn, nBatch, systems, meta)
 
 Returned by LSQVCE.ADJUSTBLOCK (and, later, LSQVCE.ADJUSTVCE). It gathers
 everything a user needs to read and judge an adjustment in one object, and
@@ -69,6 +70,21 @@ PROPERTIES (read-only)
   batchFcn   1x1      function_handle   Re-reader used by LSQVCE.DIAGNOSE.
   nBatch     1x1      double   Batch count from the bridge.
   systems    1xM      struct   The resolved system specs (sysID/nl/dayList).
+  meta       1x1      struct   Run provenance (WP-44). Field list is
+                               ADD-ONLY across versions, never renamed:
+                               .toolboxVersion 1xK char  from Contents.m,
+                                               the ONE version source
+                               .matlabRelease  1xK char  version(&#x27;-release&#x27;)
+                               .createdUTC     1xK char  ISO 8601, trailing Z
+                               .seeds          1x1 struct every RNG seed the
+                                               run resolved (struct() when
+                                               none; a resolved-but-unset
+                                               seed is stored as [])
+                               .options        1x1 struct the RESOLVED
+                                               options the run actually used
+                               A bare construction (7 arguments) gets a
+                               meta with empty seeds/options -- the field
+                               is never missing.
 
 METHODS
   V = R.report(Name,Value,...)   Print/return the level-0..4 verdict
@@ -98,6 +114,10 @@ x = R.x;   s0 = R.sigma0;</pre>
 See also LSQVCE.ADJUSTBLOCK, LSQVCE.ADJUSTVCE, LSQVCE.REPORT,
          LSQVCE.DIAGNOSE, LSQVCE.BLOCKACCUMULATOR
 
+Updated 2026-08-19 (CEST, UTC+02:00), WP-44 (T-05): run provenance --
+immutable .meta composed by the ONE private builder runMeta, constructor
+widened to an optional 8th argument, report() forwards the provenance
+line. With assistance from Claude (Anthropic), model Claude Fable 5.
 Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (c) c2 (F-07):
 typed `arguments` signatures, canonical UpperCamelCase option names
 (legacy casings keep matching -- MATLAB NV semantics; enum VALUES

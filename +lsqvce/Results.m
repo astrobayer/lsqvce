@@ -1,6 +1,7 @@
 classdef Results < handle
 %LSQVCE.RESULTS  The outcome of a recovery: solution, diagnostics, provenance.
 %   R = lsqvce.Results(sol, D, acc, diagSol, batchFcn, nBatch, systems)
+%   R = lsqvce.Results(sol, D, acc, diagSol, batchFcn, nBatch, systems, meta)
 %
 %   Returned by LSQVCE.ADJUSTBLOCK (and, later, LSQVCE.ADJUSTVCE). It gathers
 %   everything a user needs to read and judge an adjustment in one object, and
@@ -25,6 +26,21 @@ classdef Results < handle
 %     batchFcn   1x1      function_handle   Re-reader used by LSQVCE.DIAGNOSE.
 %     nBatch     1x1      double   Batch count from the bridge.
 %     systems    1xM      struct   The resolved system specs (sysID/nl/dayList).
+%     meta       1x1      struct   Run provenance (WP-44). Field list is
+%                                  ADD-ONLY across versions, never renamed:
+%                                  .toolboxVersion 1xK char  from Contents.m,
+%                                                  the ONE version source
+%                                  .matlabRelease  1xK char  version('-release')
+%                                  .createdUTC     1xK char  ISO 8601, trailing Z
+%                                  .seeds          1x1 struct every RNG seed the
+%                                                  run resolved (struct() when
+%                                                  none; a resolved-but-unset
+%                                                  seed is stored as [])
+%                                  .options        1x1 struct the RESOLVED
+%                                                  options the run actually used
+%                                  A bare construction (7 arguments) gets a
+%                                  meta with empty seeds/options -- the field
+%                                  is never missing.
 %
 %   METHODS
 %     V = R.report(Name,Value,...)   Print/return the level-0..4 verdict
@@ -57,6 +73,10 @@ classdef Results < handle
 %   See also LSQVCE.ADJUSTBLOCK, LSQVCE.ADJUSTVCE, LSQVCE.REPORT,
 %            LSQVCE.DIAGNOSE, LSQVCE.BLOCKACCUMULATOR
 %
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-44 (T-05): run provenance --
+%   immutable .meta composed by the ONE private builder runMeta, constructor
+%   widened to an optional 8th argument, report() forwards the provenance
+%   line. With assistance from Claude (Anthropic), model Claude Fable 5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (c) c2 (F-07):
 %   typed `arguments` signatures, canonical UpperCamelCase option names
 %   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
@@ -75,6 +95,7 @@ classdef Results < handle
         batchFcn
         nBatch
         systems
+        meta       % WP-44: run provenance (see the PROPERTIES help block)
     end
     properties (SetAccess = private)
         converged = true;      % single solve is, by definition, done
@@ -83,9 +104,15 @@ classdef Results < handle
     end
 
     methods
-        function obj = Results(sol, D, acc, diagSol, batchFcn, nBatch, systems)
+        function obj = Results(sol, D, acc, diagSol, batchFcn, nBatch, systems, meta)
         %RESULTS  Construct a Results wrapper around a solve + diagnostics (see header).
-            narginchk(7, 7);
+            narginchk(7, 8);
+            if nargin < 8
+                % A bare construction still carries provenance -- composed by
+                % the ONE builder with empty seeds/options (WP-44 robustness
+                % promise: never a missing meta, never a missing field).
+                meta = runMeta(struct(), struct());
+            end
             obj.sol      = sol;
             obj.x        = sol.x(:);
             obj.sigma0   = sol.sigma0;
@@ -95,11 +122,15 @@ classdef Results < handle
             obj.batchFcn = batchFcn;
             obj.nBatch   = nBatch;
             obj.systems  = systems;
+            obj.meta     = meta;
         end
 
         function V = report(obj, varargin)
         %REPORT  Judge the adjustment in words (LSQVCE.REPORT), levels 0-4.
-            V = lsqvce.report(obj.diag, varargin{:});
+        %   Forwards the run provenance so the printed level-0 block carries
+        %   the one provenance line (WP-44); user options pass through and a
+        %   user-supplied 'Provenance' would win (last-match NV semantics).
+            V = lsqvce.report(obj.diag, 'Provenance', obj.meta, varargin{:});
         end
 
         function r = redundancy(obj)
