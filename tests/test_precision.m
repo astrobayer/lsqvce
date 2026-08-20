@@ -668,3 +668,57 @@ function testResidualPassSupersedesPoisonedSigma0(tc)
     tc.verifyEqual(res.sigma0, solQ.sigma0, 'RelTol', 1e-3, ...
         'the superseding number must match the stable backend');
 end
+
+%% ================================================== WP-50: honest vtv, QR
+function testQrMergeFoldCancellationIsNaN(tc)
+% categories: contract, robustness | tags: diagnostics
+% WP-50: the block-QR path recovers the residual mass of a pre-eliminated
+% contribution by a NORMAL-form subtraction (rho2 = ltl_red - |rhs|^2) --
+% the same cancellation the other routes guard. At the WP-49 deep-regime
+% probe this produced sigma0 = EXACTLY 0, a wrong plausible number
+% (10.11 finding c). It must now refuse: warn once at the fold, NaN at
+% solve, and the residual pass supersedes with the honest number.
+    cfg = tc.TestData.cfg;
+    cfg.x_c = 3e4 * (1:cfg.nc).';              % the exact observed regime
+    cfg.cov.pos.sigma = 1e-5;
+    cfg.cov.kbr.sigma = 1e-5;
+
+    accQ = lsqvce.BlockAccumulator(cfg.nc, 'Backend','qr', ...
+                                   'KeepLocal',true, 'Verbose',false);
+    for s = cfg.sats
+        accQ.addSystem(s, cfg.nl, binder(cfg,s), 1:2);
+    end
+    solQ = verifyWarning(tc, @() accQ.solve(), 'lsqvce:qr:cancellation');
+    tc.verifyTrue(isnan(solQ.sigma0), ...
+        'the destroyed residual mass must surface as NaN, not as 0');
+
+    res = verifyWarning(tc, @() accQ.residuals(solQ, 'verbose', false), ...
+                        'lsqvce:residuals:supersedesSol');
+    tc.verifyTrue(res.supersedesSol);
+    tc.verifyTrue(isfinite(res.sigma0) && res.sigma0 > 0, ...
+        'the residual pass must recover the honest sigma0');
+    % tol: the residual pass measured 1.0072 at this regime in the WP-49
+    % probe (pf49_measure); the declared law is exact, so sigma0 ~ 1 with
+    % sampling scatter 1/sqrt(2*dof) ~ 1.4e-2 -- band 5 sigma
+    tc.verifyEqual(res.sigma0, 1, 'AbsTol', 0.07);
+end
+
+function testQrHealthyPathUnchangedByTheGuards(tc)
+% categories: contract
+% Regression lock for WP-50: on a healthy fixture the guards must be
+% invisible -- finite vtv, sigma0 agreeing with the residual pass at the
+% established 1e-10, and NO cancellation warning (asserted warning-free
+% so a guard that misfires on healthy data cannot land silently).
+    cfg = tc.TestData.cfg;
+    accQ = lsqvce.BlockAccumulator(cfg.nc, 'Backend','qr', ...
+                                   'KeepLocal',true, 'Verbose',false);
+    for s = cfg.sats
+        accQ.addSystem(s, cfg.nl, binder(cfg,s), 1:2);
+    end
+    solQ = tc.verifyWarningFree(@() accQ.solve());
+    tc.verifyTrue(isfinite(solQ.sigma0) && solQ.sigma0 > 0);
+    res = accQ.residuals(solQ, 'verbose', false);
+    tc.verifyFalse(res.supersedesSol);
+    % tol: the established healthy-route agreement (regression-locked)
+    tc.verifyEqual(res.sigma0, solQ.sigma0, 'RelTol', 1e-10);
+end

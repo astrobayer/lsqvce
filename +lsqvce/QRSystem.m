@@ -44,10 +44,34 @@ classdef QRSystem < handle
 %     lsqvce:qr:noData         solve() before anything was added
 %     lsqvce:qr:rankDeficient  R is rank deficient and no datum was supplied
 %     lsqvce:qr:singularR      the triangular factor cannot be back-substituted
+%
+%   WARNINGS
+%     lsqvce:qr:cancellation   the residual mass was destroyed by
+%                              cancellation -- either in a merge() fold of a
+%                              pre-eliminated (normal-form) contribution, or
+%                              by rotation round-off at extreme dynamic
+%                              range -- and vtv/s0sq are returned as NaN,
+%                              never as a plausible number (WP-50).
+%                              lsqvce.residuals() supersedes them.
+%
+%   ACCURACY
+%     x from Householder/Givens updates: relative error ~ eps*cond(A) (the
+%     reason this backend exists; see the measured comparison in
+%     test_precision). vtv is carried as the squared residual row of the
+%     augmented factor: exact to ~eps*mass through ROTATIONS, but a merge()
+%     of a pre-eliminated contribution recovers it by NORMAL-form
+%     subtraction and inherits that route's 8-digit cancellation limit --
+%     both guarded since WP-50 (NaN, never a wrong plausible number; the
+%     WP-49 deep-regime probe measured an EXACT-ZERO sigma0 before).
 %     lsqvce:qr:noRedundancy   n = rank, so sigma0 is undefined (the model
 %                              reproduces the data exactly by construction)
 %
 %   See also LSQVCE.NORMALEQSYSTEM, LSQVCE.BLOCKACCUMULATOR
+%
+%   Updated 2026-08-20 (CEST, UTC+02:00), WP-50: honest vtv on both QR
+%   loss paths (merge-fold cancellation guard + rotation-round-off
+%   guard) -> NaN + lsqvce:qr:cancellation; vtvPoisoned property. With
+%   assistance from Claude (Anthropic), model Claude Fable 5.
 %
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
@@ -56,6 +80,9 @@ classdef QRSystem < handle
         R                       % triangular factor of [A l]
         m   = 0                 % observation count
         dim                     % parameter count
+        vtvPoisoned = false     % WP-50: a merge() fold destroyed the residual
+                                % mass by cancellation; solve() returns
+                                % vtv/s0sq = NaN, never a plausible number
     end
 
     methods
@@ -155,8 +182,34 @@ classdef QRSystem < handle
             rhs  = Rc.' \ red.n;
             rho2 = red.ltl - (rhs.'*rhs);
 
+            % WP-50: this subtraction is NORMAL arithmetic inside the QR
+            % backend -- the same l'Pl-minus cancellation the other routes
+            % guard (and the Schur stage upstream subtracts once more). A
+            % destroyed rho2 used to be silently treated as "no residual
+            % row", collapsing vtv towards an EXACT ZERO sigma0 -- the wrong
+            % plausible number observed in WP-49 (10.11 finding c). Same
+            % rule as everywhere: refuse, warn once HERE (the site with the
+            % numbers), and let solve() return NaN; lsqvce.residuals()
+            % supersedes it. A dof-free contribution legitimately carries
+            % rho2 ~ 0 and is exempt.
+            if red.dof > 0
+                destroyed = rho2 <= 0 || (red.ltl > 0 && ...
+                    log10(max(red.ltl / max(rho2, realmin), 1)) > 8);
+                if destroyed
+                    lsqvce.util.log.warn('lsqvce:qr:cancellation', ...
+                        ['The residual mass of a pre-eliminated contribution ' ...
+                         'was destroyed by cancellation in the normal-form ' ...
+                         'fold (ltl_red = %.6e, rho^2 = %.6e, dof = %d). ' ...
+                         'vtv/s0sq of this system will be NaN, never a ' ...
+                         'plausible number; lsqvce.residuals() recomputes ' ...
+                         'them honestly and SUPERSEDES them.'], ...
+                         red.ltl, rho2, red.dof);
+                    o.vtvPoisoned = true;
+                end
+            end
+
             blk = [Rc, rhs];
-            if rho2 > 0
+            if rho2 > 0 && ~o.vtvPoisoned
                 resRow      = zeros(1, o.dim+1);
                 resRow(end) = sqrt(rho2);
                 blk         = [blk ; resRow];
@@ -199,6 +252,28 @@ classdef QRSystem < handle
             vtv = 0;
             if size(o.R,1) > d
                 vtv = o.R(d+1,end)^2;
+            end
+            if o.vtvPoisoned
+                vtv = NaN;                 % refused at merge(); warned there
+            elseif o.m > d
+                % WP-50 rotation guard: the residual row is computed by the
+                % rotations with absolute error ~ eps*sqrt(mass), so vtv is
+                % noise once log10(mass/vtv) passes ~2*15.6. Guard at 24
+                % (relative error of vtv ~ 2*eps*10^(dl/2) ~ 0.7% there;
+                % measured placement in 10.12).
+                mass = o.R(1:min(d+1, size(o.R,1)), end);
+                mass = mass.'*mass;
+                if mass > 0 && (vtv == 0 || ...
+                        log10(max(mass / max(vtv, realmin), 1)) > 24)
+                    lsqvce.util.log.warn('lsqvce:qr:cancellation', ...
+                        ['The residual row of the triangular factor lost its ' ...
+                         'signal to rotation round-off (quadratic mass ' ...
+                         '%.6e, vtv %.6e). RETURNING NaN rather than a ' ...
+                         'plausible-looking number; lsqvce.residuals() ' ...
+                         'recomputes it honestly and SUPERSEDES it.'], ...
+                         mass, vtv);
+                    vtv = NaN;
+                end
             end
 
             dof = o.m - d;
