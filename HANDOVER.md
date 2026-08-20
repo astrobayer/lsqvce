@@ -3362,6 +3362,20 @@ provenance-tagged contract tests. Entry criterion: the user wants result
 files answerable to "where did this come from" without the run log. Until
 picked up, this row lives here — deliberately NOT in the ledger.
 
+### 10.4 WP-43 round notes
+
+**ROUND 1 (2026-08-19, model Claude Fable 5, branch `claude/wp-43`, PR #20).**
+First push: audit GREEN, matlab RED 527/529 — the two failing points were
+EXACTLY the two new tests using the output-argument form
+`err = tc.verifyError(...)`; both errored (fail + incomplete pairing) on the
+function-based TestCase under the hosted R2026a runner. Fix commit 8e52c33:
+both sites moved to the repo's try/catch identifier pattern (WP-39).
+**LESSON, binding: never take an output from verifyError on the
+function-based TestCase — capture via try/catch and assert
+`e.identifier`/`e.message` directly.** Counts, verified: static test
+points 563 on main -> 571 on the branch (+8, the gap-closure tests);
+the CI run executed 529 points with test_parallel skipped.
+
 ### R3 ledger
 
 | WP | title | depends on | status |
