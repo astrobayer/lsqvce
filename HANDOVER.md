@@ -8,7 +8,11 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-08-20 (evening) — WP-47 DONE (PR #25
+Last substantive update: 2026-08-20 (evening, later) — WP-48 tier (a)
+ROUND 1 on branch `claude/wp-48`: shDesign + test_physOracle (8/8 first
+pass; full runner 533/533 locally), measured numbers pinned per §6.2.3,
+authority rows added; WP-49 queued OPEN. Round note §10.10.
+Preceding entry: 2026-08-20 (evening) — WP-47 DONE (PR #25
 merged; merge 8325a26); WP-42 reconfirmed BACKLOG by the user; §10.9
 fixture-reality review written (closed-loop planted-truth, but Gaussian
 designs — no physical structure, no real data) with proposals WP-48
@@ -2011,6 +2015,9 @@ and confirmed / ☐ open; the refutation discipline is the valuable half.)*
 | Closed-form ARMA(1,1)/AR ACV algebra | armaACV, levinsonDurbin, psd2acv identities | test_precision, test_lsqAccum, test_signalCore | ☑ confirmed 1e-9…1e-12 (tol: comments name the sites) |
 | Python mirrors (second language): v8verify.py, v9verify.py, v10review.py, wp33_loop_mirror.py | measured tolerances and loop behaviour pre-port | tol: comments in test_signalCore/test_streamUtils/test_precision; §9 WP-33/40 round notes | ☑ v8: 2e-16 (whitening); WP-37 GS/Levinson 1e-14 pre-port; wp33 mirror: the F-15 instrument — NOTE its own r6 lesson: an unfaithful mirror declaration path produced false accuracy promises, faithfulness is part of the oracle |
 | GROOPS / SINEX NEQ files (real data exchange) | neqExchange round-trip | WP-27 suite | ☑ round-trip green since WP-27 |
+| Analytic SH algebra (fully-normalised Legendre: addition theorem, closed forms P̄10/P̄20/P̄22) | the shDesign partial generator of the WP-48 physical oracle | test_physOracle (reference tests) | ☑ 2026-08-20: addition theorem to 4.3e-14 at nmax 12, closed forms to 1e-14 (measured, user machine) |
+| Published GRACE-FO monthly solution (release to be named) | end-to-end sign/magnitude/pattern of a real month through the SINEX path | WP-48 tier (b) | ☐ user to supply files + name the release |
+| Real GRACE-FO L1B-derived NEQ month | the same, input side | WP-48 tier (b) | ☐ user to supply |
 
 ### 6.2 Documentation guidelines
 
@@ -3734,6 +3741,37 @@ AND REJECTED alongside it: iterative refinement on the normal path — a
 guard that masks the conditioning instead of the documented cure
 (switch to QR); guards-are-not-fixes (§6.3).
 
+### 10.10 WP-48 tier (a) round notes
+
+**ROUND 1 (2026-08-20, model Claude Fable 5, branch `claude/wp-48`).**
+Executes the §10.9 proposal, tier (a). Shipped:
+(1) `tests/private/shDesign.m` — fully-normalised Legendre recursion +
+potential partials along a deterministic circular inclined orbit with
+Earth-rotating node; NO random numbers in the design; template help incl.
+the new ACCURACY block (first function under the WP-46 rule), authority
+"Analytic SH algebra" added to §6.1.4 with measured status.
+(2) `tests/test_physOracle.m` (8 points, category-declared): reference
+anchors (addition theorem, closed forms), shDesign contract incl. bitwise
+determinism, `testDesignIsNotBenign` (the fixture self-guard: if a
+refactor ever degenerates the oracle into another Gaussian test, THIS
+goes red, not a silent loss of power), and the closed loop — coefficient
+recovery inside formal errors (max|z| < 5, mean z² chi² band),
+per-degree error-vs-formal ratios, VCE planted-ratio recovery at 0.25
+under real column correlation, whiteness/convergence.
+(3) Runner + README (21 files / 589 points — check 17 enforced the
+update again).
+MEASUREMENT DISCIPLINE (§6.2.3, applied): the r0 head carried
+PROVISIONAL bands, marked as such in the commit message; the local run
+then PINNED the real numbers — addition-theorem residual 4.3e-14 (my
+5e-13 guess had a decade of headroom), design max|corr| 0.956 and
+single-day cond(N) 4.05e18 vs randn 0.246 / 7.99 (my cond guess of
+2.7e5 was FOUR MYTHS too small: one satellite-day is near-singular,
+exactly like a real single-arc gravity problem — the 4-day stack
+resolves it; this is precisely the structure the Gaussian fixtures
+cannot show). Suite 8/8 first pass; full runner 533/533 with the new
+suite, inventory exactly the probe, declared==ran==8.
+Tier (b) rows sit ☐ in §6.1.4 awaiting the user's files.
+
 ### R3 ledger
 
 | WP | title | depends on | status |
@@ -3744,5 +3782,5 @@ guard that masks the conditioning instead of the documented cure
 | 46 | README truth + documentation doctrine (external §2.8 adoption) | — | DONE (2026-08-20, PR #24 merged by the user, merge c11512d; CI green FIRST pass; round note §10.7) |
 | 47 | Gate hardening: declared-vs-executed, warning inventory, instruments/diagnosis doctrine, authority status column (external 2.5/2.6.4/2.9/2.10 + oracle-register adoption; §2.6.3 excluded by user) | 46 | DONE (2026-08-20, PR #25 merged by the user, merge 8325a26; two real CI catches on the way — headless-graphics id (r1d) and the nondeterministic negativeVtv BLAS flake, disposed by REGIME (r1e); three pinned lessons; round note §10.8) |
 | 42 | Monotone / trust-region spectral alternation (F-15 cure) | — | BACKLOG (user decision reconfirmed 2026-08-20 “for the time being”; entry criteria and the mirror-first success criterion pinned in §9 WP-40/§3222 entry; production guidance — open loop or ≤3 damped passes — covers operation meanwhile) |
-| 48 | Physically structured closed-loop oracle (PROPOSED, §10.9): tier (a) deterministic SH-partial design on a sampled orbit — executable without external data; tier (b) real GRACE-FO month via SINEX NEQs vs a published monthly solution — needs user-supplied files | — | PROPOSED — awaiting user decision |
-| 49 | Authoritative vPv from the residual pass on the normal backend (PROPOSED, §10.9) | — | PROPOSED — awaiting user decision |
+| 48 | Physically structured closed-loop oracle: tier (a) deterministic SH-partial design; tier (b) real GRACE-FO month vs published solution | — | tier (a) IN PROGRESS (2026-08-20, user-approved, branch `claude/wp-48`, round note §10.10); tier (b) OPEN — §6.1.4 rows ☐ user to supply |
+| 49 | Authoritative vPv from the residual pass on the normal backend (§10.9) | 48 | OPEN (user-approved 2026-08-20, queued after WP-48) |

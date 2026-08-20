@@ -34,8 +34,10 @@ function [A, meta] = shDesign(nmax, orbit)
 %     Measured against the analytic SH algebra (HANDOVER 6.1.4, authority
 %     row "Analytic SH algebra"): the fully-normalised Legendre recursion
 %     satisfies the addition-theorem identity
-%     Pbar_n0^2 + sum_{m=1..n} Pbar_nm^2 = 2n+1 to <= 5e-13 absolute at
-%     nmax = 12 across the sampled latitudes, and the closed forms
+%     Pbar_n0^2 + sum_{m=1..n} Pbar_nm^2 = 2n+1 to 4.3e-14 absolute at
+%     nmax = 12 across near-pole-to-equator latitudes (MEASURED 2026-08-20,
+%     user machine; the test asserts <= 5e-13, a decade of headroom on an
+%     O(nmax)*eps recursion-growth bound), and the closed forms
 %     Pbar_10 = sqrt(3) t, Pbar_11 = sqrt(3) sqrt(1-t^2),
 %     Pbar_20 = sqrt(5) (3t^2-1)/2 to <= 1e-14 (test_physOracle asserts
 %     both; the tolerances are eps-level growth of an O(nmax) recursion).

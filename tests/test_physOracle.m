@@ -127,9 +127,12 @@ function testDesignIsNotBenign(tc)
     N = A.' * A;
     d = sqrt(diag(N));
     C = abs(N ./ (d * d.'));  C(1:size(C,1)+1:end) = 0;
-    % tol floors: measured on this fixture 2026-08-20 -- max|corr| = 0.93,
-    % cond(N) = 2.7e5; a randn design of the same size measures
-    % max|corr| ~ 0.14, cond ~ 1.9. Floors at half / two decades under.
+    % tol floors: MEASURED on this fixture 2026-08-20 (pf48_measure, user
+    % machine): max|corr| = 0.956 and cond(N) = 4.05e18 for ONE day -- a
+    % single satellite-day is near-singular, exactly like a real single-arc
+    % gravity problem; the 4-day multi-orbit stack resolves it. A randn
+    % design of the same size measures max|corr| = 0.246, cond = 7.99.
+    % Floors at 0.45 / 1e3 sit between the two regimes with wide margin.
     tc.verifyGreaterThan(max(C(:)), 0.45, ...
         'the design has lost its physical column correlation');
     tc.verifyGreaterThan(cond(N), 1e3, ...
@@ -193,9 +196,9 @@ function testVceRecoversPlantedRatioOnStructuredDesign(tc)
         exp(k) = cfg.trueSigma.(ot);
     end
     gotR = got / got(1);   expR = exp / exp(1);
-    % tol: recovery of a planted ratio under structured correlation;
-    % measured stable at <= 0.12 deviation across seeds on this fixture
-    % (postflight 2026-08-20) -- 0.25 leaves 2x headroom
+    % tol: planted-ratio recovery under structured correlation; 0.25 =
+    % Gaussian fixture's 0.20 + headroom for correlation-inflated scatter,
+    % verified green on the pinned seed (postflight 2026-08-20, 8/8)
     tc.verifyEqual(gotR, expR, 'RelTol', 0.25, ...
         'VCE lost the planted weighting under physical column correlation');
 end
