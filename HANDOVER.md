@@ -8,7 +8,13 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-08-20 (later still) — WP-46 DONE (PR #24
+Last substantive update: 2026-08-20 (evening) — WP-47 DONE (PR #25
+merged; merge 8325a26); WP-42 reconfirmed BACKLOG by the user; §10.9
+fixture-reality review written (closed-loop planted-truth, but Gaussian
+designs — no physical structure, no real data) with proposals WP-48
+(physically structured oracle) and WP-49 (authoritative vPv), both
+awaiting user decision.
+Preceding entry: 2026-08-20 (later still) — WP-46 DONE (PR #24
 merged) and WP-47 ROUND 1 on branch `claude/wp-47`: gate hardening
 (declared-vs-executed rule 6, warning-inventory rule 7 + live probe,
 instruments/diagnosis doctrine, §6.1.4 status column); check 17's first
@@ -3675,6 +3681,59 @@ provoker AND its regime sibling
 coin); the two cancellation tests that ASSERT their warning via
 verifyWarning stay unmuted per the r1c rule.
 
+### 10.9 Fixture-reality review and the two proposals (2026-08-20)
+
+*(Written in answer to the user's question: are the adjustVCE tests /
+demos closed-loop on real signal values, or random-flow simulation?)*
+
+**What the fixtures ARE.** demo_grace_dataLoader and the test_adjustVCE
+suite are CLOSED-LOOP PLANTED-TRUTH tests in the estimation sense: the
+observations are generated FROM a known deterministic truth — common
+parameters x_c = (1:nc)', deterministic local a-prioris, and a
+deterministic planted stochastic law per stream (trueAR: AR(2) for
+posC/posD, white rr; trueSigma 0.8/1.3/1.6/1.1; a fixed 3x3 cross-axis
+mix) — then the loop must RECOVER the plant: relative stream weights to
+the planted ratios, whiteness of the whitened residuals, x against dense
+parity, and validate()'s formal-vs-empirical acceptance. Noise
+REALISATIONS are seeded-random (reproducible); the planted values are
+deterministic. This is NOT random-flow smoke testing.
+
+**What they are NOT.** The DESIGN matrices are random Gaussian
+(A = randn, B = 0.3*randn): the parametrisation tables carry SH
+degree/order labels, but demoBuildDay reads only the COUNTS — no
+spherical-harmonic partials, no orbit geometry, no real GRACE-FO L1B
+values anywhere in the tree. Consequence, stated honestly: Gaussian
+designs are BENIGN — near-orthogonal, incoherent, well-conditioned —
+while a real SH gravity design has strong column correlations
+(order resonances), polar-gap conditioning, and orbit-driven leverage
+concentration. The VCE loop is therefore proven on the ALGEBRA but
+under-tested on the DESIGN STRUCTURE it will meet in production; the
+§6.1.4 register carries real data only at the FORMAT level (SINEX
+round-trip).
+
+**WP-48 (proposed): the physically structured closed-loop oracle.**
+Tier (a), executable with no external data: build A from actual SH
+partials (dV/dC_nm, dV/dS_nm) evaluated along a deterministic sampled
+near-polar circular orbit — the shAnalysis toolbox on the user's machine
+(v3.28) can serve as the partial generator, or self-contained Legendre
+recursions — planted coefficient set with a known anomaly, planted
+coloured noise; closed loop asserts coefficient recovery, VCE weights
+under REALISTIC column correlation, and error-degree-variances against
+formal errors. Tier (b), needs user-supplied files: one real GRACE-FO
+month through the existing SINEX/NEQ path against a published monthly
+solution (register rows added as ☐ 'user to supply'). Tier (a) is the
+high-value/no-dependency half.
+
+**WP-49 (proposed, small): authoritative vPv from the residual pass.**
+The negativeVtv episode showed l'Pl − b'x cancellation at the regime
+edge of the normal backend. The residual pass already recomputes the
+same quadratic form stably (regression-locked at 1e-10 agreement); when
+a residual pass runs, its vPv should REPLACE the accumulated one as the
+quoted number, and the cancellation warning should say so. Considered
+AND REJECTED alongside it: iterative refinement on the normal path — a
+guard that masks the conditioning instead of the documented cure
+(switch to QR); guards-are-not-fixes (§6.3).
+
 ### R3 ledger
 
 | WP | title | depends on | status |
@@ -3683,4 +3742,7 @@ verifyWarning stay unmuted per the r1c rule.
 | 44 | Run provenance in Results (T-05) | 43 | DONE (2026-08-20, PR #22 merged by the user, merge 039041c; CI green FIRST pass 4ea32c0; POSTFLIGHT DEBT → SETTLED §10.6; round note §10.5) |
 | 45 | Suite economy (adjustVCE test-run cache) | — | REJECTED (user, 2026-08-20): test-environment cost only, toolbox speed separately gated by the speed suite; see §10.7 |
 | 46 | README truth + documentation doctrine (external §2.8 adoption) | — | DONE (2026-08-20, PR #24 merged by the user, merge c11512d; CI green FIRST pass; round note §10.7) |
-| 47 | Gate hardening: declared-vs-executed, warning inventory, instruments/diagnosis doctrine, authority status column (external 2.5/2.6.4/2.9/2.10 + oracle-register adoption; §2.6.3 excluded by user) | 46 | IN PROGRESS — PR #25 READY (2026-08-20; postflight 581/581 green locally, inventory exactly the probe; first CI RED = the gate catching the headless-graphics id as predicted, r1d disposition, head 61e493e CI GREEN both contexts; DONE flips on the user's merge; round note §10.8) |
+| 47 | Gate hardening: declared-vs-executed, warning inventory, instruments/diagnosis doctrine, authority status column (external 2.5/2.6.4/2.9/2.10 + oracle-register adoption; §2.6.3 excluded by user) | 46 | DONE (2026-08-20, PR #25 merged by the user, merge 8325a26; two real CI catches on the way — headless-graphics id (r1d) and the nondeterministic negativeVtv BLAS flake, disposed by REGIME (r1e); three pinned lessons; round note §10.8) |
+| 42 | Monotone / trust-region spectral alternation (F-15 cure) | — | BACKLOG (user decision reconfirmed 2026-08-20 “for the time being”; entry criteria and the mirror-first success criterion pinned in §9 WP-40/§3222 entry; production guidance — open loop or ≤3 damped passes — covers operation meanwhile) |
+| 48 | Physically structured closed-loop oracle (PROPOSED, §10.9): tier (a) deterministic SH-partial design on a sampled orbit — executable without external data; tier (b) real GRACE-FO month via SINEX NEQs vs a published monthly solution — needs user-supplied files | — | PROPOSED — awaiting user decision |
+| 49 | Authoritative vPv from the residual pass on the normal backend (PROPOSED, §10.9) | — | PROPOSED — awaiting user decision |
