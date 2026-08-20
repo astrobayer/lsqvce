@@ -689,10 +689,8 @@ function testQrMergeFoldCancellationIsNaN(tc)
     % when the pre-eliminated contribution is merged (measured: the r0
     % verifyWarning around solve() saw nothing and the id leaked into the
     % runner inventory)
-    verifyWarning(tc, ...
-        @() arrayfun(@(s) accQ.addSystem(s, cfg.nl, binder(cfg,s), 1:2), ...
-                     cfg.sats), ...
-        'lsqvce:qr:cancellation');
+    verifyWarning(tc, @() addAllSystems(accQ, cfg, 1:2), ...
+                  'lsqvce:qr:cancellation');
     solQ = accQ.solve();
     tc.verifyTrue(isnan(solQ.sigma0), ...
         'the destroyed residual mass must surface as NaN, not as 0');
@@ -726,4 +724,13 @@ function testQrHealthyPathUnchangedByTheGuards(tc)
     tc.verifyFalse(res.supersedesSol);
     % tol: the established healthy-route agreement (regression-locked)
     tc.verifyEqual(res.sigma0, solQ.sigma0, 'RelTol', 1e-10);
+end
+
+function addAllSystems(acc, cfg, days)
+%ADDALLSYSTEMS  Plain-loop addSystem over cfg.sats (WP-50): arrayfun over a
+%   void method errors on output collection, which broke the r1 warning
+%   assertion and leaked the id into the inventory.
+    for s = cfg.sats
+        acc.addSystem(s, cfg.nl, binder(cfg, s), days);
+    end
 end
