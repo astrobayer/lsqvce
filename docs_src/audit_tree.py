@@ -638,7 +638,12 @@ def check_test_categories():
     cats_ok = {'contract', 'reference', 'precision', 'speed',
                'robustness', 'vectorisation'}
     tags_ok = {'diagnostics', 'provenance'}
-    TOL_SWEPT = ['tests/test_signalCore.m', 'tests/test_precision.m']
+    # WP-43 r2 (2026-08-19): the staged rollout is COMPLETE -- the debt count
+    # reached 0 in the same round that annotated all 216 remaining sites, so
+    # the swept-suite list retires and every suite is enforced. The debt
+    # counter stays as a belt-and-braces invariant: any future unannotated
+    # tolerance is a FINDING everywhere, not a reported number.
+    TOL_SWEPT = sorted(glob.glob('tests/test_*.m'))
 
     decl_re = re.compile(
         r'^\s*% categories:\s*([a-z, ]+?)\s*(?:\|\s*tags:\s*([a-z, ]+?)\s*)?$')
@@ -714,6 +719,17 @@ def check_test_categories():
                  'exemption row' % u)
     print('   category gaps in the matrix (informational): %d' % gaps)
 
+    # (d0) a tol: comment must never sit INSIDE a ... continuation -- a
+    # standalone comment line there is a PARSE ERROR on the runner (WP-43 r2
+    # red: four suites failed to load). Guard the pattern itself.
+    for f in sorted(glob.glob('tests/test_*.m')):
+        lines = open(f, encoding='utf-8', errors='replace').read().split('\n')
+        for i, l in enumerate(lines):
+            if l.strip().startswith('% tol:') and i > 0 \
+                    and lines[i - 1].rstrip().endswith('...'):
+                note('cat', '%s:%d: tol: comment inside a ... continuation '
+                     '(parse error on load)' % (f, i + 1))
+
     # (d) tolerance provenance
     tol_re = re.compile(r"'(Abs|Rel)Tol'")
     debt = 0
@@ -728,8 +744,8 @@ def check_test_categories():
                              'provenance comment (swept suite)' % (f, i + 1))
                     else:
                         debt += 1
-    print('   unannotated tolerances outside the swept suites: %d '
-          '(debt, drive to 0 suite by suite)' % debt)
+    print('   unannotated tolerances: %d (must stay 0 -- full '
+          'enforcement since WP-43 r2)' % debt)
 
 
 def main():

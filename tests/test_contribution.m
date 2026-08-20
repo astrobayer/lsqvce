@@ -51,6 +51,7 @@ function test_stream_trace_sum_equals_nc(tc)
     sc = lsqvce.streamContribution(acc, sol, 'GroupBy', 'obsType', ...
                                    'Probes', 400, 'Seed', 1, 'WantDiag', false);
     verifyEqual(tc, sc.nc, cfg.nc);
+    % tol: Monte-Carlo probe scatter ~ 1/sqrt(Probes) on this fixture; 4/sqrt(Z)-style bar (HANDOVER 6.1.2), not containment
     verifyEqual(tc, sc.traceSum, cfg.nc, 'AbsTol', 0.05*cfg.nc, ...
         'sum of group traces must approximate nc');
 end
@@ -69,6 +70,7 @@ function test_stream_diag_sums_to_ones(tc)
     end
     % identical probes for all groups => the per-coefficient sum is EXACTLY 1
     % (the Hutchinson noise cancels in the group sum), so a tight tol is safe.
+    % tol: probe noise CANCELS in the group sum (identical probes); residual is fp accumulation over nc terms, 1e-8 leaves wide headroom
     verifyEqual(tc, D, ones(cfg.nc,1), 'AbsTol', 1e-8, ...
         'per-coefficient diagonals must sum to one across groups');
 end
@@ -88,6 +90,7 @@ function test_stream_trace_matches_reference(tc)
     verifyTrue(tc, all(tf), 'groups must match between runs');
     for k = 1:numel(est.group)
         tol = max(6*max(est.group(k).se,1e-6), 0.05*abs(ref.group(loc(k)).trace));
+        % tol: Monte-Carlo probe noise, sigma ~ 1/sqrt(Probes); bar per HANDOVER 6.1.2 (4/sqrt(Z)-style, not containment)
         verifyEqual(tc, est.group(k).trace, ref.group(loc(k)).trace, 'AbsTol', tol);
     end
 end
@@ -98,6 +101,7 @@ function test_stream_seed_reproducible(tc)
     [acc, sol, ~] = solvedProblem(tc);
     a = lsqvce.streamContribution(acc, sol, 'GroupBy','system', 'Probes',100, 'Seed',3);
     b = lsqvce.streamContribution(acc, sol, 'GroupBy','system', 'Probes',100, 'Seed',3);
+    % tol: 0 -- an EXACT identity claim (same stored value, no arithmetic)
     verifyEqual(tc, [a.group.trace], [b.group.trace], 'AbsTol', 0, ...
         'a fixed seed must be bit-reproducible');
 end
@@ -120,10 +124,12 @@ function test_contribution_level1_shares_sum_to_one(tc)
     con = lsqvce.contribution(acc, sol, 'GroupBy', 'obsType', 'Level', 1);
     verifyEqual(tc, con.level, 1);
     shares = [con.group.share];
+    % tol: normalisation identity (a sum divided by itself); house exact-identity bound
     verifyEqual(tc, sum(shares), 1, 'AbsTol', 1e-10, ...
         'Level-1 shares must sum to 1');
     verifyTrue(tc, all(shares >= 0 & shares <= 1), 'shares in [0,1]');
     % share must equal r_g / rTotal exactly (it is the exact redundancy path)
+    % tol: exact-path identity (same numbers recombined); house round-trip bound 1e-12/1e-10 (HANDOVER 6.1.2)
     verifyEqual(tc, shares, [con.group.r] ./ con.rTotal, 'AbsTol', 1e-12);
     % Level 1 leaves the diagonal empty
     verifyEmpty(tc, con.group(1).diag);
@@ -142,8 +148,10 @@ function test_contribution_level2_diagonal(tc)
         verifyTrue(tc, isfinite(con.group(k).relSE));
         D = D + con.group(k).diag;
     end
+    % tol: probe noise CANCELS in the group sum (identical probes); residual is fp accumulation over nc terms, 1e-8 leaves wide headroom
     verifyEqual(tc, D, ones(cfg.nc,1), 'AbsTol', 1e-8, ...
         'Level-2 diagonals must sum to one across groups');
+    % tol: normalisation identity (a sum divided by itself); house exact-identity bound
     verifyEqual(tc, sum([con.group.share]), 1, 'AbsTol', 1e-10);
 end
 
@@ -176,6 +184,7 @@ function test_vce_hutchinson_matches_exact_sigma(tc)
         rhu = scU.group(is).trace;          % streamed COMMON-block trace
         verifyTrue(tc, isfinite(rhu) && rhu > 0, 'streamed trace must be > 0');
     end
+    % tol: Monte-Carlo probe scatter ~ 1/sqrt(Probes) on this fixture; 4/sqrt(Z)-style bar (HANDOVER 6.1.2), not containment
     verifyEqual(tc, scU.traceSum, cfg.nc, 'AbsTol', 0.03*cfg.nc, ...
         'streamed traces must partition nc');
 
@@ -227,6 +236,7 @@ function test_streamed_redundancy_partitions_and_matches_exact(tc)
         [~, is] = ismember(char(string(groups{k})), sk);
         [~, ir] = ismember(char(string(groups{k})), rk);
         tol = 3*sc.group(is).rSE + 1e-6*sc.group(is).n;
+        % tol: 3-sigma (resp. 6/sqrt(Z)) of the estimator's own MC standard error -- self-scaling statistical bar
         verifyEqual(tc, sc.group(is).r, red.group(ir).r, 'AbsTol', tol, ...
             sprintf('group %s: streamed r within 3x MC se of exact r', ...
                     groups{k}));
@@ -235,9 +245,12 @@ function test_streamed_redundancy_partitions_and_matches_exact(tc)
     nSys = numel(cfg.sats);
     u    = cfg.nc + nSys*cfg.nl;
     m    = sum([sc.group.n]);
+    % tol: exact local dof partition to sum_s nl_s -- fp accumulation over
+    % the groups only; 1e-6 headroom
     verifyEqual(tc, sum([sc.group.localAbsorbed]), nSys*cfg.nl, ...
         'AbsTol', 1e-6, 'exact local dof must partition to sum_s nl_s');
     rTol = 3*sqrt(sum([sc.group.rSE].^2));
+    % tol: 3-sigma of the combined per-group MC standard errors (self-scaling)
     verifyEqual(tc, sum([sc.group.r]), m - u, 'AbsTol', rTol, ...
         'streamed redundancies must sum to m - u');
 end
@@ -267,6 +280,7 @@ function test_vce_hutchinson_regression_F01(tc)
         'hutchinson loop must converge (F-01: the old denominator diverged)');
     % T2a port: BOTH paths report the redundancy, so vc.r sums agree (~m-u);
     % the old code summed to ~nc = 6 here and fails this by orders of magnitude.
+    % tol: Monte-Carlo probe scatter ~ 1/sqrt(Probes) on this fixture; 4/sqrt(Z)-style bar (HANDOVER 6.1.2), not containment
     verifyEqual(tc, sum(vcH.r)/sum(vcE.r), 1, 'AbsTol', 0.20, ...
         'hutchinson vc.r must sum to ~m-u like the exact path');
     % T2b/c port: the sigmas agree; in particular NO >5x inflation.
@@ -444,6 +458,7 @@ function test_results_contribution_matches_direct_call(tc)
     viaR   = R.contribution('GroupBy', 'system');
 
     verifyEqual(tc, {viaR.group.key}, {direct.group.key});
+    % tol: delegation identity (one call forwarded); values must be the SAME numbers, house round-trip bound
     verifyEqual(tc, [viaR.group.r], [direct.group.r], 'AbsTol', 1e-12);
     verifyEqual(tc, viaR.level, 1, 'Level 1 must stay the default: it is free');
 end

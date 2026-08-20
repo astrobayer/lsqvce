@@ -43,6 +43,8 @@ function testPSD2ACVZeroLagIdentity(tc)
     f = linspace(0, 0.1, 2048).';
     S = exp(-f/0.01);
     r = lsqvce.psd2acv(f, S, 5, 3);
+    % tol: r(0)=trapz(f,S) is the quadrature identity (same sum, same order);
+    % house round-trip bound 1e-12 (HANDOVER 6.1.2)
     tc.verifyEqual(r(1), trapz(f, S), 'RelTol', 1e-12);
 end
 
@@ -475,6 +477,7 @@ function testResultIsIndependentOfSystemOrder(tc)
     for s = [3 1 2], a2.addSystem(s, cfg.nl, binder(cfg,s), 1:2); end
     s2 = a2.solve();
 
+    % tol: two backends on one well-conditioned problem; difference ~ cond*eps, bound with release-drift headroom
     tc.verifyEqual(s2.x,      s1.x,      'RelTol', 1e-10);
     tc.verifyEqual(s2.sigma0, s1.sigma0, 'RelTol', 1e-10);
 end

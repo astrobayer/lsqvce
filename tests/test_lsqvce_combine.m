@@ -83,10 +83,12 @@ function test_matches_the_full_solution(tc)
         sol = cmb.solve();
         D   = cmb.diagnose(sol);
 
+        % tol: independent dense reference, same-precision algebra; eps*cond headroom (house bounds, HANDOVER 6.1.2)
         verifyEqual(tc, sol.xC, xr(1:S.uc), 'RelTol', 1e-8, ...
             sprintf('%s: common parameters wrong', m{1}));
         verifyEqual(tc, sol.QCC, Qxx(1:S.uc,1:S.uc), 'RelTol', 1e-7, ...
             sprintf('%s: Qxx_CC must be the reduced inverse', m{1}));
+        % tol: independent dense solve of the same system; difference ~ cond*eps, house bounds add headroom (HANDOVER 6.1.2)
         verifyEqual(tc, D.vPv, vPvr, 'RelTol', 1e-8);
     end
 end
@@ -102,6 +104,7 @@ function test_backsubstituted_locals_are_exact(tc)
     off = S.uc;
     for i = 1:S.nsys
         ul = S.ul(i);
+        % tol: independent dense reference, same-precision algebra; eps*cond headroom (house bounds, HANDOVER 6.1.2)
         verifyEqual(tc, sol.xL{i}, xr(off+(1:ul)), 'RelTol', 1e-8, ...
             sprintf('back-substituted locals of system %d are wrong', i));
         off = off + ul;
@@ -124,6 +127,7 @@ function test_local_sigmas_include_the_inflation_term(tc)
     for i = 1:S.nsys
         ul = S.ul(i);
         sig_ref = sqrt(diag(Qxx(off+(1:ul), off+(1:ul))));
+        % tol: independent dense solve of the same system; difference ~ cond*eps, house bounds add headroom (HANDOVER 6.1.2)
         verifyEqual(tc, sol.sigL{i}, sig_ref, 'RelTol', 1e-7, ...
             sprintf(['local sigmas of system %d do not match the full Qxx -- ' ...
                      'the S*QCC*S'''' inflation term is probably missing'], i));
@@ -141,6 +145,7 @@ function test_residuals_match(tc)
     D   = cmb.diagnose(sol);
 
     v = vertcat(D.v{:});
+    % tol: independent dense reference, same-precision algebra; eps*cond headroom (house bounds, HANDOVER 6.1.2)
     verifyEqual(tc, v, vr, 'AbsTol', 1e-8);
 end
 
@@ -160,6 +165,7 @@ function test_redundancy_numbers_include_the_cross_term(tc)
     D   = cmb.diagnose(sol);
 
     r = vertcat(D.rNum{:});
+    % tol: independent dense reference, same-precision algebra; eps*cond headroom (house bounds, HANDOVER 6.1.2)
     verifyEqual(tc, r, rr, 'AbsTol', 1e-8, ...
         ['redundancy numbers do not match the full solution -- the cross-term ' ...
          'in a''Qxx a has probably been dropped']);
@@ -183,6 +189,7 @@ function test_integrity_identity_uses_u_total(tc)
         'redundancy must NOT be n - u_common');
 
     % and the identity must hold
+    % tol: probe noise CANCELS in the group sum (identical probes); residual is fp accumulation over nc terms, 1e-8 leaves wide headroom
     verifyEqual(tc, D.sumR, D.r, 'RelTol', 1e-8, ...
         'sum(r_i) must equal n - u_total');
     verifyLessThan(tc, D.sumRRelErr, 1e-8);
@@ -258,6 +265,7 @@ function test_system_with_no_locals(tc)
 
     cmb = buildCombine(S, 'qr');
     sol = cmb.solve();
+    % tol: independent dense reference, same-precision algebra; eps*cond headroom (house bounds, HANDOVER 6.1.2)
     verifyEqual(tc, sol.xC, xr(1:S.uc), 'RelTol', 1e-8);
     verifyEmpty(tc, sol.xL{1});
 end
@@ -404,9 +412,11 @@ function test_sensorday_batching_matches_flat(tc)
     end
     solB = cmbB.solve();
 
+    % tol: invariance claim (same solve, different bookkeeping); eps-level accumulation-order difference only
     verifyEqual(tc, solA.xC, solB.xC, 'RelTol', 1e-9, ...
         'sensor x day batching must give the same answer as one batch');
     for i = 1:2
+        % tol: invariance claim (same solve, different bookkeeping); eps-level accumulation-order difference only
         verifyEqual(tc, solA.xL{i}, solB.xL{i}, 'RelTol', 1e-8);
     end
 end
@@ -558,6 +568,7 @@ function test_varcomp_recovers_sensor_noise(tc)
     ratio = VC.sigma(2) / VC.sigma(1);
 
     verifyTrue(tc, VC.converged);
+    % tol: recovery of a planted value; estimator sampling scatter on this fixture, measured stable across seeds (not an eps claim)
     verifyEqual(tc, ratio, 3.0, 'RelTol', 0.20, ...
         sprintf('recovered %.3f, truth 3.0', ratio));
 end
@@ -585,6 +596,7 @@ function test_varcomp_no_false_correction(tc)
 
     ratio = VC.sigma(2)/VC.sigma(1);
     tol = 3 * sqrt(sum(VC.resolution.^2));
+    % tol: 3-sigma of the estimator's own reported resolution/SE -- self-scaling statistical bar
     verifyEqual(tc, ratio, 1, 'AbsTol', max(tol, 0.10), ...
         'varComp invented a weight correction on correct weights');
 end
@@ -606,6 +618,7 @@ function test_varcomp_reports_resolution(tc)
     VC = cmb.varComp(sol, @(i,k) ones(nk,1), 1, 'verbose', false);
 
     verifyTrue(tc, all(isfinite(VC.resolution)));
+    % tol: closed-form resolution 0.5*sqrt(2/r) recomputed from the SAME r; house exact-identity bound
     verifyEqual(tc, VC.resolution(1), 0.5*sqrt(2/VC.redund(1)), 'RelTol', 1e-9);
 end
 

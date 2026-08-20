@@ -67,12 +67,14 @@ end
 function test_normCrit_textbook(tc)
 % categories: precision, reference
     % The classic Baarda threshold.
+    % tol: closed-form literature value; kernel's own accuracy claim (help text) bounds the error, tol adds headroom
     verifyEqual(tc, lsqvce.stat.normCrit(0.001), 3.29053, 'AbsTol', 1e-4);
 end
 
 function test_delta0_textbook(tc)
 % categories: precision, reference
     % The classic MDB non-centrality, alpha=0.001 beta=0.20.
+    % tol: closed-form literature value; kernel's own accuracy claim (help text) bounds the error, tol adds headroom
     verifyEqual(tc, lsqvce.stat.delta0(0.001, 0.20), 4.1321, 'AbsTol', 1e-3);
 end
 
@@ -84,6 +86,7 @@ function test_chi2Inv_roundtrip(tc)
         for p = [1e-6 0.005 0.5 0.995 1-1e-6]
             x = lsqvce.stat.chi2Inv(p, r);
             back = lsqvce.stat.chi2Cdf(x, r);
+            % tol: quantile/CDF round-trip through base-MATLAB special functions; their relative error is ~1e-14, bound leaves headroom
             verifyEqual(tc, back, p, 'RelTol', 1e-8, ...
                 sprintf('chi2Inv round-trip failed at r=%g p=%g', r, p));
         end
@@ -120,6 +123,7 @@ function test_chi2Inv_singular_density(tc)
     % r = 1 makes the chi2 density diverge at the origin. A Newton iteration
     % in x stalls here; the log-space iteration must not.
     x = lsqvce.stat.chi2Inv(1e-6, 1);
+    % tol: quantile/CDF round-trip through base-MATLAB special functions; their relative error is ~1e-14, bound leaves headroom
     verifyEqual(tc, lsqvce.stat.chi2Cdf(x, 1), 1e-6, 'RelTol', 1e-9);
 end
 
@@ -136,6 +140,8 @@ end
 
 function test_tau_tends_to_normal(tc)
 % categories: precision
+    % tol: tau -> normal is an ASYMPTOTIC limit at r = 1e7, not an identity;
+    % the O(1/r) remainder sets the 1e-3 bar
     verifyEqual(tc, lsqvce.stat.tauCrit(0.001, 1e7), ...
                     lsqvce.stat.normCrit(0.001), 'AbsTol', 1e-3);
 end
@@ -151,6 +157,7 @@ function test_matches_dense_solution(tc)
         acc = lsqvce.Accumulator(7, 'method', meth{1});
         for k = 1:9, acc.add(B{k}{1}, B{k}{2}, B{k}{3}); end
         sol = acc.solve();
+        % tol: independent dense reference, same-precision algebra; eps*cond headroom (house bounds, HANDOVER 6.1.2)
         verifyEqual(tc, sol.x, xd, 'RelTol', 1e-9, ...
             sprintf('method %s disagrees with the dense solution', meth{1}));
     end
@@ -236,6 +243,7 @@ function test_correlated_batch_supported(tc)
 
     acc = lsqvce.Accumulator(u, 'method','qr');
     acc.add(A, l, P);
+    % tol: independent dense solve of the same system; difference ~ cond*eps, house bounds add headroom (HANDOVER 6.1.2)
     verifyEqual(tc, acc.solve().x, xd, 'RelTol', 1e-8);
 end
 
@@ -247,6 +255,7 @@ function test_redundancy_sum_identity(tc)
     [A, l, p] = tc.TestData.mk(400, 5, 21);
     B = chop(A, l, p, 11);
     [~, D] = lsqvce.adjust(5, srcOf(B), 11, 'verbose', false);
+    % tol: exact-path identity (same numbers recombined); house round-trip bound 1e-12/1e-10 (HANDOVER 6.1.2)
     verifyEqual(tc, D.sumR, D.r, 'RelTol', 1e-10);
 end
 
@@ -289,6 +298,7 @@ function test_uncontrolled_observation_no_nan(tc)
     verifyGreaterThanOrEqual(tc, D.nUncontrolled, 1);
     verifyTrue(tc, isinf(D.mdb(7)), 'MDB of an uncontrolled obs must be Inf');
     % and the identity still holds
+    % tol: redundancy partition identity sum(r_i)=n-u; fp accumulation over n terms, house bound with headroom
     verifyEqual(tc, D.sumR, D.r, 'RelTol', 1e-10);
 end
 
@@ -309,6 +319,7 @@ function test_external_reliability_is_exact(tc)
     x2 = (A'*A) \ (A'*l2);
     realised = abs(x2(j) - x1(j)) / D.sigX(j);
 
+    % tol: independent dense solve of the same system; difference ~ cond*eps, house bounds add headroom (HANDOVER 6.1.2)
     verifyEqual(tc, realised, D.extMax, 'RelTol', 1e-7, ...
         'predicted external reliability does not match brute-force injection');
 end
@@ -324,6 +335,7 @@ function test_variance_factor_unbiased(tc)
         [~, D] = lsqvce.adjust(u, srcOf(B), 5, 'verbose', false);
         rat(m) = D.varRatio;
     end
+    % tol: statistical identity on a finite sample; scatter ~ 1/sqrt(dof) of the fixture, bar sized 4/sqrt(Z)-style (HANDOVER 6.1.2)
     verifyEqual(tc, mean(rat), 1, 'AbsTol', 0.03);
     verifyEqual(tc, std(rat), sqrt(2/(n-u)), 'RelTol', 0.25);
 end
@@ -393,6 +405,7 @@ function test_helmert_recovers_known_weight_error(tc)
 
     VC = lsqvce.varComp(u, src, 8, gsrc, 2, 'verbose', false);
     ratio = VC.sigma(2) / VC.sigma(1);
+    % tol: recovery of a planted value; estimator sampling scatter on this fixture, measured stable across seeds (not an eps claim)
     verifyEqual(tc, ratio, 3, 'RelTol', 0.12);
 end
 
@@ -513,6 +526,7 @@ function test_helmert_no_false_correction(tc)
     ratio = VC.sigma(2) / VC.sigma(1);
     % Resolution limit is ~0.5*sqrt(2/r_g) per group; allow 3 sigma of it.
     tol = 3 * sqrt(sum(VC.resolution.^2));
+    % tol: 3-sigma of the estimator's own reported resolution/SE -- self-scaling statistical bar
     verifyEqual(tc, ratio, 1, 'AbsTol', max(tol, 0.05));
 end
 
@@ -526,6 +540,7 @@ function test_helmert_redundancy_partition(tc)
     gB = chop(A, g, p, 4);
     VC = lsqvce.varComp(u, srcOf(B), 4, @(k) gB{k}{2}, 2, ...
                          'verbose', false, 'maxIter', 1);
+    % tol: redundancy partition identity sum(r_i)=n-u; fp accumulation over n terms, house bound with headroom
     verifyEqual(tc, sum(VC.redund), n - u, 'RelTol', 1e-8);
 end
 
@@ -549,6 +564,7 @@ function test_varComp_hutchinson_check_returns_u(tc)
     te = VC.traceEstimate;
     verifyEqual(tc, te.expected, u);
     % Unbiased estimator; with Z=200 probes, ~few*relSE band around u.
+    % tol: Monte-Carlo probe noise, sigma ~ 1/sqrt(Probes); bar per HANDOVER 6.1.2 (4/sqrt(Z)-style, not containment)
     verifyEqual(tc, te.value, u, 'AbsTol', max(6*te.se, 0.5));
     verifyEqual(tc, te.probes, 200);
 end
@@ -592,6 +608,7 @@ function test_vceHutchinson_matches_varComp(tc)
     VCh = lsqvce.vceHutchinson(u, src, nb, gsrc, 2, 'verbose', false, ...
              'probes', 4000, 'seed', 11);
     % sigma scales agree to ~1% with Z=4000 on this well-conditioned problem
+    % tol: Monte-Carlo probe scatter ~ 1/sqrt(Probes) on this fixture; 4/sqrt(Z)-style bar (HANDOVER 6.1.2), not containment
     verifyEqual(tc, VCh.sigma, VCx.sigma, 'RelTol', 0.05);
     % estimated redundancies agree with exact within a few * their own SE
     band = max(4 * VCh.redundSE, 0.05 * abs(VCx.redund));
@@ -620,8 +637,11 @@ function test_hutchinson_recovers_planted_ratio_like_demos(tc)
     VCh = lsqvce.varComp(u, src, nb, gsrc, 2, 'verbose', false, ...
              'backend', 'hutchinson', 'probes', 4000, 'seed', 2026);
 
+    % tol: Monte-Carlo probe scatter ~ 1/sqrt(Probes) on this fixture; 4/sqrt(Z)-style bar (HANDOVER 6.1.2), not containment
     verifyEqual(tc, VCe.sigma(2)/VCe.sigma(1), 3.0, 'RelTol', 0.15, ...
         'exact backend must recover the planted 3x ratio');
+    % tol: Monte-Carlo probe scatter ~ 1/sqrt(Z), Z = 4000 -> ~1.6e-2;
+    % 0.05 = ~3 sigma (HANDOVER 6.1.2), not containment
     verifyEqual(tc, VCh.sigma(2)/VCh.sigma(1), VCe.sigma(2)/VCe.sigma(1), ...
         'RelTol', 0.05, ...
         'Hutchinson backend (Z=4000) must match exact ratio the demos print');
@@ -635,6 +655,7 @@ function test_vceHutchinson_simplified_matches(tc)
     VCx = lsqvce.varComp(u, src, nb, gsrc, 2, 'verbose', false, 'method', 'simplified');
     VCh = lsqvce.vceHutchinson(u, src, nb, gsrc, 2, 'verbose', false, ...
              'method', 'simplified', 'probes', 4000, 'seed', 2);
+    % tol: Monte-Carlo probe scatter ~ 1/sqrt(Probes) on this fixture; 4/sqrt(Z)-style bar (HANDOVER 6.1.2), not containment
     verifyEqual(tc, VCh.sigma, VCx.sigma, 'RelTol', 0.05);
 end
 
@@ -667,6 +688,7 @@ function test_varComp_backend_matches_exact(tc)
     VCx = lsqvce.varComp(u, src, nb, gsrc, 2, 'verbose', false);                % exact
     VCh = lsqvce.varComp(u, src, nb, gsrc, 2, 'verbose', false, ...
              'backend', 'hutchinson', 'probes', 4000, 'seed', 6);
+    % tol: Monte-Carlo probe scatter ~ 1/sqrt(Probes) on this fixture; 4/sqrt(Z)-style bar (HANDOVER 6.1.2), not containment
     verifyEqual(tc, VCh.sigma, VCx.sigma, 'RelTol', 0.05);
 end
 

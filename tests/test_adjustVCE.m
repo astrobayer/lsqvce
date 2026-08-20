@@ -186,6 +186,7 @@ function test_summary_is_per_stream(tc)
     verifyClass(tc, T.white, 'logical');
 
     % the reported sigma must BE the last pass's sigma, not a reduction of it
+    % tol: 0 -- an EXACT identity claim (same stored value, no arithmetic)
     verifyEqual(tc, T.sigma(:).', R.history.sigma(end,:), 'AbsTol', 0);
 
     % the two readers disagree in SHAPE on purpose
@@ -232,6 +233,7 @@ function test_contribution_rows_sum_to_one(tc)
         verifyTrue(tc, all(row(fin) >= 0 & row(fin) <= 1), ...
             'shares must lie in [0,1]');
         if any(fin)
+            % tol: normalisation identity (a sum divided by itself); house exact-identity bound
             verifyEqual(tc, sum(row(fin)), 1, 'AbsTol', 1e-10, ...
                 'finite shares in a pass must sum to 1');
         end
@@ -249,6 +251,7 @@ function test_contribution_matches_redundancy_share(tc)
     last = R.history.contribution(end, :);
     fin  = isfinite(last);
     % monotone + normalised: dividing the row by its own sum is idempotent
+    % tol: exact-identity claim (same algebra both sides); house bound 1e-10 (HANDOVER 6.1.2)
     verifyEqual(tc, sum(last(fin)), 1, 'AbsTol', 1e-10);
     % a single-pass share is strictly the vce redundancy share, so no entry
     % should exceed 1 and at least one group carries positive information.
@@ -358,6 +361,7 @@ function test_covOverride_bySys(tc)
     arcOv = Lcd.closure(cfg.days(1), 'rr', 1, optOv);
 
     % same design/observations, different whitener scaling -> whitened norm shrinks
+    % tol: 0 -- an EXACT identity claim (same stored value, no arithmetic)
     verifyEqual(tc, arcOv.A, arcBase.A, 'AbsTol', 0);
     wB = arcBase.Wfcn(1:numel(arcBase.l), arcBase.A, arcBase.B, arcBase.l);
     wO = arcOv.Wfcn(1:numel(arcOv.l),     arcOv.A,   arcOv.B,   arcOv.l);
@@ -405,6 +409,7 @@ function test_scale_recovers_relative_weights(tc)
     % compare the shape of the weighting, normalised to the first stream
     gotR = got / got(1);
     expR = exp / exp(1);
+    % tol: recovery of a planted value; estimator sampling scatter on this fixture, measured stable across seeds (not an eps claim)
     verifyEqual(tc, gotR, expR, 'RelTol', 0.20, ...
         'VCE should recover the RELATIVE per-stream weighting.');
 end
@@ -496,6 +501,7 @@ function test_covModel_separable_whitens(tc)
     A = randn(rs, d*nE, 2);
     [Aw,~,ew] = Wfcn(1:d*nE, A, zeros(d*nE,0), e);
     % whitened residual variance ~ 1 (unit innovation after full whitening)
+    % tol: statistical identity on a finite sample; scatter ~ 1/sqrt(dof) of the fixture, bar sized 4/sqrt(Z)-style (HANDOVER 6.1.2)
     verifyEqual(tc, var(ew), 1, 'RelTol', 0.25);
     verifySize(tc, Aw, [d*nE, 2]);
 end
@@ -630,6 +636,7 @@ function test_deterministic(tc)
     %     builders here share setupOnce's dataset, so this isolates the engine.
     [P1, ~] = makeVCEBuilder(tc, 'MaxOuter', 3);  R1 = P1.run();
     [P2, ~] = makeVCEBuilder(tc, 'MaxOuter', 3);  R2 = P2.run();
+    % tol: exact-identity claim (same algebra both sides); house bound 1e-10 (HANDOVER 6.1.2)
     verifyEqual(tc, R1.x, R2.x, 'AbsTol', 1e-10, ...
         'same loaders must give the same solve');
 
@@ -640,6 +647,7 @@ function test_deterministic(tc)
     %     trivially equals itself.
     [cfgF, LF] = demo_grace_dataLoader();
     R3 = lsqvce.adjustVCE(LF, cfgF.days, 'Verbose', false, 'MaxOuter', 3).run();
+    % tol: exact-identity claim (same algebra both sides); house bound 1e-10 (HANDOVER 6.1.2)
     verifyEqual(tc, R3.x, R1.x, 'AbsTol', 1e-10, ...
         'a rebuilt dataset must reproduce the shared one');
 end
@@ -664,6 +672,7 @@ function test_esm_matches_run(tc)
     Rrun = P1.groupComponentsBy('obsType').run();
     [P2, ~] = makeVCEBuilder(tc, 'MaxOuter', 3);
     Rell = P2.groupComponentsBy('obsType').empiricalStochastic('Report', false, 'Homogenise', false);
+    % tol: exact-identity claim (same algebra both sides); house bound 1e-10 (HANDOVER 6.1.2)
     verifyEqual(tc, Rell.x, Rrun.x, 'AbsTol', 1e-10, ...
         'empiricalStochastic must reproduce run''s solution (same loop)');
 end
@@ -699,6 +708,7 @@ function test_validate_on_run_result(tc)
     R = P.groupComponentsBy('obsType').run();
     E = P.validate(R, 'Report', false);
     verifyClass(tc, E, 'struct');
+    % tol: 0 -- an EXACT identity claim (same stored value, no arithmetic)
     verifyEqual(tc, E.sigma0, R.sigma0, 'AbsTol', 0);
     % formalStd has one entry per common parameter
     verifySize(tc, E.formalStd, [numel(R.x), 1]);

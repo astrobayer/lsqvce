@@ -24,9 +24,11 @@ function testSelectArAcvRecoversOrder(tc)
     r  = s0^2 * lsqvce.armaACV(a0, 1, 200);
     [a, s2, p, sel] = lsqvce.selectArAcv(r, 5000);
     tc.verifyEqual(p, 3);
+    % tol: a(1)=1 exact by construction (1e-12 house); coefficient/sigma
+    % recovery at 1e-6 = v9verify.py measured level on the exact ACV
     tc.verifyEqual(a(1), 1, 'AbsTol', 1e-12);
     tc.verifyEqual(a, a0, 'AbsTol', 1e-6);
-    tc.verifyEqual(sqrt(s2), s0, 'AbsTol', 1e-6);
+    tc.verifyEqual(sqrt(s2), s0, 'AbsTol', 1e-6);         % tol: same source
     tc.verifyEqual(sel.verdict, 'good');
     tc.verifyLessThan(sel.acvRelErr, 1e-3);
     tc.verifyEqual(numel(sel.aic), 121);            % ladder 0..pMax(=120)
@@ -38,6 +40,7 @@ function testSelectArAcvWhiteReturnsZero(tc)
     [a, s2, p, sel] = lsqvce.selectArAcv(r, 5000);
     tc.verifyEqual(p, 0);
     tc.verifyEqual(a, 1);
+    % tol: delta ACV -> s2 = r0 = 1 exactly; house round-trip bound 1e-12
     tc.verifyEqual(s2, 1, 'AbsTol', 1e-12);
     tc.verifyEqual(sel.verdict, 'white');
 end
@@ -125,6 +128,7 @@ function testDescaledAcvPosWhitens(tc)
     d = 3;  nE = 600;  maxLag = 40;  L = [1 0 0; 0.3 0.8 0; -0.2 0.1 0.6];
     [res, dayFcn] = makePosRes(rs, L, nE, 4);       % 4 arcs
     [acv, nSamp] = lsqvce.residualAcv(res, 'C', 'pos', d, maxLag, dayFcn);
+    % tol: statistical identity on a finite sample; scatter ~ 1/sqrt(dof) of the fixture, bar sized 4/sqrt(Z)-style (HANDOVER 6.1.2)
     tc.verifyEqual(acv(1), 1, 'RelTol', 0.1);       % r0 ~ 1
     tc.verifyLessThan(abs(acv(2))/acv(1), 0.1);     % |r1/r0| small
     tc.verifyEqual(nSamp, 4*d*nE);
@@ -137,6 +141,7 @@ function testDescaledAcvRrWhitens(tc)
     nE = 800;  maxLag = 30;
     [res, dayFcn] = makeRrRes(rs, nE, 3);
     [acv, nSamp] = lsqvce.residualAcv(res, 'C', 'rr', 1, maxLag, dayFcn);
+    % tol: statistical identity on a finite sample; scatter ~ 1/sqrt(dof) of the fixture, bar sized 4/sqrt(Z)-style (HANDOVER 6.1.2)
     tc.verifyEqual(acv(1), 1, 'RelTol', 0.1);
     tc.verifyLessThan(abs(acv(2))/acv(1), 0.1);
     tc.verifyEqual(nSamp, 3*nE);

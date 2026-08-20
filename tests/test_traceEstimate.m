@@ -54,6 +54,7 @@ function test_unbiased_over_many_seeds(tc)
     for k = 1:K
         ests(k) = lsqvce.traceEstimate(M, 'NumProbes', 100, 'Seed', 1000 + k);
     end
+    % tol: Monte-Carlo probe scatter ~ 1/sqrt(Probes) on this fixture; 4/sqrt(Z)-style bar (HANDOVER 6.1.2), not containment
     verifyEqual(tc, mean(ests), exactTr, 'RelTol', 0.01, ...
         'the Hutchinson estimator must be unbiased: mean -> trace(M)');
 end
@@ -79,6 +80,7 @@ function test_matches_trace_of_ZbarMZbar(tc)
     raw = 2*randi(rs, [0 1], P, Z) - 1;          % raw Rademacher
     t = lsqvce.traceEstimate(M, 'Probes', raw);
     Zbar = raw / sqrt(Z);
+    % tol: recomputation of the same quadratic form; house exact-identity bound (HANDOVER 6.1.2)
     verifyEqual(tc, t, trace(Zbar' * M * Zbar), 'AbsTol', 1e-9, ...
         'estimate must equal trace(Zbar''*M*Zbar) exactly');
 end
@@ -88,6 +90,7 @@ function test_perProbe_mean_is_estimate(tc)
     % info.perProbe are the un-normalised z'Mz; their MEAN is the estimate.
     M = spd(50, 5);
     [t, info] = lsqvce.traceEstimate(M, 'NumProbes', 80, 'Seed', 9);
+    % tol: probe construction identity (sign/sqrt bookkeeping, one triangular solve); eps-level, house bounds give headroom
     verifyEqual(tc, mean(info.perProbe), t, 'AbsTol', 1e-9);
     verifyEqual(tc, info.Z, 80);
     verifyEqual(tc, info.P, size(M,1));
@@ -103,6 +106,8 @@ function test_matrixfree_equals_explicit(tc)
     raw = 2*randi(rs, [0 1], P, Z) - 1;
     tExplicit = lsqvce.traceEstimate(M,            'Probes', raw);
     tHandle   = lsqvce.traceEstimate(@(ZZ) M*ZZ,   'Probes', raw, 'Size', P);
+    % tol: operator vs explicit matrix on the SAME probes -- identical
+    % arithmetic path; 1e-9 guards accumulation order only
     verifyEqual(tc, tHandle, tExplicit, 'AbsTol', 1e-9, ...
         'matrix-free operator must match the explicit matrix on the same probes');
 end
@@ -141,6 +146,7 @@ function test_shared_probes_reuse(tc)
     exact1 = trace(N \ Ng1);
     exact2 = trace(N \ Ng2);
     % 300 probes on a well-conditioned operator: a few percent is expected.
+    % tol: Monte-Carlo probe scatter ~ 1/sqrt(Probes) on this fixture; 4/sqrt(Z)-style bar (HANDOVER 6.1.2), not containment
     verifyEqual(tc, t1, exact1, 'RelTol', 0.10);
     verifyEqual(tc, t2, exact2, 'RelTol', 0.10);
 end
@@ -163,6 +169,7 @@ function test_relse_reported(tc)
 % categories: precision
     M = tc.TestData.M;
     [t, info] = lsqvce.traceEstimate(M, 'NumProbes', 100, 'Seed', 2);
+    % tol: Monte-Carlo probe noise, sigma ~ 1/sqrt(Probes); bar per HANDOVER 6.1.2 (4/sqrt(Z)-style, not containment)
     verifyEqual(tc, info.relse, info.se / abs(t), 'AbsTol', 1e-12);
     verifyGreaterThan(tc, info.relse, 0);
 end
@@ -177,6 +184,7 @@ function test_gaussian_also_unbiased(tc)
         ests(k) = lsqvce.traceEstimate(M, 'NumProbes', 100, ...
                         'Distribution', 'gaussian', 'Seed', 2000 + k);
     end
+    % tol: Monte-Carlo probe scatter ~ 1/sqrt(Probes) on this fixture; 4/sqrt(Z)-style bar (HANDOVER 6.1.2), not containment
     verifyEqual(tc, mean(ests), exactTr, 'RelTol', 0.02);
 end
 
@@ -239,6 +247,7 @@ function test_determinism_same_seed(tc)
     M = tc.TestData.M;
     t1 = lsqvce.traceEstimate(M, 'NumProbes', 100, 'Seed', 77);
     t2 = lsqvce.traceEstimate(M, 'NumProbes', 100, 'Seed', 77);
+    % tol: 0 -- an EXACT identity claim (same stored value, no arithmetic)
     verifyEqual(tc, t1, t2, 'AbsTol', 0, 'same seed must reproduce exactly');
 end
 
@@ -257,6 +266,7 @@ function test_redundancy_seam_trNinvN_is_nc(tc)
     [t, info] = lsqvce.traceEstimate(Xfun, 'Size', P, 'NumProbes', 100, 'Seed', 13);
     % tr(I) = P exactly; the estimator is unbiased and I is perfectly conditioned
     % (all eigenvalues 1), so even a single probe set is essentially exact here.
+    % tol: quantile/CDF round-trip through base-MATLAB special functions; their relative error is ~1e-14, bound leaves headroom
     verifyEqual(tc, t, P, 'RelTol', 1e-8, ...
         'tr(N^-1 N) must estimate to nc = P (the redundancy-seam check)');
     verifyLessThan(tc, info.relse, 1e-6, ...
@@ -302,6 +312,7 @@ function testSameSeedIdenticalProbesAcrossCallers(tc)
     % lesson: my draft dot-indexed a double.
     t1 = lsqvce.traceEstimate(M, 'NumProbes', Zn, 'Seed', sd);
     t2 = lsqvce.traceEstimate(M, 'Probes', raw);
+    % tol: probe construction identity (sign/sqrt bookkeeping, one triangular solve); eps-level, house bounds give headroom
     verifyEqual(tc, t1, t2, 'AbsTol', 4*eps(t2), ...
         'same seed => the identical probe block in every caller');
 end

@@ -75,6 +75,7 @@ function testMapreduceParforMatchesSerial(tc)
     pf = lsqvce.mapreduce(40, f, 'Mode','parfor', 'Reduce',red, 'Init',0, ...
                        'Threshold',1);
     % identical reduction order -> differences can only come from BLAS
+    % tol: serial-vs-parallel reduction order; eps-level accumulation difference only (bitwise NOT promised across workers)
     tc.verifyEqual(pf, s, 'RelTol', 1e-14);
 end
 
@@ -89,6 +90,7 @@ function testMapreduceSpmdMatchesSerialToTolerance(tc)
     s  = lsqvce.mapreduce(40, f, 'Mode','serial', 'Reduce',red, 'Init',0);
     sp = lsqvce.mapreduce(40, f, 'Mode','spmd', 'Reduce',red, 'Init',0, ...
                        'Combine',cmb, 'Threshold',1);
+    % tol: serial-vs-parallel reduction order; eps-level accumulation difference only (bitwise NOT promised across workers)
     tc.verifyEqual(sp, s, 'RelTol', 1e-10);
 end
 
@@ -110,6 +112,7 @@ function testAddSystemsEqualsSequentialAddSystem(tc)
     a2.addSystems(specsFor(cfg, days));
     s2 = a2.solve();
 
+    % tol: two backends on one well-conditioned problem; difference ~ cond*eps, bound with release-drift headroom
     tc.verifyEqual(s2.x,      s1.x,      'RelTol', 1e-12);
     tc.verifyEqual(s2.sigma0, s1.sigma0, 'RelTol', 1e-12);
     tc.verifyEqual(s2.dof,    s1.dof);
@@ -151,6 +154,7 @@ function testAddSystemsParforMatchesSerial(tc)
     a2.addSystems(specsFor(cfg, days));
     s2 = a2.solve();
 
+    % tol: serial-vs-parallel reduction order; eps-level accumulation difference only (bitwise NOT promised across workers)
     tc.verifyEqual(s2.x,      s1.x,      'RelTol', 1e-10);
     tc.verifyEqual(s2.sigma0, s1.sigma0, 'RelTol', 1e-10);
 end
@@ -200,10 +204,12 @@ function testRedundancyMatchesIndependentBruteForce(tc)
         g  = red.group(k);
         rf = ref(char(string(g.key)));
         tc.verifyEqual(g.m,   rf.m);
+        % tol: per-group brute-force reference of the same algebra; eps*cond headroom (house bounds)
         tc.verifyEqual(g.r,   rf.r,   'RelTol', 1e-9);
         tc.verifyEqual(g.vtv, rf.vtv, 'RelTol', 1e-9);
     end
     u = cfg.nc + numel(cfg.sats)*cfg.nl;
+    % tol: redundancy partition identity sum(r_i)=n-u; fp accumulation over n terms, house bound with headroom
     tc.verifyEqual(red.rTotal, mT - u, 'RelTol', 1e-8);   % the identity
 end
 
@@ -224,6 +230,7 @@ function testRedundancyParforMatchesSerial(tc)
                         'Parallel','parfor');
 
     tc.verifyEqual({rP.group.key}, {rS.group.key});   % ordered reduce: same
+    % tol: serial-vs-parallel reduction order; eps-level accumulation difference only (bitwise NOT promised across workers)
     tc.verifyEqual([rP.group.r],   [rS.group.r],   'RelTol', 1e-10);
     tc.verifyEqual([rP.group.vtv], [rS.group.vtv], 'RelTol', 1e-10);
     tc.verifyEqual(rP.check, rS.check, 'AbsTol', 1e-6);
@@ -249,6 +256,7 @@ function testRedundancySpmdMatchesSerialToTolerance(tc)
     [tf, loc] = ismember(cellstr(string({rS.group.key})), ...
                          cellstr(string({rW.group.key})));
     tc.verifyTrue(all(tf));
+    % tol: serial-vs-parallel reduction order; eps-level accumulation difference only (bitwise NOT promised across workers)
     tc.verifyEqual([rW.group(loc).r],   [rS.group.r],   'RelTol', 1e-10);
     tc.verifyEqual([rW.group(loc).vtv], [rS.group.vtv], 'RelTol', 1e-10);
 end
@@ -282,6 +290,7 @@ function testPsdIterateConvergesFromWhiteStart(tc)
 
     tc.verifyTrue(it.converged);
     tc.verifyLessThanOrEqual(it.nIter, 6);
+    % tol: statistical identity on a finite sample; scatter ~ 1/sqrt(dof) of the fixture, bar sized 4/sqrt(Z)-style (HANDOVER 6.1.2)
     tc.verifyEqual(it.sol.sigma0, 1, 'AbsTol', 0.05);
 
     % the recovered ACV vs the TRUTH the noise was generated with
@@ -316,11 +325,13 @@ function testResidualsPerObsTypeQuickLook(tc)
 
     tc.verifyEqual(sort({res.obsType.obsType}), sort(cfg.obsTypes));
     % the split must be complete: per-type sums == the global totals
+    % tol: partition identity (same numbers re-summed); fp order only, 1e-12
     tc.verifyEqual(sum([res.obsType.vtv]), res.vtv, 'RelTol', 1e-12);
     tc.verifyEqual(sum([res.obsType.m]), res.dof + cfg.nc + ...
                    numel(cfg.sats)*cfg.nl);
     % correct covariance model -> every quick-look rms near 1
     for k = 1:numel(res.obsType)
+        % tol: statistical identity on a finite sample; scatter ~ 1/sqrt(dof) of the fixture, bar sized 4/sqrt(Z)-style (HANDOVER 6.1.2)
         tc.verifyEqual(res.obsType(k).rms, 1, 'AbsTol', 0.1);
     end
 end
@@ -366,6 +377,7 @@ function testDensePathBoundaryBiasIsBenign(tc)
     s0b = sqrt(max(vtv - n.'*xb, 0) / (m - nc));
 
     tc.verifyLessThan(norm(xb - xr) / sigF, 0.5);   % well inside formal err
+    % tol: independent dense solve of the same system; difference ~ cond*eps, house bounds add headroom (HANDOVER 6.1.2)
     tc.verifyEqual(s0b, s0r, 'RelTol', 2e-2);
 end
 
@@ -388,12 +400,17 @@ function testMergeRawQREqualsFusedAdd(tc)
     [Fll,Flc,Fcc,fl,fc,fltl,fm] = qf.blocks(ic, il);
     [Mll,Mlc,Mcc,ml,mc,mltl,mm] = qa.blocks(ic, il);
     tc.verifyEqual(mm, fm);
+    % tol: merged raw-QR factor vs fused accumulation carry the SAME normal
+    % equations; eps-level factorisation difference, 1e-12/1e-10*norm scaled
     tc.verifyEqual(Mll, Fll, 'RelTol', 1e-12);
     tc.verifyEqual(Mlc, Flc, 'AbsTol', 1e-10*norm(Flc));
-    tc.verifyEqual(Mcc, Fcc, 'RelTol', 1e-12);
+    tc.verifyEqual(Mcc, Fcc, 'RelTol', 1e-12);            % tol: same source
+    % tol: same merge identity, rhs blocks; norm-scaled eps-level bound
     tc.verifyEqual([ml; mc], [fl; fc], 'AbsTol', 1e-10*norm([fl; fc]));
     % the sigma0 guard: the residual-row mass must survive the merge
     tc.verifyEqual(mltl, fltl, 'RelTol', 1e-12);
+    % tol: residual-mass bookkeeping identity ltl = sum of the batch l'l;
+    % fp accumulation only, house round-trip bound 1e-12
     tc.verifyEqual(fltl, l1.'*l1 + l2.'*l2, 'RelTol', 1e-12);
 end
 
@@ -429,6 +446,7 @@ function testDistributeDaysEqualsFusedSerial(tc)
         end
         s2 = a2.solve();
 
+        % tol: serial-vs-parallel reduction order; eps-level accumulation difference only (bitwise NOT promised across workers)
         tc.verifyEqual(s2.x,      s1.x,      'RelTol', 1e-11, ...
                        sprintf('backend %s', be{1}));
         tc.verifyEqual(s2.sigma0, s1.sigma0, 'RelTol', 1e-11);
@@ -451,6 +469,7 @@ function testDistributeDaysResidualsStillReproduce(tc)
     end
     sol = acc.solve();
     res = acc.residuals(sol, 'Verbose', false);
+    % tol: serial-vs-parallel reduction order; eps-level accumulation difference only (bitwise NOT promised across workers)
     tc.verifyEqual(res.sigma0, sol.sigma0, 'RelTol', 1e-8);
 end
 
@@ -468,6 +487,7 @@ function testDistributeDaysParforMatchesSerial(tc)
     a2.addSystem(1, cfg.nl, binder(cfg, 1), days);
     s2 = a2.solve();
 
+    % tol: serial-vs-parallel reduction order; eps-level accumulation difference only (bitwise NOT promised across workers)
     tc.verifyEqual(s2.x,      s1.x,      'RelTol', 1e-10);
     tc.verifyEqual(s2.sigma0, s1.sigma0, 'RelTol', 1e-10);
 end
@@ -483,12 +503,15 @@ function testVarACVYuleWalker(tc)
     for k = 1:p
         G0res = G0res - A(:,:,k) * G(:,:,k+1).';
     end
+    % tol: exact-path identity (same numbers recombined); house round-trip bound 1e-12/1e-10 (HANDOVER 6.1.2)
     tc.verifyEqual(G0res, Sig, 'RelTol', 1e-10);
     for j = p:10
         S = zeros(size(Sig));
         for k = 1:p
             S = S + A(:,:,k) * G(:,:,j-k+1);
         end
+        % tol: Yule-Walker recursion identity on the returned ACV itself;
+        % norm-scaled eps-level bound (house)
         tc.verifyEqual(G(:,:,j+1), S, 'AbsTol', 1e-10*norm(G(:,:,1)));
     end
 end
@@ -508,6 +531,7 @@ function testWhittleRecoversGenerator(tc)
     p = size(A, 3);
     G = lsqvce.varACV(A, Sig, p+3);
     [Ah, Sh] = lsqvce.whittle(G, p);
+    % tol: quantile/CDF round-trip through base-MATLAB special functions; their relative error is ~1e-14, bound leaves headroom
     tc.verifyEqual(Ah, A, 'AbsTol', 1e-8*norm(A(:,:,1)));
     tc.verifyEqual(Sh, Sig, 'RelTol', 1e-9);
 
@@ -533,9 +557,11 @@ function testVarWhitenEqualsDenseDecorrelation(tc)
 
     W  = lsqvce.decorrFactor(Cfcn(1:m, struct()));
     A2 = W*Ad;  l2 = W*l;
+    % tol: VAR-FIR whitener vs dense decorrelation of the same covariance --
+    % quadratic forms agree at eps*cond; 1e-9/1e-8 house headroom
     tc.verifyEqual(Aw.'*Aw, A2.'*A2, 'RelTol', 1e-9);
     tc.verifyEqual(Aw.'*lw, A2.'*l2, 'RelTol', 1e-8);
-    tc.verifyEqual(lw.'*lw, l2.'*l2, 'RelTol', 1e-9);
+    tc.verifyEqual(lw.'*lw, l2.'*l2, 'RelTol', 1e-9);     % tol: same source
 end
 
 function testVarGLSThroughAccumulatorBatched(tc)
@@ -571,8 +597,10 @@ function testVarGLSThroughAccumulatorBatched(tc)
     sW = solveWith(1e9);                     % whole arc, one batch
     sB = solveWith(97*d + 1);                % forces rounding + overlap
 
+    % tol: documented scaling relation between two runs of the same solve; fp-only deviation, bound adds headroom
     tc.verifyEqual(sB.x, sW.x, 'RelTol', 1e-10);
     tc.verifyEqual(sB.sigma0, sW.sigma0, 'RelTol', 1e-10);
+    % tol: statistical identity on a finite sample; scatter ~ 1/sqrt(dof) of the fixture, bar sized 4/sqrt(Z)-style (HANDOVER 6.1.2)
     tc.verifyEqual(sW.sigma0, 1, 'AbsTol', 0.06);
     sig = sqrt(diag(sW.Cxx));
     tc.verifyLessThan(abs(sW.x - xt), 5*sig);
@@ -594,6 +622,7 @@ function testDistributeDaysSpmdMatchesSerial(tc)
     s2 = a2.solve();
 
     % worker tree reduce: tolerance, never isequal
+    % tol: serial-vs-parallel reduction order; eps-level accumulation difference only (bitwise NOT promised across workers)
     tc.verifyEqual(s2.x,      s1.x,      'RelTol', 1e-10);
     tc.verifyEqual(s2.sigma0, s1.sigma0, 'RelTol', 1e-10);
 end
@@ -661,6 +690,8 @@ function testPrefetchServesFromCacheWhenPrimed(tc)
     ref.addSystem(1, cfg.nl, binder(cfg, 1), days);
     sr = ref.solve();
 
+    % tol: prefetch passthrough serves BYTE-IDENTICAL data, solve is the
+    % same arithmetic; 1e-14 ~ 100*eps guards accumulation order only
     tc.verifyEqual(sol.x, sr.x, 'RelTol', 1e-14);   % identical data served
     tc.verifyGreaterThan(pf.hits, 0);               % it actually prefetched
 end
