@@ -8,7 +8,14 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-08-20 (evening, later) — WP-48 tier (a)
+Last substantive update: 2026-08-20 (night) — WP-48 tier (a) DONE (PR
+#27 merged), tier (b) BACKLOG per user; WP-49 ROUND 1 on branch
+`claude/wp-49` (honest vPv: NaN never a plausible number, ONE
+cancellation id per namespace — BREAKING retirement of the negativeVtv
+name — residuals supersede logic + flag; postflight 591/591; four pinned
+findings incl. the QR sigma0=0 deep-regime observation). Round note
+§10.11.
+Preceding entry: 2026-08-20 (evening, later) — WP-48 tier (a)
 ROUND 1 on branch `claude/wp-48`: shDesign + test_physOracle (8/8 first
 pass; full runner 533/533 locally), measured numbers pinned per §6.2.3,
 authority rows added; WP-49 queued OPEN. Round note §10.10.
@@ -3772,6 +3779,47 @@ cannot show). Suite 8/8 first pass; full runner 533/533 with the new
 suite, inventory exactly the probe, declared==ran==8.
 Tier (b) rows sit ☐ in §6.1.4 awaiting the user's files.
 
+### 10.11 WP-49 round notes
+
+**ROUND 1 (2026-08-20, model Claude Fable 5, branch `claude/wp-49`).**
+Executes the §10.9 proposal: the authoritative vPv. Shipped:
+(1) `NormalEqSystem.solve`: the clamp-to-0 is gone -- a vtv that is
+negative OR has lost > 8 digits against l'Pl leaves as NaN, never as a
+plausible number (the flat path's measured argument applied to the block
+backend), and the warning names the residuals() repair path.
+**BREAKING, declared:** the former 'negativeVtv' identifier in the
+normalEq namespace is RETIRED into the ONE id
+`lsqvce:normalEq:cancellation` -- the sign at eps-garbage level is a BLAS
+coin flip (WP-47 r1e evidence), so two ids for one failure mode were an
+alias; error identifiers are names (§6.3). The BlockAccumulator
+prior-folded path got the same guard under `lsqvce:accum:cancellation`.
+(2) `lsqvce.residuals`: NaN-aware supersede logic -- the old mismatch
+check was BLIND to NaN (|x - NaN| > tol is false); now a non-finite
+accumulated sigma0 raises `lsqvce:residuals:supersedesSol` naming the
+numbers to quote, and `res.supersedesSol` flags it mechanically.
+(3) Two tests (test_precision): the bare-backend NaN contract, and the
+end-to-end block supersede against the QR route.
+FOUR ROUND FINDINGS, all pinned:
+(a) SESSION-STATE CONFIRMED (§6.1.2b): the first postflight showed 2
+fails "no warnings issued" -- my own measurement script had disabled the
+two ids and ran the suite before its onCleanup restore. Configuration,
+then criterion, then code: it was configuration.
+(b) The route-agreement number is 8.0e-5 (this fixture; 3.2e-3 on a
+harder 1-sat probe), NOT the 1e-9 I presumed: the residual pass inherits
+the normal-path x-hat and pays a second-order penalty at this
+conditioning -- still 175x below sigma0's own sampling scatter, so the
+superseding number is statistically equivalent. Band pinned at 1e-3.
+(c) OBSERVATION (candidate WP-50, not in scope): at extreme dynamic
+range (signal 3e4, sigma 1e-5) the QR backend returned sigma0 = 0
+EXACTLY -- rotation cancellation produces its own wrong plausible
+number. Recorded; the honest-vPv rule may one day need a QR analogue.
+(d) Check 14 correctly refused a retired id written in citable
+colon-form in help/comments -- retirement notes name the id without the
+namespace-colon form.
+POSTFLIGHT on head 001af1b (user machine): 535/535 + adjustVCE 45/45
+(declared==ran) + speed 11/11 at 4.73e6 obs/s = 591/591; inventories
+exactly the probe / empty. Drivers self-removed, working copy restored.
+
 ### R3 ledger
 
 | WP | title | depends on | status |
@@ -3782,5 +3830,5 @@ Tier (b) rows sit ☐ in §6.1.4 awaiting the user's files.
 | 46 | README truth + documentation doctrine (external §2.8 adoption) | — | DONE (2026-08-20, PR #24 merged by the user, merge c11512d; CI green FIRST pass; round note §10.7) |
 | 47 | Gate hardening: declared-vs-executed, warning inventory, instruments/diagnosis doctrine, authority status column (external 2.5/2.6.4/2.9/2.10 + oracle-register adoption; §2.6.3 excluded by user) | 46 | DONE (2026-08-20, PR #25 merged by the user, merge 8325a26; two real CI catches on the way — headless-graphics id (r1d) and the nondeterministic negativeVtv BLAS flake, disposed by REGIME (r1e); three pinned lessons; round note §10.8) |
 | 42 | Monotone / trust-region spectral alternation (F-15 cure) | — | BACKLOG (user decision reconfirmed 2026-08-20 “for the time being”; entry criteria and the mirror-first success criterion pinned in §9 WP-40/§3222 entry; production guidance — open loop or ≤3 damped passes — covers operation meanwhile) |
-| 48 | Physically structured closed-loop oracle: tier (a) deterministic SH-partial design; tier (b) real GRACE-FO month vs published solution | — | tier (a) IN PROGRESS (2026-08-20, user-approved, branch `claude/wp-48`, round note §10.10); tier (b) OPEN — §6.1.4 rows ☐ user to supply |
-| 49 | Authoritative vPv from the residual pass on the normal backend (§10.9) | 48 | OPEN (user-approved 2026-08-20, queued after WP-48) |
+| 48 | Physically structured closed-loop oracle: tier (a) deterministic SH-partial design; tier (b) real GRACE-FO month vs published solution | — | tier (a) DONE (2026-08-20, PR #27 merged by the user, merge f1bb951; round note §10.10); tier (b) BACKLOG (user decision 2026-08-20; §6.1.4 rows ☐ remain the entry point) |
+| 49 | Authoritative vPv from the residual pass on the normal backend (§10.9) | 48 | IN PROGRESS (2026-08-20, branch `claude/wp-49`; postflight 591/591 green; BREAKING id retirement declared; round note §10.11) |
