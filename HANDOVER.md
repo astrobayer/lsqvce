@@ -3651,10 +3651,15 @@ POSTFLIGHT VERDICT on head 072ce6e (user machine, R2026a U4): batch 1
 probe fires only in test_ci_gate — correct); test_speed 11/11 at
 4.68e6 obs/s. 570 + 11 = 581 = the static count. All pf47 driver
 scripts and .mat artifacts self-removed; working copy restored to main.
-RISK CARRIED INTO CI: the hosted runner may surface runner-specific
-identifiers the local machine never fires — if so, that is the gate
-doing its job; disposition per identifier (muteWarn at the provoker or
-a reasoned allow) in a follow-up commit on this branch.
+RISK CARRIED INTO CI — MATERIALISED AS PREDICTED: the first hosted run
+went RED on exactly one runner-specific identifier,
+MATLAB:graphics:HardwareUnavailable (headless runner, software OpenGL;
+MATLAB fires it ONCE per session at the first graphics use).
+Disposition: muteWarn at all three figure-creating tests
+(opts/ellipse_confidence_scales_axes, util/ShowExportWritesPng,
+util/ShowExportSanitisesPipe) — each can be the session's first graphics
+use in a subset run, so all three are genuine provokers; no allow-list
+growth. The gate did its job on its first CI outing.
 
 ### R3 ledger
 

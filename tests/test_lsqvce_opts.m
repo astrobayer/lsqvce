@@ -323,6 +323,7 @@ end
 %% ============================================================ ELLIPSE
 function test_ellipse_confidence_scales_axes(tc)
 % categories: precision
+    muteWarn(tc, 'MATLAB:graphics:HardwareUnavailable');   % headless runner: MATLAB warns ONCE per session at the first graphics use (WP-47 CI catch); each figure-creating test can be that first use in a subset run
     [A, l, p] = prob(400, 4, 141);
     B = chop(A, l, p, 4);
     [~, D] = lsqvce.adjust(4, srcOf(B), 4, 'verbose', false);
