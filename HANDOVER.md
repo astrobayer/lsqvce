@@ -3416,7 +3416,16 @@ the origin visible at the site: house bound with the eps/cond argument,
 the measuring Python script, the closed form, or the estimator's own SE.
 Check 16d flipped from staged to FULL enforcement (every suite), the
 report line reworded, and the enforcement red-tested with a planted
-unannotated tolerance (exit 1, restored, exit 0). WP-44 prepared as an
+unannotated tolerance (exit 1, restored, exit 0).
+**r2 CI RED (first push, 4 suites failed to LOAD):** six comments had
+been inserted BETWEEN a `...` continuation and its continuation line --
+a standalone comment line there is a PARSE ERROR on the R2026a runner
+(and two of the six carried the wrong rule text besides). Fix: all six
+moved above the statement head with per-site honest wording; audit check
+16 gained guard (d0) that REFUSES the pattern tree-wide (a tol: comment
+whose preceding line ends in `...`). LESSON: an inserted comment is a
+code edit -- it must respect statement boundaries, and the audit now
+enforces that mechanically. WP-44 prepared as an
 executable prompt (§10.3) per user instruction; ledger row OPEN.
 
 ### R3 ledger

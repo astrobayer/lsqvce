@@ -328,8 +328,9 @@ function test_ellipse_confidence_scales_axes(tc)
     verifyGreaterThan(tc, E2.semiMajor, E1.semiMajor, ...
         'a 95% ellipse must be LARGER than a 1-sigma ellipse');
     % the axis RATIO is a property of Qxx and must not change with confidence
+    % tol: the axis ratio depends on Qxx alone; the confidence factor
+    % cancels EXACTLY, fp division noise only -- house bound 1e-9
     verifyEqual(tc, E2.semiMajor/E2.semiMinor, E1.semiMajor/E1.semiMinor, ...
-        % tol: invariance claim (same solve, different bookkeeping); eps-level accumulation-order difference only
         'RelTol', 1e-9);
 end
 

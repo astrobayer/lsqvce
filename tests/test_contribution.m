@@ -245,10 +245,12 @@ function test_streamed_redundancy_partitions_and_matches_exact(tc)
     nSys = numel(cfg.sats);
     u    = cfg.nc + nSys*cfg.nl;
     m    = sum([sc.group.n]);
+    % tol: exact local dof partition to sum_s nl_s -- fp accumulation over
+    % the groups only; 1e-6 headroom
     verifyEqual(tc, sum([sc.group.localAbsorbed]), nSys*cfg.nl, ...
-        % tol: 3-sigma of the estimator's own reported MC standard error (self-scaling bar)
         'AbsTol', 1e-6, 'exact local dof must partition to sum_s nl_s');
     rTol = 3*sqrt(sum([sc.group.rSE].^2));
+    % tol: 3-sigma of the combined per-group MC standard errors (self-scaling)
     verifyEqual(tc, sum([sc.group.r]), m - u, 'AbsTol', rTol, ...
         'streamed redundancies must sum to m - u');
 end

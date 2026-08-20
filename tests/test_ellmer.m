@@ -383,8 +383,9 @@ function test_psdVCE_zero_power_bin_floors_not_abs(tc)
     verifyGreaterThan(tc, 0.5*abs(Sprior(2)), 1e-6, ...
         'fixture sanity: the abs fold would sit far above the floor');
     healthy = [1 3 4];
+    % tol: untouched-bin identity (the floor policy must pass positive-power
+    % bins through unchanged); house exact-identity bound 1e-9
     verifyEqual(tc, pv.Shat(healthy), Sprior(healthy), ...
-        % tol: orthonormal-transform identity; error ~ N*eps ~ 1e-14 at N<=33, house bounds add headroom (HANDOVER 6.1.2)
         'RelTol', 1e-9, 'positive-power bins are untouched by the policy');
 end
 
@@ -1260,8 +1261,9 @@ function test_joint_keyed_skip_keeps_factors_aligned(tc)
     verifyEqual(tc, runB.sigma2(kSkip), runA1.sigma2(kSkip));
     % the others: same keys, values within the gammaBar renormalisation
     others = setdiff(1:numel(runA.arcKeys), kSkip);
+    % tol: gammaBar renormalisation shift when one arc is skipped; 0.15 is
+    % the WP-34 approved renormalisation bound (ledger row 34)
     verifyEqual(tc, runB.sigma2(others), runA.sigma2(others), ...
-        % tol: statistical bar on this fixture, sized to the estimator scatter (HANDOVER 6.1.2); not an eps claim
         'RelTol', 0.15, 'non-skipped factors track the no-skip run');
 end
 

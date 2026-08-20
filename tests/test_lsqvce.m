@@ -140,8 +140,9 @@ end
 
 function test_tau_tends_to_normal(tc)
 % categories: precision
+    % tol: tau -> normal is an ASYMPTOTIC limit at r = 1e7, not an identity;
+    % the O(1/r) remainder sets the 1e-3 bar
     verifyEqual(tc, lsqvce.stat.tauCrit(0.001, 1e7), ...
-                    % tol: quantile/CDF round-trip through base-MATLAB special functions; their relative error is ~1e-14, bound leaves headroom
                     lsqvce.stat.normCrit(0.001), 'AbsTol', 1e-3);
 end
 
@@ -639,8 +640,9 @@ function test_hutchinson_recovers_planted_ratio_like_demos(tc)
     % tol: Monte-Carlo probe scatter ~ 1/sqrt(Probes) on this fixture; 4/sqrt(Z)-style bar (HANDOVER 6.1.2), not containment
     verifyEqual(tc, VCe.sigma(2)/VCe.sigma(1), 3.0, 'RelTol', 0.15, ...
         'exact backend must recover the planted 3x ratio');
+    % tol: Monte-Carlo probe scatter ~ 1/sqrt(Z), Z = 4000 -> ~1.6e-2;
+    % 0.05 = ~3 sigma (HANDOVER 6.1.2), not containment
     verifyEqual(tc, VCh.sigma(2)/VCh.sigma(1), VCe.sigma(2)/VCe.sigma(1), ...
-        % tol: Monte-Carlo probe scatter ~ 1/sqrt(Probes) on this fixture; 4/sqrt(Z)-style bar (HANDOVER 6.1.2), not containment
         'RelTol', 0.05, ...
         'Hutchinson backend (Z=4000) must match exact ratio the demos print');
 end
