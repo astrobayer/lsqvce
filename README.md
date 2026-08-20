@@ -1,6 +1,6 @@
 # lsqvce v1.0 — batch least squares: accumulate, estimate variance components, judge
 
-> **Status (2026-08-20).** Green everywhere: **20 suite files, 581 test
+> **Status (2026-08-20).** Green everywhere: **21 suite files, 589 test
 > points, 0 fail** — verified locally in MATLAB R2026a (including the
 > pool suites with real `parfor`/`spmd` workers and the machine-local
 > speed budgets) and on every push by GitHub Actions CI (a static `audit`
@@ -314,7 +314,7 @@ predicted shift = 1.765467 sigma      <- from the MDB formula
 realised  shift = 1.765467 sigma      <- inject the MDB, re-solve, measure
 ```
 
-MATLAB unit tests: run `run_all_lsqvce` for the full suite (20 files, 581
+MATLAB unit tests: run `run_all_lsqvce` for the full suite (21 files, 589
 test points, ~3 min locally; the speed suite is reported separately by
 design). `run_lsqvce('all')` delegates to it, so it is the same run;
 `run_lsqvce('<target>')` runs one suite or a name pattern while iterating.
@@ -680,7 +680,7 @@ lsqvce_setup          % add to path, register the Help browser docs
 doc lsqvce            % landing page
 doc lsqvce.diagnose   % any function
 demo_workflow          % build your OWN case, from scratch  <- start here
-run_all_lsqvce         % the FULL unit-test suite (all 20 files, ~3 min)
+run_all_lsqvce         % the FULL unit-test suite (all 21 files, ~3 min)
 run_lsqvce('adjustvce')% one suite, while iterating
 ```
 
