@@ -221,6 +221,7 @@ function testShowExportWritesPng(tc)
 % categories: robustness
     % With a real figure and an export dir, a PNG must appear with the sanitised
     % name (the 'satKey|obsType' pipe becomes '_'). Skipped if no display/figure.
+    muteWarn(tc, 'MATLAB:graphics:HardwareUnavailable');   % headless runner: MATLAB warns ONCE per session at the first graphics use (WP-47 CI catch); each figure-creating test can be that first use in a subset run
     d = fullfile(tempdir, sprintf('lsqvce_figtest_%d', randi(1e6)));
     f = [];
     try
@@ -239,6 +240,7 @@ end
 function testShowExportSanitisesPipe(tc)
 % categories: contract | tags: diagnostics
     % A raw stream key with '|' must be sanitised in the file name.
+    muteWarn(tc, 'MATLAB:graphics:HardwareUnavailable');   % headless runner: MATLAB warns ONCE per session at the first graphics use (WP-47 CI catch); each figure-creating test can be that first use in a subset run
     d = fullfile(tempdir, sprintf('lsqvce_figtest_%d', randi(1e6)));
     f = [];
     try

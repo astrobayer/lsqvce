@@ -33,6 +33,17 @@ function results = run_all_lsqvce(root, skip)
 %                                these between runs: a test that quietly starts
 %                                running a full VCE loop costs seconds and shows
 %                                up NOWHERE in a pass count.
+%              .declared 1x1     test points DECLARED in the file (static
+%                                count, DECLAREDPOINTS). GATEVERDICT reds on
+%                                declared ~= total: a suite that runs fewer
+%                                points than it declares is hiding tests
+%                                (WP-47; NaN for a suite that failed to load).
+%              .warnIds  1xW cell warning identifiers seen in this suite's
+%                                capture ('<unidentified>' for a warning
+%                                without one). GATEVERDICT allows exactly
+%                                lsqvce:internal:testProbe (WP-47; warnings
+%                                raised on parallel workers may not reach
+%                                the capture -- known limitation).
 %
 %   `run_lsqvce('all')` delegates here, so it is the same run under a different
 %   name -- one gate, one implementation. Use RUN_LSQVCE for a single suite or a
@@ -47,6 +58,10 @@ function results = run_all_lsqvce(root, skip)
 %
 %   Created 2026-07-16 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Opus 4.8.
+%   Updated 2026-08-20 (CEST, UTC+02:00), WP-47: declared-vs-executed per
+%   suite (adopted external handover 2.6.4) and the warning inventory by
+%   identifier (2.5). With assistance from Claude (Anthropic), model
+%   Claude Fable 5.
 %   Updated 2026-08-18 (CEST, UTC+02:00): added the `skip` argument (WP-30;
 %   the CI gate skips pool suites on runners without PCT — visibly, in the
 %   summary and the log). With assistance from Claude (Anthropic), model
@@ -92,7 +107,13 @@ function results = run_all_lsqvce(root, skip)
     % Note: test_speed.m is a benchmark, not a pass/fail suite; run it manually.
 
     results = struct('name', {}, 'passed', {}, 'total', {}, ...
-                     'failed', {}, 'incomplete', {}, 'secs', {});
+                     'failed', {}, 'incomplete', {}, 'secs', {}, ...
+                     'declared', {}, 'warnIds', {});
+    % WP-47: warnings carry their identifier in the capture, so the
+    % inventory below can be counted by id (external handover 2.5).
+    verbPrev = warning('query', 'verbose');
+    warning('on', 'verbose');
+    restoreVerb = onCleanup(@() warning(verbPrev.state, 'verbose'));
     grandP = 0; grandT = 0; grandF = 0;
     % A file that does not LOAD is the worst outcome there is: it hides an
     % unknown number of tests. It used to be printed and then dropped, so
@@ -120,18 +141,33 @@ function results = run_all_lsqvce(root, skip)
             % Capture the console output so warnings and failure diagnostics
             % land in the log file rather than scrolling past. The summary
             % printed below is unaffected.
+            dcl = declaredPoints(f);        % WP-47: static count, pre-run
             tSuite = tic;
             capt = evalc('r = runtests(f);');
             secs = toc(tSuite);
             capture{end+1} = sprintf('\n===== %s =====\n%s', nm, capt); %#ok<AGROW>
             p = sum([r.Passed]); t = numel(r);
             fl = sum([r.Failed]); ic = sum([r.Incomplete]);
+            % WP-47 warning inventory: with 'verbose' on, every displayed
+            % warning carries a 'warning off <id>' hint line; collect the
+            % ids, and count a Warning line WITHOUT an id as the pseudo-id
+            % '<unidentified>' so it can never hide. (Known limitation:
+            % warnings raised ON parallel workers may not reach this
+            % capture -- recorded in HANDOVER 10.8.)
+            wid = regexp(capt, 'warning\s*\(?''?off''?,?\s*''?([A-Za-z]\w*(?::\w+)+)', 'tokens');
+            wid = cellfun(@(c) c{1}, wid, 'UniformOutput', false);
+            nWarnLines = numel(regexp(capt, '(?m)^\s*(\[\x08)?Warning:', 'start'));
+            if nWarnLines > numel(wid)
+                wid(end+1 : nWarnLines) = {'<unidentified>'};
+            end
+            wid = unique(wid);
         catch ME
             fprintf('  %-20s : LOAD ERROR %s   <-- NOTHING IN THIS FILE RAN\n', ...
                     nm, ME.message);
             loadErrors{end+1} = sprintf('%s: %s', nm, ME.message); %#ok<AGROW>
             results(end+1) = struct('name',nm,'passed',0,'total',NaN, ...
-                                    'failed',NaN,'incomplete',NaN,'secs',NaN); %#ok<AGROW>
+                                    'failed',NaN,'incomplete',NaN,'secs',NaN, ...
+                                    'declared',NaN,'warnIds',{{}}); %#ok<AGROW>
             capture{end+1} = sprintf(['\n===== %s =====\nLOAD ERROR: %s\n' ...
                 'NOTHING IN THIS FILE RAN. The pass counts below EXCLUDE it, ' ...
                 'so a green total here does not mean the suite is green.\n'], ...
@@ -139,10 +175,16 @@ function results = run_all_lsqvce(root, skip)
             continue
         end
         results(end+1) = struct('name',nm,'passed',p,'total',t, ...
-                                'failed',fl,'incomplete',ic,'secs',secs); %#ok<AGROW>
+                                'failed',fl,'incomplete',ic,'secs',secs, ...
+                                'declared',dcl,'warnIds',{wid}); %#ok<AGROW>
         grandP = grandP + p; grandT = grandT + t; grandF = grandF + fl;
         flag = '';
         if fl > 0 || ic > 0, flag = '   <-- CHECK'; end
+        if dcl ~= t
+            % WP-47 (2.6.4): a suite that EXECUTES fewer points than it
+            % DECLARES is hiding tests -- flagged here, red in gateVerdict.
+            flag = sprintf('   <-- DECLARED %d, RAN %d', dcl, t);
+        end
         fprintf('  %-20s : %3d/%-3d pass, %d fail, %d incomplete  %6.1fs%s\n', ...
                 nm, p, t, fl, ic, secs, flag);
     end
@@ -153,6 +195,12 @@ function results = run_all_lsqvce(root, skip)
     totalSecs = sum([results.secs], 'omitnan');
     fprintf('\n==== GRAND TOTAL : %d / %d passed, %d failed  (%.1fs) ====\n', ...
             grandP, grandT, grandF, totalSecs);
+    allW = unique([results.warnIds]);
+    if isempty(allW)
+        fprintf('==== WARNING INVENTORY : (empty) ====\n');
+    else
+        fprintf('==== WARNING INVENTORY : %s ====\n', strjoin(allW, ', '));
+    end
     if ~isempty(skipped)
         fprintf('==== %d SUITE(S) SKIPPED ON REQUEST: %s ====\n', ...
                 numel(skipped), strjoin(skipped, ', '));
@@ -193,10 +241,17 @@ function results = run_all_lsqvce(root, skip)
             end
             fprintf(fid, '\n');
         end
+        if isempty(allW)
+            fprintf(fid, 'warning inventory : (empty)\n\n');
+        else
+            fprintf(fid, 'warning inventory : %s\n\n', strjoin(allW, ', '));
+        end
         for i = 1:numel(results)
-            fprintf(fid, '  %-20s : %3d/%-3d pass, %d fail, %d incomplete  %6.1fs\n', ...
+            fprintf(fid, ['  %-20s : %3d/%-3d pass, %d fail, %d incomplete' ...
+                    '  %6.1fs  declared %d\n'], ...
                     results(i).name, results(i).passed, results(i).total, ...
-                    results(i).failed, results(i).incomplete, results(i).secs);
+                    results(i).failed, results(i).incomplete, ...
+                    results(i).secs, results(i).declared);
         end
         for i = 1:numel(capture)
             fprintf(fid, '%s', capture{i});

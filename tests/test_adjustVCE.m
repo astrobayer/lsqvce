@@ -23,6 +23,15 @@ end
 
 %% ===================================================== fixtures
 function setupOnce(tc)
+    % WP-47 (gate rule 7): the convergence warnings are provoked by
+    % DESIGN across this suite -- the shared fixtures run MaxOuter 1-3
+    % precisely to stop BEFORE convergence, so per-test muting would
+    % repeat at nearly every test. Suite-scoped, cleanup-restored.
+    for id = {'lsqvce:adjustVCE:notConverged', 'lsqvce:vce:notConverged'}
+        prev = warning('query', id{1});
+        warning('off', id{1});
+        tc.addTeardown(@(st, ii) warning(st, ii), prev.state, id{1});
+    end
     % The synthetic data generator lives in examples/ (it is a demo/template,
     % not part of the library). Put it on the path for the duration of the tests.
     here = fileparts(mfilename('fullpath'));               % tests/

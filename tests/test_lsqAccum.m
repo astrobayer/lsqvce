@@ -241,6 +241,8 @@ function testQRBeatsNormalWhenIllConditioned(tc)
 % in the full pipeline the effect is masked once regularisation engages, because
 % then the regularisation sets the accuracy for both backends alike.
 % See test_precision for the detailed treatment.
+    muteWarn(tc, 'lsqvce:accum:pinvFallback');   % provoked on purpose here (WP-47, gate rule 7)
+    muteWarn(tc, 'lsqvce:normalEq:negativeVtv');   % provoked on purpose here (WP-47, gate rule 7)
     rs = RandStream('mt19937ar','Seed',5);
     m = 800;  n = 8;
 
@@ -262,6 +264,7 @@ end
 
 function testDiagnosticsFlagIllConditioning(tc)
 % categories: robustness
+    muteWarn(tc, 'lsqvce:accum:pinvFallback');   % provoked on purpose here (WP-47, gate rule 7)
     cfg = tc.TestData.cfg;
     cfg.collinear = true;  cfg.collinearEps = 1e-9;
     acc = lsqvce.BlockAccumulator(cfg.nc, 'Backend','qr','Verbose',false);
@@ -301,6 +304,7 @@ end
 function testTSVDHandlesExactRankDeficiency(tc)
 % categories: robustness
 % Exactly duplicated local column -> singular Nll. TSVD must still solve.
+    muteWarn(tc, 'lsqvce:accum:pinvFallback');   % provoked on purpose here (WP-47, gate rule 7)
     cfg = tc.TestData.cfg;
     cfg.collinear = true;  cfg.collinearEps = 0;      % exact duplication
     acc = lsqvce.BlockAccumulator(cfg.nc,'Backend','qr','Reg','tsvd','Verbose',false);

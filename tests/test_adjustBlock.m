@@ -325,6 +325,7 @@ function testRecoverHookFailureNeverBreaksSolve(tc)
 % categories: contract, precision, robustness
     % A throwing hook must be logged and skipped -- the solve still returns a
     % valid Results. Mirrors the adjustVCE guarantee.
+    muteWarn(tc, 'lsqvce:adjustBlock:plotHookFailed');   % provoked on purpose here (WP-47, gate rule 7)
     cfg = buildCfg();
     h = @(ctx) error('boom:intentional', 'intentional');
     L = lsqvce.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...

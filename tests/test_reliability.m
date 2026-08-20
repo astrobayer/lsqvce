@@ -285,6 +285,7 @@ function testExactRankDeficiencyIsRescued(tc)
 % categories: robustness
 % Two identical local columns -> Nll is exactly singular. With 'tsvd' the run
 % must complete; the pinv fallback must not be needed.
+    muteWarn(tc, 'lsqvce:accum:pinvFallback');   % provoked on purpose here (WP-47, gate rule 7)
     cfg = tc.TestData.cfg;
     cfg.collinear = true;   cfg.collinearEps = 0;
 
@@ -315,6 +316,7 @@ function testNullDirectionIdentifiesTheCulprit(tc)
 % categories: precision
 % The diagnostic that actually helps: which combination of local parameters is
 % unconstrained. For two collinear columns it must be their difference.
+    muteWarn(tc, 'lsqvce:accum:pinvFallback');   % provoked on purpose here (WP-47, gate rule 7)
     cfg = tc.TestData.cfg;
     cfg.collinear = true;   cfg.collinearEps = 1e-12;
 
@@ -333,6 +335,7 @@ end
 
 function testDiagnosticsFlagIllConditioning(tc)
 % categories: robustness
+    muteWarn(tc, 'lsqvce:accum:pinvFallback');   % provoked on purpose here (WP-47, gate rule 7)
     cfg = tc.TestData.cfg;
     cfg.collinear = true;   cfg.collinearEps = 1e-9;
 
@@ -346,6 +349,7 @@ end
 %% ============================================ regularisation branches
 function testAutoRegDispatchesOnStatus(tc)
 % categories: robustness
+    muteWarn(tc, 'lsqvce:accum:pinvFallback');   % provoked on purpose here (WP-47, gate rule 7)
     cfg = tc.TestData.cfg;
 
     a1 = lsqvce.BlockAccumulator(cfg.nc, 'Reg','auto', 'Verbose',false);
@@ -360,6 +364,7 @@ end
 
 function testAllRegularisationBranchesRun(tc)
 % categories: robustness
+    muteWarn(tc, 'lsqvce:accum:pinvFallback');   % provoked on purpose here (WP-47, gate rule 7)
     cfg = tc.TestData.cfg;
     cfg.collinear = true;   cfg.collinearEps = 1e-10;
 

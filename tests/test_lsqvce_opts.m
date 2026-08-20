@@ -222,6 +222,7 @@ end
 %% ============================================================== SNOOP
 function test_snoop_removes_the_planted_outliers(tc)
 % categories: contract
+    muteWarn(tc, 'lsqvce:snoop:maxReject');   % provoked on purpose here (WP-47, gate rule 7)
     bad = [17 400 700];
     [A, l, p] = prob(800, 6, 71, bad);
     B = chop(A, l, p, 8);
@@ -255,6 +256,7 @@ end
 
 function test_snoop_maxReject_cap(tc)
 % categories: contract
+    muteWarn(tc, 'lsqvce:snoop:maxReject');   % provoked on purpose here (WP-47, gate rule 7)
     bad = 10:10:200;
     [A, l, p] = prob(800, 6, 91, bad);
     B = chop(A, l, p, 8);
@@ -270,6 +272,7 @@ function test_snoop_reaccumulate_gives_clean_solution(tc)
     % After rejecting, the final solve must be a FRESH accumulation, not a
     % sequence of downdates -- otherwise downdate roundoff accumulates into
     % the reported answer.
+    muteWarn(tc, 'lsqvce:snoop:maxReject');   % provoked on purpose here (WP-47, gate rule 7)
     bad = [50 300];
     [A, l, p] = prob(600, 5, 101, bad);
     B = chop(A, l, p, 6);
@@ -320,6 +323,7 @@ end
 %% ============================================================ ELLIPSE
 function test_ellipse_confidence_scales_axes(tc)
 % categories: precision
+    muteWarn(tc, 'MATLAB:graphics:HardwareUnavailable');   % headless runner: MATLAB warns ONCE per session at the first graphics use (WP-47 CI catch); each figure-creating test can be that first use in a subset run
     [A, l, p] = prob(400, 4, 141);
     B = chop(A, l, p, 4);
     [~, D] = lsqvce.adjust(4, srcOf(B), 4, 'verbose', false);
@@ -380,6 +384,8 @@ end
 
 function test_nonlinear_respects_maxIter(tc)
 % categories: contract
+    muteWarn(tc, 'lsqvce:nonlin:maxIter');   % provoked on purpose here (WP-47, gate rule 7)
+    muteWarn(tc, 'lsqvce:acc:zeroRedundancy');   % provoked on purpose here (WP-47, gate rule 7)
     function [A, l, p] = slow(~, x)
         A = 1;  l = 0.999*x;  p = 1;      % converges very slowly
     end
@@ -527,6 +533,7 @@ end
 
 function test_report_verdict_invalid_on_zero_redundancy(tc)
 % categories: contract | tags: diagnostics
+    muteWarn(tc, 'lsqvce:acc:zeroRedundancy');   % provoked on purpose here (WP-47, gate rule 7)
     A = randn(5,5);  l = randn(5,1);
     acc = lsqvce.Accumulator(5);
     acc.add(A, l, ones(5,1));

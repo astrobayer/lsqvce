@@ -107,6 +107,7 @@ function test_datum_finds_levelling_defect(tc)
 % categories: precision
     % A levelling network measures only HEIGHT DIFFERENCES. The overall level
     % is unobservable: exactly one datum defect, with null vector ones(u,1).
+    muteWarn(tc, 'lsqvce:datum:autoDetected');   % provoked on purpose here (WP-47, gate rule 7)
     u = 6;
     edges = [1 2; 2 3; 3 4; 4 5; 5 6; 1 3; 2 5; 4 6];
     A = zeros(size(edges,1), u);
@@ -131,6 +132,7 @@ function test_freenetwork_residuals_are_datum_invariant(tc)
 % categories: precision, robustness
     % The KEY property. The datum is a choice; the FIT is not. Residuals,
     % redundancy numbers and w must be identical whatever datum you pick.
+    muteWarn(tc, 'lsqvce:datum:autoDetected');   % provoked on purpose here (WP-47, gate rule 7)
     u = 6;
     edges = [1 2; 2 3; 3 4; 4 5; 5 6; 1 3; 2 5; 4 6; 1 6; 3 5];
     ne = size(edges,1);
@@ -174,6 +176,7 @@ end
 
 function test_freenetwork_rank_is_reduced(tc)
 % categories: robustness
+    muteWarn(tc, 'lsqvce:datum:autoDetected');   % provoked on purpose here (WP-47, gate rule 7)
     u = 5;
     edges = [1 2; 2 3; 3 4; 4 5; 1 5; 2 4];
     A = zeros(size(edges,1), u);
