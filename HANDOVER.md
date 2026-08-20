@@ -3627,6 +3627,35 @@ README's 574 stale (→ 581) — the WP-46 gate caught its first real drift
 one WP after shipping. Seven new test points, all category-declared,
 try/catch identifier pattern.
 
+**Postflight + the r1b/r1c iteration (same day, bridge up, driven via
+run_matlab_file — evaluate_matlab_code still dead this session).** The
+gate's first full local run REFUTED the round's own pre-measurement: the
+inventory held 12 foreign identifiers across 10 suites, not zero — the
+"zero warnings" reading had measured the WRONG ARTIFACTS (the settlement
+log held only batch C; CI console logs never print the suite captures).
+LESSON PINNED (§6.2.3 provisional-claim rule, applied to ourselves): an
+inventory claim needs the inventory instrument, not a proxy artifact.
+r1b: 33 scoped muteWarn insertions at the provoking tests
+(tests/private/muteWarn.m, cleanup-restored) + a suite-scoped mute in
+test_adjustVCE's setupOnce (its fixtures run MaxOuter 1–3 to stop BEFORE
+convergence by design — breadth justified in the file). r1c after
+per-test attribution runs: three placements corrected, two cannot-fire
+mutes REMOVED per doctrine, and one real bite — the mute in
+testPinvFallbackNeverCrashes blinded that test's own verifyWarning.
+LESSON PINNED: NEVER mute an ASSERTED warning — verifyWarning captures
+it silently anyway, so an asserted identifier pollutes no inventory.
+POSTFLIGHT VERDICT on head 072ce6e (user machine, R2026a U4): batch 1
+(all but adjustVCE) 525/525, inventory EXACTLY
+{lsqvce:internal:testProbe}, zero declared-mismatches; batch 2
+(adjustVCE alone) 45/45, declared 45 == ran 45, inventory empty (the
+probe fires only in test_ci_gate — correct); test_speed 11/11 at
+4.68e6 obs/s. 570 + 11 = 581 = the static count. All pf47 driver
+scripts and .mat artifacts self-removed; working copy restored to main.
+RISK CARRIED INTO CI: the hosted runner may surface runner-specific
+identifiers the local machine never fires — if so, that is the gate
+doing its job; disposition per identifier (muteWarn at the provoker or
+a reasoned allow) in a follow-up commit on this branch.
+
 ### R3 ledger
 
 | WP | title | depends on | status |
