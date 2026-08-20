@@ -638,7 +638,12 @@ def check_test_categories():
     cats_ok = {'contract', 'reference', 'precision', 'speed',
                'robustness', 'vectorisation'}
     tags_ok = {'diagnostics', 'provenance'}
-    TOL_SWEPT = ['tests/test_signalCore.m', 'tests/test_precision.m']
+    # WP-43 r2 (2026-08-19): the staged rollout is COMPLETE -- the debt count
+    # reached 0 in the same round that annotated all 216 remaining sites, so
+    # the swept-suite list retires and every suite is enforced. The debt
+    # counter stays as a belt-and-braces invariant: any future unannotated
+    # tolerance is a FINDING everywhere, not a reported number.
+    TOL_SWEPT = sorted(glob.glob('tests/test_*.m'))
 
     decl_re = re.compile(
         r'^\s*% categories:\s*([a-z, ]+?)\s*(?:\|\s*tags:\s*([a-z, ]+?)\s*)?$')
@@ -728,8 +733,8 @@ def check_test_categories():
                              'provenance comment (swept suite)' % (f, i + 1))
                     else:
                         debt += 1
-    print('   unannotated tolerances outside the swept suites: %d '
-          '(debt, drive to 0 suite by suite)' % debt)
+    print('   unannotated tolerances: %d (must stay 0 -- full '
+          'enforcement since WP-43 r2)' % debt)
 
 
 def main():

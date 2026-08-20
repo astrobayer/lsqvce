@@ -43,6 +43,7 @@ function test_dctI_ortho_is_self_inverse(tc)
     % The orthonormal type-I DCT is symmetric and self-inverse: X = X.', X*X = I.
     for N = [2 3 5 8 16 33]
         [~, X] = lsqvce.dctI(zeros(N,1));         % forward matrix
+        % tol: orthonormal-transform identity; error ~ N*eps ~ 1e-14 at N<=33, house bounds add headroom (HANDOVER 6.1.2)
         verifyEqual(tc, X, X.', 'AbsTol', 1e-12, sprintf('N=%d symmetric', N));
         verifyEqual(tc, X*X, eye(N), 'AbsTol', 1e-10, sprintf('N=%d involutive', N));
     end
@@ -55,6 +56,7 @@ function test_dctI_ortho_round_trip(tc)
     x = randn(12, 4);
     y = lsqvce.dctI(x);
     z = lsqvce.dctI(y);
+    % tol: orthonormal-transform identity; error ~ N*eps ~ 1e-14 at N<=33, house bounds add headroom (HANDOVER 6.1.2)
     verifyEqual(tc, z, x, 'AbsTol', 1e-10);
 end
 
@@ -63,6 +65,7 @@ function test_dctI_row_in_row_out(tc)
     x = 1:6;
     y = lsqvce.dctI(x);
     verifyTrue(tc, isrow(y), 'a row input must give a row output');
+    % tol: orthonormal-transform identity; error ~ N*eps ~ 1e-14 at N<=33, house bounds add headroom (HANDOVER 6.1.2)
     verifyEqual(tc, y(:), lsqvce.dctI(x(:)), 'AbsTol', 1e-12);
 end
 
@@ -76,6 +79,7 @@ function test_dctI_ellmer_norm_invertible(tc)
     verifyLessThan(tc, cond(X), 5, 'ellmer X must be well conditioned');
     y = lsqvce.dctI(x, 'Norm', 'ellmer');
     z = lsqvce.dctI(y, 'Norm', 'ellmer', 'Inverse', true);
+    % tol: orthonormal-transform identity; error ~ N*eps ~ 1e-14 at N<=33, house bounds add headroom (HANDOVER 6.1.2)
     verifyEqual(tc, z, x, 'AbsTol', 1e-10, 'ellmer forward then inverse round-trip');
 end
 
@@ -103,6 +107,7 @@ function test_covComponent_n0_is_identity(tc)
 % categories: precision
     rng(3);
     x = randn(7, 2);
+    % tol: 0 -- an EXACT identity claim (same stored value, no arithmetic)
     verifyEqual(tc, lsqvce.covComponent(x, 0), x, 'AbsTol', 0);
 end
 
@@ -114,6 +119,7 @@ function test_covComponent_matches_dense_Vn(tc)
     x = randn(N, 3);
     for n = 0:N-1
         V = denseVn(N, n);
+        % tol: independent dense reference, same-precision algebra; eps*cond headroom (house bounds, HANDOVER 6.1.2)
         verifyEqual(tc, lsqvce.covComponent(x, n), V*x, 'AbsTol', 1e-12, ...
             sprintf('lag n=%d', n));
     end
@@ -130,6 +136,7 @@ function test_covComponent_sums_to_toeplitz(tc)
     for n = 0:N-1
         acc = acc + c(n+1) * lsqvce.covComponent(x, n);
     end
+    % tol: dense reconstruction of the same algebra; eps-level accumulation, house bounds (HANDOVER 6.1.2)
     verifyEqual(tc, acc, toeplitz(c)*x, 'AbsTol', 1e-12);
 end
 
@@ -146,6 +153,7 @@ function test_toeplitzCofactor_dense_is_toeplitz(tc)
 % categories: precision
     c = [1; 0.5; 0.2; 0.05];
     Q = lsqvce.toeplitzCofactor(c);
+    % tol: independent dense reference, same-precision algebra; eps*cond headroom (house bounds, HANDOVER 6.1.2)
     verifyEqual(tc, Q, toeplitz(c), 'AbsTol', 1e-14);
     verifyEqual(tc, Q, Q.', 'AbsTol', 1e-14, 'must be symmetric');
 end
@@ -156,6 +164,7 @@ function test_toeplitzCofactor_apply_matches_dense(tc)
     q = lsqvce.toeplitzCofactor(c, 'Form', 'apply');
     rng(6);
     x = randn(5, 7);
+    % tol: independent dense reference, same-precision algebra; eps*cond headroom (house bounds, HANDOVER 6.1.2)
     verifyEqual(tc, q(x), toeplitz(c)*x, 'AbsTol', 1e-12);
 end
 
@@ -165,6 +174,7 @@ function test_toeplitzCofactor_whitens_via_decorr(tc)
     c = [1; 0.4; 0.1];               % clearly PD
     Q = lsqvce.toeplitzCofactor(c);
     W = lsqvce.decorrFactor(Q);
+    % tol: dense reconstruction of the same algebra; eps-level accumulation, house bounds (HANDOVER 6.1.2)
     verifyEqual(tc, W*Q*W.', eye(3), 'AbsTol', 1e-10);
 end
 
@@ -188,6 +198,7 @@ function test_sharedProbe_shapes_and_solve(tc)
     verifySize(tc, sp.Zbar, [P Z]);
     verifyEqual(tc, sp.probes, Z);
     verifyEqual(tc, sp.P, P);
+    % tol: probe construction identity (sign/sqrt bookkeeping, one triangular solve); eps-level, house bounds give headroom
     verifyEqual(tc, U*sp.UiZ, sp.Zbar, 'AbsTol', 1e-10, 'UiZ must solve U*UiZ=Zbar');
 end
 
@@ -197,6 +208,7 @@ function test_sharedProbe_rademacher_normalisation(tc)
     P = 4;  Z = 16;
     U = eye(P);
     sp = lsqvce.sharedProbe(U, 'numProbes', Z, 'seed', 3);
+    % tol: probe construction identity (sign/sqrt bookkeeping, one triangular solve); eps-level, house bounds give headroom
     verifyEqual(tc, abs(sp.Zbar), ones(P,Z)/sqrt(Z), 'AbsTol', 1e-12);
 end
 
@@ -205,6 +217,7 @@ function test_sharedProbe_seed_reproducible(tc)
     U = chol(eye(6)*2);
     a = lsqvce.sharedProbe(U, 'numProbes', 20, 'seed', 11);
     b = lsqvce.sharedProbe(U, 'numProbes', 20, 'seed', 11);
+    % tol: 0 -- an EXACT identity claim (same stored value, no arithmetic)
     verifyEqual(tc, a.UiZ, b.UiZ, 'AbsTol', 0, 'a fixed seed must reproduce');
 end
 
@@ -214,6 +227,7 @@ function test_sharedProbe_accepts_fixed_probes(tc)
     U = chol(eye(P)*3);
     raw = sign(randn(P,Z));  raw(raw==0) = 1;
     sp = lsqvce.sharedProbe(U, 'probes', raw);
+    % tol: probe construction identity (sign/sqrt bookkeeping, one triangular solve); eps-level, house bounds give headroom
     verifyEqual(tc, sp.Zbar, raw/sqrt(Z), 'AbsTol', 1e-12);
 end
 
@@ -233,6 +247,7 @@ function test_redundancyLags_s_matches_dense_trace(tc)
     r = lsqvce.redundancyLags(Abar, W, sp.UiZ, ebar, nLag, 'WantRbar', true);
     for n = 0:nLag-1
         Vn = denseVn(N, n);
+        % tol: independent dense reference, same-precision algebra; eps*cond headroom (house bounds, HANDOVER 6.1.2)
         verifyEqual(tc, r.s(n+1), trace(r.Rbar*Vn), 'RelTol', 1e-8, ...
             sprintf('s_%d must equal trace(Rbar V_n)', n));
     end
@@ -247,6 +262,7 @@ function test_redundancyLags_omega_matches_quadratic(tc)
     et = W \ ebar;                                   % Sigma^-1 ehat
     for n = 0:nLag-1
         Vn = denseVn(N, n);
+        % tol: independent dense reference, same-precision algebra; eps*cond headroom (house bounds, HANDOVER 6.1.2)
         verifyEqual(tc, r.omega(n+1), et.'*Vn*et, 'RelTol', 1e-8, ...
             sprintf('Omega_%d must equal etilde'' V_n etilde', n));
     end
@@ -266,6 +282,7 @@ function test_redundancyLags_Rbar_converges_to_exact(tc)
     r    = lsqvce.redundancyLags(Abar, W, sp.UiZ, [], 3, 'WantRbar', true);
     Sinv    = Sig \ eye(N);
     Rexact  = Sinv - Sinv*A*(Nm\(A.'*Sinv));
+    % tol: Monte-Carlo probe scatter ~ 1/sqrt(Probes) on this fixture; 4/sqrt(Z)-style bar (HANDOVER 6.1.2), not containment
     verifyEqual(tc, r.Rbar, Rexact, 'AbsTol', 0.05, ...
         'Rbar must approach the exact redundancy matrix');
 end
@@ -303,6 +320,7 @@ function test_psdVCE_identity_when_omega_equals_s(tc)
     C  = [1; 0.4.^(1:N-1).'];
     om = rand(N, M) + 0.5;
     p  = lsqvce.psdVCE(om, om, C);
+    % tol: fixed-point identity om==s -> alpha2=1 by the update law; fp division noise only, house exact-identity bound
     verifyEqual(tc, p.alpha2, ones(N,1), 'AbsTol', 1e-10, 'alpha2 must be 1');
     verifyEqual(tc, p.maxDev, 0, 'AbsTol', 1e-10);
 end
@@ -366,6 +384,7 @@ function test_psdVCE_zero_power_bin_floors_not_abs(tc)
         'fixture sanity: the abs fold would sit far above the floor');
     healthy = [1 3 4];
     verifyEqual(tc, pv.Shat(healthy), Sprior(healthy), ...
+        % tol: orthonormal-transform identity; error ~ N*eps ~ 1e-14 at N<=33, house bounds add headroom (HANDOVER 6.1.2)
         'RelTol', 1e-9, 'positive-power bins are untouched by the policy');
 end
 
@@ -405,6 +424,7 @@ function test_arcVarianceFactors_noop_on_healthy(tc)
     verifyFalse(tc, any(a.clamped), 'healthy input must not clamp');
     gamma2   = alpha2 .* sig2;
     gammaBar = mean(sqrt(abs(gamma2)));
+    % tol: fixed-point identity om==s -> alpha2=1 by the update law; fp division noise only, house exact-identity bound
     verifyEqual(tc, a.sigma2, gamma2 / gammaBar^2, 'RelTol', 4*eps, ...
         ['converged results on healthy inputs must match the closed ' ...
          'formula (4 eps: summation-order ULPs, CI-measured 2.6e-16)']);
@@ -427,6 +447,7 @@ function test_psdVCE_zero_frequency_rule(tc)
     N = 9;  M = 3;
     C  = [1; 0.35.^(1:N-1).'];
     pl = lsqvce.psdVCE(rand(N,M), rand(N,M), C, 'ZeroFreqRule', 'lowest');
+    % tol: 0 -- an EXACT identity claim (same stored value, no arithmetic)
     verifyEqual(tc, pl.Shat(1), pl.Shat(2), 'AbsTol', 0, ...
         '''lowest'' must replace S^0 by the next amplitude');
     pk = lsqvce.psdVCE(rand(N,M), rand(N,M), C, 'ZeroFreqRule', 'keep');
@@ -453,6 +474,7 @@ function test_arcVarianceFactors_plain_mean_normalises_to_one(tc)
     om = rand(N,M) + 0.5;
     s  = rand(N,M) + 0.5;
     a  = lsqvce.arcVarianceFactors(om, s, ones(M,1), 'MeanType', 'plain');
+    % tol: exact-path identity (same numbers recombined); house round-trip bound 1e-12/1e-10 (HANDOVER 6.1.2)
     verifyEqual(tc, mean(sqrt(abs(a.sigma2))), 1, 'AbsTol', 1e-10, ...
         'the plain mean must normalise mean(gamma_m/gammaBar) to 1');
 end
@@ -480,6 +502,7 @@ function test_arcVarianceFactors_gamma_detour_shapes(tc)
     a = lsqvce.arcVarianceFactors(rand(N,M)+0.5, rand(N,M)+0.5, sig2);
     verifySize(tc, a.sigma2, [M 1]);
     verifySize(tc, a.alpha2, [M 1]);
+    % tol: fixed-point identity om==s -> alpha2=1 by the update law; fp division noise only, house exact-identity bound
     verifyEqual(tc, a.gamma2, a.alpha2 .* sig2, 'RelTol', 1e-10, ...
         'gamma2 must be alpha2 .* sigma2 (eq. 6.5.28)');
     verifyTrue(tc, all(a.sigma2 >= 0), 'variance factors must be non-negative');
@@ -643,6 +666,7 @@ function test_jointModelOpt_takes_sqrt_of_variance(tc)
     model = struct('C', [1; 0.4; 0.1], 'sigma2', [4; 4; 4], 'iter', 2);
     uo = lsqvce.jointModelOpt(model, {'x1|pos'});
     spec = uo.covOverride.bySys.x1.pos;
+    % tol: value plumbing identity (stored numbers surfaced unchanged); house round-trip bound 1e-12
     verifyEqual(tc, spec.sigma, 2, 'AbsTol', 1e-12, ...
         'sigma must be sqrt(mean variance), not the variance itself');
 end
@@ -681,9 +705,11 @@ function test_jointModelOpt_acf_reproduces_the_covariance(tc)
     f  = uo.covOverride.bySys.x1.pos.acf;
     t  = (0:4).';
     C  = f(t - t.', struct());
+    % tol: value plumbing identity (stored numbers surfaced unchanged); house round-trip bound 1e-12
     verifyEqual(tc, diag(C), repmat(c(1),5,1), 'AbsTol', 1e-12, 'lag 0');
     verifyEqual(tc, C(1,2), c(2), 'AbsTol', 1e-12, 'lag 1');
     verifyEqual(tc, C(1,3), c(3), 'AbsTol', 1e-12, 'lag 2');
+    % tol: value plumbing identity (stored numbers surfaced unchanged); house round-trip bound 1e-12
     verifyEqual(tc, C(1,5), 0, 'AbsTol', 1e-12, ...
         'beyond the modelled range must be zero, not extrapolated');
     verifyEqual(tc, C, C.', 'AbsTol', 1e-12, 'must be symmetric');
@@ -742,6 +768,7 @@ function test_axis_pooling_recovers_temporal_law(tc)
     aAx = aAx / nAx;
 
     % the axis-pooled estimate must track rho^n; the row-based one must not
+    % tol: statistical bar on this fixture, sized to the estimator scatter (HANDOVER 6.1.2); not an eps claim
     verifyEqual(tc, aAx(2), rho, 'AbsTol', 0.08, ...
         'pooling per axis down epochs must recover the AR(1) coefficient');
     verifyGreaterThan(tc, abs(aRow(2) - rho), 0.3, ...
@@ -844,6 +871,7 @@ function test_redundancyLags_local_block_matches_joint_inverse(tc)
     Nj = Mw.'*Mw;
     RbarEx = Sinv - (W\Mw)*(Nj\(W\Mw).');
     tolR = 6/sqrt(Z);                         % Hutchinson-limit tolerance
+    % tol: 3-sigma (resp. 6/sqrt(Z)) of the estimator's own MC standard error -- self-scaling statistical bar
     verifyEqual(tc, r.Rbar, RbarEx, 'AbsTol', tolR, ...
         'Rbar must converge to the JOINT projector (locals absorbed)');
     % s_0 = trace(Rbar). For COLOURED Sigma this is NOT N-(nc+nl) (that holds
@@ -851,6 +879,7 @@ function test_redundancyLags_local_block_matches_joint_inverse(tc)
     % trace(RbarEx), and the pre-fix common-only projector sits a structural
     % ~3.2 higher on this fixture -- the 0.5 tolerance discriminates.
     s0Ex = trace(RbarEx);
+    % tol: Monte-Carlo probe scatter ~ 1/sqrt(Probes) on this fixture; 4/sqrt(Z)-style bar (HANDOVER 6.1.2), not containment
     verifyEqual(tc, r.s(1), s0Ex, 'AbsTol', 0.5, ...
         's_0 must equal trace of the JOINT Rbar');
     RcomOld = Sinv - (W\Aw)*((Aw.'*Aw)\(W\Aw).');   % the pre-WP-33 projector
@@ -905,6 +934,7 @@ function test_joint_alpha2_unity_at_truth_with_locals(tc)
     % tolerance: probe se of s_0 plus the chi2 spread of Omega_0/dof
     dof = nArc*m - (nc + nl);
     tol = 3*sqrt(2/dof) + 3*(nc/sqrt(800))/dof + 0.02;
+    % tol: 3-sigma of the estimator's own reported MC standard error (self-scaling bar)
     verifyEqual(tc, alpha2, 1, 'AbsTol', tol, ...
         'alpha2 must be ~1 at truth on white noise WITH locals');
     verifyTrue(tc, alpha2Old > 1.5, ...
@@ -1019,6 +1049,7 @@ function test_lags_structured_sums_match_dense_toeplitz(tc)
                          - sum(Rt(idx+n,:).*Rt(idx,:),2) ...
                          - sum(K(idx+n,:).*K(idx,:),2) );
     end
+    % tol: independent dense reference, same-precision algebra; eps*cond headroom (house bounds, HANDOVER 6.1.2)
     verifyEqual(tc, r.s, sRef, 'RelTol', 1e-12, ...
         'GS-path s_n must match the dense reference at 1e-12');
 end
@@ -1047,6 +1078,7 @@ function test_lags_structured_sums_match_dense_general(tc)
         sRef(n+1) = 2*sum( sum(X(idx+n,:).*X(idx,:),2) ...
                          - sum(Rt(idx+n,:).*Rt(idx,:),2) );
     end
+    % tol: independent dense reference, same-precision algebra; eps*cond headroom (house bounds, HANDOVER 6.1.2)
     verifyEqual(tc, r.s, sRef, 'RelTol', 1e-12, ...
         'fallback-path s_n must match the dense reference at 1e-12');
 end
@@ -1229,6 +1261,7 @@ function test_joint_keyed_skip_keeps_factors_aligned(tc)
     % the others: same keys, values within the gammaBar renormalisation
     others = setdiff(1:numel(runA.arcKeys), kSkip);
     verifyEqual(tc, runB.sigma2(others), runA.sigma2(others), ...
+        % tol: statistical bar on this fixture, sized to the estimator scatter (HANDOVER 6.1.2); not an eps claim
         'RelTol', 0.15, 'non-skipped factors track the no-skip run');
 end
 

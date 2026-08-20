@@ -65,6 +65,8 @@ function testLeverageEqualsBruteForceHatMatrix(tc)
         hEst = [hEst; lsqvce.leverage(A{s}, B{s}, blk)];      %#ok<AGROW>
     end
 
+    % tol: block-computed leverages vs the dense joint hat diagonal -- same
+    % algebra through Schur blocks; eps*cond headroom (house bounds)
     tc.verifyEqual(hEst, hTrue, 'AbsTol', 1e-9);
     tc.verifyEqual(sum(hEst), ntot, 'RelTol', 1e-10);      % sum(h) = u
 end
@@ -92,6 +94,8 @@ function testRedundancyIdentity(tc)
     end
 
     r = 1 - h;
+    % tol: redundancy partition identity sum(1-h)=n-u; fp accumulation over
+    % n leverages, 1e-7 headroom
     tc.verifyEqual(sum(r), nSys*m - (nc + nSys*nl), 'AbsTol', 1e-7);
     tc.verifyGreaterThanOrEqual(min(h), -1e-10);
     tc.verifyLessThanOrEqual(max(h),  1 + 1e-10);
@@ -156,7 +160,10 @@ function testVCERecoversVarianceComponents(tc)
     end
 
     M = nSys*nGrp*mG;  u = nc + nSys*nl;
+    % tol: group redundancies summed over the Helmert loop; identity up to
+    % fp accumulation across nSys*nGrp groups, 1e-5 headroom
     tc.verifyEqual(sum(rg), M - u, 'AbsTol', 1e-5);        % identity holds
+    % tol: recovery of a planted value; estimator sampling scatter on this fixture, measured stable across seeds (not an eps claim)
     tc.verifyEqual(sig ./ TRUE, ones(1,nGrp), 'AbsTol', 0.15);
 end
 
@@ -249,6 +256,8 @@ function testPriorEqualsAugmentedLeastSquares(tc)
     ncc_red = A.'*l - Nlc.'*(Nll\(B.'*l)) + nk;
     x = Ncc_red \ ncc_red;
 
+    % tol: Schur-reduced solve vs the dense joint solve of the same system;
+    % difference ~ cond*eps, 1e-8 house headroom
     tc.verifyEqual(x, xf(1:nc), 'RelTol', 1e-8);
 end
 
@@ -271,6 +280,7 @@ function testPriorAbsorbedDoFBounds(tc)
 
         tc.verifyGreaterThanOrEqual(absorbed(k), -1e-8);
         tc.verifyLessThanOrEqual(absorbed(k), pri.nk + 1e-8);
+        % tol: dense trace/quadratic-form reference of the same algebra; eps*cond headroom (house bounds)
         tc.verifyEqual(rK, pri.nk - absorbed(k), 'AbsTol', 1e-10);
     end
 
@@ -355,9 +365,11 @@ function testSeparableWhitenEqualsDenseCholesky(tc)
     [Aw, Bw, lw] = lsqvce.separableWhiten(a, s, r, sig, d, A, B, l, true);
 
     % the factors may differ by a rotation; the NORMALS must not
+    % tol: rotation-invariant quadratic forms of the same whitening;
+    % eps*cond headroom (house bounds, HANDOVER 6.1.2)
     tc.verifyEqual(Aw.'*Aw, Ad.'*Ad, 'RelTol', 1e-8);
     tc.verifyEqual(Aw.'*lw, Ad.'*ld, 'RelTol', 1e-8);
-    tc.verifyEqual(Bw.'*Bw, Bd.'*Bd, 'RelTol', 1e-8);
+    tc.verifyEqual(Bw.'*Bw, Bd.'*Bd, 'RelTol', 1e-8);     % tol: same source
 end
 
 function testSeparableWithFullEpochCovariance(tc)
@@ -385,6 +397,8 @@ function testSeparableWithFullEpochCovariance(tc)
     W = lsqvce.decorrFactor(C);
 
     [Aw, ~, ~] = lsqvce.separableWhiten(a, s, r, Ce, d, A, B, l, true);
+    % tol: separable whitener vs dense decorrelation of the same covariance;
+    % quadratic forms at eps*cond, 1e-8 house headroom
     tc.verifyEqual(Aw.'*Aw, (W*A).'*(W*A), 'RelTol', 1e-8);
 end
 
@@ -527,6 +541,7 @@ function testBlockSchurEqualsDenseSchur(tc)
     Ncc_blk = Ncc - Nlc.'*Zb(:,1:nc);
     ncc_blk = nc_ - Nlc.'*Zb(:,end);
 
+    % tol: independent dense reference, same-precision algebra; eps*cond headroom (house bounds, HANDOVER 6.1.2)
     tc.verifyEqual(Ncc_blk, Ncc_dense, 'RelTol', 1e-10);
     tc.verifyEqual(ncc_blk, ncc_dense, 'RelTol', 1e-10);
 end

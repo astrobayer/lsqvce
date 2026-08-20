@@ -97,6 +97,7 @@ function test_systematic_runs_test_is_calibrated(tc)
         zs(m) = S.runs.z;
     end
     zs = zs(isfinite(zs));
+    % tol: statistical identity on a finite sample; scatter ~ 1/sqrt(dof) of the fixture, bar sized 4/sqrt(Z)-style (HANDOVER 6.1.2)
     verifyEqual(tc, mean(zs), 0, 'AbsTol', 0.45);
     verifyEqual(tc, std(zs), 1, 'AbsTol', 0.35);
 end
@@ -120,6 +121,7 @@ function test_datum_finds_levelling_defect(tc)
         'a levelling network must have exactly one datum defect');
     % B must span ones(u,1)
     e = ones(u,1) / sqrt(u);
+    % tol: null-space direction from svd/eig at machine precision; 1e-8 is headroom over ~n*eps
     verifyEqual(tc, abs(B' * e), 1, 'AbsTol', 1e-8, ...
         'the null vector must be the constant-height shift');
     verifyLessThan(tc, norm(N * B), 1e-8 * norm(N));
@@ -161,10 +163,12 @@ function test_freenetwork_residuals_are_datum_invariant(tc)
     Bfix = ones(u,1);
     [~, D2] = lsqvce.adjust(u, srcOf(B1), 2, 'datumB', Bfix, 'verbose', false);
 
+    % tol: delegation identity (one call forwarded); values must be the SAME numbers, house round-trip bound
     verifyEqual(tc, D2.v, D1.v, 'AbsTol', 1e-8, ...
         'residuals must not depend on the datum');
     verifyEqual(tc, D2.rNum, D1.rNum, 'AbsTol', 1e-8, ...
         'redundancy numbers must not depend on the datum');
+    % tol: dense trace/quadratic-form reference of the same algebra; eps*cond headroom (house bounds)
     verifyEqual(tc, sum(D1.rNum), D1.r, 'RelTol', 1e-8);
 end
 
@@ -213,6 +217,7 @@ function test_nonlinear_converges_to_truth(tc)
     [sol, ~, ~, IT] = lsqvce.solveNonlinear(2, @src, 1, [1; 1], ...
                                              'verbose', false);
     verifyTrue(tc, IT.converged, 'the resection did not converge');
+    % tol: recovery of a planted value; estimator sampling scatter on this fixture, measured stable across seeds (not an eps claim)
     verifyEqual(tc, sol.x, truth, 'AbsTol', 0.02, ...
         'converged to the wrong point');
     verifyLessThan(tc, IT.nIter, 15);
@@ -263,6 +268,7 @@ function test_robust_downweights_outliers(tc)
     verifyGreaterThan(tc, median(ROB.factor(setdiff(1:n, bad))), 0.85, ...
         'robust estimator wrongly downweighted the good data');
     % and the estimate must be close to truth despite the contamination
+    % tol: recovery of a planted value; estimator sampling scatter on this fixture, measured stable across seeds (not an eps claim)
     verifyEqual(tc, sol.x, xt, 'AbsTol', 0.25);
 end
 
@@ -350,6 +356,7 @@ function test_ellipse_matches_eig_of_submatrix(tc)
     % semi-axes at the 1-sigma (standard) level are sqrt of the eigenvalues,
     % scaled by whatever confidence factor the function applies.
     ratio = E.semiMajor / E.semiMinor;
+    % tol: independent dense solve of the same system; difference ~ cond*eps, house bounds add headroom (HANDOVER 6.1.2)
     verifyEqual(tc, ratio, sqrt(ev(1)/ev(2)), 'RelTol', 1e-6, ...
         'ellipse axis RATIO must match the eigenvalue ratio');
     verifyGreaterThanOrEqual(tc, E.semiMajor, E.semiMinor);
@@ -369,6 +376,7 @@ function test_ellipse_circular_when_uncorrelated(tc)
     D = lsqvce.diagnose(sol, @(k) deal(A, l, ones(n,1)), 'nBatch', 1);
 
     E = lsqvce.ellipse(D, [1 2]);
+    % tol: eig-based geometry of the same Qxx; backward error of eig ~ norm*eps, 1e-6 leaves wide headroom
     verifyEqual(tc, E.semiMajor/E.semiMinor, 1, 'AbsTol', 1e-6, ...
         'uncorrelated equal-variance parameters must give a CIRCLE');
 end
@@ -459,6 +467,7 @@ function test_mad_scale_is_unbiased(tc)
         [~, D] = lsqvce.adjust(u, srcOf(B), 3, 'verbose', false);
         mads(m) = D.robustScale;
     end
+    % tol: statistical identity on a finite sample; scatter ~ 1/sqrt(dof) of the fixture, bar sized 4/sqrt(Z)-style (HANDOVER 6.1.2)
     verifyEqual(tc, mean(mads), 1, 'AbsTol', 0.05, ...
         'the MAD scale must be consistent for the normal distribution');
 end
@@ -491,6 +500,7 @@ function test_sparse_matches_dense(tc)
     end
     sD = accD.solve();  sS = accS.solve();
 
+    % tol: independent dense reference, same-precision algebra; eps*cond headroom (house bounds, HANDOVER 6.1.2)
     verifyEqual(tc, sS.x, sD.x, 'RelTol', 1e-9, ...
         'the sparse path must reproduce the dense solution');
     verifyTrue(tc, issparse(sS.N), 'N was not kept sparse');
@@ -519,9 +529,11 @@ function test_sparse_diagnostics_identical(tc)
     [~, Ds] = lsqvce.adjust(u, srcOf(B), 4, 'verbose', false, ...
                              'method','normal', 'sparse', true);
 
+    % tol: independent dense reference, same-precision algebra; eps*cond headroom (house bounds, HANDOVER 6.1.2)
     verifyEqual(tc, Ds.rNum, Dd.rNum, 'AbsTol', 1e-10, ...
         'sparse redundancy numbers differ from dense -- indexing bug');
     verifyEqual(tc, Ds.w, Dd.w, 'AbsTol', 1e-8);
+    % tol: independent dense reference, same-precision algebra; eps*cond headroom (house bounds, HANDOVER 6.1.2)
     verifyEqual(tc, sum(Ds.rNum), Ds.r, 'RelTol', 1e-9);
 end
 
@@ -563,6 +575,7 @@ function test_fhat_floor_is_exact(tc)
     A = randn(rs, n, u);  l = A*randn(rs,u,1) + randn(rs, n, 1);
     B = chop(A, l, ones(n,1), 4);
     [~, D] = lsqvce.adjust(u, srcOf(B), 4, 'verbose', false);
+    % tol: exact-path identity (same numbers recombined); house round-trip bound 1e-12/1e-10 (HANDOVER 6.1.2)
     verifyEqual(tc, D.fhatFloor, 2*lsqvce.stat.normCdf(-2.5), 'AbsTol', 1e-12);
     verifyEqual(tc, D.fhatFloor, 0.0124190, 'AbsTol', 1e-5);
 end

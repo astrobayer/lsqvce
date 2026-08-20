@@ -59,6 +59,7 @@ function testLevinsonRecoversAR(tc)
     a = [1 -1.6 0.9 -0.25];  s = 0.7;
     r = s^2 * lsqvce.armaACV(a, 1, 8);
     [ah, s2] = lsqvce.levinsonDurbin(r, 3);
+    % tol: Levinson on the EXACT generator ACV; recursion error growth over p steps ~ 1e3*eps, bound adds headroom
     tc.verifyEqual(ah, a, 'AbsTol', 1e-8);
     tc.verifyEqual(sqrt(s2), s, 'RelTol', 1e-8);
 end
@@ -74,6 +75,7 @@ function testFilterEqualsCholeskyWhitening(tc)
     Y1 = W*X;
     z  = zeros(n,0);
     [~,~,Y2] = lsqvce.armaWhiten(a, 1, s, r, z, z, X, true);
+    % tol: dense reconstruction of the same algebra; eps-level accumulation, house bounds (HANDOVER 6.1.2)
     tc.verifyEqual(Y2.'*Y2, Y1.'*Y1, 'RelTol', 1e-9);
 end
 
@@ -86,6 +88,7 @@ function testARMAACVAgainstBruteForce(tc)
     phi = 0.9; th = 0.5;
     r0 = (1 + 2*phi*th + th^2)/(1-phi^2);
     r1 = phi*r0 + th;
+    % tol: closed-form literature value; kernel's own accuracy claim (help text) bounds the error, tol adds headroom
     tc.verifyEqual(r(1), r0, 'RelTol', 1e-6);
     tc.verifyEqual(r(2), r1, 'RelTol', 1e-6);
 end
@@ -97,6 +100,7 @@ function testRecoversTruthWhiteNoise(tc)
     cfg.cov.pos = struct('type','diag','sigma',0.05);
     cfg.cov.kbr = struct('type','diag','sigma',0.05);
     sol = runIt(cfg, 1:3, 'Backend','qr', 'Verbose',false);
+    % tol: two backends on one well-conditioned problem; difference ~ cond*eps, bound with release-drift headroom
     tc.verifyEqual(sol.x, cfg.x_c, 'AbsTol', 5e-3);
 end
 
@@ -105,6 +109,7 @@ function testSigma0IsUnbiased(tc)
 % With a correctly specified covariance, sigma0 must be ~1.
     cfg = tc.TestData.cfg;
     sol = runIt(cfg, 1:5, 'Backend','qr', 'Verbose',false);
+    % tol: statistical identity on a finite sample; scatter ~ 1/sqrt(dof) of the fixture, bar sized 4/sqrt(Z)-style (HANDOVER 6.1.2)
     tc.verifyEqual(sol.sigma0, 1, 'AbsTol', 0.06);
 end
 
@@ -114,6 +119,7 @@ function testBackendsAgree(tc)
     cfg = tc.TestData.cfg;
     s1 = runIt(cfg, 1:3, 'Backend','normal', 'Verbose',false);
     s2 = runIt(cfg, 1:3, 'Backend','qr',     'Verbose',false);
+    % tol: two backends on one well-conditioned problem; difference ~ cond*eps, bound with release-drift headroom
     tc.verifyEqual(s2.x, s1.x, 'RelTol', 1e-7);
     tc.verifyEqual(s2.sigma0, s1.sigma0, 'RelTol', 1e-6);
 end
@@ -129,6 +135,7 @@ function testPreeliminationEqualsJointSolve(tc)
     % assemble the full whitened system explicitly
     [Af, lf] = assembleFull(cfg, days);
     xfull = Af \ lf;
+    % tol: independent dense reference, same-precision algebra; eps*cond headroom (house bounds, HANDOVER 6.1.2)
     tc.verifyEqual(sol.x, xfull(1:cfg.nc), 'RelTol', 1e-8);
 end
 
@@ -145,6 +152,7 @@ function testBackSubstitutionRecoversLocals(tc)
     for k = 1:numel(cfg.sats)
         y = acc.backSubstitute(cfg.sats(k), sol.x);
         yref = xfull(cfg.nc + (k-1)*cfg.nl + (1:cfg.nl));
+        % tol: independent dense solve of the same system; difference ~ cond*eps, house bounds add headroom (HANDOVER 6.1.2)
         tc.verifyEqual(y, yref, 'RelTol', 1e-7);
     end
 end
@@ -176,6 +184,7 @@ function testAutoOverlapFromFilterMemory(tc)
     cfg = tc.TestData.cfg;
     ref = runIt(cfg, 1:2, 'Backend','qr','BatchSize',1e9, 'Verbose',false);
     aut = runIt(cfg, 1:2, 'Backend','qr','BatchSize',100, 'Verbose',false);
+    % tol: two backends on one well-conditioned problem; difference ~ cond*eps, bound with release-drift headroom
     tc.verifyEqual(aut.x, ref.x, 'RelTol', 1e-6);
 end
 
@@ -186,6 +195,7 @@ function testBatchSizeInvariance(tc)
     for bs = [50 137 400 1e9]
         s = runIt(cfg, 1:2, 'Backend','qr', 'BatchSize',bs, ...
                   'BatchOverlap',3, 'Verbose',false);
+        % tol: two backends on one well-conditioned problem; difference ~ cond*eps, bound with release-drift headroom
         if isempty(x), x = s.x; else, tc.verifyEqual(s.x, x, 'RelTol',1e-6); end
     end
 end
@@ -209,6 +219,7 @@ function testPSDModeMatchesToeplitz(tc)
     sTP = runIt(cfg, 1:2, 'Backend','qr','BatchSize',400,'BatchOverlap',20, ...
                 'UserOpt',oTP, 'Verbose',false);
 
+    % tol: two backends on one well-conditioned problem; difference ~ cond*eps, bound with release-drift headroom
     tc.verifyEqual(sAR.x, sTP.x, 'RelTol', 1e-3);
 end
 
@@ -309,6 +320,7 @@ function testResidualsReproduceSigma0(tc)
     for s = cfg.sats, acc.addSystem(s, cfg.nl, binder(cfg,s), days); end
     sol = acc.solve();
     res = acc.residuals(sol, 'Verbose', false);
+    % tol: two backends on one well-conditioned problem; difference ~ cond*eps, bound with release-drift headroom
     tc.verifyEqual(sqrt(res.s0sq), sol.sigma0, 'RelTol', 1e-8);
 end
 
@@ -323,6 +335,7 @@ function testResidualsAreWhite(tc)
     res = acc.residuals(sol, 'Verbose', false);
 
     w = vertcat(res.sys(1).obs.w);
+    % tol: statistical identity on a finite sample; scatter ~ 1/sqrt(dof) of the fixture, bar sized 4/sqrt(Z)-style (HANDOVER 6.1.2)
     tc.verifyEqual(std(w), 1, 'AbsTol', 0.12);
     rho1 = (w(1:end-1).'*w(2:end)) / (w.'*w);
     tc.verifyLessThan(abs(rho1), 0.1);
@@ -335,6 +348,7 @@ function testLocalCovarianceIsPD(tc)
     for s = cfg.sats, acc.addSystem(s, cfg.nl, binder(cfg,s), 1:2); end
     sol = acc.solve();
     Cyy = acc.localCovariance(cfg.sats(1), sol.Cxx);
+    % tol: two backends on one well-conditioned problem; difference ~ cond*eps, bound with release-drift headroom
     tc.verifyEqual(Cyy, Cyy.', 'AbsTol', 1e-12);
     tc.verifyGreaterThan(min(eig(Cyy)), 0);
 end

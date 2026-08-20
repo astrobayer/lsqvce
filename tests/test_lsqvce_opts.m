@@ -127,6 +127,7 @@ function test_qr_and_normal_agree(tc)
         for k = 1:7, acc.add(B{k}{1}, B{k}{2}, B{k}{3}); end
         xs(:,j) = acc.solve().x;
     end
+    % tol: two backends on one well-conditioned problem; difference ~ cond*eps, bound with release-drift headroom
     verifyEqual(tc, xs(:,1), xs(:,2), 'RelTol', 1e-8);
 end
 
@@ -139,10 +140,12 @@ function test_sigma0_scales_the_ratio_not_the_fit(tc)
     [s1, D1] = lsqvce.adjust(5, srcOf(B), 5, 'verbose', false, 'sigma0', 1);
     [s2, D2] = lsqvce.adjust(5, srcOf(B), 5, 'verbose', false, 'sigma0', 2);
 
+    % tol: invariance claim (same solve, different bookkeeping); eps-level accumulation-order difference only
     verifyEqual(tc, s2.x, s1.x, 'RelTol', 1e-12, ...
         'sigma0 must not change the estimate');
     verifyEqual(tc, D2.v, D1.v, 'AbsTol', 1e-12, ...
         'sigma0 must not change the residuals');
+    % tol: invariance claim (same solve, different bookkeeping); eps-level accumulation-order difference only
     verifyEqual(tc, D2.varRatio, D1.varRatio / 4, 'RelTol', 1e-10, ...
         'sigma0 rescales the variance ratio by 1/sigma0^2');
 end
@@ -159,6 +162,7 @@ function test_store_none_still_gives_scalars(tc)
 
     verifyTrue(tc, isfinite(D.s0));
     verifyTrue(tc, isfinite(D.sumR));
+    % tol: redundancy partition identity sum(r_i)=n-u; fp accumulation over n terms, house bound with headroom
     verifyEqual(tc, D.sumR, D.r, 'RelTol', 1e-9);
     verifyTrue(tc, isfield(D, 'quad'));
     verifyFalse(tc, isfield(D, 'v'), ...
@@ -188,6 +192,7 @@ function test_baarda_vs_pope(tc)
     % w_pope = w_baarda * sigma0/s0
     ratio = Db.w ./ Dp.w;
     ratio = ratio(isfinite(ratio) & Dp.w ~= 0);
+    % tol: documented scaling relation between two runs of the same solve; fp-only deviation, bound adds headroom
     verifyEqual(tc, median(ratio), Dp.s0 / Db.sigma0, 'RelTol', 1e-6);
 end
 
@@ -199,6 +204,7 @@ function test_bonferroni_raises_the_threshold(tc)
     [~, D1] = lsqvce.adjust(6, srcOf(B), 8, 'verbose', false, 'bonferroni', true);
     verifyGreaterThan(tc, D1.kCrit, D0.kCrit, ...
         'the Bonferroni correction must RAISE the critical value');
+    % tol: documented scaling relation between two runs of the same solve; fp-only deviation, bound adds headroom
     verifyEqual(tc, D1.alphaEff, D0.alpha / D0.n, 'RelTol', 1e-12);
 end
 
@@ -275,6 +281,7 @@ function test_snoop_reaccumulate_gives_clean_solution(tc)
     keep = true(600,1);  keep(REJ.idx) = false;
     xd = (A(keep,:)' * diag(p(keep)) * A(keep,:)) \ ...
          (A(keep,:)' * diag(p(keep)) * l(keep));
+    % tol: independent dense solve of the same system; difference ~ cond*eps, house bounds add headroom (HANDOVER 6.1.2)
     verifyEqual(tc, solR.x, xd, 'RelTol', 1e-8);
 end
 
@@ -322,6 +329,7 @@ function test_ellipse_confidence_scales_axes(tc)
         'a 95% ellipse must be LARGER than a 1-sigma ellipse');
     % the axis RATIO is a property of Qxx and must not change with confidence
     verifyEqual(tc, E2.semiMajor/E2.semiMinor, E1.semiMajor/E1.semiMinor, ...
+        % tol: invariance claim (same solve, different bookkeeping); eps-level accumulation-order difference only
         'RelTol', 1e-9);
 end
 
@@ -474,6 +482,7 @@ function test_varcomp_simplified_and_rigorous_agree(tc)
                          'verbose', false, 'method', 'simplified');
     rR = VR.sigma(2)/VR.sigma(1);
     rS = VS.sigma(2)/VS.sigma(1);
+    % tol: statistical bar on this fixture, sized to the estimator scatter (HANDOVER 6.1.2); not an eps claim
     verifyEqual(tc, rR, rS, 'RelTol', 0.05, ...
         'the two Helmert variants must converge to the same fixed point');
     verifyEqual(tc, rR, 2.5, 'RelTol', 0.15);
@@ -495,6 +504,7 @@ function test_varcomp_reports_resolution(tc)
     VC = lsqvce.varComp(u, srcOf(B), 4, @(k) gB{k}{2}, 2, 'verbose', false);
 
     verifyTrue(tc, all(isfinite(VC.resolution)));
+    % tol: closed-form resolution 0.5*sqrt(2/r) recomputed from the SAME r; house exact-identity bound
     verifyEqual(tc, VC.resolution(1), 0.5*sqrt(2/VC.redund(1)), 'RelTol', 1e-9);
     % correct weights -> the correction must NOT be significant
     verifyFalse(tc, any(VC.significant), ...
@@ -561,9 +571,11 @@ function test_correlated_diagnostics_match_dense(tc)
     Qvv = inv(Pfull) - A*Qx*A';
     rd  = diag(Qvv * Pfull);
 
+    % tol: independent dense reference, same-precision algebra; eps*cond headroom (house bounds, HANDOVER 6.1.2)
     verifyEqual(tc, sol.x, xd, 'RelTol', 1e-8, ...
         'correlated solve disagrees with the dense reference');
     verifyEqual(tc, D.v, vd, 'AbsTol', 1e-8);
+    % tol: independent dense reference, same-precision algebra; eps*cond headroom (house bounds, HANDOVER 6.1.2)
     verifyEqual(tc, D.rNum, rd, 'AbsTol', 1e-8, ...
         'generalised redundancy numbers must equal diag(Qvv*P)');
     verifyEqual(tc, D.vPv, vd' * Pfull * vd, 'RelTol', 1e-9, ...
@@ -592,6 +604,7 @@ function test_correlated_integrity_identity(tc)
     src = @(k) deal(A((k-1)*nk+(1:nk), :), l((k-1)*nk+(1:nk)), Pb{k});
     [~, D] = lsqvce.adjust(u, src, nb, 'verbose', false);
 
+    % tol: redundancy partition identity sum(r_i)=n-u; fp accumulation over n terms, house bound with headroom
     verifyEqual(tc, D.sumR, D.r, 'RelTol', 1e-9, ...
         'sum(r_i) must equal n-u for correlated batches');
     verifyGreaterThanOrEqual(tc, min(D.rNum), 0);
@@ -645,12 +658,14 @@ function test_correlated_reduces_to_diagonal(tc)
     [sV, DV] = lsqvce.adjust(u, srcV, nb, 'verbose', false);
     [sM, DM] = lsqvce.adjust(u, srcM, nb, 'verbose', false);
 
+    % tol: diag-matrix vs vector weights is the SAME algebra restated;
+    % eps-level accumulation-order difference only (house bounds)
     verifyEqual(tc, sM.x,    sV.x,    'RelTol', 1e-10);
     verifyEqual(tc, DM.rNum, DV.rNum, 'AbsTol', 1e-10, ...
         'a diagonal matrix must give the same r_i as the vector form');
-    verifyEqual(tc, DM.w,    DV.w,    'AbsTol', 1e-8, ...
+    verifyEqual(tc, DM.w,    DV.w,    'AbsTol', 1e-8, ...   % tol: same source
         'the generalised w must REDUCE to the classical w for diagonal P');
-    verifyEqual(tc, DM.vPv,  DV.vPv,  'RelTol', 1e-10);
+    verifyEqual(tc, DM.vPv,  DV.vPv,  'RelTol', 1e-10);   % tol: same source
 end
 
 function test_snoop_refuses_correlated(tc)

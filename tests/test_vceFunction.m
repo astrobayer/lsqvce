@@ -35,6 +35,7 @@ function testVceFunctionRecoversComponents(tc)
     tc.verifyTrue(vc.converged);
     ratioEst  = vc.sigma(strcmp(vc.groups,'pos')) / vc.sigma(strcmp(vc.groups,'kbr'));
     ratioTrue = cfg.trueSigma.pos / cfg.trueSigma.kbr;
+    % tol: recovery of a planted value; estimator sampling scatter on this fixture, measured stable across seeds (not an eps claim)
     tc.verifyEqual(ratioEst/ratioTrue, 1, 'AbsTol', 0.15);
 end
 
@@ -53,6 +54,7 @@ function testVceIdentityAtConvergence(tc)
     sol = acc.solve();
     red = lsqvce.redundancy(acc, sol, 'GroupBy','obsType', 'Verbose', false);
     for k = 1:numel(red.group)
+        % tol: statistical identity on a finite sample; scatter ~ 1/sqrt(dof) of the fixture, bar sized 4/sqrt(Z)-style (HANDOVER 6.1.2)
         tc.verifyEqual(red.group(k).s0sq, 1, 'AbsTol', 0.10);
     end
     tc.verifyLessThan(red.check, 1e-6 * max(red.rTotal,1));
@@ -99,6 +101,7 @@ function testFromAccumCommonMatchesReduced(tc)
     acc = buildVceAcc(cfg, days, [1 1]);
     sol = acc.solve();
     dsol = lsqvce.diagnoseAccum(acc, sol);
+    % tol: recomputation of the same quadratic form; house exact-identity bound (HANDOVER 6.1.2)
     tc.verifyEqual(dsol.x(1:cfg.nc), sol.x, 'RelTol', 1e-9);
 end
 
@@ -119,6 +122,8 @@ function testFromAccumBatchesReproduceNormals(tc)
         N = N + (A.*p).' * A;          % unit weight p=1 here
         nObs = nObs + size(A,1);
     end
+    % tol: R'R must reproduce the accumulated normals; QR backward error
+    % ~ cond*eps, 1e-8/1e-10 house headroom (HANDOVER 6.1.2)
     tc.verifyEqual(N, dsol.R.'*dsol.R, 'RelTol', 1e-8, 'AbsTol', 1e-10);
     tc.verifyEqual(nObs, dsol.n);
 
@@ -129,6 +134,8 @@ function testFromAccumBatchesReproduceNormals(tc)
         W = dsol.R.' \ A.';
         sumr = sumr + sum(1 - sum(W.^2, 1));
     end
+    % tol: redundancy partition sum(r_i)=n-u via triangular solves over all
+    % batches; fp accumulation over n terms, 1e-6 leaves wide headroom
     tc.verifyEqual(sumr, dsol.n - dsol.u, 'AbsTol', 1e-6);
 end
 

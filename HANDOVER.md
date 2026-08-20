@@ -8,7 +8,11 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-08-19 — R3 OPENED (WP-43, test-category
+Last substantive update: 2026-08-19 (late) — WP-43 DONE (PR #20 merged);
+r2 same day: tol: debt 233 -> 0 (all sites annotated, check 16d full
+enforcement, red-tested); WP-44 prepared as an executable prompt (§10.3),
+ledger row OPEN. Round notes §10.4.
+Preceding entry: 2026-08-19 — R3 OPENED (WP-43, test-category
 scrutiny per the adapted BEST_PRACTICE §3.3 taxonomy): §6.1.2 rewritten to
 the six categories + two cross-cutting tags, §6.1.4 authority table added,
 §10 review record (findings T-01…T-08), audit check 16 (countability gate),
@@ -3343,7 +3347,7 @@ FINDINGS, because the matrix regenerates itself.
 | # | Finding (measured evidence) | Disposition |
 |---|---|---|
 | T-01 | Categories not countable: no declarations, §6.1.2 predated the adapted taxonomy (no reference/robustness/vectorisation as named kinds, no cross-cutting tags) | FIXED this round: §6.1.2 rewritten, 563+8 declarations, audit check 16 (red on missing/unknown declarations and on contract gaps without an exemption row) |
-| T-02 | Tolerance provenance: 257 Rel/AbsTol assertions, 14 with an origin comment (5%) — the category's defining requirement | MECHANISM this round: `tol:` convention pinned in §6.1.2; RED in the swept suites (test_signalCore, test_precision — 33 assertions annotated with honest per-site derivations); remaining debt 233, REPORTED by the audit every run, drive to 0 suite by suite (WP-39 rollout pattern) |
+| T-02 | Tolerance provenance: 257 Rel/AbsTol assertions, 14 with an origin comment (5%) — the category's defining requirement | CLOSED over two rounds: r1 pinned the `tol:` convention + swept 2 suites; r2 (2026-08-19) annotated ALL remaining 216 sites with per-site derivations, debt 0, staged list retired — check 16d enforces EVERYWHERE (red-tested with a planted site: exit 1/0) |
 | T-03 | 8 public units with documented rejection ids but no direct contract test: ReducedContribution (the ONE unit with zero direct tests — both ids unexercised), ar2arma, collectResiduals, residualAcv, varWhiten, whittle, stat, util.hasBackgroundPool. Sub-finding: varWhiten/whittle coverage lived ONLY in the CI-skipped test_parallel | FIXED this round: direct contract tests in the CI-run family suites (combine, signalCore, streamUtils, lsqvce, util); exemption ledger created and EMPTY BY OUTCOME |
 | T-03a | Contract DEFECTS found by writing the promised tests: (i) collectResiduals documents badRes for an absent field but threw raw MATLAB:nonExistentField; (ii) varWhiten documents badSigma for "not d x d" but only enforced the PD half; (iii) ar2arma's tooShort ERRORS line described the AR length while the code checks armaN | FIXED this round: (i)/(ii) code now fires the documented id naming the offending field (help text is the contract); (iii) help wording corrected to the code's actual check |
 | T-04 | Non-finite propagation asserted only on the accumulator observation path; the signal kernels reject via validateattributes 'finite' but nothing pinned that guard | FIXED this round: testSignalKernelsRejectNonFiniteAtTheDoor (test_reliability) pins psd2acv/levinsonDurbin/armaACV rejection so a refactor cannot drop it silently |
@@ -3352,15 +3356,40 @@ FINDINGS, because the matrix regenerates itself.
 | T-07 | armaWhiten batched-equals-column-at-a-time never asserted — the single cheapest vectorisation reference test, assumed since v1 | FIXED this round: testArmaWhitenBatchedEqualsColumnAtATime (test_precision), expectation stated eps-level (10*eps) with the BLAS multi-RHS reason |
 | T-08 | reference authorities existed (Ellmer thesis, Baarda/Pope textbook values, closed forms, four Python mirrors) but no standing table of who certifies what | FIXED this round: §6.1.4 authority table; amend it in the same edit that adds/retires an authority |
 
-### 10.3 Proposed WP-44 (NOT scheduled — user decision required)
+### 10.3 WP-44 — Run provenance in Results (T-05)
 
-**WP-44: run provenance in Results (T-05).** Scope sketch: an immutable
-`meta` property on lsqvce.Results carrying toolbox version, MATLAB release,
-UTC timestamp, the RNG seed(s) in effect, and the resolved options struct;
-populated by the constructors, surfaced by report level 0, covered by
-provenance-tagged contract tests. Entry criterion: the user wants result
-files answerable to "where did this come from" without the run log. Until
-picked up, this row lives here — deliberately NOT in the ledger.
+*(Prepared 2026-08-19 per user instruction; status OPEN in the R3 ledger.
+Copy-paste prompt in the §9 style:)*
+
+> Close finding T-05: every Results object must carry the metadata saying
+> where it came from. Add an IMMUTABLE `meta` property to lsqvce.Results:
+> a struct with EXACTLY these fields (add-only across versions, never
+> rename — the plot-hook rule): `.toolboxVersion` (char, read from the ONE
+> version source, Contents.m line 1), `.matlabRelease` (char,
+> version('-release')), `.createdUTC` (char, ISO 8601 with trailing Z),
+> `.seeds` (struct of every RNG seed the run resolved, empty struct when
+> none — the WP-36 probe contract is the source of truth for which exist),
+> `.options` (the RESOLVED option struct the run actually used, not the
+> user's raw input). SINGLE POINT OF ACCESS: one private builder
+> `+lsqvce/private/runMeta.m` composes the struct; every Results
+> constructor call site passes it — no second composer anywhere. The
+> Results constructor gains the ONE extra trailing argument (narginchk
+> widened accordingly); update every constructor call site in the same
+> edit (adjustBlock, adjustVCE, adjustVCEjoint, and any other producer the
+> grep finds) — no call site may pass a hand-built struct. Surface: report
+> level 0 prints one provenance line (version, release, createdUTC);
+> Results help text documents the field list with types and dimensions.
+> TESTS (category declarations per §6.1.2): contract | tags: provenance —
+> field presence, types, immutability (MATLAB:class:SetProhibited via
+> try/catch, NEVER the verifyError output form, §10.4 r1 lesson);
+> determinism — two runs with identical inputs/options give identical meta
+> EXCEPT `.createdUTC`; robustness — a run with no seeds carries the empty
+> struct, not a missing field. DOCS: help text + regenerated HTML page via
+> the v1 tooling; Contents.m untouched except if the version line moves
+> (it must not). CONSTRAINTS: no behaviour change to any numerical path;
+> the audit (incl. checks 14/15/16) and the full suite must stay green;
+> byte-identical results for all existing fixtures except the new field.
+> Deviations: pin in the round note, approval by merge.
 
 ### 10.4 WP-43 round notes
 
@@ -3376,9 +3405,23 @@ function-based TestCase — capture via try/catch and assert
 points 563 on main -> 571 on the branch (+8, the gap-closure tests);
 the CI run executed 529 points with test_parallel skipped.
 
+**ROUND 2 (2026-08-19, same session, branch `claude/wp-43-r2`, riding the
+WP-43 DONE flip).** The tol: debt driven 233 -> 0 in one round: three
+conservative context-rule passes (82 + 35 + 30 sites) plus a 35-site
+correction pass (a `0\b` regex matched the 0 in 0.15 -- every false
+"exact identity" comment found and replaced with an honest statistical
+one; LESSON: a bulk-annotation rule is code and gets the same review as
+code) plus a 30-site hand pass and 5 cluster tails. Every comment states
+the origin visible at the site: house bound with the eps/cond argument,
+the measuring Python script, the closed form, or the estimator's own SE.
+Check 16d flipped from staged to FULL enforcement (every suite), the
+report line reworded, and the enforcement red-tested with a planted
+unannotated tolerance (exit 1, restored, exit 0). WP-44 prepared as an
+executable prompt (§10.3) per user instruction; ledger row OPEN.
+
 ### R3 ledger
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 43 | Test-category audit: adapted taxonomy, countability gate (check 16), gap closure | — | IN PROGRESS — PR #20 READY (2026-08-19; r1 red 527/529 fixed same day, head 55a40db CI GREEN both contexts, mergeable clean; POSTFLIGHT DEBT per D.4; DONE flips on the user's merge) |
-| 44 | Run provenance in Results (T-05) | 43 | PROPOSED — awaiting user decision (§10.3) |
+| 43 | Test-category audit: adapted taxonomy, countability gate (check 16), gap closure | — | DONE (2026-08-19, PR #20 merged by the user; r1 red 527/529 fixed same day, final head CI GREEN both contexts 529/529; taxonomy + T-03a fixes + staged tol: rollout approved by merge; POSTFLIGHT DEBT per D.4; round notes §10.4) |
+| 44 | Run provenance in Results (T-05) | 43 | OPEN (2026-08-19, user instruction; executable prompt §10.3) |
