@@ -60,9 +60,9 @@ classdef NormalEqSystem < handle
 %   WARNINGS
 %     lsqvce:normalEq:cancellation    vtv negative OR > 8 digits lost to the
 %                                     l'Pl - n'x cancellation -> vtv = NaN.
-%                                     (The former lsqvce:normalEq:negativeVtv
-%                                     was RETIRED in WP-49 -- breaking: one
-%                                     failure mode, one identifier.)
+%                                     (The former 'negativeVtv' identifier in
+%                                     this namespace was RETIRED in WP-49 --
+%                                     breaking: one failure mode, one name.)
 %
 %   See also LSQVCE.QRSYSTEM, LSQVCE.BLOCKACCUMULATOR
 %
