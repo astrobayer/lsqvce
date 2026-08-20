@@ -89,9 +89,19 @@ function testCollectResidualsRejectsMissingField(tc)
 % whose matching arcs lack the requested field must fire that id -- and only
 % that id -- naming the offending field.
     res = makeRes();
-    err = tc.verifyError(@() lsqvce.collectResiduals(res, 'C', 'pos', 'zz'), ...
-                         'lsqvce:collectResiduals:badRes');
-    tc.verifySubstring(err.message, 'zz');   % the message names the field
+    % try/catch capture (WP-39 pattern): verifyError's output-argument form
+    % errored on the function-based TestCase in CI (R2026a hosted runner) --
+    % round-1 red, both new err-capturing tests. Captured lesson: assert the
+    % id AND the message through the caught exception, never via the output.
+    caught = MException.empty;
+    try
+        lsqvce.collectResiduals(res, 'C', 'pos', 'zz');
+    catch e
+        caught = e;
+    end
+    tc.verifyNotEmpty(caught, 'the absent field must be rejected');
+    tc.verifyEqual(caught.identifier, 'lsqvce:collectResiduals:badRes');
+    tc.verifySubstring(caught.message, 'zz');   % the message names the field
 end
 
 %% ===================================================== residualAcv

@@ -96,8 +96,18 @@ function test_stat_contract_rejections(tc)
 % (badProb, badDof, sizeMismatch) and none was exercised directly. Rejected
 % calls run before the body -- microseconds each. The badProb message must
 % name the calling quantile (the "offending field" promise of the contract).
-    err = tc.verifyError(@() lsqvce.stat.chi2Inv(1.5, 5), 'lsqvce:stat:badProb');
-    tc.verifySubstring(err.message, 'chi2Inv');       % message names the caller
+    % try/catch capture (WP-39 pattern): verifyError's output-argument form
+    % errored on the function-based TestCase in CI (round-1 red) -- assert
+    % the id AND the caller-naming message through the caught exception.
+    caught = MException.empty;
+    try
+        lsqvce.stat.chi2Inv(1.5, 5);
+    catch e
+        caught = e;
+    end
+    tc.verifyNotEmpty(caught, 'p outside (0,1) must be rejected');
+    tc.verifyEqual(caught.identifier, 'lsqvce:stat:badProb');
+    tc.verifySubstring(caught.message, 'chi2Inv');    % message names the caller
     tc.verifyError(@() lsqvce.stat.chi2Inv(NaN, 5),   'lsqvce:stat:badProb');
     tc.verifyError(@() lsqvce.stat.chi2Inv(0.5, 0),   'lsqvce:stat:badDof');
     tc.verifyError(@() lsqvce.stat.tInv(0.9, -1),     'lsqvce:stat:badDof');
