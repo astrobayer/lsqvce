@@ -1,12 +1,17 @@
 # lsqvce v1.0 — batch least squares: accumulate, estimate variance components, judge
 
-> **Status (2026-07-19).** Feature-complete for the requested scope and green in
-> MATLAB: **495 / 496 tests pass, 0 fail**, one deliberately filtered
-> (`backgroundPool`). Run the suite with `run_all_lsqvce` — not
-> `runtests('tests')`. The four remaining tasks (simplify the user interface and
-> template it, the `buildDay` guide, merging the two test runners, and the
-> master PDF) are tracked in `HANDOVER.md` §1.OPEN, which is the single
-> status-and-plans document for this project.
+> **Status (2026-08-20).** Green everywhere: **20 suite files, 574 test
+> points, 0 fail** — verified locally in MATLAB R2026a (including the
+> pool suites with real `parfor`/`spmd` workers and the machine-local
+> speed budgets) and on every push by GitHub Actions CI (a static `audit`
+> job plus the full MATLAB suite on hosted R2026a runners; `main` is
+> branch-protected on both). Run the suite with `run_all_lsqvce` — not
+> `runtests('tests')`. Two review tracks are closed since v1.0: the blind
+> five-expert code review (findings F-01…F-15, all resolved — including
+> two CRITICAL correctness fixes, see *Correctness history* below) and a
+> test-taxonomy audit (six declared test categories, per-unit coverage
+> counted mechanically by the audit on every run). `HANDOVER.md` is the
+> single status-and-plans document; MIT licensed.
 
 One flat MATLAB package merging two toolboxes plus a bridge. Everything lives at
 `lsqvce.*` — all functions are batch-least-squares tools at the same level.
@@ -216,9 +221,10 @@ one that decides whether the result can be trusted.
 |---|---|
 | `adjust` | one-call driver: accumulate → solve → diagnose → judge |
 | `adjustBlock` | one-call **block-arrow** front door → `Results`; the base of the separable/VCE engine. Pairs with `adjust` (flat) and `adjustVCE` (iterative). _(Was `recover`; that name was REMOVED on 2026-07-18 — all aliases were dropped pre-release.)_ |
-| `Results` | solution + diagnostics + accumulator in one object: `R.x`, `R.sigma0`, `R.report()`, `R.acc` |
+| `Results` | solution + diagnostics + accumulator in one object: `R.x`, `R.sigma0`, `R.report()`, `R.acc`; carries run provenance `R.meta` (toolbox version, MATLAB release, UTC creation time, resolved seeds and options) — `R.report()` prints it as the level-0 provenance line |
 | `makeLoader` | turn a `buildDay(day,obsType)` into an accumulator-ready `Loader` (meta / per-arc / one-day cache) |
 | `adjustVCE` | iterative separable-GLS engine — **SHAPE** (temporal AR whitening) + **SCALE** (VCE), a fluent builder over `adjustBlock`. Pairs by name with the in-memory shortcut `adjust`. `P.empiricalStochastic()` runs **empirical stochastic modelling** end to end (homogenise → loop → validate); `P.validate(R)` is the formal-vs-empirical **acceptance test**. _(Was `SeparableProblem`; that name was REMOVED on 2026-07-18 — all aliases were dropped pre-release.)_ |
+| `adjustVCEjoint` | Ellmer-style JOINT spectral VCE: declared per-stream PSD co-estimated with per-arc variance factors over shared Rademacher probes. **Production guidance (measured, F-15):** run it OPEN LOOP or with at most 3 damped passes (`'StepSchedule','decay','AvgTail',4`) — the undamped closed loop is bistable and never beat open-loop pass-1 quality at any tested volume |
 | `Accumulator` | streaming NE/QR; correlated batches; free-network; sparse |
 | `diagnose` | per-observation `v`, `r_i`, `w`, MDB, external reliability |
 | `report` | the five-level verdict |
@@ -238,6 +244,28 @@ one that decides whether the result can be trusted.
 | `template/lsqvce_template.m` | *(template, not package)* **START HERE for your own case.** Returns the Loaders; you fill in two documented stubs (`myBuildDay`, `myEpochCov`). The `observationGroups` loop is real runnable code; the stubs error until written. |
 | `examples/demo_grace_dataLoader` | *(example, not package)* the GRACE-FO reference setup — C/D pair merged into one system (range-rate couples both satellites' arc states) plus independent satellite E on the same field. A WORKED case to read alongside the template. |
 | `examples/demo_grace` | *(example, not package)* the driver that runs it end to end |
+
+---
+
+## Correctness history — what the reviews changed
+
+The v1.0 claims below survived two adversarial review tracks; two did not
+survive unchanged, and honesty requires the pointers. A blind five-expert
+review (2026-08) produced findings F-01…F-15; the two CRITICAL ones were
+real wrong-number defects, both fixed and regression-locked:
+
+- **F-01** — `vce` with `'TraceMethod','hutchinson'` used the wrong
+  denominator (cc-attribution sum instead of the redundancy
+  `r_g = n_g − local_g − tr(N⁻¹N_g^cc)`); validated against dense joint
+  hat-sums to 1e-8 after the fix.
+- **F-03** — the joint spectral paths omitted `B·y` from the residual and
+  used a common-only projector; fixed via a shared `jointArcParts`, with
+  dense parity in the whitened metric.
+
+F-15 (session finding) established that the undamped closed-loop spectral
+alternation is bistable — the production guidance in the `adjustVCEjoint`
+row above is the measured consequence. The full evidence trail lives in
+`HANDOVER.md` (§8 findings, §9 work packages, §10 test-taxonomy review).
 
 ---
 
@@ -286,9 +314,16 @@ predicted shift = 1.765467 sigma      <- from the MDB formula
 realised  shift = 1.765467 sigma      <- inject the MDB, re-solve, measure
 ```
 
-MATLAB unit tests: run `run_all_lsqvce` for the full suite (18 files, 498
-tests, ~130 s). `run_lsqvce('all')` delegates to it, so it is the same run;
+MATLAB unit tests: run `run_all_lsqvce` for the full suite (20 files, 574
+test points, ~3 min locally; the speed suite is reported separately by
+design). `run_lsqvce('all')` delegates to it, so it is the same run;
 `run_lsqvce('<target>')` runs one suite or a name pattern while iterating.
+Every test point declares its category (`contract`, `reference`,
+`precision`, `speed`, `robustness`, `vectorisation`, plus the cross-cutting
+`diagnostics`/`provenance` tags); the audit derives the unit x category
+coverage matrix from the test bodies on every run, every tolerance carries
+a comment naming its origin, and a public unit without contract coverage
+fails the gate.
 
 ---
 
@@ -596,9 +631,11 @@ re-run with `'qr'` only if you must. One cheap solve buys the answer.
 
 ---
 
-## Verified in MATLAB R2026a
+## Verified in MATLAB R2026a (v1.0 bring-up record, 2026-07)
 
-**125 / 125 tests pass.** All four demos run. The suite was finally executed in
+*(A dated record of the first MATLAB execution — the current gate is the
+574-point suite in the status block above.)* **125 / 125 tests passed.**
+All four demos ran. The suite was finally executed in
 MATLAB rather than validated only through a Python port — and it found **four
 real bugs the port structurally could not see.**
 
@@ -643,7 +680,7 @@ lsqvce_setup          % add to path, register the Help browser docs
 doc lsqvce            % landing page
 doc lsqvce.diagnose   % any function
 demo_workflow          % build your OWN case, from scratch  <- start here
-run_all_lsqvce         % the FULL unit-test suite (all 18 files, ~130 s)
+run_all_lsqvce         % the FULL unit-test suite (all 20 files, ~3 min)
 run_lsqvce('adjustvce')% one suite, while iterating
 ```
 

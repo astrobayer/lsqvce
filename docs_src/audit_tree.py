@@ -748,6 +748,55 @@ def check_test_categories():
           'enforcement since WP-43 r2)' % debt)
 
 
+def check_readme_sync():
+    print('\n17. README agrees with the tree (doc sync gate, HANDOVER 6.2.4)')
+    # WHY (WP-46, 2026-08-20): the README drifted for a month (v1-era test
+    # counts and status) because no gate read it. Adopted principle (external
+    # geoMap handover 2.7/2.8.2): one authority per fact, every other surface
+    # CHECKED against it, never independently maintained.
+    #   (a) the README title version must equal the Contents.m Version line
+    #       (Contents.m is the ONE version source -- runMeta reads it too);
+    #   (b) the README's suite/point-count claim ("N suite files, M test
+    #       points") must equal the tree's counts (same static count as
+    #       check 16).
+    readme = open('README.md', encoding='utf-8', errors='replace').read()
+    contents = open('+lsqvce/Contents.m', encoding='utf-8',
+                    errors='replace').read()
+    mv = re.search(r'^%\s*Version\s+(\S+)', contents, re.M)
+    mt = re.search(r'^#\s*lsqvce\s+v(\S+?)\s', readme, re.M)
+    if not mv or not mt:
+        note('readme', 'version line missing (Contents.m: %s, README title: '
+             '%s)' % (bool(mv), bool(mt)))
+    elif mv.group(1) != mt.group(1):
+        note('readme', 'README title says v%s but Contents.m says %s'
+             % (mt.group(1), mv.group(1)))
+
+    files = sorted(glob.glob('tests/test_*.m'))
+    n_files = len(files)
+    fn_re = re.compile(r'^function\s+(?:\w+\s*=\s*)?test\w+\s*\(')
+    n_pts = 0
+    for f in files:
+        for l in open(f, encoding='utf-8', errors='replace'):
+            if fn_re.match(l) and not re.match(r'function\s+tests\s*=', l):
+                n_pts += 1
+    mc = re.search(r'(\d+)\s+suite files,\s*\*{0,2}?(\d+)\s+test\s*\n?>?\s*points',
+                   readme)
+    if not mc:
+        mc = re.search(r'(\d+)\s+suite files.{0,40}?(\d+)\s+test\s+points',
+                       readme, re.S)
+    if not mc:
+        note('readme', 'README carries no machine-checkable "N suite files, '
+             'M test points" claim')
+    else:
+        cf, cp = int(mc.group(1)), int(mc.group(2))
+        if cf != n_files or cp != n_pts:
+            note('readme', 'README claims %d files / %d points; the tree has '
+                 '%d / %d' % (cf, cp, n_files, n_pts))
+        else:
+            print('   README claim %d files / %d points == tree; version v%s '
+                  '== Contents.m' % (cf, cp, mv.group(1) if mv else '?'))
+
+
 def main():
     if not os.path.isdir('+lsqvce'):
         sys.exit('run from the toolbox root (the folder holding +lsqvce)')
@@ -770,6 +819,7 @@ def main():
     check_error_ids()
     check_h1_names()
     check_test_categories()
+    check_readme_sync()
     print('\n' + '=' * 60)
     if FINDINGS:
         print('%d finding(s).' % len(FINDINGS))
