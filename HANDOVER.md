@@ -3432,5 +3432,5 @@ executable prompt (§10.3) per user instruction; ledger row OPEN.
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 43 | Test-category audit: adapted taxonomy, countability gate (check 16), gap closure | — | DONE (2026-08-19, PR #20 merged by the user; r1 red 527/529 fixed same day, final head CI GREEN both contexts 529/529; taxonomy + T-03a fixes + staged tol: rollout approved by merge; POSTFLIGHT DEBT per D.4; round notes §10.4) |
+| 43 | Test-category audit: adapted taxonomy, countability gate (check 16), gap closure | — | r1 DONE (2026-08-19, PR #20 merged by the user; r1 red 527/529 fixed same day, final head CI GREEN 529/529; POSTFLIGHT DEBT per D.4); r2 PR #21 READY (tol sweep 233→0 + full enforcement + guard d0; head efbe8be CI GREEN both contexts; DONE flips on the user's merge; round notes §10.4) |
 | 44 | Run provenance in Results (T-05) | 43 | OPEN (2026-08-19, user instruction; executable prompt §10.3) |
