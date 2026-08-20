@@ -533,6 +533,7 @@ function test_adjustVCEjoint_runs_and_returns_shapes(tc)
 % categories: contract, robustness
     % End-to-end: the ten-step loop must run on a real accumulator and return a
     % PSD, a covariance function, and one variance factor per arc.
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % provoked on purpose here (WP-47, gate rule 7)
     cfg  = jointCfg();
     nLag = 8;
     r = lsqvce.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
@@ -548,6 +549,7 @@ end
 
 function test_adjustVCEjoint_history_grows_per_iteration(tc)
 % categories: contract, robustness
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % provoked on purpose here (WP-47, gate rule 7)
     cfg  = jointCfg();
     nLag = 6;
     r = lsqvce.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
@@ -564,6 +566,7 @@ function test_adjustVCEjoint_model_reaches_accFcn(tc)
     % The driver must hand the CURRENT model to accFcn each pass (steps 1-3),
     % so the caller can rebuild Sigma from it. containers.Map is a HANDLE, so
     % the closure below can record into it without a nested function.
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % provoked on purpose here (WP-47, gate rule 7)
     cfg = jointCfg();
     rec = containers.Map('KeyType', 'double', 'ValueType', 'any');
     accF = @(model) recordAndBuild(rec, cfg, model);
@@ -1128,6 +1131,7 @@ function test_adjustVCEjoint_flat_psd_on_white_noise_with_locals(tc)
     % white (diag) fixture WITH nl = 2 locals the estimated PSD must stay
     % FLAT -- no arc-parameter signal folded into the "noise". Pre-WP-33 the
     % omitted B*y inflated the low lags (Omega_0 x3.8, T3).
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % provoked on purpose here (WP-47, gate rule 7)
     cfg  = jointCfg();
     r = lsqvce.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
             'NumLags', 6, 'MaxIter', 2, 'Probes', 200, 'Seed', 11, ...
@@ -1150,6 +1154,7 @@ function test_joint_stabilised_alternation_beats_collapse(tc)
     % and shows the closed loop never beating open-loop pass-1 quality
     % (~0.96) at any tested volume -- full grid in the §9 WP-40 round-6
     % note.
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % provoked on purpose here (WP-47, gate rule 7)
     cfg  = jointCfgColoured();
     nLag = 10;
     w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
@@ -1176,6 +1181,7 @@ function test_joint_default_schedule_is_plain_step(tc)
     % Backward compatibility: 'StepSchedule','none' (the default) must be
     % BITWISE the old path -- one pass with and without the explicit default
     % options must agree exactly.
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % provoked on purpose here (WP-47, gate rule 7)
     cfg = jointCfg();
     w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
     a = lsqvce.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
@@ -1204,6 +1210,7 @@ function test_adjustVCEjoint_psd_recovery_coloured_with_locals(tc)
     % code corr ranged 0.55-0.95 over seeds) -- the §6.1 fail-on-old-code
     % lever for F-03 is round 1's alpha2-at-truth test, NOT this one. This
     % test guards the chain's recovery quality against future regressions.
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % provoked on purpose here (WP-47, gate rule 7)
     cfg  = jointCfgColoured();
     nLag = 10;
     w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
@@ -1234,6 +1241,7 @@ function test_joint_keyed_skip_keeps_factors_aligned(tc)
     % HANDOVER round note). On the pre-WP-34 code these assertions ERROR
     % (no out.arcKeys/out.skips) and the alignment itself is the F-02
     % shift -- the §6.1 lever.
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % provoked on purpose here (WP-47, gate rule 7)
     cfg = jointCfg();
     badArc = 2;                          % skipped on pass 2 in run B
     w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>

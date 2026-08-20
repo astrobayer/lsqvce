@@ -319,6 +319,7 @@ function testQRBeatsNormalOnIllConditioned(tc)
 % regularisation kicks in and sets the accuracy for both backends alike (see
 % testRegularisationMasksBackendChoice). The backend difference is real, but it
 % only shows where the design matrix is ill conditioned AND unregularised.
+    muteWarn(tc, 'lsqvce:normalEq:negativeVtv');   % provoked on purpose here (WP-47, gate rule 7)
     rs = RandStream('mt19937ar','Seed',5);
     m  = 800;   n = 8;
 
@@ -378,6 +379,7 @@ function testRegularisationMasksBackendChoice(tc)
 % that TSVD engages, BOTH backends give the same answer -- the regularisation,
 % not the factorisation, sets the accuracy. Do not conclude from a full-pipeline
 % test that the backend does not matter; test the backend in isolation.
+    muteWarn(tc, 'lsqvce:normalEq:negativeVtv');   % provoked on purpose here (WP-47, gate rule 7)
     cfg = tc.TestData.cfg;
     cfg.collinear = true;   cfg.collinearEps = 1e-9;
 
