@@ -353,6 +353,7 @@ function testNormalEquationsLoseTheAnswerAtHighCondition(tc)
 % The failure mode the QR backend exists to prevent. At cond(A) = 1e8 the normal
 % matrix has cond(A)^2 = 1e16 > 1/eps: the information is destroyed by forming
 % A'*A and NO solver can recover it afterwards.
+    muteWarn(tc, 'lsqvce:normalEq:negativeVtv');   % CAN fire, nondeterministically: at cond(A)^2 ~ 1/eps whether vPv rounds negative is a BLAS coin flip -- flaked red on CI run 2 (WP-47 r1e)
     rs = RandStream('mt19937ar','Seed',11);
     m  = 800;   n = 8;
 

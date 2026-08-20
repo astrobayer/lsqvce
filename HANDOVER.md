@@ -3660,6 +3660,20 @@ Disposition: muteWarn at all three figure-creating tests
 util/ShowExportSanitisesPipe) — each can be the session's first graphics
 use in a subset run, so all three are genuine provokers; no allow-list
 growth. The gate did its job on its first CI outing.
+SECOND CI RED (same code, doc-only commit -- run-to-run variance):
+lsqvce:normalEq:negativeVtv from
+test_precision/testNormalEquationsLoseTheAnswerAtHighCondition -- exact
+attribution from the uploaded run_all_log artifact's backtrace. At
+cond(A)^2 ~ 1/eps whether v'Pv rounds to -1.2e-16 (warns) or +eps
+(silent) is a BLAS coin flip; the local runs and the first CI run landed
+silent, so the one-run inventory UNDER-SAMPLED a nondeterministic
+provoker. THIRD LESSON PINNED: the muting criterion is CAN-FIRE (the
+regime the test drives), not DID-FIRE (one sample) -- sweep by regime,
+not by observed inventory alone. r1e disposition: mute at the flaky
+provoker AND its regime sibling
+(combine/test_qr_beats_normal_when_ill_conditioned, cond 2.4e8, same
+coin); the two cancellation tests that ASSERT their warning via
+verifyWarning stay unmuted per the r1c rule.
 
 ### R3 ledger
 
