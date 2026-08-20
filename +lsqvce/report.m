@@ -24,6 +24,11 @@ function V = report(D, opt)
 %   NAME-VALUE
 %     'verbose'  true  print the report (default true)
 %     'width'    78    line width
+%     'Provenance' struct()  a run-provenance struct (LSQVCE.RESULTS .meta,
+%                      WP-44); when non-empty, ONE level-0 NOTE line
+%                      (code 'PROVENANCE') states toolbox version, MATLAB
+%                      release, and creation time. R.report() forwards it
+%                      automatically; a bare lsqvce.report(D) prints none.
 %
 %   OUTPUT V
 %     V.verdict   'PASS' | 'PASS WITH WARNINGS' | 'SUSPECT' | 'INVALID'
@@ -63,6 +68,8 @@ arguments
     D
     opt.Verbose (1,1) logical = true
     opt.Width (1,1) double {mustBeGreaterThanOrEqual(opt.Width, 40)} = 78
+    opt.Provenance (1,1) struct = struct()   % WP-44: Results.meta, prints one
+                                             % level-0 line when non-empty
 end
 
 verbose = opt.Verbose;
@@ -80,6 +87,17 @@ F = {};   % findings
 % either is worth anything.
 
 integrityOK = true;
+
+% WP-44: the ONE provenance line, level 0 -- present in V.findings (code
+% 'PROVENANCE') and printed with the level-0 block. Only when a provenance
+% struct was forwarded (lsqvce.Results/report does; a bare lsqvce.report(D)
+% prints none).
+if ~isempty(fieldnames(opt.Provenance))
+    P = opt.Provenance;
+    push(0, 'NOTE', 'PROVENANCE', ...
+        'run: lsqvce %s, MATLAB R%s, created %s', ...
+        pf(P, 'toolboxVersion'), pf(P, 'matlabRelease'), pf(P, 'createdUTC'));
+end
 
 if D.sumRRelErr > 1e-6
     integrityOK = false;
@@ -819,3 +837,18 @@ function emit(tag, txt, first)
 end
 
 
+
+function v = pf(P, name)
+%PF  Read a provenance field defensively for the level-0 line (WP-44).
+%   INPUT
+%     P     1x1 struct  the forwarded provenance struct
+%     name  1xk char    field name
+%   OUTPUT
+%     v     1xm char    the field as char, or '?' when absent/non-char --
+%                       a malformed provenance must never break the report
+    if isfield(P, name) && (ischar(P.(name)) || (isstring(P.(name)) && isscalar(P.(name))))
+        v = char(P.(name));
+    else
+        v = '?';
+    end
+end

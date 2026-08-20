@@ -66,6 +66,11 @@ LEVELS
 <h3>Name-Value</h3>
 <pre class="example">  &#x27;verbose&#x27;  true  print the report (default true)
   &#x27;width&#x27;    78    line width
+  &#x27;Provenance&#x27; struct()  a run-provenance struct (LSQVCE.RESULTS .meta,
+                   WP-44); when non-empty, ONE level-0 NOTE line
+                   (code &#x27;PROVENANCE&#x27;) states toolbox version, MATLAB
+                   release, and creation time. R.report() forwards it
+                   automatically; a bare lsqvce.report(D) prints none.
 
 OUTPUT V
   V.verdict   &#x27;PASS&#x27; | &#x27;PASS WITH WARNINGS&#x27; | &#x27;SUSPECT&#x27; | &#x27;INVALID&#x27;

@@ -8,7 +8,11 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-08-19 (late) — WP-43 DONE (PR #20 merged);
+Last substantive update: 2026-08-19 (later still) — WP-44 ROUND 1 on
+branch `claude/wp-44` (run provenance: runMeta composer, Results.meta,
+producer call sites, report 'Provenance' NV, 3 tests, 2 HTML pages);
+round note §10.5; ledger row 44 IN PROGRESS.
+Preceding entry: 2026-08-19 (late) — WP-43 DONE (PR #20 merged);
 r2 same day: tol: debt 233 -> 0 (all sites annotated, check 16d full
 enforcement, red-tested); WP-44 prepared as an executable prompt (§10.3),
 ledger row OPEN. Round notes §10.4.
@@ -3428,9 +3432,35 @@ code edit -- it must respect statement boundaries, and the audit now
 enforces that mechanically. WP-44 prepared as an
 executable prompt (§10.3) per user instruction; ledger row OPEN.
 
+### 10.5 WP-44 round notes
+
+**ROUND 1 (2026-08-19, model Claude Fable 5, branch `claude/wp-44`, riding
+the PR #21 merge 7f1856c).** Shipped per the §10.3 prompt: (1) the ONE
+composer `+lsqvce/private/runMeta.m` (parses the Contents.m Version line --
+the classdef-calls-package-private precedent is jointArcParts, WP-33);
+(2) Results: immutable `.meta`, constructor widened narginchk(7,8), the
+bare 7-argument path composes empty-seeds/options meta THROUGH runMeta
+(never a hand-built struct, never a missing field); (3) both producer call
+sites pass composed meta -- adjustBlock: seeds struct() + its resolved `o`;
+adjustVCE (blockSolveWith): seeds.jointSeed = jointOpt.Seed (stored as
+resolved, [] when unset) + the resolved option groups (vceGroups/vceMode/
+jointOpt/shapeOpt/scaleOpt/outerOpt/blockOpt/plotOpt/verbose); (4) report:
+additive NV 'Provenance' (default struct(), prints nothing) -- the line
+lands as a level-0 NOTE finding code 'PROVENANCE', machine-readable in
+V.findings, defensively read (a malformed provenance prints '?', never
+breaks the report); R.report() forwards obj.meta, a user-supplied
+'Provenance' wins by NV last-match; (5) three tests in test_adjustBlock
+(contract+provenance field/type/superset-lock/immutability; robustness
+determinism-minus-createdUTC + bare-ctor completeness; diagnostics
+report-line + PROVENANCE finding + bare-report absence), all try/catch
+identifier pattern; (6) help text Results/report + the two HTML pages
+delete+rebuilt via build_missing_pages (WP-41 pattern). DESIGN NOTE: the
+provenance line prints through lsqvce.report, not a second printer in
+Results.report -- report owns ALL printing (rule 3).
+
 ### R3 ledger
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
 | 43 | Test-category audit: adapted taxonomy, countability gate (check 16), gap closure | — | r1 DONE (2026-08-19, PR #20 merged by the user; r1 red 527/529 fixed same day, final head CI GREEN 529/529; POSTFLIGHT DEBT per D.4); r2 PR #21 READY (tol sweep 233→0 + full enforcement + guard d0; head efbe8be CI GREEN both contexts; DONE flips on the user's merge; round notes §10.4) |
-| 44 | Run provenance in Results (T-05) | 43 | OPEN (2026-08-19, user instruction; executable prompt §10.3) |
+| 44 | Run provenance in Results (T-05) | 43 | IN PROGRESS (2026-08-19, branch `claude/wp-44`, prompt §10.3) |

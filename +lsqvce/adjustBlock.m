@@ -157,7 +157,10 @@ end
     [dsol, batchFcn, nB] = lsqvce.diagnoseAccum(acc, sol);
     D = lsqvce.diagnose(dsol, batchFcn, 'nBatch', nB);
 
-    R = lsqvce.Results(sol, D, acc, dsol, batchFcn, nB, specs);
+    % WP-44: run provenance through the ONE composer -- adjustBlock resolves
+    % no RNG seed (empty struct), and o IS its resolved option struct.
+    R = lsqvce.Results(sol, D, acc, dsol, batchFcn, nB, specs, ...
+                       runMeta(struct(), o));
 
     % ---- postSolve plot hooks (single-solve; no postModel seam) -----------
     firePostSolvePlots(loaders, R, double(o.showSeconds), char(o.exportDir));
