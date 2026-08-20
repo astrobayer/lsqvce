@@ -29,6 +29,10 @@ function res = residuals(acc, sol, opt)
 %     res.sys(k).rms          sqrt(vtv/m), in units of sigma0
 %     res.sys(k).obs(j)       .obsType .day .arc .t .v .w
 %     res.vtv, res.dof, res.s0sq, res.sigma0    recomputed globally
+%     res.supersedesSol       1x1 logical  true when THESE numbers supersede
+%                             sol.vtv/sol.sigma0 (WP-49): either the backend
+%                             NaN-poisoned a cancellation-destroyed vtv, or
+%                             the two routes disagree beyond 1e-6
 %     res.obsType(k)          .obsType .m .vtv .rms
 %                             per-obsType QUICK-LOOK: rms = sqrt(vtv/m) in
 %                             units of sigma0. Uses m, not the exact
@@ -36,6 +40,19 @@ function res = residuals(acc, sol, opt)
 %                             1 - sqrt(r/m) (negligible when m >> u). Use it
 %                             to see "kbr at 1.0, pos at 3.4" before paying
 %                             for a full LSQVCE.VCE, not as a variance component.
+%
+%   WARNINGS
+%     lsqvce:residuals:supersedesSol   the accumulated sigma0 is non-finite
+%                                      (backend NaN-poisoned it); quote
+%                                      res.sigma0/res.vtv instead
+%     lsqvce:residuals:sigma0Mismatch  finite but disagreeing routes: the
+%                                      loader changed between passes
+%
+%   ACCURACY
+%     res.vtv is the DIRECT sum of squared (whitened) residuals, immune to
+%     the l'Pl - n'x cancellation of the accumulated route; the two agree
+%     to 1e-10 relative on healthy fixtures (regression-locked,
+%     test_precision) and res is the authority when they do not (WP-49).
 %
 %   THE CONSISTENCY CHECK
 %     res.sigma0 must equal sol.sigma0. They are computed by completely
@@ -87,6 +104,10 @@ function res = residuals(acc, sol, opt)
 %   model Claude Fable 5.
 %   See also LSQVCE.BLOCKACCUMULATOR, LSQVCE.CHECKPSD
 %
+%   Updated 2026-08-20 (CEST, UTC+02:00), WP-49: NaN-aware supersede
+%   logic + res.supersedesSol; this pass is the documented authority for
+%   a cancellation-poisoned accumulated vtv. With assistance from Claude
+%   (Anthropic), model Claude Fable 5.
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
 
@@ -284,15 +305,34 @@ end
     end
 
     % --- cross-check against the accumulation ------------------------------
-    rel = abs(res.sigma0 - sol.sigma0) / max(sol.sigma0, realmin);
-    if rel > 1e-6
-        lsqvce.util.log.warn('lsqvce:residuals:sigma0Mismatch', ...
-            ['sigma0 from the residual pass (%.8g) disagrees with the ' ...
-             'accumulation (%.8g), relative difference %.2e. The two are ' ...
-             'computed by independent routes, so a mismatch means the loader ' ...
-             'did NOT return the same data on the second pass. Check for ' ...
-             'non-deterministic data selection, or a cache key that is missing ' ...
-             'a field that opt varies over.'], res.sigma0, sol.sigma0, rel);
+    % WP-49: three outcomes, each named. (1) The accumulated sigma0 is
+    % NON-FINITE -- the backend NaN-poisoned a cancellation-destroyed vtv;
+    % this pass's number SUPERSEDES it (that is the documented repair path,
+    % and the old relative-difference test was BLIND to NaN: |x - NaN| > tol
+    % is false). (2) Finite but mismatched beyond 1e-6 -- the loader did not
+    % return the same data. (3) Agreement -- nothing to say.
+    res.supersedesSol = false;
+    if ~isfinite(sol.sigma0)
+        res.supersedesSol = true;
+        lsqvce.util.log.warn('lsqvce:residuals:supersedesSol', ...
+            ['The accumulated sigma0 is %g -- the backend refused a ' ...
+             'cancellation-destroyed v''Pv rather than return a wrong ' ...
+             'plausible number. THIS pass recomputed it honestly: ' ...
+             'sigma0 = %.8g, vtv = %.8g. QUOTE res.sigma0/res.vtv, not ' ...
+             'sol.sigma0/sol.vtv. To avoid the problem entirely, use ' ...
+             '''Backend'',''qr''.'], sol.sigma0, res.sigma0, res.vtv);
+    else
+        rel = abs(res.sigma0 - sol.sigma0) / max(sol.sigma0, realmin);
+        if rel > 1e-6
+            res.supersedesSol = true;
+            lsqvce.util.log.warn('lsqvce:residuals:sigma0Mismatch', ...
+                ['sigma0 from the residual pass (%.8g) disagrees with the ' ...
+                 'accumulation (%.8g), relative difference %.2e. The two are ' ...
+                 'computed by independent routes, so a mismatch means the loader ' ...
+                 'did NOT return the same data on the second pass. Check for ' ...
+                 'non-deterministic data selection, or a cache key that is missing ' ...
+                 'a field that opt varies over.'], res.sigma0, sol.sigma0, rel);
+        end
     end
 end
 

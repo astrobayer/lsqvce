@@ -319,7 +319,7 @@ function testQRBeatsNormalOnIllConditioned(tc)
 % regularisation kicks in and sets the accuracy for both backends alike (see
 % testRegularisationMasksBackendChoice). The backend difference is real, but it
 % only shows where the design matrix is ill conditioned AND unregularised.
-    muteWarn(tc, 'lsqvce:normalEq:negativeVtv');   % provoked on purpose here (WP-47, gate rule 7)
+    muteWarn(tc, 'lsqvce:normalEq:cancellation');   % tight-fit / ill-conditioned regime provoker (WP-49 unified id)
     rs = RandStream('mt19937ar','Seed',5);
     m  = 800;   n = 8;
 
@@ -353,7 +353,7 @@ function testNormalEquationsLoseTheAnswerAtHighCondition(tc)
 % The failure mode the QR backend exists to prevent. At cond(A) = 1e8 the normal
 % matrix has cond(A)^2 = 1e16 > 1/eps: the information is destroyed by forming
 % A'*A and NO solver can recover it afterwards.
-    muteWarn(tc, 'lsqvce:normalEq:negativeVtv');   % CAN fire, nondeterministically: at cond(A)^2 ~ 1/eps whether vPv rounds negative is a BLAS coin flip -- flaked red on CI run 2 (WP-47 r1e)
+    muteWarn(tc, 'lsqvce:normalEq:cancellation');   % tight-fit / ill-conditioned regime provoker (WP-49 unified id)
     rs = RandStream('mt19937ar','Seed',11);
     m  = 800;   n = 8;
 
@@ -380,7 +380,7 @@ function testRegularisationMasksBackendChoice(tc)
 % that TSVD engages, BOTH backends give the same answer -- the regularisation,
 % not the factorisation, sets the accuracy. Do not conclude from a full-pipeline
 % test that the backend does not matter; test the backend in isolation.
-    muteWarn(tc, 'lsqvce:normalEq:negativeVtv');   % provoked on purpose here (WP-47, gate rule 7)
+    muteWarn(tc, 'lsqvce:normalEq:cancellation');   % tight-fit / ill-conditioned regime provoker (WP-49 unified id)
     cfg = tc.TestData.cfg;
     cfg.collinear = true;   cfg.collinearEps = 1e-9;
 
@@ -599,4 +599,72 @@ function testArmaWhitenBatchedEqualsColumnAtATime(tc)
     % tol: 10*eps -- see the header of this test
     tc.verifyEqual(Xw, Xcol, 'RelTol', 10*eps, ...
         'batched whitening must equal column-at-a-time whitening');
+end
+
+%% ================================================== WP-49: honest vPv
+function testNormalBackendPoisonedVtvIsNaN(tc)
+% categories: contract, robustness | tags: diagnostics
+% WP-49: a cancellation-destroyed vtv must leave the normal backend as NaN,
+% never as a plausible-looking number (the flat path's measured argument:
+% 89% wrong at sigma = 1e-6, factor 1e6 at 1e-9). The tight-fit recipe
+% drives l'Pl / vtv far past the 8-digit guard deterministically; x itself
+% is NOT poisoned and must still match the LAPACK reference.
+    rs = RandStream('mt19937ar', 'Seed', 4901);
+    m = 600;  n = 6;
+    A  = randn(rs, m, n) + 20;                 % large offset -> huge l'Pl
+    xt = randn(rs, n, 1);
+    l  = A*xt + 1e-9*randn(rs, m, 1);          % ~zero residual
+
+    accN = lsqvce.NormalEqSystem(n);  accN.add(A, l);
+    tc.verifyWarning(@() accN.solve(), 'lsqvce:normalEq:cancellation');
+
+    muteWarn(tc, 'lsqvce:normalEq:cancellation');  % second call below re-fires
+    [x, Cxx, s0sq, dof, vtv] = accN.solve();
+    tc.verifyTrue(isnan(vtv)  && isnan(s0sq), ...
+        'a poisoned vtv/s0sq must be NaN, not a number');
+    tc.verifyTrue(all(isnan(Cxx(:))), ...
+        'a covariance scaled by a destroyed variance factor is unknown');
+    tc.verifyGreaterThan(dof, 0);
+    % tol: x is solved BEFORE the vtv subtraction and is unaffected; benign
+    % conditioning here, so backslash-reference agreement at 1e-8
+    tc.verifyEqual(x, A \ l, 'RelTol', 1e-8);
+end
+
+function testResidualPassSupersedesPoisonedSigma0(tc)
+% categories: contract, robustness | tags: diagnostics, provenance
+% WP-49, the promise end to end on the BLOCK path: normal backend +
+% tight fit -> sol.sigma0 = NaN (refused, not wrong); the residual pass
+% recomputes it honestly, says so with its own identifier, flags
+% res.supersedesSol, and its number agrees with the QR backend's stable
+% route. The QR run on the same data is the second, independent route.
+    cfg = tc.TestData.cfg;
+    % signal/noise chosen so the NORMAL route is destroyed (l'Pl/vtv ~ 1e11,
+    % far past the 8-digit guard) while QR's dynamic range (~3e5) stays well
+    % inside double precision -- QR must remain the valid second route. The
+    % first probe at 3e4/1e-5 broke QR TOO (sigma0 = 0; observation recorded
+    % in 10.11); this is the measured sweet spot.
+    cfg.x_c = 30 * (1:cfg.nc).';
+    cfg.cov.pos.sigma = 1e-4;
+    cfg.cov.kbr.sigma = 1e-4;
+
+    accN = lsqvce.BlockAccumulator(cfg.nc, 'Backend','normal', ...
+                                   'KeepLocal',true, 'Verbose',false);
+    for s = cfg.sats
+        accN.addSystem(s, cfg.nl, binder(cfg,s), 1:2);
+    end
+    solN = verifyWarning(tc, @() accN.solve(), 'lsqvce:normalEq:cancellation');
+    tc.verifyTrue(isnan(solN.sigma0), ...
+        'the block sol must carry the refused NaN, not a wrong number');
+
+    res = verifyWarning(tc, @() accN.residuals(solN, 'verbose', false), ...
+                        'lsqvce:residuals:supersedesSol');
+    tc.verifyTrue(res.supersedesSol);
+    tc.verifyTrue(isfinite(res.sigma0) && res.sigma0 > 0);
+
+    solQ = runAcc(cfg, 1:2, 'Backend','qr', 'Verbose',false);
+    % tol: MEASURED 8.0e-5 here (3.2e-3 on a harder 1-sat probe), 2026-08-20:
+    % the pass inherits the normal-path x-hat (2nd-order penalty); well
+    % below sigma0's sampling scatter 1/sqrt(2*dof) ~ 1.4e-2
+    tc.verifyEqual(res.sigma0, solQ.sigma0, 'RelTol', 1e-3, ...
+        'the superseding number must match the stable backend');
 end

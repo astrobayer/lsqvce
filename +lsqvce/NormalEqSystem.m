@@ -36,13 +36,40 @@ classdef NormalEqSystem < handle
 %     end
 %     [x, Cxx, s0sq, dof] = acc.solve();
 %
+%   ACCURACY
+%     x from a Cholesky solve of N = A'A: relative error ~ eps*cond(A)^2
+%     (measured against the LAPACK QR reference in
+%     test_precision/testQRBeatsNormalOnIllConditioned: agrees at benign
+%     conditioning, loses ALL digits at cond(A) = 1e8 where QR keeps 8).
+%     vtv is formed as l'Pl - n'x and is cancellation-prone when the fit is
+%     tight; since WP-49 a value that is negative or has lost > 8 digits is
+%     returned as NaN, never as a plausible-looking number -- the honest
+%     value comes from LSQVCE.RESIDUALS' second pass, which supersedes it.
+%
 %   ERRORS
-%     lsqvce:normalEq:badWidth  a block's column count disagrees with the first
-%     lsqvce:normalEq:badMerge  merging two systems of different widths
-%     lsqvce:normalEq:noData    solve() before anything was added
+%     Accumulation:
+%       lsqvce:normalEq:badWidth      a block's column count disagrees with
+%                                     the first
+%       lsqvce:normalEq:badMerge      merging two systems of different widths
+%     Solve:
+%       lsqvce:normalEq:noData        solve() before anything was added
+%       lsqvce:normalEq:notSPD        the normal matrix is not positive
+%                                     definite (rank defect)
+%       lsqvce:normalEq:noRedundancy  m <= dim, sigma0 undefined
+%
+%   WARNINGS
+%     lsqvce:normalEq:cancellation    vtv negative OR > 8 digits lost to the
+%                                     l'Pl - n'x cancellation -> vtv = NaN.
+%                                     (The former 'negativeVtv' identifier in
+%                                     this namespace was RETIRED in WP-49 --
+%                                     breaking: one failure mode, one name.)
 %
 %   See also LSQVCE.QRSYSTEM, LSQVCE.BLOCKACCUMULATOR
 %
+%   Updated 2026-08-20 (CEST, UTC+02:00), WP-49: a poisoned vtv is returned
+%   as NaN (negative OR > 8 digits lost), never clamped to 0 or left as a
+%   wrong plausible number; both warnings name the lsqvce.residuals repair
+%   path. With assistance from Claude (Anthropic), model Claude Fable 5.
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
 
@@ -142,13 +169,32 @@ classdef NormalEqSystem < handle
                     ['Redundancy is %d (m = %d observations, %d parameters). ' ...
                      'sigma0 is undefined.'], dof, o.m, o.dim);
             end
-            if vtv < 0
-                lsqvce.util.log.warn('lsqvce:normalEq:negativeVtv', ...
-                    ['The weighted sum of squares v''Pv = %.3e is negative, ' ...
-                     'which is impossible. This is a cancellation artefact of ' ...
-                     'the normal equations -- the condition number is too ' ...
-                     'large for this backend. Switch to ''Backend'',''qr''.'], vtv);
-                vtv = 0;
+            % WP-49: the flat path's honesty applied here too. vtv was formed
+            % as l'Pl - n'x -- a difference of two nearly equal numbers when
+            % the fit is tight. A poisoned value must never leave as a
+            % plausible-looking number: NaN gets investigated, a wrong number
+            % gets quoted (measured on the flat path: 89% wrong at
+            % sigma = 1e-6, factor 1e6 at 1e-9).
+            % ONE failure mode, ONE identifier: a negative vtv is just the
+            % extreme of the same cancellation (sign at the eps-garbage
+            % level is a BLAS coin flip -- WP-47 r1e), so both branches
+            % speak as lsqvce:normalEq:cancellation. The former
+            % 'negativeVtv' name in this namespace is RETIRED (breaking,
+            % WP-49; error identifiers are names and get no aliases).
+            poisoned = vtv < 0;
+            if ~poisoned && o.ltl > 0
+                poisoned = log10(max(o.ltl / max(vtv, realmin), 1)) > 8;
+            end
+            if poisoned
+                lsqvce.util.log.warn('lsqvce:normalEq:cancellation', ...
+                    ['vtv was formed as l''Pl - n''x and the cancellation ' ...
+                     'destroyed it (l''Pl = %.6e, vtv = %.6e%s). RETURNING ' ...
+                     'NaN rather than a plausible-looking number. ' ...
+                     'lsqvce.residuals() recomputes it honestly from a ' ...
+                     'second pass and SUPERSEDES this value; to avoid the ' ...
+                     'problem entirely, switch to ''Backend'',''qr''.'], ...
+                     o.ltl, vtv, ternaryChar(vtv < 0, ', negative', ''));
+                vtv = NaN;
             end
 
             s0sq = vtv / dof;
@@ -166,4 +212,9 @@ classdef NormalEqSystem < handle
             m = o.m;
         end
     end
+end
+
+function c = ternaryChar(cond, a, b)
+%TERNARYCHAR  Inline char pick for the warning text.
+    if cond, c = a; else, c = b; end
 end

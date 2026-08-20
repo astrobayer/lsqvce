@@ -40,6 +40,77 @@ a { color: #0b5ea8; }
           font-size: 12px; color: #888; }
 </style></head>
 <body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.NormalEqSystem</div>
 <h1>lsqvce.NormalEqSystem</h1>
-<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+<div class="purpose">Normal-equation accumulator: N = A&#x27;*A, n = A&#x27;*l.</div>
+<h2>Description</h2>
+<pre class="example">The classic approach. Cheap and simple, but it SQUARES the condition
+number of the design matrix: information below sqrt(eps)*||A|| relative to
+the leading singular value is destroyed by the product A&#x27;*A and cannot be
+recovered by any solver afterwards.
+
+Use LSQVCE.QRSYSTEM instead unless you have measured that the conditioning is
+benign and you need the ~2x speed.
+
+PROPERTIES (read-only)
+  N     dim x dim  accumulated normal matrix
+  n     dim x 1    accumulated right-hand side
+  ltl   scalar     accumulated l&#x27;*l, needed for the residual sum of squares
+  m     scalar     number of observations accumulated
+  dim   scalar     number of parameters
+
+METHODS
+  add(A, l)             accumulate one (already whitened) batch
+  blocks(ic, il)        split into common/local blocks for pre-elimination
+  merge(red)            fold in a reduced contribution (LSQVCE.REDUCEDCONTRIBUTION)
+  solve()               [x, Cxx, s0sq, dof, vtv]</pre>
+<h3>THE ltl BOOKKEEPING</h3>
+<pre class="example">vtv = l&#x27;*l - n&#x27;*x is computed from accumulated scalars, never from the
+residuals themselves (which are not stored). Every path that adds
+information must also add its share of l&#x27;*l, or sigma0 collapses. This
+is the single easiest thing to get wrong in a batch accumulator.</pre>
+<h3>Example</h3>
+<pre class="example">acc = lsqvce.NormalEqSystem(10);
+for k = 1:nBatch
+    [Ab, lb] = getWhitenedBatch(k);
+    acc.add(Ab, lb);
+end
+[x, Cxx, s0sq, dof] = acc.solve();</pre>
+<h3>Accuracy</h3>
+<pre class="example">x from a Cholesky solve of N = A&#x27;A: relative error ~ eps*cond(A)^2
+(measured against the LAPACK QR reference in
+test_precision/testQRBeatsNormalOnIllConditioned: agrees at benign
+conditioning, loses ALL digits at cond(A) = 1e8 where QR keeps 8).
+vtv is formed as l&#x27;Pl - n&#x27;x and is cancellation-prone when the fit is
+tight; since WP-49 a value that is negative or has lost &gt; 8 digits is
+returned as NaN, never as a plausible-looking number -- the honest
+value comes from LSQVCE.RESIDUALS&#x27; second pass, which supersedes it.</pre>
+<h3>Errors</h3>
+<pre class="example">  Accumulation:
+    lsqvce:normalEq:badWidth      a block&#x27;s column count disagrees with
+                                  the first
+    lsqvce:normalEq:badMerge      merging two systems of different widths
+  Solve:
+    lsqvce:normalEq:noData        solve() before anything was added
+    lsqvce:normalEq:notSPD        the normal matrix is not positive
+                                  definite (rank defect)
+    lsqvce:normalEq:noRedundancy  m &lt;= dim, sigma0 undefined
+
+WARNINGS
+  lsqvce:normalEq:cancellation    vtv negative OR &gt; 8 digits lost to the
+                                  l&#x27;Pl - n&#x27;x cancellation -&gt; vtv = NaN.
+                                  (The former &#x27;negativeVtv&#x27; identifier in
+                                  this namespace was RETIRED in WP-49 --
+                                  breaking: one failure mode, one name.)
+
+See also LSQVCE.QRSYSTEM, LSQVCE.BLOCKACCUMULATOR
+
+Updated 2026-08-20 (CEST, UTC+02:00), WP-49: a poisoned vtv is returned
+as NaN (negative OR &gt; 8 digits lost), never clamped to 0 or left as a
+wrong plausible number; both warnings name the lsqvce.residuals repair
+path. With assistance from Claude (Anthropic), model Claude Fable 5.
+Generated with assistance from Claude (Anthropic), model Claude
+Opus 4.8.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

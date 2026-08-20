@@ -206,6 +206,10 @@ disp(acc.report())
 lsqvce.util.log.msg(&#x27;sigma0 = %.4f (want ~1)\n&#x27;, sol.sigma0);</pre>
 <h3>Errors</h3>
 <pre class="example">  The system declaration is wrong (raised at construction)
+    lsqvce:accum:cancellation     (warning) v&#x27;Pv on the prior-folded
+                                  solve destroyed by cancellation
+                                  (negative or &gt; 8 digits lost) -&gt; NaN,
+                                  superseded by lsqvce.residuals (WP-49)
     lsqvce:accum:noSystems        no system specs at all
     lsqvce:accum:badSpecs         a spec is not a struct with the required
                                   fields
