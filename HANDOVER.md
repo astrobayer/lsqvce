@@ -3463,4 +3463,4 @@ Results.report -- report owns ALL printing (rule 3).
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
 | 43 | Test-category audit: adapted taxonomy, countability gate (check 16), gap closure | — | r1 DONE (2026-08-19, PR #20 merged by the user; r1 red 527/529 fixed same day, final head CI GREEN 529/529; POSTFLIGHT DEBT per D.4); r2 PR #21 READY (tol sweep 233→0 + full enforcement + guard d0; head efbe8be CI GREEN both contexts; DONE flips on the user's merge; round notes §10.4) |
-| 44 | Run provenance in Results (T-05) | 43 | IN PROGRESS (2026-08-19, branch `claude/wp-44`, prompt §10.3) |
+| 44 | Run provenance in Results (T-05) | 43 | IN PROGRESS — PR #22 READY (2026-08-19; head 4ea32c0 CI GREEN both contexts FIRST pass; POSTFLIGHT DEBT per D.4; DONE flips on the user's merge; round note §10.5) |
