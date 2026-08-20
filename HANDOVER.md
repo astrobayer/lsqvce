@@ -3380,5 +3380,5 @@ the CI run executed 529 points with test_parallel skipped.
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 43 | Test-category audit: adapted taxonomy, countability gate (check 16), gap closure | — | IN PROGRESS (2026-08-19, branch `claude/wp-43`) |
+| 43 | Test-category audit: adapted taxonomy, countability gate (check 16), gap closure | — | IN PROGRESS — PR #20 READY (2026-08-19; r1 red 527/529 fixed same day, head 55a40db CI GREEN both contexts, mergeable clean; POSTFLIGHT DEBT per D.4; DONE flips on the user's merge) |
 | 44 | Run provenance in Results (T-05) | 43 | PROPOSED — awaiting user decision (§10.3) |
