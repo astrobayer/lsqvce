@@ -179,8 +179,8 @@ classdef NormalEqSystem < handle
             % extreme of the same cancellation (sign at the eps-garbage
             % level is a BLAS coin flip -- WP-47 r1e), so both branches
             % speak as lsqvce:normalEq:cancellation. The former
-            % lsqvce:normalEq:negativeVtv id is RETIRED (breaking, WP-49;
-            % error identifiers are names and get no aliases).
+            % 'negativeVtv' name in this namespace is RETIRED (breaking,
+            % WP-49; error identifiers are names and get no aliases).
             poisoned = vtv < 0;
             if ~poisoned && o.ltl > 0
                 poisoned = log10(max(o.ltl / max(vtv, realmin), 1)) > 8;
