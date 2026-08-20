@@ -8,7 +8,13 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-08-20 (night) — WP-48 tier (a) DONE (PR
+Last substantive update: 2026-08-20 (night, later) — WP-49 DONE (PR #28
+merged); WP-50 ROUND 1 on branch `claude/wp-50`: the QR sigma0=0
+mechanism found (merge-fold normal-form cancellation), guarded with a
+three-anchor measured threshold (good 13.4 @ 8e-5 / destroyed ~19 /
+pinned 15), rotation backstop, healthy path locked warning-free;
+postflight 593/593. Round note §10.12.
+Preceding entry: 2026-08-20 (night) — WP-48 tier (a) DONE (PR
 #27 merged), tier (b) BACKLOG per user; WP-49 ROUND 1 on branch
 `claude/wp-49` (honest vPv: NaN never a plausible number, ONE
 cancellation id per namespace — BREAKING retirement of the negativeVtv
@@ -3820,6 +3826,44 @@ POSTFLIGHT on head 001af1b (user machine): 535/535 + adjustVCE 45/45
 (declared==ran) + speed 11/11 at 4.73e6 obs/s = 591/591; inventories
 exactly the probe / empty. Drivers self-removed, working copy restored.
 
+### 10.12 WP-50 round notes
+
+**ROUND 1 (2026-08-20, model Claude Fable 5, branch `claude/wp-50`).**
+Executes the 10.11(c) observation as a WP. ROOT CAUSE FOUND on reading
+merge(): the block-QR path recovers a pre-eliminated contribution's
+residual mass by the NORMAL-form subtraction rho2 = ltl_red - |rhs|^2 --
+the very cancellation the other routes guard, inside the QR backend --
+and a destroyed (<= 0) rho2 was silently treated as "no residual row",
+collapsing vtv toward the EXACT-ZERO sigma0 observed in WP-49; the code's
+own comment even named the omission as the catastrophic case. Shipped:
+(1) merge(): dof-carrying contributions with destroyed rho2 (<= 0 or
+> 15 digits lost) warn ONCE (`lsqvce:qr:cancellation`, at the site with
+the numbers) and poison the object (`vtvPoisoned`); dof-free
+contributions legitimately carry rho2 ~ 0 and are exempt;
+(2) solve(): poisoned -> vtv/s0sq NaN; plus a rotation-round-off
+backstop against the augmented column mass (threshold 24);
+(3) residuals() supersede closes the loop unchanged (WP-49 machinery);
+(4) QRSystem help: WARNINGS + ACCURACY blocks; two tests (the exact
+observed deep regime refuse-and-supersede with res.sigma0 ~ 1; the
+healthy path locked WARNING-FREE at 1e-10 so a misfiring guard cannot
+land silently).
+MEASUREMENT TRAIL (three calibration anchors, r0 -> r1 -> r1c):
+- bare-QR rotation ramp: rel error only 4e-7 at digitsLost 21.3 -- the
+  rotation route is robust far beyond the fold; guard 24 is a backstop.
+- the r0 threshold 8 (copied from the normal route) was WRONG here: no
+  kappa^2 amplification in this subtraction. r1's 13 then KNIFE-EDGED a
+  proven-good fixture: the WP-49 test's QR reference folds at MEASURED
+  13.4 digits (ltl_red 7.19e16 / rho2 3.06e3) with sigma0 good to 8e-5
+  -- the eps*10^dl bound is ~50x pessimistic there. Destroyed anchor:
+  the deep probe at ~19 digits, rho2 NEGATIVE. PINNED 15: 1.6 digits
+  above measured-good, ~4 below measured-destroyed.
+- r1 lesson (small, pinned): arrayfun over a void method errors on
+  output collection -- the warning assertion uses a plain-loop helper,
+  and the fold's warning fires at addSystem time, not solve.
+POSTFLIGHT on head efec974 (user machine): 537/537 + adjustVCE 45/45
+(declared==ran) + speed 11/11 at 5.10e6 obs/s = 593/593; inventories
+exactly the probe / empty. Drivers removed, working copy restored.
+
 ### R3 ledger
 
 | WP | title | depends on | status |
@@ -3831,4 +3875,5 @@ exactly the probe / empty. Drivers self-removed, working copy restored.
 | 47 | Gate hardening: declared-vs-executed, warning inventory, instruments/diagnosis doctrine, authority status column (external 2.5/2.6.4/2.9/2.10 + oracle-register adoption; §2.6.3 excluded by user) | 46 | DONE (2026-08-20, PR #25 merged by the user, merge 8325a26; two real CI catches on the way — headless-graphics id (r1d) and the nondeterministic negativeVtv BLAS flake, disposed by REGIME (r1e); three pinned lessons; round note §10.8) |
 | 42 | Monotone / trust-region spectral alternation (F-15 cure) | — | BACKLOG (user decision reconfirmed 2026-08-20 “for the time being”; entry criteria and the mirror-first success criterion pinned in §9 WP-40/§3222 entry; production guidance — open loop or ≤3 damped passes — covers operation meanwhile) |
 | 48 | Physically structured closed-loop oracle: tier (a) deterministic SH-partial design; tier (b) real GRACE-FO month vs published solution | — | tier (a) DONE (2026-08-20, PR #27 merged by the user, merge f1bb951; round note §10.10); tier (b) BACKLOG (user decision 2026-08-20; §6.1.4 rows ☐ remain the entry point) |
-| 49 | Authoritative vPv from the residual pass on the normal backend (§10.9) | 48 | IN PROGRESS (2026-08-20, branch `claude/wp-49`; postflight 591/591 green; BREAKING id retirement declared; round note §10.11) |
+| 49 | Authoritative vPv from the residual pass on the normal backend (§10.9) | 48 | DONE (2026-08-20, PR #28 merged by the user, merge a2b6430; BREAKING id retirement declared; round note §10.11) |
+| 50 | Honest vtv on the QR backend (10.11 finding c): the merge-fold cancellation was the true sigma0=0 mechanism | 49 | IN PROGRESS (2026-08-20, branch `claude/wp-50`; postflight 593/593 green; three-anchor threshold calibration; round note §10.12) |

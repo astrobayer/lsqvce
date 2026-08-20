@@ -40,6 +40,81 @@ a { color: #0b5ea8; }
           font-size: 12px; color: #888; }
 </style></head>
 <body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.QRSystem</div>
 <h1>lsqvce.QRSystem</h1>
-<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+<div class="purpose">Square-root information accumulator (Householder QR).</div>
+<h2>Description</h2>
+<pre class="example">Maintains the upper-triangular factor R of the stacked [A l], so that
+A&#x27;*A = R1&#x27;*R1 without A&#x27;*A ever being formed. The condition number of R is
+cond(A), not cond(A)^2 -- roughly twice the flops of LSQVCE.NORMALEQSYSTEM in
+exchange for double the effective precision.
+
+This is the default backend, and the right one whenever the local block
+might be poorly conditioned (near-collinear empirical accelerations, short
+arcs, weakly separated bias/scale pairs -- i.e. most real problems).
+
+PROPERTIES (read-only)
+  R     (dim+1) x (dim+1)  triangular factor of [A l], compressed
+  m     scalar             number of observations
+  dim   scalar             number of parameters
+
+MEASURED ADVANTAGE
+  On the test problem with cond(A) = 2.5e7, error in the common
+  parameters versus a monolithic reference solve:
+      normal : 2.1e-06
+      qr     : 2.3e-07        (~9x better)
+  The gap widens as cond(A)^2 approaches 1/eps.
+
+HOW THE TRIANGULAR FACTOR IS KEPT BOUNDED
+  After each add(), [R ; new rows] is re-triangularised and truncated to
+  dim+1 rows. Row dim+1 carries the accumulated residual norm: it is what
+  makes v&#x27;*v available without storing any residuals. Dropping it (or
+  failing to inject it on merge) makes sigma0 collapse silently -- see the
+  comment in merge().</pre>
+<h3>Example</h3>
+<pre class="example">acc = lsqvce.QRSystem(10);
+for k = 1:nBatch
+    [Ab, lb] = getWhitenedBatch(k);
+    acc.add(Ab, lb);
+end
+[x, Cxx, s0sq, dof] = acc.solve();</pre>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:qr:badWidth       a block&#x27;s column count disagrees with the first
+  lsqvce:qr:sizeMismatch   A and l disagree on their row count
+  lsqvce:qr:badMerge       merging two systems of different widths
+  lsqvce:qr:noData         solve() before anything was added
+  lsqvce:qr:rankDeficient  R is rank deficient and no datum was supplied
+  lsqvce:qr:singularR      the triangular factor cannot be back-substituted
+
+WARNINGS
+  lsqvce:qr:cancellation   the residual mass was destroyed by
+                           cancellation -- either in a merge() fold of a
+                           pre-eliminated (normal-form) contribution, or
+                           by rotation round-off at extreme dynamic
+                           range -- and vtv/s0sq are returned as NaN,
+                           never as a plausible number (WP-50).
+                           lsqvce.residuals() supersedes them.</pre>
+<h3>Accuracy</h3>
+<pre class="example">  x from Householder/Givens updates: relative error ~ eps*cond(A) (the
+  reason this backend exists; see the measured comparison in
+  test_precision). vtv is carried as the squared residual row of the
+  augmented factor: exact to ~eps*mass through ROTATIONS, but a merge()
+  of a pre-eliminated contribution recovers it by NORMAL-form
+  subtraction and inherits that route&#x27;s 8-digit cancellation limit --
+  both guarded since WP-50 (NaN, never a wrong plausible number; the
+  WP-49 deep-regime probe measured an EXACT-ZERO sigma0 before).
+  lsqvce:qr:noRedundancy   n = rank, so sigma0 is undefined (the model
+                           reproduces the data exactly by construction)
+
+See also LSQVCE.NORMALEQSYSTEM, LSQVCE.BLOCKACCUMULATOR
+
+Updated 2026-08-20 (CEST, UTC+02:00), WP-50: honest vtv on both QR
+loss paths (merge-fold cancellation guard + rotation-round-off
+guard) -&gt; NaN + lsqvce:qr:cancellation; vtvPoisoned property. With
+assistance from Claude (Anthropic), model Claude Fable 5.
+
+Generated with assistance from Claude (Anthropic), model Claude
+Opus 4.8.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>
