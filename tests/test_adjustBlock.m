@@ -688,7 +688,7 @@ function testRaggedScheduleSolvesAndSecondPassAgrees(tc)
 % resolver that answered differently on the second sweep would show up here.
     plan = {[1 2 3], [1 3], [2 3 4]};
     L = raggedLoader(tc, plan, 2);
-    R = lsqvce.adjustBlock({L}, 1:3, 'KeepLocal', true);
+    R = lsqvce.adjustBlock({L}, 1:3);
     % tol: planted truth x_c = (1:nc)'/10 recovered from a well-conditioned
     % fixture with sigma 1e-3; 1e-6 measured-free (deterministic algebra,
     % the noise is the only scatter and it is 1e-3 on 1000+ observations)
@@ -699,7 +699,7 @@ function testRaggedScheduleSolvesAndSecondPassAgrees(tc)
 end
 
 %% -------------------------------------------------- WP-52 fixture helpers
-function L = raggedLoader(tc, arcPlan, localsPerArc, seen)
+function L = raggedLoader(tc, arcPlan, localsPerArc, seen)   %#ok<INUSD>
 %RAGGEDLOADER  A loader over a ragged schedule. arcPlan is a cell (one arc-id
 %   vector per day) resolved by an @(day,obsType) function, or a static form.
 %   `seen` (optional Map) records the arcInfo each buildDay call received.
@@ -723,7 +723,6 @@ function L = raggedLoader(tc, arcPlan, localsPerArc, seen)
         builder = @(d, ot, cm, lo, po, ai) raggedDay(d, ot, arcPlan, nc, ai, seen);
     end
     L = lsqvce.makeLoader(builder, args{:});
-    tc.addTeardown(@() clear(seen));
 end
 
 function L = staticPositionalLoader(tc)   %#ok<INUSD>

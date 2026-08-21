@@ -370,7 +370,10 @@ end
     L.plotPostModel = normalisePlotSpec(o.plotPostModel, obsTypes);
     if ~isempty(o.days), L.days = o.days; end
 
-    L.meta    = @() metaOf(obsTypes, o.arcs);
+    % WP-52: L.meta() answers for a DAY. Called without one it uses the first
+    % declared day (or 1), which is what the old day-blind accessor meant.
+    L.meta    = @(varargin) metaOf(obsTypes, o.arcs, ...
+                                   metaDay(varargin, o.days), L.day);
     L.localPlan = plan;               % WP-52: [] unless 'localsPerArc' declared
     L.day     = @(day, obsType) dayOf(buildDay, cache, o.cache, day, obsType, ...
                                       o.common, o.local, o.procOpt, plan);
@@ -569,6 +572,18 @@ function plan = buildLocalPlan(spec, arcs, obsTypes, days)
         plan.count{i} = cnt;  plan.ordinal{i} = ords;
     end
     plan.nl = off;  plan.nArcTot = ord;
+end
+
+function d = metaDay(args, days)
+%METADAY  Which day L.meta() answers for: the one given, else the first
+%   declared day, else 1.
+    if ~isempty(args) && ~isempty(args{1})
+        d = args{1};
+    elseif ~isempty(days)
+        d = days(1);
+    else
+        d = 1;
+    end
 end
 
 function info = arcInfoOf(plan, day)
