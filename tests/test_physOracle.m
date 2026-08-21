@@ -358,13 +358,33 @@ function testDemoGravityRunsEndToEnd(tc)
 % WP-51: the driver must actually RUN -- a demo nobody executes rots. Kept to
 % MaxOuter 1 for cost; the numbers it prints are exercised, not asserted (no
 % band is pinned here that was not measured).
-    out = evalc('Rg = demo_gravity(''MaxOuter'', 1);');
+    out = evalc('[Rg, sc] = demo_gravity(''MaxOuter'', 1);');
     tc.verifyTrue(contains(out, 'The problem'));
     tc.verifyTrue(contains(out, 'The weights'));
     tc.verifyClass(Rg, 'lsqvce.Results');
     tc.verifyTrue(all(isfinite(Rg.x)), 'the solution must be finite');
     tc.verifyTrue(isfinite(Rg.sigma0) && Rg.sigma0 > 0);
     tc.verifyNumElements(Rg.x, 77);
+
+    % WP-53: the printed self-assessment is also RETURNED, so it can be
+    % checked instead of read. Structural contract only -- the statistics of
+    % the default run are quoted in the demo's ACCURACY block, not asserted
+    % here (this call uses MaxOuter 1 and would not reproduce them anyway).
+    tc.verifyClass(sc, 'struct');
+    documented = {'sigma0','stream','sigmaPlanted','sigmaRecovered', ...
+                  'sigmaRatio','zMax','zMeanSq','anomaly','degree','degRatio'};
+    tc.verifyEmpty(setdiff(documented, fieldnames(sc)), ...
+        'score must carry at least the documented fields');
+    tc.verifyEqual(sc.sigma0, Rg.sigma0, ...
+        'the score must report the SAME sigma0 the result carries');
+    tc.verifyEqual(numel(sc.sigmaRatio), numel(sc.stream));
+    tc.verifyEqual(sc.sigmaRatio, sc.sigmaRecovered ./ sc.sigmaPlanted, ...
+        'AbsTol', 1e-12);   % tol: exact arithmetic, eps-level
+    tc.verifyEqual(sc.degree, 2:8);
+    tc.verifyTrue(all(isfinite(sc.degRatio)) && all(sc.degRatio >= 0));
+    % tol: the same arithmetic, recomputed -- eps-level agreement
+    tc.verifyEqual(sc.anomaly.z, ...
+        (sc.anomaly.est - sc.anomaly.true) / sc.anomaly.sigma, 'AbsTol', 1e-12);
 end
 
 function testDemoGravityUsesTheNativeRaggedPath(tc)

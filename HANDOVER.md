@@ -8,7 +8,12 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-08-21 (later) — WP-52 ROUND 1 on branch
+Last substantive update: 2026-08-21 (evening) — WP-52 DONE (PR #31
+merged); WP-53 ROUND 1: demo_gravity returns `score`, and the USER's
+run settled the §10.13 quality debt — sigma0 0.9998, stream ratios
+0.996/1.000/1.019, mean z^2 1.087, anomaly at 1.33 sigma; pinned in the
+demo's ACCURACY block. Round note §10.15.
+Preceding entry: Last substantive update: 2026-08-21 (later) — WP-52 ROUND 1 on branch
 `claude/wp-52`: ragged schedules NATIVE in makeLoader (per-day arc
 resolver, .arcId addressing with absent ids as data gaps,
 'localsPerArc' deriving nl and owning the offsets); demo rewired and
@@ -3910,7 +3915,19 @@ CONFIRMED IN A SECOND SESSION (2026-08-21, later): a follow-up session
 adopted this branch specifically to settle the debt with a working bridge
 and found the bridge (Filesystem AND MATLAB tools) gone MID-SESSION as
 well -- the outage is environmental, not a one-off. The debt therefore
-stands unchanged, and it is the ONLY open item on this WP: CI proves the
+stood until 2026-08-21 (later), when the USER ran the demo on his machine
+and reported the output. **DEBT SETTLED, numbers pinned into the demo's
+ACCURACY block (WP-53):** sigma0 = 0.9998; stream sigmas recovered
+0.9956 / 1.9999 / 0.5096 against planted 1.0 / 2.0 / 0.5 (ratios 0.996 /
+1.000 / 1.019) -- the weights come back under REAL column correlation;
+max|z| = 2.67 over 77 coefficients and mean z^2 = 1.087 (0.5 sd from the
+ideal 1.00 at sd = sqrt(2/77) = 0.16) -- the formal errors DESCRIBE the
+actual errors; the planted anomaly (5,3,C) truth +0.1764 recovered as
++0.2843 +- 0.0812, i.e. 1.33 sigma; degree ratios 0.23 / 1.29 / 0.79 /
+1.00 / 1.07 / 1.15 / 1.00 for n = 2..8 -- the low n=2 is the expected
+small-sample scatter of a degree with five coefficients (chi2, 5 dof,
+roughly 0.1..2.2 at one sigma), not a defect. The quality claim is now
+MEASURED. Original text of the debt, for the record: CI proves the
 demo RUNS and that the fixture structure is what it claims; the RECOVERY
 QUALITY it prints is still unmeasured. Settle it by running
 `[R, score] = demo_gravity;` locally and reading sigma0, score.zMeanSq,
@@ -3984,6 +4001,32 @@ DEBT: no local postflight -- the MCP bridge was down for this entire WP
 (third consecutive session). CI green is the only evidence; the WP-51
 recovery-quality debt (§10.13) is untouched and still open.
 
+### 10.15 WP-53 round notes
+
+**ROUND 1 (2026-08-21, model Claude Fable 5, branch `claude/wp-53`).**
+Two user findings in one line: "demo_gravity does not know a second
+output?" plus the output of a real run. Shipped:
+(1) `demo_gravity` now RETURNS the self-assessment it prints (second
+output `score`: sigma0, per-stream planted/recovered/ratio, zMax,
+zMeanSq, the anomaly with its z, and the degree ratios). Printing a
+number the caller cannot get hold of is a demo that can only be READ,
+never CHECKED -- the fix is one struct assembled from the values already
+computed for the printed lines, so there is ONE source and no recompute.
+(2) The measured numbers of the default seeded run are pinned in a new
+ACCURACY block in the demo's help, and §10.13's quality debt is settled
+with them (see there). They are QUOTED, not asserted: the test locks the
+structural contract of `score` (documented fields present, sigma0 equal
+to the result's, ratio = recovered/planted, z recomputed) and leaves the
+statistics to the formal-error reading, because the test runs MaxOuter 1
+and would not reproduce a MaxOuter 4 run's numbers anyway.
+READING OF THE RESULT (worth recording): the weights come back under real
+order-block correlation (worst ratio 1.019 on the KBR stream, which
+carries the fewest locals), and mean z^2 = 1.087 says the formal errors
+describe the actual errors on a physically structured design -- the claim
+WP-48 set out to make and could only make on Gaussian fixtures before.
+DEBT: still no local postflight (bridge down for a fourth session); CI
+green remains the only evidence for this WP.
+
 ### R3 ledger
 
 | WP | title | depends on | status |
@@ -3998,4 +4041,5 @@ recovery-quality debt (§10.13) is untouched and still open.
 | 49 | Authoritative vPv from the residual pass on the normal backend (§10.9) | 48 | DONE (2026-08-20, PR #28 merged by the user, merge a2b6430; BREAKING id retirement declared; round note §10.11) |
 | 50 | Honest vtv on the QR backend (10.11 finding c): the merge-fold cancellation was the true sigma0=0 mechanism | 49 | DONE (2026-08-20, PR #29 merged by the user, merge 4cbc280; postflight 593/593; three-anchor threshold calibration; round note §10.12) |
 | 51 | demo_gravity: GRACE-like physically structured demo (per-system local counts, ragged arcs, ragged arc lengths) | 48 | IN PROGRESS — PR #30 (2026-08-21, branch `claude/wp-51`; CI GREEN incl. an end-to-end demo run; **NO local postflight — bridge dropped mid-task**; recovery QUALITY unmeasured, see §10.13) |
-| 52 | Native ragged schedules in makeLoader (per-day arc resolution, arc ids, owned per-arc local bookkeeping) | 51 | IN PROGRESS (2026-08-21, branch `claude/wp-52`, PR #31; round note §10.14; NO local postflight -- bridge down) |
+| 52 | Native ragged schedules in makeLoader (per-day arc resolution, arc ids, owned per-arc local bookkeeping) | 51 | DONE (2026-08-21, PR #31 merged by the user, merge 30e9c31; round note §10.14; postflight DEBT -- bridge down) |
+| 53 | demo_gravity returns its self-assessment; measured numbers pinned (settles the §10.13 quality debt) | 51 | IN PROGRESS (2026-08-21, branch `claude/wp-53`; round note §10.15) |
