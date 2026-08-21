@@ -45,10 +45,13 @@ function [cfg, L] = demo_gravity_dataLoader()
 %        taken their share.
 %     3. A DIFFERENT ARC LENGTH FOR EVERY ARC (140 to 220 epochs). Nothing in
 %        the toolbox may assume a fixed arc length.
-%        Points 2 and 3 are served by answering the accumulator's PER-DAY
-%        'meta' probe with that day's actual arc list (see raggedClosure
-%        below) -- the loader contract supports this directly, and it is why
-%        the engines never see an arc that does not exist.
+%        Points 1 to 3 are DECLARED, not hand-wired (WP-52): 'arcs' takes a
+%        per-day resolver, the day names its arcs with .arcId, and
+%        'localsPerArc' hands LSQVCE.MAKELOADER the local bookkeeping -- it
+%        numbers every (day, arc), DERIVES nl, and passes this day's column
+%        offsets to the builder. An earlier version of this file wrapped the
+%        loader's closure and carried its own arc-ordinal table; both are
+%        gone, which is the honest proof that the support is native.
 %
 %   PLANTED TRUTH (deterministic -- the loop must recover it)
 %     cfg.xTrue    the spherical-harmonic coefficients, a closed formula plus
@@ -69,7 +72,10 @@ function [cfg, L] = demo_gravity_dataLoader()
 %            .days     1xD double   the day list
 %            .arcsOfDay 1xD cell    arc IDs present on each day (ragged)
 %            .mOfArc   DxA double   epochs of each (day, arc); 0 where absent
-%            .arcOrd   DxA double   global arc ordinal; 0 where absent
+%            .arcOrd   DxA double   global arc ordinal; 0 where absent. KEPT
+%                                   only so the tests can check makeLoader's
+%                                   plan against an independent table -- the
+%                                   builder no longer reads it (WP-52)
 %            .nArcTot  1x1 double   total arcs over all days (16)
 %            .sys      1x3 struct   .id .name .obsType .nlPerArc .nl
 %            .xTrue    ncx1 double  the planted coefficients
@@ -188,70 +194,55 @@ function L = gravityLoaders(cfg)
     for s = 1:numel(cfg.sys)
         ot  = cfg.sys(s).obsType;
         cov = struct(ot, cfg.cov.(ot));
-        L0 = lsqvce.makeLoader(@(d, o) buildGravityDay(cfg, d, o), ...
+        % WP-52: the ragged schedule is declared, not hand-wired. 'arcs' takes
+        % a resolver answering PER DAY, and 'localsPerArc' hands makeLoader
+        % the local bookkeeping -- it numbers every (day, arc), DERIVES nl,
+        % and passes this day's offsets to the builder. (Before WP-52 this
+        % needed a wrapper around the loader's closure and a hand-rolled
+        % arc-ordinal table; both are gone.)
+        L{s} = lsqvce.makeLoader( ...
+                @(d, o, cm, lo, po, ai) buildGravityDay(cfg, d, o, ai), ...
                 'observationTypes', {ot}, ...
                 'covariance',       cov, ...
-                'arcs',             cfg.maxArc, ...
+                'arcs',             @(d) cfg.arcsOfDay{cfg.days == d}, ...
+                'localsPerArc',     cfg.sys(s).nlPerArc, ...
                 'systemId',         cfg.sys(s).id, ...
                 'name',             cfg.sys(s).name, ...
-                'numLocal',         cfg.sys(s).nl, ...
                 'numCommon',        cfg.nc, ...
                 'days',             cfg.days);
-        % THE RAGGED-SCHEDULE HOOK. makeLoader resolves 'arcs' once, without
-        % reading a day, so on its own it would declare four arcs on every
-        % day. The accumulator, however, probes 'meta' PER DAY -- so we wrap
-        % the closure and answer that probe with the day's ACTUAL arc list.
-        % The engines then never ask for an arc that does not exist.
-        L0.closure = @(day, obsType, arcID, opt) ...
-                        raggedClosure(L0, cfg, day, obsType, arcID, opt);
-        L{s} = L0;
     end
-end
-
-function out = raggedClosure(L0, cfg, day, obsType, arcID, opt)
-%RAGGEDCLOSURE  Answer the per-day 'meta' probe with that day's arcs; delegate
-%   everything else to the Loader built by LSQVCE.MAKELOADER.
-%   INPUT   L0 1x1 struct the wrapped Loader; cfg; then the 4-arg callback
-%           signature (day, obsType, arcID, opt), where day == 'meta' is the
-%           discovery probe and obsType then carries the day number.
-%   OUTPUT  out 1x1 struct  the meta struct, or one arc's batch.
-    if (ischar(day) || isstring(day)) && strcmp(day, 'meta')
-        d = obsType;                                 % the probe carries the day
-        out.obsTypes = L0.obsTypes;
-        out.arcs     = repmat({cfg.arcsOfDay{cfg.days == d}}, ...
-                              1, numel(L0.obsTypes));
-        return
-    end
-    out = L0.batch(day, obsType, arcID, opt);
 end
 
 %==========================================================================
-function D = buildGravityDay(cfg, day, obsType)
+function D = buildGravityDay(cfg, day, obsType, arcInfo)
 %BUILDGRAVITYDAY  One satellite-day: physical design, planted truth, noise.
-%   INPUT   cfg 1x1 struct; day 1x1 double; obsType 1xK char
+%   INPUT   cfg 1x1 struct; day 1x1 double; obsType 1xK char;
+%           arcInfo 1x1 struct  the day's local-block plan from makeLoader
+%                               (WP-52): .arcId .offset .count .nl .offsetOf
 %   OUTPUT  D 1x1 struct  .A (mxnc) .B (mxnl) .l (mx1) .t (mx1)
-%                         .arcIdx {1xmaxArc} cell, EMPTY for absent arcs
-%                         (never requested -- meta does not list them)
+%                         .arcIdx {1xnArc} cell, ONLY the arcs this day has
+%                         .arcId  1xnArc     naming them (WP-52)
     di   = find(cfg.days == day);
     arcs = cfg.arcsOfDay{di};
     s    = find(strcmp({cfg.sys.obsType}, obsType));
     nlPA = cfg.sys(s).nlPerArc;
-    nl   = cfg.sys(s).nl;
+    nl   = arcInfo.nl;                     % DERIVED by makeLoader, not restated
 
     mTot = sum(cfg.mOfArc(di, arcs));
     D.A  = zeros(mTot, cfg.nc);
     D.B  = zeros(mTot, nl);
     D.l  = zeros(mTot, 1);
     D.t  = zeros(mTot, 1);
-    D.arcIdx = cell(1, cfg.maxArc);
+    D.arcIdx = cell(1, numel(arcs));       % no padding: the day says what it has
+    D.arcId  = arcs;
 
     rs = RandStream('mt19937ar', 'Seed', cfg.seed.(obsType) + 97*day);
     r0 = 0;
     tOff = 0;
-    for a = arcs
+    for ia = 1:numel(arcs)
+        a    = arcs(ia);
         m    = cfg.mOfArc(di, a);
         rows = r0 + (1:m);
-        ord  = cfg.arcOrd(di, a);              % global arc ordinal
 
         % ---- the physical design ---------------------------------------
         Ac = demo_gravity_design(cfg.nmax, arcOrbit(cfg, day, a, m, 0));
@@ -275,7 +266,7 @@ function D = buildGravityDay(cfg, day, obsType)
             case 2, Barc = [ones(m,1), tau];                 % bias, drift
             case 3, Barc = [ones(m,1), tau, tau.^2];         % + quadratic
         end
-        cols = (ord-1)*nlPA + (1:nlPA);
+        cols = arcInfo.offsetOf(a) + (1:nlPA);   % offsets owned by makeLoader
 
         % ---- the planted observation ------------------------------------
         w = cfg.trueSigma.(obsType) * randn(rs, m, 1);
@@ -285,7 +276,7 @@ function D = buildGravityDay(cfg, day, obsType)
         D.B(rows, cols) = Barc;
         D.l(rows)       = A * cfg.xTrue + Barc * cfg.yTrue.(obsType)(cols) + e;
         D.t(rows)       = tOff + (0:m-1).' * cfg.dt;
-        D.arcIdx{a}     = rows;
+        D.arcIdx{ia}    = rows;                  % positional; .arcId names it
 
         r0   = r0 + m;
         tOff = tOff + m * cfg.dt + 600;        % a gap between arcs

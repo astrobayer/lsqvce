@@ -580,3 +580,220 @@ function testReportPrintsTheProvenanceLine(tc)
     codes0 = cellfun(@(f) f.code, V0.findings, 'UniformOutput', false);
     tc.verifyFalse(any(strcmp(codes0, 'PROVENANCE')));
 end
+
+%% ===================================== WP-52: native ragged arc schedules
+function testArcResolverAnswersPerDay(tc)
+% categories: contract | tags: diagnostics
+% WP-52: the 'meta' probe carries the day, so an @(day,obsType) resolver
+% gives each day its OWN arc list -- the mechanism a ragged schedule needs.
+% Asserted through the loader's public closure, which is what the engines
+% actually drive.
+    plan = {[1 2 3], [1 3], [2 3 4]};          % day 1..3, arcs absent BY ID
+    L = raggedLoader(tc, plan, []);
+    for d = 1:3
+        m = L.closure('meta', d, [], struct());
+        tc.verifyEqual(m.arcs{1}, plan{d}, ...
+            sprintf('day %d must report its own arc list', d));
+    end
+    % the static form still ignores the day, exactly as before
+    Ls = raggedLoader(tc, 4, []);
+    tc.verifyEqual(Ls.closure('meta', 2, [], struct()).arcs{1}, 1:4);
+end
+
+function testAbsentArcIdIsADataGapNotAnError(tc)
+% categories: contract, robustness
+% With .arcId the day names the arcs it carries, so an id it does NOT carry
+% is a data gap (empty batch, which every engine skips) rather than the
+% positional out-of-range error. The positional guard must survive for
+% loaders that declare a STATIC schedule -- a different mistake.
+    L = raggedLoader(tc, {[1 2 3], [1 3], [2 3 4]}, []);
+    got = L.closure(2, 'pot', 3, struct());     % day 2 HAS arc 3
+    tc.verifyNotEmpty(got);
+    tc.verifyNotEmpty(got.l);
+    gap = L.closure(2, 'pot', 2, struct());     % day 2 does NOT have arc 2
+    tc.verifyEmpty(gap, 'an absent arc id must come back as a data gap');
+
+    caught = MException.empty;
+    Ls = staticPositionalLoader(tc);
+    try
+        Ls.closure(1, 'pot', 9, struct());
+    catch e
+        caught = e;
+    end
+    tc.verifyNotEmpty(caught, 'the positional guard must survive');
+    tc.verifyEqual(caught.identifier, 'lsqvce:makeLoader:badArc');
+end
+
+function testLocalsPerArcDerivesNlAndOffsets(tc)
+% categories: contract | tags: provenance
+% WP-52: makeLoader owns the per-arc local bookkeeping. nl is DERIVED from
+% the schedule (so it cannot disagree), the offsets are contiguous in
+% (day, arc) order, and buildDay receives its day's slice as arcInfo.
+    plan = {[1 2 3], [1 3], [2 3 4]};           % 8 arcs over 3 days
+    seen = containers.Map('KeyType','double','ValueType','any');
+    L = raggedLoader(tc, plan, 2, seen);        % 2 locals per arc
+    tc.verifyEqual(L.nl, 16, 'nl must be derived: 8 arcs x 2 locals');
+    tc.verifyEqual(L.localPlan.nArcTot, 8);
+
+    L.day(2, 'pot');                            % triggers buildDay for day 2
+    info = seen(2);
+    tc.verifyEqual(info.arcId, [1 3]);
+    tc.verifyEqual(info.count, [2 2]);
+    tc.verifyEqual(info.offset, [6 8], ...
+        'day 2 follows day 1''s three arcs: offsets 6 and 8');
+    tc.verifyEqual(info.ordinal, [4 5]);
+    tc.verifyEqual(info.nl, 16);
+    tc.verifyEqual(info.offsetOf(3), 8, ...
+        'offsetOf must map an arc id to its column offset');
+
+    % a per-arc count: locals may differ from arc to arc
+    Lv = raggedLoader(tc, plan, @(d, a) 1 + mod(a, 2));
+    tc.verifyEqual(Lv.nl, sum(cellfun(@(ids) sum(1 + mod(ids, 2)), plan)));
+end
+
+function testLocalsPerArcRejectsUnknowableSchedules(tc)
+% categories: contract, robustness
+% nl must be known at construction, so the plan refuses the two cases where
+% it is not: no day list, and a schedule that would have to READ data.
+    caught = MException.empty;
+    try
+        lsqvce.makeLoader(@(d, ot) simpleDay(d, ot), ...
+            'observationTypes', {'pot'}, ...
+            'covariance', struct('pot', struct('type','diag','sigma',1)), ...
+            'arcs', 2, 'numCommon', 2, 'localsPerArc', 2);   % no 'days'
+    catch e
+        caught = e;
+    end
+    tc.verifyNotEmpty(caught);
+    tc.verifyEqual(caught.identifier, 'lsqvce:makeLoader:localPlan');
+
+    caught = MException.empty;
+    try
+        lsqvce.makeLoader(@(d, ot) simpleDay(d, ot), ...
+            'observationTypes', {'pot'}, ...
+            'covariance', struct('pot', struct('type','diag','sigma',1)), ...
+            'arcs', 'fromDay', 'days', 1:2, 'numCommon', 2, 'localsPerArc', 2);
+    catch e
+        caught = e;
+    end
+    tc.verifyEqual(caught.identifier, 'lsqvce:makeLoader:localPlan');
+end
+
+function testRaggedScheduleSolvesAndSecondPassAgrees(tc)
+% categories: precision | tags: diagnostics
+% The end-to-end promise: a ragged schedule (arcs absent by id, every arc a
+% different length, locals owned by makeLoader) recovers the planted truth,
+% AND the residual pass -- which re-enumerates the arcs independently --
+% agrees with the accumulation. That agreement is the sharp edge: a
+% resolver that answered differently on the second sweep would show up here.
+    plan = {[1 2 3], [1 3], [2 3 4]};
+    L = raggedLoader(tc, plan, 2);
+    R = lsqvce.adjustBlock({L}, 1:3);
+    % The recovery is asserted against the FORMAL errors, not a hand-picked
+    % band: a fixed RelTol here would only encode this fixture's noise draw
+    % (the first attempt guessed 1e-6 and CI measured 1.5e-2 on the worst
+    % coefficient -- the harmonics are only partially separated over three
+    % short days). |x - xTrue| < 4 sigma IS the claim worth making.
+    sig = sqrt(diag(R.sol.Cxx)) * R.sigma0;
+    z = (R.x - (1:numel(R.x)).' / 10) ./ sig;
+    % tol: 4-sigma bright line on 4 coefficients (P(false alarm) < 3e-4)
+    tc.verifyLessThan(max(abs(z)), 4, ...
+        'the ragged schedule must recover the planted truth');
+    % tol: sigma0 from a correct model over ~1000 observations, 1/sqrt(2*dof)
+    % scatter ~ 2e-2; band 0.15 is ~7 sd
+    tc.verifyEqual(R.sigma0, 1, 'AbsTol', 0.15, ...
+        'a correct ragged model must give sigma0 ~ 1');
+    res = R.acc.residuals(R.sol, 'verbose', false);
+    tc.verifyFalse(res.supersedesSol, ...
+        'the two passes must enumerate the ragged schedule identically');
+end
+
+%% -------------------------------------------------- WP-52 fixture helpers
+function L = raggedLoader(tc, arcPlan, localsPerArc, seen)   %#ok<INUSD>
+%RAGGEDLOADER  A loader over a ragged schedule. arcPlan is a cell (one arc-id
+%   vector per day) resolved by an @(day,obsType) function, or a static form.
+%   `seen` (optional Map) records the arcInfo each buildDay call received.
+    if nargin < 4, seen = containers.Map('KeyType','double','ValueType','any'); end
+    nc = 4;
+    if iscell(arcPlan)
+        arcsSpec = @(d, ot) arcPlan{d};
+        days = 1:numel(arcPlan);
+    else
+        arcsSpec = arcPlan;
+        days = 1:3;
+    end
+    args = {'observationTypes', {'pot'}, ...
+            'covariance', struct('pot', struct('type','diag','sigma',1e-3)), ...
+            'arcs', arcsSpec, 'days', days, 'numCommon', nc, 'systemId', 1};
+    if isempty(localsPerArc)
+        args = [args, {'numLocal', 1}];
+        builder = @(d, ot) raggedDay(d, ot, arcPlan, nc, [], seen);
+    else
+        args = [args, {'localsPerArc', localsPerArc}];
+        builder = @(d, ot, cm, lo, po, ai) raggedDay(d, ot, arcPlan, nc, ai, seen);
+    end
+    L = lsqvce.makeLoader(builder, args{:});
+end
+
+function L = staticPositionalLoader(tc)   %#ok<INUSD>
+%STATICPOSITIONALLOADER  A plain STATIC loader whose days carry no .arcId, so
+%   arc addressing stays positional (the pre-WP-52 behaviour and its guard).
+    L = lsqvce.makeLoader(@(d, ot) simpleDay(d, ot), ...
+        'observationTypes', {'pot'}, ...
+        'covariance', struct('pot', struct('type','diag','sigma',1e-3)), ...
+        'arcs', 2, 'days', 1:2, 'numCommon', 4, 'numLocal', 1);
+end
+
+function D = raggedDay(day, obsType, arcPlan, nc, arcInfo, seen)   %#ok<INUSL>
+%RAGGEDDAY  One day of the ragged fixture: only the arcs this day carries,
+%   every arc a DIFFERENT length, locals placed at the offsets makeLoader
+%   handed over (when it owns the plan).
+    if iscell(arcPlan), ids = arcPlan{day}; else, ids = 1:arcPlan; end
+    if ~isempty(arcInfo), seen(day) = arcInfo; end                  %#ok<NASGU>
+    lens = 40 + 7 * ids + 3 * day;              % every arc a different length
+    mTot = sum(lens);
+    if isempty(arcInfo), nl = 1; else, nl = arcInfo.nl; end
+    A = zeros(mTot, nc);  B = zeros(mTot, nl);  l = zeros(mTot, 1);
+    xTrue = (1:nc).' / 10;
+    row0 = 0;
+    for k = 1:numel(ids)
+        rows = row0 + (1:lens(k));
+        tau = (0:lens(k)-1).' / lens(k);        % arc-local, for the LOCALS
+        % The commons are harmonics of a GLOBAL clock, so they are not
+        % absorbed by the per-arc bias/trend -- without this the system is
+        % rank deficient by construction (the locals span [1, tau] exactly).
+        tg = (row0 + (0:lens(k)-1).' + 300 * day) / 250;
+        A(rows, :) = [cos(2*pi*tg), sin(2*pi*tg), cos(4*pi*tg), sin(4*pi*tg)];
+        if ~isempty(arcInfo)
+            off = arcInfo.offsetOf(ids(k));
+            cnt = arcInfo.count(arcInfo.arcId == ids(k));
+            B(rows, off + 1) = 1;
+            if cnt >= 2, B(rows, off + 2) = tau; end
+        else
+            B(rows, 1) = 1;
+        end
+        l(rows) = A(rows,:) * xTrue;
+        row0 = row0 + lens(k);
+    end
+    rs = RandStream('mt19937ar', 'Seed', 5200 + day);
+    l = l + 1e-3 * randn(rs, mTot, 1);
+    D = struct('A', A, 'B', B, 'l', l, 't', (1:mTot).', ...
+               'arcIdx', {arcSlices(lens)}, 'arcId', ids);
+end
+
+function c = arcSlices(lens)
+%ARCSLICES  Row-index vectors for consecutive arcs of the given lengths.
+    c = cell(1, numel(lens));  row0 = 0;
+    for k = 1:numel(lens)
+        c{k} = row0 + (1:lens(k));  row0 = row0 + lens(k);
+    end
+end
+
+function D = simpleDay(day, obsType)   %#ok<INUSD>
+%SIMPLEDAY  Two equal arcs, no .arcId: the plain static case.
+    m = 60;  nc = 4;
+    tau = (0:m-1).' / m;
+    A = [ones(m,1), tau, cos(2*pi*tau), sin(2*pi*tau)];
+    D = struct('A', A, 'B', ones(m,1), 'l', A * ((1:nc).'/10), ...
+               't', (1:m).', 'arcIdx', {{1:m/2, m/2+1:m}});
+end

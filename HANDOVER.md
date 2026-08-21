@@ -8,7 +8,13 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-08-21 — WP-50 DONE (PR #29 merged); WP-51
+Last substantive update: 2026-08-21 (later) — WP-52 ROUND 1 on branch
+`claude/wp-52`: ragged schedules NATIVE in makeLoader (per-day arc
+resolver, .arcId addressing with absent ids as data gaps,
+'localsPerArc' deriving nl and owning the offsets); demo rewired and
+raggedClosure DELETED. Round note §10.14. Bridge still down: no local
+postflight on this WP either.
+Preceding entry: Last substantive update: 2026-08-21 — WP-50 DONE (PR #29 merged); WP-51
 ROUND 1 on branch `claude/wp-51`: demo_gravity (GRACE-like, energy-balance
 KBR stream, per-system local counts 2/3/1, ragged arcs absent by ID,
 ragged arc lengths), SH generator moved to examples/ as the ONE
@@ -3926,6 +3932,58 @@ read the three sections, and either pin the numbers in the demo help
 that it should be sound: WP-48 measured VCE ratio recovery at 0.25 RelTol
 on a comparable structured design (§10.10).
 
+### 10.14 WP-52 round notes
+
+**ROUND 1 (2026-08-21, model Claude Fable 5, branch `claude/wp-52`).**
+User question after WP-51: can `makeLoader` support ragged schedules
+NATIVELY instead of leaving `raggedClosure` to the user? ANSWER FOUND BY
+READING, not by guessing: the gap was never in the protocol. EVERY engine
+probes `dataFcn('meta', d, [], uo)` PER DAY (BlockAccumulator.accumDay,
+residuals, redundancy, streamContribution, diagnoseAccum, adjustVCE x2,
+adjustVCEjoint, and PrefetchLoader passes it through) -- `metaOf` simply
+threw the day away. Two of the three asks needed NOTHING: unequal arc
+lengths were always native (arcIdx entries are row-index vectors), and
+per-SYSTEM local counts were always native (`numLocal` is per loader).
+Shipped, all ADDITIVE (no id renames, existing loaders untouched):
+(1) `'arcs'` accepts `@(day)` / `@(day,obsType)` or `'fromDay'`;
+`resolveArcSpec` + `checkArcIds` validate what a resolver returns.
+(2) A day may declare `.arcId`; `batchOf` then addresses BY ID and an
+absent id returns an EMPTY batch -- verified first that all eight arc
+consumers already guard `isempty(arc)`, which is why this is safe. The
+positional out-of-range error SURVIVES for static schedules: a
+mis-declared static count is a different mistake from a ragged one.
+(3) `'localsPerArc'` gives makeLoader the bookkeeping: it walks the day
+list, assigns each (day, arc) a global ordinal and column offset, DERIVES
+nl (so it can no longer be stated twice and disagree), and hands each day
+its slice as buildDay's 6th argument `arcInfo` (`.arcId .offset .count
+.ordinal .nl .offsetOf`). It REFUSES the two unknowable cases: no
+`'days'`, or `'fromDay'` (nl must be known without reading data).
+(4) The demo was rewired onto the native path and `raggedClosure` plus the
+`arcOrd` lookups in the builder were DELETED -- that deletion is the proof
+the support is native, and `testDemoGravityUsesTheNativeRaggedPath` locks
+it (the loader must carry the plan, and the source must not wrap
+`.closure`).
+FOUR CI CATCHES (the bridge stayed down, so CI was the only route):
+`L.meta()` still called the old 2-arg `metaOf`; `clear()` on a Map is not
+a teardown; `adjustBlock` has no `KeepLocal`; and -- the instructive one
+-- `L.meta` CAPTURED `L.day` before that field existed (an anonymous
+function captures values, not future struct fields), fixed by hoisting the
+accessor into a variable. A fifth catch was in my own TEST data, not the
+code: per-arc `[1, tau]` locals absorb a common constant and trend
+EXACTLY, so the fixture was rank deficient by construction and returned
+NaN -- the commons are now harmonics of a global clock. WP-49's
+`supersedesSol` surfaced it immediately instead of printing a plausible
+number.
+TOLERANCE LESSON (§6.2.3 applied to myself): the recovery test first
+carried a `RelTol` of 1e-6 that I had reasoned to rather than measured;
+CI measured 1.5e-2. The fix was NOT a looser band but a better claim --
+the recovery is now asserted against the FORMAL errors (max|z| < 4) plus
+sigma0 ~ 1, which is the statement worth making and does not encode one
+noise draw.
+DEBT: no local postflight -- the MCP bridge was down for this entire WP
+(third consecutive session). CI green is the only evidence; the WP-51
+recovery-quality debt (§10.13) is untouched and still open.
+
 ### R3 ledger
 
 | WP | title | depends on | status |
@@ -3940,3 +3998,4 @@ on a comparable structured design (§10.10).
 | 49 | Authoritative vPv from the residual pass on the normal backend (§10.9) | 48 | DONE (2026-08-20, PR #28 merged by the user, merge a2b6430; BREAKING id retirement declared; round note §10.11) |
 | 50 | Honest vtv on the QR backend (10.11 finding c): the merge-fold cancellation was the true sigma0=0 mechanism | 49 | DONE (2026-08-20, PR #29 merged by the user, merge 4cbc280; postflight 593/593; three-anchor threshold calibration; round note §10.12) |
 | 51 | demo_gravity: GRACE-like physically structured demo (per-system local counts, ragged arcs, ragged arc lengths) | 48 | IN PROGRESS — PR #30 (2026-08-21, branch `claude/wp-51`; CI GREEN incl. an end-to-end demo run; **NO local postflight — bridge dropped mid-task**; recovery QUALITY unmeasured, see §10.13) |
+| 52 | Native ragged schedules in makeLoader (per-day arc resolution, arc ids, owned per-arc local bookkeeping) | 51 | IN PROGRESS (2026-08-21, branch `claude/wp-52`, PR #31; round note §10.14; NO local postflight -- bridge down) |
