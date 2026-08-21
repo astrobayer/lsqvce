@@ -312,3 +312,57 @@ function D = oracleBuildDay(cfg, sat, day, obsType)
     D.arcIdx = arrayfun(@(a) (a-1)*cfg.mEpoch + (1:cfg.mEpoch), ...
                         1:cfg.arcsPerDay, 'UniformOutput', false);
 end
+
+%% ------------------------------------------- WP-51: the demo is executable
+function testDemoGravityFixtureStructure(tc)
+% categories: contract
+% WP-51: the three things demo_gravity_dataLoader exists to exercise, asserted
+% STRUCTURALLY (exact by construction, so they can be pinned without a
+% measurement): a different local count per system, a ragged arc schedule
+% with arcs absent BY ID, and a different length for every arc.
+    [cfg, L] = demo_gravity_dataLoader();
+    tc.verifyNumElements(L, 3);
+
+    % 1. different local counts per system
+    tc.verifyEqual([cfg.sys.nlPerArc], [2 3 1]);
+    tc.verifyEqual([cfg.sys.nl], [2 3 1] * cfg.nArcTot);
+    tc.verifyEqual(numel(unique([cfg.sys.nl])), 3, ...
+        'the three systems must carry DIFFERENT local counts');
+
+    % 2. ragged schedule: arcs missing by ID, not merely by count
+    counts = cellfun(@numel, cfg.arcsOfDay);
+    tc.verifyEqual(counts, [3 4 2 4 3]);
+    tc.verifyEqual(cfg.arcsOfDay{3}, [1 3], ...
+        'day 3 must be missing arc 2 BY ID');
+    tc.verifyEqual(cfg.arcsOfDay{5}, [2 3 4]);
+    tc.verifyEqual(cfg.nArcTot, sum(counts));
+
+    % 3. every arc its own length
+    lens = cfg.mOfArc(cfg.mOfArc > 0).';
+    tc.verifyEqual(numel(lens), cfg.nArcTot);
+    tc.verifyGreaterThan(numel(unique(lens)), 5, ...
+        'arc lengths must genuinely vary');
+
+    % the loaders answer the PER-DAY meta probe with that day's arcs -- this
+    % is what keeps the engines from ever asking for an absent arc
+    for s = 1:3
+        m3 = L{s}.closure('meta', 3, [], struct());
+        tc.verifyEqual(m3.arcs{1}, [1 3]);
+        m5 = L{s}.closure('meta', 5, [], struct());
+        tc.verifyEqual(m5.arcs{1}, [2 3 4]);
+    end
+end
+
+function testDemoGravityRunsEndToEnd(tc)
+% categories: robustness
+% WP-51: the driver must actually RUN -- a demo nobody executes rots. Kept to
+% MaxOuter 1 for cost; the numbers it prints are exercised, not asserted (no
+% band is pinned here that was not measured).
+    out = evalc('Rg = demo_gravity(''MaxOuter'', 1);');
+    tc.verifyTrue(contains(out, 'The problem'));
+    tc.verifyTrue(contains(out, 'The weights'));
+    tc.verifyClass(Rg, 'lsqvce.Results');
+    tc.verifyTrue(all(isfinite(Rg.x)), 'the solution must be finite');
+    tc.verifyTrue(isfinite(Rg.sigma0) && Rg.sigma0 > 0);
+    tc.verifyNumElements(Rg.x, 77);
+end
