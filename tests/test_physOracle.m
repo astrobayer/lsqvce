@@ -5,7 +5,7 @@ function tests = test_physOracle
 %   the DESIGN STRUCTURE production will meet (HANDOVER 10.9/10.10): the
 %   design is built from real spherical-harmonic potential partials along a
 %   deterministic near-polar circular orbit with Earth rotation
-%   (tests/private/shDesign) -- order-block correlation, near-polar-gap
+%   (examples/demo_gravity_design) -- order-block correlation, polar-gap
 %   conditioning, (1/r)^n attenuation -- NO random design entries anywhere.
 %   Truth is DETERMINISTIC: a closed-formula coefficient set with one
 %   planted anomaly; the noise LAW is deterministic per stream (AR colour +
@@ -19,7 +19,7 @@ function tests = test_physOracle
 %   Run:
 %     results = runtests('tests/test_physOracle');  disp(table(results))
 %
-%   See also SHDESIGN (tests/private), LSQVCE.ADJUSTVCE, HANDOVER 10.10
+%   See also DEMO_GRAVITY_DESIGN (examples/), LSQVCE.ADJUSTVCE, HANDOVER 10.10
 %
 %   Created 2026-08-20 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.
@@ -32,6 +32,13 @@ function setupOnce(tc)
     if exist('lsqvce.adjustVCE', 'class') ~= 8 && ...
        exist('+lsqvce', 'dir') ~= 7
         addpath(root);                                       %#ok<MCAP>
+    end
+    % The SH design generator lives in examples/ so the demo and this suite
+    % share ONE implementation (WP-51) -- same route TEST_ADJUSTVCE uses to
+    % reach DEMO_GRACE_DATALOADER.
+    exDir = fullfile(root, 'examples');
+    if exist(fullfile(exDir, 'demo_gravity_design.m'), 'file') == 2
+        addpath(exDir);                                      %#ok<MCAP>
     end
     cfg = oracleCfg();
     tc.TestData.cfg = cfg;
@@ -54,7 +61,7 @@ function testLegendreAdditionTheorem(tc)
     t = [-0.999; -0.7; -0.3; 0; 0.25; 0.6; 0.95; 0.9999];
     orbit = struct('u', asin(t), 'lam0', zeros(size(t)), ...
                    'incl', pi/2, 'r', 1.07);
-    [A, meta] = shDesign(12, orbit);                 %#ok<ASGLU>
+    [A, meta] = demo_gravity_design(12, orbit);                 %#ok<ASGLU>
     r = orbit.r;
     for n = 2:12
         cols = meta.n == n;
@@ -62,7 +69,7 @@ function testLegendreAdditionTheorem(tc)
         % the C/S split re-assembles cos^2 + sin^2 exactly.
         S = sum((A(:, cols) * r^(n + 1)).^2, 2);
         % tol: eps-level growth of an O(n) recursion; measured <= 5e-13 at
-        % n = 12 (ACCURACY block of shDesign)
+        % n = 12 (ACCURACY block of demo_gravity_design)
         tc.verifyEqual(S, (2*n + 1) * ones(size(S)), 'AbsTol', 5e-13, ...
             sprintf('addition theorem fails at degree %d', n));
     end
@@ -74,7 +81,7 @@ function testLegendreClosedForms(tc)
 % anchors complementing the addition theorem's sum anchor.
     t = 0.37;
     orbit = struct('u', asin(t), 'lam0', 0, 'incl', pi/2, 'r', 2);
-    [A, meta] = shDesign(3, orbit);
+    [A, meta] = demo_gravity_design(3, orbit);
     r = orbit.r;
     P20 = A(1, meta.n == 2 & meta.m == 0) * r^3;
     P22c = A(1, meta.n == 2 & meta.m == 2 & meta.cs == 'C') * r^3;
@@ -84,34 +91,34 @@ function testLegendreClosedForms(tc)
                    'AbsTol', 1e-14);   % tol: same source
 end
 
-function testShDesignContract(tc)
+function testGravityDesignContract(tc)
 % categories: contract
 % Shapes, column bookkeeping, DETERMINISM (the design carries no random
 % numbers: two calls are bitwise equal), and the documented rejections.
     orbit = struct('u', (0:49).' * 0.1, 'lam0', -(0:49).' * 0.004, ...
                    'incl', deg2rad(89), 'r', 1.07);
-    [A1, meta] = shDesign(6, orbit);
+    [A1, meta] = demo_gravity_design(6, orbit);
     tc.verifySize(A1, [50, (6+1)^2 - 4]);
     tc.verifyEqual(numel(meta.n), size(A1, 2));
     tc.verifyEqual(sum(meta.cs == 'C') - sum(meta.cs == 'S'), 6 - 1);
-    [A2, ~] = shDesign(6, orbit);
+    [A2, ~] = demo_gravity_design(6, orbit);
     tc.verifyEqual(A2, A1);                 % bitwise: deterministic design
 
     caught = MException.empty;
     try
-        shDesign(1, orbit);
+        demo_gravity_design(1, orbit);
     catch e
         caught = e;
     end
     tc.verifyNotEmpty(caught);
-    tc.verifyEqual(caught.identifier, 'lsqvce:shDesign:badNmax');
+    tc.verifyEqual(caught.identifier, 'lsqvce:gravityDesign:badNmax');
     caught = MException.empty;
     try
-        shDesign(6, struct('u', 1, 'lam0', [1 2], 'incl', 1, 'r', 1.07));
+        demo_gravity_design(6, struct('u', 1, 'lam0', [1 2], 'incl', 1, 'r', 1.07));
     catch e
         caught = e;
     end
-    tc.verifyEqual(caught.identifier, 'lsqvce:shDesign:badOrbit');
+    tc.verifyEqual(caught.identifier, 'lsqvce:gravityDesign:badOrbit');
 end
 
 %% ------------------------------------ the fixture is NOT another Gaussian
@@ -228,7 +235,7 @@ function cfg = oracleCfg()
     % deterministic truth: closed formula, O(1) unitless scale, plus one
     % planted anomaly at (5,3,C)
     probe = struct('u', 0, 'lam0', 0, 'incl', cfg.incl, 'r', cfg.r);
-    [~, meta] = shDesign(cfg.nmax, probe);
+    [~, meta] = demo_gravity_design(cfg.nmax, probe);
     cfg.meta = meta;
     xT = (cos(3*meta.n + meta.m) ./ meta.n.^2).';
     isS = meta.cs == 'S';
@@ -252,7 +259,7 @@ end
 
 function A = designOfDay(cfg, sat, day)
 %DESIGNOFDAY  The deterministic day design for one satellite (no noise).
-    A = shDesign(cfg.nmax, dayOrbit(cfg, sat, day));
+    A = demo_gravity_design(cfg.nmax, dayOrbit(cfg, sat, day));
 end
 
 function orbit = dayOrbit(cfg, sat, day)

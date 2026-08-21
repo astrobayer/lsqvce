@@ -1,8 +1,8 @@
-function [A, meta] = shDesign(nmax, orbit)
-%SHDESIGN  Spherical-harmonic potential design along a deterministic orbit.
-%   [A, meta] = shDesign(nmax, orbit)
+function [A, meta] = demo_gravity_design(nmax, orbit)
+%DEMO_GRAVITY_DESIGN  Spherical-harmonic potential design along an orbit.
+%   [A, meta] = demo_gravity_design(nmax, orbit)
 %
-%   The physically structured design for the WP-48 closed-loop oracle: the
+%   The ONE physically structured design generator in this tree: the
 %   partials of the (unitless, GM = R = 1) gravitational potential
 %       V(r,th,lam) = (1/r) * sum_n (1/r)^n * sum_m Pbar_nm(cos th)
 %                     * (C_nm cos(m lam) + S_nm sin(m lam))
@@ -44,45 +44,57 @@ function [A, meta] = shDesign(nmax, orbit)
 %
 %   ERRORS
 %     Input:
-%       lsqvce:shDesign:badNmax    nmax is not an integer scalar >= 2
-%       lsqvce:shDesign:badOrbit   orbit misses a field, u/lam0 differ in
-%                                  length, or r <= 1
+%       lsqvce:gravityDesign:badNmax   nmax is not an integer scalar >= 2
+%       lsqvce:gravityDesign:badOrbit  orbit misses a field, u/lam0 differ
+%                                      in length, or r <= 1
 %
 %   EXAMPLE
 %     M = 200;  k = (0:M-1).';
 %     orbit = struct('u', 0.05*k, 'lam0', -0.003*k, ...
 %                    'incl', deg2rad(89), 'r', 1.07);
-%     [A, meta] = shDesign(8, orbit);        % 200 x 77
+%     [A, meta] = demo_gravity_design(8, orbit);   % 200 x 77
 %
 %   LIMITATIONS
 %     Potential values only (no gradients); degrees 0/1 excluded by design
 %     (datum); unitless scaling GM = R = 1 -- the STRUCTURE is the point,
 %     not geophysical units.
 %
-%   See also TEST_PHYSORACLE, LSQVCE.MAKELOADER
+%   CONSUMERS
+%     DEMO_GRAVITY_DATALOADER  the GRACE-like demo (three streams, per-system
+%                              local counts, ragged arcs)
+%     TEST_PHYSORACLE          the closed-loop oracle suite
+%   Both call THIS function -- the Legendre recursion and its ACCURACY claim
+%   exist once (WP-51; the test reaches examples/ the same way
+%   TEST_ADJUSTVCE reaches DEMO_GRACE_DATALOADER).
 %
+%   See also DEMO_GRAVITY, DEMO_GRAVITY_DATALOADER, TEST_PHYSORACLE
+%
+%   Updated 2026-08-21 (CEST, UTC+02:00), WP-51: moved from tests/private to
+%   examples/ and renamed, so the demo and the oracle suite share ONE
+%   implementation instead of duplicating the recursion. With assistance
+%   from Claude (Anthropic), model Claude Fable 5.
 %   Created 2026-08-20 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.
 
     narginchk(2, 2);
     if ~isnumeric(nmax) || ~isscalar(nmax) || nmax < 2 || nmax ~= round(nmax)
-        error('lsqvce:shDesign:badNmax', ...
+        error('lsqvce:gravityDesign:badNmax', ...
               'nmax must be an integer scalar >= 2 (got %g).', nmax);
     end
     need = {'u', 'lam0', 'incl', 'r'};
     if ~isstruct(orbit) || ~all(isfield(orbit, need))
-        error('lsqvce:shDesign:badOrbit', ...
+        error('lsqvce:gravityDesign:badOrbit', ...
               'orbit must carry the fields u, lam0, incl, r.');
     end
     u    = orbit.u(:);
     lam0 = orbit.lam0(:);
     if numel(u) ~= numel(lam0)
-        error('lsqvce:shDesign:badOrbit', ...
+        error('lsqvce:gravityDesign:badOrbit', ...
               'orbit.u and orbit.lam0 must have equal length (%d vs %d).', ...
               numel(u), numel(lam0));
     end
     if ~isscalar(orbit.r) || orbit.r <= 1
-        error('lsqvce:shDesign:badOrbit', ...
+        error('lsqvce:gravityDesign:badOrbit', ...
               'orbit.r must be a scalar > 1 Earth radius (got %g).', orbit.r);
     end
 

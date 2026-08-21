@@ -244,6 +244,9 @@ one that decides whether the result can be trusted.
 | `template/lsqvce_template.m` | *(template, not package)* **START HERE for your own case.** Returns the Loaders; you fill in two documented stubs (`myBuildDay`, `myEpochCov`). The `observationGroups` loop is real runnable code; the stubs error until written. |
 | `examples/demo_grace_dataLoader` | *(example, not package)* the GRACE-FO reference setup — C/D pair merged into one system (range-rate couples both satellites' arc states) plus independent satellite E on the same field. A WORKED case to read alongside the template. |
 | `examples/demo_grace` | *(example, not package)* the driver that runs it end to end |
+| `examples/demo_gravity_design` | *(example, not package)* fully-normalised Legendre functions and spherical-harmonic potential partials along a sampled orbit — the ONE physically structured design generator; `demo_gravity` and `test_physOracle` both call it, so the recursion and its accuracy claim exist once |
+| `examples/demo_gravity_dataLoader` | *(example, not package)* a GRACE-like fixture built on that design: GRACE-C, a trailing GRACE-D, and the inter-satellite potential difference read as an energy-balance KBR stream — with a **different number of local unknowns per system** (2/3/1 per arc), a **ragged arc schedule** (arcs missing by ID, not just by count) and a **different length for every arc** |
+| `examples/demo_gravity` | *(example, not package)* the driver: what VCE recovers of the planted stream weights under real column correlation, coefficient recovery in units of the formal error, and error degree variances |
 
 ---
 
