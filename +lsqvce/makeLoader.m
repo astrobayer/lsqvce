@@ -372,11 +372,15 @@ end
 
     % WP-52: L.meta() answers for a DAY. Called without one it uses the first
     % declared day (or 1), which is what the old day-blind accessor meant.
+    % The day accessor is built FIRST and captured by value: L.meta may need
+    % it (the 'fromDay' resolver), and an anonymous function cannot capture a
+    % struct field that does not exist yet.
+    dayAccessor = @(day, obsType) dayOf(buildDay, cache, o.cache, day, obsType, ...
+                                        o.common, o.local, o.procOpt, plan);
     L.meta    = @(varargin) metaOf(obsTypes, o.arcs, ...
-                                   metaDay(varargin, o.days), L.day);
+                                   metaDay(varargin, o.days), dayAccessor);
     L.localPlan = plan;               % WP-52: [] unless 'localsPerArc' declared
-    L.day     = @(day, obsType) dayOf(buildDay, cache, o.cache, day, obsType, ...
-                                      o.common, o.local, o.procOpt, plan);
+    L.day     = dayAccessor;
     L.batch   = @(day, obsType, arcID, opt) batchOf(L.day, o.cov, day, obsType, arcID, opt);
     L.closure = @(day, obsType, arcID, opt) dispatch(L, o.arcs, day, obsType, arcID, opt);
 end

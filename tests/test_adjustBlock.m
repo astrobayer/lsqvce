@@ -748,8 +748,12 @@ function D = raggedDay(day, obsType, arcPlan, nc, arcInfo, seen)   %#ok<INUSL>
     row0 = 0;
     for k = 1:numel(ids)
         rows = row0 + (1:lens(k));
-        tau = (0:lens(k)-1).' / lens(k);
-        A(rows, :) = [ones(lens(k),1), tau, cos(2*pi*tau), sin(2*pi*tau)];
+        tau = (0:lens(k)-1).' / lens(k);        % arc-local, for the LOCALS
+        % The commons are harmonics of a GLOBAL clock, so they are not
+        % absorbed by the per-arc bias/trend -- without this the system is
+        % rank deficient by construction (the locals span [1, tau] exactly).
+        tg = (row0 + (0:lens(k)-1).' + 300 * day) / 250;
+        A(rows, :) = [cos(2*pi*tg), sin(2*pi*tg), cos(4*pi*tg), sin(4*pi*tg)];
         if ~isempty(arcInfo)
             off = arcInfo.offsetOf(ids(k));
             cnt = arcInfo.count(arcInfo.arcId == ids(k));
