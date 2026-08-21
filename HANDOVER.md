@@ -8,7 +8,13 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-08-20 (night, later) — WP-49 DONE (PR #28
+Last substantive update: 2026-08-21 — WP-50 DONE (PR #29 merged); WP-51
+ROUND 1 on branch `claude/wp-51`: demo_gravity (GRACE-like, energy-balance
+KBR stream, per-system local counts 2/3/1, ragged arcs absent by ID,
+ragged arc lengths), SH generator moved to examples/ as the ONE
+implementation. CI green incl. an end-to-end demo run; LOCAL POSTFLIGHT
+MISSING (bridge dropped) and the recovery quality is UNMEASURED — §10.13.
+Preceding entry: 2026-08-20 (night, later) — WP-49 DONE (PR #28
 merged); WP-50 ROUND 1 on branch `claude/wp-50`: the QR sigma0=0
 mechanism found (merge-fold normal-form cancellation), guarded with a
 three-anchor measured threshold (good 13.4 @ 8e-5 / destroyed ~19 /
@@ -3864,6 +3870,62 @@ POSTFLIGHT on head efec974 (user machine): 537/537 + adjustVCE 45/45
 (declared==ran) + speed 11/11 at 5.10e6 obs/s = 593/593; inventories
 exactly the probe / empty. Drivers removed, working copy restored.
 
+### 10.13 WP-51 round notes
+
+**ROUND 1 (2026-08-21, model Claude Fable 5, branch `claude/wp-51`).**
+User request: turn the WP-48 tier (a) oracle into a GRACE-like DEMO, with a
+different local-unknown count per satellite and a different number of arcs
+AND arc length per day.
+DESIGN DECISION (recorded because it moves a file across the tree): the demo
+needs the SH partial generator, and duplicating a numerical kernel breaks
+one-way. Rejected: a second copy in examples/, and promotion to a public
+`lsqvce.shDesign` (the toolbox is a VCE engine; it should not own gravity
+machinery, and §4 is user-governed). Adopted: MOVE it to
+`examples/demo_gravity_design.m` and have the oracle suite call it there --
+the house pattern already has tests consuming examples/ fixtures
+(`test_adjustVCE` -> `demo_grace_dataLoader`). Public API surface unchanged;
+ids renamed to `lsqvce:gravityDesign:*`.
+RAGGED ARCS -- the mechanism: `makeLoader` resolves `'arcs'` ONCE without
+reading a day, and `batchOf` ERRORS on an arc id beyond the day's arcIdx, so
+a fixed declaration cannot express a ragged schedule. But the accumulator
+probes `'meta'` PER DAY (`dataFcn('meta', d, [], uo)` in accumDay). The
+loader therefore wraps `.closure` (the field the engines actually drive,
+BlockAccumulator line ~1290) and answers that probe with the day's ACTUAL
+arc list; absent arcs are never requested. Arc lengths vary freely -- they
+are just row counts.
+TOPOLOGY: GRACE-C (potC, 2 locals/arc), trailing GRACE-D (potD, 3), and the
+inter-satellite potential DIFFERENCE as an energy-balance KBR stream (kbr, 1
+local/arc, design A_D - A_C so it couples both orbits). nl = 32/48/16 --
+three different local block sizes in one adjustment. Schedule 3/4/2/4/3
+arcs, absent BY ID (day 3 = [1 3], day 5 = [2 3 4]), lengths 140-220.
+VERIFICATION STATE -- READ THIS BEFORE TRUSTING THE DEMO'S NUMBERS:
+the MCP bridge dropped MID-TASK, so this round has NO local postflight.
+CONFIRMED IN A SECOND SESSION (2026-08-21, later): a follow-up session
+adopted this branch specifically to settle the debt with a working bridge
+and found the bridge (Filesystem AND MATLAB tools) gone MID-SESSION as
+well -- the outage is environmental, not a one-off. The debt therefore
+stands unchanged, and it is the ONLY open item on this WP: CI proves the
+demo RUNS and that the fixture structure is what it claims; the RECOVERY
+QUALITY it prints is still unmeasured. Settle it by running
+`[R, score] = demo_gravity;` locally and reading sigma0, score.zMeanSq,
+score.zMax, score.degRatio and score.sigmaRatio against the planted
+1.0/2.0/0.5 -- then pin or open round 2. That second session also
+independently built a variant of this WP (public `lsqvce.shDesign` +
+two-system fixture) and DISCARDED it in favour of this branch: one design
+per problem, and this one is richer (three systems, arcs absent by id).
+Compensation: two smoke tests were added so CI itself executes the demo
+end to end (`testDemoGravityRunsEndToEnd`) and asserts the fixture
+structure (`testDemoGravityFixtureStructure`) -- both green on the hosted
+runner, which proves the demo RUNS and that the ragged/per-system
+structure is what it claims. What is NOT verified: the QUALITY of the
+recovery the demo prints (recovered-vs-planted weights 1.0/2.0/0.5,
+max|z|, degree-variance ratios). NO statistical band is pinned anywhere in
+this round -- deliberately, per §6.2.3. DEBT: run `demo_gravity` locally,
+read the three sections, and either pin the numbers in the demo help
+(COST/ACCURACY) or open a round 2 if the recovery is poor. Prior evidence
+that it should be sound: WP-48 measured VCE ratio recovery at 0.25 RelTol
+on a comparable structured design (§10.10).
+
 ### R3 ledger
 
 | WP | title | depends on | status |
@@ -3876,4 +3938,5 @@ exactly the probe / empty. Drivers removed, working copy restored.
 | 42 | Monotone / trust-region spectral alternation (F-15 cure) | — | BACKLOG (user decision reconfirmed 2026-08-20 “for the time being”; entry criteria and the mirror-first success criterion pinned in §9 WP-40/§3222 entry; production guidance — open loop or ≤3 damped passes — covers operation meanwhile) |
 | 48 | Physically structured closed-loop oracle: tier (a) deterministic SH-partial design; tier (b) real GRACE-FO month vs published solution | — | tier (a) DONE (2026-08-20, PR #27 merged by the user, merge f1bb951; round note §10.10); tier (b) BACKLOG (user decision 2026-08-20; §6.1.4 rows ☐ remain the entry point) |
 | 49 | Authoritative vPv from the residual pass on the normal backend (§10.9) | 48 | DONE (2026-08-20, PR #28 merged by the user, merge a2b6430; BREAKING id retirement declared; round note §10.11) |
-| 50 | Honest vtv on the QR backend (10.11 finding c): the merge-fold cancellation was the true sigma0=0 mechanism | 49 | IN PROGRESS (2026-08-20, branch `claude/wp-50`; postflight 593/593 green; three-anchor threshold calibration; round note §10.12) |
+| 50 | Honest vtv on the QR backend (10.11 finding c): the merge-fold cancellation was the true sigma0=0 mechanism | 49 | DONE (2026-08-20, PR #29 merged by the user, merge 4cbc280; postflight 593/593; three-anchor threshold calibration; round note §10.12) |
+| 51 | demo_gravity: GRACE-like physically structured demo (per-system local counts, ragged arcs, ragged arc lengths) | 48 | IN PROGRESS — PR #30 (2026-08-21, branch `claude/wp-51`; CI GREEN incl. an end-to-end demo run; **NO local postflight — bridge dropped mid-task**; recovery QUALITY unmeasured, see §10.13) |

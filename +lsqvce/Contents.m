@@ -156,6 +156,16 @@
 %                    satellite E on the same gravity field. A WORKED case to read
 %                    alongside the template.
 %   examples/demo_grace           - the driver that runs it end to end
+%   examples/demo_gravity_design        - fully-normalised Legendre + potential
+%                    partials along a sampled orbit. The ONE physically
+%                    structured design generator; the demo and the oracle
+%                    test suite both call it.
+%   examples/demo_gravity_dataLoader    - GRACE-like fixture on that design:
+%                    two satellites plus the energy-balance KBR difference,
+%                    a DIFFERENT local count per system, a ragged arc
+%                    schedule and a different length for every arc.
+%   examples/demo_gravity         - the driver: weights, coefficient recovery
+%                    in units of the formal error, error degree variances
 %   examples/demo_messaging           - the SAME run at every verbosity level,
 %                    side by side, so you can see what a long job will say
 %
