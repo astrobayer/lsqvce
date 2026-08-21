@@ -60,15 +60,26 @@ buildDay(day, obsType, common, local, procOpt) -&gt; struct   (parameter-driven)
     .l       m x 1     observations
     .t       m x 1     epoch timestamps [s]
     .arcIdx  1 x nArc  cell of row-index vectors, one per arc (optional; if
-                       omitted, the whole day is one arc)
+                       omitted, the whole day is one arc). Arc LENGTHS may
+                       differ freely -- they are just row counts, and the
+                       whitener is built per arc.
+    .arcId   1 x nArc  OPTIONAL arc ids naming the arcs THIS day carries
+                       (WP-52). With it, arcs are addressed by id rather
+                       than by position, so a day may omit arcs in the
+                       middle of the schedule; an id this day does not
+                       carry is treated as a data gap.
 It must be DETERMINISTIC: the accumulator reads each day a second time for
 residuals, and must get identical data back.
 
-buildDay is called with as many of the FIVE arguments as it DECLARES, so an
+buildDay(day, obsType, common, local, procOpt, arcInfo) -&gt; struct
+    also receives the per-day local-block plan when &#x27;localsPerArc&#x27; is
+    declared (WP-52; empty otherwise).
+
+buildDay is called with as many of the SIX arguments as it DECLARES, so an
 existing @(day,obsType) builder keeps working unchanged; a builder that
 also takes (common, local, procOpt) receives the parametrisation arrays and
 processing options passed to makeLoader (below). A builder that uses
-varargin receives all five. common/local have ONE ROW per unknown and 14
+varargin receives all six. common/local have ONE ROW per unknown and 14
 columns; nc and nl are DERIVED from their row counts (see &#x27;common&#x27;/&#x27;local&#x27;).</pre>
 <h3>Input</h3>
 <pre class="example">  buildDay  1x1  function_handle   @(day,obsType) day builder (above).
@@ -82,11 +93,39 @@ columns; nc and nl are DERIVED from their row counts (see &#x27;common&#x27;/&#x
                                     LSQVCE.COVMODEL (e.g.
                                     struct(&#x27;type&#x27;,&#x27;arma&#x27;,&#x27;ar&#x27;,..,&#x27;sigma&#x27;,..)).
                                     One field per obsType. Required. (alias: &#x27;cov&#x27;)
-    &#x27;arcs&#x27;     var  arcs per obsType, resolvable without reading a day:
+    &#x27;arcs&#x27;     var  which arcs each day carries. STATIC forms (unchanged):
                      1x1 integer    -&gt; arcs 1:arcs for every obsType
                      1xA vector     -&gt; those arc ids for every obsType
-                     1x1 struct     -&gt; .(obsType) = vector of arc ids
+                     1x1 struct     -&gt; .(obsType) = any form on this list
                                     (default 1 -&gt; a single arc per day)
+                    RAGGED forms (WP-52; the accumulator probes &#x27;meta&#x27;
+                    PER DAY, so the schedule may differ from day to day):
+                     function_handle -&gt; @(day) or @(day,obsType) returning
+                                    that day&#x27;s arc ids. No data read.
+                     &#x27;fromDay&#x27;      -&gt; read the day and take its .arcId,
+                                    or 1:numel(.arcIdx). Convenient, but it
+                                    reads data during the probe (the
+                                    single-day cache makes the following
+                                    arc reads free); prefer the resolver
+                                    when the schedule is known.
+                    With ragged arcs the day may declare .arcId (see THE
+                    PART YOU WRITE) so arcs are addressed BY ID and absent
+                    ids are skipped as data gaps -- no padding needed.
+    &#x27;localsPerArc&#x27; var  let makeLoader OWN the per-arc local bookkeeping
+                                    (WP-52). 1x1 integer, or @(day,arcId)
+                                    returning the count for that arc. It
+                                    numbers every (day, arc) over the whole
+                                    adjustment, DERIVES nl (so &#x27;numLocal&#x27;
+                                    must be omitted or agree), and hands
+                                    each day its slice as buildDay&#x27;s 6th
+                                    argument arcInfo:
+                                      .arcId .offset .count .ordinal 1xA
+                                      .nl        1x1  total local count
+                                      .offsetOf  @(arcId) -&gt; column offset
+                                    Fill B(rows, off + (1:k)) and never
+                                    compute an offset. Needs &#x27;days&#x27; and a
+                                    schedule resolvable without reading
+                                    data (not &#x27;fromDay&#x27;).  (default [])
     &#x27;systemId&#x27; 1x1  system identifier carried on L    (default 1) (alias: &#x27;sysID&#x27;)
                     MUST be NUMERIC or a SINGLE char: the accumulator stores
                     systems in an array indexed by [store.sysID], which
@@ -189,6 +228,12 @@ R = lsqvce.adjustBlock({L}, 1:3);</pre>
     lsqvce:makeLoader:noCov        &#x27;covariance&#x27; missing, or no entry for an
                                    observation type
     lsqvce:makeLoader:noArcs       &#x27;arcs&#x27; missing and not derivable
+    lsqvce:makeLoader:badArcs      an arc resolver returned something that
+                                   is not unique positive integers (WP-52)
+    lsqvce:makeLoader:badArcId     a day&#x27;s .arcId does not name every
+                                   .arcIdx entry exactly once (WP-52)
+    lsqvce:makeLoader:localPlan    &#x27;localsPerArc&#x27; without &#x27;days&#x27;, combined
+                                   with &#x27;fromDay&#x27;, or a bad count (WP-52)
     lsqvce:makeLoader:paramType    commonParams/localParams is not a 2-D cell
     lsqvce:makeLoader:paramCols    ... or does not have the required columns
     lsqvce:makeLoader:ncConflict   numCommon disagrees with the commonParams
@@ -212,6 +257,12 @@ R = lsqvce.adjustBlock({L}, 1:3);</pre>
 See also LSQVCE.ADJUSTBLOCK, LSQVCE.SYNTHLOADER, LSQVCE.COVMODEL,
          LSQVCE.BLOCKACCUMULATOR, LSQVCE.ADJUSTVCE
 
+Updated 2026-08-21 (CEST, UTC+02:00), WP-52: ragged schedules are
+NATIVE -- per-day arc resolution (&#x27;arcs&#x27; as @(day,obsType) or
+&#x27;fromDay&#x27;), arcs addressed by .arcId with absent ids as data gaps,
+and &#x27;localsPerArc&#x27; owning the per-arc local bookkeeping (nl derived,
+offsets handed to buildDay). All additive. With assistance from
+Claude (Anthropic), model Claude Fable 5.
 Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (c) c1 (F-07):
 typed `arguments` signature, canonical UpperCamelCase option names
 (legacy casings keep matching -- MATLAB NV semantics; enum VALUES

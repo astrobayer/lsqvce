@@ -17,15 +17,26 @@ function L = makeLoader(buildDay, opt)
 %         .l       m x 1     observations
 %         .t       m x 1     epoch timestamps [s]
 %         .arcIdx  1 x nArc  cell of row-index vectors, one per arc (optional; if
-%                            omitted, the whole day is one arc)
+%                            omitted, the whole day is one arc). Arc LENGTHS may
+%                            differ freely -- they are just row counts, and the
+%                            whitener is built per arc.
+%         .arcId   1 x nArc  OPTIONAL arc ids naming the arcs THIS day carries
+%                            (WP-52). With it, arcs are addressed by id rather
+%                            than by position, so a day may omit arcs in the
+%                            middle of the schedule; an id this day does not
+%                            carry is treated as a data gap.
 %     It must be DETERMINISTIC: the accumulator reads each day a second time for
 %     residuals, and must get identical data back.
 %
-%     buildDay is called with as many of the FIVE arguments as it DECLARES, so an
+%     buildDay(day, obsType, common, local, procOpt, arcInfo) -> struct
+%         also receives the per-day local-block plan when 'localsPerArc' is
+%         declared (WP-52; empty otherwise).
+%
+%     buildDay is called with as many of the SIX arguments as it DECLARES, so an
 %     existing @(day,obsType) builder keeps working unchanged; a builder that
 %     also takes (common, local, procOpt) receives the parametrisation arrays and
 %     processing options passed to makeLoader (below). A builder that uses
-%     varargin receives all five. common/local have ONE ROW per unknown and 14
+%     varargin receives all six. common/local have ONE ROW per unknown and 14
 %     columns; nc and nl are DERIVED from their row counts (see 'common'/'local').
 %
 %   INPUT
@@ -40,11 +51,39 @@ function L = makeLoader(buildDay, opt)
 %                                       LSQVCE.COVMODEL (e.g.
 %                                       struct('type','arma','ar',..,'sigma',..)).
 %                                       One field per obsType. Required. (alias: 'cov')
-%       'arcs'     var  arcs per obsType, resolvable without reading a day:
+%       'arcs'     var  which arcs each day carries. STATIC forms (unchanged):
 %                        1x1 integer    -> arcs 1:arcs for every obsType
 %                        1xA vector     -> those arc ids for every obsType
-%                        1x1 struct     -> .(obsType) = vector of arc ids
+%                        1x1 struct     -> .(obsType) = any form on this list
 %                                       (default 1 -> a single arc per day)
+%                       RAGGED forms (WP-52; the accumulator probes 'meta'
+%                       PER DAY, so the schedule may differ from day to day):
+%                        function_handle -> @(day) or @(day,obsType) returning
+%                                       that day's arc ids. No data read.
+%                        'fromDay'      -> read the day and take its .arcId,
+%                                       or 1:numel(.arcIdx). Convenient, but it
+%                                       reads data during the probe (the
+%                                       single-day cache makes the following
+%                                       arc reads free); prefer the resolver
+%                                       when the schedule is known.
+%                       With ragged arcs the day may declare .arcId (see THE
+%                       PART YOU WRITE) so arcs are addressed BY ID and absent
+%                       ids are skipped as data gaps -- no padding needed.
+%       'localsPerArc' var  let makeLoader OWN the per-arc local bookkeeping
+%                                       (WP-52). 1x1 integer, or @(day,arcId)
+%                                       returning the count for that arc. It
+%                                       numbers every (day, arc) over the whole
+%                                       adjustment, DERIVES nl (so 'numLocal'
+%                                       must be omitted or agree), and hands
+%                                       each day its slice as buildDay's 6th
+%                                       argument arcInfo:
+%                                         .arcId .offset .count .ordinal 1xA
+%                                         .nl        1x1  total local count
+%                                         .offsetOf  @(arcId) -> column offset
+%                                       Fill B(rows, off + (1:k)) and never
+%                                       compute an offset. Needs 'days' and a
+%                                       schedule resolvable without reading
+%                                       data (not 'fromDay').  (default [])
 %       'systemId' 1x1  system identifier carried on L    (default 1) (alias: 'sysID')
 %                       MUST be NUMERIC or a SINGLE char: the accumulator stores
 %                       systems in an array indexed by [store.sysID], which
@@ -151,6 +190,12 @@ function L = makeLoader(buildDay, opt)
 %       lsqvce:makeLoader:noCov        'covariance' missing, or no entry for an
 %                                      observation type
 %       lsqvce:makeLoader:noArcs       'arcs' missing and not derivable
+%       lsqvce:makeLoader:badArcs      an arc resolver returned something that
+%                                      is not unique positive integers (WP-52)
+%       lsqvce:makeLoader:badArcId     a day's .arcId does not name every
+%                                      .arcIdx entry exactly once (WP-52)
+%       lsqvce:makeLoader:localPlan    'localsPerArc' without 'days', combined
+%                                      with 'fromDay', or a bad count (WP-52)
 %       lsqvce:makeLoader:paramType    commonParams/localParams is not a 2-D cell
 %       lsqvce:makeLoader:paramCols    ... or does not have the required columns
 %       lsqvce:makeLoader:ncConflict   numCommon disagrees with the commonParams
@@ -174,6 +219,12 @@ function L = makeLoader(buildDay, opt)
 %   See also LSQVCE.ADJUSTBLOCK, LSQVCE.SYNTHLOADER, LSQVCE.COVMODEL,
 %            LSQVCE.BLOCKACCUMULATOR, LSQVCE.ADJUSTVCE
 %
+%   Updated 2026-08-21 (CEST, UTC+02:00), WP-52: ragged schedules are
+%   NATIVE -- per-day arc resolution ('arcs' as @(day,obsType) or
+%   'fromDay'), arcs addressed by .arcId with absent ids as data gaps,
+%   and 'localsPerArc' owning the per-arc local bookkeeping (nl derived,
+%   offsets handed to buildDay). All additive. With assistance from
+%   Claude (Anthropic), model Claude Fable 5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (c) c1 (F-07):
 %   typed `arguments` signature, canonical UpperCamelCase option names
 %   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
@@ -192,6 +243,7 @@ arguments
     opt.ObservationTypes = {}
     opt.Covariance (1,1) struct = struct()
     opt.Arcs = 1
+    opt.LocalsPerArc = []
     opt.SystemId = 1
     opt.NumLocal double {mustBeScalarOrEmpty} = []
     opt.NumCommon double {mustBeScalarOrEmpty} = []
@@ -213,7 +265,7 @@ end
     % WP-39 stage (c) c1: typed `arguments` signature (canonical
     % UpperCamelCase; legacy casings keep matching -- MATLAB NV
     % semantics; enum VALUES case-sensitive lowercase).
-    o = struct('observationTypes', {opt.ObservationTypes}, 'covariance', opt.Covariance, 'arcs', opt.Arcs, 'systemId', opt.SystemId, 'numLocal', opt.NumLocal, 'numCommon', opt.NumCommon, 'days', opt.Days, 'name', char(opt.Name), 'cache', opt.Cache, 'epochCovariance', opt.EpochCovariance, 'commonParams', {opt.CommonParams}, 'localParams', {opt.LocalParams}, 'processingOptions', opt.ProcessingOptions, 'plotPostSolve', opt.PlotPostSolve, 'plotPostModel', opt.PlotPostModel);
+    o = struct('observationTypes', {opt.ObservationTypes}, 'covariance', opt.Covariance, 'arcs', opt.Arcs, 'localsPerArc', opt.LocalsPerArc, 'systemId', opt.SystemId, 'numLocal', opt.NumLocal, 'numCommon', opt.NumCommon, 'days', opt.Days, 'name', char(opt.Name), 'cache', opt.Cache, 'epochCovariance', opt.EpochCovariance, 'commonParams', {opt.CommonParams}, 'localParams', {opt.LocalParams}, 'processingOptions', opt.ProcessingOptions, 'plotPostSolve', opt.PlotPostSolve, 'plotPostModel', opt.PlotPostModel);
 
     % ---- map long option names onto the short internal fields -------------
     % Canonical long names only. The resolved value is written onto the SHORT
@@ -277,6 +329,25 @@ end
         nlFinal = nlDerived;
     end
 
+    % WP-52: the per-arc local plan. Declaring 'localsPerArc' makes makeLoader
+    % OWN the bookkeeping the user used to hand-roll: it walks the day list
+    % once, assigns each (day, arc) its global ordinal and column offset,
+    % DERIVES nl by summing, and hands each day its slice as buildDay's 6th
+    % argument. nl can then never disagree with the schedule, because it is no
+    % longer stated twice.
+    plan = [];
+    if ~isempty(o.localsPerArc)
+        plan = buildLocalPlan(o.localsPerArc, o.arcs, obsTypes, o.days);
+        if ~isempty(nlFinal) && nlFinal ~= plan.nl
+            error('lsqvce:makeLoader:nlConflict', ...
+                ['''numLocal'' = %d but the ''localsPerArc'' plan needs %d ' ...
+                 '(%d arc(s) over %d day(s)). Omit ''numLocal'' -- it is ' ...
+                 'DERIVED from the plan.'], nlFinal, plan.nl, ...
+                 plan.nArcTot, numel(o.days));
+        end
+        nlFinal = plan.nl;
+    end
+
     cache = containers.Map('KeyType','char', 'ValueType','any');   % handle: mutable
 
     L.isLoader = true;
@@ -300,8 +371,9 @@ end
     if ~isempty(o.days), L.days = o.days; end
 
     L.meta    = @() metaOf(obsTypes, o.arcs);
+    L.localPlan = plan;               % WP-52: [] unless 'localsPerArc' declared
     L.day     = @(day, obsType) dayOf(buildDay, cache, o.cache, day, obsType, ...
-                                      o.common, o.local, o.procOpt);
+                                      o.common, o.local, o.procOpt, plan);
     L.batch   = @(day, obsType, arcID, opt) batchOf(L.day, o.cov, day, obsType, arcID, opt);
     L.closure = @(day, obsType, arcID, opt) dispatch(L, o.arcs, day, obsType, arcID, opt);
 end
@@ -370,46 +442,171 @@ function out = dispatch(L, arcs, day, obsType, arcID, opt)
 %   delegate to L.batch(day,obsType,arcID,opt). OUTPUT out = meta struct | batch struct.
     if nargin < 6 || isempty(opt), opt = struct(); end
     if (ischar(day) || isstring(day)) && strcmp(day, 'meta')
-        out = metaOf(L.obsTypes, arcs);
+        % WP-52: the probe carries the DAY (every engine passes it), so a
+        % ragged schedule is answered natively -- see metaOf/arcVec.
+        out = metaOf(L.obsTypes, arcs, obsType, L.day);
         return
     end
     out = L.batch(day, obsType, arcID, opt);
 end
 
-function m = metaOf(obsTypes, arcs)
+function m = metaOf(obsTypes, arcs, day, dayFcn)
 %METAOF  Build the meta struct {obsTypes, arcs{:}} the accumulator expects.
-%   INPUT obsTypes 1xK cell; arcs struct/scalar. OUTPUT m 1x1 struct.
+%   INPUT  obsTypes 1xK cell; arcs the spec; day the day the probe asks about
+%          (the 'meta' sentinel carries it in the obsType slot); dayFcn the
+%          loader's day accessor, used only by the 'fromDay' resolver.
+%   OUTPUT m 1x1 struct  .obsTypes, .arcs{k}
     m.obsTypes = obsTypes;
     m.arcs     = cell(1, numel(obsTypes));
     for k = 1:numel(obsTypes)
-        m.arcs{k} = arcVec(arcs, obsTypes{k});
+        m.arcs{k} = arcVec(arcs, obsTypes{k}, day, dayFcn);
     end
 end
 
-function v = arcVec(arcs, obsType)
-%ARCVEC  Resolve the arc-ID vector for one obsType from a struct/scalar/vector
-%   arcs spec. OUTPUT v 1xA double  the arc IDs (1:n when a count is given).
+function v = arcVec(arcs, obsType, day, dayFcn)
+%ARCVEC  Resolve the arc-ID vector for one obsType and ONE DAY.
+%   Static forms (count / vector / per-obsType struct) ignore the day, as
+%   before. WP-52 adds two ragged forms:
+%     function_handle  @(day,obsType) -> arc ids     (no data read)
+%     'fromDay'        read the day and take its .arcId, or 1:numel(.arcIdx)
+%   A per-obsType struct may hold any of these per field.
+%   OUTPUT v 1xA double  the arc IDs present on THIS day.
     if isstruct(arcs)
         if ~isfield(arcs, obsType)
             error('lsqvce:makeLoader:noArcs', 'arcs has no field for ''%s''.', obsType);
         end
-        v = arcs.(obsType);
-        if isscalar(v) && v == round(v) && v >= 1, v = 1:v; end
-    elseif isscalar(arcs)
-        v = 1:arcs;
+        v = resolveArcSpec(arcs.(obsType), obsType, day, dayFcn);
     else
-        v = arcs(:).';
+        v = resolveArcSpec(arcs, obsType, day, dayFcn);
     end
 end
 
-function D = dayOf(buildDay, cache, useCache, day, obsType, common, local, procOpt)
+function v = resolveArcSpec(spec, obsType, day, dayFcn)
+%RESOLVEARCSPEC  One arc spec -> the arc-ID row vector for one day.
+    if isa(spec, 'function_handle')
+        if nargin(spec) == 1
+            v = spec(day);
+        else
+            v = spec(day, obsType);
+        end
+        v = checkArcIds(v, obsType, day, 'the ''arcs'' function');
+    elseif (ischar(spec) || isstring(spec)) && strcmpi(char(spec), 'fromday')
+        if isempty(dayFcn)
+            error('lsqvce:makeLoader:noArcs', ...
+                  '''arcs'',''fromDay'' needs the loader''s day accessor.');
+        end
+        D = dayFcn(day, obsType);
+        if isfield(D, 'arcId') && ~isempty(D.arcId)
+            v = D.arcId(:).';
+        else
+            v = 1:numel(D.arcIdx);
+        end
+        v = checkArcIds(v, obsType, day, '''arcs'',''fromDay''');
+    elseif isscalar(spec) && isnumeric(spec)
+        v = 1:spec;
+    else
+        v = spec(:).';
+    end
+end
+
+function plan = buildLocalPlan(spec, arcs, obsTypes, days)
+%BUILDLOCALPLAN  Assign every (day, arc) its local-block ordinal and column
+%   offset, and DERIVE nl (WP-52).
+%   The arc set of a day is the UNION over the loader's obsTypes: an arc seen
+%   by two observation types is ONE arc state and therefore ONE local block.
+%   Requires a schedule resolvable WITHOUT reading data -- static arcs or an
+%   @(day[,obsType]) resolver -- because nl must be known at construction.
+%   INPUT
+%     spec      1x1 double | function_handle  locals per arc, or @(day,arc)
+%     arcs      the arcs spec; obsTypes 1xT cell; days 1xD double
+%   OUTPUT
+%     plan  1x1 struct  .days (1xD) .arcId {1xD cell} .offset {1xD cell}
+%                       .count {1xD cell} .ordinal {1xD cell}
+%                       .nl (1x1) .nArcTot (1x1)
+    if isempty(days)
+        error('lsqvce:makeLoader:localPlan', ...
+            ['''localsPerArc'' needs the day list: pass ''days'' so the ' ...
+             'local blocks can be numbered over the whole adjustment.']);
+    end
+    if (ischar(arcs) || isstring(arcs)) && strcmpi(char(arcs), 'fromday')
+        error('lsqvce:makeLoader:localPlan', ...
+            ['''localsPerArc'' cannot be combined with ''arcs'',''fromDay'': ' ...
+             'nl must be known WITHOUT reading data. Declare the schedule ' ...
+             'with an @(day,obsType) resolver instead.']);
+    end
+    days = days(:).';
+    D = numel(days);
+    plan = struct('days', days, 'arcId', {cell(1,D)}, 'offset', {cell(1,D)}, ...
+                  'count', {cell(1,D)}, 'ordinal', {cell(1,D)}, ...
+                  'nl', 0, 'nArcTot', 0);
+    off = 0;  ord = 0;
+    for i = 1:D
+        d = days(i);
+        ids = zeros(1,0);
+        for k = 1:numel(obsTypes)
+            ids = union(ids, arcVec(arcs, obsTypes{k}, d, []));
+        end
+        ids = sort(ids(:).');
+        cnt = zeros(1, numel(ids));
+        offs = zeros(1, numel(ids));
+        ords = zeros(1, numel(ids));
+        for a = 1:numel(ids)
+            if isa(spec, 'function_handle')
+                cnt(a) = spec(d, ids(a));
+            else
+                cnt(a) = spec;
+            end
+            if ~isscalar(cnt(a)) || cnt(a) < 0 || cnt(a) ~= round(cnt(a))
+                error('lsqvce:makeLoader:localPlan', ...
+                    ['''localsPerArc'' must give a non-negative integer ' ...
+                     'count (day %s, arc %d gave %g).'], ...
+                     string(d), ids(a), cnt(a));
+            end
+            offs(a) = off;   off = off + cnt(a);
+            ord = ord + 1;   ords(a) = ord;
+        end
+        plan.arcId{i} = ids;  plan.offset{i} = offs;
+        plan.count{i} = cnt;  plan.ordinal{i} = ords;
+    end
+    plan.nl = off;  plan.nArcTot = ord;
+end
+
+function info = arcInfoOf(plan, day)
+%ARCINFOOF  The local-block slice buildDay gets for ONE day (WP-52).
+%   OUTPUT info 1x1 struct | []  .arcId .offset .count .ordinal (1xA each),
+%          .nl (total over the adjustment), .offsetOf @(arcId)->column offset.
+    info = [];
+    if isempty(plan), return, end
+    i = find(plan.days == day, 1);
+    if isempty(i), return, end
+    info = struct('arcId', plan.arcId{i}, 'offset', plan.offset{i}, ...
+                  'count', plan.count{i}, 'ordinal', plan.ordinal{i}, ...
+                  'nl', plan.nl, 'offsetOf', []);
+    ids = plan.arcId{i};  offs = plan.offset{i};
+    info.offsetOf = @(a) offs(find(ids == a, 1));
+end
+
+function v = checkArcIds(v, obsType, day, who)
+%CHECKARCIDS  A resolved arc list must be a row of unique positive integers.
+    if isempty(v), v = zeros(1,0); return, end
+    v = v(:).';
+    ok = isnumeric(v) && all(isfinite(v)) && all(v >= 1) && all(v == round(v));
+    if ~ok || numel(unique(v)) ~= numel(v)
+        error('lsqvce:makeLoader:badArcs', ...
+            ['%s returned an invalid arc list for day %s, obsType %s: ' ...
+             'expected unique positive integers.'], who, string(day), obsType);
+    end
+end
+
+function D = dayOf(buildDay, cache, useCache, day, obsType, common, local, procOpt, plan)
 %DAYOF  Return the built+validated day struct for (day,obsType), using a
 %   single-slot cache when useCache. OUTPUT D 1x1 struct  the day data.
     key = sprintf('%d|%s', day, obsType);
     if useCache && isKey(cache, key)
         D = cache(key);  return
     end
-    D = callBuildDay(buildDay, day, obsType, common, local, procOpt);
+    arcInfo = arcInfoOf(plan, day);           % WP-52: [] unless 'localsPerArc'
+    D = callBuildDay(buildDay, day, obsType, common, local, procOpt, arcInfo);
     D = validateDay(D, day, obsType);
     if useCache
         remove(cache, cache.keys);   % keep at most ONE resident day
@@ -417,16 +614,17 @@ function D = dayOf(buildDay, cache, useCache, day, obsType, common, local, procO
     end
 end
 
-function D = callBuildDay(buildDay, day, obsType, common, local, procOpt)
-%CALLBUILDDAY  Call buildDay with as many of the 5 args as it declares, so an
+function D = callBuildDay(buildDay, day, obsType, common, local, procOpt, arcInfo)
+%CALLBUILDDAY  Call buildDay with as many of the 6 args as it declares, so an
 %   OLD 2-arg builder @(day,obsType) keeps working while a NEW builder can take
-%   @(day,obsType,common,local,procOpt). Anonymous handles report a fixed
-%   nargin; a named function that uses varargin reports a negative nargin, in
-%   which case we pass all five.
+%   @(day,obsType,common,local,procOpt,arcInfo). Anonymous handles report a
+%   fixed nargin; a named function that uses varargin reports a negative
+%   nargin, in which case we pass all six. WP-52 added the 6th (arcInfo, the
+%   per-day local-block plan; empty unless 'localsPerArc' was declared).
     n = nargin(buildDay);
-    args = {day, obsType, common, local, procOpt};
-    if n < 0 || n >= 5
-        D = buildDay(args{:});                 % varargin, or takes all five
+    args = {day, obsType, common, local, procOpt, arcInfo};
+    if n < 0 || n >= 6
+        D = buildDay(args{:});                 % varargin, or takes all six
     else
         D = buildDay(args{1:max(2,n)});        % pass exactly what it declares (>=2)
     end
@@ -449,18 +647,47 @@ function D = validateDay(D, day, obsType)
     if ~isfield(D, 'arcIdx') || isempty(D.arcIdx)
         D.arcIdx = {1:m};                       % whole day = one arc
     end
+    % WP-52: the optional .arcId names the arcs this day carries, so a ragged
+    % schedule needs no padding. It must name EVERY entry of .arcIdx exactly
+    % once -- a mismatch would silently mis-address whole arcs.
+    if isfield(D, 'arcId') && ~isempty(D.arcId)
+        ids = D.arcId(:).';
+        if numel(ids) ~= numel(D.arcIdx) || ...
+                numel(unique(ids)) ~= numel(ids) || ...
+                ~all(isfinite(ids) & ids >= 1 & ids == round(ids))
+            error('lsqvce:makeLoader:badArcId', ...
+                ['buildDay(%s,''%s'') returned %d .arcId entr(ies) for %d ' ...
+                 'arcIdx entr(ies); .arcId must name every arc exactly once ' ...
+                 'with unique positive integers.'], ...
+                 string(day), obsType, numel(ids), numel(D.arcIdx));
+        end
+    end
 end
 
 function out = batchOf(dayFcn, cov, day, obsType, arcID, opt)
 %BATCHOF  Slice one arc (arcID) out of a day into a batch struct (A,B,l,...),
 %   applying the covariance/whitening hook cov. OUTPUT out 1x1 struct the batch.
     D = dayFcn(day, obsType);
-    if arcID < 1 || arcID > numel(D.arcIdx)
-        error('lsqvce:makeLoader:badArc', ...
-            'Arc %d does not exist (day %d, obsType %s has %d arcs).', ...
-            arcID, day, obsType, numel(D.arcIdx));
+    % WP-52: a day that declares .arcId is addressed BY ID -- an id this day
+    % does not carry is a DATA GAP (return empty; every engine skips it), not
+    % an error. Without .arcId the addressing stays positional and an
+    % out-of-range id remains an error: that guard catches a mis-declared
+    % STATIC schedule, which is a different mistake from a ragged one.
+    if isfield(D, 'arcId') && ~isempty(D.arcId)
+        pos = find(D.arcId(:).' == arcID, 1);
+        if isempty(pos)
+            out = [];
+            return
+        end
+    else
+        if arcID < 1 || arcID > numel(D.arcIdx)
+            error('lsqvce:makeLoader:badArc', ...
+                'Arc %d does not exist (day %d, obsType %s has %d arcs).', ...
+                arcID, day, obsType, numel(D.arcIdx));
+        end
+        pos = arcID;
     end
-    r = D.arcIdx{arcID};
+    r = D.arcIdx{pos};
     out.A = D.A(r,:);
     out.B = D.B(r,:);
     out.l = D.l(r);
