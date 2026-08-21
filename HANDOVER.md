@@ -3900,6 +3900,19 @@ three different local block sizes in one adjustment. Schedule 3/4/2/4/3
 arcs, absent BY ID (day 3 = [1 3], day 5 = [2 3 4]), lengths 140-220.
 VERIFICATION STATE -- READ THIS BEFORE TRUSTING THE DEMO'S NUMBERS:
 the MCP bridge dropped MID-TASK, so this round has NO local postflight.
+CONFIRMED IN A SECOND SESSION (2026-08-21, later): a follow-up session
+adopted this branch specifically to settle the debt with a working bridge
+and found the bridge (Filesystem AND MATLAB tools) gone MID-SESSION as
+well -- the outage is environmental, not a one-off. The debt therefore
+stands unchanged, and it is the ONLY open item on this WP: CI proves the
+demo RUNS and that the fixture structure is what it claims; the RECOVERY
+QUALITY it prints is still unmeasured. Settle it by running
+`[R, score] = demo_gravity;` locally and reading sigma0, score.zMeanSq,
+score.zMax, score.degRatio and score.sigmaRatio against the planted
+1.0/2.0/0.5 -- then pin or open round 2. That second session also
+independently built a variant of this WP (public `lsqvce.shDesign` +
+two-system fixture) and DISCARDED it in favour of this branch: one design
+per problem, and this one is richer (three systems, arcs absent by id).
 Compensation: two smoke tests were added so CI itself executes the demo
 end to end (`testDemoGravityRunsEndToEnd`) and asserts the fixture
 structure (`testDemoGravityFixtureStructure`) -- both green on the hosted
