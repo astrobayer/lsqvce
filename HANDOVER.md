@@ -8,11 +8,13 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-08-21 (evening) — WP-52 DONE (PR #31
-merged); WP-53 ROUND 1: demo_gravity returns `score`, and the USER's
-run settled the §10.13 quality debt — sigma0 0.9998, stream ratios
-0.996/1.000/1.019, mean z^2 1.087, anomaly at 1.33 sigma; pinned in the
-demo's ACCURACY block. Round note §10.15.
+Last substantive update: 2026-08-21 (evening) — WP-51, WP-52 and WP-53 all
+DONE (PRs #30/#31/#32 merged). WP-53 settled the §10.13 quality debt with
+the USER's run: sigma0 0.9998, stream ratios 0.996/1.000/1.019, mean z^2
+1.087, anomaly at 1.33 sigma, pinned in the demo's ACCURACY block (§10.15).
+ONE debt remains, D-52: no local postflight across four bridge-down
+sessions — see “OPEN DEBTS carried forward” above the R3 ledger. No WP in
+progress.
 Preceding entry: Last substantive update: 2026-08-21 (later) — WP-52 ROUND 1 on branch
 `claude/wp-52`: ragged schedules NATIVE in makeLoader (per-day arc
 resolver, .arcId addressing with absent ids as data gaps,
@@ -4027,6 +4029,19 @@ WP-48 set out to make and could only make on Gaussian fixtures before.
 DEBT: still no local postflight (bridge down for a fourth session); CI
 green remains the only evidence for this WP.
 
+### OPEN DEBTS carried forward (2026-08-21)
+
+Both are settled by ONE local run once the MCP bridge is back:
+`[R, score] = demo_gravity;` followed by `run_all_lsqvce`.
+
+| # | debt | why it is open | what settles it |
+|---|---|---|---|
+| D-51 | demo_gravity's recovery QUALITY was unmeasured | the bridge dropped in the round that built it and again in the round that adopted the branch | **SETTLED 2026-08-21 by WP-53** (§10.15, PR #32): the user ran it, the numbers are pinned in the demo's ACCURACY block |
+| D-52 | WP-52 and WP-53 shipped with NO local postflight — four consecutive bridge-down sessions; CI green is the only evidence | environmental outage | one full `run_all_lsqvce` on main, incl. test_parallel and test_speed |
+
+Nothing else is outstanding: the R3 track is closed, WP-42 and WP-48
+tier (b) sit in the backlog by user decision, and no WP is in progress.
+
 ### R3 ledger
 
 | WP | title | depends on | status |
@@ -4040,6 +4055,6 @@ green remains the only evidence for this WP.
 | 48 | Physically structured closed-loop oracle: tier (a) deterministic SH-partial design; tier (b) real GRACE-FO month vs published solution | — | tier (a) DONE (2026-08-20, PR #27 merged by the user, merge f1bb951; round note §10.10); tier (b) BACKLOG (user decision 2026-08-20; §6.1.4 rows ☐ remain the entry point) |
 | 49 | Authoritative vPv from the residual pass on the normal backend (§10.9) | 48 | DONE (2026-08-20, PR #28 merged by the user, merge a2b6430; BREAKING id retirement declared; round note §10.11) |
 | 50 | Honest vtv on the QR backend (10.11 finding c): the merge-fold cancellation was the true sigma0=0 mechanism | 49 | DONE (2026-08-20, PR #29 merged by the user, merge 4cbc280; postflight 593/593; three-anchor threshold calibration; round note §10.12) |
-| 51 | demo_gravity: GRACE-like physically structured demo (per-system local counts, ragged arcs, ragged arc lengths) | 48 | IN PROGRESS — PR #30 (2026-08-21, branch `claude/wp-51`; CI GREEN incl. an end-to-end demo run; **NO local postflight — bridge dropped mid-task**; recovery QUALITY unmeasured, see §10.13) |
-| 52 | Native ragged schedules in makeLoader (per-day arc resolution, arc ids, owned per-arc local bookkeeping) | 51 | DONE (2026-08-21, PR #31 merged by the user, merge 30e9c31; round note §10.14; postflight DEBT -- bridge down) |
-| 53 | demo_gravity returns its self-assessment; measured numbers pinned (settles the §10.13 quality debt) | 51 | IN PROGRESS (2026-08-21, branch `claude/wp-53`; round note §10.15) |
+| 51 | demo_gravity: GRACE-like physically structured demo (per-system local counts, ragged arcs, ragged arc lengths) | 48 | DONE (2026-08-21, PR #30 merged by the user, merge 4b80ea8; round note §10.13) — quality debt SETTLED by WP-53 |
+| 52 | Native ragged schedules in makeLoader (per-day arc resolution, arc ids, owned per-arc local bookkeeping) | 51 | DONE (2026-08-21, PR #31 merged by the user, merge 30e9c31; five real CI catches incl. the closure-capture bug; round note §10.14) — OPEN DEBT D-52: no local postflight (bridge down) |
+| 53 | demo_gravity returns its self-assessment; measured numbers pinned (settles the §10.13 quality debt) | 51 | DONE (2026-08-21, PR #32 merged by the user, merge 7014329; round note §10.15) — OPEN DEBT D-52: no local postflight (fourth bridge-down session) |
