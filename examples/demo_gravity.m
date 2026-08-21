@@ -1,7 +1,8 @@
-function R = demo_gravity(opt)
+function [R, score] = demo_gravity(opt)
 %DEMO_GRAVITY  GRACE-like gravity recovery on a PHYSICALLY STRUCTURED design.
 %
 %   R = DEMO_GRAVITY()
+%   [R, score] = DEMO_GRAVITY()
 %   R = DEMO_GRAVITY('MaxOuter', 6, 'Verbose', true)
 %   R = DEMO_GRAVITY('Plots', true, 'ExportDir', '/tmp/figs')
 %
@@ -39,9 +40,45 @@ function R = demo_gravity(opt)
 %                                                              (default '')
 %
 %   OUTPUT
-%     R   1x1 lsqvce.Results   the full result: R.x, R.sigma0, R.sol.Cxx,
+%     R      1x1 lsqvce.Results  the full result: R.x, R.sigma0, R.sol.Cxx,
 %                              R.noise (the recovered stream models), R.meta
 %                              (run provenance), R.report() for the verdict.
+%     score  1x1 struct        the same self-assessment the demo PRINTS,
+%                              returned so it can be checked rather than read
+%                              (WP-53). Fields:
+%                              .sigma0        1x1 double
+%                              .stream        1xS cell    obsType per stream
+%                              .sigmaPlanted  1xS double  the planted sigmas
+%                              .sigmaRecovered 1xS double what VCE found
+%                              .sigmaRatio    1xS double  recovered/planted
+%                              .zMax          1x1 double  max |x-xTrue|/sigma
+%                              .zMeanSq       1x1 double  mean of z^2
+%                              .anomaly       1x1 struct  .true .est .sigma .z
+%                              .degree        1xN double  degrees 2..nmax
+%                              .degRatio      1xN double  realised/formal
+%                                             error power per degree
+%
+%   ACCURACY
+%     MEASURED on the default configuration (2026-08-21, MATLAB R2026a on the
+%     author's machine; the noise realisation is seeded, so these repeat):
+%       sigma0                     0.9998
+%       stream sigmas    planted   1.0 / 2.0 / 0.5
+%                        recovered 0.9956 / 1.9999 / 0.5096
+%                        ratios    0.996 / 1.000 / 1.019
+%       max |z| over 77 coefficients   2.67   (5 would be alarming)
+%       mean z^2                       1.087  (1.00 ideal; sd = sqrt(2/77)
+%                                              = 0.16, so this is 0.5 sd out)
+%       planted anomaly (5,3,C)   truth +0.1764, estimate +0.2843 +- 0.0812
+%                                 -> 1.33 sigma, comfortably recovered
+%       error degree variance / formal, by degree
+%         n=2 0.23  n=3 1.29  n=4 0.79  n=5 1.00  n=6 1.07  n=7 1.15  n=8 1.00
+%     Reading: the weights come back under REAL column correlation, and the
+%     formal errors describe the actual errors. The low n=2 ratio is the
+%     expected small-sample scatter of a degree with only five coefficients
+%     (chi2 with 5 dof spans roughly 0.1 to 2.2 at one sigma), not a defect.
+%     These are the numbers of ONE seeded run; they are quoted, not asserted
+%     -- the tests assert the structural claims and leave the statistics to
+%     the formal-error reading.
 %
 %   ERRORS
 %     lsqvce:demoGravity:noExportDir  'ExportDir' names a folder that does
@@ -49,6 +86,7 @@ function R = demo_gravity(opt)
 %
 %   EXAMPLE
 %     R = demo_gravity();                 % ~10 s, prints the three sections
+%     [R, score] = demo_gravity();        % ... and hand the numbers back
 %     R.report();                         % the toolbox's own verdict
 %
 %   COST
@@ -59,6 +97,11 @@ function R = demo_gravity(opt)
 %   See also DEMO_GRAVITY_DATALOADER, DEMO_GRAVITY_DESIGN, DEMO_GRACE,
 %   LSQVCE.ADJUSTVCE
 %
+%   Updated 2026-08-21 (CEST, UTC+02:00), WP-53: the printed self-assessment
+%   is also RETURNED (second output), and the measured numbers of the default
+%   run are pinned in the ACCURACY block above -- the quality debt of the
+%   demo's first round, settled by a real run. With assistance from Claude
+%   (Anthropic), model Claude Fable 5.
 %   Created 2026-08-21 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.
 
@@ -107,8 +150,10 @@ end
     fprintf('  %-6s  %10s  %10s  %8s\n', 'stream', 'planted', 'recovered', 'ratio');
     got = zeros(1, numel(R.noise.stream));
     want = zeros(1, numel(R.noise.stream));
+    names = cell(1, numel(R.noise.stream));
     for k = 1:numel(R.noise.stream)
         ot = streamType(R.noise.stream{k});
+        names{k} = ot;
         got(k)  = R.noise.model{k}.sigma;
         want(k) = cfg.trueSigma.(ot);
         fprintf('  %-6s  %10.4f  %10.4f  %8.3f\n', ot, want(k), got(k), ...
@@ -134,6 +179,21 @@ end
     fprintf('  error degree variance / formal, by degree:\n    ');
     fprintf('n=%d %.2f   ', [deg; ratio]);
     fprintf('\n');
+
+    % ---- the same numbers, returned rather than only printed (WP-53) -----
+    % kA (the anomaly column) was already located for the printed line above.
+    score = struct( ...
+        'sigma0',          R.sigma0, ...
+        'stream',          {names}, ...
+        'sigmaPlanted',    want, ...
+        'sigmaRecovered',  got, ...
+        'sigmaRatio',      got ./ want, ...
+        'zMax',            max(abs(z)), ...
+        'zMeanSq',         mean(z.^2), ...
+        'anomaly',         struct('true', cfg.xTrue(kA), 'est', R.x(kA), ...
+                                  'sigma', sig(kA), 'z', z(kA)), ...
+        'degree',          deg, ...
+        'degRatio',        ratio);
 
     % ---- plots ------------------------------------------------------------
     if opt.Plots
