@@ -366,3 +366,31 @@ function testDemoGravityRunsEndToEnd(tc)
     tc.verifyTrue(isfinite(Rg.sigma0) && Rg.sigma0 > 0);
     tc.verifyNumElements(Rg.x, 77);
 end
+
+function testDemoGravityUsesTheNativeRaggedPath(tc)
+% categories: contract | tags: provenance
+% WP-52: the demo must ride the ENGINE's ragged support, not its own wiring.
+% Two mechanical checks that cannot pass by accident: nl is DERIVED by
+% makeLoader (the loader carries the plan, and it agrees with the fixture's
+% independent arc-ordinal table), and the source no longer wraps .closure.
+    exDir = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'examples');
+    tc.assumeTrue(exist(fullfile(exDir, 'demo_gravity_dataLoader.m'), 'file') == 2);
+    addpath(exDir);
+    tc.addTeardown(@() rmpath(exDir));
+
+    [cfg, L] = demo_gravity_dataLoader();
+    for s = 1:numel(L)
+        tc.verifyNotEmpty(L{s}.localPlan, ...
+            'the loader must carry makeLoader''s local plan');
+        tc.verifyEqual(L{s}.localPlan.nArcTot, cfg.nArcTot, ...
+            'the plan must number the same arcs the fixture declares');
+        tc.verifyEqual(L{s}.nl, cfg.sys(s).nlPerArc * cfg.nArcTot, ...
+            'nl must be derived from the schedule');
+        % the per-day arc list comes from the engine's own probe
+        m = L{s}.closure('meta', cfg.days(3), [], struct());
+        tc.verifyEqual(m.arcs{1}, cfg.arcsOfDay{3});
+    end
+    src = fileread(fullfile(exDir, 'demo_gravity_dataLoader.m'));
+    tc.verifyEmpty(regexp(src, '\.closure\s*=', 'once'), ...
+        'the demo must not wrap the loader closure any more');
+end

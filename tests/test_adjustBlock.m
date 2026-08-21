@@ -689,10 +689,20 @@ function testRaggedScheduleSolvesAndSecondPassAgrees(tc)
     plan = {[1 2 3], [1 3], [2 3 4]};
     L = raggedLoader(tc, plan, 2);
     R = lsqvce.adjustBlock({L}, 1:3);
-    % tol: planted truth x_c = (1:nc)'/10 recovered from a well-conditioned
-    % fixture with sigma 1e-3; 1e-6 measured-free (deterministic algebra,
-    % the noise is the only scatter and it is 1e-3 on 1000+ observations)
-    tc.verifyEqual(R.x, (1:numel(R.x)).' / 10, 'RelTol', 1e-6);
+    % The recovery is asserted against the FORMAL errors, not a hand-picked
+    % band: a fixed RelTol here would only encode this fixture's noise draw
+    % (the first attempt guessed 1e-6 and CI measured 1.5e-2 on the worst
+    % coefficient -- the harmonics are only partially separated over three
+    % short days). |x - xTrue| < 4 sigma IS the claim worth making.
+    sig = sqrt(diag(R.sol.Cxx)) * R.sigma0;
+    z = (R.x - (1:numel(R.x)).' / 10) ./ sig;
+    % tol: 4-sigma bright line on 4 coefficients (P(false alarm) < 3e-4)
+    tc.verifyLessThan(max(abs(z)), 4, ...
+        'the ragged schedule must recover the planted truth');
+    % tol: sigma0 from a correct model over ~1000 observations, 1/sqrt(2*dof)
+    % scatter ~ 2e-2; band 0.15 is ~7 sd
+    tc.verifyEqual(R.sigma0, 1, 'AbsTol', 0.15, ...
+        'a correct ragged model must give sigma0 ~ 1');
     res = R.acc.residuals(R.sol, 'verbose', false);
     tc.verifyFalse(res.supersedesSol, ...
         'the two passes must enumerate the ragged schedule identically');
