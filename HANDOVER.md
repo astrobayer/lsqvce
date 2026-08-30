@@ -8,7 +8,15 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-08-21 (evening) — WP-51, WP-52 and WP-53 all
+Last substantive update: 2026-08-30 — REVIEW R4 opened (§11): nine-expert
+deep review reconciled against the tree; findings G-01…G-05 (interface
+consolidation: ONE verb `lsqvce.fit` + ONE options object + Results
+methods; theory PDF; tiered docs); confirmations pinned in §11.2 so the
+honesty invariants are not "fixed". PROCESS CHANGE adopted: LEVEL-BASED
+DEVELOPMENT — several WPs per PR, rules in §11.5; ledger L1–L5 / WP-54…65
+in §11.6; three user decisions pending in §11.7 (R4-D1 layering, R4-D2
+fluent deletion, R4-D3 PDF authority). D-52 unchanged.
+Preceding entry: Last substantive update: 2026-08-21 (evening) — WP-51, WP-52 and WP-53 all
 DONE (PRs #30/#31/#32 merged). WP-53 settled the §10.13 quality debt with
 the USER's run: sigma0 0.9998, stream ratios 0.996/1.000/1.019, mean z^2
 1.087, anomaly at 1.33 sigma, pinned in the demo's ACCURACY block (§10.15).
@@ -4041,6 +4049,9 @@ Both are settled by ONE local run once the MCP bridge is back:
 
 Nothing else is outstanding: the R3 track is closed, WP-42 and WP-48
 tier (b) sit in the backlog by user decision, and no WP is in progress.
+*(Amended 2026-08-30: the R4 track (§11) is now OPEN — levels L1–L5,
+WP-54…65, level-based rounds per §11.5. D-52 unchanged; it is settled by
+the FIRST per-level postflight of L1.)*
 
 ### R3 ledger
 
@@ -4058,3 +4069,135 @@ tier (b) sit in the backlog by user decision, and no WP is in progress.
 | 51 | demo_gravity: GRACE-like physically structured demo (per-system local counts, ragged arcs, ragged arc lengths) | 48 | DONE (2026-08-21, PR #30 merged by the user, merge 4b80ea8; round note §10.13) — quality debt SETTLED by WP-53 |
 | 52 | Native ragged schedules in makeLoader (per-day arc resolution, arc ids, owned per-arc local bookkeeping) | 51 | DONE (2026-08-21, PR #31 merged by the user, merge 30e9c31; five real CI catches incl. the closure-capture bug; round note §10.14) — OPEN DEBT D-52: no local postflight (bridge down) |
 | 53 | demo_gravity returns its self-assessment; measured numbers pinned (settles the §10.13 quality debt) | 51 | DONE (2026-08-21, PR #32 merged by the user, merge 7014329; round note §10.15) — OPEN DEBT D-52: no local postflight (fourth bridge-down session) |
+
+---
+
+## 11. REVIEW R4 — NINE-EXPERT DEEP REVIEW: INTERFACE CONSOLIDATION, THEORY DOCUMENT, LEVEL-BASED DEVELOPMENT (2026-08-30)
+
+*(Opened 2026-08-30 by user request: a nine-expert deep review (least-squares
+adjustment, stochastic error modelling, data processing, software design,
+MATLAB programming) covering (a) the theory of LSA+VCE with special attention
+to error handling, (b) scrutiny of the toolbox layout, deviations and their
+justification, and (c) a redesign plan for a leaner user interface following
+the ease-of-use standard of stock MATLAB functions. Session model:
+Claude Fable 5. Process change adopted this round: DEVELOPMENT IN LEVELS —
+several work packages are collected into ONE pull request; see §11.5.)*
+
+### 11.1 Origin, sources, and a scope warning (read before trusting §11.3)
+
+The review was produced by an Advanced-Research panel run WITHOUT repository
+access (the research sandbox could not fetch the repo); its literature part
+stands on its own, but its critique part was written blind. It was therefore
+RECONCILED against the tree at main head 4387a86 in this session before
+anything was recorded here. **Only repo-verified findings appear in §11.3**;
+panel claims that turned out to be already implemented (Results provenance,
+Hutchinson probe contract, ragged loader, robust IRLS WP-25, VCE
+regularisation WP-24, metamorphic suite WP-29) are recorded as CONFIRMATIONS
+in §11.2, not as findings. The full panel report (theory chapters, literature
+anchors: Koch 1999; Koch & Kusche 2002; Kusche 2003; Teunissen &
+Amiri-Simkooei 2008; Förstner 1979; Ellmer 2018; Kvas 2019; Golub & Van Loan;
+Higham) is the source text for the WP-59 theory PDF.
+
+### 11.2 What R4 CONFIRMS as right (so nobody "fixes" it)
+
+1. **vTv honesty** — NaN on cancellation, one id per namespace, on BOTH
+   backends (WP-49/50); "guards are not fixes" (no iterative refinement on
+   the normal path). The panel's numerical experts rate this the correct
+   response per Higham; it stays.
+2. **NEQ default + QR fallback duality** — NEQ squares kappa but enables
+   arc-wise accumulation/combination (the satellite-geodesy standard); QR is
+   the accuracy fallback. Justified deviation from the QR textbook default;
+   keep both, keep the condition evidence visible.
+3. **Monte-Carlo (Hutchinson) trace VCE** with the WP-36 probe contract —
+   the justified approximation at GRACE scale (Koch & Kusche 2002; Kusche
+   2003); probe count and estimator spread stay user-visible.
+4. **Physically structured closed-loop oracle** (WP-48 shDesign) and the
+   GRACE-like demo with pinned measured numbers (WP-51/53).
+5. **Native ragged schedules in makeLoader** (WP-52).
+6. **Six-category test taxonomy + countability gate** (R3, checks 16/17)
+   and the tol:-provenance rule — ahead of common practice; unchanged.
+
+### 11.3 Findings G-01…G-05 (repo-verified), dispositions
+
+| # | Finding (evidence in the tree at 4387a86) | Disposition |
+|---|---|---|
+| G-01 | SURFACE GROWTH: 74 public names in `+lsqvce` (Contents.m excluded) plus `+util`, vs the 44-name §4 target. SIX driver-grade entry points (adjust, adjustBlock, adjustVCE, adjustVCEjoint, robust, solveNonlinear) with no single front door — the user must know the internal taxonomy to pick a verb. This is the root of the "complicated and awkward" interface. | L1/L2: ONE user verb `lsqvce.fit` + tier census; drivers become ENGINE tier (they stay, users stop needing them) |
+| G-02 | FLUENT BUILDER AS USER CONTRACT: adjustVCE is "build it fluently, then call RUN" (adjustVCE.m:10, :132) — idiomatic in Java/C#, not in MATLAB, where the stock pattern is one fitting verb + options object (fitlm/RobustOpts, optimoptions). The WP-39 pinned mergeNV deviation remains justified INTERNALLY; it should not be what a user has to learn. | L1: `lsqvce.options`; L2: fit covers the fluent use cases; R4-D2 decides deletion |
+| G-03 | OPTION-SPACE LEAKAGE: options live in >=4 conventions — per-driver NV names, covariance SPEC structs (covModel), loader UserOpt, and the joint-mode translation whose OWN help text lists "THREE CONVENTIONS THAT ARE EASY TO GET WRONG" (jointModelOpt.m:15-27: variance vs std, override location, psdMode location). Internal conventions are exposed as user obligations. | L1: options object encodes those conventions ONCE; jointModelOpt becomes an internal translation |
+| G-04 | RESULTS EASE OF USE: Results carries provenance and report(), but the fitlm-grade progressive-disclosure set (summary/disp, coefCI, predict, plot) is absent or scattered across report/diagnose/contribution — a casual user cannot go from fit to confidence intervals in one obvious call. | L2: thin add-only methods on Results wrapping the existing machinery — no second implementation of anything |
+| G-05 | DOCUMENTATION SHAPE: reference is FLAT (no USER/ENGINE/KERNEL tiering, getting-started path buried); the manual predates R2–R4 and there is NO consolidated theory+practice+implementation document tying the pinned method choices (NaN honesty, NEQ default, MC trace, floor policies) to the literature. | L3: theory PDF (WP-59), tiered HTML + getting started (WP-60), help sweep of the new surface (WP-61) |
+
+### 11.4 The R4 target USER surface (pinned)
+
+The user-facing tier is AT MOST these names; everything else is ENGINE or
+KERNEL tier (census and full tier table: WP-54; tiers are a DOCUMENTATION
+and Contents.m structure first — code moves only per decision R4-D1):
+
+| name | role |
+|---|---|
+| `lsqvce.fit` | THE one verb: data/loader + options -> Results (dispatches to the six drivers internally) |
+| `lsqvce.options` | THE one settings constructor (typed, canonical UpperCamelCase, resolution rules stated once) |
+| `lsqvce.Results` | rich result object: report/summary/coefCI/predict/plot + immutable meta |
+| `lsqvce.makeLoader` | data ingestion incl. ragged schedules (unchanged contract) |
+| `lsqvce.report` | verdict printer (unchanged; Results.report forwards) |
+
+Ease-of-use benchmark, binding acceptance criterion for L2: a new user fits
+with VCE in <= 3 lines and reads a verdict — the stock-MATLAB standard
+(`opts = lsqvce.options(...); R = lsqvce.fit(loader, opts); R.report`).
+
+### 11.5 LEVEL-BASED DEVELOPMENT — the round shape for R4 onward (binding)
+
+Amends the §0 loop and the D8 mechanics of WP-30 as follows; everything not
+stated here is unchanged (CI green is the merge gate, the user is the sole
+merger, no zip when a PR is the deliverable).
+
+1. **One LEVEL = one branch (`claude/level-N`) = one PR = one round.**
+   A level collects SEVERAL work packages (ledger §11.6).
+2. **One commit per WP inside the level branch**, `audit_tree.py` exit 0 at
+   every WP commit; push after each WP commit so CI evidence stays
+   per-WP bisectable. The PR opens DRAFT at the first push.
+3. **The PR flips READY only when ALL WPs of the level are green** (audit +
+   matlab, both contexts). A level is never merged partially red: a WP that
+   cannot go green in-branch is SPLIT OUT to a later level, recorded in the
+   round note, and the level PR proceeds without it.
+4. **Ledger discipline**: WP rows keep OPEN -> IN PROGRESS -> DONE; the
+   LEVEL row aggregates and flips DONE on the user's merge. Order of work is
+   the level order L1 -> L2 -> {L3, L4 in either order} -> L5; read THIS
+   line before opening any level (R2 lesson).
+5. **Postflight: one full local run per LEVEL**, not per WP (bridge
+   permitting); the level's verdict comment lists per-WP verdicts.
+6. **Breaking changes** (deletions under the no-aliases rule) ride ONLY in
+   a level whose PR body names them in a BREAKING section; approval by merge.
+
+### 11.6 R4 ledger — levels and work packages
+
+| Level | WP | title | depends on | status |
+|---|---|---|---|---|
+| L1 | 54 | Surface census + tier table (mechanical: audit-derived name list; USER/ENGINE/KERNEL column; check extension so no new public name lands untier'd) | — | OPEN |
+| L1 | 55 | `lsqvce.options` — ONE typed options object covering the adjust/VCE/joint/robust/nonlinear option space; encodes the G-03 conventions once; maps onto the existing opt structs; NO behaviour change | 54 | OPEN |
+| L2 | 56 | `lsqvce.fit` — the one user verb; dispatch to the six drivers; <=3-line acceptance test | 55 | OPEN |
+| L2 | 57 | Results ease-of-use methods: summary/disp, coefCI, predict, plot — thin add-only wrappers over report/diagnose/contribution | 56 | OPEN |
+| L2 | 58 | Fluent configurators leave the USER contract (Contents/doc tiering + fit parity tests; deletion gated by R4-D2) | 56 | OPEN |
+| L3 | 59 | Theory PDF: theory, practical considerations, implementation, ERROR HANDLING; literature-anchored; source in docs_src, built BY HAND (build_manuals.py stays _STALE_GUARDed) | 56 | OPEN |
+| L3 | 60 | HTML restructure: getting-started page, tiered reference (USER tier first), examples gallery | 56,59 | OPEN |
+| L3 | 61 | Help sweep of the NEW surface (fit/options/Results methods) with ACCURACY blocks per §6.2 | 56,57 | OPEN |
+| L4 | 62 | `options.Parallel` policy in fit (off/threads/processes; reuses the existing pool infrastructure; test_parallel extension) | 56 | OPEN |
+| L4 | 63 | Speed-suite extension: fit-path budgets, dispatch overhead pinned ~0 vs direct driver calls | 56,62 | OPEN |
+| L5 | 64 | Execute R4-D1/R4-D2 as decided (namespace layering and/or fluent deletion) — BREAKING level | 56–63 + decisions | GATED on R4-D1/D2 |
+| L5 | 65 | Packaging + release: mltbx via buildtool, release notes, final audit | 64 (or its waiver) | OPEN |
+
+Test obligations per level (taxonomy §6.1.2, declarations mandatory):
+L1 contract (options resolution, rejection ids) + robustness (conflicting
+options); L2 contract + REFERENCE (fit == direct driver call, byte-identical
+fixtures) + metamorphic (option-order invariance) + vectorisation (Results
+methods batched); L3 doc-sync gate (check 17) only; L4 speed + robustness
+(pool absent/present); L5 the full suite as release gate.
+
+### 11.7 DECISION RECORD R4 (user decisions required; approval by merge or explicit word)
+
+| # | decision | options | recommendation |
+|---|---|---|---|
+| R4-D1 | Namespace layering: move ENGINE/KERNEL tier into `+lsqvce/+engine` / `+lsqvce/+kernel`? | (A) facade only — tiers live in docs/Contents, no code moves, non-breaking; (B) full move — clean tree, BREAKING, large churn in tests/docs | (A) now; (B) only if L2 experience shows the flat namespace still confuses — revisit at L5 |
+| R4-D2 | Delete the fluent configurators once fit reaches parity (no-aliases rule => deletion, not deprecation)? | delete in L5 / keep as ENGINE tier | delete in L5, provided WP-58 parity tests are green |
+| R4-D3 | Theory-PDF authority: does the WP-59 PDF supersede lsqvce_manual.pdf's theory chapters (manual then references the PDF)? | supersede / duplicate | supersede — one place per statement (rule 3) |
+
