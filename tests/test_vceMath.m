@@ -326,8 +326,17 @@ function testPriorRescuesRankDeficientCommon(tc)
     A = randn(rs, m, nc);
     A(:,end) = A(:,end-1);                          % exactly collinear
 
-    [~, fail] = chol(A.'*A);
-    tc.verifyGreaterThan(fail, 0, 'the common block should be singular here');
+    % Singularity is asserted SCALE-FREE: whether chol's dpotrf reports
+    % failure on a to-eps-singular matrix is BLAS/LAPACK-regime dependent
+    % (the trailing pivot rounds to +/- tiny; the 2026-08-30 hosted-runner
+    % image rounds it positive). The mathematics, not the factoriser's
+    % boundary behaviour, is the contract (WP-47 r1e REGIME doctrine).
+    % tol: 1e-12 -- 4 orders above eps(1) and >10 orders below the next
+    % eigenvalue ratio of this seeded fixture (~0.1); negative min(lam)
+    % (rounding) passes the same bound.
+    lam = eig(A.'*A);
+    tc.verifyLessThan(min(lam)/max(lam), 1e-12, ...
+        'the common block should be singular here (eps-level eigenvalue ratio)');
 
     pri = lsqvce.CommonPrior(eye(nc), [], 1.0);
     [Nk, ~] = pri.normals();

@@ -4201,3 +4201,20 @@ methods batched); L3 doc-sync gate (check 17) only; L4 speed + robustness
 | R4-D2 | Delete the fluent configurators once fit reaches parity (no-aliases rule => deletion, not deprecation)? | delete in L5 / keep as ENGINE tier | delete in L5, provided WP-58 parity tests are green |
 | R4-D3 | Theory-PDF authority: does the WP-59 PDF supersede lsqvce_manual.pdf's theory chapters (manual then references the PDF)? | supersede / duplicate | supersede — one place per statement (rule 3) |
 
+### 11.8 R4 handover round notes
+
+**ROUND 1 (2026-08-30, model Claude Fable 5, branch `claude/r4-handover`,
+PR #34).** Doc round (this §11) went CI RED 558/559 on a PRE-EXISTING
+regime flake surfaced by a runner-image update:
+`test_vceMath/testPriorRescuesRankDeficientCommon` asserted singularity of
+an exactly-collinear seeded fixture via `[~,fail] = chol(...)`,
+`fail > 0` — but whether dpotrf reports failure on a to-eps-singular
+matrix is BLAS/LAPACK-regime dependent (the trailing pivot rounds to
++/- tiny; the updated hosted image rounds it positive). Fix in this
+branch, WP-47 r1e REGIME doctrine: the assertion is now SCALE-FREE —
+`min(eig)/max(eig) < 1e-12` with the tol: derivation at the site; the
+rescue half (`chol` succeeds WITH the prior, a well-conditioned PD
+matrix) is regime-safe and unchanged. **LESSON, binding: never assert a
+factoriser's behaviour AT the singular boundary — assert the mathematics
+(eigenvalue/rank statement) and keep factoriser assertions to clearly
+PD / clearly indefinite regimes.**
