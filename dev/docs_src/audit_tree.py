@@ -773,7 +773,12 @@ def check_readme_sync():
     #   (b) the README's suite/point-count claim ("N suite files, M test
     #       points") must equal the tree's counts (same static count as
     #       check 16).
+    # L8 (WP-70): the counts claim lives in dev/DEVELOPMENT.md now; README
+    # carries only intro / quick start / usage and keeps the version in its
+    # title. Both stay CHECKED, neither independently maintained.
     readme = open('README.md', encoding='utf-8', errors='replace').read()
+    devdoc = open('dev/DEVELOPMENT.md', encoding='utf-8',
+                  errors='replace').read()
     contents = open('+lsqvce/Contents.m', encoding='utf-8',
                     errors='replace').read()
     mv = re.search(r'^%\s*Version\s+(\S+)', contents, re.M)
@@ -794,17 +799,17 @@ def check_readme_sync():
             if fn_re.match(l) and not re.match(r'function\s+tests\s*=', l):
                 n_pts += 1
     mc = re.search(r'(\d+)\s+suite files,\s*\*{0,2}?(\d+)\s+test\s*\n?>?\s*points',
-                   readme)
+                   devdoc)
     if not mc:
         mc = re.search(r'(\d+)\s+suite files.{0,40}?(\d+)\s+test\s+points',
-                       readme, re.S)
+                       devdoc, re.S)
     if not mc:
-        note('readme', 'README carries no machine-checkable "N suite files, '
+        note('readme', 'dev/DEVELOPMENT.md carries no machine-checkable "N suite files, '
              'M test points" claim')
     else:
         cf, cp = int(mc.group(1)), int(mc.group(2))
         if cf != n_files or cp != n_pts:
-            note('readme', 'README claims %d files / %d points; the tree has '
+            note('readme', 'dev/DEVELOPMENT.md claims %d files / %d points; the tree has '
                  '%d / %d' % (cf, cp, n_files, n_pts))
         else:
             print('   README claim %d files / %d points == tree; version v%s '

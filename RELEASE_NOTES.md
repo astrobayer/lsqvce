@@ -59,7 +59,7 @@ case-insensitive key matching the methods used:
 `P.plots(...)`, `run()`, `empiricalStochastic()`, `validate()` are unchanged.
 Through the USER front door nothing changes: `lsqvce.fit` passes exactly these
 groups from `lsqvce.Options`. The rewrite of the toolbox's own tests and
-examples was scripted (`docs_src/refactor_fluent.py`, kept as protocol).
+examples was scripted (`dev/docs_src/refactor_fluent.py`, kept as protocol).
 
 ### Migration table (1.x → 2.0)
 | 1.x | 2.0 |

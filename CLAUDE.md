@@ -9,15 +9,16 @@
 ## The three commands
 
 ```matlab
-lsqvce_setup          % path + Help-browser registration (run first)
-ci_gate               % THE gate: full suite + coverage + log, or error
+lsqvce_setup                    % USER path (root + examples) + Help docs
+cd('dev/tests'); ci_gate        % THE gate: full suite + log, or error
+                                % (manages its path itself, restores it)
 ```
 
 ```bash
 python3 dev/docs_src/audit_tree.py # static audit, exit 0 required
 ```
 
-Local ground-truth run: `matlab -batch "lsqvce_setup; ci_gate"` — on the
+Local ground-truth run: `matlab -batch "cd('dev/tests'); ci_gate"` — on the
 user's PC preferably through the MATLAB MCP bridge (official
 matlab-mcp-server; ~4-min call window: detach long runs as
 `matlab -batch` jobs writing a result file, poll with `isfile`).
@@ -52,11 +53,11 @@ cloud sessions use the OAuth grant and need no token.
 
 ## References
 
-Ellmer (2018) and Kvas (2019) are cited in `references/README.md`
-(canonical open-access records). Full texts are NOT redistributed in
-this public repository; for local sessions place copies in
-`references/local/` (gitignored). Equation numbers refer to Ellmer
-unless said otherwise. `references/BEST_PRACTICE_v4-1.md` Appendices
+Ellmer (2018) and Kvas (2019) are cited in `dev/references/README.md`
+(canonical open-access records; `dev/references/` since L8). Full texts are
+NOT redistributed in this public repository; for local sessions place
+copies in `dev/references/local/` (gitignored). Equation numbers refer to Ellmer
+unless said otherwise. `dev/references/BEST_PRACTICE_v4-1.md` Appendices
 C/D are the operating runbook for container sessions.
 
 ## Repository layout since L8 (2026-09-02)
