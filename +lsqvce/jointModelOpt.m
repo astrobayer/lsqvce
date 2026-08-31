@@ -75,6 +75,11 @@ function uo = jointModelOpt(model, streams, opt)
 %
 %   See also LSQVCE.ADJUSTVCEJOINT, LSQVCE.ADJUSTVCE, LSQVCE.COVMODEL
 %
+%   Updated 2026-09-01 (CEST, UTC+02:00), R4 G-08 (Level L3): the acf lookup
+%   converts covModel's TIME lags to SAMPLE lags with dt taken from the
+%   batch's own lag matrix; before, dt ~= 1 s gave a wrongly sampled, then
+%   truncated (indefinite) covariance. With assistance from Claude
+%   (Anthropic), model Claude Fable 5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
 %   typed `arguments` signature, canonical UpperCamelCase option names
 %   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
@@ -150,8 +155,17 @@ function fh = makeAcf(c)
 end
 
 function C = acvLookup(c, L, lag)
-%ACVLOOKUP  c(|lag|), zero beyond the modelled range.
-    k  = round(abs(lag)) + 1;          % lag 0 -> index 1
+%ACVLOOKUP  c at the batch's lags in SAMPLE units, zero beyond the modelled range.
+%   covModel's 'acf' contract hands over TIME differences (t(idx) - t(idx)',
+%   seconds); the driver's C is per SAMPLE lag (the DCT of a PSD over sample
+%   lags). The sampling interval is the smallest non-zero |lag| of the batch
+%   itself (regular sampling), so no caller has to know dt (R4 G-08: the old
+%   round(|lag|)+1 read every dt-th entry for dt ~= 1 s and returned 0 past
+%   index L -- an indefinite Toeplitz matrix, every arc skipped as nonPD).
+    a  = abs(lag);
+    nz = a(a > 0);
+    if isempty(nz), dt = 1; else, dt = min(nz(:)); end
+    k  = round(a / dt) + 1;            % lag 0 -> index 1
     C  = zeros(size(k));
     in = k >= 1 & k <= L;
     C(in) = c(k(in));

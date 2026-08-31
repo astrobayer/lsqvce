@@ -84,12 +84,13 @@ classdef Options
 %
 %   Pooled / Ellmer joint spectrum
 %     NumLags    double|"auto" 60 frequencies in the noise model. "auto"
-%                                 (pooled only) sizes it from the data; for
-%                                 "ellmer" it must satisfy covModel's rank
-%                                 rule under PsdMode "toeplitz": NumLags >=
-%                                 floor(longest arc / 2) + 1, else every arc's
-%                                 covariance is non-PD, all arcs are skipped
-%                                 and the driver reports noArcs
+%                                 (pooled only) sizes it from the data. For
+%                                 "ellmer" the model reaches the loaders as an
+%                                 'acf' that is zero beyond its last lag, so
+%                                 NumLags below the longest arc length gives a
+%                                 truncated (in general indefinite) covariance:
+%                                 every arc is skipped as nonPD and the driver
+%                                 reports noArcs. Use NumLags >= longest arc.
 %     Probes     double   100     Hutchinson probes
 %     Seed       double   []      RNG seed for the probes ([] = unseeded)
 %     Norm       string   "ortho" DCT normalisation "ortho" | "ellmer"

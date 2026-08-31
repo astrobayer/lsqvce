@@ -126,12 +126,13 @@ Outer loop
 
 Pooled / Ellmer joint spectrum
   NumLags    double|&quot;auto&quot; 60 frequencies in the noise model. &quot;auto&quot;
-                              (pooled only) sizes it from the data; for
-                              &quot;ellmer&quot; it must satisfy covModel&#x27;s rank
-                              rule under PsdMode &quot;toeplitz&quot;: NumLags &gt;=
-                              floor(longest arc / 2) + 1, else every arc&#x27;s
-                              covariance is non-PD, all arcs are skipped
-                              and the driver reports noArcs
+                              (pooled only) sizes it from the data. For
+                              &quot;ellmer&quot; the model reaches the loaders as an
+                              &#x27;acf&#x27; that is zero beyond its last lag, so
+                              NumLags below the longest arc length gives a
+                              truncated (in general indefinite) covariance:
+                              every arc is skipped as nonPD and the driver
+                              reports noArcs. Use NumLags &gt;= longest arc.
   Probes     double   100     Hutchinson probes
   Seed       double   []      RNG seed for the probes ([] = unseeded)
   Norm       string   &quot;ortho&quot; DCT normalisation &quot;ortho&quot; | &quot;ellmer&quot;

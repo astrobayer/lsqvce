@@ -250,11 +250,12 @@ function testEllmerThroughFitReproducesDirect(tc)
     % below hand-builds the same accFcn; same Seed -> same probes -> identical.
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % JointMaxIter 2 stops early by design
     [data, cfg] = declaration();
-    % NumLags must satisfy covModel's rank rule under PsdMode "toeplitz":
-    % nf >= floor(mArc/2) + 1 = 151 for the 300-row arcs of this fixture; a
-    % smaller value gives a non-PD arc covariance, every arc is skipped and
-    % the driver reports noArcs (the L3 r1 catch).
-    nLag = floor(cfg.mArc/2) + 1;
+    % jointModelOpt maps the model through an 'acf' spec that is ZERO beyond
+    % C's last lag; with NumLags < arc length the Toeplitz matrix is a
+    % truncated correlation, indefinite in general, every arc is skipped as
+    % nonPD and the driver reports noArcs (the L3 r1/r2 catches, together
+    % with G-08's lag-unit defect). NumLags = arc length avoids truncation.
+    nLag = cfg.mArc;
     opts = lsqvce.Options(Model="ellmer", NumLags=nLag, JointMaxIter=2, Probes=20, ...
                           Seed=7, Verbose=false);
     R = lsqvce.fit(data, opts);

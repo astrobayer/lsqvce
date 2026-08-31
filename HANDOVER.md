@@ -4163,6 +4163,7 @@ Higham) is the source text for the WP-59 theory PDF.
 | G-05 | DOCUMENTATION SHAPE: reference is FLAT (no USER/ENGINE/KERNEL tiering, getting-started path buried); the manual predates R2–R4 and there is NO consolidated theory+practice+implementation document tying the pinned method choices (NaN honesty, NEQ default, MC trace, floor policies) to the literature. | L3: theory PDF (WP-59), tiered HTML + getting started (WP-60), help sweep of the new surface (WP-61) |
 | G-06 | RAW-CLOSURE TEMPLATE DROPS THE VCE REWEIGHTING (found 2026-08-31 while answering "must the user call makeLoader?"): adjustVCE emits its reweighting ONLY as `opt.covOverride.bySys.(satKey).(obsType)` (adjustVCE.m covOverrideOpt), the documented raw-closure template synthLoader read ONLY the flat `opt.covOverride.(obsType)` (synthLoader.m:151), and no VCE suite drove a raw closure — a template-derived loader silently ignored every variance component. | FIXED L1 commit 7f93d53: applyCovOverride is package-private (ONE merge, both loader kinds), template + test pin bySys/flat/other-satellite behaviour |
 | G-07 | nl >= 1 IS ENFORCED per system (BlockAccumulator.addSystem validateattributes 'positive'; makeLoader NumLocal default [] must be set): a system without local unknowns cannot use the streaming path at all — a usability wall the data contract has to document (DATA_CONTRACT.md §6.4). | **DECIDED 2026-08-31 (user: "nl = 0 is valid") and FIXED L2 commit 8af8a6b**: addSystem accepts 0, preeliminate is the identity for an empty local block with consistent empty shapes; test pins recovery, shapes, report, and a same-data reference against a zero-signal dummy local |
+| G-08 | jointModelOpt's acf lookup assumed UNIT SAMPLING (round(|lag|)+1) while covModel's 'acf' contract hands over TIME differences in seconds: any loader with dt ~= 1 s got every dt-th covariance entry and zero past index L -- an indefinite Toeplitz matrix, every arc skipped as nonPD, adjustVCEjoint reports noArcs. Invisible to test_ellmer (dt = 1 fixtures; jointAcc does not map the model at all); found by the WP-56c reference test on the dt = 5 s fixture (L3 r2). | FIXED L3: acvLookup takes dt from the batch's own lag matrix (smallest non-zero |lag|); unit test test_jointModelOpt_acf_uses_sample_lags (dt = 5 and dt = 1). Residual rule pinned in Options help: for "ellmer" NumLags >= longest arc (the acf is zero beyond its last lag; a truncated correlation is indefinite in general) |
 
 ### 11.4 The R4 target USER surface (pinned)
 
@@ -4400,6 +4401,16 @@ Options help states the rule for "ellmer". LESSONS: struct() with a cell
 value is a struct array -- braces, always, also in library code; and a
 warning id that appears in the inventory during a red run is evidence,
 read it before touching the test.
+
+**L3 r2 CI CATCH (2026-09-01):** 6b9b67d RED 585/586 -- still noArcs with
+NumLags = 151 and decorrFactor:notPD in the inventory. Reading the code
+path instead of the fixture: G-08 (above) -- jointModelOpt's acf lookup in
+SAMPLE units against covModel's TIME lags (dt = 5 s here). Fixed at the
+unit, with a unit test; the fixture's NumLags is the arc length because the
+acf is zero beyond its last lag. LESSON: a reference test that drives a
+unit through a NEW combination of contracts (time lags x sample lags) is
+worth more than its own assertion -- it found a defect two existing suites
+could not see.
 
 ### 11.9 DATA CONTRACT AND LOADER WORKFLOW — design record for WP-56 (R4-D4)
 
