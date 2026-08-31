@@ -8,7 +8,11 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-08-31 (night) — LEVEL L2 READY: PR #36, CI
+Last substantive update: 2026-08-31 (night, later) — L2 MERGED (84b8be2);
+LEVEL L4 opened (PR #37): WP-56b fit kinds B/C + Robust, WP-62 parallel
+policy (DistributeDays/ParallelThreshold) through fit, WP-63 fit speed
+budget; WP-56c (ellmer through fit) pinned as its own row. L3 follows.
+Preceding entry: Last substantive update: 2026-08-31 (night) — LEVEL L2 READY: PR #36, CI
 green 578/578 on 6af480b (G-07 nl = 0 + WP-56 fit + WP-57 coefficients +
 WP-58 tiering); two CI catches fixed and pinned (§11.8); process rule 7
 (one working copy, one owner) adopted after the cut-off turn. WP-56b
@@ -4215,8 +4219,10 @@ merger, no zip when a PR is the deliverable).
 | L3 | 59 | Theory PDF: theory, practical considerations, implementation, ERROR HANDLING; literature-anchored; source in docs_src, built BY HAND (build_manuals.py stays _STALE_GUARDed) | 56 | OPEN |
 | L3 | 60 | HTML restructure: getting-started page, tiered reference (USER tier first), examples gallery | 56,59 | OPEN |
 | L3 | 61 | Help sweep of the NEW surface (fit/options/Results methods) with ACCURACY blocks per §6.2 | 56,57 | OPEN |
-| L4 | 62 | `options.Parallel` policy in fit (off/threads/processes; reuses the existing pool infrastructure; test_parallel extension) | 56 | OPEN |
-| L4 | 63 | Speed-suite extension: fit-path budgets, dispatch overhead pinned ~0 vs direct driver calls | 56,62 | OPEN |
+| L4 | 56b | `fit` kinds B (in-memory A/l/p) and C (batched callback; nonlinear with x0) + `Robust` on those kinds — adjust / robust / solveNonlinear returned as Results without an accumulator | 56 | IN PROGRESS (2026-08-31, PR #37, commit 7acc161: kinds told apart by the fields present; Model must be gls (`lsqvce:fit:modelKind`); Results.residuals()/contribution() refuse with `lsqvce:Results:noAccumulator`; Options.toStruct() for the provenance; test_fit +5 byte-identical references + contract ids; DATA_CONTRACT §11) |
+| L4 | 56c | `fit` Model "ellmer" -> LSQVCE.ADJUSTVCEJOINT: build accFcn from the loaders (BlockAccumulator with UserOpt = jointModelOpt(model, streams), streams = 'satKey|obsType' from the loaders), then bridge `out` (C, sigma2, acc?) into a Results via diagnoseAccum/diagnose + setIterative | 56b | OPEN — refused meanwhile with `lsqvce:fit:notYet`; one WP of its own because two bridges (accFcn, Results) are needed |
+| L4 | 62 | Parallel policy through fit: `DistributeDays` + `ParallelThreshold` on Options -> adjustBlock / adjustVCE -> BlockAccumulator (the axis that scales for a 2-satellite mission; threads/processes are the pool's choice, not the toolbox's — `parpool("threads")` works unchanged) | 56 | IN PROGRESS (2026-08-31, branch `claude/level-4`, PR #37, commit 24ef446; test_fit distributed == fused to 1e-11 on CI without a pool; provenance carries the policy; 59 knobs) |
+| L4 | 63 | Speed-suite extension: fit-path budgets, dispatch overhead pinned ~0 vs direct driver calls | 56,62 | IN PROGRESS (2026-08-31, PR #37, commit 61e9d7d: test_speed testFitDispatchOverheadIsNegligible, fit < 1.25x the direct adjustBlock call on three raw loaders x two days; the speed suite runs LOCALLY — this point is verified by the L4 postflight) |
 | L5 | 64 | Execute R4-D1/R4-D2 as decided (namespace layering and/or fluent deletion) — BREAKING level | 56–63 + decisions | GATED on R4-D1/D2 |
 | L5 | 65 | Packaging + release: mltbx via buildtool, release notes, final audit | 64 (or its waiver) | OPEN |
 
@@ -4224,6 +4230,7 @@ LEVEL STATUS (aggregates the rows above; flips DONE on the user's merge):
 L1 DONE — merged 2026-08-31 (PR #35, merge 25692d8); postflight remains
 DEBT with D-52 by user decision (bridge still down).
 L2 READY — PR #36 (G-07 8af8a6b, WP-56 0d1fc19, WP-57 bf5fe6f, WP-58 b47d76c, r2 fix 6af480b); CI green 578/578 on the level head after two real catches (noCep fixture, gate rule 7 warnings); test_parallel CI-skipped, speed suite separate; postflight = one local run on the merged main. WP-56b (in-memory form, Robust, ellmer) opens with L3/L4 or as its own level — user's call. L3/L4 open on the L2 merge.
+L4 IN PROGRESS — branch `claude/level-4`, PR #37 (WP-56b 7acc161, WP-62 24ef446, WP-63 61e9d7d); CI pending on the level head. L3 follows L4 (user order 2026-08-31: "L4 and WP-56b, L3 afterwards").
 
 Test obligations per level (taxonomy §6.1.2, declarations mandatory):
 L1 contract (options resolution, rejection ids) + robustness (conflicting
@@ -4318,6 +4325,24 @@ with the WP-57/58 edits uncommitted in the working copy; the continuation
 session found the working copy on `claude/level-2`, verified every diff
 line by line against the ledger before adopting it (the standing parallel-
 session rule), and committed. PROCESS RULE added to §11.5 (rule 7).
+
+**LEVEL L4 ROUND 1 (opened 2026-08-31, model Claude Fable 5, branch
+`claude/level-4`, PR #37 draft; user order: L4 + WP-56b first, L3 after).**
+L2 merged as 84b8be2. Commits: WP-56b 7acc161 -> WP-62 24ef446 -> WP-63
+61e9d7d. Design facts pinned: (1) kinds B/C are told apart by the fields
+present (no `.systems`); the ONE dispatch `runBatch` picks adjust | robust |
+solveNonlinear and wraps the driver's third output as `R.source`; (2) the
+audit's balance tokenizer counts the WORD `properties` as a block opener,
+so Options.toStruct() reads the metaclass instead of calling properties()
+— pinned so nobody "simplifies" it back; (3) DistributeDays through fit is
+testable on CI WITHOUT a pool because mapreduce runs the distributed code
+path serially below the threshold (test_parallel's own argument);
+(4) threads vs processes is the pool's choice (`parpool("threads")`), not a
+toolbox knob — WP-62 therefore exposes exactly the two engine knobs and
+nothing invented; (5) WP-56c (ellmer through fit) needs two bridges and is
+its own row. Options knob count 57 -> 59; property count literal in
+test_options updated ON PURPOSE (the L1 handover said 58 — a miscount,
+corrected here).
 
 ### 11.9 DATA CONTRACT AND LOADER WORKFLOW — design record for WP-56 (R4-D4)
 
