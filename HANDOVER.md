@@ -8,7 +8,10 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-08-31 — PR #34 MERGED (bedd4c7, §11.5
+Last substantive update: 2026-08-31 (later) — LEVEL L1 READY: PR #35, CI
+green FIRST pass 568/568 on 6c5d90f (G-06 + WP-54 + WP-55); DONE flips on
+the merge; L2 (`fit` + Results methods + fluent parity) opens next.
+Preceding entry: Last substantive update: 2026-08-31 — PR #34 MERGED (bedd4c7, §11.5
 level rounds in force); LEVEL L1 opened on branch `claude/level-1` (PR #35
 draft): G-06 fixed (raw-closure template dropped the VCE reweighting),
 WP-54 census + audit check 18 + DATA_CONTRACT.md (binding beginner-facing
@@ -4187,8 +4190,8 @@ merger, no zip when a PR is the deliverable).
 
 | Level | WP | title | depends on | status |
 |---|---|---|---|---|
-| L1 | 54 | Surface census + tier table (mechanical: audit-derived name list; USER/ENGINE/KERNEL column; check extension so no new public name lands untier'd) + the data contract (R4-D4) | — | IN PROGRESS (2026-08-31, branch `claude/level-1`, PR #35: `docs_src/tiers.csv` 80 names USER 2 / ENGINE 57 / KERNEL 21, audit check 18 red-tested, DATA_CONTRACT.md; Contents.m regrouping by tier deferred to WP-60; round note §11.8) |
-| L1 | 55 | `lsqvce.Options` — ONE typed options object covering the adjust/VCE/joint/robust/nonlinear option space; encodes the G-03 conventions once; maps onto the existing opt structs; NO behaviour change | 54 | IN PROGRESS (2026-08-31, branch `claude/level-1`, PR #35: value class, 58 typed properties in ten groups, `.?lsqvce.Options` constructor, `engineArgs(target)` onto the seven drivers incl. the diagnose pass-through that retires KeepUnmatched for fit, grouped `disp`; tests/test_options.m 8 points: reference (defaults isequal to a fresh adjustVCE's groups + literal driver pins), contract, robustness; HTML page + Contents/helptoc/index; round note §11.8) |
+| L1 | 54 | Surface census + tier table (mechanical: audit-derived name list; USER/ENGINE/KERNEL column; check extension so no new public name lands untier'd) + the data contract (R4-D4) | — | READY (2026-08-31, PR #35, CI green FIRST pass 568/568 on 6c5d90f; DONE flips on the L1 merge; branch `claude/level-1`: `docs_src/tiers.csv` 80 names USER 2 / ENGINE 57 / KERNEL 21, audit check 18 red-tested, DATA_CONTRACT.md; Contents.m regrouping by tier deferred to WP-60; round note §11.8) |
+| L1 | 55 | `lsqvce.Options` — ONE typed options object covering the adjust/VCE/joint/robust/nonlinear option space; encodes the G-03 conventions once; maps onto the existing opt structs; NO behaviour change | 54 | READY (2026-08-31, PR #35, CI green FIRST pass 568/568 on 6c5d90f — the blind-written `.?lsqvce.Options` constructor and the struct-order reference test passed unchanged; DONE flips on the L1 merge: value class, 58 typed properties in ten groups, `.?lsqvce.Options` constructor, `engineArgs(target)` onto the seven drivers incl. the diagnose pass-through that retires KeepUnmatched for fit, grouped `disp`; tests/test_options.m 8 points: reference (defaults isequal to a fresh adjustVCE's groups + literal driver pins), contract, robustness; HTML page + Contents/helptoc/index; round note §11.8) |
 | L2 | 56 | `lsqvce.fit` — the one user verb; dispatch to the six drivers; <=3-line acceptance test | 55 | OPEN |
 | L2 | 57 | Results ease-of-use methods: summary/disp, coefCI, predict, plot — thin add-only wrappers over report/diagnose/contribution | 56 | OPEN |
 | L2 | 58 | Fluent configurators leave the USER contract (Contents/doc tiering + fit parity tests; deletion gated by R4-D2) | 56 | OPEN |
@@ -4199,6 +4202,12 @@ merger, no zip when a PR is the deliverable).
 | L4 | 63 | Speed-suite extension: fit-path budgets, dispatch overhead pinned ~0 vs direct driver calls | 56,62 | OPEN |
 | L5 | 64 | Execute R4-D1/R4-D2 as decided (namespace layering and/or fluent deletion) — BREAKING level | 56–63 + decisions | GATED on R4-D1/D2 |
 | L5 | 65 | Packaging + release: mltbx via buildtool, release notes, final audit | 64 (or its waiver) | OPEN |
+
+LEVEL STATUS (aggregates the rows above; flips DONE on the user's merge):
+L1 READY — PR #35 (G-06 7f93d53, WP-54 6e83807, WP-55 6c5d90f; CI green
+568/568 on the level head, test_parallel CI-skipped as always, speed suite
+separate; postflight = the FIRST per-level local run, which also settles
+D-52). L2 opens on the L1 merge.
 
 Test obligations per level (taxonomy §6.1.2, declarations mandatory):
 L1 contract (options resolution, rejection ids) + robustness (conflicting
@@ -4246,6 +4255,17 @@ planted stale row + a planted `RESULTS.m` case collision: exit 1, restored,
 exit 0); the Contents.m regrouping by tier is DEFERRED to WP-60 so L1
 stays a documentation-plus-options level. Also noted for WP-60: a stale
 `html/lsqvce.SeparableProblem.html` page survives the 2026-07-18 removal.
+**L1 CLOSE-OUT (2026-08-31):** WP-55 pushed as 6c5d90f; CI green FIRST
+pass 568/568 (audit + matlab, both contexts). The two intermediate matlab
+jobs (7f93d53, 6e83807) show "cancelled" — the workflow's concurrency rule
+supersedes a running job on the next push; audit passed on every commit
+and the level head carries all three WPs. PR #35 flipped READY; verdict
+comment posted. LESSON (level rounds): pushing per WP keeps audit
+evidence per commit, but only the level HEAD gets a completed matlab run
+under concurrency cancellation — so the per-WP CI bisection promised in
+§11.5 rule 2 holds for the audit job only; for matlab it holds only when
+the next push waits for the previous run (not required; recorded so nobody
+reads "cancelled" as red).
 
 ### 11.9 DATA CONTRACT AND LOADER WORKFLOW — design record for WP-56 (R4-D4)
 
