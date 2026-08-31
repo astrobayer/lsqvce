@@ -45,8 +45,7 @@ function setupOnce(tc)
     % ONE full closed-loop solve, shared by the recovery tests (the
     % test_adjustVCE setupOnce lesson: rebuild-per-test cost dominates).
     L = {oracleLoader(cfg, 'A'), oracleLoader(cfg, 'B')};
-    P = lsqvce.engine.adjustVCE(L, cfg.days, 'Verbose', false, 'MaxOuter', 4);
-    P = P.groupComponentsBy('obsType');
+    P = lsqvce.engine.adjustVCE(L, cfg.days, 'Verbose', false, 'MaxOuter', 4, 'GroupBy', 'obsType');
     tc.TestData.R = P.run();
 end
 

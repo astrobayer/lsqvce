@@ -208,14 +208,11 @@ end
             R = fitEllmer(systems, days, opts);
         otherwise                                   % 'vce' | 'pooled'
             a = opts.engineArgs('adjustVCE');
-            P  = lsqvce.engine.adjustVCE(systems, days, a.nv{:});
-            nv = struct2nv(a.shape);   P.stochasticModel(nv{:});
-            nv = struct2nv(a.scale);   P.varianceComponents(nv{:});
-            nv = struct2nv(a.outer);   P.iteration(nv{:});
-            if strcmp(a.mode, 'joint')
-                nv = struct2nv(a.joint);   P.joint(nv{:});
-            end
-            P.componentsPerEpoch(a.axes);
+            % constructor-only configuration since 2.0 (R4-D2): the groups
+            % ride as Name-Value structs; VceMode in a.nv selects the mode
+            P = lsqvce.engine.adjustVCE(systems, days, a.nv{:}, ...
+                    'Shape', a.shape, 'Scale', a.scale, 'Outer', a.outer, ...
+                    'Joint', a.joint, 'Axes', a.axes);
             R = P.run();
     end
 end
@@ -392,16 +389,6 @@ function [systems, days] = buildSystems(spec)
             end
             rethrow(e);
         end
-    end
-end
-
-function nv = struct2nv(s)
-%STRUCT2NV  Struct -> Name-Value cell, field order preserved.
-    f  = fieldnames(s);
-    nv = cell(1, 2*numel(f));
-    for k = 1:numel(f)
-        nv{2*k-1} = f{k};
-        nv{2*k}   = s.(f{k});
     end
 end
 

@@ -1,6 +1,6 @@
 # lsqvce release notes
 
-## 2.0 — 2026-09-01 (R4 track, Levels L1–L5)
+## 2.0 — 2026-09-01 (R4 track, Levels L1–L6)
 
 **The one breaking release of the R4 redesign.** Version 1.x users: read the
 migration table at the end; everyone else starts at `doc lsqvce` → Getting
@@ -41,10 +41,25 @@ the manual's theory chapter now points there), `DistributeDays` /
 `ParallelThreshold` through `fit`, audit check 18 (tier census + Windows case
 guard), `buildfile.m` (`buildtool audit`, `test`, `package`).
 
-### Still fluent (R4-D2, deferred to Level L6)
-`lsqvce.engine.adjustVCE` keeps its configurator methods for now; `fit` is the
-supported way to reach the loop. Their deletion (constructor Name-Values
-`Shape` / `Scale` / `Outer` / `Joint` / `Axes` instead) is the next level.
+### Fluent configurators removed (R4-D2, WP-64b, Level L6)
+`lsqvce.engine.adjustVCE` is **constructor-only**. The six chained
+configurators are gone (no aliases); their option groups are Name-Value
+**structs** on the constructor, merged into the engine defaults with the same
+case-insensitive key matching the methods used:
+
+| 1.x fluent call | 2.0 constructor Name-Value |
+|---|---|
+| `.groupComponentsBy(key)` | `'GroupBy', key` |
+| `.stochasticModel('MaxOrder',p, ...)` | `'Shape', struct('MaxOrder',p, ...)` |
+| `.varianceComponents('MaxIter',n, ...)` | `'Scale', struct('MaxIter',n, ...)` |
+| `.iteration('MaxOuter',k,'Tol',t)` | `'Outer', struct('MaxOuter',k,'Tol',t)` |
+| `.joint('Probes',m, ...)` | `'VceMode', 'joint', 'Joint', struct('Probes',m, ...)` — the method used to switch the mode; the group alone does not |
+| `.componentsPerEpoch(map)` | `'Axes', struct(obsType, count)` |
+
+`P.plots(...)`, `run()`, `empiricalStochastic()`, `validate()` are unchanged.
+Through the USER front door nothing changes: `lsqvce.fit` passes exactly these
+groups from `lsqvce.Options`. The rewrite of the toolbox's own tests and
+examples was scripted (`docs_src/refactor_fluent.py`, kept as protocol).
 
 ### Migration table (1.x → 2.0)
 | 1.x | 2.0 |

@@ -630,24 +630,25 @@ function test_joint_fluent_switches_mode_and_sets_opts(tc)
 % categories: contract
     % .joint(...) both switches the mode and configures it, so no separate flag
     % is needed -- the call reads as the intent.
-    P = lsqvce.engine.adjustVCE(modeSpec(), 1, 'verbose', false);
-    P = P.joint('numLags', 24, 'probes', 40, 'meanType', 'plain');
+    P = lsqvce.engine.adjustVCE(modeSpec(), 1, 'verbose', false, 'VceMode', 'joint', 'Joint', struct('numLags', 24, 'probes', 40, 'meanType', 'plain'));
     verifyEqual(tc, P.vceMode, 'joint');
     verifyEqual(tc, P.jointOpt.NumLags , 24);
     verifyEqual(tc, P.jointOpt.Probes  , 40);
     verifyEqual(tc, P.jointOpt.MeanType, 'plain');
 end
 
-function test_separate_fluent_switches_back(tc)
+function test_separate_mode_keeps_joint_configuration(tc)
 % categories: contract
-    P = lsqvce.engine.adjustVCE(modeSpec(), 1, 'verbose', false);
-    P = P.joint('numLags', 12);
-    verifyEqual(tc, P.vceMode, 'joint');
-    P = P.separate();
-    verifyEqual(tc, P.vceMode, 'separate', ...
-        '.separate() must restore the alternating loop');
-    verifyEqual(tc, P.jointOpt.NumLags, 12, ...
-        'switching back must not erase the joint configuration');
+    % Constructor-only since 2.0 (R4-D2): the mode is 'VceMode', the joint
+    % configuration is the 'Joint' group -- independent knobs. A separate-mode
+    % engine may carry a joint configuration without switching, and the group
+    % keys are canonicalised case-insensitively (numLags -> NumLags).
+    P = lsqvce.engine.adjustVCE(modeSpec(), 1, 'verbose', false, ...
+            'VceMode', 'separate', 'Joint', struct('numLags', 12));
+    verifyEqual(tc, P.vceMode, 'separate', 'a Joint group alone must not switch the mode');
+    verifyEqual(tc, P.jointOpt.NumLags, 12, 'the joint configuration is kept');
+    verifyFalse(tc, ismethod(P, 'separate'), '.separate() is gone (no aliases)');
+    verifyFalse(tc, ismethod(P, 'joint'), '.joint() is gone (no aliases)');
 end
 
 function test_joint_defaults_are_ellmer_values(tc)

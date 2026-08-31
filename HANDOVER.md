@@ -8,7 +8,16 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-09-01 (late) — LEVEL L5 READY: PR #39, CI
+Last substantive update: 2026-09-02 — LEVEL L6 READY: PR #40, CI green
+587/587 on 5d6ff75 (WP-64b: adjustVCE constructor-only, seven configurators
+deleted, scripted rewrite over the whole tree). THE R4 TRACK L1–L6 IS
+COMPLETE pending this merge; open: user postflight (L5+L6), buildtool
+package (2.0 mltbx), backlog WP-42 / WP-48(b).
+Preceding entry: Last substantive update: 2026-09-01 (latest) — L5 MERGED (7c7308e, postflight
+DEBT); LEVEL L6 opened (PR #40): WP-64b fluent configurators deleted,
+adjustVCE constructor-only (Shape/Scale/Outer/Joint/Axes), scripted rewrite
+of 29 chains, release notes; CI pending.
+Preceding entry: Last substantive update: 2026-09-01 (late) — LEVEL L5 READY: PR #39, CI
 green 587/587 on 84abbb8 — THE BREAKING LEVEL: R4-D1 namespace move
 (+lsqvce = fit/Options/Results/report; +engine, +kernel, +util), R4-D3
 (theory PDF is the theory authority), version 2.0, RELEASE_NOTES.md with
@@ -4251,7 +4260,7 @@ merger, no zip when a PR is the deliverable).
 | L4 | 62 | Parallel policy through fit: `DistributeDays` + `ParallelThreshold` on Options -> adjustBlock / adjustVCE -> BlockAccumulator (the axis that scales for a 2-satellite mission; threads/processes are the pool's choice, not the toolbox's — `parpool("threads")` works unchanged) | 56 | READY (CI green 585/585 on a0ce72d, DONE flips on the L4 merge; 2026-08-31, branch `claude/level-4`, PR #37, commit 24ef446; test_fit distributed == fused to 1e-11 on CI without a pool; provenance carries the policy; 59 knobs) |
 | L4 | 63 | Speed-suite extension: fit-path budgets, dispatch overhead pinned ~0 vs direct driver calls | 56,62 | READY (CI green 585/585 on a0ce72d, DONE flips on the L4 merge; 2026-08-31, PR #37, commit 61e9d7d: test_speed testFitDispatchOverheadIsNegligible, fit < 1.25x the direct adjustBlock call on three raw loaders x two days; the speed suite runs LOCALLY — this point is verified by the L4 postflight) |
 | L5 | 64a | R4-D1 namespace layering, scripted (docs_src/refactor_tiers.py): +engine (58 incl. runMeta) / +kernel (21) / +util; root = USER tier; pages, Contents per package, tooling sub-package aware; BREAKING, no aliases | 56–63, R4-D1 | READY (CI green 587/587 on 84abbb8, DONE flips on the L5 merge (2026-09-01, PR #39, commits f9d8763 + r1 fix; CI pending) |
-| L6 | 64b | R4-D2 fluent deletion: adjustVCE ctor NV groups Shape/Scale/Outer/Joint/Axes (+ VceMode, GroupBy exist); delete stochasticModel/varianceComponents/iteration/joint/componentsPerEpoch; scripted rewrite of fit (5 sites), test_adjustVCE (24), test_ellmer (3), test_fit (2), examples (5); parity test becomes fit == ctor NV | 64a | OPEN (split from L5, §11.5 rule 3) |
+| L6 | 64b | R4-D2 fluent deletion: adjustVCE ctor NV groups Shape/Scale/Outer/Joint/Axes (+ VceMode, GroupBy exist); delete stochasticModel/varianceComponents/iteration/joint/componentsPerEpoch/groupComponentsBy; scripted rewrite of fit, test_adjustVCE, test_ellmer, test_fit, examples; parity test becomes fit == ctor NV | 64a | READY (CI green 587/587 on 5d6ff75, DONE flips on the L6 merge2026-09-01, branch `claude/level-6`, PR #40, commit c50bf9c: docs_src/refactor_fluent.py rewrote 29 chain statements; handle-chaining test replaced by a constructor-groups contract test; audit html-example map extended with the deleted names and caught three stale examples; RELEASE_NOTES 2.0 table; version stays 2.0 -- ONE breaking release L1-L6) |
 | L5 | 65 | R4-D3 executed (manual Part 2 -> theory PDF), version 2.0 (Contents.m + README, check 17), RELEASE_NOTES.md with the 72-row 1.x -> 2.0 migration table from tiers.csv, buildfile.m (buildtool audit/test/package via ToolboxOptions), PDFs rebuilt | 64a | READY (CI green 587/587 on 84abbb8, DONE flips on the L5 merge (2026-09-01, PR #39, commit ff1c1ad; buildtool verified by the local postflight, not CI) |
 
 LEVEL STATUS (aggregates the rows above; flips DONE on the user's merge):
@@ -4260,6 +4269,7 @@ DEBT with D-52 by user decision (bridge still down).
 L2 READY — PR #36 (G-07 8af8a6b, WP-56 0d1fc19, WP-57 bf5fe6f, WP-58 b47d76c, r2 fix 6af480b); CI green 578/578 on the level head after two real catches (noCep fixture, gate rule 7 warnings); test_parallel CI-skipped, speed suite separate; postflight = one local run on the merged main. WP-56b (in-memory form, Robust, ellmer) opens with L3/L4 or as its own level — user's call. L3/L4 open on the L2 merge.
 L4 READY — PR #37 (WP-56b 7acc161, WP-62 24ef446, WP-63 61e9d7d, r1 bridge fix a0ce72d); CI green 585/585 on the level head after one real catch (batch->Results contract); test_parallel CI-skipped, speed suite separate (WP-63's point is verified by the L4 postflight). L3 opens on the L4 merge (user order); WP-56c stays OPEN.
 L3 READY — PR #38 (WP-56c bcc70a8, WP-59 337a9bf, WP-60 cc0a31f, WP-61 edaabad/b5c15b3, r1 fix 6b9b67d, r2 fix + G-08 a1154ca); CI green 586/586 on the level head after two real catches (struct-array pitfall in the ellmer bridge; G-08 lag units in jointModelOpt). L5 READY — PR #39 (WP-64a f9d8763, WP-65 ff1c1ad, r1 00bc396, r2 84abbb8); CI green 587/587 on the level head after two catches; THE ONE BREAKING LEVEL (namespace move; no aliases; RELEASE_NOTES.md migration table). L3 merged 3a4d617. L6 (WP-64b fluent deletion, R4-D2) opens on the L5 merge.
+L6 READY — PR #40 (WP-64b c50bf9c, r1 fix 5d6ff75); CI green 587/587 on the level head after one catch (hand-picked file list). With L6 the R4 track L1–L6 is COMPLETE; open: the user's postflight (L5+L6 in one local run), `buildtool package` for the 2.0 mltbx, backlog WP-42 / WP-48(b).
 L5 READY — PR #39 (WP-64a f9d8763, WP-65 ff1c1ad, r1 00bc396, r2 84abbb8); CI green 587/587 on the level head after two catches; THE ONE BREAKING LEVEL (namespace move; no aliases; RELEASE_NOTES.md migration table). L6 (WP-64b fluent deletion, R4-D2) opens on the L5 merge.
 
 Test obligations per level (taxonomy §6.1.2, declarations mandatory):
@@ -4468,6 +4478,36 @@ restored to +engine/private, the script corrected so the protocol matches
 the final state. LESSONS: a rename script must exclude declaration lines
 from call-site rewrites; "no caller" is only true after grepping private
 folders too.
+
+**LEVEL L6 ROUND 1 (opened 2026-09-01, model Claude Fable 5, branch
+`claude/level-6`, PR #40 draft; WP-64b, the second half of the breaking
+release).** L5 merged as 7c7308e; postflight is DEBT (user). Facts pinned:
+(1) the groups are constructor Name-Value STRUCTS, merged by the same
+mergeNV the configurators used -- case-insensitive keys canonicalised to
+the stored case, an explicit Outer.MaxOuter wins over the scalar MaxOuter,
+a Joint group alone does NOT switch VceMode (the deleted .joint() did; the
+rewrite adds 'VceMode','joint' where a chain called it); (2) the rewrite
+is ONE script (docs_src/refactor_fluent.py): continuation lines joined,
+chain parsed with a paren matcher, groups folded into the statement that
+BUILT the object (makeVCEBuilder / inline constructor), the chain
+statement deleted or reduced to its non-configurator tail; (3) the
+html-example audit map now names the deleted methods with what to write
+instead -- it found three stale examples (Options help, choosing,
+template) the grep sweep had missed; (4) version stays 2.0: one breaking
+release, not two.
+
+**L6 r1 CI CATCH (2026-09-01):** f7dc3c0 RED 575/587 — (a) test_physOracle
+0/11: its setupOnce chain (`P.groupComponentsBy('obsType')`) was never
+rewritten because the script's FILES list was HAND-PICKED from a grep over
+the wrong glob (six files) and missed tests/test_physOracle.m and
+examples/demo_gravity.m; (b) `.separate()` was a SEVENTH configurator,
+deleted with the block, and its test still asserted fluent switching. Fix
+5d6ff75: the script now enumerates the WHOLE tree (tests, examples,
++lsqvce/**), rewrote the two survivors; the test became a mode/configuration
+independence contract (VceMode vs Joint group, both methods gone); the
+remaining help-comment mentions swept. LESSON, binding: the inventory of a
+rewrite is the tree (glob), never a list -- the same lesson as WP-54's
+census, learned once more.
 
 ### 11.9 DATA CONTRACT AND LOADER WORKFLOW — design record for WP-56 (R4-D4)
 

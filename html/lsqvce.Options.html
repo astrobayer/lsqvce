@@ -195,8 +195,9 @@ that test on purpose).</pre>
 <pre class="example">opts = lsqvce.Options(Model=&quot;vce&quot;, GroupBy=&quot;satObs&quot;, Parallel=&quot;parfor&quot;);
 opts.MaxOuter = 4;
 a = opts.engineArgs(&quot;adjustVCE&quot;);
-P = lsqvce.engine.adjustVCE(L, days, a.nv{:}) ...
-     .stochasticModel(a.shape) ...          % (fit does this, WP-56)</pre>
+P = lsqvce.engine.adjustVCE(L, days, a.nv{:}, &#x27;Shape&#x27;, a.shape, ...
+        &#x27;Scale&#x27;, a.scale, &#x27;Outer&#x27;, a.outer, &#x27;Joint&#x27;, a.joint, &#x27;Axes&#x27;, a.axes);
+R = P.run();                              % (fit does exactly this, WP-56/64b)</pre>
 <h3>Errors</h3>
 <pre class="example">  Your value is wrong (signature / property validation, MATLAB ids):
     MATLAB:validators:mustBeMember     enum VALUE not in the list (values

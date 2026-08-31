@@ -193,7 +193,7 @@ classdef Results < handle
         %   OUTPUT  con  1x1 struct  .group(k).key/.r/.share/.diag/.relSE, .nc
         %
         %   EXAMPLE
-        %     R   = lsqvce.engine.adjustVCE(L, days).groupComponentsBy('obsType').run();
+        %     R   = lsqvce.engine.adjustVCE(L, days, 'GroupBy', 'obsType').run();
         %     con = R.contribution('GroupBy', 'obsType', 'Level', 2);
         %     bar(con.group(1).diag);      % per-coefficient share of group 1
         %
@@ -254,12 +254,12 @@ classdef Results < handle
         %                                history (it came from a single solve).
         %
         %   EXAMPLE
-        %     R = lsqvce.engine.adjustVCE(L, days).groupComponentsBy('obsType').run();
+        %     R = lsqvce.engine.adjustVCE(L, days, 'GroupBy', 'obsType').run();
         %     T = R.convergence('Plot', true);   % table + diagnostic figure
         %     % a stream stuck at minWhitePval < WhiteAlpha for every pass needs a
-        %     % higher stochasticModel MaxOrder or ARMA; an oscillating
+        %     % higher Shape.MaxOrder or ARMA; an oscillating
         %     % maxSigmaOffset means too little group redundancy -- coarsen
-        %     % groupComponentsBy.
+        %     % GroupBy.
         %
         %   See also LSQVCE.RESULTS/summary, LSQVCE.ENGINE.ADJUSTVCE/run
         %
@@ -331,7 +331,7 @@ classdef Results < handle
         %                                history (it came from a single solve).
         %
         %   EXAMPLE
-        %     R = lsqvce.engine.adjustVCE(L, days).groupComponentsBy('obsType').run();
+        %     R = lsqvce.engine.adjustVCE(L, days, 'GroupBy', 'obsType').run();
         %     T = R.summary();
         %     T(~T.white, :)            % the streams that never whitened
         %     T(abs(T.sigma-1) > 0.1, :)  % the streams still badly weighted

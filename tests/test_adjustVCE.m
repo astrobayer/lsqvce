@@ -116,15 +116,26 @@ function test_construct_without_systems_errors(tc)
         'lsqvce:resolveNc:empty');
 end
 
-function test_fluent_returns_self(tc)
+function test_constructor_groups_configure_the_engine(tc)
 % categories: contract
-    [P, ~] = makeVCEBuilder(tc);
-    q = P.groupComponentsBy('obsType').stochasticModel('MaxOrder', 20).varianceComponents('MaxIter', 4) ...
-         .iteration('MaxOuter', 3);
-    verifySameHandle(tc, P, q);          % handle class, chaining mutates in place
-    verifyEqual(tc, P.outerOpt.MaxOuter, 3);
-    verifyEqual(tc, P.shapeOpt.MaxOrder, 20);
+    % R4-D2 / WP-64b: configuration is constructor-only. The option GROUPS
+    % arrive as structs, keys are matched case-insensitively against the
+    % engine defaults (the mergeNV semantics the deleted configurators had),
+    % an explicit Outer.MaxOuter wins over the scalar MaxOuter, and the
+    % configurator methods no longer exist on the class.
+    [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 5, 'GroupBy', 'obsType', ...
+                'Shape', struct('maxorder', 20), 'Scale', struct('MaxIter', 4), ...
+                'Outer', struct('MaxOuter', 3), 'Axes', struct('rr', 1));
+    verifyEqual(tc, P.outerOpt.MaxOuter, 3, 'the group wins over the scalar');
+    verifyEqual(tc, P.shapeOpt.MaxOrder, 20, 'keys are case-insensitive (canonicalised)');
+    verifyTrue(tc, ~isfield(P.shapeOpt, 'maxorder'), 'no duplicate lowercase field');
     verifyEqual(tc, P.scaleOpt.MaxIter, 4);
+    verifyEqual(tc, P.axesMap('rr'), 1);
+    verifyEqual(tc, P.vceGroups, 'obsType');
+    verifyEqual(tc, P.vceMode, 'separate', 'a Joint group alone must not switch the mode');
+    for m = {'groupComponentsBy', 'stochasticModel', 'varianceComponents', 'iteration', 'joint', 'componentsPerEpoch'}
+        verifyFalse(tc, ismethod(P, m{1}), sprintf('%s must be gone (no aliases)', m{1}));
+    end
 end
 
 %% ===================================================== stream discovery
@@ -141,8 +152,7 @@ function test_convergence_table_shape(tc)
 % categories: contract | tags: diagnostics
     % convergence() must return one row per outer pass with the documented
     % columns, and history must now carry per-pass whiteness p-values.
-    [P, cfg] = makeVCEBuilder(tc, 'MaxOuter', 2); %#ok<ASGLU>
-    P = P.groupComponentsBy('obsType').stochasticModel('MaxOrder', 20).varianceComponents('MaxIter', 4);
+    [P, cfg] = makeVCEBuilder(tc, 'MaxOuter', 2, 'GroupBy', 'obsType', 'Shape', struct('MaxOrder', 20), 'Scale', struct('MaxIter', 4)); %#ok<ASGLU>
     R = P.run();
     T = R.convergence();
     verifyClass(tc, T, 'table');
@@ -179,8 +189,7 @@ function test_summary_is_per_stream(tc)
     % across passes), where convergence() is one row per PASS (reduced across
     % streams). This test pins that shape difference -- it is the whole reason
     % both exist.
-    [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 2);
-    P = P.groupComponentsBy('obsType').stochasticModel('MaxOrder', 20).varianceComponents('MaxIter', 4);
+    [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 2, 'GroupBy', 'obsType', 'Shape', struct('MaxOrder', 20), 'Scale', struct('MaxIter', 4));
     R = P.run();
 
     T = R.summary();
@@ -218,8 +227,7 @@ function test_contribution_history_shape(tc)
     % R.history.contribution is the Level-1 relative info share, one row per
     % outer pass, one column per VCE group -- same shape as .sigma, aligned to
     % .groups (so trajectories always line up for plotting).
-    [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 2);
-    P = P.groupComponentsBy('obsType').stochasticModel('MaxOrder', 20).varianceComponents('MaxIter', 4);
+    [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 2, 'GroupBy', 'obsType', 'Shape', struct('MaxOrder', 20), 'Scale', struct('MaxIter', 4));
     R = P.run();
     verifyTrue(tc, isfield(R.history, 'contribution'), ...
         'history must carry a Level-1 contribution trajectory');
@@ -232,8 +240,7 @@ function test_contribution_rows_sum_to_one(tc)
     % Each pass' finite shares sum to 1 (Sigma_g share_g = 1), and every entry
     % is a NaN or a fraction in [0,1]. NaN marks a group with no finite
     % redundancy -- it must not silently become 0.
-    [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 2);
-    P = P.groupComponentsBy('obsType').stochasticModel('MaxOrder', 20).varianceComponents('MaxIter', 4);
+    [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 2, 'GroupBy', 'obsType', 'Shape', struct('MaxOrder', 20), 'Scale', struct('MaxIter', 4));
     R = P.run();
     C = R.history.contribution;
     for it = 1:size(C, 1)
@@ -254,8 +261,7 @@ function test_contribution_matches_redundancy_share(tc)
     % The share is exactly r_g / sum_g r_g from the SAME vce/redundancy path.
     % Reproduce vc.r at the final weighting via a single vce call on the built
     % accumulator and confirm the last history row equals r/sum(r).
-    [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 1);
-    P = P.groupComponentsBy('obsType').varianceComponents('MaxIter', 4);
+    [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 1, 'GroupBy', 'obsType', 'Scale', struct('MaxIter', 4));
     R = P.run();
     last = R.history.contribution(end, :);
     fin  = isfinite(last);
@@ -274,9 +280,7 @@ function test_joint_mode_runs_end_to_end(tc)
     % vceMode flag tests in test_ellmer only check option plumbing; this drives
     % the real loop on the demo fixture (a merged C/D pair sharing one local
     % block, plus an independent satellite) and asserts a usable Results.
-    [P, cfg] = makeVCEBuilder(tc, 'MaxOuter', 2);
-    P = P.groupComponentsBy('obsType').varianceComponents('MaxIter', 3) ...
-         .joint('probes', 30, 'seed', 4);      % numLags auto-sized
+    [P, cfg] = makeVCEBuilder(tc, 'MaxOuter', 2, 'GroupBy', 'obsType', 'Scale', struct('MaxIter', 3), 'VceMode', 'joint', 'Joint', struct('probes', 30, 'seed', 4));
     verifyEqual(tc, P.vceMode, 'joint');
     R = P.run();
     verifyClass(tc, R, 'lsqvce.Results');
@@ -291,10 +295,7 @@ function test_joint_gate_requires_settled_spectrum(tc)
     % declared convergence once the FACTORS were balanced -- with the PSD
     % still moving (jointMaxDev(end) >> Tol). The gate now also requires the
     % last joint pass to meet the outer Tol.
-    [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 2);
-    P = P.groupComponentsBy('obsType').varianceComponents('MaxIter', 3) ...
-         .iteration('Tol', 0.05) ...
-         .joint('probes', 30, 'seed', 4);
+    [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 2, 'GroupBy', 'obsType', 'Scale', struct('MaxIter', 3), 'Outer', struct('Tol', 0.05), 'VceMode', 'joint', 'Joint', struct('probes', 30, 'seed', 4));
     w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
     R = P.run();
     jmd = R.history.jointMaxDev;
@@ -313,9 +314,7 @@ function test_joint_updates_every_stream(tc)
     % THE REGRESSION THIS EXISTS FOR: a stream whose arcs are all skipped is
     % left silently unmodelled while the others move, which biases the result.
     % Every discovered stream must receive an updated noise model each pass.
-    [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 1);
-    P = P.groupComponentsBy('obsType').varianceComponents('MaxIter', 3) ...
-         .joint('probes', 30, 'seed', 6);      % numLags auto-sized
+    [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 1, 'GroupBy', 'obsType', 'Scale', struct('MaxIter', 3), 'VceMode', 'joint', 'Joint', struct('probes', 30, 'seed', 6));
     R = P.run();
     nStream = numel(R.history.streams);
     verifyGreaterThan(tc, nStream, 1, 'the demo must expose several streams');
@@ -330,9 +329,7 @@ function test_joint_history_shapes(tc)
 % categories: contract, robustness
     % The joint pass fills the same history columns as the separable pass, so
     % downstream plots and convergence() keep working unchanged.
-    [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 2);
-    P = P.groupComponentsBy('obsType').varianceComponents('MaxIter', 3) ...
-         .joint('probes', 25, 'seed', 8);      % numLags auto-sized
+    [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 2, 'GroupBy', 'obsType', 'Scale', struct('MaxIter', 3), 'VceMode', 'joint', 'Joint', struct('probes', 25, 'seed', 8));
     R = P.run();
     n = R.history.nOuter;
     verifySize(tc, R.history.jointMaxDev,  [n 1]);
@@ -347,8 +344,7 @@ function test_separate_mode_unaffected_by_joint_fields(tc)
 % categories: robustness
     % The default path must be untouched: joint history columns stay empty and
     % the AR shape still drives arOrder.
-    [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 1);
-    P = P.groupComponentsBy('obsType').stochasticModel('MaxOrder', 20).varianceComponents('MaxIter', 3);
+    [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 1, 'GroupBy', 'obsType', 'Shape', struct('MaxOrder', 20), 'Scale', struct('MaxIter', 3));
     verifyEqual(tc, P.vceMode, 'separate');
     R = P.run();
     verifyEmpty(tc, R.history.jointUpdated, ...
@@ -463,8 +459,7 @@ end
 function test_groupComponentsBy_obsType_coarsens(tc)
 % categories: contract
     % obsType grouping keys on ALL obsTypes -> one component each.
-    [P, cfg] = makeVCEBuilder(tc, 'MaxOuter', 2);
-    P.groupComponentsBy('obsType');
+    [P, cfg] = makeVCEBuilder(tc, 'MaxOuter', 2, 'GroupBy', 'obsType');
     R = P.run();
     verifyEqual(tc, numel(R.history.groups), numel(cfg.allObsTypes));
 end
@@ -482,8 +477,8 @@ function test_independent_satellite_E(tc)
     verifyEqual(tc, Le.nl, 4, 'E''s nl is DERIVED from its local table rows');
     verifyEqual(tc, Le.nc, 6, 'E shares the common count (derived from common)');
     % end to end: posE is one of the streams and its own VCE group
-    [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 2);
-    R = P.groupComponentsBy('obsType').run();
+    [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 2, 'GroupBy', 'obsType');
+    R = P.run();
     verifyTrue(tc, any(contains(R.history.streams, '|posE')), ...
         'posE must appear as a stream in the combined solution');
 end
@@ -553,9 +548,8 @@ function test_plot_hooks_fire(tc)
         L{i}.plotPostSolve = mS;
         L{i}.plotPostModel = mM;
     end
-    P = lsqvce.engine.adjustVCE(L, cfg.days, 'Verbose', false, ...
-            'MaxOuter', 1, 'ShowSeconds', 0, 'ExportDir', '');
-    P.groupComponentsBy('obsType').run();
+    P = lsqvce.engine.adjustVCE(L, cfg.days, 'Verbose', false, 'MaxOuter', 1, 'ShowSeconds', 0, 'ExportDir', '', 'GroupBy', 'obsType');
+    P.run();
     verifyEqual(tc, exist(tmp,'file'), 2, 'hooks must have recorded at least once');
     txt = fileread(tmp);
     verifyTrue(tc, contains(txt, 'postSolve|') && contains(txt, 'postModel|'), ...
@@ -596,9 +590,8 @@ function test_plot_ctx_schema_fields(tc)
         L{i}.plotPostSolve = mS;
         L{i}.plotPostModel = mM;
     end
-    P = lsqvce.engine.adjustVCE(L, cfg.days, 'Verbose', false, ...
-            'MaxOuter', 1, 'ShowSeconds', 0, 'ExportDir', '');
-    P.groupComponentsBy('obsType').run();
+    P = lsqvce.engine.adjustVCE(L, cfg.days, 'Verbose', false, 'MaxOuter', 1, 'ShowSeconds', 0, 'ExportDir', '', 'GroupBy', 'obsType');
+    P.run();
 
     verifyEqual(tc, exist(tmpS,'file'), 2, 'a postSolve ctx must have been saved');
     verifyEqual(tc, exist(tmpM,'file'), 2, 'a postModel ctx must have been saved');
@@ -666,8 +659,8 @@ function test_esm_returns_results(tc)
 % categories: contract, robustness | tags: diagnostics
     % empiricalStochastic() must return the SAME kind of object run() does,
     % with the loop having executed (history populated).
-    [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 3);
-    R = P.groupComponentsBy('obsType').empiricalStochastic('Report', false);
+    [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 3, 'GroupBy', 'obsType');
+    R = P.empiricalStochastic('Report', false);
     verifyClass(tc, R, 'lsqvce.Results');
     verifyNotEmpty(tc, fieldnames(R.history));
     verifyTrue(tc, isfield(R.history, 'sigma'));
@@ -677,10 +670,10 @@ function test_esm_matches_run(tc)
 % categories: precision | tags: diagnostics
     % empiricalStochastic() delegates the loop to run(), so on the deterministic
     % data the common-parameter solution must be identical.
-    [P1, ~] = makeVCEBuilder(tc, 'MaxOuter', 3);
-    Rrun = P1.groupComponentsBy('obsType').run();
-    [P2, ~] = makeVCEBuilder(tc, 'MaxOuter', 3);
-    Rell = P2.groupComponentsBy('obsType').empiricalStochastic('Report', false, 'Homogenise', false);
+    [P1, ~] = makeVCEBuilder(tc, 'MaxOuter', 3, 'GroupBy', 'obsType');
+    Rrun = P1.run();
+    [P2, ~] = makeVCEBuilder(tc, 'MaxOuter', 3, 'GroupBy', 'obsType');
+    Rell = P2.empiricalStochastic('Report', false, 'Homogenise', false);
     % tol: exact-identity claim (same algebra both sides); house bound 1e-10 (HANDOVER 6.1.2)
     verifyEqual(tc, Rell.x, Rrun.x, 'AbsTol', 1e-10, ...
         'empiricalStochastic must reproduce run''s solution (same loop)');
@@ -689,8 +682,8 @@ end
 function test_esm_attaches_validation(tc)
 % categories: contract | tags: diagnostics
     % With Validate true, R.history.empiricalStochastic must carry the acceptance evidence.
-    [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 4);
-    R = P.groupComponentsBy('obsType').empiricalStochastic('Report', false);
+    [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 4, 'GroupBy', 'obsType');
+    R = P.empiricalStochastic('Report', false);
     verifyTrue(tc, isfield(R.history, 'empiricalStochastic'));
     E = R.history.empiricalStochastic;
     for f = {'sigma0','groups','sigma','streams','pWhite','white', ...
@@ -704,8 +697,8 @@ end
 function test_esm_no_validate(tc)
 % categories: contract | tags: diagnostics
     % Validate false -> no empiricalStochastic sub-struct, but the solve still returns.
-    [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 3);
-    R = P.groupComponentsBy('obsType').empiricalStochastic('Validate', false, 'Report', false);
+    [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 3, 'GroupBy', 'obsType');
+    R = P.empiricalStochastic('Validate', false, 'Report', false);
     verifyClass(tc, R, 'lsqvce.Results');
     verifyFalse(tc, isfield(R.history, 'empiricalStochastic'));
 end
@@ -713,8 +706,8 @@ end
 function test_validate_on_run_result(tc)
 % categories: contract, precision | tags: diagnostics
     % validate() must work standalone on a Results from run().
-    [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 4);
-    R = P.groupComponentsBy('obsType').run();
+    [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 4, 'GroupBy', 'obsType');
+    R = P.run();
     E = P.validate(R, 'Report', false);
     verifyClass(tc, E, 'struct');
     % tol: 0 -- an EXACT identity claim (same stored value, no arithmetic)
@@ -730,8 +723,8 @@ function test_validate_converged_accepts(tc)
 % categories: contract | tags: diagnostics
     % On the synthetic truth the loop converges, sigma0 ~ 1 and streams whiten,
     % so the verdict should ACCEPT the model.
-    [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 6);
-    R = P.groupComponentsBy('obsType').run();
+    [P, ~] = makeVCEBuilder(tc, 'MaxOuter', 6, 'GroupBy', 'obsType');
+    R = P.run();
     E = P.validate(R, 'Report', false, 'Sigma0Tol', 0.15, 'SigmaTol', 0.05);
     verifyTrue(tc, E.accepted, ...
         sprintf('expected model ACCEPTED; sigma0=%.3f, max|sig-1|=%.3g', ...
@@ -775,8 +768,7 @@ function test_homogenise_warns_when_scalar_positions(tc)
                 'observationTypes', {'pos'}, 'covariance', cov, ...
                 'commonParams', commonTbl, ...
                 'numLocal', 1, 'systemId', 1, 'days', days);
-    P = lsqvce.engine.adjustVCE({Lpos}, days, 'Verbose', false);
-    P.componentsPerEpoch(struct('pos', 3));                 % declare pos as 3-D
+    P = lsqvce.engine.adjustVCE({Lpos}, days, 'Verbose', false, 'Axes', struct('pos', 3));
     % The step-0 homogenisation preflight (in empiricalStochastic, BEFORE the
     % solve) must raise notHomogenised. The run itself then legitimately cannot
     % COMPLETE: a 3-D position stream with no per-epoch D becomes the separable
@@ -974,8 +966,7 @@ function txt = captureRun(~, level)
         % inputParser's duplicate-name resolution, which is not a behaviour
         % worth depending on in a test whose whole subject is the verbosity.
         [cfg, L] = demo_grace_dataLoader();
-        P = lsqvce.engine.adjustVCE(L, cfg.days, 'Verbose', level, 'MaxOuter', 1);
-        P = P.groupComponentsBy('obsType').varianceComponents('MaxIter', 2);
+        P = lsqvce.engine.adjustVCE(L, cfg.days, 'Verbose', level, 'MaxOuter', 1, 'GroupBy', 'obsType', 'Scale', struct('MaxIter', 2));
         P.run();
     catch ME
         lsqvce.util.log.reset();

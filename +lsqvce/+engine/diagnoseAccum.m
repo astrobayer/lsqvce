@@ -10,7 +10,7 @@ function [diagSol, batchFcn, nBatch] = diagnoseAccum(acc, sol)
 %   so you can run the full five-level lsqvce verdict on a gravity-recovery
 %   adjustment built with the streaming accumulator:
 %
-%       R   = lsqvce.engine.adjustVCE(L, days).groupComponentsBy('obsType').run();
+%       R   = lsqvce.engine.adjustVCE(L, days, 'GroupBy', 'obsType').run();
 %       acc = R.acc;   sol = R.sol;
 %       [dsol, src, nB] = lsqvce.engine.diagnoseAccum(acc, sol);
 %       D = lsqvce.engine.diagnose(dsol, src, 'nBatch', nB);

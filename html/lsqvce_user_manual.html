@@ -185,11 +185,10 @@ R = lsqvce.engine.adjustBlock({Lc, Ld}, days);   % loaders from makeLoader
 R.report();
 
 % Iterative: discover the noise model (SHAPE) and group weights (SCALE)
-R = lsqvce.engine.adjustVCE({Lc, Ld}, days) ...
-        .groupComponentsBy('obsType') ...
-        .stochasticModel('MaxOrder', 60, 'AcvTol', 1e-3) ...
-        .varianceComponents('MaxIter', 8, 'Tol', 1e-3) ...
-        .run();
+R = lsqvce.engine.adjustVCE({Lc, Ld}, days, ...
+        'GroupBy', 'obsType', ...
+        'Shape', struct('MaxOrder', 60, 'AcvTol', 1e-3), ...
+        'Scale', struct('MaxIter', 8, 'Tol', 1e-3)).run();   % constructor-only since 2.0
 R.report();
 disp(R.history.sigma);        % per-pass variance components</pre>
 <div class="callout"><b>Name-Value casing (WP-39, 2026-08-19).</b>
@@ -282,7 +281,7 @@ it, and it is the only form that receives <code>procOpt</code>.</p>
 
 <p><code>observationTypes</code> are your <b>streams</b>, and they are the unit of
 variance-component estimation under
-<code>groupComponentsBy('obsType')</code>. Name them after what they physically
+<code>'GroupBy', 'obsType'</code>. Name them after what they physically
 are, not after the file they came from: the name will appear in every diagnostic
 you read for the rest of the run.</p>
 
@@ -390,7 +389,7 @@ ARMA.</li>
 <li><b>Grouping</b> &mdash; does each variance-component group have enough
 redundancy? Oscillating variance factors in
 <code>R.convergence()</code> mean it does not; coarsen
-<code>groupComponentsBy</code>.</li>
+<code>GroupBy</code>.</li>
 <li><b>Determinism</b> &mdash; re-run and compare. Different numbers from the same
 input means Wrong &#8544;.</li>
 </ol>

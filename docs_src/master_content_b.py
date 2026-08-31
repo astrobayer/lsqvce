@@ -113,19 +113,19 @@ R.report();""")]
                    'with the noise model and weights discovered by the '
                    'previous one; R.history records every pass, which is what '
                    'the two readers in section 3.5 report on.')]
-    st += [code("""R = lsqvce.engine.adjustVCE(L, days) ...
-      .groupComponentsBy('obsType') ...
-      .run();
+    st += [code("""R = lsqvce.engine.adjustVCE(L, days, 'GroupBy', 'obsType').run();
 R.report();
 R.summary();          % per stream: what it ended up as
 R.convergence();      % per iteration: when it settled""")]
-    st += [P('The fluent calls configure the loop before it runs. '
-             '<font face="Courier">groupComponentsBy</font> sets the '
-             'granularity of the variance components; '
-             '<font face="Courier">stochasticModel</font> and '
-             '<font face="Courier">varianceComponents</font> tune the two '
-             'estimation steps. All have documented defaults -- start without '
-             'them and change one only when a diagnostic tells you to.', 'body')]
+    st += [P('The constructor groups configure the loop before it runs '
+             '(constructor-only since 2.0, R4-D2). '
+             '<font face="Courier">GroupBy</font> sets the granularity of the '
+             'variance components; the <font face="Courier">Shape</font> and '
+             '<font face="Courier">Scale</font> structs tune the two estimation '
+             'steps. All have documented defaults -- start without them and '
+             'change one only when a diagnostic tells you to. Through the USER '
+             'front door the same groups come from '
+             '<font face="Courier">lsqvce.Options</font>.', 'body')]
 
     # ---- 3.4 snoop --------------------------------------------------------
     st += [P('3.4&nbsp;&nbsp;snoop -- outlier rejection', 'h2')]
@@ -294,9 +294,7 @@ procOpt.observationGroups = { groupC, groupD, groupE };""")]
              'in <font face="Courier">procOpt</font>, and the toolbox is fed '
              '<i>from</i> them:', 'body')]
     st += [code("""R = lsqvce.engine.adjustVCE(L, procOpt.days, ...
-        'verbose', procOpt.loggingLevel) ...
-      .groupComponentsBy('obsType') ...
-      .run();""")]
+        'verbose', procOpt.loggingLevel, 'GroupBy', 'obsType').run();""")]
     st += [P('Note that <font face="Courier">loggingLevel</font> maps directly '
              'onto <font face="Courier">verbose</font>, which accepts 0, 1 or '
              '2. <b>Level 3 is rejected</b>, so a pipeline that can emit 3 must '
@@ -428,9 +426,8 @@ end""")]
     # ---- 4.7 --------------------------------------------------------------
     st += [P('4.7&nbsp;&nbsp;Step 6 -- run it, and read the result', 'h2')]
     st += [code("""L = myCase(procOpt);                    % the template returns loaders
-R = lsqvce.engine.adjustVCE(L, procOpt.days, 'verbose', procOpt.loggingLevel) ...
-      .groupComponentsBy('obsType') ...
-      .run();
+R = lsqvce.engine.adjustVCE(L, procOpt.days, 'verbose', procOpt.loggingLevel, ...
+        'GroupBy', 'obsType').run();
 
 R.report();          % the verdict -- read top-down, stop at the first red
 R.summary();         % per stream: sigma, AR order, whiteness
@@ -524,7 +521,7 @@ D.A = reshape([Ax'; Ay'; Az'], nc, [])';""")]
     st += [N('<b>Grouping</b> -- does each group have enough redundancy? '
              'Oscillating variance factors in '
              '<font face="Courier">R.convergence()</font> mean it does not; '
-             'coarsen <font face="Courier">groupComponentsBy</font>.', 4)]
+             'coarsen <font face="Courier">GroupBy</font>.', 4)]
     st += [N('<b>Determinism</b> -- re-run and compare. Different numbers from '
              'the same input means failure I.', 5)]
     st += [PageBreak()]

@@ -40,7 +40,7 @@ function testFitGlsReproducesAdjustBlock(tc)
         'R.systems carries the normalised system specs incl. the loader closure');
 end
 
-function testFitVceReproducesTheFluentChain(tc)
+function testFitVceReproducesTheEngine(tc)
 % categories: reference, precision | tags: diagnostics
     % WP-58 parity: fit(data, Options(Model="vce", ...)) versus the fluent
     % configurator chain it replaces. Exact trace mode (vce default) makes
@@ -61,10 +61,7 @@ function testFitVceReproducesTheFluentChain(tc)
                           ComponentsPerEpoch=axes);
     Rf = lsqvce.fit(data, opts);
     L  = loaderOf(cfg, data.systems(1), data);
-    Rd = lsqvce.engine.adjustVCE({L}, data.days, 'MaxOuter', 2, 'Verbose', false) ...
-            .varianceComponents('MaxIter', 3) ...
-            .componentsPerEpoch(axes) ...
-            .run();
+    Rd = lsqvce.engine.adjustVCE({L}, data.days, 'MaxOuter', 2, 'Verbose', false, 'Scale', struct('MaxIter', 3), 'Axes', axes).run();
     % tol: 1e-12 -- identical code path (see the gls test)
     tc.verifyEqual(Rf.x, Rd.x, 'RelTol', 1e-12);
     tc.verifyEqual(Rf.sigma0, Rd.sigma0, 'RelTol', 1e-12);

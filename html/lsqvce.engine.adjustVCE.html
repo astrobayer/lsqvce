@@ -50,13 +50,24 @@ P = lsqvce.engine.adjustVCE(systems, days, Name, Value, ...)
 The general separable generalised-least-squares engine. It layers the
 two-unknown covariance loop on top of LSQVCE.ENGINE.ADJUSTBLOCK: a single GLS solve is
 adjustBlock&#x27;s job; discovering the covariance that solve should use is this
-class&#x27;s job. Build it fluently, then call RUN.
+class&#x27;s job. Configure it in the CONSTRUCTOR, then call RUN.
 
-    R = lsqvce.engine.adjustVCE({Lc, Ld}, 1:30) ...
-           .groupComponentsBy(&#x27;satObs&#x27;) ...
-           .stochasticModel(&#x27;MaxOrder&#x27;,60, &#x27;AcvTol&#x27;,1e-3) ...
-           .varianceComponents(&#x27;MaxIter&#x27;,8, &#x27;Tol&#x27;,1e-3) ...
-           .run();
+ENGINE TIER SINCE R4 (WP-58, 2026-08-31); CONSTRUCTOR-ONLY SINCE 2.0
+(R4-D2, WP-64b, 2026-09-01): the fluent configurators
+groupComponentsBy / stochasticModel / varianceComponents / iteration /
+joint / componentsPerEpoch are GONE (no aliases). Their option groups are
+Name-Value STRUCTS on the constructor -- &#x27;GroupBy&#x27;, &#x27;Shape&#x27;, &#x27;Scale&#x27;,
+&#x27;Outer&#x27;, &#x27;Joint&#x27;, &#x27;Axes&#x27; -- merged into the engine defaults with the same
+case-insensitive key matching the configurators used (mergeNV). The USER
+front door is LSQVCE.FIT with Options(Model=&quot;vce&quot;) (&#x27;separate&#x27; mode) or
+Options(Model=&quot;pooled&quot;) (&#x27;joint&#x27; mode); fit passes exactly these groups
+from Options.engineArgs(&quot;adjustVCE&quot;); parity is pinned in
+tests/test_fit.m (testFitVceReproducesTheEngine).
+
+    R = lsqvce.engine.adjustVCE({Lc, Ld}, 1:30, ...
+           &#x27;GroupBy&#x27;, &#x27;satObs&#x27;, ...
+           &#x27;Shape&#x27;, struct(&#x27;MaxOrder&#x27;, 60, &#x27;AcvTol&#x27;, 1e-3), ...
+           &#x27;Scale&#x27;, struct(&#x27;MaxIter&#x27;, 8, &#x27;Tol&#x27;, 1e-3)).run();
     R.report();                 % the usual level-0..4 verdict
     R.history                   % the sigma / AR-order trajectory</pre>
 <h3>THE MODEL (per group g)</h3>
@@ -105,7 +116,7 @@ WIRING, NOT NEW NUMERICS
 <pre class="example">  systems  1xM   cell|struct  Loader objects from LSQVCE.ENGINE.MAKELOADER (cell),
                            or the struct-array spec that LSQVCE.ENGINE.ADJUSTBLOCK
                            accepts. Required. Each obsType stream becomes a
-                           candidate VCE group (see groupComponentsBy).
+                           candidate VCE group (see &#x27;GroupBy&#x27;).
                            The number of COMMON parameters is DERIVED from
                            these (LSQVCE.ENGINE.RESOLVENC) -- from a Loader&#x27;s
                            &#x27;commonParams&#x27; rows, or a raw spec&#x27;s .nc field --
@@ -120,11 +131,15 @@ WIRING, NOT NEW NUMERICS
                          &#x27;satObs&#x27; (default) one component per
                          (satellite,obsType); &#x27;obsType&#x27;; &#x27;system&#x27;; &#x27;arc&#x27;;
                          or @(sysID,obsType,arc,day)-&gt;key. Also settable via
-                         groupComponentsBy().
+                         the &#x27;GroupBy&#x27; group key.
     &#x27;MaxOuter&#x27;  1x1  outer stochastic model &lt;-&gt; variance components iterations             (default 6)
     &#x27;Backend&#x27;   char &#x27;qr&#x27; | &#x27;normal&#x27;                          (default &#x27;qr&#x27;)
     &#x27;Reg&#x27;       char passed to adjustBlock                        (default &#x27;none&#x27;)
     &#x27;Parallel&#x27;  char &#x27;serial&#x27;|&#x27;parfor&#x27;|&#x27;spmd&#x27;                 (default &#x27;serial&#x27;)
+    &#x27;DistributeDays&#x27; logical  parallelise over each system&#x27;s DAYS   (default false)
+    &#x27;ParallelThreshold&#x27; 1x1   tasks below which no pool is used   (default 8)
+                              (both pass through to LSQVCE.ENGINE.BLOCKACCUMULATOR
+                              on every pass; R4 WP-62)
     &#x27;verbose&#x27;   1x1  logical | 0..2 message level             (default 1)
                      0 SILENT     nothing
                      1 PROGRESS   outer passes, stage start/done + timing,
@@ -169,12 +184,14 @@ PLOT HOOKS (per system + obsType)
   A hook that errors is logged and skipped -- plots never break
   the solve. Set the two engine knobs via the constructor or P.plots(...).
 
-FLUENT CONFIGURATORS (each returns P, so they chain)
-  P.groupComponentsBy(key)          which observations share a variance component
-  P.stochasticModel(&#x27;MaxOrder&#x27;,p,&#x27;AcvTol&#x27;,t)   the temporal noise model
-  P.varianceComponents(&#x27;MaxIter&#x27;,n,&#x27;Tol&#x27;,t)    the Helmert variance components
-  P.iteration(&#x27;MaxOuter&#x27;,k,&#x27;Tol&#x27;,t) the outer convergence gate
-  P.plots(&#x27;ShowSeconds&#x27;,s,&#x27;ExportDir&#x27;,d)  configure the plot-hook show/export
+CONSTRUCTOR OPTION GROUPS (structs, keys case-insensitive; since 2.0)
+  &#x27;GroupBy&#x27;, key                    which observations share a variance component
+  &#x27;Shape&#x27;, struct(&#x27;MaxOrder&#x27;,p,&#x27;AcvTol&#x27;,t,&#x27;MaxLag&#x27;,m,&#x27;WhiteAlpha&#x27;,a)   temporal noise model
+  &#x27;Scale&#x27;, struct(&#x27;MaxIter&#x27;,n,&#x27;Tol&#x27;,t,&#x27;MinRedundancy&#x27;,r)   the Helmert variance components
+  &#x27;Outer&#x27;, struct(&#x27;MaxOuter&#x27;,k,&#x27;Tol&#x27;,t)                    the outer convergence gate
+  &#x27;Joint&#x27;, struct(&#x27;NumLags&#x27;,n,&#x27;Probes&#x27;,m,&#x27;Seed&#x27;,s,...)     the pooled spectrum (&#x27;VceMode&#x27;,&#x27;joint&#x27;)
+  &#x27;Axes&#x27;,  struct(obsType, count)                          components per epoch
+  P.plots(&#x27;ShowSeconds&#x27;,s,&#x27;ExportDir&#x27;,d)  configure the plot-hook show/export (unchanged)
 
 RUN
   R = P.run()   -&gt;  1x1 lsqvce.Results, with the iteration trajectory
@@ -206,15 +223,12 @@ under &quot;USER-SPECIFIC ADAPTATION&quot;.
 
 EXAMPLE (synthetic, end to end)
   [cfg, L] = demo_grace_dataLoader();          % GRACE-FO synthetic (examples/)
-  R = lsqvce.engine.adjustVCE(L, cfg.days) ...
-         .groupComponentsBy(&#x27;obsType&#x27;).run();
+  R = lsqvce.engine.adjustVCE(L, cfg.days, &#x27;GroupBy&#x27;, &#x27;obsType&#x27;).run();
   R.report();
   disp(R.history.sigma(end,:));   % ~ 1 per group at truth
   % or just run the driver:  demo_grace</pre>
 <h3>Errors</h3>
 <pre class="example">    lsqvce:adjustVCE:badSystems     systems is not a loader cell/struct array
-    lsqvce:adjustVCE:badComponents  groupComponentsBy got a key that is
-                                    neither a known name nor a function handle
     lsqvce:adjustVCE:validateBadResults  validate() was given something that
                                     is not a Results from this problem
 
@@ -225,6 +239,18 @@ EXAMPLE (synthetic, end to end)
 
   See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.REDUNDANCY,
 
+  Updated 2026-09-01 (CEST, UTC+02:00), R4-D2 / WP-64b (Level L6): the six
+  fluent configurators DELETED; their groups are constructor Name-Value
+  structs Shape / Scale / Outer / Joint / Axes (GroupBy, VceMode existed).
+  BREAKING (2.0); no aliases. With assistance from Claude (Anthropic),
+  model Claude Fable 5.
+  Updated 2026-08-31 (CEST, UTC+02:00), R4 WP-62 (Level L4): &#x27;DistributeDays&#x27;
+  and &#x27;ParallelThreshold&#x27; on the constructor, carried in blockOpt to every
+  accumulator the loop builds. With assistance from Claude (Anthropic),
+  model Claude Fable 5.
+  Updated 2026-08-31 (CEST, UTC+02:00), R4 WP-58 (Level L2): ENGINE-tier note
+  -- users reach this engine through LSQVCE.FIT; parity pinned in test_fit.
+  With assistance from Claude (Anthropic), model Claude Fable 5.
   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (c) c2 (F-07):
   typed `arguments` signatures, canonical UpperCamelCase option names
   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
@@ -261,10 +287,10 @@ EXAMPLE (synthetic, end to end)
      scaling.
   2. nAxes PER OBSTYPE: 3-D position streams have nAxes=3 (x,y,z share one
      R_t); range-rate is scalar, nAxes=1. Declare it via nAxesOf() below
-     (default: &#x27;pos&#x27;-&gt;3, everything else-&gt;1). Override with P.componentsPerEpoch(map).
+     (default: &#x27;pos&#x27;-&gt;3, everything else-&gt;1). Override with the &#x27;Axes&#x27; group.
   3. VCE GRANULARITY: default one sigma per (satellite,obsType). If a group
      has too little redundancy (VCE warns), coarsen with
-     P.groupComponentsBy(&#x27;obsType&#x27;).
+     &#x27;GroupBy&#x27;, &#x27;obsType&#x27;.
   4. COUPLED OBSERVATIONS (e.g. inter-satellite range-rate). The block-arrow
      model has ONE local block per system, so an observation that depends on
      TWO satellites&#x27; arc states (KBR/range-rate between C and D) cannot be a
@@ -289,7 +315,10 @@ EXAMPLE (synthetic, end to end)
   &quot;solve AND discover the stochastic model&quot;). The old name was REMOVED on
   2026-07-18 along with every other alias: this is pre-release, and two ways
   to say one thing is the ambiguity that produced the nc duplication.
-  Claude (Anthropic), model Claude Opus 4.8.</pre>
+  Claude (Anthropic), model Claude Opus 4.8.
+  Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
+  WP-64a): the ENGINE tier leaves the USER surface; every qualified
+  reference was rewritten mechanically by docs_src/refactor_tiers.py.</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
 <div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

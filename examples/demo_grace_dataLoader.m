@@ -7,7 +7,7 @@ function [cfg, L] = demo_grace_dataLoader()
 %   the separable VCE loop can be exercised end to end without real data:
 %
 %       [cfg, L] = demo_grace_dataLoader();
-%       R = lsqvce.engine.adjustVCE(L, cfg.days).groupComponentsBy('obsType').run();
+%       R = lsqvce.engine.adjustVCE(L, cfg.days, 'GroupBy', 'obsType').run();
 %
 %   TOPOLOGY (real GRACE-FO, "Option B", plus an independent third satellite).
 %     System 1  -- the C/D PAIR.  TWO satellites C, D each with a 3-D position

@@ -8,7 +8,7 @@ function [cfg, L] = demo_gravity_dataLoader()
 %   external data:
 %
 %       [cfg, L] = demo_gravity_dataLoader();
-%       R = lsqvce.engine.adjustVCE(L, cfg.days).groupComponentsBy('obsType').run();
+%       R = lsqvce.engine.adjustVCE(L, cfg.days, 'GroupBy', 'obsType').run();
 %
 %   WHAT MAKES THIS DIFFERENT FROM DEMO_GRACE_DATALOADER
 %     That loader builds its design from randn -- fine for exercising the
@@ -90,8 +90,8 @@ function [cfg, L] = demo_gravity_dataLoader()
 %
 %   EXAMPLE
 %     [cfg, L] = demo_gravity_dataLoader();
-%     R = lsqvce.engine.adjustVCE(L, cfg.days, 'MaxOuter', 4, 'Verbose', false) ...
-%             .groupComponentsBy('obsType').run();
+%     R = lsqvce.engine.adjustVCE(L, cfg.days, 'MaxOuter', 4, 'Verbose', false, ...
+%             'GroupBy', 'obsType').run();
 %     max(abs(R.x - cfg.xTrue) ./ (sqrt(diag(R.sol.Cxx))*R.sigma0))   % < 5
 %
 %   See also DEMO_GRAVITY, DEMO_GRAVITY_DESIGN, DEMO_GRACE_DATALOADER,

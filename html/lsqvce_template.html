@@ -51,9 +51,8 @@ stubs at the bottom. It returns the cell array of Loaders the toolbox consumes:<
 <pre class="example">L = myCase(procOpt);
 R = lsqvce.engine.adjustVCE(L, procOpt.days, ...
         'verbose', procOpt.loggingLevel, ...
-        'logFid',  procOpt.loggingOverviewFileID) ...
-      .groupComponentsBy('obsType') ...
-      .run();
+        'logFid',  procOpt.loggingOverviewFileID, ...
+        'GroupBy', 'obsType').run();             % constructor-only since 2.0
 R.summary();        % what each stream ended up as
 R.convergence();    % when the loop settled</pre>
 
@@ -101,7 +100,7 @@ value in both places:</p>
 <tr><td class="name">procOpt.loggingLevel</td><td><code>'verbose'</code></td><td>0 silent, 1 progress, 2 detail. <b>3 is rejected</b> (merged into 2)</td></tr>
 <tr><td class="name">procOpt.loggingOverviewFileID</td><td><code>'logFid'</code></td><td>&nbsp;</td></tr>
 <tr><td class="name">procOpt.showAndSaveGraphics</td><td>an <code>if</code> around hook attachment</td><td>not an option</td></tr>
-<tr><td class="name">procOpt.observationGroups</td><td><code>observationTypes</code> + <code>groupComponentsBy</code></td><td>a derivation, one Loader per group</td></tr>
+<tr><td class="name">procOpt.observationGroups</td><td><code>observationTypes</code> + <code>'GroupBy'</code></td><td>a derivation, one Loader per group</td></tr>
 </table>
 <p><code>nc</code> and <code>nl</code> are <b>derived</b> from the
 <code>commonParams</code>/<code>localParams</code> row counts. There is no
