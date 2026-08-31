@@ -3,8 +3,8 @@
 **Status.** Binding specification adopted 2026-08-31 (R4 decision R4-D4, HANDOVER §11.9).
 `lsqvce.fit` is live for the streaming kind (Level L2, WP-56; Models `gls`, `vce`, `pooled`)
 and for the two in-memory kinds (Level L4, WP-56b; §11 below, incl. `Robust` and the nonlinear
-form). Model `ellmer` (the ten-step Ellmer/ITSG loop) still runs through
-`lsqvce.adjustVCEjoint` directly (WP-56c).
+form) and for Model `ellmer` (Level L3, WP-56c: the ten-step Ellmer/ITSG joint loop through
+`lsqvce.adjustVCEjoint`, with the converged noise model on `R.noise`).
 §9 shows the equivalent direct engine calls. This file is the source of the `fit` help text
 and of the HTML guide (WP-56, WP-60): one authority, no second copy.
 

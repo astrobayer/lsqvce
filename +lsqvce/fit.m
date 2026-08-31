@@ -27,8 +27,25 @@ function R = fit(data, opts)
 %       "vce"      LSQVCE.ADJUSTVCE          alternate stochastic model <->
 %                                            variance components (separate)
 %       "pooled"   LSQVCE.ADJUSTVCE.joint    pooled spectrum, no arc factors
-%       "ellmer"   LSQVCE.ADJUSTVCEJOINT     NOT WIRED YET (WP-56c): fit
-%                                            refuses with lsqvce:fit:notYet
+%       "ellmer"   LSQVCE.ADJUSTVCEJOINT     the ten-step joint co-estimation
+%                                            with keyed arc factors (Ellmer
+%                                            2018 §6.5; R4 WP-56c). fit builds
+%                                            the accFcn the driver wants -- a
+%                                            BlockAccumulator over the same
+%                                            loaders whose UserOpt carries the
+%                                            current model through
+%                                            LSQVCE.JOINTMODELOPT -- and
+%                                            bridges the driver's out struct
+%                                            into a Results: x / sigma0 /
+%                                            diagnostics via diagnoseAccum +
+%                                            diagnose, the converged noise
+%                                            model on R.noise (.C .Shat .sigma2
+%                                            .arcKeys), the pass record on
+%                                            R.history (.kind = 'ellmer',
+%                                            .maxDev, .Shat, .nIter, .skips),
+%                                            R.converged. summary()/
+%                                            convergence() are adjustVCE's
+%                                            readers and refuse (noHistory).
 %
 %   TWO MORE KINDS OF DATA (R4 WP-56b) -- told apart by the fields present,
 %   for problems WITHOUT local unknowns and with diagonal weights:
@@ -119,9 +136,9 @@ function R = fit(data, opts)
 %                                  (e.g. noCov, badArcs, localPlan); the
 %                                  original is attached as the cause
 %     Your choice is not available here:
-%       lsqvce:fit:notYet          Model "ellmer" (WP-56c) or Robust ~= "none"
-%                                  on the STREAMING kind -- use the engine
-%                                  directly
+%       lsqvce:fit:notYet          Robust ~= "none" on the STREAMING kind --
+%                                  the streaming kind screens outliers
+%                                  through its diagnostics (report())
 %       lsqvce:fit:modelKind       Model other than "gls" on kinds B / C
 %       lsqvce:fit:badMatrix       kind B shapes disagree (A m x u, l m x 1,
 %                                  p m x 1)
@@ -145,6 +162,10 @@ function R = fit(data, opts)
 %            LSQVCE.ADJUSTBLOCK, LSQVCE.ADJUSTVCE, LSQVCE.ADJUSTVCEJOINT,
 %            LSQVCE.ADJUST, LSQVCE.ROBUST, LSQVCE.SOLVENONLINEAR
 %
+%   Updated 2026-09-01 (CEST, UTC+02:00), R4 WP-56c (Level L3): Model "ellmer"
+%   wired -- accFcn from the loaders + jointModelOpt, out -> Results bridge
+%   (diagnoseAccum + diagnose; noise/history/converged set). With assistance
+%   from Claude (Anthropic), model Claude Fable 5.
 %   Updated 2026-08-31 (CEST, UTC+02:00), R4 WP-56b (Level L4): kinds B
 %   (in-memory matrices) and C (batched callback, linear or nonlinear with
 %   x0) through adjust / robust / solveNonlinear, returned as Results without
@@ -170,11 +191,6 @@ end
     end
 
     % ---- kind A: streaming --------------------------------------------------
-    if ~strcmp(opts.Model, "gls") && ~strcmp(opts.Model, "vce") && ~strcmp(opts.Model, "pooled")
-        error('lsqvce:fit:notYet', ...
-            ['Model "%s" is not wired through fit yet (WP-56c); call ' ...
-             'lsqvce.adjustVCEjoint directly for the Ellmer joint loop.'], opts.Model);
-    end
     if ~strcmp(opts.Robust, "none")
         error('lsqvce:fit:notYet', ...
             ['Robust = "%s" is the in-memory / batched kinds'' path (lsqvce.robust); ' ...
@@ -188,6 +204,8 @@ end
         case 'gls'
             a = opts.engineArgs('adjustBlock');
             R = lsqvce.adjustBlock(systems, days, a.nv{:});
+        case 'ellmer'
+            R = fitEllmer(systems, days, opts);
         otherwise                                   % 'vce' | 'pooled'
             a = opts.engineArgs('adjustVCE');
             P  = lsqvce.adjustVCE(systems, days, a.nv{:});
@@ -457,4 +475,89 @@ function R = runBatch(u, batchFcn, nBatch, x0, opts, kind)
     resolved = opts.toStruct();
     resolved.kind = kind;
     R = lsqvce.Results(sol, D, [], source, batchFcn, nBatch, [], runMeta(struct(), resolved));
+end
+
+%======================================================= Model "ellmer"
+function R = fitEllmer(systems, days, opts)
+%FITELLMER  Model "ellmer": LSQVCE.ADJUSTVCEJOINT over the built systems.
+%   Two bridges (R4 WP-56c): (1) the accFcn the driver wants -- a fresh
+%   BlockAccumulator per outer pass whose UserOpt carries the current model
+%   through LSQVCE.JOINTMODELOPT for every (system, obsType) stream; (2) the
+%   driver's out struct -> a Results with the streaming contract.
+    nc    = lsqvce.resolveNc(systems);
+    specs = accSpecs(systems, days);
+    streams = streamKeys(systems, specs);
+    a = opts.engineArgs("adjustVCEjoint");
+    psdMode = char(opts.PsdMode);
+    accFcn = @(model) jointAccumulator(nc, specs, opts, ...
+                 lsqvce.jointModelOpt(model, streams, 'PsdMode', psdMode));
+    out = lsqvce.adjustVCEjoint(accFcn, a.nv{:});
+
+    [dsol, batchFcn, nB] = lsqvce.diagnoseAccum(out.acc, out.sol);
+    D = lsqvce.diagnose(dsol, batchFcn, 'nBatch', nB, opts.engineArgs("diagnose").nv{:});
+    resolved = opts.toStruct();
+    resolved.kind = 'stream';
+    seeds = struct('jointSeed', opts.Seed);
+    R = lsqvce.Results(out.sol, D, out.acc, dsol, batchFcn, nB, specs, runMeta(seeds, resolved));
+    hist = out.history;
+    hist.kind  = 'ellmer';
+    hist.nIter = out.nIter;
+    hist.skips = out.skips;
+    noise = struct('C', out.C, 'Shat', out.Shat, 'sigma2', out.sigma2, 'arcKeys', out.arcKeys);
+    R.setIterative(hist, noise, out.converged);
+end
+
+function specs = accSpecs(systems, days)
+%ACCSPECS  BlockAccumulator.addSystems specs from Loaders or raw spec structs.
+    if iscell(systems)
+        n = numel(systems);
+    else
+        n = numel(systems);
+    end
+    specs = struct('sysID', {}, 'nl', {}, 'dataFcn', {}, 'dayList', {}, 'name', {});
+    for k = 1:n
+        if iscell(systems)
+            L = systems{k};
+            dl = days;
+            if isfield(L, 'days') && ~isempty(L.days), dl = L.days; end
+            nm = '';
+            if isfield(L, 'name'), nm = char(L.name); end
+            specs(k) = struct('sysID', L.sysID, 'nl', L.nl, 'dataFcn', L.closure, ...
+                              'dayList', dl, 'name', nm);
+        else
+            s = systems(k);
+            dl = days;
+            if isfield(s, 'days') && ~isempty(s.days), dl = s.days; end
+            specs(k) = struct('sysID', s.sysID, 'nl', s.nl, 'dataFcn', s.loader, ...
+                              'dayList', dl, 'name', '');
+        end
+    end
+end
+
+function keys = streamKeys(systems, specs)
+%STREAMKEYS  'satKey|obsType' for every (system, observation type) stream --
+%   the names LSQVCE.ADJUSTVCE / LSQVCE.JOINTMODELOPT use. Loaders carry
+%   their obsTypes; a raw closure is probed once with the 'meta' sentinel.
+    keys = {};
+    for k = 1:numel(specs)
+        if iscell(systems) && isfield(systems{k}, 'obsTypes')
+            ot = cellstr(systems{k}.obsTypes);
+        else
+            meta = specs(k).dataFcn('meta', specs(k).dayList(1), [], struct());
+            ot = cellstr(meta.obsTypes);
+        end
+        satKey = matlab.lang.makeValidName(char(string(specs(k).sysID)));
+        for j = 1:numel(ot)
+            keys{end+1} = sprintf('%s|%s', satKey, ot{j});  %#ok<AGROW>
+        end
+    end
+end
+
+function acc = jointAccumulator(nc, specs, opts, uo)
+%JOINTACCUMULATOR  One solve-ready accumulator under the current joint model.
+    acc = lsqvce.BlockAccumulator(nc, 'Backend', char(opts.Backend), 'KeepLocal', true, ...
+              'Reg', char(opts.Reg), 'RegLambda', opts.RegLambda, 'RegMatrix', opts.RegMatrix, ...
+              'Parallel', char(opts.Parallel), 'DistributeDays', opts.DistributeDays, ...
+              'ParallelThreshold', opts.ParallelThreshold, 'Verbose', false, 'UserOpt', uo);
+    acc.addSystems(specs);
 end

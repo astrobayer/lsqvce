@@ -242,6 +242,45 @@ function testCoefficientsTable(tc)
 end
 
 %% ================================================================ helpers
+%% ================================================= WP-56c: Model "ellmer"
+function testEllmerThroughFitReproducesDirect(tc)
+% categories: reference, precision | tags: diagnostics, provenance
+    % R4 WP-56c: fit(Model="ellmer") is lsqvce.adjustVCEjoint over an accFcn
+    % that fit builds from the loaders (BlockAccumulator + jointModelOpt for
+    % every 'satKey|obsType' stream), bridged into a Results. The direct route
+    % below hand-builds the same accFcn; same Seed -> same probes -> identical.
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % JointMaxIter 2 stops early by design
+    [data, cfg] = declaration();
+    opts = lsqvce.Options(Model="ellmer", NumLags=5, JointMaxIter=2, Probes=20, ...
+                          Seed=7, Verbose=false);
+    R = lsqvce.fit(data, opts);
+
+    L = loaderOf(cfg, data.systems(1), data);
+    streams = {'x1|pos', 'x1|kbr'};                       % makeValidName('1') = 'x1'
+    accFcn = @(model) directJointAcc(cfg.nc, L, data.days, ...
+                 lsqvce.jointModelOpt(model, streams, 'PsdMode', 'toeplitz'));
+    out = lsqvce.adjustVCEjoint(accFcn, 'NumLags', 5, 'MaxIter', 2, 'Probes', 20, ...
+                                'Seed', 7, 'Verbose', false);
+    % tol: 1e-12 -- identical code path; the seed fixes the Hutchinson probes
+    tc.verifyEqual(R.x, out.sol.x(:), 'RelTol', 1e-12);
+    tc.verifyEqual(R.noise.C, out.C, 'RelTol', 1e-12);
+    tc.verifyEqual(R.noise.sigma2, out.sigma2, 'RelTol', 1e-12);
+    tc.verifyEqual(R.history.kind, 'ellmer');
+    tc.verifyEqual(R.history.nIter, out.nIter);
+    tc.verifyEqual(R.converged, out.converged);
+    tc.verifyClass(R.acc, 'lsqvce.BlockAccumulator');
+    tc.verifyEqual(R.meta.seeds.jointSeed, 7, 'the probe seed is recorded in the provenance');
+    tc.verifyEqual(R.meta.options.Model, "ellmer");
+    % adjustVCE's history readers refuse cleanly; the verdict works
+    tc.verifyEqual(idOf(@() R.summary()), 'lsqvce:Results:noHistory');
+    tc.verifyEqual(idOf(@() R.report('Verbose', false)), '');
+end
+
+function acc = directJointAcc(nc, L, days, uo)
+    acc = lsqvce.BlockAccumulator(nc, 'KeepLocal', true, 'Verbose', false, 'UserOpt', uo);
+    acc.addSystem(L.sysID, L.nl, L.closure, days);
+end
+
 %% ================================================== WP-62: parallel policy
 function testDistributeDaysThroughFitEqualsFused(tc)
 % categories: precision, robustness
