@@ -124,9 +124,11 @@ R (R.acc, R.diag).</pre>
 <h3>Input</h3>
 <pre class="example">data  1x1  struct  the data declaration (binding rules: DATA_CONTRACT.md
                    §2, v3). Summary of the streaming kind:
-         .commonParams  RxC cell    the COMMON unknowns, one ROW per
-                                    unknown (nc = R; the columns are your
-                                    convention). Required; buildDay&#x27;s 3rd arg.
+         .commonParams  RxC cell    the COMMON templates, one ROW per
+                                    template; column 1 = &#x27;common&#x27;|&#x27;day&#x27;,
+                                    columns 2..C your convention; nc DERIVED
+                                    by the expansion over the day calendar.
+                                    Required; buildDay&#x27;s 3rd arg.
          .days     1xD double   default day list (numeric integers);
                                 required unless every system has .days
          .systems  1xM struct   one entry per observing system, fields:
@@ -136,8 +138,9 @@ R (R.acc, R.diag).</pre>
                                           fieldnames ARE the observation types
            OPTIONAL (default)
              .arcs (1)          1x1 | 1xA | struct | @(day,obsType)
-             .localsPerArc ([]) toolbox numbering, XOR .localParams
-             .localParams  ({}) RxC cell (nl = R); NEITHER declared -&gt; nl = 0
+             .localParams  ({}) RxC cell of LOCAL templates; column 1 =
+                                &#x27;arc&#x27;|&#x27;day&#x27;|&#x27;system&#x27;; nl DERIVED by the
+                                expansion; not declared -&gt; nl = 0
              .days ([]) .name (&#x27;&#x27;) .id (the system&#x27;s index)
              .processingOptions (struct())    buildDay&#x27;s 5th arg
              .epochCovariance ([])  @(day,obsType) per-epoch D hook (the
@@ -161,16 +164,18 @@ nondeterminism recorded in HANDOVER §10.8 (WP-47 r1e).</pre>
 <pre class="example">Your declaration is wrong (raised BEFORE any data is read):
   lsqvce:fit:unknownField    a field name the contract does not know
                              (names the field; typos are errors on purpose
-                             -- and so are the v2 fields: common, numCommon,
-                             numLocal, observationTypes, systemId, cache,
-                             loader, plotPostSolve, plotPostModel)
+                             -- and so are the retired fields: common,
+                             numCommon, numLocal, observationTypes, systemId,
+                             cache, loader, plotPostSolve, plotPostModel and,
+                             since v4, localsPerArc: declare &#x27;arc&#x27; rows)
   lsqvce:fit:noSystems       data.systems missing, not a struct, or empty
   lsqvce:fit:noCommon        data.commonParams missing, or not a 2-D cell
-                             with one row per unknown
+                             of template rows
+  lsqvce:fit:badScope        a scope-token column 1 does not carry:
+                             commonParams needs &#x27;common&#x27;|&#x27;day&#x27;, localParams
+                             needs &#x27;arc&#x27;|&#x27;day&#x27;|&#x27;system&#x27;
   lsqvce:fit:missingField    a required system field is absent, or
                              covariance carries no observation type
-  lsqvce:fit:localCount      BOTH localsPerArc and localParams declared
-                             (either one, or neither -&gt; nl = 0)
   lsqvce:fit:noDays          no day list anywhere
   lsqvce:fit:badId           id is not a numeric scalar or single char
   lsqvce:fit:duplicateSystem two systems share an id (explicit or index
@@ -196,12 +201,17 @@ Your buildDay is wrong (raised WHILE READING, by the engine, ids
 unchanged): lsqvce:makeLoader:badDay / dayShape / badArc / badArcId /
 buildDay, lsqvce:accum:arcBadNc / arcBadNl</pre>
 <h3>Example</h3>
-<pre class="example">  data.commonParams = num2cell((1:6).&#x27;);   data.days = 1:3;
-  s.buildDay = @(d, ot) myBuildDay(d, ot);
+<pre class="example">  data.commonParams = [repmat({&#x27;common&#x27;}, 6, 1), num2cell((1:6).&#x27;)];
+  data.days = 1:3;
+  s.buildDay = @myBuildDay;                  % uses the info argument
   s.covariance.pos = struct(&#x27;type&#x27;,&#x27;arma&#x27;,&#x27;ar&#x27;,[1 -1.6 0.9 -0.25],&#x27;ma&#x27;,1,&#x27;sigma&#x27;,0.7);
   s.covariance.kbr = struct(&#x27;type&#x27;,&#x27;diag&#x27;,&#x27;sigma&#x27;,0.2);
-  s.localParams = num2cell((1:4).&#x27;);   s.arcs = 2;
-  data.systems = s;
+  s.localParams = [ ...
+      [repmat({&#x27;arc&#x27;}, 6, 1),  num2cell((1:6).&#x27;)];  ...  % ICs per arc
+      {&#x27;arc&#x27;, &#x27;kbrBias&#x27;; &#x27;arc&#x27;, &#x27;kbrCos1cpr&#x27;};      ...  % KBR per arc
+      [repmat({&#x27;day&#x27;}, 3, 1),  {&#x27;accScale&#x27;; &#x27;accBias&#x27;; &#x27;accDrift&#x27;}]];
+  s.arcs = 2;
+  data.systems = s;          % nl = 3 days * (2 arcs * 8 + 3) = 57, derived
   R = lsqvce.fit(data, lsqvce.Options(Model=&quot;vce&quot;));
   R.report
 

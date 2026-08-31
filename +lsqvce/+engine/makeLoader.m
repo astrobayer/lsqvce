@@ -70,6 +70,23 @@ function L = makeLoader(buildDay, opt)
 %                       With ragged arcs the day may declare .arcId (see THE
 %                       PART YOU WRITE) so arcs are addressed BY ID and absent
 %                       ids are skipped as data gaps -- no padding needed.
+%       'Scoped'       1x1 logical  v4 contract (L11 WP-75): treat the
+%                                       parametrisation tables as SCOPED --
+%                                       column 1 of localParams is the token
+%                                       'arc' | 'day' | 'system', rows are
+%                                       templates expanded over the calendar
+%                                       (nl DERIVED; layout: per day [arc
+%                                       blocks, sorted ids | 'day' block],
+%                                       trailing 'system' block; a day whose
+%                                       schedule has no arcs gets no blocks).
+%                                       Default false: v3 free-form tables.
+%       'CommonPlan'   1x1 struct    v4: the COMMON scope plan built by
+%                                       lsqvce.fit over the GLOBAL day
+%                                       calendar (it spans systems): .nc
+%                                       .commonCount .days .dayOffset
+%                                       .dayCount. Sets nc; buildDay's 6th
+%                                       argument gains .nc / .commonCount /
+%                                       .commonDayOffset / .commonDayCount.
 %       'localsPerArc' var  let makeLoader OWN the per-arc local bookkeeping
 %                                       (WP-52). 1x1 integer, or @(day,arcId)
 %                                       returning the count for that arc. It
@@ -200,6 +217,8 @@ function L = makeLoader(buildDay, opt)
 %       lsqvce:makeLoader:localPlan    'localsPerArc' without 'days', combined
 %                                      with 'fromDay', or a bad count (WP-52)
 %       lsqvce:makeLoader:paramType    commonParams/localParams is not a 2-D cell
+%       lsqvce:makeLoader:badScope     a Scoped localParams row whose column 1
+%                                      is not 'arc' | 'day' | 'system'
 %       lsqvce:makeLoader:ncConflict   numCommon disagrees with the commonParams
 %                                      row count -- state it ONCE, in the table
 %       lsqvce:makeLoader:nlConflict   the same for numLocal/localParams
@@ -221,6 +240,12 @@ function L = makeLoader(buildDay, opt)
 %   See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.SYNTHLOADER, LSQVCE.ENGINE.COVMODEL,
 %            LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.ADJUSTVCE
 %
+%   Updated 2026-08-31 (CEST, UTC+02:00), v4 scoped tables (Level L11,
+%   WP-75): 'Scoped' + 'CommonPlan' options; buildScopePlan generalizes the
+%   WP-52 per-arc plan to 'arc'/'day'/'system' template rows (nl derived);
+%   buildDay's 6th argument gains the day/system block offsets and the
+%   common-plan slice. With assistance from Claude (Anthropic), model
+%   Claude Fable 5.
 %   Updated 2026-08-31 (CEST, UTC+02:00), v3 data contract (Level L10,
 %   WP-72): the fixed 14-column shape of commonParams/localParams is
 %   retired -- RxC with C of the caller's convention; the paramCols error
@@ -270,6 +295,8 @@ arguments
     opt.ProcessingOptions (1,1) struct = struct()
     opt.PlotPostSolve = []
     opt.PlotPostModel = []
+    opt.Scoped (1,1) logical = false
+    opt.CommonPlan = []
 end
 
     narginchk(1, inf);
@@ -279,7 +306,7 @@ end
     % WP-39 stage (c) c1: typed `arguments` signature (canonical
     % UpperCamelCase; legacy casings keep matching -- MATLAB NV
     % semantics; enum VALUES case-sensitive lowercase).
-    o = struct('observationTypes', {opt.ObservationTypes}, 'covariance', opt.Covariance, 'arcs', opt.Arcs, 'localsPerArc', opt.LocalsPerArc, 'systemId', opt.SystemId, 'numLocal', opt.NumLocal, 'numCommon', opt.NumCommon, 'days', opt.Days, 'name', char(opt.Name), 'cache', opt.Cache, 'epochCovariance', opt.EpochCovariance, 'commonParams', {opt.CommonParams}, 'localParams', {opt.LocalParams}, 'processingOptions', opt.ProcessingOptions, 'plotPostSolve', opt.PlotPostSolve, 'plotPostModel', opt.PlotPostModel);
+    o = struct('observationTypes', {opt.ObservationTypes}, 'covariance', opt.Covariance, 'arcs', opt.Arcs, 'localsPerArc', opt.LocalsPerArc, 'systemId', opt.SystemId, 'numLocal', opt.NumLocal, 'numCommon', opt.NumCommon, 'days', opt.Days, 'name', char(opt.Name), 'cache', opt.Cache, 'epochCovariance', opt.EpochCovariance, 'commonParams', {opt.CommonParams}, 'localParams', {opt.LocalParams}, 'processingOptions', opt.ProcessingOptions, 'plotPostSolve', opt.PlotPostSolve, 'plotPostModel', opt.PlotPostModel, 'scoped', opt.Scoped, 'commonPlan', opt.CommonPlan);
 
     % ---- map long option names onto the short internal fields -------------
     % Canonical long names only. The resolved value is written onto the SHORT
@@ -320,7 +347,9 @@ end
     nlDerived = size(o.local,  1);        % 0 if local  == {}
 
     ncFinal = o.nc;
-    if ~isempty(o.common)                 % commonParams given -> it SETS nc
+    if ~isempty(o.common) && ~(o.scoped && ~isempty(o.commonPlan))
+        % commonParams given -> it SETS nc (v3). Under a SCOPED common plan
+        % (v4) the rows are TEMPLATES: nc comes from the plan, below.
         if ~isempty(o.nc) && o.nc ~= ncDerived
             error('lsqvce:makeLoader:ncConflict', ...
                 ['''numCommon'' = %d but the ''commonParams'' parametrisation ' ...
@@ -332,7 +361,9 @@ end
     end
 
     nlFinal = o.nl;
-    if ~isempty(o.local)                  % local given -> it SETS nl
+    if ~isempty(o.local) && ~o.scoped
+        % local given -> it SETS nl (v3). Under 'Scoped' the rows are
+        % TEMPLATES: nl comes from the scope plan, below.
         if ~isempty(o.nl) && o.nl ~= nlDerived
             error('lsqvce:makeLoader:nlConflict', ...
                 ['''numLocal'' = %d but the ''localParams'' parametrisation has %d rows. ' ...
@@ -349,6 +380,21 @@ end
     % argument. nl can then never disagree with the schedule, because it is no
     % longer stated twice.
     plan = [];
+    if o.scoped && ~isempty(o.local)
+        % L11 WP-75 (v4): the SCOPED local table -- column 1 is the scope
+        % token ('arc' | 'day' | 'system'), rows are templates expanded over
+        % the calendar. Generalizes the WP-52 per-arc plan; nl is DERIVED.
+        if ~isempty(o.localsPerArc)
+            error('lsqvce:makeLoader:localPlan', ...
+                '''Scoped'' local tables and ''localsPerArc'' are one mechanism twice: declare the ''arc'' rows in the table.');
+        end
+        plan = buildScopePlan(o.local, o.arcs, obsTypes, o.days);
+        if ~isempty(nlFinal) && nlFinal ~= plan.nl
+            error('lsqvce:makeLoader:nlConflict', ...
+                '''numLocal'' = %d but the scoped plan derives %d. Omit ''numLocal''.', nlFinal, plan.nl);
+        end
+        nlFinal = plan.nl;
+    end
     if ~isempty(o.localsPerArc)
         plan = buildLocalPlan(o.localsPerArc, o.arcs, obsTypes, o.days);
         if ~isempty(nlFinal) && nlFinal ~= plan.nl
@@ -376,6 +422,15 @@ end
     L.common   = o.common;
     L.local    = o.local;
     L.procOpt  = o.procOpt;
+    if o.scoped && ~isempty(o.commonPlan)
+        % L11 WP-75 (v4): fit builds the COMMON plan over the GLOBAL day
+        % calendar (it spans systems) and passes it in; nc is the plan's.
+        if ~isempty(ncFinal) && ncFinal ~= o.commonPlan.nc
+            error('lsqvce:makeLoader:ncConflict', ...
+                '''numCommon'' = %d but the common plan derives %d. Omit ''numCommon''.', ncFinal, o.commonPlan.nc);
+        end
+        ncFinal = o.commonPlan.nc;
+    end
     L.nc       = ncFinal;
     % Plot hooks normalised to a containers.Map obsType -> handle (a single
     % handle is broadcast to every obsType of this loader). Empty -> empty Map.
@@ -389,7 +444,7 @@ end
     % it (the 'fromDay' resolver), and an anonymous function cannot capture a
     % struct field that does not exist yet.
     dayAccessor = @(day, obsType) dayOf(buildDay, cache, o.cache, day, obsType, ...
-                                        o.common, o.local, o.procOpt, plan);
+                                        o.common, o.local, o.procOpt, plan, o.commonPlan);
     L.meta    = @(varargin) metaOf(obsTypes, o.arcs, ...
                                    metaDay(varargin, o.days), dayAccessor);
     L.localPlan = plan;               % WP-52: [] unless 'localsPerArc' declared
@@ -601,18 +656,126 @@ function d = metaDay(args, days)
 end
 
 function info = arcInfoOf(plan, day)
-%ARCINFOOF  The local-block slice buildDay gets for ONE day (WP-52).
+%ARCINFOOF  The local-block slice buildDay gets for ONE day (WP-52; scoped
+%   fields since L11 WP-75).
 %   OUTPUT info 1x1 struct | []  .arcId .offset .count .ordinal (1xA each),
-%          .nl (total over the adjustment), .offsetOf @(arcId)->column offset.
+%          .nl (total over the adjustment), .offsetOf @(arcId)->column offset;
+%          for a SCOPED plan also .dayOffset/.dayCount (this day's 'day'
+%          block; [] / 0 when the day has no arcs) and .sysOffset/.sysCount
+%          (the trailing 'system' block).
     info = [];
     if isempty(plan), return, end
     i = find(plan.days == day, 1);
-    if isempty(i), return, end
-    info = struct('arcId', plan.arcId{i}, 'offset', plan.offset{i}, ...
-                  'count', plan.count{i}, 'ordinal', plan.ordinal{i}, ...
+    if isempty(i) && ~(isfield(plan, 'sysCount') && plan.sysCount > 0), return, end
+    if isempty(i)
+        arcIds = zeros(1,0); offs = zeros(1,0); cnts = zeros(1,0); ords = zeros(1,0);
+    else
+        arcIds = plan.arcId{i}; offs = plan.offset{i};
+        cnts = plan.count{i};   ords = plan.ordinal{i};
+    end
+    info = struct('arcId', arcIds, 'offset', offs, ...
+                  'count', cnts, 'ordinal', ords, ...
                   'nl', plan.nl, 'offsetOf', []);
-    ids = plan.arcId{i};  offs = plan.offset{i};
-    info.offsetOf = @(a) offs(find(ids == a, 1));
+    info.offsetOf = @(a) offs(find(arcIds == a, 1));
+    if isfield(plan, 'sysCount')                    % scoped plan (v4)
+        dOff = [];  dCnt = 0;
+        if ~isempty(i) && plan.dayCount(i) > 0
+            dOff = plan.dayOffset(i);  dCnt = plan.dayCount(i);
+        end
+        info.dayOffset = dOff;   info.dayCount = dCnt;
+        info.sysOffset = plan.sysOffset;  info.sysCount = plan.sysCount;
+    end
+end
+
+function info = addCommonInfo(info, commonPlan, day)
+%ADDCOMMONINFO  Merge the COMMON-plan slice for ONE day into buildDay's 6th
+%   argument (L11 WP-75, v4): .nc, .commonCount (the leading 'common' block),
+%   .commonDayOffset/.commonDayCount (THIS day's block; [] / 0 when the
+%   calendar carries no block for it).
+    if isempty(commonPlan), return, end
+    if isempty(info), info = struct(); end
+    info.nc          = commonPlan.nc;
+    info.commonCount = commonPlan.commonCount;
+    j = find(commonPlan.days == day, 1);
+    if isempty(j) || commonPlan.dayCount(j) == 0
+        info.commonDayOffset = [];  info.commonDayCount = 0;
+    else
+        info.commonDayOffset = commonPlan.dayOffset(j);
+        info.commonDayCount  = commonPlan.dayCount(j);
+    end
+end
+
+function plan = buildScopePlan(tbl, arcs, obsTypes, days)
+%BUILDSCOPEPLAN  Expand a SCOPED local table over the calendar (L11 WP-75).
+%   Column 1 of TBL is the scope token: 'arc' | 'day' | 'system'; rows are
+%   TEMPLATES. Layout, binding: per day (declared order) [arc blocks in
+%   sorted-id order, each = the 'arc' rows | the 'day' block = the 'day'
+%   rows], then ONE trailing 'system' block. A day whose schedule carries no
+%   arcs gets NO blocks at all. nl is DERIVED. Generalizes the WP-52 plan
+%   (that plan = a table of n 'arc' rows).
+%   INPUT  tbl RxC cell (C >= 1); arcs / obsTypes / days as buildLocalPlan
+%   OUTPUT plan 1x1 struct  the WP-52 fields (.days .arcId .offset .count
+%          .ordinal .nl .nArcTot) + .dayOffset .dayCount (1xD) + .sysOffset
+%          .sysCount + .rows (struct of row indices per scope, so callers can
+%          map block columns back to template rows)
+    tok = cell(size(tbl, 1), 1);
+    for r = 1:size(tbl, 1)
+        v = tbl{r, 1};
+        if ~(ischar(v) || (isstring(v) && isscalar(v))) || ...
+                ~any(strcmp(char(v), {'arc', 'day', 'system'}))
+            error('lsqvce:makeLoader:badScope', ...
+                ['localParams row %d: column 1 must be the scope token ' ...
+                 '''arc'' | ''day'' | ''system'' (got %s).'], r, class(v));
+        end
+        tok{r} = char(v);
+    end
+    iArc = find(strcmp(tok, 'arc')).';  iDay = find(strcmp(tok, 'day')).';
+    iSys = find(strcmp(tok, 'system')).';
+    nArcRows = numel(iArc);  nDayRows = numel(iDay);  nSysRows = numel(iSys);
+    if (nArcRows + nDayRows) > 0 && isempty(days)
+        error('lsqvce:makeLoader:localPlan', ...
+            ['scoped ''arc''/''day'' rows need the day list: pass ''days'' so ' ...
+             'the blocks can be numbered over the whole adjustment.']);
+    end
+    if (nArcRows + nDayRows) > 0 && (ischar(arcs) || isstring(arcs)) && ...
+            strcmpi(char(arcs), 'fromday')
+        error('lsqvce:makeLoader:localPlan', ...
+            ['scoped ''arc''/''day'' rows cannot be combined with ''arcs'',''fromDay'': ' ...
+             'nl must be known WITHOUT reading data. Declare the schedule ' ...
+             'with an @(day,obsType) resolver instead.']);
+    end
+    days = days(:).';
+    D = numel(days);
+    plan = struct('days', days, 'arcId', {cell(1,D)}, 'offset', {cell(1,D)}, ...
+                  'count', {cell(1,D)}, 'ordinal', {cell(1,D)}, ...
+                  'dayOffset', zeros(1,D), 'dayCount', zeros(1,D), ...
+                  'sysOffset', 0, 'sysCount', nSysRows, ...
+                  'nl', 0, 'nArcTot', 0, ...
+                  'rows', struct('arc', iArc, 'day', iDay, 'system', iSys));
+    off = 0;  ord = 0;
+    for i = 1:D
+        d = days(i);
+        ids = zeros(1,0);
+        for k = 1:numel(obsTypes)
+            ids = union(ids, arcVec(arcs, obsTypes{k}, d, []));
+        end
+        ids = sort(ids(:).');
+        A = numel(ids);
+        offs = zeros(1, A);  cnts = repmat(nArcRows, 1, A);  ords = zeros(1, A);
+        for a = 1:A
+            offs(a) = off;  off = off + nArcRows;
+            ord = ord + 1;  ords(a) = ord;
+        end
+        plan.arcId{i} = ids;  plan.offset{i} = offs;
+        plan.count{i} = cnts; plan.ordinal{i} = ords;
+        if A > 0 && nDayRows > 0                    % a day WITH arcs gets its block
+            plan.dayOffset(i) = off;  plan.dayCount(i) = nDayRows;
+            off = off + nDayRows;
+        end
+    end
+    plan.sysOffset = off;
+    off = off + nSysRows;
+    plan.nl = off;  plan.nArcTot = ord;
 end
 
 function v = checkArcIds(v, obsType, day, who)
@@ -627,14 +790,16 @@ function v = checkArcIds(v, obsType, day, who)
     end
 end
 
-function D = dayOf(buildDay, cache, useCache, day, obsType, common, local, procOpt, plan)
+function D = dayOf(buildDay, cache, useCache, day, obsType, common, local, procOpt, plan, commonPlan)
 %DAYOF  Return the built+validated day struct for (day,obsType), using a
 %   single-slot cache when useCache. OUTPUT D 1x1 struct  the day data.
+    if nargin < 10, commonPlan = []; end
     key = sprintf('%d|%s', day, obsType);
     if useCache && isKey(cache, key)
         D = cache(key);  return
     end
-    arcInfo = arcInfoOf(plan, day);           % WP-52: [] unless 'localsPerArc'
+    arcInfo = arcInfoOf(plan, day);           % WP-52: [] unless a plan exists
+    arcInfo = addCommonInfo(arcInfo, commonPlan, day);   % L11: v4 common slice
     D = callBuildDay(buildDay, day, obsType, common, local, procOpt, arcInfo);
     D = validateDay(D, day, obsType);
     if useCache
