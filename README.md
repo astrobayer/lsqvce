@@ -705,7 +705,14 @@ vector content, not images, and there is no LaTeX toolchain to install:
 
 ```bash
 python3 docs_src/build_master_pdf.py        # -> lsqvce_manual.pdf
+python3 docs_src/build_theory_pdf.py        # -> lsqvce_theory.pdf  (R4 WP-59)
 ```
+
+The **theory document** `lsqvce_theory.pdf` (R4, Level L3) is the authoritative
+account of the METHOD choices -- backends, conditioning, VCE families,
+stochastic model, robust estimation, error handling, limitations -- with every
+toolbox claim tied to the work package that pinned it; the manual's theory
+chapter remains until decision R4-D3 retires it.
 
 See `docs_src/README_manual.md` for the file map and for how to add an equation
 or a diagram. The **HTML manuals** carry the same material in browsable,
@@ -737,6 +744,7 @@ doc lsqvce              % the landing page
 | File | Purpose |
 |---|---|
 | `lsqvce_manual.pdf` | **THE master manual** — one document, built with ReportLab (`python3 docs_src/build_master_pdf.py`) |
+| `lsqvce_theory.pdf` | **The theory document** (R4 WP-59) — theory, practice, implementation, error handling; `python3 docs_src/build_theory_pdf.py` |
 | `html/lsqvce_user_manual.html` | **theory + usage + step-by-step. Start here** |
 | `html/lsqvce_reference_manual.html` | symbols, equations, conventions, whitening; §4 block-arrow QR |
 | `html/lsqvce_interpretation_guide.html` | how to interpret the results |
