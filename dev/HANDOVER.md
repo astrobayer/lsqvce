@@ -4578,6 +4578,15 @@ the user README carries no counts to drift; (5) template/ remains at root
 (user material, copied not path-added), examples/ remains on the user path
 (demos must be callable).
 
+**L8 r1 CI CATCH (2026-09-02):** 858e619 audit job RED -- its SECOND step
+(`python validation/v10review.py`, the R2 numerics re-verifier) still used
+the old path; my WP-69 sweep of ci.yml had grepped for audit/tests/addpath
+keywords and missed it. v10review.py itself is cwd-independent (pure
+numerics, verified locally: T1-T7 pass). Fix: dev/validation path in
+ci.yml. LESSON (the L6 lesson, once more, now for WORKFLOWS): sweep the
+FILE, not keyword hits -- read every `run:` line of a workflow after a
+layout change.
+
 ### 11.9 DATA CONTRACT AND LOADER WORKFLOW — design record for WP-56 (R4-D4)
 
 **The binding specification is `DATA_CONTRACT.md` at the tree root** (one

@@ -29,7 +29,7 @@ jobs:
         with: { python-version: '3.12' }
       - run: pip install numpy
       - run: python dev/docs_src/audit_tree.py
-      - run: for f in validation/v10review.py; do python "$f"; done
+      - run: for f in dev/validation/v10review.py; do python "$f"; done
 
   matlab:
     needs: audit
