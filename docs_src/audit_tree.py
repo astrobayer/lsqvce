@@ -19,6 +19,9 @@ WHAT IT CHECKS
     5  every html link and helptoc target resolves
     6  the doc set stays JavaScript-free (hard environment requirement)
     7  function/end balance, with MATLAB-aware tokenising
+    ...
+    18 surface census (docs_src/tiers.csv complete both ways) and no
+       case-only file-name collisions (Windows working copies)
 
 USAGE
     python3 docs_src/audit_tree.py            # from the toolbox root
@@ -797,6 +800,62 @@ def check_readme_sync():
                   '== Contents.m' % (cf, cp, mv.group(1) if mv else '?'))
 
 
+def check_tiers_and_case():
+    print('\n18. Surface census: every public name has a tier row; no case-only '
+          'file-name collisions (HANDOVER 11.9, WP-54)')
+    # WHY (R4 WP-54, 2026-08-31): the public surface grew to 80 names with
+    # no statement of who they are for. docs_src/tiers.csv is the ONE tier
+    # authority (USER / ENGINE / KERNEL); this check keeps it complete in
+    # both directions so a new public name cannot land untiered and a
+    # deleted one cannot linger. (b) guards the Windows working copy: two
+    # names differing only by case (options.m / Options.m) cannot coexist on
+    # a case-insensitive file system, so the tree must never contain them.
+    import csv
+    tiers_ok = {'USER', 'ENGINE', 'KERNEL'}
+    path = 'docs_src/tiers.csv'
+    if not os.path.isfile(path):
+        note('tiers', '%s missing' % path)
+        return
+    rows = list(csv.DictReader(open(path, encoding='utf-8')))
+    names = {}
+    for r in rows:
+        if r.get('tier') not in tiers_ok:
+            note('tiers', 'row %s has tier %r (expected one of %s)'
+                 % (r.get('name'), r.get('tier'), sorted(tiers_ok)))
+        if r['name'] in names:
+            note('tiers', 'duplicate row for %s' % r['name'])
+        names[r['name']] = r
+    tree = set()
+    for f in glob.glob('+lsqvce/*.m'):
+        n = os.path.basename(f)[:-2]
+        if n != 'Contents':
+            tree.add(n)
+    for f in glob.glob('+lsqvce/+util/*.m'):
+        tree.add('util.' + os.path.basename(f)[:-2])
+    for n in sorted(tree - set(names)):
+        note('tiers', 'public name %s has no row in %s' % (n, path))
+    for n in sorted(set(names) - tree):
+        note('tiers', 'row %s names nothing in the tree' % n)
+    by_tier = {}
+    for r in rows:
+        by_tier.setdefault(r['tier'], []).append(r['name'])
+    print('   %d public names: USER %d, ENGINE %d, KERNEL %d' % (
+        len(tree), len(by_tier.get('USER', [])),
+        len(by_tier.get('ENGINE', [])), len(by_tier.get('KERNEL', []))))
+    # (b) case-insensitive uniqueness, whole tree, .m and .py and .md
+    seen = {}
+    for root, _dirs, files in os.walk('.'):
+        if '.git' in root or '__pycache__' in root:
+            continue
+        for fn in files:
+            key = os.path.join(root, fn).lower()
+            if key in seen:
+                note('tiers', 'case-only file-name collision: %s vs %s '
+                     '(breaks Windows working copies)'
+                     % (os.path.join(root, fn), seen[key]))
+            seen[key] = os.path.join(root, fn)
+
+
 def main():
     if not os.path.isdir('+lsqvce'):
         sys.exit('run from the toolbox root (the folder holding +lsqvce)')
@@ -820,6 +879,7 @@ def main():
     check_h1_names()
     check_test_categories()
     check_readme_sync()
+    check_tiers_and_case()
     print('\n' + '=' * 60)
     if FINDINGS:
         print('%d finding(s).' % len(FINDINGS))

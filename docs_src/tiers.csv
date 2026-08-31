@@ -1,0 +1,81 @@
+name,tier,role
+Results,USER,rich result object: solution, diagnostics, provenance, report()
+report,USER,verdict printer (levels 0-4); Results.report forwards here
+adjust,ENGINE,in-memory batch driver (batchFcn) -- fit(A,l) path in L2
+adjustBlock,ENGINE,one GLS solve over the streaming block-arrow pipeline
+adjustVCE,ENGINE,separable-GLS iteration: stochastic model <-> variance components
+adjustVCEjoint,ENGINE,Ellmer ten-step joint co-estimation with keyed arc factors
+robust,ENGINE,IRLS M-estimation over the batch driver
+solveNonlinear,ENGINE,Gauss-Newton / damped iteration over the batch driver
+makeLoader,ENGINE,day-builder -> Loader (built INSIDE fit from the data struct, R4-D4)
+synthLoader,ENGINE,synthetic ground-truth loader and raw-closure template
+PrefetchLoader,ENGINE,prefetching loader wrapper
+BlockAccumulator,ENGINE,block-arrow accumulation with per-system Schur pre-elimination
+Accumulator,ENGINE,plain batch accumulator
+Combine,ENGINE,normal-equation combination of systems
+CommonPrior,ENGINE,prior on the common block (regularisation as observations)
+NormalEqSystem,ENGINE,normal-equation backend
+QRSystem,ENGINE,QR backend
+BatchIndex,ENGINE,batch/arc index bookkeeping
+ReducedContribution,ENGINE,reduced-normal contribution bookkeeping
+vce,ENGINE,Helmert group variance components (exact | hutchinson)
+vceHutchinson,ENGINE,Hutchinson redundancy/trace estimator for vce
+psdVCE,ENGINE,PSD amplitude + arc-factor VCE (Ellmer workhorse)
+iterateNoiseModel,ENGINE,temporal noise-model iteration
+arcVarianceFactors,ENGINE,per-arc variance factors
+covComponent,ENGINE,covariance component estimation
+varComp,ENGINE,variance-component estimation helper
+snoop,ENGINE,block-native data snooping and downweighting
+outliers,ENGINE,outlier listing from diagnostics
+diagnose,ENGINE,per-observation diagnostics (batch)
+diagnoseAccum,ENGINE,diagnostics bridge from the accumulator
+localDiagnostics,ENGINE,diagnostics of the local blocks
+residuals,ENGINE,second data pass: residuals and quadratic forms
+collectResiduals,ENGINE,residual collection per stream
+redundancy,ENGINE,redundancy numbers (data pass)
+contribution,ENGINE,information contribution per group
+streamContribution,ENGINE,contribution per stream
+covModel,ENGINE,covariance spec -> whitening operators (per arc)
+jointModelOpt,ENGINE,joint-mode model -> loader UserOpt translation
+applyRegularisation,ENGINE,regularisation of the reduced system
+gcvLambda,ENGINE,GCV choice of the regularisation weight
+datum,ENGINE,datum defect detection and handling
+mapreduce,ENGINE,serial / parfor / spmd task runner with ordered reduce
+poolGroups,ENGINE,VCE group pooling
+resolveNc,ENGINE,common-parameter count derived from the systems
+resolveSatSpecs,ENGINE,satellite spec resolution
+normalizeSatList,ENGINE,satellite list normalisation
+satKeyOf,ENGINE,satellite key (makeValidName) helper
+selectArAcv,ENGINE,AR model selection from an autocovariance
+selectArOrder,ENGINE,AR order selection
+whittle,ENGINE,Whittle likelihood fit of a VAR model
+checkPSD,ENGINE,PSD sanity check
+leverage,ENGINE,leverage (hat-matrix diagonal), batch
+leverageBlocks,ENGINE,leverage over blocks
+ellipse,ENGINE,confidence ellipse from a covariance
+ftest,ENGINE,F-test on variance factors
+stat,ENGINE,statistics helper
+systematic,ENGINE,systematic-effect test
+sharedProbe,ENGINE,shared Hutchinson probe generator (RNG contract)
+traceEstimate,ENGINE,stochastic trace estimate
+dctI,KERNEL,DCT-I transform
+psd2acv,KERNEL,PSD -> autocovariance
+levinsonDurbin,KERNEL,Levinson-Durbin recursion
+armaACV,KERNEL,ARMA autocovariance
+ar2arma,KERNEL,AR -> ARMA conversion
+armaWhiten,KERNEL,ARMA whitening filter (batched)
+varACV,KERNEL,VAR autocovariance
+varWhiten,KERNEL,VAR whitening
+separableWhiten,KERNEL,separable (temporal x axis) whitening
+toeplitzCofactor,KERNEL,Toeplitz cofactor construction
+decorrFactor,KERNEL,decorrelation factor of a dense covariance
+residualAcv,KERNEL,autocovariance of residuals
+crossCorr,KERNEL,cross-correlation of residual streams
+whitenessCorr,KERNEL,whiteness (Ljung-Box) statistic
+redundancyLags,KERNEL,redundancy per lag without the dense W^-1
+util.getfielddef,KERNEL,struct field with default
+util.hasBackgroundPool,KERNEL,pool presence check
+util.log,KERNEL,toolbox-wide logging state
+util.mergeStruct,KERNEL,struct merge (later wins)
+util.showExport,KERNEL,timed figure show + PNG export
+util.verbosity,KERNEL,verbosity level resolution and formatting

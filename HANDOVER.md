@@ -8,7 +8,15 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-08-30 — REVIEW R4 opened (§11): nine-expert
+Last substantive update: 2026-08-31 — PR #34 MERGED (bedd4c7, §11.5
+level rounds in force); LEVEL L1 opened on branch `claude/level-1` (PR #35
+draft): G-06 fixed (raw-closure template dropped the VCE reweighting),
+WP-54 census + audit check 18 + DATA_CONTRACT.md (binding beginner-facing
+spec, decision R4-D4: the user supplies a `data` STRUCT, `makeLoader` moves
+to ENGINE, `lsqvce.Options` is a CLASS because of Windows case-insensitive
+file names); G-07 (nl >= 1 wall) OPEN for WP-56; round note §11.8, design
+record §11.9. WP-55 next in the same level.
+Preceding entry: Last substantive update: 2026-08-30 — REVIEW R4 opened (§11): nine-expert
 deep review reconciled against the tree; findings G-01…G-05 (interface
 consolidation: ONE verb `lsqvce.fit` + ONE options object + Results
 methods; theory PDF; tiered docs); confirmations pinned in §11.2 so the
@@ -4126,6 +4134,8 @@ Higham) is the source text for the WP-59 theory PDF.
 | G-03 | OPTION-SPACE LEAKAGE: options live in >=4 conventions — per-driver NV names, covariance SPEC structs (covModel), loader UserOpt, and the joint-mode translation whose OWN help text lists "THREE CONVENTIONS THAT ARE EASY TO GET WRONG" (jointModelOpt.m:15-27: variance vs std, override location, psdMode location). Internal conventions are exposed as user obligations. | L1: options object encodes those conventions ONCE; jointModelOpt becomes an internal translation |
 | G-04 | RESULTS EASE OF USE: Results carries provenance and report(), but the fitlm-grade progressive-disclosure set (summary/disp, coefCI, predict, plot) is absent or scattered across report/diagnose/contribution — a casual user cannot go from fit to confidence intervals in one obvious call. | L2: thin add-only methods on Results wrapping the existing machinery — no second implementation of anything |
 | G-05 | DOCUMENTATION SHAPE: reference is FLAT (no USER/ENGINE/KERNEL tiering, getting-started path buried); the manual predates R2–R4 and there is NO consolidated theory+practice+implementation document tying the pinned method choices (NaN honesty, NEQ default, MC trace, floor policies) to the literature. | L3: theory PDF (WP-59), tiered HTML + getting started (WP-60), help sweep of the new surface (WP-61) |
+| G-06 | RAW-CLOSURE TEMPLATE DROPS THE VCE REWEIGHTING (found 2026-08-31 while answering "must the user call makeLoader?"): adjustVCE emits its reweighting ONLY as `opt.covOverride.bySys.(satKey).(obsType)` (adjustVCE.m covOverrideOpt), the documented raw-closure template synthLoader read ONLY the flat `opt.covOverride.(obsType)` (synthLoader.m:151), and no VCE suite drove a raw closure — a template-derived loader silently ignored every variance component. | FIXED L1 commit 7f93d53: applyCovOverride is package-private (ONE merge, both loader kinds), template + test pin bySys/flat/other-satellite behaviour |
+| G-07 | nl >= 1 IS ENFORCED per system (BlockAccumulator.addSystem validateattributes 'positive'; makeLoader NumLocal default [] must be set): a system without local unknowns cannot use the streaming path at all — a usability wall the data contract has to document (DATA_CONTRACT.md §6.4). | OPEN — decision for WP-56: allow nl = 0 (engine change in preeliminate / residuals) or keep the wall and route such systems to fit(A,l) |
 
 ### 11.4 The R4 target USER surface (pinned)
 
@@ -4135,11 +4145,15 @@ and Contents.m structure first — code moves only per decision R4-D1):
 
 | name | role |
 |---|---|
-| `lsqvce.fit` | THE one verb: data/loader + options -> Results (dispatches to the six drivers internally) |
-| `lsqvce.options` | THE one settings constructor (typed, canonical UpperCamelCase, resolution rules stated once) |
+| `lsqvce.fit` | THE one verb: `fit(data, opts)` (data struct, R4-D4) or `fit(A, l, opts)` -> Results; dispatches to the six drivers internally |
+| `lsqvce.Options` | THE one settings object (value class, typed properties, canonical UpperCamelCase). *Amended 2026-08-31: a CLASS named `Options`, not a function `options` — `options.m` and `Options.m` cannot coexist on the user's Windows working copy (case-insensitive file system); audit check 18b guards case-only collisions tree-wide.* |
 | `lsqvce.Results` | rich result object: report/summary/coefCI/predict/plot + immutable meta |
-| `lsqvce.makeLoader` | data ingestion incl. ragged schedules (unchanged contract) |
 | `lsqvce.report` | verdict printer (unchanged; Results.report forwards) |
+
+*Amended 2026-08-31 (R4-D4, user decision): `makeLoader` LEAVES the USER tier.
+The user delivers a plain `data` struct (DATA_CONTRACT.md is the binding
+specification); `fit` builds the loaders from it and exposes them on
+`R.loaders`. USER tier = FOUR names.*
 
 Ease-of-use benchmark, binding acceptance criterion for L2: a new user fits
 with VCE in <= 3 lines and reads a verdict — the stock-MATLAB standard
@@ -4173,8 +4187,8 @@ merger, no zip when a PR is the deliverable).
 
 | Level | WP | title | depends on | status |
 |---|---|---|---|---|
-| L1 | 54 | Surface census + tier table (mechanical: audit-derived name list; USER/ENGINE/KERNEL column; check extension so no new public name lands untier'd) | — | OPEN |
-| L1 | 55 | `lsqvce.options` — ONE typed options object covering the adjust/VCE/joint/robust/nonlinear option space; encodes the G-03 conventions once; maps onto the existing opt structs; NO behaviour change | 54 | OPEN |
+| L1 | 54 | Surface census + tier table (mechanical: audit-derived name list; USER/ENGINE/KERNEL column; check extension so no new public name lands untier'd) + the data contract (R4-D4) | — | IN PROGRESS (2026-08-31, branch `claude/level-1`, PR #35: `docs_src/tiers.csv` 80 names USER 2 / ENGINE 57 / KERNEL 21, audit check 18 red-tested, DATA_CONTRACT.md; Contents.m regrouping by tier deferred to WP-60; round note §11.8) |
+| L1 | 55 | `lsqvce.Options` — ONE typed options object covering the adjust/VCE/joint/robust/nonlinear option space; encodes the G-03 conventions once; maps onto the existing opt structs; NO behaviour change | 54 | OPEN |
 | L2 | 56 | `lsqvce.fit` — the one user verb; dispatch to the six drivers; <=3-line acceptance test | 55 | OPEN |
 | L2 | 57 | Results ease-of-use methods: summary/disp, coefCI, predict, plot — thin add-only wrappers over report/diagnose/contribution | 56 | OPEN |
 | L2 | 58 | Fluent configurators leave the USER contract (Contents/doc tiering + fit parity tests; deletion gated by R4-D2) | 56 | OPEN |
@@ -4200,6 +4214,7 @@ methods batched); L3 doc-sync gate (check 17) only; L4 speed + robustness
 | R4-D1 | Namespace layering: move ENGINE/KERNEL tier into `+lsqvce/+engine` / `+lsqvce/+kernel`? | (A) facade only — tiers live in docs/Contents, no code moves, non-breaking; (B) full move — clean tree, BREAKING, large churn in tests/docs | (A) now; (B) only if L2 experience shows the flat namespace still confuses — revisit at L5 |
 | R4-D2 | Delete the fluent configurators once fit reaches parity (no-aliases rule => deletion, not deprecation)? | delete in L5 / keep as ENGINE tier | delete in L5, provided WP-58 parity tests are green |
 | R4-D3 | Theory-PDF authority: does the WP-59 PDF supersede lsqvce_manual.pdf's theory chapters (manual then references the PDF)? | supersede / duplicate | supersede — one place per statement (rule 3) |
+| R4-D4 | DATA DECLARATION AS A STRUCT: the user supplies a plain `data` struct (`.common`, `.days`, `.systems(k)`), `fit` builds the loaders internally; `makeLoader` becomes ENGINE tier; raw 4-arg closures stay an ENGINE escape hatch (`.loader` xor `.buildDay`). Rules: DATA_CONTRACT.md. | struct (decided) / loader objects | **DECIDED 2026-08-31 by the user ("Very good. Please go ahead.") — struct.** Beginner-facing specification written the same day (DATA_CONTRACT.md); it is the source of the WP-56 help text and the WP-60 HTML guide |
 
 ### 11.8 R4 handover round notes
 
@@ -4218,3 +4233,71 @@ matrix) is regime-safe and unchanged. **LESSON, binding: never assert a
 factoriser's behaviour AT the singular boundary — assert the mathematics
 (eigenvalue/rank statement) and keep factoriser assertions to clearly
 PD / clearly indefinite regimes.**
+
+**LEVEL L1 ROUND 1 (opened 2026-08-31, model Claude Fable 5, branch
+`claude/level-1`, PR #35 draft).** Order inside the level: G-06 fix (commit
+7f93d53, pushed) -> WP-54 (this commit) -> WP-55. Merge of PR #34 recorded
+(2026-08-31, merge bedd4c7): §11.5 level rounds are in force. G-06 and
+G-07 were found while explaining the loader workflow to the user (the
+"must the user call makeLoader?" question) — recorded as findings, not
+folded into prose. WP-54 scope note: the tier table is pinned in
+`docs_src/tiers.csv` and enforced by audit check 18 (red-tested with a
+planted stale row + a planted `RESULTS.m` case collision: exit 1, restored,
+exit 0); the Contents.m regrouping by tier is DEFERRED to WP-60 so L1
+stays a documentation-plus-options level. Also noted for WP-60: a stale
+`html/lsqvce.SeparableProblem.html` page survives the 2026-07-18 removal.
+
+### 11.9 DATA CONTRACT AND LOADER WORKFLOW — design record for WP-56 (R4-D4)
+
+**The binding specification is `DATA_CONTRACT.md` at the tree root** (one
+authority; the WP-56 help text and the WP-60 HTML guide are DERIVED from it
+and checked against it, never independently maintained — the §2.8 doctrine).
+This section records only what the handover must carry: the decision, the
+rules that constrain the engine, and the workflow facts the design rests on.
+
+RULES (numbered as in the user-facing document's spirit; verbatim there):
+1. `data` is a scalar struct: `.systems` (1xM struct array), `.common`
+   (exactly one of `commonParams` | `numCommon` — nc stated ONCE), `.days`
+   (default schedule; per-system override allowed). No M = 1 shorthand.
+2. Field names = makeLoader's canonical option names in lowerCamelCase,
+   case-sensitive; the lowerCamel<->UpperCamel mapping lives in ONE table
+   inside `fit`.
+3. Required per system: `buildDay`, `observationTypes`, `covariance`,
+   `systemId` (unique, numeric or single char), exactly one of
+   `localsPerArc` | `numLocal` | `localParams` (nl >= 1 until G-07 decides).
+4. Optional per system: `arcs`, `days`, `name`, `cache`, `epochCovariance`,
+   `processingOptions`, `plotPostSolve`, `plotPostModel`.
+5. Unknown fields ERROR (`lsqvce:fit:unknownField`, names the field).
+6. Validation is fail-fast at fit entry, before any data read; ids mirror the
+   makeLoader/accum ids under the `lsqvce:fit:` namespace.
+7. The buildDay contract is unchanged (arity dispatch by nargin, required
+   A/B/l/t, O-C sign, raw not whitened, determinism, arcIdx positional vs
+   arcId by identity with absent ids as data gaps, arcInfo offsets).
+8. ENGINE escape hatch: `.loader` (raw 4-arg closure) xor `.buildDay`.
+9. Optional extension (WP-55/56 decision): `.buildDay` may be a 1xD struct
+   array of prebuilt days (no builder function for small problems).
+10. `R.loaders` carries the built Loader objects; `makeLoader` is not deleted,
+    only demoted to ENGINE.
+
+WORKFLOW FACTS the engine side must preserve (verified in the tree, 2026-08-31):
+- The accumulator visits system -> day -> obsType -> arc; ONE `'meta'` probe
+  per day (ragged schedules are answered per day, WP-52); an empty batch is
+  a data gap; each arc is validated, whitened per arc with the filter
+  overlap p (BatchOverlap auto — 1.6e-15 vs 1.3e-3 relative error without),
+  accumulated into the (nc+nl) system, released; after a system's days its
+  local block is pre-eliminated (Schur).
+- Every pass reads each day TWICE (accumulate, residuals); the VCE loop
+  multiplies by the pass count. The single-slot day cache is keyed on
+  `'%d|%s'` (numeric day, obsType) — so days are numeric and a builder
+  serving several obsTypes is called once per type.
+- adjustVCE reweights loaders ONLY via `opt.covOverride.bySys.(satKey)
+  .(obsType)`; both loader kinds resolve it through the ONE package-private
+  `applyCovOverride` (G-06).
+- Parallel axes that pay: days within a system (DistributeDays), arcs in the
+  redundancy pass, systems (ceiling 2). Never within an arc (filter state),
+  never inside the dense solve (BLAS).
+- The `fit` dispatch (WP-56): first argument `data` struct -> loaders ->
+  `opts.Model` selects gls (adjustBlock) | vce (adjustVCE separate) | pooled
+  (adjustVCE joint) | ellmer (adjustVCEjoint); first arguments `A, l` or
+  `(u, batchFcn, nBatch)` -> adjust / robust / solveNonlinear by
+  `opts.Robust` / a model handle.

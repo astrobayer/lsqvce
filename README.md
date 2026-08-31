@@ -56,6 +56,10 @@ memory per batch.
 
 ## Quick start
 
+> Streaming GRACE-FO-style data (days, arcs, local unknowns, coloured noise)?
+> Read **`DATA_CONTRACT.md`** first: it defines the `data` struct and the
+> `buildDay` function you write, for beginners (binding spec, R4 decision D4).
+
 ```matlab
 src = @(k) deal(A(idx{k},:), l(idx{k}), p(idx{k}));
 [sol, D, V] = lsqvce.adjust(u, src, numel(idx));
