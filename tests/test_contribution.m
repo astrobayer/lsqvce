@@ -1,17 +1,17 @@
 function tests = test_contribution
 %TEST_CONTRIBUTION  Unit tests for the streaming contribution primitive, the
-%   lsqvce.contribution wrapper, and the hutchinson trace wiring in lsqvce.vce.
+%   lsqvce.engine.contribution wrapper, and the hutchinson trace wiring in lsqvce.engine.vce.
 %
 %   Covers the two defining invariants (sum_g tr(N^-1 N_g^cc) = nc and
 %   sum_g diag(N^-1 N_g^cc) = ones(nc,1)), agreement of the streamed trace with a
-%   high-probe reference, the Level-1/Level-2 outputs of lsqvce.contribution, and
-%   that 'TraceMethod','hutchinson' in lsqvce.vce divides by the streamed
+%   high-probe reference, the Level-1/Level-2 outputs of lsqvce.engine.contribution, and
+%   that 'TraceMethod','hutchinson' in lsqvce.engine.vce divides by the streamed
 %   redundancy r_g = n_g - local_g - tr(N^-1 N_g^cc) (WP-32, fixes F-01)
 %   while leaving vtv exact.
 %
 %   Fixture: the seeded synthetic multi-system / multi-obsType problem also used
 %   by test_reliability (three systems, obsTypes pos/kbr), built through
-%   lsqvce.synthLoader so the arcs are deterministic across passes.
+%   lsqvce.engine.synthLoader so the arcs are deterministic across passes.
 %
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-40 (F-10): the freezeR
 %   freeze-and-warn test. With assistance from Claude (Anthropic), model
@@ -35,7 +35,7 @@ end
 
 function [acc, sol, cfg] = solvedProblem(tc)
     cfg = tc.TestData.cfg;
-    acc = lsqvce.BlockAccumulator(cfg.nc, 'KeepLocal', true, 'Verbose', false);
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'KeepLocal', true, 'Verbose', false);
     for s = cfg.sats
         acc.addSystem(s, cfg.nl, binder(cfg, s), 1:2);
     end
@@ -48,7 +48,7 @@ function test_stream_trace_sum_equals_nc(tc)
     % sum_g tr(N^-1 N_g^cc) = nc EXACTLY (up to probe noise), because the
     % symmetric per-group decomposition partitions N. Holds for any grouping.
     [acc, sol, cfg] = solvedProblem(tc);
-    sc = lsqvce.streamContribution(acc, sol, 'GroupBy', 'obsType', ...
+    sc = lsqvce.engine.streamContribution(acc, sol, 'GroupBy', 'obsType', ...
                                    'Probes', 400, 'Seed', 1, 'WantDiag', false);
     verifyEqual(tc, sc.nc, cfg.nc);
     % tol: Monte-Carlo probe scatter ~ 1/sqrt(Probes) on this fixture; 4/sqrt(Z)-style bar (HANDOVER 6.1.2), not containment
@@ -61,7 +61,7 @@ function test_stream_diag_sums_to_ones(tc)
     % sum_g diag(N^-1 N_g^cc) = ones(nc,1) EXACTLY on the shared probe block,
     % because the same probes are used for every group and sum_g N_g^cc = N.
     [acc, sol, cfg] = solvedProblem(tc);
-    sc = lsqvce.streamContribution(acc, sol, 'GroupBy', 'system', ...
+    sc = lsqvce.engine.streamContribution(acc, sol, 'GroupBy', 'system', ...
                                    'Probes', 300, 'Seed', 7, 'WantDiag', true);
     D = zeros(cfg.nc, 1);
     for k = 1:numel(sc.group)
@@ -80,9 +80,9 @@ function test_stream_trace_matches_reference(tc)
     % The streamed per-group trace estimates the common-block redundancy. Check
     % each group is close to a high-probe reference streamed trace.
     [acc, sol, ~] = solvedProblem(tc);
-    ref = lsqvce.streamContribution(acc, sol, 'GroupBy', 'obsType', ...
+    ref = lsqvce.engine.streamContribution(acc, sol, 'GroupBy', 'obsType', ...
                                     'Probes', 4000, 'Seed', 11, 'WantDiag', false);
-    est = lsqvce.streamContribution(acc, sol, 'GroupBy', 'obsType', ...
+    est = lsqvce.engine.streamContribution(acc, sol, 'GroupBy', 'obsType', ...
                                     'Probes', 400, 'Seed', 12, 'WantDiag', false);
     rk = cellstr(string({ref.group.key}));
     ek = cellstr(string({est.group.key}));
@@ -99,8 +99,8 @@ function test_stream_seed_reproducible(tc)
 % categories: precision | tags: provenance
     % Same seed => identical probes => identical estimates.
     [acc, sol, ~] = solvedProblem(tc);
-    a = lsqvce.streamContribution(acc, sol, 'GroupBy','system', 'Probes',100, 'Seed',3);
-    b = lsqvce.streamContribution(acc, sol, 'GroupBy','system', 'Probes',100, 'Seed',3);
+    a = lsqvce.engine.streamContribution(acc, sol, 'GroupBy','system', 'Probes',100, 'Seed',3);
+    b = lsqvce.engine.streamContribution(acc, sol, 'GroupBy','system', 'Probes',100, 'Seed',3);
     % tol: 0 -- an EXACT identity claim (same stored value, no arithmetic)
     verifyEqual(tc, [a.group.trace], [b.group.trace], 'AbsTol', 0, ...
         'a fixed seed must be bit-reproducible');
@@ -110,10 +110,10 @@ function test_stream_requires_keeplocal(tc)
 % categories: contract
     % Without KeepLocal the per-system Schur handles are gone -> clear error.
     cfg = tc.TestData.cfg;
-    acc = lsqvce.BlockAccumulator(cfg.nc, 'KeepLocal', false, 'Verbose', false);
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'KeepLocal', false, 'Verbose', false);
     acc.addSystem(1, cfg.nl, binder(cfg,1), 1);
     sol = acc.solve();
-    verifyError(tc, @() lsqvce.streamContribution(acc, sol, 'GroupBy','system'), ...
+    verifyError(tc, @() lsqvce.engine.streamContribution(acc, sol, 'GroupBy','system'), ...
         'lsqvce:streamContribution:noStore');
 end
 
@@ -121,7 +121,7 @@ end
 function test_contribution_level1_shares_sum_to_one(tc)
 % categories: precision, robustness
     [acc, sol, ~] = solvedProblem(tc);
-    con = lsqvce.contribution(acc, sol, 'GroupBy', 'obsType', 'Level', 1);
+    con = lsqvce.engine.contribution(acc, sol, 'GroupBy', 'obsType', 'Level', 1);
     verifyEqual(tc, con.level, 1);
     shares = [con.group.share];
     % tol: normalisation identity (a sum divided by itself); house exact-identity bound
@@ -138,7 +138,7 @@ end
 function test_contribution_level2_diagonal(tc)
 % categories: contract, precision, robustness
     [acc, sol, cfg] = solvedProblem(tc);
-    con = lsqvce.contribution(acc, sol, 'GroupBy', 'system', 'Level', 2, ...
+    con = lsqvce.engine.contribution(acc, sol, 'GroupBy', 'system', 'Level', 2, ...
                               'Probes', 300, 'Seed', 5);
     verifyEqual(tc, con.level, 2);
     verifyEqual(tc, con.nc, cfg.nc);
@@ -175,7 +175,7 @@ function test_vce_hutchinson_matches_exact_sigma(tc)
     % is exercised by the other suites; here we prove the streamed substitute.)
     accU = buildAcc(cfg, []);
     solU = accU.solve();
-    scU  = lsqvce.streamContribution(accU, solU, 'GroupBy','obsType', ...
+    scU  = lsqvce.engine.streamContribution(accU, solU, 'GroupBy','obsType', ...
                              'Groups', groups, 'Probes', 2000, 'Seed', 21, ...
                              'WantDiag', false);
     sk = cellstr(string({scU.group.key}));
@@ -190,10 +190,10 @@ function test_vce_hutchinson_matches_exact_sigma(tc)
 
     % (2) end-to-end: run both loops with generous iterations; where BOTH
     % converge, their sigmas must be close (stochastic trace => modest tol).
-    vcE = lsqvce.vce(accFcn, 'GroupBy','obsType', 'Groups',groups, ...
+    vcE = lsqvce.engine.vce(accFcn, 'GroupBy','obsType', 'Groups',groups, ...
                      'MaxIter',20, 'Tol',1e-3, 'Verbose',false, ...
                      'TraceMethod','exact');
-    vcH = lsqvce.vce(accFcn, 'GroupBy','obsType', 'Groups',groups, ...
+    vcH = lsqvce.engine.vce(accFcn, 'GroupBy','obsType', 'Groups',groups, ...
                      'MaxIter',20, 'Tol',1e-3, 'Verbose',false, ...
                      'TraceMethod','hutchinson', 'Probes',1500, 'TraceSeed',9);
     verifyEqual(tc, vcH.groups, vcE.groups);
@@ -225,9 +225,9 @@ function test_streamed_redundancy_partitions_and_matches_exact(tc)
     acc = buildAcc(cfg, []);
     sol = acc.solve();
     groups = {'pos','kbr'};
-    sc = lsqvce.streamContribution(acc, sol, 'GroupBy','obsType', ...
+    sc = lsqvce.engine.streamContribution(acc, sol, 'GroupBy','obsType', ...
              'Groups', groups, 'Probes', 2000, 'Seed', 21, 'WantDiag', false);
-    red = lsqvce.redundancy(acc, sol, 'GroupBy','obsType', ...
+    red = lsqvce.engine.redundancy(acc, sol, 'GroupBy','obsType', ...
              'Collect', false, 'Verbose', false);
 
     sk = cellstr(string({sc.group.key}));
@@ -268,10 +268,10 @@ function test_vce_hutchinson_regression_F01(tc)
     groups = {'pos','kbr'};
     w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
 
-    vcE = lsqvce.vce(accFcn, 'GroupBy','obsType', 'Groups',groups, ...
+    vcE = lsqvce.engine.vce(accFcn, 'GroupBy','obsType', 'Groups',groups, ...
                      'MaxIter',20, 'Tol',1e-3, 'Verbose',false, ...
                      'TraceMethod','exact');
-    vcH = lsqvce.vce(accFcn, 'GroupBy','obsType', 'Groups',groups, ...
+    vcH = lsqvce.engine.vce(accFcn, 'GroupBy','obsType', 'Groups',groups, ...
                      'MaxIter',20, 'Tol',1e-3, 'Verbose',false, ...
                      'TraceMethod','hutchinson', 'Probes',1500, 'TraceSeed',9);
 
@@ -304,7 +304,7 @@ function test_stream_default_seed_global_rng_untouched(tc)
     sol = acc.solve();
     rng(31337, 'twister');
     before = rng;
-    lsqvce.streamContribution(acc, sol, 'GroupBy','obsType', ...
+    lsqvce.engine.streamContribution(acc, sol, 'GroupBy','obsType', ...
         'Groups', {'pos','kbr'}, 'Probes', 64, 'WantDiag', false);
     after = rng;
     verifyEqual(tc, after.State, before.State, ...
@@ -321,28 +321,28 @@ function test_stageB_signatures_contribution_family(tc)
     dummy = @(s) s;
     ok = false;
     try
-        lsqvce.vce(dummy, 'TraceMethod', 'Exact');
+        lsqvce.engine.vce(dummy, 'TraceMethod', 'Exact');
     catch e
         ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
     end
     verifyTrue(tc, ok, 'vce TraceMethod ''Exact'' must fail mustBeMember');
     ok = false;
     try
-        lsqvce.streamContribution([], [], 'Probes', 0);
+        lsqvce.engine.streamContribution([], [], 'Probes', 0);
     catch e
         ok = startsWith(e.identifier, 'MATLAB:validators:');
     end
     verifyTrue(tc, ok, 'streamContribution Probes = 0 must fail the signature');
     ok = false;
     try
-        lsqvce.contribution([], [], 'Level', 3);
+        lsqvce.engine.contribution([], [], 'Level', 3);
     catch e
         ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
     end
     verifyTrue(tc, ok, 'contribution Level = 3 must fail mustBeMember');
     ok = false;
     try
-        lsqvce.sharedProbe(eye(3), 'Distribution', 'Rademacher');
+        lsqvce.engine.sharedProbe(eye(3), 'Distribution', 'Rademacher');
     catch e
         ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
     end
@@ -361,7 +361,7 @@ function test_vce_freezeR_freezes_and_warns(tc)
     fired = false;
     ws = warning('query', 'lsqvce:vce:lowRedundancy'); %#ok<NASGU>
     lastwarn('', '');
-    vc = lsqvce.vce(accFcn, 'GroupBy','obsType', 'Groups',{'pos','kbr'}, ...
+    vc = lsqvce.engine.vce(accFcn, 'GroupBy','obsType', 'Groups',{'pos','kbr'}, ...
                     'MaxIter', 3, 'Verbose', false, 'FreezeR', Inf);
     [~, wid] = lastwarn;
     fired = strcmp(wid, 'lsqvce:vce:lowRedundancy');
@@ -381,12 +381,12 @@ function test_vce_hutchinson_final_reuses_loop_probes(tc)
     accFcn = @(sig) buildAcc(cfg, sig);
     groups = {'pos','kbr'};
     w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
-    vc1 = lsqvce.vce(accFcn, 'GroupBy','obsType', 'Groups',groups, ...
+    vc1 = lsqvce.engine.vce(accFcn, 'GroupBy','obsType', 'Groups',groups, ...
                      'MaxIter',6, 'Tol',1e-3, 'Verbose',false, ...
                      'TraceMethod','hutchinson', 'Probes',300);
     verifyTrue(tc, isscalar(vc1.traceSeedUsed), ...
         'the pinned probe seed must be exposed');
-    vc2 = lsqvce.vce(accFcn, 'GroupBy','obsType', 'Groups',groups, ...
+    vc2 = lsqvce.engine.vce(accFcn, 'GroupBy','obsType', 'Groups',groups, ...
                      'MaxIter',6, 'Tol',1e-3, 'Verbose',false, ...
                      'TraceMethod','hutchinson', 'Probes',300, ...
                      'TraceSeed', vc1.traceSeedUsed);
@@ -413,7 +413,7 @@ function acc = buildAcc(cfg, sig)
         end
         uo.covOverride = ov;
     end
-    acc = lsqvce.BlockAccumulator(cfg.nc, 'KeepLocal', true, 'Verbose', false, ...
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'KeepLocal', true, 'Verbose', false, ...
                                   'UserOpt', uo);
     for s = cfg.sats
         acc.addSystem(s, cfg.nl, binder(cfg, s), 1:2);
@@ -440,21 +440,21 @@ function cfg = makeCfg()
 end
 
 function f = binder(cfg, s)
-    f = @(d,ot,a,uo) lsqvce.synthLoader(cfg, s, d, ot, a, uo);
+    f = @(d,ot,a,uo) lsqvce.engine.synthLoader(cfg, s, d, ot, a, uo);
 end
 
 %% ============================================== the Results access point
 function test_results_contribution_matches_direct_call(tc)
 % categories: precision
-    % R.contribution(...) must be exactly lsqvce.contribution(R.acc, R.sol, ...).
+    % R.contribution(...) must be exactly lsqvce.engine.contribution(R.acc, R.sol, ...).
     % It exists because Level 2 is NOT run automatically at convergence -- it
     % costs an extra streamed sweep -- so the user has to ask for it, and asking
     % should not require reaching into R.acc/R.sol by hand (1.2). Mirrors the
     % existing R.residuals(...) accessor.
     cfg = tc.TestData.cfg;
-    R   = lsqvce.adjustBlock(specsFor(cfg), 1:2);
+    R   = lsqvce.engine.adjustBlock(specsFor(cfg), 1:2);
 
-    direct = lsqvce.contribution(R.acc, R.sol, 'GroupBy', 'system');
+    direct = lsqvce.engine.contribution(R.acc, R.sol, 'GroupBy', 'system');
     viaR   = R.contribution('GroupBy', 'system');
 
     verifyEqual(tc, {viaR.group.key}, {direct.group.key});
@@ -465,10 +465,10 @@ end
 
 function test_results_contribution_forwards_level2(tc)
 % categories: contract
-    % The Name/Value pairs must reach lsqvce.contribution unchanged, or the
+    % The Name/Value pairs must reach lsqvce.engine.contribution unchanged, or the
     % accessor would quietly cap the caller at Level 1.
     cfg = tc.TestData.cfg;
-    R   = lsqvce.adjustBlock(specsFor(cfg), 1:2);
+    R   = lsqvce.engine.adjustBlock(specsFor(cfg), 1:2);
     con = R.contribution('GroupBy', 'system', 'Level', 2, ...
                          'Probes', 200, 'Seed', 7);
     verifyEqual(tc, con.level, 2);
@@ -478,7 +478,7 @@ end
 
 function specs = specsFor(cfg)
 %SPECSFOR  The cfg's satellites as an adjustBlock spec array.
-%   Each spec declares nc, so lsqvce.resolveNc can derive the common-parameter
+%   Each spec declares nc, so lsqvce.engine.resolveNc can derive the common-parameter
 %   count from the systems themselves (no leading nc argument since 2026-07-18).
     specs = struct('sysID', {}, 'nl', {}, 'nc', {}, 'loader', {});
     for s = cfg.sats

@@ -61,8 +61,8 @@ function testLeverageEqualsBruteForceHatMatrix(tc)
 
     hEst = [];
     for s = 1:nSys
-        blk  = lsqvce.leverageBlocks(Ncc_red, Nll{s}, Nlc{s});
-        hEst = [hEst; lsqvce.leverage(A{s}, B{s}, blk)];      %#ok<AGROW>
+        blk  = lsqvce.engine.leverageBlocks(Ncc_red, Nll{s}, Nlc{s});
+        hEst = [hEst; lsqvce.engine.leverage(A{s}, B{s}, blk)];      %#ok<AGROW>
     end
 
     % tol: block-computed leverages vs the dense joint hat diagonal -- same
@@ -89,8 +89,8 @@ function testRedundancyIdentity(tc)
 
     h = [];
     for s = 1:nSys
-        blk = lsqvce.leverageBlocks(Ncc_red, Nll{s}, Nlc{s});
-        h   = [h; lsqvce.leverage(A{s}, B{s}, blk)];          %#ok<AGROW>
+        blk = lsqvce.engine.leverageBlocks(Ncc_red, Nll{s}, Nlc{s});
+        h   = [h; lsqvce.engine.leverage(A{s}, B{s}, blk)];          %#ok<AGROW>
     end
 
     r = 1 - h;
@@ -145,12 +145,12 @@ function testVCERecoversVarianceComponents(tc)
         % --- redundancy and vtv per group ---------------------------------
         rg = zeros(1,nGrp);  vtv = zeros(1,nGrp);
         for s = 1:nSys
-            blk = lsqvce.leverageBlocks(Ncc_red, S(s).Nll, S(s).Nlc);
+            blk = lsqvce.engine.leverageBlocks(Ncc_red, S(s).Nll, S(s).Nlc);
             y   = S(s).Nll \ (S(s).nl - S(s).Nlc*x);
             for g = 1:nGrp
                 w = 1/sig(g);
                 Ai = Ad{s,g}*w;  Bi = Bd{s,g}*w;  li = ld{s,g}*w;
-                h  = lsqvce.leverage(Ai, Bi, blk);
+                h  = lsqvce.engine.leverage(Ai, Bi, blk);
                 rg(g)  = rg(g)  + numel(li) - sum(h);
                 v      = li - Ai*x - Bi*y;
                 vtv(g) = vtv(g) + v.'*v;
@@ -184,8 +184,8 @@ function testOutlierDetection(tc)
     x = Ncc_red \ ncc_red;
     y = Nll \ (B.'*l - Nlc*x);
 
-    blk = lsqvce.leverageBlocks(Ncc_red, Nll, Nlc);
-    h   = lsqvce.leverage(A, B, blk);
+    blk = lsqvce.engine.leverageBlocks(Ncc_red, Nll, Nlc);
+    h   = lsqvce.engine.leverage(A, B, blk);
     v   = l - A*x - B*y;
     w   = abs(v) ./ sqrt(max(1-h, eps));
 
@@ -213,8 +213,8 @@ function testRawResidualWouldMissHighLeverageOutlier(tc)
     x = N \ (A.'*l);
     v = l - A*x;
 
-    blk = lsqvce.leverageBlocks(N, eye(0), zeros(0,nc));
-    h   = lsqvce.leverage(A, B, blk);
+    blk = lsqvce.engine.leverageBlocks(N, eye(0), zeros(0,nc));
+    h   = lsqvce.engine.leverage(A, B, blk);
 
     tc.verifyGreaterThan(h(1), 0.5, 'row 1 should have high leverage');
 
@@ -248,7 +248,7 @@ function testPriorEqualsAugmentedLeastSquares(tc)
     xf = Aa \ la;
 
     % --- via the prior ----------------------------------------------------
-    pri = lsqvce.CommonPrior(K, x0, sig);
+    pri = lsqvce.engine.CommonPrior(K, x0, sig);
     [Nk, nk] = pri.normals();
 
     Nll = B.'*B;  Nlc = B.'*A;
@@ -273,7 +273,7 @@ function testPriorAbsorbedDoFBounds(tc)
     absorbed = zeros(1,2);
     sigs = [0.01 100];
     for k = 1:2
-        pri = lsqvce.CommonPrior(K, [], sigs(k));
+        pri = lsqvce.engine.CommonPrior(K, [], sigs(k));
         [Nk, ~] = pri.normals();
         Lc = chol(A.'*A + Nk, 'lower');
         [rK, absorbed(k)] = pri.redundancy(Lc);
@@ -306,7 +306,7 @@ function testPriorIsBasisAgnostic(tc)
     nm = {'identity','kaula','laplacian','subset'};
 
     for k = 1:numel(Ks)
-        pri = lsqvce.CommonPrior(Ks{k}, [], 1.0);
+        pri = lsqvce.engine.CommonPrior(Ks{k}, [], 1.0);
         [Nk, ~] = pri.normals();
         Lc = chol(A.'*A + Nk, 'lower');
         [rK, absorbed] = pri.redundancy(Lc);
@@ -338,7 +338,7 @@ function testPriorRescuesRankDeficientCommon(tc)
     tc.verifyLessThan(min(lam)/max(lam), 1e-12, ...
         'the common block should be singular here (eps-level eigenvalue ratio)');
 
-    pri = lsqvce.CommonPrior(eye(nc), [], 1.0);
+    pri = lsqvce.engine.CommonPrior(eye(nc), [], 1.0);
     [Nk, ~] = pri.normals();
     [~, fail2] = chol(A.'*A + Nk);
     tc.verifyEqual(fail2, 0, 'the prior must make it solvable');
@@ -347,8 +347,8 @@ end
 function testPriorRejectsBadTarget(tc)
 % categories: contract
     K = eye(6);
-    tc.verifyError(@() lsqvce.CommonPrior(K, ones(3,1)), 'lsqvce:prior:badTarget');
-    tc.verifyError(@() lsqvce.CommonPrior(K, [], -1),    'MATLAB:lsqvce:CommonPrior:expectedPositive');
+    tc.verifyError(@() lsqvce.engine.CommonPrior(K, ones(3,1)), 'lsqvce:prior:badTarget');
+    tc.verifyError(@() lsqvce.engine.CommonPrior(K, [], -1),    'MATLAB:lsqvce:CommonPrior:expectedPositive');
 end
 
 %% ================================================== separable multi-axis
@@ -359,7 +359,7 @@ function testSeparableWhitenEqualsDenseCholesky(tc)
     rs = RandStream('mt19937ar','Seed',31);
     d = 3;  nE = 60;  m = nE*d;
     a = [1 -1.2 0.4];  s = 0.8;
-    r = s^2 * lsqvce.armaACV(a, 1, nE);
+    r = s^2 * lsqvce.kernel.armaACV(a, 1, nE);
 
     Rt  = toeplitz(r/r(1));                          % temporal correlation
     sig = 0.5 + rand(rs, nE, d);
@@ -368,10 +368,10 @@ function testSeparableWhitenEqualsDenseCholesky(tc)
 
     A = randn(rs, m, 5);  B = randn(rs, m, 2);  l = randn(rs, m, 1);
 
-    W  = lsqvce.decorrFactor(C);
+    W  = lsqvce.kernel.decorrFactor(C);
     Ad = W*A;  Bd = W*B;  ld = W*l;
 
-    [Aw, Bw, lw] = lsqvce.separableWhiten(a, s, r, sig, d, A, B, l, true);
+    [Aw, Bw, lw] = lsqvce.kernel.separableWhiten(a, s, r, sig, d, A, B, l, true);
 
     % the factors may differ by a rotation; the NORMALS must not
     % tol: rotation-invariant quadratic forms of the same whitening;
@@ -388,7 +388,7 @@ function testSeparableWithFullEpochCovariance(tc)
     rs = RandStream('mt19937ar','Seed',37);
     d = 3;  nE = 40;  m = nE*d;
     a = [1 -0.9];  s = 1.0;
-    r = s^2 * lsqvce.armaACV(a, 1, nE);
+    r = s^2 * lsqvce.kernel.armaACV(a, 1, nE);
     Rt = toeplitz(r/r(1));
 
     Ce = zeros(nE, d, d);
@@ -403,9 +403,9 @@ function testSeparableWithFullEpochCovariance(tc)
     C = Db * (kron(Rt, eye(d))*r(1)) * Db.';
 
     A = randn(rs, m, 4);  B = randn(rs, m, 2);  l = randn(rs, m, 1);
-    W = lsqvce.decorrFactor(C);
+    W = lsqvce.kernel.decorrFactor(C);
 
-    [Aw, ~, ~] = lsqvce.separableWhiten(a, s, r, Ce, d, A, B, l, true);
+    [Aw, ~, ~] = lsqvce.kernel.separableWhiten(a, s, r, Ce, d, A, B, l, true);
     % tol: separable whitener vs dense decorrelation of the same covariance;
     % quadratic forms at eps*cond, 1e-8 house headroom
     tc.verifyEqual(Aw.'*Aw, (W*A).'*(W*A), 'RelTol', 1e-8);
@@ -413,10 +413,10 @@ end
 
 function testSeparableRejectsPartialEpoch(tc)
 % categories: contract
-    a = [1 -0.5];  r = lsqvce.armaACV(a, 1, 4);
+    a = [1 -0.5];  r = lsqvce.kernel.armaACV(a, 1, 4);
     sig = ones(10, 3);
     A = zeros(29, 2);  B = zeros(29, 1);  l = zeros(29, 1);   % 29 is not 3*k
-    tc.verifyError(@() lsqvce.separableWhiten(a, 1, r, sig, 3, A, B, l, true), ...
+    tc.verifyError(@() lsqvce.kernel.separableWhiten(a, 1, r, sig, 3, A, B, l, true), ...
                    'lsqvce:separable:notWholeEpochs');
 end
 
@@ -424,7 +424,7 @@ end
 function testCrossCorrWhiteIsOK(tc)
 % categories: contract | tags: diagnostics
     rs = RandStream('mt19937ar','Seed',41);
-    c = lsqvce.crossCorr(randn(rs, 4000*3, 1), 3, 'MaxLag', 15);
+    c = lsqvce.kernel.crossCorr(randn(rs, 4000*3, 1), 3, 'MaxLag', 15);
     tc.verifyEqual(c.verdict, 'ok');
 end
 
@@ -435,7 +435,7 @@ function testCrossCorrDetectsCrossAxis(tc)
     nE = 4000;  d = 3;
     M = [1 .6 .3; .6 1 .4; .3 .4 1];
     W = randn(rs, nE, d) * chol(M);
-    c = tc.verifyWarning(@() lsqvce.crossCorr(reshape(W.', nE*d, 1), d), ...
+    c = tc.verifyWarning(@() lsqvce.kernel.crossCorr(reshape(W.', nE*d, 1), d), ...
                          'lsqvce:crossCorr:cross_axis_zero_lag');
     tc.verifyEqual(c.verdict, 'cross-axis-zero-lag');
 end
@@ -447,7 +447,7 @@ function testCrossCorrDetectsARTooLow(tc)
     nE = 4000;  d = 3;
     W = filter(1, [1 -0.6], randn(rs, nE, d), [], 1);
     W = W ./ std(W, 0, 1);
-    c = tc.verifyWarning(@() lsqvce.crossCorr(reshape(W.', nE*d, 1), d), ...
+    c = tc.verifyWarning(@() lsqvce.kernel.crossCorr(reshape(W.', nE*d, 1), d), ...
                          'lsqvce:crossCorr:ar_order_low');
     tc.verifyEqual(c.verdict, 'ar-order-low');
 end
@@ -463,7 +463,7 @@ function testCrossCorrDetectsNeedsVAR(tc)
     W = Z;
     W(2:end,1) = W(2:end,1) + 0.5*Z(1:end-1,2);      % axis1(k) <- axis2(k-1)
     W = W ./ std(W, 0, 1);
-    c = tc.verifyWarning(@() lsqvce.crossCorr(reshape(W.', nE*d, 1), d), ...
+    c = tc.verifyWarning(@() lsqvce.kernel.crossCorr(reshape(W.', nE*d, 1), d), ...
                          'lsqvce:crossCorr:needs_var');
     tc.verifyEqual(c.verdict, 'needs-var');
 end
@@ -477,7 +477,7 @@ function testSelectAROrderFindsSufficientOrder(tc)
     H  = 1 ./ (exp(-1i*2*pi*f*dt*(0:3)) * a(:));
     cm = struct('type','psd', 'f',f, 'S', 0.7^2*dt*2*abs(H).^2);
 
-    info = lsqvce.selectArOrder(cm, dt, 'AcvTol', 1e-3, 'Verbose', false);
+    info = lsqvce.engine.selectArOrder(cm, dt, 'AcvTol', 1e-3, 'Verbose', false);
     tc.verifyEqual(info.verdict, 'good');
     tc.verifyGreaterThanOrEqual(info.p, 3);
     tc.verifyLessThan(info.acvRelErr, 1e-3);
@@ -491,7 +491,7 @@ function testSelectAROrderReportsCurve(tc)
     H  = 1 ./ (exp(-1i*2*pi*f*dt*(0:3)) * a(:));
     cm = struct('type','psd', 'f',f, 'S', dt*2*abs(H).^2);
 
-    info = lsqvce.selectArOrder(cm, dt, 'OrderGrid', [2 5 10 20 40], 'Verbose', false);
+    info = lsqvce.engine.selectArOrder(cm, dt, 'OrderGrid', [2 5 10 20 40], 'Verbose', false);
     tc.verifyGreaterThanOrEqual(numel(info.curve), 2);
     e = [info.curve.acvRelErr];
     tc.verifyLessThan(e(end), e(1), 'the ACV error must fall with order');
@@ -507,7 +507,7 @@ function testSelectAROrderFlagsHopelessSpectrum(tc)
     S  = 1e-4*ones(size(f)) + 5*exp(-((f-0.1)/2e-4).^2);
     cm = struct('type','psd', 'f',f, 'S',S);
 
-    info = lsqvce.selectArOrder(cm, dt, 'OrderGrid', [2 5 10 20], ...
+    info = lsqvce.engine.selectArOrder(cm, dt, 'OrderGrid', [2 5 10 20], ...
                              'AcvTol', 1e-3, 'Verbose', false);
     tc.verifyTrue(any(strcmp(info.verdict, {'marginal','bad'})));
 end

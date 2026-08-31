@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.kernel.separableWhiten</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.kernel.separableWhiten</div>
+<h1>lsqvce.kernel.separableWhiten</h1>
+<div class="purpose">Whiten multi-axis observations with a separable covariance.</div>
+<h2>Syntax</h2>
+<pre class="syntax">[Aw,Bw,lw] = LSQVCE.KERNEL.SEPARABLEWHITEN(a, s, r, sigEpoch, d, A, B, l, isFirstBatch)</pre>
+<h2>Description</h2>
+<h3>The Model</h3>
+<pre class="example">C = D * (R_t kron I_d) * D</pre>
+<p>D        per-epoch scaling (diagonal, or a full d x d covariance per epoch) R_t      temporal correlation, the SAME for every axis kron I_d NO cross-axis correlation</p>
+<p>This is the realistic case for 3-D kinematic positions: you have an epochwise covariance from the PPP solution, and a PSD describing the temporal colour.</p>
+<h3>The Whitener Factorises</h3>
+<pre class="example">W = (F_t kron I_d) * D^-1</pre>
+<p>so the operation is:</p>
+<pre class="example">1. DE-SCALE each epoch by its Cholesky factor  (D^-1)
+2. FILTER each axis independently down epochs  (F_t, the scalar AR filter)</pre>
+<p>ORDER MATTERS: de-scale FIRST, then filter. The reverse is wrong unless the per-epoch sigma is constant.</p>
+<h3>Cost</h3>
+<pre class="example">O(nEpoch*d^3) for the de-scale + O(m*p) for the filter. Multi-axis is
+therefore NO MORE EXPENSIVE per row than the scalar case -- the d^3 term is
+trivial (27 flops per epoch for d = 3). That is the payoff of separability.</pre>
+<h3>Row Ordering -- Epoch-Major, Not Axis-Major</h3>
+<pre class="example">[x1 y1 z1 x2 y2 z2 ...]     correct
+[x1 x2 ... y1 y2 ... ]      WRONG</pre>
+<p>The block-Toeplitz structure is contiguous only in epoch-major order, and the filter reshape below depends on it. m must be a whole multiple of d, and a batch must never split an epoch (LSQVCE.ENGINE.BLOCKACCUMULATOR rounds BatchSize down to a multiple of d).</p>
+<h3>Input</h3>
+<pre class="example">a          1 x (p+1)  scalar temporal AR polynomial, shared by all axes
+s          scalar     innovation std of the temporal model
+r          &gt;= p x 1   temporal autocovariance (already scaled by s^2)
+sigEpoch   nEpoch x d          per-epoch, per-axis sigma      (diagonal D)
+        or nEpoch x d x d      per-epoch full covariance      (D = chol)
+d          number of axes
+A, B, l    the arc&#x27;s design blocks and observations, epoch-major
+isFirstBatch  true for the first batch of the arc (stationary startup)</pre>
+<p>USE THE FULL d x d IF YOU HAVE IT</p>
+<pre class="example">A kinematic PPP solution gives you a full 3x3 per-epoch covariance: the
+vertical is 2-3x worse than horizontal AND correlated with it. Passing only
+a diagonal sigma throws that away and mis-weights everything. The diagonal
+form is supported, but it is the special case, not the default you should
+want. LSQVCE.KERNEL.CROSSCORR will tell you if you got this wrong: it reports
+&#x27;cross-axis-zero-lag&#x27;.</pre>
+<h3>When Separability Fails</h3>
+<pre class="example">If the axes are cross-correlated IN TIME (axis i at epoch k with axis j at
+epoch k-tau), this model is wrong and you need a vector-AR. LSQVCE.KERNEL.CROSSCORR
+detects that case and reports &#x27;needs-var&#x27;. Do not assume; test.</pre>
+<h3>Example</h3>
+<pre class="example">% 3-D positions, 5 s sampling, full per-epoch covariance from PPP
+d   = 3;
+Cep = ppp.covariance;                     % nEpoch x 3 x 3
+[a, s2] = lsqvce.kernel.levinsonDurbin(lsqvce.kernel.psd2acv(f, S, dt, p+1), p);
+r   = lsqvce.kernel.psd2acv(f, S, dt, max(p,2));</pre>
+<pre class="example">[Aw,Bw,lw] = lsqvce.kernel.separableWhiten(a, sqrt(s2), r, Cep, d, A, B, l, true);</pre>
+<div class="seealso"><b>See also:</b> <a href="lsqvce.kernel.crossCorr.html">lsqvce.kernel.crossCorr</a>, <a href="lsqvce.kernel.armaWhiten.html">lsqvce.kernel.armaWhiten</a>, <a href="lsqvce.engine.covModel.html">lsqvce.engine.covModel</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+</body></html>

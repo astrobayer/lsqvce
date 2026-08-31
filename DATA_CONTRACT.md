@@ -4,7 +4,7 @@
 `lsqvce.fit` is live for the streaming kind (Level L2, WP-56; Models `gls`, `vce`, `pooled`)
 and for the two in-memory kinds (Level L4, WP-56b; §11 below, incl. `Robust` and the nonlinear
 form) and for Model `ellmer` (Level L3, WP-56c: the ten-step Ellmer/ITSG joint loop through
-`lsqvce.adjustVCEjoint`, with the converged noise model on `R.noise`).
+`lsqvce.engine.adjustVCEjoint`, with the converged noise model on `R.noise`).
 §9 shows the equivalent direct engine calls. This file is the source of the `fit` help text
 and of the HTML guide (WP-56, WP-60): one authority, no second copy.
 
@@ -225,7 +225,7 @@ One struct per observation type; `type` selects the model. The most common:
 | `'var'` | `ar` (d×d×p), `sigma` (d×d) | vector-AR for multi-axis streams |
 
 `sigma` is always a **standard deviation**, never a variance. The VCE loop scales these
-specs at run time; you only give the starting point. Full reference: `doc lsqvce.covModel`.
+specs at run time; you only give the starting point. Full reference: `doc lsqvce.engine.covModel`.
 
 ---
 
@@ -329,15 +329,15 @@ R.report
 L = cell(1, numel(data.systems));
 for k = 1:numel(data.systems)
     s = data.systems(k);
-    L{k} = lsqvce.makeLoader(s.buildDay, ...
+    L{k} = lsqvce.engine.makeLoader(s.buildDay, ...
         ObservationTypes=s.observationTypes, Covariance=s.covariance, ...
         SystemId=s.systemId, Name=s.name, Arcs=s.arcs, ...
         LocalsPerArc=s.localsPerArc, Days=data.days, ...
         CommonParams=data.common.commonParams, ...
         ProcessingOptions=s.processingOptions);
 end
-R = lsqvce.adjustBlock(L, data.days);                       % one GLS solve
-R = lsqvce.adjustVCE(L, data.days).groupComponentsBy('satObs').run();   % VCE loop
+R = lsqvce.engine.adjustBlock(L, data.days);                       % one GLS solve
+R = lsqvce.engine.adjustVCE(L, data.days).groupComponentsBy('satObs').run();   % VCE loop
 ```
 
 Field names map 1:1 to `makeLoader`'s Name-Value names (lowerCamelCase field ↔
@@ -377,8 +377,8 @@ has no `systems` at all — `fit` tells the kinds apart by the fields present:
 |---|---|---|
 | `numUnknowns` | 1×1 | u |
 | `numBatches` | 1×1 | nBatch |
-| `batchFcn` | fh | `[A, l, p] = batchFcn(k)`, k = 1…nBatch — the `lsqvce.adjust` contract |
-| `x0` | u×1 | optional. With it the problem is **nonlinear**: `[A, w, p] = batchFcn(k, x)` returns the Jacobian at `x` and `w = l − f(x)`; solved by Gauss-Newton (`lsqvce.solveNonlinear`) |
+| `batchFcn` | fh | `[A, l, p] = batchFcn(k)`, k = 1…nBatch — the `lsqvce.engine.adjust` contract |
+| `x0` | u×1 | optional. With it the problem is **nonlinear**: `[A, w, p] = batchFcn(k, x)` returns the Jacobian at `x` and `w = l − f(x)`; solved by Gauss-Newton (`lsqvce.engine.solveNonlinear`) |
 
 Rules: `opts.Model` must be `"gls"` (variance components need the groups of a streaming
 system — `lsqvce:fit:modelKind`); `opts.Robust = "irls"` switches to M-estimation
@@ -393,10 +393,10 @@ nonlinear iteration log) is on `R.source`.
 
 ```matlab
 data = struct('A', A, 'l', l, 'p', p);
-R = lsqvce.fit(data);                                   % = lsqvce.adjust, one batch
-R = lsqvce.fit(data, lsqvce.Options(Robust="irls"));    % = lsqvce.robust
+R = lsqvce.fit(data);                                   % = lsqvce.engine.adjust, one batch
+R = lsqvce.fit(data, lsqvce.Options(Robust="irls"));    % = lsqvce.engine.robust
 data = struct('batchFcn', @(k, x) myJacobian(k, x), 'numUnknowns', 6, 'numBatches', 20, 'x0', x0);
-R = lsqvce.fit(data, lsqvce.Options(NonlinearMaxIter=15));   % = lsqvce.solveNonlinear
+R = lsqvce.fit(data, lsqvce.Options(NonlinearMaxIter=15));   % = lsqvce.engine.solveNonlinear
 ```
 
 **One sentence on stream names (from the L2 CI catch):** a stream whose observation type is

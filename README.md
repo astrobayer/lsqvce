@@ -18,24 +18,24 @@ One flat MATLAB package merging two toolboxes plus a bridge. Everything lives at
 
 | Was | Now | Does |
 |---|---|---|
-| `lsqAccumToolbox` | `lsqvce.BlockAccumulator` + its whitening/VCE/redundancy functions | streaming block-arrow accumulator (common + local parameters, per-system Schur elimination), covariance whitening (ARMA / separable / vector-AR), Helmert VCE, redundancy, outliers |
-| `lsqdiag` | `lsqvce.Accumulator`, `diagnose`, `report`, `snoop`, `robust`, `varComp`, `ftest`, `datum`, `systematic` | per-observation `v, r_i, w, MDB`, the five-level verdict, data snooping, robust reweighting, systematic-error tests |
-| (new) | `lsqvce.diagnoseAccum` | feed a block-arrow adjustment into the diagnostics, diagnosing the FULL parameter set so `r_i` counts the DoF the local parameters absorb |
+| `lsqAccumToolbox` | `lsqvce.engine.BlockAccumulator` + its whitening/VCE/redundancy functions | streaming block-arrow accumulator (common + local parameters, per-system Schur elimination), covariance whitening (ARMA / separable / vector-AR), Helmert VCE, redundancy, outliers |
+| `lsqdiag` | `lsqvce.engine.Accumulator`, `diagnose`, `report`, `snoop`, `robust`, `varComp`, `ftest`, `datum`, `systematic` | per-observation `v, r_i, w, MDB`, the five-level verdict, data snooping, robust reweighting, systematic-error tests |
+| (new) | `lsqvce.engine.diagnoseAccum` | feed a block-arrow adjustment into the diagnostics, diagnosing the FULL parameter set so `r_i` counts the DoF the local parameters absorb |
 
 The only structural distinction is the two accumulators, and it is a real one,
 not a namespace tier:
 
-- `lsqvce.Accumulator` — flat parameters. Pair with `lsqvce.adjust` /
-  `lsqvce.diagnose`. Batches `[A,l,p] = src(k)`.
-- `lsqvce.BlockAccumulator` — common parameters shared across systems, each with
-  its own locals (gravity recovery). Build it, then judge with `lsqvce.diagnoseAccum`:
+- `lsqvce.engine.Accumulator` — flat parameters. Pair with `lsqvce.engine.adjust` /
+  `lsqvce.engine.diagnose`. Batches `[A,l,p] = src(k)`.
+- `lsqvce.engine.BlockAccumulator` — common parameters shared across systems, each with
+  its own locals (gravity recovery). Build it, then judge with `lsqvce.engine.diagnoseAccum`:
 
 ```matlab
-acc = lsqvce.BlockAccumulator(nc, 'Backend','qr');
+acc = lsqvce.engine.BlockAccumulator(nc, 'Backend','qr');
 acc.addSystem('C', nl, loaderC, days);  acc.addSystem('D', nl, loaderD, days);
 sol = acc.solve();
-[dsol, src, nB] = lsqvce.diagnoseAccum(acc, sol);
-D = lsqvce.diagnose(dsol, src, 'nBatch', nB);
+[dsol, src, nB] = lsqvce.engine.diagnoseAccum(acc, sol);
+D = lsqvce.engine.diagnose(dsol, src, 'nBatch', nB);
 V = lsqvce.report(D);
 ```
 
@@ -62,11 +62,11 @@ memory per batch.
 
 ```matlab
 src = @(k) deal(A(idx{k},:), l(idx{k}), p(idx{k}));
-[sol, D, V] = lsqvce.adjust(u, src, numel(idx));
+[sol, D, V] = lsqvce.engine.adjust(u, src, numel(idx));
 
 if ~strcmp(V.verdict, 'PASS')
-    lsqvce.systematic(D);                        % is it a smooth error?
-    [sol, D, REJ] = lsqvce.snoop(sol, D, src);   % iterative rejection
+    lsqvce.engine.systematic(D);                        % is it a smooth error?
+    [sol, D, REJ] = lsqvce.engine.snoop(sol, D, src);   % iterative rejection
 end
 ```
 
@@ -337,7 +337,7 @@ fails the gate.
 ## What no automated test can do for you
 
 **Systematic errors** produce inflated χ² *and* a clean snooping result. That
-combination is the signature. `lsqvce.systematic(D, 'covariates', ...)` now
+combination is the signature. `lsqvce.engine.systematic(D, 'covariates', ...)` now
 automates the search — Ljung–Box, runs test, and binned means against any
 covariate you supply (time, elevation, azimuth, temperature, satellite ID). It
 turns *"go look at a plot"* into *"bin 7 of elevation has mean w = 2.9, p = 1e-4"*.
@@ -354,7 +354,7 @@ on any imperfection however harmless. **Read the ratio, not the verdict.**
 ## Options
 
 ```matlab
-lsqvce.adjust(u, src, nb, ...
+lsqvce.engine.adjust(u, src, nb, ...
     'method',     'qr', ...      % 'qr' (default) | 'normal'
     'sparse',     false, ...     % keep N sparse (normal method only)
     'datumB',     B, ...         % free-network / minimum constraint
@@ -377,7 +377,7 @@ lsqvce.adjust(u, src, nb, ...
 
 
 ```matlab
-R = lsqvce.adjustVCE(L, days, 'verbose', 2).groupComponentsBy('obsType').run();
+R = lsqvce.engine.adjustVCE(L, days, 'verbose', 2).groupComponentsBy('obsType').run();
 ```
 
 A LOGICAL still works and keeps its old meaning (`false` → 0, `true` → 1), so
@@ -429,7 +429,7 @@ batch instead of a vector:
 
 ```matlab
 src = @(k) deal(A(idx{k},:), l(idx{k}), Pk{k});   % Pk{k} is nk x nk SPD
-[sol, D, V] = lsqvce.adjust(u, src, nBatch);
+[sol, D, V] = lsqvce.engine.adjust(u, src, nBatch);
 ```
 
 P is block-diagonal with the **batches as its blocks** — correlation within a
@@ -461,7 +461,7 @@ identity check found it immediately. That is what Level 0 is for.
 
 ### What is *not* supported
 
-`lsqvce.snoop` **refuses** correlated batches, and the refusal is principled:
+`lsqvce.engine.snoop` **refuses** correlated batches, and the refusal is principled:
 removing one observation from a correlated block takes the **Schur complement**
 of the block covariance, changing the covariance of every *surviving*
 observation in that block. It is not a row deletion, so the rank-one Cholesky
@@ -469,7 +469,7 @@ downdate the function is built on does not apply.
 
 You can still **find** the outliers (`diagnose` works fine). To act on them:
 drop the whole affected block, rebuild the block covariance without the rejected
-observation and re-run, or use `lsqvce.robust`, which downweights rather than
+observation and re-run, or use `lsqvce.engine.robust`, which downweights rather than
 deletes and leaves the block structure intact.
 
 ---
@@ -481,7 +481,7 @@ Several satellite systems observe a **common** parameter block; each has
 sees. The locals are eliminated system by system.
 
 ```matlab
-cmb = lsqvce.Combine(uC);                      % uC common parameters
+cmb = lsqvce.engine.Combine(uC);                      % uC common parameters
 for i = 1:nSys
     cmb.addSystem(uL(i), @(k) srcOf(i,k), nBatch(i));
 end
@@ -555,7 +555,7 @@ What you *do* need is bookkeeping, or a flagged observation comes back as
 *"observation 4193"* instead of *"LRI, day 14"*:
 
 ```matlab
-bx = lsqvce.BatchIndex();
+bx = lsqvce.engine.BatchIndex();
 bx.addSystem('GRACE-C', {'KBR','LRI','GPS'}, days);
 bx.setCount('GRACE-C', 'LRI', day, nObs);   % a sensor that was down is
 bx.lock();                                  % simply never registered
@@ -685,7 +685,7 @@ QR sits at **7.8e-09**.
 ```matlab
 lsqvce_setup          % add to path, register the Help browser docs
 doc lsqvce            % landing page
-doc lsqvce.diagnose   % any function
+doc lsqvce.engine.diagnose   % any function
 demo_workflow          % build your OWN case, from scratch  <- start here
 run_all_lsqvce         % the FULL unit-test suite (all 21 files, ~3 min)
 run_lsqvce('adjustvce')% one suite, while iterating
@@ -737,7 +737,7 @@ on the `doc lsqvce` landing page); every function also has a runnable `EXAMPLE`
 block:
 
 ```matlab
-help lsqvce.adjust      % EXAMPLE + hyperlinked See also
+help lsqvce.engine.adjust      % EXAMPLE + hyperlinked See also
 doc lsqvce              % the landing page
 ```
 

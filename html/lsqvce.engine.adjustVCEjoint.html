@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.engine.adjustVCEjoint</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.engine.adjustVCEjoint</div>
+<h1>lsqvce.engine.adjustVCEjoint</h1>
+<div class="purpose">Joint (co-estimated) stochastic-model loop.</div>
+<h2>Description</h2>
+<pre class="example">out = LSQVCE.ENGINE.ADJUSTVCEJOINT(accFcn)
+out = LSQVCE.ENGINE.ADJUSTVCEJOINT(accFcn, &#x27;Name&#x27;, value, ...)
+
+Runs Ellmer&#x27;s (2018, §6.5.7) ten-step algorithm, in which ALL variance
+components are updated TOGETHER from one residual pass and one shared probe:
+the per-frequency PSD amplitudes Shat^j (the temporal law), the arc-wise
+variance factors sigma2_m (the within-group variance factors), and -- when a prior is
+present -- the geophysical factor sigma2_gpm.
+
+JOINT vs SEPARATE -- WHY THIS IS ITS OWN DRIVER
+  LSQVCE.ENGINE.ADJUSTVCE alternates: fit the temporal whitening, then the
+  between-group variance components, each with its own criterion. That is the SEPARABLE model,
+  and it is the toolbox DEFAULT because the whiteness gate gives a clean
+  stopping rule and the alternation is robust.
+  Ellmer instead treats every PSD frequency and every arc factor as variance
+  components of ONE Helmert VCE and updates them SIMULTANEOUSLY (step 9).
+  This matters: alternating (block-coordinate) and joint updates share fixed
+  points only if the blocks are SEPARABLE, and here they are NOT -- the arc
+  factor and the frequency amplitudes both scale the same Sigma_ll (eqs.
+  6.5.7, 6.5.18), which is exactly why the gamma normalisation (eq. 6.5.28)
+  exists to prevent double counting. The two schemes can therefore converge
+  to DIFFERENT Sigma. Use &#x27;joint&#x27; for Ellmer fidelity, &#x27;separate&#x27; (the
+  default elsewhere) for the general separable model.</pre>
+<h3>THE TEN STEPS (Ellmer §6.5.7), and where each lives</h3>
+<pre class="example">  1-3  build Delta_l, A; form Sigma from the current model; decorrelate
+         -&gt; the caller&#x27;s accFcn does this (see INPUT below)
+  4-5  accumulate N, n; factor N = U&#x27;U and solve
+         -&gt; acc.solve() and chol(acc.reducedNormalMatrix())
+  6    draw Zbar and form U^-1 Zbar ONCE for all arcs
+         -&gt; LSQVCE.ENGINE.SHAREDPROBE
+  7    decorrelated residuals ebar = W^-T (l - A x - B y), the FULL
+       Table-6.2 vector (WP-33; the local fit is subtracted per system)
+         -&gt; re-streamed per arc via the store&#x27;s dataFcn
+  8    Rtilde, etilde, and from them Omega and s per lag
+         -&gt; LSQVCE.KERNEL.REDUNDANCYLAGS
+  9    updated Shat^j, sigma2_m (and sigma2_gpm)
+         -&gt; LSQVCE.ENGINE.PSDVCE and LSQVCE.ENGINE.ARCVARIANCEFACTORS
+  10   if not converged, rebuild Sigma and go to step 2
+
+*** START MATTERS (verified; read this) ***
+  Ellmer&#x27;s literal white start (eq. 6.5.62) is a DEGENERATE fixed point of
+  his own weighting -- see the warning in LSQVCE.ENGINE.PSDVCE. This driver
+  therefore defaults &#x27;C0&#x27; to a mildly correlated covariance rather than a
+  delta, and passes any degeneracy straight through to psdVCE so the warning
+  is raised rather than hidden.</pre>
+<h3>Input</h3>
+<pre class="example">  accFcn  function_handle  @(model) -&gt; a SOLVED-READY lsqvce.engine.BlockAccumulator
+          built under the given stochastic model. It is called once per outer
+          iteration and must apply the model when whitening (steps 1-3).
+          `model` is a struct with fields:
+            .C       nLag x 1  the current covariance function C^n_xx
+            .sigma2  M x 1     the current arc variance factors
+            .iter    1x1       the iteration number (1 on the first call)
+          On the FIRST call the caller may ignore the model and use its own
+          a-priori weighting; the driver then estimates from there.
+
+OPTIONS (Name/Value)
+  &#x27;NumLags&#x27;   1x1 int    Nmax, number of lags/frequencies (default 60)
+  &#x27;C0&#x27;        nLag x 1   starting covariance function. Default: a mildly
+                         correlated [1; 0.3; 0.3; ...] rather than a delta,
+                         because the delta is degenerate (see above).
+  &#x27;Sigma2_0&#x27;  M x 1 | [] starting arc factors (default all ones, eq. 6.5.62)
+  &#x27;MaxIter&#x27;   1x1 int    outer iterations (default 10)
+  &#x27;Tol&#x27;       1x1        convergence on max|alpha2 - 1| (default 1e-2)
+  &#x27;Probes&#x27;    1x1 int    Z Hutchinson probes (default 100, Ellmer&#x27;s value)
+  &#x27;Seed&#x27;      1x1 | []   RNG seed for reproducible probes (default [])
+  &#x27;Norm&#x27;      char       DCT normalisation, &#x27;ortho&#x27; (default) | &#x27;ellmer&#x27;
+  &#x27;MeanType&#x27;  char       arc-factor mean, &#x27;robust&#x27; (default) | &#x27;plain&#x27;
+  &#x27;Verbose&#x27;   logical    per-iteration banner (default false)
+  &#x27;StepSchedule&#x27; &#x27;none&#x27; (default) | &#x27;decay&#x27;.  WP-40 r2 (F-15): the
+           closed-loop alternation is a stochastic approximation; the
+           plain step is BISTABLE for short arcs (recovered-PSD corr can
+           collapse to negative values on unlucky seeds). &#x27;decay&#x27; uses
+           the Robbins-Monro step Gamma_it = 2/(2+it) via PSDVCE&#x27;s
+           &#x27;Gamma&#x27;. HONEST CLAIM (psd2acv-faithful mirror, WP-40 r6):
+           damping is DAMAGE LIMITATION -- it prevents the undamped
+           collapse (corr can hit ~0.2) but the closed loop does not
+           beat OPEN-LOOP pass-1 quality on the tested fixtures;
+           production guidance is open loop or &lt;= 3 damped passes.
+           &#x27;none&#x27; is bitwise the old behaviour.
+  &#x27;AvgTail&#x27; 1x1 integer &gt;= 0, default 0.  Polyak averaging of the
+           RETURNED spectrum over the last AvgTail passes (log domain);
+           (honest r6 claim: helps the damped loop settle; cannot
+           rescue an undamped collapse, and longer tails average over
+           late-pass drift -- keep it &lt;= 4) and does nothing useful
+           without it (mirror-measured). The iteration itself always
+           runs on the raw C.</pre>
+<h3>Output</h3>
+<pre class="example">out  1x1 struct
+  .C         nLag x 1   the converged covariance function
+  .Shat      nLag x 1   the converged PSD amplitudes
+  .sigma2    M x 1      the converged arc variance factors, ALIGNED TO
+                        .arcKeys (the pass-1 enumeration order; WP-34)
+  .arcKeys   M x 1 cell arc keys s&lt;sys&gt;_&lt;obsType&gt;_d&lt;day&gt;_a&lt;arc&gt; pinned
+                        on pass 1 (LSQVCE.ENGINE.REDUNDANCY&#x27;s &#x27;arc&#x27; format) --
+                        the ONE identity .sigma2 and Sigma2_0 align to
+  .skips     S x 3 cell {pass, key, reason} for every arc skipped in
+                        any pass (&#x27;gap&#x27; | &#x27;nonPD&#x27;); a skipped arc KEEPS
+                        its previous factor
+  .acc       1x1        the final accumulator
+  .sol       1x1        the final solution struct
+  .converged 1x1 logical whether max|alpha2-1| fell below Tol
+  .nIter     1x1        outer iterations actually run
+  .history   struct     .maxDev (nIter x 1), .Shat (nIter x nLag)</pre>
+<h3>Example</h3>
+<pre class="example">accFcn = @(model) buildAccumulatorWithModel(cfg, model);
+r = lsqvce.engine.adjustVCEjoint(accFcn, &#x27;NumLags&#x27;, 60, &#x27;MaxIter&#x27;, 8);
+semilogy(r.Shat);          % the estimated noise PSD
+plot(r.sigma2);            % the arc-wise weights</pre>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:adjustVCEjoint:needCfcn  the joint mode needs a cross-covariance
+                                  function and none was supplied
+  lsqvce:adjustVCEjoint:badC0     the starting cross-covariance is malformed
+  lsqvce:adjustVCEjoint:notPD     the joint covariance is not positive
+                                  definite, so it cannot be factored
+  lsqvce:adjustVCEjoint:noArcs    a system declares no arcs
+
+See also LSQVCE.ENGINE.ADJUSTVCE (the separable default), LSQVCE.ENGINE.PSDVCE,
+         LSQVCE.ENGINE.ARCVARIANCEFACTORS, LSQVCE.KERNEL.REDUNDANCYLAGS,
+         LSQVCE.ENGINE.SHAREDPROBE
+
+Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
+model Claude Opus 4.8.
+Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (a) (F-07): typed
+`arguments` signature replaces inputParser. Option names were already
+UpperCamelCase and are UNCHANGED. NOTE (premise corrected round a1-2,
+measured on CI): MATLAB matches comma-syntax Name-Value NAMES
+case-insensitively even under arguments blocks, so legacy casings
+keep working; what tightened are the typed constraints, unknown-name
+rejection, and enum VALUE casing (StepSchedule accepts exactly
+&quot;none&quot;/&quot;decay&quot; -- strcmpi used to take &#x27;Decay&#x27;). With assistance from
+Claude (Anthropic), model Claude Fable 5.
+Updated 2026-08-19 (CEST, UTC+02:00), WP-40 r2 (F-15): optional
+stabilised alternation -- &#x27;StepSchedule&#x27;,&#x27;decay&#x27; (Robbins-Monro damped
+psdVCE update) and &#x27;AvgTail&#x27; (Polyak tail average of the returned
+spectrum); defaults are bitwise the old path. With assistance from
+Claude (Anthropic), model Claude Fable 5.
+Updated 2026-08-19 (CEST, UTC+02:00), WP-34 (fixes F-02, CRITICAL): arc
+factors are matched by KEY (s&lt;sys&gt;_&lt;obsType&gt;_d&lt;day&gt;_a&lt;arc&gt;, pinned on
+the pass-1 enumeration), never by position; skipped arcs keep their
+previous factor and are counted in out.skips; a changed key set raises
+arcMismatch. New outputs .arcKeys/.skips; Sigma2_0 aligns to .arcKeys.
+With assistance from Claude (Anthropic), model Claude Fable 5.
+Updated 2026-08-18 (CEST, UTC+02:00), WP-33 (fixes F-03, CRITICAL): step
+7 subtracts the per-system local fit B*y (recovered once per pass as
+redundancy does) and the per-lag projector absorbs the local block
+exactly -- shared implementation jointArcParts + redundancyLags
+&#x27;LocalBbar&#x27;/&#x27;LocalLl&#x27;; evidence v10review.py T3. With assistance from
+Claude (Anthropic), model Claude Fable 5.
+  lsqvce:adjustVCEjoint:arcMismatch  the arc KEY SET changed between
+                                     passes (the loader must be
+                                     deterministic; a covariance failure
+                                     is a SKIP, a vanished enumeration
+                                     entry is an identity error) (WP-34)
+  lsqvce:adjustVCEjoint:badSigma2_0  Sigma2_0 does not match the pass-1
+                                     arc count (align to out.arcKeys)</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
+</body></html>

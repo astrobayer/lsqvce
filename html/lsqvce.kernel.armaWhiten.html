@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.kernel.armaWhiten</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.kernel.armaWhiten</div>
+<h1>lsqvce.kernel.armaWhiten</h1>
+<div class="purpose">Apply an ARMA whitening filter column-wise (exact).</div>
+<h2>Syntax</h2>
+<pre class="syntax">[Aw,Bw,lw] = LSQVCE.KERNEL.ARMAWHITEN(a, b, s, r, A, B, l, isFirstBatch)</pre>
+<h2>Description</h2>
+<p>Applies the operator F with F&#x27;*F = inv(C), where C is the covariance of a process with ARMA(p,q) structure (a, b) and innovation std s. Costs O(m*(p+q)) and never forms the m x m covariance.</p>
+<h3>Input</h3>
+<pre class="example">a             1 x (p+1)  AR polynomial [1 a1 ... ap]
+b             1 x (q+1)  MA polynomial [1 b1 ... bq]; use 1 for pure AR
+s             scalar     innovation std, &gt; 0
+r             &gt;= p x 1   autocovariance r(0..), already scaled by s^2
+A, B          m x *      design blocks (either may be m x 0)
+l             m x 1      observation vector
+isFirstBatch  logical    true for the first batch of an arc</pre>
+<h3>Output</h3>
+<pre class="example">Aw, Bw, lw    whitened blocks, same sizes as the inputs</pre>
+<h3>Argument Order -- The Classic Trap</h3>
+<pre class="example">The filter applied is filter(a, b, x), i.e. NUMERATOR a, DENOMINATOR b.
+That is the whitening filter A(z)/B(z). Swapping the arguments gives the
+COLOURING filter B(z)/A(z), which is silently wrong: the result still
+looks like a residual series but the normal equations are corrupted.</pre>
+<h3>Exactness</h3>
+<pre class="example">This is not an approximation. The operator F satisfies
+    norm(F&#x27;*F - inv(C)) / norm(inv(C))  &lt;  1e-13
+(verified for n = 20..300).</pre>
+<pre class="example">In fact F IS the Cholesky inverse factor, not merely another square root
+of inv(C): both are lower triangular, and the triangular square root is
+unique up to sign, so
+    norm(F - chol(C)^-1) / norm(chol(C)^-1)  ~  1e-14
+The FIR filter reproduces the dense decorrelation exactly, row for row,
+at O(m*p) instead of O(m^3) and with no matrix ever formed. The steady-
+state rows ARE the AR coefficients reversed and divided by s; the leading
+p rows are the stationary startup block below.</pre>
+<h3>The Startup Block</h3>
+<pre class="example">A zero-state FIR filter mishandles the first p rows: it implicitly
+assumes x(k) = 0 for k &lt; 1. Those rows are replaced by the exact
+stationary whitener chol(toeplitz(r(1:p)))^-1, which is the leading
+p x p block of chol(C)^-1. Only done when isFirstBatch is true.</pre>
+<h3>Batch Overlap Is Mandatory</h3>
+<pre class="example">On any batch after the first, the filter restarts from zero state and
+the first p rows are transient garbage. The caller must overlap batches
+by at least p rows and discard the overlap. With overlap = p the batched
+result is identical to filtering the whole arc; with overlap = 0 the
+relative error in the solution is ~1e-3 instead of ~1e-15.
+LSQVCE.ENGINE.BLOCKACCUMULATOR does this automatically from arc.filterMemory.</pre>
+<h3>Example</h3>
+<pre class="example">a = [1 -1.6 0.9 -0.25];  s = 0.7;  n = 200;
+r = s^2 * lsqvce.kernel.armaACV(a, 1, n);
+X = randn(n, 4);
+z = zeros(n, 0);
+[~,~,Y] = lsqvce.kernel.armaWhiten(a, 1, s, r, z, z, X, true);
+W = lsqvce.kernel.decorrFactor(toeplitz(r));
+norm(Y.&#x27;*Y - (W*X).&#x27;*(W*X)) / norm((W*X).&#x27;*(W*X))    % ~ 1e-14</pre>
+<div class="seealso"><b>See also:</b> <a href="lsqvce.kernel.decorrFactor.html">lsqvce.kernel.decorrFactor</a>, <a href="lsqvce.engine.covModel.html">lsqvce.engine.covModel</a>, <a href="lsqvce.kernel.levinsonDurbin.html">lsqvce.kernel.levinsonDurbin</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+</body></html>

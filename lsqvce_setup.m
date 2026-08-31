@@ -8,8 +8,8 @@ function lsqvce_setup()
 %
 %   After running:
 %       doc lsqvce                 % the toolbox landing page
-%       doc lsqvce.diagnose        % any individual function
-%       help lsqvce.snoop          % command-window help
+%       doc lsqvce.engine.diagnose        % any individual function
+%       help lsqvce.engine.snoop          % command-window help
 %       run_all_lsqvce              % the full test suite (THE gate)
 %       demo_workflow               % the interpretation walk-through
 %       edit lsqvce_template        % start your own case

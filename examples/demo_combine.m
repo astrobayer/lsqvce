@@ -70,7 +70,7 @@ end
 %% ------------------------------------------------------------------------
 % COMBINE
 % -------------------------------------------------------------------------
-cmb = lsqvce.Combine(uC, 'method', 'qr');
+cmb = lsqvce.engine.Combine(uC, 'method', 'qr');
 
 for i = 1:nSys
     cmb.addSystem(uL(i), @(k) srcOf(i, k), nb(i), ...

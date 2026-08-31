@@ -57,17 +57,17 @@ page is the map. For a runnable, build-your-own-case walk-through see
 
 <table>
 <tr><th>Engine</th><th>Use when</th><th>Cost / memory</th></tr>
-<tr><td class="name">lsqvce.adjust</td>
+<tr><td class="name">lsqvce.engine.adjust</td>
     <td>Every observation sees the SAME <code>u</code> unknowns; one covariance;
         no per-system nuisance parameters.</td>
     <td>Flat normal/QR, <code>O(u&#179;)</code> solve; batches streamed so
         <code>n</code> is never materialised.</td></tr>
-<tr><td class="name">lsqvce.adjustBlock</td>
+<tr><td class="name">lsqvce.engine.adjustBlock</td>
     <td>A shared COMMON block of <code>nc</code> unknowns plus PER-SYSTEM LOCAL
         blocks (arc biases, scales) you want eliminated exactly.</td>
     <td>Block-arrow Helmert reduction; forms only the reduced
         <code>nc&#215;nc</code> common normal, one GLS solve.</td></tr>
-<tr><td class="name">lsqvce.adjustVCE</td>
+<tr><td class="name">lsqvce.engine.adjustVCE</td>
     <td>You do NOT know the noise model and want the data to supply it
         (separable covariance, coloured noise, unknown sigma ratios).</td>
     <td>adjustBlock inside an iterative SHAPE (temporal whitening) + SCALE (VCE)
@@ -115,30 +115,30 @@ visibly tight agreement on well-conditioned problems.</div>
 
 <div class="warn"><b>Where Hutchinson is wired today.</b> The matrix-free backend
 is a REAL substitution on the FLAT path &mdash;
-<a href="lsqvce.vceHutchinson.html">lsqvce.vceHutchinson</a> and
-<a href="lsqvce.varComp.html">lsqvce.varComp</a><code>(...,'backend','hutchinson')</code>.
-On the block-arrow paths (<a href="lsqvce.vce.html">lsqvce.vce</a>,
+<a href="lsqvce.engine.vceHutchinson.html">lsqvce.engine.vceHutchinson</a> and
+<a href="lsqvce.engine.varComp.html">lsqvce.engine.varComp</a><code>(...,'backend','hutchinson')</code>.
+On the block-arrow paths (<a href="lsqvce.engine.vce.html">lsqvce.engine.vce</a>,
 <code>Combine.varComp</code>) <code>'traceMethod','hutchinson'</code> is only a
 machinery check; the streaming block-arrow substitution is on the roadmap.</div>
 
 <h2>3. Minimal calls</h2>
 <pre class="example">% Flat, known noise
-[sol, D, V] = lsqvce.adjust(u, batchFcn, nBatch);
+[sol, D, V] = lsqvce.engine.adjust(u, batchFcn, nBatch);
 
-% Common + per-system locals (loaders from lsqvce.makeLoader)
-R = lsqvce.adjustBlock({L1, L2}, days);
+% Common + per-system locals (loaders from lsqvce.engine.makeLoader)
+R = lsqvce.engine.adjustBlock({L1, L2}, days);
 
 % Discover the noise model (SHAPE + SCALE)
-R = lsqvce.adjustVCE({L1, L2}, days) ...
+R = lsqvce.engine.adjustVCE({L1, L2}, days) ...
         .groupComponentsBy('obsType').stochasticModel('maxOrder',60).varianceComponents('maxIter',8).run();
 
 % Variance components, exact (also gives r_i, snooping)
-VC = lsqvce.varComp(u, batchFcn, nBatch, groupFcn, nGroup);
+VC = lsqvce.engine.varComp(u, batchFcn, nBatch, groupFcn, nGroup);
 
 % Variance components, matrix-free (large u)
-VC = lsqvce.varComp(u, batchFcn, nBatch, groupFcn, nGroup, ...
+VC = lsqvce.engine.varComp(u, batchFcn, nBatch, groupFcn, nGroup, ...
         'backend','hutchinson', 'probes',4000);</pre>
 
-<div class="seealso"><b>See also:</b> <a href="lsqvce.adjust.html">lsqvce.adjust</a>, <a href="lsqvce.adjustBlock.html">lsqvce.adjustBlock</a>, <a href="lsqvce.adjustVCE.html">lsqvce.adjustVCE</a>, <a href="lsqvce.varComp.html">lsqvce.varComp</a>, <a href="lsqvce.vceHutchinson.html">lsqvce.vceHutchinson</a>, <a href="lsqvce.vce.html">lsqvce.vce</a></div>
+<div class="seealso"><b>See also:</b> <a href="lsqvce.engine.adjust.html">lsqvce.engine.adjust</a>, <a href="lsqvce.engine.adjustBlock.html">lsqvce.engine.adjustBlock</a>, <a href="lsqvce.engine.adjustVCE.html">lsqvce.engine.adjustVCE</a>, <a href="lsqvce.engine.varComp.html">lsqvce.engine.varComp</a>, <a href="lsqvce.engine.vceHutchinson.html">lsqvce.engine.vceHutchinson</a>, <a href="lsqvce.engine.vce.html">lsqvce.engine.vce</a></div>
 <div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Choosing-an-engine guide generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-17 (CEST, UTC+02:00).</div>
 </body></html>

@@ -1,11 +1,11 @@
 function tests = test_adjustBlock
 %TEST_ADJUSTBLOCK  Tests for the recover/Results/makeLoader access layer.
 %
-%     lsqvce.adjustBlock      one-call block-arrow adjustment -> Results
+%     lsqvce.engine.adjustBlock      one-call block-arrow adjustment -> Results
 %     lsqvce.Results      solution + diagnostics + provenance object
-%     lsqvce.makeLoader   day-builder -> accumulator-ready Loader
+%     lsqvce.engine.makeLoader   day-builder -> accumulator-ready Loader
 %
-%   Both the legacy closure path (via lsqvce.synthLoader) and the new
+%   Both the legacy closure path (via lsqvce.engine.synthLoader) and the new
 %   makeLoader path must recover the synthetic truth and return sigma0 ~ 1.
 %
 %   Run: runtests('tests/test_adjustBlock')
@@ -24,9 +24,9 @@ function testAdjustBlockResultHasNoIterationHistory(tc)
     % a hand-built Results); adjustBlock is where an empty history occurs
     % naturally.
     cfg = synthCfg();
-    loader = @(d,ot,a,uo) lsqvce.synthLoader(cfg, 1, d, ot, a, uo);
+    loader = @(d,ot,a,uo) lsqvce.engine.synthLoader(cfg, 1, d, ot, a, uo);
     sys = struct('sysID',1, 'nl',cfg.nl, 'nc',cfg.nc, 'loader',loader);
-    R = lsqvce.adjustBlock(sys, 1:3);
+    R = lsqvce.engine.adjustBlock(sys, 1:3);
 
     tc.verifyClass(R, 'lsqvce.Results');
     tc.verifyEmpty(R.history);
@@ -49,10 +49,10 @@ function testSystemWithoutLocalUnknownsIsValid(tc)
     buildOne  = @(d, ot) buildDayImpl(cfg1, d, ot);
     buildZero = @(d, ot) setfield(buildDayImpl(cfg1, d, ot), 'B', ...
                     zeros(cfg1.arcsPerDay*cfg1.mArc, 0));        %#ok<SFLD>  same A, l
-    L0 = lsqvce.makeLoader(buildZero, ...
+    L0 = lsqvce.engine.makeLoader(buildZero, ...
             'observationTypes',{'pos','kbr'}, 'covariance',cfg1.cov, 'arcs',cfg1.arcsPerDay, ...
             'systemId',1, 'numLocal',0, 'numCommon',cfg1.nc, 'days',1:3);
-    R0 = lsqvce.adjustBlock({L0}, []);
+    R0 = lsqvce.engine.adjustBlock({L0}, []);
     tc.verifyClass(R0, 'lsqvce.Results');
     tc.verifyEqual(numel(R0.x), cfg1.nc);
     tc.verifyLessThan(max(abs(R0.x - cfg1.x_c)), 0.15);       % recovers the truth
@@ -66,10 +66,10 @@ function testSystemWithoutLocalUnknownsIsValid(tc)
     V = evalc('R0.report();');                                 % the verdict still prints
     tc.verifyTrue(~isempty(V));
 
-    L1 = lsqvce.makeLoader(buildOne, ...
+    L1 = lsqvce.engine.makeLoader(buildOne, ...
             'observationTypes',{'pos','kbr'}, 'covariance',cfg1.cov, 'arcs',cfg1.arcsPerDay, ...
             'systemId',1, 'numLocal',1, 'numCommon',cfg1.nc, 'days',1:3);
-    R1 = lsqvce.adjustBlock({L1}, []);
+    R1 = lsqvce.engine.adjustBlock({L1}, []);
     % tol: 3 sigma -- same data; the estimates differ by the dummy column's
     % projection, whose size is the formal error of x (Cxx), not a rounding
     % bound; elementwise |dx| <= 3*sqrt(diag(Cxx)).
@@ -83,14 +83,14 @@ function testRawClosureHonoursPerSatelliteOverride(tc)
 % categories: contract, robustness | tags: diagnostics
     % R4 finding G-06: adjustVCE emits its reweighting ONLY as
     % opt.covOverride.bySys.(satKey).(obsType) (adjustVCE.m covOverrideOpt),
-    % while the raw-closure template lsqvce.synthLoader read only the flat
+    % while the raw-closure template lsqvce.engine.synthLoader read only the flat
     % opt.covOverride.(obsType) -- a template-derived loader therefore
     % ignored every variance component under adjustVCE, and no VCE suite
     % drove a raw closure, so nothing caught it. Both shapes now resolve
     % through the ONE package-private applyCovOverride; this test drives the
     % template with each shape and pins that they whiten identically.
     cfg = synthCfg();
-    loader = @(d,ot,a,uo) lsqvce.synthLoader(cfg, 1, d, ot, a, uo);
+    loader = @(d,ot,a,uo) lsqvce.engine.synthLoader(cfg, 1, d, ot, a, uo);
     uo0 = struct('sysID', 1);
     b0  = loader(1, 'kbr', 1, uo0);                    % base: diag sigma 0.2
     idx = 1:numel(b0.l);
@@ -125,11 +125,11 @@ end
 function testRecoverSynthClosure(tc)
 % categories: contract, precision
     cfg = synthCfg();
-    loader = @(d,ot,a,uo) lsqvce.synthLoader(cfg, 1, d, ot, a, uo);
+    loader = @(d,ot,a,uo) lsqvce.engine.synthLoader(cfg, 1, d, ot, a, uo);
     sys = struct('sysID',1, 'nl',cfg.nl, 'nc',cfg.nc, 'loader',loader);
-    R = lsqvce.adjustBlock(sys, 1:3);
+    R = lsqvce.engine.adjustBlock(sys, 1:3);
     tc.verifyClass(R, 'lsqvce.Results');
-    tc.verifyClass(R.acc, 'lsqvce.BlockAccumulator');
+    tc.verifyClass(R.acc, 'lsqvce.engine.BlockAccumulator');
     tc.verifyLessThan(max(abs(R.x - cfg.x_c)), 0.15);   % recovers the truth
     tc.verifyLessThan(abs(R.sigma0 - 1), 0.15);         % noise model is correct
     tc.verifyTrue(R.converged);
@@ -138,10 +138,10 @@ end
 function testRecoverMakeLoaderCell(tc)
 % categories: precision
     cfg = buildCfg();
-    L = lsqvce.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
+    L = lsqvce.engine.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
             'observationTypes',{'pos','kbr'}, 'covariance',cfg.cov, 'arcs',cfg.arcsPerDay, ...
             'systemId',1, 'numLocal',cfg.nl, 'numCommon',cfg.nc, 'days',1:3);
-    R = lsqvce.adjustBlock({L}, []);                % days come from the loader
+    R = lsqvce.engine.adjustBlock({L}, []);                % days come from the loader
     tc.verifyLessThan(max(abs(R.x - cfg.x_c)), 0.15);
     tc.verifyLessThan(abs(R.sigma0 - 1), 0.15);
 end
@@ -149,10 +149,10 @@ end
 function testResultsAccessors(tc)
 % categories: robustness | tags: diagnostics
     cfg = buildCfg();
-    L = lsqvce.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
+    L = lsqvce.engine.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
             'observationTypes',{'pos','kbr'}, 'covariance',cfg.cov, 'arcs',cfg.arcsPerDay, ...
             'systemId',1, 'numLocal',cfg.nl, 'numCommon',cfg.nc);
-    R = lsqvce.adjustBlock({L}, 1:2);
+    R = lsqvce.engine.adjustBlock({L}, 1:2);
     tc.verifyEqual(numel(R.x), cfg.nc);
     tc.verifyGreaterThan(R.redundancy(), 0);
     V = R.report('verbose', false);                     % silent; returns the verdict
@@ -166,7 +166,7 @@ end
 function testMakeLoaderMeta(tc)
 % categories: contract | tags: provenance
     cfg = buildCfg();
-    L = lsqvce.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
+    L = lsqvce.engine.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
             'observationTypes',{'pos','kbr'}, 'covariance',cfg.cov, 'arcs',2, 'numLocal',4, 'numCommon',6);
     m = L.meta();
     tc.verifyEqual(m.obsTypes, {'pos','kbr'});
@@ -181,12 +181,12 @@ end
 function testMakeLoaderValidation(tc)
 % categories: contract
     cfg = buildCfg();
-    tc.verifyError(@() lsqvce.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
+    tc.verifyError(@() lsqvce.engine.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
         'covariance',cfg.cov, 'arcs',2), 'lsqvce:makeLoader:noObsTypes');
-    tc.verifyError(@() lsqvce.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
+    tc.verifyError(@() lsqvce.engine.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
         'observationTypes',{'nope'}, 'covariance',cfg.cov), 'lsqvce:makeLoader:noCov');
     bad = @(d,ot) struct('A',randn(10,6));              % missing B,l,t
-    Lb = lsqvce.makeLoader(bad, 'observationTypes',{'pos'}, 'covariance',cfg.cov, 'numLocal',4, 'numCommon',6);
+    Lb = lsqvce.engine.makeLoader(bad, 'observationTypes',{'pos'}, 'covariance',cfg.cov, 'numLocal',4, 'numCommon',6);
     tc.verifyError(@() Lb.closure(1,'pos',1,struct()), 'lsqvce:makeLoader:badDay');
 end
 
@@ -197,7 +197,7 @@ function testMakeLoaderCanonicalNames(tc)
     cfg = buildCfg();
     ws = warning('off', 'all'); c = onCleanup(@() warning(ws)); %#ok<NASGU>
     lastwarn('', '');
-    L = lsqvce.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
+    L = lsqvce.engine.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
             'observationTypes',{'pos'}, 'covariance',cfg.cov, ...
             'systemId',3, 'numLocal',4, 'numCommon',6);
     tc.verifyEqual(L.sysID, 3);          % carried onto the internal field
@@ -217,7 +217,7 @@ function testMakeLoaderShortAliasesRemoved(tc)
     % arguments-block unknown-NV id). The protective contract (a removed
     % terse alias must ERROR, never silently no-op) is unchanged and
     % release-noted with the b1-r3 rule.
-    tc.verifyError(@() lsqvce.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
+    tc.verifyError(@() lsqvce.engine.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
             'observationTypes',{'pos'}, 'covariance',cfg.cov, ...
             'sysID',3, 'numLocal',4, 'numCommon',6), ...
         'MATLAB:TooManyInputs');
@@ -226,14 +226,14 @@ end
 %% ============================================================ recover errors
 function testRecoverErrors(tc)
 % categories: contract
-    tc.verifyError(@() lsqvce.adjustBlock({1}, 1:3), 'lsqvce:adjustBlock:badCell');
-    tc.verifyError(@() lsqvce.adjustBlock(struct('sysID',1,'nl',4,'nc',6), 1:3), ...
+    tc.verifyError(@() lsqvce.engine.adjustBlock({1}, 1:3), 'lsqvce:adjustBlock:badCell');
+    tc.verifyError(@() lsqvce.engine.adjustBlock(struct('sysID',1,'nl',4,'nc',6), 1:3), ...
                    'lsqvce:adjustBlock:badStruct');
 end
 
 function testShapeIsValidatedBeforeNcIsDerived(tc)
 % categories: contract | tags: diagnostics
-    % REGRESSION GUARD (2026-07-18). adjustBlock derives nc with lsqvce.resolveNc
+    % REGRESSION GUARD (2026-07-18). adjustBlock derives nc with lsqvce.engine.resolveNc
     % and validates the shape of `systems` with normalizeSystems. The ORDER is
     % load-bearing: deriving nc first makes every malformed `systems` report the
     % generic lsqvce:resolveNc:missing ("no system declares a common-parameter
@@ -243,17 +243,17 @@ function testShapeIsValidatedBeforeNcIsDerived(tc)
     % handover but never applied to the code -- so it is pinned here rather than
     % left to prose. The distinguishing feature of these inputs is that they are
     % malformed AND declare no nc, so whichever step runs first decides the id.
-    tc.verifyError(@() lsqvce.adjustBlock({1}, 1:3), ...
+    tc.verifyError(@() lsqvce.engine.adjustBlock({1}, 1:3), ...
         'lsqvce:adjustBlock:badCell', ...
         'a non-Loader cell entry must report badCell, not resolveNc:missing');
 
-    tc.verifyError(@() lsqvce.adjustBlock(struct('sysID',1,'nl',4), 1:3), ...
+    tc.verifyError(@() lsqvce.engine.adjustBlock(struct('sysID',1,'nl',4), 1:3), ...
         'lsqvce:adjustBlock:badStruct', ...
         'a spec missing .loader must report badStruct, not resolveNc:missing');
 
     % The complement: a WELL-FORMED systems argument that genuinely declares no
     % nc must still reach resolveNc and report the nc problem.
-    tc.verifyError(@() lsqvce.adjustBlock(struct('sysID',1,'nl',4, ...
+    tc.verifyError(@() lsqvce.engine.adjustBlock(struct('sysID',1,'nl',4, ...
                         'loader',@(varargin) []), 1:3), ...
         'lsqvce:resolveNc:missing', ...
         'a well-formed spec without nc must still report resolveNc:missing');
@@ -265,7 +265,7 @@ function testParamBackCompatTwoArg(tc)
     % An existing 2-arg buildDay must keep working unchanged when common/local
     % are supplied to makeLoader (callBuildDay passes only what it declares).
     cfg = buildCfg();
-    L = lsqvce.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
+    L = lsqvce.engine.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
             'observationTypes',{'pos'}, 'covariance',cfg.cov, 'arcs',2, ...
             'commonParams', paramRows(6), 'localParams', paramRows(4));
     b = L.closure(1, 'pos', 1, struct());
@@ -279,7 +279,7 @@ function testParamPipedToFiveArgBuilder(tc)
     common = paramRows(6);  local = paramRows(4);
     po = struct('flag', 42);
     grab = @(d,ot,c,l,p) captureBuild(cfg,d,ot,c,l,p);
-    L = lsqvce.makeLoader(grab, 'observationTypes',{'pos'}, 'covariance',cfg.cov, 'arcs',2, ...
+    L = lsqvce.engine.makeLoader(grab, 'observationTypes',{'pos'}, 'covariance',cfg.cov, 'arcs',2, ...
             'commonParams', common, 'localParams', local, 'processingOptions', po);
     D = L.day(1, 'pos');                          % whole day carries the echoes
     tc.verifyEqual(D.gotCommon, common);
@@ -291,7 +291,7 @@ function testParamDerivesNcNl(tc)
 % categories: contract
     % nc = rows(common), nl = rows(local), carried on L.
     cfg = buildCfg();
-    L = lsqvce.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
+    L = lsqvce.engine.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
             'observationTypes',{'pos'}, 'covariance',cfg.cov, ...
             'commonParams', paramRows(6), 'localParams', paramRows(4));
     tc.verifyEqual(L.nc, 6);
@@ -302,7 +302,7 @@ function testParamNlConflictErrors(tc)
 % categories: contract
     % Passing both 'nl' and 'local' with disagreeing counts must error.
     cfg = buildCfg();
-    tc.verifyError(@() lsqvce.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
+    tc.verifyError(@() lsqvce.engine.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
         'observationTypes',{'pos'}, 'covariance',cfg.cov, 'numLocal',5, 'localParams', paramRows(4)), ...
         'lsqvce:makeLoader:nlConflict');
 end
@@ -311,7 +311,7 @@ function testParamColumnCountValidated(tc)
 % categories: contract
     % A parametrisation array without 14 columns must be rejected.
     cfg = buildCfg();
-    tc.verifyError(@() lsqvce.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
+    tc.verifyError(@() lsqvce.engine.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
         'observationTypes',{'pos'}, 'covariance',cfg.cov, 'commonParams', cell(6,10)), ...
         'lsqvce:makeLoader:paramCols');
 end
@@ -322,7 +322,7 @@ function testPlotHookSingleHandleBroadcast(tc)
     % A single handle is broadcast to every obsType of the loader.
     cfg = buildCfg();
     h = @(ctx) [];
-    L = lsqvce.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
+    L = lsqvce.engine.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
             'observationTypes',{'pos','kbr'}, 'covariance',cfg.cov, 'numLocal',4, 'numCommon',6, ...
             'plotPostSolve', h);
     tc.verifyClass(L.plotPostSolve, 'containers.Map');
@@ -335,7 +335,7 @@ function testPlotHookPerObsTypeMap(tc)
     % A per-obsType map is passed through, keeping only the named obsTypes.
     cfg = buildCfg();
     m = containers.Map({'pos'}, {@(ctx) []});
-    L = lsqvce.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
+    L = lsqvce.engine.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
             'observationTypes',{'pos','kbr'}, 'covariance',cfg.cov, 'numLocal',4, 'numCommon',6, ...
             'plotPostModel', m);
     tc.verifyTrue(isKey(L.plotPostModel, 'pos'));
@@ -347,7 +347,7 @@ function testPlotHookBadHandleErrors(tc)
     % A non-handle value in a map must be rejected.
     cfg = buildCfg();
     m = containers.Map({'pos'}, {42});
-    tc.verifyError(@() lsqvce.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
+    tc.verifyError(@() lsqvce.engine.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
         'observationTypes',{'pos'}, 'covariance',cfg.cov, 'numLocal',4, 'numCommon',6, 'plotPostSolve', m), ...
         'lsqvce:makeLoader:badPlotHandle');
 end
@@ -361,10 +361,10 @@ function testRecoverFiresPostSolveHook(tc)
     cfg = buildCfg();
     rec = recorderHandle();
     h   = @(ctx) recordCtx(rec, ctx);
-    L = lsqvce.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
+    L = lsqvce.engine.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
             'observationTypes',{'pos','kbr'}, 'covariance',cfg.cov, 'numLocal',4, 'numCommon',6, ...
             'plotPostSolve', h);
-    R = lsqvce.adjustBlock({L}, 1:2);
+    R = lsqvce.engine.adjustBlock({L}, 1:2);
     tc.verifyClass(R, 'lsqvce.Results');
     % Both obsTypes fired exactly once.
     logged = recorderLog(rec);
@@ -377,7 +377,7 @@ function testRecoverFiresPostSolveHook(tc)
     c1 = logged{1};
     tc.verifyEqual(c1.pass, 1);
     tc.verifyTrue(contains(c1.stream, '|'));
-    tc.verifyEqual(c1.stream, sprintf('%s|%s', lsqvce.satKeyOf(c1.sysID), c1.obsType));
+    tc.verifyEqual(c1.stream, sprintf('%s|%s', lsqvce.engine.satKeyOf(c1.sysID), c1.obsType));
     tc.verifyEqual(c1.x, R.x);
 end
 
@@ -388,9 +388,9 @@ function testRecoverRawClosureIgnoresPlotOpts(tc)
     % ShowSeconds/ExportDir are set -- it must never look for .plotPostSolve on a
     % bare handle and error. (Guards the "raw closures are first-class" claim.)
     cfg = synthCfg();
-    loader = @(d,ot,a,uo) lsqvce.synthLoader(cfg, 1, d, ot, a, uo);
+    loader = @(d,ot,a,uo) lsqvce.engine.synthLoader(cfg, 1, d, ot, a, uo);
     sys = struct('sysID',1, 'nl',cfg.nl, 'nc',cfg.nc, 'loader',loader);
-    R = lsqvce.adjustBlock(sys, 1:3, 'ShowSeconds', 0, 'ExportDir', '');
+    R = lsqvce.engine.adjustBlock(sys, 1:3, 'ShowSeconds', 0, 'ExportDir', '');
     tc.verifyClass(R, 'lsqvce.Results');
     tc.verifyLessThan(max(abs(R.x - cfg.x_c)), 0.15);
 end
@@ -400,9 +400,9 @@ function testRecoverNoHookIsNoOp(tc)
     % A loader with no plot hook (the common case) must solve exactly as before
     % and never touch showExport. Just assert it runs and returns Results.
     cfg = buildCfg();
-    L = lsqvce.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
+    L = lsqvce.engine.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
             'observationTypes',{'pos'}, 'covariance',cfg.cov, 'numLocal',4, 'numCommon',6);
-    R = lsqvce.adjustBlock({L}, 1:2);
+    R = lsqvce.engine.adjustBlock({L}, 1:2);
     tc.verifyClass(R, 'lsqvce.Results');
     tc.verifyFalse(isKey(L.plotPostSolve, 'pos'));   % none registered
 end
@@ -414,10 +414,10 @@ function testRecoverHookFailureNeverBreaksSolve(tc)
     muteWarn(tc, 'lsqvce:adjustBlock:plotHookFailed');   % provoked on purpose here (WP-47, gate rule 7)
     cfg = buildCfg();
     h = @(ctx) error('boom:intentional', 'intentional');
-    L = lsqvce.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
+    L = lsqvce.engine.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
             'observationTypes',{'pos'}, 'covariance',cfg.cov, 'numLocal',4, 'numCommon',6, ...
             'plotPostSolve', h);
-    R = lsqvce.adjustBlock({L}, 1:2);   % must not throw
+    R = lsqvce.engine.adjustBlock({L}, 1:2);   % must not throw
     tc.verifyClass(R, 'lsqvce.Results');
     tc.verifyLessThan(max(abs(R.x - cfg.x_c)), 0.2);
 end
@@ -499,7 +499,7 @@ function D = captureBuild(cfg, day, obsType, common, local, procOpt)
 end
 
 function cfg = synthCfg()
-% cfg in the exact shape lsqvce.synthLoader expects.
+% cfg in the exact shape lsqvce.engine.synthLoader expects.
     cfg = struct('nc',6, 'nl',4, 'arcsPerDay',2, 'mArc',300, 'dt',5, ...
                  'seed',42, 'collinear',false, 'collinearEps',1e-7);
     cfg.obsTypes = {'pos','kbr'};
@@ -522,7 +522,7 @@ function test_block_signature_types_and_enum_values(tc)
     % lever), and (2) typed constraints firing at the signature.
     ok = false;
     try
-        lsqvce.adjustBlock({}, [], 'Backend', 'QR');   % enum VALUE casing
+        lsqvce.engine.adjustBlock({}, [], 'Backend', 'QR');   % enum VALUE casing
     catch e
         ok = startsWith(e.identifier, 'MATLAB:');
     end
@@ -530,14 +530,14 @@ function test_block_signature_types_and_enum_values(tc)
         'Backend value ''QR'' must be rejected (case-sensitive mustBeMember)');
     ok = false;
     try
-        lsqvce.adjustBlock({}, [], 'RegLambda', -1);   % typed constraint
+        lsqvce.engine.adjustBlock({}, [], 'RegLambda', -1);   % typed constraint
     catch e
         ok = startsWith(e.identifier, 'MATLAB:');
     end
     verifyTrue(tc, ok, 'negative RegLambda must be rejected by the signature');
     ok = false;
     try
-        lsqvce.adjustBlock({}, [], 'Backend', 'qr', 'nosuchopt', 1);
+        lsqvce.engine.adjustBlock({}, [], 'Backend', 'qr', 'nosuchopt', 1);
     catch e
         ok = startsWith(e.identifier, 'MATLAB:');
     end
@@ -552,11 +552,11 @@ function test_signature_typed_arguments(tc)
     sys = struct('sysID', 1, 'nl', 2, 'nc', 3, ...
                  'loader', @(varargin) struct('A',[],'B',[],'l',[]));
     mustErr = { ...
-        @() lsqvce.adjustBlock(sys, 1, 'backend', 'qr'), ...     % old casing
-        @() lsqvce.adjustBlock(sys, 1, 'Backend', 'QR'), ...     % enum casing
-        @() lsqvce.adjustBlock(sys, 1, 'Backend', 'cholesky'),...% bad enum
-        @() lsqvce.adjustBlock(sys, 1, 'RegLambda', -1), ...     % sign
-        @() lsqvce.adjustBlock(sys, 1, 'NoSuchOption', 1) };
+        @() lsqvce.engine.adjustBlock(sys, 1, 'backend', 'qr'), ...     % old casing
+        @() lsqvce.engine.adjustBlock(sys, 1, 'Backend', 'QR'), ...     % enum casing
+        @() lsqvce.engine.adjustBlock(sys, 1, 'Backend', 'cholesky'),...% bad enum
+        @() lsqvce.engine.adjustBlock(sys, 1, 'RegLambda', -1), ...     % sign
+        @() lsqvce.engine.adjustBlock(sys, 1, 'NoSuchOption', 1) };
     for k = 1:numel(mustErr)
         ok = false;
         try, mustErr{k}(); catch, ok = true; end
@@ -573,11 +573,11 @@ function testResultsMetaContract(tc)
 % renamed), the field types, and immutability. try/catch identifier pattern
 % throughout (the WP-43 r1 lesson -- never the verifyError output form).
     cfg = buildCfg();
-    L = lsqvce.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
+    L = lsqvce.engine.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
             'observationTypes',{'pos','kbr'}, 'covariance',cfg.cov, ...
             'arcs',cfg.arcsPerDay, 'systemId',1, ...
             'numLocal',cfg.nl, 'numCommon',cfg.nc);
-    R = lsqvce.adjustBlock({L}, 1:2);
+    R = lsqvce.engine.adjustBlock({L}, 1:2);
 
     m = R.meta;
     tc.verifyClass(m, 'struct');
@@ -620,7 +620,7 @@ function testResultsMetaDeterminismAndBareCtor(tc)
 % EXCEPT .createdUTC; (2) a bare 7-argument construction still carries a
 % complete meta with empty seeds/options -- never a missing field.
     cfg = buildCfg();
-    mk = @() lsqvce.adjustBlock({lsqvce.makeLoader( ...
+    mk = @() lsqvce.engine.adjustBlock({lsqvce.engine.makeLoader( ...
             @(d,ot) buildDayImpl(cfg,d,ot), ...
             'observationTypes',{'pos','kbr'}, 'covariance',cfg.cov, ...
             'arcs',cfg.arcsPerDay, 'systemId',1, ...
@@ -646,11 +646,11 @@ function testReportPrintsTheProvenanceLine(tc)
 % ONE provenance line; the finding is machine-readable (code 'PROVENANCE');
 % a bare lsqvce.report(D) prints none of it.
     cfg = buildCfg();
-    L = lsqvce.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
+    L = lsqvce.engine.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
             'observationTypes',{'pos','kbr'}, 'covariance',cfg.cov, ...
             'arcs',cfg.arcsPerDay, 'systemId',1, ...
             'numLocal',cfg.nl, 'numCommon',cfg.nc);
-    R = lsqvce.adjustBlock({L}, 1:2);
+    R = lsqvce.engine.adjustBlock({L}, 1:2);
 
     out = evalc('V = R.report();');
     tc.verifyTrue(contains(out, 'run: lsqvce'), ...
@@ -743,7 +743,7 @@ function testLocalsPerArcRejectsUnknowableSchedules(tc)
 % it is not: no day list, and a schedule that would have to READ data.
     caught = MException.empty;
     try
-        lsqvce.makeLoader(@(d, ot) simpleDay(d, ot), ...
+        lsqvce.engine.makeLoader(@(d, ot) simpleDay(d, ot), ...
             'observationTypes', {'pot'}, ...
             'covariance', struct('pot', struct('type','diag','sigma',1)), ...
             'arcs', 2, 'numCommon', 2, 'localsPerArc', 2);   % no 'days'
@@ -755,7 +755,7 @@ function testLocalsPerArcRejectsUnknowableSchedules(tc)
 
     caught = MException.empty;
     try
-        lsqvce.makeLoader(@(d, ot) simpleDay(d, ot), ...
+        lsqvce.engine.makeLoader(@(d, ot) simpleDay(d, ot), ...
             'observationTypes', {'pot'}, ...
             'covariance', struct('pot', struct('type','diag','sigma',1)), ...
             'arcs', 'fromDay', 'days', 1:2, 'numCommon', 2, 'localsPerArc', 2);
@@ -774,7 +774,7 @@ function testRaggedScheduleSolvesAndSecondPassAgrees(tc)
 % resolver that answered differently on the second sweep would show up here.
     plan = {[1 2 3], [1 3], [2 3 4]};
     L = raggedLoader(tc, plan, 2);
-    R = lsqvce.adjustBlock({L}, 1:3);
+    R = lsqvce.engine.adjustBlock({L}, 1:3);
     % The recovery is asserted against the FORMAL errors, not a hand-picked
     % band: a fixed RelTol here would only encode this fixture's noise draw
     % (the first attempt guessed 1e-6 and CI measured 1.5e-2 on the worst
@@ -818,13 +818,13 @@ function L = raggedLoader(tc, arcPlan, localsPerArc, seen)   %#ok<INUSD>
         args = [args, {'localsPerArc', localsPerArc}];
         builder = @(d, ot, cm, lo, po, ai) raggedDay(d, ot, arcPlan, nc, ai, seen);
     end
-    L = lsqvce.makeLoader(builder, args{:});
+    L = lsqvce.engine.makeLoader(builder, args{:});
 end
 
 function L = staticPositionalLoader(tc)   %#ok<INUSD>
 %STATICPOSITIONALLOADER  A plain STATIC loader whose days carry no .arcId, so
 %   arc addressing stays positional (the pre-WP-52 behaviour and its guard).
-    L = lsqvce.makeLoader(@(d, ot) simpleDay(d, ot), ...
+    L = lsqvce.engine.makeLoader(@(d, ot) simpleDay(d, ot), ...
         'observationTypes', {'pot'}, ...
         'covariance', struct('pot', struct('type','diag','sigma',1e-3)), ...
         'arcs', 2, 'days', 1:2, 'numCommon', 4, 'numLocal', 1);

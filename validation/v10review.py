@@ -84,7 +84,7 @@ def leverage_exact(sig):
 
 
 # ---------------------------------------------------------------------------
-# T1  leverage block identities (lsqvce.leverage / leverageBlocks)
+# T1  leverage block identities (lsqvce.engine.leverage / leverageBlocks)
 # ---------------------------------------------------------------------------
 sig0 = [1.0, 1.0]
 Ncc_red, xh, per = assemble(sig0)
@@ -152,7 +152,7 @@ check("T2c trace denominator inflates without bound or lands >5x off the truth",
 # --- WP-32 FIX (added 2026-08-18): r_g = n_g - local_g - tr(N^-1 N_g^cc) ---
 # The streamed cc-attribution is the SYMMETRIZED Schur split
 #   N_g^cc = Mcc_g - 1/2 (Nlc_g' G_s + Nlc_s' G_g),   G_* = inv(Nll_s) Nlc_*
-# (what lsqvce.streamContribution probes). The exact per-group remainder from
+# (what lsqvce.engine.streamContribution probes). The exact per-group remainder from
 # the leverage block identities (inv(N)_ll = Nll^-1 + G Sxx G',
 # inv(N)_lc = -G Sxx) is
 #   local_g = tr((Nll^-1 + G Sxx G') Mll_g) - tr(Nlc_g Sxx G')
@@ -243,7 +243,7 @@ check("T3b omitting B*y biases alpha2 by > 2x on an nl>0 system",
 # R_bar = Sigma^-1 - Sigma^-1 [A B] inv(N_joint) [A B]' Sigma^-1 realised
 # WITHOUT the joint inverse:  [A B] N^-1 [A B]' = Atil Sxx Atil' + B Nll^-1 B'
 # with Atil = A - B G, G = Nll^-1 Nlc, Sxx = inv(Ncc_red) -- the same Lc/Ll/G
-# blocks lsqvce.leverage uses. The kernel realises the two terms as
+# blocks lsqvce.engine.leverage uses. The kernel realises the two terms as
 # Rt (shared probe on Atil_bar, stochastic) and K = W^-1 W^-T B Ll^-T (EXACT).
 print("\n--- T3c/T3d: the WP-33 corrected joint projector -------------------------")
 G1 = np.linalg.solve(B.T @ B, B.T @ A)

@@ -3,7 +3,7 @@ function tf = hasBackgroundPool()
 %   tf = lsqvce.util.hasBackgroundPool()
 %
 %   The ONE availability probe for the background pool (rule 3): used by
-%   lsqvce.PrefetchLoader to decide prefetch-vs-passthrough and by the test
+%   lsqvce.engine.PrefetchLoader to decide prefetch-vs-passthrough and by the test
 %   suite to guard pool-dependent tests. It PROBES BY USE - it calls
 %   backgroundPool inside try/catch - because metadata probes are wrong
 %   twice over: exist('backgroundPool','file') == 2 fails since the function
@@ -32,7 +32,7 @@ function tf = hasBackgroundPool()
 %         fut = parfeval(backgroundPool, @myLoader, 1, d);
 %     end
 %
-%   See also LSQVCE.PREFETCHLOADER, BACKGROUNDPOOL, PARFEVAL
+%   See also LSQVCE.ENGINE.PREFETCHLOADER, BACKGROUNDPOOL, PARFEVAL
 %
 %   Created 2026-08-18 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.

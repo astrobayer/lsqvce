@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.engine.synthLoader</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.engine.synthLoader</div>
+<h1>lsqvce.engine.synthLoader</h1>
+<div class="purpose">Synthetic ground-truth loader -- and the loader TEMPLATE.</div>
+<h2>Description</h2>
+<p>Bind it as a closure over cfg and the satellite, so the accumulator sees the four-argument signature it expects:</p>
+<pre class="example">loader = @(d,ot,a,uo) lsqvce.engine.synthLoader(cfg, satID, d, ot, a, uo);
+acc.addSystem(satID, nl, loader, days);</pre>
+<p>COPY THIS FILE as the starting point for a real loader. The structure -- meta call, single-day cache, arc slicing, covariance closure -- is exactly what a GRACE-FO loader needs; only buildDay changes.</p>
+<p>CONFIGURATION (cfg)</p>
+<pre class="example">.nc, .nl        parameter counts
+.x_c            nc x 1  true common parameters
+.y              containers.Map: sat -&gt; nl x 1 true local parameters
+.obsTypes       cellstr, e.g. {&#x27;pos&#x27;,&#x27;kbr&#x27;}
+.arcsPerDay     arcs per (day, obsType)
+.mArc           rows per arc
+.dt             sampling interval [s]
+.cov.(obsType)  covariance spec (see LSQVCE.ENGINE.COVMODEL)
+.seed           RNG seed
+.collinear      make two local columns near-collinear (for tests)
+.collinearEps   how near: 0 = exactly singular</pre>
+<h3>The Two Call Signatures</h3>
+<pre class="example">meta = loader(&#x27;meta&#x27;, day, [], opt)   -&gt; .obsTypes, .arcs
+arc  = loader(day, obsType, arcID, opt)</pre>
+<h3>Why There Is A Cache</h3>
+<pre class="example">Real design matrices are built per DAY (one integration of the
+variational equations), but the accumulator consumes them per ARC. The
+persistent single-day cache bridges that: buildDay runs once per
+(day, obsType), and the arcs of that day are then sliced out of it.
+Because the accumulator visits day -&gt; obsType -&gt; arc in order, all arcs
+of a day are consumed consecutively and only ONE day is ever resident.</pre>
+<pre class="example">If even one day of A is too large, drop the cache and make buildDay
+arc-aware: integrate only over the requested arc&#x27;s epochs. The meta call
+must then get the arc boundaries from a lightweight scan of the
+observation timestamps, without touching the design matrix.</pre>
+<h3>The Cache Key Is A Correctness Issue</h3>
+<pre class="example">The key includes everything that changes the design matrix. If an option
+in opt alters A or B (e.g. switching empirical accelerations on) it MUST
+appear in the key, or the second pass in LSQVCE.ENGINE.RESIDUALS will silently
+reuse a stale day and sigma0 will not reproduce. That mismatch is
+detected and warned about, but a correct key avoids it entirely.</pre>
+<h3>Arc-Wise Local Parameters</h3>
+<pre class="example">If the local parameters are per-arc (arc-wise initial state, say), then
+nl counts ALL arcs of the system and B is mostly zeros. Return B sparse,
+or the m x (6*nArc) dense block will dominate memory.</pre>
+<h3>Example</h3>
+<pre class="example">cfg = struct(&#x27;nc&#x27;,6, &#x27;nl&#x27;,4, &#x27;obsTypes&#x27;,{{&#x27;pos&#x27;,&#x27;kbr&#x27;}}, ...
+             &#x27;arcsPerDay&#x27;,2, &#x27;mArc&#x27;,400, &#x27;dt&#x27;,5, &#x27;seed&#x27;,42, ...
+             &#x27;collinear&#x27;,false, &#x27;collinearEps&#x27;,1e-7);
+cfg.x_c = randn(6,1);
+cfg.y   = containers.Map(1, randn(4,1));
+cfg.cov.pos = struct(&#x27;type&#x27;,&#x27;arma&#x27;,&#x27;ar&#x27;,[1 -1.6 0.9 -0.25],&#x27;ma&#x27;,1,&#x27;sigma&#x27;,0.7);
+cfg.cov.kbr = struct(&#x27;type&#x27;,&#x27;diag&#x27;,&#x27;sigma&#x27;,0.2);</pre>
+<pre class="example">acc = lsqvce.engine.BlockAccumulator(6, &#x27;Backend&#x27;,&#x27;qr&#x27;);
+acc.addSystem(1, 4, @(d,ot,a,uo) lsqvce.engine.synthLoader(cfg,1,d,ot,a,uo), 1:3);
+sol = acc.solve();
+max(abs(sol.x - cfg.x_c))          % recovers the truth</pre>
+<div class="seealso"><b>See also:</b> <a href="lsqvce.engine.BlockAccumulator.html">lsqvce.engine.BlockAccumulator</a>, <a href="lsqvce.engine.covModel.html">lsqvce.engine.covModel</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+</body></html>

@@ -7,7 +7,7 @@ classdef Options
 %
 %   WHY ONE OBJECT (R4 findings G-02/G-03). The estimation options used to
 %   live in four conventions: per-driver Name-Value names, the fluent
-%   configurator chain of LSQVCE.ADJUSTVCE, the loader UserOpt, and the joint
+%   configurator chain of LSQVCE.ENGINE.ADJUSTVCE, the loader UserOpt, and the joint
 %   translation. Options is the single place every knob is NAMED, TYPED, has
 %   its DEFAULT stated, and is checked -- at construction through an
 %   arguments block (unknown names and bad values are rejected by the
@@ -33,7 +33,7 @@ classdef Options
 %                                 joint co-estimation with keyed arc factors
 %                                 (adjustVCEjoint)
 %     Robust     string   "none"  "none" | "irls" M-estimation (batch path,
-%                                 LSQVCE.ROBUST)
+%                                 LSQVCE.ENGINE.ROBUST)
 %
 %   Solver
 %     Backend    string   "qr"    "qr" | "normal" (the engines' default is
@@ -109,13 +109,13 @@ classdef Options
 %     RobustMaxIter double 30     IRLS iterations
 %     RobustTol  double   1e-8    IRLS convergence
 %
-%   Nonlinear (batch path, LSQVCE.SOLVENONLINEAR)
+%   Nonlinear (batch path, LSQVCE.ENGINE.SOLVENONLINEAR)
 %     NonlinearMaxIter double 30  Gauss-Newton iterations
 %     TolX       double   1e-3    step tolerance
 %     TolF       double   1e-10   cost tolerance
 %     Lambda0    double   1e-6    initial damping
 %
-%   Diagnostics (forwarded to LSQVCE.DIAGNOSE; replaces KeepUnmatched)
+%   Diagnostics (forwarded to LSQVCE.ENGINE.DIAGNOSE; replaces KeepUnmatched)
 %     Alpha      double   1e-3    test significance
 %     Bonferroni logical  true    family-wise correction
 %     Beta       double   0.20    power for the MDB
@@ -155,7 +155,7 @@ classdef Options
 %     opts = lsqvce.Options(Model="vce", GroupBy="satObs", Parallel="parfor");
 %     opts.MaxOuter = 4;
 %     a = opts.engineArgs("adjustVCE");
-%     P = lsqvce.adjustVCE(L, days, a.nv{:}) ...
+%     P = lsqvce.engine.adjustVCE(L, days, a.nv{:}) ...
 %          .stochasticModel(a.shape) ...          % (fit does this, WP-56)
 %
 %   ERRORS
@@ -171,9 +171,9 @@ classdef Options
 %       lsqvce:Options:badVerbose   Verbose is neither logical nor a level 0..3
 %       lsqvce:Options:badTarget    engineArgs target unknown
 %
-%   See also LSQVCE.ADJUSTBLOCK, LSQVCE.ADJUSTVCE, LSQVCE.ADJUSTVCEJOINT,
-%            LSQVCE.ADJUST, LSQVCE.ROBUST, LSQVCE.SOLVENONLINEAR,
-%            LSQVCE.DIAGNOSE, LSQVCE.RESULTS
+%   See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCE, LSQVCE.ENGINE.ADJUSTVCEJOINT,
+%            LSQVCE.ENGINE.ADJUST, LSQVCE.ENGINE.ROBUST, LSQVCE.ENGINE.SOLVENONLINEAR,
+%            LSQVCE.ENGINE.DIAGNOSE, LSQVCE.RESULTS
 %
 %   Updated 2026-08-31 (CEST, UTC+02:00), R4 WP-62 (Level L4): DistributeDays
 %   and ParallelThreshold -- the parallel policy of the streaming engines,
@@ -411,7 +411,7 @@ classdef Options
 
     methods (Access = private)
         function nv = diagnoseNV(obj)
-        %DIAGNOSENV  The LSQVCE.DIAGNOSE pass-through pairs (replaces KeepUnmatched).
+        %DIAGNOSENV  The LSQVCE.ENGINE.DIAGNOSE pass-through pairs (replaces KeepUnmatched).
             nv = {'Alpha', obj.Alpha, 'Bonferroni', obj.Bonferroni, 'Beta', obj.Beta, ...
                   'RMin', obj.RMin, 'RWeak', obj.RWeak, 'Test', obj.Test, ...
                   'RobustCheck', obj.RobustCheck, 'Store', obj.Store, ...

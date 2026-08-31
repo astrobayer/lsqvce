@@ -207,19 +207,17 @@ def main():
 
     written = []
     targets = []
-    for fn in sorted(os.listdir(pkg)):
-        if fn.endswith('.m') and fn != 'Contents.m':
-            targets.append((fn[:-2], os.path.join(pkg, fn),
-                            'lsqvce.%s.html' % fn[:-2]))
-    # +util is a sub-package and its pages are named lsqvce.util.<name>.html.
-    # It was originally missed here, which is how util.verbosity shipped without
-    # a page; scan it explicitly rather than relying on the flat listing.
-    upkg = os.path.join(pkg, '+util')
-    if os.path.isdir(upkg):
-        for fn in sorted(os.listdir(upkg)):
+    # R4-D1 (WP-64a): the root holds the USER tier; +engine, +kernel and
+    # +util are sub-packages with pages named lsqvce.<pkg>.<name>.html.
+    for prefix, sub in (('', ''), ('engine.', '+engine'), ('kernel.', '+kernel'),
+                        ('util.', '+util')):
+        d = os.path.join(pkg, sub) if sub else pkg
+        if not os.path.isdir(d):
+            continue
+        for fn in sorted(os.listdir(d)):
             if fn.endswith('.m') and fn != 'Contents.m':
-                targets.append(('util.' + fn[:-2], os.path.join(upkg, fn),
-                                'lsqvce.util.%s.html' % fn[:-2]))
+                targets.append((prefix + fn[:-2], os.path.join(d, fn),
+                                'lsqvce.%s%s.html' % (prefix, fn[:-2])))
 
     for name, src, pagename in targets:
         page = os.path.join(root, 'html', pagename)

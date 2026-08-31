@@ -74,13 +74,13 @@ and <code>lsqvce.util.log.warn</code>.</p>
 <h2>Example</h2>
 <pre class="example">fid = fopen('vce.log', 'w');
 lsqvce.util.log.set('fid', fid, 'screen', false);   % file only, quiet run
-R = lsqvce.adjustVCE(L, days).run();      % all output captured
+R = lsqvce.engine.adjustVCE(L, days).run();      % all output captured
 lsqvce.util.log.reset();
 fclose(fid);
 
 % or straight from the entry point:
-R = lsqvce.adjustVCE(L, days, 'LogFid', fid, 'LogFlag', false).run();</pre>
+R = lsqvce.engine.adjustVCE(L, days, 'LogFid', fid, 'LogFlag', false).run();</pre>
 
-<div class="seealso"><b>See also:</b> <a href="lsqvce.adjustVCE.html">lsqvce.adjustVCE</a>, <a href="lsqvce.util.getfielddef.html">lsqvce.util.getfielddef</a>, <a href="lsqvce.util.mergeStruct.html">lsqvce.util.mergeStruct</a></div>
+<div class="seealso"><b>See also:</b> <a href="lsqvce.engine.adjustVCE.html">lsqvce.engine.adjustVCE</a>, <a href="lsqvce.util.getfielddef.html">lsqvce.util.getfielddef</a>, <a href="lsqvce.util.mergeStruct.html">lsqvce.util.mergeStruct</a></div>
 <div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Created 2026-07-16 (CEST, UTC+02:00) with assistance from Claude (Anthropic), model Claude Opus 4.8.</div>
 </body></html>

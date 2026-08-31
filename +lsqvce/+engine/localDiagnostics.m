@@ -1,0 +1,107 @@
+function dg = localDiagnostics(Nll, opt)
+%LSQVCE.ENGINE.LOCALDIAGNOSTICS  Stability test of a local block before pre-elimination.
+%
+%   dg = LSQVCE.ENGINE.LOCALDIAGNOSTICS(Nll, opt) inspects the local normal matrix and
+%   classifies its conditioning. Called by LSQVCE.ENGINE.BLOCKACCUMULATOR immediately before
+%   the Schur complement, because a singular Nll silently corrupts the COMMON
+%   block: pre-elimination forms
+%
+%       Ncc_red = Ncc - Nlc' * inv(Nll) * Nlc
+%
+%   so any junk in inv(Nll) propagates straight into the parameters you care
+%   about. Diagnose before eliminating, never after.
+%
+%   INPUT
+%     Nll  nl x nl  local normal matrix (symmetric)
+%     opt  struct   .TruncTol   rank tolerance, relative to lambda_max
+%                   .CondWarn   condition number -> 'ill-conditioned'
+%                   .CondAbort  condition number -> 'rank-deficient'
+%
+%   OUTPUT
+%     dg.eig         nl x 1  eigenvalues, descending
+%     dg.V           nl x nl eigenvectors, matching the sorted eigenvalues
+%     dg.condNll     spectral condition number lambda_max / lambda_min
+%     dg.rankDef     number of eigenvalues below TruncTol*lambda_max
+%     dg.spd         true if all eigenvalues are positive
+%     dg.diagDom     min|diag| / max|diag|, a cheap scaling check
+%     dg.nullDir     eigenvector of the smallest eigenvalue -- the direction
+%                    in local-parameter space that the data does not constrain
+%     dg.status      'ok' | 'ill-conditioned' | 'rank-deficient'
+%     dg.regUsed     'none' (filled in later by LSQVCE.ENGINE.APPLYREGULARISATION)
+%     dg.lambdaUsed  0      (idem)
+%
+%   READING THE RESULT
+%     dg.nullDir is the most actionable output. If it is concentrated on two
+%     local parameters, those two are not separately estimable from this
+%     system's data -- e.g. an accelerometer bias and a once-per-rev empirical
+%     acceleration over a short arc. The fix is to remove one, not to
+%     regularise: regularisation biases the common block through the Schur
+%     complement.
+%
+%     dg.diagDom << 1 means the local parameters are badly scaled relative to
+%     each other (e.g. bias in m/s^2 alongside a dimensionless scale factor).
+%     Rescale the columns of B; a large condNll caused purely by scaling is an
+%     artefact and Tikhonov with L = I would penalise the two parameters
+%     unequally.
+%
+%   TYPICAL THRESHOLDS
+%     CondWarn  = 1e8   double precision starts to bite past this
+%     CondAbort = 1e14  effectively singular; 'auto' regularisation goes TSVD
+%
+%   EXAMPLE
+%     opt = struct('TruncTol',1e-10, 'CondWarn',1e8, 'CondAbort',1e14);
+%     dg  = lsqvce.engine.localDiagnostics(Nll, opt);
+%     if ~strcmp(dg.status,'ok')
+%         lsqvce.util.log.msg('cond = %.2e, weakest direction:\n', dg.condNll);
+%         disp(dg.nullDir.')
+%     end
+%
+%   ERRORS
+%     lsqvce:localDiagnostics:notFinite  a local block carries NaN or Inf
+%
+%   See also LSQVCE.ENGINE.APPLYREGULARISATION, LSQVCE.ENGINE.BLOCKACCUMULATOR
+%
+%   Generated with assistance from Claude (Anthropic), model Claude
+%   Opus 4.8.
+%   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
+%   WP-64a): the ENGINE tier leaves the USER surface; every qualified
+%   reference was rewritten mechanically by docs_src/refactor_tiers.py.
+
+    narginchk(2,2);
+    validateattributes(Nll, {'double'}, {'2d','square','nonempty'}, mfilename, 'Nll', 1);
+
+    if ~all(isfinite(Nll(:)))
+        error('lsqvce:localDiagnostics:notFinite', ...
+            ['The local normal matrix contains NaN or Inf. The design matrix ' ...
+             'or the whitening produced non-finite values -- check for a zero ' ...
+             'sigma, an empty arc, or a gap in the observations.']);
+    end
+
+    tolT = lsqvce.util.getfielddef(opt, 'TruncTol',  1e-10);
+    cW   = lsqvce.util.getfielddef(opt, 'CondWarn',  1e8);
+    cA   = lsqvce.util.getfielddef(opt, 'CondAbort', 1e14);
+
+    Nll = (Nll + Nll.')/2;
+    [V, ev] = eig(Nll, 'vector');              % symmetric -> V orthonormal
+    ev      = real(ev);
+    [ev, k] = sort(ev, 'descend');
+    V       = real(V(:, k));
+
+    dg          = struct();
+    dg.eig      = ev;
+    dg.V        = V;
+    dg.condNll  = ev(1) / max(abs(ev(end)), realmin);
+    dg.rankDef  = sum(ev < tolT*ev(1));
+    dg.spd      = all(ev > 0);
+    dg.nullDir  = V(:, end);
+
+    dd          = abs(diag(Nll));
+    dg.diagDom  = min(dd) / max(max(dd), realmin);
+
+    dg.status = 'ok';
+    if dg.condNll > cW,              dg.status = 'ill-conditioned'; end
+    if dg.condNll > cA || ~dg.spd,   dg.status = 'rank-deficient';  end
+
+    dg.regUsed    = 'none';
+    dg.lambdaUsed = 0;
+end

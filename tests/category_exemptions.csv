@@ -14,3 +14,4 @@
 # gaps the first mechanical count found were closed by direct tests
 # in the same round, none by exemption.
 unit,category,reason
+engine.runMeta,contract,promoted from private (WP-64a); its contract is Results.meta's -- pinned by test_adjustBlock/test_fit provenance points that read R.meta, never called by name

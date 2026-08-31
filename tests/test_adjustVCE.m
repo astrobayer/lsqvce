@@ -1,11 +1,11 @@
 function tests = test_adjustVCE
-%TEST_ADJUSTVCE  Unit tests for lsqvce.adjustVCE (the VCE loop).
+%TEST_ADJUSTVCE  Unit tests for lsqvce.engine.adjustVCE (the VCE loop).
 %
 %   Run with:  results = runtests('tests/test_adjustVCE.m')
 %
 %   Covers the fluent builder, the loader-contract additions (opt.covOverride
-%   .bySys and the epochCov hook in lsqvce.makeLoader), the two loop layers
-%   (SHAPE via selectArAcv on descaled residuals, SCALE via lsqvce.vce), and
+%   .bySys and the epochCov hook in lsqvce.engine.makeLoader), the two loop layers
+%   (SHAPE via selectArAcv on descaled residuals, SCALE via lsqvce.engine.vce), and
 %   end-to-end convergence on a synthetic two-satellite / pos+rr problem whose
 %   true relative weights and temporal colour are known.
 %
@@ -69,7 +69,7 @@ end
 function [P, cfg] = makeVCEBuilder(tc, varargin)
 %MAKEVCEBUILDER  A configured adjustVCE BUILDER over the GRACE demo data.
 %   It does NOT build loaders -- `demo_grace_dataLoader` does that. This wraps
-%   those loaders in an LSQVCE.ADJUSTVCE with verbosity off, ready for a test to
+%   those loaders in an LSQVCE.ENGINE.ADJUSTVCE with verbosity off, ready for a test to
 %   add its own fluent configuration and call .run().
 %
 %   INPUT
@@ -77,7 +77,7 @@ function [P, cfg] = makeVCEBuilder(tc, varargin)
 %                                               tc.TestData (see setupOnce)
 %     varargin  Name/Value pairs forwarded to the ADJUSTVCE constructor
 %   OUTPUT
-%     P    1x1  lsqvce.adjustVCE  the builder (nothing has run yet)
+%     P    1x1  lsqvce.engine.adjustVCE  the builder (nothing has run yet)
 %     cfg  1x1  struct            the demo configuration (days, true sigmas, ...)
 %
 %   COST: the dataset is built ONCE in setupOnce and REUSED here, so this is
@@ -85,7 +85,7 @@ function [P, cfg] = makeVCEBuilder(tc, varargin)
 %   regenerates 4 days x 2 arcs x 300 epochs and was worth 109 s of a 130 s
 %   suite before it was fixed (HISTORY_v1.md task 6).
     cfg = tc.TestData.cfg;
-    P   = lsqvce.adjustVCE(tc.TestData.loaders, cfg.days, ...
+    P   = lsqvce.engine.adjustVCE(tc.TestData.loaders, cfg.days, ...
                            'Verbose', false, varargin{:});
 end
 
@@ -93,7 +93,7 @@ end
 function test_construct_defaults(tc)
 % categories: contract
     [P, ~] = makeVCEBuilder(tc);
-    verifyClass(tc, P, 'lsqvce.adjustVCE');
+    verifyClass(tc, P, 'lsqvce.engine.adjustVCE');
     verifyEqual(tc, P.nc, tc.TestData.cfg.nc);
 end
 
@@ -103,7 +103,7 @@ function test_construct_nc_is_derived(tc)
     % parametrisation, so it can be stated only ONCE. Assert the derived value
     % matches the parametrisation the demo built.
     cfg = tc.TestData.cfg;                       % shared dataset (setupOnce)
-    P = lsqvce.adjustVCE(tc.TestData.loaders, 1:3, 'Verbose', false);
+    P = lsqvce.engine.adjustVCE(tc.TestData.loaders, 1:3, 'Verbose', false);
     verifyEqual(tc, P.nc, size(cfg.common, 1), ...
         'nc must equal the number of rows in the commonParams table');
 end
@@ -112,7 +112,7 @@ function test_construct_without_systems_errors(tc)
 % categories: contract, robustness
     % With no systems there is nothing to derive nc from, and that must be a
     % clear error rather than a silent nc = 0.
-    verifyError(tc, @() lsqvce.adjustVCE({}, 1, 'Verbose', false), ...
+    verifyError(tc, @() lsqvce.engine.adjustVCE({}, 1, 'Verbose', false), ...
         'lsqvce:resolveNc:empty');
 end
 
@@ -391,7 +391,7 @@ function test_epochCov_hook_carried(tc)
 % categories: contract
     hook = @(day, obsType) struct('day', day, 'obsType', obsType);
     cov.rr = struct('type','diag','sigma',1);
-    L = lsqvce.makeLoader(@(d,ot) makeTinyDay(), 'observationTypes', {'rr'}, ...
+    L = lsqvce.engine.makeLoader(@(d,ot) makeTinyDay(), 'observationTypes', {'rr'}, ...
             'covariance', cov, 'arcs', 1, 'systemId', 1, 'numLocal', 2, 'epochCovariance', hook);
     verifyTrue(tc, isfield(L, 'epochCov'));
     out = L.epochCov(3, 'rr');
@@ -505,7 +505,7 @@ function test_covModel_separable_whitens(tc)
     t = reshape(repmat((0:nE-1)*dt, d, 1), [], 1);
     Cep = repmat(reshape(Dep,1,d,d), nE, 1, 1);
     cm = struct('type','separable','ar',ar,'sigma',sig,'d',d,'Cep',Cep);
-    [~, Wfcn, info] = lsqvce.covModel(cm, t);
+    [~, Wfcn, info] = lsqvce.engine.covModel(cm, t);
     verifyEqual(tc, info.nAxis, d);
     A = randn(rs, d*nE, 2);
     [Aw,~,ew] = Wfcn(1:d*nE, A, zeros(d*nE,0), e);
@@ -553,7 +553,7 @@ function test_plot_hooks_fire(tc)
         L{i}.plotPostSolve = mS;
         L{i}.plotPostModel = mM;
     end
-    P = lsqvce.adjustVCE(L, cfg.days, 'Verbose', false, ...
+    P = lsqvce.engine.adjustVCE(L, cfg.days, 'Verbose', false, ...
             'MaxOuter', 1, 'ShowSeconds', 0, 'ExportDir', '');
     P.groupComponentsBy('obsType').run();
     verifyEqual(tc, exist(tmp,'file'), 2, 'hooks must have recorded at least once');
@@ -596,7 +596,7 @@ function test_plot_ctx_schema_fields(tc)
         L{i}.plotPostSolve = mS;
         L{i}.plotPostModel = mM;
     end
-    P = lsqvce.adjustVCE(L, cfg.days, 'Verbose', false, ...
+    P = lsqvce.engine.adjustVCE(L, cfg.days, 'Verbose', false, ...
             'MaxOuter', 1, 'ShowSeconds', 0, 'ExportDir', '');
     P.groupComponentsBy('obsType').run();
 
@@ -655,7 +655,7 @@ function test_deterministic(tc)
     %     loaders in setupOnce would otherwise stop testing it -- a cached day
     %     trivially equals itself.
     [cfgF, LF] = demo_grace_dataLoader();
-    R3 = lsqvce.adjustVCE(LF, cfgF.days, 'Verbose', false, 'MaxOuter', 3).run();
+    R3 = lsqvce.engine.adjustVCE(LF, cfgF.days, 'Verbose', false, 'MaxOuter', 3).run();
     % tol: exact-identity claim (same algebra both sides); house bound 1e-10 (HANDOVER 6.1.2)
     verifyEqual(tc, R3.x, R1.x, 'AbsTol', 1e-10, ...
         'a rebuilt dataset must reproduce the shared one');
@@ -771,11 +771,11 @@ function test_homogenise_warns_when_scalar_positions(tc)
         commonTbl(ii,:) = {'common', sprintf('c%d', ii), 0, '', ...
                            0, 0, 'C', [], '', '-', 0, Inf, true, 'common'};
     end
-    Lpos = lsqvce.makeLoader(@(day,ot) makePosDay(day), ...
+    Lpos = lsqvce.engine.makeLoader(@(day,ot) makePosDay(day), ...
                 'observationTypes', {'pos'}, 'covariance', cov, ...
                 'commonParams', commonTbl, ...
                 'numLocal', 1, 'systemId', 1, 'days', days);
-    P = lsqvce.adjustVCE({Lpos}, days, 'Verbose', false);
+    P = lsqvce.engine.adjustVCE({Lpos}, days, 'Verbose', false);
     P.componentsPerEpoch(struct('pos', 3));                 % declare pos as 3-D
     % The step-0 homogenisation preflight (in empiricalStochastic, BEFORE the
     % solve) must raise notHomogenised. The run itself then legitimately cannot
@@ -831,7 +831,7 @@ end
 % nothing checked that the right line appears at the right level from the right
 % place. The formatters were unit tested in test_util, but the WIRING was not,
 % and two real defects hid in exactly that gap (HISTORY_v1.md 1.7):
-%   * lsqvce.residuals defaults verbose TRUE and the accumulator forwarded
+%   * lsqvce.engine.residuals defaults verbose TRUE and the accumulator forwarded
 %     without the level, so a "silent" run still emitted 544 lines;
 %   * buildAccumulator hardcoded 'Verbose', false, so the level-2 per-day
 %     detail could never appear through adjustVCE at all.
@@ -974,7 +974,7 @@ function txt = captureRun(~, level)
         % inputParser's duplicate-name resolution, which is not a behaviour
         % worth depending on in a test whose whole subject is the verbosity.
         [cfg, L] = demo_grace_dataLoader();
-        P = lsqvce.adjustVCE(L, cfg.days, 'Verbose', level, 'MaxOuter', 1);
+        P = lsqvce.engine.adjustVCE(L, cfg.days, 'Verbose', level, 'MaxOuter', 1);
         P = P.groupComponentsBy('obsType').varianceComponents('MaxIter', 2);
         P.run();
     catch ME

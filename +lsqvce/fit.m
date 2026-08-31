@@ -16,25 +16,25 @@ function R = fit(data, opts)
 %
 %   fit does three things and nothing else: (1) validates `data` against the
 %   contract BEFORE any data is read (fail fast, one error identifier per
-%   rule -- ERRORS below), (2) builds one Loader per system through LSQVCE.MAKELOADER (the
+%   rule -- ERRORS below), (2) builds one Loader per system through LSQVCE.ENGINE.MAKELOADER (the
 %   field names are makeLoader's canonical option names in lowerCamelCase;
 %   the mapping table lives here and nowhere else), (3) dispatches on
 %   opts.Model to the engine that does the work:
 %
 %       Model      engine                    what
-%       "gls"      LSQVCE.ADJUSTBLOCK        one GLS solve with the declared
+%       "gls"      LSQVCE.ENGINE.ADJUSTBLOCK        one GLS solve with the declared
 %                                            covariance
-%       "vce"      LSQVCE.ADJUSTVCE          alternate stochastic model <->
+%       "vce"      LSQVCE.ENGINE.ADJUSTVCE          alternate stochastic model <->
 %                                            variance components (separate)
-%       "pooled"   LSQVCE.ADJUSTVCE.joint    pooled spectrum, no arc factors
-%       "ellmer"   LSQVCE.ADJUSTVCEJOINT     the ten-step joint co-estimation
+%       "pooled"   LSQVCE.ENGINE.ADJUSTVCE.joint    pooled spectrum, no arc factors
+%       "ellmer"   LSQVCE.ENGINE.ADJUSTVCEJOINT     the ten-step joint co-estimation
 %                                            with keyed arc factors (Ellmer
 %                                            2018 §6.5; R4 WP-56c). fit builds
 %                                            the accFcn the driver wants -- a
 %                                            BlockAccumulator over the same
 %                                            loaders whose UserOpt carries the
 %                                            current model through
-%                                            LSQVCE.JOINTMODELOPT -- and
+%                                            LSQVCE.ENGINE.JOINTMODELOPT -- and
 %                                            bridges the driver's out struct
 %                                            into a Results: x / sigma0 /
 %                                            diagnostics via diagnoseAccum +
@@ -58,12 +58,12 @@ function R = fit(data, opts)
 %         data.numUnknowns  1x1     u
 %         data.numBatches   1x1     nBatch
 %         data.batchFcn     fh      [A, l, p] = batchFcn(k), k = 1..nBatch
-%                                   (the LSQVCE.ADJUST contract), or, with
+%                                   (the LSQVCE.ENGINE.ADJUST contract), or, with
 %         data.x0           u x 1   -> NONLINEAR: [A, w, p] = batchFcn(k, x)
-%                                   (the LSQVCE.SOLVENONLINEAR contract)
+%                                   (the LSQVCE.ENGINE.SOLVENONLINEAR contract)
 %   Dispatch for both: opts.Model must be "gls" (variance components need
 %   the groups of a streaming system); opts.Robust = "irls" selects
-%   LSQVCE.ROBUST, data.x0 selects LSQVCE.SOLVENONLINEAR, else LSQVCE.ADJUST.
+%   LSQVCE.ENGINE.ROBUST, data.x0 selects LSQVCE.ENGINE.SOLVENONLINEAR, else LSQVCE.ENGINE.ADJUST.
 %   The Results carries sol / diag / source (the driver's third output:
 %   verdict V, ROB, or the nonlinear IT record). Its sigma0 is the
 %   A-POSTERIORI std of unit weight and sol.Cxx = s0sq * D.Qxx, i.e. the
@@ -71,7 +71,7 @@ function R = fit(data, opts)
 %   a-priori value; it is kept as sol.sigma0Prior). R.acc is empty, so
 %   residuals() and contribution() refuse with lsqvce:Results:noAccumulator
 %   -- the per-observation residuals are already in R.diag.v. The options
-%   forwarded to LSQVCE.DIAGNOSE come from the Options object explicitly
+%   forwarded to LSQVCE.ENGINE.DIAGNOSE come from the Options object explicitly
 %   (no KeepUnmatched on this path).
 %
 %   R.systems (the existing Results field -- no second name) carries the
@@ -158,9 +158,9 @@ function R = fit(data, opts)
 %     R = lsqvce.fit(data, lsqvce.Options(Model="vce"));
 %     R.report
 %
-%   See also LSQVCE.OPTIONS, LSQVCE.RESULTS, LSQVCE.MAKELOADER,
-%            LSQVCE.ADJUSTBLOCK, LSQVCE.ADJUSTVCE, LSQVCE.ADJUSTVCEJOINT,
-%            LSQVCE.ADJUST, LSQVCE.ROBUST, LSQVCE.SOLVENONLINEAR
+%   See also LSQVCE.OPTIONS, LSQVCE.RESULTS, LSQVCE.ENGINE.MAKELOADER,
+%            LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCE, LSQVCE.ENGINE.ADJUSTVCEJOINT,
+%            LSQVCE.ENGINE.ADJUST, LSQVCE.ENGINE.ROBUST, LSQVCE.ENGINE.SOLVENONLINEAR
 %
 %   Updated 2026-09-01 (CEST, UTC+02:00), R4 WP-56c (Level L3): Model "ellmer"
 %   wired -- accFcn from the loaders + jointModelOpt, out -> Results bridge
@@ -193,7 +193,7 @@ end
     % ---- kind A: streaming --------------------------------------------------
     if ~strcmp(opts.Robust, "none")
         error('lsqvce:fit:notYet', ...
-            ['Robust = "%s" is the in-memory / batched kinds'' path (lsqvce.robust); ' ...
+            ['Robust = "%s" is the in-memory / batched kinds'' path (lsqvce.engine.robust); ' ...
              'the streaming kind screens outliers through its diagnostics (report()).'], opts.Robust);
     end
 
@@ -203,12 +203,12 @@ end
     switch char(opts.Model)
         case 'gls'
             a = opts.engineArgs('adjustBlock');
-            R = lsqvce.adjustBlock(systems, days, a.nv{:});
+            R = lsqvce.engine.adjustBlock(systems, days, a.nv{:});
         case 'ellmer'
             R = fitEllmer(systems, days, opts);
         otherwise                                   % 'vce' | 'pooled'
             a = opts.engineArgs('adjustVCE');
-            P  = lsqvce.adjustVCE(systems, days, a.nv{:});
+            P  = lsqvce.engine.adjustVCE(systems, days, a.nv{:});
             nv = struct2nv(a.shape);   P.stochasticModel(nv{:});
             nv = struct2nv(a.scale);   P.varianceComponents(nv{:});
             nv = struct2nv(a.outer);   P.iteration(nv{:});
@@ -383,7 +383,7 @@ function [systems, days] = buildSystems(spec)
             nv = [nv, {'NumCommon', nc}];                            %#ok<AGROW>
         end
         try
-            systems{k} = lsqvce.makeLoader(s.buildDay, nv{:});
+            systems{k} = lsqvce.engine.makeLoader(s.buildDay, nv{:});
         catch e
             if startsWith(e.identifier, 'lsqvce:makeLoader:')
                 e2 = MException(strrep(e.identifier, 'lsqvce:makeLoader:', 'lsqvce:fit:'), ...
@@ -448,22 +448,22 @@ function R = runBatch(u, batchFcn, nBatch, x0, opts, kind)
     end
     if ~isempty(x0)
         a = opts.engineArgs("solveNonlinear");
-        [sol, D, ~, IT] = lsqvce.solveNonlinear(u, batchFcn, nBatch, x0, a.nv{:});
+        [sol, D, ~, IT] = lsqvce.engine.solveNonlinear(u, batchFcn, nBatch, x0, a.nv{:});
         source = IT;
     elseif strcmp(opts.Robust, "irls")
         a = opts.engineArgs("robust");
-        [sol, D, ROB] = lsqvce.robust(u, batchFcn, nBatch, a.nv{:});
+        [sol, D, ROB] = lsqvce.engine.robust(u, batchFcn, nBatch, a.nv{:});
         source = ROB;
     else
         a = opts.engineArgs("adjust");
-        [sol, D, V] = lsqvce.adjust(u, batchFcn, nBatch, a.nv{:});
+        [sol, D, V] = lsqvce.engine.adjust(u, batchFcn, nBatch, a.nv{:});
         source = V;
     end
     % The Results contract is the STREAMING one (BlockAccumulator.solve):
     % sol.sigma0 = a-posteriori std of unit weight, sol.Cxx = covariance
     % scaled by it. The batch drivers return Accumulator.solve's struct,
     % where sigma0 is the A-PRIORI Sigma0 and there is no Cxx (R, QxxCorr,
-    % s0sq instead) -- so the bridge derives both exactly as lsqvce.diagnose
+    % s0sq instead) -- so the bridge derives both exactly as lsqvce.engine.diagnose
     % does (D.Qxx is the datum-corrected cofactor). When diagnose skipped
     % Qxx (very large u) Cxx stays absent and coefficients() refuses with
     % lsqvce:Results:noCovariance -- honest, never a plausible substitute.
@@ -474,31 +474,31 @@ function R = runBatch(u, batchFcn, nBatch, x0, opts, kind)
     end
     resolved = opts.toStruct();
     resolved.kind = kind;
-    R = lsqvce.Results(sol, D, [], source, batchFcn, nBatch, [], runMeta(struct(), resolved));
+    R = lsqvce.Results(sol, D, [], source, batchFcn, nBatch, [], lsqvce.engine.runMeta(struct(), resolved));
 end
 
 %======================================================= Model "ellmer"
 function R = fitEllmer(systems, days, opts)
-%FITELLMER  Model "ellmer": LSQVCE.ADJUSTVCEJOINT over the built systems.
+%FITELLMER  Model "ellmer": LSQVCE.ENGINE.ADJUSTVCEJOINT over the built systems.
 %   Two bridges (R4 WP-56c): (1) the accFcn the driver wants -- a fresh
 %   BlockAccumulator per outer pass whose UserOpt carries the current model
-%   through LSQVCE.JOINTMODELOPT for every (system, obsType) stream; (2) the
+%   through LSQVCE.ENGINE.JOINTMODELOPT for every (system, obsType) stream; (2) the
 %   driver's out struct -> a Results with the streaming contract.
-    nc    = lsqvce.resolveNc(systems);
+    nc    = lsqvce.engine.resolveNc(systems);
     specs = accSpecs(systems, days);
     streams = streamKeys(systems, specs);
     a = opts.engineArgs("adjustVCEjoint");
     psdMode = char(opts.PsdMode);
     accFcn = @(model) jointAccumulator(nc, specs, opts, ...
-                 lsqvce.jointModelOpt(model, streams, 'PsdMode', psdMode));
-    out = lsqvce.adjustVCEjoint(accFcn, a.nv{:});
+                 lsqvce.engine.jointModelOpt(model, streams, 'PsdMode', psdMode));
+    out = lsqvce.engine.adjustVCEjoint(accFcn, a.nv{:});
 
-    [dsol, batchFcn, nB] = lsqvce.diagnoseAccum(out.acc, out.sol);
-    D = lsqvce.diagnose(dsol, batchFcn, 'nBatch', nB, opts.engineArgs("diagnose").nv{:});
+    [dsol, batchFcn, nB] = lsqvce.engine.diagnoseAccum(out.acc, out.sol);
+    D = lsqvce.engine.diagnose(dsol, batchFcn, 'nBatch', nB, opts.engineArgs("diagnose").nv{:});
     resolved = opts.toStruct();
     resolved.kind = 'stream';
     seeds = struct('jointSeed', opts.Seed);
-    R = lsqvce.Results(out.sol, D, out.acc, dsol, batchFcn, nB, specs, runMeta(seeds, resolved));
+    R = lsqvce.Results(out.sol, D, out.acc, dsol, batchFcn, nB, specs, lsqvce.engine.runMeta(seeds, resolved));
     hist = out.history;
     hist.kind  = 'ellmer';
     hist.nIter = out.nIter;
@@ -538,7 +538,7 @@ end
 
 function keys = streamKeys(systems, specs)
 %STREAMKEYS  'satKey|obsType' for every (system, observation type) stream --
-%   the names LSQVCE.ADJUSTVCE / LSQVCE.JOINTMODELOPT use. Loaders carry
+%   the names LSQVCE.ENGINE.ADJUSTVCE / LSQVCE.ENGINE.JOINTMODELOPT use. Loaders carry
 %   their obsTypes; a raw closure is probed once with the 'meta' sentinel.
     keys = {};
     for k = 1:numel(specs)
@@ -557,7 +557,7 @@ end
 
 function acc = jointAccumulator(nc, specs, opts, uo)
 %JOINTACCUMULATOR  One solve-ready accumulator under the current joint model.
-    acc = lsqvce.BlockAccumulator(nc, 'Backend', char(opts.Backend), 'KeepLocal', true, ...
+    acc = lsqvce.engine.BlockAccumulator(nc, 'Backend', char(opts.Backend), 'KeepLocal', true, ...
               'Reg', char(opts.Reg), 'RegLambda', opts.RegLambda, 'RegMatrix', opts.RegMatrix, ...
               'Parallel', char(opts.Parallel), 'DistributeDays', opts.DistributeDays, ...
               'ParallelThreshold', opts.ParallelThreshold, 'Verbose', false, 'UserOpt', uo);

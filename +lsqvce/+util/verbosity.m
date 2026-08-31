@@ -79,7 +79,7 @@ classdef verbosity
 %                                caller wondering why nothing changed)
 %     lsqvce:verbosity:badTag    an unknown message tag
 %
-%   See also LSQVCE.UTIL.LOG, LSQVCE.ADJUSTVCE
+%   See also LSQVCE.UTIL.LOG, LSQVCE.ENGINE.ADJUSTVCE
 %
 %   Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Opus 4.8.

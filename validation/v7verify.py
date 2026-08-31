@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""v7 validation: block-arrow Helmert VCE (lsqvce.vce) and the diagnoseAccum bridge.
+"""v7 validation: block-arrow Helmert VCE (lsqvce.engine.vce) and the diagnoseAccum bridge.
 
 Two gaps that had no dedicated test. Both are proven here against brute force
 before the MATLAB tests are written:
@@ -111,7 +111,7 @@ def solve_reduced(arcs, weights, nc, nSys, nl):
 
 
 def helmert(arcs, nc, nSys, nl, sigma0, maxIter=8, tol=1e-3):
-    """The simplified Helmert iteration lsqvce.vce runs: sigma_g^2 = vtv_g/r_g,
+    """The simplified Helmert iteration lsqvce.engine.vce runs: sigma_g^2 = vtv_g/r_g,
     re-whiten, repeat."""
     w = dict(sigma0)
     hist = [dict(w)]

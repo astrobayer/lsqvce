@@ -7,7 +7,7 @@ function L = lsqvce_template(procOpt)
 %   returns the cell array of Loaders that the toolbox consumes:
 %
 %       L = myCase(procOpt);
-%       R = lsqvce.adjustVCE(L, procOpt.days, ...
+%       R = lsqvce.engine.adjustVCE(L, procOpt.days, ...
 %               'verbose', procOpt.loggingLevel, ...
 %               'logFid',  procOpt.loggingOverviewFileID) ...
 %             .groupComponentsBy('obsType') ...
@@ -44,8 +44,8 @@ function L = lsqvce_template(procOpt)
 %                           and surfaced to plot hooks as ctx.procOpt.
 %
 %   OUTPUT
-%     L        1xS  cell    one Loader per system, ready for LSQVCE.ADJUSTVCE
-%                           or LSQVCE.ADJUSTBLOCK.
+%     L        1xS  cell    one Loader per system, ready for LSQVCE.ENGINE.ADJUSTVCE
+%                           or LSQVCE.ENGINE.ADJUSTBLOCK.
 %
 %   PROCOPT -- IT IS IMMUTABLE INPUT, NOT SHARED STATE
 %     procOpt is captured when makeLoader is called and piped through unchanged
@@ -85,10 +85,10 @@ function L = lsqvce_template(procOpt)
 %   EXAMPLE
 %     procOpt = myPipelineConfig();
 %     L = lsqvce_template(procOpt);
-%     R = lsqvce.adjustVCE(L, procOpt.days).groupComponentsBy('obsType').run();
+%     R = lsqvce.engine.adjustVCE(L, procOpt.days).groupComponentsBy('obsType').run();
 %     R.report();
 %
-%   See also LSQVCE.MAKELOADER, LSQVCE.ADJUSTVCE, LSQVCE.ADJUSTBLOCK,
+%   See also LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTVCE, LSQVCE.ENGINE.ADJUSTBLOCK,
 %            DEMO_SEPARABLE_DATA
 %
 %   Created 2026-07-19 (CEST, UTC+02:00) with assistance from
@@ -105,7 +105,7 @@ function L = buildLoaders(procOpt)
 %
 %   Each entry of procOpt.observationGroups describes ONE system: which
 %   observation types it carries and how it is identified. This loop turns each
-%   into a Loader via LSQVCE.MAKELOADER.
+%   into a Loader via LSQVCE.ENGINE.MAKELOADER.
 %
 %   MERGING SYSTEMS -- the one topology decision you cannot avoid
 %     Two satellites must share ONE system whenever an observation's design
@@ -158,7 +158,7 @@ function L = buildLoaders(procOpt)
         % systemId MUST be numeric or a SINGLE char: the accumulator indexes
         % systems by [store.sysID], which flattens a multi-char string into
         % separate elements. Carry a readable label in 'name' instead.
-        L{k} = lsqvce.makeLoader(buildDay, ...
+        L{k} = lsqvce.engine.makeLoader(buildDay, ...
                  'observationTypes',  obsTypes, ...
                  'covariance',        cov, ...
                  'systemId',          g.systemId, ...
@@ -275,7 +275,7 @@ end
 
 %% ========================================================== small local helpers
 function cov = aprioriCovariance(obsTypes, g)
-%APRIORICOVARIANCE  A-priori covariance spec per obsType, for LSQVCE.COVMODEL.
+%APRIORICOVARIANCE  A-priori covariance spec per obsType, for LSQVCE.ENGINE.COVMODEL.
 %   White and unit-variance by default: the VCE loop discovers the truth, so a
 %   deliberately plain start makes the discovery visible. Replace with your best
 %   prior if you have one.

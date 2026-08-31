@@ -59,25 +59,25 @@ LSQVCE.RESULTS back:
 
 fit does three things and nothing else: (1) validates `data` against the
 contract BEFORE any data is read (fail fast, one error identifier per
-rule -- ERRORS below), (2) builds one Loader per system through LSQVCE.MAKELOADER (the
+rule -- ERRORS below), (2) builds one Loader per system through LSQVCE.ENGINE.MAKELOADER (the
 field names are makeLoader&#x27;s canonical option names in lowerCamelCase;
 the mapping table lives here and nowhere else), (3) dispatches on
 opts.Model to the engine that does the work:
 
     Model      engine                    what
-    &quot;gls&quot;      LSQVCE.ADJUSTBLOCK        one GLS solve with the declared
+    &quot;gls&quot;      LSQVCE.ENGINE.ADJUSTBLOCK        one GLS solve with the declared
                                          covariance
-    &quot;vce&quot;      LSQVCE.ADJUSTVCE          alternate stochastic model &lt;-&gt;
+    &quot;vce&quot;      LSQVCE.ENGINE.ADJUSTVCE          alternate stochastic model &lt;-&gt;
                                          variance components (separate)
-    &quot;pooled&quot;   LSQVCE.ADJUSTVCE.joint    pooled spectrum, no arc factors
-    &quot;ellmer&quot;   LSQVCE.ADJUSTVCEJOINT     the ten-step joint co-estimation
+    &quot;pooled&quot;   LSQVCE.ENGINE.ADJUSTVCE.joint    pooled spectrum, no arc factors
+    &quot;ellmer&quot;   LSQVCE.ENGINE.ADJUSTVCEJOINT     the ten-step joint co-estimation
                                          with keyed arc factors (Ellmer
                                          2018 §6.5; R4 WP-56c). fit builds
                                          the accFcn the driver wants -- a
                                          BlockAccumulator over the same
                                          loaders whose UserOpt carries the
                                          current model through
-                                         LSQVCE.JOINTMODELOPT -- and
+                                         LSQVCE.ENGINE.JOINTMODELOPT -- and
                                          bridges the driver&#x27;s out struct
                                          into a Results: x / sigma0 /
                                          diagnostics via diagnoseAccum +
@@ -101,12 +101,12 @@ for problems WITHOUT local unknowns and with diagonal weights:
       data.numUnknowns  1x1     u
       data.numBatches   1x1     nBatch
       data.batchFcn     fh      [A, l, p] = batchFcn(k), k = 1..nBatch
-                                (the LSQVCE.ADJUST contract), or, with
+                                (the LSQVCE.ENGINE.ADJUST contract), or, with
       data.x0           u x 1   -&gt; NONLINEAR: [A, w, p] = batchFcn(k, x)
-                                (the LSQVCE.SOLVENONLINEAR contract)
+                                (the LSQVCE.ENGINE.SOLVENONLINEAR contract)
 Dispatch for both: opts.Model must be &quot;gls&quot; (variance components need
 the groups of a streaming system); opts.Robust = &quot;irls&quot; selects
-LSQVCE.ROBUST, data.x0 selects LSQVCE.SOLVENONLINEAR, else LSQVCE.ADJUST.
+LSQVCE.ENGINE.ROBUST, data.x0 selects LSQVCE.ENGINE.SOLVENONLINEAR, else LSQVCE.ENGINE.ADJUST.
 The Results carries sol / diag / source (the driver&#x27;s third output:
 verdict V, ROB, or the nonlinear IT record). Its sigma0 is the
 A-POSTERIORI std of unit weight and sol.Cxx = s0sq * D.Qxx, i.e. the
@@ -114,7 +114,7 @@ streaming Results contract (the batch drivers&#x27; own sol.sigma0 is the
 a-priori value; it is kept as sol.sigma0Prior). R.acc is empty, so
 residuals() and contribution() refuse with lsqvce:Results:noAccumulator
 -- the per-observation residuals are already in R.diag.v. The options
-forwarded to LSQVCE.DIAGNOSE come from the Options object explicitly
+forwarded to LSQVCE.ENGINE.DIAGNOSE come from the Options object explicitly
 (no KeepUnmatched on this path).
 
 R.systems (the existing Results field -- no second name) carries the
@@ -196,9 +196,9 @@ buildDay, lsqvce:accum:arcBadNc / arcBadNl</pre>
   R = lsqvce.fit(data, lsqvce.Options(Model=&quot;vce&quot;));
   R.report
 
-See also LSQVCE.OPTIONS, LSQVCE.RESULTS, LSQVCE.MAKELOADER,
-         LSQVCE.ADJUSTBLOCK, LSQVCE.ADJUSTVCE, LSQVCE.ADJUSTVCEJOINT,
-         LSQVCE.ADJUST, LSQVCE.ROBUST, LSQVCE.SOLVENONLINEAR
+See also LSQVCE.OPTIONS, LSQVCE.RESULTS, LSQVCE.ENGINE.MAKELOADER,
+         LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCE, LSQVCE.ENGINE.ADJUSTVCEJOINT,
+         LSQVCE.ENGINE.ADJUST, LSQVCE.ENGINE.ROBUST, LSQVCE.ENGINE.SOLVENONLINEAR
 
 Updated 2026-09-01 (CEST, UTC+02:00), R4 WP-56c (Level L3): Model &quot;ellmer&quot;
 wired -- accFcn from the loaders + jointModelOpt, out -&gt; Results bridge

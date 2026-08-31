@@ -27,7 +27,7 @@ function testDefaultsMatchAdjustVCEEngine(tc)
     o = lsqvce.Options();
     a = o.engineArgs("adjustVCE");
     sys = struct('sysID', 1, 'nl', 1, 'nc', 2, 'loader', @(varargin) struct());
-    P = lsqvce.adjustVCE(sys, 1);                 % construction reads no data
+    P = lsqvce.engine.adjustVCE(sys, 1);                 % construction reads no data
     % tol: exact -- these are the engine's literal defaults, not measurements
     tc.verifyEqual(a.shape, P.shapeOpt, 'stochastic-model group must equal the engine default');
     tc.verifyEqual(a.scale, P.scaleOpt, 'variance-component group must equal the engine default');

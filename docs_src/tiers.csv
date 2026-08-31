@@ -1,83 +1,84 @@
 name,tier,role
-fit,USER,the one user verb: fit(data, opts) -> Results
+fit,USER,"the one user verb: fit(data, opts) -> Results"
 Options,USER,the one settings object for fit (typed knobs with engine defaults)
-Results,USER,rich result object: solution, diagnostics, provenance, report()
+Results,USER,"rich result object: solution, diagnostics, provenance, report()"
 report,USER,verdict printer (levels 0-4); Results.report forwards here
-adjust,ENGINE,in-memory batch driver (batchFcn) -- fit(A,l) path in L2
-adjustBlock,ENGINE,one GLS solve over the streaming block-arrow pipeline
-adjustVCE,ENGINE,separable-GLS iteration: stochastic model <-> variance components
-adjustVCEjoint,ENGINE,Ellmer ten-step joint co-estimation with keyed arc factors
-robust,ENGINE,IRLS M-estimation over the batch driver
-solveNonlinear,ENGINE,Gauss-Newton / damped iteration over the batch driver
-makeLoader,ENGINE,day-builder -> Loader (built INSIDE fit from the data struct, R4-D4)
-synthLoader,ENGINE,synthetic ground-truth loader and raw-closure template
-PrefetchLoader,ENGINE,prefetching loader wrapper
-BlockAccumulator,ENGINE,block-arrow accumulation with per-system Schur pre-elimination
-Accumulator,ENGINE,plain batch accumulator
-Combine,ENGINE,normal-equation combination of systems
-CommonPrior,ENGINE,prior on the common block (regularisation as observations)
-NormalEqSystem,ENGINE,normal-equation backend
-QRSystem,ENGINE,QR backend
-BatchIndex,ENGINE,batch/arc index bookkeeping
-ReducedContribution,ENGINE,reduced-normal contribution bookkeeping
-vce,ENGINE,Helmert group variance components (exact | hutchinson)
-vceHutchinson,ENGINE,Hutchinson redundancy/trace estimator for vce
-psdVCE,ENGINE,PSD amplitude + arc-factor VCE (Ellmer workhorse)
-iterateNoiseModel,ENGINE,temporal noise-model iteration
-arcVarianceFactors,ENGINE,per-arc variance factors
-covComponent,ENGINE,covariance component estimation
-varComp,ENGINE,variance-component estimation helper
-snoop,ENGINE,block-native data snooping and downweighting
-outliers,ENGINE,outlier listing from diagnostics
-diagnose,ENGINE,per-observation diagnostics (batch)
-diagnoseAccum,ENGINE,diagnostics bridge from the accumulator
-localDiagnostics,ENGINE,diagnostics of the local blocks
-residuals,ENGINE,second data pass: residuals and quadratic forms
-collectResiduals,ENGINE,residual collection per stream
-redundancy,ENGINE,redundancy numbers (data pass)
-contribution,ENGINE,information contribution per group
-streamContribution,ENGINE,contribution per stream
-covModel,ENGINE,covariance spec -> whitening operators (per arc)
-jointModelOpt,ENGINE,joint-mode model -> loader UserOpt translation
-applyRegularisation,ENGINE,regularisation of the reduced system
-gcvLambda,ENGINE,GCV choice of the regularisation weight
-datum,ENGINE,datum defect detection and handling
-mapreduce,ENGINE,serial / parfor / spmd task runner with ordered reduce
-poolGroups,ENGINE,VCE group pooling
-resolveNc,ENGINE,common-parameter count derived from the systems
-resolveSatSpecs,ENGINE,satellite spec resolution
-normalizeSatList,ENGINE,satellite list normalisation
-satKeyOf,ENGINE,satellite key (makeValidName) helper
-selectArAcv,ENGINE,AR model selection from an autocovariance
-selectArOrder,ENGINE,AR order selection
-whittle,ENGINE,Whittle likelihood fit of a VAR model
-checkPSD,ENGINE,PSD sanity check
-leverage,ENGINE,leverage (hat-matrix diagonal), batch
-leverageBlocks,ENGINE,leverage over blocks
-ellipse,ENGINE,confidence ellipse from a covariance
-ftest,ENGINE,F-test on variance factors
-stat,ENGINE,statistics helper
-systematic,ENGINE,systematic-effect test
-sharedProbe,ENGINE,shared Hutchinson probe generator (RNG contract)
-traceEstimate,ENGINE,stochastic trace estimate
-dctI,KERNEL,DCT-I transform
-psd2acv,KERNEL,PSD -> autocovariance
-levinsonDurbin,KERNEL,Levinson-Durbin recursion
-armaACV,KERNEL,ARMA autocovariance
-ar2arma,KERNEL,AR -> ARMA conversion
-armaWhiten,KERNEL,ARMA whitening filter (batched)
-varACV,KERNEL,VAR autocovariance
-varWhiten,KERNEL,VAR whitening
-separableWhiten,KERNEL,separable (temporal x axis) whitening
-toeplitzCofactor,KERNEL,Toeplitz cofactor construction
-decorrFactor,KERNEL,decorrelation factor of a dense covariance
-residualAcv,KERNEL,autocovariance of residuals
-crossCorr,KERNEL,cross-correlation of residual streams
-whitenessCorr,KERNEL,whiteness (Ljung-Box) statistic
-redundancyLags,KERNEL,redundancy per lag without the dense W^-1
+engine.adjust,ENGINE,"in-memory batch driver (batchFcn) -- fit(A,l) path in L2"
+engine.adjustBlock,ENGINE,one GLS solve over the streaming block-arrow pipeline
+engine.adjustVCE,ENGINE,separable-GLS iteration: stochastic model <-> variance components
+engine.adjustVCEjoint,ENGINE,Ellmer ten-step joint co-estimation with keyed arc factors
+engine.robust,ENGINE,IRLS M-estimation over the batch driver
+engine.solveNonlinear,ENGINE,Gauss-Newton / damped iteration over the batch driver
+engine.makeLoader,ENGINE,"day-builder -> Loader (built INSIDE fit from the data struct, R4-D4)"
+engine.synthLoader,ENGINE,synthetic ground-truth loader and raw-closure template
+engine.PrefetchLoader,ENGINE,prefetching loader wrapper
+engine.BlockAccumulator,ENGINE,block-arrow accumulation with per-system Schur pre-elimination
+engine.Accumulator,ENGINE,plain batch accumulator
+engine.Combine,ENGINE,normal-equation combination of systems
+engine.CommonPrior,ENGINE,prior on the common block (regularisation as observations)
+engine.NormalEqSystem,ENGINE,normal-equation backend
+engine.QRSystem,ENGINE,QR backend
+engine.BatchIndex,ENGINE,batch/arc index bookkeeping
+engine.ReducedContribution,ENGINE,reduced-normal contribution bookkeeping
+engine.vce,ENGINE,Helmert group variance components (exact | hutchinson)
+engine.vceHutchinson,ENGINE,Hutchinson redundancy/trace estimator for vce
+engine.psdVCE,ENGINE,PSD amplitude + arc-factor VCE (Ellmer workhorse)
+engine.iterateNoiseModel,ENGINE,temporal noise-model iteration
+engine.arcVarianceFactors,ENGINE,per-arc variance factors
+engine.covComponent,ENGINE,covariance component estimation
+engine.varComp,ENGINE,variance-component estimation helper
+engine.snoop,ENGINE,block-native data snooping and downweighting
+engine.outliers,ENGINE,outlier listing from diagnostics
+engine.diagnose,ENGINE,per-observation diagnostics (batch)
+engine.diagnoseAccum,ENGINE,diagnostics bridge from the accumulator
+engine.localDiagnostics,ENGINE,diagnostics of the local blocks
+engine.residuals,ENGINE,second data pass: residuals and quadratic forms
+engine.collectResiduals,ENGINE,residual collection per stream
+engine.redundancy,ENGINE,redundancy numbers (data pass)
+engine.contribution,ENGINE,information contribution per group
+engine.streamContribution,ENGINE,contribution per stream
+engine.covModel,ENGINE,covariance spec -> whitening operators (per arc)
+engine.jointModelOpt,ENGINE,joint-mode model -> loader UserOpt translation
+engine.applyRegularisation,ENGINE,regularisation of the reduced system
+engine.gcvLambda,ENGINE,GCV choice of the regularisation weight
+engine.datum,ENGINE,datum defect detection and handling
+engine.mapreduce,ENGINE,serial / parfor / spmd task runner with ordered reduce
+engine.poolGroups,ENGINE,VCE group pooling
+engine.resolveNc,ENGINE,common-parameter count derived from the systems
+engine.resolveSatSpecs,ENGINE,satellite spec resolution
+engine.normalizeSatList,ENGINE,satellite list normalisation
+engine.satKeyOf,ENGINE,satellite key (makeValidName) helper
+engine.selectArAcv,ENGINE,AR model selection from an autocovariance
+engine.selectArOrder,ENGINE,AR order selection
+engine.whittle,ENGINE,Whittle likelihood fit of a VAR model
+engine.checkPSD,ENGINE,PSD sanity check
+engine.leverage,ENGINE,"leverage (hat-matrix diagonal), batch"
+engine.leverageBlocks,ENGINE,leverage over blocks
+engine.ellipse,ENGINE,confidence ellipse from a covariance
+engine.ftest,ENGINE,F-test on variance factors
+engine.stat,ENGINE,statistics helper
+engine.systematic,ENGINE,systematic-effect test
+engine.sharedProbe,ENGINE,shared Hutchinson probe generator (RNG contract)
+engine.traceEstimate,ENGINE,stochastic trace estimate
+kernel.dctI,KERNEL,DCT-I transform
+kernel.psd2acv,KERNEL,PSD -> autocovariance
+kernel.levinsonDurbin,KERNEL,Levinson-Durbin recursion
+kernel.armaACV,KERNEL,ARMA autocovariance
+kernel.ar2arma,KERNEL,AR -> ARMA conversion
+kernel.armaWhiten,KERNEL,ARMA whitening filter (batched)
+kernel.varACV,KERNEL,VAR autocovariance
+kernel.varWhiten,KERNEL,VAR whitening
+kernel.separableWhiten,KERNEL,separable (temporal x axis) whitening
+kernel.toeplitzCofactor,KERNEL,Toeplitz cofactor construction
+kernel.decorrFactor,KERNEL,decorrelation factor of a dense covariance
+kernel.residualAcv,KERNEL,autocovariance of residuals
+kernel.crossCorr,KERNEL,cross-correlation of residual streams
+kernel.whitenessCorr,KERNEL,whiteness (Ljung-Box) statistic
+kernel.redundancyLags,KERNEL,redundancy per lag without the dense W^-1
 util.getfielddef,KERNEL,struct field with default
 util.hasBackgroundPool,KERNEL,pool presence check
 util.log,KERNEL,toolbox-wide logging state
 util.mergeStruct,KERNEL,struct merge (later wins)
 util.showExport,KERNEL,timed figure show + PNG export
 util.verbosity,KERNEL,verbosity level resolution and formatting
+engine.runMeta,ENGINE,"immutable provenance record for Results.meta (promoted from private, WP-64a)"

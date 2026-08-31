@@ -49,7 +49,7 @@ a { color: #0b5ea8; }
 
 <h2>Description</h2>
 <p>A per-(system,obsType) plot hook (attached to a loader via
-<a href="lsqvce.makeLoader.html">makeLoader</a>'s <code>'plotPostSolve'</code> /
+<a href="lsqvce.engine.makeLoader.html">makeLoader</a>'s <code>'plotPostSolve'</code> /
 <code>'plotPostModel'</code>) only <b>builds and returns a figure</b>. This helper
 owns the rest: it brings the figure up, pauses <code>showSeconds</code> so it is
 visible, exports <code>&lt;exportDir&gt;/&lt;name&gt;.png</code> (creating the
@@ -74,6 +74,6 @@ no-op that returns <code>''</code>, so a plot can never break the solve.</p>
 
 <div class="note">Export prefers <code>exportgraphics</code> (R2020a+) at 150 dpi and falls back to <code>print -dpng</code> on older MATLAB.</div>
 
-<div class="seealso"><b>See also:</b> <a href="lsqvce.adjustVCE.html">lsqvce.adjustVCE</a>, <a href="lsqvce.makeLoader.html">lsqvce.makeLoader</a></div>
+<div class="seealso"><b>See also:</b> <a href="lsqvce.engine.adjustVCE.html">lsqvce.engine.adjustVCE</a>, <a href="lsqvce.engine.makeLoader.html">lsqvce.engine.makeLoader</a></div>
 <div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Created 2026-07-16 (CEST, UTC+02:00) with assistance from Claude (Anthropic), model Claude Opus 4.8.</div>
 </body></html>

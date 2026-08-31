@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.engine.sharedProbe</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.engine.sharedProbe</div>
+<h1>lsqvce.engine.sharedProbe</h1>
+<div class="purpose">The once-per-iteration shared probe block UiZ = U^-1*Zbar.</div>
+<h2>Description</h2>
+<pre class="example">out = LSQVCE.ENGINE.SHAREDPROBE(U)
+out = LSQVCE.ENGINE.SHAREDPROBE(U, &#x27;Name&#x27;, value, ...)
+
+Builds the single most-reused object in Ellmer&#x27;s (2018) stochastic-model
+estimation: the triangular solve U^-1 * Zbar of a Rademacher probe block
+against the factored normal matrix N = U&#x27;*U.</pre>
+<h3>WHY THIS IS ITS OWN FUNCTION (Ellmer p. 69, eq. 6.5.48)</h3>
+<pre class="example">  U comes from the ACCUMULATED normal equations, so it is IDENTICAL for every
+  short arc in the iteration. Ellmer&#x27;s central optimisation is to solve
+  U^-1 Zbar ONCE and reuse it for all arcs, all lags, and (eq. 6.5.61) the
+  geophysical redundancy too. Recomputing it per arc would dominate the cost.
+  Build it once at the top of each outer iteration and pass it down.
+
+NORMALISATION
+  Zbar = Z / sqrt(Z) with Z the RAW +1/-1 Rademacher matrix and Z the probe
+  count (eq. 6.5.43), the same convention as LSQVCE.ENGINE.TRACEESTIMATE, so that
+  trace(X) ~ trace(Zbar&#x27; X Zbar) is unbiased.</pre>
+<h3>Input</h3>
+<pre class="example">  U    P x P double   upper-triangular factor of the normal matrix, N = U&#x27;*U
+                      (e.g. chol(N), or the QR triangular factor R of the
+                      whitened [A l], which IS this U -- see the note below).
+
+OPTIONS (Name/Value)
+(WP-39 stage (b): canonical UpperCamelCase names below; legacy
+casings still match -- MATLAB NV semantics -- and enum VALUES are
+case-sensitive lowercase.)
+  &#x27;NumProbes&#x27; 1x1 int      Z, number of probes (default 100, Ellmer&#x27;s value)
+  &#x27;Seed&#x27;      1x1 int|[]   RNG seed for reproducible probes (default []).
+                           Empty: a seed is drawn ONCE from the package&#x27;s
+                           private session stream (probeMatrix contract,
+                           WP-36). Either way a private RandStream is used
+                           and the global RNG is
+                           never disturbed.
+  &#x27;Probes&#x27;    P x Z double a FIXED raw +1/-1 probe block to use instead of
+                           drawing one (normalisation is applied here).
+                           Overrides &#x27;NumProbes&#x27;/&#x27;Seed&#x27;.
+  &#x27;Distribution&#x27; char      &#x27;rademacher&#x27; (default) | &#x27;gaussian&#x27;</pre>
+<h3>Output</h3>
+<pre class="example">  out   1x1 struct
+    .UiZ     P x Z double   U^-1 * Zbar, the shared block to pass around
+    .Zbar    P x Z double   the normalised probe block itself
+    .probes  1x1            Z actually used
+    .P       1x1            parameter count
+
+QR NOTE
+  With the QR backend the triangular factor R of the whitened [A l] already
+  satisfies N = R&#x27;*R, so R IS Ellmer&#x27;s U -- pass it directly and skip forming
+  and re-factoring N. That is strictly better conditioned than chol(A&#x27;A).</pre>
+<h3>Example</h3>
+<pre class="example">sp  = lsqvce.engine.sharedProbe(U, &#x27;NumProbes&#x27;, 100, &#x27;Seed&#x27;, 42);
+for each arc
+    r = lsqvce.kernel.redundancyLags(Abar, W, sp.UiZ, ebar, 60);   % reuse sp.UiZ
+end</pre>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:sharedProbe:notSquare  the operator is not square
+  lsqvce:sharedProbe:badProbes  the probe count is not a positive integer
+
+See also LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.TRACEESTIMATE,
+         LSQVCE.ENGINE.STREAMCONTRIBUTION
+
+Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) (F-07): typed
+`arguments` signature, canonical UpperCamelCase option names (legacy
+casings keep matching; enum VALUES case-sensitive lowercase). With
+assistance from Claude (Anthropic), model Claude Fable 5.
+Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
+model Claude Opus 4.8.
+Updated 2026-08-19 (CEST, UTC+02:00), WP-36 (fixes F-06): probes come
+from the ONE private generator probeMatrix (empty seed = private
+session-stream draw, global RNG untouched; seeded realisations
+unchanged). With assistance from Claude (Anthropic), model Claude
+Fable 5.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
+</body></html>

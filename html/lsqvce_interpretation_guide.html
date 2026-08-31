@@ -100,31 +100,31 @@ you; strengthen the geometry or add independent data.</p>
 
 <h2>Deciding what to do next</h2>
 <h3>Level 1 failed &mdash; is it blunders or the model?</h3>
-<p>Run <code>lsqvce.systematic(D)</code> before snooping. If the residuals show
+<p>Run <code>lsqvce.engine.systematic(D)</code> before snooping. If the residuals show
 runs, serial correlation, or per-group offsets, the problem is the model (an
 unmodelled signal, a wrong weight ratio, coloured noise treated as white) &mdash;
 snooping it away just deletes good data around a defect that remains. Fix the
 model, then re-solve.</p>
 <h3>Diffuse contamination &mdash; reject or reweight?</h3>
-<p>Isolated blunders: iterative <code>lsqvce.snoop</code>. Many small
-contaminations: robust M-estimation (<code>lsqvce.robust</code>) degrades
+<p>Isolated blunders: iterative <code>lsqvce.engine.snoop</code>. Many small
+contaminations: robust M-estimation (<code>lsqvce.engine.robust</code>) degrades
 gracefully where snooping would chase its own tail. The contamination gauge tells
 you which regime you are in.</p>
 <h3>Group weights look wrong &mdash; variance components</h3>
 <p>If one data type or satellite is systematically over-fit or under-fit, run
-<code>lsqvce.varComp</code> / <code>lsqvce.vce</code> and read <code>vc.sigma</code>:
+<code>lsqvce.engine.varComp</code> / <code>lsqvce.engine.vce</code> and read <code>vc.sigma</code>:
 a factor far from 1 means that group was mis-weighted going in. Re-solve at the
 converged weights before reading reliability &mdash; MDBs computed at wrong weights
 are wrong. Confirm <code>vc.converged</code> is true and that the minimum
 redundancy was met for every group. For <img class="eq-inline" src="eq/63e1913eb0e7.png" alt="equation"> in the thousands, the matrix-free
-<a href="lsqvce.vceHutchinson.html">Hutchinson backend</a> gives the same sigmas;
+<a href="lsqvce.engine.vceHutchinson.html">Hutchinson backend</a> gives the same sigmas;
 see <a href="lsqvce_choosing.html">Choosing an engine</a>.</p>
 
 <h2>Reading a gravity solution</h2>
-<p>For the block-arrow path (<a href="lsqvce.adjustBlock.html">lsqvce.adjustBlock</a> /
-<a href="lsqvce.adjustVCE.html">lsqvce.adjustVCE</a>), three habits keep you honest:</p>
+<p>For the block-arrow path (<a href="lsqvce.engine.adjustBlock.html">lsqvce.engine.adjustBlock</a> /
+<a href="lsqvce.engine.adjustVCE.html">lsqvce.engine.adjustVCE</a>), three habits keep you honest:</p>
 <ul>
-<li><b>Diagnose through the accumulator bridge</b> (<a href="lsqvce.diagnoseAccum.html">lsqvce.diagnoseAccum</a>),
+<li><b>Diagnose through the accumulator bridge</b> (<a href="lsqvce.engine.diagnoseAccum.html">lsqvce.engine.diagnoseAccum</a>),
 never the reduced common system alone. The common-parameter redundancies are only
 correct once the arc-local parameters have been counted; skip the bridge and every
 reliability number is inflated.</li>
@@ -144,9 +144,9 @@ those missing turns &ldquo;passed&rdquo; into &ldquo;passed, but&hellip;&rdquo;.
 <a href="lsqvce_user_manual.html">User Manual</a>,
 <a href="lsqvce_reference_manual.html">Reference Manual</a>,
 <a href="lsqvce_choosing.html">Choosing an engine</a>,
-<a href="lsqvce.diagnose.html">lsqvce.diagnose</a>,
+<a href="lsqvce.engine.diagnose.html">lsqvce.engine.diagnose</a>,
 <a href="lsqvce.report.html">lsqvce.report</a>,
-<a href="lsqvce.systematic.html">lsqvce.systematic</a></div>
+<a href="lsqvce.engine.systematic.html">lsqvce.engine.systematic</a></div>
 <h2 id="refs">References</h2>
 <div class="refs">
 <p>[1] Baarda, W. (1968). <i>A Testing Procedure for Use in Geodetic Networks.</i> Netherlands Geodetic Commission, Publications on Geodesy, New Series, 2(5). Delft.</p>

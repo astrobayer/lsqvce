@@ -1,9 +1,9 @@
 function tests = test_ellmer
 %TEST_ELLMER  Unit tests for the Ellmer (2018) stochastic-model primitives.
 %
-%   Phase A: the type-I DCT (LSQVCE.DCTI), the banded lag components
-%   (LSQVCE.COVCOMPONENT), and the Toeplitz cofactor builder
-%   (LSQVCE.TOEPLITZCOFACTOR). Later phases (per-lag redundancy, per-frequency
+%   Phase A: the type-I DCT (LSQVCE.KERNEL.DCTI), the banded lag components
+%   (LSQVCE.ENGINE.COVCOMPONENT), and the Toeplitz cofactor builder
+%   (LSQVCE.KERNEL.TOEPLITZCOFACTOR). Later phases (per-lag redundancy, per-frequency
 %   PSD VCE, arc-wise factors) append their tests here.
 %
 %   Every check mirrors an identity verified offline against the exact algebra
@@ -42,7 +42,7 @@ function test_dctI_ortho_is_self_inverse(tc)
 % categories: precision
     % The orthonormal type-I DCT is symmetric and self-inverse: X = X.', X*X = I.
     for N = [2 3 5 8 16 33]
-        [~, X] = lsqvce.dctI(zeros(N,1));         % forward matrix
+        [~, X] = lsqvce.kernel.dctI(zeros(N,1));         % forward matrix
         % tol: orthonormal-transform identity; error ~ N*eps ~ 1e-14 at N<=33, house bounds add headroom (HANDOVER 6.1.2)
         verifyEqual(tc, X, X.', 'AbsTol', 1e-12, sprintf('N=%d symmetric', N));
         verifyEqual(tc, X*X, eye(N), 'AbsTol', 1e-10, sprintf('N=%d involutive', N));
@@ -54,8 +54,8 @@ function test_dctI_ortho_round_trip(tc)
     % ortho is self-inverse, so dctI(dctI(x)) == x with no Inverse flag.
     rng(1);
     x = randn(12, 4);
-    y = lsqvce.dctI(x);
-    z = lsqvce.dctI(y);
+    y = lsqvce.kernel.dctI(x);
+    z = lsqvce.kernel.dctI(y);
     % tol: orthonormal-transform identity; error ~ N*eps ~ 1e-14 at N<=33, house bounds add headroom (HANDOVER 6.1.2)
     verifyEqual(tc, z, x, 'AbsTol', 1e-10);
 end
@@ -63,10 +63,10 @@ end
 function test_dctI_row_in_row_out(tc)
 % categories: precision, vectorisation
     x = 1:6;
-    y = lsqvce.dctI(x);
+    y = lsqvce.kernel.dctI(x);
     verifyTrue(tc, isrow(y), 'a row input must give a row output');
     % tol: orthonormal-transform identity; error ~ N*eps ~ 1e-14 at N<=33, house bounds add headroom (HANDOVER 6.1.2)
-    verifyEqual(tc, y(:), lsqvce.dctI(x(:)), 'AbsTol', 1e-12);
+    verifyEqual(tc, y(:), lsqvce.kernel.dctI(x(:)), 'AbsTol', 1e-12);
 end
 
 function test_dctI_ellmer_norm_invertible(tc)
@@ -75,10 +75,10 @@ function test_dctI_ellmer_norm_invertible(tc)
     % (cond ~ 1.5); its inverse round-trips via 'Inverse',true.
     rng(2);
     x = randn(10, 3);
-    [~, X] = lsqvce.dctI(zeros(10,1), 'Norm', 'ellmer');
+    [~, X] = lsqvce.kernel.dctI(zeros(10,1), 'Norm', 'ellmer');
     verifyLessThan(tc, cond(X), 5, 'ellmer X must be well conditioned');
-    y = lsqvce.dctI(x, 'Norm', 'ellmer');
-    z = lsqvce.dctI(y, 'Norm', 'ellmer', 'Inverse', true);
+    y = lsqvce.kernel.dctI(x, 'Norm', 'ellmer');
+    z = lsqvce.kernel.dctI(y, 'Norm', 'ellmer', 'Inverse', true);
     % tol: orthonormal-transform identity; error ~ N*eps ~ 1e-14 at N<=33, house bounds add headroom (HANDOVER 6.1.2)
     verifyEqual(tc, z, x, 'AbsTol', 1e-10, 'ellmer forward then inverse round-trip');
 end
@@ -86,8 +86,8 @@ end
 function test_dctI_ortho_vs_ellmer_differ_at_nyquist(tc)
 % categories: reference
     % The two normalisations differ only in the highest-frequency (Nyquist) bin.
-    [~, Xo] = lsqvce.dctI(zeros(8,1), 'Norm', 'ortho');
-    [~, Xe] = lsqvce.dctI(zeros(8,1), 'Norm', 'ellmer');
+    [~, Xo] = lsqvce.kernel.dctI(zeros(8,1), 'Norm', 'ortho');
+    [~, Xe] = lsqvce.kernel.dctI(zeros(8,1), 'Norm', 'ellmer');
     d = abs(Xo - Xe);
     % the difference is concentrated in the last row/column (index N-1)
     interior = d(1:end-1, 1:end-1);
@@ -99,7 +99,7 @@ end
 
 function test_dctI_too_short_errors(tc)
 % categories: contract
-    verifyError(tc, @() lsqvce.dctI(1), 'lsqvce:dctI:tooShort');
+    verifyError(tc, @() lsqvce.kernel.dctI(1), 'lsqvce:dctI:tooShort');
 end
 
 %% ============================================ covComponent: V_n banded apply
@@ -108,7 +108,7 @@ function test_covComponent_n0_is_identity(tc)
     rng(3);
     x = randn(7, 2);
     % tol: 0 -- an EXACT identity claim (same stored value, no arithmetic)
-    verifyEqual(tc, lsqvce.covComponent(x, 0), x, 'AbsTol', 0);
+    verifyEqual(tc, lsqvce.engine.covComponent(x, 0), x, 'AbsTol', 0);
 end
 
 function test_covComponent_matches_dense_Vn(tc)
@@ -120,7 +120,7 @@ function test_covComponent_matches_dense_Vn(tc)
     for n = 0:N-1
         V = denseVn(N, n);
         % tol: independent dense reference, same-precision algebra; eps*cond headroom (house bounds, HANDOVER 6.1.2)
-        verifyEqual(tc, lsqvce.covComponent(x, n), V*x, 'AbsTol', 1e-12, ...
+        verifyEqual(tc, lsqvce.engine.covComponent(x, n), V*x, 'AbsTol', 1e-12, ...
             sprintf('lag n=%d', n));
     end
 end
@@ -134,7 +134,7 @@ function test_covComponent_sums_to_toeplitz(tc)
     x = randn(N, 4);
     acc = zeros(N, 4);
     for n = 0:N-1
-        acc = acc + c(n+1) * lsqvce.covComponent(x, n);
+        acc = acc + c(n+1) * lsqvce.engine.covComponent(x, n);
     end
     % tol: dense reconstruction of the same algebra; eps-level accumulation, house bounds (HANDOVER 6.1.2)
     verifyEqual(tc, acc, toeplitz(c)*x, 'AbsTol', 1e-12);
@@ -142,9 +142,9 @@ end
 
 function test_covComponent_lag_too_large_errors(tc)
 % categories: contract
-    verifyError(tc, @() lsqvce.covComponent(ones(4,1), 4), ...
+    verifyError(tc, @() lsqvce.engine.covComponent(ones(4,1), 4), ...
         'lsqvce:covComponent:lagTooLarge');
-    verifyError(tc, @() lsqvce.covComponent(ones(4,1), -1), ...
+    verifyError(tc, @() lsqvce.engine.covComponent(ones(4,1), -1), ...
         'lsqvce:covComponent:badLag');
 end
 
@@ -152,7 +152,7 @@ end
 function test_toeplitzCofactor_dense_is_toeplitz(tc)
 % categories: precision
     c = [1; 0.5; 0.2; 0.05];
-    Q = lsqvce.toeplitzCofactor(c);
+    Q = lsqvce.kernel.toeplitzCofactor(c);
     % tol: independent dense reference, same-precision algebra; eps*cond headroom (house bounds, HANDOVER 6.1.2)
     verifyEqual(tc, Q, toeplitz(c), 'AbsTol', 1e-14);
     verifyEqual(tc, Q, Q.', 'AbsTol', 1e-14, 'must be symmetric');
@@ -161,7 +161,7 @@ end
 function test_toeplitzCofactor_apply_matches_dense(tc)
 % categories: precision
     c = [1; 0.5; 0.2; 0.05; 0.01];
-    q = lsqvce.toeplitzCofactor(c, 'Form', 'apply');
+    q = lsqvce.kernel.toeplitzCofactor(c, 'Form', 'apply');
     rng(6);
     x = randn(5, 7);
     % tol: independent dense reference, same-precision algebra; eps*cond headroom (house bounds, HANDOVER 6.1.2)
@@ -172,8 +172,8 @@ function test_toeplitzCofactor_whitens_via_decorr(tc)
 % categories: precision
     % A valid PD autocovariance -> chol(Q)^-1 whitens: W Q W' = I.
     c = [1; 0.4; 0.1];               % clearly PD
-    Q = lsqvce.toeplitzCofactor(c);
-    W = lsqvce.decorrFactor(Q);
+    Q = lsqvce.kernel.toeplitzCofactor(c);
+    W = lsqvce.kernel.decorrFactor(Q);
     % tol: dense reconstruction of the same algebra; eps-level accumulation, house bounds (HANDOVER 6.1.2)
     verifyEqual(tc, W*Q*W.', eye(3), 'AbsTol', 1e-10);
 end
@@ -181,7 +181,7 @@ end
 function test_toeplitzCofactor_warns_on_bad_acv(tc)
 % categories: contract
     % |c(n)| > c(0) is not a valid autocovariance -> a warning (not an error).
-    verifyWarning(tc, @() lsqvce.toeplitzCofactor([1; 2; 0.1]), ...
+    verifyWarning(tc, @() lsqvce.kernel.toeplitzCofactor([1; 2; 0.1]), ...
         'lsqvce:toeplitzCofactor:notACV');
 end
 
@@ -193,7 +193,7 @@ function test_sharedProbe_shapes_and_solve(tc)
     P = 5;  Z = 30;
     M = randn(P); Nm = M.'*M + P*eye(P);      % SPD
     U = chol(Nm);                             % upper: Nm = U'*U
-    sp = lsqvce.sharedProbe(U, 'numProbes', Z, 'seed', 7);
+    sp = lsqvce.engine.sharedProbe(U, 'numProbes', Z, 'seed', 7);
     verifySize(tc, sp.UiZ , [P Z]);
     verifySize(tc, sp.Zbar, [P Z]);
     verifyEqual(tc, sp.probes, Z);
@@ -207,7 +207,7 @@ function test_sharedProbe_rademacher_normalisation(tc)
     % Zbar = raw/sqrt(Z) with raw entries +-1, so every entry is +-1/sqrt(Z).
     P = 4;  Z = 16;
     U = eye(P);
-    sp = lsqvce.sharedProbe(U, 'numProbes', Z, 'seed', 3);
+    sp = lsqvce.engine.sharedProbe(U, 'numProbes', Z, 'seed', 3);
     % tol: probe construction identity (sign/sqrt bookkeeping, one triangular solve); eps-level, house bounds give headroom
     verifyEqual(tc, abs(sp.Zbar), ones(P,Z)/sqrt(Z), 'AbsTol', 1e-12);
 end
@@ -215,8 +215,8 @@ end
 function test_sharedProbe_seed_reproducible(tc)
 % categories: precision | tags: provenance
     U = chol(eye(6)*2);
-    a = lsqvce.sharedProbe(U, 'numProbes', 20, 'seed', 11);
-    b = lsqvce.sharedProbe(U, 'numProbes', 20, 'seed', 11);
+    a = lsqvce.engine.sharedProbe(U, 'numProbes', 20, 'seed', 11);
+    b = lsqvce.engine.sharedProbe(U, 'numProbes', 20, 'seed', 11);
     % tol: 0 -- an EXACT identity claim (same stored value, no arithmetic)
     verifyEqual(tc, a.UiZ, b.UiZ, 'AbsTol', 0, 'a fixed seed must reproduce');
 end
@@ -226,14 +226,14 @@ function test_sharedProbe_accepts_fixed_probes(tc)
     P = 3;  Z = 5;
     U = chol(eye(P)*3);
     raw = sign(randn(P,Z));  raw(raw==0) = 1;
-    sp = lsqvce.sharedProbe(U, 'probes', raw);
+    sp = lsqvce.engine.sharedProbe(U, 'probes', raw);
     % tol: probe construction identity (sign/sqrt bookkeeping, one triangular solve); eps-level, house bounds give headroom
     verifyEqual(tc, sp.Zbar, raw/sqrt(Z), 'AbsTol', 1e-12);
 end
 
 function test_sharedProbe_rejects_nonsquare(tc)
 % categories: contract
-    verifyError(tc, @() lsqvce.sharedProbe(ones(3,4)), ...
+    verifyError(tc, @() lsqvce.engine.sharedProbe(ones(3,4)), ...
         'lsqvce:sharedProbe:notSquare');
 end
 
@@ -244,7 +244,7 @@ function test_redundancyLags_s_matches_dense_trace(tc)
     % the SAME Rbar (this is an algebraic identity, not a Monte-Carlo question).
     [Abar, W, sp, ebar, N] = lagFixture(tc, 12, 4, 200);
     nLag = 6;
-    r = lsqvce.redundancyLags(Abar, W, sp.UiZ, ebar, nLag, 'WantRbar', true);
+    r = lsqvce.kernel.redundancyLags(Abar, W, sp.UiZ, ebar, nLag, 'WantRbar', true);
     for n = 0:nLag-1
         Vn = denseVn(N, n);
         % tol: independent dense reference, same-precision algebra; eps*cond headroom (house bounds, HANDOVER 6.1.2)
@@ -258,7 +258,7 @@ function test_redundancyLags_omega_matches_quadratic(tc)
     % Omega_n == etilde' V_n etilde, with etilde = Sigma^-1 ehat.
     [Abar, W, sp, ebar, N] = lagFixture(tc, 11, 3, 100);
     nLag = 5;
-    r  = lsqvce.redundancyLags(Abar, W, sp.UiZ, ebar, nLag);
+    r  = lsqvce.kernel.redundancyLags(Abar, W, sp.UiZ, ebar, nLag);
     et = W \ ebar;                                   % Sigma^-1 ehat
     for n = 0:nLag-1
         Vn = denseVn(N, n);
@@ -278,8 +278,8 @@ function test_redundancyLags_Rbar_converges_to_exact(tc)
     Abar = W.' \ A;                                   % W^-T A
     Nm   = Abar.'*Abar;
     U    = chol(Nm);
-    sp   = lsqvce.sharedProbe(U, 'numProbes', 20000, 'seed', 5);
-    r    = lsqvce.redundancyLags(Abar, W, sp.UiZ, [], 3, 'WantRbar', true);
+    sp   = lsqvce.engine.sharedProbe(U, 'numProbes', 20000, 'seed', 5);
+    r    = lsqvce.kernel.redundancyLags(Abar, W, sp.UiZ, [], 3, 'WantRbar', true);
     Sinv    = Sig \ eye(N);
     Rexact  = Sinv - Sinv*A*(Nm\(A.'*Sinv));
     % tol: Monte-Carlo probe scatter ~ 1/sqrt(Probes) on this fixture; 4/sqrt(Z)-style bar (HANDOVER 6.1.2), not containment
@@ -290,7 +290,7 @@ end
 function test_redundancyLags_omega_skipped_when_no_residual(tc)
 % categories: robustness
     [Abar, W, sp, ~, ~] = lagFixture(tc, 8, 2, 50);
-    r = lsqvce.redundancyLags(Abar, W, sp.UiZ, [], 4);
+    r = lsqvce.kernel.redundancyLags(Abar, W, sp.UiZ, [], 4);
     verifyTrue(tc, all(isnan(r.omega)), 'empty ebar must give NaN omega');
     verifyTrue(tc, all(isfinite(r.s)), 's must still be computed');
 end
@@ -298,15 +298,15 @@ end
 function test_redundancyLags_rejects_bad_shapes(tc)
 % categories: contract
     [Abar, W, sp, ebar, ~] = lagFixture(tc, 9, 3, 40);
-    verifyError(tc, @() lsqvce.redundancyLags(Abar, W(1:3,1:3), sp.UiZ, ebar, 3), ...
+    verifyError(tc, @() lsqvce.kernel.redundancyLags(Abar, W(1:3,1:3), sp.UiZ, ebar, 3), ...
         'lsqvce:redundancyLags:badW');
-    verifyError(tc, @() lsqvce.redundancyLags(Abar, W, sp.UiZ(1:2,:), ebar, 3), ...
+    verifyError(tc, @() lsqvce.kernel.redundancyLags(Abar, W, sp.UiZ(1:2,:), ebar, 3), ...
         'lsqvce:redundancyLags:badUiZ');
     % WP-39 b1: the scalar constraint moved INTO the typed signature --
     % nMaxLag <= 0 now fails mustBePositive BEFORE the body (the
     % cross-argument shape checks above keep their lsqvce: ids in the
     % body). Contract change release-noted.
-    verifyError(tc, @() lsqvce.redundancyLags(Abar, W, sp.UiZ, ebar, 0), ...
+    verifyError(tc, @() lsqvce.kernel.redundancyLags(Abar, W, sp.UiZ, ebar, 0), ...
         'MATLAB:validators:mustBePositive');
 end
 
@@ -319,7 +319,7 @@ function test_psdVCE_identity_when_omega_equals_s(tc)
     N = 10;  M = 4;
     C  = [1; 0.4.^(1:N-1).'];
     om = rand(N, M) + 0.5;
-    p  = lsqvce.psdVCE(om, om, C);
+    p  = lsqvce.engine.psdVCE(om, om, C);
     % tol: fixed-point identity om==s -> alpha2=1 by the update law; fp division noise only, house exact-identity bound
     verifyEqual(tc, p.alpha2, ones(N,1), 'AbsTol', 1e-10, 'alpha2 must be 1');
     verifyEqual(tc, p.maxDev, 0, 'AbsTol', 1e-10);
@@ -331,7 +331,7 @@ function test_psdVCE_amplitudes_stay_positive(tc)
     rng(51);
     N = 12;  M = 5;
     C  = [1; 0.3.^(1:N-1).'];
-    p  = lsqvce.psdVCE(randn(N,M), randn(N,M), C);
+    p  = lsqvce.engine.psdVCE(randn(N,M), randn(N,M), C);
     verifyTrue(tc, all(p.Shat > 0), 'the estimated PSD must be strictly positive');
     verifySize(tc, p.Cnew, [N 1]);
 end
@@ -342,7 +342,7 @@ function test_psdVCE_covariance_may_go_negative(tc)
     % covariance function that is free to change sign (Ellmer eq. 6.5.19 note).
     N = 8;
     S = zeros(N,1);  S(3) = 1;  S(1) = 0.1;      % a peaked spectrum
-    C = lsqvce.dctI(S, 'Inverse', true);
+    C = lsqvce.kernel.dctI(S, 'Inverse', true);
     verifyTrue(tc, any(C < 0), ...
         'a peaked PSD must invert to an ACV with negative lags');
 end
@@ -354,7 +354,7 @@ function test_psdVCE_warns_on_degenerate_white_start(tc)
     N = 8;  M = 3;
     Cdelta = [1; zeros(N-1,1)];
     verifyWarning(tc, ...
-        @() lsqvce.psdVCE(rand(N,M), rand(N,M), Cdelta), ...
+        @() lsqvce.engine.psdVCE(rand(N,M), rand(N,M), Cdelta), ...
         'lsqvce:psdVCE:degenerateStart');
 end
 
@@ -372,12 +372,12 @@ function test_psdVCE_zero_power_bin_floors_not_abs(tc)
     % frequency-domain pair and inverse-transforms (DCT-I ortho is
     % self-inverse): alpha2_j = [1 -0.5 1 1].
     a2 = [1; -0.5; 1; 1];
-    Om = lsqvce.dctI(a2);              % OmegaTilde = a2 .* sTilde, sTilde = 1
-    s  = lsqvce.dctI(ones(4, 1));
+    Om = lsqvce.kernel.dctI(a2);              % OmegaTilde = a2 .* sTilde, sTilde = 1
+    s  = lsqvce.kernel.dctI(ones(4, 1));
     w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
-    pv = lsqvce.psdVCE(Om, s, C, 'MinAmplitude', 1e-8, 'Smooth', 0, ...
+    pv = lsqvce.engine.psdVCE(Om, s, C, 'MinAmplitude', 1e-8, 'Smooth', 0, ...
                        'ZeroFreqRule', 'keep');
-    Sprior = lsqvce.dctI(C);
+    Sprior = lsqvce.kernel.dctI(C);
     verifyEqual(tc, pv.Shat(2), 1e-8, ...
         'a negative-alpha2 bin must sit exactly ON the floor');
     verifyGreaterThan(tc, 0.5*abs(Sprior(2)), 1e-6, ...
@@ -400,7 +400,7 @@ function test_arcVarianceFactors_clamps_negative_sigma2(tc)
     sT     = ones(3, 3);
     sig2   = ones(3, 1);
     w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
-    a = lsqvce.arcVarianceFactors(omegaT, sT, sig2, 'MeanType', 'plain');
+    a = lsqvce.engine.arcVarianceFactors(omegaT, sT, sig2, 'MeanType', 'plain');
     verifyTrue(tc, a.clamped(3),  'the negative-alpha2 arc must be flagged');
     verifyFalse(tc, any(a.clamped(1:2)), 'healthy arcs must not be flagged');
     verifyEqual(tc, a.sigma2(3), 1e-8, ...
@@ -421,7 +421,7 @@ function test_arcVarianceFactors_noop_on_healthy(tc)
     sT     = ones(nLag, M);
     omegaT = repmat(alpha2.', nLag, 1);              % per-arc ratio = alpha2
     sig2   = 0.8 + 0.4*rand(M, 1);
-    a = lsqvce.arcVarianceFactors(omegaT, sT, sig2, 'MeanType', 'plain');
+    a = lsqvce.engine.arcVarianceFactors(omegaT, sT, sig2, 'MeanType', 'plain');
     verifyFalse(tc, any(a.clamped), 'healthy input must not clamp');
     gamma2   = alpha2 .* sig2;
     gammaBar = mean(sqrt(abs(gamma2)));
@@ -435,10 +435,10 @@ function test_psdVCE_degenerate_flag_and_override(tc)
 % categories: robustness
     N = 8;  M = 3;
     Cdelta = [1; zeros(N-1,1)];
-    p = lsqvce.psdVCE(rand(N,M), rand(N,M), Cdelta, 'AllowDegenerate', true);
+    p = lsqvce.engine.psdVCE(rand(N,M), rand(N,M), Cdelta, 'AllowDegenerate', true);
     verifyTrue(tc, p.degenerate, 'the degenerate start must be flagged');
     Cok = [1; 0.3*ones(N-1,1)];
-    q = lsqvce.psdVCE(rand(N,M), rand(N,M), Cok);
+    q = lsqvce.engine.psdVCE(rand(N,M), rand(N,M), Cok);
     verifyFalse(tc, q.degenerate);
 end
 
@@ -447,11 +447,11 @@ function test_psdVCE_zero_frequency_rule(tc)
     rng(52);
     N = 9;  M = 3;
     C  = [1; 0.35.^(1:N-1).'];
-    pl = lsqvce.psdVCE(rand(N,M), rand(N,M), C, 'ZeroFreqRule', 'lowest');
+    pl = lsqvce.engine.psdVCE(rand(N,M), rand(N,M), C, 'ZeroFreqRule', 'lowest');
     % tol: 0 -- an EXACT identity claim (same stored value, no arithmetic)
     verifyEqual(tc, pl.Shat(1), pl.Shat(2), 'AbsTol', 0, ...
         '''lowest'' must replace S^0 by the next amplitude');
-    pk = lsqvce.psdVCE(rand(N,M), rand(N,M), C, 'ZeroFreqRule', 'keep');
+    pk = lsqvce.engine.psdVCE(rand(N,M), rand(N,M), C, 'ZeroFreqRule', 'keep');
     verifySize(tc, pk.Shat, [N 1]);
 end
 
@@ -459,9 +459,9 @@ function test_psdVCE_rejects_bad_shapes(tc)
 % categories: contract
     N = 6;
     C = [1; 0.2*ones(N-1,1)];
-    verifyError(tc, @() lsqvce.psdVCE(rand(N-1,3), rand(N-1,3), C), ...
+    verifyError(tc, @() lsqvce.engine.psdVCE(rand(N-1,3), rand(N-1,3), C), ...
         'lsqvce:psdVCE:shapeMismatch');
-    verifyError(tc, @() lsqvce.psdVCE(rand(N,3), rand(N,4), C), ...
+    verifyError(tc, @() lsqvce.engine.psdVCE(rand(N,3), rand(N,4), C), ...
         'lsqvce:psdVCE:arcMismatch');
 end
 
@@ -474,7 +474,7 @@ function test_arcVarianceFactors_plain_mean_normalises_to_one(tc)
     N = 8;  M = 12;
     om = rand(N,M) + 0.5;
     s  = rand(N,M) + 0.5;
-    a  = lsqvce.arcVarianceFactors(om, s, ones(M,1), 'MeanType', 'plain');
+    a  = lsqvce.engine.arcVarianceFactors(om, s, ones(M,1), 'MeanType', 'plain');
     % tol: exact-path identity (same numbers recombined); house round-trip bound 1e-12/1e-10 (HANDOVER 6.1.2)
     verifyEqual(tc, mean(sqrt(abs(a.sigma2))), 1, 'AbsTol', 1e-10, ...
         'the plain mean must normalise mean(gamma_m/gammaBar) to 1');
@@ -489,8 +489,8 @@ function test_arcVarianceFactors_robust_resists_outliers(tc)
     om = rand(N,M) + 0.5;
     s  = rand(N,M) + 0.5;
     om(:, 1:3) = om(:, 1:3) * 400;             % a few pathological arcs
-    ap = lsqvce.arcVarianceFactors(om, s, ones(M,1), 'MeanType', 'plain');
-    ar = lsqvce.arcVarianceFactors(om, s, ones(M,1), 'MeanType', 'robust');
+    ap = lsqvce.engine.arcVarianceFactors(om, s, ones(M,1), 'MeanType', 'plain');
+    ar = lsqvce.engine.arcVarianceFactors(om, s, ones(M,1), 'MeanType', 'robust');
     verifyLessThan(tc, ar.gammaBar, ap.gammaBar, ...
         'the robust mean must sit below the outlier-inflated plain mean');
 end
@@ -500,7 +500,7 @@ function test_arcVarianceFactors_gamma_detour_shapes(tc)
     rng(62);
     N = 7;  M = 9;
     sig2 = rand(M,1) + 0.5;
-    a = lsqvce.arcVarianceFactors(rand(N,M)+0.5, rand(N,M)+0.5, sig2);
+    a = lsqvce.engine.arcVarianceFactors(rand(N,M)+0.5, rand(N,M)+0.5, sig2);
     verifySize(tc, a.sigma2, [M 1]);
     verifySize(tc, a.alpha2, [M 1]);
     % tol: fixed-point identity om==s -> alpha2=1 by the update law; fp division noise only, house exact-identity bound
@@ -515,7 +515,7 @@ function test_arcVarianceFactors_small_M_falls_back(tc)
     rng(63);
     N = 5;
     for M = [1 2 3]
-        a = lsqvce.arcVarianceFactors(rand(N,M)+0.5, rand(N,M)+0.5, ones(M,1));
+        a = lsqvce.engine.arcVarianceFactors(rand(N,M)+0.5, rand(N,M)+0.5, ones(M,1));
         verifyTrue(tc, isfinite(a.gammaBar) && a.gammaBar > 0, ...
             sprintf('M=%d must still give a usable mean', M));
     end
@@ -524,7 +524,7 @@ end
 function test_arcVarianceFactors_rejects_arc_mismatch(tc)
 % categories: contract
     verifyError(tc, ...
-        @() lsqvce.arcVarianceFactors(rand(5,3), rand(5,3), ones(4,1)), ...
+        @() lsqvce.engine.arcVarianceFactors(rand(5,3), rand(5,3), ones(4,1)), ...
         'lsqvce:arcVarianceFactors:arcMismatch');
 end
 
@@ -536,7 +536,7 @@ function test_adjustVCEjoint_runs_and_returns_shapes(tc)
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % provoked on purpose here (WP-47, gate rule 7)
     cfg  = jointCfg();
     nLag = 8;
-    r = lsqvce.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
+    r = lsqvce.engine.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
             'NumLags', nLag, 'MaxIter', 2, 'Probes', 40, 'Seed', 3, ...
             'Verbose', false);
     verifySize(tc, r.C   , [nLag 1]);
@@ -544,7 +544,7 @@ function test_adjustVCEjoint_runs_and_returns_shapes(tc)
     verifyTrue(tc, all(r.Shat > 0), 'the PSD must stay strictly positive');
     verifyTrue(tc, numel(r.sigma2) >= 1, 'at least one arc factor');
     verifyTrue(tc, all(isfinite(r.sigma2)), 'arc factors must be finite');
-    verifyClass(tc, r.acc, 'lsqvce.BlockAccumulator');
+    verifyClass(tc, r.acc, 'lsqvce.engine.BlockAccumulator');
 end
 
 function test_adjustVCEjoint_history_grows_per_iteration(tc)
@@ -552,7 +552,7 @@ function test_adjustVCEjoint_history_grows_per_iteration(tc)
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % provoked on purpose here (WP-47, gate rule 7)
     cfg  = jointCfg();
     nLag = 6;
-    r = lsqvce.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
+    r = lsqvce.engine.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
             'NumLags', nLag, 'MaxIter', 3, 'Probes', 30, 'Seed', 5, ...
             'Tol', 1e-12);                       % force all iterations
     verifyEqual(tc, numel(r.history.maxDev), r.nIter);
@@ -570,7 +570,7 @@ function test_adjustVCEjoint_model_reaches_accFcn(tc)
     cfg = jointCfg();
     rec = containers.Map('KeyType', 'double', 'ValueType', 'any');
     accF = @(model) recordAndBuild(rec, cfg, model);
-    lsqvce.adjustVCEjoint(accF, 'NumLags', 5, 'MaxIter', 2, ...
+    lsqvce.engine.adjustVCEjoint(accF, 'NumLags', 5, 'MaxIter', 2, ...
                           'Probes', 20, 'Seed', 7, 'Tol', 1e-12);
     verifyGreaterThanOrEqual(tc, rec.Count, 2, 'accFcn called once per pass');
     verifyTrue(tc, rec.isKey(1) && rec.isKey(2), 'iterations 1 and 2 recorded');
@@ -583,12 +583,12 @@ end
 function test_adjustVCEjoint_default_start_is_not_degenerate(tc)
 % categories: contract, robustness
     % The default C0 must NOT be a delta -- that start is a degenerate fixed
-    % point of the weighting (see LSQVCE.PSDVCE). A delta start DOES warn; the
+    % point of the weighting (see LSQVCE.ENGINE.PSDVCE). A delta start DOES warn; the
     % default must not.
     cfg  = jointCfg();
     nLag = 5;
     % explicit delta start -> the degeneracy warning must fire
-    verifyWarning(tc, @() lsqvce.adjustVCEjoint( ...
+    verifyWarning(tc, @() lsqvce.engine.adjustVCEjoint( ...
             @(model) jointAcc(cfg, model), 'NumLags', nLag, 'MaxIter', 1, ...
             'Probes', 20, 'Seed', 9, 'C0', [1; zeros(nLag-1,1)]), ...
         'lsqvce:psdVCE:degenerateStart');
@@ -598,7 +598,7 @@ function test_adjustVCEjoint_rejects_bad_C0(tc)
 % categories: contract
     cfg = jointCfg();
     verifyError(tc, ...
-        @() lsqvce.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
+        @() lsqvce.engine.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
                 'NumLags', 8, 'C0', ones(3,1)), ...
         'lsqvce:adjustVCEjoint:badC0');
 end
@@ -606,14 +606,14 @@ end
 %% ============================================ vceMode flag on adjustVCE
 function test_vceMode_defaults_to_separate(tc)
 % categories: contract
-    P = lsqvce.adjustVCE(modeSpec(), 1, 'verbose', false);
+    P = lsqvce.engine.adjustVCE(modeSpec(), 1, 'verbose', false);
     verifyEqual(tc, P.vceMode, 'separate', ...
         'the alternating loop must remain the default');
 end
 
 function test_vceMode_constructor_flag(tc)
 % categories: contract
-    P = lsqvce.adjustVCE(modeSpec(), 1, 'vceMode', 'joint', 'verbose', false);
+    P = lsqvce.engine.adjustVCE(modeSpec(), 1, 'vceMode', 'joint', 'verbose', false);
     verifyEqual(tc, P.vceMode, 'joint');
 end
 
@@ -622,7 +622,7 @@ function test_vceMode_rejects_unknown(tc)
     % WP-39 c2: the ctor's VceMode enum moved from inputParser to
     % mustBeMember -- the expected id follows the migration (b1-r3 rule).
     verifyError(tc, ...
-        @() lsqvce.adjustVCE(modeSpec(), 1, 'vceMode', 'sideways', 'verbose', false), ...
+        @() lsqvce.engine.adjustVCE(modeSpec(), 1, 'vceMode', 'sideways', 'verbose', false), ...
         'MATLAB:validators:mustBeMember');
 end
 
@@ -630,7 +630,7 @@ function test_joint_fluent_switches_mode_and_sets_opts(tc)
 % categories: contract
     % .joint(...) both switches the mode and configures it, so no separate flag
     % is needed -- the call reads as the intent.
-    P = lsqvce.adjustVCE(modeSpec(), 1, 'verbose', false);
+    P = lsqvce.engine.adjustVCE(modeSpec(), 1, 'verbose', false);
     P = P.joint('numLags', 24, 'probes', 40, 'meanType', 'plain');
     verifyEqual(tc, P.vceMode, 'joint');
     verifyEqual(tc, P.jointOpt.NumLags , 24);
@@ -640,7 +640,7 @@ end
 
 function test_separate_fluent_switches_back(tc)
 % categories: contract
-    P = lsqvce.adjustVCE(modeSpec(), 1, 'verbose', false);
+    P = lsqvce.engine.adjustVCE(modeSpec(), 1, 'verbose', false);
     P = P.joint('numLags', 12);
     verifyEqual(tc, P.vceMode, 'joint');
     P = P.separate();
@@ -652,7 +652,7 @@ end
 
 function test_joint_defaults_are_ellmer_values(tc)
 % categories: reference, robustness
-    P = lsqvce.adjustVCE(modeSpec(), 1, 'verbose', false);
+    P = lsqvce.engine.adjustVCE(modeSpec(), 1, 'verbose', false);
     verifyEqual(tc, P.jointOpt.Probes  , 100, 'Ellmer uses Z = 100');
     verifyEqual(tc, P.jointOpt.NumLags , 60);
     verifyEqual(tc, P.jointOpt.Norm    , 'ortho');
@@ -668,7 +668,7 @@ function test_jointModelOpt_takes_sqrt_of_variance(tc)
     % STANDARD DEVIATION. Getting this wrong does not error -- the VCE loop just
     % diverges -- so assert the sqrt explicitly.
     model = struct('C', [1; 0.4; 0.1], 'sigma2', [4; 4; 4], 'iter', 2);
-    uo = lsqvce.jointModelOpt(model, {'x1|pos'});
+    uo = lsqvce.engine.jointModelOpt(model, {'x1|pos'});
     spec = uo.covOverride.bySys.x1.pos;
     % tol: value plumbing identity (stored numbers surfaced unchanged); house round-trip bound 1e-12
     verifyEqual(tc, spec.sigma, 2, 'AbsTol', 1e-12, ...
@@ -682,7 +682,7 @@ function test_jointModelOpt_acf_uses_sample_lags(tc)
     % at 10 s -- not c(6) and c(11) -- and hold C beyond its last lag at 0.
     c = [1; 0.4; 0.1; 0.05];
     model = struct('C', c, 'sigma2', [], 'iter', 1);
-    uo = lsqvce.jointModelOpt(model, {'x1|kbr'});
+    uo = lsqvce.engine.jointModelOpt(model, {'x1|kbr'});
     spec = uo.covOverride.bySys.x1.kbr;
     t = (0:4).' * 5;                                  % dt = 5 s
     lagM = t - t.';
@@ -700,7 +700,7 @@ function test_jointModelOpt_places_override_bySys(tc)
 % categories: contract
     % CONVENTION 2: loaders read opt.covOverride.bySys.(satKey).(obsType).
     model = struct('C', [1; 0.3], 'sigma2', [], 'iter', 1);
-    uo = lsqvce.jointModelOpt(model, {'x1|posC', 'x2|rr'});
+    uo = lsqvce.engine.jointModelOpt(model, {'x1|posC', 'x2|rr'});
     verifyTrue(tc, isfield(uo, 'covOverride'));
     verifyTrue(tc, isfield(uo.covOverride, 'bySys'));
     verifyTrue(tc, isfield(uo.covOverride.bySys, 'x1'));
@@ -713,10 +713,10 @@ function test_jointModelOpt_sets_psdMode_on_useropt(tc)
     % CONVENTION 3: psdMode is read from the UserOpt, NOT from the spec. It must
     % appear at the top level or covModel silently uses its 'ar' default.
     model = struct('C', [1; 0.2], 'sigma2', 1, 'iter', 1);
-    uo = lsqvce.jointModelOpt(model, {'x1|pos'});
+    uo = lsqvce.engine.jointModelOpt(model, {'x1|pos'});
     verifyEqual(tc, uo.psdMode, 'toeplitz', ...
         'joint mode must ask for the direct Toeplitz build, not an AR fit');
-    uo2 = lsqvce.jointModelOpt(model, {'x1|pos'}, 'PsdMode', 'ar');
+    uo2 = lsqvce.engine.jointModelOpt(model, {'x1|pos'}, 'PsdMode', 'ar');
     verifyEqual(tc, uo2.psdMode, 'ar');
 end
 
@@ -726,7 +726,7 @@ function test_jointModelOpt_acf_reproduces_the_covariance(tc)
     % modelled range -- that is how covModel's 'acf' type calls it.
     c = [1; 0.5; 0.2];
     model = struct('C', c, 'sigma2', 1, 'iter', 1);
-    uo = lsqvce.jointModelOpt(model, {'x1|pos'});
+    uo = lsqvce.engine.jointModelOpt(model, {'x1|pos'});
     f  = uo.covOverride.bySys.x1.pos.acf;
     t  = (0:4).';
     C  = f(t - t.', struct());
@@ -743,19 +743,19 @@ end
 function test_jointModelOpt_accepts_cell_streams(tc)
 % categories: contract
     model = struct('C', [1; 0.3], 'sigma2', 1, 'iter', 1);
-    uo = lsqvce.jointModelOpt(model, {{1, 'pos'}});
+    uo = lsqvce.engine.jointModelOpt(model, {{1, 'pos'}});
     verifyTrue(tc, isfield(uo.covOverride.bySys, 'x1'), ...
         'a numeric sysID must become the makeValidName key');
 end
 
 function test_jointModelOpt_rejects_bad_input(tc)
 % categories: contract
-    verifyError(tc, @() lsqvce.jointModelOpt(struct('a',1), {'x1|pos'}), ...
+    verifyError(tc, @() lsqvce.engine.jointModelOpt(struct('a',1), {'x1|pos'}), ...
         'lsqvce:jointModelOpt:badModel');
-    verifyError(tc, @() lsqvce.jointModelOpt( ...
+    verifyError(tc, @() lsqvce.engine.jointModelOpt( ...
         struct('C', [], 'sigma2', 1, 'iter', 1), {'x1|pos'}), ...
         'lsqvce:jointModelOpt:badC');
-    verifyError(tc, @() lsqvce.jointModelOpt( ...
+    verifyError(tc, @() lsqvce.engine.jointModelOpt( ...
         struct('C', [1;0.2], 'sigma2', 1, 'iter', 1), {'nopipe'}), ...
         'lsqvce:jointModelOpt:badStream');
 end
@@ -817,7 +817,7 @@ function sys = modeSpec()
 %MODESPEC  Smallest legal 'systems' value for constructor-only mode tests.
 %   The vceMode/joint/separate tests below only inspect the CONFIGURED state
 %   (P.vceMode, P.jointOpt); they never call run(), so the system needs no
-%   loader -- only enough for LSQVCE.RESOLVENC to derive nc. A raw spec struct
+%   loader -- only enough for LSQVCE.ENGINE.RESOLVENC to derive nc. A raw spec struct
 %   declares nc beside the nl it already carries, which is exactly that
 %   minimum. (Before 2026-07-18 these tests passed nc as a leading argument,
 %   'adjustVCE(4, {}, 1, ...)'; nc is now DERIVED from the systems, so that
@@ -842,7 +842,7 @@ function cfg = jointCfg()
     % explicit acf covariance so every arc exposes Cfcn (the joint estimator
     % needs the explicit W with Sigma = W'W).
     %
-    % NOTE ON ISOLATION: lsqvce.synthLoader keeps a PERSISTENT single-day cache
+    % NOTE ON ISOLATION: lsqvce.engine.synthLoader keeps a PERSISTENT single-day cache
     % keyed on (sat, day, obsType, tag, nc, nl, seed). This fixture deliberately
     % uses a system id far from the other suites' so that even a partial key
     % cannot collide -- a fixture whose nc differs from another suite's would
@@ -885,9 +885,9 @@ function test_redundancyLags_local_block_matches_joint_inverse(tc)
     AtilBar = Aw - Bw*G;                      % = W^-T (A - B G), whitened G
     Nred = AtilBar.'*AtilBar;                 % the reduced common normal
     U    = chol((Nred+Nred.')/2);
-    sp   = lsqvce.sharedProbe(U, 'numProbes', Z, 'seed', 5);
+    sp   = lsqvce.engine.sharedProbe(U, 'numProbes', Z, 'seed', 5);
     Ll   = chol((Nll+Nll.')/2, 'lower');
-    r = lsqvce.redundancyLags(AtilBar, W, sp.UiZ, [], 3, ...
+    r = lsqvce.kernel.redundancyLags(AtilBar, W, sp.UiZ, [], 3, ...
             'LocalBbar', Bw, 'LocalLl', Ll, 'WantRbar', true);
     % Reference: the JOINT projector with Njoint from the WHITENED designs
     % (the accumulator whitens), Sig^-1 - Sig^-1-metric hat of [A B]:
@@ -941,17 +941,17 @@ function test_joint_alpha2_unity_at_truth_with_locals(tc)
     G  = Nll \ Nlc;
     Ll = chol((Nll+Nll.')/2, 'lower');
     U  = chol((Nred+Nred.')/2);
-    sp = lsqvce.sharedProbe(U, 'numProbes', 800, 'seed', 7);
+    sp = lsqvce.engine.sharedProbe(U, 'numProbes', 800, 'seed', 7);
     W  = eye(m);                              % white noise
     om0 = 0;  s0 = 0;  om0Old = 0;  s0Old = 0;
     for k = 1:nArc
         Atil = As{k} - Bs{k}*G;
         eNew = ls{k} - As{k}*x - Bs{k}*y;
-        r = lsqvce.redundancyLags(Atil, W, sp.UiZ, eNew, 1, ...
+        r = lsqvce.kernel.redundancyLags(Atil, W, sp.UiZ, eNew, 1, ...
                 'LocalBbar', Bs{k}, 'LocalLl', Ll);
         om0 = om0 + r.omega(1);  s0 = s0 + r.s(1);
         eOld = ls{k} - As{k}*x;               % the pre-fix residual
-        rOld = lsqvce.redundancyLags(As{k}, W, sp.UiZ, eOld, 1);
+        rOld = lsqvce.kernel.redundancyLags(As{k}, W, sp.UiZ, eOld, 1);
         om0Old = om0Old + rOld.omega(1);  s0Old = s0Old + rOld.s(1);
     end
     alpha2    = om0    / s0;
@@ -975,10 +975,10 @@ function test_joint_signature_typed_arguments(tc)
     % UpperCamelCase; matching is now EXACT.
     accFcn = @(varargin) struct();               % never reached: parse errors first
     mustErr = { ...
-        @() lsqvce.adjustVCEjoint(accFcn, 'probes', 30), ...        % old-style lowercase
-        @() lsqvce.adjustVCEjoint(accFcn, 'StepSchedule', 'Decay'), ...
-        @() lsqvce.adjustVCEjoint(accFcn, 'Probes', 2.5), ...
-        @() lsqvce.adjustVCEjoint(accFcn, 'NoSuchOption', 1) };
+        @() lsqvce.engine.adjustVCEjoint(accFcn, 'probes', 30), ...        % old-style lowercase
+        @() lsqvce.engine.adjustVCEjoint(accFcn, 'StepSchedule', 'Decay'), ...
+        @() lsqvce.engine.adjustVCEjoint(accFcn, 'Probes', 2.5), ...
+        @() lsqvce.engine.adjustVCEjoint(accFcn, 'NoSuchOption', 1) };
     for k = 1:numel(mustErr)
         ok = false;
         try, mustErr{k}(); catch, ok = true; end
@@ -993,21 +993,21 @@ function test_stageB_signatures_psd_and_lags(tc)
     % mustBeMember id) and redundancyLags' typed positionals.
     ok = false;
     try
-        lsqvce.psdVCE(ones(4,2), ones(4,2), ones(4,1), 'ZeroFreqRule', 'Lowest');
+        lsqvce.engine.psdVCE(ones(4,2), ones(4,2), ones(4,1), 'ZeroFreqRule', 'Lowest');
     catch e
         ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
     end
     verifyTrue(tc, ok, 'psdVCE ZeroFreqRule ''Lowest'' must fail mustBeMember');
     ok = false;
     try
-        lsqvce.psdVCE(ones(4,2), ones(4,2), ones(4,1), 'Gamma', 1.5);
+        lsqvce.engine.psdVCE(ones(4,2), ones(4,2), ones(4,1), 'Gamma', 1.5);
     catch e
         ok = startsWith(e.identifier, 'MATLAB:validators:');
     end
     verifyTrue(tc, ok, 'psdVCE Gamma > 1 must fail the typed constraint');
     ok = false;
     try
-        lsqvce.redundancyLags(ones(6,2), eye(6), ones(2,3), [], 0);
+        lsqvce.kernel.redundancyLags(ones(6,2), eye(6), ones(2,3), [], 0);
     catch e
         ok = startsWith(e.identifier, 'MATLAB:validators:');
     end
@@ -1024,21 +1024,21 @@ function test_joint_signature_types_and_enum_values(tc)
     dummy = @(s) s;
     ok = false;
     try
-        lsqvce.adjustVCEjoint(dummy, 'StepSchedule', 'Decay');
+        lsqvce.engine.adjustVCEjoint(dummy, 'StepSchedule', 'Decay');
     catch e
         ok = startsWith(e.identifier, 'MATLAB:');
     end
     verifyTrue(tc, ok, 'StepSchedule ''Decay'' must be rejected (value casing)');
     ok = false;
     try
-        lsqvce.adjustVCEjoint(dummy, 'MaxIter', 'three');
+        lsqvce.engine.adjustVCEjoint(dummy, 'MaxIter', 'three');
     catch e
         ok = startsWith(e.identifier, 'MATLAB:');
     end
     verifyTrue(tc, ok, 'non-numeric MaxIter must be rejected by the signature');
     ok = false;
     try
-        lsqvce.adjustVCEjoint(dummy, 'NoSuchOption', 1);
+        lsqvce.engine.adjustVCEjoint(dummy, 'NoSuchOption', 1);
     catch e
         ok = startsWith(e.identifier, 'MATLAB:');
     end
@@ -1058,9 +1058,9 @@ function test_lags_structured_sums_match_dense_toeplitz(tc)
     Aw = W.'\A;  Bw = W.'\B;
     Nll = Bw.'*Bw;  G = Nll\(Bw.'*Aw);  At = Aw - Bw*G;
     U  = chol((At.'*At + (At.'*At).')/2);
-    sp = lsqvce.sharedProbe(U, 'numProbes', 40, 'seed', 9);
+    sp = lsqvce.engine.sharedProbe(U, 'numProbes', 40, 'seed', 9);
     Ll = chol((Nll+Nll.')/2, 'lower');
-    r  = lsqvce.redundancyLags(At, W, sp.UiZ, [], 6, ...
+    r  = lsqvce.kernel.redundancyLags(At, W, sp.UiZ, [], 6, ...
              'LocalBbar', Bw, 'LocalLl', Ll);
     % dense reference, built exactly as the pre-WP-37 kernel did:
     X  = W \ eye(N);
@@ -1091,9 +1091,9 @@ function test_lags_structured_sums_match_dense_general(tc)
     W = chol((Sig+Sig.')/2);
     A = randn(N, P);
     U = chol(A.'*(Sig\A));
-    sp = lsqvce.sharedProbe(U, 'numProbes', 30, 'seed', 11);
+    sp = lsqvce.engine.sharedProbe(U, 'numProbes', 30, 'seed', 11);
     Abar = W.'\A;
-    r = lsqvce.redundancyLags(Abar, W, sp.UiZ, [], 5);
+    r = lsqvce.kernel.redundancyLags(Abar, W, sp.UiZ, [], 5);
     X  = W \ eye(N);
     Rt = W \ (Abar * sp.UiZ);
     sRef = zeros(5,1);
@@ -1123,9 +1123,9 @@ function test_lags_long_arc_speed_no_cubic_term(tc)
     W = chol(Sig);
     A = randn(RandStream('twister','Seed',7), N, 2);
     U = chol(A.'*A);
-    sp = lsqvce.sharedProbe(U, 'numProbes', 8, 'seed', 3);
+    sp = lsqvce.engine.sharedProbe(U, 'numProbes', 8, 'seed', 3);
     tStart = tic;
-    r = lsqvce.redundancyLags(W.'\A, W, sp.UiZ, [], 4);
+    r = lsqvce.kernel.redundancyLags(W.'\A, W, sp.UiZ, [], 4);
     tElapsed = toc(tStart);
     verifyTrue(tc, isfinite(r.s(1)) && r.s(1) > 0, 'sanity: s_0 computed');
     verifyLessThan(tc, tElapsed, 5.0, ...
@@ -1139,8 +1139,8 @@ function test_redundancyLags_nl0_path_bitwise_unchanged(tc)
     % NO-OP -- bitwise: the nl = 0 branch keeps the pre-WP-33 expressions
     % verbatim, and an explicit empty LocalBbar routes to that same branch.
     [Abar, W, sp, ebar] = lagFixture(tc, 20, 3, 60);
-    a = lsqvce.redundancyLags(Abar, W, sp.UiZ, ebar, 5);
-    b = lsqvce.redundancyLags(Abar, W, sp.UiZ, ebar, 5, ...
+    a = lsqvce.kernel.redundancyLags(Abar, W, sp.UiZ, ebar, 5);
+    b = lsqvce.kernel.redundancyLags(Abar, W, sp.UiZ, ebar, 5, ...
             'LocalBbar', zeros(20,0), 'LocalLl', []);
     verifyEqual(tc, b.s,     a.s);            % NO tolerance: bitwise
     verifyEqual(tc, b.omega, a.omega);
@@ -1154,7 +1154,7 @@ function test_adjustVCEjoint_flat_psd_on_white_noise_with_locals(tc)
     % omitted B*y inflated the low lags (Omega_0 x3.8, T3).
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % provoked on purpose here (WP-47, gate rule 7)
     cfg  = jointCfg();
-    r = lsqvce.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
+    r = lsqvce.engine.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
             'NumLags', 6, 'MaxIter', 2, 'Probes', 200, 'Seed', 11, ...
             'Verbose', false);
     S = r.Shat / median(r.Shat);
@@ -1179,10 +1179,10 @@ function test_joint_stabilised_alternation_beats_collapse(tc)
     cfg  = jointCfgColoured();
     nLag = 10;
     w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
-    r = lsqvce.adjustVCEjoint(@(model) jointAccMapped(cfg, model), ...
+    r = lsqvce.engine.adjustVCEjoint(@(model) jointAccMapped(cfg, model), ...
             'NumLags', nLag, 'MaxIter', 12, 'Probes', 300, 'Seed', 13, ...
             'StepSchedule', 'decay', 'AvgTail', 4, 'Verbose', false);
-    Strue = lsqvce.dctI(lsqvce.armaACV(cfg.cov.pos.ar, cfg.cov.pos.ma, nLag));
+    Strue = lsqvce.kernel.dctI(lsqvce.kernel.armaACV(cfg.cov.pos.ar, cfg.cov.pos.ma, nLag));
     Strue = abs(Strue(:));
     cc = corrcoef(r.Shat(2:end), Strue(2:end));
     % Round-6 bar (FAITHFUL-mirror measured; the 0.8 bar rested on the
@@ -1205,10 +1205,10 @@ function test_joint_default_schedule_is_plain_step(tc)
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % provoked on purpose here (WP-47, gate rule 7)
     cfg = jointCfg();
     w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
-    a = lsqvce.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
+    a = lsqvce.engine.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
             'NumLags', 6, 'MaxIter', 1, 'Probes', 100, 'Seed', 5, ...
             'Verbose', false);
-    b = lsqvce.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
+    b = lsqvce.engine.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
             'NumLags', 6, 'MaxIter', 1, 'Probes', 100, 'Seed', 5, ...
             'StepSchedule', 'none', 'AvgTail', 0, 'Verbose', false);
     verifyEqual(tc, b.Shat, a.Shat);             % NO tolerance: bitwise
@@ -1235,10 +1235,10 @@ function test_adjustVCEjoint_psd_recovery_coloured_with_locals(tc)
     cfg  = jointCfgColoured();
     nLag = 10;
     w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
-    r = lsqvce.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
+    r = lsqvce.engine.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
             'NumLags', nLag, 'MaxIter', 1, 'Probes', 300, 'Seed', 13, ...
             'Verbose', false);
-    Strue = lsqvce.dctI(lsqvce.armaACV(cfg.cov.pos.ar, cfg.cov.pos.ma, nLag));
+    Strue = lsqvce.kernel.dctI(lsqvce.kernel.armaACV(cfg.cov.pos.ar, cfg.cov.pos.ma, nLag));
     Strue = abs(Strue(:));
     cc = corrcoef(r.Shat(:), Strue);
     verifyGreaterThan(tc, cc(1,2), 0.85, ...
@@ -1266,13 +1266,13 @@ function test_joint_keyed_skip_keeps_factors_aligned(tc)
     cfg = jointCfg();
     badArc = 2;                          % skipped on pass 2 in run B
     w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
-    runA1 = lsqvce.adjustVCEjoint(@(m) jointAccPDToggle(cfg, m, [], badArc), ...
+    runA1 = lsqvce.engine.adjustVCEjoint(@(m) jointAccPDToggle(cfg, m, [], badArc), ...
                 'NumLags', 6, 'MaxIter', 1, 'Probes', 150, 'Seed', 5, ...
                 'Verbose', false);
-    runA  = lsqvce.adjustVCEjoint(@(m) jointAccPDToggle(cfg, m, [], badArc), ...
+    runA  = lsqvce.engine.adjustVCEjoint(@(m) jointAccPDToggle(cfg, m, [], badArc), ...
                 'NumLags', 6, 'MaxIter', 2, 'Probes', 150, 'Seed', 5, ...
                 'Verbose', false);
-    runB  = lsqvce.adjustVCEjoint(@(m) jointAccPDToggle(cfg, m, 2, badArc), ...
+    runB  = lsqvce.engine.adjustVCEjoint(@(m) jointAccPDToggle(cfg, m, 2, badArc), ...
                 'NumLags', 6, 'MaxIter', 2, 'Probes', 150, 'Seed', 5, ...
                 'Verbose', false);
 
@@ -1303,7 +1303,7 @@ function test_joint_arc_mismatch_raises(tc)
     % groupMismatch contract ("the loader must be deterministic").
     cfg = jointCfg();
     w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
-    verifyError(tc, @() lsqvce.adjustVCEjoint( ...
+    verifyError(tc, @() lsqvce.engine.adjustVCEjoint( ...
             @(m) jointAccDropArc(cfg, m, 2), ...
             'NumLags', 6, 'MaxIter', 2, 'Probes', 150, 'Seed', 5, ...
             'Verbose', false), ...
@@ -1345,7 +1345,7 @@ function acc = jointAccDropArc(cfg, model, dropIter)
     it = 0;
     if ~isempty(model) && isfield(model, 'iter'), it = model.iter; end
     drop = it >= dropIter;
-    acc = lsqvce.BlockAccumulator(cfg.nc, 'KeepLocal', true, 'Verbose', false);
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'KeepLocal', true, 'Verbose', false);
     for s = cfg.sats
         acc.addSystem(s, cfg.nl, ...
             @(d, ot, a, uo2) dropArcLoader(cfg, s, d, ot, a, uo2, drop), 1);
@@ -1356,7 +1356,7 @@ function out = dropArcLoader(cfg, s, d, ot, a, uo2, drop)
     % synthLoader pass-through; in META mode (first loader argument is the
     % literal 'meta') the last arc is removed from the enumeration when
     % `drop` is armed -- an identity change, not a skip.
-    out = lsqvce.synthLoader(cfg, s, d, ot, a, uo2);
+    out = lsqvce.engine.synthLoader(cfg, s, d, ot, a, uo2);
     if drop && (ischar(d) || isstring(d)) && strcmp(char(d), 'meta') ...
             && isstruct(out) && isfield(out, 'arcs')
         out.arcs{1} = out.arcs{1}(1:end-1);
@@ -1408,7 +1408,7 @@ function acc = jointAccMapped(cfg, model) %#ok<DEFNU>
     uo = struct();
     if ~isempty(model) && isfield(model, 'C') && ~isempty(model.C)
         C     = model.C(:);
-        Shat  = max(lsqvce.dctI(C), 0);
+        Shat  = max(lsqvce.kernel.dctI(C), 0);
         % WP-40 r2 hardening: under the STABILISED loop the fed-back C can
         % produce interpolation edge cases the zero-clamp below does not
         % cover on every path (CI: psd2acv rejected a non-nonnegative S
@@ -1427,11 +1427,11 @@ function acc = jointAccMapped(cfg, model) %#ok<DEFNU>
     else
         uo.covOverride.pos = struct('type','diag', 'sigma', 1.0);
     end
-    acc = lsqvce.BlockAccumulator(cfg.nc, 'KeepLocal', true, 'Verbose', false, ...
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'KeepLocal', true, 'Verbose', false, ...
                                   'UserOpt', uo);
     for s = cfg.sats
         acc.addSystem(s, cfg.nl, ...
-            @(d,ot,a,uo2) lsqvce.synthLoader(cfg, s, d, ot, a, uo2), 1);
+            @(d,ot,a,uo2) lsqvce.engine.synthLoader(cfg, s, d, ot, a, uo2), 1);
     end
 end
 
@@ -1443,11 +1443,11 @@ function acc = jointAcc(cfg, model) %#ok<INUSD>
     % owns its declaration in jointAccMapped instead).
     uo = struct();
     if isfield(cfg, 'override'), uo = cfg.override; end
-    acc = lsqvce.BlockAccumulator(cfg.nc, 'KeepLocal', true, 'Verbose', false, ...
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'KeepLocal', true, 'Verbose', false, ...
                                   'UserOpt', uo);
     for s = cfg.sats
         acc.addSystem(s, cfg.nl, ...
-            @(d,ot,a,uo) lsqvce.synthLoader(cfg, s, d, ot, a, uo), 1);
+            @(d,ot,a,uo) lsqvce.engine.synthLoader(cfg, s, d, ot, a, uo), 1);
     end
 end
 
@@ -1458,7 +1458,7 @@ function [Abar, W, sp, ebar, N] = lagFixture(tc, N, P, Z) %#ok<INUSL>
     A      = randn(N, P);
     Abar   = W.' \ A;                                 % W^-T A
     U      = chol(Abar.'*Abar);
-    sp     = lsqvce.sharedProbe(U, 'numProbes', Z, 'seed', 9);
+    sp     = lsqvce.engine.sharedProbe(U, 'numProbes', Z, 'seed', 9);
     ebar   = W.' \ randn(N,1);                        % W^-T ehat
 end
 

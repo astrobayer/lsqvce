@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.kernel.varACV</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.kernel.varACV</div>
+<h1>lsqvce.kernel.varACV</h1>
+<div class="purpose">Cross-autocovariance of a stationary VAR(p) process.</div>
+<h2>Syntax</h2>
+<pre class="syntax">G = LSQVCE.KERNEL.VARACV(A, Sigma, K)</pre>
+<h2>Description</h2>
+<p>For  z_t = sum_{k=1}^p A_k z_{t-k} + e_t,  C{e} = Sigma, returns Gamma(j) = E[z_t z_{t-j}&#x27;] for j = 0..K as a d x d x (K+1) array.</p>
+<h3>Method</h3>
+<pre class="example">Companion (state-space) form X_t = F X_{t-1} + G e_t; the stationary
+state covariance solves the discrete Lyapunov equation
+    Gx = F Gx F&#x27; + Q
+by vectorisation -- a (p*d)^2 linear solve, trivial for the d = 3,
+p &lt;= 6 cases this exists for. Gamma(0..p-1) are read off Gx; higher
+lags follow the Yule-Walker recursion Gamma(j) = sum A_k Gamma(j-k).</pre>
+<p>VERIFIED (validation/v6verify.py)</p>
+<pre class="example">* Gamma(0) - sum A_k Gamma(k)&#x27; = Sigma and the recursion hold to 1e-11.
+* Matches the empirical ACV of a 4e5-sample simulation to a few percent.</pre>
+<h3>Input</h3>
+<pre class="example">A       d x d x p   coefficient matrices A_1..A_p
+Sigma   d x d       innovation covariance (symmetric positive definite)
+K       scalar      highest lag</pre>
+<h3>Stationarity Is Checked</h3>
+<pre class="example">The companion spectral radius must be &lt; 1, or there is no stationary
+covariance to compute.</pre>
+<div class="seealso"><b>See also:</b> <a href="lsqvce.engine.whittle.html">lsqvce.engine.whittle</a>, <a href="lsqvce.kernel.varWhiten.html">lsqvce.kernel.varWhiten</a>, <a href="lsqvce.kernel.armaACV.html">lsqvce.kernel.armaACV</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+</body></html>

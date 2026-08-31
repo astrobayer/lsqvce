@@ -223,31 +223,31 @@ you; strengthen the geometry or add independent data.</p>
 
 <h2>Deciding what to do next</h2>
 <h3>Level 1 failed &mdash; is it blunders or the model?</h3>
-<p>Run <code>lsqvce.systematic(D)</code> before snooping. If the residuals show
+<p>Run <code>lsqvce.engine.systematic(D)</code> before snooping. If the residuals show
 runs, serial correlation, or per-group offsets, the problem is the model (an
 unmodelled signal, a wrong weight ratio, coloured noise treated as white) &mdash;
 snooping it away just deletes good data around a defect that remains. Fix the
 model, then re-solve.</p>
 <h3>Diffuse contamination &mdash; reject or reweight?</h3>
-<p>Isolated blunders: iterative <code>lsqvce.snoop</code>. Many small
-contaminations: robust M-estimation (<code>lsqvce.robust</code>) degrades
+<p>Isolated blunders: iterative <code>lsqvce.engine.snoop</code>. Many small
+contaminations: robust M-estimation (<code>lsqvce.engine.robust</code>) degrades
 gracefully where snooping would chase its own tail. The contamination gauge tells
 you which regime you are in.</p>
 <h3>Group weights look wrong &mdash; variance components</h3>
 <p>If one data type or satellite is systematically over-fit or under-fit, run
-<code>lsqvce.varComp</code> / <code>lsqvce.vce</code> and read <code>vc.sigma</code>:
+<code>lsqvce.engine.varComp</code> / <code>lsqvce.engine.vce</code> and read <code>vc.sigma</code>:
 a factor far from 1 means that group was mis-weighted going in. Re-solve at the
 converged weights before reading reliability &mdash; MDBs computed at wrong weights
 are wrong. Confirm <code>vc.converged</code> is true and that the minimum
 redundancy was met for every group. For \(u\) in the thousands, the matrix-free
-<a href="lsqvce.vceHutchinson.html">Hutchinson backend</a> gives the same sigmas;
+<a href="lsqvce.engine.vceHutchinson.html">Hutchinson backend</a> gives the same sigmas;
 see <a href="lsqvce_choosing.html">Choosing an engine</a>.</p>
 
 <h2>Reading a gravity solution</h2>
-<p>For the block-arrow path (<a href="lsqvce.adjustBlock.html">lsqvce.adjustBlock</a> /
-<a href="lsqvce.adjustVCE.html">lsqvce.adjustVCE</a>), three habits keep you honest:</p>
+<p>For the block-arrow path (<a href="lsqvce.engine.adjustBlock.html">lsqvce.engine.adjustBlock</a> /
+<a href="lsqvce.engine.adjustVCE.html">lsqvce.engine.adjustVCE</a>), three habits keep you honest:</p>
 <ul>
-<li><b>Diagnose through the accumulator bridge</b> (<a href="lsqvce.diagnoseAccum.html">lsqvce.diagnoseAccum</a>),
+<li><b>Diagnose through the accumulator bridge</b> (<a href="lsqvce.engine.diagnoseAccum.html">lsqvce.engine.diagnoseAccum</a>),
 never the reduced common system alone. The common-parameter redundancies are only
 correct once the arc-local parameters have been counted; skip the bridge and every
 reliability number is inflated.</li>
@@ -267,9 +267,9 @@ those missing turns &ldquo;passed&rdquo; into &ldquo;passed, but&hellip;&rdquo;.
 <a href="lsqvce_user_manual.html">User Manual</a>,
 <a href="lsqvce_reference_manual.html">Reference Manual</a>,
 <a href="lsqvce_choosing.html">Choosing an engine</a>,
-<a href="lsqvce.diagnose.html">lsqvce.diagnose</a>,
+<a href="lsqvce.engine.diagnose.html">lsqvce.engine.diagnose</a>,
 <a href="lsqvce.report.html">lsqvce.report</a>,
-<a href="lsqvce.systematic.html">lsqvce.systematic</a></div>
+<a href="lsqvce.engine.systematic.html">lsqvce.engine.systematic</a></div>
 ''' + REFERENCES
 
 
@@ -338,7 +338,7 @@ weighted residual sum of squares over its partial redundancy [6,7,3]:</p>
 so one group (or the pooled \(s_0\)) fixes the gauge. VCE for gravity and
 regularisation: [9,10]. For \(u\) in the thousands the trace
 \(\operatorname{tr}(N^{-1}N_g)\) is estimated matrix-free with \(Z\) Hutchinson
-probes (<a href="lsqvce.vceHutchinson.html">lsqvce.vceHutchinson</a>); see
+probes (<a href="lsqvce.engine.vceHutchinson.html">lsqvce.engine.vceHutchinson</a>); see
 <a href="lsqvce_choosing.html">Choosing an engine</a>.</p>
 
 <h3>3a. Relation to Ellmer (2018)</h3>
@@ -380,8 +380,8 @@ the production path because forming \(R\) explicitly is prohibitive. Here the
 Hutchinson opt-in for large \(u_c\); and the same probes also yield the
 per-parameter contribution diagonal \(\operatorname{diag}(N^{-1}N_g^{cc})\),
 which is beyond the scalar trace the VCE update needs
-(<a href="lsqvce.streamContribution.html">lsqvce.streamContribution</a>,
-<a href="lsqvce.contribution.html">lsqvce.contribution</a>).</li>
+(<a href="lsqvce.engine.streamContribution.html">lsqvce.engine.streamContribution</a>,
+<a href="lsqvce.engine.contribution.html">lsqvce.engine.contribution</a>).</li>
 </ul>
 
 <h2>4. Block-arrow system and QR pre-elimination</h2>
@@ -408,7 +408,7 @@ Pre-elimination removes the locals from the solve, but they still spend degrees
 of freedom: each arc&rsquo;s locals absorb part of its own residual, lowering the
 redundancy numbers of that arc&rsquo;s observations. With <code>'KeepLocal',true</code>
 the per-arc factors are retained so
-<a href="lsqvce.diagnoseAccum.html">lsqvce.diagnoseAccum</a> rebuilds the full hat
+<a href="lsqvce.engine.diagnoseAccum.html">lsqvce.engine.diagnoseAccum</a> rebuilds the full hat
 matrix and reports the true \(r_i\) (hence MDB and reliability) rather than the
 inflated commons-only values [3,10]. Integrity check:
 \(\sum_i r_i = n - (u_c + \sum_k u_k)\).</div>
@@ -425,32 +425,32 @@ equals the dense block-Cholesky GLS solve row for row. When the covariance
 separates in space and time, \(C = C_t \otimes C_s\), the whitener is the
 Kronecker product</p>
 \[ R = R_t \otimes R_s, \qquad C = R^{-1}R^{-\top}, \tag{11} \]
-<p>(<a href="lsqvce.separableWhiten.html">lsqvce.separableWhiten</a>) &mdash; what
+<p>(<a href="lsqvce.kernel.separableWhiten.html">lsqvce.kernel.separableWhiten</a>) &mdash; what
 makes per-epoch vector data affordable. Orders are chosen by information criteria
 and validated by a Ljung&ndash;Box test on the whitened residuals [17].</p>
-<p><a href="lsqvce.selectArAcv.html">lsqvce.selectArAcv</a> chooses the AR order
+<p><a href="lsqvce.engine.selectArAcv.html">lsqvce.engine.selectArAcv</a> chooses the AR order
 without a candidate grid: one Levinson recursion yields the innovation variance of
 every lower order through the reflection coefficients \(\kappa_j\),
 \(\sigma_p^2 = r_0\prod_j(1-\kappa_j^2)\), and it returns the smallest order whose
 refitted autocovariance is within <code>AcvTol</code> &mdash; the same decorrelation
 target the whiteness test uses. It guards two failure modes a single AR cannot fix:
 a near-unit root (detrend first) and a plateau above tolerance (sharp 1/rev, 2/rev
-lines &mdash; move to <a href="lsqvce.ar2arma.html">lsqvce.ar2arma</a>).</p>
+lines &mdash; move to <a href="lsqvce.kernel.ar2arma.html">lsqvce.kernel.ar2arma</a>).</p>
 <div class="note"><b>Separable pipeline (two layers).</b> The model is
 \(C_g = \sigma_g^2\,D_g\,(R_{t,g}\otimes I_d)\,D_g\). Whitening estimates the
 temporal SHAPE \(R_{t,g}\) <i>within</i> each group; variance-component estimation
 (&sect;3) estimates the SCALE \(\sigma_g^2\) <i>between</i> groups. The loop
 iterates solve &rarr; whiten &rarr; VCE-reweight and converges only when every
 stream is white AND every \(\sigma_g^2 \approx 1\). Driven end to end by
-<a href="lsqvce.adjustVCE.html">lsqvce.adjustVCE</a>.</div>
+<a href="lsqvce.engine.adjustVCE.html">lsqvce.engine.adjustVCE</a>.</div>
 
 <div class="seealso"><b>See also:</b>
 <a href="lsqvce_user_manual.html">User Manual</a>,
 <a href="lsqvce_choosing.html">Choosing an engine</a>,
-<a href="lsqvce.redundancy.html">lsqvce.redundancy</a>,
-<a href="lsqvce.vce.html">lsqvce.vce</a>,
-<a href="lsqvce.adjustBlock.html">lsqvce.adjustBlock</a>,
-<a href="lsqvce.separableWhiten.html">lsqvce.separableWhiten</a></div>
+<a href="lsqvce.engine.redundancy.html">lsqvce.engine.redundancy</a>,
+<a href="lsqvce.engine.vce.html">lsqvce.engine.vce</a>,
+<a href="lsqvce.engine.adjustBlock.html">lsqvce.engine.adjustBlock</a>,
+<a href="lsqvce.kernel.separableWhiten.html">lsqvce.kernel.separableWhiten</a></div>
 ''' + REFERENCES
 
 
@@ -525,7 +525,7 @@ Helmert&rsquo;s VCE estimates a factor per group,
 \(r_g=n_g-\operatorname{tr}(N^{-1}N_g)\), updates \(P_g\leftarrow\hat\sigma_g^{-2}P_g\),
 and re-solves until the factors settle at unity. Only ratios are identifiable; one
 group fixes the gauge [6,7,3,9,10]. For \(u\) in the thousands the trace is
-estimated matrix-free (<a href="lsqvce.vceHutchinson.html">lsqvce.vceHutchinson</a>).</p>
+estimated matrix-free (<a href="lsqvce.engine.vceHutchinson.html">lsqvce.engine.vceHutchinson</a>).</p>
 
 <h3>Block-arrow systems and coloured noise</h3>
 <p>Gravity recovery combines \(K\) arcs sharing \(n_c\) common parameters but each
@@ -536,7 +536,7 @@ Schur complement, leaving only the \(n_c\times n_c\) reduced system in core
 &sect;4</a>). Coloured noise is whitened by an AR/VAR FIR recursion &mdash; a banded
 operator equal to the dense block-Cholesky GLS solve, never the dense \(n\times n\)
 matrix &mdash; and separable space&times;time covariance by a Kronecker whitener
-(&sect;5). Orders are chosen by <a href="lsqvce.selectArAcv.html">lsqvce.selectArAcv</a>
+(&sect;5). Orders are chosen by <a href="lsqvce.engine.selectArAcv.html">lsqvce.engine.selectArAcv</a>
 and validated by Ljung&ndash;Box [14&ndash;17].</p>
 
 <h2 id="p2">Part II &mdash; What you supply</h2>
@@ -576,32 +576,32 @@ Read top to bottom, stop at the first red.</p>
 </table>
 <p>The <a href="lsqvce_interpretation_guide.html">Interpretation Guide</a> covers
 the reliability quadrants and the contamination gauge in detail. What each tool
-adds: <code>lsqvce.systematic(D)</code> tests residuals for structure a
-single-outlier search would miss; <code>lsqvce.snoop</code> is iterative data
-snooping with the contamination guard; <code>lsqvce.robust</code> is M-estimation
-for diffuse contamination; <code>lsqvce.vce</code>/<code>lsqvce.varComp</code>
+adds: <code>lsqvce.engine.systematic(D)</code> tests residuals for structure a
+single-outlier search would miss; <code>lsqvce.engine.snoop</code> is iterative data
+snooping with the contamination guard; <code>lsqvce.engine.robust</code> is M-estimation
+for diffuse contamination; <code>lsqvce.engine.vce</code>/<code>lsqvce.engine.varComp</code>
 rebalance mis-weighted groups.</p>
 
 <h2 id="p4">Part IV &mdash; Gravity recovery: the block-arrow path</h2>
-<p>The modern one-call front door is <a href="lsqvce.adjustBlock.html">lsqvce.adjustBlock</a>
-(single GLS solve) and <a href="lsqvce.adjustVCE.html">lsqvce.adjustVCE</a> (the
+<p>The modern one-call front door is <a href="lsqvce.engine.adjustBlock.html">lsqvce.engine.adjustBlock</a>
+(single GLS solve) and <a href="lsqvce.engine.adjustVCE.html">lsqvce.engine.adjustVCE</a> (the
 iterative SHAPE+SCALE loop). Build loaders with
-<a href="lsqvce.makeLoader.html">lsqvce.makeLoader</a> and hand them over:</p>
+<a href="lsqvce.engine.makeLoader.html">lsqvce.engine.makeLoader</a> and hand them over:</p>
 <pre class="example">% One-call block-arrow solve + five-level verdict
-R = lsqvce.adjustBlock(nc, {Lc, Ld}, days);   % loaders from makeLoader
+R = lsqvce.engine.adjustBlock(nc, {Lc, Ld}, days);   % loaders from makeLoader
 R.report();
 
 % Iterative: discover the noise model (SHAPE) and group weights (SCALE)
-R = lsqvce.adjustVCE(nc, {Lc, Ld}, days) ...
+R = lsqvce.engine.adjustVCE(nc, {Lc, Ld}, days) ...
         .vceGroupsBy('obsType') ...
         .shape('maxOrder', 60, 'acvTol', 1e-3) ...
         .scale('maxIter', 8, 'tol', 1e-3) ...
         .run();
 R.report();
 disp(R.history.sigma);        % per-pass variance components</pre>
-<p>Under the hood these drive a <a href="lsqvce.BlockAccumulator.html">lsqvce.BlockAccumulator</a>
+<p>Under the hood these drive a <a href="lsqvce.engine.BlockAccumulator.html">lsqvce.engine.BlockAccumulator</a>
 (kept reachable on <code>R.acc</code> for experts). The diagnostics bridge
-<a href="lsqvce.diagnoseAccum.html">lsqvce.diagnoseAccum</a> rebuilds the full
+<a href="lsqvce.engine.diagnoseAccum.html">lsqvce.engine.diagnoseAccum</a> rebuilds the full
 block-arrow system from the retained per-arc Schur factors to count the redundancy
 the local parameters absorb &mdash; without it the common-parameter redundancies
 (and every reliability number) are inflated.</p>
@@ -619,26 +619,26 @@ file); make <code>batchFcn(k)</code> return <code>[A,l,p]</code>. Keep it determ
 <li><b>Get the weights right.</b> \(p=1/\sigma^2\). For coloured noise pass a
 covariance-model struct instead of a vector and let lsqvce whiten.</li>
 <li><b>Solve and judge in one call.</b>
-<code>[sol, D, V] = lsqvce.adjust(u, batchFcn, nBatch);</code></li>
+<code>[sol, D, V] = lsqvce.engine.adjust(u, batchFcn, nBatch);</code></li>
 <li><b>Read the report top-down.</b> Stop at the first red. A Level&nbsp;0 red is a
 data/weighting bug, not a blunder &mdash; fix it before reading on.</li>
 <li><b>If Level&nbsp;1 fails, localise before rejecting.</b> Run
-<code>lsqvce.systematic(D)</code> first: a structured error is a model defect, and
+<code>lsqvce.engine.systematic(D)</code> first: a structured error is a model defect, and
 snooping it away mutilates good data.</li>
 <li><b>Snoop, gauge open.</b>
-<code>[sol,D,REJ] = lsqvce.snoop(sol, D, batchFcn, 'test','mad');</code></li>
+<code>[sol,D,REJ] = lsqvce.engine.snoop(sol, D, batchFcn, 'test','mad');</code></li>
 <li><b>Before believing the parameters, read reliability.</b> Check MDB and the
 quadrants for every parameter you care about. A clean residual at \(r_i\approx0\)
 proves nothing.</li>
 </ol>
 <h3>B &middot; Gravity recovery (many arcs, VCE)</h3>
 <ol>
-<li>Write one <a href="lsqvce.makeLoader.html">makeLoader</a> loader per
+<li>Write one <a href="lsqvce.engine.makeLoader.html">makeLoader</a> loader per
 satellite/arc returning whitened batches; give the common count <code>nc</code>
 and per-system <code>numLocal</code>.</li>
-<li>For a single solve call <a href="lsqvce.adjustBlock.html">lsqvce.adjustBlock</a>;
+<li>For a single solve call <a href="lsqvce.engine.adjustBlock.html">lsqvce.engine.adjustBlock</a>;
 to discover the noise model and group weights, use
-<a href="lsqvce.adjustVCE.html">lsqvce.adjustVCE</a> with
+<a href="lsqvce.engine.adjustVCE.html">lsqvce.engine.adjustVCE</a> with
 <code>.vceGroupsBy(...).shape(...).scale(...).run()</code>.</li>
 <li>Inspect <code>R.history.sigma</code> for a group being systematically up- or
 down-weighted, and confirm convergence.</li>
@@ -655,8 +655,8 @@ assert (redundancy identity, whitening equals dense GLS, ACV round-trip).</div>
 <a href="lsqvce_reference_manual.html">Reference Manual</a>,
 <a href="lsqvce_interpretation_guide.html">Interpretation Guide</a>,
 <a href="lsqvce_choosing.html">Choosing an engine</a>,
-<a href="lsqvce.adjust.html">lsqvce.adjust</a>,
-<a href="lsqvce.adjustVCE.html">lsqvce.adjustVCE</a></div>
+<a href="lsqvce.engine.adjust.html">lsqvce.engine.adjust</a>,
+<a href="lsqvce.engine.adjustVCE.html">lsqvce.engine.adjustVCE</a></div>
 ''' + REFERENCES
 
 

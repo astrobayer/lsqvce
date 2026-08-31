@@ -29,11 +29,11 @@ function cfg = baseCfg()
 end
 
 function f = binder(cfg, s)
-    f = @(d,ot,a,uo) lsqvce.synthLoader(cfg, s, d, ot, a, uo);
+    f = @(d,ot,a,uo) lsqvce.engine.synthLoader(cfg, s, d, ot, a, uo);
 end
 
 function sol = runIt(cfg, days, varargin)
-    acc = lsqvce.BlockAccumulator(cfg.nc, varargin{:});
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc, varargin{:});
     for s = cfg.sats
         acc.addSystem(s, cfg.nl, binder(cfg,s), days);
     end
@@ -45,11 +45,11 @@ function testPSD2ACVMatchesAnalyticAR(tc)
 % categories: precision, reference
 % PSD of a known AR(3) -> ACV must match the analytic ARMA ACV.
     a = [1 -1.6 0.9 -0.25];  s = 0.7;  dt = 5;
-    r_ana = s^2 * lsqvce.armaACV(a, 1, 64);
+    r_ana = s^2 * lsqvce.kernel.armaACV(a, 1, 64);
     f = linspace(1e-9, 0.5/dt, 8192).';
     H = 1 ./ (exp(-1i*2*pi*f*dt*(0:3)) * a(:));
     S = s^2 * dt * 2 * abs(H).^2;
-    r_num = lsqvce.psd2acv(f, S, dt, 64);
+    r_num = lsqvce.kernel.psd2acv(f, S, dt, 64);
     tc.verifyLessThan(norm(r_num-r_ana)/norm(r_ana), 2e-3);
 end
 
@@ -57,8 +57,8 @@ function testLevinsonRecoversAR(tc)
 % categories: precision
 % Levinson-Durbin on the exact ACV must return the generating coefficients.
     a = [1 -1.6 0.9 -0.25];  s = 0.7;
-    r = s^2 * lsqvce.armaACV(a, 1, 8);
-    [ah, s2] = lsqvce.levinsonDurbin(r, 3);
+    r = s^2 * lsqvce.kernel.armaACV(a, 1, 8);
+    [ah, s2] = lsqvce.kernel.levinsonDurbin(r, 3);
     % tol: Levinson on the EXACT generator ACV; recursion error growth over p steps ~ 1e3*eps, bound adds headroom
     tc.verifyEqual(ah, a, 'AbsTol', 1e-8);
     tc.verifyEqual(sqrt(s2), s, 'RelTol', 1e-8);
@@ -69,12 +69,12 @@ function testFilterEqualsCholeskyWhitening(tc)
 % THE key invariant: the FIR whitening filter and the dense Cholesky
 % decorrelation give the SAME Y'*Y (they differ by an orthogonal rotation).
     a = [1 -1.6 0.9 -0.25];  s = 0.7;  n = 300;
-    r = s^2 * lsqvce.armaACV(a, 1, n);
+    r = s^2 * lsqvce.kernel.armaACV(a, 1, n);
     X = randn(n, 5);
-    W  = lsqvce.decorrFactor(toeplitz(r));
+    W  = lsqvce.kernel.decorrFactor(toeplitz(r));
     Y1 = W*X;
     z  = zeros(n,0);
-    [~,~,Y2] = lsqvce.armaWhiten(a, 1, s, r, z, z, X, true);
+    [~,~,Y2] = lsqvce.kernel.armaWhiten(a, 1, s, r, z, z, X, true);
     % tol: dense reconstruction of the same algebra; eps-level accumulation, house bounds (HANDOVER 6.1.2)
     tc.verifyEqual(Y2.'*Y2, Y1.'*Y1, 'RelTol', 1e-9);
 end
@@ -83,7 +83,7 @@ function testARMAACVAgainstBruteForce(tc)
 % categories: precision, reference
 % ARMA ACV via the FFT/Wold expansion vs a direct long simulation moment.
     a = [1 -0.9];  b = [1 0.5];
-    r = lsqvce.armaACV(a, b, 5);
+    r = lsqvce.kernel.armaACV(a, b, 5);
     % analytic ARMA(1,1) with unit innovation variance:
     phi = 0.9; th = 0.5;
     r0 = (1 + 2*phi*th + th^2)/(1-phi^2);
@@ -143,7 +143,7 @@ function testBackSubstitutionRecoversLocals(tc)
 % categories: precision
     cfg = tc.TestData.cfg;
     days = 1:2;
-    acc = lsqvce.BlockAccumulator(cfg.nc, 'Backend','qr', 'Verbose',false);
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Backend','qr', 'Verbose',false);
     for s = cfg.sats, acc.addSystem(s, cfg.nl, binder(cfg,s), days); end
     sol = acc.solve();
 
@@ -229,7 +229,7 @@ function testCheckPSD(tc)
     f = linspace(1e-9, 0.5/dt, 4096).';
     H = 1 ./ (exp(-1i*2*pi*f*dt*(0:3)) * a(:));
     cm = struct('type','psd','f',f,'S', s^2*dt*2*abs(H).^2);
-    chk = lsqvce.checkPSD(cm, dt, struct('arOrder',20), false);
+    chk = lsqvce.engine.checkPSD(cm, dt, struct('arOrder',20), false);
     tc.verifyLessThan(chk.acvRelErr, 1e-2);
     tc.verifyTrue(chk.stable);
 end
@@ -252,8 +252,8 @@ function testQRBeatsNormalWhenIllConditioned(tc)
     l = A*randn(rs, n, 1) + 1e-10*randn(rs, m, 1);
     xr = A \ l;
 
-    accN = lsqvce.NormalEqSystem(n);  accN.add(A, l);
-    accQ = lsqvce.QRSystem(n);        accQ.add(A, l);
+    accN = lsqvce.engine.NormalEqSystem(n);  accN.add(A, l);
+    accQ = lsqvce.engine.QRSystem(n);        accQ.add(A, l);
 
     eN = norm(accN.solve() - xr)/norm(xr);
     eQ = norm(accQ.solve() - xr)/norm(xr);
@@ -267,7 +267,7 @@ function testDiagnosticsFlagIllConditioning(tc)
     muteWarn(tc, 'lsqvce:accum:pinvFallback');   % provoked on purpose here (WP-47, gate rule 7)
     cfg = tc.TestData.cfg;
     cfg.collinear = true;  cfg.collinearEps = 1e-9;
-    acc = lsqvce.BlockAccumulator(cfg.nc, 'Backend','qr','Verbose',false);
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Backend','qr','Verbose',false);
     for s = cfg.sats, acc.addSystem(s, cfg.nl, binder(cfg,s), 1:2); end
     d = acc.diag;
     tc.verifyGreaterThan(d(1).condNll, 1e8);
@@ -278,7 +278,7 @@ function testTikhonovReducesLocalCondition(tc)
 % categories: robustness
     cfg = tc.TestData.cfg;
     cfg.collinear = true;  cfg.collinearEps = 1e-10;
-    acc = lsqvce.BlockAccumulator(cfg.nc, 'Backend','qr', 'Reg','tikhonov', ...
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Backend','qr', 'Reg','tikhonov', ...
                           'RegLambda',1e-3, 'Verbose',false);
     for s = cfg.sats, acc.addSystem(s, cfg.nl, binder(cfg,s), 1:2); end
     sol = acc.solve();
@@ -290,13 +290,13 @@ function testAutoRegSelectsByStatus(tc)
 % categories: robustness
     cfg = tc.TestData.cfg;
     % well conditioned -> no regularisation
-    a1 = lsqvce.BlockAccumulator(cfg.nc,'Reg','auto','Verbose',false);
+    a1 = lsqvce.engine.BlockAccumulator(cfg.nc,'Reg','auto','Verbose',false);
     a1.addSystem(1, cfg.nl, binder(cfg,1), 1:2);
     tc.verifyEqual(a1.diag(1).regUsed, 'none');
 
     % ill conditioned -> tikhonov or tsvd
     cfg.collinear = true;  cfg.collinearEps = 1e-11;
-    a2 = lsqvce.BlockAccumulator(cfg.nc,'Reg','auto','Verbose',false);
+    a2 = lsqvce.engine.BlockAccumulator(cfg.nc,'Reg','auto','Verbose',false);
     a2.addSystem(1, cfg.nl, binder(cfg,1), 1:2);
     tc.verifyNotEqual(a2.diag(1).regUsed, 'none');
 end
@@ -307,7 +307,7 @@ function testTSVDHandlesExactRankDeficiency(tc)
     muteWarn(tc, 'lsqvce:accum:pinvFallback');   % provoked on purpose here (WP-47, gate rule 7)
     cfg = tc.TestData.cfg;
     cfg.collinear = true;  cfg.collinearEps = 0;      % exact duplication
-    acc = lsqvce.BlockAccumulator(cfg.nc,'Backend','qr','Reg','tsvd','Verbose',false);
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc,'Backend','qr','Reg','tsvd','Verbose',false);
     for s = cfg.sats, acc.addSystem(s, cfg.nl, binder(cfg,s), 1:2); end
     sol = acc.solve();
     tc.verifyTrue(all(isfinite(sol.x)));
@@ -320,7 +320,7 @@ function testResidualsReproduceSigma0(tc)
 % The second pass must recompute exactly the same sigma0 as accumulation.
     cfg = tc.TestData.cfg;
     days = 1:3;
-    acc = lsqvce.BlockAccumulator(cfg.nc,'Backend','qr','Verbose',false);
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc,'Backend','qr','Verbose',false);
     for s = cfg.sats, acc.addSystem(s, cfg.nl, binder(cfg,s), days); end
     sol = acc.solve();
     res = acc.residuals(sol, 'Verbose', false);
@@ -333,7 +333,7 @@ function testResidualsAreWhite(tc)
 % With a correctly specified covariance the whitened residuals must have
 % unit variance and negligible lag-1 autocorrelation.
     cfg = tc.TestData.cfg;
-    acc = lsqvce.BlockAccumulator(cfg.nc,'Backend','qr','Verbose',false);
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc,'Backend','qr','Verbose',false);
     for s = cfg.sats, acc.addSystem(s, cfg.nl, binder(cfg,s), 1:5); end
     sol = acc.solve();
     res = acc.residuals(sol, 'Verbose', false);
@@ -348,7 +348,7 @@ end
 function testLocalCovarianceIsPD(tc)
 % categories: precision
     cfg = tc.TestData.cfg;
-    acc = lsqvce.BlockAccumulator(cfg.nc,'Backend','qr','Verbose',false);
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc,'Backend','qr','Verbose',false);
     for s = cfg.sats, acc.addSystem(s, cfg.nl, binder(cfg,s), 1:2); end
     sol = acc.solve();
     Cyy = acc.localCovariance(cfg.sats(1), sol.Cxx);
@@ -371,9 +371,9 @@ function testUserOptReachesLoader(tc)
             error('context not injected');
         end
         seen = true;
-        out = lsqvce.synthLoader(cfg, 1, d, ot, a, uo);
+        out = lsqvce.engine.synthLoader(cfg, 1, d, ot, a, uo);
     end
-    acc = lsqvce.BlockAccumulator(cfg.nc, 'Verbose',false, ...
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Verbose',false, ...
                           'UserOpt', struct('myFlag',77));
     acc.addSystem(1, cfg.nl, @probe, 1);
     tc.verifyTrue(seen);
@@ -383,12 +383,12 @@ function testEmptyArcIsSkipped(tc)
 % categories: robustness, vectorisation
     cfg = tc.TestData.cfg;
     function out = gappy(d, ot, a, uo)
-        out = lsqvce.synthLoader(cfg, 1, d, ot, a, uo);
+        out = lsqvce.engine.synthLoader(cfg, 1, d, ot, a, uo);
         if ~ischar(d) && a == 2
             out.A = zeros(0,cfg.nc); out.B = zeros(0,cfg.nl); out.l = [];
         end
     end
-    acc = lsqvce.BlockAccumulator(cfg.nc,'Verbose',false);
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc,'Verbose',false);
     acc.addSystem(1, cfg.nl, @gappy, 1:2);
     sol = acc.solve();
     tc.verifyTrue(all(isfinite(sol.x)));
@@ -413,7 +413,7 @@ function [Af, lf] = assembleFull(cfg, days)
                     if isfield(arc,'Wfcn') && ~isempty(arc.Wfcn)
                         [Aw,Bw,lw] = arc.Wfcn(1:m, arc.A, arc.B, arc.l, uo);
                     else
-                        W = lsqvce.decorrFactor(arc.Cfcn(1:m, uo));
+                        W = lsqvce.kernel.decorrFactor(arc.Cfcn(1:m, uo));
                         Aw = W*arc.A;  Bw = W*arc.B;  lw = W*arc.l;
                     end
                     blk = zeros(m, cfg.nc + ns*cfg.nl);
@@ -430,7 +430,7 @@ end
 %% ============================================ verbosity is inherited, not reset
 function testResidualsInheritTheAccumulatorVerbosity(tc)
 % categories: robustness
-    % REGRESSION GUARD (2026-07-18). LSQVCE.RESIDUALS defaults its own 'verbose'
+    % REGRESSION GUARD (2026-07-18). LSQVCE.ENGINE.RESIDUALS defaults its own 'verbose'
     % to TRUE -- right for a direct call, wrong for one made THROUGH an
     % accumulator that was already told to be quiet. Because the forwarder did
     % not pass the level on, an adjustVCE run with verbose OFF still emitted a
@@ -438,7 +438,7 @@ function testResidualsInheritTheAccumulatorVerbosity(tc)
     % 2026-07-18 suite log, and the ONLY output that "silent" run produced.
     cfg  = baseCfg();
     days = 1:2;
-    acc  = lsqvce.BlockAccumulator(cfg.nc, 'Backend','qr', 'Verbose',false);
+    acc  = lsqvce.engine.BlockAccumulator(cfg.nc, 'Backend','qr', 'Verbose',false);
     for s = cfg.sats
         acc.addSystem(s, cfg.nl, binder(cfg,s), days);
     end
@@ -459,7 +459,7 @@ function testResidualsExplicitVerboseStillWins(tc)
     % Inheriting must not take the choice away: an explicit 'Verbose' passed by
     % the caller overrides the accumulator's level in both directions.
     cfg  = baseCfg();
-    acc  = lsqvce.BlockAccumulator(cfg.nc, 'Backend','qr', 'Verbose',false);
+    acc  = lsqvce.engine.BlockAccumulator(cfg.nc, 'Backend','qr', 'Verbose',false);
     for s = cfg.sats
         acc.addSystem(s, cfg.nl, binder(cfg,s), 1:2);
     end

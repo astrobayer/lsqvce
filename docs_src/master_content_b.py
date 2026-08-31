@@ -41,7 +41,7 @@ def part3_entry_points():
     st += [caption('batchFcn is called TWICE -- once to accumulate, once to '
                    'diagnose -- and must return identical data both times. A '
                    'mismatch is an error, not a silent misattribution.')]
-    st += [code("""[sol, D, V] = lsqvce.adjust(u, batchFcn, nBatch);
+    st += [code("""[sol, D, V] = lsqvce.engine.adjust(u, batchFcn, nBatch);
 lsqvce.report(V);                  % the level-0..4 verdict""")]
     st += [P('The returns are structs, not a Results object: <font '
              'face="Courier">sol</font> carries the estimate and its '
@@ -66,7 +66,7 @@ lsqvce.report(V);                  % the level-0..4 verdict""")]
         [{'t': 'solve the common block, back-substitute the locals', 'k': 'proc'}],
         [{'t': 'Results', 'k': 'io'}],
     ], width=BODY_W, title='Figure 3.2 -- adjustBlock')]
-    st += [code("""R = lsqvce.adjustBlock({Lc, Ld}, days);
+    st += [code("""R = lsqvce.engine.adjustBlock({Lc, Ld}, days);
 R.report();""")]
     st += [callout(
         '<b>The noise model is taken as given.</b> Whatever covariance you '
@@ -113,7 +113,7 @@ R.report();""")]
                    'with the noise model and weights discovered by the '
                    'previous one; R.history records every pass, which is what '
                    'the two readers in section 3.5 report on.')]
-    st += [code("""R = lsqvce.adjustVCE(L, days) ...
+    st += [code("""R = lsqvce.engine.adjustVCE(L, days) ...
       .groupComponentsBy('obsType') ...
       .run();
 R.report();
@@ -155,8 +155,8 @@ R.convergence();      % per iteration: when it settled""")]
                    'is divided by a variance factor the blunders themselves '
                    'raised. Remove one, s0 drops, and the next becomes '
                    'visible.')]
-    st += [code("""[sol, D]      = lsqvce.adjust(u, batchFcn, nBatch);     % first solve
-[sol, D, REJ] = lsqvce.snoop(sol, D, batchFcn, 'test', 'mad');""")]
+    st += [code("""[sol, D]      = lsqvce.engine.adjust(u, batchFcn, nBatch);     % first solve
+[sol, D, REJ] = lsqvce.engine.snoop(sol, D, batchFcn, 'test', 'mad');""")]
     st += [callout(
         '<b>On the block-arrow path there is no snoop.</b> Gross-error handling '
         'there is a different problem: the observations are streamed and never '
@@ -168,7 +168,7 @@ R.convergence();      % per iteration: when it settled""")]
     st += [callout(
         '<b>Localise before rejecting.</b> A structured error is a model '
         'defect, and snooping it away mutilates good data. Run '
-        '<font face="Courier">lsqvce.systematic(D)</font> first: if the '
+        '<font face="Courier">lsqvce.engine.systematic(D)</font> first: if the '
         'residuals show a pattern, fix the model, not the observations. And '
         'read section 5.3 before trusting any rejection at low redundancy.',
         'warn')]
@@ -293,7 +293,7 @@ procOpt.observationGroups = { groupC, groupD, groupE };""")]
     st += [P('Values your pipeline needs before any toolbox object exists stay '
              'in <font face="Courier">procOpt</font>, and the toolbox is fed '
              '<i>from</i> them:', 'body')]
-    st += [code("""R = lsqvce.adjustVCE(L, procOpt.days, ...
+    st += [code("""R = lsqvce.engine.adjustVCE(L, procOpt.days, ...
         'verbose', procOpt.loggingLevel) ...
       .groupComponentsBy('obsType') ...
       .run();""")]
@@ -428,7 +428,7 @@ end""")]
     # ---- 4.7 --------------------------------------------------------------
     st += [P('4.7&nbsp;&nbsp;Step 6 -- run it, and read the result', 'h2')]
     st += [code("""L = myCase(procOpt);                    % the template returns loaders
-R = lsqvce.adjustVCE(L, procOpt.days, 'verbose', procOpt.loggingLevel) ...
+R = lsqvce.engine.adjustVCE(L, procOpt.days, 'verbose', procOpt.loggingLevel) ...
       .groupComponentsBy('obsType') ...
       .run();
 
