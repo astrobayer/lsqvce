@@ -9,6 +9,13 @@ classdef adjustVCE < handle
 %   adjustBlock's job; discovering the covariance that solve should use is this
 %   class's job. Build it fluently, then call RUN.
 %
+%   ENGINE TIER SINCE R4 (WP-58, 2026-08-31). The fluent chain below is the
+%   ENGINE's API and stays; the USER front door is LSQVCE.FIT with
+%   Options(Model="vce") (this class's 'separate' mode) or Options(Model=
+%   "pooled") ('joint' mode). fit applies exactly the configurators shown
+%   here from Options.engineArgs("adjustVCE"); parity is pinned in
+%   tests/test_fit.m (testFitVceReproducesTheFluentChain).
+%
 %       R = lsqvce.adjustVCE({Lc, Ld}, 1:30) ...
 %              .groupComponentsBy('satObs') ...
 %              .stochasticModel('MaxOrder',60, 'AcvTol',1e-3) ...
@@ -186,6 +193,9 @@ classdef adjustVCE < handle
 %
 %   See also LSQVCE.ADJUSTBLOCK, LSQVCE.VCE, LSQVCE.REDUNDANCY,
 %
+%   Updated 2026-08-31 (CEST, UTC+02:00), R4 WP-58 (Level L2): ENGINE-tier note
+%   -- users reach this engine through LSQVCE.FIT; parity pinned in test_fit.
+%   With assistance from Claude (Anthropic), model Claude Fable 5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (c) c2 (F-07):
 %   typed `arguments` signatures, canonical UpperCamelCase option names
 %   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES

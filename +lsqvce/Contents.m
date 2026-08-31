@@ -6,6 +6,19 @@
 %   Accumulator       flat parameters      (general adjustments)
 %   BlockAccumulator  common + local       (block-arrow, e.g. gravity recovery)
 %
+% Start here -- the USER tier (R4, 2026-08-31; tiers: docs_src/tiers.csv)
+%   fit            - THE one user verb: fit(data, opts). A plain data struct
+%                    (DATA_CONTRACT.md) + an Options object -> a Results.
+%                    Builds the loaders itself; dispatches on opts.Model
+%                    (gls | vce | pooled; ellmer + the in-memory form: WP-56b).
+%   Options        - THE one settings object: every knob named, typed, and
+%                    defaulted to the engines' own defaults.
+%   Results        - What comes back: x / sigma0 / diag / acc, report(),
+%                    coefficients(), summary(), convergence(), disp().
+%   report         - The level-0..4 verdict (R.report forwards here).
+%   Everything below is the ENGINE and KERNEL tier: reachable, documented,
+%   and what fit runs -- but not where a user starts.
+%
 % Getting started
 %   lsqvce_setup   - Add to path and register the Help browser docs
 %   doc lsqvce     - The toolbox landing page
@@ -25,20 +38,18 @@
 %   QRSystem, NormalEqSystem, ReducedContribution - accumulator backends
 %
 % Access layer (one-call front door over the streaming pipeline)
-%   Options        - THE one settings object for fit (R4 WP-55): every knob
-%                    named, typed, defaulted to the engines' own defaults;
-%                    engineArgs(target) maps it onto one existing driver.
 %   adjustBlock    - One line: accumulate -> solve -> diagnoseAccum -> diagnose,
 %                    returning a Results object (the base of adjustVCE). The
 %                    streaming block-arrow solve; pairs with ADJUST (flat) and
 %                    ADJUSTVCE (iterative). (Was recover; that name was REMOVED
 %                    2026-07-18.)
-%   Results        - Handle object carrying x / sigma0 / diag / acc plus
-%                    report() / redundancy() / residuals() / disp()
 %   makeLoader     - Turn a day-builder buildDay(day,obsType) into an
 %                    accumulator-ready Loader (meta / per-arc / one-day cache)
 %   adjustVCE      - Iterative separable-GLS engine: stochastic model (temporal
 %                    whitening) + variance components (VCE), fluent builder over adjustBlock.
+%                    ENGINE tier since R4 (WP-58): the fluent chain stays the
+%                    engine's API; users reach it through FIT with
+%                    Options(Model="vce"|"pooled") -- parity pinned in test_fit.
 %                    Pairs by name with the in-memory shortcut ADJUST.
 %                    P.empiricalStochastic() runs empirical stochastic
 %                    modelling end to end (homogenise -> loop -> validate);

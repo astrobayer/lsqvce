@@ -35,6 +35,49 @@ function testAdjustBlockResultHasNoIterationHistory(tc)
     tc.verifyError(@() R.summary(),     'lsqvce:Results:noHistory');
 end
 
+%% ===================================================== R4 G-07 (Level L2)
+function testSystemWithoutLocalUnknownsIsValid(tc)
+% categories: contract, precision, robustness | tags: diagnostics
+    % R4 G-07 (user decision 2026-08-31): nl = 0 is a valid system. The
+    % streaming path used to refuse it at addSystem ('positive'); now the
+    % local block is empty, pre-elimination is the identity and every local
+    % consumer returns the consistent empty shape. Reference: the SAME day
+    % data (same A, l, noise) run with ONE dummy local column carrying zero
+    % signal -- the two GLS estimates differ by that column's projection
+    % only, i.e. within the formal error.
+    cfg1 = buildCfg();  cfg1.nl = 1;  cfg1.y1 = 0;              % dummy carries nothing
+    buildOne  = @(d, ot) buildDayImpl(cfg1, d, ot);
+    buildZero = @(d, ot) setfield(buildDayImpl(cfg1, d, ot), 'B', ...
+                    zeros(cfg1.arcsPerDay*cfg1.mArc, 0));        %#ok<SFLD>  same A, l
+    L0 = lsqvce.makeLoader(buildZero, ...
+            'observationTypes',{'pos','kbr'}, 'covariance',cfg1.cov, 'arcs',cfg1.arcsPerDay, ...
+            'systemId',1, 'numLocal',0, 'numCommon',cfg1.nc, 'days',1:3);
+    R0 = lsqvce.adjustBlock({L0}, []);
+    tc.verifyClass(R0, 'lsqvce.Results');
+    tc.verifyEqual(numel(R0.x), cfg1.nc);
+    tc.verifyLessThan(max(abs(R0.x - cfg1.x_c)), 0.15);       % recovers the truth
+    tc.verifyLessThan(abs(R0.sigma0 - 1), 0.15);
+    y = R0.acc.backSubstitute(1, R0.x);
+    tc.verifyEqual(size(y), [0 1], 'no locals -> a 0x1 back-substitution');
+    Cyy = R0.acc.localCovariance(1, R0.sol.Cxx);
+    tc.verifyEqual(size(Cyy), [0 0], 'no locals -> a 0x0 local covariance');
+    st = R0.acc.systemStore(1);
+    tc.verifyEqual(st.nl, 0);
+    V = evalc('R0.report();');                                 % the verdict still prints
+    tc.verifyTrue(~isempty(V));
+
+    L1 = lsqvce.makeLoader(buildOne, ...
+            'observationTypes',{'pos','kbr'}, 'covariance',cfg1.cov, 'arcs',cfg1.arcsPerDay, ...
+            'systemId',1, 'numLocal',1, 'numCommon',cfg1.nc, 'days',1:3);
+    R1 = lsqvce.adjustBlock({L1}, []);
+    % tol: 3 sigma -- same data; the estimates differ by the dummy column's
+    % projection, whose size is the formal error of x (Cxx), not a rounding
+    % bound; elementwise |dx| <= 3*sqrt(diag(Cxx)).
+    se = sqrt(diag(R0.sol.Cxx));
+    tc.verifyTrue(all(abs(R0.x - R1.x) <= 3*se), ...
+        'nl = 0 and one zero-signal dummy local must agree within 3 sigma');
+end
+
 %% ===================================================== R4 G-06 (Level L1)
 function testRawClosureHonoursPerSatelliteOverride(tc)
 % categories: contract, robustness | tags: diagnostics

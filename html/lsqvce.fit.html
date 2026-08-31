@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.fit</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.fit</div>
+<h1>lsqvce.fit</h1>
+<div class="purpose">Fit a least-squares adjustment (optionally with VCE) to declared data.</div>
+<h2>Description</h2>
+<pre class="example">R = lsqvce.fit(data)
+R = lsqvce.fit(data, opts)</pre>
+<h3>THE ONE VERB (R4, HANDOVER §11.4). You describe the problem with a plain</h3>
+<pre class="example">struct `data` (DATA_CONTRACT.md: what is common, which days, which
+observing systems and the ONE function buildDay each of them points to),
+choose what to do with an LSQVCE.OPTIONS object, and get an
+LSQVCE.RESULTS back:
+
+    opts = lsqvce.Options(Model=&quot;vce&quot;, GroupBy=&quot;satObs&quot;);
+    R    = lsqvce.fit(data, opts);
+    R.report
+
+fit does three things and nothing else: (1) validates `data` against the
+contract BEFORE any data is read (fail fast, one error identifier per
+rule -- ERRORS below), (2) builds one Loader per system through LSQVCE.MAKELOADER (the
+field names are makeLoader&#x27;s canonical option names in lowerCamelCase;
+the mapping table lives here and nowhere else), (3) dispatches on
+opts.Model to the engine that does the work:
+
+    Model      engine                    what
+    &quot;gls&quot;      LSQVCE.ADJUSTBLOCK        one GLS solve with the declared
+                                         covariance
+    &quot;vce&quot;      LSQVCE.ADJUSTVCE          alternate stochastic model &lt;-&gt;
+                                         variance components (separate)
+    &quot;pooled&quot;   LSQVCE.ADJUSTVCE.joint    pooled spectrum, no arc factors
+    &quot;ellmer&quot;   LSQVCE.ADJUSTVCEJOINT     NOT WIRED YET (WP-56b): fit
+                                         refuses with lsqvce:fit:notYet
+
+R.systems (the existing Results field -- no second name) carries the
+normalised system specs the engine ran: .sysID .nl .dataFcn (the loader
+closure fit built) .dayList .name; every lower layer stays reachable on
+R (R.acc, R.diag).</pre>
+<h3>Input</h3>
+<pre class="example">data  1x1  struct  the data declaration (binding rules: DATA_CONTRACT.md
+                   §2). Summary:
+         .common   1x1 struct  exactly ONE of
+                     .commonParams  Rx14 cell  (nc = R) | .numCommon 1x1
+         .days     1xD double   default day list (numeric integers);
+                                required unless every system has .days
+         .systems  1xM struct   one entry per observing system, fields:
+           REQUIRED
+             .buildDay          fh        your day builder (or .loader)
+             .observationTypes  1xT cellstr/string
+             .covariance        struct    .(obsType) = covariance spec
+             .systemId          1x1 numeric | 1 char, unique
+             ONE of .localsPerArc | .numLocal | .localParams  (nl; 0 valid)
+           OPTIONAL (default)
+             .arcs (1) .days ([]) .name (&#x27;&#x27;) .cache (true)
+             .epochCovariance ([]) .processingOptions (struct())
+             .plotPostSolve ([]) .plotPostModel ([])
+           ENGINE ESCAPE HATCH
+             .loader   fh   a raw 4-arg closure instead of .buildDay
+                            (all systems must then use .loader)
+opts  1x1  lsqvce.Options   what to do (default: every engine default,
+                   i.e. Model &quot;gls&quot;)</pre>
+<h3>Output</h3>
+<pre class="example">R     1x1  lsqvce.Results  solution, diagnostics, provenance; for Model
+                   &quot;vce&quot;/&quot;pooled&quot; also R.history / R.noise / R.converged</pre>
+<h3>Accuracy</h3>
+<pre class="example">No numerics of its own. The claim is EXACTNESS of the dispatch: for the
+same declaration, fit(data, opts) returns the results of the direct
+driver call it stands for -- adjustBlock with
+opts.engineArgs(&quot;adjustBlock&quot;), and adjustVCE with the configurators
+applied from opts.engineArgs(&quot;adjustVCE&quot;) -- to solver precision:
+x, sigma0 and Cxx agree within RelTol 1e-12 on the CI fixtures
+(tests/test_fit.m, reference). It is the SAME code path; the 1e-12
+rather than isequal only guards the multithreaded-BLAS reduction-order
+nondeterminism recorded in HANDOVER §10.8 (WP-47 r1e).</pre>
+<h3>Errors</h3>
+<pre class="example">Your declaration is wrong (raised BEFORE any data is read):
+  lsqvce:fit:unknownField    a field name the contract does not know
+                             (names the field; typos are errors on purpose)
+  lsqvce:fit:noSystems       data.systems missing, not a struct, or empty
+  lsqvce:fit:missingField    a required system field is absent
+  lsqvce:fit:localCount      not exactly one of localsPerArc|numLocal|
+                             localParams
+  lsqvce:fit:commonCount     data.common has not exactly one of
+                             commonParams|numCommon
+  lsqvce:fit:noDays          no day list anywhere
+  lsqvce:fit:duplicateSystem two systems share a systemId
+  lsqvce:fit:builderKind     buildDay/loader is not a function handle,
+                             both given, or systems mix the two kinds
+  lsqvce:fit:&lt;makeLoader id&gt; a makeLoader construction error, relabelled
+                             (e.g. noCov, badArcs, localPlan); the
+                             original is attached as the cause
+Your choice is not available here:
+  lsqvce:fit:notYet          Model &quot;ellmer&quot; or Robust ~= &quot;none&quot; (batch
+                             path) -- use the engine directly until
+                             WP-56b lands
+Your buildDay is wrong (raised WHILE READING, by the engine, ids
+unchanged): lsqvce:makeLoader:badDay / dayShape / badArc / badArcId /
+buildDay, lsqvce:accum:arcBadNc / arcBadNl</pre>
+<h3>Example</h3>
+<pre class="example">  data.common.numCommon = 6;   data.days = 1:3;
+  s.buildDay = @(d, ot) myBuildDay(d, ot);
+  s.observationTypes = {&#x27;pos&#x27;,&#x27;kbr&#x27;};
+  s.covariance.pos = struct(&#x27;type&#x27;,&#x27;arma&#x27;,&#x27;ar&#x27;,[1 -1.6 0.9 -0.25],&#x27;ma&#x27;,1,&#x27;sigma&#x27;,0.7);
+  s.covariance.kbr = struct(&#x27;type&#x27;,&#x27;diag&#x27;,&#x27;sigma&#x27;,0.2);
+  s.systemId = 1;   s.numLocal = 4;   s.arcs = 2;
+  data.systems = s;
+  R = lsqvce.fit(data, lsqvce.Options(Model=&quot;vce&quot;));
+  R.report
+
+See also LSQVCE.OPTIONS, LSQVCE.RESULTS, LSQVCE.MAKELOADER,
+         LSQVCE.ADJUSTBLOCK, LSQVCE.ADJUSTVCE, LSQVCE.ADJUSTVCEJOINT
+
+Created 2026-08-31 (CEST, UTC+02:00) with assistance from Claude
+(Anthropic), model Claude Fable 5 -- R4 Level L2, WP-56 (decision R4-D4).</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
+</body></html>

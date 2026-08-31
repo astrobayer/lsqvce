@@ -48,6 +48,9 @@ function testDriverDefaultsArePinned(tc)
     % solveNonlinear.m:121-128, adjustVCEjoint.m:173-184, diagnose.m:100-111.
     % A driver default that moves breaks this test ON PURPOSE: Options must
     % then be updated in the same edit (one authority per default).
+    % ONE pinned deviation: adjustBlock's own Verbose default is FALSE;
+    % Options.Verbose defaults to TRUE (the adjust/adjustVCE convention), so
+    % the adjustBlock pin below carries true -- documented in the class help.
     o = lsqvce.Options();
     % tol: exact -- literal pins
     tc.verifyEqual(nv2struct(o.engineArgs("adjustBlock").nv), struct( ...

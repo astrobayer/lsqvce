@@ -128,6 +128,13 @@ reveals only the fraction <code>r_i</code> of any error present
 <code>w</code> alone.</div>
 
 <h2>Function reference</h2>
+<h3>Start here &mdash; the USER tier</h3><table>
+<tr><td class="name"><a href="lsqvce.fit.html">lsqvce.fit</a></td><td>The one user verb: fit(data, opts) &mdash; a plain data struct (DATA_CONTRACT.md) + Options &rarr; Results. Builds the loaders itself; dispatches on Model (gls | vce | pooled).</td></tr>
+<tr><td class="name"><a href="lsqvce.Options.html">lsqvce.Options</a></td><td>The one settings object: every knob named, typed, defaulted to the engines' own defaults.</td></tr>
+<tr><td class="name"><a href="lsqvce.Results.html">lsqvce.Results</a></td><td>What comes back: x, sigma0, diagnostics, report(), coefficients(), summary(), convergence().</td></tr>
+<tr><td class="name"><a href="lsqvce.report.html">lsqvce.report</a></td><td>The level-0..4 verdict (R.report forwards here).</td></tr>
+</table>
+<p>Everything below is the ENGINE and KERNEL tier (docs_src/tiers.csv): reachable and documented &mdash; it is what <code>fit</code> runs &mdash; but not where a user starts.</p>
 <h3>Solving</h3><table>
 <tr><td class="name"><a href="lsqvce.Accumulator.html">lsqvce.Accumulator</a></td><td></td></tr>
 <tr><td class="name"><a href="lsqvce.adjust.html">lsqvce.adjust</a></td><td>Solve, diagnose and judge a batch least-squares problem.</td></tr>
@@ -138,8 +145,6 @@ reveals only the fraction <code>r_i</code> of any error present
 </table>
 <h3>Access layer &mdash; one-call front door</h3><table>
 <tr><td class="name"><a href="lsqvce.adjustBlock.html">lsqvce.adjustBlock</a></td><td>One-call block-arrow adjustment: accumulate, solve, judge.</td></tr>
-<tr><td class="name"><a href="lsqvce.Options.html">lsqvce.Options</a></td><td>The one settings object for fit: typed knobs with the engines' defaults; engineArgs(target) maps onto a driver.</td></tr>
-<tr><td class="name"><a href="lsqvce.Results.html">lsqvce.Results</a></td><td>The outcome of a recovery: solution, diagnostics, provenance.</td></tr>
 <tr><td class="name"><a href="lsqvce.makeLoader.html">lsqvce.makeLoader</a></td><td>Turn a day-builder into an accumulator-ready Loader.</td></tr>
 <tr><td class="name"><a href="lsqvce.adjustVCE.html">lsqvce.adjustVCE</a></td><td>Iterative separable-GLS engine: SHAPE (temporal whitening) + SCALE (VCE), over adjustBlock.</td></tr>
 <tr><td class="name"><a href="lsqvce.resolveNc.html">lsqvce.resolveNc</a></td><td>Derive the common-parameter count nc from the systems themselves (single source of truth).</td></tr>

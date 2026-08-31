@@ -8,7 +8,18 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-08-31 (later) — LEVEL L1 READY: PR #35, CI
+Last substantive update: 2026-08-31 (night) — LEVEL L2 READY: PR #36, CI
+green 578/578 on 6af480b (G-07 nl = 0 + WP-56 fit + WP-57 coefficients +
+WP-58 tiering); two CI catches fixed and pinned (§11.8); process rule 7
+(one working copy, one owner) adopted after the cut-off turn. WP-56b
+queued. DONE flips on the merge.
+Preceding entry: Last substantive update: 2026-08-31 (evening) — L1 MERGED (PR #35,
+25692d8; postflight DEBT with D-52 by user decision). LEVEL L2 opened on
+`claude/level-2` (PR #36): G-07 nl = 0 valid (decided + fixed), WP-56
+`lsqvce.fit` for the streaming path (gls / vce / pooled) with the data
+contract enforced fail-fast; WP-56b split out (in-memory form, Robust,
+ellmer). WP-57/58 follow in the same level.
+Preceding entry: Last substantive update: 2026-08-31 (later) — LEVEL L1 READY: PR #35, CI
 green FIRST pass 568/568 on 6c5d90f (G-06 + WP-54 + WP-55); DONE flips on
 the merge; L2 (`fit` + Results methods + fluent parity) opens next.
 Preceding entry: Last substantive update: 2026-08-31 — PR #34 MERGED (bedd4c7, §11.5
@@ -4138,7 +4149,7 @@ Higham) is the source text for the WP-59 theory PDF.
 | G-04 | RESULTS EASE OF USE: Results carries provenance and report(), but the fitlm-grade progressive-disclosure set (summary/disp, coefCI, predict, plot) is absent or scattered across report/diagnose/contribution — a casual user cannot go from fit to confidence intervals in one obvious call. | L2: thin add-only methods on Results wrapping the existing machinery — no second implementation of anything |
 | G-05 | DOCUMENTATION SHAPE: reference is FLAT (no USER/ENGINE/KERNEL tiering, getting-started path buried); the manual predates R2–R4 and there is NO consolidated theory+practice+implementation document tying the pinned method choices (NaN honesty, NEQ default, MC trace, floor policies) to the literature. | L3: theory PDF (WP-59), tiered HTML + getting started (WP-60), help sweep of the new surface (WP-61) |
 | G-06 | RAW-CLOSURE TEMPLATE DROPS THE VCE REWEIGHTING (found 2026-08-31 while answering "must the user call makeLoader?"): adjustVCE emits its reweighting ONLY as `opt.covOverride.bySys.(satKey).(obsType)` (adjustVCE.m covOverrideOpt), the documented raw-closure template synthLoader read ONLY the flat `opt.covOverride.(obsType)` (synthLoader.m:151), and no VCE suite drove a raw closure — a template-derived loader silently ignored every variance component. | FIXED L1 commit 7f93d53: applyCovOverride is package-private (ONE merge, both loader kinds), template + test pin bySys/flat/other-satellite behaviour |
-| G-07 | nl >= 1 IS ENFORCED per system (BlockAccumulator.addSystem validateattributes 'positive'; makeLoader NumLocal default [] must be set): a system without local unknowns cannot use the streaming path at all — a usability wall the data contract has to document (DATA_CONTRACT.md §6.4). | OPEN — decision for WP-56: allow nl = 0 (engine change in preeliminate / residuals) or keep the wall and route such systems to fit(A,l) |
+| G-07 | nl >= 1 IS ENFORCED per system (BlockAccumulator.addSystem validateattributes 'positive'; makeLoader NumLocal default [] must be set): a system without local unknowns cannot use the streaming path at all — a usability wall the data contract has to document (DATA_CONTRACT.md §6.4). | **DECIDED 2026-08-31 (user: "nl = 0 is valid") and FIXED L2 commit 8af8a6b**: addSystem accepts 0, preeliminate is the identity for an empty local block with consistent empty shapes; test pins recovery, shapes, report, and a same-data reference against a zero-signal dummy local |
 
 ### 11.4 The R4 target USER surface (pinned)
 
@@ -4185,16 +4196,22 @@ merger, no zip when a PR is the deliverable).
    permitting); the level's verdict comment lists per-WP verdicts.
 6. **Breaking changes** (deletions under the no-aliases rule) ride ONLY in
    a level whose PR body names them in a BREAKING section; approval by merge.
+7. **One working copy, one owner.** Before the first edit of any turn,
+   read `git branch --show-current` and `git status`: an unexpected branch
+   or uncommitted files mean another turn/session left work behind —
+   verify it line by line against the ledger before adopting, never
+   overwrite, never start a parallel edit (adopted 2026-08-31 after the L2
+   cut-off turn).
 
 ### 11.6 R4 ledger — levels and work packages
 
 | Level | WP | title | depends on | status |
 |---|---|---|---|---|
-| L1 | 54 | Surface census + tier table (mechanical: audit-derived name list; USER/ENGINE/KERNEL column; check extension so no new public name lands untier'd) + the data contract (R4-D4) | — | READY (2026-08-31, PR #35, CI green FIRST pass 568/568 on 6c5d90f; DONE flips on the L1 merge; branch `claude/level-1`: `docs_src/tiers.csv` 80 names USER 2 / ENGINE 57 / KERNEL 21, audit check 18 red-tested, DATA_CONTRACT.md; Contents.m regrouping by tier deferred to WP-60; round note §11.8) |
-| L1 | 55 | `lsqvce.Options` — ONE typed options object covering the adjust/VCE/joint/robust/nonlinear option space; encodes the G-03 conventions once; maps onto the existing opt structs; NO behaviour change | 54 | READY (2026-08-31, PR #35, CI green FIRST pass 568/568 on 6c5d90f — the blind-written `.?lsqvce.Options` constructor and the struct-order reference test passed unchanged; DONE flips on the L1 merge: value class, 58 typed properties in ten groups, `.?lsqvce.Options` constructor, `engineArgs(target)` onto the seven drivers incl. the diagnose pass-through that retires KeepUnmatched for fit, grouped `disp`; tests/test_options.m 8 points: reference (defaults isequal to a fresh adjustVCE's groups + literal driver pins), contract, robustness; HTML page + Contents/helptoc/index; round note §11.8) |
-| L2 | 56 | `lsqvce.fit` — the one user verb; dispatch to the six drivers; <=3-line acceptance test | 55 | OPEN |
-| L2 | 57 | Results ease-of-use methods: summary/disp, coefCI, predict, plot — thin add-only wrappers over report/diagnose/contribution | 56 | OPEN |
-| L2 | 58 | Fluent configurators leave the USER contract (Contents/doc tiering + fit parity tests; deletion gated by R4-D2) | 56 | OPEN |
+| L1 | 54 | Surface census + tier table (mechanical: audit-derived name list; USER/ENGINE/KERNEL column; check extension so no new public name lands untier'd) + the data contract (R4-D4) | — | DONE (2026-08-31, PR #35 merged by the user, merge 25692d8; CI green FIRST pass 568/568 on 6c5d90f; POSTFLIGHT DEBT with D-52; branch `claude/level-1`: `docs_src/tiers.csv` 80 names USER 2 / ENGINE 57 / KERNEL 21, audit check 18 red-tested, DATA_CONTRACT.md; Contents.m regrouping by tier deferred to WP-60; round note §11.8) |
+| L1 | 55 | `lsqvce.Options` — ONE typed options object covering the adjust/VCE/joint/robust/nonlinear option space; encodes the G-03 conventions once; maps onto the existing opt structs; NO behaviour change | 54 | DONE (2026-08-31, PR #35 merged by the user, merge 25692d8; CI green FIRST pass 568/568 on 6c5d90f — the blind-written `.?lsqvce.Options` constructor and the struct-order reference test passed unchanged; ONE pinned deviation: Options.Verbose defaults true while adjustBlock's own default is false (documented in the class help, test pin annotated); POSTFLIGHT DEBT with D-52: value class, 58 typed properties in ten groups, `.?lsqvce.Options` constructor, `engineArgs(target)` onto the seven drivers incl. the diagnose pass-through that retires KeepUnmatched for fit, grouped `disp`; tests/test_options.m 8 points: reference (defaults isequal to a fresh adjustVCE's groups + literal driver pins), contract, robustness; HTML page + Contents/helptoc/index; round note §11.8) |
+| L2 | 56 | `lsqvce.fit` — the one user verb; dispatch to the six drivers; <=3-line acceptance test | 55 | READY (CI green 578/578 on 6af480b, DONE flips on the L2 merge; 2026-08-31, branch `claude/level-2`, PR #36: `fit(data, opts)` for the STREAMING path — data-struct validation with one `lsqvce:fit:` id per rule before any read, loaders built through makeLoader with the ONE lowerCamel->UpperCamel table, dispatch gls / vce / pooled; tests/test_fit.m 8 points (reference fit == direct driver to 1e-12; contract for every rule; robustness). SCOPE SPLIT recorded as **WP-56b** (next level): the in-memory `fit(A, l, ...)` form (adjust/robust/solveNonlinear -> Results needs a Results builder for the batch path), `Robust ~= "none"`, and Model "ellmer" (adjustVCEjoint takes an accFcn, i.e. the jointModelOpt translation must move inside fit) — fit refuses these with `lsqvce:fit:notYet`, never a silent fallback) |
+| L2 | 57 | Results ease-of-use methods: summary/disp, coefCI, predict, plot — thin add-only wrappers over report/diagnose/contribution | 56 | READY (CI green 578/578 on 6af480b, DONE flips on the L2 merge; 2026-08-31, PR #36, commit bf5fe6f: `coefficients(Alpha=)` — the fitlm Coefficients/coefCI pair as ONE table, z from erfcinv; test in test_fit (contract + precision). SCOPE NOTE: summary/disp/convergence already existed (WP-17/44); `predict` and `plot` NOT added — a streamed adjustment has no single design matrix to predict from and the plot hooks live on the loaders (WP-19); pinned as deliberate omission, revisit only on a user request) |
+| L2 | 58 | Fluent configurators leave the USER contract (Contents/doc tiering + fit parity tests; deletion gated by R4-D2) | 56 | READY (CI green 578/578 on 6af480b, DONE flips on the L2 merge; 2026-08-31, PR #36: Contents.m / helptoc.xml / html/index.html gain a "Start here — USER tier" block (fit, Options, Results, report) with everything else declared ENGINE/KERNEL; adjustVCE help carries the ENGINE-tier note; parity pinned by test_fit testFitVceReproducesTheFluentChain (r1 CI catch: the fixture's scalar 'pos' stream needed ComponentsPerEpoch pos->1, fixed in bf5fe6f). Deletion of the fluent chain stays GATED on R4-D2) |
 | L3 | 59 | Theory PDF: theory, practical considerations, implementation, ERROR HANDLING; literature-anchored; source in docs_src, built BY HAND (build_manuals.py stays _STALE_GUARDed) | 56 | OPEN |
 | L3 | 60 | HTML restructure: getting-started page, tiered reference (USER tier first), examples gallery | 56,59 | OPEN |
 | L3 | 61 | Help sweep of the NEW surface (fit/options/Results methods) with ACCURACY blocks per §6.2 | 56,57 | OPEN |
@@ -4204,10 +4221,9 @@ merger, no zip when a PR is the deliverable).
 | L5 | 65 | Packaging + release: mltbx via buildtool, release notes, final audit | 64 (or its waiver) | OPEN |
 
 LEVEL STATUS (aggregates the rows above; flips DONE on the user's merge):
-L1 READY — PR #35 (G-06 7f93d53, WP-54 6e83807, WP-55 6c5d90f; CI green
-568/568 on the level head, test_parallel CI-skipped as always, speed suite
-separate; postflight = the FIRST per-level local run, which also settles
-D-52). L2 opens on the L1 merge.
+L1 DONE — merged 2026-08-31 (PR #35, merge 25692d8); postflight remains
+DEBT with D-52 by user decision (bridge still down).
+L2 READY — PR #36 (G-07 8af8a6b, WP-56 0d1fc19, WP-57 bf5fe6f, WP-58 b47d76c, r2 fix 6af480b); CI green 578/578 on the level head after two real catches (noCep fixture, gate rule 7 warnings); test_parallel CI-skipped, speed suite separate; postflight = one local run on the merged main. WP-56b (in-memory form, Robust, ellmer) opens with L3/L4 or as its own level — user's call. L3/L4 open on the L2 merge.
 
 Test obligations per level (taxonomy §6.1.2, declarations mandatory):
 L1 contract (options resolution, rejection ids) + robustness (conflicting
@@ -4255,6 +4271,21 @@ planted stale row + a planted `RESULTS.m` case collision: exit 1, restored,
 exit 0); the Contents.m regrouping by tier is DEFERRED to WP-60 so L1
 stays a documentation-plus-options level. Also noted for WP-60: a stale
 `html/lsqvce.SeparableProblem.html` page survives the 2026-07-18 removal.
+**LEVEL L2 ROUND 1 (opened 2026-08-31, model Claude Fable 5, branch
+`claude/level-2`, PR #36 draft).** User decisions at open: #35 merged;
+postflight stays DEBT (bridge down); "nl = 0 is valid" (G-07). Order in
+the level: G-07 (8af8a6b) -> WP-56 -> WP-57 -> WP-58. WP-56 design facts
+pinned while writing fit: (a) Results.systems already carries the
+normalised specs incl. the loader closure, so NO new Results property
+(rule 10 reworded); (b) adjustVCEjoint takes an accFcn, not loaders — the
+"ellmer" route needs the jointModelOpt translation inside fit -> WP-56b;
+(c) fit relabels only CONSTRUCTION-time makeLoader errors under
+`lsqvce:fit:` (cause attached); read-time buildDay errors keep their engine
+ids (DATA_CONTRACT §3.5 corrected the same day — the L1 wording had
+promised fit-prefixed ids for those too); (d) the reference claim is
+"same code path, RelTol 1e-12", not isequal, because of the §10.8 BLAS
+reduction-order caveat.
+
 **L1 CLOSE-OUT (2026-08-31):** WP-55 pushed as 6c5d90f; CI green FIRST
 pass 568/568 (audit + matlab, both contexts). The two intermediate matlab
 jobs (7f93d53, 6e83807) show "cancelled" — the workflow's concurrency rule
@@ -4266,6 +4297,27 @@ under concurrency cancellation — so the per-WP CI bisection promised in
 §11.5 rule 2 holds for the audit job only; for matlab it holds only when
 the next push waits for the previous run (not required; recorded so nobody
 reads "cancelled" as red).
+
+**L2 r1 CI CATCH (2026-08-31):** first push 0d1fc19 RED 576/577 —
+`test_fit/testFitVceReproducesTheFluentChain` errored with
+`lsqvce:covModel:noCep`: the fixture's 'pos' stream is a SCALAR ARMA
+stream, but adjustVCE's default axes map declares 'pos' -> 3 components
+per epoch, which selects the separable model and demands a per-epoch
+scaling. Fix bf5fe6f: both runs declare ComponentsPerEpoch pos -> 1 (which
+also exercises that Options mapping). LESSON: a stream NAMED like a 3-D
+observable gets 3-D treatment by default — a fixture that means a scalar
+must say so, and DATA_CONTRACT §7 now needs one sentence on it (WP-60).
+**L2 r2 CI CATCH (2026-08-31):** b47d76c RED with 578/578 points passing
+— gate rule 7 (WP-47): the parity test's deliberate MaxOuter = 2 left
+`lsqvce:adjustVCE:notConverged` and `lsqvce:vce:notConverged` in the
+warning inventory. Fix: muteWarn for both ids inside that test (the
+test_adjustVCE pattern, cleanup-restored). LESSON: a reference test that
+stops a loop early on purpose owns the warnings it provokes.
+SESSION NOTE: the turn that opened L2 was cut off mid-WP-57 (output limit)
+with the WP-57/58 edits uncommitted in the working copy; the continuation
+session found the working copy on `claude/level-2`, verified every diff
+line by line against the ledger before adopting it (the standing parallel-
+session rule), and committed. PROCESS RULE added to §11.5 (rule 7).
 
 ### 11.9 DATA CONTRACT AND LOADER WORKFLOW — design record for WP-56 (R4-D4)
 
@@ -4296,8 +4348,9 @@ RULES (numbered as in the user-facing document's spirit; verbatim there):
 8. ENGINE escape hatch: `.loader` (raw 4-arg closure) xor `.buildDay`.
 9. Optional extension (WP-55/56 decision): `.buildDay` may be a 1xD struct
    array of prebuilt days (no builder function for small problems).
-10. `R.loaders` carries the built Loader objects; `makeLoader` is not deleted,
-    only demoted to ENGINE.
+10. `R.systems` (the existing Results field) records what ran per system —
+    id, nl, the loader closure fit built, day list, name; no new property,
+    no second name. `makeLoader` is not deleted, only demoted to ENGINE.
 
 WORKFLOW FACTS the engine side must preserve (verified in the tree, 2026-08-31):
 - The accumulator visits system -> day -> obsType -> arc; ONE `'meta'` probe
