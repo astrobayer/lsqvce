@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.Options</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.Options</div>
+<h1>lsqvce.Options</h1>
+<div class="purpose">The one settings object for LSQVCE.FIT (typed, with engine defaults).</div>
+<h2>Description</h2>
+<pre class="example">opts = lsqvce.Options()                       every default
+opts = lsqvce.Options(Name, Value, ...)       override some
+opts.Name = Value                             change one later (validated)</pre>
+<h3>WHY ONE OBJECT (R4 findings G-02/G-03). The estimation options used to</h3>
+<pre class="example">live in four conventions: per-driver Name-Value names, the fluent
+configurator chain of LSQVCE.ADJUSTVCE, the loader UserOpt, and the joint
+translation. Options is the single place every knob is NAMED, TYPED, has
+its DEFAULT stated, and is checked -- at construction through an
+arguments block (unknown names and bad values are rejected by the
+signature), and on later assignment through property validation. The
+defaults are EXACTLY the engines&#x27; own defaults (pinned by the reference
+test in tests/test_options.m), so a run through fit with a default
+Options is the same run as a direct driver call: no behaviour change.
+
+The MATLAB model is optimoptions/statset: one object, canonical
+UpperCamelCase names, string enums with case-sensitive lowercase VALUES.
+It is a CLASS named Options (not a function options) because the user&#x27;s
+Windows working copy cannot hold options.m and Options.m side by side
+(case-insensitive file system; audit check 18b guards this tree-wide).
+
+PROPERTIES  (group -- name  type  default  meaning)
+
+What to do
+  Model      string   &quot;gls&quot;   &quot;gls&quot; one GLS solve (adjustBlock) |
+                              &quot;vce&quot; alternate stochastic model &lt;-&gt; variance
+                              components (adjustVCE &#x27;separate&#x27;) |
+                              &quot;pooled&quot; pooled spectrum, no per-arc factors
+                              (adjustVCE &#x27;joint&#x27;) | &quot;ellmer&quot; the ten-step
+                              joint co-estimation with keyed arc factors
+                              (adjustVCEjoint)
+  Robust     string   &quot;none&quot;  &quot;none&quot; | &quot;irls&quot; M-estimation (batch path,
+                              LSQVCE.ROBUST)
+
+Solver
+  Backend    string   &quot;qr&quot;    &quot;qr&quot; | &quot;normal&quot; (the engines&#x27; default is
+                              &quot;qr&quot;; changing the DEFAULT is a decision,
+                              not an option -- HANDOVER §11.2 item 2)
+  Reg        string   &quot;none&quot;  &quot;none&quot;|&quot;tikhonov&quot;|&quot;tsvd&quot;|&quot;lm&quot;|&quot;auto&quot;
+  RegLambda  double   0       regularisation weight, &gt;= 0
+  RegMatrix  double   []      p x nc regularisation matrix
+  Sparse     logical  false   batch path: sparse normal matrix
+  DatumB     double   []      batch paths: datum constraint matrix
+  Sigma0     double   1       batch paths: a-priori sigma0 (&gt; 0)
+
+Run control
+  Parallel   string   &quot;serial&quot;  &quot;serial&quot; | &quot;parfor&quot; | &quot;spmd&quot;
+  Verbose    logical|double  true   logical, or a level 0..3
+  LogFid     double   []      log file id (see LSQVCE.UTIL.LOG); [] = leave
+  LogFlag    logical  []      log to screen; [] = leave
+  ShowSeconds double  0       plot hooks: seconds to show each figure
+  ExportDir  string   &quot;&quot;      plot hooks: PNG folder (&quot;&quot; = none)
+
+Variance components (between groups, Helmert)
+  GroupBy    char|string|fh &#x27;satObs&#x27;  &#x27;satObs&#x27;|&#x27;obsType&#x27;|&#x27;system&#x27;|&#x27;arc&#x27;
+                              or @(sysID,obsType,arc,day) -&gt; key
+  VceMaxIter double   10      inner VCE iterations
+  VceTol     double   5e-3    convergence on max|sigma-1|
+  MinRedundancy double 50     below this a group cannot be estimated
+  ComponentsPerEpoch struct struct(&#x27;pos&#x27;,3)  obsType -&gt; components/epoch
+
+Stochastic model (temporal shape, within a group)
+  MaxOrder   double   60      highest AR order considered
+  AcvTol     double   1e-3    autocovariance fit tolerance
+  MaxLag     double   []      lags for the ACV estimate ([] = auto)
+  WhiteAlpha double   0.01    Ljung-Box significance (whiteness gate)
+
+Outer loop
+  MaxOuter   double   6       outer passes
+  OuterTol   double   5e-3    convergence on max|sigma-1| and AR drift
+
+Pooled / Ellmer joint spectrum
+  NumLags    double|&quot;auto&quot; 60 frequencies in the noise model
+  Probes     double   100     Hutchinson probes
+  Seed       double   []      RNG seed for the probes ([] = unseeded)
+  Norm       string   &quot;ortho&quot; DCT normalisation &quot;ortho&quot; | &quot;ellmer&quot;
+  MeanType   string   &quot;robust&quot; arc-factor mean &quot;robust&quot; | &quot;plain&quot;
+  PsdMode    string   &quot;toeplitz&quot; &quot;toeplitz&quot; | &quot;ar&quot; | &quot;arma&quot;   (pooled)
+  Smooth     double   0       PSD moving-average half-width (pooled)
+  C0         double   []      starting covariance function (pooled)
+  JointMaxIter double 10      inner joint iterations (ellmer)
+  JointTol   double   1e-2    joint convergence (ellmer)
+  StepSchedule string &quot;none&quot;  &quot;none&quot; | &quot;decay&quot; (ellmer)
+  AvgTail    double   0       passes averaged at the end (ellmer)
+
+Robust IRLS (batch path)
+  Influence  string   &quot;huber&quot; &quot;huber&quot; | &quot;igg3&quot; | &quot;bisquare&quot;
+  Tuning     double   []      tuning constant ([] = the influence default)
+  RobustMaxIter double 30     IRLS iterations
+  RobustTol  double   1e-8    IRLS convergence
+
+Nonlinear (batch path, LSQVCE.SOLVENONLINEAR)
+  NonlinearMaxIter double 30  Gauss-Newton iterations
+  TolX       double   1e-3    step tolerance
+  TolF       double   1e-10   cost tolerance
+  Lambda0    double   1e-6    initial damping
+
+Diagnostics (forwarded to LSQVCE.DIAGNOSE; replaces KeepUnmatched)
+  Alpha      double   1e-3    test significance
+  Bonferroni logical  true    family-wise correction
+  Beta       double   0.20    power for the MDB
+  RMin       double   1e-6    redundancy floor
+  RWeak      double   0.10    weak-redundancy threshold
+  Test       string   &quot;auto&quot;  &quot;auto&quot; | &quot;pope&quot; | &quot;baarda&quot; | &quot;mad&quot;
+  RobustCheck logical true    run the robust cross-check
+  Store      string   &quot;all&quot;   &quot;all&quot; | &quot;flagged&quot; | &quot;none&quot;
+  NWorst     double   1000    worst observations kept
+  Verify     logical  true    second-pass integrity verification
+  Progress   logical  false   diagnostics progress lines
+
+METHODS
+  args = opts.engineArgs(target)   the mapping onto ONE existing driver:
+      target  string  &quot;adjustBlock&quot; | &quot;adjustVCE&quot; | &quot;adjustVCEjoint&quot; |
+                      &quot;adjust&quot; | &quot;robust&quot; | &quot;solveNonlinear&quot; | &quot;diagnose&quot;
+      args    1x1 struct  .nv  1x2k cell  Name-Value pairs for that call
+              for &quot;adjustVCE&quot; additionally the configurator groups, in the
+              engine&#x27;s own field order and value classes:
+              .shape .scale .outer .joint (structs), .axes (struct
+              obsType -&gt; count), .mode (char &#x27;separate&#x27; | &#x27;joint&#x27;)
+  opts.validate()                  cross-property checks (called by the
+                                   constructor and by engineArgs)</pre>
+<h3>Accuracy</h3>
+<pre class="example">No numerics of its own. The claim is EXACTNESS of the mapping: for a
+default Options, engineArgs(&quot;adjustVCE&quot;) returns structs isequal to a
+fresh adjustVCE&#x27;s shapeOpt/scaleOpt/outerOpt/jointOpt/blockOpt/plotOpt
+(tests/test_options.m, reference), and every other target&#x27;s .nv
+carries the literal defaults read from the driver signatures on
+2026-08-31 (pinned in the same suite; a driver default change breaks
+that test on purpose).</pre>
+<h3>Example</h3>
+<pre class="example">opts = lsqvce.Options(Model=&quot;vce&quot;, GroupBy=&quot;satObs&quot;, Parallel=&quot;parfor&quot;);
+opts.MaxOuter = 4;
+a = opts.engineArgs(&quot;adjustVCE&quot;);
+P = lsqvce.adjustVCE(L, days, a.nv{:}) ...
+     .stochasticModel(a.shape) ...          % (fit does this, WP-56)</pre>
+<h3>Errors</h3>
+<pre class="example">  Your value is wrong (signature / property validation, MATLAB ids):
+    MATLAB:validators:mustBeMember     enum VALUE not in the list (values
+                                       are case-sensitive lowercase)
+    MATLAB:validators:mustBePositive   and the other typed constraints
+    MATLAB:InputParser:...             / MATLAB:TooManyInputs  unknown
+                                       option name
+  Your combination is wrong (body, lsqvce ids):
+    lsqvce:Options:badGroupBy   GroupBy is not a char/string or handle
+    lsqvce:Options:badNumLags   NumLags is neither &quot;auto&quot; nor an integer &gt;= 2
+    lsqvce:Options:badVerbose   Verbose is neither logical nor a level 0..3
+    lsqvce:Options:badTarget    engineArgs target unknown
+
+See also LSQVCE.ADJUSTBLOCK, LSQVCE.ADJUSTVCE, LSQVCE.ADJUSTVCEJOINT,
+         LSQVCE.ADJUST, LSQVCE.ROBUST, LSQVCE.SOLVENONLINEAR,
+         LSQVCE.DIAGNOSE, LSQVCE.RESULTS
+
+Created 2026-08-31 (CEST, UTC+02:00) with assistance from Claude
+(Anthropic), model Claude Fable 5 -- R4 Level L1, WP-55.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
+</body></html>
