@@ -29,8 +29,8 @@ function out = demo_fit(opt)
 %
 %   ACCURACY
 %     The in-memory problems are seeded (mt19937ar 17 / 5) and closed-form:
-%     30 observations at unit-weight noise recover x to a few 1e-1 in the
-%     formal error; the gross error of 25 sigma is caught by IRLS (its
+%     30 observations with noise ~ 1/sqrt(p), p in [0.5, 1.5], recover x
+%     within 3 formal sigma (formal errors ~0.3-0.4); the gross error of 25 sigma is caught by IRLS (its
 %     weight factor drops below 0.5) and the robust estimate returns to the
 %     clean one within its formal error; the nonlinear form recovers [a; b]
 %     to 5e-3 (tests/test_fit.m pins both). The gravity oracle's recovery

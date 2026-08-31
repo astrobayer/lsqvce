@@ -4534,6 +4534,14 @@ started content -- those two remain the authorities; (4) R.loaders never
 existed (fit records the specs on R.systems) -- DATA_CONTRACT §1 and the
 theory text said 'R.loaders' since L1/L3; corrected.
 
+**L7 r1 CI CATCH (2026-09-02):** a35d13c RED 587/588 -- testDemoFitRuns'
+literal AbsTol 0.3 on the in-memory recovery was a guess about the
+fixture's noise (formal errors are ~0.3-0.4 at p in [0.5, 1.5]). Fix: the
+assertion is a z-score bound (|x - truth| / formal sigma < 3), which tests
+the ESTIMATOR, not the fixture. LESSON: recovery assertions are z-scores
+against the formal error, never literal tolerances -- the physOracle suite
+had this right; the new test now follows it.
+
 ### 11.9 DATA CONTRACT AND LOADER WORKFLOW — design record for WP-56 (R4-D4)
 
 **The binding specification is `DATA_CONTRACT.md` at the tree root** (one

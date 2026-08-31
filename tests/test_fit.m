@@ -327,8 +327,11 @@ function testDemoFitRuns(tc)
         tc.verifyClass(R, 'lsqvce.Results', f{1});
         tc.verifyTrue(isfinite(R.sigma0) && R.sigma0 > 0, [f{1} ': sigma0 finite and positive']);
     end
-    % tol: 0.3 -- 30 unit-weight observations; the formal errors are ~0.2
-    tc.verifyEqual(out.matrix.x, out.truth.x, 'AbsTol', 0.3);
+    % tol: 3 formal sigma per unknown -- 30 observations with noise ~ 1/sqrt(p),
+    % p in [0.5, 1.5], give formal errors of ~0.3-0.4; a literal bound would
+    % pin the fixture's noise, not the estimator (the L7 r1 CI catch)
+    z = (out.matrix.x - out.truth.x) ./ sqrt(diag(out.matrix.sol.Cxx));
+    tc.verifyLessThan(max(abs(z)), 3, 'the in-memory truth is recovered within 3 formal sigma');
     tc.verifyEqual(out.batch.x, out.matrix.x, 'RelTol', 1e-12, 'two batches == one batch (same rows)');
     tc.verifyLessThan(out.robust.source.factor(7), 0.5, 'the planted gross error is downweighted');
     % tol: 5e-3 -- 40 points at 1e-3 noise (the WP-56b pin)
