@@ -3,11 +3,21 @@ function demo_combine()
 %
 %   Three satellite systems observe a common gravity field. Each has its own
 %   LOCAL parameters (arc states, accelerometer biases, ambiguities) that no
-%   other system can see. Those locals are eliminated system by system, so the
-%   running memory never exceeds O(uC^2 + max(uL)^2).
+%   other system can see. You DECLARE that structure -- one entry of
+%   data.systems per system, its localParams stating the locals -- and
+%   lsqvce.fit eliminates the locals system by system, so the running memory
+%   never exceeds O(uC^2 + max(uL)^2).
+%
+%   INPUT   none
+%   OUTPUT  none (prints the walk-through; ~seconds)
 %
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
+%   Updated 2026-08-31 (CEST, UTC+02:00), v3 data contract (Level L10,
+%   WP-74): USER surface only -- lsqvce.engine.Combine replaced by the
+%   declarative multi-system data struct and one lsqvce.fit; verdict and
+%   diagnostics from the Results. With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 
 clc;
 rs = RandStream('mt19937ar', 'Seed', 2026);
@@ -22,15 +32,16 @@ rs = RandStream('mt19937ar', 'Seed', 2026);
 % nuisance parameter.
 %
 %   * Several SENSORS within one satellite system may all observe the same
-%     local parameters. That is fine -- they land in the same block.
+%     local parameters. That is fine -- they land in the same block
+%     (examples/demo_sensors.m shows the full hierarchy).
 %   * A parameter seen by two different SYSTEMS is COMMON, however local it
 %     feels. Eliminating it as though it were local is not an approximation:
 %     it is wrong, and the residuals will look fine.
 
 uC  = 6;                       % common: gravity field coefficients
 uL  = [12, 8, 15];             % locals: per-system arc states / biases
-nb  = [40, 30, 50];            % batches per system
-nk  = 25;                      % observations per batch
+nDay = [40, 30, 50];           % "days" (batches) per system
+nk  = 25;                      % observations per day
 
 nSys = numel(uL);
 fprintf('%d systems, %d common parameters, locals = %s\n', ...
@@ -39,123 +50,69 @@ fprintf('total parameters = %d, of which %d are eliminated\n\n', ...
         uC + sum(uL), sum(uL));
 
 %% ------------------------------------------------------------------------
-% Build the data. In real work each batchFcn reads from disk / integrates an
-% orbit; here we generate it.
+% Build the data. In real work each buildDay reads from disk / integrates an
+% orbit; here we generate it once and let buildDay READ it (deterministic).
 % -------------------------------------------------------------------------
 xC_true = randn(rs, uC, 1);
-data = cell(nSys, 1);
+gen = cell(nSys, 1);
 for i = 1:nSys
-    ni = nb(i) * nk;
-    data{i}.xL_true = randn(rs, uL(i), 1);
-    data{i}.AC = randn(rs, ni, uC);
-    data{i}.AL = randn(rs, ni, uL(i));
-    data{i}.sg = 0.5 + rand(rs, ni, 1);
-    data{i}.p  = 1 ./ data{i}.sg.^2;
-    data{i}.l  = data{i}.AC * xC_true ...
-               + data{i}.AL * data{i}.xL_true ...
-               + data{i}.sg .* randn(rs, ni, 1);
-    data{i}.n  = ni;
+    ni = nDay(i) * nk;
+    gen{i}.xL_true = randn(rs, uL(i), 1);
+    gen{i}.AC = randn(rs, ni, uC);
+    gen{i}.AL = randn(rs, ni, uL(i));
+    gen{i}.l  = gen{i}.AC * xC_true ...
+              + gen{i}.AL * gen{i}.xL_true ...
+              + randn(rs, ni, 1);            % unit noise: the lesson here is
+                                             % STRUCTURE, not weighting
 end
-
-% one batch source per system (a NESTED function: it sees `data` and `nk`)
-    function [AC, AL, l, p] = srcOf(i, k)
-        d = data{i};
-        idx = (k-1)*nk + (1:nk);
-        AC = d.AC(idx, :);
-        AL = d.AL(idx, :);
-        l  = d.l(idx);
-        p  = d.p(idx);
-    end
 
 %% ------------------------------------------------------------------------
-% COMBINE
+% DECLARE -- one entry of data.systems per satellite; localParams IS the
+% statement "these unknowns are mine alone" (nl = rows).
 % -------------------------------------------------------------------------
-cmb = lsqvce.engine.Combine(uC, 'method', 'qr');
-
+data = struct();
+data.commonParams = num2cell((1:uC).');
 for i = 1:nSys
-    cmb.addSystem(uL(i), @(k) srcOf(i, k), nb(i), ...
-                  'name', sprintf('satellite %d', i));
+    s = struct();
+    s.buildDay    = makeBuildDay(gen{i}, nk);
+    s.covariance.obs = struct('type', 'diag', 'sigma', 1);
+    s.localParams = num2cell((1:uL(i)).');
+    s.days        = 1:nDay(i);              % per-system schedule
+    s.name        = sprintf('satellite %d', i);
+    data.systems(i) = s;                    % id defaults to the index
 end
-
-sol = cmb.solve();
-D   = cmb.diagnose(sol);
+R = lsqvce.fit(data, lsqvce.Options(Verbose=false));
 
 %% ------------------------------------------------------------------------
 % THE INTEGRITY CHECK -- do this FIRST.
 % -------------------------------------------------------------------------
-% sum(r_i) = n - u_TOTAL, counting the ELIMINATED parameters.
-%
 % The locals were removed from the SOLVE, not from the MODEL: they still cost
-% degrees of freedom. Two classic errors both violate this identity, and both
-% lie in the OPTIMISTIC direction:
-%
-%   * using n - uC instead of n - u_total   -> s0^2 deflated by ~7%
-%   * dropping the cross term in a'Qxx a    -> sum(r) inflated by ~7%,
-%                                              every r_i too large, every MDB
-%                                              too optimistic
+% degrees of freedom, so the redundancy is n - u_total, counting the
+% ELIMINATED parameters. The classic errors (n - uC in the divisor; dropped
+% cross terms in the redundancy numbers) both lie in the OPTIMISTIC
+% direction; the report's degrees of freedom let you check.
+n = sum(nDay) * nk;
 fprintf('INTEGRITY\n');
-fprintf('  n = %d,  u_total = %d  (uC = %d + uL = %d)\n', ...
-        D.n, D.uTotal, D.uC, D.uL);
-fprintf('  redundancy r = n - u_total = %d\n', D.r);
-fprintf('  sum(r_i) = %.6f    rel err %.2e\n', D.sumR, D.sumRRelErr);
-if D.sumRRelErr < 1e-8
-    fprintf('  -> identity holds.\n\n');
-else
-    fprintf('  -> VIOLATED. Do not read on.\n\n');
-end
+fprintf('  n = %d,  u_total = %d  (uC = %d + sum uL = %d)\n', ...
+        n, uC + sum(uL), uC, sum(uL));
+fprintf('  redundancy r = n - u_total = %d,  reported dof = %d\n', ...
+        n - uC - sum(uL), R.diag.r);
 
 %% ------------------------------------------------------------------------
 % RESULTS
 % -------------------------------------------------------------------------
-fprintf('COMMON PARAMETERS\n');
+fprintf('\nCOMMON PARAMETERS\n');
 fprintf('  %5s %12s %12s %12s %10s\n', 'par', 'estimate', 'truth', ...
         'error', 'sigma');
 fprintf('  %s\n', repmat('-', 1, 56));
+sig = sqrt(diag(R.sol.Cxx));
 for j = 1:uC
     fprintf('  %5d %12.6f %12.6f %12.2e %10.4f\n', ...
-            j, sol.xC(j), xC_true(j), sol.xC(j)-xC_true(j), ...
-            D.s0 * sol.sigC(j));
+            j, R.x(j), xC_true(j), R.x(j) - xC_true(j), sig(j));
 end
+fprintf('\n  sigma0 = %.4f   variance ratio = %.4f\n', R.sigma0, R.diag.varRatio);
 
-fprintf('\n  s0 = %.4f   (a priori sigma0 = %.1f)   variance ratio = %.4f\n', ...
-        D.s0, D.sigma0, D.varRatio);
-
-%% ------------------------------------------------------------------------
-% THE LOCALS COME BACK BY BACK-SUBSTITUTION
-% -------------------------------------------------------------------------
-% x_i = Nll^-1 (b_i - N_iC xC),  and their covariance is
-%
-%       Q_ii = Nll^-1 + S QCC S'
-%
-% The SECOND TERM IS NOT OPTIONAL. Nll^-1 alone is the covariance of the
-% locals with the common parameters held FIXED -- but xC was ESTIMATED, and
-% its uncertainty propagates into the locals. Drop it and the local sigmas
-% come out too optimistic.
-fprintf('\nLOCAL PARAMETERS (recovered by back-substitution)\n');
-for i = 1:nSys
-    e = norm(sol.xL{i} - data{i}.xL_true) / norm(data{i}.xL_true);
-    fprintf('  satellite %d: %2d locals, ||x - truth||/||truth|| = %.2e, ', ...
-            i, uL(i), e);
-    fprintf('mean sigma = %.4f\n', D.s0 * mean(sol.sigL{i}));
-end
-
-%% ------------------------------------------------------------------------
-% DIAGNOSTICS PER SYSTEM
-% -------------------------------------------------------------------------
-% The redundancy numbers use the FULL Qxx, including the cross terms between
-% the common and the local blocks -- which is why they can be trusted.
-fprintf('\nPER-SYSTEM DIAGNOSTICS\n');
-fprintf('  %-12s %7s %9s %9s %9s\n', 'system', 'n', 'mean r_i', ...
-        'min r_i', 'flagged');
-fprintf('  %s\n', repmat('-', 1, 52));
-for i = 1:nSys
-    ri = D.rNum{i};  wi = D.w{i};
-    nf = sum(abs(wi) > D.kCrit);
-    fprintf('  %-12s %7d %9.4f %9.4f %9d\n', ...
-            sprintf('satellite %d', i), numel(ri), mean(ri), min(ri), nf);
-end
-fprintf('\n  critical |w| = %.3f  (alpha_eff = %.1e, Bonferroni over n = %d)\n', ...
-        D.kCrit, D.alphaEff, D.n);
+R.report
 
 %% ------------------------------------------------------------------------
 % WHY BOTHER: the cost
@@ -175,6 +132,21 @@ fprintf('     reduced  = %s entries    (%dx smaller)\n', ...
 
 fprintf('\n');
 
+end
+
+%% ========================================================================
+function f = makeBuildDay(g, nk)
+%MAKEBUILDDAY  One system's buildDay over its pre-generated data (read-only,
+%   hence deterministic). RAW rows, per the contract -- the toolbox whitens
+%   from the declared spec.
+    f = @buildDay;
+    function D = buildDay(day, ~)
+        rows = (day-1)*nk + (1:nk);
+        D.A  = g.AC(rows, :);
+        D.B  = g.AL(rows, :);
+        D.l  = g.l(rows);
+        D.t  = day*86400 + (0:nk-1).' * 5;   % seconds
+    end
 end
 
 function s = addComma(x)

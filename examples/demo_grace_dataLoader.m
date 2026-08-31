@@ -1,13 +1,14 @@
-function [cfg, L] = demo_grace_dataLoader()
+function [cfg, data] = demo_grace_dataLoader()
 %DEMO_GRACE_DATALOADER  Synthetic GRACE-FO data generator for the VCE demo.
 %
-%   [cfg, L] = demo_grace_dataLoader()
+%   [cfg, data] = demo_grace_dataLoader()
 %
-%   Returns a ready-to-run configuration CFG and a cell array L of Loaders, so
-%   the separable VCE loop can be exercised end to end without real data:
+%   Returns a ready-to-run configuration CFG and the declaration as a v3 data
+%   struct DATA (DATA_CONTRACT.md), so the separable VCE loop can be
+%   exercised end to end without real data:
 %
-%       [cfg, L] = demo_grace_dataLoader();
-%       R = lsqvce.engine.adjustVCE(L, cfg.days, 'GroupBy', 'obsType').run();
+%       [cfg, data] = demo_grace_dataLoader();
+%       R = lsqvce.fit(data, lsqvce.Options(Model="vce", GroupBy="obsType"));
 %
 %   TOPOLOGY (real GRACE-FO, "Option B", plus an independent third satellite).
 %     System 1  -- the C/D PAIR.  TWO satellites C, D each with a 3-D position
@@ -27,12 +28,12 @@ function [cfg, L] = demo_grace_dataLoader()
 %   obsType, giving FOUR variance components (posC, posD, rr, posE). Each stream
 %   starts from a deliberately WRONG a-priori (temporally white, sigma 1).
 %
-%   PARAMETRISATION PIPE (new interface).  The unknowns are described by two
-%   14-column cell arrays (one ROW per unknown), passed to lsqvce.engine.makeLoader as
-%   'commonParams' and 'localParams' and piped through to the day-builder as its
-%   3rd/4th args; nc and nl are DERIVED from their row counts. A
-%   'processingOptions' struct is
-%   piped as the 5th arg. The demo's column convention (yours may differ) is:
+%   PARAMETRISATION PIPE (v3 contract).  The unknowns are described by two
+%   cell arrays with one ROW per unknown (data.commonParams and the system's
+%   localParams), piped through to the day-builder as its 3rd/4th args; nc
+%   and nl are DERIVED from their row counts, and the column count is YOUR
+%   convention (this demo uses 14). A 'processingOptions' struct is piped as
+%   the 5th arg. The demo's column convention (yours may differ) is:
 %
 %     col  1  kind            'gravity' | 'arcBias' | ...   (char)
 %     col  2  label           human-readable name          (char)
@@ -50,18 +51,55 @@ function [cfg, L] = demo_grace_dataLoader()
 %     col 13  estimate flag   true/false                     (logical)
 %     col 14  group tag       free grouping label            (char)
 %
-%   makeLoader only checks the SHAPE (2-D cell, 14 columns); the MEANINGS above
-%   are this demo's convention, read inside demoBuildDay. This is the TEMPLATE:
+%   The toolbox only checks the SHAPE (a 2-D cell); the MEANINGS above are
+%   this demo's convention, read inside demoBuildDay. This is the TEMPLATE:
 %   copy demoBuildDay / demoEpochCov and the two paramTable builders as the
-%   starting point for your own loader (see "USER-SPECIFIC ADAPTATION" in
-%   `help lsqvce.engine.adjustVCE`).
+%   starting point for your own case. The epochCovariance hook each system
+%   declares is what gives the VCE Shape step its exact separable-descale
+%   path (DATA_CONTRACT.md section 7).
 %
-%   See also LSQVCE.ENGINE.ADJUSTVCE, LSQVCE.ENGINE.MAKELOADER, DEMO_SEPARABLE
+%   See also LSQVCE.FIT, DEMO_GRACE, DEMO_SEPARABLE
 %
+%   Updated 2026-08-31 (CEST, UTC+02:00), v3 data contract (Level L10,
+%   WP-74): USER surface only -- returns [cfg, data], the v3 declaration
+%   (obsTypes from the covariance fieldnames, localParams tables, id,
+%   epochCovariance hooks); the ENGINE-tier loader construction moved to
+%   dev/tests/fixture_grace.m. With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 %   Created 2026-07-16 (CEST, UTC+02:00) with assistance from
 %   Claude (Anthropic), model Claude Opus 4.8.
-    cfg = demoCfg();
-    L   = demoLoaders(cfg);
+    cfg  = demoCfg();
+    data = graceData(cfg);
+end
+
+%==========================================================================
+function data = graceData(cfg)
+%GRACEDATA  The declaration as a v3 data struct: two systems (the merged
+%   C/D pair and independent E), each with its covariance (the fieldnames
+%   ARE the streams, in processing order), its localParams table, and the
+%   epochCovariance hook for the exact VCE Shape path.
+    data = struct();
+    data.commonParams = cfg.common;                   % nc = rows (14 cols, OUR convention)
+    data.days = cfg.days;
+
+    s = struct();
+    s.buildDay          = @(d,ot,common,local,po) demoBuildDay(cfg, d, ot, common, local, po);
+    s.covariance        = whiteCov(cfg.obsTypes);     % posC, posD, rr -- wrong on purpose
+    s.arcs              = cfg.arcsPerDay;
+    % NOTE: id must survive [store.sysID] concatenation as ONE element --
+    % numeric or a single char, never a multi-char string like 'CD'.
+    s.id                = 1;
+    s.name              = 'demo-CD-pair';
+    s.localParams       = cfg.localPair;
+    s.processingOptions = cfg.procOpt;
+    s.epochCovariance   = @(d,ot) demoEpochCov(cfg, d, ot);
+    data.systems = s;
+
+    s.covariance  = whiteCov(cfg.obsTypesE);          % posE only
+    s.id          = 2;
+    s.name        = 'demo-E';
+    s.localParams = cfg.localE;
+    data.systems(2) = s;
 end
 
 function cfg = demoCfg()
@@ -101,36 +139,6 @@ function cfg = demoCfg()
     cfg.localE    = localParamTable(cfg, {'E'},     cfg.y_E);            % nlSat
     cfg.procOpt   = struct('mEpoch',cfg.mEpoch, 'dt',cfg.dt, ...
                            'arcsPerDay',cfg.arcsPerDay, 'seed',cfg.seed);
-end
-
-function L = demoLoaders(cfg)
-%DEMOLOADERS  Build the TWO loaders: the merged C/D pair and independent E.
-%   L = demoLoaders(cfg)  -> 1x2 cell {Lpair, Le}, drops into adjustVCE.
-    % --- covariance a-priori (wrong on purpose) per obsType -----------------
-    covPair = whiteCov(cfg.obsTypes);
-    covE    = whiteCov(cfg.obsTypesE);
-
-    % --- system 1: merged C/D pair (posC,posD,rr) ---------------------------
-    bdPair = @(d,ot,common,local,po) demoBuildDay(cfg, d, ot, common, local, po);
-    ecPair = @(d,ot) demoEpochCov(cfg, d, ot);
-    % NOTE: sysID must survive [obj.store.sysID] concatenation as ONE element --
-    % so NUMERIC or a single char, never a multi-char string like 'CD'.
-    Lpair = lsqvce.engine.makeLoader(bdPair, 'observationTypes', cfg.obsTypes, ...
-              'covariance', covPair, 'arcs', cfg.arcsPerDay, ...
-              'systemId', 1, 'days', cfg.days, 'epochCovariance', ecPair, ...
-              'commonParams', cfg.common, 'localParams', cfg.localPair, ...
-              'processingOptions', cfg.procOpt, 'name', 'demo-CD-pair');
-
-    % --- system 2: independent satellite E (posE only) ----------------------
-    bdE = @(d,ot,common,local,po) demoBuildDay(cfg, d, ot, common, local, po);
-    ecE = @(d,ot) demoEpochCov(cfg, d, ot);
-    Le  = lsqvce.engine.makeLoader(bdE, 'observationTypes', cfg.obsTypesE, ...
-              'covariance', covE, 'arcs', cfg.arcsPerDay, ...
-              'systemId', 2, 'days', cfg.days, 'epochCovariance', ecE, ...
-              'commonParams', cfg.common, 'localParams', cfg.localE, ...
-              'processingOptions', cfg.procOpt, 'name', 'demo-E');
-
-    L = {Lpair, Le};
 end
 
 function cov = whiteCov(obsTypes)

@@ -319,7 +319,7 @@ function testDemoGravityFixtureStructure(tc)
 % STRUCTURALLY (exact by construction, so they can be pinned without a
 % measurement): a different local count per system, a ragged arc schedule
 % with arcs absent BY ID, and a different length for every arc.
-    [cfg, L] = demo_gravity_dataLoader();
+    [cfg, L] = fixture_gravity();
     tc.verifyNumElements(L, 3);
 
     % 1. different local counts per system
@@ -397,7 +397,7 @@ function testDemoGravityUsesTheNativeRaggedPath(tc)
     addpath(exDir);
     tc.addTeardown(@() rmpath(exDir));
 
-    [cfg, L] = demo_gravity_dataLoader();
+    [cfg, L] = fixture_gravity();
     for s = 1:numel(L)
         tc.verifyNotEmpty(L{s}.localPlan, ...
             'the loader must carry makeLoader''s local plan');

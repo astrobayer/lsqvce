@@ -1,5 +1,5 @@
 function demo_sensors()
-%DEMO_SENSORS  The full hierarchy: satellite system / sensor / daily batch.
+%DEMO_SENSORS  The full hierarchy: satellite system / sensor / day.
 %
 %   Two satellite systems, each carrying several sensors, each observing over
 %   several days. The common gravity field is shared; each system has its own
@@ -7,19 +7,31 @@ function demo_sensors()
 %
 %   THE KEY STRUCTURAL FACT
 %   -----------------------
-%   With PER-SYSTEM locals, a (sensor, day) batch is just ANOTHER BATCH inside
-%   its system's elimination block. No new elimination logic is needed: the
-%   accumulator already streams batches and does not care where they came from.
-%
-%   Verified: sensor x day batching gives bit-identical results to a flat
-%   structure, and the solution is invariant to batch ORDER to 3e-16. You may
-%   feed the days and sensors in any order and interleave them freely.
+%   The v3 data struct states the whole hierarchy declaratively:
+%     * a SYSTEM is an entry of data.systems (its localParams are the
+%       per-system locals -- every sensor of the system sees them);
+%     * a SENSOR is an observation type: one field of covariance, and one
+%       (day, sensor) call of your buildDay;
+%     * a DAY is an entry of data.days; a sensor that was down on a day is a
+%       DATA GAP -- the arc resolver returns no arcs, nothing else changes.
+%   No batching logic is yours to write: fit streams (system, sensor, day)
+%   in whatever order it likes, and the solution is invariant to that order.
 %
 %   What the hierarchy DOES buy you is attribution: "LRI, day 14, 3 flags"
-%   instead of "observation 4193".
+%   instead of "observation 4193" -- R.residuals() carries system, sensor and
+%   day on every record.
+%
+%   INPUT   none
+%   OUTPUT  none (prints the walk-through; ~seconds)
 %
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
+%   Updated 2026-08-31 (CEST, UTC+02:00), v3 data contract (Level L10,
+%   WP-74): USER surface only -- BatchIndex / Combine / cmb.varComp replaced
+%   by the declarative hierarchy (systems x covariance fields x days), one
+%   lsqvce.fit per question (gls for the symptom, Model="vce" for the
+%   weights), R.residuals() for the attribution. With assistance from
+%   Claude (Anthropic), model Claude Fable 5.
 
 clc;
 rs = RandStream('mt19937ar', 'Seed', 2026);
@@ -29,14 +41,15 @@ rs = RandStream('mt19937ar', 'Seed', 2026);
 % -------------------------------------------------------------------------
 uC   = 6;                                   % common: gravity coefficients
 sysN = {'GRACE-C', 'GRACE-D'};
+sysId = {'C', 'D'};
 sens = { {'KBR','LRI','GPS'}, {'KBR','LRI'} };
 uL   = [4, 3];                              % PER-SYSTEM locals (all sensors see them)
 days = 1:10;
 nk   = 60;                                  % observations per (sensor, day)
 
-% The TRUE sensor noise. We will CLAIM sigma = 1 for all of them and let
-% Helmert find out otherwise -- which is the normal state of affairs when
-% combining instruments whose headers disagree with reality.
+% The TRUE sensor noise. We will CLAIM sigma = 1 for all of them and let the
+% variance components find out otherwise -- which is the normal state of
+% affairs when combining instruments whose headers disagree with reality.
 sigTrue = containers.Map( ...
     {'KBR','LRI','GPS'}, ...
     {  1.0,  0.4,  2.5});     % LRI is much quieter, GPS much noisier
@@ -49,172 +62,154 @@ end
 fprintf('  %d days, %d observations per (sensor, day)\n', numel(days), nk);
 
 %% ------------------------------------------------------------------------
-% STEP 1 -- declare the hierarchy
+% STEP 1 -- generate the data (in real work, buildDay reads from disk)
 % -------------------------------------------------------------------------
-bx = lsqvce.engine.BatchIndex();
+xC_true = randn(rs, uC, 1);
+xL_true = cell(numel(sysN), 1);
+store   = cell(numel(sysN), 1);             % store{i} maps 'sensor|day' -> batch
 for i = 1:numel(sysN)
-    bx.addSystem(sysN{i}, sens{i}, days);
-end
-
-% Register which (system, sensor, day) triples actually have data. A sensor
-% that was down on a given day is simply not registered -- no empty batches
-% needed, and no requirement that every sensor cover every day.
-for i = 1:numel(sysN)
+    xL_true{i} = randn(rs, uL(i), 1);
+    store{i} = containers.Map('KeyType', 'char', 'ValueType', 'any');
     for s = 1:numel(sens{i})
         for d = days
             % simulate an outage: GRACE-D's LRI is down on days 4-5
             if i == 2 && strcmp(sens{i}{s}, 'LRI') && ismember(d, [4 5])
                 continue;
             end
-            bx.setCount(sysN{i}, sens{i}{s}, d, nk);
+            sg = sigTrue(sens{i}{s}) * ones(nk, 1);
+            AC = randn(rs, nk, uC);
+            AL = randn(rs, nk, uL(i));
+            l  = AC*xC_true + AL*xL_true{i} + sg .* randn(rs, nk, 1);
+            store{i}(sprintf('%s|%d', sens{i}{s}, d)) = ...
+                struct('AC', AC, 'AL', AL, 'l', l);
         end
-    end
-end
-bx.lock();
-
-fprintf('\n  batches per system: ');
-for i = 1:numel(sysN), fprintf('%d ', bx.nBatch(i)); end
-fprintf('\n  (GRACE-D''s LRI is down on days 4-5 -- those triples were simply\n');
-fprintf('   never registered. No empty batches are required.)\n');
-
-%% ------------------------------------------------------------------------
-% STEP 2 -- generate the data (in real work, this reads from disk)
-% -------------------------------------------------------------------------
-xC_true = randn(rs, uC, 1);
-xL_true = cell(numel(sysN),1);
-store   = cell(numel(sysN),1);
-for i = 1:numel(sysN)
-    xL_true{i} = randn(rs, uL(i), 1);
-    store{i} = cell(bx.nBatch(i), 1);
-    for k = 1:bx.nBatch(i)
-        info = bx.decode(i, k);
-        sg   = sigTrue(info.sensor) * ones(info.n, 1);
-        AC = randn(rs, info.n, uC);
-        AL = randn(rs, info.n, uL(i));
-        l  = AC*xC_true + AL*xL_true{i} + sg .* randn(rs, info.n, 1);
-        store{i}{k} = struct('AC', AC, 'AL', AL, 'l', l, ...
-                             'p', ones(info.n,1));   % we CLAIM sigma = 1
     end
 end
 
 % Plant a bad DAY: a thermal event corrupts GRACE-C's KBR on day 7.
-for k = 1:bx.nBatch(1)
-    info = bx.decode(1, k);
-    if strcmp(info.sensor, 'KBR') && info.day == 7
-        store{1}{k}.l = store{1}{k}.l + 6.0;      % a systematic offset
-        fprintf('\n  [planted] a 6-sigma offset in GRACE-C / KBR / day 7\n');
-    end
-end
-
-% the batch sources
-    function [AC, AL, l, p] = src(i, k)
-        b = store{i}{k};
-        AC = b.AC;  AL = b.AL;  l = b.l;  p = b.p;
-    end
+b = store{1}('KBR|7');
+b.l = b.l + 6.0;                            % a systematic offset
+store{1}('KBR|7') = b;
+fprintf('\n  [planted] a 6-sigma offset in GRACE-C / KBR / day 7\n');
+fprintf('  [planted] GRACE-D''s LRI is down on days 4-5 (a data gap)\n');
 
 %% ------------------------------------------------------------------------
-% STEP 3 -- combine
+% STEP 2 -- declare the hierarchy: the v3 data struct
 % -------------------------------------------------------------------------
-cmb = lsqvce.engine.Combine(uC, 'method', 'qr');
+data = struct();
+data.commonParams = num2cell((1:uC).');     % nc = rows
+data.days = days;
 for i = 1:numel(sysN)
-    cmb.addSystem(uL(i), @(k) src(i,k), bx.nBatch(i), 'name', sysN{i});
-end
-sol = cmb.solve();
-D   = cmb.diagnose(sol);
-
-%% ------------------------------------------------------------------------
-% STEP 4 -- INTEGRITY FIRST, always
-% -------------------------------------------------------------------------
-fprintf('\nINTEGRITY\n');
-fprintf('  n = %d,  u_total = %d  (uC = %d + uL = %d)\n', ...
-        D.n, D.uTotal, D.uC, D.uL);
-fprintf('  sum(r_i) = %.6f   n - u_total = %d   rel err %.2e\n', ...
-        D.sumR, D.r, D.sumRRelErr);
-assert(D.sumRRelErr < 1e-8, 'integrity failed');
-fprintf('  -> holds.\n');
-
-fprintf('\n  s0 = %.4f   (we CLAIMED sigma0 = 1)\n', D.s0);
-fprintf('  -> s0 is far from 1, so at least one sensor is mis-weighted.\n');
-
-%% ------------------------------------------------------------------------
-% STEP 5 -- ATTRIBUTE. This is what the hierarchy buys you.
-% -------------------------------------------------------------------------
-% Without BatchIndex, a flagged observation is "observation 4193".
-% With it, it is "GRACE-C / KBR / day 7".
-bx.report(D);
-
-%% ------------------------------------------------------------------------
-% STEP 6 -- PER-SENSOR VARIANCE COMPONENTS
-% -------------------------------------------------------------------------
-% Both KBR and LRI observe the same arcs, and their quoted noise levels are
-% almost never both right. Helmert tells you the ratio the DATA imply.
-%
-% NOTE the group index must be GLOBAL across systems: GRACE-C's KBR and
-% GRACE-D's KBR are the same INSTRUMENT TYPE, so they share a variance
-% component. (If you believe each unit has its own noise, give them separate
-% group indices -- that is a modelling choice, and the toolbox will not make
-% it for you.)
-allSensors = unique([sens{:}], 'stable');
-nGroup = numel(allSensors);
-fprintf('sensor groups: %s\n', strjoin(allSensors, ', '));
-
-    function g = grp(i, k)
-        info = bx.decode(i, k);
-        g = repmat(find(strcmp(allSensors, info.sensor), 1), info.n, 1);
+    s = struct();
+    s.buildDay = makeBuildDay(store{i}, nk);
+    for t = sens{i}                          % one covariance field per SENSOR;
+        s.covariance.(t{1}) = struct('type', 'diag', 'sigma', 1);  % the CLAIM
     end
+    s.localParams = num2cell((1:uL(i)).');   % per-system locals, nl = rows
+    s.arcs = makeSchedule(store{i});         % ragged: [] on an outage day
+    s.id = sysId{i};
+    s.name = sysN{i};
+    data.systems(i) = s;
+end
 
-VC = cmb.varComp(sol, @grp, nGroup);
+%% ------------------------------------------------------------------------
+% STEP 3 -- the symptom: one GLS solve under the claimed weights
+% -------------------------------------------------------------------------
+R = lsqvce.fit(data, lsqvce.Options(Verbose=false));
+fprintf('\nSYMPTOM\n');
+fprintf('  sigma0 = %.4f   (we CLAIMED sigma0 = 1)\n', R.sigma0);
+fprintf('  -> far from 1, so at least one sensor is mis-weighted.\n');
 
+%% ------------------------------------------------------------------------
+% STEP 4 -- PER-SENSOR VARIANCE COMPONENTS
+% -------------------------------------------------------------------------
+% Both satellites' KBR are the same INSTRUMENT TYPE, so they share a variance
+% component: GroupBy="obsType" pools the streams across systems. (If you
+% believe each unit has its own noise, GroupBy="satObs" gives every
+% (system, sensor) pair its own component -- a modelling choice the toolbox
+% will not make for you.)
+Rv = lsqvce.fit(data, lsqvce.Options(Model="vce", GroupBy="obsType", Verbose=false));
+
+sig = Rv.history.sigma(end, :);
+fprintf('\nPER-SENSOR COMPONENTS (GroupBy="obsType")\n');
 fprintf('  %-8s %12s %12s %10s\n', 'sensor', 'recovered', 'truth', 'error');
 fprintf('  %s\n', repmat('-', 1, 46));
-ref = VC.sigma(1) / sigTrue(allSensors{1});     % normalise on the first sensor
-for gg = 1:nGroup
-    got = VC.sigma(gg) / ref;
+allSensors = unique([sens{:}], 'stable');
+ref = [];
+for gg = 1:numel(allSensors)
+    k = find(contains(Rv.history.streams, allSensors{gg}), 1);
+    if isempty(ref), ref = sig(k) / sigTrue(allSensors{1}); end
+    got = sig(k) / ref;                      % normalise on the first sensor
     tru = sigTrue(allSensors{gg});
     fprintf('  %-8s %12.4f %12.4f %9.1f%%\n', ...
             allSensors{gg}, got, tru, 100*(got-tru)/tru);
 end
-
-fprintf(['\n  -> Helmert recovered the sensor noise ratios from the data.\n' ...
-         '     Apply VC.scale to the covariances and re-run.\n']);
-
-% -------------------------------------------- ABOUT THE HUTCHINSON ALTERNATIVE
-% cmb.varComp uses the FULL Qxx (including the eliminated per-system locals),
-% assembled per system -- the block-arrow topology. The matrix-free Hutchinson
-% VCE (the large-u method, O(u^3 + G*Z*u^2) vs O(G*u^3)) is wired as a REAL
-% substitution on the FLAT path only: lsqvce.engine.vceHutchinson, or
-% lsqvce.engine.varComp(..., 'backend','hutchinson'). See examples/demo_lsqvce.m and
-% examples/demo_workflow.m for a side-by-side exact-vs-Hutchinson run. Bringing
-% it into cmb.varComp needs per-group N_g^cc exposed from the accumulator core
-% (roadmap item 0, still open), so at this hierarchy's scale the exact path
-% above is both correct and fast.
-
-fprintf(['\n  RESOLUTION: with r_g of a few hundred you cannot resolve a sigma\n' ...
-         '  ratio better than a few percent. A 5%% "correction" is NOISE.\n' ...
-         '  VC.significant tells you which corrections are real:  %s\n'], ...
-         mat2str(VC.significant(:).'));
+fprintf(['\n  -> the components recovered the sensor noise ratios from the\n' ...
+         '     data, rescaled the covariances and re-solved (sigma0 = %.3f).\n'], ...
+        Rv.sigma0);
+fprintf(['  RESOLUTION: with a few hundred redundancies per group you cannot\n' ...
+         '  resolve a sigma ratio better than a few percent. A 5%% "correction"\n' ...
+         '  is NOISE -- read the report before believing a small one.\n']);
 
 %% ------------------------------------------------------------------------
-% STEP 7 -- HUNT THE BAD DAY
+% STEP 5 -- HUNT THE BAD DAY. This is what the hierarchy buys you.
 % -------------------------------------------------------------------------
 % A single day with many flags is usually an EVENT (manoeuvre, eclipse,
 % thermal transient), not a set of independent blunders. Rejecting the
-% observations one by one treats the symptom.
+% observations one by one treats the symptom. R.residuals() carries system,
+% sensor and day on every record, so the attribution is one loop.
 fprintf('\n%s\n', repmat('=', 1, 72));
 fprintf('  IS THERE A BAD DAY?\n');
 fprintf('%s\n', repmat('=', 1, 72));
 
-T = bx.attribute(D, 'by', 'both');
-T = T(strcmp(T.system, 'GRACE-C') & strcmp(T.sensor, 'KBR'), :);
+res = R.residuals();                        % verbosity inherited from the run
+iC  = find(cellfun(@(x) isequal(x, 'C'), {res.sys.sysID}), 1);
+if isempty(iC), iC = 1; end
+obs = res.sys(iC).obs;
+obs = obs(strcmp({obs.obsType}, 'KBR'));
 fprintf('  GRACE-C / KBR, by day:\n');
-fprintf('  %6s %8s %10s\n', 'day', 'flags', 'rms v');
-fprintf('  %s\n', repmat('-', 1, 28));
-for q = 1:height(T)
+fprintf('  %6s %10s\n', 'day', 'rms v');
+fprintf('  %s\n', repmat('-', 1, 20));
+rmsAll = zeros(1, numel(days));
+for d = days
+    v = vertcat(obs([obs.day] == d).v);
+    rmsAll(d) = sqrt(mean(v.^2));
+end
+for d = days
     mark = '';
-    if T.nFlag(q) > 3*median(T.nFlag), mark = '   <<< EVENT'; end
-    fprintf('  %6d %8d %10.4f%s\n', T.day(q), T.nFlag(q), T.s0(q), mark);
+    if rmsAll(d) > 3 * median(rmsAll), mark = '   <<< EVENT'; end
+    fprintf('  %6d %10.4f%s\n', d, rmsAll(d), mark);
 end
 fprintf(['\n  -> Day 7 stands out. That is not a set of independent blunders,\n' ...
          '     it is an EVENT. Investigate the cause; do not snoop it away.\n\n']);
 
+end
+
+%% ========================================================================
+function f = makeBuildDay(st, nk)
+%MAKEBUILDDAY  The system's buildDay over the pre-generated store.
+%   Deterministic by construction: it only READS the store.
+    f = @buildDay;
+    function D = buildDay(day, obsType)
+        b = st(sprintf('%s|%d', obsType, day));
+        D.A = b.AC;                          % nk x uC
+        D.B = b.AL;                          % nk x uL -- the per-system locals
+        D.l = b.l;
+        D.t = day*86400 + (0:nk-1).' * 5;    % seconds
+        D.arcIdx = {1:nk};
+        D.arcId  = 1;
+    end
+end
+
+function f = makeSchedule(st)
+%MAKESCHEDULE  Ragged arc resolver: one arc per (day, sensor) with data,
+%   NO arcs on an outage day -- the documented data-gap mechanism.
+    f = @(day, obsType) resolve(st, day, obsType);
+    function ids = resolve(st, day, obsType)
+        if st.isKey(sprintf('%s|%d', obsType, day))
+            ids = 1;
+        else
+            ids = zeros(1, 0);
+        end
+    end
 end

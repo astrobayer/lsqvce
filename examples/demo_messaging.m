@@ -48,6 +48,10 @@ function demo_messaging(varargin)
 %
 %   See also LSQVCE.UTIL.VERBOSITY, DEMO_SEPARABLE, DEMO_SEPARABLE_DATA
 %
+%   Updated 2026-08-31 (CEST, UTC+02:00), v3 data contract (Level L10,
+%   WP-74): the run is lsqvce.fit over the demo's v3 data struct;
+%   Options.Verbose carries the level. With assistance from Claude
+%   (Anthropic), model Claude Fable 5.
 %   Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Opus 4.8.
 
@@ -106,13 +110,14 @@ function txt = runAtLevel(lvl)
 
     lsqvce.util.log.set('fid', fid, 'screen', false);
     try
-        [cfg, L] = demo_grace_dataLoader();
-        % MaxOuter 1 / MaxIter 2 keep the demo quick: the point is WHAT is
+        [~, data] = demo_grace_dataLoader();
+        % MaxOuter 1 / VceMaxIter 2 keep the demo quick: the point is WHAT is
         % printed at each level, not how long the loop takes to converge. A
         % short run does mean it stops before convergence, which is why the
-        % level-0 block below still shows warnings.
-        P = lsqvce.engine.adjustVCE(L, cfg.days, 'verbose', lvl, 'maxOuter', 1, 'GroupBy', 'obsType', 'Scale', struct('MaxIter', 2));
-        P.run();
+        % level-0 block below still shows warnings. Options.Verbose takes the
+        % level 0..3 directly (v3, L10 WP-74).
+        lsqvce.fit(data, lsqvce.Options(Model="vce", Verbose=lvl, ...
+                MaxOuter=1, GroupBy="obsType", VceMaxIter=2));
     catch ME
         lsqvce.util.log.reset();
         rethrow(ME);

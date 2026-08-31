@@ -2,28 +2,27 @@
 %
 %   Six scenarios, each isolating one failure mode, so you can see what the
 %   report says when a specific thing is wrong -- and, just as importantly,
-%   what it says when things are fine. (ENGINE tier: the scenarios call
-%   lsqvce.engine.adjust directly; through the 2.0 user path each is
-%   lsqvce.fit(struct('A',A,'l',l,'p',p)) with the same report -- see
-%   examples/demo_fit.m.)
+%   what it says when things are fine. Every run is the USER path:
+%
+%       R = lsqvce.fit(struct('A', A, 'l', l, 'p', p));
+%
+%   with the diagnostics on R.diag and the verdict on R.source. Case 5 also
+%   shows the CURE: a streaming declaration with one covariance field per
+%   instrument group and Model="vce", so fit estimates the weights it needs.
 %
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
+%   Updated 2026-08-31 (CEST, UTC+02:00), v3 data contract (Level L10,
+%   WP-74): USER surface only -- lsqvce.engine.adjust/varComp replaced by
+%   lsqvce.fit on the in-memory kind and, for the wrong-weights cure, by
+%   Model="vce" on a two-type streaming declaration. With assistance from
+%   Claude (Anthropic), model Claude Fable 5.
 
 clear; clc;
 rs = RandStream('mt19937ar', 'Seed', 2026);
 
 %% ------------------------------------------------------------------ setup
-% A generic batch source. In a real problem this reads from disk, or generates
-% partials from an orbit integration; here we just slice a matrix.
-    function src = makeSource(A, l, p, nb)
-        n = numel(l);
-        e = round(linspace(0, n, nb + 1));
-        src = @(k) deal(A(e(k)+1:e(k+1), :), l(e(k)+1:e(k+1)), ...
-                        p(e(k)+1:e(k+1)));
-    end
-
-n = 2000;  u = 8;  nb = 20;
+n = 2000;  u = 8;
 A  = randn(rs, n, u);
 xt = randn(rs, u, 1);
 sg = 0.5 + rand(rs, n, 1);
@@ -36,7 +35,8 @@ p  = 1 ./ sg.^2;
 % can move a parameter by more than a fraction of its sigma.
 fprintf('\n\n#################### 1. CLEAN ADJUSTMENT ####################\n');
 l = A * xt + sg .* randn(rs, n, 1);
-[sol, D, V] = lsqvce.engine.adjust(u, makeSource(A, l, p, nb), nb);
+R = lsqvce.fit(struct('A', A, 'l', l, 'p', p));
+D = R.diag;
 
 
 %% ===================================================================== (2)
@@ -46,7 +46,8 @@ l = A * xt + sg .* randn(rs, n, 1);
 fprintf('\n\n#################### 2. OUTLIERS ####################\n');
 l2 = l;
 l2([137 892 1455]) = l2([137 892 1455]) + [12; -15; 9] .* sg([137 892 1455]);
-[~, D2, V2] = lsqvce.engine.adjust(u, makeSource(A, l2, p, nb), nb);
+R2 = lsqvce.fit(struct('A', A, 'l', l2, 'p', p));
+D2 = R2.diag;
 
 fprintf('Planted at 137, 892, 1455.  Flagged: %s\n', mat2str(D2.flagIdx(:).'));
 fprintf(['\nNOTE the procedure: reject the LARGEST |w| only, re-solve, ' ...
@@ -62,7 +63,8 @@ fprintf(['\nNOTE the procedure: reject the LARGEST |w| only, re-solve, ' ...
 fprintf('\n\n#################### 3. SYSTEMATIC ERROR ####################\n');
 t  = linspace(0, 1, n).';
 l3 = A * xt + sg .* randn(rs, n, 1) + 1.2 * sin(2*pi*t);   % unmodelled signal
-[~, D3, V3] = lsqvce.engine.adjust(u, makeSource(A, l3, p, nb), nb);
+R3 = lsqvce.fit(struct('A', A, 'l', l3, 'p', p));
+D3 = R3.diag;
 
 fprintf('\nOutliers flagged: %d\n', D3.nFlag);
 fprintf(['\nThe variance factor is inflated but snooping finds little. That\n' ...
@@ -95,7 +97,8 @@ fprintf('\n\n#################### 4. UNCONTROLLED OBSERVATION ##################
 A4 = A;
 A4(:, 8) = 0;  A4(500, 8) = 1;        % parameter 8 <- observation 500 alone
 l4 = A4 * xt + sg .* randn(rs, n, 1);
-[~, D4, V4] = lsqvce.engine.adjust(u, makeSource(A4, l4, p, nb), nb);
+R4 = lsqvce.fit(struct('A', A4, 'l', l4, 'p', p));
+D4 = R4.diag;
 
 fprintf(['\nData snooping reports %d outliers -- a "clean" result.\n' ...
          'But observation 500 has r = %.2e and an INFINITE MDB.\n' ...
@@ -113,40 +116,37 @@ g = [ones(n/2,1); 2*ones(n/2,1)];
 sgTrue = sg;  sgTrue(g==2) = sgTrue(g==2) * 3;       % group 2 is 3x noisier
 l5 = A * xt + sgTrue .* randn(rs, n, 1);
 % ...but we still claim the ORIGINAL weights p:
-[~, D5, V5] = lsqvce.engine.adjust(u, makeSource(A, l5, p, nb), nb, 'verbose', false);
+R5 = lsqvce.fit(struct('A', A, 'l', l5, 'p', p), lsqvce.Options(Verbose=false));
+D5 = R5.diag;
 
 fprintf('Global variance ratio: %.3f  (should be ~1)\n', D5.varRatio);
 fprintf('Outliers flagged     : %d\n', D5.nFlag);
 fprintf(['\nInflated variance factor + clean residuals + no structure\n' ...
-         '   ==> the weights are wrong. Estimate them:\n']);
+         '   ==> the weights are wrong. Estimate them: declare the two\n' ...
+         '   instrument groups as two OBSERVATION TYPES of one streaming\n' ...
+         '   system (nl = 0, one arc) and let Model="vce" find the weights.\n']);
 
-e  = round(linspace(0, n, nb + 1));
-gsrc = @(k) g(e(k)+1:e(k+1));
-VC = lsqvce.engine.varComp(u, makeSource(A, l5, p, nb), nb, gsrc, 2);
+vdata.commonParams = num2cell((1:u).');              % nc = u, the same unknowns
+vdata.days = 1;                                      % the whole set is one "day"
+vs = struct();
+vs.buildDay = @(day, ot) groupDay(A, l5, t, g, ot);  % rows of ONE group
+vs.covariance.g1 = struct('type', 'diag', 'sigma', sg(g==1));   % the CLAIMED
+vs.covariance.g2 = struct('type', 'diag', 'sigma', sg(g==2));   % (mis-stated) noise
+vdata.systems = vs;
+R5v = lsqvce.fit(vdata, lsqvce.Options(Model="vce", GroupBy="obsType", ...
+          Verbose=false, ComponentsPerEpoch=struct('g1',1,'g2',1)));
 
+sigEnd = R5v.history.sigma(end, :);                  % converged group sigmas
+ratio  = sigEnd(strcmp(R5v.history.streams, 'x1|g2')) / ...
+         sigEnd(strcmp(R5v.history.streams, 'x1|g1'));
 fprintf(['Recovered sigma ratio: %.3f   (truth: 3.000)\n' ...
-         'Apply VC.scale to the covariances and re-run.\n'], ...
-         VC.sigma(2) / VC.sigma(1));
+         'The VCE loop rescaled the group covariances itself and re-solved:\n' ...
+         'sigma0 = %.3f, variance ratio back at ~1.\n'], ratio, R5v.sigma0);
 
-% --------------------------------------------------- SAME PROBLEM, HUTCHINSON
-% The EXACT path above is O(G*u^3): it forms N^-1 N_g for every group. For a
-% high-degree gravity field (u in the thousands) that dominates. The matrix-free
-% Hutchinson backend never forms N^-1; it estimates each trace with Z random
-% probes against the Cholesky factor, costing O(u^3 + G*Z*u^2). The crossover is
-% u ~ Z, so it is the method you reach for at GRAVITY-FIELD variance factors -- not here,
-% where u = 8 makes the exact path both faster and exact. We run it anyway to
-% show the SAME ANSWER comes back. Z is set high (4000) so the Monte-Carlo error
-% (~1/sqrt(Z)) is small enough that the agreement is visibly tight; a smaller Z
-% is cheaper but noisier.
-VCh = lsqvce.engine.varComp(u, makeSource(A, l5, p, nb), nb, gsrc, 2, ...
-                     'backend', 'hutchinson', 'probes', 4000, ...
-                     'seed', 2026, 'verbose', false);
-
-fprintf(['\n[Hutchinson backend, Z = %d probes]\n' ...
-         'Recovered sigma ratio: %.3f   (exact: %.3f, truth: 3.000)\n' ...
-         'Same answer, matrix-free. On small u it is SLOWER and noisier;\n' ...
-         'reach for it only when u is in the thousands.\n'], ...
-         VCh.probes, VCh.sigma(2) / VCh.sigma(1), VC.sigma(2) / VC.sigma(1));
+% At gravity-field sizes (u in the thousands) the exact per-group traces of
+% this loop dominate; the ENGINE tier has a matrix-free Hutchinson trace
+% backend for that regime (doc lsqvce.engine.varComp). At u = 8 the exact path
+% is both faster and exact, so that is what fit ran here.
 
 
 %% ===================================================================== (6)
@@ -156,7 +156,8 @@ fprintf('\n\n#################### 6. COLLINEAR PARAMETERS ####################\n
 A6 = A;
 A6(:, 2) = A6(:, 1) + 1e-4 * randn(rs, n, 1);     % col 2 ~ col 1
 l6 = A6 * xt + sg .* randn(rs, n, 1);
-[~, D6, V6] = lsqvce.engine.adjust(u, makeSource(A6, l6, p, nb), nb);
+R6 = lsqvce.fit(struct('A', A6, 'l', l6, 'p', p));
+D6 = R6.diag;
 
 fprintf(['\nParameters 1 and 2 are correlated at %.5f. Only their SUM is\n' ...
          'determined. Quoting a sigma for either one alone is a fiction,\n' ...
@@ -169,11 +170,21 @@ fprintf('SUMMARY OF VERDICTS\n');
 fprintf('################################################################\n');
 names = {'clean', 'outliers', 'systematic', 'uncontrolled', ...
          'wrong weights', 'collinear'};
-verds = {V.verdict, V2.verdict, V3.verdict, V4.verdict, ...
-         V5.verdict, V6.verdict};
+verds = {R.source.verdict, R2.source.verdict, R3.source.verdict, ...
+         R4.source.verdict, R5.source.verdict, R6.source.verdict};
 for i = 1:numel(names)
     fprintf('  %-16s -> %s\n', names{i}, verds{i});
 end
 fprintf(['\nThe one to fear is #3 and #4: the adjustment can look healthy on\n' ...
          'every scalar statistic while being wrong. Redundancy numbers and\n' ...
          'residual PLOTS are what catch them.\n\n']);
+
+%% ------------------------------------------------------------------ local
+function D = groupDay(A, l, t, g, obsType)
+% The buildDay of case 5: one instrument group as one observation type.
+    rows = find(g == 1 + strcmp(obsType, 'g2'));
+    D.A = A(rows, :);
+    D.B = zeros(numel(rows), 0);        % no local unknowns (nl = 0, v3 default)
+    D.l = l(rows);
+    D.t = t(rows) * 86400;              % seconds
+end
