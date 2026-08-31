@@ -8,7 +8,21 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-09-02 — LEVEL L7 READY: PR #41, CI green
+Last substantive update: 2026-09-02 (night) — LEVEL L8 READY: PR #42, CI
+green 588/588 on 3e50140, inventory clean. dev/ collects all development
+material (SSOT now dev/HANDOVER.md); user path = root + examples; tests
+manage their path temporarily and restore it; README = intro + quick start
++ usage guidelines (147 lines), development record in dev/DEVELOPMENT.md;
+audit check 17 retargeted. Two catches pinned (workflow run: lines;
+mfilename-relative suite paths -- a FILTERED point is a red flag).
+Preceding entry: Last substantive update: 2026-09-02 (later) — LEVEL L8 opened (repository
+cleanup, user order): dev/ collects docs_src, tests, references, validation,
+HANDOVER.md, HISTORY_v1.md, SETUP_GUIDE.md, DEVELOPMENT.md; user path = root
++ examples; tests manage their path temporarily; README = intro + quick
+start + usage guidelines (147 lines), development chapters in
+dev/DEVELOPMENT.md; audit check 17 retargeted. WP-69 c08de53; WP-70 in this
+commit; CI pending.
+Preceding entry: Last substantive update: 2026-09-02 — LEVEL L7 READY: PR #41, CI green
 588/588 on 02bc6d0 (WP-66 docs onto the 2.0 surface, WP-67 demo_fit + data
 struct from the gravity loader, WP-68 manual chapter 0 + tier callouts);
 lesson pinned: recovery assertions are z-scores against the formal error.
@@ -4273,6 +4287,8 @@ merger, no zip when a PR is the deliverable).
 | L7 | 66 | Documentation onto the 2.0 surface: README (three tiers, Quick start = fit on the three kinds, 'New here' order, Modules split USER/ENGINE/KERNEL with qualified names, template no longer 'START HERE'), DATA_CONTRACT §9 (engine equivalents without the deleted chain), user-manual html prose, Getting started + gallery pointers, theory text (R.systems) | 64b | READY (CI green 588/588 on 02bc6d0, DONE flips on the L7 merge (2026-09-02, branch `claude/level-7`, PR #41, commit c3399a0) |
 | L7 | 67 | examples/demo_fit.m -- the user path end to end on all three data kinds (in-memory, robust, batched, nonlinear, streaming gls + vce over the gravity oracle as a data struct); demo_gravity_dataLoader gains the DATA output (one source of truth with the Loaders); test_fit testDemoFitRuns checks every Results; template/ and demo_workflow/demo_lsqvce framed as ENGINE tier (template/ had been missed by the L6 script -- not in its globs) | 66 | READY (CI green 588/588 on 02bc6d0, DONE flips on the L7 merge (2026-09-02, PR #41, commit c3399a0; 631 points) |
 | L7 | 68 | Manual restructured for 2.0: chapter 0 'Start here: the 2.0 user surface' (derived from DATA_CONTRACT + Getting started), chapter 1/4 titled ENGINE tier with notes, front-matter table (user surface / engines / start your own case), stale '497 / 498' test claim removed; both PDFs rebuilt (manual 21 pages, no fluent left; theory R.systems) | 66 | READY (CI green 588/588 on 02bc6d0, DONE flips on the L7 merge (2026-09-02, PR #41) |
+| L8 | 69 | Repository layout (user order 2026-09-02): everything development-related under `dev/` (docs_src, tests, references, validation, HANDOVER.md, HISTORY_v1.md, SETUP_GUIDE.md); user path = root + examples ONLY (tests/template removed from lsqvce_setup); tests manage their path THEMSELVES, temporarily (run_all_lsqvce / ci_gate / buildfile test task: pathBefore + onCleanup restore); audit/builders/CI onto dev paths (audit runs as `python3 dev/docs_src/audit_tree.py`; CI command `cd('dev/tests'); ci_gate`; artifact dev/tests/last_run_all.txt); buildfile.m and CLAUDE.md stay at root (buildtool / session-entry convention, reasons in CLAUDE.md); __pycache__ de-committed + gitignored | L7 | READY (CI green 588/588 on 3e50140, inventory clean, DONE flips on the L8 merge; 2026-09-02, branch `claude/level-8`, WP committed c08de53; CI pending on the level head) |
+| L8 | 70 | README simplified to USER content only (user order): introduction, installation, quick start (the three data kinds), "New here" reading order, usage guidelines (Model choice, stochastic model, Options, reading the answer incl. the five levels, combining systems, parallel policy, doc map), license -- 147 lines; every development chapter moved VERBATIM-plus-header to `dev/DEVELOPMENT.md` (status, research narrative, module census, correctness history, design decisions, validation, measured chapters); audit check 17 retargeted: counts claim read from dev/DEVELOPMENT.md, version still README title == Contents.m -- both checked, neither independently maintained | 69 | READY (CI green 588/588 on 3e50140, inventory clean, DONE flips on the L8 merge; 2026-09-02, same branch; audit exit 0 locally) |
 | L5 | 65 | R4-D3 executed (manual Part 2 -> theory PDF), version 2.0 (Contents.m + README, check 17), RELEASE_NOTES.md with the 72-row 1.x -> 2.0 migration table from tiers.csv, buildfile.m (buildtool audit/test/package via ToolboxOptions), PDFs rebuilt | 64a | READY (CI green 587/587 on 84abbb8, DONE flips on the L5 merge (2026-09-01, PR #39, commit ff1c1ad; buildtool verified by the local postflight, not CI) |
 
 LEVEL STATUS (aggregates the rows above; flips DONE on the user's merge):
@@ -4283,6 +4299,7 @@ L4 READY — PR #37 (WP-56b 7acc161, WP-62 24ef446, WP-63 61e9d7d, r1 bridge fix
 L3 READY — PR #38 (WP-56c bcc70a8, WP-59 337a9bf, WP-60 cc0a31f, WP-61 edaabad/b5c15b3, r1 fix 6b9b67d, r2 fix + G-08 a1154ca); CI green 586/586 on the level head after two real catches (struct-array pitfall in the ellmer bridge; G-08 lag units in jointModelOpt). L5 READY — PR #39 (WP-64a f9d8763, WP-65 ff1c1ad, r1 00bc396, r2 84abbb8); CI green 587/587 on the level head after two catches; THE ONE BREAKING LEVEL (namespace move; no aliases; RELEASE_NOTES.md migration table). L3 merged 3a4d617. L6 (WP-64b fluent deletion, R4-D2) opens on the L5 merge.
 L6 READY — PR #40 (WP-64b c50bf9c, r1 fix 5d6ff75); CI green 587/587 on the level head after one catch (hand-picked file list). With L6 the R4 track L1–L6 is COMPLETE; open: the user's postflight (L5+L6 in one local run), `buildtool package` for the 2.0 mltbx, backlog WP-42 / WP-48(b).
 L7 READY — PR #41 (WP-66/67 c3399a0, WP-68 a35d13c, r1 fixes f0f20f5 + 02bc6d0); CI green 588/588 on the level head after one catch (recovery assertions are z-scores against the formal error, never literal tolerances). Doc-only level, no BREAKING. L6 merged 13c6808. Open after the merge: user postflight (L5+L6+L7 in ONE local run incl. test_parallel/test_speed), buildtool package (2.0 mltbx), backlog WP-42 / WP-48(b) / WP-30.
+L8 READY — PR #42 (WP-69 c08de53, WP-70 858e619, r1 0f45792, r2 3e50140); CI green 588/588 on the level head after two catches (ci.yml's second audit step; five mfilename-relative suite paths -- one point had been silently FILTERED). Doc/layout level, no numerics touched. The SSOT lives at `dev/HANDOVER.md`. Open after the merge: user postflight (L5+L6+L7+L8 in ONE local run incl. test_parallel/test_speed), buildtool package (2.0 mltbx), backlog WP-42 / WP-48(b) / WP-30.
 L7 IN PROGRESS — branch `claude/level-7`, PR #41: documentation, PDFs and demos brought onto the 2.0 surface (user-reported drift 2026-09-02: 'the documentation, the PDFs and the demo files drifted' -- confirmed: no user-facing document or example showed fit/Options; README called the package flat; manual PDF predated L6; template/ still chained). L6 merged 13c6808.
 L5 READY — PR #39 (WP-64a f9d8763, WP-65 ff1c1ad, r1 00bc396, r2 84abbb8); CI green 587/587 on the level head after two catches; THE ONE BREAKING LEVEL (namespace move; no aliases; RELEASE_NOTES.md migration table). L6 (WP-64b fluent deletion, R4-D2) opens on the L5 merge.
 
@@ -4547,6 +4564,49 @@ assertion is a z-score bound (|x - truth| / formal sigma < 3), which tests
 the ESTIMATOR, not the fixture. LESSON: recovery assertions are z-scores
 against the formal error, never literal tolerances -- the physOracle suite
 had this right; the new test now follows it.
+
+**LEVEL L8 ROUND 1 (opened 2026-09-02, model Claude Fable 5, branch
+`claude/level-8`; user order: collect development files in `dev/`, tests and
+template off the path setup, tests add their path TEMPORARILY and restore it,
+non-reader/non-license root files into dev, README = introduction + quick
+start + usage guidelines only).** Facts pinned: (1) `buildfile.m` and
+`CLAUDE.md` stay at the root -- buildtool only discovers a root buildfile,
+and CLAUDE.md is the session entry point by convention; both say so; (2) the
+temporary-path contract is pathBefore = path(); onCleanup(@() path(pathBefore))
+at every test entry (run_all_lsqvce, ci_gate, buildfile test task) -- the
+session's path is left exactly as found, also on error; (3) the audit's
+tests-check initially reported dev/tests/run_all_lsqvce.m missing although
+the file existed: the path-literal sweep had produced a string the check
+joined onto 'dev/' a second time -- rewritten as os.path.join('dev','tests',
+...) with a plain isfile; LESSON: after a path sweep, grep the RESULT for
+double prefixes before running anything; (4) check 17 reads the counts from
+dev/DEVELOPMENT.md and the version from the README title vs Contents.m --
+the user README carries no counts to drift; (5) template/ remains at root
+(user material, copied not path-added), examples/ remains on the user path
+(demos must be callable).
+
+**L8 r1 CI CATCH (2026-09-02):** 858e619 audit job RED -- its SECOND step
+(`python validation/v10review.py`, the R2 numerics re-verifier) still used
+the old path; my WP-69 sweep of ci.yml had grepped for audit/tests/addpath
+keywords and missed it. v10review.py itself is cwd-independent (pure
+numerics, verified locally: T1-T7 pass). Fix: dev/validation path in
+ci.yml. LESSON (the L6 lesson, once more, now for WORKFLOWS): sweep the
+FILE, not keyword hits -- read every `run:` line of a workflow after a
+layout change.
+
+**L8 r2 CI CATCH (2026-09-02):** 0f45792 matlab RED: 587/588 (one point
+FILTERED) and the inventory grew by MATLAB:mpath:nameNonexistentOrNotADirectory
++ MATLAB:rmpath:DirNotFound. One class of defect, five sites: suites still
+computed the toolbox root / examples dir RELATIVE to their old location
+(`here/../examples`, two fileparts for root) -- test_fit's demo smoke test
+add/rmpath'd a nonexistent dev/examples (warnings; the test itself passed
+because run_all now puts examples on the path), and test_physOracle's
+assumeTrue on the loader path silently FILTERED its ragged-path point.
+Also run_lsqvce/test_util/test_physOracle root computations. All five moved
+to the dev/tests depth (three fileparts / '..','..'), swept by grep over the
+whole suite folder. LESSON: a FILTERED test point is a red flag, not a pass
+-- the assume pattern hides layout defects; after any layout change grep
+the suites for mfilename-relative paths.
 
 ### 11.9 DATA CONTRACT AND LOADER WORKFLOW — design record for WP-56 (R4-D4)
 

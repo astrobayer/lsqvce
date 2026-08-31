@@ -19,7 +19,7 @@ classdef adjustVCE < handle
 %   front door is LSQVCE.FIT with Options(Model="vce") ('separate' mode) or
 %   Options(Model="pooled") ('joint' mode); fit passes exactly these groups
 %   from Options.engineArgs("adjustVCE"); parity is pinned in
-%   tests/test_fit.m (testFitVceReproducesTheEngine).
+%   dev/tests/test_fit.m (testFitVceReproducesTheEngine).
 %
 %       R = lsqvce.engine.adjustVCE({Lc, Ld}, 1:30, ...
 %              'GroupBy', 'satObs', ...

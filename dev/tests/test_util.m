@@ -352,7 +352,7 @@ function testAllStageLabelsAreCapitalised(tc)
     % The convention itself, checked where it actually lives -- the call sites.
     % A lowercase label would break the column's visual consistency and is the
     % kind of thing that creeps back in one call site at a time.
-    root = fileparts(fileparts(mfilename('fullpath')));
+    root = fileparts(fileparts(fileparts(mfilename('fullpath'))));   % dev/tests -> root (L8)
     files = dir(fullfile(root, '+lsqvce', '**', '*.m'));
     bad = {};
     for i = 1:numel(files)

@@ -3,7 +3,7 @@ function ci_gate()
 %
 %   ci_gate()
 %
-%   Called by the CI (`matlab-actions/run-command`: `lsqvce_setup; ci_gate`)
+%   Called by the CI (`matlab-actions/run-command`: `cd('dev/tests'); ci_gate`)
 %   and by the local postflight (MATLAB MCP bridge / `matlab -batch`). It is
 %   the gate the D8 loop protects `main` with - NEVER a bare `runtests`:
 %   a bare runtests reports failures but says nothing about coverage, and a
@@ -31,7 +31,7 @@ function ci_gate()
 %                 of CI skips is decided in THIS file only (rule 3).
 %
 %   OUTPUT
-%     (none)      side effects: console summary, tests/last_run_all.txt
+%     (none)      side effects: console summary, dev/tests/last_run_all.txt
 %                 (written by RUN_ALL_LSQVCE, uploaded as the CI artifact),
 %                 and an error on red.
 %
@@ -43,7 +43,7 @@ function ci_gate()
 %
 %   EXAMPLE
 %     % local postflight, exactly what the CI runs:
-%     %   matlab -batch "lsqvce_setup; ci_gate"
+%     %   matlab -batch "cd('dev/tests'); ci_gate"
 %     ci_gate();
 %
 %   See also RUN_ALL_LSQVCE, GATEVERDICT, LSQVCE_SETUP
@@ -51,8 +51,12 @@ function ci_gate()
 %   Created 2026-08-18 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.
 
-    here = fileparts(mfilename('fullpath'));       % .../tests
-    root = fileparts(here);                        % toolbox root
+    here = fileparts(mfilename('fullpath'));       % .../dev/tests (L8, WP-69)
+    root = fileparts(fileparts(here));             % toolbox root
+    % L8 (WP-69): temporary path, restored when the gate returns -- the CI
+    % invocation is `cd('dev/tests'); ci_gate`, no lsqvce_setup involved.
+    pathBefore  = path();
+    restorePath = onCleanup(@() path(pathBefore)); %#ok<NASGU>
 
     % --- CI policy (the ONE place it is decided) --------------------------
     isCI = strcmp(getenv('LSQVCE_CI'), '1');

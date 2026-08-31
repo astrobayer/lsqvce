@@ -5,7 +5,7 @@ Reuses the master-manual pipeline (build_master_pdf: styles, drawn equations,
 page decoration) so the two documents cannot drift apart stylistically; only
 the content module and the output path differ. Run from the toolbox root:
 
-    python3 docs_src/build_theory_pdf.py
+    python3 dev/docs_src/build_theory_pdf.py
 
 Writes lsqvce_theory.pdf into the toolbox root. Build-time only.
 
@@ -39,7 +39,7 @@ def _decorate(canv, doc):
 
 def main():
     bm._decorate = _decorate
-    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # dev/docs_src -> root (L8)
     bm.OUT = os.path.join(root, 'lsqvce_theory.pdf')
     bm.build(theory_story())
     print('wrote', bm.OUT)

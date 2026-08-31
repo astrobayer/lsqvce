@@ -33,12 +33,12 @@ function out = demo_fit(opt)
 %     within 3 formal sigma (formal errors ~0.3-0.4); the gross error of 25 sigma is caught by IRLS (its
 %     weight factor drops below 0.5) and the robust estimate returns to the
 %     clean one within its formal error; the nonlinear form recovers [a; b]
-%     to 5e-3 (tests/test_fit.m pins both). The gravity oracle's recovery
+%     to 5e-3 (dev/tests/test_fit.m pins both). The gravity oracle's recovery
 %     quality is pinned in DEMO_GRAVITY's ACCURACY block (sigma0 0.9998,
 %     stream ratios 0.996 / 1.000 / 1.019); this demo runs its "vce" loop
 %     with MaxOuter = 2, enough to show the trajectory, not to converge --
 %     the report says so (NOT CONVERGED is a finding, not an error).
-%     tests/test_fit.m testDemoFitRuns runs this function and checks every
+%     dev/tests/test_fit.m testDemoFitRuns runs this function and checks every
 %     Results it returns.
 %
 %   See also LSQVCE.FIT, LSQVCE.OPTIONS, LSQVCE.RESULTS, LSQVCE.REPORT,

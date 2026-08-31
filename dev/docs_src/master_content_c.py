@@ -272,7 +272,7 @@ def part6_reference():
     st += [P('6.1&nbsp;&nbsp;Installation', 'h2')]
     st += [P('The toolbox is plain MATLAB. There is nothing to compile, no MEX '
              'file, and no runtime dependency outside MATLAB itself -- the '
-             'Python in <font face="Courier">docs_src/</font> builds this '
+             'Python in <font face="Courier">dev/docs_src/</font> builds this '
              'manual and is never called from MATLAB.', 'body')]
     st += [P('Steps', 'h3')]
     st += [N('<b>Unpack</b> the toolbox anywhere you have write access. The '
@@ -492,7 +492,7 @@ def references():
     st += [P('lsqvce 1.0 -- consolidated diagnostics and streaming variance '
              'component estimation. This manual was generated with assistance '
              'from Claude (Anthropic), model Claude Opus 4.8. Build it with '
-             '<font face="Courier">python3 docs_src/build_master_pdf.py</font>; '
-             'see <font face="Courier">docs_src/README_manual.md</font>.',
+             '<font face="Courier">python3 dev/docs_src/build_master_pdf.py</font>; '
+             'see <font face="Courier">dev/docs_src/README_manual.md</font>.',
              'caption')]
     return st

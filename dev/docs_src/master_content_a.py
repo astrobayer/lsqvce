@@ -286,7 +286,7 @@ def part2_theory():
              'the spherical-harmonic setting, error handling, the workflow and '
              'the method\'s limitations -- is documented ONCE, in '
              '<b>lsqvce_theory.pdf</b> at the toolbox root (rebuild: '
-             '<i>python3 docs_src/build_theory_pdf.py</i>). Every claim there '
+             '<i>python3 dev/docs_src/build_theory_pdf.py</i>). Every claim there '
              'names the work package that pinned it in HANDOVER.md.', 'body')]
     st += [callout('Decision R4-D3 (2026-09-01): this manual no longer carries a '
                    'theory chapter of its own; the former sections 2.1-2.7 were '

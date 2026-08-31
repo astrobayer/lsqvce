@@ -114,7 +114,7 @@ function R = fit(data, opts)
 %     opts.engineArgs("adjustBlock"), and adjustVCE with the configurators
 %     applied from opts.engineArgs("adjustVCE") -- to solver precision:
 %     x, sigma0 and Cxx agree within RelTol 1e-12 on the CI fixtures
-%     (tests/test_fit.m, reference). It is the SAME code path; the 1e-12
+%     (dev/tests/test_fit.m, reference). It is the SAME code path; the 1e-12
 %     rather than isequal only guards the multithreaded-BLAS reduction-order
 %     nondeterminism recorded in HANDOVER §10.8 (WP-47 r1e).
 %

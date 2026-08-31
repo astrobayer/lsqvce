@@ -28,7 +28,7 @@ end
 
 %% ---------------------------------------------------------------- fixtures
 function setupOnce(tc)
-    root = fileparts(fileparts(mfilename('fullpath')));
+    root = fileparts(fileparts(fileparts(mfilename('fullpath'))));   % dev/tests -> root (L8)
     if exist('lsqvce.engine.adjustVCE', 'class') ~= 8 && ...
        exist('+lsqvce', 'dir') ~= 7
         addpath(root);                                       %#ok<MCAP>
@@ -392,7 +392,7 @@ function testDemoGravityUsesTheNativeRaggedPath(tc)
 % Two mechanical checks that cannot pass by accident: nl is DERIVED by
 % makeLoader (the loader carries the plan, and it agrees with the fixture's
 % independent arc-ordinal table), and the source no longer wraps .closure.
-    exDir = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'examples');
+    exDir = fullfile(fileparts(fileparts(fileparts(mfilename('fullpath')))), 'examples');   % L8
     tc.assumeTrue(exist(fullfile(exDir, 'demo_gravity_dataLoader.m'), 'file') == 2);
     addpath(exDir);
     tc.addTeardown(@() rmpath(exDir));

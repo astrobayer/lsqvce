@@ -62,7 +62,7 @@ case-insensitive key matching the configurators used (mergeNV). The USER
 front door is LSQVCE.FIT with Options(Model=&quot;vce&quot;) (&#x27;separate&#x27; mode) or
 Options(Model=&quot;pooled&quot;) (&#x27;joint&#x27; mode); fit passes exactly these groups
 from Options.engineArgs(&quot;adjustVCE&quot;); parity is pinned in
-tests/test_fit.m (testFitVceReproducesTheEngine).
+dev/tests/test_fit.m (testFitVceReproducesTheEngine).
 
     R = lsqvce.engine.adjustVCE({Lc, Ld}, 1:30, ...
            &#x27;GroupBy&#x27;, &#x27;satObs&#x27;, ...

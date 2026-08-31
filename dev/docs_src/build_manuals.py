@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Generate the lsqvce HTML manuals (user, reference, interpretation) from
 authored content, in the toolbox's own CSS. Equations are emitted as LaTeX in
-\\(...\\) / \\[...\\] delimiters; STEP 2 (docs_src/render_equations.js) then
+\\(...\\) / \\[...\\] delimiters; STEP 2 (dev/docs_src/render_equations.js) then
 pre-renders them to static inline SVG and strips all runtime JS, so the shipped
-pages contain no JavaScript and no external references. See docs_src/README.md.
+pages contain no JavaScript and no external references. See dev/docs_src/README.md.
 Run from the toolbox root; writes into html/. Reproducible: re-run to rebuild.
 
 Created 2026-07-17 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
@@ -68,7 +68,7 @@ img.eq-inline {{ height: 1.05em; vertical-align: -0.15em; }}
 .eq-display img {{ max-width: 100%; }}
 </style>
 <!-- Equations are static PNG images (rendered from LaTeX at build time); the
-     pages contain no JavaScript and no external references. See docs_src/. -->
+     pages contain no JavaScript and no external references. See dev/docs_src/. -->
 </head><body>
 <div class="nav"><a href="index.html">lsqvce</a> &rsaquo; {crumb}</div>
 '''
@@ -669,7 +669,7 @@ assert (redundancy identity, whitening equals dense GLS, ACV round-trip).</div>
 #     fixed in the OUTPUT -- running this would REINTRODUCE them, and
 #     audit_tree.py check 13 would then fire on the regenerated HTML.
 # THIS FILE WAS NOT RETIRED WITH THE OLD PDFs, and that is deliberate. The master
-# PDF (docs_src/build_master_pdf.py) replaced the three PDF manuals, which were
+# PDF (dev/docs_src/build_master_pdf.py) replaced the three PDF manuals, which were
 # DELETED. The four HTML manuals this generates are still SHIPPED AND LIVE --
 # lsqvce_{user_manual,reference_manual,interpretation_guide,choosing}.html, all
 # linked from helptoc.xml and html/index.html. They are what `doc lsqvce` opens.

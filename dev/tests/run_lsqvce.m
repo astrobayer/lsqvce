@@ -70,7 +70,7 @@ function results = run_lsqvce(what, varargin)
 %   Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Opus 4.8.
 
-    root = fileparts(fileparts(mfilename('fullpath')));   % toolbox root
+    root = fileparts(fileparts(fileparts(mfilename('fullpath'))));   % .../dev/tests -> toolbox root (L8)
 
     if nargin < 1 || isempty(what)
         printShortcuts();

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """R4-D1 (WP-64a): move the ENGINE and KERNEL tiers into +lsqvce/+engine and
-+lsqvce/+kernel, by the ONE tier authority docs_src/tiers.csv.
++lsqvce/+kernel, by the ONE tier authority dev/docs_src/tiers.csv.
 
 ONE-SHOT, MECHANICAL, RUN ONCE from the toolbox root on 2026-09-01. Kept in
 the tree as the protocol of what was done; after the run it is guarded and
@@ -41,7 +41,7 @@ import sys
 
 _STALE_GUARD = True   # set False ONLY to re-run on a tree in the pre-move shape
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # dev/docs_src -> root (L8)
 os.chdir(ROOT)
 
 TIER_DIR = {'ENGINE': '+engine', 'KERNEL': '+kernel'}
@@ -60,7 +60,7 @@ def sh(*args):
 
 
 def rows():
-    return list(csv.DictReader(open('docs_src/tiers.csv', encoding='utf-8')))
+    return list(csv.DictReader(open('dev/docs_src/tiers.csv', encoding='utf-8')))
 
 
 def main():
@@ -129,7 +129,7 @@ def main():
     # 7. stamp moved files
     stamp = ('%%   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/%s (R4 decision R4-D1,\n'
              '%%   WP-64a): the %s tier leaves the USER surface; every qualified\n'
-             '%%   reference was rewritten mechanically by docs_src/refactor_tiers.py.\n')
+             '%%   reference was rewritten mechanically by dev/docs_src/refactor_tiers.py.\n')
     for name, tier in moves.items():
         stamp_file('+lsqvce/%s/%s.m' % (TIER_DIR[tier], name), stamp % (TIER_DIR[tier], tier))
     for n in PROMOTE:
@@ -142,7 +142,7 @@ def main():
     write_contents(R, moves)
 
     # 6. tiers.csv and exemptions
-    with open('docs_src/tiers.csv', 'w', encoding='utf-8', newline='') as fh:
+    with open('dev/docs_src/tiers.csv', 'w', encoding='utf-8', newline='') as fh:
         w = csv.writer(fh)
         w.writerow(['name', 'tier', 'role'])
         for r in R:
@@ -198,7 +198,7 @@ def write_contents(R, moves):
              '%                    spectra, transforms)      -> help lsqvce.kernel',
              '%   util           - shared utilities            -> help lsqvce.util',
              '%',
-             '% Regenerated 2026-09-01 by docs_src/refactor_tiers.py (WP-64a).',
+             '% Regenerated 2026-09-01 by dev/docs_src/refactor_tiers.py (WP-64a).',
              '']
     open('+lsqvce/Contents.m', 'w', encoding='utf-8').write('\n'.join(root))
     for tier, sub in (('ENGINE', '+engine'), ('KERNEL', '+kernel')):
@@ -206,7 +206,7 @@ def write_contents(R, moves):
         c = ['%% lsqvce.%s -- the %s tier of lsqvce (R4-D1, WP-64a).' % (TIER_PKG[tier], tier),
              '%',
              '% Users reach these through lsqvce.fit / lsqvce.Options / lsqvce.Results;',
-             '% experts call them directly. Roles from docs_src/tiers.csv, the ONE tier',
+             '% experts call them directly. Roles from dev/docs_src/tiers.csv, the ONE tier',
              '% authority (audit check 18).',
              '%']
         for r in sorted(names, key=lambda r: r['name'].lower()):
