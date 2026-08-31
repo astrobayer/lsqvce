@@ -9,9 +9,14 @@ function L = lsqvce_template(procOpt)
 %       L = myCase(procOpt);
 %       R = lsqvce.engine.adjustVCE(L, procOpt.days, ...
 %               'verbose', procOpt.loggingLevel, ...
-%               'logFid',  procOpt.loggingOverviewFileID) ...
-%             .groupComponentsBy('obsType') ...
-%             .run();
+%               'logFid',  procOpt.loggingOverviewFileID, ...
+%               'GroupBy', 'obsType').run();          % constructor-only since 2.0
+%
+%   ENGINE-TIER TEMPLATE (since 2.0). The user path needs no Loader at all:
+%   describe the same case as a plain `data` struct (DATA_CONTRACT.md) and
+%   call lsqvce.fit(data, lsqvce.Options(Model="vce")) -- examples/demo_fit.m
+%   shows it end to end. Keep this template when you want the Loaders in
+%   hand (procOpt-driven cases, direct engine work, 1.x code).
 %
 %   THIS FILE HAS TWO REGISTERS -- READ THIS BEFORE RUNNING IT
 %     * buildLoaders (below) is REAL, RUNNABLE code. It derives one Loader per
@@ -85,7 +90,7 @@ function L = lsqvce_template(procOpt)
 %   EXAMPLE
 %     procOpt = myPipelineConfig();
 %     L = lsqvce_template(procOpt);
-%     R = lsqvce.engine.adjustVCE(L, procOpt.days).groupComponentsBy('obsType').run();
+%     R = lsqvce.engine.adjustVCE(L, procOpt.days, 'GroupBy', 'obsType').run();
 %     R.report();
 %
 %   See also LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTVCE, LSQVCE.ENGINE.ADJUSTBLOCK,
@@ -128,7 +133,7 @@ function L = buildLoaders(procOpt)
 
         % --- what this group observes -------------------------------------
         % obsTypes are the STREAM names. They are the unit of variance-component
-        % estimation when you call groupComponentsBy('obsType'), so name them
+        % estimation under 'GroupBy', 'obsType', so name them
         % after what they physically are, not after the file they came from.
         obsTypes = cellstr(g.observationTypes);
 

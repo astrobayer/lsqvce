@@ -454,7 +454,7 @@ def s8_implementation():
              'ONE merge applyCovOverride -- G-06), until white and balanced.', 6)]
     st += [N('<b>Judge.</b> diagnose and report: per-observation w, r, MDB; the '
              'five-level verdict; coefficients() with confidence bounds; everything '
-             'reachable on the Results for experts (R.acc, R.loaders, R.noise).', 7)]
+             'reachable on the Results for experts (R.acc, R.systems, R.noise).', 7)]
     st += [P('Cost model. Every pass reads each day twice; the VCE loop multiplies by '
              'the pass count. At global SH scale the redundancy / VCE data pass is '
              'where the hours go (about 4 h per iteration at degree 90 serial; 30-40 '

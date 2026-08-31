@@ -2,7 +2,10 @@
 %
 %   Six scenarios, each isolating one failure mode, so you can see what the
 %   report says when a specific thing is wrong -- and, just as importantly,
-%   what it says when things are fine.
+%   what it says when things are fine. (ENGINE tier: the scenarios call
+%   lsqvce.engine.adjust directly; through the 2.0 user path each is
+%   lsqvce.fit(struct('A',A,'l',l,'p',p)) with the same report -- see
+%   examples/demo_fit.m.)
 %
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.

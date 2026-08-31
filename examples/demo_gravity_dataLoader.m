@@ -1,14 +1,24 @@
-function [cfg, L] = demo_gravity_dataLoader()
-%DEMO_GRAVITY_DATALOADER  GRACE-like gravity-recovery data for DEMO_GRAVITY.
+function [cfg, L, data] = demo_gravity_dataLoader()
+%DEMO_GRAVITY_DATALOADER  GRACE-like gravity-recovery data for DEMO_GRAVITY / DEMO_FIT.
 %
-%   [cfg, L] = demo_gravity_dataLoader()
+%   [cfg, L, data] = demo_gravity_dataLoader()
 %
-%   Returns a configuration CFG and a cell array L of three Loaders, so a
-%   PHYSICALLY STRUCTURED gravity recovery can be run end to end without any
-%   external data:
+%   Returns a configuration CFG, a cell array L of three Loaders (ENGINE tier)
+%   and the SAME declaration as a 2.0 data struct DATA (USER tier, the form
+%   LSQVCE.FIT takes -- see DATA_CONTRACT.md), so a PHYSICALLY STRUCTURED
+%   gravity recovery can be run end to end without any external data:
 %
-%       [cfg, L] = demo_gravity_dataLoader();
-%       R = lsqvce.engine.adjustVCE(L, cfg.days, 'GroupBy', 'obsType').run();
+%       [cfg, L, data] = demo_gravity_dataLoader();
+%       R = lsqvce.fit(data, lsqvce.Options(Model="vce", GroupBy="obsType"));  % USER
+%       R = lsqvce.engine.adjustVCE(L, cfg.days, 'GroupBy', 'obsType').run(); % ENGINE
+%
+%   OUTPUT
+%     cfg   1x1 struct  the configuration (days, nc, sys, cov, arcsOfDay, truth)
+%     L     1x3 cell    Loaders, one per system (makeLoader)
+%     data  1x1 struct  .common.numCommon, .days, .systems(1x3) with buildDay,
+%                       observationTypes, covariance, arcs (resolver),
+%                       localsPerArc, systemId, name -- field for field what
+%                       gravityLoaders() hands to makeLoader
 %
 %   WHAT MAKES THIS DIFFERENT FROM DEMO_GRACE_DATALOADER
 %     That loader builds its design from randn -- fine for exercising the
@@ -97,11 +107,37 @@ function [cfg, L] = demo_gravity_dataLoader()
 %   See also DEMO_GRAVITY, DEMO_GRAVITY_DESIGN, DEMO_GRACE_DATALOADER,
 %   LSQVCE.ENGINE.MAKELOADER
 %
+%   Updated 2026-09-02 (CEST, UTC+02:00), R4 Level L7 (WP-67): third output
+%   DATA -- the same declaration as a 2.0 data struct for LSQVCE.FIT. With
+%   assistance from Claude (Anthropic), model Claude Fable 5.
 %   Created 2026-08-21 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.
 
-    cfg = gravityCfg();
-    L   = gravityLoaders(cfg);
+    cfg  = gravityCfg();
+    L    = gravityLoaders(cfg);
+    data = gravityData(cfg);
+end
+
+%==========================================================================
+function data = gravityData(cfg)
+%GRAVITYDATA  The declaration as a 2.0 data struct (R4-D4): ONE source of
+%   truth with gravityLoaders -- same builder, same covariance, same resolver,
+%   same local bookkeeping; fit builds the Loaders from it internally.
+    data = struct();
+    data.common.numCommon = cfg.nc;
+    data.days = cfg.days;
+    for s = 1:numel(cfg.sys)
+        ot = cfg.sys(s).obsType;
+        d  = struct();
+        d.buildDay         = @(dd, o, cm, lo, po, ai) buildGravityDay(cfg, dd, o, ai);
+        d.observationTypes = {ot};
+        d.covariance       = struct(ot, cfg.cov.(ot));
+        d.arcs             = @(dd, o) cfg.arcsOfDay{cfg.days == dd};
+        d.localsPerArc     = cfg.sys(s).nlPerArc;
+        d.systemId         = cfg.sys(s).id;
+        d.name             = cfg.sys(s).name;
+        if s == 1, data.systems = d; else, data.systems(s) = d; end
+    end
 end
 
 %==========================================================================

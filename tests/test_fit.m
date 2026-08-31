@@ -311,6 +311,36 @@ function testDistributeDaysThroughFitEqualsFused(tc)
     tc.verifyEqual(P.blockOpt.ParallelThreshold, 2);
 end
 
+%% ================================================== WP-67: the user-path demo
+function testDemoFitRuns(tc)
+% categories: contract, robustness | tags: diagnostics
+    % R4 Level L7: examples/demo_fit.m is the 2.0 user path on all three data
+    % kinds. It is a template users copy, so it must keep running: every
+    % Results it returns is checked here (the demo mutes the two convergence
+    % warnings its two-pass "vce" run provokes and restores them on exit).
+    here = fileparts(mfilename('fullpath'));
+    addpath(fullfile(here, '..', 'examples'));
+    tc.addTeardown(@() rmpath(fullfile(here, '..', 'examples')));
+    out = demo_fit(Verbose=false);
+    for f = {'matrix', 'robust', 'batch', 'nonlinear', 'gls', 'vce'}
+        R = out.(f{1});
+        tc.verifyClass(R, 'lsqvce.Results', f{1});
+        tc.verifyTrue(isfinite(R.sigma0) && R.sigma0 > 0, [f{1} ': sigma0 finite and positive']);
+    end
+    % tol: 0.3 -- 30 unit-weight observations; the formal errors are ~0.2
+    tc.verifyEqual(out.matrix.x, out.truth.x, 'AbsTol', 0.3);
+    tc.verifyEqual(out.batch.x, out.matrix.x, 'RelTol', 1e-12, 'two batches == one batch (same rows)');
+    tc.verifyLessThan(out.robust.source.factor(7), 0.5, 'the planted gross error is downweighted');
+    % tol: 5e-3 -- 40 points at 1e-3 noise (the WP-56b pin)
+    tc.verifyEqual(out.nonlinear.x, out.truth.ab, 'AbsTol', 5e-3);
+    tc.verifyEqual(size(out.vce.history.sigma, 1), 2, 'two outer passes recorded');
+    tc.verifyClass(out.gls.acc, 'lsqvce.engine.BlockAccumulator');
+    tc.verifyEqual(numel(out.vce.systems), 3, 'fit built the three systems from the data struct');
+    % tol: 5 formal sigma per coefficient -- test_physOracle's own bound
+    z = (out.gls.x - out.truth.xGravity) ./ (sqrt(diag(out.gls.sol.Cxx)) * out.gls.sigma0);
+    tc.verifyLessThan(max(abs(z)), 5, 'the physical oracle is recovered within 5 formal sigma');
+end
+
 %% ================================================ WP-56b: kinds B and C
 function testMatrixKindReproducesAdjust(tc)
 % categories: reference, contract
