@@ -16,6 +16,7 @@
     </tocitem>
     <tocitem target="html/index.html">Access layer
       <tocitem target="html/lsqvce.adjustBlock.html">lsqvce.adjustBlock</tocitem>
+      <tocitem target="html/lsqvce.Options.html">lsqvce.Options</tocitem>
       <tocitem target="html/lsqvce.Results.html">lsqvce.Results</tocitem>
       <tocitem target="html/lsqvce.makeLoader.html">lsqvce.makeLoader</tocitem>
       <tocitem target="html/lsqvce.adjustVCE.html">lsqvce.adjustVCE</tocitem>

@@ -765,23 +765,3 @@ function Cep = sliceEpochCov(dayCep, arcRows, d, ~)
               'D.Cep must be nEpochDay x %d or nEpochDay x %d x %d.', d, d, d);
     end
 end
-
-%==========================================================================
-function cm = applyCovOverride(cm, ovr, obsType, opt)
-%APPLYCOVOVERRIDE  Merge a runtime covariance override into the base spec.
-%   Supports two shapes, resolved in this order (later wins):
-%     (1) ovr.(obsType)               -- flat, applies to every satellite
-%     (2) ovr.bySys.(satKey).(obsType)-- per-satellite, keyed by opt.sysID
-%   The per-satellite layer is how LSQVCE.ADJUSTVCE threads a distinct
-%   sigma_g / AR law into each (satellite,obsType) stream while all loaders
-%   share one UserOpt. Both layers are optional and fully backward compatible.
-    if isfield(ovr, obsType)
-        cm = lsqvce.util.mergeStruct(cm, ovr.(obsType));
-    end
-    if isfield(ovr, 'bySys') && isfield(opt, 'sysID')
-        satKey = matlab.lang.makeValidName(char(string(opt.sysID)));
-        if isfield(ovr.bySys, satKey) && isfield(ovr.bySys.(satKey), obsType)
-            cm = lsqvce.util.mergeStruct(cm, ovr.bySys.(satKey).(obsType));
-        end
-    end
-end

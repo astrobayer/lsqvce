@@ -25,6 +25,9 @@
 %   QRSystem, NormalEqSystem, ReducedContribution - accumulator backends
 %
 % Access layer (one-call front door over the streaming pipeline)
+%   Options        - THE one settings object for fit (R4 WP-55): every knob
+%                    named, typed, defaulted to the engines' own defaults;
+%                    engineArgs(target) maps it onto one existing driver.
 %   adjustBlock    - One line: accumulate -> solve -> diagnoseAccum -> diagnose,
 %                    returning a Results object (the base of adjustVCE). The
 %                    streaming block-arrow solve; pairs with ADJUST (flat) and
