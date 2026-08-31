@@ -4425,6 +4425,15 @@ unit through a NEW combination of contracts (time lags x sample lags) is
 worth more than its own assertion -- it found a defect two existing suites
 could not see.
 
+**L5 r2 CI CATCH (2026-09-01):** 00bc396 RED 586/587 -- one test pinned a
+validateattributes-GENERATED id, `MATLAB:lsqvce:CommonPrior:expectedPositive`,
+which MATLAB builds from the function name passed to validateattributes;
+after the move it is `MATLAB:lsqvce:engine:CommonPrior:expectedPositive`.
+Not a toolbox identifier (those are `lsqvce:` and unchanged) -- the test
+now pins the qualified form; RELEASE_NOTES states it. LESSON: ids derived
+from qualified names move with the name; the API-stable ids are the ones
+the toolbox raises itself.
+
 **LEVEL L5 ROUND 1 (opened 2026-09-01, model Claude Fable 5, branch
 `claude/level-5`, PR #39 draft; the ONE BREAKING level; user decisions
 2026-09-01: R4-D1 = move ("a lot of work but the right thing"), R4-D2 =

@@ -16,7 +16,10 @@ in-memory matrices, batched callbacks incl. nonlinear) and four models
 1. **Namespace layering (R4-D1, WP-64a).** Engine and kernel functions moved
    into the sub-packages `lsqvce.engine` and `lsqvce.kernel`; the root package
    holds the USER tier only. **No aliases** (toolbox rule 10): old names stop
-   working. Error and warning identifiers (`lsqvce:<unit>:<rule>`) are unchanged.
+   working. The toolbox's own error and warning identifiers
+   (`lsqvce:<unit>:<rule>`) are unchanged; only the MATLAB-generated ids of
+   `validateattributes` (`MATLAB:lsqvce:engine:<fn>:<check>`) now carry the
+   qualified name, because they are built from it.
 2. **`Results` from the in-memory kinds**: `R.sigma0` is the a-posteriori std
    of unit weight and `R.sol.Cxx` the covariance scaled by it (the streaming
    contract); the driver's a-priori `Sigma0` is kept as `sol.sigma0Prior`.

@@ -348,7 +348,7 @@ function testPriorRejectsBadTarget(tc)
 % categories: contract
     K = eye(6);
     tc.verifyError(@() lsqvce.engine.CommonPrior(K, ones(3,1)), 'lsqvce:prior:badTarget');
-    tc.verifyError(@() lsqvce.engine.CommonPrior(K, [], -1),    'MATLAB:lsqvce:CommonPrior:expectedPositive');
+    tc.verifyError(@() lsqvce.engine.CommonPrior(K, [], -1),    'MATLAB:lsqvce:engine:CommonPrior:expectedPositive');
 end
 
 %% ================================================== separable multi-axis
