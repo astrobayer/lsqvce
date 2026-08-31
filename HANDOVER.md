@@ -4303,6 +4303,12 @@ scaling. Fix bf5fe6f: both runs declare ComponentsPerEpoch pos -> 1 (which
 also exercises that Options mapping). LESSON: a stream NAMED like a 3-D
 observable gets 3-D treatment by default — a fixture that means a scalar
 must say so, and DATA_CONTRACT §7 now needs one sentence on it (WP-60).
+**L2 r2 CI CATCH (2026-08-31):** b47d76c RED with 578/578 points passing
+— gate rule 7 (WP-47): the parity test's deliberate MaxOuter = 2 left
+`lsqvce:adjustVCE:notConverged` and `lsqvce:vce:notConverged` in the
+warning inventory. Fix: muteWarn for both ids inside that test (the
+test_adjustVCE pattern, cleanup-restored). LESSON: a reference test that
+stops a loop early on purpose owns the warnings it provokes.
 SESSION NOTE: the turn that opened L2 was cut off mid-WP-57 (output limit)
 with the WP-57/58 edits uncommitted in the working copy; the continuation
 session found the working copy on `claude/level-2`, verified every diff

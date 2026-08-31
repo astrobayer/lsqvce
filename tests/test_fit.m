@@ -50,6 +50,11 @@ function testFitVceReproducesTheFluentChain(tc)
     % needs a per-epoch scaling (lsqvce:covModel:noCep -- the r1 CI catch).
     % Both runs therefore declare pos -> 1, which also exercises the
     % ComponentsPerEpoch mapping of Options.engineArgs.
+    % WP-47 gate rule 7: MaxOuter = 2 stops BEFORE convergence by design, so
+    % the two convergence warnings are provoked deliberately -- muted with
+    % the ONE helper (cleanup-restored), never left in the inventory.
+    muteWarn(tc, 'lsqvce:adjustVCE:notConverged');
+    muteWarn(tc, 'lsqvce:vce:notConverged');
     [data, cfg] = declaration();
     axes = struct('pos', 1);
     opts = lsqvce.Options(Model="vce", MaxOuter=2, VceMaxIter=3, Verbose=false, ...
