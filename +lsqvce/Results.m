@@ -77,9 +77,19 @@ classdef Results < handle
 %     lsqvce:Results:noAccumulator  residuals()/contribution() on a Results
 %                                   without an accumulator (fit kinds B / C)
 %
-%   See also LSQVCE.ADJUSTBLOCK, LSQVCE.ADJUSTVCE, LSQVCE.REPORT,
+%   ACCURACY
+%     Results adds no numerics: x and sigma0 are the engine's (sigma0 is the
+%     A-POSTERIORI std of unit weight; sol.Cxx the covariance scaled by it --
+%     the streaming contract every producer must establish, R4 §11.8 L4 r1),
+%     report() is lsqvce.report on .diag, coefficients() is arithmetic on x
+%     and diag(Cxx) with z(0.05) = 1.959963984540054 in closed form.
+%
+%   See also LSQVCE.FIT, LSQVCE.ADJUSTBLOCK, LSQVCE.ADJUSTVCE, LSQVCE.REPORT,
 %            LSQVCE.DIAGNOSE, LSQVCE.BLOCKACCUMULATOR
 %
+%   Updated 2026-09-01 (CEST, UTC+02:00), R4 WP-61 (Level L3): ACCURACY block
+%   (the sigma0 / Cxx contract stated once). With assistance from Claude
+%   (Anthropic), model Claude Fable 5.
 %   Updated 2026-08-31 (CEST, UTC+02:00), R4 WP-56b (Level L4): residuals()
 %   and contribution() refuse with lsqvce:Results:noAccumulator on a Results
 %   without an accumulator (the in-memory / batched kinds of fit). With

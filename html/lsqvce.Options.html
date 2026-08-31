@@ -90,6 +90,12 @@ Solver
 
 Run control
   Parallel   string   &quot;serial&quot;  &quot;serial&quot; | &quot;parfor&quot; | &quot;spmd&quot;
+  DistributeDays logical false  parallelise over the DAYS of a system
+                              (one raw partial per day, merged in day
+                              order) -- the axis that scales for a
+                              2-satellite mission; needs Parallel ~=
+                              &quot;serial&quot; and &gt;= ParallelThreshold days
+  ParallelThreshold double 8  below this many tasks a pool is not used
   Verbose    logical|double  true   logical, or a level 0..3. PINNED
                               DEVIATION: adjust and adjustVCE default to
                               true, adjustBlock to false; Options follows
@@ -167,7 +173,9 @@ METHODS
               .shape .scale .outer .joint (structs), .axes (struct
               obsType -&gt; count), .mode (char &#x27;separate&#x27; | &#x27;joint&#x27;)
   opts.validate()                  cross-property checks (called by the
-                                   constructor and by engineArgs)</pre>
+                                   constructor and by engineArgs)
+  s = opts.toStruct()              every public property as a struct field
+                                   (what fit records in Results.meta.options)</pre>
 <h3>Accuracy</h3>
 <pre class="example">No numerics of its own. The claim is EXACTNESS of the mapping: for a
 default Options, engineArgs(&quot;adjustVCE&quot;) returns structs isequal to a
@@ -199,6 +207,13 @@ See also LSQVCE.ADJUSTBLOCK, LSQVCE.ADJUSTVCE, LSQVCE.ADJUSTVCEJOINT,
          LSQVCE.ADJUST, LSQVCE.ROBUST, LSQVCE.SOLVENONLINEAR,
          LSQVCE.DIAGNOSE, LSQVCE.RESULTS
 
+Updated 2026-08-31 (CEST, UTC+02:00), R4 WP-62 (Level L4): DistributeDays
+and ParallelThreshold -- the parallel policy of the streaming engines,
+reachable through fit. With assistance from Claude (Anthropic), model
+Claude Fable 5.
+Updated 2026-08-31 (CEST, UTC+02:00), R4 WP-56b (Level L4): toStruct()
+for the provenance record of fit&#x27;s in-memory / batched kinds. With
+assistance from Claude (Anthropic), model Claude Fable 5.
 Created 2026-08-31 (CEST, UTC+02:00) with assistance from Claude
 (Anthropic), model Claude Fable 5 -- R4 Level L1, WP-55.</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>

@@ -69,8 +69,52 @@ opts.Model to the engine that does the work:
     &quot;vce&quot;      LSQVCE.ADJUSTVCE          alternate stochastic model &lt;-&gt;
                                          variance components (separate)
     &quot;pooled&quot;   LSQVCE.ADJUSTVCE.joint    pooled spectrum, no arc factors
-    &quot;ellmer&quot;   LSQVCE.ADJUSTVCEJOINT     NOT WIRED YET (WP-56b): fit
-                                         refuses with lsqvce:fit:notYet
+    &quot;ellmer&quot;   LSQVCE.ADJUSTVCEJOINT     the ten-step joint co-estimation
+                                         with keyed arc factors (Ellmer
+                                         2018 §6.5; R4 WP-56c). fit builds
+                                         the accFcn the driver wants -- a
+                                         BlockAccumulator over the same
+                                         loaders whose UserOpt carries the
+                                         current model through
+                                         LSQVCE.JOINTMODELOPT -- and
+                                         bridges the driver&#x27;s out struct
+                                         into a Results: x / sigma0 /
+                                         diagnostics via diagnoseAccum +
+                                         diagnose, the converged noise
+                                         model on R.noise (.C .Shat .sigma2
+                                         .arcKeys), the pass record on
+                                         R.history (.kind = &#x27;ellmer&#x27;,
+                                         .maxDev, .Shat, .nIter, .skips),
+                                         R.converged. summary()/
+                                         convergence() are adjustVCE&#x27;s
+                                         readers and refuse (noHistory).
+
+TWO MORE KINDS OF DATA (R4 WP-56b) -- told apart by the fields present,
+for problems WITHOUT local unknowns and with diagonal weights:
+
+(B) IN-MEMORY MATRICES
+      data.A   m x u double     design matrix
+      data.l   m x 1 double     observed minus computed
+      data.p   m x 1 double     weights (diagonal of P); optional (unit)
+(C) BATCHED CALLBACK
+      data.numUnknowns  1x1     u
+      data.numBatches   1x1     nBatch
+      data.batchFcn     fh      [A, l, p] = batchFcn(k), k = 1..nBatch
+                                (the LSQVCE.ADJUST contract), or, with
+      data.x0           u x 1   -&gt; NONLINEAR: [A, w, p] = batchFcn(k, x)
+                                (the LSQVCE.SOLVENONLINEAR contract)
+Dispatch for both: opts.Model must be &quot;gls&quot; (variance components need
+the groups of a streaming system); opts.Robust = &quot;irls&quot; selects
+LSQVCE.ROBUST, data.x0 selects LSQVCE.SOLVENONLINEAR, else LSQVCE.ADJUST.
+The Results carries sol / diag / source (the driver&#x27;s third output:
+verdict V, ROB, or the nonlinear IT record). Its sigma0 is the
+A-POSTERIORI std of unit weight and sol.Cxx = s0sq * D.Qxx, i.e. the
+streaming Results contract (the batch drivers&#x27; own sol.sigma0 is the
+a-priori value; it is kept as sol.sigma0Prior). R.acc is empty, so
+residuals() and contribution() refuse with lsqvce:Results:noAccumulator
+-- the per-observation residuals are already in R.diag.v. The options
+forwarded to LSQVCE.DIAGNOSE come from the Options object explicitly
+(no KeepUnmatched on this path).
 
 R.systems (the existing Results field -- no second name) carries the
 normalised system specs the engine ran: .sysID .nl .dataFcn (the loader
@@ -130,9 +174,13 @@ nondeterminism recorded in HANDOVER §10.8 (WP-47 r1e).</pre>
                              (e.g. noCov, badArcs, localPlan); the
                              original is attached as the cause
 Your choice is not available here:
-  lsqvce:fit:notYet          Model &quot;ellmer&quot; or Robust ~= &quot;none&quot; (batch
-                             path) -- use the engine directly until
-                             WP-56b lands
+  lsqvce:fit:notYet          Robust ~= &quot;none&quot; on the STREAMING kind --
+                             the streaming kind screens outliers
+                             through its diagnostics (report())
+  lsqvce:fit:modelKind       Model other than &quot;gls&quot; on kinds B / C
+  lsqvce:fit:badMatrix       kind B shapes disagree (A m x u, l m x 1,
+                             p m x 1)
+  lsqvce:fit:missingField    kind C lacks numUnknowns / numBatches
 Your buildDay is wrong (raised WHILE READING, by the engine, ids
 unchanged): lsqvce:makeLoader:badDay / dayShape / badArc / badArcId /
 buildDay, lsqvce:accum:arcBadNc / arcBadNl</pre>
@@ -148,8 +196,18 @@ buildDay, lsqvce:accum:arcBadNc / arcBadNl</pre>
   R.report
 
 See also LSQVCE.OPTIONS, LSQVCE.RESULTS, LSQVCE.MAKELOADER,
-         LSQVCE.ADJUSTBLOCK, LSQVCE.ADJUSTVCE, LSQVCE.ADJUSTVCEJOINT
+         LSQVCE.ADJUSTBLOCK, LSQVCE.ADJUSTVCE, LSQVCE.ADJUSTVCEJOINT,
+         LSQVCE.ADJUST, LSQVCE.ROBUST, LSQVCE.SOLVENONLINEAR
 
+Updated 2026-09-01 (CEST, UTC+02:00), R4 WP-56c (Level L3): Model &quot;ellmer&quot;
+wired -- accFcn from the loaders + jointModelOpt, out -&gt; Results bridge
+(diagnoseAccum + diagnose; noise/history/converged set). With assistance
+from Claude (Anthropic), model Claude Fable 5.
+Updated 2026-08-31 (CEST, UTC+02:00), R4 WP-56b (Level L4): kinds B
+(in-memory matrices) and C (batched callback, linear or nonlinear with
+x0) through adjust / robust / solveNonlinear, returned as Results without
+an accumulator. Model &quot;ellmer&quot; stays refused (WP-56c). With assistance
+from Claude (Anthropic), model Claude Fable 5.
 Created 2026-08-31 (CEST, UTC+02:00) with assistance from Claude
 (Anthropic), model Claude Fable 5 -- R4 Level L2, WP-56 (decision R4-D4).</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
