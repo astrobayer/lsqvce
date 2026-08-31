@@ -1,4 +1,4 @@
-function meta = lsqvce.engine.runMeta(seeds, options)
+function meta = runMeta(seeds, options)
 %RUNMETA  Compose the run-provenance struct carried by LSQVCE.RESULTS (WP-44).
 %   meta = lsqvce.engine.runMeta(seeds, options)
 %

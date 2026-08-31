@@ -8,7 +8,13 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-09-01 (night) — LEVEL L3 READY: PR #38, CI
+Last substantive update: 2026-09-01 (late) — L3 MERGED (3a4d617); decisions
+R4-D1 MOVE / R4-D2 delete / R4-D3 supersede taken; LEVEL L5 (BREAKING)
+opened, PR #39: WP-64a namespace layering by script (+engine/+kernel, root
+= USER tier), WP-65 theory authority + version 2.0 + release notes +
+buildfile; WP-64b (fluent deletion) split to L6. r1 catch fixed (script
+rewrote runMeta's own declaration; probeStream had a private caller).
+Preceding entry: Last substantive update: 2026-09-01 (night) — LEVEL L3 READY: PR #38, CI
 green 586/586 on a1154ca (WP-56c ellmer through fit, WP-59 theory PDF,
 WP-60 Getting started + gallery, WP-61 help sweep); G-08 found and fixed
 (jointModelOpt acf lookup in sample lags vs covModel's time lags). DONE
@@ -4238,8 +4244,9 @@ merger, no zip when a PR is the deliverable).
 | L3 | 56c | `fit` Model "ellmer" -> LSQVCE.ADJUSTVCEJOINT: accFcn from the loaders (BlockAccumulator per pass, UserOpt = jointModelOpt(model, streams), streams 'satKey|obsType'; raw closures probed once with 'meta'), out -> Results bridge (diagnoseAccum + diagnose with the Options diagnostics; R.noise = C/Shat/sigma2/arcKeys; R.history .kind='ellmer' + maxDev/Shat/nIter/skips; R.converged; jointSeed in meta) | 56b | READY (CI green 586/586 on a1154ca, DONE flips on the L3 merge; 2026-09-01, branch `claude/level-3`, PR #38, commit bcc70a8; test_fit reference identical to a hand-built accFcn route to 1e-12; summary()/convergence() stay adjustVCE's readers and refuse cleanly) |
 | L4 | 62 | Parallel policy through fit: `DistributeDays` + `ParallelThreshold` on Options -> adjustBlock / adjustVCE -> BlockAccumulator (the axis that scales for a 2-satellite mission; threads/processes are the pool's choice, not the toolbox's — `parpool("threads")` works unchanged) | 56 | READY (CI green 585/585 on a0ce72d, DONE flips on the L4 merge; 2026-08-31, branch `claude/level-4`, PR #37, commit 24ef446; test_fit distributed == fused to 1e-11 on CI without a pool; provenance carries the policy; 59 knobs) |
 | L4 | 63 | Speed-suite extension: fit-path budgets, dispatch overhead pinned ~0 vs direct driver calls | 56,62 | READY (CI green 585/585 on a0ce72d, DONE flips on the L4 merge; 2026-08-31, PR #37, commit 61e9d7d: test_speed testFitDispatchOverheadIsNegligible, fit < 1.25x the direct adjustBlock call on three raw loaders x two days; the speed suite runs LOCALLY — this point is verified by the L4 postflight) |
-| L5 | 64 | Execute R4-D1/R4-D2 as decided (namespace layering and/or fluent deletion) — BREAKING level | 56–63 + decisions | GATED on R4-D1/D2 |
-| L5 | 65 | Packaging + release: mltbx via buildtool, release notes, final audit | 64 (or its waiver) | OPEN |
+| L5 | 64a | R4-D1 namespace layering, scripted (docs_src/refactor_tiers.py): +engine (58 incl. runMeta) / +kernel (21) / +util; root = USER tier; pages, Contents per package, tooling sub-package aware; BREAKING, no aliases | 56–63, R4-D1 | IN PROGRESS (2026-09-01, PR #39, commits f9d8763 + r1 fix; CI pending) |
+| L6 | 64b | R4-D2 fluent deletion: adjustVCE ctor NV groups Shape/Scale/Outer/Joint/Axes (+ VceMode, GroupBy exist); delete stochasticModel/varianceComponents/iteration/joint/componentsPerEpoch; scripted rewrite of fit (5 sites), test_adjustVCE (24), test_ellmer (3), test_fit (2), examples (5); parity test becomes fit == ctor NV | 64a | OPEN (split from L5, §11.5 rule 3) |
+| L5 | 65 | R4-D3 executed (manual Part 2 -> theory PDF), version 2.0 (Contents.m + README, check 17), RELEASE_NOTES.md with the 72-row 1.x -> 2.0 migration table from tiers.csv, buildfile.m (buildtool audit/test/package via ToolboxOptions), PDFs rebuilt | 64a | IN PROGRESS (2026-09-01, PR #39, commit ff1c1ad; buildtool verified by the local postflight, not CI) |
 
 LEVEL STATUS (aggregates the rows above; flips DONE on the user's merge):
 L1 DONE — merged 2026-08-31 (PR #35, merge 25692d8); postflight remains
@@ -4247,6 +4254,7 @@ DEBT with D-52 by user decision (bridge still down).
 L2 READY — PR #36 (G-07 8af8a6b, WP-56 0d1fc19, WP-57 bf5fe6f, WP-58 b47d76c, r2 fix 6af480b); CI green 578/578 on the level head after two real catches (noCep fixture, gate rule 7 warnings); test_parallel CI-skipped, speed suite separate; postflight = one local run on the merged main. WP-56b (in-memory form, Robust, ellmer) opens with L3/L4 or as its own level — user's call. L3/L4 open on the L2 merge.
 L4 READY — PR #37 (WP-56b 7acc161, WP-62 24ef446, WP-63 61e9d7d, r1 bridge fix a0ce72d); CI green 585/585 on the level head after one real catch (batch->Results contract); test_parallel CI-skipped, speed suite separate (WP-63's point is verified by the L4 postflight). L3 opens on the L4 merge (user order); WP-56c stays OPEN.
 L3 READY — PR #38 (WP-56c bcc70a8, WP-59 337a9bf, WP-60 cc0a31f, WP-61 edaabad/b5c15b3, r1 fix 6b9b67d, r2 fix + G-08 a1154ca); CI green 586/586 on the level head after two real catches (struct-array pitfall in the ellmer bridge; G-08 lag units in jointModelOpt). L5 remains (R4-D1/D2 decisions, Contents.m regroup, packaging/release); WP-42 / WP-48(b) backlog unchanged.
+L5 IN PROGRESS — branch `claude/level-5`, PR #39 (WP-64a f9d8763, WP-65 ff1c1ad, r1 fix pending CI). L3 merged 3a4d617. L6 (WP-64b) opens on the L5 merge.
 
 Test obligations per level (taxonomy §6.1.2, declarations mandatory):
 L1 contract (options resolution, rejection ids) + robustness (conflicting
@@ -4259,9 +4267,9 @@ methods batched); L3 doc-sync gate (check 17) only; L4 speed + robustness
 
 | # | decision | options | recommendation |
 |---|---|---|---|
-| R4-D1 | Namespace layering: move ENGINE/KERNEL tier into `+lsqvce/+engine` / `+lsqvce/+kernel`? | (A) facade only — tiers live in docs/Contents, no code moves, non-breaking; (B) full move — clean tree, BREAKING, large churn in tests/docs | (A) now; (B) only if L2 experience shows the flat namespace still confuses — revisit at L5 |
-| R4-D2 | Delete the fluent configurators once fit reaches parity (no-aliases rule => deletion, not deprecation)? | delete in L5 / keep as ENGINE tier | delete in L5, provided WP-58 parity tests are green |
-| R4-D3 | Theory-PDF authority: does the WP-59 PDF supersede lsqvce_manual.pdf's theory chapters (manual then references the PDF)? | supersede / duplicate | supersede — one place per statement (rule 3) |
+| R4-D1 | Namespace layering: move ENGINE/KERNEL tier into `+lsqvce/+engine` / `+lsqvce/+kernel`? | (A) facade only — tiers live in docs/Contents, no code moves, non-breaking; (B) full move — clean tree, BREAKING, large churn in tests/docs | **DECIDED 2026-09-01 by the user: MOVE (B).** Executed WP-64a (L5, PR #39) |
+| R4-D2 | Delete the fluent configurators once fit reaches parity (no-aliases rule => deletion, not deprecation)? | delete in L5 / keep as ENGINE tier | **DECIDED 2026-09-01: delete.** Execution SPLIT to Level L6 (WP-64b): constructor NV groups Shape/Scale/Outer/Joint/Axes replace the chain; fit and 24 test chains rewritten by script |
+| R4-D3 | Theory-PDF authority: does the WP-59 PDF supersede lsqvce_manual.pdf's theory chapters (manual then references the PDF)? | supersede / duplicate | **DECIDED 2026-09-01: supersede.** Executed WP-65: the manual's Part 2 points to lsqvce_theory.pdf, sections 2.1-2.7 retired |
 | R4-D4 | DATA DECLARATION AS A STRUCT: the user supplies a plain `data` struct (`.common`, `.days`, `.systems(k)`), `fit` builds the loaders internally; `makeLoader` becomes ENGINE tier; raw 4-arg closures stay an ENGINE escape hatch (`.loader` xor `.buildDay`). Rules: DATA_CONTRACT.md. | struct (decided) / loader objects | **DECIDED 2026-08-31 by the user ("Very good. Please go ahead.") — struct.** Beginner-facing specification written the same day (DATA_CONTRACT.md); it is the source of the WP-56 help text and the WP-60 HTML guide |
 
 ### 11.8 R4 handover round notes
@@ -4416,6 +4424,35 @@ acf is zero beyond its last lag. LESSON: a reference test that drives a
 unit through a NEW combination of contracts (time lags x sample lags) is
 worth more than its own assertion -- it found a defect two existing suites
 could not see.
+
+**LEVEL L5 ROUND 1 (opened 2026-09-01, model Claude Fable 5, branch
+`claude/level-5`, PR #39 draft; the ONE BREAKING level; user decisions
+2026-09-01: R4-D1 = move ("a lot of work but the right thing"), R4-D2 =
+delete, R4-D3 = yes).** L3 merged as 3a4d617. Order: WP-64a (move, scripted)
+-> WP-65 (D3, version 2.0, release notes, buildfile) -> WP-64b SPLIT to L6.
+Facts pinned: (1) the move is ONE script, docs_src/refactor_tiers.py, kept
+as protocol and guarded against a second run: git mv per tiers.csv, token
+rewrite of every `lsqvce.X` / `LSQVCE.X` (never the colon IDs, never
+HANDOVER/HISTORY), page renames, Contents.m per package, private helpers
+to +engine/private, runMeta promoted (used by USER and ENGINE); (2) private
+scope is per package directory in MATLAB -- the one fact that decides where
+helpers live; (3) tiers.csv had been written WITHOUT CSV quoting in L1, so
+every role with a comma was silently truncated when read -- rewritten with
+csv.writer; (4) audit checks 4/16/18, the dedup lock and the page builder
+are sub-package aware; (5) R4-D2 needs a scripted rewrite of 24 multi-line
+fluent chains in test_adjustVCE plus examples -- its own level (L6) with
+its own CI evidence, per §11.5 rule 3.
+
+**L5 r1 CI CATCH (2026-09-01):** ff1c1ad RED 509/587 -- two script defects,
+both mine: (a) the promote regex also rewrote runMeta's OWN declaration
+line to `function meta = lsqvce.engine.runMeta(` (MATLAB:m_no_dots, 63
+points); (b) probeStream was deleted as "no caller" on the strength of a
+grep over +lsqvce/*.m only -- its caller probeMatrix is PRIVATE
+(UndefinedFunction, 3 points). Fixes: declaration restored, probeStream
+restored to +engine/private, the script corrected so the protocol matches
+the final state. LESSONS: a rename script must exclude declaration lines
+from call-site rewrites; "no caller" is only true after grepping private
+folders too.
 
 ### 11.9 DATA CONTRACT AND LOADER WORKFLOW — design record for WP-56 (R4-D4)
 

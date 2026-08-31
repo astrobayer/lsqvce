@@ -13,8 +13,11 @@ What it does
      (not util.*) to +lsqvce/+kernel/<name>.m; USER rows and +util stay.
   2. Private helpers: the six engine-only ones to +lsqvce/+engine/private/;
      runMeta -- used by USER (Results, fit) AND ENGINE (adjustBlock,
-     adjustVCE) -- becomes the public engine helper lsqvce.engine.runMeta;
-     probeStream (no caller) is deleted.
+     adjustVCE) -- becomes the public engine helper lsqvce.engine.runMeta.
+     (r1 correction: probeStream IS called, by the private probeMatrix; it
+     was restored to +engine/private. The promote regex also rewrote runMeta's
+     own declaration line -- fixed by hand in r1; the guard below keeps the
+     script from ever running again.)
   3. Rewrites every qualified reference lsqvce.<name> / LSQVCE.<NAME> to its
      new home in code, tests, examples, tooling, HTML, helptoc, README,
      DATA_CONTRACT, SETUP_GUIDE, CLAUDE.md. Error/warning IDENTIFIERS
@@ -46,7 +49,8 @@ TIER_PKG = {'ENGINE': 'engine', 'KERNEL': 'kernel'}
 ENGINE_PRIVATE = ['applyCovOverride', 'arcBatchWhiten', 'jointArcParts',
                   'makeKeyFcn', 'probeMatrix']
 PROMOTE = ['runMeta']
-DELETE = ['probeStream']
+DELETE = []   # probeStream is called by the private probeMatrix (missed by a
+              # root-only grep on 2026-09-01); restored to +engine/private in r1
 SKIP_FILES = {'HANDOVER.md', 'HISTORY_v1.md'}
 TEXT_EXT = {'.m', '.py', '.html', '.xml', '.md', '.csv', '.txt'}
 
@@ -95,8 +99,10 @@ def main():
     pat_lc = re.compile(r'\blsqvce\.(%s)\b' % '|'.join(map(re.escape, sorted(rename, key=len, reverse=True))))
     up = {n.upper(): rename[n].upper() for n in rename}
     pat_uc = re.compile(r'\bLSQVCE\.(%s)\b' % '|'.join(map(re.escape, sorted(up, key=len, reverse=True))))
-    # unqualified private-call sites of the promoted helper (root + engine)
-    pat_promote = re.compile(r'(?<![\w.])(%s)\s*\(' % '|'.join(PROMOTE))
+    # unqualified private-call sites of the promoted helper (root + engine).
+    # r1 lesson: this must NOT match the helper's own 'function ... = runMeta('
+    # declaration -- exclude lines starting with 'function'.
+    pat_promote = re.compile(r'^(?!\s*function\b)(.*?)(?<![\w.])(%s)\s*\(' % '|'.join(PROMOTE), re.M)
 
     touched = 0
     for dirpath, dirnames, files in os.walk('.'):
