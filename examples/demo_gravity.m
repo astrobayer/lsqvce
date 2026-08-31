@@ -141,9 +141,8 @@ end
              '                   absent BY ID, the way a real schedule is\n']);
 
     % ---- run ------------------------------------------------------------
-    P = lsqvce.engine.adjustVCE(L, cfg.days, 'MaxOuter', opt.MaxOuter, ...
-                         'Verbose', opt.Verbose);
-    R = P.groupComponentsBy('obsType').run();
+    P = lsqvce.engine.adjustVCE(L, cfg.days, 'MaxOuter', opt.MaxOuter, 'Verbose', opt.Verbose, 'GroupBy', 'obsType');
+    R = P.run();
 
     % ---- 2. the weights --------------------------------------------------
     section('2. The weights VCE had to find');

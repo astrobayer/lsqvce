@@ -98,7 +98,7 @@ fprintf('batchFcn contract OK (A is nk x %d, l is nk x 1, p > 0).\n', u);
 %       nuisance parameters (arc biases, scale factors), OR the full normal is
 %       too big to form but the reduced common one is not. Section 3 shows it.
 %
-%   lsqvce.engine.adjustVCE(systems, days).groupComponentsBy(...).stochasticModel(...).varianceComponents(...)
+%   lsqvce.engine.adjustVCE(systems, days, 'GroupBy', ..., 'Shape', struct(...), 'Scale', struct(...))
 %       adjustBlock PLUS the iterative covariance loop: it re-estimates the
 %       temporal correlation (the stochastic model) and the per-group variance factor until
 %       the residuals whiten and the components agree.

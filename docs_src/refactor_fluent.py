@@ -21,9 +21,11 @@ model Claude Fable 5 -- R4 Level L6, WP-64b.
 import re
 import sys
 
-FILES = ['tests/test_adjustVCE.m', 'tests/test_ellmer.m', 'tests/test_fit.m',
-         'examples/demo_grace.m', 'examples/demo_messaging.m',
-         'examples/demo_workflow.m']
+import glob
+# The WHOLE tree, not a hand-picked list: round 1 listed six files and missed
+# tests/test_physOracle.m and examples/demo_gravity.m (L6 r1 CI catch).
+FILES = sorted(glob.glob('tests/*.m') + glob.glob('examples/*.m')
+               + glob.glob('+lsqvce/*.m') + glob.glob('+lsqvce/+*/*.m'))
 CONF = {'groupComponentsBy': 'GroupBy', 'stochasticModel': 'Shape',
         'varianceComponents': 'Scale', 'iteration': 'Outer', 'joint': 'Joint',
         'componentsPerEpoch': 'Axes'}

@@ -43,24 +43,69 @@ a { color: #0b5ea8; }
 <div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.engine.diagnoseAccum</div>
 <h1>lsqvce.engine.diagnoseAccum</h1>
 <div class="purpose">Bridge a block-arrow lsqvce.engine.BlockAccumulator adjustment into LSQVCE diagnostics.</div>
-<h2>Syntax</h2>
-<pre class="syntax">[diagSol, batchFcn, nBatch] = LSQVCE.ENGINE.DIAGNOSEACCUM(acc, sol) returns exactly what</pre>
 <h2>Description</h2>
-<p>lsqvce.engine.diagnose / lsqvce.engine.adjust expect:</p>
-<pre class="example">diagSol   struct with fields {x, R, n, u, r, sigma0, s0sq, vPv, vPvSource, condR, condN, nBatch}
-batchFcn  @(k) -&gt; [A, l, p]   the k-th WHITENED batch, unit weight
-nBatch    number of batches</pre>
-<p>so you can run the full five-level lsqvce verdict on a gravity-recovery adjustment built with the streaming accumulator + graceLoader:</p>
-<pre class="example">[sol, tm, hist, acc] = iterateSeparable(cfg, satList, days);
-[dsol, src, nB] = lsqvce.engine.diagnoseAccum(acc, sol);
-D = lsqvce.engine.diagnose(dsol, src, &#x27;nBatch&#x27;, nB);
-V = lsqvce.report(D);              % the five levels
-S = lsqvce.engine.systematic(D);          % Ljung-Box / runs / covariate</pre>
-<p>WHY THE FULL PARAMETER SET, NOT THE REDUCED ONE ----------------------------------------------- lsqAccum pre-eliminates the local parameters per system by Schur complement and keeps only reduced common normals. lsqvce per-observation redundancy r_i = 1 - a_i&#x27; Qxx a_i is only correct if a_i and Qxx span the SAME parameter set the observation actually constrains -- i.e. the FULL set [common | all locals]. Diagnosing against the reduced common block alone would miscount the degrees of freedom the local parameters absorb and inflate every r_i. So this bridge rebuilds the full block-arrow system: columns are [x_common | y_sys1 | y_sys2 | ...], and each batch places its whitened A into the common columns and its whitened B into that system&#x27;s local columns. The redundancy numbers this yields match lsqAccum&#x27;s exact block-arrow leverage to 1e-16 (the two formulations are identical).</p>
-<p>The whitening replays the loader&#x27;s own Wfcn/Cfcn, batch by batch, with the same overlap discard as accumulation -- so the batches are bit-identical to what the accumulator saw. This is the &#x27;verify&#x27; contract lsqvce checks.</p>
+<pre class="example">[diagSol, batchFcn, nBatch] = LSQVCE.ENGINE.DIAGNOSEACCUM(acc, sol) returns exactly what
+lsqvce.engine.diagnose / lsqvce.engine.adjust expect:
+    diagSol   struct with fields {x, R, n, u, r, sigma0, s0sq, vPv, vPvSource, nBatch}
+    batchFcn  @(k) -&gt; [A, l, p]   the k-th WHITENED batch, unit weight
+    nBatch    number of batches
+
+so you can run the full five-level lsqvce verdict on a gravity-recovery
+adjustment built with the streaming accumulator:
+
+    R   = lsqvce.engine.adjustVCE(L, days, &#x27;GroupBy&#x27;, &#x27;obsType&#x27;).run();
+    acc = R.acc;   sol = R.sol;
+    [dsol, src, nB] = lsqvce.engine.diagnoseAccum(acc, sol);
+    D = lsqvce.engine.diagnose(dsol, src, &#x27;nBatch&#x27;, nB);
+    V = lsqvce.report(D);              % the five levels
+    S = lsqvce.engine.systematic(D);          % Ljung-Box / runs / covariate</pre>
+<h3>Why The Full Parameter Set, Not The Reduced One</h3>
+<pre class="example">-----------------------------------------------
+lsqAccum pre-eliminates the local parameters per system by Schur complement
+and keeps only reduced common normals. lsqvce per-observation redundancy
+r_i = 1 - a_i&#x27; Qxx a_i is only correct if a_i and Qxx span the SAME
+parameter set the observation actually constrains -- i.e. the FULL set
+[common | all locals]. Diagnosing against the reduced common block alone
+would miscount the degrees of freedom the local parameters absorb and
+inflate every r_i. So this bridge rebuilds the full block-arrow system:
+columns are [x_common | y_sys1 | y_sys2 | ...], and each batch places its
+whitened A into the common columns and its whitened B into that system&#x27;s
+local columns. The redundancy numbers this yields match lsqAccum&#x27;s exact
+block-arrow leverage to 1e-16 (the two formulations are identical).
+
+The whitening replays the loader&#x27;s own Wfcn/Cfcn, batch by batch, with the
+same overlap discard as accumulation -- so the batches are bit-identical to
+what the accumulator saw. This is the &#x27;verify&#x27; contract lsqvce checks.</pre>
 <h3>Cost</h3>
-<p>---- diagSol carries the full R (u_full x u_full, u_full = nc + sum(nl)). For GRACE-FO with two satellites and a handful of local parameters each this is trivial; if the locals are per-arc and number in the thousands, R is large and you want lsqvce &#x27;store&#x27;,&#x27;flagged&#x27; to bound memory.</p>
-<p>REQUIRES  acc constructed with &#x27;KeepLocal&#x27;, true (the default).</p>
-<div class="seealso"><b>See also:</b> <a href="lsqvce.engine.diagnose.html">lsqvce.engine.diagnose</a>, <a href="lsqvce.engine.adjust.html">lsqvce.engine.adjust</a>, <a href="lsqvce.report.html">lsqvce.report</a>, <a href="lsqvce.engine.redundancy.html">lsqvce.engine.redundancy</a></div>
-<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+<pre class="example">----
+diagSol carries the full R (u_full x u_full, u_full = nc + sum(nl)). For
+GRACE-FO with two satellites and a handful of local parameters each this is
+trivial; if the locals are per-arc and number in the thousands, R is large
+and you want lsqvce &#x27;store&#x27;,&#x27;flagged&#x27; to bound memory.
+
+REQUIRES  acc constructed with &#x27;KeepLocal&#x27;, true (the default).</pre>
+<h3>Input</h3>
+<pre class="example">acc       1x1 lsqvce.engine.BlockAccumulator  the accumulator that solved
+sol       1x1 struct  the solution it returned
+varargin  Name/Value forwarded to LSQVCE.ENGINE.DIAGNOSE</pre>
+<h3>Output</h3>
+<pre class="example">D  1x1 struct  the same diagnostics LSQVCE.ENGINE.DIAGNOSE produces, but with the
+               common-parameter redundancies CORRECTED for the eliminated
+               arc-local parameters. Reading the reduced common system
+               alone inflates every reliability number.</pre>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:diagnoseAccum:noSystems     the accumulator carries no systems
+  lsqvce:diagnoseAccum:needKeepLocal the local blocks were not retained, so
+                                the common redundancies cannot be corrected;
+                                re-run keeping them
+
+See also LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.ADJUST, LSQVCE.REPORT, LSQVCE.ENGINE.REDUNDANCY
+
+Generated with assistance from Claude (Anthropic), model Claude
+Opus 4.8.
+Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
+WP-64a): the ENGINE tier leaves the USER surface; every qualified
+reference was rewritten mechanically by docs_src/refactor_tiers.py.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>
