@@ -45,9 +45,10 @@ a { color: #0b5ea8; }
 <div class="purpose">Fit a least-squares adjustment (optionally with VCE) to declared data.</div>
 <h2>Description</h2>
 <pre class="example">R = lsqvce.fit(data)
-R = lsqvce.fit(data, opts)</pre>
-<h3>THE ONE VERB (R4, HANDOVER §11.4). You describe the problem with a plain</h3>
-<pre class="example">struct `data` (DATA_CONTRACT.md: what is common, which days, which
+R = lsqvce.fit(data, opts)
+
+The one verb (R4, HANDOVER §11.4). You describe the problem with a plain
+struct `data` (DATA_CONTRACT.md: what is common, which days, which
 observing systems and the ONE function buildDay each of them points to),
 choose what to do with an LSQVCE.OPTIONS object, and get an
 LSQVCE.RESULTS back:

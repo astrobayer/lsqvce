@@ -4,7 +4,7 @@ function R = fit(data, opts)
 %   R = lsqvce.fit(data)
 %   R = lsqvce.fit(data, opts)
 %
-%   THE ONE VERB (R4, HANDOVER §11.4). You describe the problem with a plain
+%   The one verb (R4, HANDOVER §11.4). You describe the problem with a plain
 %   struct `data` (DATA_CONTRACT.md: what is common, which days, which
 %   observing systems and the ONE function buildDay each of them points to),
 %   choose what to do with an LSQVCE.OPTIONS object, and get an
