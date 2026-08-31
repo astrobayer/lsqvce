@@ -11,7 +11,8 @@ function out = demo_fit(opt)
 %
 %     (B) in-memory matrices   data.A / data.l / data.p       -> adjust, then
 %         the same problem with a planted gross error and Robust="irls"
-%     (C) batched callback     data.batchFcn / numUnknowns / numBatches, and
+%     (C) batched callback     data.batchFcn / numBatches (numUnknowns on the
+%                              linear form; with x0, u = numel(x0)), and
 %         with data.x0 the nonlinear form (Gauss-Newton on exp(a t) + b)
 %     (A) streaming            the GRACE-like physical oracle of
 %         DEMO_GRAVITY_DATALOADER as a data struct: days, ragged arcs,
@@ -44,6 +45,11 @@ function out = demo_fit(opt)
 %   See also LSQVCE.FIT, LSQVCE.OPTIONS, LSQVCE.RESULTS, LSQVCE.REPORT,
 %            DEMO_GRAVITY_DATALOADER, DEMO_GRAVITY
 %
+%   Updated 2026-08-31 (CEST, UTC+02:00), v3 data contract (Level L10,
+%   WP-74): the nonlinear batched declaration derives u = numel(x0)
+%   (numUnknowns dropped there); the streaming declaration comes from
+%   demo_gravity_dataLoader's [cfg, data] v3 form. With assistance from
+%   Claude (Anthropic), model Claude Fable 5.
 %   Created 2026-09-02 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5 -- R4 Level L7, WP-67.
 arguments
@@ -87,14 +93,14 @@ end
     idx = {1:20, 21:40};
     bfn = @(k, x) deal([t(idx{k}).*exp(x(1)*t(idx{k})), ones(20, 1)], ...
                        lob(idx{k}) - (exp(x(1)*t(idx{k})) + x(2)), []);
-    data = struct('batchFcn', bfn, 'numUnknowns', 2, 'numBatches', 2, 'x0', [0.5; 0]);
+    data = struct('batchFcn', bfn, 'numBatches', 2, 'x0', [0.5; 0]);   % u = numel(x0), v3
     out.nonlinear = lsqvce.fit(data, lsqvce.Options(NonlinearMaxIter=15, TolX=1e-9, Verbose=opt.Verbose));
     show(out.nonlinear, opt.Verbose);
     say('   [a; b] = [%.4f; %.4f]  (truth [0.7; -0.2])\n', out.nonlinear.x);
 
     % ---- (A) streaming: the gravity oracle as a data struct -----------------
     say('\n== (A) streaming: the GRACE-like oracle, Model="gls" ==\n');
-    [cfg, ~, data] = demo_gravity_dataLoader();
+    [cfg, data] = demo_gravity_dataLoader();
     out.gls = lsqvce.fit(data, lsqvce.Options(Model="gls", Verbose=opt.Verbose));
     show(out.gls, opt.Verbose);
 

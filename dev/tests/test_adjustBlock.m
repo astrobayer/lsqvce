@@ -309,11 +309,19 @@ end
 
 function testParamColumnCountValidated(tc)
 % categories: contract
-    % A parametrisation array without 14 columns must be rejected.
+    % v3 (L10 WP-72): the fixed 14-column shape is RETIRED -- any RxC cell is
+    % accepted (nc = rows, C the caller's convention), while a non-cell is
+    % still rejected with paramType. Both halves of the relaxation pinned.
     cfg = buildCfg();
+    L = lsqvce.engine.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
+        'observationTypes',{'pos'}, 'covariance',cfg.cov, 'commonParams', cell(6,10));
+    tc.verifyEqual(L.nc, 6, 'nc must be the row count, whatever C is');
+    % a non-cell is stopped by the SIGNATURE (MATLAB validation id, b1-r3);
+    % the body's paramType guards what the signature cannot: a cell that is
+    % not a 2-D matrix.
     tc.verifyError(@() lsqvce.engine.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
-        'observationTypes',{'pos'}, 'covariance',cfg.cov, 'commonParams', cell(6,10)), ...
-        'lsqvce:makeLoader:paramCols');
+        'observationTypes',{'pos'}, 'covariance',cfg.cov, 'commonParams', cell(2,2,2)), ...
+        'lsqvce:makeLoader:paramType');
 end
 
 %% ====================================================== plot-hook options

@@ -54,11 +54,22 @@ def front_matter():
     # ---- contents ---------------------------------------------------------
     st += [P('Contents', 'h1')]
     toc = [
-        ('0', 'Start here: the 2.0 user surface', [
+        ('0', 'Start here: the 3.0 user surface', [
             '0.1  Three lines',
             '0.2  The three kinds of data',
             '0.3  buildDay in six rules',
             '0.4  Reading the answer']),
+        ('D', 'The data contract (v3) -- the binding specification', [
+            'D.1  The principle: state nothing the data already states',
+            'D.2  The data struct, field by field',
+            'D.3  The buildDay contract',
+            'D.4  Arc schedules',
+            'D.5  Covariance specs',
+            'D.6  Local (arc-wise) unknowns',
+            'D.7  Multi-axis streams and the epochCovariance hook',
+            'D.8  Worked example: two satellites, ragged arcs',
+            'D.9  The equivalent engine calls',
+            'D.10 Checklist, and the two in-memory kinds']),
         ('1', 'Orientation: which engine, and why (ENGINE tier)', [
             '1.1  The three engines fit dispatches to',
             '1.2  Choosing between them']),
@@ -107,7 +118,7 @@ def part0_start_here():
     html/lsqvce_getting_started.html; those two are the authorities, this
     chapter is the manual's copy of their content (L7, WP-68)."""
     st = []
-    st += [P('0&nbsp;&nbsp;Start here: the 2.0 user surface', 'h1')]
+    st += [P('0&nbsp;&nbsp;Start here: the 3.0 user surface', 'h1')]
     st += [P('Since 2.0 the toolbox has four user-facing names: '
              '<font face="Courier">lsqvce.fit</font> (the one verb), '
              '<font face="Courier">lsqvce.Options</font> (what to do), '
@@ -132,20 +143,19 @@ R.report                                 % the five-level verdict""")]
          'data.A (m x u), data.l (m x 1, observed minus computed), optional data.p (weights)',
          'adjust; Robust="irls" -> robust'],
         ['The same, batched or nonlinear',
-         'data.batchFcn, data.numUnknowns, data.numBatches; with data.x0 the callback returns the Jacobian at x',
+         'data.batchFcn, data.numBatches, data.numUnknowns (linear form); with data.x0 the callback returns the Jacobian at x and u = numel(x0)',
          'adjust / robust / solveNonlinear'],
         ['Days, arcs, arc-wise unknowns, coloured noise (GRACE-FO)',
-         'data.common (nc once), data.days, data.systems(k) with your buildDay, observationTypes, covariance, systemId, localsPerArc, arcs',
+         'data.commonParams (one row per common unknown), data.days, data.systems(k) with your buildDay and covariance (its fieldnames are the observation types); arcs / localsPerArc / localParams as needed',
          'adjustBlock (gls), adjustVCE (vce, pooled), adjustVCEjoint (ellmer)'],
     ], widths=[110, 220, 120])]
-    st += [code("""data.common.commonParams = commonTbl;      % nc stated ONCE (or .numCommon)
+    st += [code("""data.commonParams = commonTbl;             % one ROW per common unknown: nc = rows
 data.days = 1:30;
 s = struct();
 s.buildDay         = @buildDayC;           % the one function you write
-s.observationTypes = {'kbr','pos'};
 s.covariance.kbr   = struct('type','arma','ar',[1 -1.6 0.9 -0.25],'ma',1,'sigma',1e-7);
-s.covariance.pos   = struct('type','diag','sigma',0.02);
-s.systemId         = 'C';
+s.covariance.pos   = struct('type','diag','sigma',0.02);   % fieldnames = the types
+s.id               = 'C';
 s.arcs             = @(day, obsType) arcSchedule('C', day);   % ragged: ids per day
 s.localsPerArc     = 6;                    % fit numbers the local blocks for you
 data.systems(1) = s;                       % add satellite D as data.systems(2)""")]
@@ -169,8 +179,9 @@ R.meta                   % provenance: version, release, UTC time, seeds, the op
     st += [callout('A sigma0 of NaN is a result, not a bug: the quadratic form '
                    'cancelled catastrophically and the toolbox refuses to invent '
                    'a plausible number (lsqvce_theory.pdf, section 7).', 'warn')]
-    st += [P('Where to go next: DATA_CONTRACT.md (the binding specification with a '
-             'two-satellite worked example), examples/demo_fit.m (the three lines on '
+    st += [P('Where to go next: chapter D (the data contract in full; '
+             'DATA_CONTRACT.md in the repository is its source), '
+             'examples/demo_fit.m (the three lines on '
              'every data kind, copy it), doc lsqvce.Options (every knob), '
              'lsqvce_theory.pdf (the method).', 'body')]
     st += [PageBreak()]
@@ -293,5 +304,214 @@ def part2_theory():
                    'retired so that no statement exists in two places. Where the '
                    'practitioner chapters cite an equation, the number refers to '
                    'the theory document (1.1-7.1).', 'note')]
+    st += [PageBreak()]
+    return st
+
+
+def partD_data_contract():
+    """Chapter D -- the data contract, v3 (L10 WP-73). The manual's copy of
+    DATA_CONTRACT.md; that file is the binding source, this chapter mirrors it
+    so the printed manual is complete without the repository."""
+    st = []
+    st += [P('D&nbsp;&nbsp;The data contract (v3) -- the binding specification', 'h1')]
+    st += [P('This chapter is the manual\'s copy of DATA_CONTRACT.md (version 3, '
+             'adopted 2026-08-31, Level L10): what you give '
+             '<font face="Courier">lsqvce.fit</font>, and how to write '
+             '<font face="Courier">buildDay</font>. The repository file is the '
+             'binding source; the two are kept in step by the release process.', 'body')]
+
+    st += [P('D.1&nbsp;&nbsp;The principle: state nothing the data already states', 'h2')]
+    st += [P('The contract declares <b>structure</b>, never <b>counts</b>. Every '
+             'count is derived from the one place it already lives:', 'body')]
+    st += [table([
+        ['Quantity', 'Derived from'],
+        ['nc (common unknowns)', 'size(data.commonParams, 1)'],
+        ['nl (local unknowns)', 'size(localParams, 1), or the localsPerArc plan; neither declared -> nl = 0'],
+        ['observation types', 'fieldnames(covariance), in declaration order'],
+        ['u (batched nonlinear)', 'numel(x0)'],
+    ], widths=[130, 320])]
+    st += [P('The v2 count fields (numCommon, numLocal, numUnknowns-with-x0) and '
+             'the duplicate type list (observationTypes) are gone. One source '
+             'each -- nothing left to disagree. A v2 declaration fails loudly: '
+             'the retired names are unknown fields now, and '
+             '<font face="Courier">lsqvce:fit:unknownField</font> names the field.', 'body')]
+
+    st += [P('D.2&nbsp;&nbsp;The data struct, field by field', 'h2')]
+    st += [P('<font face="Courier">data</font> is a scalar struct; field names are '
+             'case-sensitive lowerCamelCase, unknown names are errors on purpose.', 'body')]
+    st += [table([
+        ['Field', 'Type / size', 'Meaning'],
+        ['commonParams', 'cell, R x C', 'REQUIRED. One row per COMMON unknown: nc = R. Column count and meaning are your convention; buildDay receives the table as its 3rd argument. Minimal: num2cell((1:nc).\')'],
+        ['days', 'double, 1 x D', 'default day list (numeric integers; the cache is keyed on them); required unless every system carries its own'],
+        ['systems', 'struct, 1 x M', 'one entry per observing system (below)'],
+    ], widths=[80, 80, 290])]
+    st += [P('Each <font face="Courier">data.systems(k)</font> -- two required '
+             'fields, the rest optional (fill unused optionals with []):', 'body')]
+    st += [table([
+        ['Field', 'Default', 'Meaning'],
+        ['buildDay', 'REQUIRED', 'your day builder (D.3)'],
+        ['covariance', 'REQUIRED', 'struct, one field per observation type holding a covariance spec (D.5). The fieldnames ARE the observation types; their order is the processing order'],
+        ['arcs', '1', 'which arcs each day carries (D.4); \'fromDay\' is ENGINE-tier only'],
+        ['localsPerArc', '[]', 'the toolbox numbers the per-arc unknowns (D.6); XOR localParams'],
+        ['localParams', '{}', 'R x C cell, one row per LOCAL unknown (nl = R), buildDay\'s 4th argument. Neither this nor localsPerArc -> nl = 0'],
+        ['days', 'data.days', 'per-system schedule override'],
+        ['id', 'the index k', 'numeric scalar or single char, unique across systems (explicit ids and index defaults share one namespace)'],
+        ['name', "''", 'human-readable label for reports'],
+        ['processingOptions', 'struct()', 'anything buildDay needs; its 5th argument'],
+        ['epochCovariance', '[]', '@(day,obsType) per-epoch D hook for multi-axis streams (D.7)'],
+    ], widths=[75, 55, 320])]
+    st += [callout('struct() with cell values expands into a struct ARRAY: '
+                   's = struct(\'localParams\', {\'bias\',\'drift\'}) is 1 x 2. '
+                   'Use double braces, or assign field by field.', 'warn')]
+
+    st += [P('D.3&nbsp;&nbsp;The buildDay contract', 'h2')]
+    st += [P('fit calls buildDay once per (day, observationType) and cuts the day '
+             'into arcs itself. Every pass reads each day twice (normals, then '
+             'residuals); the VCE loop multiplies that by the passes. Hence: '
+             '<b>deterministic</b> (same arguments, byte-identical output -- no '
+             'randomness, clocks, mutable globals), and cache expensive raw reads '
+             'yourself (the toolbox caches one built day).', 'body')]
+    st += [P('fit passes as many of these six arguments as the handle declares '
+             '(nargin); a varargin builder receives all six:', 'body')]
+    st += [code("""D = buildDay(day, obsType)                                  % classic
+D = buildDay(day, obsType, common, local, procOpt)          % parameter-driven
+D = buildDay(day, obsType, common, local, procOpt, arcInfo) % with local-block plan""")]
+    st += [P('Return raw, unwhitened matrices -- whitening happens per arc inside '
+             'the toolbox, and the VCE loop reweights there. Required fields: '
+             'A (m x nc, common design), B (m x nl, local design, may be sparse), '
+             'l (m x 1, OBSERVED MINUS COMPUTED), t (m x 1, seconds). Optional: '
+             'arcIdx (cell of row-index vectors; absent = one arc), arcId (the '
+             'identity of each arc for ragged schedules), nAxis and Cep for '
+             'multi-axis streams (D.7).', 'body')]
+    st += [P('Declaration errors are raised by fit BEFORE any data is read '
+             '(lsqvce:fit:unknownField / noSystems / noCommon / missingField / '
+             'localCount / noDays / badId / duplicateSystem / builderKind / '
+             'badArcs, plus every makeLoader construction id relabelled under '
+             'lsqvce:fit with the original as the cause). Reading errors keep '
+             'their engine ids: lsqvce:makeLoader:buildDay / badDay / dayShape / '
+             'badArc / badArcId, lsqvce:accum:arcBadNc / arcBadNl -- the derived '
+             'nc and nl are enforced against every day.', 'body')]
+
+    st += [P('D.4&nbsp;&nbsp;Arc schedules', 'h2')]
+    st += [P('<b>Static</b> -- every day looks the same: arcs = 4 (ids 1..4), '
+             'arcs = [1 2 4], or per type arcs.kbr = 2. Arcs are addressed by '
+             'position in arcIdx; an id beyond numel(arcIdx) is an error, which '
+             'catches a mis-declared schedule.', 'body')]
+    st += [P('<b>Ragged</b> -- days differ (gaps, manoeuvres, short months): '
+             'declare a resolver that returns the arc ids of a day without '
+             'reading data, and let buildDay return arcId naming the arcs it '
+             'actually carries. Arcs are then addressed by id; an id a day does '
+             'not carry is a data gap and is skipped -- no padding, no empty arcs.', 'body')]
+    st += [code("""s.arcs = @(day, obsType) myArcTable{day};   % 1 x A vector of ids for that day""")]
+
+    st += [P('D.5&nbsp;&nbsp;Covariance specs', 'h2')]
+    st += [P('One struct per observation type; type selects the model. sigma is '
+             'always a STANDARD DEVIATION, never a variance; the VCE loop scales '
+             'the specs at run time, you give the starting point. Full reference: '
+             'doc lsqvce.engine.covModel.', 'body')]
+    st += [table([
+        ['type', 'Fields', 'Use for'],
+        ["'diag'", 'sigma (scalar or m x 1 std)', 'uncorrelated noise'],
+        ["'arma'", 'ar [1 a1 ... ap], ma (default 1), sigma', 'coloured noise with a known filter'],
+        ["'acf'", 'acf @(dt,opt), sigma', 'correlation as a function of the lag'],
+        ["'psd'", 'f (nf x 1, Hz), S (nf x 1)', 'noise given as a one-sided PSD'],
+        ["'var'", 'ar (d x d x p), sigma (d x d)', 'vector-AR for multi-axis streams'],
+    ], widths=[45, 175, 230])]
+
+    st += [P('D.6&nbsp;&nbsp;Local (arc-wise) unknowns', 'h2')]
+    st += [P('nl has two declared sources and one default -- never more than one '
+             'applies. <b>localsPerArc</b> (a count or @(day,arcId)): the toolbox '
+             'numbers every (day, arc) over the whole adjustment, derives nl, and '
+             'hands each day its slice as arcInfo -- fill '
+             'B(rows, off + (1:k)) from arcInfo.offsetOf(arcId) and never compute '
+             'an offset yourself. <b>localParams</b> (R x C cell): you own the '
+             'numbering, nl = R, the table is buildDay\'s 4th argument. Declaring '
+             'both is lsqvce:fit:localCount. <b>Neither</b>: nl = 0 -- return '
+             'B = zeros(m, 0); the engine skips the pre-elimination and the local '
+             'diagnostics come back as consistent empty shapes.', 'body')]
+
+    st += [P('D.7&nbsp;&nbsp;Multi-axis streams and the epochCovariance hook', 'h2')]
+    st += [P('A kinematic position has d = 3 components per epoch sharing one '
+             'temporal law. Return the rows EPOCH-MAJOR (x1 y1 z1 x2 y2 z2 ...), '
+             'set nAxis = 3, and provide the per-epoch scaling D. The STANDARD '
+             'source is Cep on the returned day (nEpoch x d, or nEpoch x d x d '
+             'for full per-epoch blocks); a static scaling can ride on the '
+             'covariance spec instead. A multi-axis stream with no D is an error.', 'body')]
+    st += [P('The <b>epochCovariance hook</b> is optional and matters only under '
+             'Model="vce": whitening never needs it, but the Shape step of the '
+             'VCE iteration (re-estimating the temporal AR law from residuals) '
+             'does not read the day\'s Cep. With the hook it takes the exact '
+             'separable de-scale path (lsqvce.kernel.residualAcv with the full '
+             'per-epoch D, fetched per day WITHOUT rebuilding the day); without '
+             'it, it falls back to descaling by the stream\'s current scalar '
+             'sigma -- an approximation that biases the estimated AR law when D '
+             'varies strongly across epochs (changing geometry / PDOP). Declare '
+             'the hook when you run VCE on multi-axis streams and have D '
+             'available independently of the day build.', 'body')]
+
+    st += [P('D.8&nbsp;&nbsp;Worked example: two satellites, ragged arcs, per-arc locals', 'h2')]
+    st += [code("""function D = buildDayGrace(day, obsType, common, ~, procOpt, arcInfo)
+    raw = readGraceDay(procOpt.dataDir, day, obsType);   % your reader, deterministic
+    D.A = shPartials(raw, common);                       % m x nc
+    D.l = raw.observed - raw.computed;                   % O - C
+    D.t = raw.tSeconds;
+    D.arcIdx = raw.arcRows;   D.arcId = raw.arcIds;
+    D.B = sparse(numel(D.l), arcInfo.nl);
+    for a = 1:numel(D.arcId)
+        off = arcInfo.offsetOf(D.arcId(a));
+        D.B(D.arcIdx{a}, off + (1:arcInfo.count(a))) = localPartials(raw, a);
+    end
+end""")]
+    st += [code("""data.commonParams = shParameterTable(60);      % nc = rows, columns yours
+data.days = 1:31;
+cov.kbr = struct('type','arma','ar',[1 -1.6 0.9 -0.25],'ma',1,'sigma',1e-7);
+cov.pos = struct('type','diag','sigma',0.02);  % fieldnames = the two types
+s = struct();
+s.buildDay = @buildDayGrace;   s.covariance = cov;
+s.id = 'C';   s.name = 'GRACE-FO C';
+s.arcs = @(day, obsType) arcSchedule('C', day);
+s.localsPerArc = 6;
+s.processingOptions = struct('dataDir', '/data/gracefo');
+data.systems(1) = s;
+s.id = 'D';  s.name = 'GRACE-FO D';  s.arcs = @(day, obsType) arcSchedule('D', day);
+data.systems(2) = s;
+R = lsqvce.fit(data, lsqvce.Options(Model="vce", GroupBy="satObs", Parallel="parfor"));
+R.report""")]
+
+    st += [P('D.9&nbsp;&nbsp;The equivalent engine calls', 'h2')]
+    st += [P('fit builds one Loader per system through lsqvce.engine.makeLoader '
+             '(field names map 1:1 to its Name-Value names, lowerCamelCase to '
+             'UpperCamelCase, plus the D.1 derivations) and dispatches on '
+             'opts.Model to adjustBlock / adjustVCE / adjustVCEjoint. These are '
+             'ENGINE-tier calls; a user needs none of them. The ENGINE tier '
+             'keeps the v2 conveniences (numCommon/numLocal counts, \'fromDay\', '
+             'cache, plot hooks, raw loader closures) -- they left the USER '
+             'surface, not the toolbox.', 'body')]
+
+    st += [P('D.10&nbsp;&nbsp;Checklist, and the two in-memory kinds', 'h2')]
+    st += [N('buildDay returns A, B, l, t with one row count; l is O - C; nothing is whitened.', 1)]
+    st += [N('Calling buildDay twice with the same arguments gives identical output; t is in seconds.', 2)]
+    st += [N('commonParams has one row per common unknown -- size(A, 2) must equal it.', 3)]
+    st += [N('Every observation type is a field of covariance; the fieldnames are the type list.', 4)]
+    st += [N('Ragged schedule -> resolver + arcId; static -> count/vector, no arcId.', 5)]
+    st += [N('Locals: localsPerArc (fill B from arcInfo) or localParams (you number); neither -> B = zeros(m, 0).', 6)]
+    st += [N('Multi-axis: epoch-major rows, nAxis, Cep on the day; the epochCovariance hook for the exact VCE Shape path.', 7)]
+    st += [N('No unknown field names -- a typo is an error, and so is every v2 count field.', 8)]
+    st += [P('Not every problem streams. When A fits in memory and there are no '
+             'arc-wise unknowns, data has no systems field at all; fit tells the '
+             'kinds apart by the fields present. <b>Kind B</b>: A (m x u), l '
+             '(m x 1, O - C), optional p (weights). <b>Kind C</b>: batchFcn with '
+             '[A, l, p] = batchFcn(k), numBatches, and numUnknowns on the LINEAR '
+             'form; with x0 the problem is nonlinear ([A, w, p] = batchFcn(k, x), '
+             'Gauss-Newton) and u = numel(x0) -- numUnknowns must then be absent '
+             '(lsqvce:fit:uCount). Model must be "gls" on both kinds; '
+             'Robust="irls" selects M-estimation. The same Results comes back; '
+             'residuals() and contribution() refuse without an accumulator and '
+             'say so.', 'body')]
+    st += [callout('A stream whose observation type is called pos is treated as 3 '
+                   'components per epoch by default, which selects the separable '
+                   'model and needs a per-epoch scaling. A scalar stream that '
+                   'happens to be called pos must declare '
+                   'ComponentsPerEpoch = struct(\'pos\', 1).', 'note')]
     st += [PageBreak()]
     return st

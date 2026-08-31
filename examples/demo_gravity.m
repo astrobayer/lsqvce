@@ -97,6 +97,11 @@ function [R, score] = demo_gravity(opt)
 %   See also DEMO_GRAVITY_DATALOADER, DEMO_GRAVITY_DESIGN, DEMO_GRACE,
 %   LSQVCE.ENGINE.ADJUSTVCE
 %
+%   Updated 2026-08-31 (CEST, UTC+02:00), v3 data contract (Level L10,
+%   WP-74): USER surface only -- the run is lsqvce.fit over the v3 data
+%   struct (Model="vce"); the loaders and the engine call are gone from
+%   the example. With assistance from Claude (Anthropic), model Claude
+%   Fable 5.
 %   Updated 2026-08-21 (CEST, UTC+02:00), WP-53: the printed self-assessment
 %   is also RETURNED (second output), and the measured numbers of the default
 %   run are pinned in the ACCURACY block above -- the quality debt of the
@@ -120,7 +125,7 @@ end
         end
     end
 
-    [cfg, L] = demo_gravity_dataLoader();
+    [cfg, data] = demo_gravity_dataLoader();
 
     % ---- 1. the problem -------------------------------------------------
     section('1. The problem: GRACE-like, physically structured, ragged');
@@ -141,8 +146,8 @@ end
              '                   absent BY ID, the way a real schedule is\n']);
 
     % ---- run ------------------------------------------------------------
-    P = lsqvce.engine.adjustVCE(L, cfg.days, 'MaxOuter', opt.MaxOuter, 'Verbose', opt.Verbose, 'GroupBy', 'obsType');
-    R = P.run();
+    R = lsqvce.fit(data, lsqvce.Options(Model="vce", MaxOuter=opt.MaxOuter, ...
+            Verbose=opt.Verbose, GroupBy="obsType"));
 
     % ---- 2. the weights --------------------------------------------------
     section('2. The weights VCE had to find');

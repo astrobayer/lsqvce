@@ -1,24 +1,22 @@
-function [cfg, L, data] = demo_gravity_dataLoader()
+function [cfg, data] = demo_gravity_dataLoader()
 %DEMO_GRAVITY_DATALOADER  GRACE-like gravity-recovery data for DEMO_GRAVITY / DEMO_FIT.
 %
-%   [cfg, L, data] = demo_gravity_dataLoader()
+%   [cfg, data] = demo_gravity_dataLoader()
 %
-%   Returns a configuration CFG, a cell array L of three Loaders (ENGINE tier)
-%   and the SAME declaration as a 2.0 data struct DATA (USER tier, the form
-%   LSQVCE.FIT takes -- see DATA_CONTRACT.md), so a PHYSICALLY STRUCTURED
-%   gravity recovery can be run end to end without any external data:
+%   Returns a configuration CFG and the declaration as a v3 data struct DATA
+%   (the form LSQVCE.FIT takes -- see DATA_CONTRACT.md), so a PHYSICALLY
+%   STRUCTURED gravity recovery can be run end to end without any external
+%   data:
 %
-%       [cfg, L, data] = demo_gravity_dataLoader();
-%       R = lsqvce.fit(data, lsqvce.Options(Model="vce", GroupBy="obsType"));  % USER
-%       R = lsqvce.engine.adjustVCE(L, cfg.days, 'GroupBy', 'obsType').run(); % ENGINE
+%       [cfg, data] = demo_gravity_dataLoader();
+%       R = lsqvce.fit(data, lsqvce.Options(Model="vce", GroupBy="obsType"));
 %
 %   OUTPUT
 %     cfg   1x1 struct  the configuration (days, nc, sys, cov, arcsOfDay, truth)
-%     L     1x3 cell    Loaders, one per system (makeLoader)
-%     data  1x1 struct  .common.numCommon, .days, .systems(1x3) with buildDay,
-%                       observationTypes, covariance, arcs (resolver),
-%                       localsPerArc, systemId, name -- field for field what
-%                       gravityLoaders() hands to makeLoader
+%     data  1x1 struct  .commonParams (one row per SH coefficient: degree,
+%                       order, term -- nc = rows), .days, .systems(1x3) with
+%                       buildDay, covariance (fieldname = the stream),
+%                       arcs (per-day resolver), localsPerArc, id, name
 %
 %   WHAT MAKES THIS DIFFERENT FROM DEMO_GRACE_DATALOADER
 %     That loader builds its design from randn -- fine for exercising the
@@ -99,43 +97,50 @@ function [cfg, L, data] = demo_gravity_dataLoader()
 %     None. The fixture is self-contained and deterministic.
 %
 %   EXAMPLE
-%     [cfg, L] = demo_gravity_dataLoader();
-%     R = lsqvce.engine.adjustVCE(L, cfg.days, 'MaxOuter', 4, 'Verbose', false, ...
-%             'GroupBy', 'obsType').run();
+%     [cfg, data] = demo_gravity_dataLoader();
+%     R = lsqvce.fit(data, lsqvce.Options(Model="vce", MaxOuter=4, ...
+%             Verbose=false, GroupBy="obsType"));
 %     max(abs(R.x - cfg.xTrue) ./ (sqrt(diag(R.sol.Cxx))*R.sigma0))   % < 5
 %
 %   See also DEMO_GRAVITY, DEMO_GRAVITY_DESIGN, DEMO_GRACE_DATALOADER,
-%   LSQVCE.ENGINE.MAKELOADER
+%   LSQVCE.FIT
 %
-%   Updated 2026-09-02 (CEST, UTC+02:00), R4 Level L7 (WP-67): third output
+%   Updated 2026-08-31 (CEST, UTC+02:00), v3 data contract (Level L10,
+%   WP-74): USER surface only -- returns [cfg, data], the v3 declaration
+%   (commonParams = the degree/order/term table, obsTypes from the
+%   covariance fieldnames, systemId -> id); the ENGINE-tier loader
+%   construction moved to dev/tests/fixture_gravity.m. With assistance
+%   from Claude (Anthropic), model Claude Fable 5.
+%   Updated 2026-08-31 (CEST, UTC+02:00), R4 Level L7 (WP-67): third output
 %   DATA -- the same declaration as a 2.0 data struct for LSQVCE.FIT. With
 %   assistance from Claude (Anthropic), model Claude Fable 5.
 %   Created 2026-08-21 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.
 
     cfg  = gravityCfg();
-    L    = gravityLoaders(cfg);
     data = gravityData(cfg);
 end
 
 %==========================================================================
 function data = gravityData(cfg)
-%GRAVITYDATA  The declaration as a 2.0 data struct (R4-D4): ONE source of
-%   truth with gravityLoaders -- same builder, same covariance, same resolver,
-%   same local bookkeeping; fit builds the Loaders from it internally.
+%GRAVITYDATA  The declaration as a v3 data struct (L10 WP-74): the tables
+%   declare, the counts are derived -- commonParams is the degree/order/term
+%   table of the SH coefficients (nc = rows, and the columns MEAN something),
+%   the observation type is the covariance fieldname, id is the system id.
+%   fit builds the Loaders from this internally.
     data = struct();
-    data.common.numCommon = cfg.nc;
+    data.commonParams = [num2cell(cfg.meta.n(:)), num2cell(cfg.meta.m(:)), ...
+                         cellstr(cfg.meta.cs(:))];        % nc = rows, RxC = nc x 3
     data.days = cfg.days;
     for s = 1:numel(cfg.sys)
         ot = cfg.sys(s).obsType;
         d  = struct();
-        d.buildDay         = @(dd, o, cm, lo, po, ai) buildGravityDay(cfg, dd, o, ai);
-        d.observationTypes = {ot};
-        d.covariance       = struct(ot, cfg.cov.(ot));
-        d.arcs             = @(dd, o) cfg.arcsOfDay{cfg.days == dd};
-        d.localsPerArc     = cfg.sys(s).nlPerArc;
-        d.systemId         = cfg.sys(s).id;
-        d.name             = cfg.sys(s).name;
+        d.buildDay     = @(dd, o, cm, lo, po, ai) buildGravityDay(cfg, dd, o, ai);
+        d.covariance   = struct(ot, cfg.cov.(ot));        % fieldname = the stream
+        d.arcs         = @(dd, o) cfg.arcsOfDay{cfg.days == dd};
+        d.localsPerArc = cfg.sys(s).nlPerArc;
+        d.id           = cfg.sys(s).id;
+        d.name         = cfg.sys(s).name;
         if s == 1, data.systems = d; else, data.systems(s) = d; end
     end
 end
@@ -219,34 +224,6 @@ function cfg = gravityCfg()
     % Seeds: the noise REALISATION is random but reproducible; every other
     % number in this fixture is deterministic.
     cfg.seed = struct('potC', 510001, 'potD', 510002, 'kbr', 510003);
-end
-
-%==========================================================================
-function L = gravityLoaders(cfg)
-%GRAVITYLOADERS  Build one Loader per system, each with a per-day arc list.
-%   INPUT  cfg 1x1 struct   the configuration
-%   OUTPUT L   1x3 cell     the Loaders
-    L = cell(1, numel(cfg.sys));
-    for s = 1:numel(cfg.sys)
-        ot  = cfg.sys(s).obsType;
-        cov = struct(ot, cfg.cov.(ot));
-        % WP-52: the ragged schedule is declared, not hand-wired. 'arcs' takes
-        % a resolver answering PER DAY, and 'localsPerArc' hands makeLoader
-        % the local bookkeeping -- it numbers every (day, arc), DERIVES nl,
-        % and passes this day's offsets to the builder. (Before WP-52 this
-        % needed a wrapper around the loader's closure and a hand-rolled
-        % arc-ordinal table; both are gone.)
-        L{s} = lsqvce.engine.makeLoader( ...
-                @(d, o, cm, lo, po, ai) buildGravityDay(cfg, d, o, ai), ...
-                'observationTypes', {ot}, ...
-                'covariance',       cov, ...
-                'arcs',             @(d) cfg.arcsOfDay{cfg.days == d}, ...
-                'localsPerArc',     cfg.sys(s).nlPerArc, ...
-                'systemId',         cfg.sys(s).id, ...
-                'name',             cfg.sys(s).name, ...
-                'numCommon',        cfg.nc, ...
-                'days',             cfg.days);
-    end
 end
 
 %==========================================================================

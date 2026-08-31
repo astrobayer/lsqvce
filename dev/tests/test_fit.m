@@ -6,13 +6,20 @@ function tests = test_fit
 %                  opts.Model to adjustBlock / adjustVCE
 %
 %   Claims under test: (1) EXACTNESS of the dispatch -- fit reproduces the
-%   direct driver call to solver precision; (2) every rule of the data
+%   direct driver call to solver precision; (2) every rule of the v3 data
 %   contract fires its documented lsqvce:fit id BEFORE any data is read;
-%   (3) the declaration is order-free (fields, systems); (4) nl = 0 and raw
-%   loaders pass through.
+%   (3) the declaration is order-free (fields, systems); (4) nl = 0 is the
+%   silent default (neither localsPerArc nor localParams); (5) the derived
+%   quantities (nc from commonParams rows, obsTypes from covariance
+%   fieldnames, u from x0) drive the run.
 %
 %   Run: runtests('tests/test_fit')
 %
+%   Updated 2026-08-31 (CEST, UTC+02:00), v3 data contract (Level L10,
+%   WP-72): counts derived, observationTypes/systemId/numLocal/numCommon/
+%   loader retired from the surface (unknown fields now), localParams RxC,
+%   id with index default, uCount on the batched nonlinear form. With
+%   assistance from Claude (Anthropic), model Claude Fable 5.
 %   Created 2026-08-31 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5 -- R4 Level L2, WP-56.
     tests = functiontests(localfunctions);
@@ -83,7 +90,16 @@ function testDeclarationRulesFireBeforeAnyRead(tc)
     tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:unknownField');
     d = data;  d.systems(1).arcz = 2;
     tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:unknownField');
-    d = data;  d.common.nc = 6;
+    % the retired v2 fields are unknown fields now -- loud, named failures
+    d = data;  d.common.nc = 6;                    % the v2 sub-struct itself
+    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:unknownField');
+    d = data;  d.systems(1).numLocal = 4;
+    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:unknownField');
+    d = data;  d.systems(1).observationTypes = {'pos', 'kbr'};
+    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:unknownField');
+    d = data;  d.systems(1).systemId = 1;
+    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:unknownField');
+    d = data;  d.systems(1).loader = bomb;
     tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:unknownField');
     d = rmfield(data, 'systems');
     tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:noSystems');
@@ -91,39 +107,43 @@ function testDeclarationRulesFireBeforeAnyRead(tc)
     tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:noSystems');
     d = data;  d.systems = rmfield(d.systems, 'covariance');
     tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:missingField');
-    d = data;  d.systems(1).systemId = 'CD';
+    d = data;  d.systems(1).covariance = struct();               % no obs types
     tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:missingField');
-    d = data;  d.systems(1).localsPerArc = 2;                    % now TWO ways
+    d = data;  d.systems(1).id = 'CD';
+    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:badId');
+    d = data;  d.systems(1).localsPerArc = 2;                    % TWO ways
     tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:localCount');
-    d = data;  d.systems(1).numLocal = [];                       % now NO way
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:localCount');
-    d = data;  d.common.commonParams = cell(6, 14);              % both ways
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:commonCount');
-    d = rmfield(data, 'common');
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:commonCount');
+    d = data;  d.systems(1).arcs = 'fromDay';                    % ENGINE-tier only
+    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:badArcs');
+    d = rmfield(data, 'commonParams');
+    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:noCommon');
+    d = data;  d.commonParams = 6;                               % a count, not a table
+    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:noCommon');
     d = rmfield(data, 'days');
     tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:noDays');
     d = data;  d.days = [1 2.5];
     tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:noDays');
-    d = data;  d.systems(2) = d.systems(1);                      % same systemId
+    d = data;  d.systems(1).id = 7;  d.systems(2) = d.systems(1);   % same explicit id
     tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:duplicateSystem');
-    d = data;  d.systems(1).loader = bomb;                       % both kinds
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:builderKind');
+    d = data;  d.systems(1).id = 2;  d.systems(2) = d.systems(1);
+    d.systems(2).id = [];                                        % explicit 2 vs default 2
+    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:duplicateSystem');
     d = data;  d.systems(1).buildDay = 'notAHandle';
     tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:builderKind');
-    d = data;  d.systems(2) = d.systems(1);  d.systems(2).systemId = 2;
-    d.systems(2).buildDay = [];  d.systems(2).loader = bomb;    % mixed kinds
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:builderKind');
     % a makeLoader CONSTRUCTION error is relabelled under lsqvce:fit with the
-    % original attached as the cause
-    d = data;  d.systems(1).covariance = rmfield(d.systems(1).covariance, 'kbr');
+    % original attached as the cause. (noCov is UNREACHABLE through fit since
+    % v3 -- the type list IS fieldnames(covariance) -- so the mechanism is
+    % proven on paramType: a localParams cell that is not a 2-D matrix. A
+    % non-cell would be stopped by makeLoader's SIGNATURE with a MATLAB
+    % validation id, before the body runs -- the b1-r3 split.)
+    d = data;  d.systems(1).localParams = cell(2, 2, 2);
     try
         lsqvce.fit(d);
-        tc.verifyFail('a covariance spec missing an obsType must be refused');
+        tc.verifyFail('a non-matrix localParams cell must be refused by makeLoader via fit');
     catch e
-        tc.verifyEqual(e.identifier, 'lsqvce:fit:noCov');
+        tc.verifyEqual(e.identifier, 'lsqvce:fit:paramType');
         tc.verifyEqual(numel(e.cause), 1);
-        tc.verifyEqual(e.cause{1}.identifier, 'lsqvce:makeLoader:noCov');
+        tc.verifyEqual(e.cause{1}.identifier, 'lsqvce:makeLoader:paramType');
     end
 end
 
@@ -175,34 +195,38 @@ end
 
 function testSystemWithoutLocalsThroughFit(tc)
 % categories: contract, robustness
-    % G-07 via the front door: numLocal = 0 with B = zeros(m, 0).
+    % G-07 via the front door, v3 form: nl = 0 is the DEFAULT -- neither
+    % localsPerArc nor localParams declared, B = zeros(m, 0).
     [data, cfg] = declaration();
     cfg.nl = 0;
     m = cfg.arcsPerDay * cfg.mArc;
     data.systems(1).buildDay = @(d, ot) setfield(buildDayImpl(cfg, d, ot), 'B', zeros(m, 0)); %#ok<SFLD>
-    data.systems(1).numLocal = 0;
+    data.systems(1).localParams = [];                            % explicit 'not used'
     R = lsqvce.fit(data);
     tc.verifyClass(R, 'lsqvce.Results');
     tc.verifyEqual(numel(R.x), cfg.nc);
     tc.verifyLessThan(max(abs(R.x - cfg.x_c)), 0.15);
 end
 
-function testRawLoaderEscapeHatch(tc)
-% categories: contract, reference
-    % ENGINE tier: .loader (raw 4-arg closure) instead of .buildDay maps onto
-    % adjustBlock's struct-array form. Same call, same result.
-    cfg = synthCfg();
-    raw = @(d, ot, a, uo) lsqvce.engine.synthLoader(cfg, 1, d, ot, a, uo);
-    data.common.numCommon = cfg.nc;
-    data.days = 1:3;
-    s.loader = raw;  s.observationTypes = cfg.obsTypes;  s.covariance = cfg.cov;
-    s.systemId = 1;  s.numLocal = cfg.nl;
-    data.systems = s;
-    Rf = lsqvce.fit(data);
-    Rd = lsqvce.engine.adjustBlock(struct('sysID', 1, 'nl', cfg.nl, 'nc', cfg.nc, 'loader', raw), 1:3);
-    % tol: 1e-12 -- identical code path (see the reference tests)
-    tc.verifyEqual(Rf.x, Rd.x, 'RelTol', 1e-12);
-    tc.verifyEqual(Rf.sigma0, Rd.sigma0, 'RelTol', 1e-12);
+function testDerivedQuantitiesDriveTheRun(tc)
+% categories: contract
+    % v3: the derivations ARE the declaration -- nc = commonParams rows
+    % (checked against A on the first read: arcBadNc relabelled is the proof
+    % the derived value is enforced), obsTypes = covariance fieldnames in
+    % declaration order, id defaults to the index.
+    [data, cfg] = declaration();
+    R = lsqvce.fit(data);
+    tc.verifyEqual(numel(R.x), size(data.commonParams, 1), ...
+        'nc must be the commonParams row count');
+    tc.verifyEqual(R.systems(1).sysID, 1, 'id must default to the system index');
+    d = data;  d.commonParams = num2cell((1:cfg.nc + 1).');      % one row too many
+    ok = false;
+    try
+        lsqvce.fit(d);
+    catch e
+        ok = contains(e.identifier, 'arcBadNc') || contains(e.identifier, 'BadNc');
+    end
+    tc.verifyTrue(ok, 'a wrong commonParams row count must be enforced against A');
 end
 
 %% ============================================== WP-57: Results.coefficients
@@ -408,7 +432,7 @@ function testBatchKindNonlinearReproducesSolveNonlinear(tc)
     idx = {1:20, 21:40};
     bf = @(k, x) deal([t(idx{k}).*exp(x(1)*t(idx{k})), ones(20, 1)], ...
                       lobs(idx{k}) - (exp(x(1)*t(idx{k})) + x(2)), []);
-    data = struct('batchFcn', bf, 'numUnknowns', 2, 'numBatches', 2, 'x0', [0.5; 0]);
+    data = struct('batchFcn', bf, 'numBatches', 2, 'x0', [0.5; 0]);   % u = numel(x0), v3
     opts = lsqvce.Options(NonlinearMaxIter=15, TolX=1e-9, Verbose=false);
     R = lsqvce.fit(data, opts);
     [sol, D, ~, IT] = lsqvce.engine.solveNonlinear(2, bf, 2, [0.5; 0], 'MaxIter', 15, 'TolX', 1e-9, 'Verbose', false);
@@ -443,6 +467,10 @@ function testKindsBAndCRulesFireBeforeAnyRead(tc)
     tc.verifyEqual(idOf(@() lsqvce.fit(struct('A', A, 'l', l, 'weights', p))), 'lsqvce:fit:unknownField');
     tc.verifyEqual(idOf(@() lsqvce.fit(struct('A', A, 'l', l), lsqvce.Options(Model="vce"))), 'lsqvce:fit:modelKind');
     tc.verifyEqual(idOf(@() lsqvce.fit(struct('batchFcn', @(k) deal(A, l, p)))), 'lsqvce:fit:missingField');
+    tc.verifyEqual(idOf(@() lsqvce.fit(struct('batchFcn', @(k) deal(A, l, p), ...
+        'numBatches', 1))), 'lsqvce:fit:missingField');          % linear form needs u
+    tc.verifyEqual(idOf(@() lsqvce.fit(struct('batchFcn', @(k, x) deal(A, l, p), ...
+        'numBatches', 1, 'x0', zeros(3, 1), 'numUnknowns', 3))), 'lsqvce:fit:uCount');
     tc.verifyEqual(idOf(@() lsqvce.fit(struct('batchFcn', @(k) deal(A, l, p), 'numUnknowns', 3, ...
         'numBatches', 1), lsqvce.Options(Model="pooled"))), 'lsqvce:fit:modelKind');
 end
@@ -467,27 +495,29 @@ function id = idOf(f)
 end
 
 function [data, cfg] = declaration()
-% The canonical single-system declaration over the makeLoader-path fixture.
+% The canonical single-system declaration over the makeLoader-path fixture
+% (v3 contract: the tables declare, the counts are derived).
     cfg = buildCfg();
     data = struct();
-    data.common.numCommon = cfg.nc;
+    data.commonParams = num2cell((1:cfg.nc).');       % nc = rows (RxC, C = 1)
     data.days = 1:3;
     s = struct();
     s.buildDay = @(d, ot) buildDayImpl(cfg, d, ot);
-    s.observationTypes = {'pos', 'kbr'};
-    s.covariance = cfg.cov;
-    s.systemId = 1;
-    s.numLocal = cfg.nl;
+    s.covariance = cfg.cov;                           % fieldnames = pos, kbr
+    s.localParams = num2cell((1:cfg.nl).');           % nl = rows
     s.arcs = cfg.arcsPerDay;
-    data.systems = s;
+    data.systems = s;                                 % id defaults to 1
 end
 
 function L = loaderOf(~, s, data)
 % What fit builds for one system -- written out, so the tests compare two
-% independent spellings of the same declaration.
-    L = lsqvce.engine.makeLoader(s.buildDay, 'ObservationTypes', s.observationTypes, ...
-            'Covariance', s.covariance, 'SystemId', s.systemId, 'NumLocal', s.numLocal, ...
-            'Arcs', s.arcs, 'Days', data.days, 'NumCommon', data.common.numCommon);
+% independent spellings of the same declaration (v3: obsTypes from the
+% covariance fieldnames, the tables carry the counts, id -> SystemId).
+    L = lsqvce.engine.makeLoader(s.buildDay, ...
+            'ObservationTypes', fieldnames(s.covariance).', ...
+            'Covariance', s.covariance, 'SystemId', 1, ...
+            'LocalParams', s.localParams, ...
+            'Arcs', s.arcs, 'Days', data.days, 'CommonParams', data.commonParams);
 end
 
 function cfg = buildCfg()
@@ -496,18 +526,6 @@ function cfg = buildCfg()
     rs = RandStream('mt19937ar','Seed',11);
     cfg.x_c = randn(rs, 6, 1);
     cfg.y1  = randn(rs, 4, 1);
-    cfg.cov.pos = struct('type','arma','ar',[1 -1.6 0.9 -0.25],'ma',1,'sigma',0.7);
-    cfg.cov.kbr = struct('type','diag','sigma',0.2);
-end
-
-function cfg = synthCfg()
-% cfg in the exact shape lsqvce.engine.synthLoader expects (mirrors test_adjustBlock).
-    cfg = struct('nc',6, 'nl',4, 'arcsPerDay',2, 'mArc',300, 'dt',5, ...
-                 'seed',42, 'collinear',false, 'collinearEps',1e-7);
-    cfg.obsTypes = {'pos','kbr'};
-    rs = RandStream('mt19937ar','Seed',3);
-    cfg.x_c = randn(rs, 6, 1);
-    cfg.y   = containers.Map(1, randn(rs, 4, 1));
     cfg.cov.pos = struct('type','arma','ar',[1 -1.6 0.9 -0.25],'ma',1,'sigma',0.7);
     cfg.cov.kbr = struct('type','diag','sigma',0.2);
 end

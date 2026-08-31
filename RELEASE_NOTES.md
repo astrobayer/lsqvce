@@ -1,5 +1,48 @@
 # lsqvce release notes
 
+## 3.0 — 2026-08-31 (Level L10, WP-72: the v3 data contract)
+
+**Breaking: the `data` contract states nothing the data already states.** Every
+count is derived from the one place it already lives — nc from the
+`commonParams` rows, nl from the `localParams` rows or the `localsPerArc` plan
+(neither → nl = 0), the observation types from `fieldnames(covariance)`, u from
+`numel(x0)` on the nonlinear batched kind. The retired v2 fields are **unknown
+fields** now, so a v2 declaration fails loudly with `lsqvce:fit:unknownField`
+naming the field. `lsqvce.engine.*` keeps the v2 conveniences (counts,
+`'fromDay'`, `cache`, plot hooks, raw loader closures) — they left the USER
+surface, not the toolbox.
+
+### Migration table (v2 declaration → v3)
+
+| v2 | v3 |
+|---|---|
+| `data.common.commonParams = T` | `data.commonParams = T` |
+| `data.common.numCommon = nc` | `data.commonParams = num2cell((1:nc).')` — the table is the declaration |
+| `s.observationTypes = {'kbr','pos'}` | delete — the types are `fieldnames(s.covariance)`, in declaration order |
+| `s.systemId = 'C'` | `s.id = 'C'` (optional; defaults to the system's index) |
+| `s.numLocal = nl` | `s.localParams = num2cell((1:nl).')` — or `s.localsPerArc` |
+| `s.numLocal = 0` | delete — nl = 0 is the default (neither `localsPerArc` nor `localParams`) |
+| `s.localParams` (R×14) | unchanged name; the fixed 14 columns are gone — R×C, C your convention (same for `commonParams`) |
+| `s.arcs = 'fromDay'` | a resolver `@(day,obsType)` (`'fromDay'` is ENGINE-tier only: `lsqvce:fit:badArcs`) |
+| `s.cache`, `s.plotPostSolve`, `s.plotPostModel` | delete — ENGINE-tier (`lsqvce.engine.makeLoader`), not data declaration |
+| `s.loader = @(d,ot,a,uo) ...` | ENGINE tier: call `lsqvce.engine.adjustBlock` / `adjustVCE` with the struct-array form directly |
+| `data.numUnknowns` with `data.x0` (kind C) | delete — u = `numel(x0)` (`lsqvce:fit:uCount` if both); the linear form keeps `numUnknowns` |
+
+### Error-id changes
+`lsqvce:fit:commonCount` → `lsqvce:fit:noCommon` (commonParams missing or not a
+2-D cell). `lsqvce:fit:localCount` now means *both* local ways declared. New:
+`lsqvce:fit:badId`, `lsqvce:fit:badArcs`, `lsqvce:fit:uCount`.
+`lsqvce:makeLoader:paramCols` retired (no fixed column count to violate).
+
+### Unchanged
+`buildDay`'s six-argument signature and return contract, the covariance specs,
+arc schedules (static and resolver), `arcInfo`, the multi-axis rules incl. the
+`epochCovariance` hook (§7 documents *why* it exists: the exact
+separable-descale path of the VCE Shape step), `lsqvce.Options`,
+`lsqvce.Results`, all engine numerics.
+
+---
+
 ## 2.0 — 2026-09-01 (R4 track, Levels L1–L6)
 
 **The one breaking release of the R4 redesign.** Version 1.x users: read the

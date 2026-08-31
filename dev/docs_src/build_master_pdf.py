@@ -46,8 +46,8 @@ MARGIN_T = 20 * mm
 MARGIN_B = 18 * mm
 BODY_W = PAGE_W - MARGIN_L - MARGIN_R
 
-VERSION = '2.0'   # R4 L5 (WP-65); Contents.m is the ONE version source, this mirrors it
-BUILT = '2026-07-19'
+VERSION = '3.0'   # L10 (WP-73); Contents.m is the ONE version source, this mirrors it
+BUILT = '2026-08-31'
 
 # ===========================================================================
 #  STYLES
@@ -252,11 +252,13 @@ def main():
     # Imported HERE, not at module top: the content modules import names from
     # this one, so a top-level import would be circular.
     from master_content_a import (front_matter, part0_start_here,
+                                  partD_data_contract,
                                   part1_orientation, part2_theory)
     from master_content_b import part3_entry_points, part4_template
     story = []
     story += front_matter()
     story += part0_start_here()
+    story += partD_data_contract()
     story += part1_orientation()
     story += part2_theory()
     story += part3_entry_points()

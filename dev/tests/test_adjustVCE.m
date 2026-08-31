@@ -57,7 +57,7 @@ function setupOnce(tc)
     % only ever holds days built by a DETERMINISTIC buildDay, so a cache hit is
     % byte-identical to a rebuild. That determinism is the same property the
     % accumulator already relies on for its residual pass.
-    [tc.TestData.cfg, tc.TestData.loaders] = demo_grace_dataLoader();
+    [tc.TestData.cfg, tc.TestData.loaders] = fixture_grace();
 end
 
 function teardownOnce(tc)
@@ -68,7 +68,8 @@ end
 
 function [P, cfg] = makeVCEBuilder(tc, varargin)
 %MAKEVCEBUILDER  A configured adjustVCE BUILDER over the GRACE demo data.
-%   It does NOT build loaders -- `demo_grace_dataLoader` does that. This wraps
+%   It does NOT build loaders -- `fixture_grace` does that (over the demo's
+%   v3 data struct). This wraps
 %   those loaders in an LSQVCE.ENGINE.ADJUSTVCE with verbosity off, ready for a test to
 %   add its own fluent configuration and call .run().
 %
@@ -81,7 +82,7 @@ function [P, cfg] = makeVCEBuilder(tc, varargin)
 %     cfg  1x1  struct            the demo configuration (days, true sigmas, ...)
 %
 %   COST: the dataset is built ONCE in setupOnce and REUSED here, so this is
-%   cheap. Do not call demo_grace_dataLoader() directly in a test -- that
+%   cheap. Do not call fixture_grace() directly in a test -- that
 %   regenerates 4 days x 2 arcs x 300 epochs and was worth 109 s of a 130 s
 %   suite before it was fixed (HISTORY_v1.md task 6).
     cfg = tc.TestData.cfg;
@@ -356,7 +357,7 @@ function test_covOverride_bySys(tc)
 % categories: precision
     % A bySys override for the merged pair system (sysID 1) must rescale the
     % whitener. bySys is keyed by makeValidName(string(sysID)) -> 'x1'.
-    [cfg, L] = demo_grace_dataLoader();
+    [cfg, L] = fixture_grace();
     Lcd = L{1};                                  % the merged pair system, sysID 1
     baseOpt = struct('sysID', 1);
     arcBase = Lcd.closure(cfg.days(1), 'rr', 1, baseOpt);
@@ -376,7 +377,7 @@ end
 function test_covOverride_flat_backcompat(tc)
 % categories: contract
     % The old flat opt.covOverride.(obsType) form must still work.
-    [cfg, L] = demo_grace_dataLoader();
+    [cfg, L] = fixture_grace();
     Lcd = L{1};
     opt = struct('sysID',1, 'covOverride', struct('rr', struct('sigma', 5)));
     arc = Lcd.closure(cfg.days(1), 'rr', 1, opt);
@@ -532,7 +533,7 @@ function test_plot_hooks_fire(tc)
     % Attach recording postSolve/postModel hooks to the demo loaders and check
     % they FIRE per (system,obsType). The hook returns [] (so showExport is a
     % no-op, no figure needed) and records its ctx.stage/ctx.stream to a file.
-    [cfg, L] = demo_grace_dataLoader();
+    [cfg, L] = fixture_grace();
     tmp = fullfile(tempdir, sprintf('lsqvce_hookrec_%d.txt', randi(1e6)));
     if exist(tmp,'file'), delete(tmp); end
     rec = @(ctx) recordCtx(tmp, ctx);
@@ -573,7 +574,7 @@ function test_plot_ctx_schema_fields(tc)
     % their standard deviations, the common parametrisation labels and the
     % processingOptions on BOTH stages, and the estimated PSD/ACV/AR order on
     % postModel. Capture one ctx of each stage to a MAT file and inspect.
-    [cfg, L] = demo_grace_dataLoader();
+    [cfg, L] = fixture_grace();
     tmpS = fullfile(tempdir, sprintf('lsqvce_ctxS_%d.mat', randi(1e6)));
     tmpM = fullfile(tempdir, sprintf('lsqvce_ctxM_%d.mat', randi(1e6)));
     if exist(tmpS,'file'), delete(tmpS); end
@@ -647,7 +648,7 @@ function test_deterministic(tc)
     %     when it re-reads every day for the residual pass, and sharing the
     %     loaders in setupOnce would otherwise stop testing it -- a cached day
     %     trivially equals itself.
-    [cfgF, LF] = demo_grace_dataLoader();
+    [cfgF, LF] = fixture_grace();
     R3 = lsqvce.engine.adjustVCE(LF, cfgF.days, 'Verbose', false, 'MaxOuter', 3).run();
     % tol: exact-identity claim (same algebra both sides); house bound 1e-10 (HANDOVER 6.1.2)
     verifyEqual(tc, R3.x, R1.x, 'AbsTol', 1e-10, ...
@@ -951,7 +952,8 @@ function txt = captureRun(~, level)
 %
 %   The TestCase is accepted but unused: it is passed so the call sites read
 %   like the other helpers here, and so setupOnce's addpath of examples/ (which
-%   supplies demo_grace_dataLoader) is visibly the precondition.
+%   supplies demo_grace_dataLoader, which fixture_grace builds on) is
+%   visibly the precondition.
 %
 %   INPUT   ~      1x1 matlab.unittest.TestCase   (unused)
 %           level  1x1 double   verbosity 0..3
@@ -965,7 +967,7 @@ function txt = captureRun(~, level)
         % 'Verbose', false and appending another 'Verbose' would rely on
         % inputParser's duplicate-name resolution, which is not a behaviour
         % worth depending on in a test whose whole subject is the verbosity.
-        [cfg, L] = demo_grace_dataLoader();
+        [cfg, L] = fixture_grace();
         P = lsqvce.engine.adjustVCE(L, cfg.days, 'Verbose', level, 'MaxOuter', 1, 'GroupBy', 'obsType', 'Scale', struct('MaxIter', 2));
         P.run();
     catch ME

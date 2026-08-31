@@ -114,29 +114,34 @@ end
 
 function testFitDispatchOverheadIsNegligible(tc)
 % categories: speed
-% R4 WP-63: fit is a front door, not a cost. Its work beyond the engine
-% (data-struct validation, building the loaders through makeLoader, the
-% Options mapping) is a few milliseconds and must stay a small fraction of
-% even a tiny solve: fit(data) versus adjustBlock with the same raw
-% closures, three systems, two days.
+% R4 WP-63 (v3 form, L10 WP-72): fit is a front door, not a cost. Its work
+% beyond the engine (data-struct validation, the v3 derivations, building
+% the loaders through makeLoader, the Options mapping) is a few
+% milliseconds and must stay a small fraction of even a tiny solve:
+% fit(data) versus adjustBlock over prebuilt makeLoader loaders of the
+% SAME declaration, three systems, two days.
     cfg  = tc.TestData.cfg;
     days = 1:2;
     data = struct();
-    data.common.numCommon = cfg.nc;
+    data.commonParams = num2cell((1:cfg.nc).');
     data.days = days;
-    s = struct('loader', [], 'observationTypes', {cfg.obsTypes}, 'covariance', cfg.cov, ...
-               'systemId', 1, 'numLocal', cfg.nl);
+    s = struct('buildDay', [], 'covariance', cfg.cov, ...
+               'localParams', {num2cell((1:cfg.nl).')}, 'arcs', cfg.arcsPerDay, 'id', []);
     sys = repmat(s, 1, numel(cfg.sats));
-    specs = struct('sysID', {}, 'nl', {}, 'nc', {}, 'loader', {});
+    L = cell(1, numel(cfg.sats));
     for k = 1:numel(cfg.sats)
-        sys(k).loader   = binder(cfg, cfg.sats(k));
-        sys(k).systemId = cfg.sats(k);
-        specs(k) = struct('sysID', cfg.sats(k), 'nl', cfg.nl, 'nc', cfg.nc, 'loader', sys(k).loader);
+        sat = cfg.sats(k);
+        sys(k).buildDay = @(d, ot) speedBuildDay(cfg, sat, d, ot);
+        sys(k).id       = sat;
+        L{k} = lsqvce.engine.makeLoader(sys(k).buildDay, ...
+                 'ObservationTypes', fieldnames(cfg.cov).', 'Covariance', cfg.cov, ...
+                 'SystemId', sat, 'LocalParams', sys(k).localParams, ...
+                 'Arcs', cfg.arcsPerDay, 'Days', days, 'CommonParams', data.commonParams);
     end
     data.systems = sys;
     opts = lsqvce.Options(Verbose=false);
 
-    tDirect = timeit(@() lsqvce.engine.adjustBlock(specs, days, 'Verbose', false));
+    tDirect = timeit(@() lsqvce.engine.adjustBlock(L, days, 'Verbose', false));
     tFit    = timeit(@() lsqvce.fit(data, opts));
 
     % tol: 1.25 -- the front door may add at most a quarter of a two-day,
@@ -296,6 +301,19 @@ end
 
 function f = binder(cfg, s)
     f = @(d,ot,a,uo) lsqvce.engine.synthLoader(cfg, s, d, ot, a, uo);
+end
+
+function D = speedBuildDay(cfg, sat, day, obsType)
+% A deterministic whole-day builder for the fit-dispatch benchmark (v3
+% contract: buildDay path; the physics is irrelevant to the time ratio).
+    M  = cfg.arcsPerDay * cfg.mArc;
+    sd = mod(cfg.seed + 13*sat + 7*day + 31*sum(double(obsType)), 2^31-1);
+    rs = RandStream('mt19937ar', 'Seed', sd);
+    D.t = (0:M-1).' * cfg.dt;
+    D.A = randn(rs, M, cfg.nc);
+    D.B = randn(rs, M, cfg.nl);
+    D.l = D.A*cfg.x_c + D.B*cfg.y(sat) + 0.1*randn(rs, M, 1);
+    D.arcIdx = {1:cfg.mArc, cfg.mArc + (1:cfg.mArc)};
 end
 
 function sol = runAcc(cfg, days, varargin)

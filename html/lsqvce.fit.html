@@ -123,25 +123,25 @@ closure fit built) .dayList .name; every lower layer stays reachable on
 R (R.acc, R.diag).</pre>
 <h3>Input</h3>
 <pre class="example">data  1x1  struct  the data declaration (binding rules: DATA_CONTRACT.md
-                   §2). Summary:
-         .common   1x1 struct  exactly ONE of
-                     .commonParams  Rx14 cell  (nc = R) | .numCommon 1x1
+                   §2, v3). Summary of the streaming kind:
+         .commonParams  RxC cell    the COMMON unknowns, one ROW per
+                                    unknown (nc = R; the columns are your
+                                    convention). Required; buildDay&#x27;s 3rd arg.
          .days     1xD double   default day list (numeric integers);
                                 required unless every system has .days
          .systems  1xM struct   one entry per observing system, fields:
            REQUIRED
-             .buildDay          fh        your day builder (or .loader)
-             .observationTypes  1xT cellstr/string
-             .covariance        struct    .(obsType) = covariance spec
-             .systemId          1x1 numeric | 1 char, unique
-             ONE of .localsPerArc | .numLocal | .localParams  (nl; 0 valid)
+             .buildDay          fh        your day builder
+             .covariance        struct    .(obsType) = covariance spec; the
+                                          fieldnames ARE the observation types
            OPTIONAL (default)
-             .arcs (1) .days ([]) .name (&#x27;&#x27;) .cache (true)
-             .epochCovariance ([]) .processingOptions (struct())
-             .plotPostSolve ([]) .plotPostModel ([])
-           ENGINE ESCAPE HATCH
-             .loader   fh   a raw 4-arg closure instead of .buildDay
-                            (all systems must then use .loader)
+             .arcs (1)          1x1 | 1xA | struct | @(day,obsType)
+             .localsPerArc ([]) toolbox numbering, XOR .localParams
+             .localParams  ({}) RxC cell (nl = R); NEITHER declared -&gt; nl = 0
+             .days ([]) .name (&#x27;&#x27;) .id (the system&#x27;s index)
+             .processingOptions (struct())    buildDay&#x27;s 5th arg
+             .epochCovariance ([])  @(day,obsType) per-epoch D hook (the
+                                    exact VCE Shape path, DATA_CONTRACT §7)
 opts  1x1  lsqvce.Options   what to do (default: every engine default,
                    i.e. Model &quot;gls&quot;)</pre>
 <h3>Output</h3>
@@ -160,20 +160,27 @@ nondeterminism recorded in HANDOVER §10.8 (WP-47 r1e).</pre>
 <h3>Errors</h3>
 <pre class="example">Your declaration is wrong (raised BEFORE any data is read):
   lsqvce:fit:unknownField    a field name the contract does not know
-                             (names the field; typos are errors on purpose)
+                             (names the field; typos are errors on purpose
+                             -- and so are the v2 fields: common, numCommon,
+                             numLocal, observationTypes, systemId, cache,
+                             loader, plotPostSolve, plotPostModel)
   lsqvce:fit:noSystems       data.systems missing, not a struct, or empty
-  lsqvce:fit:missingField    a required system field is absent
-  lsqvce:fit:localCount      not exactly one of localsPerArc|numLocal|
-                             localParams
-  lsqvce:fit:commonCount     data.common has not exactly one of
-                             commonParams|numCommon
+  lsqvce:fit:noCommon        data.commonParams missing, or not a 2-D cell
+                             with one row per unknown
+  lsqvce:fit:missingField    a required system field is absent, or
+                             covariance carries no observation type
+  lsqvce:fit:localCount      BOTH localsPerArc and localParams declared
+                             (either one, or neither -&gt; nl = 0)
   lsqvce:fit:noDays          no day list anywhere
-  lsqvce:fit:duplicateSystem two systems share a systemId
-  lsqvce:fit:builderKind     buildDay/loader is not a function handle,
-                             both given, or systems mix the two kinds
+  lsqvce:fit:badId           id is not a numeric scalar or single char
+  lsqvce:fit:duplicateSystem two systems share an id (explicit or index
+                             default)
+  lsqvce:fit:builderKind     buildDay is not a function handle
+  lsqvce:fit:badArcs         arcs = &#x27;fromDay&#x27; (ENGINE-tier only: declare
+                             a resolver @(day,obsType) instead)
   lsqvce:fit:&lt;makeLoader id&gt; a makeLoader construction error, relabelled
-                             (e.g. noCov, badArcs, localPlan); the
-                             original is attached as the cause
+                             (e.g. paramType, badArcs, localPlan);
+                             the original is attached as the cause
 Your choice is not available here:
   lsqvce:fit:notYet          Robust ~= &quot;none&quot; on the STREAMING kind --
                              the streaming kind screens outliers
@@ -181,17 +188,19 @@ Your choice is not available here:
   lsqvce:fit:modelKind       Model other than &quot;gls&quot; on kinds B / C
   lsqvce:fit:badMatrix       kind B shapes disagree (A m x u, l m x 1,
                              p m x 1)
-  lsqvce:fit:missingField    kind C lacks numUnknowns / numBatches
+  lsqvce:fit:missingField    kind C lacks batchFcn / numBatches, or the
+                             linear form lacks numUnknowns
+  lsqvce:fit:uCount          kind C carries BOTH x0 and numUnknowns --
+                             u is stated once (numel(x0))
 Your buildDay is wrong (raised WHILE READING, by the engine, ids
 unchanged): lsqvce:makeLoader:badDay / dayShape / badArc / badArcId /
 buildDay, lsqvce:accum:arcBadNc / arcBadNl</pre>
 <h3>Example</h3>
-<pre class="example">  data.common.numCommon = 6;   data.days = 1:3;
+<pre class="example">  data.commonParams = num2cell((1:6).&#x27;);   data.days = 1:3;
   s.buildDay = @(d, ot) myBuildDay(d, ot);
-  s.observationTypes = {&#x27;pos&#x27;,&#x27;kbr&#x27;};
   s.covariance.pos = struct(&#x27;type&#x27;,&#x27;arma&#x27;,&#x27;ar&#x27;,[1 -1.6 0.9 -0.25],&#x27;ma&#x27;,1,&#x27;sigma&#x27;,0.7);
   s.covariance.kbr = struct(&#x27;type&#x27;,&#x27;diag&#x27;,&#x27;sigma&#x27;,0.2);
-  s.systemId = 1;   s.numLocal = 4;   s.arcs = 2;
+  s.localParams = num2cell((1:4).&#x27;);   s.arcs = 2;
   data.systems = s;
   R = lsqvce.fit(data, lsqvce.Options(Model=&quot;vce&quot;));
   R.report

@@ -618,10 +618,12 @@ end
 
 function test_hutchinson_recovers_planted_ratio_like_demos(tc)
 % categories: precision
-    % Guards the CLAIM the demos make (demo_lsqvce case 5, demo_workflow):
+    % Guards the CLAIM the demos make (demo_lsqvce case 5, demo_workflow §4):
     % a 2-group problem where group 2 is 3x noisier but we CLAIM equal weights;
     % both the exact and the 'backend','hutchinson' paths must recover the true
-    % sigma ratio of ~3. This is the side-by-side the demos print, in a test.
+    % sigma ratio of ~3. Since L10 (WP-74) the demos run the recovery through
+    % lsqvce.fit(Model="vce") and only NAME the Hutchinson backend; the
+    % exact-vs-Hutchinson agreement they cite is guarded HERE, at engine tier.
     rs = RandStream('mt19937ar', 'Seed', 2026);
     u = 8;  ng = 500;  n = 2*ng;  nb = 10;
     A  = randn(rs, n, u);  xt = randn(rs, u, 1);

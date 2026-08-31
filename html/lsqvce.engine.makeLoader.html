@@ -79,8 +79,9 @@ buildDay is called with as many of the SIX arguments as it DECLARES, so an
 existing @(day,obsType) builder keeps working unchanged; a builder that
 also takes (common, local, procOpt) receives the parametrisation arrays and
 processing options passed to makeLoader (below). A builder that uses
-varargin receives all six. common/local have ONE ROW per unknown and 14
-columns; nc and nl are DERIVED from their row counts (see &#x27;common&#x27;/&#x27;local&#x27;).</pre>
+varargin receives all six. common/local have ONE ROW per unknown and C
+columns of YOUR convention (v3: no fixed column count); nc and nl are
+DERIVED from their row counts (see &#x27;common&#x27;/&#x27;local&#x27;).</pre>
 <h3>Input</h3>
 <pre class="example">  buildDay  1x1  function_handle   @(day,obsType) day builder (above).
                                    Required.
@@ -144,14 +145,14 @@ columns; nc and nl are DERIVED from their row counts (see &#x27;common&#x27;/&#x
                                     DERIVE it from here -- there is no nc
                                     argument on them, so it is stated once.
     &#x27;commonParams&#x27; RxC cell  parametrisation of the COMMON unknowns, one ROW
-                                    per unknown, C = 14 columns (meaning is
-                                    your convention). Piped to buildDay as its
+                                    per unknown, C columns (count and meaning
+                                    are your convention). Piped to buildDay as its
                                     3rd arg. nc is DERIVED as size(.,1) and
                                     carried as L.nc. SHARED across systems, so
                                     every loader must pass the SAME value.
                                     (default {})  (alias: &#x27;common&#x27;)
     &#x27;localParams&#x27;  RxC cell  parametrisation of the LOCAL unknowns, one ROW per
-                                    unknown, C = 14 columns. Piped to buildDay
+                                    unknown, C columns. Piped to buildDay
                                     as its 4th arg. nl is DERIVED as size(.,1).
                                     (default {})  (alias: &#x27;local&#x27;)
     &#x27;processingOptions&#x27; 1x1 struct  free-form processing options, piped to
@@ -235,7 +236,6 @@ R = lsqvce.engine.adjustBlock({L}, 1:3);</pre>
     lsqvce:makeLoader:localPlan    &#x27;localsPerArc&#x27; without &#x27;days&#x27;, combined
                                    with &#x27;fromDay&#x27;, or a bad count (WP-52)
     lsqvce:makeLoader:paramType    commonParams/localParams is not a 2-D cell
-    lsqvce:makeLoader:paramCols    ... or does not have the required columns
     lsqvce:makeLoader:ncConflict   numCommon disagrees with the commonParams
                                    row count -- state it ONCE, in the table
     lsqvce:makeLoader:nlConflict   the same for numLocal/localParams
