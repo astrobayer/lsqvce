@@ -112,6 +112,23 @@ DERIVED from their row counts (see &#x27;common&#x27;/&#x27;local&#x27;).</pre>
                     With ragged arcs the day may declare .arcId (see THE
                     PART YOU WRITE) so arcs are addressed BY ID and absent
                     ids are skipped as data gaps -- no padding needed.
+    &#x27;Scoped&#x27;       1x1 logical  v4 contract (L11 WP-75): treat the
+                                    parametrisation tables as SCOPED --
+                                    column 1 of localParams is the token
+                                    &#x27;arc&#x27; | &#x27;day&#x27; | &#x27;system&#x27;, rows are
+                                    templates expanded over the calendar
+                                    (nl DERIVED; layout: per day [arc
+                                    blocks, sorted ids | &#x27;day&#x27; block],
+                                    trailing &#x27;system&#x27; block; a day whose
+                                    schedule has no arcs gets no blocks).
+                                    Default false: v3 free-form tables.
+    &#x27;CommonPlan&#x27;   1x1 struct    v4: the COMMON scope plan built by
+                                    lsqvce.fit over the GLOBAL day
+                                    calendar (it spans systems): .nc
+                                    .commonCount .days .dayOffset
+                                    .dayCount. Sets nc; buildDay&#x27;s 6th
+                                    argument gains .nc / .commonCount /
+                                    .commonDayOffset / .commonDayCount.
     &#x27;localsPerArc&#x27; var  let makeLoader OWN the per-arc local bookkeeping
                                     (WP-52). 1x1 integer, or @(day,arcId)
                                     returning the count for that arc. It
@@ -236,6 +253,8 @@ R = lsqvce.engine.adjustBlock({L}, 1:3);</pre>
     lsqvce:makeLoader:localPlan    &#x27;localsPerArc&#x27; without &#x27;days&#x27;, combined
                                    with &#x27;fromDay&#x27;, or a bad count (WP-52)
     lsqvce:makeLoader:paramType    commonParams/localParams is not a 2-D cell
+    lsqvce:makeLoader:badScope     a Scoped localParams row whose column 1
+                                   is not &#x27;arc&#x27; | &#x27;day&#x27; | &#x27;system&#x27;
     lsqvce:makeLoader:ncConflict   numCommon disagrees with the commonParams
                                    row count -- state it ONCE, in the table
     lsqvce:makeLoader:nlConflict   the same for numLocal/localParams
