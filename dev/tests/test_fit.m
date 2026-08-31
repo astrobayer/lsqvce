@@ -133,11 +133,13 @@ function testDeclarationRulesFireBeforeAnyRead(tc)
     % a makeLoader CONSTRUCTION error is relabelled under lsqvce:fit with the
     % original attached as the cause. (noCov is UNREACHABLE through fit since
     % v3 -- the type list IS fieldnames(covariance) -- so the mechanism is
-    % proven on paramType: localParams that is not a 2-D cell.)
-    d = data;  d.systems(1).localParams = 'nope';
+    % proven on paramType: a localParams cell that is not a 2-D matrix. A
+    % non-cell would be stopped by makeLoader's SIGNATURE with a MATLAB
+    % validation id, before the body runs -- the b1-r3 split.)
+    d = data;  d.systems(1).localParams = cell(2, 2, 2);
     try
         lsqvce.fit(d);
-        tc.verifyFail('a non-cell localParams must be refused by makeLoader via fit');
+        tc.verifyFail('a non-matrix localParams cell must be refused by makeLoader via fit');
     catch e
         tc.verifyEqual(e.identifier, 'lsqvce:fit:paramType');
         tc.verifyEqual(numel(e.cause), 1);
