@@ -112,6 +112,42 @@ function testQROverheadIsAcceptable(tc)
         sprintf('QR is %.1fx the cost of normal equations; expected < 4x', tQ/tN));
 end
 
+function testFitDispatchOverheadIsNegligible(tc)
+% categories: speed
+% R4 WP-63: fit is a front door, not a cost. Its work beyond the engine
+% (data-struct validation, building the loaders through makeLoader, the
+% Options mapping) is a few milliseconds and must stay a small fraction of
+% even a tiny solve: fit(data) versus adjustBlock with the same raw
+% closures, three systems, two days.
+    cfg  = tc.TestData.cfg;
+    days = 1:2;
+    data = struct();
+    data.common.numCommon = cfg.nc;
+    data.days = days;
+    s = struct('loader', [], 'observationTypes', {cfg.obsTypes}, 'covariance', cfg.cov, ...
+               'systemId', 1, 'numLocal', cfg.nl);
+    sys = repmat(s, 1, numel(cfg.sats));
+    specs = struct('sysID', {}, 'nl', {}, 'nc', {}, 'loader', {});
+    for k = 1:numel(cfg.sats)
+        sys(k).loader   = binder(cfg, cfg.sats(k));
+        sys(k).systemId = cfg.sats(k);
+        specs(k) = struct('sysID', cfg.sats(k), 'nl', cfg.nl, 'nc', cfg.nc, 'loader', sys(k).loader);
+    end
+    data.systems = sys;
+    opts = lsqvce.Options(Verbose=false);
+
+    tDirect = timeit(@() lsqvce.adjustBlock(specs, days, 'Verbose', false));
+    tFit    = timeit(@() lsqvce.fit(data, opts));
+
+    % tol: 1.25 -- the front door may add at most a quarter of a two-day,
+    % three-system solve (~ tens of ms of validation + Options mapping on top
+    % of a solve that is itself well under a second); 2x would mean fit is
+    % doing engine work twice
+    tc.verifyLessThan(tFit / tDirect, 1.25, ...
+        sprintf('fit is %.2fx the direct driver call (%.1f ms vs %.1f ms); expected < 1.25x', ...
+                tFit/tDirect, tFit*1e3, tDirect*1e3));
+end
+
 function testTriangularFactorStaysBounded(tc)
 % categories: contract, speed
 % The QR factor must be truncated to dim+1 rows after every batch. If it were
