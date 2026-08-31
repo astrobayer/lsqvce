@@ -61,22 +61,21 @@ object, the verb <a href="lsqvce.fit.html">fit</a>, and a <a href="lsqvce.Result
     <td><code>data.A</code> (m&times;u), <code>data.l</code> (m&times;1, observed minus computed), optional <code>data.p</code> (weights)</td>
     <td><code>adjust</code>; <code>Robust="irls"</code> &rarr; <code>robust</code></td></tr>
 <tr><td>The same, but batched or nonlinear</td>
-    <td><code>data.batchFcn</code>, <code>data.numUnknowns</code>, <code>data.numBatches</code>; with <code>data.x0</code> the callback returns the Jacobian at x</td>
+    <td><code>data.batchFcn</code>, <code>data.numBatches</code>, <code>data.numUnknowns</code> (linear form); with <code>data.x0</code> the callback returns the Jacobian at x and u = numel(x0)</td>
     <td><code>adjust</code> / <code>robust</code> / <code>solveNonlinear</code></td></tr>
 <tr><td>Days, arcs, arc-wise unknowns, coloured noise (GRACE-FO)</td>
-    <td><code>data.common</code>, <code>data.days</code>, <code>data.systems(k)</code> with your <code>buildDay</code> -- see below</td>
+    <td><code>data.commonParams</code>, <code>data.days</code>, <code>data.systems(k)</code> with your <code>buildDay</code> -- see below</td>
     <td><code>adjustBlock</code> (gls), <code>adjustVCE</code> (vce, pooled), <code>adjustVCEjoint</code> (ellmer)</td></tr>
 </table>
 
 <h2>3. The streaming kind in one screen</h2>
-<pre class="example">data.common.commonParams = commonTbl;      % nc stated ONCE (or .numCommon)
+<pre class="example">data.commonParams = commonTbl;             % one ROW per common unknown: nc = rows
 data.days = 1:30;
 s = struct();
 s.buildDay         = @buildDayC;           % the one function you write
-s.observationTypes = {'kbr','pos'};
 s.covariance.kbr   = struct('type','arma','ar',[1 -1.6 0.9 -0.25],'ma',1,'sigma',1e-7);
-s.covariance.pos   = struct('type','diag','sigma',0.02);
-s.systemId         = 'C';
+s.covariance.pos   = struct('type','diag','sigma',0.02);   % fieldnames = the types
+s.id               = 'C';
 s.arcs             = @(day, obsType) arcSchedule('C', day);   % ragged: ids per day
 s.localsPerArc     = 6;                    % fit numbers the local blocks for you
 data.systems(1) = s;                       % add satellite D as data.systems(2)</pre>

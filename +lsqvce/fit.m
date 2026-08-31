@@ -5,9 +5,9 @@ function R = fit(data, opts)
 %   R = lsqvce.fit(data, opts)
 %
 %   The one verb (R4, HANDOVER §11.4). You describe the problem with a plain
-%   struct `data` (DATA_CONTRACT.md: what is common, which days, which
-%   observing systems and the ONE function buildDay each of them points to),
-%   choose what to do with an LSQVCE.OPTIONS object, and get an
+%   struct `data` (DATA_CONTRACT.md: which unknowns are common, which days,
+%   which observing systems and the ONE function buildDay each of them points
+%   to), choose what to do with an LSQVCE.OPTIONS object, and get an
 %   LSQVCE.RESULTS back:
 %
 %       opts = lsqvce.Options(Model="vce", GroupBy="satObs");
@@ -16,10 +16,10 @@ function R = fit(data, opts)
 %
 %   fit does three things and nothing else: (1) validates `data` against the
 %   contract BEFORE any data is read (fail fast, one error identifier per
-%   rule -- ERRORS below), (2) builds one Loader per system through LSQVCE.ENGINE.MAKELOADER (the
-%   field names are makeLoader's canonical option names in lowerCamelCase;
-%   the mapping table lives here and nowhere else), (3) dispatches on
-%   opts.Model to the engine that does the work:
+%   rule -- ERRORS below), (2) builds one Loader per system through
+%   LSQVCE.ENGINE.MAKELOADER (the field names are makeLoader's canonical
+%   option names in lowerCamelCase; the mapping table lives here and nowhere
+%   else), (3) dispatches on opts.Model to the engine that does the work:
 %
 %       Model      engine                    what
 %       "gls"      LSQVCE.ENGINE.ADJUSTBLOCK        one GLS solve with the declared
@@ -47,6 +47,13 @@ function R = fit(data, opts)
 %                                            convergence() are adjustVCE's
 %                                            readers and refuse (noHistory).
 %
+%   THE v3 CONTRACT (Level L10, WP-72) STATES NOTHING THE DATA ALREADY
+%   STATES: nc = size(commonParams, 1), nl = size(localParams, 1) or the
+%   localsPerArc plan (neither declared -> nl = 0), the observation types =
+%   fieldnames(covariance), u = numel(x0) on the nonlinear batched kind.
+%   There are no count fields (numCommon / numLocal / numUnknowns-with-x0
+%   are gone) and no duplicate lists -- one source each, nothing to disagree.
+%
 %   TWO MORE KINDS OF DATA (R4 WP-56b) -- told apart by the fields present,
 %   for problems WITHOUT local unknowns and with diagonal weights:
 %
@@ -55,12 +62,14 @@ function R = fit(data, opts)
 %         data.l   m x 1 double     observed minus computed
 %         data.p   m x 1 double     weights (diagonal of P); optional (unit)
 %   (C) BATCHED CALLBACK
-%         data.numUnknowns  1x1     u
-%         data.numBatches   1x1     nBatch
 %         data.batchFcn     fh      [A, l, p] = batchFcn(k), k = 1..nBatch
-%                                   (the LSQVCE.ENGINE.ADJUST contract), or, with
+%                                   (the LSQVCE.ENGINE.ADJUST contract)
+%         data.numBatches   1x1     nBatch
+%         data.numUnknowns  1x1     u -- LINEAR form only. With
 %         data.x0           u x 1   -> NONLINEAR: [A, w, p] = batchFcn(k, x)
-%                                   (the LSQVCE.ENGINE.SOLVENONLINEAR contract)
+%                                   (the LSQVCE.ENGINE.SOLVENONLINEAR
+%                                   contract); u = numel(x0), so numUnknowns
+%                                   must then be ABSENT (stated once).
 %   Dispatch for both: opts.Model must be "gls" (variance components need
 %   the groups of a streaming system); opts.Robust = "irls" selects
 %   LSQVCE.ENGINE.ROBUST, data.x0 selects LSQVCE.ENGINE.SOLVENONLINEAR, else LSQVCE.ENGINE.ADJUST.
@@ -81,25 +90,35 @@ function R = fit(data, opts)
 %
 %   INPUT
 %     data  1x1  struct  the data declaration (binding rules: DATA_CONTRACT.md
-%                        §2). Summary:
-%              .common   1x1 struct  exactly ONE of
-%                          .commonParams  Rx14 cell  (nc = R) | .numCommon 1x1
+%                        §2). Summary of the streaming kind:
+%              .commonParams  RxC cell    the COMMON unknowns, one ROW per
+%                                         unknown, C columns of meaning (your
+%                                         convention -- the toolbox reads only
+%                                         the row count: nc = R). Required.
+%                                         Passed to buildDay as its 3rd arg.
 %              .days     1xD double   default day list (numeric integers);
 %                                     required unless every system has .days
 %              .systems  1xM struct   one entry per observing system, fields:
 %                REQUIRED
-%                  .buildDay          fh        your day builder (or .loader)
-%                  .observationTypes  1xT cellstr/string
-%                  .covariance        struct    .(obsType) = covariance spec
-%                  .systemId          1x1 numeric | 1 char, unique
-%                  ONE of .localsPerArc | .numLocal | .localParams  (nl; 0 valid)
+%                  .buildDay          fh        your day builder
+%                  .covariance        struct    .(obsType) = covariance spec;
+%                                               the observation types ARE its
+%                                               fieldnames (their order is the
+%                                               processing order)
 %                OPTIONAL (default)
-%                  .arcs (1) .days ([]) .name ('') .cache (true)
-%                  .epochCovariance ([]) .processingOptions (struct())
-%                  .plotPostSolve ([]) .plotPostModel ([])
-%                ENGINE ESCAPE HATCH
-%                  .loader   fh   a raw 4-arg closure instead of .buildDay
-%                                 (all systems must then use .loader)
+%                  .arcs (1)          1x1 | 1xA | struct | @(day,obsType)
+%                                     ('fromDay' is ENGINE-tier only)
+%                  .localsPerArc ([]) 1x1 | @(day,arcId) -- the toolbox owns
+%                                     the per-arc numbering and hands buildDay
+%                                     its arcInfo slice; XOR with
+%                  .localParams  ({}) RxC cell, one ROW per local unknown
+%                                     (nl = R), buildDay's 4th arg. NEITHER
+%                                     declared -> nl = 0 (B is m x 0).
+%                  .days ([]) .name ('') .id (the system's index)
+%                  .processingOptions (struct())   buildDay's 5th arg
+%                  .epochCovariance ([])  @(day,obsType) per-epoch D hook:
+%                                     the exact separable-descale path of the
+%                                     VCE Shape step (DATA_CONTRACT §7).
 %     opts  1x1  lsqvce.Options   what to do (default: every engine default,
 %                        i.e. Model "gls")
 %
@@ -121,20 +140,29 @@ function R = fit(data, opts)
 %   ERRORS
 %     Your declaration is wrong (raised BEFORE any data is read):
 %       lsqvce:fit:unknownField    a field name the contract does not know
-%                                  (names the field; typos are errors on purpose)
+%                                  (names the field; typos are errors on
+%                                  purpose -- and so are the v2 fields:
+%                                  common, numCommon, numLocal,
+%                                  observationTypes, systemId, cache, loader,
+%                                  plotPostSolve, plotPostModel)
 %       lsqvce:fit:noSystems       data.systems missing, not a struct, or empty
-%       lsqvce:fit:missingField    a required system field is absent
-%       lsqvce:fit:localCount      not exactly one of localsPerArc|numLocal|
-%                                  localParams
-%       lsqvce:fit:commonCount     data.common has not exactly one of
-%                                  commonParams|numCommon
+%       lsqvce:fit:noCommon        data.commonParams missing, or not a 2-D
+%                                  cell with one row per unknown
+%       lsqvce:fit:missingField    a required system field is absent, or
+%                                  covariance carries no observation type
+%       lsqvce:fit:localCount      BOTH localsPerArc and localParams declared
+%                                  (either one, or neither -> nl = 0)
 %       lsqvce:fit:noDays          no day list anywhere
-%       lsqvce:fit:duplicateSystem two systems share a systemId
-%       lsqvce:fit:builderKind     buildDay/loader is not a function handle,
-%                                  both given, or systems mix the two kinds
+%       lsqvce:fit:badId           id is not a numeric scalar or single char
+%       lsqvce:fit:duplicateSystem two systems share an id (explicit or
+%                                  index default)
+%       lsqvce:fit:builderKind     buildDay is not a function handle
+%       lsqvce:fit:badArcs         arcs = 'fromDay' (ENGINE-tier only: it
+%                                  reads data before the run; declare a
+%                                  resolver @(day,obsType) instead)
 %       lsqvce:fit:<makeLoader id> a makeLoader construction error, relabelled
-%                                  (e.g. noCov, badArcs, localPlan); the
-%                                  original is attached as the cause
+%                                  (e.g. noCov, badArcs, localPlan, paramType);
+%                                  the original is attached as the cause
 %     Your choice is not available here:
 %       lsqvce:fit:notYet          Robust ~= "none" on the STREAMING kind --
 %                                  the streaming kind screens outliers
@@ -142,18 +170,20 @@ function R = fit(data, opts)
 %       lsqvce:fit:modelKind       Model other than "gls" on kinds B / C
 %       lsqvce:fit:badMatrix       kind B shapes disagree (A m x u, l m x 1,
 %                                  p m x 1)
-%       lsqvce:fit:missingField    kind C lacks numUnknowns / numBatches
+%       lsqvce:fit:missingField    kind C lacks batchFcn / numBatches, or the
+%                                  linear form lacks numUnknowns
+%       lsqvce:fit:uCount          kind C carries BOTH x0 and numUnknowns --
+%                                  u is stated once (numel(x0))
 %     Your buildDay is wrong (raised WHILE READING, by the engine, ids
 %     unchanged): lsqvce:makeLoader:badDay / dayShape / badArc / badArcId /
 %     buildDay, lsqvce:accum:arcBadNc / arcBadNl
 %
 %   EXAMPLE
-%     data.common.numCommon = 6;   data.days = 1:3;
+%     data.commonParams = num2cell((1:6).');   data.days = 1:3;
 %     s.buildDay = @(d, ot) myBuildDay(d, ot);
-%     s.observationTypes = {'pos','kbr'};
 %     s.covariance.pos = struct('type','arma','ar',[1 -1.6 0.9 -0.25],'ma',1,'sigma',0.7);
 %     s.covariance.kbr = struct('type','diag','sigma',0.2);
-%     s.systemId = 1;   s.numLocal = 4;   s.arcs = 2;
+%     s.localParams = num2cell((1:4).');   s.arcs = 2;
 %     data.systems = s;
 %     R = lsqvce.fit(data, lsqvce.Options(Model="vce"));
 %     R.report
@@ -162,6 +192,13 @@ function R = fit(data, opts)
 %            LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCE, LSQVCE.ENGINE.ADJUSTVCEJOINT,
 %            LSQVCE.ENGINE.ADJUST, LSQVCE.ENGINE.ROBUST, LSQVCE.ENGINE.SOLVENONLINEAR
 %
+%   Updated 2026-08-31 (CEST, UTC+02:00), v3 data contract (Level L10,
+%   WP-72): every derivable count derived (nc / nl / obsTypes / u-with-x0),
+%   commonParams required and RxC, localParams | localsPerArc | neither
+%   (nl = 0), systemId -> id with the index default, the raw-loader escape
+%   hatch and the v2 count/behaviour fields removed from this surface
+%   (cache / plot hooks / 'fromDay' stay ENGINE-tier on makeLoader).
+%   With assistance from Claude (Anthropic), model Claude Fable 5.
 %   Updated 2026-09-01 (CEST, UTC+02:00), R4 WP-56c (Level L3): Model "ellmer"
 %   wired -- accFcn from the loaders + jointModelOpt, out -> Results bridge
 %   (diagnoseAccum + diagnose; noise/history/converged set). With assistance
@@ -169,8 +206,8 @@ function R = fit(data, opts)
 %   Updated 2026-08-31 (CEST, UTC+02:00), R4 WP-56b (Level L4): kinds B
 %   (in-memory matrices) and C (batched callback, linear or nonlinear with
 %   x0) through adjust / robust / solveNonlinear, returned as Results without
-%   an accumulator. Model "ellmer" stays refused (WP-56c). With assistance
-%   from Claude (Anthropic), model Claude Fable 5.
+%   an accumulator. With assistance from Claude (Anthropic), model Claude
+%   Fable 5.
 %   Created 2026-08-31 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5 -- R4 Level L2, WP-56 (decision R4-D4).
 arguments
@@ -198,7 +235,8 @@ end
     end
 
     spec = validateData(data);
-    [systems, days] = buildSystems(spec);
+    systems = buildSystems(spec);
+    days = spec.days;
 
     switch char(opts.Model)
         case 'gls'
@@ -219,9 +257,10 @@ end
 
 %==========================================================================
 function spec = validateData(data)
-%VALIDATEDATA  Enforce DATA_CONTRACT.md §2 on the raw struct; fail fast.
-%   OUTPUT spec 1x1 struct  .common (struct), .days (double), .systems (1xM)
-    topAllowed = {'common', 'days', 'systems'};
+%VALIDATEDATA  Enforce DATA_CONTRACT.md §2 (v3) on the raw struct; fail fast.
+%   OUTPUT spec 1x1 struct  .commonParams (RxC cell), .days (double),
+%                           .systems (1xM), .ids (1xM cellstr, resolved)
+    topAllowed = {'commonParams', 'days', 'systems'};
     rejectUnknown(fieldnames(data), topAllowed, 'data');
 
     if ~isfield(data, 'systems') || ~isstruct(data.systems) || isempty(data.systems)
@@ -230,25 +269,13 @@ function spec = validateData(data)
     end
     sys = data.systems(:).';
 
-    % ---- common block: nc stated exactly once
-    common = struct('commonParams', {{}}, 'numCommon', []);
-    if isfield(data, 'common')
-        c = data.common;
-        if ~isstruct(c) || ~isscalar(c)
-            error('lsqvce:fit:commonCount', 'data.common must be a scalar struct.');
-        end
-        rejectUnknown(fieldnames(c), {'commonParams', 'numCommon'}, 'data.common');
-        hasP = isfield(c, 'commonParams') && ~isempty(c.commonParams);
-        hasN = isfield(c, 'numCommon')    && ~isempty(c.numCommon);
-        if hasP == hasN
-            error('lsqvce:fit:commonCount', ...
-                'data.common must carry exactly ONE of commonParams (Rx14 cell) or numCommon (1x1).');
-        end
-        if hasP, common.commonParams = c.commonParams; end
-        if hasN, common.numCommon    = c.numCommon;    end
-    else
-        error('lsqvce:fit:commonCount', ...
-            'data.common is missing: state the common unknowns ONCE as commonParams or numCommon.');
+    % ---- the common unknowns: the table IS the declaration (nc = rows)
+    if ~isfield(data, 'commonParams') || isempty(data.commonParams) || ...
+            ~iscell(data.commonParams) || ~ismatrix(data.commonParams)
+        error('lsqvce:fit:noCommon', ...
+            ['data.commonParams is required: an R x C cell, one ROW per common ' ...
+             'unknown (nc = R; the column meaning is your convention). ' ...
+             'Minimal table: num2cell((1:nc).'').']);
     end
 
     % ---- days
@@ -261,13 +288,11 @@ function spec = validateData(data)
     end
 
     % ---- systems
-    sysRequired = {'observationTypes', 'covariance', 'systemId'};
-    sysAllowed  = [sysRequired, {'buildDay', 'loader', 'localsPerArc', 'numLocal', ...
-                   'localParams', 'arcs', 'days', 'name', 'cache', 'epochCovariance', ...
-                   'processingOptions', 'plotPostSolve', 'plotPostModel'}];
+    sysRequired = {'buildDay', 'covariance'};
+    sysAllowed  = [sysRequired, {'localsPerArc', 'localParams', 'arcs', 'days', ...
+                   'id', 'name', 'processingOptions', 'epochCovariance'}];
     rejectUnknown(fieldnames(sys), sysAllowed, 'data.systems');
-    ids  = cell(1, numel(sys));
-    kind = zeros(1, numel(sys));                    % 1 buildDay | 2 loader
+    ids = cell(1, numel(sys));
     for k = 1:numel(sys)
         s = sys(k);
         for f = sysRequired
@@ -276,45 +301,51 @@ function spec = validateData(data)
                     'data.systems(%d) needs the field ''%s''.', k, f{1});
             end
         end
-        hasB = isfield(s, 'buildDay') && ~isempty(s.buildDay);
-        hasL = isfield(s, 'loader')   && ~isempty(s.loader);
-        if hasB == hasL
+        if ~isa(s.buildDay, 'function_handle')
             error('lsqvce:fit:builderKind', ...
-                'data.systems(%d) must carry exactly ONE of buildDay or loader.', k);
+                'data.systems(%d): buildDay must be a function handle.', k);
         end
-        if (hasB && ~isa(s.buildDay, 'function_handle')) || (hasL && ~isa(s.loader, 'function_handle'))
-            error('lsqvce:fit:builderKind', ...
-                'data.systems(%d): buildDay / loader must be a function handle.', k);
-        end
-        kind(k) = 1 + hasL;
-        nLocalWays = (isfield(s, 'localsPerArc') && ~isempty(s.localsPerArc)) + ...
-                     (isfield(s, 'numLocal')     && ~isempty(s.numLocal)) + ...
-                     (isfield(s, 'localParams')  && ~isempty(s.localParams));
-        if nLocalWays ~= 1
-            error('lsqvce:fit:localCount', ...
-                ['data.systems(%d) must declare its local unknowns in exactly ONE way: ' ...
-                 'localsPerArc, numLocal (0 is valid), or localParams.'], k);
-        end
-        id = s.systemId;
-        if ~((isnumeric(id) && isscalar(id)) || (ischar(id) && isscalar(id)) || ...
-             (isstring(id) && isscalar(id) && strlength(id) == 1))
+        if ~isstruct(s.covariance) || ~isscalar(s.covariance) || isempty(fieldnames(s.covariance))
             error('lsqvce:fit:missingField', ...
-                'data.systems(%d).systemId must be a numeric scalar or a single character.', k);
+                ['data.systems(%d).covariance must be a scalar struct with one field per ' ...
+                 'observation type (the fieldnames ARE the observation types).'], k);
         end
-        ids{k} = char(string(id));
+        hasPlan  = isfield(s, 'localsPerArc') && ~isempty(s.localsPerArc);
+        hasTable = isfield(s, 'localParams')  && ~isempty(s.localParams);
+        if hasPlan && hasTable
+            error('lsqvce:fit:localCount', ...
+                ['data.systems(%d) declares its local unknowns twice: localsPerArc ' ...
+                 '(the toolbox numbers the arcs) XOR localParams (you number them; ' ...
+                 'nl = rows). Neither declared means nl = 0.'], k);
+        end
+        if isfield(s, 'arcs') && (ischar(s.arcs) || isstring(s.arcs))
+            error('lsqvce:fit:badArcs', ...
+                ['data.systems(%d).arcs = ''%s'': the string form (''fromDay'') is ' ...
+                 'ENGINE-tier only -- it reads data before the run. Declare a count, ' ...
+                 'an id vector, or a resolver @(day,obsType).'], k, char(s.arcs));
+        end
+        if isfield(s, 'id') && ~isempty(s.id)
+            id = s.id;
+            if ~((isnumeric(id) && isscalar(id)) || (ischar(id) && isscalar(id)) || ...
+                 (isstring(id) && isscalar(id) && strlength(id) == 1))
+                error('lsqvce:fit:badId', ...
+                    'data.systems(%d).id must be a numeric scalar or a single character.', k);
+            end
+            ids{k} = char(string(id));
+        else
+            ids{k} = char(string(k));               % the index default
+        end
         if isempty(days) && ~(isfield(s, 'days') && ~isempty(s.days))
             error('lsqvce:fit:noDays', ...
                 'no day list: set data.days or data.systems(%d).days.', k);
         end
     end
     if numel(unique(ids)) < numel(ids)
-        error('lsqvce:fit:duplicateSystem', 'systemId values must be unique across data.systems.');
+        error('lsqvce:fit:duplicateSystem', ...
+            'system ids must be unique across data.systems (explicit ids and index defaults share one namespace).');
     end
-    if numel(unique(kind)) > 1
-        error('lsqvce:fit:builderKind', ...
-            'all systems must use buildDay, or all must use loader -- not a mixture.');
-    end
-    spec = struct('common', common, 'days', days, 'systems', sys, 'kind', kind(1));
+    spec = struct('commonParams', {data.commonParams}, 'days', days, ...
+                  'systems', sys, 'ids', {ids});
 end
 
 function rejectUnknown(names, allowed, where)
@@ -327,40 +358,19 @@ function rejectUnknown(names, allowed, where)
 end
 
 %==========================================================================
-function [systems, days] = buildSystems(spec)
-%BUILDSYSTEMS  One Loader per system through makeLoader (kind 1), or the
-%   struct-array raw-closure form adjustBlock/adjustVCE accept (kind 2).
+function systems = buildSystems(spec)
+%BUILDSYSTEMS  One Loader per system through LSQVCE.ENGINE.MAKELOADER.
+%   Derivations (v3): ObservationTypes = fieldnames(covariance); nc rides in
+%   as CommonParams (makeLoader derives nc = rows); nl rides in as
+%   LocalsPerArc, LocalParams, or NumLocal = 0 when neither is declared.
     sys  = spec.systems;
     days = spec.days;
-    nc   = [];
-    if ~isempty(spec.common.numCommon), nc = spec.common.numCommon; end
-    if spec.kind == 2
-        systems = struct('sysID', {}, 'nl', {}, 'nc', {}, 'loader', {}, 'days', {});
-        for k = 1:numel(sys)
-            s = sys(k);
-            if isempty(nc)
-                nc = size(spec.common.commonParams, 1);
-            end
-            nl = [];
-            if isfield(s, 'numLocal') && ~isempty(s.numLocal), nl = s.numLocal; end
-            if isempty(nl)
-                error('lsqvce:fit:localCount', ...
-                    'data.systems(%d): a raw loader needs numLocal (the plan/table forms belong to buildDay).', k);
-            end
-            d = days;
-            if isfield(s, 'days') && ~isempty(s.days), d = double(s.days(:).'); end
-            systems(k) = struct('sysID', s.systemId, 'nl', nl, 'nc', nc, ...
-                                'loader', s.loader, 'days', d);
-        end
-        return
-    end
     % ---- the ONE mapping table: lowerCamelCase field -> makeLoader NV name
-    map = {'observationTypes', 'ObservationTypes'; 'covariance', 'Covariance'; ...
-           'arcs', 'Arcs'; 'localsPerArc', 'LocalsPerArc'; 'systemId', 'SystemId'; ...
-           'numLocal', 'NumLocal'; 'localParams', 'LocalParams'; 'days', 'Days'; ...
-           'name', 'Name'; 'cache', 'Cache'; 'epochCovariance', 'EpochCovariance'; ...
-           'processingOptions', 'ProcessingOptions'; 'plotPostSolve', 'PlotPostSolve'; ...
-           'plotPostModel', 'PlotPostModel'};
+    map = {'covariance', 'Covariance'; 'arcs', 'Arcs'; ...
+           'localsPerArc', 'LocalsPerArc'; 'localParams', 'LocalParams'; ...
+           'days', 'Days'; 'name', 'Name'; ...
+           'processingOptions', 'ProcessingOptions'; ...
+           'epochCovariance', 'EpochCovariance'};
     systems = cell(1, numel(sys));
     for k = 1:numel(sys)
         s  = sys(k);
@@ -371,13 +381,16 @@ function [systems, days] = buildSystems(spec)
                 nv = [nv, {map{r, 2}, s.(f)}];                       %#ok<AGROW>
             end
         end
+        nv = [nv, {'ObservationTypes', fieldnames(s.covariance).'}]; %#ok<AGROW>
+        nv = [nv, {'SystemId', idValue(spec.ids{k})}];               %#ok<AGROW>
+        nv = [nv, {'CommonParams', spec.commonParams}];              %#ok<AGROW>
         if ~(isfield(s, 'days') && ~isempty(s.days)) && ~isempty(days)
             nv = [nv, {'Days', days}];                               %#ok<AGROW>
         end
-        if ~isempty(spec.common.commonParams)
-            nv = [nv, {'CommonParams', spec.common.commonParams}];   %#ok<AGROW>
-        else
-            nv = [nv, {'NumCommon', nc}];                            %#ok<AGROW>
+        hasPlan  = isfield(s, 'localsPerArc') && ~isempty(s.localsPerArc);
+        hasTable = isfield(s, 'localParams')  && ~isempty(s.localParams);
+        if ~hasPlan && ~hasTable
+            nv = [nv, {'NumLocal', 0}];                              %#ok<AGROW>
         end
         try
             systems{k} = lsqvce.engine.makeLoader(s.buildDay, nv{:});
@@ -389,6 +402,18 @@ function [systems, days] = buildSystems(spec)
             end
             rethrow(e);
         end
+    end
+end
+
+function v = idValue(idChar)
+%IDVALUE  A resolved id back to the type makeLoader stores: numeric where the
+%   char is a number ('1' -> 1, index defaults and explicit numerics), the
+%   single char otherwise ('C' -> 'C').
+    n = str2double(idChar);
+    if isscalar(idChar) && isnan(n)
+        v = idChar;
+    else
+        v = n;
     end
 end
 
@@ -415,15 +440,30 @@ end
 
 function R = fitBatch(data, opts)
 %FITBATCH  Kind C: batched callback (linear, or nonlinear with x0) -> Results.
+%   v3: u is stated ONCE -- numUnknowns on the linear form, numel(x0) on the
+%   nonlinear form (numUnknowns must then be absent, lsqvce:fit:uCount).
     rejectUnknown(fieldnames(data), {'batchFcn', 'numUnknowns', 'numBatches', 'x0'}, 'data');
-    for f = {'batchFcn', 'numUnknowns', 'numBatches'}
+    for f = {'batchFcn', 'numBatches'}
         if ~isfield(data, f{1}) || isempty(data.(f{1}))
             error('lsqvce:fit:missingField', 'data lacks the required field %s.', f{1});
         end
     end
     x0 = [];
     if isfield(data, 'x0') && ~isempty(data.x0), x0 = data.x0(:); end
-    R = runBatch(data.numUnknowns, data.batchFcn, data.numBatches, x0, opts, 'batch');
+    if isempty(x0)
+        if ~isfield(data, 'numUnknowns') || isempty(data.numUnknowns)
+            error('lsqvce:fit:missingField', ...
+                'the linear batched kind lacks numUnknowns (u; the nonlinear form derives it from x0).');
+        end
+        u = data.numUnknowns;
+    else
+        if isfield(data, 'numUnknowns') && ~isempty(data.numUnknowns)
+            error('lsqvce:fit:uCount', ...
+                'u is stated once: the nonlinear form derives u = numel(x0), so omit numUnknowns.');
+        end
+        u = numel(x0);
+    end
+    R = runBatch(u, data.batchFcn, data.numBatches, x0, opts, 'batch');
 end
 
 function R = runBatch(u, batchFcn, nBatch, x0, opts, kind)
@@ -497,44 +537,25 @@ function R = fitEllmer(systems, days, opts)
 end
 
 function specs = accSpecs(systems, days)
-%ACCSPECS  BlockAccumulator.addSystems specs from Loaders or raw spec structs.
-    if iscell(systems)
-        n = numel(systems);
-    else
-        n = numel(systems);
-    end
+%ACCSPECS  BlockAccumulator.addSystems specs from the built Loaders.
     specs = struct('sysID', {}, 'nl', {}, 'dataFcn', {}, 'dayList', {}, 'name', {});
-    for k = 1:n
-        if iscell(systems)
-            L = systems{k};
-            dl = days;
-            if isfield(L, 'days') && ~isempty(L.days), dl = L.days; end
-            nm = '';
-            if isfield(L, 'name'), nm = char(L.name); end
-            specs(k) = struct('sysID', L.sysID, 'nl', L.nl, 'dataFcn', L.closure, ...
-                              'dayList', dl, 'name', nm);
-        else
-            s = systems(k);
-            dl = days;
-            if isfield(s, 'days') && ~isempty(s.days), dl = s.days; end
-            specs(k) = struct('sysID', s.sysID, 'nl', s.nl, 'dataFcn', s.loader, ...
-                              'dayList', dl, 'name', '');
-        end
+    for k = 1:numel(systems)
+        L = systems{k};
+        dl = days;
+        if isfield(L, 'days') && ~isempty(L.days), dl = L.days; end
+        nm = '';
+        if isfield(L, 'name'), nm = char(L.name); end
+        specs(k) = struct('sysID', L.sysID, 'nl', L.nl, 'dataFcn', L.closure, ...
+                          'dayList', dl, 'name', nm);
     end
 end
 
 function keys = streamKeys(systems, specs)
 %STREAMKEYS  'satKey|obsType' for every (system, observation type) stream --
-%   the names LSQVCE.ENGINE.ADJUSTVCE / LSQVCE.ENGINE.JOINTMODELOPT use. Loaders carry
-%   their obsTypes; a raw closure is probed once with the 'meta' sentinel.
+%   the names LSQVCE.ENGINE.ADJUSTVCE / LSQVCE.ENGINE.JOINTMODELOPT use.
     keys = {};
     for k = 1:numel(specs)
-        if iscell(systems) && isfield(systems{k}, 'obsTypes')
-            ot = cellstr(systems{k}.obsTypes);
-        else
-            meta = specs(k).dataFcn('meta', specs(k).dayList(1), [], struct());
-            ot = cellstr(meta.obsTypes);
-        end
+        ot = cellstr(systems{k}.obsTypes);
         satKey = matlab.lang.makeValidName(char(string(specs(k).sysID)));
         for j = 1:numel(ot)
             keys{end+1} = sprintf('%s|%s', satKey, ot{j});  %#ok<AGROW>

@@ -1,31 +1,45 @@
 # lsqvce — The data contract: what you give `fit`, and how to write `buildDay`
 
-**Status.** Binding specification adopted 2026-08-31 (R4 decision R4-D4, HANDOVER §11.9).
-`lsqvce.fit` is live for the streaming kind (Level L2, WP-56; Models `gls`, `vce`, `pooled`)
-and for the two in-memory kinds (Level L4, WP-56b; §11 below, incl. `Robust` and the nonlinear
-form) and for Model `ellmer` (Level L3, WP-56c: the ten-step Ellmer/ITSG joint loop through
-`lsqvce.engine.adjustVCEjoint`, with the converged noise model on `R.noise`).
+**Status.** Binding specification, **version 3** (adopted 2026-08-31, Level L10 WP-72; the
+v2 contract of 2026-08-31/R4-D4 is superseded — migration table in `RELEASE_NOTES.md`).
+`lsqvce.fit` is live for all three data kinds and Models `gls`, `vce`, `pooled`, `ellmer`.
 §9 shows the equivalent direct engine calls. This file is the source of the `fit` help text
-and of the HTML guide (WP-56, WP-60): one authority, no second copy.
+and of the HTML guide: one authority, no second copy.
 
 Created 2026-08-31 (CEST, UTC+02:00) with assistance from Claude (Anthropic), model Claude
-Fable 5.
+Fable 5. Rewritten for v3 the same day (Claude Fable 5).
 
 ---
+
+## 0. The v3 principle: state nothing the data already states
+
+The contract declares **structure**, never **counts**. Every count is derived from the one
+place it already lives:
+
+| quantity | derived from |
+|---|---|
+| nc (common unknowns) | `size(data.commonParams, 1)` |
+| nl (local unknowns) | `size(localParams, 1)`, or the `localsPerArc` plan; **neither declared → nl = 0** |
+| observation types | `fieldnames(covariance)` |
+| u (batched nonlinear) | `numel(x0)` |
+
+The v2 count fields `numCommon`, `numLocal` and `numUnknowns`-with-`x0` are gone, and so is
+the duplicate type list `observationTypes`. One source each — nothing left to disagree.
 
 ## 1. The mental model in one paragraph
 
 You describe **one adjustment problem** with a plain MATLAB struct called `data`. It answers
-three questions: *what is estimated for everybody* (`data.common`), *which days are
-processed* (`data.days`), and *which observing systems deliver data* (`data.systems`, one
-entry per satellite or instrument). Each system points to **one function you write**,
-`buildDay`, that returns the design matrices and observations of a single day. Everything
-else — reading days in the right order, cutting them into arcs, whitening with your
-covariance model, iterating the variance components — is the toolbox's job:
+three questions: *what is estimated for everybody* (`data.commonParams`, one row per common
+unknown), *which days are processed* (`data.days`), and *which observing systems deliver
+data* (`data.systems`, one entry per satellite or instrument). Each system points to **one
+function you write**, `buildDay`, that returns the design matrices and observations of a
+single day. Everything else — reading days in the right order, cutting them into arcs,
+whitening with your covariance model, iterating the variance components — is the toolbox's
+job:
 
 ```matlab
-opts = lsqvce.Options(Model="vce");      % what to do (Level L1)
-R    = lsqvce.fit(data, opts);           % the one verb (Level L2)
+opts = lsqvce.Options(Model="vce");      % what to do
+R    = lsqvce.fit(data, opts);           % the one verb
 R.report                                 % the verdict
 ```
 
@@ -39,19 +53,19 @@ the day list and the name.
 
 `data` is a **scalar struct**. Field names are **case-sensitive** and use lowerCamelCase.
 Unknown field names are an **error** (`lsqvce:fit:unknownField`), which is deliberate: a
-typo in a struct field would otherwise be silently ignored.
+typo in a struct field would otherwise be silently ignored. The retired v2 names (`common`,
+`numCommon`, `numLocal`, `observationTypes`, `systemId`, `cache`, `loader`, the plot hooks)
+are unknown fields now — the error names the field, so a v2 declaration fails loudly, not
+subtly.
 
-### 2.1 `data.common` — the shared unknowns (nc stated exactly once)
-
-Exactly **one** of the two fields:
+### 2.1 `data.commonParams` — the shared unknowns (required)
 
 | field | type / size | meaning |
 |---|---|---|
-| `commonParams` | cell, R×14 | one row per common unknown; the 14 columns follow *your* convention (degree, order, epoch, …). nc = R. Passed to `buildDay` as its 3rd argument. |
-| `numCommon` | double, 1×1 | just the count nc, when you do not want a parameter table. |
+| `commonParams` | cell, R×C | one row per common unknown. **nc = R.** The column count and meaning are *your* convention (degree, order, epoch, …) — the toolbox reads only the row count and pipes the table to `buildDay` as its 3rd argument. |
 
-*Why here and not per system?* The common block is shared by every system; stating nc in
-two places would let the two disagree, and that disagreement was a real bug class.
+The table **is** the declaration: describing the unknowns is your job, counting them is not.
+Minimal table when you have nothing to say about them: `num2cell((1:nc).')`.
 
 ### 2.2 `data.days` — the default schedule
 
@@ -66,39 +80,38 @@ Days must be **numeric integers**: the loader cache is keyed on the number.
 `data.systems` is a **1×M struct array** (M ≥ 1). All entries have the same fields; fill an
 unused optional field with `[]`.
 
-**Required**
+**Required — two fields**
 
 | field | type / size | meaning |
 |---|---|---|
 | `buildDay` | function handle | your day builder, §3. |
-| `observationTypes` | cellstr / string, 1×T | the observation types this system delivers, e.g. `{'kbr'}` or `{'pos','kbr'}`. `buildDay` is called once per (day, type). |
-| `covariance` | struct | one field per observation type holding a covariance spec (§5), e.g. `cov.kbr = struct('type','diag','sigma',0.2)`. |
-| `systemId` | double 1×1 **or** a single char | unique across systems, e.g. `1` and `2`, or `'C'` and `'D'`. Longer labels go in `name`. |
-| one of `localsPerArc` \| `numLocal` \| `localParams` | see §6 | how many local (arc-wise) unknowns nl this system has. **0 is valid** (§6.4). |
+| `covariance` | struct | one field per observation type holding a covariance spec (§5), e.g. `cov.kbr = struct('type','diag','sigma',0.2)`. **The fieldnames ARE the observation types** (their order is the processing order); `buildDay` is called once per (day, type). |
 
 **Optional**
 
 | field | type / size | default | meaning |
 |---|---|---|---|
-| `arcs` | double, fh, or `'fromDay'` | `1` | which arcs each day carries, §4. |
+| `arcs` | double or fh | `1` | which arcs each day carries, §4. (`'fromDay'` is ENGINE-tier only.) |
+| `localsPerArc` | double or fh | `[]` | the toolbox owns the per-arc numbering, §6.1. **XOR** `localParams`. |
+| `localParams` | cell, R×C | `{}` | the local unknowns, one row each (**nl = R**), you own the numbering, §6.2. Passed to `buildDay` as its 4th argument. Neither this nor `localsPerArc` → **nl = 0** (§6.4). |
 | `days` | double, 1×D | `data.days` | per-system schedule override. |
+| `id` | double 1×1 **or** single char | the index k | system identifier, unique across systems (explicit ids and index defaults share one namespace). Longer labels go in `name`. |
 | `name` | char / string | `''` | human-readable label used in reports. |
-| `cache` | logical | `true` | keep the last day in memory (needed for the arc reads of that day; switch off only for memory emergencies). |
-| `epochCovariance` | function handle | `[]` | `@(day,obsType)` returning the per-epoch scaling of a multi-axis stream, §7. |
 | `processingOptions` | struct | `struct()` | anything your `buildDay` needs (paths, force models); passed as its 5th argument. |
-| `plotPostSolve`, `plotPostModel` | fh or containers.Map | `[]` | plot hooks fired after the solve / after the noise model (advanced). |
+| `epochCovariance` | function handle | `[]` | `@(day,obsType)` per-epoch D hook for multi-axis streams — the exact separable-descale path of the VCE Shape step, §7. |
 
-**Rule of thumb for beginners:** start with `buildDay`, `observationTypes`, `covariance`,
-`systemId`, `localsPerArc`, and `arcs` as a resolver. Add the rest when you need it.
+**Rule of thumb for beginners:** `buildDay` + `covariance` is a complete system. Add `arcs`
+when a day has more than one arc, `localsPerArc` when arcs carry their own unknowns, the
+rest when you need it.
 
 ### 2.4 A pitfall you will hit once: `struct()` with cell values
 
 ```matlab
 % WRONG: struct() expands cell values into a struct ARRAY
-s = struct('observationTypes', {'pos','kbr'});      % s is 1x2
+s = struct('localParams', {'bias','drift'});          % s is 1x2
 % RIGHT: double braces, or assign field by field
-s = struct('observationTypes', {{'pos','kbr'}});    % s is 1x1
-s.observationTypes = {'pos','kbr'};                 % clearest
+s = struct('localParams', {{'bias';'drift'}});        % s is 1x1
+s.localParams = {'bias'; 'drift'};                    % clearest
 ```
 
 ---
@@ -132,8 +145,8 @@ D = buildDay(day, obsType, common, local, procOpt, arcInfo)       % with local-b
 | argument | what it is |
 |---|---|
 | `day` | one entry of the day list (numeric) |
-| `obsType` | one entry of `observationTypes` (char) |
-| `common` | `data.common.commonParams` (or `{}`) |
+| `obsType` | one entry of `fieldnames(covariance)` (char) |
+| `common` | `data.commonParams` |
 | `local` | `localParams` of this system (or `{}`) |
 | `procOpt` | `processingOptions` of this system |
 | `arcInfo` | the local-block plan for this day when `localsPerArc` is declared, else `[]` (§6.3) |
@@ -160,7 +173,7 @@ would be reweighted twice.
 | `arcIdx` | cell, 1×nArc | row-index vector of each arc (lengths may differ). Absent → the whole day is one arc. |
 | `arcId` | double, 1×nArc | the **identity** of each arc, when the schedule is ragged (§4.2). Must name every `arcIdx` entry exactly once with unique positive integers. |
 | `nAxis` | 1×1 | for multi-axis streams (positions: 3), rows are epoch-major, m = nEpoch·nAxis (§7). |
-| `Cep` | nEpoch×d or nEpoch×d×d | per-epoch scaling of a multi-axis stream for this day (§7). |
+| `Cep` | nEpoch×d or nEpoch×d×d | per-epoch scaling of a multi-axis stream for this day (§7). **This is the standard D source.** |
 
 ### 3.5 What is checked, and the error you get
 
@@ -169,15 +182,15 @@ would be reweighted twice.
 | `lsqvce:makeLoader:buildDay` | your `buildDay` threw; the original error is attached as the cause |
 | `lsqvce:makeLoader:badDay` | a required field (`A`, `B`, `l`, `t`) is missing |
 | `lsqvce:makeLoader:dayShape` | `A`, `B`, `l`, `t` do not share a row count |
-| `lsqvce:accum:arcBadNc` / `arcBadNl` | `A` or `B` has the wrong number of columns |
+| `lsqvce:accum:arcBadNc` / `arcBadNl` | `A` or `B` has the wrong number of columns — the derived nc/nl are enforced against **every** day |
 | `lsqvce:makeLoader:badArc` | a positional arc id is out of range (static schedule declared wrongly) |
 | `lsqvce:makeLoader:badArcId` | `arcId` does not name every `arcIdx` entry exactly once |
 
 These are raised **while reading**, by the engine, and keep their engine ids. Errors in the
 *declaration* itself are raised by `fit` before any data is read and carry `lsqvce:fit:` ids
-(`unknownField`, `noSystems`, `missingField`, `localCount`, `commonCount`, `noDays`,
-`duplicateSystem`, `builderKind`, and every `makeLoader` construction id relabelled, e.g.
-`lsqvce:fit:noCov`).
+(`unknownField`, `noSystems`, `noCommon`, `missingField`, `localCount`, `noDays`, `badId`,
+`duplicateSystem`, `builderKind`, `badArcs`, and every `makeLoader` construction id
+relabelled, e.g. `lsqvce:fit:noCov`).
 
 ---
 
@@ -206,9 +219,9 @@ and let `buildDay` return `arcId` naming the arcs it actually carries. Arcs are 
 addressed **by id**; an id that a day does not carry is treated as a **data gap** and
 skipped — no padding, no empty arcs.
 
-`s.arcs = 'fromDay'` is the lazy alternative: the day is read during the schedule probe and
-`arcId` (or `1:numel(arcIdx)`) is taken from it. It works, but it reads data before the
-run starts and cannot be combined with `localsPerArc`.
+(The v2 string form `arcs = 'fromDay'` is not part of this contract: it reads data before
+the run starts and cannot be combined with `localsPerArc`. It survives as an ENGINE-tier
+convenience on `lsqvce.engine.makeLoader`; `fit` rejects it with `lsqvce:fit:badArcs`.)
 
 ---
 
@@ -231,7 +244,9 @@ specs at run time; you only give the starting point. Full reference: `doc lsqvce
 
 ## 6. Local (arc-wise) unknowns
 
-### 6.1 `localsPerArc` — recommended
+nl has two declared sources and one default — never more than one applies:
+
+### 6.1 `localsPerArc` — the toolbox owns the numbering
 
 ```matlab
 s.localsPerArc = 6;                        % six per arc, every arc
@@ -240,12 +255,13 @@ s.localsPerArc = @(day, arcId) 6;          % or per arc
 
 The toolbox numbers every (day, arc) over the whole adjustment, derives nl, and hands
 each day its slice as `arcInfo` (§6.3). Requires `data.days` (or per-system `days`) and a
-schedule that is resolvable without reading data (static or resolver — not `'fromDay'`).
+schedule that is resolvable without reading data (static or resolver).
 
-### 6.2 `numLocal` / `localParams` — you own the numbering
+### 6.2 `localParams` — you own the numbering
 
-`numLocal = nl` (a count) or `localParams` (R×14 cell, nl = R, passed as `buildDay`'s 4th
-argument). You then place every local column yourself, consistently across days.
+An R×C cell, one row per local unknown (**nl = R**, columns your convention), passed as
+`buildDay`'s 4th argument. You then place every local column yourself, consistently across
+days. Declaring **both** `localsPerArc` and `localParams` is the error `lsqvce:fit:localCount`.
 
 ### 6.3 Using `arcInfo`
 
@@ -261,9 +277,10 @@ Fill `B(rows, off + (1:k))` and **never compute an offset yourself**.
 
 ### 6.4 A system without local unknowns (nl = 0)
 
-Valid (decided 2026-08-31, HANDOVER G-07). Declare `numLocal = 0` (or `localsPerArc = 0`)
-and return `B = zeros(m, 0)` from `buildDay`. The engine then skips the pre-elimination for
-that system; local diagnostics come back as the consistent empty shapes.
+The **default**: declare neither `localsPerArc` nor `localParams` and return
+`B = zeros(m, 0)` from `buildDay`. The engine then skips the pre-elimination for that
+system; local diagnostics come back as the consistent empty shapes (decided 2026-08-31,
+HANDOVER G-07 — in v3 no `numLocal = 0` declaration is needed any more).
 
 ---
 
@@ -271,9 +288,19 @@ that system; local diagnostics come back as the consistent empty shapes.
 
 A kinematic position has three components per epoch that share one temporal law. Return
 the rows **epoch-major** (x₁ y₁ z₁ x₂ y₂ z₂ …), set `nAxis = 3`, and provide the per-epoch
-scaling `D` in one of three ways (first found wins): `Cep` on the covariance spec, `Cep` on
-the returned day, or the system's `epochCovariance` hook. A multi-axis stream with no `D`
-is an error (`noD`).
+scaling `D`:
+
+- **Standard: `Cep` on the returned day** (nEpoch×d or nEpoch×d×d) — you know D when you
+  build the day. Alternative for a *static* scaling: `Cep` on the covariance spec. A
+  multi-axis stream with no `D` is an error (`noD`).
+- **`epochCovariance` hook (optional, VCE only).** Whitening never needs it — but the
+  **Shape step** of the VCE iteration (re-estimating the temporal AR law from residuals)
+  does not read the day's `Cep`: with the hook it takes the *exact separable de-scale* path
+  (`lsqvce.kernel.residualAcv` with the full per-epoch D, fetched per day **without**
+  rebuilding the day); without it, it falls back to descaling by the stream's current
+  scalar σ — an approximation that biases the estimated AR law when D varies strongly
+  across epochs (changing geometry/PDOP). Declare the hook when you run `Model="vce"` on
+  multi-axis streams and have D available independently of the day build.
 
 ---
 
@@ -296,23 +323,22 @@ function D = buildDayGrace(day, obsType, common, ~, procOpt, arcInfo)
 end
 
 % ---- the declaration ---------------------------------------------------
-data.common.commonParams = shParameterTable(60);          % nc = 3717 rows
+data.commonParams = shParameterTable(60);                 % nc = 3717 rows, C your columns
 data.days = 1:31;
 cov.kbr = struct('type','arma','ar',[1 -1.6 0.9 -0.25],'ma',1,'sigma',1e-7);
-cov.pos = struct('type','diag','sigma',0.02);
+cov.pos = struct('type','diag','sigma',0.02);             % fieldnames = the two types
 
 s = struct();
 s.buildDay = @buildDayGrace;
-s.observationTypes = {'kbr','pos'};
 s.covariance = cov;
-s.systemId = 'C';
+s.id = 'C';
 s.name = 'GRACE-FO C';
 s.arcs = @(day, obsType) arcSchedule('C', day);
 s.localsPerArc = 6;
 s.processingOptions = struct('dataDir', '/data/gracefo');
 data.systems(1) = s;
 
-s.systemId = 'D';  s.name = 'GRACE-FO D';  s.arcs = @(day, obsType) arcSchedule('D', day);
+s.id = 'D';  s.name = 'GRACE-FO D';  s.arcs = @(day, obsType) arcSchedule('D', day);
 data.systems(2) = s;
 
 % ---- the run -----------------------------------------------------------
@@ -330,10 +356,10 @@ L = cell(1, numel(data.systems));
 for k = 1:numel(data.systems)
     s = data.systems(k);
     L{k} = lsqvce.engine.makeLoader(s.buildDay, ...
-        ObservationTypes=s.observationTypes, Covariance=s.covariance, ...
-        SystemId=s.systemId, Name=s.name, Arcs=s.arcs, ...
+        ObservationTypes=fieldnames(s.covariance).', Covariance=s.covariance, ...
+        SystemId=s.id, Name=s.name, Arcs=s.arcs, ...
         LocalsPerArc=s.localsPerArc, Days=data.days, ...
-        CommonParams=data.common.commonParams, ...
+        CommonParams=data.commonParams, ...
         ProcessingOptions=s.processingOptions);
 end
 R = lsqvce.engine.adjustBlock(L, data.days);                        % Model "gls"
@@ -341,10 +367,13 @@ R = lsqvce.engine.adjustVCE(L, data.days, 'GroupBy', 'satObs', ...   % Model "vc
         'Shape', struct(...), 'Scale', struct(...)).run();          % (constructor-only since 2.0)
 ```
 
-These are ENGINE-tier calls (experts); a user needs none of them.
+These are ENGINE-tier calls (experts); a user needs none of them. The ENGINE tier keeps the
+v2 conveniences (`numCommon`/`numLocal` counts, `'fromDay'`, `cache`, the plot hooks, raw
+4-arg loader closures) — they left the USER surface, not the toolbox.
 
 Field names map 1:1 to `makeLoader`'s Name-Value names (lowerCamelCase field ↔
-UpperCamelCase name); `fit` performs exactly this mapping internally.
+UpperCamelCase name); `fit` performs exactly this mapping internally, plus the three
+derivations of §0.
 
 ---
 
@@ -353,11 +382,15 @@ UpperCamelCase name); `fit` performs exactly this mapping internally.
 - [ ] `buildDay` returns `A`, `B`, `l`, `t` with one row count; `l` is O − C; nothing is whitened.
 - [ ] Calling `buildDay` twice with the same arguments gives identical output.
 - [ ] `t` is in seconds; the sampling matches the covariance spec you declared.
-- [ ] Every `systemId` is unique; nc is stated once in `data.common`.
+- [ ] `data.commonParams` has one row per common unknown — `size(A, 2)` must equal it.
+- [ ] Every observation type is a field of `covariance` — the fieldnames are the type list.
 - [ ] Ragged schedule → resolver + `arcId`; static schedule → count/vector, no `arcId`.
-- [ ] Local unknowns via `localsPerArc` (and `B` filled from `arcInfo`); nl = 0 is fine with `B = zeros(m, 0)`.
-- [ ] Multi-axis streams: epoch-major rows, `nAxis`, and a source for `D`.
-- [ ] No unknown field names in `data` (a typo is an error, on purpose).
+- [ ] Local unknowns: `localsPerArc` (fill `B` from `arcInfo`) or `localParams` (you number);
+      neither → `B = zeros(m, 0)`.
+- [ ] Multi-axis streams: epoch-major rows, `nAxis`, `Cep` on the day; the `epochCovariance`
+      hook when Model="vce" should take the exact Shape path.
+- [ ] No unknown field names in `data` (a typo is an error, on purpose — and so is every v2
+      count field).
 
 ---
 
@@ -378,10 +411,10 @@ has no `systems` at all — `fit` tells the kinds apart by the fields present:
 
 | field | size | meaning |
 |---|---|---|
-| `numUnknowns` | 1×1 | u |
-| `numBatches` | 1×1 | nBatch |
 | `batchFcn` | fh | `[A, l, p] = batchFcn(k)`, k = 1…nBatch — the `lsqvce.engine.adjust` contract |
-| `x0` | u×1 | optional. With it the problem is **nonlinear**: `[A, w, p] = batchFcn(k, x)` returns the Jacobian at `x` and `w = l − f(x)`; solved by Gauss-Newton (`lsqvce.engine.solveNonlinear`) |
+| `numBatches` | 1×1 | nBatch |
+| `numUnknowns` | 1×1 | u — **linear form only** |
+| `x0` | u×1 | optional. With it the problem is **nonlinear**: `[A, w, p] = batchFcn(k, x)` returns the Jacobian at `x` and `w = l − f(x)`; solved by Gauss-Newton (`lsqvce.engine.solveNonlinear`). **u = numel(x0)** — `numUnknowns` must then be absent (`lsqvce:fit:uCount`) |
 
 Rules: `opts.Model` must be `"gls"` (variance components need the groups of a streaming
 system — `lsqvce:fit:modelKind`); `opts.Robust = "irls"` switches to M-estimation
@@ -398,7 +431,7 @@ nonlinear iteration log) is on `R.source`.
 data = struct('A', A, 'l', l, 'p', p);
 R = lsqvce.fit(data);                                   % = lsqvce.engine.adjust, one batch
 R = lsqvce.fit(data, lsqvce.Options(Robust="irls"));    % = lsqvce.engine.robust
-data = struct('batchFcn', @(k, x) myJacobian(k, x), 'numUnknowns', 6, 'numBatches', 20, 'x0', x0);
+data = struct('batchFcn', @(k, x) myJacobian(k, x), 'numBatches', 20, 'x0', x0);
 R = lsqvce.fit(data, lsqvce.Options(NonlinearMaxIter=15));   % = lsqvce.engine.solveNonlinear
 ```
 

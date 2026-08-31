@@ -36,8 +36,9 @@ function L = makeLoader(buildDay, opt)
 %     existing @(day,obsType) builder keeps working unchanged; a builder that
 %     also takes (common, local, procOpt) receives the parametrisation arrays and
 %     processing options passed to makeLoader (below). A builder that uses
-%     varargin receives all six. common/local have ONE ROW per unknown and 14
-%     columns; nc and nl are DERIVED from their row counts (see 'common'/'local').
+%     varargin receives all six. common/local have ONE ROW per unknown and C
+%     columns of YOUR convention (v3: no fixed column count); nc and nl are
+%     DERIVED from their row counts (see 'common'/'local').
 %
 %   INPUT
 %     buildDay  1x1  function_handle   @(day,obsType) day builder (above).
@@ -104,14 +105,14 @@ function L = makeLoader(buildDay, opt)
 %                                       DERIVE it from here -- there is no nc
 %                                       argument on them, so it is stated once.
 %       'commonParams' RxC cell  parametrisation of the COMMON unknowns, one ROW
-%                                       per unknown, C = 14 columns (meaning is
-%                                       your convention). Piped to buildDay as its
+%                                       per unknown, C columns (count and meaning
+%                                       are your convention). Piped to buildDay as its
 %                                       3rd arg. nc is DERIVED as size(.,1) and
 %                                       carried as L.nc. SHARED across systems, so
 %                                       every loader must pass the SAME value.
 %                                       (default {})  (alias: 'common')
 %       'localParams'  RxC cell  parametrisation of the LOCAL unknowns, one ROW per
-%                                       unknown, C = 14 columns. Piped to buildDay
+%                                       unknown, C columns. Piped to buildDay
 %                                       as its 4th arg. nl is DERIVED as size(.,1).
 %                                       (default {})  (alias: 'local')
 %       'processingOptions' 1x1 struct  free-form processing options, piped to
@@ -199,7 +200,6 @@ function L = makeLoader(buildDay, opt)
 %       lsqvce:makeLoader:localPlan    'localsPerArc' without 'days', combined
 %                                      with 'fromDay', or a bad count (WP-52)
 %       lsqvce:makeLoader:paramType    commonParams/localParams is not a 2-D cell
-%       lsqvce:makeLoader:paramCols    ... or does not have the required columns
 %       lsqvce:makeLoader:ncConflict   numCommon disagrees with the commonParams
 %                                      row count -- state it ONCE, in the table
 %       lsqvce:makeLoader:nlConflict   the same for numLocal/localParams
@@ -221,6 +221,11 @@ function L = makeLoader(buildDay, opt)
 %   See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.SYNTHLOADER, LSQVCE.ENGINE.COVMODEL,
 %            LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.ADJUSTVCE
 %
+%   Updated 2026-08-31 (CEST, UTC+02:00), v3 data contract (Level L10,
+%   WP-72): the fixed 14-column shape of commonParams/localParams is
+%   retired -- RxC with C of the caller's convention; the paramCols error
+%   id retired with it. With assistance from
+%   Claude (Anthropic), model Claude Fable 5.
 %   Updated 2026-08-31 (CEST, UTC+02:00), R4 G-07 (Level L2): 'numLocal' 0 /
 %   'localsPerArc' 0 declare a system without local unknowns (help only;
 %   the engine change is in BlockAccumulator). With assistance from Claude
@@ -306,9 +311,8 @@ end
     % (the meaning is the caller's convention; makeLoader only checks shape and
     % pipes the arrays through to buildDay). Empty ({}) means "not used" -- the
     % builder then defines the design itself and nc/nl come from 'nl'/adjustBlock.
-    NCOLPARAM = 14;
-    checkParamArray(o.common, 'common', NCOLPARAM);
-    checkParamArray(o.local,  'local',  NCOLPARAM);
+    checkParamArray(o.common, 'common');
+    checkParamArray(o.local,  'local');
 
     % nc DERIVED from common rows (the common field is SHARED across systems, so
     % every loader must pass the SAME 'common'); nl DERIVED from local rows.
@@ -438,18 +442,15 @@ function requireHandle(v, key)
     end
 end
 
-function checkParamArray(C, name, ncol)
+function checkParamArray(C, name)
 %CHECKPARAMARRAY  Validate a parametrisation cell array: empty, or a 2-D cell
-%   with exactly NCOL columns (one row per unknown). Empty is allowed (means the
-%   builder defines the design itself).
+%   with one ROW per unknown (the column count and meaning are the caller's
+%   convention -- v3 contract, L10 WP-72; the fixed 14 columns are retired).
+%   Empty is allowed (means the builder defines the design itself).
     if isempty(C), return, end
     if ~iscell(C) || ~ismatrix(C)
         error('lsqvce:makeLoader:paramType', ...
             '''%s'' must be a 2-D cell array (one row per unknown).', name);
-    end
-    if size(C, 2) ~= ncol
-        error('lsqvce:makeLoader:paramCols', ...
-            '''%s'' must have %d columns (got %d).', name, ncol, size(C, 2));
     end
 end
 
