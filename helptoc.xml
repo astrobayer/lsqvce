@@ -2,6 +2,12 @@
 <toc version="2.0">
   <tocitem target="html/index.html">lsqvce
     <tocitem target="html/lsqvce_user_manual.html">User Manual</tocitem>
+    <tocitem target="html/index.html">Start here (USER tier)
+      <tocitem target="html/lsqvce.fit.html">lsqvce.fit</tocitem>
+      <tocitem target="html/lsqvce.Options.html">lsqvce.Options</tocitem>
+      <tocitem target="html/lsqvce.Results.html">lsqvce.Results</tocitem>
+      <tocitem target="html/lsqvce.report.html">lsqvce.report</tocitem>
+    </tocitem>
     <tocitem target="html/lsqvce_reference_manual.html">Reference Manual</tocitem>
     <tocitem target="html/lsqvce_interpretation_guide.html">Interpretation Guide</tocitem>
     <tocitem target="html/lsqvce_template.html">Your own case (template)</tocitem>
@@ -16,9 +22,6 @@
     </tocitem>
     <tocitem target="html/index.html">Access layer
       <tocitem target="html/lsqvce.adjustBlock.html">lsqvce.adjustBlock</tocitem>
-      <tocitem target="html/lsqvce.fit.html">lsqvce.fit</tocitem>
-      <tocitem target="html/lsqvce.Options.html">lsqvce.Options</tocitem>
-      <tocitem target="html/lsqvce.Results.html">lsqvce.Results</tocitem>
       <tocitem target="html/lsqvce.makeLoader.html">lsqvce.makeLoader</tocitem>
       <tocitem target="html/lsqvce.adjustVCE.html">lsqvce.adjustVCE</tocitem>
       <tocitem target="html/lsqvce.resolveNc.html">lsqvce.resolveNc</tocitem>

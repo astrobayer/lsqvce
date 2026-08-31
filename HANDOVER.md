@@ -4191,6 +4191,12 @@ merger, no zip when a PR is the deliverable).
    permitting); the level's verdict comment lists per-WP verdicts.
 6. **Breaking changes** (deletions under the no-aliases rule) ride ONLY in
    a level whose PR body names them in a BREAKING section; approval by merge.
+7. **One working copy, one owner.** Before the first edit of any turn,
+   read `git branch --show-current` and `git status`: an unexpected branch
+   or uncommitted files mean another turn/session left work behind —
+   verify it line by line against the ledger before adopting, never
+   overwrite, never start a parallel edit (adopted 2026-08-31 after the L2
+   cut-off turn).
 
 ### 11.6 R4 ledger — levels and work packages
 
@@ -4199,8 +4205,8 @@ merger, no zip when a PR is the deliverable).
 | L1 | 54 | Surface census + tier table (mechanical: audit-derived name list; USER/ENGINE/KERNEL column; check extension so no new public name lands untier'd) + the data contract (R4-D4) | — | DONE (2026-08-31, PR #35 merged by the user, merge 25692d8; CI green FIRST pass 568/568 on 6c5d90f; POSTFLIGHT DEBT with D-52; branch `claude/level-1`: `docs_src/tiers.csv` 80 names USER 2 / ENGINE 57 / KERNEL 21, audit check 18 red-tested, DATA_CONTRACT.md; Contents.m regrouping by tier deferred to WP-60; round note §11.8) |
 | L1 | 55 | `lsqvce.Options` — ONE typed options object covering the adjust/VCE/joint/robust/nonlinear option space; encodes the G-03 conventions once; maps onto the existing opt structs; NO behaviour change | 54 | DONE (2026-08-31, PR #35 merged by the user, merge 25692d8; CI green FIRST pass 568/568 on 6c5d90f — the blind-written `.?lsqvce.Options` constructor and the struct-order reference test passed unchanged; ONE pinned deviation: Options.Verbose defaults true while adjustBlock's own default is false (documented in the class help, test pin annotated); POSTFLIGHT DEBT with D-52: value class, 58 typed properties in ten groups, `.?lsqvce.Options` constructor, `engineArgs(target)` onto the seven drivers incl. the diagnose pass-through that retires KeepUnmatched for fit, grouped `disp`; tests/test_options.m 8 points: reference (defaults isequal to a fresh adjustVCE's groups + literal driver pins), contract, robustness; HTML page + Contents/helptoc/index; round note §11.8) |
 | L2 | 56 | `lsqvce.fit` — the one user verb; dispatch to the six drivers; <=3-line acceptance test | 55 | IN PROGRESS (2026-08-31, branch `claude/level-2`, PR #36: `fit(data, opts)` for the STREAMING path — data-struct validation with one `lsqvce:fit:` id per rule before any read, loaders built through makeLoader with the ONE lowerCamel->UpperCamel table, dispatch gls / vce / pooled; tests/test_fit.m 8 points (reference fit == direct driver to 1e-12; contract for every rule; robustness). SCOPE SPLIT recorded as **WP-56b** (next level): the in-memory `fit(A, l, ...)` form (adjust/robust/solveNonlinear -> Results needs a Results builder for the batch path), `Robust ~= "none"`, and Model "ellmer" (adjustVCEjoint takes an accFcn, i.e. the jointModelOpt translation must move inside fit) — fit refuses these with `lsqvce:fit:notYet`, never a silent fallback) |
-| L2 | 57 | Results ease-of-use methods: summary/disp, coefCI, predict, plot — thin add-only wrappers over report/diagnose/contribution | 56 | OPEN |
-| L2 | 58 | Fluent configurators leave the USER contract (Contents/doc tiering + fit parity tests; deletion gated by R4-D2) | 56 | OPEN |
+| L2 | 57 | Results ease-of-use methods: summary/disp, coefCI, predict, plot — thin add-only wrappers over report/diagnose/contribution | 56 | IN PROGRESS (2026-08-31, PR #36, commit bf5fe6f: `coefficients(Alpha=)` — the fitlm Coefficients/coefCI pair as ONE table, z from erfcinv; test in test_fit (contract + precision). SCOPE NOTE: summary/disp/convergence already existed (WP-17/44); `predict` and `plot` NOT added — a streamed adjustment has no single design matrix to predict from and the plot hooks live on the loaders (WP-19); pinned as deliberate omission, revisit only on a user request) |
+| L2 | 58 | Fluent configurators leave the USER contract (Contents/doc tiering + fit parity tests; deletion gated by R4-D2) | 56 | IN PROGRESS (2026-08-31, PR #36: Contents.m / helptoc.xml / html/index.html gain a "Start here — USER tier" block (fit, Options, Results, report) with everything else declared ENGINE/KERNEL; adjustVCE help carries the ENGINE-tier note; parity pinned by test_fit testFitVceReproducesTheFluentChain (r1 CI catch: the fixture's scalar 'pos' stream needed ComponentsPerEpoch pos->1, fixed in bf5fe6f). Deletion of the fluent chain stays GATED on R4-D2) |
 | L3 | 59 | Theory PDF: theory, practical considerations, implementation, ERROR HANDLING; literature-anchored; source in docs_src, built BY HAND (build_manuals.py stays _STALE_GUARDed) | 56 | OPEN |
 | L3 | 60 | HTML restructure: getting-started page, tiered reference (USER tier first), examples gallery | 56,59 | OPEN |
 | L3 | 61 | Help sweep of the NEW surface (fit/options/Results methods) with ACCURACY blocks per §6.2 | 56,57 | OPEN |
@@ -4287,6 +4293,21 @@ under concurrency cancellation — so the per-WP CI bisection promised in
 §11.5 rule 2 holds for the audit job only; for matlab it holds only when
 the next push waits for the previous run (not required; recorded so nobody
 reads "cancelled" as red).
+
+**L2 r1 CI CATCH (2026-08-31):** first push 0d1fc19 RED 576/577 —
+`test_fit/testFitVceReproducesTheFluentChain` errored with
+`lsqvce:covModel:noCep`: the fixture's 'pos' stream is a SCALAR ARMA
+stream, but adjustVCE's default axes map declares 'pos' -> 3 components
+per epoch, which selects the separable model and demands a per-epoch
+scaling. Fix bf5fe6f: both runs declare ComponentsPerEpoch pos -> 1 (which
+also exercises that Options mapping). LESSON: a stream NAMED like a 3-D
+observable gets 3-D treatment by default — a fixture that means a scalar
+must say so, and DATA_CONTRACT §7 now needs one sentence on it (WP-60).
+SESSION NOTE: the turn that opened L2 was cut off mid-WP-57 (output limit)
+with the WP-57/58 edits uncommitted in the working copy; the continuation
+session found the working copy on `claude/level-2`, verified every diff
+line by line against the ledger before adopting it (the standing parallel-
+session rule), and committed. PROCESS RULE added to §11.5 (rule 7).
 
 ### 11.9 DATA CONTRACT AND LOADER WORKFLOW — design record for WP-56 (R4-D4)
 
