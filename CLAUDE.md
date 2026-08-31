@@ -66,8 +66,9 @@ Everything development-related lives under `dev/`: `dev/HANDOVER.md` (SSOT),
 `dev/tests/`, `dev/docs_src/` (audit + doc builders), `dev/references/`,
 `dev/validation/`, `dev/SETUP_GUIDE.md`, `dev/HISTORY_v1.md`,
 `dev/DEVELOPMENT.md` (the development chapters that used to sit in README).
-Two dev-related files STAY at the root because the tooling requires it there:
-`buildfile.m` (MATLAB buildtool only discovers a root buildfile) and this
-CLAUDE.md (the session entry point by convention). Tests manage their path
+One dev-related file STAYS at the root: this CLAUDE.md (the session entry
+point by convention). `buildfile.m` was REMOVED in L9 (user decision
+2026-09-02: an mltbx is not foreseen; the gate is `cd('dev/tests'); ci_gate`
+and the audit is `python3 dev/docs_src/audit_tree.py` -- one way each). Tests manage their path
 THEMSELVES, temporarily (run_all_lsqvce / ci_gate capture and restore it);
 `lsqvce_setup.m` adds only root + examples.

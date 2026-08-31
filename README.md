@@ -29,8 +29,7 @@ lsqvce_setup           % adds the root (lsqvce.* packages) + examples/,
                        % registers the Help browser docs -> doc lsqvce
 ```
 
-or install the packaged toolbox: double-click `release/lsqvce_<version>.mltbx`
-(built with `buildtool package`). The setup adds **only** the root and
+The setup adds **only** the root and
 `examples/` to the path; `dev/tests` and `template/` are not path entries —
 tests manage their path themselves, and the template is meant to be copied
 into your own project.
