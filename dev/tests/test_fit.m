@@ -123,7 +123,7 @@ function testDeclarationRulesFireBeforeAnyRead(tc)
     tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:noDays');
     d = data;  d.days = [1 2.5];
     tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:noDays');
-    d = data;  d.systems(2) = d.systems(1);                      % same explicit id
+    d = data;  d.systems(1).id = 7;  d.systems(2) = d.systems(1);   % same explicit id
     tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:duplicateSystem');
     d = data;  d.systems(1).id = 2;  d.systems(2) = d.systems(1);
     d.systems(2).id = [];                                        % explicit 2 vs default 2
@@ -131,15 +131,17 @@ function testDeclarationRulesFireBeforeAnyRead(tc)
     d = data;  d.systems(1).buildDay = 'notAHandle';
     tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:builderKind');
     % a makeLoader CONSTRUCTION error is relabelled under lsqvce:fit with the
-    % original attached as the cause
-    d = data;  d.systems(1).covariance = rmfield(d.systems(1).covariance, 'kbr');
+    % original attached as the cause. (noCov is UNREACHABLE through fit since
+    % v3 -- the type list IS fieldnames(covariance) -- so the mechanism is
+    % proven on paramType: localParams that is not a 2-D cell.)
+    d = data;  d.systems(1).localParams = 'nope';
     try
         lsqvce.fit(d);
-        tc.verifyFail('a covariance spec missing an obsType must be refused');
+        tc.verifyFail('a non-cell localParams must be refused by makeLoader via fit');
     catch e
-        tc.verifyEqual(e.identifier, 'lsqvce:fit:noCov');
+        tc.verifyEqual(e.identifier, 'lsqvce:fit:paramType');
         tc.verifyEqual(numel(e.cause), 1);
-        tc.verifyEqual(e.cause{1}.identifier, 'lsqvce:makeLoader:noCov');
+        tc.verifyEqual(e.cause{1}.identifier, 'lsqvce:makeLoader:paramType');
     end
 end
 

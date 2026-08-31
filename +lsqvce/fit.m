@@ -161,7 +161,7 @@ function R = fit(data, opts)
 %                                  reads data before the run; declare a
 %                                  resolver @(day,obsType) instead)
 %       lsqvce:fit:<makeLoader id> a makeLoader construction error, relabelled
-%                                  (e.g. noCov, badArcs, localPlan, paramType);
+%                                  (e.g. paramType, badArcs, localPlan);
 %                                  the original is attached as the cause
 %     Your choice is not available here:
 %       lsqvce:fit:notYet          Robust ~= "none" on the STREAMING kind --

@@ -190,7 +190,7 @@ These are raised **while reading**, by the engine, and keep their engine ids. Er
 *declaration* itself are raised by `fit` before any data is read and carry `lsqvce:fit:` ids
 (`unknownField`, `noSystems`, `noCommon`, `missingField`, `localCount`, `noDays`, `badId`,
 `duplicateSystem`, `builderKind`, `badArcs`, and every `makeLoader` construction id
-relabelled, e.g. `lsqvce:fit:noCov`).
+relabelled, e.g. `lsqvce:fit:paramType`).
 
 ---
 
