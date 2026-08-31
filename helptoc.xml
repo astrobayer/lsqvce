@@ -3,6 +3,7 @@
   <tocitem target="html/index.html">lsqvce
     <tocitem target="html/lsqvce_user_manual.html">User Manual</tocitem>
     <tocitem target="html/index.html">Start here (USER tier)
+      <tocitem target="html/lsqvce_getting_started.html">Getting started</tocitem>
       <tocitem target="html/lsqvce.fit.html">lsqvce.fit</tocitem>
       <tocitem target="html/lsqvce.Options.html">lsqvce.Options</tocitem>
       <tocitem target="html/lsqvce.Results.html">lsqvce.Results</tocitem>

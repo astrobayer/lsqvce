@@ -83,7 +83,14 @@ classdef Options
 %     OuterTol   double   5e-3    convergence on max|sigma-1| and AR drift
 %
 %   Pooled / Ellmer joint spectrum
-%     NumLags    double|"auto" 60 frequencies in the noise model
+%     NumLags    double|"auto" 60 frequencies in the noise model. "auto"
+%                                 (pooled only) sizes it from the data. For
+%                                 "ellmer" the model reaches the loaders as an
+%                                 'acf' that is zero beyond its last lag, so
+%                                 NumLags below the longest arc length gives a
+%                                 truncated (in general indefinite) covariance:
+%                                 every arc is skipped as nonPD and the driver
+%                                 reports noArcs. Use NumLags >= longest arc.
 %     Probes     double   100     Hutchinson probes
 %     Seed       double   []      RNG seed for the probes ([] = unseeded)
 %     Norm       string   "ortho" DCT normalisation "ortho" | "ellmer"

@@ -20,7 +20,20 @@ function [sol, D, V] = adjust(u, batchFcn, nBatch, varargin)
 %     nBatch    1x1  double  number of batches
 %
 %   OUTPUT
-%     sol  1x1 struct  .x (u x 1 estimate), .Cxx, .sigma0, .rank, ...
+%     sol  1x1 struct  LSQVCE.ACCUMULATOR solve() output, i.e.
+%                        .x       u x 1  estimate
+%                        .R       u x u  upper-triangular factor
+%                        .n .u    counts; .defect datum defect; .rank u - defect
+%                        .r       redundancy n - rank
+%                        .vPv     weighted residual sum of squares
+%                        .s0sq    vPv / r (the A-POSTERIORI variance factor)
+%                        .sigma0  the A-PRIORI Sigma0 you passed (default 1)
+%                        .QxxCorr u x d datum correction of the cofactor
+%                      There is NO .Cxx here: the covariance s0sq * Qxx is
+%                      formed by LSQVCE.DIAGNOSE (D.Qxx) -- and by LSQVCE.FIT's
+%                      bridge onto a Results, where sigma0 becomes a posteriori
+%                      (R4 WP-61: this line used to promise .Cxx and .sigma0 in
+%                      the streaming sense; the bridge, not the help, was right).
 %     D    1x1 struct  diagnostics: residuals, redundancy numbers, w/tau,
 %                      leverage, flagIdx, MDB -- see LSQVCE.DIAGNOSE
 %     V    1x1 struct  the level-0..4 verdict -- see LSQVCE.REPORT
@@ -70,7 +83,18 @@ function [sol, D, V] = adjust(u, batchFcn, nBatch, varargin)
 %   BY DESIGN (pinned deviation, §9 WP-39). With assistance from Claude
 %   (Anthropic), model Claude Fable 5.
 %
-%   See also LSQVCE.DIAGNOSE, LSQVCE.REPORT, LSQVCE.SNOOP.
+%   ACCURACY
+%     adjust adds no numerics of its own: sol is Accumulator.solve() and D
+%     is diagnose() on the same batches. The estimator is certified by the
+%     §6.1.4 authorities (closed forms, Baarda/Pope textbook values, the
+%     shDesign oracle); through fit it reproduces byte-identically
+%     (tests/test_fit.m, kinds B and C).
+%
+%   See also LSQVCE.DIAGNOSE, LSQVCE.REPORT, LSQVCE.SNOOP, LSQVCE.FIT.
+%
+%   Updated 2026-09-01 (CEST, UTC+02:00), R4 WP-61 (Level L3): OUTPUT sol
+%   described as it IS (no .Cxx; sigma0 a priori); ACCURACY block. With
+%   assistance from Claude (Anthropic), model Claude Fable 5.
 %
 %
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,

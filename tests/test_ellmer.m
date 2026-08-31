@@ -675,6 +675,27 @@ function test_jointModelOpt_takes_sqrt_of_variance(tc)
         'sigma must be sqrt(mean variance), not the variance itself');
 end
 
+function test_jointModelOpt_acf_uses_sample_lags(tc)
+% categories: contract, precision
+    % R4 G-08: covModel calls the acf with TIME differences; the driver's C is
+    % per sample lag. With dt = 5 s the lookup must return c(2) at 5 s, c(3)
+    % at 10 s -- not c(6) and c(11) -- and hold C beyond its last lag at 0.
+    c = [1; 0.4; 0.1; 0.05];
+    model = struct('C', c, 'sigma2', [], 'iter', 1);
+    uo = lsqvce.jointModelOpt(model, {'x1|kbr'});
+    spec = uo.covOverride.bySys.x1.kbr;
+    t = (0:4).' * 5;                                  % dt = 5 s
+    lagM = t - t.';
+    Cm = spec.acf(lagM, struct());
+    % tol: exact -- a lookup, no arithmetic
+    tc.verifyEqual(Cm(1, :), [1 0.4 0.1 0.05 0]);
+    tc.verifyEqual(Cm(2, 1), 0.4);
+    tc.verifyEqual(spec.acf(0, struct()), 1);
+    % dt = 1 s (the old assumption) is unchanged
+    t1 = (0:3).';
+    tc.verifyEqual(spec.acf(t1 - t1.', struct()), toeplitz(c));
+end
+
 function test_jointModelOpt_places_override_bySys(tc)
 % categories: contract
     % CONVENTION 2: loaders read opt.covOverride.bySys.(satKey).(obsType).
