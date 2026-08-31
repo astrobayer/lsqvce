@@ -90,7 +90,11 @@ Solver
 
 Run control
   Parallel   string   &quot;serial&quot;  &quot;serial&quot; | &quot;parfor&quot; | &quot;spmd&quot;
-  Verbose    logical|double  true   logical, or a level 0..3
+  Verbose    logical|double  true   logical, or a level 0..3. PINNED
+                              DEVIATION: adjust and adjustVCE default to
+                              true, adjustBlock to false; Options follows
+                              the majority, so fit&#x27;s gls path talks by
+                              default -- set Verbose=false for silence
   LogFid     double   []      log file id (see LSQVCE.UTIL.LOG); [] = leave
   LogFlag    logical  []      log to screen; [] = leave
   ShowSeconds double  0       plot hooks: seconds to show each figure

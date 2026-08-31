@@ -48,7 +48,11 @@ classdef Options
 %
 %   Run control
 %     Parallel   string   "serial"  "serial" | "parfor" | "spmd"
-%     Verbose    logical|double  true   logical, or a level 0..3
+%     Verbose    logical|double  true   logical, or a level 0..3. PINNED
+%                                 DEVIATION: adjust and adjustVCE default to
+%                                 true, adjustBlock to false; Options follows
+%                                 the majority, so fit's gls path talks by
+%                                 default -- set Verbose=false for silence
 %     LogFid     double   []      log file id (see LSQVCE.UTIL.LOG); [] = leave
 %     LogFlag    logical  []      log to screen; [] = leave
 %     ShowSeconds double  0       plot hooks: seconds to show each figure
@@ -275,9 +279,11 @@ classdef Options
             target = char(string(target));
             switch target
                 case 'adjustBlock'
+                    % adjustBlock takes a LOGICAL Verbose (no levels); a level
+                    % >= 1 means "talk", so logical() is the faithful map.
                     args.nv = {'Backend', obj.Backend, 'Reg', obj.Reg, ...
                                'RegLambda', obj.RegLambda, 'RegMatrix', obj.RegMatrix, ...
-                               'Parallel', obj.Parallel, 'Verbose', obj.Verbose, ...
+                               'Parallel', obj.Parallel, 'Verbose', logical(obj.Verbose), ...
                                'ShowSeconds', obj.ShowSeconds, 'ExportDir', obj.ExportDir};
                 case 'adjustVCE'
                     if strcmp(obj.Model, "pooled")

@@ -25,6 +25,10 @@
 %   QRSystem, NormalEqSystem, ReducedContribution - accumulator backends
 %
 % Access layer (one-call front door over the streaming pipeline)
+%   fit            - THE one user verb (R4 WP-56): fit(data, opts) -- a plain
+%                    data struct (DATA_CONTRACT.md) + lsqvce.Options -> Results;
+%                    builds the loaders itself and dispatches on opts.Model
+%                    (gls | vce | pooled; ellmer and the in-memory path: WP-56b).
 %   Options        - THE one settings object for fit (R4 WP-55): every knob
 %                    named, typed, defaulted to the engines' own defaults;
 %                    engineArgs(target) maps it onto one existing driver.

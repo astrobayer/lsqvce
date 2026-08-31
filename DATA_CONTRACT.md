@@ -1,10 +1,10 @@
 # lsqvce — The data contract: what you give `fit`, and how to write `buildDay`
 
 **Status.** Binding specification adopted 2026-08-31 (R4 decision R4-D4, HANDOVER §11.9).
-`lsqvce.fit` ships in Level L2; until then the *same declaration* runs through
-`lsqvce.makeLoader` + `lsqvce.adjustBlock` / `lsqvce.adjustVCE` (see §9). This file is the
-source of the `fit` help text and of the HTML guide (WP-56, WP-60): one authority, no second
-copy.
+`lsqvce.fit` is live for the streaming data path (Level L2, WP-56; Models `gls`, `vce`,
+`pooled`); the in-memory path `fit(A, l, …)`, `Robust`, and Model `ellmer` follow in WP-56b.
+§9 shows the equivalent direct engine calls. This file is the source of the `fit` help text
+and of the HTML guide (WP-56, WP-60): one authority, no second copy.
 
 Created 2026-08-31 (CEST, UTC+02:00) with assistance from Claude (Anthropic), model Claude
 Fable 5.
@@ -27,8 +27,9 @@ R    = lsqvce.fit(data, opts);           % the one verb (Level L2)
 R.report                                 % the verdict
 ```
 
-You never call `makeLoader` yourself; `fit` builds the loaders from `data` and stores them on
-`R.loaders` for expert inspection.
+You never call `makeLoader` yourself; `fit` builds the loaders from `data`. `R.systems`
+(the existing Results field) records what ran: per system its id, nl, the loader closure,
+the day list and the name.
 
 ---
 
@@ -71,7 +72,7 @@ unused optional field with `[]`.
 | `observationTypes` | cellstr / string, 1×T | the observation types this system delivers, e.g. `{'kbr'}` or `{'pos','kbr'}`. `buildDay` is called once per (day, type). |
 | `covariance` | struct | one field per observation type holding a covariance spec (§5), e.g. `cov.kbr = struct('type','diag','sigma',0.2)`. |
 | `systemId` | double 1×1 **or** a single char | unique across systems, e.g. `1` and `2`, or `'C'` and `'D'`. Longer labels go in `name`. |
-| one of `localsPerArc` \| `numLocal` \| `localParams` | see §6 | how many local (arc-wise) unknowns nl this system has. **nl must be at least 1** (§6.4). |
+| one of `localsPerArc` \| `numLocal` \| `localParams` | see §6 | how many local (arc-wise) unknowns nl this system has. **0 is valid** (§6.4). |
 
 **Optional**
 
@@ -163,14 +164,18 @@ would be reweighted twice.
 
 | error id | meaning |
 |---|---|
-| `lsqvce:fit:buildDay` | your `buildDay` threw; the original error is attached as the cause |
-| `lsqvce:fit:badDay` | a required field (`A`, `B`, `l`, `t`) is missing |
-| `lsqvce:fit:dayShape` | `A`, `B`, `l`, `t` do not share a row count |
-| `lsqvce:fit:arcBadNc` / `arcBadNl` | `A` or `B` has the wrong number of columns |
-| `lsqvce:fit:badArc` | a positional arc id is out of range (static schedule declared wrongly) |
-| `lsqvce:fit:badArcId` | `arcId` does not name every `arcIdx` entry exactly once |
+| `lsqvce:makeLoader:buildDay` | your `buildDay` threw; the original error is attached as the cause |
+| `lsqvce:makeLoader:badDay` | a required field (`A`, `B`, `l`, `t`) is missing |
+| `lsqvce:makeLoader:dayShape` | `A`, `B`, `l`, `t` do not share a row count |
+| `lsqvce:accum:arcBadNc` / `arcBadNl` | `A` or `B` has the wrong number of columns |
+| `lsqvce:makeLoader:badArc` | a positional arc id is out of range (static schedule declared wrongly) |
+| `lsqvce:makeLoader:badArcId` | `arcId` does not name every `arcIdx` entry exactly once |
 
-(Until L2 these carry the `lsqvce:makeLoader:` / `lsqvce:accum:` prefixes.)
+These are raised **while reading**, by the engine, and keep their engine ids. Errors in the
+*declaration* itself are raised by `fit` before any data is read and carry `lsqvce:fit:` ids
+(`unknownField`, `noSystems`, `missingField`, `localCount`, `commonCount`, `noDays`,
+`duplicateSystem`, `builderKind`, and every `makeLoader` construction id relabelled, e.g.
+`lsqvce:fit:noCov`).
 
 ---
 
@@ -252,12 +257,11 @@ arcInfo.offsetOf   % @(arcId) -> offset
 
 Fill `B(rows, off + (1:k))` and **never compute an offset yourself**.
 
-### 6.4 Every system has at least one local unknown
+### 6.4 A system without local unknowns (nl = 0)
 
-The block-arrow engine pre-eliminates a local block per system and requires nl ≥ 1. A
-system with truly no local unknowns should be estimated on the in-memory path
-(`fit(A, l, …)`, Level L2) or declare one physically meaningful local, e.g. a per-arc bias.
-Lifting this to nl = 0 is an open engine decision (HANDOVER §11.3 G-07).
+Valid (decided 2026-08-31, HANDOVER G-07). Declare `numLocal = 0` (or `localsPerArc = 0`)
+and return `B = zeros(m, 0)` from `buildDay`. The engine then skips the pre-elimination for
+that system; local diagnostics come back as the consistent empty shapes.
 
 ---
 
@@ -317,7 +321,7 @@ R.report
 
 ---
 
-## 9. Until `fit` lands (Level L2): the same declaration today
+## 9. What `fit` does internally — the equivalent direct engine calls
 
 ```matlab
 L = cell(1, numel(data.systems));
@@ -346,6 +350,6 @@ UpperCamelCase name); `fit` performs exactly this mapping internally.
 - [ ] `t` is in seconds; the sampling matches the covariance spec you declared.
 - [ ] Every `systemId` is unique; nc is stated once in `data.common`.
 - [ ] Ragged schedule → resolver + `arcId`; static schedule → count/vector, no `arcId`.
-- [ ] Local unknowns via `localsPerArc` (and `B` filled from `arcInfo`), nl ≥ 1.
+- [ ] Local unknowns via `localsPerArc` (and `B` filled from `arcInfo`); nl = 0 is fine with `B = zeros(m, 0)`.
 - [ ] Multi-axis streams: epoch-major rows, `nAxis`, and a source for `D`.
 - [ ] No unknown field names in `data` (a typo is an error, on purpose).
