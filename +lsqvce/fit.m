@@ -503,7 +503,9 @@ function R = fitEllmer(systems, days, opts)
     hist.kind  = 'ellmer';
     hist.nIter = out.nIter;
     hist.skips = out.skips;
-    noise = struct('C', out.C, 'Shat', out.Shat, 'sigma2', out.sigma2, 'arcKeys', out.arcKeys);
+    % arcKeys is a CELL: braces keep struct() from expanding it into a struct
+    % ARRAY (the DATA_CONTRACT §2.4 pitfall -- it bit this very line in L3 r1).
+    noise = struct('C', out.C, 'Shat', out.Shat, 'sigma2', out.sigma2, 'arcKeys', {out.arcKeys});
     R.setIterative(hist, noise, out.converged);
 end
 

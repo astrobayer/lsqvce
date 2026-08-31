@@ -132,11 +132,10 @@ end
 
 function testNotYetPathsAreRefusedExplicitly(tc)
 % categories: contract
-    % Model "ellmer" and the batch-path Robust are Options the engine space
-    % has but fit does not route yet (WP-56b): an explicit refusal, never a
-    % silent fallback to another model.
+    % Robust IRLS is the in-memory kinds' path (WP-56b); on the streaming
+    % kind fit refuses explicitly -- never a silent fallback. (Model "ellmer"
+    % was refused here until WP-56c wired it; its reference test is below.)
     [data, ~] = declaration();
-    tc.verifyEqual(idOf(@() lsqvce.fit(data, lsqvce.Options(Model="ellmer"))), 'lsqvce:fit:notYet');
     tc.verifyEqual(idOf(@() lsqvce.fit(data, lsqvce.Options(Robust="irls"))), 'lsqvce:fit:notYet');
 end
 
@@ -251,7 +250,12 @@ function testEllmerThroughFitReproducesDirect(tc)
     % below hand-builds the same accFcn; same Seed -> same probes -> identical.
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % JointMaxIter 2 stops early by design
     [data, cfg] = declaration();
-    opts = lsqvce.Options(Model="ellmer", NumLags=5, JointMaxIter=2, Probes=20, ...
+    % NumLags must satisfy covModel's rank rule under PsdMode "toeplitz":
+    % nf >= floor(mArc/2) + 1 = 151 for the 300-row arcs of this fixture; a
+    % smaller value gives a non-PD arc covariance, every arc is skipped and
+    % the driver reports noArcs (the L3 r1 catch).
+    nLag = floor(cfg.mArc/2) + 1;
+    opts = lsqvce.Options(Model="ellmer", NumLags=nLag, JointMaxIter=2, Probes=20, ...
                           Seed=7, Verbose=false);
     R = lsqvce.fit(data, opts);
 
@@ -259,7 +263,7 @@ function testEllmerThroughFitReproducesDirect(tc)
     streams = {'x1|pos', 'x1|kbr'};                       % makeValidName('1') = 'x1'
     accFcn = @(model) directJointAcc(cfg.nc, L, data.days, ...
                  lsqvce.jointModelOpt(model, streams, 'PsdMode', 'toeplitz'));
-    out = lsqvce.adjustVCEjoint(accFcn, 'NumLags', 5, 'MaxIter', 2, 'Probes', 20, ...
+    out = lsqvce.adjustVCEjoint(accFcn, 'NumLags', nLag, 'MaxIter', 2, 'Probes', 20, ...
                                 'Seed', 7, 'Verbose', false);
     % tol: 1e-12 -- identical code path; the seed fixes the Hutchinson probes
     tc.verifyEqual(R.x, out.sol.x(:), 'RelTol', 1e-12);

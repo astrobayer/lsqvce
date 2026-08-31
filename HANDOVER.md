@@ -4384,6 +4384,23 @@ shape; (4) SeparableProblem.html is a sanctioned redirect stub (WP-41),
 the L1/L2 notes calling it stale were wrong and are corrected in the
 ledger.
 
+**L3 r1 CI CATCH (2026-09-01):** db78a9d RED 584/586, both in test_fit.
+(a) `testNotYetPathsAreRefusedExplicitly` still expected the ellmer refusal
+-- stale by design once WP-56c wired it; expectation removed. (b) the WP-56c
+reference test errored with MATLAB:InputParser:ParamMustBeChar INSIDE
+verifyEqual: fit's bridge built `noise` with struct(..., 'arcKeys',
+out.arcKeys) and the CELL value expanded it into an M-element struct ARRAY,
+so `R.noise.C` was a comma list -- exactly the DATA_CONTRACT §2.4 pitfall,
+in the toolbox's own code. Fix: braces. Underneath, a second defect the
+first had hidden: NumLags = 5 against 300-row arcs violates covModel's
+rank rule under PsdMode toeplitz, every arc covariance is non-PD, every arc
+is SKIPPED and the driver reports noArcs (decorrFactor:notPD in the
+inventory was the trace). Fix: NumLags = floor(mArc/2)+1 in the test;
+Options help states the rule for "ellmer". LESSONS: struct() with a cell
+value is a struct array -- braces, always, also in library code; and a
+warning id that appears in the inventory during a red run is evidence,
+read it before touching the test.
+
 ### 11.9 DATA CONTRACT AND LOADER WORKFLOW — design record for WP-56 (R4-D4)
 
 **The binding specification is `DATA_CONTRACT.md` at the tree root** (one
