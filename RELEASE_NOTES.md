@@ -39,7 +39,9 @@ in-memory matrices, batched callbacks incl. nonlinear) and four models
 and examples gallery, `lsqvce_theory.pdf` (the ONE theory authority, R4-D3 —
 the manual's theory chapter now points there), `DistributeDays` /
 `ParallelThreshold` through `fit`, audit check 18 (tier census + Windows case
-guard), `buildfile.m` (`buildtool audit`, `test`, `package`).
+guard). `buildfile.m` (`buildtool`) existed L5-L8 and was removed in L9: an
+mltbx is not foreseen; the gate is `cd('dev/tests'); ci_gate`, the audit
+`python3 dev/docs_src/audit_tree.py`.
 
 ### Fluent configurators removed (R4-D2, WP-64b, Level L6)
 `lsqvce.engine.adjustVCE` is **constructor-only**. The six chained
