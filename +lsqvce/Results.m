@@ -52,6 +52,9 @@ classdef Results < handle
 %                                    settled (needs .history).
 %     T = R.summary()                Per-STREAM final state: sigma, AR order,
 %                                    whiteness (needs .history).
+%     T = R.coefficients(Alpha=a)    The estimates as a table with formal
+%                                    errors and (1-a) confidence bounds
+%                                    (R4 WP-57; default a = 0.05).
 %     disp(R)                        One-screen summary.
 %
 %   THE TWO ITERATION READERS ARE COMPLEMENTARY. convergence() reduces across
@@ -69,10 +72,17 @@ classdef Results < handle
 %     lsqvce:Results:noHistory      an iteration reader was called on a
 %                                   single-solve Results (adjustBlock does not
 %                                   iterate); use the result of adjustVCE
+%     lsqvce:Results:noCovariance   coefficients() on a Results whose sol
+%                                   carries no Cxx
 %
 %   See also LSQVCE.ADJUSTBLOCK, LSQVCE.ADJUSTVCE, LSQVCE.REPORT,
 %            LSQVCE.DIAGNOSE, LSQVCE.BLOCKACCUMULATOR
 %
+%   Updated 2026-08-31 (CEST, UTC+02:00), R4 WP-57 (Level L2): coefficients()
+%   -- estimates, formal errors and confidence bounds as ONE table (the
+%   fitlm Coefficients/coefCI pair folded into one method; z from erfcinv,
+%   no Statistics Toolbox). With assistance from Claude (Anthropic), model
+%   Claude Fable 5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-44 (T-05): run provenance --
 %   immutable .meta composed by the ONE private builder runMeta, constructor
 %   widened to an optional 8th argument, report() forwards the provenance
@@ -321,6 +331,47 @@ classdef Results < handle
             obj.converged = converged;
         end
 
+        function T = coefficients(obj, opt)
+        %COEFFICIENTS  Estimates with formal errors and confidence bounds, as a table.
+        %   T = R.coefficients()            95 % bounds
+        %   T = R.coefficients(Alpha=0.01)  99 % bounds
+        %
+        %   The fitlm pair Coefficients (table) + coefCI (matrix) folded into ONE
+        %   method (rule: one way to do each thing). The bounds are
+        %   x +- z * se with se = sqrt(diag(Cxx)) -- Cxx already carries the
+        %   a-posteriori sigma0^2 -- and z = norminv(1 - Alpha/2), computed as
+        %   sqrt(2)*erfcinv(Alpha) so the Statistics Toolbox is not needed.
+        %   Normal, not Student t: the redundancy of a streamed adjustment is in
+        %   the thousands, where the two agree to < 1e-3 in z.
+        %
+        %   INPUT
+        %     Alpha   1x1 double  two-sided significance level, 0 < Alpha < 1
+        %                         (default 0.05)
+        %   OUTPUT
+        %     T   table, nc rows  index (double) | estimate | se | lower | upper
+        %
+        %   ACCURACY
+        %     z(0.05) = 1.959963984540054 (closed form, 16 digits); the table is
+        %     arithmetic on x and diag(Cxx), no further approximation.
+        %
+        %   ERRORS
+        %     lsqvce:Results:noCovariance   sol carries no Cxx
+        arguments
+            obj
+            opt.Alpha (1,1) double {mustBePositive, mustBeLessThan(opt.Alpha, 1)} = 0.05
+        end
+            if ~isstruct(obj.sol) || ~isfield(obj.sol, 'Cxx') || isempty(obj.sol.Cxx)
+                error('lsqvce:Results:noCovariance', ...
+                    'This Results carries no covariance (sol.Cxx); coefficients() needs one.');
+            end
+            se = sqrt(max(diag(obj.sol.Cxx), 0));
+            se = se(:);
+            z  = sqrt(2) * erfcinv(opt.Alpha);         % norminv(1 - Alpha/2)
+            x  = obj.x(:);
+            T  = table((1:numel(x)).', x, se, x - z*se, x + z*se, ...
+                       'VariableNames', {'index', 'estimate', 'se', 'lower', 'upper'});
+        end
+
         function disp(obj)
         %DISP  One-line custom display of the Results object.
             u = numel(obj.x);
@@ -332,7 +383,7 @@ classdef Results < handle
             r = obj.redundancy();
             if ~isnan(r), lsqvce.util.log.msg('    redundancy        : %.1f\n', r); end
             lsqvce.util.log.msg('    converged         : %s\n', tern(obj.converged, 'yes', 'no'));
-            lsqvce.util.log.msg('    -> R.report()  for the level-0..4 verdict; R.acc for the accumulator\n');
+            lsqvce.util.log.msg('    -> R.report()  for the level-0..4 verdict; R.coefficients() for x +- bounds; R.acc for the accumulator\n');
         end
     end
 

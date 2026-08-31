@@ -45,12 +45,20 @@ function testFitVceReproducesTheFluentChain(tc)
     % WP-58 parity: fit(data, Options(Model="vce", ...)) versus the fluent
     % configurator chain it replaces. Exact trace mode (vce default) makes
     % the separate loop deterministic; two outer passes keep the CI cost low.
+    % The fixture's 'pos' stream is a SCALAR ARMA stream (buildDayImpl), but
+    % adjustVCE's default treats 'pos' as 3 components per epoch and then
+    % needs a per-epoch scaling (lsqvce:covModel:noCep -- the r1 CI catch).
+    % Both runs therefore declare pos -> 1, which also exercises the
+    % ComponentsPerEpoch mapping of Options.engineArgs.
     [data, cfg] = declaration();
-    opts = lsqvce.Options(Model="vce", MaxOuter=2, VceMaxIter=3, Verbose=false);
+    axes = struct('pos', 1);
+    opts = lsqvce.Options(Model="vce", MaxOuter=2, VceMaxIter=3, Verbose=false, ...
+                          ComponentsPerEpoch=axes);
     Rf = lsqvce.fit(data, opts);
     L  = loaderOf(cfg, data.systems(1), data);
     Rd = lsqvce.adjustVCE({L}, data.days, 'MaxOuter', 2, 'Verbose', false) ...
             .varianceComponents('MaxIter', 3) ...
+            .componentsPerEpoch(axes) ...
             .run();
     % tol: 1e-12 -- identical code path (see the gls test)
     tc.verifyEqual(Rf.x, Rd.x, 'RelTol', 1e-12);
@@ -194,6 +202,38 @@ function testRawLoaderEscapeHatch(tc)
     % tol: 1e-12 -- identical code path (see the reference tests)
     tc.verifyEqual(Rf.x, Rd.x, 'RelTol', 1e-12);
     tc.verifyEqual(Rf.sigma0, Rd.sigma0, 'RelTol', 1e-12);
+end
+
+%% ============================================== WP-57: Results.coefficients
+function testCoefficientsTable(tc)
+% categories: contract, precision
+    % R4 WP-57: estimates + formal errors + confidence bounds as ONE table
+    % (the fitlm Coefficients/coefCI pair folded together), z from erfcinv.
+    [data, cfg] = declaration();
+    R = lsqvce.fit(data, lsqvce.Options(Verbose=false));
+    T = R.coefficients();
+    tc.verifyClass(T, 'table');
+    tc.verifyEqual(size(T), [cfg.nc 5]);
+    tc.verifyEqual(T.Properties.VariableNames, {'index', 'estimate', 'se', 'lower', 'upper'});
+    % tol: exact -- the same arithmetic on the same numbers
+    tc.verifyEqual(T.estimate, R.x);
+    tc.verifyEqual(T.se, sqrt(max(diag(R.sol.Cxx), 0)));
+    % tol: 1e-12 -- z(0.05) = 1.959963984540054 in closed form (16 digits)
+    tc.verifyEqual((T.upper - T.estimate) ./ T.se, 1.959963984540054 * ones(cfg.nc, 1), 'RelTol', 1e-12);
+    T1 = R.coefficients(Alpha = 1 - erf(1/sqrt(2)));     % P(|Z| > 1): one-sigma bounds
+    % tol: 1e-12 -- erfc / erfcinv round trip, z = 1 exactly in exact arithmetic
+    tc.verifyEqual(T1.upper - T1.estimate, T1.se, 'RelTol', 1e-12);
+    tc.verifyTrue(all(T.lower < T.estimate & T.estimate < T.upper));
+    ok = false;
+    try
+        R.coefficients(Alpha = 1.5);
+    catch e
+        ok = startsWith(e.identifier, 'MATLAB:');
+    end
+    tc.verifyTrue(ok, 'Alpha outside (0,1) must be rejected by the signature');
+    sol = rmfield(R.sol, 'Cxx');                          % a Results without a covariance
+    R2 = lsqvce.Results(sol, R.diag, R.acc, R.source, R.batchFcn, R.nBatch, R.systems);
+    tc.verifyEqual(idOf(@() R2.coefficients()), 'lsqvce:Results:noCovariance');
 end
 
 %% ================================================================ helpers
