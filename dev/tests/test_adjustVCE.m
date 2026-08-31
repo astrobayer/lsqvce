@@ -34,8 +34,8 @@ function setupOnce(tc)
     end
     % The synthetic data generator lives in examples/ (it is a demo/template,
     % not part of the library). Put it on the path for the duration of the tests.
-    here = fileparts(mfilename('fullpath'));               % tests/
-    exDir = fullfile(here, '..', 'examples');
+    here = fileparts(mfilename('fullpath'));               % dev/tests (L8)
+    exDir = fullfile(here, '..', '..', 'examples');
     tc.TestData.exDir = exDir;
     if exist(fullfile(exDir, 'demo_grace_dataLoader.m'), 'file') == 2
         addpath(exDir);

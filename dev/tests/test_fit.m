@@ -319,8 +319,9 @@ function testDemoFitRuns(tc)
     % Results it returns is checked here (the demo mutes the two convergence
     % warnings its two-pass "vce" run provokes and restores them on exit).
     here = fileparts(mfilename('fullpath'));
-    addpath(fullfile(here, '..', 'examples'));
-    tc.addTeardown(@() rmpath(fullfile(here, '..', 'examples')));
+    exDir = fullfile(here, '..', '..', 'examples');    % dev/tests -> root (L8)
+    addpath(exDir);
+    tc.addTeardown(@() rmpath(exDir));
     out = demo_fit(Verbose=false);
     for f = {'matrix', 'robust', 'batch', 'nonlinear', 'gls', 'vce'}
         R = out.(f{1});

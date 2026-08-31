@@ -4587,6 +4587,20 @@ ci.yml. LESSON (the L6 lesson, once more, now for WORKFLOWS): sweep the
 FILE, not keyword hits -- read every `run:` line of a workflow after a
 layout change.
 
+**L8 r2 CI CATCH (2026-09-02):** 0f45792 matlab RED: 587/588 (one point
+FILTERED) and the inventory grew by MATLAB:mpath:nameNonexistentOrNotADirectory
++ MATLAB:rmpath:DirNotFound. One class of defect, five sites: suites still
+computed the toolbox root / examples dir RELATIVE to their old location
+(`here/../examples`, two fileparts for root) -- test_fit's demo smoke test
+add/rmpath'd a nonexistent dev/examples (warnings; the test itself passed
+because run_all now puts examples on the path), and test_physOracle's
+assumeTrue on the loader path silently FILTERED its ragged-path point.
+Also run_lsqvce/test_util/test_physOracle root computations. All five moved
+to the dev/tests depth (three fileparts / '..','..'), swept by grep over the
+whole suite folder. LESSON: a FILTERED test point is a red flag, not a pass
+-- the assume pattern hides layout defects; after any layout change grep
+the suites for mfilename-relative paths.
+
 ### 11.9 DATA CONTRACT AND LOADER WORKFLOW — design record for WP-56 (R4-D4)
 
 **The binding specification is `DATA_CONTRACT.md` at the tree root** (one
