@@ -212,6 +212,10 @@ classdef BlockAccumulator < handle
 %       lsqvce:accum:localNotRedundant  an arc's local block has no redundancy,
 %                                     so its variance factor is undefined
 %
+%   Updated 2026-08-31 (CEST, UTC+02:00), R4 G-07 (Level L2): nl = 0 is a
+%   valid system (user decision) -- addSystem accepts it, preeliminate
+%   returns the unreduced common block with consistent empty local shapes.
+%   With assistance from Claude (Anthropic), model Claude Fable 5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (c) c2 (F-07):
 %   typed `arguments` signatures, canonical UpperCamelCase option names
 %   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
@@ -297,7 +301,9 @@ classdef BlockAccumulator < handle
         %   addSystem(sysID, nl, dataFcn, dayList)
         %
         %     sysID    numeric identifier (satellite number, ...)
-        %     nl       number of local parameters of this system
+        %     nl       number of local parameters of this system (0 allowed:
+        %              the local block is then empty and pre-elimination is
+        %              the identity -- R4 G-07)
         %     dataFcn  loader callback (see the class help)
         %     dayList  vector of day identifiers, passed straight to the loader
         %
@@ -305,7 +311,9 @@ classdef BlockAccumulator < handle
         %   only the floating-point rounding, not the result.
 
             narginchk(5,5);
-            validateattributes(nl, {'numeric'}, {'scalar','integer','positive'}, ...
+            % R4 G-07 (user decision 2026-08-31): nl = 0 is VALID -- a system
+            % with no local unknowns skips the Schur step (preeliminate).
+            validateattributes(nl, {'numeric'}, {'scalar','integer','nonnegative'}, ...
                                mfilename, 'nl', 3);
             if ~isa(dataFcn, 'function_handle')
                 error('lsqvce:accum:badLoader', 'dataFcn must be a function handle.');
@@ -1139,6 +1147,36 @@ classdef BlockAccumulator < handle
             il = nc + (1:nl);
 
             [Nll, Nlc, Ncc, nl_rhs, nc_rhs, ltl, mObs] = loc.blocks(ic, il);
+
+            if nl == 0
+                % R4 G-07: no local block. The Schur complement is the
+                % identity (Ncc_red = Ncc, dof_red = mObs); the stored blocks
+                % are the consistent EMPTY shapes so backSubstitute returns a
+                % 0x1 y, localCovariance a 0x0 Cyy, and residuals form
+                % l - A*x - B*y with B m x 0. localDiagnostics /
+                % applyRegularisation are bypassed (eig of an empty matrix is
+                % not a diagnostic); dg carries their full field set so every
+                % consumer (report, commit, verbose block) reads it unchanged.
+                if mObs == 0
+                    error('lsqvce:accum:localNotRedundant', ...
+                        'System %s has no observations.', string(sysID));
+                end
+                dg = struct('eig', zeros(0,1), 'V', zeros(0,0), 'condNll', 1, ...
+                            'rankDef', 0, 'spd', true, 'nullDir', zeros(0,1), ...
+                            'diagDom', 1, 'status', 'ok', 'regUsed', 'none', ...
+                            'lambdaUsed', 0);
+                Ncc  = (Ncc + Ncc.')/2;
+                red  = lsqvce.ReducedContribution(Ncc, nc_rhs, ltl, mObs);
+                keep = struct('Nll_r', zeros(0,0), 'Nlc', zeros(0,nc), ...
+                              'nl_r', zeros(0,1), 'ltl', ltl, 'mObs', mObs, ...
+                              's0sq_hint', max(ltl,0)/max(mObs,1));
+                if lsqvce.util.verbosity.detail(opt.Verbose)
+                    lsqvce.util.log.msg('%s', lsqvce.util.verbosity.fieldBlock(sprintf('System %s "%s"', string(sysID), sysName), ...
+                        {'observations',   sprintf('%d', mObs); ...
+                         'local unknowns', '0 (no pre-elimination)'}));
+                end
+                return
+            end
 
             if mObs <= nl
                 error('lsqvce:accum:localNotRedundant', ...

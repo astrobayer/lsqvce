@@ -92,7 +92,9 @@ function L = makeLoader(buildDay, opt)
 %                       longer human-readable label in 'name' instead.
 %       'numLocal' 1x1  local-parameter count carried on L    (default []: set it
 %                                       or supply 'localParams'; passing both
-%                                       must agree.
+%                                       must agree. 0 is VALID (R4 G-07): the
+%                                       system then has no local block and
+%                                       buildDay returns B as m x 0.)
 %       'numCommon' 1x1 COMMON-parameter count carried on L   (default []: set
 %                                       it or supply 'commonParams'; passing both
 %                                       must agree).
@@ -219,6 +221,10 @@ function L = makeLoader(buildDay, opt)
 %   See also LSQVCE.ADJUSTBLOCK, LSQVCE.SYNTHLOADER, LSQVCE.COVMODEL,
 %            LSQVCE.BLOCKACCUMULATOR, LSQVCE.ADJUSTVCE
 %
+%   Updated 2026-08-31 (CEST, UTC+02:00), R4 G-07 (Level L2): 'numLocal' 0 /
+%   'localsPerArc' 0 declare a system without local unknowns (help only;
+%   the engine change is in BlockAccumulator). With assistance from Claude
+%   (Anthropic), model Claude Fable 5.
 %   Updated 2026-08-21 (CEST, UTC+02:00), WP-52: ragged schedules are
 %   NATIVE -- per-day arc resolution ('arcs' as @(day,obsType) or
 %   'fromDay'), arcs addressed by .arcId with absent ids as data gaps,
