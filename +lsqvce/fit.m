@@ -48,7 +48,10 @@ function R = fit(data, opts)
 %   the groups of a streaming system); opts.Robust = "irls" selects
 %   LSQVCE.ROBUST, data.x0 selects LSQVCE.SOLVENONLINEAR, else LSQVCE.ADJUST.
 %   The Results carries sol / diag / source (the driver's third output:
-%   verdict V, ROB, or the nonlinear IT record); R.acc is empty, so
+%   verdict V, ROB, or the nonlinear IT record). Its sigma0 is the
+%   A-POSTERIORI std of unit weight and sol.Cxx = s0sq * D.Qxx, i.e. the
+%   streaming Results contract (the batch drivers' own sol.sigma0 is the
+%   a-priori value; it is kept as sol.sigma0Prior). R.acc is empty, so
 %   residuals() and contribution() refuse with lsqvce:Results:noAccumulator
 %   -- the per-observation residuals are already in R.diag.v. The options
 %   forwarded to LSQVCE.DIAGNOSE come from the Options object explicitly
@@ -437,6 +440,19 @@ function R = runBatch(u, batchFcn, nBatch, x0, opts, kind)
         a = opts.engineArgs("adjust");
         [sol, D, V] = lsqvce.adjust(u, batchFcn, nBatch, a.nv{:});
         source = V;
+    end
+    % The Results contract is the STREAMING one (BlockAccumulator.solve):
+    % sol.sigma0 = a-posteriori std of unit weight, sol.Cxx = covariance
+    % scaled by it. The batch drivers return Accumulator.solve's struct,
+    % where sigma0 is the A-PRIORI Sigma0 and there is no Cxx (R, QxxCorr,
+    % s0sq instead) -- so the bridge derives both exactly as lsqvce.diagnose
+    % does (D.Qxx is the datum-corrected cofactor). When diagnose skipped
+    % Qxx (very large u) Cxx stays absent and coefficients() refuses with
+    % lsqvce:Results:noCovariance -- honest, never a plausible substitute.
+    sol.sigma0Prior = sol.sigma0;
+    sol.sigma0      = sqrt(sol.s0sq);
+    if isfield(D, 'Qxx') && ~isempty(D.Qxx)
+        sol.Cxx = sol.s0sq * D.Qxx;
     end
     resolved = opts.toStruct();
     resolved.kind = kind;

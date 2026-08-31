@@ -283,9 +283,14 @@ function testMatrixKindReproducesAdjust(tc)
     tc.verifyClass(R, 'lsqvce.Results');
     % tol: exact -- identical code path and inputs
     tc.verifyEqual(R.x, sol.x(:));
-    tc.verifyEqual(R.sigma0, sol.sigma0);
-    tc.verifyEqual(R.sol.Cxx, sol.Cxx);
     tc.verifyEqual(R.diag.v, D.v);
+    % the bridge restores the STREAMING Results contract: sigma0 a posteriori,
+    % Cxx = s0sq * Qxx (the batch driver's sol carries the a-priori Sigma0 and
+    % no Cxx -- the r1 CI catch of this level)
+    % tol: exact -- same arithmetic as lsqvce.diagnose, same numbers
+    tc.verifyEqual(R.sigma0, sqrt(sol.s0sq));
+    tc.verifyEqual(R.sol.sigma0Prior, sol.sigma0);
+    tc.verifyEqual(R.sol.Cxx, sol.s0sq * D.Qxx);
     tc.verifyEqual(R.source.verdict, V.verdict, 'the verdict rides on R.source');
     tc.verifyEmpty(R.acc);
     tc.verifyEqual(R.meta.options.kind, 'matrix');
@@ -311,7 +316,7 @@ function testMatrixKindRobustReproducesRobust(tc)
         'Influence', 'huber', 'MaxIter', 20, 'Verbose', false);
     % tol: exact -- identical code path and inputs
     tc.verifyEqual(R.x, sol.x(:));
-    tc.verifyEqual(R.sigma0, sol.sigma0);
+    tc.verifyEqual(R.sigma0, sqrt(sol.s0sq));
     tc.verifyEqual(R.diag.v, D.v);
     tc.verifyEqual(fieldnames(R.source), fieldnames(ROB), 'the IRLS record rides on R.source');
 end

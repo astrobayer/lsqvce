@@ -4344,6 +4344,20 @@ its own row. Options knob count 57 -> 59; property count literal in
 test_options updated ON PURPOSE (the L1 handover said 58 — a miscount,
 corrected here).
 
+**L4 r1 CI CATCH (2026-08-31):** f59a51c RED 584/585 —
+`test_fit/testMatrixKindReproducesAdjust` read `R.sol.Cxx`, which does not
+exist: the batch drivers return Accumulator.solve's struct (R, QxxCorr,
+s0sq; sigma0 = the A-PRIORI Sigma0), while the Results contract is the
+streaming one (sigma0 a posteriori, Cxx scaled by it). Two findings:
+(a) DOC DRIFT: adjust's help promises `.Cxx, .sigma0` in the streaming
+sense -> WP-61 sweep; (b) the kind-B Results would have reported
+sigma0 = 1. FIX in the `runBatch` BRIDGE, not in the test: sigma0 =
+sqrt(s0sq), Cxx = s0sq * D.Qxx (diagnose's own arithmetic), the a-priori
+value kept as sol.sigma0Prior; when diagnose skipped Qxx, Cxx stays absent
+and coefficients() refuses (noCovariance). LESSON, binding: Results
+semantics are the STREAMING path's; every bridge onto Results must
+ESTABLISH them, a test must never reinterpret them to make a bridge pass.
+
 ### 11.9 DATA CONTRACT AND LOADER WORKFLOW — design record for WP-56 (R4-D4)
 
 **The binding specification is `DATA_CONTRACT.md` at the tree root** (one
