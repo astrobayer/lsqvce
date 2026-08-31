@@ -8,7 +8,11 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-09-01 — LEVEL L4 READY: PR #37, CI green
+Last substantive update: 2026-09-01 (later) — L4 MERGED (83f9652); LEVEL L3
+opened (PR #38): WP-56c ellmer through fit, WP-59 lsqvce_theory.pdf,
+WP-60 Getting started + examples gallery, WP-61 help sweep (adjust drift
+fixed, ACCURACY blocks). CI pending; DONE flips on the merge.
+Preceding entry: Last substantive update: 2026-09-01 — LEVEL L4 READY: PR #37, CI green
 585/585 on a0ce72d (WP-56b fit kinds B/C + Robust, WP-62 parallel policy,
 WP-63 fit speed budget); one catch pinned (the batch->Results bridge must
 establish the streaming Results contract). DONE flips on the merge; L3
@@ -4221,11 +4225,11 @@ merger, no zip when a PR is the deliverable).
 | L2 | 56 | `lsqvce.fit` — the one user verb; dispatch to the six drivers; <=3-line acceptance test | 55 | READY (CI green 578/578 on 6af480b, DONE flips on the L2 merge; 2026-08-31, branch `claude/level-2`, PR #36: `fit(data, opts)` for the STREAMING path — data-struct validation with one `lsqvce:fit:` id per rule before any read, loaders built through makeLoader with the ONE lowerCamel->UpperCamel table, dispatch gls / vce / pooled; tests/test_fit.m 8 points (reference fit == direct driver to 1e-12; contract for every rule; robustness). SCOPE SPLIT recorded as **WP-56b** (next level): the in-memory `fit(A, l, ...)` form (adjust/robust/solveNonlinear -> Results needs a Results builder for the batch path), `Robust ~= "none"`, and Model "ellmer" (adjustVCEjoint takes an accFcn, i.e. the jointModelOpt translation must move inside fit) — fit refuses these with `lsqvce:fit:notYet`, never a silent fallback) |
 | L2 | 57 | Results ease-of-use methods: summary/disp, coefCI, predict, plot — thin add-only wrappers over report/diagnose/contribution | 56 | READY (CI green 578/578 on 6af480b, DONE flips on the L2 merge; 2026-08-31, PR #36, commit bf5fe6f: `coefficients(Alpha=)` — the fitlm Coefficients/coefCI pair as ONE table, z from erfcinv; test in test_fit (contract + precision). SCOPE NOTE: summary/disp/convergence already existed (WP-17/44); `predict` and `plot` NOT added — a streamed adjustment has no single design matrix to predict from and the plot hooks live on the loaders (WP-19); pinned as deliberate omission, revisit only on a user request) |
 | L2 | 58 | Fluent configurators leave the USER contract (Contents/doc tiering + fit parity tests; deletion gated by R4-D2) | 56 | READY (CI green 578/578 on 6af480b, DONE flips on the L2 merge; 2026-08-31, PR #36: Contents.m / helptoc.xml / html/index.html gain a "Start here — USER tier" block (fit, Options, Results, report) with everything else declared ENGINE/KERNEL; adjustVCE help carries the ENGINE-tier note; parity pinned by test_fit testFitVceReproducesTheFluentChain (r1 CI catch: the fixture's scalar 'pos' stream needed ComponentsPerEpoch pos->1, fixed in bf5fe6f). Deletion of the fluent chain stays GATED on R4-D2) |
-| L3 | 59 | Theory PDF: theory, practical considerations, implementation, ERROR HANDLING; literature-anchored; source in docs_src, built BY HAND (build_manuals.py stays _STALE_GUARDed) | 56 | OPEN |
-| L3 | 60 | HTML restructure: getting-started page, tiered reference (USER tier first), examples gallery | 56,59 | OPEN |
-| L3 | 61 | Help sweep of the NEW surface (fit/options/Results methods) with ACCURACY blocks per §6.2 | 56,57 | OPEN |
+| L3 | 59 | Theory PDF: theory, practical considerations, implementation, ERROR HANDLING; literature-anchored; source in docs_src, built BY HAND (build_manuals.py stays _STALE_GUARDed) | 56 | IN PROGRESS (2026-09-01, PR #38, commit 337a9bf: docs_src/theory_content.py + build_theory_pdf.py over the master-manual pipeline -> lsqvce_theory.pdf, 7 pages, ten sections, every toolbox claim names its WP; verified by rasterising and looking — the HTML entity &minus; inside eq() tokens rendered literally, fixed to U+2212 before commit; index.html Manuals note + README) |
+| L3 | 60 | HTML restructure: getting-started page, tiered reference (USER tier first), examples gallery | 56,59 | IN PROGRESS (2026-09-01, PR #38, commit cc0a31f: html/lsqvce_getting_started.html; examples gallery from the scripts' H1 lines on index.html; Getting started first in helptoc/index. CORRECTION: lsqvce.SeparableProblem.html is a sanctioned WP-41 redirect stub, not stale debt. Contents.m deep regroup by tier folded into L5 release polish) |
+| L3 | 61 | Help sweep of the NEW surface (fit/options/Results methods) with ACCURACY blocks per §6.2 | 56,57 | IN PROGRESS (2026-09-01, PR #38, commits edaabad + b5c15b3: adjust OUTPUT drift fixed (no .Cxx; sigma0 a priori) + ACCURACY; Results class-level ACCURACY stating the sigma0/Cxx contract once; fit/Options already carried ACCURACY; four pages deleted + rebuilt; an all-caps 'THE ...' prose line in fit's help had become a page heading (the builder's SECTION rule) — rephrased. LESSON: help prose must not start a line with an all-caps section-like word) |
 | L4 | 56b | `fit` kinds B (in-memory A/l/p) and C (batched callback; nonlinear with x0) + `Robust` on those kinds — adjust / robust / solveNonlinear returned as Results without an accumulator | 56 | READY (CI green 585/585 on a0ce72d, DONE flips on the L4 merge; 2026-08-31, PR #37, commit 7acc161: kinds told apart by the fields present; Model must be gls (`lsqvce:fit:modelKind`); Results.residuals()/contribution() refuse with `lsqvce:Results:noAccumulator`; Options.toStruct() for the provenance; test_fit +5 byte-identical references + contract ids; DATA_CONTRACT §11) |
-| L4 | 56c | `fit` Model "ellmer" -> LSQVCE.ADJUSTVCEJOINT: build accFcn from the loaders (BlockAccumulator with UserOpt = jointModelOpt(model, streams), streams = 'satKey|obsType' from the loaders), then bridge `out` (C, sigma2, acc?) into a Results via diagnoseAccum/diagnose + setIterative | 56b | OPEN — refused meanwhile with `lsqvce:fit:notYet`; one WP of its own because two bridges (accFcn, Results) are needed |
+| L3 | 56c | `fit` Model "ellmer" -> LSQVCE.ADJUSTVCEJOINT: accFcn from the loaders (BlockAccumulator per pass, UserOpt = jointModelOpt(model, streams), streams 'satKey|obsType'; raw closures probed once with 'meta'), out -> Results bridge (diagnoseAccum + diagnose with the Options diagnostics; R.noise = C/Shat/sigma2/arcKeys; R.history .kind='ellmer' + maxDev/Shat/nIter/skips; R.converged; jointSeed in meta) | 56b | IN PROGRESS (2026-09-01, branch `claude/level-3`, PR #38, commit bcc70a8; test_fit reference identical to a hand-built accFcn route to 1e-12; summary()/convergence() stay adjustVCE's readers and refuse cleanly) |
 | L4 | 62 | Parallel policy through fit: `DistributeDays` + `ParallelThreshold` on Options -> adjustBlock / adjustVCE -> BlockAccumulator (the axis that scales for a 2-satellite mission; threads/processes are the pool's choice, not the toolbox's — `parpool("threads")` works unchanged) | 56 | READY (CI green 585/585 on a0ce72d, DONE flips on the L4 merge; 2026-08-31, branch `claude/level-4`, PR #37, commit 24ef446; test_fit distributed == fused to 1e-11 on CI without a pool; provenance carries the policy; 59 knobs) |
 | L4 | 63 | Speed-suite extension: fit-path budgets, dispatch overhead pinned ~0 vs direct driver calls | 56,62 | READY (CI green 585/585 on a0ce72d, DONE flips on the L4 merge; 2026-08-31, PR #37, commit 61e9d7d: test_speed testFitDispatchOverheadIsNegligible, fit < 1.25x the direct adjustBlock call on three raw loaders x two days; the speed suite runs LOCALLY — this point is verified by the L4 postflight) |
 | L5 | 64 | Execute R4-D1/R4-D2 as decided (namespace layering and/or fluent deletion) — BREAKING level | 56–63 + decisions | GATED on R4-D1/D2 |
@@ -4236,6 +4240,7 @@ L1 DONE — merged 2026-08-31 (PR #35, merge 25692d8); postflight remains
 DEBT with D-52 by user decision (bridge still down).
 L2 READY — PR #36 (G-07 8af8a6b, WP-56 0d1fc19, WP-57 bf5fe6f, WP-58 b47d76c, r2 fix 6af480b); CI green 578/578 on the level head after two real catches (noCep fixture, gate rule 7 warnings); test_parallel CI-skipped, speed suite separate; postflight = one local run on the merged main. WP-56b (in-memory form, Robust, ellmer) opens with L3/L4 or as its own level — user's call. L3/L4 open on the L2 merge.
 L4 READY — PR #37 (WP-56b 7acc161, WP-62 24ef446, WP-63 61e9d7d, r1 bridge fix a0ce72d); CI green 585/585 on the level head after one real catch (batch->Results contract); test_parallel CI-skipped, speed suite separate (WP-63's point is verified by the L4 postflight). L3 opens on the L4 merge (user order); WP-56c stays OPEN.
+L3 IN PROGRESS — branch `claude/level-3`, PR #38 (WP-56c bcc70a8, WP-59 337a9bf, WP-60 cc0a31f, WP-61 edaabad/b5c15b3); CI pending on the level head. L4 merged 83f9652 (user postflight pending).
 
 Test obligations per level (taxonomy §6.1.2, declarations mandatory):
 L1 contract (options resolution, rejection ids) + robustness (conflicting
@@ -4362,6 +4367,22 @@ value kept as sol.sigma0Prior; when diagnose skipped Qxx, Cxx stays absent
 and coefficients() refuses (noCovariance). LESSON, binding: Results
 semantics are the STREAMING path's; every bridge onto Results must
 ESTABLISH them, a test must never reinterpret them to make a bridge pass.
+
+**LEVEL L3 ROUND 1 (opened 2026-09-01, model Claude Fable 5, branch
+`claude/level-3`, PR #38 draft; user order: L3 incl. WP-56c after L4).** L4
+merged as 83f9652. Order: WP-56c -> WP-59 -> WP-60 -> WP-61. Facts pinned:
+(1) the ellmer bridge needs no new engine code -- accSpecs/streamKeys/
+jointAccumulator inside fit plus the existing jointModelOpt; Results
+readers written for adjustVCE (summary/convergence) refuse an ellmer
+history through requireHistory's `sigma` check, which is the intended
+clean refusal; (2) the theory PDF reuses build_master_pdf (styles, eq(),
+decoration) with only content + output path + footer text swapped -- one
+pipeline, two documents; eq() tokens are RAW text: use U+2212, never
+&minus;; (3) the page builder's SECTION regex treats any line starting
+with an all-caps 'THE ...' as a heading -- help prose must avoid that
+shape; (4) SeparableProblem.html is a sanctioned redirect stub (WP-41),
+the L1/L2 notes calling it stale were wrong and are corrected in the
+ledger.
 
 ### 11.9 DATA CONTRACT AND LOADER WORKFLOW — design record for WP-56 (R4-D4)
 
