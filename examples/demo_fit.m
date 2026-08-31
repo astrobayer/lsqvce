@@ -45,10 +45,15 @@ function out = demo_fit(opt)
 %   See also LSQVCE.FIT, LSQVCE.OPTIONS, LSQVCE.RESULTS, LSQVCE.REPORT,
 %            DEMO_GRAVITY_DATALOADER, DEMO_GRAVITY
 %
+%   Updated 2026-08-31 (CEST, UTC+02:00), v4 SCOPED tables (Level L11,
+%   WP-77): the declaration tables carry the scope column (commonParams
+%   'common'|'day', localParams 'arc'|'day'|'system'); localsPerArc left the
+%   USER surface. With assistance from Claude (Anthropic), model
+%   Claude Fable 5.
 %   Updated 2026-08-31 (CEST, UTC+02:00), v3 data contract (Level L10,
 %   WP-74): the nonlinear batched declaration derives u = numel(x0)
 %   (numUnknowns dropped there); the streaming declaration comes from
-%   demo_gravity_dataLoader's [cfg, data] v3 form. With assistance from
+%   demo_gravity_dataLoader's [cfg, data] v4 form. With assistance from
 %   Claude (Anthropic), model Claude Fable 5.
 %   Created 2026-09-02 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5 -- R4 Level L7, WP-67.

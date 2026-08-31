@@ -5,7 +5,7 @@ function R = demo_grace(varargin)
 %   R = DEMO_GRACE('maxOuter', 8, 'verbose', true)
 %
 %   Runs a GRACE-FO-shaped synthetic problem through the USER surface:
-%   the declaration comes from DEMO_GRACE_DATALOADER as a v3 data struct
+%   the declaration comes from DEMO_GRACE_DATALOADER as a v4 data struct
 %   (DATA_CONTRACT.md), the run is ONE call to LSQVCE.FIT, and everything
 %   you read afterwards is on the LSQVCE.RESULTS. Two observation systems:
 %     * System 1 -- satellites C and D, each with a 3-D position stream (posC,
@@ -45,8 +45,13 @@ function R = demo_grace(varargin)
 %
 %   See also LSQVCE.FIT, LSQVCE.OPTIONS, LSQVCE.RESULTS, DEMO_GRACE_DATALOADER
 %
+%   Updated 2026-08-31 (CEST, UTC+02:00), v4 SCOPED tables (Level L11,
+%   WP-77): the declaration tables carry the scope column (commonParams
+%   'common'|'day', localParams 'arc'|'day'|'system'); localsPerArc left the
+%   USER surface. With assistance from Claude (Anthropic), model
+%   Claude Fable 5.
 %   Updated 2026-08-31 (CEST, UTC+02:00), v3 data contract (Level L10,
-%   WP-74): USER surface only -- the run is lsqvce.fit over the v3 data
+%   WP-74): USER surface only -- the run is lsqvce.fit over the v4 data
 %   struct; the engine builder chain, the plot-hook wiring and the
 %   empiricalStochastic walkthrough (ENGINE tier) are gone from the
 %   example. With assistance from Claude (Anthropic), model Claude Fable 5.
@@ -59,7 +64,7 @@ function R = demo_grace(varargin)
     p.parse(varargin{:});
     o = p.Results;
 
-    [cfg, data] = demo_grace_dataLoader();   % the v3 declaration (this folder)
+    [cfg, data] = demo_grace_dataLoader();   % the v4 declaration (this folder)
 
     fprintf(['\n=== separable VCE demo: GRACE-FO topology (+ independent sat E) ===\n' ...
              '    System 1: satellites C,D with a 3-D position stream each\n' ...

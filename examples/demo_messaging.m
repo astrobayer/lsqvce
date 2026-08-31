@@ -48,6 +48,11 @@ function demo_messaging(varargin)
 %
 %   See also LSQVCE.UTIL.VERBOSITY, DEMO_SEPARABLE, DEMO_SEPARABLE_DATA
 %
+%   Updated 2026-08-31 (CEST, UTC+02:00), v4 SCOPED tables (Level L11,
+%   WP-77): the declaration tables carry the scope column (commonParams
+%   'common'|'day', localParams 'arc'|'day'|'system'); localsPerArc left the
+%   USER surface. With assistance from Claude (Anthropic), model
+%   Claude Fable 5.
 %   Updated 2026-08-31 (CEST, UTC+02:00), v3 data contract (Level L10,
 %   WP-74): the run is lsqvce.fit over the demo's v3 data struct;
 %   Options.Verbose carries the level. With assistance from Claude

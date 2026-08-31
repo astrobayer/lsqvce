@@ -22,6 +22,11 @@
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-17 (CEST, UTC+02:00).  Rewritten from the old "how to read an
 %   adjustment" walk-through into a build-your-own-case guide (HANDOVER item 1b).
+%   Updated 2026-08-31 (CEST, UTC+02:00), v4 SCOPED tables (Level L11,
+%   WP-77): the declaration tables carry the scope column (commonParams
+%   'common'|'day', localParams 'arc'|'day'|'system'); localsPerArc left the
+%   USER surface. With assistance from Claude (Anthropic), model
+%   Claude Fable 5.
 %   Updated 2026-08-31 (CEST, UTC+02:00), v3 data contract (Level L10,
 %   WP-74): USER surface only -- every run is lsqvce.fit on a data struct;
 %   the engine names remain as the MAP of what fit dispatches to. With
@@ -30,7 +35,7 @@
 %% ------------------------------------------------------------------------
 % SECTION 0.  What lsqvce needs from you: a data struct.
 % -------------------------------------------------------------------------
-% Three KINDS, told apart by the fields present (v3 contract: you state
+% Three KINDS, told apart by the fields present (v4 contract: you state
 % structure, never counts -- everything countable is derived):
 %
 %   (B) IN-MEMORY      data.A (m x u), data.l (m x 1, o - c), data.p (weights)
@@ -164,7 +169,7 @@ fprintf('  blunders     : %d flagged\n', D.nFlag);
 %                      toolbox numbers per-arc blocks), eliminated on the fly,
 %                      never forming the full (nc + sum nl) normal.
 %
-%       data.commonParams = commonTbl;             % nc = rows
+%       data.commonParams = commonTbl;             % scoped rows, nc derived
 %       data.days = 1:30;
 %       s.buildDay      = @myBuildDay;             % the one function you write
 %       s.covariance.rr = struct('type','arma', ...);   % fieldnames = the types
@@ -202,7 +207,7 @@ sgTrue = sg;  sgTrue(g==2) = sgTrue(g==2) * 3;
 l5     = A*xt + sgTrue .* randn(rs, n, 1);
 t5     = (0:n-1).' * 5;                             % seconds (any monotone works)
 
-vdata.commonParams = num2cell((1:u).');             % the same u unknowns
+vdata.commonParams = [repmat({'common'}, u, 1), num2cell((1:u).')];  % the same u unknowns
 vdata.days = 1;                                     % the whole set is one "day"
 vs.buildDay = @(day, ot) struct( ...                % rows of ONE group
         'A', A(g == 1 + strcmp(ot,'g2'), :), ...

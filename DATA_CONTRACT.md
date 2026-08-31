@@ -1,30 +1,35 @@
 # lsqvce — The data contract: what you give `fit`, and how to write `buildDay`
 
-**Status.** Binding specification, **version 3** (adopted 2026-08-31, Level L10 WP-72; the
-v2 contract of 2026-08-31/R4-D4 is superseded — migration table in `RELEASE_NOTES.md`).
+**Status.** Binding specification, **version 4** (adopted 2026-08-31, Level L11 WP-75:
+SCOPED parameter tables; v3 of the same day/L10 is superseded — migration table in
+`RELEASE_NOTES.md`).
 `lsqvce.fit` is live for all three data kinds and Models `gls`, `vce`, `pooled`, `ellmer`.
 §9 shows the equivalent direct engine calls. This file is the source of the `fit` help text
 and of the HTML guide: one authority, no second copy.
 
 Created 2026-08-31 (CEST, UTC+02:00) with assistance from Claude (Anthropic), model Claude
-Fable 5. Rewritten for v3 the same day (Claude Fable 5).
+Fable 5. Rewritten for v3 and again for v4 (scoped tables) the same day (Claude Fable 5).
 
 ---
 
-## 0. The v3 principle: state nothing the data already states
+## 0. The v4 principle: state nothing the data already states — and scope, don't number
 
-The contract declares **structure**, never **counts**. Every count is derived from the one
-place it already lives:
+The contract declares **structure**, never **counts**, and since v4 it declares **scope,
+never numbering**: column 1 of both parameter tables is a **scope token**, the rows are
+**templates**, and the toolbox expands them over the calendar. Every count is derived:
 
 | quantity | derived from |
 |---|---|
-| nc (common unknowns) | `size(data.commonParams, 1)` |
-| nl (local unknowns) | `size(localParams, 1)`, or the `localsPerArc` plan; **neither declared → nl = 0** |
+| nc (common unknowns) | the expansion of `data.commonParams` (`'common'` rows once + `'day'` rows per calendar day with arcs) |
+| nl (local unknowns) | the expansion of `localParams` (`'arc'` rows per (day, arc) + `'day'` rows per day with arcs + `'system'` rows once); **not declared → nl = 0** |
 | observation types | `fieldnames(covariance)` |
 | u (batched nonlinear) | `numel(x0)` |
 
-The v2 count fields `numCommon`, `numLocal` and `numUnknowns`-with-`x0` are gone, and so is
-the duplicate type list `observationTypes`. One source each — nothing left to disagree.
+The v2 count fields are gone (v3), and so is v3's hand-numbering split (`localsPerArc` XOR
+free `localParams`): **one mechanism**, the scoped table. Every column offset reaches
+`buildDay` through its 6th argument (`info`, §6.3) — no offset is ever computed in user
+code. The driver was the GRACE parameterization: arc-wise ICs, day-wise ACC
+scale/bias/drift, per-arc KBR empiricals — three scopes, one table.
 
 ## 1. The mental model in one paragraph
 
@@ -62,10 +67,13 @@ subtly.
 
 | field | type / size | meaning |
 |---|---|---|
-| `commonParams` | cell, R×C | one row per common unknown. **nc = R.** The column count and meaning are *your* convention (degree, order, epoch, …) — the toolbox reads only the row count and pipes the table to `buildDay` as its 3rd argument. |
+| `commonParams` | cell, R×C (C ≥ 1) | one row per common **template**. **Column 1 is the scope token**: `'common'` (one column of A, always) or `'day'` (one column per calendar day that carries at least one scheduled arc in at least one system). Columns 2…C are *your* convention (degree, order, epoch, …). nc is **derived** from the expansion; the table is piped to `buildDay` as its 3rd argument. `'arc'` is forbidden here — arc sets are system-specific (`lsqvce:fit:badScope`). |
 
-The table **is** the declaration: describing the unknowns is your job, counting them is not.
-Minimal table when you have nothing to say about them: `num2cell((1:nc).')`.
+**Binding column layout of A:** the `'common'` rows first (table order), then one day
+block per calendar day (calendar order — the sorted union of every declared day list).
+`buildDay` receives this day's block position as `info.commonDayOffset` /
+`info.commonDayCount` (§6.3). Minimal table when you have nothing to say:
+`[repmat({'common'}, nc, 1), num2cell((1:nc).')]`.
 
 ### 2.2 `data.days` — the default schedule
 
@@ -92,8 +100,7 @@ unused optional field with `[]`.
 | field | type / size | default | meaning |
 |---|---|---|---|
 | `arcs` | double or fh | `1` | which arcs each day carries, §4. (`'fromDay'` is ENGINE-tier only.) |
-| `localsPerArc` | double or fh | `[]` | the toolbox owns the per-arc numbering, §6.1. **XOR** `localParams`. |
-| `localParams` | cell, R×C | `{}` | the local unknowns, one row each (**nl = R**), you own the numbering, §6.2. Passed to `buildDay` as its 4th argument. Neither this nor `localsPerArc` → **nl = 0** (§6.4). |
+| `localParams` | cell, R×C (C ≥ 1) | `{}` | the local **templates**, §6: column 1 is the scope token `'arc'` \| `'day'` \| `'system'`, columns 2…C your convention; nl is **derived** from the expansion. Passed to `buildDay` as its 4th argument. Not declared → **nl = 0** (§6.4). |
 | `days` | double, 1×D | `data.days` | per-system schedule override. |
 | `id` | double 1×1 **or** single char | the index k | system identifier, unique across systems (explicit ids and index defaults share one namespace). Longer labels go in `name`. |
 | `name` | char / string | `''` | human-readable label used in reports. |
@@ -101,8 +108,8 @@ unused optional field with `[]`.
 | `epochCovariance` | function handle | `[]` | `@(day,obsType)` per-epoch D hook for multi-axis streams — the exact separable-descale path of the VCE Shape step, §7. |
 
 **Rule of thumb for beginners:** `buildDay` + `covariance` is a complete system. Add `arcs`
-when a day has more than one arc, `localsPerArc` when arcs carry their own unknowns, the
-rest when you need it.
+when a day has more than one arc, `'arc'` template rows in `localParams` when arcs carry
+their own unknowns, the rest when you need it.
 
 ### 2.4 A pitfall you will hit once: `struct()` with cell values
 
@@ -139,7 +146,7 @@ by the number of passes. Two consequences:
 ```matlab
 D = buildDay(day, obsType)                                        % classic
 D = buildDay(day, obsType, common, local, procOpt)                % parameter-driven
-D = buildDay(day, obsType, common, local, procOpt, arcInfo)       % with local-block plan
+D = buildDay(day, obsType, common, local, procOpt, info)          % with the expansion info
 ```
 
 | argument | what it is |
@@ -149,7 +156,7 @@ D = buildDay(day, obsType, common, local, procOpt, arcInfo)       % with local-b
 | `common` | `data.commonParams` |
 | `local` | `localParams` of this system (or `{}`) |
 | `procOpt` | `processingOptions` of this system |
-| `arcInfo` | the local-block plan for this day when `localsPerArc` is declared, else `[]` (§6.3) |
+| `info` | this day's expansion slice — every offset of A and B (§6.3); `[]` only when nothing is scoped |
 
 A `varargin` builder receives all six.
 
@@ -242,45 +249,69 @@ specs at run time; you only give the starting point. Full reference: `doc lsqvce
 
 ---
 
-## 6. Local (arc-wise) unknowns
+## 6. Local unknowns — the scoped `localParams` table
 
-nl has two declared sources and one default — never more than one applies:
+One mechanism: the table's rows are templates, column 1 says **how often** each row
+instantiates.
 
-### 6.1 `localsPerArc` — the toolbox owns the numbering
-
-```matlab
-s.localsPerArc = 6;                        % six per arc, every arc
-s.localsPerArc = @(day, arcId) 6;          % or per arc
-```
-
-The toolbox numbers every (day, arc) over the whole adjustment, derives nl, and hands
-each day its slice as `arcInfo` (§6.3). Requires `data.days` (or per-system `days`) and a
-schedule that is resolvable without reading data (static or resolver).
-
-### 6.2 `localParams` — you own the numbering
-
-An R×C cell, one row per local unknown (**nl = R**, columns your convention), passed as
-`buildDay`'s 4th argument. You then place every local column yourself, consistently across
-days. Declaring **both** `localsPerArc` and `localParams` is the error `lsqvce:fit:localCount`.
-
-### 6.3 Using `arcInfo`
+### 6.1 The three scopes
 
 ```matlab
-arcInfo.arcId      % 1xA  ids of this day's arcs
-arcInfo.offset     % 1xA  column offset of each arc's block in B
-arcInfo.count      % 1xA  columns of each block
-arcInfo.nl         % 1x1  total local count of the adjustment
-arcInfo.offsetOf   % @(arcId) -> offset
+s.localParams = [ ...
+    [repmat({'arc'}, 6, 1),  num2cell((1:6).')];   % 6 ICs   -> once per (day, arc)
+    {'arc','kbrBias'; 'arc','kbrCos1cpr'};         % 2 more  -> once per (day, arc)
+    {'day', 'accScale'; 'day', 'accBias'};         % 2       -> once per day with arcs
+    {'system', 'antennaOffset'}];                  % 1       -> once, full adjustment
 ```
 
-Fill `B(rows, off + (1:k))` and **never compute an offset yourself**.
+| token | one block per … | typical use |
+|---|---|---|
+| `'arc'` | (day, arc) of this system | initial conditions, per-arc empiricals |
+| `'day'` | day whose schedule carries ≥ 1 arc | ACC scale/bias/drift |
+| `'system'` | whole adjustment | instrument constants; also the v3 free table (see migration) |
 
-### 6.4 A system without local unknowns (nl = 0)
+Requires `days` and a schedule resolvable **without reading data** (static or resolver)
+whenever `'arc'`/`'day'` rows are present; `'system'`-only tables need neither. nl is
+derived; declaring `numLocal` too is the conflict error.
 
-The **default**: declare neither `localsPerArc` nor `localParams` and return
-`B = zeros(m, 0)` from `buildDay`. The engine then skips the pre-elimination for that
-system; local diagnostics come back as the consistent empty shapes (decided 2026-08-31,
-HANDOVER G-07 — in v3 no `numLocal = 0` declaration is needed any more).
+**Binding column layout of B (per system):** per day (declared order) — the arc blocks in
+**sorted arc-id order** (each block = the `'arc'` rows, table order), then the `'day'`
+block — and after all days one trailing `'system'` block. A day whose schedule has no
+arcs gets **no blocks at all** (§6.4).
+
+### 6.2 Heterogeneous per-arc counts stay ENGINE-tier
+
+A template has the same rows for every arc. If arcs genuinely carry *different* counts,
+that is the ENGINE-tier `lsqvce.engine.makeLoader(..., 'LocalsPerArc', @(day, arcId) n)`
+(the WP-52 plan) — deliberately not on the `fit` surface.
+
+### 6.3 Using `info` (buildDay's 6th argument)
+
+```matlab
+info.arcId            % 1xA  ids of this day's arcs
+info.offsetOf         % @(arcId) -> column offset of that arc's block in B
+info.count            % 1xA  columns of each arc block (= number of 'arc' rows)
+info.dayOffset        % 1x1  this day's 'day' block offset ([] if none)
+info.dayCount         % 1x1  its width (0 if none)
+info.sysOffset        % 1x1  the 'system' block offset
+info.sysCount         % 1x1  its width
+info.nl               % 1x1  total local count of the adjustment
+info.nc               % 1x1  total common count
+info.commonCount      % 1x1  width of A's leading 'common' block
+info.commonDayOffset  % 1x1  this day's common day-block offset in A ([] if none)
+info.commonDayCount   % 1x1  its width (0 if none)
+```
+
+Fill `B(rows, info.offsetOf(id) + (1:k))`, `A(:, info.commonDayOffset + (1:w))` — and
+**never compute an offset yourself**.
+
+### 6.4 Days without arcs, systems without locals
+
+A calendar day on which **no system** schedules an arc gets no common day block (nc
+shrinks); a system day without arcs gets no arc and no `'day'` blocks (nl shrinks) —
+offsets stay gap-safe on ragged schedules and manoeuvre days. A system without local
+unknowns is still the **default**: declare no `localParams` and return `B = zeros(m, 0)`
+(the engine skips the pre-elimination; empty diagnostics per HANDOVER G-07).
 
 ---
 
@@ -304,26 +335,32 @@ scaling `D`:
 
 ---
 
-## 8. Worked example — two satellites, ragged arcs, per-arc locals
+## 8. Worked example — the GRACE parameterization: three scopes, one table
+
+Arc-wise initial conditions, **day-wise** accelerometer scale/bias/drift, per-arc KBR
+empiricals — the case v3 could only hand-number, and the driver of v4:
 
 ```matlab
 % ---- the one function you write --------------------------------------
-function D = buildDayGrace(day, obsType, common, ~, procOpt, arcInfo)
+function D = buildDayGrace(day, obsType, common, ~, procOpt, info)
     raw = readGraceDay(procOpt.dataDir, day, obsType);   % your reader, deterministic
-    D.A = shPartials(raw, common);                       % m x nc
+    D.A = shPartials(raw, common);                       % m x info.nc; the 'common' block
     D.l = raw.observed - raw.computed;                   % O - C
     D.t = raw.tSeconds;
     D.arcIdx = raw.arcRows;                              % cell, one row vector per arc
     D.arcId  = raw.arcIds;                               % this day's arc identities
-    D.B = sparse(numel(D.l), arcInfo.nl);
+    D.B = sparse(numel(D.l), info.nl);
     for a = 1:numel(D.arcId)
-        off = arcInfo.offsetOf(D.arcId(a));
-        D.B(D.arcIdx{a}, off + (1:arcInfo.count(a))) = localPartials(raw, a);
+        off = info.offsetOf(D.arcId(a));
+        D.B(D.arcIdx{a}, off + (1:info.count(a))) = icAndKbrPartials(raw, a);
+    end
+    if info.dayCount > 0                                 % this day's ACC block
+        D.B(:, info.dayOffset + (1:info.dayCount)) = accPartials(raw);
     end
 end
 
 % ---- the declaration ---------------------------------------------------
-data.commonParams = shParameterTable(60);                 % nc = 3717 rows, C your columns
+data.commonParams = [repmat({'common'}, 3717, 1), shParameterTable(60)];
 data.days = 1:31;
 cov.kbr = struct('type','arma','ar',[1 -1.6 0.9 -0.25],'ma',1,'sigma',1e-7);
 cov.pos = struct('type','diag','sigma',0.02);             % fieldnames = the two types
@@ -334,12 +371,18 @@ s.covariance = cov;
 s.id = 'C';
 s.name = 'GRACE-FO C';
 s.arcs = @(day, obsType) arcSchedule('C', day);
-s.localsPerArc = 6;
+s.localParams = [ ...
+    [repmat({'arc'}, 6, 1), {'x0';'y0';'z0';'vx0';'vy0';'vz0'}];  % ICs per arc
+    {'arc', 'kbrBias'; 'arc', 'kbrCos1cpr'};                      % KBR per arc
+    [repmat({'day'}, 3, 1), {'accScale';'accBias';'accDrift'}]];  % ACC per day
 s.processingOptions = struct('dataDir', '/data/gracefo');
 data.systems(1) = s;
 
 s.id = 'D';  s.name = 'GRACE-FO D';  s.arcs = @(day, obsType) arcSchedule('D', day);
 data.systems(2) = s;
+
+% nl per satellite = SUM over its days-with-arcs of (arcs*8 + 3) -- derived,
+% gap-safe on manoeuvre days, never stated.
 
 % ---- the run -----------------------------------------------------------
 opts = lsqvce.Options(Model="vce", GroupBy="satObs", Parallel="parfor");
@@ -358,8 +401,8 @@ for k = 1:numel(data.systems)
     L{k} = lsqvce.engine.makeLoader(s.buildDay, ...
         ObservationTypes=fieldnames(s.covariance).', Covariance=s.covariance, ...
         SystemId=s.id, Name=s.name, Arcs=s.arcs, ...
-        LocalsPerArc=s.localsPerArc, Days=data.days, ...
-        CommonParams=data.commonParams, ...
+        LocalParams=s.localParams, Scoped=true, CommonPlan=plan, ...  % fit builds `plan`
+        Days=data.days, CommonParams=data.commonParams, ...           % over the global calendar
         ProcessingOptions=s.processingOptions);
 end
 R = lsqvce.engine.adjustBlock(L, data.days);                        % Model "gls"
@@ -368,8 +411,10 @@ R = lsqvce.engine.adjustVCE(L, data.days, 'GroupBy', 'satObs', ...   % Model "vc
 ```
 
 These are ENGINE-tier calls (experts); a user needs none of them. The ENGINE tier keeps the
-v2 conveniences (`numCommon`/`numLocal` counts, `'fromDay'`, `cache`, the plot hooks, raw
-4-arg loader closures) — they left the USER surface, not the toolbox.
+v2/v3 conveniences (`numCommon`/`numLocal` counts, free un-scoped tables with
+`Scoped=false` — the default — `LocalsPerArc` incl. the heterogeneous `@(day,arcId)` form,
+`'fromDay'`, `cache`, the plot hooks, raw 4-arg loader closures) — they left the USER
+surface, not the toolbox.
 
 Field names map 1:1 to `makeLoader`'s Name-Value names (lowerCamelCase field ↔
 UpperCamelCase name); `fit` performs exactly this mapping internally, plus the three
@@ -382,15 +427,16 @@ derivations of §0.
 - [ ] `buildDay` returns `A`, `B`, `l`, `t` with one row count; `l` is O − C; nothing is whitened.
 - [ ] Calling `buildDay` twice with the same arguments gives identical output.
 - [ ] `t` is in seconds; the sampling matches the covariance spec you declared.
-- [ ] `data.commonParams` has one row per common unknown — `size(A, 2)` must equal it.
+- [ ] `data.commonParams` rows carry the scope token in column 1; `size(A, 2)` must equal
+      `info.nc` (use `zeros(m, info.nc)` and place blocks by the `info` offsets).
 - [ ] Every observation type is a field of `covariance` — the fieldnames are the type list.
 - [ ] Ragged schedule → resolver + `arcId`; static schedule → count/vector, no `arcId`.
-- [ ] Local unknowns: `localsPerArc` (fill `B` from `arcInfo`) or `localParams` (you number);
-      neither → `B = zeros(m, 0)`.
+- [ ] Local unknowns: scoped `localParams` templates, `B` filled from `info` offsets only;
+      not declared → `B = zeros(m, 0)`.
 - [ ] Multi-axis streams: epoch-major rows, `nAxis`, `Cep` on the day; the `epochCovariance`
       hook when Model="vce" should take the exact Shape path.
-- [ ] No unknown field names in `data` (a typo is an error, on purpose — and so is every v2
-      count field).
+- [ ] No unknown field names in `data` (a typo is an error, on purpose — and so are the v2
+      count fields and, since v4, `localsPerArc`).
 
 ---
 

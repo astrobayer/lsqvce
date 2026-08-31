@@ -3,7 +3,7 @@ function [cfg, data] = demo_grace_dataLoader()
 %
 %   [cfg, data] = demo_grace_dataLoader()
 %
-%   Returns a ready-to-run configuration CFG and the declaration as a v3 data
+%   Returns a ready-to-run configuration CFG and the declaration as a v4 data
 %   struct DATA (DATA_CONTRACT.md), so the separable VCE loop can be
 %   exercised end to end without real data:
 %
@@ -28,14 +28,16 @@ function [cfg, data] = demo_grace_dataLoader()
 %   obsType, giving FOUR variance components (posC, posD, rr, posE). Each stream
 %   starts from a deliberately WRONG a-priori (temporally white, sigma 1).
 %
-%   PARAMETRISATION PIPE (v3 contract).  The unknowns are described by two
+%   PARAMETRISATION PIPE (v4 contract, scoped tables).  The unknowns are described by two
 %   cell arrays with one ROW per unknown (data.commonParams and the system's
 %   localParams), piped through to the day-builder as its 3rd/4th args; nc
 %   and nl are DERIVED from their row counts, and the column count is YOUR
 %   convention (this demo uses 14). A 'processingOptions' struct is piped as
 %   the 5th arg. The demo's column convention (yours may differ) is:
 %
-%     col  1  kind            'gravity' | 'arcBias' | ...   (char)
+%     col  1  scope           v4 token: 'common' (shared table)
+%                             or 'system' (local tables)     (char)
+%     col  2  kind            'gravity' | 'arcBias' | ...   (char)
 %     col  2  label           human-readable name          (char)
 %     col  3  system          system id this unknown belongs to (numeric; 0 =
 %                             common/shared)
@@ -60,8 +62,13 @@ function [cfg, data] = demo_grace_dataLoader()
 %
 %   See also LSQVCE.FIT, DEMO_GRACE, DEMO_SEPARABLE
 %
+%   Updated 2026-08-31 (CEST, UTC+02:00), v4 SCOPED tables (Level L11,
+%   WP-77): the declaration tables carry the scope column (commonParams
+%   'common'|'day', localParams 'arc'|'day'|'system'); localsPerArc left the
+%   USER surface. With assistance from Claude (Anthropic), model
+%   Claude Fable 5.
 %   Updated 2026-08-31 (CEST, UTC+02:00), v3 data contract (Level L10,
-%   WP-74): USER surface only -- returns [cfg, data], the v3 declaration
+%   WP-74): USER surface only -- returns [cfg, data], the declaration
 %   (obsTypes from the covariance fieldnames, localParams tables, id,
 %   epochCovariance hooks); the ENGINE-tier loader construction moved to
 %   dev/tests/fixture_grace.m. With assistance from Claude (Anthropic),
@@ -74,12 +81,12 @@ end
 
 %==========================================================================
 function data = graceData(cfg)
-%GRACEDATA  The declaration as a v3 data struct: two systems (the merged
+%GRACEDATA  The declaration as a v4 data struct: two systems (the merged
 %   C/D pair and independent E), each with its covariance (the fieldnames
 %   ARE the streams, in processing order), its localParams table, and the
 %   epochCovariance hook for the exact VCE Shape path.
     data = struct();
-    data.commonParams = cfg.common;                   % nc = rows (14 cols, OUR convention)
+    data.commonParams = cfg.common;                   % scoped: 'common' + 14 OUR cols
     data.days = cfg.days;
 
     s = struct();
@@ -156,7 +163,7 @@ end
 
 function D = demoBuildDay(cfg, day, obsType, common, local, procOpt)  %#ok<INUSD>
 %DEMOBUILDDAY  One synthetic day, parameter-driven (5-arg buildDay form).
-%   common/local are the 14-column parametrisation tables; nc = rows(common),
+%   common/local are the scoped parametrisation tables; nc = rows(common),
 %   nlThis = rows(local). This demo reads the COUNTS from the tables (proving
 %   the pipe works) and could equally read col-5/6 (degree/order) etc. to build
 %   the design; here the design is synthetic so we only use the counts and the
@@ -244,29 +251,32 @@ end
 
 %% ===================================================== parametrisation tables
 function C = commonParamTable(cfg)
-%COMMONPARAMTABLE  nc rows x 14 cols describing the shared gravity unknowns.
-%   Synthetic degree/order just enumerate the nc coefficients; a real table
-%   would carry the true SH (n,m,C/S). Shared -> system 0, satellite ''.
+%COMMONPARAMTABLE  nc rows x 15 cols: the v4 scope token 'common' first, then
+%   14 cols describing the shared gravity unknowns. Synthetic degree/order
+%   just enumerate the nc coefficients; a real table would carry the true SH
+%   (n,m,C/S). Shared -> system 0, satellite ''.
     nc = cfg.nc;
-    C  = cell(nc, 14);
+    C  = cell(nc, 15);
     for i = 1:nc
         n = floor(sqrt(i-1));  m = (i-1) - n*n;      % toy (n,m) enumeration
-        C(i,:) = { 'gravity', sprintf('Cnm_%d_%d', n, m), 0, '', ...
+        C(i,:) = { 'common', 'gravity', sprintf('Cnm_%d_%d', n, m), 0, '', ...
                    n, m, 'C', [], '', '-', cfg.x_c(i), Inf, true, 'gravity' };
     end
 end
 
 function T = localParamTable(cfg, sats, yTrue)
-%LOCALPARAMTABLE  (nlSat*numel(sats)) rows x 14 cols: arc-bias locals per sat.
-%   yTrue is nlSat x numel(sats) (or nlSat x 1) of a-priori truth values.
+%LOCALPARAMTABLE  (nlSat*numel(sats)) rows x 15 cols: the v4 scope token
+%   'system' first (this demo hand-stacks the pair block [y_C | y_D], so its
+%   rows stay hand-numbered -- exactly what 'system' scope means), then 14
+%   cols. yTrue is nlSat x numel(sats) (or nlSat x 1) of a-priori truth.
     nlSat = cfg.nlSat;  ns = numel(sats);
-    T = cell(nlSat*ns, 14);
+    T = cell(nlSat*ns, 15);
     r = 0;
     for is = 1:ns
         sat = sats{is};
         for k = 1:nlSat
             r = r + 1;
-            T(r,:) = { 'arcBias', sprintf('bias_%s_%d', sat, k), NaN, sat, ...
+            T(r,:) = { 'system', 'arcBias', sprintf('bias_%s_%d', sat, k), NaN, sat, ...
                        [], [], '', k, '', 'm', yTrue(k, is), Inf, true, ...
                        sprintf('loc_%s', sat) };
         end

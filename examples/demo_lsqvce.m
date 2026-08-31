@@ -12,6 +12,11 @@
 %
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
+%   Updated 2026-08-31 (CEST, UTC+02:00), v4 SCOPED tables (Level L11,
+%   WP-77): the declaration tables carry the scope column (commonParams
+%   'common'|'day', localParams 'arc'|'day'|'system'); localsPerArc left the
+%   USER surface. With assistance from Claude (Anthropic), model
+%   Claude Fable 5.
 %   Updated 2026-08-31 (CEST, UTC+02:00), v3 data contract (Level L10,
 %   WP-74): USER surface only -- lsqvce.engine.adjust/varComp replaced by
 %   lsqvce.fit on the in-memory kind and, for the wrong-weights cure, by
@@ -126,7 +131,7 @@ fprintf(['\nInflated variance factor + clean residuals + no structure\n' ...
          '   instrument groups as two OBSERVATION TYPES of one streaming\n' ...
          '   system (nl = 0, one arc) and let Model="vce" find the weights.\n']);
 
-vdata.commonParams = num2cell((1:u).');              % nc = u, the same unknowns
+vdata.commonParams = [repmat({'common'}, u, 1), num2cell((1:u).')];   % scoped, nc = u
 vdata.days = 1;                                      % the whole set is one "day"
 vs = struct();
 vs.buildDay = @(day, ot) groupDay(A, l5, t, g, ot);  % rows of ONE group
@@ -184,7 +189,7 @@ function D = groupDay(A, l, t, g, obsType)
 % The buildDay of case 5: one instrument group as one observation type.
     rows = find(g == 1 + strcmp(obsType, 'g2'));
     D.A = A(rows, :);
-    D.B = zeros(numel(rows), 0);        % no local unknowns (nl = 0, v3 default)
+    D.B = zeros(numel(rows), 0);        % no local unknowns (nl = 0, the default)
     D.l = l(rows);
     D.t = t(rows) * 86400;              % seconds
 end
