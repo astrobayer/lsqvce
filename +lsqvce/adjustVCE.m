@@ -92,6 +92,10 @@ classdef adjustVCE < handle
 %       'Backend'   char 'qr' | 'normal'                          (default 'qr')
 %       'Reg'       char passed to adjustBlock                        (default 'none')
 %       'Parallel'  char 'serial'|'parfor'|'spmd'                 (default 'serial')
+%       'DistributeDays' logical  parallelise over each system's DAYS   (default false)
+%       'ParallelThreshold' 1x1   tasks below which no pool is used   (default 8)
+%                                 (both pass through to LSQVCE.BLOCKACCUMULATOR
+%                                 on every pass; R4 WP-62)
 %       'verbose'   1x1  logical | 0..2 message level             (default 1)
 %                        0 SILENT     nothing
 %                        1 PROGRESS   outer passes, stage start/done + timing,
@@ -193,6 +197,10 @@ classdef adjustVCE < handle
 %
 %   See also LSQVCE.ADJUSTBLOCK, LSQVCE.VCE, LSQVCE.REDUNDANCY,
 %
+%   Updated 2026-08-31 (CEST, UTC+02:00), R4 WP-62 (Level L4): 'DistributeDays'
+%   and 'ParallelThreshold' on the constructor, carried in blockOpt to every
+%   accumulator the loop builds. With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 %   Updated 2026-08-31 (CEST, UTC+02:00), R4 WP-58 (Level L2): ENGINE-tier note
 %   -- users reach this engine through LSQVCE.FIT; parity pinned in test_fit.
 %   With assistance from Claude (Anthropic), model Claude Fable 5.
@@ -275,7 +283,7 @@ classdef adjustVCE < handle
         scaleOpt              % struct: MaxIter, Tol, MinRedundancy
         outerOpt              % struct: MaxOuter, Tol
         axesMap               % containers.Map obsType -> nAxes
-        blockOpt            % struct: Backend, Reg, Parallel
+        blockOpt            % struct: Backend, Reg, Parallel, DistributeDays, ParallelThreshold
         plotOpt               % struct: ShowSeconds, ExportDir (engine-side)
         verbose     = 1     % 0 silent | 1 progress | 2 detail
                             % (a logical is accepted and resolved: false->0,
@@ -294,6 +302,8 @@ classdef adjustVCE < handle
             opt.Backend (1,1) string {mustBeMember(opt.Backend, ["normal","qr"])} = "qr"
             opt.Reg (1,1) string {mustBeMember(opt.Reg, ["none","tikhonov","tsvd","lm","auto"])} = "none"
             opt.Parallel (1,1) string {mustBeMember(opt.Parallel, ["serial","parfor","spmd"])} = "serial"
+            opt.DistributeDays (1,1) logical = false
+            opt.ParallelThreshold (1,1) double {mustBeInteger, mustBeNonnegative} = 8
             opt.Verbose = true             % historical logical OR level 0..3
             opt.LogFid double {mustBeScalarOrEmpty} = []
             opt.LogFlag logical = logical([])
@@ -314,6 +324,8 @@ classdef adjustVCE < handle
             o = struct('groupBy', opt.GroupBy, 'vceMode', char(opt.VceMode), ...
                        'maxOuter', opt.MaxOuter, 'backend', char(opt.Backend), ...
                        'reg', char(opt.Reg), 'parallel', char(opt.Parallel), ...
+                       'distributeDays', opt.DistributeDays, ...
+                       'parallelThreshold', opt.ParallelThreshold, ...
                        'verbose', opt.Verbose, 'logFid', opt.LogFid, ...
                        'logFlag', opt.LogFlag, 'showSeconds', opt.ShowSeconds, ...
                        'exportDir', char(opt.ExportDir));
@@ -338,7 +350,9 @@ classdef adjustVCE < handle
             % logical test that would silence detail at higher levels.
             obj.verbose    = lsqvce.util.verbosity.resolve(o.verbose);
             obj.blockOpt = struct('Backend',o.backend, 'Reg',o.reg, ...
-                                    'Parallel',o.parallel);
+                                    'Parallel',o.parallel, ...
+                                    'DistributeDays',o.distributeDays, ...
+                                    'ParallelThreshold',o.parallelThreshold);
             obj.shapeOpt   = struct('MaxOrder',60, 'AcvTol',1e-3, 'MaxLag',[], ...
                                     'WhiteAlpha',0.01);
             obj.scaleOpt   = struct('MaxIter',10, 'Tol',5e-3, 'MinRedundancy',50);
@@ -1152,6 +1166,8 @@ classdef adjustVCE < handle
             acc = lsqvce.BlockAccumulator(obj.nc, ...
                       'Backend', obj.blockOpt.Backend, 'KeepLocal', true, ...
                       'Reg', obj.blockOpt.Reg, 'Parallel', obj.blockOpt.Parallel, ...
+                      'DistributeDays', obj.blockOpt.DistributeDays, ...
+                      'ParallelThreshold', obj.blockOpt.ParallelThreshold, ...
                       ... % The level is passed IN by the caller, because the two
                       ... % call sites need different ones -- see below. It used to
                       ... % be hardcoded 'Verbose', false, which muted the

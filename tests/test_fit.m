@@ -242,6 +242,34 @@ function testCoefficientsTable(tc)
 end
 
 %% ================================================================ helpers
+%% ================================================== WP-62: parallel policy
+function testDistributeDaysThroughFitEqualsFused(tc)
+% categories: precision, robustness
+    % R4 WP-62: Options.DistributeDays / ParallelThreshold reach the
+    % accumulator through fit -> adjustBlock. Below the pool threshold (and
+    % without PCT) mapreduce runs the DISTRIBUTED code path serially -- per-day
+    % raw partials merged in day order -- so the numerical claim is the same
+    % one test_parallel pins for the engine: equal to the fused loop up to
+    % the summation-order gap, no pool needed on CI.
+    [data, ~] = declaration();
+    R1 = lsqvce.fit(data, lsqvce.Options(Verbose=false));
+    R2 = lsqvce.fit(data, lsqvce.Options(Verbose=false, Parallel="parfor", ...
+                                         DistributeDays=true, ParallelThreshold=2));
+    % tol: 1e-11 -- serial-vs-distributed reduction order (test_parallel
+    % testDistributeDaysEqualsFusedSerial's measured bound); bitwise NOT promised
+    tc.verifyEqual(R2.x,      R1.x,      'RelTol', 1e-11);
+    tc.verifyEqual(R2.sigma0, R1.sigma0, 'RelTol', 1e-11);
+    % adjustBlock records its RESOLVED option struct (lowerCamel, WP-44)
+    tc.verifyEqual(R2.meta.options.distributeDays, true, 'the policy is recorded in the provenance');
+    tc.verifyEqual(R2.meta.options.parallelThreshold, 2);
+    tc.verifyEqual(R1.meta.options.distributeDays, false);
+    % the same knobs are accepted by the VCE engine's constructor (signature)
+    L = loaderOf([], data.systems(1), data);
+    P = lsqvce.adjustVCE({L}, data.days, 'DistributeDays', true, 'ParallelThreshold', 2, 'Verbose', false);
+    tc.verifyEqual(P.blockOpt.DistributeDays, true);
+    tc.verifyEqual(P.blockOpt.ParallelThreshold, 2);
+end
+
 %% ================================================ WP-56b: kinds B and C
 function testMatrixKindReproducesAdjust(tc)
 % categories: reference, contract
