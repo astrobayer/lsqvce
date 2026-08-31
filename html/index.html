@@ -129,6 +129,7 @@ reveals only the fraction <code>r_i</code> of any error present
 
 <h2>Function reference</h2>
 <h3>Start here &mdash; the USER tier</h3><table>
+<tr><td class="name"><a href="lsqvce_getting_started.html">Getting started</a></td><td>Three lines to a judged adjustment; which data kind you have; buildDay in six rules; reading the answer.</td></tr>
 <tr><td class="name"><a href="lsqvce.fit.html">lsqvce.fit</a></td><td>The one user verb: fit(data, opts) &mdash; a plain data struct (DATA_CONTRACT.md) + Options &rarr; Results. Builds the loaders itself; dispatches on Model (gls | vce | pooled).</td></tr>
 <tr><td class="name"><a href="lsqvce.Options.html">lsqvce.Options</a></td><td>The one settings object: every knob named, typed, defaulted to the engines' own defaults.</td></tr>
 <tr><td class="name"><a href="lsqvce.Results.html">lsqvce.Results</a></td><td>What comes back: x, sigma0, diagnostics, report(), coefficients(), summary(), convergence().</td></tr>
@@ -241,6 +242,22 @@ reveals only the fraction <code>r_i</code> of any error present
 <tr><td class="name"><a href="lsqvce.util.hasBackgroundPool.html">lsqvce.util.hasBackgroundPool</a></td><td>True when backgroundPool can actually start (the ONE pool-availability probe, by use).</td></tr>
 </table>
 
+<h2>Examples gallery</h2>
+<p>Every script under <code>examples/</code>, from its H1 line (R4 WP-60). They are templates, not
+library code: <code>demo_gravity.m</code> is the closed-loop oracle with measured numbers pinned in its ACCURACY block.</p>
+<table><tr><th>script</th><th>what it shows</th></tr>
+<tr><td class="name">examples/bench_qr_vs_normal.m</td><td>Measure the QR / normal-equation trade-off on YOUR machine.</td></tr>
+<tr><td class="name">examples/demo_combine.m</td><td>Combining several satellite systems by elimination.</td></tr>
+<tr><td class="name">examples/demo_grace.m</td><td>End-to-end walk-through of the separable VCE loop.</td></tr>
+<tr><td class="name">examples/demo_grace_dataLoader.m</td><td>Synthetic GRACE-FO data generator for the VCE demo.</td></tr>
+<tr><td class="name">examples/demo_gravity.m</td><td>GRACE-like gravity recovery on a PHYSICALLY STRUCTURED design.</td></tr>
+<tr><td class="name">examples/demo_gravity_dataLoader.m</td><td>GRACE-like gravity-recovery data for DEMO_GRAVITY.</td></tr>
+<tr><td class="name">examples/demo_gravity_design.m</td><td>Spherical-harmonic potential design along an orbit.</td></tr>
+<tr><td class="name">examples/demo_lsqvce.m</td><td>Worked examples: how to judge a least-squares adjustment.</td></tr>
+<tr><td class="name">examples/demo_messaging.m</td><td>See what each verbosity level actually prints, side by side.</td></tr>
+<tr><td class="name">examples/demo_sensors.m</td><td>The full hierarchy: satellite system / sensor / daily batch.</td></tr>
+<tr><td class="name">examples/demo_workflow.m</td><td>Build your OWN least-squares case, from scratch.</td></tr>
+</table>
 <h2>Manuals</h2>
 <div class="note"><b>The theory document is <code>lsqvce_theory.pdf</code></b>, in the toolbox root (R4 WP-59): the model and its two backends, conditioning and regularisation, variance component estimation (Helmert, MINQUE, LS-VCE, Monte-Carlo), the separable stochastic model and the three loops, robust estimation, the gravity-recovery setting, ERROR HANDLING (why sigma0 can be NaN, why a Cholesky verdict at the singular boundary is not the mathematics), the workflow, and the method's limitations -- each claim tied to the work package that pinned it. Rebuild with <code>python3 docs_src/build_theory_pdf.py</code>.</div>
 <div class="note"><b>The single master manual is
