@@ -39,9 +39,10 @@ def front_matter():
     st += [table([
         ['Version', VERSION],
         ['Built', BUILT],
-        ['Test suite', '497 / 498 passing, 0 failed'],
-        ['Entry points', 'adjust, adjustBlock, adjustVCE, snoop, diagnose'],
-        ['Start your own case', 'template/lsqvce_template.m'],
+        ['Test suite', 'green on every push (CI); counts in README, audit check 17'],
+        ['User surface', 'lsqvce.fit, lsqvce.Options, lsqvce.Results, lsqvce.report'],
+        ['Engines', 'lsqvce.engine.adjust / adjustBlock / adjustVCE / adjustVCEjoint'],
+        ['Start your own case', 'examples/demo_fit.m and DATA_CONTRACT.md'],
     ], widths=[42 * mm, BODY_W - 42 * mm], header=False)]
     st += [Spacer(1, 20)]
     st += [P('Generated with assistance from Claude (Anthropic), model Claude '
@@ -53,8 +54,13 @@ def front_matter():
     # ---- contents ---------------------------------------------------------
     st += [P('Contents', 'h1')]
     toc = [
-        ('1', 'Orientation: which engine, and why', [
-            '1.1  The three front doors',
+        ('0', 'Start here: the 2.0 user surface', [
+            '0.1  Three lines',
+            '0.2  The three kinds of data',
+            '0.3  buildDay in six rules',
+            '0.4  Reading the answer']),
+        ('1', 'Orientation: which engine, and why (ENGINE tier)', [
+            '1.1  The three engines fit dispatches to',
             '1.2  Choosing between them']),
         ('2', 'Theory', [
             '2.0  Where the theory lives: lsqvce_theory.pdf (R4-D3)']),
@@ -64,7 +70,7 @@ def front_matter():
             '3.3  adjustVCE -- the iterative loop',
             '3.4  snoop -- outlier rejection',
             '3.5  Reading a Results object']),
-        ('4', 'Adapting the template: a step-by-step guide', [
+        ('4', 'Adapting the template: a step-by-step guide (ENGINE tier)', [
             '4.1  What you write, and what the toolbox derives',
             '4.2  Step 1 -- declare the processing options',
             '4.3  Step 2 -- describe the observation groups',
@@ -96,9 +102,84 @@ def front_matter():
     return st
 
 
+def part0_start_here():
+    """Chapter 0 -- the USER tier (R4, 2.0). Derived from DATA_CONTRACT.md and
+    html/lsqvce_getting_started.html; those two are the authorities, this
+    chapter is the manual's copy of their content (L7, WP-68)."""
+    st = []
+    st += [P('0&nbsp;&nbsp;Start here: the 2.0 user surface', 'h1')]
+    st += [P('Since 2.0 the toolbox has four user-facing names: '
+             '<font face="Courier">lsqvce.fit</font> (the one verb), '
+             '<font face="Courier">lsqvce.Options</font> (what to do), '
+             '<font face="Courier">lsqvce.Results</font> (what came back) and '
+             '<font face="Courier">lsqvce.report</font> (the verdict). You '
+             'describe the problem in a plain struct, <b>data</b>. Everything '
+             'that does the work lives one level down, in '
+             '<font face="Courier">lsqvce.engine.*</font> and '
+             '<font face="Courier">lsqvce.kernel.*</font>, and is what the rest '
+             'of this manual describes for experts.', 'body')]
+    st += [P('0.1&nbsp;&nbsp;Three lines', 'h2')]
+    st += [code("""opts = lsqvce.Options(Model="vce");      % what to do: "gls" one solve, "vce" the loop
+R    = lsqvce.fit(data, opts);           % the one verb: your data struct -> a Results
+R.report                                 % the five-level verdict""")]
+    st += [P('0.2&nbsp;&nbsp;The three kinds of data', 'h2')]
+    st += [P('<font face="Courier">fit</font> tells them apart by the fields '
+             'present; every rule is checked before any data is read, and an '
+             'unknown field name is an error on purpose.', 'body')]
+    st += [table([
+        ['You have', 'The data struct', 'Engine fit runs'],
+        ['A design matrix in memory, diagonal weights, no arc-wise unknowns',
+         'data.A (m x u), data.l (m x 1, observed minus computed), optional data.p (weights)',
+         'adjust; Robust="irls" -> robust'],
+        ['The same, batched or nonlinear',
+         'data.batchFcn, data.numUnknowns, data.numBatches; with data.x0 the callback returns the Jacobian at x',
+         'adjust / robust / solveNonlinear'],
+        ['Days, arcs, arc-wise unknowns, coloured noise (GRACE-FO)',
+         'data.common (nc once), data.days, data.systems(k) with your buildDay, observationTypes, covariance, systemId, localsPerArc, arcs',
+         'adjustBlock (gls), adjustVCE (vce, pooled), adjustVCEjoint (ellmer)'],
+    ], widths=[110, 220, 120])]
+    st += [code("""data.common.commonParams = commonTbl;      % nc stated ONCE (or .numCommon)
+data.days = 1:30;
+s = struct();
+s.buildDay         = @buildDayC;           % the one function you write
+s.observationTypes = {'kbr','pos'};
+s.covariance.kbr   = struct('type','arma','ar',[1 -1.6 0.9 -0.25],'ma',1,'sigma',1e-7);
+s.covariance.pos   = struct('type','diag','sigma',0.02);
+s.systemId         = 'C';
+s.arcs             = @(day, obsType) arcSchedule('C', day);   % ragged: ids per day
+s.localsPerArc     = 6;                    % fit numbers the local blocks for you
+data.systems(1) = s;                       % add satellite D as data.systems(2)""")]
+    st += [P('0.3&nbsp;&nbsp;buildDay in six rules', 'h2')]
+    st += [P('<font face="Courier">buildDay(day, obsType, ...)</font> returns, for '
+             'one day and one observation type, a struct with A (m x nc), B (m x '
+             'nl, may be sparse), l (observed minus computed), t (seconds) and, '
+             'when the day carries several arcs, arcIdx / arcId.', 'body')]
+    st += [N('<b>Deterministic.</b> Same arguments, identical output -- the data is read twice per pass.', 1)]
+    st += [N('<b>Raw, not whitened.</b> The toolbox whitens per arc from your covariance spec; the VCE loop reweights there.', 2)]
+    st += [N('<b>l is O minus C</b>, and t is in seconds.', 3)]
+    st += [N('<b>Arcs by id when ragged.</b> A resolver in arcs plus arcId in the day; a missing id is a data gap.', 4)]
+    st += [N('<b>Local blocks from arcInfo.</b> Fill B(rows, off + (1:k)); never compute an offset yourself.', 5)]
+    st += [N('<b>A stream called pos is 3-D by default.</b> A scalar stream with that name needs ComponentsPerEpoch = struct(\'pos\', 1).', 6)]
+    st += [P('0.4&nbsp;&nbsp;Reading the answer', 'h2')]
+    st += [code("""R.report                 % level-0..4 verdict with actionable findings
+R.coefficients()         % estimates, formal errors, 95 % bounds as a table
+R.x, R.sigma0            % the estimate and the a-posteriori sigma0
+R.history, R.noise       % the VCE trajectory and the converged noise model
+R.meta                   % provenance: version, release, UTC time, seeds, the options used""")]
+    st += [callout('A sigma0 of NaN is a result, not a bug: the quadratic form '
+                   'cancelled catastrophically and the toolbox refuses to invent '
+                   'a plausible number (lsqvce_theory.pdf, section 7).', 'warn')]
+    st += [P('Where to go next: DATA_CONTRACT.md (the binding specification with a '
+             'two-satellite worked example), examples/demo_fit.m (the three lines on '
+             'every data kind, copy it), doc lsqvce.Options (every knob), '
+             'lsqvce_theory.pdf (the method).', 'body')]
+    st += [PageBreak()]
+    return st
+
+
 def part1_orientation():
     st = []
-    st += [P('1&nbsp;&nbsp;Orientation: which engine, and why', 'h1')]
+    st += [P('1&nbsp;&nbsp;Orientation: which engine, and why (ENGINE tier)', 'h1')]
     st += [P('Three functions solve; everything else diagnoses, models or '
              'accumulates. Picking the right one is the first decision, and it '
              'follows from two properties of your problem: whether the normal '
@@ -113,7 +194,7 @@ def part1_orientation():
                    'readers of 1.x code. Every name in this manual that is not '
                    'fit, Options, Results or report is now qualified with '
                    'lsqvce.engine. or lsqvce.kernel. (RELEASE_NOTES.md).', 'note')]
-    st += [P('1.1&nbsp;&nbsp;The three front doors', 'h2')]
+    st += [P('1.1&nbsp;&nbsp;The three engines fit dispatches to', 'h2')]
     st += [table([
         ['Function', 'Structure', 'Noise model', 'Data'],
         ['<b>adjust</b>',

@@ -209,7 +209,15 @@ R.convergence();      % per iteration: when it settled""")]
 
 def part4_template():
     st = []
-    st += [P('4&nbsp;&nbsp;Adapting the template: a step-by-step guide', 'h1')]
+    st += [P('4&nbsp;&nbsp;Adapting the template: a step-by-step guide (ENGINE tier)', 'h1')]
+    st += [callout('Since 2.0 the user path needs no template and no Loader: '
+                   'describe the case as a data struct (chapter 0, DATA_CONTRACT.md) '
+                   'and call lsqvce.fit. Steps 3 (buildDay), 4 (the a-priori '
+                   'covariance) and 5 (epochCov) below are the same work in both '
+                   'worlds -- the data struct carries them as buildDay, covariance '
+                   'and epochCovariance. Keep the template when you want the '
+                   'Loaders in hand (procOpt-driven cases, direct engine work, '
+                   '1.x code).', 'note')]
     st += [P('Copy <font face="Courier">template/lsqvce_template.m</font>, '
              'rename it, and work through the seven steps below. The template '
              'is written so that the parts you must replace fail loudly until '
