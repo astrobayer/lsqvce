@@ -52,7 +52,7 @@ function S = arrowProblem(seed, uc, ul, nobs) %#ok<*DEFNU>
 end
 
 function cmb = buildCombine(S, method)
-    cmb = lsqvce.Combine(S.uc, 'method', method);
+    cmb = lsqvce.engine.Combine(S.uc, 'method', method);
     for i = 1:S.nsys
         st = S.sys{i};
         % one batch per system for simplicity; the batching is tested elsewhere
@@ -207,7 +207,7 @@ function test_singular_local_block_errors(tc)
     AL(:, 4) = AL(:, 1);              % exactly collinear -> N_ll singular
     l  = randn(rs, n, 1);
 
-    cmb = lsqvce.Combine(uc);
+    cmb = lsqvce.engine.Combine(uc);
     src = @(k) deal(AC, AL, l, ones(n,1));
     verifyError(tc, @() cmb.addSystem(ul, src, 1), ...
         'lsqvce:combine:singularLocal');
@@ -219,7 +219,7 @@ function test_common_block_undetermined_errors(tc)
     % singular. That is a parameterisation defect, not a numerical accident.
     rs = RandStream('mt19937ar','Seed', 13);
     uc = 4;  ul = 3;  n = 30;
-    cmb = lsqvce.Combine(uc);
+    cmb = lsqvce.engine.Combine(uc);
     for i = 1:2
         AC = randn(rs, n, uc);
         AC(:, 4) = 0;                 % NOBODY sees common parameter 4
@@ -233,7 +233,7 @@ end
 function test_wrong_AL_width_errors(tc)
 % categories: contract
     rs = RandStream('mt19937ar','Seed', 17);
-    cmb = lsqvce.Combine(3);
+    cmb = lsqvce.engine.Combine(3);
     src = @(k) deal(randn(rs,20,3), randn(rs,20,2), randn(rs,20,1), ones(20,1));
     verifyError(tc, @() cmb.addSystem(5, src, 1), ...
         'lsqvce:combine:badAL');       % declared 5, returned 2
@@ -247,7 +247,7 @@ function test_correlated_batch_refused(tc)
     % this toolbox exists to prevent. Refuse, and say how to work around it.
     rs = RandStream('mt19937ar','Seed', 19);
     n = 25;
-    cmb = lsqvce.Combine(3);
+    cmb = lsqvce.engine.Combine(3);
     Pk = eye(n) + 0.3*diag(ones(n-1,1),1) + 0.3*diag(ones(n-1,1),-1);
     src = @(k) deal(randn(rs,n,3), randn(rs,n,2), randn(rs,n,1), Pk);
     cmb.addSystem(2, src, 1);
@@ -278,7 +278,7 @@ function test_multiple_batches_per_system(tc)
 
     xs = [];
     for nb = [1 3 9]
-        cmb = lsqvce.Combine(S.uc, 'method', 'qr');
+        cmb = lsqvce.engine.Combine(S.uc, 'method', 'qr');
         for i = 1:S.nsys
             st = S.sys{i};
             e = round(linspace(0, st.n, nb+1));
@@ -335,7 +335,7 @@ function test_qr_beats_normal_when_ill_conditioned(tc)
     e = zeros(2,1);
     ms = {'qr','normal'};
     for j = 1:2
-        cmb = lsqvce.Combine(uc, 'method', ms{j});
+        cmb = lsqvce.engine.Combine(uc, 'method', ms{j});
         for i = 1:nsys
             st = sysd{i};
             cmb.addSystem(ul, @(k) deal(st.AC, st.AL, st.l, st.p), 1);
@@ -395,7 +395,7 @@ function test_sensorday_batching_matches_flat(tc)
     end
 
     % (a) sensor x day batches
-    cmbA = lsqvce.Combine(uc, 'method', 'qr');
+    cmbA = lsqvce.engine.Combine(uc, 'method', 'qr');
     for i = 1:2
         srcA = @(k) deal(S{i}{k}.AC, S{i}{k}.AL, S{i}{k}.l, S{i}{k}.p);
         cmbA.addSystem(ul(i), srcA, numel(S{i}));
@@ -403,7 +403,7 @@ function test_sensorday_batching_matches_flat(tc)
     solA = cmbA.solve();
 
     % (b) one batch per system (everything concatenated)
-    cmbB = lsqvce.Combine(uc, 'method', 'qr');
+    cmbB = lsqvce.engine.Combine(uc, 'method', 'qr');
     for i = 1:2
         AC = cell2mat(cellfun(@(b) b.AC, S{i}(:), 'uni', 0));
         AL = cell2mat(cellfun(@(b) b.AL, S{i}(:), 'uni', 0));
@@ -437,7 +437,7 @@ function test_batch_order_does_not_matter(tc)
     xs = [];
     for trial = 1:3
         ord = randperm(RandStream('mt19937ar','Seed', 600+trial), nB);
-        cmb = lsqvce.Combine(uc, 'method', 'qr');
+        cmb = lsqvce.engine.Combine(uc, 'method', 'qr');
         b = blk(ord);
         cmb.addSystem(ul, @(k) deal(b{k}.AC, b{k}.AL, b{k}.l, b{k}.p), nB);
         xs = [xs, cmb.solve().xC]; %#ok<AGROW>
@@ -449,7 +449,7 @@ end
 %% ===================================================== BatchIndex
 function test_batchindex_decode(tc)
 % categories: contract
-    bx = lsqvce.BatchIndex();
+    bx = lsqvce.engine.BatchIndex();
     bx.addSystem('GRACE-C', {'KBR','LRI'}, 1:3);
     for s = {'KBR','LRI'}
         for d = 1:3
@@ -476,7 +476,7 @@ function test_batchindex_missing_sensor_day(tc)
 % categories: robustness
     % A sensor that was down on a given day is simply not registered. No empty
     % batches, and no requirement that every sensor cover every day.
-    bx = lsqvce.BatchIndex();
+    bx = lsqvce.engine.BatchIndex();
     bx.addSystem('S', {'A','B'}, 1:4);
     for d = 1:4, bx.setCount('S', 'A', d, 50); end
     for d = [1 2 4], bx.setCount('S', 'B', d, 50); end     % B down on day 3
@@ -488,7 +488,7 @@ function test_batchindex_rejects_double_registration(tc)
 % categories: contract
     % Registering the same (sensor, day) twice would DOUBLE-COUNT those
     % observations -- in the solve and in the diagnostics.
-    bx = lsqvce.BatchIndex();
+    bx = lsqvce.engine.BatchIndex();
     bx.addSystem('S', {'A'}, 1:2);
     bx.setCount('S', 'A', 1, 50);
     verifyError(tc, @() bx.setCount('S', 'A', 1, 50), ...
@@ -497,7 +497,7 @@ end
 
 function test_batchindex_requires_lock(tc)
 % categories: contract
-    bx = lsqvce.BatchIndex();
+    bx = lsqvce.engine.BatchIndex();
     bx.addSystem('S', {'A'}, 1);
     bx.setCount('S', 'A', 1, 10);
     verifyError(tc, @() bx.decode(1,1), 'lsqvce:batchIndex:notLocked');
@@ -505,7 +505,7 @@ end
 
 function test_batchindex_unknown_sensor(tc)
 % categories: contract
-    bx = lsqvce.BatchIndex();
+    bx = lsqvce.engine.BatchIndex();
     bx.addSystem('S', {'KBR'}, 1);
     verifyError(tc, @() bx.setCount('S', 'LRI', 1, 10), ...
         'lsqvce:batchIndex:noSuchSensor');
@@ -513,7 +513,7 @@ end
 
 function test_sensorgroups_length(tc)
 % categories: contract
-    bx = lsqvce.BatchIndex();
+    bx = lsqvce.engine.BatchIndex();
     bx.addSystem('S', {'A','B'}, 1:2);
     bx.setCount('S','A',1,30);  bx.setCount('S','A',2,40);
     bx.setCount('S','B',1,50);  bx.setCount('S','B',2,60);
@@ -560,7 +560,7 @@ function test_varcomp_recovers_sensor_noise(tc)
         end
     end
 
-    cmb = lsqvce.Combine(uc, 'method', 'normal');
+    cmb = lsqvce.engine.Combine(uc, 'method', 'normal');
     cmb.addSystem(ul, @(k) deal(blk{k}.AC, blk{k}.AL, blk{k}.l, blk{k}.p), ...
                   numel(blk));
     sol = cmb.solve();
@@ -590,7 +590,7 @@ function test_varcomp_no_false_correction(tc)
         grp{k} = repmat(1 + mod(k,2), nk, 1);       % two groups, same noise
     end
 
-    cmb = lsqvce.Combine(uc, 'method', 'normal');
+    cmb = lsqvce.engine.Combine(uc, 'method', 'normal');
     cmb.addSystem(ul, @(k) deal(blk{k}.AC, blk{k}.AL, blk{k}.l, blk{k}.p), nB);
     sol = cmb.solve();
     VC = cmb.varComp(sol, @(i,k) grp{k}, 2, 'verbose', false);
@@ -613,7 +613,7 @@ function test_varcomp_reports_resolution(tc)
         l = AC*xt(1:uc) + AL*xt(uc+1:end) + randn(rs,nk,1);
         blk{k} = struct('AC',AC,'AL',AL,'l',l,'p',ones(nk,1));
     end
-    cmb = lsqvce.Combine(uc, 'method', 'normal');
+    cmb = lsqvce.engine.Combine(uc, 'method', 'normal');
     cmb.addSystem(ul, @(k) deal(blk{k}.AC, blk{k}.AL, blk{k}.l, blk{k}.p), nB);
     sol = cmb.solve();
     VC = cmb.varComp(sol, @(i,k) ones(nk,1), 1, 'verbose', false);
@@ -633,13 +633,13 @@ function test_reduced_contribution_contract(tc)
     N = eye(3);  n = (1:3).';  ltl = 2.5;  dof = 7;
 
     % documented rejections, each with its id
-    tc.verifyError(@() lsqvce.ReducedContribution(ones(3,2), n, ltl, dof), ...
+    tc.verifyError(@() lsqvce.engine.ReducedContribution(ones(3,2), n, ltl, dof), ...
                    'lsqvce:reduced:notSquare');
-    tc.verifyError(@() lsqvce.ReducedContribution(N, (1:4).', ltl, dof), ...
+    tc.verifyError(@() lsqvce.engine.ReducedContribution(N, (1:4).', ltl, dof), ...
                    'lsqvce:reduced:sizeMismatch');
 
     % shapes and the row-input normalisation promise (n stored as a column)
-    red = lsqvce.ReducedContribution(N, 1:3, ltl, dof);
+    red = lsqvce.engine.ReducedContribution(N, 1:3, ltl, dof);
     tc.verifyEqual(red.N,   N);
     tc.verifyEqual(red.n,   n);                 % 1x3 in -> 3x1 stored
     tc.verifyEqual(red.ltl, ltl);

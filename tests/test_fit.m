@@ -28,7 +28,7 @@ function testFitGlsReproducesAdjustBlock(tc)
     Rf = lsqvce.fit(data, opts);
     L  = loaderOf(cfg, data.systems(1), data);
     a  = opts.engineArgs("adjustBlock");
-    Rd = lsqvce.adjustBlock({L}, data.days, a.nv{:});
+    Rd = lsqvce.engine.adjustBlock({L}, data.days, a.nv{:});
     tc.verifyClass(Rf, 'lsqvce.Results');
     % tol: 1e-12 -- identical code path; guards multithreaded-BLAS reduction order only (§10.8 WP-47 r1e)
     tc.verifyEqual(Rf.x, Rd.x, 'RelTol', 1e-12);
@@ -61,7 +61,7 @@ function testFitVceReproducesTheFluentChain(tc)
                           ComponentsPerEpoch=axes);
     Rf = lsqvce.fit(data, opts);
     L  = loaderOf(cfg, data.systems(1), data);
-    Rd = lsqvce.adjustVCE({L}, data.days, 'MaxOuter', 2, 'Verbose', false) ...
+    Rd = lsqvce.engine.adjustVCE({L}, data.days, 'MaxOuter', 2, 'Verbose', false) ...
             .varianceComponents('MaxIter', 3) ...
             .componentsPerEpoch(axes) ...
             .run();
@@ -195,14 +195,14 @@ function testRawLoaderEscapeHatch(tc)
     % ENGINE tier: .loader (raw 4-arg closure) instead of .buildDay maps onto
     % adjustBlock's struct-array form. Same call, same result.
     cfg = synthCfg();
-    raw = @(d, ot, a, uo) lsqvce.synthLoader(cfg, 1, d, ot, a, uo);
+    raw = @(d, ot, a, uo) lsqvce.engine.synthLoader(cfg, 1, d, ot, a, uo);
     data.common.numCommon = cfg.nc;
     data.days = 1:3;
     s.loader = raw;  s.observationTypes = cfg.obsTypes;  s.covariance = cfg.cov;
     s.systemId = 1;  s.numLocal = cfg.nl;
     data.systems = s;
     Rf = lsqvce.fit(data);
-    Rd = lsqvce.adjustBlock(struct('sysID', 1, 'nl', cfg.nl, 'nc', cfg.nc, 'loader', raw), 1:3);
+    Rd = lsqvce.engine.adjustBlock(struct('sysID', 1, 'nl', cfg.nl, 'nc', cfg.nc, 'loader', raw), 1:3);
     % tol: 1e-12 -- identical code path (see the reference tests)
     tc.verifyEqual(Rf.x, Rd.x, 'RelTol', 1e-12);
     tc.verifyEqual(Rf.sigma0, Rd.sigma0, 'RelTol', 1e-12);
@@ -244,7 +244,7 @@ end
 %% ================================================= WP-56c: Model "ellmer"
 function testEllmerThroughFitReproducesDirect(tc)
 % categories: reference, precision | tags: diagnostics, provenance
-    % R4 WP-56c: fit(Model="ellmer") is lsqvce.adjustVCEjoint over an accFcn
+    % R4 WP-56c: fit(Model="ellmer") is lsqvce.engine.adjustVCEjoint over an accFcn
     % that fit builds from the loaders (BlockAccumulator + jointModelOpt for
     % every 'satKey|obsType' stream), bridged into a Results. The direct route
     % below hand-builds the same accFcn; same Seed -> same probes -> identical.
@@ -263,8 +263,8 @@ function testEllmerThroughFitReproducesDirect(tc)
     L = loaderOf(cfg, data.systems(1), data);
     streams = {'x1|pos', 'x1|kbr'};                       % makeValidName('1') = 'x1'
     accFcn = @(model) directJointAcc(cfg.nc, L, data.days, ...
-                 lsqvce.jointModelOpt(model, streams, 'PsdMode', 'toeplitz'));
-    out = lsqvce.adjustVCEjoint(accFcn, 'NumLags', nLag, 'MaxIter', 2, 'Probes', 20, ...
+                 lsqvce.engine.jointModelOpt(model, streams, 'PsdMode', 'toeplitz'));
+    out = lsqvce.engine.adjustVCEjoint(accFcn, 'NumLags', nLag, 'MaxIter', 2, 'Probes', 20, ...
                                 'Seed', 7, 'Verbose', false);
     % tol: 1e-12 -- identical code path; the seed fixes the Hutchinson probes
     tc.verifyEqual(R.x, out.sol.x(:), 'RelTol', 1e-12);
@@ -273,7 +273,7 @@ function testEllmerThroughFitReproducesDirect(tc)
     tc.verifyEqual(R.history.kind, 'ellmer');
     tc.verifyEqual(R.history.nIter, out.nIter);
     tc.verifyEqual(R.converged, out.converged);
-    tc.verifyClass(R.acc, 'lsqvce.BlockAccumulator');
+    tc.verifyClass(R.acc, 'lsqvce.engine.BlockAccumulator');
     tc.verifyEqual(R.meta.seeds.jointSeed, 7, 'the probe seed is recorded in the provenance');
     tc.verifyEqual(R.meta.options.Model, "ellmer");
     % adjustVCE's history readers refuse cleanly; the verdict works
@@ -282,7 +282,7 @@ function testEllmerThroughFitReproducesDirect(tc)
 end
 
 function acc = directJointAcc(nc, L, days, uo)
-    acc = lsqvce.BlockAccumulator(nc, 'KeepLocal', true, 'Verbose', false, 'UserOpt', uo);
+    acc = lsqvce.engine.BlockAccumulator(nc, 'KeepLocal', true, 'Verbose', false, 'UserOpt', uo);
     acc.addSystem(L.sysID, L.nl, L.closure, days);
 end
 
@@ -309,7 +309,7 @@ function testDistributeDaysThroughFitEqualsFused(tc)
     tc.verifyEqual(R1.meta.options.distributeDays, false);
     % the same knobs are accepted by the VCE engine's constructor (signature)
     L = loaderOf([], data.systems(1), data);
-    P = lsqvce.adjustVCE({L}, data.days, 'DistributeDays', true, 'ParallelThreshold', 2, 'Verbose', false);
+    P = lsqvce.engine.adjustVCE({L}, data.days, 'DistributeDays', true, 'ParallelThreshold', 2, 'Verbose', false);
     tc.verifyEqual(P.blockOpt.DistributeDays, true);
     tc.verifyEqual(P.blockOpt.ParallelThreshold, 2);
 end
@@ -317,13 +317,13 @@ end
 %% ================================================ WP-56b: kinds B and C
 function testMatrixKindReproducesAdjust(tc)
 % categories: reference, contract
-    % R4 WP-56b: fit(data) with data.A / .l / .p is exactly lsqvce.adjust on
+    % R4 WP-56b: fit(data) with data.A / .l / .p is exactly lsqvce.engine.adjust on
     % one batch -- same driver, same options -- so x, sigma0, Cxx and the
     % per-observation diagnostics are byte-identical.
     [A, l, p] = matrixFixture();
     data = struct('A', A, 'l', l, 'p', p);
     R = lsqvce.fit(data, lsqvce.Options(Verbose=false));
-    [sol, D, V] = lsqvce.adjust(size(A, 2), @(k) deal(A, l, p), 1, 'Verbose', false);
+    [sol, D, V] = lsqvce.engine.adjust(size(A, 2), @(k) deal(A, l, p), 1, 'Verbose', false);
     tc.verifyClass(R, 'lsqvce.Results');
     % tol: exact -- identical code path and inputs
     tc.verifyEqual(R.x, sol.x(:));
@@ -331,7 +331,7 @@ function testMatrixKindReproducesAdjust(tc)
     % the bridge restores the STREAMING Results contract: sigma0 a posteriori,
     % Cxx = s0sq * Qxx (the batch driver's sol carries the a-priori Sigma0 and
     % no Cxx -- the r1 CI catch of this level)
-    % tol: exact -- same arithmetic as lsqvce.diagnose, same numbers
+    % tol: exact -- same arithmetic as lsqvce.engine.diagnose, same numbers
     tc.verifyEqual(R.sigma0, sqrt(sol.s0sq));
     tc.verifyEqual(R.sol.sigma0Prior, sol.sigma0);
     tc.verifyEqual(R.sol.Cxx, sol.s0sq * D.Qxx);
@@ -349,14 +349,14 @@ end
 
 function testMatrixKindRobustReproducesRobust(tc)
 % categories: reference, contract
-    % Robust="irls" on kind B is lsqvce.robust with the Options' Influence /
+    % Robust="irls" on kind B is lsqvce.engine.robust with the Options' Influence /
     % Tuning / RobustMaxIter / RobustTol; one planted outlier.
     [A, l, p] = matrixFixture();
     l(7) = l(7) + 25;                                   % gross error
     data = struct('A', A, 'l', l, 'p', p);
     opts = lsqvce.Options(Robust="irls", Influence="huber", RobustMaxIter=20, Verbose=false);
     R = lsqvce.fit(data, opts);
-    [sol, D, ROB] = lsqvce.robust(size(A, 2), @(k) deal(A, l, p), 1, ...
+    [sol, D, ROB] = lsqvce.engine.robust(size(A, 2), @(k) deal(A, l, p), 1, ...
         'Influence', 'huber', 'MaxIter', 20, 'Verbose', false);
     % tol: exact -- identical code path and inputs
     tc.verifyEqual(R.x, sol.x(:));
@@ -367,7 +367,7 @@ end
 
 function testBatchKindNonlinearReproducesSolveNonlinear(tc)
 % categories: reference, contract
-    % Kind C with x0: [A, w, p] = batchFcn(k, x) is lsqvce.solveNonlinear.
+    % Kind C with x0: [A, w, p] = batchFcn(k, x) is lsqvce.engine.solveNonlinear.
     % Model: l = exp(a t) + b, unknowns [a; b], from a known truth.
     rs = RandStream('mt19937ar', 'Seed', 5);
     t  = linspace(0, 1, 40).';
@@ -379,7 +379,7 @@ function testBatchKindNonlinearReproducesSolveNonlinear(tc)
     data = struct('batchFcn', bf, 'numUnknowns', 2, 'numBatches', 2, 'x0', [0.5; 0]);
     opts = lsqvce.Options(NonlinearMaxIter=15, TolX=1e-9, Verbose=false);
     R = lsqvce.fit(data, opts);
-    [sol, D, ~, IT] = lsqvce.solveNonlinear(2, bf, 2, [0.5; 0], 'MaxIter', 15, 'TolX', 1e-9, 'Verbose', false);
+    [sol, D, ~, IT] = lsqvce.engine.solveNonlinear(2, bf, 2, [0.5; 0], 'MaxIter', 15, 'TolX', 1e-9, 'Verbose', false);
     % tol: exact -- identical code path and inputs
     tc.verifyEqual(R.x, sol.x(:));
     tc.verifyEqual(R.diag.v, D.v);
@@ -396,7 +396,7 @@ function testBatchKindLinearReproducesAdjust(tc)
     bf = @(k) deal(A(idx{k}, :), l(idx{k}), p(idx{k}));
     data = struct('batchFcn', bf, 'numUnknowns', size(A, 2), 'numBatches', 2);
     R = lsqvce.fit(data, lsqvce.Options(Verbose=false));
-    [sol, ~, ~] = lsqvce.adjust(size(A, 2), bf, 2, 'Verbose', false);
+    [sol, ~, ~] = lsqvce.engine.adjust(size(A, 2), bf, 2, 'Verbose', false);
     % tol: exact -- identical code path and inputs
     tc.verifyEqual(R.x, sol.x(:));
     tc.verifyEqual(R.nBatch, 2);
@@ -453,7 +453,7 @@ end
 function L = loaderOf(~, s, data)
 % What fit builds for one system -- written out, so the tests compare two
 % independent spellings of the same declaration.
-    L = lsqvce.makeLoader(s.buildDay, 'ObservationTypes', s.observationTypes, ...
+    L = lsqvce.engine.makeLoader(s.buildDay, 'ObservationTypes', s.observationTypes, ...
             'Covariance', s.covariance, 'SystemId', s.systemId, 'NumLocal', s.numLocal, ...
             'Arcs', s.arcs, 'Days', data.days, 'NumCommon', data.common.numCommon);
 end
@@ -469,7 +469,7 @@ function cfg = buildCfg()
 end
 
 function cfg = synthCfg()
-% cfg in the exact shape lsqvce.synthLoader expects (mirrors test_adjustBlock).
+% cfg in the exact shape lsqvce.engine.synthLoader expects (mirrors test_adjustBlock).
     cfg = struct('nc',6, 'nl',4, 'arcsPerDay',2, 'mArc',300, 'dt',5, ...
                  'seed',42, 'collinear',false, 'collinearEps',1e-7);
     cfg.obsTypes = {'pos','kbr'};

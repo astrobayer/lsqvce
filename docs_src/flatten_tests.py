@@ -40,7 +40,7 @@ import sys
 RENAME = {
     'test_v3':      'test_vceMath',       # leverage, Helmert VCE, snooping, reg, multi-axis
     'test_v4':      'test_parallel',      # mapreduce, addSystems, redundancy, PSD iteration
-    'test_v7':      'test_vceFunction',   # lsqvce.vce contract + diagnoseAccum bridge
+    'test_v7':      'test_vceFunction',   # lsqvce.engine.vce contract + diagnoseAccum bridge
     'test_v8':      'test_signalCore',    # outliers, varWhiten, ar2arma
     'test_v9':      'test_streamUtils',   # selectArAcv, whitenessCorr, collectResiduals, ...
     'test_recover': 'test_adjustBlock',   # 'recover' was removed 2026-07-18

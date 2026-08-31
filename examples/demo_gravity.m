@@ -95,7 +95,7 @@ function [R, score] = demo_gravity(opt)
 %     cached, which is the honest streaming behaviour and still cheap here.
 %
 %   See also DEMO_GRAVITY_DATALOADER, DEMO_GRAVITY_DESIGN, DEMO_GRACE,
-%   LSQVCE.ADJUSTVCE
+%   LSQVCE.ENGINE.ADJUSTVCE
 %
 %   Updated 2026-08-21 (CEST, UTC+02:00), WP-53: the printed self-assessment
 %   is also RETURNED (second output), and the measured numbers of the default
@@ -141,7 +141,7 @@ end
              '                   absent BY ID, the way a real schedule is\n']);
 
     % ---- run ------------------------------------------------------------
-    P = lsqvce.adjustVCE(L, cfg.days, 'MaxOuter', opt.MaxOuter, ...
+    P = lsqvce.engine.adjustVCE(L, cfg.days, 'MaxOuter', opt.MaxOuter, ...
                          'Verbose', opt.Verbose);
     R = P.groupComponentsBy('obsType').run();
 

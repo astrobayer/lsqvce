@@ -49,7 +49,7 @@ a { color: #0b5ea8; }
 <p>Copy <code>template/lsqvce_template.m</code>, rename it, and fill in the two
 stubs at the bottom. It returns the cell array of Loaders the toolbox consumes:</p>
 <pre class="example">L = myCase(procOpt);
-R = lsqvce.adjustVCE(L, procOpt.days, ...
+R = lsqvce.engine.adjustVCE(L, procOpt.days, ...
         'verbose', procOpt.loggingLevel, ...
         'logFid',  procOpt.loggingOverviewFileID) ...
       .groupComponentsBy('obsType') ...
@@ -84,7 +84,7 @@ comes out with its time law stretched by the axis count &mdash; and it will not
 announce itself.</div>
 
 <h2>procOpt is immutable input, not shared state</h2>
-<p><code>procOpt</code> is captured when <a href="lsqvce.makeLoader.html">makeLoader</a>
+<p><code>procOpt</code> is captured when <a href="lsqvce.engine.makeLoader.html">makeLoader</a>
 is called and piped through unchanged for the whole run. It must <b>not</b> carry
 live cursors: a field like <code>iteridx</code> would freeze at its value on the
 first pass while the loop iterates around it, and your builder would silently
@@ -105,8 +105,8 @@ value in both places:</p>
 </table>
 <p><code>nc</code> and <code>nl</code> are <b>derived</b> from the
 <code>commonParams</code>/<code>localParams</code> row counts. There is no
-<code>nc</code> argument on <a href="lsqvce.adjustVCE.html">adjustVCE</a> or
-<a href="lsqvce.adjustBlock.html">adjustBlock</a>: the common-parameter count is
+<code>nc</code> argument on <a href="lsqvce.engine.adjustVCE.html">adjustVCE</a> or
+<a href="lsqvce.engine.adjustBlock.html">adjustBlock</a>: the common-parameter count is
 stated once, where the parametrisation is defined.</p>
 
 <h2>Merging systems</h2>
@@ -140,6 +140,6 @@ stub with the full <code>ctx</code> schema.</p>
 <tr><td class="name">lsqvce_template:badProcOpt</td><td><code>procOpt</code> is missing a required field</td></tr>
 </table>
 
-<div class="seealso"><b>See also:</b> <a href="lsqvce.makeLoader.html">lsqvce.makeLoader</a>, <a href="lsqvce.adjustVCE.html">lsqvce.adjustVCE</a>, <a href="lsqvce.adjustBlock.html">lsqvce.adjustBlock</a>, <a href="lsqvce.Results.html">lsqvce.Results</a></div>
+<div class="seealso"><b>See also:</b> <a href="lsqvce.engine.makeLoader.html">lsqvce.engine.makeLoader</a>, <a href="lsqvce.engine.adjustVCE.html">lsqvce.engine.adjustVCE</a>, <a href="lsqvce.engine.adjustBlock.html">lsqvce.engine.adjustBlock</a>, <a href="lsqvce.Results.html">lsqvce.Results</a></div>
 <div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-19.</div>
 </body></html>

@@ -21,12 +21,12 @@ function testWhitenerIsExactInverseSquareRoot(tc)
 % F'*F = inv(C) EXACTLY, not approximately. Everything else rests on this.
     a = [1 -1.6 0.9 -0.25];  s = 0.7;
     for n = [20 60 300]
-        r  = s^2 * lsqvce.armaACV(a, 1, n);
+        r  = s^2 * lsqvce.kernel.armaACV(a, 1, n);
         C  = toeplitz(r);
         Ci = C \ eye(n);
 
         z = zeros(n, 0);
-        [~, ~, F] = lsqvce.armaWhiten(a, 1, s, r, z, z, eye(n), true);
+        [~, ~, F] = lsqvce.kernel.armaWhiten(a, 1, s, r, z, z, eye(n), true);
 
         relErr = norm(F.'*F - Ci) / norm(Ci);
         tc.verifyLessThan(relErr, 1e-12, ...
@@ -43,11 +43,11 @@ function testWhitenerIsTheCholeskyFactorItself(tc)
 % The steady-state rows are the AR coefficients reversed and divided by sigma;
 % the leading p rows are the exact stationary startup block.
     a = [1 -1.6 0.9 -0.25];  s = 0.7;  n = 200;
-    r = s^2 * lsqvce.armaACV(a, 1, n);
+    r = s^2 * lsqvce.kernel.armaACV(a, 1, n);
 
-    W = lsqvce.decorrFactor(toeplitz(r));          % dense Cholesky inverse
+    W = lsqvce.kernel.decorrFactor(toeplitz(r));          % dense Cholesky inverse
     z = zeros(n, 0);
-    [~, ~, F] = lsqvce.armaWhiten(a, 1, s, r, z, z, eye(n), true);
+    [~, ~, F] = lsqvce.kernel.armaWhiten(a, 1, s, r, z, z, eye(n), true);
 
     % tol: both sides are Cholesky factors of the same Toeplitz C (cond ~1e3);
     % eps*cond*|W| ~ 1e-12; 1e-9 adds 3 decades of headroom
@@ -58,8 +58,8 @@ function testWhitenerIsTheCholeskyFactorItself(tc)
     rs = RandStream('mt19937ar','Seed',7);
     X  = randn(rs, n, 6);
     l  = randn(rs, n, 1);
-    [~, ~, Xf] = lsqvce.armaWhiten(a, 1, s, r, z, z, X, true);
-    [~, ~, lf] = lsqvce.armaWhiten(a, 1, s, r, z, z, l, true);
+    [~, ~, Xf] = lsqvce.kernel.armaWhiten(a, 1, s, r, z, z, X, true);
+    [~, ~, lf] = lsqvce.kernel.armaWhiten(a, 1, s, r, z, z, l, true);
 
     % tol: quadratic forms of the same whitener, eps-level; 1e-11 = 1e4*eps
     tc.verifyEqual(Xf.'*Xf, (W*X).'*(W*X), 'RelTol', 1e-11);
@@ -72,10 +72,10 @@ function testSteadyStateRowsAreTheARCoefficients(tc)
 % is [a(p+1) ... a(1)]/sigma placed at columns k-p..k. If this ever breaks, the
 % filter argument order has been swapped (numerator/denominator).
     a = [1 -1.6 0.9 -0.25];  s = 0.7;  n = 20;  p = 3;
-    r = s^2 * lsqvce.armaACV(a, 1, n);
+    r = s^2 * lsqvce.kernel.armaACV(a, 1, n);
 
     z = zeros(n, 0);
-    [~, ~, F] = lsqvce.armaWhiten(a, 1, s, r, z, z, eye(n), true);
+    [~, ~, F] = lsqvce.kernel.armaWhiten(a, 1, s, r, z, z, eye(n), true);
 
     expected = fliplr(a) / s;                    % [a3 a2 a1 1]/s
     for k = (p+1):n
@@ -88,9 +88,9 @@ end
 
 function testDecorrFactorIsExact(tc)
 % categories: precision
-    r = lsqvce.armaACV([1 -0.9], 1, 120);
+    r = lsqvce.kernel.armaACV([1 -0.9], 1, 120);
     C = toeplitz(r);
-    W = lsqvce.decorrFactor(C);
+    W = lsqvce.kernel.decorrFactor(C);
     % tol: exact identity through a solve with cond(C) ~ 20 for AR(1) phi=0.9;
     % house exact-identity bound 1e-10 rel (HANDOVER 6.1.2)
     tc.verifyEqual(W.'*W, C \ eye(120), 'RelTol', 1e-10, 'AbsTol', 1e-9);
@@ -110,7 +110,7 @@ function testDecorrFactorRescuePathIsUsable(tc)
     C = V*diag(d)*V.';
     C = (C+C.')/2;
 
-    W = tc.verifyWarning(@() lsqvce.decorrFactor(C), 'lsqvce:decorrFactor:notPD');
+    W = tc.verifyWarning(@() lsqvce.kernel.decorrFactor(C), 'lsqvce:decorrFactor:notPD');
 
     % reconstruct the floored covariance and check W is its inverse factor
     [V2, d2] = eig((C+C.')/2, 'vector');
@@ -125,8 +125,8 @@ end
 function testLevinsonExactOnKnownAR(tc)
 % categories: precision
     a0 = [1 -1.6 0.9 -0.25];  s0 = 0.7;
-    r  = s0^2 * lsqvce.armaACV(a0, 1, 8);
-    [a, s2] = lsqvce.levinsonDurbin(r, 3);
+    r  = s0^2 * lsqvce.kernel.armaACV(a0, 1, 8);
+    [a, s2] = lsqvce.kernel.levinsonDurbin(r, 3);
     % tol: Levinson on the EXACT ACV of the generator is algebraically exact;
     % 1e-11 = 1e4*eps for the recursion's error growth over p=3 steps
     tc.verifyEqual(a, a0, 'AbsTol', 1e-11);
@@ -136,15 +136,15 @@ end
 function testLevinsonReflectionCoefficients(tc)
 % categories: precision
 % |kappa| < 1 for every order iff the autocovariance is positive definite.
-    r = lsqvce.armaACV([1 -1.6 0.9 -0.25], 1, 21);
-    [~, ~, refl] = lsqvce.levinsonDurbin(r, 20);
+    r = lsqvce.kernel.armaACV([1 -1.6 0.9 -0.25], 1, 21);
+    [~, ~, refl] = lsqvce.kernel.levinsonDurbin(r, 20);
     tc.verifyLessThan(max(abs(refl)), 1);
 end
 
 function testARMAACVAgainstClosedForm(tc)
 % categories: precision
     phi = 0.9;  th = 0.5;
-    r  = lsqvce.armaACV([1 -phi], [1 th], 4);
+    r  = lsqvce.kernel.armaACV([1 -phi], [1 th], 4);
     r0 = (1 + 2*phi*th + th^2)/(1 - phi^2);
     r1 = phi*r0 + th;
     % tol: closed-form ARMA(1,1) ACV (textbook); FFT truncation of the
@@ -163,7 +163,7 @@ function testPSD2ACVSatisfiesParsevalAtZeroLag(tc)
     H  = 1 ./ (exp(-1i*2*pi*f*dt*(0:3)) * [1 -1.6 0.9 -0.25].');
     S  = 0.7^2 * dt * 2 * abs(H).^2;
 
-    r = lsqvce.psd2acv(f, S, dt, 4);
+    r = lsqvce.kernel.psd2acv(f, S, dt, 4);
     % tol: r(0) = trapz(f,S) is the quadrature IDENTITY (same sum, same order);
     % 1e-12 = house factorisation round-trip bound
     tc.verifyEqual(r(1), trapz(f, S), 'RelTol', 1e-12);
@@ -177,8 +177,8 @@ function testPSDToACVRoundTrip(tc)
     H  = 1 ./ (exp(-1i*2*pi*f*dt*(0:3)) * a(:));
     S  = s^2 * dt * 2 * abs(H).^2;
 
-    r_num = lsqvce.psd2acv(f, S, dt, 64);
-    r_ana = s^2 * lsqvce.armaACV(a, 1, 64);
+    r_num = lsqvce.kernel.psd2acv(f, S, dt, 64);
+    r_ana = s^2 * lsqvce.kernel.armaACV(a, 1, 64);
     tc.verifyLessThan(norm(r_num - r_ana)/norm(r_ana), 2e-3);
 end
 
@@ -189,13 +189,13 @@ function testCheckPSDVerdicts(tc)
     H  = 1 ./ (exp(-1i*2*pi*f*dt*(0:3)) * a(:));
     cm = struct('type','psd', 'f',f, 'S', 0.7^2*dt*2*abs(H).^2);
 
-    chk = lsqvce.checkPSD(cm, dt, struct('arOrder',20), false);
+    chk = lsqvce.engine.checkPSD(cm, dt, struct('arOrder',20), false);
     tc.verifyEqual(chk.verdict, 'good');
     tc.verifyTrue(chk.stable);
     tc.verifyLessThan(chk.acvRelErr, 1e-3);
 
     % AR(1) is far too low an order for an AR(3) spectrum
-    chkBad = tc.verifyWarning(@() lsqvce.checkPSD(cm, dt, struct('arOrder',1), false), ...
+    chkBad = tc.verifyWarning(@() lsqvce.engine.checkPSD(cm, dt, struct('arOrder',1), false), ...
                               'lsqvce:checkPSD:badFit');
     tc.verifyEqual(chkBad.verdict, 'bad');
 end
@@ -222,7 +222,7 @@ function testBackSubstitutionExact(tc)
     cfg  = tc.TestData.cfg;
     days = 1:2;
 
-    acc = lsqvce.BlockAccumulator(cfg.nc, 'Backend','qr', 'Verbose',false);
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Backend','qr', 'Verbose',false);
     for s = cfg.sats, acc.addSystem(s, cfg.nl, binder(cfg,s), days); end
     sol = acc.solve();
 
@@ -332,8 +332,8 @@ function testQRBeatsNormalOnIllConditioned(tc)
         l  = A*xt + 1e-10*randn(rs, m, 1);
         xr = A \ l;                                   % LAPACK reference (QR based)
 
-        accN = lsqvce.NormalEqSystem(n);   accN.add(A, l);
-        accQ = lsqvce.QRSystem(n);         accQ.add(A, l);
+        accN = lsqvce.engine.NormalEqSystem(n);   accN.add(A, l);
+        accQ = lsqvce.engine.QRSystem(n);         accQ.add(A, l);
 
         xN = accN.solve();
         xQ = accQ.solve();
@@ -363,8 +363,8 @@ function testNormalEquationsLoseTheAnswerAtHighCondition(tc)
     l = A*randn(rs, n, 1) + 1e-10*randn(rs, m, 1);
     xr = A \ l;
 
-    accN = lsqvce.NormalEqSystem(n);   accN.add(A, l);
-    accQ = lsqvce.QRSystem(n);         accQ.add(A, l);
+    accN = lsqvce.engine.NormalEqSystem(n);   accN.add(A, l);
+    accQ = lsqvce.engine.QRSystem(n);         accQ.add(A, l);
 
     eN = norm(accN.solve() - xr)/norm(xr);
     eQ = norm(accQ.solve() - xr)/norm(xr);
@@ -420,7 +420,7 @@ function testResidualPassReproducesSigma0(tc)
 % categories: precision
 % Two independent routes to sigma0 must agree to machine precision.
     cfg = tc.TestData.cfg;
-    acc = lsqvce.BlockAccumulator(cfg.nc, 'Backend','qr', 'Verbose',false);
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Backend','qr', 'Verbose',false);
     for s = cfg.sats, acc.addSystem(s, cfg.nl, binder(cfg,s), 1:3); end
     sol = acc.solve();
     res = acc.residuals(sol, 'Verbose', false);
@@ -434,7 +434,7 @@ function testWhitenedResidualsAreWhite(tc)
 % The stochastic model is right iff the whitened residuals are white with unit
 % variance. This tests the noise COLOUR, not just its level.
     cfg = tc.TestData.cfg;
-    acc = lsqvce.BlockAccumulator(cfg.nc, 'Backend','qr', 'Verbose',false);
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Backend','qr', 'Verbose',false);
     for s = cfg.sats, acc.addSystem(s, cfg.nl, binder(cfg,s), 1:6); end
     sol = acc.solve();
     res = acc.residuals(sol, 'Verbose', false);
@@ -458,7 +458,7 @@ end
 function testCovarianceIsPositiveDefinite(tc)
 % categories: precision
     cfg = tc.TestData.cfg;
-    acc = lsqvce.BlockAccumulator(cfg.nc, 'Backend','qr', 'Verbose',false);
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Backend','qr', 'Verbose',false);
     for s = cfg.sats, acc.addSystem(s, cfg.nl, binder(cfg,s), 1:3); end
     sol = acc.solve();
 
@@ -529,11 +529,11 @@ function cfg = makeCfg()
 end
 
 function f = binder(cfg, s)
-    f = @(d,ot,a,uo) lsqvce.synthLoader(cfg, s, d, ot, a, uo);
+    f = @(d,ot,a,uo) lsqvce.engine.synthLoader(cfg, s, d, ot, a, uo);
 end
 
 function sol = runAcc(cfg, days, varargin)
-    acc = lsqvce.BlockAccumulator(cfg.nc, varargin{:});
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc, varargin{:});
     for s = cfg.sats
         acc.addSystem(s, cfg.nl, binder(cfg,s), days);
     end
@@ -559,7 +559,7 @@ function [Af, lf] = assembleFull(cfg, days)
                     if isfield(arc,'Wfcn') && ~isempty(arc.Wfcn)
                         [Aw,Bw,lw] = arc.Wfcn(1:m, arc.A, arc.B, arc.l, uo);
                     else
-                        W = lsqvce.decorrFactor(arc.Cfcn(1:m, uo));
+                        W = lsqvce.kernel.decorrFactor(arc.Cfcn(1:m, uo));
                         Aw = W*arc.A;  Bw = W*arc.B;  lw = W*arc.l;
                     end
                     blk = zeros(m, cfg.nc + ns*cfg.nl);
@@ -584,16 +584,16 @@ function testArmaWhitenBatchedEqualsColumnAtATime(tc)
 % multi-RHS BLAS kernels in the startup solve, which may order the flops
 % differently per column.                                    % tol: 10*eps
     a = [1 -1.6 0.9 -0.25];   s = 0.7;   n = 300;   k = 7;
-    r = s^2 * lsqvce.armaACV(a, 1, n);
+    r = s^2 * lsqvce.kernel.armaACV(a, 1, n);
     z = zeros(n, 0);
     rs = RandStream('mt19937ar', 'Seed', 11);
     X  = randn(rs, n, k);
 
-    [~, ~, Xw] = lsqvce.armaWhiten(a, 1, s, r, z, z, X, true);
+    [~, ~, Xw] = lsqvce.kernel.armaWhiten(a, 1, s, r, z, z, X, true);
 
     Xcol = zeros(n, k);
     for j = 1:k
-        [~, ~, Xcol(:, j)] = lsqvce.armaWhiten(a, 1, s, r, z, z, X(:, j), true);
+        [~, ~, Xcol(:, j)] = lsqvce.kernel.armaWhiten(a, 1, s, r, z, z, X(:, j), true);
     end
 
     % tol: 10*eps -- see the header of this test
@@ -615,7 +615,7 @@ function testNormalBackendPoisonedVtvIsNaN(tc)
     xt = randn(rs, n, 1);
     l  = A*xt + 1e-9*randn(rs, m, 1);          % ~zero residual
 
-    accN = lsqvce.NormalEqSystem(n);  accN.add(A, l);
+    accN = lsqvce.engine.NormalEqSystem(n);  accN.add(A, l);
     tc.verifyWarning(@() accN.solve(), 'lsqvce:normalEq:cancellation');
 
     muteWarn(tc, 'lsqvce:normalEq:cancellation');  % second call below re-fires
@@ -647,7 +647,7 @@ function testResidualPassSupersedesPoisonedSigma0(tc)
     cfg.cov.pos.sigma = 1e-4;
     cfg.cov.kbr.sigma = 1e-4;
 
-    accN = lsqvce.BlockAccumulator(cfg.nc, 'Backend','normal', ...
+    accN = lsqvce.engine.BlockAccumulator(cfg.nc, 'Backend','normal', ...
                                    'KeepLocal',true, 'Verbose',false);
     for s = cfg.sats
         accN.addSystem(s, cfg.nl, binder(cfg,s), 1:2);
@@ -683,7 +683,7 @@ function testQrMergeFoldCancellationIsNaN(tc)
     cfg.cov.pos.sigma = 1e-5;
     cfg.cov.kbr.sigma = 1e-5;
 
-    accQ = lsqvce.BlockAccumulator(cfg.nc, 'Backend','qr', ...
+    accQ = lsqvce.engine.BlockAccumulator(cfg.nc, 'Backend','qr', ...
                                    'KeepLocal',true, 'Verbose',false);
     % the fold -- and therefore the warning -- happens at addSystem time,
     % when the pre-eliminated contribution is merged (measured: the r0
@@ -713,7 +713,7 @@ function testQrHealthyPathUnchangedByTheGuards(tc)
 % established 1e-10, and NO cancellation warning (asserted warning-free
 % so a guard that misfires on healthy data cannot land silently).
     cfg = tc.TestData.cfg;
-    accQ = lsqvce.BlockAccumulator(cfg.nc, 'Backend','qr', ...
+    accQ = lsqvce.engine.BlockAccumulator(cfg.nc, 'Backend','qr', ...
                                    'KeepLocal',true, 'Verbose',false);
     for s = cfg.sats
         accQ.addSystem(s, cfg.nl, binder(cfg,s), 1:2);

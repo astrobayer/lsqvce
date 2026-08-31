@@ -1,5 +1,5 @@
 function tests = test_traceEstimate
-%TEST_TRACEESTIMATE  Unit tests for lsqvce.traceEstimate (Ellmer 2018 6.5.6).
+%TEST_TRACEESTIMATE  Unit tests for lsqvce.engine.traceEstimate (Ellmer 2018 6.5.6).
 %
 %   Run with:  results = runtests('tests/test_traceEstimate.m')
 %
@@ -52,7 +52,7 @@ function test_unbiased_over_many_seeds(tc)
     M = tc.TestData.M;  exactTr = tc.TestData.tr;
     K = 400;  ests = zeros(1, K);
     for k = 1:K
-        ests(k) = lsqvce.traceEstimate(M, 'NumProbes', 100, 'Seed', 1000 + k);
+        ests(k) = lsqvce.engine.traceEstimate(M, 'NumProbes', 100, 'Seed', 1000 + k);
     end
     % tol: Monte-Carlo probe scatter ~ 1/sqrt(Probes) on this fixture; 4/sqrt(Z)-style bar (HANDOVER 6.1.2), not containment
     verifyEqual(tc, mean(ests), exactTr, 'RelTol', 0.01, ...
@@ -64,7 +64,7 @@ function test_single_estimate_within_error_band(tc)
     % A single estimate must lie within ~4 standard errors of the truth (that
     % band holds with overwhelming probability for a fixed seed).
     M = tc.TestData.M;  exactTr = tc.TestData.tr;
-    [t, info] = lsqvce.traceEstimate(M, 'NumProbes', 200, 'Seed', 7);
+    [t, info] = lsqvce.engine.traceEstimate(M, 'NumProbes', 200, 'Seed', 7);
     verifyLessThan(tc, abs(t - exactTr), 4 * info.se, ...
         'estimate must be within 4 SE of the exact trace');
 end
@@ -78,7 +78,7 @@ function test_matches_trace_of_ZbarMZbar(tc)
     M = spd(60, 11);  P = size(M,1);  Z = 50;
     rs = RandStream('twister', 'Seed', 3);
     raw = 2*randi(rs, [0 1], P, Z) - 1;          % raw Rademacher
-    t = lsqvce.traceEstimate(M, 'Probes', raw);
+    t = lsqvce.engine.traceEstimate(M, 'Probes', raw);
     Zbar = raw / sqrt(Z);
     % tol: recomputation of the same quadratic form; house exact-identity bound (HANDOVER 6.1.2)
     verifyEqual(tc, t, trace(Zbar' * M * Zbar), 'AbsTol', 1e-9, ...
@@ -89,7 +89,7 @@ function test_perProbe_mean_is_estimate(tc)
 % categories: precision
     % info.perProbe are the un-normalised z'Mz; their MEAN is the estimate.
     M = spd(50, 5);
-    [t, info] = lsqvce.traceEstimate(M, 'NumProbes', 80, 'Seed', 9);
+    [t, info] = lsqvce.engine.traceEstimate(M, 'NumProbes', 80, 'Seed', 9);
     % tol: probe construction identity (sign/sqrt bookkeeping, one triangular solve); eps-level, house bounds give headroom
     verifyEqual(tc, mean(info.perProbe), t, 'AbsTol', 1e-9);
     verifyEqual(tc, info.Z, 80);
@@ -104,8 +104,8 @@ function test_matrixfree_equals_explicit(tc)
     M = spd(70, 21);  P = size(M,1);  Z = 64;
     rs = RandStream('twister', 'Seed', 2);
     raw = 2*randi(rs, [0 1], P, Z) - 1;
-    tExplicit = lsqvce.traceEstimate(M,            'Probes', raw);
-    tHandle   = lsqvce.traceEstimate(@(ZZ) M*ZZ,   'Probes', raw, 'Size', P);
+    tExplicit = lsqvce.engine.traceEstimate(M,            'Probes', raw);
+    tHandle   = lsqvce.engine.traceEstimate(@(ZZ) M*ZZ,   'Probes', raw, 'Size', P);
     % tol: operator vs explicit matrix on the SAME probes -- identical
     % arithmetic path; 1e-9 guards accumulation order only
     verifyEqual(tc, tHandle, tExplicit, 'AbsTol', 1e-9, ...
@@ -117,7 +117,7 @@ function test_matrixfree_needs_size(tc)
     % A function-handle M with no Probes and no Size must error clearly.
     threw = false;
     try
-        lsqvce.traceEstimate(@(Z) Z, 'NumProbes', 10);
+        lsqvce.engine.traceEstimate(@(Z) Z, 'NumProbes', 10);
     catch ME
         threw = strcmp(ME.identifier, 'lsqvce:traceEstimate:needSize');
     end
@@ -141,8 +141,8 @@ function test_shared_probes_reuse(tc)
     raw    = 2*randi(rs, [0 1], P, Z) - 1;        % raw Rademacher
     UinvRaw = U \ raw;                             % ONE triangular solve, reused
     Ng1 = spd(P, 32);  Ng2 = spd(P, 33);
-    t1 = lsqvce.traceEstimate(@(ZZ) Ng1*ZZ, 'Probes', UinvRaw, 'Size', P);
-    t2 = lsqvce.traceEstimate(@(ZZ) Ng2*ZZ, 'Probes', UinvRaw, 'Size', P);
+    t1 = lsqvce.engine.traceEstimate(@(ZZ) Ng1*ZZ, 'Probes', UinvRaw, 'Size', P);
+    t2 = lsqvce.engine.traceEstimate(@(ZZ) Ng2*ZZ, 'Probes', UinvRaw, 'Size', P);
     exact1 = trace(N \ Ng1);
     exact2 = trace(N \ Ng2);
     % 300 probes on a well-conditioned operator: a few percent is expected.
@@ -158,8 +158,8 @@ function test_error_shrinks_like_one_over_sqrtZ(tc)
     % Compare Z and 4Z; the ratio se(Z)/se(4Z) should be ~2 (allow a wide band,
     % since se is itself a random estimate).
     M = tc.TestData.M;
-    [~, iLo] = lsqvce.traceEstimate(M, 'NumProbes', 100,  'Seed', 1);
-    [~, iHi] = lsqvce.traceEstimate(M, 'NumProbes', 400,  'Seed', 1);
+    [~, iLo] = lsqvce.engine.traceEstimate(M, 'NumProbes', 100,  'Seed', 1);
+    [~, iHi] = lsqvce.engine.traceEstimate(M, 'NumProbes', 400,  'Seed', 1);
     ratio = iLo.se / iHi.se;
     verifyGreaterThan(tc, ratio, 1.4, 'se should fall with more probes');
     verifyLessThan(tc,    ratio, 2.8, 'se should fall ~1/sqrt(Z), not faster');
@@ -168,7 +168,7 @@ end
 function test_relse_reported(tc)
 % categories: precision
     M = tc.TestData.M;
-    [t, info] = lsqvce.traceEstimate(M, 'NumProbes', 100, 'Seed', 2);
+    [t, info] = lsqvce.engine.traceEstimate(M, 'NumProbes', 100, 'Seed', 2);
     % tol: Monte-Carlo probe noise, sigma ~ 1/sqrt(Probes); bar per HANDOVER 6.1.2 (4/sqrt(Z)-style, not containment)
     verifyEqual(tc, info.relse, info.se / abs(t), 'AbsTol', 1e-12);
     verifyGreaterThan(tc, info.relse, 0);
@@ -181,7 +181,7 @@ function test_gaussian_also_unbiased(tc)
     M = tc.TestData.M;  exactTr = tc.TestData.tr;
     K = 400;  ests = zeros(1, K);
     for k = 1:K
-        ests(k) = lsqvce.traceEstimate(M, 'NumProbes', 100, ...
+        ests(k) = lsqvce.engine.traceEstimate(M, 'NumProbes', 100, ...
                         'Distribution', 'gaussian', 'Seed', 2000 + k);
     end
     % tol: Monte-Carlo probe scatter ~ 1/sqrt(Probes) on this fixture; 4/sqrt(Z)-style bar (HANDOVER 6.1.2), not containment
@@ -195,8 +195,8 @@ function test_rademacher_beats_gaussian_variance(tc)
     M = tc.TestData.M;  K = 300;
     r = zeros(1,K); g = zeros(1,K);
     for k = 1:K
-        r(k) = lsqvce.traceEstimate(M, 'NumProbes', 60, 'Distribution','rademacher', 'Seed', 5000+k);
-        g(k) = lsqvce.traceEstimate(M, 'NumProbes', 60, 'Distribution','gaussian',   'Seed', 5000+k);
+        r(k) = lsqvce.engine.traceEstimate(M, 'NumProbes', 60, 'Distribution','rademacher', 'Seed', 5000+k);
+        g(k) = lsqvce.engine.traceEstimate(M, 'NumProbes', 60, 'Distribution','gaussian',   'Seed', 5000+k);
     end
     verifyLessThan(tc, var(r), var(g), ...
         'Rademacher probes should have lower estimator variance than Gaussian');
@@ -207,7 +207,7 @@ function test_rejects_nonsquare(tc)
 % categories: contract
     threw = false;
     try
-        lsqvce.traceEstimate(randn(4,5));
+        lsqvce.engine.traceEstimate(randn(4,5));
     catch ME
         threw = strcmp(ME.identifier, 'lsqvce:traceEstimate:notSquare');
     end
@@ -219,7 +219,7 @@ function test_operator_size_mismatch_caught(tc)
     % An operator that returns the wrong-sized block must be caught.
     threw = false;
     try
-        lsqvce.traceEstimate(@(Z) Z(1:end-1, :), 'Size', 10, 'NumProbes', 5);
+        lsqvce.engine.traceEstimate(@(Z) Z(1:end-1, :), 'Size', 10, 'NumProbes', 5);
     catch ME
         threw = strcmp(ME.identifier, 'lsqvce:traceEstimate:badOperator');
     end
@@ -234,7 +234,7 @@ function test_seed_does_not_touch_global_rng(tc)
     before = rand();                              % advance + snapshot
     rng(12345, 'twister');
     s0 = rng;                                     % capture full state
-    lsqvce.traceEstimate(tc.TestData.M, 'NumProbes', 100, 'Seed', 999);
+    lsqvce.engine.traceEstimate(tc.TestData.M, 'NumProbes', 100, 'Seed', 999);
     after = rand();
     verifyEqual(tc, after, before, ...
         'a Seeded call must not disturb the global RNG stream');
@@ -245,8 +245,8 @@ end
 function test_determinism_same_seed(tc)
 % categories: precision
     M = tc.TestData.M;
-    t1 = lsqvce.traceEstimate(M, 'NumProbes', 100, 'Seed', 77);
-    t2 = lsqvce.traceEstimate(M, 'NumProbes', 100, 'Seed', 77);
+    t1 = lsqvce.engine.traceEstimate(M, 'NumProbes', 100, 'Seed', 77);
+    t2 = lsqvce.engine.traceEstimate(M, 'NumProbes', 100, 'Seed', 77);
     % tol: 0 -- an EXACT identity claim (same stored value, no arithmetic)
     verifyEqual(tc, t1, t2, 'AbsTol', 0, 'same seed must reproduce exactly');
 end
@@ -254,7 +254,7 @@ end
 %% =================================================== redundancy-seam identity
 function test_redundancy_seam_trNinvN_is_nc(tc)
 % categories: precision
-    % The opt-in 'TraceMethod','hutchinson' path in LSQVCE.REDUNDANCY runs a
+    % The opt-in 'TraceMethod','hutchinson' path in LSQVCE.ENGINE.REDUNDANCY runs a
     % machinery check on the reduced common normal: it estimates tr(N^-1 N),
     % which is EXACTLY nc, using the same matrix-free operator the seam builds
     % (Xfun = @(V) U\(N*(U'\V)) with N = U'*U). This test reproduces that operator
@@ -263,7 +263,7 @@ function test_redundancy_seam_trNinvN_is_nc(tc)
     P = 100;  N = spd(P, 71);
     U = chol((N + N.')/2);                         % N = U'*U (upper)
     Xfun = @(V) U.' \ (N * (U \ V));               % U^-T N U^-1 = N^-1 N = I
-    [t, info] = lsqvce.traceEstimate(Xfun, 'Size', P, 'NumProbes', 100, 'Seed', 13);
+    [t, info] = lsqvce.engine.traceEstimate(Xfun, 'Size', P, 'NumProbes', 100, 'Seed', 13);
     % tr(I) = P exactly; the estimator is unbiased and I is perfectly conditioned
     % (all eigenvalues 1), so even a single probe set is essentially exact here.
     % tol: quantile/CDF round-trip through base-MATLAB special functions; their relative error is ~1e-14, bound leaves headroom
@@ -284,9 +284,9 @@ function testDefaultSeedLeavesGlobalRNGUntouched(tc)
     rng(424242, 'twister');
     before = rng;
     U = chol(spd(12, 3) + 12*eye(12));
-    lsqvce.sharedProbe(U, 'numProbes', 8);
-    lsqvce.traceEstimate(spd(12, 4), 'NumProbes', 8);
-    lsqvce.traceEstimate(spd(12, 4), 'NumProbes', 8, 'Distribution', 'gaussian');
+    lsqvce.engine.sharedProbe(U, 'numProbes', 8);
+    lsqvce.engine.traceEstimate(spd(12, 4), 'NumProbes', 8);
+    lsqvce.engine.traceEstimate(spd(12, 4), 'NumProbes', 8, 'Distribution', 'gaussian');
     after = rng;
     verifyEqual(tc, after.State, before.State, ...
         'an empty seed must never touch the global stream');
@@ -301,8 +301,8 @@ function testSameSeedIdenticalProbesAcrossCallers(tc)
     % traceEstimate fed that raw block via 'Probes' must equal its own
     % seeded default path exactly.
     n = 20;  Zn = 16;  sd = 77;
-    sp1 = lsqvce.sharedProbe(eye(n), 'numProbes', Zn, 'seed', sd);
-    sp2 = lsqvce.sharedProbe(eye(n), 'numProbes', Zn, 'seed', sd);
+    sp1 = lsqvce.engine.sharedProbe(eye(n), 'numProbes', Zn, 'seed', sd);
+    sp2 = lsqvce.engine.sharedProbe(eye(n), 'numProbes', Zn, 'seed', sd);
     verifyEqual(tc, sp1.Zbar, sp2.Zbar);          % reproducible, bitwise
     raw = sp1.Zbar * sqrt(Zn);
     verifyEqual(tc, unique(abs(raw(:))), 1, ...
@@ -310,8 +310,8 @@ function testSameSeedIdenticalProbesAcrossCallers(tc)
     M  = spd(n, 5);
     % traceEstimate returns the scalar estimate (not a struct) - round-1
     % lesson: my draft dot-indexed a double.
-    t1 = lsqvce.traceEstimate(M, 'NumProbes', Zn, 'Seed', sd);
-    t2 = lsqvce.traceEstimate(M, 'Probes', raw);
+    t1 = lsqvce.engine.traceEstimate(M, 'NumProbes', Zn, 'Seed', sd);
+    t2 = lsqvce.engine.traceEstimate(M, 'Probes', raw);
     % tol: probe construction identity (sign/sqrt bookkeeping, one triangular solve); eps-level, house bounds give headroom
     verifyEqual(tc, t1, t2, 'AbsTol', 4*eps(t2), ...
         'same seed => the identical probe block in every caller');

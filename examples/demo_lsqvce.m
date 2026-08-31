@@ -33,7 +33,7 @@ p  = 1 ./ sg.^2;
 % can move a parameter by more than a fraction of its sigma.
 fprintf('\n\n#################### 1. CLEAN ADJUSTMENT ####################\n');
 l = A * xt + sg .* randn(rs, n, 1);
-[sol, D, V] = lsqvce.adjust(u, makeSource(A, l, p, nb), nb);
+[sol, D, V] = lsqvce.engine.adjust(u, makeSource(A, l, p, nb), nb);
 
 
 %% ===================================================================== (2)
@@ -43,7 +43,7 @@ l = A * xt + sg .* randn(rs, n, 1);
 fprintf('\n\n#################### 2. OUTLIERS ####################\n');
 l2 = l;
 l2([137 892 1455]) = l2([137 892 1455]) + [12; -15; 9] .* sg([137 892 1455]);
-[~, D2, V2] = lsqvce.adjust(u, makeSource(A, l2, p, nb), nb);
+[~, D2, V2] = lsqvce.engine.adjust(u, makeSource(A, l2, p, nb), nb);
 
 fprintf('Planted at 137, 892, 1455.  Flagged: %s\n', mat2str(D2.flagIdx(:).'));
 fprintf(['\nNOTE the procedure: reject the LARGEST |w| only, re-solve, ' ...
@@ -59,7 +59,7 @@ fprintf(['\nNOTE the procedure: reject the LARGEST |w| only, re-solve, ' ...
 fprintf('\n\n#################### 3. SYSTEMATIC ERROR ####################\n');
 t  = linspace(0, 1, n).';
 l3 = A * xt + sg .* randn(rs, n, 1) + 1.2 * sin(2*pi*t);   % unmodelled signal
-[~, D3, V3] = lsqvce.adjust(u, makeSource(A, l3, p, nb), nb);
+[~, D3, V3] = lsqvce.engine.adjust(u, makeSource(A, l3, p, nb), nb);
 
 fprintf('\nOutliers flagged: %d\n', D3.nFlag);
 fprintf(['\nThe variance factor is inflated but snooping finds little. That\n' ...
@@ -92,7 +92,7 @@ fprintf('\n\n#################### 4. UNCONTROLLED OBSERVATION ##################
 A4 = A;
 A4(:, 8) = 0;  A4(500, 8) = 1;        % parameter 8 <- observation 500 alone
 l4 = A4 * xt + sg .* randn(rs, n, 1);
-[~, D4, V4] = lsqvce.adjust(u, makeSource(A4, l4, p, nb), nb);
+[~, D4, V4] = lsqvce.engine.adjust(u, makeSource(A4, l4, p, nb), nb);
 
 fprintf(['\nData snooping reports %d outliers -- a "clean" result.\n' ...
          'But observation 500 has r = %.2e and an INFINITE MDB.\n' ...
@@ -110,7 +110,7 @@ g = [ones(n/2,1); 2*ones(n/2,1)];
 sgTrue = sg;  sgTrue(g==2) = sgTrue(g==2) * 3;       % group 2 is 3x noisier
 l5 = A * xt + sgTrue .* randn(rs, n, 1);
 % ...but we still claim the ORIGINAL weights p:
-[~, D5, V5] = lsqvce.adjust(u, makeSource(A, l5, p, nb), nb, 'verbose', false);
+[~, D5, V5] = lsqvce.engine.adjust(u, makeSource(A, l5, p, nb), nb, 'verbose', false);
 
 fprintf('Global variance ratio: %.3f  (should be ~1)\n', D5.varRatio);
 fprintf('Outliers flagged     : %d\n', D5.nFlag);
@@ -119,7 +119,7 @@ fprintf(['\nInflated variance factor + clean residuals + no structure\n' ...
 
 e  = round(linspace(0, n, nb + 1));
 gsrc = @(k) g(e(k)+1:e(k+1));
-VC = lsqvce.varComp(u, makeSource(A, l5, p, nb), nb, gsrc, 2);
+VC = lsqvce.engine.varComp(u, makeSource(A, l5, p, nb), nb, gsrc, 2);
 
 fprintf(['Recovered sigma ratio: %.3f   (truth: 3.000)\n' ...
          'Apply VC.scale to the covariances and re-run.\n'], ...
@@ -135,7 +135,7 @@ fprintf(['Recovered sigma ratio: %.3f   (truth: 3.000)\n' ...
 % show the SAME ANSWER comes back. Z is set high (4000) so the Monte-Carlo error
 % (~1/sqrt(Z)) is small enough that the agreement is visibly tight; a smaller Z
 % is cheaper but noisier.
-VCh = lsqvce.varComp(u, makeSource(A, l5, p, nb), nb, gsrc, 2, ...
+VCh = lsqvce.engine.varComp(u, makeSource(A, l5, p, nb), nb, gsrc, 2, ...
                      'backend', 'hutchinson', 'probes', 4000, ...
                      'seed', 2026, 'verbose', false);
 
@@ -153,7 +153,7 @@ fprintf('\n\n#################### 6. COLLINEAR PARAMETERS ####################\n
 A6 = A;
 A6(:, 2) = A6(:, 1) + 1e-4 * randn(rs, n, 1);     % col 2 ~ col 1
 l6 = A6 * xt + sg .* randn(rs, n, 1);
-[~, D6, V6] = lsqvce.adjust(u, makeSource(A6, l6, p, nb), nb);
+[~, D6, V6] = lsqvce.engine.adjust(u, makeSource(A6, l6, p, nb), nb);
 
 fprintf(['\nParameters 1 and 2 are correlated at %.5f. Only their SUM is\n' ...
          'determined. Quoting a sigma for either one alone is a fiction,\n' ...

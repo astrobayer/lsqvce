@@ -2,11 +2,11 @@ function tests = test_parallel
 %TEST_PARALLEL  Parallel strategy layer, PSD iteration, per-obsType quick-look.
 %
 %   Covers everything added in v4:
-%     * lsqvce.mapreduce (the execution-strategy layer)
+%     * lsqvce.engine.mapreduce (the execution-strategy layer)
 %     * Accumulator.addSystems == sequential addSystem (all modes)
-%     * the refactored lsqvce.redundancy == an independent brute-force pass
-%     * lsqvce.iterateNoiseModel: covariance model iteration to sigma0 ~ 1 + white acf
-%     * per-obsType sigma0 quick-look in lsqvce.residuals
+%     * the refactored lsqvce.engine.redundancy == an independent brute-force pass
+%     * lsqvce.engine.iterateNoiseModel: covariance model iteration to sigma0 ~ 1 + white acf
+%     * per-obsType sigma0 quick-look in lsqvce.engine.residuals
 %     * dense-path boundary bias is benign (the measured 2.2 result)
 %
 %   The parallel-execution tests are SKIPPED (not failed) when the Parallel
@@ -34,7 +34,7 @@ end
 function testMapreduceSerialCollect(tc)
 % categories: contract
 % Without Reduce: a cell of per-task results, in task order.
-    [out, info] = lsqvce.mapreduce(5, @(j) j^2, 'Mode', 'serial');
+    [out, info] = lsqvce.engine.mapreduce(5, @(j) j^2, 'Mode', 'serial');
     tc.verifyEqual([out{:}], (1:5).^2);
     tc.verifyEqual(info.mode, 'serial');
 end
@@ -43,7 +43,7 @@ function testMapreduceSerialOrderedReduce(tc)
 % categories: contract
 % With Reduce: identical to the hand-written loop, term for term.
     red = @(a, t) a + t;
-    out = lsqvce.mapreduce(7, @(j) 1/j, 'Mode','serial', 'Reduce',red, 'Init',0);
+    out = lsqvce.engine.mapreduce(7, @(j) 1/j, 'Mode','serial', 'Reduce',red, 'Init',0);
     ref = 0;
     for j = 1:7, ref = ref + 1/j; end
     tc.verifyEqual(out, ref);                 % same terms, same order: exact
@@ -52,7 +52,7 @@ end
 function testMapreduceThresholdFallsBackToSerial(tc)
 % categories: robustness
 % A parallel request below the threshold must run serially and say why.
-    [out, info] = lsqvce.mapreduce(3, @(j) j, 'Mode','parfor', 'Threshold',100);
+    [out, info] = lsqvce.engine.mapreduce(3, @(j) j, 'Mode','parfor', 'Threshold',100);
     tc.verifyEqual([out{:}], 1:3);
     tc.verifyEqual(info.mode, 'serial');
     tc.verifyTrue(contains(info.fallback, 'Threshold'));
@@ -62,7 +62,7 @@ function testMapreduceSpmdWithoutCombineFallsBack(tc)
 % categories: robustness
 % 'spmd' without a Combine function cannot reduce on the workers.
     tc.assumeTrue(hasPCT(), 'Parallel Computing Toolbox not available');
-    [~, info] = lsqvce.mapreduce(20, @(j) j, 'Mode','spmd', 'Threshold',1);
+    [~, info] = lsqvce.engine.mapreduce(20, @(j) j, 'Mode','spmd', 'Threshold',1);
     tc.verifyTrue(~strcmp(info.mode, 'spmd'));
 end
 
@@ -71,8 +71,8 @@ function testMapreduceParforMatchesSerial(tc)
     tc.assumeTrue(hasPCT(), 'Parallel Computing Toolbox not available');
     f = @(j) struct('v', sin(j) + j^2);
     red = @(a, t) a + t.v;
-    s  = lsqvce.mapreduce(40, f, 'Mode','serial', 'Reduce',red, 'Init',0);
-    pf = lsqvce.mapreduce(40, f, 'Mode','parfor', 'Reduce',red, 'Init',0, ...
+    s  = lsqvce.engine.mapreduce(40, f, 'Mode','serial', 'Reduce',red, 'Init',0);
+    pf = lsqvce.engine.mapreduce(40, f, 'Mode','parfor', 'Reduce',red, 'Init',0, ...
                        'Threshold',1);
     % identical reduction order -> differences can only come from BLAS
     % tol: serial-vs-parallel reduction order; eps-level accumulation difference only (bitwise NOT promised across workers)
@@ -87,8 +87,8 @@ function testMapreduceSpmdMatchesSerialToTolerance(tc)
     f   = @(j) struct('v', sin(j) + j^2);
     red = @(a, t) a + t.v;
     cmb = @(a, b) a + b;
-    s  = lsqvce.mapreduce(40, f, 'Mode','serial', 'Reduce',red, 'Init',0);
-    sp = lsqvce.mapreduce(40, f, 'Mode','spmd', 'Reduce',red, 'Init',0, ...
+    s  = lsqvce.engine.mapreduce(40, f, 'Mode','serial', 'Reduce',red, 'Init',0);
+    sp = lsqvce.engine.mapreduce(40, f, 'Mode','spmd', 'Reduce',red, 'Init',0, ...
                        'Combine',cmb, 'Threshold',1);
     % tol: serial-vs-parallel reduction order; eps-level accumulation difference only (bitwise NOT promised across workers)
     tc.verifyEqual(sp, s, 'RelTol', 1e-10);
@@ -102,13 +102,13 @@ function testAddSystemsEqualsSequentialAddSystem(tc)
     cfg  = tc.TestData.cfg;
     days = 1:3;
 
-    a1 = lsqvce.BlockAccumulator(cfg.nc, 'Backend','qr', 'Verbose',false);
+    a1 = lsqvce.engine.BlockAccumulator(cfg.nc, 'Backend','qr', 'Verbose',false);
     for s = cfg.sats
         a1.addSystem(s, cfg.nl, binder(cfg, s), days);
     end
     s1 = a1.solve();
 
-    a2 = lsqvce.BlockAccumulator(cfg.nc, 'Backend','qr', 'Verbose',false);
+    a2 = lsqvce.engine.BlockAccumulator(cfg.nc, 'Backend','qr', 'Verbose',false);
     a2.addSystems(specsFor(cfg, days));
     s2 = a2.solve();
 
@@ -122,7 +122,7 @@ end
 function testAddSystemsRejectsDuplicates(tc)
 % categories: contract
     cfg = tc.TestData.cfg;
-    acc = lsqvce.BlockAccumulator(cfg.nc, 'Verbose', false);
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Verbose', false);
     sp  = specsFor(cfg, 1:2);
     sp(end+1) = sp(1);                                   % duplicate in specs
     tc.verifyError(@() acc.addSystems(sp), 'lsqvce:accum:duplicateSystem');
@@ -132,7 +132,7 @@ function testAddSystemsRejectsDuplicates(tc)
                    'lsqvce:accum:duplicateSystem');         % duplicate vs added
 
     % the check must not depend on KeepLocal (diag-based, not store-based)
-    a3 = lsqvce.BlockAccumulator(cfg.nc, 'Verbose',false, 'KeepLocal',false);
+    a3 = lsqvce.engine.BlockAccumulator(cfg.nc, 'Verbose',false, 'KeepLocal',false);
     a3.addSystem(cfg.sats(1), cfg.nl, binder(cfg, cfg.sats(1)), 1:2);
     tc.verifyError(@() a3.addSystem(cfg.sats(1), cfg.nl, ...
                    binder(cfg, cfg.sats(1)), 1:2), ...
@@ -145,11 +145,11 @@ function testAddSystemsParforMatchesSerial(tc)
     cfg  = tc.TestData.cfg;
     days = 1:2;
 
-    a1 = lsqvce.BlockAccumulator(cfg.nc, 'Verbose',false);
+    a1 = lsqvce.engine.BlockAccumulator(cfg.nc, 'Verbose',false);
     a1.addSystems(specsFor(cfg, days));
     s1 = a1.solve();
 
-    a2 = lsqvce.BlockAccumulator(cfg.nc, 'Verbose',false, ...
+    a2 = lsqvce.engine.BlockAccumulator(cfg.nc, 'Verbose',false, ...
                          'Parallel','parfor', 'ParallelThreshold',1);
     a2.addSystems(specsFor(cfg, days));
     s2 = a2.solve();
@@ -169,12 +169,12 @@ function testRedundancyMatchesIndependentBruteForce(tc)
     cfg  = tc.TestData.cfg;
     days = 1:2;
 
-    acc = lsqvce.BlockAccumulator(cfg.nc, 'Backend','qr', 'Verbose',false);
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Backend','qr', 'Verbose',false);
     for s = cfg.sats
         acc.addSystem(s, cfg.nl, binder(cfg, s), days);
     end
     sol = acc.solve();
-    red = lsqvce.redundancy(acc, sol, 'GroupBy','obsType', 'Verbose',false);
+    red = lsqvce.engine.redundancy(acc, sol, 'GroupBy','obsType', 'Verbose',false);
 
     % ---- independent reference -------------------------------------------
     [Nsys, Nred] = rebuildNormals(cfg, days);
@@ -182,11 +182,11 @@ function testRedundancyMatchesIndependentBruteForce(tc)
     mT = 0;
     for s = cfg.sats
         st  = Nsys(sprintf('%d', s));
-        blk = lsqvce.leverageBlocks(Nred, st.Nll, st.Nlc);
+        blk = lsqvce.engine.leverageBlocks(Nred, st.Nll, st.Nlc);
         y   = st.Nll \ (st.nl - st.Nlc * sol.x);
         for j = 1:numel(st.arcs)
             e = st.arcs(j);
-            h = lsqvce.leverage(e.A, e.B, blk);
+            h = lsqvce.engine.leverage(e.A, e.B, blk);
             v = e.l - e.A*sol.x - e.B*y;
             if ~ref.isKey(e.obsType)
                 ref(e.obsType) = struct('m',0,'r',0,'vtv',0);
@@ -218,15 +218,15 @@ function testRedundancyParforMatchesSerial(tc)
     tc.assumeTrue(hasPCT(), 'Parallel Computing Toolbox not available');
     cfg  = tc.TestData.cfg;
     days = 1:2;
-    acc = lsqvce.BlockAccumulator(cfg.nc, 'Verbose',false);
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Verbose',false);
     for s = cfg.sats
         acc.addSystem(s, cfg.nl, binder(cfg, s), days);
     end
     sol = acc.solve();
 
-    rS = lsqvce.redundancy(acc, sol, 'GroupBy','arc', 'Verbose',false, ...
+    rS = lsqvce.engine.redundancy(acc, sol, 'GroupBy','arc', 'Verbose',false, ...
                         'Parallel','serial');
-    rP = lsqvce.redundancy(acc, sol, 'GroupBy','arc', 'Verbose',false, ...
+    rP = lsqvce.engine.redundancy(acc, sol, 'GroupBy','arc', 'Verbose',false, ...
                         'Parallel','parfor');
 
     tc.verifyEqual({rP.group.key}, {rS.group.key});   % ordered reduce: same
@@ -241,15 +241,15 @@ function testRedundancySpmdMatchesSerialToTolerance(tc)
     tc.assumeTrue(hasPCT(), 'Parallel Computing Toolbox not available');
     cfg  = tc.TestData.cfg;
     days = 1:2;
-    acc = lsqvce.BlockAccumulator(cfg.nc, 'Verbose',false);
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Verbose',false);
     for s = cfg.sats
         acc.addSystem(s, cfg.nl, binder(cfg, s), days);
     end
     sol = acc.solve();
 
-    rS = lsqvce.redundancy(acc, sol, 'GroupBy','obsType', 'Verbose',false, ...
+    rS = lsqvce.engine.redundancy(acc, sol, 'GroupBy','obsType', 'Verbose',false, ...
                         'Collect',false, 'Parallel','serial');
-    rW = lsqvce.redundancy(acc, sol, 'GroupBy','obsType', 'Verbose',false, ...
+    rW = lsqvce.engine.redundancy(acc, sol, 'GroupBy','obsType', 'Verbose',false, ...
                         'Collect',false, 'Parallel','spmd');
 
     % spmd's group DISCOVERY order can differ; align by key
@@ -284,7 +284,7 @@ function testPsdIterateConvergesFromWhiteStart(tc)
     cov0.kbr = cfg.cov.kbr;                              % correct already
 
     accFcn = @(cov) buildWithCov(cfg, days, cov);
-    it = lsqvce.iterateNoiseModel(accFcn, cov0, 'UpdateTypes',{'pos'}, ...
+    it = lsqvce.engine.iterateNoiseModel(accFcn, cov0, 'UpdateTypes',{'pos'}, ...
                         'MaxIter',8, 'OrderGrid',[2 3 5 8 12], ...
                         'MaxLag',64, 'WhiteFactor',8, 'Verbose',false);
 
@@ -295,9 +295,9 @@ function testPsdIterateConvergesFromWhiteStart(tc)
 
     % the recovered ACV vs the TRUTH the noise was generated with
     cm = cfg.cov.pos;                                    % arma, ar + sigma
-    rT = cm.sigma^2 * lsqvce.armaACV(cm.ar, 1, 40);
+    rT = cm.sigma^2 * lsqvce.kernel.armaACV(cm.ar, 1, 40);
     cf = it.cov.pos;
-    rF = cf.sigma^2 * lsqvce.armaACV(cf.ar, 1, 40);
+    rF = cf.sigma^2 * lsqvce.kernel.armaACV(cf.ar, 1, 40);
     tc.verifyLessThan(norm(rF - rT)/norm(rT), 0.15);     % sampling-limited
 end
 
@@ -306,7 +306,7 @@ function testPsdIterateCorrectModelConvergesImmediately(tc)
     cfg  = tc.TestData.cfg;
     days = 1:3;
     accFcn = @(cov) buildWithCov(cfg, days, cov);
-    it = lsqvce.iterateNoiseModel(accFcn, cfg.cov, 'MaxIter',3, 'Verbose',false);
+    it = lsqvce.engine.iterateNoiseModel(accFcn, cfg.cov, 'MaxIter',3, 'Verbose',false);
     tc.verifyTrue(it.converged);
     tc.verifyEqual(it.nIter, 1);
 end
@@ -316,7 +316,7 @@ function testResidualsPerObsTypeQuickLook(tc)
 % categories: precision | tags: diagnostics
     cfg  = tc.TestData.cfg;
     days = 1:3;
-    acc = lsqvce.BlockAccumulator(cfg.nc, 'Verbose',false);
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Verbose',false);
     for s = cfg.sats
         acc.addSystem(s, cfg.nl, binder(cfg, s), days);
     end
@@ -369,7 +369,7 @@ function testDensePathBoundaryBiasIsBenign(tc)
     for i0 = 1:b:m
         i1 = min(i0+b-1, m);
         C  = toeplitz(phi.^(0:i1-i0));
-        W  = lsqvce.decorrFactor(C);
+        W  = lsqvce.kernel.decorrFactor(C);
         Ab = W*A(i0:i1,:);  lb = W*l(i0:i1);
         N = N + Ab.'*Ab;  n = n + Ab.'*lb;  vtv = vtv + lb.'*lb;
     end
@@ -391,9 +391,9 @@ function testMergeRawQREqualsFusedAdd(tc)
     A1 = randn(rs, 40, d);  l1 = randn(rs, 40, 1);
     A2 = randn(rs, 55, d);  l2 = randn(rs, 55, 1);
 
-    qf = lsqvce.QRSystem(d);  qf.add(A1, l1);  qf.add(A2, l2);
-    qa = lsqvce.QRSystem(d);  qa.add(A1, l1);
-    qb = lsqvce.QRSystem(d);  qb.add(A2, l2);
+    qf = lsqvce.engine.QRSystem(d);  qf.add(A1, l1);  qf.add(A2, l2);
+    qa = lsqvce.engine.QRSystem(d);  qa.add(A1, l1);
+    qb = lsqvce.engine.QRSystem(d);  qb.add(A2, l2);
     qa.mergeRaw(qb);
 
     ic = 1:3;  il = 4:d;
@@ -416,9 +416,9 @@ end
 
 function testMergeRawRejectsDimensionMismatch(tc)
 % categories: contract
-    qa = lsqvce.QRSystem(4);  qb = lsqvce.QRSystem(5);
+    qa = lsqvce.engine.QRSystem(4);  qb = lsqvce.engine.QRSystem(5);
     tc.verifyError(@() qa.mergeRaw(qb), 'lsqvce:qr:badMerge');
-    na = lsqvce.NormalEqSystem(4);  nb = lsqvce.NormalEqSystem(5);
+    na = lsqvce.engine.NormalEqSystem(4);  nb = lsqvce.engine.NormalEqSystem(5);
     tc.verifyError(@() na.mergeRaw(nb), 'lsqvce:normalEq:badMerge');
 end
 
@@ -430,13 +430,13 @@ function testDistributeDaysEqualsFusedSerial(tc)
     cfg  = tc.TestData.cfg;
     days = 1:4;
     for be = {'qr', 'normal'}
-        a1 = lsqvce.BlockAccumulator(cfg.nc, 'Backend',be{1}, 'Verbose',false);
+        a1 = lsqvce.engine.BlockAccumulator(cfg.nc, 'Backend',be{1}, 'Verbose',false);
         for s = cfg.sats
             a1.addSystem(s, cfg.nl, binder(cfg, s), days);
         end
         s1 = a1.solve();
 
-        a2 = lsqvce.BlockAccumulator(cfg.nc, 'Backend',be{1}, 'Verbose',false, ...
+        a2 = lsqvce.engine.BlockAccumulator(cfg.nc, 'Backend',be{1}, 'Verbose',false, ...
                  'Parallel','parfor', 'DistributeDays',true, ...
                  'ParallelThreshold',2);
         % without PCT mapreduce falls back to serial: same task code, same
@@ -461,7 +461,7 @@ function testDistributeDaysResidualsStillReproduce(tc)
 % reproduce, or the KeepLocal bookkeeping broke.
     cfg  = tc.TestData.cfg;
     days = 1:3;
-    acc = lsqvce.BlockAccumulator(cfg.nc, 'Verbose',false, ...
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Verbose',false, ...
               'Parallel','parfor', 'DistributeDays',true, ...
               'ParallelThreshold',2);
     for s = cfg.sats
@@ -478,11 +478,11 @@ function testDistributeDaysParforMatchesSerial(tc)
     tc.assumeTrue(hasPCT(), 'Parallel Computing Toolbox not available');
     cfg  = tc.TestData.cfg;
     days = 1:4;
-    a1 = lsqvce.BlockAccumulator(cfg.nc, 'Verbose',false);
+    a1 = lsqvce.engine.BlockAccumulator(cfg.nc, 'Verbose',false);
     a1.addSystem(1, cfg.nl, binder(cfg, 1), days);
     s1 = a1.solve();
 
-    a2 = lsqvce.BlockAccumulator(cfg.nc, 'Verbose',false, 'Parallel','parfor', ...
+    a2 = lsqvce.engine.BlockAccumulator(cfg.nc, 'Verbose',false, 'Parallel','parfor', ...
                          'DistributeDays',true, 'ParallelThreshold',1);
     a2.addSystem(1, cfg.nl, binder(cfg, 1), days);
     s2 = a2.solve();
@@ -498,7 +498,7 @@ function testVarACVYuleWalker(tc)
 % Gamma(0) - sum A_k Gamma(k)' = Sigma and the lag recursion, exactly.
     [A, Sig] = stableVAR();
     p = size(A, 3);
-    G = lsqvce.varACV(A, Sig, 10);
+    G = lsqvce.kernel.varACV(A, Sig, 10);
     G0res = G(:,:,1);
     for k = 1:p
         G0res = G0res - A(:,:,k) * G(:,:,k+1).';
@@ -519,7 +519,7 @@ end
 function testVarACVRejectsNonStationary(tc)
 % categories: contract
     A = zeros(2,2,1);  A(:,:,1) = 1.05*eye(2);
-    tc.verifyError(@() lsqvce.varACV(A, eye(2), 5), 'lsqvce:varACV:notStationary');
+    tc.verifyError(@() lsqvce.kernel.varACV(A, eye(2), 5), 'lsqvce:varACV:notStationary');
 end
 
 function testWhittleRecoversGenerator(tc)
@@ -529,13 +529,13 @@ function testWhittleRecoversGenerator(tc)
 % signature.
     [A, Sig] = stableVAR();
     p = size(A, 3);
-    G = lsqvce.varACV(A, Sig, p+3);
-    [Ah, Sh] = lsqvce.whittle(G, p);
+    G = lsqvce.kernel.varACV(A, Sig, p+3);
+    [Ah, Sh] = lsqvce.engine.whittle(G, p);
     % tol: quantile/CDF round-trip through base-MATLAB special functions; their relative error is ~1e-14, bound leaves headroom
     tc.verifyEqual(Ah, A, 'AbsTol', 1e-8*norm(A(:,:,1)));
     tc.verifyEqual(Sh, Sig, 'RelTol', 1e-9);
 
-    Ao = lsqvce.whittle(G, p+2);
+    Ao = lsqvce.engine.whittle(G, p+2);
     tc.verifyLessThan(norm(Ao(:,:,p+1)) + norm(Ao(:,:,p+2)), ...
                       1e-7*norm(A(:,:,1)));
 end
@@ -547,7 +547,7 @@ function testVarWhitenEqualsDenseDecorrelation(tc)
     [A, Sig] = stableVAR();
     d = size(Sig, 1);  nE = 50;  m = nE*d;
     cm = struct('type','var', 'ar',A, 'sigma',Sig);
-    [Cfcn, Wfcn, info] = lsqvce.covModel(cm, (1:m).', struct());
+    [Cfcn, Wfcn, info] = lsqvce.engine.covModel(cm, (1:m).', struct());
     tc.verifyEqual(info.nAxis, d);
     tc.verifyEqual(info.filterMemory, size(A,3)*d);
 
@@ -555,7 +555,7 @@ function testVarWhitenEqualsDenseDecorrelation(tc)
     Ad = randn(rs, m, 4);  l = randn(rs, m, 1);
     [Aw, ~, lw] = Wfcn(1:m, Ad, zeros(m,0), l, struct());
 
-    W  = lsqvce.decorrFactor(Cfcn(1:m, struct()));
+    W  = lsqvce.kernel.decorrFactor(Cfcn(1:m, struct()));
     A2 = W*Ad;  l2 = W*l;
     % tol: VAR-FIR whitener vs dense decorrelation of the same covariance --
     % quadratic forms agree at eps*cond; 1e-9/1e-8 house headroom
@@ -612,11 +612,11 @@ function testDistributeDaysSpmdMatchesSerial(tc)
     tc.assumeTrue(hasPCT(), 'Parallel Computing Toolbox not available');
     cfg  = tc.TestData.cfg;
     days = 1:4;
-    a1 = lsqvce.BlockAccumulator(cfg.nc, 'Verbose',false);
+    a1 = lsqvce.engine.BlockAccumulator(cfg.nc, 'Verbose',false);
     a1.addSystem(1, cfg.nl, binder(cfg, 1), days);
     s1 = a1.solve();
 
-    a2 = lsqvce.BlockAccumulator(cfg.nc, 'Verbose',false, 'Parallel','spmd', ...
+    a2 = lsqvce.engine.BlockAccumulator(cfg.nc, 'Verbose',false, 'Parallel','spmd', ...
                          'DistributeDays',true, 'ParallelThreshold',1);
     a2.addSystem(1, cfg.nl, binder(cfg, 1), days);
     s2 = a2.solve();
@@ -634,12 +634,12 @@ function testPrefetchLoaderPassthroughIsExact(tc)
     cfg  = tc.TestData.cfg;
     days = 1:3;
 
-    a1 = lsqvce.BlockAccumulator(cfg.nc, 'Verbose',false);
+    a1 = lsqvce.engine.BlockAccumulator(cfg.nc, 'Verbose',false);
     a1.addSystem(1, cfg.nl, binder(cfg, 1), days);
     s1 = a1.solve();
 
-    pf = lsqvce.PrefetchLoader(binder(cfg, 1), days, 'Enable', false);
-    a2 = lsqvce.BlockAccumulator(cfg.nc, 'Verbose',false);
+    pf = lsqvce.engine.PrefetchLoader(binder(cfg, 1), days, 'Enable', false);
+    a2 = lsqvce.engine.BlockAccumulator(cfg.nc, 'Verbose',false);
     a2.addSystem(1, cfg.nl, pf.handle(), days);
     s2 = a2.solve();
 
@@ -656,7 +656,7 @@ function testPrefetchLoadWholeDayMatchesDirectCalls(tc)
     f   = binder(cfg, 1);
     uo  = struct('sysID',1, 'nc',cfg.nc, 'nl',cfg.nl, 'BatchSize',20000);
 
-    C = lsqvce.PrefetchLoader.loadWholeDay(f, 2, uo);
+    C = lsqvce.engine.PrefetchLoader.loadWholeDay(f, 2, uo);
 
     meta = f('meta', 2, [], uo);
     for ot = 1:numel(meta.obsTypes)
@@ -679,14 +679,14 @@ function testPrefetchServesFromCacheWhenPrimed(tc)
     tc.assumeTrue(lsqvce.util.hasBackgroundPool(), 'backgroundPool not available');
     cfg  = tc.TestData.cfg;
     days = 1:3;
-    pf = lsqvce.PrefetchLoader(binder(cfg, 1), days, 'Enable', true);
+    pf = lsqvce.engine.PrefetchLoader(binder(cfg, 1), days, 'Enable', true);
     tc.assumeTrue(pf.enabled, 'prefetch could not enable');
 
-    acc = lsqvce.BlockAccumulator(cfg.nc, 'Verbose', false);
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Verbose', false);
     acc.addSystem(1, cfg.nl, pf.handle(), days);
     sol = acc.solve();
 
-    ref = lsqvce.BlockAccumulator(cfg.nc, 'Verbose', false);
+    ref = lsqvce.engine.BlockAccumulator(cfg.nc, 'Verbose', false);
     ref.addSystem(1, cfg.nl, binder(cfg, 1), days);
     sr = ref.solve();
 
@@ -749,13 +749,13 @@ function out = varArcLoader(day, ot, a, uo, Ad, l, cm, d) %#ok<INUSD>
     out.B(1:2:end) = 1e-3;
     out.l = l;
     out.t = (1:m).';
-    [~, out.Wfcn, info] = lsqvce.covModel(cm, out.t, uo);
+    [~, out.Wfcn, info] = lsqvce.engine.covModel(cm, out.t, uo);
     out.filterMemory = info.filterMemory;
     out.nAxis        = info.nAxis;
 end
 
 function sol = solveOne(nc, ld, bs)
-    acc = lsqvce.BlockAccumulator(nc, 'Backend','qr', 'Verbose',false, ...
+    acc = lsqvce.engine.BlockAccumulator(nc, 'Backend','qr', 'Verbose',false, ...
                           'BatchSize',bs, 'Reg','none');
     acc.addSystem(1, 1, ld, 1);
     sol = acc.solve();
@@ -763,7 +763,7 @@ end
 
 
 function f = binder(cfg, s)
-    f = @(d, ot, a, uo) lsqvce.synthLoader(cfg, s, d, ot, a, uo);
+    f = @(d, ot, a, uo) lsqvce.engine.synthLoader(cfg, s, d, ot, a, uo);
 end
 
 function sp = specsFor(cfg, days)
@@ -776,9 +776,9 @@ end
 
 function acc = buildWithCov(cfg, days, cov)
 % Build and accumulate with a runtime covariance override -- the accFcn a
-% real workflow would write (LSQVCE.SYNTHLOADER honours opt.covOverride).
+% real workflow would write (LSQVCE.ENGINE.SYNTHLOADER honours opt.covOverride).
     uo  = struct('covOverride', cov);
-    acc = lsqvce.BlockAccumulator(cfg.nc, 'Backend','qr', 'Verbose',false, ...
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Backend','qr', 'Verbose',false, ...
                           'UserOpt', uo);
     for s = cfg.sats
         acc.addSystem(s, cfg.nl, binder(cfg, s), days);

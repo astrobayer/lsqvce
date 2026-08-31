@@ -137,101 +137,101 @@ reveals only the fraction <code>r_i</code> of any error present
 </table>
 <p>Everything below is the ENGINE and KERNEL tier (docs_src/tiers.csv): reachable and documented &mdash; it is what <code>fit</code> runs &mdash; but not where a user starts.</p>
 <h3>Solving</h3><table>
-<tr><td class="name"><a href="lsqvce.Accumulator.html">lsqvce.Accumulator</a></td><td></td></tr>
-<tr><td class="name"><a href="lsqvce.adjust.html">lsqvce.adjust</a></td><td>Solve, diagnose and judge a batch least-squares problem.</td></tr>
-<tr><td class="name"><a href="lsqvce.solveNonlinear.html">lsqvce.solveNonlinear</a></td><td>Iterated (Gauss-Newton) least squares in batches.</td></tr>
-<tr><td class="name"><a href="lsqvce.NormalEqSystem.html">lsqvce.NormalEqSystem</a></td><td></td></tr>
-<tr><td class="name"><a href="lsqvce.QRSystem.html">lsqvce.QRSystem</a></td><td></td></tr>
-<tr><td class="name"><a href="lsqvce.applyRegularisation.html">lsqvce.applyRegularisation</a></td><td>Regularise a local block before pre-elimination.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.Accumulator.html">lsqvce.engine.Accumulator</a></td><td></td></tr>
+<tr><td class="name"><a href="lsqvce.engine.adjust.html">lsqvce.engine.adjust</a></td><td>Solve, diagnose and judge a batch least-squares problem.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.solveNonlinear.html">lsqvce.engine.solveNonlinear</a></td><td>Iterated (Gauss-Newton) least squares in batches.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.NormalEqSystem.html">lsqvce.engine.NormalEqSystem</a></td><td></td></tr>
+<tr><td class="name"><a href="lsqvce.engine.QRSystem.html">lsqvce.engine.QRSystem</a></td><td></td></tr>
+<tr><td class="name"><a href="lsqvce.engine.applyRegularisation.html">lsqvce.engine.applyRegularisation</a></td><td>Regularise a local block before pre-elimination.</td></tr>
 </table>
 <h3>Access layer &mdash; one-call front door</h3><table>
-<tr><td class="name"><a href="lsqvce.adjustBlock.html">lsqvce.adjustBlock</a></td><td>One-call block-arrow adjustment: accumulate, solve, judge.</td></tr>
-<tr><td class="name"><a href="lsqvce.makeLoader.html">lsqvce.makeLoader</a></td><td>Turn a day-builder into an accumulator-ready Loader.</td></tr>
-<tr><td class="name"><a href="lsqvce.adjustVCE.html">lsqvce.adjustVCE</a></td><td>Iterative separable-GLS engine: SHAPE (temporal whitening) + SCALE (VCE), over adjustBlock.</td></tr>
-<tr><td class="name"><a href="lsqvce.resolveNc.html">lsqvce.resolveNc</a></td><td>Derive the common-parameter count nc from the systems themselves (single source of truth).</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.adjustBlock.html">lsqvce.engine.adjustBlock</a></td><td>One-call block-arrow adjustment: accumulate, solve, judge.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.makeLoader.html">lsqvce.engine.makeLoader</a></td><td>Turn a day-builder into an accumulator-ready Loader.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.adjustVCE.html">lsqvce.engine.adjustVCE</a></td><td>Iterative separable-GLS engine: SHAPE (temporal whitening) + SCALE (VCE), over adjustBlock.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.resolveNc.html">lsqvce.engine.resolveNc</a></td><td>Derive the common-parameter count nc from the systems themselves (single source of truth).</td></tr>
 </table>
 <h3>Gravity recovery &mdash; streaming block-arrow (merged from lsqAccum)</h3><table>
-<tr><td class="name"><a href="lsqvce.BlockAccumulator.html">lsqvce.BlockAccumulator</a></td><td></td></tr>
-<tr><td class="name"><a href="lsqvce.diagnoseAccum.html">lsqvce.diagnoseAccum</a></td><td>Bridge a block-arrow lsqvce.BlockAccumulator adjustment into LSQVCE diagnostics.</td></tr>
-<tr><td class="name"><a href="lsqvce.redundancy.html">lsqvce.redundancy</a></td><td>Per-group and per-observation redundancy, exactly.</td></tr>
-<tr><td class="name"><a href="lsqvce.leverage.html">lsqvce.leverage</a></td><td>Per-observation leverage h_ii of the JOINT system, exactly.</td></tr>
-<tr><td class="name"><a href="lsqvce.outliers.html">lsqvce.outliers</a></td><td>Data snooping (Baarda) using exact partial redundancy.</td></tr>
-<tr><td class="name"><a href="lsqvce.CommonPrior.html">lsqvce.CommonPrior</a></td><td></td></tr>
-<tr><td class="name"><a href="lsqvce.ReducedContribution.html">lsqvce.ReducedContribution</a></td><td></td></tr>
-<tr><td class="name"><a href="lsqvce.residuals.html">lsqvce.residuals</a></td><td>Second pass over the data to compute residuals.</td></tr>
-<tr><td class="name"><a href="lsqvce.mapreduce.html">lsqvce.mapreduce</a></td><td>Execution-strategy layer: serial | parfor | spmd.</td></tr>
-<tr><td class="name"><a href="lsqvce.PrefetchLoader.html">lsqvce.PrefetchLoader</a></td><td></td></tr>
-<tr><td class="name"><a href="lsqvce.synthLoader.html">lsqvce.synthLoader</a></td><td>Synthetic ground-truth loader -- and the loader TEMPLATE.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.BlockAccumulator.html">lsqvce.engine.BlockAccumulator</a></td><td></td></tr>
+<tr><td class="name"><a href="lsqvce.engine.diagnoseAccum.html">lsqvce.engine.diagnoseAccum</a></td><td>Bridge a block-arrow lsqvce.engine.BlockAccumulator adjustment into LSQVCE diagnostics.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.redundancy.html">lsqvce.engine.redundancy</a></td><td>Per-group and per-observation redundancy, exactly.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.leverage.html">lsqvce.engine.leverage</a></td><td>Per-observation leverage h_ii of the JOINT system, exactly.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.outliers.html">lsqvce.engine.outliers</a></td><td>Data snooping (Baarda) using exact partial redundancy.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.CommonPrior.html">lsqvce.engine.CommonPrior</a></td><td></td></tr>
+<tr><td class="name"><a href="lsqvce.engine.ReducedContribution.html">lsqvce.engine.ReducedContribution</a></td><td></td></tr>
+<tr><td class="name"><a href="lsqvce.engine.residuals.html">lsqvce.engine.residuals</a></td><td>Second pass over the data to compute residuals.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.mapreduce.html">lsqvce.engine.mapreduce</a></td><td>Execution-strategy layer: serial | parfor | spmd.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.PrefetchLoader.html">lsqvce.engine.PrefetchLoader</a></td><td></td></tr>
+<tr><td class="name"><a href="lsqvce.engine.synthLoader.html">lsqvce.engine.synthLoader</a></td><td>Synthetic ground-truth loader -- and the loader TEMPLATE.</td></tr>
 </table>
 <h3>Separable-GLS helpers (the GRACE-FO template is examples/demo_grace_dataLoader.m)</h3><table>
-<tr><td class="name"><a href="lsqvce.collectResiduals.html">lsqvce.collectResiduals</a></td><td>Stack one residual field over the arcs of a stream.</td></tr>
-<tr><td class="name"><a href="lsqvce.residualAcv.html">lsqvce.residualAcv</a></td><td>Temporal autocovariance of de-scaled residuals.</td></tr>
-<tr><td class="name"><a href="lsqvce.whitenessCorr.html">lsqvce.whitenessCorr</a></td><td>Largest absolute autocorrelation over a lag range.</td></tr>
-<tr><td class="name"><a href="lsqvce.resolveSatSpecs.html">lsqvce.resolveSatSpecs</a></td><td>Per-satellite configuration: overrides over defaults.</td></tr>
-<tr><td class="name"><a href="lsqvce.normalizeSatList.html">lsqvce.normalizeSatList</a></td><td>Normalise a satellite list to a cell of scalar ids.</td></tr>
-<tr><td class="name"><a href="lsqvce.satKeyOf.html">lsqvce.satKeyOf</a></td><td>Valid struct field name for a satellite identifier.</td></tr>
-<tr><td class="name"><a href="lsqvce.selectArAcv.html">lsqvce.selectArAcv</a></td><td>Automatic AR-order selection by ACV (decorrelation) fidelity.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.collectResiduals.html">lsqvce.engine.collectResiduals</a></td><td>Stack one residual field over the arcs of a stream.</td></tr>
+<tr><td class="name"><a href="lsqvce.kernel.residualAcv.html">lsqvce.kernel.residualAcv</a></td><td>Temporal autocovariance of de-scaled residuals.</td></tr>
+<tr><td class="name"><a href="lsqvce.kernel.whitenessCorr.html">lsqvce.kernel.whitenessCorr</a></td><td>Largest absolute autocorrelation over a lag range.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.resolveSatSpecs.html">lsqvce.engine.resolveSatSpecs</a></td><td>Per-satellite configuration: overrides over defaults.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.normalizeSatList.html">lsqvce.engine.normalizeSatList</a></td><td>Normalise a satellite list to a cell of scalar ids.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.satKeyOf.html">lsqvce.engine.satKeyOf</a></td><td>Valid struct field name for a satellite identifier.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.selectArAcv.html">lsqvce.engine.selectArAcv</a></td><td>Automatic AR-order selection by ACV (decorrelation) fidelity.</td></tr>
 </table>
 <h3>Combining data sets</h3><table>
-<tr><td class="name"><a href="lsqvce.BatchIndex.html">lsqvce.BatchIndex</a></td><td></td></tr>
-<tr><td class="name"><a href="lsqvce.Combine.html">lsqvce.Combine</a></td><td></td></tr>
+<tr><td class="name"><a href="lsqvce.engine.BatchIndex.html">lsqvce.engine.BatchIndex</a></td><td></td></tr>
+<tr><td class="name"><a href="lsqvce.engine.Combine.html">lsqvce.engine.Combine</a></td><td></td></tr>
 </table>
 <h3>Diagnostics</h3><table>
-<tr><td class="name"><a href="lsqvce.diagnose.html">lsqvce.diagnose</a></td><td>Second-pass per-observation diagnostics for a batch LSQ.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.diagnose.html">lsqvce.engine.diagnose</a></td><td>Second-pass per-observation diagnostics for a batch LSQ.</td></tr>
 <tr><td class="name"><a href="lsqvce.report.html">lsqvce.report</a></td><td>Judge a least-squares adjustment and say so in words.</td></tr>
-<tr><td class="name"><a href="lsqvce.systematic.html">lsqvce.systematic</a></td><td>Detect unmodelled systematic errors in the residuals.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.systematic.html">lsqvce.engine.systematic</a></td><td>Detect unmodelled systematic errors in the residuals.</td></tr>
 </table>
 <h3>Outliers &amp; robust</h3><table>
-<tr><td class="name"><a href="lsqvce.robust.html">lsqvce.robust</a></td><td>Robust (M-) estimation by iteratively reweighted least squares.</td></tr>
-<tr><td class="name"><a href="lsqvce.snoop.html">lsqvce.snoop</a></td><td>Iterative data snooping: reject outliers one at a time.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.robust.html">lsqvce.engine.robust</a></td><td>Robust (M-) estimation by iteratively reweighted least squares.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.snoop.html">lsqvce.engine.snoop</a></td><td>Iterative data snooping: reject outliers one at a time.</td></tr>
 </table>
 <h3>Stochastic model &mdash; VCE</h3><table>
-<tr><td class="name"><a href="lsqvce.vce.html">lsqvce.vce</a></td><td>Helmert variance component estimation, per arc.</td></tr>
-<tr><td class="name"><a href="lsqvce.varComp.html">lsqvce.varComp</a></td><td>Helmert variance-component estimation, streaming.</td></tr>
-<tr><td class="name"><a href="lsqvce.vceHutchinson.html">lsqvce.vceHutchinson</a></td><td>Helmert variance components via the Ellmer Hutchinson trace estimator (large common blocks; no dense inverse).</td></tr>
-<tr><td class="name"><a href="lsqvce.poolGroups.html">lsqvce.poolGroups</a></td><td>Suggest/build a coarser VCE grouping when a group's redundancy is too low for a reliable component.</td></tr>
-<tr><td class="name"><a href="lsqvce.traceEstimate.html">lsqvce.traceEstimate</a></td><td>Monte-Carlo (Hutchinson) trace estimator, Ellmer 2018 &sect;6.5.6 &mdash; opt-in VCE accelerator.</td></tr>
-<tr><td class="name"><a href="lsqvce.contribution.html">lsqvce.contribution</a></td><td>Per-group information share of the solution: Level 1 scalar share (exact), Level 2 per-parameter diagonal (streamed).</td></tr>
-<tr><td class="name"><a href="lsqvce.streamContribution.html">lsqvce.streamContribution</a></td><td>Matrix-free per-group N^-1 N_g^cc probing over one data sweep (never forms a group normal).</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.vce.html">lsqvce.engine.vce</a></td><td>Helmert variance component estimation, per arc.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.varComp.html">lsqvce.engine.varComp</a></td><td>Helmert variance-component estimation, streaming.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.vceHutchinson.html">lsqvce.engine.vceHutchinson</a></td><td>Helmert variance components via the Ellmer Hutchinson trace estimator (large common blocks; no dense inverse).</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.poolGroups.html">lsqvce.engine.poolGroups</a></td><td>Suggest/build a coarser VCE grouping when a group's redundancy is too low for a reliable component.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.traceEstimate.html">lsqvce.engine.traceEstimate</a></td><td>Monte-Carlo (Hutchinson) trace estimator, Ellmer 2018 &sect;6.5.6 &mdash; opt-in VCE accelerator.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.contribution.html">lsqvce.engine.contribution</a></td><td>Per-group information share of the solution: Level 1 scalar share (exact), Level 2 per-parameter diagonal (streamed).</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.streamContribution.html">lsqvce.engine.streamContribution</a></td><td>Matrix-free per-group N^-1 N_g^cc probing over one data sweep (never forms a group normal).</td></tr>
 </table>
 <h3>Stochastic model &mdash; joint VCE (Ellmer 2018 &sect;6.5)</h3><table>
-<tr><td class="name"><a href="lsqvce.adjustVCEjoint.html">lsqvce.adjustVCEjoint</a></td><td>The 10-step joint driver: co-estimate every variance component in one Helmert VCE per pass.</td></tr>
-<tr><td class="name"><a href="lsqvce.jointModelOpt.html">lsqvce.jointModelOpt</a></td><td>Adapter turning a driver model into loader UserOpt (encodes the three silently-failing conventions).</td></tr>
-<tr><td class="name"><a href="lsqvce.psdVCE.html">lsqvce.psdVCE</a></td><td>Per-frequency amplitude variance-component estimation.</td></tr>
-<tr><td class="name"><a href="lsqvce.arcVarianceFactors.html">lsqvce.arcVarianceFactors</a></td><td>Per-arc variance factors with gamma normalisation and robust mean.</td></tr>
-<tr><td class="name"><a href="lsqvce.redundancyLags.html">lsqvce.redundancyLags</a></td><td>Per-arc s_n = tr(Rbar V_n) and Omega_n kernel.</td></tr>
-<tr><td class="name"><a href="lsqvce.sharedProbe.html">lsqvce.sharedProbe</a></td><td>The once-per-iteration U^-1 Zbar shared probe block.</td></tr>
-<tr><td class="name"><a href="lsqvce.toeplitzCofactor.html">lsqvce.toeplitzCofactor</a></td><td>Toeplitz cofactor matrix from a lag sequence.</td></tr>
-<tr><td class="name"><a href="lsqvce.covComponent.html">lsqvce.covComponent</a></td><td>Lag/covariance component primitive (Ellmer eqs. 6.5.12-6.5.17).</td></tr>
-<tr><td class="name"><a href="lsqvce.dctI.html">lsqvce.dctI</a></td><td>Type-I discrete cosine transform.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.adjustVCEjoint.html">lsqvce.engine.adjustVCEjoint</a></td><td>The 10-step joint driver: co-estimate every variance component in one Helmert VCE per pass.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.jointModelOpt.html">lsqvce.engine.jointModelOpt</a></td><td>Adapter turning a driver model into loader UserOpt (encodes the three silently-failing conventions).</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.psdVCE.html">lsqvce.engine.psdVCE</a></td><td>Per-frequency amplitude variance-component estimation.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.arcVarianceFactors.html">lsqvce.engine.arcVarianceFactors</a></td><td>Per-arc variance factors with gamma normalisation and robust mean.</td></tr>
+<tr><td class="name"><a href="lsqvce.kernel.redundancyLags.html">lsqvce.kernel.redundancyLags</a></td><td>Per-arc s_n = tr(Rbar V_n) and Omega_n kernel.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.sharedProbe.html">lsqvce.engine.sharedProbe</a></td><td>The once-per-iteration U^-1 Zbar shared probe block.</td></tr>
+<tr><td class="name"><a href="lsqvce.kernel.toeplitzCofactor.html">lsqvce.kernel.toeplitzCofactor</a></td><td>Toeplitz cofactor matrix from a lag sequence.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.covComponent.html">lsqvce.engine.covComponent</a></td><td>Lag/covariance component primitive (Ellmer eqs. 6.5.12-6.5.17).</td></tr>
+<tr><td class="name"><a href="lsqvce.kernel.dctI.html">lsqvce.kernel.dctI</a></td><td>Type-I discrete cosine transform.</td></tr>
 </table>
 <h3>Stochastic model &mdash; coloured noise / whitening</h3><table>
-<tr><td class="name"><a href="lsqvce.covModel.html">lsqvce.covModel</a></td><td>Build covariance / whitening operators for one arc.</td></tr>
-<tr><td class="name"><a href="lsqvce.separableWhiten.html">lsqvce.separableWhiten</a></td><td>Whiten multi-axis observations with a separable covariance.</td></tr>
-<tr><td class="name"><a href="lsqvce.varWhiten.html">lsqvce.varWhiten</a></td><td>Whiten multi-axis observations against a vector-AR model.</td></tr>
-<tr><td class="name"><a href="lsqvce.armaWhiten.html">lsqvce.armaWhiten</a></td><td>Apply an ARMA whitening filter column-wise (exact).</td></tr>
-<tr><td class="name"><a href="lsqvce.decorrFactor.html">lsqvce.decorrFactor</a></td><td>Decorrelation factor W with W&#x27;*W = inv(C).</td></tr>
-<tr><td class="name"><a href="lsqvce.levinsonDurbin.html">lsqvce.levinsonDurbin</a></td><td>Autocovariance -&gt; AR(p) coefficients (Levinson recursion).</td></tr>
-<tr><td class="name"><a href="lsqvce.whittle.html">lsqvce.whittle</a></td><td>Multichannel Levinson-Durbin: cross-ACV -&gt; VAR(p).</td></tr>
-<tr><td class="name"><a href="lsqvce.ar2arma.html">lsqvce.ar2arma</a></td><td>Reduce a high-order AR to a compact ARMA(p,q) (Durbin&#x27;s method).</td></tr>
-<tr><td class="name"><a href="lsqvce.armaACV.html">lsqvce.armaACV</a></td><td>Autocovariance of an ARMA(p,q) with unit innovation variance.</td></tr>
-<tr><td class="name"><a href="lsqvce.varACV.html">lsqvce.varACV</a></td><td>Cross-autocovariance of a stationary VAR(p) process.</td></tr>
-<tr><td class="name"><a href="lsqvce.psd2acv.html">lsqvce.psd2acv</a></td><td>One-sided PSD -&gt; autocovariance sequence (Wiener-Khinchin).</td></tr>
-<tr><td class="name"><a href="lsqvce.crossCorr.html">lsqvce.crossCorr</a></td><td>Cross-axis / temporal correlation of the whitened residuals.</td></tr>
-<tr><td class="name"><a href="lsqvce.selectArOrder.html">lsqvce.selectArOrder</a></td><td>Choose the AR order automatically, on the RIGHT criterion.</td></tr>
-<tr><td class="name"><a href="lsqvce.iterateNoiseModel.html">lsqvce.iterateNoiseModel</a></td><td>Iterate the covariance model until it is RIGHT, not assumed.</td></tr>
-<tr><td class="name"><a href="lsqvce.checkPSD.html">lsqvce.checkPSD</a></td><td>Verify that the AR/ARMA reduction reproduces the PSD.</td></tr>
-<tr><td class="name"><a href="lsqvce.gcvLambda.html">lsqvce.gcvLambda</a></td><td>Generalised cross-validation choice of the Tikhonov weight.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.covModel.html">lsqvce.engine.covModel</a></td><td>Build covariance / whitening operators for one arc.</td></tr>
+<tr><td class="name"><a href="lsqvce.kernel.separableWhiten.html">lsqvce.kernel.separableWhiten</a></td><td>Whiten multi-axis observations with a separable covariance.</td></tr>
+<tr><td class="name"><a href="lsqvce.kernel.varWhiten.html">lsqvce.kernel.varWhiten</a></td><td>Whiten multi-axis observations against a vector-AR model.</td></tr>
+<tr><td class="name"><a href="lsqvce.kernel.armaWhiten.html">lsqvce.kernel.armaWhiten</a></td><td>Apply an ARMA whitening filter column-wise (exact).</td></tr>
+<tr><td class="name"><a href="lsqvce.kernel.decorrFactor.html">lsqvce.kernel.decorrFactor</a></td><td>Decorrelation factor W with W&#x27;*W = inv(C).</td></tr>
+<tr><td class="name"><a href="lsqvce.kernel.levinsonDurbin.html">lsqvce.kernel.levinsonDurbin</a></td><td>Autocovariance -&gt; AR(p) coefficients (Levinson recursion).</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.whittle.html">lsqvce.engine.whittle</a></td><td>Multichannel Levinson-Durbin: cross-ACV -&gt; VAR(p).</td></tr>
+<tr><td class="name"><a href="lsqvce.kernel.ar2arma.html">lsqvce.kernel.ar2arma</a></td><td>Reduce a high-order AR to a compact ARMA(p,q) (Durbin&#x27;s method).</td></tr>
+<tr><td class="name"><a href="lsqvce.kernel.armaACV.html">lsqvce.kernel.armaACV</a></td><td>Autocovariance of an ARMA(p,q) with unit innovation variance.</td></tr>
+<tr><td class="name"><a href="lsqvce.kernel.varACV.html">lsqvce.kernel.varACV</a></td><td>Cross-autocovariance of a stationary VAR(p) process.</td></tr>
+<tr><td class="name"><a href="lsqvce.kernel.psd2acv.html">lsqvce.kernel.psd2acv</a></td><td>One-sided PSD -&gt; autocovariance sequence (Wiener-Khinchin).</td></tr>
+<tr><td class="name"><a href="lsqvce.kernel.crossCorr.html">lsqvce.kernel.crossCorr</a></td><td>Cross-axis / temporal correlation of the whitened residuals.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.selectArOrder.html">lsqvce.engine.selectArOrder</a></td><td>Choose the AR order automatically, on the RIGHT criterion.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.iterateNoiseModel.html">lsqvce.engine.iterateNoiseModel</a></td><td>Iterate the covariance model until it is RIGHT, not assumed.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.checkPSD.html">lsqvce.engine.checkPSD</a></td><td>Verify that the AR/ARMA reduction reproduces the PSD.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.gcvLambda.html">lsqvce.engine.gcvLambda</a></td><td>Generalised cross-validation choice of the Tikhonov weight.</td></tr>
 </table>
 <h3>Model testing</h3><table>
-<tr><td class="name"><a href="lsqvce.ellipse.html">lsqvce.ellipse</a></td><td>Confidence ellipse for a pair of correlated parameters.</td></tr>
-<tr><td class="name"><a href="lsqvce.ftest.html">lsqvce.ftest</a></td><td>Is the extra parameter earning its place?</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.ellipse.html">lsqvce.engine.ellipse</a></td><td>Confidence ellipse for a pair of correlated parameters.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.ftest.html">lsqvce.engine.ftest</a></td><td>Is the extra parameter earning its place?</td></tr>
 </table>
 <h3>Free networks</h3><table>
-<tr><td class="name"><a href="lsqvce.datum.html">lsqvce.datum</a></td><td>Detect a datum defect and construct the datum matrix B.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.datum.html">lsqvce.engine.datum</a></td><td>Detect a datum defect and construct the datum matrix B.</td></tr>
 </table>
 <h3>Support</h3><table>
-<tr><td class="name"><a href="lsqvce.stat.html">lsqvce.stat</a></td><td></td></tr>
+<tr><td class="name"><a href="lsqvce.engine.stat.html">lsqvce.engine.stat</a></td><td></td></tr>
 </table>
 <h3>Utilities (+util)</h3><table>
 <tr><td class="name"><a href="lsqvce.util.getfielddef.html">lsqvce.util.getfielddef</a></td><td>Field value with a default.</td></tr>

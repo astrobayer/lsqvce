@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.engine.covComponent</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.engine.covComponent</div>
+<h1>lsqvce.engine.covComponent</h1>
+<div class="purpose">Apply the lag-n covariance component V_n to a vector/block.</div>
+<h2>Description</h2>
+<pre class="example">y = LSQVCE.ENGINE.COVCOMPONENT(x, n)
+
+Returns y = V_n * x WITHOUT forming V_n, where V_n is Ellmer&#x27;s covariance
+component matrix (2018, eq. 6.5.16): the N x N identity for n = 0, and for
+n &gt; 0 the matrix with ones ONLY on the +n and -n diagonals (zeros elsewhere).
+These are the building blocks of the Toeplitz cofactor matrix,
+
+    Q_ll = sum_{n=0}^{Nmax-1} C^n_xx * V_n            (Ellmer eq. 6.5.17)
+
+and appear in the per-lag redundancy s_n = tr(R V_n) of the spectral VCE.
+The apply is BANDED, O(N*K) per component and O(1) extra memory:
+
+    (V_n x)_i = x_{i+n} + x_{i-n}     (edge terms dropped at the boundaries)
+
+so a length-N arc never materialises an N x N matrix -- essential when N is a
+full short-arc length (thousands of epochs).</pre>
+<h3>Input</h3>
+<pre class="example">x    N x K double   K columns of length N (a row vector is treated as one
+                    column). N &gt;= 1.
+n    1x1 int        lag index, 0 &lt;= n &lt; N. n = 0 returns x unchanged.</pre>
+<h3>Output</h3>
+<pre class="example">  y    N x K double   V_n * x, same shape as x (row in -&gt; row out)
+
+INVARIANTS (tested)
+  covComponent(x,0) == x
+  covComponent(x,n) == Vn_dense * x  for the explicit V_n
+  sum_n C(n)*covComponent(x,n) == toeplitz(C) * x
+  trace via probes: E[z .* covComponent(z,n)] -&gt; diag(V_n) (0 for n&gt;0)</pre>
+<h3>Example</h3>
+<pre class="example">  x = (1:6).&#x27;;
+  lsqvce.engine.covComponent(x, 2)      % = [x3+0; x4+0; x5+x1; x6+x2; 0+x3; 0+x4]
+
+See also LSQVCE.KERNEL.TOEPLITZCOFACTOR, LSQVCE.KERNEL.DCTI, LSQVCE.KERNEL.REDUNDANCYLAGS
+
+Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
+model Claude Opus 4.8.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
+</body></html>

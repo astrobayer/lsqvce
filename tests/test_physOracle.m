@@ -19,7 +19,7 @@ function tests = test_physOracle
 %   Run:
 %     results = runtests('tests/test_physOracle');  disp(table(results))
 %
-%   See also DEMO_GRAVITY_DESIGN (examples/), LSQVCE.ADJUSTVCE, HANDOVER 10.10
+%   See also DEMO_GRAVITY_DESIGN (examples/), LSQVCE.ENGINE.ADJUSTVCE, HANDOVER 10.10
 %
 %   Created 2026-08-20 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.
@@ -29,7 +29,7 @@ end
 %% ---------------------------------------------------------------- fixtures
 function setupOnce(tc)
     root = fileparts(fileparts(mfilename('fullpath')));
-    if exist('lsqvce.adjustVCE', 'class') ~= 8 && ...
+    if exist('lsqvce.engine.adjustVCE', 'class') ~= 8 && ...
        exist('+lsqvce', 'dir') ~= 7
         addpath(root);                                       %#ok<MCAP>
     end
@@ -45,7 +45,7 @@ function setupOnce(tc)
     % ONE full closed-loop solve, shared by the recovery tests (the
     % test_adjustVCE setupOnce lesson: rebuild-per-test cost dominates).
     L = {oracleLoader(cfg, 'A'), oracleLoader(cfg, 'B')};
-    P = lsqvce.adjustVCE(L, cfg.days, 'Verbose', false, 'MaxOuter', 4);
+    P = lsqvce.engine.adjustVCE(L, cfg.days, 'Verbose', false, 'MaxOuter', 4);
     P = P.groupComponentsBy('obsType');
     tc.TestData.R = P.run();
 end
@@ -279,7 +279,7 @@ function L = oracleLoader(cfg, sat)
 %ORACLELOADER  makeLoader wrapper for one satellite system.
     ot = ['pot' sat];
     cov = struct(ot, cfg.cov.(ot));
-    L = lsqvce.makeLoader(@(d, o) oracleBuildDay(cfg, sat, d, o), ...
+    L = lsqvce.engine.makeLoader(@(d, o) oracleBuildDay(cfg, sat, d, o), ...
             'observationTypes', {ot}, 'covariance', cov, ...
             'arcs', cfg.arcsPerDay, 'systemId', 1 + double(sat == 'B'), ...
             'numLocal', cfg.nl, 'numCommon', cfg.nc);

@@ -8,7 +8,7 @@ function [cfg, L] = demo_gravity_dataLoader()
 %   external data:
 %
 %       [cfg, L] = demo_gravity_dataLoader();
-%       R = lsqvce.adjustVCE(L, cfg.days).groupComponentsBy('obsType').run();
+%       R = lsqvce.engine.adjustVCE(L, cfg.days).groupComponentsBy('obsType').run();
 %
 %   WHAT MAKES THIS DIFFERENT FROM DEMO_GRACE_DATALOADER
 %     That loader builds its design from randn -- fine for exercising the
@@ -47,7 +47,7 @@ function [cfg, L] = demo_gravity_dataLoader()
 %        the toolbox may assume a fixed arc length.
 %        Points 1 to 3 are DECLARED, not hand-wired (WP-52): 'arcs' takes a
 %        per-day resolver, the day names its arcs with .arcId, and
-%        'localsPerArc' hands LSQVCE.MAKELOADER the local bookkeeping -- it
+%        'localsPerArc' hands LSQVCE.ENGINE.MAKELOADER the local bookkeeping -- it
 %        numbers every (day, arc), DERIVES nl, and passes this day's column
 %        offsets to the builder. An earlier version of this file wrapped the
 %        loader's closure and carried its own arc-ordinal table; both are
@@ -83,19 +83,19 @@ function [cfg, L] = demo_gravity_dataLoader()
 %            .trueSigma/.trueAR 1x1 struct  the planted noise law per stream
 %            .cov      1x1 struct   the DECLARED covariance per stream
 %            .r .incl .dt .lagC2D   orbit geometry
-%     L    1x3 cell    the Loaders, ready for LSQVCE.ADJUSTVCE
+%     L    1x3 cell    the Loaders, ready for LSQVCE.ENGINE.ADJUSTVCE
 %
 %   ERRORS
 %     None. The fixture is self-contained and deterministic.
 %
 %   EXAMPLE
 %     [cfg, L] = demo_gravity_dataLoader();
-%     R = lsqvce.adjustVCE(L, cfg.days, 'MaxOuter', 4, 'Verbose', false) ...
+%     R = lsqvce.engine.adjustVCE(L, cfg.days, 'MaxOuter', 4, 'Verbose', false) ...
 %             .groupComponentsBy('obsType').run();
 %     max(abs(R.x - cfg.xTrue) ./ (sqrt(diag(R.sol.Cxx))*R.sigma0))   % < 5
 %
 %   See also DEMO_GRAVITY, DEMO_GRAVITY_DESIGN, DEMO_GRACE_DATALOADER,
-%   LSQVCE.MAKELOADER
+%   LSQVCE.ENGINE.MAKELOADER
 %
 %   Created 2026-08-21 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.
@@ -200,7 +200,7 @@ function L = gravityLoaders(cfg)
         % and passes this day's offsets to the builder. (Before WP-52 this
         % needed a wrapper around the loader's closure and a hand-rolled
         % arc-ordinal table; both are gone.)
-        L{s} = lsqvce.makeLoader( ...
+        L{s} = lsqvce.engine.makeLoader( ...
                 @(d, o, cm, lo, po, ai) buildGravityDay(cfg, d, o, ai), ...
                 'observationTypes', {ot}, ...
                 'covariance',       cov, ...

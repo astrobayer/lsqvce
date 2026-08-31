@@ -211,7 +211,7 @@ def s3_vce():
              'share of the degrees of freedom that group contributes. Iterate until '
              'every group\'s a-posteriori factor is one; iterated Helmert coincides '
              'with the iterated almost-unbiased estimator and, under normality, with '
-             'REML. This is lsqvce.vce (WP-12), with the per-observation redundancy '
+             'REML. This is lsqvce.engine.vce (WP-12), with the per-observation redundancy '
              'numbers (redundancy.m) supplying <i>r</i><sub>k</sub> exactly when the '
              'problem is small enough to afford them.', 'body')]
     st += [P('3.2&nbsp;&nbsp;MINQUE and LS-VCE', 'h2')]
@@ -329,7 +329,7 @@ def s5_robust():
     st += [P('M-estimation replaces rejection by iteratively reweighted least '
              'squares with an influence function -- Huber (quadratic core, linear '
              'tails), IGG3 (keep / downweight / reject zones), bisquare (redescending). '
-             'This is lsqvce.robust (WP-25), reached through fit with Options.Robust = '
+             'This is lsqvce.engine.robust (WP-25), reached through fit with Options.Robust = '
              '"irls" on the in-memory kinds (WP-56b). Robustness and VCE interact: '
              'outliers inflate the components; screen first, then estimate, or use '
              'the robust arc-factor mean of the joint loop (Options.MeanType).', 'body')]

@@ -57,13 +57,13 @@ for u = o.u(:).'
     tN = inf;  tQ = inf;
     for rep = 1:o.reps
         t = tic;
-        accN = lsqvce.Accumulator(u, 'method', 'normal');
+        accN = lsqvce.engine.Accumulator(u, 'method', 'normal');
         for k = 1:nb, [Ak,lk,pk] = src(k); accN.add(Ak,lk,pk); end
         solN = accN.solve();
         tN = min(tN, toc(t));
 
         t = tic;
-        accQ = lsqvce.Accumulator(u, 'method', 'qr');
+        accQ = lsqvce.engine.Accumulator(u, 'method', 'qr');
         for k = 1:nb, [Ak,lk,pk] = src(k); accQ.add(Ak,lk,pk); end
         solQ = accQ.solve();
         tQ = min(tQ, toc(t));
@@ -108,8 +108,8 @@ for eps = [1e-1 1e-3 1e-5 1e-7 1e-8]
     nb = numel(e) - 1;
     src = @(k) deal(A(e(k)+1:e(k+1), :), l(e(k)+1:e(k+1)), p(e(k)+1:e(k+1)));
 
-    accN = lsqvce.Accumulator(u, 'method', 'normal');
-    accQ = lsqvce.Accumulator(u, 'method', 'qr');
+    accN = lsqvce.engine.Accumulator(u, 'method', 'normal');
+    accQ = lsqvce.engine.Accumulator(u, 'method', 'qr');
     for k = 1:nb
         [Ak,lk,pk] = src(k);
         accN.add(Ak,lk,pk);  accQ.add(Ak,lk,pk);

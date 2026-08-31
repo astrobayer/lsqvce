@@ -68,14 +68,14 @@ function test_normCrit_textbook(tc)
 % categories: precision, reference
     % The classic Baarda threshold.
     % tol: closed-form literature value; kernel's own accuracy claim (help text) bounds the error, tol adds headroom
-    verifyEqual(tc, lsqvce.stat.normCrit(0.001), 3.29053, 'AbsTol', 1e-4);
+    verifyEqual(tc, lsqvce.engine.stat.normCrit(0.001), 3.29053, 'AbsTol', 1e-4);
 end
 
 function test_delta0_textbook(tc)
 % categories: precision, reference
     % The classic MDB non-centrality, alpha=0.001 beta=0.20.
     % tol: closed-form literature value; kernel's own accuracy claim (help text) bounds the error, tol adds headroom
-    verifyEqual(tc, lsqvce.stat.delta0(0.001, 0.20), 4.1321, 'AbsTol', 1e-3);
+    verifyEqual(tc, lsqvce.engine.stat.delta0(0.001, 0.20), 4.1321, 'AbsTol', 1e-3);
 end
 
 function test_chi2Inv_roundtrip(tc)
@@ -84,8 +84,8 @@ function test_chi2Inv_roundtrip(tc)
     % into the CDF returns the probability you asked for.
     for r = [1 2 5 10 100 1e4 1e6]
         for p = [1e-6 0.005 0.5 0.995 1-1e-6]
-            x = lsqvce.stat.chi2Inv(p, r);
-            back = lsqvce.stat.chi2Cdf(x, r);
+            x = lsqvce.engine.stat.chi2Inv(p, r);
+            back = lsqvce.engine.stat.chi2Cdf(x, r);
             % tol: quantile/CDF round-trip through base-MATLAB special functions; their relative error is ~1e-14, bound leaves headroom
             verifyEqual(tc, back, p, 'RelTol', 1e-8, ...
                 sprintf('chi2Inv round-trip failed at r=%g p=%g', r, p));
@@ -104,17 +104,17 @@ function test_stat_contract_rejections(tc)
     % the id AND the caller-naming message through the caught exception.
     caught = MException.empty;
     try
-        lsqvce.stat.chi2Inv(1.5, 5);
+        lsqvce.engine.stat.chi2Inv(1.5, 5);
     catch e
         caught = e;
     end
     tc.verifyNotEmpty(caught, 'p outside (0,1) must be rejected');
     tc.verifyEqual(caught.identifier, 'lsqvce:stat:badProb');
     tc.verifySubstring(caught.message, 'chi2Inv');    % message names the caller
-    tc.verifyError(@() lsqvce.stat.chi2Inv(NaN, 5),   'lsqvce:stat:badProb');
-    tc.verifyError(@() lsqvce.stat.chi2Inv(0.5, 0),   'lsqvce:stat:badDof');
-    tc.verifyError(@() lsqvce.stat.tInv(0.9, -1),     'lsqvce:stat:badDof');
-    tc.verifyError(@() lsqvce.stat.chi2Inv([0.1 0.5], [1;2;3]), ...
+    tc.verifyError(@() lsqvce.engine.stat.chi2Inv(NaN, 5),   'lsqvce:stat:badProb');
+    tc.verifyError(@() lsqvce.engine.stat.chi2Inv(0.5, 0),   'lsqvce:stat:badDof');
+    tc.verifyError(@() lsqvce.engine.stat.tInv(0.9, -1),     'lsqvce:stat:badDof');
+    tc.verifyError(@() lsqvce.engine.stat.chi2Inv([0.1 0.5], [1;2;3]), ...
                    'lsqvce:stat:sizeMismatch');
 end
 
@@ -122,9 +122,9 @@ function test_chi2Inv_singular_density(tc)
 % categories: precision, robustness
     % r = 1 makes the chi2 density diverge at the origin. A Newton iteration
     % in x stalls here; the log-space iteration must not.
-    x = lsqvce.stat.chi2Inv(1e-6, 1);
+    x = lsqvce.engine.stat.chi2Inv(1e-6, 1);
     % tol: quantile/CDF round-trip through base-MATLAB special functions; their relative error is ~1e-14, bound leaves headroom
-    verifyEqual(tc, lsqvce.stat.chi2Cdf(x, 1), 1e-6, 'RelTol', 1e-9);
+    verifyEqual(tc, lsqvce.engine.stat.chi2Cdf(x, 1), 1e-6, 'RelTol', 1e-9);
 end
 
 function test_tau_is_bounded_by_sqrt_r(tc)
@@ -133,7 +133,7 @@ function test_tau_is_bounded_by_sqrt_r(tc)
     % weak network cannot detect its own blunders, and the toolbox relies on
     % it to warn that snooping has become vacuous.
     for r = [3 5 10 30]
-        tcv = lsqvce.stat.tauCrit(1e-8, r);
+        tcv = lsqvce.engine.stat.tauCrit(1e-8, r);
         verifyLessThan(tc, tcv, sqrt(r) + 1e-9);
     end
 end
@@ -142,8 +142,8 @@ function test_tau_tends_to_normal(tc)
 % categories: precision
     % tol: tau -> normal is an ASYMPTOTIC limit at r = 1e7, not an identity;
     % the O(1/r) remainder sets the 1e-3 bar
-    verifyEqual(tc, lsqvce.stat.tauCrit(0.001, 1e7), ...
-                    lsqvce.stat.normCrit(0.001), 'AbsTol', 1e-3);
+    verifyEqual(tc, lsqvce.engine.stat.tauCrit(0.001, 1e7), ...
+                    lsqvce.engine.stat.normCrit(0.001), 'AbsTol', 1e-3);
 end
 
 %% ================================================ accumulator
@@ -154,7 +154,7 @@ function test_matches_dense_solution(tc)
 
     for meth = {'qr', 'normal'}
         B = chop(A, l, p, 9);
-        acc = lsqvce.Accumulator(7, 'method', meth{1});
+        acc = lsqvce.engine.Accumulator(7, 'method', meth{1});
         for k = 1:9, acc.add(B{k}{1}, B{k}{2}, B{k}{3}); end
         sol = acc.solve();
         % tol: independent dense reference, same-precision algebra; eps*cond headroom (house bounds, HANDOVER 6.1.2)
@@ -171,7 +171,7 @@ function test_invariant_to_batch_partition(tc)
     xs = [];
     for nb = [1 2 7 53 500]
         B = chop(A, l, p, nb);
-        acc = lsqvce.Accumulator(6, 'method', 'qr');
+        acc = lsqvce.engine.Accumulator(6, 'method', 'qr');
         for k = 1:nb, acc.add(B{k}{1}, B{k}{2}, B{k}{3}); end
         xs = [xs, acc.solve().x]; %#ok<AGROW>
     end
@@ -190,12 +190,12 @@ function test_vPv_cancellation_is_caught(tc)
     l = A * xt + 1e-9 * randn(rs, n, 1);   % ~zero residual
     p = ones(n, 1);
 
-    accN = lsqvce.Accumulator(u, 'method', 'normal');
+    accN = lsqvce.engine.Accumulator(u, 'method', 'normal');
     accN.add(A, l, p);
     verifyWarning(tc, @() accN.solve(), 'lsqvce:acc:cancellation');
 
     % QR is immune and needs no warning.
-    accQ = lsqvce.Accumulator(u, 'method', 'qr');
+    accQ = lsqvce.engine.Accumulator(u, 'method', 'qr');
     accQ.add(A, l, p);
     solQ = accQ.solve();
     verifyGreaterThanOrEqual(tc, solQ.vPv, 0);
@@ -210,14 +210,14 @@ function test_rank_deficiency_errors_clearly(tc)
     A = randn(rs, 50, 4);
     A(:, 4) = A(:, 1) + A(:, 2);       % exact linear dependence
     l = randn(rs, 50, 1);
-    acc = lsqvce.Accumulator(4, 'method', 'normal');
+    acc = lsqvce.engine.Accumulator(4, 'method', 'normal');
     acc.add(A, l, ones(50,1));
     verifyError(tc, @() acc.solve(), 'lsqvce:acc:rankDeficient');
 end
 
 function test_negative_weight_rejected(tc)
 % categories: contract
-    acc = lsqvce.Accumulator(3);
+    acc = lsqvce.engine.Accumulator(3);
     p = ones(10,1);  p(4) = -1;
     verifyError(tc, @() acc.add(randn(10,3), randn(10,1), p), ...
                 'lsqvce:acc:negativeWeight');
@@ -225,7 +225,7 @@ end
 
 function test_nonfinite_rejected(tc)
 % categories: contract, robustness
-    acc = lsqvce.Accumulator(3);
+    acc = lsqvce.engine.Accumulator(3);
     A = randn(10,3);  A(2,2) = NaN;
     verifyError(tc, @() acc.add(A, randn(10,1), ones(10,1)), ...
                 'lsqvce:acc:nonFiniteA');
@@ -241,7 +241,7 @@ function test_correlated_batch_supported(tc)
     M = randn(rs,n,n);  P = M*M' + n*eye(n);      % SPD
     xd = (A'*P*A) \ (A'*P*l);
 
-    acc = lsqvce.Accumulator(u, 'method','qr');
+    acc = lsqvce.engine.Accumulator(u, 'method','qr');
     acc.add(A, l, P);
     % tol: independent dense solve of the same system; difference ~ cond*eps, house bounds add headroom (HANDOVER 6.1.2)
     verifyEqual(tc, acc.solve().x, xd, 'RelTol', 1e-8);
@@ -254,7 +254,7 @@ function test_redundancy_sum_identity(tc)
     % check and must hold to machine precision.
     [A, l, p] = tc.TestData.mk(400, 5, 21);
     B = chop(A, l, p, 11);
-    [~, D] = lsqvce.adjust(5, srcOf(B), 11, 'verbose', false);
+    [~, D] = lsqvce.engine.adjust(5, srcOf(B), 11, 'verbose', false);
     % tol: exact-path identity (same numbers recombined); house round-trip bound 1e-12/1e-10 (HANDOVER 6.1.2)
     verifyEqual(tc, D.sumR, D.r, 'RelTol', 1e-10);
 end
@@ -263,7 +263,7 @@ function test_redundancy_in_unit_interval(tc)
 % categories: contract
     [A, l, p] = tc.TestData.mk(300, 6, 33);
     B = chop(A, l, p, 7);
-    [~, D] = lsqvce.adjust(6, srcOf(B), 7, 'verbose', false);
+    [~, D] = lsqvce.engine.adjust(6, srcOf(B), 7, 'verbose', false);
     verifyGreaterThanOrEqual(tc, min(D.rNum), 0);
     verifyLessThanOrEqual(tc, max(D.rNum), 1);
 end
@@ -272,7 +272,7 @@ function test_outliers_are_found(tc)
 % categories: contract
     [A, l, p] = tc.TestData.mk(800, 6, 77, [17 9; 400 -8; 700 7]);
     B = chop(A, l, p, 10);
-    [~, D] = lsqvce.adjust(6, srcOf(B), 10, 'verbose', false, ...
+    [~, D] = lsqvce.engine.adjust(6, srcOf(B), 10, 'verbose', false, ...
                             'bonferroni', false);
     verifyTrue(tc, all(ismember([17 400 700], D.flagIdx)), ...
         'planted outliers were not all flagged');
@@ -289,7 +289,7 @@ function test_uncontrolled_observation_no_nan(tc)
     A(:,6) = 0;  A(7,6) = 1;            % param 6 <- obs 7 alone
     l = randn(rs,n,1);  p = ones(n,1);
     B = chop(A, l, p, 4);
-    [~, D] = lsqvce.adjust(u, srcOf(B), 4, 'verbose', false);
+    [~, D] = lsqvce.engine.adjust(u, srcOf(B), 4, 'verbose', false);
 
     verifyTrue(tc, all(isfinite(D.w)),    'w contains NaN/Inf');
     verifyTrue(tc, all(isfinite(D.rNum)), 'r contains NaN/Inf');
@@ -311,7 +311,7 @@ function test_external_reliability_is_exact(tc)
     n = 120; u = 5;
     A = randn(rs,n,u);  l = randn(rs,n,1);  p = ones(n,1);
     B = chop(A, l, p, 3);
-    [~, D] = lsqvce.adjust(u, srcOf(B), 3, 'verbose', false);
+    [~, D] = lsqvce.engine.adjust(u, srcOf(B), 3, 'verbose', false);
 
     i = D.extMaxIdx;  j = D.extMaxPar;
     x1 = (A'*A) \ (A'*l);
@@ -332,7 +332,7 @@ function test_variance_factor_unbiased(tc)
     for m = 1:M
         [A, l, p] = tc.TestData.mk(n, u, 1000 + m);
         B = chop(A, l, p, 5);
-        [~, D] = lsqvce.adjust(u, srcOf(B), 5, 'verbose', false);
+        [~, D] = lsqvce.engine.adjust(u, srcOf(B), 5, 'verbose', false);
         rat(m) = D.varRatio;
     end
     % tol: statistical identity on a finite sample; scatter ~ 1/sqrt(dof) of the fixture, bar sized 4/sqrt(Z)-style (HANDOVER 6.1.2)
@@ -349,9 +349,9 @@ function test_bonferroni_suppresses_false_alarms(tc)
     for m = 1:M
         [A, l, p] = tc.TestData.mk(2000, 6, 5000 + m);
         B = chop(A, l, p, 8);
-        [~, Dr] = lsqvce.adjust(6, srcOf(B), 8, 'verbose', false, ...
+        [~, Dr] = lsqvce.engine.adjust(6, srcOf(B), 8, 'verbose', false, ...
                                  'bonferroni', false);
-        [~, Db] = lsqvce.adjust(6, srcOf(B), 8, 'verbose', false, ...
+        [~, Db] = lsqvce.engine.adjust(6, srcOf(B), 8, 'verbose', false, ...
                                  'bonferroni', true);
         nRaw  = nRaw  + Dr.nFlag;
         nBonf = nBonf + Db.nFlag;
@@ -367,12 +367,12 @@ function test_second_pass_mismatch_detected(tc)
     % observation. That must be an error, not a surprise.
     [A, l, p] = tc.TestData.mk(200, 4, 55);
     B = chop(A, l, p, 5);
-    acc = lsqvce.Accumulator(4);
+    acc = lsqvce.engine.Accumulator(4);
     for k = 1:5, acc.add(B{k}{1}, B{k}{2}, B{k}{3}); end
     sol = acc.solve();
 
     bad = @(k) deal(B{k}{1}(1:end-1,:), B{k}{2}(1:end-1), B{k}{3}(1:end-1));
-    verifyError(tc, @() lsqvce.diagnose(sol, bad, 'nBatch', 5), ...
+    verifyError(tc, @() lsqvce.engine.diagnose(sol, bad, 'nBatch', 5), ...
                 'lsqvce:diagnose:batchMismatch');
 end
 
@@ -381,7 +381,7 @@ function test_zero_redundancy_is_flagged(tc)
     % n == u: the model fits exactly and nothing can be tested. The toolbox
     % must say so rather than reporting a meaningless perfect result.
     A = randn(5,5);  l = randn(5,1);
-    acc = lsqvce.Accumulator(5);
+    acc = lsqvce.engine.Accumulator(5);
     acc.add(A, l, ones(5,1));
     verifyWarning(tc, @() acc.solve(), 'lsqvce:acc:zeroRedundancy');
 end
@@ -403,7 +403,7 @@ function test_helmert_recovers_known_weight_error(tc)
     src = srcOf(B);
     gsrc = @(k) gB{k}{2};
 
-    VC = lsqvce.varComp(u, src, 8, gsrc, 2, 'verbose', false);
+    VC = lsqvce.engine.varComp(u, src, 8, gsrc, 2, 'verbose', false);
     ratio = VC.sigma(2) / VC.sigma(1);
     % tol: recovery of a planted value; estimator sampling scatter on this fixture, measured stable across seeds (not an eps claim)
     verifyEqual(tc, ratio, 3, 'RelTol', 0.12);
@@ -420,14 +420,14 @@ function test_adjust_typed_validators_and_enum_values(tc)
     src_ = @(k) deal(randn(8,2), randn(8,1), []);
     ok = false;
     try
-        lsqvce.adjust(2, src_, 1, 'Sigma0', 'abc');
+        lsqvce.engine.adjust(2, src_, 1, 'Sigma0', 'abc');
     catch e
         ok = strcmp(e.identifier, 'MATLAB:InputParser:ArgumentFailedValidation');
     end
     verifyTrue(tc, ok, 'non-numeric Sigma0 must fail the typed validator');
     ok = false;
     try
-        lsqvce.adjust(2, src_, 1, 'Method', 'QR');
+        lsqvce.engine.adjust(2, src_, 1, 'Method', 'QR');
     catch e
         ok = strcmp(e.identifier, 'MATLAB:InputParser:ArgumentFailedValidation');
     end
@@ -435,7 +435,7 @@ function test_adjust_typed_validators_and_enum_values(tc)
     % and the pass-through contract survives: lowercase casing + a
     % forwarded diagnose option must still run end to end.
     w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
-    [sol, D, V] = lsqvce.adjust(2, src_, 1, 'verbose', false, 'store', 'none'); %#ok<ASGLU>
+    [sol, D, V] = lsqvce.engine.adjust(2, src_, 1, 'verbose', false, 'store', 'none'); %#ok<ASGLU>
     verifyTrue(tc, isstruct(sol) || isobject(sol), ...
         'lowercase casing and forwarded options must keep working');
 end
@@ -448,14 +448,14 @@ function test_stageB_signature_varComp(tc)
     g = @(k) ones(8,1);
     ok = false;
     try
-        lsqvce.varComp(2, b, 1, g, 1, 'Method', 'Rigorous');
+        lsqvce.engine.varComp(2, b, 1, g, 1, 'Method', 'Rigorous');
     catch e
         ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
     end
     verifyTrue(tc, ok, 'varComp Method ''Rigorous'' must fail mustBeMember');
     ok = false;
     try
-        lsqvce.varComp(2.5, b, 1, g, 1);
+        lsqvce.engine.varComp(2.5, b, 1, g, 1);
     catch e
         ok = startsWith(e.identifier, 'MATLAB:validators:');
     end
@@ -491,7 +491,7 @@ function test_varComp_negative_component_freezes_not_nukes(tc)
         batchFcn = @(k) deal(A, l, p);               % one batch, all obs
         groupFcn = @(k) g;
         lastwarn('', '');
-        VC = lsqvce.varComp(u, batchFcn, 1, groupFcn, 2, ...
+        VC = lsqvce.engine.varComp(u, batchFcn, 1, groupFcn, 2, ...
                             'maxIter', 1, 'verbose', false);
         [~, wid] = lastwarn;
         if strcmp(wid, 'lsqvce:varComp:negative')
@@ -521,7 +521,7 @@ function test_helmert_no_false_correction(tc)
 
     B  = chop(A, l, p, 6);
     gB = chop(A, g, p, 6);
-    VC = lsqvce.varComp(u, srcOf(B), 6, @(k) gB{k}{2}, 2, 'verbose', false);
+    VC = lsqvce.engine.varComp(u, srcOf(B), 6, @(k) gB{k}{2}, 2, 'verbose', false);
 
     ratio = VC.sigma(2) / VC.sigma(1);
     % Resolution limit is ~0.5*sqrt(2/r_g) per group; allow 3 sigma of it.
@@ -538,7 +538,7 @@ function test_helmert_redundancy_partition(tc)
     g = [ones(ng,1); 2*ones(ng,1)];
     B  = chop(A, l, p, 4);
     gB = chop(A, g, p, 4);
-    VC = lsqvce.varComp(u, srcOf(B), 4, @(k) gB{k}{2}, 2, ...
+    VC = lsqvce.engine.varComp(u, srcOf(B), 4, @(k) gB{k}{2}, 2, ...
                          'verbose', false, 'maxIter', 1);
     % tol: redundancy partition identity sum(r_i)=n-u; fp accumulation over n terms, house bound with headroom
     verifyEqual(tc, sum(VC.redund), n - u, 'RelTol', 1e-8);
@@ -549,7 +549,7 @@ function test_varComp_exact_has_no_traceEstimate(tc)
 % categories: contract
     % Default 'exact' must NOT attach the estimator struct: it is opt-in.
     [u, src, gsrc, nb] = vcSmall();
-    VC = lsqvce.varComp(u, src, nb, gsrc, 2, 'verbose', false);
+    VC = lsqvce.engine.varComp(u, src, nb, gsrc, 2, 'verbose', false);
     verifyFalse(tc, isfield(VC, 'traceEstimate'), ...
         'exact TraceMethod must not attach VC.traceEstimate');
 end
@@ -558,7 +558,7 @@ function test_varComp_hutchinson_check_returns_u(tc)
 % categories: precision
     % Machinery check: tr(N^-1 N) = u exactly; the estimate must return ~u.
     [u, src, gsrc, nb] = vcSmall();
-    VC = lsqvce.varComp(u, src, nb, gsrc, 2, 'verbose', false, ...
+    VC = lsqvce.engine.varComp(u, src, nb, gsrc, 2, 'verbose', false, ...
              'TraceMethod', 'hutchinson', 'Probes', 200, 'TraceSeed', 7);
     verifyTrue(tc, isfield(VC, 'traceEstimate'));
     te = VC.traceEstimate;
@@ -574,8 +574,8 @@ function test_varComp_hutchinson_does_not_perturb_components(tc)
     % The exact per-group components are authoritative: turning the estimator
     % on must leave VC.s / VC.sigma / VC.redund bit-for-bit unchanged.
     [u, src, gsrc, nb] = vcSmall();
-    VCe = lsqvce.varComp(u, src, nb, gsrc, 2, 'verbose', false);
-    VCh = lsqvce.varComp(u, src, nb, gsrc, 2, 'verbose', false, ...
+    VCe = lsqvce.engine.varComp(u, src, nb, gsrc, 2, 'verbose', false);
+    VCh = lsqvce.engine.varComp(u, src, nb, gsrc, 2, 'verbose', false, ...
              'TraceMethod', 'hutchinson', 'TraceSeed', 3);
     verifyEqual(tc, VCh.s,      VCe.s);
     verifyEqual(tc, VCh.sigma,  VCe.sigma);
@@ -588,7 +588,7 @@ function test_vceHutchinson_shape(tc)
     % Returns the documented struct, marked as the estimated path, and NO
     % per-observation fields (strict Ellmer).
     [u, src, gsrc, nb] = vcSmall();
-    VC = lsqvce.vceHutchinson(u, src, nb, gsrc, 2, 'verbose', false, ...
+    VC = lsqvce.engine.vceHutchinson(u, src, nb, gsrc, 2, 'verbose', false, ...
              'probes', 400, 'seed', 5);
     verifyEqual(tc, VC.estimator, 'hutchinson');
     verifyEqual(tc, numel(VC.s), 2);
@@ -604,8 +604,8 @@ function test_vceHutchinson_matches_varComp(tc)
     % redundancies must agree with EXACT varComp within the sampling band. With
     % a healthy probe count the agreement is tight.
     [u, src, gsrc, nb] = vcSmall();
-    VCx = lsqvce.varComp(u, src, nb, gsrc, 2, 'verbose', false);
-    VCh = lsqvce.vceHutchinson(u, src, nb, gsrc, 2, 'verbose', false, ...
+    VCx = lsqvce.engine.varComp(u, src, nb, gsrc, 2, 'verbose', false);
+    VCh = lsqvce.engine.vceHutchinson(u, src, nb, gsrc, 2, 'verbose', false, ...
              'probes', 4000, 'seed', 11);
     % sigma scales agree to ~1% with Z=4000 on this well-conditioned problem
     % tol: Monte-Carlo probe scatter ~ 1/sqrt(Probes) on this fixture; 4/sqrt(Z)-style bar (HANDOVER 6.1.2), not containment
@@ -633,8 +633,8 @@ function test_hutchinson_recovers_planted_ratio_like_demos(tc)
     src  = @(k) deal(A(e(k)+1:e(k+1), :), l(e(k)+1:e(k+1)), p(e(k)+1:e(k+1)));
     gsrc = @(k) g(e(k)+1:e(k+1));
 
-    VCe = lsqvce.varComp(u, src, nb, gsrc, 2, 'verbose', false);
-    VCh = lsqvce.varComp(u, src, nb, gsrc, 2, 'verbose', false, ...
+    VCe = lsqvce.engine.varComp(u, src, nb, gsrc, 2, 'verbose', false);
+    VCh = lsqvce.engine.varComp(u, src, nb, gsrc, 2, 'verbose', false, ...
              'backend', 'hutchinson', 'probes', 4000, 'seed', 2026);
 
     % tol: Monte-Carlo probe scatter ~ 1/sqrt(Probes) on this fixture; 4/sqrt(Z)-style bar (HANDOVER 6.1.2), not containment
@@ -652,8 +652,8 @@ function test_vceHutchinson_simplified_matches(tc)
     % The simplified estimator (s_g = q_g / r_g) must also track exact varComp's
     % simplified path within the band.
     [u, src, gsrc, nb] = vcSmall();
-    VCx = lsqvce.varComp(u, src, nb, gsrc, 2, 'verbose', false, 'method', 'simplified');
-    VCh = lsqvce.vceHutchinson(u, src, nb, gsrc, 2, 'verbose', false, ...
+    VCx = lsqvce.engine.varComp(u, src, nb, gsrc, 2, 'verbose', false, 'method', 'simplified');
+    VCh = lsqvce.engine.vceHutchinson(u, src, nb, gsrc, 2, 'verbose', false, ...
              'method', 'simplified', 'probes', 4000, 'seed', 2);
     % tol: Monte-Carlo probe scatter ~ 1/sqrt(Probes) on this fixture; 4/sqrt(Z)-style bar (HANDOVER 6.1.2), not containment
     verifyEqual(tc, VCh.sigma, VCx.sigma, 'RelTol', 0.05);
@@ -663,8 +663,8 @@ function test_vceHutchinson_deterministic_with_seed(tc)
 % categories: contract
     % Same seed + same probe count -> identical result (reproducible).
     [u, src, gsrc, nb] = vcSmall();
-    V1 = lsqvce.vceHutchinson(u, src, nb, gsrc, 2, 'verbose', false, 'probes', 300, 'seed', 9);
-    V2 = lsqvce.vceHutchinson(u, src, nb, gsrc, 2, 'verbose', false, 'probes', 300, 'seed', 9);
+    V1 = lsqvce.engine.vceHutchinson(u, src, nb, gsrc, 2, 'verbose', false, 'probes', 300, 'seed', 9);
+    V2 = lsqvce.engine.vceHutchinson(u, src, nb, gsrc, 2, 'verbose', false, 'probes', 300, 'seed', 9);
     verifyEqual(tc, V1.s,      V2.s);
     verifyEqual(tc, V1.redund, V2.redund);
 end
@@ -675,7 +675,7 @@ function test_varComp_backend_hutchinson_delegates(tc)
     % 'backend','hutchinson' hands the whole job to vceHutchinson: the returned
     % struct is the estimated one (marked, with a redundSE), not the exact path.
     [u, src, gsrc, nb] = vcSmall();
-    VC = lsqvce.varComp(u, src, nb, gsrc, 2, 'verbose', false, ...
+    VC = lsqvce.engine.varComp(u, src, nb, gsrc, 2, 'verbose', false, ...
              'backend', 'hutchinson', 'probes', 500, 'seed', 4);
     verifyEqual(tc, VC.estimator, 'hutchinson');
     verifyTrue(tc, isfield(VC, 'redundSE'));
@@ -685,8 +685,8 @@ function test_varComp_backend_matches_exact(tc)
 % categories: precision
     % The delegated result must agree with the exact backend within the band.
     [u, src, gsrc, nb] = vcSmall();
-    VCx = lsqvce.varComp(u, src, nb, gsrc, 2, 'verbose', false);                % exact
-    VCh = lsqvce.varComp(u, src, nb, gsrc, 2, 'verbose', false, ...
+    VCx = lsqvce.engine.varComp(u, src, nb, gsrc, 2, 'verbose', false);                % exact
+    VCh = lsqvce.engine.varComp(u, src, nb, gsrc, 2, 'verbose', false, ...
              'backend', 'hutchinson', 'probes', 4000, 'seed', 6);
     % tol: Monte-Carlo probe scatter ~ 1/sqrt(Probes) on this fixture; 4/sqrt(Z)-style bar (HANDOVER 6.1.2), not containment
     verifyEqual(tc, VCh.sigma, VCx.sigma, 'RelTol', 0.05);
@@ -701,7 +701,7 @@ function test_varComp_backend_hutchinson_checkD_fallsback(tc)
     ws = warning('off', 'lsqvce:varComp:hutchNoCheckD');
     c  = onCleanup(@() warning(ws)); %#ok<NASGU>
     cd = struct('contamLevel', 'clean', 'fhat', 0);   % benign guard struct
-    VC = lsqvce.varComp(u, src, nb, gsrc, 2, 'verbose', false, ...
+    VC = lsqvce.engine.varComp(u, src, nb, gsrc, 2, 'verbose', false, ...
              'backend', 'hutchinson', 'checkD', cd);
     verifyFalse(tc, isfield(VC, 'estimator'));         % exact path, not delegated
 end
@@ -711,7 +711,7 @@ function test_report_verdict_clean(tc)
 % categories: contract | tags: diagnostics
     [A, l, p] = tc.TestData.mk(500, 5, 91);
     B = chop(A, l, p, 6);
-    [~, ~, V] = lsqvce.adjust(5, srcOf(B), 6, 'verbose', false);
+    [~, ~, V] = lsqvce.engine.adjust(5, srcOf(B), 6, 'verbose', false);
     verifyTrue(tc, V.integrityOK);
     verifyTrue(tc, any(strcmp(V.verdict, ...
         {'PASS', 'PASS WITH WARNINGS'})), ...
@@ -726,7 +726,7 @@ function test_report_flags_uncontrolled(tc)
     A(:,5) = 0;  A(3,5) = 1;
     l = randn(rs,n,1);  p = ones(n,1);
     B = chop(A, l, p, 4);
-    [~, ~, V] = lsqvce.adjust(u, srcOf(B), 4, 'verbose', false);
+    [~, ~, V] = lsqvce.engine.adjust(u, srcOf(B), 4, 'verbose', false);
     codes = cellfun(@(f) f.code, V.findings, 'UniformOutput', false);
     verifyTrue(tc, ismember('REL_UNCONTROLLED', codes), ...
         'an uncontrolled observation was not reported');

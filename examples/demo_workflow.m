@@ -24,7 +24,7 @@
 %% ------------------------------------------------------------------------
 % SECTION 0.  What lsqvce needs from you: a batchFcn.
 % -------------------------------------------------------------------------
-% The ONLY hard requirement of the in-memory front door lsqvce.adjust is a
+% The ONLY hard requirement of the in-memory front door lsqvce.engine.adjust is a
 % function
 %
 %       [A, l, p] = batchFcn(k)          k = 1 .. nBatch
@@ -85,20 +85,20 @@ fprintf('batchFcn contract OK (A is nk x %d, l is nk x 1, p > 0).\n', u);
 % -------------------------------------------------------------------------
 % lsqvce has THREE front doors. Pick by the SHAPE of your problem, not by taste:
 %
-%   lsqvce.adjust(u, batchFcn, nBatch)
+%   lsqvce.engine.adjust(u, batchFcn, nBatch)
 %       FLAT, in-memory normal/QR. One shared parameter block, batches streamed.
 %       Use when: every observation sees the SAME u unknowns; u is modest
 %       (hundreds to a few thousand); one covariance, no per-system locals.
 %       This section uses it.
 %
-%   lsqvce.adjustBlock(systems, days)
+%   lsqvce.engine.adjustBlock(systems, days)
 %       BLOCK-ARROW (Helmert reduction). A shared COMMON block of nc unknowns,
 %       plus PER-SYSTEM LOCAL blocks eliminated on the fly. One GLS solve.
 %       Use when: several systems share a common field but each has its own
 %       nuisance parameters (arc biases, scale factors), OR the full normal is
 %       too big to form but the reduced common one is not. Section 3 shows it.
 %
-%   lsqvce.adjustVCE(systems, days).groupComponentsBy(...).stochasticModel(...).varianceComponents(...)
+%   lsqvce.engine.adjustVCE(systems, days).groupComponentsBy(...).stochasticModel(...).varianceComponents(...)
 %       adjustBlock PLUS the iterative covariance loop: it re-estimates the
 %       temporal correlation (the stochastic model) and the per-group variance factor until
 %       the residuals whiten and the components agree.
@@ -111,7 +111,7 @@ fprintf('batchFcn contract OK (A is nk x %d, l is nk x 1, p > 0).\n', u);
 %       + you must DISCOVER the noise model ......... adjustVCE
 %
 % Our Section-1 problem is flat with known-ish weights, so: adjust.
-[sol, D, V] = lsqvce.adjust(u, batchFcn, nb);
+[sol, D, V] = lsqvce.engine.adjust(u, batchFcn, nb);
 
 %% ------------------------------------------------------------------------
 % SECTION 2b.  Read the verdict (the part that matters).
@@ -146,9 +146,9 @@ fprintf('  blunders     : %d flagged\n', D.nFlag);
 %                      forming the full (nc + sum nl) normal.
 %
 % You describe each system with a Loader. The ergonomic way to build one is
-% lsqvce.makeLoader, whose options now carry CANONICAL long-form names:
+% lsqvce.engine.makeLoader, whose options now carry CANONICAL long-form names:
 %
-%       L = lsqvce.makeLoader(buildDay, ...
+%       L = lsqvce.engine.makeLoader(buildDay, ...
 %               'observationTypes', {'pos','rr'}, ...   (alias: obsTypes)
 %               'covariance',       covStruct,    ...   (alias: cov)
 %               'systemId',         1,            ...   (alias: sysID)
@@ -159,7 +159,7 @@ fprintf('  blunders     : %d flagged\n', D.nFlag);
 % where buildDay(day, obsType, common, local, procOpt) returns that day's design
 % and observations. Then hand the loaders to the block-arrow engine:
 %
-%       R = lsqvce.adjustBlock({L1, L2}, days);     % one GLS solve
+%       R = lsqvce.engine.adjustBlock({L1, L2}, days);     % one GLS solve
 %       R.report();
 %
 % WHEN to reach for this instead of adjust:
@@ -167,7 +167,7 @@ fprintf('  blunders     : %d flagged\n', D.nFlag);
 %   * the flat normal (nc + sum nl)^2 would not fit, but the reduced nc^2 will.
 % The eliminated locals are handled EXACTLY (Helmert reduction), not dropped --
 % and the variance-component redundancy uses the FULL Qxx including them, which
-% is the subtlety cmb.varComp / lsqvce.vce exist to get right.
+% is the subtlety cmb.varComp / lsqvce.engine.vce exist to get right.
 %
 % (No runnable block here: it needs your multi-system loaders. See
 % examples/demo_sensors.m for a complete common+local hierarchy, and
@@ -194,7 +194,7 @@ gsrc   = @(k) g(edges(k)+1:edges(k+1));             % group index per batch
 
 % ---- THE EXACT PATH (default). Forms N^-1 N_g per group: O(G*u^3).
 %      It also gives per-observation redundancy, snooping, and reliability.
-VC = lsqvce.varComp(u, src5, nb, gsrc, 2, 'verbose', false);
+VC = lsqvce.engine.varComp(u, src5, nb, gsrc, 2, 'verbose', false);
 fprintf('\n[exact varComp]  recovered sigma ratio: %.3f   (truth: 3.000)\n', ...
         VC.sigma(2)/VC.sigma(1));
 fprintf('                 significant? %s   resolution: %s %%\n', ...
@@ -212,7 +212,7 @@ fprintf('                 significant? %s   resolution: %s %%\n', ...
 %      answer comes back. Z = 4000 keeps the Monte-Carlo error (~1/sqrt(Z))
 %      small enough that the agreement is tight. NOTE: no 'checkD' on this path
 %      -- that guard is per-observation, and Hutchinson is per-group only.
-VCh = lsqvce.varComp(u, src5, nb, gsrc, 2, ...
+VCh = lsqvce.engine.varComp(u, src5, nb, gsrc, 2, ...
                      'backend', 'hutchinson', 'probes', 4000, ...
                      'seed', 2026, 'verbose', false);
 fprintf('[hutchinson, Z=%d] recovered sigma ratio: %.3f   (exact: %.3f)\n', ...
@@ -228,9 +228,9 @@ fprintf('                 same answer, matrix-free -- reach for it when u is in 
 % -------------------------------------------------------------------------
 disp(' ');
 disp('  ENGINE');
-disp('    one parameter block, known noise ............ lsqvce.adjust');
-disp('    common + per-system locals, known noise ..... lsqvce.adjustBlock');
-disp('    must DISCOVER the noise model ............... lsqvce.adjustVCE');
+disp('    one parameter block, known noise ............ lsqvce.engine.adjust');
+disp('    common + per-system locals, known noise ..... lsqvce.engine.adjustBlock');
+disp('    must DISCOVER the noise model ............... lsqvce.engine.adjustVCE');
 disp(' ');
 disp('  READING THE RESULT (in this order)');
 disp('    integrity fails            -> fix your batchFcn. Nothing else matters.');
@@ -243,5 +243,5 @@ disp(' ');
 disp('  VARIANCE COMPONENTS');
 disp('    u below a few thousand -> exact varComp (also gives r_i, snooping).');
 disp('    u in the thousands     -> varComp(...,''backend'',''hutchinson'') or');
-disp('                              lsqvce.vceHutchinson (matrix-free, r_g only).');
+disp('                              lsqvce.engine.vceHutchinson (matrix-free, r_g only).');
 disp(' ');

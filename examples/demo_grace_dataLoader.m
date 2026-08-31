@@ -7,7 +7,7 @@ function [cfg, L] = demo_grace_dataLoader()
 %   the separable VCE loop can be exercised end to end without real data:
 %
 %       [cfg, L] = demo_grace_dataLoader();
-%       R = lsqvce.adjustVCE(L, cfg.days).groupComponentsBy('obsType').run();
+%       R = lsqvce.engine.adjustVCE(L, cfg.days).groupComponentsBy('obsType').run();
 %
 %   TOPOLOGY (real GRACE-FO, "Option B", plus an independent third satellite).
 %     System 1  -- the C/D PAIR.  TWO satellites C, D each with a 3-D position
@@ -28,7 +28,7 @@ function [cfg, L] = demo_grace_dataLoader()
 %   starts from a deliberately WRONG a-priori (temporally white, sigma 1).
 %
 %   PARAMETRISATION PIPE (new interface).  The unknowns are described by two
-%   14-column cell arrays (one ROW per unknown), passed to lsqvce.makeLoader as
+%   14-column cell arrays (one ROW per unknown), passed to lsqvce.engine.makeLoader as
 %   'commonParams' and 'localParams' and piped through to the day-builder as its
 %   3rd/4th args; nc and nl are DERIVED from their row counts. A
 %   'processingOptions' struct is
@@ -54,9 +54,9 @@ function [cfg, L] = demo_grace_dataLoader()
 %   are this demo's convention, read inside demoBuildDay. This is the TEMPLATE:
 %   copy demoBuildDay / demoEpochCov and the two paramTable builders as the
 %   starting point for your own loader (see "USER-SPECIFIC ADAPTATION" in
-%   `help lsqvce.adjustVCE`).
+%   `help lsqvce.engine.adjustVCE`).
 %
-%   See also LSQVCE.ADJUSTVCE, LSQVCE.MAKELOADER, DEMO_SEPARABLE
+%   See also LSQVCE.ENGINE.ADJUSTVCE, LSQVCE.ENGINE.MAKELOADER, DEMO_SEPARABLE
 %
 %   Created 2026-07-16 (CEST, UTC+02:00) with assistance from
 %   Claude (Anthropic), model Claude Opus 4.8.
@@ -115,7 +115,7 @@ function L = demoLoaders(cfg)
     ecPair = @(d,ot) demoEpochCov(cfg, d, ot);
     % NOTE: sysID must survive [obj.store.sysID] concatenation as ONE element --
     % so NUMERIC or a single char, never a multi-char string like 'CD'.
-    Lpair = lsqvce.makeLoader(bdPair, 'observationTypes', cfg.obsTypes, ...
+    Lpair = lsqvce.engine.makeLoader(bdPair, 'observationTypes', cfg.obsTypes, ...
               'covariance', covPair, 'arcs', cfg.arcsPerDay, ...
               'systemId', 1, 'days', cfg.days, 'epochCovariance', ecPair, ...
               'commonParams', cfg.common, 'localParams', cfg.localPair, ...
@@ -124,7 +124,7 @@ function L = demoLoaders(cfg)
     % --- system 2: independent satellite E (posE only) ----------------------
     bdE = @(d,ot,common,local,po) demoBuildDay(cfg, d, ot, common, local, po);
     ecE = @(d,ot) demoEpochCov(cfg, d, ot);
-    Le  = lsqvce.makeLoader(bdE, 'observationTypes', cfg.obsTypesE, ...
+    Le  = lsqvce.engine.makeLoader(bdE, 'observationTypes', cfg.obsTypesE, ...
               'covariance', covE, 'arcs', cfg.arcsPerDay, ...
               'systemId', 2, 'days', cfg.days, 'epochCovariance', ecE, ...
               'commonParams', cfg.common, 'localParams', cfg.localE, ...
@@ -219,7 +219,7 @@ function n = demoAxes(obsType)
 end
 
 function dd = demoEpochCov(cfg, day, obsType)  %#ok<INUSD>
-%DEMOEPOCHCOV  Per-day epoch-covariance in the LSQVCE.RESIDUALACV
+%DEMOEPOCHCOV  Per-day epoch-covariance in the LSQVCE.KERNEL.RESIDUALACV
 %   contract: .arc(i).epochs (day-epoch indices) and .Cep (nEpochDay x d x d).
 %   Only meaningful for the multi-axis position streams.
     nAx  = demoAxes(obsType);

@@ -2,9 +2,9 @@ function tests = test_signalCore
 %TEST_SIGNALCORE  Direct tests for three functions that previously ran only INSIDE
 %   other tests, with no assertion on their own behaviour (roadmap item 2):
 %
-%     lsqvce.outliers   -- data snooping w_i = |v_i|/sqrt(r_i) flags blunders
-%     lsqvce.varWhiten  -- vector-AR whitener == dense block-Cholesky GLS
-%     lsqvce.ar2arma    -- Durbin reduction, ACV round-trip of an ARMA(p,q)
+%     lsqvce.engine.outliers   -- data snooping w_i = |v_i|/sqrt(r_i) flags blunders
+%     lsqvce.kernel.varWhiten  -- vector-AR whitener == dense block-Cholesky GLS
+%     lsqvce.kernel.ar2arma    -- Durbin reduction, ACV round-trip of an ARMA(p,q)
 %
 %   Reference properties and tolerances established first in
 %   validation/v8verify.py (16/16). These tests assert the same properties
@@ -13,7 +13,7 @@ function tests = test_signalCore
 %   Run:
 %     results = runtests('tests/test_signalCore');  disp(table(results))
 %
-%   See also TEST_V7, LSQVCE.OUTLIERS, LSQVCE.VARWHITEN, LSQVCE.AR2ARMA
+%   See also TEST_V7, LSQVCE.ENGINE.OUTLIERS, LSQVCE.KERNEL.VARWHITEN, LSQVCE.KERNEL.AR2ARMA
     tests = functiontests(localfunctions);
 end
 
@@ -21,25 +21,25 @@ function setupOnce(tc)
     tc.TestData.cfg = makeCfg();
 end
 
-%% ===================================================== lsqvce.outliers
+%% ===================================================== lsqvce.engine.outliers
 function testOutliersFlagsInjectedBlunder(tc)
 % categories: contract
 % Wrap the synthetic loader so ONE arc carries a large spike, then confirm
-% lsqvce.outliers flags an observation in that arc and reports the correct
+% lsqvce.engine.outliers flags an observation in that arc and reports the correct
 % redundancy identity. The blunder is +15 sigma at a known epoch.
     cfg  = tc.TestData.cfg;
     days = 1:3;
     tgt  = struct('sat', cfg.sats(1), 'obsType', 'pos', 'day', 2, 'arc', 1, ...
                   'row', 50, 'size', 15);
 
-    acc = lsqvce.BlockAccumulator(cfg.nc, 'Backend','qr', 'Verbose',false, ...
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Backend','qr', 'Verbose',false, ...
                                   'KeepLocal',true);
     for s = cfg.sats
         acc.addSystem(s, cfg.nl, spikedBinder(cfg, s, tgt), days);
     end
     sol = acc.solve();
 
-    out = lsqvce.outliers(acc, sol, 'Threshold', 4.0, 'Verbose', false);
+    out = lsqvce.engine.outliers(acc, sol, 'Threshold', 4.0, 'Verbose', false);
 
     tc.verifyGreaterThanOrEqual(out.nFlagged, 1);
 
@@ -63,14 +63,14 @@ function testOutliersCleanDataNoFalseStorm(tc)
     days = 1:3;
     acc  = buildCleanAcc(cfg, days);
     sol  = acc.solve();
-    out  = lsqvce.outliers(acc, sol, 'Threshold', 4.0, 'Verbose', false);
+    out  = lsqvce.engine.outliers(acc, sol, 'Threshold', 4.0, 'Verbose', false);
 
-    red  = lsqvce.redundancy(acc, sol, 'Verbose', false);
+    red  = lsqvce.engine.redundancy(acc, sol, 'Verbose', false);
     tc.verifyLessThan(red.check, 1e-6 * max(red.rTotal, 1));   % sum(r)=m-u
     tc.verifyLessThan(out.nFlagged, 0.05 * red.rTotal);        % no false storm
 end
 
-%% ===================================================== lsqvce.varWhiten
+%% ===================================================== lsqvce.kernel.varWhiten
 function testVarWhitenMatchesDenseGLS(tc)
 % categories: precision, robustness
 % The vector-AR FIR whitener with the exact stationary startup must reproduce
@@ -82,7 +82,7 @@ function testVarWhitenMatchesDenseGLS(tc)
     Lsig  = [1.0 0.0; 0.3 0.8];
     Sigma = Lsig * Lsig.';
 
-    G = lsqvce.varACV(A1, Sigma, nE);          % Gamma(0..nE), toolbox convention
+    G = lsqvce.kernel.varACV(A1, Sigma, nE);          % Gamma(0..nE), toolbox convention
     C = blockToeplitzCov(G, d, nE);            % dense m x m covariance
     m = d * nE;
 
@@ -99,7 +99,7 @@ function testVarWhitenMatchesDenseGLS(tc)
 
     % whiten via varWhiten (B empty), first batch -> exact startup
     Bempty  = zeros(m, 0);
-    [Aw, ~, lw] = lsqvce.varWhiten(A1, Sigma, G, d, Adesign, Bempty, l, true);
+    [Aw, ~, lw] = lsqvce.kernel.varWhiten(A1, Sigma, G, d, Adesign, Bempty, l, true);
     xWhite  = (Aw.' * Aw) \ (Aw.' * lw);
 
     % tol: v8verify.py measures 2e-16 rel; 1e-8 leaves 8 decades for BLAS drift
@@ -107,7 +107,7 @@ function testVarWhitenMatchesDenseGLS(tc)
     tc.verifyEqual(lw.' * lw, quadRef, 'RelTol', 1e-8);   % tol: same source
 end
 
-%% ===================================================== lsqvce.ar2arma
+%% ===================================================== lsqvce.kernel.ar2arma
 function testAr2armaRoundTrip(tc)
 % categories: precision
 % A resonant ARMA(2,1) -- a sharp spectral line, the 1/rev regime ar2arma is
@@ -119,18 +119,18 @@ function testAr2armaRoundTrip(tc)
     aTrue = real(poly([rad*exp(1i*ang), rad*exp(-1i*ang)]));   % [1 a1 a2]
     bTrue = [1.0 0.5];
     nACV  = 256;
-    rTarget = lsqvce.armaACV(aTrue, bTrue, nACV);              % s2 = 1
+    rTarget = lsqvce.kernel.armaACV(aTrue, bTrue, nACV);              % s2 = 1
 
-    [aHi, s2Hi] = lsqvce.levinsonDurbin(rTarget, 60);
+    [aHi, s2Hi] = lsqvce.kernel.levinsonDurbin(rTarget, 60);
     opt = struct('armaP', 8, 'armaN', 4096);
-    [a, b, s2] = lsqvce.ar2arma(aHi, s2Hi, 1, opt);
+    [a, b, s2] = lsqvce.kernel.ar2arma(aHi, s2Hi, 1, opt);
 
     % tol: a(1)=1 exact by construction; 1e-12 = house factorisation round-trip
     tc.verifyEqual(a(1), 1, 'AbsTol', 1e-12);                  % normalisation
     tc.verifyEqual(b(1), 1, 'AbsTol', 1e-12);               % tol: same source
     tc.verifyLessThan(max(abs(roots(a))), 1);                 % stationary
 
-    rArma  = s2 * lsqvce.armaACV(a, b, nACV);
+    rArma  = s2 * lsqvce.kernel.armaACV(a, b, nACV);
     relErr = norm(rArma - rTarget) / norm(rTarget);
     % Docstring target is < 1e-3; loosened to 5e-2 so the test is robust to the
     % Hankel-fit conditioning across releases. v8verify.py measures 1.3e-14.
@@ -145,12 +145,12 @@ function testAr2armaSmoothFloorStaysStable(tc)
     muteWarn(tc, 'lsqvce:ar2arma:unstable');   % provoked on purpose here (WP-47, gate rule 7)
     muteWarn(tc, 'MATLAB:rankDeficientMatrix');   % provoked on purpose here (WP-47, gate rule 7)
     aAR = [1 -0.6 0.1];                        % smooth AR(2)
-    rTarget = lsqvce.armaACV(aAR, 1, 128);
-    [aHi, s2Hi] = lsqvce.levinsonDurbin(rTarget, 40);
+    rTarget = lsqvce.kernel.armaACV(aAR, 1, 128);
+    [aHi, s2Hi] = lsqvce.kernel.levinsonDurbin(rTarget, 40);
     opt = struct('armaP', 6, 'armaN', 2048);
     warning('off', 'lsqvce:ar2arma:nonStationary');
     c = onCleanup(@() warning('on', 'lsqvce:ar2arma:nonStationary'));
-    [a, b, ~] = lsqvce.ar2arma(aHi, s2Hi, 1, opt);
+    [a, b, ~] = lsqvce.kernel.ar2arma(aHi, s2Hi, 1, opt);
     % tol: normalisation exact by construction; house round-trip bound 1e-12
     tc.verifyEqual(a(1), 1, 'AbsTol', 1e-12);
     tc.verifyEqual(b(1), 1, 'AbsTol', 1e-12);               % tol: same source
@@ -168,28 +168,28 @@ function testSignalKernelContractRejections(tc)
     d = 2;
     A1    = cat(3, [0.4 0.1; -0.2 0.5]);
     Sigma = eye(d);
-    G     = lsqvce.varACV(A1, Sigma, 8);
+    G     = lsqvce.kernel.varACV(A1, Sigma, 8);
 
     % ar2arma: armaN too short for the requested ARMA(p,q) (< 4*(p+q+1))
-    tc.verifyError(@() lsqvce.ar2arma([1 -0.5], 1.0, 1, ...
+    tc.verifyError(@() lsqvce.kernel.ar2arma([1 -0.5], 1.0, 1, ...
                        struct('armaP', 6, 'armaN', 8)), ...
                    'lsqvce:ar2arma:tooShort');
 
     % varWhiten: wrong coefficient shape / wrong Sigma size / partial epoch
     m = d * 8;  X = zeros(m, 1);  Z = zeros(m, 0);
-    tc.verifyError(@() lsqvce.varWhiten(ones(3,2,1), Sigma, G, d, X, Z, X, true), ...
+    tc.verifyError(@() lsqvce.kernel.varWhiten(ones(3,2,1), Sigma, G, d, X, Z, X, true), ...
                    'lsqvce:varWhiten:badA');
-    tc.verifyError(@() lsqvce.varWhiten(A1, eye(3), G, d, X, Z, X, true), ...
+    tc.verifyError(@() lsqvce.kernel.varWhiten(A1, eye(3), G, d, X, Z, X, true), ...
                    'lsqvce:varWhiten:badSigma');       % wrong size (3x3, d=2)
-    tc.verifyError(@() lsqvce.varWhiten(A1, [1 2; 2 1], G, d, X, Z, X, true), ...
+    tc.verifyError(@() lsqvce.kernel.varWhiten(A1, [1 2; 2 1], G, d, X, Z, X, true), ...
                    'lsqvce:varWhiten:badSigma');       % right size, not PD
     Xodd = zeros(m + 1, 1);
-    tc.verifyError(@() lsqvce.varWhiten(A1, Sigma, G, d, Xodd, zeros(m+1,0), ...
+    tc.verifyError(@() lsqvce.kernel.varWhiten(A1, Sigma, G, d, Xodd, zeros(m+1,0), ...
                                         Xodd, true), ...
                    'lsqvce:varWhiten:notWholeEpochs');
 
     % whittle: malformed cross-ACV argument
-    tc.verifyError(@() lsqvce.whittle(ones(2,3,4), 1), 'lsqvce:whittle:badG');
+    tc.verifyError(@() lsqvce.engine.whittle(ones(2,3,4), 1), 'lsqvce:whittle:badG');
 end
 
 %% =================================================================== helpers
@@ -209,10 +209,10 @@ function C = blockToeplitzCov(G, d, nE)
 end
 
 function acc = buildCleanAcc(cfg, days)
-    acc = lsqvce.BlockAccumulator(cfg.nc, 'Backend','qr', 'Verbose',false, ...
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Backend','qr', 'Verbose',false, ...
                                   'KeepLocal',true);
     for s = cfg.sats
-        acc.addSystem(s, cfg.nl, @(d,ot,a,uo) lsqvce.synthLoader(cfg,s,d,ot,a,uo), days);
+        acc.addSystem(s, cfg.nl, @(d,ot,a,uo) lsqvce.engine.synthLoader(cfg,s,d,ot,a,uo), days);
     end
 end
 
@@ -222,7 +222,7 @@ function f = spikedBinder(cfg, s, tgt)
 end
 
 function out = spikedLoader(cfg, s, day, obsType, arcID, uo, tgt)
-    out = lsqvce.synthLoader(cfg, s, day, obsType, arcID, uo);
+    out = lsqvce.engine.synthLoader(cfg, s, day, obsType, arcID, uo);
     if ischar(obsType) || isstring(obsType)                    % data call
         if s == tgt.sat && strcmp(char(obsType), tgt.obsType) && ...
            day == tgt.day && arcID == tgt.arc && ...

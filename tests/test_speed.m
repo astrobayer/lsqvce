@@ -15,7 +15,7 @@ function tests = test_speed
 %   PROFILING TIP
 %     If a real run is slow, the cause is almost always a dense covariance with
 %     too large a BatchSize. Check acc-side with:
-%         [~,~,info] = lsqvce.covModel(cfg.cov.pos, t, opt);
+%         [~,~,info] = lsqvce.engine.covModel(cfg.cov.pos, t, opt);
 %         info.cost        % 'O(b*40)' good, 'O(b^3)' expensive
 %
 %   See also TEST_PRECISION, TEST_RELIABILITY
@@ -38,11 +38,11 @@ function testFilterBeatsDenseWhitening(tc)
     nCol = 20;
 
     for n = [500 1000 2000]
-        r = s^2 * lsqvce.armaACV(a, 1, n);
+        r = s^2 * lsqvce.kernel.armaACV(a, 1, n);
         X = randn(n, nCol);
         z = zeros(n, 0);
 
-        tFilt = timeit(@() lsqvce.armaWhiten(a, 1, s, r, z, z, X, true));
+        tFilt = timeit(@() lsqvce.kernel.armaWhiten(a, 1, s, r, z, z, X, true));
         tDense = timeit(@() denseWhiten(toeplitz(r), X));
 
         tc.verifyLessThan(tFilt, tDense, ...
@@ -61,11 +61,11 @@ function testFilterAdvantageGrowsWithBatchSize(tc)
 
     for k = 1:2
         n = nn(k);
-        r = s^2 * lsqvce.armaACV(a, 1, n);
+        r = s^2 * lsqvce.kernel.armaACV(a, 1, n);
         X = randn(n, 10);
         z = zeros(n, 0);
 
-        tF = timeit(@() lsqvce.armaWhiten(a, 1, s, r, z, z, X, true));
+        tF = timeit(@() lsqvce.kernel.armaWhiten(a, 1, s, r, z, z, X, true));
         tD = timeit(@() denseWhiten(toeplitz(r), X));
         ratio(k) = tD / tF;
     end
@@ -86,10 +86,10 @@ function testFilterScalesLinearly(tc)
 
     for k = 1:3
         n = nn(k);
-        r = s^2 * lsqvce.armaACV(a, 1, max(numel(a), 2));
+        r = s^2 * lsqvce.kernel.armaACV(a, 1, max(numel(a), 2));
         X = randn(n, 10);
         z = zeros(n, 0);
-        t(k) = timeit(@() lsqvce.armaWhiten(a, 1, s, r, z, z, X, true));
+        t(k) = timeit(@() lsqvce.kernel.armaWhiten(a, 1, s, r, z, z, X, true));
     end
 
     % empirical exponent from the first and last point
@@ -136,7 +136,7 @@ function testFitDispatchOverheadIsNegligible(tc)
     data.systems = sys;
     opts = lsqvce.Options(Verbose=false);
 
-    tDirect = timeit(@() lsqvce.adjustBlock(specs, days, 'Verbose', false));
+    tDirect = timeit(@() lsqvce.engine.adjustBlock(specs, days, 'Verbose', false));
     tFit    = timeit(@() lsqvce.fit(data, opts));
 
     % tol: 1.25 -- the front door may add at most a quarter of a two-day,
@@ -153,7 +153,7 @@ function testTriangularFactorStaysBounded(tc)
 % The QR factor must be truncated to dim+1 rows after every batch. If it were
 % not, memory would grow linearly with the number of observations.
     dim = 12;
-    acc = lsqvce.QRSystem(dim);
+    acc = lsqvce.engine.QRSystem(dim);
     for k = 1:60
         acc.add(randn(500, dim), randn(500,1));
     end
@@ -186,7 +186,7 @@ function testMemoryIsIndependentOfDays(tc)
     nbytes = zeros(1, numel(nDays));
 
     for k = 1:numel(nDays)
-        acc = lsqvce.BlockAccumulator(cfg.nc, 'Backend','qr', 'Verbose',false);
+        acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Backend','qr', 'Verbose',false);
         acc.addSystem(1, cfg.nl, binder(cfg,1), 1:nDays(k));
 
         w = whos('acc');
@@ -222,11 +222,11 @@ function testLevinsonIsQuadratic(tc)
 % categories: speed
 % Levinson-Durbin is O(p^2). Doubling the order must roughly quadruple the
 % cost -- and stay far below the O(p^3) of a direct Yule-Walker solve.
-    r = lsqvce.armaACV([1 -1.6 0.9 -0.25], 1, 401);
+    r = lsqvce.kernel.armaACV([1 -1.6 0.9 -0.25], 1, 401);
 
-    t1 = timeit(@() lsqvce.levinsonDurbin(r, 100));
-    t2 = timeit(@() lsqvce.levinsonDurbin(r, 200));
-    t3 = timeit(@() lsqvce.levinsonDurbin(r, 400));
+    t1 = timeit(@() lsqvce.kernel.levinsonDurbin(r, 100));
+    t2 = timeit(@() lsqvce.kernel.levinsonDurbin(r, 200));
+    t3 = timeit(@() lsqvce.kernel.levinsonDurbin(r, 400));
 
     expo = log(t3/t1) / log(4);
     tc.verifyLessThan(expo, 2.6, ...
@@ -238,8 +238,8 @@ function testPSD2ACVIsLinearInLags(tc)
     f = linspace(0, 0.1, 4096).';
     S = exp(-f/0.01);
 
-    t1 = timeit(@() lsqvce.psd2acv(f, S, 5, 100));
-    t2 = timeit(@() lsqvce.psd2acv(f, S, 5, 400));
+    t1 = timeit(@() lsqvce.kernel.psd2acv(f, S, 5, 100));
+    t2 = timeit(@() lsqvce.kernel.psd2acv(f, S, 5, 400));
 
     tc.verifyLessThan(t2/t1, 8, ...
         sprintf('psd2acv is %.1fx slower for 4x the lags; expected ~4x', t2/t1));
@@ -272,7 +272,7 @@ end
 %% ============================================ helpers
 function W = denseWhiten(C, X)
 %DENSEWHITEN  The O(b^3) reference path, for timing comparison.
-    W = lsqvce.decorrFactor(C) * X;
+    W = lsqvce.kernel.decorrFactor(C) * X;
 end
 
 function cfg = makeCfg()
@@ -295,11 +295,11 @@ function cfg = makeCfg()
 end
 
 function f = binder(cfg, s)
-    f = @(d,ot,a,uo) lsqvce.synthLoader(cfg, s, d, ot, a, uo);
+    f = @(d,ot,a,uo) lsqvce.engine.synthLoader(cfg, s, d, ot, a, uo);
 end
 
 function sol = runAcc(cfg, days, varargin)
-    acc = lsqvce.BlockAccumulator(cfg.nc, varargin{:});
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc, varargin{:});
     for s = cfg.sats
         acc.addSystem(s, cfg.nl, binder(cfg,s), days);
     end

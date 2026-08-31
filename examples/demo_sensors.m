@@ -51,7 +51,7 @@ fprintf('  %d days, %d observations per (sensor, day)\n', numel(days), nk);
 %% ------------------------------------------------------------------------
 % STEP 1 -- declare the hierarchy
 % -------------------------------------------------------------------------
-bx = lsqvce.BatchIndex();
+bx = lsqvce.engine.BatchIndex();
 for i = 1:numel(sysN)
     bx.addSystem(sysN{i}, sens{i}, days);
 end
@@ -115,7 +115,7 @@ end
 %% ------------------------------------------------------------------------
 % STEP 3 -- combine
 % -------------------------------------------------------------------------
-cmb = lsqvce.Combine(uC, 'method', 'qr');
+cmb = lsqvce.engine.Combine(uC, 'method', 'qr');
 for i = 1:numel(sysN)
     cmb.addSystem(uL(i), @(k) src(i,k), bx.nBatch(i), 'name', sysN{i});
 end
@@ -182,8 +182,8 @@ fprintf(['\n  -> Helmert recovered the sensor noise ratios from the data.\n' ...
 % cmb.varComp uses the FULL Qxx (including the eliminated per-system locals),
 % assembled per system -- the block-arrow topology. The matrix-free Hutchinson
 % VCE (the large-u method, O(u^3 + G*Z*u^2) vs O(G*u^3)) is wired as a REAL
-% substitution on the FLAT path only: lsqvce.vceHutchinson, or
-% lsqvce.varComp(..., 'backend','hutchinson'). See examples/demo_lsqvce.m and
+% substitution on the FLAT path only: lsqvce.engine.vceHutchinson, or
+% lsqvce.engine.varComp(..., 'backend','hutchinson'). See examples/demo_lsqvce.m and
 % examples/demo_workflow.m for a side-by-side exact-vs-Hutchinson run. Bringing
 % it into cmb.varComp needs per-group N_g^cc exposed from the accumulator core
 % (roadmap item 0, still open), so at this hierarchy's scale the exact path

@@ -37,7 +37,7 @@ function outPath = showExport(figH, name, showSeconds, exportDir)
 %     f = figure; plot(randn(100,1));
 %     p = lsqvce.util.showExport(f, 'postSolve_x1_posC_pass1', 2, '/tmp/figs');
 %
-%   See also LSQVCE.ADJUSTVCE
+%   See also LSQVCE.ENGINE.ADJUSTVCE
 %
 %   Created 2026-07-16 (CEST, UTC+02:00) with assistance from
 %   Claude (Anthropic), model Claude Opus 4.8.

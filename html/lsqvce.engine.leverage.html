@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.engine.leverage</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.engine.leverage</div>
+<h1>lsqvce.engine.leverage</h1>
+<div class="purpose">Per-observation leverage h_ii of the JOINT system, exactly.</div>
+<h2>Syntax</h2>
+<pre class="syntax">[h, blocks] = LSQVCE.ENGINE.LEVERAGE(A, B, blocks)</pre>
+<h2>Description</h2>
+<p>Returns h_ii = a_i&#x27; * inv(N) * a_i for every row of one arc, where N is the normal matrix of the FULL joint system [x_c ; y_1 ; ... ; y_S] -- not of the system in isolation. This is the quantity that drives everything downstream:</p>
+<pre class="example">r_i = 1 - h_ii              partial redundancy of observation i
+r_g = sum_{i in g} r_i      redundancy of group g   -&gt; VCE
+w_i = |v_i| / sqrt(r_i)     normalised residual     -&gt; data snooping</pre>
+<h3>Why It Is Not Obvious</h3>
+<pre class="example">x_c is determined JOINTLY by all systems, so you cannot use each system&#x27;s
+own inv(N_full,s) -- that would treat x_c as if system s determined it
+alone, and gives plausible but WRONG redundancy numbers. The correct
+treatment uses the block-arrow inverse of the joint normal matrix:</pre>
+<pre class="example">inv(N)_cc   = Sxx = inv(Ncc_red)          (the REDUCED inverse)
+inv(N)_ll,s = inv(Nll_s) + G_s Sxx G_s&#x27;
+inv(N)_lc,s = -G_s Sxx                    with G_s = inv(Nll_s) Nlc_s</pre>
+<pre class="example">so, for a row [a&#x27; b&#x27;] belonging to system s,</pre>
+<pre class="example">h_i = a&#x27; Sxx a  +  b&#x27;(inv(Nll) + G Sxx G&#x27;)b  -  2 a&#x27; Sxx G&#x27; b</pre>
+<h3>How It Is Computed</h3>
+<pre class="example">Never by forming inv(N). Each quadratic form becomes a triangular solve:</pre>
+<pre class="example">a&#x27; Sxx a       = ||Lc \ a||^2      with  Lc = chol(Ncc_red,&#x27;lower&#x27;)
+b&#x27; inv(Nll) b  = ||Ll \ b||^2      with  Ll = chol(Nll,   &#x27;lower&#x27;)</pre>
+<pre class="example">Cost O(m*nc^2/2) per arc, blocked, with bounded memory -- the same order
+as one accumulation pass, and FASTER than forming inv(N) (measured 2x at
+nc = 2500, and the gap widens with nc).</pre>
+<h3>A Note On What Does Not Work</h3>
+<pre class="example">A stochastic (Hutchinson) trace estimator looks attractive because it is
+O(nProbe) solves independent of nc. It was tried and REJECTED: on a
+realistically ill-conditioned gravity normal matrix the relative error is
+20-50% at 32 probes, because ||M||_F / trace(M) ~ 1, i.e. the operator&#x27;s
+energy sits in essentially one effective mode -- the worst case for
+Hutchinson. Neither a sum constraint nor Hutch++ rescued it. The exact
+triangular-solve route above is both faster AND exact, so there is no
+reason to approximate.</pre>
+<h3>Input</h3>
+<pre class="example">A       m x nc   whitened common design of one arc
+B       m x nl   whitened local design of one arc
+blocks  struct from LSQVCE.ENGINE.LEVERAGEBLOCKS (precomputed once per system)</pre>
+<h3>Output</h3>
+<pre class="example">h       m x 1    leverage, each in [0,1]
+blocks  passed through unchanged (for chaining)</pre>
+<p>INVARIANTS (both are tested)</p>
+<pre class="example">sum(h_ii) over ALL observations  =  u   (total number of parameters)
+sum(r_ii) over ALL observations  =  m - u</pre>
+<h3>Example</h3>
+<pre class="example">blk = lsqvce.engine.leverageBlocks(Ncc_red, Nll, Nlc);
+h   = lsqvce.engine.leverage(Aw, Bw, blk);
+r   = 1 - h;                              % partial redundancy
+w   = abs(v) ./ sqrt(max(r, eps));        % normalised residual (Baarda)
+out = w &gt; 4.0;                            % flagged observations</pre>
+<div class="seealso"><b>See also:</b> <a href="lsqvce.engine.leverageBlocks.html">lsqvce.engine.leverageBlocks</a>, <a href="lsqvce.engine.vce.html">lsqvce.engine.vce</a>, <a href="lsqvce.engine.outliers.html">lsqvce.engine.outliers</a>, <a href="lsqvce.engine.redundancy.html">lsqvce.engine.redundancy</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+</body></html>

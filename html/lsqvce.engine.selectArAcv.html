@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.engine.selectArAcv</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.engine.selectArAcv</div>
+<h1>lsqvce.engine.selectArAcv</h1>
+<div class="purpose">Automatic AR-order selection by ACV (decorrelation) fidelity.</div>
+<h2>Syntax</h2>
+<pre class="syntax">[a, s2, p, sel] = lsqvce.engine.selectArAcv(acv, nData)
+[a, s2, p, sel] = lsqvce.engine.selectArAcv(acv, nData, opts)</pre>
+<h2>Description</h2>
+<p>Chooses the AR order WITHOUT a candidate grid. Because Levinson-Durbin is recursive, one recursion to pMax yields the innovation variance of every lower order (via the reflection coefficients). This sweeps orders and takes the SMALLEST whose refitted autocovariance is within AcvTol -- the same decorrelation objective a whitened-residual whiteness test uses. AICc, BIC and the PACF band are computed and REPORTED (in sel) but do NOT drive the choice: they target prediction and under-fit the correlation tail that corrupts the normal equations. This is the ACV-domain counterpart of LSQVCE.ENGINE.SELECTARORDER (which is PSD-driven).</p>
+<h3>Input</h3>
+<pre class="example">acv     (L+1)x1   double   Sample autocovariance r(0..L); r(1)=r(0)=
+                           variance. Required. L = numel(acv)-1.
+nData   1x1       numeric  Effective sample size, for AICc/BIC/PACF
+                           reporting only. Required; [] -&gt; 1e4.
+opts    1x1       struct   Options ([] or omitted -&gt; all defaults):
+  .pMax     1x1 integer   Largest order to consider.   (default min(L,120))
+  .AcvTol   1x1 double    Target relative ACV error.   (default 1e-3)
+  .RootTol  1x1 double    Near-unit-root guard on |root|.(default 0.999)
+  .Plateau  1x1 double    Relative gain per order below which the curve
+                          counts as a knee.            (default 0.02)</pre>
+<h3>Output</h3>
+<pre class="example">a    1x(p+1)   double   AR polynomial [1 a1 ... ap] (a(1)=1).
+s2   1x1       double   Innovation variance.
+p    1x1       double   Selected order (0 if the series is white).
+sel  1x1       struct   Report:
+       .p         1x1        selected order
+       .acvRelErr 1x1        achieved relative ACV error at p
+       .sigma     1x1        sqrt(s2)
+       .verdict   1xk char   &#x27;good&#x27; | &#x27;marginal&#x27; | &#x27;bad&#x27; | &#x27;white&#x27;
+       .warnings  1xW cell   actionable warning strings (may be empty)
+       .aic       (pMax+1)x1 Akaike IC per order (0..pMax)
+       .aicc      (pMax+1)x1 corrected AIC per order
+       .bic       (pMax+1)x1 Schwarz IC per order
+       .pacfBand  1x1        ~95% PACF band 2/sqrt(nData)
+       .refl      pMaxx1     reflection coefficients (partial autocorr.)
+       .maxRoot   1x1        max |root| of a
+       .curve     (pMax+1)x1 relative ACV error per order (inf where unvisited)</pre>
+<p>GUARDS (each a real failure mode)</p>
+<pre class="example">near-unit root (|root|&gt;RootTol)  an unmodelled trend; detrend first.
+plateau (AcvTol never reached)   AR cannot fit sharp spectral lines
+                                 (1/rev, 2/rev); use LSQVCE.KERNEL.AR2ARMA.</pre>
+<h3>Example</h3>
+<pre class="example">r = 0.7^2 * lsqvce.kernel.armaACV([1 -1.6 0.9 -0.25], 1, 200);
+[a, s2, p, sel] = lsqvce.engine.selectArAcv(r, 5000);
+assert(p == 3 &amp;&amp; strcmp(sel.verdict, &#x27;good&#x27;));</pre>
+<pre class="example">LSQVCE.KERNEL.AR2ARMA, LSQVCE.KERNEL.RESIDUALACV</pre>
+<p>Created 2026-07-15 13:40 (CEST, UTC+02:00) with assistance from Claude (Anthropic), model Claude Opus 4.8.</p>
+<div class="seealso"><b>See also:</b> <a href="lsqvce.engine.selectArOrder.html">lsqvce.engine.selectArOrder</a>, <a href="lsqvce.kernel.levinsonDurbin.html">lsqvce.kernel.levinsonDurbin</a>, <a href="lsqvce.kernel.armaACV.html">lsqvce.kernel.armaACV</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+</body></html>

@@ -1,7 +1,7 @@
 function tests = test_vceFunction
-%TEST_VCEFUNCTION  The two functions that had no dedicated test: lsqvce.vce (Helmert
+%TEST_VCEFUNCTION  The two functions that had no dedicated test: lsqvce.engine.vce (Helmert
 %   variance components, called end to end through its accFcn contract) and
-%   lsqvce.diagnoseAccum (the bridge to the diagnostics layer).
+%   lsqvce.engine.diagnoseAccum (the bridge to the diagnostics layer).
 %
 %   test_vceMath already checks the VCE *mathematics* by hand; this checks the VCE
 %   *function* -- the accFcn convention, the convergence loop, the output
@@ -10,7 +10,7 @@ function tests = test_vceFunction
 %   Proven first in validation/v7verify.py (6/6). Run:
 %     results = runtests('tests/test_vceFunction');  disp(table(results))
 %
-%   See also TEST_V3, TEST_V4, LSQVCE.VCE, LSQVCE.DIAGNOSEACCUM
+%   See also TEST_V3, TEST_V4, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.DIAGNOSEACCUM
     tests = functiontests(localfunctions);
 end
 
@@ -18,17 +18,17 @@ function setupOnce(tc)
     tc.TestData.cfg = makeCfg();
 end
 
-%% ===================================================== lsqvce.vce (the function)
+%% ===================================================== lsqvce.engine.vce (the function)
 function testVceFunctionRecoversComponents(tc)
 % categories: precision
-% Call lsqvce.vce end to end. Two obsTypes with DIFFERENT true sigma; start
+% Call lsqvce.engine.vce end to end. Two obsTypes with DIFFERENT true sigma; start
 % from a deliberately wrong (all-ones) weighting; the recovered ratio must
 % match the truth. Only the RATIO is identifiable (global sigma0 is free).
     cfg = tc.TestData.cfg;
     days = 1:4;
 
     accFcn = @(sigma) buildVceAcc(cfg, days, sigma);
-    vc = lsqvce.vce(accFcn, 'GroupBy','obsType', ...
+    vc = lsqvce.engine.vce(accFcn, 'GroupBy','obsType', ...
                     'Groups', {'pos','kbr'}, 'Sigma0', [1 1], ...
                     'MinRedundancy', 10, 'Verbose', false);
 
@@ -46,13 +46,13 @@ function testVceIdentityAtConvergence(tc)
     cfg = tc.TestData.cfg;
     days = 1:4;
     accFcn = @(sigma) buildVceAcc(cfg, days, sigma);
-    vc = lsqvce.vce(accFcn, 'GroupBy','obsType', 'Groups', {'pos','kbr'}, ...
+    vc = lsqvce.engine.vce(accFcn, 'GroupBy','obsType', 'Groups', {'pos','kbr'}, ...
                     'Sigma0', [2 0.5], 'MinRedundancy', 10, 'Verbose', false);
 
     % re-whiten with the converged sigma, check vtv_g/r_g ~ 1 per group
     acc = accFcn(vc.sigma);
     sol = acc.solve();
-    red = lsqvce.redundancy(acc, sol, 'GroupBy','obsType', 'Verbose', false);
+    red = lsqvce.engine.redundancy(acc, sol, 'GroupBy','obsType', 'Verbose', false);
     for k = 1:numel(red.group)
         % tol: statistical identity on a finite sample; scatter ~ 1/sqrt(dof) of the fixture, bar sized 4/sqrt(Z)-style (HANDOVER 6.1.2)
         tc.verifyEqual(red.group(k).s0sq, 1, 'AbsTol', 0.10);
@@ -64,23 +64,23 @@ function testVceConvergesFast(tc)
 % categories: contract | tags: diagnostics
     cfg = tc.TestData.cfg;
     accFcn = @(sigma) buildVceAcc(cfg, 1:3, sigma);
-    vc = lsqvce.vce(accFcn, 'GroupBy','obsType', 'Groups', {'pos','kbr'}, ...
+    vc = lsqvce.engine.vce(accFcn, 'GroupBy','obsType', 'Groups', {'pos','kbr'}, ...
                     'Sigma0', [1 1], 'MinRedundancy', 10, 'Verbose', false);
     tc.verifyTrue(vc.converged);
     tc.verifyLessThanOrEqual(vc.nIter, 5);
 end
 
-%% ============================================= lsqvce.diagnoseAccum (the bridge)
+%% ============================================= lsqvce.engine.diagnoseAccum (the bridge)
 function testFromAccumSolContract(tc)
 % categories: contract | tags: diagnostics
-% The bridge must return a sol carrying exactly the fields lsqvce.diagnose
+% The bridge must return a sol carrying exactly the fields lsqvce.engine.diagnose
 % needs, with the FULL parameter count and the redundancy identity.
     cfg = tc.TestData.cfg;
     days = 1:3;
     acc = buildVceAcc(cfg, days, [1 1]);
     sol = acc.solve();
 
-    [dsol, batchFcn, nBatch] = lsqvce.diagnoseAccum(acc, sol);
+    [dsol, batchFcn, nBatch] = lsqvce.engine.diagnoseAccum(acc, sol);
 
     tc.verifyTrue(all(isfield(dsol, {'x','R','n','u','r'})));
     uFull = cfg.nc + numel(cfg.sats)*cfg.nl;
@@ -100,7 +100,7 @@ function testFromAccumCommonMatchesReduced(tc)
     days = 1:3;
     acc = buildVceAcc(cfg, days, [1 1]);
     sol = acc.solve();
-    dsol = lsqvce.diagnoseAccum(acc, sol);
+    dsol = lsqvce.engine.diagnoseAccum(acc, sol);
     % tol: recomputation of the same quadratic form; house exact-identity bound (HANDOVER 6.1.2)
     tc.verifyEqual(dsol.x(1:cfg.nc), sol.x, 'RelTol', 1e-9);
 end
@@ -113,7 +113,7 @@ function testFromAccumBatchesReproduceNormals(tc)
     days = 1:2;
     acc = buildVceAcc(cfg, days, [1 1]);
     sol = acc.solve();
-    [dsol, batchFcn, nBatch] = lsqvce.diagnoseAccum(acc, sol);
+    [dsol, batchFcn, nBatch] = lsqvce.engine.diagnoseAccum(acc, sol);
 
     uFull = dsol.u;
     N = zeros(uFull);  nObs = 0;
@@ -144,20 +144,20 @@ function testFromAccumRequiresKeepLocal(tc)
 % Without KeepLocal the bridge cannot back-substitute the locals -> it must
 % error, not silently return a wrong full x.
     cfg = tc.TestData.cfg;
-    acc = lsqvce.BlockAccumulator(cfg.nc, 'Verbose',false, 'KeepLocal',false);
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Verbose',false, 'KeepLocal',false);
     acc.addSystem(cfg.sats(1), cfg.nl, binder(cfg, cfg.sats(1)), 1:2);
     sol = acc.solve();
-    tc.verifyError(@() lsqvce.diagnoseAccum(acc, sol), ?MException);
+    tc.verifyError(@() lsqvce.engine.diagnoseAccum(acc, sol), ?MException);
 end
 
 %% =================================================================== helpers
 function acc = buildVceAcc(cfg, days, sigma)
-% accFcn for lsqvce.vce: build+accumulate with the given per-group sigma, via
+% accFcn for lsqvce.engine.vce: build+accumulate with the given per-group sigma, via
 % the loader's covOverride. sigma is indexed [pos kbr] (the Groups order).
     cov.pos = struct('type','diag', 'sigma', sigma(1));
     cov.kbr = struct('type','diag', 'sigma', sigma(2));
     uo  = struct('covOverride', cov);
-    acc = lsqvce.BlockAccumulator(cfg.nc, 'Backend','qr', 'Verbose',false, ...
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Backend','qr', 'Verbose',false, ...
                                   'KeepLocal',true, 'UserOpt', uo);
     for s = cfg.sats
         acc.addSystem(s, cfg.nl, binder(cfg, s), days);
@@ -165,7 +165,7 @@ function acc = buildVceAcc(cfg, days, sigma)
 end
 
 function f = binder(cfg, s)
-    f = @(d, ot, a, uo) lsqvce.synthLoader(cfg, s, d, ot, a, uo);
+    f = @(d, ot, a, uo) lsqvce.engine.synthLoader(cfg, s, d, ot, a, uo);
 end
 
 function cfg = makeCfg()

@@ -118,7 +118,7 @@ Helmert&rsquo;s VCE estimates a factor per group,
 <img class="eq-inline" src="eq/b8dc25e55484.png" alt="equation">, updates <img class="eq-inline" src="eq/5d91f4b8971e.png" alt="equation">,
 and re-solves until the factors settle at unity. Only ratios are identifiable; one
 group fixes the gauge [6,7,3,9,10]. For <img class="eq-inline" src="eq/63e1913eb0e7.png" alt="equation"> in the thousands the trace is
-estimated matrix-free (<a href="lsqvce.vceHutchinson.html">lsqvce.vceHutchinson</a>).</p>
+estimated matrix-free (<a href="lsqvce.engine.vceHutchinson.html">lsqvce.engine.vceHutchinson</a>).</p>
 
 <h3>Block-arrow systems and coloured noise</h3>
 <p>Gravity recovery combines <img class="eq-inline" src="eq/ebf8e4456984.png" alt="equation"> arcs sharing <img class="eq-inline" src="eq/2cd2c3a28e1e.png" alt="equation"> common parameters but each
@@ -129,7 +129,7 @@ Schur complement, leaving only the <img class="eq-inline" src="eq/e60774e6ce59.p
 &sect;4</a>). Coloured noise is whitened by an AR/VAR FIR recursion &mdash; a banded
 operator equal to the dense block-Cholesky GLS solve, never the dense <img class="eq-inline" src="eq/56fb53190110.png" alt="equation">
 matrix &mdash; and separable space&times;time covariance by a Kronecker whitener
-(&sect;5). Orders are chosen by <a href="lsqvce.selectArAcv.html">lsqvce.selectArAcv</a>
+(&sect;5). Orders are chosen by <a href="lsqvce.engine.selectArAcv.html">lsqvce.engine.selectArAcv</a>
 and validated by Ljung&ndash;Box [14&ndash;17].</p>
 
 <h2 id="p2">Part II &mdash; What you supply</h2>
@@ -169,23 +169,23 @@ Read top to bottom, stop at the first red.</p>
 </table>
 <p>The <a href="lsqvce_interpretation_guide.html">Interpretation Guide</a> covers
 the reliability quadrants and the contamination gauge in detail. What each tool
-adds: <code>lsqvce.systematic(D)</code> tests residuals for structure a
-single-outlier search would miss; <code>lsqvce.snoop</code> is iterative data
-snooping with the contamination guard; <code>lsqvce.robust</code> is M-estimation
-for diffuse contamination; <code>lsqvce.vce</code>/<code>lsqvce.varComp</code>
+adds: <code>lsqvce.engine.systematic(D)</code> tests residuals for structure a
+single-outlier search would miss; <code>lsqvce.engine.snoop</code> is iterative data
+snooping with the contamination guard; <code>lsqvce.engine.robust</code> is M-estimation
+for diffuse contamination; <code>lsqvce.engine.vce</code>/<code>lsqvce.engine.varComp</code>
 rebalance mis-weighted groups.</p>
 
 <h2 id="p4">Part IV &mdash; Gravity recovery: the block-arrow path</h2>
-<p>The modern one-call front door is <a href="lsqvce.adjustBlock.html">lsqvce.adjustBlock</a>
-(single GLS solve) and <a href="lsqvce.adjustVCE.html">lsqvce.adjustVCE</a> (the
+<p>The modern one-call front door is <a href="lsqvce.engine.adjustBlock.html">lsqvce.engine.adjustBlock</a>
+(single GLS solve) and <a href="lsqvce.engine.adjustVCE.html">lsqvce.engine.adjustVCE</a> (the
 iterative SHAPE+SCALE loop). Build loaders with
-<a href="lsqvce.makeLoader.html">lsqvce.makeLoader</a> and hand them over:</p>
+<a href="lsqvce.engine.makeLoader.html">lsqvce.engine.makeLoader</a> and hand them over:</p>
 <pre class="example">% One-call block-arrow solve + five-level verdict
-R = lsqvce.adjustBlock({Lc, Ld}, days);   % loaders from makeLoader
+R = lsqvce.engine.adjustBlock({Lc, Ld}, days);   % loaders from makeLoader
 R.report();
 
 % Iterative: discover the noise model (SHAPE) and group weights (SCALE)
-R = lsqvce.adjustVCE({Lc, Ld}, days) ...
+R = lsqvce.engine.adjustVCE({Lc, Ld}, days) ...
         .groupComponentsBy('obsType') ...
         .stochasticModel('MaxOrder', 60, 'AcvTol', 1e-3) ...
         .varianceComponents('MaxIter', 8, 'Tol', 1e-3) ...
@@ -206,9 +206,9 @@ now enforce typed constraints,
 reject unknown option names, and match enum <i>values</i> such as
 <code>"qr"</code> case-sensitively in lowercase. Each function's help states
 its canonical names; the release notes list the break.</div>
-<p>Under the hood these drive a <a href="lsqvce.BlockAccumulator.html">lsqvce.BlockAccumulator</a>
+<p>Under the hood these drive a <a href="lsqvce.engine.BlockAccumulator.html">lsqvce.engine.BlockAccumulator</a>
 (kept reachable on <code>R.acc</code> for experts). The diagnostics bridge
-<a href="lsqvce.diagnoseAccum.html">lsqvce.diagnoseAccum</a> rebuilds the full
+<a href="lsqvce.engine.diagnoseAccum.html">lsqvce.engine.diagnoseAccum</a> rebuilds the full
 block-arrow system from the retained per-arc Schur factors to count the redundancy
 the local parameters absorb &mdash; without it the common-parameter redundancies
 (and every reliability number) are inflated.</p>
@@ -221,9 +221,9 @@ rather than silently absorbing it into the field.</div>
 <h2 id="p4b">Part IV-B &mdash; The interface you write</h2>
 
 <p>Part II describes <code>batchFcn</code>, the seam for the <em>flat</em> path
-(<a href="lsqvce.adjust.html">lsqvce.adjust</a>). The block-arrow path has a
+(<a href="lsqvce.engine.adjust.html">lsqvce.engine.adjust</a>). The block-arrow path has a
 different seam: you write a <b>day builder</b> and hand it to
-<a href="lsqvce.makeLoader.html">lsqvce.makeLoader</a>. Everything else &mdash;
+<a href="lsqvce.engine.makeLoader.html">lsqvce.engine.makeLoader</a>. Everything else &mdash;
 arc slicing, whitening, the Schur complement, the VCE loop &mdash; is the
 toolbox's job. This part is what to write and, more usefully, what breaks when
 you get it subtly wrong.</p>
@@ -251,7 +251,7 @@ which is this part in runnable form.</p>
 end</pre>
 
 <p>The full field table lives on the
-<a href="lsqvce.makeLoader.html">makeLoader</a> page. Two things about it are
+<a href="lsqvce.engine.makeLoader.html">makeLoader</a> page. Two things about it are
 worth saying here because they are not obvious from a field list.</p>
 
 <p><b>You return a whole day, not an arc.</b> The accumulator slices arcs out of
@@ -264,13 +264,13 @@ then be asked to describe several disjoint states.</p>
 when your builder already knows its own parametrisation.
 <code>buildDay(day, obsType, common, local, procOpt)</code> receives the
 parametrisation tables and your configuration.
-<a href="lsqvce.makeLoader.html">makeLoader</a> calls your function with as many
+<a href="lsqvce.engine.makeLoader.html">makeLoader</a> calls your function with as many
 arguments as it declares, so both keep working. Prefer the five-argument form:
 it is what lets you read <code>nc = size(common,1)</code> instead of hardcoding
 it, and it is the only form that receives <code>procOpt</code>.</p>
 
 <h3>2 &middot; The loader declaration</h3>
-<pre class="example">L = lsqvce.makeLoader(@myBuildDay, ...
+<pre class="example">L = lsqvce.engine.makeLoader(@myBuildDay, ...
         'observationTypes',  {'pos','rr'}, ...
         'covariance',        cov, ...
         'systemId',          'C', ...
@@ -403,26 +403,26 @@ file); make <code>batchFcn(k)</code> return <code>[A,l,p]</code>. Keep it determ
 <li><b>Get the weights right.</b> <img class="eq-inline" src="eq/392ceb036186.png" alt="equation">. For coloured noise pass a
 covariance-model struct instead of a vector and let lsqvce whiten.</li>
 <li><b>Solve and judge in one call.</b>
-<code>[sol, D, V] = lsqvce.adjust(u, batchFcn, nBatch);</code></li>
+<code>[sol, D, V] = lsqvce.engine.adjust(u, batchFcn, nBatch);</code></li>
 <li><b>Read the report top-down.</b> Stop at the first red. A Level&nbsp;0 red is a
 data/weighting bug, not a blunder &mdash; fix it before reading on.</li>
 <li><b>If Level&nbsp;1 fails, localise before rejecting.</b> Run
-<code>lsqvce.systematic(D)</code> first: a structured error is a model defect, and
+<code>lsqvce.engine.systematic(D)</code> first: a structured error is a model defect, and
 snooping it away mutilates good data.</li>
 <li><b>Snoop, gauge open.</b>
-<code>[sol,D,REJ] = lsqvce.snoop(sol, D, batchFcn, 'test','mad');</code></li>
+<code>[sol,D,REJ] = lsqvce.engine.snoop(sol, D, batchFcn, 'test','mad');</code></li>
 <li><b>Before believing the parameters, read reliability.</b> Check MDB and the
 quadrants for every parameter you care about. A clean residual at <img class="eq-inline" src="eq/fd79cdcd4a7f.png" alt="equation">
 proves nothing.</li>
 </ol>
 <h3>B &middot; Gravity recovery (many arcs, VCE)</h3>
 <ol>
-<li>Write one <a href="lsqvce.makeLoader.html">makeLoader</a> loader per
+<li>Write one <a href="lsqvce.engine.makeLoader.html">makeLoader</a> loader per
 satellite/arc returning whitened batches; give the common count <code>nc</code>
 and per-system <code>numLocal</code>.</li>
-<li>For a single solve call <a href="lsqvce.adjustBlock.html">lsqvce.adjustBlock</a>;
+<li>For a single solve call <a href="lsqvce.engine.adjustBlock.html">lsqvce.engine.adjustBlock</a>;
 to discover the noise model and group weights, use
-<a href="lsqvce.adjustVCE.html">lsqvce.adjustVCE</a> with
+<a href="lsqvce.engine.adjustVCE.html">lsqvce.engine.adjustVCE</a> with
 <code>.groupComponentsBy(...).stochasticModel(...).varianceComponents(...).run()</code>.</li>
 <li>Inspect <code>R.history.sigma</code> for a group being systematically up- or
 down-weighted, and confirm convergence.</li>
@@ -439,8 +439,8 @@ assert (redundancy identity, whitening equals dense GLS, ACV round-trip).</div>
 <a href="lsqvce_reference_manual.html">Reference Manual</a>,
 <a href="lsqvce_interpretation_guide.html">Interpretation Guide</a>,
 <a href="lsqvce_choosing.html">Choosing an engine</a>,
-<a href="lsqvce.adjust.html">lsqvce.adjust</a>,
-<a href="lsqvce.adjustVCE.html">lsqvce.adjustVCE</a></div>
+<a href="lsqvce.engine.adjust.html">lsqvce.engine.adjust</a>,
+<a href="lsqvce.engine.adjustVCE.html">lsqvce.engine.adjustVCE</a></div>
 <h2 id="refs">References</h2>
 <div class="refs">
 <p>[1] Baarda, W. (1968). <i>A Testing Procedure for Use in Geodetic Networks.</i> Netherlands Geodetic Commission, Publications on Geodesy, New Series, 2(5). Delft.</p>

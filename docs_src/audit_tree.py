@@ -202,29 +202,36 @@ def check_signatures():
 
 def check_doc_coverage():
     print('\n4. doc coverage')
-    contents = ''
-    if os.path.exists('+lsqvce/Contents.m'):
-        contents = open('+lsqvce/Contents.m', encoding='utf-8').read()
+    # R4-D1 (WP-64a): the package has sub-packages +engine / +kernel / +util;
+    # a name is listed in ITS package's Contents.m and its page is
+    # html/lsqvce.<pkg>.<name>.html.
     funcs = []
-    for f in sorted(glob.glob('+lsqvce/*.m')):
-        b = os.path.basename(f)[:-2]
-        if b != 'Contents':
-            funcs.append((b, 'html/lsqvce.%s.html' % b))
-    for f in sorted(glob.glob('+lsqvce/+util/*.m')):
-        b = os.path.basename(f)[:-2]
-        funcs.append(('util.' + b, 'html/lsqvce.util.%s.html' % b))
-    for name, page in funcs:
+    for pkg, sub in (('', ''), ('engine.', '+engine/'), ('kernel.', '+kernel/'),
+                     ('util.', '+util/')):
+        contents = ''
+        cpath = '+lsqvce/%sContents.m' % sub
+        if os.path.exists(cpath):
+            contents = open(cpath, encoding='utf-8').read()
+        elif sub:
+            note('docs', '%s missing' % cpath)
+        for f in sorted(glob.glob('+lsqvce/%s*.m' % sub)):
+            b = os.path.basename(f)[:-2]
+            if b != 'Contents':
+                funcs.append((pkg + b, 'html/lsqvce.%s%s.html' % (pkg, b), contents, cpath))
+    for name, page, contents, cpath in funcs:
         if not os.path.exists(page):
             note('docs', 'no html page for %s (doc lsqvce.%s fails)' % (name, name))
         short = name.split('.')[-1]
         if not re.search(r'\b%s\b' % re.escape(short), contents):
-            note('docs', '%s is not listed in Contents.m' % name)
+            note('docs', '%s is not listed in %s' % (name, cpath))
     print('   %d functions checked' % len(funcs))
 
     for page in sorted(glob.glob('html/lsqvce.*.html')):
         n = os.path.basename(page)[len('lsqvce.'):-len('.html')]
-        m = ('+lsqvce/+util/%s.m' % n[len('util.'):]) if n.startswith('util.') \
-            else ('+lsqvce/%s.m' % n)
+        m = '+lsqvce/%s.m' % n
+        for pkg, sub in (('util.', '+util/'), ('engine.', '+engine/'), ('kernel.', '+kernel/')):
+            if n.startswith(pkg):
+                m = '+lsqvce/%s%s.m' % (sub, n[len(pkg):])
         if not os.path.exists(m):
             # WP-41 decision (user-approved by PR merge): redirect stubs for
             # REMOVED v1 names are KEPT for old bookmarks -- but only under a
@@ -407,13 +414,13 @@ def check_dedup_lock():
     ok = True
     for name in ('makeKeyFcn', 'arcBatchWhiten'):
         where = hits.get(name, [])
-        want = os.path.join('+lsqvce', 'private', name + '.m')
+        want = os.path.join('+lsqvce', '+engine', 'private', name + '.m')   # R4-D1: engine-private since WP-64a
         if len(where) != 1 or os.path.normpath(where[0]) != os.path.normpath(want):
             note('dedup-lock', '%s must be defined EXACTLY once, in %s (found: %s)'
                  % (name, want, ', '.join(where) or 'nowhere'))
             ok = False
     if ok:
-        print('    OK - both defined once, under +lsqvce/private/')
+        print('    OK - both defined once, under +lsqvce/+engine/private/')
 
 def check_duplicate_functions():
     print('\n10. no duplicated function names within a file')
@@ -676,16 +683,16 @@ def check_test_categories():
                      % (f, name, sorted(bad)))
                 continue
             body = '\n'.join(lines[i + 1:end])
-            for u in set(re.findall(r'lsqvce\.(util\.\w+|[A-Za-z]\w+)', body)):
+            for u in set(re.findall(r'lsqvce\.((?:util|engine|kernel)\.\w+|[A-Za-z]\w+)', body)):
                 unit_cat.setdefault(u, set()).update(cats)
 
     units = []
     for f in sorted(glob.glob('+lsqvce/**/*.m', recursive=True)):
         if '/private/' in f:
             continue
-        u = f.replace('+lsqvce/', '').replace('.m', '').replace('+util/',
-                                                                'util.')
-        if u != 'Contents':
+        u = (f.replace('+lsqvce/', '').replace('.m', '').replace('+util/', 'util.')
+              .replace('+engine/', 'engine.').replace('+kernel/', 'kernel.'))
+        if not u.endswith('Contents'):
             units.append(u)
 
     exempt = {}
@@ -826,12 +833,12 @@ def check_tiers_and_case():
             note('tiers', 'duplicate row for %s' % r['name'])
         names[r['name']] = r
     tree = set()
-    for f in glob.glob('+lsqvce/*.m'):
-        n = os.path.basename(f)[:-2]
-        if n != 'Contents':
-            tree.add(n)
-    for f in glob.glob('+lsqvce/+util/*.m'):
-        tree.add('util.' + os.path.basename(f)[:-2])
+    for pkg, sub in (('', ''), ('engine.', '+engine/'), ('kernel.', '+kernel/'),
+                     ('util.', '+util/')):
+        for f in glob.glob('+lsqvce/%s*.m' % sub):
+            n = os.path.basename(f)[:-2]
+            if n != 'Contents':
+                tree.add(pkg + n)
     for n in sorted(tree - set(names)):
         note('tiers', 'public name %s has no row in %s' % (n, path))
     for n in sorted(set(names) - tree):

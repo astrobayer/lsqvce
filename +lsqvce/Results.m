@@ -3,7 +3,7 @@ classdef Results < handle
 %   R = lsqvce.Results(sol, D, acc, diagSol, batchFcn, nBatch, systems)
 %   R = lsqvce.Results(sol, D, acc, diagSol, batchFcn, nBatch, systems, meta)
 %
-%   Returned by LSQVCE.ADJUSTBLOCK (and, later, LSQVCE.ADJUSTVCE). It gathers
+%   Returned by LSQVCE.ENGINE.ADJUSTBLOCK (and, later, LSQVCE.ENGINE.ADJUSTVCE). It gathers
 %   everything a user needs to read and judge an adjustment in one object, and
 %   keeps the lower layers reachable for experts. You rarely construct it
 %   yourself; you receive it from adjustBlock and call R.report().
@@ -13,17 +13,17 @@ classdef Results < handle
 %     sigma0     1x1      double   A-posteriori variance factor (global).
 %     converged  1x1      logical  Did the pipeline converge? (true for a single
 %                                  solve; set by the iterative engines.)
-%     diag       1x1      struct   Per-observation diagnostics (LSQVCE.DIAGNOSE):
+%     diag       1x1      struct   Per-observation diagnostics (LSQVCE.ENGINE.DIAGNOSE):
 %                                  redundancy, leverage, w-tests, MDB, ...
 %     history    1xI      struct   Per-iteration record (empty for a single
-%                                  solve; filled by LSQVCE.ADJUSTVCE).
+%                                  solve; filled by LSQVCE.ENGINE.ADJUSTVCE).
 %     noise      1x1      struct   Fitted noise models per stream (empty until
 %                                  the separable/VCE loop populates it).
 %     sol        1x1      struct   Raw output of acc.solve() (.x, .sigma0, ...).
-%     acc        1x1      lsqvce.BlockAccumulator   The accumulator (drop here
+%     acc        1x1      lsqvce.engine.BlockAccumulator   The accumulator (drop here
 %                                  to re-solve, inspect blocks, get residuals).
-%     source     1x1      struct   Bridged solution from LSQVCE.DIAGNOSEACCUM.
-%     batchFcn   1x1      function_handle   Re-reader used by LSQVCE.DIAGNOSE.
+%     source     1x1      struct   Bridged solution from LSQVCE.ENGINE.DIAGNOSEACCUM.
+%     batchFcn   1x1      function_handle   Re-reader used by LSQVCE.ENGINE.DIAGNOSE.
 %     nBatch     1x1      double   Batch count from the bridge.
 %     systems    1xM      struct   The resolved system specs (sysID/nl/dayList).
 %     meta       1x1      struct   Run provenance (WP-44). Field list is
@@ -63,7 +63,7 @@ classdef Results < handle
 %   whitened -- the per-pass view reports the worst p-value without naming it.
 %
 %   EXAMPLE
-%     R = lsqvce.adjustBlock(systems, days);
+%     R = lsqvce.engine.adjustBlock(systems, days);
 %     R.report('Level', 2);
 %     if ~R.converged, lsqvce.util.log.warn('did not converge'); end
 %     x = R.x;   s0 = R.sigma0;
@@ -84,8 +84,8 @@ classdef Results < handle
 %     report() is lsqvce.report on .diag, coefficients() is arithmetic on x
 %     and diag(Cxx) with z(0.05) = 1.959963984540054 in closed form.
 %
-%   See also LSQVCE.FIT, LSQVCE.ADJUSTBLOCK, LSQVCE.ADJUSTVCE, LSQVCE.REPORT,
-%            LSQVCE.DIAGNOSE, LSQVCE.BLOCKACCUMULATOR
+%   See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCE, LSQVCE.REPORT,
+%            LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
 %   Updated 2026-09-01 (CEST, UTC+02:00), R4 WP-61 (Level L3): ACCURACY block
 %   (the sigma0 / Cxx contract stated once). With assistance from Claude
@@ -137,7 +137,7 @@ classdef Results < handle
                 % A bare construction still carries provenance -- composed by
                 % the ONE builder with empty seeds/options (WP-44 robustness
                 % promise: never a missing meta, never a missing field).
-                meta = runMeta(struct(), struct());
+                meta = lsqvce.engine.runMeta(struct(), struct());
             end
             obj.sol      = sol;
             obj.x        = sol.x(:);
@@ -177,7 +177,7 @@ classdef Results < handle
         %CONTRIBUTION  Per-group information share of this solution.
         %   con = R.contribution()                 Level 1: the scalar share
         %   con = R.contribution('Level', 2)       + diag(N^-1 N_g^cc) per parameter
-        %   con = R.contribution(Name, Value, ...) see LSQVCE.CONTRIBUTION
+        %   con = R.contribution(Name, Value, ...) see LSQVCE.ENGINE.CONTRIBUTION
         %
         %   WHY THIS EXISTS. The Level-1 share is already computed every outer
         %   pass and stored in R.history.contribution, because it is free (it
@@ -188,21 +188,21 @@ classdef Results < handle
         %   to reach into R.acc and R.sol yourself.
         %
         %   INPUT   varargin  Name/Value pairs passed through to
-        %                     LSQVCE.CONTRIBUTION ('GroupBy', 'Level', 'Probes',
+        %                     LSQVCE.ENGINE.CONTRIBUTION ('GroupBy', 'Level', 'Probes',
         %                     'Seed', ...). 'GroupBy' defaults there.
         %   OUTPUT  con  1x1 struct  .group(k).key/.r/.share/.diag/.relSE, .nc
         %
         %   EXAMPLE
-        %     R   = lsqvce.adjustVCE(L, days).groupComponentsBy('obsType').run();
+        %     R   = lsqvce.engine.adjustVCE(L, days).groupComponentsBy('obsType').run();
         %     con = R.contribution('GroupBy', 'obsType', 'Level', 2);
         %     bar(con.group(1).diag);      % per-coefficient share of group 1
         %
-        %   See also LSQVCE.CONTRIBUTION, LSQVCE.STREAMCONTRIBUTION
+        %   See also LSQVCE.ENGINE.CONTRIBUTION, LSQVCE.ENGINE.STREAMCONTRIBUTION
         %
         %   Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude
         %   (Anthropic), model Claude Opus 4.8.
             obj.requireAccumulator('contribution');
-            con = lsqvce.contribution(obj.acc, obj.sol, varargin{:});
+            con = lsqvce.engine.contribution(obj.acc, obj.sol, varargin{:});
         end
 
         function requireAccumulator(obj, caller)
@@ -254,18 +254,18 @@ classdef Results < handle
         %                                history (it came from a single solve).
         %
         %   EXAMPLE
-        %     R = lsqvce.adjustVCE(L, days).groupComponentsBy('obsType').run();
+        %     R = lsqvce.engine.adjustVCE(L, days).groupComponentsBy('obsType').run();
         %     T = R.convergence('Plot', true);   % table + diagnostic figure
         %     % a stream stuck at minWhitePval < WhiteAlpha for every pass needs a
         %     % higher stochasticModel MaxOrder or ARMA; an oscillating
         %     % maxSigmaOffset means too little group redundancy -- coarsen
         %     % groupComponentsBy.
         %
-        %   See also LSQVCE.RESULTS/summary, LSQVCE.ADJUSTVCE/run
+        %   See also LSQVCE.RESULTS/summary, LSQVCE.ENGINE.ADJUSTVCE/run
         %
         %   Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude
         %   (Anthropic), model Claude Opus 4.8. Moved here from
-        %   LSQVCE.ADJUSTVCE: it is a POST-RUN READER of R.history and needed
+        %   LSQVCE.ENGINE.ADJUSTVCE: it is a POST-RUN READER of R.history and needed
         %   the builder object only to draw one threshold line.
             % WP-39 c2: typed `arguments` signature (canonical Plot/Stream).
         arguments
@@ -331,12 +331,12 @@ classdef Results < handle
         %                                history (it came from a single solve).
         %
         %   EXAMPLE
-        %     R = lsqvce.adjustVCE(L, days).groupComponentsBy('obsType').run();
+        %     R = lsqvce.engine.adjustVCE(L, days).groupComponentsBy('obsType').run();
         %     T = R.summary();
         %     T(~T.white, :)            % the streams that never whitened
         %     T(abs(T.sigma-1) > 0.1, :)  % the streams still badly weighted
         %
-        %   See also LSQVCE.RESULTS/convergence, LSQVCE.ADJUSTVCE/run
+        %   See also LSQVCE.RESULTS/convergence, LSQVCE.ENGINE.ADJUSTVCE/run
         %
         %   Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude
         %   (Anthropic), model Claude Opus 4.8.
@@ -435,7 +435,7 @@ classdef Results < handle
                 error('lsqvce:Results:noHistory', ...
                     ['R.%s needs an iteration history, and this Results has ' ...
                      'none (a single solve does not iterate). Use the RESULTS ' ...
-                     'from LSQVCE.ADJUSTVCE run() or empiricalStochastic().'], ...
+                     'from LSQVCE.ENGINE.ADJUSTVCE run() or empiricalStochastic().'], ...
                      caller);
             end
         end

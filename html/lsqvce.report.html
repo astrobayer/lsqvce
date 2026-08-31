@@ -44,7 +44,7 @@ a { color: #0b5ea8; }
 <h1>lsqvce.report</h1>
 <div class="purpose">Judge a least-squares adjustment and say so in words.</div>
 <h2>Description</h2>
-<pre class="example">V = LSQVCE.REPORT(D) takes the struct from lsqvce.diagnose and prints a
+<pre class="example">V = LSQVCE.REPORT(D) takes the struct from lsqvce.engine.diagnose and prints a
 verdict. It returns a struct of machine-readable findings so the same logic
 can drive an automated pipeline.
 
@@ -77,10 +77,10 @@ OUTPUT V
   V.findings  cell array of struct(level, severity, code, msg)
   V.nError, V.nWarn, V.nNote</pre>
 <h3>Input</h3>
-<pre class="example">D         1x1 struct  diagnostics from LSQVCE.DIAGNOSE
+<pre class="example">D         1x1 struct  diagnostics from LSQVCE.ENGINE.DIAGNOSE
 varargin  Name/Value: &#x27;verbose&#x27;, &#x27;width&#x27;, &#x27;alpha&#x27;, &#x27;rWeak&#x27;, ...</pre>
 <h3>Example</h3>
-<pre class="example">    [~, D]  = lsqvce.adjust(u, src, 4, &#x27;verbose&#x27;, false);
+<pre class="example">    [~, D]  = lsqvce.engine.adjust(u, src, 4, &#x27;verbose&#x27;, false);
     V = lsqvce.report(D);              % prints the five levels
 
     % V.verdict    &#x27;PASS&#x27; | &#x27;PASS WITH WARNINGS&#x27; | &#x27;SUSPECT&#x27; | &#x27;INVALID&#x27;
@@ -97,7 +97,7 @@ typed `arguments` signature, canonical UpperCamelCase option names
 (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
 case-sensitive lowercase). With assistance from Claude (Anthropic),
 model Claude Fable 5.
-See also LSQVCE.DIAGNOSE, LSQVCE.SYSTEMATIC.
+See also LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.SYSTEMATIC.
 
 Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 2026-07-11.</pre>

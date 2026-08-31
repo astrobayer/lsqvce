@@ -49,7 +49,7 @@ opts = lsqvce.Options(Name, Value, ...)       override some
 opts.Name = Value                             change one later (validated)</pre>
 <h3>WHY ONE OBJECT (R4 findings G-02/G-03). The estimation options used to</h3>
 <pre class="example">live in four conventions: per-driver Name-Value names, the fluent
-configurator chain of LSQVCE.ADJUSTVCE, the loader UserOpt, and the joint
+configurator chain of LSQVCE.ENGINE.ADJUSTVCE, the loader UserOpt, and the joint
 translation. Options is the single place every knob is NAMED, TYPED, has
 its DEFAULT stated, and is checked -- at construction through an
 arguments block (unknown names and bad values are rejected by the
@@ -75,7 +75,7 @@ What to do
                               joint co-estimation with keyed arc factors
                               (adjustVCEjoint)
   Robust     string   &quot;none&quot;  &quot;none&quot; | &quot;irls&quot; M-estimation (batch path,
-                              LSQVCE.ROBUST)
+                              LSQVCE.ENGINE.ROBUST)
 
 Solver
   Backend    string   &quot;qr&quot;    &quot;qr&quot; | &quot;normal&quot; (the engines&#x27; default is
@@ -151,13 +151,13 @@ Robust IRLS (batch path)
   RobustMaxIter double 30     IRLS iterations
   RobustTol  double   1e-8    IRLS convergence
 
-Nonlinear (batch path, LSQVCE.SOLVENONLINEAR)
+Nonlinear (batch path, LSQVCE.ENGINE.SOLVENONLINEAR)
   NonlinearMaxIter double 30  Gauss-Newton iterations
   TolX       double   1e-3    step tolerance
   TolF       double   1e-10   cost tolerance
   Lambda0    double   1e-6    initial damping
 
-Diagnostics (forwarded to LSQVCE.DIAGNOSE; replaces KeepUnmatched)
+Diagnostics (forwarded to LSQVCE.ENGINE.DIAGNOSE; replaces KeepUnmatched)
   Alpha      double   1e-3    test significance
   Bonferroni logical  true    family-wise correction
   Beta       double   0.20    power for the MDB
@@ -195,7 +195,7 @@ that test on purpose).</pre>
 <pre class="example">opts = lsqvce.Options(Model=&quot;vce&quot;, GroupBy=&quot;satObs&quot;, Parallel=&quot;parfor&quot;);
 opts.MaxOuter = 4;
 a = opts.engineArgs(&quot;adjustVCE&quot;);
-P = lsqvce.adjustVCE(L, days, a.nv{:}) ...
+P = lsqvce.engine.adjustVCE(L, days, a.nv{:}) ...
      .stochasticModel(a.shape) ...          % (fit does this, WP-56)</pre>
 <h3>Errors</h3>
 <pre class="example">  Your value is wrong (signature / property validation, MATLAB ids):
@@ -210,9 +210,9 @@ P = lsqvce.adjustVCE(L, days, a.nv{:}) ...
     lsqvce:Options:badVerbose   Verbose is neither logical nor a level 0..3
     lsqvce:Options:badTarget    engineArgs target unknown
 
-See also LSQVCE.ADJUSTBLOCK, LSQVCE.ADJUSTVCE, LSQVCE.ADJUSTVCEJOINT,
-         LSQVCE.ADJUST, LSQVCE.ROBUST, LSQVCE.SOLVENONLINEAR,
-         LSQVCE.DIAGNOSE, LSQVCE.RESULTS
+See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCE, LSQVCE.ENGINE.ADJUSTVCEJOINT,
+         LSQVCE.ENGINE.ADJUST, LSQVCE.ENGINE.ROBUST, LSQVCE.ENGINE.SOLVENONLINEAR,
+         LSQVCE.ENGINE.DIAGNOSE, LSQVCE.RESULTS
 
 Updated 2026-08-31 (CEST, UTC+02:00), R4 WP-62 (Level L4): DistributeDays
 and ParallelThreshold -- the parallel policy of the streaming engines,

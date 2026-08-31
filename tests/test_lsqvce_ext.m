@@ -50,8 +50,8 @@ function test_systematic_detects_drift(tc)
     l = A*xt + 0.3*randn(rs, n, 1) + 1.5*sin(2*pi*t);   % unmodelled
 
     B = chop(A, l, p, 8);
-    [~, D] = lsqvce.adjust(u, srcOf(B), 8, 'verbose', false);
-    S = lsqvce.systematic(D, 'covariates', struct('t', t), 'verbose', false);
+    [~, D] = lsqvce.engine.adjust(u, srcOf(B), 8, 'verbose', false);
+    S = lsqvce.engine.systematic(D, 'covariates', struct('t', t), 'verbose', false);
 
     verifyTrue(tc, S.detected, ...
         'a strong sinusoidal systematic was NOT detected');
@@ -71,8 +71,8 @@ function test_systematic_quiet_on_clean_data(tc)
         l = A*xt + randn(rs, n, 1);
         t = (1:n).';
         B = chop(A, l, p, 5);
-        [~, D] = lsqvce.adjust(u, srcOf(B), 5, 'verbose', false);
-        S = lsqvce.systematic(D, 'covariates', struct('t', t), ...
+        [~, D] = lsqvce.engine.adjust(u, srcOf(B), 5, 'verbose', false);
+        S = lsqvce.engine.systematic(D, 'covariates', struct('t', t), ...
                                'verbose', false);
         nFalse = nFalse + double(S.detected);
     end
@@ -92,8 +92,8 @@ function test_systematic_runs_test_is_calibrated(tc)
         xt = randn(rs, u, 1);
         l = A*xt + randn(rs, n, 1);
         B = chop(A, l, ones(n,1), 4);
-        [~, D] = lsqvce.adjust(u, srcOf(B), 4, 'verbose', false);
-        S = lsqvce.systematic(D, 'verbose', false);
+        [~, D] = lsqvce.engine.adjust(u, srcOf(B), 4, 'verbose', false);
+        S = lsqvce.engine.systematic(D, 'verbose', false);
         zs(m) = S.runs.z;
     end
     zs = zs(isfinite(zs));
@@ -116,7 +116,7 @@ function test_datum_finds_levelling_defect(tc)
         A(i, edges(i,2)) =  1;
     end
     N = A' * A;
-    [B, info] = lsqvce.datum(N);
+    [B, info] = lsqvce.engine.datum(N);
 
     verifyEqual(tc, info.defect, 1, ...
         'a levelling network must have exactly one datum defect');
@@ -147,10 +147,10 @@ function test_freenetwork_residuals_are_datum_invariant(tc)
     p = ones(ne,1);
 
     N = A'*A;
-    B = lsqvce.datum(N);
+    B = lsqvce.engine.datum(N);
 
     B1 = chop(A, l, p, 2);
-    [~, D1] = lsqvce.adjust(u, srcOf(B1), 2, 'datumB', B, 'verbose', false);
+    [~, D1] = lsqvce.engine.adjust(u, srcOf(B1), 2, 'datumB', B, 'verbose', false);
 
     % A SECOND datum.
     %
@@ -163,7 +163,7 @@ function test_freenetwork_residuals_are_datum_invariant(tc)
     % Here we use the same null direction with a different SCALING -- a
     % genuinely different, and valid, inner constraint.
     Bfix = ones(u,1);
-    [~, D2] = lsqvce.adjust(u, srcOf(B1), 2, 'datumB', Bfix, 'verbose', false);
+    [~, D2] = lsqvce.engine.adjust(u, srcOf(B1), 2, 'datumB', Bfix, 'verbose', false);
 
     % tol: delegation identity (one call forwarded); values must be the SAME numbers, house round-trip bound
     verifyEqual(tc, D2.v, D1.v, 'AbsTol', 1e-8, ...
@@ -186,9 +186,9 @@ function test_freenetwork_rank_is_reduced(tc)
     rs = RandStream('mt19937ar','Seed',9);
     l = A*randn(rs,u,1) + 0.01*randn(rs,size(edges,1),1);
     N = A'*A;
-    B = lsqvce.datum(N);
+    B = lsqvce.engine.datum(N);
 
-    acc = lsqvce.Accumulator(u, 'method', 'normal', 'datumB', B);
+    acc = lsqvce.engine.Accumulator(u, 'method', 'normal', 'datumB', B);
     acc.add(A, l, ones(size(edges,1),1));
     sol = acc.solve();
 
@@ -217,7 +217,7 @@ function test_nonlinear_converges_to_truth(tc)
         p  = ones(5,1) / 0.01^2;
     end
 
-    [sol, ~, ~, IT] = lsqvce.solveNonlinear(2, @src, 1, [1; 1], ...
+    [sol, ~, ~, IT] = lsqvce.engine.solveNonlinear(2, @src, 1, [1; 1], ...
                                              'verbose', false);
     verifyTrue(tc, IT.converged, 'the resection did not converge');
     % tol: recovery of a planted value; estimator sampling scatter on this fixture, measured stable across seeds (not an eps claim)
@@ -233,7 +233,7 @@ function test_nonlinear_reports_divergence(tc)
         A = [1; 1];  l = [exp(x(1)); -exp(x(1))];  p = [1; 1];
     end
     try
-        [~, ~, ~, IT] = lsqvce.solveNonlinear(1, @bad, 1, 50, ...
+        [~, ~, ~, IT] = lsqvce.engine.solveNonlinear(1, @bad, 1, 50, ...
                                                'verbose', false, 'maxIter', 3);
         % The original test asserted NON-convergence, but l = [exp(x); -exp(x)]
         % is not divergent at all: its residuals cancel exactly, so vPv = 0 and
@@ -263,7 +263,7 @@ function test_robust_downweights_outliers(tc)
     l(bad) = l(bad) + 20;
 
     B = chop(A, l, p, 4);
-    [sol, ~, ROB] = lsqvce.robust(u, srcOf(B), 4, 'verbose', false);
+    [sol, ~, ROB] = lsqvce.engine.robust(u, srcOf(B), 4, 'verbose', false);
 
     % the outliers must end up with small weights
     verifyLessThan(tc, max(ROB.factor(bad)), 0.35, ...
@@ -286,8 +286,8 @@ function test_robust_matches_ls_on_clean_data(tc)
     l = A*xt + randn(rs, n, 1);
     B = chop(A, l, p, 3);
 
-    [solR, ~, ~] = lsqvce.robust(u, srcOf(B), 3, 'verbose', false);
-    [solL, ~, ~] = lsqvce.adjust(u, srcOf(B), 3, 'verbose', false);
+    [solR, ~, ~] = lsqvce.engine.robust(u, srcOf(B), 3, 'verbose', false);
+    [solL, ~, ~] = lsqvce.engine.adjust(u, srcOf(B), 3, 'verbose', false);
 
     % Compare the NORM, not each coefficient. A per-coefficient RelTol is the
     % wrong test: measured in MATLAB, one small coefficient differed by 18%
@@ -310,10 +310,10 @@ function test_ftest_rejects_unneeded_parameter(tc)
     l = A*xt + randn(rs, n, 1);
     Aext = [A, randn(rs, n, 1)];        % pure noise column
 
-    accF = lsqvce.Accumulator(u+1); accF.add(Aext, l, p); sF = accF.solve();
-    accR = lsqvce.Accumulator(u);   accR.add(A,    l, p); sR = accR.solve();
+    accF = lsqvce.engine.Accumulator(u+1); accF.add(Aext, l, p); sF = accF.solve();
+    accR = lsqvce.engine.Accumulator(u);   accR.add(A,    l, p); sR = accR.solve();
 
-    F = lsqvce.ftest(sF, sR, 'verbose', false);
+    F = lsqvce.engine.ftest(sF, sR, 'verbose', false);
     verifyFalse(tc, F.significant, ...
         'the F-test declared a pure-noise parameter significant');
     verifyGreaterThan(tc, F.p, 0.01);
@@ -331,10 +331,10 @@ function test_ftest_accepts_needed_parameter(tc)
     l = A*xt + 0.9*extra + randn(rs, n, 1);   % extra genuinely contributes
     Aext = [A, extra];
 
-    accF = lsqvce.Accumulator(u+1); accF.add(Aext, l, p); sF = accF.solve();
-    accR = lsqvce.Accumulator(u);   accR.add(A,    l, p); sR = accR.solve();
+    accF = lsqvce.engine.Accumulator(u+1); accF.add(Aext, l, p); sF = accF.solve();
+    accR = lsqvce.engine.Accumulator(u);   accR.add(A,    l, p); sR = accR.solve();
 
-    F = lsqvce.ftest(sF, sR, 'verbose', false);
+    F = lsqvce.engine.ftest(sF, sR, 'verbose', false);
     verifyTrue(tc, F.significant, ...
         'the F-test missed a parameter that genuinely improves the fit');
     verifyLessThan(tc, F.p, 1e-6);
@@ -350,9 +350,9 @@ function test_ellipse_matches_eig_of_submatrix(tc)
     p = ones(n,1);
     l = A*xt + randn(rs, n, 1);
     B = chop(A, l, p, 3);
-    [~, D] = lsqvce.adjust(u, srcOf(B), 3, 'verbose', false);
+    [~, D] = lsqvce.engine.adjust(u, srcOf(B), 3, 'verbose', false);
 
-    E = lsqvce.ellipse(D, [1 2]);
+    E = lsqvce.engine.ellipse(D, [1 2]);
     Q = D.Qxx([1 2],[1 2]) * D.s0^2;
     ev = sort(eig((Q+Q')/2), 'descend');
 
@@ -374,11 +374,11 @@ function test_ellipse_circular_when_uncorrelated(tc)
     A(:,2) = [ones(n/4,1); -ones(n/4,1); ones(n/4,1); -ones(n/4,1)];
     rs = RandStream('mt19937ar','Seed',81);
     l = A*[1;2] + randn(rs,n,1);
-    acc = lsqvce.Accumulator(2); acc.add(A, l, ones(n,1));
+    acc = lsqvce.engine.Accumulator(2); acc.add(A, l, ones(n,1));
     sol = acc.solve();
-    D = lsqvce.diagnose(sol, @(k) deal(A, l, ones(n,1)), 'nBatch', 1);
+    D = lsqvce.engine.diagnose(sol, @(k) deal(A, l, ones(n,1)), 'nBatch', 1);
 
-    E = lsqvce.ellipse(D, [1 2]);
+    E = lsqvce.engine.ellipse(D, [1 2]);
     % tol: eig-based geometry of the same Qxx; backward error of eig ~ norm*eps, 1e-6 leaves wide headroom
     verifyEqual(tc, E.semiMajor/E.semiMinor, 1, 'AbsTol', 1e-6, ...
         'uncorrelated equal-variance parameters must give a CIRCLE');
@@ -400,8 +400,8 @@ function test_pope_breaks_down_and_mad_does_not(tc)
     l(bad) = l(bad) + 25;                 % 5/50 = 10% contamination, 25 sigma
 
     B = chop(A, l, p, 2);
-    [~, Dp] = lsqvce.adjust(u, srcOf(B), 2, 'verbose', false, 'test', 'pope');
-    [~, Dm] = lsqvce.adjust(u, srcOf(B), 2, 'verbose', false, 'test', 'mad');
+    [~, Dp] = lsqvce.engine.adjust(u, srcOf(B), 2, 'verbose', false, 'test', 'pope');
+    [~, Dm] = lsqvce.engine.adjust(u, srcOf(B), 2, 'verbose', false, 'test', 'mad');
 
     % Pope is blind here in 40/40 measured seeds -- that part is robust.
     verifyEmpty(tc, intersect(Dp.flagIdx, bad), ...
@@ -426,7 +426,7 @@ function test_contamination_flag_fires(tc)
     l([6 13 15 20 43]) = l([6 13 15 20 43]) + 25;
 
     B = chop(A, l, p, 2);
-    [~, D, V] = lsqvce.adjust(u, srcOf(B), 2, 'verbose', false);
+    [~, D, V] = lsqvce.engine.adjust(u, srcOf(B), 2, 'verbose', false);
 
     verifyTrue(tc, D.madAvailable);
     verifyGreaterThan(tc, D.scaleRatio, D.scaleRatioTol, ...
@@ -447,7 +447,7 @@ function test_contamination_flag_quiet_on_clean_data(tc)
         xt = randn(rs, u, 1);
         l = A*xt + randn(rs, n, 1);
         B = chop(A, l, ones(n,1), 3);
-        [~, D] = lsqvce.adjust(u, srcOf(B), 3, 'verbose', false);
+        [~, D] = lsqvce.engine.adjust(u, srcOf(B), 3, 'verbose', false);
         if isfinite(D.scaleRatio) && D.scaleRatio > D.scaleRatioTol
             nFire = nFire + 1;
         end
@@ -467,7 +467,7 @@ function test_mad_scale_is_unbiased(tc)
         xt = randn(rs, u, 1);
         l = A*xt + randn(rs, n, 1);
         B = chop(A, l, ones(n,1), 3);
-        [~, D] = lsqvce.adjust(u, srcOf(B), 3, 'verbose', false);
+        [~, D] = lsqvce.engine.adjust(u, srcOf(B), 3, 'verbose', false);
         mads(m) = D.robustScale;
     end
     % tol: statistical identity on a finite sample; scatter ~ 1/sqrt(dof) of the fixture, bar sized 4/sqrt(Z)-style (HANDOVER 6.1.2)
@@ -495,8 +495,8 @@ function test_sparse_matches_dense(tc)
     l = A*xt + 0.1*randn(rs, n, 1);
     B = chop(A, l, p, 5);
 
-    accD = lsqvce.Accumulator(u, 'method','normal', 'sparse', false);
-    accS = lsqvce.Accumulator(u, 'method','normal', 'sparse', true);
+    accD = lsqvce.engine.Accumulator(u, 'method','normal', 'sparse', false);
+    accS = lsqvce.engine.Accumulator(u, 'method','normal', 'sparse', true);
     for k = 1:5
         accD.add(B{k}{1}, B{k}{2}, B{k}{3});
         accS.add(B{k}{1}, B{k}{2}, B{k}{3});
@@ -527,9 +527,9 @@ function test_sparse_diagnostics_identical(tc)
     p = ones(n,1);
     B = chop(A, l, p, 4);
 
-    [~, Dd] = lsqvce.adjust(u, srcOf(B), 4, 'verbose', false, ...
+    [~, Dd] = lsqvce.engine.adjust(u, srcOf(B), 4, 'verbose', false, ...
                              'method','normal', 'sparse', false);
-    [~, Ds] = lsqvce.adjust(u, srcOf(B), 4, 'verbose', false, ...
+    [~, Ds] = lsqvce.engine.adjust(u, srcOf(B), 4, 'verbose', false, ...
                              'method','normal', 'sparse', true);
 
     % tol: independent dense reference, same-precision algebra; eps*cond headroom (house bounds, HANDOVER 6.1.2)
@@ -544,7 +544,7 @@ function test_sparse_qr_is_refused(tc)
 % categories: contract, robustness
     % A sparse running QR factor fills in immediately; refusing is honest.
     verifyError(tc, ...
-        @() lsqvce.Accumulator(10, 'method','qr', 'sparse', true), ...
+        @() lsqvce.engine.Accumulator(10, 'method','qr', 'sparse', true), ...
         'lsqvce:acc:sparseQR');
 end
 
@@ -563,7 +563,7 @@ function test_fhat_quiet_on_clean_data(tc)
         A = randn(rs, n, u);  xt = randn(rs, u, 1);
         l = A*xt + randn(rs, n, 1);
         B = chop(A, l, ones(n,1), 3);
-        [~, D] = lsqvce.adjust(u, srcOf(B), 3, 'verbose', false);
+        [~, D] = lsqvce.engine.adjust(u, srcOf(B), 3, 'verbose', false);
         if ~strcmp(D.contamLevel, 'clean'), nEsc = nEsc + 1; end
     end
     verifyLessThanOrEqual(tc, nEsc, 1, ...
@@ -577,9 +577,9 @@ function test_fhat_floor_is_exact(tc)
     n = 400; u = 6;
     A = randn(rs, n, u);  l = A*randn(rs,u,1) + randn(rs, n, 1);
     B = chop(A, l, ones(n,1), 4);
-    [~, D] = lsqvce.adjust(u, srcOf(B), 4, 'verbose', false);
+    [~, D] = lsqvce.engine.adjust(u, srcOf(B), 4, 'verbose', false);
     % tol: exact-path identity (same numbers recombined); house round-trip bound 1e-12/1e-10 (HANDOVER 6.1.2)
-    verifyEqual(tc, D.fhatFloor, 2*lsqvce.stat.normCdf(-2.5), 'AbsTol', 1e-12);
+    verifyEqual(tc, D.fhatFloor, 2*lsqvce.engine.stat.normCdf(-2.5), 'AbsTol', 1e-12);
     verifyEqual(tc, D.fhatFloor, 0.0124190, 'AbsTol', 1e-5);
 end
 
@@ -597,7 +597,7 @@ function test_ladder_escalates_with_contamination(tc)
             l(idx) = l(idx) + 20 * sign(randn(rs, k, 1));
         end
         B = chop(A, l, ones(n,1), 4);
-        [~, D] = lsqvce.adjust(u, srcOf(B), 4, 'verbose', false);
+        [~, D] = lsqvce.engine.adjust(u, srcOf(B), 4, 'verbose', false);
         lvl = D.contamLevel;
     end
     verifyEqual(tc, levelAt(0.00), 'clean');
@@ -620,7 +620,7 @@ function test_breakdown_detected_by_backstop(tc)
     l(idx) = l(idx) + 20 * sign(randn(rs, numel(idx), 1));
 
     B = chop(A, l, ones(n,1), 4);
-    [~, D] = lsqvce.adjust(u, srcOf(B), 4, 'verbose', false);
+    [~, D] = lsqvce.engine.adjust(u, srcOf(B), 4, 'verbose', false);
 
     verifyEqual(tc, D.contamLevel, 'breakdown');
     verifyLessThan(tc, D.fhat, 0.02, ...
@@ -640,12 +640,12 @@ function test_snoop_refuses_when_too_contaminated(tc)
 
     B = chop(A, l, ones(n,1), 4);
     src = srcOf(B);
-    [sol, D] = lsqvce.adjust(u, src, 4, 'verbose', false);
+    [sol, D] = lsqvce.engine.adjust(u, src, 4, 'verbose', false);
 
     % Rejecting 30% of the data is not outlier rejection; it is laundering a
     % model error. snoop must REFUSE rather than quietly delete a third of the
     % dataset.
-    verifyError(tc, @() lsqvce.snoop(sol, D, src, 'verbose', false), ...
+    verifyError(tc, @() lsqvce.engine.snoop(sol, D, src, 'verbose', false), ...
         'lsqvce:snoop:tooContaminated');
 end
 
@@ -659,11 +659,11 @@ function test_snoop_force_overrides_refusal(tc)
     l(idx) = l(idx) + 20 * sign(randn(rs, numel(idx), 1));
     B = chop(A, l, ones(n,1), 4);
     src = srcOf(B);
-    [sol, D] = lsqvce.adjust(u, src, 4, 'verbose', false);
+    [sol, D] = lsqvce.engine.adjust(u, src, 4, 'verbose', false);
 
     % 'force' must still WARN -- an override should never be silent.
     verifyWarning(tc, ...
-        @() lsqvce.snoop(sol, D, src, 'verbose', false, 'force', true, ...
+        @() lsqvce.engine.snoop(sol, D, src, 'verbose', false, 'force', true, ...
                           'test', 'mad'), ...
         'lsqvce:snoop:forcedContaminated');
 end
@@ -689,7 +689,7 @@ function test_untested_quadrant_is_reported(tc)
     rs = RandStream('mt19937ar','Seed', 11);
     l = A*randn(rs, uu, 1) + randn(rs, ne, 1);
     B = chop(A, l, ones(ne,1), 2);
-    [~, D, V] = lsqvce.adjust(uu, srcOf(B), 2, 'verbose', false);
+    [~, D, V] = lsqvce.engine.adjust(uu, srcOf(B), 2, 'verbose', false);
 
     verifyGreaterThan(tc, D.quad.untested, 0, ...
         'the spur observations must land in the UNTESTED quadrant');
@@ -713,7 +713,7 @@ function test_blunder_at_zero_redundancy_is_invisible(tc)
     l(7) = l(7) + 40;                 % a 40-sigma blunder
 
     B = chop(A, l, ones(n,1), 3);
-    [~, D] = lsqvce.adjust(u, srcOf(B), 3, 'verbose', false);
+    [~, D] = lsqvce.engine.adjust(u, srcOf(B), 3, 'verbose', false);
 
     verifyLessThan(tc, abs(D.w(7)), 1e-6, ...
         'a blunder at r = 0 must produce w = 0 -- that is the whole point');
@@ -728,7 +728,7 @@ function test_mdb_envelope_quantiles(tc)
     A = randn(rs, n, u);
     l = A*randn(rs,u,1) + randn(rs, n, 1);
     B = chop(A, l, ones(n,1), 4);
-    [~, D] = lsqvce.adjust(u, srcOf(B), 4, 'verbose', false);
+    [~, D] = lsqvce.engine.adjust(u, srcOf(B), 4, 'verbose', false);
 
     M = D.mdbQuantiles;
     verifyTrue(tc, isfinite(M.p50) && isfinite(M.max));
@@ -748,7 +748,7 @@ function test_poisoned_vPv_returns_nan(tc)
     A = randn(rs, n, u) + 20;             % large offset -> huge l'Pl
     l = A*randn(rs, u, 1) + 1e-9*randn(rs, n, 1);   % ~zero residual
 
-    acc = lsqvce.Accumulator(u, 'method', 'normal');
+    acc = lsqvce.engine.Accumulator(u, 'method', 'normal');
     acc.add(A, l, ones(n,1));
     sol = verifyWarning(tc, @() acc.solve(), 'lsqvce:acc:cancellation');
     verifyTrue(tc, isnan(sol.vPv), ...
@@ -769,9 +769,9 @@ function test_cond_is_flagged_as_a_bound_when_sparse(tc)
     l = A*randn(rs, u, 1) + 0.1*randn(rs, n, 1);
     B = chop(A, l, ones(n,1), 3);
 
-    [~, Ds] = lsqvce.adjust(u, srcOf(B), 3, 'verbose', false, ...
+    [~, Ds] = lsqvce.engine.adjust(u, srcOf(B), 3, 'verbose', false, ...
                              'method','normal', 'sparse', true);
-    [~, Dd] = lsqvce.adjust(u, srcOf(B), 3, 'verbose', false, ...
+    [~, Dd] = lsqvce.engine.adjust(u, srcOf(B), 3, 'verbose', false, ...
                              'method','normal', 'sparse', false);
     verifyTrue(tc, Ds.condIsBound, ...
         'a sparse condition number is a LOWER BOUND and must say so');
@@ -794,14 +794,14 @@ function test_varComp_refuses_contaminated_data(tc)
 
     B = chop(A, l, ones(n,1), 4);
     src = srcOf(B);
-    [~, D] = lsqvce.adjust(u, src, 4, 'verbose', false);
+    [~, D] = lsqvce.engine.adjust(u, src, 4, 'verbose', false);
 
     g = [ones(n/2,1); 2*ones(n/2,1)];
     gB = chop(A, g, ones(n,1), 4);
     gsrc = @(k) gB{k}{2};
 
     verifyError(tc, ...
-        @() lsqvce.varComp(u, src, 4, gsrc, 2, 'verbose', false, 'checkD', D), ...
+        @() lsqvce.engine.varComp(u, src, 4, gsrc, 2, 'verbose', false, 'checkD', D), ...
         'lsqvce:varComp:contaminated');
 end
 
@@ -818,16 +818,16 @@ function test_ftest_warns_when_premise_violated(tc)
     l = A*xt + 0.3*randn(rs, n, 1) + 1.5*sin(2*pi*t);   % unmodelled signal
     Aext = [A, randn(rs, n, 1)];
 
-    accF = lsqvce.Accumulator(u+1); accF.add(Aext, l, ones(n,1));
-    accR = lsqvce.Accumulator(u);   accR.add(A,    l, ones(n,1));
+    accF = lsqvce.engine.Accumulator(u+1); accF.add(Aext, l, ones(n,1));
+    accR = lsqvce.engine.Accumulator(u);   accR.add(A,    l, ones(n,1));
     sF = accF.solve();  sR = accR.solve();
 
     B = chop(A, l, ones(n,1), 4);
-    [~, D] = lsqvce.adjust(u, srcOf(B), 4, 'verbose', false);
-    S = lsqvce.systematic(D, 'covariates', struct('t', t), 'verbose', false);
+    [~, D] = lsqvce.engine.adjust(u, srcOf(B), 4, 'verbose', false);
+    S = lsqvce.engine.systematic(D, 'covariates', struct('t', t), 'verbose', false);
 
     verifyWarning(tc, ...
-        @() lsqvce.ftest(sF, sR, 'verbose', false, 'checkD', S), ...
+        @() lsqvce.engine.ftest(sF, sR, 'verbose', false, 'checkD', S), ...
         'lsqvce:ftest:invalidPremise');
 end
 
@@ -836,7 +836,7 @@ function test_poolGroups_no_pooling_when_all_above_floor(tc)
 % categories: contract
     vc = struct('groups', {{'a','b','c'}}, 'r', [120; 90; 200], ...
                 'sigma', [1;1;1]);
-    pl = lsqvce.poolGroups(vc, 'floor', 50, 'verbose', false);
+    pl = lsqvce.engine.poolGroups(vc, 'floor', 50, 'verbose', false);
     verifyFalse(tc, pl.changed);
     verifyEqual(tc, numel(pl.newGroups), 3);
     verifyEqual(tc, pl.indexRemap(:).', [1 2 3]);
@@ -847,7 +847,7 @@ function test_poolGroups_mergeLow_merges_thin_groups(tc)
     % b and c are below the floor -> both map to the pooled key; a stays.
     vc = struct('groups', {{'a','b','c'}}, 'r', [120; 20; 15], ...
                 'sigma', [1;2;3]);
-    pl = lsqvce.poolGroups(vc, 'floor', 50, 'strategy', 'mergeLow', ...
+    pl = lsqvce.engine.poolGroups(vc, 'floor', 50, 'strategy', 'mergeLow', ...
                            'verbose', false);
     verifyTrue(tc, pl.changed);
     verifyEqual(tc, pl.map('a'), 'a');
@@ -865,7 +865,7 @@ function test_poolGroups_nearest_attaches_to_closest_sigma(tc)
     % sigma is closest: 'b' (sigma 3.0), not 'a' (sigma 1.0).
     vc = struct('groups', {{'a','b','c'}}, 'r', [200; 150; 10], ...
                 'sigma', [1.0; 3.0; 2.9]);
-    pl = lsqvce.poolGroups(vc, 'floor', 50, 'strategy', 'nearest', ...
+    pl = lsqvce.engine.poolGroups(vc, 'floor', 50, 'strategy', 'nearest', ...
                            'verbose', false);
     verifyEqual(tc, pl.map('c'), 'b');
     verifyEqual(tc, pl.map('a'), 'a');
@@ -876,14 +876,14 @@ function test_poolGroups_remap_handle_and_numeric_keys(tc)
 % categories: contract
     % numeric group keys must normalise to char and the remap handle must work.
     vc = struct('groups', {{1, 2, 3}}, 'r', [120; 20; 200], 'sigma', [1;1;1]);
-    pl = lsqvce.poolGroups(vc, 'floor', 50, 'verbose', false);
+    pl = lsqvce.engine.poolGroups(vc, 'floor', 50, 'verbose', false);
     verifyEqual(tc, pl.remap(1), '1');            % above floor -> itself
     verifyEqual(tc, pl.remap(2), 'pooledLow');    % below floor -> pooled
 end
 
 function test_poolGroups_errors_on_missing_fields(tc)
 % categories: contract
-    verifyError(tc, @() lsqvce.poolGroups(struct('groups', {{'a'}}), ...
+    verifyError(tc, @() lsqvce.engine.poolGroups(struct('groups', {{'a'}}), ...
         'verbose', false), 'lsqvce:poolGroups:badInput');
 end
 
@@ -894,14 +894,14 @@ function test_stageB_signature_redundancy(tc)
     % specific mustBeMember id ('Hutchinson' passed the old strcmpi).
     ok = false;
     try
-        lsqvce.redundancy([], [], 'TraceMethod', 'Hutchinson');
+        lsqvce.engine.redundancy([], [], 'TraceMethod', 'Hutchinson');
     catch e
         ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
     end
     verifyTrue(tc, ok, 'redundancy TraceMethod ''Hutchinson'' must fail');
     ok = false;
     try
-        lsqvce.redundancy([], [], 'Parallel', 'PARFOR');
+        lsqvce.engine.redundancy([], [], 'Parallel', 'PARFOR');
     catch e
         ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
     end
@@ -915,21 +915,21 @@ function test_stageC1_signatures_enum_values(tc)
     % pattern, pinned deviation).
     ok = false;
     try
-        lsqvce.dctI([1;2;3], 'Norm', 'Ortho');
+        lsqvce.kernel.dctI([1;2;3], 'Norm', 'Ortho');
     catch e
         ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
     end
     verifyTrue(tc, ok, 'dctI Norm ''Ortho'' must fail (value casing)');
     ok = false;
     try
-        lsqvce.toeplitzCofactor([1;0.5;0.2], 'Form', 'Dense');
+        lsqvce.kernel.toeplitzCofactor([1;0.5;0.2], 'Form', 'Dense');
     catch e
         ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
     end
     verifyTrue(tc, ok, 'toeplitzCofactor Form ''Dense'' must fail');
     ok = false;
     try
-        lsqvce.mapreduce(@(k) k, 3, 'Mode', 'Serial');
+        lsqvce.engine.mapreduce(@(k) k, 3, 'Mode', 'Serial');
     catch e
         ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
     end
@@ -939,7 +939,7 @@ function test_stageC1_signatures_enum_values(tc)
         % round-2 fix: solveNonlinear takes FOUR positionals (u, batchFcn,
         % nBatch, x0) -- the first draft passed two, so 'Method' landed as
         % nBatch and the parser never saw the pair.
-        lsqvce.solveNonlinear(2, @(k, x) deal(randn(4,2), randn(4,1), []), ...
+        lsqvce.engine.solveNonlinear(2, @(k, x) deal(randn(4,2), randn(4,1), []), ...
                               1, [0; 0], 'Method', 'QR');
     catch e
         ok = strcmp(e.identifier, 'MATLAB:InputParser:ArgumentFailedValidation');
@@ -955,21 +955,21 @@ function test_stageC2_signatures_classes(tc)
     % body work, so light dummies suffice.
     ok = false;
     try
-        lsqvce.BlockAccumulator(3, 'Backend', 'QR');
+        lsqvce.engine.BlockAccumulator(3, 'Backend', 'QR');
     catch e
         ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
     end
     verifyTrue(tc, ok, 'BlockAccumulator Backend ''QR'' must fail');
     ok = false;
     try
-        lsqvce.adjustVCE({}, [], 'VceMode', 'Joint');
+        lsqvce.engine.adjustVCE({}, [], 'VceMode', 'Joint');
     catch e
         ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
     end
     verifyTrue(tc, ok, 'adjustVCE VceMode ''Joint'' must fail');
     ok = false;
     try
-        lsqvce.BlockAccumulator(3, 'CondWarn', -1);
+        lsqvce.engine.BlockAccumulator(3, 'CondWarn', -1);
     catch e
         ok = startsWith(e.identifier, 'MATLAB:validators:');
     end
@@ -980,7 +980,7 @@ function test_stageC2_signatures_classes(tc)
     L = struct('load', @(d) struct(), 'days', 1);
     ok = false;
     try
-        lsqvce.PrefetchLoader(@(d) L, 1, 'Enable', 'sometimes');
+        lsqvce.engine.PrefetchLoader(@(d) L, 1, 'Enable', 'sometimes');
     catch e
         ok = strcmp(e.identifier, 'lsqvce:prefetch:badEnable');
     end
@@ -994,28 +994,28 @@ function test_stageB2_signatures_enum_values(tc)
     % asserted with the SPECIFIC validator id per the a1-2/b1 lessons.
     ok = false;
     try
-        lsqvce.traceEstimate(@(x) x, 'Distribution', 'Gaussian', 'Size', 4);
+        lsqvce.engine.traceEstimate(@(x) x, 'Distribution', 'Gaussian', 'Size', 4);
     catch e
         ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
     end
     verifyTrue(tc, ok, 'traceEstimate Distribution ''Gaussian'' must fail');
     ok = false;
     try
-        lsqvce.poolGroups(struct(), 'Strategy', 'MergeLow');
+        lsqvce.engine.poolGroups(struct(), 'Strategy', 'MergeLow');
     catch e
         ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
     end
     verifyTrue(tc, ok, 'poolGroups Strategy ''MergeLow'' must fail');
     ok = false;
     try
-        lsqvce.ellipse(eye(2), 1, 'Scale', 'Aposteriori');
+        lsqvce.engine.ellipse(eye(2), 1, 'Scale', 'Aposteriori');
     catch e
         ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
     end
     verifyTrue(tc, ok, 'ellipse Scale ''Aposteriori'' must fail');
     ok = false;
     try
-        lsqvce.jointModelOpt('psd', {}, 'PsdMode', 'Toeplitz');
+        lsqvce.engine.jointModelOpt('psd', {}, 'PsdMode', 'Toeplitz');
     catch e
         ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
     end
@@ -1024,7 +1024,7 @@ function test_stageB2_signatures_enum_values(tc)
     % now-case-sensitive enum VALUE through the parser's own id.
     ok = false;
     try
-        lsqvce.robust(2, @(k) deal(randn(8,2), randn(8,1), []), 1, ...
+        lsqvce.engine.robust(2, @(k) deal(randn(8,2), randn(8,1), []), 1, ...
                       'Influence', 'Huber');
     catch e
         ok = strcmp(e.identifier, 'MATLAB:InputParser:ArgumentFailedValidation');
@@ -1042,21 +1042,21 @@ function test_noise_iteration_signature_types(tc)
     cov0 = struct('pos', struct('type','diag','sigma',1));
     ok = false;
     try
-        lsqvce.iterateNoiseModel(dummy, cov0, 'MaxLag', 4);
+        lsqvce.engine.iterateNoiseModel(dummy, cov0, 'MaxLag', 4);
     catch e
         ok = startsWith(e.identifier, 'MATLAB:');
     end
     verifyTrue(tc, ok, 'MaxLag < 8 must be rejected by the signature');
     ok = false;
     try
-        lsqvce.iterateNoiseModel(dummy, cov0, 'MaxIter', 2.5);
+        lsqvce.engine.iterateNoiseModel(dummy, cov0, 'MaxIter', 2.5);
     catch e
         ok = startsWith(e.identifier, 'MATLAB:');
     end
     verifyTrue(tc, ok, 'non-integer MaxIter must be rejected by the signature');
     ok = false;
     try
-        lsqvce.iterateNoiseModel(dummy, cov0, 'NoSuchOption', 1);
+        lsqvce.engine.iterateNoiseModel(dummy, cov0, 'NoSuchOption', 1);
     catch e
         ok = startsWith(e.identifier, 'MATLAB:');
     end
@@ -1077,7 +1077,7 @@ function test_noise_iteration_perarc_whiteness_smoke(tc)
     cov0 = cfg.cov;                                  % correct from the start
     accFcn = @(cov) buildWithCovExt(cfg, 1, cov);
     w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
-    it = lsqvce.iterateNoiseModel(accFcn, cov0, 'MaxIter', 2, ...
+    it = lsqvce.engine.iterateNoiseModel(accFcn, cov0, 'MaxIter', 2, ...
                                   'Verbose', false);
     verifyTrue(tc, it.converged, 'correct model: must converge immediately');
     verifyEqual(tc, it.nIter, 1);
@@ -1095,10 +1095,10 @@ function test_noise_iteration_signature_typed_arguments(tc)
     accFcn = @(cov) struct();                    % never reached: parse errors first
     cov0 = struct('pos', struct('type','diag','sigma',1));
     mustErr = { ...
-        @() lsqvce.iterateNoiseModel(accFcn, cov0, 'maxIter', 2), ...
-        @() lsqvce.iterateNoiseModel(accFcn, cov0, 'MaxLag', 4), ...
-        @() lsqvce.iterateNoiseModel(accFcn, cov0, 'Detrend', 'yes'), ...
-        @() lsqvce.iterateNoiseModel(accFcn, cov0, 'NoSuchOption', 1) };
+        @() lsqvce.engine.iterateNoiseModel(accFcn, cov0, 'maxIter', 2), ...
+        @() lsqvce.engine.iterateNoiseModel(accFcn, cov0, 'MaxLag', 4), ...
+        @() lsqvce.engine.iterateNoiseModel(accFcn, cov0, 'Detrend', 'yes'), ...
+        @() lsqvce.engine.iterateNoiseModel(accFcn, cov0, 'NoSuchOption', 1) };
     for k = 1:numel(mustErr)
         ok = false;
         try, mustErr{k}(); catch, ok = true; end
@@ -1123,10 +1123,10 @@ end
 
 function acc = buildWithCovExt(cfg, days, cov)
     uo = struct('covOverride', cov);
-    acc = lsqvce.BlockAccumulator(cfg.nc, 'Verbose', false, 'UserOpt', uo);
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Verbose', false, 'UserOpt', uo);
     for s = cfg.sats
         acc.addSystem(s, cfg.nl, ...
-            @(d,ot,a,uo2) lsqvce.synthLoader(cfg, s, d, ot, a, uo2), days);
+            @(d,ot,a,uo2) lsqvce.engine.synthLoader(cfg, s, d, ot, a, uo2), days);
     end
 end
 

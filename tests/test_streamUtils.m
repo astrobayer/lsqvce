@@ -1,19 +1,19 @@
 function tests = test_streamUtils
 %TEST_STREAMUTILS  Direct tests for the functions moved into +lsqvce this session:
 %
-%     lsqvce.selectArAcv         automatic AR-order selection by ACV fidelity
-%     lsqvce.whitenessCorr          whiteness statistic
-%     lsqvce.collectResiduals    stack a residual field over arcs
-%     lsqvce.residualAcv temporal ACV of D^-1 v (pos + rr paths)
-%     lsqvce.normalizeSatList    satellite-list normalisation
-%     lsqvce.resolveSatSpecs     per-satellite spec resolution
+%     lsqvce.engine.selectArAcv         automatic AR-order selection by ACV fidelity
+%     lsqvce.kernel.whitenessCorr          whiteness statistic
+%     lsqvce.engine.collectResiduals    stack a residual field over arcs
+%     lsqvce.kernel.residualAcv temporal ACV of D^-1 v (pos + rr paths)
+%     lsqvce.engine.normalizeSatList    satellite-list normalisation
+%     lsqvce.engine.resolveSatSpecs     per-satellite spec resolution
 %
 %   Reference properties/tolerances established in validation/v9verify.py (14).
 %
 %   Run:
 %     results = runtests('tests/test_streamUtils');  disp(table(results))
 %
-%   See also LSQVCE.SELECTARACV, LSQVCE.RESIDUALACV, TEST_V8
+%   See also LSQVCE.ENGINE.SELECTARACV, LSQVCE.KERNEL.RESIDUALACV, TEST_V8
     tests = functiontests(localfunctions);
 end
 
@@ -21,8 +21,8 @@ end
 function testSelectArAcvRecoversOrder(tc)
 % categories: precision | tags: diagnostics
     a0 = [1 -1.6 0.9 -0.25];  s0 = 0.7;
-    r  = s0^2 * lsqvce.armaACV(a0, 1, 200);
-    [a, s2, p, sel] = lsqvce.selectArAcv(r, 5000);
+    r  = s0^2 * lsqvce.kernel.armaACV(a0, 1, 200);
+    [a, s2, p, sel] = lsqvce.engine.selectArAcv(r, 5000);
     tc.verifyEqual(p, 3);
     % tol: a(1)=1 exact by construction (1e-12 house); coefficient/sigma
     % recovery at 1e-6 = v9verify.py measured level on the exact ACV
@@ -37,7 +37,7 @@ end
 function testSelectArAcvWhiteReturnsZero(tc)
 % categories: precision | tags: diagnostics
     r = [1; zeros(49,1)];                           % delta ACV = white
-    [a, s2, p, sel] = lsqvce.selectArAcv(r, 5000);
+    [a, s2, p, sel] = lsqvce.engine.selectArAcv(r, 5000);
     tc.verifyEqual(p, 0);
     tc.verifyEqual(a, 1);
     % tol: delta ACV -> s2 = r0 = 1 exactly; house round-trip bound 1e-12
@@ -47,10 +47,10 @@ end
 
 function testSelectArAcvDefaultsAndValidation(tc)
 % categories: contract
-    r = 0.5^2 * lsqvce.armaACV([1 -0.6], 1, 64);
-    [~, ~, p] = lsqvce.selectArAcv(r, []);          % nData [] -> default 1e4
+    r = 0.5^2 * lsqvce.kernel.armaACV([1 -0.6], 1, 64);
+    [~, ~, p] = lsqvce.engine.selectArAcv(r, []);          % nData [] -> default 1e4
     tc.verifyEqual(p, 1);
-    tc.verifyError(@() lsqvce.selectArAcv([], 100), 'MATLAB:selectArAcv:expectedVector');
+    tc.verifyError(@() lsqvce.engine.selectArAcv([], 100), 'MATLAB:selectArAcv:expectedVector');
 end
 
 %% ===================================================== whitenessCorr
@@ -58,9 +58,9 @@ function testMaxLagCorrWhiteVsCorrelated(tc)
 % categories: contract
     rs = RandStream('mt19937ar','Seed',9);
     w  = randn(rs, 4000, 1);
-    tc.verifyLessThan(lsqvce.whitenessCorr(w, 5), 3/sqrt(4000));
+    tc.verifyLessThan(lsqvce.kernel.whitenessCorr(w, 5), 3/sqrt(4000));
     ar1 = filter(1, [1 -0.8], randn(rs, 4000, 1));
-    mc  = lsqvce.whitenessCorr(ar1, 5);
+    mc  = lsqvce.kernel.whitenessCorr(ar1, 5);
     tc.verifyGreaterThan(mc, 3/sqrt(4000));
     tc.verifyGreaterThanOrEqual(mc, 0);
     tc.verifyLessThanOrEqual(mc, 1);
@@ -68,20 +68,20 @@ end
 
 function testMaxLagCorrShortSeries(tc)
 % categories: contract
-    tc.verifyEqual(lsqvce.whitenessCorr(7, 5), 0);     % 1 element -> 0
+    tc.verifyEqual(lsqvce.kernel.whitenessCorr(7, 5), 0);     % 1 element -> 0
 end
 
 %% ===================================================== collectResiduals
 function testCollectResidualsFilters(tc)
 % categories: robustness
     res = makeRes();
-    wC = lsqvce.collectResiduals(res, 'C', 'pos', 'w');
+    wC = lsqvce.engine.collectResiduals(res, 'C', 'pos', 'w');
     tc.verifyEqual(numel(wC), 18);                  % 2 arcs x 3 epochs x 3 axes (C/pos)
-    vAll = lsqvce.collectResiduals(res, [], 'pos', 'v');
+    vAll = lsqvce.engine.collectResiduals(res, [], 'pos', 'v');
     tc.verifyEqual(numel(vAll), 36);                % C+D pooled (4 arcs x 9)
-    empty = lsqvce.collectResiduals(res, 'C', 'nope');
+    empty = lsqvce.engine.collectResiduals(res, 'C', 'nope');
     tc.verifyEmpty(empty);
-    wDef = lsqvce.collectResiduals(res, 'D', 'pos'); % default field 'w'
+    wDef = lsqvce.engine.collectResiduals(res, 'D', 'pos'); % default field 'w'
     tc.verifyEqual(numel(wDef), 18);
 end
 
@@ -98,7 +98,7 @@ function testCollectResidualsRejectsMissingField(tc)
     % id AND the message through the caught exception, never via the output.
     caught = MException.empty;
     try
-        lsqvce.collectResiduals(res, 'C', 'pos', 'zz');
+        lsqvce.engine.collectResiduals(res, 'C', 'pos', 'zz');
     catch e
         caught = e;
     end
@@ -115,9 +115,9 @@ function testResidualAcvRejectsBadDayFcnAndEmptyStream(tc)
 % observations must refuse with noObs rather than return an empty ACV.
     rs = RandStream('mt19937ar','Seed',7);
     [res, dayFcn] = makePosRes(rs, eye(3), 20, 1);
-    tc.verifyError(@() lsqvce.residualAcv(res, 'C', 'pos', 3, 5, 42), ...
+    tc.verifyError(@() lsqvce.kernel.residualAcv(res, 'C', 'pos', 3, 5, 42), ...
                    'lsqvce:residualAcv:dayFcn');
-    tc.verifyError(@() lsqvce.residualAcv(res, 'C', 'nope', 3, 5, dayFcn), ...
+    tc.verifyError(@() lsqvce.kernel.residualAcv(res, 'C', 'nope', 3, 5, dayFcn), ...
                    'lsqvce:residualAcv:noObs');
 end
 
@@ -127,7 +127,7 @@ function testDescaledAcvPosWhitens(tc)
     rs = RandStream('mt19937ar','Seed',3);
     d = 3;  nE = 600;  maxLag = 40;  L = [1 0 0; 0.3 0.8 0; -0.2 0.1 0.6];
     [res, dayFcn] = makePosRes(rs, L, nE, 4);       % 4 arcs
-    [acv, nSamp] = lsqvce.residualAcv(res, 'C', 'pos', d, maxLag, dayFcn);
+    [acv, nSamp] = lsqvce.kernel.residualAcv(res, 'C', 'pos', d, maxLag, dayFcn);
     % tol: statistical identity on a finite sample; scatter ~ 1/sqrt(dof) of the fixture, bar sized 4/sqrt(Z)-style (HANDOVER 6.1.2)
     tc.verifyEqual(acv(1), 1, 'RelTol', 0.1);       % r0 ~ 1
     tc.verifyLessThan(abs(acv(2))/acv(1), 0.1);     % |r1/r0| small
@@ -140,7 +140,7 @@ function testDescaledAcvRrWhitens(tc)
     rs = RandStream('mt19937ar','Seed',5);
     nE = 800;  maxLag = 30;
     [res, dayFcn] = makeRrRes(rs, nE, 3);
-    [acv, nSamp] = lsqvce.residualAcv(res, 'C', 'rr', 1, maxLag, dayFcn);
+    [acv, nSamp] = lsqvce.kernel.residualAcv(res, 'C', 'rr', 1, maxLag, dayFcn);
     % tol: statistical identity on a finite sample; scatter ~ 1/sqrt(dof) of the fixture, bar sized 4/sqrt(Z)-style (HANDOVER 6.1.2)
     tc.verifyEqual(acv(1), 1, 'RelTol', 0.1);
     tc.verifyLessThan(abs(acv(2))/acv(1), 0.1);
@@ -150,11 +150,11 @@ end
 %% ===================================================== normalizeSatList
 function testNormalizeSatList(tc)
 % categories: contract, robustness
-    tc.verifyEqual(lsqvce.normalizeSatList([1 2]), {1, 2});
-    tc.verifyEqual(lsqvce.normalizeSatList('CD'), {'C', 'D'});
-    tc.verifyEqual(lsqvce.normalizeSatList({'C','D'}), {'C', 'D'});
-    tc.verifyEqual(lsqvce.normalizeSatList("C"), {'C'});
-    tc.verifyError(@() lsqvce.normalizeSatList([]), 'lsqvce:normalizeSatList:empty');
+    tc.verifyEqual(lsqvce.engine.normalizeSatList([1 2]), {1, 2});
+    tc.verifyEqual(lsqvce.engine.normalizeSatList('CD'), {'C', 'D'});
+    tc.verifyEqual(lsqvce.engine.normalizeSatList({'C','D'}), {'C', 'D'});
+    tc.verifyEqual(lsqvce.engine.normalizeSatList("C"), {'C'});
+    tc.verifyError(@() lsqvce.engine.normalizeSatList([]), 'lsqvce:normalizeSatList:empty');
 end
 
 %% ===================================================== resolveSatSpecs
@@ -162,33 +162,33 @@ function testResolveSatSpecsOverrides(tc)
 % categories: contract
     defaults = struct('nl', 12, 'maxLag', 128);
     us(1).satId = 'D';  us(1).nl = 9;               % override only D.nl
-    [S, specFor] = lsqvce.resolveSatSpecs({'C','D'}, us, defaults);
+    [S, specFor] = lsqvce.engine.resolveSatSpecs({'C','D'}, us, defaults);
 
     tc.verifyEqual(specFor('C').nl, 12);            % default kept
     tc.verifyEqual(specFor('D').nl, 9);             % overridden
     tc.verifyEqual(specFor('C').maxLag, 128);       % default kept
-    tc.verifyEqual(S(1).key, 's_C');                % via lsqvce.satKeyOf
+    tc.verifyEqual(S(1).key, 's_C');                % via lsqvce.engine.satKeyOf
     tc.verifyEqual(S(2).key, 's_D');
     tc.verifyError(@() specFor('Z'), 'lsqvce:resolveSatSpecs:noSpec');
 end
 
 function testResolveSatSpecsNumericKeyAndErrors(tc)
 % categories: contract
-    [S, ~] = lsqvce.resolveSatSpecs({1, 2}, [], struct('nl', 5));
+    [S, ~] = lsqvce.engine.resolveSatSpecs({1, 2}, [], struct('nl', 5));
     tc.verifyEqual(S(1).key, 's_1');                % numeric id -> valid field
     tc.verifyEqual(S(1).nl, 5);
     bad.notSatId = 1;
-    tc.verifyError(@() lsqvce.resolveSatSpecs({1}, bad, struct('nl',5)), ...
+    tc.verifyError(@() lsqvce.engine.resolveSatSpecs({1}, bad, struct('nl',5)), ...
                    'lsqvce:resolveSatSpecs:badSatSpec');
 end
 
 %% ===================================================== satKeyOf (public)
 function testSatKeyOf(tc)
 % categories: contract
-    tc.verifyEqual(lsqvce.satKeyOf('C'), 's_C');
-    tc.verifyEqual(lsqvce.satKeyOf("D"), 's_D');
-    tc.verifyEqual(lsqvce.satKeyOf(1),   's_1');
-    tc.verifyTrue(isvarname(lsqvce.satKeyOf(7)));   % always a legal field name
+    tc.verifyEqual(lsqvce.engine.satKeyOf('C'), 's_C');
+    tc.verifyEqual(lsqvce.engine.satKeyOf("D"), 's_D');
+    tc.verifyEqual(lsqvce.engine.satKeyOf(1),   's_1');
+    tc.verifyTrue(isvarname(lsqvce.engine.satKeyOf(7)));   % always a legal field name
 end
 
 %% =================================================================== helpers

@@ -56,7 +56,7 @@ classdef log
 %   EXAMPLE
 %     fid = fopen('vce.log', 'w');
 %     lsqvce.util.log.set('fid', fid, 'screen', true);   % file AND screen
-%     R = lsqvce.adjustVCE(L, days).run();         % all output captured
+%     R = lsqvce.engine.adjustVCE(L, days).run();         % all output captured
 %     lsqvce.util.log.reset();
 %     fclose(fid);
 %
@@ -71,7 +71,7 @@ classdef log
 %   ERRORS
 %     lsqvce:util:log:badKey        an unknown log option key
 %
-%   See also FPRINTF, WARNING, PARALLEL.POOL.DATAQUEUE, LSQVCE.ADJUSTVCE
+%   See also FPRINTF, WARNING, PARALLEL.POOL.DATAQUEUE, LSQVCE.ENGINE.ADJUSTVCE
 %
 %   Created 2026-07-16 (CEST, UTC+02:00) with assistance from
 %   Claude (Anthropic), model Claude Opus 4.8.

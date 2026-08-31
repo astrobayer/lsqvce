@@ -1,7 +1,7 @@
 function V = report(D, opt)
 %LSQVCE.REPORT  Judge a least-squares adjustment and say so in words.
 %
-%   V = LSQVCE.REPORT(D) takes the struct from lsqvce.diagnose and prints a
+%   V = LSQVCE.REPORT(D) takes the struct from lsqvce.engine.diagnose and prints a
 %   verdict. It returns a struct of machine-readable findings so the same logic
 %   can drive an automated pipeline.
 %
@@ -36,11 +36,11 @@ function V = report(D, opt)
 %     V.nError, V.nWarn, V.nNote
 %
 %   INPUT
-%     D         1x1 struct  diagnostics from LSQVCE.DIAGNOSE
+%     D         1x1 struct  diagnostics from LSQVCE.ENGINE.DIAGNOSE
 %     varargin  Name/Value: 'verbose', 'width', 'alpha', 'rWeak', ...
 %
 %   EXAMPLE
-%       [~, D]  = lsqvce.adjust(u, src, 4, 'verbose', false);
+%       [~, D]  = lsqvce.engine.adjust(u, src, 4, 'verbose', false);
 %       V = lsqvce.report(D);              % prints the five levels
 %
 %       % V.verdict    'PASS' | 'PASS WITH WARNINGS' | 'SUSPECT' | 'INVALID'
@@ -57,7 +57,7 @@ function V = report(D, opt)
 %   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
 %   case-sensitive lowercase). With assistance from Claude (Anthropic),
 %   model Claude Fable 5.
-%   See also LSQVCE.DIAGNOSE, LSQVCE.SYSTEMATIC.
+%   See also LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.SYSTEMATIC.
 %
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
@@ -158,8 +158,8 @@ if integrityOK
     r     = D.r;
     ratio = D.varRatio;
 
-    lo = lsqvce.stat.chi2Inv(0.005, r) / r;
-    hi = lsqvce.stat.chi2Inv(0.995, r) / r;
+    lo = lsqvce.engine.stat.chi2Inv(0.005, r) / r;
+    hi = lsqvce.engine.stat.chi2Inv(0.995, r) / r;
 
     T  = D.vPv / D.sigma0^2;
     inBand = (ratio >= lo) && (ratio <= hi);
@@ -176,8 +176,8 @@ if integrityOK
     % so a two-sided 95% interval for sigma0 is
     %   s0 * sqrt(r / chi2inv(0.975, r))  ..  s0 * sqrt(r / chi2inv(0.025, r))
     if r > 0 && isfinite(D.s0) && D.s0 > 0
-        ciLo = D.s0 * sqrt(r / lsqvce.stat.chi2Inv(0.975, r));
-        ciHi = D.s0 * sqrt(r / lsqvce.stat.chi2Inv(0.025, r));
+        ciLo = D.s0 * sqrt(r / lsqvce.engine.stat.chi2Inv(0.975, r));
+        ciHi = D.s0 * sqrt(r / lsqvce.engine.stat.chi2Inv(0.025, r));
         push(1, 'NOTE', 'GLOBAL_CI', ...
             ['sigma0_hat = %.5f,  95%% CI [%.5f, %.5f]   (a priori sigma0 = ' ...
              '%.5f)\n' ...
@@ -283,7 +283,7 @@ if integrityOK
                  'The robust test is also degrading here (detection falls to ' ...
                  '~75%% at 30%% contamination and ~17%% at 40%%), so even the ' ...
                  'flag list you are looking at is incomplete.\n' ...
-                 'Run lsqvce.systematic() and fix the functional model before ' ...
+                 'Run lsqvce.engine.systematic() and fix the functional model before ' ...
                  'rejecting a single observation.'], ...
                  100 * D.fhat, D.fhat);
 
@@ -298,7 +298,7 @@ if integrityOK
                  'threshold on the first pass, the rejection loop exits at once ' ...
                  'having rejected nothing and reports "converged".\n' ...
                  'Use ''test'',''mad'' (robust scale, still ~100%% effective ' ...
-                 'here) or lsqvce.robust(). An empty flag list from a Pope run ' ...
+                 'here) or lsqvce.engine.robust(). An empty flag list from a Pope run ' ...
                  'is NOT evidence of clean data.'], ...
                  100 * D.fhat, D.fhat, D.s0, D.robustScale);
 
@@ -422,7 +422,7 @@ if integrityOK
 
         push(2, 'NOTE', 'SNOOP_ITER', ...
             ['Reject ONE observation at a time (the largest |w|), re-solve, and ' ...
-             're-snoop -- lsqvce.snoop() does this for you.\n' ...
+             're-snoop -- lsqvce.engine.snoop() does this for you.\n' ...
              'The reason is MASKING, not over-rejection: several blunders ' ...
              'inflate s0 together and therefore hide one another, so a single ' ...
              'pass MISSES some of them. Measured: with two equal blunders in a ' ...

@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.engine.adjustVCE</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.engine.adjustVCE</div>
+<h1>lsqvce.engine.adjustVCE</h1>
+<div class="purpose">Iterative separable-GLS engine (stochastic model + variance components) over adjustBlock.</div>
+<h2>Description</h2>
+<pre class="example">P = lsqvce.engine.adjustVCE(systems, days)
+P = lsqvce.engine.adjustVCE(systems, days, Name, Value, ...)
+
+The general separable generalised-least-squares engine. It layers the
+two-unknown covariance loop on top of LSQVCE.ENGINE.ADJUSTBLOCK: a single GLS solve is
+adjustBlock&#x27;s job; discovering the covariance that solve should use is this
+class&#x27;s job. Build it fluently, then call RUN.
+
+    R = lsqvce.engine.adjustVCE({Lc, Ld}, 1:30) ...
+           .groupComponentsBy(&#x27;satObs&#x27;) ...
+           .stochasticModel(&#x27;MaxOrder&#x27;,60, &#x27;AcvTol&#x27;,1e-3) ...
+           .varianceComponents(&#x27;MaxIter&#x27;,8, &#x27;Tol&#x27;,1e-3) ...
+           .run();
+    R.report();                 % the usual level-0..4 verdict
+    R.history                   % the sigma / AR-order trajectory</pre>
+<h3>THE MODEL (per group g)</h3>
+<pre class="example">-----------------------
+    C_g = sigma_g^2 * D_g (R_{t,g} kron I_d) D_g
+
+  D_g        FIXED per-epoch scaling from the loader (e.g. the PPP epoch
+             covariance). Never estimated here.
+  R_{t,g}    TEMPORAL correlation, the SAME on every one of the d axes.
+             ESTIMATED -- this is the stochastic model.
+  sigma_g^2  one scalar variance component per group. ESTIMATED by VCE --
+             this is the variance components.
+  kron I_d   no cross-axis correlation (what makes the whitener separable
+             and cheap; see LSQVCE.KERNEL.SEPARABLEWHITEN).</pre>
+<h3>The Two-Layer Loop</h3>
+<pre class="example">------------------
+    initial weights (sigma_g^2 = 1, R_{t,g} = white)
+           |
+      (*)  v  SOLVE ......... lsqvce.engine.adjustBlock (block-arrow GLS)
+           |
+           |  STOCHASTIC MODEL (within group): re-estimate R_{t,g}
+           |    collectResiduals -&gt; residualAcv -&gt; selectArAcv
+           |    -&gt; new AR polynomial per (sat,obsType) stream
+           |
+           |  VARIANCE COMPONENTS (between groups): VCE (Helmert), one sigma_g^2 per group
+           |    lsqvce.engine.vce: sigma_g^2 = ||w_g||^2 / r_g  (redundancy pass)
+           |
+           |  REWEIGHT: push sigma_g and R_{t,g} back into the loaders as a
+           |    per-obsType covariance override -&gt; next pass whitens with them
+           |
+           +-- repeat from (*) until CONVERGED
+
+CONVERGENCE (both, per group)
+  WHITE     every stream&#x27;s whitened residuals are serially uncorrelated
+            (selectArAcv reports order 0 / &#x27;white&#x27;, or the achieved AR order
+            has stopped changing).
+  BALANCED  every sigma_g^2 ~= 1 -- VCE no longer wants to move weight.
+
+WIRING, NOT NEW NUMERICS
+  Every numerical step already exists and is tested: LSQVCE.ENGINE.ADJUSTBLOCK,
+  LSQVCE.KERNEL.SEPARABLEWHITEN, LSQVCE.ENGINE.SELECTARACV, LSQVCE.KERNEL.RESIDUALACV,
+  LSQVCE.ENGINE.COLLECTRESIDUALS, LSQVCE.ENGINE.REDUNDANCY, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.DIAGNOSEACCUM.
+  This class only alternates and connects them, and threads the estimated
+  covariance back through the loader&#x27;s opt.covOverride hook.</pre>
+<h3>Input</h3>
+<pre class="example">  systems  1xM   cell|struct  Loader objects from LSQVCE.ENGINE.MAKELOADER (cell),
+                           or the struct-array spec that LSQVCE.ENGINE.ADJUSTBLOCK
+                           accepts. Required. Each obsType stream becomes a
+                           candidate VCE group (see groupComponentsBy).
+                           The number of COMMON parameters is DERIVED from
+                           these (LSQVCE.ENGINE.RESOLVENC) -- from a Loader&#x27;s
+                           &#x27;commonParams&#x27; rows, or a raw spec&#x27;s .nc field --
+                           so it is stated exactly once, where the system is
+                           defined, and cannot disagree with itself.
+  days     1xD   numeric   Default day list for systems without their own.
+                           Required (may be [] if every loader carries days).
+
+  Name/Value options ([] or omitted -&gt; defaults):
+    &#x27;GroupBy&#x27;   char|fh  grouping granularity for the variance-component step (same name
+                         and meaning as in lsqvce.engine.vce/redundancy/outliers):
+                         &#x27;satObs&#x27; (default) one component per
+                         (satellite,obsType); &#x27;obsType&#x27;; &#x27;system&#x27;; &#x27;arc&#x27;;
+                         or @(sysID,obsType,arc,day)-&gt;key. Also settable via
+                         groupComponentsBy().
+    &#x27;MaxOuter&#x27;  1x1  outer stochastic model &lt;-&gt; variance components iterations             (default 6)
+    &#x27;Backend&#x27;   char &#x27;qr&#x27; | &#x27;normal&#x27;                          (default &#x27;qr&#x27;)
+    &#x27;Reg&#x27;       char passed to adjustBlock                        (default &#x27;none&#x27;)
+    &#x27;Parallel&#x27;  char &#x27;serial&#x27;|&#x27;parfor&#x27;|&#x27;spmd&#x27;                 (default &#x27;serial&#x27;)
+    &#x27;verbose&#x27;   1x1  logical | 0..2 message level             (default 1)
+                     0 SILENT     nothing
+                     1 PROGRESS   outer passes, stage start/done + timing,
+                                  the convergence verdict
+                     2 DETAIL     everything else: per-day accumulation and
+                                  residuals, per-stream AR order and
+                                  whiteness, per-group shares and sigmas,
+                                  system conditioning, inner VCE iterations
+                     A LOGICAL still works and keeps its old meaning
+                     (false -&gt; 0, true -&gt; 1). See LSQVCE.UTIL.VERBOSITY.
+    &#x27;LogFid&#x27;    1x1  file identifier for ALL toolbox output (&quot;standard
+                     output&quot;). Default: leaves the global log state as-is
+                     (initially 1 = command window). Set to an fopen fid to
+                     capture status text AND warnings to a file. Sets the
+                     toolbox-wide state; see LSQVCE.UTIL.LOG.
+    &#x27;LogFlag&#x27;   1x1  logical: also show output on screen (default: leave
+                     as-is, initially true). false + a file LogFid =&gt; quiet
+                     run, everything captured to the file only.
+    &#x27;ShowSeconds&#x27; 1x1  seconds to display each hook figure (default 0 =
+                     export only, no pause). &lt; 0 = show and LEAVE OPEN.
+    &#x27;ExportDir&#x27; char  folder for the hook PNGs (&#x27;&#x27; = do not export).
+
+PLOT HOOKS (per system + obsType)
+  Per-(system,obsType) plots are driven by function handles you attach to
+  the LOADERS, via LSQVCE.ENGINE.MAKELOADER&#x27;s &#x27;plotPostSolve&#x27; and &#x27;plotPostModel&#x27;
+  (a single @(ctx)-&gt;figHandle for all the loader&#x27;s obsTypes, or a
+  containers.Map/struct keyed by obsType). The engine fires them:
+    * postSolve -- after each solve, BEFORE the residual pass;
+    * postModel -- ONCE after the stochastic model is estimated.
+  ctx is a FIXED, DOCUMENTED struct (ctx.schema, currently 1); fields are
+  only ADDED across versions, never renamed, so a hook keeps working. It
+  carries, on BOTH stages: ctx.x (common ESTIMATES), ctx.sd (their STANDARD
+  DEVIATIONS), ctx.common (common parametrisation labels), ctx.procOpt (the
+  loader&#x27;s processingOptions), ctx.model (the fitted noise model), ctx.sigmaG
+  (the stream&#x27;s VCE weight), plus ctx.R/stream/satKey/obsType/sysID/pass. On
+  postModel it ALSO carries the estimated ctx.psd (+ctx.psdFreq), ctx.acv and
+  ctx.arOrder. See PLOTCONTEXT for the full field list. Local parameters are
+  NOT in ctx (they are summarised to the log after each solve instead).
+  Your handle only BUILDS and RETURNS a figure (or returns nothing to just
+  record); the engine shows it for &#x27;ShowSeconds&#x27; and exports
+  &lt;ExportDir&gt;/&lt;stage&gt;_&lt;sys&gt;_&lt;obsType&gt;_pass&lt;k&gt;.png.
+  A hook that errors is logged and skipped -- plots never break
+  the solve. Set the two engine knobs via the constructor or P.plots(...).
+
+FLUENT CONFIGURATORS (each returns P, so they chain)
+  P.groupComponentsBy(key)          which observations share a variance component
+  P.stochasticModel(&#x27;MaxOrder&#x27;,p,&#x27;AcvTol&#x27;,t)   the temporal noise model
+  P.varianceComponents(&#x27;MaxIter&#x27;,n,&#x27;Tol&#x27;,t)    the Helmert variance components
+  P.iteration(&#x27;MaxOuter&#x27;,k,&#x27;Tol&#x27;,t) the outer convergence gate
+  P.plots(&#x27;ShowSeconds&#x27;,s,&#x27;ExportDir&#x27;,d)  configure the plot-hook show/export
+
+RUN
+  R = P.run()   -&gt;  1x1 lsqvce.Results, with the iteration trajectory
+                    attached (R.history, R.converged). R is the SAME object
+                    LSQVCE.ENGINE.ADJUSTBLOCK returns, so R.report / R.residuals /
+                    R.acc all work unchanged.
+
+OUTPUT of run() -- R.history (struct)
+  .sigma      nOuter x nGroup   the variance-component trajectory
+  .groups     1xnGroup cellstr  the VCE group keys, aligned with .sigma
+  .contribution nOuter x nGroup Level-1 relative REDUNDANCY share per group
+              per pass, share_g = t_g/sum_g t_g with t_g = tr(N^-1 N_g^cc)
+              (the cc-attribution trace; NOT the redundancy r_g -- WP-32,
+              F-01: r_g = n_g - local_g - t_g. The Level-2 diagonal in
+              .contribDiag is the ABSORBED-information view instead), rows
+              sum to 1. WEIGHT-DEPENDENT: it moves across passes, the final
+              row is authoritative. NaN entries mark a group with no finite
+              redundancy. Plot it over passes to see the share settle.
+  .arOrder    nOuter x nStream  selected AR order per stream per outer pass
+  .streams    1xnStream cell    the (sat,obsType) stream keys
+  .white      nOuter x nStream  logical: stream declared white this pass
+  .whitePval  nOuter x nStream  Ljung-Box whiteness p-value per stream per
+              pass (NaN where trivially white); p &gt; WhiteAlpha =&gt; white.
+  .converged  1x1 logical       both criteria met
+  .nOuter     1x1               outer passes actually run
+
+ENTRY POINT / WHAT YOU ADAPT  --  see the block at the bottom of this help,
+under &quot;USER-SPECIFIC ADAPTATION&quot;.
+
+EXAMPLE (synthetic, end to end)
+  [cfg, L] = demo_grace_dataLoader();          % GRACE-FO synthetic (examples/)
+  R = lsqvce.engine.adjustVCE(L, cfg.days) ...
+         .groupComponentsBy(&#x27;obsType&#x27;).run();
+  R.report();
+  disp(R.history.sigma(end,:));   % ~ 1 per group at truth
+  % or just run the driver:  demo_grace</pre>
+<h3>Errors</h3>
+<pre class="example">    lsqvce:adjustVCE:badSystems     systems is not a loader cell/struct array
+    lsqvce:adjustVCE:badComponents  groupComponentsBy got a key that is
+                                    neither a known name nor a function handle
+    lsqvce:adjustVCE:validateBadResults  validate() was given something that
+                                    is not a Results from this problem
+
+    Errors raised DEEPER are not re-wrapped: a malformed loader surfaces as
+    lsqvce:makeLoader:*, and a bad covariance spec as lsqvce:covModel:*. That
+    is deliberate -- the identifier names the layer that can actually explain
+    the problem.
+
+  See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.REDUNDANCY,
+
+  Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (c) c2 (F-07):
+  typed `arguments` signatures, canonical UpperCamelCase option names
+  (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+  case-sensitive lowercase). With assistance from Claude (Anthropic),
+  model Claude Fable 5.
+  Updated 2026-08-19 (CEST, UTC+02:00), WP-41 (docs only, F-12 claims
+  half + F-14): the &#x27;joint&#x27; mode claim corrected (pooled spectrum +
+  stream scales; NO per-arc factors -- that is ADJUSTVCEJOINT); the
+  Level-1 history field documented as the cc-trace share it is (not a
+  redundancy); v1-history prose retargeted to HISTORY_v1.md. With
+  assistance from Claude (Anthropic), model Claude Fable 5.
+  Updated 2026-08-19 (CEST, UTC+02:00), WP-40 (fixes F-12, gate half):
+  &#x27;joint&#x27; convergence additionally requires the LAST joint pass to meet
+  the outer Tol (hist.jointMaxDev(end) &lt;= Tol) -- shapeStable alone
+  degenerated from pass 2. With assistance from Claude (Anthropic),
+  model Claude Fable 5.
+  Updated 2026-08-18 (CEST, UTC+02:00), WP-33 (fixes F-03, CRITICAL):
+  sweepStreamLags subtracts the per-system local fit B*y and absorbs the
+  local block exactly into the per-lag projector (shared jointArcParts +
+  redundancyLags &#x27;LocalBbar&#x27;/&#x27;LocalLl&#x27;; axis pooling threads the sliced
+  local rows symmetrically). nl = 0 paths are verbatim unchanged. With
+  assistance from Claude (Anthropic), model Claude Fable 5.
+           LSQVCE.ENGINE.SELECTARACV, LSQVCE.KERNEL.RESIDUALACV,
+           LSQVCE.KERNEL.SEPARABLEWHITEN, LSQVCE.ENGINE.MAKELOADER, LSQVCE.RESULTS
+
+==========================================================================
+  USER-SPECIFIC ADAPTATION (read before running on your own data)
+==========================================================================
+  1. LOADER: write buildDay(day,obsType) -&gt; .A .B .l .t (.arcIdx) and wrap it
+     with LSQVCE.ENGINE.MAKELOADER, one Loader per satellite. Give each obsType an
+     initial &#x27;cov&#x27; spec (type &#x27;diag&#x27; for positions with a per-epoch sigma,
+     type &#x27;arma&#x27;/&#x27;diag&#x27; for range-rate). The loop refines .ar and .sigma; it
+     does NOT invent D -- your buildDay/cov must supply the fixed per-epoch
+     scaling.
+  2. nAxes PER OBSTYPE: 3-D position streams have nAxes=3 (x,y,z share one
+     R_t); range-rate is scalar, nAxes=1. Declare it via nAxesOf() below
+     (default: &#x27;pos&#x27;-&gt;3, everything else-&gt;1). Override with P.componentsPerEpoch(map).
+  3. VCE GRANULARITY: default one sigma per (satellite,obsType). If a group
+     has too little redundancy (VCE warns), coarsen with
+     P.groupComponentsBy(&#x27;obsType&#x27;).
+  4. COUPLED OBSERVATIONS (e.g. inter-satellite range-rate). The block-arrow
+     model has ONE local block per system, so an observation that depends on
+     TWO satellites&#x27; arc states (KBR/range-rate between C and D) cannot be a
+     third system. Merge the two satellites into ONE system with a stacked
+     local block [y_C | y_D] (nl = nl_C + nl_D) carrying all obsTypes; each
+     obsType&#x27;s buildDay fills the local sub-columns it touches (posC -&gt; first
+     nl_C, posD -&gt; next nl_D, rr -&gt; both). Give the three streams DISTINCT
+     obsType names (&#x27;posC&#x27;,&#x27;posD&#x27;,&#x27;rr&#x27;) and group VCE by &#x27;obsType&#x27;. Give the
+     merged system a NUMERIC sysID (or a single char) -- a multi-char string
+     like &#x27;CD&#x27; breaks the accumulator&#x27;s [store.sysID] indexing. See
+     demo_grace_dataLoader (in examples/) for a worked template. (If instead
+     the range-rate depends only on the gravity field, add it as a third
+     system with nl = 0.)
+  5. PRIORS: a decent starting sigma and AR order shorten the loop but are not
+     required; sigma_g^2 = 1 and white start both converge.
+==========================================================================
+
+  Created 2026-07-16 (CEST, UTC+02:00) with assistance from
+  Claude (Anthropic), model Claude Opus 4.8.
+  Renamed 2026-07-17 from SeparableProblem -&gt; adjustVCE (pairs with the
+  in-memory shortcut LSQVCE.ENGINE.ADJUST: adjust is &quot;just solve it&quot;, adjustVCE is
+  &quot;solve AND discover the stochastic model&quot;). The old name was REMOVED on
+  2026-07-18 along with every other alias: this is pre-release, and two ways
+  to say one thing is the ambiguity that produced the nc duplication.
+  Claude (Anthropic), model Claude Opus 4.8.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
+</body></html>

@@ -41,7 +41,7 @@
   <line x1="220" y1="222" x2="150" y2="222" stroke="#555" marker-end="url(#arrow)"/>
   <text x="165" y="214" font-size="11" fill="#1f7a3d">no</text>
   <rect x="20" y="199" width="130" height="46" rx="5" fill="#fff4e5" stroke="#e8912d"/>
-  <text x="85" y="219" text-anchor="middle" font-weight="bold" font-size="12">lsqvce.adjustBlock</text>
+  <text x="85" y="219" text-anchor="middle" font-weight="bold" font-size="12">lsqvce.engine.adjustBlock</text>
   <text x="85" y="235" text-anchor="middle" font-size="11">block-arrow, 1 solve</text>
 
   <!-- Q3 yes -> adjustVCE -->

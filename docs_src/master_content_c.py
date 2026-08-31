@@ -212,7 +212,7 @@ def part5_interpretation():
     # ---- 5.4 --------------------------------------------------------------
     st += [P('5.4&nbsp;&nbsp;Deciding what to do next', 'h2')]
     st += [P('Level 1 failed -- blunders, or the model?', 'h3')]
-    st += [P('Run <font face="Courier">lsqvce.systematic(D)</font> <i>before</i> '
+    st += [P('Run <font face="Courier">lsqvce.engine.systematic(D)</font> <i>before</i> '
              'snooping. If the residuals show runs, serial correlation or '
              'per-group offsets, the problem is the model -- an unmodelled '
              'signal, a wrong weight ratio, coloured noise treated as white. '
@@ -221,9 +221,9 @@ def part5_interpretation():
 
     st += [P('Diffuse contamination -- reject or reweight?', 'h3')]
     st += [P('Isolated blunders call for iterative '
-             '<font face="Courier">lsqvce.snoop</font>. Many small '
+             '<font face="Courier">lsqvce.engine.snoop</font>. Many small '
              'contaminations call for robust M-estimation '
-             '(<font face="Courier">lsqvce.robust</font>), which degrades '
+             '(<font face="Courier">lsqvce.engine.robust</font>), which degrades '
              'gracefully where snooping would chase its own tail. The '
              'contamination gauge tells you which regime you are in.', 'body')]
 
@@ -243,7 +243,7 @@ def part5_interpretation():
     st += [P('5.5&nbsp;&nbsp;Reading a gravity solution', 'h2')]
     st += [P('For the block-arrow path, three habits keep you honest.', 'body')]
     st += [N('<b>Diagnose through the accumulator bridge</b> '
-             '(<font face="Courier">lsqvce.diagnoseAccum</font>), never the '
+             '(<font face="Courier">lsqvce.engine.diagnoseAccum</font>), never the '
              'reduced common system alone. The common-parameter redundancies '
              'are only correct once the arc-local parameters have been counted; '
              'skip the bridge and every reliability number is inflated.', 1)]
