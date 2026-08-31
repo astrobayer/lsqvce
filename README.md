@@ -1,6 +1,6 @@
-# lsqvce v1.0 — batch least squares: accumulate, estimate variance components, judge
+# lsqvce v2.0 — least-squares adjustment with variance component estimation: declare, fit, judge
 
-> **Status (2026-08-20).** Green everywhere: **23 suite files, 630 test
+> **Status (2026-09-01, v2.0 — see RELEASE_NOTES.md).** Green everywhere: **23 suite files, 630 test
 > points, 0 fail** — verified locally in MATLAB R2026a (including the
 > pool suites with real `parfor`/`spmd` workers and the machine-local
 > speed budgets) and on every push by GitHub Actions CI (a static `audit`
