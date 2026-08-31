@@ -242,6 +242,111 @@ function testCoefficientsTable(tc)
 end
 
 %% ================================================================ helpers
+%% ================================================ WP-56b: kinds B and C
+function testMatrixKindReproducesAdjust(tc)
+% categories: reference, contract
+    % R4 WP-56b: fit(data) with data.A / .l / .p is exactly lsqvce.adjust on
+    % one batch -- same driver, same options -- so x, sigma0, Cxx and the
+    % per-observation diagnostics are byte-identical.
+    [A, l, p] = matrixFixture();
+    data = struct('A', A, 'l', l, 'p', p);
+    R = lsqvce.fit(data, lsqvce.Options(Verbose=false));
+    [sol, D, V] = lsqvce.adjust(size(A, 2), @(k) deal(A, l, p), 1, 'Verbose', false);
+    tc.verifyClass(R, 'lsqvce.Results');
+    % tol: exact -- identical code path and inputs
+    tc.verifyEqual(R.x, sol.x(:));
+    tc.verifyEqual(R.sigma0, sol.sigma0);
+    tc.verifyEqual(R.sol.Cxx, sol.Cxx);
+    tc.verifyEqual(R.diag.v, D.v);
+    tc.verifyEqual(R.source.verdict, V.verdict, 'the verdict rides on R.source');
+    tc.verifyEmpty(R.acc);
+    tc.verifyEqual(R.meta.options.kind, 'matrix');
+    % the user-facing conveniences work without an accumulator ...
+    T = R.coefficients();
+    tc.verifyEqual(T.estimate, R.x);
+    tc.verifyEqual(idOf(@() R.report('Verbose', false)), '', 'report() must run on a kind-B Results');
+    % ... and the streaming-only ones refuse with ONE clear id
+    tc.verifyEqual(idOf(@() R.residuals()), 'lsqvce:Results:noAccumulator');
+    tc.verifyEqual(idOf(@() R.contribution()), 'lsqvce:Results:noAccumulator');
+end
+
+function testMatrixKindRobustReproducesRobust(tc)
+% categories: reference, contract
+    % Robust="irls" on kind B is lsqvce.robust with the Options' Influence /
+    % Tuning / RobustMaxIter / RobustTol; one planted outlier.
+    [A, l, p] = matrixFixture();
+    l(7) = l(7) + 25;                                   % gross error
+    data = struct('A', A, 'l', l, 'p', p);
+    opts = lsqvce.Options(Robust="irls", Influence="huber", RobustMaxIter=20, Verbose=false);
+    R = lsqvce.fit(data, opts);
+    [sol, D, ROB] = lsqvce.robust(size(A, 2), @(k) deal(A, l, p), 1, ...
+        'Influence', 'huber', 'MaxIter', 20, 'Verbose', false);
+    % tol: exact -- identical code path and inputs
+    tc.verifyEqual(R.x, sol.x(:));
+    tc.verifyEqual(R.sigma0, sol.sigma0);
+    tc.verifyEqual(R.diag.v, D.v);
+    tc.verifyEqual(fieldnames(R.source), fieldnames(ROB), 'the IRLS record rides on R.source');
+end
+
+function testBatchKindNonlinearReproducesSolveNonlinear(tc)
+% categories: reference, contract
+    % Kind C with x0: [A, w, p] = batchFcn(k, x) is lsqvce.solveNonlinear.
+    % Model: l = exp(a t) + b, unknowns [a; b], from a known truth.
+    rs = RandStream('mt19937ar', 'Seed', 5);
+    t  = linspace(0, 1, 40).';
+    xt = [0.7; -0.2];
+    lobs = exp(xt(1)*t) + xt(2) + 1e-3*randn(rs, 40, 1);
+    idx = {1:20, 21:40};
+    bf = @(k, x) deal([t(idx{k}).*exp(x(1)*t(idx{k})), ones(20, 1)], ...
+                      lobs(idx{k}) - (exp(x(1)*t(idx{k})) + x(2)), []);
+    data = struct('batchFcn', bf, 'numUnknowns', 2, 'numBatches', 2, 'x0', [0.5; 0]);
+    opts = lsqvce.Options(NonlinearMaxIter=15, TolX=1e-9, Verbose=false);
+    R = lsqvce.fit(data, opts);
+    [sol, D, ~, IT] = lsqvce.solveNonlinear(2, bf, 2, [0.5; 0], 'MaxIter', 15, 'TolX', 1e-9, 'Verbose', false);
+    % tol: exact -- identical code path and inputs
+    tc.verifyEqual(R.x, sol.x(:));
+    tc.verifyEqual(R.diag.v, D.v);
+    tc.verifyEqual(fieldnames(R.source), fieldnames(IT), 'the iteration record rides on R.source');
+    % tol: 5e-3 -- 40 points at 1e-3 noise recover the truth to a few 1e-3
+    tc.verifyEqual(R.x, xt, 'AbsTol', 5e-3);
+    tc.verifyEqual(R.meta.options.kind, 'batch');
+end
+
+function testBatchKindLinearReproducesAdjust(tc)
+% categories: reference
+    [A, l, p] = matrixFixture();
+    idx = {1:15, 16:30};
+    bf = @(k) deal(A(idx{k}, :), l(idx{k}), p(idx{k}));
+    data = struct('batchFcn', bf, 'numUnknowns', size(A, 2), 'numBatches', 2);
+    R = lsqvce.fit(data, lsqvce.Options(Verbose=false));
+    [sol, ~, ~] = lsqvce.adjust(size(A, 2), bf, 2, 'Verbose', false);
+    % tol: exact -- identical code path and inputs
+    tc.verifyEqual(R.x, sol.x(:));
+    tc.verifyEqual(R.nBatch, 2);
+end
+
+function testKindsBAndCRulesFireBeforeAnyRead(tc)
+% categories: contract
+    [A, l, p] = matrixFixture();
+    tc.verifyEqual(idOf(@() lsqvce.fit(struct('A', A, 'l', l(1:end-1)))), 'lsqvce:fit:badMatrix');
+    tc.verifyEqual(idOf(@() lsqvce.fit(struct('A', A, 'l', l, 'p', p(1:3)))), 'lsqvce:fit:badMatrix');
+    tc.verifyEqual(idOf(@() lsqvce.fit(struct('A', A))), 'lsqvce:fit:missingField');
+    tc.verifyEqual(idOf(@() lsqvce.fit(struct('A', A, 'l', l, 'weights', p))), 'lsqvce:fit:unknownField');
+    tc.verifyEqual(idOf(@() lsqvce.fit(struct('A', A, 'l', l), lsqvce.Options(Model="vce"))), 'lsqvce:fit:modelKind');
+    tc.verifyEqual(idOf(@() lsqvce.fit(struct('batchFcn', @(k) deal(A, l, p)))), 'lsqvce:fit:missingField');
+    tc.verifyEqual(idOf(@() lsqvce.fit(struct('batchFcn', @(k) deal(A, l, p), 'numUnknowns', 3, ...
+        'numBatches', 1), lsqvce.Options(Model="pooled"))), 'lsqvce:fit:modelKind');
+end
+
+function [A, l, p] = matrixFixture()
+% A small well-conditioned in-memory problem with a known truth.
+    rs = RandStream('mt19937ar', 'Seed', 17);
+    A  = [ones(30, 1), randn(rs, 30, 2)];
+    xt = [1; -2; 0.5];
+    p  = 0.5 + rand(rs, 30, 1);
+    l  = A*xt + randn(rs, 30, 1) ./ sqrt(p);
+end
+
 function id = idOf(f)
 % Identifier of the error f raises ('' if it does not raise).
     id = '';

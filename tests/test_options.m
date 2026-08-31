@@ -215,6 +215,24 @@ function testValueSemanticsAndNameOrderInvariance(tc)
     tc.verifyEqual(o2.engineArgs("adjustBlock"), o3.engineArgs("adjustBlock"));
 end
 
+function testToStructCoversEveryPropertyOnce(tc)
+% categories: contract | tags: provenance
+    % R4 WP-56b: toStruct() is what fit records in Results.meta.options; it
+    % must list every public property exactly once and nothing else.
+    o = lsqvce.Options(Model="vce", MaxOuter=4);
+    s = o.toStruct();
+    tc.verifyEqual(s.Model, "vce");
+    tc.verifyEqual(s.MaxOuter, 4);
+    txt = evalc('disp(o)');
+    for f = fieldnames(s).'
+        tc.verifyTrue(contains(txt, [' ' f{1} ' ']) || contains(txt, [' ' f{1} sprintf('\n')]) ...
+            || ~isempty(regexp(txt, ['\s' f{1} '\s'], 'once')), ...
+            sprintf('property %s must appear in the grouped display', f{1}));
+    end
+    tc.verifyEqual(numel(fieldnames(s)), numel(unique(fieldnames(s))));
+    tc.verifyEqual(numel(fieldnames(s)), 57, 'the option space has 57 knobs (update on purpose)');
+end
+
 %% ================================================================ helpers
 function s = nv2struct(nv)
 % Turn a Name-Value cell into a struct (keeps the driver's value classes).

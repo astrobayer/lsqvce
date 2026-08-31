@@ -126,6 +126,8 @@ classdef Options
 %                 obsType -> count), .mode (char 'separate' | 'joint')
 %     opts.validate()                  cross-property checks (called by the
 %                                      constructor and by engineArgs)
+%     s = opts.toStruct()              every public property as a struct field
+%                                      (what fit records in Results.meta.options)
 %
 %   ACCURACY
 %     No numerics of its own. The claim is EXACTNESS of the mapping: for a
@@ -160,6 +162,9 @@ classdef Options
 %            LSQVCE.ADJUST, LSQVCE.ROBUST, LSQVCE.SOLVENONLINEAR,
 %            LSQVCE.DIAGNOSE, LSQVCE.RESULTS
 %
+%   Updated 2026-08-31 (CEST, UTC+02:00), R4 WP-56b (Level L4): toStruct()
+%   for the provenance record of fit's in-memory / batched kinds. With
+%   assistance from Claude (Anthropic), model Claude Fable 5.
 %   Created 2026-08-31 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5 -- R4 Level L1, WP-55.
 
@@ -344,6 +349,21 @@ classdef Options
                         ['engineArgs target must be one of adjustBlock, adjustVCE, ' ...
                          'adjustVCEjoint, adjust, robust, solveNonlinear, diagnose (got ''%s'').'], ...
                         target);
+            end
+        end
+
+        function s = toStruct(obj)
+        %TOSTRUCT  Every public property as a plain struct field (for Results.meta).
+        %   s = opts.toStruct()   the RESOLVED option set a run actually used,
+        %   in the shape runMeta expects. Read through the metaclass so a new
+        %   property is picked up without a second list.
+            mc = metaclass(obj);
+            s  = struct();
+            for k = 1:numel(mc.PropertyList)
+                pr = mc.PropertyList(k);
+                if strcmp(pr.GetAccess, 'public') && ~pr.Constant && ~pr.Hidden
+                    s.(pr.Name) = obj.(pr.Name);
+                end
             end
         end
 

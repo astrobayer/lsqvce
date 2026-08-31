@@ -74,10 +74,16 @@ classdef Results < handle
 %                                   iterate); use the result of adjustVCE
 %     lsqvce:Results:noCovariance   coefficients() on a Results whose sol
 %                                   carries no Cxx
+%     lsqvce:Results:noAccumulator  residuals()/contribution() on a Results
+%                                   without an accumulator (fit kinds B / C)
 %
 %   See also LSQVCE.ADJUSTBLOCK, LSQVCE.ADJUSTVCE, LSQVCE.REPORT,
 %            LSQVCE.DIAGNOSE, LSQVCE.BLOCKACCUMULATOR
 %
+%   Updated 2026-08-31 (CEST, UTC+02:00), R4 WP-56b (Level L4): residuals()
+%   and contribution() refuse with lsqvce:Results:noAccumulator on a Results
+%   without an accumulator (the in-memory / batched kinds of fit). With
+%   assistance from Claude (Anthropic), model Claude Fable 5.
 %   Updated 2026-08-31 (CEST, UTC+02:00), R4 WP-57 (Level L2): coefficients()
 %   -- estimates, formal errors and confidence bounds as ONE table (the
 %   fitlm Coefficients/coefCI pair folded into one method; z from erfcinv,
@@ -153,6 +159,7 @@ classdef Results < handle
 
         function res = residuals(obj, varargin)
         %RESIDUALS  Collected residuals from the accumulator (acc.residuals).
+            obj.requireAccumulator('residuals');
             res = obj.acc.residuals(obj.sol, varargin{:});
         end
 
@@ -184,7 +191,20 @@ classdef Results < handle
         %
         %   Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude
         %   (Anthropic), model Claude Opus 4.8.
+            obj.requireAccumulator('contribution');
             con = lsqvce.contribution(obj.acc, obj.sol, varargin{:});
+        end
+
+        function requireAccumulator(obj, caller)
+        %REQUIREACCUMULATOR  Refuse cleanly when this Results has no accumulator
+        %   (the in-memory / batched kinds of LSQVCE.FIT, R4 WP-56b): the second
+        %   data pass and the information shares need the streaming engine; the
+        %   per-observation residuals of those kinds are already in .diag.v.
+            if isempty(obj.acc)
+                error('lsqvce:Results:noAccumulator', ...
+                    ['%s() needs the streaming engine (R.acc); this Results came ' ...
+                     'from the in-memory / batched kind -- read R.diag.v instead.'], caller);
+            end
         end
 
         % ---- iteration diagnostics: two complementary views of R.history ----

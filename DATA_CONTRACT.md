@@ -1,8 +1,10 @@
 # lsqvce — The data contract: what you give `fit`, and how to write `buildDay`
 
 **Status.** Binding specification adopted 2026-08-31 (R4 decision R4-D4, HANDOVER §11.9).
-`lsqvce.fit` is live for the streaming data path (Level L2, WP-56; Models `gls`, `vce`,
-`pooled`); the in-memory path `fit(A, l, …)`, `Robust`, and Model `ellmer` follow in WP-56b.
+`lsqvce.fit` is live for the streaming kind (Level L2, WP-56; Models `gls`, `vce`, `pooled`)
+and for the two in-memory kinds (Level L4, WP-56b; §11 below, incl. `Robust` and the nonlinear
+form). Model `ellmer` (the ten-step Ellmer/ITSG loop) still runs through
+`lsqvce.adjustVCEjoint` directly (WP-56c).
 §9 shows the equivalent direct engine calls. This file is the source of the `fit` help text
 and of the HTML guide (WP-56, WP-60): one authority, no second copy.
 
@@ -353,3 +355,51 @@ UpperCamelCase name); `fit` performs exactly this mapping internally.
 - [ ] Local unknowns via `localsPerArc` (and `B` filled from `arcInfo`); nl = 0 is fine with `B = zeros(m, 0)`.
 - [ ] Multi-axis streams: epoch-major rows, `nAxis`, and a source for `D`.
 - [ ] No unknown field names in `data` (a typo is an error, on purpose).
+
+---
+
+## 11. The two in-memory kinds (no local unknowns, diagonal weights)
+
+Not every problem streams. When A fits in memory and there are no arc-wise unknowns, `data`
+has no `systems` at all — `fit` tells the kinds apart by the fields present:
+
+**Kind B — matrices**
+
+| field | size | meaning |
+|---|---|---|
+| `A` | m×u | design matrix |
+| `l` | m×1 | observed minus computed |
+| `p` | m×1 | weights (diagonal of P), optional; absent = unit weights |
+
+**Kind C — batched callback** (A too large for one matrix, or naturally batched)
+
+| field | size | meaning |
+|---|---|---|
+| `numUnknowns` | 1×1 | u |
+| `numBatches` | 1×1 | nBatch |
+| `batchFcn` | fh | `[A, l, p] = batchFcn(k)`, k = 1…nBatch — the `lsqvce.adjust` contract |
+| `x0` | u×1 | optional. With it the problem is **nonlinear**: `[A, w, p] = batchFcn(k, x)` returns the Jacobian at `x` and `w = l − f(x)`; solved by Gauss-Newton (`lsqvce.solveNonlinear`) |
+
+Rules: `opts.Model` must be `"gls"` (variance components need the groups of a streaming
+system — `lsqvce:fit:modelKind`); `opts.Robust = "irls"` switches to M-estimation
+(`Influence`, `Tuning`, `RobustMaxIter`, `RobustTol` in Options); shapes are checked before
+anything runs (`lsqvce:fit:badMatrix`, `lsqvce:fit:missingField`, `lsqvce:fit:unknownField`).
+
+What comes back is the same `Results`: `R.x`, `R.sigma0`, `R.coefficients()`, `R.report()`,
+and the per-observation diagnostics in `R.diag` (residuals `R.diag.v`). Two methods need the
+streaming engine and say so: `R.residuals()` and `R.contribution()` refuse with
+`lsqvce:Results:noAccumulator`. The driver's own record (verdict, IRLS weights, or the
+nonlinear iteration log) is on `R.source`.
+
+```matlab
+data = struct('A', A, 'l', l, 'p', p);
+R = lsqvce.fit(data);                                   % = lsqvce.adjust, one batch
+R = lsqvce.fit(data, lsqvce.Options(Robust="irls"));    % = lsqvce.robust
+data = struct('batchFcn', @(k, x) myJacobian(k, x), 'numUnknowns', 6, 'numBatches', 20, 'x0', x0);
+R = lsqvce.fit(data, lsqvce.Options(NonlinearMaxIter=15));   % = lsqvce.solveNonlinear
+```
+
+**One sentence on stream names (from the L2 CI catch):** a stream whose observation type is
+`pos` is treated as **3 components per epoch** by default (`Options.ComponentsPerEpoch`), which
+selects the separable model and needs a per-epoch scaling (§7). A scalar stream that happens
+to be called `pos` must declare `ComponentsPerEpoch = struct('pos', 1)`.
