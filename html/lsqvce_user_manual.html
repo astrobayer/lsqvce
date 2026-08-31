@@ -422,7 +422,8 @@ and per-system <code>numLocal</code>.</li>
 <li>For a single solve call <a href="lsqvce.engine.adjustBlock.html">lsqvce.engine.adjustBlock</a>;
 to discover the noise model and group weights, use
 <a href="lsqvce.engine.adjustVCE.html">lsqvce.engine.adjustVCE</a> with
-<code>.groupComponentsBy(...).stochasticModel(...).varianceComponents(...).run()</code>.</li>
+the constructor groups <code>'GroupBy'</code>, <code>'Shape'</code>, <code>'Scale'</code> and <code>run()</code>
+(or, through the user front door, <code>lsqvce.fit(data, lsqvce.Options(Model="vce"))</code>).</li>
 <li>Inspect <code>R.history.sigma</code> for a group being systematically up- or
 down-weighted, and confirm convergence.</li>
 <li><b>Trust the field only where it is checked.</b> Map the common-parameter

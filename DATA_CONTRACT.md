@@ -336,9 +336,12 @@ for k = 1:numel(data.systems)
         CommonParams=data.common.commonParams, ...
         ProcessingOptions=s.processingOptions);
 end
-R = lsqvce.engine.adjustBlock(L, data.days);                       % one GLS solve
-R = lsqvce.engine.adjustVCE(L, data.days).groupComponentsBy('satObs').run();   % VCE loop
+R = lsqvce.engine.adjustBlock(L, data.days);                        % Model "gls"
+R = lsqvce.engine.adjustVCE(L, data.days, 'GroupBy', 'satObs', ...   % Model "vce"
+        'Shape', struct(...), 'Scale', struct(...)).run();          % (constructor-only since 2.0)
 ```
+
+These are ENGINE-tier calls (experts); a user needs none of them.
 
 Field names map 1:1 to `makeLoader`'s Name-Value names (lowerCamelCase field ↔
 UpperCamelCase name); `fit` performs exactly this mapping internally.

@@ -1,6 +1,6 @@
 # lsqvce v2.0 — least-squares adjustment with variance component estimation: declare, fit, judge
 
-> **Status (2026-09-01, v2.0 — see RELEASE_NOTES.md).** Green everywhere: **23 suite files, 630 test
+> **Status (2026-09-01, v2.0 — see RELEASE_NOTES.md).** Green everywhere: **23 suite files, 631 test
 > points, 0 fail** — verified locally in MATLAB R2026a (including the
 > pool suites with real `parfor`/`spmd` workers and the machine-local
 > speed budgets) and on every push by GitHub Actions CI (a static `audit`
@@ -13,8 +13,15 @@
 > counted mechanically by the audit on every run). `HANDOVER.md` is the
 > single status-and-plans document; MIT licensed.
 
-One flat MATLAB package merging two toolboxes plus a bridge. Everything lives at
-`lsqvce.*` — all functions are batch-least-squares tools at the same level.
+**Three tiers since 2.0 (R4 review, September 2026).** The user surface is
+**four names** at `lsqvce.` — `fit`, `Options`, `Results`, `report` — plus
+the plain `data` struct you describe your problem with (`DATA_CONTRACT.md`).
+Everything that does the work lives one level down: `lsqvce.engine.*`
+(drivers, accumulators, loaders, VCE, diagnostics) and `lsqvce.kernel.*`
+(transforms, whitening filters, statistics). The tier of every name is
+pinned in `docs_src/tiers.csv` and enforced by the audit; 1.x code follows the
+migration table in `RELEASE_NOTES.md`. The package grew out of two toolboxes
+plus a bridge:
 
 | Was | Now | Does |
 |---|---|---|
@@ -56,28 +63,49 @@ memory per batch.
 
 ## Quick start
 
-> Streaming GRACE-FO-style data (days, arcs, local unknowns, coloured noise)?
-> Read **`DATA_CONTRACT.md`** first: it defines the `data` struct and the
-> `buildDay` function you write, for beginners (binding spec, R4 decision D4).
+Three lines, whatever kind of data you have:
 
 ```matlab
-src = @(k) deal(A(idx{k},:), l(idx{k}), p(idx{k}));
-[sol, D, V] = lsqvce.engine.adjust(u, src, numel(idx));
-
-if ~strcmp(V.verdict, 'PASS')
-    lsqvce.engine.systematic(D);                        % is it a smooth error?
-    [sol, D, REJ] = lsqvce.engine.snoop(sol, D, src);   % iterative rejection
-end
+opts = lsqvce.Options(Model="vce");        % what to do (defaults = the engines' own)
+R    = lsqvce.fit(data, opts);             % the one verb
+R.report                                   % the five-level verdict
 ```
 
-**New here?** Two starting points:
+`data` is a plain struct; `fit` tells the three kinds apart by the fields present:
 
-- **Build your own case, from scratch** — `examples/demo_workflow.m`: wire your data
-  into a `batchFcn`, choose the engine (`adjust` / `adjustBlock` / `adjustVCE`),
-  choose exact vs matrix-free (Hutchinson) variance components, and read the result.
-- **Choosing an engine & VCE backend** — the doc page `html/lsqvce_choosing.html`
-  (open it with `doc lsqvce` → *Choosing an engine*): a decision flowchart plus the
-  exact-vs-Hutchinson cost curves (crossover at `u ≈ Z`).
+```matlab
+% (B) in memory, diagonal weights, no arc-wise unknowns
+data = struct('A', A, 'l', l, 'p', p);                         R = lsqvce.fit(data);
+R = lsqvce.fit(data, lsqvce.Options(Robust="irls"));           % with M-estimation
+
+% (C) batched callback [A,l,p] = batchFcn(k); with data.x0 the nonlinear form
+data = struct('batchFcn', @(k) src(k), 'numUnknowns', u, 'numBatches', nBatch);
+
+% (A) streaming: days, arcs, arc-wise unknowns, coloured noise (GRACE-FO)
+data.common.numCommon = nc;   data.days = 1:30;
+data.systems = struct('buildDay', @buildDayC, 'observationTypes', {{'kbr'}}, ...
+                      'covariance', cov, 'systemId', 'C', 'localsPerArc', 6);
+R = lsqvce.fit(data, lsqvce.Options(Model="vce", GroupBy="satObs"));
+```
+
+**New here?** In this order:
+
+1. `doc lsqvce` → **Getting started** (`html/lsqvce_getting_started.html`): which
+   kind of data you have, `buildDay` in six rules, reading the answer.
+2. **`DATA_CONTRACT.md`** — the binding specification of the `data` struct and of the
+   one function you write, `buildDay`, with a two-satellite worked example.
+3. **`examples/demo_fit.m`** — the user path end to end on all three data kinds,
+   including the GRACE-like physical oracle as a `data` struct; copy it.
+4. `lsqvce_theory.pdf` — why the toolbox computes what it computes, and where it
+   refuses to (NaN is a result).
+
+**Engine tier (experts, and readers of 1.x code):** the same problems through the
+drivers `fit` dispatches to — `lsqvce.engine.adjust` (in memory), `adjustBlock`
+(one block-arrow solve), `adjustVCE` (the stochastic-model / variance-component
+loop, constructor-only since 2.0), `adjustVCEjoint` (the Ellmer joint loop).
+`html/lsqvce_choosing.html` is the decision flowchart between them, with the
+exact-vs-Hutchinson cost curves; `examples/demo_workflow.m` wires a case directly
+to an engine.
 
 ---
 
@@ -221,31 +249,55 @@ one that decides whether the result can be trusted.
 
 ## Modules
 
+Tiers since 2.0 (`docs_src/tiers.csv`, audit check 18). Every name below is the
+qualified one you type.
+
+### USER tier — the four names
+
 | Function | Purpose |
 |---|---|
-| `adjust` | one-call driver: accumulate → solve → diagnose → judge |
-| `adjustBlock` | one-call **block-arrow** front door → `Results`; the base of the separable/VCE engine. Pairs with `adjust` (flat) and `adjustVCE` (iterative). _(Was `recover`; that name was REMOVED on 2026-07-18 — all aliases were dropped pre-release.)_ |
-| `Results` | solution + diagnostics + accumulator in one object: `R.x`, `R.sigma0`, `R.report()`, `R.acc`; carries run provenance `R.meta` (toolbox version, MATLAB release, UTC creation time, resolved seeds and options) — `R.report()` prints it as the level-0 provenance line |
-| `makeLoader` | turn a `buildDay(day,obsType)` into an accumulator-ready `Loader` (meta / per-arc / one-day cache) |
-| `adjustVCE` | iterative separable-GLS engine — **SHAPE** (temporal AR whitening) + **SCALE** (VCE), a fluent builder over `adjustBlock`. Pairs by name with the in-memory shortcut `adjust`. `P.empiricalStochastic()` runs **empirical stochastic modelling** end to end (homogenise → loop → validate); `P.validate(R)` is the formal-vs-empirical **acceptance test**. _(Was `SeparableProblem`; that name was REMOVED on 2026-07-18 — all aliases were dropped pre-release.)_ |
-| `adjustVCEjoint` | Ellmer-style JOINT spectral VCE: declared per-stream PSD co-estimated with per-arc variance factors over shared Rademacher probes. **Production guidance (measured, F-15):** run it OPEN LOOP or with at most 3 damped passes (`'StepSchedule','decay','AvgTail',4`) — the undamped closed loop is bistable and never beat open-loop pass-1 quality at any tested volume |
-| `Accumulator` | streaming NE/QR; correlated batches; free-network; sparse |
-| `diagnose` | per-observation `v`, `r_i`, `w`, MDB, external reliability |
-| `report` | the five-level verdict |
-| `systematic` | **Ljung–Box, runs test, covariate binning** — the blind spot |
-| `snoop` | iterative rejection via Cholesky **downdate** |
-| `robust` | Huber / IGG3 reweighting |
-| `varComp` | Helmert variance components, with a **resolution limit** |
-| `traceEstimate` | Monte-Carlo (Hutchinson) trace estimator, **Ellmer 2018 §6.5.6** — estimates `tr(N⁻¹Nₘ)` without forming `N⁻¹`. **Opt-in** VCE accelerator (`'TraceMethod','hutchinson'` in `redundancy`/`vce`); exact leverage stays the default |
-| `datum` | null-space basis; free-network / minimum-constraint solutions |
-| `solveNonlinear` | re-linearisation loop with convergence history |
-| `ftest` | nested-model F-test |
-| `ellipse` | confidence ellipses |
-| `stat` | distribution kernel (no Statistics Toolbox) |
-| `util.log` | toolbox-wide logging: set `logfid` (file id) + `logflag` (screen) once, and **all** status text and warnings route through it |
-| `selectArAcv` | automatic AR order from a sample ACV (no grid); ACV-domain sibling of `selectArOrder` |
-| `resolveSatSpecs`, `satKeyOf` | per-satellite config resolution and the shared satellite-key convention |
-| `template/lsqvce_template.m` | *(template, not package)* **START HERE for your own case.** Returns the Loaders; you fill in two documented stubs (`myBuildDay`, `myEpochCov`). The `observationGroups` loop is real runnable code; the stubs error until written. |
+| `lsqvce.fit` | the one verb: `data` struct + `Options` → `Results`; dispatches to the engines by the fields present and `Options.Model` |
+| `lsqvce.Options` | every knob, typed, defaulted to the engines' own defaults; `disp(opts)` marks the defaults; `engineArgs(target)` is the mapping |
+| `lsqvce.Results` | solution + diagnostics + provenance in one object: `R.x`, `R.sigma0`, `R.coefficients()`, `R.report()`, `R.history`, `R.noise`, `R.acc` |
+| `lsqvce.report` | the five-level verdict (`Results.report` forwards here) |
+
+### ENGINE tier — what `fit` dispatches to
+
+| Function | Purpose |
+|---|---|
+| `lsqvce.engine.adjust` | one-call driver: accumulate → solve → diagnose → judge |
+| `lsqvce.engine.adjustBlock` | one-call **block-arrow** front door → `Results`; the base of the separable/VCE engine. Pairs with `adjust` (flat) and `adjustVCE` (iterative). _(Was `recover`; that name was REMOVED on 2026-07-18 — all aliases were dropped pre-release.)_ |
+| `lsqvce.engine.makeLoader` | turn a `buildDay(day,obsType)` into an accumulator-ready `Loader` (meta / per-arc / one-day cache) |
+| `lsqvce.engine.adjustVCE` | iterative separable-GLS engine — **SHAPE** (temporal AR whitening) + **SCALE** (VCE), configured on the constructor (`Shape`/`Scale`/`Outer`/`Joint`/`Axes` groups, constructor-only since 2.0) over `adjustBlock`. Pairs by name with the in-memory shortcut `adjust`. `P.empiricalStochastic()` runs **empirical stochastic modelling** end to end (homogenise → loop → validate); `P.validate(R)` is the formal-vs-empirical **acceptance test**. _(Was `SeparableProblem`; that name was REMOVED on 2026-07-18 — all aliases were dropped pre-release.)_ |
+| `lsqvce.engine.adjustVCEjoint` | Ellmer-style JOINT spectral VCE: declared per-stream PSD co-estimated with per-arc variance factors over shared Rademacher probes. **Production guidance (measured, F-15):** run it OPEN LOOP or with at most 3 damped passes (`'StepSchedule','decay','AvgTail',4`) — the undamped closed loop is bistable and never beat open-loop pass-1 quality at any tested volume |
+| `lsqvce.engine.Accumulator` | streaming NE/QR; correlated batches; free-network; sparse |
+| `lsqvce.engine.diagnose` | per-observation `v`, `r_i`, `w`, MDB, external reliability |
+| `lsqvce.engine.systematic` | **Ljung–Box, runs test, covariate binning** — the blind spot |
+| `lsqvce.engine.snoop` | iterative rejection via Cholesky **downdate** |
+| `lsqvce.engine.robust` | Huber / IGG3 reweighting |
+| `lsqvce.engine.varComp` | Helmert variance components, with a **resolution limit** |
+| `lsqvce.engine.traceEstimate` | Monte-Carlo (Hutchinson) trace estimator, **Ellmer 2018 §6.5.6** — estimates `tr(N⁻¹Nₘ)` without forming `N⁻¹`. **Opt-in** VCE accelerator (`'TraceMethod','hutchinson'` in `redundancy`/`vce`); exact leverage stays the default |
+| `lsqvce.engine.datum` | null-space basis; free-network / minimum-constraint solutions |
+| `lsqvce.engine.solveNonlinear` | re-linearisation loop with convergence history |
+| `lsqvce.engine.ftest` | nested-model F-test |
+| `lsqvce.engine.ellipse` | confidence ellipses |
+| `lsqvce.engine.stat` | distribution kernel (no Statistics Toolbox) |
+| `lsqvce.engine.selectArAcv` | automatic AR order from a sample ACV (no grid); ACV-domain sibling of `selectArOrder` |
+| `lsqvce.engine.resolveSatSpecs`, `lsqvce.engine.satKeyOf` | per-satellite config resolution and the shared satellite-key convention |
+
+### KERNEL tier — numerical building blocks
+
+| Function | Purpose |
+|---|---|
+| `lsqvce.kernel.*` | the 15 transforms, whitening filters and statistics (`dctI`, `psd2acv`, `levinsonDurbin`, `armaWhiten`, `varWhiten`, `separableWhiten`, `toeplitzCofactor`, `decorrFactor`, `residualAcv`, `whitenessCorr`, …) — listed with one line each in `docs_src/tiers.csv` and `help lsqvce.kernel` |
+| `lsqvce.util.log` | toolbox-wide logging: set `logfid` (file id) + `logflag` (screen) once, and **all** status text and warnings route through it |
+
+### Examples and the template (not package code)
+
+| File | Purpose |
+|---|---|
+| `examples/demo_fit` | *(example)* **START HERE for 2.0**: the user path on all three data kinds (in-memory, robust, batched, nonlinear, streaming gls + vce), the gravity oracle as a `data` struct |
+| `template/lsqvce_template.m` | *(template, not package)* ENGINE-tier template for a Loader-based case (procOpt-driven); Returns the Loaders; you fill in two documented stubs (`myBuildDay`, `myEpochCov`). The `observationGroups` loop is real runnable code; the stubs error until written. |
 | `examples/demo_grace_dataLoader` | *(example, not package)* the GRACE-FO reference setup — C/D pair merged into one system (range-rate couples both satellites' arc states) plus independent satellite E on the same field. A WORKED case to read alongside the template. |
 | `examples/demo_grace` | *(example, not package)* the driver that runs it end to end |
 | `examples/demo_gravity_design` | *(example, not package)* fully-normalised Legendre functions and spherical-harmonic potential partials along a sampled orbit — the ONE physically structured design generator; `demo_gravity` and `test_physOracle` both call it, so the recursion and its accuracy claim exist once |
@@ -321,7 +373,7 @@ predicted shift = 1.765467 sigma      <- from the MDB formula
 realised  shift = 1.765467 sigma      <- inject the MDB, re-solve, measure
 ```
 
-MATLAB unit tests: run `run_all_lsqvce` for the full suite (23 files, 630
+MATLAB unit tests: run `run_all_lsqvce` for the full suite (23 files, 631
 test points, ~3 min locally; the speed suite is reported separately by
 design). `run_lsqvce('all')` delegates to it, so it is the same run;
 `run_lsqvce('<target>')` runs one suite or a name pattern while iterating.
@@ -377,7 +429,8 @@ lsqvce.engine.adjust(u, src, nb, ...
 
 
 ```matlab
-R = lsqvce.engine.adjustVCE(L, days, 'verbose', 2).groupComponentsBy('obsType').run();
+R = lsqvce.engine.adjustVCE(L, days, 'verbose', 2, 'GroupBy', 'obsType').run();
+% through the user front door: lsqvce.fit(data, lsqvce.Options(Model="vce", Verbose=2))
 ```
 
 A LOGICAL still works and keeps its old meaning (`false` → 0, `true` → 1), so

@@ -5,6 +5,12 @@
 %   the right engine for its size and structure, choose exact vs matrix-free
 %   variance-component estimation, and read what comes back.
 %
+%   SINCE 2.0 (R4) the USER path is one verb on a plain data struct:
+%       R = lsqvce.fit(data, lsqvce.Options(...));   R.report
+%   (examples/demo_fit.m shows it on every data kind; DATA_CONTRACT.md is the
+%   spec). This script works one level down, at the ENGINE tier -- the same
+%   drivers fit dispatches to -- for readers who want to see them directly.
+%
 %   THE MAP (five questions, in order)
 %     0.  What does lsqvce need from me?          -> a batchFcn (Section 0)
 %     1.  How do I turn my data into that?        -> Section 1
@@ -83,7 +89,8 @@ fprintf('batchFcn contract OK (A is nk x %d, l is nk x 1, p > 0).\n', u);
 %% ------------------------------------------------------------------------
 % SECTION 2.  Which ENGINE?  A decision tree.
 % -------------------------------------------------------------------------
-% lsqvce has THREE front doors. Pick by the SHAPE of your problem, not by taste:
+% lsqvce has THREE engines (what lsqvce.fit dispatches to). Pick by the SHAPE
+% of your problem, not by taste -- fit does the same by the fields of `data`:
 %
 %   lsqvce.engine.adjust(u, batchFcn, nBatch)
 %       FLAT, in-memory normal/QR. One shared parameter block, batches streamed.

@@ -8,7 +8,16 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-09-02 — LEVEL L6 READY: PR #40, CI green
+Last substantive update: 2026-09-02 — LEVEL L7 READY: PR #41, CI green
+588/588 on 02bc6d0 (WP-66 docs onto the 2.0 surface, WP-67 demo_fit + data
+struct from the gravity loader, WP-68 manual chapter 0 + tier callouts);
+lesson pinned: recovery assertions are z-scores against the formal error.
+L6 merged 13c6808; the R4 track is COMPLETE pending this merge.
+Preceding entry: Last substantive update: 2026-09-02 (later) — L6 MERGED (13c6808); LEVEL L7
+opened (PR #41, doc-only): README / DATA_CONTRACT / manual + theory PDFs /
+demos brought onto the 2.0 surface; examples/demo_fit.m is the user-path
+demo with a smoke test; template/ chain fixed. CI pending.
+Preceding entry: Last substantive update: 2026-09-02 — LEVEL L6 READY: PR #40, CI green
 587/587 on 5d6ff75 (WP-64b: adjustVCE constructor-only, seven configurators
 deleted, scripted rewrite over the whole tree). THE R4 TRACK L1–L6 IS
 COMPLETE pending this merge; open: user postflight (L5+L6), buildtool
@@ -4261,6 +4270,9 @@ merger, no zip when a PR is the deliverable).
 | L4 | 63 | Speed-suite extension: fit-path budgets, dispatch overhead pinned ~0 vs direct driver calls | 56,62 | READY (CI green 585/585 on a0ce72d, DONE flips on the L4 merge; 2026-08-31, PR #37, commit 61e9d7d: test_speed testFitDispatchOverheadIsNegligible, fit < 1.25x the direct adjustBlock call on three raw loaders x two days; the speed suite runs LOCALLY — this point is verified by the L4 postflight) |
 | L5 | 64a | R4-D1 namespace layering, scripted (docs_src/refactor_tiers.py): +engine (58 incl. runMeta) / +kernel (21) / +util; root = USER tier; pages, Contents per package, tooling sub-package aware; BREAKING, no aliases | 56–63, R4-D1 | READY (CI green 587/587 on 84abbb8, DONE flips on the L5 merge (2026-09-01, PR #39, commits f9d8763 + r1 fix; CI pending) |
 | L6 | 64b | R4-D2 fluent deletion: adjustVCE ctor NV groups Shape/Scale/Outer/Joint/Axes (+ VceMode, GroupBy exist); delete stochasticModel/varianceComponents/iteration/joint/componentsPerEpoch/groupComponentsBy; scripted rewrite of fit, test_adjustVCE, test_ellmer, test_fit, examples; parity test becomes fit == ctor NV | 64a | READY (CI green 587/587 on 5d6ff75, DONE flips on the L6 merge2026-09-01, branch `claude/level-6`, PR #40, commit c50bf9c: docs_src/refactor_fluent.py rewrote 29 chain statements; handle-chaining test replaced by a constructor-groups contract test; audit html-example map extended with the deleted names and caught three stale examples; RELEASE_NOTES 2.0 table; version stays 2.0 -- ONE breaking release L1-L6) |
+| L7 | 66 | Documentation onto the 2.0 surface: README (three tiers, Quick start = fit on the three kinds, 'New here' order, Modules split USER/ENGINE/KERNEL with qualified names, template no longer 'START HERE'), DATA_CONTRACT §9 (engine equivalents without the deleted chain), user-manual html prose, Getting started + gallery pointers, theory text (R.systems) | 64b | READY (CI green 588/588 on 02bc6d0, DONE flips on the L7 merge (2026-09-02, branch `claude/level-7`, PR #41, commit c3399a0) |
+| L7 | 67 | examples/demo_fit.m -- the user path end to end on all three data kinds (in-memory, robust, batched, nonlinear, streaming gls + vce over the gravity oracle as a data struct); demo_gravity_dataLoader gains the DATA output (one source of truth with the Loaders); test_fit testDemoFitRuns checks every Results; template/ and demo_workflow/demo_lsqvce framed as ENGINE tier (template/ had been missed by the L6 script -- not in its globs) | 66 | READY (CI green 588/588 on 02bc6d0, DONE flips on the L7 merge (2026-09-02, PR #41, commit c3399a0; 631 points) |
+| L7 | 68 | Manual restructured for 2.0: chapter 0 'Start here: the 2.0 user surface' (derived from DATA_CONTRACT + Getting started), chapter 1/4 titled ENGINE tier with notes, front-matter table (user surface / engines / start your own case), stale '497 / 498' test claim removed; both PDFs rebuilt (manual 21 pages, no fluent left; theory R.systems) | 66 | READY (CI green 588/588 on 02bc6d0, DONE flips on the L7 merge (2026-09-02, PR #41) |
 | L5 | 65 | R4-D3 executed (manual Part 2 -> theory PDF), version 2.0 (Contents.m + README, check 17), RELEASE_NOTES.md with the 72-row 1.x -> 2.0 migration table from tiers.csv, buildfile.m (buildtool audit/test/package via ToolboxOptions), PDFs rebuilt | 64a | READY (CI green 587/587 on 84abbb8, DONE flips on the L5 merge (2026-09-01, PR #39, commit ff1c1ad; buildtool verified by the local postflight, not CI) |
 
 LEVEL STATUS (aggregates the rows above; flips DONE on the user's merge):
@@ -4270,6 +4282,8 @@ L2 READY — PR #36 (G-07 8af8a6b, WP-56 0d1fc19, WP-57 bf5fe6f, WP-58 b47d76c, 
 L4 READY — PR #37 (WP-56b 7acc161, WP-62 24ef446, WP-63 61e9d7d, r1 bridge fix a0ce72d); CI green 585/585 on the level head after one real catch (batch->Results contract); test_parallel CI-skipped, speed suite separate (WP-63's point is verified by the L4 postflight). L3 opens on the L4 merge (user order); WP-56c stays OPEN.
 L3 READY — PR #38 (WP-56c bcc70a8, WP-59 337a9bf, WP-60 cc0a31f, WP-61 edaabad/b5c15b3, r1 fix 6b9b67d, r2 fix + G-08 a1154ca); CI green 586/586 on the level head after two real catches (struct-array pitfall in the ellmer bridge; G-08 lag units in jointModelOpt). L5 READY — PR #39 (WP-64a f9d8763, WP-65 ff1c1ad, r1 00bc396, r2 84abbb8); CI green 587/587 on the level head after two catches; THE ONE BREAKING LEVEL (namespace move; no aliases; RELEASE_NOTES.md migration table). L3 merged 3a4d617. L6 (WP-64b fluent deletion, R4-D2) opens on the L5 merge.
 L6 READY — PR #40 (WP-64b c50bf9c, r1 fix 5d6ff75); CI green 587/587 on the level head after one catch (hand-picked file list). With L6 the R4 track L1–L6 is COMPLETE; open: the user's postflight (L5+L6 in one local run), `buildtool package` for the 2.0 mltbx, backlog WP-42 / WP-48(b).
+L7 READY — PR #41 (WP-66/67 c3399a0, WP-68 a35d13c, r1 fixes f0f20f5 + 02bc6d0); CI green 588/588 on the level head after one catch (recovery assertions are z-scores against the formal error, never literal tolerances). Doc-only level, no BREAKING. L6 merged 13c6808. Open after the merge: user postflight (L5+L6+L7 in ONE local run incl. test_parallel/test_speed), buildtool package (2.0 mltbx), backlog WP-42 / WP-48(b) / WP-30.
+L7 IN PROGRESS — branch `claude/level-7`, PR #41: documentation, PDFs and demos brought onto the 2.0 surface (user-reported drift 2026-09-02: 'the documentation, the PDFs and the demo files drifted' -- confirmed: no user-facing document or example showed fit/Options; README called the package flat; manual PDF predated L6; template/ still chained). L6 merged 13c6808.
 L5 READY — PR #39 (WP-64a f9d8763, WP-65 ff1c1ad, r1 00bc396, r2 84abbb8); CI green 587/587 on the level head after two catches; THE ONE BREAKING LEVEL (namespace move; no aliases; RELEASE_NOTES.md migration table). L6 (WP-64b fluent deletion, R4-D2) opens on the L5 merge.
 
 Test obligations per level (taxonomy §6.1.2, declarations mandatory):
@@ -4508,6 +4522,31 @@ independence contract (VceMode vs Joint group, both methods gone); the
 remaining help-comment mentions swept. LESSON, binding: the inventory of a
 rewrite is the tree (glob), never a list -- the same lesson as WP-54's
 census, learned once more.
+
+**LEVEL L7 ROUND 1 (opened 2026-09-02, model Claude Fable 5, branch
+`claude/level-7`, PR #41; doc-only level after the user reported drift).**
+L6 merged as 13c6808. Mechanical scan first: unqualified engine/kernel names
+= none (the L5 script had rewritten every token), fluent mentions in
+DATA_CONTRACT §9 / README / user-manual html / template, manual PDF built
+before L6 (still 'groupComponentsBy'), README 'one flat package ...
+everything at lsqvce.*', Modules table unqualified, 'START HERE' on the
+procOpt template, NO example and NO README code block using fit or Options
+-- the user's instinct was right. Facts pinned: (1) the L6 script's globs
+covered tests/examples/+lsqvce but not template/ -- the tree rule again;
+(2) the demo_gravity_dataLoader now returns the SAME declaration as a data
+struct (third output) so the user demo and the engine demo cannot drift
+apart; (3) the manual's chapter 0 is a COPY of DATA_CONTRACT / Getting
+started content -- those two remain the authorities; (4) R.loaders never
+existed (fit records the specs on R.systems) -- DATA_CONTRACT §1 and the
+theory text said 'R.loaders' since L1/L3; corrected.
+
+**L7 r1 CI CATCH (2026-09-02):** a35d13c RED 587/588 -- testDemoFitRuns'
+literal AbsTol 0.3 on the in-memory recovery was a guess about the
+fixture's noise (formal errors are ~0.3-0.4 at p in [0.5, 1.5]). Fix: the
+assertion is a z-score bound (|x - truth| / formal sigma < 3), which tests
+the ESTIMATOR, not the fixture. LESSON: recovery assertions are z-scores
+against the formal error, never literal tolerances -- the physOracle suite
+had this right; the new test now follows it.
 
 ### 11.9 DATA CONTRACT AND LOADER WORKFLOW — design record for WP-56 (R4-D4)
 
