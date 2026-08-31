@@ -48,6 +48,12 @@ classdef Options
 %
 %   Run control
 %     Parallel   string   "serial"  "serial" | "parfor" | "spmd"
+%     DistributeDays logical false  parallelise over the DAYS of a system
+%                                 (one raw partial per day, merged in day
+%                                 order) -- the axis that scales for a
+%                                 2-satellite mission; needs Parallel ~=
+%                                 "serial" and >= ParallelThreshold days
+%     ParallelThreshold double 8  below this many tasks a pool is not used
 %     Verbose    logical|double  true   logical, or a level 0..3. PINNED
 %                                 DEVIATION: adjust and adjustVCE default to
 %                                 true, adjustBlock to false; Options follows
@@ -126,6 +132,8 @@ classdef Options
 %                 obsType -> count), .mode (char 'separate' | 'joint')
 %     opts.validate()                  cross-property checks (called by the
 %                                      constructor and by engineArgs)
+%     s = opts.toStruct()              every public property as a struct field
+%                                      (what fit records in Results.meta.options)
 %
 %   ACCURACY
 %     No numerics of its own. The claim is EXACTNESS of the mapping: for a
@@ -160,6 +168,13 @@ classdef Options
 %            LSQVCE.ADJUST, LSQVCE.ROBUST, LSQVCE.SOLVENONLINEAR,
 %            LSQVCE.DIAGNOSE, LSQVCE.RESULTS
 %
+%   Updated 2026-08-31 (CEST, UTC+02:00), R4 WP-62 (Level L4): DistributeDays
+%   and ParallelThreshold -- the parallel policy of the streaming engines,
+%   reachable through fit. With assistance from Claude (Anthropic), model
+%   Claude Fable 5.
+%   Updated 2026-08-31 (CEST, UTC+02:00), R4 WP-56b (Level L4): toStruct()
+%   for the provenance record of fit's in-memory / batched kinds. With
+%   assistance from Claude (Anthropic), model Claude Fable 5.
 %   Created 2026-08-31 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5 -- R4 Level L1, WP-55.
 
@@ -177,6 +192,8 @@ classdef Options
         Sigma0    (1,1) double {mustBePositive} = 1
         % ---- run control
         Parallel    (1,1) string {mustBeMember(Parallel, ["serial","parfor","spmd"])} = "serial"
+        DistributeDays    (1,1) logical = false
+        ParallelThreshold (1,1) double {mustBeInteger, mustBeNonnegative} = 8
         Verbose     (1,1) {mustBeA(Verbose, ["logical","double"])} = true
         LogFid      double  {mustBeScalarOrEmpty} = []
         LogFlag     logical = logical([])
@@ -283,7 +300,9 @@ classdef Options
                     % >= 1 means "talk", so logical() is the faithful map.
                     args.nv = {'Backend', obj.Backend, 'Reg', obj.Reg, ...
                                'RegLambda', obj.RegLambda, 'RegMatrix', obj.RegMatrix, ...
-                               'Parallel', obj.Parallel, 'Verbose', logical(obj.Verbose), ...
+                               'Parallel', obj.Parallel, 'DistributeDays', obj.DistributeDays, ...
+                               'ParallelThreshold', obj.ParallelThreshold, ...
+                               'Verbose', logical(obj.Verbose), ...
                                'ShowSeconds', obj.ShowSeconds, 'ExportDir', obj.ExportDir};
                 case 'adjustVCE'
                     if strcmp(obj.Model, "pooled")
@@ -294,6 +313,8 @@ classdef Options
                     args.nv = {'GroupBy', obj.GroupBy, 'VceMode', string(mode), ...
                                'MaxOuter', obj.MaxOuter, 'Backend', obj.Backend, ...
                                'Reg', obj.Reg, 'Parallel', obj.Parallel, ...
+                               'DistributeDays', obj.DistributeDays, ...
+                               'ParallelThreshold', obj.ParallelThreshold, ...
                                'Verbose', obj.Verbose, 'LogFid', obj.LogFid, ...
                                'LogFlag', obj.LogFlag, 'ShowSeconds', obj.ShowSeconds, ...
                                'ExportDir', obj.ExportDir};
@@ -347,6 +368,21 @@ classdef Options
             end
         end
 
+        function s = toStruct(obj)
+        %TOSTRUCT  Every public property as a plain struct field (for Results.meta).
+        %   s = opts.toStruct()   the RESOLVED option set a run actually used,
+        %   in the shape runMeta expects. Read through the metaclass so a new
+        %   property is picked up without a second list.
+            mc = metaclass(obj);
+            s  = struct();
+            for k = 1:numel(mc.PropertyList)
+                pr = mc.PropertyList(k);
+                if strcmp(pr.GetAccess, 'public') && ~pr.Constant && ~pr.Hidden
+                    s.(pr.Name) = obj.(pr.Name);
+                end
+            end
+        end
+
         function disp(obj)
         %DISP  Grouped display: one line per property, engine defaults marked.
             groups = lsqvce.Options.groupTable();
@@ -381,7 +417,7 @@ classdef Options
         %GROUPTABLE  Display groups (name, property list), in help-text order.
             t = {'What to do',            {'Model', 'Robust'}; ...
                  'Solver',                {'Backend', 'Reg', 'RegLambda', 'RegMatrix', 'Sparse', 'DatumB', 'Sigma0'}; ...
-                 'Run control',           {'Parallel', 'Verbose', 'LogFid', 'LogFlag', 'ShowSeconds', 'ExportDir'}; ...
+                 'Run control',           {'Parallel', 'DistributeDays', 'ParallelThreshold', 'Verbose', 'LogFid', 'LogFlag', 'ShowSeconds', 'ExportDir'}; ...
                  'Variance components',   {'GroupBy', 'VceMaxIter', 'VceTol', 'MinRedundancy', 'ComponentsPerEpoch'}; ...
                  'Stochastic model',      {'MaxOrder', 'AcvTol', 'MaxLag', 'WhiteAlpha'}; ...
                  'Outer loop',            {'MaxOuter', 'OuterTol'}; ...

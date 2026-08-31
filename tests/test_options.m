@@ -37,7 +37,9 @@ function testDefaultsMatchAdjustVCEEngine(tc)
     tc.verifyEqual(a.axes, struct('pos', 3), 'components-per-epoch default must be pos -> 3');
     tc.verifyEqual(P.axesMap('pos'), 3);
     tc.verifyEqual(struct('Backend', char(o.Backend), 'Reg', char(o.Reg), ...
-                          'Parallel', char(o.Parallel)), P.blockOpt, ...
+                          'Parallel', char(o.Parallel), ...
+                          'DistributeDays', o.DistributeDays, ...
+                          'ParallelThreshold', o.ParallelThreshold), P.blockOpt, ...
         'solver group must equal the engine''s blockOpt');
 end
 
@@ -55,7 +57,8 @@ function testDriverDefaultsArePinned(tc)
     % tol: exact -- literal pins
     tc.verifyEqual(nv2struct(o.engineArgs("adjustBlock").nv), struct( ...
         'Backend', "qr", 'Reg', "none", 'RegLambda', 0, 'RegMatrix', [], ...
-        'Parallel', "serial", 'Verbose', true, 'ShowSeconds', 0, 'ExportDir', ""));
+        'Parallel', "serial", 'DistributeDays', false, 'ParallelThreshold', 8, ...
+        'Verbose', true, 'ShowSeconds', 0, 'ExportDir', ""));
     tc.verifyEqual(nv2struct(o.engineArgs("adjustVCEjoint").nv), struct( ...
         'NumLags', 60, 'MaxIter', 10, 'Tol', 1e-2, 'Probes', 100, 'Seed', [], ...
         'Norm', "ortho", 'MeanType', "robust", 'StepSchedule', "none", ...
@@ -213,6 +216,24 @@ function testValueSemanticsAndNameOrderInvariance(tc)
     o3 = lsqvce.Options(Model="vce", Backend="normal", MaxOuter=3);
     tc.verifyTrue(isequal(o2, o3), 'Name-Value order must not matter');
     tc.verifyEqual(o2.engineArgs("adjustBlock"), o3.engineArgs("adjustBlock"));
+end
+
+function testToStructCoversEveryPropertyOnce(tc)
+% categories: contract | tags: provenance
+    % R4 WP-56b: toStruct() is what fit records in Results.meta.options; it
+    % must list every public property exactly once and nothing else.
+    o = lsqvce.Options(Model="vce", MaxOuter=4);
+    s = o.toStruct();
+    tc.verifyEqual(s.Model, "vce");
+    tc.verifyEqual(s.MaxOuter, 4);
+    txt = evalc('disp(o)');
+    for f = fieldnames(s).'
+        tc.verifyTrue(contains(txt, [' ' f{1} ' ']) || contains(txt, [' ' f{1} sprintf('\n')]) ...
+            || ~isempty(regexp(txt, ['\s' f{1} '\s'], 'once')), ...
+            sprintf('property %s must appear in the grouped display', f{1}));
+    end
+    tc.verifyEqual(numel(fieldnames(s)), numel(unique(fieldnames(s))));
+    tc.verifyEqual(numel(fieldnames(s)), 59, 'the option space has 59 knobs (update on purpose)');
 end
 
 %% ================================================================ helpers

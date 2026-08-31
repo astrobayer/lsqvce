@@ -27,8 +27,35 @@ function R = fit(data, opts)
 %       "vce"      LSQVCE.ADJUSTVCE          alternate stochastic model <->
 %                                            variance components (separate)
 %       "pooled"   LSQVCE.ADJUSTVCE.joint    pooled spectrum, no arc factors
-%       "ellmer"   LSQVCE.ADJUSTVCEJOINT     NOT WIRED YET (WP-56b): fit
+%       "ellmer"   LSQVCE.ADJUSTVCEJOINT     NOT WIRED YET (WP-56c): fit
 %                                            refuses with lsqvce:fit:notYet
+%
+%   TWO MORE KINDS OF DATA (R4 WP-56b) -- told apart by the fields present,
+%   for problems WITHOUT local unknowns and with diagonal weights:
+%
+%   (B) IN-MEMORY MATRICES
+%         data.A   m x u double     design matrix
+%         data.l   m x 1 double     observed minus computed
+%         data.p   m x 1 double     weights (diagonal of P); optional (unit)
+%   (C) BATCHED CALLBACK
+%         data.numUnknowns  1x1     u
+%         data.numBatches   1x1     nBatch
+%         data.batchFcn     fh      [A, l, p] = batchFcn(k), k = 1..nBatch
+%                                   (the LSQVCE.ADJUST contract), or, with
+%         data.x0           u x 1   -> NONLINEAR: [A, w, p] = batchFcn(k, x)
+%                                   (the LSQVCE.SOLVENONLINEAR contract)
+%   Dispatch for both: opts.Model must be "gls" (variance components need
+%   the groups of a streaming system); opts.Robust = "irls" selects
+%   LSQVCE.ROBUST, data.x0 selects LSQVCE.SOLVENONLINEAR, else LSQVCE.ADJUST.
+%   The Results carries sol / diag / source (the driver's third output:
+%   verdict V, ROB, or the nonlinear IT record). Its sigma0 is the
+%   A-POSTERIORI std of unit weight and sol.Cxx = s0sq * D.Qxx, i.e. the
+%   streaming Results contract (the batch drivers' own sol.sigma0 is the
+%   a-priori value; it is kept as sol.sigma0Prior). R.acc is empty, so
+%   residuals() and contribution() refuse with lsqvce:Results:noAccumulator
+%   -- the per-observation residuals are already in R.diag.v. The options
+%   forwarded to LSQVCE.DIAGNOSE come from the Options object explicitly
+%   (no KeepUnmatched on this path).
 %
 %   R.systems (the existing Results field -- no second name) carries the
 %   normalised system specs the engine ran: .sysID .nl .dataFcn (the loader
@@ -92,9 +119,13 @@ function R = fit(data, opts)
 %                                  (e.g. noCov, badArcs, localPlan); the
 %                                  original is attached as the cause
 %     Your choice is not available here:
-%       lsqvce:fit:notYet          Model "ellmer" or Robust ~= "none" (batch
-%                                  path) -- use the engine directly until
-%                                  WP-56b lands
+%       lsqvce:fit:notYet          Model "ellmer" (WP-56c) or Robust ~= "none"
+%                                  on the STREAMING kind -- use the engine
+%                                  directly
+%       lsqvce:fit:modelKind       Model other than "gls" on kinds B / C
+%       lsqvce:fit:badMatrix       kind B shapes disagree (A m x u, l m x 1,
+%                                  p m x 1)
+%       lsqvce:fit:missingField    kind C lacks numUnknowns / numBatches
 %     Your buildDay is wrong (raised WHILE READING, by the engine, ids
 %     unchanged): lsqvce:makeLoader:badDay / dayShape / badArc / badArcId /
 %     buildDay, lsqvce:accum:arcBadNc / arcBadNl
@@ -111,8 +142,14 @@ function R = fit(data, opts)
 %     R.report
 %
 %   See also LSQVCE.OPTIONS, LSQVCE.RESULTS, LSQVCE.MAKELOADER,
-%            LSQVCE.ADJUSTBLOCK, LSQVCE.ADJUSTVCE, LSQVCE.ADJUSTVCEJOINT
+%            LSQVCE.ADJUSTBLOCK, LSQVCE.ADJUSTVCE, LSQVCE.ADJUSTVCEJOINT,
+%            LSQVCE.ADJUST, LSQVCE.ROBUST, LSQVCE.SOLVENONLINEAR
 %
+%   Updated 2026-08-31 (CEST, UTC+02:00), R4 WP-56b (Level L4): kinds B
+%   (in-memory matrices) and C (batched callback, linear or nonlinear with
+%   x0) through adjust / robust / solveNonlinear, returned as Results without
+%   an accumulator. Model "ellmer" stays refused (WP-56c). With assistance
+%   from Claude (Anthropic), model Claude Fable 5.
 %   Created 2026-08-31 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5 -- R4 Level L2, WP-56 (decision R4-D4).
 arguments
@@ -121,15 +158,27 @@ arguments
 end
 
     opts.validate();
+
+    % ---- kinds B / C (R4 WP-56b): no systems, no loaders -------------------
+    f = fieldnames(data);
+    if ~any(strcmp(f, 'systems')) && (any(strcmp(f, 'A')) || any(strcmp(f, 'l')))
+        R = fitMatrix(data, opts);
+        return
+    elseif ~any(strcmp(f, 'systems')) && any(strcmp(f, 'batchFcn'))
+        R = fitBatch(data, opts);
+        return
+    end
+
+    % ---- kind A: streaming --------------------------------------------------
     if ~strcmp(opts.Model, "gls") && ~strcmp(opts.Model, "vce") && ~strcmp(opts.Model, "pooled")
         error('lsqvce:fit:notYet', ...
-            ['Model "%s" is not wired through fit yet (WP-56b); call ' ...
+            ['Model "%s" is not wired through fit yet (WP-56c); call ' ...
              'lsqvce.adjustVCEjoint directly for the Ellmer joint loop.'], opts.Model);
     end
     if ~strcmp(opts.Robust, "none")
         error('lsqvce:fit:notYet', ...
-            ['Robust = "%s" is the in-memory batch path (lsqvce.robust), not ' ...
-             'yet wired through fit for streamed data (WP-56b).'], opts.Robust);
+            ['Robust = "%s" is the in-memory / batched kinds'' path (lsqvce.robust); ' ...
+             'the streaming kind screens outliers through its diagnostics (report()).'], opts.Robust);
     end
 
     spec = validateData(data);
@@ -336,4 +385,76 @@ function nv = struct2nv(s)
         nv{2*k-1} = f{k};
         nv{2*k}   = s.(f{k});
     end
+end
+
+%========================================================== kinds B / C
+function R = fitMatrix(data, opts)
+%FITMATRIX  Kind B: in-memory A, l (, p) -> one-batch driver -> Results.
+    rejectUnknown(fieldnames(data), {'A', 'l', 'p'}, 'data');
+    for f = {'A', 'l'}
+        if ~isfield(data, f{1}) || isempty(data.(f{1}))
+            error('lsqvce:fit:missingField', 'data lacks the required field %s.', f{1});
+        end
+    end
+    A = data.A;  l = data.l(:);
+    p = [];
+    if isfield(data, 'p') && ~isempty(data.p), p = data.p(:); end
+    if ~isnumeric(A) || ~ismatrix(A) || size(A, 1) ~= numel(l) || ...
+            (~isempty(p) && numel(p) ~= numel(l))
+        error('lsqvce:fit:badMatrix', ...
+            'data.A must be m x u, data.l m x 1 and data.p (if given) m x 1 (m = %d).', numel(l));
+    end
+    batchFcn = @(k) deal(A, l, p);
+    R = runBatch(size(A, 2), batchFcn, 1, [], opts, 'matrix');
+end
+
+function R = fitBatch(data, opts)
+%FITBATCH  Kind C: batched callback (linear, or nonlinear with x0) -> Results.
+    rejectUnknown(fieldnames(data), {'batchFcn', 'numUnknowns', 'numBatches', 'x0'}, 'data');
+    for f = {'batchFcn', 'numUnknowns', 'numBatches'}
+        if ~isfield(data, f{1}) || isempty(data.(f{1}))
+            error('lsqvce:fit:missingField', 'data lacks the required field %s.', f{1});
+        end
+    end
+    x0 = [];
+    if isfield(data, 'x0') && ~isempty(data.x0), x0 = data.x0(:); end
+    R = runBatch(data.numUnknowns, data.batchFcn, data.numBatches, x0, opts, 'batch');
+end
+
+function R = runBatch(u, batchFcn, nBatch, x0, opts, kind)
+%RUNBATCH  The ONE dispatch for kinds B / C: adjust | robust | solveNonlinear.
+    if ~strcmp(opts.Model, "gls")
+        error('lsqvce:fit:modelKind', ...
+            ['Model "%s" needs the streaming kind (variance components are per ' ...
+             'group of a system); the %s kind is Model "gls".'], opts.Model, kind);
+    end
+    if ~isempty(x0)
+        a = opts.engineArgs("solveNonlinear");
+        [sol, D, ~, IT] = lsqvce.solveNonlinear(u, batchFcn, nBatch, x0, a.nv{:});
+        source = IT;
+    elseif strcmp(opts.Robust, "irls")
+        a = opts.engineArgs("robust");
+        [sol, D, ROB] = lsqvce.robust(u, batchFcn, nBatch, a.nv{:});
+        source = ROB;
+    else
+        a = opts.engineArgs("adjust");
+        [sol, D, V] = lsqvce.adjust(u, batchFcn, nBatch, a.nv{:});
+        source = V;
+    end
+    % The Results contract is the STREAMING one (BlockAccumulator.solve):
+    % sol.sigma0 = a-posteriori std of unit weight, sol.Cxx = covariance
+    % scaled by it. The batch drivers return Accumulator.solve's struct,
+    % where sigma0 is the A-PRIORI Sigma0 and there is no Cxx (R, QxxCorr,
+    % s0sq instead) -- so the bridge derives both exactly as lsqvce.diagnose
+    % does (D.Qxx is the datum-corrected cofactor). When diagnose skipped
+    % Qxx (very large u) Cxx stays absent and coefficients() refuses with
+    % lsqvce:Results:noCovariance -- honest, never a plausible substitute.
+    sol.sigma0Prior = sol.sigma0;
+    sol.sigma0      = sqrt(sol.s0sq);
+    if isfield(D, 'Qxx') && ~isempty(D.Qxx)
+        sol.Cxx = sol.s0sq * D.Qxx;
+    end
+    resolved = opts.toStruct();
+    resolved.kind = kind;
+    R = lsqvce.Results(sol, D, [], source, batchFcn, nBatch, [], runMeta(struct(), resolved));
 end

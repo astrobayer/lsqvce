@@ -49,6 +49,14 @@ function R = adjustBlock(systems, days, opt)
 %       'RegLambda'  double 1x1 >= 0  regularisation weight     (default 0)
 %       'RegMatrix'  double p x nc    regularisation matrix     (default [])
 %       'Parallel'   string 1x1  "serial"|"parfor"|"spmd"       (default "serial")
+%       'DistributeDays' logical 1x1  parallelise over the DAYS of each
+%                                system (LSQVCE.BLOCKACCUMULATOR 'DistributeDays':
+%                                one raw partial per day, merged in day order;
+%                                the axis that scales for a 2-satellite mission).
+%                                Needs Parallel ~= "serial" and at least
+%                                ParallelThreshold days.       (default false)
+%       'ParallelThreshold' double 1x1  tasks below which no pool is used
+%                                                              (default 8)
 %       'Verbose'    logical 1x1  accumulator chatter           (default false)
 %       'ShowSeconds' double 1x1  seconds to display each plot-hook figure
 %                            (default 0 = export only; < 0 = show and
@@ -97,6 +105,10 @@ function R = adjustBlock(systems, days, opt)
 %            LSQVCE.BLOCKACCUMULATOR, LSQVCE.DIAGNOSEACCUM, LSQVCE.DIAGNOSE,
 %            LSQVCE.REPORT, LSQVCE.UTIL.SHOWEXPORT
 %
+%   Updated 2026-08-31 (CEST, UTC+02:00), R4 WP-62 (Level L4): 'DistributeDays'
+%   and 'ParallelThreshold' exposed (pass-through to the accumulator; the
+%   engine's own defaults). With assistance from Claude (Anthropic), model
+%   Claude Fable 5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (a) (F-07): typed
 %   `arguments` signature; option names are UpperCamelCase (Backend, Reg,
 %   RegLambda, RegMatrix, Parallel, Verbose, ShowSeconds, ExportDir) with
@@ -121,6 +133,8 @@ arguments
     opt.RegLambda (1,1) double {mustBeNonnegative} = 0
     opt.RegMatrix double = []
     opt.Parallel (1,1) string {mustBeMember(opt.Parallel, ["serial","parfor","spmd"])} = "serial"
+    opt.DistributeDays (1,1) logical = false
+    opt.ParallelThreshold (1,1) double {mustBeInteger, mustBeNonnegative} = 8
     opt.Verbose  (1,1) logical = false
     opt.ShowSeconds (1,1) double = 0
     opt.ExportDir (1,1) string = ""
@@ -135,6 +149,8 @@ end
     o = struct('backend', char(opt.Backend), 'reg', char(opt.Reg), ...
                'regLambda', opt.RegLambda, 'regMatrix', opt.RegMatrix, ...
                'parallel', char(opt.Parallel), 'verbose', opt.Verbose, ...
+               'distributeDays', opt.DistributeDays, ...
+               'parallelThreshold', opt.ParallelThreshold, ...
                'showSeconds', opt.ShowSeconds, 'exportDir', char(opt.ExportDir));
 
     [specs, loaders] = normalizeSystems(systems, days);
@@ -150,7 +166,9 @@ end
 
     acc = lsqvce.BlockAccumulator(nc, 'Backend',o.backend, 'KeepLocal',true, ...
               'Verbose',o.verbose, 'Reg',o.reg, 'RegLambda',o.regLambda, ...
-              'RegMatrix',o.regMatrix, 'Parallel',o.parallel);
+              'RegMatrix',o.regMatrix, 'Parallel',o.parallel, ...
+              'DistributeDays',o.distributeDays, ...
+              'ParallelThreshold',o.parallelThreshold);
     acc.addSystems(specs);
     sol = acc.solve();
 
