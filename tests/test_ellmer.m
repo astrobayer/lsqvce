@@ -630,8 +630,7 @@ function test_joint_fluent_switches_mode_and_sets_opts(tc)
 % categories: contract
     % .joint(...) both switches the mode and configures it, so no separate flag
     % is needed -- the call reads as the intent.
-    P = lsqvce.engine.adjustVCE(modeSpec(), 1, 'verbose', false);
-    P = P.joint('numLags', 24, 'probes', 40, 'meanType', 'plain');
+    P = lsqvce.engine.adjustVCE(modeSpec(), 1, 'verbose', false, 'VceMode', 'joint', 'Joint', struct('numLags', 24, 'probes', 40, 'meanType', 'plain'));
     verifyEqual(tc, P.vceMode, 'joint');
     verifyEqual(tc, P.jointOpt.NumLags , 24);
     verifyEqual(tc, P.jointOpt.Probes  , 40);
@@ -640,8 +639,7 @@ end
 
 function test_separate_fluent_switches_back(tc)
 % categories: contract
-    P = lsqvce.engine.adjustVCE(modeSpec(), 1, 'verbose', false);
-    P = P.joint('numLags', 12);
+    P = lsqvce.engine.adjustVCE(modeSpec(), 1, 'verbose', false, 'VceMode', 'joint', 'Joint', struct('numLags', 12));
     verifyEqual(tc, P.vceMode, 'joint');
     P = P.separate();
     verifyEqual(tc, P.vceMode, 'separate', ...

@@ -541,9 +541,13 @@ def check_html_examples():
     # Keyed on the OLD name; the value is what it became, so the finding tells
     # the reader what to write instead of merely that something is wrong.
     removed = {
-        'vceGroupsBy':  'groupComponentsBy',
-        r'\.shape\(':   '.stochasticModel(',
-        r'\.scale\(':   '.varianceComponents(',
+        'vceGroupsBy':  "'GroupBy' constructor group (2.0)",
+        r'\.shape\(':   "'Shape' constructor group (2.0)",
+        r'\.scale\(':   "'Scale' constructor group (2.0)",
+        r'\.groupComponentsBy\(':  "'GroupBy', key on the constructor (R4-D2, 2.0)",
+        r'\.stochasticModel\(':    "'Shape', struct(...) on the constructor (R4-D2, 2.0)",
+        r'\.varianceComponents\(': "'Scale', struct(...) on the constructor (R4-D2, 2.0)",
+        r'\.componentsPerEpoch\(': "'Axes', struct(...) on the constructor (R4-D2, 2.0)",
         r'adjustVCE\(nc,':    'adjustVCE(systems, days) -- nc is derived',
         r'adjustBlock\(nc,':  'adjustBlock(systems, days) -- nc is derived',
         r'adjustBlock\(\d+,': 'adjustBlock(systems, days) -- nc is derived',

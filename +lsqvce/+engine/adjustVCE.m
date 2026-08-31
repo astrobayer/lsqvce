@@ -7,20 +7,24 @@ classdef adjustVCE < handle
 %   The general separable generalised-least-squares engine. It layers the
 %   two-unknown covariance loop on top of LSQVCE.ENGINE.ADJUSTBLOCK: a single GLS solve is
 %   adjustBlock's job; discovering the covariance that solve should use is this
-%   class's job. Build it fluently, then call RUN.
+%   class's job. Configure it in the CONSTRUCTOR, then call RUN.
 %
-%   ENGINE TIER SINCE R4 (WP-58, 2026-08-31). The fluent chain below is the
-%   ENGINE's API and stays; the USER front door is LSQVCE.FIT with
-%   Options(Model="vce") (this class's 'separate' mode) or Options(Model=
-%   "pooled") ('joint' mode). fit applies exactly the configurators shown
-%   here from Options.engineArgs("adjustVCE"); parity is pinned in
-%   tests/test_fit.m (testFitVceReproducesTheFluentChain).
+%   ENGINE TIER SINCE R4 (WP-58, 2026-08-31); CONSTRUCTOR-ONLY SINCE 2.0
+%   (R4-D2, WP-64b, 2026-09-01): the fluent configurators
+%   groupComponentsBy / stochasticModel / varianceComponents / iteration /
+%   joint / componentsPerEpoch are GONE (no aliases). Their option groups are
+%   Name-Value STRUCTS on the constructor -- 'GroupBy', 'Shape', 'Scale',
+%   'Outer', 'Joint', 'Axes' -- merged into the engine defaults with the same
+%   case-insensitive key matching the configurators used (mergeNV). The USER
+%   front door is LSQVCE.FIT with Options(Model="vce") ('separate' mode) or
+%   Options(Model="pooled") ('joint' mode); fit passes exactly these groups
+%   from Options.engineArgs("adjustVCE"); parity is pinned in
+%   tests/test_fit.m (testFitVceReproducesTheEngine).
 %
-%       R = lsqvce.engine.adjustVCE({Lc, Ld}, 1:30) ...
-%              .groupComponentsBy('satObs') ...
-%              .stochasticModel('MaxOrder',60, 'AcvTol',1e-3) ...
-%              .varianceComponents('MaxIter',8, 'Tol',1e-3) ...
-%              .run();
+%       R = lsqvce.engine.adjustVCE({Lc, Ld}, 1:30, ...
+%              'GroupBy', 'satObs', ...
+%              'Shape', struct('MaxOrder', 60, 'AcvTol', 1e-3), ...
+%              'Scale', struct('MaxIter', 8, 'Tol', 1e-3)).run();
 %       R.report();                 % the usual level-0..4 verdict
 %       R.history                   % the sigma / AR-order trajectory
 %
@@ -72,7 +76,7 @@ classdef adjustVCE < handle
 %     systems  1xM   cell|struct  Loader objects from LSQVCE.ENGINE.MAKELOADER (cell),
 %                              or the struct-array spec that LSQVCE.ENGINE.ADJUSTBLOCK
 %                              accepts. Required. Each obsType stream becomes a
-%                              candidate VCE group (see groupComponentsBy).
+%                              candidate VCE group (see 'GroupBy').
 %                              The number of COMMON parameters is DERIVED from
 %                              these (LSQVCE.ENGINE.RESOLVENC) -- from a Loader's
 %                              'commonParams' rows, or a raw spec's .nc field --
@@ -87,7 +91,7 @@ classdef adjustVCE < handle
 %                            'satObs' (default) one component per
 %                            (satellite,obsType); 'obsType'; 'system'; 'arc';
 %                            or @(sysID,obsType,arc,day)->key. Also settable via
-%                            groupComponentsBy().
+%                            the 'GroupBy' group key.
 %       'MaxOuter'  1x1  outer stochastic model <-> variance components iterations             (default 6)
 %       'Backend'   char 'qr' | 'normal'                          (default 'qr')
 %       'Reg'       char passed to adjustBlock                        (default 'none')
@@ -140,12 +144,14 @@ classdef adjustVCE < handle
 %     A hook that errors is logged and skipped -- plots never break
 %     the solve. Set the two engine knobs via the constructor or P.plots(...).
 %
-%   FLUENT CONFIGURATORS (each returns P, so they chain)
-%     P.groupComponentsBy(key)          which observations share a variance component
-%     P.stochasticModel('MaxOrder',p,'AcvTol',t)   the temporal noise model
-%     P.varianceComponents('MaxIter',n,'Tol',t)    the Helmert variance components
-%     P.iteration('MaxOuter',k,'Tol',t) the outer convergence gate
-%     P.plots('ShowSeconds',s,'ExportDir',d)  configure the plot-hook show/export
+%   CONSTRUCTOR OPTION GROUPS (structs, keys case-insensitive; since 2.0)
+%     'GroupBy', key                    which observations share a variance component
+%     'Shape', struct('MaxOrder',p,'AcvTol',t,'MaxLag',m,'WhiteAlpha',a)   temporal noise model
+%     'Scale', struct('MaxIter',n,'Tol',t,'MinRedundancy',r)   the Helmert variance components
+%     'Outer', struct('MaxOuter',k,'Tol',t)                    the outer convergence gate
+%     'Joint', struct('NumLags',n,'Probes',m,'Seed',s,...)     the pooled spectrum ('VceMode','joint')
+%     'Axes',  struct(obsType, count)                          components per epoch
+%     P.plots('ShowSeconds',s,'ExportDir',d)  configure the plot-hook show/export (unchanged)
 %
 %   RUN
 %     R = P.run()   ->  1x1 lsqvce.Results, with the iteration trajectory
@@ -177,16 +183,13 @@ classdef adjustVCE < handle
 %
 %   EXAMPLE (synthetic, end to end)
 %     [cfg, L] = demo_grace_dataLoader();          % GRACE-FO synthetic (examples/)
-%     R = lsqvce.engine.adjustVCE(L, cfg.days) ...
-%            .groupComponentsBy('obsType').run();
+%     R = lsqvce.engine.adjustVCE(L, cfg.days, 'GroupBy', 'obsType').run();
 %     R.report();
 %     disp(R.history.sigma(end,:));   % ~ 1 per group at truth
 %     % or just run the driver:  demo_grace
 %
 %   ERRORS
 %     lsqvce:adjustVCE:badSystems     systems is not a loader cell/struct array
-%     lsqvce:adjustVCE:badComponents  groupComponentsBy got a key that is
-%                                     neither a known name nor a function handle
 %     lsqvce:adjustVCE:validateBadResults  validate() was given something that
 %                                     is not a Results from this problem
 %
@@ -197,6 +200,11 @@ classdef adjustVCE < handle
 %
 %   See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.REDUNDANCY,
 %
+%   Updated 2026-09-01 (CEST, UTC+02:00), R4-D2 / WP-64b (Level L6): the six
+%   fluent configurators DELETED; their groups are constructor Name-Value
+%   structs Shape / Scale / Outer / Joint / Axes (GroupBy, VceMode existed).
+%   BREAKING (2.0); no aliases. With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 %   Updated 2026-08-31 (CEST, UTC+02:00), R4 WP-62 (Level L4): 'DistributeDays'
 %   and 'ParallelThreshold' on the constructor, carried in blockOpt to every
 %   accumulator the loop builds. With assistance from Claude (Anthropic),
@@ -240,10 +248,10 @@ classdef adjustVCE < handle
 %      scaling.
 %   2. nAxes PER OBSTYPE: 3-D position streams have nAxes=3 (x,y,z share one
 %      R_t); range-rate is scalar, nAxes=1. Declare it via nAxesOf() below
-%      (default: 'pos'->3, everything else->1). Override with P.componentsPerEpoch(map).
+%      (default: 'pos'->3, everything else->1). Override with the 'Axes' group.
 %   3. VCE GRANULARITY: default one sigma per (satellite,obsType). If a group
 %      has too little redundancy (VCE warns), coarsen with
-%      P.groupComponentsBy('obsType').
+%      'GroupBy', 'obsType'.
 %   4. COUPLED OBSERVATIONS (e.g. inter-satellite range-rate). The block-arrow
 %      model has ONE local block per system, so an observation that depends on
 %      TWO satellites' arc states (KBR/range-rate between C and D) cannot be a
@@ -312,6 +320,14 @@ classdef adjustVCE < handle
             opt.LogFlag logical = logical([])
             opt.ShowSeconds (1,1) double = 0
             opt.ExportDir (1,1) string = ""
+            % ---- option GROUPS (R4-D2, WP-64b): structs merged into the engine
+            % defaults, keys matched case-insensitively (mergeNV); an explicit
+            % Outer.MaxOuter wins over the scalar MaxOuter above.
+            opt.Shape (1,1) struct = struct()   % MaxOrder, AcvTol, MaxLag, WhiteAlpha
+            opt.Scale (1,1) struct = struct()   % MaxIter, Tol, MinRedundancy
+            opt.Outer (1,1) struct = struct()   % MaxOuter, Tol
+            opt.Joint (1,1) struct = struct()   % NumLags, Probes, Seed, Norm, MeanType, C0, PsdMode, Smooth
+            opt.Axes  (1,1) struct = struct()   % obsType -> components per epoch
         end
             % WP-39 c2: the old narginchk(2, inf) is dead -- the arguments
             % block enforces the arity first (missing positionals surface
@@ -364,120 +380,17 @@ classdef adjustVCE < handle
                                     'ExportDir', char(o.exportDir));
             obj.axesMap    = containers.Map('KeyType','char','ValueType','double');
             obj.axesMap('pos') = 3;      % 3-D positions share one temporal law
+            % ---- apply the option groups (constructor-only since 2.0) ------
+            obj.shapeOpt = mergeNV(obj.shapeOpt, struct2nv(opt.Shape));
+            obj.scaleOpt = mergeNV(obj.scaleOpt, struct2nv(opt.Scale));
+            obj.outerOpt = mergeNV(obj.outerOpt, struct2nv(opt.Outer));
+            obj.jointOpt = mergeNV(obj.jointOpt, struct2nv(opt.Joint));
+            fa = fieldnames(opt.Axes);
+            for k = 1:numel(fa), obj.axesMap(fa{k}) = opt.Axes.(fa{k}); end
         end
 
-        % ---- fluent configurators ---------------------------------------
-        function obj = groupComponentsBy(obj, key)
-        %GROUPCOMPONENTSBY  Which observations share one variance component.
-        %   'satObs' (default) | 'obsType' | 'system' | 'arc' | a function handle
-        %   @(sysID,obsType,arc,day) -> group key. This is the grouping of the
-        %   Helmert variance-component estimation: every observation mapping to
-        %   the same key gets one common variance factor.
-            obj.vceGroups = key;
-        end
-        function obj = stochasticModel(obj, varargin)
-        %STOCHASTICMODEL  Configure the TEMPORAL noise model (the covariance shape).
-        %   'MaxOrder' (default 60)  highest AR order considered
-        %   'AcvTol'   (1e-3)        autocovariance fit tolerance
-        %   'MaxLag'   ([] = auto)   lags used to estimate the ACV
-        %   'WhiteAlpha' (0.01)      Ljung-Box significance for the whiteness gate
-        %   This sets the shape of the noise (how it is correlated in time), as
-        %   opposed to VARIANCECOMPONENTS, which sets the relative WEIGHT of each
-        %   observation group.
-            obj.shapeOpt = mergeNV(obj.shapeOpt, varargin);
-        end
-        function obj = varianceComponents(obj, varargin)
-        %VARIANCECOMPONENTS  Configure the Helmert variance-component estimation.
-        %   'MaxIter'       (default 10)  inner VCE iterations
-        %   'Tol'           (5e-3)        convergence on max|sigma-1|
-        %   'MinRedundancy' (50)          below this a group cannot be estimated
-        %   This sets the relative WEIGHT between observation groups, as opposed
-        %   to STOCHASTICMODEL, which sets the temporal correlation shape.
-            obj.scaleOpt = mergeNV(obj.scaleOpt, varargin);
-        end
-        function obj = iteration(obj, varargin)
-        %ITERATION  Configure the outer loop over the stochastic model and the
-        %   variance components.
-        %   'MaxOuter' (default 6)  outer passes
-        %   'Tol'      (5e-3)       convergence on max|sigma-1| and AR-order drift
-            obj.outerOpt = mergeNV(obj.outerOpt, varargin);
-        end
-        function obj = joint(obj, varargin)
-        %JOINT  Switch to the JOINT stochastic model and configure it.
-        %   Estimates the temporal temporal law and the variance factors TOGETHER in one Helmert
-        %   VCE per outer pass (Ellmer 2018 §6.5.7), instead of alternating them.
-        %   Calling this sets vceMode to 'joint'; no separate flag is needed.
-        %
-        %   'numLags'  ('auto')       number of frequencies in the noise model.
-        %                             'auto' sizes it from the data as
-        %                             floor(mMax/2)+1 for the longest arc mMax,
-        %                             which is the MINIMUM for the PSD-derived
-        %                             covariance to be full rank: a PSD on nf
-        %                             frequencies spans only 2*(nf-1) lags, so a
-        %                             smaller nf gives a RANK DEFICIENT (not
-        %                             merely ill-conditioned) covariance. Pass a
-        %                             number to fix it, e.g. 60 for Ellmer's Nmax
-        %                             -- but then keep batches under 2*(nf-1) rows.
-        %   'probes'   (100)          Hutchinson probes Z
-        %   'seed'     ([])           RNG seed for reproducible probes
-        %   'norm'     ('ortho')      DCT normalisation, 'ortho' | 'ellmer'
-        %   'meanType' ('robust')     arc-factor mean, 'robust' | 'plain'
-        %   'smooth'   (0)            half-width of a moving average over the
-        %                             estimated PSD amplitudes; trades spectral
-        %                             resolution for variance (see LSQVCE.ENGINE.PSDVCE).
-        %                             0 = off. Try 1-3 if the spectrum is noisy.
-        %   'psdMode'  ('toeplitz')   how the estimated PSD becomes a covariance:
-        %                             'toeplitz' builds the Toeplitz Sigma from
-        %                             the PSD DIRECTLY (Ellmer eqs. 6.5.6/6.5.17)
-        %                             -- no AR fit, so no stationarity condition
-        %                             to violate. Cost O(b^3) per batch.
-        %                             'ar'/'arma' fit a filter to the spectrum:
-        %                             cheaper per batch (O(m*p)) but an estimated
-        %                             PSD can yield a NON-STATIONARY AR whose
-        %                             autocovariance does not exist, which is
-        %                             rejected (see 'jointPsdRejected'). Prefer
-        %                             'toeplitz' unless arcs are long enough that
-        %                             the dense factorisation hurts.
-        %   'c0'       ([])           starting covariance function; the default
-        %                             is deliberately NOT a delta (that start is
-        %                             degenerate -- see LSQVCE.ENGINE.PSDVCE).
-        %
-        %   WHEN TO USE WHICH
-        %     'separate' (default) alternates stochastic model then variance components, each with its own
-        %     gate, and stops on a Ljung-Box whiteness test. Robust, interpretable,
-        %     and the right choice for general work.
-        %     'joint' pools the per-lag sums over ALL streams and updates the
-        %     spectrum and the per-stream scales together each outer pass --
-        %     it does NOT estimate per-arc factors (WP-41 claims fix, F-12:
-        %     the old sentence promised "every variance component at once").
-        %     The FULL ten-step co-estimation with keyed per-arc factors is
-        %     LSQVCE.ENGINE.ADJUSTVCEJOINT. The two can converge to DIFFERENT
-        %     models, because the components are coupled -- scales and
-        %     frequency amplitudes multiply the same Sigma. Use
-        %     LSQVCE.ENGINE.ADJUSTVCEJOINT for Ellmer/ITSG fidelity.
-            obj.vceMode  = 'joint';
-            obj.jointOpt = mergeNV(obj.jointOpt, varargin);
-        end
-        function obj = separate(obj)
-        %SEPARATE  Switch back to the default alternating stochastic model <-> variance components loop.
-            obj.vceMode = 'separate';
-        end
-        function obj = componentsPerEpoch(obj, map)
-        %COMPONENTSPEREPOCH  Declare how many components each observation type
-        %   contributes per epoch: 3 for a kinematic position (x,y,z share one
-        %   temporal law), 1 for a scalar such as range-rate. Accepts a struct
-        %   obsType -> count, or a containers.Map.
-            if isstruct(map)
-                f = fieldnames(map);
-                for k = 1:numel(f), obj.axesMap(f{k}) = map.(f{k}); end
-            elseif isa(map,'containers.Map')
-                obj.axesMap = map;
-            else
-                error('lsqvce:adjustVCE:badComponents', ...
-                      ['componentsPerEpoch expects a struct or containers.Map ' ...
-                       'mapping obsType to a component count.']);
-            end
-        end
+        % ---- configuration is constructor-only since 2.0 (R4-D2) ----------
+
         function obj = plots(obj, opt)
         %PLOTS  Configure the engine-side plot behaviour (the PER-ITEM plot
         %   HANDLES live on the loaders, via makeLoader's 'plotPostSolve' /
@@ -723,7 +636,7 @@ classdef adjustVCE < handle
                 if lsqvce.util.verbosity.detail(v)
                     % The per-STREAM table is already printed at level 1 above.
                     % What level 3 adds is the per-GROUP view: with a coarse
-                    % groupComponentsBy several streams SHARE one component, and
+                    % GroupBy several streams SHARE one component, and
                     % the group is what the VCE actually solved for, so the two
                     % views differ -- and the difference is the thing to inspect.
                     lsqvce.util.log.msg('%sper-group sigma: %s\n', ...
@@ -747,10 +660,10 @@ classdef adjustVCE < handle
                     ['The loop did not converge in %d iteration(s): the ' ...
                      'variance factors and the residual whiteness were not ' ...
                      'both satisfied. Inspect R.history: a stream that never ' ...
-                     'whitens needs a higher stochasticModel MaxOrder or ARMA ' ...
+                     'whitens needs a higher Shape.MaxOrder or ARMA ' ...
                      '(LSQVCE.KERNEL.AR2ARMA); a variance factor that will not settle ' ...
                      'usually means too little group redundancy -- coarsen ' ...
-                     'groupComponentsBy.'], nOuter);
+                     'GroupBy.'], nOuter);
             end
 
             hist.converged = converged;
@@ -847,8 +760,7 @@ classdef adjustVCE < handle
         %
         %   EXAMPLE (synthetic, end to end)
         %     [cfg, L] = demo_grace_dataLoader();
-        %     R = lsqvce.engine.adjustVCE(L, cfg.days) ...
-        %            .groupComponentsBy('obsType') ...
+        %     R = lsqvce.engine.adjustVCE(L, cfg.days, 'GroupBy', 'obsType') ...
         %            .empiricalStochastic();    % homogenise -> loop -> validate
         %     R.report();                       % the level-0..4 verdict
         %     R.history.empiricalStochastic     % the validation summary
@@ -955,7 +867,7 @@ classdef adjustVCE < handle
         %        .alpha, .sigmaTol, .sigma0Tol  the thresholds used
         %
         %   EXAMPLE
-        %     R = P.groupComponentsBy('obsType').run();
+        %     R = P.run();                      % P built with 'GroupBy', 'obsType'
         %     E = P.validate(R);
         %     if E.accepted, disp('stochastic model accepted -- formal errors trustworthy'); end
         %
@@ -2288,6 +2200,16 @@ end
 % ==========================================================================
 %  FILE-LOCAL HELPERS
 % ==========================================================================
+function nv = struct2nv(s)
+%STRUCT2NV  Struct -> Name-Value cell (for the constructor's option groups).
+    f  = fieldnames(s);
+    nv = cell(1, 2*numel(f));
+    for k = 1:numel(f)
+        nv{2*k-1} = f{k};
+        nv{2*k}   = s.(f{k});
+    end
+end
+
 function s = mergeNV(s, nv)
 %MERGENV  Merge Name/Value pairs into struct S, matching field names
 %   CASE-INSENSITIVELY and canonicalises to the stored UpperCamelCase field

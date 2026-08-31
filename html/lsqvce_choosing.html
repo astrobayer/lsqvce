@@ -129,8 +129,8 @@ machinery check; the streaming block-arrow substitution is on the roadmap.</div>
 R = lsqvce.engine.adjustBlock({L1, L2}, days);
 
 % Discover the noise model (SHAPE + SCALE)
-R = lsqvce.engine.adjustVCE({L1, L2}, days) ...
-        .groupComponentsBy('obsType').stochasticModel('maxOrder',60).varianceComponents('maxIter',8).run();
+R = lsqvce.engine.adjustVCE({L1, L2}, days, 'GroupBy', 'obsType', ...
+        'Shape', struct('MaxOrder', 60), 'Scale', struct('MaxIter', 8)).run();   % constructor-only since 2.0
 
 % Variance components, exact (also gives r_i, snooping)
 VC = lsqvce.engine.varComp(u, batchFcn, nBatch, groupFcn, nGroup);

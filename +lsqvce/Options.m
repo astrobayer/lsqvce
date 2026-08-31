@@ -155,8 +155,9 @@ classdef Options
 %     opts = lsqvce.Options(Model="vce", GroupBy="satObs", Parallel="parfor");
 %     opts.MaxOuter = 4;
 %     a = opts.engineArgs("adjustVCE");
-%     P = lsqvce.engine.adjustVCE(L, days, a.nv{:}) ...
-%          .stochasticModel(a.shape) ...          % (fit does this, WP-56)
+%     P = lsqvce.engine.adjustVCE(L, days, a.nv{:}, 'Shape', a.shape, ...
+%             'Scale', a.scale, 'Outer', a.outer, 'Joint', a.joint, 'Axes', a.axes);
+%     R = P.run();                              % (fit does exactly this, WP-56/64b)
 %
 %   ERRORS
 %     Your value is wrong (signature / property validation, MATLAB ids):

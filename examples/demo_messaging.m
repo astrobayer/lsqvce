@@ -111,8 +111,7 @@ function txt = runAtLevel(lvl)
         % printed at each level, not how long the loop takes to converge. A
         % short run does mean it stops before convergence, which is why the
         % level-0 block below still shows warnings.
-        P = lsqvce.engine.adjustVCE(L, cfg.days, 'verbose', lvl, 'maxOuter', 1);
-        P = P.groupComponentsBy('obsType').varianceComponents('MaxIter', 2);
+        P = lsqvce.engine.adjustVCE(L, cfg.days, 'verbose', lvl, 'maxOuter', 1, 'GroupBy', 'obsType', 'Scale', struct('MaxIter', 2));
         P.run();
     catch ME
         lsqvce.util.log.reset();
