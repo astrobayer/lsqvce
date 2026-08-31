@@ -123,19 +123,23 @@ function testFitDispatchOverheadIsNegligible(tc)
     cfg  = tc.TestData.cfg;
     days = 1:2;
     data = struct();
-    data.commonParams = num2cell((1:cfg.nc).');
+    data.commonParams = [repmat({'common'}, cfg.nc, 1), num2cell((1:cfg.nc).')];
     data.days = days;
     s = struct('buildDay', [], 'covariance', cfg.cov, ...
-               'localParams', {num2cell((1:cfg.nl).')}, 'arcs', cfg.arcsPerDay, 'id', []);
+               'localParams', {[repmat({'system'}, cfg.nl, 1), num2cell((1:cfg.nl).')]}, ...
+               'arcs', cfg.arcsPerDay, 'id', []);
     sys = repmat(s, 1, numel(cfg.sats));
     L = cell(1, numel(cfg.sats));
     for k = 1:numel(cfg.sats)
         sat = cfg.sats(k);
         sys(k).buildDay = @(d, ot) speedBuildDay(cfg, sat, d, ot);
         sys(k).id       = sat;
+        cp = struct('nc', cfg.nc, 'commonCount', cfg.nc, 'days', days, ...
+                    'dayOffset', zeros(1, numel(days)), 'dayCount', zeros(1, numel(days)));
         L{k} = lsqvce.engine.makeLoader(sys(k).buildDay, ...
                  'ObservationTypes', fieldnames(cfg.cov).', 'Covariance', cfg.cov, ...
                  'SystemId', sat, 'LocalParams', sys(k).localParams, ...
+                 'Scoped', true, 'CommonPlan', cp, ...
                  'Arcs', cfg.arcsPerDay, 'Days', days, 'CommonParams', data.commonParams);
     end
     data.systems = sys;

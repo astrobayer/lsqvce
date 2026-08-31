@@ -15,6 +15,11 @@ function tests = test_fit
 %
 %   Run: runtests('tests/test_fit')
 %
+%   Updated 2026-08-31 (CEST, UTC+02:00), v4 SCOPED tables (Level L11,
+%   WP-76): fixtures on the scope column; badScope cases (direct + relabel);
+%   localsPerArc -> unknownField; NEW reference parity scoped == hand-numbered
+%   to 1e-12 and the day-without-arcs gap rules (common + local side). With
+%   assistance from Claude (Anthropic), model Claude Fable 5.
 %   Updated 2026-08-31 (CEST, UTC+02:00), v3 data contract (Level L10,
 %   WP-72): counts derived, observationTypes/systemId/numLocal/numCommon/
 %   loader retired from the surface (unknown fields now), localParams RxC,
@@ -111,8 +116,12 @@ function testDeclarationRulesFireBeforeAnyRead(tc)
     tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:missingField');
     d = data;  d.systems(1).id = 'CD';
     tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:badId');
-    d = data;  d.systems(1).localsPerArc = 2;                    % TWO ways
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:localCount');
+    d = data;  d.systems(1).localsPerArc = 2;                    % retired in v4
+    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:unknownField');
+    d = data;  d.commonParams{2, 1} = 'arc';                     % not a common scope
+    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:badScope');
+    d = data;  d.commonParams{1, 1} = 42;                        % not a token at all
+    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:badScope');
     d = data;  d.systems(1).arcs = 'fromDay';                    % ENGINE-tier only
     tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:badArcs');
     d = rmfield(data, 'commonParams');
@@ -144,6 +153,15 @@ function testDeclarationRulesFireBeforeAnyRead(tc)
         tc.verifyEqual(e.identifier, 'lsqvce:fit:paramType');
         tc.verifyEqual(numel(e.cause), 1);
         tc.verifyEqual(e.cause{1}.identifier, 'lsqvce:makeLoader:paramType');
+    end
+    % v4: a bad LOCAL scope token is makeLoader's badScope, relabelled
+    d = data;  d.systems(1).localParams{1, 1} = 'daily';
+    try
+        lsqvce.fit(d);
+        tc.verifyFail('a bad localParams scope token must be refused');
+    catch e
+        tc.verifyEqual(e.identifier, 'lsqvce:fit:badScope');
+        tc.verifyEqual(e.cause{1}.identifier, 'lsqvce:makeLoader:badScope');
     end
 end
 
@@ -219,7 +237,8 @@ function testDerivedQuantitiesDriveTheRun(tc)
     tc.verifyEqual(numel(R.x), size(data.commonParams, 1), ...
         'nc must be the commonParams row count');
     tc.verifyEqual(R.systems(1).sysID, 1, 'id must default to the system index');
-    d = data;  d.commonParams = num2cell((1:cfg.nc + 1).');      % one row too many
+    d = data;  d.commonParams = [repmat({'common'}, cfg.nc + 1, 1), ...
+                                 num2cell((1:cfg.nc + 1).')];    % one row too many
     ok = false;
     try
         lsqvce.fit(d);
@@ -494,29 +513,155 @@ function id = idOf(f)
     end
 end
 
+function testScopedExpansionReproducesHandNumbering(tc)
+% categories: reference, contract, precision
+    % THE v4 CLAIM: the scoped tables + info-driven buildDay give EXACTLY the
+    % adjustment a hand-numbered ENGINE declaration of the same problem gives.
+    % One system, 2 days x 2 arcs; common: 2 'common' + 1 'day' -> nc = 2+2=4;
+    % local: 1 'arc' + 1 'day' + 1 'system' -> nl = 2*(2*1+1)+1 = 7.
+    cfg = scopedCfg();
+    data = struct();
+    data.commonParams = [{'common', 'g1'}; {'common', 'g2'}; {'day', 'accScale'}];
+    data.days = 1:2;
+    s = struct();
+    s.buildDay   = @(d, ot, common, local, po, info) scopedBuildDay(cfg, d, ot, info);
+    s.covariance = cfg.cov;
+    s.localParams = [{'arc', 'ic'}; {'day', 'bias'}; {'system', 'scale'}];
+    s.arcs = 2;
+    data.systems = s;
+    Rf = lsqvce.fit(data, lsqvce.Options(Verbose=false));
+    tc.verifyEqual(numel(Rf.x), 4, 'nc = commonCount + nDays*dayRows');
+    tc.verifyEqual(Rf.systems(1).nl, 7, 'nl from the scope expansion');
+
+    % the hand-numbered road: ENGINE loader, free 7-row local table, the SAME
+    % deterministic day content placed at the SAME (hand-computed) offsets
+    L = lsqvce.engine.makeLoader(@(d, ot) handBuildDay(cfg, d, ot), ...
+            'ObservationTypes', fieldnames(cfg.cov).', 'Covariance', cfg.cov, ...
+            'SystemId', 1, 'LocalParams', num2cell((1:7).'), ...
+            'CommonParams', num2cell((1:4).'), 'Arcs', 2, 'Days', 1:2);
+    a  = lsqvce.Options(Verbose=false).engineArgs("adjustBlock");
+    Rd = lsqvce.engine.adjustBlock({L}, 1:2, a.nv{:});
+    % tol: 1e-12 -- identical numbers on two spellings (BLAS order, HANDOVER 10.8)
+    tc.verifyEqual(Rf.x, Rd.x, 'RelTol', 1e-12);
+    tc.verifyEqual(Rf.sigma0, Rd.sigma0, 'RelTol', 1e-12);
+    tc.verifyEqual(Rf.sol.Cxx, Rd.sol.Cxx, 'RelTol', 1e-12);
+end
+
+function testDayWithoutArcsGetsNoBlocks(tc)
+% categories: contract, robustness
+    % The gap rules, both sides: a calendar day whose SCHEDULE carries no arc
+    % gets NO common day block (nc shrinks) and NO local blocks (nl shrinks),
+    % and every later offset stays gap-safe -- the run goes through.
+    cfg = scopedCfg();
+    data = struct();
+    data.commonParams = [{'common', 'g1'}; {'common', 'g2'}; {'day', 'accScale'}];
+    data.days = 1:3;
+    s = struct();
+    s.buildDay   = @(d, ot, common, local, po, info) scopedBuildDay(cfg, d, ot, info);
+    s.covariance = cfg.cov;
+    s.localParams = [{'arc', 'ic'}; {'day', 'bias'}; {'system', 'scale'}];
+    s.arcs = @(day, obsType) arcListWithGap(day);    % day 2: manoeuvre, no arcs
+    data.systems = s;
+    R = lsqvce.fit(data, lsqvce.Options(Verbose=false));
+    tc.verifyEqual(numel(R.x), 2 + 2*1, 'day 2 must carry no common day block');
+    tc.verifyEqual(R.systems(1).nl, 2*(2*1 + 1) + 1, ...
+        'day 2 must carry no local blocks; days 1 and 3 unaffected');
+end
+
+function ids = arcListWithGap(day)
+    if day == 2, ids = zeros(1, 0); else, ids = [1 2]; end
+end
+
+function cfg = scopedCfg()
+% Deterministic content generator shared by BOTH roads of the parity test.
+    cfg = struct('mArc', 120, 'dt', 5, 'seed', 31);
+    cfg.cov.pos = struct('type', 'diag', 'sigma', 0.5);
+end
+
+function [Ael, Bel, l, tt] = scopedDayContent(cfg, day, obsType, nArc)
+% The day's raw content, keyed ONLY on (day, obsType): per-arc design columns
+% for 1 IC each, one day column, one system column, deterministic rhs.
+    M  = nArc * cfg.mArc;
+    sd = mod(cfg.seed + 7*day + 31*sum(double(obsType)), 2^31-1);
+    rs = RandStream('mt19937ar', 'Seed', sd);
+    Ael = randn(rs, M, 4);                       % nc = 4 columns of partials
+    Bel = randn(rs, M, nArc + 2);                % [arc cols | day col | sys col]
+    l   = randn(rs, M, 1);
+    tt  = (0:M-1).' * cfg.dt;
+end
+
+function D = scopedBuildDay(cfg, day, obsType, info)
+% The v4 road: every placement comes from INFO, no literal offset anywhere.
+    nArc = numel(info.arcId);
+    [Ael, Bel, D.l, D.t] = scopedDayContent(cfg, day, obsType, nArc);
+    M = size(Ael, 1);
+    D.A = zeros(M, info.nc);
+    D.A(:, 1:info.commonCount) = Ael(:, 1:info.commonCount);
+    if info.commonDayCount > 0
+        D.A(:, info.commonDayOffset + (1:info.commonDayCount)) = ...
+            Ael(:, info.commonCount + (1:info.commonDayCount));
+    end
+    D.B = zeros(M, info.nl);
+    D.arcIdx = cell(1, nArc);
+    for a = 1:nArc
+        D.arcIdx{a} = (a-1)*cfg.mArc + (1:cfg.mArc);
+        D.B(D.arcIdx{a}, info.offsetOf(info.arcId(a)) + 1) = Bel(D.arcIdx{a}, a);
+    end
+    if info.dayCount > 0
+        D.B(:, info.dayOffset + 1) = Bel(:, nArc + 1);
+    end
+    D.B(:, info.sysOffset + 1) = Bel(:, nArc + 2);
+end
+
+function D = handBuildDay(cfg, day, obsType)
+% The hand-numbered road: SAME content, literal v4-layout offsets for the
+% 2-day, 2-arc, gap-free case (nc: [2 common | day1 | day2]; nl per day:
+% [arc1 | arc2 | day], system block last).
+    nArc = 2;
+    [Ael, Bel, D.l, D.t] = scopedDayContent(cfg, day, obsType, nArc);
+    M = size(Ael, 1);
+    D.A = zeros(M, 4);
+    D.A(:, 1:2) = Ael(:, 1:2);
+    D.A(:, 2 + day) = Ael(:, 3);                 % this day's common day column
+    D.B = zeros(M, 7);
+    base = (day - 1) * 3;                        % 3 local cols per day
+    D.arcIdx = cell(1, nArc);
+    for a = 1:nArc
+        D.arcIdx{a} = (a-1)*cfg.mArc + (1:cfg.mArc);
+        D.B(D.arcIdx{a}, base + a) = Bel(D.arcIdx{a}, a);
+    end
+    D.B(:, base + 3) = Bel(:, nArc + 1);         % the day block
+    D.B(:, 7)        = Bel(:, nArc + 2);         % the system block
+end
+
 function [data, cfg] = declaration()
 % The canonical single-system declaration over the makeLoader-path fixture
 % (v3 contract: the tables declare, the counts are derived).
     cfg = buildCfg();
     data = struct();
-    data.commonParams = num2cell((1:cfg.nc).');       % nc = rows (RxC, C = 1)
-    data.days = 1:3;
+    data.commonParams = [repmat({'common'}, cfg.nc, 1), num2cell((1:cfg.nc).')];
+    data.days = 1:3;                                  % v4: all-'common' -> nc = rows
     s = struct();
     s.buildDay = @(d, ot) buildDayImpl(cfg, d, ot);
     s.covariance = cfg.cov;                           % fieldnames = pos, kbr
-    s.localParams = num2cell((1:cfg.nl).');           % nl = rows
-    s.arcs = cfg.arcsPerDay;
-    data.systems = s;                                 % id defaults to 1
+    s.localParams = [repmat({'system'}, cfg.nl, 1), num2cell((1:cfg.nl).')];
+    s.arcs = cfg.arcsPerDay;                          % 'system' rows -> nl = rows,
+    data.systems = s;                                 % B layout as in v3; id = 1
 end
 
 function L = loaderOf(~, s, data)
 % What fit builds for one system -- written out, so the tests compare two
-% independent spellings of the same declaration (v3: obsTypes from the
-% covariance fieldnames, the tables carry the counts, id -> SystemId).
+% independent spellings of the same declaration (v4: obsTypes from the
+% covariance fieldnames, SCOPED tables + the common plan, id -> SystemId).
+    D = numel(data.days);
+    cp = struct('nc', size(data.commonParams, 1), ...
+                'commonCount', size(data.commonParams, 1), ...
+                'days', data.days, 'dayOffset', zeros(1, D), ...
+                'dayCount', zeros(1, D));       % all-'common' table: trivial plan
     L = lsqvce.engine.makeLoader(s.buildDay, ...
             'ObservationTypes', fieldnames(s.covariance).', ...
             'Covariance', s.covariance, 'SystemId', 1, ...
-            'LocalParams', s.localParams, ...
+            'LocalParams', s.localParams, 'Scoped', true, 'CommonPlan', cp, ...
             'Arcs', s.arcs, 'Days', data.days, 'CommonParams', data.commonParams);
 end
 
