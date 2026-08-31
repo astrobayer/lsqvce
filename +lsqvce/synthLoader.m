@@ -98,6 +98,12 @@ function out = synthLoader(cfg, sat, day, obsType, arcID, opt)
 %
 %   See also LSQVCE.BLOCKACCUMULATOR, LSQVCE.COVMODEL
 %
+%   Updated 2026-08-31 (CEST, UTC+02:00), R4 G-06 (Level L1): the covariance
+%   override is resolved by the package-private APPLYCOVOVERRIDE, so the
+%   per-satellite shape LSQVCE.ADJUSTVCE emits is honoured by this template
+%   (it used to read only the flat shape and silently dropped every variance
+%   component under adjustVCE). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-40 r2: the 'psd' GENERATION
 %   path floors cm.S before psd2acv (the one raw-S call in the toolbox).
 %   With assistance from Claude (Anthropic), model Claude Fable 5.
@@ -147,9 +153,13 @@ function out = synthLoader(cfg, sat, day, obsType, arcID, opt)
     out.t = D.t(r);
 
     % Runtime override of the covariance model, if the caller asked for one.
+    % R4 G-06: resolved by the ONE package-private merge, so the per-satellite
+    % shape LSQVCE.ADJUSTVCE emits (opt.covOverride.bySys.(satKey).(obsType))
+    % reaches a template-derived loader exactly as it reaches a makeLoader
+    % batch. The flat shape opt.covOverride.(obsType) keeps working.
     cm = cfg.cov.(obsType);
-    if isfield(opt,'covOverride') && isfield(opt.covOverride, obsType)
-        cm = lsqvce.util.mergeStruct(cm, opt.covOverride.(obsType));
+    if isfield(opt,'covOverride')
+        cm = applyCovOverride(cm, opt.covOverride, obsType, opt);
     end
 
     [out.Cfcn, out.Wfcn, info] = lsqvce.covModel(cm, out.t, opt);

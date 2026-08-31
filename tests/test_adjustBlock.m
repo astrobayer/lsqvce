@@ -35,6 +35,49 @@ function testAdjustBlockResultHasNoIterationHistory(tc)
     tc.verifyError(@() R.summary(),     'lsqvce:Results:noHistory');
 end
 
+%% ===================================================== R4 G-06 (Level L1)
+function testRawClosureHonoursPerSatelliteOverride(tc)
+% categories: contract, robustness | tags: diagnostics
+    % R4 finding G-06: adjustVCE emits its reweighting ONLY as
+    % opt.covOverride.bySys.(satKey).(obsType) (adjustVCE.m covOverrideOpt),
+    % while the raw-closure template lsqvce.synthLoader read only the flat
+    % opt.covOverride.(obsType) -- a template-derived loader therefore
+    % ignored every variance component under adjustVCE, and no VCE suite
+    % drove a raw closure, so nothing caught it. Both shapes now resolve
+    % through the ONE package-private applyCovOverride; this test drives the
+    % template with each shape and pins that they whiten identically.
+    cfg = synthCfg();
+    loader = @(d,ot,a,uo) lsqvce.synthLoader(cfg, 1, d, ot, a, uo);
+    uo0 = struct('sysID', 1);
+    b0  = loader(1, 'kbr', 1, uo0);                    % base: diag sigma 0.2
+    idx = 1:numel(b0.l);
+    [~, ~, w0] = b0.Wfcn(idx, b0.A, b0.B, b0.l, uo0);
+
+    satKey = matlab.lang.makeValidName(char(string(1)));
+    uoS = uo0;  uoS.covOverride.bySys.(satKey).kbr = struct('sigma', 0.6);
+    bS  = loader(1, 'kbr', 1, uoS);
+    [~, ~, wS] = bS.Wfcn(idx, bS.A, bS.B, bS.l, uoS);
+
+    uoF = uo0;  uoF.covOverride.kbr = struct('sigma', 0.6);
+    bF  = loader(1, 'kbr', 1, uoF);
+    [~, ~, wF] = bF.Wfcn(idx, bF.A, bF.B, bF.l, uoF);
+
+    % tol: 1e-14 -- l/0.6 versus (l/0.2)/3 differ by one extra rounding of a
+    % scalar division (2 ulp); a dropped override would give a factor 3.
+    tc.verifyEqual(wS, w0/3, 'RelTol', 1e-14, ...
+        'the per-satellite (bySys) override must reach a raw closure');
+    % tol: exact -- both shapes run the same merge and the same whitener
+    tc.verifyEqual(wF, wS, ...
+        'flat and per-satellite overrides must whiten identically');
+
+    % A bySys entry for ANOTHER satellite must leave this loader untouched.
+    uoX = uo0;  uoX.covOverride.bySys.(matlab.lang.makeValidName('2')).kbr = struct('sigma', 0.6);
+    bX  = loader(1, 'kbr', 1, uoX);
+    [~, ~, wX] = bX.Wfcn(idx, bX.A, bX.B, bX.l, uoX);
+    % tol: exact -- no override applies, same code path as the base call
+    tc.verifyEqual(wX, w0, 'an override keyed on another satellite must not apply');
+end
+
 %% ============================================================ recover paths
 function testRecoverSynthClosure(tc)
 % categories: contract, precision
