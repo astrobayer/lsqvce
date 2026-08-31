@@ -1,6 +1,6 @@
 # CLAUDE.md — pointer, not a status document
 
-`HANDOVER.md` in this folder is the ONLY status-and-plans document
+`dev/HANDOVER.md` is the ONLY status-and-plans document
 (SSOT). Binding for every session: **§0** (standing rules + the loop),
 **§1** (the work-package ledger — the only place a status lives),
 **§6** (test/doc guidelines), **§8** (R2 findings), **§9** (R2 prompts).
@@ -14,7 +14,7 @@ ci_gate               % THE gate: full suite + coverage + log, or error
 ```
 
 ```bash
-python3 docs_src/audit_tree.py     # static audit, exit 0 required
+python3 dev/docs_src/audit_tree.py # static audit, exit 0 required
 ```
 
 Local ground-truth run: `matlab -batch "lsqvce_setup; ci_gate"` — on the
@@ -58,3 +58,15 @@ this public repository; for local sessions place copies in
 `references/local/` (gitignored). Equation numbers refer to Ellmer
 unless said otherwise. `references/BEST_PRACTICE_v4-1.md` Appendices
 C/D are the operating runbook for container sessions.
+
+## Repository layout since L8 (2026-09-02)
+
+Everything development-related lives under `dev/`: `dev/HANDOVER.md` (SSOT),
+`dev/tests/`, `dev/docs_src/` (audit + doc builders), `dev/references/`,
+`dev/validation/`, `dev/SETUP_GUIDE.md`, `dev/HISTORY_v1.md`,
+`dev/DEVELOPMENT.md` (the development chapters that used to sit in README).
+Two dev-related files STAY at the root because the tooling requires it there:
+`buildfile.m` (MATLAB buildtool only discovers a root buildfile) and this
+CLAUDE.md (the session entry point by convention). Tests manage their path
+THEMSELVES, temporarily (run_all_lsqvce / ci_gate capture and restore it);
+`lsqvce_setup.m` adds only root + examples.

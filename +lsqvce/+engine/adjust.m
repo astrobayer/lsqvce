@@ -88,7 +88,7 @@ function [sol, D, V] = adjust(u, batchFcn, nBatch, varargin)
 %     is diagnose() on the same batches. The estimator is certified by the
 %     §6.1.4 authorities (closed forms, Baarda/Pope textbook values, the
 %     shDesign oracle); through fit it reproduces byte-identically
-%     (tests/test_fit.m, kinds B and C).
+%     (dev/tests/test_fit.m, kinds B and C).
 %
 %   See also LSQVCE.ENGINE.DIAGNOSE, LSQVCE.REPORT, LSQVCE.ENGINE.SNOOP, LSQVCE.FIT.
 %

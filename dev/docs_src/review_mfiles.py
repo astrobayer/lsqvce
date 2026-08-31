@@ -4,7 +4,7 @@
 This is a REVIEW tool, not a gate: it reports what is missing so a human can
 judge, and it deliberately does not fail the build. audit_tree.py is the gate.
 
-Run from the toolbox root:  python3 docs_src/review_mfiles.py
+Run from the toolbox root:  python3 dev/docs_src/review_mfiles.py
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Opus 4.8.

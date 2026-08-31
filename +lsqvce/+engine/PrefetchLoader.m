@@ -22,7 +22,7 @@ classdef PrefetchLoader < handle
 %       fine.
 %     * Served data is byte-identical to a direct call: the future's result
 %       IS a dataFcn result, cached and handed out. Nothing is recomputed or
-%       approximated. Verified serially in tests/test_v4.m by comparing full
+%       approximated. Verified serially in dev/tests/test_v4.m by comparing full
 %       accumulations through the wrapper against the bare loader.
 %     * Out-of-order access (the redundancy pass under parfor visits arcs in
 %       task order) simply MISSES the cache and falls through to a direct

@@ -5,7 +5,7 @@ component estimation, tied to the decisions pinned in the lsqvce toolbox.
 
 Source text: the R4 nine-expert review (HANDOVER §11, 2026-08-30) reconciled
 against the tree; every claim about the toolbox names the work package that
-pinned it. Built by docs_src/build_theory_pdf.py with the master-manual
+pinned it. Built by dev/docs_src/build_theory_pdf.py with the master-manual
 pipeline (same styles, drawn equations, no external toolchain).
 
 Created 2026-09-01 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
@@ -429,7 +429,7 @@ def s8_implementation():
              'struct describing the problem (DATA_CONTRACT.md), lsqvce.Options for '
              'what to do, lsqvce.fit as the one verb, lsqvce.Results with report(). '
              'Below it the engines and kernels of the tier census '
-             '(docs_src/tiers.csv) do the work:', 'body')]
+             '(dev/docs_src/tiers.csv) do the work:', 'body')]
     st += [N('<b>Declare.</b> data.common states the common unknowns ONCE; '
              'data.systems(k) points to buildDay -- the one function the user writes, '
              'returning A, B, l (O &minus; C), t for a day, raw and unwhitened.', 1)]

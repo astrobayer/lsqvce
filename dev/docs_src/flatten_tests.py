@@ -24,7 +24,7 @@ WHAT IT DOES
     Idempotent-ish: it reports and skips anything already moved.
 
 USAGE
-    python3 docs_src/flatten_tests.py        # from the toolbox root
+    python3 dev/docs_src/flatten_tests.py        # from the toolbox root
 
 Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Opus 4.8.
@@ -156,7 +156,7 @@ def main():
     fix_entry_points(moved)
     fix_paths()
     fix_references(moved)
-    print('\ndone. Run docs_src/audit_tree.py to confirm registration.')
+    print('\ndone. Run dev/docs_src/audit_tree.py to confirm registration.')
     return 0
 
 

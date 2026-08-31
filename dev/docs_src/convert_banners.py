@@ -19,7 +19,7 @@ WHAT IT HANDLES
     just the next quote.
 
 USAGE
-    python3 docs_src/convert_banners.py            # from the toolbox root
+    python3 dev/docs_src/convert_banners.py            # from the toolbox root
 
 Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Opus 4.8.

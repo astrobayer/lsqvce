@@ -4,12 +4,12 @@
 Replaces the three separate manuals (user / reference / interpretation), which
 were built via an HTML->LaTeX->pdflatex chain that needed an external toolchain
 and still laid out the mixed prose/diagram material poorly. Here every equation
-is DRAWN (docs_src/pdf_graphics.eq) and every workflow diagram comes from ONE
+is DRAWN (dev/docs_src/pdf_graphics.eq) and every workflow diagram comes from ONE
 routine (pdf_graphics.workflow), so the entry points cannot drift apart
 stylistically.
 
 Run from the toolbox root:
-    python3 docs_src/build_master_pdf.py
+    python3 dev/docs_src/build_master_pdf.py
 Writes lsqvce_manual.pdf into the toolbox root.
 
 Build-time only: nothing here ships as a runtime dependency of the toolbox.
@@ -36,7 +36,7 @@ from reportlab.pdfbase import pdfmetrics
 from pdf_graphics import (eq, workflow, rule, ORANGE, BLUE, GREY, DARK,
                           LIGHT, BORDER, GREEN, RED)
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # dev/docs_src -> root (L8)
 OUT = os.path.join(ROOT, 'lsqvce_manual.pdf')
 
 PAGE_W, PAGE_H = A4

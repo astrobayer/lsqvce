@@ -28,7 +28,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
       - run: pip install numpy
-      - run: python docs_src/audit_tree.py
+      - run: python dev/docs_src/audit_tree.py
       - run: for f in validation/v10review.py; do python "$f"; done
 
   matlab:
@@ -63,10 +63,10 @@ jobs:
           release: R2026a
           cache: true
           # products: Parallel_Computing_Toolbox   # lift the test_parallel
-          #   skip in tests/ci_gate.m in the SAME commit that enables this.
+          #   skip in dev/tests/ci_gate.m in the SAME commit that enables this.
       - uses: matlab-actions/run-command@v3
         with:
-          command: lsqvce_setup; ci_gate
+          command: cd('dev/tests'); ci_gate
       - uses: actions/upload-artifact@v4
         if: always()           # the log is wanted MOST when the run is red
-        with: { name: run_all_log, path: tests/last_run_all.txt }
+        with: { name: run_all_log, path: dev/tests/last_run_all.txt }

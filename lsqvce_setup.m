@@ -2,17 +2,17 @@ function lsqvce_setup()
 %LSQVCE_SETUP  Add lsqvce to the MATLAB path and register its Help browser docs.
 %
 %   Run this once from the toolbox root. It:
-%     * adds the toolbox root (so the +lsqvce package is visible),
-%     * adds tests/, examples/ and template/,
+%     * adds the toolbox root (so the lsqvce.* packages are visible),
+%     * adds examples/ (the demos),
 %     * rebuilds the Help browser index so `doc lsqvce` works.
 %
 %   After running:
 %       doc lsqvce                 % the toolbox landing page
 %       doc lsqvce.engine.diagnose        % any individual function
 %       help lsqvce.engine.snoop          % command-window help
-%       run_all_lsqvce              % the full test suite (THE gate)
+%       run('dev/tests/run_all_lsqvce') % the full test suite (developers)
 %       demo_workflow               % the interpretation walk-through
-%       edit lsqvce_template        % start your own case
+%       edit(fullfile('template','lsqvce_template.m'))   % copy to start your case
 %
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
@@ -20,12 +20,11 @@ function lsqvce_setup()
 root = fileparts(mfilename('fullpath'));
 
 addpath(root);
-addpath(fullfile(root, 'tests'));
 addpath(fullfile(root, 'examples'));
-addpath(fullfile(root, 'template'));
-% One flat +lsqvce package: adding the root makes every lsqvce.* function
-% visible. tests/, examples/ and template/ are folder names, not a namespace
-% tier.
+% L8 (WP-69): the USER path is root (the lsqvce.* packages) + examples (the
+% demos). tests live under dev/tests and manage their path THEMSELVES,
+% temporarily (run_all_lsqvce / ci_gate restore it on return); template/ is
+% copied into the user's own project, not walked on the toolbox path.
 %
 % DO NOT add a folder here without creating it: addpath warns
 % (MATLAB:addpath:nameNonexistentOrNotADirectory) on a missing target, and
@@ -51,8 +50,8 @@ end
 fprintf('\n  doc lsqvce              the landing page (User Manual, guides, API)\n');
 fprintf('  demo_workflow            build your OWN case, from scratch\n');
 fprintf('  demo_lsqvce             six failure modes\n');
-fprintf('  lsqvce_template          start your OWN case (template/)\n');
-fprintf('  run_all_lsqvce           the unit-test suite (THE gate)\n\n');
+fprintf('  template/lsqvce_template.m   copy this to start your OWN case\n');
+fprintf('  dev/tests/run_all_lsqvce.m   the unit-test suite (developers)\n\n');
 fprintf('  All docs are HTML under doc lsqvce: User/Reference Manual,\n');
 fprintf('  Interpretation Guide, and "Choosing an engine".\n\n');
 

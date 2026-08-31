@@ -20,11 +20,11 @@ WHAT IT CHECKS
     6  the doc set stays JavaScript-free (hard environment requirement)
     7  function/end balance, with MATLAB-aware tokenising
     ...
-    18 surface census (docs_src/tiers.csv complete both ways) and no
+    18 surface census (dev/docs_src/tiers.csv complete both ways) and no
        case-only file-name collisions (Windows working copies)
 
 USAGE
-    python3 docs_src/audit_tree.py            # from the toolbox root
+    python3 dev/docs_src/audit_tree.py            # from the toolbox root
     echo $?                                   # 0 = clean, 1 = findings
 
 Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
@@ -96,13 +96,13 @@ def code_lines(path):
 # --------------------------------------------------------------------------
 def check_test_registration():
     print('\n1. test-file registration')
-    runner = os.path.join('tests', 'run_all_lsqvce.m')
+    runner = os.path.join('dev', 'tests', 'run_all_lsqvce.m')
     if not os.path.exists(runner):
-        note('tests', 'tests/run_all_lsqvce.m is missing')
+        note('tests', 'dev/tests/run_all_lsqvce.m is missing')
         return
     reg = set(re.findall(r"'(test_\w+)\.m'", open(runner, encoding='utf-8').read()))
     disk = {os.path.basename(f)[:-2]
-            for f in glob.glob('tests/*.m') + glob.glob('tests/accum/*.m')
+            for f in glob.glob('dev/tests/*.m') + glob.glob('dev/tests/accum/*.m')
             if os.path.basename(f).startswith('test_')}
     disk.discard('test_speed')                 # a benchmark, run manually
     for t in sorted(disk - reg):
@@ -187,7 +187,7 @@ def check_signatures():
         idpat = re.compile(
             r"verifyError\s*\([^;]*?adjust(?:Block|VCE)\s*\(([^;]*?)\)\s*,\s*"
             r"\.{0,3}\s*'(lsqvce:[\w:]+)'", re.S)
-        for f in glob.glob('tests/**/*.m', recursive=True):
+        for f in glob.glob('dev/tests/**/*.m', recursive=True):
             raw = open(f, encoding='utf-8', errors='replace').read()
             for m in idpat.finditer(raw):
                 arg, want = m.group(1), m.group(2)
@@ -512,7 +512,7 @@ def check_addpath_targets():
     # Only LITERAL fullfile(root, ...) targets can be checked statically; a
     # computed path is skipped rather than guessed at.
     call = re.compile(r"addpath\s*\(\s*fullfile\s*\(\s*root\s*,\s*([^)]*)\)")
-    for f in glob.glob('*.m') + glob.glob('tests/*.m'):
+    for f in glob.glob('*.m') + glob.glob('dev/tests/*.m'):
         raw = open(f, encoding='utf-8', errors='replace').read().split('\n')
         for i, line in enumerate(raw):
             if line.lstrip().startswith('%'):
@@ -575,7 +575,7 @@ def check_error_ids():
     # id is well-formed and the file parses.
     thrown = set()
     for f in glob.glob('+lsqvce/**/*.m', recursive=True) + \
-             glob.glob('template/*.m') + glob.glob('tests/*.m'):
+             glob.glob('template/*.m') + glob.glob('dev/tests/*.m'):
         src = open(f, encoding='utf-8', errors='replace').read()
         # Every way this toolbox raises an identified condition. The log
         # wrapper (lsqvce.util.log.warn/warnOnce) is the big one: most WARNING
@@ -657,7 +657,7 @@ def check_test_categories():
     # the swept-suite list retires and every suite is enforced. The debt
     # counter stays as a belt-and-braces invariant: any future unannotated
     # tolerance is a FINDING everywhere, not a reported number.
-    TOL_SWEPT = sorted(glob.glob('tests/test_*.m'))
+    TOL_SWEPT = sorted(glob.glob('dev/tests/test_*.m'))
 
     decl_re = re.compile(
         r'^\s*% categories:\s*([a-z, ]+?)\s*(?:\|\s*tags:\s*([a-z, ]+?)\s*)?$')
@@ -665,7 +665,7 @@ def check_test_categories():
 
     unit_cat = {}          # unit -> set of categories reaching it
     n_points = 0
-    for f in sorted(glob.glob('tests/test_*.m')):
+    for f in sorted(glob.glob('dev/tests/test_*.m')):
         lines = open(f, encoding='utf-8', errors='replace').read().split('\n')
         starts = [(i, m.group(1)) for i, l in enumerate(lines)
                   if (m := fn_re.match(l))
@@ -700,8 +700,8 @@ def check_test_categories():
             units.append(u)
 
     exempt = {}
-    if os.path.isfile('tests/category_exemptions.csv'):
-        for row in open('tests/category_exemptions.csv',
+    if os.path.isfile('dev/tests/category_exemptions.csv'):
+        for row in open('dev/tests/category_exemptions.csv',
                         encoding='utf-8'):
             row = row.strip()
             if not row or row.startswith('#') or row.startswith('unit,'):
@@ -736,7 +736,7 @@ def check_test_categories():
     # (d0) a tol: comment must never sit INSIDE a ... continuation -- a
     # standalone comment line there is a PARSE ERROR on the runner (WP-43 r2
     # red: four suites failed to load). Guard the pattern itself.
-    for f in sorted(glob.glob('tests/test_*.m')):
+    for f in sorted(glob.glob('dev/tests/test_*.m')):
         lines = open(f, encoding='utf-8', errors='replace').read().split('\n')
         for i, l in enumerate(lines):
             if l.strip().startswith('% tol:') and i > 0 \
@@ -747,7 +747,7 @@ def check_test_categories():
     # (d) tolerance provenance
     tol_re = re.compile(r"'(Abs|Rel)Tol'")
     debt = 0
-    for f in sorted(glob.glob('tests/test_*.m')):
+    for f in sorted(glob.glob('dev/tests/test_*.m')):
         lines = open(f, encoding='utf-8', errors='replace').read().split('\n')
         for i, l in enumerate(lines):
             if tol_re.search(l):
@@ -785,7 +785,7 @@ def check_readme_sync():
         note('readme', 'README title says v%s but Contents.m says %s'
              % (mt.group(1), mv.group(1)))
 
-    files = sorted(glob.glob('tests/test_*.m'))
+    files = sorted(glob.glob('dev/tests/test_*.m'))
     n_files = len(files)
     fn_re = re.compile(r'^function\s+(?:\w+\s*=\s*)?test\w+\s*\(')
     n_pts = 0
@@ -815,7 +815,7 @@ def check_tiers_and_case():
     print('\n18. Surface census: every public name has a tier row; no case-only '
           'file-name collisions (HANDOVER 11.9, WP-54)')
     # WHY (R4 WP-54, 2026-08-31): the public surface grew to 80 names with
-    # no statement of who they are for. docs_src/tiers.csv is the ONE tier
+    # no statement of who they are for. dev/docs_src/tiers.csv is the ONE tier
     # authority (USER / ENGINE / KERNEL); this check keeps it complete in
     # both directions so a new public name cannot land untiered and a
     # deleted one cannot linger. (b) guards the Windows working copy: two
@@ -823,7 +823,7 @@ def check_tiers_and_case():
     # a case-insensitive file system, so the tree must never contain them.
     import csv
     tiers_ok = {'USER', 'ENGINE', 'KERNEL'}
-    path = 'docs_src/tiers.csv'
+    path = 'dev/docs_src/tiers.csv'
     if not os.path.isfile(path):
         note('tiers', '%s missing' % path)
         return

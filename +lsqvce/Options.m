@@ -13,7 +13,7 @@ classdef Options
 %   arguments block (unknown names and bad values are rejected by the
 %   signature), and on later assignment through property validation. The
 %   defaults are EXACTLY the engines' own defaults (pinned by the reference
-%   test in tests/test_options.m), so a run through fit with a default
+%   test in dev/tests/test_options.m), so a run through fit with a default
 %   Options is the same run as a direct driver call: no behaviour change.
 %
 %   The MATLAB model is optimoptions/statset: one object, canonical
@@ -146,7 +146,7 @@ classdef Options
 %     No numerics of its own. The claim is EXACTNESS of the mapping: for a
 %     default Options, engineArgs("adjustVCE") returns structs isequal to a
 %     fresh adjustVCE's shapeOpt/scaleOpt/outerOpt/jointOpt/blockOpt/plotOpt
-%     (tests/test_options.m, reference), and every other target's .nv
+%     (dev/tests/test_options.m, reference), and every other target's .nv
 %     carries the literal defaults read from the driver signatures on
 %     2026-08-31 (pinned in the same suite; a driver default change breaks
 %     that test on purpose).

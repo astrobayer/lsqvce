@@ -5,7 +5,7 @@ HTML; this converts them to LaTeX and compiles with pdflatex. Equations are the
 native \\(...\\) / \\[...\\] LaTeX, so the PDF math is real typeset math (not
 images). Build-time only: needs pdflatex. No runtime dependency ships.
 
-Run from the toolbox root:  python3 docs_src/build_pdfs.py
+Run from the toolbox root:  python3 dev/docs_src/build_pdfs.py
 Writes lsqvce_user_manual.pdf, lsqvce_reference_manual.pdf,
 lsqvce_interpretation_guide.pdf into the toolbox root.
 """
@@ -209,7 +209,7 @@ MANUALS = [
 ]
 
 def main():
-    workdir = os.path.abspath('docs_src/_pdfbuild')
+    workdir = os.path.abspath('dev/docs_src/_pdfbuild')
     os.makedirs(workdir, exist_ok=True)
     for name, title, stem in MANUALS:
         body = convert(body_of(name))
@@ -231,7 +231,7 @@ def main():
 
 # RETIRED 2026-07-19. The three PDFs this builds -- user manual, reference
 # manual, interpretation guide -- were REPLACED by the single master manual
-# lsqvce_manual.pdf (docs_src/build_master_pdf.py), and the files themselves were
+# lsqvce_manual.pdf (dev/docs_src/build_master_pdf.py), and the files themselves were
 # deleted from the toolbox root. Running this would recreate three superseded
 # documents that no longer agree with the shipped HTML, and it needs a pdflatex
 # toolchain that the master manual deliberately does not.
@@ -244,7 +244,7 @@ if __name__ == '__main__' and _RETIRED:
     raise SystemExit(
         'build_pdfs.py is RETIRED -- the three PDFs it builds were replaced by '
         'lsqvce_manual.pdf. Build that instead:\n'
-        '    python3 docs_src/build_master_pdf.py\n'
+        '    python3 dev/docs_src/build_master_pdf.py\n'
         'See HANDOVER 1.3d.')
 
 if __name__ == '__main__':

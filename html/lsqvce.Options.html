@@ -55,7 +55,7 @@ its DEFAULT stated, and is checked -- at construction through an
 arguments block (unknown names and bad values are rejected by the
 signature), and on later assignment through property validation. The
 defaults are EXACTLY the engines&#x27; own defaults (pinned by the reference
-test in tests/test_options.m), so a run through fit with a default
+test in dev/tests/test_options.m), so a run through fit with a default
 Options is the same run as a direct driver call: no behaviour change.
 
 The MATLAB model is optimoptions/statset: one object, canonical
@@ -187,7 +187,7 @@ METHODS
 <pre class="example">No numerics of its own. The claim is EXACTNESS of the mapping: for a
 default Options, engineArgs(&quot;adjustVCE&quot;) returns structs isequal to a
 fresh adjustVCE&#x27;s shapeOpt/scaleOpt/outerOpt/jointOpt/blockOpt/plotOpt
-(tests/test_options.m, reference), and every other target&#x27;s .nv
+(dev/tests/test_options.m, reference), and every other target&#x27;s .nv
 carries the literal defaults read from the driver signatures on
 2026-08-31 (pinned in the same suite; a driver default change breaks
 that test on purpose).</pre>
