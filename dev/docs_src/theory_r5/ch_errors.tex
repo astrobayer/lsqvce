@@ -1,0 +1,59 @@
+\chapter{Error handling}
+\label{ch:errors}
+
+Error handling in an estimation toolbox is not exception plumbing; it is the set of rules that decide \emph{which number the user is allowed to see}. The rules below are binding for v5 and are checked mechanically where a check is possible (Part V, WP-M1).
+
+\section{Three outcomes and no fourth}
+
+Every operation ends in exactly one of: \textbf{refuse} (an error with a documented identifier, nothing returned), \textbf{report} (a result plus a warning naming what was assumed or skipped), or \textbf{proceed} silently (nothing was assumed). A fourth outcome --- proceed silently on an assumption --- is the defect class this chapter exists to remove. Corollaries:
+\begin{itemize}
+\item No function returns a numeric status code; status is either an exception or a named field of the result that the report prints.
+\item No empty \code{catch}. A \code{catch} either re-throws with the original as \emph{cause} (\code{MException.addCause}), or converts a \emph{named} expected failure into a recorded skip (\S\ref{sec:skips}). A bare \code{catch} that converts \emph{any} error into a default also converts an undefined variable into a wrong answer.
+\item A \code{NaN} where a number belonged is the worst outcome, \emph{except} when NaN is the honest value of a quantity that cancelled in double precision --- then it is the only outcome, it carries one identifier, and the report explains it (\S\ref{sec:cancellation}).
+\end{itemize}
+
+\section{Identifiers}
+
+\code{lsqvce:<unit>:<reason>}, unit = the function or class that raises, reason in lowerCamelCase. The documented identifier equals the raised one, enforced by a static check that parses every \code{error(}/\code{warning(} site and every help ERRORS block. The catalogue (Appendix~\ref{app:ids}) is the \emph{authority}: a new identifier is added to the catalogue in the same commit, and the audit refuses an identifier raised but not catalogued. Refusals raised on the user's behalf by the engine keep the engine's unit (\code{lsqvce:makeLoader:dayShape}), because that is where the evidence is; refusals of the declaration are raised by \code{fit} before any read.
+
+\section{Refusal catalogue: what is refused, and with what evidence}
+
+\begin{longtable}{@{}P{30mm}P{54mm}P{70mm}@{}}
+\toprule
+class & refused when & the message must carry\\
+\midrule
+declaration & an unknown field, a missing required field, a scope token misuse, a duplicate id, a non-integer day, an arc id out of range & the field name, the system index/id, the rule violated (one identifier per rule)\\
+builder output & missing \code{A}/\code{B}/\code{l}/\code{t}; row counts disagree; column counts disagree with the derived nc/nl; \code{arcId} does not partition & day, observation type, system, expected vs found sizes\\
+builder threw & any exception inside the user's function & day, observation type, system; the user's exception as cause, unmodified\\
+covariance law & non-PD Toeplitz; sigma $\le 0$; AR polynomial with roots on/inside the unit circle; law length shorter than the longest arc; $\Delta t$ missing for a time-domain law & the stream, the offending lag/root/length, and the remedy (PSD form, taper, longer law)\\
+rank & trailing pivot ratio below $\epsilon$; null-space dimension $d>0$ without a datum & $d$, the parameters with the smallest pivots, the backend, and the QR/regularisation remedy\\
+estimability & a component whose redundancy is below the freeze threshold on the \emph{first} pass with no prior value & the component key and its $r_g$\\
+cancellation & $\Omega$ below the cancellation floor on the normal-form path with no residual sweep to supersede it & $\hat\sigma_0 = $ NaN as a \emph{result}, one identifier, the floor and both operands in the diagnostics\\
+options & a value outside its enum/range; a combination that is contradictory (\code{DistributeDays} without a parallel policy; arc factors on a \code{diag} law) & the property, the value, the allowed set; for combinations both properties\\
+\bottomrule
+\end{longtable}
+
+\section{Skips are results}
+\label{sec:skips}
+
+An arc that cannot be whitened (non-PD law after an update), a day the resolver declares but the builder does not carry, a component that is frozen this pass --- these are expected in production and are \emph{skips}, not errors. Each skip has a reason code from a closed list, is counted per pass and per stream, and the first instance's message is kept. The pass record carries the counts; the report prints them; and a \emph{threshold} turns a skip rate into a refusal (more than a declared fraction of arcs skipped in a stream $\Rightarrow$ the stream's law is refused, the run stops with the reason). A skip that nobody counts is the silent-degradation outcome in disguise.
+
+\section{Warnings}
+
+One identifier per situation; it fires \emph{once per run}, not once per arc (the count is in the skip record); the inventory of identifiers fired is stored in \code{R.meta.warnings} and printed by the report. A test that provokes a documented warning disables that identifier for its duration with a cleanup-based restore; a clean run's inventory contains at most the one deliberate probe identifier (VALIDATION\_GUIDE Part 5). Library code never prints: every message goes through \code{util.log} under one verbosity control.
+
+\section{Convergence is a result}
+
+Reaching the pass budget, alternating components, or a stream that never whitens are outcomes of the estimation, not failures of the code. They set \code{R.converged = false}, \code{R.stopReason} from a closed enum (\code{"tolerance"}, \code{"whiteness"}, \code{"maxPasses"}, \code{"alternating"}, \code{"skipThreshold"}), and one warning. The estimates of the last pass are returned with their covariance; the report's level-1 line says which criterion stopped the loop. Refusing to return a non-converged estimate would hide exactly the evidence the user needs.
+
+\section{User functions}
+
+The builder, the arc resolver, the epoch-covariance hook and any plot hook are user code. They are called through one wrapper that (i) checks the declared \code{nargin}/\code{nargout} \emph{once} with \code{nargin(fh)}/\code{nargout(fh)} rather than by catching \code{MATLAB:TooManyOutputs} on every call (Part IV, H-08), (ii) wraps any exception with the call context and the original as cause, and (iii) validates the returned struct against the contract before it reaches the engine. A plot hook that throws is reported and disabled for the rest of the run; a builder that throws refuses the run.
+
+\section{Parallel execution}
+
+A worker error carries the day and system it was processing and is re-thrown on the client with that context; a pool that cannot be opened is a \emph{report} (warning naming the reason, serial fallback), never a silent \code{info.fallback} string; the fold order is fixed; a serial re-run of a failing day is the documented first diagnostic step. Logging from workers is collected through one queue and emitted in day order.
+
+\section{What the tests must prove}
+
+Every identifier in the catalogue fires in a contract test, and only that one fires (a rejected call must not trip a different check first). Every skip reason is provoked once and shown to reach the report. The bare-\code{catch} count in the tree is an audit metric with a target of zero. The warning-once property is asserted with a counter over a large $N$. These are the \code{contract} and \code{robustness} categories of Part V applied to the error surface.

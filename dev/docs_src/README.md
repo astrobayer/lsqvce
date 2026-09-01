@@ -94,3 +94,11 @@ removed names in executable code, entry-point signatures at every call site,
 doc-page and Contents.m coverage, link/helptoc integrity, the JavaScript-free
 requirement, and function/end balance. Run it after any rename, after adding a
 function, and before shipping. See HANDOVER.md §4e-bis.
+
+## theory_r5/ (REVIEW R5, 2026-09-01)
+
+LaTeX source of `dev/lsqvce_theory_r5.pdf`: theory, practical considerations,
+implementation, error handling (Parts I–III) and the R5 review + v5 redesign
+plan (Parts IV–V). Build: `dev/docs_src/theory_r5/build.sh` (pdflatex, two
+passes). Supersedes `theory_content.py` / `build_theory_pdf.py` for the theory
+PDF once decision R5-D6 (HANDOVER §12.6) is taken; until then both exist.

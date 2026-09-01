@@ -8,7 +8,17 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-08-31 (late night) — LEVEL L10 READY: PR #44,
+Last substantive update: 2026-09-01 (evening) — REVIEW R5 opened (§12, model
+Claude Fable 5.1): three-expert review of v4.0 at main d7ad051 with a code-only
+call graph, a catch-block census and the audit's own category matrix; the
+theory/practice/implementation/error-handling document rewritten in LaTeX as
+dev/lsqvce_theory_r5.pdf (53 pp., source dev/docs_src/theory_r5/, Parts IV–V =
+the review and the v5 redesign plan). Findings H-01…H-14, ledger M0–M7 /
+WP-78…89 ALL OPEN pending decisions R5-D1…D7. NOTHING IMPLEMENTED — a plan
+round. The Ellmer path (adjustVCEjoint → psdVCE / arcVarianceFactors /
+redundancyLags / sharedProbe / dctI) is confirmed complete and becomes the ONE
+noise estimator of v5; the 24 unreached files of H-01 are NOT on it.
+Preceding entry: Last substantive update: 2026-08-31 (late night) — LEVEL L10 READY: PR #44,
 CI green 588/588 on 4bc60ab. Two catches, both the v3 semantics biting the
 v2-shaped tests (index-default ids are unique; noCov unreachable through
 fit; paramType = the body's non-matrix-cell guard under the b1-r3 split).
@@ -292,6 +302,11 @@ Document map:
       tree: verdicts, coverage, findings F-01…F-14 with measured evidence.
 - §9  R2 WORK PACKAGES & PROMPTS — one copy-paste prompt per package,
       WP-32…WP-41.
+- §10 REVIEW R3 — test-category scrutiny, countability gate, WP-43…53.
+- §11 REVIEW R4 — interface consolidation, level-based development, L1–L11.
+- §12 REVIEW R5 — three-expert deep review of v4.0; the v5 redesign plan
+      (one loop / one estimator / one accumulator / one sweep), ledger
+      M0–M7, decisions R5-D1…D7. Full text: dev/lsqvce_theory_r5.pdf.
 
 ---
 
@@ -4744,3 +4759,151 @@ WORKFLOW FACTS the engine side must preserve (verified in the tree, 2026-08-31):
   (adjustVCE joint) | ellmer (adjustVCEjoint); first arguments `A, l` or
   `(u, batchFcn, nBatch)` -> adjust / robust / solveNonlinear by
   `opts.Robust` / a model handle.
+
+## 12. REVIEW R5 — THREE-EXPERT DEEP REVIEW OF v4.0 AND THE v5 REDESIGN PLAN (2026-09-01)
+
+*(Opened 2026-09-01 by user request: a three-expert panel — (A) least-squares
+adjustment and stochastic error modelling, (B) GRACE/GRACE-FO data processing,
+(C) software design and MATLAB programming — to (a) collect the theory,
+practical considerations, implementation and ERROR HANDLING in one PDF, (b)
+scrutinise the layout of the toolbox in every detail (design flaws, superfluous
+paths, approximations and deviations with their justification, limitations),
+(c) review the user interface against the ease-of-use standard of stock MATLAB
+functions, and (d) design an improved version as a PLAN — logic first, then the
+function set, tests, documentation, workflow, parallelism. NOT implemented.
+Session model: Claude Fable 5.1. Full text: `dev/lsqvce_theory_r5.pdf` (53 pp.;
+LaTeX source `dev/docs_src/theory_r5/`, build `build.sh`, pdflatex). This
+section is the BINDING summary and ledger; the PDF is the argument.)*
+
+### 12.1 Origin, sources, and instruments
+
+Tree at `main` head `d7ad051` (v4.0: 83 public names USER 4 / ENGINE 58 /
+KERNEL 21; 26 054 package lines; 23 suites / 634 points; CI green; postflight
+622/622 on R2026a). Read beside it: Ellmer (2018) §2, §6.5.1–6.5.6; Kvas (2019)
+§2.2–2.3, §3.3; `referenceSystem` CODING_GUIDE / VALIDATION_GUIDE /
+DOCUMENTATION_GUIDE (R1–R6, seven test categories, ratio speed doctrine, oracle
+register); `gracefoReading` README (the natural upstream). Instruments, all
+repo-verified: a CODE-ONLY call graph (comments and string literals stripped)
+rooted at the four USER names; a census of all 36 `catch` sites; the audit's own
+unit×category matrix (check 16: 245 gaps); a full reading of fit / Options /
+Results / adjustVCE / adjustVCEjoint / BlockAccumulator / makeLoader /
+DATA_CONTRACT. Timing and numerical-parity claims are marked PREDICTED in the
+PDF; nothing was run in MATLAB this round.
+
+**Scope warning (corrected in-session, user challenge).** A first coarse
+name-matching pass grouped "Hutchinson" names loosely with "superfluous". The
+code-only trace settles it: `fit(Model="ellmer")` → `adjustVCEjoint` →
+`psdVCE`, `arcVarianceFactors`, `kernel.redundancyLags`, `sharedProbe` /
+`probeMatrix` / `probeStream`, `jointArcParts`, `kernel.dctI` is reached in
+full and is the Ellmer §6.5.3–6.5.6 scheme end to end. **None of the 24
+unreached files (H-01) is on it.** `vceHutchinson` cites Ellmer 6.5.6 only for
+the trace trick; it is a Helmert GROUP estimator on the flat batch path.
+
+### 12.2 What R5 CONFIRMS as right (so nobody "fixes" it)
+
+1. The Ellmer path (above) — complete, structurally correct; it becomes THE ONE
+   noise estimator of v5 (H-03).
+2. R4 §11.2 items 1–6 unchanged: vTv NaN honesty; NEQ default + QR fallback with
+   visible condition evidence; probe contract + seeds in provenance; physical
+   oracle WP-48; native ragged schedules; six-category taxonomy + countability
+   gate + tol: provenance (0 unannotated).
+3. The v4 data contract's PRINCIPLE (state nothing the data states; scope,
+   don't number) and the block-arrow accumulator with per-scope elimination and
+   day-order folds (WP-62).
+4. Run provenance R.meta; the level-based loop; the audit as merge gate; the
+   user as sole merger.
+
+### 12.3 Findings H-01…H-14 (repo-verified), dispositions
+
+| # | Finding (evidence at d7ad051) | Disposition |
+|---|---|---|
+| H-01 | 24 package files unreached by any code path from the USER surface. (i) DUPLICATES of a live implementation: `engine.Combine` (1070) + `BatchIndex` (470) (v1 combination; only caller test_lsqvce_combine), `varComp` (503) + `vceHutchinson` (379) (Helmert on the flat path `fit` refuses at fit.m:577), `iterateNoiseModel` + `selectArOrder` (adjustVCE uses selectArAcv); (ii) INSTRUMENTS reachable only by the user typing the name: `snoop`, `systematic`, `datum`, `checkPSD`, `ftest`, `ellipse`, `CommonPrior`, `covComponent`/`kernel.toeplitzCofactor` (the V_n of eq. 6.5.16), `kernel.crossCorr`, `whitenessCorr`; (iii) EXPERIMENTS with no measurement on record: `PrefetchLoader`, `poolGroups`, `synthLoader` (G-06 showed it drifts), `resolveSatSpecs`, `normalizeSatList`, `whittle` (a real VAR fitter, mis-tiered), `util.hasBackgroundPool`, `util.showExport` | (i) delete (no aliases); (ii) into the sweep/verdict or dev/tests; (iii) delete unless WP-79 measures a benefit; whittle → kernel. WP-79, WP-82 |
+| H-02 | Two accumulators (`Accumulator` flat 713 / `BlockAccumulator` block 1284), two diagnostics entries (`diagnose` 1016 / `diagnoseAccum` bridge), fit kinds B/C on the flat drivers adjust/robust/solveNonlinear (fit.m:583–591), kind A on adjustBlock/adjustVCE/adjustVCEjoint (fit.m:273–291, 626). A batch problem is one system, one day, one arc per batch, nl = 0 | ONE accumulator; kinds B/C become declaration adapters; IRLS becomes available on kind A. WP-81 |
+| H-03 | THREE stochastic-model estimators: adjustVCE 'separate' (2541-line file: run/applyShape/applyScale/applyJoint) fits the AR law to the RAW residual ACV (`biasedAcv`, adjustVCE.m:1809, 2237) — biased by O(tr(H)/m) per arc, no redundancy correction; 'joint' and adjustVCEjoint use the exact per-lag (Ω_n, s_n). Verdict A: deviation not justified in general and unnecessary — the exact machinery exists; AR stays as a WHITENER choice (reduction of the estimated PSD), not an estimator. Verdict B: one estimator with two switches (pool scope, arc factors) reproduces all three modes; PREDICTED faster than today's separate mode at u ≈ 4000 | WP-83 (+ parity: new = v4 ellmer to 1e-10 on the WP-51 fixture; = v4 pooled with arcFactors=false; v4 vce-mode numbers CHANGE — decision R5-D4) |
+| H-04 | Sweeps duplicated, not collected: residuals / redundancy (own mapreduce) / adjustVCE.sweepStreamLags (:1571) / whiteness ACV / streamContribution / outliers each re-read and re-whiten the arcs. The v2 §3.5 "ONE second pass with collectors" (WP-10) was reconciled DONE 2026-08-16 but never realised in this form | ONE sweep with attachable collectors; PREDICTED 2–4 re-reads per pass saved. WP-85 |
+| H-05 | The verdict tells the user to run ENGINE functions: report.m:286 "Run lsqvce.engine.systematic()", report.m:425 "lsqvce.engine.snoop()", robust.m:292, snoop.m:257/336/351 | systematic and snoop are collectors of the sweep and methods of Results. WP-85/86 |
+| H-06 | PSD grid sized by PROBING data inside try/catch: adjustVCE.covGridSize (:1395–1466) reads the first day/arc, catches ANY error → mMax = 0 → grid 128. The longest arc is a property of the schedule and of every day the accumulator already validates | measured, never probed (CODING_GUIDE R3): grid = longest arc seen in pass 1, in the pass record; user override is a declared choice. WP-83 |
+| H-07 | 5 EMPTY catch blocks (adjustVCE.m:1456, :2050; BlockAccumulator.m:586; util/log.m:196; util/showExport.m:63) and 13 bare `catch` → default (BlockAccumulator.m:577 "system not recoverable" → continue; adjustVCE.m:1432, 1513, 1566, 2116, 2329, 2332; PrefetchLoader.m:184, 198; gcvLambda.m:62; log.m:123, 218, 225, 306; hasBackgroundPool.m:47; showExport.m:93; mapreduce.m:205 pool failure → info.fallback string). Each turns an undefined variable or shape error into a silently different run | error doctrine (PDF ch. 7): every site refuse-or-record; audit metric bare-catch = 0. WP-80 |
+| H-08 | Output-arity probing by exception ×5: adjust.m:156, robust.m:306, solveNonlinear.m:317, Combine.m:1013, adjustVCE.m:1977 catch MATLAB:TooManyOutputs/maxlhs/unassignedOutputs on EVERY call; a user function raising one of these is misread | one `util.callUser` wrapper, nargin/nargout once at declaration. WP-80 |
+| H-09 | 369 error ids in 40+ unit namespaces, ~90 in files H-01 deletes (combine 24, batchIndex 17, varComp 9, vceHutchinson 7, iterateNoiseModel 6, ftest 6, …); the same rule under two units (accum 28 vs acc 22). No catalogue; check 15 verifies help mentions, not a closed set | identifier catalogue `dev/docs_src/error_ids.csv` (PDF App. B), documented = raised = catalogued, target ≈ 130. WP-80 |
+| H-10 | Skips counted in some places (adjustVCEjoint skip.cfcnErr/wfcnErr with first message — good), not in others: applyShape epoch-cov failure logged only at detail verbosity then the scalar fallback the L10 rationale warns about (adjustVCE.m:1793); logLocalSummary drops a system silently; no skip RATE ever becomes a refusal | closed skip enum + counters + `SkipThreshold`. WP-80/85 |
+| H-11 | Options: 57 typed properties in ten groups, batch-only / streaming-only / joint-only knobs side by side; `Model` conflates "iterate or not" with "which estimator" | ≈ 12 top-level + groups Noise / Robust / Diagnostics / Parallel; `Estimate="none"|"noise"`. WP-87, R5-D2 |
+| H-12 | What is estimated for a stream is decided globally (Options.Model) while the a-priori law is per stream (covariance.(obsType)); a trusted diag stream and an unknown red-spectrum stream cannot be treated differently in one run | covariance spec gains `estimate = "none"|"scale"|"law"` (+ `arcFactors`, `pool`, `dt`); `data.priors(k)` for regularisation as declared groups. WP-87, R5-D1/D3 |
+| H-13 | `fit` takes only an Options object (stock functions take Name=Value); Results has no `plot` (PSD per stream and the pass trajectory are in R.noise/R.history — no design matrix needed; `predict` stays omitted); README.md:60 shows retired `systemId` / `localsPerArc` | `fit(data, opts, Name=Value)` (positional opts + `nv.?lsqvce.Options`); `plot(R, "psd"|"convergence"|"residuals")`; README fixed. WP-87, WP-88 |
+| H-14 | Category coverage: 3 of 83 units complete, 47 miss ≥ 3 categories; `report` contract-only; metamorphic is a tag not a category; speed budgets absolute, local-only | seven categories counted (VALIDATION_GUIDE), ratio budgets, one timing helper FIRST; with H-01/H-02 the unit count is ≈ 46 so completeness is affordable. WP-78, WP-89 |
+
+### 12.4 The v5 design in one paragraph (binding intent; detail PDF Part V)
+
+One loop (accumulate → solve → sweep → update → gate → judge) with three update
+POLICIES (VCE / IRLS / Gauss–Newton) that compose; ONE accumulator
+(`engine.Accumulator` = today's BlockAccumulator + scope stores + priors, both
+backends); ONE noise estimator (per-lag (Ω_n, s_n) with the shared probe block →
+PSD amplitudes → arc factors → group scales for fixed-law groups; AR/ARMA and
+Toeplitz are WHITENER choices; `noiseLaw` carries dt, grid, floor, taper); ONE
+sweep with attachable collectors (residual norms, lag statistics, observation
+redundancy, whiteness, worst-K, contribution, systematic); the verdict computed
+from the collectors, never by a re-read; the declaration says what is FREE per
+stream, Options says how to RUN. `Model="gls"` = MaxPasses 1, empty policy.
+Public names 83 → ≈ 46 (USER 4 / ENGINE 22 / KERNEL 15 / UTIL 5; full old→new
+mapping PDF App. A). Error doctrine PDF ch. 7: refuse / report / proceed; no
+empty catch; skips are results; warnings once per run with an inventory in
+meta; convergence is a result with a `stopReason` enum; one user-function
+wrapper. Tests: seven categories per unit, oracle register O1–O7 (O4 = a GROOPS
+NEQ file is the only external authority and is OPEN; O7 = a real
+gracefoReading day), ratio speed budgets. Docs: theory PDF from the LaTeX
+source (supersedes the ReportLab theory pipeline, R5-D6), tiered HTML,
+DATA_CONTRACT v5 delta, manual reduced to the user path, one gracefoReading →
+buildDay example.
+
+### 12.5 R5 ledger — levels M0…M7 (ALL OPEN; nothing starts before §12.6)
+
+Order of work: M0 → M1 → M2 → M3 → M4 → M5 → M6 → M7 (M3/M4 swappable if O4
+is late). Read THIS line before opening any level. One level = one branch
+`claude/level-M<n>` = one PR; §11.5 rules apply unchanged.
+
+| Level | WP | title | depends on | status |
+|---|---|---|---|---|
+| M0 | 78 | Instruments first: timing helper (rotation, 15 repeats, per-repeat statistic), check 16 → SEVEN categories (metamorphic counted), bare-catch metric, identifier-catalogue check (documented = raised = catalogued), layering check; fault-injection self-test per new check; NO functional change | R5-D7 | OPEN |
+| M0 | 79 | Measurements that decide deletions: PrefetchLoader vs parfor-over-days; exact vs probe sweep at u ∈ {500, 2000, 4000}; block-accumulator overhead on 10-row arcs; numbers into dev/DEVELOPMENT.md | 78 | OPEN |
+| M1 | 80 | Error doctrine on the CURRENT tree: all 36 catch sites refuse-or-record; `util.callUser`; closed skip enum + counters + SkipThreshold; warnings once per run + meta inventory; `stopReason`; identifier catalogue with dead namespaces removed | 78 | OPEN |
+| M2 | 81 | One accumulator: BlockAccumulator + scope stores + priors → `engine.Accumulator`; flat Accumulator / Combine / BatchIndex / ReducedContribution / CommonPrior / applyRegularisation / datum absorbed or deleted; adjust/robust/solveNonlinear cores → update; kinds B/C via declaration adapters; `data.priors` | 79, 80 | OPEN |
+| M2 | 82 | Delete the unreached duplicates/experiments (H-01 i + iii, per WP-79): varComp, vceHutchinson, iterateNoiseModel, selectArOrder, PrefetchLoader, synthLoader, poolGroups, resolveSatSpecs, normalizeSatList, showExport, hasBackgroundPool; instruments (ii) → dev/tests or verdict; whittle → kernel; inventory by glob (§11.8 lesson) | 79, R5-D5 | OPEN |
+| M3 | 83 | One noise estimator: `engine.noiseLaw`, `engine.update` VCE policy, per-stream `estimate`/`arcFactors`/`pool`/`dt`; AR/ARMA as whitener; grid from the schedule (H-06); delete applyShape/applyScale/applyJoint, covModel, jointModelOpt, psdVCE, arcVarianceFactors, vce, checkPSD (method now); parity gates as in H-03; O4 GROOPS parity or explicit waiver in the oracle register | 81, R5-D4 | OPEN |
+| M3 | 84 | Speed of the unified path: ratio budgets vs v4 ellmer (≤ 1.0 per pass) and v4 vce (≤ 1.5, PREDICTED) at the WP-79 points | 83 | OPEN |
+| M4 | 85 | One sweep + collectors; `engine.iterate` / `policy` / `gate` / `passRecord`; `accumulate` over Parallel.Axis with day-order fold; probeBlock; delete residuals, redundancy, collectResiduals, streamContribution, contribution, outliers, leverage, leverageBlocks, localDiagnostics, mapreduce, sharedProbe/probeStream, adjustVCE, adjustVCEjoint, adjustBlock; one re-read per pass (counted); concurrency bit-identical | 83 | OPEN |
+| M4 | 86 | Verdict from the sweep: `engine.verdict` absorbs diagnose/diagnoseAccum/stat(tests)/systematic/snoop/ftest/ellipse; Results methods systematic / snoop / reliability / plot; report never names an engine function | 85 | OPEN |
+| M5 | 87 | Interface v5: Options (≈ 12 + 4 groups), `fit(data, opts, Name=Value)`, contract v5 delta (+ rename iff R5-D3), Results v5 fields, plot/disp; version 5.0; RELEASE_NOTES 83 → 46 + option mapping (PDF App. C); THE ONE BREAKING LEVEL | 86, R5-D2 | OPEN |
+| M6 | 88 | Documentation: theory PDF from the LaTeX source (R5-D6: root lsqvce_theory.pdf = Parts I–III; ReportLab theory pipeline retired), tiered HTML from the new tiers, DATA_CONTRACT v5, manual reduced, README onto v5 (fix README.md:60), gracefoReading → buildDay example (O7), help sweep with ACCURACY blocks | 87 | OPEN |
+| M7 | 89 | Seven-category completeness on ≈ 46 units (gaps 0, exemptions ≤ 20 rows each argued); ratio speed suite; metamorphic counted; fault injection for gates; test_parallel on a PCT runner (WP-30) or documented local-only | 88 | OPEN |
+
+Backlog carried: WP-42 (revisit after M3 — one scale owner may make it moot),
+WP-31 GPU (gated on M4 measurements), WP-30 runner.
+
+### 12.6 DECISION RECORD R5 (user decisions required; approval by explicit word or by merging M0)
+
+| # | decision | recommendation |
+|---|---|---|
+| R5-D1 | Keep the v4 data contract as the base of v5; additive fields only (`estimate`, `arcFactors`, `pool`, `dt`, `data.priors`) | **keep** (A, B, C) |
+| R5-D2 | Replace `Model` by `Estimate="none"\|"noise"` + per-stream `estimate`; Options ≈ 12 + 4 groups | **yes**, breaking, in M5 with the migration table |
+| R5-D3 | Rename `covariance` → `noise` in the stream spec | panel split; C: **no** (churn on every builder/fixture); A/B mildly for. Default if silent: no |
+| R5-D4 | Retire the biased-ACV 'separate' estimator (v4 `vce` mode); accept changed numbers in that mode; acceptance = z-score recovery on O3 not worse, not equality to v4 | **yes** (H-03) |
+| R5-D5 | Delete H-01 classes (i) and (iii) outright (no ENGINE survival); instruments (ii) live in dev/tests or as verdict collectors | **yes** under the no-aliases rule |
+| R5-D6 | Theory authority: the LaTeX document's Parts I–III replace root lsqvce_theory.pdf; ReportLab theory pipeline retired (manual pipeline untouched until M6) | **yes** |
+| R5-D7 | Sequence M0/M1 first — instruments and the error doctrine on the CURRENT tree, so every later deletion is measured and every catch is already honest | **yes**; M0 has no functional change |
+
+### 12.7 R5 round notes
+
+**ROUND 1 (2026-09-01, model Claude Fable 5.1, branch `claude/r5-review`,
+doc-only).** Deliverables: this §12; `dev/lsqvce_theory_r5.pdf` (53 pp.,
+pdflatex, built by `dev/docs_src/theory_r5/build.sh`); LaTeX source (main.tex +
+11 chapter files). No `.m` file touched; audit exit 0; the ReportLab theory
+PDF at the root is UNCHANGED until R5-D6. Process notes: (1) the user's
+challenge ("this is the Ellmer approach") caught an over-broad first summary —
+the code-only call graph is now the instrument of record for reachability
+claims, and the §12.1 scope warning pins the correction; (2) the project
+files `25000_*.pdf` are plain-text dumps of the theses, not PDFs — read with
+`awk`/`grep`, not a PDF reader; (3) pdflatex is available in the container
+(mathptmx/helvet/courier; lmodern is not) — the theory document uses real
+equations for the first time. Postflight: none required (no MATLAB change);
+the standing postflight rule (ci_gate + example smoke run after each merge)
+applies to M0 onward.
