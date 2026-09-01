@@ -29,6 +29,7 @@ jobs:
         with: { python-version: '3.12' }
       - run: pip install numpy
       - run: python dev/docs_src/audit_tree.py
+      - run: python dev/docs_src/audit_selftest.py   # R5 M0: every new check must fire on its fault
       - run: for f in dev/validation/v10review.py; do python "$f"; done
 
   matlab:

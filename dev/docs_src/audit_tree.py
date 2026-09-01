@@ -22,6 +22,20 @@ WHAT IT CHECKS
     ...
     18 surface census (dev/docs_src/tiers.csv complete both ways) and no
        case-only file-name collisions (Windows working copies)
+    19 catch-block ratchet: every empty or bare `catch` (no identifier
+       inspected, everything swallowed) is listed in
+       dev/docs_src/catch_baseline.csv; a NEW one is a finding, a stale row
+       is a finding (R5 M0; the doctrine target is an empty baseline, M1)
+    20 error-identifier catalogue: every lsqvce:* id the package raises is a
+       row of dev/docs_src/error_ids.csv and vice versa (closed both ways);
+       ids raised but not documented in their own unit's help are REPORTED
+       (the M1 debt number)
+    21 layering ratchet: tiers.csv gives every public name a tier
+       (USER > ENGINE > KERNEL > UTIL); calls go DOWNWARD only. Every upward
+       edge that exists today is listed in dev/docs_src/layering_baseline.csv;
+       a NEW upward edge is a finding, a stale row is a finding
+    Self-test: dev/docs_src/audit_selftest.py injects one fault per new
+       check into a scratch copy and asserts the finding fires (CI runs it).
 
 USAGE
     python3 dev/docs_src/audit_tree.py            # from the toolbox root
@@ -649,9 +663,16 @@ def check_test_categories():
     #       'AbsTol'/'RelTol' literal must carry a 'tol:' comment on the
     #       same or one of the two preceding lines. Elsewhere the
     #       unannotated count is REPORTED (the debt number to drive to 0).
+    # R5 M0 (WP-78, 2026-09-01): SEVEN categories -- 'metamorphic' is a
+    # counted category (VALIDATION_GUIDE Part 1: invariance/equivariance
+    # through the public API, the cheap one nobody writes), no longer a
+    # tag; three more cross-cutting tags (layering, concurrency,
+    # convergence). The matrix gains a column; gaps stay informational
+    # until M7 (WP-89) drives them to 0 or to a reasoned exemption row.
     cats_ok = {'contract', 'reference', 'precision', 'speed',
-               'robustness', 'vectorisation'}
-    tags_ok = {'diagnostics', 'provenance'}
+               'robustness', 'vectorisation', 'metamorphic'}
+    tags_ok = {'diagnostics', 'provenance', 'layering', 'concurrency',
+               'convergence'}
     # WP-43 r2 (2026-08-19): the staged rollout is COMPLETE -- the debt count
     # reached 0 in the same round that annotated all 216 remaining sites, so
     # the swept-suite list retires and every suite is enforced. The debt
@@ -896,6 +917,9 @@ def main():
     check_test_categories()
     check_readme_sync()
     check_tiers_and_case()
+    check_catch_ratchet()
+    check_id_catalogue()
+    check_layering_ratchet()
     print('\n' + '=' * 60)
     if FINDINGS:
         print('%d finding(s).' % len(FINDINGS))
@@ -904,5 +928,262 @@ def main():
     return 0
 
 
+
+
+# ----------------------------------------------------------------------
+# R5 Level M0 (WP-78, 2026-09-01): three RATCHETS and a catalogue. A ratchet
+# lists the debt that exists today in a baseline file, refuses any NEW
+# instance and refuses a STALE row, so the debt can only shrink and every
+# shrink is a committed edit of the baseline. Written with the assistance of
+# Claude (Anthropic), model Claude Fable 5.1.
+
+PKG_GLOB = '+lsqvce/**/*.m'
+
+
+def _unit_of(path):
+    """'+lsqvce/+engine/foo.m' -> 'engine.foo'; root files -> 'foo'."""
+    u = path.replace('+lsqvce/', '').replace('.m', '')
+    u = u.replace('+util/', 'util.').replace('+engine/', 'engine.')
+    u = u.replace('+kernel/', 'kernel.').replace('private/', 'private.')
+    return u
+
+
+def _read_baseline(path, ncol):
+    rows = []
+    if not os.path.isfile(path):
+        return rows
+    for line in open(path, encoding='utf-8'):
+        s = line.strip()
+        if not s or s.startswith('#') or s.startswith('site,') or s.startswith('id,') \
+                or s.startswith('caller,'):
+            continue
+        parts = [p.strip() for p in s.split(',', ncol - 1)]
+        if len(parts) == ncol:
+            rows.append(tuple(parts))
+    return rows
+
+
+def bare_catch_sites():
+    """Return [(site, kind)] for every catch block that is EMPTY (no code at
+    all) or BARE (no identifier bound AND nothing inspected: `catch` with a
+    body that never rethrows, records or names an id). Site = unit:line."""
+    sites = []
+    for f in sorted(glob.glob(PKG_GLOB, recursive=True)):
+        lines = open(f, encoding='utf-8', errors='replace').read().split('\n')
+        for i, raw in enumerate(lines):
+            m = re.match(r'\s*catch\b\s*(\w+)?\s*(%.*)?$', raw)
+            if not m:
+                continue
+            bound = m.group(1)
+            body = []
+            depth = 0
+            for j in range(i + 1, len(lines)):
+                s = strip_matlab(lines[j])
+                if re.match(r'\s*end\b', s) and depth == 0:
+                    break
+                if re.match(r'\s*(if|for|while|try|switch|parfor)\b', s):
+                    depth += 1
+                elif re.match(r'\s*end\b', s):
+                    depth -= 1
+                if s.strip():
+                    body.append(s.strip())
+            if not body:
+                sites.append(('%s:%d' % (_unit_of(f), i + 1), 'empty'))
+            elif not bound:
+                sites.append(('%s:%d' % (_unit_of(f), i + 1), 'bare'))
+    return sites
+
+
+def check_catch_ratchet():
+    print('\n19. catch-block ratchet (R5 M0): no new empty/bare catch')
+    # WHY: five empty and thirteen bare `catch` blocks (R5 finding H-07)
+    # convert an undefined variable or a shape error into a silently
+    # different run -- the fourth outcome the error doctrine forbids
+    # (theory_r5 ch. 7). M1 rewrites every site; this check stops the count
+    # from growing in the meantime and refuses a baseline row that no longer
+    # exists, so the file is always the truth.
+    base = dict(_read_baseline('dev/docs_src/catch_baseline.csv', 2))
+    now = dict(bare_catch_sites())
+    print('   empty/bare catch sites: %d (baseline %d; doctrine target 0)'
+          % (len(now), len(base)))
+    for site, kind in sorted(now.items()):
+        if site not in base:
+            note('catch', 'NEW %s catch at %s -- refuse/report/proceed; '
+                          'never a bare default (theory_r5 ch. 7)' % (kind, site))
+    for site in sorted(base):
+        if site not in now:
+            note('catch', 'stale baseline row %s (fixed or moved): delete '
+                          'it from dev/docs_src/catch_baseline.csv' % site)
+
+
+RAISE_PATS = (r"error\(\s*'([\w]+:[\w:]+)'",
+              r"MException\(\s*'([\w]+:[\w:]+)'",
+              r"warning\(\s*'([\w]+:[\w:]+)'",
+              r"log\.warn\w*\(\s*'([\w]+:[\w:]+)'",
+              r"warnOnce\(\s*'([\w]+:[\w:]+)'",
+              r"'([\w]+:[\w:]+)'\s*,\s*\.\.\.")
+
+
+def raised_ids():
+    """{id: set(units)} for every lsqvce:* identifier the PACKAGE raises."""
+    out = {}
+    for f in sorted(glob.glob(PKG_GLOB, recursive=True)):
+        src = open(f, encoding='utf-8', errors='replace').read()
+        src = src.replace('("', "('").replace('",', "',")
+        code = '\n'.join(s for _, s in code_lines(f))
+        # raise sites live in code; the string-stripped text loses the id,
+        # so scan the raw source but only lines that survive as code
+        raw_lines = src.split('\n')
+        codeset = {k for k, _ in code_lines(f)}
+        text = '\n'.join(l for k, l in enumerate(raw_lines, 1) if k in codeset)
+        for pat in RAISE_PATS:
+            for i in re.findall(pat, text):
+                if i.startswith('lsqvce:'):
+                    out.setdefault(i, set()).add(_unit_of(f))
+        del code
+    return out
+
+
+def check_id_catalogue():
+    print('\n20. error-identifier catalogue (R5 M0): closed both ways')
+    # WHY: 369 ids in 40+ unit namespaces with no authority (finding H-09).
+    # The catalogue dev/docs_src/error_ids.csv IS the authority from M0 on:
+    # an id raised but not catalogued is a finding; an id catalogued but no
+    # longer raised is a finding (so deletions in M2 are recorded, not
+    # forgotten). Documented-in-help is the second obligation: reported as
+    # the debt number here, enforced in M1.
+    cat = {}
+    for row in _read_baseline('dev/docs_src/error_ids.csv', 4):
+        cat[row[0]] = row[1:]
+    raised = raised_ids()
+    print('   raised lsqvce:* identifiers: %d; catalogued: %d'
+          % (len(raised), len(cat)))
+    for i in sorted(raised):
+        if i not in cat:
+            note('id-catalogue', '%s is raised by %s but not in '
+                 'dev/docs_src/error_ids.csv' % (i, ','.join(sorted(raised[i]))))
+    for i in sorted(cat):
+        if i not in raised:
+            note('id-catalogue', '%s is catalogued but no package code '
+                 'raises it (delete the row or restore the raise)' % i)
+    # documented in the raising unit's own help text?
+    undocumented = 0
+    help_text = {}
+    for f in sorted(glob.glob(PKG_GLOB, recursive=True)):
+        help_text[_unit_of(f)] = '\n'.join(
+            l for l in open(f, encoding='utf-8', errors='replace')
+            if l.lstrip().startswith('%'))
+    for i, units in raised.items():
+        if not any(i in help_text.get(u, '') for u in units):
+            undocumented += 1
+    print('   raised ids not documented in their unit\'s help: %d '
+          '(M1 debt; the doctrine target is 0)' % undocumented)
+
+
+TIER_RANK = {'USER': 3, 'ENGINE': 2, 'KERNEL': 1, 'UTIL': 0}
+
+
+def layering_edges():
+    """Return {(caller, callee, callerTier, calleeTier)} for every UPWARD
+    qualified call in the package (callee tier higher than caller tier).
+    Tiers from dev/docs_src/tiers.csv; util.* is its own tier UTIL."""
+    tiers = {}
+    if os.path.isfile('dev/docs_src/tiers.csv'):
+        for row in open('dev/docs_src/tiers.csv', encoding='utf-8'):
+            parts = row.strip().split(',', 2)
+            if len(parts) >= 2 and parts[0] != 'name':
+                name, tier = parts[0].strip(), parts[1].strip()
+                if name.startswith('util.'):
+                    tier = 'UTIL'
+                tiers[name] = tier
+    edges = set()
+    for f in sorted(glob.glob(PKG_GLOB, recursive=True)):
+        if '/private/' in f:
+            continue
+        caller = _unit_of(f)
+        ct = tiers.get(caller)
+        if ct is None:
+            continue
+        text = '\n'.join(s for _, s in code_lines(f))
+        for m in re.finditer(r'lsqvce\.((?:util|engine|kernel)\.\w+|[A-Z]\w+|fit|report)', text):
+            callee = m.group(1)
+            if callee == caller:
+                continue
+            kt = tiers.get(callee)
+            if kt is None:
+                continue
+            if TIER_RANK[kt] > TIER_RANK[ct]:
+                edges.add((caller, callee, ct, kt))
+    return edges
+
+
+def check_layering_ratchet():
+    print('\n21. layering ratchet (R5 M0): calls go downward only')
+    # WHY (CODING_GUIDE Part 3): a layering rule nothing checks is a
+    # diagram. The engine constructs lsqvce.Results and calls lsqvce.report
+    # today (USER-tier names) -- known, listed, and the M4/M5 redesign
+    # removes them. Until then: no NEW upward edge, no stale baseline row.
+    base = {(r[0], r[1]) for r in _read_baseline('dev/docs_src/layering_baseline.csv', 4)}
+    now = layering_edges()
+    print('   upward edges: %d (baseline %d; target 0 after M5)'
+          % (len(now), len(base)))
+    nowk = {(e[0], e[1]) for e in now}
+    for e in sorted(now):
+        if (e[0], e[1]) not in base:
+            note('layering', 'NEW upward call %s (%s) -> %s (%s)'
+                 % (e[0], e[2], e[1], e[3]))
+    for c, k in sorted(base):
+        if (c, k) not in nowk:
+            note('layering', 'stale baseline row %s -> %s: delete it from '
+                 'dev/docs_src/layering_baseline.csv' % (c, k))
+
+
+def write_baselines():
+    """Regenerate the three baseline/catalogue files from the tree (M0
+    bootstrap, and the documented way to accept a deliberate change:
+    `python3 dev/docs_src/audit_tree.py --write-baselines`, then READ the
+    diff -- a ratchet that is regenerated blindly is not a ratchet)."""
+    stamp = 'generated by audit_tree.py --write-baselines'
+    with open('dev/docs_src/catch_baseline.csv', 'w', encoding='utf-8') as fh:
+        fh.write('# Empty/bare catch sites accepted as DEBT (R5 M0, check 19).\n'
+                 '# One row per site (unit:line, kind). M1 (WP-80) drives this to\n'
+                 '# zero; a fixed site is DELETED here in the same commit.\n'
+                 '# %s\nsite,kind\n' % stamp)
+        for site, kind in sorted(bare_catch_sites()):
+            fh.write('%s,%s\n' % (site, kind))
+    with open('dev/docs_src/error_ids.csv', 'w', encoding='utf-8') as fh:
+        fh.write('# Error-identifier catalogue (R5 M0, check 20) -- THE authority\n'
+                 '# for lsqvce:* identifiers: closed both ways against the tree.\n'
+                 '# id, units raising it (;-separated), kind (error|warning|mixed), since\n'
+                 '# %s\nid,units,kind,since\n' % stamp)
+        raised = raised_ids()
+        kinds = {}
+        for f in sorted(glob.glob(PKG_GLOB, recursive=True)):
+            src = open(f, encoding='utf-8', errors='replace').read()
+            src = src.replace('("', "('").replace('",', "',")
+            for pat in RAISE_PATS[:2]:
+                for i in re.findall(pat, src):
+                    kinds.setdefault(i, set()).add('error')
+            for pat in RAISE_PATS[2:5]:
+                for i in re.findall(pat, src):
+                    kinds.setdefault(i, set()).add('warning')
+        for i in sorted(raised):
+            k = kinds.get(i, {'error'})
+            kind = 'mixed' if len(k) > 1 else next(iter(k))
+            fh.write('%s,%s,%s,v4.0\n' % (i, ';'.join(sorted(raised[i])), kind))
+    with open('dev/docs_src/layering_baseline.csv', 'w', encoding='utf-8') as fh:
+        fh.write('# Upward calls accepted as DEBT (R5 M0, check 21): caller, callee,\n'
+                 '# callerTier, calleeTier. M4/M5 remove them; a removed edge is\n'
+                 '# DELETED here in the same commit.\n# %s\ncaller,callee,callerTier,calleeTier\n' % stamp)
+        for e in sorted(layering_edges()):
+            fh.write('%s,%s,%s,%s\n' % e)
+    print('baselines written (read the diff before committing)')
+
+
 if __name__ == '__main__':
+    if '--write-baselines' in sys.argv:
+        if not os.path.isdir('+lsqvce'):
+            sys.exit('run from the toolbox root (the folder holding +lsqvce)')
+        write_baselines()
+        sys.exit(0)
     sys.exit(main())
