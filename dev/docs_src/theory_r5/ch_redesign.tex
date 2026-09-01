@@ -1,0 +1,242 @@
+\part{The redesign: \lsq{} v5}
+
+\chapter{Design principles and the logic}
+\label{ch:design}
+
+\begin{principle}[Six principles, in order of precedence]
+\begin{enumerate}
+\item \textbf{One estimator, one loop, one accumulator, one sweep.} Every variance component is $\Omega/r$; every iteration is accumulate--solve--sweep--update--gate; every problem kind enters through the same accumulator; every second read is the sweep with collectors.
+\item \textbf{Declaration says what is free; options say how to run.} What is estimated for a stream is a property of the stream (\code{estimate}); the pass budget, tolerances, probes, parallel axis and verbosity are properties of the run.
+\item \textbf{Refuse, report, or proceed.} Chapter~\ref{ch:errors}, mechanically checked.
+\item \textbf{Measured, never probed.} Every count and grid comes from the declaration or from what was read and enforced; no defaults behind a \code{try}.
+\item \textbf{Fewer knobs, not fewer numbers.} Evidence (redundancy, probes, skips, condition, warnings) is always in the result.
+\item \textbf{Stock-MATLAB ergonomics.} \code{R = lsqvce.fit(data, Name=Value)}; \code{plot(R)}; \code{disp(R)}; typed option groups; identifiers a user can \code{try/catch}.
+\end{enumerate}
+\end{principle}
+
+\section{The logic, top down}
+
+\begin{lstlisting}
+R = lsqvce.fit(data, opts)
+  D    = engine.declaration(data)   % validate, derive nc/nl/arcs, one Loader per system
+  P    = engine.policy(D, opts)     % which components are free, which updates run
+  noise= engine.noise.init(D)       % per-stream law: PSD grid, whitener, arc factors = 1
+  acc  = engine.Accumulator(D.nc, opts.Backend)
+  for pass = 1:opts.MaxPasses
+      acc.reset();
+      engine.accumulate(acc, D, noise, opts.Parallel)   % parallel over days, fold in day order
+      sol  = acc.solve();                                % factor, condition, NaN-honest sigma0
+      S    = engine.sweep(acc, D, noise, sol, P.collectors, opts.Parallel)
+                                                         % residuals, (Omega_n, s_n), r_i, whiteness, worst-K
+      [noise, x0, upd] = engine.update(P, noise, S, sol) % VCE / IRLS / Gauss-Newton, in that order
+      hist(pass) = engine.passRecord(pass, sol, S, upd) % skips, norms, whiteness, timing, gate
+      if engine.gate(hist, opts), break, end
+  end
+  R = lsqvce.Results(sol, S, hist, noise, D, engine.runMeta(opts))   % verdict on demand: R.report
+\end{lstlisting}
+
+\code{Model="gls"} is \code{MaxPasses = 1} with an empty policy; every other model is a policy. The batch kinds are \code{engine.declaration} recognising \code{A/l/p} or \code{batchFcn} and synthesising one system with a generated \code{buildDay}.
+
+\chapter{The user interface}
+\label{ch:ui}
+
+\section{Three lines, all kinds}
+
+\begin{lstlisting}
+R = lsqvce.fit(data);                                   % GLS under the declared laws
+R = lsqvce.fit(data, Estimate="noise", MaxPasses=8);    % VCE: laws, arc factors, group scales as declared
+R = lsqvce.fit(data, Estimate="noise", Robust="huber");  % plus IRLS on the same loop
+R = lsqvce.fit(struct(A=A, l=l, p=p), Robust="igg3");   % an in-memory problem, same verdict
+R.report;  T = R.coefficients;  plot(R, "psd");  plot(R, "convergence")
+\end{lstlisting}
+
+\section{\code{lsqvce.fit}}
+
+\begin{lstlisting}
+function R = fit(data, opts, nv)
+arguments
+    data (1,1) struct
+    opts (1,1) lsqvce.Options = lsqvce.Options()
+    nv.?lsqvce.Options                        % Name=Value overrides, stock-MATLAB style
+end
+\end{lstlisting}
+The positional \code{opts} and the Name-Value overrides are \emph{one} mechanism (the overrides are applied to \code{opts} and validated by the class); the recorded \code{R.meta.options} is the resolved object. Errors of the declaration carry \code{lsqvce:fit:<rule>}; nothing is read before validation completes.
+
+\section{\code{lsqvce.Options} --- twelve properties and four groups}
+
+\begin{longtable}{@{}P{28mm}P{34mm}P{90mm}@{}}
+\toprule
+property & type / default & meaning\\
+\midrule
+\code{Estimate} & \code{"none"} $|$ \code{"noise"} & \code{"none"}: one GLS pass under the declared laws. \code{"noise"}: run the VCE policy on every stream whose spec declares something free (\code{estimate ~= "none"}). Replaces \code{Model}; the pooled/ellmer distinction moves to the stream spec.\\
+\code{Robust} & \code{"none"} $|$ \code{"huber"} $|$ \code{"igg3"} $|$ \code{"bisquare"} & IRLS policy on the same loop; details in \code{Robust} group\\
+\code{MaxPasses} & 8 & outer pass budget (1 for \code{Estimate="none"})\\
+\code{Tolerance} & 5e-3 & stop when every free component moved less than this (relative)\\
+\code{Whiteness} & 0.01 & Ljung--Box level; a stream is ``white'' above it; stop when all are\\
+\code{Backend} & \code{"normal"} $|$ \code{"qr"} & \S\ref{sec:twosolvers}\\
+\code{Probes} & 100 & Hutchinson probes for the per-lag redundancies; \code{0} = exact route\\
+\code{Seed} & [] & RNG seed for the probes; recorded\\
+\code{Parallel} & group & \code{Mode "auto"|"serial"|"pool"}, \code{Axis "days"|"arcs"}, \code{Threshold 8}\\
+\code{Noise} & group & \code{Grid} (\code{"auto"} = longest arc), \code{Whitener "toeplitz"|"ar"}, \code{MaxOrder 60}, \code{Floor 1e-3}, \code{Smooth 0}, \code{MeanType "robust"|"plain"}, \code{FreezeRedundancy 1}, \code{SkipThreshold 0.2}\\
+\code{Robust} & group & \code{Tuning [] (= influence default)}, \code{MaxIter 30}, \code{Tol 1e-8}\\
+\code{Diagnostics} & group & \code{Alpha 1e-3}, \code{Bonferroni true}, \code{Beta 0.2}, \code{RWeak 0.1}, \code{Test "auto"|"pope"|"baarda"}, \code{Store "flagged"|"all"|"none"}, \code{NWorst 1000}, \code{Systematic true}\\
+\code{Verbose} & 1 & 0..3\\
+\code{LogFile} & "" & path; "" = none\\
+\bottomrule
+\end{longtable}
+Regularisation is not an option: a prior is a stream (\S\ref{sec:contractdelta}). Nonlinear is not an option: \code{data.x0} declares it. \code{DistributeDays}, \code{ParallelThreshold}, \code{GroupBy}, \code{VceMode}, \code{NumLags}, \code{Norm}, \code{StepSchedule}, \code{AvgTail}, \code{C0}, \code{PsdMode}, \code{ComponentsPerEpoch}, \code{DatumB}, \code{Sigma0}, \code{Sparse}, \code{Reg*}, \code{ShowSeconds}, \code{ExportDir}, \code{LogFid}, \code{LogFlag} and the \code{Vce*}/\code{Joint*}/\code{Nonlinear*}/\code{Outer*} names leave; Appendix~\ref{app:mapping} maps each.
+
+\section{The data contract, v5 delta}
+\label{sec:contractdelta}
+
+The v4 struct stays (R5-D1). Additive changes only:
+\begin{itemize}
+\item \code{covariance.(obsType).estimate} $\in$ \{\code{"none"}, \code{"scale"}, \code{"law"}\}, default \code{"none"}. \code{"scale"} = one variance factor for the stream (Helmert on a fixed law); \code{"law"} = the per-lag PSD estimate (Ellmer).
+\item \code{covariance.(obsType).arcFactors} logical, default \code{true} when \code{estimate="law"}; \code{pool} $\in$ \{\code{"stream"}, \code{"obsType"}\}: whether the law is shared with the same observation type of other systems (today's ``pooled'').
+\item \code{covariance.(obsType).dt} required for time-domain laws (\code{acf}, \code{arma} given in seconds); a sample-domain law states \code{dt = []} explicitly.
+\item \code{data.priors(k)}: \code{struct(L=, Q=, sigma=, estimate=)} --- regularisation as declared pseudo-observation groups with their own component.
+\item Kinds B/C unchanged; \code{Robust} becomes available on kind A.
+\end{itemize}
+One breaking rename is proposed for decision (R5-D3): \code{covariance} $\to$ \code{noise}, because the field now declares more than a covariance; the panel is split (A, B for; C against on churn grounds) and leaves it to the user.
+
+\section{\code{lsqvce.Results}}
+
+Immutable: \code{x}, \code{Cxx}, \code{sigma0}, \code{converged}, \code{stopReason}, \code{history}, \code{noise} (per stream: law, PSD, arc factors, whiteness, redundancy of every component), \code{skips}, \code{systems}, \code{meta}. Methods: \code{report}, \code{coefficients(Alpha=)}, \code{residuals(Stream=, Kind="whitened"|"raw")} (from the stored worst-$K$ or a re-sweep on request), \code{redundancy}, \code{reliability}, \code{systematic}, \code{snoop(MaxReject=)}, \code{contribution}, \code{convergence}, \code{summary}, \code{plot(kind)}, \code{disp}. Everything the verdict tells the user to do is a method on \code{R}.
+
+\chapter{The function set}
+\label{ch:functions}
+
+$\approx 46$ public names (from 83): USER 4, ENGINE 22, KERNEL 15, UTIL 5. ``Replaces'' names the v4 file(s) whose responsibility the function absorbs.
+
+\begin{longtable}{@{}P{34mm}P{70mm}P{48mm}@{}}
+\toprule
+name & responsibility (signature) & replaces\\
+\midrule
+\multicolumn{3}{@{}l}{\textbf{USER}}\\
+\code{fit} & \code{R = fit(data, opts, Name=Value)} & fit\\
+\code{Options} & typed value class, 12 properties + 4 groups & Options\\
+\code{Results} & handle class, methods above & Results\\
+\code{report} & \code{V = report(R, Level=, ...)} verdict printer & report\\
+\midrule
+\multicolumn{3}{@{}l}{\textbf{ENGINE --- declaration and data}}\\
+\code{declaration} & \code{D = declaration(data)}: validate all rules, derive nc/nl/arcs/obsTypes, scope plans, one \code{Loader} per system, batch-kind adapters & fit (validation half), makeLoader (plans), resolveNc, buildScopePlan, adjust/robust/solveNonlinear (kind adapters)\\
+\code{Loader} & class: \code{day(d, obsType) -> arcs}; caching; builder wrapper (nargin/nargout once; cause-wrapped errors); arc resolver; epoch-covariance hook & makeLoader, applyCovOverride, PrefetchLoader, synthLoader\\
+\code{scopePlan} & \code{plan = scopePlan(tables, calendar)}: expansion of scoped templates, offsets, \code{info} for \code{buildDay} & buildScopePlan, localsPerArc plan\\
+\midrule
+\multicolumn{3}{@{}l}{\textbf{ENGINE --- linear algebra}}\\
+\code{Accumulator} & class: backend, common block, per-system scope stores, \code{addArc}, \code{closeScope}, \code{solve}, \code{backSubstitute}, \code{condition}, \code{setPrior} & BlockAccumulator, Accumulator, Combine, BatchIndex, ReducedContribution, CommonPrior, applyRegularisation, datum\\
+\code{NormalEqBackend}, \code{QrBackend} & the two factor stores; \code{add}, \code{solve}, \code{sigma0} (NaN-honest), \code{pivots} & NormalEqSystem, QRSystem\\
+\code{accumulate} & \code{accumulate(acc, D, noise, par)}: parallel over the chosen axis, deterministic fold & BlockAccumulator .processSystem / .processDay, mapreduce\\
+\code{arcWhiten} & \code{[Ab, Bb, lb, W] = arcWhiten(arc, law)}: Toeplitz / AR / VAR / separable dispatch, overlap batching & covModel, arcBatchWhiten\\
+\midrule
+\multicolumn{3}{@{}l}{\textbf{ENGINE --- the loop}}\\
+\code{iterate} & the loop of Chapter~\ref{ch:design}; owns the pass record and the gate & adjustVCE.run, adjustVCEjoint, adjustBlock, iterateNoiseModel\\
+\code{policy} & \code{P = policy(D, opts)}: which components are free, which collectors attach, which updates run & fit dispatch, jointModelOpt, resolveSatSpecs\\
+\code{sweep} & \code{S = sweep(acc, D, noise, sol, collectors, par)}: ONE second pass & residuals, redundancy, collectResiduals, streamContribution, adjustVCE.sweepStreamLags, outliers, leverage, leverageBlocks, localDiagnostics\\
+\code{collectors} & package: \code{residualNorms}, \code{lagStatistics}, \code{observationRedundancy}, \code{whiteness}, \code{worstK}, \code{contribution}, \code{systematic} & (the collectors' code, gathered)\\
+\code{probeBlock} & \code{Z = probeBlock(U, Probes, Seed)}: $\mat U^{-1}\bar{\mat Z}$ once per pass & sharedProbe, probeMatrix, probeStream, traceEstimate\\
+\code{update} & \code{[noise, x0, upd] = update(P, noise, S, sol)}: dispatches the three policies & psdVCE, arcVarianceFactors, vce, varComp, vceHutchinson, robust (IRLS core), solveNonlinear (GN core)\\
+\code{noiseLaw} & class: PSD/ACV/AR/VAR representation with \code{dt}, grid, floor, taper, \code{whitener()}, \code{arcFactor(a)}, \code{redundancy(component)} & covModel (model half), jointModelOpt, checkPSD (as a method)\\
+\code{gate} & \code{[stop, reason] = gate(hist, opts)} & adjustVCE convergence logic\\
+\code{passRecord}, \code{runMeta} & provenance & runMeta\\
+\midrule
+\multicolumn{3}{@{}l}{\textbf{ENGINE --- judgement}}\\
+\code{verdict} & \code{V = verdict(R, opts)}: levels 0--4 from the sweep's collectors (no re-read) & report (computation half), diagnose, diagnoseAccum, stat (statistics half), systematic, snoop, ftest, ellipse\\
+\midrule
+\multicolumn{3}{@{}l}{\textbf{KERNEL}} \\
+\code{dctI}, \code{psd2acv}, \code{acv2psd} & transforms, one normalisation & dctI, psd2acv\\
+\code{levinsonDurbin}, \code{ar2arma}, \code{armaACV}, \code{armaWhiten} & AR/ARMA & unchanged\\
+\code{toeplitzWhiten} & Levinson/Schur Toeplitz Cholesky, $O(m^2)$ & decorrFactor, toeplitzCofactor, covComponent\\
+\code{whittle}, \code{varACV}, \code{varWhiten}, \code{separableWhiten} & multi-axis & (whittle promoted from engine)\\
+\code{redundancyLags} & per-arc $(\Omega_n, s_n)$, exact or probe & redundancyLags\\
+\code{residualAcv}, \code{ljungBox} & whiteness statistics & residualAcv, whitenessCorr, crossCorr, adjustVCE.ljungBoxWhite\\
+\code{stat} & $\chi^2$, $\tau$, normal quantiles, MAD; base MATLAB & stat\\
+\midrule
+\multicolumn{3}{@{}l}{\textbf{UTIL}} \\
+\code{log}, \code{verbosity}, \code{mergeStruct}, \code{getfielddef}, \code{callUser} & logging; the one user-function wrapper & log, verbosity, mergeStruct, getfielddef, showExport (deleted), hasBackgroundPool (deleted)\\
+\bottomrule
+\end{longtable}
+
+\chapter{Workflow, data handling, parallelism}
+\label{ch:v5workflow}
+
+The workflow is \S\ref{sec:workflow}; what changes relative to v4 is where the work happens:
+
+\begin{tabular}{@{}P{26mm}P{66mm}P{62mm}@{}}
+\toprule
+step & v4 (who) & v5 (who)\\
+\midrule
+validate & \code{fit} (500 lines) + \code{makeLoader} (relabelled ids) & \code{engine.declaration}, one identifier table\\
+count nc/nl/arcs & \code{fit}, \code{makeLoader}, \code{resolveNc}, \code{buildScopePlan} & \code{scopePlan}\\
+whiten & \code{covModel} per stream per pass, rebuilt from overrides & \code{noiseLaw.whitener()} cached until the law changes\\
+accumulate & \code{BlockAccumulator.processSystem} via \code{mapreduce} & \code{accumulate} over \code{Parallel.Axis}, fold in order\\
+residual passes & 3--5 separate re-reads per pass (H-04) & one \code{sweep}\\
+update & three drivers & \code{update} with the policy list\\
+judge & \code{report} + user-run engine functions & \code{verdict} from the sweep; \code{R} methods\\
+\bottomrule
+\end{tabular}
+
+\paragraph{Parallel plan.} \code{Parallel.Axis="days"} is the default: one worker builds, whitens, eliminates and returns the raw day partial (common block, $u\times u$ dense) --- the transfer is $8u^2$ bytes per day, 128\,MB at $u=4000$; for $u > 6000$ the plan switches to \code{Axis="arcs"} with worker-side folding across the arcs of a day and a client fold per day (PREDICTED crossover; WP-M4 measures). The sweep parallelises over the same axis; every collector's fold is associative and applied in day order; the probe block is broadcast once per pass (a \code{parallel.pool.Constant}). Nothing about pool type is decided by the toolbox; \code{Threshold} is the number of tasks below which the pool overhead loses, measured by the speed suite on the user's machine and stored in the pass record.
+
+\paragraph{Memory plan.} Two $u\times u$ blocks (accumulated, factor) + $u\times Z$ + per-worker one day; \code{Store="flagged"} keeps only flagged residuals by default (v4 keeps \code{"all"}, which at GRACE scale is $10^6$ rows per stream per pass).
+
+\chapter{Tests}
+\label{ch:tests}
+
+\section{Categories (seven, counted per unit) and tags}
+
+Adopted from \code{VALIDATION\_GUIDE} Part 1: \code{contract}, \code{reference}, \code{precision}, \code{speed}, \code{robustness}, \code{vectorisation}, \code{metamorphic}; tags \code{diagnostics}, \code{provenance}, \code{layering}, \code{concurrency}, \code{convergence}. Audit check 16 counts seven categories; an exemption is one row per (unit, category) with a reason; \code{contract} is never exempt for a validating unit. Speed budgets are ratios with expected, provenance and band, timed by one helper (\code{dev/tests/private/timePair}) before any budget is written (WP-M0).
+
+\section{The oracle register}
+
+\begin{longtable}{@{}P{8mm}P{50mm}P{64mm}P{30mm}@{}}
+\toprule
+id & oracle & certifies & status\\
+\midrule
+O1 & dense closed form (small $n$, $u$): $\mat N^{-1}$, $\mat H$, $r_i$, Helmert matrix, per-lag $s_n$ by explicit $\tr(\mat R\mat V_n)$ & every estimator and every redundancy at machine precision & exists (test\_vceMath, test\_precision); extend to $s_n$\\
+O2 & \code{validation/v10review.py} (Python mirror of the Ellmer scheme, $10^{-14}$) & the per-lag VCE, DCT pairing, arc factors & exists; re-run against v5 \code{update}\\
+O3 & WP-48 physical oracle (shDesign, planted truth, z-scores) & recovery of a gravity field under coloured noise & exists\\
+O4 & GROOPS normal-equation file of one arc/day (user-supplied) & whitening + accumulation parity with the production system & OPEN --- the only external authority; WP-M3 may not close without it or an explicit user waiver\\
+O5 & Koch (1999) worked VCE example; Förstner (1979) redundancy example & group Helmert, reliability numbers & to add (cheap)\\
+O6 & analytic invariants: $\sum r_i = n-u$; $\Omega_g = r_g$ at the fixed point; DCT self-inverse; Toeplitz PD $\Leftrightarrow$ PSD $>0$; arc factors unit mean & every pass, every run & exists partly (level 0); make them collectors' self-checks\\
+O7 & \code{gracefoReading} real L1B day (RL04, 2020-01-01, PO.DAAC) & the builder example end to end; gaps as arc boundaries & to add with WP-M6\\
+\bottomrule
+\end{longtable}
+
+\section{Per-unit matrix (what each category asserts)}
+
+\begin{longtable}{@{}P{24mm}P{18mm}P{110mm}@{}}
+\toprule
+unit & category & assertion\\
+\midrule
+\code{fit} & contract & every declaration identifier fires alone; unknown field names the field; Name-Value overrides equal the object route byte-identically\\
+ & reference & \code{fit == iterate} on every kind (dispatch adds nothing)\\
+ & metamorphic & system order, day order, observation-type order invariance (eps-level: fold order); duplicating a system halves its component (bitwise on the estimate up to the fold); scaling $\vc l$ by $c$ scales $\hat{\vc x}$ by $c$ and $\hat\sigma_0$ by $c$ (bitwise)\\
+ & speed & \code{fit}/\code{iterate} ratio $\le 1.05$ at $N$ = 3 systems $\times$ 2 days\\
+ & robustness & builder throws (cause chain), builder returns wrong shapes, empty day, pool absent/present, \code{nl = 0}, single arc, single observation type\\
+\code{Accumulator} & precision & NEQ vs QR to $\kappa\epsilon$; back-substitution reproduces the joint solve; Schur elimination equals the joint system (O1)\\
+ & robustness & rank deficiency refused with $d$; datum by prior; cancellation NaN both backends\\
+ & concurrency & bit-identical across 1/2/$N$ workers (fold order)\\
+\code{sweep} & reference & every collector against O1 dense forms\\
+ & vectorisation & batched arcs equal per-arc calls bitwise\\
+ & metamorphic & collectors are order-invariant under day permutation (eps); adding a collector does not change another's output (bitwise)\\
+\code{update} & reference & O2 Ellmer mirror $10^{-12}$; Förstner iteration reaches $\Omega_g = r_g$ (O6)\\
+ & convergence & planted PSD recovered as $z$-scores against the Fisher bound; pass count to tolerance monotone in $M$\\
+ & robustness & frozen component below redundancy; non-PD law after update skipped and counted; alternating scale detected\\
+\code{noiseLaw} & precision & PSD$\to$ACV$\to$PSD round trip; AR reduction reproduces ACV within stated tolerance (checkPSD as a method)\\
+ & metamorphic & resampling by $\Delta t$ and lag index agree; taper preserves PD\\
+\code{verdict} & reference & O5 worked examples; O6 level-0 identities\\
+ & contract & every skip reason reaches the report; warning inventory once per run\\
+\code{Results} & vectorisation & \code{coefficients} on 1 and $10^4$ parameters; \code{plot} on 1 and 10 streams\\
+\code{Loader} & contract & every builder identifier; nargin 2/5/6/varargin; ragged ids as gaps\\
+\bottomrule
+\end{longtable}
+
+\section{Gates}
+
+Green = zero failures $\wedge$ every suite loaded $\wedge$ declared = executed per suite $\wedge$ no new warning identifier $\wedge$ no ratio budget exceeded $\wedge$ manifest verified $\wedge$ audit exit 0 $\wedge$ bare-\code{catch} count 0 $\wedge$ identifier catalogue closed. Predicted point count stated before every run and reconciled three ways (VALIDATION\_GUIDE Part 7). Postflight after every merge: \code{ci\_gate} on R2026a incl.\ \code{test\_parallel}, and every example smoke-run.
+
+\chapter{Documentation}
+\label{ch:docs}
+
+One source per fact: \code{DATA\_CONTRACT.md} (declaration, v5 delta) $\to$ \code{fit} help and the getting-started page are generated from it, not copied; the identifier catalogue $\to$ ERRORS blocks checked against it; \code{Options} help $\to$ the class's own property metadata. Deliverables: tiered HTML (\code{doc lsqvce}: Getting started; USER reference; ENGINE; KERNEL), \code{lsqvce\_theory.pdf} = Parts I--III of this document (LaTeX source under \code{dev/docs\_src/theory\_r5}, built by \code{build.sh}; supersedes the ReportLab pipeline for the theory PDF, R5-D6), the manual reduced to the user path (chapter 0 + D + examples), \code{RELEASE\_NOTES} with the 83$\to$46 mapping (Appendix~\ref{app:mapping}), and one new example: a real GRACE-FO day from \code{gracefoReading} into a \code{buildDay} (O7). Every help text keeps the INPUT/OUTPUT/ERRORS/ACCURACY/EXAMPLE blocks and the dated model stamp.

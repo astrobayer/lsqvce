@@ -1,0 +1,57 @@
+\chapter{Stochastic modelling of correlated observations}
+\label{ch:stochastic}
+
+\section{Stationary noise and the Toeplitz covariance}
+
+Instrument noise on a satellite stream (KBR range-rate, LRI, kinematic positions, accelerometer-derived quantities) is coloured: its power spectral density (PSD) is far from flat, typically rising towards low frequencies. Within one arc of $m$ equally spaced epochs ($\Delta t$) the noise is modelled as a wide-sense stationary process with autocovariance function $C(\tau) = C(|t_i - t_j|)$ (Ellmer 2018 §6.5.1). The arc covariance is then symmetric Toeplitz,
+\begin{equation}
+\mat{\Sigma} = \sigma^2\sum_{n=0}^{m-1} c_n \mat{V}_n, \qquad c_n = C(n\Delta t)/C(0)\ \text{or unnormalised}, \qquad (\mat{V}_n)_{ij} = \delta_{|i-j|,n},
+\label{eq:toeplitz}
+\end{equation}
+where $\mat{V}_n$ is the $n$-th \emph{covariance component} matrix (identity for $n=0$, ones on the $n$-th sub- and super-diagonal otherwise; eq. 6.5.16 of Ellmer). Two facts matter for implementation: the decomposition \eqref{eq:toeplitz} is \emph{linear in the lag values}, which is what makes VCE per lag possible (Chapter~\ref{ch:vce}); and a Toeplitz matrix is positive definite if and only if the PSD it corresponds to is positive at every frequency (Bochner), which is where \emph{truncated} or \emph{noisy} covariance functions fail (\S\ref{sec:nonpd}).
+
+Stationarity is assumed per arc and per month; the covariance function is estimated once per observation type and month (Ellmer). Deviations from stationarity within a month are absorbed by the arc-wise variance factors (\S\ref{sec:arcfactors}) --- a scalar per arc, which is all the data can resolve at that scale.
+
+\section{Covariance function and power spectral density}
+\label{sec:psd}
+
+For a discrete stationary sequence the one-sided PSD $S(f)$ and the autocovariance $c_n$ form a cosine-transform pair (Wiener--Khinchin). On a grid of $N$ lags and $N$ frequencies the pair is the \emph{type-I DCT} with its own inverse up to scale,
+\begin{equation}
+S_j = \sum_{n=0}^{N-1} w_n\, c_n \cos\frac{\pi j n}{N-1}, \qquad
+c_n = \frac{2}{N-1}\sum_{j=0}^{N-1} w_j\, S_j \cos\frac{\pi j n}{N-1}, \qquad w_0 = w_{N-1} = \tfrac12,\ w_k = 1 \text{ else},
+\label{eq:dct}
+\end{equation}
+with $f_j = j/(2(N-1)\Delta t)$ up to Nyquist. The toolbox's \code{kernel.dctI} implements this pair with two normalisations (\code{ortho} = self-inverse unitary; \code{ellmer} = the GROOPS convention). \emph{Which normalisation is used must be pinned once and never mixed}: an amplitude estimated in one convention and transformed back in the other is off by a constant factor that VCE then ``corrects'' by re-estimating --- convergence to the wrong fixed point (R2 finding F-04 was of this kind).
+
+Why estimate the PSD and not the covariance function directly? A variance component is estimated as a square and cannot change sign; a covariance value at a lag can be negative, a PSD value cannot. Estimating amplitudes per \emph{frequency} keeps every component non-negative and lets the inverse transform produce negative lag values legitimately (Ellmer 2018 §6.5.3). The same argument justifies the \emph{floor} policy: a PSD amplitude that VCE drives to zero is clamped to a small positive fraction of its neighbours, because $S_j = 0$ is a singular covariance, not a measurement (WP-35).
+
+\section{Whitening an arc}
+\label{sec:whitening}
+
+Three equivalent routes produce $\bar{\mat{A}} = \mat{W}^{-\mathsf T}\mat{A}$ of eq.~\eqref{eq:whiten} for one arc; they differ in cost, exactness and what they need from the model.
+
+\paragraph{Toeplitz Cholesky (exact).} $\mat{\Sigma} = \mat{W}\T\mat{W}$ by a dense Cholesky, $O(m^3)$, or by the Levinson/Schur recursion, $O(m^2)$; the triangular solve is $O(m^2 u)$ for $u$ columns. Exact for any PD Toeplitz law given by its lags. This is the route of GROOPS and of \code{engine.covModel} for \code{type = 'acf'|'psd'}. Its failure mode is a non-PD law (\S\ref{sec:nonpd}).
+
+\paragraph{AR/ARMA filter.} If the noise is (approximately) an AR($p$) process, $e_t + a_1 e_{t-1} + \dots + a_p e_{t-p} = \eta_t$, $\eta$ white with variance $\sigma_\eta^2$, then whitening is the FIR filter $\mat{W}^{-\mathsf T}\vc{x} \approx (\vc x * \vc a)/\sigma_\eta$, cost $O(m p u)$, and \emph{no covariance matrix is ever formed}. The AR coefficients are obtained from the covariance function by the Levinson--Durbin recursion (Yule--Walker), and a high-order AR can be reduced to a compact ARMA($p,q$) by Durbin's method (\code{kernel.ar2arma}). The approximation is in the \emph{start-up}: the first $p$ samples of an arc are not correctly whitened by a causal filter unless the exact initial-state weights are applied (the toolbox applies the exact Cholesky rows for the first $p$ samples, \code{kernel.armaWhiten}; residual approximation zero). The filter route is the right choice when arcs are long ($m \gg p$) and the PSD is smooth; the Toeplitz route when the PSD has narrow features (1/rev harmonics, the KBR ``bump'') that a low-order AR cannot represent. The reduction quality is checked by re-deriving the ACV of the fitted AR and comparing it with the target (\code{engine.checkPSD}); this instrument must be part of the estimation, not an optional utility (Part IV).
+
+\paragraph{Batching within an arc.} A long arc may be processed in row batches; a filter has memory, so batches must overlap by $\max(p,q)$ samples and the overlap rows are discarded from the second batch. Batching never changes the result (pinned by test; DATA\_CONTRACT §5).
+
+\section{Multi-axis streams}
+\label{sec:multiaxis}
+
+Kinematic positions carry $d=3$ components per epoch with cross-axis correlation from the orbit solution. Two models are supported:
+\begin{itemize}
+\item \textbf{Separable}: $\mat{\Sigma} = \mat{R}_t \otimes \mat{D}$ with a temporal law $\mat{R}_t$ (Toeplitz) and a per-epoch $d\times d$ matrix $\mat{D}_i$ (from the orbit's own epoch covariance). Whitening is the per-epoch $\mat{D}_i^{-1/2}$ (de-scale) followed by the temporal whitener per axis (\code{kernel.separableWhiten}). The per-epoch matrices must be supplied by the data (the \code{epochCovariance} hook of the contract); without them the fallback ``one scalar per stream'' \emph{biases the temporal law} whenever $\mat{D}_i$ varies with time, because the de-scaled residuals are then not stationary (HANDOVER L10, WP-72 rationale).
+\item \textbf{Vector AR}: $\vc{e}_t = \sum_{k=1}^p \mat{A}_k \vc{e}_{t-k} + \vc{\eta}_t$ with $d\times d$ coefficient matrices, fitted by the multichannel Levinson (Whittle) recursion from the cross-ACV (\code{engine.whittle}, \code{kernel.varACV}, \code{kernel.varWhiten}). This is the model of Kvas (2019, §2.2) for the process noise of daily fields; for observation noise it is the exact treatment of cross-axis correlation and is the one the redesign keeps as the multi-axis option.
+\end{itemize}
+
+\section{Where a declared law can be wrong}
+\label{sec:nonpd}
+
+\begin{caveat}[Non-positive-definite covariance laws]
+A covariance function that is \emph{truncated} at lag $L$ (zero beyond) is in general \emph{not} positive definite: its spectrum is the true PSD convolved with a Dirichlet kernel, which has negative side lobes. The toolbox found this in production (R4 finding G-08): an \code{acf} handed over with $L$ shorter than the longest arc produced an indefinite Toeplitz matrix, every arc was skipped as non-PD, and the driver reported ``no arcs''. The correct treatments, in order of preference: (i) define the law by its PSD and transform (positivity is then automatic); (ii) taper the covariance function with a PD window (Bartlett/Parzen) rather than truncating; (iii) require $L \ge m_{\max}$ and refuse otherwise. The toolbox does (iii) today; the redesign does (i) as the internal representation --- the estimator works in the PSD domain anyway --- and accepts (ii) as a user option.
+\end{caveat}
+
+\paragraph{Sampling and units.} A covariance function is a function of \emph{time}; a lag index is a function of \emph{samples}. The two coincide only for $\Delta t = 1$\,s. The G-08 defect above was a lookup in samples of a law given in seconds. The internal representation of every law must carry its $\Delta t$ (R2: metadata travels with the data), and any resampling is explicit.
+
+\paragraph{Gaps inside an arc.} The Toeplitz structure assumes equal spacing. A gap is either a cut (two arcs) or an explicit missing-data treatment (the covariance of the remaining epochs is the Toeplitz matrix with the gap rows/columns removed --- still valid, no longer Toeplitz, $O(m^3)$). The toolbox cuts; the data contract must make the cut a declared arc boundary (the arc resolver), never an implicit one.

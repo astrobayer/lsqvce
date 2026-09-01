@@ -1,0 +1,49 @@
+\chapter{Quality assessment: testing the model, localising the fault}
+\label{ch:quality}
+
+\section{The five levels of a verdict}
+\label{sec:verdict}
+
+A least-squares result is judged in a fixed order, each level assuming the one below it holds (this is the toolbox's \code{report}, R2/R3, and it stays unchanged in v5):
+\begin{enumerate}[label=\textbf{\arabic*}, start=0]
+\item \textbf{Integrity.} Does the arithmetic hold? $\sum_i r_i = n - u$ (Förstner), the whitened residual norms agree between the accumulation and the residual pass, the factorisation reproduces $\mat N$. A violation is a defect in the pipeline, never in the data.
+\item \textbf{Global test.} $\hat\sigma_0^2/\sigma_0^2$ against $\chi^2_{n-u}/(n-u)$: is the model, as a whole, consistent with the declared noise? After VCE the test passes by construction for each group ($\Omega_g = r_g$); before VCE it is the reason to run VCE.
+\item \textbf{Localisation.} Which observations, arcs or streams are inconsistent (\S\ref{sec:snooping}); does the residual carry structure (\S\ref{sec:systematic}).
+\item \textbf{Reliability.} What could \emph{not} have been detected: partial redundancies, minimal detectable biases, their influence on the estimates (\S\ref{sec:reliability}). This is the level people skip and the one that decides whether the result can be trusted.
+\item \textbf{Parameters.} Correlations, conditioning, contribution of each group to each parameter, confidence regions.
+\end{enumerate}
+
+\section{Whitened residuals, redundancy and leverage}
+
+With the whitened residual $\bar{\vc v}$ and the hat matrix $\bar{\mat H} = \bar{\mat A}\mat{N}^{-1}\bar{\mat A}\T$ (plus the local projector, \S\ref{sec:blockarrow}), $\Var(\bar v_i) = \hat\sigma_0^2 r_i$ with $r_i = 1 - \bar h_{ii}$. The \emph{standardised} residual $w_i = \bar v_i/(\hat\sigma_0\sqrt{r_i})$ is the test statistic of everything that follows. $r_i \to 0$ means the observation is fitted regardless of its value (no control); $r_i \to 1$ means it barely influences the solution.
+
+\section{Data snooping and its robust cousin}
+\label{sec:snooping}
+
+\paragraph{Baarda's $w$-test} assumes $\sigma_0$ known: $w_i \sim N(0,1)$; a blunder of size $\nabla_i$ shifts $w_i$ by $\nabla_i\sqrt{r_i}/\sigma_0$. \paragraph{Pope's $\tau$-test} uses $\hat\sigma_0$ and the $\tau$ distribution (a scaled $t$), appropriate when $\sigma_0$ is estimated --- always the case after VCE. The toolbox chooses automatically (\code{Test="auto"}). With $n$ tests the family-wise level is controlled by Bonferroni ($\alpha/n$) or, less conservatively, by the largest $|w_i|$ against its extreme-value distribution; the toolbox uses Bonferroni and prints the effective threshold.
+
+\paragraph{One at a time.} Removing the largest $|w_i|$, re-solving, and repeating (iterative snooping) is correct but expensive on a streamed problem: every rejection is a rank-one downdate of the reduced system, which the toolbox performs on the accumulated normal equations without re-reading the data when the observation's whitened row is kept; otherwise the arc is re-read. Rejection is recorded, never silent, and the total rejected fraction is a reported number with a warning threshold.
+
+\paragraph{Robust IRLS} replaces the sequential rejection by a continuous down-weighting $p_i \leftarrow p_i\,\psi(w_i)/w_i$ with Huber, IGG3 (Yang 1994) or Tukey bisquare influence functions, iterated to convergence. It is the right tool when outliers are numerous or clustered; its result is \emph{not} a least-squares result (the covariance must be scaled by the asymptotic efficiency), which the report states. In the redesign, IRLS is one of the three update policies of the single outer loop: per-observation weights are a diagonal covariance component like any other.
+
+\paragraph{Scale cross-check.} The MAD of the $w_i$ ($1.4826\cdot\mathrm{median}|w_i|$) estimates $\hat\sigma_0$ robustly; a ratio far from 1 between MAD and $\hat\sigma_0$ says the residual distribution has heavy tails --- a warning to run IRLS before believing the snooping verdict.
+
+\section{Reliability}
+\label{sec:reliability}
+
+The \emph{minimal detectable bias} of observation $i$ at significance $\alpha$ and power $1-\beta$ is
+\begin{equation}
+\nabla_{0,i} = \frac{\delta_0(\alpha,\beta)\,\sigma_0}{\sqrt{r_i}}, \qquad \delta_0 = z_{1-\alpha/2} + z_{1-\beta},
+\end{equation}
+and its influence on the estimates is $\nabla\hat{\vc x} = \mat{N}^{-1}\bar{\mat a}_i\,\nabla_{0,i}$ (external reliability). Arcs with low $r_i$ (short arcs, many local parameters) are where undetected blunders hide; the report lists the weakest and the \code{RWeak} threshold flags them. On the streaming path the per-observation $r_i$ come from the exact per-arc route (\S\ref{sec:redundancy}); when only the Monte-Carlo route was run, the report says ``reliability not computed'' rather than printing a diagonal estimate with 30\% error.
+
+\section{Systematic errors and whiteness}
+\label{sec:systematic}
+
+After VCE the whitened residuals of every stream should be white with unit variance. Two tests are applied per stream and per pass: the Ljung--Box portmanteau $Q = m(m+2)\sum_{k=1}^K \hat\rho_k^2/(m-k) \sim \chi^2_K$ on the autocorrelation of the whitened residuals, and the largest $|\hat\rho_k|$ against $2/\sqrt m$. A stream that never whitens has a law the model class cannot represent (AR order too low; a periodic term; a non-stationary segment) and the verdict names it --- the per-pass convergence table must carry the \emph{worst stream}, not only the worst $p$-value (Results.convergence, WP-17).
+
+Structure in the raw (un-whitened) residuals against time, argument of latitude, or a parameter of the user's choosing --- runs tests, a low-order polynomial fit, periodogram peaks at $k$/rev --- indicates a \emph{functional} model error. VCE cannot repair that; it will absorb it into the noise model, at the price of over-estimated errors and down-weighted arcs. The systematic-error instrument is therefore not an optional utility a user is told to run, but part of the verdict (Part IV, finding H-05).
+
+\section{Parameter-level diagnostics}
+
+Correlation coefficients from $\mat{N}^{-1}$, the condition number estimate of $\bar{\mat A}$, the contribution of group $g$ to parameter $j$ ($[\mat{N}^{-1}\mat{N}_g]_{jj}$, summing to one over groups), and 2-D confidence ellipses for chosen pairs. The contribution shares are the stream-level answer to ``which instrument determines this coefficient'' and are cheap on the exact route, probe-estimated on the Monte-Carlo route (\code{engine.streamContribution}).

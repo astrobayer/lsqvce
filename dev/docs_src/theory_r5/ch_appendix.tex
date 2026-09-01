@@ -1,0 +1,117 @@
+\appendix
+\chapter{Old $\to$ new mapping (83 $\to$ 46 public names)}
+\label{app:mapping}
+
+Generated from \code{dev/docs\_src/tiers.csv} at \code{d7ad051}; ``$\to$'' = absorbed by, ``deleted'' = no successor (H-01 class i/iii), ``dev'' = moves to \code{dev/tests} as an instrument.
+
+\begin{longtable}{@{}P{72mm}P{14mm}P{68mm}@{}}
+\toprule
+v4 name & tier & v5\\
+\midrule
+fit, Options, Results, report & USER & unchanged names, new signatures (M5)\\
+engine.Accumulator & ENGINE & $\to$ engine.Accumulator (the block one; flat path deleted)\\
+engine.BlockAccumulator & ENGINE & $\to$ engine.Accumulator\\
+engine.BatchIndex, engine.Combine & ENGINE & deleted (M2)\\
+engine.CommonPrior, engine.applyRegularisation, engine.datum, engine.ReducedContribution & ENGINE & $\to$ engine.Accumulator (priors, rank evidence, scope stores)\\
+engine.NormalEqSystem, engine.QRSystem & ENGINE & $\to$ engine.NormalEqBackend, engine.QrBackend\\
+engine.PrefetchLoader, engine.synthLoader & ENGINE & deleted (M2; template moves to \code{template/})\\
+engine.adjust, engine.robust, engine.solveNonlinear & ENGINE & $\to$ engine.declaration (adapters) + engine.update (IRLS, GN cores)\\
+engine.adjustBlock, engine.adjustVCE, engine.adjustVCEjoint & ENGINE & $\to$ engine.iterate + engine.policy + engine.update (M4)\\
+engine.arcVarianceFactors, engine.psdVCE, engine.vce, engine.varComp, engine.vceHutchinson & ENGINE & $\to$ engine.update (VCE policy) (M3); varComp/vceHutchinson deleted (M2)\\
+engine.checkPSD & ENGINE & $\to$ engine.noiseLaw.check (method)\\
+engine.collectResiduals, engine.residuals, engine.redundancy, engine.leverage, engine.leverageBlocks, engine.localDiagnostics, engine.outliers, engine.streamContribution, engine.contribution & ENGINE & $\to$ engine.sweep + engine.collectors.* (M4)\\
+engine.covComponent & ENGINE & $\to$ kernel.toeplitzWhiten (private helper) / dev\\
+engine.covModel, engine.jointModelOpt & ENGINE & $\to$ engine.noiseLaw + engine.arcWhiten (M3)\\
+engine.diagnose, engine.diagnoseAccum, engine.stat (tests), engine.systematic, engine.snoop, engine.ftest, engine.ellipse & ENGINE & $\to$ engine.verdict + Results methods (M4); kernel.stat keeps the distributions\\
+engine.gcvLambda & ENGINE & dev (instrument; VCE is the default weight)\\
+engine.iterateNoiseModel, engine.selectArOrder & ENGINE & deleted (M2)\\
+engine.selectArAcv & ENGINE & $\to$ engine.noiseLaw.reduceAR (method)\\
+engine.makeLoader, engine.resolveNc, engine.satKeyOf & ENGINE & $\to$ engine.declaration, engine.Loader, engine.scopePlan\\
+engine.mapreduce & ENGINE & $\to$ engine.accumulate / engine.sweep (the fold is theirs)\\
+engine.normalizeSatList, engine.resolveSatSpecs, engine.poolGroups & ENGINE & deleted (M2)\\
+engine.runMeta & ENGINE & unchanged (+ passRecord)\\
+engine.sharedProbe, engine.traceEstimate & ENGINE & $\to$ engine.probeBlock\\
+engine.whittle & ENGINE & $\to$ kernel.whittle\\
+kernel.ar2arma, armaACV, armaWhiten, dctI, levinsonDurbin, psd2acv, redundancyLags, residualAcv, separableWhiten, varACV, varWhiten & KERNEL & unchanged (+ acv2psd, ljungBox, toeplitzWhiten)\\
+kernel.decorrFactor, kernel.toeplitzCofactor & KERNEL & $\to$ kernel.toeplitzWhiten\\
+kernel.crossCorr, kernel.whitenessCorr & KERNEL & $\to$ kernel.ljungBox / engine.collectors.whiteness\\
+util.log, util.verbosity, util.mergeStruct, util.getfielddef & UTIL & unchanged (+ util.callUser)\\
+util.showExport, util.hasBackgroundPool & UTIL & deleted (M2)\\
+\bottomrule
+\end{longtable}
+
+\chapter{Error identifier catalogue (v5 authority, initial)}
+\label{app:ids}
+
+Grammar \code{lsqvce:<unit>:<reason>}. The catalogue is a CSV in \code{dev/docs\_src/error\_ids.csv} (unit, reason, class, message template, since); the audit refuses an identifier raised or documented but absent here. Initial content, by unit (reasons abbreviated; $\approx 130$ in total after M1):
+
+\begin{longtable}{@{}P{34mm}P{120mm}@{}}
+\toprule
+unit & reasons\\
+\midrule
+fit & unknownField, missingField, noSystems, noCommon, noDays, badDays, badId, duplicateSystem, badScope, badArcs, builderKind, paramType, kindAmbiguous, modelKind (retired in M2), notYet (retired in M2)\\
+Options & badValue (typed validators carry MATLAB ids), badCombination, badGroup, badNumLags (retired)\\
+declaration & (the fit rules above move here; fit re-raises with its unit for the user)\\
+Loader & builderThrew (cause), badDay, dayShape, arcBadNc, arcBadNl, badArc, badArcId, nonDeterministic (two reads differ), hookThrew\\
+scopePlan & badScope, duplicateTemplate, emptyExpansion\\
+Accumulator & rankDeficient, cancellation (sigma0 NaN), badPrior, scopeNotClosed, backendMismatch, badArcSize\\
+NormalEqBackend, QrBackend & notPD, cancellation, rankDeficient\\
+noiseLaw & nonPD, badSigma, unstableAR, lawTooShort, dtMissing, badGrid, floorHit (warning), tapered (warning)\\
+arcWhiten & nonPD (skip), batchOverlap\\
+update & frozen (warning), alternating (warning), negativeComponent (warning: clamped), skipThreshold (refusal)\\
+iterate & maxPasses (warning), notConverged (warning), poolFallback (warning)\\
+sweep & collectorFailed (cause), skipped (warning, per reason count)\\
+verdict & notComputed (reliability on probe route), integrity (level-0 violation: refusal)\\
+Results & noHistory, noCovariance, noSweep, badKind (plot)\\
+report & badLevel\\
+kernel.* & one \code{badInput} per function plus the specific ones (levinson: notPD; ar2arma: unstable; dctI: badNorm; redundancyLags: badProbes)\\
+util.callUser & nargin, nargout, threw (cause)\\
+\bottomrule
+\end{longtable}
+
+\chapter{Options mapping v4 $\to$ v5}
+
+\begin{longtable}{@{}P{56mm}P{98mm}@{}}
+\toprule
+v4 & v5\\
+\midrule
+Model gls / vce / pooled / ellmer & Estimate="none" / Estimate="noise" with per-stream estimate="law" (vce, changed numbers: R5-D4) / estimate="law", pool="obsType", arcFactors=false / estimate="law", arcFactors=true\\
+Robust none/irls + Influence & Robust="none"|"huber"|"igg3"|"bisquare"\\
+Backend & unchanged\\
+Reg, RegLambda, RegMatrix & data.priors(k) with estimate="scale"\\
+Sparse, DatumB, Sigma0 & Sparse deleted (measured moot); DatumB $\to$ priors; Sigma0 $\to$ Noise.Sigma0Prior (only for Estimate="none")\\
+Parallel, DistributeDays, ParallelThreshold & Parallel.Mode, Parallel.Axis, Parallel.Threshold\\
+Verbose, LogFid, LogFlag, ShowSeconds, ExportDir & Verbose, LogFile; plot hooks retired (plot(R) replaces)\\
+GroupBy, VceMaxIter, VceTol, MinRedundancy, ComponentsPerEpoch & groups are streams (pool decides sharing); MaxPasses/Tolerance; Noise.FreezeRedundancy; nAxis from the builder\\
+MaxOrder, AcvTol, MaxLag, WhiteAlpha & Noise.MaxOrder, Noise.ReduceTol, Noise.Grid, Whiteness\\
+MaxOuter, OuterTol & MaxPasses, Tolerance\\
+NumLags, Probes, Seed, Norm, MeanType, PsdMode, Smooth, C0, JointMaxIter, JointTol, StepSchedule, AvgTail & Noise.Grid, Probes, Seed, (one normalisation), Noise.MeanType, Noise.Whitener, Noise.Smooth, the declared law, (inner iterations retired: one loop), Tolerance, retired, retired\\
+Tuning, RobustMaxIter, RobustTol & Robust.Tuning, Robust.MaxIter, Robust.Tol\\
+NonlinearMaxIter, TolX, TolF, Lambda0 & MaxPasses, Tolerance, Noise-independent \code{GaussNewton.TolF}, \code{GaussNewton.Damping} (group added only when data.x0 present)\\
+Alpha, Bonferroni, Beta, RMin, RWeak, Test, RobustCheck, Store, NWorst, Verify, Progress & Diagnostics.* (RobustCheck always; Verify = level 0, always; Progress $\to$ Verbose)\\
+\bottomrule
+\end{longtable}
+
+\chapter{References}
+
+\begin{itemize}
+\item Baarda, W. (1968). \emph{A testing procedure for use in geodetic networks}. Netherlands Geodetic Commission, Publ. on Geodesy 2(5).
+\item Bekas, C., Kokiopoulou, E., Saad, Y. (2007). An estimator for the diagonal of a matrix. \emph{Appl. Numer. Math.} 57, 1214--1229.
+\item Ellmer, M. (2018). \emph{Contributions to GRACE gravity field recovery: improvements in dynamic orbit integration, stochastic modelling of the antenna offset correction, and co-estimation of satellite orientations}. Doctoral thesis, Graz University of Technology. Ch. 2, §6.5.
+\item Förstner, W. (1979). Ein Verfahren zur Schätzung von Varianz- und Kovarianzkomponenten. \emph{Allg. Vermessungs-Nachr.} 86, 446--453.
+\item Golub, G.H., Van Loan, C.F. (2013). \emph{Matrix computations}, 4th ed. Johns Hopkins.
+\item Higham, N.J. (2002). \emph{Accuracy and stability of numerical algorithms}, 2nd ed. SIAM.
+\item Hutchinson, M.F. (1990). A stochastic estimator of the trace of the influence matrix for Laplacian smoothing splines. \emph{Commun. Stat. Simul. Comput.} 19, 433--450.
+\item Koch, K.-R. (1999). \emph{Parameter estimation and hypothesis testing in linear models}, 2nd ed. Springer.
+\item Koch, K.-R., Kusche, J. (2002). Regularization of geopotential determination from satellite data by variance components. \emph{J. Geod.} 76, 259--268.
+\item Kusche, J. (2003). A Monte-Carlo technique for weight estimation in satellite geodesy. \emph{J. Geod.} 76, 641--652.
+\item Kvas, A. (2019). \emph{Estimation of high-frequency mass variations from satellite data in near real-time}. Doctoral thesis, Graz University of Technology. §2.2--2.3, §3.3.
+\item Kvas, A., Mayer-Gürr, T. (2019). Time-variable gravity field estimation from GRACE with stochastic modelling of temporal variations. \emph{J. Geod.} 93, 1--16.
+\item Pope, A.J. (1976). \emph{The statistics of residuals and the detection of outliers}. NOAA Tech. Rep. NOS 65 NGS 1.
+\item Rao, C.R. (1971). Estimation of variance and covariance components --- MINQUE theory. \emph{J. Multivariate Anal.} 1, 257--275.
+\item Teunissen, P.J.G. (2000). \emph{Adjustment theory}. Delft University Press.
+\item Teunissen, P.J.G., Amiri-Simkooei, A.R. (2008). Least-squares variance component estimation. \emph{J. Geod.} 82, 65--82.
+\item Yang, Y. (1994). Robust estimation for dependent observations. \emph{Manuscr. Geod.} 19, 10--17.
+\item MathWorks (2025). \emph{MATLAB Coding Guidelines} v1.0; \url{https://github.com/matlab/rules/blob/main/matlab-coding-standards.md}.
+\item Weigelt, M. (2026). \code{referenceSystem}: \code{CODING\_GUIDE.md}, \code{VALIDATION\_GUIDE.md}, \code{DOCUMENTATION\_GUIDE.md} (\url{https://github.com/matweigelt/referenceSystem}).
+\end{itemize}

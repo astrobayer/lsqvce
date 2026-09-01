@@ -1,0 +1,77 @@
+\part{Practical considerations}
+
+\chapter{The processing context and its numbers}
+\label{ch:practice}
+
+\section{What a GRACE-FO month looks like to the adjustment}
+
+\begin{tabular}{@{}P{32mm}P{70mm}P{54mm}@{}}
+\toprule
+quantity & typical value & consequence\\
+\midrule
+streams & KBR/LRI range-rate, kinematic positions C and D (3 axes), optionally ACC & 3--4 temporal laws to estimate\\
+sampling & 5\,s (KBR), 30\,s or 5\,s (POD) & $\Delta t$ per stream, carried with the law\\
+arc length & 1.5--3\,h $\to$ $m \approx 1000$--2000 (KBR at 5\,s) & $N$ lags of the same order\\
+arcs & 8--16 per day, $M \approx 300$--500 per month & $M$ is the redundancy of each PSD amplitude\\
+common unknowns & d/o 60: $u = 3717$; d/o 96: $9405$ & $\mat N$ 100\,MB--700\,MB dense\\
+local unknowns & 6 ICs/arc + ACC scale/bias/drift per day + KBR empiricals & eliminated per scope\\
+observations & $\sim 5\cdot10^5$ KBR, $\sim 3\cdot10^5$ POD rows/satellite & nothing of size $n$ is stored\\
+VCE passes & 5--8 outer, each = accumulate + residual sweep & the run time is $\sim$ 2--3$\times$ one GLS solve per pass\\
+\bottomrule
+\end{tabular}
+
+The cost model per pass: accumulation $O(\sum_a m_a u^2)$, one Cholesky $O(u^3/3)$, residual/redundancy sweep $O(\sum_a m_a u Z)$ with $Z=100$ probes, or $O(\sum_a m_a u^2)$ on the exact route. At $u \approx 4000$ the exact route is affordable on a workstation; at $u\approx 10^4$ the probe route is mandatory for the sweep, and the accumulation dominates. Memory: two $u\times u$ dense blocks (the accumulated $\mat N$ and its factor) plus one $u\times Z$ probe block; the per-arc work is $m\times(u+n_l)$ and is released.
+
+\section{The workflow, step by step}
+\label{sec:workflow}
+
+\begin{enumerate}
+\item \textbf{Declare.} One \code{data} struct: which common templates (scoped), which days, which systems; each system points to one \code{buildDay}. Nothing is read.
+\item \textbf{Validate.} Every declaration rule is checked before any read; every count (nc, nl, arcs per day) is derived from the declaration and the schedule, and is then \emph{enforced} against every day that is read.
+\item \textbf{Accumulate} (pass $k$): for every system, day, observation type, arc: build, cut, whiten with the current law, eliminate the local block, add to the common system. Parallel over days.
+\item \textbf{Solve}: factorise the reduced common system, back-substitute the locals on request, condition evidence.
+\item \textbf{Sweep}: re-read, whiten, form residuals, per-lag $(\Omega_n, s_n)$, per-observation redundancies (exact route) or probe products (MC route), whiteness statistics, worst residuals. One pass, several collectors, deterministic reduction.
+\item \textbf{Update}: the PSD per stream (or pooled per observation type), arc factors, group factors for fixed-law groups, robust weights, or the linearisation point --- whichever policy the run uses. Rebuild the whiteners.
+\item \textbf{Gate}: converged (which criterion), not converged (why), budget exhausted. Record the pass.
+\item \textbf{Judge}: the five-level verdict on the final pass; results object with provenance.
+\end{enumerate}
+Steps 3--7 are one loop; the ``gls'' model is the loop with zero updates. Everything a user configures is either a declaration (step 1) or a policy of steps 6--7.
+
+\section{Determinism and reproducibility}
+
+Two reads of the same day must be byte-identical (the residual is formed from the second read); a reduction over days must not depend on the worker count or the order in which workers finish (fold in day order, never as-completed); the probes are seeded and the seed is recorded; the options a run actually used are stored, not the ones the user typed. A parallel run and a serial run of the same declaration agree to the reduction order's roundoff --- and the test that pins this states whether the agreement is bitwise or eps-level and why (VALIDATION\_GUIDE, concurrency tag).
+
+\section{Parallelism: which axes, and what does not parallelise}
+\label{sec:parallel}
+
+\begin{tabular}{@{}P{30mm}P{34mm}P{92mm}@{}}
+\toprule
+axis & parallel? & note\\
+\midrule
+systems & yes & independent reduced contributions; usually only 2--3\\
+days within a system & \textbf{yes, the axis that scales} & one raw partial per day, merged in day order (WP-62)\\
+arcs within a day & yes & finer grain; only worth it when days are few\\
+observation types & yes & independent whitening; small count\\
+within an arc & no & the filter state is sequential; BLAS threads inside the dense products\\
+the dense solve & BLAS threads only & $O(u^3)$, one per pass\\
+probes & vectorised & one $u\times Z$ solve; no need for parallel\\
+residual sweep & yes, over days & collectors reduced deterministically\\
+\bottomrule
+\end{tabular}
+
+A \code{parpool("threads")} is enough for the accumulation (pure MATLAB, no file I/O in the worker if the user's builder caches); a process pool is needed when the builder reads files and the I/O is the bottleneck. The toolbox decides nothing about the pool type; it decides the axis, the threshold below which a pool is not worth its overhead (measured, not guessed), and the fold order. GPU acceleration of the per-arc dense products is gated on evidence (WP-31): with $m\approx 2000$ and $u\approx 4000$ the transfer cost is comparable to the product.
+
+\section{Numerical considerations that decide correctness}
+\label{sec:cancellation}
+
+\paragraph{Cancellation in $\hat{\vc v}\T\mat P\hat{\vc v}$.} On the NEQ path $\Omega = \bar{\vc l}\T\bar{\vc l} - \vc n\T\hat{\vc x}$ subtracts two numbers of size $\|\bar{\vc l}\|^2$ to obtain a number of size $(n-u)\hat\sigma_0^2$; the relative error is $\epsilon\,\|\bar{\vc l}\|^2/\Omega$ and grows with the fit quality. When $\Omega$ comes out negative or below the cancellation floor the toolbox reports $\hat\sigma_0 = \mathrm{NaN}$ with one identifier, on both backends (WP-49/50); the residual sweep, which forms $\Omega$ as a sum of squares, is the remedy and supersedes the normal-form value whenever it ran. Guards, clamps or iterative refinement are not applied (R4 §11.2 item 1): they would print a number that means nothing.
+
+\paragraph{Conditioning.} $\kappa(\mat N)=\kappa(\bar{\mat A})^2$; the Cholesky pivots are monitored and a trailing pivot below $\epsilon\cdot$max refuses with a rank-deficiency identifier that names the size of the null space. The QR backend, keeping $\kappa(\bar{\mat A})$, is the fallback and is what the benchmark reports when NEQ refuses (postflight L11).
+
+\paragraph{Scaling.} Common parameters of very different magnitude (Stokes coefficients across degrees) are column-scaled internally before factorisation and un-scaled after; the reported condition number is that of the scaled system, and the report says so.
+
+\paragraph{Regime dependence.} Whether a factoriser reports failure on a to-$\epsilon$ singular matrix depends on the BLAS/LAPACK build; assertions and refusals are formulated on eigenvalue or pivot ratios, never on the factoriser's success flag at the boundary (R4 §11.8 lesson).
+
+\section{Data handling: the builder contract, caching, and what the toolbox owns}
+
+The user writes one function per system, \code{buildDay(day, obsType, common, local, procOpt, info)}, returning raw (un-whitened) $\mat A$, $\mat B$, $\vc l$, $\vc t$ and the arc partition of the day. The toolbox owns cutting into arcs, whitening, elimination, and every count. The builder is called once per (day, observation type) and read twice per pass; the toolbox caches one built day, the user caches the expensive raw reads. \code{gracefoReading} (\code{readL1b}, \code{readL1bMulti}, \code{findGaps}) is the natural upstream: its gap/segment analysis is exactly the arc resolver the contract asks for, and its provenance struct is what \code{processingOptions} should carry. Nothing in \lsq{} depends on it; a worked example that connects the two is the missing piece of the documentation (Part V).

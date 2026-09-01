@@ -1,0 +1,65 @@
+\chapter{Work packages, levels, decisions}
+\label{ch:plan}
+
+\section{Levels M0 \ldots M7}
+
+One level = one branch = one PR (HANDOVER §11.5). Order of work is M0 $\to$ M1 $\to$ M2 $\to$ M3 $\to$ M4 $\to$ M5 $\to$ M6 $\to$ M7; M3 and M4 may be swapped if the GROOPS oracle (O4) is late. Nothing below starts before the decisions of \S\ref{sec:decisions} are taken.
+
+\begin{longtable}{@{}P{9mm}P{9mm}P{86mm}P{50mm}@{}}
+\toprule
+level & WP & scope & exit criterion\\
+\midrule
+M0 & 78 & \textbf{Instruments first.} Timing helper (rotation, 15 repeats, per-repeat statistic), seven-category audit (check 16 $\to$ 7 categories, metamorphic counted), bare-\code{catch} audit metric, identifier-catalogue check (documented = raised = catalogued), layering check on \code{tiers.csv}; fault-injection self-test for each new check & each check fires on a broken fixture and is silent on \code{main}; suite green; no functional change\\
+M0 & 79 & \textbf{Measurements that decide deletions.} PrefetchLoader vs plain parfor over days; exact vs probe sweep at $u \in \{500, 2000, 4000\}$; per-arc overhead of the block accumulator on 10-row arcs (H-02 caution) & numbers in \code{dev/DEVELOPMENT.md}; deletions in M2 cite them\\
+\midrule
+M1 & 80 & \textbf{Error doctrine} (Chapter~\ref{ch:errors}): rewrite all 36 \code{catch} sites; one \code{util.callUser} wrapper (nargin/nargout once, cause-wrapped); closed skip enum + counters + \code{SkipThreshold}; warnings once per run + inventory in \code{meta}; \code{stopReason}; identifier catalogue (Appendix~\ref{app:ids}) with the dead namespaces removed & bare-\code{catch} count 0; every identifier fires in a contract test; skip counts reach \code{report}; RELEASE\_NOTES lists retired identifiers\\
+\midrule
+M2 & 81 & \textbf{One accumulator.} \code{engine.Accumulator} = BlockAccumulator + scope stores + prior; delete \code{Accumulator} (flat), \code{Combine}, \code{BatchIndex}, \code{ReducedContribution}, \code{CommonPrior}, \code{applyRegularisation}, \code{datum} (absorbed), \code{adjust}, \code{robust}, \code{solveNonlinear} (cores move to \code{update}); kinds B/C via \code{declaration} adapters; \code{data.priors} & kinds B/C outputs byte-identical to v4 on the test fixtures (reference); IRLS on kind A available; 5 suites retired, points re-homed\\
+M2 & 82 & \textbf{Delete the unreached duplicates} (H-01 class i and iii, per WP-79 numbers): varComp, vceHutchinson, iterateNoiseModel, selectArOrder, PrefetchLoader, synthLoader, poolGroups, resolveSatSpecs, normalizeSatList, showExport, hasBackgroundPool; instruments (class ii) move to \code{dev/tests} or into the verdict (M4) & audit: no removed name referenced anywhere (check 2); glob-inventoried, not hand-picked\\
+\midrule
+M3 & 83 & \textbf{One noise estimator.} \code{engine.noiseLaw} (PSD-domain representation with \code{dt}, grid from the schedule, floor, taper, whitener cache); \code{engine.update} VCE policy = per-lag $(\Omega_n, s_n)$ $\to$ PSD amplitudes $\to$ arc factors $\to$ group scales; \code{estimate}/\code{arcFactors}/\code{pool} on the stream spec; AR/ARMA as whitener choice; delete \code{applyShape}/\code{applyScale}/\code{applyJoint}, \code{covModel}, \code{jointModelOpt}, \code{psdVCE}, \code{arcVarianceFactors}, \code{vce}, \code{checkPSD} (method now) & parity: v5 \code{estimate="law"} equals v4 \code{ellmer} on the WP-51 fixture to $10^{-10}$ (O2), equals v4 \code{pooled} with \code{arcFactors=false}; v4 \code{vce} mode documented as changed (breaking) with the z-score recovery on O3 not worse; O4 GROOPS parity or waiver\\
+M3 & 84 & \textbf{Speed of the unified path} (H-03 B's condition): budgets as ratios against v4 \code{ellmer} and v4 \code{vce} at the WP-79 points & per-pass ratio $\le 1.0$ vs v4 \code{ellmer}; $\le 1.5$ vs v4 \code{vce} (PREDICTED; measured decides)\\
+\midrule
+M4 & 85 & \textbf{One sweep with collectors} + \code{engine.iterate}/\code{policy}/\code{gate}/\code{passRecord}; \code{accumulate} over \code{Parallel.Axis}; delete \code{residuals}, \code{redundancy}, \code{collectResiduals}, \code{streamContribution}, \code{contribution}, \code{outliers}, \code{leverage}, \code{leverageBlocks}, \code{localDiagnostics}, \code{mapreduce}, \code{sharedProbe}/\code{probeStream} (into \code{probeBlock}), \code{adjustVCE}, \code{adjustVCEjoint}, \code{adjustBlock} & one re-read per pass (counted by a loader instrument); collectors against O1; concurrency bit-identical; \code{Axis="arcs"} measured at $u=4000$\\
+M4 & 86 & \textbf{Verdict from the sweep}: \code{engine.verdict} absorbs diagnose/diagnoseAccum/stat(tests)/systematic/snoop/ftest/ellipse; \code{Results} methods \code{systematic}, \code{snoop}, \code{reliability}, \code{plot} & report never names an engine function; O5/O6; every level-2/3 number traceable to a collector\\
+\midrule
+M5 & 87 & \textbf{Interface}: \code{Options} v5 (12 + 4 groups), \code{fit(data, opts, Name=Value)}, contract v5 delta (+ rename if R5-D3), \code{Results} v5 fields, \code{plot}/\code{disp}; version 5.0; RELEASE\_NOTES 83$\to$46 & 3-line acceptance on every kind; Name-Value == object byte-identical; every retired option name in the migration table\\
+\midrule
+M6 & 88 & \textbf{Documentation}: theory PDF from this LaTeX source (R5-D6), tiered HTML regenerated from the new tiers, DATA\_CONTRACT v5, manual reduced, README onto v5 (fix the v2 names), \code{gracefoReading} example (O7), help sweep with ACCURACY blocks & audit check 17 doc sync; README examples run; theory PDF builds in CI (pdflatex on the runner or committed PDF with a source hash check)\\
+\midrule
+M7 & 89 & \textbf{Seven-category completeness}: every unit of the 46 has all seven or an exemption row; ratio speed suite; metamorphic suite counted; fault-injection for gates; \code{test\_parallel} on a PCT-licensed runner (WP-30 backlog) or documented local-only & check 16 gaps 0; exemptions $\le 20$ rows, each argued\\
+\bottomrule
+\end{longtable}
+
+Backlog carried: WP-42 (monotone/trust-region alternation --- revisit after M3: with one scale owner it may be moot), WP-31 GPU (gated on M4 measurements), WP-30 runner.
+
+\section{Decisions required}
+\label{sec:decisions}
+
+\begin{longtable}{@{}P{12mm}P{74mm}P{68mm}@{}}
+\toprule
+\# & decision & recommendation\\
+\midrule
+R5-D1 & Keep the v4 data contract as the base of v5 (additive \code{estimate}/\code{arcFactors}/\code{pool}/\code{dt}/\code{priors}); no rewrite of the declaration & \textbf{keep} (all three experts)\\
+R5-D2 & Replace \code{Model} by \code{Estimate="none"|"noise"} + per-stream \code{estimate}; \code{Options} reduced to 12 + 4 groups (Chapter~\ref{ch:ui}) & \textbf{yes}; breaking, in M5 with the migration table\\
+R5-D3 & Rename \code{covariance} $\to$ \code{noise} in the stream spec & split panel; C recommends \textbf{no} (churn on every builder demo and fixture); A/B mildly for. Default if silent: no\\
+R5-D4 & Retire the biased-ACV ``separate'' estimator (v4 \code{vce}) in favour of the per-lag estimator; accept changed numbers in that mode & \textbf{yes} (H-03); the z-score recovery test on O3 is the acceptance, not equality to v4\\
+R5-D5 & Delete H-01 classes (i) and (iii) outright (no ENGINE-tier survival) & \textbf{yes} under the no-aliases rule; instruments (class ii) survive as \code{dev/tests} tools or verdict collectors\\
+R5-D6 & Theory authority: this document's Parts I--III replace \code{lsqvce\_theory.pdf} (LaTeX source, pdflatex build); ReportLab theory pipeline retired & \textbf{yes}; the manual keeps its own pipeline until M6 decides\\
+R5-D7 & Sequence: M0/M1 first (instruments and error doctrine on the \emph{current} tree) so every later deletion is measured and every catch is already honest & \textbf{yes}; M0 has no functional change and can merge within a day\\
+\bottomrule
+\end{longtable}
+
+\section{Risks and how the plan bounds them}
+
+\begin{itemize}
+\item \textbf{Parity of the unified estimator} (M3). Bounded by O2 (Python mirror, exists), O3 (physical oracle, exists) and O4 (GROOPS, open). If O4 stays open, M3 merges on O2+O3 with the waiver recorded in the oracle register --- an empty row, not a silence.
+\item \textbf{Speed regression of the block accumulator on tiny batches} (M2). Measured in WP-79 before the deletion; the adapter's arc size is the lever.
+\item \textbf{Hand-picked inventories} (the lesson pinned twice in §11.8). Every deletion and rename list in M2/M4/M5 is produced by \code{audit\_tree.py} globs and committed with the WP.
+\item \textbf{Breaking churn.} Exactly one breaking release (5.0) at M5; M0--M4 are internal and non-breaking for a \code{fit}+\code{data} user except the numbers of the retired \code{vce} mode (R5-D4), which are announced in the M3 PR body.
+\item \textbf{The theory PDF build in CI.} pdflatex on the hosted runner adds a job; alternative is the committed PDF with a source-hash check (audit). M6 decides by measurement of the runner image.
+\end{itemize}
+
+\section{What does not change}
+
+The four USER names; the \code{data} struct and \code{buildDay}; NaN honesty; NEQ default/QR fallback; the probe contract and seeds; the five-level verdict; the level-based loop, the audit gate, the user as sole merger; the dated model stamp in every file; the HANDOVER as the single status document.

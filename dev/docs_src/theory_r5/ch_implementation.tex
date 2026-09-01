@@ -1,0 +1,60 @@
+\part{Implementation and error handling}
+
+\chapter{Anatomy of the computation}
+\label{ch:impl}
+
+\section{One loop, three update policies}
+
+The v5 design has a single iteration whose body never changes; the \emph{policy} decides what is updated between passes:
+
+\begin{center}
+\begin{tikzpicture}[node distance=9mm and 7mm, every node/.style={font=\footnotesize},
+  box/.style={draw,rounded corners=1pt,minimum height=7mm,minimum width=24mm,align=center,fill=boxbg},
+  pol/.style={draw,dashed,rounded corners=1pt,minimum height=7mm,align=center},
+  >={Stealth[length=2mm]}]
+\node[box] (decl) {declare\\\code{data}, \code{Options}};
+\node[box,right=of decl] (val) {validate\\derive counts};
+\node[box,right=of val] (acc) {accumulate\\whiten, eliminate, add};
+\node[box,right=of acc] (sol) {solve\\factor, condition};
+\node[box,below=of sol] (swp) {sweep\\residuals, $(\Omega_n,s_n)$, $r_i$};
+\node[box,left=of swp] (upd) {update\\by policy};
+\node[box,left=of upd] (gate) {gate\\converged? why?};
+\node[box,left=of gate] (jud) {judge\\verdict, Results};
+\draw[->] (decl)--(val); \draw[->] (val)--(acc); \draw[->] (acc)--(sol); \draw[->] (sol)--(swp);
+\draw[->] (swp)--(upd); \draw[->] (upd)--(gate); \draw[->] (gate)--(jud);
+\draw[->] (gate.north) -- ++(0,4.5mm) -| node[pos=0.25,above]{next pass} (acc.south);
+\node[pol,below=7mm of upd,xshift=-16mm] (p1) {VCE: PSD, arc, group factors};
+\node[pol,right=2mm of p1] (p2) {IRLS: per-observation weights};
+\node[pol,right=2mm of p2] (p3) {Gauss--Newton: linearisation point};
+\draw[->,dashed] (p1.north) -- (upd.south west); \draw[->,dashed] (p2.north) -- (upd.south); \draw[->,dashed] (p3.north) -- (upd.south east);
+\end{tikzpicture}
+\end{center}
+
+\code{Model="gls"} is the loop with an empty policy (one pass, judge). The policies compose: a nonlinear problem with VCE runs both updates per pass (the ITSG scheme does exactly this: re-linearised orbits and re-estimated covariance functions in the same iteration).
+
+\section{The pass record}
+
+Each pass leaves a row in \code{R.history}: the pass number, wall time per step, the update norms per component, the whiteness statistics per stream, the arcs skipped with their reason counts, the condition evidence, and the gate decision with its reason. The row is what \code{R.convergence()} tabulates and what a warning names when the budget is exhausted. It is written \emph{before} the next pass starts, so an interrupted run is diagnosable.
+
+\section{Collectors in the sweep}
+
+The residual sweep carries a list of collectors, each with \code{init}, \code{accumulate(arc, context)} and \code{fold(a, b)}; the fold is associative and applied in day order. The v5 collectors: whitened residual norms per group; per-lag $(\Omega_n, s_n)$ per stream (exact or probe); per-observation $r_i$, $w_i$ and the worst-$K$ heap (exact route); the whiteness autocorrelations per stream; the group contributions. A collector that is not needed by the policy or the requested diagnostics is not attached --- the sweep's cost is the sum of its collectors, and the report lists which ran.
+
+\section{The accumulator}
+
+One class, \code{engine.Accumulator} (the v5 name for today's \code{BlockAccumulator}; the flat batch accumulator is retired), with: a backend (NEQ or QR), a common block of size $u$, one store per system holding the current scope's local block and its Schur-complement machinery, \code{addArc}, \code{closeScope} (eliminate the local block of a day or a system when its last arc has been added), \code{solve}, \code{backSubstitute}, \code{condition}. A ``batch'' problem is a system with one day, one arc per batch and $n_l = 0$; a nonlinear problem re-linearises by calling the builder with the current $\vc x$. The class is the only place that knows the backend.
+
+\section{Layers and the call rule}
+
+\begin{tabular}{@{}P{16mm}P{104mm}P{34mm}@{}}
+\toprule
+tier & contents & calls\\
+\midrule
+USER & \code{fit}, \code{Options}, \code{Results}, \code{report} & ENGINE\\
+ENGINE & loader, accumulator, iteration, sweep, VCE, diagnostics, provenance & KERNEL, UTIL\\
+KERNEL & transforms, filters, recursions, statistics --- pure functions on arrays & UTIL\\
+UTIL & logging, verbosity, struct helpers & ---\\
+\bottomrule
+\end{tabular}
+
+Calls go downward only; a KERNEL function takes arrays and returns arrays, prints nothing and reads no option object. The layering is declared in one table (\code{tiers.csv}) and checked by the audit (check 18). A function that a USER-tier verdict tells the user to run is itself USER-tier reachable through \code{Results} (Part IV, H-05).

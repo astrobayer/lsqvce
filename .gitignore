@@ -17,3 +17,10 @@ references/local/
 custom_toolbox.json
 helpsearch-v*/
 __pycache__/
+
+# LaTeX build products of dev/docs_src/theory_r5 (build.sh removes them; belt and braces)
+dev/docs_src/theory_r5/*.aux
+dev/docs_src/theory_r5/*.log
+dev/docs_src/theory_r5/*.out
+dev/docs_src/theory_r5/*.toc
+dev/docs_src/theory_r5/main.pdf

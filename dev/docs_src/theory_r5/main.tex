@@ -1,0 +1,116 @@
+% lsqvce -- Theory, practice, implementation, error handling, and the R5
+% review and redesign plan.  Built with pdflatex (dev/docs_src/theory_r5/build.sh).
+% Created 2026-09-01 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
+% model Claude Fable 5.1 -- REVIEW R5.
+\documentclass[11pt,a4paper,twoside,openany]{report}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{mathptmx}\usepackage[scaled=0.92]{helvet}\usepackage{courier}
+\usepackage{microtype}
+\usepackage[margin=24mm,headheight=14pt]{geometry}
+\usepackage{amsmath,amssymb,bm}
+\usepackage{booktabs,longtable,array,multirow}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,fit,calc}
+\usepackage[most]{tcolorbox}
+\usepackage{titlesec}
+\usepackage{caption}
+\usepackage{fancyhdr}
+\usepackage[hidelinks,pdftitle={lsqvce -- Theory, practice, implementation, error handling; R5 review and redesign},pdfauthor={Matthias Weigelt with Claude (Anthropic), model Claude Fable 5.1}]{hyperref}
+
+\setlist{nosep,leftmargin=*}
+\setlength{\tabcolsep}{4pt}
+\newcolumntype{P}[1]{>{\raggedright\arraybackslash}p{#1}}
+\sloppy
+\setlength{\parskip}{4pt}
+\setlength{\parindent}{0pt}
+\titleformat{\chapter}[hang]{\bfseries\LARGE}{\thechapter}{1em}{}
+\titlespacing*{\chapter}{0pt}{-10pt}{14pt}
+\titleformat{\part}[display]{\bfseries\huge}{Part \thepart}{1em}{}
+
+\definecolor{ink}{RGB}{30,30,30}
+\definecolor{rule}{RGB}{120,120,120}
+\definecolor{boxbg}{RGB}{245,245,240}
+\definecolor{warnbg}{RGB}{253,244,235}
+\definecolor{codebg}{RGB}{247,247,247}
+\definecolor{kw}{RGB}{0,0,160}
+\definecolor{cm}{RGB}{34,120,34}
+\definecolor{st}{RGB}{160,32,240}
+
+\lstdefinelanguage{MATLABx}{
+  morekeywords={function,end,if,else,elseif,for,while,return,arguments,classdef,properties,methods,switch,case,otherwise,try,catch,parfor,spmd},
+  sensitive=true, morecomment=[l]{\%}, morestring=[m]', morestring=[m]"}
+\lstset{language=MATLABx,basicstyle=\ttfamily\small,keywordstyle=\color{kw},commentstyle=\color{cm},stringstyle=\color{st},
+  backgroundcolor=\color{codebg},frame=single,rulecolor=\color{rule},framesep=4pt,breaklines=true,columns=fullflexible,keepspaces=true,
+  showstringspaces=false,aboveskip=6pt,belowskip=6pt,xleftmargin=2pt}
+
+\newtcolorbox{principle}[1][]{enhanced,colback=boxbg,colframe=rule,boxrule=0.5pt,arc=1pt,left=6pt,right=6pt,top=4pt,bottom=4pt,fonttitle=\bfseries,title={#1}}
+\newtcolorbox{caveat}[1][]{enhanced,colback=warnbg,colframe=rule,boxrule=0.5pt,arc=1pt,left=6pt,right=6pt,top=4pt,bottom=4pt,fonttitle=\bfseries,title={#1}}
+\newtcolorbox{panel}[1][]{enhanced,colback=white,colframe=rule,boxrule=0.5pt,arc=1pt,left=6pt,right=6pt,top=4pt,bottom=4pt,fonttitle=\bfseries,title={#1},breakable}
+
+\newcommand{\mat}[1]{\bm{#1}}
+\newcommand{\vc}[1]{\bm{#1}}
+\newcommand{\T}{^{\mathsf T}}
+\newcommand{\tr}{\operatorname{tr}}
+\newcommand{\diag}{\operatorname{diag}}
+\newcommand{\E}{\operatorname{E}}
+\newcommand{\Var}{\operatorname{Var}}
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\lsq}{\code{lsqvce}}
+\newcommand{\finding}[1]{\textbf{#1}}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[LE,RO]{\small\thepage}
+\fancyhead[RE]{\small\nouppercase{\leftmark}}
+\fancyhead[LO]{\small lsqvce -- theory, practice, implementation, error handling; R5 review and redesign}
+\renewcommand{\headrulewidth}{0.3pt}
+
+\begin{document}
+
+\begin{titlepage}
+\vspace*{30mm}
+{\bfseries\Huge lsqvce\par}
+\vspace{6mm}
+{\bfseries\LARGE Least-squares adjustment with variance component estimation\par}
+\vspace{4mm}
+{\Large Theory, practical considerations, implementation, and error handling\par}
+\vspace{2mm}
+{\Large --- with the Review R5 of toolbox v4.0 and the redesign plan for v5\par}
+\vspace{14mm}
+{\large Prepared for the \lsq{} toolbox (\code{matweigelt/lsqvce}) by a three-expert panel:\par}
+\vspace{3mm}
+\begin{tabular}{@{}ll@{}}
+Expert A & least-squares adjustment and stochastic error modelling\\
+Expert B & satellite-gravimetry data processing (GRACE/GRACE-FO)\\
+Expert C & software design and MATLAB programming\\
+\end{tabular}
+\vspace{14mm}
+
+{\large Version 5.0-plan, 1 September 2026\par}
+\vspace{3mm}
+{Created 2026-09-01 (CEST, UTC+02:00) with assistance from Claude (Anthropic), model Claude Fable 5.1 --- Review R5. Source: \code{dev/docs\_src/theory\_r5/}. Binding status and ledger: \code{dev/HANDOVER.md} \S12.\par}
+\vfill
+\begin{principle}[How to read this document]
+Parts I--III are the \emph{theory authority} of the toolbox: what is computed, why, and where the computation must refuse. They supersede \code{lsqvce\_theory.pdf} (R4 WP-59) once decision R5-D6 is taken. Parts IV--V are the review of the tree at \code{main} head \code{d7ad051} (v4.0, 634 test points, 83 public names) and the plan for v5. Every claim about the toolbox names a file, a line or a work package so it can be checked rather than believed. Nothing in Part V is implemented; it is a plan awaiting the user's decisions (\S\ref{sec:decisions}).
+\end{principle}
+\end{titlepage}
+
+\tableofcontents
+
+\input{ch_theory_model}
+\input{ch_theory_stochastic}
+\input{ch_theory_vce}
+\input{ch_theory_quality}
+\input{ch_practice}
+\input{ch_implementation}
+\input{ch_errors}
+\input{ch_review}
+\input{ch_redesign}
+\input{ch_plan}
+\input{ch_appendix}
+
+\end{document}

@@ -1,0 +1,80 @@
+\part{Theory}
+
+\chapter{The linear model and its solutions}
+\label{ch:model}
+
+\section{Gauss--Markov model}
+
+The toolbox estimates $u$ unknowns $\vc{x}$ from $n$ \emph{reduced} observations $\vc{l}$ (observed minus computed at the linearisation point) under the linear Gauss--Markov model
+\begin{equation}
+\vc{l} = \mat{A}\vc{x} + \vc{e}, \qquad \E[\vc{e}] = \vc{0}, \qquad \E[\vc{e}\vc{e}\T] = \mat{\Sigma} = \sigma_0^2\,\mat{Q}, \qquad \mat{P} = \mat{Q}^{-1}.
+\label{eq:gm}
+\end{equation}
+$\mat{Q}$ is the a-priori cofactor matrix, $\sigma_0^2$ the variance of unit weight. The best linear unbiased estimate minimises $\vc{e}\T\mat{P}\vc{e}$:
+\begin{equation}
+\hat{\vc{x}} = (\mat{A}\T\mat{P}\mat{A})^{-1}\mat{A}\T\mat{P}\vc{l} = \mat{N}^{-1}\vc{n}, \qquad
+\hat{\vc{v}} = \vc{l} - \mat{A}\hat{\vc{x}}, \qquad
+\hat\sigma_0^2 = \frac{\hat{\vc{v}}\T\mat{P}\hat{\vc{v}}}{n-u}, \qquad
+\mat{\Sigma}_{\hat x\hat x} = \hat\sigma_0^2\,\mat{N}^{-1}.
+\label{eq:lsq}
+\end{equation}
+Two facts used everywhere below: the residual is a projection, $\hat{\vc{v}} = (\mat{I}-\mat{A}\mat{N}^{-1}\mat{A}\T\mat{P})\,\vc{l} = (\mat{I}-\mat{H})\,\vc{l}$ with the \emph{hat matrix} $\mat{H}$; and the redundancy is distributed over the observations by the diagonal of $\mat{R} = \mat{I}-\mat{H}$, $\sum_i r_i = n-u$ (Förstner 1979). $\hat\sigma_0^2$ is unbiased only because the denominator is that trace: every estimator in Chapter~\ref{ch:vce} is a specialisation of ``quadratic form over its expectation''.
+
+\section{Decorrelation and whitening}
+
+With $\mat{\Sigma} = \mat{W}\T\mat{W}$ (any square root; Cholesky $\mat{W}$ upper triangular, or a filter), the model is transformed to unit weights,
+\begin{equation}
+\bar{\mat{A}} = \mat{W}^{-\mathsf T}\mat{A}, \qquad \bar{\vc{l}} = \mat{W}^{-\mathsf T}\vc{l}, \qquad \bar{\vc{e}} \sim (\vc{0}, \mat{I}),
+\label{eq:whiten}
+\end{equation}
+and \eqref{eq:lsq} becomes ordinary least squares. The toolbox never forms $\mat{\Sigma}$ or $\mat{P}$ of size $n$: whitening is applied \emph{per arc} by a triangular solve (Toeplitz Cholesky) or by a linear filter (AR/ARMA), Chapter~\ref{ch:stochastic}. Everything downstream --- normal equations, residuals, redundancies --- is expressed in whitened quantities, so ``residual'' in this document means $\bar{\vc{v}} = \mat{W}^{-\mathsf T}\hat{\vc{v}}$ unless said otherwise. The raw residual is recovered as $\hat{\vc{v}} = \mat{W}\T\bar{\vc{v}}$ when a user asks for it.
+
+\section{Two ways to solve, and why the toolbox keeps both}
+\label{sec:twosolvers}
+
+\paragraph{Normal equations (NEQ).} Accumulate $\mat{N} = \sum_k \bar{\mat{A}}_k\T\bar{\mat{A}}_k$, $\vc{n} = \sum_k\bar{\mat{A}}_k\T\bar{\vc{l}}_k$ and $\bar{\vc{l}}\T\bar{\vc{l}}$ over arcs $k$, then $\mat{N} = \mat{U}\T\mat{U}$ (Cholesky) and two triangular solves. Cost $O(n u^2 + u^3/3)$, memory $O(u^2)$, and --- decisive in satellite geodesy --- \emph{partial systems add}: arcs, days, satellites, and archived normal equations (SINEX/GROOPS) combine by matrix addition. The price is conditioning: $\kappa(\mat{N}) = \kappa(\bar{\mat{A}})^2$, so $\hat\sigma_0^2$ computed as $(\bar{\vc l}\T\bar{\vc l} - \vc{n}\T\hat{\vc x})/(n-u)$ cancels catastrophically when the fit is very good relative to $\|\vc l\|$ (\S\ref{sec:cancellation}).
+
+\paragraph{Square-root information (QR).} Maintain the triangular factor of $[\bar{\mat{A}}\ \bar{\vc{l}}]$ by Householder updates; $\hat\sigma_0^2$ is the squared last diagonal, obtained \emph{without} subtraction. Backward stable, $\kappa(\bar{\mat A})$ instead of its square; memory the same $O(u^2)$; arcs still add (the factor is updated, not recomputed); but factors of two independent systems do not add --- combination means re-triangularising the stacked factors, which is exact but not the file-exchange convention of the field.
+
+\begin{principle}[Verdict (R4 §11.2 item 2, confirmed by R5)]
+NEQ is the default because the block-arrow elimination, day-wise parallel accumulation and NEQ file exchange are NEQ operations; QR is the accuracy fallback. Both stay. The condition evidence ($\kappa$ estimate, pivot ratios) is always reported so a user sees when the default is the wrong choice. What the toolbox must not do is hide the difference by iterative refinement on the NEQ path (``guards are not fixes'', HANDOVER §11.8).
+\end{principle}
+
+\section{Block-arrow systems and the elimination of local parameters}
+\label{sec:blockarrow}
+
+In satellite gravimetry the unknowns split into \emph{common} parameters $\vc{x}$ (Stokes coefficients, shared by all arcs of all systems) and \emph{local} parameters $\vc{y}_a$ (initial state, accelerometer scale/bias, empirical KBR terms) that appear in one arc, one day or one system only. For system $s$ and arc $a$,
+\begin{equation}
+\bar{\vc{l}}_a = \bar{\mat{A}}_a\vc{x} + \bar{\mat{B}}_a\vc{y}_a + \bar{\vc{e}}_a ,
+\end{equation}
+and the joint normal equations have the block-arrow form. Eliminating $\vc{y}_a$ by the Schur complement gives the \emph{reduced} contribution of the arc to the common system:
+\begin{equation}
+\mat{N}_{a}^{\mathrm{red}} = \bar{\mat{A}}_a\T\bar{\mat{A}}_a - \bar{\mat{A}}_a\T\bar{\mat{B}}_a\,(\bar{\mat{B}}_a\T\bar{\mat{B}}_a)^{-1}\bar{\mat{B}}_a\T\bar{\mat{A}}_a
+= \bar{\mat{A}}_a\T\,\mat{P}^{\perp}_{B_a}\,\bar{\mat{A}}_a, \qquad
+\vc{n}_a^{\mathrm{red}} = \bar{\mat{A}}_a\T\mat{P}^{\perp}_{B_a}\bar{\vc{l}}_a,
+\label{eq:schur}
+\end{equation}
+with $\mat{P}^{\perp}_{B} = \mat{I} - \bar{\mat{B}}(\bar{\mat{B}}\T\bar{\mat{B}})^{-1}\bar{\mat{B}}\T$ the projector onto the complement of the local design. The residual sum of squares reduces likewise, $\bar{\vc{l}}_a\T\mat{P}^{\perp}_{B_a}\bar{\vc{l}}_a$. Back-substitution recovers $\hat{\vc{y}}_a = (\bar{\mat{B}}_a\T\bar{\mat{B}}_a)^{-1}\bar{\mat{B}}_a\T(\bar{\vc{l}}_a - \bar{\mat{A}}_a\hat{\vc{x}})$ and, if wanted, its covariance. Three consequences shape the toolbox:
+\begin{enumerate}
+\item The common system is assembled from \emph{arc contributions that are independent of each other}: the accumulate step is embarrassingly parallel over arcs, days and systems (Chapter~\ref{ch:practice}).
+\item Scopes above the arc (a day-wise accelerometer bias, a system-wise phase-centre offset) are still local to their scope and are eliminated at that scope; the reduced contribution of a day is the Schur complement of the day's local block over the day's arcs. The v4 \emph{scoped parameter tables} (HANDOVER L11) are exactly this bookkeeping.
+\item Every diagnostic that involves the hat matrix (redundancy, leverage, w-tests) must include the local block's projector: $\mat{H}_a = \mat{P}_{B_a} + \mat{P}^{\perp}_{B_a}\bar{\mat{A}}_a\mat{N}^{-1}\bar{\mat{A}}_a\T\mat{P}^{\perp}_{B_a}$. Forgetting the first term over-states the redundancy by $n_{l}$ per arc (R2 finding F-03, fixed WP-33).
+\end{enumerate}
+
+\section{Datum defect, prior information and regularisation}
+\label{sec:reg}
+
+A rank defect $d = u - \operatorname{rank}(\mat{A})$ (a datum that no observation fixes; a truncation degree the data cannot resolve) is detected from the trailing pivots of the Cholesky factor or from an eigenvalue ratio, never from a factoriser's success/failure at the boundary (R4 §11.8: regime-dependent). It is removed by either
+\begin{itemize}
+\item \emph{minimum constraints} $\mat{B}\T\vc{x} = \vc{0}$ with $\mat{B}$ a basis of the null space, or
+\item \emph{pseudo-observations} $\vc{0} = \mat{L}\vc{x} + \vc{e}_r$, $\vc{e}_r\sim(\vc 0,\sigma_r^2\mat{Q}_r)$, which is Tikhonov regularisation with $\lambda = \hat\sigma_0^2/\sigma_r^2$: $\mat{N}_\lambda = \mat{N} + \lambda\mat{L}\T\mat{Q}_r^{-1}\mat{L}$.
+\end{itemize}
+The pseudo-observation form is the one that fits the VCE machinery: the prior is one more observation group with its own variance component $\sigma_r^2$, estimated by Helmert like any other (Koch \& Kusche 2002; Ellmer 2018 §6.5.5: the ``geophysical pseudo-observations'' of ITSG-Grace2016). The toolbox's rule is that regularisation is always \emph{declared} (a group with a name, a matrix and a component) and always \emph{reported} (its redundancy share, its component, its effect on $\hat\sigma_0^2$), never applied silently to make a factorisation succeed.
+
+\section{Nonlinear models}
+
+For $\vc{l} = f(\vc{x}) + \vc{e}$ the toolbox iterates Gauss--Newton on the linearised model $\Delta\vc{l}^{(k)} = \vc{l} - f(\vc{x}^{(k)}) = \mat{A}(\vc{x}^{(k)})\,\Delta\vc{x} + \vc{e}$, with an optional Levenberg--Marquardt damping $\lambda\,\diag(\mat N)$ that is a \emph{step control}, not a prior: the damping must be reported and must vanish at convergence, or the covariance $\mat{N}^{-1}$ is that of a different problem. In the streaming design the builder receives the current $\vc{x}^{(k)}$ and returns the re-linearised arc; the outer loop is the same loop as the VCE loop (Chapter~\ref{ch:impl}), which is the reason the redesign folds ``nonlinear'', ``robust'' and ``VCE'' into one iteration with three update policies.
+
+\section{What the estimates mean, and what they do not}
+
+$\mat{\Sigma}_{\hat x\hat x} = \hat\sigma_0^2\mat{N}^{-1}$ is the \emph{formal} error: correct if the functional model is complete, the stochastic model is right, and the residuals are white. Chapter~\ref{ch:vce} makes the second condition true as far as the data allow; Chapter~\ref{ch:quality} tests the first and the third. An error bar without those tests is a claim, not a measurement --- which is why the toolbox couples every fit to a verdict (\S\ref{sec:verdict}).

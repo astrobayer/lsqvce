@@ -1,0 +1,109 @@
+\chapter{Variance component estimation}
+\label{ch:vce}
+
+\section{The problem}
+
+The stochastic model is known up to a finite set of parameters $\vc\theta = (\theta_1,\dots,\theta_G)$ entering linearly,
+\begin{equation}
+\mat{\Sigma}(\vc\theta) = \sum_{g=1}^G \theta_g\,\mat{V}_g ,
+\label{eq:vcmodel}
+\end{equation}
+where the $\mat{V}_g$ are known symmetric matrices. Three instances cover everything the toolbox does:
+\begin{enumerate}[label=(\alph*)]
+\item \textbf{Group weights.} $\mat{V}_g$ is block-diagonal with the a-priori cofactor $\mat{Q}_g$ of observation group $g$ (an observation type, a satellite, an arc, a prior) and zeros elsewhere: $\theta_g = \sigma_g^2$ is the variance factor of the group. Koch (1999), Koch \& Kusche (2002).
+\item \textbf{Covariance function per lag.} Within one group, $\mat{V}_n$ are the Toeplitz components of eq.~\eqref{eq:toeplitz}: $\theta_n = c_n$ (Ellmer 2018 §6.5.3). Transformed by the DCT, the amplitudes per frequency $S_j$ are an equivalent parameterisation with a positivity constraint.
+\item \textbf{Arc-wise factors.} $\mat{V}_a$ is the group's full Toeplitz law restricted to arc $a$: $\theta_a = \sigma_a^2$ (Ellmer §6.5.4).
+\end{enumerate}
+The three are nested and are estimated together in the ITSG scheme; the toolbox's ``ellmer'' model is exactly this. The sections below derive one estimator and show that all of the toolbox's variants are its specialisations.
+
+\section{The Helmert estimator and its simplified form}
+\label{sec:helmert}
+
+The quadratic form $\hat{\vc v}\T\mat{P}\mat{V}_g\mat{P}\hat{\vc v}$ has expectation (Koch 1999, §3.6)
+\begin{equation}
+\E[\hat{\vc v}\T\mat{P}\mat{V}_g\mat{P}\hat{\vc v}] = \sum_{h} \theta_h \tr(\mat{R}\mat{V}_g\mat{R}\mat{V}_h)\,\ \ \text{with}\ \ \mat{R} = \mat{P} - \mat{P}\mat{A}\mat{N}^{-1}\mat{A}\T\mat{P}
+\label{eq:helmert-expect}
+\end{equation}
+($\mat{R}$ here is the weighted redundancy matrix, eq. 6.5.35 of Ellmer). Setting the observed quadratic forms equal to their expectations gives the \emph{Helmert system} $\mat{H}\vc\theta = \vc q$, $H_{gh} = \tr(\mat{R}\mat{V}_g\mat{R}\mat{V}_h)$, $q_g = \hat{\vc v}\T\mat{P}\mat{V}_g\mat{P}\hat{\vc v}$, an unbiased estimator (it is the BIQUE/MINQUE of Rao under normality, and the LS-VCE of Teunissen \& Amiri-Simkooei (2008) with a particular weight). Its cost is $G^2$ traces of $u\times u$ products; at $G$ of order thousands (lags $\times$ streams $\times$ arcs) it is out of reach, and its off-diagonal blocks are small when the groups are disjoint.
+
+The \emph{simplified} (Förstner 1979) estimator drops the off-diagonal terms and iterates:
+\begin{equation}
+\hat\theta_g^{(k+1)} = \theta_g^{(k)}\,\frac{\Omega_g}{r_g}, \qquad
+\Omega_g = \bar{\vc v}_g\T\bar{\vc v}_g\ (\text{whitened with }\theta^{(k)}), \qquad
+r_g = \tr(\mat{R}^{(k)}\mat{V}_g)\ =\ \sum_{i\in g} r_i ,
+\label{eq:simplified}
+\end{equation}
+where $r_g$ is the \emph{partial redundancy} of the group. Both estimators share the fixed point $\Omega_g = r_g$ for all $g$ (a whitened residual sum equal to its degrees of freedom); the simplified one is a fixed-point iteration on it and converges in a few passes from a badly wrong start. This is what the toolbox implements for all three instances (a)--(c), and what GROOPS implements.
+
+\begin{principle}[The one estimator]
+Every variance component in \lsq{} is ``a residual quadratic form divided by its redundancy'', eq.~\eqref{eq:simplified}. A group factor uses $\Omega_g, r_g$ summed over the group's observations; a lag component uses $\Omega_n = \bar{\vc v}\T\mat{V}_n\bar{\vc v}$ and $s_n = \tr(\mat{R}\mat{V}_n)$ summed over arcs; an arc factor uses the sums over all lags of one arc. The redesign therefore needs exactly one machinery --- the per-arc $(\Omega_n, s_n)$ collectors --- and derives all three from it.
+\end{principle}
+
+\section{The redundancy is the hard part}
+\label{sec:redundancy}
+
+$\Omega_g$ is a sum of squares over the residual sweep and is exact and cheap. $r_g = \tr(\mat{R}\mat{V}_g)$ needs $\mat{N}^{-1}$. Per arc (eq. 6.5.36--6.5.38 of Ellmer, extended by the local block of \S\ref{sec:blockarrow}):
+\begin{equation}
+s_n^{(a)} = \tr(\mat{\Sigma}_a^{-1}\mat{V}_n) - \tr\big(\mat{U}^{-\mathsf T}\bar{\mat A}_a\T\mat{P}^\perp_{B_a}\tilde{\mat V}_n\mat{P}^\perp_{B_a}\bar{\mat A}_a\mat{U}^{-1}\big) - \tr\big(\mat{P}_{B_a}\tilde{\mat V}_n\big),
+\label{eq:sn}
+\end{equation}
+with $\tilde{\mat V}_n = \mat{W}^{-\mathsf T}\mat{V}_n\mat{W}^{-1}$ the component seen through the whitener and $\mat{N} = \mat{U}\T\mat{U}$ the Cholesky factor of the \emph{accumulated, reduced} common system. The first trace is a closed form of the lags; the third is an $n_l\times n_l$ problem per arc and exact; the second is the expensive one --- it is the trace of a $u\times u$ matrix formed from $m\times u$ products for every arc and every lag.
+
+\paragraph{Exact evaluation.} For moderate $u$ the middle trace is $\|\tilde{\mat V}_n^{1/2}\mat{P}^\perp\bar{\mat A}_a\mat{U}^{-1}\|_F^2$, one triangular solve of $m\times u$ per arc, then per lag a shifted inner product: $O(m u^2 + N m u)$ per arc. The toolbox's \code{engine.redundancy} / \code{kernel.redundancyLags} do this when the ``exact'' route is selected, and the per-observation redundancies $r_i = 1 - h_{ii}$ come out of the same sweep --- which is what data snooping (\S\ref{sec:snooping}) needs.
+
+\paragraph{Monte-Carlo evaluation (Hutchinson 1990; Koch \& Kusche 2002).} For a symmetric $\mat{X}$ and random $\vc z$ with independent $\pm1$ entries, $\E[\vc z\T\mat X\vc z] = \tr\mat X$ and $\Var[\vc z\T\mat X\vc z] = 2\sum_{i\ne j}X_{ij}^2 \le 2\|\mat X\|_F^2$. With $Z$ probes stacked in $\bar{\mat Z} = \mat{Z}/\sqrt Z$,
+\begin{equation}
+\tr(\mat X) \approx \tr(\bar{\mat Z}\T\mat X\bar{\mat Z}), \qquad
+\text{so}\qquad s_n^{(a)} \approx \tr(\mat{\Sigma}_a^{-1}\mat{V}_n) - \big\|\tilde{\mat V}_n^{1/2}\mat{P}^\perp\bar{\mat A}_a\underbrace{\mat{U}^{-1}\bar{\mat Z}}_{\text{once per pass}}\big\|_F^2 - \tr(\mat{P}_{B_a}\tilde{\mat V}_n).
+\label{eq:hutch}
+\end{equation}
+The $u\times Z$ block $\mat{U}^{-1}\bar{\mat Z}$ is formed once per pass and shared by every arc (Ellmer eq. 6.5.48; \code{engine.sharedProbe}); each arc then costs $O(m u Z + N m Z)$ instead of $O(m u^2)$. With $Z = 100$ and $u$ in the thousands this is the only affordable route, and it is the ITSG production route. Its properties, which the toolbox must expose rather than hide:
+\begin{itemize}
+\item The estimate is unbiased; its relative standard error is $\sim\sqrt{2/Z}\,\|\mat X\|_F/\tr\mat X$, i.e.\ a few percent at $Z=100$ for well-conditioned systems and worse for nearly rank-deficient ones. Report it (the toolbox records the probe count, the seed and, on request, the estimator spread).
+\item The same probes must be used for every arc within a pass (they are), and the seed must be recorded in the provenance so a run is reproducible (WP-36/44).
+\item A per-observation redundancy $r_i$ is \emph{not} available from the probe route: $\vc z\T\mat X\vc z$ estimates a trace, not a diagonal. Data snooping on the streaming path therefore uses the exact per-arc route or the diagonal estimator $\diag(\mat X)\approx \frac1Z\sum_z \vc z\odot(\mat X\vc z)$ (Bekas et al.\ 2007), whose per-element error is much larger --- acceptable for screening, not for a $w$-test verdict. This limitation is inherent and is stated in Chapter~\ref{ch:quality}.
+\end{itemize}
+
+\section{Estimating the covariance function: the per-lag components}
+\label{sec:perlag}
+
+Per arc $a$ and lag $n < m_a$: $\Omega_n^{(a)} = \bar{\vc v}_a\T\tilde{\mat V}_n\bar{\vc v}_a$ (a lagged sum of products of whitened residuals, computed in $O(m N)$ by shifting) and $s_n^{(a)}$ from eq.~\eqref{eq:sn}/\eqref{eq:hutch}. Summed over the arcs of the group and transformed to frequency by the DCT (eq. 6.5.25--26),
+\begin{equation}
+\tilde\Omega_j = \sum_a \big(\mat{X}\vc\Omega^{(a)}\big)_j, \qquad
+\tilde s_j = \sum_a \big(\mat{X}\vc s^{(a)}\big)_j, \qquad
+\hat S_j = \frac{\tilde\Omega_j}{\tilde s_j}\, S_j^{(k)} ,
+\label{eq:psdupdate}
+\end{equation}
+where arcs shorter than $N$ contribute zeros beyond their length (padding, eq. 6.5.22--23). The update is multiplicative on the previous PSD; the covariance function for the next pass is the inverse DCT of $\hat S$, and the whitener is rebuilt from it (Toeplitz or AR-reduced, \S\ref{sec:whitening}). Three practical rules follow from the theory:
+\begin{enumerate}
+\item \textbf{Resolution.} The grid $N$ must satisfy $N \ge m_{\max}$ or the covariance function is truncated (\S\ref{sec:nonpd}). The grid is derived from the schedule (the longest declared arc), never probed from data inside a \code{try} block.
+\item \textbf{Smoothing versus redundancy.} With $N$ frequencies and $M$ arcs, each $\tilde s_j$ is of order $M$; an amplitude with $\tilde s_j$ below a threshold is not estimable and keeps its prior value (the ``freeze'' policy), or the spectrum is estimated on a coarser grid (Kvas 2019 §3.3: the arc length sets the spectral resolution). Smoothing the estimated PSD by a moving average trades resolution for variance and must be declared.
+\item \textbf{Convergence.} The fixed-point iteration is monotone in practice but can \emph{alternate} when the arc factors and the PSD amplitudes fight over the same overall scale (R2 finding F-15). The remedy is the Ellmer normalisation: the PSD carries the absolute level, the arc factors are normalised to unit mean per pass (\S\ref{sec:arcfactors}), so the scale has exactly one owner.
+\end{enumerate}
+
+\section{Arc-wise variance factors}
+\label{sec:arcfactors}
+
+The cumulative amplitude of one arc over all frequencies, $\hat\alpha_a^2 = \sum_j\tilde\Omega_j^{(a)}/\sum_j\tilde s_j^{(a)}$, would double-count the level already put into the PSD. Ellmer (§6.5.4) therefore forms $\gamma_a^2 = \hat\alpha_a^2\sigma_a^2$ and normalises by the mean over arcs, $\hat\sigma_a^2 = \gamma_a^2/\bar\gamma^2$, so that the arc factors have unit mean and only re-distribute weight among arcs. Two refinements the toolbox adopts: the mean is taken \emph{robustly} (median or trimmed) so that one destroyed arc does not shift every other factor (\code{MeanType = "robust"}), and a factor is clamped away from zero, with a warning naming the arc, because a factor of zero would silence the arc without any test having rejected it (WP-35).
+
+\section{Group weights between observation types and priors}
+
+Between streams whose \emph{law} is already estimated by \S\ref{sec:perlag}, no further group factor is needed --- the PSD amplitude \emph{is} the level. A group factor of type (a) is needed exactly for groups whose law is declared and fixed: a prior (regularisation, \S\ref{sec:reg}), a stream declared \code{diag} with a trusted structure, or a stream the user asks to scale only. The toolbox's separate ``Scale'' step (Helmert over \code{GroupBy} groups) and ``Shape'' step (temporal law) are therefore not two independent estimators but two \emph{options} on which components are free --- which is the central simplification of Part V.
+
+\section{Uncertainty of the components}
+
+The Fisher information of the components under normality is $\frac12\tr(\mat{R}\mat{V}_g\mat{R}\mat{V}_h)$, i.e.\ half the Helmert matrix; its diagonal gives $\Var(\hat\theta_g) \approx 2\theta_g^2/r_g$ for disjoint groups. A group with $r_g = 30$ has a variance factor known to $\pm 26\%$; this is why a \emph{minimum redundancy} is enforced before a component is estimated at all, and why the toolbox reports $r_g$ next to every component (WP-23).
+
+\section{Regularisation weight by VCE}
+
+With the prior as a group (\S\ref{sec:reg}), $\lambda = \hat\sigma_0^2/\hat\sigma_r^2$ is estimated like any component: $\hat\sigma_r^2 = \hat{\vc x}\T\mat{L}\T\mat{Q}_r^{-1}\mat{L}\hat{\vc x}\,/\,r_r$ with $r_r = p - \tr(\mat{N}_\lambda^{-1}\lambda\mat{L}\T\mat{Q}_r^{-1}\mat{L})$ (Koch \& Kusche 2002). The alternative, generalised cross-validation, minimises a prediction-error functional and is available as an instrument (\code{engine.gcvLambda}); VCE is the default because it is the same estimator as everything else and its redundancy share is reported with the rest.
+
+\section{Convergence, identifiability, and what the data cannot resolve}
+\label{sec:vcelimits}
+
+\begin{itemize}
+\item \textbf{Identifiability.} Components whose $\mat{V}_g$ are linearly dependent within the range of $\mat{R}$ are not separately estimable; the classic case is a per-arc factor and a per-day factor on the same stream. The scoped tables of the data contract prevent the user from declaring both on the same rows, and the redundancy of every component is printed.
+\item \textbf{Absorption.} A local parameter that fits noise (a per-arc bias on a stream with a red spectrum) absorbs low-frequency noise power; the estimated PSD then describes the noise \emph{after} the local model, which is what the adjustment sees --- correct for the weights, but not a property of the instrument. Document, do not fix.
+\item \textbf{Signal in the residuals.} Unmodelled geophysical signal is not noise; VCE will model it as such and down-weight exactly the arcs where the signal is strongest. This is the deepest limitation of the method (Ellmer §6.5.5 handles the modelled part by a prior with its own component). The toolbox's defence is the systematic-error test of Chapter~\ref{ch:quality} and a residual-spectrum plot the user is expected to look at.
+\item \textbf{Convergence criteria.} The loop stops when every free component moved by less than a tolerance ($\max_g|\hat\theta_g/\theta_g - 1| < \epsilon$), when every stream passes the whiteness test, or when the pass budget is exhausted --- and it reports \emph{which}. Exhausting the budget is a result, not an error.
+\end{itemize}
