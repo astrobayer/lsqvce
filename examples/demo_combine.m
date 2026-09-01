@@ -13,6 +13,11 @@ function demo_combine()
 %
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
+%   Updated 2026-08-31 (CEST, UTC+02:00), v4 SCOPED tables (Level L11,
+%   WP-77): the declaration tables carry the scope column (commonParams
+%   'common'|'day', localParams 'arc'|'day'|'system'); localsPerArc left the
+%   USER surface. With assistance from Claude (Anthropic), model
+%   Claude Fable 5.
 %   Updated 2026-08-31 (CEST, UTC+02:00), v3 data contract (Level L10,
 %   WP-74): USER surface only -- lsqvce.engine.Combine replaced by the
 %   declarative multi-system data struct and one lsqvce.fit; verdict and
@@ -68,15 +73,15 @@ end
 
 %% ------------------------------------------------------------------------
 % DECLARE -- one entry of data.systems per satellite; localParams IS the
-% statement "these unknowns are mine alone" (nl = rows).
+% statement "these unknowns are mine alone" ('system' rows: nl = rows).
 % -------------------------------------------------------------------------
 data = struct();
-data.commonParams = num2cell((1:uC).');
+data.commonParams = [repmat({'common'}, uC, 1), num2cell((1:uC).')];
 for i = 1:nSys
     s = struct();
     s.buildDay    = makeBuildDay(gen{i}, nk);
     s.covariance.obs = struct('type', 'diag', 'sigma', 1);
-    s.localParams = num2cell((1:uL(i)).');
+    s.localParams = [repmat({'system'}, uL(i), 1), num2cell((1:uL(i)).')];
     s.days        = 1:nDay(i);              % per-system schedule
     s.name        = sprintf('satellite %d', i);
     data.systems(i) = s;                    % id defaults to the index

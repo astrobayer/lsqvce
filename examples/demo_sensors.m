@@ -7,7 +7,7 @@ function demo_sensors()
 %
 %   THE KEY STRUCTURAL FACT
 %   -----------------------
-%   The v3 data struct states the whole hierarchy declaratively:
+%   The v4 data struct states the whole hierarchy declaratively:
 %     * a SYSTEM is an entry of data.systems (its localParams are the
 %       per-system locals -- every sensor of the system sees them);
 %     * a SENSOR is an observation type: one field of covariance, and one
@@ -26,6 +26,11 @@ function demo_sensors()
 %
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
+%   Updated 2026-08-31 (CEST, UTC+02:00), v4 SCOPED tables (Level L11,
+%   WP-77): the declaration tables carry the scope column (commonParams
+%   'common'|'day', localParams 'arc'|'day'|'system'); localsPerArc left the
+%   USER surface. With assistance from Claude (Anthropic), model
+%   Claude Fable 5.
 %   Updated 2026-08-31 (CEST, UTC+02:00), v3 data contract (Level L10,
 %   WP-74): USER surface only -- BatchIndex / Combine / cmb.varComp replaced
 %   by the declarative hierarchy (systems x covariance fields x days), one
@@ -94,10 +99,10 @@ fprintf('\n  [planted] a 6-sigma offset in GRACE-C / KBR / day 7\n');
 fprintf('  [planted] GRACE-D''s LRI is down on days 4-5 (a data gap)\n');
 
 %% ------------------------------------------------------------------------
-% STEP 2 -- declare the hierarchy: the v3 data struct
+% STEP 2 -- declare the hierarchy: the v4 data struct
 % -------------------------------------------------------------------------
 data = struct();
-data.commonParams = num2cell((1:uC).');     % nc = rows
+data.commonParams = [repmat({'common'}, uC, 1), num2cell((1:uC).')];  % scoped
 data.days = days;
 for i = 1:numel(sysN)
     s = struct();
@@ -105,7 +110,7 @@ for i = 1:numel(sysN)
     for t = sens{i}                          % one covariance field per SENSOR;
         s.covariance.(t{1}) = struct('type', 'diag', 'sigma', 1);  % the CLAIM
     end
-    s.localParams = num2cell((1:uL(i)).');   % per-system locals, nl = rows
+    s.localParams = [repmat({'system'}, uL(i), 1), num2cell((1:uL(i)).')];
     s.arcs = makeSchedule(store{i});         % ragged: [] on an outage day
     s.id = sysId{i};
     s.name = sysN{i};

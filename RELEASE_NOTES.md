@@ -1,5 +1,47 @@
 # lsqvce release notes
 
+## 4.0 — 2026-08-31 (Level L11, WP-75: SCOPED parameter tables)
+
+**Breaking: both parameter tables gain a binding scope column.** Column 1 of
+`commonParams` (`'common' | 'day'`) and `localParams` (`'arc' | 'day' |
+'system'`) is now the scope token; rows are **templates** the toolbox expands
+over the calendar — nc and nl are derived from the expansion, and every column
+offset reaches `buildDay` through its 6th argument. Driver: the GRACE
+parameterization (arc-wise ICs, day-wise ACC scale/bias/drift, per-arc KBR
+empiricals), which under v3 forced day-wise locals into hand-numbering.
+
+### Migration table (v3 declaration → v4)
+
+| v3 | v4 |
+|---|---|
+| `commonParams = T` (R×C, free) | prefix every row: `[repmat({'common'}, R, 1), T]` |
+| `localParams = T` (R×C, free) | prefix every row: `[repmat({'system'}, R, 1), T]` |
+| `localsPerArc = n` | delete the field; declare n `'arc'` rows in `localParams` |
+| `localsPerArc = @(day, arcId) n` | not expressible as a template (constant rows per arc); heterogeneous per-arc counts stay ENGINE-tier (`lsqvce.engine.makeLoader(..., 'LocalsPerArc', fh)`) |
+| day-wise parameters hand-packed into `commonParams` or hand-numbered in `localParams` | one `'day'` template row each; the toolbox numbers them |
+
+### Layout (binding)
+A: `['common' rows, table order | day blocks, calendar order]` — a calendar
+day gets a block iff at least one system's **schedule** carries an arc that
+day. B per system: per day `['arc' blocks, sorted ids | 'day' block]`, then
+one trailing `'system'` block; a system day without arcs gets no blocks.
+`info` (buildDay's 6th argument): `.nl .arcId .offsetOf(arcId) .count
+.dayOffset .dayCount .sysOffset .sysCount .nc .commonCount .commonDayOffset
+.commonDayCount`.
+
+### Error-id changes
+New `lsqvce:fit:badScope` (bad scope token; the localParams case is
+makeLoader's `badScope`, relabelled). `lsqvce:fit:localCount` retired (one
+local mechanism). `localsPerArc` on the USER surface is `unknownField`.
+
+### Unchanged
+`buildDay`'s signature and return contract, covariance specs, arc schedules,
+`epochCovariance`, `lsqvce.Options`, `lsqvce.Results`, all engine numerics;
+the ENGINE tier keeps v3 free-form tables and `LocalsPerArc` (default
+`Scoped=false` on `lsqvce.engine.makeLoader`).
+
+---
+
 ## 3.0 — 2026-08-31 (Level L10, WP-72: the v3 data contract)
 
 **Breaking: the `data` contract states nothing the data already states.** Every

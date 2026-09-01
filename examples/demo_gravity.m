@@ -97,8 +97,13 @@ function [R, score] = demo_gravity(opt)
 %   See also DEMO_GRAVITY_DATALOADER, DEMO_GRAVITY_DESIGN, DEMO_GRACE,
 %   LSQVCE.ENGINE.ADJUSTVCE
 %
+%   Updated 2026-08-31 (CEST, UTC+02:00), v4 SCOPED tables (Level L11,
+%   WP-77): the declaration tables carry the scope column (commonParams
+%   'common'|'day', localParams 'arc'|'day'|'system'); localsPerArc left the
+%   USER surface. With assistance from Claude (Anthropic), model
+%   Claude Fable 5.
 %   Updated 2026-08-31 (CEST, UTC+02:00), v3 data contract (Level L10,
-%   WP-74): USER surface only -- the run is lsqvce.fit over the v3 data
+%   WP-74): USER surface only -- the run is lsqvce.fit over the v4 data
 %   struct (Model="vce"); the loaders and the engine call are gone from
 %   the example. With assistance from Claude (Anthropic), model Claude
 %   Fable 5.

@@ -69,7 +69,7 @@ object, the verb <a href="lsqvce.fit.html">fit</a>, and a <a href="lsqvce.Result
 </table>
 
 <h2>3. The streaming kind in one screen</h2>
-<pre class="example">data.commonParams = commonTbl;             % one ROW per common unknown: nc = rows
+<pre class="example">data.commonParams = [repmat({'common'}, nc, 1), commonTbl];  % scoped rows, nc derived
 data.days = 1:30;
 s = struct();
 s.buildDay         = @buildDayC;           % the one function you write
@@ -77,8 +77,8 @@ s.covariance.kbr   = struct('type','arma','ar',[1 -1.6 0.9 -0.25],'ma',1,'sigma'
 s.covariance.pos   = struct('type','diag','sigma',0.02);   % fieldnames = the types
 s.id               = 'C';
 s.arcs             = @(day, obsType) arcSchedule('C', day);   % ragged: ids per day
-s.localsPerArc     = 6;                    % fit numbers the local blocks for you
-data.systems(1) = s;                       % add satellite D as data.systems(2)</pre>
+s.localParams      = [repmat({'arc'}, 6, 1), icLabels];    % 6 per (day, arc) -- and
+data.systems(1) = s;                       % 'day'/'system' rows scale the same way</pre>
 <p><b>buildDay</b> returns, for one day and one observation type, a struct with <code>A</code> (m&times;nc),
 <code>B</code> (m&times;nl, may be sparse), <code>l</code> (observed minus computed), <code>t</code> (seconds), and optionally
 <code>arcIdx</code> / <code>arcId</code> for the arcs the day carries. Six rules keep you out of trouble:</p>
@@ -87,7 +87,7 @@ data.systems(1) = s;                       % add satellite D as data.systems(2)<
 <li><b>Raw, not whitened.</b> The toolbox whitens per arc from your covariance spec; the VCE loop reweights there.</li>
 <li><b>l is O &minus; C</b>, and <code>t</code> is in seconds.</li>
 <li><b>Arcs by id when ragged.</b> A resolver in <code>arcs</code> plus <code>arcId</code> in the day; a missing id is a data gap.</li>
-<li><b>Local blocks from <code>arcInfo</code>.</b> Fill <code>B(rows, off + (1:k))</code>; never compute an offset yourself.</li>
+<li><b>Every offset from <code>info</code>.</b> Fill <code>B(rows, info.offsetOf(id) + (1:k))</code> and the day/system blocks from <code>info.dayOffset</code> / <code>info.sysOffset</code>; never compute an offset yourself.</li>
 <li><b>A stream called <code>pos</code> is 3-D by default.</b> A scalar stream with that name needs <code>ComponentsPerEpoch = struct('pos', 1)</code>.</li>
 </ol>
 <div class="warn">Unknown struct fields are errors on purpose (<code>lsqvce:fit:unknownField</code>): a typo in

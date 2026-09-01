@@ -47,12 +47,19 @@ function R = fit(data, opts)
 %                                            convergence() are adjustVCE's
 %                                            readers and refuse (noHistory).
 %
-%   THE v3 CONTRACT (Level L10, WP-72) STATES NOTHING THE DATA ALREADY
-%   STATES: nc = size(commonParams, 1), nl = size(localParams, 1) or the
-%   localsPerArc plan (neither declared -> nl = 0), the observation types =
-%   fieldnames(covariance), u = numel(x0) on the nonlinear batched kind.
-%   There are no count fields (numCommon / numLocal / numUnknowns-with-x0
-%   are gone) and no duplicate lists -- one source each, nothing to disagree.
+%   THE v4 CONTRACT (Level L11, WP-75) STATES NOTHING THE DATA ALREADY
+%   STATES, and the parameter tables are SCOPED: column 1 of BOTH tables is
+%   a scope token, the rows are TEMPLATES, and the toolbox expands them over
+%   the calendar -- nc and nl are DERIVED from the expansion, the observation
+%   types = fieldnames(covariance), u = numel(x0) on the nonlinear batched
+%   kind. commonParams tokens: 'common' (one column, always) | 'day' (one
+%   column per calendar day that carries at least one scheduled arc in at
+%   least one system). localParams tokens: 'arc' (one block per (day, arc)
+%   of the system) | 'day' (one block per day with arcs) | 'system' (once).
+%   Binding column layout -- A: ['common' rows, table order | day blocks,
+%   calendar order]; B: per day ['arc' blocks, sorted ids | 'day' block],
+%   then the 'system' block. buildDay's 6th argument carries every offset
+%   (below), so no offset is ever computed in user code.
 %
 %   TWO MORE KINDS OF DATA (R4 WP-56b) -- told apart by the fields present,
 %   for problems WITHOUT local unknowns and with diagonal weights:
@@ -91,10 +98,10 @@ function R = fit(data, opts)
 %   INPUT
 %     data  1x1  struct  the data declaration (binding rules: DATA_CONTRACT.md
 %                        §2). Summary of the streaming kind:
-%              .commonParams  RxC cell    the COMMON unknowns, one ROW per
-%                                         unknown, C columns of meaning (your
-%                                         convention -- the toolbox reads only
-%                                         the row count: nc = R). Required.
+%              .commonParams  RxC cell    the COMMON templates, one ROW per
+%                                         template; column 1 = 'common'|'day',
+%                                         columns 2..C your convention. nc is
+%                                         DERIVED by the expansion. Required.
 %                                         Passed to buildDay as its 3rd arg.
 %              .days     1xD double   default day list (numeric integers);
 %                                     required unless every system has .days
@@ -108,17 +115,20 @@ function R = fit(data, opts)
 %                OPTIONAL (default)
 %                  .arcs (1)          1x1 | 1xA | struct | @(day,obsType)
 %                                     ('fromDay' is ENGINE-tier only)
-%                  .localsPerArc ([]) 1x1 | @(day,arcId) -- the toolbox owns
-%                                     the per-arc numbering and hands buildDay
-%                                     its arcInfo slice; XOR with
-%                  .localParams  ({}) RxC cell, one ROW per local unknown
-%                                     (nl = R), buildDay's 4th arg. NEITHER
-%                                     declared -> nl = 0 (B is m x 0).
+%                  .localParams  ({}) RxC cell of LOCAL templates; column 1 =
+%                                     'arc'|'day'|'system', columns 2..C your
+%                                     convention; nl DERIVED by the expansion;
+%                                     buildDay's 4th arg. Not declared ->
+%                                     nl = 0 (B is m x 0).
 %                  .days ([]) .name ('') .id (the system's index)
 %                  .processingOptions (struct())   buildDay's 5th arg
 %                  .epochCovariance ([])  @(day,obsType) per-epoch D hook:
 %                                     the exact separable-descale path of the
 %                                     VCE Shape step (DATA_CONTRACT §7).
+%              buildDay's 6th argument (info) carries the expansion: .nl,
+%              .arcId / .offsetOf(arcId) / .count, .dayOffset / .dayCount,
+%              .sysOffset / .sysCount for B; .nc, .commonCount,
+%              .commonDayOffset / .commonDayCount for THIS day's columns in A.
 %     opts  1x1  lsqvce.Options   what to do (default: every engine default,
 %                        i.e. Model "gls")
 %
@@ -141,17 +151,22 @@ function R = fit(data, opts)
 %     Your declaration is wrong (raised BEFORE any data is read):
 %       lsqvce:fit:unknownField    a field name the contract does not know
 %                                  (names the field; typos are errors on
-%                                  purpose -- and so are the v2 fields:
+%                                  purpose -- and so are the retired fields:
 %                                  common, numCommon, numLocal,
 %                                  observationTypes, systemId, cache, loader,
-%                                  plotPostSolve, plotPostModel)
+%                                  plotPostSolve, plotPostModel, and since
+%                                  v4 localsPerArc: declare 'arc' rows in
+%                                  localParams instead)
 %       lsqvce:fit:noSystems       data.systems missing, not a struct, or empty
 %       lsqvce:fit:noCommon        data.commonParams missing, or not a 2-D
-%                                  cell with one row per unknown
+%                                  cell of template rows
+%       lsqvce:fit:badScope        a scope-token column 1 does not carry:
+%                                  commonParams needs 'common'|'day' (raised
+%                                  here), localParams needs
+%                                  'arc'|'day'|'system' (raised by makeLoader
+%                                  and relabelled)
 %       lsqvce:fit:missingField    a required system field is absent, or
 %                                  covariance carries no observation type
-%       lsqvce:fit:localCount      BOTH localsPerArc and localParams declared
-%                                  (either one, or neither -> nl = 0)
 %       lsqvce:fit:noDays          no day list anywhere
 %       lsqvce:fit:badId           id is not a numeric scalar or single char
 %       lsqvce:fit:duplicateSystem two systems share an id (explicit or
@@ -178,13 +193,19 @@ function R = fit(data, opts)
 %     unchanged): lsqvce:makeLoader:badDay / dayShape / badArc / badArcId /
 %     buildDay, lsqvce:accum:arcBadNc / arcBadNl
 %
-%   EXAMPLE
-%     data.commonParams = num2cell((1:6).');   data.days = 1:3;
-%     s.buildDay = @(d, ot) myBuildDay(d, ot);
+%   EXAMPLE (the GRACE parameterization that motivated v4: arc-wise ICs,
+%   day-wise ACC scale/bias/drift, KBR empiricals per arc)
+%     data.commonParams = [repmat({'common'}, 6, 1), num2cell((1:6).')];
+%     data.days = 1:3;
+%     s.buildDay = @myBuildDay;                  % uses the info argument
 %     s.covariance.pos = struct('type','arma','ar',[1 -1.6 0.9 -0.25],'ma',1,'sigma',0.7);
 %     s.covariance.kbr = struct('type','diag','sigma',0.2);
-%     s.localParams = num2cell((1:4).');   s.arcs = 2;
-%     data.systems = s;
+%     s.localParams = [ ...
+%         [repmat({'arc'}, 6, 1),  num2cell((1:6).')];  ...  % ICs per arc
+%         {'arc', 'kbrBias'; 'arc', 'kbrCos1cpr'};      ...  % KBR per arc
+%         [repmat({'day'}, 3, 1),  {'accScale'; 'accBias'; 'accDrift'}]];
+%     s.arcs = 2;
+%     data.systems = s;          % nl = 3 days * (2 arcs * 8 + 3) = 57, derived
 %     R = lsqvce.fit(data, lsqvce.Options(Model="vce"));
 %     R.report
 %
@@ -192,6 +213,14 @@ function R = fit(data, opts)
 %            LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCE, LSQVCE.ENGINE.ADJUSTVCEJOINT,
 %            LSQVCE.ENGINE.ADJUST, LSQVCE.ENGINE.ROBUST, LSQVCE.ENGINE.SOLVENONLINEAR
 %
+%   Updated 2026-08-31 (CEST, UTC+02:00), v4 SCOPED tables (Level L11,
+%   WP-75, four pinned user decisions): scope column on BOTH tables
+%   (commonParams 'common'|'day', localParams 'arc'|'day'|'system'), rows
+%   are templates expanded over the calendar (nc/nl derived; fit builds the
+%   COMMON plan over the global day calendar and passes it to makeLoader);
+%   localsPerArc left this surface (unknownField -- declare 'arc' rows);
+%   localCount retired, badScope new. With assistance from Claude
+%   (Anthropic), model Claude Fable 5.
 %   Updated 2026-08-31 (CEST, UTC+02:00), v3 data contract (Level L10,
 %   WP-72): every derivable count derived (nc / nl / obsTypes / u-with-x0),
 %   commonParams required and RxC, localParams | localsPerArc | neither
@@ -269,13 +298,25 @@ function spec = validateData(data)
     end
     sys = data.systems(:).';
 
-    % ---- the common unknowns: the table IS the declaration (nc = rows)
+    % ---- the common unknowns: the SCOPED table is the declaration (v4).
+    % Column 1 = scope token 'common' | 'day'; rows are TEMPLATES ('day' rows
+    % expand over the global day calendar); nc is DERIVED by the common plan.
     if ~isfield(data, 'commonParams') || isempty(data.commonParams) || ...
             ~iscell(data.commonParams) || ~ismatrix(data.commonParams)
         error('lsqvce:fit:noCommon', ...
             ['data.commonParams is required: an R x C cell, one ROW per common ' ...
-             'unknown (nc = R; the column meaning is your convention). ' ...
-             'Minimal table: num2cell((1:nc).'').']);
+             'template, column 1 the scope token ''common'' | ''day''. ' ...
+             'Minimal table: [repmat({''common''}, nc, 1), num2cell((1:nc).'')].']);
+    end
+    for r = 1:size(data.commonParams, 1)
+        v = data.commonParams{r, 1};
+        if ~(ischar(v) || (isstring(v) && isscalar(v))) || ...
+                ~any(strcmp(char(v), {'common', 'day'}))
+            error('lsqvce:fit:badScope', ...
+                ['data.commonParams row %d: column 1 must be the scope token ' ...
+                 '''common'' | ''day'' (''arc'' is system-specific and lives in ' ...
+                 'localParams).'], r);
+        end
     end
 
     % ---- days
@@ -289,7 +330,7 @@ function spec = validateData(data)
 
     % ---- systems
     sysRequired = {'buildDay', 'covariance'};
-    sysAllowed  = [sysRequired, {'localsPerArc', 'localParams', 'arcs', 'days', ...
+    sysAllowed  = [sysRequired, {'localParams', 'arcs', 'days', ...
                    'id', 'name', 'processingOptions', 'epochCovariance'}];
     rejectUnknown(fieldnames(sys), sysAllowed, 'data.systems');
     ids = cell(1, numel(sys));
@@ -309,14 +350,6 @@ function spec = validateData(data)
             error('lsqvce:fit:missingField', ...
                 ['data.systems(%d).covariance must be a scalar struct with one field per ' ...
                  'observation type (the fieldnames ARE the observation types).'], k);
-        end
-        hasPlan  = isfield(s, 'localsPerArc') && ~isempty(s.localsPerArc);
-        hasTable = isfield(s, 'localParams')  && ~isempty(s.localParams);
-        if hasPlan && hasTable
-            error('lsqvce:fit:localCount', ...
-                ['data.systems(%d) declares its local unknowns twice: localsPerArc ' ...
-                 '(the toolbox numbers the arcs) XOR localParams (you number them; ' ...
-                 'nl = rows). Neither declared means nl = 0.'], k);
         end
         if isfield(s, 'arcs') && (ischar(s.arcs) || isstring(s.arcs))
             error('lsqvce:fit:badArcs', ...
@@ -346,6 +379,78 @@ function spec = validateData(data)
     end
     spec = struct('commonParams', {data.commonParams}, 'days', days, ...
                   'systems', sys, 'ids', {ids});
+    spec.commonPlan = buildCommonPlan(spec);
+end
+
+function plan = buildCommonPlan(spec)
+%BUILDCOMMONPLAN  Expand the SCOPED commonParams over the GLOBAL day calendar
+%   (L11 WP-75, v4). Layout, binding: the 'common' rows first (table order),
+%   then one 'day' block per calendar day (sorted union of every declared day
+%   list) whose SCHEDULE carries at least one arc in at least one system --
+%   schedules are resolvable without reading data by contract, so the plan is
+%   built before any read. nc is DERIVED.
+%   OUTPUT plan 1x1 struct  .nc .commonCount .days (calendar) .dayOffset
+%          .dayCount (1xD) .rows (.common / .day template row indices)
+    cp  = spec.commonParams;
+    tok = cellfun(@(v) char(string(v)), cp(:, 1), 'UniformOutput', false);
+    iCommon = find(strcmp(tok, 'common')).';
+    iDay    = find(strcmp(tok, 'day')).';
+    nCom = numel(iCommon);  nDayRows = numel(iDay);
+    cal = spec.days;
+    for k = 1:numel(spec.systems)
+        s = spec.systems(k);
+        if isfield(s, 'days') && ~isempty(s.days)
+            cal = union(cal, double(s.days(:).'));
+        end
+    end
+    cal = sort(cal(:).');
+    D = numel(cal);
+    dayOffset = zeros(1, D);  dayCount = zeros(1, D);
+    off = nCom;
+    if nDayRows > 0
+        for i = 1:D
+            if calendarDayHasArcs(spec.systems, cal(i))
+                dayOffset(i) = off;  dayCount(i) = nDayRows;
+                off = off + nDayRows;
+            end
+        end
+    end
+    plan = struct('nc', off, 'commonCount', nCom, 'days', cal, ...
+                  'dayOffset', dayOffset, 'dayCount', dayCount, ...
+                  'rows', struct('common', iCommon, 'day', iDay));
+end
+
+function tf = calendarDayHasArcs(sys, day)
+%CALENDARDAYHASARCS  Does at least one system's SCHEDULE carry an arc on DAY?
+%   Mirrors the engine's arc resolution on the declared forms (default 1;
+%   count; id vector; per-type struct; @(day,obsType) resolver) -- resolvable
+%   pre-run by contract.
+    tf = false;
+    for k = 1:numel(sys)
+        s = sys(k);
+        if isfield(s, 'days') && ~isempty(s.days) && ~any(double(s.days) == day)
+            continue                                   % this system skips the day
+        end
+        if ~isfield(s, 'arcs') || isempty(s.arcs)
+            tf = true;  return                         % default: one arc per day
+        end
+        a = s.arcs;
+        types = fieldnames(s.covariance);
+        for j = 1:numel(types)
+            aj = a;
+            if isstruct(a)
+                if ~isfield(a, types{j}), continue, end
+                aj = a.(types{j});
+            end
+            if isa(aj, 'function_handle')
+                if ~isempty(aj(day, types{j})), tf = true;  return, end
+            elseif isnumeric(aj)
+                if (isscalar(aj) && aj >= 1) || (~isscalar(aj) && ~isempty(aj))
+                    tf = true;  return
+                end
+            end
+        end
+    end
 end
 
 function rejectUnknown(names, allowed, where)
@@ -360,14 +465,15 @@ end
 %==========================================================================
 function systems = buildSystems(spec)
 %BUILDSYSTEMS  One Loader per system through LSQVCE.ENGINE.MAKELOADER.
-%   Derivations (v3): ObservationTypes = fieldnames(covariance); nc rides in
-%   as CommonParams (makeLoader derives nc = rows); nl rides in as
-%   LocalsPerArc, LocalParams, or NumLocal = 0 when neither is declared.
+%   Derivations (v4): ObservationTypes = fieldnames(covariance); nc rides in
+%   as the COMMON PLAN (fit expands the scoped commonParams over the global
+%   calendar); nl is derived by makeLoader's scope plan from the scoped
+%   LocalParams table, or NumLocal = 0 when none is declared.
     sys  = spec.systems;
     days = spec.days;
     % ---- the ONE mapping table: lowerCamelCase field -> makeLoader NV name
     map = {'covariance', 'Covariance'; 'arcs', 'Arcs'; ...
-           'localsPerArc', 'LocalsPerArc'; 'localParams', 'LocalParams'; ...
+           'localParams', 'LocalParams'; ...
            'days', 'Days'; 'name', 'Name'; ...
            'processingOptions', 'ProcessingOptions'; ...
            'epochCovariance', 'EpochCovariance'};
@@ -384,12 +490,11 @@ function systems = buildSystems(spec)
         nv = [nv, {'ObservationTypes', fieldnames(s.covariance).'}]; %#ok<AGROW>
         nv = [nv, {'SystemId', idValue(spec.ids{k})}];               %#ok<AGROW>
         nv = [nv, {'CommonParams', spec.commonParams}];              %#ok<AGROW>
+        nv = [nv, {'Scoped', true, 'CommonPlan', spec.commonPlan}];  %#ok<AGROW>
         if ~(isfield(s, 'days') && ~isempty(s.days)) && ~isempty(days)
             nv = [nv, {'Days', days}];                               %#ok<AGROW>
         end
-        hasPlan  = isfield(s, 'localsPerArc') && ~isempty(s.localsPerArc);
-        hasTable = isfield(s, 'localParams')  && ~isempty(s.localParams);
-        if ~hasPlan && ~hasTable
+        if ~(isfield(s, 'localParams') && ~isempty(s.localParams))
             nv = [nv, {'NumLocal', 0}];                              %#ok<AGROW>
         end
         try

@@ -324,6 +324,44 @@ function testParamColumnCountValidated(tc)
         'lsqvce:makeLoader:paramType');
 end
 
+function testScopePlanOffsetsAreGapSafe(tc)
+% categories: contract, robustness
+    % L11 WP-76: the SCOPED plan (engine tier, 'Scoped') pins the binding
+    % layout against a hand enumeration on a RAGGED schedule: day 2 loses arc
+    % 2, day 3 loses everything. Per day [arc blocks, sorted ids | day
+    % block], trailing system block; a day without arcs gets NO blocks.
+    cfg = buildCfg();
+    tbl = [{'arc','ic1'}; {'arc','ic2'}; {'day','bias'}; {'system','scale'}];
+    L = lsqvce.engine.makeLoader(@(d,ot) buildDayImpl(cfg, d, ot), ...
+        'observationTypes', {'pos'}, 'covariance', cfg.cov, ...
+        'LocalParams', tbl, 'Scoped', true, ...
+        'Arcs', @(day, obsType) scheduleOf(day), 'Days', 1:3);
+    p = L.localPlan;
+    % hand enumeration: d1 arcs [1 2] -> blocks at 0,2 + day at 4;
+    % d2 arc [1] -> block at 5 + day at 7; d3 nothing; system at 8; nl = 9
+    tc.verifyEqual(p.nl, 9);
+    tc.verifyEqual(L.nl, 9, 'nl is DERIVED from the plan');
+    tc.verifyEqual(p.arcId{1},  [1 2]);   tc.verifyEqual(p.offset{1}, [0 2]);
+    tc.verifyEqual(p.dayOffset(1), 4);    tc.verifyEqual(p.dayCount(1), 1);
+    tc.verifyEqual(p.arcId{2},  1);       tc.verifyEqual(p.offset{2}, 5);
+    tc.verifyEqual(p.dayOffset(2), 7);    tc.verifyEqual(p.dayCount(2), 1);
+    tc.verifyEqual(p.arcId{3},  zeros(1,0), 'day 3 has no arcs');
+    tc.verifyEqual(p.dayCount(3), 0, 'a day without arcs gets no day block');
+    tc.verifyEqual(p.sysOffset, 8);       tc.verifyEqual(p.sysCount, 1);
+    tc.verifyError(@() lsqvce.engine.makeLoader(@(d,ot) buildDayImpl(cfg, d, ot), ...
+        'observationTypes', {'pos'}, 'covariance', cfg.cov, ...
+        'LocalParams', [{'weekly','x'}], 'Scoped', true, 'Days', 1:3), ...
+        'lsqvce:makeLoader:badScope');
+end
+
+function ids = scheduleOf(day)
+    switch day
+        case 1, ids = [1 2];
+        case 2, ids = 1;
+        otherwise, ids = zeros(1, 0);
+    end
+end
+
 %% ====================================================== plot-hook options
 function testPlotHookSingleHandleBroadcast(tc)
 % categories: contract, robustness

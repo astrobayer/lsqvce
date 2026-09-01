@@ -3,7 +3,7 @@ function [cfg, data] = demo_gravity_dataLoader()
 %
 %   [cfg, data] = demo_gravity_dataLoader()
 %
-%   Returns a configuration CFG and the declaration as a v3 data struct DATA
+%   Returns a configuration CFG and the declaration as a v4 data struct DATA
 %   (the form LSQVCE.FIT takes -- see DATA_CONTRACT.md), so a PHYSICALLY
 %   STRUCTURED gravity recovery can be run end to end without any external
 %   data:
@@ -14,9 +14,9 @@ function [cfg, data] = demo_gravity_dataLoader()
 %   OUTPUT
 %     cfg   1x1 struct  the configuration (days, nc, sys, cov, arcsOfDay, truth)
 %     data  1x1 struct  .commonParams (one row per SH coefficient: degree,
-%                       order, term -- nc = rows), .days, .systems(1x3) with
+%                       order, term behind the 'common' token -- nc derived), .days, .systems(1x3) with
 %                       buildDay, covariance (fieldname = the stream),
-%                       arcs (per-day resolver), localsPerArc, id, name
+%                       arcs (per-day resolver), localParams ('arc' rows), id, name
 %
 %   WHAT MAKES THIS DIFFERENT FROM DEMO_GRACE_DATALOADER
 %     That loader builds its design from randn -- fine for exercising the
@@ -55,7 +55,7 @@ function [cfg, data] = demo_gravity_dataLoader()
 %        the toolbox may assume a fixed arc length.
 %        Points 1 to 3 are DECLARED, not hand-wired (WP-52): 'arcs' takes a
 %        per-day resolver, the day names its arcs with .arcId, and
-%        'localsPerArc' hands LSQVCE.ENGINE.MAKELOADER the local bookkeeping -- it
+%        the 'arc' template rows hand the toolbox the local bookkeeping -- it
 %        numbers every (day, arc), DERIVES nl, and passes this day's column
 %        offsets to the builder. An earlier version of this file wrapped the
 %        loader's closure and carried its own arc-ordinal table; both are
@@ -105,6 +105,11 @@ function [cfg, data] = demo_gravity_dataLoader()
 %   See also DEMO_GRAVITY, DEMO_GRAVITY_DESIGN, DEMO_GRACE_DATALOADER,
 %   LSQVCE.FIT
 %
+%   Updated 2026-08-31 (CEST, UTC+02:00), v4 SCOPED tables (Level L11,
+%   WP-77): the declaration tables carry the scope column (commonParams
+%   'common'|'day', localParams 'arc'|'day'|'system'); localsPerArc left the
+%   USER surface. With assistance from Claude (Anthropic), model
+%   Claude Fable 5.
 %   Updated 2026-08-31 (CEST, UTC+02:00), v3 data contract (Level L10,
 %   WP-74): USER surface only -- returns [cfg, data], the v3 declaration
 %   (commonParams = the degree/order/term table, obsTypes from the
@@ -123,14 +128,15 @@ end
 
 %==========================================================================
 function data = gravityData(cfg)
-%GRAVITYDATA  The declaration as a v3 data struct (L10 WP-74): the tables
+%GRAVITYDATA  The declaration as a v4 data struct (L11 WP-77): the tables
 %   declare, the counts are derived -- commonParams is the degree/order/term
 %   table of the SH coefficients (nc = rows, and the columns MEAN something),
 %   the observation type is the covariance fieldname, id is the system id.
 %   fit builds the Loaders from this internally.
     data = struct();
-    data.commonParams = [num2cell(cfg.meta.n(:)), num2cell(cfg.meta.m(:)), ...
-                         cellstr(cfg.meta.cs(:))];        % nc = rows, RxC = nc x 3
+    data.commonParams = [repmat({'common'}, numel(cfg.meta.n), 1), ...
+                         num2cell(cfg.meta.n(:)), num2cell(cfg.meta.m(:)), ...
+                         cellstr(cfg.meta.cs(:))];        % scoped: nc x 4
     data.days = cfg.days;
     for s = 1:numel(cfg.sys)
         ot = cfg.sys(s).obsType;
@@ -138,7 +144,8 @@ function data = gravityData(cfg)
         d.buildDay     = @(dd, o, cm, lo, po, ai) buildGravityDay(cfg, dd, o, ai);
         d.covariance   = struct(ot, cfg.cov.(ot));        % fieldname = the stream
         d.arcs         = @(dd, o) cfg.arcsOfDay{cfg.days == dd};
-        d.localsPerArc = cfg.sys(s).nlPerArc;
+        d.localParams  = [repmat({'arc'}, cfg.sys(s).nlPerArc, 1), ...
+                          num2cell((1:cfg.sys(s).nlPerArc).')];   % v4 'arc' templates
         d.id           = cfg.sys(s).id;
         d.name         = cfg.sys(s).name;
         if s == 1, data.systems = d; else, data.systems(s) = d; end

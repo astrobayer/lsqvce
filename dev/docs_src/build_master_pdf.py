@@ -46,7 +46,7 @@ MARGIN_T = 20 * mm
 MARGIN_B = 18 * mm
 BODY_W = PAGE_W - MARGIN_L - MARGIN_R
 
-VERSION = '3.0'   # L10 (WP-73); Contents.m is the ONE version source, this mirrors it
+VERSION = '4.0'   # L11 (WP-77); Contents.m is the ONE version source, this mirrors it
 BUILT = '2026-08-31'
 
 # ===========================================================================
