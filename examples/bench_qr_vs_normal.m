@@ -27,6 +27,10 @@ function bench_qr_vs_normal(varargin)
 %     cond(N) < 1e8      normal loses ~8 of 16 digits. Fine. Take the speedup.
 %     cond(N) 1e8..1e12  borderline. Use QR.
 %     cond(N) > 1e12     normal has ~4 digits left. QR is not optional.
+%     cond(N) > ~1e14    normal REFUSES (lsqvce:acc:rankDeficient): N is
+%                        singular in double precision, so the normal path
+%                        reports the defect instead of returning digits it
+%                        does not have. QR still solves it (from A, not N).
 %
 %   Since cond(N) = cond(A)^2, one cheap Backend="normal" run tells you which
 %   regime you are in. That is the recipe: solve once with "normal", read
@@ -41,6 +45,12 @@ function bench_qr_vs_normal(varargin)
 %
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
+%   Updated 2026-09-01 (CEST, UTC+02:00), postflight L11: the sweep's last
+%   two steps (cond(N) ~1e14, ~1e16) make the normal path REFUSE with
+%   lsqvce:acc:rankDeficient -- the bench now prints that as the verdict
+%   instead of stopping (found by the first local example smoke run after
+%   the L11 merge). With assistance from Claude (Anthropic), model
+%   Claude Fable 5.
 %   Updated 2026-08-31 (CEST, UTC+02:00), v4 SCOPED tables (Level L11,
 %   WP-77): the declaration tables carry the scope column (commonParams
 %   'common'|'day', localParams 'arc'|'day'|'system'); localsPerArc left the
@@ -127,14 +137,26 @@ for eps = [1e-1 1e-3 1e-5 1e-7 1e-8]
     data = struct('batchFcn', src, 'numUnknowns', u, 'numBatches', nb);
 
     W = warning('off', 'all');
-    RN = lsqvce.fit(data, optN);
+    refused = false;
+    try
+        RN = lsqvce.fit(data, optN);
+    catch err
+        if ~strcmp(err.identifier, 'lsqvce:acc:rankDeficient'), rethrow(err), end
+        refused = true;                          % N singular in double: honest refusal
+    end
     RQ = lsqvce.fit(data, optQ);
     warning(W);
 
-    eN = norm(RN.x - xr)/norm(xr);
     eQ = norm(RQ.x - xr)/norm(xr);
+    if refused
+        eN = NaN;
+    else
+        eN = norm(RN.x - xr)/norm(xr);
+    end
 
-    if eN < 1e-9
+    if refused
+        v = 'normal REFUSES (rankDeficient) -- QR MANDATORY';
+    elseif eN < 1e-9
         v = 'normal is fine';
     elseif eN < 1e-6
         v = 'normal ok, QR safer';
