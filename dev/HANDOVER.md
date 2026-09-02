@@ -4914,6 +4914,7 @@ WP-31 GPU (gated on M4 measurements), WP-30 runner.
 | R5-D4 | Retire the biased-ACV 'separate' estimator (v4 `vce` mode); accept changed numbers in that mode; acceptance = z-score recovery on O3 not worse, not equality to v4 | **yes** (H-03) |
 | R5-D5 | Delete H-01 classes (i) and (iii) outright (no ENGINE survival); instruments (ii) live in dev/tests or as verdict collectors | **yes** under the no-aliases rule |
 | R5-D6 | Theory authority: the LaTeX document's Parts I–III replace root lsqvce_theory.pdf; ReportLab theory pipeline retired (manual pipeline untouched until M6) | **yes** |
+| R5-D8 (2026-09-02, from the GRAVFIRE tables) | Parameter tables get NAMED columns and an instance selector: (a) the tables become MATLAB `table`s with reserved variables `scope` (required), `days` (instance selector: `[]` = every day, else the days this row instantiates on), `name` (used by `R.coefficients`/report), `scale` (per-column equilibration s_j: the toolbox solves S·N·S, returns x = S·x̃, Σ = S·Σ̃·S, reports the scaled condition), `prior` (a-priori sigma of the pseudo-observation x_j = 0 ± σ_j) and `priorGroup` (rows sharing a label share one VCE component) — any other variables are the user's and are piped to `buildDay`; (b) `info.dayRows`/`info.arcRows` name the template rows behind each block column; (c) the cell-array template form of v4 stays accepted (a cell with column 1 = scope token is converted; `days = []`). Motivation: the user keeps a FULL per-instance list for control (per-day differences, per-instance regularisation); v4's uniform templates cannot express it; positional "column 11 / column 13" conventions were misread twice in one day (prior vs scale) | **proposed**; the regularisation API (`prior`/`priorGroup`) explicitly OPEN for iteration with the user; lands in M5 (WP-87) with the contract v5 delta, plan work in M2 (`scopePlan`) |
 | R5-D7 | Sequence M0/M1 first — instruments and the error doctrine on the CURRENT tree, so every later deletion is measured and every catch is already honest | **APPROVED 2026-09-01** by the user ("proceed with M0"). R5-D1…D6 remain pending; M0/M1 need none of them; the recommendations are the working assumption (D3 = no) until the user says otherwise |
 
 ### 12.7 R5 round notes
@@ -4990,11 +4991,14 @@ the `data` struct and no adapter exists):**
 7. **Determinism:** `buildDay(day, obsType, …)` must return byte-identical
    output on every call (residuals are formed from the second read); no
    random numbers, no clocks, no mutable state in the closure.
-8. **Priors are declared groups:** the 1e-9 common a-priori sigma (column 13)
-   is the Kaula-type prior → today `Options.Reg`/`RegMatrix`, v5
-   `data.priors(k)`; the local Tikhonov on the accelerometer scales (0.01) →
-   today engine `applyRegularisation`, v5 `data.priors` with scope. Keep both
-   as numbers in the tables (they are), never applied inside `buildDay`.
+8. **Column 13 is the COLUMN SCALE, column 11 the regularisation** (user
+   correction 2026-09-02; the first reading "column 13 = prior" was wrong).
+   v4 has no column scaling: today the design function applies s_j and the
+   user unscales `R.x`/`R.Cxx`; v5 declares `scale` per row and the toolbox
+   equilibrates and unscales (R5-D8). Regularisation: today `Options.Reg`
+   (common) / engine `applyRegularisation` (locals); v5 `prior`/`priorGroup`
+   per row — API OPEN, to be iterated with the user. Keep both as numbers in
+   the tables, never applied inside `buildDay`.
 9. **Options mapping** (`myOptions.iteration` → `lsqvce.Options`):
    `maximumIterations` → `MaxOuter`; `minimumIterations` → **`MinPasses`
    (added to the v5 Options in this note — no v4 equivalent)**;
@@ -5060,3 +5064,12 @@ large-nc option. GRAVFIRE: template + guide + a verified dry run; the
 estimator dry runs are pending (bridge). Files: dev/DEVELOPMENT.md (WP-79
 table), dev/validation/bench_m0_result.txt (the user's log, kept),
 template/gravfire_data.m, dev/GRAVFIRE_INTERFACE.md, this section.
+
+**ROUND NOTE 2026-09-02 (guide, model Claude Fable 5.1, branch
+`claude/guide-locals`, doc-only).** User corrections pinned: column 13 =
+column scale (equilibration), column 11 = regularisation (API open). The
+`'day'` mechanism explained from `makeLoader.buildScopePlan` (one calendar
+walk, one uniform block per day with arcs, table order = instance order) in
+dev/GRAVFIRE_INTERFACE.md; the user's need — a full per-instance list for
+control PLUS automated expansion — becomes proposal R5-D8 (named-column
+tables + `days` selector + `info.dayRows`; cell form stays accepted).

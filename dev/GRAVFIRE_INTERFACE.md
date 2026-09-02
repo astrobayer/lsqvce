@@ -50,10 +50,12 @@ a-priori sigma 1e-9 in column 13). Prepend one column with the word `'common'`:
 data.commonParams = [repmat({'common'}, 117, 1), commonData.parameter];   % 117 x 15
 ```
 
+(Column 13 of your table is the column scale, column 11 the regularisation — see Part C.)
+
 `'common'` means "one column of A for the whole adjustment". Columns 2…15 are
 yours; `fit` never reads them, it hands the table to `buildDay` as its third
-argument. **In GRAVFIRE:** emit the 15-column table directly; keep the 1e-9
-sigma in it (it is the prior, Part C).
+argument. **In GRAVFIRE:** emit the 15-column table directly; keep column 13 (the
+column scale) and column 11 (regularisation) in it — Part C says what happens to them.
 
 ### STEP 2 — the calendar
 
@@ -116,6 +118,43 @@ The result (`data.systems.localParams`, 72 × 15) looks like:
 Why no `'arc'` rows: your initial conditions span the whole day (`numarc = 1`),
 so nothing is per piece. If one day you integrate per piece, those rows
 become `'arc'` — one line changes, nothing else.
+
+**How the `'day'` mechanism works (from `makeLoader.buildScopePlan`).** Before any
+data is read, the engine walks the calendar once: for every day it asks the arc
+resolver (STEP 5) which pieces exist; a day with at least one piece gets ONE
+`'day'` block = all `'day'` rows in table order; a day without pieces gets no
+block. Column offsets follow in day order, nl is the total. For your table:
+
+```
+B = [ day 59396: columns 1..72 | day 59397: columns 73..144 ]       nl = 144
+      within a block: GraceA_x0, GraceA_y0, ..., GraceB_zaccspline#7 (table order)
+```
+
+`buildDay` for day 59397 receives `info.dayOffset = 72`, `info.dayCount = 72`;
+the engine eliminates each day's block when the day is closed. Two consequences:
+the ORDER of instances is the order of your rows (that is where your control
+lives), and every day gets the SAME set — a template cannot say "this window
+exists on day 59397 only" or "this scale is fixed on day 59396".
+
+**Full control AND automation — the v5 proposal (R5-D8, to be decided).** Keep
+the template form as the default and add an instance SELECTOR column:
+
+```
+column 1  scope   'arc' | 'day' | 'system'
+column 2  days    []           = every day (today's behaviour)
+                  [59396 ...]  = this row instantiates on these days only
+columns 3…  yours
+```
+
+Two rows with the same name and different selectors are two instances (how
+"the same parameter, regularised differently on day 2" is written); the block
+of a day = the instantiated rows in table order; `info.dayRows` tells `buildDay`
+which template row sits in column `info.dayOffset + k`; per-day counts may
+differ; nl is still derived without reading; a selector naming a day outside
+the calendar is refused at declaration. Your 144-row list converts mechanically:
+group by name → 72 rows with `[]`; rows that differ on one day → two rows with
+explicit selectors. (A resolver `localParams = @(day) rows`, like `arcs`, gives
+the same power but hides the structure in a function; it stays engine-tier.)
 
 ### STEP 5 — the arc schedule = the pieces, resolvable WITHOUT reading data
 
@@ -244,8 +283,8 @@ rest. A builder that scales its own rows is scaled twice.
 
 | GRAVFIRE item | where it goes now (v4) | where it goes in v5 (plan, HANDOVER §12) |
 |---|---|---|
-| a-priori sigma 1e-9 per Stokes coefficient (column 13) | `lsqvce.Options(Reg=..., RegMatrix=...)` — the Kaula-type prior | `data.priors(k)` with its own variance component |
-| Tikhonov 0.01 on the accelerometer scales (local table column 11) | `lsqvce.engine.applyRegularisation` (engine tier) | `data.priors(k)` with `'day'` scope |
+| **column 13 = column SCALE** (1e-9 on the Stokes rows, 1 / 1e-7 on the locals): the factor that balances the columns of A and B so that N has ≈ unit diagonal — *not* a prior (corrected 2026-09-02) | v4 has **no** column scaling: apply it in your design function (`A(:,j)*s_j`, `B(:,j)*s_j`) and undo it on `R.x` (`x = S*x̃`) and `R.Cxx` (`S*C̃*S`) yourself | a declared per-row `scale`: the toolbox solves the equilibrated system and unscales the results and the reported condition number (R5-D8) |
+| **column 11 = regularisation** (`'none'` or `{'Tikhonov', 1, 0.01}`) — API to be iterated with the user | `lsqvce.Options(Reg=..., RegMatrix=...)` on the common block; `lsqvce.engine.applyRegularisation` on locals (engine tier) | starting proposal: per-row `prior` = the a-priori sigma of the pseudo-observation x_j = 0 ± σ_j, plus an optional `priorGroup` label so rows sharing a label share ONE variance component estimated by VCE (Koch–Kusche) |
 | `weights` (Huber, from the previous outer iteration) | not used — `Robust` is refused on the streaming kind (`lsqvce:fit:notYet`) | IRLS on the streaming kind (M2) |
 | `covarianceModel 'fftmodel'`, `correlationLength 2160` | `Options(Model="ellmer", NumLags=2160)` | per-stream `estimate="law"`, `Noise.Grid` from the schedule |
 | `maximumIterations 7`, `minimumIterations 3` | `MaxOuter=7`; **no** minimum knob | `MaxPasses=7`, `MinPasses=3` (added on this evidence) |
