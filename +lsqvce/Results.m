@@ -362,16 +362,6 @@ classdef Results < handle
                 'VariableNames', {'stream','sigma','arOrder','white','pValue'});
         end
 
-        function setKind(obj, kind, options)
-        %SETKIND  Record which fit KIND produced this Results and the RESOLVED
-        %   user options (R5 M2: kinds B / C now ride the block path, whose
-        %   engine composes meta from its own option struct; fit re-stamps
-        %   the provenance with the Options the user actually set).
-        %   INPUT  kind 'stream'|'matrix'|'batch';  options 1x1 struct (opts.toStruct())
-            obj.meta.options = options;
-            obj.meta.options.kind = char(kind);
-        end
-
         function setIterative(obj, history, noise, converged)
         %SETITERATIVE  Populate iteration fields (used by the iterative engines).
         %   stopReason is DERIVED (R5 M1): converged -> "converged"; not
