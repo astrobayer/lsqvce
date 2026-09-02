@@ -8,7 +8,18 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-09-01 (evening) — REVIEW R5 opened (§12, model
+Last substantive update: 2026-09-01 (night) — R5 merged (PR #47, 5ba94ce);
+R5-D7 APPROVED by the user ("proceed with M0"); LEVEL M0 opened on
+`claude/level-m0` (Tier B from here on: the MATLAB MCP bridge is gone, CI is
+the gate, the user runs postflight + bench_m0 locally and uploads the log).
+WP-78 instruments: timePair (dev/tests/private) + test_instruments (7 points,
+CI-run); audit check 16 → SEVEN categories; checks 19 (catch ratchet, 21
+sites), 20 (identifier catalogue, 369 ids, 80 undocumented = M1 debt), 21
+(layering ratchet, 5 upward edges); audit_selftest.py (8 fault-injection
+cases, in the CI audit job). WP-79 bench_m0.m written, WAITING for the user's
+local run. §12.8 pins the GRAVFIRE→data preparation rules (testdata.mat read
+2026-09-01). NO functional change to the package.
+Preceding entry: Last substantive update: 2026-09-01 (evening) — REVIEW R5 opened (§12, model
 Claude Fable 5.1): three-expert review of v4.0 at main d7ad051 with a code-only
 call graph, a catch-block census and the audit's own category matrix; the
 theory/practice/implementation/error-handling document rewritten in LaTeX as
@@ -4863,8 +4874,8 @@ is late). Read THIS line before opening any level. One level = one branch
 
 | Level | WP | title | depends on | status |
 |---|---|---|---|---|
-| M0 | 78 | Instruments first: timing helper (rotation, 15 repeats, per-repeat statistic), check 16 → SEVEN categories (metamorphic counted), bare-catch metric, identifier-catalogue check (documented = raised = catalogued), layering check; fault-injection self-test per new check; NO functional change | R5-D7 | OPEN |
-| M0 | 79 | Measurements that decide deletions: PrefetchLoader vs parfor-over-days; exact vs probe sweep at u ∈ {500, 2000, 4000}; block-accumulator overhead on 10-row arcs; numbers into dev/DEVELOPMENT.md | 78 | OPEN |
+| M0 | 78 | Instruments first: timing helper (rotation, 15 repeats, per-repeat statistic), check 16 → SEVEN categories (metamorphic counted), bare-catch metric, identifier-catalogue check (documented = raised = catalogued), layering check; fault-injection self-test per new check; NO functional change | R5-D7 | IN PROGRESS (2026-09-01, branch `claude/level-m0`: dev/tests/private/timePair.m + dev/tests/test_instruments.m (7 points: contract 3, precision 1, metamorphic 2, robustness 1); audit_tree.py check 16 seven categories + tags layering/concurrency/convergence, check 19 catch ratchet over dev/docs_src/catch_baseline.csv (21 sites: 5 empty, 16 bare), check 20 identifier catalogue dev/docs_src/error_ids.csv (369 ids closed both ways; 80 raised-but-undocumented reported as M1 debt), check 21 layering ratchet over dev/docs_src/layering_baseline.csv (5 upward edges: engine→Results ×2, engine→report ×2, kernel.toeplitzCofactor→engine.covComponent); `--write-baselines` is the documented way to accept a change (read the diff); dev/docs_src/audit_selftest.py 8 cases in the CI audit job; run_all + DEVELOPMENT counts 24 files / 641 points; CI pending) |
+| M0 | 79 | Measurements that decide deletions: PrefetchLoader vs parfor-over-days; exact vs probe sweep at u ∈ {500, 2000, 4000}; block-accumulator overhead on 10-row arcs; numbers into dev/DEVELOPMENT.md | 78 | IN PROGRESS (2026-09-01: dev/validation/bench_m0.m written — Tier B: the USER runs `bench_m0` (or `bench_m0('Quick',true)`) locally and uploads dev/validation/bench_m0_result.txt; the numbers are then pinned in dev/DEVELOPMENT.md and cited by the M2 deletions. (b) compares engine.redundancy (exact r_i) with engine.streamContribution (probe .r), the genuinely matrix-free route — redundancy's own 'hutchinson' is a check ON TOP of exact, not a replacement) |
 | M1 | 80 | Error doctrine on the CURRENT tree: all 36 catch sites refuse-or-record; `util.callUser`; closed skip enum + counters + SkipThreshold; warnings once per run + meta inventory; `stopReason`; identifier catalogue with dead namespaces removed | 78 | OPEN |
 | M2 | 81 | One accumulator: BlockAccumulator + scope stores + priors → `engine.Accumulator`; flat Accumulator / Combine / BatchIndex / ReducedContribution / CommonPrior / applyRegularisation / datum absorbed or deleted; adjust/robust/solveNonlinear cores → update; kinds B/C via declaration adapters; `data.priors` | 79, 80 | OPEN |
 | M2 | 82 | Delete the unreached duplicates/experiments (H-01 i + iii, per WP-79): varComp, vceHutchinson, iterateNoiseModel, selectArOrder, PrefetchLoader, synthLoader, poolGroups, resolveSatSpecs, normalizeSatList, showExport, hasBackgroundPool; instruments (ii) → dev/tests or verdict; whittle → kernel; inventory by glob (§11.8 lesson) | 79, R5-D5 | OPEN |
@@ -4889,7 +4900,7 @@ WP-31 GPU (gated on M4 measurements), WP-30 runner.
 | R5-D4 | Retire the biased-ACV 'separate' estimator (v4 `vce` mode); accept changed numbers in that mode; acceptance = z-score recovery on O3 not worse, not equality to v4 | **yes** (H-03) |
 | R5-D5 | Delete H-01 classes (i) and (iii) outright (no ENGINE survival); instruments (ii) live in dev/tests or as verdict collectors | **yes** under the no-aliases rule |
 | R5-D6 | Theory authority: the LaTeX document's Parts I–III replace root lsqvce_theory.pdf; ReportLab theory pipeline retired (manual pipeline untouched until M6) | **yes** |
-| R5-D7 | Sequence M0/M1 first — instruments and the error doctrine on the CURRENT tree, so every later deletion is measured and every catch is already honest | **yes**; M0 has no functional change |
+| R5-D7 | Sequence M0/M1 first — instruments and the error doctrine on the CURRENT tree, so every later deletion is measured and every catch is already honest | **APPROVED 2026-09-01** by the user ("proceed with M0"). R5-D1…D6 remain pending; M0/M1 need none of them; the recommendations are the working assumption (D3 = no) until the user says otherwise |
 
 ### 12.7 R5 round notes
 
@@ -4907,3 +4918,100 @@ files `25000_*.pdf` are plain-text dumps of the theses, not PDFs — read with
 equations for the first time. Postflight: none required (no MATLAB change);
 the standing postflight rule (ci_gate + example smoke run after each merge)
 applies to M0 onward.
+
+### 12.8 THE GRAVFIRE INTERFACE — what the preprocessing delivers, and how to prepare it (2026-09-01)
+
+Read from the user's `C:\Users\matth\Documents\MATLAB\testdata.mat` (84 MB, two
+days 59396–59397, degree 10): `commonData.parameter` (117×14), `myOptions`
+(the GRAVFIRE run configuration), `systemsData{1}` (ONE bundle: GraceA
+positions 3-axis 10 s, GraceB positions, GraceX range-rate 5 s; `observations`
+is a 2×3 cell days × groups). **Confirmed by the user:** `indexOfPiece` are
+noise-independence PIECES (6 h positions / 3 h range-rate, the Toeplitz
+blocks), all local parameters are DAY-scoped (`numarc = 1`); the user writes
+`buildDay` (the design matrices A/B are NOT in the file — they are assembled
+from the state-transition partials `niPhi`/`niZhi`, the accelerometer terms
+and the KBR line-of-sight partials `nX12`/`ndX12`/`drho`).
+
+**The mapping onto the v4 contract holds without any contract change:** ONE
+system (the KBR rows depend on both satellites' locals → one local block B
+across the three observation types), `commonParams = ['common' | the 14
+columns]`, `localParams` = ONE day's 72 templates all `'day'`, `arcs =
+@(day,obsType) 1:numberOfPieces`, `buildDay` returns `arcIdx`/`arcId` from
+`indexOfPiece`, `nAxis = 3` and `Cep` from `iSpp` (3×3 per epoch = the exact
+separable-descale path), `covariance.* = diag` with `sigma = sqrt(variance)`,
+`Options(Model="ellmer", NumLags=2160, MaxOuter=7, MinRedundancy=100,
+ComponentsPerEpoch pos->3)`.
+
+**Preparation rules (the user incorporates these in GRAVFIRE so the bundle IS
+the `data` struct and no adapter exists):**
+
+1. **Emit the v4 `data` struct directly** (`commonParams`, `days`, `systems(1)`
+   with `id='GRACE'`, `name`, `buildDay`, `covariance`, `arcs`, `localParams`,
+   `processingOptions`), and keep the per-(day, group) bundles as the payload
+   of `processingOptions` (or bound into the `buildDay` closure). `fit` then
+   validates the declaration before any bundle is touched.
+2. **Templates, not expansions.** `localParams` carries ONE day's rows (36 per
+   satellite); the toolbox expands them over the calendar and hands every
+   offset to `buildDay` in `info` (`dayOffset`/`dayCount`). Day-dependent
+   quantities must NOT sit in the template: absolute time spans `[MJD sec]`
+   become seconds-of-day (the spline windows are the same every day: 0–21600,
+   0–43200, …), the knot vectors are built in `buildDay` from `day`, and
+   column 6's flags drop the day. The 144-row expanded table is a derived
+   artefact — do not store it.
+3. **Scope token in column 1** of both tables (`'common'` / `'day'`); the
+   remaining 14 columns stay your convention (they are piped through untouched).
+4. **Observation types are field names**: `covariance.posA`, `.posB`, `.kbr`
+   (their order = processing order); index the bundle by the same names
+   rather than by group number, so a reordering cannot mis-assign a bundle.
+5. **Per epoch, per axis, epoch-major:** `l` (m×1 with m = nEpoch·nAxis),
+   `t` in seconds of day, `Cep` as nEpoch×3×3 (reshape `iSpp` once at
+   preparation, not per pass); keep `indexOfPiece` and add the piece ids —
+   the last range-rate piece is ragged (2111 rows on 59396), which is exactly
+   what `arcId` is for.
+6. **Do not store iteration state in the data.** `weights` (Huber from the
+   previous outer iteration), `lest`, `iteridx` are the toolbox's business:
+   v5 IRLS on the streaming kind replaces them (H-02 side effect, now a
+   confirmed need). Until then, if they must enter, fold them into a per-row
+   `diag` sigma (`sigma./sqrt(w)`) inside `buildDay` and say so.
+7. **Determinism:** `buildDay(day, obsType, …)` must return byte-identical
+   output on every call (residuals are formed from the second read); no
+   random numbers, no clocks, no mutable state in the closure.
+8. **Priors are declared groups:** the 1e-9 common a-priori sigma (column 13)
+   is the Kaula-type prior → today `Options.Reg`/`RegMatrix`, v5
+   `data.priors(k)`; the local Tikhonov on the accelerometer scales (0.01) →
+   today engine `applyRegularisation`, v5 `data.priors` with scope. Keep both
+   as numbers in the tables (they are), never applied inside `buildDay`.
+9. **Options mapping** (`myOptions.iteration` → `lsqvce.Options`):
+   `maximumIterations` → `MaxOuter`; `minimumIterations` → **`MinPasses`
+   (added to the v5 Options in this note — no v4 equivalent)**;
+   `correlationLength` → `NumLags` (must be ≥ the longest piece: 2160 ✓);
+   `minimumNumberObservations` → `MinRedundancy`; `enableHuberEstimator` →
+   `Robust` (v5 on kind A); `limitConditionNumber` → the rank/condition
+   refusal (reported, not a knob); `covarianceModel 'fftmodel'` +
+   `frequencyStepSize` → `Model="ellmer"` (v5 `estimate="law"`).
+10. **What `buildDay` must not do:** whiten, weight, regularise, or cut into
+    pieces for the covariance — return raw A/B/l/t and the piece index; the
+    toolbox owns the rest (DATA_CONTRACT §3.3).
+
+This bundle is the first real-data reference of the toolbox (oracle O7 of
+the R5 test plan) once `buildDay` exists; the recovery of the degree-10
+field from the two days is then the M3 acceptance run on real partials.
+
+### 12.9 R5 round notes (continued)
+
+**LEVEL M0 ROUND 1 (2026-09-01, model Claude Fable 5.1, branch
+`claude/level-m0`, Tier B).** WP-78 delivered in full (ledger row); WP-79's
+script delivered, its numbers WAIT for the user's local run. Catches while
+building: (1) the audit's baseline reader skipped `site,`/`caller,` header
+rows but not `id,` — the catalogue's own header was read as a ghost id; the
+self-test's HEALTHY-copy leg is what catches this class; (2) module-level
+functions appended AFTER the `if __name__` guard are undefined when the
+guard runs — the guard is now the last statement; (3) `engine.redundancy`'s
+`'hutchinson'` is a machinery check ON TOP of the exact sweep (its help says
+so), so the exact-vs-probe measurement pairs `redundancy` with
+`streamContribution`, the matrix-free route. Ratchet doctrine adopted: a
+baseline lists today's debt, NEW instances and STALE rows are both findings,
+`--write-baselines` regenerates and the diff is read before commit.
+Postflight (user, Tier B): `cd('dev/tests'); ci_gate`, the example smoke run,
+and `bench_m0` — upload dev/tests/last_run_all.txt and
+dev/validation/bench_m0_result.txt.
