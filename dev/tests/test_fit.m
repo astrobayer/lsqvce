@@ -396,7 +396,7 @@ function testDemoFitRuns(tc)
     tc.verifyLessThan(max(abs(z)), 3, 'the in-memory truth is recovered within 3 formal sigma');
     % tol: 1e-12 -- the same rows accumulated in two batches vs one; summation order only
     tc.verifyEqual(out.batch.x, out.matrix.x, 'RelTol', 1e-12, 'two batches == one batch (same rows)');
-    tc.verifyLessThan(out.robust.source.factor(7), 0.5, 'the planted gross error is downweighted');
+    tc.verifyLessThan(out.robust.history(end).factor(7), 0.5, 'the planted gross error is downweighted');
     % tol: 5e-3 -- 40 points at 1e-3 noise (the WP-56b pin)
     tc.verifyEqual(out.nonlinear.x, out.truth.ab, 'AbsTol', 5e-3);
     tc.verifyEqual(size(out.vce.history.sigma, 1), 2, 'two outer passes recorded');
