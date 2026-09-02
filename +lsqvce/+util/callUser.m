@@ -10,8 +10,11 @@ function [nOut, varargout] = callUser(fh, minOut, maxOut, ctx, varargin)
 %        call. nargout(fh) answers for named functions without varargout; it
 %        answers -1 for anonymous handles and varargout functions, and THEN --
 %        and only then -- the count is found by ONE trial call that asks for
-%        maxOut outputs and steps down on exactly the three MATLAB "too many
-%        outputs" identifiers. The call's outputs are RETURNED, so the trial is
+%        maxOut outputs and steps down on exactly the four MATLAB "too many
+%        outputs" identifiers (TooManyOutputs, maxlhs, unassignedOutputs, and
+%        deal's narginNargoutMismatch). NB: an anonymous handle whose body
+%        returns nothing raises TooManyOutputs BEFORE the body runs, so a
+%        0-output hook is probed for free. The call's outputs are RETURNED, so the trial is
 %        never wasted, and the caller stores nOut and passes minOut == maxOut
 %        == nOut from then on (no probing ever again).
 %     2. ANY OTHER exception inside the user's function is re-raised as

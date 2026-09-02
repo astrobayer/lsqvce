@@ -69,9 +69,11 @@ end
 
 function testCallUserWrapsUserErrorWithCause(tc)
 % categories: robustness
-    bad = @(k) error('mine:boom', 'the user said %d', k);
+    % a NAMED function with an output that throws inside (an anonymous
+    % handle whose body is error(...) never runs: MATLAB raises TooManyOutputs
+    % for the missing output first -- that case is the tooFew test below)
     try
-        lsqvce.util.callUser(bad, 1, 1, 'batchFcn(k)', 3);
+        lsqvce.util.callUser(@badBatch, 1, 1, 'batchFcn(k)', 3);
         verifyFail(tc, 'must throw');
     catch ME
         verifyEqual(tc, ME.identifier, 'lsqvce:callUser:threw');
@@ -80,6 +82,11 @@ function testCallUserWrapsUserErrorWithCause(tc)
         verifyEqual(tc, ME.cause{1}.identifier, 'mine:boom', 'the original is the cause, unmodified');
         verifyEqual(tc, ME.cause{1}.message, 'the user said 3');
     end
+end
+
+function A = badBatch(k)
+    A = [];  %#ok<NASGU>
+    error('mine:boom', 'the user said %d', k);
 end
 
 function testCallUserArityErrorFromInsideIsNotMisread(tc)
