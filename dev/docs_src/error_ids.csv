@@ -141,7 +141,6 @@ lsqvce:covModel:noType,engine.covModel,error,v4.0
 lsqvce:covModel:noVAR,engine.covModel,error,v4.0
 lsqvce:covModel:notWholeEpochs,engine.covModel,error,v4.0
 lsqvce:covModel:psdSanitationEscape,engine.covModel,error,v4.0
-lsqvce:covModel:psdUnderResolved,engine.covModel,warning,v4.0
 lsqvce:covModel:sigmaLength,engine.covModel,error,v4.0
 lsqvce:covModel:unknownType,engine.covModel,error,v4.0
 lsqvce:crossCorr:shortSeries,kernel.crossCorr,warning,v4.0
