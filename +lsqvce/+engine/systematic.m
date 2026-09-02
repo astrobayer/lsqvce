@@ -105,6 +105,10 @@ function S = systematic(D, opt)
 %   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
 %   case-sensitive lowercase). With assistance from Claude (Anthropic),
 %   model Claude Fable 5.
+%   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+%     lsqvce:systematic:lbUnreliable             [warning] Ljung-Box is anti-conservative here (u/n = X, n = X, h = X)
+%     lsqvce:systematic:tooFew                   [warning] Only X controlled observations
+%
 %   See also LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.FTEST.
 %
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,

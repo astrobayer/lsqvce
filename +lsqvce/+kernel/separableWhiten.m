@@ -88,6 +88,14 @@ function [Aw, Bw, lw] = separableWhiten(a, s, r, sigEpoch, d, A, B, l, isFirstBa
 %                  batch does not contain whole epochs. Rows MUST be epoch-major
 %                  and the arc must set nAxis = d.
 %
+%   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+%     lsqvce:separable:acvTooShort               The autocovariance has X lags but the startup needs X.lower
+%     lsqvce:separable:badSigma                  Innovation std s = X must be positive
+%     lsqvce:separable:badSigmaShape             sigEpoch must be nEpoch x X (diagonal) or nEpoch x X x X (full per-ep...
+%     lsqvce:separable:epochNotPD                The X x X covariance of epoch X is not positive definite
+%     lsqvce:separable:sigmaLength               sigEpoch has X epochs but the block has X., nE*d, 1); Xpoch-major if...
+%     lsqvce:separable:startupNotPD              [warning] The stationary startup block is not PD; keeping the transient
+%
 %   See also LSQVCE.KERNEL.CROSSCORR, LSQVCE.KERNEL.ARMAWHITEN, LSQVCE.ENGINE.COVMODEL
 %
 %   Generated with assistance from Claude (Anthropic), model Claude

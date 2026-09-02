@@ -48,6 +48,9 @@ function r = psd2acv(f, S, dt, n)
 %     lsqvce:psd2acv:nonPositiveVariance  the implied variance is not positive,
 %                                   so the PSD is not a valid spectrum
 %
+%   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+%     lsqvce:psd2acv:aboveNyquist                [warning] The PSD extends to X Hz, above the Nyquist frequency X Hz implied by...
+%
 %   See also LSQVCE.KERNEL.LEVINSONDURBIN, LSQVCE.KERNEL.ARMAACV, LSQVCE.ENGINE.CHECKPSD
 %
 %   Generated with assistance from Claude (Anthropic), model Claude

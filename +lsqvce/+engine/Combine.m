@@ -144,6 +144,10 @@ classdef Combine < handle
 %       lsqvce:combine:vcCorrelated     likewise, inside the VCE step
 %       lsqvce:combine:vcSingular       a group has no redundancy of its own
 %
+%   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+%     lsqvce:combine:emptySystem                 [warning] X contributed no observations; skipping
+%     lsqvce:combine:integrity                   [warning]  ... ... ... ... 
+%
 %   See also LSQVCE.ENGINE.BATCHINDEX, LSQVCE.ENGINE.ADJUST, LSQVCE.ENGINE.VARCOMP.
 %
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
@@ -1008,18 +1012,9 @@ end
 
 function [AC, AL, l, p] = callBatch(~, f, k, uL)
 %CALLBATCH  Call a system batch source, splitting common/local columns (uL locals).
-    try
-        [AC, AL, l, p] = f(k);
-    catch ME
-        if any(strcmp(ME.identifier, {'MATLAB:TooManyOutputs', ...
-                                      'MATLAB:maxlhs', ...
-                                      'MATLAB:unassignedOutputs'}))
-            [AC, AL, l] = f(k);
-            p = [];
-        else
-            rethrow(ME);
-        end
-    end
+%   Through LSQVCE.UTIL.CALLUSER (R5 M1, H-08): p = [] for a 3-output source;
+%   a throwing source arrives as lsqvce:callUser:threw with the cause attached.
+    [~, AC, AL, l, p] = lsqvce.util.callUser(f, 3, 4, 'batchFcn(k)', k);
     l = l(:);
     if size(AL,2) ~= uL
         error('lsqvce:combine:badAL', ...

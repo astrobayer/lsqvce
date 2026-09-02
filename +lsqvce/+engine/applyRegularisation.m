@@ -70,6 +70,10 @@ function [Nr, nr, dg] = applyRegularisation(Nll, nl, dg, opt)
 %     lsqvce:applyReg:notPD         the regularised normal matrix is not
 %                                   positive definite
 %
+%   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+%     lsqvce:applyReg:sizeMismatch               Nll is XxX but nl has X elements.RegMatrix
+%     lsqvce:applyReg:unknown                    Unknown regularisation 'X'. Valid
+%
 %   See also LSQVCE.ENGINE.LOCALDIAGNOSTICS, LSQVCE.ENGINE.GCVLAMBDA, LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
 %   Generated with assistance from Claude (Anthropic), model Claude

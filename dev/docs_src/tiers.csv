@@ -77,6 +77,7 @@ kernel.whitenessCorr,KERNEL,whiteness (Ljung-Box) statistic
 kernel.redundancyLags,KERNEL,redundancy per lag without the dense W^-1
 util.getfielddef,KERNEL,struct field with default
 util.hasBackgroundPool,KERNEL,pool presence check
+util.callUser,KERNEL,call a user function: outputs counted once and errors wrapped with cause
 util.log,KERNEL,toolbox-wide logging state
 util.mergeStruct,KERNEL,struct merge (later wins)
 util.showExport,KERNEL,timed figure show + PNG export

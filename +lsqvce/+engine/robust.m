@@ -99,6 +99,9 @@ function [sol, D, ROB] = robust(u, batchFcn, nBatch, varargin)
 %   inputParser, which stays BY DESIGN (KeepUnmatched forwards to
 %   LSQVCE.ENGINE.DIAGNOSE -- the adjust pattern; pinned deviation §9 WP-39).
 %   With assistance from Claude (Anthropic), model Claude Fable 5.
+%   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+%     lsqvce:robust:collapsed                    [warning] The influence function has driven all but X observations to zero weig...
+%
 %   See also LSQVCE.ENGINE.SNOOP, LSQVCE.ENGINE.DIAGNOSE.
 %
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
@@ -297,20 +300,15 @@ end
 
 %% ---------------------------------------------------------------- helpers
 function [A, l, p] = callB(f, k)
-%CALLB  Call a batch source f(k), tolerating sources that return only [A,l]
-%   (no weights). Returns p = [] when the source has no third output.
+%CALLB  Call a batch source f(k) through LSQVCE.UTIL.CALLUSER (R5 M1, H-08).
+%   Returns p = [] when the source has no third output; anything the source
+%   throws arrives as lsqvce:callUser:threw with the original as cause. (The
+%   count is re-asked per call here because callB is reached from several
+%   helpers without shared state; nargout(f) answers without a trial for named
+%   sources, and this file is folded into the single loop in M2.)
 %   INPUT   f 1x1 fh   the batch source;  k 1x1 double  batch index
 %   OUTPUT  A nk x u   design;  l nk x 1  observations;  p nk x 1 | []  weights
-    try
-        [A, l, p] = f(k);
-    catch ME
-        if any(strcmp(ME.identifier, {'MATLAB:TooManyOutputs','MATLAB:maxlhs', ...
-                                      'MATLAB:unassignedOutputs'}))
-            [A, l] = f(k);  p = [];
-        else
-            rethrow(ME);
-        end
-    end
+    [~, A, l, p] = lsqvce.util.callUser(f, 2, 3, 'batchFcn(k)', k);
 end
 
 function [A, l, p] = reweighted(batchFcn, k, fac, batchOffset)

@@ -135,6 +135,16 @@ function [sol, D, REJ] = snoop(sol, D, batchFcn, opt)
 %   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
 %   case-sensitive lowercase). With assistance from Claude (Anthropic),
 %   model Claude Fable 5.
+%   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+%     lsqvce:snoop:contaminated                  [warning] snoop
+%     lsqvce:snoop:downdateFailed                [warning] Removing observation X would make the normal matrix singular (the Cho...
+%     lsqvce:snoop:forcedBreakdown               [warning] snoop
+%     lsqvce:snoop:forcedContaminated            [warning] snoop
+%     lsqvce:snoop:forcedOverCap                 [warning] snoop
+%     lsqvce:snoop:lowRedundancy                 [warning] Observation X has the largest |w| (X) but its redundancy is only X. T...
+%     lsqvce:snoop:maxReject                     [warning] Reached the rejection cap (X)
+%     lsqvce:snoop:rejectFraction                [warning] STOPPING
+%
 %   See also LSQVCE.ENGINE.ROBUST, LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.SYSTEMATIC.
 %
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,

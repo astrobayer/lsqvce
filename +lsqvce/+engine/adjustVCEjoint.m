@@ -121,7 +121,15 @@ function out = adjustVCEjoint(accFcn, opt)
 %     lsqvce:adjustVCEjoint:badC0     the starting cross-covariance is malformed
 %     lsqvce:adjustVCEjoint:notPD     the joint covariance is not positive
 %                                     definite, so it cannot be factored
+%     lsqvce:adjustVCEjoint:skipThreshold  a pass skipped more than
+%                                   SkipThreshold of the enumerated arcs (R5 M1)
+%     lsqvce:adjustVCEjoint:multiAxis  an arc carries nAxis > 1 (R5 M1, H-15):
+%                                   the joint estimator is single-axis
 %     lsqvce:adjustVCEjoint:noArcs    a system declares no arcs
+%
+%   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+%     lsqvce:adjustVCEjoint:localNotPD           System X
+%     lsqvce:adjustVCEjoint:notConverged         [warning] The joint stochastic model did not settle in X outer iterations (last...
 %
 %   See also LSQVCE.ENGINE.ADJUSTVCE (the separable default), LSQVCE.ENGINE.PSDVCE,
 %            LSQVCE.ENGINE.ARCVARIANCEFACTORS, LSQVCE.KERNEL.REDUNDANCYLAGS,
@@ -184,6 +192,7 @@ arguments
     opt.MeanType (1,1) string = "robust"
     opt.StepSchedule (1,1) string {mustBeMember(opt.StepSchedule, ["none","decay"])} = "none"
     opt.AvgTail  (1,1) double {mustBeInteger, mustBeNonnegative} = 0
+    opt.SkipThreshold (1,1) double {mustBeInRange(opt.SkipThreshold, 0, 1)} = 0.2
     opt.Verbose  (1,1) logical = false
 end
     o = opt;
@@ -239,6 +248,19 @@ end
         if nArc == 0
             error('lsqvce:adjustVCEjoint:noArcs', ...
                   'No arcs were enumerated -- nothing to estimate from.');
+        end
+        % R5 M1: a skip RATE above the threshold is a refusal, not a smaller
+        % estimate. The skipped arcs keep their factors and the run continues
+        % on the rest only while they are few; beyond SkipThreshold the law
+        % estimated from the survivors would describe a different data set.
+        nAll = numel(keysAll);
+        if nAll > 0 && size(skips, 1) / nAll > o.SkipThreshold
+            error('lsqvce:adjustVCEjoint:skipThreshold', ...
+                 ['Pass %d skipped %d of %d arcs (%.0f %% > SkipThreshold %.0f %%): ' ...
+                  '%s. A noise law estimated from the remaining arcs would not ' ...
+                  'describe the data; fix the covariance model or raise ' ...
+                  'Options.SkipThreshold deliberately.'], it, size(skips, 1), nAll, ...
+                  100*size(skips, 1)/nAll, 100*o.SkipThreshold, skipSummary(skips));
         end
         if isempty(pinnedKeys)
             % Pass 1: pin the arc identity on the ENUMERATION (skipped arcs
@@ -449,6 +471,21 @@ function [om, sn, why] = oneArc(st, obsType, arc, day, uo, UiZ, nLag, x, ySys, G
 
     A = a.A;  l = a.l(:);
     m = size(A, 1);
+    % R5 M1, finding H-15: the joint estimator forms the DENSE m x m arc
+    % covariance and takes lags over the ROW index. Epoch-major multi-axis
+    % rows would make "lag 1" the next axis, not the next epoch, and m is
+    % nAxis times the epoch count. Refuse rather than compute the wrong
+    % estimator slowly; M3 whitens per axis.
+    nAx = lsqvce.util.getfielddef(a, 'nAxis', 1);
+    if nAx > 1
+        error('lsqvce:adjustVCEjoint:multiAxis', ...
+             ['Arc (sys %s, %s, day %s, arc %s) is a %d-axis stream. The joint ' ...
+              '(Ellmer) spectral estimator is single-axis in this version: its ' ...
+              'lags run over rows, and a %d x %d dense covariance per arc would be ' ...
+              'formed. Use Model="vce" for multi-axis streams until the per-axis ' ...
+              'whitening of R5 M3 lands.'], string(st.sysID), string(obsType), ...
+              string(day), string(arc), nAx, m, m);
+    end
 
     % The arc's whitener. A loader may hand back either an explicit covariance
     % (Cfcn) or a whitening operator (Wfcn); redundancyLags needs the explicit
@@ -495,4 +532,14 @@ function y = padTo(v, n)
     k = min(numel(v), n);
     y(1:k) = v(1:k);
     y(~isfinite(y)) = 0;
+end
+
+function s = skipSummary(skips)
+%SKIPSUMMARY  'gap: 3, nonPD: 12' from the {key, reason} skip list.
+    if isempty(skips), s = 'none'; return, end
+    [why, ~, j] = unique(skips(:, 2));
+    n = accumarray(j(:), 1);
+    parts = cell(1, numel(why));
+    for k = 1:numel(why), parts{k} = sprintf('%s: %d', why{k}, n(k)); end
+    s = strjoin(parts, ', ');
 end

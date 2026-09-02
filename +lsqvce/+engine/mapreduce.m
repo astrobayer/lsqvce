@@ -65,6 +65,8 @@ function [out, info] = mapreduce(nTask, taskFcn, opt)
 %
 %   ERRORS
 %     lsqvce:mapreduce:badTask      a task descriptor is malformed
+%     lsqvce:mapreduce:serialFallback  [warning, once per run] a parallel mode was
+%                                   requested but no pool could be used (R5 M1)
 %
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (c) c1 (F-07):
 %   typed `arguments` signature, canonical UpperCamelCase option names
@@ -107,6 +109,7 @@ end
     info = struct('mode', mode, 'fallback', '', 'nWorkers', 1);
 
     % ---- gate the parallel request -----------------------------------------
+    mode0 = mode;
     if ~strcmp(mode, 'serial')
         [ok, why, nW] = poolReady(o.autoPool);
         if nTask < o.threshold
@@ -115,6 +118,10 @@ end
         elseif ~ok
             mode = 'serial';
             info.fallback = why;
+            % R5 M1: a parallel request that runs serially is REPORTED once per
+            % run, never only recorded in a struct nobody prints.
+            lsqvce.util.log.warnOnce('lsqvce:mapreduce:serialFallback', ...
+                'Parallel mode ''%s'' requested but %s; running serially.', mode0, why);
         elseif strcmp(mode, 'spmd') && isempty(o.combine)
             mode = 'parfor';
             info.fallback = '''spmd'' requires a ''Combine'' function; using parfor';

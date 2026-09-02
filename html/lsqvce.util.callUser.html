@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.util.callUser</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.util.callUser</div>
+<h1>lsqvce.util.callUser</h1>
+<div class="purpose">Call a user-supplied function: outputs counted ONCE, errors wrapped.</div>
+<h2>Description</h2>
+<pre class="example">[nOut, out1, ..., outMax] = lsqvce.util.callUser(fh, minOut, maxOut, ctx, args...)</pre>
+<h3>THE one place the toolbox calls a function the user wrote (batch sources,</h3>
+<pre class="example">plot hooks, arc resolvers; buildDay goes through makeLoader, which applies
+the same two rules). The two rules, R5 error doctrine (theory_r5 ch. 7,
+finding H-08):
+  1. HOW MANY OUTPUTS the function returns is asked, not probed on every
+     call. nargout(fh) answers for named functions without varargout; it
+     answers -1 for anonymous handles and varargout functions, and THEN --
+     and only then -- the count is found by ONE trial call that asks for
+     maxOut outputs and steps down on exactly the three MATLAB &quot;too many
+     outputs&quot; identifiers. The call&#x27;s outputs are RETURNED, so the trial is
+     never wasted, and the caller stores nOut and passes minOut == maxOut
+     == nOut from then on (no probing ever again).
+  2. ANY OTHER exception inside the user&#x27;s function is re-raised as
+     lsqvce:callUser:threw with the call context in the message and the
+     user&#x27;s exception attached UNMODIFIED as the cause (ME.cause{1}), so
+     the user sees both where the toolbox was and what their code said.</pre>
+<h3>Input</h3>
+<pre class="example">fh      1x1 function_handle   the user&#x27;s function
+minOut  1x1 double &gt;= 0       fewest outputs the caller can work with
+maxOut  1x1 double &gt;= minOut  most outputs the caller wants
+ctx     char/string           what is being called, for messages
+                              (e.g. &#x27;batchFcn(k)&#x27;, &#x27;plot hook after/kbr&#x27;)
+args    any                   the arguments of the call</pre>
+<h3>Output</h3>
+<pre class="example">nOut         1x1 double   how many outputs fh actually returned
+                          (minOut &lt;= nOut &lt;= maxOut)
+out1..outMax any          the outputs of THIS call; positions above nOut
+                          are [] (the caller asked for maxOut names)</pre>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:callUser:badHandle   fh is not a function handle
+  lsqvce:callUser:tooFew      fh cannot return minOut outputs (nargout(fh)
+                              is known and smaller, or every trial down to
+                              minOut raised a too-many-outputs identifier)
+  lsqvce:callUser:threw       fh raised anything else; the original is the
+                              cause
+
+ACCURACY  none of its own: outputs pass through untouched.</pre>
+<h3>Example</h3>
+<pre class="example">  % first batch: learn n; later batches: fixed n, no probing
+  [n, A, l, p] = lsqvce.util.callUser(batchFcn, 2, 3, &#x27;batchFcn(k)&#x27;, 1);
+  for k = 2:nBatch
+      [~, A, l, p] = lsqvce.util.callUser(batchFcn, n, n, &#x27;batchFcn(k)&#x27;, k);
+  end
+
+See also NARGOUT, LSQVCE.ENGINE.MAKELOADER
+
+Created 2026-09-02 (CEST, UTC+02:00) with assistance from Claude
+(Anthropic), model Claude Fable 5.1 -- R5 Level M1, WP-80.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
+</body></html>

@@ -37,6 +37,9 @@ function outPath = showExport(figH, name, showSeconds, exportDir)
 %     f = figure; plot(randn(100,1));
 %     p = lsqvce.util.showExport(f, 'postSolve_x1_posC_pass1', 2, '/tmp/figs');
 %
+%   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+%     lsqvce:showExport:exportFailed             [warning] Could not export figure 'X' (X)
+%
 %   See also LSQVCE.ENGINE.ADJUSTVCE
 %
 %   Created 2026-07-16 (CEST, UTC+02:00) with assistance from
@@ -60,8 +63,11 @@ function outPath = showExport(figH, name, showSeconds, exportDir)
         figure(figH);                 % bring to front
         drawnow;
         if waitSec > 0, pause(waitSec); end
-    catch
-        % headless / no display: skip the show, still try to export below.
+    catch ME
+        % headless / no display: the show is skipped and SAID (R5 M1); the
+        % export below still runs.
+        lsqvce.util.log.msg('[showExport: display unavailable (%s); export only]\n', ...
+                            ME.identifier);
     end
 
     % ---- export ----------------------------------------------------------
@@ -87,12 +93,9 @@ end
 % ==========================================================================
 function tf = allValidFig(h)
 %ALLVALIDFIG  True if h is a graphics handle that ishghandle and is a figure.
-    tf = false;
-    try
-        tf = all(ishghandle(h)) && all(strcmp(get(h, 'type'), 'figure'));
-    catch
-        tf = false;
-    end
+    % ishghandle answers false for non-handles, so no exception is possible
+    % before the && short-circuits: a CONDITION, not a catch (R5 M1).
+    tf = ~isempty(h) && all(ishghandle(h(:))) && all(strcmp(get(h(:), 'type'), 'figure'));
 end
 
 function exportOnePng(figH, outPath)

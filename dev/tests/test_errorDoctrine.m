@@ -1,0 +1,201 @@
+function tests = test_errorDoctrine
+%TEST_ERRORDOCTRINE  R5 M1 (WP-80): the error doctrine's mechanisms.
+%   tests = test_errorDoctrine
+%
+%   Pins what the doctrine (dev/lsqvce_theory_r5.pdf ch. 7) turned into code:
+%     - lsqvce.util.callUser: outputs counted ONCE, user errors wrapped with
+%       the original as cause (finding H-08);
+%     - lsqvce.util.log inventory / warnOnce: warnings are a RESULT
+%       (R.meta.warnings), and an identifier fires once per run;
+%     - Results.stopReason: convergence failure is a result, not an error;
+%     - Options.SkipThreshold: a typed, range-checked run policy;
+%     - BlockAccumulator.windowMax: the covariance grid is sized from a
+%       MEASURED window (finding H-06), never probed;
+%     - the joint (Ellmer) estimator REFUSES a multi-axis stream (H-15)
+%       instead of computing the wrong estimator slowly.
+%   The skip-rate refusal (lsqvce:adjustVCE:skipThreshold) has no provoking
+%   fixture yet -- recorded as the M1 gap, closed with the M3 noise law.
+%
+%   See also LSQVCE.UTIL.CALLUSER, LSQVCE.UTIL.LOG, LSQVCE.RESULTS, TEST_CI_GATE
+%
+%   Created 2026-09-02 (CEST, UTC+02:00) with assistance from Claude
+%   (Anthropic), model Claude Fable 5.1 -- R5 Level M1, WP-80.
+    tests = functiontests(localfunctions);
+end
+
+function setupOnce(tc)
+    here = fileparts(mfilename('fullpath'));
+    root = fileparts(fileparts(here));
+    addpath(root);
+    addpath(fullfile(root, 'examples'));
+    tc.TestData.root = root;
+end
+
+%% ============================================================ callUser
+function testCallUserRejectsNonHandle(tc)
+% categories: contract
+    verifyError(tc, @() lsqvce.util.callUser(42, 1, 1, 'ctx', 1), 'lsqvce:callUser:badHandle');
+end
+
+function testCallUserTooFewOutputsDeclared(tc)
+% categories: contract
+    % a NAMED function with a known nargout: refused without any call
+    verifyError(tc, @() lsqvce.util.callUser(@sin, 2, 3, 'ctx', 1), 'lsqvce:callUser:tooFew');
+end
+
+function testCallUserProbesOnceAndReturnsTheOutputs(tc)
+% categories: contract
+    % anonymous handles report nargout = -1, so the count is found by ONE
+    % trial that must not be wasted: the outputs of that call come back
+    f2 = @(k) deal(k, 2*k);
+    f3 = @(k) deal(k, 2*k, 3*k);
+    [n2, a, b, c] = lsqvce.util.callUser(f2, 2, 3, 'f2', 5);
+    verifyEqual(tc, n2, 2);  verifyEqual(tc, [a b], [5 10]);  verifyEmpty(tc, c);
+    [n3, a, b, c] = lsqvce.util.callUser(f3, 2, 3, 'f3', 5);
+    verifyEqual(tc, n3, 3);  verifyEqual(tc, [a b c], [5 10 15]);
+    % fixed count: min == max, no probing path
+    [n, a, b] = lsqvce.util.callUser(f2, 2, 2, 'f2', 7);
+    verifyEqual(tc, n, 2);  verifyEqual(tc, [a b], [7 14]);
+end
+
+function testCallUserZeroOutputHook(tc)
+% categories: contract
+    % a side-effect-only hook (assigns nothing): asked for one output it
+    % raises TooManyOutputs ONCE, is then called for its effect, figH = []
+    [n, figH] = lsqvce.util.callUser(@(ctx) disp(''), 0, 1, 'hook', struct());
+    verifyEqual(tc, n, 0);
+    verifyEmpty(tc, figH);
+end
+
+function testCallUserWrapsUserErrorWithCause(tc)
+% categories: robustness
+    bad = @(k) error('mine:boom', 'the user said %d', k);
+    try
+        lsqvce.util.callUser(bad, 1, 1, 'batchFcn(k)', 3);
+        verifyFail(tc, 'must throw');
+    catch ME
+        verifyEqual(tc, ME.identifier, 'lsqvce:callUser:threw');
+        verifyTrue(tc, contains(ME.message, 'batchFcn(k)'), 'the context is named');
+        verifyEqual(tc, numel(ME.cause), 1);
+        verifyEqual(tc, ME.cause{1}.identifier, 'mine:boom', 'the original is the cause, unmodified');
+        verifyEqual(tc, ME.cause{1}.message, 'the user said 3');
+    end
+end
+
+function testCallUserArityErrorFromInsideIsNotMisread(tc)
+% categories: robustness
+    % a user function that ITSELF raises TooManyOutputs (a bug in it) must
+    % not be misread as "fewer outputs": below minOut the probe refuses
+    liar = @(k) error('MATLAB:TooManyOutputs', 'inner');
+    verifyError(tc, @() lsqvce.util.callUser(liar, 1, 1, 'ctx', 1), 'lsqvce:callUser:tooFew');
+end
+
+%% ============================================================ inventory
+function testInventoryCollectsEachIdOnce(tc)
+% categories: contract | tags: provenance
+    lsqvce.util.log.inventory('reset');
+    verifyEmpty(tc, lsqvce.util.log.inventory());
+    st = warning('off', 'lsqvce:internal:testProbe');  c1 = onCleanup(@() warning(st)); %#ok<NASGU>
+    st2 = warning('off', 'lsqvce:internal:testProbe2'); c2 = onCleanup(@() warning(st2)); %#ok<NASGU>
+    lsqvce.util.log.warn('lsqvce:internal:testProbe', 'one');
+    lsqvce.util.log.warn('lsqvce:internal:testProbe', 'again');
+    lsqvce.util.log.warn('lsqvce:internal:testProbe2', 'two');
+    inv = lsqvce.util.log.inventory();
+    verifyEqual(tc, inv, {'lsqvce:internal:testProbe', 'lsqvce:internal:testProbe2'}, ...
+        'first-fired order, each once');
+    lsqvce.util.log.inventory('reset');
+    verifyEmpty(tc, lsqvce.util.log.inventory());
+end
+
+function testWarnOnceFiresOncePerRun(tc)
+% categories: contract
+    lsqvce.util.log.inventory('reset');
+    st = warning('off', 'lsqvce:internal:testProbe');  c1 = onCleanup(@() warning(st)); %#ok<NASGU>
+    fired = false(1, 5);
+    for k = 1:5
+        fired(k) = lsqvce.util.log.warnOnce('lsqvce:internal:testProbe', 'k = %d', k);
+    end
+    verifyEqual(tc, fired, [true false false false false]);
+    verifyEqual(tc, numel(lsqvce.util.log.inventory()), 1);
+    lsqvce.util.log.inventory('reset');
+end
+
+function testFitStoresTheInventoryInMeta(tc)
+% categories: contract | tags: provenance
+    % a clean single solve: fit resets the inventory and stores it (empty)
+    rs = RandStream('mt19937ar', 'Seed', 3);
+    A  = randn(rs, 60, 4);  x = [1; -2; 0.5; 3];
+    l  = A*x + 0.01*randn(rs, 60, 1);
+    R  = lsqvce.fit(struct('A', A, 'l', l), lsqvce.Options(Verbose=0));
+    verifyTrue(tc, isfield(R.meta, 'warnings'));
+    verifyTrue(tc, iscell(R.meta.warnings));
+    verifyEmpty(tc, R.meta.warnings, 'a clean solve fires no lsqvce warning');
+    verifyEqual(tc, R.stopReason, "single");
+end
+
+%% ============================================================ stopReason
+function testStopReasonIsDerived(tc)
+% categories: contract
+    rs = RandStream('mt19937ar', 'Seed', 4);
+    A  = randn(rs, 50, 3);  l = A*[1; 2; 3] + 0.01*randn(rs, 50, 1);
+    R  = lsqvce.fit(struct('A', A, 'l', l), lsqvce.Options(Verbose=0));
+    verifyEqual(tc, R.stopReason, "single");
+    R.setIterative(struct('pass', 1), struct(), true);
+    verifyEqual(tc, R.stopReason, "converged");
+    R.setIterative(struct('pass', 1), struct(), false);
+    verifyEqual(tc, R.stopReason, "maxPasses");
+    R.setIterative(struct([]), struct(), false);
+    verifyEqual(tc, R.stopReason, "single");
+end
+
+%% ============================================================ SkipThreshold
+function testSkipThresholdOption(tc)
+% categories: contract
+    o = lsqvce.Options();
+    verifyEqual(tc, o.SkipThreshold, 0.2);
+    o.SkipThreshold = 0;   verifyEqual(tc, o.SkipThreshold, 0);
+    o.SkipThreshold = 1;   verifyEqual(tc, o.SkipThreshold, 1);
+    verifyError(tc, @() setBad(o), 'MATLAB:validators:mustBeInRange');
+end
+
+function setBad(o)
+    o.SkipThreshold = 1.5;
+end
+
+%% ============================================================ measured window
+function testWindowMaxIsMeasuredFromTheAccumulation(tc)
+% categories: contract, reference
+    % nothing accumulated -> 0; after a system: min(BatchSize + overlap, rows
+    % of the largest (day, obsType)) -- with a diag law the overlap is 0
+    cfg = makeCfg(6, 3, 40, 2);                       % nc, arcs/day, rows/arc, nl
+    f   = @(d, ot, a, uo) lsqvce.engine.synthLoader(cfg, 1, d, ot, a, uo);
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Verbose', false, 'BatchSize', 70);
+    verifyEqual(tc, acc.windowMax, 0);
+    acc.addSystem(1, cfg.nl, f, 1:2);
+    verifyEqual(tc, acc.windowMax, 70, 'BatchSize caps the window (day rows = 120)');
+    acc2 = lsqvce.engine.BlockAccumulator(cfg.nc, 'Verbose', false);   % default 20000
+    acc2.addSystem(1, cfg.nl, f, 1:2);
+    verifyEqual(tc, acc2.windowMax, 120, 'the day''s rows cap the window');
+end
+
+function cfg = makeCfg(nc, arcsPerDay, mArc, nl)
+    rs = RandStream('mt19937ar', 'Seed', 42);
+    cfg.nc = nc;  cfg.nl = nl;  cfg.sats = 1;
+    cfg.x_c = randn(rs, nc, 1);
+    cfg.y = containers.Map('KeyType', 'double', 'ValueType', 'any');
+    cfg.y(1) = randn(rs, nl, 1);
+    cfg.obsTypes = {'kbr'};
+    cfg.arcsPerDay = arcsPerDay;  cfg.mArc = mArc;  cfg.dt = 5;  cfg.seed = 42;
+    cfg.collinear = false;  cfg.collinearEps = 1e-7;
+    cfg.cov.kbr = struct('type', 'diag', 'sigma', 0.2);
+end
+
+%% ============================================================ H-15 refusal
+function testEllmerRefusesMultiAxisStreams(tc)
+% categories: contract, robustness
+    % the demo has 3-axis position streams: Model="ellmer" must REFUSE at
+    % the first multi-axis arc with the named identifier, not run for minutes
+    [~, data] = demo_grace_dataLoader();
+    opts = lsqvce.Options(Model="ellmer", NumLags=16, MaxOuter=1, Verbose=0);
+    verifyError(tc, @() lsqvce.fit(data, opts), 'lsqvce:adjustVCEjoint:multiAxis');
+end

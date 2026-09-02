@@ -68,6 +68,9 @@ function [h, blocks] = leverage(A, B, blocks)
 %   ERRORS
 %     lsqvce:leverage:sizeMismatch  the design block and the factor disagree
 %
+%   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+%     lsqvce:leverage:outOfRange                 [warning] Leverage outside [0,1] (min X, max X)
+%
 %   See also LSQVCE.ENGINE.LEVERAGEBLOCKS, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.OUTLIERS, LSQVCE.ENGINE.REDUNDANCY
 %
 %   Generated with assistance from Claude (Anthropic), model Claude

@@ -5,6 +5,11 @@ classdef log
 %   this one place, so a caller can capture everything to a log file and decide
 %   independently whether it also appears on screen.
 %
+%   R5 M1 (2026-09-02): warnOnce(id, ...) fires an identifier once per run;
+%   inventory() returns every identifier warn/warnOnce raised since
+%   inventory('reset') -- lsqvce.fit resets at start and stores the list in
+%   R.meta.warnings, so a run's warnings are a RESULT, not scrollback.
+%
 %   TWO SETTINGS (persistent for the MATLAB session)
 %     logfid   a FILE IDENTIFIER that receives ALL output ("standard output").
 %              Defaults to 1 (the MATLAB command window). Set it to the fid
@@ -71,6 +76,9 @@ classdef log
 %   ERRORS
 %     lsqvce:util:log:badKey        an unknown log option key
 %
+%   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+%     lsqvce:log:noParallelQueue                 [warning] Worker log messages cannot be forwarded to the client (X); they are p...
+%
 %   See also FPRINTF, WARNING, PARALLEL.POOL.DATAQUEUE, LSQVCE.ENGINE.ADJUSTVCE
 %
 %   Created 2026-07-16 (CEST, UTC+02:00) with assistance from
@@ -120,8 +128,13 @@ classdef log
             try
                 q = parallel.pool.DataQueue;
                 afterEach(q, @(m) lsqvce.util.log.drain(cfid, cscreen, m));
-            catch
-                q = [];  return                       % pool problem -> no-op
+            catch ME
+                % No queue: worker messages are emitted locally instead, and
+                % the client is told once why (R5 M1).
+                warning('lsqvce:log:noParallelQueue', ...
+                    ['Worker log messages cannot be forwarded to the client ' ...
+                     '(%s); they are printed on the workers.'], ME.identifier);
+                q = [];  return
             end
             lsqvce.util.log.state('queue', q);
         end
@@ -143,6 +156,29 @@ classdef log
             lsqvce.util.log.emit(fid, screen, txt);
         end
 
+        function fired = warnOnce(id, varargin)
+        %WARNONCE  Raise a warning the FIRST time its identifier fires in this
+        %   run; later calls with the same id are silent (the count belongs in
+        %   the skip record, not in the warning stream -- R5 M1 doctrine
+        %   "warnings once per run"). Returns true when the warning was raised.
+        %   lsqvce.util.log.warnOnce(id, fmt, ...)
+            fired = ~any(strcmp(lsqvce.util.log.state('fired'), char(id)));
+            if fired
+                lsqvce.util.log.warn(id, varargin{:});
+            end
+        end
+
+        function ids = inventory(reset)
+        %INVENTORY  The warning identifiers raised through warn/warnOnce since
+        %   the last reset, first-fired order, each once (R5 M1).
+        %   ids = lsqvce.util.log.inventory()        read
+        %   lsqvce.util.log.inventory('reset')       clear (fit does this at start)
+            if nargin > 0 && strcmpi(char(reset), 'reset')
+                lsqvce.util.log.state('fired', []);
+            end
+            ids = lsqvce.util.log.state('fired');
+        end
+
         function warn(id, varargin)
         %WARN  Register a MATLAB warning, mirror its text to logfid, and show it
         %   on screen only if logflag is true.
@@ -153,6 +189,7 @@ classdef log
         %   to logfid. Whether it also appears on SCREEN follows logflag, exactly
         %   like msg: logflag=false => file only, nothing on screen.
             txt = lsqvce.util.log.render(varargin{:});
+            lsqvce.util.log.state('fired', id);       % R5 M1: the run inventory
 
             % On a worker with a sink installed, forward to the client (tagged as
             % a warning) and still raise a local warning so worker-side state and
@@ -193,7 +230,11 @@ classdef log
                 try
                     fprintf(fid, '\n%s\n\n', ...
                         lsqvce.util.log.wrapWarning(txt));
-                catch
+                catch ME
+                    % The log FILE is unwritable: the warning is on screen
+                    % already; say the file lost it (R5 M1, no empty catch).
+                    fprintf(1, '[lsqvce.util.log: warning not written to the log file: %s]\n', ...
+                            ME.identifier);
                 end
             end
         end
@@ -211,19 +252,16 @@ classdef log
             sent = false;
             q = lsqvce.util.log.state('queue');
             if isempty(q), return, end
-            onWorker = false;
-            try
-                t = getCurrentTask();          %#ok<NASGU>  % [] on the client
-                onWorker = ~isempty(t);
-            catch
-                onWorker = false;              % no PCT on this process
-            end
+            % getCurrentTask exists only with PCT: a CONDITION, not a catch (R5 M1)
+            onWorker = exist('getCurrentTask', 'file') == 2 && ~isempty(getCurrentTask());
             if ~onWorker, return, end
             try
                 send(q, {kind, txt});
                 sent = true;
-            catch
-                sent = false;                  % fall back to local emit
+            catch ME
+                sent = false;                  % the caller emits locally; the
+                fprintf(1, '[lsqvce.util.log: queue send failed, %s]\n', ...
+                        ME.identifier);        % reason is printed first (R5 M1)
             end
         end
 
@@ -303,9 +341,12 @@ classdef log
                 try
                     fprintf(fid, '%s', txt);
                     wroteScreen = (fid == 1);
-                catch
-                    % bad fid -> fall back to the screen so nothing is lost
-                    fprintf(1, '%s', txt);  wroteScreen = true;
+                catch ME
+                    % bad fid -> the screen, WITH the reason, so nothing is lost
+                    % and nothing is silent (R5 M1)
+                    fprintf(1, '[lsqvce.util.log: file write failed, %s]\n%s', ...
+                            ME.identifier, txt);
+                    wroteScreen = true;
                 end
             end
             if screen && ~wroteScreen
@@ -316,10 +357,21 @@ classdef log
         function out = state(key, val)
         %STATE  Persistent (fid, screen, queue) store. state(key) reads;
         %   state(key,val) sets. 'queue' holds the parallel DataQueue or [].
-            persistent FID SCREEN QUEUE
+            persistent FID SCREEN QUEUE FIRED
             if isempty(FID),    FID    = 1;    end
             if isempty(SCREEN), SCREEN = true; end
+            if isempty(FIRED),  FIRED  = {};   end
             switch key
+                case 'fired'
+                    % R5 M1: the run's warning INVENTORY -- every identifier
+                    % lsqvce.util.log.warn raised since the last reset, in
+                    % first-fired order, each once. Read into R.meta.warnings.
+                    if nargin > 1
+                        if isempty(val), FIRED = {};                % reset
+                        elseif ~any(strcmp(FIRED, val)), FIRED{end+1} = char(val);
+                        end
+                    end
+                    out = FIRED;
                 case 'fid'
                     if nargin > 1, FID = val; end
                     out = FID;

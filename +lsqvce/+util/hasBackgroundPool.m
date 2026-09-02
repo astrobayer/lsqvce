@@ -44,7 +44,7 @@ function tf = hasBackgroundPool()
     end
     try
         backgroundPool;
-    catch
-        tf = false;
+    catch ME                                     %#ok<NASGU>
+        tf = false;      % capability probe: "no" IS the documented answer (R5 M1)
     end
 end

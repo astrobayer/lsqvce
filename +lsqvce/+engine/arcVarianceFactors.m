@@ -79,6 +79,9 @@ function out = arcVarianceFactors(omegaT, sT, sigma2, opt)
 %     lsqvce:arcVarianceFactors:arcMismatch  the arc list disagrees with the
 %                                   accumulated arcs
 %
+%   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+%     lsqvce:arcVarianceFactors:badMean          [warning] The normalising mean of the arc factors is X, which cannot scale anyt...
+%
 %   See also LSQVCE.ENGINE.PSDVCE, LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.KERNEL.DCTI
 %
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):

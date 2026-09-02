@@ -263,6 +263,7 @@ end
              'the streaming kind screens outliers through its diagnostics (report()).'], opts.Robust);
     end
 
+    lsqvce.util.log.inventory('reset');          % R5 M1: this run's warning inventory
     spec = validateData(data);
     systems = buildSystems(spec);
     days = spec.days;

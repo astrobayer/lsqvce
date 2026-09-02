@@ -106,6 +106,13 @@ function VC = varComp(u, batchFcn, nBatch, groupFcn, nGroup, opt)
 %     lsqvce:varComp:contaminated  the contamination gauge is past the point
 %                                  where the estimate is meaningful
 %
+%   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+%     lsqvce:varComp:hutchFailed                 [warning] Hutchinson trace check failed (X); exact components are unaffected.va...
+%     lsqvce:varComp:hutchNoCheckD               [warning] 'backend','hutchinson' cannot honour the 'checkD' contamination guard...
+%     lsqvce:varComp:illH                        [warning] The Helmert matrix is nearly singular
+%     lsqvce:varComp:negative                    [warning] Group(s) X produced a NEGATIVE variance component
+%     lsqvce:varComp:someContamination           [warning] varComp
+%
 %   See also LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.COMBINE, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.REDUNDANCY,
 %            LSQVCE.ENGINE.TRACEESTIMATE, LSQVCE.ENGINE.VCEHUTCHINSON.
 %

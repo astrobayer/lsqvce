@@ -92,6 +92,11 @@ classdef Options
 %                                 every arc is skipped as nonPD and the driver
 %                                 reports noArcs. Use NumLags >= longest arc.
 %     Probes     double   100     Hutchinson probes
+%     SkipThreshold double 0.2    R5 M1: fraction of a stream's arcs that may be
+%                                 SKIPPED in one pass (non-PD covariance, a
+%                                 whitener that threw, ...) before the run
+%                                 REFUSES instead of updating the stream on the
+%                                 rest (lsqvce:adjustVCE:skipThreshold)
 %     Seed       double   []      RNG seed for the probes ([] = unseeded)
 %     Norm       string   "ortho" DCT normalisation "ortho" | "ellmer"
 %     MeanType   string   "robust" arc-factor mean "robust" | "plain"
@@ -224,6 +229,7 @@ classdef Options
         % ---- pooled / ellmer joint spectrum
         NumLags = 60
         Probes   (1,1) double {mustBeInteger, mustBePositive} = 100
+        SkipThreshold (1,1) double {mustBeInRange(SkipThreshold, 0, 1)} = 0.2
         Seed     double {mustBeScalarOrEmpty} = []
         Norm     (1,1) string {mustBeMember(Norm, ["ortho","ellmer"])} = "ortho"
         MeanType (1,1) string {mustBeMember(MeanType, ["robust","plain"])} = "robust"
@@ -336,7 +342,7 @@ classdef Options
                     args.outer = struct('MaxOuter', obj.MaxOuter, 'Tol', obj.OuterTol);
                     nl = obj.NumLags;
                     if ~isnumeric(nl), nl = char(nl); end
-                    args.joint = struct('NumLags', nl, 'Probes', obj.Probes, ...
+                    args.joint = struct('NumLags', nl, 'Probes', obj.Probes, 'SkipThreshold', obj.SkipThreshold, ...
                                         'Seed', obj.Seed, 'Norm', char(obj.Norm), ...
                                         'MeanType', char(obj.MeanType), 'C0', obj.C0, ...
                                         'PsdMode', char(obj.PsdMode), 'Smooth', obj.Smooth);
@@ -348,7 +354,7 @@ classdef Options
                             'adjustVCEjoint needs a numeric NumLags ("auto" is pooled-only).');
                     end
                     args.nv = {'NumLags', nl, 'MaxIter', obj.JointMaxIter, ...
-                               'Tol', obj.JointTol, 'Probes', obj.Probes, 'Seed', obj.Seed, ...
+                               'Tol', obj.JointTol, 'Probes', obj.Probes, 'Seed', obj.Seed, 'SkipThreshold', obj.SkipThreshold, ...
                                'Norm', obj.Norm, 'MeanType', obj.MeanType, ...
                                'StepSchedule', obj.StepSchedule, 'AvgTail', obj.AvgTail, ...
                                'Verbose', logical(obj.Verbose)};

@@ -107,6 +107,13 @@ function red = redundancy(acc, sol, opt)
 %                   handle (WP-38: the one shared key resolver)
 %     lsqvce:redundancy:noStore     nothing was retained; re-run with 'store','all'
 %
+%   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+%     lsqvce:redundancy:hutchFailed              [warning] Hutchinson trace check failed (X); exact r_g are unaffected.valueexpe...
+%     lsqvce:redundancy:hutchinsonExperimental   [warning] 'TraceMethod','hutchinson' is EXPERIMENTAL
+%     lsqvce:redundancy:identityViolated         [warning] sum(r_i) = X but m - u = X (relative error X)
+%     lsqvce:redundancy:smallGroup               [warning] X group(s) have redundancy below X. The variance component of a group...
+%     lsqvce:redundancy:spmdNoCollect            [warning] 'spmd' reduces on the workers, so per-observation h/r/v are not shipp...
+%
 %   See also LSQVCE.ENGINE.LEVERAGE, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.OUTLIERS, LSQVCE.ENGINE.RESIDUALS
 %
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) (F-07): typed

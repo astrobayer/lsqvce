@@ -141,6 +141,11 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 %       lsqvce:covModel:badPsdMode     unknown PSD interpolation mode
 %       lsqvce:covModel:badWhitenMode  unknown whitening mode
 %
+%   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+%     lsqvce:covModel:negativePSD                [warning] The PSD has X negative values (min X)
+%     lsqvce:covModel:psdSanitationEscape        PSD sanitation escape
+%     lsqvce:covModel:psdUnderResolved           [warning] The PSD has X frequencies but batches are up to X rows
+%
 %   See also LSQVCE.ENGINE.CHECKPSD, LSQVCE.KERNEL.ARMAWHITEN, LSQVCE.KERNEL.DECORRFACTOR, LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
 %   Generated with assistance from Claude (Anthropic), model Claude

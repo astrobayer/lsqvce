@@ -59,6 +59,11 @@ function chk = checkPSD(cm, dt, opt, doPlot)
 %     lsqvce:checkPSD:badModel      the model struct is not a recognisable
 %                                   spectral model
 %
+%   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+%     lsqvce:checkPSD:badFit                     [warning] AR(X) reproduces the autocovariance to only X. Do NOT use the filter...
+%     lsqvce:checkPSD:marginalFit                [warning] AR(X) reproduces the autocovariance to only X (target < 1e-3)
+%     lsqvce:checkPSD:unstable                   [warning] The fitted AR(X) is not stationary (max |root| = X)
+%
 %   See also LSQVCE.ENGINE.COVMODEL, LSQVCE.KERNEL.LEVINSONDURBIN, LSQVCE.KERNEL.AR2ARMA
 %
 %   Generated with assistance from Claude (Anthropic), model Claude

@@ -64,6 +64,9 @@ function c = crossCorr(w, d, opt)
 %   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
 %   case-sensitive lowercase). With assistance from Claude (Anthropic),
 %   model Claude Fable 5.
+%   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+%     lsqvce:crossCorr:shortSeries               [warning] Only X epochs for a max lag of X. The cross-covariance estimates will...
+%
 %   See also LSQVCE.ENGINE.SELECTARORDER, LSQVCE.ENGINE.RESIDUALS, LSQVCE.ENGINE.COVMODEL
 %
 %   Generated with assistance from Claude (Anthropic), model Claude

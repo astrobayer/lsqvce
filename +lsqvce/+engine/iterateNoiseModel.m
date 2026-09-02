@@ -86,6 +86,9 @@ function out = iterateNoiseModel(accFcn, cov0, opt)
 %     lsqvce:iterateNoiseModel:tooShort    the series is too short to fit the
 %                                          requested model order
 %
+%   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+%     lsqvce:iterateNoiseModel:notConverged      [warning] Not converged in X iterations (sigma0 = X)
+%
 %   See also LSQVCE.ENGINE.SELECTARORDER, LSQVCE.ENGINE.CHECKPSD, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.RESIDUALS
 %
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (a) (F-07): typed

@@ -55,6 +55,10 @@ function out = toeplitzCofactor(c, opt)
 %   ERRORS
 %     lsqvce:toeplitzCofactor:empty  the autocovariance is empty
 %
+%   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+%     lsqvce:toeplitzCofactor:badVariance        [warning] C^0 = c(1) = X is not positive; a cofactor matrix needs a positive la...
+%     lsqvce:toeplitzCofactor:notACV             [warning] |c(n)| exceeds c(1) at some lag; a valid autocovariance peaks at lag 0
+%
 %   See also LSQVCE.ENGINE.COVCOMPONENT, LSQVCE.KERNEL.DCTI, LSQVCE.KERNEL.DECORRFACTOR,
 %            LSQVCE.KERNEL.PSD2ACV
 %

@@ -119,6 +119,9 @@ function out = redundancyLags(Abar, W, UiZ, ebar, nMaxLag, opt)
 %                   is gone -- cross-argument shape checks below keep
 %                   their lsqvce: identifiers)
 %
+%   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+%     lsqvce:redundancyLags:badLocal             LocalBbar has X rows but the arc has X.lsqvce:redundancyLags:badLocal...
+%
 %   See also LSQVCE.ENGINE.COVCOMPONENT, LSQVCE.KERNEL.TOEPLITZCOFACTOR, LSQVCE.KERNEL.DCTI,
 %            LSQVCE.ENGINE.TRACEESTIMATE, LSQVCE.ENGINE.STREAMCONTRIBUTION
 %
