@@ -390,6 +390,7 @@ function [Cfcn, Wfcn, info] = psdModel(cm, t, dt, opt, info)
     % are sample lags; it is placed on the physical axis with THIS arc's dt.
     if isfield(cm, 'fNorm') && ~isfield(cm, 'f')
         cm.f = cm.fNorm(:) / dt;
+        cm.S = cm.S(:) * dt;      % r(0) = int S df: the axis shrinks by dt, S grows by it
     end
     if ~isfield(cm,'f') || ~isfield(cm,'S')
         error('lsqvce:covModel:noPSD', '''psd'' requires cm.f and cm.S (or cm.fNorm and cm.S).');

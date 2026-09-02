@@ -574,16 +574,16 @@ function s = skipSummary(skips)
     s = strjoin(parts, ', ');
 end
 
-function M = streamMeans(keys, sigma2)
+function M = streamMeans(arcKeys, sigma2)
 %STREAMMEANS  containers.Map 'satKey|obsType' -> mean arc factor of the stream.
 %   Keys are the pinned arc keys 's<sysID>_<obsType>_d<day>_a<arc>' (WP-34);
 %   empty before pass 1 pins them (then every stream's level is its declared
 %   sigma, factor 1).
     M = containers.Map('KeyType', 'char', 'ValueType', 'double');
-    if isempty(keys) || isempty(sigma2) || numel(keys) ~= numel(sigma2), return, end
+    if isempty(arcKeys) || isempty(sigma2) || numel(arcKeys) ~= numel(sigma2), return, end
     acc = containers.Map('KeyType', 'char', 'ValueType', 'any');
-    for k = 1:numel(keys)
-        tok = regexp(keys{k}, '^s(.+?)_(.+?)_d', 'tokens', 'once');
+    for k = 1:numel(arcKeys)
+        tok = regexp(arcKeys{k}, '^s(.+?)_(.+?)_d', 'tokens', 'once');
         if isempty(tok), continue, end
         sk = sprintf('%s|%s', matlab.lang.makeValidName(tok{1}), tok{2});
         if ~isKey(acc, sk), acc(sk) = []; end
