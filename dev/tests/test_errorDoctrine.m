@@ -231,9 +231,11 @@ function testRobustWeightsAgainstTheFormulas(tc)
     tc.verifyEqual(s, 1.4826 * median(abs(vw - median(vw))), 'AbsTol', 1e-14);
     tc.verifyEqual(w, vw / s, 'AbsTol', 1e-14);
     expH = ones(9, 1);  big = abs(w) > 1.345;  expH(big) = 1.345 ./ abs(w(big));
+    % tol: 1e-14 absolute (see above)
     tc.verifyEqual(facH, expH, 'AbsTol', 1e-14);
     facB = lsqvce.kernel.robustWeights(vw, 'bisquare', []);
     expB = zeros(9, 1);  in = abs(w) < 4.685;  expB(in) = (1 - (w(in)/4.685).^2).^2;
+    % tol: 1e-14 absolute (see above)
     tc.verifyEqual(facB, expB, 'AbsTol', 1e-14);
     facI = lsqvce.kernel.robustWeights(vw, 'igg3', [1.5 3]);
     tc.verifyEqual(facI(abs(w) <= 1.5), ones(nnz(abs(w) <= 1.5), 1));
