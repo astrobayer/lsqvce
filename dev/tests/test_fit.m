@@ -515,10 +515,15 @@ function testFlatOnlyOptionsStayOnTheFlatDrivers(tc)
     tc.verifyEqual(B.'*R.x, 0, 'AbsTol', 1e-12, 'the minimum constraint holds');
     tc.verifyEmpty(R.acc, 'the flat driver carries no block accumulator');
     tc.verifyEqual(R.meta.options.kind, 'matrix');
-    % the same problem WITHOUT a datum is rank deficient: the block path must
-    % refuse it with the accumulator's named identifier, never solve it
+    % the same problem WITHOUT a datum is rank deficient: the block path (QR
+    % backend) refuses it with the backend's named identifier, never solves it.
+    % Finding H-16 (R5 M2 2c, HANDOVER §12.3): MATLAB's singularMatrix warning
+    % and the fold's cancellation warning fire BEFORE the refusal -- noise ahead
+    % of a refusal; muted here on purpose, fixed in the M4 accumulator.
+    muteWarn(tc, 'MATLAB:singularMatrix');
+    muteWarn(tc, 'lsqvce:qr:cancellation');
     tc.verifyEqual(idOf(@() lsqvce.fit(struct('A', A, 'l', l), lsqvce.Options(Verbose=false))), ...
-        'lsqvce:acc:rankDeficient');
+        'lsqvce:qr:singularR');
 end
 
 function testBatchKindLinearReproducesAdjust(tc)
