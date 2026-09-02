@@ -199,6 +199,7 @@ lsqvce:fit:noSystems,fit,error,v4.0
 lsqvce:fit:notYet,fit,error,v4.0
 lsqvce:fit:uCount,fit,error,v4.0
 lsqvce:fit:unknownField,fit,error,v4.0
+lsqvce:fit:weightMatrix,fit,error,v4.0
 lsqvce:ftest:differentData,engine.ftest,error,v4.0
 lsqvce:ftest:invalidPremise,engine.ftest,warning,v4.0
 lsqvce:ftest:noRedundancy,engine.ftest,error,v4.0

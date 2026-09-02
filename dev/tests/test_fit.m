@@ -407,7 +407,10 @@ function testMatrixKindReproducesAdjust(tc)
     % vs block QR) of one well-conditioned 30 x 3 problem, cond ~ 1e1
     tc.verifyEqual(R.x, sol.x(:), 'RelTol', 1e-12);
     tc.verifyEqual(R.sigma0, sqrt(sol.s0sq), 'RelTol', 1e-12);
+    % tol: 1e-10 relative / 1e-14 absolute -- Cxx and the residual carry the
+    % squared conditioning of the two routes (QR vs normal); 100x the x bound
     tc.verifyEqual(R.sol.Cxx, sol.s0sq * D.Qxx, 'RelTol', 1e-10, 'AbsTol', 1e-14);
+    % tol: as above (whitened residual, same two routes)
     tc.verifyEqual(R.diag.v, sqrt(p(:)) .* D.v, 'RelTol', 1e-10, 'AbsTol', 1e-14, ...
         'the block path reports the whitened residual sqrt(p).*v');
     tc.verifyNotEmpty(R.acc, 'kind B now carries the accumulator');
