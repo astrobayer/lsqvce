@@ -365,11 +365,27 @@ end
         if o.AvgTail > 0
             shatTail{end+1} = log(max(Shat, realmin));       %#ok<AGROW>
         end
+        % R5 M4 4b: a stream WITHOUT arc factors still needs its LEVEL estimated
+        % (the PSD shape is normalised; the level rode on the arc factors).
+        % Helmert / Foerstner on the whitened residuals of the stream's arcs:
+        % f = sum Omega_0 / sum s_0 (lag 0 over all its arcs), applied to every
+        % arc of the stream (one common factor) -- the fixed point is
+        % Omega_0 = s_0, i.e. a whitened residual sum equal to its redundancy.
+        % Found by the gravity demo: planted 1 / 2 / 0.5 came back 1 / 1 / 1.
+        fStream = containers.Map('KeyType', 'char', 'ValueType', 'double');
+        for sk = unique(streamOf(:)).'
+            cols = strcmp(streamOf, sk{1}) & ~strcmp(polOf, 'none') & ~arcFactorsOf(o.ArcFactors, sk{1});
+            if ~any(cols), continue, end
+            den = sum(sT(1, cols));
+            if den > 0, fStream(sk{1}) = max(sum(omegaT(1, cols)) / den, 1e-8); end
+        end
         for kk = 1:nArc
-            if strcmp(polOf{kk}, 'none') || ~arcFactorsOf(o.ArcFactors, streamOf{kk})
-                continue                             % keyed write-back, policy-gated (3d)
+            if strcmp(polOf{kk}, 'none'), continue, end
+            if arcFactorsOf(o.ArcFactors, streamOf{kk})
+                s2Map(keys{kk}) = av.sigma2(kk);     % keyed write-back, per arc
+            elseif isKey(fStream, streamOf{kk})
+                s2Map(keys{kk}) = s2Map(keys{kk}) * fStream(streamOf{kk});   % one level per stream
             end
-            s2Map(keys{kk}) = av.sigma2(kk);
         end
         sigma2 = cellfun(@(k) s2Map(k), pinnedKeys(:));   % pinned order
 

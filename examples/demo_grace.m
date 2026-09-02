@@ -103,5 +103,5 @@ function R = demo_grace(varargin)
     fprintf('\n--- verdict ---\n');
     R.report();
 
-    fprintf('\nconverged: %d   iterations: %d\n', R.converged, R.history.nOuter);
+    fprintf('\nconverged: %d   iterations: %d\n', R.converged, R.history.nIter);
 end
