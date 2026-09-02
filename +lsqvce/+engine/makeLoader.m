@@ -911,6 +911,9 @@ function out = batchOf(dayFcn, cov, day, obsType, arcID, opt)
 
     [out.Cfcn, out.Wfcn, info] = lsqvce.engine.covModel(cm, out.t, opt);
     out.filterMemory = info.filterMemory;
+    if isfield(info, 'Cep') && ~isempty(info.Cep)
+        out.Cep = info.Cep;                          % R5 M3 (H-15): the per-epoch descale
+    end                                              % travels with the arc
 
     % R5 M2 (WP-81 round 2b): per-observation ROBUST weights ride INSIDE the
     % whitener, so every consumer of Wfcn (accumulation, residuals, the

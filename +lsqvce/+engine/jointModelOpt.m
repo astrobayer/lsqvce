@@ -100,6 +100,11 @@ arguments
     opt.PsdMode (1,1) string {mustBeMember(opt.PsdMode, ["toeplitz","ar","arma"])} = "toeplitz"
     opt.Sigma (1,1) double {mustBePositive} = 1
     opt.Base (1,1) struct = struct()
+    opt.Separable cell = {}                 % R5 M3 (H-15): stream keys whose base law is
+                                            % 'separable'; they get an AR(p) TEMPORAL law
+                                            % fitted to C (Levinson) and KEEP their type,
+                                            % axis count and per-epoch Cep
+    opt.ArOrder (1,1) double {mustBeInteger, mustBePositive} = 20
 end
 
     o = struct('PsdMode', char(opt.PsdMode), 'Sigma', opt.Sigma, 'Base', opt.Base);
@@ -134,13 +139,27 @@ end
     spec.type  = 'acf';
     spec.sigma = sig;
     spec.acf   = makeAcf(C);
+    % R5 M3 (H-15): the SEPARABLE form of the same law -- an AR(p) fitted to C
+    % by Levinson, innovation std scaled by sig; the base spec's type, axis
+    % count d and per-epoch Cep survive the merge because they are not set here
+    specSep = [];
+    if ~isempty(opt.Separable)
+        p = min(opt.ArOrder, numel(C) - 1);
+        [ar, s2i] = lsqvce.kernel.levinsonDurbin(C(:) / max(C(1), eps), p);
+        specSep = struct('ar', reshape(ar, 1, []), 'sigma', sig * sqrt(max(s2i, eps)));
+    end
+    sepKeys = cellfun(@(s) char(string(s)), opt.Separable, 'UniformOutput', false);
 
     % ---- pack into opt.covOverride.bySys.(satKey).(obsType) (convention 2) --
     bySys = struct();
     for k = 1:numel(streams)
         [satKey, ot] = splitStreamKey(streams{k});
         if ~isfield(bySys, satKey), bySys.(satKey) = struct(); end
-        bySys.(satKey).(ot) = spec;
+        if ~isempty(specSep) && any(strcmp(sepKeys, sprintf('%s|%s', satKey, ot)))
+            bySys.(satKey).(ot) = specSep;
+        else
+            bySys.(satKey).(ot) = spec;
+        end
     end
 
     uo = struct('covOverride', struct('bySys', bySys), ...
