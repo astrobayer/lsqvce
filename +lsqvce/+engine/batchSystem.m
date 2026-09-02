@@ -57,7 +57,8 @@ end
     if ~isa(batchFcn, 'function_handle')
         error('lsqvce:batchSystem:badSource', 'batchFcn must be a function handle.');
     end
-    po = struct('batchFcn', batchFcn, 'state', opt.State);
+    po = struct('batchFcn', batchFcn, 'state', opt.State, 'nc', u);   % nc carried here: the
+                                                                    % non-scoped loader passes no info struct
     L = lsqvce.engine.makeLoader(@batchDay, ...
             'ObservationTypes', {'obs'}, ...
             'Covariance', struct('obs', struct('type', 'diag', 'sigma', 1)), ...
@@ -66,7 +67,7 @@ end
             'SystemId', 1, 'Name', opt.Name, 'ProcessingOptions', po);
 end
 
-function D = batchDay(day, ~, ~, ~, po, info)
+function D = batchDay(day, ~, ~, ~, po, ~)
 %BATCHDAY  One batch as one local-free day with unit-weight rows.
     if isempty(po.state)
         [~, A, l, p] = lsqvce.util.callUser(po.batchFcn, 2, 3, 'batchFcn(k)', day);
@@ -75,10 +76,10 @@ function D = batchDay(day, ~, ~, ~, po, info)
         [~, A, l, p] = lsqvce.util.callUser(po.batchFcn, 2, 3, 'batchFcn(k, x)', day, x);
     end
     l = l(:);  m = numel(l);
-    if ~isnumeric(A) || size(A, 1) ~= m || size(A, 2) ~= info.nc
+    if ~isnumeric(A) || size(A, 1) ~= m || size(A, 2) ~= po.nc
         error('lsqvce:batchSystem:badMatrix', ...
               'batch %d returned A %s and l %d x 1; expected A %d x %d.', ...
-              day, mat2str(size(A)), m, m, info.nc);
+              day, mat2str(size(A)), m, m, po.nc);
     end
     if ~isempty(p)
         if isvector(p) && numel(p) == m
