@@ -168,6 +168,7 @@ lsqvce:fit:badMatrix,fit,error,v4.0
 lsqvce:fit:badScope,fit,error,v4.0
 lsqvce:fit:builderKind,fit,error,v4.0
 lsqvce:fit:duplicateSystem,fit,error,v4.0
+lsqvce:fit:lawOnFixedStructure,fit,error,v4.0
 lsqvce:fit:missingField,fit,error,v4.0
 lsqvce:fit:modelKind,fit,error,v4.0
 lsqvce:fit:noCommon,fit,error,v4.0

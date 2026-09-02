@@ -252,13 +252,22 @@ classdef QRSystem < handle
             r  = o.R(1:d, end);
 
             dR = abs(diag(R1));
-            if min(dR) <= eps*max(dR)
+            % R5 M4 4b (finding H-16, confirmed regime-dependent on the CI
+            % runner): the rank test must NOT sit at the roundoff boundary. A
+            % Householder QR of a rank-deficient block leaves a trailing pivot
+            % of order eps*|A|, above or below eps*max(dR) depending on the
+            % LAPACK build -- refused on Windows, solved on Linux. The
+            % tolerance is MATLAB's own rank() convention, max(size)*eps(max):
+            % two orders above the roundoff floor, far below any legitimate
+            % conditioning (kappa(A) ~ 1e13 before refusal).
+            rtol = max(size(R1)) * eps(max(dR));
+            if min(dR) <= rtol
                 [~, k] = min(dR);
                 error('lsqvce:qr:singularR', ...
                     ['The triangular factor is singular at parameter %d ' ...
-                     '(|R(%d,%d)| = %.3e vs max %.3e). That parameter, or a ' ...
-                     'combination involving it, is not determined by the data. ' ...
-                     'Add a datum constraint or remove it.'], k, k, k, dR(k), max(dR));
+                     '(|R(%d,%d)| = %.3e vs max %.3e, tolerance %.3e). That parameter, ' ...
+                     'or a combination involving it, is not determined by the data. ' ...
+                     'Add a datum constraint or remove it.'], k, k, k, dR(k), max(dR), rtol);
             end
 
             x   = R1 \ r;
