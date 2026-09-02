@@ -61,7 +61,7 @@ function testFitVceReproducesTheEngine(tc)
     % seed => same probes => same arithmetic), so the mapping can never drift.
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');
     [data, ~] = declaration();
-    base = {MaxOuter=1, JointMaxIter=2, NumLags=8, Seed=7, Verbose=false};
+    base = {'MaxOuter', 1, 'JointMaxIter', 2, 'NumLags', 8, 'Seed', 7, 'Verbose', false};
     Rv = lsqvce.fit(data, lsqvce.Options(Model="vce", base{:}));
     dataE = data;
     ots = fieldnames(dataE.systems(1).covariance);
