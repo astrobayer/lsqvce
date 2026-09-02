@@ -43,4 +43,12 @@ function cm = applyCovOverride(cm, ovr, obsType, opt)
             cm = lsqvce.util.mergeStruct(cm, ovr.bySys.(satKey).(obsType));
         end
     end
+    % R5 M3 3b: an override may carry a RELATIVE level, sigmaScale, instead of
+    % an absolute sigma -- the pooled joint law is a SHAPE, and every stream
+    % keeps its own declared level times the factor estimated for it. Applied
+    % here, once, so both loader kinds agree.
+    if isfield(cm, 'sigmaScale') && ~isempty(cm.sigmaScale)
+        cm.sigma = lsqvce.util.getfielddef(cm, 'sigma', 1) * cm.sigmaScale;
+        cm = rmfield(cm, 'sigmaScale');
+    end
 end

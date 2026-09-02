@@ -223,7 +223,10 @@ end
     shatTail = {};                               % WP-40 r2: AvgTail buffer
     for it = 1:o.MaxIter
         % ---- steps 1-5: build under the current model, accumulate, solve --
-        model = struct('C', C, 'sigma2', sigma2, 'iter', it);
+        % R5 M3 3b: the caller's override needs a LEVEL per stream (the pooled
+        % C is a shape): the mean arc factor of every 'satKey|obsType' stream
+        model = struct('C', C, 'sigma2', sigma2, 'iter', it, ...
+                       'streamSigma2', streamMeans(pinnedKeys, sigma2));
         acc   = accFcn(model);
         sol   = acc.solve();
         accF  = acc;  solF = sol;
@@ -569,4 +572,27 @@ function s = skipSummary(skips)
     parts = cell(1, numel(why));
     for k = 1:numel(why), parts{k} = sprintf('%s: %d', why{k}, n(k)); end
     s = strjoin(parts, ', ');
+end
+
+function M = streamMeans(keys, sigma2)
+%STREAMMEANS  containers.Map 'satKey|obsType' -> mean arc factor of the stream.
+%   Keys are the pinned arc keys 's<sysID>_<obsType>_d<day>_a<arc>' (WP-34);
+%   empty before pass 1 pins them (then every stream's level is its declared
+%   sigma, factor 1).
+    M = containers.Map('KeyType', 'char', 'ValueType', 'double');
+    if isempty(keys) || isempty(sigma2) || numel(keys) ~= numel(sigma2), return, end
+    acc = containers.Map('KeyType', 'char', 'ValueType', 'any');
+    for k = 1:numel(keys)
+        tok = regexp(keys{k}, '^s(.+?)_(.+?)_d', 'tokens', 'once');
+        if isempty(tok), continue, end
+        sk = sprintf('%s|%s', matlab.lang.makeValidName(tok{1}), tok{2});
+        if ~isKey(acc, sk), acc(sk) = []; end
+        v = sigma2(k);
+        if isfinite(v) && v > 0, acc(sk) = [acc(sk); v]; end
+    end
+    ks = keys(acc);
+    for k = 1:numel(ks)
+        v = acc(ks{k});
+        if ~isempty(v), M(ks{k}) = mean(v); end
+    end
 end

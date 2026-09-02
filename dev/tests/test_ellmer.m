@@ -665,38 +665,47 @@ end
 %% ============================================ jointModelOpt (accFcn contract)
 function test_jointModelOpt_takes_sqrt_of_variance(tc)
 % categories: precision
-    % CONVENTION 1: model.sigma2 is a VARIANCE, a covariance spec's sigma is a
-    % STANDARD DEVIATION. Getting this wrong does not error -- the VCE loop just
-    % diverges -- so assert the sqrt explicitly.
+    % CONVENTION 1: model.sigma2 is a VARIANCE, the level a covariance spec
+    % carries is a STANDARD DEVIATION. R5 M3 3b: the level is RELATIVE to the
+    % stream's declared sigma (sigmaScale, applied by applyCovOverride), so a
+    % mean variance factor of 4 arrives as sigmaScale 2 -- never as sigma.
     model = struct('C', [1; 0.4; 0.1], 'sigma2', [4; 4; 4], 'iter', 2);
     uo = lsqvce.engine.jointModelOpt(model, {'x1|pos'});
     spec = uo.covOverride.bySys.x1.pos;
     % tol: value plumbing identity (stored numbers surfaced unchanged); house round-trip bound 1e-12
-    verifyEqual(tc, spec.sigma, 2, 'AbsTol', 1e-12, ...
-        'sigma must be sqrt(mean variance), not the variance itself');
+    verifyEqual(tc, spec.sigmaScale, 2, 'AbsTol', 1e-12, ...
+        'the relative level must be sqrt(mean variance), not the variance itself');
+    verifyFalse(tc, isfield(spec, 'sigma'), 'the declared sigma of the stream is never overridden');
+    % a per-stream factor wins over the mean when the driver supplies it
+    m2 = model;  m2.streamSigma2 = containers.Map({'x1|pos'}, {9});
+    uo2 = lsqvce.engine.jointModelOpt(m2, {'x1|pos', 'x1|kbr'});
+    verifyEqual(tc, uo2.covOverride.bySys.x1.pos.sigmaScale, 3, 'AbsTol', 1e-12);
+    verifyEqual(tc, uo2.covOverride.bySys.x1.kbr.sigmaScale, 2, 'AbsTol', 1e-12, 'a stream without its own factor gets the mean');
 end
-
-function test_jointModelOpt_acf_uses_sample_lags(tc)
+function test_jointModelOpt_emits_a_psd_on_normalised_frequency(tc)
 % categories: contract, precision
-    % R4 G-08: covModel calls the acf with TIME differences; the driver's C is
-    % per sample lag. With dt = 5 s the lookup must return c(2) at 5 s, c(3)
-    % at 10 s -- not c(6) and c(11) -- and hold C beyond its last lag at 0.
+    % R5 M3 3b (H-17): the joint law leaves as a PSD on NORMALISED frequency
+    % (the driver's C is per SAMPLE lag; covModel places it on the arc's dt),
+    % positive by construction, and its autocovariance reproduces the SHAPE
+    % of C -- for every dt, which the truncated acf of R4 G-08 got wrong.
     c = [1; 0.4; 0.1; 0.05];
     model = struct('C', c, 'sigma2', [], 'iter', 1);
     uo = lsqvce.engine.jointModelOpt(model, {'x1|kbr'});
     spec = uo.covOverride.bySys.x1.kbr;
-    t = (0:4).' * 5;                                  % dt = 5 s
-    lagM = t - t.';
-    Cm = spec.acf(lagM, struct());
-    % tol: exact -- a lookup, no arithmetic
-    tc.verifyEqual(Cm(1, :), [1 0.4 0.1 0.05 0]);
-    tc.verifyEqual(Cm(2, 1), 0.4);
-    tc.verifyEqual(spec.acf(0, struct()), 1);
-    % dt = 1 s (the old assumption) is unchanged
-    t1 = (0:3).';
-    tc.verifyEqual(spec.acf(t1 - t1.', struct()), toeplitz(c));
+    tc.verifyEqual(spec.type, 'psd');
+    tc.verifyEqual(spec.fNorm(1), 0);
+    % tol: exact -- the last grid point IS the normalised Nyquist by construction
+    tc.verifyEqual(spec.fNorm(end), 0.5);
+    tc.verifyTrue(all(spec.S > 0), 'positive by construction');
+    for dt = [1 5]
+        r = lsqvce.kernel.psd2acv(spec.fNorm / dt, spec.S, dt, 4);
+        % tol: 5e-2 absolute -- trapezoidal quadrature of a 4-term cosine
+        % series on 4 grid points reproduces c(1..3) to a few percent; the
+        % SHAPE (c(1) = 1, monotone decay) is the claim, exactness is not
+        tc.verifyEqual(r(1), 1, 'AbsTol', 5e-2, sprintf('lag 0 at dt = %g', dt));
+        tc.verifyEqual(r(2:3), c(2:3), 'AbsTol', 5e-2, sprintf('shape at dt = %g', dt));
+    end
 end
-
 function test_jointModelOpt_places_override_bySys(tc)
 % categories: contract
     % CONVENTION 2: loaders read opt.covOverride.bySys.(satKey).(obsType).
@@ -721,26 +730,18 @@ function test_jointModelOpt_sets_psdMode_on_useropt(tc)
     verifyEqual(tc, uo2.psdMode, 'ar');
 end
 
-function test_jointModelOpt_acf_reproduces_the_covariance(tc)
+function test_jointModelOpt_psd_is_a_shape(tc)
 % categories: precision
-    % The handle must return c(|lag|) over a LAG MATRIX, and zero beyond the
-    % modelled range -- that is how covModel's 'acf' type calls it.
+    % The pooled law is normalised (C(1) -> 1): a C ten times larger gives the
+    % SAME PSD; the level rides on sigmaScale (per stream), never on S.
     c = [1; 0.5; 0.2];
-    model = struct('C', c, 'sigma2', 1, 'iter', 1);
-    uo = lsqvce.engine.jointModelOpt(model, {'x1|pos'});
-    f  = uo.covOverride.bySys.x1.pos.acf;
-    t  = (0:4).';
-    C  = f(t - t.', struct());
-    % tol: value plumbing identity (stored numbers surfaced unchanged); house round-trip bound 1e-12
-    verifyEqual(tc, diag(C), repmat(c(1),5,1), 'AbsTol', 1e-12, 'lag 0');
-    verifyEqual(tc, C(1,2), c(2), 'AbsTol', 1e-12, 'lag 1');
-    verifyEqual(tc, C(1,3), c(3), 'AbsTol', 1e-12, 'lag 2');
-    % tol: value plumbing identity (stored numbers surfaced unchanged); house round-trip bound 1e-12
-    verifyEqual(tc, C(1,5), 0, 'AbsTol', 1e-12, ...
-        'beyond the modelled range must be zero, not extrapolated');
-    verifyEqual(tc, C, C.', 'AbsTol', 1e-12, 'must be symmetric');
+    u1 = lsqvce.engine.jointModelOpt(struct('C', c,     'sigma2', 1, 'iter', 1), {'x1|pos'});
+    u2 = lsqvce.engine.jointModelOpt(struct('C', 10*c,  'sigma2', 1, 'iter', 1), {'x1|pos'});
+    % tol: 1e-12 relative -- one cosine sum on three numbers, evaluated twice
+    verifyEqual(tc, u2.covOverride.bySys.x1.pos.S, u1.covOverride.bySys.x1.pos.S, 'RelTol', 1e-12);
+    verifyEqual(tc, u1.covOverride.bySys.x1.pos.sigmaScale, 1, 'AbsTol', 1e-12);
+    verifyTrue(tc, all(u1.covOverride.bySys.x1.pos.S >= 0));
 end
-
 function test_jointModelOpt_accepts_cell_streams(tc)
 % categories: contract
     model = struct('C', [1; 0.3], 'sigma2', 1, 'iter', 1);
