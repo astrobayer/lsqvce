@@ -495,6 +495,32 @@ function testBatchKindNonlinearReproducesSolveNonlinear(tc)
     tc.verifyEqual(R.meta.options.kind, 'batch');
 end
 
+function testFlatOnlyOptionsStayOnTheFlatDrivers(tc)
+% categories: contract, robustness
+    % R5 M2 2c: DatumB / Sigma0 / Sparse have no block-path home yet. Round 2a
+    % sent every linear problem to the block path and would have IGNORED
+    % them (the silent outcome). Now such a problem runs on the flat driver:
+    % a levelling network (rank defect 1) with a minimum-constraint datum
+    % solves, and its solution obeys the constraint B'x = 0 exactly.
+    muteWarn(tc, 'lsqvce:datum:autoDetected');
+    rs = RandStream('mt19937ar', 'Seed', 5);
+    u = 4;  pairs = [1 2; 2 3; 3 4; 4 1; 1 3];
+    A = zeros(size(pairs, 1), u);
+    for k = 1:size(pairs, 1), A(k, pairs(k, 1)) = -1;  A(k, pairs(k, 2)) = 1; end
+    hTrue = [0; 1.5; -0.7; 2.2];
+    l = A*hTrue + 0.01*randn(rs, size(A, 1), 1);
+    B = ones(u, 1);                                       % the datum: the mean height
+    R = lsqvce.fit(struct('A', A, 'l', l), lsqvce.Options(DatumB=B, Verbose=false));
+    % tol: 1e-12 absolute -- the constraint is imposed algebraically on O(1) numbers
+    tc.verifyEqual(B.'*R.x, 0, 'AbsTol', 1e-12, 'the minimum constraint holds');
+    tc.verifyEmpty(R.acc, 'the flat driver carries no block accumulator');
+    tc.verifyEqual(R.meta.options.kind, 'matrix');
+    % the same problem WITHOUT a datum is rank deficient: the block path must
+    % refuse it with the accumulator's named identifier, never solve it
+    tc.verifyEqual(idOf(@() lsqvce.fit(struct('A', A, 'l', l), lsqvce.Options(Verbose=false))), ...
+        'lsqvce:acc:rankDeficient');
+end
+
 function testBatchKindLinearReproducesAdjust(tc)
 % categories: reference
     [A, l, p] = matrixFixture();
