@@ -131,66 +131,64 @@ end
         v = v(isfinite(v) & v > 0);
         if ~isempty(v), s2 = mean(v); end
     end
-    sig = o.Sigma * sqrt(max(s2, eps));
 
     % ---- the covariance spec, shared by every stream -----------------------
-    %   'acf' takes a handle over a LAG MATRIX, which is how covModel calls it.
+    % R5 M3 3b (finding H-17): the law leaves here in the PSD DOMAIN, on
+    % normalised frequency (the lags are sample lags): S(fNorm) =
+    % 2 [C_0 + 2 sum_n C_n cos(2 pi fNorm n)] on L points 0 .. 0.5, floored
+    % at eps*max -- positive by construction; covModel places it on the arc's
+    % physical axis with the arc's dt and resamples it to whatever grid the
+    % arc's length needs. Before 3b the override was a truncated ACF, which is
+    % a non-PD Toeplitz for every arc longer than NumLags (the G-08 class).
+    % The pooled C is a SHAPE (normalised to C(1) = 1); every stream keeps its
+    % declared level times its own factor (sigmaScale, applied by
+    % applyCovOverride) -- one global level would erase the scale difference
+    % between, say, range-rate and positions (found on the demo: RCOND 1e-50).
+    L = numel(C);
+    Cn = C(:) / max(C(1), eps);
+    fNorm = (0:L-1).' / (2*(L-1));                       % 0 .. 0.5 cycles/sample
+    n = 1:L-1;
+    S = 2 * (Cn(1) + 2 * (cos(2*pi*fNorm*n) * Cn(2:end)));
+    S = max(S, eps * max(S));
     spec = o.Base;
-    spec.type  = 'acf';
-    spec.sigma = sig;
-    spec.acf   = makeAcf(C);
+    spec.type  = 'psd';
+    spec.fNorm = fNorm;
+    spec.S     = S;
     % R5 M3 (H-15): the SEPARABLE form of the same law -- an AR(p) fitted to C
     % by Levinson, innovation std scaled by sig; the base spec's type, axis
     % count d and per-epoch Cep survive the merge because they are not set here
     specSep = [];
     if ~isempty(opt.Separable)
         p = min(opt.ArOrder, numel(C) - 1);
-        [ar, s2i] = lsqvce.kernel.levinsonDurbin(C(:) / max(C(1), eps), p);
-        specSep = struct('ar', reshape(ar, 1, []), 'sigma', sig * sqrt(max(s2i, eps)));
+        [ar, s2i] = lsqvce.kernel.levinsonDurbin(Cn, p);
+        specSep = struct('ar', reshape(ar, 1, []), 'sigmaScaleShape', sqrt(max(s2i, eps)));
     end
     sepKeys = cellfun(@(s) char(string(s)), opt.Separable, 'UniformOutput', false);
+    perStream = [];
+    if isfield(model, 'streamSigma2'), perStream = model.streamSigma2; end
 
     % ---- pack into opt.covOverride.bySys.(satKey).(obsType) (convention 2) --
     bySys = struct();
     for k = 1:numel(streams)
         [satKey, ot] = splitStreamKey(streams{k});
         if ~isfield(bySys, satKey), bySys.(satKey) = struct(); end
-        if ~isempty(specSep) && any(strcmp(sepKeys, sprintf('%s|%s', satKey, ot)))
-            bySys.(satKey).(ot) = specSep;
-        else
-            bySys.(satKey).(ot) = spec;
+        key = sprintf('%s|%s', satKey, ot);
+        lvl = o.Sigma;                                   % relative to the declared sigma
+        if ~isempty(perStream) && isKey(perStream, key)
+            lvl = lvl * sqrt(max(perStream(key), eps));
+        elseif s2 ~= 1
+            lvl = lvl * sqrt(max(s2, eps));              % no per-stream factor: the mean
         end
+        if ~isempty(specSep) && any(strcmp(sepKeys, key))
+            sp = struct('ar', specSep.ar, 'sigmaScale', lvl * specSep.sigmaScaleShape);
+        else
+            sp = spec;  sp.sigmaScale = lvl;
+        end
+        bySys.(satKey).(ot) = sp;
     end
 
     uo = struct('covOverride', struct('bySys', bySys), ...
                 'psdMode', lower(char(o.PsdMode)));      % convention 3
-end
-
-%==========================================================================
-function fh = makeAcf(c)
-%MAKEACF  Wrap a discrete autocovariance vector as an acf(lagMatrix, opt) handle.
-%   Lags beyond the modelled range return zero -- the model simply says "no
-%   correlation out there" rather than extrapolating.
-    c = c(:);
-    L = numel(c);
-    fh = @(lag, ~) acvLookup(c, L, lag);
-end
-
-function C = acvLookup(c, L, lag)
-%ACVLOOKUP  c at the batch's lags in SAMPLE units, zero beyond the modelled range.
-%   covModel's 'acf' contract hands over TIME differences (t(idx) - t(idx)',
-%   seconds); the driver's C is per SAMPLE lag (the DCT of a PSD over sample
-%   lags). The sampling interval is the smallest non-zero |lag| of the batch
-%   itself (regular sampling), so no caller has to know dt (R4 G-08: the old
-%   round(|lag|)+1 read every dt-th entry for dt ~= 1 s and returned 0 past
-%   index L -- an indefinite Toeplitz matrix, every arc skipped as nonPD).
-    a  = abs(lag);
-    nz = a(a > 0);
-    if isempty(nz), dt = 1; else, dt = min(nz(:)); end
-    k  = round(a / dt) + 1;            % lag 0 -> index 1
-    C  = zeros(size(k));
-    in = k >= 1 & k <= L;
-    C(in) = c(k(in));
 end
 
 %==========================================================================

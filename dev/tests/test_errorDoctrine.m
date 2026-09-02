@@ -209,20 +209,19 @@ function testEllmerRunsOnMultiAxisStreams(tc)
     muteWarn(tc, 'lsqvce:decorrFactor:notPD');
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');
     [~, data] = demo_grace_dataLoader();
-    % SkipThreshold raised DELIBERATELY: the demo's single-axis KBR arcs are
-    % longer than NumLags = 16, so the joint STARTING law is a truncated,
-    % non-PD Toeplitz for them (8 of 32 arcs, all 's1_rr_*' -- the G-08 class,
-    % finding H-17, removed by the PSD-domain law of M3 round 3b). The 24
-    % position arcs -- the H-15 case -- must all be processed.
-    opts = lsqvce.Options(Model="ellmer", NumLags=16, MaxOuter=1, SkipThreshold=0.3, Verbose=0);
+    % R5 M3 3b (H-17): the joint law now leaves jointModelOpt in the PSD
+    % domain and covModel resamples it to every arc's length, so the KBR arcs
+    % longer than NumLags = 16 are no longer non-PD: NO arc is skipped at the
+    % DEFAULT threshold (before 3b: 8 of 32, all 's1_rr_*'). The 24 position
+    % arcs -- the H-15 case -- are processed per axis.
+    opts = lsqvce.Options(Model="ellmer", NumLags=16, MaxOuter=1, Verbose=0);
     R = lsqvce.fit(data, opts);
     tc.verifyClass(R, 'lsqvce.Results');
     tc.verifyEqual(R.history.kind, 'ellmer');
     tc.verifyTrue(all(isfinite(R.x)), 'a finite estimate');
     tc.verifyTrue(all(isfinite(R.noise.C)), 'a finite pooled covariance function');
-    sk = R.history.skips;
-    tc.verifyTrue(all(startsWith(sk(:, 2), 's1_rr_')), 'every skip is a KBR (single-axis) arc');
-    tc.verifyEqual(size(sk, 1), 8);
+    tc.verifyEmpty(R.history.skips, 'no arc is skipped: the PSD law is valid for every arc length');
+    tc.verifyEqual(numel(R.noise.arcKeys), 32);
 end
 %% ============================================================ R5 M2 2b: IRLS kernel
 function testRobustWeightsContract(tc)

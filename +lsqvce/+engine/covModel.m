@@ -144,7 +144,6 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 %   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 %     lsqvce:covModel:negativePSD                [warning] The PSD has X negative values (min X)
 %     lsqvce:covModel:psdSanitationEscape        PSD sanitation escape
-%     lsqvce:covModel:psdUnderResolved           [warning] The PSD has X frequencies but batches are up to X rows
 %
 %   See also LSQVCE.ENGINE.CHECKPSD, LSQVCE.KERNEL.ARMAWHITEN, LSQVCE.KERNEL.DECORRFACTOR, LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
@@ -386,8 +385,15 @@ end
 function [Cfcn, Wfcn, info] = psdModel(cm, t, dt, opt, info)
 %PSDMODEL  PSD -> dense Toeplitz, or AR/ARMA whitening filter.
 
+    % R5 M3 3b: a PSD may be given on NORMALISED frequency (cm.fNorm, cycles
+    % per sample, 0 .. 0.5) -- the form the estimators emit, since their lags
+    % are sample lags; it is placed on the physical axis with THIS arc's dt.
+    if isfield(cm, 'fNorm') && ~isfield(cm, 'f')
+        cm.f = cm.fNorm(:) / dt;
+        cm.S = cm.S(:) * dt;      % r(0) = int S df: the axis shrinks by dt, S grows by it
+    end
     if ~isfield(cm,'f') || ~isfield(cm,'S')
-        error('lsqvce:covModel:noPSD', '''psd'' requires cm.f and cm.S.');
+        error('lsqvce:covModel:noPSD', '''psd'' requires cm.f and cm.S (or cm.fNorm and cm.S).');
     end
 
     md = lower(lsqvce.util.getfielddef(opt, 'psdMode',  'ar'));
@@ -431,35 +437,24 @@ function [Cfcn, Wfcn, info] = psdModel(cm, t, dt, opt, info)
         nmax = lsqvce.util.getfielddef(opt, 'BatchSize', 20000) + ...
                lsqvce.util.getfielddef(opt, 'BatchOverlap', 0);
         nmax = min(nmax, numel(t));
-        r    = lsqvce.kernel.psd2acv(f, S, dt, nmax);      % once per arc, reused per batch
-        % RESOLUTION CHECK. A PSD sampled at nf frequencies spans exactly
-        % 2*(nf-1) independent lags, so the Toeplitz matrix it generates is
-        % RANK DEFICIENT -- not merely ill-conditioned -- for any batch longer
-        % than that. The transition is sharp: with nf = 16 the smallest
-        % eigenvalue is +0.5 up to m = 30 = 2*(nf-1), exactly 0 at m = 31, and
-        % negative beyond. This is a MODELLING limit, not a numerical one, and
-        % it holds even for a perfectly flat (white) spectrum. The cure is to
-        % sample the spectrum finely enough for the data:
-        %
-        %       nf >= m/2 + 1        (equivalently 2*(nf-1) >= m)
-        %
-        % Verified sharp: at nf = m/2 the matrix is indefinite; at nf = m/2 + 1
-        % it is positive definite with a healthy margin.
+        % RESOLUTION. A PSD sampled at nf frequencies spans exactly 2*(nf-1)
+        % independent lags, so the Toeplitz matrix it generates is RANK
+        % DEFICIENT -- not merely ill-conditioned -- for any window longer
+        % than that (sharp: at nf = m/2 the matrix is indefinite, at
+        % nf = m/2 + 1 positive definite). R5 M3 3b (findings H-17 / G-08):
+        % the law is INTERPOLATED onto the grid THIS window needs, m MEASURED
+        % from the arc -- positive by construction, valid for any arc length.
+        % The coarse estimate is not made finer, only resampled (nothing is
+        % assumed, so no warning; before 3b a ridge was applied and a warning
+        % said it masked the shortfall).
         nfNeed = floor(nmax/2) + 1;
         if numel(f) < nfNeed
-            lsqvce.util.log.warn('lsqvce:covModel:psdUnderResolved', ...
-                ['The PSD has %d frequencies but batches are up to %d rows. A ' ...
-                 'PSD on nf frequencies spans only 2*(nf-1) = %d lags, so the ' ...
-                 'covariance it generates is RANK DEFICIENT beyond that and ' ...
-                 'chol will fail. Use at least %d frequencies (nf >= m/2 + 1), ' ...
-                 'or reduce BatchSize. A ridge of %g is being applied so the ' ...
-                 'factorisation can proceed, but it masks the resolution ' ...
-                 'shortfall rather than curing it.'], ...
-                 numel(f), nmax, 2*(numel(f)-1), nfNeed, ...
-                 lsqvce.util.getfielddef(opt, 'psdRidge', 1e-8));
+            fFine = linspace(f(1), f(end), nfNeed).';
+            S = interp1(f, S, fFine, 'linear');
+            f = fFine;
+            S(~isfinite(S) | S < fl*Smax) = fl*Smax;
         end
-        % Ridge: a LAST RESORT for the under-resolved case above, and harmless
-        % (one part in 1e8) when the resolution is adequate.
+        r    = lsqvce.kernel.psd2acv(f, S, dt, nmax);      % once per arc, reused per batch
         rg   = lsqvce.util.getfielddef(opt, 'psdRidge', 1e-8);
         if rg > 0 && ~isempty(r), r(1) = r(1) * (1 + rg); end
         Cfcn = @(idx,o) toeplitz(r(1:numel(idx)));
