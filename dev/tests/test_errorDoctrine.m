@@ -202,6 +202,11 @@ function testEllmerRefusesMultiAxisStreams(tc)
 % categories: contract, robustness
     % the demo has 3-axis position streams: Model="ellmer" must REFUSE at
     % the first multi-axis arc with the named identifier, not run for minutes
+    % the demo's pass-1 accumulation under the joint starting law issues the
+    % pre-existing decorrFactor:notPD warning; muted here on purpose so the
+    % gate's warning inventory stays clean (gate rule 7), and the refusal is
+    % what this point is about
+    muteWarn(tc, 'lsqvce:decorrFactor:notPD');
     [~, data] = demo_grace_dataLoader();
     opts = lsqvce.Options(Model="ellmer", NumLags=16, MaxOuter=1, Verbose=0);
     verifyError(tc, @() lsqvce.fit(data, opts), 'lsqvce:adjustVCEjoint:multiAxis');

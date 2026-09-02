@@ -61,6 +61,7 @@ function testDriverDefaultsArePinned(tc)
         'Verbose', true, 'ShowSeconds', 0, 'ExportDir', ""));
     tc.verifyEqual(nv2struct(o.engineArgs("adjustVCEjoint").nv), struct( ...
         'NumLags', 60, 'MaxIter', 10, 'Tol', 1e-2, 'Probes', 100, 'Seed', [], ...
+        'SkipThreshold', 0.2, ...
         'Norm', "ortho", 'MeanType', "robust", 'StepSchedule', "none", ...
         'AvgTail', 0, 'Verbose', true));
     d = struct('Alpha', 1e-3, 'Bonferroni', true, 'Beta', 0.20, 'RMin', 1e-6, ...
@@ -233,7 +234,7 @@ function testToStructCoversEveryPropertyOnce(tc)
             sprintf('property %s must appear in the grouped display', f{1}));
     end
     tc.verifyEqual(numel(fieldnames(s)), numel(unique(fieldnames(s))));
-    tc.verifyEqual(numel(fieldnames(s)), 59, 'the option space has 59 knobs (update on purpose)');
+    tc.verifyEqual(numel(fieldnames(s)), 60, 'the option space has 60 knobs (update on purpose: R5 M1 added SkipThreshold)');
 end
 
 %% ================================================================ helpers
