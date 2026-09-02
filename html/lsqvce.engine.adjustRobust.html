@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.engine.adjustRobust</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.engine.adjustRobust</div>
+<h1>lsqvce.engine.adjustRobust</h1>
+<div class="purpose">IRLS (Huber / IGG3 / bisquare) on the block path.</div>
+<h2>Description</h2>
+<pre class="example">R = LSQVCE.ENGINE.ADJUSTROBUST(systems, days, &#x27;Name&#x27;, value, ...)
+
+Robust M-estimation as a POLICY over the one accumulator (R5 M2, WP-81
+round 2b; finding H-02): every pass accumulates the same systems with
+per-observation weight factors riding INSIDE each arc&#x27;s whitener
+(lsqvce.engine.makeLoader, opt.rowWeights), solves, sweeps the residuals
+once, and turns the law-whitened residuals into the next factors through
+lsqvce.kernel.robustWeights. Because the factors live in the whitener,
+the accumulation, the residual sweep and the final diagnostics all see
+the same reweighted problem -- one definition, no second code path.
+Works for every fit kind: the streaming kind directly, the in-memory and
+batched kinds through fit&#x27;s block adapter.
+
+The result is NOT a least-squares result: its covariance is that of the
+reweighted problem and is scaled by the reweighted sigma0 (report() says
+so). The pass record is R.history (scale, max|dx|, counts); the final
+factors are R.history(end).factor, one per observation in sweep order,
+with R.history(end).keys naming the (sys, obsType, day, arc) rows.</pre>
+<h3>Input</h3>
+<pre class="example">systems  1xM cell | struct  as for LSQVCE.ENGINE.ADJUSTBLOCK
+days     1xD double          the calendar</pre>
+<h3>Name-Value</h3>
+<pre class="example">&#x27;Backend&#x27;    &quot;qr&quot; | &quot;normal&quot;                          default &quot;qr&quot;
+&#x27;Influence&#x27;  &quot;huber&quot; | &quot;igg3&quot; | &quot;bisquare&quot;            default &quot;huber&quot;
+&#x27;Tuning&#x27;     [] | constants of the influence          default [] (its default)
+&#x27;MaxIter&#x27;    passes (&gt;= 1)                            default 30
+&#x27;Tol&#x27;        stop when max|dx| &lt; Tol * max(max|x|, 1) default 1e-8
+&#x27;Parallel&#x27;, &#x27;DistributeDays&#x27;, &#x27;ParallelThreshold&#x27;     as adjustBlock
+&#x27;Verbose&#x27;    logical                                  default false
+&#x27;Provenance&#x27; struct   resolved user options for Results.meta (fit)</pre>
+<h3>Output</h3>
+<pre class="example">R  1x1 lsqvce.Results   stopReason &quot;converged&quot; | &quot;maxPasses&quot;; history(k):
+   .pass .scale .dx .nDown (0 &lt; factor &lt; 0.5) .nZero (factor == 0)
+   .factor (last pass: n x 1) .keys (last pass: n x 4 cell)</pre>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:adjustRobust:collapsed   fewer live observations than parameters
+                                  + 1 after reweighting (beyond the
+                                  breakdown point: check the model)
+  + everything adjustBlock / makeLoader / robustWeights raise
+WARNINGS
+  lsqvce:adjustRobust:notConverged  MaxIter reached; the last pass is
+                                    returned with stopReason &quot;maxPasses&quot;
+
+ACCURACY  the fixed point equals lsqvce.engine.robust&#x27;s on a diagonal
+law (same influence, same MAD scale; pinned in test_fit to 1e-10); on a
+correlated law the factors act on the LAW-WHITENED residuals (Yang 1994),
+which the flat driver could not express.</pre>
+<h3>Example</h3>
+<pre class="example">  R = lsqvce.engine.adjustRobust(systems, 1:3, &#x27;Influence&#x27;, &quot;igg3&quot;);
+  R.report;  fac = R.history(end).factor;
+
+See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.KERNEL.ROBUSTWEIGHTS,
+         LSQVCE.ENGINE.RESIDUALS, LSQVCE.FIT
+
+Created 2026-09-02 (CEST, UTC+02:00) with assistance from Claude
+(Anthropic), model Claude Fable 5.1 -- R5 Level M2, WP-81 round 2b.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
+</body></html>

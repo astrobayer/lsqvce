@@ -55,12 +55,14 @@ lsqvce:accum:pinvFallback,engine.BlockAccumulator,warning,v4.0
 lsqvce:accum:priorNotPD,engine.BlockAccumulator,error,v4.0
 lsqvce:accum:priorSize,engine.BlockAccumulator,error,v4.0
 lsqvce:accum:unknownSystem,engine.BlockAccumulator,error,v4.0
-lsqvce:adjustBlock:badCell,engine.adjustBlock,error,v4.0
-lsqvce:adjustBlock:badLoader,engine.adjustBlock,error,v4.0
-lsqvce:adjustBlock:badStruct,engine.adjustBlock,error,v4.0
-lsqvce:adjustBlock:badSystems,engine.adjustBlock,error,v4.0
-lsqvce:adjustBlock:noDays,engine.adjustBlock,error,v4.0
+lsqvce:adjustBlock:badCell,engine.private.normalizeSystems,error,v4.0
+lsqvce:adjustBlock:badLoader,engine.private.normalizeSystems,error,v4.0
+lsqvce:adjustBlock:badStruct,engine.private.normalizeSystems,error,v4.0
+lsqvce:adjustBlock:badSystems,engine.private.normalizeSystems,error,v4.0
+lsqvce:adjustBlock:noDays,engine.private.normalizeSystems,error,v4.0
 lsqvce:adjustBlock:plotHookFailed,engine.adjustBlock,warning,v4.0
+lsqvce:adjustRobust:collapsed,engine.adjustRobust,error,v4.0
+lsqvce:adjustRobust:notConverged,engine.adjustRobust,warning,v4.0
 lsqvce:adjustVCE:badSystems,engine.adjustVCE,error,v4.0
 lsqvce:adjustVCE:gridUnknown,engine.adjustVCE,error,v4.0
 lsqvce:adjustVCE:jointNotPD,engine.adjustVCE,warning,v4.0
@@ -240,6 +242,7 @@ lsqvce:makeLoader:noCov,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:noD,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:noObsTypes,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:paramType,engine.makeLoader,error,v4.0
+lsqvce:makeLoader:rowWeightSize,engine.makeLoader,error,v4.0
 lsqvce:mapreduce:badTask,engine.mapreduce,error,v4.0
 lsqvce:mapreduce:serialFallback,engine.mapreduce,warning,v4.0
 lsqvce:nonlin:badX0,engine.solveNonlinear,error,v4.0
@@ -291,6 +294,8 @@ lsqvce:resolveNc:conflict,engine.resolveNc,error,v4.0
 lsqvce:resolveNc:empty,engine.resolveNc,error,v4.0
 lsqvce:resolveNc:missing,engine.resolveNc,error,v4.0
 lsqvce:robust:collapsed,engine.robust,warning,v4.0
+lsqvce:robustWeights:badInfluence,kernel.robustWeights,error,v4.0
+lsqvce:robustWeights:badTuning,kernel.robustWeights,error,v4.0
 lsqvce:runMeta:badArg,engine.runMeta,error,v4.0
 lsqvce:separable:acvTooShort,kernel.separableWhiten,error,v4.0
 lsqvce:separable:badSigma,kernel.separableWhiten,error,v4.0

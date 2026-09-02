@@ -167,11 +167,29 @@ end
 
 function testNotYetPathsAreRefusedExplicitly(tc)
 % categories: contract
-    % Robust IRLS is the in-memory kinds' path (WP-56b); on the streaming
-    % kind fit refuses explicitly -- never a silent fallback. (Model "ellmer"
-    % was refused here until WP-56c wired it; its reference test is below.)
+    % R5 M2 2b: Robust IRLS now RUNS on the streaming kind (a policy on the
+    % block path); what is still refused explicitly is its composition with a
+    % VCE model (the one-loop feature of M4) -- never a silent fallback.
     [data, ~] = declaration();
-    tc.verifyEqual(idOf(@() lsqvce.fit(data, lsqvce.Options(Robust="irls"))), 'lsqvce:fit:notYet');
+    tc.verifyEqual(idOf(@() lsqvce.fit(data, lsqvce.Options(Robust="irls", Model="vce"))), 'lsqvce:fit:notYet');
+end
+
+function testRobustRunsOnTheStreamingKind(tc)
+% categories: contract, robustness
+    % R5 M2 2b: the streaming declaration with Robust="irls" converges, keeps
+    % every observation's factor, and agrees with the GLS solve to the
+    % influence's tolerance when there is no outlier (all factors ~ 1)
+    [data, ~] = declaration();
+    R  = lsqvce.fit(data, lsqvce.Options(Robust="irls", Verbose=false));
+    R0 = lsqvce.fit(data, lsqvce.Options(Verbose=false));
+    tc.verifyEqual(R.stopReason, "converged");
+    fac = R.history(end).factor;
+    tc.verifyGreaterThan(mean(fac), 0.9, 'clean data: almost every factor is 1');
+    % tol: 3e-3 absolute -- Huber leaves ~5 % of Gaussian rows below 1, so the
+    % robust and the GLS estimates differ by a fraction of those rows' share
+    % (parameters are O(1); the smallest, O(0.03), moved by 1.3e-3 on r1)
+    tc.verifyEqual(R.x, R0.x, 'AbsTol', 3e-3);
+    tc.verifyEqual(R.meta.options.kind, 'stream');
 end
 
 function testSignatureRejectsNonStructAndNonOptions(tc)
@@ -378,7 +396,7 @@ function testDemoFitRuns(tc)
     tc.verifyLessThan(max(abs(z)), 3, 'the in-memory truth is recovered within 3 formal sigma');
     % tol: 1e-12 -- the same rows accumulated in two batches vs one; summation order only
     tc.verifyEqual(out.batch.x, out.matrix.x, 'RelTol', 1e-12, 'two batches == one batch (same rows)');
-    tc.verifyLessThan(out.robust.source.factor(7), 0.5, 'the planted gross error is downweighted');
+    tc.verifyLessThan(out.robust.history(end).factor(7), 0.5, 'the planted gross error is downweighted');
     % tol: 5e-3 -- 40 points at 1e-3 noise (the WP-56b pin)
     tc.verifyEqual(out.nonlinear.x, out.truth.ab, 'AbsTol', 5e-3);
     tc.verifyEqual(size(out.vce.history.sigma, 1), 2, 'two outer passes recorded');
@@ -428,22 +446,31 @@ end
 
 function testMatrixKindRobustReproducesRobust(tc)
 % categories: reference, contract
-    % Robust="irls" on kind B is lsqvce.engine.robust with the Options' Influence /
-    % Tuning / RobustMaxIter / RobustTol; one planted outlier.
+    % R5 M2 2b: Robust="irls" rides the block path (lsqvce.engine.adjustRobust)
+    % on every kind. On a diagonal law its fixed point is the flat driver's
+    % (same influence, same MAD scale, one kernel.robustWeights): x agrees to
+    % rounding, the factors are the SAME numbers, and the planted error is
+    % down-weighted. The flat driver is the reference until it retires.
     [A, l, p] = matrixFixture();
     l(7) = l(7) + 25;                                   % gross error
     data = struct('A', A, 'l', l, 'p', p);
     opts = lsqvce.Options(Robust="irls", Influence="huber", RobustMaxIter=20, Verbose=false);
     R = lsqvce.fit(data, opts);
-    [sol, D, ROB] = lsqvce.engine.robust(size(A, 2), @(k) deal(A, l, p), 1, ...
+    [sol, ~, ROB] = lsqvce.engine.robust(size(A, 2), @(k) deal(A, l, p), 1, ...
         'Influence', 'huber', 'MaxIter', 20, 'Verbose', false);
-    % tol: exact -- identical code path and inputs
-    tc.verifyEqual(R.x, sol.x(:));
-    tc.verifyEqual(R.sigma0, sqrt(sol.s0sq));
-    tc.verifyEqual(R.diag.v, D.v);
-    tc.verifyEqual(fieldnames(R.source), fieldnames(ROB), 'the IRLS record rides on R.source');
+    % tol: 1e-8 relative -- two accumulation routes (QR vs normal) through
+    % ~10 reweighting passes; the fixed point is the same but each pass
+    % rounds differently, so 1e4 x the single-pass 1e-12 bound
+    tc.verifyEqual(R.x, sol.x(:), 'RelTol', 1e-8);
+    fac = R.history(end).factor;
+    tc.verifyEqual(numel(fac), numel(l));
+    % tol: 1e-6 -- factors are ratios of residuals to a MAD scale; same bound class
+    tc.verifyEqual(fac, ROB.factor, 'AbsTol', 1e-6);
+    tc.verifyLessThan(fac(7), 0.2, 'the planted 25-sigma error is down-weighted');
+    tc.verifyEqual(R.stopReason, "converged");
+    tc.verifyEqual(R.meta.options.kind, 'matrix');
+    tc.verifyNotEmpty(R.acc, 'kind B robust carries the accumulator too');
 end
-
 function testBatchKindNonlinearReproducesSolveNonlinear(tc)
 % categories: reference, contract
     % Kind C with x0: [A, w, p] = batchFcn(k, x) is lsqvce.engine.solveNonlinear.

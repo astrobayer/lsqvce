@@ -234,6 +234,8 @@ function L = makeLoader(buildDay, opt)
 %                                      vector for this day
 %       lsqvce:makeLoader:noD          a multi-axis stream has no per-epoch D:
 %                                      supply an 'epochCovariance' hook
+%       lsqvce:makeLoader:rowWeightSize  (R5 M2) the robust weight vector of an arc
+%                                      does not match the arc's row count
 %       lsqvce:makeLoader:badDayCep    the hook returned a Cep that is neither
 %                                      nEpoch x d nor nEpoch x d x d
 %
@@ -910,6 +912,29 @@ function out = batchOf(dayFcn, cov, day, obsType, arcID, opt)
     [out.Cfcn, out.Wfcn, info] = lsqvce.engine.covModel(cm, out.t, opt);
     out.filterMemory = info.filterMemory;
 
+    % R5 M2 (WP-81 round 2b): per-observation ROBUST weights ride INSIDE the
+    % whitener, so every consumer of Wfcn (accumulation, residuals, the
+    % diagnostics sweep) sees the same reweighted, law-whitened rows. The
+    % driver lsqvce.engine.adjustRobust supplies opt.rowWeights, a
+    % containers.Map keyed 'sysID|day|obsType|arcId' -> m_arc x 1 factors in
+    % [0, 1]; an absent key means unit weights (pass 1). Zero factors are
+    % floored at 1e-12 so a row keeps a (negligible) presence and its
+    % residual can still be recovered as w / sqrt(factor).
+    if isfield(opt, 'rowWeights') && ~isempty(opt.rowWeights)
+        key = lsqvce.util.rowWeightKey(opt.sysID, day, obsType, arcID);
+        if isKey(opt.rowWeights, key)
+            fac = max(opt.rowWeights(key), 1e-12);
+            if numel(fac) ~= numel(out.l)
+                error('lsqvce:makeLoader:rowWeightSize', ...
+                      ['rowWeights(%s) has %d entries; the arc has %d rows -- the ' ...
+                       'builder must return the same arc on every call.'], ...
+                      key, numel(fac), numel(out.l));
+            end
+            W0 = out.Wfcn;  sq = sqrt(fac(:));
+            out.Wfcn = @(idx, A, B, l, o) weightedWhiten(W0, sq, idx, A, B, l, o);
+        end
+    end
+
     % Multi-axis (epoch-major) streams must tell the accumulator the axis count
     % so it batches on whole epochs and the whitener treats axes correctly.
     % Priority: an explicit D.nAxis from buildDay, else the cov model's own d.
@@ -939,4 +964,14 @@ function Cep = sliceEpochCov(dayCep, arcRows, d, ~)
         error('lsqvce:makeLoader:badDayCep', ...
               'D.Cep must be nEpochDay x %d or nEpochDay x %d x %d.', d, d, d);
     end
+end
+
+%==========================================================================
+function [A, B, l] = weightedWhiten(W0, sq, idx, A, B, l, o)
+%WEIGHTEDWHITEN  Law-whiten a batch, then scale its rows by sqrt(factor).
+%   idx are the arc rows of this batch (overlap included), so sq(idx) is
+%   aligned with W0's output rows.
+    [A, B, l] = W0(idx, A, B, l, o);
+    sc = sq(idx(:));
+    A = sc .* A;  B = sc .* B;  l = sc .* l;
 end
