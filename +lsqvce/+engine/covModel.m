@@ -395,6 +395,18 @@ function [Cfcn, Wfcn, info] = psdModel(cm, t, dt, opt, info)
     if ~isfield(cm,'f') || ~isfield(cm,'S')
         error('lsqvce:covModel:noPSD', '''psd'' requires cm.f and cm.S (or cm.fNorm and cm.S).');
     end
+    % R5 M4 4b: a 'psd' law may carry a LEVEL, cm.sigma (a standard deviation
+    % multiplying the process; the PSD is then a SHAPE) -- the form the joint
+    % estimator emits (shape + per-stream level via sigmaScale). Ignoring it
+    % made every pass re-estimate the level from scratch and the product ran
+    % away (found by the gravity demo: 1.5, 5, 22, 416 on a planted 2).
+    sLvl = lsqvce.util.getfielddef(cm, 'sigma', []);
+    if ~isempty(sLvl)
+        if ~isscalar(sLvl) || ~isfinite(sLvl) || sLvl <= 0
+            error('lsqvce:covModel:badSigma', '''psd'' cm.sigma must be a positive scalar level.');
+        end
+        cm.S = cm.S(:) * sLvl^2;
+    end
 
     md = lower(lsqvce.util.getfielddef(opt, 'psdMode',  'ar'));
     p  =       lsqvce.util.getfielddef(opt, 'arOrder',  30);
