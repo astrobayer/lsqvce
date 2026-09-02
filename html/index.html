@@ -160,15 +160,12 @@ reveals only the fraction <code>r_i</code> of any error present
 <tr><td class="name"><a href="lsqvce.engine.ReducedContribution.html">lsqvce.engine.ReducedContribution</a></td><td></td></tr>
 <tr><td class="name"><a href="lsqvce.engine.residuals.html">lsqvce.engine.residuals</a></td><td>Second pass over the data to compute residuals.</td></tr>
 <tr><td class="name"><a href="lsqvce.engine.mapreduce.html">lsqvce.engine.mapreduce</a></td><td>Execution-strategy layer: serial | parfor | spmd.</td></tr>
-<tr><td class="name"><a href="lsqvce.engine.PrefetchLoader.html">lsqvce.engine.PrefetchLoader</a></td><td></td></tr>
 <tr><td class="name"><a href="lsqvce.engine.synthLoader.html">lsqvce.engine.synthLoader</a></td><td>Synthetic ground-truth loader -- and the loader TEMPLATE.</td></tr>
 </table>
 <h3>Separable-GLS helpers (the GRACE-FO template is examples/demo_grace_dataLoader.m)</h3><table>
 <tr><td class="name"><a href="lsqvce.engine.collectResiduals.html">lsqvce.engine.collectResiduals</a></td><td>Stack one residual field over the arcs of a stream.</td></tr>
 <tr><td class="name"><a href="lsqvce.kernel.residualAcv.html">lsqvce.kernel.residualAcv</a></td><td>Temporal autocovariance of de-scaled residuals.</td></tr>
 <tr><td class="name"><a href="lsqvce.kernel.whitenessCorr.html">lsqvce.kernel.whitenessCorr</a></td><td>Largest absolute autocorrelation over a lag range.</td></tr>
-<tr><td class="name"><a href="lsqvce.engine.resolveSatSpecs.html">lsqvce.engine.resolveSatSpecs</a></td><td>Per-satellite configuration: overrides over defaults.</td></tr>
-<tr><td class="name"><a href="lsqvce.engine.normalizeSatList.html">lsqvce.engine.normalizeSatList</a></td><td>Normalise a satellite list to a cell of scalar ids.</td></tr>
 <tr><td class="name"><a href="lsqvce.engine.satKeyOf.html">lsqvce.engine.satKeyOf</a></td><td>Valid struct field name for a satellite identifier.</td></tr>
 <tr><td class="name"><a href="lsqvce.engine.selectArAcv.html">lsqvce.engine.selectArAcv</a></td><td>Automatic AR-order selection by ACV (decorrelation) fidelity.</td></tr>
 </table>
@@ -189,7 +186,6 @@ reveals only the fraction <code>r_i</code> of any error present
 <tr><td class="name"><a href="lsqvce.engine.vce.html">lsqvce.engine.vce</a></td><td>Helmert variance component estimation, per arc.</td></tr>
 <tr><td class="name"><a href="lsqvce.engine.varComp.html">lsqvce.engine.varComp</a></td><td>Helmert variance-component estimation, streaming.</td></tr>
 <tr><td class="name"><a href="lsqvce.engine.vceHutchinson.html">lsqvce.engine.vceHutchinson</a></td><td>Helmert variance components via the Ellmer Hutchinson trace estimator (large common blocks; no dense inverse).</td></tr>
-<tr><td class="name"><a href="lsqvce.engine.poolGroups.html">lsqvce.engine.poolGroups</a></td><td>Suggest/build a coarser VCE grouping when a group's redundancy is too low for a reliable component.</td></tr>
 <tr><td class="name"><a href="lsqvce.engine.traceEstimate.html">lsqvce.engine.traceEstimate</a></td><td>Monte-Carlo (Hutchinson) trace estimator, Ellmer 2018 &sect;6.5.6 &mdash; opt-in VCE accelerator.</td></tr>
 <tr><td class="name"><a href="lsqvce.engine.contribution.html">lsqvce.engine.contribution</a></td><td>Per-group information share of the solution: Level 1 scalar share (exact), Level 2 per-parameter diagonal (streamed).</td></tr>
 <tr><td class="name"><a href="lsqvce.engine.streamContribution.html">lsqvce.engine.streamContribution</a></td><td>Matrix-free per-group N^-1 N_g^cc probing over one data sweep (never forms a group normal).</td></tr>
@@ -212,14 +208,12 @@ reveals only the fraction <code>r_i</code> of any error present
 <tr><td class="name"><a href="lsqvce.kernel.armaWhiten.html">lsqvce.kernel.armaWhiten</a></td><td>Apply an ARMA whitening filter column-wise (exact).</td></tr>
 <tr><td class="name"><a href="lsqvce.kernel.decorrFactor.html">lsqvce.kernel.decorrFactor</a></td><td>Decorrelation factor W with W&#x27;*W = inv(C).</td></tr>
 <tr><td class="name"><a href="lsqvce.kernel.levinsonDurbin.html">lsqvce.kernel.levinsonDurbin</a></td><td>Autocovariance -&gt; AR(p) coefficients (Levinson recursion).</td></tr>
-<tr><td class="name"><a href="lsqvce.engine.whittle.html">lsqvce.engine.whittle</a></td><td>Multichannel Levinson-Durbin: cross-ACV -&gt; VAR(p).</td></tr>
+<tr><td class="name"><a href="lsqvce.kernel.whittle.html">lsqvce.kernel.whittle</a></td><td>Multichannel Levinson-Durbin: cross-ACV -&gt; VAR(p).</td></tr>
 <tr><td class="name"><a href="lsqvce.kernel.ar2arma.html">lsqvce.kernel.ar2arma</a></td><td>Reduce a high-order AR to a compact ARMA(p,q) (Durbin&#x27;s method).</td></tr>
 <tr><td class="name"><a href="lsqvce.kernel.armaACV.html">lsqvce.kernel.armaACV</a></td><td>Autocovariance of an ARMA(p,q) with unit innovation variance.</td></tr>
 <tr><td class="name"><a href="lsqvce.kernel.varACV.html">lsqvce.kernel.varACV</a></td><td>Cross-autocovariance of a stationary VAR(p) process.</td></tr>
 <tr><td class="name"><a href="lsqvce.kernel.psd2acv.html">lsqvce.kernel.psd2acv</a></td><td>One-sided PSD -&gt; autocovariance sequence (Wiener-Khinchin).</td></tr>
 <tr><td class="name"><a href="lsqvce.kernel.crossCorr.html">lsqvce.kernel.crossCorr</a></td><td>Cross-axis / temporal correlation of the whitened residuals.</td></tr>
-<tr><td class="name"><a href="lsqvce.engine.selectArOrder.html">lsqvce.engine.selectArOrder</a></td><td>Choose the AR order automatically, on the RIGHT criterion.</td></tr>
-<tr><td class="name"><a href="lsqvce.engine.iterateNoiseModel.html">lsqvce.engine.iterateNoiseModel</a></td><td>Iterate the covariance model until it is RIGHT, not assumed.</td></tr>
 <tr><td class="name"><a href="lsqvce.engine.checkPSD.html">lsqvce.engine.checkPSD</a></td><td>Verify that the AR/ARMA reduction reproduces the PSD.</td></tr>
 <tr><td class="name"><a href="lsqvce.engine.gcvLambda.html">lsqvce.engine.gcvLambda</a></td><td>Generalised cross-validation choice of the Tikhonov weight.</td></tr>
 </table>
@@ -239,7 +233,6 @@ reveals only the fraction <code>r_i</code> of any error present
 <tr><td class="name"><a href="lsqvce.util.log.html">lsqvce.util.log</a></td><td>Toolbox-wide logging: logfid (file) + logflag (screen).</td></tr>
 <tr><td class="name"><a href="lsqvce.util.verbosity.html">lsqvce.util.verbosity</a></td><td>Message levels (0 silent | 1 progress | 2 stage | 3 diagnostic) and the shared banner formatter.</td></tr>
 <tr><td class="name"><a href="lsqvce.util.showExport.html">lsqvce.util.showExport</a></td><td>Show a figure briefly, then export it as a PNG (adjustVCE plot hooks).</td></tr>
-<tr><td class="name"><a href="lsqvce.util.hasBackgroundPool.html">lsqvce.util.hasBackgroundPool</a></td><td>True when backgroundPool can actually start (the ONE pool-availability probe, by use).</td></tr>
 </table>
 
 <h2>Examples gallery</h2>

@@ -22,7 +22,7 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 %                 .acv     d x d x >=p Gamma(0..), optional (else computed
 %                          from ar/sigma via LSQVCE.KERNEL.VARACV). Rows epoch-major;
 %                          the arc must set nAxis = d. The 'needs-var' case
-%                          of LSQVCE.KERNEL.CROSSCORR; fit with LSQVCE.ENGINE.WHITTLE.
+%                          of LSQVCE.KERNEL.CROSSCORR; fit with LSQVCE.KERNEL.WHITTLE.
 %       'separable' .ar    [1 a1 ... ap] scalar temporal AR, shared by all axes
 %                          NOTE the name describes the MATHEMATICS -- the
 %                          covariance separates into a per-epoch spatial factor

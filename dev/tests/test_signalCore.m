@@ -189,7 +189,7 @@ function testSignalKernelContractRejections(tc)
                    'lsqvce:varWhiten:notWholeEpochs');
 
     % whittle: malformed cross-ACV argument
-    tc.verifyError(@() lsqvce.engine.whittle(ones(2,3,4), 1), 'lsqvce:whittle:badG');
+    tc.verifyError(@() lsqvce.kernel.whittle(ones(2,3,4), 1), 'lsqvce:whittle:badG');
 end
 
 %% =================================================================== helpers

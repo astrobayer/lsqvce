@@ -10,8 +10,6 @@ engine.adjustVCEjoint,ENGINE,Ellmer ten-step joint co-estimation with keyed arc 
 engine.robust,ENGINE,IRLS M-estimation over the batch driver
 engine.solveNonlinear,ENGINE,Gauss-Newton / damped iteration over the batch driver
 engine.makeLoader,ENGINE,"day-builder -> Loader (built INSIDE fit from the data struct, R4-D4)"
-engine.synthLoader,ENGINE,synthetic ground-truth loader and raw-closure template
-engine.PrefetchLoader,ENGINE,prefetching loader wrapper
 engine.BlockAccumulator,ENGINE,block-arrow accumulation with per-system Schur pre-elimination
 engine.Accumulator,ENGINE,plain batch accumulator
 engine.Combine,ENGINE,normal-equation combination of systems
@@ -23,7 +21,6 @@ engine.ReducedContribution,ENGINE,reduced-normal contribution bookkeeping
 engine.vce,ENGINE,Helmert group variance components (exact | hutchinson)
 engine.vceHutchinson,ENGINE,Hutchinson redundancy/trace estimator for vce
 engine.psdVCE,ENGINE,PSD amplitude + arc-factor VCE (Ellmer workhorse)
-engine.iterateNoiseModel,ENGINE,temporal noise-model iteration
 engine.arcVarianceFactors,ENGINE,per-arc variance factors
 engine.covComponent,ENGINE,covariance component estimation
 engine.varComp,ENGINE,variance-component estimation helper
@@ -36,6 +33,7 @@ engine.residuals,ENGINE,second data pass: residuals and quadratic forms
 engine.collectResiduals,ENGINE,residual collection per stream
 engine.redundancy,ENGINE,redundancy numbers (data pass)
 engine.contribution,ENGINE,information contribution per group
+engine.synthLoader,ENGINE,synthetic block-arrow loader (engine-tier fixture)
 engine.streamContribution,ENGINE,contribution per stream
 engine.covModel,ENGINE,covariance spec -> whitening operators (per arc)
 engine.jointModelOpt,ENGINE,joint-mode model -> loader UserOpt translation
@@ -43,14 +41,10 @@ engine.applyRegularisation,ENGINE,regularisation of the reduced system
 engine.gcvLambda,ENGINE,GCV choice of the regularisation weight
 engine.datum,ENGINE,datum defect detection and handling
 engine.mapreduce,ENGINE,serial / parfor / spmd task runner with ordered reduce
-engine.poolGroups,ENGINE,VCE group pooling
 engine.resolveNc,ENGINE,common-parameter count derived from the systems
-engine.resolveSatSpecs,ENGINE,satellite spec resolution
-engine.normalizeSatList,ENGINE,satellite list normalisation
 engine.satKeyOf,ENGINE,satellite key (makeValidName) helper
 engine.selectArAcv,ENGINE,AR model selection from an autocovariance
-engine.selectArOrder,ENGINE,AR order selection
-engine.whittle,ENGINE,Whittle likelihood fit of a VAR model
+kernel.whittle,ENGINE,Whittle likelihood fit of a VAR model
 engine.checkPSD,ENGINE,PSD sanity check
 engine.leverage,ENGINE,"leverage (hat-matrix diagonal), batch"
 engine.leverageBlocks,ENGINE,leverage over blocks
@@ -76,7 +70,6 @@ kernel.crossCorr,KERNEL,cross-correlation of residual streams
 kernel.whitenessCorr,KERNEL,whiteness (Ljung-Box) statistic
 kernel.redundancyLags,KERNEL,redundancy per lag without the dense W^-1
 util.getfielddef,KERNEL,struct field with default
-util.hasBackgroundPool,KERNEL,pool presence check
 util.callUser,KERNEL,call a user function: outputs counted once and errors wrapped with cause
 util.log,KERNEL,toolbox-wide logging state
 util.mergeStruct,KERNEL,struct merge (later wins)

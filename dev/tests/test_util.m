@@ -553,17 +553,3 @@ function testLabelledRowKeepsOverlongLabelWhole(tc)
     tc.verifyTrue(endsWith(strtrim(s), 'x'));
 end
 
-%% ===================================================== hasBackgroundPool
-function testHasBackgroundPoolContract(tc)
-% categories: contract
-% WP-43 (audit check 16): the probe's whole contract is "1x1 logical, never
-% throws" -- the ERRORS block documents (none). Its behaviour tests live in
-% the CI-skipped test_parallel; the CONTRACT must hold on every platform,
-% including one without the PCT, so it is asserted here in a CI-run suite.
-% Determinism: the probe answers an environment question, so two calls in
-% the same session must agree.
-    tf = lsqvce.util.hasBackgroundPool();
-    tc.verifyClass(tf, 'logical');
-    tc.verifySize(tf, [1 1]);
-    tc.verifyEqual(lsqvce.util.hasBackgroundPool(), tf);
-end

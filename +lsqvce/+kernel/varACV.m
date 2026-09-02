@@ -35,7 +35,7 @@ function G = varACV(A, Sigma, K)
 %     lsqvce:varACV:notStationary  the VAR process is not stationary, so no
 %                                  stationary cross-ACV exists
 %
-%   See also LSQVCE.ENGINE.WHITTLE, LSQVCE.KERNEL.VARWHITEN, LSQVCE.KERNEL.ARMAACV
+%   See also LSQVCE.KERNEL.WHITTLE, LSQVCE.KERNEL.VARWHITEN, LSQVCE.KERNEL.ARMAACV
 %
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.

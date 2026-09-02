@@ -5,7 +5,7 @@ function tests = test_adjustBlock
 %     lsqvce.Results      solution + diagnostics + provenance object
 %     lsqvce.engine.makeLoader   day-builder -> accumulator-ready Loader
 %
-%   Both the legacy closure path (via lsqvce.engine.synthLoader) and the new
+%   Both the legacy closure path (via synthLoader) and the new
 %   makeLoader path must recover the synthetic truth and return sigma0 ~ 1.
 %
 %   Run: runtests('tests/test_adjustBlock')
@@ -83,7 +83,7 @@ function testRawClosureHonoursPerSatelliteOverride(tc)
 % categories: contract, robustness | tags: diagnostics
     % R4 finding G-06: adjustVCE emits its reweighting ONLY as
     % opt.covOverride.bySys.(satKey).(obsType) (adjustVCE.m covOverrideOpt),
-    % while the raw-closure template lsqvce.engine.synthLoader read only the flat
+    % while the raw-closure template synthLoader read only the flat
     % opt.covOverride.(obsType) -- a template-derived loader therefore
     % ignored every variance component under adjustVCE, and no VCE suite
     % drove a raw closure, so nothing caught it. Both shapes now resolve
@@ -545,7 +545,7 @@ function D = captureBuild(cfg, day, obsType, common, local, procOpt)
 end
 
 function cfg = synthCfg()
-% cfg in the exact shape lsqvce.engine.synthLoader expects.
+% cfg in the exact shape synthLoader expects.
     cfg = struct('nc',6, 'nl',4, 'arcsPerDay',2, 'mArc',300, 'dt',5, ...
                  'seed',42, 'collinear',false, 'collinearEps',1e-7);
     cfg.obsTypes = {'pos','kbr'};

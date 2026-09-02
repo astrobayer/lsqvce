@@ -843,7 +843,7 @@ function cfg = jointCfg()
     % explicit acf covariance so every arc exposes Cfcn (the joint estimator
     % needs the explicit W with Sigma = W'W).
     %
-    % NOTE ON ISOLATION: lsqvce.engine.synthLoader keeps a PERSISTENT single-day cache
+    % NOTE ON ISOLATION: synthLoader keeps a PERSISTENT single-day cache
     % keyed on (sat, day, obsType, tag, nc, nl, seed). This fixture deliberately
     % uses a system id far from the other suites' so that even a partial key
     % cannot collide -- a fixture whose nc differs from another suite's would

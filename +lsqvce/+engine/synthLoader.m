@@ -1,10 +1,10 @@
 function out = synthLoader(cfg, sat, day, obsType, arcID, opt)
-%LSQVCE.ENGINE.SYNTHLOADER  Synthetic ground-truth loader -- and the loader TEMPLATE.
+%SYNTHLOADER  Synthetic ground-truth loader -- and the loader TEMPLATE.
 %
 %   Bind it as a closure over cfg and the satellite, so the accumulator sees
 %   the four-argument signature it expects:
 %
-%       loader = @(d,ot,a,uo) lsqvce.engine.synthLoader(cfg, satID, d, ot, a, uo);
+%       loader = @(d,ot,a,uo) synthLoader(cfg, satID, d, ot, a, uo);
 %       acc.addSystem(satID, nl, loader, days);
 %
 %   COPY THIS FILE as the starting point for a real loader. The structure --
@@ -77,7 +77,7 @@ function out = synthLoader(cfg, sat, day, obsType, arcID, opt)
 %     cfg.cov.kbr = struct('type','diag','sigma',0.2);
 %
 %     acc = lsqvce.engine.BlockAccumulator(6, 'Backend','qr');
-%     acc.addSystem(1, 4, @(d,ot,a,uo) lsqvce.engine.synthLoader(cfg,1,d,ot,a,uo), 1:3);
+%     acc.addSystem(1, 4, @(d,ot,a,uo) synthLoader(cfg,1,d,ot,a,uo), 1:3);
 %     sol = acc.solve();
 %     max(abs(sol.x - cfg.x_c))          % recovers the truth
 %

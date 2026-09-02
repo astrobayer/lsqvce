@@ -5,7 +5,6 @@ function tests = test_parallel
 %     * lsqvce.engine.mapreduce (the execution-strategy layer)
 %     * Accumulator.addSystems == sequential addSystem (all modes)
 %     * the refactored lsqvce.engine.redundancy == an independent brute-force pass
-%     * lsqvce.engine.iterateNoiseModel: covariance model iteration to sigma0 ~ 1 + white acf
 %     * per-obsType sigma0 quick-look in lsqvce.engine.residuals
 %     * dense-path boundary bias is benign (the measured 2.2 result)
 %
@@ -19,10 +18,11 @@ function tests = test_parallel
 %   See also TEST_V3, TEST_LSQACCUM, TEST_PRECISION
 %
 %   Updated 2026-08-18 (CEST, UTC+02:00): pool guard moved to the ONE probe
-%   lsqvce.util.hasBackgroundPool (probe-by-USE; local exist()-based guard
-%   deleted - it was false-negative under `matlab -batch`, WP-30 postflight
-%   finding) + consistency test testBackgroundPoolGuardAgreesWithUse. With
-%   assistance from Claude (Anthropic), model Claude Fable 5.
+%   (WP-30 postflight finding). Updated 2026-09-02 (R5 M2, WP-82): the
+%   PrefetchLoader / hasBackgroundPool / iterateNoiseModel points left with
+%   their units (measured slower than nothing, or superseded); synthLoader
+%   is now the test fixture dev/tests/private/synthLoader.m. With
+%   assistance from Claude (Anthropic), model Claude Fable 5.1.
     tests = functiontests(localfunctions);
 end
 
@@ -261,57 +261,6 @@ function testRedundancySpmdMatchesSerialToTolerance(tc)
     tc.verifyEqual([rW.group(loc).vtv], [rS.group.vtv], 'RelTol', 1e-10);
 end
 
-%% ============================================== iterateNoiseModel (ROADMAP 2.3)
-function testPsdIterateConvergesFromWhiteStart(tc)
-% categories: precision
-% Start with the WRONG model (white assumed, AR(3) true): after iteration
-% sigma0 must be ~1 and the recovered model must match the TRUE ACV.
-%
-% WHITENESS BAND NOTE. With this much data (n ~ 1e4 whitened residuals) the
-% default whiteness band WhiteFactor/sqrt(n) is very tight (~0.025 at
-% WhiteFactor 3). The iteration reaches a STABLE fixed point at sigma0 ~ 0.983
-% with a residual max|acf| ~ 0.052 -- the true model is recovered (ACV error
-% below, sigma0 ~ 1), but that 0.052 sits just above a 3-sigma band, so the
-% boolean 'converged' flag is knife-edge and flips with tiny cross-version
-% arithmetic differences. We therefore set a wider WhiteFactor (a legitimate
-% ~5-6 sigma whiteness gate at this n) so genuine convergence is declared, and
-% assert the substantive outcomes -- level and ACV fidelity -- directly.
-    cfg = tc.TestData.cfg;
-    cfg.mArc = 600;                       % enough data for the ACV estimate
-    days = 1:4;
-
-    cov0.pos = struct('type','diag','sigma',1);          % wrong colour+level
-    cov0.kbr = cfg.cov.kbr;                              % correct already
-
-    accFcn = @(cov) buildWithCov(cfg, days, cov);
-    it = lsqvce.engine.iterateNoiseModel(accFcn, cov0, 'UpdateTypes',{'pos'}, ...
-                        'MaxIter',8, 'OrderGrid',[2 3 5 8 12], ...
-                        'MaxLag',64, 'WhiteFactor',8, 'Verbose',false);
-
-    tc.verifyTrue(it.converged);
-    tc.verifyLessThanOrEqual(it.nIter, 6);
-    % tol: statistical identity on a finite sample; scatter ~ 1/sqrt(dof) of the fixture, bar sized 4/sqrt(Z)-style (HANDOVER 6.1.2)
-    tc.verifyEqual(it.sol.sigma0, 1, 'AbsTol', 0.05);
-
-    % the recovered ACV vs the TRUTH the noise was generated with
-    cm = cfg.cov.pos;                                    % arma, ar + sigma
-    rT = cm.sigma^2 * lsqvce.kernel.armaACV(cm.ar, 1, 40);
-    cf = it.cov.pos;
-    rF = cf.sigma^2 * lsqvce.kernel.armaACV(cf.ar, 1, 40);
-    tc.verifyLessThan(norm(rF - rT)/norm(rT), 0.15);     % sampling-limited
-end
-
-function testPsdIterateCorrectModelConvergesImmediately(tc)
-% categories: contract
-    cfg  = tc.TestData.cfg;
-    days = 1:3;
-    accFcn = @(cov) buildWithCov(cfg, days, cov);
-    it = lsqvce.engine.iterateNoiseModel(accFcn, cfg.cov, 'MaxIter',3, 'Verbose',false);
-    tc.verifyTrue(it.converged);
-    tc.verifyEqual(it.nIter, 1);
-end
-
-%% ==================================== per-obsType quick-look (ROADMAP 2.4)
 function testResidualsPerObsTypeQuickLook(tc)
 % categories: precision | tags: diagnostics
     cfg  = tc.TestData.cfg;
@@ -530,12 +479,12 @@ function testWhittleRecoversGenerator(tc)
     [A, Sig] = stableVAR();
     p = size(A, 3);
     G = lsqvce.kernel.varACV(A, Sig, p+3);
-    [Ah, Sh] = lsqvce.engine.whittle(G, p);
+    [Ah, Sh] = lsqvce.kernel.whittle(G, p);
     % tol: quantile/CDF round-trip through base-MATLAB special functions; their relative error is ~1e-14, bound leaves headroom
     tc.verifyEqual(Ah, A, 'AbsTol', 1e-8*norm(A(:,:,1)));
     tc.verifyEqual(Sh, Sig, 'RelTol', 1e-9);
 
-    Ao = lsqvce.engine.whittle(G, p+2);
+    Ao = lsqvce.kernel.whittle(G, p+2);
     tc.verifyLessThan(norm(Ao(:,:,p+1)) + norm(Ao(:,:,p+2)), ...
                       1e-7*norm(A(:,:,1)));
 end
@@ -627,96 +576,6 @@ function testDistributeDaysSpmdMatchesSerial(tc)
     tc.verifyEqual(s2.sigma0, s1.sigma0, 'RelTol', 1e-10);
 end
 
-function testPrefetchLoaderPassthroughIsExact(tc)
-% categories: contract
-% Disabled (and auto-disabled without a backgroundPool) the wrapper is a pure
-% passthrough: the accumulation through it must be BIT-identical.
-    cfg  = tc.TestData.cfg;
-    days = 1:3;
-
-    a1 = lsqvce.engine.BlockAccumulator(cfg.nc, 'Verbose',false);
-    a1.addSystem(1, cfg.nl, binder(cfg, 1), days);
-    s1 = a1.solve();
-
-    pf = lsqvce.engine.PrefetchLoader(binder(cfg, 1), days, 'Enable', false);
-    a2 = lsqvce.engine.BlockAccumulator(cfg.nc, 'Verbose',false);
-    a2.addSystem(1, cfg.nl, pf.handle(), days);
-    s2 = a2.solve();
-
-    tc.verifyEqual(s2.x, s1.x);              % passthrough: identical calls
-    tc.verifyEqual(s2.sigma0, s1.sigma0);
-    tc.verifyFalse(pf.enabled);
-end
-
-function testPrefetchLoadWholeDayMatchesDirectCalls(tc)
-% categories: robustness, vectorisation
-% The function that runs on the background worker, executed serially: its
-% cache must hold exactly what direct loader calls return.
-    cfg = tc.TestData.cfg;
-    f   = binder(cfg, 1);
-    uo  = struct('sysID',1, 'nc',cfg.nc, 'nl',cfg.nl, 'BatchSize',20000);
-
-    C = lsqvce.engine.PrefetchLoader.loadWholeDay(f, 2, uo);
-
-    meta = f('meta', 2, [], uo);
-    for ot = 1:numel(meta.obsTypes)
-        uo.obsType = meta.obsTypes{ot};
-        for a = meta.arcs{ot}(:).'
-            uo.day = 2;  uo.arc = a;
-            ref = f(2, uo.obsType, a, uo);
-            got = C(sprintf('%s|%s', string(uo.obsType), string(a)));
-            tc.verifyEqual(got.A, ref.A);
-            tc.verifyEqual(got.l, ref.l);
-        end
-    end
-end
-
-function testPrefetchServesFromCacheWhenPrimed(tc)
-% categories: precision
-% Simulate a harvested future by priming the cache path via loadWholeDay,
-% then verify hit/miss accounting and that a cold day falls through
-% correctly. Exercises fetch() logic without a pool.
-    tc.assumeTrue(lsqvce.util.hasBackgroundPool(), 'backgroundPool not available');
-    cfg  = tc.TestData.cfg;
-    days = 1:3;
-    pf = lsqvce.engine.PrefetchLoader(binder(cfg, 1), days, 'Enable', true);
-    tc.assumeTrue(pf.enabled, 'prefetch could not enable');
-
-    acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Verbose', false);
-    acc.addSystem(1, cfg.nl, pf.handle(), days);
-    sol = acc.solve();
-
-    ref = lsqvce.engine.BlockAccumulator(cfg.nc, 'Verbose', false);
-    ref.addSystem(1, cfg.nl, binder(cfg, 1), days);
-    sr = ref.solve();
-
-    % tol: prefetch passthrough serves BYTE-IDENTICAL data, solve is the
-    % same arithmetic; 1e-14 ~ 100*eps guards accumulation order only
-    tc.verifyEqual(sol.x, sr.x, 'RelTol', 1e-14);   % identical data served
-    tc.verifyGreaterThan(pf.hits, 0);               % it actually prefetched
-end
-function testBackgroundPoolGuardAgreesWithUse(tc)
-% categories: robustness, vectorisation
-% §6.1 regression for the WP-30 postflight finding (2026-08-18): the guard
-% must agree with the ground truth - does CALLING backgroundPool work? The
-% old exist()-based guard said NO under `matlab -batch` while the call
-% succeeded, silently filtering the prefetch coverage on every batch/gate
-% run. This test FAILS on that code under -batch and pins the contract.
-    if ~hasPCT()
-        works = false;                       % probe must say false here too
-    else
-        try
-            backgroundPool;
-            works = true;
-        catch
-            works = false;
-        end
-    end
-    tc.verifyEqual(lsqvce.util.hasBackgroundPool(), works, ...
-        'lsqvce.util.hasBackgroundPool must match a use-probe of backgroundPool.');
-end
-
-%% =================================================================== helpers
 function ok = hasPCT()
     ok = license('test', 'Distrib_Computing_Toolbox') && ...
          ~isempty(ver('parallel'));

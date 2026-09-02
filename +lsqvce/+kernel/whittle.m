@@ -1,7 +1,7 @@
 function [A, Sigma, info] = whittle(G, p)
-%LSQVCE.ENGINE.WHITTLE  Multichannel Levinson-Durbin: cross-ACV -> VAR(p).
+%LSQVCE.KERNEL.WHITTLE  Multichannel Levinson-Durbin: cross-ACV -> VAR(p).
 %
-%   [A, Sigma] = LSQVCE.ENGINE.WHITTLE(G, p)
+%   [A, Sigma] = LSQVCE.KERNEL.WHITTLE(G, p)
 %
 %   Fits  z_t = sum_{k=1}^p A_k z_{t-k} + e_t,  C{e} = Sigma  to the given
 %   cross-autocovariance sequence by the Whittle recursion -- the exact

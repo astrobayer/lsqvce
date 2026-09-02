@@ -64,7 +64,7 @@ discarded -- LSQVCE.ENGINE.BLOCKACCUMULATOR does this from arc.filterMemory = p*
 rounds batches to whole epochs from arc.nAxis = d. Same contract as the
 scalar filter path; same failure mode if the overlap is forced to 0.</pre>
 <h3>Input</h3>
-<pre class="example">Avar    d x d x p     VAR coefficient matrices (LSQVCE.ENGINE.WHITTLE output)
+<pre class="example">Avar    d x d x p     VAR coefficient matrices (LSQVCE.KERNEL.WHITTLE output)
 Sigma   d x d         innovation covariance
 G       d x d x &gt;=p   Gamma(0..) for the startup block (LSQVCE.KERNEL.VARACV, or
                       the empirical cross-ACV the model was fitted on)
@@ -72,6 +72,6 @@ d       scalar        number of axes
 A, B    m x *         design blocks, epoch-major rows (may be m x 0)
 l       m x 1         observations, epoch-major
 isFirstBatch          true -&gt; exact stationary startup for epochs 1..p</pre>
-<div class="seealso"><b>See also:</b> <a href="lsqvce.engine.whittle.html">lsqvce.engine.whittle</a>, <a href="lsqvce.kernel.varACV.html">lsqvce.kernel.varACV</a>, <a href="lsqvce.kernel.separableWhiten.html">lsqvce.kernel.separableWhiten</a>, <a href="lsqvce.kernel.armaWhiten.html">lsqvce.kernel.armaWhiten</a></div>
+<div class="seealso"><b>See also:</b> <a href="lsqvce.kernel.whittle.html">lsqvce.kernel.whittle</a>, <a href="lsqvce.kernel.varACV.html">lsqvce.kernel.varACV</a>, <a href="lsqvce.kernel.separableWhiten.html">lsqvce.kernel.separableWhiten</a>, <a href="lsqvce.kernel.armaWhiten.html">lsqvce.kernel.armaWhiten</a></div>
 <div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
 </body></html>
