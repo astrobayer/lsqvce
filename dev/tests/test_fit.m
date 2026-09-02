@@ -334,8 +334,11 @@ function testEllmerThroughFitReproducesDirect(tc)
     tc.verifyClass(R.acc, 'lsqvce.engine.BlockAccumulator');
     tc.verifyEqual(R.meta.seeds.jointSeed, 7, 'the probe seed is recorded in the provenance');
     tc.verifyEqual(R.meta.options.Model, "ellmer");
-    % adjustVCE's history readers refuse cleanly; the verdict works
-    tc.verifyEqual(idOf(@() R.summary()), 'lsqvce:Results:noHistory');
+    % R5 M4 4a: the joint sweep collects whiteness per stream per pass, so
+    % the history readers WORK on an ellmer Results (before 4a they refused
+    % with lsqvce:Results:noHistory); the verdict works too
+    tc.verifyEqual(idOf(@() R.summary()), '');
+    tc.verifyEqual(idOf(@() R.convergence()), '');
     tc.verifyEqual(idOf(@() R.report('Verbose', false)), '');
 end
 
