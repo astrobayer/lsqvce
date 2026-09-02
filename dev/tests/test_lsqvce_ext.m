@@ -780,31 +780,6 @@ function test_cond_is_flagged_as_a_bound_when_sparse(tc)
 end
 
 %% ===================================== INTERACTION GUARDS
-function test_varComp_refuses_contaminated_data(tc)
-% categories: contract, reference, robustness
-    % Blunders inflate a group's variance component -> the group is
-    % DOWN-WEIGHTED -> its residuals shrink -> the blunders hide further. The
-    % same self-masking pathology as Pope's tau, one level up.
-    rs = RandStream('mt19937ar','Seed', 2200);
-    n = 300; u = 8;
-    A = randn(rs, n, u);  xt = randn(rs, u, 1);
-    l = A*xt + randn(rs, n, 1);
-    idx = randperm(rs, n, round(0.30*n));
-    l(idx) = l(idx) + 20 * sign(randn(rs, numel(idx), 1));
-
-    B = chop(A, l, ones(n,1), 4);
-    src = srcOf(B);
-    [~, D] = lsqvce.engine.adjust(u, src, 4, 'verbose', false);
-
-    g = [ones(n/2,1); 2*ones(n/2,1)];
-    gB = chop(A, g, ones(n,1), 4);
-    gsrc = @(k) gB{k}{2};
-
-    verifyError(tc, ...
-        @() lsqvce.engine.varComp(u, src, 4, gsrc, 2, 'verbose', false, 'checkD', D), ...
-        'lsqvce:varComp:contaminated');
-end
-
 function test_ftest_warns_when_premise_violated(tc)
 % categories: contract
     % The F-test divides the improvement in fit by the residual variance, which

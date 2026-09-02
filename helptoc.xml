@@ -47,8 +47,6 @@
       <tocitem target="html/lsqvce.engine.selectArAcv.html">lsqvce.engine.selectArAcv</tocitem>
     </tocitem>
     <tocitem target="html/index.html">Combining data sets
-      <tocitem target="html/lsqvce.engine.BatchIndex.html">lsqvce.engine.BatchIndex</tocitem>
-      <tocitem target="html/lsqvce.engine.Combine.html">lsqvce.engine.Combine</tocitem>
     </tocitem>
     <tocitem target="html/index.html">Diagnostics
       <tocitem target="html/lsqvce.engine.diagnose.html">lsqvce.engine.diagnose</tocitem>
@@ -61,8 +59,6 @@
     </tocitem>
     <tocitem target="html/index.html">Stochastic model - VCE
       <tocitem target="html/lsqvce.engine.vce.html">lsqvce.engine.vce</tocitem>
-      <tocitem target="html/lsqvce.engine.varComp.html">lsqvce.engine.varComp</tocitem>
-      <tocitem target="html/lsqvce.engine.vceHutchinson.html">lsqvce.engine.vceHutchinson</tocitem>
       <tocitem target="html/lsqvce.engine.traceEstimate.html">lsqvce.engine.traceEstimate</tocitem>
       <tocitem target="html/lsqvce.engine.contribution.html">lsqvce.engine.contribution</tocitem>
       <tocitem target="html/lsqvce.engine.streamContribution.html">lsqvce.engine.streamContribution</tocitem>

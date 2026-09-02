@@ -471,54 +471,6 @@ function test_systematic_ljungbox_on_correlated_residuals(tc)
 end
 
 %% ============================================================ VARCOMP
-function test_varcomp_simplified_and_rigorous_agree(tc)
-% categories: precision
-    rs = RandStream('mt19937ar','Seed', 211);
-    u = 6; ng = 500; n = 2*ng;
-    A = randn(rs, n, u);  xt = randn(rs, u, 1);
-    g = [ones(ng,1); 2*ones(ng,1)];
-    sigTrue = [ones(ng,1); 2.5*ones(ng,1)];
-    l = A*xt + sigTrue .* randn(rs, n, 1);
-    p = ones(n,1);
-
-    B  = chop(A, l, p, 5);
-    gB = chop(A, g, p, 5);
-    VR = lsqvce.engine.varComp(u, srcOf(B), 5, @(k) gB{k}{2}, 2, ...
-                         'verbose', false, 'method', 'rigorous');
-    VS = lsqvce.engine.varComp(u, srcOf(B), 5, @(k) gB{k}{2}, 2, ...
-                         'verbose', false, 'method', 'simplified');
-    rR = VR.sigma(2)/VR.sigma(1);
-    rS = VS.sigma(2)/VS.sigma(1);
-    % tol: statistical bar on this fixture, sized to the estimator scatter (HANDOVER 6.1.2); not an eps claim
-    verifyEqual(tc, rR, rS, 'RelTol', 0.05, ...
-        'the two Helmert variants must converge to the same fixed point');
-    verifyEqual(tc, rR, 2.5, 'RelTol', 0.15);
-end
-
-function test_varcomp_reports_resolution(tc)
-% categories: precision, robustness | tags: diagnostics
-    % A variance component estimated from r_g observations has a relative
-    % standard error ~ 0.5*sqrt(2/r_g). Quoting a correction smaller than its
-    % own noise is meaningless, and the toolbox must say so.
-    rs = RandStream('mt19937ar','Seed', 221);
-    u = 4; ng = 200; n = 2*ng;
-    A = randn(rs, n, u);
-    g = [ones(ng,1); 2*ones(ng,1)];
-    l = A*randn(rs,u,1) + randn(rs, n, 1);
-    p = ones(n,1);
-    B  = chop(A, l, p, 4);
-    gB = chop(A, g, p, 4);
-    VC = lsqvce.engine.varComp(u, srcOf(B), 4, @(k) gB{k}{2}, 2, 'verbose', false);
-
-    verifyTrue(tc, all(isfinite(VC.resolution)));
-    % tol: closed-form resolution 0.5*sqrt(2/r) recomputed from the SAME r; house exact-identity bound
-    verifyEqual(tc, VC.resolution(1), 0.5*sqrt(2/VC.redund(1)), 'RelTol', 1e-9);
-    % correct weights -> the correction must NOT be significant
-    verifyFalse(tc, any(VC.significant), ...
-        'varComp claimed a significant weight correction on correct weights');
-end
-
-%% ============================================================= REPORT
 function test_report_returns_machine_readable_findings(tc)
 % categories: contract | tags: diagnostics
     [A, l, p] = prob(400, 5, 231, [10 200]);
