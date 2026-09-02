@@ -62,11 +62,11 @@ function testFitVceReproducesTheEngine(tc)
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');
     [data, ~] = declaration();
     base = {'MaxOuter', 1, 'JointMaxIter', 2, 'NumLags', 8, 'Seed', 7, 'Verbose', false};
-    Rv = lsqvce.fit(data, lsqvce.Options(Model="vce", base{:}));
+    Rv = lsqvce.fit(data, lsqvce.Options(base{:}, Model="vce"));
     dataE = data;
     ots = fieldnames(dataE.systems(1).covariance);
     for k = 1:numel(ots), dataE.systems(1).covariance.(ots{k}).arcFactors = false; end
-    Re = lsqvce.fit(dataE, lsqvce.Options(Model="ellmer", Pool="stream", base{:}));
+    Re = lsqvce.fit(dataE, lsqvce.Options(base{:}, Model="ellmer", Pool="stream"));
     % tol: exact -- one code path, one seed
     tc.verifyEqual(Rv.x, Re.x);
     tc.verifyEqual(Rv.noise.C, Re.noise.C);
@@ -77,8 +77,8 @@ function testFitVceReproducesTheEngine(tc)
     tc.verifyEqual(numel(Rv.noise.stream), numel(ots));
     tc.verifyTrue(all(cellfun(@(m) isfield(m, 'sigma') && m.sigma > 0, Rv.noise.model)));
     % "pooled" = Pool "all" without arc factors
-    Rp = lsqvce.fit(data, lsqvce.Options(Model="pooled", base{:}));
-    Rpe = lsqvce.fit(dataE, lsqvce.Options(Model="ellmer", Pool="all", base{:}));
+    Rp = lsqvce.fit(data, lsqvce.Options(base{:}, Model="pooled"));
+    Rpe = lsqvce.fit(dataE, lsqvce.Options(base{:}, Model="ellmer", Pool="all"));
     % tol: exact -- as above
     tc.verifyEqual(Rp.x, Rpe.x);
     tc.verifyEqual(keys(Rp.noise.Cgroups), {'all'});
