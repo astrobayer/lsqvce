@@ -367,24 +367,27 @@ end
         end
         % R5 M4 4b: a stream WITHOUT arc factors still needs its LEVEL estimated
         % (the PSD shape is normalised; the level rode on the arc factors).
-        % Helmert / Foerstner on the whitened residuals of the stream's arcs:
-        % f = sum Omega_0 / sum s_0 (lag 0 over all its arcs), applied to every
-        % arc of the stream (one common factor) -- the fixed point is
-        % Omega_0 = s_0, i.e. a whitened residual sum equal to its redundancy.
-        % Found by the gravity demo: planted 1 / 2 / 0.5 came back 1 / 1 / 1.
+        % The level is the Helmert factor of the stream: the mean over its arcs
+        % of gamma2_m = alpha2_m * sigma2_m (eq. 6.5.28, the arc's NEW absolute
+        % factor) WITHOUT the unit-mean normalisation of the ellmer mode (that
+        % normalisation exists because the PSD carries the level there; here
+        % the shape is normalised, so the level must be absolute). One common
+        % factor per stream. Found by the gravity demo: planted 1 / 2 / 0.5
+        % came back 1 / 1 / 1 without it.
         fStream = containers.Map('KeyType', 'char', 'ValueType', 'double');
         for sk = unique(streamOf(:)).'
             cols = strcmp(streamOf, sk{1}) & ~strcmp(polOf, 'none') & ~arcFactorsOf(o.ArcFactors, sk{1});
             if ~any(cols), continue, end
-            den = sum(sT(1, cols));
-            if den > 0, fStream(sk{1}) = max(sum(omegaT(1, cols)) / den, 1e-8); end
+            g2 = av.gamma2(cols);
+            g2 = g2(isfinite(g2) & g2 > 0);
+            if ~isempty(g2), fStream(sk{1}) = mean(g2); end
         end
         for kk = 1:nArc
             if strcmp(polOf{kk}, 'none'), continue, end
             if arcFactorsOf(o.ArcFactors, streamOf{kk})
                 s2Map(keys{kk}) = av.sigma2(kk);     % keyed write-back, per arc
             elseif isKey(fStream, streamOf{kk})
-                s2Map(keys{kk}) = s2Map(keys{kk}) * fStream(streamOf{kk});   % one level per stream
+                s2Map(keys{kk}) = fStream(streamOf{kk});    % one level per stream
             end
         end
         sigma2 = cellfun(@(k) s2Map(k), pinnedKeys(:));   % pinned order
