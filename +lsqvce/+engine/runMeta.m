@@ -23,6 +23,11 @@ function meta = runMeta(seeds, options)
 %                           .createdUTC      1xK char  ISO 8601, trailing Z
 %                           .seeds           1x1 struct  as given
 %                           .options         1x1 struct  as given
+%                           .warnings        1xW cell    every warning identifier
+%                                            raised through lsqvce.util.log
+%                                            during the run, first-fired order,
+%                                            each once (R5 M1; fit resets the
+%                                            inventory at its start)
 %
 %   ERRORS
 %     lsqvce:runMeta:badArg  seeds or options is not a scalar struct
@@ -49,7 +54,8 @@ function meta = runMeta(seeds, options)
         'createdUTC',     char(datetime('now', 'TimeZone', 'UTC', ...
                                'Format', 'yyyy-MM-dd''T''HH:mm:ss''Z''')), ...
         'seeds',          seeds, ...
-        'options',        options);
+        'options',        options, ...
+        'warnings',       {lsqvce.util.log.inventory()});   % braces: a cell VALUE
 end
 
 function v = toolboxVersionLine()

@@ -105,6 +105,10 @@ function [sol, D, V, IT] = solveNonlinear(u, batchFcn, nBatch, x0, varargin)
 %   inputParser, which stays BY DESIGN (KeepUnmatched pass-through --
 %   the adjust pattern; pinned deviation §9 WP-39). With assistance from
 %   Claude (Anthropic), model Claude Fable 5.
+%   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+%     lsqvce:nonlin:diverged                     [warning] Levenberg damping reached X without finding a downhill ... ... ... 
+%     lsqvce:nonlin:maxIter                      [warning] Reached maxIter = X without meeting the convergence tolerance ... ......
+%
 %   See also LSQVCE.ENGINE.ADJUST, LSQVCE.ENGINE.ACCUMULATOR.
 %
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
@@ -160,13 +164,14 @@ end
 
 vPvPrev = Inf;
 solPrev = [];
+nOut    = [];                                % output count of batchFcn, learned once (M1)
 
 for it = 1:o.maxIter
 
     % ---- accumulate at the current x
     acc = lsqvce.engine.Accumulator(u, accArgs{:});
     for k = 1:nBatch
-        [Ak, wk, pk] = callBatch(batchFcn, k, x);
+        [Ak, wk, pk, nOut] = callBatch(batchFcn, k, x, nOut);
         acc.add(Ak, wk, pk);
     end
 
@@ -272,7 +277,7 @@ if lsqvce.util.verbosity.progress(o.verbose)
 end
 acc = lsqvce.engine.Accumulator(u, accArgs{:});
 for k = 1:nBatch
-    [Ak, wk, pk] = callBatch(batchFcn, k, x);
+    [Ak, wk, pk, nOut] = callBatch(batchFcn, k, x, nOut);
     acc.add(Ak, wk, pk);
 end
 sol = acc.solve('sigma0', o.sigma0);
@@ -291,7 +296,7 @@ sol = acc.solve('sigma0', o.sigma0);
 % Only AFTER diagnose has run do we overwrite sol.x with the parameters, which
 % is what the caller actually wants to see.
 dxFinal  = sol.x;
-finalSrc = @(k) callBatch(batchFcn, k, x);
+finalSrc = @(k) callBatch(batchFcn, k, x, nOut);
 
 dArgs = struct2nv(ip.Unmatched);
 D = lsqvce.engine.diagnose(sol, finalSrc, 'nBatch', nBatch, dArgs{:});
@@ -307,22 +312,19 @@ end
 
 %% ---------------------------------------------------------------- helpers
 
-function [A, w, p] = callBatch(f, k, x)
-%CALLBATCH  Call a nonlinear batch source f(k,x) at the current estimate x,
-%   tolerating sources that return only [A,w] (no weights) -> p = [].
-%   INPUT   f 1x1 fh;  k 1x1 double batch index;  x u x 1 current estimate
-%   OUTPUT  A nk x u Jacobian;  w nk x 1 reduced obs (l - f(x));  p nk x 1|[] wts
-    try
-        [A, w, p] = f(k, x);
-    catch ME
-        if any(strcmp(ME.identifier, {'MATLAB:TooManyOutputs', ...
-                                      'MATLAB:maxlhs', ...
-                                      'MATLAB:unassignedOutputs'}))
-            [A, w] = f(k, x);
-            p = [];
-        else
-            rethrow(ME);
-        end
+function [A, w, p, nOut] = callBatch(f, k, x, nOut)
+%CALLBATCH  Call a nonlinear batch source f(k,x) through LSQVCE.UTIL.CALLUSER
+%   (R5 M1, H-08): the output count is learned ONCE (nOut = [] first, then the
+%   returned nOut); a source without weights gives p = []; anything it throws
+%   arrives as lsqvce:callUser:threw with the original as cause.
+%   INPUT   f 1x1 fh;  k 1x1 double batch index;  x u x 1 current estimate;
+%           nOut [] | 1x1 double  known output count (2 or 3)
+%   OUTPUT  A nk x u Jacobian;  w nk x 1 reduced obs (l - f(x));  p nk x 1|[] wts;
+%           nOut 1x1 double  the count to pass next time
+    if nargin < 4 || isempty(nOut)
+        [nOut, A, w, p] = lsqvce.util.callUser(f, 2, 3, 'batchFcn(k, x)', k, x);
+    else
+        [~, A, w, p] = lsqvce.util.callUser(f, nOut, nOut, 'batchFcn(k, x)', k, x);
     end
 end
 
@@ -331,8 +333,9 @@ function vPv = evalVPv(f, nB, x)
 %   INPUT   f 1x1 fh batch source;  nB 1x1 double batches;  x u x 1 estimate
 %   OUTPUT  vPv 1x1 double  sum over all observations of p_i * w_i^2
     vPv = 0;
+    nOut = [];
     for k = 1:nB
-        [~, w, p] = callBatch(f, k, x);
+        [~, w, p, nOut] = callBatch(f, k, x, nOut);
         w = w(:);
         if isempty(p), p = ones(numel(w), 1); end
         p = p(:);

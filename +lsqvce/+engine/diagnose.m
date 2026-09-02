@@ -86,6 +86,9 @@ function D = diagnose(sol, batchFcn, opt)
 %   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
 %   case-sensitive lowercase). With assistance from Claude (Anthropic),
 %   model Claude Fable 5.
+%   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+%     lsqvce:diagnose:largeU                     [warning] u = X parameters
+%
 %   See also LSQVCE.ENGINE.ADJUST, LSQVCE.REPORT, LSQVCE.ENGINE.SNOOP.
 %
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,

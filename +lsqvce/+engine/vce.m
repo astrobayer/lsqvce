@@ -116,6 +116,10 @@ function vc = vce(accFcn, opt)
 %                                    accumulated batches
 %     lsqvce:vce:hutchGroupMismatch  likewise, in the Hutchinson backend
 %
+%   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+%     lsqvce:vce:lowRedundancy                   [warning] X group(s) have redundancy below freezeR = X and their sigma is FROZE...
+%     lsqvce:vce:notConverged                    [warning] VCE did not converge in X iterations (last change X > tol X)
+%
 %   See also LSQVCE.ENGINE.REDUNDANCY, LSQVCE.ENGINE.LEVERAGE, LSQVCE.ENGINE.OUTLIERS
 %
 %   Generated with assistance from Claude (Anthropic), model Claude

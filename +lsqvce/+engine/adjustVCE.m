@@ -198,6 +198,18 @@ classdef adjustVCE < handle
 %     is deliberate -- the identifier names the layer that can actually explain
 %     the problem.
 %
+%   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+%     lsqvce:adjustVCE:jointNotPD                [warning] The reduced normal matrix is not positive definite, so the joint spec...
+%     lsqvce:adjustVCE:jointPsdRejected          [warning] Joint update
+%     lsqvce:adjustVCE:jointStreamSkipped        [warning] Joint update
+%     lsqvce:adjustVCE:localNotPD                System X
+%     lsqvce:adjustVCE:notConverged              [warning] The loop did not converge in X iteration(s)
+%     lsqvce:adjustVCE:notHomogenised            [warning] Homogenisation (step 0)
+%     lsqvce:adjustVCE:plotHookFailed            [warning] Plot hook X for X threw (X); skipping.X_X_passX
+%     lsqvce:adjustVCE:rawResidualValidation     [warning] System X, X
+%     lsqvce:adjustVCE:shapeRejected             [warning] A candidate noise model was not adopted because its whitener could no...
+%     lsqvce:adjustVCE:skipThreshold             Joint update, stream X
+%
 %   See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.REDUNDANCY,
 %
 %   Updated 2026-09-01 (CEST, UTC+02:00), R4-D2 / WP-64b (Level L6): the six
@@ -361,7 +373,7 @@ classdef adjustVCE < handle
 
             obj.vceGroups  = o.groupBy;
             obj.vceMode    = lower(char(o.vceMode));
-            obj.jointOpt   = struct('NumLags',60, 'Probes',100, 'Seed',[], ...
+            obj.jointOpt   = struct('NumLags',60, 'Probes',100, 'SkipThreshold',0.2, 'Seed',[], ...
                                     'Norm','ortho', 'MeanType','robust', 'C0',[], ...
                                     'PsdMode','toeplitz', 'Smooth',0);
             % Resolve ONCE here, so obj.verbose is always a numeric level
@@ -1296,6 +1308,24 @@ classdef adjustVCE < handle
                 sysID = obj.sysIdOfKey(satKey);
                 [omegaT, sT, nArc, skip] = obj.sweepStreamLags(acc, sol, sp.UiZ, ...
                                                          sysID, ot, nLag);
+                % R5 M1: skips are counted (skip.*); a RATE above the threshold
+                % refuses the pass instead of updating the stream on the rest.
+                thr  = lsqvce.util.getfielddef(obj.jointOpt, 'SkipThreshold', 0.2);
+                nBad = skip.seen - nArc;
+                if skip.seen > 0 && nArc > 0 && nBad / skip.seen > thr
+                    error('lsqvce:adjustVCE:skipThreshold', ...
+                         ['Joint update, stream %s: %d of %d arcs skipped (%.0f %% > ' ...
+                          'SkipThreshold %.0f %%; %d empty, %d no covariance, %d Cfcn ' ...
+                          'threw, %d non-PD, %d Wfcn threw, %d Wfcn shape, %d Wfcn ' ...
+                          'singular, %d axis-pooling, %d redundancyLags threw).%s ' ...
+                          'A law estimated from the survivors would not describe ' ...
+                          'the data; fix the covariance model or raise ' ...
+                          'Options.SkipThreshold deliberately.'], streams{k}, nBad, ...
+                          skip.seen, 100*nBad/skip.seen, 100*thr, skip.empty, ...
+                          skip.noCov, skip.cfcnErr, skip.notPD, skip.wfcnErr, ...
+                          skip.wfcnShape, skip.wfcnSing, skip.axisPool, skip.lagsErr, ...
+                          firstErrText(skip.lastErr));
+                end
                 if nArc == 0
                     % A stream contributing NO arcs is silently unmodelled --
                     % its noise law simply never updates while every other
@@ -1306,11 +1336,12 @@ classdef adjustVCE < handle
                         'Of %d arc(s): %d empty, %d with neither Cfcn nor Wfcn, ' ...
                         '%d Cfcn threw, %d non-PD covariance, %d Wfcn threw, ' ...
                         '%d Wfcn wrong shape, %d Wfcn singular, %d axis-pooling ' ...
-                        'empty.%s Its noise model is left UNCHANGED this ' ...
-                        'pass.'], streams{k}, ...
+                        'empty, %d redundancyLags threw.%s Its noise model is ' ...
+                        'left UNCHANGED this pass.'], streams{k}, ...
                         skip.seen, skip.empty, skip.noCov, skip.cfcnErr, ...
                         skip.notPD, skip.wfcnErr, skip.wfcnShape, ...
-                        skip.wfcnSing, skip.axisPool, firstErrText(skip.lastErr));
+                        skip.wfcnSing, skip.axisPool, skip.lagsErr, ...
+                        firstErrText(skip.lastErr));
                     continue
                 end
                 updated{end+1} = streams{k};   %#ok<AGROW>
@@ -1392,75 +1423,35 @@ classdef adjustVCE < handle
                           'converged', maxDev <= obj.outerOpt.Tol);
         end
 
-        function nf = covGridSize(obj, acc)
+        function nf = covGridSize(obj, acc) %#ok<INUSL>
         %COVGRIDSIZE  Frequency-grid size needed so the covariance is full rank.
         %   A PSD sampled at nf frequencies spans exactly 2*(nf-1) independent
         %   lags. Any window longer than that yields a RANK DEFICIENT covariance
         %   (see LSQVCE.ENGINE.COVMODEL's resolution check), so
         %       nf >= m/2 + 1
-        %   with m the longest window the covariance is ever built on. That is
-        %   the BATCH length, not the arc length: LSQVCE.ENGINE.COVMODEL uses
-        %   min(BatchSize + BatchOverlap, numel(t)), and a batch may span several
-        %   arcs.
+        %   with m the longest window the covariance is ever built on: the
+        %   BATCH length, min(BatchSize + BatchOverlap, rows of the day's
+        %   epoch vector), which the accumulator MEASURED while it accumulated
+        %   (BlockAccumulator.windowMax, R5 M1 finding H-06). Before M1 this
+        %   method re-read the first arc of every system inside a try/catch and
+        %   fell back to 128 on ANY failure -- the silent-default outcome the
+        %   error doctrine forbids. Now: measured, or refused.
         %
         %   This sizes the GRID THE COVARIANCE IS BUILT ON, not the number of
         %   lags the estimator resolves. The estimate stays coarse (jointOpt
-        %   NumLags) and is INTERPOLATED onto this finer grid; estimating
-        %   hundreds of lags instead would only make alpha2_j noisier and cost a
-        %   dense factorisation per probe. Falls back to 128 when no length can
-        %   be determined.
-            mMax = 0;
-            % (a) the arcs themselves
-            try
-                ids = acc.systemIDs();
-                for k = 1:numel(ids)
-                    st = acc.getStore(ids(k));
-                    uo = st.uo;
-                    d  = st.dayList(1);
-                    meta = st.dataFcn('meta', d, [], uo);
-                    for ot = 1:numel(meta.obsTypes)
-                        a = meta.arcs{ot};
-                        if isempty(a), continue, end
-                        uo.obsType = meta.obsTypes{ot};
-                        uo.day = d;  uo.arc = a(1);
-                        arc = st.dataFcn(d, meta.obsTypes{ot}, a(1), uo);
-                        if ~isempty(arc) && isfield(arc,'A')
-                            mMax = max(mMax, size(arc.A,1));
-                        end
-                    end
-                end
-            catch
-                mMax = 0;
-            end
-            % (b) ARCS REMAIN INDEPENDENT -- nothing here models correlation
-            % ACROSS arcs, and a batch never spans two arcs (see
-            % BlockAccumulator.accumArc, "split ONE arc into row batches").
-            % But covModel PRECOMPUTES its autocovariance vector r once per
-            % stream, sized min(BatchSize + overlap, numel(t)) where t is the
-            % whole per-day epoch vector, so that one r can serve every batch.
-            % psd2acv must therefore be able to generate r out to that many
-            % lags, which is longer than a single arc. Scale by the arcs per day
-            % to size the GRID for that precompute; it does not widen the
-            % covariance model itself.
-            try
-                nArcDay = 1;
-                ids = acc.systemIDs();
-                if ~isempty(ids)
-                    st = acc.getStore(ids(1));
-                    md = st.dataFcn('meta', st.dayList(1), [], st.uo);
-                    for ot = 1:numel(md.obsTypes)
-                        nArcDay = max(nArcDay, numel(md.arcs{ot}));
-                    end
-                end
-                mMax = mMax * nArcDay;
-            catch
-                % keep the single-arc estimate
-            end
+        %   NumLags) and is INTERPOLATED onto this finer grid.
+        %   INPUT   acc 1x1 BlockAccumulator  after at least one accumulation
+        %   OUTPUT  nf  1x1 double  frequencies; ERRORS
+        %           lsqvce:adjustVCE:gridUnknown  nothing was accumulated, so
+        %                                         no window length exists
+            mMax = acc.windowMax;
             if mMax < 2
-                nf = 128;
-            else
-                nf = floor(mMax/2) + 1;
+                error('lsqvce:adjustVCE:gridUnknown', ...
+                     ['The covariance grid cannot be sized: the accumulator ' ...
+                      'has seen no arc (windowMax = %g). The joint spectral ' ...
+                      'model needs at least one accumulated pass.'], mMax);
             end
+            nf = floor(mMax/2) + 1;
         end
 
         function [om, sn] = lagsPooledOverAxes(obj, Abar, W, UiZ, ebar, nAx, nE, nLag, Bbar, LlS) %#ok<INUSL>
@@ -1510,7 +1501,13 @@ classdef adjustVCE < handle
                         ra = lsqvce.kernel.redundancyLags(Abar(rows,:), Wa, UiZ, ...
                                                    ebar(rows), maxLag);
                     end
-                catch
+                catch ME
+                    % COUNTED, not dropped (R5 M1, H-07/H-10): the arc leaves
+                    % the per-lag sums and the stream report says how many did.
+                    skip.lagsErr = skip.lagsErr + 1;
+                    if isempty(skip.lastErr)
+                        skip.lastErr = sprintf('%s: %s', ME.identifier, ME.message);
+                    end
                     continue
                 end
                 o = padLags(ra.omega, maxLag);
@@ -1563,8 +1560,15 @@ classdef adjustVCE < handle
                               zeros(nProbe,1), probeOpt);
                     ok = all(isfinite(Aw(:)));
                 end
-            catch
-                ok = false;        % any failure here means "do not adopt it"
+            catch ME
+                % "Do not adopt" is the outcome; the REASON is reported (R5 M1):
+                % a model rejected for an undefined variable would otherwise
+                % look exactly like one rejected for a non-PD covariance.
+                ok = false;
+                lsqvce.util.log.warn('lsqvce:adjustVCE:shapeRejected', ...
+                    ['A candidate noise model was not adopted because its ' ...
+                     'whitener could not be evaluated (%s: %s).'], ...
+                    ME.identifier, ME.message);
             end
         end
 
@@ -1585,7 +1589,8 @@ classdef adjustVCE < handle
             nArc   = 0;
             skip   = struct('empty',0, 'noCov',0, 'notPD',0, 'seen',0, ...
                             'cfcnErr',0, 'wfcnErr',0, 'wfcnShape',0, ...
-                            'wfcnSing',0, 'axisPool',0, 'lastErr','', 'dt',NaN);
+                            'wfcnSing',0, 'axisPool',0, 'lagsErr',0, ...
+                            'lastErr','', 'dt',NaN);
             x      = sol.x(:);
             st     = acc.getStore(sysID);
             uo     = st.uo;
@@ -1972,17 +1977,8 @@ classdef adjustVCE < handle
                     % TooManyOutputs/maxlhs for a handle that assigns no outputs,
                     % in which case we call it for its side effect and treat the
                     % figure as empty (showExport is then a no-op).
-                    try
-                        figH = hookFcn(ctx);          % user builds the figure
-                    catch MEout
-                        if any(strcmp(MEout.identifier, {'MATLAB:TooManyOutputs', ...
-                                'MATLAB:maxlhs', 'MATLAB:unassignedOutputs'}))
-                            hookFcn(ctx);             % side-effect-only hook
-                            figH = [];
-                        else
-                            rethrow(MEout);
-                        end
-                    end
+                    [~, figH] = lsqvce.util.callUser(hookFcn, 0, 1, ...
+                                    sprintf('plot hook %s/%s', stage, key), ctx);
                 catch ME
                     lsqvce.util.log.warn('lsqvce:adjustVCE:plotHookFailed', ...
                         'Plot hook %s for %s threw (%s); skipping.', ...
@@ -2043,11 +2039,9 @@ classdef adjustVCE < handle
             % of the a-posteriori covariance). Guarded: a Results without a full
             % Cxx leaves this empty rather than erroring.
             ctx.sd = [];
-            try
-                if ~isempty(R.sol) && isfield(R.sol, 'Cxx') && ~isempty(R.sol.Cxx)
-                    ctx.sd = sqrt(max(real(diag(R.sol.Cxx)), 0));
-                end
-            catch
+            if ~isempty(R.sol) && isfield(R.sol, 'Cxx') && ~isempty(R.sol.Cxx) ...
+                    && ismatrix(R.sol.Cxx) && size(R.sol.Cxx, 1) == size(R.sol.Cxx, 2)
+                ctx.sd = sqrt(max(real(diag(R.sol.Cxx)), 0));   % a CONDITION (R5 M1)
             end
 
             % common parametrisation labels + processingOptions from the loader
@@ -2113,8 +2107,12 @@ classdef adjustVCE < handle
             try
                 r = sigma^2 * lsqvce.kernel.armaACV(a, b, 64);
                 r = r(:);
-            catch
-                r = [];
+            catch ME
+                if strcmp(ME.identifier, 'lsqvce:armaACV:nonStationary')
+                    r = [];            % the NAMED expected case: no ACV exists
+                else
+                    rethrow(ME);       % anything else is a defect, not a model
+                end
             end
         end
 
@@ -2323,15 +2321,19 @@ function w = pluckResidual(res, ot, sysID)
 %   Thin wrapper over LSQVCE.ENGINE.COLLECTRESIDUALS (the same accessor applyShape
 %   uses), so validate() reads residuals exactly as the loop does. The match is
 %   on the real sysID (numeric or char), never the struct-field key.
-    w = [];
     try
         w = lsqvce.engine.collectResiduals(res, sysID, ot, 'w');   % whitened
-    catch
-        try
-            w = lsqvce.engine.collectResiduals(res, sysID, ot, 'v'); % fallback: raw
-        catch
-            w = [];
+    catch ME
+        if ~strcmp(ME.identifier, 'lsqvce:collectResiduals:badRes')
+            rethrow(ME);
         end
+        % The arcs carry no whitened residual: validate on the RAW ones and
+        % SAY SO (R5 M1) -- a whiteness verdict on raw residuals is a
+        % different statement.
+        lsqvce.util.log.warn('lsqvce:adjustVCE:rawResidualValidation', ...
+            ['System %s, %s: no whitened residuals stored; the validation ' ...
+             'statistics are computed on the RAW residuals.'], string(sysID), ot);
+        w = lsqvce.engine.collectResiduals(res, sysID, ot, 'v');
     end
     w = w(:);
 end

@@ -68,6 +68,9 @@ function [Aw, Bw, lw] = armaWhiten(a, b, s, r, A, B, l, isFirstBatch)
 %                                     model order needs for its startup block
 %     lsqvce:armaWhiten:sizeMismatch  A and l disagree on their row count
 %
+%   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+%     lsqvce:armaWhiten:startupNotPD             [warning] The X x X stationary startup block is not positive definite; keeping...
+%
 %   See also LSQVCE.KERNEL.DECORRFACTOR, LSQVCE.ENGINE.COVMODEL, LSQVCE.KERNEL.LEVINSONDURBIN
 %
 %   Generated with assistance from Claude (Anthropic), model Claude

@@ -38,6 +38,12 @@ function [lam, gcv, grid] = gcvLambda(N, n, L)
 %     [lam, gcv, grid] = lsqvce.engine.gcvLambda(Nll, nl, eye(size(Nll,1)));
 %     loglog(grid, gcv); xline(lam,'r--'); xlabel('\lambda'); ylabel('GCV');
 %
+%   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+%     lsqvce:gcv:atLowerBound                    [warning] GCV selected the smallest lambda on the grid (X), i.e
+%     lsqvce:gcv:atUpperBound                    [warning] GCV selected the largest lambda on the grid (X)
+%     lsqvce:gcv:degenerate                      [warning] The local block has no positive generalised eigenvalue; lambda = 0
+%     lsqvce:gcvLambda:qzFallback                [warning] eig(N, L'L, 'chol') failed (X); using the QZ form
+%
 %   See also LSQVCE.ENGINE.APPLYREGULARISATION
 %
 %   Generated with assistance from Claude (Anthropic), model Claude
@@ -59,8 +65,13 @@ function [lam, gcv, grid] = gcvLambda(N, n, L)
 
     try
         [V, D] = eig(N, LtL, 'chol');
-    catch
-        [V, D] = eig(N, LtL);                    % fall back to the QZ form
+    catch ME
+        % The Cholesky form needs an SPD L'L; when it is not (numerically),
+        % the QZ form is the exact same problem solved more slowly -- a named,
+        % reported fallback, not a silent one (R5 M1).
+        lsqvce.util.log.warn('lsqvce:gcvLambda:qzFallback', ...
+            'eig(N, L''L, ''chol'') failed (%s); using the QZ form.', ME.identifier);
+        [V, D] = eig(N, LtL);
     end
     d = real(diag(D));
     b = real(V.') * n(:);

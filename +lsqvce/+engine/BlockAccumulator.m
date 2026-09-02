@@ -221,6 +221,11 @@ classdef BlockAccumulator < handle
 %   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
 %   case-sensitive lowercase). With assistance from Claude (Anthropic),
 %   model Claude Fable 5.
+%   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+%     lsqvce:accum:blockSchurFailed              [warning] A local block of system X is singular; falling back to the dense Schu...
+%     lsqvce:accum:localSummarySkipped           [warning] locals[X]
+%     lsqvce:accum:pinvFallback                  [warning] System X
+%
 %   See also LSQVCE.COVMODELFACTORY, LSQVCE.ENGINE.RESIDUALS, LSQVCE.ENGINE.CHECKPSD, LSQVCE.ENGINE.QRSYSTEM
 %
 %   Generated with assistance from Claude (Anthropic), model Claude
@@ -237,6 +242,9 @@ classdef BlockAccumulator < handle
         diag  = struct([])          % per-system diagnostics
         store = struct([])          % per-system Schur blocks (if KeepLocal)
         prior = []                  % lsqvce.engine.CommonPrior on the common parameters
+        windowMax = 0               % longest whitening window seen (rows), MEASURED
+                                    % by accumArc (R5 M1, H-06): the covariance grid
+                                    % is sized from this, never from a probe
     end
 
     methods
@@ -574,17 +582,21 @@ classdef BlockAccumulator < handle
             for i = 1:numel(ids)
                 try
                     y = obj.backSubstitute(ids(i), x);
-                catch
-                    continue                          % system not recoverable
+                catch ME
+                    % REPORTED, never skipped in silence (R5 M1, H-07): a
+                    % local block that cannot be recovered is a finding.
+                    lsqvce.util.log.warn('lsqvce:accum:localSummarySkipped', ...
+                        ['locals[%s]: back-substitution failed (%s: %s); ' ...
+                         'the summary line is omitted.'], string(ids(i)), ...
+                        ME.identifier, ME.message);
+                    continue
                 end
                 if isempty(y), continue, end
                 sdText = '';
-                try
+                if ~isempty(Cxx)                      % the cofactor is a CONDITION, not a catch
                     Cyy = obj.localCovariance(ids(i), Cxx);
                     sd  = sqrt(max(real(diag(Cyy)), 0));
                     sdText = sprintf('   mean sd = %.3e', mean(sd));
-                catch
-                    % local cofactor unavailable -> report estimates only
                 end
                 lsqvce.util.log.msg(['           locals[%s]: nl = %d   ' ...
                         'est in [%.3e, %.3e]%s\n'], string(ids(i)), numel(y), ...
@@ -753,6 +765,15 @@ classdef BlockAccumulator < handle
         %GETSTORE  The kept local-block store for system sysID (needs KeepLocal).
             s = obj.store(obj.findStore(sysID));
         end
+        function noteWindow(obj, w)
+        %NOTEWINDOW  Record the longest whitening window (rows) seen so far.
+        %   Called once per accumulated day; read by adjustVCE.covGridSize,
+        %   which sizes the covariance grid from this MEASURED length instead
+        %   of probing the loader (R5 M1, finding H-06).
+        %   INPUT  w 1x1 double  rows of the window just whitened
+            obj.windowMax = max(obj.windowMax, w);
+        end
+
         function ids = systemIDs(obj)
         %SYSTEMIDS  Row vector of the sysIDs added so far ([] if none).
             if isempty(obj.store), ids = []; else, ids = [obj.store.sysID]; end
@@ -803,6 +824,7 @@ classdef BlockAccumulator < handle
 
             distrib = opt.DistributeDays && ~strcmpi(opt.Parallel, 'serial') ...
                       && numel(dayList) >= opt.ParallelThreshold;
+            window = 0;                          % longest whitening window (H-06)
 
             if distrib
                 % -- day-distributed: one RAW partial system per day. Proven:
@@ -815,7 +837,7 @@ classdef BlockAccumulator < handle
                     % derived quantity, so the tree shape does not matter
                     ini = struct('loc', ...
                               lsqvce.engine.BlockAccumulator.newSysFor(backend, nc + nl), ...
-                              'nArc', 0);
+                              'nArc', 0, 'window', 0);
                     P = lsqvce.engine.mapreduce(numel(dayList), task, ...
                             'Mode', 'spmd', ...
                             'Threshold', opt.ParallelThreshold, ...
@@ -824,6 +846,7 @@ classdef BlockAccumulator < handle
                             'Combine', @lsqvce.engine.BlockAccumulator.foldDayPart, ...
                             'Verbose', false);
                     loc = P.loc;  nArc = P.nArc;
+                    window = P.window;
                 else
                     % parfor/serial: collect, then merge on the client in
                     % day order (deterministic rounding)
@@ -836,6 +859,7 @@ classdef BlockAccumulator < handle
                     for j = 1:numel(dayList)
                         loc.mergeRaw(out{j}.loc);
                         nArc = nArc + out{j}.nArc;
+                        window = max(window, out{j}.window);
                     end
                 end
             else
@@ -861,6 +885,7 @@ classdef BlockAccumulator < handle
                     [nAdded, perType] = lsqvce.engine.BlockAccumulator.accumDay(loc, ...
                                             nc, nl, dataFcn, d, sysID, uo);
                     nArc = nArc + nAdded;
+                    window = max(window, lsqvce.engine.BlockAccumulator.windowOf(perType, uo));
                     if stageDetail
                         % ONE LINE PER TYPE, under a day header. There used to be
                         % a numbered "Accumulate observations of type X" step
@@ -911,7 +936,7 @@ classdef BlockAccumulator < handle
             keep.dayList = dayList;
             keep.uo      = uo;
 
-            out = struct('red', red, 'dg', dg, 'keep', keep);
+            out = struct('red', red, 'dg', dg, 'keep', keep, 'window', window);
         end
 
         %------------------------------------------------------------------
@@ -935,12 +960,14 @@ classdef BlockAccumulator < handle
             meta = dataFcn('meta', d, [], uo);
             lsqvce.engine.BlockAccumulator.validateMeta(meta, d, sysID);
 
-            perType = struct('obsType', {}, 'nArc', {}, 'seconds', {});
+            perType = struct('obsType', {}, 'nArc', {}, 'seconds', {}, ...
+                             'rows', {}, 'filterMemory', {});
             for ot = 1:numel(meta.obsTypes)
                 uo.obsType = meta.obsTypes{ot};
                 arcs = meta.arcs{ot};
                 tType = tic;
                 nBefore = nArc;
+                rowsType = 0;  memType = 0;            % MEASURED (R5 M1, H-06)
 
                 for a = arcs(:).'
                     uo.day = d;  uo.arc = a;
@@ -952,11 +979,15 @@ classdef BlockAccumulator < handle
                                                 uo.obsType, a, sysID);
                     lsqvce.engine.BlockAccumulator.accumArc(loc, arc, uo);
                     nArc = nArc + 1;
+                    rowsType = rowsType + size(arc.l, 1);
+                    memType  = max(memType, lsqvce.util.getfielddef(arc, 'filterMemory', 0));
                 end                                          % arc released here
 
                 perType(end+1) = struct('obsType', char(uo.obsType), ...
                                         'nArc', nArc - nBefore, ...
-                                        'seconds', toc(tType));  %#ok<AGROW>
+                                        'seconds', toc(tType), ...
+                                        'rows', rowsType, ...
+                                        'filterMemory', memType);  %#ok<AGROW>
             end
         end
 
@@ -968,8 +999,27 @@ classdef BlockAccumulator < handle
         %   order via mergeRaw. Arcs are never split, so the filter state
         %   never crosses a task boundary.
             loc  = lsqvce.engine.BlockAccumulator.newSysFor(backend, nc + nl);
-            nArc = lsqvce.engine.BlockAccumulator.accumDay(loc, nc, nl, dataFcn, d, sysID, uo);
-            out  = struct('loc', loc, 'nArc', nArc);
+            [nArc, perType] = lsqvce.engine.BlockAccumulator.accumDay(loc, nc, nl, dataFcn, d, sysID, uo);
+            out  = struct('loc', loc, 'nArc', nArc, ...
+                          'window', lsqvce.engine.BlockAccumulator.windowOf(perType, uo));
+        end
+
+        %------------------------------------------------------------------
+        function w = windowOf(perType, uo)
+        %WINDOWOF  Longest whitening window (rows) a day's streams imply.
+        %   covModel precomputes its autocovariance out to
+        %   min(BatchSize + BatchOverlap, rows of the day's epoch vector), so
+        %   the covariance grid must cover that length (R5 M1, finding H-06:
+        %   measured from what was accumulated, never probed from the loader).
+        %   INPUT  perType 1xT struct (.rows .filterMemory); uo the user opt
+        %   OUTPUT w 1x1 double  rows; 0 when nothing was accumulated
+            w = 0;
+            bs = lsqvce.util.getfielddef(uo, 'BatchSize', 20000);
+            for t = 1:numel(perType)
+                nOv = lsqvce.util.getfielddef(uo, 'BatchOverlap', []);
+                if isempty(nOv), nOv = perType(t).filterMemory; end
+                w = max(w, min(bs + nOv, perType(t).rows));
+            end
         end
 
         %------------------------------------------------------------------
@@ -978,6 +1028,8 @@ classdef BlockAccumulator < handle
         %   Grouping independence proven: validation/v6verify.py test 8.
             P.loc.mergeRaw(Q.loc);
             P.nArc = P.nArc + Q.nArc;
+            P.window = max(lsqvce.util.getfielddef(P, 'window', 0), ...
+                           lsqvce.util.getfielddef(Q, 'window', 0));
         end
     end
 
@@ -988,6 +1040,7 @@ classdef BlockAccumulator < handle
         function commit(obj, out)
         %COMMIT  Merge one processed system into the accumulator (serial).
             obj.sys.merge(out.red);
+            obj.noteWindow(lsqvce.util.getfielddef(out, 'window', 0));
             if isempty(obj.diag), obj.diag = out.dg;
             else,                 obj.diag(end+1) = out.dg; end
             if obj.opt.KeepLocal

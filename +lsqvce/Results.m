@@ -11,6 +11,10 @@ classdef Results < handle
 %   PROPERTIES (read-only)
 %     x          nc x 1   double   Common-parameter estimate (the field).
 %     sigma0     1x1      double   A-posteriori variance factor (global).
+%     stopReason 1x1      string   Why the loop stopped (R5 M1): "single" |
+%                                  "converged" | "maxPasses". Convergence
+%                                  failure is a RESULT: the last pass is
+%                                  returned with its covariance and one warning.
 %     converged  1x1      logical  Did the pipeline converge? (true for a single
 %                                  solve; set by the iterative engines.)
 %     diag       1x1      struct   Per-observation diagnostics (LSQVCE.ENGINE.DIAGNOSE):
@@ -124,9 +128,13 @@ classdef Results < handle
         meta       % WP-44: run provenance (see the PROPERTIES help block)
     end
     properties (SetAccess = private)
-        converged = true;      % single solve is, by definition, done
-        history   = struct([]);
-        noise     = struct([]);
+        converged  = true;     % single solve is, by definition, done
+        stopReason = "single"; % R5 M1: WHY the loop stopped -- "single" (one
+                               % solve, nothing iterated), "converged" (every
+                               % criterion met), "maxPasses" (budget exhausted;
+                               % the last pass is returned WITH a warning)
+        history    = struct([]);
+        noise      = struct([]);
     end
 
     methods
@@ -355,10 +363,19 @@ classdef Results < handle
         end
 
         function setIterative(obj, history, noise, converged)
-        %SETITERATIVE  Populate iteration fields (used by the separable engine).
+        %SETITERATIVE  Populate iteration fields (used by the iterative engines).
+        %   stopReason is DERIVED (R5 M1): converged -> "converged"; not
+        %   converged with a history -> "maxPasses"; no history -> "single".
             obj.history   = history;
             obj.noise     = noise;
             obj.converged = converged;
+            if converged
+                obj.stopReason = "converged";
+            elseif ~isempty(history)
+                obj.stopReason = "maxPasses";
+            else
+                obj.stopReason = "single";
+            end
         end
 
         function T = coefficients(obj, opt)

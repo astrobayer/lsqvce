@@ -97,6 +97,10 @@ function VC = vceHutchinson(u, batchFcn, nBatch, groupFcn, nGroup, opt)
 %   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
 %   case-sensitive lowercase). With assistance from Claude (Anthropic),
 %   model Claude Fable 5.
+%   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+%     lsqvce:vceHutchinson:illH                  [warning] The estimated Helmert matrix is nearly singular
+%     lsqvce:vceHutchinson:negative              [warning] Group(s) X produced a NEGATIVE variance component (rigorous Helmert w...
+%
 %   See also LSQVCE.ENGINE.VARCOMP, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.TRACEESTIMATE, LSQVCE.ENGINE.ADJUSTVCE,
 %            LSQVCE.ENGINE.REDUNDANCY.
 %

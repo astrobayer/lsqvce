@@ -129,6 +129,12 @@ classdef Accumulator < handle
 %       lsqvce:acc:sparseQR        the 'qr' method was asked for with a sparse
 %                                  A that MATLAB cannot factor in place
 %
+%   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+%     lsqvce:acc:cancellation                    [warning] vPv was formed as l'Pl - b'x and has lost about X significant digits...
+%     lsqvce:acc:negativeVPV                     [warning] vPv came out NEGATIVE (X), which is impossible for a quadratic form
+%     lsqvce:acc:zeroRedundancy                  [warning] Redundancy is zero (n = rank = X)
+%     lsqvce:acc:zeroWeight                      [warning] X observations have weight exactly 0
+%
 %   See also LSQVCE.ENGINE.ADJUST, LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.COMBINE.
 %
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,

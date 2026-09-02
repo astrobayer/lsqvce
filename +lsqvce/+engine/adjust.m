@@ -130,8 +130,9 @@ end
 
 % ---------------------------------------------------------------- pass 1
 acc = lsqvce.engine.Accumulator(u, accArgs{:});
+nOut = [];                                   % learned on the first batch (M1, H-08)
 for k = 1:nBatch
-    [A, l, p] = callBatch(batchFcn, k);
+    [A, l, p, nOut] = callBatch(batchFcn, k, nOut);
     acc.add(A, l, p);
 end
 sol = acc.solve('sigma0', ip.Results.Sigma0);
@@ -146,22 +147,20 @@ V = lsqvce.report(D, 'verbose', ip.Results.Verbose);
 
 end
 
-function [A, l, p] = callBatch(f, k)
-%CALLBATCH  Call a batch source f(k), tolerating sources that return only [A,l]
-%   (no weights): returns p = [] when the source has no third output.
-%   INPUT   f 1x1 fh  batch source;  k 1x1 double  batch index
-%   OUTPUT  A nk x u  design;  l nk x 1  observations;  p nk x 1 | []  weights
-    try
-        [A, l, p] = f(k);
-    catch ME
-        if strcmp(ME.identifier, 'MATLAB:TooManyOutputs') || ...
-           strcmp(ME.identifier, 'MATLAB:maxlhs') || ...
-           strcmp(ME.identifier, 'MATLAB:unassignedOutputs')
-            [A, l] = f(k);
-            p = [];
-        else
-            rethrow(ME);
-        end
+function [A, l, p, nOut] = callBatch(f, k, nOut)
+%CALLBATCH  Call a batch source f(k) through LSQVCE.UTIL.CALLUSER (R5 M1, H-08):
+%   the output count is learned ONCE (pass nOut = [] on the first call, then
+%   the returned nOut), never probed per batch; a source without weights gives
+%   p = []; anything the source throws arrives as lsqvce:callUser:threw with
+%   the original as cause.
+%   INPUT   f 1x1 fh  batch source;  k 1x1 double  batch index;
+%           nOut [] | 1x1 double  known output count (2 or 3)
+%   OUTPUT  A nk x u  design;  l nk x 1  observations;  p nk x 1 | []  weights;
+%           nOut 1x1 double  the count to pass next time
+    if isempty(nOut)
+        [nOut, A, l, p] = lsqvce.util.callUser(f, 2, 3, 'batchFcn(k)', k);
+    else
+        [~, A, l, p] = lsqvce.util.callUser(f, nOut, nOut, 'batchFcn(k)', k);
     end
 end
 

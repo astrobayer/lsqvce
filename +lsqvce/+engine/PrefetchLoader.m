@@ -45,6 +45,12 @@ classdef PrefetchLoader < handle
 %   ERRORS
 %     lsqvce:prefetch:badLoader     the wrapped loader is not a struct of closures
 %
+%   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+%     lsqvce:prefetch:badEnable                  'Enable' must be 'auto', true or false
+%     lsqvce:prefetch:disabled                   [warning] Background prefetch could not be started (X
+%     lsqvce:prefetch:futureFailed               [warning] The prefetched day X failed on the background pool (X
+%     lsqvce:prefetch:noPool                     [warning] Prefetch requested but no backgroundPool is available; running as a p...
+%
 %   See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.SYNTHLOADER, LSQVCE.ENGINE.MAPREDUCE
 %
 %   Generated with assistance from Claude (Anthropic), model Claude
@@ -181,9 +187,12 @@ classdef PrefetchLoader < handle
                                  @lsqvce.engine.PrefetchLoader.loadWholeDay, 1, ...
                                  o.dataFcn, dNext, uo);
                 o.futDay = dNext;
-            catch
+            catch ME
                 o.fut = []; o.futDay = [];
-                o.enabled = false;             % degrade once, stay honest
+                o.enabled = false;             % degrade once, and SAY WHY (R5 M1)
+                lsqvce.util.log.warn('lsqvce:prefetch:disabled', ...
+                    ['Background prefetch could not be started (%s: %s); ' ...
+                     'the loader continues serially.'], ME.identifier, ME.message);
             end
         end
 
@@ -195,8 +204,12 @@ classdef PrefetchLoader < handle
             try
                 o.cache    = fetchOutputs(o.fut);
                 o.cacheDay = d;
-            catch
-                o.cache = []; o.cacheDay = [];  % future failed: fall through
+            catch ME
+                o.cache = []; o.cacheDay = [];  % the day is re-read serially
+                lsqvce.util.log.warn('lsqvce:prefetch:futureFailed', ...
+                    ['The prefetched day %s failed on the background pool ' ...
+                     '(%s: %s); it is read again in the foreground.'], ...
+                    string(d), ME.identifier, ME.message);
             end
             o.fut = []; o.futDay = [];
         end

@@ -64,6 +64,9 @@ classdef NormalEqSystem < handle
 %                                     this namespace was RETIRED in WP-49 --
 %                                     breaking: one failure mode, one name.)
 %
+%   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+%     lsqvce:normalEq:sizeMismatch               A has X rows but l has X elements.*A; o.n = o.n + A
+%
 %   See also LSQVCE.ENGINE.QRSYSTEM, LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
 %   Updated 2026-08-20 (CEST, UTC+02:00), WP-49: a poisoned vtv is returned

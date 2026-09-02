@@ -54,6 +54,10 @@ function [a, b, s2] = ar2arma(aHi, s2Hi, q, opt)
 %                                ARMA(p,q); at least 4*(p+q+1) is needed
 %     lsqvce:ar2arma:degenerate  the reduction produced a degenerate MA part
 %
+%   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+%     lsqvce:ar2arma:degenerateMA                [warning] The MA fit is degenerate; falling back to the AR model
+%     lsqvce:ar2arma:unstable                    [warning] The ARMA reduction produced a non-stationary AR part (max |root| = X)
+%
 %   See also LSQVCE.KERNEL.LEVINSONDURBIN, LSQVCE.KERNEL.ARMAACV, LSQVCE.ENGINE.CHECKPSD
 %
 %   Generated with assistance from Claude (Anthropic), model Claude
