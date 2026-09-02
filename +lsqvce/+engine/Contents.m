@@ -6,6 +6,8 @@
 %
 %   Accumulator          - plain batch accumulator
 %   adjust               - in-memory batch driver (batchFcn) -- fit(A,l) path in L2
+%   adjustNonlinear    - Gauss-Newton / Levenberg as a policy on the block path (R5 M2)
+%   batchSystem        - a batch source as one local-free streaming system (R5 M2)
 %   adjustRobust       - IRLS (Huber/IGG3/bisquare) as a policy on the block path (R5 M2)
 %   adjustBlock          - one GLS solve over the streaming block-arrow pipeline
 %   adjustVCE            - separable-GLS iteration: stochastic model <-> variance components

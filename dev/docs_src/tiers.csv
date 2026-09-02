@@ -4,6 +4,8 @@ Options,USER,the one settings object for fit (typed knobs with engine defaults)
 Results,USER,"rich result object: solution, diagnostics, provenance, report()"
 report,USER,verdict printer (levels 0-4); Results.report forwards here
 engine.adjust,ENGINE,"in-memory batch driver (batchFcn) -- fit(A,l) path in L2"
+engine.adjustNonlinear,ENGINE,Gauss-Newton with Levenberg damping on the block path
+engine.batchSystem,ENGINE,a batch source as one local-free streaming system (the kind B/C adapter)
 engine.adjustRobust,ENGINE,IRLS on the block path (every fit kind)
 engine.adjustBlock,ENGINE,one GLS solve over the streaming block-arrow pipeline
 engine.adjustVCE,ENGINE,separable-GLS iteration: stochastic model <-> variance components

@@ -248,3 +248,23 @@ function testRowWeightKeyFormat(tc)
     tc.verifyEqual(lsqvce.util.rowWeightKey('C', 2, "posA", 'a1'), 'C|2|posA|a1');
     tc.verifyNotEqual(lsqvce.util.rowWeightKey(1, 2, 'x', 3), lsqvce.util.rowWeightKey(1, 2, 'x', 4));
 end
+
+%% ============================================================ R5 M2 2c': the batch adapter
+function testBatchSystemContract(tc)
+% categories: contract
+    verifyError(tc, @() lsqvce.engine.batchSystem(3, 42, 1), 'lsqvce:batchSystem:badSource');
+    rs = RandStream('mt19937ar', 'Seed', 9);
+    A = randn(rs, 12, 3);  l = randn(rs, 12, 1);  p = 0.5 + rand(rs, 12, 1);
+    L = lsqvce.engine.batchSystem(3, @(k) deal(A, l, p), 1);
+    tc.verifyEqual(L.nc, 3);  tc.verifyEqual(L.nl, 0);
+    uo = struct('sysID', 1, 'nc', 3, 'nl', 0, 'BatchSize', 20000, 'obsType', 'obs', 'day', 1, 'arc', 1);
+    arc = L.closure(1, 'obs', 1, uo);
+    % rows are pre-whitened by sqrt(p): exact (diagonal-P GLS identity)
+    tc.verifyEqual(arc.A, sqrt(p) .* A);  tc.verifyEqual(arc.l, sqrt(p) .* l);
+    % a full weight matrix is a covariance law of the streaming kind: refused
+    Lm = lsqvce.engine.batchSystem(3, @(k) deal(A, l, eye(12)), 1);
+    verifyError(tc, @() Lm.closure(1, 'obs', 1, uo), 'lsqvce:batchSystem:weightMatrix');
+    % a wrong A shape is named
+    Lw = lsqvce.engine.batchSystem(4, @(k) deal(A, l), 1);
+    verifyError(tc, @() Lw.closure(1, 'obs', 1, uo), 'lsqvce:batchSystem:badMatrix');
+end

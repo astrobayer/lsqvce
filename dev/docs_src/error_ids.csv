@@ -61,6 +61,10 @@ lsqvce:adjustBlock:badStruct,engine.private.normalizeSystems,error,v4.0
 lsqvce:adjustBlock:badSystems,engine.private.normalizeSystems,error,v4.0
 lsqvce:adjustBlock:noDays,engine.private.normalizeSystems,error,v4.0
 lsqvce:adjustBlock:plotHookFailed,engine.adjustBlock,warning,v4.0
+lsqvce:adjustNonlinear:badX0,engine.adjustNonlinear,error,v4.0
+lsqvce:adjustNonlinear:diverged,engine.adjustNonlinear,warning,v4.0
+lsqvce:adjustNonlinear:maxIter,engine.adjustNonlinear,warning,v4.0
+lsqvce:adjustNonlinear:nonFinite,engine.adjustNonlinear,error,v4.0
 lsqvce:adjustRobust:collapsed,engine.adjustRobust,error,v4.0
 lsqvce:adjustRobust:notConverged,engine.adjustRobust,warning,v4.0
 lsqvce:adjustVCE:badSystems,engine.adjustVCE,error,v4.0
@@ -104,6 +108,9 @@ lsqvce:armaWhiten:acvTooShort,kernel.armaWhiten,error,v4.0
 lsqvce:armaWhiten:badSigma,kernel.armaWhiten,error,v4.0
 lsqvce:armaWhiten:sizeMismatch,kernel.armaWhiten,error,v4.0
 lsqvce:armaWhiten:startupNotPD,kernel.armaWhiten,warning,v4.0
+lsqvce:batchSystem:badMatrix,engine.batchSystem,error,v4.0
+lsqvce:batchSystem:badSource,engine.batchSystem,error,v4.0
+lsqvce:batchSystem:weightMatrix,engine.batchSystem,error,v4.0
 lsqvce:callUser:badHandle,util.callUser,error,v4.0
 lsqvce:callUser:threw,util.callUser,error,v4.0
 lsqvce:callUser:tooFew,util.callUser,error,v4.0
@@ -168,7 +175,6 @@ lsqvce:fit:noSystems,fit,error,v4.0
 lsqvce:fit:notYet,fit,error,v4.0
 lsqvce:fit:uCount,fit,error,v4.0
 lsqvce:fit:unknownField,fit,error,v4.0
-lsqvce:fit:weightMatrix,fit,error,v4.0
 lsqvce:ftest:differentData,engine.ftest,error,v4.0
 lsqvce:ftest:invalidPremise,engine.ftest,warning,v4.0
 lsqvce:ftest:noRedundancy,engine.ftest,error,v4.0
