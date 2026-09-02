@@ -718,8 +718,7 @@ function R = runBatchOnBlockPath(u, batchFcn, nBatch, opts, kind)
     systems = buildSystems(spec);
     a = opts.engineArgs('adjustBlock');
     R = lsqvce.engine.adjustBlock(systems, data.days, a.nv{:});
-    R.meta.options = opts.toStruct();
-    R.meta.options.kind = kind;
+    R.setKind(kind, opts.toStruct());
 end
 
 function D = batchDay(day, ~, ~, ~, po, info)
