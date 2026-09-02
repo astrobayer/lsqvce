@@ -2,6 +2,7 @@
 %
 %   callUser           - call a user function: outputs counted once, errors wrapped (R5 M1)
 %   getfielddef        - struct field with default
+%   rowWeightKey       - the one key convention for per-arc robust weights (R5 M2)
 %   log                - toolbox-wide logging state
 %   mergeStruct        - struct merge (later wins)
 %   showExport         - timed figure show + PNG export

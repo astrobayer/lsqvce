@@ -179,7 +179,10 @@ function R = fit(data, opts)
 %                                  (e.g. paramType, badArcs, localPlan);
 %                                  the original is attached as the cause
 %     Your choice is not available here:
-%       lsqvce:fit:notYet          Robust ~= "none" on the STREAMING kind --
+%       lsqvce:fit:notYet          Robust ~= "none" together with Model ~= "gls" --
+%                                  (R5 M2 2b) the one-loop composition of M4;
+%                                  before 2b this refused Robust on the streaming
+%                                  kind altogether --
 %                                  the streaming kind screens outliers
 %                                  through its diagnostics (report())
 %       lsqvce:fit:modelKind       Model other than "gls" on kinds B / C
@@ -260,16 +263,26 @@ end
     end
 
     % ---- kind A: streaming --------------------------------------------------
-    if ~strcmp(opts.Robust, "none")
-        error('lsqvce:fit:notYet', ...
-            ['Robust = "%s" is the in-memory / batched kinds'' path (lsqvce.engine.robust); ' ...
-             'the streaming kind screens outliers through its diagnostics (report()).'], opts.Robust);
-    end
-
     lsqvce.util.log.inventory('reset');          % R5 M1: this run's warning inventory
     spec = validateData(data);
     systems = buildSystems(spec);
     days = spec.days;
+
+    % R5 M2 2b: robust IRLS is a POLICY on the block path -- on the streaming
+    % kind it is Model "gls" with reweighting (H-02: the same accumulator);
+    % combining it with a VCE model is a v5 loop feature, refused for now.
+    if ~strcmp(opts.Robust, "none")
+        if ~strcmp(opts.Model, "gls")
+            error('lsqvce:fit:notYet', ...
+                ['Robust = "%s" together with Model = "%s" is the one-loop policy ' ...
+                 'composition of R5 M4; run the robust pass with Model "gls".'], ...
+                opts.Robust, opts.Model);
+        end
+        a = opts.engineArgs('adjustRobust');
+        prov = opts.toStruct();  prov.kind = 'stream';
+        R = lsqvce.engine.adjustRobust(systems, days, a.nv{:}, 'Provenance', prov);
+        return
+    end
 
     switch char(opts.Model)
         case 'gls'
@@ -589,8 +602,8 @@ function R = runBatch(u, batchFcn, nBatch, x0, opts, kind)
             ['Model "%s" needs the streaming kind (variance components are per ' ...
              'group of a system); the %s kind is Model "gls".'], opts.Model, kind);
     end
-    if isempty(x0) && ~strcmp(opts.Robust, "irls")
-        R = runBatchOnBlockPath(u, batchFcn, nBatch, opts, kind);
+    if isempty(x0)
+        R = runBatchOnBlockPath(u, batchFcn, nBatch, opts, kind);   % gls, and IRLS (2b)
         return
     end
     if ~isempty(x0)
@@ -716,9 +729,14 @@ function R = runBatchOnBlockPath(u, batchFcn, nBatch, opts, kind)
     lsqvce.util.log.inventory('reset');
     spec    = validateData(data);
     systems = buildSystems(spec);
-    a = opts.engineArgs('adjustBlock');
     prov = opts.toStruct();  prov.kind = kind;   % provenance = the user's resolved Options
-    R = lsqvce.engine.adjustBlock(systems, data.days, a.nv{:}, 'Provenance', prov);
+    if strcmp(opts.Robust, "none")
+        a = opts.engineArgs('adjustBlock');
+        R = lsqvce.engine.adjustBlock(systems, data.days, a.nv{:}, 'Provenance', prov);
+    else
+        a = opts.engineArgs('adjustRobust');
+        R = lsqvce.engine.adjustRobust(systems, data.days, a.nv{:}, 'Provenance', prov);
+    end
 end
 
 function D = batchDay(day, ~, ~, ~, po, info)

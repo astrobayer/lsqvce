@@ -6,6 +6,7 @@
 %
 %   Accumulator          - plain batch accumulator
 %   adjust               - in-memory batch driver (batchFcn) -- fit(A,l) path in L2
+%   adjustRobust       - IRLS (Huber/IGG3/bisquare) as a policy on the block path (R5 M2)
 %   adjustBlock          - one GLS solve over the streaming block-arrow pipeline
 %   adjustVCE            - separable-GLS iteration: stochastic model <-> variance components
 %   adjustVCEjoint       - Ellmer ten-step joint co-estimation with keyed arc factors

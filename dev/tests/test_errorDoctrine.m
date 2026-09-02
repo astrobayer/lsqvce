@@ -211,3 +211,38 @@ function testEllmerRefusesMultiAxisStreams(tc)
     opts = lsqvce.Options(Model="ellmer", NumLags=16, MaxOuter=1, Verbose=0);
     verifyError(tc, @() lsqvce.fit(data, opts), 'lsqvce:adjustVCEjoint:multiAxis');
 end
+
+%% ============================================================ R5 M2 2b: IRLS kernel
+function testRobustWeightsContract(tc)
+% categories: contract
+    verifyError(tc, @() lsqvce.kernel.robustWeights([1 2 3], 'cauchy', []), 'lsqvce:robustWeights:badInfluence');
+    verifyError(tc, @() lsqvce.kernel.robustWeights([1 2 3], 'igg3', 2.5), 'lsqvce:robustWeights:badTuning');
+    verifyError(tc, @() lsqvce.kernel.robustWeights([1 2 3], 'huber', [1 2]), 'lsqvce:robustWeights:badTuning');
+end
+
+function testRobustWeightsAgainstTheFormulas(tc)
+% categories: reference
+    % residuals whose MAD scale is exactly 1: symmetric +-1 around 0 with a
+    % large outlier; then each influence's closed form is checked at 3 sigma
+    vw = [-1 1 -1 1 -1 1 -1 1 9].';                   % median 1; |vw - med| = 0,2,... -> MAD 2
+    [facH, s, w] = lsqvce.kernel.robustWeights(vw, 'huber', []);
+    % tol: 1e-14 absolute throughout -- closed forms on 9 numbers of order 1
+    % re-evaluated here with the same double arithmetic (a few ulps)
+    tc.verifyEqual(s, 1.4826 * median(abs(vw - median(vw))), 'AbsTol', 1e-14);
+    tc.verifyEqual(w, vw / s, 'AbsTol', 1e-14);
+    expH = ones(9, 1);  big = abs(w) > 1.345;  expH(big) = 1.345 ./ abs(w(big));
+    tc.verifyEqual(facH, expH, 'AbsTol', 1e-14);
+    facB = lsqvce.kernel.robustWeights(vw, 'bisquare', []);
+    expB = zeros(9, 1);  in = abs(w) < 4.685;  expB(in) = (1 - (w(in)/4.685).^2).^2;
+    tc.verifyEqual(facB, expB, 'AbsTol', 1e-14);
+    facI = lsqvce.kernel.robustWeights(vw, 'igg3', [1.5 3]);
+    tc.verifyEqual(facI(abs(w) <= 1.5), ones(nnz(abs(w) <= 1.5), 1));
+    tc.verifyEqual(facI(abs(w) > 3), zeros(nnz(abs(w) > 3), 1));
+end
+
+function testRowWeightKeyFormat(tc)
+% categories: contract
+    tc.verifyEqual(lsqvce.util.rowWeightKey(1, 59396, 'kbr', 3), '1|59396|kbr|3');
+    tc.verifyEqual(lsqvce.util.rowWeightKey('C', 2, "posA", 'a1'), 'C|2|posA|a1');
+    tc.verifyNotEqual(lsqvce.util.rowWeightKey(1, 2, 'x', 3), lsqvce.util.rowWeightKey(1, 2, 'x', 4));
+end

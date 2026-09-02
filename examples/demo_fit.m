@@ -80,7 +80,7 @@ end
     data = struct('A', A, 'l', lBad, 'p', p);
     out.robust = lsqvce.fit(data, lsqvce.Options(Robust="irls", Influence="huber", Verbose=opt.Verbose));
     show(out.robust, opt.Verbose);
-    say('   IRLS weight factor of the planted error: %.3f (clean rows ~1)\n', out.robust.source.factor(7));
+    say('   IRLS weight factor of the planted error: %.3f (clean rows ~1)\n', out.robust.history(end).factor(7));
 
     % ---- (C) batched callback, linear and nonlinear -------------------------
     say('\n== (C) batched: data.batchFcn over two batches ==\n');
