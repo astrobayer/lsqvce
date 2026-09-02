@@ -663,6 +663,32 @@ function test_joint_defaults_are_ellmer_values(tc)
 end
 
 %% ============================================ jointModelOpt (accFcn contract)
+function test_redundancyLags_fft_lag_sums_match_the_loop_form(tc)
+% categories: precision, vectorisation
+    % R5 M3 3c: all per-lag sub-diagonal sums come from one FFT per column
+    % (autocorrelation), replacing the O(N nLag) loop. Pinned against the
+    % explicit loop on a dense N x C block with a local block present (both
+    % Rt and K paths) and on the residual (Omega), to rounding.
+    rs = RandStream('mt19937ar', 'Seed', 33);
+    N = 257;  Z = 7;  nl = 3;  nL = 40;
+    A = randn(rs, N, 5);  B = randn(rs, N, nl);
+    ac = 0.8 .^ (0:N-1);  Sig = toeplitz(ac);  W = chol(Sig);
+    Abar = W.' \ A;  Bbar = W.' \ B;
+    UiZ  = randn(rs, 5, Z) / sqrt(Z);
+    Ll   = chol(Bbar.' * Bbar);
+    ebar = randn(rs, N, 1);
+    out = lsqvce.kernel.redundancyLags(Abar, W, UiZ, ebar, nL, 'LocalBbar', Bbar, 'LocalLl', Ll, 'WantRbar', true);
+    % loop form from the dense Rbar the test path returns (WantRbar)
+    sLoop = zeros(nL, 1);  sLoop(1) = trace(out.Rbar);
+    for n = 1:nL-1, sLoop(n+1) = 2 * sum(diag(out.Rbar, -n)); end
+    et = W \ ebar;  oLoop = zeros(nL, 1);  oLoop(1) = et.' * et;
+    for n = 1:nL-1, oLoop(n+1) = 2 * (et(n+1:N).' * et(1:N-n)); end
+    % tol: 1e-10 relative -- FFT autocorrelation vs direct sums on O(1)
+    % numbers of length 257 (a few hundred ulps of accumulated rounding)
+    tc.verifyEqual(out.s, sLoop, 'RelTol', 1e-10, 'AbsTol', 1e-12);
+    tc.verifyEqual(out.omega, oLoop, 'RelTol', 1e-10, 'AbsTol', 1e-12);
+end
+
 function test_jointModelOpt_takes_sqrt_of_variance(tc)
 % categories: precision
     % CONVENTION 1: model.sigma2 is a VARIANCE, the level a covariance spec
