@@ -61,7 +61,8 @@ function testFitVceReproducesTheEngine(tc)
     % seed => same probes => same arithmetic), so the mapping can never drift.
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');
     [data, ~] = declaration();
-    base = {'MaxOuter', 1, 'JointMaxIter', 2, 'NumLags', 8, 'Seed', 7, 'Verbose', false};
+    % the same budget on both spellings: vce reads MaxOuter, ellmer JointMaxIter
+    base = {'MaxOuter', 2, 'JointMaxIter', 2, 'NumLags', 8, 'Seed', 7, 'Verbose', false};
     Rv = lsqvce.fit(data, lsqvce.Options(base{:}, Model="vce"));
     dataE = data;
     ots = fieldnames(dataE.systems(1).covariance);
@@ -378,6 +379,9 @@ end
 %% ================================================== WP-67: the user-path demo
 function testDemoFitRuns(tc)
 % categories: contract, robustness | tags: diagnostics
+    % R5 M4 4b: the demo's two-pass vce run is the joint estimator now and
+    % says honestly that two passes did not settle (gate rule 7: muted here)
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');
     % R4 Level L7: examples/demo_fit.m is the 2.0 user path on all three data
     % kinds. It is a template users copy, so it must keep running: every
     % Results it returns is checked here (the demo mutes the two convergence
