@@ -192,6 +192,8 @@ function R = fit(data, opts)
 %                                  kind) -- raised by lsqvce.engine.batchSystem
 %       lsqvce:fit:badEstimate     (R5 M3 3d) covariance.<type>.estimate is not
 %                                  "none" | "scale" | "law"
+%       lsqvce:fit:lawOnFixedStructure  (R5 M4 4b) estimate "law" on a stream whose
+%                                  sigma is per-row (a fixed structure: level only)
 %       lsqvce:fit:badMatrix       kind B shapes disagree (A m x u, l m x 1,
 %                                  p m x 1)
 %       lsqvce:fit:missingField    kind C lacks batchFcn / numBatches, or the
@@ -805,11 +807,24 @@ function [estMap, afMap] = streamPolicy(systems, specs, streams, afDefault)
         for j = 1:numel(ots)
             cm = L.cov.(ots{j});
             key = sprintf('%s|%s', satKey, ots{j});
+            % a law with a NON-SCALAR sigma (per-row weights) is a fixed
+            % structure: it can carry a LEVEL, not a spectral shape -- its
+            % default policy is "scale"; asking for "law" is refused (R5 M4 4b)
+            sig = lsqvce.util.getfielddef(cm, 'sigma', 1);
+            fixedStructure = isnumeric(sig) && numel(sig) > 1;
+            if fixedStructure, estMap(key) = 'scale'; end
             if isfield(cm, 'estimate') && ~isempty(cm.estimate)
                 e = lower(char(string(cm.estimate)));
                 if ~any(strcmp(e, {'none', 'scale', 'law'}))
                     error('lsqvce:fit:badEstimate', ...
                           'covariance.%s.estimate must be "none", "scale" or "law" (got "%s").', ots{j}, e);
+                end
+                if fixedStructure && strcmp(e, 'law')
+                    error('lsqvce:fit:lawOnFixedStructure', ...
+                         ['covariance.%s declares a per-row sigma (%d values): a fixed ' ...
+                          'structure can take a LEVEL ("scale") but not a spectral shape ' ...
+                          '("law"). Declare one scalar sigma if the temporal law is to be estimated.'], ...
+                          ots{j}, numel(sig));
                 end
                 estMap(key) = e;
             end
