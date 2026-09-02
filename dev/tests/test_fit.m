@@ -71,7 +71,13 @@ function testFitVceReproducesTheEngine(tc)
     % tol: exact -- one code path, one seed
     tc.verifyEqual(Rv.x, Re.x);
     tc.verifyEqual(Rv.noise.C, Re.noise.C);
-    tc.verifyEqual(Rv.noise.sigma2, ones(size(Rv.noise.sigma2)), 'vce: no arc factors');
+    % vce: no PER-ARC factors -- every arc of a stream carries the stream's
+    % ONE level (the Helmert factor), so within a stream the factors are equal
+    for s = unique(cellfun(@(k) regexprep(k, '_d.*$', ''), Rv.noise.arcKeys, 'UniformOutput', false)).'
+        f = Rv.noise.sigma2(startsWith(Rv.noise.arcKeys, s{1}));
+        % tol: exact -- one number written to every arc of the stream
+        tc.verifyEqual(f, repmat(f(1), size(f)), sprintf('%s: one level', s{1}));
+    end
     tc.verifyEqual(Rv.history.kind, 'ellmer');
     tc.verifyEqual(Rv.meta.options.Model, "vce", 'the provenance keeps the user''s word');
     % the per-stream summary every model shares
