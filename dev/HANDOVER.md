@@ -18,8 +18,9 @@ evidence), block/flat on 10-row arcs 1.69× (< 3: kinds B/C fold, WP-81).
 GRAVFIRE interface: template/gravfire_data.m VERIFIED on the user's
 testdata.mat (declaration passes every fit check; DryRun + gls: 2 days × 16
 pieces, nc 117, nl 144, Cep, 2.0 s); step-by-step guide
-dev/GRAVFIRE_INTERFACE.md. The estimator dry runs (ellmer/vce) did not return
-before the MCP bridge went unresponsive — pending. M1 next.
+dev/GRAVFIRE_INTERFACE.md. Estimator dry runs: vce OK (62 s); ellmer BLOCKS > 8 min on the
+3-axis pieces → finding H-15 (dense per-arc Σ, row-index lags; refusal in
+M1, per-axis Toeplitz whitening in M3). M1 next.
 Preceding entry: Last substantive update: 2026-09-01 (night) — R5 merged (PR #47, 5ba94ce);
 R5-D7 APPROVED by the user ("proceed with M0"); LEVEL M0 opened on
 `claude/level-m0` (Tier B from here on: the MATLAB MCP bridge is gone, CI is
@@ -4853,6 +4854,7 @@ the trace trick; it is a Helmert GROUP estimator on the flat batch path.
 | H-11 | Options: 57 typed properties in ten groups, batch-only / streaming-only / joint-only knobs side by side; `Model` conflates "iterate or not" with "which estimator" | ≈ 12 top-level + groups Noise / Robust / Diagnostics / Parallel; `Estimate="none"|"noise"`. WP-87, R5-D2 |
 | H-12 | What is estimated for a stream is decided globally (Options.Model) while the a-priori law is per stream (covariance.(obsType)); a trusted diag stream and an unknown red-spectrum stream cannot be treated differently in one run | covariance spec gains `estimate = "none"|"scale"|"law"` (+ `arcFactors`, `pool`, `dt`); `data.priors(k)` for regularisation as declared groups. WP-87, R5-D1/D3 |
 | H-13 | `fit` takes only an Options object (stock functions take Name=Value); Results has no `plot` (PSD per stream and the pass trajectory are in R.noise/R.history — no design matrix needed; `predict` stays omitted); README.md:60 shows retired `systemId` / `localsPerArc` | `fit(data, opts, Name=Value)` (positional opts + `nv.?lsqvce.Options`); `plot(R, "psd"|"convergence"|"residuals")`; README fixed. WP-87, WP-88 |
+| H-15 (2026-09-02, found by the GRAVFIRE dry run) | The Ellmer path is NOT multi-axis-aware and forms a DENSE per-arc Σ: adjustVCEjoint.m:453–461 builds `Sig = Cfcn(1:m)` (m×m) and `chol` per arc, O(m³); kernel.redundancyLags then works on the row index, so for `nAxis = 3` (epoch-major rows) "lag 1" is the next AXIS of the same epoch, not the next epoch, and the axis-interleaved W is not Toeplitz, so the O(N²) Levinson/Gohberg–Semencul route is bypassed for the O(N³) buffer. On the user's pieces (2160 epochs × 3 axes = 6480 rows, 16 position arcs) one pass blocks MATLAB for > 8 min (twice reproduced; the bridge time-outs of 2026-09-01/02). `fit` does not refuse `Model="ellmer"` on a multi-axis stream — a MISSING REFUSAL, and the numbers it would eventually print are the wrong estimator | M1 (WP-80): refuse `Model="ellmer"` when any stream has `nAxis > 1` (`lsqvce:fit:ellmerMultiAxis`) until M3; M3 (WP-83): `noiseLaw` whitens per axis after the separable `Cep` descale (Levinson Toeplitz, O(m²) per axis, m = nEpoch) and the lag collectors run per axis — the design already in theory_r5 §2.3–2.4, now with a production-size reason. Production note (Expert B): a 6-h position piece at 10 s is exactly the GRAVFIRE case, so this is the FIRST thing M3 is measured on |
 | H-14 | Category coverage: 3 of 83 units complete, 47 miss ≥ 3 categories; `report` contract-only; metamorphic is a tag not a category; speed budgets absolute, local-only | seven categories counted (VALIDATION_GUIDE), ratio budgets, one timing helper FIRST; with H-01/H-02 the unit count is ≈ 46 so completeness is affordable. WP-78, WP-89 |
 
 ### 12.4 The v5 design in one paragraph (binding intent; detail PDF Part V)
@@ -5020,9 +5022,13 @@ nEp×3×3 accepted, 2.0 s. One rule hit and corrected: `id` must be numeric
 or ONE character (`lsqvce:fit:badId` on `'GRACE'`; the label goes in
 `name`). The `ellmer`/`vce` dry runs (`NumLags=2160, MaxOuter=2`) were
 started but the MCP bridge stopped answering before they returned —
-PENDING: the user runs Part D's second block with `'DryRun', true` and
-reports pass/fail + time (a hang here would itself be an M1 finding:
-covGridSize/H-06 probing on a 2160-lag grid).
+RESOLVED 2026-09-02 (MCP back): `Model="vce"`, MaxOuter 2 → runs, 61.8 s,
+non-converged as expected on random design (the multi-axis Cep path and the
+ragged KBR piece are accepted). `Model="ellmer"`, NumLags 2160, MaxOuter 1 →
+BLOCKS the session > 8 min, reproduced twice — finding **H-15** (dense per-arc
+Σ + row-index lags on multi-axis streams; not H-06). Until M1 lands the
+refusal: run `ellmer` only on single-axis streams (kbr); positions go through
+`vce`.
 
 ### 12.9 R5 round notes (continued)
 

@@ -54,7 +54,9 @@ function data = gravfire_data(commonData, myOptions, systemsData, opt)
 %   VERIFIED 2026-09-02 on the user's testdata.mat (R2026a): the declaration
 %   passes every declaration check of fit; DryRun + Model="gls" accumulates 2 days x 16
 %   pieces (4 posA + 4 posB + 8 kbr), nc = 117, nl = 144 derived from the 72
-%   templates, Cep accepted, in 2.0 s.
+%   templates, Cep accepted, in 2.0 s. Model="vce" runs (62 s, 2 passes).
+%   Model="ellmer" on the 3-axis position pieces BLOCKS for minutes (H-15,
+%   HANDOVER §12.3): until M1/M3, run ellmer on single-axis streams only.
 %
 %   Created 2026-09-02 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.1 -- R5 Level M0 close-out (§12.8).

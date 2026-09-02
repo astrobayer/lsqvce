@@ -263,9 +263,15 @@ data = gravfire_data(S.commonData, S.myOptions, S.systemsData, 'DryRun', true);
 R    = lsqvce.fit(data, lsqvce.Options(Model="gls", Verbose=1));        % 2 s: pipeline check
 
 data = gravfire_data(S.commonData, S.myOptions, S.systemsData, 'DesignFcn', @gravfireDesign);
-R    = lsqvce.fit(data, lsqvce.Options(Model="ellmer", NumLags=2160, MaxOuter=7, MinRedundancy=100));
+R    = lsqvce.fit(data, lsqvce.Options(Model="vce", MaxOuter=7, MinRedundancy=100));
 R.report;  T = R.coefficients;  C = R.convergence;
 ```
+
+> **Until M1/M3 (finding H-15, 2026-09-02):** `Model="ellmer"` is not multi-axis-aware —
+> on the 3-axis position pieces it forms a dense 6480×6480 Σ per arc and takes row lags
+> (axis-interleaved), and one pass blocks MATLAB for minutes. Use `Model="vce"` for runs
+> that include `posA`/`posB`; `ellmer` only on single-axis streams (`kbr`). M1 adds the
+> refusal, M3 the per-axis Toeplitz whitening that makes `ellmer` the right choice here.
 
 If `fit` rejects the declaration, the identifier names the rule
 (`lsqvce:fit:unknownField`, `:badId`, `:badScope`, …) and no data has been
