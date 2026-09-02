@@ -473,7 +473,10 @@ function testMatrixKindRobustReproducesRobust(tc)
 end
 function testBatchKindNonlinearReproducesSolveNonlinear(tc)
 % categories: reference, contract
-    % Kind C with x0: [A, w, p] = batchFcn(k, x) is lsqvce.engine.solveNonlinear.
+    % R5 M2 2c': kind C with x0 is Gauss-Newton on the BLOCK path
+    % (lsqvce.engine.adjustNonlinear); the flat driver solveNonlinear stays
+    % the reference until the flat family retires. Same step control, same
+    % fixed point: x agrees to rounding; the truth is recovered.
     % Model: l = exp(a t) + b, unknowns [a; b], from a known truth.
     rs = RandStream('mt19937ar', 'Seed', 5);
     t  = linspace(0, 1, 40).';
@@ -485,16 +488,20 @@ function testBatchKindNonlinearReproducesSolveNonlinear(tc)
     data = struct('batchFcn', bf, 'numBatches', 2, 'x0', [0.5; 0]);   % u = numel(x0), v3
     opts = lsqvce.Options(NonlinearMaxIter=15, TolX=1e-9, Verbose=false);
     R = lsqvce.fit(data, opts);
-    [sol, D, ~, IT] = lsqvce.engine.solveNonlinear(2, bf, 2, [0.5; 0], 'MaxIter', 15, 'TolX', 1e-9, 'Verbose', false);
-    % tol: exact -- identical code path and inputs
-    tc.verifyEqual(R.x, sol.x(:));
-    tc.verifyEqual(R.diag.v, D.v);
-    tc.verifyEqual(fieldnames(R.source), fieldnames(IT), 'the iteration record rides on R.source');
+    [sol, ~, ~, IT] = lsqvce.engine.solveNonlinear(2, bf, 2, [0.5; 0], 'MaxIter', 15, 'TolX', 1e-9, 'Verbose', false);
+    % tol: 1e-8 absolute -- two accumulation routes through the same
+    % Gauss-Newton sequence; the fixed point is the same, each pass rounds
+    % differently (1e4 x the single-pass bound)
+    tc.verifyEqual(R.x, sol.x(:), 'AbsTol', 1e-8);
+    tc.verifyEqual(R.stopReason, "converged");
+    tc.verifyTrue(IT.converged, 'the reference converged too');
+    tc.verifyEqual(R.noise.kind, 'nonlinear');
+    tc.verifyNotEmpty(R.history, 'the pass record is kept');
     % tol: 5e-3 -- 40 points at 1e-3 noise recover the truth to a few 1e-3
     tc.verifyEqual(R.x, xt, 'AbsTol', 5e-3);
     tc.verifyEqual(R.meta.options.kind, 'batch');
+    tc.verifyNotEmpty(R.acc, 'kind C nonlinear carries the accumulator');
 end
-
 function testFlatOnlyOptionsStayOnTheFlatDrivers(tc)
 % categories: contract, robustness
     % R5 M2 2c: DatumB / Sigma0 / Sparse have no block-path home yet. Round 2a

@@ -5,6 +5,7 @@
 caller,callee,callerTier,calleeTier
 engine.adjust,report,ENGINE,USER
 engine.adjustBlock,Results,ENGINE,USER
+engine.adjustNonlinear,Results,ENGINE,USER
 engine.adjustRobust,Results,ENGINE,USER
 engine.adjustVCE,Results,ENGINE,USER
 engine.solveNonlinear,report,ENGINE,USER
