@@ -689,6 +689,50 @@ function test_redundancyLags_fft_lag_sums_match_the_loop_form(tc)
     tc.verifyEqual(out.omega, oLoop, 'RelTol', 1e-10, 'AbsTol', 1e-12);
 end
 
+%% ============================================ R5 M3 3d: per-stream policy
+function test_joint_policy_none_and_scale_and_pool(tc)
+% categories: contract, metamorphic
+    % R5 M3 3d (WP-83, R5-D4): the joint driver takes a per-stream POLICY.
+    % Fixture: one system (91), one stream 'pos' -> key 'x91|pos'.
+    %   'none'  : the stream's arc factors stay 1 and jointModelOpt emits NO
+    %             override for it (untouched);
+    %   'scale' : factors are estimated, the override carries the level ONLY;
+    %   Pool "stream": out.Cgroups holds one C per stream and out.C is it.
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');
+    cfg = jointCfg();
+    key = 'x91|pos';
+    E = containers.Map({key}, {'none'});
+    rN = lsqvce.engine.adjustVCEjoint(@(model) jointAcc(cfg, model), 'NumLags', 6, ...
+             'MaxIter', 2, 'Probes', 80, 'Seed', 3, 'Verbose', false, 'Estimate', E);
+    % tol: exact -- no factor is ever written back under 'none'
+    tc.verifyEqual(rN.sigma2, ones(size(rN.sigma2)), 'none: factors untouched');
+    uoN = lsqvce.engine.jointModelOpt(struct('C', rN.C, 'sigma2', rN.sigma2, 'iter', 2, ...
+             'Estimate', E), {key});
+    tc.verifyFalse(isfield(uoN.covOverride.bySys, 'x91'), 'none: no override at all');
+
+    E = containers.Map({key}, {'scale'});
+    rS = lsqvce.engine.adjustVCEjoint(@(model) jointAcc(cfg, model), 'NumLags', 6, ...
+             'MaxIter', 2, 'Probes', 80, 'Seed', 3, 'Verbose', false, 'Estimate', E);
+    tc.verifyTrue(any(rS.sigma2 ~= 1), 'scale: factors are estimated');
+    uoS = lsqvce.engine.jointModelOpt(struct('C', rS.C, 'sigma2', rS.sigma2, 'iter', 2, ...
+             'Estimate', E, 'streamSigma2', containers.Map({key}, {mean(rS.sigma2)})), {key});
+    sp = uoS.covOverride.bySys.x91.pos;
+    tc.verifyEqual(fieldnames(sp), {'sigmaScale'}, 'scale: the level only, on the declared law');
+    % tol: value plumbing identity (sqrt of the mean factor); house round-trip bound 1e-12
+    tc.verifyEqual(sp.sigmaScale, sqrt(mean(rS.sigma2)), 'AbsTol', 1e-12);
+
+    rP = lsqvce.engine.adjustVCEjoint(@(model) jointAcc(cfg, model), 'NumLags', 6, ...
+             'MaxIter', 2, 'Probes', 80, 'Seed', 3, 'Verbose', false, 'Pool', "stream");
+    tc.verifyEqual(keys(rP.Cgroups), {key}, 'one law per stream');
+    % tol: exact -- out.C IS the single group's C
+    tc.verifyEqual(rP.C, rP.Cgroups(key));
+    % parity: with one stream, Pool "stream" and Pool "all" estimate the same C
+    rA = lsqvce.engine.adjustVCEjoint(@(model) jointAcc(cfg, model), 'NumLags', 6, ...
+             'MaxIter', 2, 'Probes', 80, 'Seed', 3, 'Verbose', false);
+    % tol: exact -- same arcs, same probes (seeded), same arithmetic on one group
+    tc.verifyEqual(rP.C, rA.C);
+end
+
 function test_jointModelOpt_takes_sqrt_of_variance(tc)
 % categories: precision
     % CONVENTION 1: model.sigma2 is a VARIANCE, the level a covariance spec

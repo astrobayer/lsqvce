@@ -190,6 +190,8 @@ function R = fit(data, opts)
 %                                  (R5 M2: the block path takes diagonal weights;
 %                                  a full P is a covariance law of the streaming
 %                                  kind) -- raised by lsqvce.engine.batchSystem
+%       lsqvce:fit:badEstimate     (R5 M3 3d) covariance.<type>.estimate is not
+%                                  "none" | "scale" | "law"
 %       lsqvce:fit:badMatrix       kind B shapes disagree (A m x u, l m x 1,
 %                                  p m x 1)
 %       lsqvce:fit:missingField    kind C lacks batchFcn / numBatches, or the
@@ -666,10 +668,11 @@ function R = fitEllmer(systems, days, opts)
     a = opts.engineArgs("adjustVCEjoint");
     psdMode = char(opts.PsdMode);
     sepStreams = separableStreams(systems, specs);        % R5 M3 (H-15)
+    [estMap, afMap] = streamPolicy(systems, specs);       % R5 M3 3d (R5-D4)
     accFcn = @(model) jointAccumulator(nc, specs, opts, ...
                  lsqvce.engine.jointModelOpt(model, streams, 'PsdMode', psdMode, ...
                                              'Separable', sepStreams));
-    out = lsqvce.engine.adjustVCEjoint(accFcn, a.nv{:});
+    out = lsqvce.engine.adjustVCEjoint(accFcn, a.nv{:}, 'Estimate', estMap, 'ArcFactors', afMap);
 
     [dsol, batchFcn, nB] = lsqvce.engine.diagnoseAccum(out.acc, out.sol);
     D = lsqvce.engine.diagnose(dsol, batchFcn, 'nBatch', nB, opts.engineArgs("diagnose").nv{:});
@@ -683,7 +686,8 @@ function R = fitEllmer(systems, days, opts)
     hist.skips = out.skips;
     % arcKeys is a CELL: braces keep struct() from expanding it into a struct
     % ARRAY (the DATA_CONTRACT §2.4 pitfall -- it bit this very line in L3 r1).
-    noise = struct('C', out.C, 'Shat', out.Shat, 'sigma2', out.sigma2, 'arcKeys', {out.arcKeys});
+    noise = struct('C', out.C, 'Shat', out.Shat, 'sigma2', out.sigma2, 'arcKeys', {out.arcKeys}, ...
+                   'Cgroups', out.Cgroups);            % R5 M3 3d: one C per pool group
     R.setIterative(hist, noise, out.converged);
 end
 
@@ -754,6 +758,37 @@ function keys = separableStreams(systems, specs)
             cm = L.cov.(ots{j});
             if isfield(cm, 'type') && strcmpi(char(cm.type), 'separable')
                 keys{end+1} = sprintf('%s|%s', satKey, ots{j}); %#ok<AGROW>
+            end
+        end
+    end
+end
+
+function [estMap, afMap] = streamPolicy(systems, specs)
+%STREAMPOLICY  Per-stream 'estimate' / 'arcFactors' from the covariance specs.
+%   R5 M3 3d (WP-83, R5-D4): a stream spec may carry
+%     .estimate    "none" | "scale" | "law"   default "law" under Model "ellmer"
+%     .arcFactors  logical                    default true
+%   Returned as containers.Map keyed 'satKey|obsType' for the joint driver.
+    estMap = containers.Map('KeyType', 'char', 'ValueType', 'any');
+    afMap  = containers.Map('KeyType', 'char', 'ValueType', 'any');
+    for k = 1:numel(systems)
+        L = systems{k};
+        if ~isfield(L, 'cov') || ~isstruct(L.cov), continue, end
+        satKey = matlab.lang.makeValidName(char(string(specs(k).sysID)));
+        ots = fieldnames(L.cov);
+        for j = 1:numel(ots)
+            cm = L.cov.(ots{j});
+            key = sprintf('%s|%s', satKey, ots{j});
+            if isfield(cm, 'estimate') && ~isempty(cm.estimate)
+                e = lower(char(string(cm.estimate)));
+                if ~any(strcmp(e, {'none', 'scale', 'law'}))
+                    error('lsqvce:fit:badEstimate', ...
+                          'covariance.%s.estimate must be "none", "scale" or "law" (got "%s").', ots{j}, e);
+                end
+                estMap(key) = e;
+            end
+            if isfield(cm, 'arcFactors') && ~isempty(cm.arcFactors)
+                afMap(key) = logical(cm.arcFactors);
             end
         end
     end
