@@ -209,12 +209,20 @@ function testEllmerRunsOnMultiAxisStreams(tc)
     muteWarn(tc, 'lsqvce:decorrFactor:notPD');
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');
     [~, data] = demo_grace_dataLoader();
-    opts = lsqvce.Options(Model="ellmer", NumLags=16, MaxOuter=1, Verbose=0);
+    % SkipThreshold raised DELIBERATELY: the demo's single-axis KBR arcs are
+    % longer than NumLags = 16, so the joint STARTING law is a truncated,
+    % non-PD Toeplitz for them (8 of 32 arcs, all 's1_rr_*' -- the G-08 class,
+    % finding H-17, removed by the PSD-domain law of M3 round 3b). The 24
+    % position arcs -- the H-15 case -- must all be processed.
+    opts = lsqvce.Options(Model="ellmer", NumLags=16, MaxOuter=1, SkipThreshold=0.3, Verbose=0);
     R = lsqvce.fit(data, opts);
     tc.verifyClass(R, 'lsqvce.Results');
     tc.verifyEqual(R.history.kind, 'ellmer');
     tc.verifyTrue(all(isfinite(R.x)), 'a finite estimate');
     tc.verifyTrue(all(isfinite(R.noise.C)), 'a finite pooled covariance function');
+    sk = R.history.skips;
+    tc.verifyTrue(all(startsWith(sk(:, 2), 's1_rr_')), 'every skip is a KBR (single-axis) arc');
+    tc.verifyEqual(size(sk, 1), 8);
 end
 %% ============================================================ R5 M2 2b: IRLS kernel
 function testRobustWeightsContract(tc)
