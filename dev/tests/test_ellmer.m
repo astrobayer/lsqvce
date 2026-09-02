@@ -679,7 +679,9 @@ function test_jointModelOpt_takes_sqrt_of_variance(tc)
     % a per-stream factor wins over the mean when the driver supplies it
     m2 = model;  m2.streamSigma2 = containers.Map({'x1|pos'}, {9});
     uo2 = lsqvce.engine.jointModelOpt(m2, {'x1|pos', 'x1|kbr'});
+    % tol: value plumbing identity (sqrt of a stored number); house round-trip bound 1e-12
     verifyEqual(tc, uo2.covOverride.bySys.x1.pos.sigmaScale, 3, 'AbsTol', 1e-12);
+    % tol: as above
     verifyEqual(tc, uo2.covOverride.bySys.x1.kbr.sigmaScale, 2, 'AbsTol', 1e-12, 'a stream without its own factor gets the mean');
 end
 function test_jointModelOpt_emits_a_psd_on_normalised_frequency(tc)
@@ -739,6 +741,7 @@ function test_jointModelOpt_psd_is_a_shape(tc)
     u2 = lsqvce.engine.jointModelOpt(struct('C', 10*c,  'sigma2', 1, 'iter', 1), {'x1|pos'});
     % tol: 1e-12 relative -- one cosine sum on three numbers, evaluated twice
     verifyEqual(tc, u2.covOverride.bySys.x1.pos.S, u1.covOverride.bySys.x1.pos.S, 'RelTol', 1e-12);
+    % tol: value plumbing identity (sqrt(1)); house round-trip bound 1e-12
     verifyEqual(tc, u1.covOverride.bySys.x1.pos.sigmaScale, 1, 'AbsTol', 1e-12);
     verifyTrue(tc, all(u1.covOverride.bySys.x1.pos.S >= 0));
 end
