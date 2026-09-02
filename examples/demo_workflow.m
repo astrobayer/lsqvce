@@ -136,8 +136,8 @@ D = R.diag;
 %% ------------------------------------------------------------------------
 % SECTION 2b.  Read the verdict (the part that matters).
 % -------------------------------------------------------------------------
-% Every Results carries the diagnostics on R.diag and the driver's verdict on
-% R.source. Read them in this ORDER -- a failure high up makes everything
+% Every Results carries the diagnostics on R.diag and the verdict through
+% R.report(). Read them in this ORDER -- a failure high up makes everything
 % below meaningless.
 %
 %   1. INTEGRITY   D.sumRRelErr ~ 0   the identity sum(r_i) = m - u holds.
@@ -149,9 +149,11 @@ D = R.diag;
 %   4. RELIABILITY the smallest blunder each observation could HIDE (MDB) and
 %                  how far it could shift a parameter (external reliability).
 %
-% R.source.verdict rolls these into one line; the numbers are how you act on it.
+% R.report() rolls these into one line (V.verdict); the numbers are how you
+% act on it. (R5 M2: R.source is the sweep's solution struct on every kind.)
+V = R.report('Verbose', false);
 fprintf('\n--- verdict ---\n');
-fprintf('  verdict      : %s\n', R.source.verdict);
+fprintf('  verdict      : %s\n', V.verdict);
 fprintf('  integrity    : sum(r) rel.err = %.2e  (want ~0)\n', D.sumRRelErr);
 fprintf('  variance     : s0^2 = %.3f            (want ~1)\n', D.varRatio);
 fprintf('  blunders     : %d flagged\n', D.nFlag);
