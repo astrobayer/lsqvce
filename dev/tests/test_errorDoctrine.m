@@ -222,6 +222,17 @@ function testEllmerRunsOnMultiAxisStreams(tc)
     tc.verifyTrue(all(isfinite(R.noise.C)), 'a finite pooled covariance function');
     tc.verifyEmpty(R.history.skips, 'no arc is skipped: the PSD law is valid for every arc length');
     tc.verifyEqual(numel(R.noise.arcKeys), 32);
+    % R5 M4 4a: the joint sweep now COLLECTS whiteness per stream per pass,
+    % so the convergence table exists on an ellmer Results (it could not
+    % even run before): one row per joint iteration, the streams named,
+    % Ljung-Box p-values in [0, 1]
+    T = R.convergence();
+    tc.verifyEqual(height(T), R.history.nIter);
+    tc.verifyEqual(numel(R.history.streams), 4, 'posC, posD, rr of system 1 and posE of system 2');
+    tc.verifyTrue(all(contains(R.history.streams, '|')), 'streams are keyed satKey|obsType');
+    p = R.history.whitePval;
+    tc.verifyTrue(all(p(:) >= 0 & p(:) <= 1), 'p-values in [0, 1]');
+    tc.verifyEqual(size(R.history.sigma), size(p));
 end
 %% ============================================================ R5 M2 2b: IRLS kernel
 function testRobustWeightsContract(tc)

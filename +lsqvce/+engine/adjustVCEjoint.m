@@ -219,7 +219,8 @@ end
     end
     sigma2 = o.Sigma2_0(:);              % may be empty; sized on first sweep
 
-    hist = struct('maxDev', [], 'Shat', [], 'skips', {cell(0,3)});
+    hist = struct('maxDev', [], 'Shat', [], 'skips', {cell(0,3)}, ...
+                  'streams', {{}}, 'sigma', [], 'white', [], 'whitePval', []);
     converged = false;
     accF = []; solF = []; Shat = [];
     Cmap = containers.Map('KeyType', 'char', 'ValueType', 'any');   % R5 M3 3d: C per pool group
@@ -254,7 +255,7 @@ end
         % WP-34 (fixes F-02): arcs are KEYED, the factor map is pinned on the
         % PASS-1 ENUMERATION, and a skipped arc keeps its previous factor --
         % one skip can no longer shift every later arc's factor by position.
-        [omegaT, sT, keys, keysAll, skips] = ...
+        [omegaT, sT, keys, keysAll, skips, wstats] = ...
             sweepArcs(acc, sol, sp.UiZ, nLag, C, s2Map, v);
         nArc = numel(keys);
         if nArc == 0
@@ -374,6 +375,13 @@ end
 
         hist.maxDev(it,1)  = pv.maxDev;              %#ok<AGROW>
         hist.Shat(it,:)    = Shat(:).';              %#ok<AGROW>
+        % R5 M4 4a: the per-stream pass record Results.convergence reads --
+        % the stream's level factor and its Ljung-Box whiteness on the
+        % law-whitened residuals of THIS pass (K = 20 lags, alpha 0.05).
+        [hist.streams, sigRow, whiteRow, pRow] = whitenessRow(wstats, streamMeans(pinnedKeys, sigma2));
+        hist.sigma(it, :)     = sigRow;              %#ok<AGROW>
+        hist.white(it, :)     = whiteRow;            %#ok<AGROW>
+        hist.whitePval(it, :) = pRow;                %#ok<AGROW>
 
         if v
             lsqvce.util.log.msg(['  [joint %2d] max|alpha2-1| = %.4e   ' ...
@@ -409,7 +417,7 @@ end
 end
 
 %==========================================================================
-function [omegaT, sT, keys, keysAll, skips] = sweepArcs(acc, sol, UiZ, nLag, C, s2Map, v)
+function [omegaT, sT, keys, keysAll, skips, wstats] = sweepArcs(acc, sol, UiZ, nLag, C, s2Map, v)
 %SWEEPARCS  Steps 7-8: re-stream every arc, returning the WEIGHTED per-lag
 %   temporal vectors Omega^m_n and s^m_n (eqs. 6.5.22-6.5.23), one COLUMN per
 %   arc. Mirrors the arc enumeration used by LSQVCE.ENGINE.REDUNDANCY and
@@ -432,6 +440,7 @@ function [omegaT, sT, keys, keysAll, skips] = sweepArcs(acc, sol, UiZ, nLag, C, 
     keysAll = {};
     skips  = cell(0, 2);
     nArc   = 0;
+    wstats = containers.Map('KeyType', 'char', 'ValueType', 'any');   % stream -> [sums; m]
 
     for k = 1:numel(ids)
         st = acc.getStore(ids(k));
@@ -462,12 +471,15 @@ function [omegaT, sT, keys, keysAll, skips] = sweepArcs(acc, sol, UiZ, nLag, C, 
                     key = sprintf('s%s_%s_d%s_a%s', string(st.sysID), ...
                                   string(obsType), string(d), string(a));
                     keysAll{end+1} = key;                    %#ok<AGROW>
-                    [om, sn, why] = oneArc(st, obsType, a, d, uo, UiZ, ...
+                    [om, sn, why, wsum, wm] = oneArc(st, obsType, a, d, uo, UiZ, ...
                                            nLag, x, ySys, Gsys, LlS);
                     if isempty(om)
                         skips(end+1, :) = {key, why};        %#ok<AGROW>
                         continue
                     end
+                    sk = sprintf('%s|%s', matlab.lang.makeValidName(char(string(st.sysID))), char(obsType));
+                    if isKey(wstats, sk), w0 = wstats(sk); else, w0 = zeros(WHITE_LAGS() + 2, 1); end
+                    wstats(sk) = w0 + [wsum; wm];
                     nArc = nArc + 1;
                     % weight by THIS ARC'S factor (keyed, F-02) and lag cov
                     if ~isempty(s2Map) && isKey(s2Map, key)
@@ -488,7 +500,7 @@ function [omegaT, sT, keys, keysAll, skips] = sweepArcs(acc, sol, UiZ, nLag, C, 
 end
 
 %==========================================================================
-function [om, sn, why] = oneArc(st, obsType, arc, day, uo, UiZ, nLag, x, ySys, Gsys, LlS)
+function [om, sn, why, wsum, wm] = oneArc(st, obsType, arc, day, uo, UiZ, nLag, x, ySys, Gsys, LlS)
 %ONEARC  Decorrelate one arc, form its residual, and return the per-lag Omega
 %   and s from LSQVCE.KERNEL.REDUNDANCYLAGS. WP-34: a skipped arc REPORTS why --
 %   `why` is '' on success, 'gap' (no data) or 'nonPD' (covariance not
@@ -501,6 +513,7 @@ function [om, sn, why] = oneArc(st, obsType, arc, day, uo, UiZ, nLag, x, ySys, G
     uo.day     = day;
     uo.arc     = arc;
     why = '';
+    wsum = zeros(WHITE_LAGS + 1, 1);  wm = 0;     % R5 M4 4a: whiteness collector
     a = st.dataFcn(day, obsType, arc, uo);
     if isempty(a) || ~isfield(a, 'l') || isempty(a.l)
         om = [];  sn = [];  why = 'gap';  return
@@ -551,6 +564,7 @@ function [om, sn, why] = oneArc(st, obsType, arc, day, uo, UiZ, nLag, x, ySys, G
                                        'LocalBbar', Bbar, 'LocalLl', LlS);
             om = om + padTo(r.omega, nLag);
             sn = sn + padTo(r.s,     nLag);
+            wsum = wsum + whiteLagSums(ebar);  wm = wm + numel(ebar);
         end
         return
     end
@@ -584,6 +598,26 @@ function [om, sn, why] = oneArc(st, obsType, arc, day, uo, UiZ, nLag, x, ySys, G
                                'LocalBbar', Bbar, 'LocalLl', LlS);
     om = padTo(r.omega, nLag);
     sn = padTo(r.s    , nLag);
+    wsum = whiteLagSums(ebar);  wm = numel(ebar);
+end
+
+function K = WHITE_LAGS()
+%WHITE_LAGS  Lags of the Ljung-Box whiteness statistic per stream (20).
+    K = 20;
+end
+
+function s = whiteLagSums(e)
+%WHITELAGSUMS  sum_i e(i+n) e(i), n = 0..K, of one arc's law-whitened residual
+%   (zero-padded FFT, exact to rounding); aggregated per stream by sweepArcs.
+    e = e(:);  K = WHITE_LAGS();
+    n = numel(e);
+    s = zeros(K + 1, 1);
+    if n < 2, return, end
+    nfft = 2^nextpow2(2*n - 1);
+    F = fft(e, nfft);
+    r = ifft(real(F .* conj(F)), 'symmetric');
+    k = min(K + 1, n);
+    s(1:k) = r(1:k);
 end
 
 %==========================================================================
@@ -659,5 +693,27 @@ function g = groupKeyOf(pool, sk)
             g = extractAfter(sk, '|');
         otherwise
             g = sk;                                  % 'stream'
+    end
+end
+
+function [streams, sig, white, pval] = whitenessRow(wstats, sMeans)
+%WHITENESSROW  One convergence-table row: per stream, the level factor
+%   sqrt(mean arc factor) and the Ljung-Box test on the pass's law-whitened
+%   residuals: Q = m (m+2) sum_k rho_k^2 / (m-k), k = 1..K, ~ chi2_K under
+%   whiteness; white = p > 0.05 (the convention of the separate mode's
+%   history, so Results.convergence reads both alike).
+    streams = sort(keys(wstats));
+    S = numel(streams);
+    sig = ones(1, S);  white = false(1, S);  pval = nan(1, S);
+    K = WHITE_LAGS();
+    for j = 1:S
+        w = wstats(streams{j});
+        m = w(end);  r0 = w(1);
+        if isKey(sMeans, streams{j}), sig(j) = sqrt(max(sMeans(streams{j}), eps)); end
+        if m <= K + 1 || r0 <= 0, continue, end
+        rho = w(2:K+1) / r0;
+        Q = m * (m + 2) * sum(rho.^2 ./ (m - (1:K).'));
+        pval(j)  = gammainc(Q/2, K/2, 'upper');      % 1 - chi2cdf(Q, K), base MATLAB
+        white(j) = pval(j) > 0.05;
     end
 end
