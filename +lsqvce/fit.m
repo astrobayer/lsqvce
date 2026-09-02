@@ -665,8 +665,10 @@ function R = fitEllmer(systems, days, opts)
     streams = streamKeys(systems, specs);
     a = opts.engineArgs("adjustVCEjoint");
     psdMode = char(opts.PsdMode);
+    sepStreams = separableStreams(systems, specs);        % R5 M3 (H-15)
     accFcn = @(model) jointAccumulator(nc, specs, opts, ...
-                 lsqvce.engine.jointModelOpt(model, streams, 'PsdMode', psdMode));
+                 lsqvce.engine.jointModelOpt(model, streams, 'PsdMode', psdMode, ...
+                                             'Separable', sepStreams));
     out = lsqvce.engine.adjustVCEjoint(accFcn, a.nv{:});
 
     [dsol, batchFcn, nB] = lsqvce.engine.diagnoseAccum(out.acc, out.sol);
@@ -734,5 +736,25 @@ function R = runBatchOnBlockPath(u, batchFcn, nBatch, opts, kind)
     else
         a = opts.engineArgs('adjustRobust');
         R = lsqvce.engine.adjustRobust({L}, 1:nBatch, a.nv{:}, 'Provenance', prov);
+    end
+end
+
+function keys = separableStreams(systems, specs)
+%SEPARABLESTREAMS  'satKey|obsType' of every stream whose base law is separable.
+%   R5 M3 (finding H-15): those streams keep their type / axis count / Cep
+%   under the joint override; the estimated law reaches them as an AR(p)
+%   temporal model (LSQVCE.ENGINE.JOINTMODELOPT 'Separable').
+    keys = {};
+    for k = 1:numel(systems)
+        L = systems{k};
+        if ~isfield(L, 'cov') || ~isstruct(L.cov), continue, end
+        satKey = matlab.lang.makeValidName(char(string(specs(k).sysID)));
+        ots = fieldnames(L.cov);
+        for j = 1:numel(ots)
+            cm = L.cov.(ots{j});
+            if isfield(cm, 'type') && strcmpi(char(cm.type), 'separable')
+                keys{end+1} = sprintf('%s|%s', satKey, ots{j}); %#ok<AGROW>
+            end
+        end
     end
 end

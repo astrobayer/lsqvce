@@ -123,8 +123,10 @@ function out = adjustVCEjoint(accFcn, opt)
 %                                     definite, so it cannot be factored
 %     lsqvce:adjustVCEjoint:skipThreshold  a pass skipped more than
 %                                   SkipThreshold of the enumerated arcs (R5 M1)
-%     lsqvce:adjustVCEjoint:multiAxis  an arc carries nAxis > 1 (R5 M1, H-15):
-%                                   the joint estimator is single-axis
+%     lsqvce:adjustVCEjoint:noCep      (R5 M3, H-15) a multi-axis arc without the
+%                                   per-epoch covariance the separable model needs
+%     lsqvce:adjustVCEjoint:badAxisRows  a multi-axis arc whose row count is not a
+%                                   multiple of its axis count
 %     lsqvce:adjustVCEjoint:noArcs    a system declares no arcs
 %
 %   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
@@ -471,25 +473,52 @@ function [om, sn, why] = oneArc(st, obsType, arc, day, uo, UiZ, nLag, x, ySys, G
 
     A = a.A;  l = a.l(:);
     m = size(A, 1);
-    % R5 M1, finding H-15: the joint estimator forms the DENSE m x m arc
-    % covariance and takes lags over the ROW index. Epoch-major multi-axis
-    % rows would make "lag 1" the next axis, not the next epoch, and m is
-    % nAxis times the epoch count. Refuse rather than compute the wrong
-    % estimator slowly; M3 whitens per axis.
+    B = zeros(m, 0);
+    if isfield(a, 'B') && ~isempty(a.B), B = a.B; end
     nAx = lsqvce.util.getfielddef(a, 'nAxis', 1);
     if nAx > 1
-        error('lsqvce:adjustVCEjoint:multiAxis', ...
-             ['Arc (sys %s, %s, day %s, arc %s) is a %d-axis stream. The joint ' ...
-              '(Ellmer) spectral estimator is single-axis in this version: its ' ...
-              'lags run over rows, and a %d x %d dense covariance per arc would be ' ...
-              'formed. Use Model="vce" for multi-axis streams until the per-axis ' ...
-              'whitening of R5 M3 lands.'], string(st.sysID), string(obsType), ...
-              string(day), string(arc), nAx, m, m);
+        % R5 M3 (finding H-15): a d-axis stream is d single-axis series that
+        % share the TEMPORAL law once the FIXED per-epoch covariance has been
+        % removed (the separable model). So: descale every epoch by Cep^-1/2
+        % (rows stay epoch-major), then treat axis k = rows k:d:m as one arc of
+        % m/d epochs against the epoch-indexed temporal covariance a.Cfcn, and
+        % ADD the per-lag statistics over the axes -- the lag is a lag in
+        % epochs, the dense factor is (m/d)^2 instead of m^2, and one arc
+        % factor covers the arc.
+        if ~isfield(a, 'Cep') || isempty(a.Cep)
+            error('lsqvce:adjustVCEjoint:noCep', ...
+                 ['Arc (sys %s, %s, day %s, arc %s) is a %d-axis stream without a ' ...
+                  'per-epoch covariance (Cep): declare the stream ''separable'' with ' ...
+                  'd = %d and let buildDay return Cep, or supply the epochCovariance hook.'], ...
+                  string(st.sysID), string(obsType), string(day), string(arc), nAx, nAx);
+        end
+        mE = m / nAx;
+        if mE ~= round(mE)
+            error('lsqvce:adjustVCEjoint:badAxisRows', ...
+                  'Arc (sys %s, %s, day %s, arc %s): %d rows are not a multiple of %d axes.', ...
+                  string(st.sysID), string(obsType), string(day), string(arc), m, nAx);
+        end
+        % pure descale: AR(0) (a = 1, s = 1, r = 1) through the separable kernel
+        [Ad, Bd, ld] = lsqvce.kernel.separableWhiten(1, 1, 1, a.Cep, nAx, A, B, l, true);
+        Sig = a.Cfcn(1:mE, uo);                       % TEMPORAL, over epochs
+        if isvector(Sig), Sig = diag(Sig(:)); end
+        [W, pd] = chol((Sig + Sig.')/2);
+        if pd > 0
+            om = [];  sn = [];  why = 'nonPD';  return
+        end
+        nLagA = min(nLag, mE);
+        om = zeros(nLag, 1);  sn = zeros(nLag, 1);
+        for k = 1:nAx
+            rows = k:nAx:m;
+            [AtilBar, Bbar, ebar] = jointArcParts(Ad(rows, :), Bd(rows, :), ld(rows), W, ...
+                                                  x(1:size(A,2)), ySys, Gsys);
+            r  = lsqvce.kernel.redundancyLags(AtilBar, W, UiZ, ebar, nLagA, ...
+                                       'LocalBbar', Bbar, 'LocalLl', LlS);
+            om = om + padTo(r.omega, nLag);
+            sn = sn + padTo(r.s,     nLag);
+        end
+        return
     end
-
-    % The arc's whitener. A loader may hand back either an explicit covariance
-    % (Cfcn) or a whitening operator (Wfcn); redundancyLags needs the explicit
-    % triangular W with Sigma = W'W, so build it from Cfcn when available.
     if isfield(a, 'Cfcn') && ~isempty(a.Cfcn)
         Sig = a.Cfcn(1:m, uo);
         if isvector(Sig), Sig = diag(Sig(:)); end
@@ -514,8 +543,6 @@ function [om, sn, why] = oneArc(st, obsType, arc, day, uo, UiZ, nLag, x, ySys, G
     % Step 7 with the FULL Table-6.2 vector: subtract B*y, reduce the common
     % design (Atil = A - B G) so the shared probe matches the factored N, and
     % hand the exact local block to the projector (WP-33, fixes F-03).
-    B = zeros(m, 0);
-    if isfield(a, 'B') && ~isempty(a.B), B = a.B; end
     [AtilBar, Bbar, ebar] = jointArcParts(A, B, l, W, x(1:size(A,2)), ...
                                           ySys, Gsys);
     r  = lsqvce.kernel.redundancyLags(AtilBar, W, UiZ, ebar, min(nLag, m), ...

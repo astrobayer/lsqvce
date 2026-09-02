@@ -81,12 +81,13 @@ lsqvce:adjustVCE:shapeRejected,engine.adjustVCE,warning,v4.0
 lsqvce:adjustVCE:skipThreshold,engine.adjustVCE,error,v4.0
 lsqvce:adjustVCE:validateBadResults,engine.adjustVCE,error,v4.0
 lsqvce:adjustVCEjoint:arcMismatch,engine.adjustVCEjoint,error,v4.0
+lsqvce:adjustVCEjoint:badAxisRows,engine.adjustVCEjoint,error,v4.0
 lsqvce:adjustVCEjoint:badC0,engine.adjustVCEjoint,error,v4.0
 lsqvce:adjustVCEjoint:badSigma2_0,engine.adjustVCEjoint,error,v4.0
 lsqvce:adjustVCEjoint:localNotPD,engine.adjustVCEjoint,error,v4.0
-lsqvce:adjustVCEjoint:multiAxis,engine.adjustVCEjoint,error,v4.0
 lsqvce:adjustVCEjoint:needCfcn,engine.adjustVCEjoint,error,v4.0
 lsqvce:adjustVCEjoint:noArcs,engine.adjustVCEjoint,error,v4.0
+lsqvce:adjustVCEjoint:noCep,engine.adjustVCEjoint,error,v4.0
 lsqvce:adjustVCEjoint:notConverged,engine.adjustVCEjoint,warning,v4.0
 lsqvce:adjustVCEjoint:notPD,engine.adjustVCEjoint,error,v4.0
 lsqvce:adjustVCEjoint:skipThreshold,engine.adjustVCEjoint,error,v4.0

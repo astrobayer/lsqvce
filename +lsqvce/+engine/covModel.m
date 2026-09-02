@@ -308,11 +308,16 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
         Wfcn = @(idx,A,B,l,o) lsqvce.kernel.separableWhiten(a, s, r, ...
                    epochSlice(Cep, idx, d), d, A, B, l, idx(1)==1);
 
+        % R5 M3 (finding H-15): the TEMPORAL covariance over EPOCHS (not rows)
+        % is what the joint spectral estimator forms per axis after the
+        % per-epoch descale; idx are epoch indices, the matrix is Toeplitz
+        Cfcn = @(idx,o) s^2 * toeplitz(lsqvce.kernel.armaACV(a, 1, numel(idx)));
         info.filterMemory = p * d;                   % ROWS of overlap (epoch-major)
         info.nAxis        = d;
         info.arOrder      = p;
         info.sigma        = s;
         info.acv          = r;
+        info.Cep          = Cep;                     % the FIXED per-epoch part, for the joint estimator
         info.cost         = sprintf('O(nE*%d^3 + b*%d)', d, p);
 
     %---------------------------------------------------------------- custom

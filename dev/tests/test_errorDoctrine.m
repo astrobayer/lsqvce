@@ -197,21 +197,25 @@ function cfg = makeCfg(nc, arcsPerDay, mArc, nl)
     cfg.cov.kbr = struct('type', 'diag', 'sigma', 0.2);
 end
 
-%% ============================================================ H-15 refusal
-function testEllmerRefusesMultiAxisStreams(tc)
+%% ============================================================ H-15: multi-axis on the joint path
+function testEllmerRunsOnMultiAxisStreams(tc)
 % categories: contract, robustness
-    % the demo has 3-axis position streams: Model="ellmer" must REFUSE at
-    % the first multi-axis arc with the named identifier, not run for minutes
-    % the demo's pass-1 accumulation under the joint starting law issues the
-    % pre-existing decorrFactor:notPD warning; muted here on purpose so the
-    % gate's warning inventory stays clean (gate rule 7), and the refusal is
-    % what this point is about
+    % R5 M3 (H-15): the demo's 3-axis position streams are declared
+    % 'separable' (AR temporal law + per-epoch Cep). The joint (Ellmer)
+    % estimator now descales every epoch and takes the per-lag statistics
+    % PER AXIS against the temporal law over EPOCHS -- so it RUNS (M1 refused
+    % it) and returns a pass record; the numbers are a smoke check here, the
+    % parity against the single-axis reference is test_ellmer's job.
     muteWarn(tc, 'lsqvce:decorrFactor:notPD');
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');
     [~, data] = demo_grace_dataLoader();
     opts = lsqvce.Options(Model="ellmer", NumLags=16, MaxOuter=1, Verbose=0);
-    verifyError(tc, @() lsqvce.fit(data, opts), 'lsqvce:adjustVCEjoint:multiAxis');
+    R = lsqvce.fit(data, opts);
+    tc.verifyClass(R, 'lsqvce.Results');
+    tc.verifyEqual(R.history.kind, 'ellmer');
+    tc.verifyTrue(all(isfinite(R.x)), 'a finite estimate');
+    tc.verifyTrue(all(isfinite(R.noise.C)), 'a finite pooled covariance function');
 end
-
 %% ============================================================ R5 M2 2b: IRLS kernel
 function testRobustWeightsContract(tc)
 % categories: contract

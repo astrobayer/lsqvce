@@ -87,7 +87,15 @@ end
     end
     cov = struct();
     for g = 1:G
-        cov.(obsTypes{g}) = struct('type', 'diag', 'sigma', sqrt(sd.variance(g)));
+        if strcmp(char(groups{g}.observationQuantity), 'kinematicPosition')
+            % R5 M3 (H-15): a multi-axis stream is a SEPARABLE law -- the FIXED
+            % per-epoch covariance (Cep from iSpp, STEP 10) times one temporal
+            % law that the estimator updates; 'diag' would ignore Cep
+            cov.(obsTypes{g}) = struct('type', 'separable', 'ar', 1, ...
+                                       'sigma', sqrt(sd.variance(g)), 'd', 3);
+        else
+            cov.(obsTypes{g}) = struct('type', 'diag', 'sigma', sqrt(sd.variance(g)));
+        end
     end
 
     % ---- STEP 4: the local table -- ONE day's templates, all 'day'-scoped,
