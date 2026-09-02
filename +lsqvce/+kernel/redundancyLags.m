@@ -229,20 +229,18 @@ end
     s = zeros(nMaxLag, 1);
     if hasLocal
         % Rbar = Sinv - Rt*Rt' - K*K': one more row-dot per sub-diagonal.
-        s(1) = dS(1) - sum(Rt(:).^2) - sum(K(:).^2);
-        for n = 1:nMaxLag-1
-            idx = 1:(N-n);
-            dRt   = sum(Rt(idx+n, :) .* Rt(idx, :), 2);
-            dK    = sum(K(idx+n, :)  .* K(idx, :),  2);
-            s(n+1) = 2 * (dS(n+1) - sum(dRt) - sum(dK));
-        end
+        % R5 M3 3c: every sub-diagonal sum of Rt Rt' (and K K') is the lag-n
+        % AUTOCORRELATION of the columns summed over columns -- ALL lags from
+        % one FFT per column, O((Z+nl) N log N) instead of O((Z+nl) N nLag).
+        % Exact to rounding (pinned against the loop form in test_ellmer).
+        dRtAll = columnLagSums(Rt, nMaxLag);
+        dKAll  = columnLagSums(K,  nMaxLag);
+        s(1)   = dS(1) - dRtAll(1) - dKAll(1);
+        s(2:nMaxLag) = 2 * (dS(2:nMaxLag) - dRtAll(2:nMaxLag) - dKAll(2:nMaxLag));
     else
-        s(1) = dS(1) - sum(Rt(:).^2);
-        for n = 1:nMaxLag-1
-            idx = 1:(N-n);
-            dRt   = sum(Rt(idx+n, :) .* Rt(idx, :), 2);  % (Rt Rt') sub-diagonal
-            s(n+1) = 2 * (dS(n+1) - sum(dRt));
-        end
+        dRtAll = columnLagSums(Rt, nMaxLag);
+        s(1)   = dS(1) - dRtAll(1);
+        s(2:nMaxLag) = 2 * (dS(2:nMaxLag) - dRtAll(2:nMaxLag));
     end
 
     % ---- Omega_n from the whitened residual              (eqs. 6.5.54-6.5.56)
@@ -254,10 +252,9 @@ end
                   'ebar has %d elements but the arc has %d rows.', numel(ebar), N);
         end
         et = W \ ebar;                           % etilde = Sigma^-1 ehat
-        omega(1) = et.' * et;                    % n = 0
-        for n = 1:nMaxLag-1
-            omega(n+1) = 2 * (et(n+1:N).' * et(1:N-n));
-        end
+        acf = columnLagSums(et, nMaxLag);        % R5 M3 3c: one FFT, all lags
+        omega(1) = acf(1);                       % n = 0
+        omega(2:nMaxLag) = 2 * acf(2:nMaxLag);
     end
 
     out = struct('s', s, 'omega', omega, 'N', N, 'probes', Z, 'Rbar', []);
@@ -349,3 +346,22 @@ function x = toeplitzInvFirstCol(c)
     x = [1; a] / (E * c(1));
 end
 
+%==========================================================================
+function d = columnLagSums(X, nL)
+%COLUMNLAGSUMS  d(n+1) = sum_c sum_i X(i+n, c) X(i, c), n = 0..nL-1, by FFT.
+%   The lag-n sub-diagonal sum of X X' equals the sum over columns of each
+%   column's lag-n autocorrelation, so all lags come from one real FFT per
+%   column of length >= 2N-1 (zero-padded, no circular wrap): the power
+%   spectrum summed over columns, inverse-transformed. O(C N log N) for C
+%   columns instead of O(C N nL). Exact to rounding; R5 M3 3c (WP-83).
+%   INPUT  X N x C double;  nL 1x1 lags wanted (<= N)
+%   OUTPUT d nL x 1 double
+    [N, C] = size(X);
+    d = zeros(nL, 1);
+    if N == 0 || C == 0, return, end
+    nfft = 2^nextpow2(2*N - 1);
+    F = fft(X, nfft, 1);                          % columns, zero-padded
+    P = sum(real(F .* conj(F)), 2);               % summed power spectrum
+    r = ifft(P, 'symmetric');                     % lag sums, lag 0 first
+    d = r(1:nL);
+end
