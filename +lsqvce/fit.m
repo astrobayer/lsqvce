@@ -183,6 +183,9 @@ function R = fit(data, opts)
 %                                  the streaming kind screens outliers
 %                                  through its diagnostics (report())
 %       lsqvce:fit:modelKind       Model other than "gls" on kinds B / C
+%       lsqvce:fit:weightMatrix    kind B/C returned a full weight matrix (R5 M2:
+%                                  the block path takes diagonal weights; a full
+%                                  P is a covariance law of the streaming kind)
 %       lsqvce:fit:badMatrix       kind B shapes disagree (A m x u, l m x 1,
 %                                  p m x 1)
 %       lsqvce:fit:missingField    kind C lacks batchFcn / numBatches, or the
@@ -573,11 +576,22 @@ function R = fitBatch(data, opts)
 end
 
 function R = runBatch(u, batchFcn, nBatch, x0, opts, kind)
-%RUNBATCH  The ONE dispatch for kinds B / C: adjust | robust | solveNonlinear.
+%RUNBATCH  The ONE dispatch for kinds B / C.
+%   R5 M2 (WP-81, round 2a): the LINEAR, non-robust case rides the block
+%   path -- the batches become the DAYS of one local-free system (finding
+%   H-02: a batch problem is a streaming problem with nl = 0), so one
+%   accumulator serves every kind and the streaming Results (residuals(),
+%   contribution(), the exact per-observation sweep) is available on kinds
+%   B / C. Robust IRLS and the nonlinear form still run on the flat drivers
+%   until rounds 2b / 2c give them a policy on the block path.
     if ~strcmp(opts.Model, "gls")
         error('lsqvce:fit:modelKind', ...
             ['Model "%s" needs the streaming kind (variance components are per ' ...
              'group of a system); the %s kind is Model "gls".'], opts.Model, kind);
+    end
+    if isempty(x0) && ~strcmp(opts.Robust, "irls")
+        R = runBatchOnBlockPath(u, batchFcn, nBatch, opts, kind);
+        return
     end
     if ~isempty(x0)
         a = opts.engineArgs("solveNonlinear");
@@ -676,4 +690,58 @@ function acc = jointAccumulator(nc, specs, opts, uo)
               'Parallel', char(opts.Parallel), 'DistributeDays', opts.DistributeDays, ...
               'ParallelThreshold', opts.ParallelThreshold, 'Verbose', false, 'UserOpt', uo);
     acc.addSystems(specs);
+end
+
+%======================================================= kinds B / C on the block path
+function R = runBatchOnBlockPath(u, batchFcn, nBatch, opts, kind)
+%RUNBATCHONBLOCKPATH  Kinds B / C (linear, Model "gls", Robust "none") as ONE
+%   local-free streaming system: batch k = day k, one arc per day, rows
+%   PRE-WHITENED by sqrt(p) so the declared law is diag(1) (R5 M2 WP-81 2a).
+%   The whitened residual is what the sweep returns (R.diag.v = sqrt(p).*v);
+%   x, sigma0 and Cxx equal the flat driver's to rounding.
+    if ~isa(batchFcn, 'function_handle')
+        error('lsqvce:fit:builderKind', 'data.batchFcn must be a function handle.');
+    end
+    data.commonParams = [repmat({'common'}, u, 1), num2cell((1:u).')];
+    data.days = 1:nBatch;
+    s.id          = 1;
+    s.name        = kind;
+    s.covariance  = struct('obs', struct('type', 'diag', 'sigma', 1));
+    s.arcs        = @(day, obsType) 1;
+    s.localParams = cell(0, 2);                     % nl = 0: no local block
+    s.processingOptions = struct('batchFcn', batchFcn, 'nOut', []);
+    s.buildDay    = @batchDay;
+    data.systems  = s;
+
+    lsqvce.util.log.inventory('reset');
+    spec    = validateData(data);
+    systems = buildSystems(spec);
+    a = opts.engineArgs('adjustBlock');
+    R = lsqvce.engine.adjustBlock(systems, data.days, a.nv{:});
+    R.meta.options = opts.toStruct();
+    R.meta.options.kind = kind;
+end
+
+function D = batchDay(day, ~, ~, ~, po, info)
+%BATCHDAY  One batch as one local-free day with unit-weight rows.
+    [~, A, l, p] = lsqvce.util.callUser(po.batchFcn, 2, 3, 'batchFcn(k)', day);
+    l = l(:);  m = numel(l);
+    if ~isnumeric(A) || size(A, 1) ~= m || size(A, 2) ~= info.nc
+        error('lsqvce:fit:badMatrix', ...
+              'batch %d returned A %s and l %d x 1; expected A %d x %d.', ...
+              day, mat2str(size(A)), m, m, info.nc);
+    end
+    if ~isempty(p)
+        if isvector(p) && numel(p) == m
+            s = sqrt(p(:));                          % diagonal weights: whiten the rows
+            A = s .* A;  l = s .* l;
+        else
+            error('lsqvce:fit:weightMatrix', ...
+                  ['batch %d returned a %s weight argument; the block path takes ' ...
+                   'diagonal weights (m x 1). A full weight matrix is a covariance ' ...
+                   'law: declare it through the streaming kind.'], day, mat2str(size(p)));
+        end
+    end
+    D.A = A;  D.B = zeros(m, 0);  D.l = l;  D.t = (1:m).';
+    D.arcIdx = {1:m};  D.arcId = 1;
 end
