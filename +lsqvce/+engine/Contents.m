@@ -26,7 +26,6 @@
 %   ellipse              - confidence ellipse from a covariance
 %   ftest                - F-test on variance factors
 %   gcvLambda            - GCV choice of the regularisation weight
-%   iterateNoiseModel    - temporal noise-model iteration
 %   jointModelOpt        - joint-mode model -> loader UserOpt translation
 %   leverage             - leverage (hat-matrix diagonal), batch
 %   leverageBlocks       - leverage over blocks
@@ -34,31 +33,24 @@
 %   makeLoader           - day-builder -> Loader (built INSIDE fit from the data struct, R4-D4)
 %   mapreduce            - serial / parfor / spmd task runner with ordered reduce
 %   NormalEqSystem       - normal-equation backend
-%   normalizeSatList     - satellite list normalisation
 %   outliers             - outlier listing from diagnostics
-%   poolGroups           - VCE group pooling
-%   PrefetchLoader       - prefetching loader wrapper
 %   psdVCE               - PSD amplitude + arc-factor VCE (Ellmer workhorse)
 %   QRSystem             - QR backend
 %   ReducedContribution  - reduced-normal contribution bookkeeping
 %   redundancy           - redundancy numbers (data pass)
 %   residuals            - second data pass: residuals and quadratic forms
 %   resolveNc            - common-parameter count derived from the systems
-%   resolveSatSpecs      - satellite spec resolution
 %   robust               - IRLS M-estimation over the batch driver
 %   satKeyOf             - satellite key (makeValidName) helper
 %   selectArAcv          - AR model selection from an autocovariance
-%   selectArOrder        - AR order selection
 %   sharedProbe          - shared Hutchinson probe generator (RNG contract)
 %   snoop                - block-native data snooping and downweighting
 %   solveNonlinear       - Gauss-Newton / damped iteration over the batch driver
 %   stat                 - statistics helper
 %   streamContribution   - contribution per stream
-%   synthLoader          - synthetic ground-truth loader and raw-closure template
 %   systematic           - systematic-effect test
 %   traceEstimate        - stochastic trace estimate
 %   varComp              - variance-component estimation helper
 %   vce                  - Helmert group variance components (exact | hutchinson)
 %   vceHutchinson        - Hutchinson redundancy/trace estimator for vce
-%   whittle              - Whittle likelihood fit of a VAR model
 %   runMeta              - immutable provenance record for Results.meta

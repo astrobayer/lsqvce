@@ -831,63 +831,6 @@ function test_ftest_warns_when_premise_violated(tc)
         'lsqvce:ftest:invalidPremise');
 end
 
-%% ===================================== poolGroups (VCE group-pooling helper)
-function test_poolGroups_no_pooling_when_all_above_floor(tc)
-% categories: contract
-    vc = struct('groups', {{'a','b','c'}}, 'r', [120; 90; 200], ...
-                'sigma', [1;1;1]);
-    pl = lsqvce.engine.poolGroups(vc, 'floor', 50, 'verbose', false);
-    verifyFalse(tc, pl.changed);
-    verifyEqual(tc, numel(pl.newGroups), 3);
-    verifyEqual(tc, pl.indexRemap(:).', [1 2 3]);
-end
-
-function test_poolGroups_mergeLow_merges_thin_groups(tc)
-% categories: robustness
-    % b and c are below the floor -> both map to the pooled key; a stays.
-    vc = struct('groups', {{'a','b','c'}}, 'r', [120; 20; 15], ...
-                'sigma', [1;2;3]);
-    pl = lsqvce.engine.poolGroups(vc, 'floor', 50, 'strategy', 'mergeLow', ...
-                           'verbose', false);
-    verifyTrue(tc, pl.changed);
-    verifyEqual(tc, pl.map('a'), 'a');
-    verifyEqual(tc, pl.map('b'), 'pooledLow');
-    verifyEqual(tc, pl.map('c'), 'pooledLow');
-    verifyEqual(tc, sort(pl.newGroups), sort({'a','pooledLow'}));
-    % index remap collapses b,c to one new index
-    verifyEqual(tc, pl.indexRemap(2), pl.indexRemap(3));
-    verifyNotEqual(tc, pl.indexRemap(1), pl.indexRemap(2));
-end
-
-function test_poolGroups_nearest_attaches_to_closest_sigma(tc)
-% categories: contract
-    % low group 'c' (sigma 2.9) should attach to the above-floor group whose
-    % sigma is closest: 'b' (sigma 3.0), not 'a' (sigma 1.0).
-    vc = struct('groups', {{'a','b','c'}}, 'r', [200; 150; 10], ...
-                'sigma', [1.0; 3.0; 2.9]);
-    pl = lsqvce.engine.poolGroups(vc, 'floor', 50, 'strategy', 'nearest', ...
-                           'verbose', false);
-    verifyEqual(tc, pl.map('c'), 'b');
-    verifyEqual(tc, pl.map('a'), 'a');
-    verifyEqual(tc, pl.map('b'), 'b');
-end
-
-function test_poolGroups_remap_handle_and_numeric_keys(tc)
-% categories: contract
-    % numeric group keys must normalise to char and the remap handle must work.
-    vc = struct('groups', {{1, 2, 3}}, 'r', [120; 20; 200], 'sigma', [1;1;1]);
-    pl = lsqvce.engine.poolGroups(vc, 'floor', 50, 'verbose', false);
-    verifyEqual(tc, pl.remap(1), '1');            % above floor -> itself
-    verifyEqual(tc, pl.remap(2), 'pooledLow');    % below floor -> pooled
-end
-
-function test_poolGroups_errors_on_missing_fields(tc)
-% categories: contract
-    verifyError(tc, @() lsqvce.engine.poolGroups(struct('groups', {{'a'}}), ...
-        'verbose', false), 'lsqvce:poolGroups:badInput');
-end
-
-%% ================================== WP-40: per-arc whiteness pooling (F-13)
 function test_stageB_signature_redundancy(tc)
 % categories: contract, robustness
     % WP-39 stage (b) (F-07): redundancy's enum-value lever with the
@@ -974,17 +917,6 @@ function test_stageC2_signatures_classes(tc)
         ok = startsWith(e.identifier, 'MATLAB:validators:');
     end
     verifyTrue(tc, ok, 'BlockAccumulator CondWarn < 0 must fail the signature');
-    % PrefetchLoader's 'Enable' keeps its v1 "auto"|true|false contract:
-    % untyped at the signature, validated in the body with the new
-    % lsqvce id -- both legs asserted.
-    L = struct('load', @(d) struct(), 'days', 1);
-    ok = false;
-    try
-        lsqvce.engine.PrefetchLoader(@(d) L, 1, 'Enable', 'sometimes');
-    catch e
-        ok = strcmp(e.identifier, 'lsqvce:prefetch:badEnable');
-    end
-    verifyTrue(tc, ok, 'Enable ''sometimes'' must fail the body contract check');
 end
 
 function test_stageB2_signatures_enum_values(tc)
@@ -999,13 +931,6 @@ function test_stageB2_signatures_enum_values(tc)
         ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
     end
     verifyTrue(tc, ok, 'traceEstimate Distribution ''Gaussian'' must fail');
-    ok = false;
-    try
-        lsqvce.engine.poolGroups(struct(), 'Strategy', 'MergeLow');
-    catch e
-        ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
-    end
-    verifyTrue(tc, ok, 'poolGroups Strategy ''MergeLow'' must fail');
     ok = false;
     try
         lsqvce.engine.ellipse(eye(2), 1, 'Scale', 'Aposteriori');
@@ -1032,80 +957,6 @@ function test_stageB2_signatures_enum_values(tc)
     verifyTrue(tc, ok, 'robust Influence ''Huber'' must fail (case-sensitive)');
 end
 
-function test_noise_iteration_signature_types(tc)
-% categories: contract
-    % WP-39 (F-07), corrected premise (round a1-2): NV names match
-    % case-insensitively even under arguments; what the typed signature
-    % enforces here are the constraints (MaxLag >= 8, integer MaxIter)
-    % and unknown-name rejection -- all before any accumulator work.
-    dummy = @(cov) cov;
-    cov0 = struct('pos', struct('type','diag','sigma',1));
-    ok = false;
-    try
-        lsqvce.engine.iterateNoiseModel(dummy, cov0, 'MaxLag', 4);
-    catch e
-        ok = startsWith(e.identifier, 'MATLAB:');
-    end
-    verifyTrue(tc, ok, 'MaxLag < 8 must be rejected by the signature');
-    ok = false;
-    try
-        lsqvce.engine.iterateNoiseModel(dummy, cov0, 'MaxIter', 2.5);
-    catch e
-        ok = startsWith(e.identifier, 'MATLAB:');
-    end
-    verifyTrue(tc, ok, 'non-integer MaxIter must be rejected by the signature');
-    ok = false;
-    try
-        lsqvce.engine.iterateNoiseModel(dummy, cov0, 'NoSuchOption', 1);
-    catch e
-        ok = startsWith(e.identifier, 'MATLAB:');
-    end
-    verifyTrue(tc, ok, 'an unknown option name must be rejected');
-end
-
-function test_noise_iteration_perarc_whiteness_smoke(tc)
-% categories: robustness | tags: diagnostics
-    % WP-40 (F-13): maxAcf now pools PER ARC (no lagged product crosses an
-    % arc boundary, mirroring pooledACV). This serial smoke drives the NEW
-    % pooling end to end on CI: with the CORRECT covariance declared, the
-    % per-arc whiteness verdict must hold and the iteration must converge
-    % immediately. (The fails-on-old discrimination needs arc-mean-
-    % structured residuals only the runner-tier fixtures produce; recorded
-    % as a pinned deviation in the WP-40 round note, settled with
-    % test_parallel on the self-hosted runner.)
-    cfg = extNoiseCfg();
-    cov0 = cfg.cov;                                  % correct from the start
-    accFcn = @(cov) buildWithCovExt(cfg, 1, cov);
-    w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
-    it = lsqvce.engine.iterateNoiseModel(accFcn, cov0, 'MaxIter', 2, ...
-                                  'Verbose', false);
-    verifyTrue(tc, it.converged, 'correct model: must converge immediately');
-    verifyEqual(tc, it.nIter, 1);
-    mx = [it.history(1).obsType.maxAcf];
-    verifyTrue(tc, all(isfinite(mx)) && all(mx >= 0), ...
-        'per-arc pooled maxAcf must be finite and non-negative');
-end
-
-function test_noise_iteration_signature_typed_arguments(tc)
-% categories: contract
-    % WP-39 stage (a) (fails on the old code): iterateNoiseModel's typed
-    % `arguments` block with UpperCamelCase names -- the old lowercase
-    % 'maxIter' etc. no longer match, unknown names error, types are
-    % enforced.
-    accFcn = @(cov) struct();                    % never reached: parse errors first
-    cov0 = struct('pos', struct('type','diag','sigma',1));
-    mustErr = { ...
-        @() lsqvce.engine.iterateNoiseModel(accFcn, cov0, 'maxIter', 2), ...
-        @() lsqvce.engine.iterateNoiseModel(accFcn, cov0, 'MaxLag', 4), ...
-        @() lsqvce.engine.iterateNoiseModel(accFcn, cov0, 'Detrend', 'yes'), ...
-        @() lsqvce.engine.iterateNoiseModel(accFcn, cov0, 'NoSuchOption', 1) };
-    for k = 1:numel(mustErr)
-        ok = false;
-        try, mustErr{k}(); catch, ok = true; end
-        verifyTrue(tc, ok, sprintf('signature case %d must error', k));
-    end
-end
-
 function cfg = extNoiseCfg()
     % Minimal serial fixture for the noise iteration (one satellite, one
     % day, white truth): small enough for CI, large enough for the
@@ -1126,7 +977,7 @@ function acc = buildWithCovExt(cfg, days, cov)
     acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Verbose', false, 'UserOpt', uo);
     for s = cfg.sats
         acc.addSystem(s, cfg.nl, ...
-            @(d,ot,a,uo2) lsqvce.engine.synthLoader(cfg, s, d, ot, a, uo2), days);
+            @(d,ot,a,uo2) synthLoader(cfg, s, d, ot, a, uo2), days);
     end
 end
 

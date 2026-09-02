@@ -175,7 +175,7 @@ function testWindowMaxIsMeasuredFromTheAccumulation(tc)
     % nothing accumulated -> 0; after a system: min(BatchSize + overlap, rows
     % of the largest (day, obsType)) -- with a diag law the overlap is 0
     cfg = makeCfg(6, 3, 40, 2);                       % nc, arcs/day, rows/arc, nl
-    f   = @(d, ot, a, uo) lsqvce.engine.synthLoader(cfg, 1, d, ot, a, uo);
+    f   = @(d, ot, a, uo) synthLoader(cfg, 1, d, ot, a, uo);
     acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Verbose', false, 'BatchSize', 70);
     verifyEqual(tc, acc.windowMax, 0);
     acc.addSystem(1, cfg.nl, f, 1:2);

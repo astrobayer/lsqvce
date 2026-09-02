@@ -469,50 +469,6 @@ function testCrossCorrDetectsNeedsVAR(tc)
 end
 
 %% ================================================== AR order selection
-function testSelectAROrderFindsSufficientOrder(tc)
-% categories: contract | tags: diagnostics
-    dt = 5;
-    a  = [1 -1.6 0.9 -0.25];
-    f  = linspace(1e-9, 0.5/dt, 4096).';
-    H  = 1 ./ (exp(-1i*2*pi*f*dt*(0:3)) * a(:));
-    cm = struct('type','psd', 'f',f, 'S', 0.7^2*dt*2*abs(H).^2);
-
-    info = lsqvce.engine.selectArOrder(cm, dt, 'AcvTol', 1e-3, 'Verbose', false);
-    tc.verifyEqual(info.verdict, 'good');
-    tc.verifyGreaterThanOrEqual(info.p, 3);
-    tc.verifyLessThan(info.acvRelErr, 1e-3);
-end
-
-function testSelectAROrderReportsCurve(tc)
-% categories: contract
-    dt = 5;
-    a  = [1 -1.6 0.9 -0.25];
-    f  = linspace(1e-9, 0.5/dt, 2048).';
-    H  = 1 ./ (exp(-1i*2*pi*f*dt*(0:3)) * a(:));
-    cm = struct('type','psd', 'f',f, 'S', dt*2*abs(H).^2);
-
-    info = lsqvce.engine.selectArOrder(cm, dt, 'OrderGrid', [2 5 10 20 40], 'Verbose', false);
-    tc.verifyGreaterThanOrEqual(numel(info.curve), 2);
-    e = [info.curve.acvRelErr];
-    tc.verifyLessThan(e(end), e(1), 'the ACV error must fall with order');
-    tc.verifyTrue(all(isfield(info.curve, {'aic','bic','maxRoot'})));
-end
-
-function testSelectAROrderFlagsHopelessSpectrum(tc)
-% categories: contract | tags: diagnostics
-% A razor-sharp spectral line: AR cannot represent it at low order and must say
-% so rather than returning a silently bad filter.
-    dt = 1;
-    f  = linspace(1e-6, 0.5, 8192).';
-    S  = 1e-4*ones(size(f)) + 5*exp(-((f-0.1)/2e-4).^2);
-    cm = struct('type','psd', 'f',f, 'S',S);
-
-    info = lsqvce.engine.selectArOrder(cm, dt, 'OrderGrid', [2 5 10 20], ...
-                             'AcvTol', 1e-3, 'Verbose', false);
-    tc.verifyTrue(any(strcmp(info.verdict, {'marginal','bad'})));
-end
-
-%% ================================================== block-diagonal Schur
 function testBlockSchurEqualsDenseSchur(tc)
 % categories: precision
 % Arc-wise local parameters make Nll block diagonal. The block path must give

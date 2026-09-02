@@ -11,7 +11,7 @@ function tests = test_contribution
 %
 %   Fixture: the seeded synthetic multi-system / multi-obsType problem also used
 %   by test_reliability (three systems, obsTypes pos/kbr), built through
-%   lsqvce.engine.synthLoader so the arcs are deterministic across passes.
+%   synthLoader so the arcs are deterministic across passes.
 %
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-40 (F-10): the freezeR
 %   freeze-and-warn test. With assistance from Claude (Anthropic), model
@@ -440,7 +440,7 @@ function cfg = makeCfg()
 end
 
 function f = binder(cfg, s)
-    f = @(d,ot,a,uo) lsqvce.engine.synthLoader(cfg, s, d, ot, a, uo);
+    f = @(d,ot,a,uo) synthLoader(cfg, s, d, ot, a, uo);
 end
 
 %% ============================================== the Results access point

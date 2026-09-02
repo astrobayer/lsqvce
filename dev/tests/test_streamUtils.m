@@ -5,8 +5,6 @@ function tests = test_streamUtils
 %     lsqvce.kernel.whitenessCorr          whiteness statistic
 %     lsqvce.engine.collectResiduals    stack a residual field over arcs
 %     lsqvce.kernel.residualAcv temporal ACV of D^-1 v (pos + rr paths)
-%     lsqvce.engine.normalizeSatList    satellite-list normalisation
-%     lsqvce.engine.resolveSatSpecs     per-satellite spec resolution
 %
 %   Reference properties/tolerances established in validation/v9verify.py (14).
 %
@@ -147,42 +145,6 @@ function testDescaledAcvRrWhitens(tc)
     tc.verifyEqual(nSamp, 3*nE);
 end
 
-%% ===================================================== normalizeSatList
-function testNormalizeSatList(tc)
-% categories: contract, robustness
-    tc.verifyEqual(lsqvce.engine.normalizeSatList([1 2]), {1, 2});
-    tc.verifyEqual(lsqvce.engine.normalizeSatList('CD'), {'C', 'D'});
-    tc.verifyEqual(lsqvce.engine.normalizeSatList({'C','D'}), {'C', 'D'});
-    tc.verifyEqual(lsqvce.engine.normalizeSatList("C"), {'C'});
-    tc.verifyError(@() lsqvce.engine.normalizeSatList([]), 'lsqvce:normalizeSatList:empty');
-end
-
-%% ===================================================== resolveSatSpecs
-function testResolveSatSpecsOverrides(tc)
-% categories: contract
-    defaults = struct('nl', 12, 'maxLag', 128);
-    us(1).satId = 'D';  us(1).nl = 9;               % override only D.nl
-    [S, specFor] = lsqvce.engine.resolveSatSpecs({'C','D'}, us, defaults);
-
-    tc.verifyEqual(specFor('C').nl, 12);            % default kept
-    tc.verifyEqual(specFor('D').nl, 9);             % overridden
-    tc.verifyEqual(specFor('C').maxLag, 128);       % default kept
-    tc.verifyEqual(S(1).key, 's_C');                % via lsqvce.engine.satKeyOf
-    tc.verifyEqual(S(2).key, 's_D');
-    tc.verifyError(@() specFor('Z'), 'lsqvce:resolveSatSpecs:noSpec');
-end
-
-function testResolveSatSpecsNumericKeyAndErrors(tc)
-% categories: contract
-    [S, ~] = lsqvce.engine.resolveSatSpecs({1, 2}, [], struct('nl', 5));
-    tc.verifyEqual(S(1).key, 's_1');                % numeric id -> valid field
-    tc.verifyEqual(S(1).nl, 5);
-    bad.notSatId = 1;
-    tc.verifyError(@() lsqvce.engine.resolveSatSpecs({1}, bad, struct('nl',5)), ...
-                   'lsqvce:resolveSatSpecs:badSatSpec');
-end
-
-%% ===================================================== satKeyOf (public)
 function testSatKeyOf(tc)
 % categories: contract
     tc.verifyEqual(lsqvce.engine.satKeyOf('C'), 's_C');

@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html><head><meta charset="utf-8">
-<title>lsqvce.engine.whittle</title><style>
+<title>lsqvce.kernel.whittle</title><style>
 body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
        color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
        max-width: 900px; line-height: 1.5; }
@@ -40,11 +40,11 @@ a { color: #0b5ea8; }
           font-size: 12px; color: #888; }
 </style></head>
 <body>
-<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.engine.whittle</div>
-<h1>lsqvce.engine.whittle</h1>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.kernel.whittle</div>
+<h1>lsqvce.kernel.whittle</h1>
 <div class="purpose">Multichannel Levinson-Durbin: cross-ACV -&gt; VAR(p).</div>
 <h2>Syntax</h2>
-<pre class="syntax">[A, Sigma] = LSQVCE.ENGINE.WHITTLE(G, p)</pre>
+<pre class="syntax">[A, Sigma] = LSQVCE.KERNEL.WHITTLE(G, p)</pre>
 <h2>Description</h2>
 <p>Fits  z_t = sum_{k=1}^p A_k z_{t-k} + e_t,  C{e} = Sigma  to the given cross-autocovariance sequence by the Whittle recursion -- the exact multichannel generalisation of LSQVCE.KERNEL.LEVINSONDURBIN. On the EXACT ACV of a VAR(p) it returns the generating coefficients to ~1e-9, and fitting a higher order makes the extra matrices vanish (validation/v6verify.py tests 3-4) -- the same order-sufficiency signature the scalar LSQVCE.ENGINE.SELECTARORDER exploits.</p>
 <h3>Input</h3>

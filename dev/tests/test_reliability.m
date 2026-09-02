@@ -189,14 +189,14 @@ function testAccumulatorDetectsWrongArcDimensions(tc)
     cfg = tc.TestData.cfg;
 
     function out = badNc(d, ot, a, uo)
-        out = lsqvce.engine.synthLoader(cfg, 1, d, ot, a, uo);
+        out = synthLoader(cfg, 1, d, ot, a, uo);
         if ~ischar(d), out.A = out.A(:, 1:end-1); end     % wrong nc
     end
     acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Verbose',false);
     tc.verifyError(@() acc.addSystem(1, cfg.nl, @badNc, 1), 'lsqvce:accum:arcBadNc');
 
     function out = badRows(d, ot, a, uo)
-        out = lsqvce.engine.synthLoader(cfg, 1, d, ot, a, uo);
+        out = synthLoader(cfg, 1, d, ot, a, uo);
         if ~ischar(d), out.l = out.l(1:end-5); end        % A and l disagree
     end
     acc2 = lsqvce.engine.BlockAccumulator(cfg.nc, 'Verbose',false);
@@ -210,7 +210,7 @@ function testAccumulatorRejectsNaNObservations(tc)
 % loader must remove bad epochs; the accumulator cannot know which are valid.
     cfg = tc.TestData.cfg;
     function out = withNaN(d, ot, a, uo)
-        out = lsqvce.engine.synthLoader(cfg, 1, d, ot, a, uo);
+        out = synthLoader(cfg, 1, d, ot, a, uo);
         if ~ischar(d), out.l(17) = NaN; end
     end
     acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Verbose',false);
@@ -223,7 +223,7 @@ function testAccumulatorRejectsBadMeta(tc)
     cfg = tc.TestData.cfg;
     function out = badMeta(d, ot, a, uo)                  %#ok<INUSD>
         if ischar(d), out = struct('obsTypes', {{'a','b'}}, 'arcs', {{1}});
-        else,         out = lsqvce.engine.synthLoader(cfg, 1, d, ot, a, uo);
+        else,         out = synthLoader(cfg, 1, d, ot, a, uo);
         end
     end
     acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Verbose',false);
@@ -237,7 +237,7 @@ function testEmptyArcsAreSkipped(tc)
 % Data gaps are normal. An empty arc must be skipped silently, not crash.
     cfg = tc.TestData.cfg;
     function out = gappy(d, ot, a, uo)
-        out = lsqvce.engine.synthLoader(cfg, 1, d, ot, a, uo);
+        out = synthLoader(cfg, 1, d, ot, a, uo);
         if ~ischar(d) && a == 2
             out.A = zeros(0, cfg.nc);
             out.B = zeros(0, cfg.nl);
@@ -255,7 +255,7 @@ function testAllArcsEmptyIsAnError(tc)
 % A system that contributes nothing is a bug in the loader, not a valid state.
     cfg = tc.TestData.cfg;
     function out = allEmpty(d, ot, a, uo)
-        out = lsqvce.engine.synthLoader(cfg, 1, d, ot, a, uo);
+        out = synthLoader(cfg, 1, d, ot, a, uo);
         if ~ischar(d)
             out.A = zeros(0, cfg.nc);  out.B = zeros(0, cfg.nl);  out.l = [];
         end
@@ -414,7 +414,7 @@ function testUserOptIsForwardedEverywhere(tc)
             tc.verifyTrue(isfield(uo,'obsType'));
         end
         seen = seen + 1;
-        out  = lsqvce.engine.synthLoader(cfg, 1, d, ot, a, uo);
+        out  = synthLoader(cfg, 1, d, ot, a, uo);
     end
 
     acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Verbose',false, 'UserOpt',struct('myFlag',77));
@@ -431,7 +431,7 @@ function testNonDeterministicLoaderIsDetected(tc)
     call = 0;
 
     function out = drifting(d, ot, a, uo)
-        out = lsqvce.engine.synthLoader(cfg, 1, d, ot, a, uo);
+        out = synthLoader(cfg, 1, d, ot, a, uo);
         if ~ischar(d)
             call = call + 1;
             if call > 4                     % perturb only on the second pass
@@ -519,7 +519,7 @@ function cfg = makeCfg()
 end
 
 function f = binder(cfg, s)
-    f = @(d,ot,a,uo) lsqvce.engine.synthLoader(cfg, s, d, ot, a, uo);
+    f = @(d,ot,a,uo) synthLoader(cfg, s, d, ot, a, uo);
 end
 
 %% ===================================================== non-finite propagation

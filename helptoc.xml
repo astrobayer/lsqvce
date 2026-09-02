@@ -37,15 +37,11 @@
       <tocitem target="html/lsqvce.engine.ReducedContribution.html">lsqvce.engine.ReducedContribution</tocitem>
       <tocitem target="html/lsqvce.engine.residuals.html">lsqvce.engine.residuals</tocitem>
       <tocitem target="html/lsqvce.engine.mapreduce.html">lsqvce.engine.mapreduce</tocitem>
-      <tocitem target="html/lsqvce.engine.PrefetchLoader.html">lsqvce.engine.PrefetchLoader</tocitem>
-      <tocitem target="html/lsqvce.engine.synthLoader.html">lsqvce.engine.synthLoader</tocitem>
     </tocitem>
     <tocitem target="html/index.html">Separable-GLS helpers (GRACE-FO drivers live in examples/gravity)
       <tocitem target="html/lsqvce.engine.collectResiduals.html">lsqvce.engine.collectResiduals</tocitem>
       <tocitem target="html/lsqvce.kernel.residualAcv.html">lsqvce.kernel.residualAcv</tocitem>
       <tocitem target="html/lsqvce.kernel.whitenessCorr.html">lsqvce.kernel.whitenessCorr</tocitem>
-      <tocitem target="html/lsqvce.engine.resolveSatSpecs.html">lsqvce.engine.resolveSatSpecs</tocitem>
-      <tocitem target="html/lsqvce.engine.normalizeSatList.html">lsqvce.engine.normalizeSatList</tocitem>
       <tocitem target="html/lsqvce.engine.satKeyOf.html">lsqvce.engine.satKeyOf</tocitem>
       <tocitem target="html/lsqvce.engine.selectArAcv.html">lsqvce.engine.selectArAcv</tocitem>
     </tocitem>
@@ -66,7 +62,6 @@
       <tocitem target="html/lsqvce.engine.vce.html">lsqvce.engine.vce</tocitem>
       <tocitem target="html/lsqvce.engine.varComp.html">lsqvce.engine.varComp</tocitem>
       <tocitem target="html/lsqvce.engine.vceHutchinson.html">lsqvce.engine.vceHutchinson</tocitem>
-      <tocitem target="html/lsqvce.engine.poolGroups.html">lsqvce.engine.poolGroups</tocitem>
       <tocitem target="html/lsqvce.engine.traceEstimate.html">lsqvce.engine.traceEstimate</tocitem>
       <tocitem target="html/lsqvce.engine.contribution.html">lsqvce.engine.contribution</tocitem>
       <tocitem target="html/lsqvce.engine.streamContribution.html">lsqvce.engine.streamContribution</tocitem>
@@ -89,14 +84,12 @@
       <tocitem target="html/lsqvce.kernel.armaWhiten.html">lsqvce.kernel.armaWhiten</tocitem>
       <tocitem target="html/lsqvce.kernel.decorrFactor.html">lsqvce.kernel.decorrFactor</tocitem>
       <tocitem target="html/lsqvce.kernel.levinsonDurbin.html">lsqvce.kernel.levinsonDurbin</tocitem>
-      <tocitem target="html/lsqvce.engine.whittle.html">lsqvce.engine.whittle</tocitem>
+      <tocitem target="html/lsqvce.kernel.whittle.html">lsqvce.kernel.whittle</tocitem>
       <tocitem target="html/lsqvce.kernel.ar2arma.html">lsqvce.kernel.ar2arma</tocitem>
       <tocitem target="html/lsqvce.kernel.armaACV.html">lsqvce.kernel.armaACV</tocitem>
       <tocitem target="html/lsqvce.kernel.varACV.html">lsqvce.kernel.varACV</tocitem>
       <tocitem target="html/lsqvce.kernel.psd2acv.html">lsqvce.kernel.psd2acv</tocitem>
       <tocitem target="html/lsqvce.kernel.crossCorr.html">lsqvce.kernel.crossCorr</tocitem>
-      <tocitem target="html/lsqvce.engine.selectArOrder.html">lsqvce.engine.selectArOrder</tocitem>
-      <tocitem target="html/lsqvce.engine.iterateNoiseModel.html">lsqvce.engine.iterateNoiseModel</tocitem>
       <tocitem target="html/lsqvce.engine.checkPSD.html">lsqvce.engine.checkPSD</tocitem>
       <tocitem target="html/lsqvce.engine.gcvLambda.html">lsqvce.engine.gcvLambda</tocitem>
     </tocitem>
@@ -116,7 +109,6 @@
       <tocitem target="html/lsqvce.util.log.html">lsqvce.util.log</tocitem>
       <tocitem target="html/lsqvce.util.verbosity.html">lsqvce.util.verbosity</tocitem>
       <tocitem target="html/lsqvce.util.showExport.html">lsqvce.util.showExport</tocitem>
-      <tocitem target="html/lsqvce.util.hasBackgroundPool.html">lsqvce.util.hasBackgroundPool</tocitem>
     </tocitem>
   </tocitem>
 </toc>

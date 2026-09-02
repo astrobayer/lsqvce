@@ -31,7 +31,7 @@ function [Aw, Bw, lw] = varWhiten(Avar, Sigma, G, d, A, B, l, isFirstBatch)
 %     scalar filter path; same failure mode if the overlap is forced to 0.
 %
 %   INPUT
-%     Avar    d x d x p     VAR coefficient matrices (LSQVCE.ENGINE.WHITTLE output)
+%     Avar    d x d x p     VAR coefficient matrices (LSQVCE.KERNEL.WHITTLE output)
 %     Sigma   d x d         innovation covariance
 %     G       d x d x >=p   Gamma(0..) for the startup block (LSQVCE.KERNEL.VARACV, or
 %                           the empirical cross-ACV the model was fitted on)
@@ -60,7 +60,7 @@ function [Aw, Bw, lw] = varWhiten(Avar, Sigma, G, d, A, B, l, isFirstBatch)
 %     lsqvce:varWhiten:notWholeEpochs  the batch does not contain whole epochs:
 %                                   rows must be EPOCH-MAJOR and nAxis = d
 %
-%   See also LSQVCE.ENGINE.WHITTLE, LSQVCE.KERNEL.VARACV, LSQVCE.KERNEL.SEPARABLEWHITEN, LSQVCE.KERNEL.ARMAWHITEN
+%   See also LSQVCE.KERNEL.WHITTLE, LSQVCE.KERNEL.VARACV, LSQVCE.KERNEL.SEPARABLEWHITEN, LSQVCE.KERNEL.ARMAWHITEN
 %
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.

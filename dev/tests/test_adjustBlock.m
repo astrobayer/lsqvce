@@ -5,7 +5,7 @@ function tests = test_adjustBlock
 %     lsqvce.Results      solution + diagnostics + provenance object
 %     lsqvce.engine.makeLoader   day-builder -> accumulator-ready Loader
 %
-%   Both the legacy closure path (via lsqvce.engine.synthLoader) and the new
+%   Both the legacy closure path (via synthLoader) and the new
 %   makeLoader path must recover the synthetic truth and return sigma0 ~ 1.
 %
 %   Run: runtests('tests/test_adjustBlock')
@@ -24,7 +24,7 @@ function testAdjustBlockResultHasNoIterationHistory(tc)
     % a hand-built Results); adjustBlock is where an empty history occurs
     % naturally.
     cfg = synthCfg();
-    loader = @(d,ot,a,uo) lsqvce.engine.synthLoader(cfg, 1, d, ot, a, uo);
+    loader = @(d,ot,a,uo) synthLoader(cfg, 1, d, ot, a, uo);
     sys = struct('sysID',1, 'nl',cfg.nl, 'nc',cfg.nc, 'loader',loader);
     R = lsqvce.engine.adjustBlock(sys, 1:3);
 
@@ -83,14 +83,14 @@ function testRawClosureHonoursPerSatelliteOverride(tc)
 % categories: contract, robustness | tags: diagnostics
     % R4 finding G-06: adjustVCE emits its reweighting ONLY as
     % opt.covOverride.bySys.(satKey).(obsType) (adjustVCE.m covOverrideOpt),
-    % while the raw-closure template lsqvce.engine.synthLoader read only the flat
+    % while the raw-closure template synthLoader read only the flat
     % opt.covOverride.(obsType) -- a template-derived loader therefore
     % ignored every variance component under adjustVCE, and no VCE suite
     % drove a raw closure, so nothing caught it. Both shapes now resolve
     % through the ONE package-private applyCovOverride; this test drives the
     % template with each shape and pins that they whiten identically.
     cfg = synthCfg();
-    loader = @(d,ot,a,uo) lsqvce.engine.synthLoader(cfg, 1, d, ot, a, uo);
+    loader = @(d,ot,a,uo) synthLoader(cfg, 1, d, ot, a, uo);
     uo0 = struct('sysID', 1);
     b0  = loader(1, 'kbr', 1, uo0);                    % base: diag sigma 0.2
     idx = 1:numel(b0.l);
@@ -125,7 +125,7 @@ end
 function testRecoverSynthClosure(tc)
 % categories: contract, precision
     cfg = synthCfg();
-    loader = @(d,ot,a,uo) lsqvce.engine.synthLoader(cfg, 1, d, ot, a, uo);
+    loader = @(d,ot,a,uo) synthLoader(cfg, 1, d, ot, a, uo);
     sys = struct('sysID',1, 'nl',cfg.nl, 'nc',cfg.nc, 'loader',loader);
     R = lsqvce.engine.adjustBlock(sys, 1:3);
     tc.verifyClass(R, 'lsqvce.Results');
@@ -434,7 +434,7 @@ function testRecoverRawClosureIgnoresPlotOpts(tc)
     % ShowSeconds/ExportDir are set -- it must never look for .plotPostSolve on a
     % bare handle and error. (Guards the "raw closures are first-class" claim.)
     cfg = synthCfg();
-    loader = @(d,ot,a,uo) lsqvce.engine.synthLoader(cfg, 1, d, ot, a, uo);
+    loader = @(d,ot,a,uo) synthLoader(cfg, 1, d, ot, a, uo);
     sys = struct('sysID',1, 'nl',cfg.nl, 'nc',cfg.nc, 'loader',loader);
     R = lsqvce.engine.adjustBlock(sys, 1:3, 'ShowSeconds', 0, 'ExportDir', '');
     tc.verifyClass(R, 'lsqvce.Results');
@@ -545,7 +545,7 @@ function D = captureBuild(cfg, day, obsType, common, local, procOpt)
 end
 
 function cfg = synthCfg()
-% cfg in the exact shape lsqvce.engine.synthLoader expects.
+% cfg in the exact shape synthLoader expects.
     cfg = struct('nc',6, 'nl',4, 'arcsPerDay',2, 'mArc',300, 'dt',5, ...
                  'seed',42, 'collinear',false, 'collinearEps',1e-7);
     cfg.obsTypes = {'pos','kbr'};

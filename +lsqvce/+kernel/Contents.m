@@ -19,3 +19,4 @@
 %   varACV               - VAR autocovariance
 %   varWhiten            - VAR whitening
 %   whitenessCorr        - whiteness (Ljung-Box) statistic
+%   whittle            - multichannel Levinson (Whittle) VAR fit (moved from engine, R5 M2)
