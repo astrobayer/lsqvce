@@ -175,8 +175,11 @@ fprintf('SUMMARY OF VERDICTS\n');
 fprintf('################################################################\n');
 names = {'clean', 'outliers', 'systematic', 'uncontrolled', ...
          'wrong weights', 'collinear'};
-verds = {R.source.verdict, R2.source.verdict, R3.source.verdict, ...
-         R4.source.verdict, R5.source.verdict, R6.source.verdict};
+% the one-line verdict is report()'s (R5 M2: every kind rides the block path,
+% so R.source is the sweep's solution struct, not the flat driver's verdict)
+verdictOf = @(Rk) Rk.report('Verbose', false).verdict;
+verds = {verdictOf(R), verdictOf(R2), verdictOf(R3), ...
+         verdictOf(R4), verdictOf(R5), verdictOf(R6)};
 for i = 1:numel(names)
     fprintf('  %-16s -> %s\n', names{i}, verds{i});
 end

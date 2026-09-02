@@ -392,34 +392,38 @@ end
 %% ================================================ WP-56b: kinds B and C
 function testMatrixKindReproducesAdjust(tc)
 % categories: reference, contract
-    % R4 WP-56b: fit(data) with data.A / .l / .p is exactly lsqvce.engine.adjust on
-    % one batch -- same driver, same options -- so x, sigma0, Cxx and the
-    % per-observation diagnostics are byte-identical.
+    % R5 M2 (WP-81 2a): fit(data) with data.A / .l / .p rides the BLOCK path
+    % as one local-free system (finding H-02). The flat driver
+    % lsqvce.engine.adjust is the REFERENCE until round 2b retires it: x,
+    % sigma0 and Cxx agree to rounding; the per-observation residual of the
+    % block path is the WHITENED one, sqrt(p).*v (the rows were pre-whitened
+    % so the declared law is diag(1)) -- pinned as that exact relation.
     [A, l, p] = matrixFixture();
     data = struct('A', A, 'l', l, 'p', p);
     R = lsqvce.fit(data, lsqvce.Options(Verbose=false));
-    [sol, D, V] = lsqvce.engine.adjust(size(A, 2), @(k) deal(A, l, p), 1, 'Verbose', false);
+    [sol, D, ~] = lsqvce.engine.adjust(size(A, 2), @(k) deal(A, l, p), 1, 'Verbose', false);
     tc.verifyClass(R, 'lsqvce.Results');
-    % tol: exact -- identical code path and inputs
-    tc.verifyEqual(R.x, sol.x(:));
-    tc.verifyEqual(R.diag.v, D.v);
-    % the bridge restores the STREAMING Results contract: sigma0 a posteriori,
-    % Cxx = s0sq * Qxx (the batch driver's sol carries the a-priori Sigma0 and
-    % no Cxx -- the r1 CI catch of this level)
-    % tol: exact -- same arithmetic as lsqvce.engine.diagnose, same numbers
-    tc.verifyEqual(R.sigma0, sqrt(sol.s0sq));
-    tc.verifyEqual(R.sol.sigma0Prior, sol.sigma0);
-    tc.verifyEqual(R.sol.Cxx, sol.s0sq * D.Qxx);
-    tc.verifyEqual(R.source.verdict, V.verdict, 'the verdict rides on R.source');
-    tc.verifyEmpty(R.acc);
+    % tol: 1e-12 relative -- two accumulation orders / backends (flat normal
+    % vs block QR) of one well-conditioned 30 x 3 problem, cond ~ 1e1
+    tc.verifyEqual(R.x, sol.x(:), 'RelTol', 1e-12);
+    tc.verifyEqual(R.sigma0, sqrt(sol.s0sq), 'RelTol', 1e-12);
+    % tol: 1e-10 relative / 1e-14 absolute -- Cxx and the residual carry the
+    % squared conditioning of the two routes (QR vs normal); 100x the x bound
+    tc.verifyEqual(R.sol.Cxx, sol.s0sq * D.Qxx, 'RelTol', 1e-10, 'AbsTol', 1e-14);
+    % tol: as above (whitened residual, same two routes)
+    tc.verifyEqual(R.diag.v, sqrt(p(:)) .* D.v, 'RelTol', 1e-10, 'AbsTol', 1e-14, ...
+        'the block path reports the whitened residual sqrt(p).*v');
+    tc.verifyNotEmpty(R.acc, 'kind B now carries the accumulator');
     tc.verifyEqual(R.meta.options.kind, 'matrix');
-    % the user-facing conveniences work without an accumulator ...
+    tc.verifyEqual(R.meta.options.Model, "gls", 'the resolved USER options are the provenance');
+    % the user-facing conveniences ...
     T = R.coefficients();
     tc.verifyEqual(T.estimate, R.x);
     tc.verifyEqual(idOf(@() R.report('Verbose', false)), '', 'report() must run on a kind-B Results');
-    % ... and the streaming-only ones refuse with ONE clear id
-    tc.verifyEqual(idOf(@() R.residuals()), 'lsqvce:Results:noAccumulator');
-    tc.verifyEqual(idOf(@() R.contribution()), 'lsqvce:Results:noAccumulator');
+    % ... and the streaming-only ones now WORK on kind B (the point of 2a)
+    res = R.residuals();
+    tc.verifyTrue(isstruct(res) || iscell(res) || istable(res), 'residuals() runs on kind B');
+    tc.verifyEqual(idOf(@() R.contribution()), '', 'contribution() runs on kind B');
 end
 
 function testMatrixKindRobustReproducesRobust(tc)
@@ -472,9 +476,10 @@ function testBatchKindLinearReproducesAdjust(tc)
     data = struct('batchFcn', bf, 'numUnknowns', size(A, 2), 'numBatches', 2);
     R = lsqvce.fit(data, lsqvce.Options(Verbose=false));
     [sol, ~, ~] = lsqvce.engine.adjust(size(A, 2), bf, 2, 'Verbose', false);
-    % tol: exact -- identical code path and inputs
-    tc.verifyEqual(R.x, sol.x(:));
-    tc.verifyEqual(R.nBatch, 2);
+    % tol: 1e-12 relative -- block path (batch k = day k) vs the flat driver
+    tc.verifyEqual(R.x, sol.x(:), 'RelTol', 1e-12);
+    tc.verifyEqual(R.meta.options.kind, 'batch');
+    tc.verifyEqual(numel(R.meta.options.NumLags), 1, 'resolved options carried');
 end
 
 function testKindsBAndCRulesFireBeforeAnyRead(tc)

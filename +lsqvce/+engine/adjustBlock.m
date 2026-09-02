@@ -101,6 +101,10 @@ function R = adjustBlock(systems, days, opt)
 %     lsqvce:adjustBlock:noDays      no day list, and none derivable from the
 %                                    loaders (set 'days' on either)
 %
+%   'Provenance'  struct  (R5 M2) the resolved user option struct recorded in
+%                 Results.meta.options (fit passes opts.toStruct() + .kind);
+%                 struct() = record the driver's own resolved options
+%
 %   See also LSQVCE.RESULTS, LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTVCE,
 %            LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.DIAGNOSEACCUM, LSQVCE.ENGINE.DIAGNOSE,
 %            LSQVCE.REPORT, LSQVCE.UTIL.SHOWEXPORT
@@ -141,6 +145,10 @@ arguments
     opt.Verbose  (1,1) logical = false
     opt.ShowSeconds (1,1) double = 0
     opt.ExportDir (1,1) string = ""
+    opt.Provenance struct = struct()     % R5 M2: the RESOLVED user options to record
+                                         % in Results.meta instead of this driver's own
+                                         % option struct (lsqvce.fit passes opts.toStruct()
+                                         % with .kind); empty = record o (engine-tier use)
 end
     narginchk(2, inf);
     % WP-39 stage (a): typed `arguments` signature; names UpperCamelCase
@@ -180,8 +188,12 @@ end
 
     % WP-44: run provenance through the ONE composer -- adjustBlock resolves
     % no RNG seed (empty struct), and o IS its resolved option struct.
+    prov = o;                                   % engine-tier call: its own options
+    if isfield(opt, 'Provenance') && ~isempty(fieldnames(opt.Provenance))
+        prov = opt.Provenance;                  % fit: the user's resolved Options
+    end
     R = lsqvce.Results(sol, D, acc, dsol, batchFcn, nB, specs, ...
-                       lsqvce.engine.runMeta(struct(), o));
+                       lsqvce.engine.runMeta(struct(), prov));
 
     % ---- postSolve plot hooks (single-solve; no postModel seam) -----------
     firePostSolvePlots(loaders, R, double(o.showSeconds), char(o.exportDir));
