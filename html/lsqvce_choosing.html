@@ -115,8 +115,8 @@ visibly tight agreement on well-conditioned problems.</div>
 
 <div class="warn"><b>Where Hutchinson is wired today.</b> The matrix-free backend
 is a REAL substitution on the FLAT path &mdash;
-<a href="lsqvce.engine.vceHutchinson.html">lsqvce.engine.vceHutchinson</a> and
-<a href="lsqvce.engine.varComp.html">lsqvce.engine.varComp</a><code>(...,'backend','hutchinson')</code>.
+<code>lsqvce.engine.vceHutchinson</code> (retired R5 M2) and
+<code>lsqvce.engine.varComp</code> (retired R5 M2)<code>(...,'backend','hutchinson')</code>.
 On the block-arrow paths (<a href="lsqvce.engine.vce.html">lsqvce.engine.vce</a>,
 <code>Combine.varComp</code>) <code>'traceMethod','hutchinson'</code> is only a
 machinery check; the streaming block-arrow substitution is on the roadmap.</div>
@@ -139,6 +139,6 @@ VC = lsqvce.engine.varComp(u, batchFcn, nBatch, groupFcn, nGroup);
 VC = lsqvce.engine.varComp(u, batchFcn, nBatch, groupFcn, nGroup, ...
         'backend','hutchinson', 'probes',4000);</pre>
 
-<div class="seealso"><b>See also:</b> <a href="lsqvce.engine.adjust.html">lsqvce.engine.adjust</a>, <a href="lsqvce.engine.adjustBlock.html">lsqvce.engine.adjustBlock</a>, <a href="lsqvce.engine.adjustVCE.html">lsqvce.engine.adjustVCE</a>, <a href="lsqvce.engine.varComp.html">lsqvce.engine.varComp</a>, <a href="lsqvce.engine.vceHutchinson.html">lsqvce.engine.vceHutchinson</a>, <a href="lsqvce.engine.vce.html">lsqvce.engine.vce</a></div>
+<div class="seealso"><b>See also:</b> <a href="lsqvce.engine.adjust.html">lsqvce.engine.adjust</a>, <a href="lsqvce.engine.adjustBlock.html">lsqvce.engine.adjustBlock</a>, <a href="lsqvce.engine.adjustVCE.html">lsqvce.engine.adjustVCE</a>, <code>lsqvce.engine.varComp</code> (retired R5 M2), <code>lsqvce.engine.vceHutchinson</code> (retired R5 M2), <a href="lsqvce.engine.vce.html">lsqvce.engine.vce</a></div>
 <div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Choosing-an-engine guide generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-17 (CEST, UTC+02:00).</div>
 </body></html>

@@ -15,3 +15,4 @@
 # in the same round, none by exemption.
 unit,category,reason
 engine.runMeta,contract,promoted from private (WP-64a); its contract is Results.meta's -- pinned by test_adjustBlock/test_fit provenance points that read R.meta, never called by name
+engine.ReducedContribution,contract,contract points lived in test_lsqvce_combine (deleted with Combine in R5 M2); exercised by every block-path solve (test_adjustBlock); absorbed into the one accumulator in M4

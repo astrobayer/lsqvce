@@ -12,11 +12,9 @@
 %   adjustVCEjoint       - Ellmer ten-step joint co-estimation with keyed arc factors
 %   applyRegularisation  - regularisation of the reduced system
 %   arcVarianceFactors   - per-arc variance factors
-%   BatchIndex           - batch/arc index bookkeeping
 %   BlockAccumulator     - block-arrow accumulation with per-system Schur pre-elimination
 %   checkPSD             - PSD sanity check
 %   collectResiduals     - residual collection per stream
-%   Combine              - normal-equation combination of systems
 %   CommonPrior          - prior on the common block (regularisation as observations)
 %   contribution         - information contribution per group
 %   covComponent         - covariance component estimation
@@ -52,7 +50,5 @@
 %   streamContribution   - contribution per stream
 %   systematic           - systematic-effect test
 %   traceEstimate        - stochastic trace estimate
-%   varComp              - variance-component estimation helper
 %   vce                  - Helmert group variance components (exact | hutchinson)
-%   vceHutchinson        - Hutchinson redundancy/trace estimator for vce
 %   runMeta              - immutable provenance record for Results.meta

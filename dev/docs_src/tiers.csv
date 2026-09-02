@@ -13,18 +13,14 @@ engine.solveNonlinear,ENGINE,Gauss-Newton / damped iteration over the batch driv
 engine.makeLoader,ENGINE,"day-builder -> Loader (built INSIDE fit from the data struct, R4-D4)"
 engine.BlockAccumulator,ENGINE,block-arrow accumulation with per-system Schur pre-elimination
 engine.Accumulator,ENGINE,plain batch accumulator
-engine.Combine,ENGINE,normal-equation combination of systems
 engine.CommonPrior,ENGINE,prior on the common block (regularisation as observations)
 engine.NormalEqSystem,ENGINE,normal-equation backend
 engine.QRSystem,ENGINE,QR backend
-engine.BatchIndex,ENGINE,batch/arc index bookkeeping
 engine.ReducedContribution,ENGINE,reduced-normal contribution bookkeeping
 engine.vce,ENGINE,Helmert group variance components (exact | hutchinson)
-engine.vceHutchinson,ENGINE,Hutchinson redundancy/trace estimator for vce
 engine.psdVCE,ENGINE,PSD amplitude + arc-factor VCE (Ellmer workhorse)
 engine.arcVarianceFactors,ENGINE,per-arc variance factors
 engine.covComponent,ENGINE,covariance component estimation
-engine.varComp,ENGINE,variance-component estimation helper
 engine.snoop,ENGINE,block-native data snooping and downweighting
 engine.outliers,ENGINE,outlier listing from diagnostics
 engine.diagnose,ENGINE,per-observation diagnostics (batch)

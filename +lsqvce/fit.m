@@ -602,7 +602,14 @@ function R = runBatch(u, batchFcn, nBatch, x0, opts, kind)
             ['Model "%s" needs the streaming kind (variance components are per ' ...
              'group of a system); the %s kind is Model "gls".'], opts.Model, kind);
     end
-    if isempty(x0)
+    % R5 M2 2c: DatumB (minimum-constraint datum), Sigma0 (a-priori sigma0)
+    % and Sparse are FLAT-path options with no block-path home yet (the
+    % block accumulator has no datum machinery; M5's priors give it one).
+    % Round 2a routed every linear problem to the block path and would have
+    % IGNORED them -- the silent outcome the doctrine forbids. Until M5 a
+    % problem that sets any of them runs on the flat drivers, as before.
+    flatOnly = ~isempty(opts.DatumB) || opts.Sigma0 ~= 1 || opts.Sparse;
+    if isempty(x0) && ~flatOnly
         R = runBatchOnBlockPath(u, batchFcn, nBatch, opts, kind);   % gls, and IRLS (2b)
         return
     end
