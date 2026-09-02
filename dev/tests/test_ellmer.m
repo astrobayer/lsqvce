@@ -700,7 +700,8 @@ function test_jointModelOpt_emits_a_psd_on_normalised_frequency(tc)
     tc.verifyEqual(spec.fNorm(end), 0.5);
     tc.verifyTrue(all(spec.S > 0), 'positive by construction');
     for dt = [1 5]
-        r = lsqvce.kernel.psd2acv(spec.fNorm / dt, spec.S, dt, 4);
+        % on the physical axis f = fNorm/dt the density is S*dt (covModel does this)
+        r = lsqvce.kernel.psd2acv(spec.fNorm / dt, spec.S * dt, dt, 4);
         % tol: 5e-2 absolute -- trapezoidal quadrature of a 4-term cosine
         % series on 4 grid points reproduces c(1..3) to a few percent; the
         % SHAPE (c(1) = 1, monotone decay) is the claim, exactness is not
