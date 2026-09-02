@@ -185,9 +185,10 @@ function testRobustRunsOnTheStreamingKind(tc)
     tc.verifyEqual(R.stopReason, "converged");
     fac = R.history(end).factor;
     tc.verifyGreaterThan(mean(fac), 0.9, 'clean data: almost every factor is 1');
-    % tol: 1e-2 relative -- Huber leaves ~5 % of Gaussian rows below 1, so the
-    % robust and the GLS estimates differ at the level of those rows' share
-    tc.verifyEqual(R.x, R0.x, 'RelTol', 1e-2);
+    % tol: 3e-3 absolute -- Huber leaves ~5 % of Gaussian rows below 1, so the
+    % robust and the GLS estimates differ by a fraction of those rows' share
+    % (parameters are O(1); the smallest, O(0.03), moved by 1.3e-3 on r1)
+    tc.verifyEqual(R.x, R0.x, 'AbsTol', 3e-3);
     tc.verifyEqual(R.meta.options.kind, 'stream');
 end
 
