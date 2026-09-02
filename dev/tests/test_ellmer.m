@@ -1273,9 +1273,13 @@ function test_joint_keyed_skip_keeps_factors_aligned(tc)
     runA  = lsqvce.engine.adjustVCEjoint(@(m) jointAccPDToggle(cfg, m, [], badArc), ...
                 'NumLags', 6, 'MaxIter', 2, 'Probes', 150, 'Seed', 5, ...
                 'Verbose', false);
+    % 1 of 2 arcs skipped is a 50 % skip RATE: above the default
+    % SkipThreshold the run REFUSES (R5 M1, tested below); this test is
+    % about the alignment of the survivors, so the threshold is raised
+    % deliberately -- the documented way.
     runB  = lsqvce.engine.adjustVCEjoint(@(m) jointAccPDToggle(cfg, m, 2, badArc), ...
                 'NumLags', 6, 'MaxIter', 2, 'Probes', 150, 'Seed', 5, ...
-                'Verbose', false);
+                'SkipThreshold', 1, 'Verbose', false);
 
     verifyEqual(tc, runB.arcKeys, runA.arcKeys, ...
         'the pinned arc identity must not depend on skips');
@@ -1295,6 +1299,26 @@ function test_joint_keyed_skip_keeps_factors_aligned(tc)
     % the WP-34 approved renormalisation bound (ledger row 34)
     verifyEqual(tc, runB.sigma2(others), runA.sigma2(others), ...
         'RelTol', 0.15, 'non-skipped factors track the no-skip run');
+end
+
+
+function test_joint_skip_rate_above_threshold_refuses(tc)
+% categories: contract, robustness
+    % R5 M1 (WP-80): a skip RATE above SkipThreshold is a REFUSAL, not a
+    % smaller estimate. Same fixture as the alignment test: pass 2 makes one
+    % of two arcs non-PD (50 %), which exceeds the default 20 %.
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');
+    cfg = jointCfg();
+    badArc = 2;
+    w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
+    verifyError(tc, @() lsqvce.engine.adjustVCEjoint(@(m) jointAccPDToggle(cfg, m, 2, badArc), ...
+                'NumLags', 6, 'MaxIter', 2, 'Probes', 150, 'Seed', 5, 'Verbose', false), ...
+                'lsqvce:adjustVCEjoint:skipThreshold');
+    % at exactly the rate (0.5) the run is NOT refused: strictly greater refuses
+    runB = lsqvce.engine.adjustVCEjoint(@(m) jointAccPDToggle(cfg, m, 2, badArc), ...
+                'NumLags', 6, 'MaxIter', 2, 'Probes', 150, 'Seed', 5, ...
+                'SkipThreshold', 0.5, 'Verbose', false);
+    verifyEqual(tc, size(runB.skips, 1), 1);
 end
 
 function test_joint_arc_mismatch_raises(tc)
