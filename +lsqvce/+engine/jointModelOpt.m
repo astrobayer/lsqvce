@@ -144,45 +144,55 @@ end
     % declared level times its own factor (sigmaScale, applied by
     % applyCovOverride) -- one global level would erase the scale difference
     % between, say, range-rate and positions (found on the demo: RCOND 1e-50).
-    L = numel(C);
-    Cn = C(:) / max(C(1), eps);
-    fNorm = (0:L-1).' / (2*(L-1));                       % 0 .. 0.5 cycles/sample
-    n = 1:L-1;
-    S = 2 * (Cn(1) + 2 * (cos(2*pi*fNorm*n) * Cn(2:end)));
-    S = max(S, eps * max(S));
-    spec = o.Base;
-    spec.type  = 'psd';
-    spec.fNorm = fNorm;
-    spec.S     = S;
+    [spec, specSep] = lawSpecs(C, o.Base, opt);
     % R5 M3 (H-15): the SEPARABLE form of the same law -- an AR(p) fitted to C
     % by Levinson, innovation std scaled by sig; the base spec's type, axis
     % count d and per-epoch Cep survive the merge because they are not set here
-    specSep = [];
-    if ~isempty(opt.Separable)
-        p = min(opt.ArOrder, numel(C) - 1);
-        [ar, s2i] = lsqvce.kernel.levinsonDurbin(Cn, p);
-        specSep = struct('ar', reshape(ar, 1, []), 'sigmaScaleShape', sqrt(max(s2i, eps)));
-    end
     sepKeys = cellfun(@(s) char(string(s)), opt.Separable, 'UniformOutput', false);
     perStream = [];
     if isfield(model, 'streamSigma2'), perStream = model.streamSigma2; end
 
     % ---- pack into opt.covOverride.bySys.(satKey).(obsType) (convention 2) --
+    % R5 M3 3d: per-stream POLICY (model.Estimate: 'none' -> no override at
+    % all; 'scale' -> the level only, on the declared law; 'law' -> the
+    % PSD shape of the stream's pool group (model.Cgroups / model.Pool)
+    % plus the level).
+    E = [];  Cg = [];  pool = 'all';
+    if isfield(model, 'Estimate'), E = model.Estimate; end
+    if isfield(model, 'Cgroups'),  Cg = model.Cgroups; end
+    if isfield(model, 'Pool'),     pool = lower(char(model.Pool)); end
     bySys = struct();
     for k = 1:numel(streams)
         [satKey, ot] = splitStreamKey(streams{k});
-        if ~isfield(bySys, satKey), bySys.(satKey) = struct(); end
         key = sprintf('%s|%s', satKey, ot);
+        pol = 'law';
+        if ~isempty(E) && isKey(E, key), pol = lower(char(E(key))); end
+        if strcmp(pol, 'none'), continue, end            % untouched: no override
+        if ~isfield(bySys, satKey), bySys.(satKey) = struct(); end
         lvl = o.Sigma;                                   % relative to the declared sigma
         if ~isempty(perStream) && isKey(perStream, key)
             lvl = lvl * sqrt(max(perStream(key), eps));
         elseif s2 ~= 1
             lvl = lvl * sqrt(max(s2, eps));              % no per-stream factor: the mean
         end
-        if ~isempty(specSep) && any(strcmp(sepKeys, key))
-            sp = struct('ar', specSep.ar, 'sigmaScale', lvl * specSep.sigmaScaleShape);
+        if strcmp(pol, 'scale')
+            bySys.(satKey).(ot) = struct('sigmaScale', lvl);
+            continue
+        end
+        % 'law': the group's C when a per-group estimate exists, else the pooled C
+        switch pool
+            case 'obstype', gk = ot;
+            case 'stream',  gk = key;
+            otherwise,      gk = 'all';
+        end
+        spK = spec;  sepK = specSep;
+        if ~isempty(Cg) && isKey(Cg, gk) && ~strcmp(gk, 'all')
+            [spK, sepK] = lawSpecs(Cg(gk), o.Base, opt);
+        end
+        if ~isempty(sepK) && any(strcmp(sepKeys, key))
+            sp = struct('ar', sepK.ar, 'sigmaScale', lvl * sepK.sigmaScaleShape);
         else
-            sp = spec;  sp.sigmaScale = lvl;
+            sp = spK;  sp.sigmaScale = lvl;
         end
         bySys.(satKey).(ot) = sp;
     end
@@ -207,4 +217,27 @@ function [satKey, ot] = splitStreamKey(s)
     end
     satKey = matlab.lang.makeValidName(char(parts(1)));
     ot     = char(parts(2));
+end
+
+function [spec, specSep] = lawSpecs(C, base, opt)
+%LAWSPECS  The PSD-shape spec (and its separable AR form) of one covariance
+%   function C (sample lags): S(fNorm) = 2 [C_0 + 2 sum_n C_n cos(2 pi fNorm n)]
+%   on L points 0..0.5, normalised to C(1) = 1, floored at eps*max.
+    C = C(:);
+    L = numel(C);
+    Cn = C / max(C(1), eps);
+    fNorm = (0:L-1).' / (2*(L-1));
+    n = 1:L-1;
+    S = 2 * (Cn(1) + 2 * (cos(2*pi*fNorm*n) * Cn(2:end)));
+    S = max(S, eps * max(S));
+    spec = base;
+    spec.type  = 'psd';
+    spec.fNorm = fNorm;
+    spec.S     = S;
+    specSep = [];
+    if ~isempty(opt.Separable)
+        p = min(opt.ArOrder, L - 1);
+        [ar, s2i] = lsqvce.kernel.levinsonDurbin(Cn, p);
+        specSep = struct('ar', reshape(ar, 1, []), 'sigmaScaleShape', sqrt(max(s2i, eps)));
+    end
 end

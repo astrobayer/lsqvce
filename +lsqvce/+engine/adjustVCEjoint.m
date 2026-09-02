@@ -195,6 +195,11 @@ arguments
     opt.StepSchedule (1,1) string {mustBeMember(opt.StepSchedule, ["none","decay"])} = "none"
     opt.AvgTail  (1,1) double {mustBeInteger, mustBeNonnegative} = 0
     opt.SkipThreshold (1,1) double {mustBeInRange(opt.SkipThreshold, 0, 1)} = 0.2
+    % R5 M3 3d: per-stream policy (WP-83, decision R5-D4). Streams are keyed
+    % 'satKey|obsType' (matlab.lang.makeValidName of the system id).
+    opt.Pool (1,1) string {mustBeMember(opt.Pool, ["all","obsType","stream"])} = "all"
+    opt.Estimate = []            % containers.Map key -> "none"|"scale"|"law"; [] = "law" for all
+    opt.ArcFactors = []          % containers.Map key -> logical;              [] = true for all
     opt.Verbose  (1,1) logical = false
 end
     o = opt;
@@ -217,6 +222,7 @@ end
     hist = struct('maxDev', [], 'Shat', [], 'skips', {cell(0,3)});
     converged = false;
     accF = []; solF = []; Shat = [];
+    Cmap = containers.Map('KeyType', 'char', 'ValueType', 'any');   % R5 M3 3d: C per pool group
     pinnedKeys = {};                     % WP-34: pass-1 arc identity
     s2Map = [];                          % keyed factors; built on pass 1
 
@@ -226,7 +232,8 @@ end
         % R5 M3 3b: the caller's override needs a LEVEL per stream (the pooled
         % C is a shape): the mean arc factor of every 'satKey|obsType' stream
         model = struct('C', C, 'sigma2', sigma2, 'iter', it, ...
-                       'streamSigma2', streamMeans(pinnedKeys, sigma2));
+                       'streamSigma2', streamMeans(pinnedKeys, sigma2), ...
+                       'Cgroups', Cmap, 'Pool', char(o.Pool), 'Estimate', o.Estimate);
         acc   = accFcn(model);
         sol   = acc.solve();
         accF  = acc;  solF = sol;
@@ -323,11 +330,32 @@ end
         else
             gammaIt = 1;
         end
-        pv = lsqvce.engine.psdVCE(omegaT, sT, C, 'Norm', o.Norm, 'Gamma', gammaIt);
+        % R5 M3 3d: the law is estimated PER GROUP of streams (Pool), from the
+        % arcs of streams whose policy is "law"; "scale" streams get arc
+        % factors only (their mean is the Helmert factor); "none" streams are
+        % untouched. out.C stays the 'all'-group C (the first group's otherwise).
+        streamOf = cellfun(@streamKeyOf, keys(:), 'UniformOutput', false);
+        polOf    = cellfun(@(sk) policyOf(o.Estimate, sk), streamOf, 'UniformOutput', false);
+        grpOf    = cellfun(@(sk) groupKeyOf(o.Pool, sk), streamOf, 'UniformOutput', false);
+        lawCols  = strcmp(polOf, 'law');
+        groups   = unique(grpOf(lawCols));
+        pvMax = 0;  Shat = [];
+        for g = 1:numel(groups)
+            cols = lawCols & strcmp(grpOf, groups{g});
+            Cg = C;
+            if isKey(Cmap, groups{g}), Cg = Cmap(groups{g}); end
+            pvg = lsqvce.engine.psdVCE(omegaT(:, cols), sT(:, cols), Cg, 'Norm', o.Norm, 'Gamma', gammaIt);
+            Cmap(groups{g}) = pvg.Cnew;
+            pvMax = max(pvMax, pvg.maxDev);
+            if isempty(Shat), Shat = pvg.Shat; end         % the first group's spectrum for the record
+        end
+        if ~isempty(groups)
+            if isKey(Cmap, 'all'), C = Cmap('all'); else, C = Cmap(groups{1}); end
+        end
+        pv = struct('maxDev', pvMax);
+        if isempty(Shat), Shat = lsqvce.kernel.dctI(C, 'Norm', o.Norm); end
         av = lsqvce.engine.arcVarianceFactors(omegaT, sT, s2Cols, ...
                                        'Norm', o.Norm, 'MeanType', o.MeanType);
-        Shat = pv.Shat;
-        C    = pv.Cnew;
         % WP-40 r2 (F-15): Polyak tail averaging of the RETURNED spectrum
         % (log domain, last AvgTail passes). The loop keeps iterating on the
         % raw C; only the final Shat/C are averaged -- measured to add ~0.02
@@ -337,7 +365,10 @@ end
             shatTail{end+1} = log(max(Shat, realmin));       %#ok<AGROW>
         end
         for kk = 1:nArc
-            s2Map(keys{kk}) = av.sigma2(kk);         % keyed write-back
+            if strcmp(polOf{kk}, 'none') || ~arcFactorsOf(o.ArcFactors, streamOf{kk})
+                continue                             % keyed write-back, policy-gated (3d)
+            end
+            s2Map(keys{kk}) = av.sigma2(kk);
         end
         sigma2 = cellfun(@(k) s2Map(k), pinnedKeys(:));   % pinned order
 
@@ -370,6 +401,7 @@ end
         C    = lsqvce.kernel.dctI(Shat, 'Norm', o.Norm, 'Inverse', true);  % psdVCE's exact inverse
     end
     out = struct('C', C, 'Shat', Shat, 'sigma2', sigma2, 'acc', accF, ...
+                 'Cgroups', Cmap, ...
                  'sol', solF, 'converged', converged, 'nIter', numel(hist.maxDev), ...
                  'history', hist, ...
                  'arcKeys', {pinnedKeys(:)}, ...
@@ -594,5 +626,38 @@ function M = streamMeans(arcKeys, sigma2)
     for k = 1:numel(ks)
         v = acc(ks{k});
         if ~isempty(v), M(ks{k}) = mean(v); end
+    end
+end
+
+function sk = streamKeyOf(arcKey)
+%STREAMKEYOF  's<sysID>_<obsType>_d..' -> 'satKey|obsType' (the override key).
+    tok = regexp(arcKey, '^s(.+?)_(.+?)_d', 'tokens', 'once');
+    if isempty(tok), sk = arcKey; return, end
+    sk = sprintf('%s|%s', matlab.lang.makeValidName(tok{1}), tok{2});
+end
+
+function p = policyOf(E, sk)
+%POLICYOF  'none' | 'scale' | 'law' for a stream; an empty map = 'law' for everybody.
+    p = 'law';
+    if isempty(E), return, end
+    if isKey(E, sk), p = lower(char(E(sk))); end
+end
+
+function tf = arcFactorsOf(A, sk)
+%ARCFACTORSOF  whether the stream's arcs get factors; an empty map = true.
+    tf = true;
+    if isempty(A), return, end
+    if isKey(A, sk), tf = logical(A(sk)); end
+end
+
+function g = groupKeyOf(pool, sk)
+%GROUPKEYOF  the pool group a stream's law belongs to.
+    switch lower(char(pool))
+        case 'all'
+            g = 'all';
+        case 'obstype'
+            g = extractAfter(sk, '|');
+        otherwise
+            g = sk;                                  % 'stream'
     end
 end

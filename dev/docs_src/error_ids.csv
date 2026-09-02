@@ -162,6 +162,7 @@ lsqvce:diagnoseAccum:noSystems,engine.diagnoseAccum,error,v4.0
 lsqvce:ellipse:badPair,engine.ellipse,error,v4.0
 lsqvce:ellipse:samePair,engine.ellipse,error,v4.0
 lsqvce:fit:badArcs,fit,error,v4.0
+lsqvce:fit:badEstimate,fit,error,v4.0
 lsqvce:fit:badId,fit,error,v4.0
 lsqvce:fit:badMatrix,fit,error,v4.0
 lsqvce:fit:badScope,fit,error,v4.0
