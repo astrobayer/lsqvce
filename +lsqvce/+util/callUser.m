@@ -76,7 +76,11 @@ function [nOut, varargout] = callUser(fh, minOut, maxOut, ctx, varargin)
     end
 
     % Rule 1b: probe ONCE, stepping down on the three arity identifiers only.
-    arity = {'MATLAB:TooManyOutputs', 'MATLAB:maxlhs', 'MATLAB:unassignedOutputs'};
+    % The four identifiers MATLAB raises for "this call asked for more outputs
+    % than the function has": the three generic ones, and deal's own (an
+    % anonymous @(k) deal(A, l) is the common batch-source idiom).
+    arity = {'MATLAB:TooManyOutputs', 'MATLAB:maxlhs', 'MATLAB:unassignedOutputs', ...
+             'MATLAB:deal:narginNargoutMismatch'};
     for n = maxOut:-1:minOut
         try
             if n == 0
