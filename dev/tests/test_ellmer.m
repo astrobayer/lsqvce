@@ -705,6 +705,7 @@ function test_jointModelOpt_emits_a_psd_on_normalised_frequency(tc)
         % series on 4 grid points reproduces c(1..3) to a few percent; the
         % SHAPE (c(1) = 1, monotone decay) is the claim, exactness is not
         tc.verifyEqual(r(1), 1, 'AbsTol', 5e-2, sprintf('lag 0 at dt = %g', dt));
+        % tol: as above
         tc.verifyEqual(r(2:3), c(2:3), 'AbsTol', 5e-2, sprintf('shape at dt = %g', dt));
     end
 end
