@@ -1,0 +1,9 @@
+
+===== bench_m0  2026-09-02 08:09  PCWIN64 2026a  quick=0 =====
+(a) prefetch / plain serial      : ratio 1.116  band [1.094 1.195]  tA 0.17s tB 0.15s
+(a) parfor DistributeDays / plain: ratio 0.361  band [0.347 0.414]  (pool: 16 workers)
+(b) nc=  500  exact sweep / probe sweep: ratio 1.094  band [1.073 1.113]  exact 0.14s probe 0.13s
+(b) nc= 2000  exact sweep / probe sweep: ratio 1.040  band [1.030 1.047]  exact 0.69s probe 0.66s
+(b) nc= 4000  exact sweep / probe sweep: ratio 1.187  band [1.173 1.192]  exact 3.00s probe 2.52s
+(c) block / flat, 2000 arcs x 10 rows, u=50: ratio 1.687  band [1.610 1.807]  block 0.21s flat 0.12s
+===== end bench_m0 =====

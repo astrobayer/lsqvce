@@ -8,7 +8,20 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-09-01 (night) — R5 merged (PR #47, 5ba94ce);
+Last substantive update: 2026-09-02 (morning) — LEVEL M0 DONE (PR #48 merged
+a0dc47b; postflight SETTLED: user's ci_gate 629/629 incl. test_parallel, one
+warning id). WP-79 DONE: bench_m0 numbers pinned in dev/DEVELOPMENT.md —
+PrefetchLoader 1.12× SLOWER than plain (delete), parfor-over-days 0.36×
+(the axis that scales), exact/probe sweep 1.04–1.19× up to nc = 4000 (v5 sweep
+default = EXACT; the re-read dominates, not the trace arithmetic — H-04
+evidence), block/flat on 10-row arcs 1.69× (< 3: kinds B/C fold, WP-81).
+GRAVFIRE interface: template/gravfire_data.m VERIFIED on the user's
+testdata.mat (declaration passes every fit check; DryRun + gls: 2 days × 16
+pieces, nc 117, nl 144, Cep, 2.0 s); step-by-step guide
+dev/GRAVFIRE_INTERFACE.md. Estimator dry runs: vce OK (62 s); ellmer BLOCKS > 8 min on the
+3-axis pieces → finding H-15 (dense per-arc Σ, row-index lags; refusal in
+M1, per-axis Toeplitz whitening in M3). M1 next.
+Preceding entry: Last substantive update: 2026-09-01 (night) — R5 merged (PR #47, 5ba94ce);
 R5-D7 APPROVED by the user ("proceed with M0"); LEVEL M0 opened on
 `claude/level-m0` (Tier B from here on: the MATLAB MCP bridge is gone, CI is
 the gate, the user runs postflight + bench_m0 locally and uploads the log).
@@ -4841,6 +4854,7 @@ the trace trick; it is a Helmert GROUP estimator on the flat batch path.
 | H-11 | Options: 57 typed properties in ten groups, batch-only / streaming-only / joint-only knobs side by side; `Model` conflates "iterate or not" with "which estimator" | ≈ 12 top-level + groups Noise / Robust / Diagnostics / Parallel; `Estimate="none"|"noise"`. WP-87, R5-D2 |
 | H-12 | What is estimated for a stream is decided globally (Options.Model) while the a-priori law is per stream (covariance.(obsType)); a trusted diag stream and an unknown red-spectrum stream cannot be treated differently in one run | covariance spec gains `estimate = "none"|"scale"|"law"` (+ `arcFactors`, `pool`, `dt`); `data.priors(k)` for regularisation as declared groups. WP-87, R5-D1/D3 |
 | H-13 | `fit` takes only an Options object (stock functions take Name=Value); Results has no `plot` (PSD per stream and the pass trajectory are in R.noise/R.history — no design matrix needed; `predict` stays omitted); README.md:60 shows retired `systemId` / `localsPerArc` | `fit(data, opts, Name=Value)` (positional opts + `nv.?lsqvce.Options`); `plot(R, "psd"|"convergence"|"residuals")`; README fixed. WP-87, WP-88 |
+| H-15 (2026-09-02, found by the GRAVFIRE dry run) | The Ellmer path is NOT multi-axis-aware and forms a DENSE per-arc Σ: adjustVCEjoint.m:453–461 builds `Sig = Cfcn(1:m)` (m×m) and `chol` per arc, O(m³); kernel.redundancyLags then works on the row index, so for `nAxis = 3` (epoch-major rows) "lag 1" is the next AXIS of the same epoch, not the next epoch, and the axis-interleaved W is not Toeplitz, so the O(N²) Levinson/Gohberg–Semencul route is bypassed for the O(N³) buffer. On the user's pieces (2160 epochs × 3 axes = 6480 rows, 16 position arcs) one pass blocks MATLAB for > 8 min (twice reproduced; the bridge time-outs of 2026-09-01/02). `fit` does not refuse `Model="ellmer"` on a multi-axis stream — a MISSING REFUSAL, and the numbers it would eventually print are the wrong estimator | M1 (WP-80): refuse `Model="ellmer"` when any stream has `nAxis > 1` (`lsqvce:fit:ellmerMultiAxis`) until M3; M3 (WP-83): `noiseLaw` whitens per axis after the separable `Cep` descale (Levinson Toeplitz, O(m²) per axis, m = nEpoch) and the lag collectors run per axis — the design already in theory_r5 §2.3–2.4, now with a production-size reason. Production note (Expert B): a 6-h position piece at 10 s is exactly the GRAVFIRE case, so this is the FIRST thing M3 is measured on |
 | H-14 | Category coverage: 3 of 83 units complete, 47 miss ≥ 3 categories; `report` contract-only; metamorphic is a tag not a category; speed budgets absolute, local-only | seven categories counted (VALIDATION_GUIDE), ratio budgets, one timing helper FIRST; with H-01/H-02 the unit count is ≈ 46 so completeness is affordable. WP-78, WP-89 |
 
 ### 12.4 The v5 design in one paragraph (binding intent; detail PDF Part V)
@@ -4874,8 +4888,8 @@ is late). Read THIS line before opening any level. One level = one branch
 
 | Level | WP | title | depends on | status |
 |---|---|---|---|---|
-| M0 | 78 | Instruments first: timing helper (rotation, 15 repeats, per-repeat statistic), check 16 → SEVEN categories (metamorphic counted), bare-catch metric, identifier-catalogue check (documented = raised = catalogued), layering check; fault-injection self-test per new check; NO functional change | R5-D7 | IN PROGRESS (2026-09-01, branch `claude/level-m0`: dev/tests/private/timePair.m + dev/tests/test_instruments.m (7 points: contract 3, precision 1, metamorphic 2, robustness 1); audit_tree.py check 16 seven categories + tags layering/concurrency/convergence, check 19 catch ratchet over dev/docs_src/catch_baseline.csv (21 sites: 5 empty, 16 bare), check 20 identifier catalogue dev/docs_src/error_ids.csv (369 ids closed both ways; 80 raised-but-undocumented reported as M1 debt), check 21 layering ratchet over dev/docs_src/layering_baseline.csv (5 upward edges: engine→Results ×2, engine→report ×2, kernel.toeplitzCofactor→engine.covComponent); `--write-baselines` is the documented way to accept a change (read the diff); dev/docs_src/audit_selftest.py 8 cases in the CI audit job; run_all + DEVELOPMENT counts 24 files / 641 points; CI pending) |
-| M0 | 79 | Measurements that decide deletions: PrefetchLoader vs parfor-over-days; exact vs probe sweep at u ∈ {500, 2000, 4000}; block-accumulator overhead on 10-row arcs; numbers into dev/DEVELOPMENT.md | 78 | IN PROGRESS (2026-09-01: dev/validation/bench_m0.m written — Tier B: the USER runs `bench_m0` (or `bench_m0('Quick',true)`) locally and uploads dev/validation/bench_m0_result.txt; the numbers are then pinned in dev/DEVELOPMENT.md and cited by the M2 deletions. (b) compares engine.redundancy (exact r_i) with engine.streamContribution (probe .r), the genuinely matrix-free route — redundancy's own 'hutchinson' is a check ON TOP of exact, not a replacement) |
+| M0 | 78 | Instruments first: timing helper (rotation, 15 repeats, per-repeat statistic), check 16 → SEVEN categories (metamorphic counted), bare-catch metric, identifier-catalogue check (documented = raised = catalogued), layering check; fault-injection self-test per new check; NO functional change | R5-D7 | DONE (2026-09-02, PR #48 merge a0dc47b; CI green first run 598/598; POSTFLIGHT SETTLED: user's ci_gate 629/629 incl. test_parallel 31/31, warning inventory = the probe id only. Content — 2026-09-01, branch `claude/level-m0`: dev/tests/private/timePair.m + dev/tests/test_instruments.m (7 points: contract 3, precision 1, metamorphic 2, robustness 1); audit_tree.py check 16 seven categories + tags layering/concurrency/convergence, check 19 catch ratchet over dev/docs_src/catch_baseline.csv (21 sites: 5 empty, 16 bare), check 20 identifier catalogue dev/docs_src/error_ids.csv (369 ids closed both ways; 80 raised-but-undocumented reported as M1 debt), check 21 layering ratchet over dev/docs_src/layering_baseline.csv (5 upward edges: engine→Results ×2, engine→report ×2, kernel.toeplitzCofactor→engine.covComponent); `--write-baselines` is the documented way to accept a change (read the diff); dev/docs_src/audit_selftest.py 8 cases in the CI audit job; run_all + DEVELOPMENT counts 24 files / 641 points; CI pending) |
+| M0 | 79 | Measurements that decide deletions: PrefetchLoader vs parfor-over-days; exact vs probe sweep at u ∈ {500, 2000, 4000}; block-accumulator overhead on 10-row arcs; numbers into dev/DEVELOPMENT.md | 78 | DONE (2026-09-02: user's local run PCWIN64 R2026a 16 workers, log kept as dev/validation/bench_m0_result.txt, numbers pinned in dev/DEVELOPMENT.md "WP-79 measurements": (a) prefetch/plain **1.116** [1.094 1.195] → PrefetchLoader is slower than nothing → DELETE (H-01 iii); parfor DistributeDays/plain **0.361** → days are the axis; (b) exact/probe sweep **1.094 / 1.040 / 1.187** at nc 500 / 2000 / 4000 → v5 sweep default EXACT up to nc ≈ 4000 (per-observation r_i for free), probe only above (PREDICTED crossover, re-measure nc 8000 in M4); the O(m nc²) vs O(m nc Z) arithmetic would predict 40× — the sweep is dominated by re-read + whitening → H-04 (one sweep) is where the time is; (c) block/flat 10-row arcs **1.687** [1.610 1.807] → kinds B/C fold into the block accumulator, adapter groups tiny batches. Script history: dev/validation/bench_m0.m written 2026-09-01 — Tier B: the USER runs `bench_m0` (or `bench_m0('Quick',true)`) locally and uploads dev/validation/bench_m0_result.txt; the numbers are then pinned in dev/DEVELOPMENT.md and cited by the M2 deletions. (b) compares engine.redundancy (exact r_i) with engine.streamContribution (probe .r), the genuinely matrix-free route — redundancy's own 'hutchinson' is a check ON TOP of exact, not a replacement) |
 | M1 | 80 | Error doctrine on the CURRENT tree: all 36 catch sites refuse-or-record; `util.callUser`; closed skip enum + counters + SkipThreshold; warnings once per run + meta inventory; `stopReason`; identifier catalogue with dead namespaces removed | 78 | OPEN |
 | M2 | 81 | One accumulator: BlockAccumulator + scope stores + priors → `engine.Accumulator`; flat Accumulator / Combine / BatchIndex / ReducedContribution / CommonPrior / applyRegularisation / datum absorbed or deleted; adjust/robust/solveNonlinear cores → update; kinds B/C via declaration adapters; `data.priors` | 79, 80 | OPEN |
 | M2 | 82 | Delete the unreached duplicates/experiments (H-01 i + iii, per WP-79): varComp, vceHutchinson, iterateNoiseModel, selectArOrder, PrefetchLoader, synthLoader, poolGroups, resolveSatSpecs, normalizeSatList, showExport, hasBackgroundPool; instruments (ii) → dev/tests or verdict; whittle → kernel; inventory by glob (§11.8 lesson) | 79, R5-D5 | OPEN |
@@ -4997,6 +5011,25 @@ This bundle is the first real-data reference of the toolbox (oracle O7 of
 the R5 test plan) once `buildDay` exists; the recovery of the degree-10
 field from the two days is then the M3 acceptance run on real partials.
 
+**2026-09-02 — verified, and made explicit.** `template/gravfire_data.m`
+implements rules 1–10 (STEPS 1–11 in its comments) and
+`dev/GRAVFIRE_INTERFACE.md` is the step-by-step guide (Parts A declaration,
+B buildDay, C what is not in `data` yet, D running it, E the GRAVFIRE
+checklist). Dry run on the user's machine via MCP: `gravfire_data(...,
+'DryRun', true)` + `fit(Model="gls")` → declaration accepted, 2 days × 16
+pieces (4 posA + 4 posB + 8 kbr), nc = 117, nl = 144 from 72 templates, `Cep`
+nEp×3×3 accepted, 2.0 s. One rule hit and corrected: `id` must be numeric
+or ONE character (`lsqvce:fit:badId` on `'GRACE'`; the label goes in
+`name`). The `ellmer`/`vce` dry runs (`NumLags=2160, MaxOuter=2`) were
+started but the MCP bridge stopped answering before they returned —
+RESOLVED 2026-09-02 (MCP back): `Model="vce"`, MaxOuter 2 → runs, 61.8 s,
+non-converged as expected on random design (the multi-axis Cep path and the
+ragged KBR piece are accepted). `Model="ellmer"`, NumLags 2160, MaxOuter 1 →
+BLOCKS the session > 8 min, reproduced twice — finding **H-15** (dense per-arc
+Σ + row-index lags on multi-axis streams; not H-06). Until M1 lands the
+refusal: run `ellmer` only on single-axis streams (kbr); positions go through
+`vce`.
+
 ### 12.9 R5 round notes (continued)
 
 **LEVEL M0 ROUND 1 (2026-09-01, model Claude Fable 5.1, branch
@@ -5015,3 +5048,15 @@ baseline lists today's debt, NEW instances and STALE rows are both findings,
 Postflight (user, Tier B): `cd('dev/tests'); ci_gate`, the example smoke run,
 and `bench_m0` — upload dev/tests/last_run_all.txt and
 dev/validation/bench_m0_result.txt.
+
+**LEVEL M0 CLOSE-OUT (2026-09-02, model Claude Fable 5.1, branch
+`claude/m0-close`, MCP back).** Postflight settled and WP-79 numbers pinned
+(ledger). Surprise of the round: the exact per-observation sweep costs at
+most 19 % more than the 100-probe sweep up to nc = 4000 — the arithmetic
+predicts 40×, so the sweep's time is the re-read and the whitening, exactly
+what H-04's single sweep with collectors attacks; the v5 default flips to
+EXACT (per-observation reliability for free) with the probe route as the
+large-nc option. GRAVFIRE: template + guide + a verified dry run; the
+estimator dry runs are pending (bridge). Files: dev/DEVELOPMENT.md (WP-79
+table), dev/validation/bench_m0_result.txt (the user's log, kept),
+template/gravfire_data.m, dev/GRAVFIRE_INTERFACE.md, this section.

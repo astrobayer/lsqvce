@@ -1,0 +1,291 @@
+# GRAVFIRE → `lsqvce.fit`: preparing the data, step by step
+
+*R5 M0 close-out, 2026-09-02. Companion of `template/gravfire_data.m`, which
+implements every step below and was verified on `testdata.mat` (2 days,
+degree 10) on R2026a: the declaration passes every `lsqvce:fit` check and a
+dry run with random design matrices accumulates both days in 2 s. Read this
+guide with that file open; the STEP numbers match its comments. Created
+2026-09-02 (CEST, UTC+02:00) with assistance from Claude (Anthropic), model
+Claude Fable 5.1.*
+
+---
+
+## What you are building
+
+One MATLAB struct, `data`, that `lsqvce.fit` reads. It has three top-level
+fields and nothing else:
+
+```
+data.commonParams   cell R×15   the shared unknowns (your 117 Stokes rows)
+data.days           double 1×D  the calendar (MJD integers)
+data.systems        struct 1×1  ONE system: GraceA + GraceB + KBR together
+```
+
+`fit` **derives** every count from this (nc = 117, nl = 144, arcs per day,
+observation types) and enforces them against every day it reads. You never
+type a count.
+
+`data.systems` has these fields:
+
+| field | what it holds | in the template |
+|---|---|---|
+| `id` | `1` (numeric, or ONE character — not a word) | STEP 7 |
+| `name` | `'GRACE'` (any label; used in reports) | STEP 7 |
+| `buildDay` | your day builder, see Part B | STEP 7 |
+| `covariance` | a struct whose **field names are the observation types** | STEP 3 |
+| `arcs` | a function `@(day, obsType)` returning the piece ids of that day | STEP 5 |
+| `localParams` | one day's local templates, 72 rows | STEP 4 |
+| `processingOptions` | anything `buildDay` needs (your bundles, the design function) | STEP 6 |
+
+---
+
+## Part A — the declaration (what `gravfire_data.m` does today; what GRAVFIRE should emit tomorrow)
+
+### STEP 1 — the common table: put the scope token in column 1
+
+Your `commonData.parameter` is 117 × 14 (`'c'`/`'s'`, degree, order, `'even'`, …,
+a-priori sigma 1e-9 in column 13). Prepend one column with the word `'common'`:
+
+```matlab
+data.commonParams = [repmat({'common'}, 117, 1), commonData.parameter];   % 117 x 15
+```
+
+`'common'` means "one column of A for the whole adjustment". Columns 2…15 are
+yours; `fit` never reads them, it hands the table to `buildDay` as its third
+argument. **In GRAVFIRE:** emit the 15-column table directly; keep the 1e-9
+sigma in it (it is the prior, Part C).
+
+### STEP 2 — the calendar
+
+```matlab
+data.days = double(myOptions.days(:).');       % [59396 59397]
+```
+
+Integers (MJD is fine). Every day listed must be a day the bundle has.
+
+### STEP 3 — observation types become FIELD NAMES
+
+Today the three groups are addressed by number (`observations{day, g}`,
+`variance(g)`). `fit` addresses them by **name**: the fieldnames of
+`covariance`, in that order. Choose short valid identifiers:
+
+| group | `name` / `observationQuantity` | field name |
+|---|---|---|
+| 1 | GraceA / kinematicPosition | `posA` |
+| 2 | GraceB / kinematicPosition | `posB` |
+| 3 | GraceX / range-rate | `kbr` |
+
+and declare the **starting** covariance of each as a diagonal law with the
+standard deviation (not the variance):
+
+```matlab
+cov.posA = struct('type','diag','sigma', sqrt(sd.variance(1)));   % 0.1 m
+cov.posB = struct('type','diag','sigma', sqrt(sd.variance(2)));   % 0.1 m
+cov.kbr  = struct('type','diag','sigma', sqrt(sd.variance(3)));   % 1e-6 m/s
+```
+
+The VCE loop estimates the temporal law (`fftmodel` in your options) **from
+these starting points**; nothing about the FFT model is declared here.
+**In GRAVFIRE:** store the bundle as `bundles.posA`, `.posB`, `.kbr` (or keep
+the `days × groups` cell and a name→column map, as the template does). Never
+rely on group order alone.
+
+### STEP 4 — the local table: ONE day's templates, all `'day'`-scoped
+
+Your `systemsData{1}.parameter` is the **expanded** table: 144 rows = 2 days ×
+2 satellites × 36 unknowns, with absolute times `[MJD sec]` and the day in the
+flags. `fit` wants the opposite: the **36 rows per satellite for one day**,
+and it expands them over the calendar itself. So:
+
+1. keep only the rows of the first day (72 rows);
+2. column 1 = `'day'` for every row ("one instance per calendar day");
+3. absolute spans `[59396 21600]` → seconds of day `21600` (columns 3, 4 after
+   the token; the spline windows are the same every day);
+4. the knot table `[MJD.frac value]` → `[secondsOfDay value]`;
+5. drop the day from the flag vector `[59396 1 1 1 0]` → `[1 1 1 0]`.
+
+The template's `templateFromExpanded` does exactly this; **in GRAVFIRE**, emit
+the 72-row template instead of the 144-row expansion and the helper disappears.
+The result (`data.systems.localParams`, 72 × 15) looks like:
+
+```
+{'day'}  {'GraceA_x0'}          {0}      {86390}  {[]}          {8640}  {[1 1 1 1]} ...
+{'day'}  {'GraceA_xaccspline'}  {21600}  {86399}  {2161x2}      {6480}  {[1 1 1 0]} ...
+```
+
+Why no `'arc'` rows: your initial conditions span the whole day (`numarc = 1`),
+so nothing is per piece. If one day you integrate per piece, those rows
+become `'arc'` — one line changes, nothing else.
+
+### STEP 5 — the arc schedule = the pieces, resolvable WITHOUT reading data
+
+`indexOfPiece` (1…4 for positions, 1…8 for KBR) are the Toeplitz blocks. `fit`
+must know the schedule before it reads anything (it sizes the covariance grid
+and the local blocks from it), so declare a resolver from `numberOfPieces`:
+
+```matlab
+nPieces = sd.numberOfPieces;                                   % days x groups
+s.arcs  = @(day, obsType) 1:nPieces(day == data.days, groupIndex(obsType));
+```
+
+and let `buildDay` return `arcId = unique(indexOfPiece)` (STEP 9). The ragged
+last KBR piece (2111 rows on 59396) needs nothing special: pieces are
+addressed by id, not by position.
+
+### STEP 6 — bind what `buildDay` needs
+
+```matlab
+po.days      = data.days;
+po.obsTypes  = {'posA','posB','kbr'};
+po.bundles   = sd.observations;                % the (days x groups) cell
+po.designFcn = @gravfireDesign;                % your A/B builder (Part B)
+s.processingOptions = po;
+```
+
+`fit` passes `processingOptions` untouched as `buildDay`'s fifth argument.
+Nothing here is copied per call.
+
+### STEP 7 — assemble the system
+
+```matlab
+s.id = 1;  s.name = 'GRACE';  s.buildDay = @buildGravfireDay;
+s.covariance = cov;  s.localParams = localParams;  s.arcs = ...;  s.processingOptions = po;
+data.systems = s;
+```
+
+`id` must be numeric or a single character (`'GRACE'` is rejected by
+`lsqvce:fit:badId` — that was the one rule the first dry run hit). Why ONE
+system: the KBR rows depend on the locals of **both** satellites; a system in
+`fit` has one local block B shared by all its observation types, which is
+exactly that coupling. Three systems would sever it.
+
+---
+
+## Part B — `buildDay` (what you write; the template has everything except STEP 11)
+
+`fit` calls `D = buildDay(day, obsType, common, local, po, info)` **once per
+(day, observation type)** and reads each day twice per pass (accumulate,
+residuals). It must return raw, un-whitened matrices — the toolbox whitens,
+weights, eliminates and cuts. Required fields: `A`, `B`, `l`, `t`; optional:
+`arcIdx`, `arcId`, `nAxis`, `Cep`.
+
+### STEP 8 — observations, epoch-major
+
+`lobs` is `nEpoch × nAxis`; `fit` wants one column, epoch-major
+(x₁ y₁ z₁ x₂ y₂ z₂ …), and the epoch of every row in seconds:
+
+```matlab
+D.l = reshape(lobs.', [], 1);           % m = nEpoch * nAxis
+D.t = repelem(time(:,2), nAxis);        % seconds of day, one per row
+```
+
+Drop the epochs flagged in `nanIndexOfPiece` from `lobs`, `time`, `indexOfPiece`
+and `iSpp` **together** before this (the template does; the file has none).
+
+### STEP 9 — pieces → `arcIdx` + `arcId`
+
+```matlab
+pieceRow = repelem(indexOfPiece, nAxis);
+ids      = unique(indexOfPiece).';                                   % [1 2 3 4]
+D.arcIdx = arrayfun(@(k) find(pieceRow == k).', ids, 'UniformOutput', false);
+D.arcId  = ids;
+```
+
+`arcIdx{k}` are the ROW numbers of piece `k`; `arcId` says which piece each
+entry is. Every id the resolver (STEP 5) announced must appear exactly once.
+
+### STEP 10 — multi-axis streams: `nAxis` and `Cep`
+
+For the positions, `iSpp` holds the 3×3 epoch covariance of the kinematic
+orbit as 9 columns per epoch. Hand it over as `nEpoch × 3 × 3`:
+
+```matlab
+D.nAxis = 3;
+D.Cep   = permute(reshape(iSpp.', 3, 3, []), [3 1 2]);
+```
+
+This is the "standard D source" of the contract (§7): the per-epoch
+de-scaling is applied exactly, per epoch, before the temporal whitening. The
+KBR stream has `nAxis = 1` and no `Cep`. **In GRAVFIRE:** store `iSpp` as
+`nEpoch × 3 × 3` once, at preparation, instead of reshaping it per pass.
+
+### STEP 11 — the design matrices (yours)
+
+```matlab
+[D.A, D.B] = gravfireDesign(o, day, obsType, common, local, po, info);
+```
+
+with `A` of size `m × info.nc` (117) and `B` of size `m × info.nl` (144 for
+two days), rows in the same epoch-major order as `l`. Where each local's
+column is: **ask `info`, never compute it** —
+
+```matlab
+info.dayOffset          % column offset of THIS day's 72-wide 'day' block in B
+info.dayCount           % 72
+info.nc, info.nl        % 117, 144
+```
+
+so `B(:, info.dayOffset + (1:72))` is where GraceA's and GraceB's day-locals
+go (in template row order: GraceA_x0 … GraceB_zaccspline#7); the other day's
+72 columns stay zero (use `sparse` for B if you like). KBR rows fill both
+satellites' columns; posA rows fill only GraceA's. `A` is the same 117
+columns for every stream. The dry run replaces this step with seeded random
+matrices so the rest of the pipeline can be checked before it exists.
+
+### What `buildDay` must NOT do
+
+Whiten, apply `Sll`/`weights`, regularise, or split the day into pieces for
+the covariance. Return raw A/B/l/t and the piece index; the toolbox owns the
+rest. A builder that scales its own rows is scaled twice.
+
+---
+
+## Part C — the things that are not (yet) in `data`
+
+| GRAVFIRE item | where it goes now (v4) | where it goes in v5 (plan, HANDOVER §12) |
+|---|---|---|
+| a-priori sigma 1e-9 per Stokes coefficient (column 13) | `lsqvce.Options(Reg=..., RegMatrix=...)` — the Kaula-type prior | `data.priors(k)` with its own variance component |
+| Tikhonov 0.01 on the accelerometer scales (local table column 11) | `lsqvce.engine.applyRegularisation` (engine tier) | `data.priors(k)` with `'day'` scope |
+| `weights` (Huber, from the previous outer iteration) | not used — `Robust` is refused on the streaming kind (`lsqvce:fit:notYet`) | IRLS on the streaming kind (M2) |
+| `covarianceModel 'fftmodel'`, `correlationLength 2160` | `Options(Model="ellmer", NumLags=2160)` | per-stream `estimate="law"`, `Noise.Grid` from the schedule |
+| `maximumIterations 7`, `minimumIterations 3` | `MaxOuter=7`; **no** minimum knob | `MaxPasses=7`, `MinPasses=3` (added on this evidence) |
+| `minimumNumberObservations 100` | `MinRedundancy=100` | `Noise.FreezeRedundancy` |
+| `limitConditionNumber 1e13` | not a knob: rank/condition refusals + reported condition | unchanged |
+| `lest`, `iteridx`, `Sacl`, `facl`, rotations, `niPhi`/`niZhi`, `nX12`/`ndX12`/`drho` | inputs of your `gravfireDesign` only | unchanged |
+
+---
+
+## Part D — running it
+
+```matlab
+S    = load('testdata.mat');
+data = gravfire_data(S.commonData, S.myOptions, S.systemsData, 'DryRun', true);
+R    = lsqvce.fit(data, lsqvce.Options(Model="gls", Verbose=1));        % 2 s: pipeline check
+
+data = gravfire_data(S.commonData, S.myOptions, S.systemsData, 'DesignFcn', @gravfireDesign);
+R    = lsqvce.fit(data, lsqvce.Options(Model="vce", MaxOuter=7, MinRedundancy=100));
+R.report;  T = R.coefficients;  C = R.convergence;
+```
+
+> **Until M1/M3 (finding H-15, 2026-09-02):** `Model="ellmer"` is not multi-axis-aware —
+> on the 3-axis position pieces it forms a dense 6480×6480 Σ per arc and takes row lags
+> (axis-interleaved), and one pass blocks MATLAB for minutes. Use `Model="vce"` for runs
+> that include `posA`/`posB`; `ellmer` only on single-axis streams (`kbr`). M1 adds the
+> refusal, M3 the per-axis Toeplitz whitening that makes `ellmer` the right choice here.
+
+If `fit` rejects the declaration, the identifier names the rule
+(`lsqvce:fit:unknownField`, `:badId`, `:badScope`, …) and no data has been
+read. If it fails while reading, the identifier is `lsqvce:makeLoader:*` and
+the day and observation type are in the message; your own error inside the
+design function arrives as the **cause** of `lsqvce:makeLoader:buildDay`.
+
+## Part E — the checklist for GRAVFIRE's next release of the bundle
+
+1. Emit `data` (STEPS 1–7) directly; keep the per-day bundles under
+   `processingOptions` or in the closure.
+2. Local table as 72 templates with seconds-of-day (STEP 4), not 144 expanded rows.
+3. Observation types by name (STEP 3).
+4. `iSpp` as `nEpoch × 3 × 3` (STEP 10).
+5. No `weights`, `lest`, `iteridx` in the bundle (iteration state is the toolbox's).
+6. `gravfireDesign` deterministic: same `(day, obsType)` → byte-identical A/B.
+7. Priors stay numbers in the tables (Part C), never applied in the builder.

@@ -724,3 +724,16 @@ doc lsqvce              % the landing page
 ---
 
 Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-11.
+
+## WP-79 measurements (R5 M0, 2026-09-02, PCWIN64 R2026a, 16-worker pool) — the numbers the M2 deletions cite
+
+Instrument: `dev/validation/bench_m0.m` (rotation, per-repeat ratio, median, band). Log: `dev/validation/bench_m0_result.txt` of 2026-09-02 08:09.
+
+| # | pair | ratio | band | absolutes | decision |
+|---|---|---|---|---|---|
+| (a) | PrefetchLoader / plain serial (nc 200, 8 days × 4 arcs × 1000 rows) | **1.116** | [1.094 1.195] | 0.17 s / 0.15 s | prefetch is 12 % SLOWER than doing nothing — **delete** (H-01 iii, R5-D5) |
+| (a) | parfor DistributeDays / plain serial, same problem | **0.361** | [0.347 0.414] | 16 workers | day-parallel is the axis that scales (2.8× on a 0.15 s problem; pool overhead already paid) — v5 `Parallel.Axis="days"` default confirmed |
+| (b) | exact leverage sweep (`redundancy`) / probe sweep (`streamContribution`, Z=100), nc = 500 | 1.094 | [1.073 1.113] | 0.14 s / 0.13 s | |
+| (b) | … nc = 2000 | 1.040 | [1.030 1.047] | 0.69 s / 0.66 s | |
+| (b) | … nc = 4000 | **1.187** | [1.173 1.192] | 3.00 s / 2.52 s | the exact route costs at most 19 % more up to nc = 4000: the sweep is dominated by the re-read + whitening, NOT by the trace arithmetic (O(m·nc²) vs O(m·nc·Z) would predict 40× at nc = 4000). **v5 sweep default = exact** (per-observation r_i for free) up to nc ≈ 4000; probe route only above (PREDICTED crossover; re-measure at nc = 8000 in M4). Strong evidence for H-04: one sweep with collectors saves re-reads, which is where the time goes |
+| (c) | BlockAccumulator (nl = 0, 2000 arcs × 10 rows, u = 50) / flat Accumulator on the same rows | **1.687** | [1.610 1.807] | 0.21 s / 0.12 s | below the ≤ 3 budget: kinds B/C fold into the block accumulator (H-02, M2 WP-81); the adapter groups tiny batches into arcs of ≥ 100 rows to recover the rest |
