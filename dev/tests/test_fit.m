@@ -53,36 +53,36 @@ function testFitGlsReproducesAdjustBlock(tc)
 end
 
 function testFitVceReproducesTheEngine(tc)
-% categories: reference, precision | tags: diagnostics
-    % WP-58 parity: fit(data, Options(Model="vce", ...)) versus the fluent
-    % configurator chain it replaces. Exact trace mode (vce default) makes
-    % the separate loop deterministic; two outer passes keep the CI cost low.
-    % The fixture's 'pos' stream is a SCALAR ARMA stream (buildDayImpl), but
-    % adjustVCE's default treats 'pos' as 3 components per epoch and then
-    % needs a per-epoch scaling (lsqvce:covModel:noCep -- the r1 CI catch).
-    % Both runs therefore declare pos -> 1, which also exercises the
-    % ComponentsPerEpoch mapping of Options.engineArgs.
-    % WP-47 gate rule 7: MaxOuter = 2 stops BEFORE convergence by design, so
-    % the two convergence warnings are provoked deliberately -- muted with
-    % the ONE helper (cleanup-restored), never left in the inventory.
-    muteWarn(tc, 'lsqvce:adjustVCE:notConverged');
-    muteWarn(tc, 'lsqvce:vce:notConverged');
-    [data, cfg] = declaration();
-    axes = struct('pos', 1);
-    opts = lsqvce.Options(Model="vce", MaxOuter=2, VceMaxIter=3, Verbose=false, ...
-                          ComponentsPerEpoch=axes);
-    Rf = lsqvce.fit(data, opts);
-    L  = loaderOf(cfg, data.systems(1), data);
-    Rd = lsqvce.engine.adjustVCE({L}, data.days, 'MaxOuter', 2, 'Verbose', false, 'Scale', struct('MaxIter', 3), 'Axes', axes).run();
-    % tol: 1e-12 -- identical code path (see the gls test)
-    tc.verifyEqual(Rf.x, Rd.x, 'RelTol', 1e-12);
-    tc.verifyEqual(Rf.sigma0, Rd.sigma0, 'RelTol', 1e-12);
-    tc.verifyEqual(Rf.history.sigma, Rd.history.sigma, 'RelTol', 1e-12, ...
-        'the per-pass variance components must match the fluent run');
-    tc.verifyEqual(numel(Rf.history.streams), numel(Rd.history.streams));
+% categories: reference, contract
+    % R5 M4 4b (decision R5-D4): Model "vce" is a POLICY of the one joint
+    % estimator -- one law per stream (Pool "stream"), no arc factors -- and
+    % Model "pooled" is Pool "all" without arc factors. Pinned as EXACT
+    % equalities against the explicit spelling with Model "ellmer" (same
+    % seed => same probes => same arithmetic), so the mapping can never drift.
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');
+    [data, ~] = declaration();
+    base = {MaxOuter=1, JointMaxIter=2, NumLags=8, Seed=7, Verbose=false};
+    Rv = lsqvce.fit(data, lsqvce.Options(Model="vce", base{:}));
+    dataE = data;
+    ots = fieldnames(dataE.systems(1).covariance);
+    for k = 1:numel(ots), dataE.systems(1).covariance.(ots{k}).arcFactors = false; end
+    Re = lsqvce.fit(dataE, lsqvce.Options(Model="ellmer", Pool="stream", base{:}));
+    % tol: exact -- one code path, one seed
+    tc.verifyEqual(Rv.x, Re.x);
+    tc.verifyEqual(Rv.noise.C, Re.noise.C);
+    tc.verifyEqual(Rv.noise.sigma2, ones(size(Rv.noise.sigma2)), 'vce: no arc factors');
+    tc.verifyEqual(Rv.history.kind, 'ellmer');
+    tc.verifyEqual(Rv.meta.options.Model, "vce", 'the provenance keeps the user''s word');
+    % the per-stream summary every model shares
+    tc.verifyEqual(numel(Rv.noise.stream), numel(ots));
+    tc.verifyTrue(all(cellfun(@(m) isfield(m, 'sigma') && m.sigma > 0, Rv.noise.model)));
+    % "pooled" = Pool "all" without arc factors
+    Rp = lsqvce.fit(data, lsqvce.Options(Model="pooled", base{:}));
+    Rpe = lsqvce.fit(dataE, lsqvce.Options(Model="ellmer", Pool="all", base{:}));
+    % tol: exact -- as above
+    tc.verifyEqual(Rp.x, Rpe.x);
+    tc.verifyEqual(keys(Rp.noise.Cgroups), {'all'});
 end
-
-%% ============================================================== contract
 function testDeclarationRulesFireBeforeAnyRead(tc)
 % categories: contract
     % Every contract rule has ONE lsqvce:fit id, and all of them fire before

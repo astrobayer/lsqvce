@@ -291,16 +291,17 @@ end
         case 'gls'
             a = opts.engineArgs('adjustBlock');
             R = lsqvce.engine.adjustBlock(systems, days, a.nv{:});
-        case 'ellmer'
+        otherwise
+            % R5 M4 4b (decision R5-D4): ONE estimator. The three iterative
+            % models are POLICIES of the joint (Ellmer) estimator:
+            %   "ellmer"  per-arc factors on, laws pooled as Options.Pool says
+            %   "vce"     one law per stream (Pool "stream"), no arc factors --
+            %             the successor of the separate mode, whose AR law was
+            %             fitted to the BIASED raw residual ACV (finding H-03)
+            %   "pooled"  one law for all streams (Pool "all"), no arc factors
+            % The engine-tier lsqvce.engine.adjustVCE still exists for its own
+            % callers until its tests are re-homed (M4 4c).
             R = fitEllmer(systems, days, opts);
-        otherwise                                   % 'vce' | 'pooled'
-            a = opts.engineArgs('adjustVCE');
-            % constructor-only configuration since 2.0 (R4-D2): the groups
-            % ride as Name-Value structs; VceMode in a.nv selects the mode
-            P = lsqvce.engine.adjustVCE(systems, days, a.nv{:}, ...
-                    'Shape', a.shape, 'Scale', a.scale, 'Outer', a.outer, ...
-                    'Joint', a.joint, 'Axes', a.axes);
-            R = P.run();
     end
 end
 
@@ -668,11 +669,19 @@ function R = fitEllmer(systems, days, opts)
     a = opts.engineArgs("adjustVCEjoint");
     psdMode = char(opts.PsdMode);
     sepStreams = separableStreams(systems, specs);        % R5 M3 (H-15)
-    [estMap, afMap] = streamPolicy(systems, specs);       % R5 M3 3d (R5-D4)
+    switch char(opts.Model)                              % R5 M4 4b: the model is a policy
+        case 'vce',    pool = "stream";  afDefault = false;
+        case 'pooled', pool = "all";     afDefault = false;
+        otherwise,     pool = opts.Pool; afDefault = true;   % 'ellmer'
+    end
+    [estMap, afMap] = streamPolicy(systems, specs, streams, afDefault);   % R5 M3 3d (R5-D4)
     accFcn = @(model) jointAccumulator(nc, specs, opts, ...
                  lsqvce.engine.jointModelOpt(model, streams, 'PsdMode', psdMode, ...
                                              'Separable', sepStreams));
-    out = lsqvce.engine.adjustVCEjoint(accFcn, a.nv{:}, 'Estimate', estMap, 'ArcFactors', afMap);
+    nvj = a.nv;
+    k = find(strcmp(nvj(1:2:end), 'Pool'), 1);
+    if ~isempty(k), nvj{2*k} = pool; else, nvj = [nvj, {'Pool', pool}]; end
+    out = lsqvce.engine.adjustVCEjoint(accFcn, nvj{:}, 'Estimate', estMap, 'ArcFactors', afMap);
 
     [dsol, batchFcn, nB] = lsqvce.engine.diagnoseAccum(out.acc, out.sol);
     D = lsqvce.engine.diagnose(dsol, batchFcn, 'nBatch', nB, opts.engineArgs("diagnose").nv{:});
@@ -688,6 +697,11 @@ function R = fitEllmer(systems, days, opts)
     % ARRAY (the DATA_CONTRACT §2.4 pitfall -- it bit this very line in L3 r1).
     noise = struct('C', out.C, 'Shat', out.Shat, 'sigma2', out.sigma2, 'arcKeys', {out.arcKeys}, ...
                    'Cgroups', out.Cgroups);            % R5 M3 3d: one C per pool group
+    % R5 M4 4b: the per-stream summary every model shares -- .stream (keys),
+    % .model{k}.sigma = the stream's LEVEL (declared sigma x its estimated
+    % factor) and its law (the pool group's C); what the separate mode's
+    % Results carried and the gravity demo reads
+    [noise.stream, noise.model] = streamModels(systems, specs, out, char(pool));
     R.setIterative(hist, noise, out.converged);
 end
 
@@ -763,14 +777,19 @@ function keys = separableStreams(systems, specs)
     end
 end
 
-function [estMap, afMap] = streamPolicy(systems, specs)
+function [estMap, afMap] = streamPolicy(systems, specs, streams, afDefault)
 %STREAMPOLICY  Per-stream 'estimate' / 'arcFactors' from the covariance specs.
 %   R5 M3 3d (WP-83, R5-D4): a stream spec may carry
-%     .estimate    "none" | "scale" | "law"   default "law" under Model "ellmer"
-%     .arcFactors  logical                    default true
+%     .estimate    "none" | "scale" | "law"   default "law"
+%     .arcFactors  logical                    default afDefault (the Model's:
+%                                            true for "ellmer", false for "vce"
+%                                            and "pooled" -- R5 M4 4b)
 %   Returned as containers.Map keyed 'satKey|obsType' for the joint driver.
     estMap = containers.Map('KeyType', 'char', 'ValueType', 'any');
     afMap  = containers.Map('KeyType', 'char', 'ValueType', 'any');
+    for k = 1:numel(streams)
+        afMap(char(string(streams{k}))) = logical(afDefault);
+    end
     for k = 1:numel(systems)
         L = systems{k};
         if ~isfield(L, 'cov') || ~isstruct(L.cov), continue, end
@@ -790,6 +809,46 @@ function [estMap, afMap] = streamPolicy(systems, specs)
             if isfield(cm, 'arcFactors') && ~isempty(cm.arcFactors)
                 afMap(key) = logical(cm.arcFactors);
             end
+        end
+    end
+end
+
+function [names, models] = streamModels(systems, specs, out, pool)
+%STREAMMODELS  Per-stream noise summary of a joint run (R5 M4 4b).
+%   names{k}  'satKey|obsType';  models{k} struct('type','psd','sigma',level,
+%   'C', the stream's law, 'sigma2', its arc factors) -- the LEVEL is the
+%   declared sigma times sqrt(mean arc factor) of the stream.
+    names = {};  models = {};
+    sMean = containers.Map('KeyType', 'char', 'ValueType', 'any');
+    for i = 1:numel(out.arcKeys)
+        tok = regexp(out.arcKeys{i}, '^s(.+?)_(.+?)_d', 'tokens', 'once');
+        if isempty(tok), continue, end
+        sk = sprintf('%s|%s', matlab.lang.makeValidName(tok{1}), tok{2});
+        if ~isKey(sMean, sk), sMean(sk) = []; end
+        sMean(sk) = [sMean(sk); out.sigma2(i)];
+    end
+    for k = 1:numel(systems)
+        L = systems{k};
+        if ~isfield(L, 'cov') || ~isstruct(L.cov), continue, end
+        satKey = matlab.lang.makeValidName(char(string(specs(k).sysID)));
+        ots = fieldnames(L.cov);
+        for j = 1:numel(ots)
+            sk = sprintf('%s|%s', satKey, ots{j});
+            s0 = lsqvce.util.getfielddef(L.cov.(ots{j}), 'sigma', 1);
+            if ~isscalar(s0), s0 = 1; end
+            f = 1;  s2 = [];
+            if isKey(sMean, sk) && ~isempty(sMean(sk))
+                s2 = sMean(sk);  f = sqrt(max(mean(s2), eps));
+            end
+            switch lower(pool)
+                case 'obstype', gk = ots{j};
+                case 'stream',  gk = sk;
+                otherwise,      gk = 'all';
+            end
+            C = out.C;
+            if isKey(out.Cgroups, gk), C = out.Cgroups(gk); end
+            names{end+1}  = sk;                                                %#ok<AGROW>
+            models{end+1} = struct('type', 'psd', 'sigma', s0 * f, 'C', C, 'sigma2', s2); %#ok<AGROW>
         end
     end
 end
