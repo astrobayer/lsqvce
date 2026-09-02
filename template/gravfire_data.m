@@ -52,7 +52,7 @@ function data = gravfire_data(commonData, myOptions, systemsData, opt)
 %   See also LSQVCE.FIT, LSQVCE.OPTIONS, DATA_CONTRACT.md, dev/GRAVFIRE_INTERFACE.md
 %
 %   VERIFIED 2026-09-02 on the user's testdata.mat (R2026a): the declaration
-%   passes every lsqvce:fit check; DryRun + Model="gls" accumulates 2 days x 16
+%   passes every declaration check of fit; DryRun + Model="gls" accumulates 2 days x 16
 %   pieces (4 posA + 4 posB + 8 kbr), nc = 117, nl = 144 derived from the 72
 %   templates, Cep accepted, in 2.0 s.
 %
