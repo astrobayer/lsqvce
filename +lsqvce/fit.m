@@ -681,6 +681,13 @@ function R = fitEllmer(systems, days, opts)
     nvj = a.nv;
     k = find(strcmp(nvj(1:2:end), 'Pool'), 1);
     if ~isempty(k), nvj{2*k} = pool; else, nvj = [nvj, {'Pool', pool}]; end
+    if ~strcmp(opts.Model, "ellmer")
+        % the vce / pooled policies keep their v4 meaning of MaxOuter: the
+        % number of estimator passes (one loop, one budget); "ellmer" keeps
+        % its own JointMaxIter (its tests pin nIter against it)
+        k = find(strcmp(nvj(1:2:end), 'MaxIter'), 1);
+        nvj{2*k} = opts.MaxOuter;
+    end
     out = lsqvce.engine.adjustVCEjoint(accFcn, nvj{:}, 'Estimate', estMap, 'ArcFactors', afMap);
 
     [dsol, batchFcn, nB] = lsqvce.engine.diagnoseAccum(out.acc, out.sol);
