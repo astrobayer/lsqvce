@@ -43,6 +43,7 @@
 %   robust               - IRLS M-estimation over the batch driver
 %   satKeyOf             - satellite key (makeValidName) helper
 %   selectArAcv          - AR model selection from an autocovariance
+%   synthLoader        - synthetic block-arrow loader (engine-tier fixture; leaves in M4)
 %   sharedProbe          - shared Hutchinson probe generator (RNG contract)
 %   snoop                - block-native data snooping and downweighting
 %   solveNonlinear       - Gauss-Newton / damped iteration over the batch driver

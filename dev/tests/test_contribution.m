@@ -440,7 +440,7 @@ function cfg = makeCfg()
 end
 
 function f = binder(cfg, s)
-    f = @(d,ot,a,uo) synthLoader(cfg, s, d, ot, a, uo);
+    f = @(d,ot,a,uo) lsqvce.engine.synthLoader(cfg, s, d, ot, a, uo);
 end
 
 %% ============================================== the Results access point

@@ -977,7 +977,7 @@ function acc = buildWithCovExt(cfg, days, cov)
     acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Verbose', false, 'UserOpt', uo);
     for s = cfg.sats
         acc.addSystem(s, cfg.nl, ...
-            @(d,ot,a,uo2) synthLoader(cfg, s, d, ot, a, uo2), days);
+            @(d,ot,a,uo2) lsqvce.engine.synthLoader(cfg, s, d, ot, a, uo2), days);
     end
 end
 

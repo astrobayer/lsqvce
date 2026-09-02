@@ -33,6 +33,7 @@ engine.residuals,ENGINE,second data pass: residuals and quadratic forms
 engine.collectResiduals,ENGINE,residual collection per stream
 engine.redundancy,ENGINE,redundancy numbers (data pass)
 engine.contribution,ENGINE,information contribution per group
+engine.synthLoader,ENGINE,synthetic block-arrow loader (engine-tier fixture)
 engine.streamContribution,ENGINE,contribution per stream
 engine.covModel,ENGINE,covariance spec -> whitening operators (per arc)
 engine.jointModelOpt,ENGINE,joint-mode model -> loader UserOpt translation

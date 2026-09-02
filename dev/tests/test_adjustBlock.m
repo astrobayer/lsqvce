@@ -24,7 +24,7 @@ function testAdjustBlockResultHasNoIterationHistory(tc)
     % a hand-built Results); adjustBlock is where an empty history occurs
     % naturally.
     cfg = synthCfg();
-    loader = @(d,ot,a,uo) synthLoader(cfg, 1, d, ot, a, uo);
+    loader = @(d,ot,a,uo) lsqvce.engine.synthLoader(cfg, 1, d, ot, a, uo);
     sys = struct('sysID',1, 'nl',cfg.nl, 'nc',cfg.nc, 'loader',loader);
     R = lsqvce.engine.adjustBlock(sys, 1:3);
 
@@ -90,7 +90,7 @@ function testRawClosureHonoursPerSatelliteOverride(tc)
     % through the ONE package-private applyCovOverride; this test drives the
     % template with each shape and pins that they whiten identically.
     cfg = synthCfg();
-    loader = @(d,ot,a,uo) synthLoader(cfg, 1, d, ot, a, uo);
+    loader = @(d,ot,a,uo) lsqvce.engine.synthLoader(cfg, 1, d, ot, a, uo);
     uo0 = struct('sysID', 1);
     b0  = loader(1, 'kbr', 1, uo0);                    % base: diag sigma 0.2
     idx = 1:numel(b0.l);
@@ -125,7 +125,7 @@ end
 function testRecoverSynthClosure(tc)
 % categories: contract, precision
     cfg = synthCfg();
-    loader = @(d,ot,a,uo) synthLoader(cfg, 1, d, ot, a, uo);
+    loader = @(d,ot,a,uo) lsqvce.engine.synthLoader(cfg, 1, d, ot, a, uo);
     sys = struct('sysID',1, 'nl',cfg.nl, 'nc',cfg.nc, 'loader',loader);
     R = lsqvce.engine.adjustBlock(sys, 1:3);
     tc.verifyClass(R, 'lsqvce.Results');
@@ -434,7 +434,7 @@ function testRecoverRawClosureIgnoresPlotOpts(tc)
     % ShowSeconds/ExportDir are set -- it must never look for .plotPostSolve on a
     % bare handle and error. (Guards the "raw closures are first-class" claim.)
     cfg = synthCfg();
-    loader = @(d,ot,a,uo) synthLoader(cfg, 1, d, ot, a, uo);
+    loader = @(d,ot,a,uo) lsqvce.engine.synthLoader(cfg, 1, d, ot, a, uo);
     sys = struct('sysID',1, 'nl',cfg.nl, 'nc',cfg.nc, 'loader',loader);
     R = lsqvce.engine.adjustBlock(sys, 1:3, 'ShowSeconds', 0, 'ExportDir', '');
     tc.verifyClass(R, 'lsqvce.Results');

@@ -24,6 +24,7 @@
     <tocitem target="html/index.html">Access layer
       <tocitem target="html/lsqvce.engine.adjustBlock.html">lsqvce.engine.adjustBlock</tocitem>
       <tocitem target="html/lsqvce.engine.makeLoader.html">lsqvce.engine.makeLoader</tocitem>
+      <tocitem target="html/lsqvce.engine.synthLoader.html">lsqvce.engine.synthLoader</tocitem>
       <tocitem target="html/lsqvce.engine.adjustVCE.html">lsqvce.engine.adjustVCE</tocitem>
       <tocitem target="html/lsqvce.engine.resolveNc.html">lsqvce.engine.resolveNc</tocitem>
     </tocitem>

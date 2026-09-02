@@ -622,7 +622,7 @@ end
 
 
 function f = binder(cfg, s)
-    f = @(d, ot, a, uo) synthLoader(cfg, s, d, ot, a, uo);
+    f = @(d, ot, a, uo) lsqvce.engine.synthLoader(cfg, s, d, ot, a, uo);
 end
 
 function sp = specsFor(cfg, days)
@@ -635,7 +635,7 @@ end
 
 function acc = buildWithCov(cfg, days, cov)
 % Build and accumulate with a runtime covariance override -- the accFcn a
-% real workflow would write (SYNTHLOADER honours opt.covOverride).
+% real workflow would write (LSQVCE.ENGINE.SYNTHLOADER honours opt.covOverride).
     uo  = struct('covOverride', cov);
     acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Backend','qr', 'Verbose',false, ...
                           'UserOpt', uo);

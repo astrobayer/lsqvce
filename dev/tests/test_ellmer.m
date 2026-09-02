@@ -1381,7 +1381,7 @@ function out = dropArcLoader(cfg, s, d, ot, a, uo2, drop)
     % synthLoader pass-through; in META mode (first loader argument is the
     % literal 'meta') the last arc is removed from the enumeration when
     % `drop` is armed -- an identity change, not a skip.
-    out = synthLoader(cfg, s, d, ot, a, uo2);
+    out = lsqvce.engine.synthLoader(cfg, s, d, ot, a, uo2);
     if drop && (ischar(d) || isstring(d)) && strcmp(char(d), 'meta') ...
             && isstruct(out) && isfield(out, 'arcs')
         out.arcs{1} = out.arcs{1}(1:end-1);
@@ -1456,7 +1456,7 @@ function acc = jointAccMapped(cfg, model) %#ok<DEFNU>
                                   'UserOpt', uo);
     for s = cfg.sats
         acc.addSystem(s, cfg.nl, ...
-            @(d,ot,a,uo2) synthLoader(cfg, s, d, ot, a, uo2), 1);
+            @(d,ot,a,uo2) lsqvce.engine.synthLoader(cfg, s, d, ot, a, uo2), 1);
     end
 end
 
@@ -1472,7 +1472,7 @@ function acc = jointAcc(cfg, model) %#ok<INUSD>
                                   'UserOpt', uo);
     for s = cfg.sats
         acc.addSystem(s, cfg.nl, ...
-            @(d,ot,a,uo) synthLoader(cfg, s, d, ot, a, uo), 1);
+            @(d,ot,a,uo) lsqvce.engine.synthLoader(cfg, s, d, ot, a, uo), 1);
     end
 end
 

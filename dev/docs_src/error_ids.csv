@@ -321,6 +321,8 @@ lsqvce:streamContribution:badSol,engine.streamContribution,error,v4.0
 lsqvce:streamContribution:cNotPD,engine.streamContribution,error,v4.0
 lsqvce:streamContribution:noArcs,engine.streamContribution,error,v4.0
 lsqvce:streamContribution:noStore,engine.streamContribution,error,v4.0
+lsqvce:synthLoader:badArc,engine.synthLoader,error,v4.0
+lsqvce:synthLoader:noNoiseModel,engine.synthLoader,error,v4.0
 lsqvce:systematic:badCovariate,engine.systematic,error,v4.0
 lsqvce:systematic:lbUnreliable,engine.systematic,warning,v4.0
 lsqvce:systematic:noResiduals,engine.systematic,error,v4.0

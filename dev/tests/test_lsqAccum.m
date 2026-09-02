@@ -29,7 +29,7 @@ function cfg = baseCfg()
 end
 
 function f = binder(cfg, s)
-    f = @(d,ot,a,uo) synthLoader(cfg, s, d, ot, a, uo);
+    f = @(d,ot,a,uo) lsqvce.engine.synthLoader(cfg, s, d, ot, a, uo);
 end
 
 function sol = runIt(cfg, days, varargin)
@@ -371,7 +371,7 @@ function testUserOptReachesLoader(tc)
             error('context not injected');
         end
         seen = true;
-        out = synthLoader(cfg, 1, d, ot, a, uo);
+        out = lsqvce.engine.synthLoader(cfg, 1, d, ot, a, uo);
     end
     acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Verbose',false, ...
                           'UserOpt', struct('myFlag',77));
@@ -383,7 +383,7 @@ function testEmptyArcIsSkipped(tc)
 % categories: robustness, vectorisation
     cfg = tc.TestData.cfg;
     function out = gappy(d, ot, a, uo)
-        out = synthLoader(cfg, 1, d, ot, a, uo);
+        out = lsqvce.engine.synthLoader(cfg, 1, d, ot, a, uo);
         if ~ischar(d) && a == 2
             out.A = zeros(0,cfg.nc); out.B = zeros(0,cfg.nl); out.l = [];
         end

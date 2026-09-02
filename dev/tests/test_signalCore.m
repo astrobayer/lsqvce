@@ -212,7 +212,7 @@ function acc = buildCleanAcc(cfg, days)
     acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Backend','qr', 'Verbose',false, ...
                                   'KeepLocal',true);
     for s = cfg.sats
-        acc.addSystem(s, cfg.nl, @(d,ot,a,uo) synthLoader(cfg,s,d,ot,a,uo), days);
+        acc.addSystem(s, cfg.nl, @(d,ot,a,uo) lsqvce.engine.synthLoader(cfg,s,d,ot,a,uo), days);
     end
 end
 
@@ -222,7 +222,7 @@ function f = spikedBinder(cfg, s, tgt)
 end
 
 function out = spikedLoader(cfg, s, day, obsType, arcID, uo, tgt)
-    out = synthLoader(cfg, s, day, obsType, arcID, uo);
+    out = lsqvce.engine.synthLoader(cfg, s, day, obsType, arcID, uo);
     if ischar(obsType) || isstring(obsType)                    % data call
         if s == tgt.sat && strcmp(char(obsType), tgt.obsType) && ...
            day == tgt.day && arcID == tgt.arc && ...
