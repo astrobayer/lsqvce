@@ -792,7 +792,8 @@ function info = addCommonInfo(info, commonPlan, day)
         info.commonDayOffset = commonPlan.dayOffset(j);
         info.commonDayCount  = commonPlan.dayCount(j);
     end
-    info.commonDayRows = commonPlan.rows.day;                       % R5-D8 round 3
+    info.commonDayRows = zeros(1, 0);                               % R5-D8 round 3
+    if isfield(commonPlan, 'rows'), info.commonDayRows = commonPlan.rows.day; end   % (engine-tier plans may omit rows)
     if ~isempty(j) && isfield(commonPlan, 'dayRowsOf'), info.commonDayRows = commonPlan.dayRowsOf{j}; end
 end
 
