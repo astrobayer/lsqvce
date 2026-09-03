@@ -29,8 +29,8 @@ function L = batchSystem(u, batchFcn, nBatch, opt)
 %   ERRORS
 %     lsqvce:batchSystem:badSource   batchFcn is not a function handle
 %     lsqvce:batchSystem:badMatrix   a batch returned A/l of inconsistent size
-%     lsqvce:batchSystem:weightMatrix a batch returned a full weight matrix (a
-%                                    covariance law belongs to the streaming kind)
+%     lsqvce:batchSystem:weightMatrix a batch returned a weight argument that is
+%                                    neither m x 1 nor an m x m SPD matrix
 %     + whatever batchFcn throws, as lsqvce:callUser:threw with the cause
 %
 %   ACCURACY  exact: pre-whitening by sqrt(p) is the diagonal-P GLS identity;
@@ -59,7 +59,12 @@ end
     end
     po = struct('batchFcn', batchFcn, 'state', opt.State, 'nc', u);   % nc carried here: the
                                                                     % non-scoped loader passes no info struct
-    L = lsqvce.engine.makeLoader(@batchDay, ...
+    % R5 M5 5b': a RE-LINEARISING source (State given) must never be served
+    % from the loader's day cache -- the cache would return the day built at
+    % the previous x, and Gauss-Newton would take one step and then see the
+    % same numbers for ever (found by the trilateration oracle: "converged"
+    % to the wrong point). Linear sources keep the cache.
+    L = lsqvce.engine.makeLoader(@batchDay, 'Cache', isempty(opt.State), ...
             'ObservationTypes', {'obs'}, ...
             'Covariance', struct('obs', struct('type', 'diag', 'sigma', 1)), ...
             'Arcs', @(day, obsType) 1, ...
@@ -85,11 +90,19 @@ function D = batchDay(day, ~, ~, ~, po, ~)
         if isvector(p) && numel(p) == m
             s = sqrt(p(:));
             A = s .* A;  l = s .* l;
+        elseif ismatrix(p) && isequal(size(p), [m m])
+            % a full weight matrix P = W'W (correlated rows within the batch):
+            % whitening by W is the exact GLS identity (R5 M5 5b'); P must be SPD
+            [W, flag] = chol(full(p));
+            if flag > 0
+                error('lsqvce:batchSystem:weightMatrix', ...
+                      'batch %d returned a %d x %d weight matrix that is not positive definite.', day, m, m);
+            end
+            A = W * A;  l = W * l;
         else
             error('lsqvce:batchSystem:weightMatrix', ...
-                  ['batch %d returned a %s weight argument; the block path takes ' ...
-                   'diagonal weights (m x 1). A full weight matrix is a covariance ' ...
-                   'law: declare it through the streaming kind.'], day, mat2str(size(p)));
+                  ['batch %d returned a %s weight argument; expected m x 1 weights ' ...
+                   'or an m x m positive-definite weight matrix (m = %d).'], day, mat2str(size(p)), m);
         end
     end
     D.A = A;  D.B = zeros(m, 0);  D.l = l;  D.t = (1:m).';

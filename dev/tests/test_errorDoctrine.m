@@ -281,9 +281,14 @@ function testBatchSystemContract(tc)
     arc = L.closure(1, 'obs', 1, uo);
     % rows are pre-whitened by sqrt(p): exact (diagonal-P GLS identity)
     tc.verifyEqual(arc.A, sqrt(p) .* A);  tc.verifyEqual(arc.l, sqrt(p) .* l);
-    % a full weight matrix is a covariance law of the streaming kind: refused
-    Lm = lsqvce.engine.batchSystem(3, @(k) deal(A, l, eye(12)), 1);
-    verifyError(tc, @() Lm.closure(1, 'obs', 1, uo), 'lsqvce:batchSystem:weightMatrix');
+    % a full SPD weight matrix (correlated rows) is whitened exactly by its
+    % Cholesky factor (R5 M5 5b'); a non-SPD one is refused by name
+    Lm = lsqvce.engine.batchSystem(3, @(k) deal(A, l, 2*eye(12)), 1);
+    arcM = Lm.closure(1, 'obs', 1, uo);
+    % tol: 1e-14 relative -- chol(2 I) = sqrt(2) I applied to O(1) numbers, a few ulps
+    tc.verifyEqual(arcM.A, sqrt(2) * A, 'RelTol', 1e-14);
+    Lb = lsqvce.engine.batchSystem(3, @(k) deal(A, l, -eye(12)), 1);
+    verifyError(tc, @() Lb.closure(1, 'obs', 1, uo), 'lsqvce:batchSystem:weightMatrix');
     % a wrong A shape is named
     Lw = lsqvce.engine.batchSystem(4, @(k) deal(A, l), 1);
     verifyError(tc, @() Lw.closure(1, 'obs', 1, uo), 'lsqvce:batchSystem:badMatrix');

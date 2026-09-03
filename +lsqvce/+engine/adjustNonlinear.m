@@ -67,6 +67,7 @@ arguments
     opt.ParallelThreshold (1,1) double {mustBeInteger, mustBeNonnegative} = 8
     opt.Verbose (1,1) logical = false
     opt.Prior = []                       % R5 M5 5b: CommonPrior on the common block, or []
+    opt.Diagnostics cell = {}          % R5 M5 5b': Name-Value pairs for lsqvce.engine.diagnose
     opt.Provenance struct = struct()
 end
     x0 = x0(:);
@@ -114,7 +115,11 @@ end
         end
         % accepted
         sigX  = sqrt(max(real(diag(sol.Cxx)), 0)) / max(sol.sigma0, realmin);
-        dxRel = max(abs(dx) ./ max(sigX, realmin));
+        if all(isfinite(sigX)) && all(sigX > 0)
+            dxRel = max(abs(dx) ./ sigX);                 % the step in formal-error units
+        else
+            dxRel = max(abs(dx)) / max(max(abs(x)), 1);   % sigma0 NaN-honest: a relative step
+        end
         x = xNew;  sol = solNew;
         lam = max(lam / 10, 1e-12);
         hist(end+1) = struct('pass', it, 'vPv', vPvNew, 'dxRel', dxRel, 'lambda', lam, 'accepted', true); %#ok<AGROW>
@@ -140,12 +145,12 @@ end
     % Results reports is x + step, while the diagnostics (dsol) stay in the
     % linearised frame where the reduced observations live.
     prov = opt.Provenance;
-    if isempty(fieldnames(prov)), prov = rmfield(rmfield(opt, 'Provenance'), 'Prior'); end
+    if isempty(fieldnames(prov)), prov = rmfield(rmfield(rmfield(opt, 'Provenance'), 'Prior'), 'Diagnostics'); end
     acc = finalAcc(L, days, x, state, opt);
     dsol = acc.solve();
     sol  = dsol;  sol.x = x + dsol.x(:);
     [dsol2, batchFcn, nB] = lsqvce.engine.diagnoseAccum(acc, dsol);
-    D = lsqvce.engine.diagnose(dsol2, batchFcn, 'nBatch', nB);
+    D = lsqvce.engine.diagnose(dsol2, batchFcn, 'nBatch', nB, opt.Diagnostics{:});
     R = lsqvce.Results(sol, D, acc, dsol2, batchFcn, nB, [], lsqvce.engine.runMeta(struct(), prov));
     R.setIterative(hist, struct('x0', x0, 'reason', reason, 'kind', 'nonlinear'), converged);
 end
@@ -172,10 +177,18 @@ function sol = accumulate(L, days, x, lam, state, opt)
     acc.setPrior(opt.Prior);
     acc.addSystem(L.sysID, L.nl, L.closure, days);
     sol = acc.solve();
+    [~, ~, ltl] = acc.sys.commonBlocks();          % F(x): the whitened l'Pl at x
+    sol.lPl = ltl;
 end
 
 function v = vpvOf(sol)
+%VPVOF  The nonlinear OBJECTIVE F(x) = sum p_i w_i^2 at the linearisation point.
+%   The reduced observations w = l - f(x) ARE the residuals at x, so F(x) is
+%   the accumulated l'Pl of the whitened rows -- a plain sum of squares, never
+%   a cancellation-prone difference. (The accumulator's vtv = l'l - n'x is
+%   NaN-honest on purpose and went NaN at the converged trilateration point,
+%   after which the step control compared NaNs for ever -- R5 M5 5b'.)
     v = NaN;
-    if isfield(sol, 'vtv') && ~isempty(sol.vtv), v = sol.vtv; end
-    if isnan(v) && isfield(sol, 's0sq') && isfield(sol, 'dof'), v = sol.s0sq * sol.dof; end
+    if isfield(sol, 'lPl') && ~isempty(sol.lPl), v = sol.lPl; end
+    if isnan(v) && isfield(sol, 'vtv') && ~isempty(sol.vtv), v = sol.vtv; end
 end

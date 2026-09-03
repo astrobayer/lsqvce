@@ -4,8 +4,6 @@
 % experts call them directly. Roles from docs_src/tiers.csv, the ONE tier
 % authority (audit check 18).
 %
-%   Accumulator          - plain batch accumulator
-%   adjust               - in-memory batch driver (batchFcn) -- fit(A,l) path in L2
 %   adjustNonlinear    - Gauss-Newton / Levenberg as a policy on the block path (R5 M2)
 %   batchSystem        - a batch source as one local-free streaming system (R5 M2)
 %   adjustRobust       - IRLS (Huber/IGG3/bisquare) as a policy on the block path (R5 M2)
@@ -40,13 +38,11 @@
 %   redundancy           - redundancy numbers (data pass)
 %   residuals            - second data pass: residuals and quadratic forms
 %   resolveNc            - common-parameter count derived from the systems
-%   robust               - IRLS M-estimation over the batch driver
 %   satKeyOf             - satellite key (makeValidName) helper
 %   selectArAcv          - AR model selection from an autocovariance
 %   synthLoader        - synthetic block-arrow loader (engine-tier fixture; leaves in M4)
 %   sharedProbe          - shared Hutchinson probe generator (RNG contract)
 %   snoop                - block-native data snooping and downweighting
-%   solveNonlinear       - Gauss-Newton / damped iteration over the batch driver
 %   stat                 - statistics helper
 %   streamContribution   - contribution per stream
 %   systematic           - systematic-effect test

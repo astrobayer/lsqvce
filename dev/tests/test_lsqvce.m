@@ -147,114 +147,13 @@ function test_tau_tends_to_normal(tc)
 end
 
 %% ================================================ accumulator
-function test_matches_dense_solution(tc)
-% categories: precision
-    [A, l, p] = tc.TestData.mk(600, 7, 11);
-    xd = (A' * diag(p) * A) \ (A' * diag(p) * l);
-
-    for meth = {'qr', 'normal'}
-        B = chop(A, l, p, 9);
-        acc = lsqvce.engine.Accumulator(7, 'method', meth{1});
-        for k = 1:9, acc.add(B{k}{1}, B{k}{2}, B{k}{3}); end
-        sol = acc.solve();
-        % tol: independent dense reference, same-precision algebra; eps*cond headroom (house bounds, HANDOVER 6.1.2)
-        verifyEqual(tc, sol.x, xd, 'RelTol', 1e-9, ...
-            sprintf('method %s disagrees with the dense solution', meth{1}));
-    end
-end
-
-function test_invariant_to_batch_partition(tc)
-% categories: vectorisation
-    % The whole point of a streaming accumulator: the answer must not depend
-    % on how the caller happened to chop up the data.
-    [A, l, p] = tc.TestData.mk(500, 6, 3);
-    xs = [];
-    for nb = [1 2 7 53 500]
-        B = chop(A, l, p, nb);
-        acc = lsqvce.engine.Accumulator(6, 'method', 'qr');
-        for k = 1:nb, acc.add(B{k}{1}, B{k}{2}, B{k}{3}); end
-        xs = [xs, acc.solve().x]; %#ok<AGROW>
-    end
-    spread = max(max(abs(xs - xs(:,1))));
-    verifyLessThan(tc, spread, 1e-10);
-end
-
-function test_vPv_cancellation_is_caught(tc)
-% categories: contract
-    % A tight fit makes l'Pl - b'x catastrophically cancel. The normal-equation
-    % path must WARN, and the QR path must not be affected.
-    rs = RandStream('mt19937ar', 'Seed', 8);
-    n = 300; u = 4;
-    A = randn(rs, n, u) + 20;          % large offset -> huge l'Pl
-    xt = randn(rs, u, 1);
-    l = A * xt + 1e-9 * randn(rs, n, 1);   % ~zero residual
-    p = ones(n, 1);
-
-    accN = lsqvce.engine.Accumulator(u, 'method', 'normal');
-    accN.add(A, l, p);
-    verifyWarning(tc, @() accN.solve(), 'lsqvce:acc:cancellation');
-
-    % QR is immune and needs no warning.
-    accQ = lsqvce.engine.Accumulator(u, 'method', 'qr');
-    accQ.add(A, l, p);
-    solQ = accQ.solve();
-    verifyGreaterThanOrEqual(tc, solQ.vPv, 0);
-end
-
-function test_rank_deficiency_errors_clearly(tc)
-% categories: contract, robustness | tags: diagnostics
-    % Build an EXACTLY rank-deficient design (column 4 = col1 + col2). Use a
-    % fixed stream so the test is deterministic; the solver must report the
-    % rank defect via chol failure OR its rcond guard, never a hollow solve.
-    rs = RandStream('mt19937ar', 'Seed', 4);
-    A = randn(rs, 50, 4);
-    A(:, 4) = A(:, 1) + A(:, 2);       % exact linear dependence
-    l = randn(rs, 50, 1);
-    acc = lsqvce.engine.Accumulator(4, 'method', 'normal');
-    acc.add(A, l, ones(50,1));
-    verifyError(tc, @() acc.solve(), 'lsqvce:acc:rankDeficient');
-end
-
-function test_negative_weight_rejected(tc)
-% categories: contract
-    acc = lsqvce.engine.Accumulator(3);
-    p = ones(10,1);  p(4) = -1;
-    verifyError(tc, @() acc.add(randn(10,3), randn(10,1), p), ...
-                'lsqvce:acc:negativeWeight');
-end
-
-function test_nonfinite_rejected(tc)
-% categories: contract, robustness
-    acc = lsqvce.engine.Accumulator(3);
-    A = randn(10,3);  A(2,2) = NaN;
-    verifyError(tc, @() acc.add(A, randn(10,1), ones(10,1)), ...
-                'lsqvce:acc:nonFiniteA');
-end
-
-function test_correlated_batch_supported(tc)
-% categories: precision
-    % A full SPD weight matrix for one batch must give the same answer as
-    % feeding the whitened equivalent.
-    rs = RandStream('mt19937ar','Seed',5);
-    n = 40; u = 3;
-    A = randn(rs,n,u); l = randn(rs,n,1);
-    M = randn(rs,n,n);  P = M*M' + n*eye(n);      % SPD
-    xd = (A'*P*A) \ (A'*P*l);
-
-    acc = lsqvce.engine.Accumulator(u, 'method','qr');
-    acc.add(A, l, P);
-    % tol: independent dense solve of the same system; difference ~ cond*eps, house bounds add headroom (HANDOVER 6.1.2)
-    verifyEqual(tc, acc.solve().x, xd, 'RelTol', 1e-8);
-end
-
-%% ================================================= diagnostics
 function test_redundancy_sum_identity(tc)
 % categories: precision
     % sum(r_i) == n - u, exactly. This identity is the toolbox's own integrity
     % check and must hold to machine precision.
     [A, l, p] = tc.TestData.mk(400, 5, 21);
     B = chop(A, l, p, 11);
-    [~, D] = lsqvce.engine.adjust(5, srcOf(B), 11, 'verbose', false);
+    [~, D] = flatAdjust(5, srcOf(B), 11, 'verbose', false);
     % tol: exact-path identity (same numbers recombined); house round-trip bound 1e-12/1e-10 (HANDOVER 6.1.2)
     verifyEqual(tc, D.sumR, D.r, 'RelTol', 1e-10);
 end
@@ -263,7 +162,7 @@ function test_redundancy_in_unit_interval(tc)
 % categories: contract
     [A, l, p] = tc.TestData.mk(300, 6, 33);
     B = chop(A, l, p, 7);
-    [~, D] = lsqvce.engine.adjust(6, srcOf(B), 7, 'verbose', false);
+    [~, D] = flatAdjust(6, srcOf(B), 7, 'verbose', false);
     verifyGreaterThanOrEqual(tc, min(D.rNum), 0);
     verifyLessThanOrEqual(tc, max(D.rNum), 1);
 end
@@ -272,7 +171,7 @@ function test_outliers_are_found(tc)
 % categories: contract
     [A, l, p] = tc.TestData.mk(800, 6, 77, [17 9; 400 -8; 700 7]);
     B = chop(A, l, p, 10);
-    [~, D] = lsqvce.engine.adjust(6, srcOf(B), 10, 'verbose', false, ...
+    [~, D] = flatAdjust(6, srcOf(B), 10, 'verbose', false, ...
                             'bonferroni', false);
     verifyTrue(tc, all(ismember([17 400 700], D.flagIdx)), ...
         'planted outliers were not all flagged');
@@ -289,7 +188,7 @@ function test_uncontrolled_observation_no_nan(tc)
     A(:,6) = 0;  A(7,6) = 1;            % param 6 <- obs 7 alone
     l = randn(rs,n,1);  p = ones(n,1);
     B = chop(A, l, p, 4);
-    [~, D] = lsqvce.engine.adjust(u, srcOf(B), 4, 'verbose', false);
+    [~, D] = flatAdjust(u, srcOf(B), 4, 'verbose', false);
 
     verifyTrue(tc, all(isfinite(D.w)),    'w contains NaN/Inf');
     verifyTrue(tc, all(isfinite(D.rNum)), 'r contains NaN/Inf');
@@ -311,7 +210,7 @@ function test_external_reliability_is_exact(tc)
     n = 120; u = 5;
     A = randn(rs,n,u);  l = randn(rs,n,1);  p = ones(n,1);
     B = chop(A, l, p, 3);
-    [~, D] = lsqvce.engine.adjust(u, srcOf(B), 3, 'verbose', false);
+    [~, D] = flatAdjust(u, srcOf(B), 3, 'verbose', false);
 
     i = D.extMaxIdx;  j = D.extMaxPar;
     x1 = (A'*A) \ (A'*l);
@@ -332,7 +231,7 @@ function test_variance_factor_unbiased(tc)
     for m = 1:M
         [A, l, p] = tc.TestData.mk(n, u, 1000 + m);
         B = chop(A, l, p, 5);
-        [~, D] = lsqvce.engine.adjust(u, srcOf(B), 5, 'verbose', false);
+        [~, D] = flatAdjust(u, srcOf(B), 5, 'verbose', false);
         rat(m) = D.varRatio;
     end
     % tol: statistical identity on a finite sample; scatter ~ 1/sqrt(dof) of the fixture, bar sized 4/sqrt(Z)-style (HANDOVER 6.1.2)
@@ -349,9 +248,9 @@ function test_bonferroni_suppresses_false_alarms(tc)
     for m = 1:M
         [A, l, p] = tc.TestData.mk(2000, 6, 5000 + m);
         B = chop(A, l, p, 8);
-        [~, Dr] = lsqvce.engine.adjust(6, srcOf(B), 8, 'verbose', false, ...
+        [~, Dr] = flatAdjust(6, srcOf(B), 8, 'verbose', false, ...
                                  'bonferroni', false);
-        [~, Db] = lsqvce.engine.adjust(6, srcOf(B), 8, 'verbose', false, ...
+        [~, Db] = flatAdjust(6, srcOf(B), 8, 'verbose', false, ...
                                  'bonferroni', true);
         nRaw  = nRaw  + Dr.nFlag;
         nBonf = nBonf + Db.nFlag;
@@ -360,69 +259,11 @@ function test_bonferroni_suppresses_false_alarms(tc)
     verifyLessThan(tc, nBonf, 0.2 * nRaw);
 end
 
-function test_second_pass_mismatch_detected(tc)
-% categories: contract | tags: diagnostics
-    % If the caller's second-pass batch function does not reproduce the first
-    % pass, every diagnostic would be silently attributed to the wrong
-    % observation. That must be an error, not a surprise.
-    [A, l, p] = tc.TestData.mk(200, 4, 55);
-    B = chop(A, l, p, 5);
-    acc = lsqvce.engine.Accumulator(4);
-    for k = 1:5, acc.add(B{k}{1}, B{k}{2}, B{k}{3}); end
-    sol = acc.solve();
-
-    bad = @(k) deal(B{k}{1}(1:end-1,:), B{k}{2}(1:end-1), B{k}{3}(1:end-1));
-    verifyError(tc, @() lsqvce.engine.diagnose(sol, bad, 'nBatch', 5), ...
-                'lsqvce:diagnose:batchMismatch');
-end
-
-function test_zero_redundancy_is_flagged(tc)
-% categories: contract
-    % n == u: the model fits exactly and nothing can be tested. The toolbox
-    % must say so rather than reporting a meaningless perfect result.
-    A = randn(5,5);  l = randn(5,1);
-    acc = lsqvce.engine.Accumulator(5);
-    acc.add(A, l, ones(5,1));
-    verifyWarning(tc, @() acc.solve(), 'lsqvce:acc:zeroRedundancy');
-end
-
-%% =========================================== variance components
-function test_adjust_typed_validators_and_enum_values(tc)
-% categories: contract | tags: diagnostics
-    % WP-39 round a2 (F-07): adjust keeps inputParser BY DESIGN (open
-    % pass-through to diagnose) but its five own options got typed
-    % validators and canonical names. Fails-on-old levers, checked with
-    % the SPECIFIC parser id (a loose 'MATLAB:' prefix is satisfied by
-    % body crashes -- the a1-2 lesson): the old code had NO validators,
-    % so these calls sailed into the body there.
-    src_ = @(k) deal(randn(8,2), randn(8,1), []);
-    ok = false;
-    try
-        lsqvce.engine.adjust(2, src_, 1, 'Sigma0', 'abc');
-    catch e
-        ok = strcmp(e.identifier, 'MATLAB:InputParser:ArgumentFailedValidation');
-    end
-    verifyTrue(tc, ok, 'non-numeric Sigma0 must fail the typed validator');
-    ok = false;
-    try
-        lsqvce.engine.adjust(2, src_, 1, 'Method', 'QR');
-    catch e
-        ok = strcmp(e.identifier, 'MATLAB:InputParser:ArgumentFailedValidation');
-    end
-    verifyTrue(tc, ok, 'Method ''QR'' must be rejected (case-sensitive enum value)');
-    % and the pass-through contract survives: lowercase casing + a
-    % forwarded diagnose option must still run end to end.
-    w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
-    [sol, D, V] = lsqvce.engine.adjust(2, src_, 1, 'verbose', false, 'store', 'none'); %#ok<ASGLU>
-    verifyTrue(tc, isstruct(sol) || isobject(sol), ...
-        'lowercase casing and forwarded options must keep working');
-end
-
 function test_report_verdict_clean(tc)
 % categories: contract | tags: diagnostics
     [A, l, p] = tc.TestData.mk(500, 5, 91);
     B = chop(A, l, p, 6);
-    [~, ~, V] = lsqvce.engine.adjust(5, srcOf(B), 6, 'verbose', false);
+    [~, ~, V] = flatAdjust(5, srcOf(B), 6, 'verbose', false);
     verifyTrue(tc, V.integrityOK);
     verifyTrue(tc, any(strcmp(V.verdict, ...
         {'PASS', 'PASS WITH WARNINGS'})), ...
@@ -437,7 +278,7 @@ function test_report_flags_uncontrolled(tc)
     A(:,5) = 0;  A(3,5) = 1;
     l = randn(rs,n,1);  p = ones(n,1);
     B = chop(A, l, p, 4);
-    [~, ~, V] = lsqvce.engine.adjust(u, srcOf(B), 4, 'verbose', false);
+    [~, ~, V] = flatAdjust(u, srcOf(B), 4, 'verbose', false);
     codes = cellfun(@(f) f.code, V.findings, 'UniformOutput', false);
     verifyTrue(tc, ismember('REL_UNCONTROLLED', codes), ...
         'an uncontrolled observation was not reported');

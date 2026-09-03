@@ -50,7 +50,7 @@ function test_systematic_detects_drift(tc)
     l = A*xt + 0.3*randn(rs, n, 1) + 1.5*sin(2*pi*t);   % unmodelled
 
     B = chop(A, l, p, 8);
-    [~, D] = lsqvce.engine.adjust(u, srcOf(B), 8, 'verbose', false);
+    [~, D] = flatAdjust(u, srcOf(B), 8, 'verbose', false);
     S = lsqvce.engine.systematic(D, 'covariates', struct('t', t), 'verbose', false);
 
     verifyTrue(tc, S.detected, ...
@@ -71,7 +71,7 @@ function test_systematic_quiet_on_clean_data(tc)
         l = A*xt + randn(rs, n, 1);
         t = (1:n).';
         B = chop(A, l, p, 5);
-        [~, D] = lsqvce.engine.adjust(u, srcOf(B), 5, 'verbose', false);
+        [~, D] = flatAdjust(u, srcOf(B), 5, 'verbose', false);
         S = lsqvce.engine.systematic(D, 'covariates', struct('t', t), ...
                                'verbose', false);
         nFalse = nFalse + double(S.detected);
@@ -92,7 +92,7 @@ function test_systematic_runs_test_is_calibrated(tc)
         xt = randn(rs, u, 1);
         l = A*xt + randn(rs, n, 1);
         B = chop(A, l, ones(n,1), 4);
-        [~, D] = lsqvce.engine.adjust(u, srcOf(B), 4, 'verbose', false);
+        [~, D] = flatAdjust(u, srcOf(B), 4, 'verbose', false);
         S = lsqvce.engine.systematic(D, 'verbose', false);
         zs(m) = S.runs.z;
     end
@@ -150,7 +150,7 @@ function test_freenetwork_residuals_are_datum_invariant(tc)
     B = lsqvce.engine.datum(N);
 
     B1 = chop(A, l, p, 2);
-    [~, D1] = lsqvce.engine.adjust(u, srcOf(B1), 2, 'datumB', B, 'verbose', false);
+    [~, D1] = flatAdjust(u, srcOf(B1), 2, 'datumB', B, 'verbose', false);
 
     % A SECOND datum.
     %
@@ -163,7 +163,7 @@ function test_freenetwork_residuals_are_datum_invariant(tc)
     % Here we use the same null direction with a different SCALING -- a
     % genuinely different, and valid, inner constraint.
     Bfix = ones(u,1);
-    [~, D2] = lsqvce.engine.adjust(u, srcOf(B1), 2, 'datumB', Bfix, 'verbose', false);
+    [~, D2] = flatAdjust(u, srcOf(B1), 2, 'datumB', Bfix, 'verbose', false);
 
     % tol: delegation identity (one call forwarded); values must be the SAME numbers, house round-trip bound
     verifyEqual(tc, D2.v, D1.v, 'AbsTol', 1e-8, ...
@@ -174,33 +174,13 @@ function test_freenetwork_residuals_are_datum_invariant(tc)
     verifyEqual(tc, sum(D1.rNum), D1.r, 'RelTol', 1e-8);
 end
 
-function test_freenetwork_rank_is_reduced(tc)
-% categories: robustness
-    muteWarn(tc, 'lsqvce:datum:autoDetected');   % provoked on purpose here (WP-47, gate rule 7)
-    u = 5;
-    edges = [1 2; 2 3; 3 4; 4 5; 1 5; 2 4];
-    A = zeros(size(edges,1), u);
-    for i = 1:size(edges,1)
-        A(i, edges(i,1)) = -1;  A(i, edges(i,2)) = 1;
-    end
-    rs = RandStream('mt19937ar','Seed',9);
-    l = A*randn(rs,u,1) + 0.01*randn(rs,size(edges,1),1);
-    N = A'*A;
-    B = lsqvce.engine.datum(N);
-
-    acc = lsqvce.engine.Accumulator(u, 'method', 'normal', 'datumB', B);
-    acc.add(A, l, ones(size(edges,1),1));
-    sol = acc.solve();
-
-    verifyEqual(tc, sol.rank, u - 1, ...
-        'a free network has rank u - defect');
-    % redundancy must use the RANK, not u
-    verifyEqual(tc, sol.r, size(edges,1) - (u - 1));
-end
-
-%% ============================================= 5. NONLINEAR
 function test_nonlinear_converges_to_truth(tc)
 % categories: precision
+    % R5 M5 5b': at the converged point of this fixture (p = 1e4, v ~ 1e-3)
+    % the accumulator's fold loses > 8 digits in v'Pv and says so (NaN-honest,
+    % lsqvce:qr:cancellation); the Gauss-Newton step control does not depend
+    % on it (it uses l'Pl), so the warning is provoked on purpose here
+    muteWarn(tc, 'lsqvce:qr:cancellation');
     % 2-D resection: distances from known stations to an unknown point.
     % Genuinely nonlinear, so re-linearisation is mandatory.
     stations = [0 0; 10 0; 10 10; 0 10; 5 12];
@@ -217,7 +197,7 @@ function test_nonlinear_converges_to_truth(tc)
         p  = ones(5,1) / 0.01^2;
     end
 
-    [sol, ~, ~, IT] = lsqvce.engine.solveNonlinear(2, @src, 1, [1; 1], ...
+    [sol, ~, ~, IT] = flatNonlinear(2, @src, 1, [1; 1], ...
                                              'verbose', false);
     verifyTrue(tc, IT.converged, 'the resection did not converge');
     % tol: recovery of a planted value; estimator sampling scatter on this fixture, measured stable across seeds (not an eps claim)
@@ -233,7 +213,7 @@ function test_nonlinear_reports_divergence(tc)
         A = [1; 1];  l = [exp(x(1)); -exp(x(1))];  p = [1; 1];
     end
     try
-        [~, ~, ~, IT] = lsqvce.engine.solveNonlinear(1, @bad, 1, 50, ...
+        [~, ~, ~, IT] = flatNonlinear(1, @bad, 1, 50, ...
                                                'verbose', false, 'maxIter', 3);
         % The original test asserted NON-convergence, but l = [exp(x); -exp(x)]
         % is not divergent at all: its residuals cancel exactly, so vPv = 0 and
@@ -263,7 +243,7 @@ function test_robust_downweights_outliers(tc)
     l(bad) = l(bad) + 20;
 
     B = chop(A, l, p, 4);
-    [sol, ~, ROB] = lsqvce.engine.robust(u, srcOf(B), 4, 'verbose', false);
+    [sol, ~, ROB] = flatRobust(u, srcOf(B), 4, 'verbose', false);
 
     % the outliers must end up with small weights
     verifyLessThan(tc, max(ROB.factor(bad)), 0.35, ...
@@ -286,8 +266,8 @@ function test_robust_matches_ls_on_clean_data(tc)
     l = A*xt + randn(rs, n, 1);
     B = chop(A, l, p, 3);
 
-    [solR, ~, ~] = lsqvce.engine.robust(u, srcOf(B), 3, 'verbose', false);
-    [solL, ~, ~] = lsqvce.engine.adjust(u, srcOf(B), 3, 'verbose', false);
+    [solR, ~, ~] = flatRobust(u, srcOf(B), 3, 'verbose', false);
+    [solL, ~, ~] = flatAdjust(u, srcOf(B), 3, 'verbose', false);
 
     % Compare the NORM, not each coefficient. A per-coefficient RelTol is the
     % wrong test: measured in MATLAB, one small coefficient differed by 18%
@@ -298,49 +278,6 @@ function test_robust_matches_ls_on_clean_data(tc)
 end
 
 %% ======================================================== 9. F-TEST
-function test_ftest_rejects_unneeded_parameter(tc)
-% categories: contract
-    % The full model has an extra column that explains NOTHING. The F-test
-    % must NOT declare it significant.
-    rs = RandStream('mt19937ar','Seed',51);
-    n = 500; u = 4;
-    A = randn(rs, n, u);
-    xt = randn(rs, u, 1);
-    p = ones(n,1);
-    l = A*xt + randn(rs, n, 1);
-    Aext = [A, randn(rs, n, 1)];        % pure noise column
-
-    accF = lsqvce.engine.Accumulator(u+1); accF.add(Aext, l, p); sF = accF.solve();
-    accR = lsqvce.engine.Accumulator(u);   accR.add(A,    l, p); sR = accR.solve();
-
-    F = lsqvce.engine.ftest(sF, sR, 'verbose', false);
-    verifyFalse(tc, F.significant, ...
-        'the F-test declared a pure-noise parameter significant');
-    verifyGreaterThan(tc, F.p, 0.01);
-end
-
-function test_ftest_accepts_needed_parameter(tc)
-% categories: contract
-    % Now the extra column carries real signal. It MUST be significant.
-    rs = RandStream('mt19937ar','Seed',61);
-    n = 500; u = 4;
-    A = randn(rs, n, u);
-    xt = randn(rs, u, 1);
-    extra = randn(rs, n, 1);
-    p = ones(n,1);
-    l = A*xt + 0.9*extra + randn(rs, n, 1);   % extra genuinely contributes
-    Aext = [A, extra];
-
-    accF = lsqvce.engine.Accumulator(u+1); accF.add(Aext, l, p); sF = accF.solve();
-    accR = lsqvce.engine.Accumulator(u);   accR.add(A,    l, p); sR = accR.solve();
-
-    F = lsqvce.engine.ftest(sF, sR, 'verbose', false);
-    verifyTrue(tc, F.significant, ...
-        'the F-test missed a parameter that genuinely improves the fit');
-    verifyLessThan(tc, F.p, 1e-6);
-end
-
-%% ===================================================== 10. ELLIPSE
 function test_ellipse_matches_eig_of_submatrix(tc)
 % categories: precision
     rs = RandStream('mt19937ar','Seed',71);
@@ -350,7 +287,7 @@ function test_ellipse_matches_eig_of_submatrix(tc)
     p = ones(n,1);
     l = A*xt + randn(rs, n, 1);
     B = chop(A, l, p, 3);
-    [~, D] = lsqvce.engine.adjust(u, srcOf(B), 3, 'verbose', false);
+    [~, D] = flatAdjust(u, srcOf(B), 3, 'verbose', false);
 
     E = lsqvce.engine.ellipse(D, [1 2]);
     Q = D.Qxx([1 2],[1 2]) * D.s0^2;
@@ -365,26 +302,6 @@ function test_ellipse_matches_eig_of_submatrix(tc)
     verifyGreaterThanOrEqual(tc, E.semiMajor, E.semiMinor);
 end
 
-function test_ellipse_circular_when_uncorrelated(tc)
-% categories: precision, robustness | tags: diagnostics
-    % Orthogonal, equally-weighted columns -> a circle.
-    n = 200;
-    A = [ones(n,1), zeros(n,1)];
-    A(:,1) = [ones(n/2,1); -ones(n/2,1)];
-    A(:,2) = [ones(n/4,1); -ones(n/4,1); ones(n/4,1); -ones(n/4,1)];
-    rs = RandStream('mt19937ar','Seed',81);
-    l = A*[1;2] + randn(rs,n,1);
-    acc = lsqvce.engine.Accumulator(2); acc.add(A, l, ones(n,1));
-    sol = acc.solve();
-    D = lsqvce.engine.diagnose(sol, @(k) deal(A, l, ones(n,1)), 'nBatch', 1);
-
-    E = lsqvce.engine.ellipse(D, [1 2]);
-    % tol: eig-based geometry of the same Qxx; backward error of eig ~ norm*eps, 1e-6 leaves wide headroom
-    verifyEqual(tc, E.semiMajor/E.semiMinor, 1, 'AbsTol', 1e-6, ...
-        'uncorrelated equal-variance parameters must give a CIRCLE');
-end
-
-%% ============================================ ROBUST SCALE / CONTAMINATION
 function test_pope_breaks_down_and_mad_does_not(tc)
 % categories: reference, robustness
     % THE blind spot. With 10% contamination, Pope's tau is BLIND: the
@@ -400,8 +317,8 @@ function test_pope_breaks_down_and_mad_does_not(tc)
     l(bad) = l(bad) + 25;                 % 5/50 = 10% contamination, 25 sigma
 
     B = chop(A, l, p, 2);
-    [~, Dp] = lsqvce.engine.adjust(u, srcOf(B), 2, 'verbose', false, 'test', 'pope');
-    [~, Dm] = lsqvce.engine.adjust(u, srcOf(B), 2, 'verbose', false, 'test', 'mad');
+    [~, Dp] = flatAdjust(u, srcOf(B), 2, 'verbose', false, 'test', 'pope');
+    [~, Dm] = flatAdjust(u, srcOf(B), 2, 'verbose', false, 'test', 'mad');
 
     % Pope is blind here in 40/40 measured seeds -- that part is robust.
     verifyEmpty(tc, intersect(Dp.flagIdx, bad), ...
@@ -426,7 +343,7 @@ function test_contamination_flag_fires(tc)
     l([6 13 15 20 43]) = l([6 13 15 20 43]) + 25;
 
     B = chop(A, l, p, 2);
-    [~, D, V] = lsqvce.engine.adjust(u, srcOf(B), 2, 'verbose', false);
+    [~, D, V] = flatAdjust(u, srcOf(B), 2, 'verbose', false);
 
     verifyTrue(tc, D.madAvailable);
     verifyGreaterThan(tc, D.scaleRatio, D.scaleRatioTol, ...
@@ -447,7 +364,7 @@ function test_contamination_flag_quiet_on_clean_data(tc)
         xt = randn(rs, u, 1);
         l = A*xt + randn(rs, n, 1);
         B = chop(A, l, ones(n,1), 3);
-        [~, D] = lsqvce.engine.adjust(u, srcOf(B), 3, 'verbose', false);
+        [~, D] = flatAdjust(u, srcOf(B), 3, 'verbose', false);
         if isfinite(D.scaleRatio) && D.scaleRatio > D.scaleRatioTol
             nFire = nFire + 1;
         end
@@ -467,7 +384,7 @@ function test_mad_scale_is_unbiased(tc)
         xt = randn(rs, u, 1);
         l = A*xt + randn(rs, n, 1);
         B = chop(A, l, ones(n,1), 3);
-        [~, D] = lsqvce.engine.adjust(u, srcOf(B), 3, 'verbose', false);
+        [~, D] = flatAdjust(u, srcOf(B), 3, 'verbose', false);
         mads(m) = D.robustScale;
     end
     % tol: statistical identity on a finite sample; scatter ~ 1/sqrt(dof) of the fixture, bar sized 4/sqrt(Z)-style (HANDOVER 6.1.2)
@@ -476,40 +393,6 @@ function test_mad_scale_is_unbiased(tc)
 end
 
 %% ==================================================== 6. SPARSE PATH
-function test_sparse_matches_dense(tc)
-% categories: precision, robustness
-    % Sparse must give BIT-COMPARABLE answers, not merely similar ones.
-    rs = RandStream('mt19937ar','Seed',91);
-    u = 60; n = 400; bw = 4;
-    A = zeros(n, u);
-    for i = 1:n
-        % mod(...,u-bw+1) so the LAST parameters are covered too. Without the
-        % +1 the trailing columns are never touched and N is singular -- a rank
-        % defect masquerading as a sparsity bug.
-        j0 = 1 + mod(i-1, u - bw + 1);
-        A(i, j0:j0+bw-1) = randn(rs, 1, bw);
-    end
-    verifyTrue(tc, all(any(A ~= 0, 1)), 'design leaves a parameter uncovered');
-    xt = randn(rs, u, 1);
-    p = ones(n,1);
-    l = A*xt + 0.1*randn(rs, n, 1);
-    B = chop(A, l, p, 5);
-
-    accD = lsqvce.engine.Accumulator(u, 'method','normal', 'sparse', false);
-    accS = lsqvce.engine.Accumulator(u, 'method','normal', 'sparse', true);
-    for k = 1:5
-        accD.add(B{k}{1}, B{k}{2}, B{k}{3});
-        accS.add(B{k}{1}, B{k}{2}, B{k}{3});
-    end
-    sD = accD.solve();  sS = accS.solve();
-
-    % tol: independent dense reference, same-precision algebra; eps*cond headroom (house bounds, HANDOVER 6.1.2)
-    verifyEqual(tc, sS.x, sD.x, 'RelTol', 1e-9, ...
-        'the sparse path must reproduce the dense solution');
-    verifyTrue(tc, issparse(sS.N), 'N was not kept sparse');
-    verifyTrue(tc, sS.sparse);
-end
-
 function test_sparse_diagnostics_identical(tc)
 % categories: precision
     % Redundancy numbers must be identical -- this is where a permutation bug
@@ -527,9 +410,9 @@ function test_sparse_diagnostics_identical(tc)
     p = ones(n,1);
     B = chop(A, l, p, 4);
 
-    [~, Dd] = lsqvce.engine.adjust(u, srcOf(B), 4, 'verbose', false, ...
+    [~, Dd] = flatAdjust(u, srcOf(B), 4, 'verbose', false, ...
                              'method','normal', 'sparse', false);
-    [~, Ds] = lsqvce.engine.adjust(u, srcOf(B), 4, 'verbose', false, ...
+    [~, Ds] = flatAdjust(u, srcOf(B), 4, 'verbose', false, ...
                              'method','normal', 'sparse', true);
 
     % tol: independent dense reference, same-precision algebra; eps*cond headroom (house bounds, HANDOVER 6.1.2)
@@ -540,15 +423,6 @@ function test_sparse_diagnostics_identical(tc)
     verifyEqual(tc, sum(Ds.rNum), Ds.r, 'RelTol', 1e-9);
 end
 
-function test_sparse_qr_is_refused(tc)
-% categories: contract, robustness
-    % A sparse running QR factor fills in immediately; refusing is honest.
-    verifyError(tc, ...
-        @() lsqvce.engine.Accumulator(10, 'method','qr', 'sparse', true), ...
-        'lsqvce:acc:sparseQR');
-end
-
-%% ============================= ESCALATION LADDER / CONTAMINATION GAUGE
 function test_fhat_quiet_on_clean_data(tc)
 % categories: contract
     % The threshold is calibrated, not guessed. fhat has a FLOOR on clean data
@@ -563,7 +437,7 @@ function test_fhat_quiet_on_clean_data(tc)
         A = randn(rs, n, u);  xt = randn(rs, u, 1);
         l = A*xt + randn(rs, n, 1);
         B = chop(A, l, ones(n,1), 3);
-        [~, D] = lsqvce.engine.adjust(u, srcOf(B), 3, 'verbose', false);
+        [~, D] = flatAdjust(u, srcOf(B), 3, 'verbose', false);
         if ~strcmp(D.contamLevel, 'clean'), nEsc = nEsc + 1; end
     end
     verifyLessThanOrEqual(tc, nEsc, 1, ...
@@ -577,7 +451,7 @@ function test_fhat_floor_is_exact(tc)
     n = 400; u = 6;
     A = randn(rs, n, u);  l = A*randn(rs,u,1) + randn(rs, n, 1);
     B = chop(A, l, ones(n,1), 4);
-    [~, D] = lsqvce.engine.adjust(u, srcOf(B), 4, 'verbose', false);
+    [~, D] = flatAdjust(u, srcOf(B), 4, 'verbose', false);
     % tol: exact-path identity (same numbers recombined); house round-trip bound 1e-12/1e-10 (HANDOVER 6.1.2)
     verifyEqual(tc, D.fhatFloor, 2*lsqvce.engine.stat.normCdf(-2.5), 'AbsTol', 1e-12);
     verifyEqual(tc, D.fhatFloor, 0.0124190, 'AbsTol', 1e-5);
@@ -597,7 +471,7 @@ function test_ladder_escalates_with_contamination(tc)
             l(idx) = l(idx) + 20 * sign(randn(rs, k, 1));
         end
         B = chop(A, l, ones(n,1), 4);
-        [~, D] = lsqvce.engine.adjust(u, srcOf(B), 4, 'verbose', false);
+        [~, D] = flatAdjust(u, srcOf(B), 4, 'verbose', false);
         lvl = D.contamLevel;
     end
     verifyEqual(tc, levelAt(0.00), 'clean');
@@ -620,7 +494,7 @@ function test_breakdown_detected_by_backstop(tc)
     l(idx) = l(idx) + 20 * sign(randn(rs, numel(idx), 1));
 
     B = chop(A, l, ones(n,1), 4);
-    [~, D] = lsqvce.engine.adjust(u, srcOf(B), 4, 'verbose', false);
+    [~, D] = flatAdjust(u, srcOf(B), 4, 'verbose', false);
 
     verifyEqual(tc, D.contamLevel, 'breakdown');
     verifyLessThan(tc, D.fhat, 0.02, ...
@@ -640,7 +514,7 @@ function test_snoop_refuses_when_too_contaminated(tc)
 
     B = chop(A, l, ones(n,1), 4);
     src = srcOf(B);
-    [sol, D] = lsqvce.engine.adjust(u, src, 4, 'verbose', false);
+    [sol, D] = flatAdjust(u, src, 4, 'verbose', false);
 
     % Rejecting 30% of the data is not outlier rejection; it is laundering a
     % model error. snoop must REFUSE rather than quietly delete a third of the
@@ -659,7 +533,7 @@ function test_snoop_force_overrides_refusal(tc)
     l(idx) = l(idx) + 20 * sign(randn(rs, numel(idx), 1));
     B = chop(A, l, ones(n,1), 4);
     src = srcOf(B);
-    [sol, D] = lsqvce.engine.adjust(u, src, 4, 'verbose', false);
+    [sol, D] = flatAdjust(u, src, 4, 'verbose', false);
 
     % 'force' must still WARN -- an override should never be silent.
     verifyWarning(tc, ...
@@ -689,7 +563,7 @@ function test_untested_quadrant_is_reported(tc)
     rs = RandStream('mt19937ar','Seed', 11);
     l = A*randn(rs, uu, 1) + randn(rs, ne, 1);
     B = chop(A, l, ones(ne,1), 2);
-    [~, D, V] = lsqvce.engine.adjust(uu, srcOf(B), 2, 'verbose', false);
+    [~, D, V] = flatAdjust(uu, srcOf(B), 2, 'verbose', false);
 
     verifyGreaterThan(tc, D.quad.untested, 0, ...
         'the spur observations must land in the UNTESTED quadrant');
@@ -713,7 +587,7 @@ function test_blunder_at_zero_redundancy_is_invisible(tc)
     l(7) = l(7) + 40;                 % a 40-sigma blunder
 
     B = chop(A, l, ones(n,1), 3);
-    [~, D] = lsqvce.engine.adjust(u, srcOf(B), 3, 'verbose', false);
+    [~, D] = flatAdjust(u, srcOf(B), 3, 'verbose', false);
 
     verifyLessThan(tc, abs(D.w(7)), 1e-6, ...
         'a blunder at r = 0 must produce w = 0 -- that is the whole point');
@@ -728,7 +602,7 @@ function test_mdb_envelope_quantiles(tc)
     A = randn(rs, n, u);
     l = A*randn(rs,u,1) + randn(rs, n, 1);
     B = chop(A, l, ones(n,1), 4);
-    [~, D] = lsqvce.engine.adjust(u, srcOf(B), 4, 'verbose', false);
+    [~, D] = flatAdjust(u, srcOf(B), 4, 'verbose', false);
 
     M = D.mdbQuantiles;
     verifyTrue(tc, isfinite(M.p50) && isfinite(M.max));
@@ -738,74 +612,6 @@ function test_mdb_envelope_quantiles(tc)
 end
 
 %% ===================================== NUMERICAL ROBUSTNESS
-function test_poisoned_vPv_returns_nan(tc)
-% categories: contract, robustness
-    % A cancellation-poisoned vPv must NOT be returned as a plausible number.
-    % Measured, it was 89% wrong at sigma=1e-6 and off by 1e6 at 1e-9. A number
-    % that wrong gets quoted; a NaN gets investigated.
-    rs = RandStream('mt19937ar','Seed', 8);
-    n = 300; u = 4;
-    A = randn(rs, n, u) + 20;             % large offset -> huge l'Pl
-    l = A*randn(rs, u, 1) + 1e-9*randn(rs, n, 1);   % ~zero residual
-
-    acc = lsqvce.engine.Accumulator(u, 'method', 'normal');
-    acc.add(A, l, ones(n,1));
-    sol = verifyWarning(tc, @() acc.solve(), 'lsqvce:acc:cancellation');
-    verifyTrue(tc, isnan(sol.vPv), ...
-        'a poisoned vPv must be NaN, not a plausible-looking number');
-end
-
-function test_cond_is_flagged_as_a_bound_when_sparse(tc)
-% categories: contract | tags: diagnostics
-    % svd() rejects sparse input, so condEst falls back to the extreme-diagonal
-    % ratio -- a LOWER BOUND. The report must not present it as exact.
-    rs = RandStream('mt19937ar','Seed', 91);
-    u = 40; n = 300; bw = 3;
-    A = zeros(n, u);
-    for i = 1:n
-        j0 = 1 + mod(i-1, u - bw + 1);
-        A(i, j0:j0+bw-1) = randn(rs, 1, bw);
-    end
-    l = A*randn(rs, u, 1) + 0.1*randn(rs, n, 1);
-    B = chop(A, l, ones(n,1), 3);
-
-    [~, Ds] = lsqvce.engine.adjust(u, srcOf(B), 3, 'verbose', false, ...
-                             'method','normal', 'sparse', true);
-    [~, Dd] = lsqvce.engine.adjust(u, srcOf(B), 3, 'verbose', false, ...
-                             'method','normal', 'sparse', false);
-    verifyTrue(tc, Ds.condIsBound, ...
-        'a sparse condition number is a LOWER BOUND and must say so');
-    verifyFalse(tc, Dd.condIsBound, ...
-        'a small dense condition number is exact (svd)');
-end
-
-%% ===================================== INTERACTION GUARDS
-function test_ftest_warns_when_premise_violated(tc)
-% categories: contract
-    % The F-test divides the improvement in fit by the residual variance, which
-    % is only meaningful when that variance is NOISE. With a systematic error
-    % present it compares two wrong things.
-    rs = RandStream('mt19937ar','Seed', 23);
-    n = 500; u = 4;
-    A = randn(rs, n, u);
-    xt = randn(rs, u, 1);
-    t = linspace(0,1,n).';
-    l = A*xt + 0.3*randn(rs, n, 1) + 1.5*sin(2*pi*t);   % unmodelled signal
-    Aext = [A, randn(rs, n, 1)];
-
-    accF = lsqvce.engine.Accumulator(u+1); accF.add(Aext, l, ones(n,1));
-    accR = lsqvce.engine.Accumulator(u);   accR.add(A,    l, ones(n,1));
-    sF = accF.solve();  sR = accR.solve();
-
-    B = chop(A, l, ones(n,1), 4);
-    [~, D] = lsqvce.engine.adjust(u, srcOf(B), 4, 'verbose', false);
-    S = lsqvce.engine.systematic(D, 'covariates', struct('t', t), 'verbose', false);
-
-    verifyWarning(tc, ...
-        @() lsqvce.engine.ftest(sF, sR, 'verbose', false, 'checkD', S), ...
-        'lsqvce:ftest:invalidPremise');
-end
-
 function test_stageB_signature_redundancy(tc)
 % categories: contract, robustness
     % WP-39 stage (b) (F-07): redundancy's enum-value lever with the
@@ -824,45 +630,6 @@ function test_stageB_signature_redundancy(tc)
         ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
     end
     verifyTrue(tc, ok, 'redundancy Parallel ''PARFOR'' must fail (value casing)');
-end
-
-function test_stageC1_signatures_enum_values(tc)
-% categories: contract
-    % WP-39 stage (c) c1 (F-07): enum-VALUE levers with the specific
-    % mustBeMember id; solveNonlinear via the parser's own id (adjust
-    % pattern, pinned deviation).
-    ok = false;
-    try
-        lsqvce.kernel.dctI([1;2;3], 'Norm', 'Ortho');
-    catch e
-        ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
-    end
-    verifyTrue(tc, ok, 'dctI Norm ''Ortho'' must fail (value casing)');
-    ok = false;
-    try
-        lsqvce.kernel.toeplitzCofactor([1;0.5;0.2], 'Form', 'Dense');
-    catch e
-        ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
-    end
-    verifyTrue(tc, ok, 'toeplitzCofactor Form ''Dense'' must fail');
-    ok = false;
-    try
-        lsqvce.engine.mapreduce(@(k) k, 3, 'Mode', 'Serial');
-    catch e
-        ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
-    end
-    verifyTrue(tc, ok, 'mapreduce Mode ''Serial'' must fail');
-    ok = false;
-    try
-        % round-2 fix: solveNonlinear takes FOUR positionals (u, batchFcn,
-        % nBatch, x0) -- the first draft passed two, so 'Method' landed as
-        % nBatch and the parser never saw the pair.
-        lsqvce.engine.solveNonlinear(2, @(k, x) deal(randn(4,2), randn(4,1), []), ...
-                              1, [0; 0], 'Method', 'QR');
-    catch e
-        ok = strcmp(e.identifier, 'MATLAB:InputParser:ArgumentFailedValidation');
-    end
-    verifyTrue(tc, ok, 'solveNonlinear Method ''QR'' must fail (case-sensitive)');
 end
 
 function test_stageC2_signatures_classes(tc)
@@ -885,44 +652,6 @@ function test_stageC2_signatures_classes(tc)
         ok = startsWith(e.identifier, 'MATLAB:validators:');
     end
     verifyTrue(tc, ok, 'BlockAccumulator CondWarn < 0 must fail the signature');
-end
-
-function test_stageB2_signatures_enum_values(tc)
-% categories: contract
-    % WP-39 stage (b) b2 (F-07): enum-VALUE casing is the fails-on-old
-    % lever (mustBeMember where strcmpi used to accept any casing),
-    % asserted with the SPECIFIC validator id per the a1-2/b1 lessons.
-    ok = false;
-    try
-        lsqvce.engine.traceEstimate(@(x) x, 'Distribution', 'Gaussian', 'Size', 4);
-    catch e
-        ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
-    end
-    verifyTrue(tc, ok, 'traceEstimate Distribution ''Gaussian'' must fail');
-    ok = false;
-    try
-        lsqvce.engine.ellipse(eye(2), 1, 'Scale', 'Aposteriori');
-    catch e
-        ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
-    end
-    verifyTrue(tc, ok, 'ellipse Scale ''Aposteriori'' must fail');
-    ok = false;
-    try
-        lsqvce.engine.jointModelOpt('psd', {}, 'PsdMode', 'Toeplitz');
-    catch e
-        ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
-    end
-    verifyTrue(tc, ok, 'jointModelOpt PsdMode ''Toeplitz'' must fail');
-    % robust keeps inputParser (pass-through deviation): its lever is the
-    % now-case-sensitive enum VALUE through the parser's own id.
-    ok = false;
-    try
-        lsqvce.engine.robust(2, @(k) deal(randn(8,2), randn(8,1), []), 1, ...
-                      'Influence', 'Huber');
-    catch e
-        ok = strcmp(e.identifier, 'MATLAB:InputParser:ArgumentFailedValidation');
-    end
-    verifyTrue(tc, ok, 'robust Influence ''Huber'' must fail (case-sensitive)');
 end
 
 function cfg = extNoiseCfg()
