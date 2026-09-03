@@ -368,7 +368,12 @@ function testPriorActivationAndGroupPattern(tc)
     tc.assumeTrue(all(cellfun(@(v) ischar(v) || isstring(v), names)), 'the fixture must carry names in column 2');
     pat = ['^' regexptranslate('escape', char(string(names{1}))) '$'];
     lay = lsqvce.layout(data);
-    c1 = lay.colCommon(1, []);
+    % the columns of A whose template row carries that name (names need not
+    % be unique: every matching row, every instance)
+    hit = cellfun(@(v) ~isempty(regexp(char(string(v)), pat, 'once')), names);
+    colsHit = find(arrayfun(@(c) hit(c.row), lay.common));
+    Lwant = zeros(numel(colsHit), nc);
+    for q = 1:numel(colsHit), Lwant(q, colsHit(q)) = 1; end
     e = @(j) double((1:nc) == j);
     % (a MATLAB struct array needs one field set: both forms name all fields,
     % the unused one empty -- the toolbox reads "empty" as "not given")
@@ -379,18 +384,18 @@ function testPriorActivationAndGroupPattern(tc)
     g = R.noise.priors;
     tc.verifyEqual(numel(g), 2);
     tc.verifyEqual(g(1).name, pat, 'the pattern is the default name');
-    tc.verifyEqual(size(g(1).L, 1), 1, 'one matched row, one instance');
-    % tol: exact -- the pattern group's L is the unit row on the matched column
-    tc.verifyEqual(g(1).L, e(c1));
+    tc.verifyEqual(size(g(1).L, 1), numel(colsHit), 'one row per matched column');
+    % tol: exact -- the pattern group's L is the unit rows on the matched columns
+    tc.verifyEqual(g(1).L, Lwant);
     tc.verifyEqual(g(2).from, 3);
     % the same declaration with an explicit L gives the same group
-    data.priors(1) = struct('group', '', 'L', e(c1), 'x0', 0, 'sigma', 0.5, 'name', pat, 'estimate', "none", 'from', 1);
+    data.priors(1) = struct('group', '', 'L', Lwant, 'x0', 0, 'sigma', 0.5, 'name', pat, 'estimate', "none", 'from', 1);
     R2 = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
                      MaxPasses=4, Noise=struct('Grid', 16), Seed=3, Verbose=false));
     % tol: exact -- identical declarations
     tc.verifyEqual(R2.x, R.x);
     % refusals by name: both forms, neither form, a pattern that matches nothing
-    data.priors = struct('group', pat, 'L', e(c1), 'sigma', 1);
+    data.priors = struct('group', pat, 'L', Lwant, 'sigma', 1);
     tc.verifyError(@() lsqvce.fit(data, Verbose=false), 'lsqvce:fit:badPrior');
     data.priors = struct('sigma', 1);
     tc.verifyError(@() lsqvce.fit(data, Verbose=false), 'lsqvce:fit:badPrior');
