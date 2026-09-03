@@ -19,6 +19,7 @@
 %   covComponent         - covariance component estimation
 %   covModel             - covariance spec -> whitening operators (per arc)
 %   datum                - datum defect detection and handling
+%   declaration        - validate a kind-A data struct and build its loaders (R5-D8)
 %   diagnose             - per-observation diagnostics (batch)
 %   diagnoseAccum        - diagnostics bridge from the accumulator
 %   ellipse              - confidence ellipse from a covariance

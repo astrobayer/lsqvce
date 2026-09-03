@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.engine.declaration</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.engine.declaration</div>
+<h1>lsqvce.engine.declaration</h1>
+<div class="purpose">Validate a kind-A data struct and build its loaders.</div>
+<h2>Description</h2>
+<pre class="example">[spec, systems] = lsqvce.engine.declaration(data)
+[spec, systems] = lsqvce.engine.declaration(data, cacheDays)</pre>
+<h3>THE one place the data contract (DATA_CONTRACT.md) is checked and turned</h3>
+<pre class="example">into loaders: field names and types by name (lsqvce:fit:* identifiers --
+this unit keeps fit&#x27;s identifiers because it IS fit&#x27;s declaration step,
+lifted out in R5-D8 round 4 so that Results.toTable can reuse the very
+same expansion plans for the write-back), the scope tokens, the calendar,
+the common plan (with validity, R5-D8 round 3) and one lsqvce.engine.makeLoader
+per system (with the local plan, priors, processing options).
+
+INPUT   data       1x1 struct   the kind-A declaration (DATA_CONTRACT.md)
+        cacheDays  1x1 double   resident built days per system (default 1)
+OUTPUT  spec       1x1 struct   the validated declaration: .commonParams .days
+                                .systems .ids .commonPlan .validityColumns .nc ...
+        systems    1xK cell     Loader structs (isLoader true; .plan, .nc, .nl, ...)
+ERRORS  lsqvce:fit:noSystems / noCommon / unknownField / badScope / badId /
+        badParamColumns / ...  (the fit help lists them)
+
+See also LSQVCE.FIT, LSQVCE.ENGINE.MAKELOADER, LSQVCE.RESULTS
+
+Created 2026-09-03 (CEST, UTC+02:00) with assistance from Claude
+(Anthropic), model Claude Fable 5.1 -- R5-D8 round 4 (lifted from fit.m,
+where these functions lived since R4 Level L2).</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
+</body></html>

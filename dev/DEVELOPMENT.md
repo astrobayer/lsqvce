@@ -7,7 +7,7 @@ the module census, correctness history, design decisions, validation, and the
 measured chapters. `dev/HANDOVER.md` remains the single status-and-plans
 document; this file is the technical companion the README used to be.*
 
-> **Status (2026-09-01, v2.0 — see RELEASE_NOTES.md).** Green everywhere: **26 suite files, 538 test
+> **Status (2026-09-01, v2.0 — see RELEASE_NOTES.md).** Green everywhere: **26 suite files, 539 test
 > points, 0 fail** — verified locally in MATLAB R2026a (including the
 > pool suites with real `parfor`/`spmd` workers and the machine-local
 > speed budgets) and on every push by GitHub Actions CI (a static `audit`
@@ -278,7 +278,7 @@ predicted shift = 1.765467 sigma      <- from the MDB formula
 realised  shift = 1.765467 sigma      <- inject the MDB, re-solve, measure
 ```
 
-MATLAB unit tests: run `run_all_lsqvce` for the full suite (26 files, 538
+MATLAB unit tests: run `run_all_lsqvce` for the full suite (26 files, 539
 test points, ~3 min locally; the speed suite is reported separately by
 design). `run_lsqvce('all')` delegates to it, so it is the same run;
 `run_lsqvce('<target>')` runs one suite or a name pattern while iterating.
