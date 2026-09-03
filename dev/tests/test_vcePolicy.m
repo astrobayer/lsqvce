@@ -182,5 +182,7 @@ end
 function D = countBuild(cnt, inner, varargin)
     key = sprintf('%d|%s', varargin{1}, char(varargin{2}));
     if isKey(cnt, key), cnt(key) = cnt(key) + 1; else, cnt(key) = 1; end
-    D = inner(varargin{:});
+    n = nargin(inner);                          % pass what the builder declares
+    if n < 0, n = numel(varargin); end
+    D = inner(varargin{1:min(n, numel(varargin))});
 end
