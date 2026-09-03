@@ -326,3 +326,30 @@ function testPriorScaleReachesTheHelmertFixedPoint(tc)
     data.priors.estimate = "law";
     tc.verifyError(@() lsqvce.fit(data, Verbose=false), 'lsqvce:fit:badPrior');
 end
+
+%% ------------------------------------------------ compare (M7 7c): ftest onto Results
+function testCompareIsTheNestedModelFTest(tc)
+% categories: contract, reference
+    % R5 M7 7c: R.compare(Rred) re-homes lsqvce.engine.ftest. Reference: the
+    % F statistic in closed form from the two residual sums; a needed
+    % parameter is kept (reject H0), an unneeded one is not.
+    rs = RandStream('mt19937ar', 'Seed', 17);
+    n = 80;  t = linspace(0, 1, n).';
+    A3 = [ones(n, 1), t, t.^2];  xt = [1; -2; 3];
+    l = A3*xt + 0.05*randn(rs, n, 1);
+    Rfull = lsqvce.fit(struct('A', A3, 'l', l), Verbose=false);
+    Rred  = lsqvce.fit(struct('A', A3(:, 1:2), 'l', l), Verbose=false);   % drops the needed t^2
+    F = Rfull.compare(Rred);
+    Fref = ((Rred.sol.vtv - Rfull.sol.vtv) / 1) / (Rfull.sol.vtv / (n - 3));
+    % tol: 1e-10 relative -- the same two residual sums in a closed form
+    tc.verifyEqual(F.F, Fref, 'RelTol', 1e-10);
+    tc.verifyTrue(F.significant, 'the quadratic term is needed');
+    % an UNNEEDED extra parameter: full = cubic, reduced = the true quadratic
+    A4 = [A3, t.^3];
+    Rfull4 = lsqvce.fit(struct('A', A4, 'l', l), Verbose=false);
+    F4 = Rfull4.compare(Rfull, Alpha=0.01);
+    tc.verifyFalse(F4.significant, 'the cubic term is not needed at alpha 0.01');
+    % nesting is checked by the engine (not a subset: refused by name)
+    Rother = lsqvce.fit(struct('A', [ones(n, 1), sin(t)], 'l', l), Verbose=false);
+    tc.verifyError(@() Rred.compare(Rother), 'lsqvce:ftest:notNested');
+end
