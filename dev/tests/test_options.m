@@ -43,7 +43,7 @@ function testGroupMergeOntoDefaults(tc)
 % categories: contract
     o = lsqvce.Options(Noise=struct('Grid', 2160));
     tc.verifyEqual(o.Noise.Grid, 2160);
-    tc.verifyEqual(o.Noise.Whitener, "ar", 'untouched fields keep their defaults');
+    tc.verifyEqual(o.Noise.Whitener, "toeplitz", 'untouched fields keep their defaults');
     tc.verifyEqual(o.Noise.SkipThreshold, 0.2);
     o.Parallel.Mode = "parfor";                       % field assignment
     tc.verifyEqual(o.Parallel.Mode, "parfor");

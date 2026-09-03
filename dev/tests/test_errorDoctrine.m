@@ -158,15 +158,13 @@ end
 %% ============================================================ SkipThreshold
 function testSkipThresholdOption(tc)
 % categories: contract
+    % R5 M5: the skip threshold lives in the Noise group; the default is 0.2
+    % and it is forwarded to the joint driver, which range-checks it
     o = lsqvce.Options();
-    verifyEqual(tc, o.SkipThreshold, 0.2);
-    o.SkipThreshold = 0;   verifyEqual(tc, o.SkipThreshold, 0);
-    o.SkipThreshold = 1;   verifyEqual(tc, o.SkipThreshold, 1);
-    verifyError(tc, @() setBad(o), 'MATLAB:validators:mustBeInRange');
-end
-
-function setBad(o)
-    o.SkipThreshold = 1.5;
+    verifyEqual(tc, o.Noise.SkipThreshold, 0.2);
+    o = lsqvce.Options(Noise=struct('SkipThreshold', 0.5));
+    a = o.engineArgs("adjustVCEjoint");
+    verifyEqual(tc, a.nv{find(strcmp(a.nv, 'SkipThreshold')) + 1}, 0.5);
 end
 
 %% ============================================================ measured window

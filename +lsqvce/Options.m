@@ -46,7 +46,7 @@ classdef Options
 %
 %   GROUPS (structs; set fields one at a time or give a whole struct)
 %     Noise        Grid (60 | "auto")  frequencies of the estimated shape
-%                  Whitener "ar"|"arma"|"toeplitz"  how a PSD law whitens (v4 PsdMode)
+%                  Whitener "toeplitz"|"ar"|"arma"  how a PSD law whitens (v4 PsdMode)
 %                  MeanType "robust"|"plain"        arc-factor normalisation
 %                  Smooth 0                         moving average on the PSD
 %                  FreezeRedundancy 1               components below it hold
@@ -247,7 +247,7 @@ classdef Options
 
     methods (Static)
         function s = noiseDefaults()
-            s = struct('Grid', 60, 'Whitener', "ar", 'MeanType', "robust", ...
+            s = struct('Grid', 60, 'Whitener', "toeplitz", 'MeanType', "robust", ...
                        'Smooth', 0, 'FreezeRedundancy', 1, 'SkipThreshold', 0.2);
         end
         function s = diagnosticsDefaults()
