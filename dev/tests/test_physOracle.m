@@ -44,14 +44,14 @@ function setupOnce(tc)
     tc.TestData.cfg = cfg;                       % the geometry oracle (design, Legendre)
     % R5 M4 4c (decision R5-D4): the RECOVERY oracle runs on the USER surface
     % with the one estimator -- the gravity demo's planted field, planted
-    % stream sigmas and ragged schedule, through lsqvce.fit(Model="vce").
+    % stream sigmas and ragged schedule, through lsqvce.fit(Estimate="noise", Pool="stream", ArcFactors=false).
     % ONE closed-loop solve shared by the recovery tests. (Before 4c:
     % lsqvce.engine.adjustVCE on the oracle loaders -- the separate mode,
     % retired with this level.)
     [cfgR, dataR] = demo_gravity_dataLoader();
     w = warning('off', 'lsqvce:adjustVCEjoint:notConverged'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
     tc.TestData.cfgR = cfgR;
-    tc.TestData.R = lsqvce.fit(dataR, lsqvce.Options(Model="vce", MaxOuter=6, Seed=1, Verbose=false));
+    tc.TestData.R = lsqvce.fit(dataR, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=6, Seed=1, Verbose=false));
 end
 
 %% ------------------------------------------------- the analytic anchors

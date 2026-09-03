@@ -286,8 +286,8 @@ rest. A builder that scales its own rows is scaled twice.
 | **column 13 = column SCALE** (1e-9 on the Stokes rows, 1 / 1e-7 on the locals): the factor that balances the columns of A and B so that N has ≈ unit diagonal — *not* a prior (corrected 2026-09-02) | v4 has **no** column scaling: apply it in your design function (`A(:,j)*s_j`, `B(:,j)*s_j`) and undo it on `R.x` (`x = S*x̃`) and `R.Cxx` (`S*C̃*S`) yourself | a declared per-row `scale`: the toolbox solves the equilibrated system and unscales the results and the reported condition number (R5-D8) |
 | **column 11 = regularisation** (`'none'` or `{'Tikhonov', 1, 0.01}`) — API to be iterated with the user | `lsqvce.Options(Reg=..., RegMatrix=...)` on the common block; `lsqvce.engine.applyRegularisation` on locals (engine tier) | starting proposal: per-row `prior` = the a-priori sigma of the pseudo-observation x_j = 0 ± σ_j, plus an optional `priorGroup` label so rows sharing a label share ONE variance component estimated by VCE (Koch–Kusche) |
 | `weights` (Huber, from the previous outer iteration) | not used — `Robust` is refused on the streaming kind (`lsqvce:fit:notYet`) | IRLS on the streaming kind (M2) |
-| `covarianceModel 'fftmodel'`, `correlationLength 2160` | `Options(Model="ellmer", NumLags=2160)` | per-stream `estimate="law"`, `Noise.Grid` from the schedule |
-| `maximumIterations 7`, `minimumIterations 3` | `MaxOuter=7`; **no** minimum knob | `MaxPasses=7`, `MinPasses=3` (added on this evidence) |
+| `covarianceModel 'fftmodel'`, `correlationLength 2160` | `Options(Estimate="noise", Noise=struct('Grid', 2160))` | per-stream `estimate="law"`, `Noise.Grid` from the schedule |
+| `maximumIterations 7`, `minimumIterations 3` | `MaxPasses=7`; **no** minimum knob | `MaxPasses=7`, `MinPasses=3` (added on this evidence) |
 | `minimumNumberObservations 100` | `MinRedundancy=100` | `Noise.FreezeRedundancy` |
 | `limitConditionNumber 1e13` | not a knob: rank/condition refusals + reported condition | unchanged |
 | `lest`, `iteridx`, `Sacl`, `facl`, rotations, `niPhi`/`niZhi`, `nX12`/`ndX12`/`drho` | inputs of your `gravfireDesign` only | unchanged |
@@ -299,16 +299,16 @@ rest. A builder that scales its own rows is scaled twice.
 ```matlab
 S    = load('testdata.mat');
 data = gravfire_data(S.commonData, S.myOptions, S.systemsData, 'DryRun', true);
-R    = lsqvce.fit(data, lsqvce.Options(Model="gls", Verbose=1));        % 2 s: pipeline check
+R    = lsqvce.fit(data, lsqvce.Options(Verbose=1));        % 2 s: pipeline check
 
 data = gravfire_data(S.commonData, S.myOptions, S.systemsData, 'DesignFcn', @gravfireDesign);
-R    = lsqvce.fit(data, lsqvce.Options(Model="vce", MaxOuter=7, MinRedundancy=100));
+R    = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=7, MinRedundancy=100));
 R.report;  T = R.coefficients;  C = R.convergence;
 ```
 
-> **Until M1/M3 (finding H-15, 2026-09-02):** `Model="ellmer"` is not multi-axis-aware —
+> **Until M1/M3 (finding H-15, 2026-09-02):** `Estimate="noise"` is not multi-axis-aware —
 > on the 3-axis position pieces it forms a dense 6480×6480 Σ per arc and takes row lags
-> (axis-interleaved), and one pass blocks MATLAB for minutes. Use `Model="vce"` for runs
+> (axis-interleaved), and one pass blocks MATLAB for minutes. Use `Estimate="noise", Pool="stream", ArcFactors=false` for runs
 > that include `posA`/`posB`; `ellmer` only on single-axis streams (`kbr`). M1 adds the
 > refusal, M3 the per-axis Toeplitz whitening that makes `ellmer` the right choice here.
 

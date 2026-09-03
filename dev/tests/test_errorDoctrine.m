@@ -214,7 +214,7 @@ function testEllmerRunsOnMultiAxisStreams(tc)
     % longer than NumLags = 16 are no longer non-PD: NO arc is skipped at the
     % DEFAULT threshold (before 3b: 8 of 32, all 's1_rr_*'). The 24 position
     % arcs -- the H-15 case -- are processed per axis.
-    opts = lsqvce.Options(Model="ellmer", NumLags=16, MaxOuter=1, Verbose=0);
+    opts = lsqvce.Options(Estimate="noise", Noise=struct('Grid', 16), MaxPasses=1, Verbose=0);
     R = lsqvce.fit(data, opts);
     tc.verifyClass(R, 'lsqvce.Results');
     tc.verifyEqual(R.history.kind, 'ellmer');

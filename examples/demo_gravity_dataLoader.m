@@ -9,7 +9,7 @@ function [cfg, data] = demo_gravity_dataLoader()
 %   data:
 %
 %       [cfg, data] = demo_gravity_dataLoader();
-%       R = lsqvce.fit(data, lsqvce.Options(Model="vce", GroupBy="obsType"));
+%       R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false));
 %
 %   OUTPUT
 %     cfg   1x1 struct  the configuration (days, nc, sys, cov, arcsOfDay, truth)
@@ -98,8 +98,8 @@ function [cfg, data] = demo_gravity_dataLoader()
 %
 %   EXAMPLE
 %     [cfg, data] = demo_gravity_dataLoader();
-%     R = lsqvce.fit(data, lsqvce.Options(Model="vce", MaxOuter=4, ...
-%             Verbose=false, GroupBy="obsType"));
+%     R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=4, ...
+%             Verbose=false));
 %     max(abs(R.x - cfg.xTrue) ./ (sqrt(diag(R.sol.Cxx))*R.sigma0))   % < 5
 %
 %   See also DEMO_GRAVITY, DEMO_GRAVITY_DESIGN, DEMO_GRACE_DATALOADER,

@@ -121,8 +121,8 @@ function txt = runAtLevel(lvl)
         % short run does mean it stops before convergence, which is why the
         % level-0 block below still shows warnings. Options.Verbose takes the
         % level 0..3 directly (v3, L10 WP-74).
-        lsqvce.fit(data, lsqvce.Options(Model="vce", Verbose=lvl, ...
-                MaxOuter=1, GroupBy="obsType", VceMaxIter=2));
+        lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, Verbose=lvl, ...
+                MaxPasses=1));
     catch ME
         lsqvce.util.log.reset();
         rethrow(ME);

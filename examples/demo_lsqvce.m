@@ -8,7 +8,7 @@
 %
 %   with the diagnostics on R.diag and the verdict on R.source. Case 5 also
 %   shows the CURE: a streaming declaration with one covariance field per
-%   instrument group and Model="vce", so fit estimates the weights it needs.
+%   instrument group and Estimate="noise", Pool="stream", ArcFactors=false, so fit estimates the weights it needs.
 %
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
@@ -20,7 +20,7 @@
 %   Updated 2026-08-31 (CEST, UTC+02:00), v3 data contract (Level L10,
 %   WP-74): USER surface only -- lsqvce.engine.adjust/varComp replaced by
 %   lsqvce.fit on the in-memory kind and, for the wrong-weights cure, by
-%   Model="vce" on a two-type streaming declaration. With assistance from
+%   Estimate="noise", Pool="stream", ArcFactors=false on a two-type streaming declaration. With assistance from
 %   Claude (Anthropic), model Claude Fable 5.
 
 clear; clc;
@@ -129,7 +129,7 @@ fprintf('Outliers flagged     : %d\n', D5.nFlag);
 fprintf(['\nInflated variance factor + clean residuals + no structure\n' ...
          '   ==> the weights are wrong. Estimate them: declare the two\n' ...
          '   instrument groups as two OBSERVATION TYPES of one streaming\n' ...
-         '   system (nl = 0, one arc) and let Model="vce" find the weights.\n']);
+         '   system (nl = 0, one arc) and let Estimate="noise", Pool="stream", ArcFactors=false find the weights.\n']);
 
 vdata.commonParams = [repmat({'common'}, u, 1), num2cell((1:u).')];   % scoped, nc = u
 vdata.days = 1;                                      % the whole set is one "day"
@@ -138,8 +138,8 @@ vs.buildDay = @(day, ot) groupDay(A, l5, t, g, ot);  % rows of ONE group
 vs.covariance.g1 = struct('type', 'diag', 'sigma', sg(g==1));   % the CLAIMED
 vs.covariance.g2 = struct('type', 'diag', 'sigma', sg(g==2));   % (mis-stated) noise
 vdata.systems = vs;
-R5v = lsqvce.fit(vdata, lsqvce.Options(Model="vce", GroupBy="obsType", ...
-          Verbose=false, ComponentsPerEpoch=struct('g1',1,'g2',1)));
+R5v = lsqvce.fit(vdata, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
+          Verbose=false));
 
 sigEnd = R5v.history.sigma(end, :);                  % converged group sigmas
 ratio  = sigEnd(strcmp(R5v.history.streams, 'x1|g2')) / ...

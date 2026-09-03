@@ -8,7 +8,7 @@ function [cfg, data] = demo_grace_dataLoader()
 %   exercised end to end without real data:
 %
 %       [cfg, data] = demo_grace_dataLoader();
-%       R = lsqvce.fit(data, lsqvce.Options(Model="vce", GroupBy="obsType"));
+%       R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false));
 %
 %   TOPOLOGY (real GRACE-FO, "Option B", plus an independent third satellite).
 %     System 1  -- the C/D PAIR.  TWO satellites C, D each with a 3-D position

@@ -62,12 +62,12 @@ function testFitVceReproducesTheEngine(tc)
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');
     [data, ~] = declaration();
     % the same budget on both spellings: vce reads MaxOuter, ellmer JointMaxIter
-    base = {'MaxOuter', 2, 'JointMaxIter', 2, 'NumLags', 8, 'Seed', 7, 'Verbose', false};
-    Rv = lsqvce.fit(data, lsqvce.Options(base{:}, Model="vce"));
+    base = {'MaxPasses', 2, 'MaxPasses', 2, 'Noise', struct('Grid', 8), 'Seed', 7, 'Verbose', false};
+    Rv = lsqvce.fit(data, lsqvce.Options(base{:}, Estimate="noise", Pool="stream", ArcFactors=false));
     dataE = data;
     ots = fieldnames(dataE.systems(1).covariance);
     for k = 1:numel(ots), dataE.systems(1).covariance.(ots{k}).arcFactors = false; end
-    Re = lsqvce.fit(dataE, lsqvce.Options(base{:}, Model="ellmer", Pool="stream"));
+    Re = lsqvce.fit(dataE, lsqvce.Options(base{:}, Estimate="noise", Pool="stream"));
     % tol: exact -- one code path, one seed
     tc.verifyEqual(Rv.x, Re.x);
     tc.verifyEqual(Rv.noise.C, Re.noise.C);
@@ -84,8 +84,8 @@ function testFitVceReproducesTheEngine(tc)
     tc.verifyEqual(numel(Rv.noise.stream), numel(ots));
     tc.verifyTrue(all(cellfun(@(m) isfield(m, 'sigma') && m.sigma > 0, Rv.noise.model)));
     % "pooled" = Pool "all" without arc factors
-    Rp = lsqvce.fit(data, lsqvce.Options(base{:}, Model="pooled"));
-    Rpe = lsqvce.fit(dataE, lsqvce.Options(base{:}, Model="ellmer", Pool="all"));
+    Rp = lsqvce.fit(data, lsqvce.Options(base{:}, Estimate="noise", ArcFactors=false));
+    Rpe = lsqvce.fit(dataE, lsqvce.Options(base{:}, Estimate="noise", Pool="all"));
     % tol: exact -- as above
     tc.verifyEqual(Rp.x, Rpe.x);
     tc.verifyEqual(keys(Rp.noise.Cgroups), {'all'});
@@ -178,16 +178,16 @@ function testNotYetPathsAreRefusedExplicitly(tc)
     % block path); what is still refused explicitly is its composition with a
     % VCE model (the one-loop feature of M4) -- never a silent fallback.
     [data, ~] = declaration();
-    tc.verifyEqual(idOf(@() lsqvce.fit(data, lsqvce.Options(Robust="irls", Model="vce"))), 'lsqvce:fit:notYet');
+    tc.verifyEqual(idOf(@() lsqvce.fit(data, lsqvce.Options(Robust="huber", Estimate="noise", Pool="stream", ArcFactors=false))), 'lsqvce:fit:notYet');
 end
 
 function testRobustRunsOnTheStreamingKind(tc)
 % categories: contract, robustness
-    % R5 M2 2b: the streaming declaration with Robust="irls" converges, keeps
+    % R5 M2 2b: the streaming declaration with Robust="huber" converges, keeps
     % every observation's factor, and agrees with the GLS solve to the
     % influence's tolerance when there is no outlier (all factors ~ 1)
     [data, ~] = declaration();
-    R  = lsqvce.fit(data, lsqvce.Options(Robust="irls", Verbose=false));
+    R  = lsqvce.fit(data, lsqvce.Options(Robust="huber", Verbose=false));
     R0 = lsqvce.fit(data, lsqvce.Options(Verbose=false));
     tc.verifyEqual(R.stopReason, "converged");
     fac = R.history(end).factor;
@@ -309,7 +309,7 @@ end
 %% ================================================= WP-56c: Model "ellmer"
 function testEllmerThroughFitReproducesDirect(tc)
 % categories: reference, precision | tags: diagnostics, provenance
-    % R4 WP-56c: fit(Model="ellmer") is lsqvce.engine.adjustVCEjoint over an accFcn
+    % R4 WP-56c: fit(Estimate="noise") is lsqvce.engine.adjustVCEjoint over an accFcn
     % that fit builds from the loaders (BlockAccumulator + jointModelOpt for
     % every 'satKey|obsType' stream), bridged into a Results. The direct route
     % below hand-builds the same accFcn; same Seed -> same probes -> identical.
@@ -321,7 +321,7 @@ function testEllmerThroughFitReproducesDirect(tc)
     % nonPD and the driver reports noArcs (the L3 r1/r2 catches, together
     % with G-08's lag-unit defect). NumLags = arc length avoids truncation.
     nLag = cfg.mArc;
-    opts = lsqvce.Options(Model="ellmer", NumLags=nLag, JointMaxIter=2, Probes=20, ...
+    opts = lsqvce.Options(Estimate="noise", Noise=struct('Grid', nLag), MaxPasses=2, Probes=20, ...
                           Seed=7, Verbose=false);
     R = lsqvce.fit(data, opts);
 
@@ -329,7 +329,7 @@ function testEllmerThroughFitReproducesDirect(tc)
     streams = {'x1|pos', 'x1|kbr'};                       % makeValidName('1') = 'x1'
     accFcn = @(model) directJointAcc(cfg.nc, L, data.days, ...
                  lsqvce.engine.jointModelOpt(model, streams, 'PsdMode', 'toeplitz'));
-    out = lsqvce.engine.adjustVCEjoint(accFcn, 'NumLags', nLag, 'MaxIter', 2, 'Probes', 20, ...
+    out = lsqvce.engine.adjustVCEjoint(accFcn, 'Noise', struct('Grid', nLag), 'MaxIter', 2, 'Probes', 20, ...
                                 'Seed', 7, 'Verbose', false);
     % tol: 1e-12 -- identical code path; the seed fixes the Hutchinson probes
     tc.verifyEqual(R.x, out.sol.x(:), 'RelTol', 1e-12);
@@ -365,8 +365,8 @@ function testDistributeDaysThroughFitEqualsFused(tc)
     % the summation-order gap, no pool needed on CI.
     [data, ~] = declaration();
     R1 = lsqvce.fit(data, lsqvce.Options(Verbose=false));
-    R2 = lsqvce.fit(data, lsqvce.Options(Verbose=false, Parallel="parfor", ...
-                                         DistributeDays=true, ParallelThreshold=2));
+    R2 = lsqvce.fit(data, lsqvce.Options(Verbose=false, Parallel=struct(\'Mode\', "parfor"), ...
+                                         Parallel=struct('DistributeDays', true, 'Threshold', 2)));
     % tol: 1e-11 -- serial-vs-distributed reduction order (test_parallel
     % testDistributeDaysEqualsFusedSerial's measured bound); bitwise NOT promised
     tc.verifyEqual(R2.x,      R1.x,      'RelTol', 1e-11);
@@ -455,7 +455,7 @@ end
 
 function testMatrixKindRobustReproducesRobust(tc)
 % categories: reference, contract
-    % R5 M2 2b: Robust="irls" rides the block path (lsqvce.engine.adjustRobust)
+    % R5 M2 2b: Robust="huber" rides the block path (lsqvce.engine.adjustRobust)
     % on every kind. On a diagonal law its fixed point is the flat driver's
     % (same influence, same MAD scale, one kernel.robustWeights): x agrees to
     % rounding, the factors are the SAME numbers, and the planted error is
@@ -463,7 +463,7 @@ function testMatrixKindRobustReproducesRobust(tc)
     [A, l, p] = matrixFixture();
     l(7) = l(7) + 25;                                   % gross error
     data = struct('A', A, 'l', l, 'p', p);
-    opts = lsqvce.Options(Robust="irls", Influence="huber", RobustMaxIter=20, Verbose=false);
+    opts = lsqvce.Options(Robust="huber", RobustOpts=struct('MaxIter', 20), Verbose=false);
     R = lsqvce.fit(data, opts);
     [sol, ~, ROB] = lsqvce.engine.robust(size(A, 2), @(k) deal(A, l, p), 1, ...
         'Influence', 'huber', 'MaxIter', 20, 'Verbose', false);
@@ -495,7 +495,7 @@ function testBatchKindNonlinearReproducesSolveNonlinear(tc)
     bf = @(k, x) deal([t(idx{k}).*exp(x(1)*t(idx{k})), ones(20, 1)], ...
                       lobs(idx{k}) - (exp(x(1)*t(idx{k})) + x(2)), []);
     data = struct('batchFcn', bf, 'numBatches', 2, 'x0', [0.5; 0]);   % u = numel(x0), v3
-    opts = lsqvce.Options(NonlinearMaxIter=15, TolX=1e-9, Verbose=false);
+    opts = lsqvce.Options(MaxPasses=15, Tolerance=1e-9, Verbose=false);
     R = lsqvce.fit(data, opts);
     [sol, ~, ~, IT] = lsqvce.engine.solveNonlinear(2, bf, 2, [0.5; 0], 'MaxIter', 15, 'TolX', 1e-9, 'Verbose', false);
     % tol: 1e-8 absolute -- two accumulation routes through the same
@@ -565,14 +565,14 @@ function testKindsBAndCRulesFireBeforeAnyRead(tc)
     tc.verifyEqual(idOf(@() lsqvce.fit(struct('A', A, 'l', l, 'p', p(1:3)))), 'lsqvce:fit:badMatrix');
     tc.verifyEqual(idOf(@() lsqvce.fit(struct('A', A))), 'lsqvce:fit:missingField');
     tc.verifyEqual(idOf(@() lsqvce.fit(struct('A', A, 'l', l, 'weights', p))), 'lsqvce:fit:unknownField');
-    tc.verifyEqual(idOf(@() lsqvce.fit(struct('A', A, 'l', l), lsqvce.Options(Model="vce"))), 'lsqvce:fit:modelKind');
+    tc.verifyEqual(idOf(@() lsqvce.fit(struct('A', A, 'l', l), lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false))), 'lsqvce:fit:modelKind');
     tc.verifyEqual(idOf(@() lsqvce.fit(struct('batchFcn', @(k) deal(A, l, p)))), 'lsqvce:fit:missingField');
     tc.verifyEqual(idOf(@() lsqvce.fit(struct('batchFcn', @(k) deal(A, l, p), ...
         'numBatches', 1))), 'lsqvce:fit:missingField');          % linear form needs u
     tc.verifyEqual(idOf(@() lsqvce.fit(struct('batchFcn', @(k, x) deal(A, l, p), ...
         'numBatches', 1, 'x0', zeros(3, 1), 'numUnknowns', 3))), 'lsqvce:fit:uCount');
     tc.verifyEqual(idOf(@() lsqvce.fit(struct('batchFcn', @(k) deal(A, l, p), 'numUnknowns', 3, ...
-        'numBatches', 1), lsqvce.Options(Model="pooled"))), 'lsqvce:fit:modelKind');
+        'numBatches', 1), lsqvce.Options(Estimate="noise", ArcFactors=false))), 'lsqvce:fit:modelKind');
 end
 
 function [A, l, p] = matrixFixture()

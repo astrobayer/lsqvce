@@ -45,17 +45,17 @@ function data = gravfire_data(commonData, myOptions, systemsData, opt)
 %   EXAMPLE
 %     S    = load('testdata.mat');
 %     data = gravfire_data(S.commonData, S.myOptions, S.systemsData, 'DryRun', true);
-%     R    = lsqvce.fit(data, lsqvce.Options(Model="gls", Verbose=1));   % pipeline check
+%     R    = lsqvce.fit(data, lsqvce.Options(Verbose=1));   % pipeline check
 %     data = gravfire_data(S.commonData, S.myOptions, S.systemsData, 'DesignFcn', @gravfireDesign);
-%     R    = lsqvce.fit(data, lsqvce.Options(Model="ellmer", NumLags=2160, MaxOuter=7));
+%     R    = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Noise=struct('Grid', 2160), MaxPasses=7));
 %
 %   See also LSQVCE.FIT, LSQVCE.OPTIONS, DATA_CONTRACT.md, dev/GRAVFIRE_INTERFACE.md
 %
 %   VERIFIED 2026-09-02 on the user's testdata.mat (R2026a): the declaration
-%   passes every declaration check of fit; DryRun + Model="gls" accumulates 2 days x 16
+%   passes every declaration check of fit; DryRun + Estimate="none" accumulates 2 days x 16
 %   pieces (4 posA + 4 posB + 8 kbr), nc = 117, nl = 144 derived from the 72
-%   templates, Cep accepted, in 2.0 s. Model="vce" runs (62 s, 2 passes).
-%   Model="ellmer" on the 3-axis position pieces BLOCKS for minutes (H-15,
+%   templates, Cep accepted, in 2.0 s. Estimate="noise", Pool="stream", ArcFactors=false runs (62 s, 2 passes).
+%   Estimate="noise" on the 3-axis position pieces BLOCKS for minutes (H-15,
 %   HANDOVER §12.3): until M1/M3, run ellmer on single-axis streams only.
 %
 %   Created 2026-09-02 (CEST, UTC+02:00) with assistance from Claude

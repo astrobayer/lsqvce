@@ -14,7 +14,7 @@ function L = lsqvce_template(procOpt)
 %
 %   ENGINE-TIER TEMPLATE (since 2.0). The user path needs no Loader at all:
 %   describe the same case as a plain `data` struct (DATA_CONTRACT.md) and
-%   call lsqvce.fit(data, lsqvce.Options(Model="vce")) -- examples/demo_fit.m
+%   call lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false)) -- examples/demo_fit.m
 %   shows it end to end. Keep this template when you want the Loaders in
 %   hand (procOpt-driven cases, direct engine work, 1.x code).
 %
@@ -90,7 +90,7 @@ function L = lsqvce_template(procOpt)
 %   EXAMPLE
 %     procOpt = myPipelineConfig();
 %     L = lsqvce_template(procOpt);
-%     R = lsqvce.engine.adjustVCE(L, procOpt.days, 'GroupBy', 'obsType').run();
+%     R = lsqvce.engine.adjustVCE(L, procOpt.days).run();
 %     R.report();
 %
 %   See also LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTVCE, LSQVCE.ENGINE.ADJUSTBLOCK,
@@ -133,7 +133,7 @@ function L = buildLoaders(procOpt)
 
         % --- what this group observes -------------------------------------
         % obsTypes are the STREAM names. They are the unit of variance-component
-        % estimation under 'GroupBy', 'obsType', so name them
+        % estimation under so name them
         % after what they physically are, not after the file they came from.
         obsTypes = cellstr(g.observationTypes);
 

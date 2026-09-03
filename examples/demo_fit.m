@@ -10,7 +10,7 @@ function out = demo_fit(opt)
 %   engine call is made by fit.
 %
 %     (B) in-memory matrices   data.A / data.l / data.p       -> adjust, then
-%         the same problem with a planted gross error and Robust="irls"
+%         the same problem with a planted gross error and Robust="huber"
 %     (C) batched callback     data.batchFcn / numBatches (numUnknowns on the
 %                              linear form; with x0, u = numel(x0)), and
 %         with data.x0 the nonlinear form (Gauss-Newton on exp(a t) + b)
@@ -75,10 +75,10 @@ end
     out.matrix = lsqvce.fit(data, lsqvce.Options(Verbose=opt.Verbose));
     show(out.matrix, opt.Verbose);
 
-    say('\n== (B) the same with one gross error and Robust="irls" ==\n');
+    say('\n== (B) the same with one gross error and Robust="huber" ==\n');
     lBad = l;  lBad(7) = lBad(7) + 25;
     data = struct('A', A, 'l', lBad, 'p', p);
-    out.robust = lsqvce.fit(data, lsqvce.Options(Robust="irls", Influence="huber", Verbose=opt.Verbose));
+    out.robust = lsqvce.fit(data, lsqvce.Options(Robust="huber", Verbose=opt.Verbose));
     show(out.robust, opt.Verbose);
     say('   IRLS weight factor of the planted error: %.3f (clean rows ~1)\n', out.robust.history(end).factor(7));
 
@@ -99,22 +99,22 @@ end
     bfn = @(k, x) deal([t(idx{k}).*exp(x(1)*t(idx{k})), ones(20, 1)], ...
                        lob(idx{k}) - (exp(x(1)*t(idx{k})) + x(2)), []);
     data = struct('batchFcn', bfn, 'numBatches', 2, 'x0', [0.5; 0]);   % u = numel(x0), v3
-    out.nonlinear = lsqvce.fit(data, lsqvce.Options(NonlinearMaxIter=15, TolX=1e-9, Verbose=opt.Verbose));
+    out.nonlinear = lsqvce.fit(data, lsqvce.Options(MaxPasses=15, Tolerance=1e-9, Verbose=opt.Verbose));
     show(out.nonlinear, opt.Verbose);
     say('   [a; b] = [%.4f; %.4f]  (truth [0.7; -0.2])\n', out.nonlinear.x);
 
     % ---- (A) streaming: the gravity oracle as a data struct -----------------
-    say('\n== (A) streaming: the GRACE-like oracle, Model="gls" ==\n');
+    say('\n== (A) streaming: the GRACE-like oracle ==\n');
     [cfg, data] = demo_gravity_dataLoader();
-    out.gls = lsqvce.fit(data, lsqvce.Options(Model="gls", Verbose=opt.Verbose));
+    out.gls = lsqvce.fit(data, lsqvce.Options(Verbose=opt.Verbose));
     show(out.gls, opt.Verbose);
 
-    say('\n== (A) streaming: Model="vce", two outer passes ==\n');
+    say('\n== (A) streaming: Estimate="noise", Pool="stream", ArcFactors=false, two outer passes ==\n');
     w1 = warning('off', 'lsqvce:adjustVCE:notConverged');  % two passes cannot converge:
     w2 = warning('off', 'lsqvce:vce:notConverged');         % the warnings are expected here
     cleaner = onCleanup(@() warning([w1 w2]));              %#ok<NASGU>  restore both on exit
-    out.vce = lsqvce.fit(data, lsqvce.Options(Model="vce", GroupBy="obsType", ...
-                                              MaxOuter=2, Verbose=opt.Verbose));
+    out.vce = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
+                                              MaxPasses=2, Verbose=opt.Verbose));
     show(out.vce, opt.Verbose);
     say('   sigma per group after each pass:\n');
     if opt.Verbose, disp(out.vce.history.sigma); end

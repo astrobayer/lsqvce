@@ -34,7 +34,7 @@ function demo_sensors()
 %   Updated 2026-08-31 (CEST, UTC+02:00), v3 data contract (Level L10,
 %   WP-74): USER surface only -- BatchIndex / Combine / cmb.varComp replaced
 %   by the declarative hierarchy (systems x covariance fields x days), one
-%   lsqvce.fit per question (gls for the symptom, Model="vce" for the
+%   lsqvce.fit per question (gls for the symptom, Estimate="noise", Pool="stream", ArcFactors=false for the
 %   weights), R.residuals() for the attribution. With assistance from
 %   Claude (Anthropic), model Claude Fable 5.
 
@@ -130,10 +130,10 @@ fprintf('  -> far from 1, so at least one sensor is mis-weighted.\n');
 % -------------------------------------------------------------------------
 % Both satellites' KBR are the same INSTRUMENT TYPE, so they share a variance
 % component: GroupBy="obsType" pools the streams across systems. (If you
-% believe each unit has its own noise, GroupBy="satObs" gives every
+% believe each unit has its own noise gives every
 % (system, sensor) pair its own component -- a modelling choice the toolbox
 % will not make for you.)
-Rv = lsqvce.fit(data, lsqvce.Options(Model="vce", GroupBy="obsType", Verbose=false));
+Rv = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, Verbose=false));
 
 sig = Rv.history.sigma(end, :);
 fprintf('\nPER-SENSOR COMPONENTS (GroupBy="obsType")\n');

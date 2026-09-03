@@ -42,188 +42,89 @@ a { color: #0b5ea8; }
 <body>
 <div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.Options</div>
 <h1>lsqvce.Options</h1>
-<div class="purpose">The one settings object for LSQVCE.FIT (typed, with engine defaults).</div>
+<div class="purpose">The one settings object for LSQVCE.FIT (v5: 13 knobs + 5 groups).</div>
 <h2>Description</h2>
 <pre class="example">opts = lsqvce.Options()                       every default
 opts = lsqvce.Options(Name, Value, ...)       override some
-opts.Name = Value                             change one later (validated)</pre>
-<h3>WHY ONE OBJECT (R4 findings G-02/G-03). The estimation options used to</h3>
-<pre class="example">live in four conventions: per-driver Name-Value names, the fluent
-configurator chain of LSQVCE.ENGINE.ADJUSTVCE, the loader UserOpt, and the joint
-translation. Options is the single place every knob is NAMED, TYPED, has
-its DEFAULT stated, and is checked -- at construction through an
-arguments block (unknown names and bad values are rejected by the
-signature), and on later assignment through property validation. The
-defaults are EXACTLY the engines&#x27; own defaults (pinned by the reference
-test in dev/tests/test_options.m), so a run through fit with a default
-Options is the same run as a direct driver call: no behaviour change.
+opts.Name = Value                             change one later (validated)
+R = lsqvce.fit(data, Name, Value, ...)        the same names, straight on fit</pre>
+<h3>WHAT TO ESTIMATE, HOW TO RUN. Everything ABOUT A STREAM (its law, whether</h3>
+<pre class="example">its law / level / arc factors are estimated) is declared on the stream
+(data.systems(k).covariance.&lt;type&gt;: type, sigma, estimate, arcFactors);
+this object holds only RUN policy. R5 M5 (WP-87, decision R5-D2) cut it
+from 62 flat knobs to the 13 below plus five typed groups; the migration
+from every v4 name is in RELEASE_NOTES.md and HANDOVER §12.10.
 
-The MATLAB model is optimoptions/statset: one object, canonical
-UpperCamelCase names, string enums with case-sensitive lowercase VALUES.
-It is a CLASS named Options (not a function options) because the user&#x27;s
-Windows working copy cannot hold options.m and Options.m side by side
-(case-insensitive file system; audit check 18b guards this tree-wide).
+TOP LEVEL
+  Estimate   &quot;none&quot; | &quot;noise&quot;   &quot;none&quot;: one GLS solve under the declared
+                                laws. &quot;noise&quot;: the joint (Ellmer) variance
+                                component estimator on every stream whose
+                                spec allows it (estimate ~= &quot;none&quot;), with
+                                the policy below. Replaces Model: the v4
+                                spellings are Estimate=&quot;noise&quot; plus
+                                  &quot;ellmer&quot; -&gt; Pool as set, ArcFactors true
+                                  &quot;vce&quot;    -&gt; Pool &quot;stream&quot;, ArcFactors false
+                                  &quot;pooled&quot; -&gt; Pool &quot;all&quot;,    ArcFactors false
+  Pool       &quot;all&quot; | &quot;obsType&quot; | &quot;stream&quot;   which streams SHARE one estimated
+                                spectral shape (every stream keeps its own
+                                level regardless); default &quot;all&quot;
+  ArcFactors logical            per-arc variance factors on (Ellmer 6.5.4),
+                                default true; false = one level per stream
+  Robust     &quot;none&quot; | &quot;huber&quot; | &quot;igg3&quot; | &quot;bisquare&quot;   IRLS on the same
+                                loop, every kind (details in RobustOpts)
+  MaxPasses  double  10         the ONE pass budget (v4: MaxOuter / JointMaxIter)
+  MinPasses  double  1          passes run even if the tolerance is met
+                                (GRAVFIRE&#x27;s minimumIterations)
+  Tolerance  double  1e-2       stop when max|alpha2 - 1| over frequencies
+                                and arcs is below it (v4: JointTol)
+  Backend    &quot;qr&quot; | &quot;normal&quot;    square-root vs normal equations
+  Probes     double  100        Hutchinson probes for the per-lag
+                                redundancies (0 = the exact route)
+  Seed       [] | double        RNG seed for the probes (recorded)
+  CacheDays  double  1          built days kept resident per system; Inf =
+                                the whole calendar (one build per run)
+  Verbose    logical | 0..3     screen messages (0 silent)
+  LogFile    string  &quot;&quot;         mirror the messages to this file (&quot;&quot; = none)
 
-PROPERTIES  (group -- name  type  default  meaning)
+GROUPS (structs; set fields one at a time or give a whole struct)
+  Noise        Grid (60 | &quot;auto&quot;)  frequencies of the estimated shape
+               Whitener &quot;ar&quot;|&quot;arma&quot;|&quot;toeplitz&quot;  how a PSD law whitens (v4 PsdMode)
+               MeanType &quot;robust&quot;|&quot;plain&quot;        arc-factor normalisation
+               Smooth 0                         moving average on the PSD
+               FreezeRedundancy 1               components below it hold
+               SkipThreshold 0.2                skip RATE that refuses the pass
+  RobustOpts   Tuning [], MaxIter 30, Tol 1e-8
+  Diagnostics  Alpha 1e-3, Bonferroni true, Beta 0.2, RMin 0.01, RWeak 0.1,
+               Test &quot;auto&quot;, RobustCheck true, Store &quot;flagged&quot;, NWorst 1000
+  Parallel     Mode &quot;serial&quot;|&quot;parfor&quot;|&quot;spmd&quot;, DistributeDays false, Threshold 8
+  GaussNewton  TolF 1e-10, Lambda0 1e-6     (x0 problems; MaxPasses / Tolerance
+               are the budget and the step tolerance)
 
-What to do
-  Model      string   &quot;gls&quot;   &quot;gls&quot; one GLS solve (adjustBlock) |
-                              &quot;vce&quot; alternate stochastic model &lt;-&gt; variance
-                              components (adjustVCE &#x27;separate&#x27;) |
-                              &quot;pooled&quot; pooled spectrum, no per-arc factors
-                              (adjustVCE &#x27;joint&#x27;) | &quot;ellmer&quot; the ten-step
-                              joint co-estimation with keyed arc factors
-                              (adjustVCEjoint)
-  Robust     string   &quot;none&quot;  &quot;none&quot; | &quot;irls&quot; M-estimation (batch path,
-                              LSQVCE.ENGINE.ROBUST)
-
-Solver
-  Backend    string   &quot;qr&quot;    &quot;qr&quot; | &quot;normal&quot; (the engines&#x27; default is
-                              &quot;qr&quot;; changing the DEFAULT is a decision,
-                              not an option -- HANDOVER §11.2 item 2)
-  Reg        string   &quot;none&quot;  &quot;none&quot;|&quot;tikhonov&quot;|&quot;tsvd&quot;|&quot;lm&quot;|&quot;auto&quot;
-  RegLambda  double   0       regularisation weight, &gt;= 0
-  RegMatrix  double   []      p x nc regularisation matrix
-  Sparse     logical  false   batch path: sparse normal matrix
-  DatumB     double   []      batch paths: datum constraint matrix
-  Sigma0     double   1       batch paths: a-priori sigma0 (&gt; 0)
-
-Run control
-  Parallel   string   &quot;serial&quot;  &quot;serial&quot; | &quot;parfor&quot; | &quot;spmd&quot;
-  DistributeDays logical false  parallelise over the DAYS of a system
-                              (one raw partial per day, merged in day
-                              order) -- the axis that scales for a
-                              2-satellite mission; needs Parallel ~=
-                              &quot;serial&quot; and &gt;= ParallelThreshold days
-  ParallelThreshold double 8  below this many tasks a pool is not used
-  Verbose    logical|double  true   logical, or a level 0..3. PINNED
-                              DEVIATION: adjust and adjustVCE default to
-                              true, adjustBlock to false; Options follows
-                              the majority, so fit&#x27;s gls path talks by
-                              default -- set Verbose=false for silence
-  LogFid     double   []      log file id (see LSQVCE.UTIL.LOG); [] = leave
-  LogFlag    logical  []      log to screen; [] = leave
-  ShowSeconds double  0       plot hooks: seconds to show each figure
-  ExportDir  string   &quot;&quot;      plot hooks: PNG folder (&quot;&quot; = none)
-
-Variance components (between groups, Helmert)
-  GroupBy    char|string|fh &#x27;satObs&#x27;  &#x27;satObs&#x27;|&#x27;obsType&#x27;|&#x27;system&#x27;|&#x27;arc&#x27;
-                              or @(sysID,obsType,arc,day) -&gt; key
-  VceMaxIter double   10      inner VCE iterations
-  VceTol     double   5e-3    convergence on max|sigma-1|
-  MinRedundancy double 50     below this a group cannot be estimated
-  ComponentsPerEpoch struct struct(&#x27;pos&#x27;,3)  obsType -&gt; components/epoch
-
-Stochastic model (temporal shape, within a group)
-  MaxOrder   double   60      highest AR order considered
-  AcvTol     double   1e-3    autocovariance fit tolerance
-  MaxLag     double   []      lags for the ACV estimate ([] = auto)
-  WhiteAlpha double   0.01    Ljung-Box significance (whiteness gate)
-
-Outer loop
-  MaxOuter   double   6       outer passes
-  OuterTol   double   5e-3    convergence on max|sigma-1| and AR drift
-
-Pooled / Ellmer joint spectrum
-  NumLags    double|&quot;auto&quot; 60 frequencies in the noise model. &quot;auto&quot;
-                              (pooled only) sizes it from the data. For
-                              &quot;ellmer&quot; the model reaches the loaders as an
-                              &#x27;acf&#x27; that is zero beyond its last lag, so
-                              NumLags below the longest arc length gives a
-                              truncated (in general indefinite) covariance:
-                              every arc is skipped as nonPD and the driver
-                              reports noArcs. Use NumLags &gt;= longest arc.
-  Probes     double   100     Hutchinson probes
-  Seed       double   []      RNG seed for the probes ([] = unseeded)
-  Norm       string   &quot;ortho&quot; DCT normalisation &quot;ortho&quot; | &quot;ellmer&quot;
-  MeanType   string   &quot;robust&quot; arc-factor mean &quot;robust&quot; | &quot;plain&quot;
-  PsdMode    string   &quot;toeplitz&quot; &quot;toeplitz&quot; | &quot;ar&quot; | &quot;arma&quot;   (pooled)
-  Smooth     double   0       PSD moving-average half-width (pooled)
-  C0         double   []      starting covariance function (pooled)
-  JointMaxIter double 10      inner joint iterations (ellmer)
-  JointTol   double   1e-2    joint convergence (ellmer)
-  StepSchedule string &quot;none&quot;  &quot;none&quot; | &quot;decay&quot; (ellmer)
-  AvgTail    double   0       passes averaged at the end (ellmer)
-
-Robust IRLS (batch path)
-  Influence  string   &quot;huber&quot; &quot;huber&quot; | &quot;igg3&quot; | &quot;bisquare&quot;
-  Tuning     double   []      tuning constant ([] = the influence default)
-  RobustMaxIter double 30     IRLS iterations
-  RobustTol  double   1e-8    IRLS convergence
-
-Nonlinear (batch path, LSQVCE.ENGINE.SOLVENONLINEAR)
-  NonlinearMaxIter double 30  Gauss-Newton iterations
-  TolX       double   1e-3    step tolerance
-  TolF       double   1e-10   cost tolerance
-  Lambda0    double   1e-6    initial damping
-
-Diagnostics (forwarded to LSQVCE.ENGINE.DIAGNOSE; replaces KeepUnmatched)
-  Alpha      double   1e-3    test significance
-  Bonferroni logical  true    family-wise correction
-  Beta       double   0.20    power for the MDB
-  RMin       double   1e-6    redundancy floor
-  RWeak      double   0.10    weak-redundancy threshold
-  Test       string   &quot;auto&quot;  &quot;auto&quot; | &quot;pope&quot; | &quot;baarda&quot; | &quot;mad&quot;
-  RobustCheck logical true    run the robust cross-check
-  Store      string   &quot;all&quot;   &quot;all&quot; | &quot;flagged&quot; | &quot;none&quot;
-  NWorst     double   1000    worst observations kept
-  Verify     logical  true    second-pass integrity verification
-  Progress   logical  false   diagnostics progress lines
+UNTIL M5 ROUND 5b (the priors home on the block accumulator) the flat
+drivers&#x27; knobs stay, unchanged and documented as interim:
+  Reg &quot;none&quot;|&quot;tikhonov&quot;|&quot;tsvd&quot;|&quot;lm&quot;|&quot;auto&quot;, RegLambda, RegMatrix,
+  Sparse, DatumB, Sigma0
 
 METHODS
-  args = opts.engineArgs(target)   the mapping onto ONE existing driver:
-      target  string  &quot;adjustBlock&quot; | &quot;adjustVCE&quot; | &quot;adjustVCEjoint&quot; |
-                      &quot;adjust&quot; | &quot;robust&quot; | &quot;solveNonlinear&quot; | &quot;diagnose&quot;
-      args    1x1 struct  .nv  1x2k cell  Name-Value pairs for that call
-              for &quot;adjustVCE&quot; additionally the configurator groups, in the
-              engine&#x27;s own field order and value classes:
-              .shape .scale .outer .joint (structs), .axes (struct
-              obsType -&gt; count), .mode (char &#x27;separate&#x27; | &#x27;joint&#x27;)
-  opts.validate()                  cross-property checks (called by the
-                                   constructor and by engineArgs)
-  s = opts.toStruct()              every public property as a struct field
-                                   (what fit records in Results.meta.options)</pre>
-<h3>Accuracy</h3>
-<pre class="example">No numerics of its own. The claim is EXACTNESS of the mapping: for a
-default Options, engineArgs(&quot;adjustVCE&quot;) returns structs isequal to a
-fresh adjustVCE&#x27;s shapeOpt/scaleOpt/outerOpt/jointOpt/blockOpt/plotOpt
-(dev/tests/test_options.m, reference), and every other target&#x27;s .nv
-carries the literal defaults read from the driver signatures on
-2026-08-31 (pinned in the same suite; a driver default change breaks
-that test on purpose).</pre>
-<h3>Example</h3>
-<pre class="example">opts = lsqvce.Options(Model=&quot;vce&quot;, GroupBy=&quot;satObs&quot;, Parallel=&quot;parfor&quot;);
-opts.MaxOuter = 4;
-a = opts.engineArgs(&quot;adjustVCE&quot;);
-P = lsqvce.engine.adjustVCE(L, days, a.nv{:}, &#x27;Shape&#x27;, a.shape, ...
-        &#x27;Scale&#x27;, a.scale, &#x27;Outer&#x27;, a.outer, &#x27;Joint&#x27;, a.joint, &#x27;Axes&#x27;, a.axes);
-R = P.run();                              % (fit does exactly this, WP-56/64b)</pre>
+  engineArgs(target)   the Name-Value list a driver takes (validated)
+  toStruct()           every public property as a struct (provenance)
+  disp()               grouped display, engine defaults marked *</pre>
 <h3>Errors</h3>
-<pre class="example">  Your value is wrong (signature / property validation, MATLAB ids):
-    MATLAB:validators:mustBeMember     enum VALUE not in the list (values
-                                       are case-sensitive lowercase)
-    MATLAB:validators:mustBePositive   and the other typed constraints
-    MATLAB:InputParser:...             / MATLAB:TooManyInputs  unknown
-                                       option name
-  Your combination is wrong (body, lsqvce ids):
-    lsqvce:Options:badGroupBy   GroupBy is not a char/string or handle
-    lsqvce:Options:badNumLags   NumLags is neither &quot;auto&quot; nor an integer &gt;= 2
-    lsqvce:Options:badVerbose   Verbose is neither logical nor a level 0..3
-    lsqvce:Options:badTarget    engineArgs target unknown
+<pre class="example">MATLAB:validators:*          a typed property receives a value outside
+                             its type / set / range (at assignment)
+lsqvce:Options:badGrid       Noise.Grid is neither &quot;auto&quot; nor an integer &gt;= 2
+lsqvce:Options:badVerbose    Verbose is neither logical nor an integer 0..3
+lsqvce:Options:badGroupField a group struct carries an unknown field
+lsqvce:Options:badTarget     engineArgs target is unknown</pre>
+<h3>Example</h3>
+<pre class="example">  opts = lsqvce.Options(Estimate=&quot;noise&quot;, Pool=&quot;obsType&quot;, Robust=&quot;huber&quot;);
+  opts.Noise.Grid = 2160;  opts.Parallel.Mode = &quot;parfor&quot;;
+  R = lsqvce.fit(data, opts);
 
-See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCE, LSQVCE.ENGINE.ADJUSTVCEJOINT,
-         LSQVCE.ENGINE.ADJUST, LSQVCE.ENGINE.ROBUST, LSQVCE.ENGINE.SOLVENONLINEAR,
-         LSQVCE.ENGINE.DIAGNOSE, LSQVCE.RESULTS
+See also LSQVCE.FIT, LSQVCE.RESULTS, DATA_CONTRACT.md, RELEASE_NOTES.md
 
-Updated 2026-08-31 (CEST, UTC+02:00), R4 WP-62 (Level L4): DistributeDays
-and ParallelThreshold -- the parallel policy of the streaming engines,
-reachable through fit. With assistance from Claude (Anthropic), model
-Claude Fable 5.
-Updated 2026-08-31 (CEST, UTC+02:00), R4 WP-56b (Level L4): toStruct()
-for the provenance record of fit&#x27;s in-memory / batched kinds. With
-assistance from Claude (Anthropic), model Claude Fable 5.
-Created 2026-08-31 (CEST, UTC+02:00) with assistance from Claude
-(Anthropic), model Claude Fable 5 -- R4 Level L1, WP-55.</pre>
+Created 2026-09-03 (CEST, UTC+02:00) with assistance from Claude
+(Anthropic), model Claude Fable 5.1 -- R5 Level M5, WP-87 (v5 interface).</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
 <div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

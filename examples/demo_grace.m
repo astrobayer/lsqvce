@@ -21,7 +21,7 @@ function R = demo_grace(varargin)
 %       inter-satellite link, its own local block y_E, observing the SAME
 %       common gravity field. A clean separate block-arrow system.
 %   The loop starts every stream from a deliberately WRONG a-priori
-%   (temporally white, sigma 1) and lets Model="vce" discover the covariance:
+%   (temporally white, sigma 1) and lets Estimate="noise", Pool="stream", ArcFactors=false discover the covariance:
 %   auto-AR whitening per stream, one variance component per obsType group.
 %
 %   INPUT  (Name-Value, all optional)
@@ -84,9 +84,9 @@ function R = demo_grace(varargin)
     % VceMaxIter 8) and settles visibly (VceTol 1e-3). For your own case,
     % start from the defaults -- just omit them -- and change one only when a
     % diagnostic tells you to.
-    R = lsqvce.fit(data, lsqvce.Options(Model="vce", GroupBy="obsType", ...
-            MaxOuter=o.maxOuter, Verbose=o.verbose, ...
-            MaxOrder=40, VceMaxIter=8, VceTol=1e-3));
+    R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
+            MaxPasses=o.maxOuter, Verbose=o.verbose, ...
+            MaxOrder=40, Tolerance=1e-3));
 
     fprintf('\n--- sigma trajectory (rows = iterations, cols = streams) ---\n');
     fprintf('streams: %s\n', strjoin(R.history.streams, '  '));

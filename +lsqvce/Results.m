@@ -196,13 +196,13 @@ classdef Results < handle
         %   to reach into R.acc and R.sol yourself.
         %
         %   INPUT   varargin  Name/Value pairs passed through to
-        %                     LSQVCE.ENGINE.CONTRIBUTION ('GroupBy', 'Level', 'Probes',
+        %                     LSQVCE.ENGINE.CONTRIBUTION ('Probes',
         %                     'Seed', ...). 'GroupBy' defaults there.
         %   OUTPUT  con  1x1 struct  .group(k).key/.r/.share/.diag/.relSE, .nc
         %
         %   EXAMPLE
-        %     R   = lsqvce.engine.adjustVCE(L, days, 'GroupBy', 'obsType').run();
-        %     con = R.contribution('GroupBy', 'obsType', 'Level', 2);
+        %     R   = lsqvce.engine.adjustVCE(L, days).run();
+        %     con = R.contribution('Level', 2);
         %     bar(con.group(1).diag);      % per-coefficient share of group 1
         %
         %   See also LSQVCE.ENGINE.CONTRIBUTION, LSQVCE.ENGINE.STREAMCONTRIBUTION
@@ -262,7 +262,7 @@ classdef Results < handle
         %                                history (it came from a single solve).
         %
         %   EXAMPLE
-        %     R = lsqvce.engine.adjustVCE(L, days, 'GroupBy', 'obsType').run();
+        %     R = lsqvce.engine.adjustVCE(L, days).run();
         %     T = R.convergence('Plot', true);   % table + diagnostic figure
         %     % a stream stuck at minWhitePval < WhiteAlpha for every pass needs a
         %     % higher Shape.MaxOrder or ARMA; an oscillating
@@ -339,7 +339,7 @@ classdef Results < handle
         %                                history (it came from a single solve).
         %
         %   EXAMPLE
-        %     R = lsqvce.engine.adjustVCE(L, days, 'GroupBy', 'obsType').run();
+        %     R = lsqvce.engine.adjustVCE(L, days).run();
         %     T = R.summary();
         %     T(~T.white, :)            % the streams that never whitened
         %     T(abs(T.sigma-1) > 0.1, :)  % the streams still badly weighted

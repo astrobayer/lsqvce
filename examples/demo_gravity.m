@@ -3,7 +3,7 @@ function [R, score] = demo_gravity(opt)
 %
 %   R = DEMO_GRAVITY()
 %   [R, score] = DEMO_GRAVITY()
-%   R = DEMO_GRAVITY('MaxOuter', 6, 'Verbose', true)
+%   R = DEMO_GRAVITY('MaxPasses', 6, 'Verbose', true)
 %   R = DEMO_GRAVITY('Plots', true, 'ExportDir', '/tmp/figs')
 %
 %   The other demos exercise the algebra on random designs. This one runs the
@@ -104,7 +104,7 @@ function [R, score] = demo_gravity(opt)
 %   Claude Fable 5.
 %   Updated 2026-08-31 (CEST, UTC+02:00), v3 data contract (Level L10,
 %   WP-74): USER surface only -- the run is lsqvce.fit over the v4 data
-%   struct (Model="vce"); the loaders and the engine call are gone from
+%   struct (Estimate="noise", Pool="stream", ArcFactors=false); the loaders and the engine call are gone from
 %   the example. With assistance from Claude (Anthropic), model Claude
 %   Fable 5.
 %   Updated 2026-08-21 (CEST, UTC+02:00), WP-53: the printed self-assessment
@@ -151,8 +151,8 @@ end
              '                   absent BY ID, the way a real schedule is\n']);
 
     % ---- run ------------------------------------------------------------
-    R = lsqvce.fit(data, lsqvce.Options(Model="vce", MaxOuter=opt.MaxOuter, ...
-            Verbose=opt.Verbose, GroupBy="obsType"));
+    R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=opt.MaxOuter, ...
+            Verbose=opt.Verbose));
 
     % ---- 2. the weights --------------------------------------------------
     section('2. The weights VCE had to find');

@@ -107,17 +107,17 @@ data = struct('batchFcn', batchFcn, 'numUnknowns', u, 'numBatches', nb);
 %   kind B / C  (A,l,p | batchFcn)          -> lsqvce.engine.adjust
 %       FLAT, one shared parameter block, batches streamed. Use when: every
 %       observation sees the SAME u unknowns; u is modest; one covariance, no
-%       per-system locals. Model="gls" (the only one these kinds take);
-%       Robust="irls" switches to M-estimation. This section uses it.
+%       per-system locals. Estimate="none" (the only one these kinds take);
+%       Robust="huber" switches to M-estimation. This section uses it.
 %
-%   kind A, Model="gls"                     -> lsqvce.engine.adjustBlock
+%   kind A                     -> lsqvce.engine.adjustBlock
 %       BLOCK-ARROW (Helmert reduction). A shared COMMON block of nc unknowns,
 %       plus PER-SYSTEM LOCAL blocks eliminated on the fly. One GLS solve.
 %       Use when: several systems share a common field but each has its own
 %       nuisance parameters (arc biases, scale factors), OR the full normal is
 %       too big to form but the reduced common one is not. Section 3 shows it.
 %
-%   kind A, Model="vce"                     -> lsqvce.engine.adjustVCE
+%   kind A, Estimate="noise", Pool="stream", ArcFactors=false                     -> lsqvce.engine.adjustVCE
 %       adjustBlock PLUS the iterative covariance loop: it re-estimates the
 %       temporal correlation (the stochastic model) and the per-group variance
 %       factor until the residuals whiten and the components agree.
@@ -126,8 +126,8 @@ data = struct('batchFcn', batchFcn, 'numUnknowns', u, 'numBatches', nb);
 %
 %   RULE OF THUMB
 %       one parameter block, known noise ............ kind B/C, default Options
-%       common + per-system locals, known noise ..... kind A,  Model="gls"
-%       + you must DISCOVER the noise model ......... kind A,  Model="vce"
+%       common + per-system locals, known noise ..... kind A,  Estimate="none"
+%       + you must DISCOVER the noise model ......... kind A,  Estimate="noise", Pool="stream", ArcFactors=false
 %
 % Our Section-1 problem is flat with known-ish weights, so: the default.
 R = lsqvce.fit(data);
@@ -177,7 +177,7 @@ fprintf('  blunders     : %d flagged\n', D.nFlag);
 %       s.covariance.rr = struct('type','arma', ...);   % fieldnames = the types
 %       s.localParams   = num2cell((1:4).');       % nl = 4, this system's own
 %       data.systems(1) = s;                       % ... (2) for the next system
-%       R = lsqvce.fit(data);                      % Model="gls": one solve
+%       R = lsqvce.fit(data);                      % Estimate="none": one solve
 %
 % where buildDay(day, obsType, common, local, procOpt) returns that day's raw
 % design and observations (A, B, l, t -- DATA_CONTRACT.md section 3).
@@ -191,7 +191,7 @@ fprintf('  blunders     : %d flagged\n', D.nFlag);
 % (No runnable block here: it needs your multi-system buildDay. See
 % examples/demo_combine.m for the declaration pattern, demo_sensors.m for a
 % complete system/sensor/day hierarchy, and demo_grace.m for the full
-% Model="vce" loop.)
+% Estimate="noise", Pool="stream", ArcFactors=false loop.)
 fprintf('\n[Section 3 is a recipe -- see demo_combine / demo_sensors / demo_grace.]\n');
 
 %% ------------------------------------------------------------------------
@@ -199,7 +199,7 @@ fprintf('\n[Section 3 is a recipe -- see demo_combine / demo_sensors / demo_grac
 % -------------------------------------------------------------------------
 % When s0^2 is inflated but the residuals are CLEAN and show NO structure, the
 % weights themselves are wrong. Declare one covariance field per observation
-% GROUP and let Model="vce" estimate one variance component per group.
+% GROUP and let Estimate="noise", Pool="stream", ArcFactors=false estimate one variance component per group.
 %
 % Here: two instrument groups, the second secretly 3x noisier, but we CLAIM
 % equal noise -- the normal state of affairs when instrument headers disagree
@@ -220,13 +220,13 @@ vs.covariance.g1 = struct('type', 'diag', 'sigma', sg(g==1));   % the CLAIMED
 vs.covariance.g2 = struct('type', 'diag', 'sigma', sg(g==2));   % (mis-stated) noise
 vdata.systems = vs;
 
-Rv = lsqvce.fit(vdata, lsqvce.Options(Model="vce", GroupBy="obsType", ...
-         Verbose=false, ComponentsPerEpoch=struct('g1',1,'g2',1)));
+Rv = lsqvce.fit(vdata, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
+         Verbose=false));
 
 sigEnd = Rv.history.sigma(end, :);
 ratio  = sigEnd(contains(Rv.history.streams, 'g2')) / ...
          sigEnd(contains(Rv.history.streams, 'g1'));
-fprintf('\n[Model="vce"]  recovered sigma ratio: %.3f   (truth: 3.000)\n', ratio);
+fprintf('\n[Estimate="noise", Pool="stream", ArcFactors=false]  recovered sigma ratio: %.3f   (truth: 3.000)\n', ratio);
 fprintf('               the loop rescaled the group covariances and re-solved: sigma0 = %.3f\n', ...
         Rv.sigma0);
 
@@ -243,14 +243,14 @@ fprintf('               the loop rescaled the group covariances and re-solved: s
 disp(' ');
 disp('  THE DATA STRUCT (fit picks the engine from its shape)');
 disp('    one parameter block, known noise ............ data.A/l/p or batchFcn');
-disp('    common + per-system locals, known noise ..... data.systems, Model="gls"');
-disp('    must DISCOVER the noise model ............... data.systems, Model="vce"');
+disp('    common + per-system locals, known noise ..... data.systems');
+disp('    must DISCOVER the noise model ............... data.systems, Estimate="noise", Pool="stream", ArcFactors=false');
 disp(' ');
 disp('  READING THE RESULT (in this order)');
 disp('    integrity fails            -> fix your batchFcn/buildDay. Nothing else matters.');
 disp('    ratio ~ 1                  -> done.');
-disp('    ratio >> 1, contamination  -> R.diag.flagIdx, or Robust="irls" (kinds B/C).');
+disp('    ratio >> 1, contamination  -> R.diag.flagIdx, or Robust="huber" (kinds B/C).');
 disp('    ratio >> 1, clean, STRUCTURE -> plot R.diag.w vs time etc. Fix the MODEL.');
-disp('    ratio >> 1, clean, no structure -> Model="vce". Fix the WEIGHTS.');
+disp('    ratio >> 1, clean, no structure -> Estimate="noise", Pool="stream", ArcFactors=false. Fix the WEIGHTS.');
 disp('    ratio << 1                 -> over-parameterised?');
 disp(' ');
