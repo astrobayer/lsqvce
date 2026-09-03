@@ -137,8 +137,8 @@ function test_sigma0_scales_the_ratio_not_the_fit(tc)
     % rescales the variance ratio and the Baarda statistic.
     [A, l, p] = prob(300, 5, 21);
     B = chop(A, l, p, 5);
-    [s1, D1] = lsqvce.engine.adjust(5, srcOf(B), 5, 'verbose', false, 'sigma0', 1);
-    [s2, D2] = lsqvce.engine.adjust(5, srcOf(B), 5, 'verbose', false, 'sigma0', 2);
+    [s1, D1] = flatAdjust(5, srcOf(B), 5, 'verbose', false, 'sigma0', 1);
+    [s2, D2] = flatAdjust(5, srcOf(B), 5, 'verbose', false, 'sigma0', 2);
 
     % tol: invariance claim (same solve, different bookkeeping); eps-level accumulation-order difference only
     verifyEqual(tc, s2.x, s1.x, 'RelTol', 1e-12, ...
@@ -158,7 +158,7 @@ function test_store_none_still_gives_scalars(tc)
     % n = 1e8 you cannot hold 5 arrays of size n, but you still need the verdict.
     [A, l, p] = prob(500, 5, 31, [10 200]);
     B = chop(A, l, p, 5);
-    [~, D] = lsqvce.engine.adjust(5, srcOf(B), 5, 'verbose', false, 'store', 'none');
+    [~, D] = flatAdjust(5, srcOf(B), 5, 'verbose', false, 'store', 'none');
 
     verifyTrue(tc, isfinite(D.s0));
     verifyTrue(tc, isfinite(D.sumR));
@@ -173,7 +173,7 @@ function test_store_flagged_keeps_the_flags(tc)
 % categories: contract
     [A, l, p] = prob(500, 5, 33, [7 250 400]);
     B = chop(A, l, p, 5);
-    [~, D] = lsqvce.engine.adjust(5, srcOf(B), 5, 'verbose', false, ...
+    [~, D] = flatAdjust(5, srcOf(B), 5, 'verbose', false, ...
                             'store', 'flagged', 'bonferroni', false);
     verifyGreaterThan(tc, D.nFlag, 0);
     verifyEqual(tc, numel(D.flagIdx), D.nFlag);
@@ -186,8 +186,8 @@ function test_baarda_vs_pope(tc)
     % under contamination (which is what makes Pope fragile -- see the ext suite).
     [A, l, p] = prob(600, 6, 41);
     B = chop(A, l, p, 6);
-    [~, Db] = lsqvce.engine.adjust(6, srcOf(B), 6, 'verbose', false, 'test','baarda');
-    [~, Dp] = lsqvce.engine.adjust(6, srcOf(B), 6, 'verbose', false, 'test','pope');
+    [~, Db] = flatAdjust(6, srcOf(B), 6, 'verbose', false, 'test','baarda');
+    [~, Dp] = flatAdjust(6, srcOf(B), 6, 'verbose', false, 'test','pope');
 
     % w_pope = w_baarda * sigma0/s0
     ratio = Db.w ./ Dp.w;
@@ -200,8 +200,8 @@ function test_bonferroni_raises_the_threshold(tc)
 % categories: precision
     [A, l, p] = prob(2000, 6, 51);
     B = chop(A, l, p, 8);
-    [~, D0] = lsqvce.engine.adjust(6, srcOf(B), 8, 'verbose', false, 'bonferroni', false);
-    [~, D1] = lsqvce.engine.adjust(6, srcOf(B), 8, 'verbose', false, 'bonferroni', true);
+    [~, D0] = flatAdjust(6, srcOf(B), 8, 'verbose', false, 'bonferroni', false);
+    [~, D1] = flatAdjust(6, srcOf(B), 8, 'verbose', false, 'bonferroni', true);
     verifyGreaterThan(tc, D1.kCrit, D0.kCrit, ...
         'the Bonferroni correction must RAISE the critical value');
     % tol: documented scaling relation between two runs of the same solve; fp-only deviation, bound adds headroom
@@ -212,8 +212,8 @@ function test_rWeak_changes_the_quadrants(tc)
 % categories: contract
     [A, l, p] = prob(300, 5, 61);
     B = chop(A, l, p, 3);
-    [~, Da] = lsqvce.engine.adjust(5, srcOf(B), 3, 'verbose', false, 'rWeak', 0.01);
-    [~, Db] = lsqvce.engine.adjust(5, srcOf(B), 3, 'verbose', false, 'rWeak', 0.99);
+    [~, Da] = flatAdjust(5, srcOf(B), 3, 'verbose', false, 'rWeak', 0.01);
+    [~, Db] = flatAdjust(5, srcOf(B), 3, 'verbose', false, 'rWeak', 0.99);
     verifyGreaterThanOrEqual(tc, Db.quad.untested + Db.quad.ambiguous, ...
                                  Da.quad.untested + Da.quad.ambiguous, ...
         'raising rWeak must classify MORE observations as weakly controlled');
@@ -227,7 +227,7 @@ function test_snoop_removes_the_planted_outliers(tc)
     [A, l, p] = prob(800, 6, 71, bad);
     B = chop(A, l, p, 8);
     src = srcOf(B);
-    [sol, D] = lsqvce.engine.adjust(6, src, 8, 'verbose', false);
+    [sol, D] = flatAdjust(6, src, 8, 'verbose', false);
     [~, ~, REJ] = lsqvce.engine.snoop(sol, D, src, 'verbose', false, ...
                                 'bonferroni', false);
     verifyTrue(tc, all(ismember(bad, REJ.idx)), ...
@@ -248,7 +248,7 @@ function test_snoop_refuses_low_redundancy(tc)
     p = ones(n,1);
     B = chop(A, l, p, 2);
     src = srcOf(B);
-    [sol, D] = lsqvce.engine.adjust(u, src, 2, 'verbose', false);
+    [sol, D] = flatAdjust(u, src, 2, 'verbose', false);
     [~, ~, REJ] = lsqvce.engine.snoop(sol, D, src, 'verbose', false);
     verifyFalse(tc, ismember(7, REJ.idx), ...
         'snoop must NOT reject a zero-redundancy observation');
@@ -261,7 +261,7 @@ function test_snoop_maxReject_cap(tc)
     [A, l, p] = prob(800, 6, 91, bad);
     B = chop(A, l, p, 8);
     src = srcOf(B);
-    [sol, D] = lsqvce.engine.adjust(6, src, 8, 'verbose', false);
+    [sol, D] = flatAdjust(6, src, 8, 'verbose', false);
     [~, ~, REJ] = lsqvce.engine.snoop(sol, D, src, 'verbose', false, ...
                                 'maxReject', 5, 'bonferroni', false);
     verifyLessThanOrEqual(tc, numel(REJ.idx), 5);
@@ -277,7 +277,7 @@ function test_snoop_reaccumulate_gives_clean_solution(tc)
     [A, l, p] = prob(600, 5, 101, bad);
     B = chop(A, l, p, 6);
     src = srcOf(B);
-    [sol, D] = lsqvce.engine.adjust(5, src, 6, 'verbose', false);
+    [sol, D] = flatAdjust(5, src, 6, 'verbose', false);
     [solR, ~, REJ] = lsqvce.engine.snoop(sol, D, src, 'verbose', false, ...
                                    'bonferroni', false, 'reaccumulate', true);
     % compare against a manual solve over the survivors
@@ -326,7 +326,7 @@ function test_ellipse_confidence_scales_axes(tc)
     muteWarn(tc, 'MATLAB:graphics:HardwareUnavailable');   % headless runner: MATLAB warns ONCE per session at the first graphics use (WP-47 CI catch); each figure-creating test can be that first use in a subset run
     [A, l, p] = prob(400, 4, 141);
     B = chop(A, l, p, 4);
-    [~, D] = lsqvce.engine.adjust(4, srcOf(B), 4, 'verbose', false);
+    [~, D] = flatAdjust(4, srcOf(B), 4, 'verbose', false);
     E1 = lsqvce.engine.ellipse(D, [1 2], 'conf', 0.39);  % ~1 sigma
     E2 = lsqvce.engine.ellipse(D, [1 2], 'conf', 0.95);
     verifyGreaterThan(tc, E2.semiMajor, E1.semiMajor, ...
@@ -342,7 +342,7 @@ function test_ellipse_returns_a_drawable_boundary(tc)
 % categories: contract, robustness
     [A, l, p] = prob(300, 4, 151);
     B = chop(A, l, p, 3);
-    [~, D] = lsqvce.engine.adjust(4, srcOf(B), 3, 'verbose', false);
+    [~, D] = flatAdjust(4, srcOf(B), 3, 'verbose', false);
     E = lsqvce.engine.ellipse(D, [1 2], 'npts', 64);
     verifySize(tc, E.xy, [64 2]);
     verifyTrue(tc, all(isfinite(E.xy(:))));
@@ -352,7 +352,7 @@ function test_ellipse_rejects_bad_pair(tc)
 % categories: contract
     [A, l, p] = prob(200, 3, 161);
     B = chop(A, l, p, 2);
-    [~, D] = lsqvce.engine.adjust(3, srcOf(B), 2, 'verbose', false);
+    [~, D] = flatAdjust(3, srcOf(B), 2, 'verbose', false);
     verifyError(tc, @() lsqvce.engine.ellipse(D, [1 9]), ...
         'lsqvce:ellipse:badPair');
 end
@@ -435,7 +435,7 @@ function test_systematic_finds_the_right_covariate(tc)
     junk = randn(rs, n, 1);
     l = A*xt + 0.3*randn(rs,n,1) + 2.0*t;      % LINEAR drift in t
     B = chop(A, l, ones(n,1), 8);
-    [~, D] = lsqvce.engine.adjust(u, srcOf(B), 8, 'verbose', false);
+    [~, D] = flatAdjust(u, srcOf(B), 8, 'verbose', false);
     S = lsqvce.engine.systematic(D, 'covariates', struct('time', t, 'junk', junk), ...
                            'verbose', false);
     verifyTrue(tc, S.detected);
@@ -463,7 +463,7 @@ function test_systematic_ljungbox_on_correlated_residuals(tc)
     for i = 2:n, e(i) = 0.85*e(i-1) + randn(rs); end   % strongly correlated
     l = A*randn(rs,u,1) + e;
     B = chop(A, l, ones(n,1), 6);
-    [~, D] = lsqvce.engine.adjust(u, srcOf(B), 6, 'verbose', false);
+    [~, D] = flatAdjust(u, srcOf(B), 6, 'verbose', false);
     S = lsqvce.engine.systematic(D, 'verbose', false);
     verifyTrue(tc, S.ljungBox.reliable);
     verifyLessThan(tc, S.ljungBox.p, 1e-3, ...
@@ -475,7 +475,7 @@ function test_report_returns_machine_readable_findings(tc)
 % categories: contract | tags: diagnostics
     [A, l, p] = prob(400, 5, 231, [10 200]);
     B = chop(A, l, p, 4);
-    [~, ~, V] = lsqvce.engine.adjust(5, srcOf(B), 4, 'verbose', false);
+    [~, ~, V] = flatAdjust(5, srcOf(B), 4, 'verbose', false);
     verifyTrue(tc, iscell(V.findings));
     verifyTrue(tc, all(cellfun(@(f) isfield(f,'level') && isfield(f,'code') ...
                                     && isfield(f,'severity'), V.findings)));
@@ -521,7 +521,7 @@ function test_correlated_diagnostics_match_dense(tc)
     l = A*xt + randn(rs, n, 1);
 
     src = @(k) deal(A((k-1)*nk+(1:nk), :), l((k-1)*nk+(1:nk)), Pb{k});
-    [sol, D] = lsqvce.engine.adjust(u, src, nb, 'verbose', false);
+    [sol, D] = flatAdjust(u, src, nb, 'verbose', false);
 
     % dense reference
     N  = A' * Pfull * A;
@@ -562,7 +562,7 @@ function test_correlated_integrity_identity(tc)
     end
     l = A*randn(rs,u,1) + randn(rs, n, 1);
     src = @(k) deal(A((k-1)*nk+(1:nk), :), l((k-1)*nk+(1:nk)), Pb{k});
-    [~, D] = lsqvce.engine.adjust(u, src, nb, 'verbose', false);
+    [~, D] = flatAdjust(u, src, nb, 'verbose', false);
 
     % tol: redundancy partition identity sum(r_i)=n-u; fp accumulation over n terms, house bound with headroom
     verifyEqual(tc, D.sumR, D.r, 'RelTol', 1e-9, ...
@@ -591,7 +591,7 @@ function test_correlated_finds_the_physical_outlier(tc)
     l(bad) = l(bad) + 15;
 
     src = @(k) deal(A((k-1)*nk+(1:nk), :), l((k-1)*nk+(1:nk)), Pb{k});
-    [~, D] = lsqvce.engine.adjust(u, src, nb, 'verbose', false);
+    [~, D] = flatAdjust(u, src, nb, 'verbose', false);
 
     [~, worst] = max(abs(D.w));
     verifyEqual(tc, worst, bad, ...
@@ -615,8 +615,8 @@ function test_correlated_reduces_to_diagonal(tc)
     srcM = @(k) deal(A((k-1)*nk+(1:nk), :), l((k-1)*nk+(1:nk)), ...
                      diag(p((k-1)*nk+(1:nk))));
 
-    [sV, DV] = lsqvce.engine.adjust(u, srcV, nb, 'verbose', false);
-    [sM, DM] = lsqvce.engine.adjust(u, srcM, nb, 'verbose', false);
+    [sV, DV] = flatAdjust(u, srcV, nb, 'verbose', false);
+    [sM, DM] = flatAdjust(u, srcM, nb, 'verbose', false);
 
     % tol: diag-matrix vs vector weights is the SAME algebra restated;
     % eps-level accumulation-order difference only (house bounds)
@@ -645,7 +645,7 @@ function test_snoop_refuses_correlated(tc)
     end
     l = A*randn(rs,u,1) + randn(rs, n, 1);
     src = @(k) deal(A((k-1)*nk+(1:nk), :), l((k-1)*nk+(1:nk)), Pb{k});
-    [sol, D] = lsqvce.engine.adjust(u, src, nb, 'verbose', false);
+    [sol, D] = flatAdjust(u, src, nb, 'verbose', false);
 
     verifyError(tc, @() lsqvce.engine.snoop(sol, D, src, 'verbose', false), ...
         'lsqvce:snoop:correlatedBatch');

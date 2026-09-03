@@ -254,7 +254,7 @@ function test_redundancy_sum_identity(tc)
     % check and must hold to machine precision.
     [A, l, p] = tc.TestData.mk(400, 5, 21);
     B = chop(A, l, p, 11);
-    [~, D] = lsqvce.engine.adjust(5, srcOf(B), 11, 'verbose', false);
+    [~, D] = flatAdjust(5, srcOf(B), 11, 'verbose', false);
     % tol: exact-path identity (same numbers recombined); house round-trip bound 1e-12/1e-10 (HANDOVER 6.1.2)
     verifyEqual(tc, D.sumR, D.r, 'RelTol', 1e-10);
 end
@@ -263,7 +263,7 @@ function test_redundancy_in_unit_interval(tc)
 % categories: contract
     [A, l, p] = tc.TestData.mk(300, 6, 33);
     B = chop(A, l, p, 7);
-    [~, D] = lsqvce.engine.adjust(6, srcOf(B), 7, 'verbose', false);
+    [~, D] = flatAdjust(6, srcOf(B), 7, 'verbose', false);
     verifyGreaterThanOrEqual(tc, min(D.rNum), 0);
     verifyLessThanOrEqual(tc, max(D.rNum), 1);
 end
@@ -272,7 +272,7 @@ function test_outliers_are_found(tc)
 % categories: contract
     [A, l, p] = tc.TestData.mk(800, 6, 77, [17 9; 400 -8; 700 7]);
     B = chop(A, l, p, 10);
-    [~, D] = lsqvce.engine.adjust(6, srcOf(B), 10, 'verbose', false, ...
+    [~, D] = flatAdjust(6, srcOf(B), 10, 'verbose', false, ...
                             'bonferroni', false);
     verifyTrue(tc, all(ismember([17 400 700], D.flagIdx)), ...
         'planted outliers were not all flagged');
@@ -289,7 +289,7 @@ function test_uncontrolled_observation_no_nan(tc)
     A(:,6) = 0;  A(7,6) = 1;            % param 6 <- obs 7 alone
     l = randn(rs,n,1);  p = ones(n,1);
     B = chop(A, l, p, 4);
-    [~, D] = lsqvce.engine.adjust(u, srcOf(B), 4, 'verbose', false);
+    [~, D] = flatAdjust(u, srcOf(B), 4, 'verbose', false);
 
     verifyTrue(tc, all(isfinite(D.w)),    'w contains NaN/Inf');
     verifyTrue(tc, all(isfinite(D.rNum)), 'r contains NaN/Inf');
@@ -311,7 +311,7 @@ function test_external_reliability_is_exact(tc)
     n = 120; u = 5;
     A = randn(rs,n,u);  l = randn(rs,n,1);  p = ones(n,1);
     B = chop(A, l, p, 3);
-    [~, D] = lsqvce.engine.adjust(u, srcOf(B), 3, 'verbose', false);
+    [~, D] = flatAdjust(u, srcOf(B), 3, 'verbose', false);
 
     i = D.extMaxIdx;  j = D.extMaxPar;
     x1 = (A'*A) \ (A'*l);
@@ -332,7 +332,7 @@ function test_variance_factor_unbiased(tc)
     for m = 1:M
         [A, l, p] = tc.TestData.mk(n, u, 1000 + m);
         B = chop(A, l, p, 5);
-        [~, D] = lsqvce.engine.adjust(u, srcOf(B), 5, 'verbose', false);
+        [~, D] = flatAdjust(u, srcOf(B), 5, 'verbose', false);
         rat(m) = D.varRatio;
     end
     % tol: statistical identity on a finite sample; scatter ~ 1/sqrt(dof) of the fixture, bar sized 4/sqrt(Z)-style (HANDOVER 6.1.2)
@@ -349,9 +349,9 @@ function test_bonferroni_suppresses_false_alarms(tc)
     for m = 1:M
         [A, l, p] = tc.TestData.mk(2000, 6, 5000 + m);
         B = chop(A, l, p, 8);
-        [~, Dr] = lsqvce.engine.adjust(6, srcOf(B), 8, 'verbose', false, ...
+        [~, Dr] = flatAdjust(6, srcOf(B), 8, 'verbose', false, ...
                                  'bonferroni', false);
-        [~, Db] = lsqvce.engine.adjust(6, srcOf(B), 8, 'verbose', false, ...
+        [~, Db] = flatAdjust(6, srcOf(B), 8, 'verbose', false, ...
                                  'bonferroni', true);
         nRaw  = nRaw  + Dr.nFlag;
         nBonf = nBonf + Db.nFlag;
@@ -398,14 +398,14 @@ function test_adjust_typed_validators_and_enum_values(tc)
     src_ = @(k) deal(randn(8,2), randn(8,1), []);
     ok = false;
     try
-        lsqvce.engine.adjust(2, src_, 1, 'Sigma0', 'abc');
+        flatAdjust(2, src_, 1, 'Sigma0', 'abc');
     catch e
         ok = strcmp(e.identifier, 'MATLAB:InputParser:ArgumentFailedValidation');
     end
     verifyTrue(tc, ok, 'non-numeric Sigma0 must fail the typed validator');
     ok = false;
     try
-        lsqvce.engine.adjust(2, src_, 1, 'Method', 'QR');
+        flatAdjust(2, src_, 1, 'Method', 'QR');
     catch e
         ok = strcmp(e.identifier, 'MATLAB:InputParser:ArgumentFailedValidation');
     end
@@ -413,7 +413,7 @@ function test_adjust_typed_validators_and_enum_values(tc)
     % and the pass-through contract survives: lowercase casing + a
     % forwarded diagnose option must still run end to end.
     w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
-    [sol, D, V] = lsqvce.engine.adjust(2, src_, 1, 'verbose', false, 'store', 'none'); %#ok<ASGLU>
+    [sol, D, V] = flatAdjust(2, src_, 1, 'verbose', false, 'store', 'none'); %#ok<ASGLU>
     verifyTrue(tc, isstruct(sol) || isobject(sol), ...
         'lowercase casing and forwarded options must keep working');
 end
@@ -422,7 +422,7 @@ function test_report_verdict_clean(tc)
 % categories: contract | tags: diagnostics
     [A, l, p] = tc.TestData.mk(500, 5, 91);
     B = chop(A, l, p, 6);
-    [~, ~, V] = lsqvce.engine.adjust(5, srcOf(B), 6, 'verbose', false);
+    [~, ~, V] = flatAdjust(5, srcOf(B), 6, 'verbose', false);
     verifyTrue(tc, V.integrityOK);
     verifyTrue(tc, any(strcmp(V.verdict, ...
         {'PASS', 'PASS WITH WARNINGS'})), ...
@@ -437,7 +437,7 @@ function test_report_flags_uncontrolled(tc)
     A(:,5) = 0;  A(3,5) = 1;
     l = randn(rs,n,1);  p = ones(n,1);
     B = chop(A, l, p, 4);
-    [~, ~, V] = lsqvce.engine.adjust(u, srcOf(B), 4, 'verbose', false);
+    [~, ~, V] = flatAdjust(u, srcOf(B), 4, 'verbose', false);
     codes = cellfun(@(f) f.code, V.findings, 'UniformOutput', false);
     verifyTrue(tc, ismember('REL_UNCONTROLLED', codes), ...
         'an uncontrolled observation was not reported');

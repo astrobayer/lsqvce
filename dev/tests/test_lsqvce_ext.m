@@ -50,7 +50,7 @@ function test_systematic_detects_drift(tc)
     l = A*xt + 0.3*randn(rs, n, 1) + 1.5*sin(2*pi*t);   % unmodelled
 
     B = chop(A, l, p, 8);
-    [~, D] = lsqvce.engine.adjust(u, srcOf(B), 8, 'verbose', false);
+    [~, D] = flatAdjust(u, srcOf(B), 8, 'verbose', false);
     S = lsqvce.engine.systematic(D, 'covariates', struct('t', t), 'verbose', false);
 
     verifyTrue(tc, S.detected, ...
@@ -71,7 +71,7 @@ function test_systematic_quiet_on_clean_data(tc)
         l = A*xt + randn(rs, n, 1);
         t = (1:n).';
         B = chop(A, l, p, 5);
-        [~, D] = lsqvce.engine.adjust(u, srcOf(B), 5, 'verbose', false);
+        [~, D] = flatAdjust(u, srcOf(B), 5, 'verbose', false);
         S = lsqvce.engine.systematic(D, 'covariates', struct('t', t), ...
                                'verbose', false);
         nFalse = nFalse + double(S.detected);
@@ -92,7 +92,7 @@ function test_systematic_runs_test_is_calibrated(tc)
         xt = randn(rs, u, 1);
         l = A*xt + randn(rs, n, 1);
         B = chop(A, l, ones(n,1), 4);
-        [~, D] = lsqvce.engine.adjust(u, srcOf(B), 4, 'verbose', false);
+        [~, D] = flatAdjust(u, srcOf(B), 4, 'verbose', false);
         S = lsqvce.engine.systematic(D, 'verbose', false);
         zs(m) = S.runs.z;
     end
@@ -150,7 +150,7 @@ function test_freenetwork_residuals_are_datum_invariant(tc)
     B = lsqvce.engine.datum(N);
 
     B1 = chop(A, l, p, 2);
-    [~, D1] = lsqvce.engine.adjust(u, srcOf(B1), 2, 'datumB', B, 'verbose', false);
+    [~, D1] = flatAdjust(u, srcOf(B1), 2, 'datumB', B, 'verbose', false);
 
     % A SECOND datum.
     %
@@ -163,7 +163,7 @@ function test_freenetwork_residuals_are_datum_invariant(tc)
     % Here we use the same null direction with a different SCALING -- a
     % genuinely different, and valid, inner constraint.
     Bfix = ones(u,1);
-    [~, D2] = lsqvce.engine.adjust(u, srcOf(B1), 2, 'datumB', Bfix, 'verbose', false);
+    [~, D2] = flatAdjust(u, srcOf(B1), 2, 'datumB', Bfix, 'verbose', false);
 
     % tol: delegation identity (one call forwarded); values must be the SAME numbers, house round-trip bound
     verifyEqual(tc, D2.v, D1.v, 'AbsTol', 1e-8, ...
@@ -287,7 +287,7 @@ function test_robust_matches_ls_on_clean_data(tc)
     B = chop(A, l, p, 3);
 
     [solR, ~, ~] = lsqvce.engine.robust(u, srcOf(B), 3, 'verbose', false);
-    [solL, ~, ~] = lsqvce.engine.adjust(u, srcOf(B), 3, 'verbose', false);
+    [solL, ~, ~] = flatAdjust(u, srcOf(B), 3, 'verbose', false);
 
     % Compare the NORM, not each coefficient. A per-coefficient RelTol is the
     % wrong test: measured in MATLAB, one small coefficient differed by 18%
@@ -350,7 +350,7 @@ function test_ellipse_matches_eig_of_submatrix(tc)
     p = ones(n,1);
     l = A*xt + randn(rs, n, 1);
     B = chop(A, l, p, 3);
-    [~, D] = lsqvce.engine.adjust(u, srcOf(B), 3, 'verbose', false);
+    [~, D] = flatAdjust(u, srcOf(B), 3, 'verbose', false);
 
     E = lsqvce.engine.ellipse(D, [1 2]);
     Q = D.Qxx([1 2],[1 2]) * D.s0^2;
@@ -400,8 +400,8 @@ function test_pope_breaks_down_and_mad_does_not(tc)
     l(bad) = l(bad) + 25;                 % 5/50 = 10% contamination, 25 sigma
 
     B = chop(A, l, p, 2);
-    [~, Dp] = lsqvce.engine.adjust(u, srcOf(B), 2, 'verbose', false, 'test', 'pope');
-    [~, Dm] = lsqvce.engine.adjust(u, srcOf(B), 2, 'verbose', false, 'test', 'mad');
+    [~, Dp] = flatAdjust(u, srcOf(B), 2, 'verbose', false, 'test', 'pope');
+    [~, Dm] = flatAdjust(u, srcOf(B), 2, 'verbose', false, 'test', 'mad');
 
     % Pope is blind here in 40/40 measured seeds -- that part is robust.
     verifyEmpty(tc, intersect(Dp.flagIdx, bad), ...
@@ -426,7 +426,7 @@ function test_contamination_flag_fires(tc)
     l([6 13 15 20 43]) = l([6 13 15 20 43]) + 25;
 
     B = chop(A, l, p, 2);
-    [~, D, V] = lsqvce.engine.adjust(u, srcOf(B), 2, 'verbose', false);
+    [~, D, V] = flatAdjust(u, srcOf(B), 2, 'verbose', false);
 
     verifyTrue(tc, D.madAvailable);
     verifyGreaterThan(tc, D.scaleRatio, D.scaleRatioTol, ...
@@ -447,7 +447,7 @@ function test_contamination_flag_quiet_on_clean_data(tc)
         xt = randn(rs, u, 1);
         l = A*xt + randn(rs, n, 1);
         B = chop(A, l, ones(n,1), 3);
-        [~, D] = lsqvce.engine.adjust(u, srcOf(B), 3, 'verbose', false);
+        [~, D] = flatAdjust(u, srcOf(B), 3, 'verbose', false);
         if isfinite(D.scaleRatio) && D.scaleRatio > D.scaleRatioTol
             nFire = nFire + 1;
         end
@@ -467,7 +467,7 @@ function test_mad_scale_is_unbiased(tc)
         xt = randn(rs, u, 1);
         l = A*xt + randn(rs, n, 1);
         B = chop(A, l, ones(n,1), 3);
-        [~, D] = lsqvce.engine.adjust(u, srcOf(B), 3, 'verbose', false);
+        [~, D] = flatAdjust(u, srcOf(B), 3, 'verbose', false);
         mads(m) = D.robustScale;
     end
     % tol: statistical identity on a finite sample; scatter ~ 1/sqrt(dof) of the fixture, bar sized 4/sqrt(Z)-style (HANDOVER 6.1.2)
@@ -527,9 +527,9 @@ function test_sparse_diagnostics_identical(tc)
     p = ones(n,1);
     B = chop(A, l, p, 4);
 
-    [~, Dd] = lsqvce.engine.adjust(u, srcOf(B), 4, 'verbose', false, ...
+    [~, Dd] = flatAdjust(u, srcOf(B), 4, 'verbose', false, ...
                              'method','normal', 'sparse', false);
-    [~, Ds] = lsqvce.engine.adjust(u, srcOf(B), 4, 'verbose', false, ...
+    [~, Ds] = flatAdjust(u, srcOf(B), 4, 'verbose', false, ...
                              'method','normal', 'sparse', true);
 
     % tol: independent dense reference, same-precision algebra; eps*cond headroom (house bounds, HANDOVER 6.1.2)
@@ -563,7 +563,7 @@ function test_fhat_quiet_on_clean_data(tc)
         A = randn(rs, n, u);  xt = randn(rs, u, 1);
         l = A*xt + randn(rs, n, 1);
         B = chop(A, l, ones(n,1), 3);
-        [~, D] = lsqvce.engine.adjust(u, srcOf(B), 3, 'verbose', false);
+        [~, D] = flatAdjust(u, srcOf(B), 3, 'verbose', false);
         if ~strcmp(D.contamLevel, 'clean'), nEsc = nEsc + 1; end
     end
     verifyLessThanOrEqual(tc, nEsc, 1, ...
@@ -577,7 +577,7 @@ function test_fhat_floor_is_exact(tc)
     n = 400; u = 6;
     A = randn(rs, n, u);  l = A*randn(rs,u,1) + randn(rs, n, 1);
     B = chop(A, l, ones(n,1), 4);
-    [~, D] = lsqvce.engine.adjust(u, srcOf(B), 4, 'verbose', false);
+    [~, D] = flatAdjust(u, srcOf(B), 4, 'verbose', false);
     % tol: exact-path identity (same numbers recombined); house round-trip bound 1e-12/1e-10 (HANDOVER 6.1.2)
     verifyEqual(tc, D.fhatFloor, 2*lsqvce.engine.stat.normCdf(-2.5), 'AbsTol', 1e-12);
     verifyEqual(tc, D.fhatFloor, 0.0124190, 'AbsTol', 1e-5);
@@ -597,7 +597,7 @@ function test_ladder_escalates_with_contamination(tc)
             l(idx) = l(idx) + 20 * sign(randn(rs, k, 1));
         end
         B = chop(A, l, ones(n,1), 4);
-        [~, D] = lsqvce.engine.adjust(u, srcOf(B), 4, 'verbose', false);
+        [~, D] = flatAdjust(u, srcOf(B), 4, 'verbose', false);
         lvl = D.contamLevel;
     end
     verifyEqual(tc, levelAt(0.00), 'clean');
@@ -620,7 +620,7 @@ function test_breakdown_detected_by_backstop(tc)
     l(idx) = l(idx) + 20 * sign(randn(rs, numel(idx), 1));
 
     B = chop(A, l, ones(n,1), 4);
-    [~, D] = lsqvce.engine.adjust(u, srcOf(B), 4, 'verbose', false);
+    [~, D] = flatAdjust(u, srcOf(B), 4, 'verbose', false);
 
     verifyEqual(tc, D.contamLevel, 'breakdown');
     verifyLessThan(tc, D.fhat, 0.02, ...
@@ -640,7 +640,7 @@ function test_snoop_refuses_when_too_contaminated(tc)
 
     B = chop(A, l, ones(n,1), 4);
     src = srcOf(B);
-    [sol, D] = lsqvce.engine.adjust(u, src, 4, 'verbose', false);
+    [sol, D] = flatAdjust(u, src, 4, 'verbose', false);
 
     % Rejecting 30% of the data is not outlier rejection; it is laundering a
     % model error. snoop must REFUSE rather than quietly delete a third of the
@@ -659,7 +659,7 @@ function test_snoop_force_overrides_refusal(tc)
     l(idx) = l(idx) + 20 * sign(randn(rs, numel(idx), 1));
     B = chop(A, l, ones(n,1), 4);
     src = srcOf(B);
-    [sol, D] = lsqvce.engine.adjust(u, src, 4, 'verbose', false);
+    [sol, D] = flatAdjust(u, src, 4, 'verbose', false);
 
     % 'force' must still WARN -- an override should never be silent.
     verifyWarning(tc, ...
@@ -689,7 +689,7 @@ function test_untested_quadrant_is_reported(tc)
     rs = RandStream('mt19937ar','Seed', 11);
     l = A*randn(rs, uu, 1) + randn(rs, ne, 1);
     B = chop(A, l, ones(ne,1), 2);
-    [~, D, V] = lsqvce.engine.adjust(uu, srcOf(B), 2, 'verbose', false);
+    [~, D, V] = flatAdjust(uu, srcOf(B), 2, 'verbose', false);
 
     verifyGreaterThan(tc, D.quad.untested, 0, ...
         'the spur observations must land in the UNTESTED quadrant');
@@ -713,7 +713,7 @@ function test_blunder_at_zero_redundancy_is_invisible(tc)
     l(7) = l(7) + 40;                 % a 40-sigma blunder
 
     B = chop(A, l, ones(n,1), 3);
-    [~, D] = lsqvce.engine.adjust(u, srcOf(B), 3, 'verbose', false);
+    [~, D] = flatAdjust(u, srcOf(B), 3, 'verbose', false);
 
     verifyLessThan(tc, abs(D.w(7)), 1e-6, ...
         'a blunder at r = 0 must produce w = 0 -- that is the whole point');
@@ -728,7 +728,7 @@ function test_mdb_envelope_quantiles(tc)
     A = randn(rs, n, u);
     l = A*randn(rs,u,1) + randn(rs, n, 1);
     B = chop(A, l, ones(n,1), 4);
-    [~, D] = lsqvce.engine.adjust(u, srcOf(B), 4, 'verbose', false);
+    [~, D] = flatAdjust(u, srcOf(B), 4, 'verbose', false);
 
     M = D.mdbQuantiles;
     verifyTrue(tc, isfinite(M.p50) && isfinite(M.max));
@@ -769,9 +769,9 @@ function test_cond_is_flagged_as_a_bound_when_sparse(tc)
     l = A*randn(rs, u, 1) + 0.1*randn(rs, n, 1);
     B = chop(A, l, ones(n,1), 3);
 
-    [~, Ds] = lsqvce.engine.adjust(u, srcOf(B), 3, 'verbose', false, ...
+    [~, Ds] = flatAdjust(u, srcOf(B), 3, 'verbose', false, ...
                              'method','normal', 'sparse', true);
-    [~, Dd] = lsqvce.engine.adjust(u, srcOf(B), 3, 'verbose', false, ...
+    [~, Dd] = flatAdjust(u, srcOf(B), 3, 'verbose', false, ...
                              'method','normal', 'sparse', false);
     verifyTrue(tc, Ds.condIsBound, ...
         'a sparse condition number is a LOWER BOUND and must say so');
@@ -798,7 +798,7 @@ function test_ftest_warns_when_premise_violated(tc)
     sF = accF.solve();  sR = accR.solve();
 
     B = chop(A, l, ones(n,1), 4);
-    [~, D] = lsqvce.engine.adjust(u, srcOf(B), 4, 'verbose', false);
+    [~, D] = flatAdjust(u, srcOf(B), 4, 'verbose', false);
     S = lsqvce.engine.systematic(D, 'covariates', struct('t', t), 'verbose', false);
 
     verifyWarning(tc, ...

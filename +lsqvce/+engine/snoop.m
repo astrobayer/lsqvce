@@ -443,22 +443,32 @@ if o.reaccumulate && ~isempty(REJ.idx)
                  'result is a clean solve, not a\n  sequence of subtractions).\n'], ...
                  n0 - numel(REJ.idx));
     end
+    % R5 M5 5b': the clean re-solve runs on the BLOCK path (the one
+    % accumulator, finding H-02): the surviving rows of all batches become
+    % one local-free system (lsqvce.engine.batchSystem), a datum survives as
+    % the prior on the null space, and the diagnostics come from the same
+    % sweep every other solve uses. The flat lsqvce.engine.Accumulator is
+    % retired with this level.
     keptSrc = @(k) maskedBatch(batchFcn, k, rejected, nB);
-
-    accArgs = {'method', sol.method};
-    if sol.defect > 0
-        accArgs = [accArgs, {'datumB', sol.datumB}]; %#ok<AGROW>
+    allKept = @(k) concatKept(keptSrc, nB);
+    L = lsqvce.engine.batchSystem(u, allKept, 1, 'Name', 'snoop');
+    backend = 'qr';
+    if isfield(sol, 'method') && strcmpi(char(sol.method), 'normal'), backend = 'normal'; end
+    acc = lsqvce.engine.BlockAccumulator(u, 'Backend', backend, 'KeepLocal', true, 'Verbose', false);
+    if isfield(sol, 'defect') && sol.defect > 0 && isfield(sol, 'datumB') && ~isempty(sol.datumB)
+        acc.setPrior(lsqvce.engine.CommonPrior(sol.datumB.', zeros(size(sol.datumB, 2), 1), 1));
     end
-    acc = lsqvce.engine.Accumulator(u, accArgs{:});
-    for k = 1:nB
-        [Ak, lk, pk] = keptSrc(k);
-        if ~isempty(lk), acc.add(Ak, lk, pk); end
-    end
-    sol = acc.solve('sigma0', sol.sigma0);
-    D   = lsqvce.engine.diagnose(sol, keptSrc, 'nBatch', nB, ...
+    acc.addSystem(L.sysID, 0, L.closure, 1);
+    solB = acc.solve();
+    [dsol, bf, nBd] = lsqvce.engine.diagnoseAccum(acc, solB);
+    D   = lsqvce.engine.diagnose(dsol, bf, 'nBatch', nBd, ...
                            'alpha', o.alpha, 'bonferroni', o.bonferroni, ...
                            'test', o.test);
     D.rejectedIdx = REJ.idx;
+    % the returned sol keeps the caller's fields and carries the clean solve
+    sol.x = solB.x(:);  sol.s0sq = solB.s0sq;  sol.sigma0 = solB.sigma0;
+    if isfield(solB, 'Cxx'), sol.Cxx = solB.Cxx; end
+    sol.n = dsol.n;  sol.dof = solB.dof;
 end
 
 if lsqvce.util.verbosity.progress(o.verbose)
@@ -682,4 +692,19 @@ function [A, l, p] = maskedBatch(batchFcn, k, rejected, nB)
         nSeen = nSeen + nj;
     end
     error('lsqvce:snoop:badBatch', 'Batch %d not found.', k);
+end
+
+%==========================================================================
+function [A, l, p] = concatKept(keptSrc, nB)
+%CONCATKEPT  All surviving rows of every batch as ONE batch (rows stay in
+%   batch order; p carried when the source has it, else unit).
+    As = cell(nB, 1);  ls = cell(nB, 1);  ps = cell(nB, 1);
+    for k = 1:nB
+        [Ak, lk, pk] = keptSrc(k);
+        if isempty(lk), continue, end
+        As{k} = Ak;  ls{k} = lk(:);
+        if isempty(pk), pk = ones(numel(lk), 1); end
+        ps{k} = pk(:);
+    end
+    A = vertcat(As{:});  l = vertcat(ls{:});  p = vertcat(ps{:});
 end
