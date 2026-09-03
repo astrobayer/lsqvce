@@ -78,12 +78,13 @@ function R = demo_grace(varargin)
     disp(cfg.trueSigma);
     fprintf('a-priori start: sigma = 1, white (deliberately wrong)\n');
 
-    % THE THREE OVERRIDES BELOW ARE DEMO-SPEED CHOICES, NOT RECOMMENDATIONS.
-    % The toolbox defaults are MaxOrder 60, VceMaxIter 10, VceTol 5e-3; this
-    % demo tightens them so a synthetic run finishes quickly (MaxOrder 40,
-    % VceMaxIter 8) and settles visibly (VceTol 1e-3). For your own case,
-    % start from the defaults -- just omit them -- and change one only when a
-    % diagnostic tells you to.
+    % THE OVERRIDES BELOW ARE DEMO-SPEED CHOICES, NOT RECOMMENDATIONS. The
+    % toolbox defaults are MaxPasses 10, Tolerance 1e-2 (v5: one budget, one
+    % tolerance for every iterative run); this demo runs a few passes and
+    % settles visibly (Tolerance 1e-3). For your own case, start from the
+    % defaults -- just omit them -- and change one only when a diagnostic
+    % tells you to. Estimate="noise" with Pool="stream" and ArcFactors=false is
+    % v4's Model "vce": one spectral shape and one level per stream.
     R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
             MaxPasses=o.maxOuter, Verbose=o.verbose, ...
             Tolerance=1e-3));

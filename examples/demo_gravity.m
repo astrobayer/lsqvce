@@ -33,7 +33,7 @@ function [R, score] = demo_gravity(opt)
 %        variances against their formal expectation.
 %
 %   OPTIONS
-%     'MaxOuter'   1x1 double   outer VCE iterations           (default 4)
+%     'MaxPasses'  1x1 double   passes of the estimator          (default 4)
 %     'Verbose'    1x1 logical  print the toolbox's own report (default false)
 %     'Plots'      1x1 logical  draw the two summary figures   (default false)
 %     'ExportDir'  1xK char     if non-empty, save the figures there as PNG
@@ -116,7 +116,7 @@ function [R, score] = demo_gravity(opt)
 %   (Anthropic), model Claude Fable 5.
 
 arguments
-    opt.MaxOuter (1,1) double {mustBePositive, mustBeInteger} = 4
+    opt.MaxPasses (1,1) double {mustBePositive, mustBeInteger} = 4
     opt.Verbose (1,1) logical = false
     opt.Plots (1,1) logical = false
     opt.ExportDir (1,:) char = ''
@@ -151,7 +151,7 @@ end
              '                   absent BY ID, the way a real schedule is\n']);
 
     % ---- run ------------------------------------------------------------
-    R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=opt.MaxOuter, ...
+    R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=opt.MaxPasses, ...
             Verbose=opt.Verbose));
 
     % ---- 2. the weights --------------------------------------------------

@@ -52,6 +52,16 @@ img.eq-inline { height: 1.05em; vertical-align: -0.15em; }
 </head><body>
 <div class="nav"><a href="index.html">lsqvce</a> &rsaquo; Interpretation Guide</div>
 <h1>Interpretation Guide &mdash; reading the result</h1>
+<div style="border:2px solid #b8860b;background:#fff8e1;padding:10px 14px;margin:12px 0 18px 0;font-family:sans-serif;font-size:95%">
+<b>Version 5.0 (R5, 2026-09-03).</b> This manual was written for lsqvce 4.x and is kept for its
+theory and interpretation content. The binding v5 authorities are
+<a href="../DATA_CONTRACT.md">DATA_CONTRACT.md</a> (the data struct, priors, per-stream policy),
+<a href="../RELEASE_NOTES.md">RELEASE_NOTES.md</a> (the v4 &rarr; v5 option map), <code>doc lsqvce.Options</code>
+(14 knobs + 5 groups, <code>OnPass</code>), and <a href="../lsqvce_theory.pdf">lsqvce_theory.pdf</a>
+(the R5 theory: one accumulator, one estimator). Where this page names <code>Model</code>,
+<code>GroupBy</code>, <code>adjustVCE</code>, <code>adjust</code>, <code>robust</code> or the plot hooks, read the v5 successor from the map.
+</div>
+
 <p class="purpose">What to run, and how to read what comes back. This guide is
 about judgement, not syntax: which number to look at first, what a red flag
 means, and the two ways least squares will quietly mislead you. The equations

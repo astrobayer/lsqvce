@@ -41,7 +41,7 @@ def part3_entry_points():
     st += [caption('batchFcn is called TWICE -- once to accumulate, once to '
                    'diagnose -- and must return identical data both times. A '
                    'mismatch is an error, not a silent misattribution.')]
-    st += [code("""[sol, D, V] = lsqvce.engine.adjust(u, batchFcn, nBatch);
+    st += [code("""R = lsqvce.fit(struct('batchFcn', batchFcn, 'numUnknowns', u, 'numBatches', nBatch));   % v5: the block adapter
 lsqvce.report(V);                  % the level-0..4 verdict""")]
     st += [P('The returns are structs, not a Results object: <font '
              'face="Courier">sol</font> carries the estimate and its '
@@ -72,9 +72,9 @@ R.report();""")]
         '<b>The noise model is taken as given.</b> Whatever covariance you '
         'declared on the loaders is used as-is. If the residuals come out '
         'coloured, adjustBlock will not tell you to fix it -- that is what '
-        'adjustVCE is for.', 'note')]
+        'the variance-component loop (Estimate="noise") is for.', 'note')]
 
-    # ---- 3.3 adjustVCE ----------------------------------------------------
+    # ---- 3.3 the one loop (adjustVCEjoint through fit) ----------------------
     st += [P('Option names and typed signatures (v2.1, WP-39).  '
              'Public entry points are migrating from <code>inputParser</code> '
              'to typed <code>arguments</code> blocks. Three things change for '
@@ -92,7 +92,7 @@ R.report();""")]
              '<code>iterateNoiseModel</code>; the remaining surface follows '
              'in the same release (see the release notes in the repository '
              'history).', 'body')]
-    st += [P('3.3&nbsp;&nbsp;adjustVCE -- the iterative loop', 'h2')]
+    st += [P('3.3&nbsp;&nbsp;The one loop -- Estimate="noise"', 'h2')]
     st += [P('The same solve as adjustBlock, run repeatedly, with two '
              'estimation steps between passes. After each solve the residuals '
              'are examined: a temporal noise model is fitted per stream (the '
@@ -107,19 +107,19 @@ R.report();""")]
         [{'t': 'estimate variance components per group', 'k': 'proc'}],
         [{'t': 'converged? sigma ~ 1 and residuals white', 'k': 'dec'}],
         [{'t': 'Results + history', 'k': 'io'}],
-    ], width=BODY_W, title='Figure 3.3 -- adjustVCE',
+    ], width=BODY_W, title='Figure 3.3 -- the joint variance-component loop (adjustVCEjoint)',
         loop=(4, 1, 'not yet'))]
     st += [caption('The orange arrow is the outer loop. Each pass re-solves '
                    'with the noise model and weights discovered by the '
                    'previous one; R.history records every pass, which is what '
                    'the two readers in section 3.5 report on.')]
-    st += [code("""R = lsqvce.engine.adjustVCE(L, days, 'GroupBy', 'obsType').run();
+    st += [code("""R = lsqvce.fit(data, Estimate="noise", Pool="obsType");   % v5: the joint estimator through fit
 R.report();
 R.summary();          % per stream: what it ended up as
 R.convergence();      % per iteration: when it settled""")]
     st += [P('The constructor groups configure the loop before it runs '
              '(constructor-only since 2.0, R4-D2). '
-             '<font face="Courier">GroupBy</font> sets the granularity of the '
+             '<font face="Courier">Pool</font> sets which streams share one estimated spectral shape (every stream keeps its own level); it sets the granularity of the '
              'variance components; the <font face="Courier">Shape</font> and '
              '<font face="Courier">Scale</font> structs tune the two estimation '
              'steps. All have documented defaults -- start without them and '
@@ -133,7 +133,7 @@ R.convergence();      % per iteration: when it settled""")]
         '<b>snoop is a SEPARATE step, and it works on the flat path only.</b> '
         'It is not part of any chain in 3.1-3.3: no engine calls it, and '
         '<font face="Courier">adjustBlock</font> and '
-        '<font face="Courier">adjustVCE</font> have no equivalent. Its '
+        '<font face="Courier">adjustVCEjoint</font> have no equivalent. Its '
         'signature says so -- it takes <font face="Courier">sol</font> and '
         '<font face="Courier">D</font>, the structs '
         '<font face="Courier">adjust</font> returns, plus the same '
@@ -155,7 +155,7 @@ R.convergence();      % per iteration: when it settled""")]
                    'is divided by a variance factor the blunders themselves '
                    'raised. Remove one, s0 drops, and the next becomes '
                    'visible.')]
-    st += [code("""[sol, D]      = lsqvce.engine.adjust(u, batchFcn, nBatch);     % first solve
+    st += [code("""R = lsqvce.fit(data);   [sol, D] = deal(R.sol, R.diag);        % first solve (v5: the block adapter)
 [sol, D, REJ] = lsqvce.engine.snoop(sol, D, batchFcn, 'test', 'mad');""")]
     st += [callout(
         '<b>On the block-arrow path there is no snoop.</b> Gross-error handling '
@@ -175,7 +175,7 @@ R.convergence();      % per iteration: when it settled""")]
 
     # ---- 3.5 Results ------------------------------------------------------
     st += [P('3.5&nbsp;&nbsp;Reading a Results object', 'h2')]
-    st += [P('<b>adjustBlock</b> and <b>adjustVCE</b> both return a '
+    st += [P('<b>adjustBlock</b> and <b>adjustVCEjoint</b> (through fit) both return a '
              '<font face="Courier">lsqvce.Results</font>. It carries the '
              'solution, the accumulator, and -- for the iterative engine -- the '
              'full history.', 'body')]
@@ -242,7 +242,7 @@ def part4_template():
         [{'t': 'buildDay  AND  epochCov|the day, and its per-epoch D',
           'k': 'io'}],
         [{'t': 'makeLoader: validate, cache, wire the hooks', 'k': 'proc'}],
-        [{'t': 'adjustVCE / adjustBlock', 'k': 'proc'}],
+        [{'t': 'fit: adjustVCEjoint / adjustBlock', 'k': 'proc'}],
         [{'t': 'Results', 'k': 'io'}],
     ], width=BODY_W, title='Figure 4.1 -- what you supply')]
     st += [caption('Rounded boxes are yours; everything below makeLoader is the '
@@ -301,8 +301,8 @@ procOpt.observationGroups = { groupC, groupD, groupE };""")]
     st += [P('Values your pipeline needs before any toolbox object exists stay '
              'in <font face="Courier">procOpt</font>, and the toolbox is fed '
              '<i>from</i> them:', 'body')]
-    st += [code("""R = lsqvce.engine.adjustVCE(L, procOpt.days, ...
-        'verbose', procOpt.loggingLevel, 'GroupBy', 'obsType').run();""")]
+    st += [code("""R = lsqvce.fit(data, Estimate="noise", Pool="obsType", Verbose=procOpt.loggingLevel, ...
+        OnPass=@(ctx) fprintf('pass %d: max|alpha2-1| = %.3g\\n', ctx.pass, ctx.maxDev));""")]
     st += [P('Note that <font face="Courier">loggingLevel</font> maps directly '
              'onto <font face="Courier">verbose</font>, which accepts 0, 1 or '
              '2. <b>Level 3 is rejected</b>, so a pipeline that can emit 3 must '
@@ -382,7 +382,7 @@ end""")]
     # ---- 4.5 --------------------------------------------------------------
     st += [P('4.5&nbsp;&nbsp;Step 4 -- the a-priori covariance', 'h2')]
     st += [P('One covariance spec per observation type. If you are going to run '
-             '<b>adjustVCE</b>, a deliberately plain start is honest: the loop '
+             '<b>the variance-component loop</b>, a deliberately plain start is honest: the loop '
              'exists to discover the truth, and beginning with unit-variance '
              'white noise lets you watch it work.', 'body')]
     st += [code("""cov.pos = struct('type','separable', 'ar',1, 'sigma',1, 'd',3);
@@ -402,7 +402,7 @@ cov.rr  = struct('type','diag',      'sigma',1);""")]
         'of equation 2.12, C = &#963;<sup>2</sup>D(R<sub>t</sub>&#8855;I<sub>d'
         '</sub>)D. The <i>class</i> once called '
         '<font face="Courier">SeparableProblem</font> was renamed '
-        '<font face="Courier">adjustVCE</font> in 2026; the covariance type was '
+        '<font face="Courier">adjustVCEjoint</font> in 2026; the covariance type was '
         'not touched, because it describes mathematics rather than an entry '
         'point.', 'note')]
 
@@ -434,8 +434,7 @@ end""")]
     # ---- 4.7 --------------------------------------------------------------
     st += [P('4.7&nbsp;&nbsp;Step 6 -- run it, and read the result', 'h2')]
     st += [code("""L = myCase(procOpt);                    % the template returns loaders
-R = lsqvce.engine.adjustVCE(L, procOpt.days, 'verbose', procOpt.loggingLevel, ...
-        'GroupBy', 'obsType').run();
+R = lsqvce.fit(data, Estimate="noise", Pool="obsType", Verbose=procOpt.loggingLevel);
 
 R.report();          % the verdict -- read top-down, stop at the first red
 R.summary();         % per stream: sigma, AR order, whiteness
@@ -466,7 +465,7 @@ R.convergence();     % per iteration: did it settle, and when""")]
         '<b>Hooks attach at construction.</b> Passing a bare handle to '
         '<font face="Courier">makeLoader</font> broadcasts it to every '
         'observation type. Assigning '
-        '<font face="Courier">L.plotPostSolve</font> <i>after</i> the loader '
+        '<font face="Courier">Options.OnPass</font> (v5: called after every pass with the pass state, the live accumulator, your declaration and processingOptions) <i>after</i> the loader '
         'exists requires a <font face="Courier">containers.Map</font> keyed by '
         'obsType -- the engine skips anything else <b>silently</b>.', 'warn')]
 
@@ -529,7 +528,7 @@ D.A = reshape([Ax'; Ay'; Az'], nc, [])';""")]
     st += [N('<b>Grouping</b> -- does each group have enough redundancy? '
              'Oscillating variance factors in '
              '<font face="Courier">R.convergence()</font> mean it does not; '
-             'coarsen <font face="Courier">GroupBy</font>.', 4)]
+             'coarsen <font face="Courier">Pool</font>.', 4)]
     st += [N('<b>Determinism</b> -- re-run and compare. Different numbers from '
              'the same input means failure I.', 5)]
     st += [PageBreak()]

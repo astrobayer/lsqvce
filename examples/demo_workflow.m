@@ -100,29 +100,33 @@ fprintf('batchFcn contract OK (A is nk x %d, l is nk x 1, p > 0).\n', u);
 data = struct('batchFcn', batchFcn, 'numUnknowns', u, 'numBatches', nb);
 
 %% ------------------------------------------------------------------------
-% SECTION 2.  Which KIND, which MODEL?  A decision tree.
+% SECTION 2.  Which KIND, what to ESTIMATE?  A decision tree (v5).
 % -------------------------------------------------------------------------
-% fit picks the ENGINE from the SHAPE of `data`; you pick the MODEL in Options:
+% fit tells the KIND from the SHAPE of `data`; you say what to estimate in
+% Options. Every kind runs on the ONE accumulator (block-arrow: a shared
+% common block, per-system local blocks eliminated on the fly):
 %
-%   kind B / C  (A,l,p | batchFcn)          -> lsqvce.engine.adjust
-%       FLAT, one shared parameter block, batches streamed. Use when: every
-%       observation sees the SAME u unknowns; u is modest; one covariance, no
-%       per-system locals. Estimate="none" (the only one these kinds take);
-%       Robust="huber" switches to M-estimation. This section uses it.
+%   kind B / C  (A,l,p | batchFcn)
+%       In memory or batched, one shared parameter block: the batches become
+%       the days of one local-free system. Use when: every observation sees
+%       the SAME u unknowns and there are no per-system locals. Estimate="none"
+%       (a single solve); Robust="huber" switches to M-estimation; data.x0 makes
+%       it Gauss-Newton; data.priors gives a free network its datum. This
+%       section uses it.
 %
-%   kind A                     -> lsqvce.engine.adjustBlock
-%       BLOCK-ARROW (Helmert reduction). A shared COMMON block of nc unknowns,
-%       plus PER-SYSTEM LOCAL blocks eliminated on the fly. One GLS solve.
+%   kind A  (days, arcs, systems, scoped parameter tables)
 %       Use when: several systems share a common field but each has its own
 %       nuisance parameters (arc biases, scale factors), OR the full normal is
 %       too big to form but the reduced common one is not. Section 3 shows it.
 %
-%   kind A, Estimate="noise", Pool="stream", ArcFactors=false                     -> lsqvce.engine.adjustVCE
-%       adjustBlock PLUS the iterative covariance loop: it re-estimates the
-%       temporal correlation (the stochastic model) and the per-group variance
-%       factor until the residuals whiten and the components agree.
-%       Use when: you do NOT know the noise model a-priori and want the data to
-%       supply it (separable covariance, coloured noise, unknown sigma ratios).
+%   kind A + Estimate="noise"
+%       The same solve PLUS the joint variance-component estimator: the
+%       spectral SHAPE per pool group (Pool="all"|"obsType"|"stream"), one
+%       LEVEL per stream, and per-arc factors (ArcFactors) -- passes until the
+%       residuals whiten and the factors settle (MaxPasses, Tolerance). Use
+%       when you do NOT know the noise model a-priori and want the data to
+%       supply it. Watch it pass by pass with Options.OnPass; look at it
+%       afterwards with R.plot("psd" | "convergence" | "residuals").
 %
 %   RULE OF THUMB
 %       one parameter block, known noise ............ kind B/C, default Options
@@ -233,9 +237,8 @@ fprintf('               the loop rescaled the group covariances and re-solved: s
 % A variance component estimated from r_g observations has a relative standard
 % error of about 0.5*sqrt(2/r_g). A "correction" smaller than that is NOISE:
 % do not rescale your weights by 8% on the strength of a 2-sigma wobble.
-% (At gravity-field sizes -- u in the thousands -- the exact per-group traces
-% dominate; the ENGINE tier keeps a matrix-free Hutchinson backend for that
-% regime: doc lsqvce.engine.varComp.)
+% (At gravity-field sizes -- u in the thousands -- the per-lag redundancies
+% are estimated with Hutchinson probes: Options.Probes, the default 100.)
 
 %% ------------------------------------------------------------------------
 % SECTION 5.  The decision tree, condensed.

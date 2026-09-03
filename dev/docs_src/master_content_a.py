@@ -41,7 +41,7 @@ def front_matter():
         ['Built', BUILT],
         ['Test suite', 'green on every push (CI); counts in README, audit check 17'],
         ['User surface', 'lsqvce.fit, lsqvce.Options, lsqvce.Results, lsqvce.report'],
-        ['Engines', 'lsqvce.engine.adjust / adjustBlock / adjustVCE / adjustVCEjoint'],
+        ['Engines', 'lsqvce.engine.adjustBlock / adjustRobust / adjustNonlinear / adjustVCEjoint (v5: one accumulator)'],
         ['Start your own case', 'examples/demo_fit.m and DATA_CONTRACT.md'],
     ], widths=[42 * mm, BODY_W - 42 * mm], header=False)]
     st += [Spacer(1, 20)]
@@ -78,7 +78,7 @@ def front_matter():
         ('3', 'The entry points, step by step', [
             '3.1  adjust -- flat, in memory',
             '3.2  adjustBlock -- block-arrow, one solve',
-            '3.3  adjustVCE -- the iterative loop',
+            '3.3  The one loop -- Estimate="noise" (adjustVCEjoint)',
             '3.4  snoop -- outlier rejection',
             '3.5  Reading a Results object']),
         ('4', 'Adapting the template: a step-by-step guide (ENGINE tier)', [
@@ -130,7 +130,7 @@ def part0_start_here():
              '<font face="Courier">lsqvce.kernel.*</font>, and is what the rest '
              'of this manual describes for experts.', 'body')]
     st += [P('0.1&nbsp;&nbsp;Three lines', 'h2')]
-    st += [code("""opts = lsqvce.Options(Model="vce");      % what to do: "gls" one solve, "vce" the loop
+    st += [code("""opts = lsqvce.Options(Estimate="noise");  % what to do: "none" one solve, "noise" the loop
 R    = lsqvce.fit(data, opts);           % the one verb: your data struct -> a Results
 R.report                                 % the five-level verdict""")]
     st += [P('0.2&nbsp;&nbsp;The three kinds of data', 'h2')]
@@ -141,13 +141,13 @@ R.report                                 % the five-level verdict""")]
         ['You have', 'The data struct', 'Engine fit runs'],
         ['A design matrix in memory, diagonal weights, no arc-wise unknowns',
          'data.A (m x u), data.l (m x 1, observed minus computed), optional data.p (weights)',
-         'adjust; Robust="irls" -> robust'],
+         'the block adapter (batchSystem); Robust="huber" -> adjustRobust'],
         ['The same, batched or nonlinear',
          'data.batchFcn, data.numBatches, data.numUnknowns (linear form); with data.x0 the callback returns the Jacobian at x and u = numel(x0)',
          'adjust / robust / solveNonlinear'],
         ['Days, arcs, arc-wise unknowns, coloured noise (GRACE-FO)',
          'data.commonParams (scoped template rows), data.days, data.systems(k) with your buildDay and covariance (its fieldnames are the observation types); arcs / scoped localParams as needed',
-         'adjustBlock (gls), adjustVCE (vce, pooled), adjustVCEjoint (ellmer)'],
+         'adjustBlock (Estimate none), adjustVCEjoint (Estimate noise: Pool / ArcFactors say which policy)'],
     ], widths=[110, 220, 120])]
     st += [code("""data.commonParams = [repmat({'common'}, nc, 1), commonTbl];  % scoped rows, nc derived
 data.days = 1:30;
@@ -200,8 +200,8 @@ def part1_orientation():
     st += [callout('Since 2.0 (R4, 2026-09-01) the front door is ONE verb: '
                    '<b>lsqvce.fit(data, opts)</b> -- see the Getting started page '
                    '(doc lsqvce) and DATA_CONTRACT.md. The three engines below are '
-                   'what fit dispatches to (lsqvce.engine.adjust / adjustBlock / '
-                   'adjustVCE); this part describes them for experts and for '
+                   'what fit dispatches to (lsqvce.engine.adjustBlock / adjustRobust / '
+                   'adjustNonlinear / adjustVCEjoint); this part describes them for experts and for '
                    'readers of 1.x code. Every name in this manual that is not '
                    'fit, Options, Results or report is now qualified with '
                    'lsqvce.engine. or lsqvce.kernel. (RELEASE_NOTES.md).', 'note')]
@@ -216,12 +216,12 @@ def part1_orientation():
          'block-arrow: many local blocks, one common block',
          '<b>required</b> -- you supply it',
          'accumulated in batches'],
-        ['<b>adjustVCE</b>',
+        ['<b>adjustVCEjoint</b>',
          'block-arrow, as above',
          '<b>estimated from the data</b>',
          'accumulated, several passes'],
     ], widths=[26 * mm, 52 * mm, 44 * mm, BODY_W - 122 * mm])]
-    st += [caption('Table 1.1 -- The three solving entry points. adjustVCE is a '
+    st += [caption('Table 1.1 -- The solving entry points (v5: every kind on the one accumulator). adjustVCEjoint is a '
                    'fluent builder over adjustBlock: it runs the same solve '
                    'repeatedly, re-estimating the noise model and the group '
                    'weights between passes.')]
@@ -229,7 +229,7 @@ def part1_orientation():
     st += [P('1.2&nbsp;&nbsp;Choosing between them', 'h2')]
     st += [P('Two questions decide it, in order. First: <b>is the noise model '
              'known?</b> If it is not, it has to be estimated from the '
-             'residuals, which is iterative, and <b>adjustVCE</b> is the only '
+             'residuals, which is iterative, and <b>adjustVCEjoint</b> is the only '
              'engine that does it. Nothing else about the problem matters yet.',
              'body')]
     st += [P('If the model <i>is</i> known, the second question is size: does '
@@ -245,7 +245,7 @@ def part1_orientation():
                       'col': 2, 'span': 8},
             'q2':    {'t': 'does everything fit in memory?', 'k': 'dec',
                       'row': 2, 'col': 0, 'span': 7},
-            'vce':   {'t': 'adjustVCE|estimate it, then solve', 'k': 'proc',
+            'vce':   {'t': 'Estimate="noise"|estimate it, then solve', 'k': 'proc',
                       'row': 2, 'col': 7, 'span': 5},
             'adj':   {'t': 'adjust|hand it the covariance', 'k': 'proc',
                       'row': 3, 'col': 0, 'span': 4},
@@ -268,7 +268,7 @@ def part1_orientation():
     st += [caption('Diamonds are decisions, and the branches are labelled. A '
                    'known noise model is a PREREQUISITE for both adjust and '
                    'adjustBlock: each takes the covariance as given. What '
-                   'separates those two is only size. adjustVCE is the answer '
+                   'separates those two is only size. Estimate="noise" is the answer '
                    'whenever the model is not known, regardless of size, '
                    'because estimating it is inherently iterative.')]
 
@@ -276,7 +276,7 @@ def part1_orientation():
         '<b>If you are unsure, start with adjustBlock and a plain white '
         'a-priori covariance.</b> Run it, read the report, and look at whether '
         'the residuals are white. If they are not, that is exactly the '
-        'condition adjustVCE exists to fix, and you can switch by adding two '
+        'condition the variance-component loop exists to fix, and you can switch by adding two '
         'fluent calls to the same loaders.', 'note')]
 
     st += [PageBreak()]
@@ -444,7 +444,7 @@ D = buildDay(day, obsType, common, local, procOpt, arcInfo) % with local-block p
              'for full per-epoch blocks); a static scaling can ride on the '
              'covariance spec instead. A multi-axis stream with no D is an error.', 'body')]
     st += [P('The <b>epochCovariance hook</b> is optional and matters only under '
-             'Model="vce": whitening never needs it, but the Shape step of the '
+             'Estimate="noise": whitening never needs it, but the per-axis estimation of the '
              'VCE iteration (re-estimating the temporal AR law from residuals) '
              'does not read the day\'s Cep. With the hook it takes the exact '
              'separable de-scale path (lsqvce.kernel.residualAcv with the full '
@@ -491,14 +491,14 @@ data.systems(1) = s;
 s.id = 'D';  s.name = 'GRACE-FO D';  s.arcs = @(day, obsType) arcSchedule('D', day);
 data.systems(2) = s;
 % nl per satellite = SUM over days-with-arcs of (arcs*8 + 3) -- derived
-R = lsqvce.fit(data, lsqvce.Options(Model="vce", GroupBy="satObs", Parallel="parfor"));
+R = lsqvce.fit(data, Estimate="noise", Pool="obsType", Parallel=struct('Mode', "parfor"));
 R.report""")]
 
     st += [P('D.9&nbsp;&nbsp;The equivalent engine calls', 'h2')]
     st += [P('fit builds one Loader per system through lsqvce.engine.makeLoader '
              '(field names map 1:1 to its Name-Value names, lowerCamelCase to '
              'UpperCamelCase, plus the D.1 derivations) and dispatches on '
-             'opts.Model to adjustBlock / adjustVCE / adjustVCEjoint. These are '
+             'opts.Estimate / opts.Robust / data.x0 to adjustBlock / adjustRobust / adjustNonlinear / adjustVCEjoint. These are '
              'ENGINE-tier calls; a user needs none of them. The ENGINE tier '
              'keeps the v2/v3 conveniences (numCommon/numLocal counts, free '
              'un-scoped tables via Scoped=false, LocalsPerArc incl. @(day,arcId), '
@@ -522,7 +522,7 @@ R.report""")]
              'form; with x0 the problem is nonlinear ([A, w, p] = batchFcn(k, x), '
              'Gauss-Newton) and u = numel(x0) -- numUnknowns must then be absent '
              '(lsqvce:fit:uCount). Model must be "gls" on both kinds; '
-             'Robust="irls" selects M-estimation. The same Results comes back; '
+             'Robust="huber" (or igg3, bisquare) selects M-estimation on every kind. The same Results comes back; '
              'residuals() and contribution() refuse without an accumulator and '
              'say so.', 'body')]
     st += [callout('A stream whose observation type is called pos is treated as 3 '
