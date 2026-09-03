@@ -8,7 +8,6 @@ engine.adjustNonlinear,ENGINE,Gauss-Newton with Levenberg damping on the block p
 engine.batchSystem,ENGINE,a batch source as one local-free streaming system (the kind B/C adapter)
 engine.adjustRobust,ENGINE,IRLS on the block path (every fit kind)
 engine.adjustBlock,ENGINE,one GLS solve over the streaming block-arrow pipeline
-engine.adjustVCE,ENGINE,separable-GLS iteration: stochastic model <-> variance components
 engine.adjustVCEjoint,ENGINE,Ellmer ten-step joint co-estimation with keyed arc factors
 engine.robust,ENGINE,IRLS M-estimation over the batch driver
 engine.solveNonlinear,ENGINE,Gauss-Newton / damped iteration over the batch driver

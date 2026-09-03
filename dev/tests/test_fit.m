@@ -376,10 +376,6 @@ function testDistributeDaysThroughFitEqualsFused(tc)
     tc.verifyEqual(R2.meta.options.parallelThreshold, 2);
     tc.verifyEqual(R1.meta.options.distributeDays, false);
     % the same knobs are accepted by the VCE engine's constructor (signature)
-    L = loaderOf([], data.systems(1), data);
-    P = lsqvce.engine.adjustVCE({L}, data.days, 'DistributeDays', true, 'ParallelThreshold', 2, 'Verbose', false);
-    tc.verifyEqual(P.blockOpt.DistributeDays, true);
-    tc.verifyEqual(P.blockOpt.ParallelThreshold, 2);
 end
 
 %% ================================================== WP-67: the user-path demo

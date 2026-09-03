@@ -194,3 +194,84 @@ function [res, dayFcn] = makeRrRes(rs, nE, nArc)
     for k = 1:nArc, dayStruct.arc(k).rows = 1:nE; dayStruct.arc(k).epochs = 1:nE; end
     dayFcn = @(s,dd) dayStruct;
 end
+
+%% ================= moved from test_adjustVCE (R5 M4 4c): loader / covModel
+function test_covModel_separable_whitens(tc)
+% categories: contract, precision
+    % A separable arc whitened by its own model must have ~unit-variance,
+    % temporally white output. Build data as D (R_t kron I_3) D and check.
+    d = 3;  nE = 400;  dt = 5;
+    Ld = [1 0 0; 0.3 1 0; 0.2 0.4 2.5];  Dep = Ld*Ld.';
+    ar = [1 -0.5 0.1];  sig = 0.9;
+    rs = RandStream('mt19937ar','Seed',11);
+    e = zeros(d*nE,1);
+    W = zeros(d,nE);
+    for ax = 1:d, W(ax,:) = filter(1,ar,randn(rs,nE,1)).'; end
+    W = sig * (chol(Dep,'lower') * W);
+    e(:) = W(:);                                  % epoch-major
+    t = reshape(repmat((0:nE-1)*dt, d, 1), [], 1);
+    Cep = repmat(reshape(Dep,1,d,d), nE, 1, 1);
+    cm = struct('type','separable','ar',ar,'sigma',sig,'d',d,'Cep',Cep);
+    [~, Wfcn, info] = lsqvce.engine.covModel(cm, t);
+    verifyEqual(tc, info.nAxis, d);
+    A = randn(rs, d*nE, 2);
+    [Aw,~,ew] = Wfcn(1:d*nE, A, zeros(d*nE,0), e);
+    % whitened residual variance ~ 1 (unit innovation after full whitening)
+    % tol: statistical identity on a finite sample; scatter ~ 1/sqrt(dof) of the fixture, bar sized 4/sqrt(Z)-style (HANDOVER 6.1.2)
+    verifyEqual(tc, var(ew), 1, 'RelTol', 0.25);
+    verifySize(tc, Aw, [d*nE, 2]);
+end
+
+function test_covOverride_bySys(tc)
+% categories: precision
+    % A bySys override for the merged pair system (sysID 1) must rescale the
+    % whitener. bySys is keyed by makeValidName(string(sysID)) -> 'x1'.
+    [cfg, L] = fixture_grace();
+    Lcd = L{1};                                  % the merged pair system, sysID 1
+    baseOpt = struct('sysID', 1);
+    arcBase = Lcd.closure(cfg.days(1), 'rr', 1, baseOpt);
+
+    optOv = struct('sysID', 1);
+    optOv.covOverride.bySys.x1.rr = struct('sigma', 10);
+    arcOv = Lcd.closure(cfg.days(1), 'rr', 1, optOv);
+
+    % same design/observations, different whitener scaling -> whitened norm shrinks
+    % tol: 0 -- an EXACT identity claim (same stored value, no arithmetic)
+    verifyEqual(tc, arcOv.A, arcBase.A, 'AbsTol', 0);
+    wB = arcBase.Wfcn(1:numel(arcBase.l), arcBase.A, arcBase.B, arcBase.l);
+    wO = arcOv.Wfcn(1:numel(arcOv.l),     arcOv.A,   arcOv.B,   arcOv.l);
+    verifyGreaterThan(tc, norm(wB(:)), norm(wO(:)));   % bigger sigma -> smaller w
+end
+
+function test_covOverride_flat_backcompat(tc)
+% categories: contract
+    % The old flat opt.covOverride.(obsType) form must still work.
+    [cfg, L] = fixture_grace();
+    Lcd = L{1};
+    opt = struct('sysID',1, 'covOverride', struct('rr', struct('sigma', 5)));
+    arc = Lcd.closure(cfg.days(1), 'rr', 1, opt);
+    verifyTrue(tc, isa(arc.Wfcn, 'function_handle'));
+end
+
+function test_epochCov_hook_carried(tc)
+% categories: contract
+    hook = @(day, obsType) struct('day', day, 'obsType', obsType);
+    cov.rr = struct('type','diag','sigma',1);
+    L = lsqvce.engine.makeLoader(@(d,ot) makeTinyDay(), 'observationTypes', {'rr'}, ...
+            'covariance', cov, 'arcs', 1, 'systemId', 1, 'numLocal', 2, 'epochCovariance', hook);
+    verifyTrue(tc, isfield(L, 'epochCov'));
+    out = L.epochCov(3, 'rr');
+    verifyEqual(tc, out.day, 3);
+end
+
+%% ===================================================== SCALE (VCE) recovers weights
+
+function D = makeTinyDay()
+    m = 20;
+    D.A = [ones(m,1), (1:m).'];
+    D.B = 0.1*ones(m,2);
+    D.l = randn(m,1);
+    D.t = (0:m-1).' * 5;
+    D.arcIdx = {1:m};
+end
+

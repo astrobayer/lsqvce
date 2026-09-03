@@ -90,17 +90,17 @@ function results = run_lsqvce(what, varargin)
     nameFilter = char(o.Name);
     switch lower(char(what))
         case 'joint'
-            target = fullfile(root,'tests','test_adjustVCE.m');
+            target = fullfile(root,'tests','test_vcePolicy.m');
             if isempty(nameFilter), nameFilter = '*joint*'; end
         case 'ellmer'
             target = fullfile(root,'tests','test_ellmer.m');
         case 'contrib'
             target = fullfile(root,'tests','test_contribution.m');
         case 'adjustvce'
-            target = fullfile(root,'tests','test_adjustVCE.m');
+            target = fullfile(root,'tests','test_vcePolicy.m');
         case 'messaging'
             % The verbosity wiring: levels 0-3 asserted on captured log text.
-            target = fullfile(root,'tests','test_adjustVCE.m');
+            target = fullfile(root,'tests','test_vcePolicy.m');
             if isempty(nameFilter), nameFilter = '*Messaging*'; end
         case 'accum'
             target = fullfile(root,'tests','test_lsqAccum.m');
@@ -280,7 +280,7 @@ function printShortcuts()
              '  run_lsqvce(''joint'')      joint / vceMode end-to-end tests\n' ...
              '  run_lsqvce(''ellmer'')     Ellmer primitives (~47)\n' ...
              '  run_lsqvce(''contrib'')    contribution tests\n' ...
-             '  run_lsqvce(''adjustvce'')  the whole adjustVCE file\n' ...
+             '  run_lsqvce(''adjustvce'')  the whole test_vcePolicy file (adjustVCE retired, R5 M4)\n' ...
              '  run_lsqvce(''messaging'')  verbosity wiring, levels 0-3\n' ...
              '  run_lsqvce(''accum'')      accumulation layer\n' ...
              '  run_lsqvce(''block'')      adjustBlock / Results / makeLoader\n' ...

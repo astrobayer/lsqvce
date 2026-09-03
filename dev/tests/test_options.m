@@ -18,31 +18,6 @@ function tests = test_options
 end
 
 %% ===================================================== reference: defaults
-function testDefaultsMatchAdjustVCEEngine(tc)
-% categories: reference, contract
-    % The adjustVCE constructor is the authority for the four configurator
-    % groups (adjustVCE.m, "obj.shapeOpt = struct(...)" and neighbours). A
-    % fresh engine and a default Options must agree field for field, in the
-    % engine's own field order and value classes -- isequal on the structs.
-    o = lsqvce.Options();
-    a = o.engineArgs("adjustVCE");
-    sys = struct('sysID', 1, 'nl', 1, 'nc', 2, 'loader', @(varargin) struct());
-    P = lsqvce.engine.adjustVCE(sys, 1);                 % construction reads no data
-    % tol: exact -- these are the engine's literal defaults, not measurements
-    tc.verifyEqual(a.shape, P.shapeOpt, 'stochastic-model group must equal the engine default');
-    tc.verifyEqual(a.scale, P.scaleOpt, 'variance-component group must equal the engine default');
-    tc.verifyEqual(a.outer, P.outerOpt, 'outer-loop group must equal the engine default');
-    tc.verifyEqual(a.joint, P.jointOpt, 'joint group must equal the engine default');
-    tc.verifyEqual(a.mode, P.vceMode, 'default Model "gls"/"vce" must map to ''separate''');
-    tc.verifyEqual(a.axes, struct('pos', 3), 'components-per-epoch default must be pos -> 3');
-    tc.verifyEqual(P.axesMap('pos'), 3);
-    tc.verifyEqual(struct('Backend', char(o.Backend), 'Reg', char(o.Reg), ...
-                          'Parallel', char(o.Parallel), ...
-                          'DistributeDays', o.DistributeDays, ...
-                          'ParallelThreshold', o.ParallelThreshold), P.blockOpt, ...
-        'solver group must equal the engine''s blockOpt');
-end
-
 function testDriverDefaultsArePinned(tc)
 % categories: reference
     % Literal defaults READ FROM THE DRIVER SIGNATURES on 2026-08-31:

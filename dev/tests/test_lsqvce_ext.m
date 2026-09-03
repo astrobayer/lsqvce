@@ -880,13 +880,6 @@ function test_stageC2_signatures_classes(tc)
     verifyTrue(tc, ok, 'BlockAccumulator Backend ''QR'' must fail');
     ok = false;
     try
-        lsqvce.engine.adjustVCE({}, [], 'VceMode', 'Joint');
-    catch e
-        ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
-    end
-    verifyTrue(tc, ok, 'adjustVCE VceMode ''Joint'' must fail');
-    ok = false;
-    try
         lsqvce.engine.BlockAccumulator(3, 'CondWarn', -1);
     catch e
         ok = startsWith(e.identifier, 'MATLAB:validators:');
