@@ -373,9 +373,10 @@ function testDistributeDaysThroughFitEqualsFused(tc)
     tc.verifyEqual(R2.x,      R1.x,      'RelTol', 1e-11);
     tc.verifyEqual(R2.sigma0, R1.sigma0, 'RelTol', 1e-11);
     % adjustBlock records its RESOLVED option struct (lowerCamel, WP-44)
-    tc.verifyEqual(R2.meta.options.distributeDays, true, 'the policy is recorded in the provenance');
-    tc.verifyEqual(R2.meta.options.parallelThreshold, 2);
-    tc.verifyEqual(R1.meta.options.distributeDays, false);
+    % R5 M5 5b: every kind records the USER's resolved Options as provenance
+    tc.verifyEqual(R2.meta.options.Parallel.DistributeDays, true, 'the policy is recorded in the provenance');
+    tc.verifyEqual(R2.meta.options.Parallel.Threshold, 2);
+    tc.verifyEqual(R1.meta.options.Parallel.DistributeDays, false);
     % the same knobs are accepted by the VCE engine's constructor (signature)
 end
 
