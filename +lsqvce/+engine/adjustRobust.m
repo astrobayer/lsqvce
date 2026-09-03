@@ -73,6 +73,7 @@ arguments
     opt.ParallelThreshold (1,1) double {mustBeInteger, mustBeNonnegative} = 8
     opt.Verbose (1,1) logical = false
     opt.Prior = []                       % R5 M5 5b: CommonPrior on the common block, or []
+    opt.Diagnostics cell = {}          % R5 M5 5b': Name-Value pairs for lsqvce.engine.diagnose
     opt.Provenance struct = struct()
 end
     [specs, ~] = normalizeSystems(systems, days);       % engine-private, shared with adjustBlock
@@ -142,9 +143,9 @@ end
 
     % final diagnostics on the reweighted problem (the factors are in Wfcn)
     [dsol, batchFcn, nB] = lsqvce.engine.diagnoseAccum(acc, sol);
-    D = lsqvce.engine.diagnose(dsol, batchFcn, 'nBatch', nB);
+    D = lsqvce.engine.diagnose(dsol, batchFcn, 'nBatch', nB, opt.Diagnostics{:});
     prov = opt.Provenance;
-    if isempty(fieldnames(prov)), prov = rmfield(rmfield(opt, 'Provenance'), 'Prior'); end
+    if isempty(fieldnames(prov)), prov = rmfield(rmfield(rmfield(opt, 'Provenance'), 'Prior'), 'Diagnostics'); end
     R = lsqvce.Results(sol, D, acc, dsol, batchFcn, nB, specs, ...
                        lsqvce.engine.runMeta(struct(), prov));
     R.setIterative(hist, struct('influence', char(opt.Influence), 'scale', s), converged);

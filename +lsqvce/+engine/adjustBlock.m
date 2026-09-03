@@ -147,6 +147,7 @@ arguments
     opt.ExportDir (1,1) string = ""
     opt.Prior = []                       % R5 M5 5b: lsqvce.engine.CommonPrior on the common
                                          % block (data.priors, stacked by lsqvce.fit), or []
+    opt.Diagnostics cell = {}          % R5 M5 5b': Name-Value pairs for lsqvce.engine.diagnose
     opt.Provenance struct = struct()     % R5 M2: the RESOLVED user options to record
                                          % in Results.meta instead of this driver's own
                                          % option struct (lsqvce.fit passes opts.toStruct()
@@ -187,7 +188,7 @@ end
     sol = acc.solve();
 
     [dsol, batchFcn, nB] = lsqvce.engine.diagnoseAccum(acc, sol);
-    D = lsqvce.engine.diagnose(dsol, batchFcn, 'nBatch', nB);
+    D = lsqvce.engine.diagnose(dsol, batchFcn, 'nBatch', nB, opt.Diagnostics{:});
 
     % WP-44: run provenance through the ONE composer -- adjustBlock resolves
     % no RNG seed (empty struct), and o IS its resolved option struct.

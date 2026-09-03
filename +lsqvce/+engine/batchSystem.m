@@ -29,8 +29,8 @@ function L = batchSystem(u, batchFcn, nBatch, opt)
 %   ERRORS
 %     lsqvce:batchSystem:badSource   batchFcn is not a function handle
 %     lsqvce:batchSystem:badMatrix   a batch returned A/l of inconsistent size
-%     lsqvce:batchSystem:weightMatrix a batch returned a full weight matrix (a
-%                                    covariance law belongs to the streaming kind)
+%     lsqvce:batchSystem:weightMatrix a batch returned a weight argument that is
+%                                    neither m x 1 nor an m x m SPD matrix
 %     + whatever batchFcn throws, as lsqvce:callUser:threw with the cause
 %
 %   ACCURACY  exact: pre-whitening by sqrt(p) is the diagonal-P GLS identity;
@@ -85,11 +85,19 @@ function D = batchDay(day, ~, ~, ~, po, ~)
         if isvector(p) && numel(p) == m
             s = sqrt(p(:));
             A = s .* A;  l = s .* l;
+        elseif ismatrix(p) && isequal(size(p), [m m])
+            % a full weight matrix P = W'W (correlated rows within the batch):
+            % whitening by W is the exact GLS identity (R5 M5 5b'); P must be SPD
+            [W, flag] = chol(full(p));
+            if flag > 0
+                error('lsqvce:batchSystem:weightMatrix', ...
+                      'batch %d returned a %d x %d weight matrix that is not positive definite.', day, m, m);
+            end
+            A = W * A;  l = W * l;
         else
             error('lsqvce:batchSystem:weightMatrix', ...
-                  ['batch %d returned a %s weight argument; the block path takes ' ...
-                   'diagonal weights (m x 1). A full weight matrix is a covariance ' ...
-                   'law: declare it through the streaming kind.'], day, mat2str(size(p)));
+                  ['batch %d returned a %s weight argument; expected m x 1 weights ' ...
+                   'or an m x m positive-definite weight matrix (m = %d).'], day, mat2str(size(p)), m);
         end
     end
     D.A = A;  D.B = zeros(m, 0);  D.l = l;  D.t = (1:m).';

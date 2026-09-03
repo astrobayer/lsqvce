@@ -67,6 +67,7 @@ arguments
     opt.ParallelThreshold (1,1) double {mustBeInteger, mustBeNonnegative} = 8
     opt.Verbose (1,1) logical = false
     opt.Prior = []                       % R5 M5 5b: CommonPrior on the common block, or []
+    opt.Diagnostics cell = {}          % R5 M5 5b': Name-Value pairs for lsqvce.engine.diagnose
     opt.Provenance struct = struct()
 end
     x0 = x0(:);
@@ -140,12 +141,12 @@ end
     % Results reports is x + step, while the diagnostics (dsol) stay in the
     % linearised frame where the reduced observations live.
     prov = opt.Provenance;
-    if isempty(fieldnames(prov)), prov = rmfield(rmfield(opt, 'Provenance'), 'Prior'); end
+    if isempty(fieldnames(prov)), prov = rmfield(rmfield(rmfield(opt, 'Provenance'), 'Prior'), 'Diagnostics'); end
     acc = finalAcc(L, days, x, state, opt);
     dsol = acc.solve();
     sol  = dsol;  sol.x = x + dsol.x(:);
     [dsol2, batchFcn, nB] = lsqvce.engine.diagnoseAccum(acc, dsol);
-    D = lsqvce.engine.diagnose(dsol2, batchFcn, 'nBatch', nB);
+    D = lsqvce.engine.diagnose(dsol2, batchFcn, 'nBatch', nB, opt.Diagnostics{:});
     R = lsqvce.Results(sol, D, acc, dsol2, batchFcn, nB, [], lsqvce.engine.runMeta(struct(), prov));
     R.setIterative(hist, struct('x0', x0, 'reason', reason, 'kind', 'nonlinear'), converged);
 end
