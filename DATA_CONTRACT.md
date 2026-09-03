@@ -1,16 +1,43 @@
 # lsqvce — The data contract: what you give `fit`, and how to write `buildDay`
 
-**Status.** Binding specification, **version 4** (adopted 2026-08-31, Level L11 WP-75:
-SCOPED parameter tables; v3 of the same day/L10 is superseded — migration table in
-`RELEASE_NOTES.md`).
-`lsqvce.fit` is live for all three data kinds and Models `gls`, `vce`, `pooled`, `ellmer`.
-§9 shows the equivalent direct engine calls. This file is the source of the `fit` help text
-and of the HTML guide: one authority, no second copy.
+**Status.** Binding specification, **version 5** (adopted 2026-09-03, Review R5 level M5:
+the v4 SHAPES are unchanged — every v4 declaration still fits — and three things were
+ADDED, listed in §0a below; option names are those of `lsqvce.Options` v5, the v4 → v5
+map is in `RELEASE_NOTES.md`).
+`lsqvce.fit` is live for all three data kinds, `Estimate = "none" | "noise"`, `Robust`, the
+nonlinear form and `OnPass`. §9 shows the equivalent direct engine calls. This file is the
+source of the `fit` help text and of the HTML guide: one authority, no second copy.
 
 Created 2026-08-31 (CEST, UTC+02:00) with assistance from Claude (Anthropic), model Claude
 Fable 5. Rewritten for v3 and again for v4 (scoped tables) the same day (Claude Fable 5).
 
 ---
+
+## 0a. The v5 delta (R5 M5): three additions, no shape changes
+
+1. **`data.priors(k) = struct('L', pxnc, 'x0', px1, 'sigma', s, 'name', ..)`** — declared
+   pseudo-observation groups `L·x ~ x0` with weight `1/sigma²` on the COMMON parameters,
+   folded into the solve AND into the diagnostic sweep (they carry a redundancy). A free
+   network's datum is the prior `L = B'` on the null space: the exact minimum-constraint
+   solution, for any weight, because the data's range and the null space are orthogonal
+   (`lsqvce:fit:badPrior` on malformed fields). A Kaula rule or a background model is the
+   same declaration with a scientific `L`.
+2. **Per-stream policy on the covariance spec** — `covariance.<type>.estimate = "none" |
+   "scale" | "law"` (default `"law"` under `Estimate="noise"`) and `.arcFactors` (logical,
+   default the Options policy). A law whose `sigma` is a VECTOR (per-row weights) is a fixed
+   structure: it can carry a level (`"scale"`) but not a spectral shape (`"law"` is refused,
+   `lsqvce:fit:lawOnFixedStructure`). `Options.Pool` decides which streams SHARE one
+   estimated spectral shape; every stream keeps its own level.
+3. **The per-pass inspection hook** — `Options.OnPass = @(ctx)` receives, after every pass
+   of every iterative run, the pass state, the live accumulator, `ctx.data` (this
+   declaration as given) and `ctx.processingOptions{k}` (system k's `processingOptions` as
+   declared); return `false` to stop. Nothing else about `buildDay` or the tables changed.
+
+Semantics made explicit in v5: a full SPD weight matrix returned by a batch source is
+whitened exactly (`chol(P)`), and per-observation diagnostics of a batch problem are
+reported in the WHITENED frame (`R.diag.v = sqrt(p).*v`; only their sums are
+frame-invariant). Multi-axis streams must be declared `separable` (a `diag` law ignores the
+per-epoch covariance).
 
 ## 0. The v4 principle: state nothing the data already states — and scope, don't number
 
@@ -43,7 +70,7 @@ whitening with your covariance model, iterating the variance components — is t
 job:
 
 ```matlab
-opts = lsqvce.Options(Model="vce");      % what to do
+opts = lsqvce.Options(Estimate="noise");  % what to do
 R    = lsqvce.fit(data, opts);           % the one verb
 R.report                                 % the verdict
 ```
@@ -330,7 +357,7 @@ scaling `D`:
   (`lsqvce.kernel.residualAcv` with the full per-epoch D, fetched per day **without**
   rebuilding the day); without it, it falls back to descaling by the stream's current
   scalar σ — an approximation that biases the estimated AR law when D varies strongly
-  across epochs (changing geometry/PDOP). Declare the hook when you run `Model="vce"` on
+  across epochs (changing geometry/PDOP). Declare the hook when you run `Estimate="noise"` on
   multi-axis streams and have D available independently of the day build.
 
 ---
@@ -385,7 +412,7 @@ data.systems(2) = s;
 % gap-safe on manoeuvre days, never stated.
 
 % ---- the run -----------------------------------------------------------
-opts = lsqvce.Options(Model="vce", GroupBy="satObs", Parallel="parfor");
+opts = lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, Parallel=struct('Mode', "parfor"));
 R = lsqvce.fit(data, opts);
 R.report
 ```
@@ -405,9 +432,10 @@ for k = 1:numel(data.systems)
         Days=data.days, CommonParams=data.commonParams, ...           % over the global calendar
         ProcessingOptions=s.processingOptions);
 end
-R = lsqvce.engine.adjustBlock(L, data.days);                        % Model "gls"
-R = lsqvce.engine.adjustVCE(L, data.days, 'GroupBy', 'satObs', ...   % Model "vce"
-        'Shape', struct(...), 'Scale', struct(...)).run();          % (constructor-only since 2.0)
+R = lsqvce.engine.adjustBlock(L, data.days);                        % Estimate "none"
+R = lsqvce.engine.adjustRobust(L, data.days, 'Influence', "huber");  % Robust "huber"
+% Estimate "noise" is lsqvce.engine.adjustVCEjoint over an accumulator factory that
+% lsqvce.fit builds (jointModelOpt + the block accumulator); use fit for it.
 ```
 
 These are ENGINE-tier calls (experts); a user needs none of them. The ENGINE tier keeps the
@@ -434,7 +462,7 @@ derivations of §0.
 - [ ] Local unknowns: scoped `localParams` templates, `B` filled from `info` offsets only;
       not declared → `B = zeros(m, 0)`.
 - [ ] Multi-axis streams: epoch-major rows, `nAxis`, `Cep` on the day; the `epochCovariance`
-      hook when Model="vce" should take the exact Shape path.
+      hook when Estimate="noise" should descale per epoch (the separable law).
 - [ ] No unknown field names in `data` (a typo is an error, on purpose — and so are the v2
       count fields and, since v4, `localsPerArc`).
 
@@ -462,23 +490,24 @@ has no `systems` at all — `fit` tells the kinds apart by the fields present:
 | `numUnknowns` | 1×1 | u — **linear form only** |
 | `x0` | u×1 | optional. With it the problem is **nonlinear**: `[A, w, p] = batchFcn(k, x)` returns the Jacobian at `x` and `w = l − f(x)`; solved by Gauss-Newton (`lsqvce.engine.solveNonlinear`). **u = numel(x0)** — `numUnknowns` must then be absent (`lsqvce:fit:uCount`) |
 
-Rules: `opts.Model` must be `"gls"` (variance components need the groups of a streaming
-system — `lsqvce:fit:modelKind`); `opts.Robust = "irls"` switches to M-estimation
-(`Influence`, `Tuning`, `RobustMaxIter`, `RobustTol` in Options); shapes are checked before
-anything runs (`lsqvce:fit:badMatrix`, `lsqvce:fit:missingField`, `lsqvce:fit:unknownField`).
+Rules: `opts.Estimate` must be `"none"` (variance components need the streams of a
+streaming system — `lsqvce:fit:modelKind`); `opts.Robust = "huber" | "igg3" | "bisquare"`
+switches to M-estimation (`RobustOpts` in Options); shapes are checked before anything runs
+(`lsqvce:fit:badMatrix`, `lsqvce:fit:missingField`, `lsqvce:fit:unknownField`). Both kinds
+run on the ONE accumulator as a local-free streaming system (batch k = day k), so
+`R.residuals()`, `R.contribution()`, `R.plot(..)` and `OnPass` work on them too; the
+per-observation diagnostics are in the whitened frame (`R.diag.v = sqrt(p).*v`).
 
 What comes back is the same `Results`: `R.x`, `R.sigma0`, `R.coefficients()`, `R.report()`,
-and the per-observation diagnostics in `R.diag` (residuals `R.diag.v`). Two methods need the
-streaming engine and say so: `R.residuals()` and `R.contribution()` refuse with
-`lsqvce:Results:noAccumulator`. The driver's own record (verdict, IRLS weights, or the
-nonlinear iteration log) is on `R.source`.
+`R.diag`, and for IRLS / Gauss–Newton the pass record on `R.history` (the final IRLS factors:
+`R.history(end).factor`) with `R.stopReason`.
 
 ```matlab
 data = struct('A', A, 'l', l, 'p', p);
-R = lsqvce.fit(data);                                   % = lsqvce.engine.adjust, one batch
-R = lsqvce.fit(data, lsqvce.Options(Robust="irls"));    % = lsqvce.engine.robust
+R = lsqvce.fit(data);                                   % adjustBlock on the batch adapter
+R = lsqvce.fit(data, Robust="huber");                   % adjustRobust (IRLS)
 data = struct('batchFcn', @(k, x) myJacobian(k, x), 'numBatches', 20, 'x0', x0);
-R = lsqvce.fit(data, lsqvce.Options(NonlinearMaxIter=15));   % = lsqvce.engine.solveNonlinear
+R = lsqvce.fit(data, MaxPasses=15);                     % adjustNonlinear (Gauss-Newton)
 ```
 
 **One sentence on stream names (from the L2 CI catch):** a stream whose observation type is
