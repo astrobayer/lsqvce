@@ -66,6 +66,7 @@ kernel.whitenessCorr,KERNEL,whiteness (Ljung-Box) statistic
 kernel.redundancyLags,KERNEL,redundancy per lag without the dense W^-1
 util.getfielddef,KERNEL,struct field with default
 util.callUser,KERNEL,call a user function: outputs counted once and errors wrapped with cause
+util.onPass,KERNEL,fires Options.OnPass with the merged per-pass context
 util.rowWeightKey,KERNEL,key convention for per-arc robust weights
 util.log,KERNEL,toolbox-wide logging state
 util.mergeStruct,KERNEL,struct merge (later wins)

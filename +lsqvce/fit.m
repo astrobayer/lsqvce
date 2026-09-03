@@ -298,7 +298,8 @@ end
         end
         a = opts.engineArgs('adjustRobust');
         prov = opts.toStruct();  prov.kind = 'stream';
-        R = lsqvce.engine.adjustRobust(systems, days, a.nv{:}, 'Provenance', prov, 'Prior', pri);
+        R = lsqvce.engine.adjustRobust(systems, days, a.nv{:}, 'Provenance', prov, 'Prior', pri, ...
+                                       'OnPassContext', onPassContext(data, systems));
         return
     end
 
@@ -317,7 +318,7 @@ end
             %   "pooled"  one law for all streams (Pool "all"), no arc factors
             % The engine-tier lsqvce.engine.adjustVCE still exists for its own
             % callers until its tests are re-homed (M4 4c).
-            R = fitEllmer(systems, days, opts, pri);
+            R = fitEllmer(systems, days, opts, pri, onPassContext(data, systems));
     end
 end
 
@@ -622,7 +623,7 @@ function R = runBatch(u, batchFcn, nBatch, x0, opts, kind, data)
     end
     pri = priorsOf(data, u);
     if isempty(x0)
-        R = runBatchOnBlockPath(u, batchFcn, nBatch, opts, kind, pri);
+        R = runBatchOnBlockPath(u, batchFcn, nBatch, opts, kind, pri, data);
         return
     end
     if ~strcmp(opts.Robust, "none")
@@ -634,10 +635,12 @@ function R = runBatch(u, batchFcn, nBatch, x0, opts, kind, data)
     lsqvce.util.log.inventory('reset');
     a = opts.engineArgs('adjustNonlinear');
     prov = opts.toStruct();  prov.kind = kind;
-    R = lsqvce.engine.adjustNonlinear(u, batchFcn, nBatch, x0, a.nv{:}, 'Provenance', prov, 'Prior', pri);
+    R = lsqvce.engine.adjustNonlinear(u, batchFcn, nBatch, x0, a.nv{:}, 'Provenance', prov, 'Prior', pri, ...
+                                      'OnPassContext', struct('data', data, 'processingOptions', {{}}));
 end
-function R = fitEllmer(systems, days, opts, pri)
+function R = fitEllmer(systems, days, opts, pri, opc)
     if nargin < 4, pri = []; end
+    if nargin < 5, opc = struct(); end
 %FITELLMER  Model "ellmer": LSQVCE.ENGINE.ADJUSTVCEJOINT over the built systems.
 %   Two bridges (R4 WP-56c): (1) the accFcn the driver wants -- a fresh
 %   BlockAccumulator per outer pass whose UserOpt carries the current model
@@ -655,7 +658,8 @@ function R = fitEllmer(systems, days, opts, pri)
                  lsqvce.engine.jointModelOpt(model, streams, 'PsdMode', psdMode, ...
                                              'Separable', sepStreams), pri);
     nvj = a.nv;
-    out = lsqvce.engine.adjustVCEjoint(accFcn, nvj{:}, 'Estimate', estMap, 'ArcFactors', afMap);
+    out = lsqvce.engine.adjustVCEjoint(accFcn, nvj{:}, 'Estimate', estMap, 'ArcFactors', afMap, ...
+                                       'OnPassContext', opc);
 
     [dsol, batchFcn, nB] = lsqvce.engine.diagnoseAccum(out.acc, out.sol);
     D = lsqvce.engine.diagnose(dsol, batchFcn, 'nBatch', nB, opts.engineArgs("diagnose").nv{:});
@@ -676,7 +680,8 @@ function R = fitEllmer(systems, days, opts, pri)
     % factor) and its law (the pool group's C); what the separate mode's
     % Results carried and the gravity demo reads
     [noise.stream, noise.model] = streamModels(systems, specs, out, char(pool));
-    R.setIterative(hist, noise, out.converged);
+    reason = "";  if isfield(out, 'userStop') && out.userStop, reason = "userStop"; end
+    R.setIterative(hist, noise, out.converged, reason);
 end
 
 function specs = accSpecs(systems, days)
@@ -764,10 +769,11 @@ function pri = priorsOf(data, nc)
 end
 
 %======================================================= kinds B / C on the block path
-function R = runBatchOnBlockPath(u, batchFcn, nBatch, opts, kind, pri)
+function R = runBatchOnBlockPath(u, batchFcn, nBatch, opts, kind, pri, data)
 %RUNBATCHONBLOCKPATH  Kinds B / C (linear) as ONE local-free streaming system
 %   through LSQVCE.ENGINE.BATCHSYSTEM (R5 M2 WP-81 2a/2c'; priors M5 5b).
     if nargin < 6, pri = []; end
+    if nargin < 7, data = struct(); end
     L = lsqvce.engine.batchSystem(u, batchFcn, nBatch, 'Name', kind);
     lsqvce.util.log.inventory('reset');
     prov = opts.toStruct();  prov.kind = kind;   % provenance = the user's resolved Options
@@ -776,7 +782,8 @@ function R = runBatchOnBlockPath(u, batchFcn, nBatch, opts, kind, pri)
         R = lsqvce.engine.adjustBlock({L}, 1:nBatch, a.nv{:}, 'Provenance', prov, 'Prior', pri);
     else
         a = opts.engineArgs('adjustRobust');
-        R = lsqvce.engine.adjustRobust({L}, 1:nBatch, a.nv{:}, 'Provenance', prov, 'Prior', pri);
+        R = lsqvce.engine.adjustRobust({L}, 1:nBatch, a.nv{:}, 'Provenance', prov, 'Prior', pri, ...
+                                       'OnPassContext', struct('data', data, 'processingOptions', {{}}));
     end
 end
 
@@ -887,4 +894,15 @@ function [names, models] = streamModels(systems, specs, out, pool)
             models{end+1} = struct('type', 'psd', 'sigma', s0 * f, 'C', C, 'sigma2', s2); %#ok<AGROW>
         end
     end
+end
+
+function opc = onPassContext(data, systems)
+%ONPASSCONTEXT  What lsqvce.fit adds to every OnPass ctx (R5 M5 5c'): the
+%   declaration as given and every system's processingOptions, in the order
+%   of data.systems (a cell, one struct per system).
+    po = cell(1, numel(systems));
+    for k = 1:numel(systems)
+        if isfield(systems{k}, 'procOpt'), po{k} = systems{k}.procOpt; else, po{k} = struct(); end
+    end
+    opc = struct('data', data, 'processingOptions', {po});
 end

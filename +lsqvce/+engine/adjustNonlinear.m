@@ -68,6 +68,8 @@ arguments
     opt.Verbose (1,1) logical = false
     opt.Prior = []                       % R5 M5 5b: CommonPrior on the common block, or []
     opt.Diagnostics cell = {}          % R5 M5 5b': Name-Value pairs for lsqvce.engine.diagnose
+    opt.OnPass = []                    % R5 M5 5c': per-pass inspection hook (lsqvce.util.onPass)
+    opt.OnPassContext struct = struct()
     opt.Provenance struct = struct()
 end
     x0 = x0(:);
@@ -79,7 +81,7 @@ end
     L = lsqvce.engine.batchSystem(u, batchFcn, nBatch, 'State', state, 'Name', 'nonlinear');
     days = 1:nBatch;
 
-    x = x0;  lam = opt.Lambda0;  vPvPrev = Inf;  converged = false;  reason = 'maxIter';
+    x = x0;  lam = opt.Lambda0;  vPvPrev = Inf;  converged = false;  reason = 'maxIter';  userStop = false;
     hist = struct('pass', {}, 'vPv', {}, 'dxRel', {}, 'lambda', {}, 'accepted', {});
     if opt.Verbose
         lsqvce.util.log.msg('Gauss-Newton on the block path: u = %d, %d batch(es)\n', u, nBatch);
@@ -125,15 +127,20 @@ end
         hist(end+1) = struct('pass', it, 'vPv', vPvNew, 'dxRel', dxRel, 'lambda', lam, 'accepted', true); %#ok<AGROW>
         if opt.Verbose, lsqvce.util.log.msg('  %4d %16.8e %14.3e %12.1e\n', it, vPvNew, dxRel, lam); end
         relF = abs(vPvNew - vPv) / max(abs(vPvNew), realmin);
+        ctx = struct('driver', 'adjustNonlinear', 'pass', it, 'x', x, 'Cxx', sol.Cxx, ...
+                     'sigma0', sol.sigma0, 'vPv', vPvNew, 'dxRel', dxRel, 'lambda', lam, ...
+                     'acc', acc);
+        userStop = ~lsqvce.util.onPass(opt.OnPass, opt.OnPassContext, ctx);
         if dxRel < opt.TolX
             converged = true;  reason = 'tolX';  break
         end
         if it > 1 && relF < opt.TolF
             converged = true;  reason = 'tolF';  break
         end
+        if userStop, reason = 'userStop';  break, end
         vPv = vPvNew;  vPvPrev = vPv; %#ok<NASGU>
     end
-    if ~converged && ~strcmp(reason, 'diverged')
+    if ~converged && ~strcmp(reason, 'diverged') && ~userStop
         lsqvce.util.log.warn('lsqvce:adjustNonlinear:maxIter', ...
             ['Reached MaxIter = %d without meeting the tolerance (last max|dx/sigma| = %.3e, ' ...
              'target %.3e). The diagnostics describe an UNCONVERGED solution.'], ...
@@ -145,14 +152,15 @@ end
     % Results reports is x + step, while the diagnostics (dsol) stay in the
     % linearised frame where the reduced observations live.
     prov = opt.Provenance;
-    if isempty(fieldnames(prov)), prov = rmfield(rmfield(rmfield(opt, 'Provenance'), 'Prior'), 'Diagnostics'); end
+    if isempty(fieldnames(prov)), prov = rmfield(rmfield(rmfield(rmfield(rmfield(opt, 'Provenance'), 'Prior'), 'Diagnostics'), 'OnPass'), 'OnPassContext'); end
     acc = finalAcc(L, days, x, state, opt);
     dsol = acc.solve();
     sol  = dsol;  sol.x = x + dsol.x(:);
     [dsol2, batchFcn, nB] = lsqvce.engine.diagnoseAccum(acc, dsol);
     D = lsqvce.engine.diagnose(dsol2, batchFcn, 'nBatch', nB, opt.Diagnostics{:});
     R = lsqvce.Results(sol, D, acc, dsol2, batchFcn, nB, [], lsqvce.engine.runMeta(struct(), prov));
-    R.setIterative(hist, struct('x0', x0, 'reason', reason, 'kind', 'nonlinear'), converged);
+    sr = "";  if userStop, sr = "userStop"; end
+    R.setIterative(hist, struct('x0', x0, 'reason', reason, 'kind', 'nonlinear'), converged, sr);
 end
 
 function acc = finalAcc(L, days, x, state, opt)

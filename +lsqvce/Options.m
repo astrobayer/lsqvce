@@ -43,6 +43,25 @@ classdef Options
 %                                   the whole calendar (one build per run)
 %     Verbose    logical | 0..3     screen messages (0 silent)
 %     LogFile    string  ""         mirror the messages to this file ("" = none)
+%     OnPass     [] | @(ctx)        YOUR inspection hook, called at the end of
+%                                   EVERY pass of every iterative run (the
+%                                   variance-component loop, IRLS, Gauss-Newton)
+%                                   with ONE ctx struct: .driver .pass .x .Cxx
+%                                   .sigma0, the loop state (noise: .C .Cgroups
+%                                   .sigma2 .arcKeys .streams .sigma .white
+%                                   .whitePval .maxDev .skips; IRLS: .factor
+%                                   .keys .scale .dx; Gauss-Newton: .vPv .dxRel
+%                                   .lambda), .acc (the LIVE accumulator: call
+%                                   lsqvce.engine.residuals(ctx.acc, ...) or any
+%                                   engine function inside the hook), .data (your
+%                                   declaration as passed to fit) and
+%                                   .processingOptions (per system, as declared).
+%                                   Plot, drawnow, save wherever you like; return
+%                                   nothing to continue, false to stop after this
+%                                   pass (stopReason "userStop"). A throwing hook
+%                                   is NOT swallowed (lsqvce:callUser:threw with
+%                                   your error as cause). Replaces v4's
+%                                   plotPostModel / plotPostSolve seams.
 %
 %   GROUPS (structs; set fields one at a time or give a whole struct)
 %     Noise        Grid (60 | "auto")  frequencies of the estimated shape
@@ -76,6 +95,7 @@ classdef Options
 %                                  its type / set / range (at assignment)
 %     lsqvce:Options:badGrid       Noise.Grid is neither "auto" nor an integer >= 2
 %     lsqvce:Options:badVerbose    Verbose is neither logical nor an integer 0..3
+%     lsqvce:Options:badOnPass     OnPass is neither [] nor a function handle
 %     lsqvce:Options:badGroupField a group struct carries an unknown field
 %     lsqvce:Options:badTarget     engineArgs target is unknown
 %
@@ -103,6 +123,7 @@ classdef Options
         CacheDays  (1,1) double {mustBePositive} = 1
         Verbose    = false
         LogFile    (1,1) string = ""
+        OnPass     = []
 
         Noise       (1,1) struct = lsqvce.Options.noiseDefaults()
         RobustOpts  (1,1) struct = struct('Tuning', [], 'MaxIter', 30, 'Tol', 1e-8)
@@ -147,6 +168,9 @@ classdef Options
                 error('lsqvce:Options:badVerbose', ...
                     'Verbose must be logical or an integer level 0..3 (got %g).', v);
             end
+            if ~isempty(obj.OnPass) && ~isa(obj.OnPass, 'function_handle')
+                error('lsqvce:Options:badOnPass', 'OnPass must be [] or a function handle @(ctx).');
+            end
             groups = {'Noise', 'RobustOpts', 'Diagnostics', 'Parallel', 'GaussNewton'};
             d = lsqvce.Options.groupDefaults();
             for k = 1:numel(groups)
@@ -173,16 +197,19 @@ classdef Options
                 case 'adjustNonlinear'
                     args.nv = [{'MaxIter', obj.MaxPasses, 'TolX', obj.Tolerance, ...
                                'TolF', obj.GaussNewton.TolF, 'Lambda0', obj.GaussNewton.Lambda0, ...
-                               'Backend', obj.Backend}, par, {'Verbose', logical(obj.Verbose), 'Diagnostics', obj.diagnoseNV()}];
+                               'Backend', obj.Backend}, par, {'Verbose', logical(obj.Verbose), 'Diagnostics', obj.diagnoseNV(), ...
+                               'OnPass', obj.OnPass}];
                 case 'adjustRobust'
                     args.nv = [{'Backend', obj.Backend, 'Influence', obj.Robust, ...
                                'Tuning', obj.RobustOpts.Tuning, 'MaxIter', obj.RobustOpts.MaxIter, ...
-                               'Tol', obj.RobustOpts.Tol}, par, {'Verbose', logical(obj.Verbose), 'Diagnostics', obj.diagnoseNV()}];
+                               'Tol', obj.RobustOpts.Tol}, par, {'Verbose', logical(obj.Verbose), 'Diagnostics', obj.diagnoseNV(), ...
+                               'OnPass', obj.OnPass}];
                 case 'adjustVCEjoint'
                     args.nv = {'NumLags', N.Grid, 'MaxIter', obj.MaxPasses, ...
                                'Tol', obj.Tolerance, 'Probes', obj.Probes, 'Seed', obj.Seed, ...
                                'SkipThreshold', N.SkipThreshold, 'Pool', obj.Pool, ...
-                               'MeanType', N.MeanType, 'Verbose', logical(obj.Verbose)};
+                               'MeanType', N.MeanType, 'Verbose', logical(obj.Verbose), ...
+                               'OnPass', obj.OnPass};
                 case 'diagnose'
                     args.nv = obj.diagnoseNV();
                 otherwise
@@ -269,7 +296,7 @@ classdef Options
         function t = groupTable()
             t = {'What to estimate',   {'Estimate', 'Pool', 'ArcFactors', 'Robust'}; ...
                  'The loop',           {'MaxPasses', 'MinPasses', 'Tolerance', 'Probes', 'Seed'}; ...
-                 'Run control',        {'Backend', 'CacheDays', 'Verbose', 'LogFile'}; ...
+                 'Run control',        {'Backend', 'CacheDays', 'Verbose', 'LogFile', 'OnPass'}; ...
                  'Groups',             {'Noise', 'RobustOpts', 'Diagnostics', 'Parallel', 'GaussNewton'}; ...
                  'Regularisation',     {'Reg', 'RegLambda', 'RegMatrix'}};
         end

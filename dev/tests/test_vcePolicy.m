@@ -220,3 +220,76 @@ function testPlotRefusesWhatTheResultsLacks(tc)
     fh = R.plot("residuals", Visible=false);            % a single solve has residuals
     tc.verifyClass(fh, 'matlab.ui.Figure');  close(fh);
 end
+
+%% ------------------------------------------------- OnPass (M5 5c'): the inspection seam
+function testOnPassFiresEveryPassWithTheContext(tc)
+% categories: contract | tags: diagnostics
+    % The project's opening requirement: after EVERY iteration, a hook for
+    % inspection. Options.OnPass fires at the end of every pass of the joint
+    % estimator with the declaration, the processing options, the live
+    % accumulator and the pass state; the hook may plot, save, or stop.
+    data = tc.TestData.data;
+    seen = containers.Map('KeyType', 'double', 'ValueType', 'any');
+    hook = @(ctx) recordPass(seen, ctx);
+    R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
+                     MaxPasses=3, Noise=struct('Grid', 16), Seed=3, Verbose=false, OnPass=hook));
+    tc.verifyEqual(seen.Count, 3, 'one call per pass');
+    c = seen(2);
+    tc.verifyEqual(c.pass, 2);
+    tc.verifyEqual(c.driver, 'adjustVCEjoint');
+    tc.verifyEqual(numel(c.x), numel(R.x));
+    tc.verifyTrue(isfield(c, 'data') && isequal(c.data.days, data.days), 'the declaration as given');
+    tc.verifyTrue(isfield(c, 'processingOptions') && iscell(c.processingOptions) && ...
+                  numel(c.processingOptions) == numel(data.systems), 'one processingOptions per system');
+    tc.verifyEqual(c.processingOptions{1}, data.systems(1).processingOptions);
+    tc.verifyClass(c.acc, 'lsqvce.engine.BlockAccumulator', 'the live accumulator');
+    tc.verifyEqual(numel(c.streams), numel(c.sigma));
+    tc.verifyTrue(isfield(c, 'Cgroups') && isfield(c, 'sigma2') && isfield(c, 'whitePval'));
+    % the accumulator inside the hook is usable: a residual sweep at pass 2
+    res = lsqvce.engine.residuals(c.acc, struct('x', c.x, 'sigma0', c.sigma0, 'Cxx', c.Cxx), 'Verbose', false);
+    tc.verifyTrue(isstruct(res) && isfield(res, 'sys'));
+end
+
+function testOnPassCanStopTheLoop(tc)
+% categories: contract, robustness | tags: diagnostics
+    data = tc.TestData.data;
+    stopAt2 = @(ctx) ctx.pass < 2;                % false after the second pass
+    R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
+                     MaxPasses=6, Noise=struct('Grid', 16), Seed=3, Verbose=false, OnPass=stopAt2));
+    tc.verifyEqual(R.history.nIter, 2);
+    tc.verifyEqual(R.stopReason, "userStop");
+    tc.verifyFalse(R.converged);
+    tc.verifyTrue(all(isfinite(R.x)), 'the last pass is returned with its solution');
+    % IRLS and Gauss-Newton fire the same hook
+    rs = RandStream('mt19937ar', 'Seed', 6);
+    A = randn(rs, 40, 3);  l = A*[1; -2; 0.5] + 0.01*randn(rs, 40, 1);  l(5) = l(5) + 10;
+    n = 0;  cnt = @(ctx) assignin('base', 'lsqvce_test_onpass_n', ctx.pass); %#ok<NASGU>
+    seen = containers.Map('KeyType', 'double', 'ValueType', 'any');
+    Rr = lsqvce.fit(struct('A', A, 'l', l), Robust="huber", Verbose=false, OnPass=@(ctx) recordPass(seen, ctx));
+    tc.verifyEqual(seen.Count, numel(Rr.history), 'IRLS: one call per pass');
+    tc.verifyEqual(seen(1).driver, 'adjustRobust');
+    tc.verifyTrue(isfield(seen(1), 'factor') && isfield(seen(1), 'data'));
+    tc.verifyEqual(seen(1).data.A, A, 'kind B: the declaration is the ctx.data');
+    seen2 = containers.Map('KeyType', 'double', 'ValueType', 'any');
+    t = linspace(0, 1, 30).';  lobs = exp(0.7*t) - 0.2 + 1e-3*randn(rs, 30, 1);
+    bf = @(k, x) deal([t.*exp(x(1)*t), ones(30, 1)], lobs - (exp(x(1)*t) + x(2)), []);
+    Rn = lsqvce.fit(struct('batchFcn', bf, 'numBatches', 1, 'x0', [0.5; 0]), Verbose=false, ...
+                    OnPass=@(ctx) recordPass(seen2, ctx));
+    tc.verifyEqual(seen2.Count, numel(Rn.history), 'Gauss-Newton: one call per pass');
+    tc.verifyEqual(seen2(1).driver, 'adjustNonlinear');
+    % a throwing hook is not swallowed: it arrives with the cause
+    try
+        lsqvce.fit(data, lsqvce.Options(Estimate="noise", MaxPasses=2, Noise=struct('Grid', 16), ...
+                   Seed=3, Verbose=false, OnPass=@(ctx) error('mine:hook', 'plot failed')));
+        tc.verifyFail('must throw');
+    catch ME
+        tc.verifyEqual(ME.identifier, 'lsqvce:callUser:threw');
+        tc.verifyEqual(ME.cause{1}.identifier, 'mine:hook');
+    end
+    tc.verifyError(@() lsqvce.Options(OnPass=42), 'lsqvce:Options:badOnPass');
+end
+
+function recordPass(seen, ctx)
+    c = ctx;  c.acc = ctx.acc;                    % keep the handle, drop nothing
+    seen(ctx.pass) = c;
+end

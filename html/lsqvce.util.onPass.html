@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.util.onPass</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.util.onPass</div>
+<h1>lsqvce.util.onPass</h1>
+<div class="purpose">Fire the user&#x27;s per-pass inspection hook (R5 M5 5c&#x27;).</div>
+<h2>Description</h2>
+<pre class="example">go = lsqvce.util.onPass(hook, ctxExtra, ctx)</pre>
+<h3>THE one place every iterative driver (the joint estimator, IRLS,</h3>
+<pre class="example">Gauss-Newton) calls Options.OnPass at the end of a pass. The context the
+hook receives is the driver&#x27;s ctx (pass, solution, noise / weight / step
+state, and .acc -- the LIVE accumulator, so lsqvce.engine.residuals(ctx.acc,
+...) and every other engine call are yours inside the hook) merged with
+ctxExtra, which lsqvce.fit fills with .data (the declaration as given) and
+.processingOptions (per system, as declared). The hook is called through
+lsqvce.util.callUser: a throwing hook is NOT swallowed (it arrives as
+lsqvce:callUser:threw with the original as cause), and its output count is
+asked once. Return nothing (or true) to continue, false to stop the loop
+after this pass -- the driver then returns the pass with stopReason
+&quot;userStop&quot;.
+
+INPUT   hook     [] | function_handle   Options.OnPass
+        ctxExtra struct                 fields merged into ctx (fit&#x27;s data, processingOptions)
+        ctx      struct                 the driver&#x27;s per-pass context
+OUTPUT  go       1x1 logical            true = continue, false = stop
+ERRORS  lsqvce:callUser:threw  the hook threw (its error is the cause)
+
+Created 2026-09-03 (CEST, UTC+02:00) with assistance from Claude
+(Anthropic), model Claude Fable 5.1 -- R5 Level M5, WP-87 round 5c&#x27;
+(the per-pass inspection seam of the project&#x27;s opening brief, restored).</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
+</body></html>

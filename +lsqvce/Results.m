@@ -132,7 +132,8 @@ classdef Results < handle
         stopReason = "single"; % R5 M1: WHY the loop stopped -- "single" (one
                                % solve, nothing iterated), "converged" (every
                                % criterion met), "maxPasses" (budget exhausted;
-                               % the last pass is returned WITH a warning)
+                               % the last pass is returned WITH a warning),
+                               % "userStop" (Options.OnPass returned false, R5 M5)
         history    = struct([]);
         noise      = struct([]);
     end
@@ -452,14 +453,18 @@ classdef Results < handle
                 'VariableNames', {'stream','sigma','arOrder','white','pValue'});
         end
 
-        function setIterative(obj, history, noise, converged)
+        function setIterative(obj, history, noise, converged, reason)
         %SETITERATIVE  Populate iteration fields (used by the iterative engines).
         %   stopReason is DERIVED (R5 M1): converged -> "converged"; not
-        %   converged with a history -> "maxPasses"; no history -> "single".
+        %   converged with a history -> "maxPasses"; no history -> "single" --
+        %   unless the driver NAMES it (R5 M5 5c': "userStop" when the OnPass
+        %   hook returned false).
             obj.history   = history;
             obj.noise     = noise;
             obj.converged = converged;
-            if converged
+            if nargin > 4 && strlength(string(reason)) > 0
+                obj.stopReason = string(reason);
+            elseif converged
                 obj.stopReason = "converged";
             elseif ~isempty(history)
                 obj.stopReason = "maxPasses";
