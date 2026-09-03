@@ -292,7 +292,8 @@ classdef Results < handle
         %                (per day: arc blocks, day block; then the system block)
         %           map  struct: .common (nc x 1 struct: row, day), .local{k}
         %                (nl_k x 1 struct: row, day, arc) -- the instance of each line
-        %   ERRORS  lsqvce:Results:noAccumulator   kinds B/C (no tables to write into)
+        %   ERRORS  lsqvce:Results:noAccumulator   no accumulator on this Results
+        %           lsqvce:Results:tableMismatch    the declaration's nc is not this Results' u
         %           lsqvce:fit:*                    the declaration does not validate
         arguments
             obj
@@ -305,6 +306,11 @@ classdef Results < handle
             end
             [spec, systems] = lsqvce.engine.declaration(data);
             cp = spec.commonPlan;  T = spec.commonParams;
+            if cp.nc ~= numel(obj.x)
+                error('lsqvce:Results:tableMismatch', ...
+                      ['The declaration expands to %d common parameters but this Results has %d: ' ...
+                       'toTable needs the declaration the Results came from.'], cp.nc, numel(obj.x));
+            end
             sx = sqrt(max(real(diag(obj.sol.Cxx)), 0));
             W = max([size(T, 2), opt.Estimate, opt.Std]);
             C = cell(cp.nc, W);  mc = struct('row', cell(cp.nc, 1), 'day', cell(cp.nc, 1));

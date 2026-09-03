@@ -422,7 +422,8 @@ function testToTableWritesEstimatesIntoTheExpandedTables(tc)
         dayRows = m(strcmp(data.systems(k).localParams([m.row], 1), 'day'));
         tc.verifyTrue(all(ismember([dayRows.day], data.days)), 'day instances carry their day');
     end
-    % a kind-B Results has no tables: refused by name
+    % a Results from another problem: refused by name (the declaration must
+    % be the one the Results came from)
     Rb = lsqvce.fit(struct('A', randn(10, 2), 'l', randn(10, 1)), Verbose=false);
-    tc.verifyError(@() Rb.toTable(data), 'lsqvce:Results:noAccumulator');
+    tc.verifyError(@() Rb.toTable(data), 'lsqvce:Results:tableMismatch');
 end

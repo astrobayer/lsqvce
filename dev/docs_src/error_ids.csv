@@ -13,6 +13,7 @@ lsqvce:Results:noAccumulator,Results,error,v4.0
 lsqvce:Results:noCovariance,Results,error,v4.0
 lsqvce:Results:noHistory,Results,error,v4.0
 lsqvce:Results:noVPv,Results,error,v4.0
+lsqvce:Results:tableMismatch,Results,error,v4.0
 lsqvce:accum:arcBadNc,engine.BlockAccumulator,error,v4.0
 lsqvce:accum:arcBadNl,engine.BlockAccumulator,error,v4.0
 lsqvce:accum:arcNotFinite,engine.BlockAccumulator,error,v4.0
