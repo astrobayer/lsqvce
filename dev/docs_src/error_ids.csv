@@ -5,6 +5,7 @@
 id,units,kind,since
 lsqvce:Options:badGrid,Options,error,v4.0
 lsqvce:Options:badGroupField,Options,error,v4.0
+lsqvce:Options:badOnPass,Options,error,v4.0
 lsqvce:Options:badTarget,Options,error,v4.0
 lsqvce:Options:badVerbose,Options,error,v4.0
 lsqvce:Results:badPlotKind,Results,error,v4.0

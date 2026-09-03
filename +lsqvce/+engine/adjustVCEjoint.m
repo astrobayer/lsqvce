@@ -200,6 +200,10 @@ arguments
     opt.Pool (1,1) string {mustBeMember(opt.Pool, ["all","obsType","stream"])} = "all"
     opt.Estimate = []            % containers.Map key -> "none"|"scale"|"law"; [] = "law" for all
     opt.ArcFactors = []          % containers.Map key -> logical;              [] = true for all
+    opt.OnPass = []              % R5 M5 5c': function handle fired after EVERY pass
+                                 % with the ctx below (see lsqvce.util.onPass); return
+                                 % false to stop the loop (stopReason "userStop")
+    opt.OnPassContext struct = struct()   % extra ctx fields (fit: data, processingOptions)
     opt.Verbose  (1,1) logical = false
 end
     o = opt;
@@ -221,7 +225,7 @@ end
 
     hist = struct('maxDev', [], 'Shat', [], 'skips', {cell(0,3)}, ...
                   'streams', {{}}, 'sigma', [], 'white', [], 'whitePval', []);
-    converged = false;
+    converged = false;  userStop = false;
     accF = []; solF = []; Shat = [];
     Cmap = containers.Map('KeyType', 'char', 'ValueType', 'any');   % R5 M3 3d: C per pool group
     pinnedKeys = {};                     % WP-34: pass-1 arc identity
@@ -407,14 +411,24 @@ end
                 'arcs = %d   gammaBar = %.4f\n'], it, pv.maxDev, nArc, av.gammaBar);
         end
 
+        % ---- step 9b: the user's per-pass inspection hook (R5 M5 5c') -----
+        ctx = struct('driver', 'adjustVCEjoint', 'pass', it, 'x', sol.x(:), ...
+                     'Cxx', sol.Cxx, 'sigma0', sol.sigma0, 's0sq', sol.s0sq, 'C', C, 'Cgroups', Cmap, ...
+                     'sigma2', sigma2, 'arcKeys', {pinnedKeys}, 'streams', {hist.streams}, ...
+                     'sigma', hist.sigma(it, :), 'white', hist.white(it, :), ...
+                     'whitePval', hist.whitePval(it, :), 'maxDev', pv.maxDev, ...
+                     'skips', {skips}, 'acc', acc);
+        userStop = ~lsqvce.util.onPass(opt.OnPass, opt.OnPassContext, ctx);
+
         % ---- step 10: converged? -----------------------------------------
         if pv.maxDev <= o.Tol
             converged = true;
             break
         end
+        if userStop, break, end
     end
 
-    if ~converged
+    if ~converged && ~userStop
         lsqvce.util.log.warn('lsqvce:adjustVCEjoint:notConverged', ...
            ['The joint stochastic model did not settle in %d outer iterations ' ...
             '(last max|alpha2-1| = %.3e > tol %.1e). Inspect out.history.Shat: ' ...
@@ -428,6 +442,7 @@ end
         C    = lsqvce.kernel.dctI(Shat, 'Norm', o.Norm, 'Inverse', true);  % psdVCE's exact inverse
     end
     out = struct('C', C, 'Shat', Shat, 'sigma2', sigma2, 'acc', accF, ...
+                 'userStop', userStop, ...
                  'Cgroups', Cmap, ...
                  'sol', solF, 'converged', converged, 'nIter', numel(hist.maxDev), ...
                  'history', hist, ...

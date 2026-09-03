@@ -74,13 +74,15 @@ arguments
     opt.Verbose (1,1) logical = false
     opt.Prior = []                       % R5 M5 5b: CommonPrior on the common block, or []
     opt.Diagnostics cell = {}          % R5 M5 5b': Name-Value pairs for lsqvce.engine.diagnose
+    opt.OnPass = []                    % R5 M5 5c': per-pass inspection hook (lsqvce.util.onPass)
+    opt.OnPassContext struct = struct()
     opt.Provenance struct = struct()
 end
     [specs, ~] = normalizeSystems(systems, days);       % engine-private, shared with adjustBlock
     nc = lsqvce.engine.resolveNc(systems);
 
     W = containers.Map('KeyType', 'char', 'ValueType', 'any');   % factors per arc
-    x = [];  converged = false;
+    x = [];  converged = false;  userStop = false;
     hist = struct('pass', {}, 'scale', {}, 'dx', {}, 'nDown', {}, 'nZero', {}, ...
                   'factor', {}, 'keys', {});
     if opt.Verbose
@@ -120,10 +122,15 @@ end
             lsqvce.util.log.msg('  %4d %14.6e %12.3e %10d %10d\n', it, s, dx, nDown, nZero);
         end
 
+        ctx = struct('driver', 'adjustRobust', 'pass', it, 'x', x, 'Cxx', sol.Cxx, ...
+                     'sigma0', sol.sigma0, 's0sq', sol.s0sq, 'factor', fac, 'keys', {keys}, 'scale', s, ...
+                     'dx', dx, 'acc', acc);
+        userStop = ~lsqvce.util.onPass(opt.OnPass, opt.OnPassContext, ctx);
         if it > 1 && dx < opt.Tol * max(max(abs(x)), 1)
             converged = true;
             break
         end
+        if userStop, break, end
         % write the factors for the next pass
         off = 0;
         for k = 1:size(keys, 1)
@@ -135,7 +142,7 @@ end
     hist(end).factor = fac;
     hist(end).keys   = keys;
 
-    if ~converged
+    if ~converged && ~userStop
         lsqvce.util.log.warn('lsqvce:adjustRobust:notConverged', ...
             ['IRLS reached MaxIter = %d (max|dx| = %.3e, scale %.3e); the last ' ...
              'pass is returned with stopReason "maxPasses".'], opt.MaxIter, dx, s);
@@ -145,10 +152,11 @@ end
     [dsol, batchFcn, nB] = lsqvce.engine.diagnoseAccum(acc, sol);
     D = lsqvce.engine.diagnose(dsol, batchFcn, 'nBatch', nB, opt.Diagnostics{:});
     prov = opt.Provenance;
-    if isempty(fieldnames(prov)), prov = rmfield(rmfield(rmfield(opt, 'Provenance'), 'Prior'), 'Diagnostics'); end
+    if isempty(fieldnames(prov)), prov = rmfield(rmfield(rmfield(rmfield(rmfield(opt, 'Provenance'), 'Prior'), 'Diagnostics'), 'OnPass'), 'OnPassContext'); end
     R = lsqvce.Results(sol, D, acc, dsol, batchFcn, nB, specs, ...
                        lsqvce.engine.runMeta(struct(), prov));
-    R.setIterative(hist, struct('influence', char(opt.Influence), 'scale', s), converged);
+    reason = "";  if userStop, reason = "userStop"; end
+    R.setIterative(hist, struct('influence', char(opt.Influence), 'scale', s), converged, reason);
 end
 
 %==========================================================================
