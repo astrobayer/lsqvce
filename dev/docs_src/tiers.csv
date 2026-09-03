@@ -20,6 +20,7 @@ engine.arcVarianceFactors,ENGINE,per-arc variance factors
 engine.covComponent,ENGINE,covariance component estimation
 engine.snoop,ENGINE,block-native data snooping and downweighting
 engine.outliers,ENGINE,outlier listing from diagnostics
+engine.declaration,ENGINE,the one declaration step of fit (validate + loaders), reused by Results.toTable
 engine.diagnose,ENGINE,per-observation diagnostics (batch)
 engine.diagnoseAccum,ENGINE,diagnostics bridge from the accumulator
 engine.localDiagnostics,ENGINE,diagnostics of the local blocks

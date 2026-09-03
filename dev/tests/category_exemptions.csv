@@ -313,3 +313,11 @@ report,robustness,argued in M7: robustness does not apply to a user unit of this
 report,vectorisation,the user surface loops over nothing data-sized
 report,speed,the fit-level solve budget in test_speedBudget is the user-surface budget
 report,metamorphic,the fit-level invariances in test_metamorphic are the user-surface ones (fit named there); Options/Results/report transport them
+engine.declaration,contract,the declaration step of fit: every contract refusal of test_fit / test_errorDoctrine exercises it (they name lsqvce.fit, whose first call is this unit); its own name appears in test_vcePolicy through Results.toTable
+engine.declaration,precision,no arithmetic -- validation and loader construction
+engine.declaration,reference,no closed form -- a declaration parser
+engine.declaration,robustness,its refusals are the named lsqvce:fit:* identifiers pinned under contract in test_fit / test_errorDoctrine
+engine.declaration,vectorisation,no data-sized loop -- one pass over the declaration's fields
+engine.declaration,speed,O(#systems + #rows); its cost is inside fit's solve budget (test_speedBudget)
+engine.declaration,metamorphic,the order-freedom of the declaration (test_fit testDeclarationIsOrderFree) is the invariance that applies; asserted through fit
+

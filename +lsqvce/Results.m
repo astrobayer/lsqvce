@@ -273,6 +273,99 @@ classdef Results < handle
             res = obj.acc.residuals(obj.sol, varargin{:});
         end
 
+        function [C, L, map] = toTable(obj, data, opt)
+        %TOTABLE  Write the estimates back into the parameter tables (R5-D8 round 4).
+        %   [C, L, map] = R.toTable(data)
+        %   [C, L, map] = R.toTable(data, Estimate=9, Std=10)
+        %   The EXPANDED tables -- one row per instantiated parameter, in the
+        %   toolbox's column order -- with the estimate and its standard
+        %   deviation written into the columns named (defaults 9 and 10 of the
+        %   15-column table: your columns 8 and 9 after the scope token). Every
+        %   other column is copied from the template row. A 'day'/'arc' row
+        %   appears once per instance; map says which.
+        %   INPUT   data  the declaration this Results came from (its tables are
+        %                 re-expanded with lsqvce.engine.declaration -- same plans)
+        %           Estimate, Std   1-based columns to write (padded if the table
+        %                 is narrower)
+        %   OUTPUT  C    nc x W cell   the common table, one row per column of A
+        %           L    1xK cell of (nl_k x W) cells, one per system, block order
+        %                (per day: arc blocks, day block; then the system block)
+        %           map  struct: .common (nc x 1 struct: row, day), .local{k}
+        %                (nl_k x 1 struct: row, day, arc) -- the instance of each line
+        %   ERRORS  lsqvce:Results:noAccumulator   no accumulator on this Results
+        %           lsqvce:Results:tableMismatch    the declaration's nc is not this Results' u
+        %           lsqvce:fit:*                    the declaration does not validate
+        arguments
+            obj
+            data (1,1) struct
+            opt.Estimate (1,1) double {mustBeInteger, mustBePositive} = 9
+            opt.Std (1,1) double {mustBeInteger, mustBePositive} = 10
+        end
+            if isempty(obj.acc)
+                error('lsqvce:Results:noAccumulator', 'toTable needs a streaming (kind A) Results.');
+            end
+            [spec, systems] = lsqvce.engine.declaration(data);
+            cp = spec.commonPlan;  T = spec.commonParams;
+            if cp.nc ~= numel(obj.x)
+                error('lsqvce:Results:tableMismatch', ...
+                      ['The declaration expands to %d common parameters but this Results has %d: ' ...
+                       'toTable needs the declaration the Results came from.'], cp.nc, numel(obj.x));
+            end
+            sx = sqrt(max(real(diag(obj.sol.Cxx)), 0));
+            W = max([size(T, 2), opt.Estimate, opt.Std]);
+            C = cell(cp.nc, W);  mc = struct('row', cell(cp.nc, 1), 'day', cell(cp.nc, 1));
+            for j = 1:cp.commonCount
+                r = cp.rows.common(j);
+                C(j, 1:size(T, 2)) = T(r, :);  C{j, opt.Estimate} = obj.x(j);  C{j, opt.Std} = sx(j);
+                mc(j).row = r;  mc(j).day = [];
+            end
+            for i = 1:numel(cp.days)
+                if cp.dayCount(i) == 0, continue, end
+                rows = cp.rows.day;
+                if isfield(cp, 'dayRowsOf'), rows = cp.dayRowsOf{i}; end
+                for q = 1:cp.dayCount(i)
+                    j = cp.dayOffset(i) + q;  r = rows(q);
+                    C(j, 1:size(T, 2)) = T(r, :);  C{j, opt.Estimate} = obj.x(j);  C{j, opt.Std} = sx(j);
+                    mc(j).row = r;  mc(j).day = cp.days(i);
+                end
+            end
+            res = obj.residuals('Verbose', false);          % the local solutions y, Cyy
+            K = numel(systems);  L = cell(1, K);  ml = cell(1, K);
+            for k = 1:K
+                Lk = systems{k};  plan = Lk.plan;
+                Tl = data.systems(k).localParams;
+                if isempty(Tl), L{k} = cell(0, W);  ml{k} = struct('row', {}, 'day', {}, 'arc', {});  continue, end
+                s = res.sys(k);                                 % the accumulator's system order = data.systems order
+                y = s.y(:);  sy = sqrt(max(real(diag(s.Cyy)), 0));
+                Wl = max([size(Tl, 2), opt.Estimate, opt.Std]);
+                Lt = cell(plan.nl, Wl);  m = struct('row', cell(plan.nl, 1), 'day', cell(plan.nl, 1), 'arc', cell(plan.nl, 1));
+                for i = 1:numel(plan.days)
+                    d = plan.days(i);
+                    arcRows = plan.rows.arc;  dayRows = plan.rows.day;
+                    if isfield(plan, 'arcRowsOf'), arcRows = plan.arcRowsOf{i};  dayRows = plan.dayRowsOf{i}; end
+                    for a = 1:numel(plan.arcId{i})
+                        for q = 1:numel(arcRows)
+                            j = plan.offset{i}(a) + q;  r = arcRows(q);
+                            Lt(j, 1:size(Tl, 2)) = Tl(r, :);  Lt{j, opt.Estimate} = y(j);  Lt{j, opt.Std} = sy(j);
+                            m(j).row = r;  m(j).day = d;  m(j).arc = plan.arcId{i}(a);
+                        end
+                    end
+                    for q = 1:plan.dayCount(i)
+                        j = plan.dayOffset(i) + q;  r = dayRows(q);
+                        Lt(j, 1:size(Tl, 2)) = Tl(r, :);  Lt{j, opt.Estimate} = y(j);  Lt{j, opt.Std} = sy(j);
+                        m(j).row = r;  m(j).day = d;  m(j).arc = [];
+                    end
+                end
+                for q = 1:plan.sysCount
+                    j = plan.sysOffset + q;  r = plan.rows.system(q);
+                    Lt(j, 1:size(Tl, 2)) = Tl(r, :);  Lt{j, opt.Estimate} = y(j);  Lt{j, opt.Std} = sy(j);
+                    m(j).row = r;  m(j).day = [];  m(j).arc = [];
+                end
+                L{k} = Lt;  ml{k} = m;
+            end
+            map = struct('common', mc, 'local', {ml});
+        end
+
         function F = compare(obj, Rred, opt)
         %COMPARE  Is the extra parameter earning its place? (nested-model F test)
         %   F = R.compare(Rred)            R = the FULL model, Rred = the REDUCED (nested) one

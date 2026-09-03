@@ -392,3 +392,38 @@ function testPriorActivationAndGroupLabel(tc)
     data.priors(2).estimate = "none";
     tc.verifyError(@() lsqvce.fit(data, Verbose=false), 'lsqvce:fit:badPrior');
 end
+
+%% ------------------------------------------------- R5-D8 round 4: the write-back
+function testToTableWritesEstimatesIntoTheExpandedTables(tc)
+% categories: contract, precision
+    % R.toTable(data): the expanded n x W cells (one row per instantiated
+    % parameter) with the estimate and its standard deviation in the named
+    % columns, every other column copied from the template row, and a map
+    % naming the instance (row, day, arc) of every line.
+    data = tc.TestData.data;
+    R = lsqvce.fit(data, Verbose=false);
+    [C, L, map] = R.toTable(data);
+    nc = numel(R.x);
+    tc.verifyEqual(size(C, 1), nc, 'one common row per column of A');
+    tc.verifyEqual(size(C, 2), max(size(data.commonParams, 2), 10));
+    % tol: exact -- the same doubles copied
+    tc.verifyEqual(cell2mat(C(:, 9)), R.x);
+    tc.verifyEqual(cell2mat(C(:, 10)), sqrt(diag(R.sol.Cxx)));
+    tc.verifyEqual(C(:, 1), data.commonParams(cellfun(@(m) m.row, num2cell(map.common)), 1), 'the token column is the template row''s');
+    tc.verifyEqual(numel(L), numel(data.systems));
+    res = R.residuals('Verbose', false);
+    for k = 1:numel(L)
+        tc.verifyEqual(size(L{k}, 1), numel(res.sys(k).y), 'one local row per local unknown');
+        % tol: exact
+        tc.verifyEqual(cell2mat(L{k}(:, 9)), res.sys(k).y(:));
+        tc.verifyEqual(cell2mat(L{k}(:, 10)), sqrt(diag(res.sys(k).Cyy)));
+        m = map.local{k};
+        tc.verifyTrue(all(ismember([m.row], 1:size(data.systems(k).localParams, 1))));
+        dayRows = m(strcmp(data.systems(k).localParams([m.row], 1), 'day'));
+        tc.verifyTrue(all(ismember([dayRows.day], data.days)), 'day instances carry their day');
+    end
+    % a Results from another problem: refused by name (the declaration must
+    % be the one the Results came from)
+    Rb = lsqvce.fit(struct('A', randn(10, 2), 'l', randn(10, 1)), Verbose=false);
+    tc.verifyError(@() Rb.toTable(data), 'lsqvce:Results:tableMismatch');
+end
