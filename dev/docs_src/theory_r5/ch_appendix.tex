@@ -69,28 +69,52 @@ util.callUser & nargin, nargout, threw (cause)\\
 \bottomrule
 \end{longtable}
 
-\chapter{Options mapping v4 $\to$ v5}
+\chapter{Options mapping v4 $\to$ v5 (as implemented, M5)}
+
+The plan's table (Part V, "The user interface") was the intent; this is what
+version~5.0 ships (\code{RELEASE\_NOTES.md} and \code{dev/HANDOVER.md}
+\S12.10 are the same table). 14 top-level knobs, five typed groups.
 
 \begin{longtable}{@{}P{56mm}P{98mm}@{}}
 \toprule
 v4 & v5\\
 \midrule
-Model gls / vce / pooled / ellmer & Estimate="none" / Estimate="noise" with per-stream estimate="law" (vce, changed numbers: R5-D4) / estimate="law", pool="obsType", arcFactors=false / estimate="law", arcFactors=true\\
-Robust none/irls + Influence & Robust="none"|"huber"|"igg3"|"bisquare"\\
-Backend & unchanged\\
-Reg, RegLambda, RegMatrix & data.priors(k) with estimate="scale"\\
-Sparse, DatumB, Sigma0 & Sparse deleted (measured moot); DatumB $\to$ priors; Sigma0 $\to$ Noise.Sigma0Prior (only for Estimate="none")\\
-Parallel, DistributeDays, ParallelThreshold & Parallel.Mode, Parallel.Axis, Parallel.Threshold\\
-Verbose, LogFid, LogFlag, ShowSeconds, ExportDir & Verbose, LogFile; plot hooks retired (plot(R) replaces)\\
-GroupBy, VceMaxIter, VceTol, MinRedundancy, ComponentsPerEpoch & groups are streams (pool decides sharing); MaxPasses/Tolerance; Noise.FreezeRedundancy; nAxis from the builder\\
-MaxOrder, AcvTol, MaxLag, WhiteAlpha & Noise.MaxOrder, Noise.ReduceTol, Noise.Grid, Whiteness\\
-MaxOuter, OuterTol & MaxPasses, Tolerance\\
-NumLags, Probes, Seed, Norm, MeanType, PsdMode, Smooth, C0, JointMaxIter, JointTol, StepSchedule, AvgTail & Noise.Grid, Probes, Seed, (one normalisation), Noise.MeanType, Noise.Whitener, Noise.Smooth, the declared law, (inner iterations retired: one loop), Tolerance, retired, retired\\
-Tuning, RobustMaxIter, RobustTol & Robust.Tuning, Robust.MaxIter, Robust.Tol\\
-NonlinearMaxIter, TolX, TolF, Lambda0 & MaxPasses, Tolerance, Noise-independent \code{GaussNewton.TolF}, \code{GaussNewton.Damping} (group added only when data.x0 present)\\
-Alpha, Bonferroni, Beta, RMin, RWeak, Test, RobustCheck, Store, NWorst, Verify, Progress & Diagnostics.* (RobustCheck always; Verify = level 0, always; Progress $\to$ Verbose)\\
+Model gls & Estimate="none" (default)\\
+Model ellmer & Estimate="noise" (Pool as wished, ArcFactors=true default)\\
+Model vce & Estimate="noise", Pool="stream", ArcFactors=false (changed numbers, R5-D4: one estimator; acceptance by the physical oracle)\\
+Model pooled & Estimate="noise", Pool="all", ArcFactors=false\\
+Robust="irls" + Influence & Robust="huber" | "igg3" | "bisquare"\\
+Tuning, RobustMaxIter, RobustTol & RobustOpts.Tuning / .MaxIter / .Tol\\
+MaxOuter, JointMaxIter, VceMaxIter, NonlinearMaxIter & MaxPasses (one budget); MinPasses new\\
+JointTol, OuterTol, VceTol, TolX & Tolerance\\
+TolF, Lambda0 & GaussNewton.TolF / .Lambda0\\
+NumLags & Noise.Grid\\
+PsdMode & Noise.Whitener ("toeplitz" default, as before)\\
+MeanType, Smooth, MinRedundancy, SkipThreshold & Noise.MeanType / .Smooth / .FreezeRedundancy / .SkipThreshold\\
+Parallel, DistributeDays, ParallelThreshold & Parallel.Mode / .DistributeDays / .Threshold (Parallel.Axis: gated on the WP-79 measurement, M7)\\
+Alpha, Bonferroni, Beta, RMin, RWeak, Test, RobustCheck, Store, NWorst & Diagnostics.<same>\\
+Verify, Progress & always on / retired (Verbose)\\
+LogFid, LogFlag & LogFile\\
+ShowSeconds, ExportDir, plotPostSolve, plotPostModel & OnPass (the per-pass inspection hook: pass state, live accumulator, the declaration, processingOptions; return false to stop) and R.plot(kind) post mortem\\
+DatumB & data.priors = struct('L', B', 'sigma', 1) -- the exact minimum-constraint solution\\
+Sigma0, Sparse & retired (the a-posteriori $\sigma_0$ is the report; sparse normals measured moot)\\
+Reg, RegLambda, RegMatrix & unchanged (block-path regularisation); a prior with its own component is data.priors (its VCE component: M7)\\
+GroupBy, ComponentsPerEpoch, MaxOrder, AcvTol, MaxLag, WhiteAlpha & retired with the separate mode (groups are streams; the axis count comes from the builder; whiteness fixed at $K=20$, $\alpha=0.05$)\\
+Norm, C0, StepSchedule, AvgTail & engine tier only (adjustVCEjoint)\\
+Backend, Probes, Seed, Verbose & unchanged; CacheDays, Pool, ArcFactors, OnPass new\\
 \bottomrule
 \end{longtable}
+
+Deviations from the plan, and why: \code{noiseLaw} was not created (the PSD
+spec, covModel's resampling and two policy maps are the mechanism; a class
+would add a name); \code{iterate}/\code{policy}/\code{gate}/\code{passRecord}
+are the joint driver's loop, fit's policy mapping, \code{stopReason} and
+\code{history}; \code{Noise.Sigma0Prior} was not needed (the whitened frame's
+a-priori $\sigma_0$ is~1 by construction); \code{Parallel.Axis} waits for its
+measurement; the per-pass plot hook was first retired and then restored as
+\code{OnPass} because the project's opening brief required it -- the rule
+recorded in HANDOVER \S12.9 (5c$'$): a review-plan item never outranks an
+opening-brief requirement.
 
 \chapter{References}
 
