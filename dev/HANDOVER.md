@@ -5551,3 +5551,29 @@ nothing about a table row crosses the line.* Suites: 501/501 on CI
 (test_parallel needs the user's PCT). Remaining: the local groups' σ
 ESTIMATION (Koch–Kusche needs the local solution y, Cyy from the sweep —
 D8-5b when wanted); the user runs `ci_gate` + `demo_gravfire` locally.
+
+**ROUND D8-6 (2026-09-03, model Claude Fable 5.1, tier B — CI is the gate).**
+THE FINAL SHAPE, from the user's second review: `data.systems(k).priors(l)`
+mirrors `data.priors(j)` literally — a static struct array, one struct per
+group (`L`, `x0`, `sigma`, `from`, `name`, `estimate`), `L` in the columns
+of B; common priors and each system's priors with their own settings.
+`lsqvce.layout(data)` announces the column layout before fit
+(`lay.systems(k).col(row, day, arc)`, `lay.colCommon(row, day)`) — the
+user writes L in the toolbox's columns without the toolbox ever reading a
+table row. Koch–Kusche on local groups IDENTICAL to common: each group
+rides as its own observation stream `prior_<name>`, so with
+`estimate="scale"` its σ is the stream's level — the Helmert factor the
+joint estimator computes for every stream (`R.noise.model{k}.sigma` for
+`satKey|prior_<name>`); no new estimator. Rows coupling two days' local
+blocks are refused by name (couple days through common parameters). The
+`priorDay` handle of #81 is replaced (the user's word: a struct array);
+STEP 7 of the GRAVFIRE template builds the groups from the layout. TWO
+FINDINGS by CI: (1) a filtered point was the red flag — the demo's system-1
+locals are all `'system'`-scoped, so a "day locals" fixture was empty;
+(2) an observation type with an UNDERSCORE (`prior_damp`) was cut to
+`prior` by every arc-key parser (`_(.+?)_d` non-greedy), so the group's
+level never matched its stream and stayed 1 — the parsers now anchor on
+the `_d<day>_a` suffix; and the prior arc now takes its law through the
+override path, so the estimated level whitens the next pass. Suites
+503/503 on CI. D8 rounds: 1 activation + label, 2 local priors, 3
+validity, 4 write-back, 5 disentanglement (priorDay), 6 the final shape.
