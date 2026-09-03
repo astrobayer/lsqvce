@@ -5457,3 +5457,33 @@ must not silence what a point asserts.
 `Parallel.Axis="arcs"` (measurement at u > 6000 on the PCT runner, WP-30);
 the manual generator (documentation debt); the GRAVFIRE STEP 11 (the
 design function) is the user's.
+
+### 12.12 R5-D8 — THE PARAMETER-TABLE INTERFACE (opened 2026-09-03 by the user's word)
+
+**The user's table (14 columns, his numbering):** 1 name, 2 start of validity
+[tc-mjd], 3 end of validity (or midpoint for empirical linear accelerations),
+4 end for empirical linear accelerations / base frequency for cpr / knot
+matrix for splines, 5 number of epochs, 6 ID, 7 reference epoch, 8 estimated
+value, 9 standard deviation, 10 a-priori estimate, 11 constraining factor
+(cell), 12 sum of integration, 13 scaling factor, 14 empty. **v5 convention:**
+the scope token is prepended as column 1 (n × 15); the user's column k is
+column k+1. The toolbox reads the first cell only. Column 11 (→ 12):
+`'none'` | `[]` | `{'none'}` | `{'Tikhonov', fromPass, sigma[, label]}` = "constrain
+this parameter to its a-priori (column 10 → 11; [] = 0) with standard
+deviation sigma from pass fromPass on; rows sharing a label share one
+estimated variance component". MEASURED on the bundle: every common row is
+`[]`; the constraints sit on 12 LOCAL rows (`GraceA/B_[xyz]accscale`,
+`{'Tikhonov', 1, 0.01}`).
+
+| round | scope | state |
+|---|---|---|
+| D8-1 | `data.priors(k).from` (activation pass; single-pass runs report `lsqvce:fit:priorNotActive` and skip), `.group` (label: members merged — rows divided by their declared sigmas, the group sigma a common FACTOR starting at 1; `estimate="scale"` estimates one component for the members; one policy per label, refused otherwise); the GRAVFIRE template translates column 11 of COMMON rows into `data.priors` and counts/reports local constraints; guide STEP 6 + column renumbering; contract §0a | **DONE** (2026-09-03, branch `claude/level-d8`; gate 524/524) |
+| D8-2 | **priors on LOCAL parameters** — a prior declared on a local template row, instantiated with the row (per day / per arc) into the per-system local block before elimination and into the diagnostic sweep; the template switches the 12 accscale constraints on | OPEN — where the user's regularisation actually bites |
+| D8-3 | validity-aware expansion — `data.paramColumns = struct('start', 3, 'end', 4)`: a `'day'`/`'arc'` row is instantiated only inside its validity (the one-day manoeuvre parameter and the "literal" row become one mechanism) | OPEN |
+| D8-4 | write-back — `R.toTable(data)` fills columns 8/9 (→ 9/10) from `R.x` and the formal errors through the expansion offsets | OPEN |
+
+**ROUND D8-1 note (2026-09-03, model Claude Fable 5.1, MCP).** Two things
+the bundle taught before a line was written: the constraints are on the
+locals, not the commons (so round 1 is interface, round 2 is effect), and
+`'none'` comes in three spellings ({'none'} is a 1×1 cell) — the translator
+was written against the file, then corrected by the file.
