@@ -3,7 +3,7 @@ function [R, score] = demo_gravity(opt)
 %
 %   R = DEMO_GRAVITY()
 %   [R, score] = DEMO_GRAVITY()
-%   R = DEMO_GRAVITY('MaxPasses', 6, 'Verbose', true)
+%   R = DEMO_GRAVITY('MaxIter', 6, 'Verbose', true)
 %   R = DEMO_GRAVITY('Plots', true, 'ExportDir', '/tmp/figs')
 %
 %   The other demos exercise the algebra on random designs. This one runs the

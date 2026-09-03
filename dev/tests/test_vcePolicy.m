@@ -123,14 +123,16 @@ end
 function testVerboseZeroIsSilent(tc)
 % categories: contract, robustness | tags: diagnostics
     data = tc.TestData.data;
-    out = evalc('lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=1, Noise=struct('Grid', 16), Seed=3, Verbose=0));');
+    o = lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=1, Noise=struct('Grid', 16), Seed=3, Verbose=0);
+    out = evalc('lsqvce.fit(data, o);');
     tc.verifyEmpty(strtrim(out), 'Verbose 0 prints nothing');
 end
 
 function testVerboseOnePrintsThePassRecord(tc)
 % categories: contract | tags: diagnostics
     data = tc.TestData.data;
-    out = evalc('lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=1, Noise=struct('Grid', 16), Seed=3, Verbose=1));');
+    o = lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=1, Noise=struct('Grid', 16), Seed=3, Verbose=1);
+    out = evalc('lsqvce.fit(data, o);');
     tc.verifyNotEmpty(strtrim(out), 'Verbose 1 prints the run''s progress');
 end
 

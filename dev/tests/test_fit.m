@@ -62,7 +62,7 @@ function testFitVceReproducesTheEngine(tc)
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');
     [data, ~] = declaration();
     % the same budget on both spellings: vce reads MaxOuter, ellmer JointMaxIter
-    base = {'MaxPasses', 2, 'MaxPasses', 2, 'Noise', struct('Grid', 8), 'Seed', 7, 'Verbose', false};
+    base = {'MaxPasses', 2, 'Noise', struct('Grid', 8), 'Seed', 7, 'Verbose', false};
     Rv = lsqvce.fit(data, lsqvce.Options(base{:}, Estimate="noise", Pool="stream", ArcFactors=false));
     dataE = data;
     ots = fieldnames(dataE.systems(1).covariance);
@@ -329,7 +329,7 @@ function testEllmerThroughFitReproducesDirect(tc)
     streams = {'x1|pos', 'x1|kbr'};                       % makeValidName('1') = 'x1'
     accFcn = @(model) directJointAcc(cfg.nc, L, data.days, ...
                  lsqvce.engine.jointModelOpt(model, streams, 'PsdMode', 'toeplitz'));
-    out = lsqvce.engine.adjustVCEjoint(accFcn, 'Noise', struct('Grid', nLag), 'MaxIter', 2, 'Probes', 20, ...
+    out = lsqvce.engine.adjustVCEjoint(accFcn, 'NumLags', nLag, 'MaxIter', 2, 'Probes', 20, ...
                                 'Seed', 7, 'Verbose', false);
     % tol: 1e-12 -- identical code path; the seed fixes the Hutchinson probes
     tc.verifyEqual(R.x, out.sol.x(:), 'RelTol', 1e-12);
@@ -365,7 +365,7 @@ function testDistributeDaysThroughFitEqualsFused(tc)
     % the summation-order gap, no pool needed on CI.
     [data, ~] = declaration();
     R1 = lsqvce.fit(data, lsqvce.Options(Verbose=false));
-    R2 = lsqvce.fit(data, lsqvce.Options(Verbose=false, Parallel=struct(\'Mode\', "parfor"), ...
+    R2 = lsqvce.fit(data, lsqvce.Options(Verbose=false, Parallel=struct('Mode', "parfor"), ...
                                          Parallel=struct('DistributeDays', true, 'Threshold', 2)));
     % tol: 1e-11 -- serial-vs-distributed reduction order (test_parallel
     % testDistributeDaysEqualsFusedSerial's measured bound); bitwise NOT promised
