@@ -519,7 +519,9 @@ function testBatchKindNonlinearReproducesSolveNonlinear(tc)
     tc.verifyEqual(R.x, xt, 'AbsTol', 5e-3);
     tc.verifyEqual(R.meta.options.kind, 'batch');
     tc.verifyNotEmpty(R.acc, 'kind C nonlinear carries the accumulator');
-endfunction testDatumIsADeclaredPrior(tc)
+end
+
+function testDatumIsADeclaredPrior(tc)
 % categories: contract, reference, robustness
     % R5 M5 5b: a free network's DATUM is a declared prior on the null space
     % (data.priors, L = B'), solved on the BLOCK path -- the same accumulator
@@ -563,9 +565,9 @@ function testBatchKindLinearReproducesAdjust(tc)
     bf = @(k) deal(A(idx{k}, :), l(idx{k}), p(idx{k}));
     data = struct('batchFcn', bf, 'numUnknowns', size(A, 2), 'numBatches', 2);
     R = lsqvce.fit(data, lsqvce.Options(Verbose=false));
-    [sol, ~, ~] = lsqvce.engine.adjust(size(A, 2), bf, 2, 'Verbose', false);
-    % tol: 1e-12 relative -- block path (batch k = day k) vs the flat driver
-    tc.verifyEqual(R.x, sol.x(:), 'RelTol', 1e-12);
+    xd = (A.'*A) \ (A.'*l);                          % the dense closed form (O1)
+    % tol: 1e-12 relative -- block path (batch k = day k) vs dense normal equations
+    tc.verifyEqual(R.x, xd, 'RelTol', 1e-12);
     tc.verifyEqual(R.meta.options.kind, 'batch');
     tc.verifyEqual(R.meta.options.Noise.Grid, 60, 'resolved options carried');
 end

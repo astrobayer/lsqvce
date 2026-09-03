@@ -285,11 +285,11 @@ end
 
 function test_nonlinear_respects_maxIter(tc)
 % categories: contract
-    muteWarn(tc, 'lsqvce:nonlin:maxIter');   % provoked on purpose here (WP-47, gate rule 7)
-    muteWarn(tc, 'lsqvce:acc:zeroRedundancy');   % provoked on purpose here (WP-47, gate rule 7)
+    muteWarn(tc, 'lsqvce:adjustNonlinear:maxIter');   % provoked on purpose here (gate rule 7)
     function [A, l, p] = slow(~, x)
-        A = 1;  l = 0.999*x;  p = 1;      % converges very slowly
-    end
+        A = [1; 1];  l = 0.999*[x; x];  p = [1; 1];   % converges very slowly
+    end                                            % (two rows: dof 1, the one
+                                                   % accumulator refuses dof 0 by name)
     [~, ~, ~, IT] = flatNonlinear(1, @slow, 1, 1, ...
                                            'verbose', false, 'maxIter', 3);
     verifyLessThanOrEqual(tc, IT.nIter, 3);
