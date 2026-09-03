@@ -69,6 +69,5 @@ util.callUser,KERNEL,call a user function: outputs counted once and errors wrapp
 util.rowWeightKey,KERNEL,key convention for per-arc robust weights
 util.log,KERNEL,toolbox-wide logging state
 util.mergeStruct,KERNEL,struct merge (later wins)
-util.showExport,KERNEL,timed figure show + PNG export
 util.verbosity,KERNEL,verbosity level resolution and formatting
 engine.runMeta,ENGINE,"immutable provenance record for Results.meta (promoted from private, WP-64a)"

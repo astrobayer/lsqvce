@@ -203,64 +203,6 @@ function cleanupLog(fid, f)
 end
 
 %% ================================================= showExport
-function testShowExportEmptyIsNoOp(tc)
-% categories: robustness
-    % A hook that returned [] must produce no file and no error.
-    out = lsqvce.util.showExport([], 'nope', 0, tempdir);
-    tc.verifyEqual(out, '');
-end
-
-function testShowExportInvalidHandleIsNoOp(tc)
-% categories: contract
-    % A non-figure value must be a silent no-op (never break the solve).
-    out = lsqvce.util.showExport(42, 'nope', 0, tempdir);
-    tc.verifyEqual(out, '');
-end
-
-function testShowExportWritesPng(tc)
-% categories: robustness
-    % With a real figure and an export dir, a PNG must appear with the sanitised
-    % name (the 'satKey|obsType' pipe becomes '_'). Skipped if no display/figure.
-    muteWarn(tc, 'MATLAB:graphics:HardwareUnavailable');   % headless runner: MATLAB warns ONCE per session at the first graphics use (WP-47 CI catch); each figure-creating test can be that first use in a subset run
-    d = fullfile(tempdir, sprintf('lsqvce_figtest_%d', randi(1e6)));
-    f = [];
-    try
-        f = figure('Visible','off');  plot(1:10);
-    catch
-        tc.assumeFail('no figure support in this environment');
-    end
-    out = lsqvce.util.showExport(f, 'postSolve_x1_posC_pass1', 0, d);
-    tc.verifyTrue(~isempty(out) && exist(out,'file')==2, 'PNG must be written');
-    tc.verifyTrue(contains(out, 'postSolve_x1_posC_pass1.png'));
-    % cleanup
-    if exist(out,'file'), delete(out); end
-    if exist(d,'dir'), rmdir(d, 's'); end
-end
-
-function testShowExportSanitisesPipe(tc)
-% categories: contract | tags: diagnostics
-    % A raw stream key with '|' must be sanitised in the file name.
-    muteWarn(tc, 'MATLAB:graphics:HardwareUnavailable');   % headless runner: MATLAB warns ONCE per session at the first graphics use (WP-47 CI catch); each figure-creating test can be that first use in a subset run
-    d = fullfile(tempdir, sprintf('lsqvce_figtest_%d', randi(1e6)));
-    f = [];
-    try
-        f = figure('Visible','off');  plot(1:10);
-    catch
-        tc.assumeFail('no figure support in this environment');
-    end
-    out = lsqvce.util.showExport(f, 'postModel_x1|posC_pass3', 0, d);
-    tc.verifyFalse(contains(out, '|'), 'the pipe must be sanitised out');
-    if exist(out,'file'), delete(out); end
-    if exist(d,'dir'), rmdir(d, 's'); end
-end
-
-%% ================================================= verbosity levels
-% WHY THESE EXIST: until 2026-07-18 not one test asserted a single line of the
-% toolbox's own output -- every test ran with Verbose off. That is how a literal
-% '\n' bug survived until the user hit it by hand (HISTORY_v1.md 1, item 5). These
-% tests assert the LEVEL LOGIC and the RENDERED TEXT, so messaging regressions
-% fail here instead of in front of a user.
-
 function testVerbosityLogicalMapsToOldBehaviour(tc)
 % categories: contract
     % The boolean must keep its exact former meaning, or every existing call

@@ -64,19 +64,8 @@ function R = adjustBlock(systems, days, opt)
 %                            Engine-side knob, mirrors LSQVCE.ENGINE.ADJUSTVCE.
 %       'ExportDir'  string 1x1  folder for plot-hook PNGs ("" = do not export).
 %
-%   PLOT HOOKS (single-solve, postSolve only)
-%     If a loader was built with LSQVCE.ENGINE.MAKELOADER's 'plotPostSolve', adjustBlock
-%     fires that hook once per (system,obsType) stream AFTER the solve, exactly
-%     as the LSQVCE.ENGINE.ADJUSTVCE postSolve seam does, keyed 'satKey|obsType'. The
-%     hook receives ONE ctx struct (.stage='postSolve', .stream, .satKey,
-%     .obsType, .sysID, .pass=1, .R (the Results), .x, .exportDir, .showSeconds)
-%     and returns a figure; the engine owns the timed show + PNG export via
-%     LSQVCE.UTIL.SHOWEXPORT. A throwing or figure-less hook is logged
-%     ('lsqvce:adjustBlock:plotHookFailed') and skipped -- plots NEVER break the
-%     solve. There is NO 'plotPostModel' seam here: adjustBlock does ONE GLS solve
-%     with the loaders' covariance and estimates no stochastic model, so
-%     postModel has nothing to fire on; use LSQVCE.ENGINE.ADJUSTVCE for that.
-%     Raw 4-arg closures (not Loader objects) carry no hooks and are skipped.
+%   PLOTTING (R5 M5 5c): the post-solve plot hooks of v4 are retired; plot
+%     from the returned Results -- R.plot("residuals" | "contribution" | ...).
 %
 %   OUTPUT
 %     R        1x1   lsqvce.Results   Solution + diagnostics + accumulator.
@@ -107,7 +96,7 @@ function R = adjustBlock(systems, days, opt)
 %
 %   See also LSQVCE.RESULTS, LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTVCE,
 %            LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.DIAGNOSEACCUM, LSQVCE.ENGINE.DIAGNOSE,
-%            LSQVCE.REPORT, LSQVCE.UTIL.SHOWEXPORT
+%            LSQVCE.REPORT, LSQVCE.RESULTS
 %
 %   Updated 2026-08-31 (CEST, UTC+02:00), R4 WP-62 (Level L4): 'DistributeDays'
 %   and 'ParallelThreshold' exposed (pass-through to the accumulator; the
@@ -143,8 +132,6 @@ arguments
     opt.DistributeDays (1,1) logical = false
     opt.ParallelThreshold (1,1) double {mustBeInteger, mustBeNonnegative} = 8
     opt.Verbose  (1,1) logical = false
-    opt.ShowSeconds (1,1) double = 0
-    opt.ExportDir (1,1) string = ""
     opt.Prior = []                       % R5 M5 5b: lsqvce.engine.CommonPrior on the common
                                          % block (data.priors, stacked by lsqvce.fit), or []
     opt.Diagnostics cell = {}          % R5 M5 5b': Name-Value pairs for lsqvce.engine.diagnose
@@ -164,10 +151,9 @@ end
                'regLambda', opt.RegLambda, 'regMatrix', opt.RegMatrix, ...
                'parallel', char(opt.Parallel), 'verbose', opt.Verbose, ...
                'distributeDays', opt.DistributeDays, ...
-               'parallelThreshold', opt.ParallelThreshold, ...
-               'showSeconds', opt.ShowSeconds, 'exportDir', char(opt.ExportDir));
+               'parallelThreshold', opt.ParallelThreshold);
 
-    [specs, loaders] = normalizeSystems(systems, days);
+    [specs, ~] = normalizeSystems(systems, days);
 
     % ORDER MATTERS: normalizeSystems validates the SHAPE of `systems` first,
     % so a malformed entry reports the specific lsqvce:adjustBlock:badCell /
@@ -198,49 +184,8 @@ end
     end
     R = lsqvce.Results(sol, D, acc, dsol, batchFcn, nB, specs, ...
                        lsqvce.engine.runMeta(struct(), prov));
-
-    % ---- postSolve plot hooks (single-solve; no postModel seam) -----------
-    firePostSolvePlots(loaders, R, double(o.showSeconds), char(o.exportDir));
-end
-
-%==========================================================================
-function firePostSolvePlots(loaders, R, showSeconds, exportDir)
-%FIREPOSTSOLVEPLOTS  Call each Loader's plotPostSolve hook once per
-%   (system,obsType) stream, then show/export via lsqvce.util.showExport.
-%   Mirrors lsqvce.engine.adjustVCE.firePlots(postSolve): keyed 'satKey|obsType',
-%   ONE ctx struct in, a figure out, and every call wrapped so a throwing or
-%   figure-less hook can never break the solve. Raw closures (no .plotPostSolve)
-%   and loaders without hooks are simply skipped.
-    for i = 1:numel(loaders)
-        L = loaders{i};
-        if ~isstruct(L) || ~isfield(L, 'plotPostSolve') || isempty(L.plotPostSolve)
-            continue
-        end
-        hookMap = L.plotPostSolve;
-        if ~isa(hookMap, 'containers.Map') || hookMap.Count == 0, continue, end
-        satKey  = lsqvce.engine.satKeyOf(L.sysID);
-        obsTypes = L.obsTypes;
-        for k = 1:numel(obsTypes)
-            ot = obsTypes{k};
-            if ~isKey(hookMap, ot), continue, end
-            key = sprintf('%s|%s', satKey, ot);
-            ctx = struct('stage','postSolve', 'stream',key, 'satKey',satKey, ...
-                         'obsType',ot, 'sysID',L.sysID, 'pass',1, ...
-                         'R',R, 'x',R.x, 'exportDir',exportDir, ...
-                         'showSeconds',showSeconds);
-            hookFcn = hookMap(ot);
-            try
-                figH = hookFcn(ctx);
-            catch ME
-                lsqvce.util.log.warn('lsqvce:adjustBlock:plotHookFailed', ...
-                    'postSolve plot hook for %s threw (%s); skipping.', ...
-                    key, ME.identifier);
-                continue
-            end
-            name = sprintf('postSolve_%s_pass1', matlab.lang.makeValidName(key));
-            lsqvce.util.showExport(figH, name, showSeconds, exportDir);
-        end
-    end
+    % R5 M5 5c: the post-solve plot hooks are retired -- plotting is
+    % lsqvce.Results.plot(kind) on the returned Results.
 end
 
 %==========================================================================

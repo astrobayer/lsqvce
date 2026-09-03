@@ -5,5 +5,4 @@
 %   rowWeightKey       - the one key convention for per-arc robust weights (R5 M2)
 %   log                - toolbox-wide logging state
 %   mergeStruct        - struct merge (later wins)
-%   showExport         - timed figure show + PNG export
 %   verbosity          - verbosity level resolution and formatting
