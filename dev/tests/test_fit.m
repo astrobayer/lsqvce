@@ -845,17 +845,15 @@ function testLocalPriorGroupIsEstimatedLikeACommonOne(tc)
     % "scale" is a stream of its own, so under Estimate="noise" its sigma is
     % the stream's level -- the Helmert factor the joint estimator computes
     % for every stream -- exactly the common groups' rule. Fixture: the demo
-    % declaration; a damping group on all instantiated locals of system 1
-    % started at a wrong (tight) sigma must be loosened by the data, and its
-    % level appears on R.noise.model.
+    % declaration; a damping group on all locals of system 1 started at a
+    % wrong (tight) sigma must be loosened by the data, and its level appears
+    % on R.noise.model.
     root = fileparts(fileparts(fileparts(mfilename('fullpath'))));
     addpath(fullfile(root, 'examples'));
     [~, data] = demo_grace_dataLoader();
     lay = lsqvce.layout(data);
     S = lay.systems(1);  nl = S.nl;
-    perInstance = arrayfun(@(c) ~isempty(c.day), S.local);       % the per-day / per-arc locals
-    tc.assumeGreaterThan(sum(perInstance), 0, 'the fixture must carry instantiated locals');
-    L = eye(nl);  L = L(perInstance, :);
+    L = eye(nl);                                   % all locals of system 1 (its system block)
     data.systems(1).priors = struct('L', L, 'x0', zeros(size(L, 1), 1), 'sigma', 1e-4, 'name', 'damp', 'estimate', "scale");
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');
     R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=5, ...
