@@ -232,15 +232,21 @@ end
     s2Map = [];                          % keyed factors; built on pass 1
 
     shatTail = {};                               % WP-40 r2: AvgTail buffer
+    lastSol = [];                                % R5 M7 7b: the previous pass's solution
     for it = 1:o.MaxIter
         % ---- steps 1-5: build under the current model, accumulate, solve --
         % R5 M3 3b: the caller's override needs a LEVEL per stream (the pooled
-        % C is a shape): the mean arc factor of every 'satKey|obsType' stream
+        % C is a shape): the mean arc factor of every 'satKey|obsType' stream.
+        % R5 M7 7b: model.lastSol (x, Cxx, s0sq of the previous pass; [] on
+        % pass 1) lets the factory update anything that has its own variance
+        % component outside the streams -- the prior groups (Koch-Kusche).
         model = struct('C', C, 'sigma2', sigma2, 'iter', it, ...
                        'streamSigma2', streamMeans(pinnedKeys, sigma2), ...
-                       'Cgroups', Cmap, 'Pool', char(o.Pool), 'Estimate', o.Estimate);
+                       'Cgroups', Cmap, 'Pool', char(o.Pool), 'Estimate', o.Estimate, ...
+                       'lastSol', lastSol);
         acc   = accFcn(model);
         sol   = acc.solve();
+        lastSol = struct('x', sol.x(:), 'Cxx', sol.Cxx, 's0sq', sol.s0sq);
         accF  = acc;  solF = sol;
 
         N = acc.reducedNormalMatrix();
