@@ -284,7 +284,7 @@ end
     spec = validateData(data);
     systems = buildSystems(spec, opts.CacheDays);   % R5 M4 4d: resident days
     days = spec.days;
-    pri  = priorsOf(data, lsqvce.engine.resolveNc(systems));   % R5 M5 5b: data.priors
+    [pri, priorGroups] = priorsOf(data, lsqvce.engine.resolveNc(systems));   % R5 M5 5b: data.priors
 
     % R5 M2 2b: robust IRLS is a POLICY on the block path -- on the streaming
     % kind it is Model "gls" with reweighting (H-02: the same accumulator);
@@ -318,7 +318,7 @@ end
             %   "pooled"  one law for all streams (Pool "all"), no arc factors
             % The engine-tier lsqvce.engine.adjustVCE still exists for its own
             % callers until its tests are re-homed (M4 4c).
-            R = fitEllmer(systems, days, opts, pri, onPassContext(data, systems));
+            R = fitEllmer(systems, days, opts, pri, onPassContext(data, systems), priorGroups);
     end
 end
 
@@ -638,9 +638,10 @@ function R = runBatch(u, batchFcn, nBatch, x0, opts, kind, data)
     R = lsqvce.engine.adjustNonlinear(u, batchFcn, nBatch, x0, a.nv{:}, 'Provenance', prov, 'Prior', pri, ...
                                       'OnPassContext', struct('data', data, 'processingOptions', {{}}));
 end
-function R = fitEllmer(systems, days, opts, pri, opc)
+function R = fitEllmer(systems, days, opts, pri, opc, priorGroups)
     if nargin < 4, pri = []; end
     if nargin < 5, opc = struct(); end
+    if nargin < 6, priorGroups = []; end
 %FITELLMER  Model "ellmer": LSQVCE.ENGINE.ADJUSTVCEJOINT over the built systems.
 %   Two bridges (R4 WP-56c): (1) the accFcn the driver wants -- a fresh
 %   BlockAccumulator per outer pass whose UserOpt carries the current model
@@ -654,9 +655,13 @@ function R = fitEllmer(systems, days, opts, pri, opc)
     sepStreams = separableStreams(systems, specs);        % R5 M3 (H-15)
     pool = opts.Pool;  afDefault = opts.ArcFactors;      % R5 M5: explicit policy knobs
     [estMap, afMap] = streamPolicy(systems, specs, streams, afDefault);   % R5 M3 3d (R5-D4)
+    % R5 M7 7b: prior groups with estimate "scale" get one Helmert step per
+    % pass (from the previous pass's solution) and the prior is re-stacked
+    priState = containers.Map('KeyType', 'char', 'ValueType', 'any');
+    priState('groups') = priorGroups;  priState('pri') = pri;  priState('rec') = {};
     accFcn = @(model) jointAccumulator(nc, specs, opts, ...
                  lsqvce.engine.jointModelOpt(model, streams, 'PsdMode', psdMode, ...
-                                             'Separable', sepStreams), pri);
+                                             'Separable', sepStreams), priorFor(priState, model));
     nvj = a.nv;
     out = lsqvce.engine.adjustVCEjoint(accFcn, nvj{:}, 'Estimate', estMap, 'ArcFactors', afMap, ...
                                        'OnPassContext', opc);
@@ -680,6 +685,8 @@ function R = fitEllmer(systems, days, opts, pri, opc)
     % factor) and its law (the pool group's C); what the separate mode's
     % Results carried and the gravity demo reads
     [noise.stream, noise.model] = streamModels(systems, specs, out, char(pool));
+    noise.priors = priState('groups');               % R5 M7 7b: the prior groups with their final sigmas
+    noise.priorHistory = priState('rec');            % one record per pass that updated them
     reason = "";  if isfield(out, 'userStop') && out.userStop, reason = "userStop"; end
     R.setIterative(hist, noise, out.converged, reason);
 end
@@ -721,27 +728,30 @@ function acc = jointAccumulator(nc, specs, opts, uo, pri)
     acc.addSystems(specs);
 end
 
-function pri = priorsOf(data, nc)
-%PRIORSOF  data.priors -> ONE lsqvce.engine.CommonPrior (R5 M5 5b).
+function [pri, groups] = priorsOf(data, nc)
+%PRIORSOF  data.priors -> ONE lsqvce.engine.CommonPrior (R5 M5 5b) + the groups.
 %   data.priors(k): .L (p x nc) required; .x0 (p x 1, default 0); .sigma
-%   (scalar > 0, default 1); .name (label). Every prior is a pseudo-
-%   observation group L x ~ x0 with weight 1/sigma^2; they are stacked with
-%   their rows scaled by 1/sigma into one prior of sigma 1 (exact). A DATUM
-%   (minimum constraints B'x = 0 of a free network) is the prior L = B',
-%   x0 = 0: when B spans the null space the solution is the exact
-%   minimum-constraint one, whatever the weight (the two subspaces are
-%   orthogonal) -- which is why the flat drivers' DatumB has no successor
-%   knob, only this declaration.
-    pri = [];
+%   (scalar > 0, default 1); .name (label); .estimate "none" | "scale" (R5 M7
+%   7b: "scale" gives the group its OWN variance component, updated every
+%   pass of Estimate="noise" by the Helmert / Koch-Kusche rule -- see
+%   priorUpdate). Every prior is a pseudo-observation group L x ~ x0 with
+%   weight 1/sigma^2; they are stacked with their rows scaled by 1/sigma into
+%   one prior of sigma 1 (exact). A DATUM (minimum constraints B'x = 0 of a
+%   free network) is the prior L = B', x0 = 0: when B spans the null space
+%   the solution is the exact minimum-constraint one, whatever the weight
+%   (the two subspaces are orthogonal) -- which is why the flat drivers'
+%   DatumB has no successor knob, only this declaration.
+%   OUTPUT  pri     [] | CommonPrior     the stacked prior
+%           groups  1xG struct (.L .x0 .sigma .name .estimate)  the groups
+    pri = [];  groups = struct('L', {}, 'x0', {}, 'sigma', {}, 'name', {}, 'estimate', {});
     if ~isfield(data, 'priors') || isempty(data.priors), return, end
     P = data.priors;
     if ~isstruct(P)
-        error('lsqvce:fit:badPrior', 'data.priors must be a struct array (fields L, x0, sigma, name).');
+        error('lsqvce:fit:badPrior', 'data.priors must be a struct array (fields L, x0, sigma, name, estimate).');
     end
-    Ks = {};  x0s = {};
     for k = 1:numel(P)
         f = fieldnames(P(k));
-        bad = setdiff(f, {'L', 'x0', 'sigma', 'name'});
+        bad = setdiff(f, {'L', 'x0', 'sigma', 'name', 'estimate'});
         if ~isempty(bad)
             error('lsqvce:fit:badPrior', 'data.priors(%d) has an unknown field ''%s''.', k, bad{1});
         end
@@ -762,13 +772,52 @@ function pri = priorsOf(data, nc)
                 error('lsqvce:fit:badPrior', 'data.priors(%d).x0 must have %d entries.', k, size(L, 1));
             end
         end
-        Ks{end+1}  = L / s;   %#ok<AGROW>
-        x0s{end+1} = x0 / s;  %#ok<AGROW>
+        e = 'none';
+        if isfield(P(k), 'estimate') && ~isempty(P(k).estimate)
+            e = lower(char(string(P(k).estimate)));
+            if ~any(strcmp(e, {'none', 'scale'}))
+                error('lsqvce:fit:badPrior', 'data.priors(%d).estimate must be "none" or "scale" (got "%s").', k, e);
+            end
+        end
+        nm = sprintf('prior%d', k);
+        if isfield(P(k), 'name') && ~isempty(P(k).name), nm = char(string(P(k).name)); end
+        groups(end+1) = struct('L', L, 'x0', x0, 'sigma', s, 'name', nm, 'estimate', e); %#ok<AGROW>
     end
-    pri = lsqvce.engine.CommonPrior(vertcat(Ks{:}), vertcat(x0s{:}), 1);
+    pri = stackPriors(groups);
 end
 
-%======================================================= kinds B / C on the block path
+function pri = stackPriors(groups)
+%STACKPRIORS  The groups with their CURRENT sigmas as one CommonPrior (sigma 1).
+    if isempty(groups), pri = [];  return, end
+    Ks = arrayfun(@(g) g.L / g.sigma, groups, 'UniformOutput', false);
+    xs = arrayfun(@(g) g.x0 / g.sigma, groups, 'UniformOutput', false);
+    pri = lsqvce.engine.CommonPrior(vertcat(Ks{:}), vertcat(xs{:}), 1);
+end
+
+function [groups, rec] = priorUpdate(groups, lastSol)
+%PRIORUPDATE  One Helmert / Koch-Kusche step for every prior group with
+%   estimate "scale" (R5 M7 7b): with the previous pass's x, Cxx, s0sq,
+%     Omega_k = || (L_k x - x0_k) / sigma_k ||^2                 (the group's residual sum)
+%     r_k     = p_k - tr( L_k N^-1 L_k' ) / sigma_k^2,   N^-1 = Cxx / s0sq   (its redundancy)
+%     sigma_k^2 <- sigma_k^2 * Omega_k / r_k                    (the factor on the current sigma)
+%   The fixed point Omega_k = r_k is the classic condition "the prior's
+%   weighted residual sum equals its redundancy": lambda = s0sq / sigma_k^2 is
+%   then the regularisation parameter the data support. A group whose
+%   redundancy is not positive (it absorbs nothing) is left unchanged and
+%   flagged in rec.
+%   OUTPUT  rec 1xG struct (.name .sigma .omega .r .updated)
+    rec = struct('name', {}, 'sigma', {}, 'omega', {}, 'r', {}, 'updated', {});
+    Ninv = lastSol.Cxx / max(lastSol.s0sq, realmin);
+    for k = 1:numel(groups)
+        g = groups(k);
+        v = (g.L * lastSol.x - g.x0) / g.sigma;
+        om = v.' * v;
+        r  = size(g.L, 1) - trace(g.L * Ninv * g.L.') / g.sigma^2;
+        upd = strcmp(g.estimate, 'scale') && isfinite(r) && r > 0 && isfinite(om) && om > 0;
+        if upd, groups(k).sigma = g.sigma * sqrt(om / r); end
+        rec(end+1) = struct('name', g.name, 'sigma', groups(k).sigma, 'omega', om, 'r', r, 'updated', upd); %#ok<AGROW>
+    end
+end
 function R = runBatchOnBlockPath(u, batchFcn, nBatch, opts, kind, pri, data)
 %RUNBATCHONBLOCKPATH  Kinds B / C (linear) as ONE local-free streaming system
 %   through LSQVCE.ENGINE.BATCHSYSTEM (R5 M2 WP-81 2a/2c'; priors M5 5b).
@@ -905,4 +954,18 @@ function opc = onPassContext(data, systems)
         if isfield(systems{k}, 'procOpt'), po{k} = systems{k}.procOpt; else, po{k} = struct(); end
     end
     opc = struct('data', data, 'processingOptions', {po});
+end
+
+function pri = priorFor(priState, model)
+%PRIORFOR  The stacked prior for THIS pass: the groups updated from the
+%   previous pass's solution when they carry estimate "scale" (R5 M7 7b).
+    groups = priState('groups');
+    if isempty(groups), pri = [];  return, end
+    if isfield(model, 'lastSol') && ~isempty(model.lastSol) && any(strcmp({groups.estimate}, 'scale'))
+        [groups, rec] = priorUpdate(groups, model.lastSol);
+        priState('groups') = groups;
+        recs = priState('rec');  recs{end+1} = rec;  priState('rec') = recs;
+        priState('pri') = stackPriors(groups);
+    end
+    pri = priState('pri');
 end

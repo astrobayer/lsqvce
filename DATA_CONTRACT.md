@@ -15,13 +15,18 @@ Fable 5. Rewritten for v3 and again for v4 (scoped tables) the same day (Claude 
 
 ## 0a. The v5 delta (R5 M5): three additions, no shape changes
 
-1. **`data.priors(k) = struct('L', pxnc, 'x0', px1, 'sigma', s, 'name', ..)`** — declared
+1. **`data.priors(k) = struct('L', pxnc, 'x0', px1, 'sigma', s, 'name', .., 'estimate', "none"|"scale")`** — declared
    pseudo-observation groups `L·x ~ x0` with weight `1/sigma²` on the COMMON parameters,
    folded into the solve AND into the diagnostic sweep (they carry a redundancy). A free
    network's datum is the prior `L = B'` on the null space: the exact minimum-constraint
    solution, for any weight, because the data's range and the null space are orthogonal
    (`lsqvce:fit:badPrior` on malformed fields). A Kaula rule or a background model is the
-   same declaration with a scientific `L`.
+   same declaration with a scientific `L`. With `estimate = "scale"` (R5 M7 7b) the group has
+   its OWN variance component: under `Estimate="noise"` its sigma is updated every pass by the
+   Helmert / Koch–Kusche rule (Ω_k = ‖(L x − x0)/σ‖², r_k = p − tr(L N⁻¹ L')/σ², σ² ← σ²·Ω_k/r_k;
+   the fixed point Ω_k = r_k is "the prior's weighted residual sum equals its redundancy"), so
+   λ = s0²/σ_k² is the regularisation the data support; `R.noise.priors` and
+   `R.noise.priorHistory` record it.
 2. **Per-stream policy on the covariance spec** — `covariance.<type>.estimate = "none" |
    "scale" | "law"` (default `"law"` under `Estimate="noise"`) and `.arcFactors` (logical,
    default the Options policy). A law whose `sigma` is a VECTOR (per-row weights) is a fixed

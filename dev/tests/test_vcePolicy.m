@@ -292,3 +292,37 @@ function recordPass(seen, ctx)
     c = ctx;  c.acc = ctx.acc;                    % keep the handle, drop nothing
     seen(ctx.pass) = c;
 end
+
+%% --------------------------------------------- the prior's own component (M7 7b)
+function testPriorScaleReachesTheHelmertFixedPoint(tc)
+% categories: contract, precision | tags: diagnostics
+    % R5 M7 7b (Koch-Kusche): a prior group with estimate "scale" gets one
+    % Helmert step per pass -- sigma_k^2 <- sigma_k^2 * Omega_k / r_k -- and
+    % at the fixed point the prior's weighted residual sum equals its
+    % redundancy, Omega_k = r_k. Fixture: the demo declaration with a plain
+    % damping prior on all common parameters, started at a WRONG sigma.
+    data = tc.TestData.data;
+    R0 = lsqvce.fit(data, Verbose=false);
+    nc = numel(R0.x);
+    data.priors = struct('L', eye(nc), 'x0', zeros(nc, 1), 'sigma', 0.01, 'name', 'damping', 'estimate', "scale");
+    R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
+                     MaxPasses=8, Noise=struct('Grid', 16), Seed=3, Verbose=false));
+    tc.verifyTrue(isfield(R.noise, 'priors') && numel(R.noise.priors) == 1);
+    g = R.noise.priors(1);
+    tc.verifyGreaterThan(g.sigma, 0.01, 'the deliberately tight prior was loosened by the data');
+    recs = R.noise.priorHistory;
+    tc.verifyGreaterThanOrEqual(numel(recs), 2, 'the group was updated on the passes after the first');
+    last = recs{end};
+    % tol: 15 % -- the fixed-point ratio Omega/r after a handful of passes on a
+    % 3-day demo (each pass is one multiplicative step; measured 1.00-1.10)
+    tc.verifyEqual(last.omega / last.r, 1, 'RelTol', 0.15, 'Helmert condition: Omega = r at the fixed point');
+    tc.verifyTrue(last.updated);
+    % estimate "none": the sigma stays where it was declared
+    data.priors.estimate = "none";
+    Rn = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
+                      MaxPasses=2, Noise=struct('Grid', 16), Seed=3, Verbose=false));
+    tc.verifyEqual(Rn.noise.priors(1).sigma, 0.01);
+    % the policy is validated by name
+    data.priors.estimate = "law";
+    tc.verifyError(@() lsqvce.fit(data, Verbose=false), 'lsqvce:fit:badPrior');
+end
