@@ -270,7 +270,7 @@ end
     % ---- kind A: streaming --------------------------------------------------
     lsqvce.util.log.inventory('reset');          % R5 M1: this run's warning inventory
     spec = validateData(data);
-    systems = buildSystems(spec);
+    systems = buildSystems(spec, opts.CacheDays);   % R5 M4 4d: resident days
     days = spec.days;
 
     % R5 M2 2b: robust IRLS is a POLICY on the block path -- on the streaming
@@ -486,7 +486,8 @@ function rejectUnknown(names, allowed, where)
 end
 
 %==========================================================================
-function systems = buildSystems(spec)
+function systems = buildSystems(spec, cacheDays)
+    if nargin < 2, cacheDays = 1; end
 %BUILDSYSTEMS  One Loader per system through LSQVCE.ENGINE.MAKELOADER.
 %   Derivations (v4): ObservationTypes = fieldnames(covariance); nc rides in
 %   as the COMMON PLAN (fit expands the scoped commonParams over the global
@@ -514,6 +515,7 @@ function systems = buildSystems(spec)
         nv = [nv, {'SystemId', idValue(spec.ids{k})}];               %#ok<AGROW>
         nv = [nv, {'CommonParams', spec.commonParams}];              %#ok<AGROW>
         nv = [nv, {'Scoped', true, 'CommonPlan', spec.commonPlan}];  %#ok<AGROW>
+        nv = [nv, {'CacheDays', cacheDays}];                         %#ok<AGROW>  R5 M4 4d
         if ~(isfield(s, 'days') && ~isempty(s.days)) && ~isempty(days)
             nv = [nv, {'Days', days}];                               %#ok<AGROW>
         end
