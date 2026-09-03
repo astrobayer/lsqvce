@@ -18,7 +18,8 @@
 %   USER surface. With assistance from Claude (Anthropic), model
 %   Claude Fable 5.
 %   Updated 2026-08-31 (CEST, UTC+02:00), v3 data contract (Level L10,
-%   WP-74): USER surface only -- lsqvce.engine.adjust/varComp replaced by
+%   WP-74; v5 R5 M5): USER surface only -- the flat drivers of v1 are gone; every
+%   kind runs on the one accumulator through lsqvce.fit --
 %   lsqvce.fit on the in-memory kind and, for the wrong-weights cure, by
 %   Estimate="noise", Pool="stream", ArcFactors=false on a two-type streaming declaration. With assistance from
 %   Claude (Anthropic), model Claude Fable 5.
@@ -148,10 +149,15 @@ fprintf(['Recovered sigma ratio: %.3f   (truth: 3.000)\n' ...
          'The VCE loop rescaled the group covariances itself and re-solved:\n' ...
          'sigma0 = %.3f, variance ratio back at ~1.\n'], ratio, R5v.sigma0);
 
-% At gravity-field sizes (u in the thousands) the exact per-group traces of
-% this loop dominate; the ENGINE tier has a matrix-free Hutchinson trace
-% backend for that regime (doc lsqvce.engine.varComp). At u = 8 the exact path
-% is both faster and exact, so that is what fit ran here.
+% At gravity-field sizes (u in the thousands) the per-lag redundancies are
+% estimated with Hutchinson probes (Options.Probes; 0 = the exact route). At
+% u = 8 the exact route is both faster and exact, so that is what fit ran here.
+%
+% v5: a FREE network needs a datum, and a datum is a DECLARED prior on the
+% null space -- the exact minimum-constraint solution, whatever its weight:
+%     data.priors = struct('L', B.', 'sigma', 1, 'name', 'datum');
+% (B spans the null space of A'PA). Without it the one accumulator refuses
+% the rank-deficient system by name (lsqvce:qr:singularR); it never guesses.
 
 
 %% ===================================================================== (6)

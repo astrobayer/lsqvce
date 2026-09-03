@@ -116,7 +116,7 @@ function txt = runAtLevel(lvl)
     lsqvce.util.log.set('fid', fid, 'screen', false);
     try
         [~, data] = demo_grace_dataLoader();
-        % MaxOuter 1 / VceMaxIter 2 keep the demo quick: the point is WHAT is
+        % MaxPasses 1 keeps the demo quick: the point is WHAT is
         % printed at each level, not how long the loop takes to converge. A
         % short run does mean it stops before convergence, which is why the
         % level-0 block below still shows warnings. Options.Verbose takes the

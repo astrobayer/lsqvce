@@ -16,8 +16,10 @@ function out = demo_fit(opt)
 %         with data.x0 the nonlinear form (Gauss-Newton on exp(a t) + b)
 %     (A) streaming            the GRACE-like physical oracle of
 %         DEMO_GRAVITY_DATALOADER as a data struct: days, ragged arcs,
-%         arc-wise unknowns, coloured noise, three systems -> Model "gls"
-%         (one solve) and Model "vce" (stochastic model <-> components)
+%         arc-wise unknowns, coloured noise, three systems -> Estimate "none"
+%         (one solve) and Estimate "noise" (the joint variance-component
+%         estimator, Pool "stream", one level per stream), watched pass by
+%         pass through Options.OnPass (v5)
 %
 %   INPUT
 %     opt.Verbose  1x1 logical  print the verdicts (default true)
@@ -37,7 +39,7 @@ function out = demo_fit(opt)
 %     to 5e-3 (dev/tests/test_fit.m pins both). The gravity oracle's recovery
 %     quality is pinned in DEMO_GRAVITY's ACCURACY block (sigma0 0.9998,
 %     stream ratios 0.996 / 1.000 / 1.019); this demo runs its "vce" loop
-%     with MaxOuter = 2, enough to show the trajectory, not to converge --
+%     with MaxPasses = 2, enough to show the trajectory, not to converge --
 %     the report says so (NOT CONVERGED is a finding, not an error).
 %     dev/tests/test_fit.m testDemoFitRuns runs this function and checks every
 %     Results it returns.
@@ -109,12 +111,16 @@ end
     out.gls = lsqvce.fit(data, lsqvce.Options(Verbose=opt.Verbose));
     show(out.gls, opt.Verbose);
 
-    say('\n== (A) streaming: Estimate="noise", Pool="stream", ArcFactors=false, two outer passes ==\n');
-    w1 = warning('off', 'lsqvce:adjustVCE:notConverged');  % two passes cannot converge:
-    w2 = warning('off', 'lsqvce:vce:notConverged');         % the warnings are expected here
-    cleaner = onCleanup(@() warning([w1 w2]));              %#ok<NASGU>  restore both on exit
+    say('\n== (A) streaming: Estimate="noise", Pool="stream", ArcFactors=false, two passes ==\n');
+    w1 = warning('off', 'lsqvce:adjustVCEjoint:notConverged');  % two passes cannot converge:
+    cleaner = onCleanup(@() warning(w1));                       %#ok<NASGU>  the warning is expected
+    % v5: watch the loop. OnPass fires after EVERY pass with the pass state,
+    % the live accumulator, your declaration and your processingOptions --
+    % plot, save, or return false to stop. Here: one line per pass.
+    watch = @(ctx) say('   pass %d: max|alpha2-1| = %.3g, levels = %s\n', ...
+                       ctx.pass, ctx.maxDev, mat2str(ctx.sigma, 3));
     out.vce = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
-                                              MaxPasses=2, Verbose=opt.Verbose));
+                                              MaxPasses=2, Verbose=opt.Verbose, OnPass=watch));
     show(out.vce, opt.Verbose);
     say('   sigma per group after each pass:\n');
     if opt.Verbose, disp(out.vce.history.sigma); end

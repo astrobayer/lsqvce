@@ -32,7 +32,8 @@ function demo_sensors()
 %   USER surface. With assistance from Claude (Anthropic), model
 %   Claude Fable 5.
 %   Updated 2026-08-31 (CEST, UTC+02:00), v3 data contract (Level L10,
-%   WP-74): USER surface only -- BatchIndex / Combine / cmb.varComp replaced
+%   WP-74; v5 R5 M5): USER surface only -- the v1 combine/batch machinery is gone; the
+%   multi-system fit is lsqvce.fit on the one accumulator, replaced
 %   by the declarative hierarchy (systems x covariance fields x days), one
 %   lsqvce.fit per question (gls for the symptom, Estimate="noise", Pool="stream", ArcFactors=false for the
 %   weights), R.residuals() for the attribution. With assistance from
@@ -128,12 +129,13 @@ fprintf('  -> far from 1, so at least one sensor is mis-weighted.\n');
 %% ------------------------------------------------------------------------
 % STEP 4 -- PER-SENSOR VARIANCE COMPONENTS
 % -------------------------------------------------------------------------
-% Both satellites' KBR are the same INSTRUMENT TYPE, so they share a variance
-% component: GroupBy="obsType" pools the streams across systems. (If you
-% believe each unit has its own noise gives every
-% (system, sensor) pair its own component -- a modelling choice the toolbox
-% will not make for you.)
-Rv = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, Verbose=false));
+% Both satellites' KBR are the same INSTRUMENT TYPE, so they may share one
+% estimated spectral SHAPE: Pool="obsType" pools the streams of one
+% observation type across systems (v5). Every stream keeps its OWN level
+% regardless -- that is the variance component. (Pool="stream" gives every
+% (system, sensor) pair its own shape as well -- a modelling choice the
+% toolbox will not make for you.)
+Rv = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="obsType", ArcFactors=false, Verbose=false));
 
 sig = Rv.history.sigma(end, :);
 fprintf('\nPER-SENSOR COMPONENTS (one level per stream)\n');
