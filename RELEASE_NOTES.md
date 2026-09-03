@@ -1,5 +1,31 @@
 # lsqvce release notes
 
+## 5.1 — 2026-09-03 (Review R5, levels M6–M7: additive on 5.0)
+
+Additive; no v5.0 declaration or option changes meaning.
+
+- **`data.priors(k).estimate = "scale"`** — a prior group gets its own variance
+  component (Koch–Kusche): under `Estimate="noise"` its sigma is updated every
+  pass by the Helmert rule σ² ← σ²·Ω_k/r_k (fixed point Ω_k = r_k, "the prior's
+  weighted residual sum equals its redundancy"); `R.noise.priors`,
+  `R.noise.priorHistory`. This closes the GRAVFIRE guide's `priorGroup` question.
+- **`R.compare(Rred)`** — the nested-model F test between two fits
+  (`lsqvce.engine.ftest` re-homed onto `Results`).
+- **`R.plot("residuals" | "contribution" | "psd" | "convergence")`** in its
+  final form; `Options.OnPass` unchanged since 5.0.
+- **`examples/demo_gravfire.m`** — a GRAVFIRE bundle through
+  `template/gravfire_data.m` and `fit` (pipeline check or `Estimate="noise"`
+  with `OnPass` and `CacheDays=Inf`); every demo explains v5 in its prose.
+- **Test tree**: every public unit has its seven categories tested or argued
+  (`dev/tests/category_exemptions.csv` is the review surface); new suites
+  `test_metamorphic` (invariances) and `test_speedBudget` (ratio budgets
+  pinned to their own measurements). 523 points, 26 suites.
+- **Docs**: `lsqvce_theory.pdf` at the root is the R5 theory (54 pp.); the
+  HTML manuals carry a v5 banner naming the binding authorities;
+  `DATA_CONTRACT.md` v5 documents priors, per-stream policy and `OnPass`.
+
+Development record: `dev/HANDOVER.md` §12.11 (the R5 closing summary).
+
 ## 5.0 — 2026-09-03 (Review R5, levels M0–M5: the one-loop redesign)
 
 **Breaking release.** The toolbox has ONE accumulator and ONE stochastic-model
