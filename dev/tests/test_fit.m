@@ -832,6 +832,16 @@ function testLocalPriorsAreTheCounterpartOfDataPriors(tc)
     data.systems(1).priors = struct('L', e(cj), 'x0', target, 'sigma', 1e-6, 'from', 2, 'name', 'late');
     R2 = lsqvce.fit(data, Verbose=false);
     tc.verifyEqual(R2.diag.n, R0.diag.n);
+    % the same group by NAME PATTERN (column 2 of localParams): fit builds L
+    names = data.systems(1).localParams(:, 2);
+    if all(cellfun(@(v) ischar(v) || isstring(v), names))
+        pat = ['^' regexptranslate('escape', char(string(names{j}))) '$'];
+        data.systems(1).priors = struct('group', pat, 'x0', target, 'sigma', 1e-6);
+        Rp = lsqvce.fit(data, Verbose=false);
+        yp = Rp.residuals('Verbose', false).sys(1).y;
+        % tol: 1e-5 absolute -- as above
+        tc.verifyEqual(yp(j), target, 'AbsTol', 1e-5, 'the pattern form pins the same local');
+    end
     % refusals by name (the loader's ids re-homed by fit at build time)
     data.systems(1).priors = struct('L', ones(1, nl + 3), 'sigma', 1);
     tc.verifyEqual(idOf(@() lsqvce.fit(data, Verbose=false)), 'lsqvce:fit:badPrior');

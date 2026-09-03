@@ -15,7 +15,7 @@ Fable 5. Rewritten for v3 and again for v4 (scoped tables) the same day (Claude 
 
 ## 0a. The v5 delta (R5 M5): three additions, no shape changes
 
-1. **`data.priors(k) = struct('L', pxnc, 'x0', px1, 'sigma', s, 'name', .., 'estimate', "none"|"scale")`** — declared
+1. **`data.priors(k) = struct('group' | 'L', 'x0', 'sigma', 'from', 'name', 'estimate')`** — declared
    pseudo-observation groups `L·x ~ x0` with weight `1/sigma²` on the COMMON parameters,
    folded into the solve AND into the diagnostic sweep (they carry a redundancy). A free
    network's datum is the prior `L = B'` on the null space: the exact minimum-constraint
@@ -26,16 +26,21 @@ Fable 5. Rewritten for v3 and again for v4 (scoped tables) the same day (Claude 
    Helmert / Koch–Kusche rule (Ω_k = ‖(L x − x0)/σ‖², r_k = p − tr(L N⁻¹ L')/σ², σ² ← σ²·Ω_k/r_k;
    the fixed point Ω_k = r_k is "the prior's weighted residual sum equals its redundancy"), so
    λ = s0²/σ_k² is the regularisation the data support; `R.noise.priors` and
-   `R.noise.priorHistory` record it. R5-D8 round 1 adds `from` (the pass at which the group
-   becomes active, default 1; a single-pass run reports `lsqvce:fit:priorNotActive` and skips
-   it) and `group` (a label: priors sharing it are merged into ONE group -- rows divided by
-   their declared sigmas, the group sigma a common factor -- so `estimate="scale"` estimates
-   one component for the members).
-1b. **`data.systems(k).priors(l) = struct('L', 'x0', 'sigma', 'from', 'name', 'estimate')`** (R5-D8
-   round 5) — the priors on system k's LOCAL parameters, the literal counterpart of `data.priors(j)`:
-   one struct per GROUP, `L` (q × nl) in the columns of that system's B as **`lsqvce.layout(data)`**
-   announces them before fit (`lay.systems(k).col(row, day, arc)`), `x0`, one `sigma` per group,
-   `from`, `name`, `estimate = "none" | "scale"`. Every row must lie inside one day's local block
+   `R.noise.priorHistory` record it. `from` is the pass at which the group becomes active
+   (default 1; a single-pass run reports `lsqvce:fit:priorNotActive` and skips it). A group is
+   declared EITHER by `group` — a regular expression on the NAME column of `commonParams`
+   (`data.paramColumns.name`, default 2); fit builds L, one row per matched row per instance —
+   OR by `L` (p × nc in the columns of A); never both (R5-D8 round 6). One `sigma` per group:
+   the rows of L are the members, and several rows are what make `estimate="scale"` estimable
+   (a single row has redundancy ≤ 1).
+1b. **`data.systems(k).priors(l) = struct('group' | 'L', 'x0', 'sigma', 'from', 'name', 'estimate')`**
+   (R5-D8 round 5/6) — the priors on system k's LOCAL parameters, the literal counterpart of
+   `data.priors(j)`: one struct per GROUP, declared EITHER by **`group`** — a regular expression
+   matched against the NAME column of the table (column 2; `data.paramColumns.name` to say
+   otherwise); the toolbox builds L with one row per matched template row per instance — OR by
+   **`L`** (q × nl in the columns of that system's B as **`lsqvce.layout(data)`** announces them,
+   used as is); never both. Then `x0`, ONE `sigma` per group (relative weights inside a group go
+   into L), `from`, `name` (default the pattern), `estimate = "none" | "scale"`. Every row must lie inside one day's local block
    (couple days through common parameters); the width of L is checked by name
    (`lsqvce:fit:badPrior`). Each group rides as its own observation stream `prior_<name>` of the
    system (pseudo-observations A = 0, B = L/σ, l = x0/σ, unit law), so accumulation, elimination,

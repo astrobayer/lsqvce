@@ -281,18 +281,16 @@ function priors = priorsFromColumn11(P, ~)
 end
 
 %==========================================================================
-function P = gravfireLocalPriors(data, localParams)
-%GRAVFIRELOCALPRIORS  Column 11 of the LOCAL template rows -> data.systems.priors (R5-D8 round 5).
-%   One struct per GROUP, its L in the columns of B as lsqvce.layout announces
-%   them: every constrained template row j ({'Tikhonov', fromPass, sigma[,
-%   label]}) gives one pseudo-observation per instance (per day for a 'day'
-%   row) on column lay.systems(1).col(j, day, []); x0 = column 10 (-> 11 here;
-%   [] = 0). Rows sharing a label are one group with one sigma (e.g.
-%   'accscale' for x/y/z, or 'xaccscale' for one axis); estimate "scale" lets
-%   the toolbox estimate that sigma by Koch-Kusche, exactly as for
-%   data.priors. Returns [] when nothing is constrained.
-    lay = lsqvce.layout(data);
-    nl = lay.systems(1).nl;
+function P = gravfireLocalPriors(~, localParams)
+%GRAVFIRELOCALPRIORS  Column 11 of the LOCAL template rows -> data.systems.priors (R5-D8 round 6).
+%   One struct per GROUP in the PATTERN form: rows sharing a label (4th entry
+%   of column 11 -> column 12 here) become one struct whose 'group' is the
+%   regexp of their names ('^(GraceA_xaccscale|GraceB_xaccscale)$'); rows
+%   without a label are one struct each. The toolbox builds L from the names
+%   (column 2 of the 15-column template) for every instance -- per day for a
+%   'day' row. x0 = column 10 (-> 11), sigma and fromPass from the entry;
+%   estimate "scale" for labelled groups (Koch-Kusche), "none" otherwise.
+    P = struct('group', {}, 'x0', {}, 'sigma', {}, 'from', {}, 'name', {}, 'estimate', {});
     groups = containers.Map('KeyType', 'char', 'ValueType', 'any');  order = {};
     for j = 1:size(localParams, 1)
         c = localParams{j, 12};
@@ -302,26 +300,26 @@ function P = gravfireLocalPriors(data, localParams)
         end
         x0 = 0;  if ~isempty(localParams{j, 11}), x0 = double(localParams{j, 11}); end
         lab = '';  if numel(c) >= 4 && ~isempty(c{4}), lab = char(string(c{4})); end
-        key = lab;  if isempty(key), key = char(string(localParams{j, 2})); end
+        nm = char(string(localParams{j, 2}));
+        key = lab;  if isempty(key), key = nm; end
         if ~isKey(groups, key)
-            groups(key) = struct('L', zeros(0, nl), 'x0', zeros(0, 1), 'sigma', double(c{3}), ...
-                                 'from', double(c{2}), 'name', key, 'estimate', "none");
+            groups(key) = struct('names', {{}}, 'x0', x0, 'sigma', double(c{3}), 'from', double(c{2}), ...
+                                 'estimate', "none", 'labelled', ~isempty(lab));
             order{end+1} = key; %#ok<AGROW>
         end
         g = groups(key);
         if g.sigma ~= double(c{3})
             error('gravfire:badConstraint', 'group ''%s'': members must share one sigma (row %d has %g, the group %g).', key, j, double(c{3}), g.sigma);
         end
-        for d = data.days
-            col = lay.systems(1).col(j, d, []);
-            if col == 0, continue, end                        % not instantiated on that day
-            row = zeros(1, nl);  row(col) = 1;
-            g.L = [g.L; row];  g.x0 = [g.x0; x0];
-        end
+        g.names{end+1} = regexptranslate('escape', nm);
         groups(key) = g;
     end
-    P = struct('L', {}, 'x0', {}, 'sigma', {}, 'from', {}, 'name', {}, 'estimate', {});
-    for k = 1:numel(order), P(end+1) = groups(order{k}); end %#ok<AGROW>
+    for k = 1:numel(order)
+        g = groups(order{k});
+        est = "none";  if g.labelled, est = "scale"; end
+        P(end+1) = struct('group', ['^(' strjoin(unique(g.names), '|') ')$'], 'x0', g.x0, ...
+                          'sigma', g.sigma, 'from', g.from, 'name', order{k}, 'estimate', est); %#ok<AGROW>
+    end
     if isempty(P), P = []; end
 end
 %==========================================================================

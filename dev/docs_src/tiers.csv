@@ -9,6 +9,7 @@ engine.batchSystem,ENGINE,a batch source as one local-free streaming system (the
 engine.adjustRobust,ENGINE,IRLS on the block path (every fit kind)
 engine.adjustBlock,ENGINE,one GLS solve over the streaming block-arrow pipeline
 engine.adjustVCEjoint,ENGINE,Ellmer ten-step joint co-estimation with keyed arc factors
+engine.localColumns,ENGINE,the per-column (row day arc) unroll of a scoped local plan; read by layout / toTable / prior-group expansion
 engine.makeLoader,ENGINE,"day-builder -> Loader (built INSIDE fit from the data struct, R4-D4)"
 engine.BlockAccumulator,ENGINE,block-arrow accumulation with per-system Schur pre-elimination
 engine.CommonPrior,ENGINE,prior on the common block (regularisation as observations)

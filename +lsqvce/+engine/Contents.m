@@ -29,6 +29,7 @@
 %   leverage             - leverage (hat-matrix diagonal), batch
 %   leverageBlocks       - leverage over blocks
 %   localDiagnostics     - diagnostics of the local blocks
+%   localColumns       - which (row, day, arc) owns each column of B (R5-D8)
 %   makeLoader           - day-builder -> Loader (built INSIDE fit from the data struct, R4-D4)
 %   mapreduce            - serial / parfor / spmd task runner with ordered reduce
 %   NormalEqSystem       - normal-equation backend

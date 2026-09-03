@@ -294,11 +294,13 @@ arguments
     opt.ValidityColumns double = []   % R5-D8 round 3: [cStart cEnd] columns of localParams holding the
                                       % validity ([MJD sec] pairs or fractional MJD; [] = always): a
                                       % 'day'/'arc' row is instantiated only on days its validity overlaps
-    opt.Priors = []               % R5-D8 round 5: struct array, the priors on this system's LOCAL
-                                  % parameters IN THE COLUMNS OF B (.L q x nl, .x0, .sigma, .from,
-                                  % .name, .estimate "none"|"scale"); ONE mechanism with data.priors:
-                                  % each struct is a GROUP and rides as its own observation type
-                                  % 'prior_<name>' -- see priorArc (lsqvce.layout gives the columns)
+    opt.Priors = []               % R5-D8 round 5/6: struct array, the priors on this system's LOCAL
+                                  % parameters: per GROUP either .group (a regexp matched against the
+                                  % NAME column of localParams -> L built by the loader, one row per
+                                  % matched template row per instance) or .L (q x nl in the columns
+                                  % of B, used as is); .x0, .sigma, .from, .name, .estimate; each
+                                  % group rides as its own observation type 'prior_<name>'
+    opt.NameColumn (1,1) double {mustBeInteger, mustBePositive} = 2   % the name column of localParams
     opt.CacheDays (1,1) double {mustBePositive} = 1   % R5 M4 4d: built days kept resident;
                                                      % Inf = every day of the run (the
                                                      % user's memory decision, see fit)
@@ -317,7 +319,7 @@ end
     % WP-39 stage (c) c1: typed `arguments` signature (canonical
     % UpperCamelCase; legacy casings keep matching -- MATLAB NV
     % semantics; enum VALUES case-sensitive lowercase).
-    o = struct('observationTypes', {opt.ObservationTypes}, 'covariance', opt.Covariance, 'arcs', opt.Arcs, 'localsPerArc', opt.LocalsPerArc, 'systemId', opt.SystemId, 'numLocal', opt.NumLocal, 'numCommon', opt.NumCommon, 'days', opt.Days, 'name', char(opt.Name), 'cache', opt.Cache, 'cacheDays', opt.CacheDays, 'priors', opt.Priors, 'validityColumns', opt.ValidityColumns, 'epochCovariance', opt.EpochCovariance, 'commonParams', {opt.CommonParams}, 'localParams', {opt.LocalParams}, 'processingOptions', opt.ProcessingOptions, 'scoped', opt.Scoped, 'commonPlan', opt.CommonPlan);
+    o = struct('observationTypes', {opt.ObservationTypes}, 'covariance', opt.Covariance, 'arcs', opt.Arcs, 'localsPerArc', opt.LocalsPerArc, 'systemId', opt.SystemId, 'numLocal', opt.NumLocal, 'numCommon', opt.NumCommon, 'days', opt.Days, 'name', char(opt.Name), 'cache', opt.Cache, 'cacheDays', opt.CacheDays, 'priors', opt.Priors, 'nameColumn', opt.NameColumn, 'validityColumns', opt.ValidityColumns, 'epochCovariance', opt.EpochCovariance, 'commonParams', {opt.CommonParams}, 'localParams', {opt.LocalParams}, 'processingOptions', opt.ProcessingOptions, 'scoped', opt.Scoped, 'commonPlan', opt.CommonPlan);
 
     % ---- map long option names onto the short internal fields -------------
     % Canonical long names only. The resolved value is written onto the SHORT
@@ -425,7 +427,7 @@ end
     % rows, A-part zero, B-part the constrained local columns of that day). The
     % accumulator, the elimination, the sweeps and the redundancy count treat
     % them exactly as data (Koch: a prior is a group with a redundancy).
-    L.priors = validatePriors(o.priors, plan, o.sysID);
+    L.priors = validatePriors(o.priors, plan, o.sysID, o.local, o.nameColumn);
     for g = 1:numel(L.priors)
         ot = L.priors(g).obsType;
         if any(strcmp(obsTypes, ot))
@@ -548,16 +550,20 @@ function v = priorArcsOfDay(L, day, obsType)
     v = 1;
 end
 
-function P = validatePriors(P, plan, sysID)
-%VALIDATEPRIORS  The local prior groups: fields, widths, one day per row (R5-D8 round 5).
-%   Each element is one GROUP: .L (q x nl in the columns of B), .x0 (q x 1,
-%   default 0), .sigma (> 0, default 1), .from (>= 1, default 1), .name
-%   (default 'prior<g>'), .estimate "none" | "scale" (default "none": sigma
-%   fixed; "scale": sigma estimated every pass by the Helmert / Koch-Kusche
-%   rule, exactly as for data.priors -- the group is a stream of its own).
-%   Every row must lie inside ONE day's local block (or the system block, which
-%   is instantiated on the first day); a row coupling two days is refused --
-%   couple days through common parameters.
+function P = validatePriors(P, plan, sysID, localParams, nameCol)
+%VALIDATEPRIORS  The local prior groups: fields, widths, one day per row (R5-D8 round 5/6).
+%   Each element is one GROUP, declared EITHER by .group -- a regular
+%   expression matched against the name column of localParams; the loader
+%   builds L with one row per matched template row per instance (day / arc /
+%   once), from the layout it owns -- OR by .L (q x nl in the columns of B,
+%   used as is). Never both. Then .x0 (q x 1, default 0), .sigma (> 0,
+%   default 1: the ONE sigma the rows share), .from (>= 1, default 1), .name
+%   (default the pattern or 'prior<g>'), .estimate "none" | "scale" (default
+%   "none": sigma fixed; "scale": sigma estimated every pass by the Helmert /
+%   Koch-Kusche rule, exactly as for data.priors -- the group is a stream of
+%   its own). Every row must lie inside ONE day's local block (or the system
+%   block); a row coupling two days is refused -- couple days through common
+%   parameters.
     if isempty(P), P = struct('L', {}, 'x0', {}, 'sigma', {}, 'from', {}, 'name', {}, 'estimate', {}, 'obsType', {}, 'dayOf', {});  return, end
     if ~isstruct(P)
         error('lsqvce:makeLoader:badPrior', 'Priors must be a struct array (L, x0, sigma, from, name, estimate).');
@@ -571,6 +577,20 @@ function P = validatePriors(P, plan, sysID)
         bad = setdiff(fieldnames(e), {'L', 'x0', 'sigma', 'from', 'name', 'estimate', 'group'});
         if ~isempty(bad)
             error('lsqvce:makeLoader:badPrior', 'system %s, Priors(%d): unknown field ''%s''.', char(string(sysID)), g, bad{1});
+        end
+        hasL = isfield(e, 'L') && ~isempty(e.L);
+        hasG = isfield(e, 'group') && ~isempty(e.group);
+        if hasL && hasG
+            error('lsqvce:makeLoader:badPrior', 'system %s, Priors(%d): give EITHER group (a name pattern) OR L, not both.', char(string(sysID)), g);
+        end
+        if hasG
+            e.L = rowsOfPattern(e.group, localParams, nameCol, plan);
+            if isempty(e.L)
+                error('lsqvce:makeLoader:badPrior', ...
+                      'system %s, Priors(%d): the pattern ''%s'' matches no name in column %d of localParams.', ...
+                      char(string(sysID)), g, char(string(e.group)), nameCol);
+            end
+            if ~isfield(e, 'name') || isempty(e.name), e.name = char(string(e.group)); end
         end
         if ~isfield(e, 'L') || isempty(e.L) || ~isnumeric(e.L) || size(e.L, 2) ~= plan.nl
             error('lsqvce:makeLoader:badPrior', ...
@@ -618,6 +638,26 @@ function P = validatePriors(P, plan, sysID)
                             'obsType', ['prior_' matlab.lang.makeValidName(nm)], 'dayOf', dayOf); %#ok<AGROW>
     end
     P = out;
+end
+
+function Lg = rowsOfPattern(pattern, localParams, nameCol, plan)
+%ROWSOFPATTERN  L for a 'group' pattern: one unit row per column of B whose
+%   template row's name (column nameCol of localParams) matches the regexp.
+    if nameCol > size(localParams, 2)
+        error('lsqvce:makeLoader:badPrior', 'the name column %d does not exist in localParams (%d columns).', nameCol, size(localParams, 2));
+    end
+    names = localParams(:, nameCol);
+    hit = false(size(names));
+    for r = 1:numel(names)
+        v = names{r};
+        if ischar(v) || (isstring(v) && isscalar(v))
+            hit(r) = ~isempty(regexp(char(v), char(string(pattern)), 'once'));
+        end
+    end
+    loc = lsqvce.engine.localColumns(plan);
+    cols = find(arrayfun(@(c) ~isempty(c.row) && hit(c.row), loc));
+    Lg = zeros(numel(cols), plan.nl);
+    for k = 1:numel(cols), Lg(k, cols(k)) = 1; end
 end
 
 function i = dayOfColumn(plan, c)

@@ -324,4 +324,11 @@ layout,metamorphic,its content is the expansion plan already pinned under contra
 layout,robustness,its refusals are the declaration's named lsqvce:fit:* identifiers (it calls lsqvce.engine.declaration)
 layout,speed,O(nc + nl) bookkeeping over the plans; no data-sized work
 layout,vectorisation,no data loop -- a table of (row, day, arc) per column
+engine.localColumns,contract,covered through lsqvce.layout and the local prior groups (test_fit, test_streamUtils name lsqvce.layout / makeLoader Priors which call it); a pure unroll of the plan
+engine.localColumns,precision,no arithmetic -- an index unroll
+engine.localColumns,reference,no closed form -- bookkeeping
+engine.localColumns,robustness,its input is the loader's own plan; no external edge regime
+engine.localColumns,vectorisation,O(nl) bookkeeping, no data-sized loop
+engine.localColumns,speed,O(nl); inside fit's solve budget
+engine.localColumns,metamorphic,the plan's invariances are pinned in test_streamUtils (validity) through the loader
 

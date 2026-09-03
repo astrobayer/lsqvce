@@ -47,23 +47,7 @@ function lay = layout(data)
     K = numel(systems);  S = struct('nl', cell(1, K), 'local', cell(1, K), 'col', cell(1, K));
     for k = 1:K
         plan = systems{k}.plan;
-        loc = struct('row', cell(plan.nl, 1), 'day', cell(plan.nl, 1), 'arc', cell(plan.nl, 1));
-        for i = 1:numel(plan.days)
-            d = plan.days(i);
-            arcRows = plan.rows.arc;  dayRows = plan.rows.day;
-            if isfield(plan, 'arcRowsOf'), arcRows = plan.arcRowsOf{i};  dayRows = plan.dayRowsOf{i}; end
-            for a = 1:numel(plan.arcId{i})
-                for q = 1:numel(arcRows)
-                    j = plan.offset{i}(a) + q;  loc(j).row = arcRows(q);  loc(j).day = d;  loc(j).arc = plan.arcId{i}(a);
-                end
-            end
-            for q = 1:plan.dayCount(i)
-                j = plan.dayOffset(i) + q;  loc(j).row = dayRows(q);  loc(j).day = d;  loc(j).arc = [];
-            end
-        end
-        for q = 1:plan.sysCount
-            j = plan.sysOffset + q;  loc(j).row = plan.rows.system(q);  loc(j).day = [];  loc(j).arc = [];
-        end
+        loc = lsqvce.engine.localColumns(plan);
         S(k).nl = plan.nl;  S(k).local = loc;
         S(k).col = @(row, day, arc) findCol(loc, row, day, arc);
     end
