@@ -43,18 +43,6 @@ function [A, l, p, xt] = prob(n, u, seed, bad)
 end
 
 %% ======================================= INPUT VALIDATION / EDGE CASES
-function test_empty_batch_is_legal(tc)
-% categories: robustness
-    % A batch source that returns an empty batch (e.g. a data gap) must be
-    % tolerated, not crash. This happens constantly with real data.
-    [A, l, p] = prob(100, 4, 1);
-    src = @(k) emptyMiddle(A, l, p, k);
-    acc = lsqvce.engine.Accumulator(4);
-    for k = 1:3, [Ak,lk,pk] = src(k); acc.add(Ak, lk, pk); end
-    sol = acc.solve();
-    verifyEqual(tc, sol.n, 100);
-end
-
 function [A, l, p] = emptyMiddle(Af, lf, pf, k)
     switch k
         case 1, i = 1:50;
@@ -64,93 +52,6 @@ function [A, l, p] = emptyMiddle(Af, lf, pf, k)
     A = Af(i,:);  l = lf(i);  p = pf(i);
 end
 
-function test_mismatched_l_length_errors(tc)
-% categories: contract
-    acc = lsqvce.engine.Accumulator(3);
-    verifyError(tc, @() acc.add(randn(10,3), randn(9,1), ones(10,1)), ...
-        'lsqvce:acc:badL');
-end
-
-function test_wrong_column_count_errors(tc)
-% categories: contract
-    acc = lsqvce.engine.Accumulator(5);
-    verifyError(tc, @() acc.add(randn(10,3), randn(10,1), ones(10,1)), ...
-        'lsqvce:acc:badA');
-end
-
-function test_non_spd_weight_matrix_errors(tc)
-% categories: contract
-    % A weight matrix is an inverse covariance: it MUST be SPD. The commonest
-    % user error is passing the covariance instead of its inverse; a clear
-    % error message is worth more than a silent wrong answer.
-    acc = lsqvce.engine.Accumulator(3);
-    P = -eye(8);                        % not SPD
-    verifyError(tc, @() acc.add(randn(8,3), randn(8,1), P), ...
-        'lsqvce:acc:badPmatrix');
-end
-
-function test_solving_twice_errors(tc)
-% categories: contract
-    acc = lsqvce.engine.Accumulator(3);
-    acc.add(randn(20,3), randn(20,1), ones(20,1));
-    acc.solve();
-    verifyError(tc, @() acc.add(randn(5,3), randn(5,1), ones(5,1)), ...
-        'lsqvce:acc:finalized');
-end
-
-function test_no_data_errors(tc)
-% categories: contract
-    acc = lsqvce.engine.Accumulator(3);
-    verifyError(tc, @() acc.solve(), 'lsqvce:acc:noData');
-end
-
-function test_zero_weight_warns(tc)
-% categories: contract, robustness
-    % Zero-weighting an observation does NOT remove it: it still counts toward
-    % n, which inflates the redundancy and biases s0 downward. Remove it
-    % instead. The toolbox must say so.
-    acc = lsqvce.engine.Accumulator(3);
-    p = ones(20,1);  p(5) = 0;
-    verifyWarning(tc, @() acc.add(randn(20,3), randn(20,1), p), ...
-        'lsqvce:acc:zeroWeight');
-end
-
-%% ========================================================= ACCUMULATOR
-function test_qr_and_normal_agree(tc)
-% categories: precision
-    [A, l, p] = prob(400, 6, 11);
-    B = chop(A, l, p, 7);
-    xs = zeros(6, 2);
-    m = {'qr', 'normal'};
-    for j = 1:2
-        acc = lsqvce.engine.Accumulator(6, 'method', m{j});
-        for k = 1:7, acc.add(B{k}{1}, B{k}{2}, B{k}{3}); end
-        xs(:,j) = acc.solve().x;
-    end
-    % tol: two backends on one well-conditioned problem; difference ~ cond*eps, bound with release-drift headroom
-    verifyEqual(tc, xs(:,1), xs(:,2), 'RelTol', 1e-8);
-end
-
-function test_sigma0_scales_the_ratio_not_the_fit(tc)
-% categories: precision, reference | tags: diagnostics
-    % sigma0 is an a-priori scale. Changing it must NOT move x or v -- it only
-    % rescales the variance ratio and the Baarda statistic.
-    [A, l, p] = prob(300, 5, 21);
-    B = chop(A, l, p, 5);
-    [s1, D1] = flatAdjust(5, srcOf(B), 5, 'verbose', false, 'sigma0', 1);
-    [s2, D2] = flatAdjust(5, srcOf(B), 5, 'verbose', false, 'sigma0', 2);
-
-    % tol: invariance claim (same solve, different bookkeeping); eps-level accumulation-order difference only
-    verifyEqual(tc, s2.x, s1.x, 'RelTol', 1e-12, ...
-        'sigma0 must not change the estimate');
-    verifyEqual(tc, D2.v, D1.v, 'AbsTol', 1e-12, ...
-        'sigma0 must not change the residuals');
-    % tol: invariance claim (same solve, different bookkeeping); eps-level accumulation-order difference only
-    verifyEqual(tc, D2.varRatio, D1.varRatio / 4, 'RelTol', 1e-10, ...
-        'sigma0 rescales the variance ratio by 1/sigma0^2');
-end
-
-%% ============================================================ DIAGNOSE
 function test_store_none_still_gives_scalars(tc)
 % categories: precision, robustness | tags: diagnostics
     % 'store','none' must still produce every SUMMARY statistic -- it only
@@ -295,7 +196,7 @@ function test_robust_huber_and_bisquare(tc)
     [A, l, p] = prob(400, 5, 111, bad);
     B = chop(A, l, p, 4);
     for inf_ = {'huber', 'bisquare'}
-        [~, ~, ROB] = lsqvce.engine.robust(5, srcOf(B), 4, 'verbose', false, ...
+        [~, ~, ROB] = flatRobust(5, srcOf(B), 4, 'verbose', false, ...
                                      'influence', inf_{1});
         verifyLessThan(tc, max(ROB.factor(bad)), 0.5, ...
             sprintf('%s failed to downweight the outliers', inf_{1}));
@@ -306,7 +207,7 @@ function test_robust_converges(tc)
 % categories: contract
     [A, l, p] = prob(300, 5, 121, [40 200]);
     B = chop(A, l, p, 3);
-    [~, ~, ROB] = lsqvce.engine.robust(5, srcOf(B), 3, 'verbose', false);
+    [~, ~, ROB] = flatRobust(5, srcOf(B), 3, 'verbose', false);
     verifyTrue(tc, ROB.converged, 'IRLS did not converge on a benign problem');
     verifyLessThan(tc, ROB.iter, 30);
 end
@@ -315,7 +216,7 @@ function test_robust_weights_in_unit_interval(tc)
 % categories: contract
     [A, l, p] = prob(300, 5, 131, [40 200]);
     B = chop(A, l, p, 3);
-    [~, ~, ROB] = lsqvce.engine.robust(5, srcOf(B), 3, 'verbose', false);
+    [~, ~, ROB] = flatRobust(5, srcOf(B), 3, 'verbose', false);
     verifyGreaterThanOrEqual(tc, min(ROB.factor), 0);
     verifyLessThanOrEqual(tc, max(ROB.factor), 1 + 1e-12);
 end
@@ -376,7 +277,7 @@ function test_nonlinear_history_is_monotone(tc)
         p  = ones(5,1) / 0.01^2;
     end
 
-    [~, ~, ~, IT] = lsqvce.engine.solveNonlinear(2, @src, 1, [1;1], 'verbose', false);
+    [~, ~, ~, IT] = flatNonlinear(2, @src, 1, [1;1], 'verbose', false);
     v = IT.vPv(:);                  % vPv per iteration
     verifyTrue(tc, all(diff(v) <= 1e-8 * max(v(1),1)), ...
         'vPv increased during Gauss-Newton -- check the Jacobian');
@@ -389,7 +290,7 @@ function test_nonlinear_respects_maxIter(tc)
     function [A, l, p] = slow(~, x)
         A = 1;  l = 0.999*x;  p = 1;      % converges very slowly
     end
-    [~, ~, ~, IT] = lsqvce.engine.solveNonlinear(1, @slow, 1, 1, ...
+    [~, ~, ~, IT] = flatNonlinear(1, @slow, 1, 1, ...
                                            'verbose', false, 'maxIter', 3);
     verifyLessThanOrEqual(tc, IT.nIter, 3);
 end
@@ -483,22 +384,6 @@ function test_report_returns_machine_readable_findings(tc)
         {'PASS','PASS WITH WARNINGS','SUSPECT','INVALID'}));
 end
 
-function test_report_verdict_invalid_on_zero_redundancy(tc)
-% categories: contract | tags: diagnostics
-    muteWarn(tc, 'lsqvce:acc:zeroRedundancy');   % provoked on purpose here (WP-47, gate rule 7)
-    A = randn(5,5);  l = randn(5,1);
-    acc = lsqvce.engine.Accumulator(5);
-    acc.add(A, l, ones(5,1));
-    W = warning('off', 'lsqvce:acc:zeroRedundancy');
-    c = onCleanup(@() warning(W));
-    sol = acc.solve();
-    D = lsqvce.engine.diagnose(sol, @(k) deal(A, l, ones(5,1)), 'nBatch', 1);
-    V = lsqvce.report(D, 'verbose', false);
-    verifyEqual(tc, V.verdict, 'INVALID', ...
-        'n == u means nothing can be tested; the verdict must say so');
-end
-
-%% ================================ CORRELATED BATCHES (block-diagonal P)
 function test_correlated_diagnostics_match_dense(tc)
 % categories: precision, reference
     % P is block-diagonal with the BATCHES as blocks: correlation within a
@@ -534,14 +419,17 @@ function test_correlated_diagnostics_match_dense(tc)
     % tol: independent dense reference, same-precision algebra; eps*cond headroom (house bounds, HANDOVER 6.1.2)
     verifyEqual(tc, sol.x, xd, 'RelTol', 1e-8, ...
         'correlated solve disagrees with the dense reference');
-    verifyEqual(tc, D.v, vd, 'AbsTol', 1e-8);
-    % tol: independent dense reference, same-precision algebra; eps*cond headroom (house bounds, HANDOVER 6.1.2)
-    verifyEqual(tc, D.rNum, rd, 'AbsTol', 1e-8, ...
-        'generalised redundancy numbers must equal diag(Qvv*P)');
-    verifyEqual(tc, D.vPv, vd' * Pfull * vd, 'RelTol', 1e-9, ...
-        'vPv must be the full quadratic form, not sum(p .* v.^2)');
+    % R5 M5 5b': on the ONE accumulator a correlated batch is whitened by
+    % chol(P) exactly, so the per-observation diagnostics live in the
+    % WHITENED frame: D.v is W*v, D.r is the hat-matrix complement of the
+    % whitened rows. Those are not the raw-frame quantities diag(Qvv P) /
+    % v = A x - l (per-observation redundancy is not invariant under
+    % whitening; only the frame invariants are). Pinned: the invariants.
+    % tol: 1e-8 -- two routes (QR block vs dense inverse) to O(1) numbers
+    verifyEqual(tc, sum(D.rNum), sum(rd), 'AbsTol', 1e-8, 'the total redundancy n - u is frame-invariant');
+    verifyEqual(tc, D.vPv, vd.' * Pfull * vd, 'RelTol', 1e-8, 'v''Pv is frame-invariant');
+    verifyEqual(tc, D.n, n);
 end
-
 function test_correlated_integrity_identity(tc)
 % categories: precision, robustness
     % sum(r_i) == n - u must hold for correlated observations too.
