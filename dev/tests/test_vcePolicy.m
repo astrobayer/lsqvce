@@ -353,3 +353,42 @@ function testCompareIsTheNestedModelFTest(tc)
     Rother = lsqvce.fit(struct('A', [ones(n, 1), sin(t)], 'l', l), Verbose=false);
     tc.verifyError(@() Rred.compare(Rother), 'lsqvce:ftest:notNested');
 end
+
+%% --------------------------------------- R5-D8 round 1: from + group label
+function testPriorActivationAndGroupLabel(tc)
+% categories: contract
+    data = tc.TestData.data;
+    R0 = lsqvce.fit(data, Verbose=false);  nc = numel(R0.x);
+    e = @(j) double((1:nc) == j);
+    % two labelled members + one unlabelled, one of them active from pass 3
+    data.priors = [struct('L', e(1), 'x0', 0, 'sigma', 0.5, 'name', 'p1', 'estimate', "scale", 'from', 1, 'group', "shape"), ...
+                   struct('L', e(2), 'x0', 0, 'sigma', 2.0, 'name', 'p2', 'estimate', "scale", 'from', 1, 'group', "shape"), ...
+                   struct('L', e(3), 'x0', 0, 'sigma', 1.0, 'name', 'late', 'estimate', "none", 'from', 3, 'group', "")];
+    R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
+                     MaxPasses=4, Noise=struct('Grid', 16), Seed=3, Verbose=false));
+    g = R.noise.priors;
+    tc.verifyEqual(numel(g), 2, 'two members merged into one labelled group + one unlabelled');
+    tc.verifyEqual(g(1).name, 'shape');
+    tc.verifyEqual(size(g(1).L, 1), 2, 'the label stacks the members');
+    tc.verifyEqual(g(1).members, [1 2]);
+    % the group sigma is a FACTOR on the members' declared sigmas: L rows are
+    % divided by 0.5 and 2.0 respectively
+    % tol: exact -- a division by the declared sigma
+    tc.verifyEqual(g(1).L(1, 1), 2);  tc.verifyEqual(g(1).L(2, 2), 0.5);
+    tc.verifyEqual(g(2).from, 3);
+    tc.verifyEqual(g(2).sigma, 1, 'the late group was never updated (estimate none)');
+    % activation: pass 1 solved WITHOUT the late group -- the first update
+    % record (written on pass 2 from pass 1's solution) covers the active group only
+    recs = R.noise.priorHistory;
+    tc.verifyEqual(numel(recs{1}), 1, 'only the active group is updated from pass 1');
+    % a single solve with a from > 1 prior reports and skips it (provoked on
+    % purpose here: gate rule 7 -- muted, the id is asserted through lastwarn)
+    muteWarn(tc, 'lsqvce:fit:priorNotActive');
+    lastwarn('');
+    lsqvce.fit(data, Verbose=false);
+    [~, wid] = lastwarn;
+    tc.verifyEqual(wid, 'lsqvce:fit:priorNotActive');
+    % one policy per label
+    data.priors(2).estimate = "none";
+    tc.verifyError(@() lsqvce.fit(data, Verbose=false), 'lsqvce:fit:badPrior');
+end
