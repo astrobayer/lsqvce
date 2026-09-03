@@ -41,7 +41,10 @@ Fable 5. Rewritten for v3 and again for v4 (scoped tables) the same day (Claude 
    type **`prior`** (reserved: `lsqvce:makeLoader:priorType`), so accumulation, elimination,
    the sweeps, `residuals()` and the redundancy count treat them as data; the width of L is
    checked against nl by name (`lsqvce:makeLoader:badPriorDay`) — the only knowledge the two
-   sides share. THE RULE (R5-D8): the parameters and their columns are yours (tables, `buildDay`,
+   sides share. ONE RULE: the handle is called once per calendar day and every pseudo-observation
+   must be returned on exactly one day — a per-day / per-arc parameter's prior on its own day, a
+   system-wide parameter's prior on one day of your choice (`info.dayIndex == 1`; `info.nDays`
+   is the calendar length). Returned every day it would be counted every day. THE RULE (R5-D8): the parameters and their columns are yours (tables, `buildDay`,
    plots, `toTable`); regularisation is the toolbox's (mechanism, redundancy, activation, VCE per
    group); the interface between them is an operator in your columns. `Options.Reg / RegLambda /
    RegMatrix` are gone.

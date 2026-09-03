@@ -562,6 +562,12 @@ function out = priorArc(L, day, arcID, opt)
 %   Each element is one GROUP: its rows enter as pseudo-observations A = 0,
 %   B = L/sigma, l = x0/sigma, unit covariance. The width of L is checked
 %   against nl by name -- the only knowledge the two sides share.
+%   ONE RULE for the handle: it is called once per calendar day, and every
+%   pseudo-observation must be returned on exactly ONE day -- a per-day (or
+%   per-arc) parameter's prior on its own day, a system-wide parameter's
+%   prior on one day of your choice (info.dayIndex == 1 is the natural one).
+%   Returning it every day would count it every day (a sqrt(nDays) tighter
+%   prior than declared).
     out = [];
     if arcID ~= 1 || isempty(L.priorDay) || isempty(L.plan), return, end
     plan = L.plan;
@@ -751,7 +757,8 @@ function info = arcInfoOf(plan, day)
     end
     info = struct('arcId', arcIds, 'offset', offs, ...
                   'count', cnts, 'ordinal', ords, ...
-                  'nl', plan.nl, 'offsetOf', []);
+                  'nl', plan.nl, 'offsetOf', [], ...
+                  'dayIndex', i, 'nDays', numel(plan.days));   % R5-D8 round 5: which day of the calendar
     info.offsetOf = @(a) offs(find(arcIds == a, 1));
     if isfield(plan, 'sysCount')                    % scoped plan (v4)
         dOff = [];  dCnt = 0;

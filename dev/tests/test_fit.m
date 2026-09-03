@@ -810,7 +810,9 @@ function testPriorDayIsTheLocalCounterpartOfDataPriors(tc)
     j = 2;  target = 0.123;
     nl = numel(y0);
     pin = @(col, x0, s, nm) struct('L', double((1:nl) == col), 'x0', x0, 'sigma', s, 'from', 1, 'group', nm, 'name', nm);
-    data.systems(1).priorDay = @(day, sysID, info) [pin(info.sysOffset + j, target, 1e-6, 'pin'), pin(info.sysOffset + 1, 0, 1e3, 'soft')];
+    % system-wide parameters: the prior is returned on ONE day (the rule)
+    onFirst = @(info, P) P(1:(info.dayIndex == 1) * numel(P));
+    data.systems(1).priorDay = @(day, sysID, info) onFirst(info, [pin(info.sysOffset + j, target, 1e-6, 'pin'), pin(info.sysOffset + 1, 0, 1e3, 'soft')]);
     R1 = lsqvce.fit(data, Verbose=false);
     y1 = R1.residuals('Verbose', false).sys(1).y;
     % tol: 1e-5 absolute -- the prior's sigma (1e-6) against the data's O(1)
@@ -819,12 +821,12 @@ function testPriorDayIsTheLocalCounterpartOfDataPriors(tc)
     tc.verifyEqual(R1.diag.n - R0.diag.n, 2, 'two pseudo-observations: one per group row');
     tc.verifyNotEqual(y1(j), y0(j));
     % a loose group alone (1e6 sigma) leaves the solution where it was
-    data.systems(1).priorDay = @(day, sysID, info) pin(info.sysOffset + 1, 0, 1e6, 'loose');
+    data.systems(1).priorDay = @(day, sysID, info) onFirst(info, pin(info.sysOffset + 1, 0, 1e6, 'loose'));
     Rl = lsqvce.fit(data, Verbose=false);
     % tol: 1e-8 relative -- a 1e6-sigma prior on O(1) parameters perturbs at 1e-12
     tc.verifyEqual(Rl.x, R0.x, 'RelTol', 1e-8);
     % the 'from' gate: a group with from 2 is not in a single solve
-    data.systems(1).priorDay = @(day, sysID, info) struct('L', double((1:nl) == info.sysOffset + j), 'x0', target, 'sigma', 1e-6, 'from', 2, 'group', 'late', 'name', 'late');
+    data.systems(1).priorDay = @(day, sysID, info) onFirst(info, struct('L', double((1:nl) == info.sysOffset + j), 'x0', target, 'sigma', 1e-6, 'from', 2, 'group', 'late', 'name', 'late'));
     R2 = lsqvce.fit(data, Verbose=false);
     tc.verifyEqual(R2.diag.n, R0.diag.n, 'a from-2 group is not in a single solve');
     % a wrong width is refused by name at read time (the loader's own id)
