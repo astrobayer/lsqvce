@@ -72,6 +72,7 @@ arguments
     opt.DistributeDays (1,1) logical = false
     opt.ParallelThreshold (1,1) double {mustBeInteger, mustBeNonnegative} = 8
     opt.Verbose (1,1) logical = false
+    opt.Prior = []                       % R5 M5 5b: CommonPrior on the common block, or []
     opt.Provenance struct = struct()
 end
     [specs, ~] = normalizeSystems(systems, days);       % engine-private, shared with adjustBlock
@@ -89,6 +90,7 @@ end
 
     for it = 1:opt.MaxIter
         acc = newAcc(nc, specs, opt, W);
+        acc.setPrior(opt.Prior);
         sol = acc.solve();
         res = lsqvce.engine.residuals(acc, sol, 'Whitened', true, 'Collect', true, 'Verbose', false);
 
@@ -142,7 +144,7 @@ end
     [dsol, batchFcn, nB] = lsqvce.engine.diagnoseAccum(acc, sol);
     D = lsqvce.engine.diagnose(dsol, batchFcn, 'nBatch', nB);
     prov = opt.Provenance;
-    if isempty(fieldnames(prov)), prov = rmfield(opt, 'Provenance'); end
+    if isempty(fieldnames(prov)), prov = rmfield(rmfield(opt, 'Provenance'), 'Prior'); end
     R = lsqvce.Results(sol, D, acc, dsol, batchFcn, nB, specs, ...
                        lsqvce.engine.runMeta(struct(), prov));
     R.setIterative(hist, struct('influence', char(opt.Influence), 'scale', s), converged);

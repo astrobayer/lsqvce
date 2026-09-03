@@ -66,6 +66,7 @@ arguments
     opt.DistributeDays (1,1) logical = false
     opt.ParallelThreshold (1,1) double {mustBeInteger, mustBeNonnegative} = 8
     opt.Verbose (1,1) logical = false
+    opt.Prior = []                       % R5 M5 5b: CommonPrior on the common block, or []
     opt.Provenance struct = struct()
 end
     x0 = x0(:);
@@ -139,7 +140,7 @@ end
     % Results reports is x + step, while the diagnostics (dsol) stay in the
     % linearised frame where the reduced observations live.
     prov = opt.Provenance;
-    if isempty(fieldnames(prov)), prov = rmfield(opt, 'Provenance'); end
+    if isempty(fieldnames(prov)), prov = rmfield(rmfield(opt, 'Provenance'), 'Prior'); end
     acc = finalAcc(L, days, x, state, opt);
     dsol = acc.solve();
     sol  = dsol;  sol.x = x + dsol.x(:);
@@ -154,6 +155,7 @@ function acc = finalAcc(L, days, x, state, opt)
     acc = lsqvce.engine.BlockAccumulator(L.nc, 'Backend', char(opt.Backend), ...
               'KeepLocal', true, 'Verbose', false, 'Parallel', char(opt.Parallel), ...
               'DistributeDays', opt.DistributeDays, 'ParallelThreshold', opt.ParallelThreshold);
+    acc.setPrior(opt.Prior);
     acc.addSystem(L.sysID, L.nl, L.closure, days);
 end
 
@@ -167,6 +169,7 @@ function sol = accumulate(L, days, x, lam, state, opt)
         nv = [nv, {'Reg', 'lm', 'RegLambda', lam}];
     end
     acc = lsqvce.engine.BlockAccumulator(L.nc, nv{:});
+    acc.setPrior(opt.Prior);
     acc.addSystem(L.sysID, L.nl, L.closure, days);
     sol = acc.solve();
 end

@@ -203,6 +203,9 @@ end
 %                                  (R5 M2: the block path takes diagonal weights;
 %                                  a full P is a covariance law of the streaming
 %                                  kind) -- raised by lsqvce.engine.batchSystem
+%       lsqvce:fit:badPrior        (R5 M5 5b) data.priors is malformed (unknown
+%                                  field, L not p x nc, sigma not a positive scalar,
+%                                  x0 of the wrong length)
 %       lsqvce:fit:badEstimate     (R5 M3 3d) covariance.<type>.estimate is not
 %                                  "none" | "scale" | "law"
 %       lsqvce:fit:lawOnFixedStructure  (R5 M4 4b) estimate "law" on a stream whose
@@ -281,6 +284,7 @@ end
     spec = validateData(data);
     systems = buildSystems(spec, opts.CacheDays);   % R5 M4 4d: resident days
     days = spec.days;
+    pri  = priorsOf(data, lsqvce.engine.resolveNc(systems));   % R5 M5 5b: data.priors
 
     % R5 M2 2b: robust IRLS is a POLICY on the block path -- on the streaming
     % kind it is Model "gls" with reweighting (H-02: the same accumulator);
@@ -294,14 +298,15 @@ end
         end
         a = opts.engineArgs('adjustRobust');
         prov = opts.toStruct();  prov.kind = 'stream';
-        R = lsqvce.engine.adjustRobust(systems, days, a.nv{:}, 'Provenance', prov);
+        R = lsqvce.engine.adjustRobust(systems, days, a.nv{:}, 'Provenance', prov, 'Prior', pri);
         return
     end
 
     switch char(opts.Estimate)
         case 'none'
             a = opts.engineArgs('adjustBlock');
-            R = lsqvce.engine.adjustBlock(systems, days, a.nv{:});
+            prov = opts.toStruct();  prov.kind = 'stream';
+            R = lsqvce.engine.adjustBlock(systems, days, a.nv{:}, 'Provenance', prov, 'Prior', pri);
         otherwise
             % R5 M4 4b (decision R5-D4): ONE estimator. The three iterative
             % models are POLICIES of the joint (Ellmer) estimator:
@@ -312,7 +317,7 @@ end
             %   "pooled"  one law for all streams (Pool "all"), no arc factors
             % The engine-tier lsqvce.engine.adjustVCE still exists for its own
             % callers until its tests are re-homed (M4 4c).
-            R = fitEllmer(systems, days, opts);
+            R = fitEllmer(systems, days, opts, pri);
     end
 end
 
@@ -321,7 +326,7 @@ function spec = validateData(data)
 %VALIDATEDATA  Enforce DATA_CONTRACT.md §2 (v3) on the raw struct; fail fast.
 %   OUTPUT spec 1x1 struct  .commonParams (RxC cell), .days (double),
 %                           .systems (1xM), .ids (1xM cellstr, resolved)
-    topAllowed = {'commonParams', 'days', 'systems'};
+    topAllowed = {'commonParams', 'days', 'systems', 'priors'};   % priors: R5 M5 5b
     rejectUnknown(fieldnames(data), topAllowed, 'data');
 
     if ~isfield(data, 'systems') || ~isstruct(data.systems) || isempty(data.systems)
@@ -559,7 +564,7 @@ end
 %========================================================== kinds B / C
 function R = fitMatrix(data, opts)
 %FITMATRIX  Kind B: in-memory A, l (, p) -> one-batch driver -> Results.
-    rejectUnknown(fieldnames(data), {'A', 'l', 'p'}, 'data');
+    rejectUnknown(fieldnames(data), {'A', 'l', 'p', 'priors'}, 'data');
     for f = {'A', 'l'}
         if ~isfield(data, f{1}) || isempty(data.(f{1}))
             error('lsqvce:fit:missingField', 'data lacks the required field %s.', f{1});
@@ -574,14 +579,14 @@ function R = fitMatrix(data, opts)
             'data.A must be m x u, data.l m x 1 and data.p (if given) m x 1 (m = %d).', numel(l));
     end
     batchFcn = @(k) deal(A, l, p);
-    R = runBatch(size(A, 2), batchFcn, 1, [], opts, 'matrix');
+    R = runBatch(size(A, 2), batchFcn, 1, [], opts, 'matrix', data);
 end
 
 function R = fitBatch(data, opts)
 %FITBATCH  Kind C: batched callback (linear, or nonlinear with x0) -> Results.
 %   v3: u is stated ONCE -- numUnknowns on the linear form, numel(x0) on the
 %   nonlinear form (numUnknowns must then be absent, lsqvce:fit:uCount).
-    rejectUnknown(fieldnames(data), {'batchFcn', 'numUnknowns', 'numBatches', 'x0'}, 'data');
+    rejectUnknown(fieldnames(data), {'batchFcn', 'numUnknowns', 'numBatches', 'x0', 'priors'}, 'data');
     for f = {'batchFcn', 'numBatches'}
         if ~isfield(data, f{1}) || isempty(data.(f{1}))
             error('lsqvce:fit:missingField', 'data lacks the required field %s.', f{1});
@@ -602,75 +607,37 @@ function R = fitBatch(data, opts)
         end
         u = numel(x0);
     end
-    R = runBatch(u, data.batchFcn, data.numBatches, x0, opts, 'batch');
+    R = runBatch(u, data.batchFcn, data.numBatches, x0, opts, 'batch', data);
 end
 
-function R = runBatch(u, batchFcn, nBatch, x0, opts, kind)
-%RUNBATCH  The ONE dispatch for kinds B / C.
-%   R5 M2 (WP-81, round 2a): the LINEAR, non-robust case rides the block
-%   path -- the batches become the DAYS of one local-free system (finding
-%   H-02: a batch problem is a streaming problem with nl = 0), so one
-%   accumulator serves every kind and the streaming Results (residuals(),
-%   contribution(), the exact per-observation sweep) is available on kinds
-%   B / C. Robust IRLS and the nonlinear form still run on the flat drivers
-%   until rounds 2b / 2c give them a policy on the block path.
+function R = runBatch(u, batchFcn, nBatch, x0, opts, kind, data)
+%RUNBATCH  The ONE dispatch for kinds B / C -- every case on the block path
+%   (R5 M5 5b): linear (gls / IRLS) through the batch adapter, nonlinear
+%   through adjustNonlinear; a datum or any regularisation is a declared
+%   prior (data.priors), so the flat drivers have no user-surface caller left.
     if ~strcmp(opts.Estimate, "none")
         error('lsqvce:fit:modelKind', ...
             ['Estimate = "noise" needs the streaming kind (variance components are ' ...
              'per stream of a system); the %s kind is Estimate "none".'], kind);
     end
-    % R5 M2 2c: DatumB (minimum-constraint datum), Sigma0 (a-priori sigma0)
-    % and Sparse are FLAT-path options with no block-path home yet (the
-    % block accumulator has no datum machinery; M5's priors give it one).
-    % Round 2a routed every linear problem to the block path and would have
-    % IGNORED them -- the silent outcome the doctrine forbids. Until M5 a
-    % problem that sets any of them runs on the flat drivers, as before.
-    flatOnly = ~isempty(opts.DatumB) || opts.Sigma0 ~= 1 || opts.Sparse;
-    if isempty(x0) && ~flatOnly
-        R = runBatchOnBlockPath(u, batchFcn, nBatch, opts, kind);   % gls, and IRLS (2b)
+    pri = priorsOf(data, u);
+    if isempty(x0)
+        R = runBatchOnBlockPath(u, batchFcn, nBatch, opts, kind, pri);
         return
     end
-    if ~isempty(x0) && ~flatOnly && strcmp(opts.Robust, "none")
-        % R5 M2 2c': Gauss-Newton as a policy on the block path
-        lsqvce.util.log.inventory('reset');
-        a = opts.engineArgs('adjustNonlinear');
-        prov = opts.toStruct();  prov.kind = kind;
-        R = lsqvce.engine.adjustNonlinear(u, batchFcn, nBatch, x0, a.nv{:}, 'Provenance', prov);
-        return
+    if ~strcmp(opts.Robust, "none")
+        error('lsqvce:fit:notYet', ...
+              ['Robust = "%s" on a NONLINEAR batch problem (x0) is the one-loop ' ...
+               'policy composition of a later level; run the robust pass on the ' ...
+               'linearised problem.'], opts.Robust);
     end
-    if ~isempty(x0)
-        a = opts.engineArgs("solveNonlinear");
-        [sol, D, ~, IT] = lsqvce.engine.solveNonlinear(u, batchFcn, nBatch, x0, a.nv{:});
-        source = IT;
-    elseif ~strcmp(opts.Robust, "none")
-        a = opts.engineArgs("robust");
-        [sol, D, ROB] = lsqvce.engine.robust(u, batchFcn, nBatch, a.nv{:});
-        source = ROB;
-    else
-        a = opts.engineArgs("adjust");
-        [sol, D, V] = lsqvce.engine.adjust(u, batchFcn, nBatch, a.nv{:});
-        source = V;
-    end
-    % The Results contract is the STREAMING one (BlockAccumulator.solve):
-    % sol.sigma0 = a-posteriori std of unit weight, sol.Cxx = covariance
-    % scaled by it. The batch drivers return Accumulator.solve's struct,
-    % where sigma0 is the A-PRIORI Sigma0 and there is no Cxx (R, QxxCorr,
-    % s0sq instead) -- so the bridge derives both exactly as lsqvce.engine.diagnose
-    % does (D.Qxx is the datum-corrected cofactor). When diagnose skipped
-    % Qxx (very large u) Cxx stays absent and coefficients() refuses with
-    % lsqvce:Results:noCovariance -- honest, never a plausible substitute.
-    sol.sigma0Prior = sol.sigma0;
-    sol.sigma0      = sqrt(sol.s0sq);
-    if isfield(D, 'Qxx') && ~isempty(D.Qxx)
-        sol.Cxx = sol.s0sq * D.Qxx;
-    end
-    resolved = opts.toStruct();
-    resolved.kind = kind;
-    R = lsqvce.Results(sol, D, [], source, batchFcn, nBatch, [], lsqvce.engine.runMeta(struct(), resolved));
+    lsqvce.util.log.inventory('reset');
+    a = opts.engineArgs('adjustNonlinear');
+    prov = opts.toStruct();  prov.kind = kind;
+    R = lsqvce.engine.adjustNonlinear(u, batchFcn, nBatch, x0, a.nv{:}, 'Provenance', prov, 'Prior', pri);
 end
-
-%======================================================= Model "ellmer"
-function R = fitEllmer(systems, days, opts)
+function R = fitEllmer(systems, days, opts, pri)
+    if nargin < 4, pri = []; end
 %FITELLMER  Model "ellmer": LSQVCE.ENGINE.ADJUSTVCEJOINT over the built systems.
 %   Two bridges (R4 WP-56c): (1) the accFcn the driver wants -- a fresh
 %   BlockAccumulator per outer pass whose UserOpt carries the current model
@@ -686,7 +653,7 @@ function R = fitEllmer(systems, days, opts)
     [estMap, afMap] = streamPolicy(systems, specs, streams, afDefault);   % R5 M3 3d (R5-D4)
     accFcn = @(model) jointAccumulator(nc, specs, opts, ...
                  lsqvce.engine.jointModelOpt(model, streams, 'PsdMode', psdMode, ...
-                                             'Separable', sepStreams));
+                                             'Separable', sepStreams), pri);
     nvj = a.nv;
     out = lsqvce.engine.adjustVCEjoint(accFcn, nvj{:}, 'Estimate', estMap, 'ArcFactors', afMap);
 
@@ -739,28 +706,77 @@ function keys = streamKeys(systems, specs)
     end
 end
 
-function acc = jointAccumulator(nc, specs, opts, uo)
+function acc = jointAccumulator(nc, specs, opts, uo, pri)
 %JOINTACCUMULATOR  One solve-ready accumulator under the current joint model.
     acc = lsqvce.engine.BlockAccumulator(nc, 'Backend', char(opts.Backend), 'KeepLocal', true, ...
               'Reg', char(opts.Reg), 'RegLambda', opts.RegLambda, 'RegMatrix', opts.RegMatrix, ...
               'Parallel', char(opts.Parallel.Mode), 'DistributeDays', opts.Parallel.DistributeDays, ...
               'ParallelThreshold', opts.Parallel.Threshold, 'Verbose', false, 'UserOpt', uo);
+    acc.setPrior(pri);
     acc.addSystems(specs);
 end
 
+function pri = priorsOf(data, nc)
+%PRIORSOF  data.priors -> ONE lsqvce.engine.CommonPrior (R5 M5 5b).
+%   data.priors(k): .L (p x nc) required; .x0 (p x 1, default 0); .sigma
+%   (scalar > 0, default 1); .name (label). Every prior is a pseudo-
+%   observation group L x ~ x0 with weight 1/sigma^2; they are stacked with
+%   their rows scaled by 1/sigma into one prior of sigma 1 (exact). A DATUM
+%   (minimum constraints B'x = 0 of a free network) is the prior L = B',
+%   x0 = 0: when B spans the null space the solution is the exact
+%   minimum-constraint one, whatever the weight (the two subspaces are
+%   orthogonal) -- which is why the flat drivers' DatumB has no successor
+%   knob, only this declaration.
+    pri = [];
+    if ~isfield(data, 'priors') || isempty(data.priors), return, end
+    P = data.priors;
+    if ~isstruct(P)
+        error('lsqvce:fit:badPrior', 'data.priors must be a struct array (fields L, x0, sigma, name).');
+    end
+    Ks = {};  x0s = {};
+    for k = 1:numel(P)
+        f = fieldnames(P(k));
+        bad = setdiff(f, {'L', 'x0', 'sigma', 'name'});
+        if ~isempty(bad)
+            error('lsqvce:fit:badPrior', 'data.priors(%d) has an unknown field ''%s''.', k, bad{1});
+        end
+        if ~isfield(P(k), 'L') || isempty(P(k).L) || ~isnumeric(P(k).L) || size(P(k).L, 2) ~= nc
+            error('lsqvce:fit:badPrior', ...
+                  'data.priors(%d).L must be a p x %d numeric matrix (nc = %d).', k, nc, nc);
+        end
+        L = double(P(k).L);
+        s = 1;
+        if isfield(P(k), 'sigma') && ~isempty(P(k).sigma), s = double(P(k).sigma); end
+        if ~isscalar(s) || ~isfinite(s) || s <= 0
+            error('lsqvce:fit:badPrior', 'data.priors(%d).sigma must be a positive scalar.', k);
+        end
+        x0 = zeros(size(L, 1), 1);
+        if isfield(P(k), 'x0') && ~isempty(P(k).x0)
+            x0 = double(P(k).x0(:));
+            if numel(x0) ~= size(L, 1)
+                error('lsqvce:fit:badPrior', 'data.priors(%d).x0 must have %d entries.', k, size(L, 1));
+            end
+        end
+        Ks{end+1}  = L / s;   %#ok<AGROW>
+        x0s{end+1} = x0 / s;  %#ok<AGROW>
+    end
+    pri = lsqvce.engine.CommonPrior(vertcat(Ks{:}), vertcat(x0s{:}), 1);
+end
+
 %======================================================= kinds B / C on the block path
-function R = runBatchOnBlockPath(u, batchFcn, nBatch, opts, kind)
-%RUNBATCHONBLOCKPATH  Kinds B / C (linear, Model "gls") as ONE local-free
-%   streaming system through LSQVCE.ENGINE.BATCHSYSTEM (R5 M2 WP-81 2a/2c').
+function R = runBatchOnBlockPath(u, batchFcn, nBatch, opts, kind, pri)
+%RUNBATCHONBLOCKPATH  Kinds B / C (linear) as ONE local-free streaming system
+%   through LSQVCE.ENGINE.BATCHSYSTEM (R5 M2 WP-81 2a/2c'; priors M5 5b).
+    if nargin < 6, pri = []; end
     L = lsqvce.engine.batchSystem(u, batchFcn, nBatch, 'Name', kind);
     lsqvce.util.log.inventory('reset');
     prov = opts.toStruct();  prov.kind = kind;   % provenance = the user's resolved Options
     if strcmp(opts.Robust, "none")
         a = opts.engineArgs('adjustBlock');
-        R = lsqvce.engine.adjustBlock({L}, 1:nBatch, a.nv{:}, 'Provenance', prov);
+        R = lsqvce.engine.adjustBlock({L}, 1:nBatch, a.nv{:}, 'Provenance', prov, 'Prior', pri);
     else
         a = opts.engineArgs('adjustRobust');
-        R = lsqvce.engine.adjustRobust({L}, 1:nBatch, a.nv{:}, 'Provenance', prov);
+        R = lsqvce.engine.adjustRobust({L}, 1:nBatch, a.nv{:}, 'Provenance', prov, 'Prior', pri);
     end
 end
 
