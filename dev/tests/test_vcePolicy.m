@@ -381,7 +381,9 @@ function testPriorActivationAndGroupLabel(tc)
     % record (written on pass 2 from pass 1's solution) covers the active group only
     recs = R.noise.priorHistory;
     tc.verifyEqual(numel(recs{1}), 1, 'only the active group is updated from pass 1');
-    % a single solve with a from > 1 prior reports and skips it
+    % a single solve with a from > 1 prior reports and skips it (provoked on
+    % purpose here: gate rule 7 -- muted, the id is asserted through lastwarn)
+    muteWarn(tc, 'lsqvce:fit:priorNotActive');
     lastwarn('');
     lsqvce.fit(data, Verbose=false);
     [~, wid] = lastwarn;

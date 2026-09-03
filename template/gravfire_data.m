@@ -256,7 +256,7 @@ function priors = priorsFromColumn11(P, ~)
     nc = size(P, 1);
     for j = 1:nc
         c = P{j, 11};
-        if isempty(c) || (ischar(c) && strcmpi(c, 'none')), continue, end
+        if isNoneConstraint(c), continue, end
         if ~iscell(c) || numel(c) < 3 || ~ischar(c{1})
             error('gravfire:badConstraint', 'row %d: column 11 must be ''none'' or {''Tikhonov'', fromPass, sigma[, label]}.', j);
         end
@@ -282,8 +282,14 @@ function n = localConstraintsFound(systemsData)
     for k = 1:numel(systemsData)
         T = systemsData{k}.parameter;
         for j = 1:size(T, 1)
-            c = T{j, 11};
-            if ~(isempty(c) || (ischar(c) && strcmpi(c, 'none'))), n = n + 1; end
+            if ~isNoneConstraint(T{j, 11}), n = n + 1; end
         end
     end
+end
+
+%==========================================================================
+function tf = isNoneConstraint(c)
+%ISNONECONSTRAINT  'none' in every spelling the tables use: [], 'none', {'none'}.
+    if iscell(c) && isscalar(c), c = c{1}; end
+    tf = isempty(c) || (ischar(c) && strcmpi(c, 'none')) || (isstring(c) && strcmpi(c, "none"));
 end
