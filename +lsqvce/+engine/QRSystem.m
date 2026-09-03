@@ -220,7 +220,12 @@ classdef QRSystem < handle
                 % 15 leaves 1.6 digits above measured-good and ~4 below
                 % measured-destroyed. The normal route's 8 does NOT
                 % transfer: its error is kappa^2-amplified, this one's not.
-                destroyed = rho2 <= 0 || (red.ltl > 0 && ...
+                % R5 M5 5b': a contribution with NO residual mass at all
+                % (ltl_red = 0: an exact zero right-hand side) carries
+                % rho2 = 0 legitimately -- nothing was there to lose; only a
+                % nonzero mass that came out <= 0 or 15 digits smaller was
+                % destroyed.
+                destroyed = red.ltl > 0 && (rho2 <= 0 || ...
                     log10(max(red.ltl / max(rho2, realmin), 1)) > 15);
                 if destroyed
                     lsqvce.util.log.warn('lsqvce:qr:cancellation', ...
