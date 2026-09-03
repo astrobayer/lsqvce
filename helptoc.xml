@@ -14,9 +14,6 @@
     <tocitem target="html/lsqvce_template.html">Your own case (template)</tocitem>
     <tocitem target="html/lsqvce_choosing.html">Choosing an engine &amp; VCE backend</tocitem>
     <tocitem target="html/index.html">Solving
-      <tocitem target="html/lsqvce.engine.Accumulator.html">lsqvce.engine.Accumulator</tocitem>
-      <tocitem target="html/lsqvce.engine.adjust.html">lsqvce.engine.adjust</tocitem>
-      <tocitem target="html/lsqvce.engine.solveNonlinear.html">lsqvce.engine.solveNonlinear</tocitem>
       <tocitem target="html/lsqvce.engine.NormalEqSystem.html">lsqvce.engine.NormalEqSystem</tocitem>
       <tocitem target="html/lsqvce.engine.QRSystem.html">lsqvce.engine.QRSystem</tocitem>
       <tocitem target="html/lsqvce.engine.applyRegularisation.html">lsqvce.engine.applyRegularisation</tocitem>
@@ -53,7 +50,6 @@
       <tocitem target="html/lsqvce.engine.systematic.html">lsqvce.engine.systematic</tocitem>
     </tocitem>
     <tocitem target="html/index.html">Outliers &amp; robust
-      <tocitem target="html/lsqvce.engine.robust.html">lsqvce.engine.robust</tocitem>
       <tocitem target="html/lsqvce.engine.snoop.html">lsqvce.engine.snoop</tocitem>
     </tocitem>
     <tocitem target="html/index.html">Stochastic model - VCE

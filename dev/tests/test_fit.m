@@ -430,17 +430,20 @@ function testMatrixKindReproducesAdjust(tc)
     [A, l, p] = matrixFixture();
     data = struct('A', A, 'l', l, 'p', p);
     R = lsqvce.fit(data, lsqvce.Options(Verbose=false));
-    [sol, D, ~] = lsqvce.engine.adjust(size(A, 2), @(k) deal(A, l, p), 1, 'Verbose', false);
+    % R5 M5 5b': the reference is the DENSE closed form (O1), not a second
+    % driver -- the flat one is retired
+    P = diag(p);  N = A.'*P*A;  xd = N \ (A.'*P*l);  vd = A*xd - l;
+    dof = numel(l) - size(A, 2);  s0sq = (vd.'*P*vd) / dof;  Qxx = inv(N);
     tc.verifyClass(R, 'lsqvce.Results');
-    % tol: 1e-12 relative -- two accumulation orders / backends (flat normal
-    % vs block QR) of one well-conditioned 30 x 3 problem, cond ~ 1e1
-    tc.verifyEqual(R.x, sol.x(:), 'RelTol', 1e-12);
-    tc.verifyEqual(R.sigma0, sqrt(sol.s0sq), 'RelTol', 1e-12);
+    % tol: 1e-12 relative -- block QR vs dense normal equations on one
+    % well-conditioned 30 x 3 problem, cond ~ 1e1
+    tc.verifyEqual(R.x, xd, 'RelTol', 1e-12);
+    tc.verifyEqual(R.sigma0, sqrt(s0sq), 'RelTol', 1e-12);
     % tol: 1e-10 relative / 1e-14 absolute -- Cxx and the residual carry the
-    % squared conditioning of the two routes (QR vs normal); 100x the x bound
-    tc.verifyEqual(R.sol.Cxx, sol.s0sq * D.Qxx, 'RelTol', 1e-10, 'AbsTol', 1e-14);
-    % tol: as above (whitened residual, same two routes)
-    tc.verifyEqual(R.diag.v, sqrt(p(:)) .* D.v, 'RelTol', 1e-10, 'AbsTol', 1e-14, ...
+    % squared conditioning; 100x the x bound
+    tc.verifyEqual(R.sol.Cxx, s0sq * Qxx, 'RelTol', 1e-10, 'AbsTol', 1e-14);
+    % tol: as above (the whitened residual sqrt(p).*v)
+    tc.verifyEqual(R.diag.v, sqrt(p(:)) .* vd, 'RelTol', 1e-10, 'AbsTol', 1e-14, ...
         'the block path reports the whitened residual sqrt(p).*v');
     tc.verifyNotEmpty(R.acc, 'kind B now carries the accumulator');
     tc.verifyEqual(R.meta.options.kind, 'matrix');
@@ -457,28 +460,31 @@ end
 
 function testMatrixKindRobustReproducesRobust(tc)
 % categories: reference, contract
-    % R5 M2 2b: Robust="huber" rides the block path (lsqvce.engine.adjustRobust)
-    % on every kind. On a diagonal law its fixed point is the flat driver's
-    % (same influence, same MAD scale, one kernel.robustWeights): x agrees to
-    % rounding, the factors are the SAME numbers, and the planted error is
-    % down-weighted. The flat driver is the reference until it retires.
+    % R5 M5 5b': the IRLS fixed point is checked against its own DEFINITION
+    % (the flat reference driver is retired): at convergence the factors are
+    % the influence function of the standardised whitened residuals, and the
+    % estimate is the weighted GLS solution with those factors -- a closed
+    % form on the final weights. The planted error is down-weighted.
     [A, l, p] = matrixFixture();
     l(7) = l(7) + 25;                                   % gross error
     data = struct('A', A, 'l', l, 'p', p);
-    opts = lsqvce.Options(Robust="huber", RobustOpts=struct('MaxIter', 20), Verbose=false);
+    opts = lsqvce.Options(Robust="huber", RobustOpts=struct('MaxIter', 40, 'Tol', 1e-12), Verbose=false);
     R = lsqvce.fit(data, opts);
-    [sol, ~, ROB] = lsqvce.engine.robust(size(A, 2), @(k) deal(A, l, p), 1, ...
-        'Influence', 'huber', 'MaxIter', 20, 'Verbose', false);
-    % tol: 1e-8 relative -- two accumulation routes (QR vs normal) through
-    % ~10 reweighting passes; the fixed point is the same but each pass
-    % rounds differently, so 1e4 x the single-pass 1e-12 bound
-    tc.verifyEqual(R.x, sol.x(:), 'RelTol', 1e-8);
     fac = R.history(end).factor;
     tc.verifyEqual(numel(fac), numel(l));
-    % tol: 1e-6 -- factors are ratios of residuals to a MAD scale; same bound class
-    tc.verifyEqual(fac, ROB.factor, 'AbsTol', 1e-6);
     tc.verifyLessThan(fac(7), 0.2, 'the planted 25-sigma error is down-weighted');
     tc.verifyEqual(R.stopReason, "converged");
+    % the fixed point: x = argmin sum fac_i p_i v_i^2 with fac from the LAST pass
+    Pw = diag(p(:) .* fac(:));  xd = (A.'*Pw*A) \ (A.'*Pw*l);
+    % tol: 1e-6 relative -- the last factors were computed from the PREVIOUS
+    % estimate; at Tol 1e-12 on x the two differ by the influence's Lipschitz
+    % constant times the step, well below 1e-6
+    tc.verifyEqual(R.x, xd, 'RelTol', 1e-6);
+    % and the factors are Huber's on the standardised whitened residuals
+    vw = sqrt(p(:)) .* (A*R.x - l);
+    facDef = lsqvce.kernel.robustWeights(vw, 'huber', []);
+    % tol: 1e-6 absolute -- as above
+    tc.verifyEqual(fac, facDef, 'AbsTol', 1e-6);
     tc.verifyEqual(R.meta.options.kind, 'matrix');
     tc.verifyNotEmpty(R.acc, 'kind B robust carries the accumulator too');
 end
@@ -499,21 +505,21 @@ function testBatchKindNonlinearReproducesSolveNonlinear(tc)
     data = struct('batchFcn', bf, 'numBatches', 2, 'x0', [0.5; 0]);   % u = numel(x0), v3
     opts = lsqvce.Options(MaxPasses=15, Tolerance=1e-9, Verbose=false);
     R = lsqvce.fit(data, opts);
-    [sol, ~, ~, IT] = lsqvce.engine.solveNonlinear(2, bf, 2, [0.5; 0], 'MaxIter', 15, 'TolX', 1e-9, 'Verbose', false);
-    % tol: 1e-8 absolute -- two accumulation routes through the same
-    % Gauss-Newton sequence; the fixed point is the same, each pass rounds
-    % differently (1e4 x the single-pass bound)
-    tc.verifyEqual(R.x, sol.x(:), 'AbsTol', 1e-8);
+    % R5 M5 5b': the reference is the Gauss-Newton FIXED POINT itself (the
+    % flat driver is retired): at x the normal equations of the linearised
+    % problem have a zero right-hand side, J' (l - f(x)) = 0
+    J = [t.*exp(R.x(1)*t), ones(40, 1)];  w = lobs - (exp(R.x(1)*t) + R.x(2));
+    % tol: 1e-8 absolute -- the step tolerance was 1e-9 on x; the gradient
+    % scales with J (O(1)) times the residual (1e-3)
+    tc.verifyEqual(J.'*w, [0; 0], 'AbsTol', 1e-8, 'the Gauss-Newton stationarity condition holds');
     tc.verifyEqual(R.stopReason, "converged");
-    tc.verifyTrue(IT.converged, 'the reference converged too');
     tc.verifyEqual(R.noise.kind, 'nonlinear');
     tc.verifyNotEmpty(R.history, 'the pass record is kept');
     % tol: 5e-3 -- 40 points at 1e-3 noise recover the truth to a few 1e-3
     tc.verifyEqual(R.x, xt, 'AbsTol', 5e-3);
     tc.verifyEqual(R.meta.options.kind, 'batch');
     tc.verifyNotEmpty(R.acc, 'kind C nonlinear carries the accumulator');
-end
-function testDatumIsADeclaredPrior(tc)
+endfunction testDatumIsADeclaredPrior(tc)
 % categories: contract, reference, robustness
     % R5 M5 5b: a free network's DATUM is a declared prior on the null space
     % (data.priors, L = B'), solved on the BLOCK path -- the same accumulator
@@ -533,10 +539,11 @@ function testDatumIsADeclaredPrior(tc)
     % tol: 1e-12 absolute -- the constraint holds algebraically on O(1) numbers
     tc.verifyEqual(B.'*R.x, 0, 'AbsTol', 1e-12, 'the minimum constraint holds');
     tc.verifyNotEmpty(R.acc, 'the block path carries the accumulator');
-    % the flat driver (engine tier, reference until its retirement) agrees
-    [sol, ~, ~] = lsqvce.engine.adjust(u, @(k) deal(A, l, ones(size(l))), 1, 'DatumB', B, 'Verbose', false);
-    % tol: 1e-10 relative -- two routes (QR block vs normal flat) to one exact solution
-    tc.verifyEqual(R.x, sol.x(:), 'RelTol', 1e-10, 'AbsTol', 1e-12);
+    % the minimum-constraint solution in closed form: the pseudo-inverse
+    % solution of the free network (B spans the null space)
+    xd = pinv(A.'*A) * (A.'*l);
+    % tol: 1e-10 relative -- QR block with the prior vs the dense pseudo-inverse
+    tc.verifyEqual(R.x, xd, 'RelTol', 1e-10, 'AbsTol', 1e-12);
     % the weight does not matter when B spans the null space
     data.priors.sigma = 1e3;
     R2 = lsqvce.fit(data, Verbose=false);

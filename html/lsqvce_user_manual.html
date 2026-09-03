@@ -220,7 +220,7 @@ rather than silently absorbing it into the field.</div>
 <h2 id="p4b">Part IV-B &mdash; The interface you write</h2>
 
 <p>Part II describes <code>batchFcn</code>, the seam for the <em>flat</em> path
-(<a href="lsqvce.engine.adjust.html">lsqvce.engine.adjust</a>). The block-arrow path has a
+(<code>lsqvce.engine.adjust</code> (retired R5 M5: the one accumulator)). The block-arrow path has a
 different seam: you write a <b>day builder</b> and hand it to
 <a href="lsqvce.engine.makeLoader.html">lsqvce.engine.makeLoader</a>. Everything else &mdash;
 arc slicing, whitening, the Schur complement, the VCE loop &mdash; is the
@@ -439,7 +439,7 @@ assert (redundancy identity, whitening equals dense GLS, ACV round-trip).</div>
 <a href="lsqvce_reference_manual.html">Reference Manual</a>,
 <a href="lsqvce_interpretation_guide.html">Interpretation Guide</a>,
 <a href="lsqvce_choosing.html">Choosing an engine</a>,
-<a href="lsqvce.engine.adjust.html">lsqvce.engine.adjust</a>,
+<code>lsqvce.engine.adjust</code> (retired R5 M5: the one accumulator),
 <code>lsqvce.engine.adjustVCE</code> (retired R5 M4: Model "vce" is a policy of the joint estimator)</div>
 <h2 id="refs">References</h2>
 <div class="refs">

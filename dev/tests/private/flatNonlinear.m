@@ -10,7 +10,7 @@ function [sol, D, V, IT] = flatNonlinear(u, batchFcn, nBatch, x0, varargin)
     addParameter(p, 'verbose', false);  addParameter(p, 'Method', 'qr');
     addParameter(p, 'sigma0', 1);    addParameter(p, 'DatumB', []);
     parse(p, varargin{:});  o = p.Results;
-    data = struct('batchFcn', batchFcn, 'numUnknowns', u, 'numBatches', nBatch, 'x0', x0(:));
+    data = struct('batchFcn', batchFcn, 'numBatches', nBatch, 'x0', x0(:));   % u = numel(x0)
     if ~isempty(o.DatumB), data.priors = struct('L', o.DatumB.', 'sigma', 1, 'name', 'datum'); end
     w = warning('off', 'lsqvce:adjustNonlinear:maxIter');  c1 = onCleanup(@() warning(w)); %#ok<NASGU>
     w2 = warning('off', 'lsqvce:adjustNonlinear:diverged'); c2 = onCleanup(@() warning(w2)); %#ok<NASGU>
