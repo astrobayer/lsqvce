@@ -4912,7 +4912,7 @@ WP-31 GPU (gated on M4 measurements), WP-30 runner.
 |---|---|---|
 | R5-D1 | Keep the v4 data contract as the base of v5; additive fields only (`estimate`, `arcFactors`, `pool`, `dt`, `data.priors`) | **keep** (A, B, C) |
 | R5-D2 | Replace `Model` by `Estimate="none"\|"noise"` + per-stream `estimate`; Options ≈ 12 + 4 groups | **yes**, breaking, in M5 with the migration table |
-| R5-D3 | Rename `covariance` → `noise` in the stream spec | panel split; C: **no** (churn on every builder/fixture); A/B mildly for. Default if silent: no |
+| R5-D3 | Rename `covariance` → `noise` in the stream spec | panel split; C: **no** (churn on every builder/fixture); A/B mildly for. Default if silent: no — **CLOSED as no in M5 5d**: the contract keeps `covariance` |
 | R5-D4 | Retire the biased-ACV 'separate' estimator (v4 `vce` mode); accept changed numbers in that mode; acceptance = z-score recovery on O3 not worse, not equality to v4 | **yes** (H-03) |
 | R5-D5 | Delete H-01 classes (i) and (iii) outright (no ENGINE survival); instruments (ii) live in dev/tests or as verdict collectors | **yes** under the no-aliases rule |
 | R5-D6 | Theory authority: the LaTeX document's Parts I–III replace root lsqvce_theory.pdf; ReportLab theory pipeline retired (manual pipeline untouched until M6) | **yes** |
