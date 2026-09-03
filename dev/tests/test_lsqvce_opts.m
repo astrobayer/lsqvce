@@ -290,6 +290,9 @@ end
 function test_nonlinear_respects_maxIter(tc)
 % categories: contract
     muteWarn(tc, 'lsqvce:adjustNonlinear:maxIter');   % provoked on purpose here (gate rule 7)
+    muteWarn(tc, 'lsqvce:qr:cancellation');          % two identical rows fit EXACTLY at every
+                                                    % step: rho2 = 0 with ltl > 0, which the fold
+                                                    % cannot tell from cancellation (gate rule 7)
     function [A, l, p] = slow(~, x)
         A = [1; 1];  l = 0.999*[x; x];  p = [1; 1];   % converges very slowly
     end                                            % (two rows: dof 1, the one
