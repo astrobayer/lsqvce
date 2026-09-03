@@ -223,7 +223,7 @@ def part5_interpretation():
     st += [P('Isolated blunders call for iterative '
              '<font face="Courier">lsqvce.engine.snoop</font>. Many small '
              'contaminations call for robust M-estimation '
-             '(<font face="Courier">lsqvce.engine.robust</font>), which degrades '
+             '(<font face="Courier">Robust="huber"</font> on fit), which degrades '
              'gracefully where snooping would chase its own tail. The '
              'contamination gauge tells you which regime you are in.', 'body')]
 

@@ -42,6 +42,16 @@ a { color: #0b5ea8; }
 <body>
 <div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce_template</div>
 <h1>lsqvce_template</h1>
+<div style="border:2px solid #b8860b;background:#fff8e1;padding:10px 14px;margin:12px 0 18px 0;font-family:sans-serif;font-size:95%">
+<b>Version 5.0 (R5, 2026-09-03).</b> This manual was written for lsqvce 4.x and is kept for its
+theory and interpretation content. The binding v5 authorities are
+<a href="../DATA_CONTRACT.md">DATA_CONTRACT.md</a> (the data struct, priors, per-stream policy),
+<a href="../RELEASE_NOTES.md">RELEASE_NOTES.md</a> (the v4 &rarr; v5 option map), <code>doc lsqvce.Options</code>
+(14 knobs + 5 groups, <code>OnPass</code>), and <a href="../lsqvce_theory.pdf">lsqvce_theory.pdf</a>
+(the R5 theory: one accumulator, one estimator). Where this page names <code>Model</code>,
+<code>GroupBy</code>, <code>adjustVCE</code>, <code>adjust</code>, <code>robust</code> or the plot hooks, read the v5 successor from the map.
+</div>
+
 <div class="purpose">Starting point for your own least-squares adjustment case.</div>
 <h2>Syntax</h2>
 <pre class="syntax">L = lsqvce_template(procOpt)</pre>
