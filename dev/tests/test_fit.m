@@ -373,9 +373,10 @@ function testDistributeDaysThroughFitEqualsFused(tc)
     tc.verifyEqual(R2.x,      R1.x,      'RelTol', 1e-11);
     tc.verifyEqual(R2.sigma0, R1.sigma0, 'RelTol', 1e-11);
     % adjustBlock records its RESOLVED option struct (lowerCamel, WP-44)
-    tc.verifyEqual(R2.meta.options.distributeDays, true, 'the policy is recorded in the provenance');
-    tc.verifyEqual(R2.meta.options.parallelThreshold, 2);
-    tc.verifyEqual(R1.meta.options.distributeDays, false);
+    % R5 M5 5b: every kind records the USER's resolved Options as provenance
+    tc.verifyEqual(R2.meta.options.Parallel.DistributeDays, true, 'the policy is recorded in the provenance');
+    tc.verifyEqual(R2.meta.options.Parallel.Threshold, 2);
+    tc.verifyEqual(R1.meta.options.Parallel.DistributeDays, false);
     % the same knobs are accepted by the VCE engine's constructor (signature)
 end
 
@@ -512,39 +513,42 @@ function testBatchKindNonlinearReproducesSolveNonlinear(tc)
     tc.verifyEqual(R.meta.options.kind, 'batch');
     tc.verifyNotEmpty(R.acc, 'kind C nonlinear carries the accumulator');
 end
-function testFlatOnlyOptionsStayOnTheFlatDrivers(tc)
-% categories: contract, robustness
-    % R5 M2 2c: DatumB / Sigma0 / Sparse have no block-path home yet. Round 2a
-    % sent every linear problem to the block path and would have IGNORED
-    % them (the silent outcome). Now such a problem runs on the flat driver:
-    % a levelling network (rank defect 1) with a minimum-constraint datum
-    % solves, and its solution obeys the constraint B'x = 0 exactly.
-    muteWarn(tc, 'lsqvce:datum:autoDetected');
+function testDatumIsADeclaredPrior(tc)
+% categories: contract, reference, robustness
+    % R5 M5 5b: a free network's DATUM is a declared prior on the null space
+    % (data.priors, L = B'), solved on the BLOCK path -- the same accumulator
+    % as everything else, no flat driver. With B spanning the null space the
+    % solution is the exact minimum-constraint one for ANY prior weight (the
+    % data's range and the null space are orthogonal): pinned against the
+    % flat driver's DatumB solution to rounding, and B'x = 0 exactly.
     rs = RandStream('mt19937ar', 'Seed', 5);
     u = 4;  pairs = [1 2; 2 3; 3 4; 4 1; 1 3];
     A = zeros(size(pairs, 1), u);
     for k = 1:size(pairs, 1), A(k, pairs(k, 1)) = -1;  A(k, pairs(k, 2)) = 1; end
     hTrue = [0; 1.5; -0.7; 2.2];
     l = A*hTrue + 0.01*randn(rs, size(A, 1), 1);
-    B = ones(u, 1);                                       % the datum: the mean height
-    R = lsqvce.fit(struct('A', A, 'l', l), lsqvce.Options(DatumB=B, Verbose=false));
-    % tol: 1e-12 absolute -- the constraint is imposed algebraically on O(1) numbers
+    B = ones(u, 1);                                       % the null space: a common level
+    data = struct('A', A, 'l', l, 'priors', struct('L', B.', 'sigma', 1, 'name', 'datum'));
+    R = lsqvce.fit(data, Verbose=false);
+    % tol: 1e-12 absolute -- the constraint holds algebraically on O(1) numbers
     tc.verifyEqual(B.'*R.x, 0, 'AbsTol', 1e-12, 'the minimum constraint holds');
-    tc.verifyEmpty(R.acc, 'the flat driver carries no block accumulator');
-    tc.verifyEqual(R.meta.options.kind, 'matrix');
-    % the same problem WITHOUT a datum is rank deficient: the block path (QR
-    % backend) refuses it with the backend's named identifier, never solves it.
-    % Finding H-16, closed in R5 M4 4e: the refusal is CLEAN -- no
-    % MATLAB:singularMatrix and no cancellation warning fire before it (the
-    % fold takes a rank-deficient contribution's square root in its range
-    % space instead of putting a singular factor through backslash)
+    tc.verifyNotEmpty(R.acc, 'the block path carries the accumulator');
+    % the flat driver (engine tier, reference until its retirement) agrees
+    [sol, ~, ~] = lsqvce.engine.adjust(u, @(k) deal(A, l, ones(size(l))), 1, 'DatumB', B, 'Verbose', false);
+    % tol: 1e-10 relative -- two routes (QR block vs normal flat) to one exact solution
+    tc.verifyEqual(R.x, sol.x(:), 'RelTol', 1e-10, 'AbsTol', 1e-12);
+    % the weight does not matter when B spans the null space
+    data.priors.sigma = 1e3;
+    R2 = lsqvce.fit(data, Verbose=false);
+    % tol: 1e-8 relative -- a 1e6 weight change moves the solution only through rounding
+    tc.verifyEqual(R2.x, R.x, 'RelTol', 1e-8, 'AbsTol', 1e-12);
+    % no datum: refused on the block path, cleanly
     lastwarn('');
-    tc.verifyEqual(idOf(@() lsqvce.fit(struct('A', A, 'l', l), lsqvce.Options(Verbose=false))), ...
-        'lsqvce:qr:singularR');
-    [~, wid] = lastwarn;
-    tc.verifyEmpty(wid, 'no warning precedes the refusal');
+    tc.verifyEqual(idOf(@() lsqvce.fit(struct('A', A, 'l', l), Verbose=false)), 'lsqvce:qr:singularR');
+    [~, wid] = lastwarn;  tc.verifyEmpty(wid);
+    % a malformed prior is refused by name
+    tc.verifyEqual(idOf(@() lsqvce.fit(struct('A', A, 'l', l, 'priors', struct('L', ones(1, 3))), Verbose=false)), 'lsqvce:fit:badPrior');
 end
-
 function testBatchKindLinearReproducesAdjust(tc)
 % categories: reference
     [A, l, p] = matrixFixture();

@@ -145,6 +145,8 @@ arguments
     opt.Verbose  (1,1) logical = false
     opt.ShowSeconds (1,1) double = 0
     opt.ExportDir (1,1) string = ""
+    opt.Prior = []                       % R5 M5 5b: lsqvce.engine.CommonPrior on the common
+                                         % block (data.priors, stacked by lsqvce.fit), or []
     opt.Provenance struct = struct()     % R5 M2: the RESOLVED user options to record
                                          % in Results.meta instead of this driver's own
                                          % option struct (lsqvce.fit passes opts.toStruct()
@@ -180,6 +182,7 @@ end
               'RegMatrix',o.regMatrix, 'Parallel',o.parallel, ...
               'DistributeDays',o.distributeDays, ...
               'ParallelThreshold',o.parallelThreshold);
+    acc.setPrior(opt.Prior);
     acc.addSystems(specs);
     sol = acc.solve();
 

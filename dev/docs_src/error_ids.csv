@@ -152,6 +152,7 @@ lsqvce:fit:badArcs,fit,error,v4.0
 lsqvce:fit:badEstimate,fit,error,v4.0
 lsqvce:fit:badId,fit,error,v4.0
 lsqvce:fit:badMatrix,fit,error,v4.0
+lsqvce:fit:badPrior,fit,error,v4.0
 lsqvce:fit:badScope,fit,error,v4.0
 lsqvce:fit:builderKind,fit,error,v4.0
 lsqvce:fit:duplicateSystem,fit,error,v4.0

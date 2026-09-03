@@ -58,10 +58,12 @@ classdef Options
 %     GaussNewton  TolF 1e-10, Lambda0 1e-6     (x0 problems; MaxPasses / Tolerance
 %                  are the budget and the step tolerance)
 %
-%   UNTIL M5 ROUND 5b (the priors home on the block accumulator) the flat
-%   drivers' knobs stay, unchanged and documented as interim:
-%     Reg "none"|"tikhonov"|"tsvd"|"lm"|"auto", RegLambda, RegMatrix,
-%     Sparse, DatumB, Sigma0
+%   REGULARISATION of the common block: Reg "none"|"tikhonov"|"tsvd"|"lm"|"auto",
+%   RegLambda, RegMatrix (the accumulator's own machinery). A DATUM (minimum
+%   constraints of a free network) and any prior with its own variance
+%   component are DECLARED on the data: data.priors(k) = struct('L', ..,
+%   'x0', .., 'sigma', .., 'name', ..) -- R5 M5 5b; the v4 DatumB / Sigma0 /
+%   Sparse knobs are gone (HANDOVER §12.10).
 %
 %   METHODS
 %     engineArgs(target)   the Name-Value list a driver takes (validated)
@@ -107,13 +109,11 @@ classdef Options
         Parallel    (1,1) struct = struct('Mode', "serial", 'DistributeDays', false, 'Threshold', 8)
         GaussNewton (1,1) struct = struct('TolF', 1e-10, 'Lambda0', 1e-6)
 
-        % interim (until M5 5b moves priors to the declaration)
+        % regularisation of the common block (block-path machinery; a DATUM or a
+        % prior with its own component is data.priors, R5 M5 5b)
         Reg       (1,1) string {mustBeMember(Reg, ["none","tikhonov","tsvd","lm","auto"])} = "none"
         RegLambda (1,1) double {mustBeNonnegative} = 0
         RegMatrix double = []
-        Sparse    (1,1) logical = false
-        DatumB    double = []
-        Sigma0    (1,1) double {mustBePositive} = 1
     end
 
     methods
@@ -182,27 +182,12 @@ classdef Options
                                'Tol', obj.Tolerance, 'Probes', obj.Probes, 'Seed', obj.Seed, ...
                                'SkipThreshold', N.SkipThreshold, 'Pool', obj.Pool, ...
                                'MeanType', N.MeanType, 'Verbose', logical(obj.Verbose)};
-                case 'adjust'
-                    args.nv = [{'Method', char(obj.Backend), 'Sparse', obj.Sparse, ...
-                                'DatumB', obj.DatumB, 'Sigma0', obj.Sigma0, ...
-                                'Verbose', obj.Verbose}, obj.diagnoseNV()];
-                case 'robust'
-                    args.nv = [{'Influence', char(obj.Robust), 'Tuning', obj.RobustOpts.Tuning, ...
-                                'MaxIter', obj.RobustOpts.MaxIter, 'Tol', obj.RobustOpts.Tol, ...
-                                'DatumB', obj.DatumB, 'Method', char(obj.Backend), ...
-                                'Sigma0', obj.Sigma0, 'Verbose', obj.Verbose}, obj.diagnoseNV()];
-                case 'solveNonlinear'
-                    args.nv = [{'MaxIter', obj.MaxPasses, 'TolX', obj.Tolerance, ...
-                                'TolF', obj.GaussNewton.TolF, 'Lambda0', obj.GaussNewton.Lambda0, ...
-                                'DatumB', obj.DatumB, 'Method', char(obj.Backend), ...
-                                'Sigma0', obj.Sigma0, 'Verbose', obj.Verbose}, obj.diagnoseNV()];
                 case 'diagnose'
                     args.nv = obj.diagnoseNV();
                 otherwise
                     error('lsqvce:Options:badTarget', ...
                         ['engineArgs target must be one of adjustBlock, adjustVCEjoint, ' ...
-                         'adjustRobust, adjustNonlinear, adjust, robust, solveNonlinear, ' ...
-                         'diagnose (got ''%s'').'], target);
+                         'adjustRobust, adjustNonlinear, diagnose (got ''%s'').'], target);
             end
         end
 
@@ -285,7 +270,7 @@ classdef Options
                  'The loop',           {'MaxPasses', 'MinPasses', 'Tolerance', 'Probes', 'Seed'}; ...
                  'Run control',        {'Backend', 'CacheDays', 'Verbose', 'LogFile'}; ...
                  'Groups',             {'Noise', 'RobustOpts', 'Diagnostics', 'Parallel', 'GaussNewton'}; ...
-                 'Interim (M5 5b)',    {'Reg', 'RegLambda', 'RegMatrix', 'Sparse', 'DatumB', 'Sigma0'}};
+                 'Regularisation',     {'Reg', 'RegLambda', 'RegMatrix'}};
         end
         function s = fmt(v)
             if isa(v, 'function_handle')
