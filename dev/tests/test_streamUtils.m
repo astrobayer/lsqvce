@@ -15,6 +15,11 @@ function tests = test_streamUtils
     tests = functiontests(localfunctions);
 end
 
+function setupOnce(~)
+    root = fileparts(fileparts(fileparts(mfilename('fullpath'))));
+    addpath(root);  addpath(fullfile(root, 'examples'));   % fixture_grace (moved tests, R5 M4 4c)
+end
+
 %% ===================================================== selectArAcv
 function testSelectArAcvRecoversOrder(tc)
 % categories: precision | tags: diagnostics

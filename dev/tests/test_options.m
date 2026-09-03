@@ -115,8 +115,9 @@ function testLaterAssignmentIsValidated(tc)
         ok = startsWith(e.identifier, 'MATLAB:');
     end
     tc.verifyTrue(ok, 'WhiteAlpha >= 1 must be rejected');
-    o.MaxOuter = 4;                                  % a valid change sticks
-    tc.verifyEqual(o.engineArgs("adjustVCE").outer.MaxOuter, 4);
+    o.JointMaxIter = 4;                              % a valid change sticks
+    a = o.engineArgs("adjustVCEjoint");
+    tc.verifyEqual(a.nv{find(strcmp(a.nv, 'MaxIter')) + 1}, 4);
 end
 
 function testCrossPropertyRulesUseLsqvceIds(tc)
@@ -139,8 +140,8 @@ function testCrossPropertyRulesUseLsqvceIds(tc)
     id = '';
     try, o.engineArgs("nope"); catch e, id = e.identifier; end
     tc.verifyEqual(id, 'lsqvce:Options:badTarget');
-    o = lsqvce.Options(NumLags="auto");             % legal for the pooled engine
-    tc.verifyEqual(o.engineArgs("adjustVCE").joint.NumLags, 'auto');
+    o = lsqvce.Options(NumLags="auto");             % legal as a VALUE ...
+    tc.verifyEqual(o.NumLags, "auto");
     id = '';
     try, o.engineArgs("adjustVCEjoint"); catch e, id = e.identifier; end
     tc.verifyEqual(id, 'lsqvce:Options:badNumLags', ...
@@ -155,15 +156,17 @@ end
 
 function testModelSelectsTheVceMode(tc)
 % categories: contract
-    % "pooled" is adjustVCE's 'joint' mode; "vce" and "gls" leave it 'separate'.
-    tc.verifyEqual(lsqvce.Options(Model="pooled").engineArgs("adjustVCE").mode, 'joint');
-    tc.verifyEqual(lsqvce.Options(Model="vce").engineArgs("adjustVCE").mode, 'separate');
-    tc.verifyEqual(lsqvce.Options(Model="gls").engineArgs("adjustVCE").mode, 'separate');
-    nv = lsqvce.Options(Model="pooled").engineArgs("adjustVCE").nv;
-    k = find(strcmp(nv, 'VceMode'), 1);
-    tc.verifyEqual(nv{k+1}, "joint");
+    % R5 M4 4b/4c: every iterative Model is a POLICY of the joint estimator
+    % (adjustVCE and its 'mode' are gone); Options keeps the user's word and
+    % maps the joint driver's arguments; the Pool knob is carried for "ellmer"
+    for m = ["vce", "pooled", "ellmer"]
+        o = lsqvce.Options(Model=m);
+        tc.verifyEqual(o.Model, m);
+        a = o.engineArgs("adjustVCEjoint");
+        tc.verifyTrue(any(strcmp(a.nv, 'Pool')), 'the joint arguments carry Pool');
+    end
+    tc.verifyEqual(lsqvce.Options(Model="gls").Model, "gls");
 end
-
 function testDispMarksEngineDefaults(tc)
 % categories: contract | tags: diagnostics
     % The display is a beginner's map of the option space: one line per
@@ -183,11 +186,11 @@ function testValueSemanticsAndNameOrderInvariance(tc)
 % categories: robustness
     % Options is a VALUE class: args returned earlier do not change when the
     % object is edited later, and the order of Name-Value pairs is irrelevant.
-    o1 = lsqvce.Options(Model="vce", Backend="normal", MaxOuter=3);
-    a1 = o1.engineArgs("adjustVCE");
-    o1.MaxOuter = 9;
+    o1 = lsqvce.Options(Model="vce", Backend="normal", JointMaxIter=3);
+    a1 = o1.engineArgs("adjustVCEjoint");
+    o1.JointMaxIter = 9;
     % tol: exact -- value semantics, no floating point involved
-    tc.verifyEqual(a1.outer.MaxOuter, 3);
+    tc.verifyEqual(a1.nv{find(strcmp(a1.nv, 'MaxIter')) + 1}, 3);
     o2 = lsqvce.Options(MaxOuter=3, Backend="normal", Model="vce");
     o3 = lsqvce.Options(Model="vce", Backend="normal", MaxOuter=3);
     tc.verifyTrue(isequal(o2, o3), 'Name-Value order must not matter');
