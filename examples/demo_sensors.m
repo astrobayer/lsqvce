@@ -136,7 +136,7 @@ fprintf('  -> far from 1, so at least one sensor is mis-weighted.\n');
 Rv = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, Verbose=false));
 
 sig = Rv.history.sigma(end, :);
-fprintf('\nPER-SENSOR COMPONENTS (GroupBy="obsType")\n');
+fprintf('\nPER-SENSOR COMPONENTS (one level per stream)\n');
 fprintf('  %-8s %12s %12s %10s\n', 'sensor', 'recovered', 'truth', 'error');
 fprintf('  %s\n', repmat('-', 1, 46));
 allSensors = unique([sens{:}], 'stable');

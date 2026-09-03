@@ -86,7 +86,7 @@ function R = demo_grace(varargin)
     % diagnostic tells you to.
     R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
             MaxPasses=o.maxOuter, Verbose=o.verbose, ...
-            MaxOrder=40, Tolerance=1e-3));
+            Tolerance=1e-3));
 
     fprintf('\n--- sigma trajectory (rows = iterations, cols = streams) ---\n');
     fprintf('streams: %s\n', strjoin(R.history.streams, '  '));
