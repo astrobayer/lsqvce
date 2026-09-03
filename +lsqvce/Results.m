@@ -73,6 +73,7 @@ classdef Results < handle
 %     x = R.x;   s0 = R.sigma0;
 %
 %   ERRORS
+%     lsqvce:Results:noVPv          compare() on a Results without a finite v'Pv
 %     lsqvce:Results:noHistory      an iteration reader was called on a
 %                                   single-solve Results (adjustBlock does not
 %                                   iterate); use the result of adjustVCE
@@ -270,6 +271,41 @@ classdef Results < handle
         %RESIDUALS  Collected residuals from the accumulator (acc.residuals).
             obj.requireAccumulator('residuals');
             res = obj.acc.residuals(obj.sol, varargin{:});
+        end
+
+        function F = compare(obj, Rred, opt)
+        %COMPARE  Is the extra parameter earning its place? (nested-model F test)
+        %   F = R.compare(Rred)            R = the FULL model, Rred = the REDUCED (nested) one
+        %   F = R.compare(Rred, Alpha=0.01, Verbose=false)
+        %   R5 M7 7c: lsqvce.engine.ftest re-homed onto the Results -- the two
+        %   fits must share observations and weights, the reduced one a SUBSET
+        %   of the parameters; the test is F = [(vPv_red - vPv_full)/(u_full -
+        %   u_red)] / s0sq_full ~ F(du, r_full) under "the extra parameters are
+        %   zero". Both Results must carry a honest v'Pv (NaN-honest folds refuse
+        %   with lsqvce:Results:noVPv). The residual-sum PREMISE (same rows) is
+        %   checked by the engine when both Results have diagnostics.
+        %   INPUT   Rred 1x1 lsqvce.Results; Alpha (0.05); Verbose (false)
+        %   OUTPUT  F    1x1 struct  the engine's record (.F .dfNum .dfDen .p
+        %                            .reject .alpha .verdict) -- see LSQVCE.ENGINE.FTEST
+        %   ERRORS  lsqvce:Results:noVPv    a v'Pv is NaN or missing
+        %           lsqvce:ftest:*          the engine's own refusals (not nested, ...)
+        arguments
+            obj
+            Rred (1,1) lsqvce.Results
+            opt.Alpha (1,1) double {mustBePositive, mustBeLessThan(opt.Alpha, 1)} = 0.05
+            opt.Verbose (1,1) logical = false
+        end
+            sF = solOf(obj);  sR = solOf(Rred);
+            F = lsqvce.engine.ftest(sF, sR, 'Alpha', opt.Alpha, 'Verbose', opt.Verbose);
+
+            function s = solOf(Rk)
+                if isempty(Rk.sol) || ~isfield(Rk.sol, 'vtv') || ~isfinite(Rk.sol.vtv)
+                    error('lsqvce:Results:noVPv', ...
+                          'compare() needs a finite v''Pv on both Results (this one is NaN or missing).');
+                end
+                u = numel(Rk.x);  n = Rk.diag.n;
+                s = struct('vPv', Rk.sol.vtv, 'n', n, 'u', u, 'rank', u, 'r', n - u);
+            end
         end
 
         function con = contribution(obj, varargin)
