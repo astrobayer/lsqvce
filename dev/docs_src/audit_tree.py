@@ -752,7 +752,15 @@ def check_test_categories():
         if 'contract' not in got and (u, 'contract') not in exempt:
             note('cat', 'public unit %s has NO contract coverage and no '
                  'exemption row' % u)
-    print('   category gaps in the matrix (informational): %d' % gaps)
+        # R5 M7 (WP-89): every OTHER (unit, category) gap is a finding too
+        # unless an ARGUED exemption row exists -- a category is tested or
+        # argued not to apply, never silently missing.
+        for c in missing:
+            if c != 'contract' and (u, c) not in exempt:
+                note('cat', 'public unit %s has no %s coverage and no '
+                     'exemption row (M7: tested or argued)' % (u, c))
+    print('   category gaps in the matrix: %d (every one either covered '
+          'or argued in category_exemptions.csv)' % gaps)
 
     # (d0) a tol: comment must never sit INSIDE a ... continuation -- a
     # standalone comment line there is a PARSE ERROR on the runner (WP-43 r2
