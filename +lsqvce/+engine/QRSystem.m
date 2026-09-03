@@ -176,13 +176,27 @@ classdef QRSystem < handle
         %   every formal error -- collapse towards zero, while still producing
         %   a perfectly plausible-looking parameter vector.
             [Rc, fail] = chol(red.N);
-            if fail > 0
+            if fail == 0
+                rhs = Rc.' \ red.n;                       % PD: triangular, exact
+            else
+                % R5 M4 4e (finding H-16, remainder): a SINGLE contribution may
+                % legitimately be rank deficient -- one system need not see
+                % every common parameter; the SUM over systems does. So the
+                % fold must not refuse here, and it must not put a singular
+                % factor through `\` (MATLAB:singularMatrix ahead of an honest
+                % refusal, the noise of H-16). The square root is taken in the
+                % RANGE SPACE of N: r rows of Rc = S_r^1/2 V_r' for the
+                % eigenvalues above rank()'s tolerance, and the reduced
+                % right-hand side rhs = S_r^-1/2 V_r' n exactly (n lies in the
+                % range of N for a consistent contribution). The overall
+                % deficiency, if any remains after the sum, is refused by
+                % solve()'s pivot test.
                 [V, dv] = eig((red.N + red.N.')/2, 'vector');
-                dv = max(real(dv), 0);
-                Rc = diag(sqrt(dv)) * real(V).';
+                dv = real(dv);  V = real(V);
+                keep = dv > max(size(red.N)) * eps(max(dv)) & dv > 0;
+                Rc  = diag(sqrt(dv(keep))) * V(:, keep).';
+                rhs = (V(:, keep).' * red.n) ./ sqrt(dv(keep));
             end
-
-            rhs  = Rc.' \ red.n;
             rho2 = red.ltl - (rhs.'*rhs);
 
             % WP-50: this subtraction is NORMAL arithmetic inside the QR
