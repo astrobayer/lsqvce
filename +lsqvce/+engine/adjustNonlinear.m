@@ -115,7 +115,11 @@ end
         end
         % accepted
         sigX  = sqrt(max(real(diag(sol.Cxx)), 0)) / max(sol.sigma0, realmin);
-        dxRel = max(abs(dx) ./ max(sigX, realmin));
+        if all(isfinite(sigX)) && all(sigX > 0)
+            dxRel = max(abs(dx) ./ sigX);                 % the step in formal-error units
+        else
+            dxRel = max(abs(dx)) / max(max(abs(x)), 1);   % sigma0 NaN-honest: a relative step
+        end
         x = xNew;  sol = solNew;
         lam = max(lam / 10, 1e-12);
         hist(end+1) = struct('pass', it, 'vPv', vPvNew, 'dxRel', dxRel, 'lambda', lam, 'accepted', true); %#ok<AGROW>
@@ -173,10 +177,18 @@ function sol = accumulate(L, days, x, lam, state, opt)
     acc.setPrior(opt.Prior);
     acc.addSystem(L.sysID, L.nl, L.closure, days);
     sol = acc.solve();
+    [~, ~, ltl] = acc.sys.commonBlocks();          % F(x): the whitened l'Pl at x
+    sol.lPl = ltl;
 end
 
 function v = vpvOf(sol)
+%VPVOF  The nonlinear OBJECTIVE F(x) = sum p_i w_i^2 at the linearisation point.
+%   The reduced observations w = l - f(x) ARE the residuals at x, so F(x) is
+%   the accumulated l'Pl of the whitened rows -- a plain sum of squares, never
+%   a cancellation-prone difference. (The accumulator's vtv = l'l - n'x is
+%   NaN-honest on purpose and went NaN at the converged trilateration point,
+%   after which the step control compared NaNs for ever -- R5 M5 5b'.)
     v = NaN;
-    if isfield(sol, 'vtv') && ~isempty(sol.vtv), v = sol.vtv; end
-    if isnan(v) && isfield(sol, 's0sq') && isfield(sol, 'dof'), v = sol.s0sq * sol.dof; end
+    if isfield(sol, 'lPl') && ~isempty(sol.lPl), v = sol.lPl; end
+    if isnan(v) && isfield(sol, 'vtv') && ~isempty(sol.vtv), v = sol.vtv; end
 end

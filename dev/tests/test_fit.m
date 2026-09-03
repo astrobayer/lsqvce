@@ -565,7 +565,7 @@ function testBatchKindLinearReproducesAdjust(tc)
     bf = @(k) deal(A(idx{k}, :), l(idx{k}), p(idx{k}));
     data = struct('batchFcn', bf, 'numUnknowns', size(A, 2), 'numBatches', 2);
     R = lsqvce.fit(data, lsqvce.Options(Verbose=false));
-    xd = (A.'*A) \ (A.'*l);                          % the dense closed form (O1)
+    P = diag(p);  xd = (A.'*P*A) \ (A.'*P*l);        % the dense closed form (O1)
     % tol: 1e-12 relative -- block path (batch k = day k) vs dense normal equations
     tc.verifyEqual(R.x, xd, 'RelTol', 1e-12);
     tc.verifyEqual(R.meta.options.kind, 'batch');
