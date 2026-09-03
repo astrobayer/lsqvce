@@ -26,7 +26,11 @@ Fable 5. Rewritten for v3 and again for v4 (scoped tables) the same day (Claude 
    Helmert / Koch–Kusche rule (Ω_k = ‖(L x − x0)/σ‖², r_k = p − tr(L N⁻¹ L')/σ², σ² ← σ²·Ω_k/r_k;
    the fixed point Ω_k = r_k is "the prior's weighted residual sum equals its redundancy"), so
    λ = s0²/σ_k² is the regularisation the data support; `R.noise.priors` and
-   `R.noise.priorHistory` record it.
+   `R.noise.priorHistory` record it. R5-D8 round 1 adds `from` (the pass at which the group
+   becomes active, default 1; a single-pass run reports `lsqvce:fit:priorNotActive` and skips
+   it) and `group` (a label: priors sharing it are merged into ONE group -- rows divided by
+   their declared sigmas, the group sigma a common factor -- so `estimate="scale"` estimates
+   one component for the members).
 2. **Per-stream policy on the covariance spec** — `covariance.<type>.estimate = "none" |
    "scale" | "law"` (default `"law"` under `Estimate="noise"`) and `.arcFactors` (logical,
    default the Options policy). A law whose `sigma` is a VECTOR (per-row weights) is a fixed

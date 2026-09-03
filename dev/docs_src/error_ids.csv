@@ -147,6 +147,7 @@ lsqvce:fit:noCommon,fit,error,v4.0
 lsqvce:fit:noDays,fit,error,v4.0
 lsqvce:fit:noSystems,fit,error,v4.0
 lsqvce:fit:notYet,fit,error,v4.0
+lsqvce:fit:priorNotActive,fit,warning,v4.0
 lsqvce:fit:uCount,fit,error,v4.0
 lsqvce:fit:unknownField,fit,error,v4.0
 lsqvce:ftest:differentData,engine.ftest,error,v4.0

@@ -125,6 +125,22 @@ end
     s.localParams       = localParams;
     s.processingOptions = po;
     data.systems = s;
+
+    % ---- STEP 6 (R5-D8 round 1): column 11 -> data.priors ------------------
+    % Your constraining factor {'Tikhonov', k, sigma[, label]} on a COMMON row
+    % j becomes the prior L = e_j', x0 = column 10 (the a-priori, [] -> 0),
+    % sigma, active from pass k; a 4th entry is a group LABEL (members share
+    % one estimated variance component with estimate "scale"). In your
+    % 15-column table (token in column 1) these are columns 11 and 12.
+    % Constraints on LOCAL rows (your accelerometer scale factors) are
+    % collected and reported here; they are applied by D8 round 2 (priors on
+    % local parameters) -- until then the report is the honest state.
+    data.priors = priorsFromColumn11(commonData.parameter, opt.DryRun);
+    nLoc = localConstraintsFound(systemsData);
+    if nLoc > 0
+        fprintf(['gravfire_data: %d constrained LOCAL rows found (column 11); priors on local ' ...
+                 'parameters arrive with D8 round 2 -- not applied in this run.\n'], nLoc);
+    end
 end
 
 % ======================================================================
@@ -228,4 +244,46 @@ function T = templateFromExpanded(P, day0)
         if ~isempty(f), P{k, 6} = f(2:end); end               % drop the day
     end
     T = [repmat({'day'}, n, 1), P];
+end
+
+%==========================================================================
+function priors = priorsFromColumn11(P, ~)
+%PRIORSFROMCOLUMN11  Common-row constraints -> data.priors (R5-D8 round 1).
+%   P is the ORIGINAL 14-column table (before the token is prepended):
+%   column 10 = a-priori value ([] -> 0), column 11 = 'none' | [] |
+%   {'Tikhonov', fromPass, sigma[, label]}.
+    priors = struct('L', {}, 'x0', {}, 'sigma', {}, 'name', {}, 'estimate', {}, 'from', {}, 'group', {});
+    nc = size(P, 1);
+    for j = 1:nc
+        c = P{j, 11};
+        if isempty(c) || (ischar(c) && strcmpi(c, 'none')), continue, end
+        if ~iscell(c) || numel(c) < 3 || ~ischar(c{1})
+            error('gravfire:badConstraint', 'row %d: column 11 must be ''none'' or {''Tikhonov'', fromPass, sigma[, label]}.', j);
+        end
+        if ~strcmpi(c{1}, 'Tikhonov')
+            error('gravfire:badConstraint', 'row %d: unknown constraint kind ''%s'' (only Tikhonov is mapped).', j, c{1});
+        end
+        L = zeros(1, nc);  L(j) = 1;
+        x0 = 0;
+        if ~isempty(P{j, 10}), x0 = double(P{j, 10}); end
+        lab = '';  est = 'none';
+        if numel(c) >= 4 && ~isempty(c{4}), lab = char(string(c{4}));  est = 'scale'; end
+        name = sprintf('%s_%d_%d', char(string(P{j, 1})), double(P{j, 2}), double(P{j, 3}));
+        priors(end+1) = struct('L', L, 'x0', x0, 'sigma', double(c{3}), 'name', name, ...
+                               'estimate', est, 'from', double(c{2}), 'group', lab); %#ok<AGROW>
+    end
+    if isempty(priors), priors = []; end
+end
+
+%==========================================================================
+function n = localConstraintsFound(systemsData)
+%LOCALCONSTRAINTSFOUND  Count the constrained rows of the local tables.
+    n = 0;
+    for k = 1:numel(systemsData)
+        T = systemsData{k}.parameter;
+        for j = 1:size(T, 1)
+            c = T{j, 11};
+            if ~(isempty(c) || (ischar(c) && strcmpi(c, 'none'))), n = n + 1; end
+        end
+    end
 end

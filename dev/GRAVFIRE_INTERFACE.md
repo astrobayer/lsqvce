@@ -50,12 +50,25 @@ a-priori sigma 1e-9 in column 13). Prepend one column with the word `'common'`:
 data.commonParams = [repmat({'common'}, 117, 1), commonData.parameter];   % 117 x 15
 ```
 
-(Column 13 of your table is the column scale, column 11 the regularisation — see Part C.)
+(In the 15-column table -- token in column 1 -- your column 13 (the column scale) is column 14 and your column 11 (regularisation) is column 12; see Part C and STEP 6.)
 
 `'common'` means "one column of A for the whole adjustment". Columns 2…15 are
 yours; `fit` never reads them, it hands the table to `buildDay` as its third
 argument. **In GRAVFIRE:** emit the 15-column table directly; keep column 13 (the
-column scale) and column 11 (regularisation) in it — Part C says what happens to them.
+column scale) and column 11 (regularisation) in it -- STEP 6 and Part C say what happens to them.
+
+### STEP 6 — column 11 (the constraining factor) becomes `data.priors` (R5-D8 round 1)
+
+`{'Tikhonov', k, sigma}` on row j means: constrain parameter j to its a-priori value
+(column 10; `[]` = 0) with standard deviation `sigma`, from pass `k` on. The template
+translates every such COMMON row into `data.priors(i) = struct('L', e_j', 'x0', ..,
+'sigma', sigma, 'from', k, 'name', ..)`. An optional 4th entry `{'Tikhonov', k, sigma,
+'label'}` is a GROUP label: all rows with the same label share ONE variance component
+estimated by VCE (`estimate="scale"`, Koch-Kusche; a single parameter cannot estimate its
+own sigma -- its redundancy is at most 1 -- a labelled group can). `'none'` or `[]` = no
+prior. In your bundle every common row is `[]` and the constraints sit on LOCAL rows
+(`*accscale`): those are D8 round 2 (priors on local parameters); until then the template
+counts and reports them.
 
 ### STEP 2 — the calendar
 

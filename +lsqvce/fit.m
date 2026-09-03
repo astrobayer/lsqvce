@@ -203,6 +203,8 @@ end
 %                                  (R5 M2: the block path takes diagonal weights;
 %                                  a full P is a covariance law of the streaming
 %                                  kind) -- raised by lsqvce.engine.batchSystem
+%       lsqvce:fit:priorNotActive  (warning, R5-D8) a prior with from > 1 in a
+%                                  single-pass run is not applied
 %       lsqvce:fit:badPrior        (R5 M5 5b) data.priors is malformed (unknown
 %                                  field, L not p x nc, sigma not a positive scalar,
 %                                  x0 of the wrong length)
@@ -285,6 +287,12 @@ end
     systems = buildSystems(spec, opts.CacheDays);   % R5 M4 4d: resident days
     days = spec.days;
     [pri, priorGroups] = priorsOf(data, lsqvce.engine.resolveNc(systems));   % R5 M5 5b: data.priors
+    if strcmp(opts.Estimate, "none") && ~isempty(priorGroups) && any([priorGroups.from] > 1)
+        lsqvce.util.log.warnOnce('lsqvce:fit:priorNotActive', ...
+            ['%d prior group(s) declare from > 1 and a single solve (Estimate="none") has one pass: ' ...
+             'they are not applied. Use Estimate="noise" for a pass schedule.'], sum([priorGroups.from] > 1));
+        pri = stackPriors(priorGroups, 1);
+    end
 
     % R5 M2 2b: robust IRLS is a POLICY on the block path -- on the streaming
     % kind it is Model "gls" with reweighting (H-02: the same accumulator);
@@ -621,7 +629,13 @@ function R = runBatch(u, batchFcn, nBatch, x0, opts, kind, data)
             ['Estimate = "noise" needs the streaming kind (variance components are ' ...
              'per stream of a system); the %s kind is Estimate "none".'], kind);
     end
-    pri = priorsOf(data, u);
+    [pri, priorGroups] = priorsOf(data, u);
+    if ~isempty(priorGroups) && any([priorGroups.from] > 1)
+        lsqvce.util.log.warnOnce('lsqvce:fit:priorNotActive', ...
+            ['%d prior group(s) declare from > 1 and this kind runs one pass (or Gauss-Newton ' ...
+             'passes of one linearisation): they are not applied.'], sum([priorGroups.from] > 1));
+        pri = stackPriors(priorGroups, 1);
+    end
     if isempty(x0)
         R = runBatchOnBlockPath(u, batchFcn, nBatch, opts, kind, pri, data);
         return
@@ -741,17 +755,25 @@ function [pri, groups] = priorsOf(data, nc)
 %   the solution is the exact minimum-constraint one, whatever the weight
 %   (the two subspaces are orthogonal) -- which is why the flat drivers'
 %   DatumB has no successor knob, only this declaration.
+%   R5-D8 round 1: .from (pass at which the group becomes active, default 1;
+%   under Estimate="none" a from > 1 is reported and the group skipped) and
+%   .group (a LABEL: every prior carrying the same label is MERGED into one
+%   group -- its rows stacked, each divided by its own declared sigma -- whose
+%   sigma is then a common FACTOR starting at 1; with estimate="scale" the
+%   members share ONE estimated variance component, which is what a single
+%   parameter cannot do alone: r_k <= 1).
 %   OUTPUT  pri     [] | CommonPrior     the stacked prior
-%           groups  1xG struct (.L .x0 .sigma .name .estimate)  the groups
-    pri = [];  groups = struct('L', {}, 'x0', {}, 'sigma', {}, 'name', {}, 'estimate', {});
+%           groups  1xG struct (.L .x0 .sigma .name .estimate .from .members)
+    pri = [];  groups = struct('L', {}, 'x0', {}, 'sigma', {}, 'name', {}, 'estimate', {}, 'from', {}, 'members', {});
     if ~isfield(data, 'priors') || isempty(data.priors), return, end
     P = data.priors;
     if ~isstruct(P)
-        error('lsqvce:fit:badPrior', 'data.priors must be a struct array (fields L, x0, sigma, name, estimate).');
+        error('lsqvce:fit:badPrior', 'data.priors must be a struct array (fields L, x0, sigma, name, estimate, from, group).');
     end
+    labels = {};
     for k = 1:numel(P)
         f = fieldnames(P(k));
-        bad = setdiff(f, {'L', 'x0', 'sigma', 'name', 'estimate'});
+        bad = setdiff(f, {'L', 'x0', 'sigma', 'name', 'estimate', 'from', 'group'});
         if ~isempty(bad)
             error('lsqvce:fit:badPrior', 'data.priors(%d) has an unknown field ''%s''.', k, bad{1});
         end
@@ -781,16 +803,49 @@ function [pri, groups] = priorsOf(data, nc)
         end
         nm = sprintf('prior%d', k);
         if isfield(P(k), 'name') && ~isempty(P(k).name), nm = char(string(P(k).name)); end
-        groups(end+1) = struct('L', L, 'x0', x0, 'sigma', s, 'name', nm, 'estimate', e); %#ok<AGROW>
+        fr = 1;
+        if isfield(P(k), 'from') && ~isempty(P(k).from)
+            fr = double(P(k).from);
+            if ~isscalar(fr) || ~isfinite(fr) || fr < 1 || fr ~= round(fr)
+                error('lsqvce:fit:badPrior', 'data.priors(%d).from must be a pass number >= 1.', k);
+            end
+        end
+        lab = '';
+        if isfield(P(k), 'group') && ~isempty(P(k).group), lab = char(string(P(k).group)); end
+        if isempty(lab)
+            groups(end+1) = struct('L', L, 'x0', x0, 'sigma', s, 'name', nm, 'estimate', e, ...
+                                   'from', fr, 'members', k); %#ok<AGROW>
+        else
+            j = find(strcmp(labels, lab), 1);
+            if isempty(j)
+                labels{end+1} = lab; %#ok<AGROW>
+                groups(end+1) = struct('L', L / s, 'x0', x0 / s, 'sigma', 1, 'name', lab, ...
+                                       'estimate', e, 'from', fr, 'members', k); %#ok<AGROW>
+            else
+                g = groups(j);
+                if ~strcmp(g.estimate, e)
+                    error('lsqvce:fit:badPrior', ...
+                          'data.priors: group "%s" mixes estimate "%s" and "%s" -- one policy per label.', lab, g.estimate, e);
+                end
+                groups(j).L  = [g.L; L / s];
+                groups(j).x0 = [g.x0; x0 / s];
+                groups(j).from = min(g.from, fr);
+                groups(j).members = [g.members, k];
+            end
+        end
     end
     pri = stackPriors(groups);
 end
 
-function pri = stackPriors(groups)
-%STACKPRIORS  The groups with their CURRENT sigmas as one CommonPrior (sigma 1).
+function pri = stackPriors(groups, pass)
+%STACKPRIORS  The groups ACTIVE at this pass (from <= pass; default: all)
+%   with their CURRENT sigmas as one CommonPrior (sigma 1).
+    if nargin < 2, pass = Inf; end
     if isempty(groups), pri = [];  return, end
-    Ks = arrayfun(@(g) g.L / g.sigma, groups, 'UniformOutput', false);
-    xs = arrayfun(@(g) g.x0 / g.sigma, groups, 'UniformOutput', false);
+    act = groups([groups.from] <= pass);
+    if isempty(act), pri = [];  return, end
+    Ks = arrayfun(@(g) g.L / g.sigma, act, 'UniformOutput', false);
+    xs = arrayfun(@(g) g.x0 / g.sigma, act, 'UniformOutput', false);
     pri = lsqvce.engine.CommonPrior(vertcat(Ks{:}), vertcat(xs{:}), 1);
 end
 
@@ -961,11 +1016,14 @@ function pri = priorFor(priState, model)
 %   previous pass's solution when they carry estimate "scale" (R5 M7 7b).
     groups = priState('groups');
     if isempty(groups), pri = [];  return, end
+    pass = 1;
+    if isfield(model, 'iter'), pass = model.iter; end
     if isfield(model, 'lastSol') && ~isempty(model.lastSol) && any(strcmp({groups.estimate}, 'scale'))
-        [groups, rec] = priorUpdate(groups, model.lastSol);
+        active = [groups.from] < pass;                 % only groups that were IN the last solve
+        [groups(active), rec] = priorUpdate(groups(active), model.lastSol);
         priState('groups') = groups;
         recs = priState('rec');  recs{end+1} = rec;  priState('rec') = recs;
-        priState('pri') = stackPriors(groups);
     end
-    pri = priState('pri');
+    pri = stackPriors(groups, pass);                   % R5-D8: activation by pass (from)
+    priState('pri') = pri;
 end
