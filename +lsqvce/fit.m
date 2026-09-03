@@ -377,7 +377,7 @@ function spec = validateData(data)
     % ---- systems
     sysRequired = {'buildDay', 'covariance'};
     sysAllowed  = [sysRequired, {'localParams', 'arcs', 'days', ...
-                   'id', 'name', 'processingOptions', 'epochCovariance'}];
+                   'id', 'name', 'processingOptions', 'epochCovariance', 'localPriors'}];   % localPriors: R5-D8 round 2
     rejectUnknown(fieldnames(sys), sysAllowed, 'data.systems');
     ids = cell(1, numel(sys));
     for k = 1:numel(sys)
@@ -523,7 +523,8 @@ function systems = buildSystems(spec, cacheDays)
            'localParams', 'LocalParams'; ...
            'days', 'Days'; 'name', 'Name'; ...
            'processingOptions', 'ProcessingOptions'; ...
-           'epochCovariance', 'EpochCovariance'};
+           'epochCovariance', 'EpochCovariance'; ...
+           'localPriors', 'LocalPriors'};                 % R5-D8 round 2
     systems = cell(1, numel(sys));
     for k = 1:numel(sys)
         s  = sys(k);
@@ -674,8 +675,8 @@ function R = fitEllmer(systems, days, opts, pri, opc, priorGroups)
     priState = containers.Map('KeyType', 'char', 'ValueType', 'any');
     priState('groups') = priorGroups;  priState('pri') = pri;  priState('rec') = {};
     accFcn = @(model) jointAccumulator(nc, specs, opts, ...
-                 lsqvce.engine.jointModelOpt(model, streams, 'PsdMode', psdMode, ...
-                                             'Separable', sepStreams), priorFor(priState, model));
+                 withPass(lsqvce.engine.jointModelOpt(model, streams, 'PsdMode', psdMode, ...
+                                             'Separable', sepStreams), model), priorFor(priState, model));
     nvj = a.nv;
     out = lsqvce.engine.adjustVCEjoint(accFcn, nvj{:}, 'Estimate', estMap, 'ArcFactors', afMap, ...
                                        'OnPassContext', opc);
@@ -923,6 +924,10 @@ function [estMap, afMap] = streamPolicy(systems, specs, streams, afDefault)
     afMap  = containers.Map('KeyType', 'char', 'ValueType', 'any');
     for k = 1:numel(streams)
         afMap(char(string(streams{k}))) = logical(afDefault);
+        if endsWith(char(string(streams{k})), '|prior')     % R5-D8 round 2: pseudo-observations
+            estMap(char(string(streams{k}))) = 'none';       % keep their declared unit law
+            afMap(char(string(streams{k}))) = false;
+        end
     end
     for k = 1:numel(systems)
         L = systems{k};
@@ -1026,4 +1031,11 @@ function pri = priorFor(priState, model)
     end
     pri = stackPriors(groups, pass);                   % R5-D8: activation by pass (from)
     priState('pri') = pri;
+end
+
+function uo = withPass(uo, model)
+%WITHPASS  The pass number rides on the loader's UserOpt (R5-D8 round 2: the
+%   local priors' 'from' is honoured by lsqvce.engine.makeLoader>priorArc).
+    uo.pass = 1;
+    if isfield(model, 'iter'), uo.pass = model.iter; end
 end

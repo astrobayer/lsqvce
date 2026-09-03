@@ -794,3 +794,31 @@ function e = synthE(rs, cm, M)
             e = e(nBurn+1:end);
     end
 end
+
+function testLocalPriorsArePseudoObservationsOfTheSystem(tc)
+% categories: contract, precision
+    % R5-D8 round 2: a prior on a local template row rides as the observation
+    % type 'prior' of its system. The fixture's locals are 'system'-scoped, so
+    % the prior is instantiated ONCE (n grows by 1). A tight prior pins the
+    % local to x0; a loose one leaves the solution alone; a bad row is refused.
+    [data, ~] = declaration();
+    R0 = lsqvce.fit(data, Verbose=false);
+    y0 = R0.residuals('Verbose', false).sys(1).y;
+    j = 2;  target = 0.123;
+    data.systems(1).localPriors = struct('row', j, 'x0', target, 'sigma', 1e-6, 'name', 'pin');
+    R1 = lsqvce.fit(data, Verbose=false);
+    y1 = R1.residuals('Verbose', false).sys(1).y;
+    % tol: 1e-5 absolute -- the prior's sigma (1e-6) against the data's O(1)
+    % leverage on that parameter; the pin holds to a few sigma
+    tc.verifyEqual(y1(j), target, 'AbsTol', 1e-5, 'the pinned local equals x0');
+    tc.verifyEqual(R1.diag.n - R0.diag.n, 1, 'one pseudo-observation for a system-scoped row');
+    tc.verifyNotEqual(y1(j), y0(j));
+    % loose prior: essentially the unconstrained solution
+    data.systems(1).localPriors.sigma = 1e6;
+    R2 = lsqvce.fit(data, Verbose=false);
+    % tol: 1e-8 relative -- a 1e6-sigma prior on O(1) parameters perturbs at 1e-12
+    tc.verifyEqual(R2.x, R0.x, 'RelTol', 1e-8);
+    % malformed row: refused by name (the loader's id, re-homed by fit)
+    data.systems(1).localPriors = struct('row', 999, 'x0', 0, 'sigma', 1);
+    tc.verifyEqual(idOf(@() lsqvce.fit(data, Verbose=false)), 'lsqvce:fit:badLocalPrior');
+end
