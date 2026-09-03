@@ -188,3 +188,35 @@ function D = countBuild(cnt, inner, varargin)
     if n < 0, n = numel(varargin); end
     D = inner(varargin{1:min(n, numel(varargin))});
 end
+
+%% ------------------------------------------------------------- plot (M5 5c)
+function testPlotReturnsFiguresForEveryKind(tc)
+% categories: contract | tags: diagnostics
+    % R5 M5 5c: R.plot(kind) replaces the retired plot hooks -- one figure per
+    % question, nothing exported by the toolbox. Headless-safe (Visible=false).
+    R = tc.TestData.Rv;
+    fhs = gobjects(0);
+    for kind = ["residuals", "contribution", "psd", "convergence"]
+        fh = R.plot(kind, Visible=false);
+        tc.verifyClass(fh, 'matlab.ui.Figure', sprintf('%s returns a figure', kind));
+        tc.verifyFalse(isempty(findall(fh, 'Type', 'axes')), sprintf('%s draws axes', kind));
+        fhs(end+1) = fh; %#ok<AGROW>
+    end
+    close(fhs);
+    fh = R.plot("residuals", Stream=R.history.streams{1}, Visible=false);
+    tc.verifyEqual(numel(findall(fh, 'Type', 'axes')), 1, 'Stream= selects one panel');
+    close(fh);
+    tc.verifyError(@() R.plot("hooks", Visible=false), 'lsqvce:Results:badPlotKind');
+    tc.verifyError(@() R.plot("residuals", Stream="x9|nothing", Visible=false), 'lsqvce:Results:badPlotKind');
+end
+
+function testPlotRefusesWhatTheResultsLacks(tc)
+% categories: contract, robustness | tags: diagnostics
+    rs = RandStream('mt19937ar', 'Seed', 2);
+    A = randn(rs, 20, 2);  l = A*[1; 2] + 0.01*randn(rs, 20, 1);
+    R = lsqvce.fit(struct('A', A, 'l', l), lsqvce.Options(Verbose=false));
+    tc.verifyError(@() R.plot("psd", Visible=false), 'lsqvce:Results:noHistory');
+    tc.verifyError(@() R.plot("convergence", Visible=false), 'lsqvce:Results:noHistory');
+    fh = R.plot("residuals", Visible=false);            % a single solve has residuals
+    tc.verifyClass(fh, 'matlab.ui.Figure');  close(fh);
+end

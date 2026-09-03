@@ -175,6 +175,96 @@ classdef Results < handle
             end
         end
 
+        function fh = plot(obj, kind, opt)
+        %PLOT  One figure per question, from the Results alone (R5 M5 5c).
+        %   fh = R.plot("residuals")     whitened residual per stream vs time
+        %   fh = R.plot("contribution")  information share per stream
+        %   fh = R.plot("psd")           the estimated spectral shape(s), and the
+        %                                per-stream level (Estimate "noise" only)
+        %   fh = R.plot("convergence")   the pass record (max|alpha2-1|, whiteness)
+        %   fh = R.plot(kind, Stream=key, Visible=false)
+        %   Replaces the v4 plot hooks (plotPostSolve / plotPostModel,
+        %   ShowSeconds / ExportDir): nothing is exported by the toolbox --
+        %   the figure handle is returned; saveas / exportgraphics are yours.
+        %
+        %   INPUT   kind 1x1 string as above;  Stream '' | 'satKey|obsType'
+        %           (residuals only);  Visible logical (default true)
+        %   OUTPUT  fh 1x1 matlab.ui.Figure
+        %   ERRORS  lsqvce:Results:badPlotKind   an unknown kind
+        %           lsqvce:Results:noHistory     "psd"/"convergence" on a single solve
+        %           lsqvce:Results:noAccumulator "residuals"/"contribution" on a Results
+        %                                        without an accumulator
+        arguments
+            obj
+            kind (1,1) string
+            opt.Stream (1,1) string = ""
+            opt.Visible (1,1) logical = true
+        end
+            switch lower(char(kind))
+                case 'residuals'
+                    res = obj.residuals('Verbose', false);
+                    fh = figure('Visible', opt.Visible, 'Name', 'lsqvce: whitened residuals');
+                    n = 0;  panels = {};
+                    for k = 1:numel(res.sys)
+                        S = res.sys(k);
+                        for j = 1:numel(S.obs)
+                            key = sprintf('%s|%s', matlab.lang.makeValidName(char(string(S.sysID))), S.obs(j).obsType);
+                            if strlength(opt.Stream) > 0 && ~strcmp(key, char(opt.Stream)), continue, end
+                            panels{end+1} = struct('key', key, 't', S.obs(j).t(:), 'w', S.obs(j).w(:)); %#ok<AGROW>
+                        end
+                    end
+                    streamKeys = unique(cellfun(@(p) p.key, panels, 'UniformOutput', false), 'stable');
+                    for k = 1:numel(streamKeys)
+                        ax = subplot(numel(streamKeys), 1, k, 'Parent', fh);
+                        sel = panels(strcmp(cellfun(@(p) p.key, panels, 'UniformOutput', false), streamKeys{k}));
+                        hold(ax, 'on');
+                        for j = 1:numel(sel), plot(ax, sel{j}.t, sel{j}.w, '.', 'MarkerSize', 3); end
+                        hold(ax, 'off');  grid(ax, 'on');
+                        ylabel(ax, 'w (whitened)');  title(ax, streamKeys{k}, 'Interpreter', 'none');
+                        n = n + 1;
+                    end
+                    if n == 0, error('lsqvce:Results:badPlotKind', 'No stream matches Stream="%s".', opt.Stream); end
+                    xlabel(ax, 't');
+                case 'contribution'
+                    con = obj.contribution();
+                    fh = figure('Visible', opt.Visible, 'Name', 'lsqvce: contribution');
+                    names = arrayfun(@(g) char(string(g.key)), con.group, 'UniformOutput', false);
+                    ax = axes('Parent', fh);
+                    bar(ax, [con.group.share]);
+                    set(ax, 'XTick', 1:numel(names), 'XTickLabel', names, 'TickLabelInterpreter', 'none');
+                    ylabel(ax, 'information share');  ylim(ax, [0 1]);  grid(ax, 'on');
+                    title(ax, 'share of the common parameters per stream');
+                case 'psd'
+                    h = obj.requireHistory('plot("psd")');
+                    fh = figure('Visible', opt.Visible, 'Name', 'lsqvce: estimated spectra');
+                    ax = axes('Parent', fh);
+                    if isfield(obj.noise, 'Cgroups') && ~isempty(obj.noise.Cgroups) && obj.noise.Cgroups.Count > 0
+                        ks = obj.noise.Cgroups.keys;
+                        hold(ax, 'on');
+                        for k = 1:numel(ks)
+                            C = obj.noise.Cgroups(ks{k});  L = numel(C);
+                            fN = (0:L-1).' / (2*(L-1));
+                            S = 2 * (C(1) + 2 * (cos(2*pi*fN*(1:L-1)) * C(2:end)));
+                            semilogy(ax, fN, max(S, eps*max(S)), 'DisplayName', ks{k});
+                        end
+                        hold(ax, 'off');  legend(ax, 'Interpreter', 'none');
+                    elseif isfield(h, 'Shat') && ~isempty(h.Shat)
+                        semilogy(ax, linspace(0, 0.5, size(h.Shat, 2)), max(h.Shat(end, :), realmin));
+                    else
+                        error('lsqvce:Results:noHistory', 'No estimated spectrum on this Results.');
+                    end
+                    xlabel(ax, 'normalised frequency (cycles / sample)');  ylabel(ax, 'S (shape)');
+                    grid(ax, 'on');  title(ax, 'estimated spectral shape per pool group');
+                case 'convergence'
+                    h = obj.requireHistory('plot("convergence")');
+                    fh = lsqvce.Results.plotConvergence(h, char(opt.Stream));
+                    set(fh, 'Visible', opt.Visible);
+                otherwise
+                    error('lsqvce:Results:badPlotKind', ...
+                          'plot kind must be "residuals", "contribution", "psd" or "convergence" (got "%s").', kind);
+            end
+        end
+
         function res = residuals(obj, varargin)
         %RESIDUALS  Collected residuals from the accumulator (acc.residuals).
             obj.requireAccumulator('residuals');

@@ -298,8 +298,6 @@ arguments
     opt.CommonParams cell = {}
     opt.LocalParams cell = {}
     opt.ProcessingOptions (1,1) struct = struct()
-    opt.PlotPostSolve = []
-    opt.PlotPostModel = []
     opt.Scoped (1,1) logical = false
     opt.CommonPlan = []
 end
@@ -311,7 +309,7 @@ end
     % WP-39 stage (c) c1: typed `arguments` signature (canonical
     % UpperCamelCase; legacy casings keep matching -- MATLAB NV
     % semantics; enum VALUES case-sensitive lowercase).
-    o = struct('observationTypes', {opt.ObservationTypes}, 'covariance', opt.Covariance, 'arcs', opt.Arcs, 'localsPerArc', opt.LocalsPerArc, 'systemId', opt.SystemId, 'numLocal', opt.NumLocal, 'numCommon', opt.NumCommon, 'days', opt.Days, 'name', char(opt.Name), 'cache', opt.Cache, 'cacheDays', opt.CacheDays, 'epochCovariance', opt.EpochCovariance, 'commonParams', {opt.CommonParams}, 'localParams', {opt.LocalParams}, 'processingOptions', opt.ProcessingOptions, 'plotPostSolve', opt.PlotPostSolve, 'plotPostModel', opt.PlotPostModel, 'scoped', opt.Scoped, 'commonPlan', opt.CommonPlan);
+    o = struct('observationTypes', {opt.ObservationTypes}, 'covariance', opt.Covariance, 'arcs', opt.Arcs, 'localsPerArc', opt.LocalsPerArc, 'systemId', opt.SystemId, 'numLocal', opt.NumLocal, 'numCommon', opt.NumCommon, 'days', opt.Days, 'name', char(opt.Name), 'cache', opt.Cache, 'cacheDays', opt.CacheDays, 'epochCovariance', opt.EpochCovariance, 'commonParams', {opt.CommonParams}, 'localParams', {opt.LocalParams}, 'processingOptions', opt.ProcessingOptions, 'scoped', opt.Scoped, 'commonPlan', opt.CommonPlan);
 
     % ---- map long option names onto the short internal fields -------------
     % Canonical long names only. The resolved value is written onto the SHORT
@@ -439,8 +437,6 @@ end
     L.nc       = ncFinal;
     % Plot hooks normalised to a containers.Map obsType -> handle (a single
     % handle is broadcast to every obsType of this loader). Empty -> empty Map.
-    L.plotPostSolve = normalisePlotSpec(o.plotPostSolve, obsTypes);
-    L.plotPostModel = normalisePlotSpec(o.plotPostModel, obsTypes);
     if ~isempty(o.days), L.days = o.days; end
 
     % WP-52: L.meta() answers for a DAY. Called without one it uses the first
@@ -464,33 +460,6 @@ function tf = isPlotSpec(v)
 %   obsTypes), or a containers.Map / struct keyed obsType -> handle.
     tf = isempty(v) || isa(v, 'function_handle') || ...
          isa(v, 'containers.Map') || isstruct(v);
-end
-
-function M = normalisePlotSpec(spec, obsTypes)
-%NORMALISEPLOTSPEC  Turn a plot-hook spec into a containers.Map obsType->handle.
-%   Empty -> empty Map. A single handle -> that handle for every obsType. A Map
-%   or struct -> validated pass-through (a handle value is required).
-    M = containers.Map('KeyType','char', 'ValueType','any');
-    if isempty(spec), return, end
-    if isa(spec, 'function_handle')
-        for k = 1:numel(obsTypes), M(obsTypes{k}) = spec; end
-        return
-    end
-    if isa(spec, 'containers.Map')
-        ks = spec.keys;
-        for i = 1:numel(ks)
-            requireHandle(spec(ks{i}), ks{i});
-            M(char(ks{i})) = spec(ks{i});
-        end
-        return
-    end
-    if isstruct(spec)
-        f = fieldnames(spec);
-        for i = 1:numel(f)
-            requireHandle(spec.(f{i}), f{i});
-            M(f{i}) = spec.(f{i});
-        end
-    end
 end
 
 function requireHandle(v, key)

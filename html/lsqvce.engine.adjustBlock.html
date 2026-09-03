@@ -92,6 +92,14 @@ and disagree, which is exactly the bug this removes.
     &#x27;RegLambda&#x27;  double 1x1 &gt;= 0  regularisation weight     (default 0)
     &#x27;RegMatrix&#x27;  double p x nc    regularisation matrix     (default [])
     &#x27;Parallel&#x27;   string 1x1  &quot;serial&quot;|&quot;parfor&quot;|&quot;spmd&quot;       (default &quot;serial&quot;)
+    &#x27;DistributeDays&#x27; logical 1x1  parallelise over the DAYS of each
+                             system (LSQVCE.ENGINE.BLOCKACCUMULATOR &#x27;DistributeDays&#x27;:
+                             one raw partial per day, merged in day order;
+                             the axis that scales for a 2-satellite mission).
+                             Needs Parallel ~= &quot;serial&quot; and at least
+                             ParallelThreshold days.       (default false)
+    &#x27;ParallelThreshold&#x27; double 1x1  tasks below which no pool is used
+                                                           (default 8)
     &#x27;Verbose&#x27;    logical 1x1  accumulator chatter           (default false)
     &#x27;ShowSeconds&#x27; double 1x1  seconds to display each plot-hook figure
                          (default 0 = export only; &lt; 0 = show and
@@ -99,19 +107,8 @@ and disagree, which is exactly the bug this removes.
                          Engine-side knob, mirrors LSQVCE.ENGINE.ADJUSTVCE.
     &#x27;ExportDir&#x27;  string 1x1  folder for plot-hook PNGs (&quot;&quot; = do not export).
 
-PLOT HOOKS (single-solve, postSolve only)
-  If a loader was built with LSQVCE.ENGINE.MAKELOADER&#x27;s &#x27;plotPostSolve&#x27;, adjustBlock
-  fires that hook once per (system,obsType) stream AFTER the solve, exactly
-  as the LSQVCE.ENGINE.ADJUSTVCE postSolve seam does, keyed &#x27;satKey|obsType&#x27;. The
-  hook receives ONE ctx struct (.stage=&#x27;postSolve&#x27;, .stream, .satKey,
-  .obsType, .sysID, .pass=1, .R (the Results), .x, .exportDir, .showSeconds)
-  and returns a figure; the engine owns the timed show + PNG export via
-  LSQVCE.UTIL.SHOWEXPORT. A throwing or figure-less hook is logged
-  (&#x27;lsqvce:adjustBlock:plotHookFailed&#x27;) and skipped -- plots NEVER break the
-  solve. There is NO &#x27;plotPostModel&#x27; seam here: adjustBlock does ONE GLS solve
-  with the loaders&#x27; covariance and estimates no stochastic model, so
-  postModel has nothing to fire on; use LSQVCE.ENGINE.ADJUSTVCE for that.
-  Raw 4-arg closures (not Loader objects) carry no hooks and are skipped.</pre>
+PLOTTING (R5 M5 5c): the post-solve plot hooks of v4 are retired; plot
+  from the returned Results -- R.plot(&quot;residuals&quot; | &quot;contribution&quot; | ...).</pre>
 <h3>Output</h3>
 <pre class="example">R        1x1   lsqvce.Results   Solution + diagnostics + accumulator.
                          R.x, R.sigma0, R.report(), R.redundancy, R.acc, ...
@@ -133,10 +130,18 @@ xhat = R.x;          % common-parameter estimate</pre>
   lsqvce:adjustBlock:noDays      no day list, and none derivable from the
                                  loaders (set &#x27;days&#x27; on either)
 
+&#x27;Provenance&#x27;  struct  (R5 M2) the resolved user option struct recorded in
+              Results.meta.options (fit passes opts.toStruct() + .kind);
+              struct() = record the driver&#x27;s own resolved options
+
 See also LSQVCE.RESULTS, LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTVCE,
          LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.DIAGNOSEACCUM, LSQVCE.ENGINE.DIAGNOSE,
-         LSQVCE.REPORT, LSQVCE.UTIL.SHOWEXPORT
+         LSQVCE.REPORT, LSQVCE.RESULTS
 
+Updated 2026-08-31 (CEST, UTC+02:00), R4 WP-62 (Level L4): &#x27;DistributeDays&#x27;
+and &#x27;ParallelThreshold&#x27; exposed (pass-through to the accumulator; the
+engine&#x27;s own defaults). With assistance from Claude (Anthropic), model
+Claude Fable 5.
 Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (a) (F-07): typed
 `arguments` signature; option names are UpperCamelCase (Backend, Reg,
 RegLambda, RegMatrix, Parallel, Verbose, ShowSeconds, ExportDir) with
@@ -152,7 +157,10 @@ Updated 2026-07-17 (CEST, UTC+02:00): added the postSolve plot-hook seam
 Renamed 2026-07-17 from RECOVER -&gt; ADJUSTBLOCK (block-arrow adjustment;
 pairs with LSQVCE.ENGINE.ADJUST and LSQVCE.ENGINE.ADJUSTVCE). The old name was REMOVED on
 2026-07-18 along with every other alias (pre-release; one name per thing).
-Claude (Anthropic), model Claude Opus 4.8.</pre>
+Claude (Anthropic), model Claude Opus 4.8.
+Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
+WP-64a): the ENGINE tier leaves the USER surface; every qualified
+reference was rewritten mechanically by docs_src/refactor_tiers.py.</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
 <div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

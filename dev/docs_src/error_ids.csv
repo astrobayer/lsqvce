@@ -7,6 +7,7 @@ lsqvce:Options:badGrid,Options,error,v4.0
 lsqvce:Options:badGroupField,Options,error,v4.0
 lsqvce:Options:badTarget,Options,error,v4.0
 lsqvce:Options:badVerbose,Options,error,v4.0
+lsqvce:Results:badPlotKind,Results,error,v4.0
 lsqvce:Results:noAccumulator,Results,error,v4.0
 lsqvce:Results:noCovariance,Results,error,v4.0
 lsqvce:Results:noHistory,Results,error,v4.0
@@ -42,7 +43,6 @@ lsqvce:adjustBlock:badLoader,engine.private.normalizeSystems,error,v4.0
 lsqvce:adjustBlock:badStruct,engine.private.normalizeSystems,error,v4.0
 lsqvce:adjustBlock:badSystems,engine.private.normalizeSystems,error,v4.0
 lsqvce:adjustBlock:noDays,engine.private.normalizeSystems,error,v4.0
-lsqvce:adjustBlock:plotHookFailed,engine.adjustBlock,warning,v4.0
 lsqvce:adjustNonlinear:badX0,engine.adjustNonlinear,error,v4.0
 lsqvce:adjustNonlinear:diverged,engine.adjustNonlinear,warning,v4.0
 lsqvce:adjustNonlinear:maxIter,engine.adjustNonlinear,warning,v4.0
@@ -246,7 +246,6 @@ lsqvce:separable:sigmaLength,kernel.separableWhiten,error,v4.0
 lsqvce:separable:startupNotPD,kernel.separableWhiten,warning,v4.0
 lsqvce:sharedProbe:badProbes,engine.sharedProbe,error,v4.0
 lsqvce:sharedProbe:notSquare,engine.sharedProbe,error,v4.0
-lsqvce:showExport:exportFailed,util.showExport,warning,v4.0
 lsqvce:snoop:badBatch,engine.snoop,error,v4.0
 lsqvce:snoop:badIndex,engine.snoop,error,v4.0
 lsqvce:snoop:breakdown,engine.snoop,error,v4.0
