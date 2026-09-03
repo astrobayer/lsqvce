@@ -177,7 +177,7 @@ rebalance mis-weighted groups.</p>
 
 <h2 id="p4">Part IV &mdash; Gravity recovery: the block-arrow path</h2>
 <p>The modern one-call front door is <a href="lsqvce.engine.adjustBlock.html">lsqvce.engine.adjustBlock</a>
-(single GLS solve) and <a href="lsqvce.engine.adjustVCE.html">lsqvce.engine.adjustVCE</a> (the
+(single GLS solve) and <code>lsqvce.engine.adjustVCE</code> (retired R5 M4: Model "vce" is a policy of the joint estimator) (the
 iterative SHAPE+SCALE loop). Build loaders with
 <a href="lsqvce.engine.makeLoader.html">lsqvce.engine.makeLoader</a> and hand them over:</p>
 <pre class="example">% One-call block-arrow solve + five-level verdict
@@ -421,7 +421,7 @@ satellite/arc returning whitened batches; give the common count <code>nc</code>
 and per-system <code>numLocal</code>.</li>
 <li>For a single solve call <a href="lsqvce.engine.adjustBlock.html">lsqvce.engine.adjustBlock</a>;
 to discover the noise model and group weights, use
-<a href="lsqvce.engine.adjustVCE.html">lsqvce.engine.adjustVCE</a> with
+<code>lsqvce.engine.adjustVCE</code> (retired R5 M4: Model "vce" is a policy of the joint estimator) with
 the constructor groups <code>'GroupBy'</code>, <code>'Shape'</code>, <code>'Scale'</code> and <code>run()</code>
 (or, through the user front door, <code>lsqvce.fit(data, lsqvce.Options(Model="vce"))</code>).</li>
 <li>Inspect <code>R.history.sigma</code> for a group being systematically up- or
@@ -440,7 +440,7 @@ assert (redundancy identity, whitening equals dense GLS, ACV round-trip).</div>
 <a href="lsqvce_interpretation_guide.html">Interpretation Guide</a>,
 <a href="lsqvce_choosing.html">Choosing an engine</a>,
 <a href="lsqvce.engine.adjust.html">lsqvce.engine.adjust</a>,
-<a href="lsqvce.engine.adjustVCE.html">lsqvce.engine.adjustVCE</a></div>
+<code>lsqvce.engine.adjustVCE</code> (retired R5 M4: Model "vce" is a policy of the joint estimator)</div>
 <h2 id="refs">References</h2>
 <div class="refs">
 <p>[1] Baarda, W. (1968). <i>A Testing Procedure for Use in Geodetic Networks.</i> Netherlands Geodetic Commission, Publications on Geodesy, New Series, 2(5). Delft.</p>

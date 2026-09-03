@@ -604,65 +604,6 @@ function test_adjustVCEjoint_rejects_bad_C0(tc)
 end
 
 %% ============================================ vceMode flag on adjustVCE
-function test_vceMode_defaults_to_separate(tc)
-% categories: contract
-    P = lsqvce.engine.adjustVCE(modeSpec(), 1, 'verbose', false);
-    verifyEqual(tc, P.vceMode, 'separate', ...
-        'the alternating loop must remain the default');
-end
-
-function test_vceMode_constructor_flag(tc)
-% categories: contract
-    P = lsqvce.engine.adjustVCE(modeSpec(), 1, 'vceMode', 'joint', 'verbose', false);
-    verifyEqual(tc, P.vceMode, 'joint');
-end
-
-function test_vceMode_rejects_unknown(tc)
-% categories: contract
-    % WP-39 c2: the ctor's VceMode enum moved from inputParser to
-    % mustBeMember -- the expected id follows the migration (b1-r3 rule).
-    verifyError(tc, ...
-        @() lsqvce.engine.adjustVCE(modeSpec(), 1, 'vceMode', 'sideways', 'verbose', false), ...
-        'MATLAB:validators:mustBeMember');
-end
-
-function test_joint_fluent_switches_mode_and_sets_opts(tc)
-% categories: contract
-    % .joint(...) both switches the mode and configures it, so no separate flag
-    % is needed -- the call reads as the intent.
-    P = lsqvce.engine.adjustVCE(modeSpec(), 1, 'verbose', false, 'VceMode', 'joint', 'Joint', struct('numLags', 24, 'probes', 40, 'meanType', 'plain'));
-    verifyEqual(tc, P.vceMode, 'joint');
-    verifyEqual(tc, P.jointOpt.NumLags , 24);
-    verifyEqual(tc, P.jointOpt.Probes  , 40);
-    verifyEqual(tc, P.jointOpt.MeanType, 'plain');
-end
-
-function test_separate_mode_keeps_joint_configuration(tc)
-% categories: contract
-    % Constructor-only since 2.0 (R4-D2): the mode is 'VceMode', the joint
-    % configuration is the 'Joint' group -- independent knobs. A separate-mode
-    % engine may carry a joint configuration without switching, and the group
-    % keys are canonicalised case-insensitively (numLags -> NumLags).
-    P = lsqvce.engine.adjustVCE(modeSpec(), 1, 'verbose', false, ...
-            'VceMode', 'separate', 'Joint', struct('numLags', 12));
-    verifyEqual(tc, P.vceMode, 'separate', 'a Joint group alone must not switch the mode');
-    verifyEqual(tc, P.jointOpt.NumLags, 12, 'the joint configuration is kept');
-    verifyFalse(tc, ismethod(P, 'separate'), '.separate() is gone (no aliases)');
-    verifyFalse(tc, ismethod(P, 'joint'), '.joint() is gone (no aliases)');
-end
-
-function test_joint_defaults_are_ellmer_values(tc)
-% categories: reference, robustness
-    P = lsqvce.engine.adjustVCE(modeSpec(), 1, 'verbose', false);
-    verifyEqual(tc, P.jointOpt.Probes  , 100, 'Ellmer uses Z = 100');
-    verifyEqual(tc, P.jointOpt.NumLags , 60);
-    verifyEqual(tc, P.jointOpt.Norm    , 'ortho');
-    verifyEqual(tc, P.jointOpt.MeanType, 'robust');
-    verifyEmpty(tc, P.jointOpt.C0, ...
-        'the default start is chosen per stream, never a fixed delta');
-end
-
-%% ============================================ jointModelOpt (accFcn contract)
 function test_redundancyLags_fft_lag_sums_match_the_loop_form(tc)
 % categories: precision, vectorisation
     % R5 M3 3c: all per-lag sub-diagonal sums come from one FFT per column

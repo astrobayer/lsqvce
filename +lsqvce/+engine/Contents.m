@@ -10,7 +10,6 @@
 %   batchSystem        - a batch source as one local-free streaming system (R5 M2)
 %   adjustRobust       - IRLS (Huber/IGG3/bisquare) as a policy on the block path (R5 M2)
 %   adjustBlock          - one GLS solve over the streaming block-arrow pipeline
-%   adjustVCE            - separable-GLS iteration: stochastic model <-> variance components
 %   adjustVCEjoint       - Ellmer ten-step joint co-estimation with keyed arc factors
 %   applyRegularisation  - regularisation of the reduced system
 %   arcVarianceFactors   - per-arc variance factors
