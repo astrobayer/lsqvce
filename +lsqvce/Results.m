@@ -213,14 +213,14 @@ classdef Results < handle
                             panels{end+1} = struct('key', key, 't', S.obs(j).t(:), 'w', S.obs(j).w(:)); %#ok<AGROW>
                         end
                     end
-                    keys = unique(cellfun(@(p) p.key, panels, 'UniformOutput', false), 'stable');
-                    for k = 1:numel(keys)
-                        ax = subplot(numel(keys), 1, k, 'Parent', fh);
-                        sel = panels(strcmp(cellfun(@(p) p.key, panels, 'UniformOutput', false), keys{k}));
+                    streamKeys = unique(cellfun(@(p) p.key, panels, 'UniformOutput', false), 'stable');
+                    for k = 1:numel(streamKeys)
+                        ax = subplot(numel(streamKeys), 1, k, 'Parent', fh);
+                        sel = panels(strcmp(cellfun(@(p) p.key, panels, 'UniformOutput', false), streamKeys{k}));
                         hold(ax, 'on');
                         for j = 1:numel(sel), plot(ax, sel{j}.t, sel{j}.w, '.', 'MarkerSize', 3); end
                         hold(ax, 'off');  grid(ax, 'on');
-                        ylabel(ax, 'w (whitened)');  title(ax, keys{k}, 'Interpreter', 'none');
+                        ylabel(ax, 'w (whitened)');  title(ax, streamKeys{k}, 'Interpreter', 'none');
                         n = n + 1;
                     end
                     if n == 0, error('lsqvce:Results:badPlotKind', 'No stream matches Stream="%s".', opt.Stream); end
@@ -239,7 +239,7 @@ classdef Results < handle
                     fh = figure('Visible', opt.Visible, 'Name', 'lsqvce: estimated spectra');
                     ax = axes('Parent', fh);
                     if isfield(obj.noise, 'Cgroups') && ~isempty(obj.noise.Cgroups) && obj.noise.Cgroups.Count > 0
-                        ks = keys(obj.noise.Cgroups);
+                        ks = obj.noise.Cgroups.keys;
                         hold(ax, 'on');
                         for k = 1:numel(ks)
                             C = obj.noise.Cgroups(ks{k});  L = numel(C);
