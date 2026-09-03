@@ -175,6 +175,11 @@ function test_freenetwork_residuals_are_datum_invariant(tc)
 end
 
 function test_nonlinear_converges_to_truth(tc)
+    % R5 M5 5b': at the converged point of this fixture (p = 1e4, v ~ 1e-3)
+    % the accumulator's fold loses > 8 digits in v'Pv and says so (NaN-honest,
+    % lsqvce:qr:cancellation); the Gauss-Newton step control does not depend
+    % on it (it uses l'Pl), so the warning is provoked on purpose here
+    muteWarn(tc, 'lsqvce:qr:cancellation');
 % categories: precision
     % 2-D resection: distances from known stations to an unknown point.
     % Genuinely nonlinear, so re-linearisation is mandatory.
