@@ -519,7 +519,7 @@ function out = dispatch(L, arcs, day, obsType, arcID, opt)
         return
     end
     if startsWith(obsType, 'prior_')                  % R5-D8 round 5: a local prior group's pseudo-arc
-        out = priorArc(L, day, obsType, arcID, opt);
+        out = priorArc(L, day, obsType, arcID, opt, L.cov);
         return
     end
     out = L.batch(day, obsType, arcID, opt);
@@ -633,7 +633,7 @@ function i = dayOfColumn(plan, c)
     error('lsqvce:makeLoader:badPrior', 'column %d of L belongs to no day''s local block.', c);
 end
 
-function out = priorArc(L, day, obsType, arcID, opt)
+function out = priorArc(L, day, obsType, arcID, opt, cov)
 %PRIORARC  The pseudo-arc of ONE local prior group on one day (R5-D8 round 5):
 %   its rows whose columns lie in this day's block -- A = 0, B = L/sigma,
 %   l = x0/sigma, unit covariance. A group with from > opt.pass is not in.
@@ -653,7 +653,14 @@ function out = priorArc(L, day, obsType, arcID, opt)
     m = numel(out.l);
     out.A = zeros(m, L.nc);
     out.t = (1:m).';
-    [out.Cfcn, out.Wfcn, info2] = lsqvce.engine.covModel(struct('type', 'diag', 'sigma', 1), out.t, struct());
+    % the group's law is its declared unit spec WITH the run's override (the
+    % estimated level, Estimate="noise" with estimate "scale") -- the same
+    % path every data arc takes, so the level whitens the next pass
+    cm = cov.(obsType);
+    if isstruct(opt) && isfield(opt, 'covOverride')
+        cm = applyCovOverride(cm, opt.covOverride, obsType, opt);
+    end
+    [out.Cfcn, out.Wfcn, info2] = lsqvce.engine.covModel(cm, out.t, struct());
     out.filterMemory = info2.filterMemory;
 end
 function v = arcVec(arcs, obsType, day, dayFcn)

@@ -729,7 +729,7 @@ function [names, models] = streamModels(systems, specs, out, pool)
     names = {};  models = {};
     sMean = containers.Map('KeyType', 'char', 'ValueType', 'any');
     for i = 1:numel(out.arcKeys)
-        tok = regexp(out.arcKeys{i}, '^s(.+?)_(.+?)_d', 'tokens', 'once');
+        tok = regexp(out.arcKeys{i}, '^s(.+?)_(.+)_d[^_]+_a', 'tokens', 'once');   % R5-D8 6: obsType may carry underscores
         if isempty(tok), continue, end
         sk = sprintf('%s|%s', matlab.lang.makeValidName(tok{1}), tok{2});
         if ~isKey(sMean, sk), sMean(sk) = []; end
