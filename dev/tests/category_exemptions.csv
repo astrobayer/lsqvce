@@ -320,4 +320,8 @@ engine.declaration,robustness,its refusals are the named lsqvce:fit:* identifier
 engine.declaration,vectorisation,no data-sized loop -- one pass over the declaration's fields
 engine.declaration,speed,O(#systems + #rows); its cost is inside fit's solve budget (test_speedBudget)
 engine.declaration,metamorphic,the order-freedom of the declaration (test_fit testDeclarationIsOrderFree) is the invariance that applies; asserted through fit
+layout,metamorphic,its content is the expansion plan already pinned under contract (test_fit, test_streamUtils validity); the invariance that applies -- declaration order-freedom -- is asserted through fit
+layout,robustness,its refusals are the declaration's named lsqvce:fit:* identifiers (it calls lsqvce.engine.declaration)
+layout,speed,O(nc + nl) bookkeeping over the plans; no data-sized work
+layout,vectorisation,no data loop -- a table of (row, day, arc) per column
 

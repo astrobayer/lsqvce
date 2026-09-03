@@ -681,10 +681,9 @@ function [estMap, afMap] = streamPolicy(systems, specs, streams, afDefault)
     afMap  = containers.Map('KeyType', 'char', 'ValueType', 'any');
     for k = 1:numel(streams)
         afMap(char(string(streams{k}))) = logical(afDefault);
-        if endsWith(char(string(streams{k})), '|prior')     % R5-D8 round 2: pseudo-observations
-            estMap(char(string(streams{k}))) = 'none';       % keep their declared unit law
-            afMap(char(string(streams{k}))) = false;
-        end
+        if contains(char(string(streams{k})), '|prior_')     % R5-D8 round 5: a local prior group is a
+            afMap(char(string(streams{k}))) = false;          % stream; its estimate policy comes from
+        end                                                   % its cov spec (the group's "estimate")
     end
     for k = 1:numel(systems)
         L = systems{k};

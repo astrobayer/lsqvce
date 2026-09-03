@@ -181,7 +181,7 @@ lsqvce:makeLoader:badArcs,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:badDay,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:badDayCep,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:badPlotHandle,engine.makeLoader,error,v4.0
-lsqvce:makeLoader:badPriorDay,engine.makeLoader,error,v4.0
+lsqvce:makeLoader:badPrior,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:badScope,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:badValidity,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:buildDay,engine.makeLoader,error,v4.0

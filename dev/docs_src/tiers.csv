@@ -1,4 +1,5 @@
 name,tier,role
+layout,USER,the column layout of A and B announced before fit (for data.priors / systems(k).priors)
 fit,USER,"the one user verb: fit(data, opts) -> Results"
 Options,USER,the one settings object for fit (typed knobs with engine defaults)
 Results,USER,"rich result object: solution, diagnostics, provenance, report()"

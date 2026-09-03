@@ -145,7 +145,7 @@ end
     % 'accscale') go into one struct with one sigma; without a label each
     % constrained row is its own group. Your 12 accelerometer scale factors
     % {'Tikhonov', 1, 0.01} become 6 groups per day (or 2 with labels).
-    data.systems.priorDay = @(day, sysID, info) gravfirePriorDay(day, sysID, info, localParams);
+    data.systems.priors = gravfireLocalPriors(data, localParams);
 end
 
 % ======================================================================
@@ -281,47 +281,46 @@ function priors = priorsFromColumn11(P, ~)
 end
 
 %==========================================================================
-function P = gravfirePriorDay(~, ~, info, localParams)
-%GRAVFIREPRIORDAY  Column 11 of the LOCAL template rows -> priors of the day (R5-D8 round 5).
-%   For every template row j with {'Tikhonov', fromPass, sigma[, label]} that is
-%   present on this day (info.dayRows), one pseudo-observation on the column
-%   info.dayOffset + position(j in info.dayRows): L = e_col, x0 = column 10
-%   (-> 11 in the 15-column template; [] = 0), sigma, from. Rows sharing a
-%   label share one struct (one sigma, one group); the others are one struct
-%   each. Returns [] when nothing is constrained on this day.
-    P = struct('L', {}, 'x0', {}, 'sigma', {}, 'from', {}, 'group', {}, 'name', {});
-    if ~isfield(info, 'dayRows') || isempty(info.dayRows) || isempty(info.dayOffset), return, end
-    nl = info.nl;
-    groups = containers.Map('KeyType', 'char', 'ValueType', 'any');
-    order = {};
-    for pos = 1:numel(info.dayRows)
-        j = info.dayRows(pos);
+function P = gravfireLocalPriors(data, localParams)
+%GRAVFIRELOCALPRIORS  Column 11 of the LOCAL template rows -> data.systems.priors (R5-D8 round 5).
+%   One struct per GROUP, its L in the columns of B as lsqvce.layout announces
+%   them: every constrained template row j ({'Tikhonov', fromPass, sigma[,
+%   label]}) gives one pseudo-observation per instance (per day for a 'day'
+%   row) on column lay.systems(1).col(j, day, []); x0 = column 10 (-> 11 here;
+%   [] = 0). Rows sharing a label are one group with one sigma (e.g.
+%   'accscale' for x/y/z, or 'xaccscale' for one axis); estimate "scale" lets
+%   the toolbox estimate that sigma by Koch-Kusche, exactly as for
+%   data.priors. Returns [] when nothing is constrained.
+    lay = lsqvce.layout(data);
+    nl = lay.systems(1).nl;
+    groups = containers.Map('KeyType', 'char', 'ValueType', 'any');  order = {};
+    for j = 1:size(localParams, 1)
         c = localParams{j, 12};
         if isNoneConstraint(c), continue, end
         if ~iscell(c) || numel(c) < 3 || ~ischar(c{1}) || ~strcmpi(c{1}, 'Tikhonov')
             error('gravfire:badConstraint', 'local row %d: column 11 must be ''none'' or {''Tikhonov'', fromPass, sigma[, label]}.', j);
         end
-        col = info.dayOffset + pos;
-        x0 = 0;
-        if ~isempty(localParams{j, 11}), x0 = double(localParams{j, 11}); end
-        lab = '';
-        if numel(c) >= 4 && ~isempty(c{4}), lab = char(string(c{4})); end
-        key = lab;
-        if isempty(key), key = sprintf('#%d', j); end
+        x0 = 0;  if ~isempty(localParams{j, 11}), x0 = double(localParams{j, 11}); end
+        lab = '';  if numel(c) >= 4 && ~isempty(c{4}), lab = char(string(c{4})); end
+        key = lab;  if isempty(key), key = char(string(localParams{j, 2})); end
         if ~isKey(groups, key)
-            nm = lab;  if isempty(nm), nm = char(string(localParams{j, 2})); end
             groups(key) = struct('L', zeros(0, nl), 'x0', zeros(0, 1), 'sigma', double(c{3}), ...
-                                 'from', double(c{2}), 'group', lab, 'name', nm);
+                                 'from', double(c{2}), 'name', key, 'estimate', "none");
             order{end+1} = key; %#ok<AGROW>
         end
         g = groups(key);
-        if abs(g.sigma - double(c{3})) > 0
+        if g.sigma ~= double(c{3})
             error('gravfire:badConstraint', 'group ''%s'': members must share one sigma (row %d has %g, the group %g).', key, j, double(c{3}), g.sigma);
         end
-        row = zeros(1, nl);  row(col) = 1;
-        g.L = [g.L; row];  g.x0 = [g.x0; x0];
+        for d = data.days
+            col = lay.systems(1).col(j, d, []);
+            if col == 0, continue, end                        % not instantiated on that day
+            row = zeros(1, nl);  row(col) = 1;
+            g.L = [g.L; row];  g.x0 = [g.x0; x0];
+        end
         groups(key) = g;
     end
+    P = struct('L', {}, 'x0', {}, 'sigma', {}, 'from', {}, 'name', {}, 'estimate', {});
     for k = 1:numel(order), P(end+1) = groups(order{k}); end %#ok<AGROW>
     if isempty(P), P = []; end
 end
