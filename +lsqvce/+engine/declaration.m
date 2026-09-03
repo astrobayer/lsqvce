@@ -75,7 +75,7 @@ function spec = validateData(data)
     % ---- systems
     sysRequired = {'buildDay', 'covariance'};
     sysAllowed  = [sysRequired, {'localParams', 'arcs', 'days', ...
-                   'id', 'name', 'processingOptions', 'epochCovariance', 'localPriors'}];   % localPriors: R5-D8 round 2
+                   'id', 'name', 'processingOptions', 'epochCovariance', 'priorDay'}];   % priorDay: R5-D8 round 5
     rejectUnknown(fieldnames(sys), sysAllowed, 'data.systems');
     ids = cell(1, numel(sys));
     for k = 1:numel(sys)
@@ -234,7 +234,7 @@ function systems = buildSystems(spec, cacheDays)
            'days', 'Days'; 'name', 'Name'; ...
            'processingOptions', 'ProcessingOptions'; ...
            'epochCovariance', 'EpochCovariance'; ...
-           'localPriors', 'LocalPriors'};                 % R5-D8 round 2
+           'priorDay', 'PriorDay'};                       % R5-D8 round 5
     systems = cell(1, numel(sys));
     for k = 1:numel(sys)
         s  = sys(k);

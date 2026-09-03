@@ -795,30 +795,44 @@ function e = synthE(rs, cm, M)
     end
 end
 
-function testLocalPriorsArePseudoObservationsOfTheSystem(tc)
+function testPriorDayIsTheLocalCounterpartOfDataPriors(tc)
 % categories: contract, precision
-    % R5-D8 round 2: a prior on a local template row rides as the observation
-    % type 'prior' of its system. The fixture's locals are 'system'-scoped, so
-    % the prior is instantiated ONCE (n grows by 1). A tight prior pins the
-    % local to x0; a loose one leaves the solution alone; a bad row is refused.
+    % R5-D8 round 5: regularisation of LOCAL parameters is declared like the
+    % design -- priorDay(day, sysID, info) returns pseudo-observations in the
+    % columns of B; the toolbox rides them as the observation type 'prior'.
+    % The fixture's locals are 'system'-scoped, so the group is instantiated
+    % once (n grows by the rows of L). A tight prior pins the local to x0;
+    % several structs are several groups with their own sigma; a wrong width
+    % is refused by name; a loose prior leaves the solution alone.
     [data, ~] = declaration();
     R0 = lsqvce.fit(data, Verbose=false);
     y0 = R0.residuals('Verbose', false).sys(1).y;
     j = 2;  target = 0.123;
-    data.systems(1).localPriors = struct('row', j, 'x0', target, 'sigma', 1e-6, 'name', 'pin');
+    nl = numel(y0);
+    pin = @(col, x0, s, nm) struct('L', double((1:nl) == col), 'x0', x0, 'sigma', s, 'from', 1, 'group', nm, 'name', nm);
+    % system-wide parameters: the prior is returned on ONE day (the rule)
+    onFirst = @(info, P) P(1:(info.dayIndex == 1) * numel(P));
+    data.systems(1).priorDay = @(day, sysID, info) onFirst(info, [pin(info.sysOffset + j, target, 1e-6, 'pin'), pin(info.sysOffset + 1, 0, 1e3, 'soft')]);
     R1 = lsqvce.fit(data, Verbose=false);
     y1 = R1.residuals('Verbose', false).sys(1).y;
     % tol: 1e-5 absolute -- the prior's sigma (1e-6) against the data's O(1)
     % leverage on that parameter; the pin holds to a few sigma
     tc.verifyEqual(y1(j), target, 'AbsTol', 1e-5, 'the pinned local equals x0');
-    tc.verifyEqual(R1.diag.n - R0.diag.n, 1, 'one pseudo-observation for a system-scoped row');
+    tc.verifyEqual(R1.diag.n - R0.diag.n, 2, 'two pseudo-observations: one per group row');
     tc.verifyNotEqual(y1(j), y0(j));
-    % loose prior: essentially the unconstrained solution
-    data.systems(1).localPriors.sigma = 1e6;
-    R2 = lsqvce.fit(data, Verbose=false);
+    % a loose group alone (1e6 sigma) leaves the solution where it was
+    data.systems(1).priorDay = @(day, sysID, info) onFirst(info, pin(info.sysOffset + 1, 0, 1e6, 'loose'));
+    Rl = lsqvce.fit(data, Verbose=false);
     % tol: 1e-8 relative -- a 1e6-sigma prior on O(1) parameters perturbs at 1e-12
-    tc.verifyEqual(R2.x, R0.x, 'RelTol', 1e-8);
-    % malformed row: refused by name (the loader's id, re-homed by fit)
-    data.systems(1).localPriors = struct('row', 999, 'x0', 0, 'sigma', 1);
-    tc.verifyEqual(idOf(@() lsqvce.fit(data, Verbose=false)), 'lsqvce:fit:badLocalPrior');
+    tc.verifyEqual(Rl.x, R0.x, 'RelTol', 1e-8);
+    % the 'from' gate: a group with from 2 is not in a single solve
+    data.systems(1).priorDay = @(day, sysID, info) onFirst(info, struct('L', double((1:nl) == info.sysOffset + j), 'x0', target, 'sigma', 1e-6, 'from', 2, 'group', 'late', 'name', 'late'));
+    R2 = lsqvce.fit(data, Verbose=false);
+    tc.verifyEqual(R2.diag.n, R0.diag.n, 'a from-2 group is not in a single solve');
+    % a wrong width is refused by name at read time (the loader's own id)
+    data.systems(1).priorDay = @(day, sysID, info) struct('L', ones(1, nl + 3), 'sigma', 1);
+    tc.verifyEqual(idOf(@() lsqvce.fit(data, Verbose=false)), 'lsqvce:makeLoader:badPriorDay');
+    % a throwing handle arrives with its cause
+    data.systems(1).priorDay = @(day, sysID, info) error('mine:prior', 'no');
+    tc.verifyEqual(idOf(@() lsqvce.fit(data, Verbose=false)), 'lsqvce:callUser:threw');
 end

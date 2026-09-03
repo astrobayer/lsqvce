@@ -294,9 +294,10 @@ arguments
     opt.ValidityColumns double = []   % R5-D8 round 3: [cStart cEnd] columns of localParams holding the
                                       % validity ([MJD sec] pairs or fractional MJD; [] = always): a
                                       % 'day'/'arc' row is instantiated only on days its validity overlaps
-    opt.LocalPriors = []          % R5-D8 round 2: struct array of priors on LOCAL template rows
-                                  % (.row 1-based template row, .x0, .sigma, .from, .name); they ride
-                                  % as the observation type 'prior' -- see priorArc
+    opt.PriorDay = []             % R5-D8 round 5: @(day, sysID, info) -> struct array, the priors on
+                                  % the LOCAL parameters of that day IN THE COLUMNS OF B (.L q x nl,
+                                  % .x0, .sigma, .from, .group, .name); ONE mechanism with data.priors:
+                                  % they ride as the observation type 'prior' -- see priorArc
     opt.CacheDays (1,1) double {mustBePositive} = 1   % R5 M4 4d: built days kept resident;
                                                      % Inf = every day of the run (the
                                                      % user's memory decision, see fit)
@@ -315,7 +316,7 @@ end
     % WP-39 stage (c) c1: typed `arguments` signature (canonical
     % UpperCamelCase; legacy casings keep matching -- MATLAB NV
     % semantics; enum VALUES case-sensitive lowercase).
-    o = struct('observationTypes', {opt.ObservationTypes}, 'covariance', opt.Covariance, 'arcs', opt.Arcs, 'localsPerArc', opt.LocalsPerArc, 'systemId', opt.SystemId, 'numLocal', opt.NumLocal, 'numCommon', opt.NumCommon, 'days', opt.Days, 'name', char(opt.Name), 'cache', opt.Cache, 'cacheDays', opt.CacheDays, 'localPriors', opt.LocalPriors, 'validityColumns', opt.ValidityColumns, 'epochCovariance', opt.EpochCovariance, 'commonParams', {opt.CommonParams}, 'localParams', {opt.LocalParams}, 'processingOptions', opt.ProcessingOptions, 'scoped', opt.Scoped, 'commonPlan', opt.CommonPlan);
+    o = struct('observationTypes', {opt.ObservationTypes}, 'covariance', opt.Covariance, 'arcs', opt.Arcs, 'localsPerArc', opt.LocalsPerArc, 'systemId', opt.SystemId, 'numLocal', opt.NumLocal, 'numCommon', opt.NumCommon, 'days', opt.Days, 'name', char(opt.Name), 'cache', opt.Cache, 'cacheDays', opt.CacheDays, 'priorDay', opt.PriorDay, 'validityColumns', opt.ValidityColumns, 'epochCovariance', opt.EpochCovariance, 'commonParams', {opt.CommonParams}, 'localParams', {opt.LocalParams}, 'processingOptions', opt.ProcessingOptions, 'scoped', opt.Scoped, 'commonPlan', opt.CommonPlan);
 
     % ---- map long option names onto the short internal fields -------------
     % Canonical long names only. The resolved value is written onto the SHORT
@@ -423,8 +424,11 @@ end
     % rows, A-part zero, B-part the constrained local columns of that day). The
     % accumulator, the elimination, the sweeps and the redundancy count treat
     % them exactly as data (Koch: a prior is a group with a redundancy).
-    L.localPriors = validateLocalPriors(o.localPriors, o.localParams, plan);
-    if ~isempty(L.localPriors)
+    L.priorDay = o.priorDay;
+    if ~isempty(L.priorDay) && ~isa(L.priorDay, 'function_handle')
+        error('lsqvce:makeLoader:badPriorDay', 'PriorDay must be [] or a function handle @(day, sysID, info).');
+    end
+    if ~isempty(L.priorDay)
         if any(strcmp(obsTypes, 'prior'))
             error('lsqvce:makeLoader:priorType', ...
                   '''prior'' is the observation type of the local priors; rename your stream.');
@@ -536,84 +540,82 @@ function m = metaOf(obsTypes, arcs, day, dayFcn, L)
 end
 
 function v = priorArcsOfDay(L, day)
-%PRIORARCSOFDAY  [1] when the 'prior' pseudo-arc of this day has rows, else [].
+%PRIORARCSOFDAY  [1] when the system declares priorDay and the day is in the
+%   calendar (the pseudo-arc may still come back empty for the pass), else [].
     v = zeros(1, 0);
-    if isempty(L.localPriors) || isempty(L.plan), return, end
+    if isempty(L.priorDay) || isempty(L.plan), return, end
     if isempty(find(L.plan.days == day, 1)), return, end
     v = 1;
 end
 
-function P = validateLocalPriors(P, localParams, plan)
-%VALIDATELOCALPRIORS  Fields, ranges, the template (R5-D8 round 2).
-    if isempty(P), P = [];  return, end
-    if ~isstruct(P)
-        error('lsqvce:makeLoader:badLocalPrior', 'LocalPriors must be a struct array (row, x0, sigma, from, name).');
-    end
-    if isempty(plan) || ~isfield(plan, 'rows')
-        error('lsqvce:makeLoader:badLocalPrior', 'LocalPriors need SCOPED localParams (the v4 tables).');
-    end
-    nRows = size(localParams, 1);
-    for k = 1:numel(P)
-        f = fieldnames(P(k));
-        bad = setdiff(f, {'row', 'x0', 'sigma', 'from', 'name'});
-        if ~isempty(bad)
-            error('lsqvce:makeLoader:badLocalPrior', 'LocalPriors(%d) has an unknown field ''%s''.', k, bad{1});
-        end
-        r = P(k).row;
-        if ~isscalar(r) || r < 1 || r > nRows || r ~= round(r)
-            error('lsqvce:makeLoader:badLocalPrior', 'LocalPriors(%d).row must be a template row index 1..%d.', k, nRows);
-        end
-        s = 1;
-        if isfield(P(k), 'sigma') && ~isempty(P(k).sigma), s = P(k).sigma; end
-        if ~isscalar(s) || ~isfinite(s) || s <= 0
-            error('lsqvce:makeLoader:badLocalPrior', 'LocalPriors(%d).sigma must be a positive scalar.', k);
-        end
-        P(k).sigma = s;
-        if ~isfield(P(k), 'x0') || isempty(P(k).x0), P(k).x0 = 0; end
-        if ~isfield(P(k), 'from') || isempty(P(k).from), P(k).from = 1; end
-        if ~isfield(P(k), 'name') || isempty(P(k).name), P(k).name = sprintf('local%d', r); end
-    end
-end
-
 function out = priorArc(L, day, arcID, opt)
-%PRIORARC  The pseudo-arc of the local priors on one day (R5-D8 round 2).
-%   Rows: one per (prior, instance) -- an 'arc'-scoped template row gives one
-%   row per arc of the day, a 'day' row one, a 'system' row one (on the first
-%   day of the calendar only). Each row: A = 0, B = e_col / sigma, l = x0 /
-%   sigma, unit covariance (already whitened). A prior with from > opt.pass
-%   (default 1) is not in this pass.
+%PRIORARC  The pseudo-arc of the local priors on one day (R5-D8 round 5).
+%   Calls the user's priorDay(day, sysID, info) -- info is the same layout
+%   struct buildDay receives -- and expects a struct array, each element
+%     .L      q x nl double   the pseudo-observation coefficients, in the
+%                             columns of THIS system's B (the user owns them)
+%     .x0     q x 1 (default 0)   the a-priori values
+%     .sigma  1x1 > 0 (default 1) the standard deviation of the group
+%     .from   1x1 >= 1 (default 1) the pass at which the group becomes active
+%     .group  label (default '')   rows sharing a label share one sigma
+%     .name   label (default 'priorK')
+%   Each element is one GROUP: its rows enter as pseudo-observations A = 0,
+%   B = L/sigma, l = x0/sigma, unit covariance. The width of L is checked
+%   against nl by name -- the only knowledge the two sides share.
+%   ONE RULE for the handle: it is called once per calendar day, and every
+%   pseudo-observation must be returned on exactly ONE day -- a per-day (or
+%   per-arc) parameter's prior on its own day, a system-wide parameter's
+%   prior on one day of your choice (info.dayIndex == 1 is the natural one).
+%   Returning it every day would count it every day (a sqrt(nDays) tighter
+%   prior than declared).
     out = [];
-    if arcID ~= 1 || isempty(L.localPriors) || isempty(L.plan), return, end
+    if arcID ~= 1 || isempty(L.priorDay) || isempty(L.plan), return, end
     plan = L.plan;
-    i = find(plan.days == day, 1);
-    if isempty(i), return, end
+    if isempty(find(plan.days == day, 1)), return, end
     pass = 1;
     if isstruct(opt) && isfield(opt, 'pass') && ~isempty(opt.pass), pass = opt.pass; end
-    colsB = zeros(0, 1);  valB = zeros(0, 1);  l = zeros(0, 1);
-    for k = 1:numel(L.localPriors)
-        P = L.localPriors(k);
-        if P.from > pass, continue, end
-        r = P.row;  cols = zeros(1, 0);
-        arcRows = plan.rows.arc;  dayRows = plan.rows.day;
-        if isfield(plan, 'arcRowsOf'), arcRows = plan.arcRowsOf{i};  dayRows = plan.dayRowsOf{i}; end
-        j = find(arcRows == r, 1);
-        if ~isempty(j), cols = plan.offset{i} + j; end                     % one per arc of the day
-        j = find(dayRows == r, 1);
-        if ~isempty(j) && plan.dayCount(i) > 0, cols = plan.dayOffset(i) + j; end
-        j = find(plan.rows.system == r, 1);
-        if ~isempty(j) && i == 1, cols = plan.sysOffset + j; end
-        for c = cols
-            colsB(end+1) = c;  valB(end+1) = 1 / P.sigma;  l(end+1) = P.x0 / P.sigma;  %#ok<AGROW>
-        end
+    info = arcInfoOf(plan, day);
+    [~, P] = lsqvce.util.callUser(L.priorDay, 0, 1, sprintf('priorDay (day %d)', day), day, L.sysID, info);
+    if isempty(P), return, end
+    if ~isstruct(P)
+        error('lsqvce:makeLoader:badPriorDay', 'priorDay(day %d) must return a struct array (L, x0, sigma, from, group, name).', day);
     end
-    m = numel(l);
-    if m == 0, return, end
+    Bs = {};  ls = {};
+    for k = 1:numel(P)
+        g = P(k);
+        f = fieldnames(g);
+        bad = setdiff(f, {'L', 'x0', 'sigma', 'from', 'group', 'name'});
+        if ~isempty(bad)
+            error('lsqvce:makeLoader:badPriorDay', 'priorDay(day %d), element %d: unknown field ''%s''.', day, k, bad{1});
+        end
+        if ~isfield(g, 'L') || isempty(g.L) || ~isnumeric(g.L) || size(g.L, 2) ~= plan.nl
+            error('lsqvce:makeLoader:badPriorDay', ...
+                  ['priorDay(day %d), element %d: L must be q x %d (the columns of this system''s B); ' ...
+                   'got %s.'], day, k, plan.nl, mat2str(size(g.L)));
+        end
+        q = size(g.L, 1);
+        s = 1;  if isfield(g, 'sigma') && ~isempty(g.sigma), s = double(g.sigma); end
+        if ~isscalar(s) || ~isfinite(s) || s <= 0
+            error('lsqvce:makeLoader:badPriorDay', 'priorDay(day %d), element %d: sigma must be a positive scalar.', day, k);
+        end
+        fr = 1;  if isfield(g, 'from') && ~isempty(g.from), fr = double(g.from); end
+        if fr > pass, continue, end
+        x0 = zeros(q, 1);
+        if isfield(g, 'x0') && ~isempty(g.x0)
+            x0 = double(g.x0(:));
+            if numel(x0) ~= q
+                error('lsqvce:makeLoader:badPriorDay', 'priorDay(day %d), element %d: x0 must have %d entries.', day, k, q);
+            end
+        end
+        Bs{end+1} = full(double(g.L)) / s;  ls{end+1} = x0 / s;   %#ok<AGROW>
+    end
+    if isempty(Bs), return, end
+    out.B = vertcat(Bs{:});  out.l = vertcat(ls{:});
+    m = numel(out.l);
     out.A = zeros(m, L.nc);
-    out.B = full(sparse(1:m, colsB, valB, m, plan.nl));
-    out.l = l;
     out.t = (1:m).';
-    [out.Cfcn, out.Wfcn, info] = lsqvce.engine.covModel(struct('type', 'diag', 'sigma', 1), out.t, struct());
-    out.filterMemory = info.filterMemory;
+    [out.Cfcn, out.Wfcn, info2] = lsqvce.engine.covModel(struct('type', 'diag', 'sigma', 1), out.t, struct());
+    out.filterMemory = info2.filterMemory;
 end
 function v = arcVec(arcs, obsType, day, dayFcn)
 %ARCVEC  Resolve the arc-ID vector for one obsType and ONE DAY.
@@ -755,7 +757,8 @@ function info = arcInfoOf(plan, day)
     end
     info = struct('arcId', arcIds, 'offset', offs, ...
                   'count', cnts, 'ordinal', ords, ...
-                  'nl', plan.nl, 'offsetOf', []);
+                  'nl', plan.nl, 'offsetOf', [], ...
+                  'dayIndex', i, 'nDays', numel(plan.days));   % R5-D8 round 5: which day of the calendar
     info.offsetOf = @(a) offs(find(arcIds == a, 1));
     if isfield(plan, 'sysCount')                    % scoped plan (v4)
         dOff = [];  dCnt = 0;

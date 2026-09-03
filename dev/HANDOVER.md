@@ -5524,3 +5524,30 @@ the handling of the parameters — I need the table for the generation of A
 and B but the actual creation can be much simpler; the interface matching
 seems like stitching two things together that do not fit well; another
 mechanism is fine as long as the parameters end up in the n×15 cell array."
+
+**ROUND D8-5 (2026-09-03, model Claude Fable 5.1, tier B — CI is the gate).**
+THE DISENTANGLEMENT, from the user's review of the parameter handling:
+"parameters are the user's (needed in buildDay and for plotting);
+regularisation is the toolbox's; the trouble was the handling of individual
+coefficients". Agreed design, implemented: ONE prior mechanism for common and
+local parameters — `data.priors(k)` (L in the columns of A) and
+`data.systems(k).priorDay(day, sysID, info)` (a struct array, one struct per
+GROUP, L in the columns of B; `x0`, `sigma`, `from`, `group`, `name`), both
+ridden as pseudo-observations; several structs = several groups with their
+own σ; a label merges members (`'accscale'` or `'xaccscale'`, the user's
+choice). DELETED: `localPriors(row)` and every line of per-row instantiation
+in the loader; `Options.Reg / RegLambda / RegMatrix` (regularisation is
+declared, not an option; 19 Options fields). The GRAVFIRE template's STEP 7
+is `gravfirePriorDay` beside `buildGravfireDay`, reading the same `info`
+(`dayOffset` + the row's position among `dayRows`). THE ONE RULE, found by
+CI on the first run (n grew by 6, not 2): the handle is called once per
+calendar day and every pseudo-observation must be returned on exactly ONE
+day — a per-day parameter's on its day, a system-wide one on a day of
+choice (`info.dayIndex`, `info.nDays` added for that). Contract §0a 1b
+rewritten around the rule; the principle recorded there and here:
+*the interface between the user's parameters and the toolbox's
+regularisation is an operator in the user's columns, checked by width —
+nothing about a table row crosses the line.* Suites: 501/501 on CI
+(test_parallel needs the user's PCT). Remaining: the local groups' σ
+ESTIMATION (Koch–Kusche needs the local solution y, Cyy from the sweep —
+D8-5b when wanted); the user runs `ci_gate` + `demo_gravfire` locally.

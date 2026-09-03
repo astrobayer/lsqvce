@@ -136,12 +136,16 @@ end
     % collected and reported here; they are applied by D8 round 2 (priors on
     % local parameters) -- until then the report is the honest state.
     data.priors = priorsFromColumn11(commonData.parameter, opt.DryRun);
-    % ---- STEP 7 (R5-D8 round 2): column 11 on LOCAL rows -> localPriors ------
-    % The template rows are the first day's rows (STEP 4); a constrained row
-    % becomes a prior on that template row, instantiated per day (or per arc)
-    % by the toolbox as pseudo-observations of the system. Your 12 accelerometer
-    % scale factors {'Tikhonov', 1, 0.01} are exactly this.
-    data.systems.localPriors = localPriorsFromColumn11(localParams);
+    % ---- STEP 7 (R5-D8 round 5): column 11 on LOCAL rows -> priorDay ---------
+    % Regularisation of local parameters is declared the way the design is:
+    % priorDay(day, sysID, info) returns pseudo-observations IN THE COLUMNS OF
+    % B -- the same layout buildGravfireDay writes, read from the same info
+    % (info.dayOffset + the position of the row among info.dayRows). One
+    % struct per group: rows sharing a label (4th entry of column 11, e.g.
+    % 'accscale') go into one struct with one sigma; without a label each
+    % constrained row is its own group. Your 12 accelerometer scale factors
+    % {'Tikhonov', 1, 0.01} become 6 groups per day (or 2 with labels).
+    data.systems.priorDay = @(day, sysID, info) gravfirePriorDay(day, sysID, info, localParams);
 end
 
 % ======================================================================
@@ -277,25 +281,50 @@ function priors = priorsFromColumn11(P, ~)
 end
 
 %==========================================================================
-function LP = localPriorsFromColumn11(localParams)
-%LOCALPRIORSFROMCOLUMN11  Constrained LOCAL template rows -> localPriors (R5-D8 round 2).
-%   localParams is the 15-column template (token in column 1): the user's
-%   column 10 (a-priori) is column 11, column 11 (constraint) is column 12.
-    LP = struct('row', {}, 'x0', {}, 'sigma', {}, 'from', {}, 'name', {});
-    for j = 1:size(localParams, 1)
+function P = gravfirePriorDay(~, ~, info, localParams)
+%GRAVFIREPRIORDAY  Column 11 of the LOCAL template rows -> priors of the day (R5-D8 round 5).
+%   For every template row j with {'Tikhonov', fromPass, sigma[, label]} that is
+%   present on this day (info.dayRows), one pseudo-observation on the column
+%   info.dayOffset + position(j in info.dayRows): L = e_col, x0 = column 10
+%   (-> 11 in the 15-column template; [] = 0), sigma, from. Rows sharing a
+%   label share one struct (one sigma, one group); the others are one struct
+%   each. Returns [] when nothing is constrained on this day.
+    P = struct('L', {}, 'x0', {}, 'sigma', {}, 'from', {}, 'group', {}, 'name', {});
+    if ~isfield(info, 'dayRows') || isempty(info.dayRows) || isempty(info.dayOffset), return, end
+    nl = info.nl;
+    groups = containers.Map('KeyType', 'char', 'ValueType', 'any');
+    order = {};
+    for pos = 1:numel(info.dayRows)
+        j = info.dayRows(pos);
         c = localParams{j, 12};
         if isNoneConstraint(c), continue, end
         if ~iscell(c) || numel(c) < 3 || ~ischar(c{1}) || ~strcmpi(c{1}, 'Tikhonov')
-            error('gravfire:badConstraint', 'local row %d: column 11 must be ''none'' or {''Tikhonov'', fromPass, sigma}.', j);
+            error('gravfire:badConstraint', 'local row %d: column 11 must be ''none'' or {''Tikhonov'', fromPass, sigma[, label]}.', j);
         end
+        col = info.dayOffset + pos;
         x0 = 0;
         if ~isempty(localParams{j, 11}), x0 = double(localParams{j, 11}); end
-        LP(end+1) = struct('row', j, 'x0', x0, 'sigma', double(c{3}), 'from', double(c{2}), ...
-                           'name', char(string(localParams{j, 2}))); %#ok<AGROW>
+        lab = '';
+        if numel(c) >= 4 && ~isempty(c{4}), lab = char(string(c{4})); end
+        key = lab;
+        if isempty(key), key = sprintf('#%d', j); end
+        if ~isKey(groups, key)
+            nm = lab;  if isempty(nm), nm = char(string(localParams{j, 2})); end
+            groups(key) = struct('L', zeros(0, nl), 'x0', zeros(0, 1), 'sigma', double(c{3}), ...
+                                 'from', double(c{2}), 'group', lab, 'name', nm);
+            order{end+1} = key; %#ok<AGROW>
+        end
+        g = groups(key);
+        if abs(g.sigma - double(c{3})) > 0
+            error('gravfire:badConstraint', 'group ''%s'': members must share one sigma (row %d has %g, the group %g).', key, j, double(c{3}), g.sigma);
+        end
+        row = zeros(1, nl);  row(col) = 1;
+        g.L = [g.L; row];  g.x0 = [g.x0; x0];
+        groups(key) = g;
     end
-    if isempty(LP), LP = []; end
+    for k = 1:numel(order), P(end+1) = groups(order{k}); end %#ok<AGROW>
+    if isempty(P), P = []; end
 end
-
 %==========================================================================
 function tf = isNoneConstraint(c)
 %ISNONECONSTRAINT  'none' in every spelling the tables use: [], 'none', {'none'}.
