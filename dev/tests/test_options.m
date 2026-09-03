@@ -49,7 +49,7 @@ function testGroupMergeOntoDefaults(tc)
     tc.verifyEqual(o.Parallel.Mode, "parfor");
     tc.verifyEqual(o.Parallel.Threshold, 8);
     tc.verifyError(@() lsqvce.Options(Noise=struct('Lags', 5)), 'lsqvce:Options:badGroupField');
-    tc.verifyError(@() lsqvce.Options(Diagnostics=42), 'lsqvce:Options:badGroupField');
+    tc.verifyError(@() lsqvce.Options(Diagnostics=42), 'MATLAB:validation:UnableToConvert', 'a non-struct is refused by the type');
 end
 
 function testValueSemanticsAndNameOrderInvariance(tc)

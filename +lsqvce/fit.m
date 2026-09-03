@@ -263,10 +263,6 @@ end
 %   Fable 5.
 %   Created 2026-08-31 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5 -- R4 Level L2, WP-56 (decision R4-D4).
-arguments
-    data (1,1) struct
-    opts (1,1) lsqvce.Options = lsqvce.Options()
-end
 
     opts.validate();
 
