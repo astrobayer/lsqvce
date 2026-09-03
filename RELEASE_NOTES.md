@@ -1,5 +1,100 @@
 # lsqvce release notes
 
+## 5.0 — 2026-09-03 (Review R5, levels M0–M5: the one-loop redesign)
+
+**Breaking release.** The toolbox has ONE accumulator and ONE stochastic-model
+estimator; the option space is 14 knobs + 5 typed groups; every retired name
+has a successor in the migration table below (the authority is
+`dev/HANDOVER.md` §12.10). Nothing on the data contract changed shape — v4
+declarations still fit — but three things were added to it.
+
+### What changed on the user surface
+
+- **`Options` v5** — `Estimate="none"|"noise"` replaces `Model`; the v4 model
+  words are explicit policy (`"vce"` = `Estimate="noise", Pool="stream",
+  ArcFactors=false`; `"pooled"` = `Pool="all", ArcFactors=false`; `"ellmer"` =
+  `Estimate="noise"`). One budget: `MaxPasses` / `MinPasses` / `Tolerance`.
+  `Robust` names the influence (`"huber"|"igg3"|"bisquare"`); groups
+  `Noise`, `RobustOpts`, `Diagnostics`, `Parallel`, `GaussNewton` merge partial
+  structs onto defaults. `CacheDays` (resident built days) and `OnPass` (see
+  below) are new. `fit(data, Name=Value)` is the same mechanism as the object.
+- **`Options.OnPass = @(ctx)`** — your inspection hook after EVERY pass of every
+  iterative run (variance components, IRLS, Gauss–Newton): the pass state, the
+  live accumulator, your declaration and every system's `processingOptions`;
+  return `false` to stop (`stopReason = "userStop"`). Successor of the v4
+  `plotPostModel` / `plotPostSolve` hooks and of `ShowSeconds` / `ExportDir`;
+  post-mortem plotting is `R.plot("residuals"|"contribution"|"psd"|"convergence")`.
+- **`data.priors(k) = struct('L', 'x0', 'sigma', 'name')`** — declared
+  pseudo-observation groups on the common parameters. A free network's datum
+  is the prior `L = B'` on the null space (the exact minimum-constraint
+  solution, weight-independent); `DatumB` / `Sigma0` / `Sparse` are gone.
+- **Per-stream policy on the covariance spec** — `estimate = "none" | "scale"
+  | "law"` and `arcFactors` (logical); `Pool = "all" | "obsType" | "stream"`
+  decides which streams share one estimated spectral shape; every stream keeps
+  its own level. A law with a per-row `sigma` is a fixed structure (`"scale"`
+  only).
+- **Every fit kind rides the block path.** In-memory (`A, l, p`) and batched
+  (`batchFcn`) problems become one local-free streaming system; `Robust`
+  works on the streaming kind; Gauss–Newton (`x0`) is a policy on the same
+  loop. A full SPD weight matrix per batch is whitened exactly. Per-observation
+  diagnostics of a batch problem are reported in the WHITENED frame
+  (`R.diag.v = sqrt(p).*v`); only their sums are frame-invariant.
+- **`Results`**: `stopReason` (`"single" | "converged" | "maxPasses" |
+  "userStop"`), `meta.warnings` (every warning identifier of the run),
+  `noise.Cgroups` / `noise.stream` / `noise.model{k}.sigma`, `history.streams /
+  sigma / white / whitePval` on every iterative run (so `convergence()` and
+  `summary()` work for `Estimate="noise"`), `plot(kind)`. `R.source.verdict` →
+  `R.report().verdict`; `history.nOuter` → `history.nIter`.
+
+### What changed underneath (why the numbers may differ from 4.0)
+
+- The joint (Ellmer) estimator is the one estimator (finding H-03): the
+  separate mode's AR law fitted to the biased raw-residual ACF is retired
+  (R5-D4). Acceptance is the physical oracle (planted fields and stream sigmas
+  recovered within their formal errors), not equality to 4.0.
+- Multi-axis streams are handled per axis after the per-epoch descale (H-15);
+  the joint law lives in the PSD domain, positive by construction and resampled
+  to every arc's length (H-17); the pooled shape is normalised and each stream
+  carries its own level; per-lag sums are FFT autocorrelations (a pass on a
+  two-day GRACE-FO bundle at 2160 lags: 12 min → 39 s).
+- The QR backend refuses rank deficiency by `rank()`'s tolerance (not at the
+  roundoff boundary — the refusal was platform-dependent) and folds a
+  rank-deficient contribution in its range space (no `\` on a singular factor,
+  no warning ahead of the refusal) (H-16).
+- Error doctrine: every catch refuses, reports or counts; `util.callUser`
+  wraps user functions with the original error as cause; the identifier
+  catalogue is closed (`dev/docs_src/error_ids.csv`); skip RATES refuse
+  (`Noise.SkipThreshold`).
+
+### Migration table (v4 → v5)
+
+| v4 | v5 |
+|---|---|
+| `Model="gls"` | `Estimate="none"` (default) |
+| `Model="ellmer"` | `Estimate="noise"` (+ `Pool`, `ArcFactors=true` default) |
+| `Model="vce"` | `Estimate="noise", Pool="stream", ArcFactors=false` |
+| `Model="pooled"` | `Estimate="noise", Pool="all", ArcFactors=false` |
+| `Robust="irls"` + `Influence` | `Robust="huber"|"igg3"|"bisquare"` |
+| `Tuning`, `RobustMaxIter`, `RobustTol` | `RobustOpts.Tuning / .MaxIter / .Tol` |
+| `MaxOuter`, `JointMaxIter`, `VceMaxIter`, `NonlinearMaxIter` | `MaxPasses` |
+| `JointTol`, `OuterTol`, `VceTol`, `TolX` | `Tolerance` |
+| `TolF`, `Lambda0` | `GaussNewton.TolF / .Lambda0` |
+| `NumLags` | `Noise.Grid` |
+| `PsdMode` | `Noise.Whitener` (`"toeplitz"` default, as before) |
+| `MeanType`, `Smooth`, `MinRedundancy`, `SkipThreshold` | `Noise.MeanType / .Smooth / .FreezeRedundancy / .SkipThreshold` |
+| `Parallel`, `DistributeDays`, `ParallelThreshold` | `Parallel.Mode / .DistributeDays / .Threshold` |
+| `Alpha`, `Bonferroni`, `Beta`, `RMin`, `RWeak`, `Test`, `RobustCheck`, `Store`, `NWorst` | `Diagnostics.<same>` |
+| `LogFid`, `LogFlag`, `ShowSeconds`, `ExportDir`, `plotPostSolve`, `plotPostModel` | `LogFile`; `OnPass`; `R.plot(kind)` |
+| `DatumB` | `data.priors = struct('L', B.', 'sigma', 1, 'name', 'datum')` |
+| `Sigma0`, `Sparse`, `Verify`, `Progress` | retired |
+| `GroupBy`, `ComponentsPerEpoch`, `MaxOrder`, `AcvTol`, `MaxLag`, `WhiteAlpha` | retired with the separate mode (groups are streams; the axis count comes from the builder; whiteness is fixed at K = 20, α = 0.05) |
+| `Norm`, `C0`, `StepSchedule`, `AvgTail` | engine-tier only (`lsqvce.engine.adjustVCEjoint`) |
+| `lsqvce.engine.adjust / robust / solveNonlinear / Accumulator / adjustVCE / Combine / BatchIndex / varComp / vceHutchinson` | gone; `fit` on the block path; `lsqvce.engine.adjustBlock / adjustRobust / adjustNonlinear / adjustVCEjoint / batchSystem` at engine tier |
+| `R.source.verdict`, `history.nOuter` | `R.report().verdict`, `history.nIter` |
+
+Full ledger, decisions and round notes: `dev/HANDOVER.md` §12; theory:
+`dev/lsqvce_theory_r5.pdf`.
+
 ## 4.0 — 2026-08-31 (Level L11, WP-75: SCOPED parameter tables)
 
 **Breaking: both parameter tables gain a binding scope column.** Column 1 of

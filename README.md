@@ -1,4 +1,4 @@
-# lsqvce v4.0 — least-squares adjustment with variance component estimation
+# lsqvce v5.0 — least-squares adjustment with variance component estimation
 
 Declare your problem as a plain `data` struct, `fit` it, and get a judged
 result: estimates with formal errors, per-observation diagnostics, and a
@@ -39,27 +39,33 @@ into your own project.
 Three lines, whatever kind of data you have:
 
 ```matlab
-opts = lsqvce.Options(Model="vce");        % what to do (defaults = the engines' own)
+opts = lsqvce.Options(Estimate="noise");   % what to do (defaults = the engines' own)
 R    = lsqvce.fit(data, opts);             % the one verb
+R    = lsqvce.fit(data, Estimate="noise"); % the same, Name=Value straight on fit
 R.report                                   % the five-level verdict
 ```
 
 `data` is a plain struct; `fit` tells the three kinds apart by the fields present:
 
 ```matlab
-% (B) in memory, diagonal weights, no arc-wise unknowns
-data = struct('A', A, 'l', l, 'p', p);                         R = lsqvce.fit(data);
-R = lsqvce.fit(data, lsqvce.Options(Robust="irls"));           % with M-estimation
+% (B) in memory, diagonal weights (or a full SPD weight matrix), no arc-wise unknowns
+data = struct('A', A, 'l', l, 'p', p);                          R = lsqvce.fit(data);
+R = lsqvce.fit(data, Robust="huber");                           % M-estimation (IRLS)
+data.priors = struct('L', B.', 'sigma', 1, 'name', 'datum');    % a free network's datum
 
 % (C) batched callback [A,l,p] = batchFcn(k); with data.x0 the nonlinear form
 data = struct('batchFcn', @(k) src(k), 'numUnknowns', u, 'numBatches', nBatch);
 
-% (A) streaming: days, arcs, arc-wise unknowns, coloured noise (GRACE-FO)
-data.common.numCommon = nc;   data.days = 1:30;
-data.systems = struct('buildDay', @buildDayC, 'observationTypes', {{'kbr'}}, ...
-                      'covariance', cov, 'systemId', 'C', 'localsPerArc', 6);
-R = lsqvce.fit(data, lsqvce.Options(Model="vce", GroupBy="satObs"));
+% (A) streaming: days, arcs, scoped parameter tables, coloured noise (GRACE-FO)
+data.commonParams = [repmat({'common'}, nc, 1), yourColumns];   data.days = 59396:59425;
+data.systems = struct('buildDay', @buildDayC, 'covariance', cov, 'id', 'C', ...
+                      'arcs', @(day, obsType) 1:4, 'localParams', localTemplates);
+R = lsqvce.fit(data, Estimate="noise", Pool="obsType", OnPass=@myInspect);
 ```
+
+Every kind runs on the same accumulator and the same loop; `Robust`, the
+nonlinear form and `OnPass` (your inspection hook after every pass) work on
+all of them. The v4 names map one-to-one onto v5 (`RELEASE_NOTES.md`).
 
 **New here?** In this order:
 
@@ -74,28 +80,37 @@ R = lsqvce.fit(data, lsqvce.Options(Model="vce", GroupBy="satObs"));
 
 ## Usage guidelines
 
-**Choosing `Options.Model`.** `"gls"` is one generalised solve under the
-declared covariance. `"vce"` iterates: re-estimate the temporal noise model per
-stream and the Helmert variance components, reweight, repeat until white and
-balanced. `"pooled"` estimates one spectrum over all streams per pass.
-`"ellmer"` is the ten-step joint co-estimation of PSD and keyed per-arc factors
-(ITSG scheme); for it, set `NumLags` at least as large as the longest arc.
-On the in-memory kinds, `Robust="irls"` switches to M-estimation
-(Huber / IGG3 / bisquare). Engine tier for experts: `html/lsqvce_choosing.html`
-is the decision flowchart between the drivers `fit` dispatches to.
+**Choosing what to estimate.** `Estimate="none"` (default) is one generalised
+solve under the declared laws. `Estimate="noise"` is the joint (Ellmer)
+variance-component estimator on every stream whose spec allows it: the
+spectral shape per pool group (`Pool="all" | "obsType" | "stream"`), one level
+per stream, and — with `ArcFactors=true` — a keyed factor per arc. The v4
+words: `"vce"` = `Estimate="noise", Pool="stream", ArcFactors=false`;
+`"pooled"` = `Pool="all", ArcFactors=false`; `"ellmer"` = `Estimate="noise"`.
+Set `Noise.Grid` at least as large as the longest arc. `Robust="huber" |
+"igg3" | "bisquare"` is IRLS on the same loop, on every kind.
 
 **Declaring the stochastic model.** Each observation stream carries a
 covariance spec: `diag` (weights), `arma` / `ar` (a whitening filter),
-`acf` / `psd` (an exact Toeplitz law), plus an optional fixed per-epoch scaling
-(e.g. a kinematic-orbit epoch covariance). Batches are overlapped by the filter
-memory automatically, so batching never changes the result. Details and the six
-`buildDay` rules: `DATA_CONTRACT.md`.
+`acf` / `psd` (an exact Toeplitz law), `separable` (a temporal law times a
+fixed per-epoch covariance, for multi-axis streams), plus the per-stream
+policy `estimate = "none" | "scale" | "law"` and `arcFactors`. Batches are
+overlapped by the filter memory automatically, so batching never changes the
+result. Priors on the common parameters — a datum, a Kaula rule, a
+background model — are `data.priors`. Details and the six `buildDay` rules:
+`DATA_CONTRACT.md`.
 
-**Options.** `lsqvce.Options` is a typed value class: name-value on
-construction, `disp(opts)` marks which knobs deviate from the engines' own
-defaults. The groups that reach the VCE loop (`Shape`, `Scale`, `Outer`,
-`Joint`, `Axes`) are documented in `doc lsqvce.Options`; you rarely need more
-than `Model`, `GroupBy`, `MaxOuter`, `Verbose`, `Seed`.
+**Options.** `lsqvce.Options` is a typed value class: 14 knobs and five
+groups (`Noise`, `RobustOpts`, `Diagnostics`, `Parallel`, `GaussNewton`);
+name-value on construction or straight on `fit`; `disp(opts)` marks which
+knobs deviate from the defaults. You rarely need more than `Estimate`,
+`Pool`, `MaxPasses`, `Verbose`, `Seed`, `OnPass`.
+
+**Watching a run.** `OnPass=@(ctx) ...` is called at the end of every pass
+with the current solution, the noise state, the live accumulator, your
+declaration and your `processingOptions`; plot or save what you like, return
+`false` to stop. After the run, `R.plot("residuals" | "contribution" | "psd"
+| "convergence")`.
 
 **Reading the answer.** `R.report` prints the verdict; `R.coefficients()`
 returns estimates, formal errors and 95 % bounds as a table; `R.x`, `R.sigma0`,
