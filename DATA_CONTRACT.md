@@ -31,14 +31,20 @@ Fable 5. Rewritten for v3 and again for v4 (scoped tables) the same day (Claude 
    it) and `group` (a label: priors sharing it are merged into ONE group -- rows divided by
    their declared sigmas, the group sigma a common factor -- so `estimate="scale"` estimates
    one component for the members).
-1b. **`data.systems(k).localPriors(m) = struct('row', j, 'x0', .., 'sigma', .., 'from', .., 'name', ..)`**
-   (R5-D8 round 2) — a prior on LOCAL template row j, instantiated with the row: one
-   pseudo-observation per instance (per arc for an `'arc'` row, per day for a `'day'` row, once
-   for a `'system'` row) with A = 0, B = e_col/σ, l = x0/σ, unit covariance. They ride as the
-   system's observation type **`prior`** (reserved: `lsqvce:makeLoader:priorType`), so the
-   accumulation, the elimination, the sweeps and the redundancy count treat them as data;
-   the stream `satKey|prior` keeps its unit law under `Estimate="noise"`. Malformed:
-   `lsqvce:makeLoader:badLocalPrior`.
+1b. **`data.systems(k).priorDay = @(day, sysID, info) -> struct array`** (R5-D8 round 5) — the
+   priors on the LOCAL parameters of that day, declared the way the design is: called once per
+   day with the same `info` that `buildDay` receives, it returns one struct per GROUP with
+   `.L` (q × nl, pseudo-observation coefficients IN THE COLUMNS OF THIS SYSTEM'S B), `.x0`
+   (q × 1, default 0), `.sigma` (one per group), `.from` (activation pass), `.group` (label),
+   `.name`. Several structs = several groups with their own σ. The toolbox turns them into
+   pseudo-observations (A = 0, B = L/σ, l = x0/σ, unit law) riding as the system's observation
+   type **`prior`** (reserved: `lsqvce:makeLoader:priorType`), so accumulation, elimination,
+   the sweeps, `residuals()` and the redundancy count treat them as data; the width of L is
+   checked against nl by name (`lsqvce:makeLoader:badPriorDay`) — the only knowledge the two
+   sides share. THE RULE (R5-D8): the parameters and their columns are yours (tables, `buildDay`,
+   plots, `toTable`); regularisation is the toolbox's (mechanism, redundancy, activation, VCE per
+   group); the interface between them is an operator in your columns. `Options.Reg / RegLambda /
+   RegMatrix` are gone.
 1c. **`data.paramColumns = struct('start', c1, 'end', c2)`** (R5-D8 round 3) — names the columns
    of BOTH tables that hold a row's validity (`[MJD seconds]` pairs or fractional MJD; `[]` =
    always). A `'day'` / `'arc'` row is then instantiated only on the calendar days its validity
