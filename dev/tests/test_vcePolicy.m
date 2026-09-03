@@ -343,12 +343,12 @@ function testCompareIsTheNestedModelFTest(tc)
     Fref = ((Rred.sol.vtv - Rfull.sol.vtv) / 1) / (Rfull.sol.vtv / (n - 3));
     % tol: 1e-10 relative -- the same two residual sums in a closed form
     tc.verifyEqual(F.F, Fref, 'RelTol', 1e-10);
-    tc.verifyTrue(F.reject, 'the quadratic term is needed');
+    tc.verifyTrue(F.significant, 'the quadratic term is needed');
     % an UNNEEDED extra parameter: full = cubic, reduced = the true quadratic
     A4 = [A3, t.^3];
     Rfull4 = lsqvce.fit(struct('A', A4, 'l', l), Verbose=false);
     F4 = Rfull4.compare(Rfull, Alpha=0.01);
-    tc.verifyFalse(F4.reject, 'the cubic term is not needed at alpha 0.01');
+    tc.verifyFalse(F4.significant, 'the cubic term is not needed at alpha 0.01');
     % nesting is checked by the engine (not a subset: refused by name)
     Rother = lsqvce.fit(struct('A', [ones(n, 1), sin(t)], 'l', l), Verbose=false);
     tc.verifyError(@() Rred.compare(Rother), 'lsqvce:ftest:notNested');

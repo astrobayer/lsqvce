@@ -285,8 +285,8 @@ classdef Results < handle
         %   with lsqvce:Results:noVPv). The residual-sum PREMISE (same rows) is
         %   checked by the engine when both Results have diagnostics.
         %   INPUT   Rred 1x1 lsqvce.Results; Alpha (0.05); Verbose (false)
-        %   OUTPUT  F    1x1 struct  the engine's record (.F .dfNum .dfDen .p
-        %                            .reject .alpha .verdict) -- see LSQVCE.ENGINE.FTEST
+        %   OUTPUT  F    1x1 struct  the engine's record (.F .p .df1 .df2 .significant
+        %                            .alpha .valid) -- see LSQVCE.ENGINE.FTEST
         %   ERRORS  lsqvce:Results:noVPv    a v'Pv is NaN or missing
         %           lsqvce:ftest:*          the engine's own refusals (not nested, ...)
         arguments
