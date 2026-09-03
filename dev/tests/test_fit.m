@@ -79,7 +79,8 @@ function testFitVceReproducesTheEngine(tc)
         tc.verifyEqual(f, repmat(f(1), size(f)), sprintf('%s: one level', s{1}));
     end
     tc.verifyEqual(Rv.history.kind, 'ellmer');
-    tc.verifyEqual(Rv.meta.options.Model, "vce", 'the provenance keeps the user''s word');
+    tc.verifyEqual(Rv.meta.options.Pool, "stream", 'the provenance keeps the resolved policy');
+    tc.verifyFalse(Rv.meta.options.ArcFactors);
     % the per-stream summary every model shares
     tc.verifyEqual(numel(Rv.noise.stream), numel(ots));
     tc.verifyTrue(all(cellfun(@(m) isfield(m, 'sigma') && m.sigma > 0, Rv.noise.model)));
@@ -340,7 +341,7 @@ function testEllmerThroughFitReproducesDirect(tc)
     tc.verifyEqual(R.converged, out.converged);
     tc.verifyClass(R.acc, 'lsqvce.engine.BlockAccumulator');
     tc.verifyEqual(R.meta.seeds.jointSeed, 7, 'the probe seed is recorded in the provenance');
-    tc.verifyEqual(R.meta.options.Model, "ellmer");
+    tc.verifyEqual(R.meta.options.Estimate, "noise");
     % R5 M4 4a: the joint sweep collects whiteness per stream per pass, so
     % the history readers WORK on an ellmer Results (before 4a they refused
     % with lsqvce:Results:noHistory); the verdict works too
@@ -442,7 +443,7 @@ function testMatrixKindReproducesAdjust(tc)
         'the block path reports the whitened residual sqrt(p).*v');
     tc.verifyNotEmpty(R.acc, 'kind B now carries the accumulator');
     tc.verifyEqual(R.meta.options.kind, 'matrix');
-    tc.verifyEqual(R.meta.options.Model, "gls", 'the resolved USER options are the provenance');
+    tc.verifyEqual(R.meta.options.Estimate, "none", 'the resolved USER options are the provenance');
     % the user-facing conveniences ...
     T = R.coefficients();
     tc.verifyEqual(T.estimate, R.x);
@@ -555,7 +556,7 @@ function testBatchKindLinearReproducesAdjust(tc)
     % tol: 1e-12 relative -- block path (batch k = day k) vs the flat driver
     tc.verifyEqual(R.x, sol.x(:), 'RelTol', 1e-12);
     tc.verifyEqual(R.meta.options.kind, 'batch');
-    tc.verifyEqual(numel(R.meta.options.NumLags), 1, 'resolved options carried');
+    tc.verifyEqual(R.meta.options.Noise.Grid, 60, 'resolved options carried');
 end
 
 function testKindsBAndCRulesFireBeforeAnyRead(tc)
