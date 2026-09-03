@@ -5480,7 +5480,7 @@ estimated variance component". MEASURED on the bundle: every common row is
 | D8-1 | `data.priors(k).from` (activation pass; single-pass runs report `lsqvce:fit:priorNotActive` and skip), `.group` (label: members merged — rows divided by their declared sigmas, the group sigma a common FACTOR starting at 1; `estimate="scale"` estimates one component for the members; one policy per label, refused otherwise); the GRAVFIRE template translates column 11 of COMMON rows into `data.priors` and counts/reports local constraints; guide STEP 6 + column renumbering; contract §0a | **DONE** (2026-09-03, branch `claude/level-d8`; gate 524/524) |
 | D8-2 | **priors on LOCAL parameters** — `data.systems(k).localPriors(m) = struct('row', j, 'x0', 'sigma', 'from', 'name')` on a local TEMPLATE row, instantiated with the row (per arc for `'arc'` rows, per day for `'day'`, once for `'system'`) as pseudo-observations of the system: the loader adds the observation type **`prior`** (reserved; `lsqvce:makeLoader:priorType`) with one arc per day — A = 0, B = e_col/σ, l = x0/σ, unit law (`makeLoader>priorArc` reads the scoped plan's layout) — so accumulation, elimination, the sweeps, `residuals()` and the redundancy count treat them as data with NO second path; `from` honoured through the pass on the loader's UserOpt (`fit>withPass`); the stream `satKey\|prior` keeps its unit law under `Estimate="noise"` (policy 'none', no arc factors). The GRAVFIRE template STEP 7 turns the constrained local rows into `localPriors` — on the bundle 6 template priors (x/y/z accscale × GraceA/B), n grows by 12 = the constrained rows of the expanded table. Test: a tight prior pins a `'system'`-scoped local to x0 (1e-5), n grows by one, a 1e6-σ prior leaves the solution at 1e-8, a bad row refuses by name. Gate 525/525 | **DONE** (2026-09-03, branch `claude/level-d8-2`) |
 | D8-3 | validity-aware expansion — `data.paramColumns = struct('start', c1, 'end', c2)` names the validity columns of BOTH tables (`[MJD seconds]` pairs or fractional MJD; `[]` = always); a `'day'`/`'arc'` row is instantiated only on the calendar days its validity overlaps (half-open day), `'common'`/`'system'` rows always; nc and nl derived accordingly (`makeLoader>buildScopePlan` / `fit>buildCommonPlan` carry per-day row lists `arcRowsOf` / `dayRowsOf`); `buildDay`'s info tells the builder which rows exist on the day (`info.arcRows / dayRows / sysRows / commonDayRows`); the local-prior pseudo-arc reads the per-day rows. Without `paramColumns` every row is valid always (v4 behaviour; pinned). Refusals by name (`lsqvce:makeLoader:badValidity`, `lsqvce:fit:badParamColumns`). Test: a manoeuvre row on one day only and a fractional-MJD ramp over two days give dayCount [2 3 1], nl derived, the builder told [1 2 3] on the middle day | **DONE** (2026-09-03, branch `claude/level-d8-3`; gate 526/526) |
-| D8-4 | write-back — `R.toTable(data)` fills columns 8/9 (→ 9/10) from `R.x` and the formal errors through the expansion offsets | OPEN |
+| D8-4 | write-back — `[C, L, map] = R.toTable(data, Estimate=9, Std=10)`: the EXPANDED tables (one row per instantiated parameter, in the toolbox's column order: common block then day blocks; per system per day arc blocks then the day block, then the system block) with the estimate and its standard deviation in the named columns (defaults 9/10 of the 15-column table = the user's 8/9), every other column copied from the template row, and `map` naming each line's instance (`row`, `day`, `arc`); refuses a declaration whose nc is not the Results' u (`lsqvce:Results:tableMismatch`). To reuse the very same expansion plans, the declaration step was LIFTED out of fit into `lsqvce.engine.declaration` (validate + loaders + common plan; fit's identifiers kept) — fit shrank by ~250 lines. On the bundle: common 117 × 15, local 144 × 15 = the user's shapes exactly. Test on the demo: the columns equal `R.x` / `sqrt(diag Cxx)` and the local `y` / `sqrt(diag Cyy)` exactly, day instances carry their day | **DONE** (2026-09-03, branch `claude/level-d8-4`; gate 527/527) — **D8 COMPLETE** |
 
 **ROUND D8-1 note (2026-09-03, model Claude Fable 5.1, MCP).** Two things
 the bundle taught before a line was written: the constraints are on the
@@ -5509,3 +5509,18 @@ a builder that assumed "all day rows, in table order" must read the info
 (the demo builders do not use validity and are unaffected). Engine-tier
 callers that hand-build a CommonPlan without `rows` are tolerated (found by
 two test_fit points).
+
+**ROUND D8-4 note (2026-09-03, model Claude Fable 5.1, MCP) — D8 COMPLETE.**
+The write-back closes the loop the user asked for at the start: the table
+in, the table out. Design note: the expansion plans are computed ONCE and
+owned by `lsqvce.engine.declaration`; fit and toTable both call it, so the
+row that a column of A belongs to is the same answer in both directions by
+construction. A kind-B Results has an accumulator since M2, so "no
+accumulator" was the wrong refusal for the wrong-declaration case — the
+honest one compares the declaration's nc with the Results' u.
+
+**USER REVIEW REQUEST (2026-09-03), recorded for the next track:** "review
+the handling of the parameters — I need the table for the generation of A
+and B but the actual creation can be much simpler; the interface matching
+seems like stitching two things together that do not fit well; another
+mechanism is fine as long as the parameters end up in the n×15 cell array."
