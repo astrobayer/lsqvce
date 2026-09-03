@@ -136,11 +136,12 @@ end
     % collected and reported here; they are applied by D8 round 2 (priors on
     % local parameters) -- until then the report is the honest state.
     data.priors = priorsFromColumn11(commonData.parameter, opt.DryRun);
-    nLoc = localConstraintsFound(systemsData);
-    if nLoc > 0
-        fprintf(['gravfire_data: %d constrained LOCAL rows found (column 11); priors on local ' ...
-                 'parameters arrive with D8 round 2 -- not applied in this run.\n'], nLoc);
-    end
+    % ---- STEP 7 (R5-D8 round 2): column 11 on LOCAL rows -> localPriors ------
+    % The template rows are the first day's rows (STEP 4); a constrained row
+    % becomes a prior on that template row, instantiated per day (or per arc)
+    % by the toolbox as pseudo-observations of the system. Your 12 accelerometer
+    % scale factors {'Tikhonov', 1, 0.01} are exactly this.
+    data.systems.localPriors = localPriorsFromColumn11(localParams);
 end
 
 % ======================================================================
@@ -276,15 +277,23 @@ function priors = priorsFromColumn11(P, ~)
 end
 
 %==========================================================================
-function n = localConstraintsFound(systemsData)
-%LOCALCONSTRAINTSFOUND  Count the constrained rows of the local tables.
-    n = 0;
-    for k = 1:numel(systemsData)
-        T = systemsData{k}.parameter;
-        for j = 1:size(T, 1)
-            if ~isNoneConstraint(T{j, 11}), n = n + 1; end
+function LP = localPriorsFromColumn11(localParams)
+%LOCALPRIORSFROMCOLUMN11  Constrained LOCAL template rows -> localPriors (R5-D8 round 2).
+%   localParams is the 15-column template (token in column 1): the user's
+%   column 10 (a-priori) is column 11, column 11 (constraint) is column 12.
+    LP = struct('row', {}, 'x0', {}, 'sigma', {}, 'from', {}, 'name', {});
+    for j = 1:size(localParams, 1)
+        c = localParams{j, 12};
+        if isNoneConstraint(c), continue, end
+        if ~iscell(c) || numel(c) < 3 || ~ischar(c{1}) || ~strcmpi(c{1}, 'Tikhonov')
+            error('gravfire:badConstraint', 'local row %d: column 11 must be ''none'' or {''Tikhonov'', fromPass, sigma}.', j);
         end
+        x0 = 0;
+        if ~isempty(localParams{j, 11}), x0 = double(localParams{j, 11}); end
+        LP(end+1) = struct('row', j, 'x0', x0, 'sigma', double(c{3}), 'from', double(c{2}), ...
+                           'name', char(string(localParams{j, 2}))); %#ok<AGROW>
     end
+    if isempty(LP), LP = []; end
 end
 
 %==========================================================================

@@ -31,6 +31,14 @@ Fable 5. Rewritten for v3 and again for v4 (scoped tables) the same day (Claude 
    it) and `group` (a label: priors sharing it are merged into ONE group -- rows divided by
    their declared sigmas, the group sigma a common factor -- so `estimate="scale"` estimates
    one component for the members).
+1b. **`data.systems(k).localPriors(m) = struct('row', j, 'x0', .., 'sigma', .., 'from', .., 'name', ..)`**
+   (R5-D8 round 2) — a prior on LOCAL template row j, instantiated with the row: one
+   pseudo-observation per instance (per arc for an `'arc'` row, per day for a `'day'` row, once
+   for a `'system'` row) with A = 0, B = e_col/σ, l = x0/σ, unit covariance. They ride as the
+   system's observation type **`prior`** (reserved: `lsqvce:makeLoader:priorType`), so the
+   accumulation, the elimination, the sweeps and the redundancy count treat them as data;
+   the stream `satKey|prior` keeps its unit law under `Estimate="noise"`. Malformed:
+   `lsqvce:makeLoader:badLocalPrior`.
 2. **Per-stream policy on the covariance spec** — `covariance.<type>.estimate = "none" |
    "scale" | "law"` (default `"law"` under `Estimate="noise"`) and `.arcFactors` (logical,
    default the Options policy). A law whose `sigma` is a VECTOR (per-row weights) is a fixed

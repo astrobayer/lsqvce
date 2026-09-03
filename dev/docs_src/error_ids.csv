@@ -178,6 +178,7 @@ lsqvce:makeLoader:badArcId,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:badArcs,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:badDay,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:badDayCep,engine.makeLoader,error,v4.0
+lsqvce:makeLoader:badLocalPrior,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:badPlotHandle,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:badScope,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:buildDay,engine.makeLoader,error,v4.0
@@ -190,6 +191,7 @@ lsqvce:makeLoader:noCov,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:noD,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:noObsTypes,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:paramType,engine.makeLoader,error,v4.0
+lsqvce:makeLoader:priorType,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:rowWeightSize,engine.makeLoader,error,v4.0
 lsqvce:mapreduce:badTask,engine.mapreduce,error,v4.0
 lsqvce:mapreduce:serialFallback,engine.mapreduce,warning,v4.0
