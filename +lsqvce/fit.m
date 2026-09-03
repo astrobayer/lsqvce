@@ -1,6 +1,19 @@
-function R = fit(data, opts)
+function R = fit(data, opts, nv)
 %LSQVCE.FIT  Fit a least-squares adjustment (optionally with VCE) to declared data.
 %
+%   R = lsqvce.fit(data)                        every default
+%   R = lsqvce.fit(data, opts)                  a lsqvce.Options object
+%   R = lsqvce.fit(data, Name, Value, ...)      the Options properties, straight on fit
+%   R = lsqvce.fit(data, opts, Name, Value)     both: the pairs override opts
+%   R5 M5 (v5): the four forms are ONE mechanism -- the Name=Value pairs are the
+%   properties of lsqvce.Options applied on top of opts, validated by the class.
+arguments
+    data (1,1) struct
+    opts (1,1) lsqvce.Options = lsqvce.Options()
+    nv.?lsqvce.Options
+end
+    f = fieldnames(nv);
+    for k = 1:numel(f), opts.(f{k}) = nv.(f{k}); end
 %   R = lsqvce.fit(data)
 %   R = lsqvce.fit(data, opts)
 %
@@ -10,7 +23,7 @@ function R = fit(data, opts)
 %   to), choose what to do with an LSQVCE.OPTIONS object, and get an
 %   LSQVCE.RESULTS back:
 %
-%       opts = lsqvce.Options(Model="vce", GroupBy="satObs");
+%       opts = lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false);
 %       R    = lsqvce.fit(data, opts);
 %       R.report
 %
@@ -19,7 +32,7 @@ function R = fit(data, opts)
 %   rule -- ERRORS below), (2) builds one Loader per system through
 %   LSQVCE.ENGINE.MAKELOADER (the field names are makeLoader's canonical
 %   option names in lowerCamelCase; the mapping table lives here and nowhere
-%   else), (3) dispatches on opts.Model to the engine that does the work:
+%   else), (3) dispatches on opts.Estimate / opts.Robust to the engine that does the work:
 %
 %       Model      engine                    what
 %       "gls"      LSQVCE.ENGINE.ADJUSTBLOCK        one GLS solve with the declared
@@ -77,7 +90,7 @@ function R = fit(data, opts)
 %                                   (the LSQVCE.ENGINE.SOLVENONLINEAR
 %                                   contract); u = numel(x0), so numUnknowns
 %                                   must then be ABSENT (stated once).
-%   Dispatch for both: opts.Model must be "gls" (variance components need
+%   Dispatch for both: opts.Estimate must be "none" (variance components need
 %   the groups of a streaming system); opts.Robust = "irls" selects
 %   LSQVCE.ENGINE.ROBUST, data.x0 selects LSQVCE.ENGINE.SOLVENONLINEAR, else LSQVCE.ENGINE.ADJUST.
 %   The Results carries sol / diag / source (the driver's third output:
@@ -217,7 +230,7 @@ function R = fit(data, opts)
 %         [repmat({'day'}, 3, 1),  {'accScale'; 'accBias'; 'accDrift'}]];
 %     s.arcs = 2;
 %     data.systems = s;          % nl = 3 days * (2 arcs * 8 + 3) = 57, derived
-%     R = lsqvce.fit(data, lsqvce.Options(Model="vce"));
+%     R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false));
 %     R.report
 %
 %   See also LSQVCE.OPTIONS, LSQVCE.RESULTS, LSQVCE.ENGINE.MAKELOADER,
@@ -250,10 +263,6 @@ function R = fit(data, opts)
 %   Fable 5.
 %   Created 2026-08-31 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5 -- R4 Level L2, WP-56 (decision R4-D4).
-arguments
-    data (1,1) struct
-    opts (1,1) lsqvce.Options = lsqvce.Options()
-end
 
     opts.validate();
 
@@ -277,11 +286,11 @@ end
     % kind it is Model "gls" with reweighting (H-02: the same accumulator);
     % combining it with a VCE model is a v5 loop feature, refused for now.
     if ~strcmp(opts.Robust, "none")
-        if ~strcmp(opts.Model, "gls")
+        if ~strcmp(opts.Estimate, "none")
             error('lsqvce:fit:notYet', ...
-                ['Robust = "%s" together with Model = "%s" is the one-loop policy ' ...
-                 'composition of R5 M4; run the robust pass with Model "gls".'], ...
-                opts.Robust, opts.Model);
+                ['Robust = "%s" together with Estimate = "noise" is the one-loop policy ' ...
+                 'composition of a later level; run the robust pass with Estimate "none".'], ...
+                opts.Robust);
         end
         a = opts.engineArgs('adjustRobust');
         prov = opts.toStruct();  prov.kind = 'stream';
@@ -289,8 +298,8 @@ end
         return
     end
 
-    switch char(opts.Model)
-        case 'gls'
+    switch char(opts.Estimate)
+        case 'none'
             a = opts.engineArgs('adjustBlock');
             R = lsqvce.engine.adjustBlock(systems, days, a.nv{:});
         otherwise
@@ -605,10 +614,10 @@ function R = runBatch(u, batchFcn, nBatch, x0, opts, kind)
 %   contribution(), the exact per-observation sweep) is available on kinds
 %   B / C. Robust IRLS and the nonlinear form still run on the flat drivers
 %   until rounds 2b / 2c give them a policy on the block path.
-    if ~strcmp(opts.Model, "gls")
+    if ~strcmp(opts.Estimate, "none")
         error('lsqvce:fit:modelKind', ...
-            ['Model "%s" needs the streaming kind (variance components are per ' ...
-             'group of a system); the %s kind is Model "gls".'], opts.Model, kind);
+            ['Estimate = "noise" needs the streaming kind (variance components are ' ...
+             'per stream of a system); the %s kind is Estimate "none".'], kind);
     end
     % R5 M2 2c: DatumB (minimum-constraint datum), Sigma0 (a-priori sigma0)
     % and Sparse are FLAT-path options with no block-path home yet (the
@@ -633,7 +642,7 @@ function R = runBatch(u, batchFcn, nBatch, x0, opts, kind)
         a = opts.engineArgs("solveNonlinear");
         [sol, D, ~, IT] = lsqvce.engine.solveNonlinear(u, batchFcn, nBatch, x0, a.nv{:});
         source = IT;
-    elseif strcmp(opts.Robust, "irls")
+    elseif ~strcmp(opts.Robust, "none")
         a = opts.engineArgs("robust");
         [sol, D, ROB] = lsqvce.engine.robust(u, batchFcn, nBatch, a.nv{:});
         source = ROB;
@@ -671,27 +680,14 @@ function R = fitEllmer(systems, days, opts)
     specs = accSpecs(systems, days);
     streams = streamKeys(systems, specs);
     a = opts.engineArgs("adjustVCEjoint");
-    psdMode = char(opts.PsdMode);
+    psdMode = char(opts.Noise.Whitener);
     sepStreams = separableStreams(systems, specs);        % R5 M3 (H-15)
-    switch char(opts.Model)                              % R5 M4 4b: the model is a policy
-        case 'vce',    pool = "stream";  afDefault = false;
-        case 'pooled', pool = "all";     afDefault = false;
-        otherwise,     pool = opts.Pool; afDefault = true;   % 'ellmer'
-    end
+    pool = opts.Pool;  afDefault = opts.ArcFactors;      % R5 M5: explicit policy knobs
     [estMap, afMap] = streamPolicy(systems, specs, streams, afDefault);   % R5 M3 3d (R5-D4)
     accFcn = @(model) jointAccumulator(nc, specs, opts, ...
                  lsqvce.engine.jointModelOpt(model, streams, 'PsdMode', psdMode, ...
                                              'Separable', sepStreams));
     nvj = a.nv;
-    k = find(strcmp(nvj(1:2:end), 'Pool'), 1);
-    if ~isempty(k), nvj{2*k} = pool; else, nvj = [nvj, {'Pool', pool}]; end
-    if ~strcmp(opts.Model, "ellmer")
-        % the vce / pooled policies keep their v4 meaning of MaxOuter: the
-        % number of estimator passes (one loop, one budget); "ellmer" keeps
-        % its own JointMaxIter (its tests pin nIter against it)
-        k = find(strcmp(nvj(1:2:end), 'MaxIter'), 1);
-        nvj{2*k} = opts.MaxOuter;
-    end
     out = lsqvce.engine.adjustVCEjoint(accFcn, nvj{:}, 'Estimate', estMap, 'ArcFactors', afMap);
 
     [dsol, batchFcn, nB] = lsqvce.engine.diagnoseAccum(out.acc, out.sol);
@@ -747,8 +743,8 @@ function acc = jointAccumulator(nc, specs, opts, uo)
 %JOINTACCUMULATOR  One solve-ready accumulator under the current joint model.
     acc = lsqvce.engine.BlockAccumulator(nc, 'Backend', char(opts.Backend), 'KeepLocal', true, ...
               'Reg', char(opts.Reg), 'RegLambda', opts.RegLambda, 'RegMatrix', opts.RegMatrix, ...
-              'Parallel', char(opts.Parallel), 'DistributeDays', opts.DistributeDays, ...
-              'ParallelThreshold', opts.ParallelThreshold, 'Verbose', false, 'UserOpt', uo);
+              'Parallel', char(opts.Parallel.Mode), 'DistributeDays', opts.Parallel.DistributeDays, ...
+              'ParallelThreshold', opts.Parallel.Threshold, 'Verbose', false, 'UserOpt', uo);
     acc.addSystems(specs);
 end
 

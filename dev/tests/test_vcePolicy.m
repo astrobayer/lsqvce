@@ -28,8 +28,8 @@ function setupOnce(tc)
     [~, data] = demo_grace_dataLoader();
     tc.TestData.data = data;
     % ONE shared run per model (the rebuild-per-test lesson of the old suite)
-    tc.TestData.Rv = lsqvce.fit(data, lsqvce.Options(Model="vce", MaxOuter=3, NumLags=16, Seed=3, Verbose=false));
-    tc.TestData.Rp = lsqvce.fit(data, lsqvce.Options(Model="pooled", MaxOuter=3, NumLags=16, Seed=3, Verbose=false));
+    tc.TestData.Rv = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=3, Noise=struct('Grid', 16), Seed=3, Verbose=false));
+    tc.TestData.Rp = lsqvce.fit(data, lsqvce.Options(Estimate="noise", ArcFactors=false, MaxPasses=3, Noise=struct('Grid', 16), Seed=3, Verbose=false));
 end
 
 %% ---------------------------------------------------------------- history
@@ -114,7 +114,7 @@ function testPoolByObsTypeCoarsens(tc)
     % the three position streams (posC, posD, posE) are three types on the
     % demo, so 4 groups collapse to... the number of distinct types
     data = tc.TestData.data;
-    R = lsqvce.fit(data, lsqvce.Options(Model="ellmer", Pool="obsType", JointMaxIter=2, NumLags=16, Seed=3, Verbose=false));
+    R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="obsType", MaxPasses=2, Noise=struct('Grid', 16), Seed=3, Verbose=false));
     types = unique(cellfun(@(s) extractAfter(s, '|'), R.history.streams, 'UniformOutput', false));
     tc.verifyEqual(sort(keys(R.noise.Cgroups)), sort(types));
 end
@@ -123,14 +123,16 @@ end
 function testVerboseZeroIsSilent(tc)
 % categories: contract, robustness | tags: diagnostics
     data = tc.TestData.data;
-    out = evalc('lsqvce.fit(data, lsqvce.Options(Model="vce", MaxOuter=1, NumLags=16, Seed=3, Verbose=0));');
+    o = lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=1, Noise=struct('Grid', 16), Seed=3, Verbose=0);
+    out = evalc('lsqvce.fit(data, o);');
     tc.verifyEmpty(strtrim(out), 'Verbose 0 prints nothing');
 end
 
 function testVerboseOnePrintsThePassRecord(tc)
 % categories: contract | tags: diagnostics
     data = tc.TestData.data;
-    out = evalc('lsqvce.fit(data, lsqvce.Options(Model="vce", MaxOuter=1, NumLags=16, Seed=3, Verbose=1));');
+    o = lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=1, Noise=struct('Grid', 16), Seed=3, Verbose=1);
+    out = evalc('lsqvce.fit(data, o);');
     tc.verifyNotEmpty(strtrim(out), 'Verbose 1 prints the run''s progress');
 end
 
@@ -143,7 +145,7 @@ function testRecoversPlantedRelativeWeights(tc)
     % that found the missing level estimate and the ignored psd level in
     % round 4b -- promoted to a counted reference point (R5 M7 item, early).
     [cfg, data] = demo_gravity_dataLoader();
-    R = lsqvce.fit(data, lsqvce.Options(Model="vce", MaxOuter=6, Seed=1, Verbose=false));
+    R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=6, Seed=1, Verbose=false));
     got = cellfun(@(m) m.sigma, R.noise.model);
     want = cellfun(@(s) cfg.trueSigma.(extractAfter(s, '|')), R.noise.stream);
     gotR = got / got(1);  wantR = want / want(1);
@@ -170,11 +172,11 @@ function testCacheDaysCountsTheBuilds(tc)
     end
     n = 2;
     cnts = cellfun(@(s) s.counter, {data.systems.processingOptions}, 'UniformOutput', false);
-    lsqvce.fit(data, lsqvce.Options(Model="vce", MaxOuter=n, NumLags=16, Seed=3, Verbose=false, CacheDays=1));
+    lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=n, Noise=struct('Grid', 16), Seed=3, Verbose=false, CacheDays=1));
     v1 = cell2mat(cellfun(@(c) cell2mat(values(c)), cnts, 'UniformOutput', false));
     tc.verifyEqual(unique(v1), 2*n + 1, 'CacheDays 1: accumulate + sweep per pass, + the final diagnostics');
     for c = cnts, remove(c{1}, keys(c{1})); end
-    lsqvce.fit(data, lsqvce.Options(Model="vce", MaxOuter=n, NumLags=16, Seed=3, Verbose=false, CacheDays=Inf));
+    lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=n, Noise=struct('Grid', 16), Seed=3, Verbose=false, CacheDays=Inf));
     vInf = cell2mat(cellfun(@(c) cell2mat(values(c)), cnts, 'UniformOutput', false));
     tc.verifyEqual(unique(vInf), 1, 'CacheDays Inf: every day is built once per run');
 end

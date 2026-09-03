@@ -48,7 +48,7 @@ function test_stream_trace_sum_equals_nc(tc)
     % sum_g tr(N^-1 N_g^cc) = nc EXACTLY (up to probe noise), because the
     % symmetric per-group decomposition partitions N. Holds for any grouping.
     [acc, sol, cfg] = solvedProblem(tc);
-    sc = lsqvce.engine.streamContribution(acc, sol, 'GroupBy', 'obsType', ...
+    sc = lsqvce.engine.streamContribution(acc, sol, ...
                                    'Probes', 400, 'Seed', 1, 'WantDiag', false);
     verifyEqual(tc, sc.nc, cfg.nc);
     % tol: Monte-Carlo probe scatter ~ 1/sqrt(Probes) on this fixture; 4/sqrt(Z)-style bar (HANDOVER 6.1.2), not containment
@@ -61,7 +61,7 @@ function test_stream_diag_sums_to_ones(tc)
     % sum_g diag(N^-1 N_g^cc) = ones(nc,1) EXACTLY on the shared probe block,
     % because the same probes are used for every group and sum_g N_g^cc = N.
     [acc, sol, cfg] = solvedProblem(tc);
-    sc = lsqvce.engine.streamContribution(acc, sol, 'GroupBy', 'system', ...
+    sc = lsqvce.engine.streamContribution(acc, sol, ...
                                    'Probes', 300, 'Seed', 7, 'WantDiag', true);
     D = zeros(cfg.nc, 1);
     for k = 1:numel(sc.group)
@@ -80,9 +80,9 @@ function test_stream_trace_matches_reference(tc)
     % The streamed per-group trace estimates the common-block redundancy. Check
     % each group is close to a high-probe reference streamed trace.
     [acc, sol, ~] = solvedProblem(tc);
-    ref = lsqvce.engine.streamContribution(acc, sol, 'GroupBy', 'obsType', ...
+    ref = lsqvce.engine.streamContribution(acc, sol, ...
                                     'Probes', 4000, 'Seed', 11, 'WantDiag', false);
-    est = lsqvce.engine.streamContribution(acc, sol, 'GroupBy', 'obsType', ...
+    est = lsqvce.engine.streamContribution(acc, sol, ...
                                     'Probes', 400, 'Seed', 12, 'WantDiag', false);
     rk = cellstr(string({ref.group.key}));
     ek = cellstr(string({est.group.key}));
@@ -121,7 +121,7 @@ end
 function test_contribution_level1_shares_sum_to_one(tc)
 % categories: precision, robustness
     [acc, sol, ~] = solvedProblem(tc);
-    con = lsqvce.engine.contribution(acc, sol, 'GroupBy', 'obsType', 'Level', 1);
+    con = lsqvce.engine.contribution(acc, sol, 'Level', 1);
     verifyEqual(tc, con.level, 1);
     shares = [con.group.share];
     % tol: normalisation identity (a sum divided by itself); house exact-identity bound
@@ -138,7 +138,7 @@ end
 function test_contribution_level2_diagonal(tc)
 % categories: contract, precision, robustness
     [acc, sol, cfg] = solvedProblem(tc);
-    con = lsqvce.engine.contribution(acc, sol, 'GroupBy', 'system', 'Level', 2, ...
+    con = lsqvce.engine.contribution(acc, sol, 'Level', 2, ...
                               'Probes', 300, 'Seed', 5);
     verifyEqual(tc, con.level, 2);
     verifyEqual(tc, con.nc, cfg.nc);
@@ -454,7 +454,7 @@ function test_results_contribution_matches_direct_call(tc)
     cfg = tc.TestData.cfg;
     R   = lsqvce.engine.adjustBlock(specsFor(cfg), 1:2);
 
-    direct = lsqvce.engine.contribution(R.acc, R.sol, 'GroupBy', 'system');
+    direct = lsqvce.engine.contribution(R.acc, R.sol);
     viaR   = R.contribution('GroupBy', 'system');
 
     verifyEqual(tc, {viaR.group.key}, {direct.group.key});
@@ -469,7 +469,7 @@ function test_results_contribution_forwards_level2(tc)
     % accessor would quietly cap the caller at Level 1.
     cfg = tc.TestData.cfg;
     R   = lsqvce.engine.adjustBlock(specsFor(cfg), 1:2);
-    con = R.contribution('GroupBy', 'system', 'Level', 2, ...
+    con = R.contribution('Level', 2, ...
                          'Probes', 200, 'Seed', 7);
     verifyEqual(tc, con.level, 2);
     verifyEqual(tc, con.nc, cfg.nc);
