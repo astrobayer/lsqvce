@@ -149,9 +149,7 @@ function testCrossPropertyRulesUseLsqvceIds(tc)
     % a function-handle GroupBy is accepted and passed through untouched
     g = @(sysID, obsType, arc, day) sprintf('%s|%d', obsType, arc);
     o = lsqvce.Options(GroupBy=g);
-    a = o.engineArgs("adjustVCE");
-    k = find(strcmp(a.nv, 'GroupBy'), 1);
-    tc.verifyTrue(isa(a.nv{k+1}, 'function_handle'));
+    tc.verifyTrue(isa(o.GroupBy, 'function_handle'), 'a handle GroupBy is accepted as a VALUE (its engine left in R5 M4; the knob goes in M5)');
 end
 
 function testModelSelectsTheVceMode(tc)
