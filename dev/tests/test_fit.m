@@ -533,7 +533,7 @@ function testDatumIsADeclaredPrior(tc)
     tc.verifyEqual(B.'*R.x, 0, 'AbsTol', 1e-12, 'the minimum constraint holds');
     tc.verifyNotEmpty(R.acc, 'the block path carries the accumulator');
     % the flat driver (engine tier, reference until its retirement) agrees
-    [sol, ~, ~] = lsqvce.engine.adjust(u, @(k) deal(A, l), 1, 'DatumB', B, 'Verbose', false);
+    [sol, ~, ~] = lsqvce.engine.adjust(u, @(k) deal(A, l, ones(size(l))), 1, 'DatumB', B, 'Verbose', false);
     % tol: 1e-10 relative -- two routes (QR block vs normal flat) to one exact solution
     tc.verifyEqual(R.x, sol.x(:), 'RelTol', 1e-10, 'AbsTol', 1e-12);
     % the weight does not matter when B spans the null space

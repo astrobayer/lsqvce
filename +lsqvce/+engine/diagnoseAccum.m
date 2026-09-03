@@ -118,6 +118,17 @@ function [diagSol, batchFcn, nBatch] = diagnoseAccum(acc, sol)
     % factor R by streaming them through a QR, then hand the SAME enumeration
     % back as batchFcn so diagnose replays identical batches.
     batches = enumerateBatches(stores, sysIds, localOffset, localCount, nc, uFull);
+    % R5 M5 5b: the common-block PRIOR is one more batch of pseudo-observations
+    % (rows K/sigma on the common columns, observations x0/sigma), so the hat
+    % matrix, the redundancies and the residual sum include it exactly as the
+    % solve did (Koch: the prior's redundancy is what it absorbs). Without it
+    % the diagnostics rebuilt a rank-deficient N from the data alone.
+    if ~isempty(acc.prior)
+        K  = acc.prior.K / acc.prior.sigma;
+        Ap = [K, zeros(size(K, 1), uFull - nc)];
+        lp = acc.prior.x0(:) / acc.prior.sigma;
+        batches(end+1) = struct('A', Ap, 'l', lp);          %#ok<AGROW>
+    end
     nBatch  = numel(batches);
 
     Rfull = zeros(0, uFull);
@@ -230,6 +241,6 @@ function batches = whitenArcIntoBatches(batches, arc, uo, colLocal, nc, uFull)
         fullA(:, 1:nc)     = Ablk;
         fullA(:, colLocal) = Bblk;
 
-        batches(end+1) = struct('A', fullA, 'l', lblk);      %#ok<AGROW>
+        batches(end+1) = struct('A', fullA, 'l', lblk);      %#ok<AGROW>  (prior appended by the caller)
     end
 end
