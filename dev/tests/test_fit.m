@@ -533,13 +533,15 @@ function testFlatOnlyOptionsStayOnTheFlatDrivers(tc)
     tc.verifyEqual(R.meta.options.kind, 'matrix');
     % the same problem WITHOUT a datum is rank deficient: the block path (QR
     % backend) refuses it with the backend's named identifier, never solves it.
-    % Finding H-16 (R5 M2 2c, HANDOVER §12.3): MATLAB's singularMatrix warning
-    % and the fold's cancellation warning fire BEFORE the refusal -- noise ahead
-    % of a refusal; muted here on purpose, fixed in the M4 accumulator.
-    muteWarn(tc, 'MATLAB:singularMatrix');
-    muteWarn(tc, 'lsqvce:qr:cancellation');
+    % Finding H-16, closed in R5 M4 4e: the refusal is CLEAN -- no
+    % MATLAB:singularMatrix and no cancellation warning fire before it (the
+    % fold takes a rank-deficient contribution's square root in its range
+    % space instead of putting a singular factor through backslash)
+    lastwarn('');
     tc.verifyEqual(idOf(@() lsqvce.fit(struct('A', A, 'l', l), lsqvce.Options(Verbose=false))), ...
         'lsqvce:qr:singularR');
+    [~, wid] = lastwarn;
+    tc.verifyEmpty(wid, 'no warning precedes the refusal');
 end
 
 function testBatchKindLinearReproducesAdjust(tc)
