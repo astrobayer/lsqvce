@@ -92,6 +92,14 @@ classdef Options
 %                                 every arc is skipped as nonPD and the driver
 %                                 reports noArcs. Use NumLags >= longest arc.
 %     Probes     double   100     Hutchinson probes
+%     CacheDays  double   1       R5 M4 4d: how many BUILT days each system keeps
+%                                 resident. A two-stage pass builds every day
+%                                 twice (accumulate + sweep) and a VCE run
+%                                 2n+1 times; Inf keeps the whole calendar and
+%                                 builds each day ONCE per run -- YOUR memory
+%                                 decision (a built day is m x nc doubles per
+%                                 observation type: ~190 MB at degree 60 for a
+%                                 6-h 3-axis piece). 1 = the single slot of v4.
 %     Pool       string   "all"   R5 M3 3d: which streams SHARE one estimated
 %                                 law under Model "ellmer": "all" (one pooled
 %                                 shape, v4 behaviour) | "obsType" (one per
@@ -237,6 +245,7 @@ classdef Options
         Probes   (1,1) double {mustBeInteger, mustBePositive} = 100
         SkipThreshold (1,1) double {mustBeInRange(SkipThreshold, 0, 1)} = 0.2
         Pool          (1,1) string {mustBeMember(Pool, ["all","obsType","stream"])} = "all"
+        CacheDays     (1,1) double {mustBePositive} = 1
         Seed     double {mustBeScalarOrEmpty} = []
         Norm     (1,1) string {mustBeMember(Norm, ["ortho","ellmer"])} = "ortho"
         MeanType (1,1) string {mustBeMember(MeanType, ["robust","plain"])} = "robust"
@@ -429,7 +438,7 @@ classdef Options
                  'Variance components',   {'GroupBy', 'VceMaxIter', 'VceTol', 'MinRedundancy', 'ComponentsPerEpoch'}; ...
                  'Stochastic model',      {'MaxOrder', 'AcvTol', 'MaxLag', 'WhiteAlpha'}; ...
                  'Outer loop',            {'MaxOuter', 'OuterTol'}; ...
-                 'Joint spectrum',        {'NumLags', 'Probes', 'SkipThreshold', 'Pool', 'Seed', 'Norm', 'MeanType', 'PsdMode', 'Smooth', 'C0', 'JointMaxIter', 'JointTol', 'StepSchedule', 'AvgTail'}; ...
+                 'Joint spectrum',        {'NumLags', 'Probes', 'SkipThreshold', 'Pool', 'CacheDays', 'Seed', 'Norm', 'MeanType', 'PsdMode', 'Smooth', 'C0', 'JointMaxIter', 'JointTol', 'StepSchedule', 'AvgTail'}; ...
                  'Robust IRLS',           {'Influence', 'Tuning', 'RobustMaxIter', 'RobustTol'}; ...
                  'Nonlinear',             {'NonlinearMaxIter', 'TolX', 'TolF', 'Lambda0'}; ...
                  'Diagnostics',           {'Alpha', 'Bonferroni', 'Beta', 'RMin', 'RWeak', 'Test', 'RobustCheck', 'Store', 'NWorst', 'Verify', 'Progress'}};

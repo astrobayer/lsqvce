@@ -152,3 +152,35 @@ function testRecoversPlantedRelativeWeights(tc)
     % vs 1 / 2 / 0.5 on 2026-09-02); the same bound test_physOracle uses
     tc.verifyEqual(gotR, wantR, 'RelTol', 0.25, 'the planted relative weights are recovered');
 end
+
+%% ---------------------------------------------------------- re-reads (M4 4d)
+function testCacheDaysCountsTheBuilds(tc)
+% categories: contract, speed
+    % R5 M4 4d: the number a sweep level is judged by. A two-stage pass builds
+    % every (day, obsType) twice (accumulate + sweep) and a VCE run of n
+    % passes 2n+1 times (+ the final diagnostics); with CacheDays = Inf the
+    % calendar stays resident and every day is built ONCE per run. Counted
+    % through a wrapped buildDay on the demo declaration (2 systems, 3 days).
+    data = tc.TestData.data;
+    for k = 1:numel(data.systems)
+        cnt = containers.Map('KeyType', 'char', 'ValueType', 'double');
+        inner = data.systems(k).buildDay;
+        data.systems(k).buildDay = @(varargin) countBuild(cnt, inner, varargin{:});
+        data.systems(k).processingOptions.counter = cnt;      % keep the map reachable
+    end
+    n = 2;
+    cnts = cellfun(@(s) s.counter, {data.systems.processingOptions}, 'UniformOutput', false);
+    lsqvce.fit(data, lsqvce.Options(Model="vce", MaxOuter=n, NumLags=16, Seed=3, Verbose=false, CacheDays=1));
+    v1 = cell2mat(cellfun(@(c) cell2mat(values(c)), cnts, 'UniformOutput', false));
+    tc.verifyEqual(unique(v1), 2*n + 1, 'CacheDays 1: accumulate + sweep per pass, + the final diagnostics');
+    for c = cnts, remove(c{1}, keys(c{1})); end
+    lsqvce.fit(data, lsqvce.Options(Model="vce", MaxOuter=n, NumLags=16, Seed=3, Verbose=false, CacheDays=Inf));
+    vInf = cell2mat(cellfun(@(c) cell2mat(values(c)), cnts, 'UniformOutput', false));
+    tc.verifyEqual(unique(vInf), 1, 'CacheDays Inf: every day is built once per run');
+end
+
+function D = countBuild(cnt, inner, varargin)
+    key = sprintf('%d|%s', varargin{1}, char(varargin{2}));
+    if isKey(cnt, key), cnt(key) = cnt(key) + 1; else, cnt(key) = 1; end
+    D = inner(varargin{:});
+end

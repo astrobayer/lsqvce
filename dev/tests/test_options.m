@@ -210,7 +210,7 @@ function testToStructCoversEveryPropertyOnce(tc)
             sprintf('property %s must appear in the grouped display', f{1}));
     end
     tc.verifyEqual(numel(fieldnames(s)), numel(unique(fieldnames(s))));
-    tc.verifyEqual(numel(fieldnames(s)), 61, 'the option space has 61 knobs (update on purpose: R5 M1 SkipThreshold, M3 Pool)');
+    tc.verifyEqual(numel(fieldnames(s)), 62, 'the option space has 62 knobs (update on purpose: R5 M1 SkipThreshold, M3 Pool, M4 CacheDays)');
 end
 
 %% ================================================================ helpers

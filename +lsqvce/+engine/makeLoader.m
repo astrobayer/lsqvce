@@ -291,6 +291,9 @@ arguments
     opt.Days double = []
     opt.Name (1,1) string = ""
     opt.Cache (1,1) logical = true
+    opt.CacheDays (1,1) double {mustBePositive} = 1   % R5 M4 4d: built days kept resident;
+                                                     % Inf = every day of the run (the
+                                                     % user's memory decision, see fit)
     opt.EpochCovariance = []
     opt.CommonParams cell = {}
     opt.LocalParams cell = {}
@@ -308,7 +311,7 @@ end
     % WP-39 stage (c) c1: typed `arguments` signature (canonical
     % UpperCamelCase; legacy casings keep matching -- MATLAB NV
     % semantics; enum VALUES case-sensitive lowercase).
-    o = struct('observationTypes', {opt.ObservationTypes}, 'covariance', opt.Covariance, 'arcs', opt.Arcs, 'localsPerArc', opt.LocalsPerArc, 'systemId', opt.SystemId, 'numLocal', opt.NumLocal, 'numCommon', opt.NumCommon, 'days', opt.Days, 'name', char(opt.Name), 'cache', opt.Cache, 'epochCovariance', opt.EpochCovariance, 'commonParams', {opt.CommonParams}, 'localParams', {opt.LocalParams}, 'processingOptions', opt.ProcessingOptions, 'plotPostSolve', opt.PlotPostSolve, 'plotPostModel', opt.PlotPostModel, 'scoped', opt.Scoped, 'commonPlan', opt.CommonPlan);
+    o = struct('observationTypes', {opt.ObservationTypes}, 'covariance', opt.Covariance, 'arcs', opt.Arcs, 'localsPerArc', opt.LocalsPerArc, 'systemId', opt.SystemId, 'numLocal', opt.NumLocal, 'numCommon', opt.NumCommon, 'days', opt.Days, 'name', char(opt.Name), 'cache', opt.Cache, 'cacheDays', opt.CacheDays, 'epochCovariance', opt.EpochCovariance, 'commonParams', {opt.CommonParams}, 'localParams', {opt.LocalParams}, 'processingOptions', opt.ProcessingOptions, 'plotPostSolve', opt.PlotPostSolve, 'plotPostModel', opt.PlotPostModel, 'scoped', opt.Scoped, 'commonPlan', opt.CommonPlan);
 
     % ---- map long option names onto the short internal fields -------------
     % Canonical long names only. The resolved value is written onto the SHORT
@@ -445,7 +448,7 @@ end
     % The day accessor is built FIRST and captured by value: L.meta may need
     % it (the 'fromDay' resolver), and an anonymous function cannot capture a
     % struct field that does not exist yet.
-    dayAccessor = @(day, obsType) dayOf(buildDay, cache, o.cache, day, obsType, ...
+    dayAccessor = @(day, obsType) dayOf(buildDay, cache, o.cache * o.cacheDays, day, obsType, ...
                                         o.common, o.local, o.procOpt, plan, o.commonPlan);
     L.meta    = @(varargin) metaOf(obsTypes, o.arcs, ...
                                    metaDay(varargin, o.days), dayAccessor);
@@ -792,11 +795,15 @@ function v = checkArcIds(v, obsType, day, who)
     end
 end
 
-function D = dayOf(buildDay, cache, useCache, day, obsType, common, local, procOpt, plan, commonPlan)
+function D = dayOf(buildDay, cache, capacity, day, obsType, common, local, procOpt, plan, commonPlan)
 %DAYOF  Return the built+validated day struct for (day,obsType), using a
-%   single-slot cache when useCache. OUTPUT D 1x1 struct  the day data.
+%   cache of CAPACITY resident days (0 = none, 1 = the single slot of v4,
+%   Inf = every day of the run -- R5 M4 4d: a two-stage pass builds every day
+%   twice, accumulate + sweep, and a VCE run 2n+1 times; with the calendar
+%   resident it is ONCE per run). OUTPUT D 1x1 struct  the day data.
     if nargin < 10, commonPlan = []; end
     key = sprintf('%d|%s', day, obsType);
+    useCache = capacity > 0;
     if useCache && isKey(cache, key)
         D = cache(key);  return
     end
@@ -805,7 +812,9 @@ function D = dayOf(buildDay, cache, useCache, day, obsType, common, local, procO
     D = callBuildDay(buildDay, day, obsType, common, local, procOpt, arcInfo);
     D = validateDay(D, day, obsType);
     if useCache
-        remove(cache, cache.keys);   % keep at most ONE resident day
+        while cache.Count >= capacity          % evict the oldest (insertion order)
+            ks = cache.keys;  remove(cache, ks{1});
+        end
         cache(key) = D;              %#ok<NASGU>
     end
 end
