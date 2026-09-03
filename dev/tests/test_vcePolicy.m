@@ -370,8 +370,10 @@ function testPriorActivationAndGroupPattern(tc)
     lay = lsqvce.layout(data);
     c1 = lay.colCommon(1, []);
     e = @(j) double((1:nc) == j);
-    data.priors = [struct('group', pat, 'x0', 0, 'sigma', 0.5, 'estimate', "none", 'from', 1), ...
-                   struct('L', e(3), 'x0', 0, 'sigma', 1.0, 'name', 'late', 'estimate', "none", 'from', 3)];
+    % (a MATLAB struct array needs one field set: both forms name all fields,
+    % the unused one empty -- the toolbox reads "empty" as "not given")
+    data.priors = [struct('group', pat, 'L', [], 'x0', 0, 'sigma', 0.5, 'name', '', 'estimate', "none", 'from', 1), ...
+                   struct('group', '', 'L', e(3), 'x0', 0, 'sigma', 1.0, 'name', 'late', 'estimate', "none", 'from', 3)];
     R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
                      MaxPasses=4, Noise=struct('Grid', 16), Seed=3, Verbose=false));
     g = R.noise.priors;
@@ -382,7 +384,7 @@ function testPriorActivationAndGroupPattern(tc)
     tc.verifyEqual(g(1).L, e(c1));
     tc.verifyEqual(g(2).from, 3);
     % the same declaration with an explicit L gives the same group
-    data.priors(1) = struct('L', e(c1), 'x0', 0, 'sigma', 0.5, 'estimate', "none", 'from', 1, 'group', '', 'name', pat);
+    data.priors(1) = struct('group', '', 'L', e(c1), 'x0', 0, 'sigma', 0.5, 'name', pat, 'estimate', "none", 'from', 1);
     R2 = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
                      MaxPasses=4, Noise=struct('Grid', 16), Seed=3, Verbose=false));
     % tol: exact -- identical declarations
