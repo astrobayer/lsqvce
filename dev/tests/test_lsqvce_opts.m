@@ -260,11 +260,11 @@ end
 
 %% ======================================================= SOLVENONLINEAR
 function test_nonlinear_history_is_monotone(tc)
+% categories: contract
     % noise-free fixture: the converged fit is EXACT (rho2 = 0 with ltl > 0),
     % which the fold cannot tell from cancellation and says so -- provoked
     % on purpose here (gate rule 7); the step control uses l'Pl, not vtv
     muteWarn(tc, 'lsqvce:qr:cancellation');
-% categories: contract
     % The residual sum of squares must DECREASE at every Gauss-Newton step on
     % a well-behaved problem. If it does not, the linearisation is wrong.
     stations = [0 0; 10 0; 10 10; 0 10; 5 12];
