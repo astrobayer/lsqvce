@@ -366,9 +366,9 @@ end
 function testDemoGravityRunsEndToEnd(tc)
 % categories: robustness
 % WP-51: the driver must actually RUN -- a demo nobody executes rots. Kept to
-% MaxOuter 1 for cost; the numbers it prints are exercised, not asserted (no
+% MaxPasses 1 for cost; the numbers it prints are exercised, not asserted (no
 % band is pinned here that was not measured).
-    out = evalc('[Rg, sc] = demo_gravity(''MaxOuter'', 1);');
+    out = evalc('[Rg, sc] = demo_gravity(''MaxPasses'', 1);');
     tc.verifyTrue(contains(out, 'The problem'));
     tc.verifyTrue(contains(out, 'The weights'));
     tc.verifyClass(Rg, 'lsqvce.Results');
@@ -379,7 +379,7 @@ function testDemoGravityRunsEndToEnd(tc)
     % WP-53: the printed self-assessment is also RETURNED, so it can be
     % checked instead of read. Structural contract only -- the statistics of
     % the default run are quoted in the demo's ACCURACY block, not asserted
-    % here (this call uses MaxOuter 1 and would not reproduce them anyway).
+    % here (this call uses MaxPasses 1 and would not reproduce them anyway).
     tc.verifyClass(sc, 'struct');
     documented = {'sigma0','stream','sigmaPlanted','sigmaRecovered', ...
                   'sigmaRatio','zMax','zMeanSq','anomaly','degree','degRatio'};
