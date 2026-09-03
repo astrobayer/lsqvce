@@ -93,7 +93,9 @@ function testWhitenerIsLinearAndScales(tc)
     [WX, ~, Wl]   = lsqvce.kernel.armaWhiten(a, b, 1,   r1, X,     zeros(m, 0), l, true);
     [WY, ~, ~]    = lsqvce.kernel.armaWhiten(a, b, 1,   r1, Y,     zeros(m, 0), l, true);
     [WXY, ~, ~]   = lsqvce.kernel.armaWhiten(a, b, 1,   r1, 2*X+Y, zeros(m, 0), l, true);
-    [WX3, ~, Wl3] = lsqvce.kernel.armaWhiten(a, b, 3,   r1, X,     zeros(m, 0), l, true);
+    % the ACV belongs to the process: with innovation std 3 it is 9*r1 (the
+    % exact start-up rows use it; the filter rows use s directly)
+    [WX3, ~, Wl3] = lsqvce.kernel.armaWhiten(a, b, 3, 9*r1, X,     zeros(m, 0), l, true);
     % tol: 1e-12 relative -- linear filters on O(1) numbers
     tc.verifyEqual(WXY, 2*WX + WY, 'RelTol', 1e-12, 'linearity');
     % tol: as above
