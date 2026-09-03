@@ -7,8 +7,10 @@ Additive on 5.1 except one retirement (`Options.Reg / RegLambda / RegMatrix`).
 - **Regularisation is declared, in your columns.** `data.priors(j)` (common
   parameters, L in the columns of A) and **`data.systems(k).priors(l)`**
   (system k's local parameters, L in the columns of B) are one mechanism:
-  one struct per group (`L`, `x0`, `sigma`, `from`, `name`, `estimate`),
-  pseudo-observations counted in the redundancy; `estimate = "scale"`
+  one struct per group, declared by **`group`** (a regular expression on the
+  table's name column — the toolbox builds L, one row per matched row per
+  instance) or by **`L`** (used as is), plus `x0`, one `sigma`, `from`,
+  `name`, `estimate`; pseudo-observations counted in the redundancy; `estimate = "scale"`
   estimates the group's sigma every pass by Helmert / Koch–Kusche — for local
   groups as the level of their own stream `prior_<name>`, identical to the
   common groups. `from` activates a group at a pass; a label (`group` on

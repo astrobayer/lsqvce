@@ -5577,3 +5577,23 @@ the `_d<day>_a` suffix; and the prior arc now takes its law through the
 override path, so the estimated level whitens the next pass. Suites
 503/503 on CI. D8 rounds: 1 activation + label, 2 local priors, 3
 validity, 4 write-back, 5 disentanglement (priorDay), 6 the final shape.
+
+**ROUND D8-6, second half (2026-09-03, model Claude Fable 5.1, tier B).**
+The user's two questions closed the design: (1) "what does `group` mean if
+L is given?" — nothing: L's rows ARE the group; the label was a leftover
+of round 1, retired as a merging device; (2) "group as a name pattern OR L"
+— adopted: a group is declared EITHER by `group` (a regular expression on
+the NAME column of the table, `data.paramColumns.name`, default 2; the
+toolbox builds L, one row per matched row per instance, from the layout it
+owns) OR by `L` (used as is), never both — on `data.priors(j)` and
+`data.systems(k).priors(l)` alike; `lsqvce.engine.localColumns` is the one
+column unroll (layout, toTable, group expansion). Your column 11
+`{'Tikhonov', k, σ, 'accscale'}` is now one struct
+`struct('group', '^(GraceA_xaccscale|…)$', 'sigma', σ, 'from', k,
+'estimate', "scale")` emitted by the template. How L looks when σ is to be
+estimated: one row per member instance (x/y/z on two days = 6 rows), one σ
+for all of them; a single-row group cannot estimate its σ (redundancy ≤ 1)
+and is left unchanged and flagged. Three CI catches on the way: a struct
+array needs one field set (the test's); a filtered point = a wrong fixture;
+the demo's common names are not unique — the pattern test expects one row
+per matched column. Release 5.2 entry updated. 504/504 on CI.
