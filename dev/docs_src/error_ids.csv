@@ -136,6 +136,7 @@ lsqvce:fit:badArcs,fit,error,v4.0
 lsqvce:fit:badEstimate,fit,error,v4.0
 lsqvce:fit:badId,fit,error,v4.0
 lsqvce:fit:badMatrix,fit,error,v4.0
+lsqvce:fit:badParamColumns,fit,error,v4.0
 lsqvce:fit:badPrior,fit,error,v4.0
 lsqvce:fit:badScope,fit,error,v4.0
 lsqvce:fit:builderKind,fit,error,v4.0
@@ -181,6 +182,7 @@ lsqvce:makeLoader:badDayCep,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:badLocalPrior,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:badPlotHandle,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:badScope,engine.makeLoader,error,v4.0
+lsqvce:makeLoader:badValidity,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:buildDay,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:dayShape,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:localPlan,engine.makeLoader,error,v4.0

@@ -39,6 +39,15 @@ Fable 5. Rewritten for v3 and again for v4 (scoped tables) the same day (Claude 
    accumulation, the elimination, the sweeps and the redundancy count treat them as data;
    the stream `satKey|prior` keeps its unit law under `Estimate="noise"`. Malformed:
    `lsqvce:makeLoader:badLocalPrior`.
+1c. **`data.paramColumns = struct('start', c1, 'end', c2)`** (R5-D8 round 3) — names the columns
+   of BOTH tables that hold a row's validity (`[MJD seconds]` pairs or fractional MJD; `[]` =
+   always). A `'day'` / `'arc'` row is then instantiated only on the calendar days its validity
+   overlaps (half-open day: start < d+1 and end > d); `'common'` / `'system'` rows are always
+   present. nc and nl are derived accordingly, and `buildDay`'s 6th argument tells you which
+   template rows exist on the day: `info.arcRows`, `info.dayRows`, `info.sysRows`,
+   `info.commonDayRows` (indices into the tables, in block order). Without `paramColumns`
+   every row is valid always — the v4 behaviour. This is how a one-day manoeuvre parameter and
+   a "literal" row become the same mechanism as everything else.
 2. **Per-stream policy on the covariance spec** — `covariance.<type>.estimate = "none" |
    "scale" | "law"` (default `"law"` under `Estimate="noise"`) and `.arcFactors` (logical,
    default the Options policy). A law whose `sigma` is a VECTOR (per-row weights) is a fixed

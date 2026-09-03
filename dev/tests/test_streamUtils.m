@@ -280,3 +280,51 @@ function D = makeTinyDay()
     D.arcIdx = {1:m};
 end
 
+%% ==================================== R5-D8 round 3: validity-aware expansion
+function test_validity_columns_expand_day_rows_only_where_valid(tc)
+% categories: contract, precision
+    % A 'day' template row with a validity [start end] (as [MJD sec] pairs or
+    % fractional MJD, in the columns named by ValidityColumns) is instantiated
+    % ONLY on the days it overlaps; nl is derived accordingly; buildDay's info
+    % says which rows are present on the day (info.dayRows / info.arcRows).
+    days = 100:102;
+    T = {'day', 'bias',     [], [];                          % always (empty validity)
+         'day', 'manoeuvre', [101 0], [101 86390];          % day 101 only
+         'day', 'ramp',      100.5, 101.6;                  % days 100 and 101 (fractional MJD)
+         'arc', 'ic',        [], []};                       % always, per arc
+    seen = containers.Map('KeyType', 'double', 'ValueType', 'any');
+    bd = @(day, ot, common, local, po, info) recordInfo(seen, day, info);
+    L = lsqvce.engine.makeLoader(bd, 'ObservationTypes', {'obs'}, ...
+            'Covariance', struct('obs', struct('type', 'diag', 'sigma', 1)), ...
+            'Arcs', @(d, ot) 1:2, 'Days', days, 'LocalParams', T, 'Scoped', true, ...
+            'NumCommon', 3, 'ValidityColumns', [3 4], 'SystemId', 1);
+    plan = L.plan;
+    tc.verifyEqual(plan.dayCount, [2 3 1], 'bias + ramp | bias + manoeuvre + ramp | bias');
+    tc.verifyEqual(plan.dayRowsOf{1}, [1 3]);
+    tc.verifyEqual(plan.dayRowsOf{2}, [1 2 3]);
+    tc.verifyEqual(plan.dayRowsOf{3}, 1);
+    % nl = 2 arcs/day x 1 arc row x 3 days + (2 + 3 + 1) day rows
+    tc.verifyEqual(plan.nl, 6 + 6);
+    % the builder is told the rows present on the day
+    L.day(101, 'obs');
+    tc.verifyTrue(isKey(seen, 101));
+    tc.verifyEqual(seen(101).dayRows, [1 2 3]);
+    tc.verifyEqual(seen(101).arcRows, 4);
+    tc.verifyEqual(seen(101).dayCount, 3);
+    % without validity columns every row is valid always (the v4 behaviour)
+    L0 = lsqvce.engine.makeLoader(bd, 'ObservationTypes', {'obs'}, ...
+            'Covariance', struct('obs', struct('type', 'diag', 'sigma', 1)), ...
+            'Arcs', @(d, ot) 1:2, 'Days', days, 'LocalParams', T, 'Scoped', true, ...
+            'NumCommon', 3, 'SystemId', 1);
+    tc.verifyEqual(L0.plan.dayCount, [3 3 3]);
+    % refusals by name
+    tc.verifyError(@() lsqvce.engine.makeLoader(bd, 'ObservationTypes', {'obs'}, ...
+            'Covariance', struct('obs', struct('type', 'diag', 'sigma', 1)), ...
+            'Arcs', @(d, ot) 1:2, 'Days', days, 'LocalParams', T, 'Scoped', true, ...
+            'NumCommon', 3, 'ValidityColumns', [3 9], 'SystemId', 1), 'lsqvce:makeLoader:badValidity');
+end
+
+function D = recordInfo(seen, day, info)
+    seen(day) = info;
+    D = struct('A', zeros(0, 3), 'B', zeros(0, info.nl), 'l', zeros(0, 1), 't', zeros(0, 1), 'arcIdx', {{}});
+end

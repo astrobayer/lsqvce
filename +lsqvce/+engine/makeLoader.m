@@ -291,6 +291,9 @@ arguments
     opt.Days double = []
     opt.Name (1,1) string = ""
     opt.Cache (1,1) logical = true
+    opt.ValidityColumns double = []   % R5-D8 round 3: [cStart cEnd] columns of localParams holding the
+                                      % validity ([MJD sec] pairs or fractional MJD; [] = always): a
+                                      % 'day'/'arc' row is instantiated only on days its validity overlaps
     opt.LocalPriors = []          % R5-D8 round 2: struct array of priors on LOCAL template rows
                                   % (.row 1-based template row, .x0, .sigma, .from, .name); they ride
                                   % as the observation type 'prior' -- see priorArc
@@ -312,7 +315,7 @@ end
     % WP-39 stage (c) c1: typed `arguments` signature (canonical
     % UpperCamelCase; legacy casings keep matching -- MATLAB NV
     % semantics; enum VALUES case-sensitive lowercase).
-    o = struct('observationTypes', {opt.ObservationTypes}, 'covariance', opt.Covariance, 'arcs', opt.Arcs, 'localsPerArc', opt.LocalsPerArc, 'systemId', opt.SystemId, 'numLocal', opt.NumLocal, 'numCommon', opt.NumCommon, 'days', opt.Days, 'name', char(opt.Name), 'cache', opt.Cache, 'cacheDays', opt.CacheDays, 'localPriors', opt.LocalPriors, 'epochCovariance', opt.EpochCovariance, 'commonParams', {opt.CommonParams}, 'localParams', {opt.LocalParams}, 'processingOptions', opt.ProcessingOptions, 'scoped', opt.Scoped, 'commonPlan', opt.CommonPlan);
+    o = struct('observationTypes', {opt.ObservationTypes}, 'covariance', opt.Covariance, 'arcs', opt.Arcs, 'localsPerArc', opt.LocalsPerArc, 'systemId', opt.SystemId, 'numLocal', opt.NumLocal, 'numCommon', opt.NumCommon, 'days', opt.Days, 'name', char(opt.Name), 'cache', opt.Cache, 'cacheDays', opt.CacheDays, 'localPriors', opt.LocalPriors, 'validityColumns', opt.ValidityColumns, 'epochCovariance', opt.EpochCovariance, 'commonParams', {opt.CommonParams}, 'localParams', {opt.LocalParams}, 'processingOptions', opt.ProcessingOptions, 'scoped', opt.Scoped, 'commonPlan', opt.CommonPlan);
 
     % ---- map long option names onto the short internal fields -------------
     % Canonical long names only. The resolved value is written onto the SHORT
@@ -394,7 +397,7 @@ end
             error('lsqvce:makeLoader:localPlan', ...
                 '''Scoped'' local tables and ''localsPerArc'' are one mechanism twice: declare the ''arc'' rows in the table.');
         end
-        plan = buildScopePlan(o.local, o.arcs, obsTypes, o.days);
+        plan = buildScopePlan(o.local, o.arcs, obsTypes, o.days, o.validityColumns);
         if ~isempty(nlFinal) && nlFinal ~= plan.nl
             error('lsqvce:makeLoader:nlConflict', ...
                 '''numLocal'' = %d but the scoped plan derives %d. Omit ''numLocal''.', nlFinal, plan.nl);
@@ -591,9 +594,11 @@ function out = priorArc(L, day, arcID, opt)
         P = L.localPriors(k);
         if P.from > pass, continue, end
         r = P.row;  cols = zeros(1, 0);
-        j = find(plan.rows.arc == r, 1);
+        arcRows = plan.rows.arc;  dayRows = plan.rows.day;
+        if isfield(plan, 'arcRowsOf'), arcRows = plan.arcRowsOf{i};  dayRows = plan.dayRowsOf{i}; end
+        j = find(arcRows == r, 1);
         if ~isempty(j), cols = plan.offset{i} + j; end                     % one per arc of the day
-        j = find(plan.rows.day == r, 1);
+        j = find(dayRows == r, 1);
         if ~isempty(j) && plan.dayCount(i) > 0, cols = plan.dayOffset(i) + j; end
         j = find(plan.rows.system == r, 1);
         if ~isempty(j) && i == 1, cols = plan.sysOffset + j; end
@@ -759,6 +764,15 @@ function info = arcInfoOf(plan, day)
         end
         info.dayOffset = dOff;   info.dayCount = dCnt;
         info.sysOffset = plan.sysOffset;  info.sysCount = plan.sysCount;
+        % R5-D8 round 3: WHICH template rows are present on this day (their
+        % order inside every arc block / the day block); without validity
+        % columns these are plan.rows.arc / plan.rows.day on every day
+        if ~isempty(i) && isfield(plan, 'arcRowsOf')
+            info.arcRows = plan.arcRowsOf{i};  info.dayRows = plan.dayRowsOf{i};
+        else
+            info.arcRows = plan.rows.arc;      info.dayRows = plan.rows.day;
+        end
+        info.sysRows = plan.rows.system;
     end
 end
 
@@ -778,9 +792,13 @@ function info = addCommonInfo(info, commonPlan, day)
         info.commonDayOffset = commonPlan.dayOffset(j);
         info.commonDayCount  = commonPlan.dayCount(j);
     end
+    info.commonDayRows = zeros(1, 0);                               % R5-D8 round 3
+    if isfield(commonPlan, 'rows'), info.commonDayRows = commonPlan.rows.day; end   % (engine-tier plans may omit rows)
+    if ~isempty(j) && isfield(commonPlan, 'dayRowsOf'), info.commonDayRows = commonPlan.dayRowsOf{j}; end
 end
 
-function plan = buildScopePlan(tbl, arcs, obsTypes, days)
+function plan = buildScopePlan(tbl, arcs, obsTypes, days, valCols)
+    if nargin < 5, valCols = []; end
 %BUILDSCOPEPLAN  Expand a SCOPED local table over the calendar (L11 WP-75).
 %   Column 1 of TBL is the scope token: 'arc' | 'day' | 'system'; rows are
 %   TEMPLATES. Layout, binding: per day (declared order) [arc blocks in
@@ -826,7 +844,12 @@ function plan = buildScopePlan(tbl, arcs, obsTypes, days)
                   'dayOffset', zeros(1,D), 'dayCount', zeros(1,D), ...
                   'sysOffset', 0, 'sysCount', nSysRows, ...
                   'nl', 0, 'nArcTot', 0, ...
-                  'rows', struct('arc', iArc, 'day', iDay, 'system', iSys));
+                  'rows', struct('arc', iArc, 'day', iDay, 'system', iSys), ...
+                  'arcRowsOf', {cell(1,D)}, 'dayRowsOf', {cell(1,D)});
+    % R5-D8 round 3: validity-aware expansion -- a 'day'/'arc' template row is
+    % instantiated only on the days its validity overlaps (valCols name the
+    % columns; [] = every row is valid always, the v4 behaviour)
+    valid = validityOf(tbl, valCols);              % @(row, day) -> logical
     off = 0;  ord = 0;
     for i = 1:D
         d = days(i);
@@ -836,16 +859,20 @@ function plan = buildScopePlan(tbl, arcs, obsTypes, days)
         end
         ids = sort(ids(:).');
         A = numel(ids);
-        offs = zeros(1, A);  cnts = repmat(nArcRows, 1, A);  ords = zeros(1, A);
+        arcRows = iArc(arrayfun(@(r) valid(r, d), iArc));
+        dayRows = iDay(arrayfun(@(r) valid(r, d), iDay));
+        nA = numel(arcRows);  nD = numel(dayRows);
+        offs = zeros(1, A);  cnts = repmat(nA, 1, A);  ords = zeros(1, A);
         for a = 1:A
-            offs(a) = off;  off = off + nArcRows;
+            offs(a) = off;  off = off + nA;
             ord = ord + 1;  ords(a) = ord;
         end
         plan.arcId{i} = ids;  plan.offset{i} = offs;
         plan.count{i} = cnts; plan.ordinal{i} = ords;
-        if A > 0 && nDayRows > 0                    % a day WITH arcs gets its block
-            plan.dayOffset(i) = off;  plan.dayCount(i) = nDayRows;
-            off = off + nDayRows;
+        plan.arcRowsOf{i} = arcRows;  plan.dayRowsOf{i} = dayRows;
+        if A > 0 && nD > 0                          % a day WITH arcs gets its block
+            plan.dayOffset(i) = off;  plan.dayCount(i) = nD;
+            off = off + nD;
         end
     end
     plan.sysOffset = off;
@@ -1056,4 +1083,39 @@ function [A, B, l] = weightedWhiten(W0, sq, idx, A, B, l, o)
     [A, B, l] = W0(idx, A, B, l, o);
     sc = sq(idx(:));
     A = sc .* A;  B = sc .* B;  l = sc .* l;
+end
+
+%==========================================================================
+function f = validityOf(tbl, valCols)
+%VALIDITYOF  @(row, day) -> is template row valid on calendar day `day`?
+%   valCols = [cStart cEnd] (1-based columns of the table); a cell holds
+%   [MJD sec] (-> MJD + sec/86400), a scalar fractional MJD, or [] (always).
+%   Overlap rule: start < day + 1 && end > day (half-open day). R5-D8 round 3.
+    if isempty(valCols)
+        f = @(row, day) true;
+        return
+    end
+    if numel(valCols) ~= 2 || any(valCols < 1) || any(valCols > size(tbl, 2)) || any(valCols ~= round(valCols))
+        error('lsqvce:makeLoader:badValidity', ...
+              'ValidityColumns must be [cStart cEnd] within 1..%d (got %s).', size(tbl, 2), mat2str(valCols));
+    end
+    n = size(tbl, 1);
+    t0 = -inf(n, 1);  t1 = inf(n, 1);
+    for r = 1:n
+        a = toMjd(tbl{r, valCols(1)});  b = toMjd(tbl{r, valCols(2)});
+        if ~isempty(a), t0(r) = a; end
+        if ~isempty(b), t1(r) = b; end
+        if t0(r) > t1(r)
+            error('lsqvce:makeLoader:badValidity', 'row %d: validity start %g is after end %g.', r, t0(r), t1(r));
+        end
+    end
+    f = @(row, day) t0(row) < day + 1 && t1(row) > day;
+end
+
+function m = toMjd(v)
+    m = [];
+    if isempty(v) || ~isnumeric(v), return, end
+    if isscalar(v), m = double(v);  return, end
+    if numel(v) == 2, m = double(v(1)) + double(v(2)) / 86400;  return, end
+    error('lsqvce:makeLoader:badValidity', 'a validity entry must be [], a fractional MJD, or [MJD seconds].');
 end
