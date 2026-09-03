@@ -5479,7 +5479,7 @@ estimated variance component". MEASURED on the bundle: every common row is
 |---|---|---|
 | D8-1 | `data.priors(k).from` (activation pass; single-pass runs report `lsqvce:fit:priorNotActive` and skip), `.group` (label: members merged — rows divided by their declared sigmas, the group sigma a common FACTOR starting at 1; `estimate="scale"` estimates one component for the members; one policy per label, refused otherwise); the GRAVFIRE template translates column 11 of COMMON rows into `data.priors` and counts/reports local constraints; guide STEP 6 + column renumbering; contract §0a | **DONE** (2026-09-03, branch `claude/level-d8`; gate 524/524) |
 | D8-2 | **priors on LOCAL parameters** — `data.systems(k).localPriors(m) = struct('row', j, 'x0', 'sigma', 'from', 'name')` on a local TEMPLATE row, instantiated with the row (per arc for `'arc'` rows, per day for `'day'`, once for `'system'`) as pseudo-observations of the system: the loader adds the observation type **`prior`** (reserved; `lsqvce:makeLoader:priorType`) with one arc per day — A = 0, B = e_col/σ, l = x0/σ, unit law (`makeLoader>priorArc` reads the scoped plan's layout) — so accumulation, elimination, the sweeps, `residuals()` and the redundancy count treat them as data with NO second path; `from` honoured through the pass on the loader's UserOpt (`fit>withPass`); the stream `satKey\|prior` keeps its unit law under `Estimate="noise"` (policy 'none', no arc factors). The GRAVFIRE template STEP 7 turns the constrained local rows into `localPriors` — on the bundle 6 template priors (x/y/z accscale × GraceA/B), n grows by 12 = the constrained rows of the expanded table. Test: a tight prior pins a `'system'`-scoped local to x0 (1e-5), n grows by one, a 1e6-σ prior leaves the solution at 1e-8, a bad row refuses by name. Gate 525/525 | **DONE** (2026-09-03, branch `claude/level-d8-2`) |
-| D8-3 | validity-aware expansion — `data.paramColumns = struct('start', 3, 'end', 4)`: a `'day'`/`'arc'` row is instantiated only inside its validity (the one-day manoeuvre parameter and the "literal" row become one mechanism) | OPEN |
+| D8-3 | validity-aware expansion — `data.paramColumns = struct('start', c1, 'end', c2)` names the validity columns of BOTH tables (`[MJD seconds]` pairs or fractional MJD; `[]` = always); a `'day'`/`'arc'` row is instantiated only on the calendar days its validity overlaps (half-open day), `'common'`/`'system'` rows always; nc and nl derived accordingly (`makeLoader>buildScopePlan` / `fit>buildCommonPlan` carry per-day row lists `arcRowsOf` / `dayRowsOf`); `buildDay`'s info tells the builder which rows exist on the day (`info.arcRows / dayRows / sysRows / commonDayRows`); the local-prior pseudo-arc reads the per-day rows. Without `paramColumns` every row is valid always (v4 behaviour; pinned). Refusals by name (`lsqvce:makeLoader:badValidity`, `lsqvce:fit:badParamColumns`). Test: a manoeuvre row on one day only and a fractional-MJD ramp over two days give dayCount [2 3 1], nl derived, the builder told [1 2 3] on the middle day | **DONE** (2026-09-03, branch `claude/level-d8-3`; gate 526/526) |
 | D8-4 | write-back — `R.toTable(data)` fills columns 8/9 (→ 9/10) from `R.x` and the formal errors through the expansion offsets | OPEN |
 
 **ROUND D8-1 note (2026-09-03, model Claude Fable 5.1, MCP).** Two things
@@ -5499,3 +5499,13 @@ component (the common-block groups have it since M7 7b; a local group would
 need the local solution y and Cyy from the sweep) — D8-2b if the accelerometer
 scales ever want it; D8-3 (validity-aware expansion) and D8-4 (write-back)
 next.
+
+**ROUND D8-3 note (2026-09-03, model Claude Fable 5.1, MCP).** Validity
+(ledger). The contract stays "state nothing the data already states": the
+validity is IN the user's table already (his columns 2-4); `paramColumns`
+only tells the toolbox where. One consequence for builders: with validity
+the day block's row order is `info.dayRows`, not the template's row order —
+a builder that assumed "all day rows, in table order" must read the info
+(the demo builders do not use validity and are unaffected). Engine-tier
+callers that hand-build a CommonPlan without `rows` are tolerated (found by
+two test_fit points).
