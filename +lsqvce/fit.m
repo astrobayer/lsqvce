@@ -335,7 +335,7 @@ function spec = validateData(data)
 %VALIDATEDATA  Enforce DATA_CONTRACT.md §2 (v3) on the raw struct; fail fast.
 %   OUTPUT spec 1x1 struct  .commonParams (RxC cell), .days (double),
 %                           .systems (1xM), .ids (1xM cellstr, resolved)
-    topAllowed = {'commonParams', 'days', 'systems', 'priors'};   % priors: R5 M5 5b
+    topAllowed = {'commonParams', 'days', 'systems', 'priors', 'paramColumns'};   % priors: R5 M5 5b; paramColumns: R5-D8 round 3
     rejectUnknown(fieldnames(data), topAllowed, 'data');
 
     if ~isfield(data, 'systems') || ~isstruct(data.systems) || isempty(data.systems)
@@ -425,6 +425,15 @@ function spec = validateData(data)
     end
     spec = struct('commonParams', {data.commonParams}, 'days', days, ...
                   'systems', sys, 'ids', {ids});
+    spec.validityColumns = [];
+    if isfield(data, 'paramColumns') && ~isempty(data.paramColumns)
+        pc = data.paramColumns;
+        if ~isstruct(pc) || ~isfield(pc, 'start') || ~isfield(pc, 'end')
+            error('lsqvce:fit:badParamColumns', ...
+                  'data.paramColumns must be struct(''start'', c1, ''end'', c2) naming the validity columns.');
+        end
+        spec.validityColumns = [double(pc.start), double(pc.end)];
+    end
     spec.commonPlan = buildCommonPlan(spec);
 end
 
@@ -451,19 +460,22 @@ function plan = buildCommonPlan(spec)
     end
     cal = sort(cal(:).');
     D = numel(cal);
-    dayOffset = zeros(1, D);  dayCount = zeros(1, D);
+    dayOffset = zeros(1, D);  dayCount = zeros(1, D);  dayRowsOf = cell(1, D);
+    valid = commonValidity(cp, spec.validityColumns);        % R5-D8 round 3
     off = nCom;
     if nDayRows > 0
         for i = 1:D
-            if calendarDayHasArcs(spec.systems, cal(i))
-                dayOffset(i) = off;  dayCount(i) = nDayRows;
-                off = off + nDayRows;
+            rows = iDay(arrayfun(@(r) valid(r, cal(i)), iDay));
+            dayRowsOf{i} = rows;
+            if calendarDayHasArcs(spec.systems, cal(i)) && ~isempty(rows)
+                dayOffset(i) = off;  dayCount(i) = numel(rows);
+                off = off + numel(rows);
             end
         end
     end
     plan = struct('nc', off, 'commonCount', nCom, 'days', cal, ...
                   'dayOffset', dayOffset, 'dayCount', dayCount, ...
-                  'rows', struct('common', iCommon, 'day', iDay));
+                  'rows', struct('common', iCommon, 'day', iDay), 'dayRowsOf', {dayRowsOf});
 end
 
 function tf = calendarDayHasArcs(sys, day)
@@ -540,6 +552,9 @@ function systems = buildSystems(spec, cacheDays)
         nv = [nv, {'CommonParams', spec.commonParams}];              %#ok<AGROW>
         nv = [nv, {'Scoped', true, 'CommonPlan', spec.commonPlan}];  %#ok<AGROW>
         nv = [nv, {'CacheDays', cacheDays}];                         %#ok<AGROW>  R5 M4 4d
+        if ~isempty(spec.validityColumns)
+            nv = [nv, {'ValidityColumns', spec.validityColumns}];    %#ok<AGROW>  R5-D8 round 3
+        end
         if ~(isfield(s, 'days') && ~isempty(s.days)) && ~isempty(days)
             nv = [nv, {'Days', days}];                               %#ok<AGROW>
         end
@@ -1038,4 +1053,26 @@ function uo = withPass(uo, model)
 %   local priors' 'from' is honoured by lsqvce.engine.makeLoader>priorArc).
     uo.pass = 1;
     if isfield(model, 'iter'), uo.pass = model.iter; end
+end
+
+function f = commonValidity(tbl, valCols)
+%COMMONVALIDITY  @(row, day) validity of a commonParams row on a calendar day
+%   (R5-D8 round 3; the same rule as the loader's: [MJD sec] or fractional
+%   MJD in the named columns, [] = always, half-open day overlap).
+    if isempty(valCols), f = @(row, day) true;  return, end
+    if numel(valCols) ~= 2 || any(valCols < 1) || any(valCols > size(tbl, 2))
+        error('lsqvce:fit:badParamColumns', ...
+              'data.paramColumns names columns %s; commonParams has %d columns.', mat2str(valCols), size(tbl, 2));
+    end
+    n = size(tbl, 1);  t0 = -inf(n, 1);  t1 = inf(n, 1);
+    for r = 1:n
+        a = tbl{r, valCols(1)};  b = tbl{r, valCols(2)};
+        if ~isempty(a), t0(r) = mjdOf(a); end
+        if ~isempty(b), t1(r) = mjdOf(b); end
+    end
+    f = @(row, day) t0(row) < day + 1 && t1(row) > day;
+end
+
+function m = mjdOf(v)
+    if isscalar(v), m = double(v); else, m = double(v(1)) + double(v(2)) / 86400; end
 end
