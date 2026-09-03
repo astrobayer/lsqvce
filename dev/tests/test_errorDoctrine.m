@@ -285,6 +285,7 @@ function testBatchSystemContract(tc)
     % Cholesky factor (R5 M5 5b'); a non-SPD one is refused by name
     Lm = lsqvce.engine.batchSystem(3, @(k) deal(A, l, 2*eye(12)), 1);
     arcM = Lm.closure(1, 'obs', 1, uo);
+    % tol: 1e-14 relative -- chol(2 I) = sqrt(2) I applied to O(1) numbers, a few ulps
     tc.verifyEqual(arcM.A, sqrt(2) * A, 'RelTol', 1e-14);
     Lb = lsqvce.engine.batchSystem(3, @(k) deal(A, l, -eye(12)), 1);
     verifyError(tc, @() Lb.closure(1, 'obs', 1, uo), 'lsqvce:batchSystem:weightMatrix');
