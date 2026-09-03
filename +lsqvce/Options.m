@@ -1,5 +1,5 @@
 classdef Options
-%LSQVCE.OPTIONS  The one settings object for LSQVCE.FIT (v5: 13 knobs + 5 groups).
+%LSQVCE.OPTIONS  The one settings object for LSQVCE.FIT (v5: 14 knobs + 5 groups).
 %
 %   opts = lsqvce.Options()                       every default
 %   opts = lsqvce.Options(Name, Value, ...)       override some
@@ -10,7 +10,7 @@ classdef Options
 %   its law / level / arc factors are estimated) is declared on the stream
 %   (data.systems(k).covariance.<type>: type, sigma, estimate, arcFactors);
 %   this object holds only RUN policy. R5 M5 (WP-87, decision R5-D2) cut it
-%   from 62 flat knobs to the 13 below plus five typed groups; the migration
+%   from 62 flat knobs to the 14 below plus five typed groups; the migration
 %   from every v4 name is in RELEASE_NOTES.md and HANDOVER §12.10.
 %
 %   TOP LEVEL

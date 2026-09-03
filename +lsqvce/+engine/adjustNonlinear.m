@@ -88,12 +88,12 @@ end
         lsqvce.util.log.msg('  %4s %16s %14s %12s\n', 'pass', 'vPv', 'max|dx/sig|', 'lambda');
     end
 
-    sol = accumulate(L, days, x, lam, state, opt);          % pass 1 at x0
+    [sol, acc] = accumulate(L, days, x, lam, state, opt);   % pass 1 at x0
     vPv = vpvOf(sol);
     for it = 1:opt.MaxIter
         dx   = sol.x(:);                                      % the (damped) step
         xNew = x + dx;
-        solNew = accumulate(L, days, xNew, lam, state, opt);  % evaluation AND next linearisation
+        [solNew, accNew] = accumulate(L, days, xNew, lam, state, opt);  % evaluation AND next linearisation
         vPvNew = vpvOf(solNew);
         if ~isfinite(vPvNew) && ~isnan(vPvNew)
             error('lsqvce:adjustNonlinear:nonFinite', ...
@@ -112,7 +112,7 @@ end
                      'not locally identifiable at this x.'], lam);
                 break
             end
-            sol = accumulate(L, days, x, lam, state, opt);    % re-linearise at x, more damping
+            [sol, acc] = accumulate(L, days, x, lam, state, opt);  % re-linearise at x, more damping
             continue
         end
         % accepted
@@ -122,14 +122,14 @@ end
         else
             dxRel = max(abs(dx)) / max(max(abs(x)), 1);   % sigma0 NaN-honest: a relative step
         end
-        x = xNew;  sol = solNew;
+        x = xNew;  sol = solNew;  acc = accNew;
         lam = max(lam / 10, 1e-12);
         hist(end+1) = struct('pass', it, 'vPv', vPvNew, 'dxRel', dxRel, 'lambda', lam, 'accepted', true); %#ok<AGROW>
         if opt.Verbose, lsqvce.util.log.msg('  %4d %16.8e %14.3e %12.1e\n', it, vPvNew, dxRel, lam); end
         relF = abs(vPvNew - vPv) / max(abs(vPvNew), realmin);
         ctx = struct('driver', 'adjustNonlinear', 'pass', it, 'x', x, 'Cxx', sol.Cxx, ...
-                     'sigma0', sol.sigma0, 'vPv', vPvNew, 'dxRel', dxRel, 'lambda', lam, ...
-                     'acc', acc);
+                     'sigma0', sol.sigma0, 's0sq', sol.s0sq, 'vPv', vPvNew, 'dxRel', dxRel, ...
+                     'lambda', lam, 'acc', acc);
         userStop = ~lsqvce.util.onPass(opt.OnPass, opt.OnPassContext, ctx);
         if dxRel < opt.TolX
             converged = true;  reason = 'tolX';  break
@@ -173,7 +173,7 @@ function acc = finalAcc(L, days, x, state, opt)
 end
 
 %==========================================================================
-function sol = accumulate(L, days, x, lam, state, opt)
+function [sol, acc] = accumulate(L, days, x, lam, state, opt)
     state('x') = x;
     nv = {'Backend', char(opt.Backend), 'KeepLocal', false, 'Verbose', false, ...
           'Parallel', char(opt.Parallel), 'DistributeDays', opt.DistributeDays, ...

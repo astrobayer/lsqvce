@@ -233,7 +233,7 @@ function testOnPassFiresEveryPassWithTheContext(tc)
     hook = @(ctx) recordPass(seen, ctx);
     R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
                      MaxPasses=3, Noise=struct('Grid', 16), Seed=3, Verbose=false, OnPass=hook));
-    tc.verifyEqual(seen.Count, 3, 'one call per pass');
+    tc.verifyEqual(double(seen.Count), 3, 'one call per pass');
     c = seen(2);
     tc.verifyEqual(c.pass, 2);
     tc.verifyEqual(c.driver, 'adjustVCEjoint');
@@ -246,7 +246,7 @@ function testOnPassFiresEveryPassWithTheContext(tc)
     tc.verifyEqual(numel(c.streams), numel(c.sigma));
     tc.verifyTrue(isfield(c, 'Cgroups') && isfield(c, 'sigma2') && isfield(c, 'whitePval'));
     % the accumulator inside the hook is usable: a residual sweep at pass 2
-    res = lsqvce.engine.residuals(c.acc, struct('x', c.x, 'sigma0', c.sigma0, 'Cxx', c.Cxx), 'Verbose', false);
+    res = lsqvce.engine.residuals(c.acc, struct('x', c.x, 'sigma0', c.sigma0, 's0sq', c.s0sq, 'Cxx', c.Cxx), 'Verbose', false);
     tc.verifyTrue(isstruct(res) && isfield(res, 'sys'));
 end
 
@@ -263,10 +263,9 @@ function testOnPassCanStopTheLoop(tc)
     % IRLS and Gauss-Newton fire the same hook
     rs = RandStream('mt19937ar', 'Seed', 6);
     A = randn(rs, 40, 3);  l = A*[1; -2; 0.5] + 0.01*randn(rs, 40, 1);  l(5) = l(5) + 10;
-    n = 0;  cnt = @(ctx) assignin('base', 'lsqvce_test_onpass_n', ctx.pass); %#ok<NASGU>
     seen = containers.Map('KeyType', 'double', 'ValueType', 'any');
     Rr = lsqvce.fit(struct('A', A, 'l', l), Robust="huber", Verbose=false, OnPass=@(ctx) recordPass(seen, ctx));
-    tc.verifyEqual(seen.Count, numel(Rr.history), 'IRLS: one call per pass');
+    tc.verifyEqual(double(seen.Count), numel(Rr.history), 'IRLS: one call per pass');
     tc.verifyEqual(seen(1).driver, 'adjustRobust');
     tc.verifyTrue(isfield(seen(1), 'factor') && isfield(seen(1), 'data'));
     tc.verifyEqual(seen(1).data.A, A, 'kind B: the declaration is the ctx.data');
@@ -275,7 +274,7 @@ function testOnPassCanStopTheLoop(tc)
     bf = @(k, x) deal([t.*exp(x(1)*t), ones(30, 1)], lobs - (exp(x(1)*t) + x(2)), []);
     Rn = lsqvce.fit(struct('batchFcn', bf, 'numBatches', 1, 'x0', [0.5; 0]), Verbose=false, ...
                     OnPass=@(ctx) recordPass(seen2, ctx));
-    tc.verifyEqual(seen2.Count, numel(Rn.history), 'Gauss-Newton: one call per pass');
+    tc.verifyEqual(double(seen2.Count), numel(Rn.history), 'Gauss-Newton: one call per pass');
     tc.verifyEqual(seen2(1).driver, 'adjustNonlinear');
     % a throwing hook is not swallowed: it arrives with the cause
     try
