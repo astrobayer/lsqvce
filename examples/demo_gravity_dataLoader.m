@@ -4,7 +4,7 @@ function [cfg, data] = demo_gravity_dataLoader()
 %   [cfg, data] = demo_gravity_dataLoader()
 %
 %   Returns a configuration CFG and the declaration as a v4 data struct DATA
-%   (the form LSQVCE.FIT takes -- see DATA_CONTRACT.md), so a PHYSICALLY
+%   (the form LSQVCE.FIT takes -- see the Manual, chapter 3), so a PHYSICALLY
 %   STRUCTURED gravity recovery can be run end to end without any external
 %   data:
 %

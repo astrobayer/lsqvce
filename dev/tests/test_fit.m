@@ -1,7 +1,7 @@
 function tests = test_fit
 %TEST_FIT  Tests for lsqvce.fit, the one user verb (R4 WP-56, decision R4-D4).
 %
-%     lsqvce.fit   data struct (DATA_CONTRACT.md) + lsqvce.Options -> Results;
+%     lsqvce.fit   data struct (the Manual, chapter 3) + lsqvce.Options -> Results;
 %                  builds the loaders through makeLoader and dispatches on
 %                  opts.Model to adjustBlock / adjustVCE
 %

@@ -9,7 +9,7 @@ function lay = layout(data)
 %   data.systems(k).priors(l).L (columns of B) can be written in it -- the
 %   only knowledge the user's regularisation and the toolbox share (R5-D8).
 %
-%   INPUT   data  1x1 struct  a kind-A declaration (DATA_CONTRACT.md)
+%   INPUT   data  1x1 struct  a kind-A declaration (the Manual, chapter 3)
 %   OUTPUT  lay   1x1 struct
 %     .nc            1x1        columns of A
 %     .common        nc x 1 struct (.row .day)      the template row and (for 'day' rows) the day of every column of A
@@ -29,7 +29,7 @@ function lay = layout(data)
 %     end
 %     data.systems(1).priors = struct('L', rows, 'x0', 0, 'sigma', 0.01, 'name', 'xaccscale', 'estimate', "scale");
 %
-%   See also LSQVCE.FIT, LSQVCE.RESULTS/TOTABLE, DATA_CONTRACT.md
+%   See also LSQVCE.FIT, LSQVCE.RESULTS/TOTABLE, the Manual, chapter 3
 %
 %   Created 2026-09-03 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.1 -- R5-D8 round 5.

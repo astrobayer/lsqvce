@@ -924,6 +924,7 @@ def main():
     check_h1_names()
     check_test_categories()
     check_pages_match_help()
+    check_manual_built_and_complete()
     check_readme_sync()
     check_tiers_and_case()
     check_catch_ratchet()
@@ -1203,6 +1204,37 @@ def check_pages_match_help():
         note('docdrift', 'html/lsqvce.%s.html differs from a regeneration of its help block '
              '(run build_missing_pages.py all)' % name)
     print('   pages checked; drifted: %d' % len(drifted))
+
+
+def check_manual_built_and_complete():
+    print('\n23. the Manual equals a fresh build and names every Options knob and group field')
+    # R5 docs level (2026-09-04): html/lsqvce_manual.html is built by
+    # dev/docs_src/build_manual.py from dev/docs_src/manual/*.md plus generated
+    # chapters (API from the help blocks, tiers from Contents.m, migration from
+    # RELEASE_NOTES.md, identifiers from error_ids.csv). Stale = drift.
+    import importlib.util as _il
+    spec = _il.spec_from_file_location('bm', os.path.join('dev', 'docs_src', 'build_manual.py'))
+    bm = _il.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(bm)
+        if bm.main(check=True):
+            note('manual', 'html/lsqvce_manual.html differs from a fresh build (run build_manual.py)')
+    except Exception as e:  # pandoc missing etc.: report, do not hide
+        note('manual', 'the Manual could not be rebuilt for comparison: %s' % e)
+    src = open(os.path.join('dev', 'docs_src', 'manual', '04_options.md'), encoding='utf-8').read()
+    opt = open(os.path.join('+lsqvce', 'Options.m'), encoding='utf-8').read()
+    i = opt.index('    properties'); j = opt.index('    end', i)
+    props = re.findall(r'^\s{8}([A-Z]\w*)\s', opt[i:j], re.M)
+    tail = opt[opt.index('methods (Static)'):opt.index('methods (Static, Access = private)')]
+    fields = set(re.findall(r"'([A-Z][A-Za-z0-9]*)', ", tail))
+    for p in props:
+        if not re.search(r'`%s`' % p, src):
+            note('manual', 'Options.%s is not described in the Manual chapter 4' % p)
+    for f in sorted(fields):
+        if f in props: continue
+        if not re.search(r'`%s`' % f, src):
+            note('manual', 'the Options group field %s is not described in the Manual chapter 4' % f)
+    print('   %d knobs and %d group fields checked' % (len(props), len(fields - set(props))))
 
 
 if __name__ == '__main__':

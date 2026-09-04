@@ -3,7 +3,7 @@ function [spec, systems] = declaration(data, cacheDays)
 %   [spec, systems] = lsqvce.engine.declaration(data)
 %   [spec, systems] = lsqvce.engine.declaration(data, cacheDays)
 %
-%   THE one place the data contract (DATA_CONTRACT.md) is checked and turned
+%   THE one place the data contract (the Manual, chapter 3) is checked and turned
 %   into loaders: field names and types by name (lsqvce:fit:* identifiers --
 %   this unit keeps fit's identifiers because it IS fit's declaration step,
 %   lifted out in R5-D8 round 4 so that Results.toTable can reuse the very
@@ -11,7 +11,7 @@ function [spec, systems] = declaration(data, cacheDays)
 %   the common plan (with validity, R5-D8 round 3) and one lsqvce.engine.makeLoader
 %   per system (with the local plan, priors, processing options).
 %
-%   INPUT   data       1x1 struct   the kind-A declaration (DATA_CONTRACT.md)
+%   INPUT   data       1x1 struct   the kind-A declaration (the Manual, chapter 3)
 %           cacheDays  1x1 double   resident built days per system (default 1)
 %   OUTPUT  spec       1x1 struct   the validated declaration: .commonParams .days
 %                                   .systems .ids .commonPlan .validityColumns .nc ...
@@ -30,7 +30,7 @@ function [spec, systems] = declaration(data, cacheDays)
 end
 
 function spec = validateData(data)
-%VALIDATEDATA  Enforce DATA_CONTRACT.md §2 (v3) on the raw struct; fail fast.
+%VALIDATEDATA  Enforce Manual ch. 3 (§2) (v3) on the raw struct; fail fast.
 %   OUTPUT spec 1x1 struct  .commonParams (RxC cell), .days (double),
 %                           .systems (1xM), .ids (1xM cellstr, resolved)
     topAllowed = {'commonParams', 'days', 'systems', 'priors', 'paramColumns'};   % priors: R5 M5 5b; paramColumns: R5-D8 round 3

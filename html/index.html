@@ -72,13 +72,13 @@ once to diagnose &mdash; and must return identical data both times. This is
 checked; a mismatch is an error, not a silent misattribution.</div>
 
 <div class="note"><b>Not sure which front door to use?</b> See
-<a href="lsqvce_choosing.html">Choosing an engine &amp; VCE backend</a> &mdash;
+<a href="lsqvce_manual.html">the Manual</a> &mdash;
 a decision flowchart (adjust / adjustBlock / adjustVCE) plus the exact-vs-Hutchinson
 cost curves. The runnable build-your-own-case guide is
 <code>examples/demo_workflow.m</code>.</div>
 
 <div class="note"><b>Starting your own case?</b> Copy
-<a href="lsqvce_template.html"><code>template/lsqvce_template.m</code></a> and
+<code>template/gravfire_data.m</code> (Manual ch. 3 and 6) and
 fill in its two documented stubs. The GRACE-FO example
 (<code>examples/demo_grace_dataLoader.m</code>) is a worked case to read
 alongside it.</div>
@@ -129,7 +129,6 @@ reveals only the fraction <code>r_i</code> of any error present
 
 <h2>Function reference</h2>
 <h3>Start here &mdash; the USER tier</h3><table>
-<tr><td class="name"><a href="lsqvce_getting_started.html">Getting started</a></td><td>Three lines to a judged adjustment; which data kind you have; buildDay in six rules; reading the answer.</td></tr>
 <tr><td class="name"><a href="lsqvce.fit.html">lsqvce.fit</a></td><td>The one user verb: fit(data, opts) &mdash; a plain data struct (DATA_CONTRACT.md) + Options &rarr; Results. Builds the loaders itself; dispatches on Model (gls | vce | pooled).</td></tr>
 <tr><td class="name"><a href="lsqvce.Options.html">lsqvce.Options</a></td><td>The one settings object: every knob named, typed, defaulted to the engines' own defaults.</td></tr>
 <tr><td class="name"><a href="lsqvce.Results.html">lsqvce.Results</a></td><td>What comes back: x, sigma0, diagnostics, report(), coefficients(), summary(), convergence().</td></tr>
@@ -253,16 +252,8 @@ as the browsable, per-topic form of the same material.</div>
 <p>All documentation is HTML and travels with the toolbox (equations render
 offline). Open any of these from <code>doc lsqvce</code> or the Help browser:</p>
 <table>
-<tr><td class="name"><a href="lsqvce_user_manual.html">User Manual</a></td>
+<tr><td class="name"><a href="lsqvce_manual.html">Manual</a></td>
     <td>theory, what you supply, reading the diagnosis, gravity recovery, step-by-step</td></tr>
-<tr><td class="name"><a href="lsqvce_reference_manual.html">Reference Manual</a></td>
-    <td>symbols, equations, matrix conventions, block-arrow QR, whitening</td></tr>
-<tr><td class="name"><a href="lsqvce_interpretation_guide.html">Interpretation Guide</a></td>
-    <td>what to run, and how to read what comes back</td></tr>
-<tr><td class="name"><a href="lsqvce_choosing.html">Choosing an engine</a></td>
-    <td>decision flowchart + exact-vs-Hutchinson cost curves</td></tr>
-<tr><td class="name"><a href="lsqvce_template.html">Your own case (template)</a></td>
-    <td>copy <code>template/lsqvce_template.m</code>, fill two stubs</td></tr>
 </table>
 
 <h2>Tests</h2>
