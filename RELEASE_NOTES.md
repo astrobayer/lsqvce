@@ -1,5 +1,35 @@
 # lsqvce release notes
 
+## 5.2 — 2026-09-03 (R5-D8: the parameter-table interface)
+
+Additive on 5.1 except one retirement (`Options.Reg / RegLambda / RegMatrix`).
+
+- **Regularisation is declared, in your columns.** `data.priors(j)` (common
+  parameters, L in the columns of A) and **`data.systems(k).priors(l)`**
+  (system k's local parameters, L in the columns of B) are one mechanism:
+  one struct per group, declared by **`group`** (a regular expression on the
+  table's name column — the toolbox builds L, one row per matched row per
+  instance) or by **`L`** (used as is), plus `x0`, one `sigma`, `from`,
+  `name`, `estimate`; pseudo-observations counted in the redundancy; `estimate = "scale"`
+  estimates the group's sigma every pass by Helmert / Koch–Kusche — for local
+  groups as the level of their own stream `prior_<name>`, identical to the
+  common groups. `from` activates a group at a pass; a label (`group` on
+  common priors, the struct on local ones) merges members.
+- **`lsqvce.layout(data)`** announces the column layout before `fit`, so L
+  can be written in it (`lay.systems(k).col(row, day, arc)`).
+- **`data.paramColumns = struct('start', c1, 'end', c2)`** names the validity
+  columns of both tables: a `'day'` / `'arc'` row is instantiated only on the
+  days it overlaps; `buildDay`'s info carries the rows present.
+- **`R.toTable(data)`** writes estimates and standard deviations back into the
+  expanded n × 15 tables (columns 9/10 by default) with the instance map.
+- The 15-column convention: the scope token is column 1; your 14 columns
+  follow. Column 11 `{'Tikhonov', fromPass, sigma[, label]}` is translated by
+  the GRAVFIRE template into the declarations above.
+- Retired: `Options.Reg / RegLambda / RegMatrix` (19 Options fields);
+  `localPriors(row)` and the `priorDay` handle of the intermediate rounds.
+- Fixed on the way: an observation type with an underscore was cut by the arc
+  key parsers; the prior arc now takes its law through the override path.
+
 ## 5.1 — 2026-09-03 (Review R5, levels M6–M7: additive on 5.0)
 
 Additive; no v5.0 declaration or option changes meaning.

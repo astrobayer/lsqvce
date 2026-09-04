@@ -75,7 +75,7 @@ function spec = validateData(data)
     % ---- systems
     sysRequired = {'buildDay', 'covariance'};
     sysAllowed  = [sysRequired, {'localParams', 'arcs', 'days', ...
-                   'id', 'name', 'processingOptions', 'epochCovariance', 'priorDay'}];   % priorDay: R5-D8 round 5
+                   'id', 'name', 'processingOptions', 'epochCovariance', 'priors'}];   % priors: R5-D8 round 5
     rejectUnknown(fieldnames(sys), sysAllowed, 'data.systems');
     ids = cell(1, numel(sys));
     for k = 1:numel(sys)
@@ -124,13 +124,24 @@ function spec = validateData(data)
     spec = struct('commonParams', {data.commonParams}, 'days', days, ...
                   'systems', sys, 'ids', {ids});
     spec.validityColumns = [];
+    spec.nameColumn = 2;                                   % R5-D8 round 6: where the names are
     if isfield(data, 'paramColumns') && ~isempty(data.paramColumns)
         pc = data.paramColumns;
-        if ~isstruct(pc) || ~isfield(pc, 'start') || ~isfield(pc, 'end')
+        if ~isstruct(pc)
             error('lsqvce:fit:badParamColumns', ...
-                  'data.paramColumns must be struct(''start'', c1, ''end'', c2) naming the validity columns.');
+                  'data.paramColumns must be a struct (fields start, end, name) naming columns of your tables.');
         end
-        spec.validityColumns = [double(pc.start), double(pc.end)];
+        bad = setdiff(fieldnames(pc), {'start', 'end', 'name'});
+        if ~isempty(bad)
+            error('lsqvce:fit:badParamColumns', 'data.paramColumns has an unknown field ''%s''.', bad{1});
+        end
+        if isfield(pc, 'start') || isfield(pc, 'end')
+            if ~(isfield(pc, 'start') && isfield(pc, 'end'))
+                error('lsqvce:fit:badParamColumns', 'data.paramColumns needs BOTH start and end for validity.');
+            end
+            spec.validityColumns = [double(pc.start), double(pc.end)];
+        end
+        if isfield(pc, 'name') && ~isempty(pc.name), spec.nameColumn = double(pc.name); end
     end
     spec.commonPlan = buildCommonPlan(spec);
 end
@@ -234,7 +245,7 @@ function systems = buildSystems(spec, cacheDays)
            'days', 'Days'; 'name', 'Name'; ...
            'processingOptions', 'ProcessingOptions'; ...
            'epochCovariance', 'EpochCovariance'; ...
-           'priorDay', 'PriorDay'};                       % R5-D8 round 5
+           'priors', 'Priors'};                           % R5-D8 round 5
     systems = cell(1, numel(sys));
     for k = 1:numel(sys)
         s  = sys(k);
@@ -253,6 +264,7 @@ function systems = buildSystems(spec, cacheDays)
         if ~isempty(spec.validityColumns)
             nv = [nv, {'ValidityColumns', spec.validityColumns}];    %#ok<AGROW>  R5-D8 round 3
         end
+        nv = [nv, {'NameColumn', spec.nameColumn}];                   %#ok<AGROW>  R5-D8 round 6
         if ~(isfield(s, 'days') && ~isempty(s.days)) && ~isempty(days)
             nv = [nv, {'Days', days}];                               %#ok<AGROW>
         end

@@ -5551,3 +5551,49 @@ nothing about a table row crosses the line.* Suites: 501/501 on CI
 (test_parallel needs the user's PCT). Remaining: the local groups' σ
 ESTIMATION (Koch–Kusche needs the local solution y, Cyy from the sweep —
 D8-5b when wanted); the user runs `ci_gate` + `demo_gravfire` locally.
+
+**ROUND D8-6 (2026-09-03, model Claude Fable 5.1, tier B — CI is the gate).**
+THE FINAL SHAPE, from the user's second review: `data.systems(k).priors(l)`
+mirrors `data.priors(j)` literally — a static struct array, one struct per
+group (`L`, `x0`, `sigma`, `from`, `name`, `estimate`), `L` in the columns
+of B; common priors and each system's priors with their own settings.
+`lsqvce.layout(data)` announces the column layout before fit
+(`lay.systems(k).col(row, day, arc)`, `lay.colCommon(row, day)`) — the
+user writes L in the toolbox's columns without the toolbox ever reading a
+table row. Koch–Kusche on local groups IDENTICAL to common: each group
+rides as its own observation stream `prior_<name>`, so with
+`estimate="scale"` its σ is the stream's level — the Helmert factor the
+joint estimator computes for every stream (`R.noise.model{k}.sigma` for
+`satKey|prior_<name>`); no new estimator. Rows coupling two days' local
+blocks are refused by name (couple days through common parameters). The
+`priorDay` handle of #81 is replaced (the user's word: a struct array);
+STEP 7 of the GRAVFIRE template builds the groups from the layout. TWO
+FINDINGS by CI: (1) a filtered point was the red flag — the demo's system-1
+locals are all `'system'`-scoped, so a "day locals" fixture was empty;
+(2) an observation type with an UNDERSCORE (`prior_damp`) was cut to
+`prior` by every arc-key parser (`_(.+?)_d` non-greedy), so the group's
+level never matched its stream and stayed 1 — the parsers now anchor on
+the `_d<day>_a` suffix; and the prior arc now takes its law through the
+override path, so the estimated level whitens the next pass. Suites
+503/503 on CI. D8 rounds: 1 activation + label, 2 local priors, 3
+validity, 4 write-back, 5 disentanglement (priorDay), 6 the final shape.
+
+**ROUND D8-6, second half (2026-09-03, model Claude Fable 5.1, tier B).**
+The user's two questions closed the design: (1) "what does `group` mean if
+L is given?" — nothing: L's rows ARE the group; the label was a leftover
+of round 1, retired as a merging device; (2) "group as a name pattern OR L"
+— adopted: a group is declared EITHER by `group` (a regular expression on
+the NAME column of the table, `data.paramColumns.name`, default 2; the
+toolbox builds L, one row per matched row per instance, from the layout it
+owns) OR by `L` (used as is), never both — on `data.priors(j)` and
+`data.systems(k).priors(l)` alike; `lsqvce.engine.localColumns` is the one
+column unroll (layout, toTable, group expansion). Your column 11
+`{'Tikhonov', k, σ, 'accscale'}` is now one struct
+`struct('group', '^(GraceA_xaccscale|…)$', 'sigma', σ, 'from', k,
+'estimate', "scale")` emitted by the template. How L looks when σ is to be
+estimated: one row per member instance (x/y/z on two days = 6 rows), one σ
+for all of them; a single-row group cannot estimate its σ (redundancy ≤ 1)
+and is left unchanged and flagged. Three CI catches on the way: a struct
+array needs one field set (the test's); a filtered point = a wrong fixture;
+the demo's common names are not unique — the pattern test expects one row
+per matched column. Release 5.2 entry updated. 504/504 on CI.

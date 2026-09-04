@@ -285,7 +285,7 @@ end
     lsqvce.util.log.inventory('reset');          % R5 M1: this run's warning inventory
     [spec, systems] = lsqvce.engine.declaration(data, opts.CacheDays);   % R5-D8 4: the one declaration step
     days = spec.days;
-    [pri, priorGroups] = priorsOf(data, lsqvce.engine.resolveNc(systems));   % R5 M5 5b: data.priors
+    [pri, priorGroups] = priorsOf(data, lsqvce.engine.resolveNc(systems), spec);   % R5 M5 5b / D8-6: data.priors
     if strcmp(opts.Estimate, "none") && ~isempty(priorGroups) && any([priorGroups.from] > 1)
         lsqvce.util.log.warnOnce('lsqvce:fit:priorNotActive', ...
             ['%d prior group(s) declare from > 1 and a single solve (Estimate="none") has one pass: ' ...
@@ -500,46 +500,61 @@ function acc = jointAccumulator(nc, specs, opts, uo, pri)
     acc.addSystems(specs);
 end
 
-function [pri, groups] = priorsOf(data, nc)
+function [pri, groups] = priorsOf(data, nc, spec)
 %PRIORSOF  data.priors -> ONE lsqvce.engine.CommonPrior (R5 M5 5b) + the groups.
-%   data.priors(k): .L (p x nc) required; .x0 (p x 1, default 0); .sigma
-%   (scalar > 0, default 1); .name (label); .estimate "none" | "scale" (R5 M7
-%   7b: "scale" gives the group its OWN variance component, updated every
-%   pass of Estimate="noise" by the Helmert / Koch-Kusche rule -- see
-%   priorUpdate). Every prior is a pseudo-observation group L x ~ x0 with
-%   weight 1/sigma^2; they are stacked with their rows scaled by 1/sigma into
-%   one prior of sigma 1 (exact). A DATUM (minimum constraints B'x = 0 of a
-%   free network) is the prior L = B', x0 = 0: when B spans the null space
-%   the solution is the exact minimum-constraint one, whatever the weight
-%   (the two subspaces are orthogonal) -- which is why the flat drivers'
-%   DatumB has no successor knob, only this declaration.
-%   R5-D8 round 1: .from (pass at which the group becomes active, default 1;
-%   under Estimate="none" a from > 1 is reported and the group skipped) and
-%   .group (a LABEL: every prior carrying the same label is MERGED into one
-%   group -- its rows stacked, each divided by its own declared sigma -- whose
-%   sigma is then a common FACTOR starting at 1; with estimate="scale" the
-%   members share ONE estimated variance component, which is what a single
-%   parameter cannot do alone: r_k <= 1).
+%   data.priors(k), one struct per GROUP, declared EITHER by .group -- a
+%   regular expression matched against the NAME column of commonParams
+%   (data.paramColumns.name, default 2); fit builds L with one row per
+%   matched template row per instance from the plan it owns -- OR by .L
+%   (p x nc in the columns of A, used as is); never both. Then .x0 (p x 1,
+%   default 0), .sigma (scalar > 0, default 1: the ONE sigma the rows share --
+%   relative weights inside a group go into L), .from (activation pass,
+%   default 1), .name (label; default the pattern or 'prior<k>'), .estimate
+%   "none" | "scale" ("scale": sigma updated every pass of Estimate="noise" by
+%   the Helmert / Koch-Kusche rule, see priorUpdate). Every group is a
+%   pseudo-observation set L x ~ x0 with weight 1/sigma^2; the groups are
+%   stacked with their rows divided by sigma into one prior of sigma 1
+%   (exact). A DATUM (minimum constraints B'x = 0 of a free network) is the
+%   group L = B', x0 = 0: exact for any weight when B spans the null space.
 %   OUTPUT  pri     [] | CommonPrior     the stacked prior
-%           groups  1xG struct (.L .x0 .sigma .name .estimate .from .members)
-    pri = [];  groups = struct('L', {}, 'x0', {}, 'sigma', {}, 'name', {}, 'estimate', {}, 'from', {}, 'members', {});
+%           groups  1xG struct (.L .x0 .sigma .name .estimate .from)
+    if nargin < 3, spec = []; end
+    pri = [];  groups = struct('L', {}, 'x0', {}, 'sigma', {}, 'name', {}, 'estimate', {}, 'from', {});
     if ~isfield(data, 'priors') || isempty(data.priors), return, end
     P = data.priors;
     if ~isstruct(P)
-        error('lsqvce:fit:badPrior', 'data.priors must be a struct array (fields L, x0, sigma, name, estimate, from, group).');
+        error('lsqvce:fit:badPrior', 'data.priors must be a struct array (group | L, x0, sigma, from, name, estimate).');
     end
-    labels = {};
     for k = 1:numel(P)
         f = fieldnames(P(k));
         bad = setdiff(f, {'L', 'x0', 'sigma', 'name', 'estimate', 'from', 'group'});
         if ~isempty(bad)
             error('lsqvce:fit:badPrior', 'data.priors(%d) has an unknown field ''%s''.', k, bad{1});
         end
-        if ~isfield(P(k), 'L') || isempty(P(k).L) || ~isnumeric(P(k).L) || size(P(k).L, 2) ~= nc
-            error('lsqvce:fit:badPrior', ...
-                  'data.priors(%d).L must be a p x %d numeric matrix (nc = %d).', k, nc, nc);
+        hasL = isfield(P(k), 'L') && ~isempty(P(k).L);
+        hasG = isfield(P(k), 'group') && ~isempty(P(k).group);
+        if hasL && hasG
+            error('lsqvce:fit:badPrior', 'data.priors(%d): give EITHER group (a name pattern) OR L, not both.', k);
         end
-        L = double(P(k).L);
+        nm = sprintf('prior%d', k);
+        if hasG
+            if isempty(spec)
+                error('lsqvce:fit:badPrior', 'data.priors(%d): a group pattern needs the streaming kind (a commonParams table).', k);
+            end
+            L = commonRowsOfPattern(P(k).group, spec);
+            if isempty(L)
+                error('lsqvce:fit:badPrior', 'data.priors(%d): the pattern ''%s'' matches no name in commonParams.', k, char(string(P(k).group)));
+            end
+            nm = char(string(P(k).group));
+        elseif hasL
+            if ~isnumeric(P(k).L) || size(P(k).L, 2) ~= nc
+                error('lsqvce:fit:badPrior', ...
+                      'data.priors(%d).L must be a p x %d numeric matrix (nc = %d).', k, nc, nc);
+            end
+            L = double(P(k).L);
+        else
+            error('lsqvce:fit:badPrior', 'data.priors(%d) needs group (a name pattern) or L.', k);
+        end
         s = 1;
         if isfield(P(k), 'sigma') && ~isempty(P(k).sigma), s = double(P(k).sigma); end
         if ~isscalar(s) || ~isfinite(s) || s <= 0
@@ -548,8 +563,9 @@ function [pri, groups] = priorsOf(data, nc)
         x0 = zeros(size(L, 1), 1);
         if isfield(P(k), 'x0') && ~isempty(P(k).x0)
             x0 = double(P(k).x0(:));
+            if isscalar(x0), x0 = repmat(x0, size(L, 1), 1); end
             if numel(x0) ~= size(L, 1)
-                error('lsqvce:fit:badPrior', 'data.priors(%d).x0 must have %d entries.', k, size(L, 1));
+                error('lsqvce:fit:badPrior', 'data.priors(%d).x0 must have %d entries (or be a scalar).', k, size(L, 1));
             end
         end
         e = 'none';
@@ -559,7 +575,6 @@ function [pri, groups] = priorsOf(data, nc)
                 error('lsqvce:fit:badPrior', 'data.priors(%d).estimate must be "none" or "scale" (got "%s").', k, e);
             end
         end
-        nm = sprintf('prior%d', k);
         if isfield(P(k), 'name') && ~isempty(P(k).name), nm = char(string(P(k).name)); end
         fr = 1;
         if isfield(P(k), 'from') && ~isempty(P(k).from)
@@ -568,33 +583,38 @@ function [pri, groups] = priorsOf(data, nc)
                 error('lsqvce:fit:badPrior', 'data.priors(%d).from must be a pass number >= 1.', k);
             end
         end
-        lab = '';
-        if isfield(P(k), 'group') && ~isempty(P(k).group), lab = char(string(P(k).group)); end
-        if isempty(lab)
-            groups(end+1) = struct('L', L, 'x0', x0, 'sigma', s, 'name', nm, 'estimate', e, ...
-                                   'from', fr, 'members', k); %#ok<AGROW>
-        else
-            j = find(strcmp(labels, lab), 1);
-            if isempty(j)
-                labels{end+1} = lab; %#ok<AGROW>
-                groups(end+1) = struct('L', L / s, 'x0', x0 / s, 'sigma', 1, 'name', lab, ...
-                                       'estimate', e, 'from', fr, 'members', k); %#ok<AGROW>
-            else
-                g = groups(j);
-                if ~strcmp(g.estimate, e)
-                    error('lsqvce:fit:badPrior', ...
-                          'data.priors: group "%s" mixes estimate "%s" and "%s" -- one policy per label.', lab, g.estimate, e);
-                end
-                groups(j).L  = [g.L; L / s];
-                groups(j).x0 = [g.x0; x0 / s];
-                groups(j).from = min(g.from, fr);
-                groups(j).members = [g.members, k];
-            end
-        end
+        groups(end+1) = struct('L', L, 'x0', x0, 'sigma', s, 'name', nm, 'estimate', e, 'from', fr); %#ok<AGROW>
     end
     pri = stackPriors(groups);
 end
 
+function L = commonRowsOfPattern(pattern, spec)
+%COMMONROWSOFPATTERN  L for a 'group' pattern on commonParams: one unit row
+%   per column of A whose template row's name matches the regexp.
+    cp = spec.commonPlan;  T = spec.commonParams;
+    nameCol = 2;
+    if isfield(spec, 'nameColumn') && ~isempty(spec.nameColumn), nameCol = spec.nameColumn; end
+    if nameCol > size(T, 2)
+        error('lsqvce:fit:badPrior', 'the name column %d does not exist in commonParams (%d columns).', nameCol, size(T, 2));
+    end
+    hit = false(size(T, 1), 1);
+    for r = 1:size(T, 1)
+        v = T{r, nameCol};
+        if ischar(v) || (isstring(v) && isscalar(v))
+            hit(r) = ~isempty(regexp(char(v), char(string(pattern)), 'once'));
+        end
+    end
+    rowOf = zeros(cp.nc, 1);
+    rowOf(1:cp.commonCount) = cp.rows.common(:);
+    for i = 1:numel(cp.days)
+        if cp.dayCount(i) == 0, continue, end
+        rows = cp.rows.day;  if isfield(cp, 'dayRowsOf'), rows = cp.dayRowsOf{i}; end
+        rowOf(cp.dayOffset(i) + (1:cp.dayCount(i))) = rows(1:cp.dayCount(i));
+    end
+    cols = find(rowOf > 0 & hit(max(rowOf, 1)));
+    L = zeros(numel(cols), cp.nc);
+    for k = 1:numel(cols), L(k, cols(k)) = 1; end
+end
 function pri = stackPriors(groups, pass)
 %STACKPRIORS  The groups ACTIVE at this pass (from <= pass; default: all)
 %   with their CURRENT sigmas as one CommonPrior (sigma 1).
@@ -681,10 +701,9 @@ function [estMap, afMap] = streamPolicy(systems, specs, streams, afDefault)
     afMap  = containers.Map('KeyType', 'char', 'ValueType', 'any');
     for k = 1:numel(streams)
         afMap(char(string(streams{k}))) = logical(afDefault);
-        if endsWith(char(string(streams{k})), '|prior')     % R5-D8 round 2: pseudo-observations
-            estMap(char(string(streams{k}))) = 'none';       % keep their declared unit law
-            afMap(char(string(streams{k}))) = false;
-        end
+        if contains(char(string(streams{k})), '|prior_')     % R5-D8 round 5: a local prior group is a
+            afMap(char(string(streams{k}))) = false;          % stream; its estimate policy comes from
+        end                                                   % its cov spec (the group's "estimate")
     end
     for k = 1:numel(systems)
         L = systems{k};
@@ -730,7 +749,7 @@ function [names, models] = streamModels(systems, specs, out, pool)
     names = {};  models = {};
     sMean = containers.Map('KeyType', 'char', 'ValueType', 'any');
     for i = 1:numel(out.arcKeys)
-        tok = regexp(out.arcKeys{i}, '^s(.+?)_(.+?)_d', 'tokens', 'once');
+        tok = regexp(out.arcKeys{i}, '^s(.+?)_(.+)_d[^_]+_a', 'tokens', 'once');   % R5-D8 6: obsType may carry underscores
         if isempty(tok), continue, end
         sk = sprintf('%s|%s', matlab.lang.makeValidName(tok{1}), tok{2});
         if ~isKey(sMean, sk), sMean(sk) = []; end

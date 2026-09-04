@@ -795,44 +795,81 @@ function e = synthE(rs, cm, M)
     end
 end
 
-function testPriorDayIsTheLocalCounterpartOfDataPriors(tc)
+function testLocalPriorsAreTheCounterpartOfDataPriors(tc)
 % categories: contract, precision
-    % R5-D8 round 5: regularisation of LOCAL parameters is declared like the
-    % design -- priorDay(day, sysID, info) returns pseudo-observations in the
-    % columns of B; the toolbox rides them as the observation type 'prior'.
-    % The fixture's locals are 'system'-scoped, so the group is instantiated
-    % once (n grows by the rows of L). A tight prior pins the local to x0;
-    % several structs are several groups with their own sigma; a wrong width
-    % is refused by name; a loose prior leaves the solution alone.
+    % R5-D8 round 5: data.systems(k).priors(l) mirrors data.priors(j) -- one
+    % struct per GROUP with L in the columns of B (lsqvce.layout announces
+    % them), x0, sigma, from, name, estimate. Each group rides as its own
+    % stream prior_<name>. A tight group pins the local to x0; several
+    % structs are several groups with their own sigma; a wrong width, a row
+    % coupling two days and a bad policy are refused by name; a loose group
+    % leaves the solution alone; from gates a group out of a single solve.
     [data, ~] = declaration();
     R0 = lsqvce.fit(data, Verbose=false);
     y0 = R0.residuals('Verbose', false).sys(1).y;
+    lay = lsqvce.layout(data);
+    nl = lay.systems(1).nl;
+    tc.verifyEqual(nl, numel(y0), 'the layout announces B''s width');
     j = 2;  target = 0.123;
-    nl = numel(y0);
-    pin = @(col, x0, s, nm) struct('L', double((1:nl) == col), 'x0', x0, 'sigma', s, 'from', 1, 'group', nm, 'name', nm);
-    % system-wide parameters: the prior is returned on ONE day (the rule)
-    onFirst = @(info, P) P(1:(info.dayIndex == 1) * numel(P));
-    data.systems(1).priorDay = @(day, sysID, info) onFirst(info, [pin(info.sysOffset + j, target, 1e-6, 'pin'), pin(info.sysOffset + 1, 0, 1e3, 'soft')]);
+    cj = lay.systems(1).col(j, [], []);                 % a 'system' row: one column
+    tc.verifyGreaterThan(cj, 0);
+    e = @(c) double((1:nl) == c);
+    data.systems(1).priors = [struct('L', e(cj), 'x0', target, 'sigma', 1e-6, 'from', 1, 'name', 'pin', 'estimate', "none"), ...
+                              struct('L', e(lay.systems(1).col(1, [], [])), 'x0', 0, 'sigma', 1e3, 'from', 1, 'name', 'soft', 'estimate', "none")];
     R1 = lsqvce.fit(data, Verbose=false);
     y1 = R1.residuals('Verbose', false).sys(1).y;
-    % tol: 1e-5 absolute -- the prior's sigma (1e-6) against the data's O(1)
+    % tol: 1e-5 absolute -- the group's sigma (1e-6) against the data's O(1)
     % leverage on that parameter; the pin holds to a few sigma
     tc.verifyEqual(y1(j), target, 'AbsTol', 1e-5, 'the pinned local equals x0');
-    tc.verifyEqual(R1.diag.n - R0.diag.n, 2, 'two pseudo-observations: one per group row');
+    tc.verifyEqual(R1.diag.n - R0.diag.n, 2, 'two pseudo-observations, one per group row');
     tc.verifyNotEqual(y1(j), y0(j));
-    % a loose group alone (1e6 sigma) leaves the solution where it was
-    data.systems(1).priorDay = @(day, sysID, info) onFirst(info, pin(info.sysOffset + 1, 0, 1e6, 'loose'));
+    % a loose group alone leaves the solution where it was
+    data.systems(1).priors = struct('L', e(lay.systems(1).col(1, [], [])), 'x0', 0, 'sigma', 1e6, 'name', 'loose');
     Rl = lsqvce.fit(data, Verbose=false);
     % tol: 1e-8 relative -- a 1e6-sigma prior on O(1) parameters perturbs at 1e-12
     tc.verifyEqual(Rl.x, R0.x, 'RelTol', 1e-8);
-    % the 'from' gate: a group with from 2 is not in a single solve
-    data.systems(1).priorDay = @(day, sysID, info) onFirst(info, struct('L', double((1:nl) == info.sysOffset + j), 'x0', target, 'sigma', 1e-6, 'from', 2, 'group', 'late', 'name', 'late'));
+    % from gates the group out of a single solve
+    data.systems(1).priors = struct('L', e(cj), 'x0', target, 'sigma', 1e-6, 'from', 2, 'name', 'late');
     R2 = lsqvce.fit(data, Verbose=false);
-    tc.verifyEqual(R2.diag.n, R0.diag.n, 'a from-2 group is not in a single solve');
-    % a wrong width is refused by name at read time (the loader's own id)
-    data.systems(1).priorDay = @(day, sysID, info) struct('L', ones(1, nl + 3), 'sigma', 1);
-    tc.verifyEqual(idOf(@() lsqvce.fit(data, Verbose=false)), 'lsqvce:makeLoader:badPriorDay');
-    % a throwing handle arrives with its cause
-    data.systems(1).priorDay = @(day, sysID, info) error('mine:prior', 'no');
-    tc.verifyEqual(idOf(@() lsqvce.fit(data, Verbose=false)), 'lsqvce:callUser:threw');
+    tc.verifyEqual(R2.diag.n, R0.diag.n);
+    % the same group by NAME PATTERN (column 2 of localParams): fit builds L
+    names = data.systems(1).localParams(:, 2);
+    if all(cellfun(@(v) ischar(v) || isstring(v), names))
+        pat = ['^' regexptranslate('escape', char(string(names{j}))) '$'];
+        data.systems(1).priors = struct('group', pat, 'x0', target, 'sigma', 1e-6);
+        Rp = lsqvce.fit(data, Verbose=false);
+        yp = Rp.residuals('Verbose', false).sys(1).y;
+        % tol: 1e-5 absolute -- as above
+        tc.verifyEqual(yp(j), target, 'AbsTol', 1e-5, 'the pattern form pins the same local');
+    end
+    % refusals by name (the loader's ids re-homed by fit at build time)
+    data.systems(1).priors = struct('L', ones(1, nl + 3), 'sigma', 1);
+    tc.verifyEqual(idOf(@() lsqvce.fit(data, Verbose=false)), 'lsqvce:fit:badPrior');
+    data.systems(1).priors = struct('L', e(cj), 'sigma', 1, 'estimate', "law");
+    tc.verifyEqual(idOf(@() lsqvce.fit(data, Verbose=false)), 'lsqvce:fit:badPrior');
+end
+
+function testLocalPriorGroupIsEstimatedLikeACommonOne(tc)
+% categories: contract, reference
+    % R5-D8 round 5 (Koch-Kusche on locals): a local group with estimate
+    % "scale" is a stream of its own, so under Estimate="noise" its sigma is
+    % the stream's level -- the Helmert factor the joint estimator computes
+    % for every stream -- exactly the common groups' rule. Fixture: the demo
+    % declaration; a damping group on all locals of system 1 started at a
+    % wrong (tight) sigma must be loosened by the data, and its level appears
+    % on R.noise.model.
+    root = fileparts(fileparts(fileparts(mfilename('fullpath'))));
+    addpath(fullfile(root, 'examples'));
+    [~, data] = demo_grace_dataLoader();
+    lay = lsqvce.layout(data);
+    S = lay.systems(1);  nl = S.nl;
+    L = eye(nl);                                   % all locals of system 1 (its system block)
+    data.systems(1).priors = struct('L', L, 'x0', zeros(size(L, 1), 1), 'sigma', 1e-4, 'name', 'damp', 'estimate', "scale");
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');
+    R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=5, ...
+                     Noise=struct('Grid', 16), Seed=3, Verbose=false));
+    k = find(strcmp(R.noise.stream, 'x1|prior_damp'), 1);
+    tc.verifyNotEmpty(k, 'the group is a stream of its own');
+    tc.verifyGreaterThan(R.noise.model{k}.sigma, 1, 'the tight damping (1e-4 on O(1) locals) is loosened by the data');
+    tc.verifyTrue(any(strcmp(R.history.streams, 'x1|prior_damp')));
 end

@@ -67,8 +67,9 @@ translates every such COMMON row into `data.priors(i) = struct('L', e_j', 'x0', 
 estimated by VCE (`estimate="scale"`, Koch-Kusche; a single parameter cannot estimate its
 own sigma -- its redundancy is at most 1 -- a labelled group can). `'none'` or `[]` = no
 prior. In your bundle every common row is `[]` and the constraints sit on LOCAL rows
-(`*accscale`): those become the `priorDay` function of STEP 7 (R5-D8 round 5) -- pseudo-observations in the
-columns of B, the same mechanism as `data.priors` on the common parameters.
+(`*accscale`): those become `data.systems.priors` in STEP 7 (R5-D8 round 5) -- one struct per group, L in the
+columns of B as `lsqvce.layout` announces them; the same mechanism and the same Koch-Kusche
+estimation as `data.priors` on the common parameters.
 
 ### STEP 2 — the calendar
 

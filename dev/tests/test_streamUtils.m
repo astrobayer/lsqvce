@@ -328,3 +328,36 @@ function D = recordInfo(seen, day, info)
     seen(day) = info;
     D = struct('A', zeros(0, 3), 'B', zeros(0, info.nl), 'l', zeros(0, 1), 't', zeros(0, 1), 'arcIdx', {{}});
 end
+
+function test_prior_group_pattern_builds_L_from_the_name_column(tc)
+% categories: contract, precision
+    % R5-D8 round 6: Priors(g).group is a regexp on the name column; the
+    % loader builds L with one unit row per matched template row per
+    % instance -- identical to the explicit L the user could have written
+    % from lsqvce.engine.localColumns.
+    days = 100:101;
+    T = {'day', 'bias',  [], [];  'day', 'xacc', [], [];  'day', 'yacc', [], [];  'arc', 'ic', [], []};
+    bd = @(day, ot, common, local, po, info) struct('A', zeros(0, 2), 'B', zeros(0, info.nl), 'l', zeros(0, 1), 't', zeros(0, 1), 'arcIdx', {{}});
+    mk = @(P) lsqvce.engine.makeLoader(bd, 'ObservationTypes', {'obs'}, ...
+            'Covariance', struct('obs', struct('type', 'diag', 'sigma', 1)), ...
+            'Arcs', @(d, ot) 1:2, 'Days', days, 'LocalParams', T, 'Scoped', true, ...
+            'NumCommon', 2, 'SystemId', 1, 'Priors', P);
+    L = mk(struct('group', 'acc$', 'sigma', 0.01, 'name', 'acc', 'estimate', "scale"));
+    g = L.priors(1);
+    loc = lsqvce.engine.localColumns(L.plan);
+    want = zeros(0, L.plan.nl);
+    for c = 1:L.plan.nl
+        if ismember(loc(c).row, [2 3]), r = zeros(1, L.plan.nl);  r(c) = 1;  want(end+1, :) = r; end %#ok<AGROW>
+    end
+    % tol: exact -- unit rows
+    tc.verifyEqual(g.L, want, 'xacc and yacc on both days: 4 rows');
+    tc.verifyEqual(size(g.L, 1), 4);
+    tc.verifyEqual(g.obsType, 'prior_acc');
+    tc.verifyEqual(g.estimate, 'scale');
+    tc.verifyTrue(any(strcmp(L.obsTypes, 'prior_acc')), 'the group is a stream of its own');
+    % explicit L: used as is; both: refused; no match: refused
+    L2 = mk(struct('L', want, 'sigma', 0.01, 'name', 'acc'));
+    tc.verifyEqual(L2.priors(1).L, want);
+    tc.verifyError(@() mk(struct('group', 'acc$', 'L', want, 'sigma', 1)), 'lsqvce:makeLoader:badPrior');
+    tc.verifyError(@() mk(struct('group', '^zzz$', 'sigma', 1)), 'lsqvce:makeLoader:badPrior');
+end

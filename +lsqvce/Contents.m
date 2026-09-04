@@ -1,5 +1,5 @@
 % LSQVCE  Batch least squares: accumulation, variance components, and judgment.
-% Version 5.1  03-Sep-2026
+% Version 5.2  03-Sep-2026
 %
 % lsqvce -- least-squares adjustment with variance component estimation.
 %
@@ -7,6 +7,7 @@
 % started page (doc lsqvce) and DATA_CONTRACT.md at the toolbox root.
 %
 %   fit            - the one user verb: fit(data, opts) -> Results
+%   layout         - the column layout fit will use (declare priors in it) (R5-D8)
 %   Options        - the one settings object for fit (typed knobs with engine defaults)
 %   Results        - rich result object: solution, diagnostics, provenance, report()
 %   report         - verdict printer (levels 0-4); Results.report forwards here

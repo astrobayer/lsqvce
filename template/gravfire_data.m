@@ -145,7 +145,7 @@ end
     % 'accscale') go into one struct with one sigma; without a label each
     % constrained row is its own group. Your 12 accelerometer scale factors
     % {'Tikhonov', 1, 0.01} become 6 groups per day (or 2 with labels).
-    data.systems.priorDay = @(day, sysID, info) gravfirePriorDay(day, sysID, info, localParams);
+    data.systems.priors = gravfireLocalPriors(data, localParams);
 end
 
 % ======================================================================
@@ -281,48 +281,45 @@ function priors = priorsFromColumn11(P, ~)
 end
 
 %==========================================================================
-function P = gravfirePriorDay(~, ~, info, localParams)
-%GRAVFIREPRIORDAY  Column 11 of the LOCAL template rows -> priors of the day (R5-D8 round 5).
-%   For every template row j with {'Tikhonov', fromPass, sigma[, label]} that is
-%   present on this day (info.dayRows), one pseudo-observation on the column
-%   info.dayOffset + position(j in info.dayRows): L = e_col, x0 = column 10
-%   (-> 11 in the 15-column template; [] = 0), sigma, from. Rows sharing a
-%   label share one struct (one sigma, one group); the others are one struct
-%   each. Returns [] when nothing is constrained on this day.
-    P = struct('L', {}, 'x0', {}, 'sigma', {}, 'from', {}, 'group', {}, 'name', {});
-    if ~isfield(info, 'dayRows') || isempty(info.dayRows) || isempty(info.dayOffset), return, end
-    nl = info.nl;
-    groups = containers.Map('KeyType', 'char', 'ValueType', 'any');
-    order = {};
-    for pos = 1:numel(info.dayRows)
-        j = info.dayRows(pos);
+function P = gravfireLocalPriors(~, localParams)
+%GRAVFIRELOCALPRIORS  Column 11 of the LOCAL template rows -> data.systems.priors (R5-D8 round 6).
+%   One struct per GROUP in the PATTERN form: rows sharing a label (4th entry
+%   of column 11 -> column 12 here) become one struct whose 'group' is the
+%   regexp of their names ('^(GraceA_xaccscale|GraceB_xaccscale)$'); rows
+%   without a label are one struct each. The toolbox builds L from the names
+%   (column 2 of the 15-column template) for every instance -- per day for a
+%   'day' row. x0 = column 10 (-> 11), sigma and fromPass from the entry;
+%   estimate "scale" for labelled groups (Koch-Kusche), "none" otherwise.
+    P = struct('group', {}, 'x0', {}, 'sigma', {}, 'from', {}, 'name', {}, 'estimate', {});
+    groups = containers.Map('KeyType', 'char', 'ValueType', 'any');  order = {};
+    for j = 1:size(localParams, 1)
         c = localParams{j, 12};
         if isNoneConstraint(c), continue, end
         if ~iscell(c) || numel(c) < 3 || ~ischar(c{1}) || ~strcmpi(c{1}, 'Tikhonov')
             error('gravfire:badConstraint', 'local row %d: column 11 must be ''none'' or {''Tikhonov'', fromPass, sigma[, label]}.', j);
         end
-        col = info.dayOffset + pos;
-        x0 = 0;
-        if ~isempty(localParams{j, 11}), x0 = double(localParams{j, 11}); end
-        lab = '';
-        if numel(c) >= 4 && ~isempty(c{4}), lab = char(string(c{4})); end
-        key = lab;
-        if isempty(key), key = sprintf('#%d', j); end
+        x0 = 0;  if ~isempty(localParams{j, 11}), x0 = double(localParams{j, 11}); end
+        lab = '';  if numel(c) >= 4 && ~isempty(c{4}), lab = char(string(c{4})); end
+        nm = char(string(localParams{j, 2}));
+        key = lab;  if isempty(key), key = nm; end
         if ~isKey(groups, key)
-            nm = lab;  if isempty(nm), nm = char(string(localParams{j, 2})); end
-            groups(key) = struct('L', zeros(0, nl), 'x0', zeros(0, 1), 'sigma', double(c{3}), ...
-                                 'from', double(c{2}), 'group', lab, 'name', nm);
+            groups(key) = struct('names', {{}}, 'x0', x0, 'sigma', double(c{3}), 'from', double(c{2}), ...
+                                 'estimate', "none", 'labelled', ~isempty(lab));
             order{end+1} = key; %#ok<AGROW>
         end
         g = groups(key);
-        if abs(g.sigma - double(c{3})) > 0
+        if g.sigma ~= double(c{3})
             error('gravfire:badConstraint', 'group ''%s'': members must share one sigma (row %d has %g, the group %g).', key, j, double(c{3}), g.sigma);
         end
-        row = zeros(1, nl);  row(col) = 1;
-        g.L = [g.L; row];  g.x0 = [g.x0; x0];
+        g.names{end+1} = regexptranslate('escape', nm);
         groups(key) = g;
     end
-    for k = 1:numel(order), P(end+1) = groups(order{k}); end %#ok<AGROW>
+    for k = 1:numel(order)
+        g = groups(order{k});
+        est = "none";  if g.labelled, est = "scale"; end
+        P(end+1) = struct('group', ['^(' strjoin(unique(g.names), '|') ')$'], 'x0', g.x0, ...
+                          'sigma', g.sigma, 'from', g.from, 'name', order{k}, 'estimate', est); %#ok<AGROW>
+    end
     if isempty(P), P = []; end
 end
 %==========================================================================

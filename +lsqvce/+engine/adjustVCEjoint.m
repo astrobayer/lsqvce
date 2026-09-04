@@ -689,7 +689,7 @@ function M = streamMeans(arcKeys, sigma2)
     if isempty(arcKeys) || isempty(sigma2) || numel(arcKeys) ~= numel(sigma2), return, end
     acc = containers.Map('KeyType', 'char', 'ValueType', 'any');
     for k = 1:numel(arcKeys)
-        tok = regexp(arcKeys{k}, '^s(.+?)_(.+?)_d', 'tokens', 'once');
+        tok = regexp(arcKeys{k}, '^s(.+?)_(.+)_d[^_]+_a', 'tokens', 'once');   % R5-D8 6: obsType may carry underscores
         if isempty(tok), continue, end
         sk = sprintf('%s|%s', matlab.lang.makeValidName(tok{1}), tok{2});
         if ~isKey(acc, sk), acc(sk) = []; end
@@ -705,7 +705,7 @@ end
 
 function sk = streamKeyOf(arcKey)
 %STREAMKEYOF  's<sysID>_<obsType>_d..' -> 'satKey|obsType' (the override key).
-    tok = regexp(arcKey, '^s(.+?)_(.+?)_d', 'tokens', 'once');
+    tok = regexp(arcKey, '^s(.+?)_(.+)_d[^_]+_a', 'tokens', 'once');   % R5-D8 6: obsType may carry underscores
     if isempty(tok), sk = arcKey; return, end
     sk = sprintf('%s|%s', matlab.lang.makeValidName(tok{1}), tok{2});
 end
