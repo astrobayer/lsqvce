@@ -43,14 +43,19 @@ a { color: #0b5ea8; }
 <div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.kernel.residualAcv</div>
 <h1>lsqvce.kernel.residualAcv</h1>
 <div class="purpose">Temporal autocovariance of de-scaled residuals.</div>
-<h2>Syntax</h2>
-<pre class="syntax">[acv, nSamp] = lsqvce.kernel.residualAcv(res, satId, obsType, nAxes, maxLag, dayFcn)</pre>
 <h2>Description</h2>
-<p>Estimates the TEMPORAL autocovariance of one satellite/obsType stream after removing the FIXED per-epoch factor D that the whitener already applied. It pools the ACV over the arcs and over the axes (the axes share one temporal law R_t, the separable model C = D (R_t kron I_d) D). Pooling never crosses satellites: pass a single satId.</p>
-<p>De-scaling by D:</p>
-<pre class="example">nAxes == 1 (e.g. rr)   divide each epoch residual by dayData.sigma(rows)
-nAxes  &gt; 1 (e.g. pos)  left-multiply each epoch residual by
-                       chol(dayData.Cep(epoch))^-1 (lower)</pre>
+<pre class="example">[acv, nSamp] = lsqvce.kernel.residualAcv(res, satId, obsType, nAxes, maxLag, dayFcn)
+
+Estimates the TEMPORAL autocovariance of one satellite/obsType stream after
+removing the FIXED per-epoch factor D that the whitener already applied. It
+pools the ACV over the arcs and over the axes (the axes share one temporal
+law R_t, the separable model C = D (R_t kron I_d) D). Pooling never crosses
+satellites: pass a single satId.
+
+De-scaling by D:
+  nAxes == 1 (e.g. rr)   divide each epoch residual by dayData.sigma(rows)
+  nAxes  &gt; 1 (e.g. pos)  left-multiply each epoch residual by
+                         chol(dayData.Cep(epoch))^-1 (lower)</pre>
 <h3>Input</h3>
 <pre class="example">res      1x1   struct   Collected residuals (see LSQVCE.ENGINE.COLLECTRESIDUALS).
                        Uses res.sys(:).sysID and res.sys(:).obs(:).
@@ -71,11 +76,21 @@ dayFcn   1x1   function_handle   dayFcn(satId, day) -&gt; day struct exposing
 nSamp    1x1           double    Axis-sample count pooled into acv; feed to
                        LSQVCE.ENGINE.SELECTARACV for its AICc/BIC/PACF reporting.</pre>
 <h3>Example</h3>
-<pre class="example">dayFcn = @(s,d) lsqvce.graceLoader(cfg, s, d, &#x27;pos&#x27;, &#x27;day&#x27;);
+<pre class="example">dayFcn = @(s,d) myLoader(cfg, s, d, &#x27;pos&#x27;, &#x27;day&#x27;);   % your day builder
 [r, n] = lsqvce.kernel.residualAcv(res, &#x27;C&#x27;, &#x27;pos&#x27;, 3, 128, dayFcn);
 [a, s2, p] = lsqvce.engine.selectArAcv(r, n);</pre>
-<pre class="example">LSQVCE.KERNEL.LEVINSONDURBIN, LSQVCE.KERNEL.SEPARABLEWHITEN</pre>
-<p>Created 2026-07-15 13:40 (CEST, UTC+02:00) with assistance from Claude (Anthropic), model Claude Opus 4.8.</p>
-<div class="seealso"><b>See also:</b> <a href="lsqvce.engine.selectArAcv.html">lsqvce.engine.selectArAcv</a>, <a href="lsqvce.engine.collectResiduals.html">lsqvce.engine.collectResiduals</a></div>
-<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:residualAcv:noObs      the stream carries no observations
+  lsqvce:residualAcv:dayFcn     the day accessor is not callable
+
+See also LSQVCE.ENGINE.SELECTARACV, LSQVCE.ENGINE.COLLECTRESIDUALS,
+         LSQVCE.KERNEL.LEVINSONDURBIN, LSQVCE.KERNEL.SEPARABLEWHITEN
+
+Created 2026-07-15 13:40 (CEST, UTC+02:00) with assistance from
+Claude (Anthropic), model Claude Opus 4.8.
+Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+kernel (R4 decision R4-D1,
+WP-64a): the KERNEL tier leaves the USER surface; every qualified
+reference was rewritten mechanically by docs_src/refactor_tiers.py.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

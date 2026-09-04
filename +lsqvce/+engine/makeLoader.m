@@ -198,6 +198,15 @@ function L = makeLoader(buildDay, opt)
 %           no parametrisation pipe; wrap it with makeLoader ONLY when you want
 %           those conveniences. Both paths are supported and tested.
 %
+%   INPUT
+%     buildDay     function_handle   @(day, obsType, common, local, procOpt, info) -> D
+%                                    (D.A m x nc, D.B m x nl, D.l, D.t, D.arcIdx; manual ch. 3)
+%     Name, Value                    the OPTIONS above
+%   OUTPUT
+%     L            1x1 struct        the Loader: .isLoader .sysID .nc .nl .obsTypes .cov
+%                                    .plan .priors .closure(day, obsType, arcID, opt)
+%                                    .day(day, obsType) .procOpt .name
+%
 %   EXAMPLE
 %     cov.pos = struct('type','arma','ar',[1 -1.6 0.9 -0.25],'ma',1,'sigma',0.7);
 %     L = lsqvce.engine.makeLoader(@(d,ot) myBuildDay(d,ot), ...

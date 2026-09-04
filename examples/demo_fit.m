@@ -6,7 +6,7 @@ function out = demo_fit(opt)
 %
 %   The four names of the USER tier -- lsqvce.fit, lsqvce.Options,
 %   lsqvce.Results, lsqvce.report -- on each of the three kinds of data
-%   DATA_CONTRACT.md defines. Nothing here touches the ENGINE tier; every
+%   the Manual, chapter 3 defines. Nothing here touches the ENGINE tier; every
 %   engine call is made by fit.
 %
 %     (B) in-memory matrices   data.A / data.l / data.p       -> adjust, then

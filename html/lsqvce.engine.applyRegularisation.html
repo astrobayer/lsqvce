@@ -43,62 +43,83 @@ a { color: #0b5ea8; }
 <div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.engine.applyRegularisation</div>
 <h1>lsqvce.engine.applyRegularisation</h1>
 <div class="purpose">Regularise a local block before pre-elimination.</div>
-<h2>Syntax</h2>
-<pre class="syntax">[Nr, nr, dg] = LSQVCE.ENGINE.APPLYREGULARISATION(Nll, nl, dg, opt)</pre>
 <h2>Description</h2>
-<p>METHODS (opt.Reg)</p>
-<pre class="example">&#x27;none&#x27;      no action
-&#x27;tikhonov&#x27;  Nr = Nll + lambda*L&#x27;*L        lambda by GCV if not supplied
-&#x27;tsvd&#x27;      spectral floor at TruncTol*lambda_max (equivalent to pinv)
-&#x27;lm&#x27;        Nr = Nll + lambda*diag(Nll)   Levenberg-Marquardt scaling
-&#x27;auto&#x27;      dispatch on dg.status:
-               &#x27;ok&#x27;              -&gt; none
-               &#x27;ill-conditioned&#x27; -&gt; tikhonov
-               &#x27;rank-deficient&#x27;  -&gt; tsvd</pre>
+<pre class="example">[Nr, nr, dg] = LSQVCE.ENGINE.APPLYREGULARISATION(Nll, nl, dg, opt)
+
+METHODS (opt.Reg)
+  &#x27;none&#x27;      no action
+  &#x27;tikhonov&#x27;  Nr = Nll + lambda*L&#x27;*L        lambda by GCV if not supplied
+  &#x27;tsvd&#x27;      spectral floor at TruncTol*lambda_max (equivalent to pinv)
+  &#x27;lm&#x27;        Nr = Nll + lambda*diag(Nll)   Levenberg-Marquardt scaling
+  &#x27;auto&#x27;      dispatch on dg.status:
+                 &#x27;ok&#x27;              -&gt; none
+                 &#x27;ill-conditioned&#x27; -&gt; tikhonov
+                 &#x27;rank-deficient&#x27;  -&gt; tsvd</pre>
 <h3>Input</h3>
 <pre class="example">Nll  nl x nl  local normal matrix
 nl   nl x 1   local right-hand side
 dg   struct   from LSQVCE.ENGINE.LOCALDIAGNOSTICS
 opt  struct   .Reg, .RegLambda, .RegMatrix, .TruncTol</pre>
 <h3>Output</h3>
-<pre class="example">Nr, nr        regularised block and rhs (nr is unchanged by all current
-              methods; it is returned for symmetry with damped-prior
-              variants that shift the rhs)
-dg            with .regUsed and .lambdaUsed filled in</pre>
-<h3>Regularisation Is Not Free -- Read This</h3>
-<pre class="example">Pre-elimination forms Ncc_red = Ncc - Nlc&#x27;*inv(Nll)*Nlc. Any bias you
-introduce into inv(Nll) is transmitted into the COMMON parameters. A
-regularised local block therefore biases the gravity field, not just the
-nuisance parameters. This is the opposite of the usual intuition that
-&quot;the locals get eliminated anyway, so who cares&quot;.</pre>
-<pre class="example">The right fix for a structurally inestimable local parameter is to
-REMOVE it (or to lengthen the arc, or to add a constraint from an
-independent source), not to damp it. Use regularisation when the block
-is merely poorly scaled or weakly determined, not when it is singular by
-construction.</pre>
-<h3>Choosing The Method</h3>
-<pre class="example">tikhonov  A genuine prior: you believe y is small (or L*y is small). Set
-          RegMatrix L to encode that belief -- L = I penalises magnitude,
-          a first-difference L penalises roughness. Use when the block is
-          weakly determined but the parameters are physically meaningful.
-tsvd      No prior: you simply refuse to invert the null space. Use when
-          the block is rank deficient by construction. The floored
-          directions are left at zero rather than being fitted to noise.
-lm        Scale-invariant damping. Use when the local parameters have
-          wildly different units and L = I would be meaningless.</pre>
-<h3>Choosing Lambda</h3>
-<pre class="example">If RegLambda is 0 or empty, Tikhonov calls LSQVCE.ENGINE.GCVLAMBDA. GCV is
-automatic but not infallible -- it can under-regularise when the noise
-is correlated (which it is, here, after whitening only approximately).
-For production runs, fix lambda from an L-curve on one representative
-day and then hold it constant, so the regularisation does not drift
-between days.</pre>
+<pre class="example">  Nr, nr        regularised block and rhs (nr is unchanged by all current
+                methods; it is returned for symmetry with damped-prior
+                variants that shift the rhs)
+  dg            with .regUsed and .lambdaUsed filled in
+
+REGULARISATION IS NOT FREE -- READ THIS
+  Pre-elimination forms Ncc_red = Ncc - Nlc&#x27;*inv(Nll)*Nlc. Any bias you
+  introduce into inv(Nll) is transmitted into the COMMON parameters. A
+  regularised local block therefore biases the gravity field, not just the
+  nuisance parameters. This is the opposite of the usual intuition that
+  &quot;the locals get eliminated anyway, so who cares&quot;.
+
+  The right fix for a structurally inestimable local parameter is to
+  REMOVE it (or to lengthen the arc, or to add a constraint from an
+  independent source), not to damp it. Use regularisation when the block
+  is merely poorly scaled or weakly determined, not when it is singular by
+  construction.
+
+CHOOSING THE METHOD
+  tikhonov  A genuine prior: you believe y is small (or L*y is small). Set
+            RegMatrix L to encode that belief -- L = I penalises magnitude,
+            a first-difference L penalises roughness. Use when the block is
+            weakly determined but the parameters are physically meaningful.
+  tsvd      No prior: you simply refuse to invert the null space. Use when
+            the block is rank deficient by construction. The floored
+            directions are left at zero rather than being fitted to noise.
+  lm        Scale-invariant damping. Use when the local parameters have
+            wildly different units and L = I would be meaningless.
+
+CHOOSING LAMBDA
+  If RegLambda is 0 or empty, Tikhonov calls LSQVCE.ENGINE.GCVLAMBDA. GCV is
+  automatic but not infallible -- it can under-regularise when the noise
+  is correlated (which it is, here, after whitening only approximately).
+  For production runs, fix lambda from an L-curve on one representative
+  day and then hold it constant, so the regularisation does not drift
+  between days.</pre>
 <h3>Example</h3>
 <pre class="example">opt = struct(&#x27;Reg&#x27;,&#x27;tikhonov&#x27;, &#x27;RegLambda&#x27;,0, ...      % 0 -&gt; GCV
              &#x27;RegMatrix&#x27;,[], &#x27;TruncTol&#x27;,1e-10);
 dg  = lsqvce.engine.localDiagnostics(Nll, opt);
 [Nr, nr, dg] = lsqvce.engine.applyRegularisation(Nll, nl, dg, opt);
-fprintf(&#x27;%s, lambda = %.3e\n&#x27;, dg.regUsed, dg.lambdaUsed);</pre>
-<div class="seealso"><b>See also:</b> <a href="lsqvce.engine.localDiagnostics.html">lsqvce.engine.localDiagnostics</a>, <a href="lsqvce.engine.gcvLambda.html">lsqvce.engine.gcvLambda</a>, <a href="lsqvce.engine.BlockAccumulator.html">lsqvce.engine.BlockAccumulator</a></div>
-<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+lsqvce.util.log.msg(&#x27;%s, lambda = %.3e\n&#x27;, dg.regUsed, dg.lambdaUsed);</pre>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:applyReg:badLambda     lambda is not a non-negative scalar
+  lsqvce:applyReg:badRegMatrix  the regularisation matrix has the wrong size
+  lsqvce:applyReg:notPD         the regularised normal matrix is not
+                                positive definite
+
+IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+  lsqvce:applyReg:sizeMismatch               Nll is XxX but nl has X elements.RegMatrix
+  lsqvce:applyReg:unknown                    Unknown regularisation &#x27;X&#x27;. Valid
+
+See also LSQVCE.ENGINE.LOCALDIAGNOSTICS, LSQVCE.ENGINE.GCVLAMBDA, LSQVCE.ENGINE.BLOCKACCUMULATOR
+
+Generated with assistance from Claude (Anthropic), model Claude
+Opus 4.8.
+Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
+WP-64a): the ENGINE tier leaves the USER surface; every qualified
+reference was rewritten mechanically by docs_src/refactor_tiers.py.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

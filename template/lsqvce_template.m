@@ -13,7 +13,7 @@ function L = lsqvce_template(procOpt)
 %               'GroupBy', 'obsType').run();          % constructor-only since 2.0
 %
 %   ENGINE-TIER TEMPLATE (since 2.0). The user path needs no Loader at all:
-%   describe the same case as a plain `data` struct (DATA_CONTRACT.md) and
+%   describe the same case as a plain `data` struct (the Manual, chapter 3) and
 %   call lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false)) -- examples/demo_fit.m
 %   shows it end to end. Keep this template when you want the Loaders in
 %   hand (procOpt-driven cases, direct engine work, 1.x code).

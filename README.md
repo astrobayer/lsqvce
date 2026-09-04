@@ -5,7 +5,7 @@ result: estimates with formal errors, per-observation diagnostics, and a
 five-level verdict that says whether to believe them.
 
 **The user surface is four names** at `lsqvce.` — `fit`, `Options`, `Results`,
-`report` — plus the `data` struct specified in `DATA_CONTRACT.md`. Everything
+`report` — plus the `data` struct specified in the Manual, chapter 3 (`doc lsqvce`). Everything
 that does the work lives one level down (`lsqvce.engine.*` drivers,
 accumulators, loaders, VCE, diagnostics; `lsqvce.kernel.*` transforms, filters,
 statistics) and stays reachable for experts.
@@ -67,11 +67,11 @@ Every kind runs on the same accumulator and the same loop; `Robust`, the
 nonlinear form and `OnPass` (your inspection hook after every pass) work on
 all of them. The v4 names map one-to-one onto v5 (`RELEASE_NOTES.md`).
 
-**New here?** In this order:
+**New here?** `doc lsqvce` opens the Manual (`html/lsqvce_manual.html`, also `lsqvce_manual.pdf`) — the single documentation authority: install, data, every option, the API, priors, migration. In this order:
 
 1. `doc lsqvce` → **Getting started** (`html/lsqvce_getting_started.html`): which
    kind of data you have, `buildDay` in six rules, reading the answer.
-2. **`DATA_CONTRACT.md`** — the binding specification of the `data` struct and of the
+2. **the Manual, chapter 3 (`doc lsqvce`)** — the binding specification of the `data` struct and of the
    one function you write, `buildDay`, with a two-satellite worked example.
 3. **`examples/demo_fit.m`** — the user path end to end on all three data kinds,
    including the GRACE-like physical oracle as a `data` struct; copy it.
@@ -98,7 +98,7 @@ policy `estimate = "none" | "scale" | "law"` and `arcFactors`. Batches are
 overlapped by the filter memory automatically, so batching never changes the
 result. Priors on the common parameters — a datum, a Kaula rule, a
 background model — are `data.priors`. Details and the six `buildDay` rules:
-`DATA_CONTRACT.md`.
+the Manual, chapter 3 (`doc lsqvce`).
 
 **Options.** `lsqvce.Options` is a typed value class: 14 knobs and five
 groups (`Noise`, `RobustOpts`, `Diagnostics`, `Parallel`, `GaussNewton`);

@@ -43,10 +43,13 @@ a { color: #0b5ea8; }
 <div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.kernel.whitenessCorr</div>
 <h1>lsqvce.kernel.whitenessCorr</h1>
 <div class="purpose">Largest absolute autocorrelation over a lag range.</div>
-<h2>Syntax</h2>
-<pre class="syntax">maxCorr = lsqvce.kernel.whitenessCorr(series, maxLag)</pre>
 <h2>Description</h2>
-<p>A cheap whiteness statistic. The series is mean-removed and normalised by its lag-0 energy, so 0 &lt;= maxCorr &lt;= 1. For white noise the sample autocorrelations sit inside roughly +/- k/sqrt(n); compare maxCorr against a band such as whiteFactor/sqrt(numel(series)) to decide whiteness.</p>
+<pre class="example">maxCorr = lsqvce.kernel.whitenessCorr(series, maxLag)
+
+A cheap whiteness statistic. The series is mean-removed and normalised by
+its lag-0 energy, so 0 &lt;= maxCorr &lt;= 1. For white noise the sample
+autocorrelations sit inside roughly +/- k/sqrt(n); compare maxCorr against a
+band such as whiteFactor/sqrt(numel(series)) to decide whiteness.</pre>
 <h3>Input</h3>
 <pre class="example">series   nx1 | 1xn   double    Time series (a residual stream). Required.
                                 Fewer than 2 elements returns 0.
@@ -56,9 +59,16 @@ maxLag   1x1         integer   Highest lag to test, &gt;= 1. Required.
 <pre class="example">maxCorr  1x1         double    max over lags 1..maxLag of
                                 |sum(x_t x_{t+lag})| / sum(x_t^2), in [0,1].</pre>
 <h3>Example</h3>
-<pre class="example">w = randn(4000,1);
-assert(lsqvce.kernel.whitenessCorr(w, 5) &lt; 3/sqrt(4000));   % white -&gt; below band</pre>
-<p>Created 2026-07-15 13:40 (CEST, UTC+02:00) with assistance from Claude (Anthropic), model Claude Opus 4.8.</p>
-<div class="seealso"><b>See also:</b> <a href="lsqvce.engine.collectResiduals.html">lsqvce.engine.collectResiduals</a>, <a href="lsqvce.engine.selectArAcv.html">lsqvce.engine.selectArAcv</a>, <a href="lsqvce.kernel.crossCorr.html">lsqvce.kernel.crossCorr</a></div>
-<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+<pre class="example">  w = randn(4000,1);
+  assert(lsqvce.kernel.whitenessCorr(w, 5) &lt; 3/sqrt(4000));   % white -&gt; below band
+
+See also LSQVCE.ENGINE.COLLECTRESIDUALS, LSQVCE.ENGINE.SELECTARACV, LSQVCE.KERNEL.CROSSCORR
+
+Created 2026-07-15 13:40 (CEST, UTC+02:00) with assistance from
+Claude (Anthropic), model Claude Opus 4.8.
+Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+kernel (R4 decision R4-D1,
+WP-64a): the KERNEL tier leaves the USER surface; every qualified
+reference was rewritten mechanically by docs_src/refactor_tiers.py.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

@@ -43,10 +43,12 @@ a { color: #0b5ea8; }
 <div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.kernel.armaWhiten</div>
 <h1>lsqvce.kernel.armaWhiten</h1>
 <div class="purpose">Apply an ARMA whitening filter column-wise (exact).</div>
-<h2>Syntax</h2>
-<pre class="syntax">[Aw,Bw,lw] = LSQVCE.KERNEL.ARMAWHITEN(a, b, s, r, A, B, l, isFirstBatch)</pre>
 <h2>Description</h2>
-<p>Applies the operator F with F&#x27;*F = inv(C), where C is the covariance of a process with ARMA(p,q) structure (a, b) and innovation std s. Costs O(m*(p+q)) and never forms the m x m covariance.</p>
+<pre class="example">[Aw,Bw,lw] = LSQVCE.KERNEL.ARMAWHITEN(a, b, s, r, A, B, l, isFirstBatch)
+
+Applies the operator F with F&#x27;*F = inv(C), where C is the covariance of a
+process with ARMA(p,q) structure (a, b) and innovation std s. Costs
+O(m*(p+q)) and never forms the m x m covariance.</pre>
 <h3>Input</h3>
 <pre class="example">a             1 x (p+1)  AR polynomial [1 a1 ... ap]
 b             1 x (q+1)  MA polynomial [1 b1 ... bq]; use 1 for pure AR
@@ -56,36 +58,40 @@ A, B          m x *      design blocks (either may be m x 0)
 l             m x 1      observation vector
 isFirstBatch  logical    true for the first batch of an arc</pre>
 <h3>Output</h3>
-<pre class="example">Aw, Bw, lw    whitened blocks, same sizes as the inputs</pre>
-<h3>Argument Order -- The Classic Trap</h3>
-<pre class="example">The filter applied is filter(a, b, x), i.e. NUMERATOR a, DENOMINATOR b.
-That is the whitening filter A(z)/B(z). Swapping the arguments gives the
-COLOURING filter B(z)/A(z), which is silently wrong: the result still
-looks like a residual series but the normal equations are corrupted.</pre>
-<h3>Exactness</h3>
-<pre class="example">This is not an approximation. The operator F satisfies
-    norm(F&#x27;*F - inv(C)) / norm(inv(C))  &lt;  1e-13
-(verified for n = 20..300).</pre>
-<pre class="example">In fact F IS the Cholesky inverse factor, not merely another square root
-of inv(C): both are lower triangular, and the triangular square root is
-unique up to sign, so
-    norm(F - chol(C)^-1) / norm(chol(C)^-1)  ~  1e-14
-The FIR filter reproduces the dense decorrelation exactly, row for row,
-at O(m*p) instead of O(m^3) and with no matrix ever formed. The steady-
-state rows ARE the AR coefficients reversed and divided by s; the leading
-p rows are the stationary startup block below.</pre>
+<pre class="example">  Aw, Bw, lw    whitened blocks, same sizes as the inputs
+
+ARGUMENT ORDER -- THE CLASSIC TRAP
+  The filter applied is filter(a, b, x), i.e. NUMERATOR a, DENOMINATOR b.
+  That is the whitening filter A(z)/B(z). Swapping the arguments gives the
+  COLOURING filter B(z)/A(z), which is silently wrong: the result still
+  looks like a residual series but the normal equations are corrupted.
+
+EXACTNESS
+  This is not an approximation. The operator F satisfies
+      norm(F&#x27;*F - inv(C)) / norm(inv(C))  &lt;  1e-13
+  (verified for n = 20..300).
+
+  In fact F IS the Cholesky inverse factor, not merely another square root
+  of inv(C): both are lower triangular, and the triangular square root is
+  unique up to sign, so
+      norm(F - chol(C)^-1) / norm(chol(C)^-1)  ~  1e-14
+  The FIR filter reproduces the dense decorrelation exactly, row for row,
+  at O(m*p) instead of O(m^3) and with no matrix ever formed. The steady-
+  state rows ARE the AR coefficients reversed and divided by s; the leading
+  p rows are the stationary startup block below.</pre>
 <h3>The Startup Block</h3>
-<pre class="example">A zero-state FIR filter mishandles the first p rows: it implicitly
-assumes x(k) = 0 for k &lt; 1. Those rows are replaced by the exact
-stationary whitener chol(toeplitz(r(1:p)))^-1, which is the leading
-p x p block of chol(C)^-1. Only done when isFirstBatch is true.</pre>
-<h3>Batch Overlap Is Mandatory</h3>
-<pre class="example">On any batch after the first, the filter restarts from zero state and
-the first p rows are transient garbage. The caller must overlap batches
-by at least p rows and discard the overlap. With overlap = p the batched
-result is identical to filtering the whole arc; with overlap = 0 the
-relative error in the solution is ~1e-3 instead of ~1e-15.
-LSQVCE.ENGINE.BLOCKACCUMULATOR does this automatically from arc.filterMemory.</pre>
+<pre class="example">  A zero-state FIR filter mishandles the first p rows: it implicitly
+  assumes x(k) = 0 for k &lt; 1. Those rows are replaced by the exact
+  stationary whitener chol(toeplitz(r(1:p)))^-1, which is the leading
+  p x p block of chol(C)^-1. Only done when isFirstBatch is true.
+
+BATCH OVERLAP IS MANDATORY
+  On any batch after the first, the filter restarts from zero state and
+  the first p rows are transient garbage. The caller must overlap batches
+  by at least p rows and discard the overlap. With overlap = p the batched
+  result is identical to filtering the whole arc; with overlap = 0 the
+  relative error in the solution is ~1e-3 instead of ~1e-15.
+  LSQVCE.ENGINE.BLOCKACCUMULATOR does this automatically from arc.filterMemory.</pre>
 <h3>Example</h3>
 <pre class="example">a = [1 -1.6 0.9 -0.25];  s = 0.7;  n = 200;
 r = s^2 * lsqvce.kernel.armaACV(a, 1, n);
@@ -94,6 +100,22 @@ z = zeros(n, 0);
 [~,~,Y] = lsqvce.kernel.armaWhiten(a, 1, s, r, z, z, X, true);
 W = lsqvce.kernel.decorrFactor(toeplitz(r));
 norm(Y.&#x27;*Y - (W*X).&#x27;*(W*X)) / norm((W*X).&#x27;*(W*X))    % ~ 1e-14</pre>
-<div class="seealso"><b>See also:</b> <a href="lsqvce.kernel.decorrFactor.html">lsqvce.kernel.decorrFactor</a>, <a href="lsqvce.engine.covModel.html">lsqvce.engine.covModel</a>, <a href="lsqvce.kernel.levinsonDurbin.html">lsqvce.kernel.levinsonDurbin</a></div>
-<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:armaWhiten:badSigma      the innovation std is not a positive scalar
+  lsqvce:armaWhiten:acvTooShort   the autocovariance is shorter than the
+                                  model order needs for its startup block
+  lsqvce:armaWhiten:sizeMismatch  A and l disagree on their row count
+
+IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+  lsqvce:armaWhiten:startupNotPD             [warning] The X x X stationary startup block is not positive definite; keeping...
+
+See also LSQVCE.KERNEL.DECORRFACTOR, LSQVCE.ENGINE.COVMODEL, LSQVCE.KERNEL.LEVINSONDURBIN
+
+Generated with assistance from Claude (Anthropic), model Claude
+Opus 4.8.
+Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+kernel (R4 decision R4-D1,
+WP-64a): the KERNEL tier leaves the USER surface; every qualified
+reference was rewritten mechanically by docs_src/refactor_tiers.py.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

@@ -43,12 +43,26 @@ a { color: #0b5ea8; }
 <div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.util.getfielddef</div>
 <h1>lsqvce.util.getfielddef</h1>
 <div class="purpose">Field value with a default.</div>
-<h2>Syntax</h2>
-<pre class="syntax">v = LSQVCE.UTIL.GETFIELDDEF(s, f, d) returns s.(f) if s is a struct that has</pre>
 <h2>Description</h2>
-<p>a nonempty field f, and d otherwise.</p>
-<p>Treats an empty field as absent, so &#x27;BatchOverlap&#x27;,[] means &quot;use the default&quot; rather than &quot;use zero overlap&quot; -- a distinction that matters a lot here, since zero overlap silently destroys accuracy.</p>
+<pre class="example">v = LSQVCE.UTIL.GETFIELDDEF(s, f, d) returns s.(f) if s is a struct that has
+a nonempty field f, and d otherwise.
+
+Treats an empty field as absent, so &#x27;BatchOverlap&#x27;,[] means &quot;use the
+default&quot; rather than &quot;use zero overlap&quot; -- a distinction that matters a lot
+here, since zero overlap silently destroys accuracy.</pre>
+<h3>Input</h3>
+<pre class="example">s  1x1 struct | any  the struct to read; a non-struct yields the default
+f  1xk  char         field name
+d  any                the default, returned when s.(f) is absent or empty</pre>
+<h3>Output</h3>
+<pre class="example">v  any                s.(f) if present and nonempty, otherwise d</pre>
 <h3>Example</h3>
-<pre class="example">p = lsqvce.util.getfielddef(opt, &#x27;arOrder&#x27;, 30);</pre>
-<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+<pre class="example">  p = lsqvce.util.getfielddef(opt, &#x27;arOrder&#x27;, 30);
+
+See also LSQVCE.UTIL.MERGESTRUCT, ISFIELD
+
+Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude
+(Anthropic), model Claude Opus 4.8.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

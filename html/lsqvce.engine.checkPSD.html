@@ -43,11 +43,14 @@ a { color: #0b5ea8; }
 <div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.engine.checkPSD</div>
 <h1>lsqvce.engine.checkPSD</h1>
 <div class="purpose">Verify that the AR/ARMA reduction reproduces the PSD.</div>
-<h2>Syntax</h2>
-<pre class="syntax">chk = LSQVCE.ENGINE.CHECKPSD(cm, dt, opt)        cm.f, cm.S one-sided PSD
-chk = LSQVCE.ENGINE.CHECKPSD(cm, dt, opt, true)  also plots the comparison</pre>
 <h2>Description</h2>
-<p>RUN THIS ONCE PER OBSERVATION TYPE before trusting the filter path. The AR whitening filter is exact for the AR model it was fitted with -- but only useful if that model actually reproduces YOUR noise. This function closes that loop.</p>
+<pre class="example">chk = LSQVCE.ENGINE.CHECKPSD(cm, dt, opt)        cm.f, cm.S one-sided PSD
+chk = LSQVCE.ENGINE.CHECKPSD(cm, dt, opt, true)  also plots the comparison
+
+RUN THIS ONCE PER OBSERVATION TYPE before trusting the filter path. The
+AR whitening filter is exact for the AR model it was fitted with -- but
+only useful if that model actually reproduces YOUR noise. This function
+closes that loop.</pre>
 <h3>Input</h3>
 <pre class="example">cm      struct  .f (nf x 1) [Hz], .S (nf x 1) one-sided PSD
 dt      scalar  sampling interval [s]
@@ -56,37 +59,57 @@ opt     struct  .arOrder    (default 30)
                 .checkLags  lags used for the ACV comparison (default 512)
 doPlot  logical (default false)</pre>
 <h3>Output</h3>
-<pre class="example">chk.acvRelErr  relative error of the refitted autocovariance  &lt;- the one
-               that matters
-chk.psdRelErr  median relative error in the spectral domain
-chk.arOrder    order actually fitted (may be &lt; opt.arOrder if truncated)
-chk.sigma      innovation std
-chk.stable     all AR roots strictly inside the unit circle
-chk.a          the fitted AR polynomial
-chk.S_ar       the AR model&#x27;s PSD on the same grid
-chk.verdict    &#x27;good&#x27; | &#x27;marginal&#x27; | &#x27;bad&#x27;</pre>
-<h3>How To Read It</h3>
-<pre class="example">acvRelErr &lt; 1e-3   good      -- use the filter path
-1e-3 .. 1e-2       marginal  -- raise arOrder, or accept a small bias
-&gt; 1e-2             bad       -- raise arOrder a lot, or use &#x27;toeplitz&#x27;</pre>
-<pre class="example">A high acvRelErr with a LOW psdRelErr means the AR fits the spectrum in
-the log-domain but misses the low-frequency power that dominates the
-covariance. That is the dangerous case: the whitening looks right on a
-log-log plot and is wrong where it counts. Always trust acvRelErr.</pre>
-<h3>If The Fit Is Bad</h3>
-<pre class="example">1. Raise arOrder. Correlation length in samples is a decent first guess.
-2. If the PSD has sharp lines (1/rev, 2/rev), a pure AR needs a very
-   high order to resolve them. Use psdMode = &#x27;arma&#x27; (LSQVCE.KERNEL.AR2ARMA).
-3. If chk.stable is false, the PSD has an unmodelled trend or a pole at
-   f = 0. Detrend the residuals before estimating the PSD.
-4. If nothing works, use psdMode = &#x27;toeplitz&#x27; and pay the O(b^3).</pre>
+<pre class="example">  chk.acvRelErr  relative error of the refitted autocovariance  &lt;- the one
+                 that matters
+  chk.psdRelErr  median relative error in the spectral domain
+  chk.arOrder    order actually fitted (may be &lt; opt.arOrder if truncated)
+  chk.sigma      innovation std
+  chk.stable     all AR roots strictly inside the unit circle
+  chk.a          the fitted AR polynomial
+  chk.S_ar       the AR model&#x27;s PSD on the same grid
+  chk.verdict    &#x27;good&#x27; | &#x27;marginal&#x27; | &#x27;bad&#x27;
+
+HOW TO READ IT
+  acvRelErr &lt; 1e-3   good      -- use the filter path
+  1e-3 .. 1e-2       marginal  -- raise arOrder, or accept a small bias
+  &gt; 1e-2             bad       -- raise arOrder a lot, or use &#x27;toeplitz&#x27;
+
+  A high acvRelErr with a LOW psdRelErr means the AR fits the spectrum in
+  the log-domain but misses the low-frequency power that dominates the
+  covariance. That is the dangerous case: the whitening looks right on a
+  log-log plot and is wrong where it counts. Always trust acvRelErr.
+
+IF THE FIT IS BAD
+  1. Raise arOrder. Correlation length in samples is a decent first guess.
+  2. If the PSD has sharp lines (1/rev, 2/rev), a pure AR needs a very
+     high order to resolve them. Use psdMode = &#x27;arma&#x27; (LSQVCE.KERNEL.AR2ARMA).
+  3. If chk.stable is false, the PSD has an unmodelled trend or a pole at
+     f = 0. Detrend the residuals before estimating the PSD.
+  4. If nothing works, use psdMode = &#x27;toeplitz&#x27; and pay the O(b^3).</pre>
 <h3>Example</h3>
 <pre class="example">dt = 5;
 f  = linspace(0, 0.5/dt, 4096).&#x27;;
 H  = 1 ./ (exp(-1i*2*pi*f*dt*(0:3)) * [1 -1.6 0.9 -0.25].&#x27;);
-cm = struct(&#x27;type&#x27;,&#x27;psd&#x27;,&#x27;f&#x27;,f,&#x27;S&#x27;, 0.7^2*dt*2*abs(H).^2);</pre>
-<pre class="example">chk = lsqvce.engine.checkPSD(cm, dt, struct(&#x27;arOrder&#x27;,20), true);
+cm = struct(&#x27;type&#x27;,&#x27;psd&#x27;,&#x27;f&#x27;,f,&#x27;S&#x27;, 0.7^2*dt*2*abs(H).^2);
+
+chk = lsqvce.engine.checkPSD(cm, dt, struct(&#x27;arOrder&#x27;,20), true);
 assert(strcmp(chk.verdict,&#x27;good&#x27;), &#x27;raise arOrder&#x27;);</pre>
-<div class="seealso"><b>See also:</b> <a href="lsqvce.engine.covModel.html">lsqvce.engine.covModel</a>, <a href="lsqvce.kernel.levinsonDurbin.html">lsqvce.kernel.levinsonDurbin</a>, <a href="lsqvce.kernel.ar2arma.html">lsqvce.kernel.ar2arma</a></div>
-<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:checkPSD:badModel      the model struct is not a recognisable
+                                spectral model
+
+IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+  lsqvce:checkPSD:badFit                     [warning] AR(X) reproduces the autocovariance to only X. Do NOT use the filter...
+  lsqvce:checkPSD:marginalFit                [warning] AR(X) reproduces the autocovariance to only X (target &lt; 1e-3)
+  lsqvce:checkPSD:unstable                   [warning] The fitted AR(X) is not stationary (max |root| = X)
+
+See also LSQVCE.ENGINE.COVMODEL, LSQVCE.KERNEL.LEVINSONDURBIN, LSQVCE.KERNEL.AR2ARMA
+
+Generated with assistance from Claude (Anthropic), model Claude
+Opus 4.8.
+Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
+WP-64a): the ENGINE tier leaves the USER surface; every qualified
+reference was rewritten mechanically by docs_src/refactor_tiers.py.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

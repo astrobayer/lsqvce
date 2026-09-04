@@ -44,192 +44,121 @@ a { color: #0b5ea8; }
 <h1>lsqvce.fit</h1>
 <div class="purpose">Fit a least-squares adjustment (optionally with VCE) to declared data.</div>
 <h2>Description</h2>
-<pre class="example">R = lsqvce.fit(data)
-R = lsqvce.fit(data, opts)
+<pre class="example">R = lsqvce.fit(data)                        every default (one GLS solve)
+R = lsqvce.fit(data, opts)                  a lsqvce.Options object
+R = lsqvce.fit(data, Name, Value, ...)      the Options properties, straight on fit
+R = lsqvce.fit(data, opts, Name, Value)     both: the pairs override opts</pre>
+<h3>THE ONE VERB. You describe the problem with a plain struct `data`</h3>
+<pre class="example">(manual, chapter 3), say what to do with lsqvce.Options (chapter 4), and
+get a lsqvce.Results back (chapter 5):
 
-The one verb (R4, HANDOVER §11.4). You describe the problem with a plain
-struct `data` (DATA_CONTRACT.md: what is common, which days, which
-observing systems and the ONE function buildDay each of them points to),
-choose what to do with an LSQVCE.OPTIONS object, and get an
-LSQVCE.RESULTS back:
+    R = lsqvce.fit(data, Estimate=&quot;noise&quot;, Pool=&quot;obsType&quot;, OnPass=@myInspect);
+    R.report;  R.plot(&quot;psd&quot;);  [C, L] = R.toTable(data);
 
-    opts = lsqvce.Options(Model=&quot;vce&quot;, GroupBy=&quot;satObs&quot;);
-    R    = lsqvce.fit(data, opts);
-    R.report
-
-fit does three things and nothing else: (1) validates `data` against the
-contract BEFORE any data is read (fail fast, one error identifier per
-rule -- ERRORS below), (2) builds one Loader per system through LSQVCE.ENGINE.MAKELOADER (the
-field names are makeLoader&#x27;s canonical option names in lowerCamelCase;
-the mapping table lives here and nowhere else), (3) dispatches on
-opts.Model to the engine that does the work:
-
-    Model      engine                    what
-    &quot;gls&quot;      LSQVCE.ENGINE.ADJUSTBLOCK        one GLS solve with the declared
-                                         covariance
-    &quot;vce&quot;      LSQVCE.ENGINE.ADJUSTVCE          alternate stochastic model &lt;-&gt;
-                                         variance components (separate)
-    &quot;pooled&quot;   LSQVCE.ENGINE.ADJUSTVCE.joint    pooled spectrum, no arc factors
-    &quot;ellmer&quot;   LSQVCE.ENGINE.ADJUSTVCEJOINT     the ten-step joint co-estimation
-                                         with keyed arc factors (Ellmer
-                                         2018 §6.5; R4 WP-56c). fit builds
-                                         the accFcn the driver wants -- a
-                                         BlockAccumulator over the same
-                                         loaders whose UserOpt carries the
-                                         current model through
-                                         LSQVCE.ENGINE.JOINTMODELOPT -- and
-                                         bridges the driver&#x27;s out struct
-                                         into a Results: x / sigma0 /
-                                         diagnostics via diagnoseAccum +
-                                         diagnose, the converged noise
-                                         model on R.noise (.C .Shat .sigma2
-                                         .arcKeys), the pass record on
-                                         R.history (.kind = &#x27;ellmer&#x27;,
-                                         .maxDev, .Shat, .nIter, .skips),
-                                         R.converged. summary()/
-                                         convergence() are adjustVCE&#x27;s
-                                         readers and refuse (noHistory).
-
-TWO MORE KINDS OF DATA (R4 WP-56b) -- told apart by the fields present,
-for problems WITHOUT local unknowns and with diagonal weights:
-
-(B) IN-MEMORY MATRICES
-      data.A   m x u double     design matrix
-      data.l   m x 1 double     observed minus computed
-      data.p   m x 1 double     weights (diagonal of P); optional (unit)
-(C) BATCHED CALLBACK
-      data.numUnknowns  1x1     u
-      data.numBatches   1x1     nBatch
-      data.batchFcn     fh      [A, l, p] = batchFcn(k), k = 1..nBatch
-                                (the LSQVCE.ENGINE.ADJUST contract), or, with
-      data.x0           u x 1   -&gt; NONLINEAR: [A, w, p] = batchFcn(k, x)
-                                (the LSQVCE.ENGINE.SOLVENONLINEAR contract)
-Dispatch for both: opts.Model must be &quot;gls&quot; (variance components need
-the groups of a streaming system); opts.Robust = &quot;irls&quot; selects
-LSQVCE.ENGINE.ROBUST, data.x0 selects LSQVCE.ENGINE.SOLVENONLINEAR, else LSQVCE.ENGINE.ADJUST.
-The Results carries sol / diag / source (the driver&#x27;s third output:
-verdict V, ROB, or the nonlinear IT record). Its sigma0 is the
-A-POSTERIORI std of unit weight and sol.Cxx = s0sq * D.Qxx, i.e. the
-streaming Results contract (the batch drivers&#x27; own sol.sigma0 is the
-a-priori value; it is kept as sol.sigma0Prior). R.acc is empty, so
-residuals() and contribution() refuse with lsqvce:Results:noAccumulator
--- the per-observation residuals are already in R.diag.v. The options
-forwarded to LSQVCE.ENGINE.DIAGNOSE come from the Options object explicitly
-(no KeepUnmatched on this path).
-
-R.systems (the existing Results field -- no second name) carries the
-normalised system specs the engine ran: .sysID .nl .dataFcn (the loader
-closure fit built) .dayList .name; every lower layer stays reachable on
-R (R.acc, R.diag).</pre>
+THREE DATA KINDS, told apart by the fields of `data`, all on ONE accumulator:
+  (A) streaming   data.commonParams, data.days, data.systems(k) with
+                  buildDay / covariance / arcs / localParams / priors /
+                  processingOptions; optional data.priors, data.paramColumns
+  (B) in memory   data.A (m x u), data.l (m x 1), optional data.p (m x 1 weights
+                  or m x m SPD weight matrix); optional data.priors
+  (C) batched     data.batchFcn @(k) -&gt; [A, l, p] (or @(k, x) -&gt; [J, w, p] with
+                  data.x0 for Gauss-Newton), data.numUnknowns, data.numBatches;
+                  optional data.priors</pre>
+<h3>WHAT RUNS (opts.Estimate / opts.Robust / data.x0):</h3>
+<pre class="example">  Estimate &quot;none&quot;    one generalised solve under the declared laws (adjustBlock)
+  Estimate &quot;noise&quot;   the joint variance-component estimator (adjustVCEjoint):
+                     one spectral shape per Pool group, one level per stream,
+                     per-arc factors when ArcFactors; prior groups with
+                     estimate &quot;scale&quot; get their sigma by Helmert / Koch-Kusche
+  Robust &quot;huber&quot; | &quot;igg3&quot; | &quot;bisquare&quot;   IRLS on the same loop (adjustRobust)
+  data.x0            Gauss-Newton with damping (adjustNonlinear)
+REGULARISATION is declared, never an option: data.priors(j) on the common
+parameters and data.systems(k).priors(l) on the local ones -- one struct per
+group, by `group` (a name pattern) or `L` (in the columns lsqvce.layout
+announces), x0, sigma, from, name, estimate. A free network&#x27;s datum is the
+prior on its null space.
+WATCHING A RUN: Options.OnPass fires after every pass with the pass state,
+the live accumulator, `data` and every system&#x27;s processingOptions.</pre>
 <h3>Input</h3>
-<pre class="example">data  1x1  struct  the data declaration (binding rules: DATA_CONTRACT.md
-                   §2, v3). Summary of the streaming kind:
-         .commonParams  RxC cell    the COMMON templates, one ROW per
-                                    template; column 1 = &#x27;common&#x27;|&#x27;day&#x27;,
-                                    columns 2..C your convention; nc DERIVED
-                                    by the expansion over the day calendar.
-                                    Required; buildDay&#x27;s 3rd arg.
-         .days     1xD double   default day list (numeric integers);
-                                required unless every system has .days
-         .systems  1xM struct   one entry per observing system, fields:
-           REQUIRED
-             .buildDay          fh        your day builder
-             .covariance        struct    .(obsType) = covariance spec; the
-                                          fieldnames ARE the observation types
-           OPTIONAL (default)
-             .arcs (1)          1x1 | 1xA | struct | @(day,obsType)
-             .localParams  ({}) RxC cell of LOCAL templates; column 1 =
-                                &#x27;arc&#x27;|&#x27;day&#x27;|&#x27;system&#x27;; nl DERIVED by the
-                                expansion; not declared -&gt; nl = 0
-             .days ([]) .name (&#x27;&#x27;) .id (the system&#x27;s index)
-             .processingOptions (struct())    buildDay&#x27;s 5th arg
-             .epochCovariance ([])  @(day,obsType) per-epoch D hook (the
-                                    exact VCE Shape path, DATA_CONTRACT §7)
-opts  1x1  lsqvce.Options   what to do (default: every engine default,
-                   i.e. Model &quot;gls&quot;)</pre>
+<pre class="example">data   1x1 struct    the declaration (kind A, B or C as above)
+opts   1x1 lsqvce.Options   default lsqvce.Options()
+Name, Value          any property of lsqvce.Options</pre>
 <h3>Output</h3>
-<pre class="example">R     1x1  lsqvce.Results  solution, diagnostics, provenance; for Model
-                   &quot;vce&quot;/&quot;pooled&quot; also R.history / R.noise / R.converged</pre>
-<h3>Accuracy</h3>
-<pre class="example">No numerics of its own. The claim is EXACTNESS of the dispatch: for the
-same declaration, fit(data, opts) returns the results of the direct
-driver call it stands for -- adjustBlock with
-opts.engineArgs(&quot;adjustBlock&quot;), and adjustVCE with the configurators
-applied from opts.engineArgs(&quot;adjustVCE&quot;) -- to solver precision:
-x, sigma0 and Cxx agree within RelTol 1e-12 on the CI fixtures
-(dev/tests/test_fit.m, reference). It is the SAME code path; the 1e-12
-rather than isequal only guards the multithreaded-BLAS reduction-order
-nondeterminism recorded in HANDOVER §10.8 (WP-47 r1e).</pre>
+<pre class="example">R      1x1 lsqvce.Results   x, sigma0, sol (Cxx, dof, vtv), diag, acc, history,
+                            noise (C, Cgroups, stream, model, priors), stopReason,
+                            meta (options as resolved, warnings, seeds, version);
+                            methods report, summary, convergence, residuals,
+                            contribution, compare, plot, toTable, coefficients</pre>
 <h3>Errors</h3>
-<pre class="example">Your declaration is wrong (raised BEFORE any data is read):
-  lsqvce:fit:unknownField    a field name the contract does not know
-                             (names the field; typos are errors on purpose
-                             -- and so are the retired fields: common,
-                             numCommon, numLocal, observationTypes, systemId,
-                             cache, loader, plotPostSolve, plotPostModel and,
-                             since v4, localsPerArc: declare &#x27;arc&#x27; rows)
-  lsqvce:fit:noSystems       data.systems missing, not a struct, or empty
-  lsqvce:fit:noCommon        data.commonParams missing, or not a 2-D cell
-                             of template rows
-  lsqvce:fit:badScope        a scope-token column 1 does not carry:
-                             commonParams needs &#x27;common&#x27;|&#x27;day&#x27;, localParams
-                             needs &#x27;arc&#x27;|&#x27;day&#x27;|&#x27;system&#x27;
-  lsqvce:fit:missingField    a required system field is absent, or
-                             covariance carries no observation type
-  lsqvce:fit:noDays          no day list anywhere
-  lsqvce:fit:badId           id is not a numeric scalar or single char
-  lsqvce:fit:duplicateSystem two systems share an id (explicit or index
-                             default)
-  lsqvce:fit:builderKind     buildDay is not a function handle
-  lsqvce:fit:badArcs         arcs = &#x27;fromDay&#x27; (ENGINE-tier only: declare
-                             a resolver @(day,obsType) instead)
-  lsqvce:fit:&lt;makeLoader id&gt; a makeLoader construction error, relabelled
-                             (e.g. paramType, badArcs, localPlan);
-                             the original is attached as the cause
-Your choice is not available here:
-  lsqvce:fit:notYet          Robust ~= &quot;none&quot; on the STREAMING kind --
-                             the streaming kind screens outliers
-                             through its diagnostics (report())
-  lsqvce:fit:modelKind       Model other than &quot;gls&quot; on kinds B / C
-  lsqvce:fit:badMatrix       kind B shapes disagree (A m x u, l m x 1,
-                             p m x 1)
-  lsqvce:fit:missingField    kind C lacks batchFcn / numBatches, or the
-                             linear form lacks numUnknowns
-  lsqvce:fit:uCount          kind C carries BOTH x0 and numUnknowns --
-                             u is stated once (numel(x0))
-Your buildDay is wrong (raised WHILE READING, by the engine, ids
-unchanged): lsqvce:makeLoader:badDay / dayShape / badArc / badArcId /
-buildDay, lsqvce:accum:arcBadNc / arcBadNl</pre>
-<h3>Example</h3>
-<pre class="example">  data.commonParams = [repmat({&#x27;common&#x27;}, 6, 1), num2cell((1:6).&#x27;)];
-  data.days = 1:3;
-  s.buildDay = @myBuildDay;                  % uses the info argument
-  s.covariance.pos = struct(&#x27;type&#x27;,&#x27;arma&#x27;,&#x27;ar&#x27;,[1 -1.6 0.9 -0.25],&#x27;ma&#x27;,1,&#x27;sigma&#x27;,0.7);
-  s.covariance.kbr = struct(&#x27;type&#x27;,&#x27;diag&#x27;,&#x27;sigma&#x27;,0.2);
-  s.localParams = [ ...
-      [repmat({&#x27;arc&#x27;}, 6, 1),  num2cell((1:6).&#x27;)];  ...  % ICs per arc
-      {&#x27;arc&#x27;, &#x27;kbrBias&#x27;; &#x27;arc&#x27;, &#x27;kbrCos1cpr&#x27;};      ...  % KBR per arc
-      [repmat({&#x27;day&#x27;}, 3, 1),  {&#x27;accScale&#x27;; &#x27;accBias&#x27;; &#x27;accDrift&#x27;}]];
-  s.arcs = 2;
-  data.systems = s;          % nl = 3 days * (2 arcs * 8 + 3) = 57, derived
-  R = lsqvce.fit(data, lsqvce.Options(Model=&quot;vce&quot;));
-  R.report
+<pre class="example">  Your declaration is wrong (raised BEFORE any data is read):
+    lsqvce:fit:unknownField    a field name the contract does not know
+                               (names the field; typos are errors on
+                               purpose -- and so are the retired fields:
+                               common, numCommon, numLocal,
+                               observationTypes, systemId, cache, loader,
+                               plotPostSolve, plotPostModel, and since
+                               v4 localsPerArc: declare &#x27;arc&#x27; rows in
+                               localParams instead)
+    lsqvce:fit:noSystems       data.systems missing, not a struct, or empty
+    lsqvce:fit:noCommon        data.commonParams missing, or not a 2-D
+                               cell of template rows
+    lsqvce:fit:badScope        a scope-token column 1 does not carry:
+                               commonParams needs &#x27;common&#x27;|&#x27;day&#x27; (raised
+                               here), localParams needs
+                               &#x27;arc&#x27;|&#x27;day&#x27;|&#x27;system&#x27; (raised by makeLoader
+                               and relabelled)
+    lsqvce:fit:missingField    a required system field is absent, or
+                               covariance carries no observation type
+    lsqvce:fit:noDays          no day list anywhere
+    lsqvce:fit:badId           id is not a numeric scalar or single char
+    lsqvce:fit:duplicateSystem two systems share an id (explicit or
+                               index default)
+    lsqvce:fit:builderKind     buildDay is not a function handle
+    lsqvce:fit:badArcs         arcs = &#x27;fromDay&#x27; (ENGINE-tier only: it
+                               reads data before the run; declare a
+                               resolver @(day,obsType) instead)
+    lsqvce:fit:&lt;makeLoader id&gt; a makeLoader construction error, relabelled
+                               (e.g. paramType, badArcs, localPlan);
+                               the original is attached as the cause
+  Your choice is not available here:
+    lsqvce:fit:notYet          Robust ~= &quot;none&quot; together with Model ~= &quot;gls&quot; --
+                               (R5 M2 2b) the one-loop composition of M4;
+                               before 2b this refused Robust on the streaming
+                               kind altogether --
+                               the streaming kind screens outliers
+                               through its diagnostics (report())
+    lsqvce:fit:modelKind       Model other than &quot;gls&quot; on kinds B / C
+    lsqvce:batchSystem:weightMatrix  kind B/C returned a full weight matrix
+                               (R5 M2: the block path takes diagonal weights;
+                               a full P is a covariance law of the streaming
+                               kind) -- raised by lsqvce.engine.batchSystem
+    lsqvce:fit:priorNotActive  (warning, R5-D8) a prior with from &gt; 1 in a
+                               single-pass run is not applied
+    lsqvce:fit:badPrior        (R5 M5 5b) data.priors is malformed (unknown
+                               field, L not p x nc, sigma not a positive scalar,
+                               x0 of the wrong length)
+    lsqvce:fit:badEstimate     (R5 M3 3d) covariance.&lt;type&gt;.estimate is not
+                               &quot;none&quot; | &quot;scale&quot; | &quot;law&quot;
+    lsqvce:fit:lawOnFixedStructure  (R5 M4 4b) estimate &quot;law&quot; on a stream whose
+                               sigma is per-row (a fixed structure: level only)
+    lsqvce:fit:badMatrix       kind B shapes disagree (A m x u, l m x 1,
+                               p m x 1)
+    lsqvce:fit:missingField    kind C lacks batchFcn / numBatches, or the
+                               linear form lacks numUnknowns
+    lsqvce:fit:uCount          kind C carries BOTH x0 and numUnknowns --
+                               u is stated once (numel(x0))
+  Your buildDay is wrong (raised WHILE READING, by the engine, ids
+  unchanged): lsqvce:makeLoader:badDay / dayShape / badArc / badArcId /
+  buildDay, lsqvce:accum:arcBadNc / arcBadNl
 
 See also LSQVCE.OPTIONS, LSQVCE.RESULTS, LSQVCE.ENGINE.MAKELOADER,
          LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCE, LSQVCE.ENGINE.ADJUSTVCEJOINT,
          LSQVCE.ENGINE.ADJUST, LSQVCE.ENGINE.ROBUST, LSQVCE.ENGINE.SOLVENONLINEAR
 
-Updated 2026-09-01 (CEST, UTC+02:00), R4 WP-56c (Level L3): Model &quot;ellmer&quot;
-wired -- accFcn from the loaders + jointModelOpt, out -&gt; Results bridge
-(diagnoseAccum + diagnose; noise/history/converged set). With assistance
-from Claude (Anthropic), model Claude Fable 5.
-Updated 2026-08-31 (CEST, UTC+02:00), R4 WP-56b (Level L4): kinds B
-(in-memory matrices) and C (batched callback, linear or nonlinear with
-x0) through adjust / robust / solveNonlinear, returned as Results without
-an accumulator. Model &quot;ellmer&quot; stays refused (WP-56c). With assistance
-from Claude (Anthropic), model Claude Fable 5.
-Created 2026-08-31 (CEST, UTC+02:00) with assistance from Claude
-(Anthropic), model Claude Fable 5 -- R4 Level L2, WP-56 (decision R4-D4).</pre>
+Created 2026-08-31 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
+model Claude Fable 5 -- R4 Level L2, WP-56 (decision R4-D4).
+Help rewritten 2026-09-04 for v5.2 (R5 M5 / R5-D8), model Claude Fable 5.1:
+the v5 surface (Estimate, priors, paramColumns, OnPass, layout, toTable).</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
 <div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

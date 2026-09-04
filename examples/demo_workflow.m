@@ -5,7 +5,7 @@
 %   `data` struct, let lsqvce.fit pick the right engine from its SHAPE, choose
 %   the model with lsqvce.Options, and read what comes back.
 %
-%   THE USER PATH is one verb on a plain data struct (DATA_CONTRACT.md is the
+%   THE USER PATH is one verb on a plain data struct (the Manual, chapter 3 is the
 %   binding spec; examples/demo_fit.m shows it on every data kind):
 %       R = lsqvce.fit(data, lsqvce.Options(...));   R.report
 %
@@ -184,7 +184,7 @@ fprintf('  blunders     : %d flagged\n', D.nFlag);
 %       R = lsqvce.fit(data);                      % Estimate="none": one solve
 %
 % where buildDay(day, obsType, common, local, procOpt) returns that day's raw
-% design and observations (A, B, l, t -- DATA_CONTRACT.md section 3).
+% design and observations (A, B, l, t -- the Manual, chapter 3 section 3).
 %
 % WHEN to reach for this instead of the flat kinds:
 %   * you have MORE THAN ONE system with its own biases/scales, or
