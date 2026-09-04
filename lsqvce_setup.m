@@ -22,7 +22,7 @@ function lsqvce_setup(action)
 %
 %   WHAT UNINSTALL DOES
 %     rmpath of exactly the two entries install added; savepath; deletes the
-%     helpsearch-v4 database folder builddocsearchdb created under the root. Your
+%     helpsearch-v4_<locale> database folder builddocsearchdb created under the root. Your
 %     own copies of template/gravfire_data.m are yours and stay where they are.
 %
 %   INPUT   action  char/string  'install' (default) | 'check' | 'uninstall'
@@ -70,8 +70,10 @@ end
                 onPath = any(strcmpi(strsplit(path, pathsep), entries{k}));
                 fprintf('  path entry %-52s %s\n', entries{k}, tern(onPath, 'ok', 'MISSING'));
             end
-            fprintf('  lsqvce.fit resolves                                       %s\n', tern(exist('lsqvce.fit', 'file') == 2, 'ok', 'MISSING'));
-            fprintf('  Help browser index (helpsearch-v4)                        %s\n', tern(isfolder(fullfile(root, 'helpsearch-v4')), 'ok', 'not built'));
+            % package functions do not answer exist('pkg.fn','file'); which() does
+            fprintf('  lsqvce.fit resolves                                       %s\n', tern(~isempty(which('lsqvce.fit')), 'ok', 'MISSING'));
+            % builddocsearchdb names the folder helpsearch-v4_<locale>
+            fprintf('  Help browser index (helpsearch-v4*)                       %s\n', tern(~isempty(dir(fullfile(root, 'helpsearch-v4*'))), 'ok', 'not built'));
             fprintf('  manual html/lsqvce_manual.html                            %s\n', tern(isfile(fullfile(root, 'html', 'lsqvce_manual.html')), 'ok', 'MISSING'));
             fprintf('\n  doc lsqvce                    the Manual (the single authority)\n');
             fprintf('  help lsqvce.fit               command-window help of the one verb\n');
@@ -84,9 +86,9 @@ end
                     rmpath(entries{k});
                 end
             end
-            db = fullfile(root, 'helpsearch-v4');
-            if isfolder(db)
-                try, rmdir(db, 's'); catch, end
+            d = dir(fullfile(root, 'helpsearch-v4*'));          % helpsearch-v4_<locale>
+            for k = find([d.isdir])
+                try, rmdir(fullfile(root, d(k).name), 's'); catch, end
             end
             if savepath() ~= 0
                 warning('lsqvce:setup:savepath', 'the path could not be saved; this session is clean.');
