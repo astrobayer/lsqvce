@@ -28,6 +28,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
       - run: pip install numpy
+      - run: sudo apt-get install -y -qq pandoc   # the Manual check (audit 23) rebuilds html/lsqvce_manual.html
       - run: python dev/docs_src/audit_tree.py
       - run: python dev/docs_src/audit_selftest.py   # R5 M0: every new check must fire on its fault
       - run: for f in dev/validation/v10review.py; do python "$f"; done
