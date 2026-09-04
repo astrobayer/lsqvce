@@ -331,4 +331,10 @@ engine.localColumns,robustness,its input is the loader's own plan; no external e
 engine.localColumns,vectorisation,O(nl) bookkeeping, no data-sized loop
 engine.localColumns,speed,O(nl); inside fit's solve budget
 engine.localColumns,metamorphic,the plan's invariances are pinned in test_streamUtils (validity) through the loader
-
+util.toolboxVersion,contract,pinned through every Results meta.toolboxVersion (test_fit provenance points) and lsqvce_setup
+util.toolboxVersion,precision,a string read
+util.toolboxVersion,reference,none
+util.toolboxVersion,robustness,returns unknown when the line is missing (its only edge)
+util.toolboxVersion,vectorisation,no data
+util.toolboxVersion,speed,one file read
+util.toolboxVersion,metamorphic,none

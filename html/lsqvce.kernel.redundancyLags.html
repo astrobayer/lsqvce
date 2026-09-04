@@ -156,6 +156,9 @@ r.s(1)          % s_0</pre>
                 is gone -- cross-argument shape checks below keep
                 their lsqvce: identifiers)
 
+IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+  lsqvce:redundancyLags:badLocal             LocalBbar has X rows but the arc has X.lsqvce:redundancyLags:badLocal...
+
 See also LSQVCE.ENGINE.COVCOMPONENT, LSQVCE.KERNEL.TOEPLITZCOFACTOR, LSQVCE.KERNEL.DCTI,
          LSQVCE.ENGINE.TRACEESTIMATE, LSQVCE.ENGINE.STREAMCONTRIBUTION
 
@@ -174,7 +177,10 @@ assistance from Claude (Anthropic), model Claude Fable 5.
 Updated 2026-08-18 (CEST, UTC+02:00), WP-33 (fixes F-03, CRITICAL): the
 projector can now absorb the LOCAL parameter block exactly via
 &#x27;LocalBbar&#x27;/&#x27;LocalLl&#x27; (see OPTIONS); the nl = 0 path is verbatim the old
-code. With assistance from Claude (Anthropic), model Claude Fable 5.</pre>
+code. With assistance from Claude (Anthropic), model Claude Fable 5.
+Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+kernel (R4 decision R4-D1,
+WP-64a): the KERNEL tier leaves the USER surface; every qualified
+reference was rewritten mechanically by docs_src/refactor_tiers.py.</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
 <div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

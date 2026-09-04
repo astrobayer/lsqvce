@@ -13,6 +13,11 @@ function out = outliers(acc, sol, opt)
 %   wrong. Dividing by sqrt(r_i) removes that effect. Verified: 4/4 injected
 %   outliers detected, 0 false alarms.
 %
+%   INPUT
+%     acc      1x1 lsqvce.engine.BlockAccumulator   after solve
+%     sol      1x1 struct                            its solution (x, Cxx, s0sq)
+%     Name, Value                                    the OPTIONS below
+%
 %   OPTIONS
 %     'threshold'  critical value for w_i (default 4.0)
 %                  3.29 = 99.9% for a single test; 4.0 is a sensible default

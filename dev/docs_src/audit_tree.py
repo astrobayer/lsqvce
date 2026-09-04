@@ -923,6 +923,7 @@ def main():
     check_error_ids()
     check_h1_names()
     check_test_categories()
+    check_pages_match_help()
     check_readme_sync()
     check_tiers_and_case()
     check_catch_ratchet()
@@ -1186,6 +1187,22 @@ def write_baselines():
         for e in sorted(layering_edges()):
             fh.write('%s,%s,%s,%s\n' % e)
     print('baselines written (read the diff before committing)')
+
+
+def check_pages_match_help():
+    print('\n22. every unit page equals a regeneration from its help block (no doc drift)')
+    # R5 docs level (2026-09-04): the API pages are DERIVED from the help blocks
+    # (build_missing_pages.render); a page that differs from a fresh render is
+    # drift. Regenerate with `python3 dev/docs_src/build_missing_pages.py all`.
+    import importlib.util as _il
+    spec = _il.spec_from_file_location('bmp', os.path.join('dev', 'docs_src', 'build_missing_pages.py'))
+    bmp = _il.module_from_spec(spec)
+    spec.loader.exec_module(bmp)
+    drifted = bmp.main('check')
+    for name in drifted:
+        note('docdrift', 'html/lsqvce.%s.html differs from a regeneration of its help block '
+             '(run build_missing_pages.py all)' % name)
+    print('   pages checked; drifted: %d' % len(drifted))
 
 
 if __name__ == '__main__':

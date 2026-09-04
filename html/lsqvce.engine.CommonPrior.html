@@ -40,6 +40,86 @@ a { color: #0b5ea8; }
           font-size: 12px; color: #888; }
 </style></head>
 <body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.engine.CommonPrior</div>
 <h1>lsqvce.engine.CommonPrior</h1>
-<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+<div class="purpose">Basis-agnostic regularisation of the COMMON parameters.</div>
+<h2>Description</h2>
+<pre class="example">Adds a prior  K*x ~ x0  with weight 1/sigma^2, so the reduced system becomes
+
+    (Ncc_red + (1/sigma^2)*K&#x27;K) x = ncc_red + (1/sigma^2)*K&#x27;*x0
+
+The toolbox never needs to know what basis you are using. K is just a matrix.
+
+CONSTRUCTOR
+  pri = LSQVCE.ENGINE.COMMONPRIOR(K)                    x0 = 0, sigma = 1
+  pri = LSQVCE.ENGINE.COMMONPRIOR(K, x0)
+  pri = LSQVCE.ENGINE.COMMONPRIOR(K, x0, sigma)
+
+K IS THE SCIENCE -- CHOOSE IT DELIBERATELY
+  K = eye(nc)                     plain damping (rarely what you want)
+  K = diag(1./sigma_l)            Kaula: you build sigma_l = 1e-5./l.^2 from
+                                  your own degree mapping. The toolbox never
+                                  sees &quot;spherical harmonic&quot;.
+  K = L                           mascon smoothness: L is the graph Laplacian
+                                  of the mascon adjacency (sparse). Penalises
+                                  differences between neighbouring mascons.
+  K = chol(inv(C_signal))         full signal-covariance prior from a
+                                  background field.
+  K = [zeros(k,n1) eye(k) zeros]  regularise a SUBSET only.
+
+  For a &quot;regularise toward a background model&quot; workflow, set x0 to that
+  model&#x27;s coefficients rather than zero.
+
+SIGMA FROM VCE, NOT FROM A TUNING KNOB
+  Treat the prior as a pseudo-observation group with its own variance
+  component. Then lambda = sigma0^2 / sigma_prior^2 falls straight out of the
+  Helmert iteration, and the prior&#x27;s REDUNDANCY tells you how many degrees of
+  freedom it is actually absorbing. That is far more informative than a bare
+  lambda, and it works identically for spherical harmonics, mascons, or
+  anything else.</pre>
+<h3>The Diagnostic That Matters</h3>
+<pre class="example">  [rK, absorbed] = pri.redundancy(Lc)
+
+    absorbed  =  nk - rK  =  trace(Sxx*K&#x27;K)/sigma^2
+
+  is the effective number of parameters constrained by the prior.
+    absorbed -&gt; 0   the prior is doing nothing; you do not need it
+    absorbed -&gt; nk  the prior is doing everything; you are recovering x0 and
+                    the data is contributing almost nothing
+  Report this. A lambda without it is uninterpretable.
+
+THIS BIASES THE LOCAL PARAMETERS TOO
+  Regularising the common block propagates into y_s through back-
+  substitution -- the mirror image of the warning in LSQVCE.ENGINE.APPLYREGULARISATION.
+  There is no free lunch in either direction.
+
+L2 ONLY
+  This is a normal-equation framework, so the prior is Gaussian / L2. If you
+  want mascon L1 or total-variation regularisation -- which much of the
+  mascon literature actually uses -- that is NOT a normal-equation problem
+  and does not belong here. Use a proper convex solver.</pre>
+<h3>Example</h3>
+<pre class="example">% Kaula on a spherical-harmonic field
+l   = degreeOfEachCoefficient(nc);          % you supply this
+sig = 1e-5 ./ l.^2;
+pri = lsqvce.engine.CommonPrior(diag(1./sig), [], 1.0);
+
+% mascon smoothness
+L   = masconLaplacian(adjacency);           % sparse, nk x nc
+pri = lsqvce.engine.CommonPrior(L, [], 1.0);
+
+sol = acc.solve(&#x27;Prior&#x27;, pri);
+lsqvce.util.log.msg(&#x27;prior absorbed %.1f of %d DoF\n&#x27;, sol.priorAbsorbed, pri.nk);</pre>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:prior:badTarget        the prior target has the wrong length
+
+See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.APPLYREGULARISATION
+
+Generated with assistance from Claude (Anthropic), model Claude
+Opus 4.8.
+Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
+WP-64a): the ENGINE tier leaves the USER surface; every qualified
+reference was rewritten mechanically by docs_src/refactor_tiers.py.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

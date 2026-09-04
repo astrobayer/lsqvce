@@ -70,8 +70,8 @@ nBatch    1x1 double          number of batches (&gt;= 1)</pre>
 <h3>Errors</h3>
 <pre class="example">  lsqvce:batchSystem:badSource   batchFcn is not a function handle
   lsqvce:batchSystem:badMatrix   a batch returned A/l of inconsistent size
-  lsqvce:batchSystem:weightMatrix a batch returned a full weight matrix (a
-                                 covariance law belongs to the streaming kind)
+  lsqvce:batchSystem:weightMatrix a batch returned a weight argument that is
+                                 neither m x 1 nor an m x m SPD matrix
   + whatever batchFcn throws, as lsqvce:callUser:threw with the cause
 
 ACCURACY  exact: pre-whitening by sqrt(p) is the diagonal-P GLS identity;

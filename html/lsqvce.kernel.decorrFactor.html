@@ -43,41 +43,65 @@ a { color: #0b5ea8; }
 <div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.kernel.decorrFactor</div>
 <h1>lsqvce.kernel.decorrFactor</h1>
 <div class="purpose">Decorrelation factor W with W&#x27;*W = inv(C).</div>
-<h2>Syntax</h2>
-<pre class="syntax">W = LSQVCE.KERNEL.DECORRFACTOR(C) returns the upper-triangular W = chol(C)^-1, so</pre>
 <h2>Description</h2>
-<p>that whitening a batch is Aw = W*A and the weighted normals A&#x27;*inv(C)*A become Aw&#x27;*Aw.</p>
-<p>[W, info] = LSQVCE.KERNEL.DECORRFACTOR(C) also returns</p>
-<pre class="example">info.method   &#x27;chol&#x27; | &#x27;eig-floored&#x27;
-info.rcond    reciprocal condition estimate of C
-info.floored  number of eigenvalues floored (0 if method is &#x27;chol&#x27;)</pre>
-<p>W = LSQVCE.KERNEL.DECORRFACTOR(C, tol) sets the relative eigenvalue floor used only by the rescue path (default 1e-10).</p>
+<pre class="example">W = LSQVCE.KERNEL.DECORRFACTOR(C) returns the upper-triangular W = chol(C)^-1, so
+that whitening a batch is Aw = W*A and the weighted normals A&#x27;*inv(C)*A
+become Aw&#x27;*Aw.
+
+[W, info] = LSQVCE.KERNEL.DECORRFACTOR(C) also returns
+  info.method   &#x27;chol&#x27; | &#x27;eig-floored&#x27;
+  info.rcond    reciprocal condition estimate of C
+  info.floored  number of eigenvalues floored (0 if method is &#x27;chol&#x27;)
+
+W = LSQVCE.KERNEL.DECORRFACTOR(C, tol) sets the relative eigenvalue floor used only
+by the rescue path (default 1e-10).</pre>
 <h3>Input</h3>
 <pre class="example">C    n x n   covariance of one batch, symmetric positive definite
 tol  scalar  relative eigenvalue floor for the rescue path, default 1e-10</pre>
 <h3>Cost</h3>
-<pre class="example">O(n^3) and O(n^2) memory. This is the expensive path. If the noise is
-AR or ARMA, use the filter form (LSQVCE.KERNEL.ARMAWHITEN) instead: O(n*p) and no
-matrix at all, with identical normal equations. Only use this factor for
-covariances with no rational spectral representation.</pre>
-<h3>Batch Size</h3>
-<pre class="example">At n = 5000 the matrix is 200 MB and the Cholesky is ~40 GFLOP. That,
-not memory, is the practical ceiling on BatchSize for the dense path.</pre>
-<h3>Not Positive Definite</h3>
-<pre class="example">If the Cholesky fails, a factor is built from the SYMMETRIC eigen-
-decomposition with the eigenvalues floored at tol*lambda_max, and a
-warning is issued. This rescues the run but the weighting is no longer
-the one you specified -- an indefinite covariance usually means the PSD
-had negative values, or the batch straddles a data gap with an
-inconsistent model.</pre>
-<pre class="example">The floor must NOT be eps: flooring at eps*lambda_max leaves C with
-condition number ~1/eps, so the resulting W satisfies W*C*W&#x27; = I only to
-~1e-1. The default 1e-10 gives ~1e-7, which is usable. Tighten tol only
-if you understand why the covariance was indefinite.</pre>
+<pre class="example">  O(n^3) and O(n^2) memory. This is the expensive path. If the noise is
+  AR or ARMA, use the filter form (LSQVCE.KERNEL.ARMAWHITEN) instead: O(n*p) and no
+  matrix at all, with identical normal equations. Only use this factor for
+  covariances with no rational spectral representation.
+
+BATCH SIZE
+  At n = 5000 the matrix is 200 MB and the Cholesky is ~40 GFLOP. That,
+  not memory, is the practical ceiling on BatchSize for the dense path.
+
+NOT POSITIVE DEFINITE
+  If the Cholesky fails, a factor is built from the SYMMETRIC eigen-
+  decomposition with the eigenvalues floored at tol*lambda_max, and a
+  warning is issued. This rescues the run but the weighting is no longer
+  the one you specified -- an indefinite covariance usually means the PSD
+  had negative values, or the batch straddles a data gap with an
+  inconsistent model.
+
+  The floor must NOT be eps: flooring at eps*lambda_max leaves C with
+  condition number ~1/eps, so the resulting W satisfies W*C*W&#x27; = I only to
+  ~1e-1. The default 1e-10 gives ~1e-7, which is usable. Tighten tol only
+  if you understand why the covariance was indefinite.</pre>
+<h3>Output</h3>
+<pre class="example">W     m x m  upper triangular, W&#x27;*W = inv(C)
+info  1x1 struct  .method (&#x27;chol&#x27; | &#x27;eig-floored&#x27;), .rcond, .floored</pre>
 <h3>Example</h3>
 <pre class="example">r = lsqvce.kernel.armaACV([1 -0.9], 1, 100);
 W = lsqvce.kernel.decorrFactor(toeplitz(r));
 norm(W.&#x27;*W - inv(toeplitz(r))) / norm(inv(toeplitz(r)))    % ~ 1e-14</pre>
-<div class="seealso"><b>See also:</b> <a href="lsqvce.kernel.armaWhiten.html">lsqvce.kernel.armaWhiten</a>, <a href="lsqvce.engine.covModel.html">lsqvce.engine.covModel</a></div>
-<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:decorrFactor:notPD     C is not positive definite even after the
+                                eigenvalue floor; it cannot be a covariance
+
+See also LSQVCE.KERNEL.ARMAWHITEN, LSQVCE.ENGINE.COVMODEL
+
+Updated 2026-08-19 (CEST, UTC+02:00), WP-37: diagnostics (incl. the
+condest estimate) are computed only when info is requested
+(nargout &gt; 1) -- the per-batch hot path pays nothing. With assistance
+from Claude (Anthropic), model Claude Fable 5.
+Generated with assistance from Claude (Anthropic), model Claude
+Opus 4.8.
+Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+kernel (R4 decision R4-D1,
+WP-64a): the KERNEL tier leaves the USER surface; every qualified
+reference was rewritten mechanically by docs_src/refactor_tiers.py.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

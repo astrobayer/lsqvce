@@ -54,6 +54,10 @@ A second pass over the data that computes, for every observation,
 and aggregates r_i into groups. This is the machinery behind LSQVCE.ENGINE.VCE and
 LSQVCE.ENGINE.OUTLIERS -- both are just different uses of the same numbers, so they
 share one data pass.</pre>
+<h3>Input</h3>
+<pre class="example">acc      1x1 lsqvce.engine.BlockAccumulator   after solve
+sol      1x1 struct                            its solution (x, Cxx, s0sq)
+Name, Value                                    the OPTIONS below</pre>
 <h3>Options</h3>
 <pre class="example">(WP-39 stage (b): canonical UpperCamelCase names below; legacy
 casings still match -- MATLAB NV semantics -- and enum VALUES are
@@ -144,6 +148,13 @@ end</pre>
                 handle (WP-38: the one shared key resolver)
   lsqvce:redundancy:noStore     nothing was retained; re-run with &#x27;store&#x27;,&#x27;all&#x27;
 
+IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+  lsqvce:redundancy:hutchFailed              [warning] Hutchinson trace check failed (X); exact r_g are unaffected.valueexpe...
+  lsqvce:redundancy:hutchinsonExperimental   [warning] &#x27;TraceMethod&#x27;,&#x27;hutchinson&#x27; is EXPERIMENTAL
+  lsqvce:redundancy:identityViolated         [warning] sum(r_i) = X but m - u = X (relative error X)
+  lsqvce:redundancy:smallGroup               [warning] X group(s) have redundancy below X. The variance component of a group...
+  lsqvce:redundancy:spmdNoCollect            [warning] &#x27;spmd&#x27; reduces on the workers, so per-observation h/r/v are not shipp...
+
 See also LSQVCE.ENGINE.LEVERAGE, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.OUTLIERS, LSQVCE.ENGINE.RESIDUALS
 
 Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) (F-07): typed
@@ -160,7 +171,10 @@ caches the meta calls and PREALLOCATES the task array (the old
 tasks(end+1) growth copied O(nTask^2)). With assistance from Claude
 (Anthropic), model Claude Fable 5.
 Generated with assistance from Claude (Anthropic), model Claude
-Opus 4.8.</pre>
+Opus 4.8.
+Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
+WP-64a): the ENGINE tier leaves the USER surface; every qualified
+reference was rewritten mechanically by docs_src/refactor_tiers.py.</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
 <div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

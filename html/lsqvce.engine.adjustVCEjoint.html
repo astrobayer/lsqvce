@@ -159,7 +159,17 @@ plot(r.sigma2);            % the arc-wise weights</pre>
   lsqvce:adjustVCEjoint:badC0     the starting cross-covariance is malformed
   lsqvce:adjustVCEjoint:notPD     the joint covariance is not positive
                                   definite, so it cannot be factored
+  lsqvce:adjustVCEjoint:skipThreshold  a pass skipped more than
+                                SkipThreshold of the enumerated arcs (R5 M1)
+  lsqvce:adjustVCEjoint:noCep      (R5 M3, H-15) a multi-axis arc without the
+                                per-epoch covariance the separable model needs
+  lsqvce:adjustVCEjoint:badAxisRows  a multi-axis arc whose row count is not a
+                                multiple of its axis count
   lsqvce:adjustVCEjoint:noArcs    a system declares no arcs
+
+IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+  lsqvce:adjustVCEjoint:localNotPD           System X
+  lsqvce:adjustVCEjoint:notConverged         [warning] The joint stochastic model did not settle in X outer iterations (last...
 
 See also LSQVCE.ENGINE.ADJUSTVCE (the separable default), LSQVCE.ENGINE.PSDVCE,
          LSQVCE.ENGINE.ARCVARIANCEFACTORS, LSQVCE.KERNEL.REDUNDANCYLAGS,
@@ -199,7 +209,10 @@ Claude (Anthropic), model Claude Fable 5.
                                      is a SKIP, a vanished enumeration
                                      entry is an identity error) (WP-34)
   lsqvce:adjustVCEjoint:badSigma2_0  Sigma2_0 does not match the pass-1
-                                     arc count (align to out.arcKeys)</pre>
+                                     arc count (align to out.arcKeys)
+Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
+WP-64a): the ENGINE tier leaves the USER surface; every qualified
+reference was rewritten mechanically by docs_src/refactor_tiers.py.</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
 <div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

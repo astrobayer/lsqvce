@@ -43,36 +43,54 @@ a { color: #0b5ea8; }
 <div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.engine.gcvLambda</div>
 <h1>lsqvce.engine.gcvLambda</h1>
 <div class="purpose">Generalised cross-validation choice of the Tikhonov weight.</div>
-<h2>Syntax</h2>
-<pre class="syntax">lam = LSQVCE.ENGINE.GCVLAMBDA(N, n, L) minimises the GCV functional over a log grid,</pre>
 <h2>Description</h2>
-<p>for the regularised problem (N + lambda*L&#x27;*L) y = n.</p>
-<p>[lam, gcv, grid] = LSQVCE.ENGINE.GCVLAMBDA(...) also returns the GCV curve, so you can check that the minimum is a real trough and not a grid endpoint.</p>
+<pre class="example">lam = LSQVCE.ENGINE.GCVLAMBDA(N, n, L) minimises the GCV functional over a log grid,
+for the regularised problem (N + lambda*L&#x27;*L) y = n.
+
+[lam, gcv, grid] = LSQVCE.ENGINE.GCVLAMBDA(...) also returns the GCV curve, so you
+can check that the minimum is a real trough and not a grid endpoint.</pre>
 <h3>Input</h3>
 <pre class="example">N   nl x nl  local normal matrix (symmetric positive semidefinite)
 n   nl x 1   local right-hand side
 L   nl x nl  regularisation matrix (default identity)</pre>
 <h3>Output</h3>
-<pre class="example">lam   scalar   selected weight
-gcv   ng x 1   GCV functional over the grid
-grid  ng x 1   the lambda grid (80 points, log-spaced)</pre>
-<h3>Method</h3>
-<pre class="example">Uses the generalised eigendecomposition of (N, L&#x27;*L), which diagonalises
-both matrices simultaneously, so every lambda on the grid costs O(nl)
-instead of a fresh factorisation.</pre>
-<h3>When Gcv Fails</h3>
-<pre class="example">GCV assumes the residuals are white. After only approximate whitening
-they are not, and GCV then systematically UNDER-regularises -- it reads
-the leftover correlation as signal. Symptoms: lam lands on the smallest
-grid point, or the GCV curve is monotone with no interior minimum. Both
-are detected and warned about here.</pre>
-<pre class="example">For production, do not call GCV per day. Fix lambda once from an L-curve
-on a representative day and hold it constant, otherwise the amount of
-regularisation drifts between days and the estimated common parameters
-inherit that drift as a spurious time signal.</pre>
+<pre class="example">  lam   scalar   selected weight
+  gcv   ng x 1   GCV functional over the grid
+  grid  ng x 1   the lambda grid (80 points, log-spaced)
+
+METHOD
+  Uses the generalised eigendecomposition of (N, L&#x27;*L), which diagonalises
+  both matrices simultaneously, so every lambda on the grid costs O(nl)
+  instead of a fresh factorisation.
+
+WHEN GCV FAILS
+  GCV assumes the residuals are white. After only approximate whitening
+  they are not, and GCV then systematically UNDER-regularises -- it reads
+  the leftover correlation as signal. Symptoms: lam lands on the smallest
+  grid point, or the GCV curve is monotone with no interior minimum. Both
+  are detected and warned about here.
+
+  For production, do not call GCV per day. Fix lambda once from an L-curve
+  on a representative day and hold it constant, otherwise the amount of
+  regularisation drifts between days and the estimated common parameters
+  inherit that drift as a spurious time signal.</pre>
 <h3>Example</h3>
-<pre class="example">[lam, gcv, grid] = lsqvce.engine.gcvLambda(Nll, nl, eye(size(Nll,1)));
-loglog(grid, gcv); xline(lam,&#x27;r--&#x27;); xlabel(&#x27;\lambda&#x27;); ylabel(&#x27;GCV&#x27;);</pre>
-<div class="seealso"><b>See also:</b> <a href="lsqvce.engine.applyRegularisation.html">lsqvce.engine.applyRegularisation</a></div>
-<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+<pre class="example">  [lam, gcv, grid] = lsqvce.engine.gcvLambda(Nll, nl, eye(size(Nll,1)));
+  loglog(grid, gcv); xline(lam,&#x27;r--&#x27;); xlabel(&#x27;\lambda&#x27;); ylabel(&#x27;GCV&#x27;);
+
+IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+  lsqvce:gcv:atLowerBound                    [warning] GCV selected the smallest lambda on the grid (X), i.e
+  lsqvce:gcv:atUpperBound                    [warning] GCV selected the largest lambda on the grid (X)
+  lsqvce:gcv:degenerate                      [warning] The local block has no positive generalised eigenvalue; lambda = 0
+  lsqvce:gcvLambda:qzFallback                [warning] eig(N, L&#x27;L, &#x27;chol&#x27;) failed (X); using the QZ form
+
+See also LSQVCE.ENGINE.APPLYREGULARISATION
+
+Generated with assistance from Claude (Anthropic), model Claude
+Opus 4.8.
+Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
+WP-64a): the ENGINE tier leaves the USER surface; every qualified
+reference was rewritten mechanically by docs_src/refactor_tiers.py.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

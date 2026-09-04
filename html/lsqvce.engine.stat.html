@@ -40,6 +40,50 @@ a { color: #0b5ea8; }
           font-size: 12px; color: #888; }
 </style></head>
 <body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.engine.stat</div>
 <h1>lsqvce.engine.stat</h1>
-<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+<div class="purpose">Statistical kernel for lsqvce -- base MATLAB only.</div>
+<h2>Description</h2>
+<pre class="example">Deliberately free of the Statistics and Machine Learning Toolbox. Every
+quantile / cdf needed by the diagnostics is implemented from erf, gammainc
+and betainc, all of which ship with base MATLAB.
+
+Static methods
+  normCdf(z)            standard normal CDF
+  normInv(p)            standard normal quantile
+  chi2Cdf(x,r)          chi-square CDF
+  chi2Inv(p,r)          chi-square quantile (regularised-gamma inversion,
+                        Wilson-Hilferty seeded, Newton-polished)
+  tInv(p,nu)            Student-t quantile
+  tauInv(p,r)           Pope tau quantile (two-sided p is NOT applied here;
+                        pass the upper-tail probability directly)
+  tauCrit(alpha,r)      two-sided Pope tau critical value
+  normCrit(alpha)       two-sided normal critical value
+  delta0(alpha,beta)    MDB non-centrality parameter
+  fInv(p,d1,d2)         F quantile
+
+All functions are elementwise where it makes sense and validate inputs.</pre>
+<h3>Example</h3>
+<pre class="example">lsqvce.engine.stat.normCrit(1e-3)          % 3.2905  Baarda&#x27;s threshold
+lsqvce.engine.stat.delta0(1e-3, 0.20)      % 4.1321  MDB non-centrality
+lsqvce.engine.stat.chi2Inv(0.95, 10)       % 18.3070
+lsqvce.engine.stat.tauCrit(1e-3, 100)      % Pope&#x27;s tau, r = 100
+
+% Pope&#x27;s tau is BOUNDED by sqrt(r). That is the formal statement that
+% a weak network cannot detect its own blunders:
+lsqvce.engine.stat.tauCrit(1e-8, 5) &lt; sqrt(5)      % always true</pre>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:stat:badProb           the probability is outside (0,1)
+  lsqvce:stat:badDof            a degrees-of-freedom argument is not positive
+  lsqvce:stat:sizeMismatch      the arguments do not broadcast
+
+See also LSQVCE.ENGINE.DIAGNOSE.
+
+Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
+2026-07-11.
+Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
+WP-64a): the ENGINE tier leaves the USER surface; every qualified
+reference was rewritten mechanically by docs_src/refactor_tiers.py.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

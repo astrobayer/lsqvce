@@ -250,15 +250,27 @@ lsqvce.util.log.msg(&#x27;sigma0 = %.4f (want ~1)\n&#x27;, sol.sigma0);</pre>
     lsqvce:accum:localNotRedundant  an arc&#x27;s local block has no redundancy,
                                   so its variance factor is undefined
 
+Updated 2026-08-31 (CEST, UTC+02:00), R4 G-07 (Level L2): nl = 0 is a
+valid system (user decision) -- addSystem accepts it, preeliminate
+returns the unreduced common block with consistent empty local shapes.
+With assistance from Claude (Anthropic), model Claude Fable 5.
 Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (c) c2 (F-07):
 typed `arguments` signatures, canonical UpperCamelCase option names
 (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
 case-sensitive lowercase). With assistance from Claude (Anthropic),
 model Claude Fable 5.
+IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+  lsqvce:accum:blockSchurFailed              [warning] A local block of system X is singular; falling back to the dense Schu...
+  lsqvce:accum:localSummarySkipped           [warning] locals[X]
+  lsqvce:accum:pinvFallback                  [warning] System X
+
 See also LSQVCE.COVMODELFACTORY, LSQVCE.ENGINE.RESIDUALS, LSQVCE.ENGINE.CHECKPSD, LSQVCE.ENGINE.QRSYSTEM
 
 Generated with assistance from Claude (Anthropic), model Claude
-Opus 4.8.</pre>
+Opus 4.8.
+Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
+WP-64a): the ENGINE tier leaves the USER surface; every qualified
+reference was rewritten mechanically by docs_src/refactor_tiers.py.</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
 <div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>
