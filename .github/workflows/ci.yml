@@ -35,37 +35,29 @@ jobs:
 
   matlab:
     needs: audit
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Windows]
     timeout-minutes: 45        # backstop: no wedge sits for hours
     env:
       LSQVCE_CI: 1             # ci_gate: skip pool suites (printed in the
                                # log), cap pools at 2, headless figures
     steps:
-      - uses: actions/checkout@v6
-      # setup-matlab wedges (cache restore OR fresh download hanging >30 min)
-      # hit three sessions running (2026-08-18/19, incident runbook in
-      # HANDOVER §5 WP-30/§9 WP-32). Self-heal (user decision 2026-08-19):
-      # each attempt dies at 12 min instead of hanging, and a wedged first
-      # attempt gets ONE automatic in-job retry -- only two wedges in a row
-      # turn the job red. The check name stays `matlab` (branch protection
-      # untouched).
-      - uses: matlab-actions/setup-matlab@v3
-        id: mlsetup1
-        continue-on-error: true
-        timeout-minutes: 12
+      # Set up MATLAB is GONE, not disabled. This repository went
+      # private with the move to the organisation, and setup-matlab
+      # licenses base MATLAB by itself only on a PUBLIC repository -
+      # so the step could not have worked again, with or without a
+      # self-hosted runner. The batch-licensing token that covers
+      # private repositories comes from a MathWorks pilot closed to
+      # new requests.
+      #
+      # The probe replaces it: seconds, and a missing or
+      # misconfigured MATLAB fails by name here instead of as a
+      # confusing error inside the suite.
+      - name: Verify MATLAB on PATH (self-hosted)
+        timeout-minutes: 2
+        uses: matlab-actions/run-command@v3
         with:
-          release: R2026a      # == the user's local release (pinned)
-          cache: true          # cache the MATLAB install between runs
-                               # (user decision 2026-08-18: cuts the ~5 min
-                               # setup to seconds after the first run)
-      - uses: matlab-actions/setup-matlab@v3
-        if: steps.mlsetup1.outcome != 'success'
-        timeout-minutes: 12
-        with:
-          release: R2026a
-          cache: true
-          # products: Parallel_Computing_Toolbox   # lift the test_parallel
-          #   skip in dev/tests/ci_gate.m in the SAME commit that enables this.
+          command: >
+            fprintf('MATLAB on self-hosted runner: %s\n', version);
       - uses: matlab-actions/run-command@v3
         with:
           command: cd('dev/tests'); ci_gate
