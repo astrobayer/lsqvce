@@ -41,6 +41,7 @@ jobs:
       LSQVCE_CI: 1             # ci_gate: skip pool suites (printed in the
                                # log), cap pools at 2, headless figures
     steps:
+      - uses: actions/checkout@v6
       # Set up MATLAB is GONE, not disabled. This repository went
       # private with the move to the organisation, and setup-matlab
       # licenses base MATLAB by itself only on a PUBLIC repository -
