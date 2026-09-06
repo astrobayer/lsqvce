@@ -24,8 +24,8 @@ jobs:
   audit:                       # < 1 min, no MATLAB: fail fast
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with: { python-version: '3.12' }
       - run: pip install numpy
       - run: sudo apt-get install -y -qq pandoc   # the Manual check (audit 23) rebuilds html/lsqvce_manual.html
@@ -41,7 +41,7 @@ jobs:
       LSQVCE_CI: 1             # ci_gate: skip pool suites (printed in the
                                # log), cap pools at 2, headless figures
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       # The probe and the reasoning behind it now live in
       # .github/actions/matlab-probe. Same step, one definition.
       # Moves to astrobayer/ci-actions once that repository exists.
@@ -62,9 +62,9 @@ jobs:
       - uses: astrobayer/ci-actions/matlab-probe@v1.0.0
         timeout-minutes: 2
 
-      - uses: matlab-actions/run-command@v3
+      - uses: matlab-actions/run-command@bfa857648f4895aa98a446fe41c85e0788421ed5 # v3
         with:
           command: cd('dev/tests'); ci_gate
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()           # the log is wanted MOST when the run is red
         with: { name: run_all_log, path: dev/tests/last_run_all.txt }
