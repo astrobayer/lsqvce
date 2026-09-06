@@ -8,7 +8,7 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-09-06 — REVIEW R6 + WP-90 on `claude/wp-90`, DRAFT PR #90 (8ebd1fe)
+Last substantive update: 2026-09-07 — REVIEW R6 + WP-90 READY: PR #90, CI green on c6fb014 (audit + matlab 506/506), local ci_gate 531/531 incl. test_parallel
 (model Claude Fable 5.1, tier A: MATLAB R2026a over the working copy through
 the MCP bridge; the static audit runs locally on a found Python 3.12 but is
 Linux-only as an instrument, §12.14 E-12; no pandoc — the Manual rebuild is
@@ -5779,7 +5779,7 @@ test_vcePolicy 21 → 22. Reconciled per suite before the run.
 
 | WP | title | depends on | status |
 |---|---|---|---|
-| 90 | The error information travels with the day: `D.Cep` for every stream, the temporal law declared, ONE composition; `separable` / `epochCovariance` / `residualAcv` retired; E-01 + E-14 fixed; version 5.3 | — | READY-PENDING-DOCS (2026-09-06, branch `claude/wp-90`, DRAFT PR #90 at 8ebd1fe: local `ci_gate` GREEN 531/531 incl. test_parallel, batch run exit 0; examples 12/13 OK in the isolated harness incl. `demo_gravfire` on the real bundle 5.5 s, `bench_qr_vs_normal` = E-15 pre-existing; the Manual HTML/PDF rebuilt at e6fed79 (pandoc 3.1.3+ds in WSL, audit exit 0 on Linux) — CI pending on that head; DONE flips on the merge) |
+| 90 | The error information travels with the day: `D.Cep` for every stream, the temporal law declared, ONE composition; `separable` / `epochCovariance` / `residualAcv` retired; E-01 + E-14 fixed; version 5.3 | — | READY (2026-09-07, PR #90, CI green on c6fb014: audit pass, ci_gate 506/506 = 543 − test_speed 12 − test_parallel 25 skipped on the hosted runner; DONE flips on the merge. Round: local `ci_gate` GREEN 531/531 incl. test_parallel, batch run exit 0; examples 12/13 OK in the isolated harness incl. `demo_gravfire` on the real bundle 5.5 s, `bench_qr_vs_normal` = E-15 pre-existing; the Manual HTML/PDF rebuilt at e6fed79 (pandoc 3.1.3+ds in WSL, audit exit 0 on Linux) — CI pending on that head; DONE flips on the merge) |
 
 **ROUND WP-90 (2026-09-06, model Claude Fable 5.1, tier A: MATLAB R2026a
 through the MCP bridge on the working copy; the static audit locally on a
