@@ -42,23 +42,11 @@ jobs:
                                # log), cap pools at 2, headless figures
     steps:
       - uses: actions/checkout@v6
-      # Set up MATLAB is GONE, not disabled. This repository went
-      # private with the move to the organisation, and setup-matlab
-      # licenses base MATLAB by itself only on a PUBLIC repository -
-      # so the step could not have worked again, with or without a
-      # self-hosted runner. The batch-licensing token that covers
-      # private repositories comes from a MathWorks pilot closed to
-      # new requests.
-      #
-      # The probe replaces it: seconds, and a missing or
-      # misconfigured MATLAB fails by name here instead of as a
-      # confusing error inside the suite.
-      - name: Verify MATLAB on PATH (self-hosted)
-        timeout-minutes: 2
-        uses: matlab-actions/run-command@v3
-        with:
-          command: >
-            fprintf('MATLAB on self-hosted runner: %s\n', version);
+      # The probe and the reasoning behind it now live in
+      # .github/actions/matlab-probe. Same step, one definition.
+      # Moves to astrobayer/ci-actions once that repository exists.
+      - uses: ./.github/actions/matlab-probe
+
       - uses: matlab-actions/run-command@v3
         with:
           command: cd('dev/tests'); ci_gate

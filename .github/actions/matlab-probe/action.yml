@@ -1,0 +1,63 @@
+# Verify that MATLAB is present and callable on a self-hosted runner.
+#
+# WHY THIS IS AN ACTION AND NOT SEVEN COPIES
+#   Six of the organisation's seven workflows carried this step
+#   byte-for-byte identically; the seventh differed only by an `if:`
+#   guard that its own single-entry matrix makes unreachable.
+#   Copy-pasted CI steps are not a cosmetic problem here: the same
+#   defect - a partial edit whose removal block ended mid-step and
+#   swallowed the following one - has cost lsqvce its checkout,
+#   referenceSystem a cache/restore and NonGravForces its second
+#   sibling checkout. One definition cannot be edited into three
+#   different broken states.
+#
+# WHY A PROBE AT ALL
+#   matlab-actions/setup-matlab is GONE from these workflows, not
+#   disabled. It licenses base MATLAB by itself only on a PUBLIC
+#   repository, and every repository here went private with the move to
+#   the organisation, so the step could not have worked again with or
+#   without a self-hosted runner. The batch-licensing token that covers
+#   private repositories is issued through a MathWorks pilot closed to
+#   new requests. A traditionally licensed MATLAB on the runner is the
+#   remaining route.
+#
+#   The probe costs seconds and makes a missing or misconfigured MATLAB
+#   fail by name, here, instead of as a confusing error inside the
+#   suite several minutes later.
+#
+# NO INPUTS, NO OUTPUTS, ON PURPOSE
+#   This is a lift, not a redesign: the body is the step that already
+#   ran in six repositories, unchanged. An earlier draft of this file
+#   declared a `version` output - matlab-actions/run-command does not
+#   expose the command's stdout, so that output could never have been
+#   populated. Capturing the release would need MATLAB to write to
+#   $GITHUB_OUTPUT itself; worth doing only if something actually
+#   consumes it, which nothing does today.
+#
+# USAGE
+#   Repository-local, as here:
+#     - uses: ./.github/actions/matlab-probe
+#   From the organisation's action repository, once that exists:
+#     - uses: astrobayer/ci-actions/matlab-probe@v1
+#
+#   The calling job must run on the self-hosted runner. The action does
+#   not assert that: a job reaching this step on a GitHub-hosted runner
+#   has a wrong `runs-on`, and failing loudly here is clearer than
+#   skipping quietly.
+#
+# Created: 2026-09-06
+# Author:  Developed by Matthias Weigelt with the help of Anthropic
+#          Claude Opus 5, 2026-09-06
+
+name: Verify MATLAB on PATH
+description: Confirm MATLAB is installed and callable on a self-hosted runner.
+
+runs:
+  using: composite
+  steps:
+    - name: Verify MATLAB on PATH (self-hosted)
+      timeout-minutes: 2
+      uses: matlab-actions/run-command@v3
+      with:
+        command: >
+          fprintf('MATLAB on self-hosted runner: %s\n', version);
