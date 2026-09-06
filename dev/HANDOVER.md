@@ -8,7 +8,7 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-09-06 — REVIEW R6 + WP-90 opened on `claude/wp-90`
+Last substantive update: 2026-09-06 — REVIEW R6 + WP-90 on `claude/wp-90`, DRAFT PR #90 (8ebd1fe)
 (model Claude Fable 5.1, tier A: MATLAB R2026a over the working copy through
 the MCP bridge; the static audit runs locally on a found Python 3.12 but is
 Linux-only as an instrument, §12.14 E-12; no pandoc — the Manual rebuild is
@@ -5779,7 +5779,7 @@ test_vcePolicy 21 → 22. Reconciled per suite before the run.
 
 | WP | title | depends on | status |
 |---|---|---|---|
-| 90 | The error information travels with the day: `D.Cep` for every stream, the temporal law declared, ONE composition; `separable` / `epochCovariance` / `residualAcv` retired; E-01 + E-14 fixed; version 5.3 | — | READY-PENDING-DOCS (2026-09-06, branch `claude/wp-90`, DRAFT PR: local `ci_gate` GREEN 531/531 incl. test_parallel, batch run exit 0; examples 12/13 OK in the isolated harness incl. `demo_gravfire` on the real bundle 5.5 s, `bench_qr_vs_normal` = E-15 pre-existing; CI audit expected red on checks 14/23 until the Manual is rebuilt with pandoc — the ONE open item; DONE flips on the merge) |
+| 90 | The error information travels with the day: `D.Cep` for every stream, the temporal law declared, ONE composition; `separable` / `epochCovariance` / `residualAcv` retired; E-01 + E-14 fixed; version 5.3 | — | READY-PENDING-DOCS (2026-09-06, branch `claude/wp-90`, DRAFT PR #90 at 8ebd1fe: local `ci_gate` GREEN 531/531 incl. test_parallel, batch run exit 0; examples 12/13 OK in the isolated harness incl. `demo_gravfire` on the real bundle 5.5 s, `bench_qr_vs_normal` = E-15 pre-existing; CI audit expected red on checks 14/23 until the Manual is rebuilt with pandoc — the ONE open item; DONE flips on the merge) |
 
 **ROUND WP-90 (2026-09-06, model Claude Fable 5.1, tier A: MATLAB R2026a
 through the MCP bridge on the working copy; the static audit locally on a
@@ -5844,3 +5844,10 @@ joint estimator descales every arc that carries one (`oneArc`: `hasCep`,
 not `nAx > 1`). E-09 (the four batch loops without whole-epoch rounding)
 is still open; E-11 (`selectArAcv` unreached) and E-12 (the audit on
 Windows) too.
+
+**Record (2026-09-06, late):** DRAFT PR #90 opened at 8ebd1fe (CI pending;
+the `matlab` job `needs: audit`, so with the stale Manual the PR carries NO
+MATLAB verdict from CI until the rebuild — the local tier is the evidence
+until then). E-16 found while committing: `.gitignore` still listed the
+pre-L8 path `tests/last_run_all.txt`, so the gate log was untracked-visible
+under `dev/tests/` (dropped from the commit; path fixed here).
