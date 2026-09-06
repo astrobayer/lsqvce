@@ -65,25 +65,26 @@ handles the model parameters again.</pre>
                        from ar/sigma via LSQVCE.KERNEL.VARACV). Rows epoch-major;
                        the arc must set nAxis = d. The &#x27;needs-var&#x27; case
                        of LSQVCE.KERNEL.CROSSCORR; fit with LSQVCE.KERNEL.WHITTLE.
-    &#x27;separable&#x27; .ar    [1 a1 ... ap] scalar temporal AR, shared by all axes
-                       NOTE the name describes the MATHEMATICS -- the
-                       covariance separates into a per-epoch spatial factor
-                       and a temporal law, C = D (R_t kron I_d) D. It is
-                       unrelated to the engine name: this type string was
-                       deliberately NOT renamed when the iterative class
-                       became LSQVCE.ENGINE.ADJUSTVCE in 2026.
-              .sigma   scalar innovation std of the temporal law
-              .d       number of axes (e.g. 3)
-              .Cep     per-epoch FIXED scaling D: nEpoch x d (diagonal
-                       sigma) or nEpoch x d x d (full covariance, from a
-                       PPP solution). C = D (R_t kron I_d) D. Rows must be
-                       epoch-major; the arc must set nAxis = d. Wraps
-                       LSQVCE.KERNEL.SEPARABLEWHITEN. The realistic 3-D position
-                       case; the loader supplies Cep per arc (e.g. via an
-                       epochCov hook).
+                       Takes NO Cep (it carries its own cross-axis structure).
     &#x27;custom&#x27;  .fcn     @(t_batch, opt) -&gt; dense covariance
 
-  t    m x 1  epochs of the current arc [s]
+    Every type above is a TEMPORAL law. ONE optional field composes it
+    with the per-epoch ERROR INFORMATION of the arc (R6 WP-90):
+      .Cep     nEpoch x 1 | nEpoch x d | nEpoch x d x d   the per-epoch
+               standard deviation of a scalar stream, the per-axis
+               standard deviations (a diagonal D), or the full per-epoch
+               covariance (a PPP solution). Then C = D (R_t kron I_d) D:
+               every epoch is descaled by D^-1/2 and the temporal whitener
+               runs down the epochs of each axis (LSQVCE.KERNEL.SEPARABLEWHITEN&#x27;s
+               order); Cfcn is the TEMPORAL covariance over epochs; the
+               law is built on the EPOCH grid t(1:d:end); filterMemory is
+               p*d rows. The loader sets it from the day buildDay returned
+               (the Manual, chapter 3 section 7); a user never writes it
+               on the spec. d = size(Cep, 2), and a .d on the spec must
+               agree. The former &#x27;separable&#x27; type was &#x27;arma&#x27; plus this field.
+
+  t    m x 1  epochs of the current arc [s] (epoch-major with Cep: every
+              d-th value is one epoch)
   opt  struct runtime options (see below)
 
 OPTIONS (opt)
@@ -162,15 +163,15 @@ info.filterMemory      % = 20 -&gt; the accumulator overlaps by 20 rows</pre>
     lsqvce:covModel:noPSD          .psd missing          (&#x27;psd&#x27;)
     lsqvce:covModel:noVAR          .ar/.sigma missing    (&#x27;var&#x27;)
     lsqvce:covModel:noFcn          .fcn missing          (&#x27;custom&#x27;)
-    lsqvce:covModel:noD            .d missing            (&#x27;separable&#x27;, &#x27;var&#x27;)
 
-  The separable model&#x27;s per-epoch scaling is wrong
-    lsqvce:covModel:noCep          .Cep missing
-    lsqvce:covModel:badCep         .Cep is neither nEpoch x d nor
-                                   nEpoch x d x d
-    lsqvce:covModel:notWholeEpochs the batch does not contain whole epochs;
-                                   rows must be EPOCH-MAJOR and the arc must
-                                   set nAxis = d
+  The per-epoch error information does not fit the arc (R6 WP-90)
+    lsqvce:covModel:badCep         .Cep is neither nEpoch x d nor nEpoch x d x d,
+                                   does not cover the arc&#x27;s rows, or disagrees
+                                   with a .d on the spec
+    lsqvce:covModel:cepOnVar       a &#x27;var&#x27; law with a .Cep
+    lsqvce:covModel:notWholeEpochs a batch (or a dense VAR request) does not
+                                   hold whole epochs; rows must be EPOCH-MAJOR
+                                   and the arc must carry nAxis = d
 
   The model is not usable as given
     lsqvce:covModel:degeneratePSD  the PSD has a zero or negative ordinate,
@@ -180,10 +181,23 @@ info.filterMemory      % = 20 -&gt; the accumulator overlaps by 20 rows</pre>
 
 IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
   lsqvce:covModel:negativePSD                [warning] The PSD has X negative values (min X)
-  lsqvce:covModel:psdSanitationEscape        PSD sanitation escape
+  lsqvce:covModel:psdSanitationEscape        PSD sanitation escape</pre>
+<h3>Accuracy</h3>
+<pre class="example">  The whiteners are exact factors of the covariance they are built from
+  (the filter IS the Cholesky inverse factor, see above): diag / arma /
+  psd are pinned in test_precision and test_signalCore; the composition
+  with Cep is pinned against the dense reference D (R_t kron I_d) D at
+  1e-8 relative on the whitened normals (test_streamUtils, through the
+  loader and directly), and the PSD law on the epoch grid against
+  psd2acv at the epoch dt (1e-7, the psdRidge) -- R6 WP-90.
 
-See also LSQVCE.ENGINE.CHECKPSD, LSQVCE.KERNEL.ARMAWHITEN, LSQVCE.KERNEL.DECORRFACTOR, LSQVCE.ENGINE.BLOCKACCUMULATOR
+See also LSQVCE.ENGINE.CHECKPSD, LSQVCE.KERNEL.ARMAWHITEN, LSQVCE.KERNEL.SEPARABLEWHITEN,
+         LSQVCE.KERNEL.DECORRFACTOR, LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.MAKELOADER
 
+Updated 2026-09-06 (CEST, UTC+02:00), R6 WP-90: ONE composition of any
+temporal law with the per-epoch Cep replaces the &#x27;separable&#x27; type; the
+law is built on the epoch grid. With assistance from Claude (Anthropic),
+model Claude Fable 5.1.
 Generated with assistance from Claude (Anthropic), model Claude
 Opus 4.8.
 Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,

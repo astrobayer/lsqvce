@@ -1,5 +1,43 @@
 # lsqvce release notes
 
+## 5.3 — 2026-09-06 (R6 WP-90: the error information travels with the day)
+
+Additive on 5.2 for every declaration that used `diag` / `arma` / `psd` laws;
+BREAKING for two seams, named below.
+
+- **`buildDay` returns the error information with the day, for ANY stream:**
+  `D.Cep` is nEpoch × 1 (the per-epoch standard deviation of a scalar stream),
+  nEpoch × d (per-axis standard deviations) or nEpoch × d × d (the full
+  per-epoch covariance, e.g. from a PPP solution). The axis count is derived
+  from it (`nAxis` stays only for a multi-axis stream without `Cep`; given as
+  well, it must agree). The covariance spec declares the TEMPORAL law only
+  (`diag`, `arma`, `psd`, `acf`) and its level; the toolbox composes
+  C = D (R_t ⊗ I_d) D per arc in ONE place (`covModel`), for every law,
+  and the joint estimator de-scales the residuals of every arc that carries
+  `Cep` — a scalar stream with a per-epoch sigma is estimated correctly
+  (before 5.3 that information could not travel with the day at all, and a
+  `Cep` on a `diag` stream was silently ignored).
+- Validated at the day, with day and stream in the message:
+  `lsqvce:makeLoader:badDayCep` (shape), `:axisConflict` (`nAxis` vs `Cep`,
+  or a `d` on the spec), `:cepTwice` (a `Cep` on the spec and on the day),
+  `lsqvce:covModel:cepOnVar`; a multi-axis day without `Cep` is composed with
+  D = I and reported once per run (`lsqvce:makeLoader:noCep`).
+- Fixed: the day's `Cep` was sliced with the arc ID instead of the arc's
+  position in `arcId` — a ragged day whose ids are not 1:n whitened an arc
+  with another arc's epochs (R6 finding E-01).
+- **BREAKING (no aliases):** the covariance type `separable` is retired —
+  declare the temporal law (`arma` / `diag` / `psd`) and return `Cep` with
+  the day (`covModel:unknownType` names the replacement); the
+  `epochCovariance` field of `data.systems(k)` is retired (an unknown field
+  now — its only consumer, `kernel.residualAcv`, had no engine caller since
+  5.0 and is deleted); `makeLoader`'s `EpochCovariance` option and the
+  loader's `epochCov` field are gone; `jointModelOpt`'s `Separable` option
+  is gone (the loader composes).
+- Docs: the Manual chapter 3 (§0b, §3.4, §3.5, §5, §7 "the error information",
+  §11), chapter 7, the GRAVFIRE template and guide (positions: `diag` +
+  `Cep` from iSpp), `lsqvce_template` (one stub), `demo_grace_dataLoader`.
+  Review R6 and the test audit of the chain: `dev/HANDOVER.md` §12.14.
+
 ## 5.2 — 2026-09-03 (R5-D8: the parameter-table interface)
 
 Additive on 5.1 except one retirement (`Options.Reg / RegLambda / RegMatrix`).

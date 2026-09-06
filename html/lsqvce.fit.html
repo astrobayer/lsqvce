@@ -96,9 +96,10 @@ Name, Value          any property of lsqvce.Options</pre>
                                purpose -- and so are the retired fields:
                                common, numCommon, numLocal,
                                observationTypes, systemId, cache, loader,
-                               plotPostSolve, plotPostModel, and since
-                               v4 localsPerArc: declare &#x27;arc&#x27; rows in
-                               localParams instead)
+                               plotPostSolve, plotPostModel, since v4
+                               localsPerArc (declare &#x27;arc&#x27; rows in
+                               localParams instead), and since v5.3
+                               epochCovariance (the day returns Cep))
     lsqvce:fit:noSystems       data.systems missing, not a struct, or empty
     lsqvce:fit:noCommon        data.commonParams missing, or not a 2-D
                                cell of template rows
@@ -149,16 +150,23 @@ Name, Value          any property of lsqvce.Options</pre>
                                u is stated once (numel(x0))
   Your buildDay is wrong (raised WHILE READING, by the engine, ids
   unchanged): lsqvce:makeLoader:badDay / dayShape / badArc / badArcId /
-  buildDay, lsqvce:accum:arcBadNc / arcBadNl
+  buildDay / badDayCep / axisConflict / cepTwice (v5.3: the day&#x27;s Cep and
+  axis count), lsqvce:covModel:cepOnVar, lsqvce:accum:arcBadNc / arcBadNl;
+  lsqvce:makeLoader:noCep is a once-per-run warning (a multi-axis day
+  without Cep is composed with D = I)
 
-See also LSQVCE.OPTIONS, LSQVCE.RESULTS, LSQVCE.ENGINE.MAKELOADER,
-         LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCE, LSQVCE.ENGINE.ADJUSTVCEJOINT,
-         LSQVCE.ENGINE.ADJUST, LSQVCE.ENGINE.ROBUST, LSQVCE.ENGINE.SOLVENONLINEAR
+See also LSQVCE.OPTIONS, LSQVCE.RESULTS, LSQVCE.LAYOUT, LSQVCE.ENGINE.DECLARATION,
+         LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT,
+         LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTNONLINEAR
 
 Created 2026-08-31 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5 -- R4 Level L2, WP-56 (decision R4-D4).
 Help rewritten 2026-09-04 for v5.2 (R5 M5 / R5-D8), model Claude Fable 5.1:
-the v5 surface (Estimate, priors, paramColumns, OnPass, layout, toTable).</pre>
+the v5 surface (Estimate, priors, paramColumns, OnPass, layout, toTable).
+Updated 2026-09-06 (CEST, UTC+02:00), R6 WP-90: the error information
+travels with the day (D.Cep); epochCovariance retired; the See also on
+the units that exist. With assistance from Claude (Anthropic), model
+Claude Fable 5.1.</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
 <div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

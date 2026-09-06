@@ -1,4 +1,4 @@
-# lsqvce v5.2 — least-squares adjustment with variance component estimation
+# lsqvce v5.3 — least-squares adjustment with variance component estimation
 
 Declare your problem as a plain `data` struct, `fit` it, and get a judged
 result: estimates with formal errors, per-observation diagnostics, and a
@@ -91,10 +91,12 @@ Set `Noise.Grid` at least as large as the longest arc. `Robust="huber" |
 "igg3" | "bisquare"` is IRLS on the same loop, on every kind.
 
 **Declaring the stochastic model.** Each observation stream carries a
-covariance spec: `diag` (weights), `arma` / `ar` (a whitening filter),
-`acf` / `psd` (an exact Toeplitz law), `separable` (a temporal law times a
-fixed per-epoch covariance, for multi-axis streams), plus the per-stream
-policy `estimate = "none" | "scale" | "law"` and `arcFactors`. Batches are
+covariance spec — its temporal law: `diag` (white), `arma` / `ar` (a whitening
+filter), `acf` / `psd` (an exact Toeplitz law) — plus the per-stream policy
+`estimate = "none" | "scale" | "law"` and `arcFactors`. The per-epoch accuracy
+of the observations (a sigma per epoch, or a 3 × 3 covariance per epoch for
+positions) comes back from `buildDay` with the day as `D.Cep`; the toolbox
+composes the two (v5.3). Batches are
 overlapped by the filter memory automatically, so batching never changes the
 result. Priors on the common parameters — a datum, a Kaula rule, a
 background model — are `data.priors`. Details and the six `buildDay` rules:

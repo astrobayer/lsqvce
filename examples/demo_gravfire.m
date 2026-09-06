@@ -11,7 +11,7 @@ function R = demo_gravfire(bundleFile, opt)
 %   lsqvce.fit. The design function is NOT part of the toolbox (STEP 11 of the
 %   guide is yours); the template's 'DryRun' stands in for it with random
 %   design matrices, so this demo exercises the PIPELINE -- the declaration,
-%   the scoped tables, the separable law of the 3-axis positions, the joint
+%   the scoped tables, the per-epoch covariance of the 3-axis positions, the joint
 %   estimator with Options.OnPass -- not gravity recovery.
 %
 %   The bundle is your private file (testdata.mat, ~84 MB) and is not shipped:

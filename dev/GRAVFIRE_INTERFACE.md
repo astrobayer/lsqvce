@@ -91,8 +91,8 @@ Today the three groups are addressed by number (`observations{day, g}`,
 | 2 | GraceB / kinematicPosition | `posB` |
 | 3 | GraceX / range-rate | `kbr` |
 
-and declare the **starting** covariance of each as a diagonal law with the
-standard deviation (not the variance):
+and declare the **starting** temporal law of each as white, with the level as
+a standard deviation (not the variance):
 
 ```matlab
 cov.posA = struct('type','diag','sigma', sqrt(sd.variance(1)));   % 0.1 m
@@ -101,7 +101,10 @@ cov.kbr  = struct('type','diag','sigma', sqrt(sd.variance(3)));   % 1e-6 m/s
 ```
 
 The VCE loop estimates the temporal law (`fftmodel` in your options) **from
-these starting points**; nothing about the FFT model is declared here.
+these starting points**; nothing about the FFT model is declared here, and
+nothing about the per-epoch accuracy either — that is the day's `Cep`
+(STEP 10), which the toolbox composes with the law (v5.3; the `separable`
+type and its `d` are gone).
 **In GRAVFIRE:** store the bundle as `bundles.posA`, `.posB`, `.kbr` (or keep
 the `days × groups` cell and a name→column map, as the template does). Never
 rely on group order alone.
@@ -247,20 +250,29 @@ D.arcId  = ids;
 `arcIdx{k}` are the ROW numbers of piece `k`; `arcId` says which piece each
 entry is. Every id the resolver (STEP 5) announced must appear exactly once.
 
-### STEP 10 — multi-axis streams: `nAxis` and `Cep`
+### STEP 10 — the error information: `Cep` on the day (v5.3, R6 WP-90)
 
-For the positions, `iSpp` holds the 3×3 epoch covariance of the kinematic
-orbit as 9 columns per epoch. Hand it over as `nEpoch × 3 × 3`:
+What the preprocessing knows about the accuracy of each observation comes
+back **with the day**, as `D.Cep`; the covariance spec (STEP 3) declares only
+the temporal law and its level. For the positions, `iSpp` holds the 3×3 epoch
+covariance of the kinematic orbit as 9 columns per epoch. Hand it over as
+`nEpoch × 3 × 3` — the axis count is derived from it:
 
 ```matlab
-D.nAxis = 3;
-D.Cep   = permute(reshape(iSpp.', 3, 3, []), [3 1 2]);
+D.Cep = permute(reshape(iSpp.', 3, 3, []), [3 1 2]);     % nEpoch x 3 x 3
 ```
 
-This is the "standard D source" of the contract (§7): the per-epoch
-de-scaling is applied exactly, per epoch, before the temporal whitening. The
-KBR stream has `nAxis = 1` and no `Cep`. **In GRAVFIRE:** store `iSpp` as
-`nEpoch × 3 × 3` once, at preparation, instead of reshaping it per pass.
+The toolbox composes C = D (R_t ⊗ I_3) D per piece: every epoch is de-scaled
+by its 3×3 factor, then the temporal whitener runs down the epochs of each
+axis; under `Estimate="noise"` the estimator de-scales the residuals the same
+way before it forms the lag statistics. The KBR stream returns no `Cep` when
+its epochs are equally accurate — or `D.Cep = sigmaPerEpoch` (nEpoch × 1)
+when they are not: a scalar stream's per-epoch sigma travels the same way
+(this is also where a per-epoch weight from an earlier screening would go,
+instead of the `weights` of Part C). Nothing is declared twice: a `Cep` or
+`d` on the spec that disagrees with the day is refused by name. **In
+GRAVFIRE:** store `iSpp` as `nEpoch × 3 × 3` once, at preparation, instead of
+reshaping it per pass.
 
 ### STEP 11 — the design matrices (yours)
 
@@ -299,7 +311,7 @@ rest. A builder that scales its own rows is scaled twice.
 |---|---|---|
 | **column 13 = column SCALE** (1e-9 on the Stokes rows, 1 / 1e-7 on the locals): the factor that balances the columns of A and B so that N has ≈ unit diagonal — *not* a prior (corrected 2026-09-02) | v4 has **no** column scaling: apply it in your design function (`A(:,j)*s_j`, `B(:,j)*s_j`) and undo it on `R.x` (`x = S*x̃`) and `R.Cxx` (`S*C̃*S`) yourself | a declared per-row `scale`: the toolbox solves the equilibrated system and unscales the results and the reported condition number (R5-D8) |
 | **column 11 = regularisation** (`'none'` or `{'Tikhonov', 1, 0.01}`) — API parked by the user (R5-D8) | `data.priors(k) = struct('L', ..., 'sigma', ...)` on the common block (v5: a declared pseudo-observation group; `{'Tikhonov', 1, 0.01}` on row j is `L = e_j'`, `sigma = 0.01`, stacked over rows); `lsqvce.Options(Reg=..., RegMatrix=...)` remains the block-path regularisation | CLOSED (M7 7b): one `data.priors(k)` struct per label with `estimate = "scale"` is the `priorGroup` — its rows share ONE variance component, updated every pass by the Helmert / Koch–Kusche rule (`R.noise.priors`, `R.noise.priorHistory`) |
-| `weights` (Huber, from the previous outer iteration) | not used — `Robust` is refused on the streaming kind (`lsqvce:fit:notYet`) | IRLS on the streaming kind (M2) |
+| `weights` (Huber, from the previous outer iteration) | `Robust="huber"` runs IRLS on the streaming kind (R5 M2) — iteration state stays the toolbox's; a FIXED per-epoch accuracy from an earlier screening goes into `D.Cep` (nEpoch × 1, STEP 10, v5.3) | unchanged |
 | `covarianceModel 'fftmodel'`, `correlationLength 2160` | `Options(Estimate="noise", Noise=struct('Grid', 2160))` | per-stream `estimate="law"`, `Noise.Grid` from the schedule |
 | `maximumIterations 7`, `minimumIterations 3` | `MaxPasses=7`; **no** minimum knob | `MaxPasses=7`, `MinPasses=3` (added on this evidence) |
 | `minimumNumberObservations 100` | `MinRedundancy=100` | `Noise.FreezeRedundancy` |
@@ -320,11 +332,11 @@ R    = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFacto
 R.report;  T = R.coefficients;  C = R.convergence;
 ```
 
-> **Until M1/M3 (finding H-15, 2026-09-02):** `Estimate="noise"` is not multi-axis-aware —
-> on the 3-axis position pieces it forms a dense 6480×6480 Σ per arc and takes row lags
-> (axis-interleaved), and one pass blocks MATLAB for minutes. Use `Estimate="noise", Pool="stream", ArcFactors=false` for runs
-> that include `posA`/`posB`; `ellmer` only on single-axis streams (`kbr`). M1 adds the
-> refusal, M3 the per-axis Toeplitz whitening that makes `ellmer` the right choice here.
+> **Multi-axis streams on the joint estimator (R5 M3, 2026-09-02):** the 3-axis
+> position pieces are processed per axis after the per-epoch de-scale by `Cep`; both
+> days at 2160 lags take ~40 s (HANDOVER §12.5, round 3c). Since v5.3 the positions
+> declare `diag` and return `Cep` (STEP 10) — no `separable` type, no axis count in the
+> spec.
 
 If `fit` rejects the declaration, the identifier names the rule
 (`lsqvce:fit:unknownField`, `:badId`, `:badScope`, …) and no data has been

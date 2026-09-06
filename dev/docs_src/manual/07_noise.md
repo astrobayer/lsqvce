@@ -1,11 +1,13 @@
 # Stochastic models and their estimation
 
 Every observation stream carries a covariance spec in `data.systems(k).covariance.<type>`
-(chapter 3 lists the fields): `diag` (weights), `arma` / `ar` (a whitening filter),
-`acf` / `psd` (an exact Toeplitz law), `separable` (a temporal law times a fixed per-epoch
-covariance — the declaration for multi-axis streams; a `diag` law would ignore the
-per-epoch covariance). Batches are overlapped by the filter memory automatically, so
-batching never changes the result.
+(chapter 3 lists the fields) — its TEMPORAL law: `diag` (white), `arma` / `ar` (a whitening
+filter), `acf` / `psd` (an exact Toeplitz law). The per-epoch accuracy of the observations
+(a sigma per epoch, or a full d × d covariance per epoch for a multi-axis stream) is not
+declared: `buildDay` returns it with the day as `D.Cep` (chapter 3, §7) and the toolbox
+composes C = D (R_t ⊗ I_d) D per arc — for every temporal law, scalar streams included.
+Batches are overlapped by the filter memory automatically, so batching never changes the
+result.
 
 With `Estimate="noise"` the joint estimator (theory ch. 6, Ellmer 2018) runs on every
 stream whose spec allows it (`estimate = "law"` default; `"scale"` = level only, the
