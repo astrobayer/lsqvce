@@ -207,35 +207,13 @@ end
 %==========================================================================
 function batches = whitenArcIntoBatches(batches, arc, uo, colLocal, nc, uFull)
 %WHITENARCINTOBATCHES  One arc -> whitened row batches placed in full columns.
-    nRows      = size(arc.A, 1);
-    batchSize  = lsqvce.util.getfielddef(uo, 'BatchSize', 20000);
-    overlap    = lsqvce.util.getfielddef(uo, 'BatchOverlap', []);
-    if isempty(overlap)
-        overlap = lsqvce.util.getfielddef(arc, 'filterMemory', 0);
-    end
-    batchSize = max(1, min(round(batchSize), nRows));
-    overlap   = max(0, min(round(overlap), batchSize - 1));
+    % R6 WP-91 (E-09): the batch bounds, overlap, whole-epoch rounding and
+    % the whitening branches live in the ONE iterator arcBatchWhiten
+    % (engine-private); this callback places the kept rows into the full
+    % columns exactly as before.
+    arcBatchWhiten(arc, uo, @placeBatch);
 
-    hasWfcn = isfield(arc,'Wfcn') && ~isempty(arc.Wfcn);
-    hasCfcn = isfield(arc,'Cfcn') && ~isempty(arc.Cfcn);
-
-    for firstRow = 1:batchSize:nRows
-        lastRow  = min(firstRow + batchSize - 1, nRows);
-        fromRow  = max(1, firstRow - overlap);
-        idx      = fromRow:lastRow;
-        keepRows = (firstRow - fromRow + 1):numel(idx);   % discard the overlap
-
-        Ablk = arc.A(idx, :);
-        Bblk = arc.B(idx, :);
-        lblk = arc.l(idx);  lblk = lblk(:);
-
-        if hasWfcn
-            [Ablk, Bblk, lblk] = arc.Wfcn(idx, Ablk, Bblk, lblk, uo);
-        elseif hasCfcn
-            whitener = lsqvce.kernel.decorrFactor(arc.Cfcn(idx, uo));
-            Ablk = whitener * Ablk;  Bblk = whitener * Bblk;  lblk = whitener * lblk;
-        end
-
+    function placeBatch(~, keepRows, Ablk, Bblk, lblk)
         Ablk = Ablk(keepRows, :);
         Bblk = Bblk(keepRows, :);
         lblk = lblk(keepRows);
@@ -245,6 +223,6 @@ function batches = whitenArcIntoBatches(batches, arc, uo, colLocal, nc, uFull)
         fullA(:, 1:nc)     = Ablk;
         fullA(:, colLocal) = Bblk;
 
-        batches(end+1) = struct('A', fullA, 'l', lblk);      %#ok<AGROW>  (prior appended by the caller)
+        batches(end+1) = struct('A', fullA, 'l', lblk);      % (prior appended by the caller)
     end
 end

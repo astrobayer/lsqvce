@@ -481,3 +481,47 @@ function cleanupResidLog(fid, f)
     if fid > 0, fclose(fid); end
     if exist(f, 'file'), delete(f); end
 end
+
+%% ---------------------------------- R6 E-09 (WP-91): whole epochs in EVERY batch loop
+function testMultiAxisArcLongerThanBatchInEverySweep(tc)
+% categories: contract, robustness, vectorisation
+    % A 3-axis arc (60 epochs = 180 rows) with a per-epoch Cep, whitened in
+    % batches of 100 ROWS. The accumulator rounded its batch down to whole
+    % epochs; the residual sweep and the diagnostic re-read had copied the
+    % loop WITHOUT the rounding (finding E-09) and refused
+    % lsqvce:covModel:notWholeEpochs on the split epoch. One iterator now:
+    % batched == single batch (the same rows through the same filter, the
+    % overlap = the filter memory in rows), eps-level.
+    d = 3;  nE = 60;  m = nE*d;  nc = 3;  nl = 2;
+    rs = RandStream('mt19937ar', 'Seed', 9);
+    Cep = 0.5 + rand(rs, nE, d);
+    D = struct('A', randn(rs, m, nc), 'B', randn(rs, m, nl), 'l', randn(rs, m, 1), ...
+               't', reshape(repmat((0:nE-1)*5, d, 1), [], 1), 'Cep', Cep);
+    cov.pos = struct('type', 'arma', 'ar', [1 -0.6], 'sigma', 0.8);
+    L = lsqvce.engine.makeLoader(@(day, ot) D, 'ObservationTypes', {'pos'}, 'Covariance', cov, ...
+                                 'Arcs', 1, 'SystemId', 1, 'NumLocal', nl, 'NumCommon', nc, 'Days', 1);
+    [xRef, wRef, Aref] = batchedSweeps(L, nc, nl, 1e9);
+    [x100, w100, A100] = batchedSweeps(L, nc, nl, 100);
+    % tol: the same rows through the same AR(1) filter with the overlap equal
+    % to the filter memory -- identical arithmetic up to summation order (1e-12 house)
+    tc.verifyEqual(x100, xRef, 'RelTol', 1e-12);
+    tc.verifyEqual(w100, wRef, 'RelTol', 1e-12);   % tol: same source
+    tc.verifyEqual(A100, Aref, 'RelTol', 1e-12);   % tol: same source
+end
+
+function [x, w, Aw] = batchedSweeps(L, nc, nl, bs)
+%BATCHEDSWEEPS  Solve, residual sweep and diagnostic re-read at one BatchSize.
+    acc = lsqvce.engine.BlockAccumulator(nc, 'Backend', 'qr', 'BatchSize', bs, ...
+                                         'KeepLocal', true, 'Verbose', false);
+    acc.addSystem(1, nl, L.closure, 1);
+    sol = acc.solve();
+    x = sol.x;
+    res = lsqvce.engine.residuals(acc, sol, 'verbose', false);
+    w = res.sys(1).obs(1).w;
+    [~, batchFcn, nB] = lsqvce.engine.diagnoseAccum(acc, sol);
+    Aw = [];
+    for k = 1:nB
+        Ak = batchFcn(k);
+        Aw = [Aw; Ak];                                            %#ok<AGROW>
+    end
+end

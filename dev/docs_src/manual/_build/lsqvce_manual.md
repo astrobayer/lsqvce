@@ -1668,7 +1668,7 @@ Every identifier the package raises, from `dev/docs_src/error_ids.csv` (the cata
 | `lsqvce:accum:noDays` | engine.BlockAccumulator — error — v4.0 |
 | `lsqvce:accum:noStore` | engine.BlockAccumulator — error — v4.0 |
 | `lsqvce:accum:noSystems` | engine.BlockAccumulator — error — v4.0 |
-| `lsqvce:accum:notWholeEpochs` | engine.BlockAccumulator — error — v4.0 |
+| `lsqvce:accum:notWholeEpochs` | engine.private.arcBatchWhiten — error — v4.0 |
 | `lsqvce:accum:pinvFallback` | engine.BlockAccumulator — warning — v4.0 |
 | `lsqvce:accum:priorNotPD` | engine.BlockAccumulator — error — v4.0 |
 | `lsqvce:accum:priorSize` | engine.BlockAccumulator — error — v4.0 |

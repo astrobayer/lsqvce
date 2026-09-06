@@ -343,15 +343,7 @@ end
 function [v, w] = arcResiduals(arc, x, y, uo, o)
 %ARCRESIDUALS  Residuals of one arc, batched exactly as in accumulation.
 
-    m   = size(arc.A,1);
-    bs  = lsqvce.util.getfielddef(uo, 'BatchSize', 20000);
-    nOv = lsqvce.util.getfielddef(uo, 'BatchOverlap', []);
-    if isempty(nOv)
-        nOv = lsqvce.util.getfielddef(arc, 'filterMemory', 0);
-    end
-    bs  = max(1, min(round(bs),  m));
-    nOv = max(0, min(round(nOv), bs-1));
-
+    m = size(arc.A,1);
     v = arc.l(:) - arc.A*x - arc.B*y;      % raw residuals, original metric
     w = v;                                 % overwritten below if whitened
 
@@ -367,27 +359,19 @@ function [v, w] = arcResiduals(arc, x, y, uo, o)
         return                              % unit weights: w = v
     end
 
+    % R6 WP-91 (E-09): the residual is whitened by the ONE iterator
+    % arcBatchWhiten (engine-private) -- the same batch bounds, overlap and
+    % whole-epoch rounding as accumulation -- on an arc whose design blocks
+    % are empty and whose "observation" is v (what the old loop passed to
+    % Wfcn as ze, ze, v(idx): byte-identical).
+    av = struct('A', zeros(m, 0), 'B', zeros(m, 0), 'l', v);
+    for f = {'Wfcn', 'Cfcn', 'W', 'filterMemory', 'nAxis'}
+        if isfield(arc, f{1}), av.(f{1}) = arc.(f{1}); end
+    end
     w = zeros(m,1);
-    z = zeros(0,0);
+    arcBatchWhiten(av, uo, @keepWhitened);
 
-    for i0 = 1:bs:m
-        i1   = min(i0+bs-1, m);
-        j0   = max(1, i0-nOv);
-        idx  = j0:i1;
-        keep = (i0-j0+1):numel(idx);
-        rows = i0:i1;
-
-        if hasW
-            ze = zeros(numel(idx), 0);
-            [~, ~, wb] = arc.Wfcn(idx, ze, ze, v(idx), uo);
-        elseif hasC
-            W  = lsqvce.kernel.decorrFactor(arc.Cfcn(idx, uo));
-            wb = W * v(idx);
-        else
-            W  = arc.W(idx,idx);
-            wb = W * v(idx);
-        end
-
-        w(rows) = wb(keep);
+    function keepWhitened(rows, keep, ~, ~, lb)
+        w(rows) = lb(keep);
     end
 end
