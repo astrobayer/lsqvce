@@ -5779,7 +5779,7 @@ test_vcePolicy 21 → 22. Reconciled per suite before the run.
 
 | WP | title | depends on | status |
 |---|---|---|---|
-| 90 | The error information travels with the day: `D.Cep` for every stream, the temporal law declared, ONE composition; `separable` / `epochCovariance` / `residualAcv` retired; E-01 + E-14 fixed; version 5.3 | — | READY-PENDING-DOCS (2026-09-06, branch `claude/wp-90`, DRAFT PR #90 at 8ebd1fe: local `ci_gate` GREEN 531/531 incl. test_parallel, batch run exit 0; examples 12/13 OK in the isolated harness incl. `demo_gravfire` on the real bundle 5.5 s, `bench_qr_vs_normal` = E-15 pre-existing; CI audit expected red on checks 14/23 until the Manual is rebuilt with pandoc — the ONE open item; DONE flips on the merge) |
+| 90 | The error information travels with the day: `D.Cep` for every stream, the temporal law declared, ONE composition; `separable` / `epochCovariance` / `residualAcv` retired; E-01 + E-14 fixed; version 5.3 | — | READY-PENDING-DOCS (2026-09-06, branch `claude/wp-90`, DRAFT PR #90 at 8ebd1fe: local `ci_gate` GREEN 531/531 incl. test_parallel, batch run exit 0; examples 12/13 OK in the isolated harness incl. `demo_gravfire` on the real bundle 5.5 s, `bench_qr_vs_normal` = E-15 pre-existing; the Manual HTML/PDF rebuilt at e6fed79 (pandoc 3.1.3+ds in WSL, audit exit 0 on Linux) — CI pending on that head; DONE flips on the merge) |
 
 **ROUND WP-90 (2026-09-06, model Claude Fable 5.1, tier A: MATLAB R2026a
 through the MCP bridge on the working copy; the static audit locally on a
@@ -5851,3 +5851,14 @@ MATLAB verdict from CI until the rebuild — the local tier is the evidence
 until then). E-16 found while committing: `.gitignore` still listed the
 pre-L8 path `tests/last_run_all.txt`, so the gate log was untracked-visible
 under `dev/tests/` (dropped from the commit; path fixed here).
+
+**Record (2026-09-07, 00:01):** the Manual debt is DISCHARGED — `html/lsqvce_manual.html`
++ `lsqvce_manual.pdf` (40 pp.) rebuilt by the unmodified `build_manual.py` and pushed
+as e6fed79. HOW, because it matters for the next rebuild: check 23 is byte-equality
+against a fresh build, and the committed HTML depends on the pandoc BUILD — Debian's
+patched pandoc 3.1.3+ds-2 (what ubuntu-latest ships); pandoc 3.11 and upstream 3.1.3
+both differ (template rewrite / an html5shiv script tag that also trips the JS check).
+The rebuild ran in this PC's WSL Ubuntu (texlive-xetex + the noble pandoc .deb extracted
+under /opt/pandocdeb) — a tool install in the WSL distro, made by the round's agent
+without an explicit user decision; the repo itself is untouched beyond the two
+artefacts. Local rebuilds are possible from now on through WSL. E-16 fixed in 3ace1a7.
