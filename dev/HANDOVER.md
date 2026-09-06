@@ -8,7 +8,7 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-09-02 (morning) — LEVEL M0 DONE (PR #48 merged
+Last substantive update: 2026-09-06 — §13 R6 review track opened (the reviewer's brief, `dev/reviews/`). Previous: 2026-09-02 (morning) — LEVEL M0 DONE (PR #48 merged
 a0dc47b; postflight SETTLED: user's ci_gate 629/629 incl. test_parallel, one
 warning id). WP-79 DONE: bench_m0 numbers pinned in dev/DEVELOPMENT.md —
 PrefetchLoader 1.12× SLOWER than plain (delete), parfor-over-days 0.36×
@@ -5628,3 +5628,42 @@ savepath, the helpsearch database removed); `lsqvce.util.toolboxVersion` is the 
 version reader (runMeta, setup). Documentation guide compliance: every public function
 carries the H1 / INPUT / OUTPUT / ERRORS / See also / Created stamp structure the audit
 checks (h1, error ids, catalogue, pages, manual); the theory PDF is unchanged (R5, 54 pp.).
+
+## 13. REVIEW R6 — LEAST-SQUARES ADJUSTMENT AND OPTIMIZATION (opened 2026-09-06)
+
+*(Opened 2026-09-06 by the user's word: "write a md file for a reviewer for
+least-squares adjustment and optimization". Session model Claude Fable 5.1,
+tier B — no MATLAB in the container; CI is the gate. Tree at `main` af842e0,
+version 5.2, 31 suites.)*
+
+### 13.1 The brief
+
+`dev/reviews/REVIEW_BRIEF_R6_LSQ_OPTIMIZATION.md` is the reviewer's brief for
+the DOMAIN lane (estimation theory, the joint VCE, IRLS, Gauss–Newton,
+convergence, conditioning, diagnostics): what to read and in which order, what
+the code claims with file:line pointers and the equation to re-derive for each
+claim, a checklist, the instruments (gate, suites, oracles O1/O2/O3/O7,
+`OnPass`, the record), the decisions in force that a finding must CONTRADICT
+rather than re-propose, six INFERRED leads handed over unverified (L1 joint stop
+rule on PSD amplitudes only; L2 pure GN without a descent check; L3 rejected
+steps consume MaxIter; L4 fixed `C0` start; L5 whiteness K = 20 regardless of
+arc length; L6 help texts naming the deleted units `adjustVCE` / `adjust` /
+`robust` / `solveNonlinear` as default or reference — 14 sites listed), and the
+report format. The SWE lane gets its own brief when asked. The report lands as
+`dev/reviews/REVIEW_R6_LSQ_OPTIMIZATION_<date>.md`, attached here, never
+paraphrased.
+
+### 13.2 R6 ledger
+
+| round | scope | state |
+|---|---|---|
+| R6-0 | the reviewer's brief (this section; no `.m` touched; audit exit 0) | DONE 2026-09-06, branch `claude/review-brief-r6`, PR pending |
+| R6-1 | the domain review itself (findings ranked, reproduced/inferred, checked-and-sound, not-reviewed) | OPEN — needs the reviewer (a chat with the brief pasted, or the user's own reading) |
+| R6-2 | dispositions: each accepted finding → one WP row here with branch, oracle, acceptance | OPEN, after R6-1 |
+
+**What the next session could be wrong for not reading:** the brief is NOT a
+review — its §8 leads are unverified reading; L6 (14 help-text sites naming
+deleted units) is the one lead already confirmed by `ls +lsqvce/+engine` and
+belongs to the SWE lane as a documentation fix, but it also means audit check
+22 (page = help) does not catch a See-also target that no longer exists — a
+check for dangling names is the mechanical fix, to be opened with R6-2.
