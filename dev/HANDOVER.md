@@ -5862,3 +5862,8 @@ The rebuild ran in this PC's WSL Ubuntu (texlive-xetex + the noble pandoc .deb e
 under /opt/pandocdeb) — a tool install in the WSL distro, made by the round's agent
 without an explicit user decision; the repo itself is untouched beyond the two
 artefacts. Local rebuilds are possible from now on through WSL. E-16 fixed in 3ace1a7.
+
+**Record (2026-09-07, sync):** PR #90 was BEHIND `main` (PRs #85–#87 moved the MATLAB
+job to the self-hosted runner and pinned the actions; ruleset 20998085 requires strict
+up-to-date checks), so `main` was merged into `claude/wp-90` — ci.yml only, no conflict
+— and CI reruns on the merged head.
