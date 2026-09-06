@@ -45,7 +45,11 @@ jobs:
       # The probe and the reasoning behind it now live in
       # .github/actions/matlab-probe. Same step, one definition.
       # Moves to astrobayer/ci-actions once that repository exists.
+      # timeout-minutes lives here, not in the action: GitHub's
+      # composite-action schema rejects the key on a step. The job-level
+      # cap above is the backstop regardless.
       - uses: ./.github/actions/matlab-probe
+        timeout-minutes: 2
 
       - uses: matlab-actions/run-command@v3
         with:

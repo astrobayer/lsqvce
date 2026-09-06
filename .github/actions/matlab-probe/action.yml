@@ -25,6 +25,20 @@
 #   fail by name, here, instead of as a confusing error inside the
 #   suite several minutes later.
 #
+# MEASURED LIMITATION: NO STEP-LEVEL timeout-minutes IN HERE
+#   The six copies this replaces each carried `timeout-minutes: 2`.
+#   GitHub's composite-action schema does not accept that key on a
+#   step, and the runner refuses to load the file:
+#
+#     action.yml (Line: 59, Col: 7): Unexpected value 'timeout-minutes'
+#
+#   So the lift is NOT byte-identical, which is exactly what the
+#   repository-local trial run was for. The cap now sits on the CALLER's
+#   step instead. Whether GitHub enforces a step-level timeout against a
+#   composite action is not something this file can assert - the caller
+#   carries it, and the job-level timeout-minutes remains the backstop
+#   either way.
+#
 # NO INPUTS, NO OUTPUTS, ON PURPOSE
 #   This is a lift, not a redesign: the body is the step that already
 #   ran in six repositories, unchanged. An earlier draft of this file
@@ -56,7 +70,6 @@ runs:
   using: composite
   steps:
     - name: Verify MATLAB on PATH (self-hosted)
-      timeout-minutes: 2
       uses: matlab-actions/run-command@v3
       with:
         command: >
