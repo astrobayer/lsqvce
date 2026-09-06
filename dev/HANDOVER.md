@@ -8,7 +8,7 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-09-07 — REVIEW R6 + WP-90 READY: PR #90, CI green on c6fb014 (audit + matlab 506/506), local ci_gate 531/531 incl. test_parallel
+Last substantive update: 2026-09-07 — WP-90 DONE (PR #90, merge cc07b6a; postflight 531/531 + examples 12/13); WP-91 READY (PR #91, one batch iterator, E-09; CI green on 6af9abb; the Manual rebuild runs locally in WSL now, §12.15).
 (model Claude Fable 5.1, tier A: MATLAB R2026a over the working copy through
 the MCP bridge; the static audit runs locally on a found Python 3.12 but is
 Linux-only as an instrument, §12.14 E-12; no pandoc — the Manual rebuild is
