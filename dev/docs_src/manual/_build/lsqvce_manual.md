@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 5.2 — User Manual"
+title: "lsqvce 5.3 — User Manual"
 subtitle: "least-squares adjustment with variance component estimation"
 date: "built from the sources; the single documentation authority"
 ---
@@ -174,8 +174,20 @@ Fable 5. Rewritten for v3 and again for v4 (scoped tables) the same day (Claude 
 Semantics made explicit in v5: a full SPD weight matrix returned by a batch source is
 whitened exactly (`chol(P)`), and per-observation diagnostics of a batch problem are
 reported in the WHITENED frame (`R.diag.v = sqrt(p).*v`; only their sums are
-frame-invariant). Multi-axis streams must be declared `separable` (a `diag` law ignores the
-per-epoch covariance).
+frame-invariant).
+
+### 0b. The v5.3 delta (R6 WP-90): the error information travels with the day
+
+What the preprocessing knows about the accuracy of every observation — a per-epoch
+standard deviation, per-axis standard deviations, or a full 3 × 3 covariance per epoch — is
+DATA, and it comes back from `buildDay` WITH the day, as **`D.Cep`** (§3.4, §7), for ANY
+stream: `nEpoch × 1` for a scalar stream, `nEpoch × d` or `nEpoch × d × d` for a multi-axis
+one. The axis count is derived from it. The covariance spec (§5) declares the TEMPORAL law
+only — `diag` (white), `arma`, `psd`, `acf` — and the toolbox composes
+C = D (R_t ⊗ I_d) D per arc. Retired with this: the `separable` type (it was `arma` + Cep),
+the `epochCovariance` hook (an unknown field now), and a static `Cep` on the spec (refused
+when the day carries one: one fact, one authority). Nothing else about the declaration
+changed.
 
 ### 0. The v4 principle: state nothing the data already states — and scope, don't number
 
@@ -270,11 +282,11 @@ unused optional field with `[]`.
 | `id` | double 1×1 **or** single char | the index k | system identifier, unique across systems (explicit ids and index defaults share one namespace). Longer labels go in `name`. |
 | `name` | char / string | `''` | human-readable label used in reports. |
 | `processingOptions` | struct | `struct()` | anything your `buildDay` needs (paths, force models); passed as its 5th argument. |
-| `epochCovariance` | function handle | `[]` | `@(day,obsType)` per-epoch D hook for multi-axis streams — the exact separable-descale path of the VCE Shape step, §7. |
 
 **Rule of thumb for beginners:** `buildDay` + `covariance` is a complete system. Add `arcs`
 when a day has more than one arc, `'arc'` template rows in `localParams` when arcs carry
-their own unknowns, the rest when you need it.
+their own unknowns, the rest when you need it. (The v5.2 `epochCovariance` hook is gone —
+the per-epoch error information comes back from `buildDay` as `D.Cep`, §7.)
 
 #### 2.4 A pitfall you will hit once: `struct()` with cell values
 
@@ -344,8 +356,8 @@ would be reweighted twice.
 |---|---|---|
 | `arcIdx` | cell, 1×nArc | row-index vector of each arc (lengths may differ). Absent → the whole day is one arc. |
 | `arcId` | double, 1×nArc | the **identity** of each arc, when the schedule is ragged (§4.2). Must name every `arcIdx` entry exactly once with unique positive integers. |
-| `nAxis` | 1×1 | for multi-axis streams (positions: 3), rows are epoch-major, m = nEpoch·nAxis (§7). |
-| `Cep` | nEpoch×d or nEpoch×d×d | per-epoch scaling of a multi-axis stream for this day (§7). **This is the standard D source.** |
+| `Cep` | nEpoch×1, nEpoch×d or nEpoch×d×d | **the error information of this day** (§7): the per-epoch standard deviation of a scalar stream, the per-axis standard deviations, or the full per-epoch covariance of a multi-axis stream. nEpoch·d must equal the row count; the axis count d is derived from it. |
+| `nAxis` | 1×1 | the axis count of a multi-axis stream WITHOUT `Cep` (rows epoch-major, m = nEpoch·nAxis, §7). Derived from `Cep` when that is present; given as well, it must agree. |
 
 #### 3.5 What is checked, and the error you get
 
@@ -355,8 +367,13 @@ would be reweighted twice.
 | `lsqvce:makeLoader:badDay` | a required field (`A`, `B`, `l`, `t`) is missing |
 | `lsqvce:makeLoader:dayShape` | `A`, `B`, `l`, `t` do not share a row count |
 | `lsqvce:accum:arcBadNc` / `arcBadNl` | `A` or `B` has the wrong number of columns — the derived nc/nl are enforced against **every** day |
-| `lsqvce:makeLoader:badArc` | a positional arc id is out of range (static schedule declared wrongly) |
+| `lsqvce:makeLoader:badArc` | a positional arc id is out of range (static schedule declared wrongly), or an arc of a multi-axis day does not hold whole epochs |
 | `lsqvce:makeLoader:badArcId` | `arcId` does not name every `arcIdx` entry exactly once |
+| `lsqvce:makeLoader:badDayCep` | `Cep` is not nEpoch×1 / nEpoch×d / nEpoch×d×d, or nEpoch·d is not the row count |
+| `lsqvce:makeLoader:axisConflict` | `nAxis` disagrees with `Cep` (or with a `d` on the spec), or does not divide the row count |
+| `lsqvce:makeLoader:cepTwice` | the covariance spec carries a `Cep` AND the day returns one |
+| `lsqvce:covModel:cepOnVar` | a `var` law (its own cross-axis structure) with a `Cep` |
+| `lsqvce:makeLoader:noCep` | *(warning, once per run)* a multi-axis day without `Cep`: the axes are weighted by the temporal law alone (D = I) |
 
 These are raised **while reading**, by the engine, and keep their engine ids. Errors in the
 *declaration* itself are raised by `fit` before any data is read and carry `lsqvce:fit:` ids
@@ -399,18 +416,22 @@ convenience on `lsqvce.engine.makeLoader`; `fit` rejects it with `lsqvce:fit:bad
 
 ### 5. Covariance specs — the `covariance.(obsType)` structs
 
-One struct per observation type; `type` selects the model. The most common:
+One struct per observation type; `type` selects the **temporal law** — how the errors of
+one stream are correlated down the epochs. The most common:
 
 | `type` | fields | use for |
 |---|---|---|
-| `'diag'` | `sigma` (scalar or m×1 std) | uncorrelated noise, e.g. `struct('type','diag','sigma',0.2)` |
+| `'diag'` | `sigma` (scalar std) | uncorrelated noise, e.g. `struct('type','diag','sigma',0.2)` |
 | `'arma'` | `ar` `[1 a1 … ap]`, `ma` (default 1), `sigma` (innovation std) | coloured noise with a known filter |
 | `'acf'` | `acf` `@(dt,opt)`, `sigma` | correlation given as a function of the lag |
 | `'psd'` | `f` (nf×1, Hz), `S` (nf×1) | noise given as a one-sided PSD |
-| `'var'` | `ar` (d×d×p), `sigma` (d×d) | vector-AR for multi-axis streams |
+| `'var'` | `ar` (d×d×p), `sigma` (d×d) | vector-AR for multi-axis streams with cross-axis temporal correlation (no `Cep`) |
 
-`sigma` is always a **standard deviation**, never a variance. The VCE loop scales these
-specs at run time; you only give the starting point. Full reference: `doc lsqvce.engine.covModel`.
+`sigma` is always a **standard deviation**, never a variance, and it is the LEVEL of the law.
+The accuracy of the individual observations — what varies from epoch to epoch — is not
+declared here: it comes back from `buildDay` with the day as `D.Cep` (§7), and the toolbox
+composes the two. The VCE loop scales and reshapes these specs at run time; you only give
+the starting point. Full reference: `doc lsqvce.engine.covModel`.
 
 ---
 
@@ -480,23 +501,38 @@ unknowns is still the **default**: declare no `localParams` and return `B = zero
 
 ---
 
-### 7. Multi-axis streams (positions)
+### 7. The error information — `D.Cep` on the returned day
 
-A kinematic position has three components per epoch that share one temporal law. Return
-the rows **epoch-major** (x₁ y₁ z₁ x₂ y₂ z₂ …), set `nAxis = 3`, and provide the per-epoch
-scaling `D`:
+The covariance of a stream has two parts. The **temporal law** R_t (white, AR, a PSD) is
+declared in §5 and estimated by `Estimate="noise"`. The **per-epoch accuracy** D — what the
+preprocessing knows about each observation: a PPP covariance, a per-epoch sigma from a
+fit, a weight from an earlier screening — is DATA, and you return it with the day:
 
-- **Standard: `Cep` on the returned day** (nEpoch×d or nEpoch×d×d) — you know D when you
-  build the day. Alternative for a *static* scaling: `Cep` on the covariance spec. A
-  multi-axis stream with no `D` is an error (`noD`).
-- **`epochCovariance` hook (optional, VCE only).** Whitening never needs it — but the
-  **Shape step** of the VCE iteration (re-estimating the temporal AR law from residuals)
-  does not read the day's `Cep`: with the hook it takes the *exact separable de-scale* path
-  (`lsqvce.kernel.residualAcv` with the full per-epoch D, fetched per day **without**
-  rebuilding the day); without it, it falls back to descaling by the stream's current
-  scalar σ — an approximation that biases the estimated AR law when D varies strongly
-  across epochs (changing geometry/PDOP). Declare the hook when you run `Estimate="noise"` on
-  multi-axis streams and have D available independently of the day build.
+```matlab
+D.Cep = sigmaPerEpoch;                     % nEpoch x 1      scalar stream
+D.Cep = [sx sy sz];                        % nEpoch x 3      per-axis sigmas (diagonal D)
+D.Cep = permute(reshape(Q.', 3, 3, []), [3 1 2]);   % nEpoch x 3 x 3  full per-epoch covariance
+```
+
+The toolbox composes C = D (R_t ⊗ I_d) D per arc: every epoch is de-scaled by D^-1/2 (for
+d = 1 that is a division by the sigma), then the temporal whitener runs down the epochs of
+each axis. The axis count d is `size(Cep, 2)`; `nAxis` is derived from it. Rows of a
+multi-axis stream are **epoch-major** (x₁ y₁ z₁ x₂ y₂ z₂ …), so nEpoch·d must equal the row
+count, and an arc must hold whole epochs. Under `Estimate="noise"` the estimator de-scales
+the residuals of every arc by the same D before it forms the lag statistics, so the
+estimated law is the law of the *normalised* errors — a scalar stream with a per-epoch
+sigma is handled exactly like a 3-axis one.
+
+Rules:
+
+- One authority: `Cep` lives on the day. A `Cep` on the covariance spec together with one
+  on the day is refused (`cepTwice`); a `d` on the spec that disagrees with the day is
+  refused (`axisConflict`).
+- A multi-axis day **without** `Cep` (set `nAxis`) is composed with D = I and reported once
+  per run (`lsqvce:makeLoader:noCep`) — the omission is distinguishable from a choice.
+- `sigma` on the spec stays the LEVEL of the law; `Cep` is relative to it. Declare `sigma`
+  1 when `Cep` already carries the absolute accuracy.
+- A `var` law carries its own cross-axis structure and takes no `Cep`.
 
 ---
 
@@ -599,8 +635,9 @@ derivations of §0.
 - [ ] Ragged schedule → resolver + `arcId`; static schedule → count/vector, no `arcId`.
 - [ ] Local unknowns: scoped `localParams` templates, `B` filled from `info` offsets only;
       not declared → `B = zeros(m, 0)`.
-- [ ] Multi-axis streams: epoch-major rows, `nAxis`, `Cep` on the day; the `epochCovariance`
-      hook when Estimate="noise" should descale per epoch (the separable law).
+- [ ] The error information: `Cep` on the day (nEpoch×1 for a scalar stream; nEpoch×d or
+      nEpoch×d×d, rows epoch-major, for a multi-axis one); the spec declares the temporal
+      law and its level only.
 - [ ] No unknown field names in `data` (a typo is an error, on purpose — and so are the v2
       count fields and, since v4, `localsPerArc`).
 
@@ -648,10 +685,8 @@ data = struct('batchFcn', @(k, x) myJacobian(k, x), 'numBatches', 20, 'x0', x0);
 R = lsqvce.fit(data, MaxPasses=15);                     % adjustNonlinear (Gauss-Newton)
 ```
 
-**One sentence on stream names (from the L2 CI catch):** a stream whose observation type is
-`pos` is treated as **3 components per epoch** by default (`Options.ComponentsPerEpoch`), which
-selects the separable model and needs a per-epoch scaling (§7). A scalar stream that happens
-to be called `pos` must declare `ComponentsPerEpoch = struct('pos', 1)`.
+Stream names carry no meaning: the axis count of a stream comes from the day it returns
+(`Cep` or `nAxis`, §7), never from its name.
 
 
 # Options — the complete reference
@@ -875,9 +910,10 @@ LSQVCE.FIT  Fit a least-squares adjustment (optionally with VCE) to declared dat
                                  purpose -- and so are the retired fields:
                                  common, numCommon, numLocal,
                                  observationTypes, systemId, cache, loader,
-                                 plotPostSolve, plotPostModel, and since
-                                 v4 localsPerArc: declare 'arc' rows in
-                                 localParams instead)
+                                 plotPostSolve, plotPostModel, since v4
+                                 localsPerArc (declare 'arc' rows in
+                                 localParams instead), and since v5.3
+                                 epochCovariance (the day returns Cep))
       lsqvce:fit:noSystems       data.systems missing, not a struct, or empty
       lsqvce:fit:noCommon        data.commonParams missing, or not a 2-D
                                  cell of template rows
@@ -928,16 +964,23 @@ LSQVCE.FIT  Fit a least-squares adjustment (optionally with VCE) to declared dat
                                  u is stated once (numel(x0))
     Your buildDay is wrong (raised WHILE READING, by the engine, ids
     unchanged): lsqvce:makeLoader:badDay / dayShape / badArc / badArcId /
-    buildDay, lsqvce:accum:arcBadNc / arcBadNl
+    buildDay / badDayCep / axisConflict / cepTwice (v5.3: the day's Cep and
+    axis count), lsqvce:covModel:cepOnVar, lsqvce:accum:arcBadNc / arcBadNl;
+    lsqvce:makeLoader:noCep is a once-per-run warning (a multi-axis day
+    without Cep is composed with D = I)
 
-  See also LSQVCE.OPTIONS, LSQVCE.RESULTS, LSQVCE.ENGINE.MAKELOADER,
-           LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCE, LSQVCE.ENGINE.ADJUSTVCEJOINT,
-           LSQVCE.ENGINE.ADJUST, LSQVCE.ENGINE.ROBUST, LSQVCE.ENGINE.SOLVENONLINEAR
+  See also LSQVCE.OPTIONS, LSQVCE.RESULTS, LSQVCE.LAYOUT, LSQVCE.ENGINE.DECLARATION,
+           LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT,
+           LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTNONLINEAR
 
   Created 2026-08-31 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
   model Claude Fable 5 -- R4 Level L2, WP-56 (decision R4-D4).
   Help rewritten 2026-09-04 for v5.2 (R5 M5 / R5-D8), model Claude Fable 5.1:
   the v5 surface (Estimate, priors, paramColumns, OnPass, layout, toTable).
+  Updated 2026-09-06 (CEST, UTC+02:00), R6 WP-90: the error information
+  travels with the day (D.Cep); epochCovariance retired; the See also on
+  the units that exist. With assistance from Claude (Anthropic), model
+  Claude Fable 5.1.
 ```
 
 
@@ -1386,11 +1429,13 @@ the `group` form with `estimate="scale"`, rows without a label one fixed-σ grou
 # Stochastic models and their estimation
 
 Every observation stream carries a covariance spec in `data.systems(k).covariance.<type>`
-(chapter 3 lists the fields): `diag` (weights), `arma` / `ar` (a whitening filter),
-`acf` / `psd` (an exact Toeplitz law), `separable` (a temporal law times a fixed per-epoch
-covariance — the declaration for multi-axis streams; a `diag` law would ignore the
-per-epoch covariance). Batches are overlapped by the filter memory automatically, so
-batching never changes the result.
+(chapter 3 lists the fields) — its TEMPORAL law: `diag` (white), `arma` / `ar` (a whitening
+filter), `acf` / `psd` (an exact Toeplitz law). The per-epoch accuracy of the observations
+(a sigma per epoch, or a full d × d covariance per epoch for a multi-axis stream) is not
+declared: `buildDay` returns it with the day as `D.Cep` (chapter 3, §7) and the toolbox
+composes C = D (R_t ⊗ I_d) D per arc — for every temporal law, scalar streams included.
+Batches are overlapped by the filter memory automatically, so batching never changes the
+result.
 
 With `Estimate="noise"` the joint estimator (theory ch. 6, Ellmer 2018) runs on every
 stream whose spec allows it (`estimate = "law"` default; `"scale"` = level only, the
@@ -1516,7 +1561,6 @@ What `fit` dispatches to and what it is built from. One line per public unit, fr
 | `levinsonDurbin` | Levinson-Durbin recursion |
 | `psd2acv` | PSD -> autocovariance |
 | `redundancyLags` | redundancy per lag without the dense W^-1 |
-| `residualAcv` | autocovariance of residuals |
 | `separableWhiten` | separable (temporal x axis) whitening |
 | `toeplitzCofactor` | Toeplitz cofactor construction |
 | `varACV` | VAR autocovariance |
@@ -1647,7 +1691,6 @@ Every identifier the package raises, from `dev/docs_src/error_ids.csv` (the cata
 | `lsqvce:adjustVCEjoint:localNotPD` | engine.adjustVCEjoint — error — v4.0 |
 | `lsqvce:adjustVCEjoint:needCfcn` | engine.adjustVCEjoint — error — v4.0 |
 | `lsqvce:adjustVCEjoint:noArcs` | engine.adjustVCEjoint — error — v4.0 |
-| `lsqvce:adjustVCEjoint:noCep` | engine.adjustVCEjoint — error — v4.0 |
 | `lsqvce:adjustVCEjoint:notConverged` | engine.adjustVCEjoint — warning — v4.0 |
 | `lsqvce:adjustVCEjoint:notPD` | engine.adjustVCEjoint — error — v4.0 |
 | `lsqvce:adjustVCEjoint:skipThreshold` | engine.adjustVCEjoint — error — v4.0 |
@@ -1686,13 +1729,12 @@ Every identifier the package raises, from `dev/docs_src/error_ids.csv` (the cata
 | `lsqvce:covModel:badPsdMode` | engine.covModel — error — v4.0 |
 | `lsqvce:covModel:badSigma` | engine.covModel — error — v4.0 |
 | `lsqvce:covModel:badWhitenMode` | engine.covModel — error — v4.0 |
+| `lsqvce:covModel:cepOnVar` | engine.covModel — error — v5.3 |
 | `lsqvce:covModel:degeneratePSD` | engine.covModel — error — v4.0 |
 | `lsqvce:covModel:negativePSD` | engine.covModel — warning — v4.0 |
 | `lsqvce:covModel:noACF` | engine.covModel — error — v4.0 |
 | `lsqvce:covModel:noAR` | engine.covModel — error — v4.0 |
-| `lsqvce:covModel:noCep` | engine.covModel — error — v4.0 |
 | `lsqvce:covModel:noCovForm` | engine.covModel — error — v4.0 |
-| `lsqvce:covModel:noD` | engine.covModel — error — v4.0 |
 | `lsqvce:covModel:noFcn` | engine.covModel — error — v4.0 |
 | `lsqvce:covModel:noFilterForm` | engine.covModel — error — v4.0 |
 | `lsqvce:covModel:noPSD` | engine.covModel — error — v4.0 |
@@ -1766,20 +1808,21 @@ Every identifier the package raises, from `dev/docs_src/error_ids.csv` (the cata
 | `lsqvce:makeLoader:badArc` | engine.makeLoader — error — v4.0 |
 | `lsqvce:makeLoader:badArcId` | engine.makeLoader — error — v4.0 |
 | `lsqvce:makeLoader:badArcs` | engine.makeLoader — error — v4.0 |
+| `lsqvce:makeLoader:axisConflict` | engine.makeLoader — error — v5.3 |
 | `lsqvce:makeLoader:badDay` | engine.makeLoader — error — v4.0 |
 | `lsqvce:makeLoader:badDayCep` | engine.makeLoader — error — v4.0 |
-| `lsqvce:makeLoader:badPlotHandle` | engine.makeLoader — error — v4.0 |
 | `lsqvce:makeLoader:badPrior` | engine.makeLoader — error — v4.0 |
 | `lsqvce:makeLoader:badScope` | engine.makeLoader — error — v4.0 |
 | `lsqvce:makeLoader:badValidity` | engine.makeLoader — error — v4.0 |
+| `lsqvce:makeLoader:cepTwice` | engine.makeLoader — error — v5.3 |
 | `lsqvce:makeLoader:buildDay` | engine.makeLoader — error — v4.0 |
 | `lsqvce:makeLoader:dayShape` | engine.makeLoader — error — v4.0 |
 | `lsqvce:makeLoader:localPlan` | engine.makeLoader — error — v4.0 |
 | `lsqvce:makeLoader:ncConflict` | engine.makeLoader — error — v4.0 |
 | `lsqvce:makeLoader:nlConflict` | engine.makeLoader — error — v4.0 |
+| `lsqvce:makeLoader:noCep` | engine.makeLoader — warning — v5.3 |
 | `lsqvce:makeLoader:noArcs` | engine.makeLoader — error — v4.0 |
 | `lsqvce:makeLoader:noCov` | engine.makeLoader — error — v4.0 |
-| `lsqvce:makeLoader:noD` | engine.makeLoader — error — v4.0 |
 | `lsqvce:makeLoader:noObsTypes` | engine.makeLoader — error — v4.0 |
 | `lsqvce:makeLoader:paramType` | engine.makeLoader — error — v4.0 |
 | `lsqvce:makeLoader:priorType` | engine.makeLoader — error — v4.0 |
@@ -1821,8 +1864,6 @@ Every identifier the package raises, from `dev/docs_src/error_ids.csv` (the cata
 | `lsqvce:redundancyLags:badLocal` | kernel.redundancyLags — error — v4.0 |
 | `lsqvce:redundancyLags:badUiZ` | kernel.redundancyLags — error — v4.0 |
 | `lsqvce:redundancyLags:badW` | kernel.redundancyLags — error — v4.0 |
-| `lsqvce:residualAcv:dayFcn` | kernel.residualAcv — error — v4.0 |
-| `lsqvce:residualAcv:noObs` | kernel.residualAcv — error — v4.0 |
 | `lsqvce:residuals:badSol` | engine.residuals — error — v4.0 |
 | `lsqvce:residuals:noStore` | engine.residuals — error — v4.0 |
 | `lsqvce:residuals:sigma0Mismatch` | engine.residuals — warning — v4.0 |

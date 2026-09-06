@@ -199,7 +199,7 @@ end
 function testEllmerRunsOnMultiAxisStreams(tc)
 % categories: contract, robustness
     % R5 M3 (H-15): the demo's 3-axis position streams are declared
-    % 'separable' (AR temporal law + per-epoch Cep). The joint (Ellmer)
+    % with the per-epoch Cep on the day (R6 WP-90: a 'diag' temporal law + Cep). The joint (Ellmer)
     % estimator now descales every epoch and takes the per-lag statistics
     % PER AXIS against the temporal law over EPOCHS -- so it RUNS (M1 refused
     % it) and returns a pass record; the numbers are a smoke check here, the

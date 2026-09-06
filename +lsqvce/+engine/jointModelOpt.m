@@ -36,7 +36,7 @@ function uo = jointModelOpt(model, streams, opt)
 %                           On iter == 1 .C may be the starting guess and
 %                           .sigma2 may be empty; both are handled.
 %     streams  1xS cell     the (sysID, obsType) pairs the override must cover,
-%                           each either 'satKey|obsType' (as LSQVCE.ENGINE.ADJUSTVCE
+%                           each either 'satKey|obsType' (as LSQVCE.FIT
 %                           names them) or a 1x2 cell {sysID, obsType}.
 %
 %   OPTIONS (Name/Value)
@@ -64,17 +64,24 @@ function uo = jointModelOpt(model, streams, opt)
 %         end
 %     end
 %
-%   NOTE: the 'vceMode','joint' path on LSQVCE.ENGINE.ADJUSTVCE does this internally
-%   (see its covOverrideOpt), so this helper is for callers driving
-%   LSQVCE.ENGINE.ADJUSTVCEJOINT themselves.
+%   NOTE: LSQVCE.FIT drives LSQVCE.ENGINE.ADJUSTVCEJOINT through this helper;
+%   it is public for callers driving the joint estimator themselves. The
+%   override carries the temporal law and a level for every stream; a
+%   stream's per-epoch error information (the day's Cep) composes with it in
+%   the loader, so multi-axis and scalar streams need no special case here
+%   (R6 WP-90: the former 'Separable' option is gone).
 %
 %   ERRORS
 %     lsqvce:jointModelOpt:badModel   the model spec is unrecognised
 %     lsqvce:jointModelOpt:badStream  the stream key is unknown
 %     lsqvce:jointModelOpt:badC       the cross-covariance has the wrong shape
 %
-%   See also LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.ENGINE.ADJUSTVCE, LSQVCE.ENGINE.COVMODEL
+%   See also LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.MAKELOADER
 %
+%   Updated 2026-09-06 (CEST, UTC+02:00), R6 WP-90: the 'Separable' option
+%   and the AR form of the law retired -- the loader composes the PSD law
+%   with the arc's Cep. With assistance from Claude (Anthropic), model
+%   Claude Fable 5.1.
 %   Updated 2026-09-01 (CEST, UTC+02:00), R4 G-08 (Level L3): the acf lookup
 %   converts covModel's TIME lags to SAMPLE lags with dt taken from the
 %   batch's own lag matrix; before, dt ~= 1 s gave a wrongly sampled, then
@@ -100,11 +107,6 @@ arguments
     opt.PsdMode (1,1) string {mustBeMember(opt.PsdMode, ["toeplitz","ar","arma"])} = "toeplitz"
     opt.Sigma (1,1) double {mustBePositive} = 1
     opt.Base (1,1) struct = struct()
-    opt.Separable cell = {}                 % R5 M3 (H-15): stream keys whose base law is
-                                            % 'separable'; they get an AR(p) TEMPORAL law
-                                            % fitted to C (Levinson) and KEEP their type,
-                                            % axis count and per-epoch Cep
-    opt.ArOrder (1,1) double {mustBeInteger, mustBePositive} = 20
 end
 
     o = struct('PsdMode', char(opt.PsdMode), 'Sigma', opt.Sigma, 'Base', opt.Base);
@@ -144,11 +146,11 @@ end
     % declared level times its own factor (sigmaScale, applied by
     % applyCovOverride) -- one global level would erase the scale difference
     % between, say, range-rate and positions (found on the demo: RCOND 1e-50).
-    [spec, specSep] = lawSpecs(C, o.Base, opt);
-    % R5 M3 (H-15): the SEPARABLE form of the same law -- an AR(p) fitted to C
-    % by Levinson, innovation std scaled by sig; the base spec's type, axis
-    % count d and per-epoch Cep survive the merge because they are not set here
-    sepKeys = cellfun(@(s) char(string(s)), opt.Separable, 'UniformOutput', false);
+    spec = lawSpecs(C, o.Base);
+    % R6 WP-90: the override carries the PSD law for EVERY 'law' stream; the
+    % LOADER composes it with the per-epoch Cep the arc carries (multi-axis
+    % or scalar) -- the former 'Separable' AR form is gone, the decision sits
+    % where the data is.
     perStream = [];
     if isfield(model, 'streamSigma2'), perStream = model.streamSigma2; end
 
@@ -185,15 +187,11 @@ end
             case 'stream',  gk = key;
             otherwise,      gk = 'all';
         end
-        spK = spec;  sepK = specSep;
+        sp = spec;
         if ~isempty(Cg) && isKey(Cg, gk) && ~strcmp(gk, 'all')
-            [spK, sepK] = lawSpecs(Cg(gk), o.Base, opt);
+            sp = lawSpecs(Cg(gk), o.Base);
         end
-        if ~isempty(sepK) && any(strcmp(sepKeys, key))
-            sp = struct('ar', sepK.ar, 'sigmaScale', lvl * sepK.sigmaScaleShape);
-        else
-            sp = spK;  sp.sigmaScale = lvl;
-        end
+        sp.sigmaScale = lvl;
         bySys.(satKey).(ot) = sp;
     end
 
@@ -219,10 +217,10 @@ function [satKey, ot] = splitStreamKey(s)
     ot     = char(parts(2));
 end
 
-function [spec, specSep] = lawSpecs(C, base, opt)
-%LAWSPECS  The PSD-shape spec (and its separable AR form) of one covariance
-%   function C (sample lags): S(fNorm) = 2 [C_0 + 2 sum_n C_n cos(2 pi fNorm n)]
-%   on L points 0..0.5, normalised to C(1) = 1, floored at eps*max.
+function spec = lawSpecs(C, base)
+%LAWSPECS  The PSD-shape spec of one covariance function C (sample lags):
+%   S(fNorm) = 2 [C_0 + 2 sum_n C_n cos(2 pi fNorm n)] on L points 0..0.5,
+%   normalised to C(1) = 1, floored at eps*max.
     C = C(:);
     L = numel(C);
     Cn = C / max(C(1), eps);
@@ -234,10 +232,4 @@ function [spec, specSep] = lawSpecs(C, base, opt)
     spec.type  = 'psd';
     spec.fNorm = fNorm;
     spec.S     = S;
-    specSep = [];
-    if ~isempty(opt.Separable)
-        p = min(opt.ArOrder, L - 1);
-        [ar, s2i] = lsqvce.kernel.levinsonDurbin(Cn, p);
-        specSep = struct('ar', reshape(ar, 1, []), 'sigmaScaleShape', sqrt(max(s2i, eps)));
-    end
 end

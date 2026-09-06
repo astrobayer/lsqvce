@@ -4,14 +4,14 @@ function tests = test_streamUtils
 %     lsqvce.engine.selectArAcv         automatic AR-order selection by ACV fidelity
 %     lsqvce.kernel.whitenessCorr          whiteness statistic
 %     lsqvce.engine.collectResiduals    stack a residual field over arcs
-%     lsqvce.kernel.residualAcv temporal ACV of D^-1 v (pos + rr paths)
+%     lsqvce.engine.makeLoader  / lsqvce.engine.covModel  the error information of a day (R6 WP-90)
 %
 %   Reference properties/tolerances established in validation/v9verify.py (14).
 %
 %   Run:
 %     results = runtests('tests/test_streamUtils');  disp(table(results))
 %
-%   See also LSQVCE.ENGINE.SELECTARACV, LSQVCE.KERNEL.RESIDUALACV, TEST_V8
+%   See also LSQVCE.ENGINE.SELECTARACV, LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.COVMODEL
     tests = functiontests(localfunctions);
 end
 
@@ -110,46 +110,6 @@ function testCollectResidualsRejectsMissingField(tc)
     tc.verifySubstring(caught.message, 'zz');   % the message names the field
 end
 
-%% ===================================================== residualAcv
-function testResidualAcvRejectsBadDayFcnAndEmptyStream(tc)
-% categories: contract
-% WP-43: both documented rejections of residualAcv, unexercised until the
-% check-16 count. dayFcn must be callable; a stream with no matching
-% observations must refuse with noObs rather than return an empty ACV.
-    rs = RandStream('mt19937ar','Seed',7);
-    [res, dayFcn] = makePosRes(rs, eye(3), 20, 1);
-    tc.verifyError(@() lsqvce.kernel.residualAcv(res, 'C', 'pos', 3, 5, 42), ...
-                   'lsqvce:residualAcv:dayFcn');
-    tc.verifyError(@() lsqvce.kernel.residualAcv(res, 'C', 'nope', 3, 5, dayFcn), ...
-                   'lsqvce:residualAcv:noObs');
-end
-
-function testDescaledAcvPosWhitens(tc)
-% categories: precision
-% pos: v = L w (coloured only instantaneously by D=LL'), de-scale -> white ACV.
-    rs = RandStream('mt19937ar','Seed',3);
-    d = 3;  nE = 600;  maxLag = 40;  L = [1 0 0; 0.3 0.8 0; -0.2 0.1 0.6];
-    [res, dayFcn] = makePosRes(rs, L, nE, 4);       % 4 arcs
-    [acv, nSamp] = lsqvce.kernel.residualAcv(res, 'C', 'pos', d, maxLag, dayFcn);
-    % tol: statistical identity on a finite sample; scatter ~ 1/sqrt(dof) of the fixture, bar sized 4/sqrt(Z)-style (HANDOVER 6.1.2)
-    tc.verifyEqual(acv(1), 1, 'RelTol', 0.1);       % r0 ~ 1
-    tc.verifyLessThan(abs(acv(2))/acv(1), 0.1);     % |r1/r0| small
-    tc.verifyEqual(nSamp, 4*d*nE);
-end
-
-function testDescaledAcvRrWhitens(tc)
-% categories: precision
-% rr: v = sigma .* w, de-scale by sigma -> white.
-    rs = RandStream('mt19937ar','Seed',5);
-    nE = 800;  maxLag = 30;
-    [res, dayFcn] = makeRrRes(rs, nE, 3);
-    [acv, nSamp] = lsqvce.kernel.residualAcv(res, 'C', 'rr', 1, maxLag, dayFcn);
-    % tol: statistical identity on a finite sample; scatter ~ 1/sqrt(dof) of the fixture, bar sized 4/sqrt(Z)-style (HANDOVER 6.1.2)
-    tc.verifyEqual(acv(1), 1, 'RelTol', 0.1);
-    tc.verifyLessThan(abs(acv(2))/acv(1), 0.1);
-    tc.verifyEqual(nSamp, 3*nE);
-end
-
 function testSatKeyOf(tc)
 % categories: contract
     tc.verifyEqual(lsqvce.engine.satKeyOf('C'), 's_C');
@@ -172,39 +132,13 @@ function a = arc(obsType, day, arcId, nE)
                'v', (1:3*nE).', 'w', (1:3*nE).');
 end
 
-function [res, dayFcn] = makePosRes(rs, L, nE, nArc)
-    d = size(L,1);  Cep = zeros(nE, d, d);
-    for i = 1:nE, Cep(i,:,:) = L*L.'; end
-    obs = repmat(arc('pos',1,1,nE), 1, nArc);
-    for k = 1:nArc
-        w = randn(rs, d, nE);  v = L*w;             % colour by D only
-        obs(k) = struct('obsType','pos', 'day',1, 'arc',k, ...
-                        'v', reshape(v, [], 1), 'w', reshape(v, [], 1));
-    end
-    res.sys(1).sysID = 'C';  res.sys(1).obs = obs;
-    dayStruct.Cep = Cep;
-    for k = 1:nArc, dayStruct.arc(k).epochs = 1:nE; dayStruct.arc(k).rows = 1:nE; end
-    dayFcn = @(s,dd) dayStruct;
-end
-
-function [res, dayFcn] = makeRrRes(rs, nE, nArc)
-    sigma = 0.5 + rand(rs, nE, 1);                  % per-epoch std
-    obs = repmat(arc('rr',1,1,nE), 1, nArc);
-    for k = 1:nArc
-        w = randn(rs, nE, 1);  v = sigma .* w;
-        obs(k) = struct('obsType','rr', 'day',1, 'arc',k, 'v', v, 'w', v);
-    end
-    res.sys(1).sysID = 'C';  res.sys(1).obs = obs;
-    dayStruct.sigma = sigma;
-    for k = 1:nArc, dayStruct.arc(k).rows = 1:nE; dayStruct.arc(k).epochs = 1:nE; end
-    dayFcn = @(s,dd) dayStruct;
-end
-
 %% ================= moved from test_adjustVCE (R5 M4 4c): loader / covModel
-function test_covModel_separable_whitens(tc)
+function test_covModel_composes_cep_with_the_temporal_law(tc)
 % categories: contract, precision
-    % A separable arc whitened by its own model must have ~unit-variance,
-    % temporally white output. Build data as D (R_t kron I_3) D and check.
+    % ENGINE tier (R6 WP-90): a TEMPORAL arma law plus cm.Cep -- what the
+    % loader sets from the day -- whitens a 3-axis arc built as
+    % D (R_t kron I_3) D to unit-variance, temporally white output; the
+    % axis count and the filter memory (p epochs = p*d rows) are reported.
     d = 3;  nE = 400;  dt = 5;
     Ld = [1 0 0; 0.3 1 0; 0.2 0.4 2.5];  Dep = Ld*Ld.';
     ar = [1 -0.5 0.1];  sig = 0.9;
@@ -216,9 +150,11 @@ function test_covModel_separable_whitens(tc)
     e(:) = W(:);                                  % epoch-major
     t = reshape(repmat((0:nE-1)*dt, d, 1), [], 1);
     Cep = repmat(reshape(Dep,1,d,d), nE, 1, 1);
-    cm = struct('type','separable','ar',ar,'sigma',sig,'d',d,'Cep',Cep);
+    cm = struct('type','arma','ar',ar,'sigma',sig,'Cep',Cep);
     [~, Wfcn, info] = lsqvce.engine.covModel(cm, t);
     verifyEqual(tc, info.nAxis, d);
+    verifyEqual(tc, info.filterMemory, 2 * d);
+    verifyEqual(tc, size(info.Cep), [nE d d]);
     A = randn(rs, d*nE, 2);
     [Aw,~,ew] = Wfcn(1:d*nE, A, zeros(d*nE,0), e);
     % whitened residual variance ~ 1 (unit innovation after full whitening)
@@ -256,17 +192,6 @@ function test_covOverride_flat_backcompat(tc)
     opt = struct('sysID',1, 'covOverride', struct('rr', struct('sigma', 5)));
     arc = Lcd.closure(cfg.days(1), 'rr', 1, opt);
     verifyTrue(tc, isa(arc.Wfcn, 'function_handle'));
-end
-
-function test_epochCov_hook_carried(tc)
-% categories: contract
-    hook = @(day, obsType) struct('day', day, 'obsType', obsType);
-    cov.rr = struct('type','diag','sigma',1);
-    L = lsqvce.engine.makeLoader(@(d,ot) makeTinyDay(), 'observationTypes', {'rr'}, ...
-            'covariance', cov, 'arcs', 1, 'systemId', 1, 'numLocal', 2, 'epochCovariance', hook);
-    verifyTrue(tc, isfield(L, 'epochCov'));
-    out = L.epochCov(3, 'rr');
-    verifyEqual(tc, out.day, 3);
 end
 
 %% ===================================================== SCALE (VCE) recovers weights
@@ -358,6 +283,189 @@ function test_prior_group_pattern_builds_L_from_the_name_column(tc)
     % explicit L: used as is; both: refused; no match: refused
     L2 = mk(struct('L', want, 'sigma', 0.01, 'name', 'acc'));
     tc.verifyEqual(L2.priors(1).L, want);
+    % R6 E-14: a scalar x0 is every row's (the data.priors rule; the GRAVFIRE
+    % template emits column 10 as a scalar per group and failed on the bundle)
+    L3 = mk(struct('group', 'acc$', 'x0', 0.5, 'sigma', 0.01, 'name', 'acc'));
+    tc.verifyEqual(L3.priors(1).x0, 0.5 * ones(4, 1));      % tol: exact -- a repmat
     tc.verifyError(@() mk(struct('group', 'acc$', 'L', want, 'sigma', 1)), 'lsqvce:makeLoader:badPrior');
     tc.verifyError(@() mk(struct('group', '^zzz$', 'sigma', 1)), 'lsqvce:makeLoader:badPrior');
+end
+
+%% ============================ R6 WP-90: the error information travels with the day
+function test_day_cep_composes_with_the_temporal_law_through_the_loader(tc)
+% categories: contract, precision
+    % A 3-axis day returns D.Cep (nEpoch x 3 x 3) and declares only the
+    % TEMPORAL law (arma). The loader derives nAxis, slices Cep per arc and
+    % covModel composes C = D (R_t kron I_3) D: the whitened normals of the
+    % arc must equal the dense decorrelation of that covariance -- the kernel
+    % identity of test_vceMath, now proven at the SEAM the user's data enters.
+    rs = RandStream('mt19937ar', 'Seed', 90);
+    d = 3;  nE = 40;  m = nE * d;
+    a = [1 -1.2 0.4];  s = 0.8;
+    r = s^2 * lsqvce.kernel.armaACV(a, 1, nE);
+    Rt = toeplitz(r / r(1));
+    Cep = zeros(nE, d, d);  Db = zeros(m);
+    for k = 1:nE
+        Q = 0.2 * randn(rs, d, d) + diag([1 1 2.5]);  Ck = Q * Q.';
+        Cep(k, :, :) = Ck;
+        ib = (k-1)*d + (1:d);  Db(ib, ib) = chol(Ck, 'lower');
+    end
+    C = Db * (kron(Rt, eye(d)) * r(1)) * Db.';
+    D = struct('A', randn(rs, m, 4), 'B', randn(rs, m, 2), 'l', randn(rs, m, 1), ...
+               't', reshape(repmat((0:nE-1)*5, d, 1), [], 1), 'Cep', Cep);   % NO nAxis: derived
+    cov.pos = struct('type', 'arma', 'ar', a, 'sigma', s);               % the temporal law only
+    L = lsqvce.engine.makeLoader(@(day, ot) D, 'ObservationTypes', {'pos'}, 'Covariance', cov, ...
+                                 'Arcs', 1, 'SystemId', 1, 'NumLocal', 2, 'NumCommon', 4);
+    arc = L.closure(1, 'pos', 1, struct('sysID', 1));
+    tc.verifyEqual(arc.nAxis, d, 'the axis count is derived from Cep');
+    tc.verifyEqual(size(arc.Cep), [nE d d], 'the per-epoch part travels with the arc');
+    tc.verifyEqual(arc.filterMemory, 2 * d, 'the filter memory is p epochs = p*d rows');
+    [Aw, Bw, lw] = arc.Wfcn(1:m, arc.A, arc.B, arc.l, struct());
+    W = lsqvce.kernel.decorrFactor(C);
+    Ad = W * D.A;  Bd = W * D.B;  ld = W * D.l;
+    % tol: rotation-invariant quadratic forms of the same whitening; eps*cond
+    % headroom -- the bound test_vceMath uses for the kernel identity
+    tc.verifyEqual(Aw.'*Aw, Ad.'*Ad, 'RelTol', 1e-8);
+    tc.verifyEqual(Aw.'*lw, Ad.'*ld, 'RelTol', 1e-8);     % tol: same source
+    tc.verifyEqual(Bw.'*Bw, Bd.'*Bd, 'RelTol', 1e-8);     % tol: same source
+    % Cfcn is the TEMPORAL covariance over epochs (what the joint estimator forms per axis)
+    % tol: the same armaACV arithmetic on the same doubles -- a few ulps
+    tc.verifyEqual(arc.Cfcn(1:nE, struct()), s^2 * toeplitz(lsqvce.kernel.armaACV(a, 1, nE)), 'RelTol', 1e-12);
+end
+
+function test_scalar_stream_cep_is_a_per_epoch_sigma(tc)
+% categories: contract, precision
+    % A scalar stream returns D.Cep as nEpoch x 1: the per-epoch standard
+    % deviation (finding E-03: this information could not travel with the
+    % day before). With a white law of level sigma the whitened rows are
+    % l ./ (sigma * Cep); with an arma law the composition equals the dense
+    % reference D R_t D.
+    rs = RandStream('mt19937ar', 'Seed', 91);
+    m = 50;  sig = 0.3;
+    cep = 0.5 + rand(rs, m, 1);
+    D = struct('A', randn(rs, m, 2), 'B', zeros(m, 0), 'l', randn(rs, m, 1), 't', (0:m-1).' * 5, 'Cep', cep);
+    mk = @(cm) lsqvce.engine.makeLoader(@(day, ot) D, 'ObservationTypes', {'rr'}, ...
+             'Covariance', struct('rr', cm), 'Arcs', 1, 'SystemId', 1, 'NumLocal', 0, 'NumCommon', 2);
+    arc = mk(struct('type', 'diag', 'sigma', sig)).closure(1, 'rr', 1, struct('sysID', 1));
+    tc.verifyFalse(isfield(arc, 'nAxis'), 'a scalar stream stays scalar');
+    [Aw, ~, lw] = arc.Wfcn(1:m, arc.A, arc.B, arc.l, struct());
+    % tol: two divisions vs one product-and-division of the same doubles -- a few ulps
+    tc.verifyEqual(lw, D.l ./ (sig * cep), 'RelTol', 1e-14);
+    tc.verifyEqual(Aw, D.A ./ (sig * cep), 'RelTol', 1e-14);   % tol: same source
+    a = [1 -0.7];  r = sig^2 * lsqvce.kernel.armaACV(a, 1, m);
+    arc = mk(struct('type', 'arma', 'ar', a, 'sigma', sig)).closure(1, 'rr', 1, struct('sysID', 1));
+    tc.verifyEqual(size(arc.Cep), [m 1], 'the per-epoch sigma travels with the arc');
+    C = diag(cep) * toeplitz(r) * diag(cep);
+    W = lsqvce.kernel.decorrFactor(C);
+    [Aw, ~, lw] = arc.Wfcn(1:m, arc.A, arc.B, arc.l, struct());
+    % tol: rotation-invariant quadratic forms of the same whitening; eps*cond headroom
+    tc.verifyEqual(Aw.'*Aw, (W*D.A).'*(W*D.A), 'RelTol', 1e-8);
+    tc.verifyEqual(Aw.'*lw, (W*D.A).'*(W*D.l), 'RelTol', 1e-8);   % tol: same source
+end
+
+function test_cep_refusals_by_name(tc)
+% categories: contract, robustness
+    % Every documented refusal of the WP-90 day contract fires with its own
+    % id and only that id; the retired 'separable' type names its
+    % replacement; a multi-axis day WITHOUT Cep is composed with D = I and
+    % said ONCE per run (the omission is distinguishable from a choice).
+    rs = RandStream('mt19937ar', 'Seed', 92);
+    nE = 10;  d = 3;  m = nE * d;
+    base = struct('A', randn(rs, m, 2), 'B', zeros(m, 0), 'l', randn(rs, m, 1), ...
+                  't', reshape(repmat((0:nE-1)*5, d, 1), [], 1));
+    mk = @(D, cm) lsqvce.engine.makeLoader(@(day, ot) D, 'ObservationTypes', {'pos'}, ...
+             'Covariance', struct('pos', cm), 'Arcs', 1, 'SystemId', 1, 'NumLocal', 0, 'NumCommon', 2);
+    read = @(D, cm) mk(D, cm).closure(1, 'pos', 1, struct('sysID', 1));
+    arm = struct('type', 'arma', 'ar', [1 -0.5], 'sigma', 1);
+    D = base;  D.Cep = ones(nE, d);  D.nAxis = 2;                       % nAxis disagrees with Cep
+    tc.verifyError(@() read(D, arm), 'lsqvce:makeLoader:axisConflict');
+    D = base;  D.Cep = ones(nE - 1, d);                                 % Cep does not cover the day
+    tc.verifyError(@() read(D, arm), 'lsqvce:makeLoader:badDayCep');
+    D = base;  D.Cep = ones(1, m);                                      % a row is not a per-epoch sigma
+    tc.verifyError(@() read(D, arm), 'lsqvce:makeLoader:badDayCep');
+    D = base;  D.Cep = ones(nE, d, 2);                                  % d x d only
+    tc.verifyError(@() read(D, arm), 'lsqvce:makeLoader:badDayCep');
+    D = base;  D.nAxis = 4;                                             % nAxis must divide the rows
+    tc.verifyError(@() read(D, arm), 'lsqvce:makeLoader:axisConflict');
+    D = base;  D.Cep = ones(nE, d);
+    cm = arm;  cm.d = 2;                                                % the spec's d disagrees
+    tc.verifyError(@() read(D, cm), 'lsqvce:makeLoader:axisConflict');
+    cm = arm;  cm.Cep = ones(nE, d);                                    % Cep on the spec AND the day
+    tc.verifyError(@() read(D, cm), 'lsqvce:makeLoader:cepTwice');
+    vr = struct('type', 'var', 'ar', 0.3 * eye(d), 'sigma', eye(d));    % a VAR has its own cross-axis structure
+    tc.verifyError(@() read(D, vr), 'lsqvce:covModel:cepOnVar');
+    caught = MException.empty;                                          % the retired type
+    try
+        read(D, struct('type', 'separable', 'ar', [1 -0.5], 'sigma', 1, 'd', d));
+    catch e
+        caught = e;
+    end
+    tc.verifyNotEmpty(caught, 'the retired type is refused');
+    tc.verifyEqual(caught.identifier, 'lsqvce:covModel:unknownType');
+    tc.verifySubstring(caught.message, 'Cep');
+    % a multi-axis day without Cep: D = I, reported once per run
+    w = warning('off', 'lsqvce:makeLoader:noCep');
+    tc.addTeardown(@() warning(w));
+    lsqvce.util.log.inventory('reset');
+    D = base;  D.nAxis = d;
+    L = mk(D, arm);
+    arc = L.closure(1, 'pos', 1, struct('sysID', 1));
+    tc.verifyEqual(arc.nAxis, d);
+    tc.verifyEqual(arc.Cep, ones(nE, d), 'composed with D = I');
+    L.closure(1, 'pos', 1, struct('sysID', 1));                          % a second read: silent
+    inv = lsqvce.util.log.inventory();
+    tc.verifyEqual(sum(strcmp(inv, 'lsqvce:makeLoader:noCep')), 1, 'said once per run');
+end
+
+function test_cep_is_sliced_by_arc_position_not_id(tc)
+% categories: contract, robustness
+    % Finding E-01: the day's Cep was sliced with the arc ID instead of the
+    % arc's POSITION in D.arcId. A day carrying arcs [3 1] (in that order)
+    % with DIFFERENT per-epoch sigmas per arc must whiten arc 3 with ITS
+    % epochs' sigmas. Scalar stream, white law of level 1: whitened l = l ./ Cep.
+    rs = RandStream('mt19937ar', 'Seed', 93);
+    n1 = 8;  n3 = 12;  m = n1 + n3;
+    cep = [10 * ones(n3, 1); 0.1 * ones(n1, 1)];        % rows of arc 3 first, then arc 1
+    D = struct('A', randn(rs, m, 2), 'B', zeros(m, 0), 'l', randn(rs, m, 1), 't', (0:m-1).' * 5, ...
+               'Cep', cep, 'arcIdx', {{1:n3, n3 + (1:n1)}}, 'arcId', [3 1]);
+    L = lsqvce.engine.makeLoader(@(day, ot) D, 'ObservationTypes', {'rr'}, ...
+             'Covariance', struct('rr', struct('type', 'diag', 'sigma', 1)), ...
+             'Arcs', @(day, ot) [1 3], 'SystemId', 1, 'NumLocal', 0, 'NumCommon', 2);
+    a3 = L.closure(1, 'rr', 3, struct('sysID', 1));
+    [~, ~, w3] = a3.Wfcn(1:n3, a3.A, a3.B, a3.l, struct());
+    % tol: a division by the same double (10, then by sigma 1) -- exact
+    tc.verifyEqual(w3, D.l(1:n3) / 10, 'AbsTol', 0);
+    a1 = L.closure(1, 'rr', 1, struct('sysID', 1));
+    [~, ~, w1] = a1.Wfcn(1:n1, a1.A, a1.B, a1.l, struct());
+    % tol: the same division by the same double -- a few ulps at most
+    tc.verifyEqual(w1, D.l(n3 + (1:n1)) / 0.1, 'RelTol', 1e-15);
+end
+
+function test_psd_law_composes_on_the_epoch_grid(tc)
+% categories: precision
+    % A PSD law on a 3-axis day: the temporal covariance must be built with
+    % the EPOCH spacing (5 s), not the row spacing an epoch-major t shows
+    % (0, 0, 5, 0, 0, 5, ...) -- the round-3b class of bug. Reference:
+    % psd2acv at dt = 5 over nE epochs.
+    rs = RandStream('mt19937ar', 'Seed', 94);
+    d = 3;  nE = 64;  m = nE * d;  dt = 5;
+    f = linspace(0, 0.5/dt, 257).';
+    H = 1 ./ (exp(-1i*2*pi*f*dt*(0:1)) * [1 -0.6].');
+    S = 0.7^2 * dt * 2 * abs(H).^2;
+    D = struct('A', randn(rs, m, 2), 'B', zeros(m, 0), 'l', randn(rs, m, 1), ...
+               't', reshape(repmat((0:nE-1)*dt, d, 1), [], 1), 'Cep', ones(nE, d));
+    L = lsqvce.engine.makeLoader(@(day, ot) D, 'ObservationTypes', {'pos'}, ...
+             'Covariance', struct('pos', struct('type', 'psd', 'f', f, 'S', S)), ...
+             'Arcs', 1, 'SystemId', 1, 'NumLocal', 0, 'NumCommon', 2);
+    arc = L.closure(1, 'pos', 1, struct('sysID', 1, 'psdMode', 'toeplitz'));
+    tc.verifyEqual(arc.nAxis, d);
+    Cref = toeplitz(lsqvce.kernel.psd2acv(f, S, dt, nE));
+    % tol: the same psd2acv quadrature on the same grid; covModel's 1e-8
+    % ridge on r(1) (psdRidge default) is the only difference -> 1e-7 relative
+    tc.verifyEqual(arc.Cfcn(1:nE, struct()), Cref, 'RelTol', 1e-7);
+    % and the dense composition whitens: A' inv(C) A of the row covariance
+    Cfull = kron(Cref, eye(d));
+    [Aw, ~, ~] = arc.Wfcn(1:m, arc.A, arc.B, arc.l, struct('psdMode', 'toeplitz'));
+    % tol: quadratic forms of the same whitening (dense per axis); eps*cond headroom
+    tc.verifyEqual(Aw.'*Aw, D.A.' * (Cfull \ D.A), 'RelTol', 1e-6);
 end

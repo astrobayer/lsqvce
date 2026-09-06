@@ -78,7 +78,7 @@ THREE CONVENTIONS THAT ARE EASY TO GET WRONG (all encoded here)
                         On iter == 1 .C may be the starting guess and
                         .sigma2 may be empty; both are handled.
   streams  1xS cell     the (sysID, obsType) pairs the override must cover,
-                        each either &#x27;satKey|obsType&#x27; (as LSQVCE.ENGINE.ADJUSTVCE
+                        each either &#x27;satKey|obsType&#x27; (as LSQVCE.FIT
                         names them) or a 1x2 cell {sysID, obsType}.
 
 OPTIONS (Name/Value)
@@ -104,16 +104,23 @@ OPTIONS (Name/Value)
       end
   end
 
-NOTE: the &#x27;vceMode&#x27;,&#x27;joint&#x27; path on LSQVCE.ENGINE.ADJUSTVCE does this internally
-(see its covOverrideOpt), so this helper is for callers driving
-LSQVCE.ENGINE.ADJUSTVCEJOINT themselves.</pre>
+NOTE: LSQVCE.FIT drives LSQVCE.ENGINE.ADJUSTVCEJOINT through this helper;
+it is public for callers driving the joint estimator themselves. The
+override carries the temporal law and a level for every stream; a
+stream&#x27;s per-epoch error information (the day&#x27;s Cep) composes with it in
+the loader, so multi-axis and scalar streams need no special case here
+(R6 WP-90: the former &#x27;Separable&#x27; option is gone).</pre>
 <h3>Errors</h3>
 <pre class="example">  lsqvce:jointModelOpt:badModel   the model spec is unrecognised
   lsqvce:jointModelOpt:badStream  the stream key is unknown
   lsqvce:jointModelOpt:badC       the cross-covariance has the wrong shape
 
-See also LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.ENGINE.ADJUSTVCE, LSQVCE.ENGINE.COVMODEL
+See also LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.MAKELOADER
 
+Updated 2026-09-06 (CEST, UTC+02:00), R6 WP-90: the &#x27;Separable&#x27; option
+and the AR form of the law retired -- the loader composes the PSD law
+with the arc&#x27;s Cep. With assistance from Claude (Anthropic), model
+Claude Fable 5.1.
 Updated 2026-09-01 (CEST, UTC+02:00), R4 G-08 (Level L3): the acf lookup
 converts covModel&#x27;s TIME lags to SAMPLE lags with dt taken from the
 batch&#x27;s own lag matrix; before, dt ~= 1 s gave a wrongly sampled, then

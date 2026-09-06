@@ -1,7 +1,8 @@
 # HANDOVER.md §5 WP-30 D4 (pinned 2026-08-17/18)
 *.asv
 *.autosave
-tests/last_run_all.txt
+dev/tests/last_run_all.txt
+dev/tests/last_run_*.txt
 exports/
 .DS_Store
 

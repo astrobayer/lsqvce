@@ -3,288 +3,216 @@ function L = makeLoader(buildDay, opt)
 %   L = lsqvce.engine.makeLoader(buildDay, Name, Value, ...)
 %
 %   You write the ONE part that is genuinely yours -- reading your data for a
-%   day and returning its design matrix and observations -- and makeLoader
-%   supplies the protocol the accumulator expects (the 'meta' discovery call,
-%   the per-arc slicing, a single-day cache, and the covariance/whitener via
-%   LSQVCE.ENGINE.COVMODEL). The result L plugs straight into LSQVCE.ENGINE.ADJUSTBLOCK or
-%   LSQVCE.ENGINE.BLOCKACCUMULATOR/addSystem.
+%   day and returning its design matrices, observations and their error
+%   information -- and makeLoader supplies the protocol the accumulator
+%   expects: the 'meta' discovery call, the per-arc slicing, the day cache,
+%   and the covariance / whitener of every arc through LSQVCE.ENGINE.COVMODEL.
+%   The result L plugs straight into LSQVCE.ENGINE.ADJUSTBLOCK,
+%   LSQVCE.ENGINE.ADJUSTROBUST or LSQVCE.ENGINE.BLOCKACCUMULATOR/addSystem;
+%   LSQVCE.FIT builds one per declared system (LSQVCE.ENGINE.DECLARATION).
 %
 %   THE PART YOU WRITE
-%     buildDay(day, obsType) -> struct with              (the classic 2-arg form)
-%     buildDay(day, obsType, common, local, procOpt) -> struct   (parameter-driven)
+%     buildDay(day, obsType) -> struct                            (classic)
+%     buildDay(day, obsType, common, local, procOpt) -> struct    (parameter-driven)
+%     buildDay(day, obsType, common, local, procOpt, info) -> struct   (with the layout)
 %         .A       m x nc    common design matrix for the whole day
 %         .B       m x nl    local design matrix (may be sparse)
-%         .l       m x 1     observations
-%         .t       m x 1     epoch timestamps [s]
-%         .arcIdx  1 x nArc  cell of row-index vectors, one per arc (optional; if
-%                            omitted, the whole day is one arc). Arc LENGTHS may
-%                            differ freely -- they are just row counts, and the
-%                            whitener is built per arc.
+%         .l       m x 1     observations (observed minus computed)
+%         .t       m x 1     epoch of every row [s]
+%         .arcIdx  1 x nArc  cell of row-index vectors, one per arc (optional;
+%                            omitted = the whole day is one arc; lengths may
+%                            differ freely, the whitener is built per arc)
 %         .arcId   1 x nArc  OPTIONAL arc ids naming the arcs THIS day carries
-%                            (WP-52). With it, arcs are addressed by id rather
-%                            than by position, so a day may omit arcs in the
-%                            middle of the schedule; an id this day does not
-%                            carry is treated as a data gap.
-%     It must be DETERMINISTIC: the accumulator reads each day a second time for
-%     residuals, and must get identical data back.
+%                            (WP-52): arcs are then addressed by id, a day may
+%                            omit ids in the middle of the schedule, and an id
+%                            it does not carry is a data gap
+%         .Cep     nEpoch x 1 | nEpoch x d | nEpoch x d x d   OPTIONAL: THE ERROR
+%                            INFORMATION of the day (R6 WP-90) -- the per-epoch
+%                            standard deviation of a scalar stream, the per-axis
+%                            standard deviations, or the full per-epoch
+%                            covariance of a d-axis stream. nEpoch * d must be
+%                            m; the axis count is DERIVED from it. The toolbox
+%                            composes it with the declared temporal law per arc:
+%                            C = D (R_t kron I_d) D.
+%         .nAxis   1x1       the axis count of a multi-axis stream WITHOUT Cep
+%                            (rows epoch-major, m = nEpoch * nAxis); derived
+%                            from Cep when that is present and must then agree
+%     It must be DETERMINISTIC: the accumulator reads each day a second time
+%     for the residuals and must get identical data back.
 %
-%     buildDay(day, obsType, common, local, procOpt, arcInfo) -> struct
-%         also receives the per-day local-block plan when 'localsPerArc' is
-%         declared (WP-52; empty otherwise).
-%
-%     buildDay is called with as many of the SIX arguments as it DECLARES, so an
-%     existing @(day,obsType) builder keeps working unchanged; a builder that
-%     also takes (common, local, procOpt) receives the parametrisation arrays and
-%     processing options passed to makeLoader (below). A builder that uses
-%     varargin receives all six. common/local have ONE ROW per unknown and C
-%     columns of YOUR convention (v3: no fixed column count); nc and nl are
-%     DERIVED from their row counts (see 'common'/'local').
+%     buildDay is called with as many of the SIX arguments as it DECLARES, so
+%     a @(day,obsType) builder keeps working unchanged; a builder that also
+%     takes (common, local, procOpt) receives the parametrisation tables and
+%     processing options passed to makeLoader; the 6th argument is the day's
+%     expansion slice (offsets of every block of A and B, the rows present on
+%     the day; the Manual, chapter 3 section 6.3). A varargin builder receives
+%     all six. common / local have ONE ROW per template and C columns of YOUR
+%     convention; nc and nl are DERIVED (see 'CommonParams' / 'LocalParams').
 %
 %   INPUT
-%     buildDay  1x1  function_handle   @(day,obsType) day builder (above).
-%                                      Required.
-%     Name/Value options ([] or omitted -> defaults). Each user option has a
-%     CANONICAL long-form name; the terse alias in (parentheses) is DEPRECATED
-%     but still accepted for one version (a one-time warning nudges migration):
-%       'observationTypes' 1xT cellstr/string  observation types, e.g.
-%                                       {'pos','kbr'}. Required.  (alias: 'obsTypes')
-%       'covariance' 1x1 struct         .(obsType) = a covariance spec for
-%                                       LSQVCE.ENGINE.COVMODEL (e.g.
-%                                       struct('type','arma','ar',..,'sigma',..)).
-%                                       One field per obsType. Required. (alias: 'cov')
-%       'arcs'     var  which arcs each day carries. STATIC forms (unchanged):
-%                        1x1 integer    -> arcs 1:arcs for every obsType
-%                        1xA vector     -> those arc ids for every obsType
-%                        1x1 struct     -> .(obsType) = any form on this list
-%                                       (default 1 -> a single arc per day)
-%                       RAGGED forms (WP-52; the accumulator probes 'meta'
-%                       PER DAY, so the schedule may differ from day to day):
-%                        function_handle -> @(day) or @(day,obsType) returning
-%                                       that day's arc ids. No data read.
-%                        'fromDay'      -> read the day and take its .arcId,
-%                                       or 1:numel(.arcIdx). Convenient, but it
-%                                       reads data during the probe (the
-%                                       single-day cache makes the following
-%                                       arc reads free); prefer the resolver
-%                                       when the schedule is known.
-%                       With ragged arcs the day may declare .arcId (see THE
-%                       PART YOU WRITE) so arcs are addressed BY ID and absent
-%                       ids are skipped as data gaps -- no padding needed.
-%       'Scoped'       1x1 logical  v4 contract (L11 WP-75): treat the
-%                                       parametrisation tables as SCOPED --
-%                                       column 1 of localParams is the token
-%                                       'arc' | 'day' | 'system', rows are
-%                                       templates expanded over the calendar
-%                                       (nl DERIVED; layout: per day [arc
-%                                       blocks, sorted ids | 'day' block],
-%                                       trailing 'system' block; a day whose
-%                                       schedule has no arcs gets no blocks).
-%                                       Default false: v3 free-form tables.
-%       'CommonPlan'   1x1 struct    v4: the COMMON scope plan built by
-%                                       lsqvce.fit over the GLOBAL day
-%                                       calendar (it spans systems): .nc
-%                                       .commonCount .days .dayOffset
-%                                       .dayCount. Sets nc; buildDay's 6th
-%                                       argument gains .nc / .commonCount /
-%                                       .commonDayOffset / .commonDayCount.
-%       'localsPerArc' var  let makeLoader OWN the per-arc local bookkeeping
-%                                       (WP-52). 1x1 integer, or @(day,arcId)
-%                                       returning the count for that arc. It
-%                                       numbers every (day, arc) over the whole
-%                                       adjustment, DERIVES nl (so 'numLocal'
-%                                       must be omitted or agree), and hands
-%                                       each day its slice as buildDay's 6th
-%                                       argument arcInfo:
-%                                         .arcId .offset .count .ordinal 1xA
-%                                         .nl        1x1  total local count
-%                                         .offsetOf  @(arcId) -> column offset
-%                                       Fill B(rows, off + (1:k)) and never
-%                                       compute an offset. Needs 'days' and a
-%                                       schedule resolvable without reading
-%                                       data (not 'fromDay').  (default [])
-%       'systemId' 1x1  system identifier carried on L    (default 1) (alias: 'sysID')
-%                       MUST be NUMERIC or a SINGLE char: the accumulator stores
-%                       systems in an array indexed by [store.sysID], which
-%                       flattens a multi-char string into separate elements. Use
-%                       a number (e.g. 1) or a single letter (e.g. 'C'); carry a
-%                       longer human-readable label in 'name' instead.
-%       'numLocal' 1x1  local-parameter count carried on L    (default []: set it
-%                                       or supply 'localParams'; passing both
-%                                       must agree. 0 is VALID (R4 G-07): the
-%                                       system then has no local block and
-%                                       buildDay returns B as m x 0.)
-%       'numCommon' 1x1 COMMON-parameter count carried on L   (default []: set
-%                                       it or supply 'commonParams'; passing both
-%                                       must agree).
-%                                       nc is SHARED by every system, so all
-%                                       loaders in one adjustment must agree.
-%                                       LSQVCE.ENGINE.ADJUSTBLOCK and LSQVCE.ENGINE.ADJUSTVCE
-%                                       DERIVE it from here -- there is no nc
-%                                       argument on them, so it is stated once.
-%       'commonParams' RxC cell  parametrisation of the COMMON unknowns, one ROW
-%                                       per unknown, C columns (count and meaning
-%                                       are your convention). Piped to buildDay as its
-%                                       3rd arg. nc is DERIVED as size(.,1) and
-%                                       carried as L.nc. SHARED across systems, so
-%                                       every loader must pass the SAME value.
-%                                       (default {})  (alias: 'common')
-%       'localParams'  RxC cell  parametrisation of the LOCAL unknowns, one ROW per
-%                                       unknown, C columns. Piped to buildDay
-%                                       as its 4th arg. nl is DERIVED as size(.,1).
-%                                       (default {})  (alias: 'local')
-%       'processingOptions' 1x1 struct  free-form processing options, piped to
-%                                       buildDay as its 5th arg (carried as
-%                                       L.procOpt). (default struct()) (alias: 'procOpt')
-%       'days'     1xD  default day list carried on L                (default [])
-%       'name'     1xk  display name                                 (default '')
-%       'cache'    1x1  logical, keep a one-day cache               (default true)
-%       'epochCovariance' 1x1 function_handle  @(day,obsType) -> a struct exposing
-%                                       the FIXED per-epoch scaling D directly, in
-%                                       the form LSQVCE.KERNEL.RESIDUALACV wants:
-%                                       .arc(i).rows/.epochs and .sigma (scalar
-%                                       stream) or .Cep (nEpoch x d x d). Optional;
-%                                       lets LSQVCE.ENGINE.ADJUSTVCE re-estimate the
-%                                       temporal law by exact separable de-scaling
-%                                       instead of the whitened-residual path.
-%                                                                    (default [])
+%     buildDay   1x1 function_handle   the day builder above. Required.
+%     Name, Value options ([] or omitted -> defaults; canonical UpperCamelCase,
+%     lowerCamelCase casings keep matching -- MATLAB NV semantics):
+%       'ObservationTypes' 1xT cellstr/string  the streams, e.g. {'pos','kbr'}. Required.
+%       'Covariance'   1x1 struct   .(obsType) = the TEMPORAL law of that stream, a
+%                                   spec for LSQVCE.ENGINE.COVMODEL (diag | arma | psd |
+%                                   acf | var | custom; sigma = its LEVEL). One field per
+%                                   obsType. Required. The per-epoch error information is
+%                                   NOT declared here -- the day returns it (.Cep).
+%       'Arcs'         var          which arcs each day carries. STATIC forms:
+%                                     1x1 integer   -> arcs 1:Arcs for every obsType
+%                                     1xA vector    -> those arc ids for every obsType
+%                                     1x1 struct    -> .(obsType) = any form on this list
+%                                   RAGGED forms (WP-52; the probe is PER DAY):
+%                                     function_handle -> @(day) or @(day,obsType), that
+%                                                      day's arc ids, no data read
+%                                     'fromDay'     -> read the day and take its .arcId, or
+%                                                      1:numel(.arcIdx) (engine tier only)
+%                                   (default 1: a single arc per day)
+%       'Scoped'       1x1 logical  v4 contract (L11 WP-75): LocalParams is SCOPED --
+%                                   column 1 the token 'arc' | 'day' | 'system', rows are
+%                                   templates expanded over the calendar (nl DERIVED;
+%                                   layout per day [arc blocks, sorted ids | 'day'
+%                                   block], trailing 'system' block; a day whose schedule
+%                                   has no arcs gets no blocks). Default false: free tables.
+%       'CommonPlan'   1x1 struct   v4: the COMMON scope plan LSQVCE.ENGINE.DECLARATION
+%                                   builds over the GLOBAL calendar (.nc .commonCount .days
+%                                   .dayOffset .dayCount .rows); sets nc and the common
+%                                   slice of buildDay's 6th argument.
+%       'ValidityColumns' [c1 c2]   R5-D8 round 3: the columns of LocalParams holding a
+%                                   row's validity ([MJD sec] or fractional MJD; [] =
+%                                   always); a 'day' / 'arc' row is instantiated only on
+%                                   the days it overlaps.                (default [])
+%       'Priors'       1xG struct   R5-D8 rounds 5/6: priors on this system's LOCAL
+%                                   parameters, one struct per group: .group (a regexp on
+%                                   the name column of LocalParams; L built by the loader)
+%                                   OR .L (q x nl in the columns of B); .x0 .sigma .from
+%                                   .name .estimate. Each group rides as its own stream
+%                                   'prior_<name>' (pseudo-observations, unit law).
+%       'NameColumn'   1x1          the name column of LocalParams        (default 2)
+%       'LocalsPerArc' var          engine tier (WP-52): a per-arc local count, 1x1 or
+%                                   @(day,arcId), when arcs carry DIFFERENT counts; nl
+%                                   derived, offsets handed to buildDay. Needs 'Days' and
+%                                   a schedule resolvable without reading data. (default [])
+%       'SystemId'     1x1          system identifier carried on L (default 1). NUMERIC or a
+%                                   SINGLE char -- the accumulator indexes systems by
+%                                   [store.sysID]; a longer label goes in 'Name'.
+%       'NumLocal'     1x1          local count when no LocalParams is given (0 is valid:
+%                                   no local block, B is m x 0). Given with a table, it
+%                                   must agree.                          (default [])
+%       'NumCommon'    1x1          common count when no CommonParams / CommonPlan is
+%                                   given; nc is SHARED by every system. (default [])
+%       'CommonParams' RxC cell     the common templates, piped to buildDay (3rd arg);
+%                                   nc derived from the rows (v3) or the plan (v4)
+%       'LocalParams'  RxC cell     the local templates, piped to buildDay (4th arg)
+%       'ProcessingOptions' struct  free-form options piped to buildDay (5th arg)
+%       'Days'         1xD          default day list carried on L        (default [])
+%       'Name'         char/string  display name                         (default '')
+%       'Cache'        1x1 logical  keep built days resident             (default true)
+%       'CacheDays'    1x1          resident built days (R5 M4 4d): 1 = one slot, Inf =
+%                                   the calendar (one build per run)     (default 1)
 %
 %   RUNTIME COVARIANCE OVERRIDE (opt.covOverride)
-%     The batch merges a runtime override into the base cov spec, so an outer
-%     loop can reshape the model per pass WITHOUT rebuilding the loader. Two
-%     shapes, later wins:
-%       opt.covOverride.(obsType)                flat, all satellites
-%       opt.covOverride.bySys.(satKey).(obsType) per-satellite (keyed on the
-%                                                injected opt.sysID via
-%                                                matlab.lang.makeValidName). This
-%                                                is how LSQVCE.ENGINE.ADJUSTVCE
-%                                                threads a distinct sigma_g / AR
-%                                                law into each stream.
+%     Every batch merges a runtime override into the base spec, so an outer
+%     loop can reshape the law per pass WITHOUT rebuilding the loader. Two
+%     shapes, later wins: opt.covOverride.(obsType) (flat) and
+%     opt.covOverride.bySys.(satKey).(obsType) (per system, satKey =
+%     matlab.lang.makeValidName of the sysID) -- the shape
+%     LSQVCE.ENGINE.JOINTMODELOPT emits. The override carries the temporal law
+%     and a level; the day's Cep composes with it unchanged.
 %
 %   OUTPUT
-%     L    1x1  struct  A Loader object:
-%            .closure  1x1 function_handle  @(day,obsType,arcID,opt) the 4-arg
-%                                           callback the accumulator drives
-%                                           (handles the 'meta' sentinel too)
-%            .meta     1x1 function_handle  @() -> .obsTypes, .arcs
-%            .batch    1x1 function_handle  @(day,obsType,arcID,opt) -> one arc's
-%                                           batch (.A .B .l .t .Cfcn .Wfcn
-%                                           .filterMemory)
-%            .day      1x1 function_handle  @(day,obsType) -> the cached whole day
-%            .sysID .nl .obsTypes .cov .name .days   the carried settings
-%            .nc       1x1  common-parameter count DERIVED from 'common' rows
-%                           (0 if 'common' not given); nl likewise from 'local'
-%            .common .local .procOpt   the parametrisation arrays and processing
-%                                      options piped to buildDay (3rd/4th/5th args)
-%            .epochCov 1x1 function_handle | []   optional per-epoch cov hook
-%            .plotPostSolve .plotPostModel   containers.Map obsType->@(ctx)->fig,
-%                                            or empty Maps if no hooks given
-%            .isLoader 1x1 logical  true (marks it as a Loader for adjustBlock)
+%     L  1x1 struct  the Loader:
+%        .closure  @(day,obsType,arcID,opt)  the 4-arg callback the accumulator drives
+%                                            (answers the 'meta' probe too)
+%        .meta     @()  -> .obsTypes, .arcs
+%        .batch    @(day,obsType,arcID,opt)  one arc's batch (.A .B .l .t .Cfcn .Wfcn
+%                                            .filterMemory; .Cep and .nAxis when the
+%                                            day carries error information)
+%        .day      @(day,obsType)  the cached, validated whole day
+%        .isLoader .sysID .nc .nl .obsTypes .cov .name .days .plan .priors
+%        .common .local .procOpt   the tables and options piped to buildDay
 %
-%   THE LOADER CONTRACT (what the engines actually require)
-%     A Loader is consumed by LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.ADJUSTBLOCK and
-%     LSQVCE.ENGINE.ADJUSTVCE. The ONLY hard requirement is the 4-arg data
-%     callback @(day,obsType,arcID,opt) that also answers the 'meta'/'day'
-%     sentinels -- .closure above. Every OTHER field is OPTIONAL: the engines
-%     read them defensively (isfield guards on .epochCov, .plotPostSolve,
-%     .plotPostModel, .days, .common/.local/.procOpt, per-field .cov), so a
-%     Loader missing any of them simply does not use that feature -- it never
-%     errors. This is deliberate so that:
-%       (a) makeLoader can add new optional fields without breaking old loaders;
-%       (b) a HAND-WRITTEN raw 4-arg closure (e.g. GRACELOADER bound over a cfg,
-%           or LSQVCE.ENGINE.SYNTHLOADER) is a FIRST-CLASS loader -- you can pass it
-%           straight to acc.addSystem or to adjustBlock's struct-array form
-%           (.sysID/.nl/.loader) without wrapping it here. Such a closure carries
-%           none of the L.* struct fields, so it fires no plot hooks and exposes
-%           no parametrisation pipe; wrap it with makeLoader ONLY when you want
-%           those conveniences. Both paths are supported and tested.
-%
-%   INPUT
-%     buildDay     function_handle   @(day, obsType, common, local, procOpt, info) -> D
-%                                    (D.A m x nc, D.B m x nl, D.l, D.t, D.arcIdx; manual ch. 3)
-%     Name, Value                    the OPTIONS above
-%   OUTPUT
-%     L            1x1 struct        the Loader: .isLoader .sysID .nc .nl .obsTypes .cov
-%                                    .plan .priors .closure(day, obsType, arcID, opt)
-%                                    .day(day, obsType) .procOpt .name
+%   THE LOADER CONTRACT (what the engines require)
+%     The ONLY hard requirement is the 4-arg data callback that also answers
+%     the 'meta' / 'day' sentinels -- .closure. Every other field is
+%     OPTIONAL and read defensively, so a hand-written raw closure (e.g.
+%     LSQVCE.ENGINE.SYNTHLOADER) is a first-class loader: pass it to
+%     acc.addSystem or to adjustBlock's struct form without wrapping it here.
 %
 %   EXAMPLE
 %     cov.pos = struct('type','arma','ar',[1 -1.6 0.9 -0.25],'ma',1,'sigma',0.7);
 %     L = lsqvce.engine.makeLoader(@(d,ot) myBuildDay(d,ot), ...
-%             'observationTypes',{'pos'}, 'covariance',cov, 'arcs',2, 'systemId','C', 'numLocal',4);
+%             'ObservationTypes',{'pos'}, 'Covariance',cov, 'Arcs',2, 'SystemId','C', 'NumLocal',4);
 %     R = lsqvce.engine.adjustBlock({L}, 1:3);
+%
+%   ACCURACY
+%     No arithmetic of its own beyond slicing: the whitening it hands out is
+%     LSQVCE.ENGINE.COVMODEL's. The composition of a day's Cep with the
+%     temporal law is pinned through THIS unit against the dense reference
+%     D (R_t kron I_d) D at 1e-8 relative on the whitened normals
+%     (test_streamUtils, R6 WP-90), and the arc slice of Cep by arc position
+%     is pinned exactly on a non-positional arcId (finding E-01).
 %
 %   ERRORS
 %     Raised while BUILDING the loader (your declaration is wrong):
-%       lsqvce:makeLoader:noObsTypes   'observationTypes' missing or empty
-%       lsqvce:makeLoader:noCov        'covariance' missing, or no entry for an
-%                                      observation type
-%       lsqvce:makeLoader:noArcs       'arcs' missing and not derivable
-%       lsqvce:makeLoader:badArcs      an arc resolver returned something that
-%                                      is not unique positive integers (WP-52)
-%       lsqvce:makeLoader:badArcId     a day's .arcId does not name every
-%                                      .arcIdx entry exactly once (WP-52)
-%       lsqvce:makeLoader:localPlan    'localsPerArc' without 'days', combined
-%                                      with 'fromDay', or a bad count (WP-52)
-%       lsqvce:makeLoader:paramType    commonParams/localParams is not a 2-D cell
-%       lsqvce:makeLoader:badScope     a Scoped localParams row whose column 1
-%                                      is not 'arc' | 'day' | 'system'
-%       lsqvce:makeLoader:ncConflict   numCommon disagrees with the commonParams
-%                                      row count -- state it ONCE, in the table
-%       lsqvce:makeLoader:nlConflict   the same for numLocal/localParams
-%       lsqvce:makeLoader:badPlotHandle  a plot hook is neither a function handle
-%                                      nor a containers.Map keyed by obsType
+%       lsqvce:makeLoader:noObsTypes   'ObservationTypes' missing or empty
+%       lsqvce:makeLoader:noCov        'Covariance' missing, or no entry for a stream
+%       lsqvce:makeLoader:noArcs       'Arcs' missing and not derivable
+%       lsqvce:makeLoader:badArcs      an arc resolver returned something that is not
+%                                      unique positive integers (WP-52)
+%       lsqvce:makeLoader:localPlan    'LocalsPerArc' / scoped rows without 'Days',
+%                                      combined with 'fromDay', or a bad count
+%       lsqvce:makeLoader:paramType    CommonParams / LocalParams is not a 2-D cell
+%       lsqvce:makeLoader:badScope     a scoped LocalParams row whose column 1 is not
+%                                      'arc' | 'day' | 'system'
+%       lsqvce:makeLoader:ncConflict   NumCommon disagrees with the table / plan
+%       lsqvce:makeLoader:nlConflict   NumLocal disagrees with the table / plan
+%       lsqvce:makeLoader:badValidity  ValidityColumns out of range or a bad entry
+%       lsqvce:makeLoader:badPrior     a Priors group is malformed (fields, width,
+%                                      pattern, a row coupling two days)
+%       lsqvce:makeLoader:priorType    a stream name collides with a prior group's
 %
 %     Raised while READING a day (your buildDay is wrong):
-%       lsqvce:makeLoader:buildDay     your buildDay itself threw; the original
-%                                      error is attached as the cause
+%       lsqvce:makeLoader:buildDay     your buildDay itself threw; the original error
+%                                      is attached as the cause
 %       lsqvce:makeLoader:badDay       a required field (.A .B .l .t) is missing
 %       lsqvce:makeLoader:dayShape     A, B, l, t do not share a row count
-%       lsqvce:makeLoader:badArc       an .arcIdx entry is not a valid row-index
-%                                      vector for this day
-%       lsqvce:makeLoader:noD          a multi-axis stream has no per-epoch D:
-%                                      supply an 'epochCovariance' hook
-%       lsqvce:makeLoader:rowWeightSize  (R5 M2) the robust weight vector of an arc
-%                                      does not match the arc's row count
-%       lsqvce:makeLoader:badDayCep    the hook returned a Cep that is neither
-%                                      nEpoch x d nor nEpoch x d x d
+%       lsqvce:makeLoader:badArc       an .arcIdx entry is not a valid row-index vector,
+%                                      or does not hold whole epochs of a multi-axis day
+%       lsqvce:makeLoader:badArcId     .arcId does not name every .arcIdx entry once
+%       lsqvce:makeLoader:badDayCep    .Cep is not nEpoch x 1 / nEpoch x d / nEpoch x d x d,
+%                                      or nEpoch * d is not the day's row count (R6 WP-90)
+%       lsqvce:makeLoader:axisConflict .nAxis disagrees with .Cep or with a 'd' on the
+%                                      spec, or does not divide the rows (R6 WP-90)
+%       lsqvce:makeLoader:cepTwice     the spec carries a Cep AND the day returns one
+%                                      (R6 WP-90: one fact, one authority)
+%       lsqvce:makeLoader:noCep        [warning, once per run] a multi-axis day without
+%                                      Cep: composed with D = I (R6 WP-90)
+%       lsqvce:makeLoader:rowWeightSize  (R5 M2) the robust weight vector of an arc does
+%                                      not match the arc's row count
+%       lsqvce:covModel:*              the temporal law is malformed (see covModel)
 %
-%   See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.SYNTHLOADER, LSQVCE.ENGINE.COVMODEL,
-%            LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.ADJUSTVCE
+%   See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.DECLARATION,
+%            LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.ENGINE.SYNTHLOADER
 %
+%   Updated 2026-09-06 (CEST, UTC+02:00), R6 WP-90: the error information
+%   travels with the day (.Cep for every stream, nAxis derived, validated at
+%   the day; the Cep slice by arc POSITION -- finding E-01); the
+%   'EpochCovariance' hook and the dead plot-hook helpers are gone; the help
+%   rewritten on the v5 surface. With assistance from Claude (Anthropic),
+%   model Claude Fable 5.1.
 %   Updated 2026-08-31 (CEST, UTC+02:00), v4 scoped tables (Level L11,
 %   WP-75): 'Scoped' + 'CommonPlan' options; buildScopePlan generalizes the
-%   WP-52 per-arc plan to 'arc'/'day'/'system' template rows (nl derived);
-%   buildDay's 6th argument gains the day/system block offsets and the
-%   common-plan slice. With assistance from Claude (Anthropic), model
-%   Claude Fable 5.
-%   Updated 2026-08-31 (CEST, UTC+02:00), v3 data contract (Level L10,
-%   WP-72): the fixed 14-column shape of commonParams/localParams is
-%   retired -- RxC with C of the caller's convention; the paramCols error
-%   id retired with it. With assistance from
-%   Claude (Anthropic), model Claude Fable 5.
-%   Updated 2026-08-31 (CEST, UTC+02:00), R4 G-07 (Level L2): 'numLocal' 0 /
-%   'localsPerArc' 0 declare a system without local unknowns (help only;
-%   the engine change is in BlockAccumulator). With assistance from Claude
-%   (Anthropic), model Claude Fable 5.
+%   WP-52 per-arc plan to 'arc'/'day'/'system' template rows (nl derived).
+%   With assistance from Claude (Anthropic), model Claude Fable 5.
 %   Updated 2026-08-21 (CEST, UTC+02:00), WP-52: ragged schedules are
-%   NATIVE -- per-day arc resolution ('arcs' as @(day,obsType) or
-%   'fromDay'), arcs addressed by .arcId with absent ids as data gaps,
-%   and 'localsPerArc' owning the per-arc local bookkeeping (nl derived,
-%   offsets handed to buildDay). All additive. With assistance from
-%   Claude (Anthropic), model Claude Fable 5.
-%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (c) c1 (F-07):
-%   typed `arguments` signature, canonical UpperCamelCase option names
-%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
-%   case-sensitive lowercase). With assistance from Claude (Anthropic),
-%   model Claude Fable 5.
+%   NATIVE (per-day arc resolution, arcs addressed by .arcId, 'localsPerArc'
+%   owning the per-arc bookkeeping). Claude Fable 5.
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (c) c1 (F-07): typed
+%   `arguments` signature, canonical UpperCamelCase option names. Claude Fable 5.
 %   Created 2026-07-16 12:20 (CEST, UTC+02:00) with assistance from
 %   Claude (Anthropic), model Claude Opus 4.8.
-%   Updated 2026-07-17 (CEST, UTC+02:00): documented the Loader contract
-%   (optional fields; raw 4-arg closures are first-class). Claude Opus 4.8.
-%   Updated 2026-07-17 (CEST, UTC+02:00): expanded terse option names to
-%   canonical long forms (observationTypes/covariance/systemId/numLocal/
-%   commonParams/localParams/processingOptions/epochCovariance); the old terse
-%   names still work for one version (warn once). Claude Opus 4.8.
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
 %   WP-64a): the ENGINE tier leaves the USER surface; every qualified
 %   reference was rewritten mechanically by docs_src/refactor_tiers.py.
@@ -313,7 +241,6 @@ arguments
     opt.CacheDays (1,1) double {mustBePositive} = 1   % R5 M4 4d: built days kept resident;
                                                      % Inf = every day of the run (the
                                                      % user's memory decision, see fit)
-    opt.EpochCovariance = []
     opt.CommonParams cell = {}
     opt.LocalParams cell = {}
     opt.ProcessingOptions (1,1) struct = struct()
@@ -328,7 +255,7 @@ end
     % WP-39 stage (c) c1: typed `arguments` signature (canonical
     % UpperCamelCase; legacy casings keep matching -- MATLAB NV
     % semantics; enum VALUES case-sensitive lowercase).
-    o = struct('observationTypes', {opt.ObservationTypes}, 'covariance', opt.Covariance, 'arcs', opt.Arcs, 'localsPerArc', opt.LocalsPerArc, 'systemId', opt.SystemId, 'numLocal', opt.NumLocal, 'numCommon', opt.NumCommon, 'days', opt.Days, 'name', char(opt.Name), 'cache', opt.Cache, 'cacheDays', opt.CacheDays, 'priors', opt.Priors, 'nameColumn', opt.NameColumn, 'validityColumns', opt.ValidityColumns, 'epochCovariance', opt.EpochCovariance, 'commonParams', {opt.CommonParams}, 'localParams', {opt.LocalParams}, 'processingOptions', opt.ProcessingOptions, 'scoped', opt.Scoped, 'commonPlan', opt.CommonPlan);
+    o = struct('observationTypes', {opt.ObservationTypes}, 'covariance', opt.Covariance, 'arcs', opt.Arcs, 'localsPerArc', opt.LocalsPerArc, 'systemId', opt.SystemId, 'numLocal', opt.NumLocal, 'numCommon', opt.NumCommon, 'days', opt.Days, 'name', char(opt.Name), 'cache', opt.Cache, 'cacheDays', opt.CacheDays, 'priors', opt.Priors, 'nameColumn', opt.NameColumn, 'validityColumns', opt.ValidityColumns, 'commonParams', {opt.CommonParams}, 'localParams', {opt.LocalParams}, 'processingOptions', opt.ProcessingOptions, 'scoped', opt.Scoped, 'commonPlan', opt.CommonPlan);
 
     % ---- map long option names onto the short internal fields -------------
     % Canonical long names only. The resolved value is written onto the SHORT
@@ -339,7 +266,6 @@ end
     o.sysID    = o.systemId;
     o.nl       = o.numLocal;
     o.nc       = o.numCommon;
-    o.epochCov = o.epochCovariance;
     o.common   = o.commonParams;
     o.local    = o.localParams;
     o.procOpt  = o.processingOptions;
@@ -453,7 +379,6 @@ end
     L.obsTypes = obsTypes;
     L.cov      = o.cov;
     L.name     = char(o.name);
-    L.epochCov = o.epochCov;          % optional @(day,obsType)->epoch-cov struct
     % Parametrisation piped to buildDay + the DERIVED counts (nc is 0 when
     % 'common' is not used; it is the SHARED common count and every loader must
     % agree on it -- pass nc = L.nc to adjustBlock, or the explicit scalar).
@@ -471,8 +396,6 @@ end
     end
     L.nc       = ncFinal;
     L.plan     = plan;                                 % R5-D8 round 2: priorArc reads the layout
-    % Plot hooks normalised to a containers.Map obsType -> handle (a single
-    % handle is broadcast to every obsType of this loader). Empty -> empty Map.
     if ~isempty(o.days), L.days = o.days; end
 
     % WP-52: L.meta() answers for a DAY. Called without one it uses the first
@@ -491,22 +414,6 @@ end
 end
 
 %==========================================================================
-function tf = isPlotSpec(v)
-%ISPLOTSPEC  A valid plot-hook spec: empty, a function handle (broadcast to all
-%   obsTypes), or a containers.Map / struct keyed obsType -> handle.
-    tf = isempty(v) || isa(v, 'function_handle') || ...
-         isa(v, 'containers.Map') || isstruct(v);
-end
-
-function requireHandle(v, key)
-%REQUIREHANDLE  Assert v is a function handle (a plot hook for KEY); errors otherwise.
-    if ~isa(v, 'function_handle')
-        error('lsqvce:makeLoader:badPlotHandle', ...
-            'Plot hook for ''%s'' must be a function handle @(ctx)->figHandle.', ...
-            char(string(key)));
-    end
-end
-
 function checkParamArray(C, name)
 %CHECKPARAMARRAY  Validate a parametrisation cell array: empty, or a 2-D cell
 %   with one ROW per unknown (the column count and meaning are the caller's
@@ -614,8 +521,9 @@ function P = validatePriors(P, plan, sysID, localParams, nameCol)
         x0 = zeros(q, 1);
         if isfield(e, 'x0') && ~isempty(e.x0)
             x0 = double(e.x0(:));
-            if numel(x0) ~= q
-                error('lsqvce:makeLoader:badPrior', 'system %s, Priors(%d): x0 must have %d entries.', char(string(sysID)), g, q);
+            if isscalar(x0), x0 = repmat(x0, q, 1); end   % R6 E-14: a scalar x0 is every row's
+            if numel(x0) ~= q                              % (the data.priors rule, fit>priorsOf)
+                error('lsqvce:makeLoader:badPrior', 'system %s, Priors(%d): x0 must have %d entries (or be a scalar).', char(string(sysID)), g, q);
             end
         end
         fr = 1;  if isfield(e, 'from') && ~isempty(e.from), fr = double(e.from); end
@@ -1062,6 +970,57 @@ function D = validateDay(D, day, obsType)
                  string(day), obsType, numel(ids), numel(D.arcIdx));
         end
     end
+    % R6 WP-90: the ERROR INFORMATION of the day. D.Cep is nEpoch x 1 (a
+    % scalar stream's per-epoch sigma), nEpoch x d (per-axis sigmas, a
+    % diagonal D) or nEpoch x d x d (the full per-epoch covariance). The axis
+    % count is DERIVED from it; an explicit D.nAxis must agree (one fact,
+    % one authority). Checked HERE, at the day, with day and stream in the
+    % message -- before the shape could surface per arc in a kernel id.
+    hasCep = isfield(D, 'Cep') && ~isempty(D.Cep);
+    hasAx  = isfield(D, 'nAxis') && ~isempty(D.nAxis);
+    if hasAx && ~(isnumeric(D.nAxis) && isscalar(D.nAxis) && D.nAxis >= 1 && D.nAxis == round(D.nAxis))
+        error('lsqvce:makeLoader:axisConflict', ...
+              'buildDay(%s,''%s''): D.nAxis must be a positive integer scalar.', string(day), obsType);
+    end
+    if hasCep
+        sz = size(D.Cep);
+        ok = isnumeric(D.Cep) && (numel(sz) == 2 || (numel(sz) == 3 && sz(2) == sz(3)));
+        if ok && numel(sz) == 2 && sz(1) == 1 && sz(2) > 1 && m > 1
+            ok = false;                              % a ROW vector: nEpoch x 1 is a column
+        end
+        if ~ok
+            error('lsqvce:makeLoader:badDayCep', ...
+                  ['buildDay(%s,''%s''): D.Cep must be nEpoch x 1 (a per-epoch sigma), nEpoch x d ' ...
+                   '(per-axis sigmas) or nEpoch x d x d (per-epoch covariances); got %s.'], ...
+                   string(day), obsType, mat2str(sz));
+        end
+        dCep = sz(2);
+        if sz(1) * dCep ~= m
+            error('lsqvce:makeLoader:badDayCep', ...
+                  ['buildDay(%s,''%s''): D.Cep has %d epochs of %d axes = %d rows, but the day has ' ...
+                   '%d rows (rows are epoch-major: nEpoch * nAxis).'], ...
+                   string(day), obsType, sz(1), dCep, sz(1) * dCep, m);
+        end
+        if hasAx && D.nAxis ~= dCep
+            error('lsqvce:makeLoader:axisConflict', ...
+                  ['buildDay(%s,''%s''): D.nAxis = %d but D.Cep has %d axes; the axis count is ' ...
+                   'derived from Cep -- state it once.'], string(day), obsType, D.nAxis, dCep);
+        end
+        D.nAxis = dCep;
+    elseif hasAx && mod(m, D.nAxis) ~= 0
+        error('lsqvce:makeLoader:axisConflict', ...
+              'buildDay(%s,''%s''): %d rows are not a multiple of nAxis = %d (rows must be epoch-major).', ...
+              string(day), obsType, m, D.nAxis);
+    end
+    if isfield(D, 'nAxis') && ~isempty(D.nAxis) && D.nAxis > 1
+        for a = 1:numel(D.arcIdx)
+            if mod(numel(D.arcIdx{a}), D.nAxis) ~= 0
+                error('lsqvce:makeLoader:badArc', ...
+                      'buildDay(%s,''%s''): arcIdx{%d} has %d rows, not whole epochs of %d axes.', ...
+                      string(day), obsType, a, numel(D.arcIdx{a}), D.nAxis);
+            end
+        end
+    end
 end
 
 function out = batchOf(dayFcn, cov, day, obsType, arcID, opt)
@@ -1098,26 +1057,45 @@ function out = batchOf(dayFcn, cov, day, obsType, arcID, opt)
         cm = applyCovOverride(cm, opt.covOverride, obsType, opt);
     end
 
-    % Separable model needs the FIXED per-epoch scaling D for THIS arc. Source,
-    % in priority order: an already-supplied cm.Cep; a per-day D.Cep on the day
-    % struct (sliced to the arc's epochs); or the loader's epochCov hook. The
-    % day-struct route keeps everything in one deterministic buildDay.
-    if strcmpi(lsqvce.util.getfielddef(cm, 'type', ''), 'separable') ...
-            && ~isfield(cm, 'Cep')
-        d = lsqvce.util.getfielddef(cm, 'd', []);
-        if isfield(D, 'Cep') && ~isempty(D.Cep)
-            cm.Cep = sliceEpochCov(D.Cep, D.arcIdx{arcID}, d, r);
-        elseif isfield(D, 'nAxis') && ~isempty(d)
-            % epochs of this arc are its rows folded by d (epoch-major)
-            cm.Cep = [];   % leave empty -> covModel errors clearly
+    % R6 WP-90: the ERROR INFORMATION travels with the day. D.Cep (validated
+    % at the day: nEpoch x 1 | nEpoch x d | nEpoch x d x d, nAxis derived) is
+    % sliced to THIS arc's epochs -- by the arc's POSITION in the day (finding
+    % E-01: the arc ID was used here, so a day whose arcId is not 1:n whitened
+    % an arc with another arc's epochs) -- and handed to covModel as cm.Cep,
+    % where ONE composition joins it with the declared temporal law. A Cep on
+    % the spec AND on the day is two authorities for one fact: refused.
+    d = lsqvce.util.getfielddef(D, 'nAxis', 1);
+    specCep = isfield(cm, 'Cep') && ~isempty(cm.Cep);
+    isVar = strcmpi(lsqvce.util.getfielddef(cm, 'type', ''), 'var');
+    if isfield(D, 'Cep') && ~isempty(D.Cep)
+        if specCep
+            error('lsqvce:makeLoader:cepTwice', ...
+                  ['covariance.%s carries a Cep and buildDay(%s,''%s'') returns one: state the ' ...
+                   'per-epoch error information ONCE, on the day.'], obsType, string(day), obsType);
         end
+        cm.Cep = sliceEpochCov(D.Cep, r, d);
+    elseif d > 1 && ~specCep && ~isVar
+        % a multi-axis stream without per-epoch scaling is composed with
+        % D = I -- said once per run, so the omission is distinguishable from
+        % a choice (R5: never overrule, never assume silently)
+        lsqvce.util.log.warnOnce('lsqvce:makeLoader:noCep', ...
+            ['buildDay(%s,''%s'') returns a %d-axis day without Cep: the axes are weighted by the ' ...
+             'temporal law alone (D = I). Return D.Cep (nEpoch x %d sigmas or nEpoch x %d x %d) ' ...
+             'when the epochs are not equally accurate.'], string(day), obsType, d, d, d, d);
+        cm.Cep = ones(numel(r) / d, d);
+    end
+    dDecl = lsqvce.util.getfielddef(cm, 'd', []);
+    if ~isempty(dDecl) && ~isVar && dDecl ~= d
+        error('lsqvce:makeLoader:axisConflict', ...
+              ['covariance.%s declares d = %d but the day has %d axes (nAxis / Cep); the axis ' ...
+               'count is stated once, on the day.'], obsType, dDecl, d);
     end
 
     [out.Cfcn, out.Wfcn, info] = lsqvce.engine.covModel(cm, out.t, opt);
     out.filterMemory = info.filterMemory;
     if isfield(info, 'Cep') && ~isempty(info.Cep)
-        out.Cep = info.Cep;                          % R5 M3 (H-15): the per-epoch descale
-    end                                              % travels with the arc
+        out.Cep = info.Cep;                          % the per-epoch descale travels with the arc
+    end
 
     % R5 M2 (WP-81 round 2b): per-observation ROBUST weights ride INSIDE the
     % whitener, so every consumer of Wfcn (accumulation, residuals, the
@@ -1143,33 +1121,27 @@ function out = batchOf(dayFcn, cov, day, obsType, arcID, opt)
     end
 
     % Multi-axis (epoch-major) streams must tell the accumulator the axis count
-    % so it batches on whole epochs and the whitener treats axes correctly.
-    % Priority: an explicit D.nAxis from buildDay, else the cov model's own d.
-    if isfield(D, 'nAxis') && ~isempty(D.nAxis)
-        out.nAxis = D.nAxis;
+    % so it batches on whole epochs and the whitener treats axes correctly:
+    % the day's (derived) axis count, else the cov model's own d (a 'var' law).
+    if d > 1
+        out.nAxis = d;
     elseif isfield(info, 'nAxis') && info.nAxis > 1
         out.nAxis = info.nAxis;
     end
 end
 
 %==========================================================================
-function Cep = sliceEpochCov(dayCep, arcRows, d, ~)
+function Cep = sliceEpochCov(dayCep, arcRows, d)
 %SLICEEPOCHCOV  Select the day's per-epoch scaling for one arc's epochs.
-%   dayCep is per-DAY-epoch: nEpochDay x d  or  nEpochDay x d x d. arcRows are
-%   the arc's day rows in epoch-major order; its day-epochs are the unique
-%   ceil(arcRows/d). Returns Cep for exactly those epochs, in order.
-    if isempty(d) || d < 1
-        error('lsqvce:makeLoader:noD', ...
-              'A separable model needs cm.d to slice the per-epoch covariance.');
-    end
-    ep = unique(ceil(arcRows(:)/d), 'stable');
-    if ismatrix(dayCep) && size(dayCep,2) == d
+%   dayCep is per-DAY-epoch (validated at the day): nEpochDay x d or
+%   nEpochDay x d x d. arcRows are the arc's day rows (epoch-major); its
+%   day-epochs are the unique ceil(arcRows/d). Returns Cep for exactly those
+%   epochs, in order.
+    ep = unique(ceil(arcRows(:) / d), 'stable');
+    if ismatrix(dayCep)
         Cep = dayCep(ep, :);
-    elseif ndims(dayCep) == 3 && size(dayCep,2) == d && size(dayCep,3) == d
-        Cep = dayCep(ep, :, :);
     else
-        error('lsqvce:makeLoader:badDayCep', ...
-              'D.Cep must be nEpochDay x %d or nEpochDay x %d x %d.', d, d, d);
+        Cep = dayCep(ep, :, :);
     end
 end
 

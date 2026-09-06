@@ -123,20 +123,25 @@ function out = adjustVCEjoint(accFcn, opt)
 %                                     definite, so it cannot be factored
 %     lsqvce:adjustVCEjoint:skipThreshold  a pass skipped more than
 %                                   SkipThreshold of the enumerated arcs (R5 M1)
-%     lsqvce:adjustVCEjoint:noCep      (R5 M3, H-15) a multi-axis arc without the
-%                                   per-epoch covariance the separable model needs
 %     lsqvce:adjustVCEjoint:badAxisRows  a multi-axis arc whose row count is not a
-%                                   multiple of its axis count
+%                                   multiple of its axis count (R6 WP-90: an arc
+%                                   carrying a per-epoch Cep, scalar or multi-axis,
+%                                   is descaled per epoch before its lag statistics;
+%                                   the former noCep refusal is gone -- the loader
+%                                   composes D = I and says so once)
 %     lsqvce:adjustVCEjoint:noArcs    a system declares no arcs
 %
 %   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 %     lsqvce:adjustVCEjoint:localNotPD           System X
 %     lsqvce:adjustVCEjoint:notConverged         [warning] The joint stochastic model did not settle in X outer iterations (last...
 %
-%   See also LSQVCE.ENGINE.ADJUSTVCE (the separable default), LSQVCE.ENGINE.PSDVCE,
-%            LSQVCE.ENGINE.ARCVARIANCEFACTORS, LSQVCE.KERNEL.REDUNDANCYLAGS,
-%            LSQVCE.ENGINE.SHAREDPROBE
+%   See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
+%            LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 %
+%   Updated 2026-09-06 (CEST, UTC+02:00), R6 WP-90: the per-axis descale runs
+%   for every arc that carries a per-epoch Cep (scalar streams included); the
+%   noCep refusal is retired. With assistance from Claude (Anthropic), model
+%   Claude Fable 5.1.
 %   Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Opus 4.8.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (a) (F-07): typed
@@ -564,7 +569,8 @@ function [om, sn, why, wsum, wm] = oneArc(st, obsType, arc, day, uo, UiZ, nLag, 
     B = zeros(m, 0);
     if isfield(a, 'B') && ~isempty(a.B), B = a.B; end
     nAx = lsqvce.util.getfielddef(a, 'nAxis', 1);
-    if nAx > 1
+    hasCep = isfield(a, 'Cep') && ~isempty(a.Cep);
+    if nAx > 1 || hasCep
         % R5 M3 (finding H-15): a d-axis stream is d single-axis series that
         % share the TEMPORAL law once the FIXED per-epoch covariance has been
         % removed (the separable model). So: descale every epoch by Cep^-1/2
@@ -572,22 +578,20 @@ function [om, sn, why, wsum, wm] = oneArc(st, obsType, arc, day, uo, UiZ, nLag, 
         % m/d epochs against the epoch-indexed temporal covariance a.Cfcn, and
         % ADD the per-lag statistics over the axes -- the lag is a lag in
         % epochs, the dense factor is (m/d)^2 instead of m^2, and one arc
-        % factor covers the arc.
-        if ~isfield(a, 'Cep') || isempty(a.Cep)
-            error('lsqvce:adjustVCEjoint:noCep', ...
-                 ['Arc (sys %s, %s, day %s, arc %s) is a %d-axis stream without a ' ...
-                  'per-epoch covariance (Cep): declare the stream ''separable'' with ' ...
-                  'd = %d and let buildDay return Cep, or supply the epochCovariance hook.'], ...
-                  string(st.sysID), string(obsType), string(day), string(arc), nAx, nAx);
-        end
+        % factor covers the arc. R6 WP-90: the branch is entered whenever the
+        % arc CARRIES per-epoch error information -- a scalar stream with a
+        % per-epoch sigma (d = 1) is descaled exactly like a 3-axis one; a
+        % multi-axis arc without Cep (a raw loader) is D = I.
         mE = m / nAx;
         if mE ~= round(mE)
             error('lsqvce:adjustVCEjoint:badAxisRows', ...
                   'Arc (sys %s, %s, day %s, arc %s): %d rows are not a multiple of %d axes.', ...
                   string(st.sysID), string(obsType), string(day), string(arc), m, nAx);
         end
+        Cep = ones(mE, nAx);
+        if hasCep, Cep = a.Cep; end
         % pure descale: AR(0) (a = 1, s = 1, r = 1) through the separable kernel
-        [Ad, Bd, ld] = lsqvce.kernel.separableWhiten(1, 1, 1, a.Cep, nAx, A, B, l, true);
+        [Ad, Bd, ld] = lsqvce.kernel.separableWhiten(1, 1, 1, Cep, nAx, A, B, l, true);
         Sig = a.Cfcn(1:mE, uo);                       % TEMPORAL, over epochs
         if isvector(Sig), Sig = diag(Sig(:)); end
         [W, pd] = chol((Sig + Sig.')/2);

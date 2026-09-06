@@ -4,16 +4,17 @@ function [cfg, data] = demo_grace_dataLoader()
 %   [cfg, data] = demo_grace_dataLoader()
 %
 %   Returns a ready-to-run configuration CFG and the declaration as a v4 data
-%   struct DATA (the Manual, chapter 3), so the separable VCE loop can be
-%   exercised end to end without real data:
+%   struct DATA (the Manual, chapter 3), so the VCE loop on multi-axis and
+%   scalar streams can be exercised end to end without real data:
 %
 %       [cfg, data] = demo_grace_dataLoader();
 %       R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false));
 %
 %   TOPOLOGY (real GRACE-FO, "Option B", plus an independent third satellite).
 %     System 1  -- the C/D PAIR.  TWO satellites C, D each with a 3-D position
-%       stream (posC, posD, separable covariance C = D (R_t kron I_3) D with a
-%       FIXED per-epoch 3x3 D), and ONE inter-satellite range-rate stream (rr,
+%       stream (posC, posD, covariance C = D (R_t kron I_3) D with a FIXED
+%       per-epoch 3x3 D returned by buildDay as D.Cep -- the toolbox composes
+%       it with the temporal law), and ONE inter-satellite range-rate stream (rr,
 %       scalar) whose design couples BOTH satellites' arc states. Because rr
 %       touches two satellites' local parameters and the block-arrow model has
 %       one local block per system, C and D are MERGED into one pair-system with
@@ -55,13 +56,18 @@ function [cfg, data] = demo_grace_dataLoader()
 %
 %   The toolbox only checks the SHAPE (a 2-D cell); the MEANINGS above are
 %   this demo's convention, read inside demoBuildDay. This is the TEMPLATE:
-%   copy demoBuildDay / demoEpochCov and the two paramTable builders as the
-%   starting point for your own case. The epochCovariance hook each system
-%   declares is what gives the VCE Shape step its exact separable-descale
-%   path (the Manual, chapter 3 section 7).
+%   copy demoBuildDay and the two paramTable builders as the starting point
+%   for your own case. The per-epoch covariance of a position stream comes
+%   back from demoBuildDay WITH the day (D.Cep, the Manual, chapter 3
+%   section 7) -- there is no second place to state it.
 %
 %   See also LSQVCE.FIT, DEMO_GRACE, DEMO_SEPARABLE
 %
+%   Updated 2026-09-06 (CEST, UTC+02:00), R6 WP-90: the error information
+%   travels with the day -- the positions declare the temporal law only
+%   ('diag', deliberately wrong) and return D.Cep; the epochCovariance hook
+%   and the 'separable' type are gone. With assistance from Claude
+%   (Anthropic), model Claude Fable 5.1.
 %   Updated 2026-08-31 (CEST, UTC+02:00), v4 SCOPED tables (Level L11,
 %   WP-77): the declaration tables carry the scope column (commonParams
 %   'common'|'day', localParams 'arc'|'day'|'system'); localsPerArc left the
@@ -69,10 +75,9 @@ function [cfg, data] = demo_grace_dataLoader()
 %   Claude Fable 5.
 %   Updated 2026-08-31 (CEST, UTC+02:00), v3 data contract (Level L10,
 %   WP-74): USER surface only -- returns [cfg, data], the declaration
-%   (obsTypes from the covariance fieldnames, localParams tables, id,
-%   epochCovariance hooks); the ENGINE-tier loader construction moved to
-%   dev/tests/fixture_grace.m. With assistance from Claude (Anthropic),
-%   model Claude Fable 5.
+%   (obsTypes from the covariance fieldnames, localParams tables, id);
+%   the ENGINE-tier loader construction moved to dev/tests/fixture_grace.m.
+%   With assistance from Claude (Anthropic), model Claude Fable 5.
 %   Created 2026-07-16 (CEST, UTC+02:00) with assistance from
 %   Claude (Anthropic), model Claude Opus 4.8.
     cfg  = demoCfg();
@@ -83,8 +88,7 @@ end
 function data = graceData(cfg)
 %GRACEDATA  The declaration as a v4 data struct: two systems (the merged
 %   C/D pair and independent E), each with its covariance (the fieldnames
-%   ARE the streams, in processing order), its localParams table, and the
-%   epochCovariance hook for the exact VCE Shape path.
+%   ARE the streams, in processing order) and its localParams table.
     data = struct();
     data.commonParams = cfg.common;                   % scoped: 'common' + 14 OUR cols
     data.days = cfg.days;
@@ -99,7 +103,6 @@ function data = graceData(cfg)
     s.name              = 'demo-CD-pair';
     s.localParams       = cfg.localPair;
     s.processingOptions = cfg.procOpt;
-    s.epochCovariance   = @(d,ot) demoEpochCov(cfg, d, ot);
     data.systems = s;
 
     s.covariance  = whiteCov(cfg.obsTypesE);          % posE only
@@ -149,15 +152,13 @@ function cfg = demoCfg()
 end
 
 function cov = whiteCov(obsTypes)
-%WHITECOV  A-priori white covariance per obsType (separable for positions).
+%WHITECOV  A-priori white covariance per obsType -- the TEMPORAL law only
+%   (deliberately wrong: the loop discovers the colour). The per-epoch 3x3
+%   scaling of a position stream is not declared here: demoBuildDay returns
+%   it with the day as D.Cep and the toolbox composes C = D (R_t kron I_3) D.
     cov = struct();
     for k = 1:numel(obsTypes)
-        ot = obsTypes{k};
-        if demoAxes(ot) > 1
-            cov.(ot) = struct('type','separable', 'ar',1, 'sigma',1, 'd',3);
-        else
-            cov.(ot) = struct('type','diag', 'sigma', 1);
-        end
+        cov.(obsTypes{k}) = struct('type','diag', 'sigma', 1);
     end
 end
 
@@ -217,6 +218,8 @@ function D = demoBuildDay(cfg, day, obsType, common, local, procOpt)  %#ok<INUSD
             W = sigT * (Ld * W);             % cross-axis mix + scale
             e(base + (1:mE*nAx)) = W(:);      % epoch-major [x1 y1 z1 ...]
         end
+        % the ERROR INFORMATION of the day: the per-epoch 3x3 covariance
+        % (nEpoch x 3 x 3) -- the axis count is derived from it (WP-90)
         D.Cep = repmat(reshape(cfg.Dep, 1, nAx, nAx), nEd, 1, 1);
     else
         e = colouredNoise(s, m, cfg.trueAR.(obsType), ...
@@ -225,28 +228,11 @@ function D = demoBuildDay(cfg, day, obsType, common, local, procOpt)  %#ok<INUSD
     D.A = A;  D.B = B;  D.l = l0 + e;
     D.t = reshape(repmat((0:mE*nArc-1)*cfg.dt, nAx, 1), [], 1);  % epoch-major
     D.arcIdx = arcIndex(nArc, mE*nAx);
-    if nAx > 1, D.nAxis = nAx; end       % tell the accumulator the axis count
 end
 
 function n = demoAxes(obsType)
 %DEMOAXES  Axis count for a demo obsType (posC/posD/posE -> 3, rr -> 1).
     if numel(obsType) >= 3 && strcmpi(obsType(1:3), 'pos'), n = 3; else, n = 1; end
-end
-
-function dd = demoEpochCov(cfg, day, obsType)  %#ok<INUSD>
-%DEMOEPOCHCOV  Per-day epoch-covariance in the LSQVCE.KERNEL.RESIDUALACV
-%   contract: .arc(i).epochs (day-epoch indices) and .Cep (nEpochDay x d x d).
-%   Only meaningful for the multi-axis position streams.
-    nAx  = demoAxes(obsType);
-    mE   = cfg.mEpoch;  nArc = cfg.arcsPerDay;
-    nEd  = mE * nArc;                          % epochs in the day
-    dd.Cep = repmat(reshape(cfg.Dep, 1, nAx, nAx), nEd, 1, 1);
-    dd.arc = struct('epochs', {}, 'rows', {});
-    for a = 1:nArc
-        ep = (a-1)*mE + (1:mE);                % day-epoch indices
-        dd.arc(a).epochs = ep;
-        dd.arc(a).rows   = (a-1)*mE*nAx + (1:mE*nAx);
-    end
 end
 
 %% ===================================================== parametrisation tables

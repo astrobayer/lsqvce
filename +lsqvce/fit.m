@@ -56,9 +56,10 @@ function R = fit(data, opts, nv)
 %                                  purpose -- and so are the retired fields:
 %                                  common, numCommon, numLocal,
 %                                  observationTypes, systemId, cache, loader,
-%                                  plotPostSolve, plotPostModel, and since
-%                                  v4 localsPerArc: declare 'arc' rows in
-%                                  localParams instead)
+%                                  plotPostSolve, plotPostModel, since v4
+%                                  localsPerArc (declare 'arc' rows in
+%                                  localParams instead), and since v5.3
+%                                  epochCovariance (the day returns Cep))
 %       lsqvce:fit:noSystems       data.systems missing, not a struct, or empty
 %       lsqvce:fit:noCommon        data.commonParams missing, or not a 2-D
 %                                  cell of template rows
@@ -109,16 +110,23 @@ function R = fit(data, opts, nv)
 %                                  u is stated once (numel(x0))
 %     Your buildDay is wrong (raised WHILE READING, by the engine, ids
 %     unchanged): lsqvce:makeLoader:badDay / dayShape / badArc / badArcId /
-%     buildDay, lsqvce:accum:arcBadNc / arcBadNl
+%     buildDay / badDayCep / axisConflict / cepTwice (v5.3: the day's Cep and
+%     axis count), lsqvce:covModel:cepOnVar, lsqvce:accum:arcBadNc / arcBadNl;
+%     lsqvce:makeLoader:noCep is a once-per-run warning (a multi-axis day
+%     without Cep is composed with D = I)
 %
-%   See also LSQVCE.OPTIONS, LSQVCE.RESULTS, LSQVCE.ENGINE.MAKELOADER,
-%            LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCE, LSQVCE.ENGINE.ADJUSTVCEJOINT,
-%            LSQVCE.ENGINE.ADJUST, LSQVCE.ENGINE.ROBUST, LSQVCE.ENGINE.SOLVENONLINEAR
+%   See also LSQVCE.OPTIONS, LSQVCE.RESULTS, LSQVCE.LAYOUT, LSQVCE.ENGINE.DECLARATION,
+%            LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT,
+%            LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTNONLINEAR
 %
 %   Created 2026-08-31 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Fable 5 -- R4 Level L2, WP-56 (decision R4-D4).
 %   Help rewritten 2026-09-04 for v5.2 (R5 M5 / R5-D8), model Claude Fable 5.1:
 %   the v5 surface (Estimate, priors, paramColumns, OnPass, layout, toTable).
+%   Updated 2026-09-06 (CEST, UTC+02:00), R6 WP-90: the error information
+%   travels with the day (D.Cep); epochCovariance retired; the See also on
+%   the units that exist. With assistance from Claude (Anthropic), model
+%   Claude Fable 5.1.
 arguments
     data (1,1) struct
     opts (1,1) lsqvce.Options = lsqvce.Options()
@@ -181,8 +189,7 @@ end
             %             the successor of the separate mode, whose AR law was
             %             fitted to the BIASED raw residual ACV (finding H-03)
             %   "pooled"  one law for all streams (Pool "all"), no arc factors
-            % The engine-tier lsqvce.engine.adjustVCE still exists for its own
-            % callers until its tests are re-homed (M4 4c).
+            % (the separate-mode engine adjustVCE was deleted in M4 4c)
             R = fitEllmer(systems, days, opts, pri, onPassContext(data, systems), priorGroups);
     end
 end
@@ -283,7 +290,6 @@ function R = fitEllmer(systems, days, opts, pri, opc, priorGroups)
     streams = streamKeys(systems, specs);
     a = opts.engineArgs("adjustVCEjoint");
     psdMode = char(opts.Noise.Whitener);
-    sepStreams = separableStreams(systems, specs);        % R5 M3 (H-15)
     pool = opts.Pool;  afDefault = opts.ArcFactors;      % R5 M5: explicit policy knobs
     [estMap, afMap] = streamPolicy(systems, specs, streams, afDefault);   % R5 M3 3d (R5-D4)
     % R5 M7 7b: prior groups with estimate "scale" get one Helmert step per
@@ -291,8 +297,8 @@ function R = fitEllmer(systems, days, opts, pri, opc, priorGroups)
     priState = containers.Map('KeyType', 'char', 'ValueType', 'any');
     priState('groups') = priorGroups;  priState('pri') = pri;  priState('rec') = {};
     accFcn = @(model) jointAccumulator(nc, specs, opts, ...
-                 withPass(lsqvce.engine.jointModelOpt(model, streams, 'PsdMode', psdMode, ...
-                                             'Separable', sepStreams), model), priorFor(priState, model));
+                 withPass(lsqvce.engine.jointModelOpt(model, streams, 'PsdMode', psdMode), model), ...
+                 priorFor(priState, model));
     nvj = a.nv;
     out = lsqvce.engine.adjustVCEjoint(accFcn, nvj{:}, 'Estimate', estMap, 'ArcFactors', afMap, ...
                                        'OnPassContext', opc);
@@ -338,7 +344,7 @@ end
 
 function keys = streamKeys(systems, specs)
 %STREAMKEYS  'satKey|obsType' for every (system, observation type) stream --
-%   the names LSQVCE.ENGINE.ADJUSTVCE / LSQVCE.ENGINE.JOINTMODELOPT use.
+%   the names LSQVCE.ENGINE.JOINTMODELOPT / LSQVCE.ENGINE.ADJUSTVCEJOINT use.
     keys = {};
     for k = 1:numel(specs)
         ot = cellstr(systems{k}.obsTypes);
@@ -524,26 +530,6 @@ function R = runBatchOnBlockPath(u, batchFcn, nBatch, opts, kind, pri, data)
         a = opts.engineArgs('adjustRobust');
         R = lsqvce.engine.adjustRobust({L}, 1:nBatch, a.nv{:}, 'Provenance', prov, 'Prior', pri, ...
                                        'OnPassContext', struct('data', data, 'processingOptions', {{}}));
-    end
-end
-
-function keys = separableStreams(systems, specs)
-%SEPARABLESTREAMS  'satKey|obsType' of every stream whose base law is separable.
-%   R5 M3 (finding H-15): those streams keep their type / axis count / Cep
-%   under the joint override; the estimated law reaches them as an AR(p)
-%   temporal model (LSQVCE.ENGINE.JOINTMODELOPT 'Separable').
-    keys = {};
-    for k = 1:numel(systems)
-        L = systems{k};
-        if ~isfield(L, 'cov') || ~isstruct(L.cov), continue, end
-        satKey = matlab.lang.makeValidName(char(string(specs(k).sysID)));
-        ots = fieldnames(L.cov);
-        for j = 1:numel(ots)
-            cm = L.cov.(ots{j});
-            if isfield(cm, 'type') && strcmpi(char(cm.type), 'separable')
-                keys{end+1} = sprintf('%s|%s', satKey, ots{j}); %#ok<AGROW>
-            end
-        end
     end
 end
 

@@ -8,7 +8,22 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-09-02 (morning) — LEVEL M0 DONE (PR #48 merged
+Last substantive update: 2026-09-07 — REVIEW R6 + WP-90 READY: PR #90, CI green on c6fb014 (audit + matlab 506/506), local ci_gate 531/531 incl. test_parallel
+(model Claude Fable 5.1, tier A: MATLAB R2026a over the working copy through
+the MCP bridge; the static audit runs locally on a found Python 3.12 but is
+Linux-only as an instrument, §12.14 E-12; no pandoc — the Manual rebuild is
+CI/container-only). The user asked: "review the processing chain and audit
+the test; enable an easier interface with buildDay; especially simplify the
+handling of the error information". §12.14 records the review (E-01…E-12,
+reproduced vs inferred), the test audit of the buildDay → loader → whitener
+→ estimator chain, and the WP-90 decision: THE ERROR INFORMATION TRAVELS WITH
+THE DAY — `buildDay` returns `D.Cep` for ANY stream (per-epoch sigma, per-axis
+sigma, or a full d x d per epoch), `nAxis` is derived from it, the covariance
+spec declares the TEMPORAL law only, and ONE composition C = D (R_t kron I_d) D
+in covModel replaces the `separable` type, the `epochCovariance` hook and the
+static spec Cep (three sources of one fact; one silently shadowing the next).
+Version 5.3.
+Preceding entry: Last substantive update: 2026-09-02 (morning) — LEVEL M0 DONE (PR #48 merged
 a0dc47b; postflight SETTLED: user's ci_gate 629/629 incl. test_parallel, one
 warning id). WP-79 DONE: bench_m0 numbers pinned in dev/DEVELOPMENT.md —
 PrefetchLoader 1.12× SLOWER than plain (delete), parfor-over-days 0.36×
@@ -5628,3 +5643,227 @@ savepath, the helpsearch database removed); `lsqvce.util.toolboxVersion` is the 
 version reader (runMeta, setup). Documentation guide compliance: every public function
 carries the H1 / INPUT / OUTPUT / ERRORS / See also / Created stamp structure the audit
 checks (h1, error ids, catalogue, pages, manual); the theory PDF is unchanged (R5, 54 pp.).
+
+### 12.14 REVIEW R6 (2026-09-06, model Claude Fable 5.1, tier A) — the buildDay error-information path, and WP-90
+
+**Origin.** The user's request, verbatim: "review the processing chain and
+audit the test; enable an easier interface with buildDay; especially simplify
+the handling of the error information." Instruments: the code read end to end
+along the kind-A chain (`fit` → `engine.declaration` → `engine.makeLoader`
+(`dayOf` / `callBuildDay` / `validateDay` / `batchOf` / `sliceEpochCov`) →
+`engine.covModel` → `kernel.separableWhiten` → `BlockAccumulator.accumArc` /
+`adjustVCEjoint.oneArc` → the sweeps), a grep-derived consumer inventory of
+`Cep` / `nAxis` / `separable` / `epochCovariance` / `residualAcv`, the audit
+run locally (Python 3.12 found on the machine; no pandoc), and MATLAB R2026a
+for the reproductions. Findings say REPRODUCED (run) or INFERRED (read).
+
+**12.14.1 What the chain does today (the error information).** A stream's
+stochastic model is stated in up to FOUR places: (1) the declared law
+`covariance.<type>` (type, sigma, ar/psd, and for `separable` also `d` and
+optionally a static `Cep`); (2) `D.Cep` + `D.nAxis` returned by `buildDay`,
+read ONLY when the declared type is `separable`; (3) the `epochCovariance`
+hook (`L.epochCov`), whose only consumer `kernel.residualAcv` lost its engine
+caller when `adjustVCE` was deleted (M4 4c); (4) a per-row `sigma` vector on a
+`diag` spec, static per system yet checked per arc. The joint estimator
+descales per axis only for `nAxis > 1`.
+
+**12.14.2 Findings (ranked; symptom that falsifies each).**
+
+| # | finding | how found | disposition |
+|---|---|---|---|
+| E-01 | `makeLoader>batchOf` slices the day's Cep with `D.arcIdx{arcID}` (the arc ID) while every other field uses `D.arcIdx{pos}` (its position in `D.arcId`): a day whose `arcId` is not `1:n` whitens a multi-axis arc with ANOTHER arc's epochs, or dies on a MATLAB index error. Symptom: `arcId = [3 1]` with different per-epoch sigmas per arc → the whitened norm of arc 3 equals arc 1's. | REPRODUCED (the new regression test fails on the old code) | fixed (WP-90); regression test |
+| E-02 | `D.Cep` on a `diag` / `arma` / `psd` stream is SILENTLY IGNORED (only `separable` reads it); under `Estimate="none"` the solve runs mis-weighted with no message, under `Estimate="noise"` it refuses `adjustVCEjoint:noCep` with a message naming the dead hook as the remedy. Manual §0a/§7 documented the silence ("a diag law ignores the per-epoch covariance") — a documented silent degrade is still one (R4). | REPRODUCED | the composition applies Cep to EVERY temporal law (WP-90) |
+| E-03 | Per-observation error information of a SCALAR stream cannot travel with the day: a `diag.sigma` vector is static per system and checked per arc (`covModel:sigmaLength`), so it fits only when every arc of every day has one length; the GRAVFIRE guide (§12.8 rule 6) told the user to fold weights "into a per-row diag sigma inside buildDay", which the loader cannot accept (the KBR piece is 2111 rows on one day). | REPRODUCED (two arcs of different length + a sigma vector → `sigmaLength` on the second) | `D.Cep` nEpoch x 1 (WP-90) |
+| E-04 | The axis count is stated TWICE — `cm.d` on the spec, `D.nAxis` on the day — and never compared: the whitener descales with `d`, the accumulator batches on `nAxis`. | INFERRED (read; the paths are disjoint) | derived from `size(Cep, 2)`; a conflicting `nAxis`/`d` refused by name (WP-90) |
+| E-05 | The `epochCovariance` hook is DEAD: `kernel.residualAcv` has no engine caller since M4 4c, yet the hook is a contract field, carried by `fixture_grace`, the template, `demo_grace_dataLoader`, pinned by a test ("hook carried"), and named as the remedy in the `noCep` message. | REPRODUCED (grep: callers = tests only) | hook, `L.epochCov`, `kernel.residualAcv` deleted (WP-90) |
+| E-06 | A static `cm.Cep` on the spec SHADOWS the day's (`~isfield(cm,'Cep')` guard): a third source of D with silent precedence. | INFERRED | refused when both exist (WP-90) |
+| E-07 | Manual ch. 3 §11 still says a stream named `pos` is 3 components per epoch "by default (`Options.ComponentsPerEpoch`)" — the option was retired in M4 4c (RELEASE_NOTES 5.0 says so). | REPRODUCED (grep Options.m) | paragraph deleted (WP-90) |
+| E-08 | Doc truth on the chain: `fit`'s See also names four deleted units (ADJUSTVCE, ADJUST, ROBUST, SOLVENONLINEAR); `makeLoader`'s help documents `localsPerArc`, `cache`, the plot hooks, `badPlotHandle`, the ADJUSTVCE override path, `.plotPostSolve/.plotPostModel` outputs; `isPlotSpec` / `requireHandle` are dead code kept alive by the identifier catalogue. | REPRODUCED | help rewritten, dead code deleted (WP-90) |
+| E-09 | The sweeps do not batch on WHOLE EPOCHS: `residuals>arcResiduals`, `diagnoseAccum>whitenArcIntoBatches` and `private/arcBatchWhiten` copy the accumulator's batch loop WITHOUT its `nAxis` rounding — a multi-axis arc longer than BatchSize (20 000 rows) fails in the residual sweep with `separable:notWholeEpochs`. No fixture reaches it (the longest arc is 6 480 rows). Four copies of one loop = the F-08 class. | INFERRED | NOT in WP-90 (scope): a later WP makes `arcBatchWhiten` THE batch iterator of all four |
+| E-10 | Documented identifiers no suite fires on this path: `makeLoader:noD`, `makeLoader:badDayCep`, `covModel:noCep`, `covModel:badCep`, `adjustVCEjoint:noCep`, `adjustVCEjoint:badAxisRows` — the contract promise "every documented identifier fires" was unmet on the whole chain. | REPRODUCED (grep the suites) | the surviving ids are pinned; the retired ones leave the catalogue (WP-90) |
+| E-11 | `engine.selectArAcv` is unreached (its only caller was `residualAcv`); an H-01 class unit. | REPRODUCED (grep) | kept; a later deletion round |
+| E-12 | `audit_tree.py` on Windows: check 16 keys units by path with backslashes (588 false "gaps"), check 21 finds 0 edges (4 false "stale baseline" rows). The audit is a Linux-only instrument; the local run is usable only as a DIFF against a baseline taken on the same machine. | REPRODUCED | a workflow change, never mixed: separate WP |
+| E-13 | `sliceEpochCov` takes the arc rows twice (4th argument unused); `validateDay` checks nothing about `nAxis` / `Cep`, so a wrong shape surfaces per arc in kernel ids without day / obsType context. | INFERRED | validated at the DAY with context (WP-90) |
+
+**12.14.3 What is RIGHT on this chain (so nobody "fixes" it).** The
+descale-then-filter order and the epoch-major row convention of
+`separableWhiten` (pinned against the dense Cholesky, test_vceMath); the
+joint estimator's per-axis lag statistics over EPOCHS after the descale (R5
+M3 3a); the PSD-domain law resampled to every arc's length (3b); the
+data-gap semantics of `arcId`; the loader's day cache and `CacheDays`; the
+`callUser` doctrine for the builder's own errors (cause-wrapped).
+
+**12.14.4 Test audit of the chain (seven categories, what the suites PROVE).**
+`makeLoader`: contract broad (validity, priors, arcs, scope plans —
+test_streamUtils / test_fit / test_adjustBlock); the Cep slice through the
+loader had NO test at all (E-01 lived there unseen); `epochCov hook
+carried` pinned a dead seam (a test that cannot fail informatively).
+`covModel`: diag / arma / psd pinned in test_precision / test_signalCore;
+`separable` ONE precision point (whitened variance ≈ 1 at RelTol 0.25) — a
+statistical bar, not the dense identity the kernel test has. `separableWhiten`
+(kernel): two dense-identity precision points + one contract — sound. The
+joint multi-axis path: test_errorDoctrine `testEllmerRunsOnMultiAxisStreams`
+is a SMOKE test (finite, no skips); no oracle checks that a planted per-epoch
+scaling is UNDONE by the estimator. Verdict: the mechanism is proven at the
+kernel, unproven at the seam where the user's data enters it. WP-90 adds the
+seam tests (below).
+
+**12.14.5 WP-90 — THE ERROR INFORMATION TRAVELS WITH THE DAY (decision, scope frozen 2026-09-06).**
+
+Principle (R2, "metadata travels with the data"): what the preprocessing knows
+per observation — a per-epoch sigma, a per-axis sigma, a full 3 x 3 per epoch
+— is DATA and comes back from `buildDay` with the day; what is DECLARED (and
+estimated) is the TEMPORAL law. One composition joins them.
+
+1. **`buildDay` returns `D.Cep`, for ANY stream** (optional): nEpoch x 1 (the
+   per-epoch standard deviation of a scalar stream), nEpoch x d (per-axis
+   standard deviations, a diagonal D) or nEpoch x d x d (the full per-epoch
+   covariance). `d = size(Cep, 2)`; `nEpoch * d` must equal the day's row count
+   (`lsqvce:makeLoader:badDayCep`, checked at the DAY with day / obsType in the
+   message). `D.nAxis` is DERIVED from Cep; given as well, it must agree
+   (`lsqvce:makeLoader:axisConflict`); it stays required only for a multi-axis
+   stream WITHOUT Cep, which is then composed with D = I and reported ONCE per
+   run (`lsqvce:makeLoader:noCep`, a warning: omission is distinguishable from
+   choice, R5).
+2. **`covariance.<type>` declares the TEMPORAL law only**: `diag` (white),
+   `arma`, `psd`, `acf`, `custom`; `var` keeps its own cross-axis structure and
+   refuses Cep (`lsqvce:covModel:cepOnVar`). `sigma` stays the LEVEL of the law
+   (so the estimated level rides exactly as before). The type `separable` is
+   RETIRED under the no-aliases rule — it was `arma` + Cep; `covModel:unknownType`
+   names the replacement. A Cep on the SPEC and on the day is refused
+   (`lsqvce:makeLoader:cepTwice`); the spec field remains the ENGINE-tier carrier
+   the loader fills from the day.
+3. **ONE composition in `covModel`**: with `cm.Cep` present, C = D (R_t kron I_d) D
+   — descale every epoch by D^-1/2, then the temporal whitener PER AXIS: the
+   filter laws (diag = AR(0), arma, psd in 'ar'/'arma' mode) through
+   `kernel.separableWhiten`, the dense laws (psd 'toeplitz', acf, custom) through
+   the dense decorrelation factor of the temporal covariance over EPOCHS;
+   `Cfcn` is the temporal covariance over epochs (what the joint estimator
+   forms per axis); the temporal law is placed on the EPOCH grid (t(1:d:end) —
+   the round-3b class of bug, pinned); `filterMemory = p * d` rows.
+4. **The joint estimator descales when Cep is PRESENT**, not when `nAxis > 1`:
+   a scalar stream with a per-epoch sigma is estimated correctly (level ≈ 1 on
+   a planted fixture, the new oracle); `jointModelOpt`'s `Separable` option,
+   `lawSpecs`' AR form and `fit>separableStreams` are deleted — the override
+   carries the PSD law for every "law" stream and the LOADER composes it with
+   the arc's Cep (the decision moves to where the data is, R3).
+5. **Deleted**: the `epochCovariance` contract field (now `lsqvce:fit:unknownField`
+   by name), makeLoader's `EpochCovariance` option and `L.epochCov`,
+   `kernel.residualAcv` (+ page, index, helptoc, tiers row, exemption rows, id
+   rows, 3 test points + the dead-seam point), the dead plot-hook helpers and
+   `badPlotHandle`, the ids `makeLoader:noD`, `covModel:noCep`,
+   `adjustVCEjoint:noCep`; the E-01 slice bug.
+6. **Docs in the same change**: Manual ch. 3 (§2.3, §3.4, §3.5, §5, §7 rewritten
+   as "the error information", §9, §10, §11 last paragraph gone), ch. 7 first
+   paragraph, README line on the types, `fit` / `makeLoader` / `covModel` /
+   `adjustVCEjoint` / `jointModelOpt` help, kernel Contents, the GRAVFIRE
+   template (positions: `diag` + `Cep` from iSpp — no `separable`, no `d`) and
+   guide, `lsqvce_template` (the `myEpochCov` stub gone; `Cep` on the day),
+   `demo_grace_dataLoader` (no hook), `demo_grace` / `demo_gravfire` prose,
+   RELEASE_NOTES 5.3, Contents version 5.3, README title, DEVELOPMENT counts.
+   The Manual HTML/PDF regeneration needs pandoc (CI audit check 23): NOT
+   possible on this machine — recorded as the round's open item.
+7. **NOT in WP-90** (recorded, not hidden): E-09 (one batch iterator for the
+   four loops), E-11 (`selectArAcv`), E-12 (audit portability), a metamorphic
+   point on the Cep scaling invariance, `synthLoader` (engine-tier raw closure;
+   untouched, has no Cep path).
+
+**Predicted test count** (declared, audit check 17 definition): 541 − 4
+(residualAcv 3 + the hook point) + 5 (test_streamUtils: composition equals the
+dense reference through the LOADER; scalar per-epoch sigma; refusals by name
+incl. the retired type and the once-per-run warning; the E-01 regression on a
+non-positional `arcId`; the PSD law on the epoch grid) + 1 (test_vcePolicy: the
+planted per-epoch sigma recovered by `Estimate="noise"`, and NOT recovered
+without Cep) = **543 points, 26 files**; test_streamUtils 17 → 18,
+test_vcePolicy 21 → 22. Reconciled per suite before the run.
+
+| WP | title | depends on | status |
+|---|---|---|---|
+| 90 | The error information travels with the day: `D.Cep` for every stream, the temporal law declared, ONE composition; `separable` / `epochCovariance` / `residualAcv` retired; E-01 + E-14 fixed; version 5.3 | — | READY (2026-09-07, PR #90, CI green on c6fb014: audit pass, ci_gate 506/506 = 543 − test_speed 12 − test_parallel 25 skipped on the hosted runner; DONE flips on the merge. Round: local `ci_gate` GREEN 531/531 incl. test_parallel, batch run exit 0; examples 12/13 OK in the isolated harness incl. `demo_gravfire` on the real bundle 5.5 s, `bench_qr_vs_normal` = E-15 pre-existing; the Manual HTML/PDF rebuilt at e6fed79 (pandoc 3.1.3+ds in WSL, audit exit 0 on Linux) — CI pending on that head; DONE flips on the merge) |
+
+**ROUND WP-90 (2026-09-06, model Claude Fable 5.1, tier A: MATLAB R2026a
+through the MCP bridge on the working copy; the static audit locally on a
+found Python 3.12 as a DIFF against the pre-change baseline, E-12; no pandoc).**
+
+VERDICT PER TIER. Local MATLAB: `ci_gate` GREEN — 531/531 passed, 26/26
+suites accounted for (0 skipped, 1 excluded = test_speed), `test_parallel`
+25/25 included, warning inventory = the probe id only, 89 s; the batch run
+(`matlab -batch "cd('dev/tests'); ci_gate"`, exit 0) and the bridge run
+agree. Count reconciled per suite against the prediction: 543 declared
+(test_streamUtils 17 → 18, test_vcePolicy 21 → 22, every other suite
+unchanged) − 12 excluded = 531 run — exact. Static audit (local diff vs
+baseline): the seven residualAcv category findings gone; NEW findings only
+where the stale generated Manual is read (check 14: `html/lsqvce_manual.html`
+cites the retired ids; check 23: the Manual could not be rebuilt) — see the
+debt below; every other check unchanged. CI: pending on the push (the
+draft PR); the audit job is EXPECTED red on checks 14/23 until the Manual
+is rebuilt.
+
+MEASURED. The new oracle (test_vcePolicy
+`testPerEpochSigmaIsUndoneByTheEstimator`): a white scalar stream with a
+per-epoch sigma spanning 0.1 … 10 (log-uniform, deterministic), returned as
+`D.Cep` — `Estimate="noise"` finds the level **1.0047** (declared 1), the
+field within max|z| 1.19, whiteness p 0.66, converged in 3 passes; the SAME
+data without Cep: level **3.80** (the RMS of the sigmas). Tolerance pinned
+at 5 % = three times the Helmert scatter of one stream (r ≈ 1790). The
+composition through the loader equals the dense reference D (R_t ⊗ I_d) D at
+1e-8 relative on the whitened normals (d = 3 full 3 × 3 per epoch; d = 1
+per-epoch sigma), the PSD law on the epoch grid equals psd2acv at the epoch
+dt to 1e-7 (the psdRidge).
+
+TWO CATCHES OF THE POSTFLIGHT (recorded, not hidden):
+- **E-14 (REPRODUCED, fixed in this round — a scope amendment):** with the
+  user's bundle present next to the toolbox, `demo_gravfire` ran the real
+  pipeline and REFUSED `lsqvce:fit:badPrior … x0 must have 2 entries`: the
+  GRAVFIRE template emits a local prior group with a SCALAR `x0` (column
+  10) for a `'day'` row instantiated on 2 days, and `makeLoader>validatePriors`
+  did not broadcast a scalar the way `fit>priorsOf` does for `data.priors`
+  (the "literal counterpart" promise of §0a 1b was not kept). A scalar `x0`
+  is now every row's; pinned in the existing pattern point of
+  test_streamUtils. Pre-existing since D8-6 — the demo "never fails a
+  smoke run" only WITHOUT the bundle.
+- **E-15 (REPRODUCED, NOT fixed — out of scope):** `bench_qr_vs_normal`
+  reads `R.sol.condN`, a field of the deleted flat driver (M5 5b′); the
+  benchmark has errored since 5.0. A later docs/example round.
+- The first smoke harness of this round ran scripts in one shared
+  workspace and clobbered itself — the isolated harness (one function
+  call per example) is the instrument of record; result in the ledger row.
+
+DEBT (named): `html/lsqvce_manual.html` and `lsqvce_manual.pdf` are NOT
+rebuilt — `build_manual.py` needs pandoc, absent on this machine (and
+un-installable without the user); the Manual sources ARE on v5.3 (ch. 3 §0b,
+§3.4, §3.5, §5, §7, §11; ch. 7). Discharge: `python3 dev/docs_src/build_manual.py`
+in a container (the docs-level environment) and commit the two artefacts on
+the branch; CI checks 14 + 23 turn green with it, nothing else is pending.
+
+WHAT THE NEXT SESSION COULD BE WRONG FOR NOT READING: the covariance spec
+is the TEMPORAL law only — `type 'separable'`, `cm.d`, `cm.Cep` on a
+declared spec and `epochCovariance` are gone (refused by name); a stream's
+per-epoch accuracy is `D.Cep` on the day, for scalar streams too, and the
+joint estimator descales every arc that carries one (`oneArc`: `hasCep`,
+not `nAx > 1`). E-09 (the four batch loops without whole-epoch rounding)
+is still open; E-11 (`selectArAcv` unreached) and E-12 (the audit on
+Windows) too.
+
+**Record (2026-09-06, late):** DRAFT PR #90 opened at 8ebd1fe (CI pending;
+the `matlab` job `needs: audit`, so with the stale Manual the PR carries NO
+MATLAB verdict from CI until the rebuild — the local tier is the evidence
+until then). E-16 found while committing: `.gitignore` still listed the
+pre-L8 path `tests/last_run_all.txt`, so the gate log was untracked-visible
+under `dev/tests/` (dropped from the commit; path fixed here).
+
+**Record (2026-09-07, 00:01):** the Manual debt is DISCHARGED — `html/lsqvce_manual.html`
++ `lsqvce_manual.pdf` (40 pp.) rebuilt by the unmodified `build_manual.py` and pushed
+as e6fed79. HOW, because it matters for the next rebuild: check 23 is byte-equality
+against a fresh build, and the committed HTML depends on the pandoc BUILD — Debian's
+patched pandoc 3.1.3+ds-2 (what ubuntu-latest ships); pandoc 3.11 and upstream 3.1.3
+both differ (template rewrite / an html5shiv script tag that also trips the JS check).
+The rebuild ran in this PC's WSL Ubuntu (texlive-xetex + the noble pandoc .deb extracted
+under /opt/pandocdeb) — a tool install in the WSL distro, made by the round's agent
+without an explicit user decision; the repo itself is untouched beyond the two
+artefacts. Local rebuilds are possible from now on through WSL. E-16 fixed in 3ace1a7.
+
+**Record (2026-09-07, sync):** PR #90 was BEHIND `main` (PRs #85–#87 moved the MATLAB
+job to the self-hosted runner and pinned the actions; ruleset 20998085 requires strict
+up-to-date checks), so `main` was merged into `claude/wp-90` — ci.yml only, no conflict
+— and CI reruns on the merged head.

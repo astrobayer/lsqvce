@@ -9,9 +9,9 @@ function R = demo_grace(varargin)
 %   (the Manual, chapter 3), the run is ONE call to LSQVCE.FIT, and everything
 %   you read afterwards is on the LSQVCE.RESULTS. Two observation systems:
 %     * System 1 -- satellites C and D, each with a 3-D position stream (posC,
-%       posD) whose covariance is the SEPARABLE model C = D (R_t kron I_3) D --
-%       a FIXED per-epoch 3x3 D (as from a PPP solution, declared through the
-%       epochCovariance hook) times a shared temporal AR law -- plus ONE
+%       posD) whose covariance is C = D (R_t kron I_3) D -- a FIXED per-epoch
+%       3x3 D (as from a PPP solution, returned by buildDay with the day as
+%       D.Cep) times a shared temporal law the toolbox estimates -- plus ONE
 %       inter-satellite range-rate stream (rr, scalar) whose design couples
 %       BOTH satellites' arc states. Because rr touches two satellites' local
 %       parameters and the block-arrow model has one local block per system,

@@ -63,7 +63,6 @@ kernel.varWhiten,KERNEL,VAR whitening
 kernel.separableWhiten,KERNEL,separable (temporal x axis) whitening
 kernel.toeplitzCofactor,KERNEL,Toeplitz cofactor construction
 kernel.decorrFactor,KERNEL,decorrelation factor of a dense covariance
-kernel.residualAcv,KERNEL,autocovariance of residuals
 kernel.crossCorr,KERNEL,cross-correlation of residual streams
 kernel.whitenessCorr,KERNEL,whiteness (Ljung-Box) statistic
 kernel.redundancyLags,KERNEL,redundancy per lag without the dense W^-1

@@ -13,7 +13,6 @@
 %   levinsonDurbin       - Levinson-Durbin recursion
 %   psd2acv              - PSD -> autocovariance
 %   redundancyLags       - redundancy per lag without the dense W^-1
-%   residualAcv          - autocovariance of residuals
 %   separableWhiten      - separable (temporal x axis) whitening
 %   toeplitzCofactor     - Toeplitz cofactor construction
 %   varACV               - VAR autocovariance

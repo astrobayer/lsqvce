@@ -7,7 +7,7 @@ the module census, correctness history, design decisions, validation, and the
 measured chapters. `dev/HANDOVER.md` remains the single status-and-plans
 document; this file is the technical companion the README used to be.*
 
-> **Status (2026-09-01, v2.0 — see RELEASE_NOTES.md).** Green everywhere: **26 suite files, 541 test
+> **Status (2026-09-01, v2.0 — see RELEASE_NOTES.md).** Green everywhere: **26 suite files, 543 test
 > points, 0 fail** — verified locally in MATLAB R2026a (including the
 > pool suites with real `parfor`/`spmd` workers and the machine-local
 > speed budgets) and on every push by GitHub Actions CI (a static `audit`
@@ -194,7 +194,7 @@ qualified one you type.
 
 | Function | Purpose |
 |---|---|
-| `lsqvce.kernel.*` | the 15 transforms, whitening filters and statistics (`dctI`, `psd2acv`, `levinsonDurbin`, `armaWhiten`, `varWhiten`, `separableWhiten`, `toeplitzCofactor`, `decorrFactor`, `residualAcv`, `whitenessCorr`, …) — listed with one line each in `dev/docs_src/tiers.csv` and `help lsqvce.kernel` |
+| `lsqvce.kernel.*` | the transforms, whitening filters and statistics (`dctI`, `psd2acv`, `levinsonDurbin`, `armaWhiten`, `varWhiten`, `separableWhiten`, `toeplitzCofactor`, `decorrFactor`, `whitenessCorr`, …) — listed with one line each in `dev/docs_src/tiers.csv` and `help lsqvce.kernel` |
 | `lsqvce.util.log` | toolbox-wide logging: set `logfid` (file id) + `logflag` (screen) once, and **all** status text and warnings route through it |
 
 ### Examples and the template (not package code)
@@ -202,7 +202,7 @@ qualified one you type.
 | File | Purpose |
 |---|---|
 | `examples/demo_fit` | *(example)* **START HERE for 2.0**: the user path on all three data kinds (in-memory, robust, batched, nonlinear, streaming gls + vce), the gravity oracle as a `data` struct |
-| `template/lsqvce_template.m` | *(template, not package)* ENGINE-tier template for a Loader-based case (procOpt-driven); Returns the Loaders; you fill in two documented stubs (`myBuildDay`, `myEpochCov`). The `observationGroups` loop is real runnable code; the stubs error until written. |
+| `template/lsqvce_template.m` | *(template, not package)* ENGINE-tier template for a Loader-based case (procOpt-driven); Returns the Loaders; you fill in one documented stub (`myBuildDay`; the error information comes back with the day as `D.Cep`, v5.3). The `observationGroups` loop is real runnable code; the stubs error until written. |
 | `examples/demo_grace_dataLoader` | *(example, not package)* the GRACE-FO reference setup — C/D pair merged into one system (range-rate couples both satellites' arc states) plus independent satellite E on the same field. A WORKED case to read alongside the template. |
 | `examples/demo_grace` | *(example, not package)* the driver that runs it end to end |
 | `examples/demo_gravity_design` | *(example, not package)* fully-normalised Legendre functions and spherical-harmonic potential partials along a sampled orbit — the ONE physically structured design generator; `demo_gravity` and `test_physOracle` both call it, so the recursion and its accuracy claim exist once |
@@ -278,7 +278,7 @@ predicted shift = 1.765467 sigma      <- from the MDB formula
 realised  shift = 1.765467 sigma      <- inject the MDB, re-solve, measure
 ```
 
-MATLAB unit tests: run `run_all_lsqvce` for the full suite (26 files, 541
+MATLAB unit tests: run `run_all_lsqvce` for the full suite (26 files, 543
 test points, ~3 min locally; the speed suite is reported separately by
 design). `run_lsqvce('all')` delegates to it, so it is the same run;
 `run_lsqvce('<target>')` runs one suite or a name pattern while iterating.
@@ -718,7 +718,7 @@ doc lsqvce              % the landing page
 | `dev/tests/test_util.m` | `getfielddef`, `mergeStruct` (10) |
 | `dev/tests/test_vceFunction.m` | `vce` + `diagnoseAccum` (KeepLocal guard) |
 | `dev/tests/test_signalCore.m` | `outliers`, `varWhiten`, `ar2arma` |
-| `dev/tests/test_streamUtils.m` | `selectArAcv`, `residualAcv`, `collectResiduals`, `whitenessCorr`, `normalizeSatList`, `resolveSatSpecs`, `satKeyOf` (14) |
+| `dev/tests/test_streamUtils.m` | `selectArAcv`, `collectResiduals`, `whitenessCorr`, `satKeyOf`, and the loader / covModel error-information seam (`Cep`, R6 WP-90) (18) |
 | `validation/*.py` | Python mirrors of the numerical properties |
 
 ---

@@ -445,3 +445,56 @@ function testToTableWritesEstimatesIntoTheExpandedTables(tc)
     Rb = lsqvce.fit(struct('A', randn(10, 2), 'l', randn(10, 1)), Verbose=false);
     tc.verifyError(@() Rb.toTable(data), 'lsqvce:Results:tableMismatch');
 end
+
+%% ------------------------------ R6 WP-90: the per-epoch sigma reaches the estimator
+function testPerEpochSigmaIsUndoneByTheEstimator(tc)
+% categories: reference, precision
+    % A scalar stream whose noise is WHITE with a per-epoch sigma spanning
+    % two orders of magnitude (the error information the preprocessing
+    % knows), returned as D.Cep; declared: level 1, temporal law white.
+    % Estimate="noise" must find the level ~ 1 (the descale reaches the
+    % joint sweep for d = 1 -- the v5.2 branch ran only for nAxis > 1); the
+    % SAME data declared WITHOUT Cep (the v5.2 situation, E-03) cannot: its
+    % level is the RMS of the sigmas, far from 1.
+    nc = 4;  nE = 300;  nArc = 2;  nl = 2;
+    xTrue = (1:nc).';
+    data.commonParams = [repmat({'common'}, nc, 1), num2cell((1:nc).')];
+    data.days = 1:3;
+    s.buildDay = @(day, ot) perEpochDay(day, nc, nl, nE, nArc, xTrue, true);
+    s.covariance = struct('rr', struct('type', 'diag', 'sigma', 1));
+    s.arcs = nArc;
+    s.localParams = {'system', 'b1'; 'system', 'b2'};
+    data.systems = s;
+    opts = lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=3, ...
+                          Noise=struct('Grid', 16), Seed=5, Verbose=false);
+    R = lsqvce.fit(data, opts);
+    tc.verifyEqual(R.noise.stream{1}, 'x1|rr');
+    % (6 arcs x 300 epochs, r ~ 1790: the Helmert sigma scatter is ~ 1.7 %;
+    % MEASURED 1.0047 on this fixture 2026-09-06, R2026a; without Cep 3.80)
+    % tol: 5 % = three times that scatter, the shape/level split inside it
+    tc.verifyEqual(R.noise.model{1}.sigma, 1, 'RelTol', 0.05, 'the per-epoch sigma is undone');
+    z = (R.x - xTrue) ./ (sqrt(diag(R.sol.Cxx)) * R.sigma0);
+    tc.verifyLessThan(max(abs(z)), 5, 'the field is recovered within its formal errors');
+    dataNo = data;
+    dataNo.systems.buildDay = @(day, ot) perEpochDay(day, nc, nl, nE, nArc, xTrue, false);
+    R0 = lsqvce.fit(dataNo, opts);
+    % the RMS of a log-uniform sigma on [0.1, 10] is ~ 3.3: without the
+    % per-epoch information the level cannot be 1 (a bar, not a value)
+    tc.verifyGreaterThan(R0.noise.model{1}.sigma, 2, 'without Cep the level is the RMS of the sigmas');
+end
+
+function D = perEpochDay(day, nc, nl, nE, nArc, xTrue, withCep)
+%PEREPOCHDAY  A deterministic day: white noise with a per-epoch sigma 0.1 .. 10.
+    rs = RandStream('mt19937ar', 'Seed', 1000 + day);
+    m = nE * nArc;
+    cep = 0.1 * 100 .^ (mod((1:m).' * 7 + day, 13) / 12);      % 0.1 .. 10, deterministic
+    A = randn(rs, m, nc);  A(:, 1) = 1;
+    B = zeros(m, nl);
+    for a = 1:nArc, B((a-1)*nE + (1:nE), :) = 0.3 * randn(rs, nE, nl); end
+    y = 0.1 * (1:nl).';
+    D.A = A;  D.B = B;
+    D.l = A * xTrue + B * y + cep .* randn(rs, m, 1);         % white noise, per-epoch sigma
+    D.t = (0:m-1).' * 5;
+    D.arcIdx = arrayfun(@(a) (a-1)*nE + (1:nE), 1:nArc, 'UniformOutput', false);
+    if withCep, D.Cep = cep; end
+end

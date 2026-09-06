@@ -33,7 +33,6 @@
     </tocitem>
     <tocitem target="html/index.html">Separable-GLS helpers (GRACE-FO drivers live in examples/gravity)
       <tocitem target="html/lsqvce.engine.collectResiduals.html">lsqvce.engine.collectResiduals</tocitem>
-      <tocitem target="html/lsqvce.kernel.residualAcv.html">lsqvce.kernel.residualAcv</tocitem>
       <tocitem target="html/lsqvce.kernel.whitenessCorr.html">lsqvce.kernel.whitenessCorr</tocitem>
       <tocitem target="html/lsqvce.engine.satKeyOf.html">lsqvce.engine.satKeyOf</tocitem>
       <tocitem target="html/lsqvce.engine.selectArAcv.html">lsqvce.engine.selectArAcv</tocitem>

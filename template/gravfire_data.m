@@ -55,9 +55,13 @@ function data = gravfire_data(commonData, myOptions, systemsData, opt)
 %   passes every declaration check of fit; DryRun + Estimate="none" accumulates 2 days x 16
 %   pieces (4 posA + 4 posB + 8 kbr), nc = 117, nl = 144 derived from the 72
 %   templates, Cep accepted, in 2.0 s. Estimate="noise", Pool="stream", ArcFactors=false runs (62 s, 2 passes).
-%   Estimate="noise" on the 3-axis position pieces BLOCKS for minutes (H-15,
-%   HANDOVER §12.3): until M1/M3, run ellmer on single-axis streams only.
+%   R5 M3 made the 3-axis pieces fast on the joint estimator (38.6 s for both
+%   days at 2160 lags, HANDOVER §12.5 round 3c).
 %
+%   Updated 2026-09-06 (CEST, UTC+02:00), R6 WP-90: the positions declare
+%   the temporal law only and return D.Cep with the day (no 'separable'
+%   type, no axis count in the spec). With assistance from Claude
+%   (Anthropic), model Claude Fable 5.1.
 %   Created 2026-09-02 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.1 -- R5 Level M0 close-out (§12.8).
 
@@ -85,17 +89,14 @@ end
     for g = 1:G
         obsTypes{g} = obsTypeOf(groups{g});
     end
+    % The covariance spec declares the TEMPORAL law only (white to start; the
+    % estimator updates it). The per-epoch error information of the positions
+    % -- the 3x3 covariance from iSpp -- comes back from buildDay WITH the day
+    % (D.Cep, STEP 10) and the toolbox composes C = D (R_t kron I_3) D (R6
+    % WP-90: no 'separable' type, no axis count stated here).
     cov = struct();
     for g = 1:G
-        if strcmp(char(groups{g}.observationQuantity), 'kinematicPosition')
-            % R5 M3 (H-15): a multi-axis stream is a SEPARABLE law -- the FIXED
-            % per-epoch covariance (Cep from iSpp, STEP 10) times one temporal
-            % law that the estimator updates; 'diag' would ignore Cep
-            cov.(obsTypes{g}) = struct('type', 'separable', 'ar', 1, ...
-                                       'sigma', sqrt(sd.variance(g)), 'd', 3);
-        else
-            cov.(obsTypes{g}) = struct('type', 'diag', 'sigma', sqrt(sd.variance(g)));
-        end
+        cov.(obsTypes{g}) = struct('type', 'diag', 'sigma', sqrt(sd.variance(g)));
     end
 
     % ---- STEP 4: the local table -- ONE day's templates, all 'day'-scoped,
@@ -173,9 +174,11 @@ function D = buildGravfireDay(day, obsType, common, local, po, info)
     D.arcIdx = arrayfun(@(k) find(pieceRow == k).', ids, 'UniformOutput', false);
     D.arcId  = ids;
 
-    % STEP 10: multi-axis: nAxis + the per-epoch 3x3 covariance from iSpp
+    % STEP 10: the ERROR INFORMATION of the day -- the per-epoch 3x3
+    % covariance from iSpp as nEpoch x 3 x 3; the axis count is derived
+    % from it (WP-90). A scalar stream with a per-epoch sigma would return
+    % it as nEpoch x 1 the same way.
     if nAx > 1
-        D.nAxis = nAx;
         C = o.iSpp{1}(keep, :);                               % nEp x 9 (3x3 per epoch)
         D.Cep = permute(reshape(C.', nAx, nAx, []), [3 1 2]); % nEp x 3 x 3
     end
