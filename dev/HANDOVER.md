@@ -5894,7 +5894,7 @@ declared** (test_lsqAccum 26 → 27), 532 run locally, 507 on the hosted gate.
 
 | WP | title | depends on | status |
 |---|---|---|---|
-| 91 | One batch iterator: `arcBatchWhiten` owns bounds / overlap / whole-epoch rounding for accumArc, arcResiduals, whitenArcIntoBatches, redundancy, streamContribution (E-09) | 90 | IN PROGRESS (2026-09-07, branch `claude/wp-91`) |
+| 91 | One batch iterator: `arcBatchWhiten` owns bounds / overlap / whole-epoch rounding for accumArc, arcResiduals, whitenArcIntoBatches, redundancy, streamContribution (E-09) | 90 | READY (2026-09-07, PR #91, CI green on 6af9abb: audit pass, ci_gate 507/507 = 544 − 12 − 25 skipped; local 532/532 incl. test_parallel; the Manual rebuilt locally in WSL, Linux audit exit 0; DONE flips on the merge) |
 
 **ROUND WP-91 (2026-09-07, model Claude Fable 5.1, tier A).** Verdict, local:
 `ci_gate` GREEN 532/532 (= 544 declared − 12 excluded), 26/26 suites incl.
