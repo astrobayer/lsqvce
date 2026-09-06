@@ -45,10 +45,21 @@ jobs:
       # The probe and the reasoning behind it now live in
       # .github/actions/matlab-probe. Same step, one definition.
       # Moves to astrobayer/ci-actions once that repository exists.
-      # timeout-minutes lives here, not in the action: GitHub's
+      # The probe and the reasoning behind it live in
+      # astrobayer/ci-actions. Six repositories carried this step
+      # byte-for-byte identically; one editing mistake in a copied step
+      # has already cost this repository its checkout.
+      #
+      # PINNED TO AN IMMUTABLE TAG, not @v1 and not @main: a moving tag
+      # would let a commit in ci-actions change this repository's CI
+      # with nothing in its diff to explain it. Bumping is a deliberate
+      # edit here, in a pull request - the same rule the fixture tag in
+      # shAnalysis follows.
+      #
+      # timeout-minutes sits here and not in the action: GitHub's
       # composite-action schema rejects the key on a step. The job-level
       # cap above is the backstop regardless.
-      - uses: ./.github/actions/matlab-probe
+      - uses: astrobayer/ci-actions/matlab-probe@v1.0.0
         timeout-minutes: 2
 
       - uses: matlab-actions/run-command@v3
