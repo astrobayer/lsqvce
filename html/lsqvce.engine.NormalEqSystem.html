@@ -103,6 +103,9 @@ WARNINGS
                                   this namespace was RETIRED in WP-49 --
                                   breaking: one failure mode, one name.)
 
+IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+  lsqvce:normalEq:sizeMismatch               A has X rows but l has X elements.*A; o.n = o.n + A
+
 See also LSQVCE.ENGINE.QRSYSTEM, LSQVCE.ENGINE.BLOCKACCUMULATOR
 
 Updated 2026-08-20 (CEST, UTC+02:00), WP-49: a poisoned vtv is returned
@@ -110,7 +113,10 @@ as NaN (negative OR &gt; 8 digits lost), never clamped to 0 or left as a
 wrong plausible number; both warnings name the lsqvce.engine.residuals repair
 path. With assistance from Claude (Anthropic), model Claude Fable 5.
 Generated with assistance from Claude (Anthropic), model Claude
-Opus 4.8.</pre>
+Opus 4.8.
+Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
+WP-64a): the ENGINE tier leaves the USER surface; every qualified
+reference was rewritten mechanically by docs_src/refactor_tiers.py.</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
 <div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

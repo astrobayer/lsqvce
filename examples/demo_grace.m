@@ -6,7 +6,7 @@ function R = demo_grace(varargin)
 %
 %   Runs a GRACE-FO-shaped synthetic problem through the USER surface:
 %   the declaration comes from DEMO_GRACE_DATALOADER as a v4 data struct
-%   (DATA_CONTRACT.md), the run is ONE call to LSQVCE.FIT, and everything
+%   (the Manual, chapter 3), the run is ONE call to LSQVCE.FIT, and everything
 %   you read afterwards is on the LSQVCE.RESULTS. Two observation systems:
 %     * System 1 -- satellites C and D, each with a 3-D position stream (posC,
 %       posD) whose covariance is the SEPARABLE model C = D (R_t kron I_3) D --
@@ -39,7 +39,7 @@ function R = demo_grace(varargin)
 %
 %   This is the copy-paste starting point. To run on YOUR data, replace
 %   demo_grace_dataLoader (in this folder) with your own buildDay and data
-%   struct -- the contract is DATA_CONTRACT.md, and chapter D of the manual.
+%   struct -- the contract is the Manual, chapter 3, and chapter D of the manual.
 %
 %   ERRORS  none of its own; declaration errors carry lsqvce:fit ids.
 %

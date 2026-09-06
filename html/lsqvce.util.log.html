@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html><head><meta charset="utf-8">
-<title>lsqvce.util.getfielddef</title><style>
+<title>lsqvce.util.log</title><style>
 body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
        color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
        max-width: 900px; line-height: 1.5; }
@@ -40,47 +40,90 @@ a { color: #0b5ea8; }
           font-size: 12px; color: #888; }
 </style></head>
 <body>
-<body>
 <div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.util.log</div>
 <h1>lsqvce.util.log</h1>
-<div class="purpose">Toolbox-wide logging: one file identifier (logfid) and one screen flag (logflag).</div>
-
+<div class="purpose">Toolbox-wide logging: one file identifier, one screen flag.</div>
 <h2>Description</h2>
-<p>The whole lsqvce toolbox routes its status text <em>and</em> its warnings through
+<pre class="example">The whole lsqvce toolbox routes its status text and its warnings through
 this one place, so a caller can capture everything to a log file and decide
-independently whether it also appears on screen. Every <code>fprintf</code> and
-<code>warning</code> inside the toolbox was replaced by <code>lsqvce.util.log.msg</code>
-and <code>lsqvce.util.log.warn</code>.</p>
+independently whether it also appears on screen.
 
-<h2>Two settings (persistent for the session)</h2>
-<table>
-<tr><th>Name</th><th>Type</th><th>Meaning</th></tr>
-<tr><td class="name">logfid</td><td>1&times;1 file id</td><td>Receives ALL output ("standard output"). Default 1 (command window). Set to an <code>fopen</code> fid to capture status text and warnings to a file.</td></tr>
-<tr><td class="name">logflag</td><td>1&times;1 logical</td><td>When true (default) output ALSO appears on screen. When false, output goes ONLY to logfid &mdash; nothing on screen (use a real file logfid for a quiet run).</td></tr>
-</table>
+R5 M1 (2026-09-02): warnOnce(id, ...) fires an identifier once per run;
+inventory() returns every identifier warn/warnOnce raised since
+inventory(&#x27;reset&#x27;) -- lsqvce.fit resets at start and stores the list in
+R.meta.warnings, so a run&#x27;s warnings are a RESULT, not scrollback.
 
-<h2>API</h2>
-<table>
-<tr><th>Call</th><th>Effect</th></tr>
-<tr><td class="name">lsqvce.util.log.set('fid',logfid,'screen',logflag)</td><td>Configure either/both settings.</td></tr>
-<tr><td class="name">[fid,screen] = lsqvce.util.log.get()</td><td>Read the current settings.</td></tr>
-<tr><td class="name">lsqvce.util.log.reset()</td><td>Restore defaults (1, true).</td></tr>
-<tr><td class="name">lsqvce.util.log.msg(fmt,...)</td><td>Status line (printf-style), replaces <code>fprintf</code>.</td></tr>
-<tr><td class="name">lsqvce.util.log.warn(id,fmt,...)</td><td>Raise a real warning (lastwarn / state preserved), mirror to logfid, screen only if logflag.</td></tr>
-</table>
+TWO SETTINGS (persistent for the MATLAB session)
+  logfid   a FILE IDENTIFIER that receives ALL output (&quot;standard output&quot;).
+           Defaults to 1 (the MATLAB command window). Set it to the fid
+           returned by fopen(...,&#x27;a&#x27;) to capture to a file, e.g.
+               fid = fopen(&#x27;run.log&#x27;,&#x27;a&#x27;);
+               lsqvce.util.log.set(&#x27;fid&#x27;, fid, &#x27;screen&#x27;, false);
+           Everything the toolbox prints, and every warning it raises, is
+           then written to run.log.
+  logflag  a LOGICAL. When true (default), output ALSO appears on screen
+           (fid 1). When false, output goes ONLY to logfid -- nothing on
+           screen. If logfid is itself 1, screen output happens regardless
+           (writing to 1 IS the screen), so set a real file fid when you
+           want a quiet run.
 
-<div class="note">On <b>parallel workers</b> the state is per-process; each worker starts at the default (1, true) unless set inside the worker. For a single captured log, run serially or collect on the client.</div>
+USAGE INSIDE THE TOOLBOX (replaces bare fprintf / warning)
+  lsqvce.util.log.msg(&#x27;processed %d arcs\n&#x27;, n);         % status line
+  lsqvce.util.log.warn(&#x27;lsqvce:foo:bar&#x27;, &#x27;r_g = %g low&#x27;, r);  % warning
 
-<h2>Example</h2>
-<pre class="example">fid = fopen('vce.log', 'w');
-lsqvce.util.log.set('fid', fid, 'screen', false);   % file only, quiet run
-R = lsqvce.engine.adjustVCE(L, days).run();      % all output captured
-lsqvce.util.log.reset();
-fclose(fid);
+The msg/warn calls take printf-style format + args, exactly like fprintf and
+warning, so converting a call site is a one-token change. warn ALSO raises a
+real MATLAB warning (so lastwarn, warning state, and &#x27;error&#x27;-on-warning all
+keep working) and MIRRORS the text into logfid; it appears on screen only if
+logflag is true (when false, warn suppresses the on-screen display but still
+registers the warning and writes it to the log file).
 
-% or straight from the entry point:
-R = lsqvce.engine.adjustVCE(L, days, 'LogFid', fid, 'LogFlag', false).run();</pre>
+CONFIGURE
+  lsqvce.util.log.set(&#x27;fid&#x27;, logfid, &#x27;screen&#x27;, logflag)   set either/both
+  [fid, screen] = lsqvce.util.log.get()                   read current state
+  lsqvce.util.log.reset()                                 back to (1, true)
 
-<div class="seealso"><b>See also:</b> <code>lsqvce.engine.adjustVCE</code> (retired R5 M4: Model "vce" is a policy of the joint estimator), <a href="lsqvce.util.getfielddef.html">lsqvce.util.getfielddef</a>, <a href="lsqvce.util.mergeStruct.html">lsqvce.util.mergeStruct</a></div>
-<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Created 2026-07-16 (CEST, UTC+02:00) with assistance from Claude (Anthropic), model Claude Opus 4.8.</div>
+THREAD SAFETY / PARALLEL
+  The (fid, screen) state is persistent PER PROCESS. On parallel workers
+  (parfor/spmd) each worker has its own copy at its default (1, true) unless
+  you set it inside the worker; without help a worker&#x27;s output prints on the
+  worker&#x27;s own stream and is LOST to the client&#x27;s log file.
+
+  WORKER-AWARE LOGGING (parfor-safe sink). On the CLIENT, before a parfor
+  pass, call
+      q = lsqvce.util.log.startParallel();
+  to install a parallel.pool.DataQueue whose callback drains every worker
+  message into the client&#x27;s current (fid, screen). Inside the parfor body,
+  worker calls to msg/warn detect the queue and SEND their text to it instead
+  of printing locally; the client&#x27;s callback writes it to the one log file,
+  in arrival order. After the pass, call
+      lsqvce.util.log.stopParallel();
+  If the Parallel Computing Toolbox is absent or no pool exists, startParallel
+  is a safe no-op and logging stays per-process.</pre>
+<h3>Example</h3>
+<pre class="example">  fid = fopen(&#x27;vce.log&#x27;, &#x27;w&#x27;);
+  lsqvce.util.log.set(&#x27;fid&#x27;, fid, &#x27;screen&#x27;, true);   % file AND screen
+  R = lsqvce.engine.adjustVCE(L, days).run();         % all output captured
+  lsqvce.util.log.reset();
+  fclose(fid);
+
+EXAMPLE (parfor-safe)
+  fid = fopen(&#x27;run.log&#x27;,&#x27;w&#x27;);  lsqvce.util.log.set(&#x27;fid&#x27;, fid);
+  lsqvce.util.log.startParallel();                   % client installs sink
+  parfor k = 1:nTask
+      lsqvce.util.log.msg(&#x27;worker did task %d\n&#x27;, k);  % -&gt; client&#x27;s run.log
+  end
+  lsqvce.util.log.stopParallel();  lsqvce.util.log.reset();  fclose(fid);</pre>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:util:log:badKey        an unknown log option key
+
+IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+  lsqvce:log:noParallelQueue                 [warning] Worker log messages cannot be forwarded to the client (X); they are p...
+
+See also FPRINTF, WARNING, PARALLEL.POOL.DATAQUEUE, LSQVCE.ENGINE.ADJUSTVCE
+
+Created 2026-07-16 (CEST, UTC+02:00) with assistance from
+Claude (Anthropic), model Claude Opus 4.8.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

@@ -43,26 +43,35 @@ a { color: #0b5ea8; }
 <div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.kernel.varWhiten</div>
 <h1>lsqvce.kernel.varWhiten</h1>
 <div class="purpose">Whiten multi-axis observations against a vector-AR model.</div>
-<h2>Syntax</h2>
-<pre class="syntax">[Aw,Bw,lw] = LSQVCE.KERNEL.VARWHITEN(Avar, Sigma, G, d, A, B, l, isFirstBatch)</pre>
 <h2>Description</h2>
-<p>The case LSQVCE.KERNEL.CROSSCORR flags as &#x27;needs-var&#x27;: axes cross-correlated IN TIME (axis i at epoch k with axis j at epoch k-tau), which the separable model cannot represent. The whitener is a MATRIX FIR:</p>
-<pre class="example">w_t = L^-1 * ( z_t - sum_{k=1}^p A_k z_{t-k} ),   L*L&#x27; = Sigma</pre>
-<p>applied down epochs, plus an exact stationary startup for the first p epochs (the block analogue of LSQVCE.KERNEL.ARMAWHITEN&#x27;s startup rows). Cost O(nEpoch * p * d^2) -- for d = 3 essentially the scalar cost times 9.</p>
-<h3>Exactness</h3>
-<pre class="example">With the startup block, the operator equals the dense block-Cholesky
-inverse chol(C)^-1 ROW FOR ROW (C the block-Toeplitz covariance):
-relative difference ~1e-10, and the GLS solution through it matches the
-dense solve to 1e-9 (validation/v6verify.py tests 5-6). Not an
-approximation.</pre>
-<p>ROW ORDERING -- EPOCH-MAJOR, exactly as LSQVCE.KERNEL.SEPARABLEWHITEN</p>
-<pre class="example">[x1 y1 z1 x2 y2 z2 ...]   and m must be a whole multiple of d.</pre>
-<h3>Batching</h3>
-<pre class="example">On any batch after the first the FIR restarts from zero state; the
-first p EPOCHS (p*d rows) are transient and must be overlapped and
-discarded -- LSQVCE.ENGINE.BLOCKACCUMULATOR does this from arc.filterMemory = p*d and
-rounds batches to whole epochs from arc.nAxis = d. Same contract as the
-scalar filter path; same failure mode if the overlap is forced to 0.</pre>
+<pre class="example">[Aw,Bw,lw] = LSQVCE.KERNEL.VARWHITEN(Avar, Sigma, G, d, A, B, l, isFirstBatch)
+
+The case LSQVCE.KERNEL.CROSSCORR flags as &#x27;needs-var&#x27;: axes cross-correlated IN
+TIME (axis i at epoch k with axis j at epoch k-tau), which the separable
+model cannot represent. The whitener is a MATRIX FIR:
+
+    w_t = L^-1 * ( z_t - sum_{k=1}^p A_k z_{t-k} ),   L*L&#x27; = Sigma
+
+applied down epochs, plus an exact stationary startup for the first p
+epochs (the block analogue of LSQVCE.KERNEL.ARMAWHITEN&#x27;s startup rows). Cost
+O(nEpoch * p * d^2) -- for d = 3 essentially the scalar cost times 9.
+
+EXACTNESS
+  With the startup block, the operator equals the dense block-Cholesky
+  inverse chol(C)^-1 ROW FOR ROW (C the block-Toeplitz covariance):
+  relative difference ~1e-10, and the GLS solution through it matches the
+  dense solve to 1e-9 (validation/v6verify.py tests 5-6). Not an
+  approximation.
+
+ROW ORDERING -- EPOCH-MAJOR, exactly as LSQVCE.KERNEL.SEPARABLEWHITEN
+    [x1 y1 z1 x2 y2 z2 ...]   and m must be a whole multiple of d.
+
+BATCHING
+  On any batch after the first the FIR restarts from zero state; the
+  first p EPOCHS (p*d rows) are transient and must be overlapped and
+  discarded -- LSQVCE.ENGINE.BLOCKACCUMULATOR does this from arc.filterMemory = p*d and
+  rounds batches to whole epochs from arc.nAxis = d. Same contract as the
+  scalar filter path; same failure mode if the overlap is forced to 0.</pre>
 <h3>Input</h3>
 <pre class="example">Avar    d x d x p     VAR coefficient matrices (LSQVCE.KERNEL.WHITTLE output)
 Sigma   d x d         innovation covariance
@@ -72,6 +81,31 @@ d       scalar        number of axes
 A, B    m x *         design blocks, epoch-major rows (may be m x 0)
 l       m x 1         observations, epoch-major
 isFirstBatch          true -&gt; exact stationary startup for epochs 1..p</pre>
-<div class="seealso"><b>See also:</b> <a href="lsqvce.kernel.whittle.html">lsqvce.kernel.whittle</a>, <a href="lsqvce.kernel.varACV.html">lsqvce.kernel.varACV</a>, <a href="lsqvce.kernel.separableWhiten.html">lsqvce.kernel.separableWhiten</a>, <a href="lsqvce.kernel.armaWhiten.html">lsqvce.kernel.armaWhiten</a></div>
-<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+<h3>Input</h3>
+<pre class="example">Avar         d x d x p  vector-AR coefficient matrices
+Sigma        d x d      innovation covariance
+G            d x d x &gt;=p  stationary cross-ACV (from LSQVCE.KERNEL.VARACV)
+d            1x1        axes per epoch
+A            m x nc     common design rows (EPOCH-MAJOR)
+B            m x nl     local design rows (may be [])
+l            m x 1      observations
+isFirstBatch 1x1 logical  apply the exact stationary startup</pre>
+<h3>Output</h3>
+<pre class="example">Aw, Bw, lw   the same arrays, whitened against the vector-AR model</pre>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:varWhiten:badA         the VAR coefficient array has the wrong shape
+  lsqvce:varWhiten:badSigma     the innovation covariance is not d x d
+  lsqvce:varWhiten:badStartup   the stationary startup block is malformed
+  lsqvce:varWhiten:notWholeEpochs  the batch does not contain whole epochs:
+                                rows must be EPOCH-MAJOR and nAxis = d
+
+See also LSQVCE.KERNEL.WHITTLE, LSQVCE.KERNEL.VARACV, LSQVCE.KERNEL.SEPARABLEWHITEN, LSQVCE.KERNEL.ARMAWHITEN
+
+Generated with assistance from Claude (Anthropic), model Claude
+Opus 4.8.
+Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+kernel (R4 decision R4-D1,
+WP-64a): the KERNEL tier leaves the USER surface; every qualified
+reference was rewritten mechanically by docs_src/refactor_tiers.py.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

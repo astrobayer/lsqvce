@@ -43,12 +43,13 @@ a { color: #0b5ea8; }
 <div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.kernel.psd2acv</div>
 <h1>lsqvce.kernel.psd2acv</h1>
 <div class="purpose">One-sided PSD -&gt; autocovariance sequence (Wiener-Khinchin).</div>
-<h2>Syntax</h2>
-<pre class="syntax">r = LSQVCE.KERNEL.PSD2ACV(f, S, dt, n) returns the autocovariance r(0:n-1) at lag</pre>
 <h2>Description</h2>
-<p>spacing dt, obtained from the one-sided power spectral density S(f) by</p>
-<pre class="example">r(tau) = int_0^{fNy} S(f) * cos(2*pi*f*tau) df</pre>
-<p>evaluated with trapezoidal quadrature on the supplied frequency grid.</p>
+<pre class="example">r = LSQVCE.KERNEL.PSD2ACV(f, S, dt, n) returns the autocovariance r(0:n-1) at lag
+spacing dt, obtained from the one-sided power spectral density S(f) by
+
+    r(tau) = int_0^{fNy} S(f) * cos(2*pi*f*tau) df
+
+evaluated with trapezoidal quadrature on the supplied frequency grid.</pre>
 <h3>Input</h3>
 <pre class="example">f    nf x 1  frequency grid [Hz], strictly increasing, f &gt;= 0
 S    nf x 1  one-sided PSD [unit^2/Hz], S &gt;= 0
@@ -78,6 +79,21 @@ H  = 1 ./ (exp(-1i*2*pi*f*dt*(0:1)) * a(:));
 S  = 1^2 * dt * 2 * abs(H).^2;              % one-sided
 r  = lsqvce.kernel.psd2acv(f, S, dt, 5);
 r(1)                                        % ~ 1/(1-0.9^2) = 5.263</pre>
-<div class="seealso"><b>See also:</b> <a href="lsqvce.kernel.levinsonDurbin.html">lsqvce.kernel.levinsonDurbin</a>, <a href="lsqvce.kernel.armaACV.html">lsqvce.kernel.armaACV</a>, <a href="lsqvce.engine.checkPSD.html">lsqvce.engine.checkPSD</a></div>
-<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:psd2acv:tooFewPoints         the PSD has too few ordinates to invert
+  lsqvce:psd2acv:nonPositiveVariance  the implied variance is not positive,
+                                so the PSD is not a valid spectrum
+
+IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+  lsqvce:psd2acv:aboveNyquist                [warning] The PSD extends to X Hz, above the Nyquist frequency X Hz implied by...
+
+See also LSQVCE.KERNEL.LEVINSONDURBIN, LSQVCE.KERNEL.ARMAACV, LSQVCE.ENGINE.CHECKPSD
+
+Generated with assistance from Claude (Anthropic), model Claude
+Opus 4.8.
+Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+kernel (R4 decision R4-D1,
+WP-64a): the KERNEL tier leaves the USER surface; every qualified
+reference was rewritten mechanically by docs_src/refactor_tiers.py.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

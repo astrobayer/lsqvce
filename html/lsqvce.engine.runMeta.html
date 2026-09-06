@@ -63,7 +63,12 @@ options  1x1 struct   The RESOLVED option struct the run actually used
                       .matlabRelease   1xK char  version(&#x27;-release&#x27;)
                       .createdUTC      1xK char  ISO 8601, trailing Z
                       .seeds           1x1 struct  as given
-                      .options         1x1 struct  as given</pre>
+                      .options         1x1 struct  as given
+                      .warnings        1xW cell    every warning identifier
+                                       raised through lsqvce.util.log
+                                       during the run, first-fired order,
+                                       each once (R5 M1; fit resets the
+                                       inventory at its start)</pre>
 <h3>Errors</h3>
 <pre class="example">  lsqvce:runMeta:badArg  seeds or options is not a scalar struct
 

@@ -152,7 +152,9 @@ DERIVED from their row counts (see &#x27;common&#x27;/&#x27;local&#x27;).</pre>
                     longer human-readable label in &#x27;name&#x27; instead.
     &#x27;numLocal&#x27; 1x1  local-parameter count carried on L    (default []: set it
                                     or supply &#x27;localParams&#x27;; passing both
-                                    must agree.
+                                    must agree. 0 is VALID (R4 G-07): the
+                                    system then has no local block and
+                                    buildDay returns B as m x 0.)
     &#x27;numCommon&#x27; 1x1 COMMON-parameter count carried on L   (default []: set
                                     it or supply &#x27;commonParams&#x27;; passing both
                                     must agree).
@@ -235,6 +237,14 @@ errors. This is deliberate so that:
       none of the L.* struct fields, so it fires no plot hooks and exposes
       no parametrisation pipe; wrap it with makeLoader ONLY when you want
       those conveniences. Both paths are supported and tested.</pre>
+<h3>Input</h3>
+<pre class="example">buildDay     function_handle   @(day, obsType, common, local, procOpt, info) -&gt; D
+                               (D.A m x nc, D.B m x nl, D.l, D.t, D.arcIdx; manual ch. 3)
+Name, Value                    the OPTIONS above</pre>
+<h3>Output</h3>
+<pre class="example">L            1x1 struct        the Loader: .isLoader .sysID .nc .nl .obsTypes .cov
+                               .plan .priors .closure(day, obsType, arcID, opt)
+                               .day(day, obsType) .procOpt .name</pre>
 <h3>Example</h3>
 <pre class="example">cov.pos = struct(&#x27;type&#x27;,&#x27;arma&#x27;,&#x27;ar&#x27;,[1 -1.6 0.9 -0.25],&#x27;ma&#x27;,1,&#x27;sigma&#x27;,0.7);
 L = lsqvce.engine.makeLoader(@(d,ot) myBuildDay(d,ot), ...
@@ -270,12 +280,29 @@ R = lsqvce.engine.adjustBlock({L}, 1:3);</pre>
                                    vector for this day
     lsqvce:makeLoader:noD          a multi-axis stream has no per-epoch D:
                                    supply an &#x27;epochCovariance&#x27; hook
+    lsqvce:makeLoader:rowWeightSize  (R5 M2) the robust weight vector of an arc
+                                   does not match the arc&#x27;s row count
     lsqvce:makeLoader:badDayCep    the hook returned a Cep that is neither
                                    nEpoch x d nor nEpoch x d x d
 
 See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.SYNTHLOADER, LSQVCE.ENGINE.COVMODEL,
          LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.ADJUSTVCE
 
+Updated 2026-08-31 (CEST, UTC+02:00), v4 scoped tables (Level L11,
+WP-75): &#x27;Scoped&#x27; + &#x27;CommonPlan&#x27; options; buildScopePlan generalizes the
+WP-52 per-arc plan to &#x27;arc&#x27;/&#x27;day&#x27;/&#x27;system&#x27; template rows (nl derived);
+buildDay&#x27;s 6th argument gains the day/system block offsets and the
+common-plan slice. With assistance from Claude (Anthropic), model
+Claude Fable 5.
+Updated 2026-08-31 (CEST, UTC+02:00), v3 data contract (Level L10,
+WP-72): the fixed 14-column shape of commonParams/localParams is
+retired -- RxC with C of the caller&#x27;s convention; the paramCols error
+id retired with it. With assistance from
+Claude (Anthropic), model Claude Fable 5.
+Updated 2026-08-31 (CEST, UTC+02:00), R4 G-07 (Level L2): &#x27;numLocal&#x27; 0 /
+&#x27;localsPerArc&#x27; 0 declare a system without local unknowns (help only;
+the engine change is in BlockAccumulator). With assistance from Claude
+(Anthropic), model Claude Fable 5.
 Updated 2026-08-21 (CEST, UTC+02:00), WP-52: ragged schedules are
 NATIVE -- per-day arc resolution (&#x27;arcs&#x27; as @(day,obsType) or
 &#x27;fromDay&#x27;), arcs addressed by .arcId with absent ids as data gaps,
@@ -294,7 +321,10 @@ Updated 2026-07-17 (CEST, UTC+02:00): documented the Loader contract
 Updated 2026-07-17 (CEST, UTC+02:00): expanded terse option names to
 canonical long forms (observationTypes/covariance/systemId/numLocal/
 commonParams/localParams/processingOptions/epochCovariance); the old terse
-names still work for one version (warn once). Claude Opus 4.8.</pre>
+names still work for one version (warn once). Claude Opus 4.8.
+Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
+WP-64a): the ENGINE tier leaves the USER surface; every qualified
+reference was rewritten mechanically by docs_src/refactor_tiers.py.</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
 <div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

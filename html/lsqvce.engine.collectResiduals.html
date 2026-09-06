@@ -43,11 +43,13 @@ a { color: #0b5ea8; }
 <div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.engine.collectResiduals</div>
 <h1>lsqvce.engine.collectResiduals</h1>
 <div class="purpose">Stack one residual field over the arcs of a stream.</div>
-<h2>Syntax</h2>
-<pre class="syntax">x = lsqvce.engine.collectResiduals(res, satId, obsType)
-x = lsqvce.engine.collectResiduals(res, satId, obsType, field)</pre>
 <h2>Description</h2>
-<p>Walks the collected-residual structure returned by LSQVCE.ENGINE.BLOCKACCUMULATOR/residuals and vertically concatenates one field of every arc that matches obsType (and satId, unless satId is empty).</p>
+<pre class="example">x = lsqvce.engine.collectResiduals(res, satId, obsType)
+x = lsqvce.engine.collectResiduals(res, satId, obsType, field)
+
+Walks the collected-residual structure returned by
+LSQVCE.ENGINE.BLOCKACCUMULATOR/residuals and vertically concatenates one field of
+every arc that matches obsType (and satId, unless satId is empty).</pre>
 <h3>Input</h3>
 <pre class="example">res      1x1   struct   Residual structure with res.sys(:).sysID and
                         res.sys(:).obs(:).{obsType, v, w}. Required.
@@ -64,8 +66,18 @@ field    1xk   char|string   Which per-arc field to stack:
 <h3>Example</h3>
 <pre class="example">w = lsqvce.engine.collectResiduals(res, &#x27;C&#x27;, &#x27;pos&#x27;);       % GRACE-C, whitened
 vAll = lsqvce.engine.collectResiduals(res, [], &#x27;rr&#x27;, &#x27;v&#x27;); % raw, both satellites</pre>
-<pre class="example">LSQVCE.KERNEL.WHITENESSCORR</pre>
-<p>Created 2026-07-15 13:40 (CEST, UTC+02:00) with assistance from Claude (Anthropic), model Claude Opus 4.8.</p>
-<div class="seealso"><b>See also:</b> <a href="lsqvce.engine.BlockAccumulator.html">lsqvce.engine.BlockAccumulator</a>, <a href="lsqvce.kernel.residualAcv.html">lsqvce.kernel.residualAcv</a></div>
-<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:collectResiduals:badRes  the residual field is absent or the wrong
+                                shape
+
+See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.KERNEL.RESIDUALACV,
+         LSQVCE.KERNEL.WHITENESSCORR
+
+Created 2026-07-15 13:40 (CEST, UTC+02:00) with assistance from
+Claude (Anthropic), model Claude Opus 4.8.
+Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
+WP-64a): the ENGINE tier leaves the USER surface; every qualified
+reference was rewritten mechanically by docs_src/refactor_tiers.py.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

@@ -49,25 +49,11 @@ function meta = runMeta(seeds, options)
     end
 
     meta = struct( ...
-        'toolboxVersion', toolboxVersionLine(), ...
+        'toolboxVersion', lsqvce.util.toolboxVersion(), ...
         'matlabRelease',  version('-release'), ...
         'createdUTC',     char(datetime('now', 'TimeZone', 'UTC', ...
                                'Format', 'yyyy-MM-dd''T''HH:mm:ss''Z''')), ...
         'seeds',          seeds, ...
         'options',        options, ...
-        'warnings',       {lsqvce.util.log.inventory()});   % braces: a cell VALUE
-end
-
-function v = toolboxVersionLine()
-% Parse the version from +lsqvce/Contents.m -- the ONE version source.
-% This file lives in +lsqvce/+engine/ (WP-64a; before: +lsqvce/private/),
-% so Contents.m is one level up either way.
-    pkgDir = fileparts(fileparts(mfilename('fullpath')));
-    txt = fileread(fullfile(pkgDir, 'Contents.m'));
-    tok = regexp(txt, '^%\s*Version\s+(\S+)', 'tokens', 'once', 'lineanchors');
-    if isempty(tok)
-        v = 'unknown';            % Contents.m without a Version line: honest
-    else
-        v = tok{1};
-    end
+        'warnings',       {lsqvce.util.log.inventory()});   % braces: a cell VALend
 end

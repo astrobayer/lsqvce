@@ -12,6 +12,11 @@ function red = redundancy(acc, sol, opt)
 %   LSQVCE.ENGINE.OUTLIERS -- both are just different uses of the same numbers, so they
 %   share one data pass.
 %
+%   INPUT
+%     acc      1x1 lsqvce.engine.BlockAccumulator   after solve
+%     sol      1x1 struct                            its solution (x, Cxx, s0sq)
+%     Name, Value                                    the OPTIONS below
+%
 %   OPTIONS
 %   (WP-39 stage (b): canonical UpperCamelCase names below; legacy
 %   casings still match -- MATLAB NV semantics -- and enum VALUES are

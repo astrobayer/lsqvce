@@ -55,6 +55,10 @@ yourself; you receive it from adjustBlock and call R.report().
 PROPERTIES (read-only)
   x          nc x 1   double   Common-parameter estimate (the field).
   sigma0     1x1      double   A-posteriori variance factor (global).
+  stopReason 1x1      string   Why the loop stopped (R5 M1): &quot;single&quot; |
+                               &quot;converged&quot; | &quot;maxPasses&quot;. Convergence
+                               failure is a RESULT: the last pass is
+                               returned with its covariance and one warning.
   converged  1x1      logical  Did the pipeline converge? (true for a single
                                solve; set by the iterative engines.)
   diag       1x1      struct   Per-observation diagnostics (LSQVCE.ENGINE.DIAGNOSE):
@@ -94,6 +98,11 @@ METHODS
   con = R.contribution(...)      Per-group information share.
   T = R.convergence(Name,Value)  Per-ITERATION trajectory: when the loop
                                  settled (needs .history).
+  F = R.compare(Rred)            Nested-model F test against a reduced fit (R5 M7).
+  fh = R.plot(kind)              &quot;residuals&quot; | &quot;contribution&quot; | &quot;psd&quot; | &quot;convergence&quot;
+                                 (R5 M5: one figure per question, nothing exported).
+  [C, L, map] = R.toTable(data)  The expanded parameter tables with estimate and
+                                 standard deviation written in (R5-D8).
   T = R.summary()                Per-STREAM final state: sigma, AR order,
                                  whiteness (needs .history).
   T = R.coefficients(Alpha=a)    The estimates as a table with formal
@@ -110,7 +119,8 @@ R.report(&#x27;Level&#x27;, 2);
 if ~R.converged, lsqvce.util.log.warn(&#x27;did not converge&#x27;); end
 x = R.x;   s0 = R.sigma0;</pre>
 <h3>Errors</h3>
-<pre class="example">lsqvce:Results:noHistory      an iteration reader was called on a
+<pre class="example">lsqvce:Results:noVPv          compare() on a Results without a finite v&#x27;Pv
+lsqvce:Results:noHistory      an iteration reader was called on a
                               single-solve Results (adjustBlock does not
                               iterate); use the result of adjustVCE
 lsqvce:Results:noCovariance   coefficients() on a Results whose sol

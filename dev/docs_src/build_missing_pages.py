@@ -199,7 +199,10 @@ def render(name, h1, blocks):
            seealso=seealso_html, footer=FOOTER)
 
 
-def main():
+def main(mode='missing'):
+    """mode: 'missing' (write only absent pages), 'all' (rewrite every page from
+    its help block), 'check' (report pages that differ from a regeneration --
+    the drift detector the audit runs; returns the list of drifted names)."""
     root = os.getcwd()
     pkg = os.path.join(root, '+lsqvce')
     if not os.path.isdir(pkg):
@@ -219,22 +222,32 @@ def main():
                 targets.append((prefix + fn[:-2], os.path.join(d, fn),
                                 'lsqvce.%s%s.html' % (prefix, fn[:-2])))
 
+    drifted = []
     for name, src, pagename in targets:
         page = os.path.join(root, 'html', pagename)
-        if os.path.exists(page):
+        if mode == 'missing' and os.path.exists(page):
             continue
         h1, lines = read_help(src)
         if not lines:
-            print('  no help block, skipped: %s' % name)
+            if mode != 'check':
+                print('  no help block, skipped: %s' % name)
+            continue
+        html = render(name, h1, parse(lines))
+        if mode == 'check':
+            cur = open(page, encoding='utf-8').read() if os.path.exists(page) else ''
+            if cur != html:
+                drifted.append(name)
             continue
         with open(page, 'w', encoding='utf-8') as fh:
-            fh.write(render(name, h1, parse(lines)))
+            fh.write(html)
         written.append(name)
-        print('  wrote html/%s' % pagename)
-
+        if mode == 'missing':
+            print('  wrote html/%s' % pagename)
+    if mode == 'check':
+        return drifted
     print('\n%d page(s) written.' % len(written))
     return written
 
 
 if __name__ == '__main__':
-    main()
+    main(sys.argv[1] if len(sys.argv) > 1 else 'missing')

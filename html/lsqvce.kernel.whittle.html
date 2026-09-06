@@ -43,26 +43,45 @@ a { color: #0b5ea8; }
 <div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.kernel.whittle</div>
 <h1>lsqvce.kernel.whittle</h1>
 <div class="purpose">Multichannel Levinson-Durbin: cross-ACV -&gt; VAR(p).</div>
-<h2>Syntax</h2>
-<pre class="syntax">[A, Sigma] = LSQVCE.KERNEL.WHITTLE(G, p)</pre>
 <h2>Description</h2>
-<p>Fits  z_t = sum_{k=1}^p A_k z_{t-k} + e_t,  C{e} = Sigma  to the given cross-autocovariance sequence by the Whittle recursion -- the exact multichannel generalisation of LSQVCE.KERNEL.LEVINSONDURBIN. On the EXACT ACV of a VAR(p) it returns the generating coefficients to ~1e-9, and fitting a higher order makes the extra matrices vanish (validation/v6verify.py tests 3-4) -- the same order-sufficiency signature the scalar LSQVCE.ENGINE.SELECTARORDER exploits.</p>
+<pre class="example">[A, Sigma] = LSQVCE.KERNEL.WHITTLE(G, p)
+
+Fits  z_t = sum_{k=1}^p A_k z_{t-k} + e_t,  C{e} = Sigma  to the given
+cross-autocovariance sequence by the Whittle recursion -- the exact
+multichannel generalisation of LSQVCE.KERNEL.LEVINSONDURBIN. On the EXACT ACV of a
+VAR(p) it returns the generating coefficients to ~1e-9, and fitting a
+higher order makes the extra matrices vanish (validation/v6verify.py
+tests 3-4) -- the same order-sufficiency signature the scalar
+LSQVCE.ENGINE.SELECTARORDER exploits.</pre>
 <h3>Input</h3>
 <pre class="example">G   d x d x (&gt;= p+1)   Gamma(0..), Gamma(j) = E[z_t z_{t-j}&#x27;]
 p   scalar             VAR order</pre>
 <h3>Output</h3>
-<pre class="example">A       d x d x p      forward coefficient matrices
-Sigma   d x d          forward innovation covariance
-info    struct         .Sigmab backward innovation covariance
-                       .trace  trace(Sigma) per order 0..p (the
-                               multichannel analogue of the scalar
-                               prediction-variance curve)</pre>
-<h3>Asymmetry Is Real</h3>
-<pre class="example">Unlike the scalar case, Gamma(j)&#x27; ~= Gamma(j) in general, so forward
-and backward coefficient sets differ and BOTH are carried through the
-recursion. Feeding a symmetrised ACV of a genuinely cross-correlated
-process silently destroys the lead/lag information -- exactly the part
-that made a VAR necessary.</pre>
-<div class="seealso"><b>See also:</b> <a href="lsqvce.kernel.varACV.html">lsqvce.kernel.varACV</a>, <a href="lsqvce.kernel.varWhiten.html">lsqvce.kernel.varWhiten</a>, <a href="lsqvce.kernel.levinsonDurbin.html">lsqvce.kernel.levinsonDurbin</a></div>
-<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+<pre class="example">  A       d x d x p      forward coefficient matrices
+  Sigma   d x d          forward innovation covariance
+  info    struct         .Sigmab backward innovation covariance
+                         .trace  trace(Sigma) per order 0..p (the
+                                 multichannel analogue of the scalar
+                                 prediction-variance curve)
+
+ASYMMETRY IS REAL
+  Unlike the scalar case, Gamma(j)&#x27; ~= Gamma(j) in general, so forward
+  and backward coefficient sets differ and BOTH are carried through the
+  recursion. Feeding a symmetrised ACV of a genuinely cross-correlated
+  process silently destroys the lead/lag information -- exactly the part
+  that made a VAR necessary.</pre>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:whittle:badG    the periodogram argument has the wrong shape
+  lsqvce:whittle:notPD   the fitted innovation covariance is not positive
+                         definite
+
+See also LSQVCE.KERNEL.VARACV, LSQVCE.KERNEL.VARWHITEN, LSQVCE.KERNEL.LEVINSONDURBIN
+
+Generated with assistance from Claude (Anthropic), model Claude
+Opus 4.8.
+Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
+WP-64a): the ENGINE tier leaves the USER surface; every qualified
+reference was rewritten mechanically by docs_src/refactor_tiers.py.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

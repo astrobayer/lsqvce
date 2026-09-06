@@ -9,7 +9,7 @@ function data = gravfire_data(commonData, myOptions, systemsData, opt)
 %   contains everything the v4 data contract asks for EXCEPT the design
 %   matrices. This function is the declaration half; the design half is the
 %   'DesignFcn' you supply (the variational-equation partials of GRAVFIRE).
-%   Every rule of DATA_CONTRACT.md is applied here once, and the file is
+%   Every rule of the Manual, chapter 3 is applied here once, and the file is
 %   meant to be READ as the step-by-step guide dev/GRAVFIRE_INTERFACE.md:
 %   the section numbers in the comments below are its steps.
 %
@@ -49,7 +49,7 @@ function data = gravfire_data(commonData, myOptions, systemsData, opt)
 %     data = gravfire_data(S.commonData, S.myOptions, S.systemsData, 'DesignFcn', @gravfireDesign);
 %     R    = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Noise=struct('Grid', 2160), MaxPasses=7));
 %
-%   See also LSQVCE.FIT, LSQVCE.OPTIONS, DATA_CONTRACT.md, dev/GRAVFIRE_INTERFACE.md
+%   See also LSQVCE.FIT, LSQVCE.OPTIONS, the Manual, chapter 3, dev/GRAVFIRE_INTERFACE.md
 %
 %   VERIFIED 2026-09-02 on the user's testdata.mat (R2026a): the declaration
 %   passes every declaration check of fit; DryRun + Estimate="none" accumulates 2 days x 16

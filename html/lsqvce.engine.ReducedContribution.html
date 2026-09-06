@@ -40,6 +40,37 @@ a { color: #0b5ea8; }
           font-size: 12px; color: #888; }
 </style></head>
 <body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.engine.ReducedContribution</div>
 <h1>lsqvce.engine.ReducedContribution</h1>
-<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-15.</div>
+<div class="purpose">One system&#x27;s contribution after pre-elimination.</div>
+<h2>Description</h2>
+<pre class="example">The Schur complement of a system, ready to be merged into the global
+accumulator. Immutable by design: once a system has been reduced, its
+contribution is fixed.
+
+PROPERTIES
+  N     nc x nc  Ncc - Nlc&#x27;*inv(Nll)*Nlc      reduced normal matrix
+  n     nc x 1   nc  - Nlc&#x27;*inv(Nll)*nl       reduced right-hand side
+  ltl   scalar   l&#x27;l - nl&#x27;*inv(Nll)*nl        reduced residual mass
+  dof   scalar   m - nl                       observations minus locals
+
+ltl IS NOT OPTIONAL
+  It carries the residual sum of squares of the pre-eliminated system. Both
+  backends must inject it: LSQVCE.ENGINE.NORMALEQSYSTEM adds it to its scalar
+  accumulator, LSQVCE.ENGINE.QRSYSTEM appends sqrt(ltl - ||rhs||^2) as an extra
+  pseudo-observation row. Drop it and sigma0 collapses toward zero while
+  the parameters still look fine.</pre>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:reduced:notSquare     the contribution block is not square
+  lsqvce:reduced:sizeMismatch  it disagrees with the common block
+
+See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.QRSYSTEM, LSQVCE.ENGINE.NORMALEQSYSTEM
+
+Generated with assistance from Claude (Anthropic), model Claude
+Opus 4.8.
+Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
+WP-64a): the ENGINE tier leaves the USER surface; every qualified
+reference was rewritten mechanically by docs_src/refactor_tiers.py.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

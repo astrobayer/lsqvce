@@ -1,4 +1,7 @@
-# lsqvce — The data contract: what you give `fit`, and how to write `buildDay`
+# Declaring the data
+
+This chapter is the binding data contract of the toolbox (formerly the file `DATA_CONTRACT.md`, retired 2026-09-04: the Manual is the single authority). Everything the toolbox knows about your problem enters through the `data` struct described here.
+
 
 **Status.** Binding specification, **version 5** (adopted 2026-09-03, Review R5 level M5:
 the v4 SHAPES are unchanged — every v4 declaration still fits — and three things were
@@ -13,7 +16,7 @@ Fable 5. Rewritten for v3 and again for v4 (scoped tables) the same day (Claude 
 
 ---
 
-## 0a. The v5 delta (R5 M5): three additions, no shape changes
+### 0a. The v5 delta (R5 M5): three additions, no shape changes
 
 1. **`data.priors(k) = struct('group' | 'L', 'x0', 'sigma', 'from', 'name', 'estimate')`** — declared
    pseudo-observation groups `L·x ~ x0` with weight `1/sigma²` on the COMMON parameters,
@@ -79,7 +82,7 @@ reported in the WHITENED frame (`R.diag.v = sqrt(p).*v`; only their sums are
 frame-invariant). Multi-axis streams must be declared `separable` (a `diag` law ignores the
 per-epoch covariance).
 
-## 0. The v4 principle: state nothing the data already states — and scope, don't number
+### 0. The v4 principle: state nothing the data already states — and scope, don't number
 
 The contract declares **structure**, never **counts**, and since v4 it declares **scope,
 never numbering**: column 1 of both parameter tables is a **scope token**, the rows are
@@ -98,7 +101,7 @@ free `localParams`): **one mechanism**, the scoped table. Every column offset re
 code. The driver was the GRACE parameterization: arc-wise ICs, day-wise ACC
 scale/bias/drift, per-arc KBR empiricals — three scopes, one table.
 
-## 1. The mental model in one paragraph
+### 1. The mental model in one paragraph
 
 You describe **one adjustment problem** with a plain MATLAB struct called `data`. It answers
 three questions: *what is estimated for everybody* (`data.commonParams`, one row per common
@@ -121,7 +124,7 @@ the day list and the name.
 
 ---
 
-## 2. The `data` struct — field by field
+### 2. The `data` struct — field by field
 
 `data` is a **scalar struct**. Field names are **case-sensitive** and use lowerCamelCase.
 Unknown field names are an **error** (`lsqvce:fit:unknownField`), which is deliberate: a
@@ -130,7 +133,7 @@ typo in a struct field would otherwise be silently ignored. The retired v2 names
 are unknown fields now — the error names the field, so a v2 declaration fails loudly, not
 subtly.
 
-### 2.1 `data.commonParams` — the shared unknowns (required)
+#### 2.1 `data.commonParams` — the shared unknowns (required)
 
 | field | type / size | meaning |
 |---|---|---|
@@ -142,7 +145,7 @@ block per calendar day (calendar order — the sorted union of every declared da
 `info.commonDayCount` (§6.3). Minimal table when you have nothing to say:
 `[repmat({'common'}, nc, 1), num2cell((1:nc).')]`.
 
-### 2.2 `data.days` — the default schedule
+#### 2.2 `data.days` — the default schedule
 
 | field | type / size | meaning |
 |---|---|---|
@@ -150,7 +153,7 @@ block per calendar day (calendar order — the sorted union of every declared da
 
 Days must be **numeric integers**: the loader cache is keyed on the number.
 
-### 2.3 `data.systems(k)` — one entry per observing system
+#### 2.3 `data.systems(k)` — one entry per observing system
 
 `data.systems` is a **1×M struct array** (M ≥ 1). All entries have the same fields; fill an
 unused optional field with `[]`.
@@ -178,7 +181,7 @@ unused optional field with `[]`.
 when a day has more than one arc, `'arc'` template rows in `localParams` when arcs carry
 their own unknowns, the rest when you need it.
 
-### 2.4 A pitfall you will hit once: `struct()` with cell values
+#### 2.4 A pitfall you will hit once: `struct()` with cell values
 
 ```matlab
 % WRONG: struct() expands cell values into a struct ARRAY
@@ -190,9 +193,9 @@ s.localParams = {'bias'; 'drift'};                    % clearest
 
 ---
 
-## 3. The `buildDay` contract
+### 3. The `buildDay` contract
 
-### 3.1 Who calls it, and how often
+#### 3.1 Who calls it, and how often
 
 `fit` calls `buildDay` **once per (day, observationType)** and cuts the returned day into
 arcs itself. Every pass over the data reads each day **twice** (once to accumulate the
@@ -206,7 +209,7 @@ by the number of passes. Two consequences:
    read is the expensive part and serves several observation types, keep your own cache
    in the closure that binds `buildDay`.
 
-### 3.2 Signature — declare only what you need
+#### 3.2 Signature — declare only what you need
 
 `fit` passes as many of these six arguments as your handle **declares** (`nargin`):
 
@@ -227,7 +230,7 @@ D = buildDay(day, obsType, common, local, procOpt, info)          % with the exp
 
 A `varargin` builder receives all six.
 
-### 3.3 Return value — required fields
+#### 3.3 Return value — required fields
 
 | field | size | meaning |
 |---|---|---|
@@ -240,7 +243,7 @@ Return **raw, unwhitened** matrices. Whitening happens per arc inside the toolbo
 covariance spec, and the VCE loop reweights there too — a builder that scales its own rows
 would be reweighted twice.
 
-### 3.4 Return value — optional fields
+#### 3.4 Return value — optional fields
 
 | field | size | meaning |
 |---|---|---|
@@ -249,7 +252,7 @@ would be reweighted twice.
 | `nAxis` | 1×1 | for multi-axis streams (positions: 3), rows are epoch-major, m = nEpoch·nAxis (§7). |
 | `Cep` | nEpoch×d or nEpoch×d×d | per-epoch scaling of a multi-axis stream for this day (§7). **This is the standard D source.** |
 
-### 3.5 What is checked, and the error you get
+#### 3.5 What is checked, and the error you get
 
 | error id | meaning |
 |---|---|
@@ -264,13 +267,13 @@ These are raised **while reading**, by the engine, and keep their engine ids. Er
 *declaration* itself are raised by `fit` before any data is read and carry `lsqvce:fit:` ids
 (`unknownField`, `noSystems`, `noCommon`, `missingField`, `localCount`, `noDays`, `badId`,
 `duplicateSystem`, `builderKind`, `badArcs`, and every `makeLoader` construction id
-relabelled, e.g. `lsqvce:fit:paramType`).
+relabelled, e.g. `lsqvce:fit:badScope`).
 
 ---
 
-## 4. Arc schedules
+### 4. Arc schedules
 
-### 4.1 Static — every day looks the same
+#### 4.1 Static — every day looks the same
 
 ```matlab
 s.arcs = 4;            % arcs 1..4 on every day, every observation type
@@ -281,7 +284,7 @@ s.arcs.kbr = 2;  s.arcs.pos = 4;    % per observation type
 Arcs are then addressed **by position** in `arcIdx`; an id beyond `numel(arcIdx)` is an
 error, which catches a mis-declared schedule.
 
-### 4.2 Ragged — days differ (gaps, manoeuvres, short months)
+#### 4.2 Ragged — days differ (gaps, manoeuvres, short months)
 
 Declare a **resolver** that returns the arc ids of a day *without reading data*:
 
@@ -299,7 +302,7 @@ convenience on `lsqvce.engine.makeLoader`; `fit` rejects it with `lsqvce:fit:bad
 
 ---
 
-## 5. Covariance specs — the `covariance.(obsType)` structs
+### 5. Covariance specs — the `covariance.(obsType)` structs
 
 One struct per observation type; `type` selects the model. The most common:
 
@@ -316,12 +319,12 @@ specs at run time; you only give the starting point. Full reference: `doc lsqvce
 
 ---
 
-## 6. Local unknowns — the scoped `localParams` table
+### 6. Local unknowns — the scoped `localParams` table
 
 One mechanism: the table's rows are templates, column 1 says **how often** each row
 instantiates.
 
-### 6.1 The three scopes
+#### 6.1 The three scopes
 
 ```matlab
 s.localParams = [ ...
@@ -346,13 +349,13 @@ derived; declaring `numLocal` too is the conflict error.
 block — and after all days one trailing `'system'` block. A day whose schedule has no
 arcs gets **no blocks at all** (§6.4).
 
-### 6.2 Heterogeneous per-arc counts stay ENGINE-tier
+#### 6.2 Heterogeneous per-arc counts stay ENGINE-tier
 
 A template has the same rows for every arc. If arcs genuinely carry *different* counts,
 that is the ENGINE-tier `lsqvce.engine.makeLoader(..., 'LocalsPerArc', @(day, arcId) n)`
 (the WP-52 plan) — deliberately not on the `fit` surface.
 
-### 6.3 Using `info` (buildDay's 6th argument)
+#### 6.3 Using `info` (buildDay's 6th argument)
 
 ```matlab
 info.arcId            % 1xA  ids of this day's arcs
@@ -372,7 +375,7 @@ info.commonDayCount   % 1x1  its width (0 if none)
 Fill `B(rows, info.offsetOf(id) + (1:k))`, `A(:, info.commonDayOffset + (1:w))` — and
 **never compute an offset yourself**.
 
-### 6.4 Days without arcs, systems without locals
+#### 6.4 Days without arcs, systems without locals
 
 A calendar day on which **no system** schedules an arc gets no common day block (nc
 shrinks); a system day without arcs gets no arc and no `'day'` blocks (nl shrinks) —
@@ -382,7 +385,7 @@ unknowns is still the **default**: declare no `localParams` and return `B = zero
 
 ---
 
-## 7. Multi-axis streams (positions)
+### 7. Multi-axis streams (positions)
 
 A kinematic position has three components per epoch that share one temporal law. Return
 the rows **epoch-major** (x₁ y₁ z₁ x₂ y₂ z₂ …), set `nAxis = 3`, and provide the per-epoch
@@ -402,7 +405,7 @@ scaling `D`:
 
 ---
 
-## 8. Worked example — the GRACE parameterization: three scopes, one table
+### 8. Worked example — the GRACE parameterization: three scopes, one table
 
 Arc-wise initial conditions, **day-wise** accelerometer scale/bias/drift, per-arc KBR
 empiricals — the case v3 could only hand-number, and the driver of v4:
@@ -459,7 +462,7 @@ R.report
 
 ---
 
-## 9. What `fit` does internally — the equivalent direct engine calls
+### 9. What `fit` does internally — the equivalent direct engine calls
 
 ```matlab
 L = cell(1, numel(data.systems));
@@ -490,7 +493,7 @@ derivations of §0.
 
 ---
 
-## 10. Checklist before the first run
+### 10. Checklist before the first run
 
 - [ ] `buildDay` returns `A`, `B`, `l`, `t` with one row count; `l` is O − C; nothing is whitened.
 - [ ] Calling `buildDay` twice with the same arguments gives identical output.
@@ -508,7 +511,7 @@ derivations of §0.
 
 ---
 
-## 11. The two in-memory kinds (no local unknowns, diagonal weights)
+### 11. The two in-memory kinds (no local unknowns, diagonal weights)
 
 Not every problem streams. When A fits in memory and there are no arc-wise unknowns, `data`
 has no `systems` at all — `fit` tells the kinds apart by the fields present:

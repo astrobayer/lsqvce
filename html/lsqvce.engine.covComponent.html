@@ -73,13 +73,19 @@ INVARIANTS (tested)
   sum_n C(n)*covComponent(x,n) == toeplitz(C) * x
   trace via probes: E[z .* covComponent(z,n)] -&gt; diag(V_n) (0 for n&gt;0)</pre>
 <h3>Example</h3>
-<pre class="example">  x = (1:6).&#x27;;
-  lsqvce.engine.covComponent(x, 2)      % = [x3+0; x4+0; x5+x1; x6+x2; 0+x3; 0+x4]
+<pre class="example">x = (1:6).&#x27;;
+lsqvce.engine.covComponent(x, 2)      % = [x3+0; x4+0; x5+x1; x6+x2; 0+x3; 0+x4]</pre>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:covComponent:badLag    the lag is not a non-negative integer
+  lsqvce:covComponent:lagTooLarge  the lag exceeds the series length
 
 See also LSQVCE.KERNEL.TOEPLITZCOFACTOR, LSQVCE.KERNEL.DCTI, LSQVCE.KERNEL.REDUNDANCYLAGS
 
 Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
-model Claude Opus 4.8.</pre>
+model Claude Opus 4.8.
+Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
+WP-64a): the ENGINE tier leaves the USER surface; every qualified
+reference was rewritten mechanically by docs_src/refactor_tiers.py.</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
 <div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

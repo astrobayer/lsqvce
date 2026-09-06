@@ -54,6 +54,11 @@ classdef Results < handle
 %     con = R.contribution(...)      Per-group information share.
 %     T = R.convergence(Name,Value)  Per-ITERATION trajectory: when the loop
 %                                    settled (needs .history).
+%     F = R.compare(Rred)            Nested-model F test against a reduced fit (R5 M7).
+%     fh = R.plot(kind)              "residuals" | "contribution" | "psd" | "convergence"
+%                                    (R5 M5: one figure per question, nothing exported).
+%     [C, L, map] = R.toTable(data)  The expanded parameter tables with estimate and
+%                                    standard deviation written in (R5-D8).
 %     T = R.summary()                Per-STREAM final state: sigma, AR order,
 %                                    whiteness (needs .history).
 %     T = R.coefficients(Alpha=a)    The estimates as a table with formal

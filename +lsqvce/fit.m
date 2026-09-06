@@ -1,164 +1,53 @@
 function R = fit(data, opts, nv)
 %LSQVCE.FIT  Fit a least-squares adjustment (optionally with VCE) to declared data.
 %
-%   R = lsqvce.fit(data)                        every default
+%   R = lsqvce.fit(data)                        every default (one GLS solve)
 %   R = lsqvce.fit(data, opts)                  a lsqvce.Options object
 %   R = lsqvce.fit(data, Name, Value, ...)      the Options properties, straight on fit
 %   R = lsqvce.fit(data, opts, Name, Value)     both: the pairs override opts
-%   R5 M5 (v5): the four forms are ONE mechanism -- the Name=Value pairs are the
-%   properties of lsqvce.Options applied on top of opts, validated by the class.
-arguments
-    data (1,1) struct
-    opts (1,1) lsqvce.Options = lsqvce.Options()
-    nv.?lsqvce.Options
-end
-    f = fieldnames(nv);
-    for k = 1:numel(f), opts.(f{k}) = nv.(f{k}); end
-%   R = lsqvce.fit(data)
-%   R = lsqvce.fit(data, opts)
 %
-%   The one verb (R4, HANDOVER §11.4). You describe the problem with a plain
-%   struct `data` (DATA_CONTRACT.md: which unknowns are common, which days,
-%   which observing systems and the ONE function buildDay each of them points
-%   to), choose what to do with an LSQVCE.OPTIONS object, and get an
-%   LSQVCE.RESULTS back:
+%   THE ONE VERB. You describe the problem with a plain struct `data`
+%   (manual, chapter 3), say what to do with lsqvce.Options (chapter 4), and
+%   get a lsqvce.Results back (chapter 5):
 %
-%       opts = lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false);
-%       R    = lsqvce.fit(data, opts);
-%       R.report
+%       R = lsqvce.fit(data, Estimate="noise", Pool="obsType", OnPass=@myInspect);
+%       R.report;  R.plot("psd");  [C, L] = R.toTable(data);
 %
-%   fit does three things and nothing else: (1) validates `data` against the
-%   contract BEFORE any data is read (fail fast, one error identifier per
-%   rule -- ERRORS below), (2) builds one Loader per system through
-%   LSQVCE.ENGINE.MAKELOADER (the field names are makeLoader's canonical
-%   option names in lowerCamelCase; the mapping table lives here and nowhere
-%   else), (3) dispatches on opts.Estimate / opts.Robust to the engine that does the work:
-%
-%       Model      engine                    what
-%       "gls"      LSQVCE.ENGINE.ADJUSTBLOCK        one GLS solve with the declared
-%                                            covariance
-%       "vce"      LSQVCE.ENGINE.ADJUSTVCE          alternate stochastic model <->
-%                                            variance components (separate)
-%       "pooled"   LSQVCE.ENGINE.ADJUSTVCE.joint    pooled spectrum, no arc factors
-%       "ellmer"   LSQVCE.ENGINE.ADJUSTVCEJOINT     the ten-step joint co-estimation
-%                                            with keyed arc factors (Ellmer
-%                                            2018 §6.5; R4 WP-56c). fit builds
-%                                            the accFcn the driver wants -- a
-%                                            BlockAccumulator over the same
-%                                            loaders whose UserOpt carries the
-%                                            current model through
-%                                            LSQVCE.ENGINE.JOINTMODELOPT -- and
-%                                            bridges the driver's out struct
-%                                            into a Results: x / sigma0 /
-%                                            diagnostics via diagnoseAccum +
-%                                            diagnose, the converged noise
-%                                            model on R.noise (.C .Shat .sigma2
-%                                            .arcKeys), the pass record on
-%                                            R.history (.kind = 'ellmer',
-%                                            .maxDev, .Shat, .nIter, .skips),
-%                                            R.converged. summary()/
-%                                            convergence() are adjustVCE's
-%                                            readers and refuse (noHistory).
-%
-%   THE v4 CONTRACT (Level L11, WP-75) STATES NOTHING THE DATA ALREADY
-%   STATES, and the parameter tables are SCOPED: column 1 of BOTH tables is
-%   a scope token, the rows are TEMPLATES, and the toolbox expands them over
-%   the calendar -- nc and nl are DERIVED from the expansion, the observation
-%   types = fieldnames(covariance), u = numel(x0) on the nonlinear batched
-%   kind. commonParams tokens: 'common' (one column, always) | 'day' (one
-%   column per calendar day that carries at least one scheduled arc in at
-%   least one system). localParams tokens: 'arc' (one block per (day, arc)
-%   of the system) | 'day' (one block per day with arcs) | 'system' (once).
-%   Binding column layout -- A: ['common' rows, table order | day blocks,
-%   calendar order]; B: per day ['arc' blocks, sorted ids | 'day' block],
-%   then the 'system' block. buildDay's 6th argument carries every offset
-%   (below), so no offset is ever computed in user code.
-%
-%   TWO MORE KINDS OF DATA (R4 WP-56b) -- told apart by the fields present,
-%   for problems WITHOUT local unknowns and with diagonal weights:
-%
-%   (B) IN-MEMORY MATRICES
-%         data.A   m x u double     design matrix
-%         data.l   m x 1 double     observed minus computed
-%         data.p   m x 1 double     weights (diagonal of P); optional (unit)
-%   (C) BATCHED CALLBACK
-%         data.batchFcn     fh      [A, l, p] = batchFcn(k), k = 1..nBatch
-%                                   (the LSQVCE.ENGINE.ADJUST contract)
-%         data.numBatches   1x1     nBatch
-%         data.numUnknowns  1x1     u -- LINEAR form only. With
-%         data.x0           u x 1   -> NONLINEAR: [A, w, p] = batchFcn(k, x)
-%                                   (the LSQVCE.ENGINE.SOLVENONLINEAR
-%                                   contract); u = numel(x0), so numUnknowns
-%                                   must then be ABSENT (stated once).
-%   Dispatch for both: opts.Estimate must be "none" (variance components need
-%   the groups of a streaming system); opts.Robust = "irls" selects
-%   LSQVCE.ENGINE.ROBUST, data.x0 selects LSQVCE.ENGINE.SOLVENONLINEAR, else LSQVCE.ENGINE.ADJUST.
-%   The Results carries sol / diag / source (the driver's third output:
-%   verdict V, ROB, or the nonlinear IT record). Its sigma0 is the
-%   A-POSTERIORI std of unit weight and sol.Cxx = s0sq * D.Qxx, i.e. the
-%   streaming Results contract (the batch drivers' own sol.sigma0 is the
-%   a-priori value; it is kept as sol.sigma0Prior). R.acc is empty, so
-%   residuals() and contribution() refuse with lsqvce:Results:noAccumulator
-%   -- the per-observation residuals are already in R.diag.v. The options
-%   forwarded to LSQVCE.ENGINE.DIAGNOSE come from the Options object explicitly
-%   (no KeepUnmatched on this path).
-%
-%   R.systems (the existing Results field -- no second name) carries the
-%   normalised system specs the engine ran: .sysID .nl .dataFcn (the loader
-%   closure fit built) .dayList .name; every lower layer stays reachable on
-%   R (R.acc, R.diag).
+%   THREE DATA KINDS, told apart by the fields of `data`, all on ONE accumulator:
+%     (A) streaming   data.commonParams, data.days, data.systems(k) with
+%                     buildDay / covariance / arcs / localParams / priors /
+%                     processingOptions; optional data.priors, data.paramColumns
+%     (B) in memory   data.A (m x u), data.l (m x 1), optional data.p (m x 1 weights
+%                     or m x m SPD weight matrix); optional data.priors
+%     (C) batched     data.batchFcn @(k) -> [A, l, p] (or @(k, x) -> [J, w, p] with
+%                     data.x0 for Gauss-Newton), data.numUnknowns, data.numBatches;
+%                     optional data.priors
+%   WHAT RUNS (opts.Estimate / opts.Robust / data.x0):
+%     Estimate "none"    one generalised solve under the declared laws (adjustBlock)
+%     Estimate "noise"   the joint variance-component estimator (adjustVCEjoint):
+%                        one spectral shape per Pool group, one level per stream,
+%                        per-arc factors when ArcFactors; prior groups with
+%                        estimate "scale" get their sigma by Helmert / Koch-Kusche
+%     Robust "huber" | "igg3" | "bisquare"   IRLS on the same loop (adjustRobust)
+%     data.x0            Gauss-Newton with damping (adjustNonlinear)
+%   REGULARISATION is declared, never an option: data.priors(j) on the common
+%   parameters and data.systems(k).priors(l) on the local ones -- one struct per
+%   group, by `group` (a name pattern) or `L` (in the columns lsqvce.layout
+%   announces), x0, sigma, from, name, estimate. A free network's datum is the
+%   prior on its null space.
+%   WATCHING A RUN: Options.OnPass fires after every pass with the pass state,
+%   the live accumulator, `data` and every system's processingOptions.
 %
 %   INPUT
-%     data  1x1  struct  the data declaration (binding rules: DATA_CONTRACT.md
-%                        §2). Summary of the streaming kind:
-%              .commonParams  RxC cell    the COMMON templates, one ROW per
-%                                         template; column 1 = 'common'|'day',
-%                                         columns 2..C your convention. nc is
-%                                         DERIVED by the expansion. Required.
-%                                         Passed to buildDay as its 3rd arg.
-%              .days     1xD double   default day list (numeric integers);
-%                                     required unless every system has .days
-%              .systems  1xM struct   one entry per observing system, fields:
-%                REQUIRED
-%                  .buildDay          fh        your day builder
-%                  .covariance        struct    .(obsType) = covariance spec;
-%                                               the observation types ARE its
-%                                               fieldnames (their order is the
-%                                               processing order)
-%                OPTIONAL (default)
-%                  .arcs (1)          1x1 | 1xA | struct | @(day,obsType)
-%                                     ('fromDay' is ENGINE-tier only)
-%                  .localParams  ({}) RxC cell of LOCAL templates; column 1 =
-%                                     'arc'|'day'|'system', columns 2..C your
-%                                     convention; nl DERIVED by the expansion;
-%                                     buildDay's 4th arg. Not declared ->
-%                                     nl = 0 (B is m x 0).
-%                  .days ([]) .name ('') .id (the system's index)
-%                  .processingOptions (struct())   buildDay's 5th arg
-%                  .epochCovariance ([])  @(day,obsType) per-epoch D hook:
-%                                     the exact separable-descale path of the
-%                                     VCE Shape step (DATA_CONTRACT §7).
-%              buildDay's 6th argument (info) carries the expansion: .nl,
-%              .arcId / .offsetOf(arcId) / .count, .dayOffset / .dayCount,
-%              .sysOffset / .sysCount for B; .nc, .commonCount,
-%              .commonDayOffset / .commonDayCount for THIS day's columns in A.
-%     opts  1x1  lsqvce.Options   what to do (default: every engine default,
-%                        i.e. Model "gls")
-%
+%     data   1x1 struct    the declaration (kind A, B or C as above)
+%     opts   1x1 lsqvce.Options   default lsqvce.Options()
+%     Name, Value          any property of lsqvce.Options
 %   OUTPUT
-%     R     1x1  lsqvce.Results  solution, diagnostics, provenance; for Model
-%                        "vce"/"pooled" also R.history / R.noise / R.converged
-%
-%   ACCURACY
-%     No numerics of its own. The claim is EXACTNESS of the dispatch: for the
-%     same declaration, fit(data, opts) returns the results of the direct
-%     driver call it stands for -- adjustBlock with
-%     opts.engineArgs("adjustBlock"), and adjustVCE with the configurators
-%     applied from opts.engineArgs("adjustVCE") -- to solver precision:
-%     x, sigma0 and Cxx agree within RelTol 1e-12 on the CI fixtures
-%     (dev/tests/test_fit.m, reference). It is the SAME code path; the 1e-12
-%     rather than isequal only guards the multithreaded-BLAS reduction-order
-%     nondeterminism recorded in HANDOVER §10.8 (WP-47 r1e).
+%     R      1x1 lsqvce.Results   x, sigma0, sol (Cxx, dof, vtv), diag, acc, history,
+%                                 noise (C, Cgroups, stream, model, priors), stopReason,
+%                                 meta (options as resolved, warnings, seeds, version);
+%                                 methods report, summary, convergence, residuals,
+%                                 contribution, compare, plot, toTable, coefficients
 %
 %   ERRORS
 %     Your declaration is wrong (raised BEFORE any data is read):
@@ -222,52 +111,21 @@ end
 %     unchanged): lsqvce:makeLoader:badDay / dayShape / badArc / badArcId /
 %     buildDay, lsqvce:accum:arcBadNc / arcBadNl
 %
-%   EXAMPLE (the GRACE parameterization that motivated v4: arc-wise ICs,
-%   day-wise ACC scale/bias/drift, KBR empiricals per arc)
-%     data.commonParams = [repmat({'common'}, 6, 1), num2cell((1:6).')];
-%     data.days = 1:3;
-%     s.buildDay = @myBuildDay;                  % uses the info argument
-%     s.covariance.pos = struct('type','arma','ar',[1 -1.6 0.9 -0.25],'ma',1,'sigma',0.7);
-%     s.covariance.kbr = struct('type','diag','sigma',0.2);
-%     s.localParams = [ ...
-%         [repmat({'arc'}, 6, 1),  num2cell((1:6).')];  ...  % ICs per arc
-%         {'arc', 'kbrBias'; 'arc', 'kbrCos1cpr'};      ...  % KBR per arc
-%         [repmat({'day'}, 3, 1),  {'accScale'; 'accBias'; 'accDrift'}]];
-%     s.arcs = 2;
-%     data.systems = s;          % nl = 3 days * (2 arcs * 8 + 3) = 57, derived
-%     R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false));
-%     R.report
-%
 %   See also LSQVCE.OPTIONS, LSQVCE.RESULTS, LSQVCE.ENGINE.MAKELOADER,
 %            LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCE, LSQVCE.ENGINE.ADJUSTVCEJOINT,
 %            LSQVCE.ENGINE.ADJUST, LSQVCE.ENGINE.ROBUST, LSQVCE.ENGINE.SOLVENONLINEAR
 %
-%   Updated 2026-08-31 (CEST, UTC+02:00), v4 SCOPED tables (Level L11,
-%   WP-75, four pinned user decisions): scope column on BOTH tables
-%   (commonParams 'common'|'day', localParams 'arc'|'day'|'system'), rows
-%   are templates expanded over the calendar (nc/nl derived; fit builds the
-%   COMMON plan over the global day calendar and passes it to makeLoader);
-%   localsPerArc left this surface (unknownField -- declare 'arc' rows);
-%   localCount retired, badScope new. With assistance from Claude
-%   (Anthropic), model Claude Fable 5.
-%   Updated 2026-08-31 (CEST, UTC+02:00), v3 data contract (Level L10,
-%   WP-72): every derivable count derived (nc / nl / obsTypes / u-with-x0),
-%   commonParams required and RxC, localParams | localsPerArc | neither
-%   (nl = 0), systemId -> id with the index default, the raw-loader escape
-%   hatch and the v2 count/behaviour fields removed from this surface
-%   (cache / plot hooks / 'fromDay' stay ENGINE-tier on makeLoader).
-%   With assistance from Claude (Anthropic), model Claude Fable 5.
-%   Updated 2026-09-01 (CEST, UTC+02:00), R4 WP-56c (Level L3): Model "ellmer"
-%   wired -- accFcn from the loaders + jointModelOpt, out -> Results bridge
-%   (diagnoseAccum + diagnose; noise/history/converged set). With assistance
-%   from Claude (Anthropic), model Claude Fable 5.
-%   Updated 2026-08-31 (CEST, UTC+02:00), R4 WP-56b (Level L4): kinds B
-%   (in-memory matrices) and C (batched callback, linear or nonlinear with
-%   x0) through adjust / robust / solveNonlinear, returned as Results without
-%   an accumulator. With assistance from Claude (Anthropic), model Claude
-%   Fable 5.
-%   Created 2026-08-31 (CEST, UTC+02:00) with assistance from Claude
-%   (Anthropic), model Claude Fable 5 -- R4 Level L2, WP-56 (decision R4-D4).
+%   Created 2026-08-31 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
+%   model Claude Fable 5 -- R4 Level L2, WP-56 (decision R4-D4).
+%   Help rewritten 2026-09-04 for v5.2 (R5 M5 / R5-D8), model Claude Fable 5.1:
+%   the v5 surface (Estimate, priors, paramColumns, OnPass, layout, toTable).
+arguments
+    data (1,1) struct
+    opts (1,1) lsqvce.Options = lsqvce.Options()
+    nv.?lsqvce.Options
+end
+    f = fieldnames(nv);
+    for k = 1:numel(f), opts.(f{k}) = nv.(f{k}); end
 
     opts.validate();
 

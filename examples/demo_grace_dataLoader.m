@@ -4,7 +4,7 @@ function [cfg, data] = demo_grace_dataLoader()
 %   [cfg, data] = demo_grace_dataLoader()
 %
 %   Returns a ready-to-run configuration CFG and the declaration as a v4 data
-%   struct DATA (DATA_CONTRACT.md), so the separable VCE loop can be
+%   struct DATA (the Manual, chapter 3), so the separable VCE loop can be
 %   exercised end to end without real data:
 %
 %       [cfg, data] = demo_grace_dataLoader();
@@ -58,7 +58,7 @@ function [cfg, data] = demo_grace_dataLoader()
 %   copy demoBuildDay / demoEpochCov and the two paramTable builders as the
 %   starting point for your own case. The epochCovariance hook each system
 %   declares is what gives the VCE Shape step its exact separable-descale
-%   path (DATA_CONTRACT.md section 7).
+%   path (the Manual, chapter 3 section 7).
 %
 %   See also LSQVCE.FIT, DEMO_GRACE, DEMO_SEPARABLE
 %
