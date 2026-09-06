@@ -5657,7 +5657,7 @@ paraphrased.
 
 | round | scope | state |
 |---|---|---|
-| R6-0 | the reviewer's brief (this section; no `.m` touched; audit exit 0) | DONE 2026-09-06, branch `claude/review-brief-r6`, PR pending |
+| R6-0 | the reviewer's brief (this section; no `.m` touched; audit exit 0) | DONE 2026-09-06, branch `claude/review-brief-r6`, PR #88, CI green 241f5c1 |
 | R6-1 | the domain review itself (findings ranked, reproduced/inferred, checked-and-sound, not-reviewed) | OPEN — needs the reviewer (a chat with the brief pasted, or the user's own reading) |
 | R6-2 | dispositions: each accepted finding → one WP row here with branch, oracle, acceptance | OPEN, after R6-1 |
 
