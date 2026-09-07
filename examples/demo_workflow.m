@@ -3,7 +3,7 @@
 %   This is the from-scratch recipe. demo_lsqvce.m shows six FAILURE MODES on a
 %   ready-made problem; this script shows how to WIRE YOUR OWN DATA into the
 %   `data` struct, let lsqvce.fit pick the right engine from its SHAPE, choose
-%   the model with lsqvce.Options, and read what comes back.
+%   what to ESTIMATE with lsqvce.Options, and read what comes back.
 %
 %   THE USER PATH is one verb on a plain data struct (the Manual, chapter 3 is the
 %   binding spec; examples/demo_fit.m shows it on every data kind):
@@ -12,13 +12,17 @@
 %   THE MAP (five questions, in order)
 %     0.  What does lsqvce need from me?          -> a data struct (Section 0)
 %     1.  How do I turn my data into that?        -> Section 1
-%     2.  Which KIND / MODEL?                     -> Section 2 (decision tree)
+%     2.  Which KIND, what to ESTIMATE?           -> Section 2 (decision tree)
 %     3.  Common vs local parameters?             -> Section 3
 %     4.  Wrong weights? Estimate them.           -> Section 4
 %     5.  How do I read the result?               -> Section 5
 %
 %   Run it section by section (Ctrl+Enter in the Editor).
 %
+%   Updated 2026-09-07 (CEST, UTC+02:00), R6 WP-95: the contract is named v5,
+%   locals are the SCOPED localParams table, robust IRLS runs on every kind, and
+%   Section 4 returns the per-observation accuracy with the day (D.Cep).
+%   With assistance from Claude (Anthropic), model Claude Opus 5.
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-17 (CEST, UTC+02:00).  Rewritten from the old "how to read an
 %   adjustment" walk-through into a build-your-own-case guide (HANDOVER item 1b).
@@ -35,7 +39,7 @@
 %% ------------------------------------------------------------------------
 % SECTION 0.  What lsqvce needs from you: a data struct.
 % -------------------------------------------------------------------------
-% Three KINDS, told apart by the fields present (v4 contract: you state
+% Three KINDS, told apart by the fields present (the v5 contract: you state
 % structure, never counts -- everything countable is derived):
 %
 %   (B) IN-MEMORY      data.A (m x u), data.l (m x 1, o - c), data.p (weights)
@@ -170,16 +174,23 @@ fprintf('  blunders     : %d flagged\n', D.nFlag);
 %
 %       COMMON (nc)  : the shared field       -- one row of data.commonParams
 %                      per unknown, estimated once, seen by all.
-%       LOCAL  (nl)  : per-system nuisances   -- declared on the SYSTEM
-%                      (localParams: you number them; or localsPerArc: the
-%                      toolbox numbers per-arc blocks), eliminated on the fly,
-%                      never forming the full (nc + sum nl) normal.
+%       LOCAL  (nl)  : per-system nuisances   -- declared on the SYSTEM as the
+%                      SCOPED localParams table: column 1 is the scope token
+%                      'arc' | 'day' | 'system', the rows are TEMPLATES and nl
+%                      is DERIVED from their expansion over the calendar.
+%                      Eliminated on the fly, never forming the full
+%                      (nc + sum nl) normal.
 %
 %       data.commonParams = commonTbl;             % scoped rows, nc derived
 %       data.days = 1:30;
 %       s.buildDay      = @myBuildDay;             % the one function you write
 %       s.covariance.rr = struct('type','arma', ...);   % fieldnames = the types
-%       s.localParams   = num2cell((1:4).');       % nl = 4, this system's own
+%       s.localParams   = [repmat({'system'}, 4, 1), num2cell((1:4).')];
+%                                                  % 4 'system' rows -> nl = 4,
+%                                                  % this system's own ('arc'
+%                                                  % rows give one block per
+%                                                  % (day, arc), 'day' rows one
+%                                                  % per day with arcs)
 %       data.systems(1) = s;                       % ... (2) for the next system
 %       R = lsqvce.fit(data);                      % Estimate="none": one solve
 %
@@ -219,9 +230,16 @@ vs.buildDay = @(day, ot) struct( ...                % rows of ONE group
         'A', A(g == 1 + strcmp(ot,'g2'), :), ...
         'B', zeros(sum(g == 1 + strcmp(ot,'g2')), 0), ...
         'l', l5(g == 1 + strcmp(ot,'g2')), ...
-        't', t5(g == 1 + strcmp(ot,'g2')));
-vs.covariance.g1 = struct('type', 'diag', 'sigma', sg(g==1));   % the CLAIMED
-vs.covariance.g2 = struct('type', 'diag', 'sigma', sg(g==2));   % (mis-stated) noise
+        't', t5(g == 1 + strcmp(ot,'g2')), ...
+        'Cep', sg(g == 1 + strcmp(ot,'g2')));       % nEpoch x 1: the CLAIMED
+                                                    % accuracy, one sigma per row
+% v5.3: that accuracy is DATA -- what the preprocessing knows about each
+% observation -- so it travels WITH the day, as D.Cep. The covariance spec keeps
+% the TEMPORAL law and its LEVEL only: sigma is 1 because Cep already carries the
+% accuracy, and estimate "scale" asks for that one LEVEL per stream -- the factor
+% group 2 is really off by (the Manual, chapter 3 sections 5 and 7).
+vs.covariance.g1 = struct('type', 'diag', 'sigma', 1, 'estimate', "scale");
+vs.covariance.g2 = struct('type', 'diag', 'sigma', 1, 'estimate', "scale");
 vdata.systems = vs;
 
 Rv = lsqvce.fit(vdata, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
@@ -252,7 +270,8 @@ disp(' ');
 disp('  READING THE RESULT (in this order)');
 disp('    integrity fails            -> fix your batchFcn/buildDay. Nothing else matters.');
 disp('    ratio ~ 1                  -> done.');
-disp('    ratio >> 1, contamination  -> R.diag.flagIdx, or Robust="huber" (kinds B/C).');
+disp('    ratio >> 1, contamination  -> R.diag.flagIdx, or Robust="huber"');
+disp('                                  (any kind, with Estimate="none"; not with data.x0).');
 disp('    ratio >> 1, clean, STRUCTURE -> plot R.diag.w vs time etc. Fix the MODEL.');
 disp('    ratio >> 1, clean, no structure -> Estimate="noise", Pool="stream", ArcFactors=false. Fix the WEIGHTS.');
 disp('    ratio << 1                 -> over-parameterised?');

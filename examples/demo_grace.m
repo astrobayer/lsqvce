@@ -2,10 +2,10 @@ function R = demo_grace(varargin)
 %DEMO_GRACE  End-to-end walk-through of the VCE loop on multi-axis and scalar streams.
 %
 %   R = DEMO_GRACE()
-%   R = DEMO_GRACE('maxOuter', 8, 'verbose', true)
+%   R = DEMO_GRACE('maxPasses', 8, 'verbose', true)
 %
 %   Runs a GRACE-FO-shaped synthetic problem through the USER surface:
-%   the declaration comes from DEMO_GRACE_DATALOADER as a v4 data struct
+%   the declaration comes from DEMO_GRACE_DATALOADER as a v5 data struct
 %   (the Manual, chapter 3), the run is ONE call to LSQVCE.FIT, and everything
 %   you read afterwards is on the LSQVCE.RESULTS. Two observation systems:
 %     * System 1 -- satellites C and D, each with a 3-D position stream (posC,
@@ -21,11 +21,12 @@ function R = demo_grace(varargin)
 %       inter-satellite link, its own local block y_E, observing the SAME
 %       common gravity field. A clean separate block-arrow system.
 %   The loop starts every stream from a deliberately WRONG a-priori
-%   (temporally white, sigma 1) and lets Estimate="noise", Pool="stream", ArcFactors=false discover the covariance:
-%   auto-AR whitening per stream, one variance component per obsType group.
+%   (temporally white, sigma 1) and lets Estimate="noise", Pool="stream",
+%   ArcFactors=false discover the covariance: one estimated spectral shape and
+%   one level per stream -- four levels, one each for posC, posD, rr, posE.
 %
 %   INPUT  (Name-Value, all optional)
-%     maxOuter  1x1 double   outer passes (default 6)
+%     maxPasses 1x1 double   passes of the loop (default 6)
 %     verbose   1x1 logical  print the engine log (default true)
 %   OUTPUT
 %     R         1x1 lsqvce.Results   with R.history / R.noise attached
@@ -33,18 +34,27 @@ function R = demo_grace(varargin)
 %   WHAT TO LOOK FOR
 %     * sigma moves AWAY from 1 on the first pass (the misweighting is
 %       detected) and settles NEAR the planted values by the last pass.
-%     * the 'rr' stream is declared white (AR order 0); the 'pos' streams
-%       pick up a low AR order (the injected colour). Four streams: posC,
-%       posD, rr, posE.
+%     * the 'rr' stream's true noise IS white; the 'pos' streams carry
+%       injected colour, which the loop recovers as the estimated spectral
+%       shape (R.plot("psd") / R.noise.Shat) and reports in the white and
+%       pValue columns of R.summary(). The joint estimator fits a spectrum,
+%       not an AR order, so summary()'s arOrder column stays NaN here. Four
+%       streams: posC, posD, rr, posE.
 %
 %   This is the copy-paste starting point. To run on YOUR data, replace
 %   demo_grace_dataLoader (in this folder) with your own buildDay and data
-%   struct -- the contract is the Manual, chapter 3, and chapter D of the manual.
+%   struct -- the contract is the Manual, chapter 3 (doc lsqvce).
 %
 %   ERRORS  none of its own; declaration errors carry lsqvce:fit ids.
 %
 %   See also LSQVCE.FIT, LSQVCE.OPTIONS, LSQVCE.RESULTS, DEMO_GRACE_DATALOADER
 %
+%   Updated 2026-09-07 (CEST, UTC+02:00), R6 WP-95: v5 vocabulary -- the
+%   declaration is the v5 data struct (the Manual, chapter 3), the demo's own
+%   knob is 'maxPasses' (it sets Options.MaxPasses, the ONE budget), and the
+%   noise fit is described as one estimated spectral shape and one level per
+%   stream instead of an AR order per stream and a component per obsType.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.
 %   Updated 2026-08-31 (CEST, UTC+02:00), v4 SCOPED tables (Level L11,
 %   WP-77): the declaration tables carry the scope column (commonParams
 %   'common'|'day', localParams 'arc'|'day'|'system'); localsPerArc left the
@@ -59,21 +69,21 @@ function R = demo_grace(varargin)
 %   Claude (Anthropic), model Claude Opus 4.8.
 
     p = inputParser;
-    p.addParameter('maxOuter', 6);
+    p.addParameter('maxPasses', 6);
     p.addParameter('verbose',  true);
     p.parse(varargin{:});
     o = p.Results;
 
-    [cfg, data] = demo_grace_dataLoader();   % the v4 declaration (this folder)
+    [cfg, data] = demo_grace_dataLoader();   % the v5 declaration (this folder)
 
-    fprintf(['\n=== separable VCE demo: GRACE-FO topology (+ independent sat E) ===\n' ...
+    fprintf(['\n=== VCE demo: GRACE-FO topology (+ independent sat E) ===\n' ...
              '    System 1: satellites C,D with a 3-D position stream each\n' ...
              '    (posC, posD), covariance C = D (R_t kron I_3) D with a FIXED\n' ...
              '    per-epoch 3x3 D, plus ONE inter-satellite range-rate stream\n' ...
              '    (rr) coupling both -- C,D merged into one pair-system.\n' ...
              '    System 2: satellite E, INDEPENDENT, 3-D positions only (posE),\n' ...
              '    no link -- its own local block y_E, same common gravity field.\n' ...
-             '    VCE by obsType -> FOUR variance components (posC,posD,rr,posE).\n\n']);
+             '    VCE per stream -> FOUR variance components (posC,posD,rr,posE).\n\n']);
     fprintf('true per-stream sigma (posC, posD, rr, posE):\n');
     disp(cfg.trueSigma);
     fprintf('a-priori start: sigma = 1, white (deliberately wrong)\n');
@@ -86,7 +96,7 @@ function R = demo_grace(varargin)
     % tells you to. Estimate="noise" with Pool="stream" and ArcFactors=false is
     % v4's Model "vce": one spectral shape and one level per stream.
     R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
-            MaxPasses=o.maxOuter, Verbose=o.verbose, ...
+            MaxPasses=o.maxPasses, Verbose=o.verbose, ...
             Tolerance=1e-3));
 
     fprintf('\n--- sigma trajectory (rows = iterations, cols = streams) ---\n');

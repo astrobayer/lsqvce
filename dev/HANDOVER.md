@@ -8,8 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-09-07 — WP-93 DONE (PR #93, merge ace2f08); WP-94 READY (PR #94: the docs in sync — 13 help examples onto the current surface, 14 index/helptoc entries, audit checks 24 + 25 with self-tests; CI green on 323d7cc, §12.18). No open work package after its merge.
-Preceding entry: Last substantive update: 2026-09-07 — WP-92 DONE (PR #92, merge adfc572); WP-93 READY (PR #93, §12.17).
+Last substantive update: 2026-09-07 — WP-94 DONE (PR #94, merge f726660); WP-95 READY (the examples audited against v5.3 by a 186-agent workflow: 85 raw / 54 confirmed / 12 set-level findings, all fixed; ci_gate 529/529, examples 13/13, Linux audit 0 findings; §12.19).
+Preceding entry: Last substantive update: 2026-09-07 — WP-92 DONE (PR #92, merge adfc572); WP-93 DONE (PR #93, merge ace2f08); WP-94 READY (PR #94, §12.18).
 Preceding entry: Last substantive update: 2026-09-06 — REVIEW R6 + WP-90 opened on `claude/wp-90`
 (model Claude Fable 5.1, tier A: MATLAB R2026a over the working copy through
 the MCP bridge; the static audit runs locally on a found Python 3.12 but is
@@ -6032,3 +6032,116 @@ ftest); on the fixed tree 0; self-test cases 24 × 2 and 25 × 1 pass on Windows
 and Linux (14 cases). Verdicts: Linux audit exit 0 (pages regenerated, Manual
 rebuilt — chapter 5 carries Results' help); local `ci_gate` GREEN 529/529 incl.
 test_parallel; examples 13/13. CI: pending on the draft PR.
+
+### 12.19 WP-95 — the examples audited against v5.3, and fixed (2026-09-07, model Claude Opus 5, tier A)
+
+**Origin.** The user asked, after WP-94: "do the demo* examples adopt the changes and are
+they handling the changed interface correctly?" A grep sweep said two things were stale.
+That answer was WRONG in the way a list-based instrument is always wrong: it finds only what
+it was told to look for. MEASURED instead with a 186-agent workflow — one reader per example
+and template (15 files), each reading the whole file against the tree, then TWO refuting
+lenses (code truth / user impact) per finding, then a completeness critic over the set:
+**85 raw findings, 54 confirmed, 12 set-level gaps.** The demos RUN (13/13 smoke, gate
+green) and no demo calls a deleted unit — the interface is adopted. What is wrong is what
+they SAY and what they QUOTE.
+
+**The classes found (and why a per-file grep could not see them).**
+1. **Measured numbers that outlived their mechanism.** `demo_gravity`'s whole ACCURACY block
+   (sigma0 0.9998, recovered 0.9956 / 1.9999 / 0.5096, max|z| 2.67, mean z² 1.087, the
+   anomaly and the seven degree ratios) was measured 2026-08-21 on the SEPARATE mode
+   (`engine.adjustVCE`), deleted in M4 4c. `demo_fit` quotes those same numbers second-hand;
+   `demo_gravfire` and `gravfire_data` quote timings from the pre-WP-90 mechanism.
+2. **Retired vocabulary presented as current**: "separable VCE demo" and "VCE by obsType" in
+   `demo_grace`'s printed BANNER (its help was fixed, the banner was not — a per-file reader
+   found the help, the critic found the banner), "the streams pick up an AR order" (v5 has no
+   AR-order selection — `selectArAcv` is deleted), `MaxOuter` as a demo's own parameter name,
+   "gls" as a Model, "the v4 data struct" as the contract (it is version 5), verbosity
+   "0..3" (level 3 was merged into 2 on 2026-07-19).
+3. **Dead cross-references**: `DEMO_SEPARABLE` and `DEMO_SEPARABLE_DATA` (renamed away at
+   v1→v2) in two See also blocks, `TEST_ADJUSTVCE`, `LSQVCE.ENGINE.ADJUSTVCE`, "chapter D of
+   the manual" (there is no chapter D), `html/lsqvce_getting_started.html` (no such page).
+4. **A latent CODE defect** in `template/gravfire_data.m`: `priorsFromColumn11` builds every
+   prior group with BOTH `L` and `group` set, which `fit>priorsOf` refuses by name
+   (`lsqvce:fit:badPrior`, "give EITHER group OR L"). It never fired because the user's
+   bundle has no labelled common constraint — the label is what sets `group`. Also
+   `demo_gravity`'s documented call passes `'MaxIter'`, which its own arguments block
+   (`opt.MaxPasses`) rejects.
+5. **Set-level gaps** (the critic; invisible to any single reader): the v5.3 headline
+   capability is demonstrated in only ONE of its three shapes — no example returns a scalar
+   stream's per-epoch sigma as `D.Cep` (nEpoch × 1); the census "the user surface is four
+   names" survives in `README.md`, `+lsqvce/Contents.m` and `dev/DEVELOPMENT.md` although
+   `lsqvce.layout` made it five; `README.md` still declares regularisation with the retired
+   `Reg` / `RegLambda`; the examples gallery in `html/index.html` has no row for
+   `demo_gravfire`; `Options.Verbose` documents and VALIDATES 0..3 while
+   `util.verbosity.resolve` refuses 3 by name, so `Verbose=3` is accepted at assignment and
+   dies deep in a driver.
+
+**Decision (scope frozen).** One branch `claude/wp-95`, docs-and-truth only. Every confirmed
+finding is fixed in its file; the four cross-file surfaces (`README.md`,
+`+lsqvce/Contents.m`, `html/index.html`, `+lsqvce/Options.m`) are fixed by hand so the wording
+stays consistent. THREE semantic changes, and only these: (a) `demo_gravity`'s documented
+`'MaxIter'` becomes `'MaxPasses'`; (b) `demo_workflow` §4 moves its per-observation accuracy
+from a per-row `sigma` vector on the spec to `D.Cep` on the day (scalar `sigma` +
+`estimate="scale"`, so the estimand stays a per-stream LEVEL and the printed ratio must stay
+≈ 3.000 — MEASURED after the change, not assumed); (c) the `gravfire_data` prior bug.
+`Options.Verbose` is corrected to 0..2 — the range `util.verbosity` has enforced since
+2026-07-19, so the refusal now happens at assignment with `lsqvce:Options:badVerbose`
+instead of inside a driver; no test pins 3 on Options (`test_util` pins
+`verbosity.resolve(3)` refusing, which is unchanged).
+
+**NOT in this round, recorded:** `lsqvce.layout` is called by no example and no template (it
+needs a streaming declaration plus priors to mean anything — a new worked example, not a
+fix); the per-stream policy fields `estimate` / `arcFactors` and a `psd` law are set by no
+example; `data.priors` has no RUNNABLE demonstration in `examples/` (only comments) — a
+minimal datum prior is added to `demo_fit` in this round, the fuller story is a later one.
+
+**Predicted counts.** No test point added or removed: **541 declared**, 529 run locally, 504
+on the hosted gate. Every example must still smoke-run 13/13, and `demo_gravity` /
+`demo_workflow` must still recover their planted truth.
+
+| WP | title | depends on | status |
+|---|---|---|---|
+| 95 | The examples audited against v5.3 (85 raw / 54 confirmed / 12 set-level) and fixed: stale measured numbers re-measured, retired vocabulary and dead cross-references corrected, the gravfire prior bug, the scalar `Cep` demonstrated, `Options.Verbose` 0..2 | 94 | READY-PENDING-CI (2026-09-07, branch `claude/wp-95`: local ci_gate GREEN 529/529, examples 13/13, Linux audit 0 findings; DONE flips on the merge) |
+
+**ROUND WP-95 (2026-09-07, model Claude Opus 5, tier A).** Instruments: a 186-agent audit
+(15 readers, 2 refuting lenses per finding, 1 completeness critic) then a 30-agent fixer
+(one agent per file, each owning exactly one file so parallel edits cannot collide, each
+followed by an independent RE-READ of the changed file). The re-read earned its place: it
+caught FOUR defects the fixers introduced or left -- a Reading paragraph that contradicted
+its own re-measured table ("within 4 %" against a 4.4 % ratio), a runtime quoted two ways in
+one file, the only over-100-character line of the round, and "Robust any kind" where
+`data.x0` is still refused. All four fixed before the gate.
+
+MEASURED after the change, not assumed:
+  * `demo_workflow` §4 with the accuracy moved to `D.Cep`: ratio **2.971** against the
+    planted 3.000 (it was the per-row `sigma` vector before) -- the section still teaches
+    what it says it teaches, and the nEpoch x 1 shape now has its demonstration.
+  * `demo_gravity` re-measured on the current estimator and the ACCURACY block rewritten to
+    it: sigma0 1.0381, recovered 1.1824 / 2.0880 / 0.5068 against planted 1 / 2 / 0.5,
+    max|z| 2.26 over 77 coefficients, mean z^2 0.842 (sd 0.161), anomaly +0.2705 +- 0.0878
+    (z 1.07), four passes, stopReason "maxPasses". Run twice: the fixture noise is seeded
+    but the Hutchinson probes are not, so the last decimals move -- the block now says so
+    instead of claiming the numbers repeat.
+  * `demo_grace('maxPasses', 2)` runs and the old `'maxOuter'` key is refused.
+  * `gravfire_data` with a LABELLED common constraint: two groups (the label stacked into a
+    2 x nc L with estimate "scale", the unlabelled row its own group), no `group` field
+    beside `L`, and `lsqvce.fit` ACCEPTS it -- the latent `lsqvce:fit:badPrior` is gone and
+    proven gone.
+  * `demo_messaging`'s level claims replaced by what the demo actually prints, captured at
+    each level: level 1 emits the stage label of each swept system and the per-pass
+    max|alpha2-1| line with NO timing; level 2 prints text identical to level 1 through
+    `fit`. The help now states that limitation instead of describing a level that works.
+
+VERDICTS. Local `ci_gate` GREEN **529/529** (541 declared, unchanged as predicted), 26/26
+suites incl. test_parallel, inventory = the probe id; examples **13/13**; pages regenerated
+(75) and Manual rebuilt; Linux audit exit 0 with ZERO findings, self-test all cases green --
+including WP-94's checks 24 and 25, which now police exactly this class. CI: pending on the
+draft PR.
+
+CARRIED (recorded, not fixed): `lsqvce.layout` is still called by no example; the per-stream
+`estimate` / `arcFactors` fields and a `psd` law are set by no example; and one agent flagged
+a claim worth its own round -- the peak-memory statement O(uC^2 + max(uL)^2) appears in
+`demo_combine`, `dev/DEVELOPMENT.md:502` and this handover, but `BlockAccumulator` keeps every
+system's Schur blocks under the default `KeepLocal=true` and `diagnoseAccum` then builds a
+full (nc + sum nl) root factor. If that wording is wrong it is wrong in the SSOT first, and
+must be corrected there and in the demos in ONE pass.

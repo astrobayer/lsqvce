@@ -7,7 +7,7 @@ function R = demo_gravfire(bundleFile, opt)
 %   (Stokes coefficients as the common block, per-day ICs / accelerometer
 %   parameters / empiricals as the locals, kinematic positions of both
 %   satellites and the K-band range-rate as three observation groups) goes
-%   through template/gravfire_data.m into the v4/v5 data struct and through
+%   through template/gravfire_data.m into the v5 data struct and through
 %   lsqvce.fit. The design function is NOT part of the toolbox (STEP 11 of the
 %   guide is yours); the template's 'DryRun' stands in for it with random
 %   design matrices, so this demo exercises the PIPELINE -- the declaration,
@@ -20,13 +20,17 @@ function R = demo_gravfire(bundleFile, opt)
 %
 %   INPUT   bundleFile  char/string  path to testdata.mat ("" = look next to the toolbox)
 %   NAME-VALUE
-%     Estimate  "none" | "noise"   (default "none": the 2-s pipeline check)
+%     Estimate  "none" | "noise"   (default "none": the pipeline check -- one solve)
 %     Passes    double             MaxPasses for Estimate "noise" (default 3)
-%     Verbose   0..3               (default 1)
+%     Verbose   0..2               (default 1)
 %   OUTPUT  R  lsqvce.Results | []
 %
 %   See also TEMPLATE/GRAVFIRE_DATA, dev/GRAVFIRE_INTERFACE.md, LSQVCE.FIT
 %
+%   Updated 2026-09-07 (CEST, UTC+02:00), R6 WP-95: the v5 data struct, the
+%   machine-specific timing dropped from the Estimate line, and Verbose 0..2
+%   (level 3 was merged into 2). With assistance from Claude (Anthropic),
+%   model Claude Opus 5.
 %   Created 2026-09-03 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.1 -- R5 Level M6, WP-88 (gracefoReading).
 arguments

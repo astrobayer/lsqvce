@@ -4,13 +4,18 @@ function out = demo_fit(opt)
 %   out = demo_fit()
 %   out = demo_fit(Verbose=false)
 %
-%   The four names of the USER tier -- lsqvce.fit, lsqvce.Options,
+%   Four of the five names of the USER tier -- lsqvce.fit, lsqvce.Options,
 %   lsqvce.Results, lsqvce.report -- on each of the three kinds of data
-%   the Manual, chapter 3 defines. Nothing here touches the ENGINE tier; every
-%   engine call is made by fit.
+%   the Manual, chapter 3 defines. The fifth, lsqvce.layout, announces the
+%   column layout of A and B so that priors can be declared in it; it is not
+%   needed here, where the prior below is written straight in the columns of A
+%   (help lsqvce.layout, and the Manual, chapter 6). Nothing here touches the
+%   ENGINE tier; every engine call is made by fit.
 %
-%     (B) in-memory matrices   data.A / data.l / data.p       -> adjust, then
-%         the same problem with a planted gross error and Robust="huber"
+%     (B) in-memory matrices   data.A / data.l / data.p       -> one solve, then
+%         the same problem with a planted gross error and Robust="huber", and a
+%         free network whose DATUM is a declared prior (data.priors, L spanning
+%         the null space): regularisation is declared, never an option
 %     (C) batched callback     data.batchFcn / numBatches (numUnknowns on the
 %                              linear form; with x0, u = numel(x0)), and
 %         with data.x0 the nonlinear form (Gauss-Newton on exp(a t) + b)
@@ -25,7 +30,7 @@ function out = demo_fit(opt)
 %     opt.Verbose  1x1 logical  print the verdicts (default true)
 %
 %   OUTPUT
-%     out  1x1 struct  .matrix  .robust  .batch  .nonlinear  .gls  .vce
+%     out  1x1 struct  .matrix  .robust  .datum  .batch  .nonlinear  .gls  .vce
 %                      each an lsqvce.Results; .truth the planted values of
 %                      the in-memory problems (x = [1; -2; 0.5], [a; b] =
 %                      [0.7; -0.2]) and of the gravity oracle (cfg.xTrue)
@@ -36,17 +41,29 @@ function out = demo_fit(opt)
 %     within 3 formal sigma (formal errors ~0.3-0.4); the gross error of 25 sigma is caught by IRLS (its
 %     weight factor drops below 0.5) and the robust estimate returns to the
 %     clean one within its formal error; the nonlinear form recovers [a; b]
-%     to 5e-3 (dev/tests/test_fit.m pins both). The gravity oracle's recovery
-%     quality is pinned in DEMO_GRAVITY's ACCURACY block (sigma0 0.9998,
-%     stream ratios 0.996 / 1.000 / 1.019); this demo runs its "vce" loop
-%     with MaxPasses = 2, enough to show the trajectory, not to converge --
-%     the report says so (NOT CONVERGED is a finding, not an error).
-%     dev/tests/test_fit.m testDemoFitRuns runs this function and checks every
-%     Results it returns.
+%     to 5e-3 (dev/tests/test_fit.m pins both). The free network's datum is
+%     exact: with L spanning the null space, L*x = x0 holds to rounding for ANY
+%     prior sigma and the solution is the minimum-constraint one
+%     (dev/tests/test_fit.m testDatumIsADeclaredPrior pins both against the
+%     pseudo-inverse). The gravity oracle's recovery quality is pinned in
+%     DEMO_GRAVITY's ACCURACY block; no figure of it is repeated here, because
+%     the levels that come back depend on which estimator runs. The counted
+%     reference for the planted stream weights is dev/tests/test_vcePolicy.m
+%     testRecoversPlantedRelativeWeights (planted 1 / 2 / 0.5, recovered to
+%     25 % relative in six passes of the joint estimator). This demo runs its
+%     "vce" loop with MaxPasses = 2, enough to show the trajectory, not to
+%     converge -- the report says so (NOT CONVERGED is a finding, not an error).
+%     dev/tests/test_fit.m testDemoFitRuns runs this function and checks the
+%     six Results of the three data kinds.
 %
 %   See also LSQVCE.FIT, LSQVCE.OPTIONS, LSQVCE.RESULTS, LSQVCE.REPORT,
 %            DEMO_GRAVITY_DATALOADER, DEMO_GRAVITY
 %
+%   Updated 2026-09-07 (CEST, UTC+02:00), R6 WP-95: the USER-tier census names
+%   the fifth name (lsqvce.layout, not exercised here), the stale gravity
+%   figures give way to the counted reference, and a free network's datum is
+%   demonstrated as a declared prior.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.
 %   Updated 2026-08-31 (CEST, UTC+02:00), v4 SCOPED tables (Level L11,
 %   WP-77): the declaration tables carry the scope column (commonParams
 %   'common'|'day', localParams 'arc'|'day'|'system'); localsPerArc left the
@@ -84,6 +101,24 @@ end
     show(out.robust, opt.Verbose);
     say('   IRLS weight factor of the planted error: %.3f (clean rows ~1)\n', out.robust.history(end).factor(7));
 
+    say('\n== (B) a free network: the datum DECLARED as a prior on the null space ==\n');
+    % v5: regularisation is declared, never an option. data.priors(j) is one
+    % pseudo-observation group L*x ~ x0 of weight 1/sigma^2; for a datum L spans
+    % the null space, and then any sigma gives the same minimum-constraint x.
+    pairs = [1 2; 2 3; 3 4; 4 1; 1 3];                  % height differences only
+    Af = zeros(size(pairs, 1), 4);
+    for k = 1:size(pairs, 1), Af(k, pairs(k, 1)) = -1;  Af(k, pairs(k, 2)) = 1; end
+    lf = Af*[0; 1.5; -0.7; 2.2] + 0.01*randn(rs, size(pairs, 1), 1);
+    Ld = ones(1, 4);                                    % the null space: a common level
+    data = struct('A', Af, 'l', lf, 'priors', struct('L', Ld, 'x0', 0, 'sigma', 1));
+    out.datum = lsqvce.fit(data, lsqvce.Options(Verbose=opt.Verbose));
+    say('   the declared datum holds: L*x = %.1e\n', Ld*out.datum.x);
+    try
+        lsqvce.fit(rmfield(data, 'priors'), lsqvce.Options(Verbose=false));
+    catch ME
+        say('   without it the same problem is refused by name: %s\n', ME.identifier);
+    end
+
     % ---- (C) batched callback, linear and nonlinear -------------------------
     say('\n== (C) batched: data.batchFcn over two batches ==\n');
     idx = {1:15, 16:30};
@@ -100,7 +135,7 @@ end
     idx = {1:20, 21:40};
     bfn = @(k, x) deal([t(idx{k}).*exp(x(1)*t(idx{k})), ones(20, 1)], ...
                        lob(idx{k}) - (exp(x(1)*t(idx{k})) + x(2)), []);
-    data = struct('batchFcn', bfn, 'numBatches', 2, 'x0', [0.5; 0]);   % u = numel(x0), v3
+    data = struct('batchFcn', bfn, 'numBatches', 2, 'x0', [0.5; 0]);   % u = numel(x0), v5
     out.nonlinear = lsqvce.fit(data, lsqvce.Options(MaxPasses=15, Tolerance=1e-9, Verbose=opt.Verbose));
     show(out.nonlinear, opt.Verbose);
     say('   [a; b] = [%.4f; %.4f]  (truth [0.7; -0.2])\n', out.nonlinear.x);
@@ -122,7 +157,7 @@ end
     out.vce = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
                                               MaxPasses=2, Verbose=opt.Verbose, OnPass=watch));
     show(out.vce, opt.Verbose);
-    say('   sigma per group after each pass:\n');
+    say('   sigma per stream after each pass:\n');
     if opt.Verbose, disp(out.vce.history.sigma); end
 
     out.truth = struct('x', xt, 'ab', abt, 'xGravity', cfg.xTrue);

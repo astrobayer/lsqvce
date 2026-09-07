@@ -49,16 +49,18 @@ different audiences: someone watching a long run wants a progress line per
 outer pass, while someone debugging a stream that will not whiten wants the
 per-stream detail behind it. One flag cannot serve both, so the output was
 either too sparse to diagnose or too noisy to watch. This class replaces the
-flag with four LEVELS, and owns the banner vocabulary so every line in the
+flag with LEVELS (three today; four when it was written, see below), and
+owns the banner vocabulary so every line in the
 toolbox is laid out the same way.</pre>
 <h3>The Levels</h3>
 <pre class="example">  0  SILENT    nothing at all.
   1  PROGRESS  the shape of the run: outer passes, each stage&#x27;s start/done
                with timings, and the convergence report. The default, and
                what you want when watching a long job.
-  2  DETAIL    everything else: per-day accumulation and residuals, per-stream
-               AR order and whiteness, per-group shares and sigmas, the
-               conditioning of each system, inner VCE iterations, fallbacks.
+  2  DETAIL    everything else: per-day accumulation and residuals, the
+               estimated spectral shape and each stream&#x27;s level and
+               whiteness, per-group shares and sigmas, the conditioning of
+               each system, inner VCE iterations, fallbacks.
 
 THERE USED TO BE A LEVEL 3 (STAGE / DIAGNOSTIC were separate). It was
 dropped on 2026-07-19: once the inner accumulator stopped repeating its

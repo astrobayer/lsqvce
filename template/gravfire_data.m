@@ -6,7 +6,7 @@ function data = gravfire_data(commonData, myOptions, systemsData, opt)
 %
 %   TEMPLATE (R5 M0 close-out, HANDOVER §12.8): the GRAVFIRE bundle
 %   (commonData / myOptions / systemsData, as saved in testdata.mat) already
-%   contains everything the v4 data contract asks for EXCEPT the design
+%   contains everything the v5 data contract asks for EXCEPT the design
 %   matrices. This function is the declaration half; the design half is the
 %   'DesignFcn' you supply (the variational-equation partials of GRAVFIRE).
 %   Every rule of the Manual, chapter 3 is applied here once, and the file is
@@ -32,14 +32,19 @@ function data = gravfire_data(commonData, myOptions, systemsData, opt)
 %                  fit pipeline can be exercised BEFORE the design step exists.
 %                  The numbers of a dry run mean nothing.
 %   OUTPUT
-%     data  1x1 struct   the v4 lsqvce declaration: commonParams, days, systems(1)
-%           with id, name, buildDay, covariance, arcs, localParams, processingOptions.
+%     data  1x1 struct   the v5 lsqvce declaration: commonParams, days, priors,
+%           systems(1) with id, name, buildDay, covariance, arcs, localParams,
+%           priors, processingOptions.  The two priors fields are the DECLARED
+%           regularisation (the Manual, chapter 3): data.priors from column 11
+%           of the common table, data.systems.priors from the local templates.
 %
 %   ERRORS
 %     gravfire:designMissing        DryRun false and no DesignFcn given (raised at read time)
 %     gravfire:unknownQuantity      an observation group's observationQuantity is not
 %                                   'kinematicPosition' or 'range-rate'
 %     gravfire:designShape          DesignFcn returned A/B with the wrong row/column count
+%     gravfire:badConstraint        column 11 is malformed, or the rows of one label
+%                                   disagree on sigma or on the activation pass
 %     (+ every declaration check of lsqvce.fit, raised before any read; the Manual, chapter 3 §3.5)
 %
 %   EXAMPLE
@@ -58,6 +63,11 @@ function data = gravfire_data(commonData, myOptions, systemsData, opt)
 %   R5 M3 made the 3-axis pieces fast on the joint estimator (38.6 s for both
 %   days at 2160 lags, HANDOVER §12.5 round 3c).
 %
+%   Updated 2026-09-07 (CEST, UTC+02:00), R6 WP-95: the v5 data contract is
+%   named as such, STEP 6 emits ONE prior struct per label with the member
+%   rows stacked into L (no 'group' beside L), and STEP 7 documents the
+%   declared data.systems.priors instead of the retired priorDay handle.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.
 %   Updated 2026-09-06 (CEST, UTC+02:00), R6 WP-90: the positions declare
 %   the temporal law only and return D.Cep with the day (no 'separable'
 %   type, no axis count in the spec). With assistance from Claude
@@ -118,7 +128,7 @@ end
 
     % ---- STEP 7: the system
     s = struct();
-    s.id                = 1;                                  % numeric or ONE char (contract §2.3)
+    s.id                = 1;                                  % numeric or ONE char (Manual §2.3)
     s.name              = 'GRACE';                            % the label lives here
     s.buildDay          = @buildGravfireDay;
     s.covariance        = cov;
@@ -129,23 +139,28 @@ end
 
     % ---- STEP 6 (R5-D8 round 1): column 11 -> data.priors ------------------
     % Your constraining factor {'Tikhonov', k, sigma[, label]} on a COMMON row
-    % j becomes the prior L = e_j', x0 = column 10 (the a-priori, [] -> 0),
-    % sigma, active from pass k; a 4th entry is a group LABEL (members share
-    % one estimated variance component with estimate "scale"). In your
-    % 15-column table (token in column 1) these are columns 11 and 12.
-    % Constraints on LOCAL rows (your accelerometer scale factors) are
-    % collected and reported here; they are applied by D8 round 2 (priors on
-    % local parameters) -- until then the report is the honest state.
+    % j constrains that parameter to x0 = column 10 (the a-priori, [] -> 0)
+    % with standard deviation sigma, from pass k on. ONE struct per GROUP:
+    % without a label the row is its own group, L = e_j' and sigma fixed
+    % (estimate "none" -- one row has redundancy <= 1); a 4th entry is a group
+    % LABEL, and its rows become ONE struct whose L stacks their unit rows,
+    % with one shared sigma estimated by VCE (estimate "scale", Koch-Kusche).
+    % A group is declared by L OR by a name pattern, never both (round 6). In
+    % your 15-column table (token in column 1) these are columns 11 and 12.
     data.priors = priorsFromColumn11(commonData.parameter, opt.DryRun);
-    % ---- STEP 7 (R5-D8 round 5): column 11 on LOCAL rows -> priorDay ---------
-    % Regularisation of local parameters is declared the way the design is:
-    % priorDay(day, sysID, info) returns pseudo-observations IN THE COLUMNS OF
-    % B -- the same layout buildGravfireDay writes, read from the same info
-    % (info.dayOffset + the position of the row among info.dayRows). One
-    % struct per group: rows sharing a label (4th entry of column 11, e.g.
-    % 'accscale') go into one struct with one sigma; without a label each
-    % constrained row is its own group. Your 12 accelerometer scale factors
-    % {'Tikhonov', 1, 0.01} become 6 groups per day (or 2 with labels).
+    % ---- STEP 7 (R5-D8 round 6): column 11 on LOCAL rows -> systems.priors --
+    % Regularisation of local parameters is DECLARED, never computed:
+    % data.systems(k).priors(l) is one struct per GROUP, given EITHER by
+    % 'group' -- a regexp on the NAME column of localParams (column 2 of the
+    % 15-column template), from which the toolbox builds L with one row per
+    % matched template row per INSTANCE, so a 'day' row contributes one row
+    % per day and the group spans the calendar -- OR by 'L', written in the
+    % columns of B as lsqvce.layout(data) announces them. Never both. Rows
+    % sharing a label (4th entry of column 11, e.g. 'accscale') are ONE group
+    % with one sigma and estimate "scale"; without a label each constrained
+    % row is its own group with a fixed sigma. How many groups your bundle
+    % yields therefore depends on how many template rows carry a constraint
+    % and how they are labelled. The helper below emits the 'group' form.
     data.systems.priors = gravfireLocalPriors(data, localParams);
 end
 
@@ -260,8 +275,19 @@ function priors = priorsFromColumn11(P, ~)
 %   P is the ORIGINAL 14-column table (before the token is prepended):
 %   column 10 = a-priori value ([] -> 0), column 11 = 'none' | [] |
 %   {'Tikhonov', fromPass, sigma[, label]}.
-    priors = struct('L', {}, 'x0', {}, 'sigma', {}, 'name', {}, 'estimate', {}, 'from', {}, 'group', {});
+%   ONE struct per GROUP, regrouped for R5-D8 round 6: rows sharing a label
+%   become one struct whose L STACKS their unit rows e_j', with one shared
+%   sigma and one activation pass, estimated by VCE (estimate "scale",
+%   Koch-Kusche -- several rows are what make a sigma estimable); a row
+%   without a label is its own struct, L = e_j' and sigma fixed (estimate
+%   "none": one row has redundancy <= 1). A group is declared EITHER by
+%   'group' -- a name pattern on commonParams -- OR by L, never both
+%   (lsqvce:fit:badPrior); the common names are SYNTHESISED here rather than
+%   a column of the table, so every group is declared by L and no 'group'
+%   field is written. Members of one label must agree on sigma and fromPass.
+    priors = struct('L', {}, 'x0', {}, 'sigma', {}, 'name', {}, 'estimate', {}, 'from', {});
     nc = size(P, 1);
+    groups = containers.Map('KeyType', 'char', 'ValueType', 'any');  order = {};
     for j = 1:nc
         c = P{j, 11};
         if isNoneConstraint(c), continue, end
@@ -271,14 +297,38 @@ function priors = priorsFromColumn11(P, ~)
         if ~strcmpi(c{1}, 'Tikhonov')
             error('gravfire:badConstraint', 'row %d: unknown constraint kind ''%s'' (only Tikhonov is mapped).', j, c{1});
         end
-        L = zeros(1, nc);  L(j) = 1;
         x0 = 0;
         if ~isempty(P{j, 10}), x0 = double(P{j, 10}); end
-        lab = '';  est = 'none';
-        if numel(c) >= 4 && ~isempty(c{4}), lab = char(string(c{4}));  est = 'scale'; end
-        name = sprintf('%s_%d_%d', char(string(P{j, 1})), double(P{j, 2}), double(P{j, 3}));
-        priors(end+1) = struct('L', L, 'x0', x0, 'sigma', double(c{3}), 'name', name, ...
-                               'estimate', est, 'from', double(c{2}), 'group', lab); %#ok<AGROW>
+        lab = '';
+        if numel(c) >= 4 && ~isempty(c{4}), lab = char(string(c{4})); end
+        nm  = sprintf('%s_%d_%d', char(string(P{j, 1})), double(P{j, 2}), double(P{j, 3}));
+        key = lab;  if isempty(key), key = nm; end
+        if ~isKey(groups, key)
+            groups(key) = struct('rows', [], 'x0', [], 'sigma', double(c{3}), ...
+                                 'from', double(c{2}), 'labelled', ~isempty(lab));
+            order{end+1} = key; %#ok<AGROW>
+        end
+        g = groups(key);
+        if g.sigma ~= double(c{3})
+            error('gravfire:badConstraint', ...
+                  'group ''%s'': members must share one sigma (row %d has %g, the group %g).', ...
+                  key, j, double(c{3}), g.sigma);
+        end
+        if g.from ~= double(c{2})
+            error('gravfire:badConstraint', ...
+                  'group ''%s'': members must share one fromPass (row %d has %g, group %g).', ...
+                  key, j, double(c{2}), g.from);
+        end
+        g.rows(end+1) = j;  g.x0(end+1, 1) = x0;
+        groups(key) = g;
+    end
+    for k = 1:numel(order)
+        g = groups(order{k});
+        L = zeros(numel(g.rows), nc);
+        for r = 1:numel(g.rows), L(r, g.rows(r)) = 1; end
+        est = 'none';  if g.labelled, est = 'scale'; end
+        priors(end+1) = struct('L', L, 'x0', g.x0, 'sigma', g.sigma, 'name', order{k}, ...
+                               'estimate', est, 'from', g.from); %#ok<AGROW>
     end
     if isempty(priors), priors = []; end
 end

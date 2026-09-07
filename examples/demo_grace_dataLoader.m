@@ -3,7 +3,7 @@ function [cfg, data] = demo_grace_dataLoader()
 %
 %   [cfg, data] = demo_grace_dataLoader()
 %
-%   Returns a ready-to-run configuration CFG and the declaration as a v4 data
+%   Returns a ready-to-run configuration CFG and the declaration as a v5 data
 %   struct DATA (the Manual, chapter 3), so the VCE loop on multi-axis and
 %   scalar streams can be exercised end to end without real data:
 %
@@ -25,44 +25,50 @@ function [cfg, data] = demo_grace_dataLoader()
 %       observes the SAME common gravity field x_c as the pair (that is what
 %       makes combining the systems meaningful), but its locals are its own.
 %
-%   Both systems share the common (gravity) parametrisation; VCE groups by
-%   obsType, giving FOUR variance components (posC, posD, rr, posE). Each stream
+%   Both systems share the common (gravity) parametrisation; VCE pools by
+%   stream, giving FOUR variance components (posC, posD, rr, posE). Each stream
 %   starts from a deliberately WRONG a-priori (temporally white, sigma 1).
 %
-%   PARAMETRISATION PIPE (v4 contract, scoped tables).  The unknowns are described by two
+%   PARAMETRISATION PIPE (v5 contract, scoped tables).  The unknowns are described by two
 %   cell arrays with one ROW per unknown (data.commonParams and the system's
 %   localParams), piped through to the day-builder as its 3rd/4th args; nc
 %   and nl are DERIVED from their row counts, and the column count is YOUR
-%   convention (this demo uses 14). A 'processingOptions' struct is piped as
+%   convention (this demo uses 15). A 'processingOptions' struct is piped as
 %   the 5th arg. The demo's column convention (yours may differ) is:
 %
-%     col  1  scope           v4 token: 'common' (shared table)
+%     col  1  scope           v5 token: 'common' (shared table)
 %                             or 'system' (local tables)     (char)
 %     col  2  kind            'gravity' | 'arcBias' | ...   (char)
-%     col  2  label           human-readable name          (char)
-%     col  3  system          system id this unknown belongs to (numeric; 0 =
+%     col  3  label           human-readable name          (char)
+%     col  4  system          system id this unknown belongs to (numeric; 0 =
 %                             common/shared)
-%     col  4  satellite       'C'|'D'|'E'|'' ('' = shared)  (char)
-%     col  5  degree  n       SH degree   (gravity) or []   (numeric)
-%     col  6  order   m       SH order    (gravity) or []   (numeric)
-%     col  7  cs              'C'|'S' coeff (gravity) or ''  (char)
-%     col  8  arc             arc index (local) or []        (numeric)
-%     col  9  component       'x'|'y'|'z'|'' axis or ''      (char)
-%     col 10  unit            e.g. '-'|'m'|'m/s'             (char)
-%     col 11  a-priori value  x0                             (numeric)
-%     col 12  a-priori sigma  or Inf if free                 (numeric)
-%     col 13  estimate flag   true/false                     (logical)
-%     col 14  group tag       free grouping label            (char)
+%     col  5  satellite       'C'|'D'|'E'|'' ('' = shared)  (char)
+%     col  6  degree  n       SH degree   (gravity) or []   (numeric)
+%     col  7  order   m       SH order    (gravity) or []   (numeric)
+%     col  8  cs              'C'|'S' coeff (gravity) or ''  (char)
+%     col  9  arc             arc index (local) or []        (numeric)
+%     col 10  component       'x'|'y'|'z'|'' axis or ''      (char)
+%     col 11  unit            e.g. '-'|'m'|'m/s'             (char)
+%     col 12  a-priori value  x0                             (numeric)
+%     col 13  a-priori sigma  or Inf if free                 (numeric)
+%     col 14  estimate flag   true/false                     (logical)
+%     col 15  group tag       free grouping label            (char)
 %
-%   The toolbox only checks the SHAPE (a 2-D cell); the MEANINGS above are
-%   this demo's convention, read inside demoBuildDay. This is the TEMPLATE:
+%   The toolbox checks the SHAPE (a 2-D cell) and column 1 (the scope token);
+%   the other MEANINGS above are this demo's convention, read inside
+%   demoBuildDay. This is the TEMPLATE:
 %   copy demoBuildDay and the two paramTable builders as the starting point
 %   for your own case. The per-epoch covariance of a position stream comes
 %   back from demoBuildDay WITH the day (D.Cep, the Manual, chapter 3
 %   section 7) -- there is no second place to state it.
 %
-%   See also LSQVCE.FIT, DEMO_GRACE, DEMO_SEPARABLE
+%   See also LSQVCE.FIT, LSQVCE.OPTIONS, DEMO_GRACE, DEMO_GRAVITY_DATALOADER
 %
+%   Updated 2026-09-07 (CEST, UTC+02:00), R6 WP-95: the contract is named v5,
+%   the column catalogue is renumbered onto the 15 columns the tables really
+%   carry (the scope token is column 1, checked by the toolbox), and the dead
+%   DEMO_SEPARABLE See also is replaced by live units.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.
 %   Updated 2026-09-06 (CEST, UTC+02:00), R6 WP-90: the error information
 %   travels with the day -- the positions declare the temporal law only
 %   ('diag', deliberately wrong) and return D.Cep; the epochCovariance hook
@@ -86,7 +92,7 @@ end
 
 %==========================================================================
 function data = graceData(cfg)
-%GRACEDATA  The declaration as a v4 data struct: two systems (the merged
+%GRACEDATA  The declaration as a v5 data struct: two systems (the merged
 %   C/D pair and independent E), each with its covariance (the fieldnames
 %   ARE the streams, in processing order) and its localParams table.
     data = struct();
@@ -143,7 +149,7 @@ function cfg = demoCfg()
     Ld = [1 0 0; 0.3 1.0 0; 0.2 0.4 2.5];   % lower-tri "Cholesky" of D
     cfg.Dep = Ld * Ld.';                     % 3x3 SPD per-epoch covariance
 
-    % ---- parametrisation tables (14 columns, one row per unknown) ----------
+    % ---- parametrisation tables (15 columns, one row per unknown) ----------
     cfg.common = commonParamTable(cfg);      % nc rows -> nc derived
     cfg.localPair = localParamTable(cfg, {'C','D'}, [cfg.y_C, cfg.y_D]); % 2*nlSat
     cfg.localE    = localParamTable(cfg, {'E'},     cfg.y_E);            % nlSat
@@ -166,7 +172,7 @@ function D = demoBuildDay(cfg, day, obsType, common, local, procOpt)  %#ok<INUSD
 %DEMOBUILDDAY  One synthetic day, parameter-driven (5-arg buildDay form).
 %   common/local are the scoped parametrisation tables; nc = rows(common),
 %   nlThis = rows(local). This demo reads the COUNTS from the tables (proving
-%   the pipe works) and could equally read col-5/6 (degree/order) etc. to build
+%   the pipe works) and could equally read col-6/7 (degree/order) etc. to build
 %   the design; here the design is synthetic so we only use the counts and the
 %   a-priori truth carried in cfg.
     nc     = size(common, 1);           % DERIVED common count (== cfg.nc)
@@ -237,7 +243,7 @@ end
 
 %% ===================================================== parametrisation tables
 function C = commonParamTable(cfg)
-%COMMONPARAMTABLE  nc rows x 15 cols: the v4 scope token 'common' first, then
+%COMMONPARAMTABLE  nc rows x 15 cols: the v5 scope token 'common' first, then
 %   14 cols describing the shared gravity unknowns. Synthetic degree/order
 %   just enumerate the nc coefficients; a real table would carry the true SH
 %   (n,m,C/S). Shared -> system 0, satellite ''.
@@ -251,7 +257,7 @@ function C = commonParamTable(cfg)
 end
 
 function T = localParamTable(cfg, sats, yTrue)
-%LOCALPARAMTABLE  (nlSat*numel(sats)) rows x 15 cols: the v4 scope token
+%LOCALPARAMTABLE  (nlSat*numel(sats)) rows x 15 cols: the v5 scope token
 %   'system' first (this demo hand-stacks the pair block [y_C | y_D], so its
 %   rows stay hand-numbered -- exactly what 'system' scope means), then 14
 %   cols. yTrue is nlSat x numel(sats) (or nlSat x 1) of a-priori truth.

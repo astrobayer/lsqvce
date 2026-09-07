@@ -3,7 +3,7 @@ function [cfg, data] = demo_gravity_dataLoader()
 %
 %   [cfg, data] = demo_gravity_dataLoader()
 %
-%   Returns a configuration CFG and the declaration as a v4 data struct DATA
+%   Returns a configuration CFG and the declaration as a v5 data struct DATA
 %   (the form LSQVCE.FIT takes -- see the Manual, chapter 3), so a PHYSICALLY
 %   STRUCTURED gravity recovery can be run end to end without any external
 %   data:
@@ -71,7 +71,7 @@ function [cfg, data] = demo_gravity_dataLoader()
 %                  variance components VCE estimates should come out as the
 %                  planted sigmas: 1.0 / 2.0 / 0.5.
 %
-%   OUTPUT
+%   CFG IN DETAIL
 %     cfg  1x1 struct  the configuration and the planted truth. Fields:
 %            .nmax     1x1 double   maximum SH degree (8 -> 77 coefficients)
 %            .nc       1x1 double   common-parameter count, numel(cfg.xTrue)
@@ -91,7 +91,6 @@ function [cfg, data] = demo_gravity_dataLoader()
 %            .trueSigma/.trueAR 1x1 struct  the planted noise law per stream
 %            .cov      1x1 struct   the DECLARED covariance per stream
 %            .r .incl .dt .lagC2D   orbit geometry
-%     L    1x3 cell    the Loaders, ready for LSQVCE.ENGINE.ADJUSTVCE
 %
 %   ERRORS
 %     None. The fixture is self-contained and deterministic.
@@ -105,6 +104,12 @@ function [cfg, data] = demo_gravity_dataLoader()
 %   See also DEMO_GRAVITY, DEMO_GRAVITY_DESIGN, DEMO_GRACE_DATALOADER,
 %   LSQVCE.FIT
 %
+%   Updated 2026-09-07 (CEST, UTC+02:00), R6 WP-95: the contract is named v5,
+%   and the stale third output L "ready for LSQVCE.ENGINE.ADJUSTVCE" is gone --
+%   the signature is [cfg, data] and that engine unit no longer exists; the
+%   remaining field list is retitled CFG IN DETAIL so it no longer poses as a
+%   second OUTPUT block. With assistance from Claude (Anthropic), model
+%   Claude Opus 5.
 %   Updated 2026-08-31 (CEST, UTC+02:00), v4 SCOPED tables (Level L11,
 %   WP-77): the declaration tables carry the scope column (commonParams
 %   'common'|'day', localParams 'arc'|'day'|'system'); localsPerArc left the
@@ -128,7 +133,7 @@ end
 
 %==========================================================================
 function data = gravityData(cfg)
-%GRAVITYDATA  The declaration as a v4 data struct (L11 WP-77): the tables
+%GRAVITYDATA  The declaration as a v5 data struct (L11 WP-77): the tables
 %   declare, the counts are derived -- commonParams is the degree/order/term
 %   table of the SH coefficients (nc = rows, and the columns MEAN something),
 %   the observation type is the covariance fieldname, id is the system id.
@@ -145,7 +150,7 @@ function data = gravityData(cfg)
         d.covariance   = struct(ot, cfg.cov.(ot));        % fieldname = the stream
         d.arcs         = @(dd, o) cfg.arcsOfDay{cfg.days == dd};
         d.localParams  = [repmat({'arc'}, cfg.sys(s).nlPerArc, 1), ...
-                          num2cell((1:cfg.sys(s).nlPerArc).')];   % v4 'arc' templates
+                          num2cell((1:cfg.sys(s).nlPerArc).')];   % v5 'arc' templates
         d.id           = cfg.sys(s).id;
         d.name         = cfg.sys(s).name;
         if s == 1, data.systems = d; else, data.systems(s) = d; end
