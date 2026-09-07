@@ -64,7 +64,7 @@ function [R, s] = demo_priors(varargin)
 %   ACCURACY  (MEASURED 2026-09-07 on R2026a. The fixture noise is drawn from
 %   a stream seeded on the day, so every number below repeats -- except the
 %   Estimate="noise" level, whose redundancies come from unseeded Hutchinson
-%   probes and which read 0.747 and 0.753 on two consecutive runs.)
+%   probes and which read 0.747, 0.753, 0.756 and 0.757 over four runs.)
 %     nc = 7 and nl = 13, both DERIVED; the design has 3 null directions, one
 %       per day, and rank() confirms it on the densely assembled [A B].
 %     Without priors fit REFUSES: lsqvce:qr:rankDeficient.
@@ -81,8 +81,10 @@ function [R, s] = demo_priors(varargin)
 %       a variance component is 0.5*sqrt(2/r) = 0.29, so that gap is noise.
 %
 %   ERRORS  none of its own; declaration and prior errors keep their
-%     lsqvce:fit: identifiers (badPrior for a wrong L width, a row coupling
-%     two days, or estimate="law" on a local group).
+%     lsqvce:fit: identifiers -- badPrior for an L of the wrong width, for
+%     estimate = "law" on a LOCAL group, and for a local row that couples two
+%     days. A COMMON group may couple days: the smoothness group here does,
+%     and must, since that is what a smoothness statement is.
 %
 %   See also LSQVCE.LAYOUT, LSQVCE.FIT, LSQVCE.OPTIONS, DEMO_NOISEPOLICY,
 %   DEMO_WORKFLOW

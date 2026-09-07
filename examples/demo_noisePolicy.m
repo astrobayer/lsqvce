@@ -122,23 +122,30 @@ function [R, s] = demo_noisePolicy(varargin)
                                   ArcFactors=false, MaxPasses=o.maxPasses, ...
                                   Verbose=o.verbose));
     [s.stream, s.declared, s.level, s.truth] = levels(cfg, R);
+    % Look every stream up BY NAME. R.noise.stream follows the covariance
+    % fieldnames, but a demo that indexed by position would report the wrong
+    % row the day that order changed, and say nothing about it.
+    at = @(nm) find(extractAfter(s.stream, '|') == string(nm), 1);
     fprintf('\n--- RUN 1: level per stream (the estimand of "scale") ---\n');
     fprintf('  %-10s %10s %10s %10s   %s\n', 'stream', 'declared', 'level', ...
             'planted', 'policy');
     for k = 1:numel(s.stream)
+        j = find(strcmp(cfg.streams, extractAfter(s.stream(k), '|')), 1);
         fprintf('  %-10s %10.3f %10.3f %10.3f   %s\n', s.stream(k), s.declared(k), ...
-                s.level(k), s.truth(k), cfg.estimate{sel1(k)});
+                s.level(k), s.truth(k), cfg.estimate{j});
     end
-    s.noneFixed = s.level(1) == s.declared(1);
+    kNone = at(cfg.streams{1});
+    s.noneFixed = s.level(kNone) == s.declared(kNone);
     fprintf('  the "none" stream kept its declared sigma EXACTLY: %d\n', s.noneFixed);
 
     % The shape the "law" stream found. One law per POOL GROUP, and with
     % Pool="stream" the group IS the stream: R.noise.Cgroups is keyed by it and
     % holds the fitted lag covariance, so C(2)/C(1) is its lag-1 correlation.
-    Cg = R.noise.Cgroups(char(s.stream(3)));
+    kLaw = at(cfg.streams{3});
+    Cg = R.noise.Cgroups(char(s.stream(kLaw)));
     s.rho1 = [Cg(2)/Cg(1), cfg.phiRr];
     fprintf('\n--- RUN 1: the shape "law" found (%d lags) ---\n', numel(Cg));
-    fprintf('  %s: lag-1 correlation %.3f, planted %.3f\n', s.stream(3), ...
+    fprintf('  %s: lag-1 correlation %.3f, planted %.3f\n', s.stream(kLaw), ...
             s.rho1(1), s.rho1(2));
     fprintf('  gps and acc kept the shape they were given -- a psd law for acc.\n');
 
@@ -149,7 +156,7 @@ function [R, s] = demo_noisePolicy(varargin)
                                    ArcFactors=false, MaxPasses=o.maxPasses, ...
                                    Verbose=o.verbose));
     [st2, dc2, lv2, tr2] = levels(cfg, R2);
-    kArc = find(strcmp(st2, "x1|" + string(cfg.streams{4})), 1);
+    kArc = find(extractAfter(st2, '|') == string(cfg.streams{4}), 1);
     s.stream(4) = st2(kArc);  s.declared(4) = dc2(kArc);
     s.level(4)  = lv2(kArc);  s.truth(4)    = tr2(kArc);
     f2 = R2.noise.model{kArc}.sigma2;                % one factor per arc

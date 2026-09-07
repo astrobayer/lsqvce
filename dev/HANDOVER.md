@@ -6243,7 +6243,10 @@ Fixture: one system, 3 days x 3 arcs x 256 epochs; gps ("none", white 0.2), acc 
 AR(1) phi 0.5).
   * With rr as **"law"**: mag's mean arc factors are **0.00 / 40.8 / 0.00** at 10 passes and
     **0.00 / 45.9 / 0.00** at 20 — a fixed point, not a transient — against the planted
-    1 / 9 / 1, IDENTICALLY at Pool "stream", "obsType" and "all", and the loop never converges.
+    1 / 9 / 1, IDENTICALLY at Pool "stream", "obsType" and "all", and the loop stops on maxPasses.
+    In a THREE-stream variant (gps + mag + rr "law") it is worse: the loop reports
+    **converged** after 8 passes with sigma0 **545.7** and EVERY arc factor 0.00 -- a
+    broken stochastic model carrying a "converged" verdict.
   * With rr switched to **"scale"** and nothing else changed: **converges in ONE pass**, factors
     **0.91 / 8.36 / 0.87**, levels 0.2 / 0.4904 / 1.481 / 0.5514 against planted
     0.2 / 0.5 / 1.4 / 0.574. With no law stream at all: **1.00 / 8.80 / 1.00**.
@@ -6272,3 +6275,12 @@ VERDICTS. Local `ci_gate` GREEN **531/531** (543 declared, 529 + 2 as predicted)
 1 excluded; example smoke **15/15** (13 + the two new, isolated calls); Windows audit at its
 honest baseline of exactly ONE finding (check 23, pandoc absent) with the self-test 14/14
 green. CI: pending on the draft PR.
+
+**RE-READ PASS (the WP-95 lesson, applied to this round's own output).** Reading the two new
+files back after writing them caught three defects before the push: an ERRORS block that named
+"a row coupling two days" without saying it is a LOCAL-group rule, while `demo_priors`'s own
+smoothness group couples days and must; TWO positional lookups into `R.noise.stream` (a demo
+that indexed by position would report the wrong row the day the covariance fieldname order
+changed, and say nothing — R3); and a run-to-run spread quoted from two runs when four had been
+measured. The measured numbers are unchanged by the refactor (identical to four decimals), and
+`checkcode` reports ZERO messages on both new files.
