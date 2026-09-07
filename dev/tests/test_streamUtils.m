@@ -1,7 +1,6 @@
 function tests = test_streamUtils
 %TEST_STREAMUTILS  Direct tests for the functions moved into +lsqvce this session:
 %
-%     lsqvce.engine.selectArAcv         automatic AR-order selection by ACV fidelity
 %     lsqvce.kernel.whitenessCorr          whiteness statistic
 %     lsqvce.engine.collectResiduals    stack a residual field over arcs
 %     lsqvce.engine.makeLoader  / lsqvce.engine.covModel  the error information of a day (R6 WP-90)
@@ -11,49 +10,13 @@ function tests = test_streamUtils
 %   Run:
 %     results = runtests('tests/test_streamUtils');  disp(table(results))
 %
-%   See also LSQVCE.ENGINE.SELECTARACV, LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.COVMODEL
+%   See also LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.COLLECTRESIDUALS
     tests = functiontests(localfunctions);
 end
 
 function setupOnce(~)
     root = fileparts(fileparts(fileparts(mfilename('fullpath'))));
     addpath(root);  addpath(fullfile(root, 'examples'));   % fixture_grace (moved tests, R5 M4 4c)
-end
-
-%% ===================================================== selectArAcv
-function testSelectArAcvRecoversOrder(tc)
-% categories: precision | tags: diagnostics
-    a0 = [1 -1.6 0.9 -0.25];  s0 = 0.7;
-    r  = s0^2 * lsqvce.kernel.armaACV(a0, 1, 200);
-    [a, s2, p, sel] = lsqvce.engine.selectArAcv(r, 5000);
-    tc.verifyEqual(p, 3);
-    % tol: a(1)=1 exact by construction (1e-12 house); coefficient/sigma
-    % recovery at 1e-6 = v9verify.py measured level on the exact ACV
-    tc.verifyEqual(a(1), 1, 'AbsTol', 1e-12);
-    tc.verifyEqual(a, a0, 'AbsTol', 1e-6);
-    tc.verifyEqual(sqrt(s2), s0, 'AbsTol', 1e-6);         % tol: same source
-    tc.verifyEqual(sel.verdict, 'good');
-    tc.verifyLessThan(sel.acvRelErr, 1e-3);
-    tc.verifyEqual(numel(sel.aic), 121);            % ladder 0..pMax(=120)
-end
-
-function testSelectArAcvWhiteReturnsZero(tc)
-% categories: precision | tags: diagnostics
-    r = [1; zeros(49,1)];                           % delta ACV = white
-    [a, s2, p, sel] = lsqvce.engine.selectArAcv(r, 5000);
-    tc.verifyEqual(p, 0);
-    tc.verifyEqual(a, 1);
-    % tol: delta ACV -> s2 = r0 = 1 exactly; house round-trip bound 1e-12
-    tc.verifyEqual(s2, 1, 'AbsTol', 1e-12);
-    tc.verifyEqual(sel.verdict, 'white');
-end
-
-function testSelectArAcvDefaultsAndValidation(tc)
-% categories: contract
-    r = 0.5^2 * lsqvce.kernel.armaACV([1 -0.6], 1, 64);
-    [~, ~, p] = lsqvce.engine.selectArAcv(r, []);          % nData [] -> default 1e4
-    tc.verifyEqual(p, 1);
-    tc.verifyError(@() lsqvce.engine.selectArAcv([], 100), 'MATLAB:selectArAcv:expectedVector');
 end
 
 %% ===================================================== whitenessCorr

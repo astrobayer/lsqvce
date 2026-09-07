@@ -27,14 +27,16 @@ function bench_qr_vs_normal(varargin)
 %     cond(N) < 1e8      normal loses ~8 of 16 digits. Fine. Take the speedup.
 %     cond(N) 1e8..1e12  borderline. Use QR.
 %     cond(N) > 1e12     normal has ~4 digits left. QR is not optional.
-%     cond(N) > ~1e14    normal REFUSES (lsqvce:acc:rankDeficient): N is
+%     cond(N) > ~1e14    normal REFUSES (lsqvce:normalEq:notSPD): N is
 %                        singular in double precision, so the normal path
 %                        reports the defect instead of returning digits it
 %                        does not have. QR still solves it (from A, not N).
 %
 %   Since cond(N) = cond(A)^2, one cheap Backend="normal" run tells you which
 %   regime you are in. That is the recipe: solve once with "normal", read
-%   cond(N) from R.sol.condN, and re-run with "qr" only if you must.
+%   cond(N) as cond(R.sol.Cxx) -- Cxx = s0^2 N^-1 and an inverse has the
+%   condition number of its matrix, so the number is EXACT, not a proxy (v5.3:
+%   the block path reports no condN field) -- and re-run with "qr" only if you must.
 %
 %   INPUT (Name-Value)
 %     'u'     1xU double  parameter counts to sweep         (default [10 30 50 100])
@@ -43,6 +45,10 @@ function bench_qr_vs_normal(varargin)
 %     'reps'  1x1 double  repetitions, best-of              (default 3)
 %   OUTPUT   none (prints two tables)
 %
+%   Updated 2026-09-07 (CEST, UTC+02:00), R6 WP-92 (E-15): the bench read the
+%   flat driver's R.sol.condN, gone since 5.0 -- cond(N) is now read as
+%   cond(R.sol.Cxx), exact. With assistance from Claude (Anthropic), model
+%   Claude Fable 5.1.
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
 %   Updated 2026-09-01 (CEST, UTC+02:00), postflight L11: the sweep's last
@@ -141,7 +147,7 @@ for eps = [1e-1 1e-3 1e-5 1e-7 1e-8]
     try
         RN = lsqvce.fit(data, optN);
     catch err
-        if ~strcmp(err.identifier, 'lsqvce:acc:rankDeficient'), rethrow(err), end
+        if ~strcmp(err.identifier, 'lsqvce:normalEq:notSPD'), rethrow(err), end
         refused = true;                          % N singular in double: honest refusal
     end
     RQ = lsqvce.fit(data, optQ);
@@ -155,7 +161,7 @@ for eps = [1e-1 1e-3 1e-5 1e-7 1e-8]
     end
 
     if refused
-        v = 'normal REFUSES (rankDeficient) -- QR MANDATORY';
+        v = 'normal REFUSES (notSPD) -- QR MANDATORY';
     elseif eN < 1e-9
         v = 'normal is fine';
     elseif eN < 1e-6
@@ -166,10 +172,10 @@ for eps = [1e-1 1e-3 1e-5 1e-7 1e-8]
         v = 'QR MANDATORY';
     end
     fprintf('  %8.0e %10.1e %12.2e %12.2e %s\n', ...
-            eps, RQ.sol.condN, eN, eQ, v);
+            eps, cond(RQ.sol.Cxx), eN, eQ, v);
 end
 
-fprintf(['\n  READ cond(N) FROM YOUR OWN RESULT (R.sol.condN). That single number\n' ...
+fprintf(['\n  READ cond(N) FROM YOUR OWN RESULT: cond(R.sol.Cxx). That single number\n' ...
          '  tells you which column you are in -- and therefore whether the\n' ...
          '  QR cost is buying you anything at all.\n\n']);
 end

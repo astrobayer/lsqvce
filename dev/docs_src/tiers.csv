@@ -40,7 +40,6 @@ engine.datum,ENGINE,datum defect detection and handling
 engine.mapreduce,ENGINE,serial / parfor / spmd task runner with ordered reduce
 engine.resolveNc,ENGINE,common-parameter count derived from the systems
 engine.satKeyOf,ENGINE,satellite key (makeValidName) helper
-engine.selectArAcv,ENGINE,AR model selection from an autocovariance
 kernel.robustWeights,KERNEL,IRLS weight factors (Huber / IGG3 / bisquare, MAD scale)
 kernel.whittle,ENGINE,Whittle likelihood fit of a VAR model
 engine.checkPSD,ENGINE,PSD sanity check

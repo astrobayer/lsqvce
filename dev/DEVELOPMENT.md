@@ -7,7 +7,7 @@ the module census, correctness history, design decisions, validation, and the
 measured chapters. `dev/HANDOVER.md` remains the single status-and-plans
 document; this file is the technical companion the README used to be.*
 
-> **Status (2026-09-01, v2.0 — see RELEASE_NOTES.md).** Green everywhere: **26 suite files, 544 test
+> **Status (2026-09-01, v2.0 — see RELEASE_NOTES.md).** Green everywhere: **26 suite files, 541 test
 > points, 0 fail** — verified locally in MATLAB R2026a (including the
 > pool suites with real `parfor`/`spmd` workers and the machine-local
 > speed budgets) and on every push by GitHub Actions CI (a static `audit`
@@ -187,7 +187,6 @@ qualified one you type.
 | `lsqvce.engine.ftest` | nested-model F-test |
 | `lsqvce.engine.ellipse` | confidence ellipses |
 | `lsqvce.engine.stat` | distribution kernel (no Statistics Toolbox) |
-| `lsqvce.engine.selectArAcv` | automatic AR order from a sample ACV (no grid); ACV-domain sibling of `selectArOrder` |
 | `lsqvce.engine.resolveSatSpecs`, `lsqvce.engine.satKeyOf` | per-satellite config resolution and the shared satellite-key convention |
 
 ### KERNEL tier — numerical building blocks
@@ -278,7 +277,7 @@ predicted shift = 1.765467 sigma      <- from the MDB formula
 realised  shift = 1.765467 sigma      <- inject the MDB, re-solve, measure
 ```
 
-MATLAB unit tests: run `run_all_lsqvce` for the full suite (26 files, 544
+MATLAB unit tests: run `run_all_lsqvce` for the full suite (26 files, 541
 test points, ~3 min locally; the speed suite is reported separately by
 design). `run_lsqvce('all')` delegates to it, so it is the same run;
 `run_lsqvce('<target>')` runs one suite or a name pattern while iterating.
@@ -718,7 +717,7 @@ doc lsqvce              % the landing page
 | `dev/tests/test_util.m` | `getfielddef`, `mergeStruct` (10) |
 | `dev/tests/test_vceFunction.m` | `vce` + `diagnoseAccum` (KeepLocal guard) |
 | `dev/tests/test_signalCore.m` | `outliers`, `varWhiten`, `ar2arma` |
-| `dev/tests/test_streamUtils.m` | `selectArAcv`, `collectResiduals`, `whitenessCorr`, `satKeyOf`, and the loader / covModel error-information seam (`Cep`, R6 WP-90) (18) |
+| `dev/tests/test_streamUtils.m` | `collectResiduals`, `whitenessCorr`, `satKeyOf`, and the loader / covModel error-information seam (`Cep`, R6 WP-90) (15) |
 | `validation/*.py` | Python mirrors of the numerical properties |
 
 ---

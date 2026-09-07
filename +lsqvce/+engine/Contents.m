@@ -41,7 +41,6 @@
 %   residuals            - second data pass: residuals and quadratic forms
 %   resolveNc            - common-parameter count derived from the systems
 %   satKeyOf             - satellite key (makeValidName) helper
-%   selectArAcv          - AR model selection from an autocovariance
 %   synthLoader        - synthetic block-arrow loader (engine-tier fixture; leaves in M4)
 %   sharedProbe          - shared Hutchinson probe generator (RNG contract)
 %   snoop                - block-native data snooping and downweighting
