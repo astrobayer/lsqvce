@@ -95,13 +95,15 @@ Set `Noise.Grid` at least as large as the longest arc. `Robust="huber" |
 **Declaring the stochastic model.** Each observation stream carries a
 covariance spec — its temporal law: `diag` (white), `arma` / `ar` (a whitening
 filter), `acf` / `psd` (an exact Toeplitz law) — plus the per-stream policy
-`estimate = "none" | "scale" | "law"` and `arcFactors`. The per-epoch accuracy
+`estimate = "none" | "scale" | "law"` and `arcFactors`
+(`examples/demo_noisePolicy.m` runs all four against a planted truth). The per-epoch accuracy
 of the observations (a sigma per epoch, or a 3 × 3 covariance per epoch for
 positions) comes back from `buildDay` with the day as `D.Cep`; the toolbox
 composes the two (v5.3). Batches are
 overlapped by the filter memory automatically, so batching never changes the
 result. Priors on the common parameters — a datum, a Kaula rule, a
-background model — are `data.priors`. Details and the six `buildDay` rules:
+background model — are `data.priors`, written in the columns
+`lsqvce.layout` announces (`examples/demo_priors.m`). Details and the six `buildDay` rules:
 the Manual, chapter 3 (`doc lsqvce`).
 
 **Options.** `lsqvce.Options` is a typed value class: 14 knobs and five
