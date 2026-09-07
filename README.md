@@ -4,8 +4,9 @@ Declare your problem as a plain `data` struct, `fit` it, and get a judged
 result: estimates with formal errors, per-observation diagnostics, and a
 five-level verdict that says whether to believe them.
 
-**The user surface is four names** at `lsqvce.` — `fit`, `Options`, `Results`,
-`report` — plus the `data` struct specified in the Manual, chapter 3 (`doc lsqvce`). Everything
+**The user surface is five names** at `lsqvce.` — `fit`, `Options`, `Results`,
+`report` and `layout` (the column layout to declare priors in) — plus the `data`
+struct specified in the Manual, chapter 3 (`doc lsqvce`). Everything
 that does the work lives one level down (`lsqvce.engine.*` drivers,
 accumulators, loaders, VCE, diagnostics; `lsqvce.kernel.*` transforms, filters,
 statistics) and stays reachable for experts.
@@ -69,8 +70,9 @@ all of them. The v4 names map one-to-one onto v5 (`RELEASE_NOTES.md`).
 
 **New here?** `doc lsqvce` opens the Manual (`html/lsqvce_manual.html`, also `lsqvce_manual.pdf`) — the single documentation authority: install, data, every option, the API, priors, migration. In this order:
 
-1. `doc lsqvce` → **Getting started** (`html/lsqvce_getting_started.html`): which
-   kind of data you have, `buildDay` in six rules, reading the answer.
+1. `doc lsqvce` → the Manual, **chapter 1 (Overview)** and **chapter 2
+   (Installation)**: which kind of data you have and how to put the toolbox on
+   your path.
 2. **the Manual, chapter 3 (`doc lsqvce`)** — the binding specification of the `data` struct and of the
    one function you write, `buildDay`, with a two-satellite worked example.
 3. **`examples/demo_fit.m`** — the user path end to end on all three data kinds,
@@ -137,7 +139,9 @@ precision — the toolbox reports that instead of clamping
 `data.systems(k)`; common parameters are stated once, each system's arc-local
 parameters are eliminated by a Schur complement, and the variance components
 weight the systems against each other. Regularisation is always declared, never
-silent (`Reg`, `RegLambda`; recorded in the diagnostics).
+silent, and never an option: `data.priors(k)` on the common parameters and
+`data.systems(k).priors(l)` on the local ones, each a pseudo-observation group
+that carries its own redundancy (the Manual, chapter 6).
 
 **Parallelism.** Days within a system (`DistributeDays=true`), arcs in the
 redundancy pass, and systems parallelise; nothing inside an arc (filter state)

@@ -3,8 +3,8 @@
 %
 % lsqvce -- least-squares adjustment with variance component estimation.
 %
-% THE USER TIER (R4, four names; HANDOVER §11.4). Start with the Getting
-% started page (doc lsqvce) and the Manual, chapter 3 at the toolbox root.
+% THE USER TIER (five names since R5-D8; HANDOVER §11.4). Start with the
+% Manual (doc lsqvce): chapter 1 overview, chapter 3 the data you declare.
 %
 %   fit            - the one user verb: fit(data, opts) -> Results
 %   layout         - the column layout fit will use (declare priors in it) (R5-D8)

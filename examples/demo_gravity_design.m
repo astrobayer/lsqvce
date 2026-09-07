@@ -38,9 +38,9 @@ function [A, meta] = demo_gravity_design(nmax, orbit)
 %     nmax = 12 across near-pole-to-equator latitudes (MEASURED 2026-08-20,
 %     user machine; the test asserts <= 5e-13, a decade of headroom on an
 %     O(nmax)*eps recursion-growth bound), and the closed forms
-%     Pbar_10 = sqrt(3) t, Pbar_11 = sqrt(3) sqrt(1-t^2),
-%     Pbar_20 = sqrt(5) (3t^2-1)/2 to <= 1e-14 (test_physOracle asserts
-%     both; the tolerances are eps-level growth of an O(nmax) recursion).
+%     Pbar_20 = sqrt(5) (3t^2-1)/2 and Pbar_22 = sqrt(15)/2 (1-t^2) to
+%     <= 1e-14 (test_physOracle asserts both; the tolerances are eps-level
+%     growth of an O(nmax) recursion).
 %
 %   ERRORS
 %     Input:
@@ -65,10 +65,15 @@ function [A, meta] = demo_gravity_design(nmax, orbit)
 %     TEST_PHYSORACLE          the closed-loop oracle suite
 %   Both call THIS function -- the Legendre recursion and its ACCURACY claim
 %   exist once (WP-51; the test reaches examples/ the same way
-%   TEST_ADJUSTVCE reaches DEMO_GRACE_DATALOADER).
+%   TEST_FIT reaches DEMO_GRACE_DATALOADER).
 %
 %   See also DEMO_GRAVITY, DEMO_GRAVITY_DATALOADER, TEST_PHYSORACLE
 %
+%   Updated 2026-09-07 (CEST, UTC+02:00), R6 WP-95: ACCURACY now names the two
+%   closed forms the oracle really asserts (Pbar_20, Pbar_22 -- degrees 0/1 are
+%   excluded by design), and the CONSUMERS aside cites TEST_FIT instead of the
+%   deleted TEST_ADJUSTVCE.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.
 %   Updated 2026-08-21 (CEST, UTC+02:00), WP-51: moved from tests/private to
 %   examples/ and renamed, so the demo and the oracle suite share ONE
 %   implementation instead of duplicating the recursion. With assistance

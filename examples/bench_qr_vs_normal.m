@@ -36,7 +36,7 @@ function bench_qr_vs_normal(varargin)
 %   regime you are in. That is the recipe: solve once with "normal", read
 %   cond(N) as cond(R.sol.Cxx) -- Cxx = s0^2 N^-1 and an inverse has the
 %   condition number of its matrix, so the number is EXACT, not a proxy (v5.3:
-%   the block path reports no condN field) -- and re-run with "qr" only if you must.
+%   sol carries no condN field) -- and re-run with "qr" only if you must.
 %
 %   INPUT (Name-Value)
 %     'u'     1xU double  parameter counts to sweep         (default [10 30 50 100])
@@ -45,6 +45,10 @@ function bench_qr_vs_normal(varargin)
 %     'reps'  1x1 double  repetitions, best-of              (default 3)
 %   OUTPUT   none (prints two tables)
 %
+%   Updated 2026-09-07 (CEST, UTC+02:00), R6 WP-95: the cond(N) recipe says
+%   that SOL carries no condN field (R.diag.condN does exist), not that the
+%   block path reports none.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.
 %   Updated 2026-09-07 (CEST, UTC+02:00), R6 WP-92 (E-15): the bench read the
 %   flat driver's R.sol.condN, gone since 5.0 -- cond(N) is now read as
 %   cond(R.sol.Cxx), exact. With assistance from Claude (Anthropic), model

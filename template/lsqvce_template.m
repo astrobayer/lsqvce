@@ -3,10 +3,12 @@ function L = lsqvce_template(procOpt)
 %
 %   L = LSQVCE_TEMPLATE(procOpt)
 %
-%   Copy this file, rename it, and fill in the two stubs at the bottom. It
+%   Copy this file, rename it, and fill in the one stub at the bottom. It
 %   returns the cell array of Loaders that the toolbox consumes:
 %
 %       L = myCase(procOpt);
+%       lsqvce.util.log.set('fid', procOpt.loggingOverviewFileID, ...
+%               'screen', procOpt.loggingLevel > 0);    % one sink for the text
 %       R = lsqvce.engine.adjustBlock(L, procOpt.days, ...
 %               'Verbose', procOpt.loggingLevel > 0);   % one GLS solve on the Loaders
 %
@@ -45,7 +47,12 @@ function L = lsqvce_template(procOpt)
 %   INPUT
 %     procOpt  1x1  struct  your processing configuration (see PROCOPT below).
 %                           Piped UNCHANGED to myBuildDay as its 5th argument
-%                           and surfaced to an OnPass hook as ctx.processingOptions.
+%                           and kept on every Loader as L{k}.procOpt. Only
+%                           LSQVCE.FIT surfaces it to a hook as
+%                           ctx.processingOptions; at engine tier hand it over
+%                           yourself -- 'OnPassContext',
+%                           struct('processingOptions', {{procOpt}}) -- and
+%                           ADJUSTBLOCK has no OnPass at all.
 %
 %   OUTPUT
 %     L        1xS  cell    one Loader per system, ready for LSQVCE.ENGINE.ADJUSTBLOCK
@@ -56,7 +63,9 @@ function L = lsqvce_template(procOpt)
 %     for the whole run. So it must NOT carry live cursors: a field like
 %     'iteridx' would freeze at its value on the first pass while the loop
 %     iterates around it, and your builder would silently read the wrong pass
-%     forever. The engine tracks these itself -- use ctx.pass and ctx.sysID.
+%     forever. The engine tracks these itself -- an OnPass hook is handed the
+%     live pass number as ctx.pass and the driver's name as ctx.driver, and the
+%     system identity rides on the Loader as L{k}.sysID.
 %
 %     Group your settings into nested structs; only the fields your builder
 %     needs have to be there:
@@ -65,7 +74,11 @@ function L = lsqvce_template(procOpt)
 %       procOpt.loggingLevel    1x1   0 silent | 1 progress | 2 detail
 %                                     NOTE 3 is REJECTED (merged into 2), so a
 %                                     pipeline that can emit 3 must clamp first.
-%       procOpt.loggingOverviewFileID 1x1  fid             (fed as 'logFid')
+%       procOpt.loggingOverviewFileID 1x1  fid
+%                                     NOT an engine argument: route it to the
+%                                     toolbox-wide logger before the solve,
+%                                     lsqvce.util.log.set('fid', ...) (user
+%                                     tier: Options LogFile, a file NAME).
 %       procOpt.showAndSaveGraphics   1x1  gates hook attachment (an IF in your
 %                                     driver, not a toolbox option)
 %       procOpt.observationGroups 1xS cell of structs      (drives the loop below)
@@ -95,6 +108,12 @@ function L = lsqvce_template(procOpt)
 %   See also LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.FIT,
 %            DEMO_GRACE_DATALOADER
 %
+%   Updated 2026-09-07 (CEST, UTC+02:00), R6 WP-95: one stub, not two; the
+%   overview fid goes to lsqvce.util.log.set (there is no 'logFid'); procOpt
+%   reaches a hook only through 'OnPassContext' (ctx.processingOptions is a
+%   LSQVCE.FIT service) and there is no ctx.sysID; the parametrisation tables
+%   are Rc x C / Rl x C, the column count your own convention.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.
 %   Updated 2026-09-06 (CEST, UTC+02:00), R6 WP-90: the error information
 %   comes back from myBuildDay with the day (D.Cep) -- the myEpochCov stub,
 %   the epochCovariance hook and the retired plot-hook / adjustVCE text are
@@ -136,8 +155,8 @@ function L = buildLoaders(procOpt)
 
         % --- what this group observes -------------------------------------
         % obsTypes are the STREAM names. They are the unit of variance-component
-        % estimation under so name them
-        % after what they physically are, not after the file they came from.
+        % estimation, so name them after what they physically are, not after the
+        % file they came from.
         obsTypes = cellstr(g.observationTypes);
 
         % --- a-priori covariance, one entry per obsType --------------------
@@ -170,7 +189,7 @@ function L = buildLoaders(procOpt)
     end
 end
 
-%% ============================================================= STUBS: your data
+%% ============================================================== STUB: your data
 function D = myBuildDay(day, obsType, common, local, procOpt)  %#ok<STOUT,INUSD>
 %MYBUILDDAY  Read ONE day of ONE observation type. YOU WRITE THIS.
 %
@@ -181,8 +200,10 @@ function D = myBuildDay(day, obsType, common, local, procOpt)  %#ok<STOUT,INUSD>
 %   INPUT
 %     day      1x1   double   the day identifier from procOpt.days
 %     obsType  1xk   char     which stream to build
-%     common   Rc x14 cell    the common parametrisation (nc = Rc rows)
-%     local    Rl x14 cell    this system's local parametrisation (nl = Rl rows)
+%     common   Rc x C cell    the common parametrisation, C columns of YOUR
+%                             convention (nc = Rc rows)
+%     local    Rl x C cell    this system's local parametrisation, C columns of
+%                             YOUR convention (nl = Rl rows)
 %     procOpt  1x1   struct   your processing configuration, piped unchanged
 %
 %   OUTPUT

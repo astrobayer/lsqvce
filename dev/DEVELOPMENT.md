@@ -157,14 +157,15 @@ precisely when it should not.
 Tiers since 2.0 (`dev/docs_src/tiers.csv`, audit check 18). Every name below is the
 qualified one you type.
 
-### USER tier — the four names
+### USER tier — the five names
 
 | Function | Purpose |
 |---|---|
-| `lsqvce.fit` | the one verb: `data` struct + `Options` → `Results`; dispatches to the engines by the fields present and `Options.Model` |
+| `lsqvce.fit` | the one verb: `data` struct + `Options` → `Results`; dispatches to the engines by the fields present and `Options.Estimate` / `Options.Robust` / `data.x0` |
 | `lsqvce.Options` | every knob, typed, defaulted to the engines' own defaults; `disp(opts)` marks the defaults; `engineArgs(target)` is the mapping |
 | `lsqvce.Results` | solution + diagnostics + provenance in one object: `R.x`, `R.sigma0`, `R.coefficients()`, `R.report()`, `R.history`, `R.noise`, `R.acc` |
 | `lsqvce.report` | the five-level verdict (`Results.report` forwards here) |
+| `lsqvce.layout` | the column layout of A and B, announced before `fit`, so `data.priors` / `data.systems(k).priors` can declare their operator in it (R5-D8) |
 
 ### ENGINE tier — what `fit` dispatches to
 

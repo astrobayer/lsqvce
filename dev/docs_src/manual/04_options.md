@@ -75,7 +75,9 @@ pass builds every day twice (accumulate + sweep) and a VCE run 2n+1 times; `Inf`
 calendar and builds each day once per run — your memory decision (a built type-day is
 m × nc doubles, ≈190 MB at degree 60 for a 6-h three-axis piece).
 
-**`Verbose`** — logical or 0..3, default `false`. Screen messages; 0 is silent.
+**`Verbose`** — logical or 0..2, default `false`. Screen messages: 0 silent, 1 progress, 2 detail.
+(Level 3 was merged into 2 in 2026-07; `lsqvce.util.verbosity` refuses it, and since v5.3 so does
+`Options` itself, by name.)
 
 **`LogFile`** — string, default `""`. Mirror the messages to this file.
 

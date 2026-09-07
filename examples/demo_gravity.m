@@ -3,7 +3,7 @@ function [R, score] = demo_gravity(opt)
 %
 %   R = DEMO_GRAVITY()
 %   [R, score] = DEMO_GRAVITY()
-%   R = DEMO_GRAVITY('MaxIter', 6, 'Verbose', true)
+%   R = DEMO_GRAVITY('MaxPasses', 6, 'Verbose', true)
 %   R = DEMO_GRAVITY('Plots', true, 'ExportDir', '/tmp/figs')
 %
 %   The other demos exercise the algebra on random designs. This one runs the
@@ -59,44 +59,63 @@ function [R, score] = demo_gravity(opt)
 %                                             error power per degree
 %
 %   ACCURACY
-%     MEASURED on the default configuration (2026-08-21, MATLAB R2026a on the
-%     author's machine; the noise realisation is seeded, so these repeat):
-%       sigma0                     0.9998
+%     MEASURED on the default configuration -- the run this file performs
+%     (Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=4) --
+%     on 2026-09-07, MATLAB R2026a, v5.3, on the author's machine:
+%       sigma0                     1.0381
 %       stream sigmas    planted   1.0 / 2.0 / 0.5
-%                        recovered 0.9956 / 1.9999 / 0.5096
-%                        ratios    0.996 / 1.000 / 1.019
-%       max |z| over 77 coefficients   2.67   (5 would be alarming)
-%       mean z^2                       1.087  (1.00 ideal; sd = sqrt(2/77)
-%                                              = 0.16, so this is 0.5 sd out)
-%       planted anomaly (5,3,C)   truth +0.1764, estimate +0.2843 +- 0.0812
-%                                 -> 1.33 sigma, comfortably recovered
+%                        recovered 1.1825 / 2.0880 / 0.5068
+%                        ratios    1.183 / 1.044 / 1.014
+%       max |z| over 77 coefficients   2.26   (5 would be alarming)
+%       mean z^2                       0.842  (1.00 ideal; sd = sqrt(2/77)
+%                                              = 0.161, so this is 1 sd low)
+%       planted anomaly (5,3,C)   truth +0.1764, estimate +0.2705 +- 0.0879
+%                                 -> 1.07 sigma, comfortably recovered
 %       error degree variance / formal, by degree
-%         n=2 0.23  n=3 1.29  n=4 0.79  n=5 1.00  n=6 1.07  n=7 1.15  n=8 1.00
-%     Reading: the weights come back under REAL column correlation, and the
-%     formal errors describe the actual errors. The low n=2 ratio is the
-%     expected small-sample scatter of a degree with only five coefficients
-%     (chi2 with 5 dof spans roughly 0.1 to 2.2 at one sigma), not a defect.
-%     These are the numbers of ONE seeded run; they are quoted, not asserted
-%     -- the tests assert the structural claims and leave the statistics to
-%     the formal-error reading.
+%         n=2 0.09  n=3 1.01  n=4 0.53  n=5 0.71  n=6 0.79  n=7 0.97  n=8 0.88
+%     The loop spends the default four passes and stops on the pass budget,
+%     not on the tolerance: R.stopReason is "maxPasses".
+%     REPEATABILITY: the noise realisation is seeded, but the Hutchinson
+%     probes are NOT (this demo sets no Options.Seed), so the last decimals
+%     move -- a second run gave 1.1824 / 2.0880 / 0.5068, max |z| 2.2611,
+%     mean z^2 0.8426 and the same sigma0.
+%     Reading: the RELATIVE weights come back under REAL column correlation.
+%     potD lands 4.4 % high and kbr 1.4 %; potC, the strongly coloured stream
+%     (ar [1 -0.6 0.2]), comes back 18 % high -- the bias the shape/level
+%     split carries on a short record, the same magnitude the suite bounds at
+%     25 % (dev/tests/test_vcePolicy, testRecoversPlantedRelativeWeights).
+%     mean z^2 one sd BELOW 1 means the realised errors are SMALLER than the
+%     formal ones: the formal errors are mildly conservative, not
+%     over-optimistic, and within the scatter the value is consistent with 1.
+%     The n=2 ratio, 0.09 over a degree with only five coefficients, is the
+%     least stable of the seven and is quoted as measured, not explained away.
+%     These are the numbers of ONE run; they are quoted, not asserted -- the
+%     tests assert the structural claims and leave the statistics to the
+%     formal-error reading.
 %
 %   ERRORS
 %     lsqvce:demoGravity:noExportDir  'ExportDir' names a folder that does
 %                                     not exist and could not be created
 %
 %   EXAMPLE
-%     R = demo_gravity();                 % ~10 s, prints the three sections
+%     R = demo_gravity();                 % ~1.5 s, prints the three sections
 %     [R, score] = demo_gravity();        % ... and hand the numbers back
 %     R.report();                         % the toolbox's own verdict
 %
 %   COST
 %     Five days, 16 arcs, three streams, 77 common unknowns and 96 local ones:
-%     a few seconds. The SH partials are recomputed per arc rather than
+%     about 1.5 s (measured 2026-09-07, R2026a, the default four passes). The
+%     SH partials are recomputed per arc rather than
 %     cached, which is the honest streaming behaviour and still cheap here.
 %
 %   See also DEMO_GRAVITY_DATALOADER, DEMO_GRAVITY_DESIGN, DEMO_GRACE,
-%   LSQVCE.ENGINE.ADJUSTVCE
+%   LSQVCE.FIT, LSQVCE.OPTIONS
 %
+%   Updated 2026-09-07 (CEST, UTC+02:00), R6 WP-95: the ACCURACY block
+%   re-measured on the run this file performs today (v5.3, MATLAB R2026a),
+%   the documented option name is MaxPasses, and See also drops the deleted
+%   engine.adjustVCE. With assistance from Claude (Anthropic), model
+%   Claude Opus 5.
 %   Updated 2026-08-31 (CEST, UTC+02:00), v4 SCOPED tables (Level L11,
 %   WP-77): the declaration tables carry the scope column (commonParams
 %   'common'|'day', localParams 'arc'|'day'|'system'); localsPerArc left the

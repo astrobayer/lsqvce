@@ -41,7 +41,9 @@ classdef Options
 %     Seed       [] | double        RNG seed for the probes (recorded)
 %     CacheDays  double  1          built days kept resident per system; Inf =
 %                                   the whole calendar (one build per run)
-%     Verbose    logical | 0..3     screen messages (0 silent)
+%     Verbose    logical | 0..2     screen messages (0 silent, 1 progress,
+%                                   2 detail; level 3 was merged into 2 in
+%                                   2026-07 and lsqvce.util.verbosity refuses it)
 %     LogFile    string  ""         mirror the messages to this file ("" = none)
 %     OnPass     [] | @(ctx)        YOUR inspection hook, called at the end of
 %                                   EVERY pass of every iterative run (the
@@ -94,7 +96,7 @@ classdef Options
 %     MATLAB:validators:*          a typed property receives a value outside
 %                                  its type / set / range (at assignment)
 %     lsqvce:Options:badGrid       Noise.Grid is neither "auto" nor an integer >= 2
-%     lsqvce:Options:badVerbose    Verbose is neither logical nor an integer 0..3
+%     lsqvce:Options:badVerbose    Verbose is neither logical nor an integer 0..2
 %     lsqvce:Options:badOnPass     OnPass is neither [] nor a function handle
 %     lsqvce:Options:badGroupField a group struct carries an unknown field
 %     lsqvce:Options:badTarget     engineArgs target is unknown
@@ -159,9 +161,12 @@ classdef Options
                     'Noise.Grid must be "auto" or an integer >= 2 (got %s).', mat2str(g));
             end
             v = obj.Verbose;
-            if isnumeric(v) && ~(isscalar(v) && isfinite(v) && v >= 0 && v <= 3 && v == round(v))
+            % R6 WP-95: the range is the one lsqvce.util.verbosity has enforced
+            % since 2026-07-19 (level 3 merged into 2). Options accepted 3 and
+            % the refusal then came from a driver, by another id, mid-run.
+            if isnumeric(v) && ~(isscalar(v) && isfinite(v) && v >= 0 && v <= 2 && v == round(v))
                 error('lsqvce:Options:badVerbose', ...
-                    'Verbose must be logical or an integer level 0..3 (got %g).', v);
+                    'Verbose must be logical or an integer level 0..2 (got %g).', v);
             end
             if ~isempty(obj.OnPass) && ~isa(obj.OnPass, 'function_handle')
                 error('lsqvce:Options:badOnPass', 'OnPass must be [] or a function handle @(ctx).');

@@ -6,10 +6,15 @@
 %
 %       R = lsqvce.fit(struct('A', A, 'l', l, 'p', p));
 %
-%   with the diagnostics on R.diag and the verdict on R.source. Case 5 also
+%   with the diagnostics on R.diag and the verdict from R.report(). Case 5 also
 %   shows the CURE: a streaming declaration with one covariance field per
-%   instrument group and Estimate="noise", Pool="stream", ArcFactors=false, so fit estimates the weights it needs.
+%   instrument group and Estimate="noise", Pool="stream", ArcFactors=false, so
+%   fit estimates the weights it needs.
 %
+%   Updated 2026-09-07 (CEST, UTC+02:00), R6 WP-95: the verdict is R.report()'s,
+%   not R.source's, and the per-lag redundancies are Hutchinson-probed -- the
+%   joint estimator has no exact route.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
 %   Updated 2026-08-31 (CEST, UTC+02:00), v4 SCOPED tables (Level L11,
@@ -149,9 +154,10 @@ fprintf(['Recovered sigma ratio: %.3f   (truth: 3.000)\n' ...
          'The VCE loop rescaled the group covariances itself and re-solved:\n' ...
          'sigma0 = %.3f, variance ratio back at ~1.\n'], ratio, R5v.sigma0);
 
-% At gravity-field sizes (u in the thousands) the per-lag redundancies are
-% estimated with Hutchinson probes (Options.Probes; 0 = the exact route). At
-% u = 8 the exact route is both faster and exact, so that is what fit ran here.
+% The per-lag redundancies are estimated with Hutchinson probes: Options.Probes,
+% the default 100, and that is what this run used -- the joint estimator has no
+% exact route and no size-based switch, so u = 8 is probed like a gravity field.
+% The estimate is stochastic: pin Options.Seed to replay the same probes.
 %
 % v5: a FREE network needs a datum, and a datum is a DECLARED prior on the
 % null space -- the exact minimum-constraint solution, whatever its weight:

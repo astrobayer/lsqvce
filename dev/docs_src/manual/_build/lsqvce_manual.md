@@ -766,7 +766,9 @@ pass builds every day twice (accumulate + sweep) and a VCE run 2n+1 times; `Inf`
 calendar and builds each day once per run — your memory decision (a built type-day is
 m × nc doubles, ≈190 MB at degree 60 for a 6-h three-axis piece).
 
-**`Verbose`** — logical or 0..3, default `false`. Screen messages; 0 is silent.
+**`Verbose`** — logical or 0..2, default `false`. Screen messages: 0 silent, 1 progress, 2 detail.
+(Level 3 was merged into 2 in 2026-07; `lsqvce.util.verbosity` refuses it, and since v5.3 so does
+`Options` itself, by name.)
 
 **`LogFile`** — string, default `""`. Mirror the messages to this file.
 
@@ -1031,7 +1033,9 @@ LSQVCE.OPTIONS  The one settings object for LSQVCE.FIT (v5: 14 knobs + 5 groups)
     Seed       [] | double        RNG seed for the probes (recorded)
     CacheDays  double  1          built days kept resident per system; Inf =
                                   the whole calendar (one build per run)
-    Verbose    logical | 0..3     screen messages (0 silent)
+    Verbose    logical | 0..2     screen messages (0 silent, 1 progress,
+                                  2 detail; level 3 was merged into 2 in
+                                  2026-07 and lsqvce.util.verbosity refuses it)
     LogFile    string  ""         mirror the messages to this file ("" = none)
     OnPass     [] | @(ctx)        YOUR inspection hook, called at the end of
                                   EVERY pass of every iterative run (the
@@ -1084,7 +1088,7 @@ LSQVCE.OPTIONS  The one settings object for LSQVCE.FIT (v5: 14 knobs + 5 groups)
     MATLAB:validators:*          a typed property receives a value outside
                                  its type / set / range (at assignment)
     lsqvce:Options:badGrid       Noise.Grid is neither "auto" nor an integer >= 2
-    lsqvce:Options:badVerbose    Verbose is neither logical nor an integer 0..3
+    lsqvce:Options:badVerbose    Verbose is neither logical nor an integer 0..2
     lsqvce:Options:badOnPass     OnPass is neither [] nor a function handle
     lsqvce:Options:badGroupField a group struct carries an unknown field
     lsqvce:Options:badTarget     engineArgs target is unknown
