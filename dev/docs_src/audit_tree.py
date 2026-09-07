@@ -51,6 +51,16 @@ import re
 import sys
 import xml.etree.ElementTree as ET
 
+
+def pglob(pattern, **kw):
+    """glob.glob with POSIX separators on every platform (R6 WP-93, E-12).
+    Every check derives unit names, tiers and index keys by string work on
+    '/'-separated paths; on Windows glob returns backslashes, which turned
+    check 16 into ~590 false gaps and check 21 into stale-row findings. One
+    helper, one convention: the audit reads the same tree the same way
+    everywhere. Forward slashes open files on Windows too."""
+    return [p.replace('\\', '/') for p in glob.glob(pattern, **kw)]
+
 FINDINGS = []
 
 
@@ -116,7 +126,7 @@ def check_test_registration():
         return
     reg = set(re.findall(r"'(test_\w+)\.m'", open(runner, encoding='utf-8').read()))
     disk = {os.path.basename(f)[:-2]
-            for f in glob.glob('dev/tests/*.m') + glob.glob('dev/tests/accum/*.m')
+            for f in pglob('dev/tests/*.m') + pglob('dev/tests/accum/*.m')
             if os.path.basename(f).startswith('test_')}
     disk.discard('test_speed')                 # a benchmark, run manually
     for t in sorted(disk - reg):
@@ -132,7 +142,7 @@ def check_removed_names():
                'descaledResidualAcv', 'maxLagCorr', 'selectAROrder',
                'vceGroupsBy', 'coalesceOpt']
     for d in ('+lsqvce', 'tests', 'examples'):
-        for f in glob.glob(d + '/**/*.m', recursive=True):
+        for f in pglob(d + '/**/*.m', recursive=True):
             for k, s in code_lines(f):
                 for nm in removed:
                     if re.search(r'\b%s\b' % nm, s):
@@ -151,7 +161,7 @@ def check_removed_names():
     dead = re.compile(r'SeparableProblem|SEPARABLEPROBLEM|LSQVCE\.RECOVER'
                       r'|lsqvce\.recover\b', re.I)
     for d in ('+lsqvce', 'tests', 'examples'):
-        for f in glob.glob(d + '/**/*.m', recursive=True):
+        for f in pglob(d + '/**/*.m', recursive=True):
             for k, raw in enumerate(open(f, encoding='utf-8',
                                          errors='replace').read().split('\n'), 1):
                 if not raw.lstrip().startswith('%'):
@@ -169,7 +179,7 @@ def check_signatures():
     # nc was removed as a leading argument on 2026-07-18.
     pat = re.compile(r'\badjust(?:Block|VCE)\s*\(\s*(?:nc\b|\d+\s*,)')
     for d in ('+lsqvce', 'tests', 'examples'):
-        for f in glob.glob(d + '/**/*.m', recursive=True):
+        for f in pglob(d + '/**/*.m', recursive=True):
             for k, s in code_lines(f):
                 if pat.search(s):
                     note('signature',
@@ -201,7 +211,7 @@ def check_signatures():
         idpat = re.compile(
             r"verifyError\s*\([^;]*?adjust(?:Block|VCE)\s*\(([^;]*?)\)\s*,\s*"
             r"\.{0,3}\s*'(lsqvce:[\w:]+)'", re.S)
-        for f in glob.glob('dev/tests/**/*.m', recursive=True):
+        for f in pglob('dev/tests/**/*.m', recursive=True):
             raw = open(f, encoding='utf-8', errors='replace').read()
             for m in idpat.finditer(raw):
                 arg, want = m.group(1), m.group(2)
@@ -228,7 +238,7 @@ def check_doc_coverage():
             contents = open(cpath, encoding='utf-8').read()
         elif sub:
             note('docs', '%s missing' % cpath)
-        for f in sorted(glob.glob('+lsqvce/%s*.m' % sub)):
+        for f in sorted(pglob('+lsqvce/%s*.m' % sub)):
             b = os.path.basename(f)[:-2]
             if b != 'Contents':
                 funcs.append((pkg + b, 'html/lsqvce.%s%s.html' % (pkg, b), contents, cpath))
@@ -240,7 +250,7 @@ def check_doc_coverage():
             note('docs', '%s is not listed in %s' % (name, cpath))
     print('   %d functions checked' % len(funcs))
 
-    for page in sorted(glob.glob('html/lsqvce.*.html')):
+    for page in sorted(pglob('html/lsqvce.*.html')):
         n = os.path.basename(page)[len('lsqvce.'):-len('.html')]
         m = '+lsqvce/%s.m' % n
         for pkg, sub in (('util.', '+util/'), ('engine.', '+engine/'), ('kernel.', '+kernel/')):
@@ -270,7 +280,7 @@ def check_doc_coverage():
 def check_links():
     print('\n5. link integrity')
     bad = 0
-    for f in glob.glob('html/*.html'):
+    for f in pglob('html/*.html'):
         s = open(f, encoding='utf-8', errors='replace').read()
         for m in re.finditer(r'href="([^"#?]+)"', s):
             t = m.group(1)
@@ -295,12 +305,12 @@ def check_links():
 def check_no_js():
     print('\n6. JavaScript-free doc set')
     n = 0
-    for f in glob.glob('html/**/*.html', recursive=True):
+    for f in pglob('html/**/*.html', recursive=True):
         s = open(f, encoding='utf-8', errors='replace').read()
         if '<script' in s.lower():
             note('js', '%s contains a <script> tag' % f)
             n += 1
-    for f in glob.glob('**/*.js', recursive=True):
+    for f in pglob('**/*.js', recursive=True):
         note('js', 'JavaScript file present: %s' % f)
         n += 1
     if not n:
@@ -313,7 +323,7 @@ def check_balance():
             'classdef', 'methods', 'properties', 'arguments', 'enumeration',
             'events', 'spmd'}
     for d in ('+lsqvce', 'tests', 'examples'):
-        for f in glob.glob(d + '/**/*.m', recursive=True):
+        for f in pglob(d + '/**/*.m', recursive=True):
             depth = bdepth = 0
             for _, s in code_lines(f):
                 # A `case` label is DATA, not code: `case 'parfor'` and
@@ -356,7 +366,7 @@ def check_banners():
     unit_tags = {'Hz', 's', 't', 'm', 'k'}
     pat = re.compile(r"log\.(?:msg|warn)\(\s*\[?\s*'[^']*?\[([A-Za-z]+) *\]")
     n = 0
-    for f in glob.glob('+lsqvce/**/*.m', recursive=True):
+    for f in pglob('+lsqvce/**/*.m', recursive=True):
         if f.replace('\\', '/') in allow_files:
             continue
         # RAW source, not code_lines(): code_lines blanks string literals
@@ -419,7 +429,7 @@ def check_dedup_lock():
                      r'(makeKeyFcn|arcBatchWhiten)\s*\(', re.M)
     hits = {}
     for d in ('+lsqvce', 'tests', 'examples'):
-        for f in glob.glob(d + '/**/*.m', recursive=True):
+        for f in pglob(d + '/**/*.m', recursive=True):
             raw = open(f, encoding='utf-8', errors='replace').read()
             code = '\n'.join(l for l in raw.split('\n')
                              if not l.lstrip().startswith('%'))
@@ -449,7 +459,7 @@ def check_duplicate_functions():
     pat = re.compile(r'^\s*function\s+(?:(?:\[[^\]]*\]|[\w~]+)\s*=\s*)?'
                      r'([A-Za-z]\w*)\s*\(')
     for d in ('+lsqvce', 'tests', 'examples'):
-        for f in glob.glob(d + '/**/*.m', recursive=True):
+        for f in pglob(d + '/**/*.m', recursive=True):
             raw = open(f, encoding='utf-8', errors='replace').read()
             names = []
             for line in raw.split('\n'):
@@ -485,7 +495,7 @@ def check_deprecated_words():
     dead = re.compile(r"\b(SCALE|SHAPE|GATE|SOLVE|OUTER PASS|both gates)\b")
     allow = ('verbosity.m',)          # its help QUOTES the retired form
     for d in ('+lsqvce', 'tests', 'examples'):
-        for f in glob.glob(d + '/**/*.m', recursive=True):
+        for f in pglob(d + '/**/*.m', recursive=True):
             if os.path.basename(f) in allow:
                 continue
             raw = open(f, encoding='utf-8', errors='replace').read().split('\n')
@@ -526,7 +536,7 @@ def check_addpath_targets():
     # Only LITERAL fullfile(root, ...) targets can be checked statically; a
     # computed path is skipped rather than guessed at.
     call = re.compile(r"addpath\s*\(\s*fullfile\s*\(\s*root\s*,\s*([^)]*)\)")
-    for f in glob.glob('*.m') + glob.glob('dev/tests/*.m'):
+    for f in pglob('*.m') + pglob('dev/tests/*.m'):
         raw = open(f, encoding='utf-8', errors='replace').read().split('\n')
         for i, line in enumerate(raw):
             if line.lstrip().startswith('%'):
@@ -571,7 +581,7 @@ def check_html_examples():
     # Only <pre> blocks: prose may legitimately DISCUSS an old name (e.g. a
     # migration note), but an example is what gets copied.
     pre = re.compile(r'<pre\b[^>]*>(.*?)</pre>', re.S)
-    for f in sorted(glob.glob('html/*.html')):
+    for f in sorted(pglob('html/*.html')):
         body = open(f, encoding='utf-8', errors='replace').read()
         for block in pre.findall(body):
             for pat, now in removed.items():
@@ -588,8 +598,8 @@ def check_error_ids():
     # is broken silently -- nothing else in this audit would notice, because the
     # id is well-formed and the file parses.
     thrown = set()
-    for f in glob.glob('+lsqvce/**/*.m', recursive=True) + \
-             glob.glob('template/*.m') + glob.glob('dev/tests/*.m'):
+    for f in pglob('+lsqvce/**/*.m', recursive=True) + \
+             pglob('template/*.m') + pglob('dev/tests/*.m'):
         src = open(f, encoding='utf-8', errors='replace').read()
         # Every way this toolbox raises an identified condition. The log
         # wrapper (lsqvce.util.log.warn/warnOnce) is the big one: most WARNING
@@ -608,8 +618,8 @@ def check_error_ids():
     # MATLAB's own identifiers are not ours to define
     ok = lambda i: i.startswith('lsqvce')
     cited = {}
-    for f in glob.glob('+lsqvce/**/*.m', recursive=True) + \
-             glob.glob('html/*.html') + glob.glob('template/*.m'):
+    for f in pglob('+lsqvce/**/*.m', recursive=True) + \
+             pglob('html/*.html') + pglob('template/*.m'):
         for _, ln, i in [(0, n, m) for n, line in
                          enumerate(open(f, encoding='utf-8',
                                         errors='replace'), 1)
@@ -628,7 +638,7 @@ def check_h1_names():
     # demo_grace, test_adjustVCE), because check 2 guards removed FUNCTION
     # names in code, not the prose of an H1 line.
     for d in ('+lsqvce', 'tests', 'examples', 'template'):
-        for f in sorted(glob.glob(d + '/**/*.m', recursive=True)):
+        for f in sorted(pglob(d + '/**/*.m', recursive=True)):
             name = os.path.splitext(os.path.basename(f))[0]
             if name == 'Contents':
                 continue                      # by convention names the PACKAGE
@@ -678,7 +688,7 @@ def check_test_categories():
     # the swept-suite list retires and every suite is enforced. The debt
     # counter stays as a belt-and-braces invariant: any future unannotated
     # tolerance is a FINDING everywhere, not a reported number.
-    TOL_SWEPT = sorted(glob.glob('dev/tests/test_*.m'))
+    TOL_SWEPT = sorted(pglob('dev/tests/test_*.m'))
 
     decl_re = re.compile(
         r'^\s*% categories:\s*([a-z, ]+?)\s*(?:\|\s*tags:\s*([a-z, ]+?)\s*)?$')
@@ -686,7 +696,7 @@ def check_test_categories():
 
     unit_cat = {}          # unit -> set of categories reaching it
     n_points = 0
-    for f in sorted(glob.glob('dev/tests/test_*.m')):
+    for f in sorted(pglob('dev/tests/test_*.m')):
         lines = open(f, encoding='utf-8', errors='replace').read().split('\n')
         starts = [(i, m.group(1)) for i, l in enumerate(lines)
                   if (m := fn_re.match(l))
@@ -712,7 +722,7 @@ def check_test_categories():
                 unit_cat.setdefault(u, set()).update(cats)
 
     units = []
-    for f in sorted(glob.glob('+lsqvce/**/*.m', recursive=True)):
+    for f in sorted(pglob('+lsqvce/**/*.m', recursive=True)):
         if '/private/' in f:
             continue
         u = (f.replace('+lsqvce/', '').replace('.m', '').replace('+util/', 'util.')
@@ -765,7 +775,7 @@ def check_test_categories():
     # (d0) a tol: comment must never sit INSIDE a ... continuation -- a
     # standalone comment line there is a PARSE ERROR on the runner (WP-43 r2
     # red: four suites failed to load). Guard the pattern itself.
-    for f in sorted(glob.glob('dev/tests/test_*.m')):
+    for f in sorted(pglob('dev/tests/test_*.m')):
         lines = open(f, encoding='utf-8', errors='replace').read().split('\n')
         for i, l in enumerate(lines):
             if l.strip().startswith('% tol:') and i > 0 \
@@ -776,7 +786,7 @@ def check_test_categories():
     # (d) tolerance provenance
     tol_re = re.compile(r"'(Abs|Rel)Tol'")
     debt = 0
-    for f in sorted(glob.glob('dev/tests/test_*.m')):
+    for f in sorted(pglob('dev/tests/test_*.m')):
         lines = open(f, encoding='utf-8', errors='replace').read().split('\n')
         for i, l in enumerate(lines):
             if tol_re.search(l):
@@ -819,7 +829,7 @@ def check_readme_sync():
         note('readme', 'README title says v%s but Contents.m says %s'
              % (mt.group(1), mv.group(1)))
 
-    files = sorted(glob.glob('dev/tests/test_*.m'))
+    files = sorted(pglob('dev/tests/test_*.m'))
     n_files = len(files)
     fn_re = re.compile(r'^function\s+(?:\w+\s*=\s*)?test\w+\s*\(')
     n_pts = 0
@@ -873,7 +883,7 @@ def check_tiers_and_case():
     tree = set()
     for pkg, sub in (('', ''), ('engine.', '+engine/'), ('kernel.', '+kernel/'),
                      ('util.', '+util/')):
-        for f in glob.glob('+lsqvce/%s*.m' % sub):
+        for f in pglob('+lsqvce/%s*.m' % sub):
             n = os.path.basename(f)[:-2]
             if n != 'Contents':
                 tree.add(pkg + n)
@@ -978,7 +988,7 @@ def bare_catch_sites():
     all) or BARE (no identifier bound AND nothing inspected: `catch` with a
     body that never rethrows, records or names an id). Site = unit:line."""
     sites = []
-    for f in sorted(glob.glob(PKG_GLOB, recursive=True)):
+    for f in sorted(pglob(PKG_GLOB, recursive=True)):
         lines = open(f, encoding='utf-8', errors='replace').read().split('\n')
         for i, raw in enumerate(lines):
             m = re.match(r'\s*catch\b\s*(\w+)?\s*(%.*)?$', raw)
@@ -1037,7 +1047,7 @@ RAISE_PATS = (r"error\(\s*'([\w]+:[\w:]+)'",
 def raised_ids():
     """{id: set(units)} for every lsqvce:* identifier the PACKAGE raises."""
     out = {}
-    for f in sorted(glob.glob(PKG_GLOB, recursive=True)):
+    for f in sorted(pglob(PKG_GLOB, recursive=True)):
         src = open(f, encoding='utf-8', errors='replace').read()
         src = src.replace('("', "('").replace('",', "',")
         code = '\n'.join(s for _, s in code_lines(f))
@@ -1079,7 +1089,7 @@ def check_id_catalogue():
     # documented in the raising unit's own help text?
     undocumented = 0
     help_text = {}
-    for f in sorted(glob.glob(PKG_GLOB, recursive=True)):
+    for f in sorted(pglob(PKG_GLOB, recursive=True)):
         help_text[_unit_of(f)] = '\n'.join(
             l for l in open(f, encoding='utf-8', errors='replace')
             if l.lstrip().startswith('%'))
@@ -1107,7 +1117,7 @@ def layering_edges():
                     tier = 'UTIL'
                 tiers[name] = tier
     edges = set()
-    for f in sorted(glob.glob(PKG_GLOB, recursive=True)):
+    for f in sorted(pglob(PKG_GLOB, recursive=True)):
         if '/private/' in f:
             continue
         caller = _unit_of(f)
@@ -1168,7 +1178,7 @@ def write_baselines():
                  '# %s\nid,units,kind,since\n' % stamp)
         raised = raised_ids()
         kinds = {}
-        for f in sorted(glob.glob(PKG_GLOB, recursive=True)):
+        for f in sorted(pglob(PKG_GLOB, recursive=True)):
             src = open(f, encoding='utf-8', errors='replace').read()
             src = src.replace('("', "('").replace('",', "',")
             for pat in RAISE_PATS[:2]:
