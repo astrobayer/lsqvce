@@ -115,6 +115,34 @@ case('21 stale baseline row fires', audit.check_layering_ratchet, 'layering',
                       'kernel.dctI,report,KERNEL,USER\n'))
 
 
+
+# ---- E-12 (R6 WP-93): the audit reads Windows paths like POSIX ones -------
+# glob returns backslash-separated paths on Windows; every unit name, tier and
+# index key is derived by '/'-string work. Simulate Windows on any platform by
+# wrapping glob to hand back backslashes: the healthy tree must stay SILENT on
+# checks 16 and 21 (before pglob: ~590 false category gaps and every layering
+# baseline row reported stale).
+def on_windows_paths(check):
+    def wrapped():
+        real = audit.glob.glob
+        audit.glob.glob = lambda pat, **kw: [p.replace('/', '\\') for p in real(pat, **kw)]
+        try:
+            check()
+        finally:
+            audit.glob.glob = real
+    wrapped.__name__ = check.__name__ + '_on_windows_paths'
+    return wrapped
+
+
+case('16 silent on Windows-style paths (E-12)', on_windows_paths(audit.check_test_categories),
+     'cat', lambda d: None, expect_fire=False)
+case('21 silent on Windows-style paths (E-12)', on_windows_paths(audit.check_layering_ratchet),
+     'layering', lambda d: None, expect_fire=False)
+case('21 new upward call still fires on Windows-style paths', on_windows_paths(audit.check_layering_ratchet),
+     'layering',
+     lambda d: append(os.path.join(d, '+lsqvce/+kernel/dctI.m'),
+                      '\nfunction zzzSelftest()\n    lsqvce.fit(struct());\nend\n'))
+
 def main():
     failures = 0
     print('audit self-test: %d cases' % len(CASES))
