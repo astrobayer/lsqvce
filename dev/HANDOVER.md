@@ -8,8 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-09-07 — WP-91 DONE (PR #91, merge 0eee982; postflight 532/532 + examples 12/13); WP-92 READY (PR #92: the benchmark on the block path, selectArAcv deleted; CI green on a3a4c09, §12.16). Open: E-12 (audit portability, chip queued).
-Preceding entry: Last substantive update: 2026-09-07 — WP-90 DONE (PR #90, merge cc07b6a); WP-91 READY (PR #91, one batch iterator, E-09; §12.15).
+Last substantive update: 2026-09-07 — WP-92 DONE (PR #92, merge adfc572; postflight 529/529 + examples 13/13, the first fully green smoke run); WP-93 READY (PR #93: the audit path-portable, E-12; CI green on d19c149, §12.17). The R6 review track (E-01…E-16) is closed with this PR.
+Preceding entry: Last substantive update: 2026-09-07 — WP-91 DONE (PR #91, merge 0eee982); WP-92 READY (PR #92, §12.16).
 Preceding entry: Last substantive update: 2026-09-06 — REVIEW R6 + WP-90 opened on `claude/wp-90`
 (model Claude Fable 5.1, tier A: MATLAB R2026a over the working copy through
 the MCP bridge; the static audit runs locally on a found Python 3.12 but is
@@ -5966,7 +5966,7 @@ No MATLAB change; the gate is unaffected (run for the record anyway).
 
 | WP | title | depends on | status |
 |---|---|---|---|
-| 93 | `audit_tree.py` path-portable: `pglob` (E-12); self-test simulates Windows paths | — | IN PROGRESS (2026-09-07, branch `claude/wp-93`) |
+| 93 | `audit_tree.py` path-portable: `pglob` (E-12); self-test simulates Windows paths | — | READY (2026-09-07, PR #93, CI green on d19c149: audit pass incl. the 11 self-test cases, ci_gate 504/504; DONE flips on the merge) |
 
 **ROUND WP-93 (2026-09-07).** Instrument proof both ways: with main's
 audit_tree.py and the new self-test, the two "silent on Windows-style paths"
@@ -5976,3 +5976,7 @@ on this PC: Windows run 586 → 1 finding (pandoc absent), Linux run exit 0
 before and after. MATLAB tier: no .m file touched; the tree's .m content
 equals merged main, whose postflight is ci_gate GREEN 529/529 + examples
 13/13. CI: pending on the draft PR.
+One more measured fact for the record: with main's audit, the self-test ITSELF
+was unusable on Windows — its healthy copies reported 574 category findings
+and 4 layering rows, so every pre-existing case failed there too; with
+`pglob` the self-test runs identically on both platforms (11 cases).
