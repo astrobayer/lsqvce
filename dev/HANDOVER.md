@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-09-07 — WP-90 DONE (PR #90, merge cc07b6a; postflight 531/531 + examples 12/13); WP-91 READY (PR #91, one batch iterator, E-09; CI green on 6af9abb; the Manual rebuild runs locally in WSL now, §12.15).
+Last substantive update: 2026-09-07 — WP-91 DONE (PR #91, merge 0eee982; postflight 532/532 + examples 12/13); WP-92 READY (PR #92: the benchmark on the block path, selectArAcv deleted; CI green on a3a4c09, §12.16). Open: E-12 (audit portability, chip queued).
+Preceding entry: Last substantive update: 2026-09-07 — WP-90 DONE (PR #90, merge cc07b6a); WP-91 READY (PR #91, one batch iterator, E-09; §12.15).
 Preceding entry: Last substantive update: 2026-09-06 — REVIEW R6 + WP-90 opened on `claude/wp-90`
 (model Claude Fable 5.1, tier A: MATLAB R2026a over the working copy through
 the MCP bridge; the static audit runs locally on a found Python 3.12 but is
@@ -5895,7 +5896,7 @@ declared** (test_lsqAccum 26 → 27), 532 run locally, 507 on the hosted gate.
 
 | WP | title | depends on | status |
 |---|---|---|---|
-| 91 | One batch iterator: `arcBatchWhiten` owns bounds / overlap / whole-epoch rounding for accumArc, arcResiduals, whitenArcIntoBatches, redundancy, streamContribution (E-09) | 90 | READY (2026-09-07, PR #91, CI green on 6af9abb: audit pass, ci_gate 507/507 = 544 − 12 − 25 skipped; local 532/532 incl. test_parallel; the Manual rebuilt locally in WSL, Linux audit exit 0; DONE flips on the merge) |
+| 91 | One batch iterator: `arcBatchWhiten` owns bounds / overlap / whole-epoch rounding for accumArc, arcResiduals, whitenArcIntoBatches, redundancy, streamContribution (E-09) | 90 | DONE (2026-09-07, PR #91, merge 0eee982; CI green on c001743; POSTFLIGHT on merged main: ci_gate GREEN 532/532 incl. test_parallel, examples 12/13, the 13th = E-15 → WP-92. Round: CI 507/507 on 6af9abb; the Manual rebuilt locally in WSL, Linux audit exit 0) |
 
 **ROUND WP-91 (2026-09-07, model Claude Fable 5.1, tier A).** Verdict, local:
 `ci_gate` GREEN 532/532 (= 544 declared − 12 excluded), 26/26 suites incl.
@@ -5909,3 +5910,36 @@ whitened residuals and the diagnostic rows. Files: arcBatchWhiten (owner),
 BlockAccumulator.accumArc, residuals>arcResiduals, diagnoseAccum>
 whitenArcIntoBatches (callbacks), error_ids.csv (the id's unit),
 DEVELOPMENT counts. CI: pending on the draft PR.
+
+### 12.16 WP-92 — the benchmark on the block path, and `selectArAcv` deleted (E-15, E-11; 2026-09-07, model Claude Fable 5.1, tier A)
+
+**Decision (record first).** (1) `examples/bench_qr_vs_normal` reads `R.sol.condN`,
+a field of the flat driver deleted in R5 M5 5b′; it has errored with
+MATLAB:nonExistentField since 5.0 (E-15, found by the WP-90 postflight — the
+earlier "all examples OK" claims never ran the bench). The block path reports
+no condition number on `sol`; the EXACT substitute is `cond(R.sol.Cxx)`: Cxx =
+s0² N⁻¹ and an inverse has the condition number of its matrix, so the bench
+prints cond(N) from the QR result's covariance and says so in its help. No
+engine change. (2) `engine.selectArAcv` has had no caller since
+`kernel.residualAcv` left in WP-90 (E-11; before that, none outside residualAcv's
+help example) — an H-01 class unit, deleted under R5-D5 with its page, index
+and helptoc entries, tiers row, five exemption rows, the Contents line, its
+DEVELOPMENT rows and its 3 test points (test_streamUtils 18 → 15; it raised no
+lsqvce:* id). Predicted count: 544 − 3 = **541 declared**, 529 run locally,
+504 on the hosted gate. The Manual is rebuilt (chapter 10 is generated from
+Contents.m). Scope: those files, nothing on the user surface.
+
+| WP | title | depends on | status |
+|---|---|---|---|
+| 92 | `bench_qr_vs_normal` on the block path (cond(N) = cond(Cxx)); `selectArAcv` deleted (E-15, E-11) | 91 | READY (2026-09-07, PR #92, CI green on a3a4c09: audit pass, ci_gate 504/504 = 541 − 12 − 25 skipped; local 529/529 incl. test_parallel; DONE flips on the merge) |
+
+**ROUND WP-92 (2026-09-07, model Claude Fable 5.1, tier A).** Local `ci_gate`
+GREEN 529/529 (= 541 declared − 12 excluded), 26/26 suites incl. test_parallel,
+inventory = the probe id. The bench runs again (`bench_qr_vs_normal('u',[10 20],
+'n',2e4,'nk',2000)`: 1.1 s; the cond(N) column from cond(Cxx) reads 3.9e2 …
+1.3e16 across the sweep, the normal path refuses at the last step — SECOND
+catch on the way: the bench also caught the flat accumulator's id
+`lsqvce:acc:rankDeficient`; the block path's normal backend refuses with
+`lsqvce:normalEq:notSPD`, now the id the bench expects and prints). The Manual
+rebuilt in WSL (chapter 10 lost the selectArAcv line), Linux audit exit 0.
+CI: pending on the draft PR.
