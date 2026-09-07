@@ -110,14 +110,14 @@ case-sensitive lowercase.)
   .nc       1x1        common-parameter count (Level 2; else [])
   .note     char       provenance / weight-dependence reminder</pre>
 <h3>Example</h3>
-<pre class="example">  R   = P.run();                              % adjustVCE, converged
-  acc = R.history ... ;                       % or a direct BlockAccumulator
-  con = lsqvce.engine.contribution(acc, sol, &#x27;GroupBy&#x27;,&#x27;obsType&#x27;, &#x27;Level&#x27;,2);
+<pre class="example">  R   = lsqvce.fit(data, Estimate=&quot;noise&quot;);   % converged; R.acc, R.sol
+  con = lsqvce.engine.contribution(R.acc, R.sol, &#x27;GroupBy&#x27;,&#x27;obsType&#x27;, &#x27;Level&#x27;,2);
   [con.group.share]                           % scalar share per stream
   bar(con.group(1).diag);                     % per-coefficient share, group 1
+  % (R.contribution(...) is the same call on the Results)
 
 See also LSQVCE.ENGINE.STREAMCONTRIBUTION, LSQVCE.ENGINE.REDUNDANCY, LSQVCE.ENGINE.VCE,
-         LSQVCE.ENGINE.ADJUSTVCE
+         LSQVCE.RESULTS
 
 Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) (F-07): typed
 `arguments` signature, canonical UpperCamelCase option names (legacy

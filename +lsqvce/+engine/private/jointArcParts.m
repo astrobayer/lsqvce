@@ -3,7 +3,7 @@ function [AtilBar, Bbar, ebar] = jointArcParts(A, B, l, W, x, y, G)
 %   [AtilBar, Bbar, ebar] = jointArcParts(A, B, l, W, x, y, G)
 %
 %   The ONE shared implementation (rule 3) behind the two joint spectral
-%   sweeps -- adjustVCEjoint's oneArc and adjustVCE's sweepStreamLags -- that
+%   sweeps (adjustVCEjoint's oneArc; until M4 4c also the separate mode's) that
 %   makes both consistent with Ellmer's step 7 (the FULL Table-6.2 parameter
 %   vector) and with the joint projector (WP-33, fixes finding F-03):
 %

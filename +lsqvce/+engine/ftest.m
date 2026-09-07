@@ -46,10 +46,10 @@ function F = ftest(solFull, solRed, opt)
 %
 %   EXAMPLE
 %       % Is the extra parameter justified, or is it fitting noise?
-%       accF = lsqvce.engine.Accumulator(u+1); accF.add([A extra], l, p);
-%       accR = lsqvce.engine.Accumulator(u);   accR.add(A,         l, p);
+%       Rfull = lsqvce.fit(struct('A', [A extra], 'l', l, 'p', p), Verbose=false);
+%       Rred  = lsqvce.fit(struct('A', A,         'l', l, 'p', p), Verbose=false);
 %
-%       F = lsqvce.engine.ftest(accF.solve(), accR.solve());
+%       F = lsqvce.engine.ftest(Rfull.sol, Rred.sol);   % = Rfull.compare(Rred)
 %
 %       % F.significant   false for a pure-noise column (measured p = 0.548)
 %       % F.p             the p-value

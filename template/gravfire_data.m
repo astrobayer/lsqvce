@@ -40,7 +40,7 @@ function data = gravfire_data(commonData, myOptions, systemsData, opt)
 %     gravfire:unknownQuantity      an observation group's observationQuantity is not
 %                                   'kinematicPosition' or 'range-rate'
 %     gravfire:designShape          DesignFcn returned A/B with the wrong row/column count
-%     (+ every declaration check of lsqvce.fit, raised before any read; see DATA_CONTRACT §3.5)
+%     (+ every declaration check of lsqvce.fit, raised before any read; the Manual, chapter 3 §3.5)
 %
 %   EXAMPLE
 %     S    = load('testdata.mat');

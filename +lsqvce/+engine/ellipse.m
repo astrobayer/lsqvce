@@ -41,8 +41,9 @@ function E = ellipse(D, pair, opt)
 %                               combination of the two parameters you know least
 %
 %   EXAMPLE
-%       [~, D] = lsqvce.engine.adjust(u, src, 4, 'verbose', false);
-%       E = lsqvce.engine.ellipse(D, [1 2]);            % parameters 1 and 2
+%       data = struct('batchFcn', src, 'numUnknowns', u, 'numBatches', 4);
+%       R = lsqvce.fit(data, Verbose=false);
+%       E = lsqvce.engine.ellipse(R.diag, [1 2]);       % parameters 1 and 2
 %
 %       plot(E.xy(:,1), E.xy(:,2), 'LineWidth', 1.5);  hold on
 %       plot(E.centre(1), E.centre(2), 'r+');

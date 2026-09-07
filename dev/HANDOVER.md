@@ -5980,3 +5980,55 @@ One more measured fact for the record: with main's audit, the self-test ITSELF
 was unusable on Windows — its healthy copies reported 574 category findings
 and 4 layering rows, so every pre-existing case failed there too; with
 `pglob` the self-test runs identically on both platforms (11 cases).
+
+### 12.18 WP-94 — the docs in sync, and two checks so they stay so (2026-09-07, model Claude Fable 5.1)
+
+**Origin.** The user asked "are all help files, html docs and pdfs in sync?".
+MEASURED on merged main (ace2f08): the Linux audit exits 0 — every page
+equals its help block (check 22), the Manual HTML equals a fresh build and
+its PDF's TEXT equals a fresh build's (40 pp.; the committed PDF differs only
+in embedded timestamps), versions and counts agree (17), links resolve (5),
+the theory PDF postdates its last source change. NOT covered by any check,
+and out of sync: (1) twelve help EXAMPLE blocks still called the flat family
+deleted in 5.0 — `lsqvce.engine.adjust(u, src, …)` in datum, diagnose,
+ellipse, snoop, systematic, report; `lsqvce.engine.adjustVCE(L, days).run()`
+in diagnoseAccum, util.log and three Results methods; `P.run()` in
+contribution (check 13 keys on a FIXED list of old names, so a deletion never
+reaches it); (2) stale prose naming adjustVCE / solveNonlinear /
+plotPostSolve / DATA_CONTRACT as live in BlockAccumulator, jointArcParts,
+adjustNonlinear, normalizeSystems, synthLoader, fit, gravfire_data,
+demo_grace's H1 (and the gallery row copied from it); (3) thirteen live units
+with a page but no row in html/index.html and no helptoc entry
+(adjustNonlinear, adjustRobust, batchSystem, declaration, leverageBlocks,
+localColumns, localDiagnostics, runMeta, robustWeights, callUser, onPass,
+rowWeightKey, toolboxVersion) and `layout` missing from the index — check 4
+demands a page and a Contents line, never an index entry. The two unlinked
+pages lsqvce.recover / lsqvce.SeparableProblem are the WP-41 redirect stubs
+(kept by rule, checked by 4) — NOT a defect; the first reading of the sweep
+called them dead and this record corrects it.
+
+**Decision (scope frozen).** Docs-only round, one branch `claude/wp-94`:
+every example rewritten onto the current surface (kind C through `fit`,
+`R.diag` / `R.source` / `R.batchFcn` / `R.nBatch`, the datum as a declared
+prior, `R = lsqvce.fit(data, Estimate="noise")` for the accumulator-level
+units), the stale sentences corrected, the 14 index/helptoc entries added,
+and TWO audit checks with fault-injected self-tests: **24** every
+`lsqvce.<name>` in a help EXAMPLE block names a unit that exists (both
+examples and the failure case), **25** every unit's page is linked from
+html/index.html and helptoc.xml. Pages regenerated (check 22), the Manual
+rebuilt (chapter 5 carries Results' help). No .m logic touched; the gate
+runs for the record. Predicted count unchanged: 541 declared.
+
+| WP | title | depends on | status |
+|---|---|---|---|
+| 94 | Docs in sync: 12 help examples onto the current surface, stale prose, 14 index/helptoc entries; audit checks 24 (examples call live units) + 25 (index complete) with self-tests | — | IN PROGRESS (2026-09-07, branch `claude/wp-94`) |
+
+**ROUND WP-94 (2026-09-07).** Check 24 earned its keep before the PR: it found a
+THIRTEENTH stale example the grep sweep had missed (`ftest`: `lsqvce.engine.Accumulator`,
+deleted in M5) — the list-based sweep is exactly the instrument class that misses
+what it was not told to look for. Proof both ways: the new checks on main's doc
+tree report the 12 example sites + 27 index/helptoc gaps of the sweep (plus
+ftest); on the fixed tree 0; self-test cases 24 × 2 and 25 × 1 pass on Windows
+and Linux (14 cases). Verdicts: Linux audit exit 0 (pages regenerated, Manual
+rebuilt — chapter 5 carries Results' help); local `ci_gate` GREEN 529/529 incl.
+test_parallel; examples 13/13. CI: pending on the draft PR.

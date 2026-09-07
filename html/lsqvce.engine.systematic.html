@@ -116,10 +116,11 @@ varargin  Name/Value: &#x27;covariate&#x27; (a vector to test against), &#x27;al
 <pre class="example">% The failure that snooping CANNOT see. A smooth drift produces no
 % single large residual: the variance factor inflates, the flag list
 % stays clean, and THAT COMBINATION is the signature.
-[~, D] = lsqvce.engine.adjust(u, src, 4, &#x27;verbose&#x27;, false);
+data = struct(&#x27;batchFcn&#x27;, src, &#x27;numUnknowns&#x27;, u, &#x27;numBatches&#x27;, 4);
+R = lsqvce.fit(data, Verbose=false);
 
 t = (1:n).&#x27;;
-S = lsqvce.engine.systematic(D, &#x27;covariates&#x27;, ...
+S = lsqvce.engine.systematic(R.diag, &#x27;covariates&#x27;, ...
                        struct(&#x27;time&#x27;, t, &#x27;elev&#x27;, elev));
 
 % S.detected     did anything fire?

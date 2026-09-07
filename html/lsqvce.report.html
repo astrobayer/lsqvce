@@ -80,8 +80,9 @@ OUTPUT V
 <pre class="example">D         1x1 struct  diagnostics from LSQVCE.ENGINE.DIAGNOSE
 varargin  Name/Value: &#x27;verbose&#x27;, &#x27;width&#x27;, &#x27;alpha&#x27;, &#x27;rWeak&#x27;, ...</pre>
 <h3>Example</h3>
-<pre class="example">    [~, D]  = lsqvce.engine.adjust(u, src, 4, &#x27;verbose&#x27;, false);
-    V = lsqvce.report(D);              % prints the five levels
+<pre class="example">    data = struct(&#x27;batchFcn&#x27;, src, &#x27;numUnknowns&#x27;, u, &#x27;numBatches&#x27;, 4);
+    R = lsqvce.fit(data, Verbose=false);
+    V = lsqvce.report(R.diag);         % prints the five levels (= R.report)
 
     % V.verdict    &#x27;PASS&#x27; | &#x27;PASS WITH WARNINGS&#x27; | &#x27;SUSPECT&#x27; | &#x27;INVALID&#x27;
     % V.findings   machine-readable: {level, severity, code, msg}

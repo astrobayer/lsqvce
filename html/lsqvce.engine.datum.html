@@ -95,7 +95,11 @@ end
 [B, info] = lsqvce.engine.datum(A&#x27;*A);
 % info.defect -&gt; 1        B -&gt; spans ones(u,1), the constant shift
 
-[sol, D] = lsqvce.engine.adjust(u, src, nB, &#x27;datumB&#x27;, B);
+% v5: the datum is a DECLARED prior on the null space (exact minimum
+% constraints for any weight, because range(A) and null(N) are orthogonal)
+data = struct(&#x27;batchFcn&#x27;, src, &#x27;numUnknowns&#x27;, u, &#x27;numBatches&#x27;, nB);
+data.priors = struct(&#x27;L&#x27;, B.&#x27;, &#x27;x0&#x27;, 0, &#x27;sigma&#x27;, 1);
+R = lsqvce.fit(data);
 
 % B must span null(N) -- an INNER constraint. &quot;Fix station 3&quot;
 % (B = e_3) is a HARD constraint and is REFUSED: that is a

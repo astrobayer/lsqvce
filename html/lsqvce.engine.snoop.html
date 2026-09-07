@@ -136,8 +136,9 @@ OUTPUT REJ
   .converged  true if snooping terminated cleanly
   .history    per-iteration [nFlag, maxAbsW, s0sq]</pre>
 <h3>Example</h3>
-<pre class="example">[sol, D] = lsqvce.engine.adjust(u, src, 4, &#x27;verbose&#x27;, false);
-[sol, D, REJ] = lsqvce.engine.snoop(sol, D, src);
+<pre class="example">data = struct(&#x27;batchFcn&#x27;, src, &#x27;numUnknowns&#x27;, u, &#x27;numBatches&#x27;, 4);
+R = lsqvce.fit(data, Verbose=false);
+[sol, D, REJ] = lsqvce.engine.snoop(R.source, R.diag, R.batchFcn);
 
 % REJ.idx       -&gt; [40 150]     rejected, one at a time
 % REJ.refused   -&gt; observations too weakly controlled to judge
@@ -146,7 +147,7 @@ OUTPUT REJ
 % Under heavy contamination Pope cannot see the blunders at all, so
 % this loop would exit having rejected NOTHING and report &#x27;converged&#x27;.
 % Use the robust scale there:
-[sol, D, REJ] = lsqvce.engine.snoop(sol, D, src, &#x27;test&#x27;, &#x27;mad&#x27;);</pre>
+[sol, D, REJ] = lsqvce.engine.snoop(R.source, R.diag, R.batchFcn, &#x27;test&#x27;, &#x27;mad&#x27;);</pre>
 <h3>Input</h3>
 <pre class="example">sol       1x1 struct  the solution to start from (from LSQVCE.ENGINE.ADJUST)
 D         1x1 struct  its diagnostics

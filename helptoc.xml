@@ -16,6 +16,11 @@
     </tocitem>
     <tocitem target="html/index.html">Access layer
       <tocitem target="html/lsqvce.engine.adjustBlock.html">lsqvce.engine.adjustBlock</tocitem>
+<tocitem target="html/lsqvce.engine.adjustRobust.html">lsqvce.engine.adjustRobust</tocitem>
+      <tocitem target="html/lsqvce.engine.adjustNonlinear.html">lsqvce.engine.adjustNonlinear</tocitem>
+      <tocitem target="html/lsqvce.engine.batchSystem.html">lsqvce.engine.batchSystem</tocitem>
+      <tocitem target="html/lsqvce.engine.declaration.html">lsqvce.engine.declaration</tocitem>
+      <tocitem target="html/lsqvce.engine.localColumns.html">lsqvce.engine.localColumns</tocitem>
       <tocitem target="html/lsqvce.engine.makeLoader.html">lsqvce.engine.makeLoader</tocitem>
       <tocitem target="html/lsqvce.engine.synthLoader.html">lsqvce.engine.synthLoader</tocitem>
       <tocitem target="html/lsqvce.engine.resolveNc.html">lsqvce.engine.resolveNc</tocitem>
@@ -39,12 +44,16 @@
     <tocitem target="html/index.html">Combining data sets
     </tocitem>
     <tocitem target="html/index.html">Diagnostics
+<tocitem target="html/lsqvce.engine.leverageBlocks.html">lsqvce.engine.leverageBlocks</tocitem>
+      <tocitem target="html/lsqvce.engine.localDiagnostics.html">lsqvce.engine.localDiagnostics</tocitem>
+      <tocitem target="html/lsqvce.engine.runMeta.html">lsqvce.engine.runMeta</tocitem>
       <tocitem target="html/lsqvce.engine.diagnose.html">lsqvce.engine.diagnose</tocitem>
       <tocitem target="html/lsqvce.report.html">lsqvce.report</tocitem>
       <tocitem target="html/lsqvce.layout.html">lsqvce.layout</tocitem>
       <tocitem target="html/lsqvce.engine.systematic.html">lsqvce.engine.systematic</tocitem>
     </tocitem>
     <tocitem target="html/index.html">Outliers &amp; robust
+<tocitem target="html/lsqvce.kernel.robustWeights.html">lsqvce.kernel.robustWeights</tocitem>
       <tocitem target="html/lsqvce.engine.snoop.html">lsqvce.engine.snoop</tocitem>
     </tocitem>
     <tocitem target="html/index.html">Stochastic model - VCE
@@ -91,6 +100,10 @@
       <tocitem target="html/lsqvce.engine.stat.html">lsqvce.engine.stat</tocitem>
     </tocitem>
     <tocitem target="html/index.html">Utilities (+util)
+<tocitem target="html/lsqvce.util.callUser.html">lsqvce.util.callUser</tocitem>
+      <tocitem target="html/lsqvce.util.onPass.html">lsqvce.util.onPass</tocitem>
+      <tocitem target="html/lsqvce.util.rowWeightKey.html">lsqvce.util.rowWeightKey</tocitem>
+      <tocitem target="html/lsqvce.util.toolboxVersion.html">lsqvce.util.toolboxVersion</tocitem>
       <tocitem target="html/lsqvce.util.getfielddef.html">lsqvce.util.getfielddef</tocitem>
       <tocitem target="html/lsqvce.util.mergeStruct.html">lsqvce.util.mergeStruct</tocitem>
       <tocitem target="html/lsqvce.util.log.html">lsqvce.util.log</tocitem>

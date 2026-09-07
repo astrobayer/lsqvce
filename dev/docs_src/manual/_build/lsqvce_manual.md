@@ -1276,8 +1276,9 @@ LSQVCE.REPORT  Judge a least-squares adjustment and say so in words.
     varargin  Name/Value: 'verbose', 'width', 'alpha', 'rWeak', ...
 
   EXAMPLE
-      [~, D]  = lsqvce.engine.adjust(u, src, 4, 'verbose', false);
-      V = lsqvce.report(D);              % prints the five levels
+      data = struct('batchFcn', src, 'numUnknowns', u, 'numBatches', 4);
+      R = lsqvce.fit(data, Verbose=false);
+      V = lsqvce.report(R.diag);         % prints the five levels (= R.report)
 
       % V.verdict    'PASS' | 'PASS WITH WARNINGS' | 'SUSPECT' | 'INVALID'
       % V.findings   machine-readable: {level, severity, code, msg}

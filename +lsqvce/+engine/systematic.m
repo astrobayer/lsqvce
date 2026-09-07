@@ -79,10 +79,11 @@ function S = systematic(D, opt)
 %       % The failure that snooping CANNOT see. A smooth drift produces no
 %       % single large residual: the variance factor inflates, the flag list
 %       % stays clean, and THAT COMBINATION is the signature.
-%       [~, D] = lsqvce.engine.adjust(u, src, 4, 'verbose', false);
+%       data = struct('batchFcn', src, 'numUnknowns', u, 'numBatches', 4);
+%       R = lsqvce.fit(data, Verbose=false);
 %
 %       t = (1:n).';
-%       S = lsqvce.engine.systematic(D, 'covariates', ...
+%       S = lsqvce.engine.systematic(R.diag, 'covariates', ...
 %                              struct('time', t, 'elev', elev));
 %
 %       % S.detected     did anything fire?

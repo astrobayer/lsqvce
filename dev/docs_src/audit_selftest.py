@@ -33,7 +33,7 @@ spec = importlib.util.spec_from_file_location(
 audit = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(audit)
 
-COPY = ['+lsqvce', 'dev/docs_src/tiers.csv', 'dev/docs_src/catch_baseline.csv',
+COPY = ['+lsqvce', 'html/index.html', 'helptoc.xml', 'dev/docs_src/tiers.csv', 'dev/docs_src/catch_baseline.csv',
         'dev/docs_src/error_ids.csv', 'dev/docs_src/layering_baseline.csv',
         'dev/tests/category_exemptions.csv', 'dev/tests']
 
@@ -143,6 +143,21 @@ case('21 new upward call still fires on Windows-style paths', on_windows_paths(a
      lambda d: append(os.path.join(d, '+lsqvce/+kernel/dctI.m'),
                       '\nfunction zzzSelftest()\n    lsqvce.fit(struct());\nend\n'))
 
+
+# ---- 24 / 25 (R6 WP-94): help examples and the index ----------------------
+case('24 example calling a deleted unit fires', audit.check_help_examples_call_live_units,
+     'example',
+     lambda d: append(os.path.join(d, '+lsqvce/+util/getfielddef.m'),
+                      '\n%   EXAMPLE\n%     R = lsqvce.engine.zzzGone(1);\n'))
+case('24 example calling a live unit is silent', audit.check_help_examples_call_live_units,
+     'example',
+     lambda d: append(os.path.join(d, '+lsqvce/+util/getfielddef.m'),
+                      '\n%   EXAMPLE\n%     R = lsqvce.fit(data);\n'),
+     expect_fire=False)
+case('25 unit missing from index and helptoc fires', audit.check_index_lists_every_unit,
+     'index',
+     lambda d: append(os.path.join(d, '+lsqvce/+util/zzzNewUnit.m'),
+                      'function zzzNewUnit()\n%ZZZNEWUNIT  x\nend\n'))
 def main():
     failures = 0
     print('audit self-test: %d cases' % len(CASES))

@@ -38,7 +38,7 @@ function R = adjustNonlinear(u, batchFcn, nBatch, x0, opt)
 %     lsqvce:adjustNonlinear:diverged    damping reached 1e12 without a downhill step
 %     lsqvce:adjustNonlinear:maxIter     MaxIter reached (stopReason "maxPasses")
 %
-%   ACCURACY  same fixed point as solveNonlinear (test_fit pins x to 1e-8 on
+%   ACCURACY  the Gauss-Newton fixed point of the dense reference in test_fit (x to 1e-8 on
 %   the exponential-decay fixture); the block path's vPv comes from the
 %   accumulator's normal-form fold (NaN-honest on cancellation).
 %

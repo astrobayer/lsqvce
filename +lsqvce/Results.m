@@ -426,7 +426,7 @@ classdef Results < handle
         %   OUTPUT  con  1x1 struct  .group(k).key/.r/.share/.diag/.relSE, .nc
         %
         %   EXAMPLE
-        %     R   = lsqvce.engine.adjustVCE(L, days).run();
+        %     R   = lsqvce.fit(data, Estimate="noise");
         %     con = R.contribution('Level', 2);
         %     bar(con.group(1).diag);      % per-coefficient share of group 1
         %
@@ -487,12 +487,12 @@ classdef Results < handle
         %                                history (it came from a single solve).
         %
         %   EXAMPLE
-        %     R = lsqvce.engine.adjustVCE(L, days).run();
+        %     R = lsqvce.fit(data, Estimate="noise");
         %     T = R.convergence('Plot', true);   % table + diagnostic figure
-        %     % a stream stuck at minWhitePval < WhiteAlpha for every pass needs a
-        %     % higher Shape.MaxOrder or ARMA; an oscillating
-        %     % maxSigmaOffset means too little group redundancy -- coarsen
-        %     % GroupBy.
+        %     % a stream stuck at minWhitePval < 0.05 for every pass needs a
+        %     % finer spectral grid (Options.Noise.Grid) or more passes; an
+        %     % oscillating maxSigmaOffset means too little redundancy per
+        %     % pool group -- coarsen Options.Pool ("obsType" or "all").
         %
         %   See also LSQVCE.RESULTS/summary, LSQVCE.ENGINE.ADJUSTVCE/run
         %
@@ -564,12 +564,12 @@ classdef Results < handle
         %                                history (it came from a single solve).
         %
         %   EXAMPLE
-        %     R = lsqvce.engine.adjustVCE(L, days).run();
+        %     R = lsqvce.fit(data, Estimate="noise");
         %     T = R.summary();
         %     T(~T.white, :)            % the streams that never whitened
         %     T(abs(T.sigma-1) > 0.1, :)  % the streams still badly weighted
         %
-        %   See also LSQVCE.RESULTS/convergence, LSQVCE.ENGINE.ADJUSTVCE/run
+        %   See also LSQVCE.RESULTS/convergence, LSQVCE.FIT
         %
         %   Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude
         %   (Anthropic), model Claude Opus 4.8.
