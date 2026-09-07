@@ -8,8 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-09-07 — WP-92 DONE (PR #92, merge adfc572; postflight 529/529 + examples 13/13, the first fully green smoke run); WP-93 READY (PR #93: the audit path-portable, E-12; CI green on d19c149, §12.17). The R6 review track (E-01…E-16) is closed with this PR.
-Preceding entry: Last substantive update: 2026-09-07 — WP-91 DONE (PR #91, merge 0eee982); WP-92 READY (PR #92, §12.16).
+Last substantive update: 2026-09-07 — WP-93 DONE (PR #93, merge ace2f08); WP-94 READY (PR #94: the docs in sync — 13 help examples onto the current surface, 14 index/helptoc entries, audit checks 24 + 25 with self-tests; CI green on 323d7cc, §12.18). No open work package after its merge.
+Preceding entry: Last substantive update: 2026-09-07 — WP-92 DONE (PR #92, merge adfc572); WP-93 READY (PR #93, §12.17).
 Preceding entry: Last substantive update: 2026-09-06 — REVIEW R6 + WP-90 opened on `claude/wp-90`
 (model Claude Fable 5.1, tier A: MATLAB R2026a over the working copy through
 the MCP bridge; the static audit runs locally on a found Python 3.12 but is
@@ -5966,7 +5966,7 @@ No MATLAB change; the gate is unaffected (run for the record anyway).
 
 | WP | title | depends on | status |
 |---|---|---|---|
-| 93 | `audit_tree.py` path-portable: `pglob` (E-12); self-test simulates Windows paths | — | READY (2026-09-07, PR #93, CI green on d19c149: audit pass incl. the 11 self-test cases, ci_gate 504/504; DONE flips on the merge) |
+| 93 | `audit_tree.py` path-portable: `pglob` (E-12); self-test simulates Windows paths | — | DONE (2026-09-07, PR #93, merge ace2f08; CI green on 49fbdc9. POSTFLIGHT: Linux audit exit 0 on merged main; ci_gate GREEN 529/529 + examples 13/13 measured on the WP-94 tree, whose .m content differs from main by help text only) |
 
 **ROUND WP-93 (2026-09-07).** Instrument proof both ways: with main's
 audit_tree.py and the new self-test, the two "silent on Windows-style paths"
@@ -6021,7 +6021,7 @@ runs for the record. Predicted count unchanged: 541 declared.
 
 | WP | title | depends on | status |
 |---|---|---|---|
-| 94 | Docs in sync: 12 help examples onto the current surface, stale prose, 14 index/helptoc entries; audit checks 24 (examples call live units) + 25 (index complete) with self-tests | — | IN PROGRESS (2026-09-07, branch `claude/wp-94`) |
+| 94 | Docs in sync: 12 help examples onto the current surface, stale prose, 14 index/helptoc entries; audit checks 24 (examples call live units) + 25 (index complete) with self-tests | — | READY (2026-09-07, PR #94, CI green on 323d7cc: audit CLEAN with 14 self-test cases, ci_gate 504/504; local 529/529 + examples 13/13; DONE flips on the merge) |
 
 **ROUND WP-94 (2026-09-07).** Check 24 earned its keep before the PR: it found a
 THIRTEENTH stale example the grep sweep had missed (`ftest`: `lsqvce.engine.Accumulator`,
