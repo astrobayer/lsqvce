@@ -6202,7 +6202,7 @@ pandoc absent) and ZERO on Linux.
 
 | WP | title | depends on | status |
 |---|---|---|---|
-| 96 | The two gaps carried out of §12.19 get worked examples: `examples/demo_priors.m` (regularisation written in the columns `lsqvce.layout` announces, on a rank-deficient calibration case) and `examples/demo_noisePolicy.m` (`estimate` "none"/"scale"/"law", `arcFactors`, a `psd` law), each with a measured ACCURACY block and one guarding test point; `CLAUDE.md` refreshed as a POINTER | 95 | READY (2026-09-07, PR #96; local ci_gate GREEN 531/531 over 26/26 suites, examples 15/15, Windows audit at its one-finding baseline, self-test 14/14; DONE flips on the merge) |
+| 96 | The two gaps carried out of §12.19 get worked examples: `examples/demo_priors.m` (regularisation written in the columns `lsqvce.layout` announces, on a rank-deficient calibration case) and `examples/demo_noisePolicy.m` (`estimate` "none"/"scale"/"law", `arcFactors`, a `psd` law), each with a measured ACCURACY block and one guarding test point; `CLAUDE.md` refreshed as a POINTER | 95 | READY (2026-09-07, PR #96, CI green on c5a8a64: audit 29 s CLEAN with the self-test, matlab 2m52s; local ci_gate GREEN 531/531 over 26/26 suites, examples 15/15, Windows audit at its one-finding baseline, checkcode 0 on both demos; DONE flips on the merge) |
 
 **ROUND WP-96 (2026-09-07, model Claude Opus 5, tier A).** Both demos RETURN the summary
 struct their ACCURACY block quotes, and the guarding test asserts the same numbers the help
@@ -6274,7 +6274,8 @@ own .md files would have caught all four.
 VERDICTS. Local `ci_gate` GREEN **531/531** (543 declared, 529 + 2 as predicted), 26/26 suites,
 1 excluded; example smoke **15/15** (13 + the two new, isolated calls); Windows audit at its
 honest baseline of exactly ONE finding (check 23, pandoc absent) with the self-test 14/14
-green. CI: pending on the draft PR.
+green. CI on the record head c5a8a64: audit **pass 29 s** (the Manual check and the
+self-test included), matlab **pass 2m52s**.
 
 **RE-READ PASS (the WP-95 lesson, applied to this round's own output).** Reading the two new
 files back after writing them caught three defects before the push: an ERRORS block that named
