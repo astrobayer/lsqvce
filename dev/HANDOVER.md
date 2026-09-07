@@ -6101,7 +6101,7 @@ on the hosted gate. Every example must still smoke-run 13/13, and `demo_gravity`
 
 | WP | title | depends on | status |
 |---|---|---|---|
-| 95 | The examples audited against v5.3 (85 raw / 54 confirmed / 12 set-level) and fixed: stale measured numbers re-measured, retired vocabulary and dead cross-references corrected, the gravfire prior bug, the scalar `Cep` demonstrated, `Options.Verbose` 0..2 | 94 | READY-PENDING-CI (2026-09-07, branch `claude/wp-95`: local ci_gate GREEN 529/529, examples 13/13, Linux audit 0 findings; DONE flips on the merge) |
+| 95 | The examples audited against v5.3 (85 raw / 54 confirmed / 12 set-level) and fixed: stale measured numbers re-measured, retired vocabulary and dead cross-references corrected, the gravfire prior bug, the scalar `Cep` demonstrated, `Options.Verbose` 0..2 | 94 | READY (2026-09-07, PR #95, CI green on 2ba3679: audit CLEAN with 14 self-test cases, ci_gate 504/504; local 529/529, examples 13/13, Linux audit 0 findings; DONE flips on the merge) |
 
 **ROUND WP-95 (2026-09-07, model Claude Opus 5, tier A).** Instruments: a 186-agent audit
 (15 readers, 2 refuting lenses per finding, 1 completeness critic) then a 30-agent fixer
