@@ -8,8 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-09-07 — WP-90 DONE (PR #90, merge cc07b6a; postflight 531/531 + examples 12/13); WP-91 READY (PR #91, one batch iterator, E-09; CI green on 6af9abb; the Manual rebuild runs locally in WSL now, §12.15).
-Preceding entry: Last substantive update: 2026-09-06 — REVIEW R6 + WP-90 opened on `claude/wp-90`
+Last substantive update: 2026-09-07 — WP-91 DONE (PR #91, merge 0eee982; postflight 532/532 + examples 12/13); WP-92 READY (PR #92: the benchmark on the block path, selectArAcv deleted; CI green on a3a4c09, §12.16). Open: E-12 (audit portability, chip queued).
+Preceding entry: Last substantive update: 2026-09-07 — WP-90 DONE (PR #90, merge cc07b6a); WP-91 READY (PR #91, one batch iterator, E-09; §12.15).
 (model Claude Fable 5.1, tier A: MATLAB R2026a over the working copy through
 the MCP bridge; the static audit runs locally on a found Python 3.12 but is
 Linux-only as an instrument, §12.14 E-12; no pandoc — the Manual rebuild is
@@ -5930,7 +5930,7 @@ Contents.m). Scope: those files, nothing on the user surface.
 
 | WP | title | depends on | status |
 |---|---|---|---|
-| 92 | `bench_qr_vs_normal` on the block path (cond(N) = cond(Cxx)); `selectArAcv` deleted (E-15, E-11) | 91 | IN PROGRESS (2026-09-07, branch `claude/wp-92`) |
+| 92 | `bench_qr_vs_normal` on the block path (cond(N) = cond(Cxx)); `selectArAcv` deleted (E-15, E-11) | 91 | READY (2026-09-07, PR #92, CI green on a3a4c09: audit pass, ci_gate 504/504 = 541 − 12 − 25 skipped; local 529/529 incl. test_parallel; DONE flips on the merge) |
 
 **ROUND WP-92 (2026-09-07, model Claude Fable 5.1, tier A).** Local `ci_gate`
 GREEN 529/529 (= 541 declared − 12 excluded), 26/26 suites incl. test_parallel,
