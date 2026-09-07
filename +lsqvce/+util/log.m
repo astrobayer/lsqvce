@@ -61,7 +61,7 @@ classdef log
 %   EXAMPLE
 %     fid = fopen('vce.log', 'w');
 %     lsqvce.util.log.set('fid', fid, 'screen', true);   % file AND screen
-%     R = lsqvce.engine.adjustVCE(L, days).run();         % all output captured
+%     R = lsqvce.fit(data, Estimate="noise");            % all output captured
 %     lsqvce.util.log.reset();
 %     fclose(fid);
 %

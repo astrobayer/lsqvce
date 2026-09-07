@@ -129,6 +129,7 @@ reveals only the fraction <code>r_i</code> of any error present
 
 <h2>Function reference</h2>
 <h3>Start here &mdash; the USER tier</h3><table>
+<tr><td class="name"><a href="lsqvce.layout.html">lsqvce.layout</a></td><td>The column layout of A and B announced before fit (declare priors in it).</td></tr>
 <tr><td class="name"><a href="lsqvce.fit.html">lsqvce.fit</a></td><td>The one user verb: fit(data, opts) &mdash; a plain data struct (DATA_CONTRACT.md) + Options &rarr; Results. Builds the loaders itself; dispatches on Model (gls | vce | pooled).</td></tr>
 <tr><td class="name"><a href="lsqvce.Options.html">lsqvce.Options</a></td><td>The one settings object: every knob named, typed, defaulted to the engines' own defaults.</td></tr>
 <tr><td class="name"><a href="lsqvce.Results.html">lsqvce.Results</a></td><td>What comes back: x, sigma0, diagnostics, report(), coefficients(), summary(), convergence().</td></tr>
@@ -142,6 +143,11 @@ reveals only the fraction <code>r_i</code> of any error present
 </table>
 <h3>Access layer &mdash; one-call front door</h3><table>
 <tr><td class="name"><a href="lsqvce.engine.adjustBlock.html">lsqvce.engine.adjustBlock</a></td><td>One-call block-arrow adjustment: accumulate, solve, judge.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.adjustRobust.html">lsqvce.engine.adjustRobust</a></td><td>IRLS (Huber / IGG3 / bisquare) on the block path.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.adjustNonlinear.html">lsqvce.engine.adjustNonlinear</a></td><td>Gauss-Newton with Levenberg damping on the block path.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.batchSystem.html">lsqvce.engine.batchSystem</a></td><td>A batch source as ONE local-free streaming system.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.declaration.html">lsqvce.engine.declaration</a></td><td>Validate a kind-A data struct and build its loaders.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.localColumns.html">lsqvce.engine.localColumns</a></td><td>Which (template row, day, arc) owns each column of B.</td></tr>
 <tr><td class="name"><a href="lsqvce.engine.makeLoader.html">lsqvce.engine.makeLoader</a></td><td>Turn a day-builder into an accumulator-ready Loader.</td></tr>
 <tr><td class="name"><a href="lsqvce.engine.resolveNc.html">lsqvce.engine.resolveNc</a></td><td>Derive the common-parameter count nc from the systems themselves (single source of truth).</td></tr>
 </table>
@@ -165,11 +171,15 @@ reveals only the fraction <code>r_i</code> of any error present
 <h3>Combining data sets</h3><table>
 </table>
 <h3>Diagnostics</h3><table>
+<tr><td class="name"><a href="lsqvce.engine.leverageBlocks.html">lsqvce.engine.leverageBlocks</a></td><td>Precompute the small matrices lsqvce.engine.leverage needs.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.localDiagnostics.html">lsqvce.engine.localDiagnostics</a></td><td>Stability test of a local block before pre-elimination.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.runMeta.html">lsqvce.engine.runMeta</a></td><td>Compose the run-provenance struct carried by lsqvce.Results.</td></tr>
 <tr><td class="name"><a href="lsqvce.engine.diagnose.html">lsqvce.engine.diagnose</a></td><td>Second-pass per-observation diagnostics for a batch LSQ.</td></tr>
 <tr><td class="name"><a href="lsqvce.report.html">lsqvce.report</a></td><td>Judge a least-squares adjustment and say so in words.</td></tr>
 <tr><td class="name"><a href="lsqvce.engine.systematic.html">lsqvce.engine.systematic</a></td><td>Detect unmodelled systematic errors in the residuals.</td></tr>
 </table>
 <h3>Outliers &amp; robust</h3><table>
+<tr><td class="name"><a href="lsqvce.kernel.robustWeights.html">lsqvce.kernel.robustWeights</a></td><td>IRLS weight factors from standardised whitened residuals.</td></tr>
 <tr><td class="name"><a href="lsqvce.engine.snoop.html">lsqvce.engine.snoop</a></td><td>Iterative data snooping: reject outliers one at a time.</td></tr>
 </table>
 <h3>Stochastic model &mdash; VCE</h3><table>
@@ -216,6 +226,10 @@ reveals only the fraction <code>r_i</code> of any error present
 <tr><td class="name"><a href="lsqvce.engine.stat.html">lsqvce.engine.stat</a></td><td></td></tr>
 </table>
 <h3>Utilities (+util)</h3><table>
+<tr><td class="name"><a href="lsqvce.util.callUser.html">lsqvce.util.callUser</a></td><td>Call a user-supplied function: outputs counted once, errors wrapped.</td></tr>
+<tr><td class="name"><a href="lsqvce.util.onPass.html">lsqvce.util.onPass</a></td><td>Fire the user's per-pass inspection hook.</td></tr>
+<tr><td class="name"><a href="lsqvce.util.rowWeightKey.html">lsqvce.util.rowWeightKey</a></td><td>The one key convention for per-arc row weights.</td></tr>
+<tr><td class="name"><a href="lsqvce.util.toolboxVersion.html">lsqvce.util.toolboxVersion</a></td><td>The toolbox version string, read from +lsqvce/Contents.m.</td></tr>
 <tr><td class="name"><a href="lsqvce.util.getfielddef.html">lsqvce.util.getfielddef</a></td><td>Field value with a default.</td></tr>
 <tr><td class="name"><a href="lsqvce.util.mergeStruct.html">lsqvce.util.mergeStruct</a></td><td>Overlay the fields of t onto s.</td></tr>
 <tr><td class="name"><a href="lsqvce.util.log.html">lsqvce.util.log</a></td><td>Toolbox-wide logging: logfid (file) + logflag (screen).</td></tr>
@@ -228,7 +242,7 @@ library code: <code>demo_gravity.m</code> is the closed-loop oracle with measure
 <table><tr><th>script</th><th>what it shows</th></tr>
 <tr><td class="name">examples/bench_qr_vs_normal.m</td><td>Measure the QR / normal-equation trade-off on YOUR machine.</td></tr>
 <tr><td class="name">examples/demo_combine.m</td><td>Combining several satellite systems by elimination.</td></tr>
-<tr><td class="name">examples/demo_grace.m</td><td>End-to-end walk-through of the separable VCE loop.</td></tr>
+<tr><td class="name">examples/demo_grace.m</td><td>End-to-end walk-through of the VCE loop on multi-axis and scalar streams.</td></tr>
 <tr><td class="name">examples/demo_grace_dataLoader.m</td><td>Synthetic GRACE-FO data generator for the VCE demo.</td></tr>
 <tr><td class="name">examples/demo_fit.m</td><td>The 2.0 user path end to end: a data struct, an Options, fit, report -- on all three data kinds (START HERE).</td></tr>
 <tr><td class="name">examples/demo_gravity.m</td><td>GRACE-like gravity recovery on a PHYSICALLY STRUCTURED design.</td></tr>

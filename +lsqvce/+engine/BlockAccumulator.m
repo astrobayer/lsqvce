@@ -767,8 +767,8 @@ classdef BlockAccumulator < handle
         end
         function noteWindow(obj, w)
         %NOTEWINDOW  Record the longest whitening window (rows) seen so far.
-        %   Called once per accumulated day; read by adjustVCE.covGridSize,
-        %   which sizes the covariance grid from this MEASURED length instead
+        %   Called once per accumulated day; read by the joint estimator (the covariance
+        %   grid is sized from this MEASURED length instead
         %   of probing the loader (R5 M1, finding H-06).
         %   INPUT  w 1x1 double  rows of the window just whitened
             obj.windowMax = max(obj.windowMax, w);

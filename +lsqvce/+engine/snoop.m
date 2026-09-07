@@ -98,8 +98,9 @@ function [sol, D, REJ] = snoop(sol, D, batchFcn, opt)
 %     .history    per-iteration [nFlag, maxAbsW, s0sq]
 %
 %   EXAMPLE
-%       [sol, D] = lsqvce.engine.adjust(u, src, 4, 'verbose', false);
-%       [sol, D, REJ] = lsqvce.engine.snoop(sol, D, src);
+%       data = struct('batchFcn', src, 'numUnknowns', u, 'numBatches', 4);
+%       R = lsqvce.fit(data, Verbose=false);
+%       [sol, D, REJ] = lsqvce.engine.snoop(R.source, R.diag, R.batchFcn);
 %
 %       % REJ.idx       -> [40 150]     rejected, one at a time
 %       % REJ.refused   -> observations too weakly controlled to judge
@@ -108,7 +109,7 @@ function [sol, D, REJ] = snoop(sol, D, batchFcn, opt)
 %       % Under heavy contamination Pope cannot see the blunders at all, so
 %       % this loop would exit having rejected NOTHING and report 'converged'.
 %       % Use the robust scale there:
-%       [sol, D, REJ] = lsqvce.engine.snoop(sol, D, src, 'test', 'mad');
+%       [sol, D, REJ] = lsqvce.engine.snoop(R.source, R.diag, R.batchFcn, 'test', 'mad');
 %
 %   INPUT
 %     sol       1x1 struct  the solution to start from (from LSQVCE.ENGINE.ADJUST)

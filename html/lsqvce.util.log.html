@@ -103,7 +103,7 @@ THREAD SAFETY / PARALLEL
 <h3>Example</h3>
 <pre class="example">  fid = fopen(&#x27;vce.log&#x27;, &#x27;w&#x27;);
   lsqvce.util.log.set(&#x27;fid&#x27;, fid, &#x27;screen&#x27;, true);   % file AND screen
-  R = lsqvce.engine.adjustVCE(L, days).run();         % all output captured
+  R = lsqvce.fit(data, Estimate=&quot;noise&quot;);            % all output captured
   lsqvce.util.log.reset();
   fclose(fid);
 

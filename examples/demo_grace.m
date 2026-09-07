@@ -1,5 +1,5 @@
 function R = demo_grace(varargin)
-%DEMO_GRACE  End-to-end walk-through of the separable VCE loop.
+%DEMO_GRACE  End-to-end walk-through of the VCE loop on multi-axis and scalar streams.
 %
 %   R = DEMO_GRACE()
 %   R = DEMO_GRACE('maxOuter', 8, 'verbose', true)

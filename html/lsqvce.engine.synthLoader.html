@@ -63,8 +63,8 @@ TWO SUPPORTED WAYS TO USE YOUR COPY (both first-class):
   (2) WRAPPED by LSQVCE.ENGINE.MAKELOADER. Keep your buildDay, pass it as
       makeLoader(@(d,ot) myBuildDay(...), &#x27;obsTypes&#x27;,..., &#x27;cov&#x27;,..., ...)
       to get a full Loader STRUCT with meta/cache plus the optional
-      &#x27;epochCov&#x27;, &#x27;plotPostSolve&#x27;/&#x27;plotPostModel&#x27; and &#x27;common&#x27;/&#x27;local&#x27;/
-      &#x27;procOpt&#x27; features. Use this when you want those conveniences.
+      &#x27;CacheDays&#x27;, &#x27;Priors&#x27;, &#x27;Scoped&#x27; tables and &#x27;CommonParams&#x27;/&#x27;LocalParams&#x27;/
+      &#x27;ProcessingOptions&#x27; features. Use this when you want those conveniences.
 Do NOT hand-roll a wrapper named makeLoader in your own code -- that name
 is taken by LSQVCE.ENGINE.MAKELOADER; call it or bind a raw closure instead.
 

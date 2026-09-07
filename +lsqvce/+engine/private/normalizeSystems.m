@@ -8,7 +8,7 @@ function [specs, loaders] = normalizeSystems(systems, days)
 %   lsqvce.engine.adjustBlock and lsqvce.engine.adjustRobust (R5 M2 round
 %   2b: moved verbatim out of adjustBlock so there is ONE implementation).
 %   Also returns LOADERS: a 1xN cell of the Loader objects (or [] for a raw
-%   closure) so a caller can fire their plotPostSolve hooks after the solve.
+%   closure) so a caller can reach the Loader objects after the solve.
 %
 %   INPUT   systems 1xM cell | 1xM struct;  days 1xD double  fallback calendar
 %   OUTPUT  specs 1xM struct (.sysID .nl .dataFcn .dayList .name);  loaders 1xM cell

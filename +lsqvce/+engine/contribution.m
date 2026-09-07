@@ -70,14 +70,14 @@ function con = contribution(acc, sol, opt)
 %       .note     char       provenance / weight-dependence reminder
 %
 %   EXAMPLE
-%     R   = P.run();                              % adjustVCE, converged
-%     acc = R.history ... ;                       % or a direct BlockAccumulator
-%     con = lsqvce.engine.contribution(acc, sol, 'GroupBy','obsType', 'Level',2);
+%     R   = lsqvce.fit(data, Estimate="noise");   % converged; R.acc, R.sol
+%     con = lsqvce.engine.contribution(R.acc, R.sol, 'GroupBy','obsType', 'Level',2);
 %     [con.group.share]                           % scalar share per stream
 %     bar(con.group(1).diag);                     % per-coefficient share, group 1
+%     % (R.contribution(...) is the same call on the Results)
 %
 %   See also LSQVCE.ENGINE.STREAMCONTRIBUTION, LSQVCE.ENGINE.REDUNDANCY, LSQVCE.ENGINE.VCE,
-%            LSQVCE.ENGINE.ADJUSTVCE
+%            LSQVCE.RESULTS
 %
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) (F-07): typed
 %   `arguments` signature, canonical UpperCamelCase option names (legacy

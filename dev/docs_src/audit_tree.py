@@ -911,6 +911,85 @@ def check_tiers_and_case():
             seen[key] = os.path.join(root, fn)
 
 
+
+
+# ----------------------------------------------------------------------
+# R6 WP-94 (2026-09-07): two doc-truth checks the docs level lacked. Found
+# by measuring "are the docs in sync?": twelve help EXAMPLE blocks still
+# called units deleted in 5.0 (adjust, adjustVCE(...).run()) -- check 13
+# guards a fixed list of OLD names, so a deletion never reached it -- and
+# thirteen live units had a page but no entry in html/index.html or
+# helptoc.xml, so `doc` reached them by name only. Written with the
+# assistance of Claude (Anthropic), model Claude Fable 5.1.
+
+HELP_HEADING = re.compile(
+    r'^(SYNTAX|INPUTS?|OUTPUTS?|OPTIONS?|NAME-VALUE.*|ERRORS?|EXAMPLES?.*|NOTES?|'
+    r'REFERENCES?|ALGORITHM|CONVENTIONS?|WHY.*|WHAT.*|COST.*|SEE ALSO|See also.*|'
+    r'BEST PRACTICES?|ACCURACY.*|LIMITATIONS?|CONTRACT.*|THE .*|PROPERTIES|METHODS|'
+    r'WARNINGS?|IDENTIFIERS.*|RUNTIME.*|Created .*|Updated .*|Moved .*|Generated .*)')
+
+
+def public_units():
+    """{'fit', 'engine.makeLoader', ...} for every non-private, non-Contents
+    unit file of the package (the names a help example may call)."""
+    units = set()
+    for f in pglob(PKG_GLOB, recursive=True):
+        if '/private/' in f:
+            continue
+        u = _unit_of(f)
+        if not u.endswith('Contents'):
+            units.add(u)
+    return units
+
+
+def help_example_lines(path):
+    """(lineno, text) of every comment line inside an EXAMPLE section of the
+    file's help blocks (function help and method help alike)."""
+    out = []
+    in_ex = False
+    for i, raw in enumerate(open(path, encoding='utf-8', errors='replace'), 1):
+        s = raw.strip()
+        if not s.startswith('%'):
+            in_ex = False
+            continue
+        body = s.lstrip('%').strip()
+        if HELP_HEADING.match(body):
+            in_ex = body.upper().startswith('EXAMPLE')
+            continue
+        if in_ex:
+            out.append((i, body))
+    return out
+
+
+def check_help_examples_call_live_units():
+    print('\n24. help EXAMPLE blocks call units that exist')
+    units = public_units()
+    n = 0
+    for f in sorted(pglob(PKG_GLOB, recursive=True)):
+        if '/private/' in f:
+            continue
+        for i, text in help_example_lines(f):
+            for u in re.findall(r'lsqvce\.((?:util|engine|kernel)\.\w+|[A-Za-z]\w*)', text):
+                n += 1
+                if u not in units:
+                    note('example', '%s:%d example calls lsqvce.%s, which does not exist'
+                         % (f, i, u))
+    print('   %d unit references in EXAMPLE blocks checked against %d units'
+          % (n, len(units)))
+
+
+def check_index_lists_every_unit():
+    print('\n25. every unit page is reachable from html/index.html and helptoc.xml')
+    index = open('html/index.html', encoding='utf-8', errors='replace').read()
+    toc = open('helptoc.xml', encoding='utf-8', errors='replace').read()
+    units = sorted(public_units())
+    for u in units:
+        page = 'lsqvce.%s.html' % u
+        if page not in index:
+            note('index', 'html/index.html has no row for lsqvce.%s' % u)
+        if page not in toc:
+            note('index', 'helptoc.xml has no entry for lsqvce.%s' % u)
+    print('   %d units checked' % len(units))
 def main():
     if not os.path.isdir('+lsqvce'):
         sys.exit('run from the toolbox root (the folder holding +lsqvce)')
@@ -940,6 +1019,8 @@ def main():
     check_catch_ratchet()
     check_id_catalogue()
     check_layering_ratchet()
+    check_help_examples_call_live_units()
+    check_index_lists_every_unit()
     print('\n' + '=' * 60)
     if FINDINGS:
         print('%d finding(s).' % len(FINDINGS))

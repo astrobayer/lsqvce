@@ -20,8 +20,8 @@ function out = synthLoader(cfg, sat, day, obsType, arcID, opt)
 %     (2) WRAPPED by LSQVCE.ENGINE.MAKELOADER. Keep your buildDay, pass it as
 %         makeLoader(@(d,ot) myBuildDay(...), 'obsTypes',..., 'cov',..., ...)
 %         to get a full Loader STRUCT with meta/cache plus the optional
-%         'epochCov', 'plotPostSolve'/'plotPostModel' and 'common'/'local'/
-%         'procOpt' features. Use this when you want those conveniences.
+%         'CacheDays', 'Priors', 'Scoped' tables and 'CommonParams'/'LocalParams'/
+%         'ProcessingOptions' features. Use this when you want those conveniences.
 %   Do NOT hand-roll a wrapper named makeLoader in your own code -- that name
 %   is taken by LSQVCE.ENGINE.MAKELOADER; call it or bind a raw closure instead.
 %

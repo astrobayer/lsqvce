@@ -57,13 +57,16 @@ function D = diagnose(sol, batchFcn, opt)
 %                    contamination gauge -- everything LSQVCE.REPORT reads
 %
 %   EXAMPLE
-%       % The SAME batch source must be replayed -- this is checked.
-%       [sol, D] = lsqvce.engine.adjust(u, src, 4, 'verbose', false);
+%       % The SAME batch source must be replayed -- this is checked. On the
+%       % block path (v5) R.source is the diagnosed solution and R.batchFcn /
+%       % R.nBatch the replayable source LSQVCE.ENGINE.DIAGNOSEACCUM built.
+%       data = struct('batchFcn', src, 'numUnknowns', u, 'numBatches', 4);
+%       R = lsqvce.fit(data, Verbose=false);           % R.diag is this D
 %
 %       % Re-diagnose with the ROBUST scale instead of Pope's tau. Do this
 %       % whenever D.contamLevel is 'moderate' or worse: Pope goes BLIND at
 %       % ~10%% contamination because the blunders inflate the s0 it divides by.
-%       Dm = lsqvce.engine.diagnose(sol, src, 'nBatch', 4, 'test', 'mad');
+%       Dm = lsqvce.engine.diagnose(R.source, R.batchFcn, 'nBatch', R.nBatch, 'test', 'mad');
 %
 %       % Dm.flagIdx    -> [40 150]
 %       % Dm.quad       -> the (w, r) quadrants; read UNTESTED, not just w

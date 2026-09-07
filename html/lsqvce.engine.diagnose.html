@@ -96,13 +96,16 @@ is the difference between a usable outlier list and a meaningless one.</pre>
                standardised w_i / tau_i, MDB, flagIdx and the
                contamination gauge -- everything LSQVCE.REPORT reads</pre>
 <h3>Example</h3>
-<pre class="example">% The SAME batch source must be replayed -- this is checked.
-[sol, D] = lsqvce.engine.adjust(u, src, 4, &#x27;verbose&#x27;, false);
+<pre class="example">% The SAME batch source must be replayed -- this is checked. On the
+% block path (v5) R.source is the diagnosed solution and R.batchFcn /
+% R.nBatch the replayable source LSQVCE.ENGINE.DIAGNOSEACCUM built.
+data = struct(&#x27;batchFcn&#x27;, src, &#x27;numUnknowns&#x27;, u, &#x27;numBatches&#x27;, 4);
+R = lsqvce.fit(data, Verbose=false);           % R.diag is this D
 
 % Re-diagnose with the ROBUST scale instead of Pope&#x27;s tau. Do this
 % whenever D.contamLevel is &#x27;moderate&#x27; or worse: Pope goes BLIND at
 % ~10%% contamination because the blunders inflate the s0 it divides by.
-Dm = lsqvce.engine.diagnose(sol, src, &#x27;nBatch&#x27;, 4, &#x27;test&#x27;, &#x27;mad&#x27;);
+Dm = lsqvce.engine.diagnose(R.source, R.batchFcn, &#x27;nBatch&#x27;, R.nBatch, &#x27;test&#x27;, &#x27;mad&#x27;);
 
 % Dm.flagIdx    -&gt; [40 150]
 % Dm.quad       -&gt; the (w, r) quadrants; read UNTESTED, not just w

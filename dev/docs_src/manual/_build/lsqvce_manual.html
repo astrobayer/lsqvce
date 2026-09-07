@@ -2257,8 +2257,9 @@ words.</p>
     varargin  Name/Value: &#39;verbose&#39;, &#39;width&#39;, &#39;alpha&#39;, &#39;rWeak&#39;, ...
 
   EXAMPLE
-      [~, D]  = lsqvce.engine.adjust(u, src, 4, &#39;verbose&#39;, false);
-      V = lsqvce.report(D);              % prints the five levels
+      data = struct(&#39;batchFcn&#39;, src, &#39;numUnknowns&#39;, u, &#39;numBatches&#39;, 4);
+      R = lsqvce.fit(data, Verbose=false);
+      V = lsqvce.report(R.diag);         % prints the five levels (= R.report)
 
       % V.verdict    &#39;PASS&#39; | &#39;PASS WITH WARNINGS&#39; | &#39;SUSPECT&#39; | &#39;INVALID&#39;
       % V.findings   machine-readable: {level, severity, code, msg}

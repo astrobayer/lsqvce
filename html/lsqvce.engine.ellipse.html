@@ -81,8 +81,9 @@ OUTPUT E
   .worstDir                 unit vector of the semi-major axis: the
                             combination of the two parameters you know least</pre>
 <h3>Example</h3>
-<pre class="example">[~, D] = lsqvce.engine.adjust(u, src, 4, &#x27;verbose&#x27;, false);
-E = lsqvce.engine.ellipse(D, [1 2]);            % parameters 1 and 2
+<pre class="example">data = struct(&#x27;batchFcn&#x27;, src, &#x27;numUnknowns&#x27;, u, &#x27;numBatches&#x27;, 4);
+R = lsqvce.fit(data, Verbose=false);
+E = lsqvce.engine.ellipse(R.diag, [1 2]);       % parameters 1 and 2
 
 plot(E.xy(:,1), E.xy(:,2), &#x27;LineWidth&#x27;, 1.5);  hold on
 plot(E.centre(1), E.centre(2), &#x27;r+&#x27;);
