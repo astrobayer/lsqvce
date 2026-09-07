@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-09-07 — WP-94 DONE (PR #94, merge f726660); WP-95 READY (the examples audited against v5.3 by a 186-agent workflow: 85 raw / 54 confirmed / 12 set-level findings, all fixed; ci_gate 529/529, examples 13/13, Linux audit 0 findings; §12.19).
+Last substantive update: 2026-09-07 — WP-95 DONE (PR #95, merge 96ed78f; postflight on merged main: ci_gate 529/529, examples 13/13); WP-96 OPEN: the two gaps carried out of §12.19 get worked examples — `lsqvce.layout` and the per-stream noise policy (`estimate` / `arcFactors`, a `psd` law); §12.20.
+Preceding entry: Last substantive update: 2026-09-07 — WP-94 DONE (PR #94, merge f726660); WP-95 READY (the examples audited against v5.3 by a 186-agent workflow: 85 raw / 54 confirmed / 12 set-level findings, all fixed; ci_gate 529/529, examples 13/13, Linux audit 0 findings; §12.19).
 Preceding entry: Last substantive update: 2026-09-07 — WP-92 DONE (PR #92, merge adfc572); WP-93 DONE (PR #93, merge ace2f08); WP-94 READY (PR #94, §12.18).
 Preceding entry: Last substantive update: 2026-09-06 — REVIEW R6 + WP-90 opened on `claude/wp-90`
 (model Claude Fable 5.1, tier A: MATLAB R2026a over the working copy through
@@ -6101,7 +6102,7 @@ on the hosted gate. Every example must still smoke-run 13/13, and `demo_gravity`
 
 | WP | title | depends on | status |
 |---|---|---|---|
-| 95 | The examples audited against v5.3 (85 raw / 54 confirmed / 12 set-level) and fixed: stale measured numbers re-measured, retired vocabulary and dead cross-references corrected, the gravfire prior bug, the scalar `Cep` demonstrated, `Options.Verbose` 0..2 | 94 | READY (2026-09-07, PR #95, CI green on 2ba3679: audit CLEAN with 14 self-test cases, ci_gate 504/504; local 529/529, examples 13/13, Linux audit 0 findings; DONE flips on the merge) |
+| 95 | The examples audited against v5.3 (85 raw / 54 confirmed / 12 set-level) and fixed: stale measured numbers re-measured, retired vocabulary and dead cross-references corrected, the gravfire prior bug, the scalar `Cep` demonstrated, `Options.Verbose` 0..2 | 94 | DONE (2026-09-07, PR #95, merge 96ed78f; CI green on 2c37dba: audit 26 s, matlab 2m44s. POSTFLIGHT on merged main: ci_gate GREEN 529/529, 26/26 suites, examples 13/13) |
 
 **ROUND WP-95 (2026-09-07, model Claude Opus 5, tier A).** Instruments: a 186-agent audit
 (15 readers, 2 refuting lenses per finding, 1 completeness critic) then a 30-agent fixer
@@ -6145,3 +6146,142 @@ a claim worth its own round -- the peak-memory statement O(uC^2 + max(uL)^2) app
 system's Schur blocks under the default `KeepLocal=true` and `diagnoseAccum` then builds a
 full (nc + sum nl) root factor. If that wording is wrong it is wrong in the SSOT first, and
 must be corrected there and in the demos in ONE pass.
+
+### 12.20 WP-96 — the two carried gaps get worked examples (2026-09-07, model Claude Opus 5, tier A)
+
+**Origin.** The user, after PR #95 merged: "Create examples for the two smaller items."
+Those are the two gaps §12.19 recorded and deliberately did not fix: **`lsqvce.layout` is
+called by no example and no template**, and **the per-stream policy fields `estimate` /
+`arcFactors` and a `psd` law are set by no example**. Both are USER-surface capabilities —
+the Manual describes them (chapter 3 §1b, §2, §5) and `dev/tests` exercises them
+(`test_fit>testLocalPriorsAreTheCounterpartOfDataPriors`,
+`test_fit>testLocalPriorGroupIsEstimatedLikeACommonOne`, `test_vcePolicy`), but a capability
+whose only demonstration is a test is one the user has to reverse-engineer from the suite.
+WP-95's whole finding was that examples are read as truth; the counterpart is that a
+capability with no example is, for the user, absent.
+
+**Decision (scope frozen).** ONE branch `claude/wp-96`. TWO new examples, each teaching
+exactly ONE thing, self-contained (their own synthetic generator in local functions, no new
+data loader), both with a measured ACCURACY block; each guarded by ONE test point so the
+gate runs it; registered in the ONE surface that lists examples (`html/index.html`). No
+library change, no new mechanism, no third document.
+
+* **`examples/demo_priors.m` — regularisation written in the columns `lsqvce.layout`
+  announces.** A kind-A declaration whose common table mixes `'common'` and `'day'` rows and
+  whose system mixes `'arc'` and `'system'` rows, so nc and nl are DERIVED and no column
+  index can be guessed by hand. The design is built rank-deficient ON PURPOSE in the way
+  real calibration problems are: a per-day offset and that day's arc biases are separable
+  only up to a constant, so the null space has one dimension per day. The demo then (1)
+  prints the layout census, (2) builds the datum prior on the day-offset columns through
+  `lay.colCommon(row, day)`, (3) builds a local damping group on the drift rows through
+  `lay.systems(1).col(row, day, arc)`, (4) shows the `group` regex form producing the SAME
+  operator as the hand-built `L` (a metamorphic identity, printed), and (5) shows the group
+  riding as its own stream `prior_<name>` whose sigma is estimated under `Estimate="noise"`
+  with `estimate = "scale"`. What the singular case does WITHOUT the prior is MEASURED and
+  quoted by identifier, never assumed.
+* **`examples/demo_noisePolicy.m` — which stream gets a shape, which a level, which
+  nothing.** Three streams on one system, each with a different policy and a planted truth:
+  `estimate = "none"` on a trusted, calibrated stream (its declared sigma must come back
+  unchanged), `estimate = "scale"` on a stream whose SHAPE is known and whose LEVEL is not —
+  declared as a `'psd'` law built from a known transfer function, sigma deliberately wrong by
+  a factor — and `estimate = "law"` on a stream whose colour is unknown and starts white.
+  `arcFactors` is set per stream: TRUE on the stream that carries one deliberately degraded
+  arc, FALSE on the others, so the per-arc factor picks that arc out and the other streams
+  keep one level each.
+
+**Also in this round (the user asked for it explicitly).** `CLAUDE.md` is refreshed. It stays
+a POINTER, not a status document — §0 and §1 here remain the SSOT and no status lives in it.
+What is refreshed is the FACTS it states: the toolbox version, the examples that exist, the
+audit surface (25 checks), and the tier note.
+
+**Predicted counts.** Two test points added, one per new example: **543 declared** (541 + 2),
+**531 run locally** (529 + 2), 26 suite files unchanged. `dev/DEVELOPMENT.md`'s machine-checked
+claim moves 541 → 543 in the same commit (audit check 17 enforces it). The example smoke set
+grows 13 → 15. The audit must stay at its Windows baseline of exactly ONE finding (check 23,
+pandoc absent) and ZERO on Linux.
+
+| WP | title | depends on | status |
+|---|---|---|---|
+| 96 | The two gaps carried out of §12.19 get worked examples: `examples/demo_priors.m` (regularisation written in the columns `lsqvce.layout` announces, on a rank-deficient calibration case) and `examples/demo_noisePolicy.m` (`estimate` "none"/"scale"/"law", `arcFactors`, a `psd` law), each with a measured ACCURACY block and one guarding test point; `CLAUDE.md` refreshed as a POINTER | 95 | READY (2026-09-07, PR #96, CI green on c5a8a64: audit 29 s CLEAN with the self-test, matlab 2m52s; local ci_gate GREEN 531/531 over 26/26 suites, examples 15/15, Windows audit at its one-finding baseline, checkcode 0 on both demos; DONE flips on the merge) |
+
+**ROUND WP-96 (2026-09-07, model Claude Opus 5, tier A).** Both demos RETURN the summary
+struct their ACCURACY block quotes, and the guarding test asserts the same numbers the help
+states — so a demo whose prose drifts from its behaviour now fails the gate. That is the
+defect class §12.19 was about, closed mechanically for these two.
+
+MEASURED, `demo_priors` (repeats to four decimals except where said):
+  * nc = 7, nl = 13, both derived; the densely assembled [A B] has **3 null directions**, one
+    per day — a day offset against that day's two arc biases.
+  * Without priors `fit` REFUSES: **lsqvce:qr:rankDeficient**. Measured, not assumed: the demo
+    prints the identifier it caught.
+  * Regularised: sigma0 **1.017**, signal z = **+0.16 +0.00 -0.21 +0.04**, the three groups add
+    **9** pseudo-observations (1 datum + 2 smoothness + 6 drift).
+  * The layout form and the `group` pattern form of one group agree **BITWISE** (max|dx| = 0).
+  * Moving the datum (offsets average 0.5, not 0) moves the day offsets by **0.289** =
+    0.5/sqrt(3) — what the datum row prescribes — and the signal by **1.6e-11**.
+  * Under Estimate="noise" the drift group is the stream `x1|prior_drift`; its level 0.75 times
+    the declared 0.05 is 0.037 against the planted drift rms 0.031, inside the
+    0.5*sqrt(2/6) = 0.29 relative standard error of a component from 6 rows. (0.747 / 0.753 on
+    two runs: unseeded Hutchinson probes.)
+
+MEASURED, `demo_noisePolicy` (two consecutive runs identical to four decimals):
+  * "none": gps level **0.2000** = its declared 0.2000 EXACTLY — the policy does nothing, which
+    is the whole claim.
+  * "scale" on a given `psd` shape: acc **0.4906** against the planted 0.5000.
+  * "law": rr level **1.2137** against the planted 1.1547 = 1/sqrt(1-phi^2), and the shape it
+    found has lag-1 correlation **0.559** against the planted 0.500.
+  * `arcFactors` on one stream: **1.28 / 11.81 / 1.22** — the degraded arc **9.4x** the good
+    ones against a planted 9 (a VARIANCE ratio; 3x in sigma). Its level 0.6553 against
+    0.5745 = 0.30*sqrt(mean([1 9 1])): the level absorbs the mean, only the RATIO is
+    identifiable.
+  * A misspelt policy is refused by name: **lsqvce:fit:badEstimate**.
+
+**FINDING F-01 (REPRODUCED, v5.3, NOT fixed here): a "law" stream and an `arcFactors` stream
+in one run do not settle, and the solve looks healthy while the noise model is nonsense.**
+Fixture: one system, 3 days x 3 arcs x 256 epochs; gps ("none", white 0.2), acc ("scale", a
+`psd` shape given), mag ("scale" + `arcFactors`, arc 2 of every day 3x worse), rr ("law",
+AR(1) phi 0.5).
+  * With rr as **"law"**: mag's mean arc factors are **0.00 / 40.8 / 0.00** at 10 passes and
+    **0.00 / 45.9 / 0.00** at 20 — a fixed point, not a transient — against the planted
+    1 / 9 / 1, IDENTICALLY at Pool "stream", "obsType" and "all", and the loop stops on maxPasses.
+    In a THREE-stream variant (gps + mag + rr "law") it is worse: the loop reports
+    **converged** after 8 passes with sigma0 **545.7** and EVERY arc factor 0.00 -- a
+    broken stochastic model carrying a "converged" verdict.
+  * With rr switched to **"scale"** and nothing else changed: **converges in ONE pass**, factors
+    **0.91 / 8.36 / 0.87**, levels 0.2 / 0.4904 / 1.481 / 0.5514 against planted
+    0.2 / 0.5 / 1.4 / 0.574. With no law stream at all: **1.00 / 8.80 / 1.00**.
+  * Second, milder: on this fixture "law" recovers AR(1) colour up to phi = 0.6; at phi = 0.7
+    the level runs away to **2.8e4** while sigma0 stays 0.81 — the adjustment looks fine and
+    the stochastic model is worthless. That is an R4 violation (degrade silently) in the one
+    place the doctrine cares most about.
+  * NOT fixed in this round: it is an estimator question (`adjustVCEjoint`'s Helmert step under
+    mixed policies), it needs its own oracle and its own tests, and the scope was frozen at
+    "two examples". `demo_noisePolicy` therefore runs the two capabilities in SEPARATE runs and
+    states both boundaries in its LIMITATIONS block with these numbers, instead of shipping a
+    fixture chosen to hide them.
+
+**Two more, recorded, not fixed.** (a) `R.noise.model{k}.C` is documented as "the stream's law"
+but falls back to the GLOBAL `out.C` for every stream whose law was not estimated (`fit.m`
+`streamModels`: `C = out.C; if isKey(out.Cgroups, gk) ...`) — measured: with four streams and
+one law, all four `model{k}.C` were identical (lag-1 1.313), so a "none" stream reports another
+stream's law. `R.noise.Cgroups` is the honest source, and `demo_noisePolicy` reads that.
+(b) `dev/DEVELOPMENT.md`'s documentation table still points at four HTML manuals deleted in the
+docs level — `html/lsqvce_user_manual.html`, `lsqvce_reference_manual.html`,
+`lsqvce_interpretation_guide.html`, `lsqvce_choosing.html`. Audit check 5 reads links inside
+`html/` only, so no instrument looks at a markdown pointer: a check 26 over the repository's
+own .md files would have caught all four.
+
+VERDICTS. Local `ci_gate` GREEN **531/531** (543 declared, 529 + 2 as predicted), 26/26 suites,
+1 excluded; example smoke **15/15** (13 + the two new, isolated calls); Windows audit at its
+honest baseline of exactly ONE finding (check 23, pandoc absent) with the self-test 14/14
+green. CI on the record head c5a8a64: audit **pass 29 s** (the Manual check and the
+self-test included), matlab **pass 2m52s**.
+
+**RE-READ PASS (the WP-95 lesson, applied to this round's own output).** Reading the two new
+files back after writing them caught three defects before the push: an ERRORS block that named
+"a row coupling two days" without saying it is a LOCAL-group rule, while `demo_priors`'s own
+smoothness group couples days and must; TWO positional lookups into `R.noise.stream` (a demo
+that indexed by position would report the wrong row the day the covariance fieldname order
+changed, and say nothing — R3); and a run-to-run spread quoted from two runs when four had been
+measured. The measured numbers are unchanged by the refactor (identical to four decimals), and
+`checkcode` reports ZERO messages on both new files.

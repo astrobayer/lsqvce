@@ -3,8 +3,18 @@
 `dev/HANDOVER.md` is the ONLY status-and-plans document
 (SSOT). Binding for every session: **§0** (standing rules + the loop),
 **§1** (the work-package ledger — the only place a status lives),
-**§6** (test/doc guidelines), **§8** (R2 findings), **§9** (R2 prompts).
-`HISTORY_v1.md` is frozen v1 history. Do not create a third document.
+**§6** (test/doc guidelines), and **§12** (the current review and its round
+notes — §12.14 opened R6, the last subsection is the round in progress).
+§8–§11 are the closed reviews R2…R4: history, not instructions.
+`dev/HISTORY_v1.md` is frozen v1 history. Do not create a third document.
+
+## Where the project stands
+
+Read it, do not restate it: the version is `+lsqvce/Contents.m` (the ONE
+version source, which the README title and `runMeta` are checked against),
+the status of every work package is §1, and what the round in progress
+decided is the last §12 subsection. Nothing about status is recorded in this
+file — a second copy would be a second authority.
 
 ## The three commands
 
@@ -15,8 +25,21 @@ cd('dev/tests'); ci_gate        % THE gate: full suite + log, or error
 ```
 
 ```bash
-python3 dev/docs_src/audit_tree.py # static audit, exit 0 required
+python3 dev/docs_src/audit_tree.py     # static audit, exit 0 required
+python3 dev/docs_src/audit_selftest.py # the audit's own fault injection
 ```
+
+The audit runs on any platform since WP-93 (`pglob`), with ONE exception:
+check 23 rebuilds the Manual and compares it byte for byte against the
+committed build, so it needs the same pandoc as the CI runner. On a Windows
+box without pandoc the audit's honest baseline is **exactly one finding**
+("the Manual could not be rebuilt"); anything more is yours. To rebuild the
+Manual locally, use the Debian pandoc under WSL — CI is the authority.
+
+The **postflight** cited in every PR is both of: `ci_gate` green, and every
+script in `examples/` smoke-run once in an isolated call (one `@()` per
+example, `evalc`, `close all force` between them — a shared workspace makes
+them clobber each other).
 
 Local ground-truth run: `matlab -batch "cd('dev/tests'); ci_gate"` — on the
 user's PC preferably through the MATLAB MCP bridge (official
@@ -37,6 +60,10 @@ matlab-mcp-server; ~4-min call window: detach long runs as
   the PR description. `git push --no-verify` is forbidden.
 - The same PR updates ONLY `HANDOVER.md` (§1 ledger row + dated round
   note). DONE = merged to `main`, checks green, date + PR number + hash.
+- `main`'s ruleset requires STRICT status checks: green is not enough, the
+  branch must also be up to date. After anything else lands, merge
+  `origin/main` into the branch and let CI run again — "CI green but the
+  merge button is dead" means BEHIND, not broken (2026-09-07).
 - Every touched help block gets the Claude stamp (date, model) after
   `See also`. MATLAB coding standards apply
   (github.com/matlab/rules/blob/main/matlab-coding-standards.md).
