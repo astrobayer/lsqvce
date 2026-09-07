@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-09-07 — REVIEW R6 + WP-90 READY: PR #90, CI green on c6fb014 (audit + matlab 506/506), local ci_gate 531/531 incl. test_parallel
+Last substantive update: 2026-09-07 — WP-90 DONE (PR #90, merge cc07b6a; postflight 531/531 + examples 12/13); WP-91 READY (PR #91, one batch iterator, E-09; CI green on 6af9abb; the Manual rebuild runs locally in WSL now, §12.15).
+Preceding entry: Last substantive update: 2026-09-06 — REVIEW R6 + WP-90 opened on `claude/wp-90`
 (model Claude Fable 5.1, tier A: MATLAB R2026a over the working copy through
 the MCP bridge; the static audit runs locally on a found Python 3.12 but is
 Linux-only as an instrument, §12.14 E-12; no pandoc — the Manual rebuild is
@@ -5779,7 +5780,7 @@ test_vcePolicy 21 → 22. Reconciled per suite before the run.
 
 | WP | title | depends on | status |
 |---|---|---|---|
-| 90 | The error information travels with the day: `D.Cep` for every stream, the temporal law declared, ONE composition; `separable` / `epochCovariance` / `residualAcv` retired; E-01 + E-14 fixed; version 5.3 | — | READY (2026-09-07, PR #90, CI green on c6fb014: audit pass, ci_gate 506/506 = 543 − test_speed 12 − test_parallel 25 skipped on the hosted runner; DONE flips on the merge. Round: local `ci_gate` GREEN 531/531 incl. test_parallel, batch run exit 0; examples 12/13 OK in the isolated harness incl. `demo_gravfire` on the real bundle 5.5 s, `bench_qr_vs_normal` = E-15 pre-existing; the Manual HTML/PDF rebuilt at e6fed79 (pandoc 3.1.3+ds in WSL, audit exit 0 on Linux) — CI pending on that head; DONE flips on the merge) |
+| 90 | The error information travels with the day: `D.Cep` for every stream, the temporal law declared, ONE composition; `separable` / `epochCovariance` / `residualAcv` retired; E-01 + E-14 fixed; version 5.3 | — | DONE (2026-09-07, PR #90, merge cc07b6a; CI green on edc195f; POSTFLIGHT on merged main: ci_gate GREEN 531/531 incl. test_parallel, examples 12/13 in the isolated harness, the 13th = E-15. Round: local `ci_gate` GREEN 531/531 incl. test_parallel, batch run exit 0; examples 12/13 OK in the isolated harness incl. `demo_gravfire` on the real bundle 5.5 s, `bench_qr_vs_normal` = E-15 pre-existing; the Manual HTML/PDF rebuilt at e6fed79 (pandoc 3.1.3+ds in WSL, audit exit 0 on Linux) — CI pending on that head; DONE flips on the merge) |
 
 **ROUND WP-90 (2026-09-06, model Claude Fable 5.1, tier A: MATLAB R2026a
 through the MCP bridge on the working copy; the static audit locally on a
@@ -5867,3 +5868,44 @@ artefacts. Local rebuilds are possible from now on through WSL. E-16 fixed in 3a
 job to the self-hosted runner and pinned the actions; ruleset 20998085 requires strict
 up-to-date checks), so `main` was merged into `claude/wp-90` — ci.yml only, no conflict
 — and CI reruns on the merged head.
+
+### 12.15 WP-91 — ONE batch iterator (finding E-09; 2026-09-07, model Claude Fable 5.1, tier A)
+
+**Decision (record first).** The batch-and-whiten loop exists four times:
+`BlockAccumulator.accumArc` (the only copy that rounds BatchSize and the
+overlap DOWN to whole epochs for `nAxis > 1`), `residuals>arcResiduals`,
+`diagnoseAccum>whitenArcIntoBatches`, and `private/arcBatchWhiten` (already
+"the ONE loop" behind redundancy / streamContribution since WP-38). From this
+WP `arcBatchWhiten` OWNS the skeleton for all six consumers — batch bounds,
+overlap (default the arc's filterMemory), whole-epoch rounding, the
+`Wfcn` / `Cfcn` / dense `W` branches, the refusal `lsqvce:accum:notWholeEpochs`
+(raised there now; the id is kept) — and the three former copies are
+callbacks that keep their payload and summation order byte-identical. One
+behavioural change beyond E-09, deliberate: an overlap clipped to `bs − 1` is
+re-rounded to whole epochs (before, a degenerate `BatchOverlap >= BatchSize`
+on a multi-axis arc split an epoch in the accumulator too; no fixture
+reaches it). REPRODUCED before the change: the new point
+`test_lsqAccum/testMultiAxisArcLongerThanBatchInEverySweep` (a 3-axis arc of
+180 rows with Cep at BatchSize 100) fails on main with
+`lsqvce:covModel:notWholeEpochs` from the residual sweep; after the change
+batched == single batch at 1e-12 on x, the whitened residuals and the
+diagnostic rows. Scope: those four units, the id catalogue row, the help
+blocks; nothing on the user surface. Predicted count: 543 + 1 = **544
+declared** (test_lsqAccum 26 → 27), 532 run locally, 507 on the hosted gate.
+
+| WP | title | depends on | status |
+|---|---|---|---|
+| 91 | One batch iterator: `arcBatchWhiten` owns bounds / overlap / whole-epoch rounding for accumArc, arcResiduals, whitenArcIntoBatches, redundancy, streamContribution (E-09) | 90 | READY (2026-09-07, PR #91, CI green on 6af9abb: audit pass, ci_gate 507/507 = 544 − 12 − 25 skipped; local 532/532 incl. test_parallel; the Manual rebuilt locally in WSL, Linux audit exit 0; DONE flips on the merge) |
+
+**ROUND WP-91 (2026-09-07, model Claude Fable 5.1, tier A).** Verdict, local:
+`ci_gate` GREEN 532/532 (= 544 declared − 12 excluded), 26/26 suites incl.
+test_parallel, inventory = the probe id; every byte-pinned suite unchanged
+(test_lsqAccum 27/27, test_adjustBlock 28/28, test_precision 31/31,
+test_contribution 16/16, test_ellmer 70/70). Static audit: no new or lost
+finding against main (local diff). The E-09 point failed on main with
+`lsqvce:covModel:notWholeEpochs` from the residual sweep (reproduced before
+the change) and passes now; batched vs single-batch agree at 1e-12 on x, the
+whitened residuals and the diagnostic rows. Files: arcBatchWhiten (owner),
+BlockAccumulator.accumArc, residuals>arcResiduals, diagnoseAccum>
+whitenArcIntoBatches (callbacks), error_ids.csv (the id's unit),
+DEVELOPMENT counts. CI: pending on the draft PR.

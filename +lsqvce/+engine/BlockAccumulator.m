@@ -1139,56 +1139,12 @@ classdef BlockAccumulator < handle
         %   With overlap >= p this is exactly equivalent to filtering the whole
         %   arc; with overlap = 0 the transient leaks into the normal equations.
 
-            m   = size(arc.A,1);
-            bs  = lsqvce.util.getfielddef(uo, 'BatchSize', 20000);
-            nOv = lsqvce.util.getfielddef(uo, 'BatchOverlap', []);
-            if isempty(nOv)
-                nOv = lsqvce.util.getfielddef(arc, 'filterMemory', 0);
-            end
-            % Multi-axis: rows are epoch-major, so a batch must never split an
-            % epoch. Round BatchSize and the overlap down to whole epochs.
-            nAx = lsqvce.util.getfielddef(arc, 'nAxis', 1);
-            if nAx > 1
-                if mod(m, nAx) ~= 0
-                    error('lsqvce:accum:notWholeEpochs', ...
-                        ['The arc has %d rows, not a multiple of nAxis = %d. ' ...
-                         'Rows must be epoch-major.'], m, nAx);
-                end
-                bs  = max(nAx, floor(bs /nAx)*nAx);
-                nOv =           floor(nOv/nAx)*nAx;
-            end
-
-            bs  = max(1, min(round(bs),  m));
-            nOv = max(0, min(round(nOv), bs-1));
-
-            hasW = isfield(arc,'Wfcn') && ~isempty(arc.Wfcn);
-            hasC = isfield(arc,'Cfcn') && ~isempty(arc.Cfcn);
-            hasM = isfield(arc,'W')    && ~isempty(arc.W);
-
-            for i0 = 1:bs:m
-                i1   = min(i0+bs-1, m);
-                j0   = max(1, i0-nOv);
-                idx  = j0:i1;
-                keep = (i0-j0+1):numel(idx);
-
-                Ab = arc.A(idx,:);
-                Bb = arc.B(idx,:);
-                lb = arc.l(idx);
-                lb = lb(:);
-
-                if hasW
-                    [Ab, Bb, lb] = arc.Wfcn(idx, Ab, Bb, lb, uo);
-                elseif hasC
-                    W  = lsqvce.kernel.decorrFactor(arc.Cfcn(idx, uo));
-                    Ab = W*Ab;  Bb = W*Bb;  lb = W*lb;
-                elseif hasM
-                    W  = arc.W(idx,idx);
-                    Ab = W*Ab;  Bb = W*Bb;  lb = W*lb;
-                end
-                % else: unit weights
-
-                acc.add([Ab(keep,:), Bb(keep,:)], lb(keep));
-            end
+            % R6 WP-91 (E-09): the batch bounds, the overlap, the whole-epoch
+            % rounding and the whitening branches live in the ONE iterator
+            % arcBatchWhiten (engine-private); this callback keeps the
+            % accumulation order byte-identical.
+            arcBatchWhiten(arc, uo, ...
+                @(rows, keep, Ab, Bb, lb) acc.add([Ab(keep,:), Bb(keep,:)], lb(keep)));
         end
 
         %------------------------------------------------------------------
