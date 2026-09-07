@@ -6199,3 +6199,76 @@ audit surface (25 checks), and the tier note.
 claim moves 541 → 543 in the same commit (audit check 17 enforces it). The example smoke set
 grows 13 → 15. The audit must stay at its Windows baseline of exactly ONE finding (check 23,
 pandoc absent) and ZERO on Linux.
+
+| WP | title | depends on | status |
+|---|---|---|---|
+| 96 | The two gaps carried out of §12.19 get worked examples: `examples/demo_priors.m` (regularisation written in the columns `lsqvce.layout` announces, on a rank-deficient calibration case) and `examples/demo_noisePolicy.m` (`estimate` "none"/"scale"/"law", `arcFactors`, a `psd` law), each with a measured ACCURACY block and one guarding test point; `CLAUDE.md` refreshed as a POINTER | 95 | READY (2026-09-07, PR #96; local ci_gate GREEN 531/531 over 26/26 suites, examples 15/15, Windows audit at its one-finding baseline, self-test 14/14; DONE flips on the merge) |
+
+**ROUND WP-96 (2026-09-07, model Claude Opus 5, tier A).** Both demos RETURN the summary
+struct their ACCURACY block quotes, and the guarding test asserts the same numbers the help
+states — so a demo whose prose drifts from its behaviour now fails the gate. That is the
+defect class §12.19 was about, closed mechanically for these two.
+
+MEASURED, `demo_priors` (repeats to four decimals except where said):
+  * nc = 7, nl = 13, both derived; the densely assembled [A B] has **3 null directions**, one
+    per day — a day offset against that day's two arc biases.
+  * Without priors `fit` REFUSES: **lsqvce:qr:rankDeficient**. Measured, not assumed: the demo
+    prints the identifier it caught.
+  * Regularised: sigma0 **1.017**, signal z = **+0.16 +0.00 -0.21 +0.04**, the three groups add
+    **9** pseudo-observations (1 datum + 2 smoothness + 6 drift).
+  * The layout form and the `group` pattern form of one group agree **BITWISE** (max|dx| = 0).
+  * Moving the datum (offsets average 0.5, not 0) moves the day offsets by **0.289** =
+    0.5/sqrt(3) — what the datum row prescribes — and the signal by **1.6e-11**.
+  * Under Estimate="noise" the drift group is the stream `x1|prior_drift`; its level 0.75 times
+    the declared 0.05 is 0.037 against the planted drift rms 0.031, inside the
+    0.5*sqrt(2/6) = 0.29 relative standard error of a component from 6 rows. (0.747 / 0.753 on
+    two runs: unseeded Hutchinson probes.)
+
+MEASURED, `demo_noisePolicy` (two consecutive runs identical to four decimals):
+  * "none": gps level **0.2000** = its declared 0.2000 EXACTLY — the policy does nothing, which
+    is the whole claim.
+  * "scale" on a given `psd` shape: acc **0.4906** against the planted 0.5000.
+  * "law": rr level **1.2137** against the planted 1.1547 = 1/sqrt(1-phi^2), and the shape it
+    found has lag-1 correlation **0.559** against the planted 0.500.
+  * `arcFactors` on one stream: **1.28 / 11.81 / 1.22** — the degraded arc **9.4x** the good
+    ones against a planted 9 (a VARIANCE ratio; 3x in sigma). Its level 0.6553 against
+    0.5745 = 0.30*sqrt(mean([1 9 1])): the level absorbs the mean, only the RATIO is
+    identifiable.
+  * A misspelt policy is refused by name: **lsqvce:fit:badEstimate**.
+
+**FINDING F-01 (REPRODUCED, v5.3, NOT fixed here): a "law" stream and an `arcFactors` stream
+in one run do not settle, and the solve looks healthy while the noise model is nonsense.**
+Fixture: one system, 3 days x 3 arcs x 256 epochs; gps ("none", white 0.2), acc ("scale", a
+`psd` shape given), mag ("scale" + `arcFactors`, arc 2 of every day 3x worse), rr ("law",
+AR(1) phi 0.5).
+  * With rr as **"law"**: mag's mean arc factors are **0.00 / 40.8 / 0.00** at 10 passes and
+    **0.00 / 45.9 / 0.00** at 20 — a fixed point, not a transient — against the planted
+    1 / 9 / 1, IDENTICALLY at Pool "stream", "obsType" and "all", and the loop never converges.
+  * With rr switched to **"scale"** and nothing else changed: **converges in ONE pass**, factors
+    **0.91 / 8.36 / 0.87**, levels 0.2 / 0.4904 / 1.481 / 0.5514 against planted
+    0.2 / 0.5 / 1.4 / 0.574. With no law stream at all: **1.00 / 8.80 / 1.00**.
+  * Second, milder: on this fixture "law" recovers AR(1) colour up to phi = 0.6; at phi = 0.7
+    the level runs away to **2.8e4** while sigma0 stays 0.81 — the adjustment looks fine and
+    the stochastic model is worthless. That is an R4 violation (degrade silently) in the one
+    place the doctrine cares most about.
+  * NOT fixed in this round: it is an estimator question (`adjustVCEjoint`'s Helmert step under
+    mixed policies), it needs its own oracle and its own tests, and the scope was frozen at
+    "two examples". `demo_noisePolicy` therefore runs the two capabilities in SEPARATE runs and
+    states both boundaries in its LIMITATIONS block with these numbers, instead of shipping a
+    fixture chosen to hide them.
+
+**Two more, recorded, not fixed.** (a) `R.noise.model{k}.C` is documented as "the stream's law"
+but falls back to the GLOBAL `out.C` for every stream whose law was not estimated (`fit.m`
+`streamModels`: `C = out.C; if isKey(out.Cgroups, gk) ...`) — measured: with four streams and
+one law, all four `model{k}.C` were identical (lag-1 1.313), so a "none" stream reports another
+stream's law. `R.noise.Cgroups` is the honest source, and `demo_noisePolicy` reads that.
+(b) `dev/DEVELOPMENT.md`'s documentation table still points at four HTML manuals deleted in the
+docs level — `html/lsqvce_user_manual.html`, `lsqvce_reference_manual.html`,
+`lsqvce_interpretation_guide.html`, `lsqvce_choosing.html`. Audit check 5 reads links inside
+`html/` only, so no instrument looks at a markdown pointer: a check 26 over the repository's
+own .md files would have caught all four.
+
+VERDICTS. Local `ci_gate` GREEN **531/531** (543 declared, 529 + 2 as predicted), 26/26 suites,
+1 excluded; example smoke **15/15** (13 + the two new, isolated calls); Windows audit at its
+honest baseline of exactly ONE finding (check 23, pandoc absent) with the self-test 14/14
+green. CI: pending on the draft PR.

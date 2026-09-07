@@ -873,3 +873,34 @@ function testLocalPriorGroupIsEstimatedLikeACommonOne(tc)
     tc.verifyGreaterThan(R.noise.model{k}.sigma, 1, 'the tight damping (1e-4 on O(1) locals) is loosened by the data');
     tc.verifyTrue(any(strcmp(R.history.streams, 'x1|prior_damp')));
 end
+
+function testDemoPriorsIsTheWorkedLayoutExample(tc)
+% categories: contract, precision
+    % R6 WP-96: examples/demo_priors.m is the ONE worked example of
+    % lsqvce.layout -- a rank-deficient calibration case whose datum can only
+    % be written in the columns the layout announces. A demo nobody executes
+    % rots, and this one carries measured claims, so both are checked: it must
+    % RUN, and the claims of its ACCURACY block must hold.
+    here  = fileparts(mfilename('fullpath'));
+    exDir = fullfile(here, '..', '..', 'examples');    % dev/tests -> root (L8)
+    addpath(exDir);
+    tc.addTeardown(@() rmpath(exDir));
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');
+    out = evalc('[R, s] = demo_priors();');
+
+    tc.verifyClass(R, 'lsqvce.Results');
+    tc.verifyTrue(contains(out, 'lsqvce.layout says'), 'it prints the layout census');
+    tc.verifyEqual([s.nc, s.nl], [7, 13], 'nc and nl are derived from the two tables');
+    tc.verifyEqual(s.nullDim, 3, 'one null direction per day');
+    tc.verifyEqual(s.unregularised, 'lsqvce:qr:rankDeficient', ...
+                   'without priors the singular case is REFUSED, not solved');
+    tc.verifyEqual(s.nPseudo, 9, '1 datum + 2 smoothness + 6 drift rows');
+    % the two ways of writing ONE group must give ONE solution: same operator,
+    % same normals, so the difference is exactly zero, not merely small
+    tc.verifyEqual(s.formGap, 0, 'the L form and the group pattern agree bitwise');
+    % tol: 1e-6 absolute -- the observable part is datum-INVARIANT by algebra;
+    % what is left is the round-off of two independent solves (measured 1.6e-11)
+    tc.verifyLessThan(s.datumGap, 1e-6, 'moving the datum does not move the signal');
+    tc.verifyLessThan(max(abs(s.zSignal)), 3, 'the signal is recovered within 3 sigma');
+    tc.verifyGreaterThan(s.priorLevel, 0, 'the prior group is a stream with a level');
+end

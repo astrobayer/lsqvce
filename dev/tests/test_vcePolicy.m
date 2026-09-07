@@ -498,3 +498,37 @@ function D = perEpochDay(day, nc, nl, nE, nArc, xTrue, withCep)
     D.arcIdx = arrayfun(@(a) (a-1)*nE + (1:nE), 1:nArc, 'UniformOutput', false);
     if withCep, D.Cep = cep; end
 end
+
+function testDemoNoisePolicyIsTheWorkedPolicyExample(tc)
+% categories: contract, reference
+    % R6 WP-96: examples/demo_noisePolicy.m is the ONE worked example of the
+    % per-stream policy fields and of a 'psd' law. Its claims are a reference
+    % against a planted truth, so they are asserted here, not merely printed:
+    % "none" must not move the declared sigma, "scale" must find the planted
+    % level of a given psd shape, "law" must find the planted AR(1) colour,
+    % and arcFactors must isolate the one degraded arc.
+    out = evalc('[R, s] = demo_noisePolicy();');
+    tc.verifyClass(R, 'lsqvce.Results');
+    tc.verifyTrue(contains(out, 'RUN 2'), 'both runs are printed');
+
+    tc.verifyTrue(s.noneFixed, 'estimate "none" leaves the declared sigma exactly alone');
+    % tol: 10 % relative -- one level per stream from 9 arcs of 256 epochs has
+    % a relative standard error of about 0.5*sqrt(2/9) = 0.24; 10 % is well
+    % inside that and still catches a policy that did nothing (a factor 2 here)
+    tc.verifyEqual(s.level(2), s.truth(2), 'RelTol', 0.10, ...
+                   '"scale" on the psd shape finds the planted level');
+    % tol: the same 10 % relative band, for the same reason -- the level of a
+    % stream whose shape was fitted too (measured 5.1 % high on this fixture)
+    tc.verifyEqual(s.level(3), s.truth(3), 'RelTol', 0.10, ...
+                   '"law" finds the level of the colour it fitted');
+    % tol: the fitted lag-1 correlation of an AR(1) from 9 arcs; +-0.15 keeps
+    % white (0) and the planted 0.5 apart by three times the band
+    tc.verifyEqual(s.rho1(1), s.rho1(2), 'AbsTol', 0.15, ...
+                   '"law" recovers the planted AR(1) colour');
+    % the arc factor is a VARIANCE ratio: planted 9, and it must be nowhere
+    % near 1 (no split at all) -- a factor 2 band on a 9 is the honest bound
+    tc.verifyGreaterThan(s.arcRatio(1), 4.5, 'the degraded arc is isolated');
+    tc.verifyLessThan(s.arcRatio(1), 18, 'and not blown up');
+    tc.verifyEqual(s.badEstimate, "lsqvce:fit:badEstimate", ...
+                   'a policy that is not one of the three names is refused by name');
+end
