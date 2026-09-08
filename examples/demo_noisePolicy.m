@@ -74,13 +74,16 @@ function [R, s] = demo_noisePolicy(varargin)
 %       because the level absorbs the mean factor: only the RATIO between arcs
 %       is identifiable. Run 2 converges in ONE pass.
 %
-%   LIMITATIONS  (v5.3, MEASURED here on 2026-09-07 -- HANDOVER 12.20)
-%     * A stream with estimate = "law" in the same run as a stream with
-%       arcFactors = true drives that stream's factors to a degenerate split:
-%       on this fixture the good arcs go to 0.00 and the bad one to 41-46
-%       against a planted 9, at every Pool setting and still at 20 passes.
-%       With the law stream switched to "scale" the same fixture converges in
-%       ONE pass and returns 1.00 / 8.80 / 1.00. Hence the two runs.
+%   LIMITATIONS  (v5.3, MEASURED -- HANDOVER 12.20 and 12.21, finding F-01)
+%     * PER-ARC FACTORS ARE A ONE-PASS ESTIMATE. They are estimated but never
+%       fed back into the weighting, so they compound instead of settling:
+%       on a fixture with planted factors 1 / 9 / 1 the recovered ratio is
+%       7.9 after ONE pass and 60, 458, 3512 after 2, 3, 4. Run 2 below is
+%       therefore a run that CONVERGES IN ONE PASS -- which is why it is a
+%       separate run, and why mixing it with the "law" stream (whose whole
+%       point is to keep iterating) gives 0.00 / 41 / 0.00 against that same
+%       planted 9. The loop warns when it sees a spread run away:
+%       lsqvce:adjustVCEjoint:arcFactorsDiverging
 %     * "law" needs the arcs to identify a shape. On this fixture it recovers
 %       AR(1) colour up to phi = 0.6; at phi = 0.7 the level runs away to
 %       2.8e4. phi = 0.5 is used here for that reason.

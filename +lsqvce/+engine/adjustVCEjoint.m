@@ -134,10 +134,29 @@ function out = adjustVCEjoint(accFcn, opt)
 %   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 %     lsqvce:adjustVCEjoint:localNotPD           System X
 %     lsqvce:adjustVCEjoint:notConverged         [warning] The joint stochastic model did not settle in X outer iterations (last...
+%     lsqvce:adjustVCEjoint:arcFactorsDiverging  [warning] arc-factor spread grew (F-01)
+%
+%   A LIMITATION YOU MUST KNOW ABOUT (R6 WP-97, finding F-01)
+%     The per-arc variance factors are estimated here but never reach the data:
+%     LSQVCE.ENGINE.JOINTMODELOPT can express only a per-STREAM level in the
+%     covariance override, so eq. 6.5.28 multiplies by a factor the weighting
+%     never used. On a fixture with planted factors 1 / 9 / 1 the recovered
+%     ratio is 7.9 after ONE pass and 60, 458, 3512 after 2, 3, 4 -- it
+%     compounds. Take the ONE-PASS estimate for per-arc factors, or use
+%     arcFactors = false and read the per-stream level. The loop warns
+%     (arcFactorsDiverging) when it sees a stream's spread run away; it does
+%     not correct it, because the mechanism is not yet established (the gravity
+%     demo's 48 arcs hold a stable spread). HANDOVER 12.21.
 %
 %   See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
 %            LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 %
+%   Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-97 (finding F-01): the loop
+%   records the SPREAD of every arc-factor stream pass by pass and warns
+%   (arcFactorsDiverging) when one keeps growing -- the per-arc factors are
+%   estimated but never fed back into the weighting, so they compound. The
+%   guard reports; it does not correct, because the mechanism is not yet
+%   established. With assistance from Claude (Anthropic), model Claude Opus 5.
 %   Updated 2026-09-06 (CEST, UTC+02:00), R6 WP-90: the per-axis descale runs
 %   for every arc that carries a per-epoch Cep (scalar streams included); the
 %   noCep refusal is retired. With assistance from Claude (Anthropic), model
@@ -234,7 +253,9 @@ end
     accF = []; solF = []; Shat = [];
     Cmap = containers.Map('KeyType', 'char', 'ValueType', 'any');   % R5 M3 3d: C per pool group
     pinnedKeys = {};                     % WP-34: pass-1 arc identity
+    pinnedStream = {};                   % R6 WP-97: their stream keys, once
     s2Map = [];                          % keyed factors; built on pass 1
+    spreadHist = containers.Map('KeyType', 'char', 'ValueType', 'any');   % R6 WP-97 (F-01)
 
     shatTail = {};                               % WP-40 r2: AvgTail buffer
     lastSol = [];                                % R5 M7 7b: the previous pass's solution
@@ -294,6 +315,7 @@ end
             % Pass 1: pin the arc identity on the ENUMERATION (skipped arcs
             % included -- a pass-1 skip keeps the default factor 1).
             pinnedKeys = keysAll;
+            pinnedStream = cellfun(@streamKeyOf, pinnedKeys(:), 'UniformOutput', false);
             s2Map = containers.Map('KeyType','char', 'ValueType','double');
             if isempty(o.Sigma2_0)
                 for kk = 1:numel(pinnedKeys), s2Map(pinnedKeys{kk}) = 1; end
@@ -407,6 +429,19 @@ end
         end
         sigma2 = cellfun(@(k) s2Map(k), pinnedKeys(:));   % pinned order
 
+        % R6 WP-97 (finding F-01): record the SPREAD of every arc-factor
+        % stream, pass by pass. An arc factor is a RELATIVE weight inside its
+        % stream, so its spread must settle; one that keeps growing is not an
+        % estimate. arcSpreadGuard reads this after the loop.
+        for sk = unique(streamOf(:)).'
+            if ~arcFactorsOf(o.ArcFactors, sk{1}), continue, end
+            f = sigma2(strcmp(pinnedStream, sk{1}));
+            f = f(isfinite(f) & f > 0);
+            if numel(f) < 2, continue, end
+            if isKey(spreadHist, sk{1}), r0 = spreadHist(sk{1}); else, r0 = []; end
+            spreadHist(sk{1}) = [r0; max(f)/min(f)];
+        end
+
         hist.maxDev(it,1)  = pv.maxDev;              %#ok<AGROW>
         hist.Shat(it,:)    = Shat(:).';              %#ok<AGROW>
         % R5 M4 4a: the per-stream pass record Results.convergence reads --
@@ -447,6 +482,8 @@ end
             'or a starting covariance far from the data.'], ...
             o.MaxIter, hist.maxDev(end), o.Tol);
     end
+
+    arcSpreadGuard(spreadHist);          % R6 WP-97 (F-01): report, never silence
 
     if o.AvgTail > 0 && numel(shatTail) >= o.AvgTail
         Shat = exp(mean(cat(2, shatTail{end-o.AvgTail+1:end}), 2));
@@ -712,6 +749,44 @@ function sk = streamKeyOf(arcKey)
     tok = regexp(arcKey, '^s(.+?)_(.+)_d[^_]+_a', 'tokens', 'once');   % R5-D8 6: obsType may carry underscores
     if isempty(tok), sk = arcKey; return, end
     sk = sprintf('%s|%s', matlab.lang.makeValidName(tok{1}), tok{2});
+end
+
+function arcSpreadGuard(spreadHist)
+%ARCSPREADGUARD  Refuse to return a DIVERGING set of arc factors in silence.
+%   R6 WP-97, finding F-01 (HANDOVER 12.21). An arc variance factor is a
+%   RELATIVE weight inside its stream, so over the passes its spread must
+%   settle. MEASURED on a fixture whose planted arc variance factors are
+%   1 / 9 / 1: the recovered ratio is 7.9 after ONE pass and 60, 458, 3512,
+%   2.1e5, 1.3e7 after 2, 3, 4, 6, 8 -- roughly squaring every pass, which is
+%   what an iteration with no feedback does. The per-arc factors never reach
+%   the data (LSQVCE.ENGINE.JOINTMODELOPT applies the stream MEAN only), so
+%   eq. 6.5.28 multiplies by a factor the data never saw.
+%
+%   This REPORTS rather than corrects, deliberately: the mechanism is not yet
+%   established -- demo_gravity's 48 arcs hold a stable spread over four
+%   passes -- and a correction on a half-finished diagnosis would be a guess
+%   wearing a fix's clothes. Silence is the one answer that is not allowed.
+%
+%   THE RULE, and where its numbers come from: fire only when the spread BOTH
+%   grew at every one of the last three passes AND ended at least 4x its first
+%   pass. Measured on the healthy demos, both silent: demo_gravity 16 -> 15.6
+%   -> 17 over four passes, demo_grace 4.13 -> 3.27 over six.
+    ks = keys(spreadHist);
+    for i = 1:numel(ks)
+        r = spreadHist(ks{i});
+        if numel(r) < 3, continue, end
+        if all(diff(r(end-2:end)) > 0) && r(end) >= 4 * r(1)
+            lsqvce.util.log.warnOnce('lsqvce:adjustVCEjoint:arcFactorsDiverging', ...
+               ['Stream %s: the spread of its per-arc variance factors grew from %.3g to ' ...
+                '%.3g over %d passes and was still growing at the last one. Per-arc factors ' ...
+                'are estimated but never fed back into the weighting (finding F-01), so they ' ...
+                'compound instead of settling. Take the ONE-PASS estimate (MaxPasses = 1) ' ...
+                'for per-arc factors, or set arcFactors = false on this stream and read its ' ...
+                'level instead. A stream with arcFactors = false is unaffected; the level of ' ...
+                'THIS stream is the mean of these factors, so it drifts with them.'], ...
+                ks{i}, r(1), r(end), numel(r));
+        end
+    end
 end
 
 function p = policyOf(E, sk)

@@ -6342,3 +6342,45 @@ weights every arc by one `C`; `Cmap`'s per-group laws never reach it, and `fit>s
 mirrors the same conflation by falling back to the global `out.C`. With `Pool="stream"` the
 toolbox therefore fits per-stream laws and then weights every stream by one of them. It
 changes no number in the F-01 fixture, but it is not what `Pool` promises.
+
+| WP | title | depends on | status |
+|---|---|---|---|
+| 97 | Finding F-01: the arc-factor ORACLE the suite never had (planted 1 / 9 / 1, recovered in one pass), a CHARACTERISATION test that pins the compounding until it is fixed, and a guard (`lsqvce:adjustVCEjoint:arcFactorsDiverging`) that reports a runaway spread instead of returning it silently; `Options.ArcFactors`, the Manual and `demo_noisePolicy` state the limitation | 96 | READY (2026-09-08, PR #97; local ci_gate GREEN 534/534 over 26/26 suites, examples 15/15, Linux audit CLEAN with the Manual rebuilt, self-test 14/14; DONE flips on the merge) |
+
+**ROUND WP-97 (2026-09-08, model Claude Opus 5, tier A).** The round's first product was a
+REFUTED hypothesis (§12.21 above); everything below is what measurement then established.
+
+MEASURED — the oracle's band. The fixture plants arc VARIANCE factors 1 / 9 / 1 (arc 2 of
+every day 3x worse in sigma) on ONE white stream with no local unknowns, and asks for the law
+so the loop keeps iterating. Six seeds, ONE pass: **7.83, 8.49, 8.84, 9.37, 9.62, 9.85**
+against the planted 9. The test asserts [6, 13] — wide enough to clear seed noise by a factor
+of three, far from 1 (no split at all) and from what four passes give.
+
+MEASURED — the compounding. The same six seeds after FOUR passes: **3766 … 6927**. Three
+orders of magnitude from the planted 9, and one order above the characterisation test's
+threshold of 100 in the direction that matters.
+
+MEASURED — the guard, fault-injected BOTH ways (an instrument that cannot be shown to be
+silent proves nothing by being silent):
+  * with a degraded arc, four passes: spread 4670 / 5600 / 6109 on three seeds — **fires 3/3**;
+  * with NO degraded arc, four passes: spread 1.16 / 1.23 / 1.72 — **silent 3/3**;
+  * `demo_gravity` (48 arcs, 4 passes) and `demo_grace` (6 passes) — **silent**.
+That the spread stays near 1.2 when nothing is planted is itself informative: the compounding
+SQUARES what is already there, so a run with no real per-arc difference has nothing to
+amplify. It is why `demo_gravity` looks stable and why the defect hid.
+
+**What this round did NOT do, on purpose.** It did not change the estimate. The mechanism is
+established for the fixture (no feedback: `jointModelOpt` can express only a per-stream level)
+but NOT for the tree as a whole (`demo_gravity` holds a stable spread over four passes, which
+a pure no-feedback recursion does not explain). Correcting the recursion on that much is a
+guess wearing a fix's clothes. What ships is: the number is now pinned where it is right (one
+pass), pinned where it is wrong (four passes, with the comment that says INVERT ME when F-01
+is fixed), reported at run time, and stated in the three places a user reads — `Options`
+help, the Manual chapter 3 §2, and `demo_noisePolicy`'s LIMITATIONS (whose first bullet was
+CORRECTED: it blamed the law-plus-arcFactors combination, which is a symptom of the
+compounding, not its cause).
+
+VERDICTS. Local `ci_gate` GREEN **534/534** (546 declared, 531 + 3 as predicted), 26/26 suites,
+1 excluded; example smoke **15/15**; Linux audit (Manual rebuilt under WSL) **CLEAN, zero
+findings**, self-test 14/14; the new identifier is catalogued (299 raised = 299 catalogued)
+and documented in its unit's help. CI: pending on the draft PR.
