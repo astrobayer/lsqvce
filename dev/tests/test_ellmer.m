@@ -528,6 +528,37 @@ function test_arcVarianceFactors_rejects_arc_mismatch(tc)
         'lsqvce:arcVarianceFactors:arcMismatch');
 end
 
+function test_arcVarianceFactors_alpha2_is_blind_to_the_arcs_own_factor(tc)
+% categories: metamorphic, precision
+    % R6 WP-98: THE INVARIANT THE F-01 FIX RESTS ON, pinned at machine
+    % precision. adjustVCEjoint>sweepArcs scales an arc's omegaT AND its sT by
+    % the same scalar s2_m, and alpha2_m is their ratio through two LINEAR maps
+    % (dctI, then a column sum), so s2_m divides out algebraically: alpha2 is a
+    % function of the data and the law only and can NEVER respond to the factor
+    % being estimated. That is why eq. 6.5.28 must multiply by the factor the
+    % WEIGHTING used, not by the per-arc one -- multiplying by a number the
+    % estimate is blind to made the update a geometric recursion with no fixed
+    % point (finding F-01, HANDOVER 12.21 and 12.22).
+    % Two related calls, no oracle needed: scale both inputs per column and the
+    % raw alpha2 must not move.
+    rs = RandStream('mt19937ar', 'Seed', 7);
+    n = 61;  M = 6;
+    om = rand(rs, n, M);
+    sn = rand(rs, n, M) + 1;                       % strictly positive denominators
+    s2 = [1 9 1 4 0.25 2].';                       % wildly different current factors
+    a0 = lsqvce.engine.arcVarianceFactors(om,          sn,          ones(M, 1));
+    a1 = lsqvce.engine.arcVarianceFactors(om .* s2.',  sn .* s2.',  s2);
+    % tol: 1e-12 relative -- the cancellation is exact in exact arithmetic, so
+    % what is left is the rounding of two dctI transforms and two column sums
+    tc.verifyEqual(a1.alpha2, a0.alpha2, 'RelTol', 1e-12, ...
+                   'alpha2 does not see the arc factor it is estimating');
+    % and eq. 6.5.28 therefore multiplies a CONSTANT by whatever it is handed
+    % tol: 1e-12 relative, the same bound and the same reason as above -- the
+    % product is formed from the alpha2 the previous assertion just pinned
+    tc.verifyEqual(a1.gamma2, a0.alpha2 .* s2, 'RelTol', 1e-12, ...
+                   'gamma2 = alpha2 * whatever factor is passed in');
+end
+
 %% ============================================ Phase E: joint loop driver
 function test_adjustVCEjoint_runs_and_returns_shapes(tc)
 % categories: contract, robustness

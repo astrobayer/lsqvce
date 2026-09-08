@@ -6430,8 +6430,21 @@ per-pass GROWTH FACTOR of the ratio must be constant. Measured on the committed 
 Constant to 1.7 % over four decades of growth. The slow decay is the law still moving, which
 nudges `A_m`; the process is otherwise exactly geometric. M2 (no planted difference → no
 runaway) follows immediately: `A_bad/A_good ≈ 1` raised to any power is 1. M4 (the refuted
-sweep fix changed nothing) follows too: `C` multiplies `om` and `sn` alike, so it cannot change
-a ratio that has already cancelled `s2`.
+sweep fix changed nothing) is consistent but NOT implied: `C` sits inside a weighted lag sum
+and does not cancel algebraically the way `s2` does, so its near-irrelevance there (43.263 →
+43.259) is empirical, and the mechanism does not lean on it.
+
+**This also supersedes §12.21's own phrasing.** That round wrote "roughly squaring every pass".
+It is not squaring, it is a CONSTANT growth factor — squaring would have put pass 3 at ~3900
+where 671 was measured. The distinction matters because a constant factor is exactly the
+signature of a multiplicative update whose multiplier does not respond, which is the mechanism.
+
+**And it says why only the PER-ARC path was broken.** The per-stream LEVEL is updated by the
+same multiplicative form (`fStream`, the mean of `gamma2` over the stream's arcs) and is
+perfectly stable — because that level DOES reach the data through `jointModelOpt`, so `alpha2`
+responds to it and the update has a fixed point at `mean(alpha2) = 1`. One sentence covers
+both halves: the identical update is stable where the feedback exists and divergent where it
+does not. That is also why `arcFactors = false` runs were never affected.
 
 **What a fix must do (recorded; NOT implemented in this round without a measured blast
 radius).** Eq. 6.5.28 multiplies by the factor the weighting used. The weighting used the
@@ -6491,8 +6504,17 @@ a measurement of my own (above); its second was to derive the mechanism and PRED
 before measuring it, which is the only kind of confirmation worth having here. The prediction
 was a constant per-pass growth factor; measured 8.48, 8.44, 8.38, 8.34.
 
-VERDICTS. Local `ci_gate` GREEN **534/534** (546 declared, unchanged — two tests reworked, none
-added or removed), 26/26 suites, 1 excluded; example smoke **15/15**; Linux audit with the
+**One test added after the round's own findings were re-read by an independent panel** (a
+21-agent trace-and-refute pass over the arc-factor path, run against the pre-fix code): the
+cancellation the whole fix rests on is now pinned at machine precision as a METAMORPHIC test
+in `test_ellmer` — scale an arc's `omegaT` and `sT` by the same factor and `alpha2` must not
+move (measured agreement 1e-12, the rounding of two dctI transforms). The panel also caught
+the two loose statements corrected above. Its refutation stage was lost to a scripting error
+of mine (`parallel()` was handed promises instead of thunks), so its verdicts are one
+synthesis over four independent traces, not an adversarial vote — recorded as such.
+
+VERDICTS. Local `ci_gate` GREEN **535/535** (547 declared: two tests reworked, one added),
+26/26 suites, 1 excluded; example smoke **15/15**; Linux audit with the
 Manual rebuilt under WSL **CLEAN, zero findings**, self-test 14/14. The blast radius was
 measured before the round was allowed to continue: the whole suite run test by test failed
 exactly the two points that existed to describe the defect. CI: pending on the draft PR.

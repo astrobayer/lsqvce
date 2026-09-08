@@ -78,11 +78,10 @@ function [R, s] = demo_noisePolicy(varargin)
 %   LIMITATIONS  (v5.3, MEASURED -- HANDOVER 12.20, 12.21, 12.22)
 %     * Of a stream's per-arc factors only the RATIO is identifiable: the
 %       level absorbs their mean, which is why the demo reports both and
-%       compares only the ratio against its planted 9. (Finding F-01, fixed
-%       in WP-98:
-%       eq. 6.5.28 multiplied by a factor the weighting never used, so the
-%       ratio grew 8.4x every pass -- 9.4, 79, 671, 5626 -- instead of
-%       settling. It now settles: 9.4, 8.6, 8.6, 8.6.)
+%       compares only the ratio against its planted 9. (Finding F-01, fixed in
+%       WP-98: eq. 6.5.28 multiplied by a factor the weighting never used, so
+%       the ratio grew by a constant 8.4x every pass -- 9.4, 79, 671, 5626 --
+%       instead of settling. It now settles: 9.4, 8.6, 8.6, 8.6.)
 %     * "law" needs the arcs to identify a shape. On this fixture it recovers
 %       AR(1) colour up to phi = 0.6; at phi = 0.7 the level runs away to
 %       2.8e4. phi = 0.5 is used here for that reason.
