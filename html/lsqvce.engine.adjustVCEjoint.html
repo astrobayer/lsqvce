@@ -172,23 +172,35 @@ plot(r.sigma2);            % the arc-wise weights</pre>
 IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
   lsqvce:adjustVCEjoint:localNotPD           System X
   lsqvce:adjustVCEjoint:notConverged         [warning] The joint stochastic model did not settle in X outer iterations (last...
-  lsqvce:adjustVCEjoint:arcFactorsDiverging  [warning] arc-factor spread grew (F-01)
-
-A LIMITATION YOU MUST KNOW ABOUT (R6 WP-97, finding F-01)
-  The per-arc variance factors are estimated here but never reach the data:
-  LSQVCE.ENGINE.JOINTMODELOPT can express only a per-STREAM level in the
-  covariance override, so eq. 6.5.28 multiplies by a factor the weighting
-  never used. On a fixture with planted factors 1 / 9 / 1 the recovered
-  ratio is 7.9 after ONE pass and 60, 458, 3512 after 2, 3, 4 -- it
-  compounds. Take the ONE-PASS estimate for per-arc factors, or use
-  arcFactors = false and read the per-stream level. The loop warns
-  (arcFactorsDiverging) when it sees a stream&#x27;s spread run away; it does
-  not correct it, because the mechanism is not yet established (the gravity
-  demo&#x27;s 48 arcs hold a stable spread). HANDOVER 12.21.
+  lsqvce:adjustVCEjoint:arcFactorsDiverging  [warning] arc-factor spread grew (F-01)</pre>
+<h3>WHAT eq. 6.5.28 MULTIPLIES, AND WHY IT MATTERS (R6 WP-98, finding F-01)</h3>
+<pre class="example">  gamma2_m = alpha2_m * sigma2_m is correct only when sigma2_m is the factor
+  the WEIGHTING used. It is not the per-arc factor: LSQVCE.ENGINE.JOINTMODELOPT
+  can express only a per-STREAM level in the covariance override, so that
+  level is what the data saw and that level is what multiplies here.
+  Multiplying by the per-arc factor instead made the update a geometric
+  recursion with NO FIXED POINT, because alpha2_m cancels its own arc&#x27;s
+  factor exactly -- sweepArcs scales omegaT and sT by the same s2_m -- and
+  so never responds to it. MEASURED on a fixture with planted factors
+  1 / 9 / 1: the ratio ran 9.4, 79, 671, 5626, 4.7e4 over five passes, a
+  constant 8.4x per pass; it now settles at 9.4, 8.6, 8.6, 8.6, 8.6.
+  For a stream with arcFactors = false the two numbers are identical (every
+  arc carries the one stream level), so those runs are unchanged.
+  STILL OPEN: only the RATIO between a stream&#x27;s arcs is pinned by evidence.
+  The absolute split between a stream&#x27;s LEVEL and its arc factors is fixed
+  by gammaBar (eq. 6.5.30), and on that fixture the level settles at 0.678
+  where the undegraded arcs were planted at 0.5. HANDOVER 12.22.
 
 See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
          LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 
+Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-98 (finding F-01 FIXED): eq.
+6.5.28 now multiplies alpha2_m by the factor the WEIGHTING used -- the
+per-stream level -- instead of the per-arc factor, which alpha2 cancels
+and therefore never responded to. The arc-factor ratio settles instead of
+growing 8.4x a pass; runs with arcFactors = false are unchanged, because
+there the two numbers are identical. With assistance from Claude
+(Anthropic), model Claude Opus 5.
 Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-97 (finding F-01): the loop
 records the SPREAD of every arc-factor stream pass by pass and warns
 (arcFactorsDiverging) when one keeps growing -- the per-arc factors are

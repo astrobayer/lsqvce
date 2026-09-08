@@ -34,56 +34,54 @@ function [R, s] = demo_noisePolicy(varargin)
 %     rr    colour unknown (AR(1)), declared white    -> "law"
 %     mag   white, but ARC 2 of every day is 3x worse -> "scale" + arcFactors
 %
-%   IT RUNS TWICE, AND THAT IS THE POINT OF THE THIRD SECTION.  Run 1 takes
-%   gps + acc + rr and shows the three policies. Run 2 takes gps + acc + mag
-%   and shows the arc factors. They are separate because in v5.3 a "law"
-%   stream and an arcFactors stream in the SAME run do not settle -- MEASURED,
-%   see LIMITATIONS. A demo may not hide that behind a fixture chosen to look
-%   good; it states it, with the numbers.
+%   ALL FOUR IN ONE RUN, which is worth a sentence of history. Until WP-98
+%   this demo had to run TWICE -- the three policies in one run, the arc
+%   factors in another -- because a "law" stream and an arcFactors stream in
+%   the same run drove the factors to 0.00 / 41 / 0.00 against that planted 9
+%   (finding F-01). With eq. 6.5.28 multiplying the factor the weighting
+%   actually used, the same four streams settle together: 0.97 / 8.90 / 0.92.
+%   One run is now the honest demonstration; two would be a memorial.
 %
 %   INPUT  (Name-Value, all optional)
 %     maxPasses 1x1 double   passes of the loop (default 12)
 %     verbose   1x1 logical  print the engine log (default false)
 %   OUTPUT
-%     R         1x1 lsqvce.Results   run 1, with R.history / R.noise attached
+%     R         1x1 lsqvce.Results   the run, with R.history / R.noise attached
 %     s         1x1 struct           the measured summary:
-%       .stream       1x4 string   the streams, gps acc rr (run 1) then mag
+%       .stream       1x4 string   the streams, in R.noise order
 %       .declared     1x4 double   the sigma each spec declared
 %       .level        1x4 double   the level each stream ended at
 %       .truth        1x4 double   the planted level, in the declared units
 %       .noneFixed    1x1 logical  the "none" stream's level == its declared
 %       .rho1         1x2 double   [estimated planted] lag-1 correlation of rr
-%       .arcFactor    1x3 double   mean factor of arcs 1..3 of mag (run 2)
+%       .arcFactor    1x3 double   mean factor of arcs 1..3 of mag
 %       .arcRatio     1x2 double   [estimated planted] bad-arc variance ratio
-%       .passes       1x2 double   passes each run took
+%       .passes       1x1 double   passes the loop took
 %       .badEstimate  1x1 string   the identifier a misspelt policy raises
 %
-%   ACCURACY  (MEASURED 2026-09-07 on R2026a. The fixture noise is drawn from
-%   a stream seeded on (day, obsType); two consecutive runs reproduced every
-%   figure below to four decimals, so this demo repeats.)
-%     Run 1, levels: gps 0.2000 against its declared 0.2000 EXACTLY -- "none"
-%       does not move; acc 0.4906 against the planted 0.5000 ("scale" on a
-%       given psd shape); rr 1.2137 against the planted 1.1547 =
-%       1/sqrt(1-phi^2) -- 5 % high, which is what one AR(1) shape fitted from
-%       nine arcs of 256 epochs is worth.
-%     Run 1, the shape rr found: lag-1 correlation 0.559 against the planted
-%       0.500 (R.noise.Cgroups, 60 lags). sigma0 = 0.9938, stop "maxPasses".
-%     Run 2, arc factors of mag: 1.28, 11.81, 1.22 -- the bad arc is 9.4x the
-%       good ones against a planted 9 (a VARIANCE ratio: arc 2 is 3x in
-%       sigma). Its level 0.6553 against 0.5745 = 0.30*sqrt(mean([1 9 1])),
-%       because the level absorbs the mean factor: only the RATIO between arcs
-%       is identifiable. Run 2 converges in ONE pass.
+%   ACCURACY  (MEASURED 2026-09-08 on R2026a, all four streams in ONE run. The
+%   fixture noise is drawn from a stream seeded on (day, obsType) and two
+%   consecutive runs reproduced every figure below, so this demo repeats.)
+%     Levels: gps 0.2000 against its declared 0.2000 EXACTLY -- "none" does not
+%       move; acc 0.4906 against the planted 0.5000 ("scale" on a given psd
+%       shape); rr 1.214 against the planted 1.1547 = 1/sqrt(1-phi^2), 5 % high,
+%       which is what one AR(1) shape fitted from nine arcs of 256 epochs is
+%       worth; mag 0.5691 against 0.5745 = 0.30*sqrt(mean([1 9 1])).
+%     The shape rr found: lag-1 correlation 0.559 against the planted 0.500
+%       (R.noise.Cgroups, 60 lags).
+%     Arc factors of mag: 0.97, 8.90, 0.92 -- the bad arc is 9.4x the good ones
+%       against a planted 9 (a VARIANCE ratio: arc 2 is 3x in sigma). The level
+%       absorbs their mean, so only that RATIO is identifiable.
+%     sigma0 = 0.997; the loop stops on maxPasses (12), the shape still moving
+%       in its last digits.
 %
-%   LIMITATIONS  (v5.3, MEASURED -- HANDOVER 12.20 and 12.21, finding F-01)
-%     * PER-ARC FACTORS ARE A ONE-PASS ESTIMATE. They are estimated but never
-%       fed back into the weighting, so they compound instead of settling:
-%       on a fixture with planted factors 1 / 9 / 1 the recovered ratio is
-%       7.9 after ONE pass and 60, 458, 3512 after 2, 3, 4. Run 2 below is
-%       therefore a run that CONVERGES IN ONE PASS -- which is why it is a
-%       separate run, and why mixing it with the "law" stream (whose whole
-%       point is to keep iterating) gives 0.00 / 41 / 0.00 against that same
-%       planted 9. The loop warns when it sees a spread run away:
-%       lsqvce:adjustVCEjoint:arcFactorsDiverging
+%   LIMITATIONS  (v5.3, MEASURED -- HANDOVER 12.20, 12.21, 12.22)
+%     * Of a stream's per-arc factors only the RATIO is identifiable: the
+%       level absorbs their mean, which is why the demo reports both and
+%       compares only the ratio against its planted 9. (Finding F-01, fixed in
+%       WP-98: eq. 6.5.28 multiplied by a factor the weighting never used, so
+%       the ratio grew by a constant 8.4x every pass -- 9.4, 79, 671, 5626 --
+%       instead of settling. It now settles: 9.4, 8.6, 8.6, 8.6.)
 %     * "law" needs the arcs to identify a shape. On this fixture it recovers
 %       AR(1) colour up to phi = 0.6; at phi = 0.7 the level runs away to
 %       2.8e4. phi = 0.5 is used here for that reason.
@@ -116,20 +114,21 @@ function [R, s] = demo_noisePolicy(varargin)
                 string(cfg.arcFactors(k)), cfg.knowledge{k});
     end
 
-    % ---- RUN 1: the three policies ---------------------------------------
-    % ArcFactors=false in Options is the POLICY DEFAULT for the whole run; a
-    % stream that needs per-arc factors overrides it on its own spec (run 2).
-    sel1 = [1 2 3];                                  % gps, acc, rr
-    R = lsqvce.fit(policyData(cfg, sel1), ...
+    % ---- THE RUN: all four policies at once ------------------------------
+    % ArcFactors=false in Options is the POLICY DEFAULT for the whole run; the
+    % ONE stream that needs per-arc factors overrides it on its own spec.
+    sel = 1:numel(cfg.streams);
+    R = lsqvce.fit(policyData(cfg, sel), ...
                    lsqvce.Options(Estimate="noise", Pool="stream", ...
                                   ArcFactors=false, MaxPasses=o.maxPasses, ...
                                   Verbose=o.verbose));
     [s.stream, s.declared, s.level, s.truth] = levels(cfg, R);
+    s.passes = R.history.nIter;
     % Look every stream up BY NAME. R.noise.stream follows the covariance
     % fieldnames, but a demo that indexed by position would report the wrong
     % row the day that order changed, and say nothing about it.
     at = @(nm) find(extractAfter(s.stream, '|') == string(nm), 1);
-    fprintf('\n--- RUN 1: level per stream (the estimand of "scale") ---\n');
+    fprintf('\n--- level per stream (the estimand of "scale") ---\n');
     fprintf('  %-10s %10s %10s %10s   %s\n', 'stream', 'declared', 'level', ...
             'planted', 'policy');
     for k = 1:numel(s.stream)
@@ -147,38 +146,29 @@ function [R, s] = demo_noisePolicy(varargin)
     kLaw = at(cfg.streams{3});
     Cg = R.noise.Cgroups(char(s.stream(kLaw)));
     s.rho1 = [Cg(2)/Cg(1), cfg.phiRr];
-    fprintf('\n--- RUN 1: the shape "law" found (%d lags) ---\n', numel(Cg));
+    fprintf('\n--- the shape "law" found (%d lags) ---\n', numel(Cg));
     fprintf('  %s: lag-1 correlation %.3f, planted %.3f\n', s.stream(kLaw), ...
             s.rho1(1), s.rho1(2));
     fprintf('  gps and acc kept the shape they were given -- a psd law for acc.\n');
 
-    % ---- RUN 2: the arc factors ------------------------------------------
-    sel2 = [1 2 4];                                  % gps, acc, mag
-    R2 = lsqvce.fit(policyData(cfg, sel2), ...
-                    lsqvce.Options(Estimate="noise", Pool="stream", ...
-                                   ArcFactors=false, MaxPasses=o.maxPasses, ...
-                                   Verbose=o.verbose));
-    [st2, dc2, lv2, tr2] = levels(cfg, R2);
-    kArc = find(extractAfter(st2, '|') == string(cfg.streams{4}), 1);
-    s.stream(4) = st2(kArc);  s.declared(4) = dc2(kArc);
-    s.level(4)  = lv2(kArc);  s.truth(4)    = tr2(kArc);
-    f2 = R2.noise.model{kArc}.sigma2;                % one factor per arc
+    % ---- THE ARC FACTORS -------------------------------------------------
+    kArc = at(cfg.streams{4});
+    f2 = R.noise.model{kArc}.sigma2;                 % one factor per arc
     s.arcFactor = mean(reshape(f2, cfg.arcs, []), 2).';
     good = setdiff(1:cfg.arcs, cfg.badArc);
     s.arcRatio = [s.arcFactor(cfg.badArc) / mean(s.arcFactor(good)), cfg.badScale^2];
-    s.passes = [R.history.nIter, R2.history.nIter];
-    fprintf('\n--- RUN 2: arc factors (only mag declared arcFactors = true) ---\n');
-    fprintf('  %s, mean VARIANCE factor per arc: %s\n', s.stream(4), ...
+    fprintf('\n--- arc factors (only mag declared arcFactors = true) ---\n');
+    fprintf('  %s, mean VARIANCE factor per arc: %s\n', s.stream(kArc), ...
             num2str(s.arcFactor, '%.2f  '));
     fprintf('  arc %d against the good arcs: %.1f, planted %d (%dx in sigma)\n', ...
             cfg.badArc, s.arcRatio(1), s.arcRatio(2), cfg.badScale);
     fprintf('  its level %.3f against %.3f: the level absorbs the MEAN factor,\n', ...
-            s.level(4), s.truth(4));
+            s.level(kArc), s.truth(kArc));
     fprintf('  so only the RATIO between arcs is identifiable.\n');
-    fprintf('  gps and acc got ONE level each, no per-arc split.\n');
+    fprintf('  the other three streams got ONE level each, no per-arc split.\n');
 
     % ---- THE POLICY IS CHECKED BY NAME -----------------------------------
-    bad = policyData(cfg, sel1);
+    bad = policyData(cfg, sel);
     bad.systems(1).covariance.(cfg.streams{1}).estimate = "shape";   % not a policy
     try
         lsqvce.fit(bad, lsqvce.Options(Estimate="noise", Verbose=false));
@@ -188,7 +178,7 @@ function [R, s] = demo_noisePolicy(varargin)
     end
     fprintf('\na misspelt policy is refused by name: %s\n', s.badEstimate);
 
-    fprintf('\n--- R.summary() of run 1: one row per stream ---\n');
+    fprintf('\n--- R.summary(): one row per stream ---\n');
     disp(R.summary());
     fprintf(['HOW TO CHOOSE: "none" when you trust a calibration more than this\n' ...
              'adjustment; "scale" when the shape comes from the hardware and the\n' ...

@@ -136,21 +136,34 @@ function out = adjustVCEjoint(accFcn, opt)
 %     lsqvce:adjustVCEjoint:notConverged         [warning] The joint stochastic model did not settle in X outer iterations (last...
 %     lsqvce:adjustVCEjoint:arcFactorsDiverging  [warning] arc-factor spread grew (F-01)
 %
-%   A LIMITATION YOU MUST KNOW ABOUT (R6 WP-97, finding F-01)
-%     The per-arc variance factors are estimated here but never reach the data:
-%     LSQVCE.ENGINE.JOINTMODELOPT can express only a per-STREAM level in the
-%     covariance override, so eq. 6.5.28 multiplies by a factor the weighting
-%     never used. On a fixture with planted factors 1 / 9 / 1 the recovered
-%     ratio is 7.9 after ONE pass and 60, 458, 3512 after 2, 3, 4 -- it
-%     compounds. Take the ONE-PASS estimate for per-arc factors, or use
-%     arcFactors = false and read the per-stream level. The loop warns
-%     (arcFactorsDiverging) when it sees a stream's spread run away; it does
-%     not correct it, because the mechanism is not yet established (the gravity
-%     demo's 48 arcs hold a stable spread). HANDOVER 12.21.
+%   WHAT eq. 6.5.28 MULTIPLIES, AND WHY IT MATTERS (R6 WP-98, finding F-01)
+%     gamma2_m = alpha2_m * sigma2_m is correct only when sigma2_m is the factor
+%     the WEIGHTING used. It is not the per-arc factor: LSQVCE.ENGINE.JOINTMODELOPT
+%     can express only a per-STREAM level in the covariance override, so that
+%     level is what the data saw and that level is what multiplies here.
+%     Multiplying by the per-arc factor instead made the update a geometric
+%     recursion with NO FIXED POINT, because alpha2_m cancels its own arc's
+%     factor exactly -- sweepArcs scales omegaT and sT by the same s2_m -- and
+%     so never responds to it. MEASURED on a fixture with planted factors
+%     1 / 9 / 1: the ratio ran 9.4, 79, 671, 5626, 4.7e4 over five passes, a
+%     constant 8.4x per pass; it now settles at 9.4, 8.6, 8.6, 8.6, 8.6.
+%     For a stream with arcFactors = false the two numbers are identical (every
+%     arc carries the one stream level), so those runs are unchanged.
+%     STILL OPEN: only the RATIO between a stream's arcs is pinned by evidence.
+%     The absolute split between a stream's LEVEL and its arc factors is fixed
+%     by gammaBar (eq. 6.5.30), and on that fixture the level settles at 0.678
+%     where the undegraded arcs were planted at 0.5. HANDOVER 12.22.
 %
 %   See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
 %            LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 %
+%   Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-98 (finding F-01 FIXED): eq.
+%   6.5.28 now multiplies alpha2_m by the factor the WEIGHTING used -- the
+%   per-stream level -- instead of the per-arc factor, which alpha2 cancels
+%   and therefore never responded to. The arc-factor ratio settles instead of
+%   growing 8.4x a pass; runs with arcFactors = false are unchanged, because
+%   there the two numbers are identical. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.
 %   Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-97 (finding F-01): the loop
 %   records the SPREAD of every arc-factor stream pass by pass and warns
 %   (arcFactorsDiverging) when one keeps growing -- the per-arc factors are
@@ -392,7 +405,22 @@ end
         end
         pv = struct('maxDev', pvMax);
         if isempty(Shat), Shat = lsqvce.kernel.dctI(C, 'Norm', o.Norm); end
-        av = lsqvce.engine.arcVarianceFactors(omegaT, sT, s2Cols, ...
+        % R6 WP-98 (finding F-01): eq. 6.5.28 multiplies alpha2_m by the factor
+        % the WEIGHTING used. What the weighting used is the per-STREAM level --
+        % LSQVCE.ENGINE.JOINTMODELOPT can express nothing finer -- so that is
+        % what must multiply here. Multiplying by the per-ARC factor instead
+        % makes the update a geometric recursion with no fixed point, because
+        % alpha2_m cancels its own arc's factor exactly (both omegaT and sT are
+        % scaled by it in sweepArcs) and so never responds to it: MEASURED
+        % growth of 8.4x per pass over four decades. For a stream with
+        % arcFactors = false every arc already carries the one stream level, so
+        % these two are the same number and such runs cannot move.
+        s2Applied = s2Cols;
+        for sk = unique(streamOf(:)).'
+            cols = strcmp(streamOf, sk{1});
+            s2Applied(cols) = mean(s2Cols(cols));
+        end
+        av = lsqvce.engine.arcVarianceFactors(omegaT, sT, s2Applied, ...
                                        'Norm', o.Norm, 'MeanType', o.MeanType);
         % WP-40 r2 (F-15): Polyak tail averaging of the RETURNED spectrum
         % (log domain, last AvgTail passes). The loop keeps iterating on the
@@ -753,24 +781,24 @@ end
 
 function arcSpreadGuard(spreadHist)
 %ARCSPREADGUARD  Refuse to return a DIVERGING set of arc factors in silence.
-%   R6 WP-97, finding F-01 (HANDOVER 12.21). An arc variance factor is a
-%   RELATIVE weight inside its stream, so over the passes its spread must
-%   settle. MEASURED on a fixture whose planted arc variance factors are
-%   1 / 9 / 1: the recovered ratio is 7.9 after ONE pass and 60, 458, 3512,
-%   2.1e5, 1.3e7 after 2, 3, 4, 6, 8 -- roughly squaring every pass, which is
-%   what an iteration with no feedback does. The per-arc factors never reach
-%   the data (LSQVCE.ENGINE.JOINTMODELOPT applies the stream MEAN only), so
-%   eq. 6.5.28 multiplies by a factor the data never saw.
+%   R6 WP-97, kept as a RATCHET by WP-98 (HANDOVER 12.21, 12.22). An arc
+%   variance factor is a RELATIVE weight inside its stream, so over the passes
+%   its spread must settle. Finding F-01 was that it did not: eq. 6.5.28
+%   multiplied by a factor the weighting never used, which made the update a
+%   geometric recursion with no fixed point (measured 8.4x per pass). WP-98
+%   fixed that, so on this tree nothing provokes this guard any more.
 %
-%   This REPORTS rather than corrects, deliberately: the mechanism is not yet
-%   established -- demo_gravity's 48 arcs hold a stable spread over four
-%   passes -- and a correction on a half-finished diagnosis would be a guess
-%   wearing a fix's clothes. Silence is the one answer that is not allowed.
+%   IT STAYS ANYWAY, and deliberately: it is what would catch this class
+%   returning on a user's own data, where no test of ours runs. Its FIRING
+%   direction was demonstrated against the pre-fix code and is on the record
+%   with numbers -- 3/3 at spreads 4670 / 5600 / 6109 with a degraded arc,
+%   silent 3/3 without one. Do not delete it because it is quiet: quiet is now
+%   the correct reading, and dev/tests pins that reading.
 %
 %   THE RULE, and where its numbers come from: fire only when the spread BOTH
 %   grew at every one of the last three passes AND ended at least 4x its first
-%   pass. Measured on the healthy demos, both silent: demo_gravity 16 -> 15.6
-%   -> 17 over four passes, demo_grace 4.13 -> 3.27 over six.
+%   pass. Measured silent on the shipped demos even before the fix:
+%   demo_grace 4.13 -> 3.27 over six passes.
     ks = keys(spreadHist);
     for i = 1:numel(ks)
         r = spreadHist(ks{i});

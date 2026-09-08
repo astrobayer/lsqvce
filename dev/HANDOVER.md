@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-09-08 — WP-96 DONE (PR #96, merge cd14d22; postflight on merged main: ci_gate 531/531, examples 15/15); WP-97 OPEN: finding F-01 gets the oracle it never had and a guard, after the first hypothesis was MEASURED and refuted; §12.21.
+Last substantive update: 2026-09-08 — WP-97 DONE (PR #97, merge f47306d; postflight on merged main: ci_gate 534/534, examples 15/15); WP-98 OPEN: F-01's mechanism is ESTABLISHED and one of §12.21's own measurements is CORRECTED; §12.22.
+Preceding entry: Last substantive update: 2026-09-08 — WP-96 DONE (PR #96, merge cd14d22; postflight on merged main: ci_gate 531/531, examples 15/15); WP-97 OPEN: finding F-01 gets the oracle it never had and a guard, after the first hypothesis was MEASURED and refuted; §12.21.
 Preceding entry: Last substantive update: 2026-09-07 — WP-95 DONE (PR #95, merge 96ed78f; postflight on merged main: ci_gate 529/529, examples 13/13); WP-96 OPEN: the two gaps carried out of §12.19 get worked examples — `lsqvce.layout` and the per-stream noise policy (`estimate` / `arcFactors`, a `psd` law); §12.20.
 Preceding entry: Last substantive update: 2026-09-07 — WP-94 DONE (PR #94, merge f726660); WP-95 READY (the examples audited against v5.3 by a 186-agent workflow: 85 raw / 54 confirmed / 12 set-level findings, all fixed; ci_gate 529/529, examples 13/13, Linux audit 0 findings; §12.19).
 Preceding entry: Last substantive update: 2026-09-07 — WP-92 DONE (PR #92, merge adfc572); WP-93 DONE (PR #93, merge ace2f08); WP-94 READY (PR #94, §12.18).
@@ -6345,7 +6346,7 @@ changes no number in the F-01 fixture, but it is not what `Pool` promises.
 
 | WP | title | depends on | status |
 |---|---|---|---|
-| 97 | Finding F-01: the arc-factor ORACLE the suite never had (planted 1 / 9 / 1, recovered in one pass), a CHARACTERISATION test that pins the compounding until it is fixed, and a guard (`lsqvce:adjustVCEjoint:arcFactorsDiverging`) that reports a runaway spread instead of returning it silently; `Options.ArcFactors`, the Manual and `demo_noisePolicy` state the limitation | 96 | READY (2026-09-08, PR #97, CI green on 3446ac5: audit 20 s, matlab 2m51s; local ci_gate GREEN 534/534 over 26/26 suites, examples 15/15, Linux audit CLEAN with the Manual rebuilt, self-test 14/14; DONE flips on the merge) |
+| 97 | Finding F-01: the arc-factor ORACLE the suite never had (planted 1 / 9 / 1, recovered in one pass), a CHARACTERISATION test that pins the compounding until it is fixed, and a guard (`lsqvce:adjustVCEjoint:arcFactorsDiverging`) that reports a runaway spread instead of returning it silently; `Options.ArcFactors`, the Manual and `demo_noisePolicy` state the limitation | 96 | DONE (2026-09-08, PR #97, merge f47306d; CI green on the record head 97b8e5f: audit 20 s, matlab 2m52s. POSTFLIGHT on merged main: ci_gate GREEN 534/534 over 26/26 suites, examples 15/15) |
 
 **ROUND WP-97 (2026-09-08, model Claude Opus 5, tier A).** The round's first product was a
 REFUTED hypothesis (§12.21 above); everything below is what measurement then established.
@@ -6386,3 +6387,135 @@ findings**, self-test 14/14; the new identifier is catalogued (299 raised = 299 
 and documented in its unit's help. CI green on 3446ac5: audit **pass 20 s**, matlab
 **pass 2m51s** -- the new guard fires on no shipped run, so the gate's warning inventory
 is unchanged.
+
+### 12.22 WP-98 — F-01's mechanism, established; and §12.21's own M3 corrected (2026-09-08, model Claude Opus 5, tier A)
+
+**A CORRECTION FIRST, because it is the reason the mechanism looked unexplained.** §12.21
+recorded, as the thing that kept the diagnosis open: "`demo_gravity` (48 arcs, default options,
+no planted per-arc difference) holds a stable spread across 1, 2 and 4 passes (16 → 15.6 → 17),
+so something feeds back there". BOTH halves of that were wrong, and one measurement kills them:
+  * `demo_gravity` does NOT run with default options. Line 173 of `examples/demo_gravity.m`:
+    `Estimate="noise", Pool="stream", **ArcFactors=false**`. It never estimated a per-arc factor
+    in its life, so it could not be a counterexample to a defect in per-arc factors.
+  * The "spread of 16" was measured over ALL 48 arcs, pooling three streams. Measured PER
+    STREAM, as the estimator and the WP-97 guard actually work: `s1_potC 1.00 (n=16)`,
+    `s2_potD 1.00 (n=16)`, `s3_kbr 1.00 (n=16)` at 1, 2 and 4 passes — every arc of a stream
+    carries the identical number, which is what `arcFactors = false` means. The 16 was the
+    ratio between the three streams' LEVELS.
+An instrument's reading is evidence only about what it inspects (§0). A pooled max/min over
+three streams was not a measurement of an arc-factor spread, and it cost a round.
+
+**THE MECHANISM (established, quantitatively).** Two facts compose:
+1. **The arc's own factor cancels out of its own update.** `sweepArcs` forms
+   `omegaT(:,m) = s2_m * C .* om_m` and `sT(:,m) = s2_m * C .* sn_m` — the SAME scalar on both.
+   `arcVarianceFactors` then takes `alpha2_m = sum(dctI(omegaT_m)) / sum(dctI(sT_m))`, and dctI
+   and sum are linear, so `s2_m` cancels EXACTLY: alpha2_m is a function of the data and the law
+   only, never of the factor being estimated.
+2. **Nothing else applies the per-arc factor to the data.** `jointModelOpt` can express only a
+   per-STREAM level in the covariance override, and says so in its own comment.
+Together: `om_m` and `sn_m` barely move between passes, so `alpha2_m` is essentially a constant
+`A_m`, and eq. 6.5.28's `sigma2_{m,k+1} = A_m * sigma2_{m,k} / gammaBar_k^2` is a GEOMETRIC
+recursion. The ratio between two arcs of one stream therefore grows as `(A_bad/A_good)^k` —
+there is no fixed point to converge to.
+
+**The prediction, and the measurement that confirms it.** If the mechanism is right, the
+per-pass GROWTH FACTOR of the ratio must be constant. Measured on the committed fixture
+(`dev/tests/test_vcePolicy.m > arcFactorFixture`), ratio after k passes:
+
+| k | 1 | 2 | 3 | 4 | 5 |
+|---|---|---|---|---|---|
+| ratio | 9.37 | 79.5 | 671 | 5626 | 4.69e4 |
+| growth over the previous pass | — | **8.48** | **8.44** | **8.38** | **8.34** |
+
+Constant to 1.7 % over four decades of growth. The slow decay is the law still moving, which
+nudges `A_m`; the process is otherwise exactly geometric. M2 (no planted difference → no
+runaway) follows immediately: `A_bad/A_good ≈ 1` raised to any power is 1. M4 (the refuted
+sweep fix changed nothing) is consistent but NOT implied: `C` sits inside a weighted lag sum
+and does not cancel algebraically the way `s2` does, so its near-irrelevance there (43.263 →
+43.259) is empirical, and the mechanism does not lean on it.
+
+**This also supersedes §12.21's own phrasing.** That round wrote "roughly squaring every pass".
+It is not squaring, it is a CONSTANT growth factor — squaring would have put pass 3 at ~3900
+where 671 was measured. The distinction matters because a constant factor is exactly the
+signature of a multiplicative update whose multiplier does not respond, which is the mechanism.
+
+**And it says why only the PER-ARC path was broken.** The per-stream LEVEL is updated by the
+same multiplicative form (`fStream`, the mean of `gamma2` over the stream's arcs) and is
+perfectly stable — because that level DOES reach the data through `jointModelOpt`, so `alpha2`
+responds to it and the update has a fixed point at `mean(alpha2) = 1`. One sentence covers
+both halves: the identical update is stable where the feedback exists and divergent where it
+does not. That is also why `arcFactors = false` runs were never affected.
+
+**What a fix must do (recorded; NOT implemented in this round without a measured blast
+radius).** Eq. 6.5.28 multiplies by the factor the weighting used. The weighting used the
+per-STREAM mean, so that is what it must multiply — for a stream with `arcFactors = false` the
+two are already identical (every arc carries the stream's one level), so such runs cannot move.
+Second, `gammaBar` divides out a magnitude that the LAW took; a stream whose law is not
+estimated never gave its magnitude away, so its factors must stay absolute or its level is
+pinned at whatever was declared.
+
+**THE FIX, and its MEASURED blast radius.** Implemented as the principle above: the factor
+eq. 6.5.28 multiplies is now the one the weighting used — the per-stream level — computed in
+`adjustVCEjoint` immediately before `arcVarianceFactors`. Eight lines, one loop.
+
+The whole suite was then run test by test to see what the change moves. **Exactly two test
+points failed, and both of them are the two WP-97 added to DESCRIBE the defect:**
+`testArcFactorsCompoundAcrossPassesF01` (whose own comment said INVERT ME) and
+`testArcFactorDivergenceIsReported` (the guard can no longer be provoked). Nothing else in 534
+points moved — no reference number, no pinned tolerance, no demo. That is the strongest
+evidence available that the change is surgical rather than a re-tuning.
+
+MEASURED, on the committed fixture (`arcFactorFixture`, planted ratio 9):
+
+| passes | 1 | 2 | 3 | 4 | 5 |
+|---|---|---|---|---|---|
+| before | 9.37 | 79.5 | 671 | 5626 | 4.69e4 |
+| after | 9.37 | **8.56** | **8.56** | **8.56** | **8.56** |
+
+and the level settles with it: 0.688, 0.678, 0.678, 0.678, 0.678.
+
+MEASURED, the configuration that motivated WP-96's two-run structure — all four streams of
+`demo_noisePolicy` in ONE run, which used to give 0.00 / 41 / 0.00 against a planted 1 / 9 / 1:
+**0.97 / 8.90 / 0.92**, ratio 9.41, with every level right at the same time (gps 0.2000 exactly,
+acc 0.4906 against 0.5000, rr 1.2138 against 1.1547, mag 0.5691 against 0.5745). So
+`demo_noisePolicy` is now ONE run, and its help says why it used to be two.
+
+**The two tests, reworked rather than deleted.** The characterisation test became
+`testArcFactorsStaySettledAcrossPasses`: the ratio after four passes must sit in the SAME band
+the one-pass oracle asserts and within 25 % of the one-pass value. The guard test became
+`testArcFactorGuardIsSilentOnASettledRun`. The guard itself STAYS — it is what would catch this
+class returning on a user's own data, where no test of ours runs — and its firing direction is
+on the record with WP-97's numbers rather than in a live test, because nothing on this tree can
+provoke it any more. That is stated in its help, so nobody deletes it for being quiet.
+
+**STILL OPEN, and not claimed as fixed.** Only the RATIO between a stream's arcs is pinned by
+evidence. The absolute split between a stream's LEVEL and its arc factors is fixed by
+`gammaBar` (eq. 6.5.30), and on the fixture the level settles at 0.678 where the undegraded
+arcs were planted at 0.5. The oracle asserts the ratio for that reason. Also unchanged and
+still recorded: `sweepArcs` weights every arc by one `C` while `Cgroups` holds a law per pool
+group (§12.21), which the F-01 fixture proved is not F-01 but is still not what `Pool` promises.
+
+| WP | title | depends on | status |
+|---|---|---|---|
+| 98 | Finding F-01 FIXED: eq. 6.5.28 multiplies the factor the weighting used, so the arc factors settle instead of compounding 8.4x a pass; §12.21's own M3 measurement corrected (`demo_gravity` runs `ArcFactors=false` and its per-stream spread is 1.00); the characterisation test inverted, the guard kept as a ratchet, `demo_noisePolicy` back to ONE run | 97 | READY (2026-09-08, PR #98, CI green on e8779d9: audit 38 s, matlab 2m33s; local ci_gate GREEN 535/535 over 26/26 suites, examples 15/15, Linux audit CLEAN with the Manual rebuilt, self-test 14/14; DONE flips on the merge) |
+
+**ROUND WP-98 (2026-09-08, model Claude Opus 5, tier A).** The round's first act was to correct
+a measurement of my own (above); its second was to derive the mechanism and PREDICT a number
+before measuring it, which is the only kind of confirmation worth having here. The prediction
+was a constant per-pass growth factor; measured 8.48, 8.44, 8.38, 8.34.
+
+**One test added after the round's own findings were re-read by an independent panel** (a
+21-agent trace-and-refute pass over the arc-factor path, run against the pre-fix code): the
+cancellation the whole fix rests on is now pinned at machine precision as a METAMORPHIC test
+in `test_ellmer` — scale an arc's `omegaT` and `sT` by the same factor and `alpha2` must not
+move (measured agreement 1e-12, the rounding of two dctI transforms). The panel also caught
+the two loose statements corrected above. Its refutation stage was lost to a scripting error
+of mine (`parallel()` was handed promises instead of thunks), so its verdicts are one
+synthesis over four independent traces, not an adversarial vote — recorded as such.
+
+VERDICTS. Local `ci_gate` GREEN **535/535** (547 declared: two tests reworked, one added),
+26/26 suites, 1 excluded; example smoke **15/15**; Linux audit with the
+Manual rebuilt under WSL **CLEAN, zero findings**, self-test 14/14. The blast radius was
+measured before the round was allowed to continue: the whole suite run test by test failed
+exactly the two points that existed to describe the defect. CI green on the record head
+e8779d9: audit **pass 38 s**, matlab **pass 2m33s**.

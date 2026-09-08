@@ -506,10 +506,16 @@ function testDemoNoisePolicyIsTheWorkedPolicyExample(tc)
     % against a planted truth, so they are asserted here, not merely printed:
     % "none" must not move the declared sigma, "scale" must find the planted
     % level of a given psd shape, "law" must find the planted AR(1) colour,
-    % and arcFactors must isolate the one degraded arc.
+    % and arcFactors must isolate the one degraded arc -- all in ONE run since
+    % WP-98 fixed F-01, which is itself part of what this test now pins.
     out = evalc('[R, s] = demo_noisePolicy();');
     tc.verifyClass(R, 'lsqvce.Results');
-    tc.verifyTrue(contains(out, 'RUN 2'), 'both runs are printed');
+    tc.verifyTrue(contains(out, 'arc factors'), 'the arc-factor section is printed');
+    % R6 WP-98: the demo used to need TWO runs because a "law" stream and an
+    % arcFactors stream could not settle together (F-01). Now all four policies
+    % run at once, so the level for mag comes from the SAME Results as the rest
+    tc.verifyNumElements(s.passes, 1, 'one run, one pass count');
+    tc.verifyEqual(numel(s.stream), 4, 'all four streams in one run');
 
     tc.verifyTrue(s.noneFixed, 'estimate "none" leaves the declared sigma exactly alone');
     % tol: 10 % relative -- one level per stream from 9 arcs of 256 epochs has
@@ -558,46 +564,58 @@ function testArcFactorsRecoverThePlantedRatioInOnePass(tc)
     tc.verifyLessThan(max(f2([1 3])) / min(f2([1 3])), 2, 'the two good arcs agree');
 end
 
-function testArcFactorsCompoundAcrossPassesF01(tc)
-% categories: contract, robustness
-    % R6 WP-97 -- THIS TEST PINS A DEFECT, NOT A PROMISE (finding F-01,
-    % HANDOVER 12.21). The per-arc factors never reach the data
-    % (lsqvce.engine.jointModelOpt applies the stream MEAN only), so eq. 6.5.28
-    % multiplies by a factor the weighting never used and the spread roughly
-    % SQUARES every pass: six seeds gave 3766 to 6927 after four passes against
-    % the planted 9 (measured 2026-09-08).
-    % WHEN F-01 IS FIXED, INVERT THIS TEST: the ratio must then stay inside the
-    % band the one-pass oracle above asserts, and this comment must go with it.
-    muteWarn(tc, 'lsqvce:adjustVCEjoint:arcFactorsDiverging');
-    R = lsqvce.fit(arcFactorFixture(3), ...
-                   lsqvce.Options(Estimate="noise", Pool="stream", MaxPasses=4, ...
-                                  Verbose=false));
-    f2 = mean(reshape(R.noise.model{1}.sigma2, 3, []), 2).';
-    ratio = f2(2) / mean(f2([1 3]));
-    % tol: 100 -- more than an order below the smallest measured (3766) and an
-    % order above the one-pass band, so this says "compounded", not "noisy"
-    tc.verifyGreaterThan(ratio, 100, 'F-01: the factors compound instead of settling');
+function testArcFactorsStaySettledAcrossPasses(tc)
+% categories: reference, robustness
+    % R6 WP-98. This test WAS the characterisation of finding F-01 -- it
+    % asserted that the ratio exceeds 100 after four passes, and its comment
+    % said INVERT ME when F-01 is fixed. This is that inversion.
+    % The mechanism (HANDOVER 12.22): alpha2_m cancels its own arc's factor
+    % exactly, because sweepArcs scales omegaT and sT by the same s2_m and
+    % alpha2 is their ratio through two linear operators; nothing else applied
+    % a per-arc factor to the data, so eq. 6.5.28 multiplied by a factor the
+    % weighting never used and the update was a geometric recursion with no
+    % fixed point -- MEASURED per-pass growth 8.48, 8.44, 8.38, 8.34. It now
+    % multiplies by the factor the weighting DID use, and the ratio settles:
+    %   passes 1 2 3 4 5  ->  9.37  8.56  8.56  8.56  8.56   (planted 9)
+    r1 = arcRatio(lsqvce.fit(arcFactorFixture(3), ...
+             lsqvce.Options(Estimate="noise", Pool="stream", MaxPasses=1, Verbose=false)));
+    r4 = arcRatio(lsqvce.fit(arcFactorFixture(3), ...
+             lsqvce.Options(Estimate="noise", Pool="stream", MaxPasses=4, Verbose=false)));
+    % tol: the SAME band the one-pass oracle asserts. Four passes need not
+    % improve the estimate, but they must not destroy it
+    tc.verifyGreaterThan(r4, 6, 'four passes keep the planted ratio');
+    tc.verifyLessThan(r4, 13, 'and do not inflate it');
+    % tol: 25 % against the one-pass value -- passes 2..5 measured 8.562,
+    % 8.562, 8.563, 8.562, a fixed point; the band leaves room for probe noise
+    % and none for a trend (the defect grew by 8.4x per pass)
+    tc.verifyEqual(r4, r1, 'RelTol', 0.25, 'the ratio SETTLES, it does not compound');
 end
 
-function testArcFactorDivergenceIsReported(tc)
+function testArcFactorGuardIsSilentOnASettledRun(tc)
 % categories: contract, robustness
-    % R6 WP-97: the guard must FIRE on the compounding fixture and stay SILENT
-    % when there is nothing to compound -- both directions, because an
-    % instrument that cannot be shown to be silent proves nothing by being
-    % silent. The run INVENTORY is read rather than the console: it records the
-    % identifier even when the warning's display is muted, so this assertion
-    % does not depend on the warning state. Measured on the shipped demos, both
-    % silent: demo_gravity 16 -> 15.6 -> 17 over four passes, demo_grace
-    % 4.13 -> 3.27 over six.
+    % R6 WP-98: the guard WP-97 added stays in as a ratchet -- it is what would
+    % catch this class of defect returning on a user's own data -- and this
+    % test pins the half of it that can still be exercised: it must be SILENT
+    % on the very fixture that used to make it fire.
+    % ITS FIRING DIRECTION WAS DEMONSTRATED AGAINST THE PRE-FIX CODE and is on
+    % the record with numbers (WP-97, HANDOVER 12.21): with a degraded arc it
+    % fired 3/3 at spreads 4670 / 5600 / 6109, and stayed silent 3/3 without
+    % one. It cannot be provoked now, which is the point of the fix; the
+    % primary instrument against a regression is the settling test above.
     id = 'lsqvce:adjustVCEjoint:arcFactorsDiverging';
-    muteWarn(tc, id);
     opts = lsqvce.Options(Estimate="noise", Pool="stream", MaxPasses=4, Verbose=false);
     lsqvce.fit(arcFactorFixture(3), opts);          % fit resets the inventory
-    tc.verifyTrue(any(strcmp(lsqvce.util.log.inventory(), id)), ...
-                  'the guard fires on a spread that keeps growing');
+    tc.verifyFalse(any(strcmp(lsqvce.util.log.inventory(), id)), ...
+                   'a settled run does not warn');
     lsqvce.fit(arcFactorFixture(1), opts);
     tc.verifyFalse(any(strcmp(lsqvce.util.log.inventory(), id)), ...
-                   'and is silent when no arc is degraded');
+                   'nor does one with no degraded arc');
+end
+
+function q = arcRatio(R)
+%ARCRATIO  The bad arc's mean variance factor against the good arcs' (arc 2).
+    f2 = mean(reshape(R.noise.model{1}.sigma2, 3, []), 2).';
+    q = f2(2) / mean(f2([1 3]));
 end
 
 function data = arcFactorFixture(badScale)
