@@ -47,7 +47,7 @@ a { color: #0b5ea8; }
 <pre class="example">nc          = LSQVCE.ENGINE.RESOLVENC(systems)
 [nc, info]  = LSQVCE.ENGINE.RESOLVENC(systems)</pre>
 <h3>THE PARAMETRISATION IS THE SINGLE SOURCE OF TRUTH. nc used to be a leading</h3>
-<pre class="example">argument on LSQVCE.ENGINE.ADJUSTVCE and LSQVCE.ENGINE.ADJUSTBLOCK, which meant the same
+<pre class="example">argument on LSQVCE.ENGINE.ADJUSTVCEJOINT and LSQVCE.ENGINE.ADJUSTBLOCK, which meant the same
 number was stated twice -- once as the argument and once as the number of
 rows in the &#x27;commonParams&#x27; table -- free to disagree. The demos showed the
 failure mode: `cfg.nc = 6` on one line and `cfg.common` with six rows on
@@ -78,7 +78,7 @@ lsqvce:resolveNc:conflict     systems disagree</pre>
 <pre class="example">  L  = lsqvce.engine.makeLoader(bd, &#x27;commonParams&#x27;, tbl, &#x27;localParams&#x27;, loc, ...);
   nc = lsqvce.engine.resolveNc({L});          % = size(tbl,1), never restated
 
-See also LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCE
+See also LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT
 
 Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Opus 4.8.

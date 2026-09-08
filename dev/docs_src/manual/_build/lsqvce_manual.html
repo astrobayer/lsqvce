@@ -1550,21 +1550,23 @@ robust pass with <code>Estimate="none"</code>).</p>
 <h2 data-number="4.2" id="the-loop"><span
 class="header-section-number">4.2</span> The loop</h2>
 <p><strong><code>MaxPasses</code></strong> — integer ≥ 1, default 10.
-The one pass budget of every iterative run (variance components, IRLS,
-Gauss–Newton). Exhausting it returns the last pass with
+The pass budget of the variance-component loop and of Gauss–Newton.
+<strong>IRLS has its own</strong>, <code>RobustOpts.MaxIter</code> (30),
+as it has its own tolerance — <code>engineArgs</code> hands
+<code>adjustRobust</code> that one and never <code>MaxPasses</code> (R6
+WP-101). Exhausting the budget returns the last pass with
 <code>R.stopReason = "maxPasses"</code> and one warning.</p>
-<p><strong><code>MinPasses</code></strong> — integer ≥ 1, default 1.
-Passes run even if the tolerance is already met (GRAVFIRE’s
-<code>minimumIterations</code>).</p>
 <p><strong><code>Tolerance</code></strong> — positive, default 1e-2. The
 stop rule of the variance-component loop: max |α² − 1| over frequencies
 and arcs below it; for Gauss–Newton the relative step in units of the
 formal error; IRLS uses <code>RobustOpts.Tol</code>.</p>
-<p><strong><code>Probes</code></strong> — integer ≥ 0, default 100.
-Hutchinson probes for the per-lag redundancies of the joint estimator;
-<code>0</code> = the exact route (measured to be the better default up
-to u ≈ 4000; the probe route is faster only for the dense inverse at
-small nc).</p>
+<p><strong><code>Probes</code></strong> — integer ≥ 1, default 100
+(Ellmer’s value). Hutchinson probes for the per-lag redundancies of the
+joint estimator. There is <strong>no exact route</strong> in that
+estimator, so 0 is refused at assignment (R6 WP-101; the
+<code>'TraceMethod','exact'</code> route exists only on the engine-tier
+<code>lsqvce.engine.redundancy</code>, which <code>fit</code> does not
+call).</p>
 <p><strong><code>Seed</code></strong> — <code>[]</code> (default) or a
 double. RNG seed for the probes; recorded in <code>R.meta.seeds</code>
 so a run is reproducible.</p>
@@ -1581,13 +1583,15 @@ days kept resident per system. A two-stage pass builds every day twice
 the calendar and builds each day once per run — your memory decision (a
 built type-day is m × nc doubles, ≈190 MB at degree 60 for a 6-h
 three-axis piece).</p>
-<p><strong><code>Verbose</code></strong> — logical or 0..2, default
-<code>false</code>. Screen messages: 0 silent, 1 progress, 2 detail.
-(Level 3 was merged into 2 in 2026-07;
+<p><strong><code>Verbose</code></strong> — logical, 0 or 1, default
+<code>false</code>. Screen messages: 0 silent, 1 progress. This surface
+is a FLAG: <code>Options.engineArgs</code> hands every driver
+<code>logical(Verbose)</code>, so level 2 has never been reachable
+through <code>fit</code> — it is an engine-tier setting of
+<code>lsqvce.util.verbosity</code> (R6 WP-101). A 2 is still accepted
+here and behaves as 1. (Level 3 was merged into 2 in 2026-07;
 <code>lsqvce.util.verbosity</code> refuses it, and since v5.3 so does
 <code>Options</code> itself, by name.)</p>
-<p><strong><code>LogFile</code></strong> — string, default
-<code>""</code>. Mirror the messages to this file.</p>
 <p><strong><code>OnPass</code></strong> — <code>[]</code> (default) or
 <code>@(ctx)</code>. Your inspection hook, called at the end of
 <strong>every pass</strong> of every iterative run with one struct:
@@ -1635,8 +1639,9 @@ estimated stochastic model</h3>
 <tr class="odd">
 <td><code>Grid</code></td>
 <td>60</td>
-<td>frequencies (lags) of the estimated shape; must be ≥ the longest arc
-for an exact law (<code>"auto"</code> = the longest arc)</td>
+<td>frequencies (lags) of the estimated shape; an integer ≥ 2, and ≥ the
+longest arc for an exact law. <code>"auto"</code> was documented until
+v5.3 and never implemented; it is refused now (R6 WP-101)</td>
 </tr>
 <tr class="even">
 <td><code>Whitener</code></td>
@@ -1877,8 +1882,9 @@ declared data.</p>
     (A) streaming   data.commonParams, data.days, data.systems(k) with
                     buildDay / covariance / arcs / localParams / priors /
                     processingOptions; optional data.priors, data.paramColumns
-    (B) in memory   data.A (m x u), data.l (m x 1), optional data.p (m x 1 weights
-                    or m x m SPD weight matrix); optional data.priors
+    (B) in memory   data.A (m x u), data.l (m x 1), optional data.p (m x 1
+                    weights); optional data.priors. A FULL m x m SPD weight
+                    matrix is kind C&#39;s: return it from batchFcn (R6 WP-101)
     (C) batched     data.batchFcn @(k) -&gt; [A, l, p] (or @(k, x) -&gt; [J, w, p] with
                     data.x0 for Gauss-Newton), data.numUnknowns, data.numBatches;
                     optional data.priors
@@ -1942,17 +1948,18 @@ declared data.</p>
                                  (e.g. paramType, badArcs, localPlan);
                                  the original is attached as the cause
     Your choice is not available here:
-      lsqvce:fit:notYet          Robust ~= &quot;none&quot; together with Model ~= &quot;gls&quot; --
-                                 (R5 M2 2b) the one-loop composition of M4;
-                                 before 2b this refused Robust on the streaming
-                                 kind altogether --
-                                 the streaming kind screens outliers
-                                 through its diagnostics (report())
-      lsqvce:fit:modelKind       Model other than &quot;gls&quot; on kinds B / C
-      lsqvce:batchSystem:weightMatrix  kind B/C returned a full weight matrix
-                                 (R5 M2: the block path takes diagonal weights;
-                                 a full P is a covariance law of the streaming
-                                 kind) -- raised by lsqvce.engine.batchSystem
+      lsqvce:fit:notYet          Robust ~= &quot;none&quot; together with
+                                 Estimate = &quot;noise&quot; -- the one-loop
+                                 composition of M4 is not written yet; run the
+                                 two separately, or screen outliers through the
+                                 diagnostics (report())
+      lsqvce:fit:modelKind       Estimate = &quot;noise&quot; on kinds B / C, which have
+                                 no streams to estimate a law for
+      lsqvce:batchSystem:weightMatrix  a batch returned a weight argument that
+                                 is neither m x 1 nor an m x m SPD matrix. A
+                                 full SPD P IS accepted on kind C and whitened
+                                 by its Cholesky factor (R5 M5 5b&#39;) -- raised
+                                 by lsqvce.engine.batchSystem
       lsqvce:fit:priorNotActive  (warning, R5-D8) a prior with from &gt; 1 in a
                                  single-pass run is not applied
       lsqvce:fit:badPrior        (R5 M5 5b) data.priors is malformed (unknown
@@ -1993,9 +2000,9 @@ declared data.</p>
   Claude Fable 5.1.</code></pre>
 <h2 data-number="5.2" id="lsqvce.options"><span
 class="header-section-number">5.2</span> lsqvce.Options</h2>
-<p>LSQVCE.OPTIONS The one settings object for LSQVCE.FIT (v5: 14 knobs +
+<p>LSQVCE.OPTIONS The one settings object for LSQVCE.FIT (v5: 12 knobs +
 5 groups).</p>
-<pre><code>LSQVCE.OPTIONS  The one settings object for LSQVCE.FIT (v5: 14 knobs + 5 groups).
+<pre><code>LSQVCE.OPTIONS  The one settings object for LSQVCE.FIT (v5: 12 knobs + 5 groups).
 
   opts = lsqvce.Options()                       every default
   opts = lsqvce.Options(Name, Value, ...)       override some
@@ -2006,7 +2013,7 @@ class="header-section-number">5.2</span> lsqvce.Options</h2>
   its law / level / arc factors are estimated) is declared on the stream
   (data.systems(k).covariance.&lt;type&gt;: type, sigma, estimate, arcFactors);
   this object holds only RUN policy. R5 M5 (WP-87, decision R5-D2) cut it
-  from 62 flat knobs to the 14 below plus five typed groups; the migration
+  from 62 flat knobs to the 12 below plus five typed groups; the migration
   from every v4 name is in RELEASE_NOTES.md and HANDOVER §12.10.
 
   TOP LEVEL
@@ -2037,21 +2044,28 @@ class="header-section-number">5.2</span> lsqvce.Options</h2>
                                   a planted 9; before it grew 8.4x a pass.)
     Robust     &quot;none&quot; | &quot;huber&quot; | &quot;igg3&quot; | &quot;bisquare&quot;   IRLS on the same
                                   loop, every kind (details in RobustOpts)
-    MaxPasses  double  10         the ONE pass budget (v4: MaxOuter / JointMaxIter)
-    MinPasses  double  1          passes run even if the tolerance is met
-                                  (GRAVFIRE&#39;s minimumIterations)
+    MaxPasses  double  10         the pass budget of the variance-component
+                                  loop and of Gauss-Newton (v4: MaxOuter /
+                                  JointMaxIter). IRLS has its OWN budget,
+                                  RobustOpts.MaxIter (R6 WP-101)
     Tolerance  double  1e-2       stop when max|alpha2 - 1| over frequencies
                                   and arcs is below it (v4: JointTol)
     Backend    &quot;qr&quot; | &quot;normal&quot;    square-root vs normal equations
     Probes     double  100        Hutchinson probes for the per-lag
-                                  redundancies (0 = the exact route)
+                                  redundancies; an integer &gt;= 1 (Ellmer&#39;s
+                                  value is 100). The joint estimator has no
+                                  exact route: 0 is refused (R6 WP-101)
     Seed       [] | double        RNG seed for the probes (recorded)
     CacheDays  double  1          built days kept resident per system; Inf =
                                   the whole calendar (one build per run)
-    Verbose    logical | 0..2     screen messages (0 silent, 1 progress,
-                                  2 detail; level 3 was merged into 2 in
-                                  2026-07 and lsqvce.util.verbosity refuses it)
-    LogFile    string  &quot;&quot;         mirror the messages to this file (&quot;&quot; = none)
+    Verbose    logical | 0 | 1    screen messages on this surface: 0 silent,
+                                  1 progress. THE VALUE IS PASSED AS A FLAG:
+                                  engineArgs hands every driver
+                                  logical(Verbose), so level 2 has never been
+                                  reachable through fit -- it is an
+                                  engine-tier setting of lsqvce.util.verbosity
+                                  (R6 WP-101; 2 is still accepted here and
+                                  behaves as 1)
     OnPass     [] | @(ctx)        YOUR inspection hook, called at the end of
                                   EVERY pass of every iterative run (the
                                   variance-component loop, IRLS, Gauss-Newton)
@@ -2109,9 +2123,12 @@ class="header-section-number">5.2</span> lsqvce.Options</h2>
     lsqvce:Options:badTarget     engineArgs target is unknown
 
   EXAMPLE
-    opts = lsqvce.Options(Estimate=&quot;noise&quot;, Pool=&quot;obsType&quot;, Robust=&quot;huber&quot;);
+    opts = lsqvce.Options(Estimate=&quot;noise&quot;, Pool=&quot;obsType&quot;);
     opts.Noise.Grid = 2160;  opts.Parallel.Mode = &quot;parfor&quot;;
     R = lsqvce.fit(data, opts);
+    % Robust is NOT in that line on purpose: Robust ~= &quot;none&quot; together with
+    % Estimate = &quot;noise&quot; is refused by fit (lsqvce:fit:notYet). This example
+    % carried Robust=&quot;huber&quot; until v5.3 and could not run (R6 WP-101).
 
   See also LSQVCE.FIT, LSQVCE.RESULTS, the Manual, chapter 3, RELEASE_NOTES.md
 
@@ -2131,7 +2148,8 @@ provenance.</p>
   R = lsqvce.Results(sol, D, acc, diagSol, batchFcn, nBatch, systems)
   R = lsqvce.Results(sol, D, acc, diagSol, batchFcn, nBatch, systems, meta)
 
-  Returned by LSQVCE.ENGINE.ADJUSTBLOCK (and, later, LSQVCE.ENGINE.ADJUSTVCE). It gathers
+  Returned by every driver LSQVCE.FIT dispatches to -- LSQVCE.ENGINE.ADJUSTBLOCK,
+  ADJUSTVCEJOINT, ADJUSTROBUST, ADJUSTNONLINEAR. It gathers
   everything a user needs to read and judge an adjustment in one object, and
   keeps the lower layers reachable for experts. You rarely construct it
   yourself; you receive it from adjustBlock and call R.report().
@@ -2148,9 +2166,9 @@ provenance.</p>
     diag       1x1      struct   Per-observation diagnostics (LSQVCE.ENGINE.DIAGNOSE):
                                  redundancy, leverage, w-tests, MDB, ...
     history    1xI      struct   Per-iteration record (empty for a single
-                                 solve; filled by LSQVCE.ENGINE.ADJUSTVCE).
+                                 solve; filled by LSQVCE.ENGINE.ADJUSTVCEJOINT).
     noise      1x1      struct   Fitted noise models per stream (empty until
-                                 the separable/VCE loop populates it).
+                                 the variance-component loop populates it).
     sol        1x1      struct   Raw output of acc.solve() (.x, .sigma0, ...).
     acc        1x1      lsqvce.engine.BlockAccumulator   The accumulator (drop here
                                  to re-solve, inspect blocks, get residuals).
@@ -2222,7 +2240,7 @@ provenance.</p>
     report() is lsqvce.report on .diag, coefficients() is arithmetic on x
     and diag(Cxx) with z(0.05) = 1.959963984540054 in closed form.
 
-  See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCE, LSQVCE.REPORT,
+  See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.REPORT,
            LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.BLOCKACCUMULATOR
 
   Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-99: R.report() forwards the
@@ -2538,9 +2556,17 @@ factors), <code>R.history.streams / sigma / white / whitePval</code> per
 pass (the Ljung–Box whiteness of every stream, K = 20, α = 0.05),
 <code>R.convergence()</code>, <code>R.plot("psd")</code>,
 <code>R.plot("convergence")</code>.</p>
-<p>The acceptance of the estimator is physical: a planted field and
-planted stream sigmas are recovered within their formal errors
-(<code>demo_gravity</code>, counted in the test suite).</p>
+<p>The acceptance of the estimator is physical, and the two halves are
+pinned differently (R6 WP-101 — the sentence here used to claim one
+bound for both). The planted FIELD is recovered within its formal
+errors: <code>demo_gravity</code> reports z-scores per coefficient and
+<code>test_physOracle</code> asserts them. The planted stream SIGMAS
+carry no formal error, and what the suite asserts is a RELATIVE bound:
+the ratios between streams, to 25 %
+(<code>test_vcePolicy&gt;testRecoversPlantedRelativeWeights</code>;
+measured 1.18 / 2.10 / 0.51 against a planted 1 / 2 / 0.5). A per-arc
+standard deviation is read back as declared sigma × sqrt(arc factor) ×
+<code>R.sigma0</code> (chapter 3 §2).</p>
 <h1 data-number="8" id="diagnostics-and-the-verdict"><span
 class="header-section-number">8</span> Diagnostics and the verdict</h1>
 <p>Every solve carries per-observation diagnostics in
@@ -3024,8 +3050,8 @@ before)</td>
 <td><code>LogFid</code>, <code>LogFlag</code>, <code>ShowSeconds</code>,
 <code>ExportDir</code>, <code>plotPostSolve</code>,
 <code>plotPostModel</code></td>
-<td><code>LogFile</code>; <code>OnPass</code>;
-<code>R.plot(kind)</code></td>
+<td><code>OnPass</code>; <code>R.plot(kind)</code> (<code>LogFile</code>
+was offered here and retired in R6 WP-101: it never opened a file)</td>
 </tr>
 <tr class="even">
 <td><code>DatumB</code></td>
@@ -3061,7 +3087,9 @@ at engine tier</td>
 </tbody>
 </table>
 <p>Full ledger, decisions and round notes: <code>dev/HANDOVER.md</code>
-§12; theory: <code>dev/lsqvce_theory_r5.pdf</code>.</p>
+§12; theory: <code>lsqvce_theory.pdf</code> (R6 WP-101: it shipped under
+a second name in dev/ as well; that duplicate is gone – one document,
+one name).</p>
 <h1 data-number="13" id="appendix-a-error-and-warning-identifiers"><span
 class="header-section-number">13</span> Appendix A — error and warning
 identifiers</h1>

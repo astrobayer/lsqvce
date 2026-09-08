@@ -49,8 +49,9 @@ R.report                                   % the five-level verdict
 `data` is a plain struct; `fit` tells the three kinds apart by the fields present:
 
 ```matlab
-% (B) in memory, diagonal weights (or a full SPD weight matrix), no arc-wise unknowns
+% (B) in memory, diagonal weights p = 1./sigma.^2, no arc-wise unknowns
 data = struct('A', A, 'l', l, 'p', p);                          R = lsqvce.fit(data);
+%     (a full SPD weight matrix is kind C's: return it from batchFcn -- R6 WP-101)
 R = lsqvce.fit(data, Robust="huber");                           % M-estimation (IRLS)
 data.priors = struct('L', B.', 'sigma', 1, 'name', 'datum');    % a free network's datum
 
@@ -68,7 +69,7 @@ Every kind runs on the same accumulator and the same loop; `Robust`, the
 nonlinear form and `OnPass` (your inspection hook after every pass) work on
 all of them. The v4 names map one-to-one onto v5 (`RELEASE_NOTES.md`).
 
-**New here?** `doc lsqvce` opens the Manual (`html/lsqvce_manual.html`, also `lsqvce_manual.pdf`) — the single documentation authority: install, data, every option, the API, priors, migration. In this order:
+**New here?** `doc lsqvce` opens the landing page (`html/index.html`); the Manual is its first entry (`html/lsqvce_manual.html`, also `lsqvce_manual.pdf`) and is the single documentation authority: install, data, every option, the API, priors, migration. In this order:
 
 1. `doc lsqvce` → the Manual, **chapter 1 (Overview)** and **chapter 2
    (Installation)**: which kind of data you have and how to put the toolbox on

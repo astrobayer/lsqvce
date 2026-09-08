@@ -6751,3 +6751,60 @@ RELEASE_NOTES claims corrected; (3) the theory PDF: source fixed, ONE builder wr
 the orphan generator retired; (4) an audit check so a documented option with no consumer cannot
 ship again — the ratchet that would have caught `MinPasses` and `LogFile`, fault-injected in
 this round.
+
+| WP | title | depends on | status |
+|---|---|---|---|
+| 101 | The documentation audit and its repairs: four dead `Options` retired and refused at the door, `Verbose` documented as the 0/1 surface it is, the stale claims in help / html / Manual / README / DEVELOPMENT corrected, the theory document reduced to ONE builder and ONE name (the orphan ReportLab generator and the duplicate PDF deleted), and audit check 27 so a documented option with no consumer cannot ship again | 100 | READY-PLACEHOLDER-101 |
+
+**ROUND WP-101 (2026-09-08, model Claude Opus 5, tier A).** The mechanical layer was green
+throughout — 26 checks, exit 0 — which is the whole reason the content audit was worth running.
+
+WHAT THE AUDIT FOUND, and what it cost to confirm: 55 agents, six surfaces, two refuting lenses
+per finding, one completeness critic. **24 raw, 15 confirmed**, and the critic then found eight
+CROSS-SURFACE contradictions no single reader could see — the worst of them on
+`html/index.html`, the page `doc lsqvce` actually opens, which still described `fit` as
+"dispatches on Model (gls | vce | pooled)" and pointed at the retired `DATA_CONTRACT.md`, and
+whose Getting-started example called `adjust(u, src, ...)`, a function that does not exist.
+
+THE FOUR CODE DEFECTS (the user's decision: retire, refuse at the door):
+  * `Noise.Grid = "auto"` — whitelisted by `validate`, forwarded verbatim, killed by the
+    engine's `(1,1) double`. Now refused AT ASSIGNMENT with `lsqvce:Options:badGrid` and a
+    message that says what to write instead.
+  * `Probes = 0` ("the exact route") — accepted by `mustBeNonnegative`, refused by the engine's
+    `mustBePositive`. The property is `mustBePositive` now: the refusal happens where the user
+    typed it. There is no exact route in the joint estimator to point at.
+  * `MinPasses`, `LogFile` — inert since the day they were added. Removed from the class, the
+    help, the `disp` table and the Manual. 17 public properties now, not 19.
+  * `Verbose` is documented as the 0/1 flag it is: `engineArgs` wraps it in `logical()` at four
+    hand-offs, so level 2 has never been reachable through `fit`.
+
+THE STALE CLAIMS (a selection of the fifteen): `fit`'s own ERRORS block described two live
+identifiers in the retired `Model` vocabulary and a third one backwards — it said a full SPD
+weight matrix is REFUSED where `batchSystem` accepts it and whitens by its Cholesky factor;
+`Results`'s help was written around `LSQVCE.ENGINE.ADJUSTVCE`, a class deleted in M4 4c, and
+that name was still live in EIGHT package files, each republished on its html page and inside
+the Manual; `dev/DEVELOPMENT.md` named four engine units that do not exist (`adjust`,
+`adjustVCE`, `Accumulator`, `robust`) and used two of them in runnable examples; the Manual
+claimed planted stream sigmas are "recovered within their formal errors" when the suite asserts
+a RELATIVE 25 % bound and stream sigmas carry no formal error; `MaxPasses` was documented as
+the IRLS budget on the same page that gives IRLS `RobustOpts.MaxIter`.
+
+THE THEORY DOCUMENT, found while checking the PDFs and worth its own paragraph.
+`lsqvce_theory.pdf`'s `/Producer` says **pdfTeX**, so it is built from
+`dev/docs_src/theory_r5/*.tex` — while `dev/DEVELOPMENT.md` named the ReportLab
+`build_theory_pdf.py` as its builder and `dev/docs_src/README.md` still said the supersession
+would happen "once decision R5-D6 is taken; until then both exist". The supersession had
+happened in ACTION years of rounds ago and was never recorded, so the repository shipped a
+script that would have silently overwritten the theory PDF with a different, older document
+under the same name — and a byte-identical DUPLICATE of the PDF under a second name
+(`dev/lsqvce_theory_r5.pdf`), cited live by `RELEASE_NOTES.md`. That is how the stale
+`stopReason` enum survived: five values, four of which are never assigned. Now: the enum says
+`"single" | "converged" | "maxPasses" | "userStop"`, `build.sh` writes the shipped name
+directly, the orphan generator and its content module are deleted, and the duplicate PDF is
+gone. One document, one builder, one name.
+
+THE RATCHET. Audit check 27: every public `Options` property must have a consumer — inside
+`engineArgs` (which may forward it under a different engine name) or anywhere in `+lsqvce`
+outside `Options.m`. `MinPasses` and `LogFile` would have failed it on the day they were added.
+Fault-injected in this round, both directions: a dead property fires, a property something
+reads is silent. Self-test 20 cases.

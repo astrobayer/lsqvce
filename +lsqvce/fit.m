@@ -17,8 +17,9 @@ function R = fit(data, opts, nv)
 %     (A) streaming   data.commonParams, data.days, data.systems(k) with
 %                     buildDay / covariance / arcs / localParams / priors /
 %                     processingOptions; optional data.priors, data.paramColumns
-%     (B) in memory   data.A (m x u), data.l (m x 1), optional data.p (m x 1 weights
-%                     or m x m SPD weight matrix); optional data.priors
+%     (B) in memory   data.A (m x u), data.l (m x 1), optional data.p (m x 1
+%                     weights); optional data.priors. A FULL m x m SPD weight
+%                     matrix is kind C's: return it from batchFcn (R6 WP-101)
 %     (C) batched     data.batchFcn @(k) -> [A, l, p] (or @(k, x) -> [J, w, p] with
 %                     data.x0 for Gauss-Newton), data.numUnknowns, data.numBatches;
 %                     optional data.priors
@@ -82,17 +83,18 @@ function R = fit(data, opts, nv)
 %                                  (e.g. paramType, badArcs, localPlan);
 %                                  the original is attached as the cause
 %     Your choice is not available here:
-%       lsqvce:fit:notYet          Robust ~= "none" together with Model ~= "gls" --
-%                                  (R5 M2 2b) the one-loop composition of M4;
-%                                  before 2b this refused Robust on the streaming
-%                                  kind altogether --
-%                                  the streaming kind screens outliers
-%                                  through its diagnostics (report())
-%       lsqvce:fit:modelKind       Model other than "gls" on kinds B / C
-%       lsqvce:batchSystem:weightMatrix  kind B/C returned a full weight matrix
-%                                  (R5 M2: the block path takes diagonal weights;
-%                                  a full P is a covariance law of the streaming
-%                                  kind) -- raised by lsqvce.engine.batchSystem
+%       lsqvce:fit:notYet          Robust ~= "none" together with
+%                                  Estimate = "noise" -- the one-loop
+%                                  composition of M4 is not written yet; run the
+%                                  two separately, or screen outliers through the
+%                                  diagnostics (report())
+%       lsqvce:fit:modelKind       Estimate = "noise" on kinds B / C, which have
+%                                  no streams to estimate a law for
+%       lsqvce:batchSystem:weightMatrix  a batch returned a weight argument that
+%                                  is neither m x 1 nor an m x m SPD matrix. A
+%                                  full SPD P IS accepted on kind C and whitened
+%                                  by its Cholesky factor (R5 M5 5b') -- raised
+%                                  by lsqvce.engine.batchSystem
 %       lsqvce:fit:priorNotActive  (warning, R5-D8) a prior with from > 1 in a
 %                                  single-pass run is not applied
 %       lsqvce:fit:badPrior        (R5 M5 5b) data.priors is malformed (unknown

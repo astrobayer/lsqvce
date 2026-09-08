@@ -3,7 +3,8 @@ classdef Results < handle
 %   R = lsqvce.Results(sol, D, acc, diagSol, batchFcn, nBatch, systems)
 %   R = lsqvce.Results(sol, D, acc, diagSol, batchFcn, nBatch, systems, meta)
 %
-%   Returned by LSQVCE.ENGINE.ADJUSTBLOCK (and, later, LSQVCE.ENGINE.ADJUSTVCE). It gathers
+%   Returned by every driver LSQVCE.FIT dispatches to -- LSQVCE.ENGINE.ADJUSTBLOCK,
+%   ADJUSTVCEJOINT, ADJUSTROBUST, ADJUSTNONLINEAR. It gathers
 %   everything a user needs to read and judge an adjustment in one object, and
 %   keeps the lower layers reachable for experts. You rarely construct it
 %   yourself; you receive it from adjustBlock and call R.report().
@@ -20,9 +21,9 @@ classdef Results < handle
 %     diag       1x1      struct   Per-observation diagnostics (LSQVCE.ENGINE.DIAGNOSE):
 %                                  redundancy, leverage, w-tests, MDB, ...
 %     history    1xI      struct   Per-iteration record (empty for a single
-%                                  solve; filled by LSQVCE.ENGINE.ADJUSTVCE).
+%                                  solve; filled by LSQVCE.ENGINE.ADJUSTVCEJOINT).
 %     noise      1x1      struct   Fitted noise models per stream (empty until
-%                                  the separable/VCE loop populates it).
+%                                  the variance-component loop populates it).
 %     sol        1x1      struct   Raw output of acc.solve() (.x, .sigma0, ...).
 %     acc        1x1      lsqvce.engine.BlockAccumulator   The accumulator (drop here
 %                                  to re-solve, inspect blocks, get residuals).
@@ -94,7 +95,7 @@ classdef Results < handle
 %     report() is lsqvce.report on .diag, coefficients() is arithmetic on x
 %     and diag(Cxx) with z(0.05) = 1.959963984540054 in closed form.
 %
-%   See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCE, LSQVCE.REPORT,
+%   See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.REPORT,
 %            LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
 %   Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-99: R.report() forwards the
@@ -508,11 +509,11 @@ classdef Results < handle
         %     % oscillating maxSigmaOffset means too little redundancy per
         %     % pool group -- coarsen Options.Pool ("obsType" or "all").
         %
-        %   See also LSQVCE.RESULTS/summary, LSQVCE.ENGINE.ADJUSTVCE/run
+        %   See also LSQVCE.RESULTS/summary, LSQVCE.ENGINE.ADJUSTVCEJOINT
         %
         %   Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude
         %   (Anthropic), model Claude Opus 4.8. Moved here from
-        %   LSQVCE.ENGINE.ADJUSTVCE: it is a POST-RUN READER of R.history and needed
+        %   LSQVCE.ENGINE.ADJUSTVCEJOINT: it is a POST-RUN READER of R.history and needed
         %   the builder object only to draw one threshold line.
             % WP-39 c2: typed `arguments` signature (canonical Plot/Stream).
         arguments
@@ -695,7 +696,7 @@ classdef Results < handle
                 error('lsqvce:Results:noHistory', ...
                     ['R.%s needs an iteration history, and this Results has ' ...
                      'none (a single solve does not iterate). Use the RESULTS ' ...
-                     'from LSQVCE.ENGINE.ADJUSTVCE run() or empiricalStochastic().'], ...
+                     'from a run with Estimate = "noise".'], ...
                      caller);
             end
         end

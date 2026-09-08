@@ -14,7 +14,7 @@ function R = adjustBlock(systems, days, opt)
 %
 %   This performs ONE GLS solve with whatever covariance the loaders supply.
 %   The iterative separable refinement (temporal whitening + VCE reweighting)
-%   is layered on top by LSQVCE.ENGINE.ADJUSTVCE; adjustBlock is its base.
+%   is layered on top by LSQVCE.ENGINE.ADJUSTVCEJOINT; adjustBlock is its base.
 %
 %   INPUT
 %     systems  1xM   struct|cell  The systems to combine. Two accepted forms:
@@ -61,7 +61,7 @@ function R = adjustBlock(systems, days, opt)
 %       'ShowSeconds' double 1x1  seconds to display each plot-hook figure
 %                            (default 0 = export only; < 0 = show and
 %                            LEAVE OPEN -- the v1 contract, unchanged).
-%                            Engine-side knob, mirrors LSQVCE.ENGINE.ADJUSTVCE.
+%                            Engine-side knob, mirrors LSQVCE.ENGINE.ADJUSTVCEJOINT.
 %       'ExportDir'  string 1x1  folder for plot-hook PNGs ("" = do not export).
 %
 %   PLOTTING (R5 M5 5c): the post-solve plot hooks of v4 are retired; plot
@@ -94,7 +94,7 @@ function R = adjustBlock(systems, days, opt)
 %                 Results.meta.options (fit passes opts.toStruct() + .kind);
 %                 struct() = record the driver's own resolved options
 %
-%   See also LSQVCE.RESULTS, LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTVCE,
+%   See also LSQVCE.RESULTS, LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTVCEJOINT,
 %            LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.DIAGNOSEACCUM, LSQVCE.ENGINE.DIAGNOSE,
 %            LSQVCE.REPORT, LSQVCE.RESULTS
 %
@@ -115,7 +115,7 @@ function R = adjustBlock(systems, days, opt)
 %   Updated 2026-07-17 (CEST, UTC+02:00): added the postSolve plot-hook seam
 %   ('showSeconds'/'exportDir'), entry-point parity with adjustVCE.
 %   Renamed 2026-07-17 from RECOVER -> ADJUSTBLOCK (block-arrow adjustment;
-%   pairs with LSQVCE.ENGINE.ADJUST and LSQVCE.ENGINE.ADJUSTVCE). The old name was REMOVED on
+%   pairs with LSQVCE.ENGINE.ADJUST and LSQVCE.ENGINE.ADJUSTVCEJOINT). The old name was REMOVED on
 %   2026-07-18 along with every other alias (pre-release; one name per thing).
 %   Claude (Anthropic), model Claude Opus 4.8.
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,

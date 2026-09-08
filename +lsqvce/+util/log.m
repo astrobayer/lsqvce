@@ -79,7 +79,7 @@ classdef log
 %   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 %     lsqvce:log:noParallelQueue                 [warning] Worker log messages cannot be forwarded to the client (X); they are p...
 %
-%   See also FPRINTF, WARNING, PARALLEL.POOL.DATAQUEUE, LSQVCE.ENGINE.ADJUSTVCE
+%   See also FPRINTF, WARNING, PARALLEL.POOL.DATAQUEUE, LSQVCE.ENGINE.ADJUSTVCEJOINT
 %
 %   Created 2026-07-16 (CEST, UTC+02:00) with assistance from
 %   Claude (Anthropic), model Claude Opus 4.8.
