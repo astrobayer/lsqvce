@@ -983,6 +983,10 @@ LSQVCE.FIT  Fit a least-squares adjustment (optionally with VCE) to declared dat
   model Claude Fable 5 -- R4 Level L2, WP-56 (decision R4-D4).
   Help rewritten 2026-09-04 for v5.2 (R5 M5 / R5-D8), model Claude Fable 5.1:
   the v5 surface (Estimate, priors, paramColumns, OnPass, layout, toTable).
+  Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-99: R.noise.model{k}.C is the
+  law of the stream's pool group and EMPTY where no law was estimated, instead
+  of falling back to another stream's fitted spectrum. With assistance from
+  Claude (Anthropic), model Claude Opus 5.
   Updated 2026-09-06 (CEST, UTC+02:00), R6 WP-90: the error information
   travels with the day (D.Cep); epochCovariance retired; the See also on
   the units that exist. With assistance from Claude (Anthropic), model

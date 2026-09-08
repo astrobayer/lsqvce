@@ -119,6 +119,38 @@ function testPoolByObsTypeCoarsens(tc)
     tc.verifyEqual(sort(keys(R.noise.Cgroups)), sort(types));
 end
 
+function testStreamModelCarriesOnlyItsOwnEstimatedLaw(tc)
+% categories: contract
+    % R6 WP-99: R.noise.model{k}.C is documented as "the stream's law". Until
+    % this round it fell back to the GLOBAL out.C for a stream whose law was
+    % not estimated, so a "none" or "scale" stream reported a law fitted from
+    % somebody else's arcs -- measured on a four-stream run with ONE "law"
+    % stream, all four .C came back identical. A plausible wrong value returned
+    % in silence is what R4 forbids, so the field is now EMPTY there: the law
+    % that stream used is the one the user declared, and the toolbox did not
+    % touch it. Fixture: the demo declaration with ONE stream demoted to
+    % "scale", so both branches are exercised in one run.
+    data = tc.TestData.data;
+    ots = fieldnames(data.systems(1).covariance);
+    demoted = ots{1};
+    data.systems(1).covariance.(demoted).estimate = "scale";
+    R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", MaxPasses=2, ...
+                     Noise=struct('Grid', 16), Seed=3, Verbose=false));
+    kDem = find(strcmp(extractAfter(string(R.noise.stream), '|'), demoted), 1);
+    tc.verifyNotEmpty(kDem, 'the demoted stream is still reported');
+    tc.verifyEmpty(R.noise.model{kDem}.C, ...
+                   'a stream whose law was NOT estimated reports no law');
+    tc.verifyGreaterThan(R.noise.model{kDem}.sigma, 0, ...
+                         'its LEVEL is still estimated -- that is what "scale" means');
+    others = setdiff(1:numel(R.noise.stream), kDem);
+    for k = others
+        tc.verifyNotEmpty(R.noise.model{k}.C, 'a "law" stream reports the law it fitted');
+        % and it is ITS pool group's law, not some other group's
+        tc.verifyEqual(R.noise.model{k}.C, R.noise.Cgroups(R.noise.stream{k}), ...
+                       'the law reported is the one keyed on this stream');
+    end
+end
+
 %% ------------------------------------------------------------- messaging
 function testVerboseZeroIsSilent(tc)
 % categories: contract, robustness | tags: diagnostics

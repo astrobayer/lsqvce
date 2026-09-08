@@ -123,6 +123,10 @@ function R = fit(data, opts, nv)
 %   model Claude Fable 5 -- R4 Level L2, WP-56 (decision R4-D4).
 %   Help rewritten 2026-09-04 for v5.2 (R5 M5 / R5-D8), model Claude Fable 5.1:
 %   the v5 surface (Estimate, priors, paramColumns, OnPass, layout, toTable).
+%   Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-99: R.noise.model{k}.C is the
+%   law of the stream's pool group and EMPTY where no law was estimated, instead
+%   of falling back to another stream's fitted spectrum. With assistance from
+%   Claude (Anthropic), model Claude Opus 5.
 %   Updated 2026-09-06 (CEST, UTC+02:00), R6 WP-90: the error information
 %   travels with the day (D.Cep); epochCovariance retired; the See also on
 %   the units that exist. With assistance from Claude (Anthropic), model
@@ -321,7 +325,7 @@ function R = fitEllmer(systems, days, opts, pri, opc, priorGroups)
     % .model{k}.sigma = the stream's LEVEL (declared sigma x its estimated
     % factor) and its law (the pool group's C); what the separate mode's
     % Results carried and the gravity demo reads
-    [noise.stream, noise.model] = streamModels(systems, specs, out, char(pool));
+    [noise.stream, noise.model] = streamModels(systems, specs, out, char(pool), estMap);
     noise.priors = priState('groups');               % R5 M7 7b: the prior groups with their final sigmas
     noise.priorHistory = priState('rec');            % one record per pass that updated them
     reason = "";  if isfield(out, 'userStop') && out.userStop, reason = "userStop"; end
@@ -585,11 +589,20 @@ function [estMap, afMap] = streamPolicy(systems, specs, streams, afDefault)
     end
 end
 
-function [names, models] = streamModels(systems, specs, out, pool)
+function [names, models] = streamModels(systems, specs, out, pool, estMap)
 %STREAMMODELS  Per-stream noise summary of a joint run (R5 M4 4b).
 %   names{k}  'satKey|obsType';  models{k} struct('type','psd','sigma',level,
 %   'C', the stream's law, 'sigma2', its arc factors) -- the LEVEL is the
 %   declared sigma times sqrt(mean arc factor) of the stream.
+%
+%   R6 WP-99: .C is the law of the stream's POOL GROUP -- and it is EMPTY for a
+%   stream whose law was not estimated ("none" or "scale"), because there is no
+%   such law: what that stream used is the law YOU declared, which the toolbox
+%   did not touch. Until this round the field fell back to the global out.C, so
+%   a "none" stream reported a law fitted from somebody else's arcs; measured
+%   on a four-stream run with ONE "law" stream, all four .C came back identical
+%   (lag-1 1.313 for every one of them). A plausible wrong value returned in
+%   silence is the one outcome the doctrine forbids (R4).
     names = {};  models = {};
     sMean = containers.Map('KeyType', 'char', 'ValueType', 'any');
     for i = 1:numel(out.arcKeys)
@@ -617,8 +630,11 @@ function [names, models] = streamModels(systems, specs, out, pool)
                 case 'stream',  gk = sk;
                 otherwise,      gk = 'all';
             end
-            C = out.C;
-            if isKey(out.Cgroups, gk), C = out.Cgroups(gk); end
+            % R6 WP-99: only a stream whose law was ESTIMATED has one to report
+            pol = 'law';
+            if ~isempty(estMap) && isKey(estMap, sk), pol = lower(char(estMap(sk))); end
+            C = [];
+            if strcmp(pol, 'law') && isKey(out.Cgroups, gk), C = out.Cgroups(gk); end
             names{end+1}  = sk;                                                %#ok<AGROW>
             models{end+1} = struct('type', 'psd', 'sigma', s0 * f, 'C', C, 'sigma2', s2); %#ok<AGROW>
         end
