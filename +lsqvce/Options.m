@@ -1,5 +1,5 @@
 classdef Options
-%LSQVCE.OPTIONS  The one settings object for LSQVCE.FIT (v5: 14 knobs + 5 groups).
+%LSQVCE.OPTIONS  The one settings object for LSQVCE.FIT (v5: 12 knobs + 5 groups).
 %
 %   opts = lsqvce.Options()                       every default
 %   opts = lsqvce.Options(Name, Value, ...)       override some
@@ -10,7 +10,7 @@ classdef Options
 %   its law / level / arc factors are estimated) is declared on the stream
 %   (data.systems(k).covariance.<type>: type, sigma, estimate, arcFactors);
 %   this object holds only RUN policy. R5 M5 (WP-87, decision R5-D2) cut it
-%   from 62 flat knobs to the 14 below plus five typed groups; the migration
+%   from 62 flat knobs to the 12 below plus five typed groups; the migration
 %   from every v4 name is in RELEASE_NOTES.md and HANDOVER §12.10.
 %
 %   TOP LEVEL
@@ -41,21 +41,28 @@ classdef Options
 %                                   a planted 9; before it grew 8.4x a pass.)
 %     Robust     "none" | "huber" | "igg3" | "bisquare"   IRLS on the same
 %                                   loop, every kind (details in RobustOpts)
-%     MaxPasses  double  10         the ONE pass budget (v4: MaxOuter / JointMaxIter)
-%     MinPasses  double  1          passes run even if the tolerance is met
-%                                   (GRAVFIRE's minimumIterations)
+%     MaxPasses  double  10         the pass budget of the variance-component
+%                                   loop and of Gauss-Newton (v4: MaxOuter /
+%                                   JointMaxIter). IRLS has its OWN budget,
+%                                   RobustOpts.MaxIter (R6 WP-101)
 %     Tolerance  double  1e-2       stop when max|alpha2 - 1| over frequencies
 %                                   and arcs is below it (v4: JointTol)
 %     Backend    "qr" | "normal"    square-root vs normal equations
 %     Probes     double  100        Hutchinson probes for the per-lag
-%                                   redundancies (0 = the exact route)
+%                                   redundancies; an integer >= 1 (Ellmer's
+%                                   value is 100). The joint estimator has no
+%                                   exact route: 0 is refused (R6 WP-101)
 %     Seed       [] | double        RNG seed for the probes (recorded)
 %     CacheDays  double  1          built days kept resident per system; Inf =
 %                                   the whole calendar (one build per run)
-%     Verbose    logical | 0..2     screen messages (0 silent, 1 progress,
-%                                   2 detail; level 3 was merged into 2 in
-%                                   2026-07 and lsqvce.util.verbosity refuses it)
-%     LogFile    string  ""         mirror the messages to this file ("" = none)
+%     Verbose    logical | 0 | 1    screen messages on this surface: 0 silent,
+%                                   1 progress. THE VALUE IS PASSED AS A FLAG:
+%                                   engineArgs hands every driver
+%                                   logical(Verbose), so level 2 has never been
+%                                   reachable through fit -- it is an
+%                                   engine-tier setting of lsqvce.util.verbosity
+%                                   (R6 WP-101; 2 is still accepted here and
+%                                   behaves as 1)
 %     OnPass     [] | @(ctx)        YOUR inspection hook, called at the end of
 %                                   EVERY pass of every iterative run (the
 %                                   variance-component loop, IRLS, Gauss-Newton)
@@ -113,9 +120,12 @@ classdef Options
 %     lsqvce:Options:badTarget     engineArgs target is unknown
 %
 %   EXAMPLE
-%     opts = lsqvce.Options(Estimate="noise", Pool="obsType", Robust="huber");
+%     opts = lsqvce.Options(Estimate="noise", Pool="obsType");
 %     opts.Noise.Grid = 2160;  opts.Parallel.Mode = "parfor";
 %     R = lsqvce.fit(data, opts);
+%     % Robust is NOT in that line on purpose: Robust ~= "none" together with
+%     % Estimate = "noise" is refused by fit (lsqvce:fit:notYet). This example
+%     % carried Robust="huber" until v5.3 and could not run (R6 WP-101).
 %
 %   See also LSQVCE.FIT, LSQVCE.RESULTS, the Manual, chapter 3, RELEASE_NOTES.md
 %
@@ -134,14 +144,12 @@ classdef Options
         ArcFactors (1,1) logical = true
         Robust     (1,1) string {mustBeMember(Robust, ["none","huber","igg3","bisquare"])} = "none"
         MaxPasses  (1,1) double {mustBeInteger, mustBePositive} = 10
-        MinPasses  (1,1) double {mustBeInteger, mustBePositive} = 1
         Tolerance  (1,1) double {mustBePositive} = 1e-2
         Backend    (1,1) string {mustBeMember(Backend, ["qr","normal"])} = "qr"
-        Probes     (1,1) double {mustBeInteger, mustBeNonnegative} = 100
+        Probes     (1,1) double {mustBeInteger, mustBePositive} = 100
         Seed       double = []
         CacheDays  (1,1) double {mustBePositive} = 1
         Verbose    = false
-        LogFile    (1,1) string = ""
         OnPass     = []
 
         Noise       (1,1) struct = lsqvce.Options.noiseDefaults()
@@ -170,12 +178,18 @@ classdef Options
         function obj = set.GaussNewton(obj, s), obj.GaussNewton = lsqvce.Options.mergeGroup(struct('TolF', 1e-10, 'Lambda0', 1e-6), s, 'GaussNewton'); end
 
         function validate(obj)
+            % R6 WP-101: "auto" is refused HERE, at assignment. It used to be
+            % whitelisted and forwarded verbatim as 'NumLags', where the engine
+            % declares a double and the run died mid-way with a
+            % MATLAB:validators error the identifier catalogue cannot explain.
+            % Nothing in the toolbox ever computed a longest arc for it.
             g = obj.Noise.Grid;
-            okAuto = (ischar(g) || (isstring(g) && isscalar(g))) && strcmp(char(g), 'auto');
-            okNum  = isnumeric(g) && isscalar(g) && isfinite(g) && g >= 2 && g == round(g);
-            if ~(okAuto || okNum)
+            if ~(isnumeric(g) && isscalar(g) && isfinite(g) && g >= 2 && g == round(g))
                 error('lsqvce:Options:badGrid', ...
-                    'Noise.Grid must be "auto" or an integer >= 2 (got %s).', mat2str(g));
+                    ['Noise.Grid must be an integer >= 2 (got %s). "auto" was ' ...
+                     'documented until v5.3 and never implemented; give the ' ...
+                     'number of lags you want, at least the longest arc for an ' ...
+                     'exact law.'], mat2str(g));
             end
             v = obj.Verbose;
             % R6 WP-95: the range is the one lsqvce.util.verbosity has enforced
@@ -311,8 +325,8 @@ classdef Options
     methods (Static, Access = private)
         function t = groupTable()
             t = {'What to estimate',   {'Estimate', 'Pool', 'ArcFactors', 'Robust'}; ...
-                 'The loop',           {'MaxPasses', 'MinPasses', 'Tolerance', 'Probes', 'Seed'}; ...
-                 'Run control',        {'Backend', 'CacheDays', 'Verbose', 'LogFile', 'OnPass'}; ...
+                 'The loop',           {'MaxPasses', 'Tolerance', 'Probes', 'Seed'}; ...
+                 'Run control',        {'Backend', 'CacheDays', 'Verbose', 'OnPass'}; ...
                  'Groups',             {'Noise', 'RobustOpts', 'Diagnostics', 'Parallel', 'GaussNewton'}};
         end
         function s = fmt(v)

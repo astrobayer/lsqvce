@@ -42,7 +42,7 @@ a { color: #0b5ea8; }
 <body>
 <div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.Options</div>
 <h1>lsqvce.Options</h1>
-<div class="purpose">The one settings object for LSQVCE.FIT (v5: 14 knobs + 5 groups).</div>
+<div class="purpose">The one settings object for LSQVCE.FIT (v5: 12 knobs + 5 groups).</div>
 <h2>Description</h2>
 <pre class="example">opts = lsqvce.Options()                       every default
 opts = lsqvce.Options(Name, Value, ...)       override some
@@ -52,7 +52,7 @@ R = lsqvce.fit(data, Name, Value, ...)        the same names, straight on fit</p
 <pre class="example">its law / level / arc factors are estimated) is declared on the stream
 (data.systems(k).covariance.&lt;type&gt;: type, sigma, estimate, arcFactors);
 this object holds only RUN policy. R5 M5 (WP-87, decision R5-D2) cut it
-from 62 flat knobs to the 14 below plus five typed groups; the migration
+from 62 flat knobs to the 12 below plus five typed groups; the migration
 from every v4 name is in RELEASE_NOTES.md and HANDOVER §12.10.
 
 TOP LEVEL
@@ -83,21 +83,28 @@ TOP LEVEL
                                 a planted 9; before it grew 8.4x a pass.)
   Robust     &quot;none&quot; | &quot;huber&quot; | &quot;igg3&quot; | &quot;bisquare&quot;   IRLS on the same
                                 loop, every kind (details in RobustOpts)
-  MaxPasses  double  10         the ONE pass budget (v4: MaxOuter / JointMaxIter)
-  MinPasses  double  1          passes run even if the tolerance is met
-                                (GRAVFIRE&#x27;s minimumIterations)
+  MaxPasses  double  10         the pass budget of the variance-component
+                                loop and of Gauss-Newton (v4: MaxOuter /
+                                JointMaxIter). IRLS has its OWN budget,
+                                RobustOpts.MaxIter (R6 WP-101)
   Tolerance  double  1e-2       stop when max|alpha2 - 1| over frequencies
                                 and arcs is below it (v4: JointTol)
   Backend    &quot;qr&quot; | &quot;normal&quot;    square-root vs normal equations
   Probes     double  100        Hutchinson probes for the per-lag
-                                redundancies (0 = the exact route)
+                                redundancies; an integer &gt;= 1 (Ellmer&#x27;s
+                                value is 100). The joint estimator has no
+                                exact route: 0 is refused (R6 WP-101)
   Seed       [] | double        RNG seed for the probes (recorded)
   CacheDays  double  1          built days kept resident per system; Inf =
                                 the whole calendar (one build per run)
-  Verbose    logical | 0..2     screen messages (0 silent, 1 progress,
-                                2 detail; level 3 was merged into 2 in
-                                2026-07 and lsqvce.util.verbosity refuses it)
-  LogFile    string  &quot;&quot;         mirror the messages to this file (&quot;&quot; = none)
+  Verbose    logical | 0 | 1    screen messages on this surface: 0 silent,
+                                1 progress. THE VALUE IS PASSED AS A FLAG:
+                                engineArgs hands every driver
+                                logical(Verbose), so level 2 has never been
+                                reachable through fit -- it is an
+                                engine-tier setting of lsqvce.util.verbosity
+                                (R6 WP-101; 2 is still accepted here and
+                                behaves as 1)
   OnPass     [] | @(ctx)        YOUR inspection hook, called at the end of
                                 EVERY pass of every iterative run (the
                                 variance-component loop, IRLS, Gauss-Newton)
@@ -153,9 +160,12 @@ lsqvce:Options:badOnPass     OnPass is neither [] nor a function handle
 lsqvce:Options:badGroupField a group struct carries an unknown field
 lsqvce:Options:badTarget     engineArgs target is unknown</pre>
 <h3>Example</h3>
-<pre class="example">  opts = lsqvce.Options(Estimate=&quot;noise&quot;, Pool=&quot;obsType&quot;, Robust=&quot;huber&quot;);
+<pre class="example">  opts = lsqvce.Options(Estimate=&quot;noise&quot;, Pool=&quot;obsType&quot;);
   opts.Noise.Grid = 2160;  opts.Parallel.Mode = &quot;parfor&quot;;
   R = lsqvce.fit(data, opts);
+  % Robust is NOT in that line on purpose: Robust ~= &quot;none&quot; together with
+  % Estimate = &quot;noise&quot; is refused by fit (lsqvce:fit:notYet). This example
+  % carried Robust=&quot;huber&quot; until v5.3 and could not run (R6 WP-101).
 
 See also LSQVCE.FIT, LSQVCE.RESULTS, the Manual, chapter 3, RELEASE_NOTES.md
 

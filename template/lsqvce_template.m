@@ -78,7 +78,7 @@ function L = lsqvce_template(procOpt)
 %                                     NOT an engine argument: route it to the
 %                                     toolbox-wide logger before the solve,
 %                                     lsqvce.util.log.set('fid', ...) (user
-%                                     tier: Options LogFile, a file NAME).
+%                                     tier: lsqvce.util.log's file sink).
 %       procOpt.showAndSaveGraphics   1x1  gates hook attachment (an IF in your
 %                                     driver, not a toolbox option)
 %       procOpt.observationGroups 1xS cell of structs      (drives the loop below)
