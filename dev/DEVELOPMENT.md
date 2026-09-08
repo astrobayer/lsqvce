@@ -278,9 +278,12 @@ predicted shift = 1.765467 sigma      <- from the MDB formula
 realised  shift = 1.765467 sigma      <- inject the MDB, re-solve, measure
 ```
 
-MATLAB unit tests: run `run_all_lsqvce` for the full suite (26 files, 541
-test points, ~3 min locally; the speed suite is reported separately by
-design). `run_lsqvce('all')` delegates to it, so it is the same run;
+MATLAB unit tests: run `run_all_lsqvce` for the full suite (~4 min locally;
+the speed suite is reported separately by design). The file and point counts
+are stated ONCE, in the Status line at the top of this document, because that
+is the copy audit check 17 compares against the tree -- this sentence used to
+carry a second copy and it had rotted to "26 files, 541 test points" (R6
+WP-99). `run_lsqvce('all')` delegates to it, so it is the same run;
 `run_lsqvce('<target>')` runs one suite or a name pattern while iterating.
 Every test point declares its category (`contract`, `reference`,
 `precision`, `speed`, `robustness`, `vectorisation`, plus the cross-cutting

@@ -6591,6 +6591,16 @@ first: nothing in the tree reads that field — every reader uses `.sigma`, `.si
 test asserts, because it is what a careless change would break. Severity checked against the
 verdict rule: WARN reaches "PASS WITH WARNINGS", never "SUSPECT".
 
+**Three more, from the reviewers of that workflow, all repaired here.** (a) Item 3's inline
+policy read restated the map's default; `streamPolicy` now seeds `estMap` for every stream, so
+the default is stated ONCE. (b) `dev/DEVELOPMENT.md` carried a SECOND, unchecked copy of the
+test-count claim, already rotted to "26 files, 541 test points" — removed, with a sentence
+naming the one authority (the Status line, which check 17 reads). (c) The harness called
+`demo_gravfire("")`, whose default resolves to `../testdata.mat`: a developer with a real
+GRAVFIRE bundle on disk would have run the whole pipeline where CI ran a print. The row now
+uses a path that CANNOT exist, so the suite means the same thing on every machine — and the
+suite got faster, 25.8 s to 19.7 s.
+
 **A process note, because it cost something.** A 12-agent planning workflow was launched for
 the four items and implementation started in parallel, so the plans landed AFTER items 3 and 4
 were committed — the fan-out bought nothing on those two. The REVIEWS still earned their keep:
