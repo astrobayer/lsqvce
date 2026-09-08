@@ -114,6 +114,29 @@ case('21 stale baseline row fires', audit.check_layering_ratchet, 'layering',
      lambda d: append(os.path.join(d, 'dev/docs_src/layering_baseline.csv'),
                       'kernel.dctI,report,KERNEL,USER\n'))
 
+# ---- 26 (R6 WP-99): markdown pointers ------------------------------------
+# The scratch copy carries no scope document at all, so the healthy run checks
+# zero pointers and is silent by construction; each fault WRITES the document
+# it needs. The two silent cases are not decoration: both forms cost a
+# refinement when the check was measured against the real tree, where a
+# backticked COMMAND ("python3 dev/docs_src/audit_tree.py") and a path written
+# relative to its own document (dev/SETUP_GUIDE.md saying `tests/ci_gate.m`)
+# were the only false positives it produced.
+case('26 dead markdown link fires', audit.check_md_pointers, 'md-pointer',
+     lambda d: append(os.path.join(d, 'README.md'),
+                      '\nSee [the page](html/zzzNoSuchPage.html) for more.\n'))
+case('26 dead backticked path fires', audit.check_md_pointers, 'md-pointer',
+     lambda d: append(os.path.join(d, 'README.md'),
+                      '\nRun `dev/docs_src/zzzNoSuchScript.py` first.\n'))
+case('26 a command with a live path is silent', audit.check_md_pointers, 'md-pointer',
+     lambda d: append(os.path.join(d, 'README.md'),
+                      '\nRun `matlab -batch dev/tests/ci_gate.m` to gate.\n'),
+     expect_fire=False)
+case('26 a path relative to its document is silent', audit.check_md_pointers, 'md-pointer',
+     lambda d: append(os.path.join(d, 'dev/DEVELOPMENT.md'),
+                      '\nThe gate is `tests/ci_gate.m`.\n'),
+     expect_fire=False)
+
 
 
 # ---- E-12 (R6 WP-93): the audit reads Windows paths like POSIX ones -------

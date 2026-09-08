@@ -34,6 +34,17 @@ WHAT IT CHECKS
        (USER > ENGINE > KERNEL > UTIL); calls go DOWNWARD only. Every upward
        edge that exists today is listed in dev/docs_src/layering_baseline.csv;
        a NEW upward edge is a finding, a stale row is a finding
+    22 html pages match the help blocks they were generated from
+    23 the Manual is a FRESH build of dev/docs_src/manual/*.md (byte equality;
+       needs the same pandoc as the CI runner)
+    24 help EXAMPLE blocks call units that exist
+    25 every unit page is reachable from html/index.html and helptoc.xml
+    26 markdown pointers resolve: repository-relative links and backticked
+       paths in the documents that TELL A READER WHERE TO GO (R6 WP-99;
+       dev/HANDOVER.md and dev/HISTORY_v1.md are records and are excluded --
+       naming a deleted file is half their job)
+    THE AUTHORITATIVE LIST is the order of calls in main(); this summary is a
+       reading aid and was already four checks behind when 26 was added.
     Self-test: dev/docs_src/audit_selftest.py injects one fault per new
        check into a scratch copy and asserts the finding fires (CI runs it).
 
@@ -990,6 +1001,68 @@ def check_index_lists_every_unit():
         if page not in toc:
             note('index', 'helptoc.xml has no entry for lsqvce.%s' % u)
     print('   %d units checked' % len(units))
+MD_SCOPE = ['README.md', 'CLAUDE.md', 'RELEASE_NOTES.md', 'dev/DEVELOPMENT.md',
+            'dev/SETUP_GUIDE.md', 'dev/GRAVFIRE_INTERFACE.md',
+            'dev/references/README.md']
+MD_EXT = ('.m', '.md', '.html', '.pdf', '.py', '.csv', '.xml', '.json', '.sh',
+          '.yml', '.mat')
+MD_SKIP = ('http', 'mailto', '#', 'dev/references/local/')
+MD_WILD = ('*', '?', '<', '>', '...', '$', '{')
+_MD_LINK = re.compile(r'\[[^\]]*\]\(([^)]+)\)')
+_MD_TICK = re.compile(r'`([^`\n]+)`')
+
+
+def _md_pointers(text):
+    """Every repository pointer in a markdown text: (target, kind)."""
+    for m in _MD_LINK.finditer(text):
+        t = m.group(1).split('#')[0].strip()
+        if t:
+            yield t, 'link'
+    for m in _MD_TICK.finditer(text):
+        raw = m.group(1).strip()
+        if not raw:
+            continue
+        # a backticked span is often a COMMAND ("python3 dev/docs_src/x.py"):
+        # the pointer is its last token, and trailing prose punctuation is not
+        # part of a path
+        t = raw.split()[-1].rstrip('.,;:')
+        if '/' in t and t.endswith(MD_EXT):
+            yield t, 'tick'
+
+
+def check_md_pointers():
+    print('\n26. markdown pointers resolve (R6 WP-99)')
+    # WHY: check 5 reads links inside html/ only, so NOTHING looked at a
+    # pointer in the repository's own prose. MEASURED when this was written:
+    # dev/DEVELOPMENT.md still sent the reader to four HTML manuals deleted in
+    # the docs level of 2026-09-04, plus a build script and a benchmark that no
+    # longer exist -- ten dead pointers that checks 5, 24 and 25 all walked
+    # past, in the document a developer reads FIRST.
+    #
+    # SCOPE is deliberate, not everything with a .md suffix. These are the
+    # documents that TELL A READER WHERE TO GO. The records -- dev/HANDOVER.md
+    # and dev/HISTORY_v1.md -- are excluded on purpose: their job is to say what
+    # WAS true, and half their value is naming files that were deleted.
+    # dev/docs_src/manual/*.md is excluded because check 23 already rebuilds
+    # the Manual and compares it byte for byte.
+    n = 0
+    for f in MD_SCOPE:
+        if not os.path.exists(f):
+            continue
+        text = open(f, encoding='utf-8', errors='replace').read()
+        for t, kind in _md_pointers(text):
+            if t.startswith(MD_SKIP) or any(w in t for w in MD_WILD):
+                continue
+            n += 1
+            near = os.path.normpath(os.path.join(os.path.dirname(f), t))
+            if os.path.exists(t) or os.path.exists(near):
+                continue
+            note('md-pointer', '%s points at %s (%s), which does not exist'
+                 % (f, t, kind))
+    print('   %d pointers checked in %d documents'
+          % (n, sum(1 for f in MD_SCOPE if os.path.exists(f))))
+
+
 def main():
     if not os.path.isdir('+lsqvce'):
         sys.exit('run from the toolbox root (the folder holding +lsqvce)')
@@ -1021,6 +1094,7 @@ def main():
     check_layering_ratchet()
     check_help_examples_call_live_units()
     check_index_lists_every_unit()
+    check_md_pointers()
     print('\n' + '=' * 60)
     if FINDINGS:
         print('%d finding(s).' % len(FINDINGS))

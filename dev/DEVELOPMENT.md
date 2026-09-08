@@ -655,14 +655,14 @@ entire file never ran. `run_all_lsqvce` iterates the registered list, counts a
 load failure as a failure, keeps the warning inventory, and records per-suite
 seconds.
 
-**Documentation ships in two forms, both self-contained.** The **master manual**
-`lsqvce_manual.pdf` is the single document: theory, every entry point with a
-workflow diagram, a step-by-step guide to adapting the template, interpretation,
-and the reference tables. It is built with ReportLab — equations are drawn as
-vector content, not images, and there is no LaTeX toolchain to install:
+**Documentation ships in two forms, both self-contained.** The **Manual** is the
+single documentation authority (docs level, 2026-09-04): thirteen numbered chapters
+in `dev/docs_src/manual/*.md`, built by pandoc into `html/lsqvce_manual.html` (what
+`doc lsqvce` opens) and `lsqvce_manual.pdf`. Audit check 23 rebuilds it and compares
+byte for byte, so a stale build cannot ship:
 
 ```bash
-python3 dev/docs_src/build_master_pdf.py        # -> lsqvce_manual.pdf
+python3 dev/docs_src/build_manual.py            # -> html/lsqvce_manual.html + lsqvce_manual.pdf
 python3 dev/docs_src/build_theory_pdf.py        # -> lsqvce_theory.pdf  (R4 WP-59)
 ```
 
@@ -673,22 +673,17 @@ toolbox claim tied to the work package that pinned it; the manual's theory
 chapter remains until decision R4-D3 retires it.
 
 See `dev/docs_src/README_manual.md` for the file map and for how to add an equation
-or a diagram. The **HTML manuals** carry the same material in browsable,
-per-topic form, with every equation as a **static PNG image**, so the pages
-contain **no JavaScript and no external references at all** — open them from
-`doc lsqvce` or the Help browser, offline, with no runtime dependency.
+or a diagram. The **Manual** carries the same material in browsable form, with no
+JavaScript and no external references at all — open it from `doc lsqvce` or the
+Help browser, offline, with no runtime dependency.
 
-- **[User Manual](html/lsqvce_user_manual.html)** — **start here.** Five parts: a
-  referenced **Theory** section with typeset equations (Gauss–Markov, BLUE/QR,
-  redundancy, data snooping, reliability/MDB, variance components, block-arrow
-  Schur reduction, coloured-noise whitening), what you supply, reading the
-  diagnosis, the gravity-recovery path, and a step-by-step recipe.
-- **[Reference Manual](html/lsqvce_reference_manual.html)** — symbols, equations,
-  matrix/return conventions; §4 details the block-arrow QR pre-elimination.
-- **[Interpretation Guide](html/lsqvce_interpretation_guide.html)** — what to run
-  and how to read the output.
-- **[Choosing an engine](html/lsqvce_choosing.html)** — decision flowchart plus
-  the exact-vs-Hutchinson cost curves.
+- **[The Manual](html/lsqvce_manual.html)** — **start here.** Thirteen numbered
+  chapters: overview, installation, the binding `data` contract and the six
+  `buildDay` rules, every Options knob, the diagnostics and how to read them, the
+  gravity-recovery path, the API by tier, migration, and the identifier catalogue.
+  The six v4 manuals it replaced (user, reference, interpretation, choosing, and
+  their generator) were deleted in the docs level of 2026-09-04; this is the ONE
+  documentation authority now, and audit check 23 keeps the built copy fresh.
 
 The **API reference is the per-function HTML** (one page each, listed by category
 on the `doc lsqvce` landing page); every function also has a runnable `EXAMPLE`
@@ -701,12 +696,9 @@ doc lsqvce              % the landing page
 
 | File | Purpose |
 |---|---|
-| `lsqvce_manual.pdf` | **THE master manual** — one document, built with ReportLab (`python3 dev/docs_src/build_master_pdf.py`) |
+| `lsqvce_manual.pdf` | **THE Manual** — one document, built by pandoc (`python3 dev/docs_src/build_manual.py`) |
 | `lsqvce_theory.pdf` | **The theory document** (R4 WP-59) — theory, practice, implementation, error handling; `python3 dev/docs_src/build_theory_pdf.py` |
-| `html/lsqvce_user_manual.html` | **theory + usage + step-by-step. Start here** |
-| `html/lsqvce_reference_manual.html` | symbols, equations, conventions, whitening; §4 block-arrow QR |
-| `html/lsqvce_interpretation_guide.html` | how to interpret the results |
-| `html/lsqvce_choosing.html` | which engine + exact vs Hutchinson (decision aid) |
+| `html/lsqvce_manual.html` | **THE Manual, what `doc lsqvce` opens. Start here** — install, the data contract, every option, the API, priors, migration |
 | `html/lsqvce.*.html` | **per-function API pages — params, size, type, default, description** |
 | `html/` + `helptoc.xml` + `info.xml` | MATLAB `doc` pages |
 | `template/lsqvce_template.m` | **your own case: copy, rename, fill the two stubs** |
@@ -727,7 +719,7 @@ Generated with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-11.
 
 ## WP-79 measurements (R5 M0, 2026-09-02, PCWIN64 R2026a, 16-worker pool) — the numbers the M2 deletions cite
 
-Instrument: `dev/validation/bench_m0.m` (rotation, per-repeat ratio, median, band). Log: `dev/validation/bench_m0_result.txt` of 2026-09-02 08:09.
+Instrument: the WP-79 bench (rotation, per-repeat ratio, median, band); the script itself was not kept, its LOG was: `dev/validation/bench_m0_result.txt` of 2026-09-02 08:09.
 
 | # | pair | ratio | band | absolutes | decision |
 |---|---|---|---|---|---|
