@@ -542,6 +542,19 @@ function [omegaT, sT, keys, keysAll, skips, wstats] = sweepArcs(acc, sol, UiZ, n
 %   The arc factor is looked up BY KEY in s2Map (containers.Map; missing or
 %   empty map -> 1), never by position: one skip can no longer shift every
 %   later arc's factor.
+%
+%   WHY ONE `C` WEIGHTS EVERY ARC, when Cgroups holds a law per pool group
+%   (R6 WP-100 -- read this before "fixing" it, because it has been proposed
+%   twice and measured twice). The laws ARE fitted per group: psdVCE runs once
+%   per pool group and writes Cmap. What is shared is the WEIGHT in eqs.
+%   6.5.22-6.5.23, and sharing it is what keeps the iteration from feeding on
+%   itself. Threading each group's own freshly fitted law into its own arcs
+%   was implemented and MEASURED on three two-stream fixtures: the second
+%   group diverged every time -- planted lag-1 0.70 came back 0.852, planted
+%   0.50 came back 1.331, planted 0.40 came back 1.365, and sigma0 fell to
+%   0.709. With the shared C the same fixtures give 0.198 / 0.477 against
+%   planted 0.20 / 0.50, sigma0 0.997. The behaviour is pinned by
+%   test_vcePolicy>testPoolStreamGivesEachStreamItsOwnLaw.
     ids    = acc.systemIDs();
     x      = sol.x(:);
     omegaT = [];

@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-09-08 — WP-98 DONE (PR #98, merge cf10d71; finding F-01 FIXED; postflight on merged main: ci_gate 535/535, examples 15/15); WP-99 OPEN: the four carried instrument-and-honesty items, one commit each; §12.23.
+Last substantive update: 2026-09-08 — WP-99 DONE (PR #99, merge 385b0d9; postflight on merged main: ci_gate 539/539, examples included); WP-100 OPEN: the two standing estimator questions CLOSED BY MEASUREMENT, both against the change that looked obvious; §12.24.
+Preceding entry: Last substantive update: 2026-09-08 — WP-98 DONE (PR #98, merge cf10d71; finding F-01 FIXED; postflight on merged main: ci_gate 535/535, examples 15/15); WP-99 OPEN: the four carried instrument-and-honesty items, one commit each; §12.23.
 Preceding entry: Last substantive update: 2026-09-08 — WP-97 DONE (PR #97, merge f47306d; postflight on merged main: ci_gate 534/534, examples 15/15); WP-98 OPEN: F-01's mechanism is ESTABLISHED and one of §12.21's own measurements is CORRECTED; §12.22.
 Preceding entry: Last substantive update: 2026-09-08 — WP-96 DONE (PR #96, merge cd14d22; postflight on merged main: ci_gate 531/531, examples 15/15); WP-97 OPEN: finding F-01 gets the oracle it never had and a guard, after the first hypothesis was MEASURED and refuted; §12.21.
 Preceding entry: Last substantive update: 2026-09-07 — WP-95 DONE (PR #95, merge 96ed78f; postflight on merged main: ci_gate 529/529, examples 13/13); WP-96 OPEN: the two gaps carried out of §12.19 get worked examples — `lsqvce.layout` and the per-stream noise policy (`estimate` / `arcFactors`, a `psd` law); §12.20.
@@ -6558,7 +6559,7 @@ continues. Each item's plan was written and adversarially reviewed before implem
 
 | WP | title | depends on | status |
 |---|---|---|---|
-| 99 | The four carried items, one commit each: `dev/tests/test_examples.m` (every example runs, and none can be added without a row), audit check 26 (markdown pointers resolve; ten dead ones repaired), `R.noise.model{k}.C` empty where no law was estimated instead of another stream's, and `R.report()` saying whether the stochastic model settled | 98 | READY (2026-09-08, PR #99, CI green on 55ad573: audit 26 s, matlab 2m56s; local ci_gate GREEN 539/539 over 27/27 suites -- the examples are IN that number now -- Linux audit CLEAN with the Manual rebuilt, self-test 18/18; DONE flips on the merge) |
+| 99 | The four carried items, one commit each: `dev/tests/test_examples.m` (every example runs, and none can be added without a row), audit check 26 (markdown pointers resolve; ten dead ones repaired), `R.noise.model{k}.C` empty where no law was estimated instead of another stream's, and `R.report()` saying whether the stochastic model settled | 98 | DONE (2026-09-08, PR #99, merge 385b0d9; CI green on the record head 982294a: audit 22 s, matlab 2m58s. POSTFLIGHT on merged main: ci_gate GREEN 539/539 over 27/27 suites -- and that is the whole postflight now, the examples are in it) |
 
 **ROUND WP-99 (2026-09-08, model Claude Opus 5, tier A).** Four items, four commits, and one
 consequence that changes the loop itself.
@@ -6615,3 +6616,85 @@ run is now INSIDE that number, so it is the whole postflight. Linux audit with t
 rebuilt under WSL **CLEAN, zero findings**, self-test **18/18**. The Windows audit is at its
 one-finding baseline. CI green on the record head 55ad573: audit **pass 26 s**,
 matlab **pass 2m56s**.
+
+### 12.24 WP-100 — the two standing estimator questions, closed by measurement (2026-09-08, model Claude Opus 5, tier A)
+
+**Origin.** The user asked for the two improvements §12.22 left standing: the `gammaBar`
+level/factor split, and the `Cgroups` conflation in `sweepArcs`. Both were measured before
+anything was changed. **Neither is a defect, and the change that looked obvious for the second
+one is measurably WORSE.** No estimator code changed in this round; what changed is what the
+tree KNOWS, and two things it can no longer forget.
+
+**Question 1 — the level/factor split. §12.22 was wrong, and the error was mine.** It recorded
+"the level settles at 0.678 where the undegraded arcs were planted at 0.5" as an open question.
+That reconstruction was incomplete: a stream's per-arc standard deviation is
+
+    declared sigma  x  sqrt(arc factor)  x  sigma0
+
+and the last term is where a least-squares adjustment always keeps the overall scale. MEASURED
+on the committed fixture (planted 0.5 / 1.5 / 0.5), at four passes with the law estimated:
+implied **0.517 / 1.499 / 0.507**, i.e. 1.035 / 0.999 / 1.014 of the planted values. The
+incomplete reading was uniformly 0.71x — a constant, which is the signature of a missing scalar
+rather than a broken estimate, and sigma0 was 1.417 = 1/0.71. `gammaBar` needs no change; the
+split between level and factor is a CONVENTION (eq. 6.5.30) and the convention was never the
+claim. Pinned by `testArcFactorsReconstructThePlantedPerArcSigma`.
+
+**Question 2 — one `C` weights every arc while `Cgroups` holds a law per group.** This has now
+been proposed twice and measured twice, and it is not a conflation to repair. The laws ARE
+fitted per group (`psdVCE` runs once per group); what is shared is the WEIGHT in eqs.
+6.5.22-6.5.23. Threading each group's own freshly fitted law into its own arcs was implemented
+and measured on three two-stream fixtures, at 16 and 30 passes:
+
+| planted (a, b) | shipped: recovered, sigma0 | with the "fix": recovered, sigma0 |
+|---|---|---|
+| 0.20 / 0.70 | 0.199 / 0.645, **0.995** | 0.198 / **0.852**, 0.709 |
+| 0.20 / 0.50 | 0.198 / 0.477, **0.997** | 0.198 / **1.331**, 0.709 |
+| 0.40 / 0.40 | 0.389 / 0.395, **0.999** | 0.389 / **1.365**, 0.709 |
+
+The second group diverges every time. Weighting a group by the law just fitted FROM it is
+self-referential; the shared `C` is what breaks the loop. The shipped code recovers both
+colours accurately and keeps sigma0 at 1. **So §12.21's characterisation — "the toolbox fits
+per-stream laws and then weights every stream by one of them ... not what `Pool` promises" —
+was wrong too: `Pool` delivers exactly what it promises.** The reason is now written in
+`sweepArcs`'s own help, with the numbers, so the next reader does not propose it a third time,
+and the behaviour is pinned by `testPoolStreamGivesEachStreamItsOwnLaw`.
+
+**Decision (scope frozen).** No estimator change. Two oracles, the reconstruction documented
+where a user reads it (`Options.ArcFactors`, the Manual chapter 3 §2), the refutation written
+into `sweepArcs`, and §12.21/§12.22 corrected above. **Predicted counts: 553 declared
+(551 + 2), 541 run locally (539 + 2).**
+
+| WP | title | depends on | status |
+|---|---|---|---|
+| 100 | The two standing estimator questions CLOSED BY MEASUREMENT, both against the obvious change: the level/factor split is a convention (an arc's sigma is declared x sqrt(factor) x sigma0, measured 0.517/1.499/0.507 against a planted 0.5/1.5/0.5) and per-group weighting in `sweepArcs` DIVERGES (three fixtures). Two oracles added, the refutation written into `sweepArcs`, §12.21 and §12.22 corrected | 99 | READY-PLACEHOLDER-100 |
+
+**ROUND WP-100 (2026-09-08, model Claude Opus 5, tier A).** The round changed no estimator
+code and that is its result. Both items were measured first, and both measurements went
+against the change that looked obvious — one of them for the SECOND time.
+
+MEASURED, question 1 (the reconstruction), on `arcFactorFixture(3)`, planted per-arc sigma
+0.5 / 1.5 / 0.5:
+
+| reading | 1 pass | 4 passes |
+|---|---|---|
+| declared x sqrt(factor) | 0.357 / 1.082 / 0.350 | 0.365 / 1.057 / 0.358 |
+| ... x sigma0 | 0.855 / 2.592 / 0.839 | **0.517 / 1.499 / 0.507** |
+
+The incomplete reading is uniformly 0.71x — a CONSTANT, which is what a missing scalar looks
+like and what a broken estimate does not. sigma0 was 1.417 = 1/0.71.
+
+MEASURED, question 2 (per-group weighting), three fixtures at 30 passes — shipped against the
+change: 0.199/0.645 vs 0.198/**0.852** (planted 0.20/0.70); 0.198/0.477 vs 0.198/**1.331**
+(planted 0.20/0.50); 0.389/0.395 vs 0.389/**1.365** (planted 0.40/0.40). sigma0 0.995-0.999
+against 0.709 every time. The second group diverges in every configuration, because weighting a
+group by the law just fitted FROM it is self-referential.
+
+TWO CORRECTIONS TO THIS DOCUMENT, both of them mine. §12.22 recorded the level "0.678 where the
+arcs were planted at 0.5" as open; it was an incomplete reconstruction. §12.21 said the toolbox
+"fits per-stream laws and then weights every stream by one of them ... not what `Pool`
+promises"; `Pool` promises one estimated SHAPE per group and delivers it — 0.198 / 0.477
+against planted 0.20 / 0.50 — and the shared weight is what keeps that estimate stable.
+
+VERDICTS. Local `ci_gate` GREEN **541/541** over 27/27 suites (553 declared, +2 as predicted);
+Linux audit with the Manual rebuilt under WSL **CLEAN, zero findings**, self-test 18/18; the
+Windows audit at its one-finding baseline. CI: pending on the draft PR.

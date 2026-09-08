@@ -165,8 +165,11 @@ Fable 5. Rewritten for v3 and again for v4 (scoped tables) the same day (Claude 
    default the Options policy). A law whose `sigma` is a VECTOR (per-row weights) is a fixed
    structure: it can carry a level (`"scale"`) but not a spectral shape (`"law"` is refused,
    `lsqvce:fit:lawOnFixedStructure`). `Options.Pool` decides which streams SHARE one
-   estimated spectral shape; every stream keeps its own level. Of a stream's per-arc factors only the
-   **ratio** is identifiable — the level absorbs their mean. (R6 finding F-01, fixed in
+   estimated spectral shape; every stream keeps its own level. To read an arc's standard deviation back, use all
+   three terms: **declared sigma × sqrt(arc factor) × `R.sigma0`** — the level and the
+   factor split one scale by a convention (eq. 6.5.30's `gammaBar`) and `sigma0` carries
+   the rest, as in any GLS adjustment; measured on a fixture planted at 0.5 / 1.5 / 0.5,
+   that reconstruction gives 0.517 / 1.499 / 0.507 (R6 WP-100). (R6 finding F-01, fixed in
    WP-98: eq. 6.5.28 multiplies by the factor the weighting used, so the ratio now settles
    across passes — 9.4 / 8.6 / 8.6 / 8.6 against a planted 9, where before it grew by 8.4x
    every pass. Runs with `arcFactors = false` are unchanged.)
@@ -1028,11 +1031,17 @@ LSQVCE.OPTIONS  The one settings object for LSQVCE.FIT (v5: 14 knobs + 5 groups)
                                   level regardless); default "all"
     ArcFactors logical            per-arc variance factors on (Ellmer 6.5.4),
                                   default true; false = one level per stream.
-                                  Only the RATIO between a stream's arcs is
-                                  identifiable -- the level absorbs their mean
+                                  TO READ AN ARC'S STANDARD DEVIATION back,
+                                  use all three terms (R6 WP-100):
+                                    declared sigma * sqrt(factor) * R.sigma0
+                                  -- the level and the factor split one scale
+                                  by a convention (eq. 6.5.30's gammaBar) and
+                                  sigma0 carries the rest, as in any GLS
+                                  adjustment. MEASURED on a fixture planted at
+                                  0.5 / 1.5 / 0.5: 0.517 / 1.499 / 0.507.
                                   (R6 F-01, fixed in WP-98: the ratio settles
                                   across passes, 9.4 / 8.6 / 8.6 / 8.6 against
-                                  a planted 9; before it grew 8.4x a pass).
+                                  a planted 9; before it grew 8.4x a pass.)
     Robust     "none" | "huber" | "igg3" | "bisquare"   IRLS on the same
                                   loop, every kind (details in RobustOpts)
     MaxPasses  double  10         the ONE pass budget (v4: MaxOuter / JointMaxIter)
@@ -1113,6 +1122,9 @@ LSQVCE.OPTIONS  The one settings object for LSQVCE.FIT (v5: 14 knobs + 5 groups)
 
   See also LSQVCE.FIT, LSQVCE.RESULTS, the Manual, chapter 3, RELEASE_NOTES.md
 
+  Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-100: ArcFactors says how to
+  read an arc's sigma back -- all three terms, sigma0 included. With
+  assistance from Claude (Anthropic), model Claude Opus 5.
   Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-98: ArcFactors says what is
   identifiable (the ratio) now that F-01 is fixed. With assistance from
   Claude (Anthropic), model Claude Opus 5.

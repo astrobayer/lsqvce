@@ -468,12 +468,17 @@ structure: it can carry a level (<code>"scale"</code>) but not a
 spectral shape (<code>"law"</code> is refused,
 <code>lsqvce:fit:lawOnFixedStructure</code>). <code>Options.Pool</code>
 decides which streams SHARE one estimated spectral shape; every stream
-keeps its own level. Of a stream’s per-arc factors only the
-<strong>ratio</strong> is identifiable — the level absorbs their mean.
-(R6 finding F-01, fixed in WP-98: eq. 6.5.28 multiplies by the factor
-the weighting used, so the ratio now settles across passes — 9.4 / 8.6 /
-8.6 / 8.6 against a planted 9, where before it grew by 8.4x every pass.
-Runs with <code>arcFactors = false</code> are unchanged.)</li>
+keeps its own level. To read an arc’s standard deviation back, use all
+three terms: <strong>declared sigma × sqrt(arc factor) ×
+<code>R.sigma0</code></strong> — the level and the factor split one
+scale by a convention (eq. 6.5.30’s <code>gammaBar</code>) and
+<code>sigma0</code> carries the rest, as in any GLS adjustment; measured
+on a fixture planted at 0.5 / 1.5 / 0.5, that reconstruction gives 0.517
+/ 1.499 / 0.507 (R6 WP-100). (R6 finding F-01, fixed in WP-98: eq.
+6.5.28 multiplies by the factor the weighting used, so the ratio now
+settles across passes — 9.4 / 8.6 / 8.6 / 8.6 against a planted 9, where
+before it grew by 8.4x every pass. Runs with
+<code>arcFactors = false</code> are unchanged.)</li>
 <li><strong>The per-pass inspection hook</strong> —
 <code>Options.OnPass = @(ctx)</code> receives, after every pass of every
 iterative run, the pass state, the live accumulator,
@@ -2019,11 +2024,17 @@ class="header-section-number">5.2</span> lsqvce.Options</h2>
                                   level regardless); default &quot;all&quot;
     ArcFactors logical            per-arc variance factors on (Ellmer 6.5.4),
                                   default true; false = one level per stream.
-                                  Only the RATIO between a stream&#39;s arcs is
-                                  identifiable -- the level absorbs their mean
+                                  TO READ AN ARC&#39;S STANDARD DEVIATION back,
+                                  use all three terms (R6 WP-100):
+                                    declared sigma * sqrt(factor) * R.sigma0
+                                  -- the level and the factor split one scale
+                                  by a convention (eq. 6.5.30&#39;s gammaBar) and
+                                  sigma0 carries the rest, as in any GLS
+                                  adjustment. MEASURED on a fixture planted at
+                                  0.5 / 1.5 / 0.5: 0.517 / 1.499 / 0.507.
                                   (R6 F-01, fixed in WP-98: the ratio settles
                                   across passes, 9.4 / 8.6 / 8.6 / 8.6 against
-                                  a planted 9; before it grew 8.4x a pass).
+                                  a planted 9; before it grew 8.4x a pass.)
     Robust     &quot;none&quot; | &quot;huber&quot; | &quot;igg3&quot; | &quot;bisquare&quot;   IRLS on the same
                                   loop, every kind (details in RobustOpts)
     MaxPasses  double  10         the ONE pass budget (v4: MaxOuter / JointMaxIter)
@@ -2104,6 +2115,9 @@ class="header-section-number">5.2</span> lsqvce.Options</h2>
 
   See also LSQVCE.FIT, LSQVCE.RESULTS, the Manual, chapter 3, RELEASE_NOTES.md
 
+  Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-100: ArcFactors says how to
+  read an arc&#39;s sigma back -- all three terms, sigma0 included. With
+  assistance from Claude (Anthropic), model Claude Opus 5.
   Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-98: ArcFactors says what is
   identifiable (the ratio) now that F-01 is fixed. With assistance from
   Claude (Anthropic), model Claude Opus 5.

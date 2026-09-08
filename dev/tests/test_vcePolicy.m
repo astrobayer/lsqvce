@@ -684,6 +684,98 @@ function q = arcRatio(R)
     q = f2(2) / mean(f2([1 3]));
 end
 
+function testArcFactorsReconstructThePlantedPerArcSigma(tc)
+% categories: reference, precision
+    % R6 WP-100: the COMPLETE statement, which the ratio test above does not
+    % make. A stream's per-arc standard deviation is not its level and not its
+    % factor: it is
+    %       declared sigma  x  sqrt(arc factor)  x  sigma0
+    % and the last term is where a least-squares adjustment always keeps the
+    % overall scale. Reading the first two alone is what made HANDOVER 12.22
+    % record a level of 0.678 "where the arcs were planted at 0.5" as an open
+    % question; it was an incomplete reconstruction, not a defect. MEASURED
+    % here on the same fixture: 0.517 / 1.499 / 0.507 against the planted
+    % 0.5 / 1.5 / 0.5.
+    R = lsqvce.fit(arcFactorFixture(3), ...
+                   lsqvce.Options(Estimate="noise", Pool="stream", MaxPasses=4, ...
+                                  Verbose=false));
+    f2 = mean(reshape(R.noise.model{1}.sigma2, 3, []), 2).';
+    implied = 0.5 * sqrt(f2) * R.sigma0;              % 0.5 is the fixture's declared sigma
+    planted = [0.5 1.5 0.5];
+    % A per-arc variance component from 3 x 256 epochs is worth about
+    % 0.5*sqrt(2/3) = 41 % before pooling over days, and the INCOMPLETE
+    % reconstruction (omitting sigma0) is 29 % low on this fixture.
+    % tol: 15 % relative -- inside the sampling bound above, and far outside
+    % the error the incomplete reading would show
+    tc.verifyEqual(implied, planted, 'RelTol', 0.15, ...
+        'declared x sqrt(factor) x sigma0 reconstructs the planted per-arc sigma');
+end
+
+function testPoolStreamGivesEachStreamItsOwnLaw(tc)
+% categories: reference, robustness
+    % R6 WP-100: what Pool="stream" promises, pinned -- and it is pinned
+    % because a plausible "fix" would have destroyed it. sweepArcs weights
+    % EVERY arc by one C while Cgroups holds a law per pool group, which reads
+    % like a conflation; threading each group's own law into the weighting was
+    % implemented and MEASURED, and it made the second group diverge every
+    % time (planted 0.50 -> 1.331; planted 0.40 -> 1.365; sigma0 down to 0.71).
+    % Weighting a group by its own freshly fitted law is self-referential; the
+    % shared C is what breaks that loop. The shipped code recovers both
+    % colours: 0.198 and 0.477 against 0.20 and 0.50, sigma0 0.997.
+    R = lsqvce.fit(colourFixture(0.20, 0.50), ...
+                   lsqvce.Options(Estimate="noise", Pool="stream", MaxPasses=16, ...
+                                  Verbose=false));
+    rho = @(k) localRho(R.noise.Cgroups(k));
+    % tol: 0.08 absolute on a lag-1 correlation fitted from 9 arcs of 256
+    % epochs -- wide enough for seed noise, narrow enough that the two planted
+    % colours (0.20 and 0.50) cannot be confused with each other
+    tc.verifyEqual(rho('x1|a'), 0.20, 'AbsTol', 0.08, 'stream a keeps its own colour');
+    % tol: 0.08 absolute, the same bound and the same reason as above
+    tc.verifyEqual(rho('x1|b'), 0.50, 'AbsTol', 0.08, 'stream b keeps its own colour');
+    % tol: 10 % on sigma0 -- the whole point is that the weighting stays
+    % consistent; the refuted change drove it to 0.71
+    tc.verifyEqual(R.sigma0, 1, 'RelTol', 0.10, 'and the run stays consistently weighted');
+end
+
+function r = localRho(C)
+%LOCALRHO  Lag-1 autocorrelation of a fitted lag covariance.
+    r = C(2) / C(1);
+end
+
+function data = colourFixture(phiA, phiB)
+%COLOURFIXTURE  TWO streams, each AR(1) with its OWN phi, both "law", no
+%   locals, so Pool="stream" has two distinct laws to find and nothing else
+%   can absorb the difference. Deterministic: seeded on (day, stream).
+    cfg = struct('nc', 4, 'days', 1:3, 'arcs', 3, 'mArc', 256, 'dt', 5, ...
+                 'xTrue', [0.8 -0.45 0.3 0.15]);
+    cfg.phi = struct('a', phiA, 'b', phiB);
+    data = struct();
+    data.commonParams = [repmat({'common'}, cfg.nc, 1), ...
+                         arrayfun(@(j) sprintf('c%d', j), (1:cfg.nc).', ...
+                                  'UniformOutput', false)];
+    data.days = cfg.days;
+    spec = @(nm) struct('type', 'diag', 'sigma', 1, 'estimate', "law", 'arcFactors', false);
+    data.systems = struct( ...
+        'buildDay', @(day, ot) colourDay(cfg, day, ot), ...
+        'covariance', struct('a', spec('a'), 'b', spec('b')), ...
+        'arcs', cfg.arcs, 'id', 1, 'name', 'colour');
+end
+
+function D = colourDay(cfg, day, obsType)
+%COLOURDAY  One (day, stream) of the fixture above.
+    m = cfg.arcs * cfg.mArc;
+    t = (day - 1)*86400 + (0:m-1).' * cfg.dt;
+    w = 2*pi / (0.5 * 86400);
+    D.A = [sin(w*t), cos(w*t), sin(2*w*t), cos(2*w*t)];
+    D.B = zeros(m, 0);
+    rs = RandStream('mt19937ar', 'Seed', 7700 + 10*day + double(obsType(1)));
+    e  = filter(1, [1 -cfg.phi.(obsType)], randn(rs, m + 2000, 1));
+    D.l = D.A * cfg.xTrue(:) + e(2001:end);
+    D.t = t;
+    D.arcIdx = arrayfun(@(a) (a-1)*cfg.mArc + (1:cfg.mArc), 1:cfg.arcs, ...
+                        'UniformOutput', false);
+end
+
 function data = arcFactorFixture(badScale)
 %ARCFACTORFIXTURE  ONE white stream, three arcs a day, arc 2 badScale x worse
 %   in SIGMA -- so the planted arc VARIANCE factors are [1 badScale^2 1] and
