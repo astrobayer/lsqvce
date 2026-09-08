@@ -44,7 +44,7 @@ One identifier per situation; it fires \emph{once per run}, not once per arc (th
 
 \section{Convergence is a result}
 
-Reaching the pass budget, alternating components, or a stream that never whitens are outcomes of the estimation, not failures of the code. They set \code{R.converged = false}, \code{R.stopReason} from a closed enum (\code{"tolerance"}, \code{"whiteness"}, \code{"maxPasses"}, \code{"alternating"}, \code{"skipThreshold"}), and one warning. The estimates of the last pass are returned with their covariance; the report's level-1 line says which criterion stopped the loop. Refusing to return a non-converged estimate would hide exactly the evidence the user needs.
+Reaching the pass budget, alternating components, or a stream that never whitens are outcomes of the estimation, not failures of the code. They set \code{R.converged = false}, \code{R.stopReason} from a closed enum (\code{"single"}, \code{"converged"}, \code{"maxPasses"}, \code{"userStop"}), and one warning. The estimates of the last pass are returned with their covariance; the report's level-1 line says which criterion stopped the loop. Refusing to return a non-converged estimate would hide exactly the evidence the user needs.
 
 \section{User functions}
 

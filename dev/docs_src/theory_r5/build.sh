@@ -5,6 +5,6 @@ set -e
 cd "$(dirname "$0")"
 pdflatex -interaction=nonstopmode -halt-on-error main.tex >/dev/null
 pdflatex -interaction=nonstopmode -halt-on-error main.tex >/dev/null
-mv main.pdf ../../lsqvce_theory_r5.pdf
+mv main.pdf ../../../lsqvce_theory.pdf   # THE shipped theory PDF (R6 WP-101: one builder, one name)
 rm -f main.aux main.log main.out main.toc
-echo "built dev/lsqvce_theory_r5.pdf"
+echo "built lsqvce_theory.pdf"
