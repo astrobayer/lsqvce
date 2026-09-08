@@ -70,12 +70,11 @@ Fable 5. Rewritten for v3 and again for v4 (scoped tables) the same day (Claude 
    default the Options policy). A law whose `sigma` is a VECTOR (per-row weights) is a fixed
    structure: it can carry a level (`"scale"`) but not a spectral shape (`"law"` is refused,
    `lsqvce:fit:lawOnFixedStructure`). `Options.Pool` decides which streams SHARE one
-   estimated spectral shape; every stream keeps its own level. **Per-arc factors are a
-   ONE-PASS estimate** (R6 finding F-01): they are estimated but never fed back into the
-   weighting, so over several passes they compound — 7.9 after one pass against a planted
-   9, 3512 after four. Read them from a `MaxPasses = 1` run, or use `arcFactors = false`
-   and read the per-stream level; the loop warns with
-   `lsqvce:adjustVCEjoint:arcFactorsDiverging` when a stream's spread runs away.
+   estimated spectral shape; every stream keeps its own level. Of a stream's per-arc factors only the
+   **ratio** is identifiable — the level absorbs their mean. (R6 finding F-01, fixed in
+   WP-98: eq. 6.5.28 multiplies by the factor the weighting used, so the ratio now settles
+   across passes — 9.4 / 8.6 / 8.6 / 8.6 against a planted 9, where before it grew by 8.4x
+   every pass. Runs with `arcFactors = false` are unchanged.)
 3. **The per-pass inspection hook** — `Options.OnPass = @(ctx)` receives, after every pass
    of every iterative run, the pass state, the live accumulator, `ctx.data` (this
    declaration as given) and `ctx.processingOptions{k}` (system k's `processingOptions` as

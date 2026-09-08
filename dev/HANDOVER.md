@@ -6440,3 +6440,59 @@ two are already identical (every arc carries the stream's one level), so such ru
 Second, `gammaBar` divides out a magnitude that the LAW took; a stream whose law is not
 estimated never gave its magnitude away, so its factors must stay absolute or its level is
 pinned at whatever was declared.
+
+**THE FIX, and its MEASURED blast radius.** Implemented as the principle above: the factor
+eq. 6.5.28 multiplies is now the one the weighting used — the per-stream level — computed in
+`adjustVCEjoint` immediately before `arcVarianceFactors`. Eight lines, one loop.
+
+The whole suite was then run test by test to see what the change moves. **Exactly two test
+points failed, and both of them are the two WP-97 added to DESCRIBE the defect:**
+`testArcFactorsCompoundAcrossPassesF01` (whose own comment said INVERT ME) and
+`testArcFactorDivergenceIsReported` (the guard can no longer be provoked). Nothing else in 534
+points moved — no reference number, no pinned tolerance, no demo. That is the strongest
+evidence available that the change is surgical rather than a re-tuning.
+
+MEASURED, on the committed fixture (`arcFactorFixture`, planted ratio 9):
+
+| passes | 1 | 2 | 3 | 4 | 5 |
+|---|---|---|---|---|---|
+| before | 9.37 | 79.5 | 671 | 5626 | 4.69e4 |
+| after | 9.37 | **8.56** | **8.56** | **8.56** | **8.56** |
+
+and the level settles with it: 0.688, 0.678, 0.678, 0.678, 0.678.
+
+MEASURED, the configuration that motivated WP-96's two-run structure — all four streams of
+`demo_noisePolicy` in ONE run, which used to give 0.00 / 41 / 0.00 against a planted 1 / 9 / 1:
+**0.97 / 8.90 / 0.92**, ratio 9.41, with every level right at the same time (gps 0.2000 exactly,
+acc 0.4906 against 0.5000, rr 1.2138 against 1.1547, mag 0.5691 against 0.5745). So
+`demo_noisePolicy` is now ONE run, and its help says why it used to be two.
+
+**The two tests, reworked rather than deleted.** The characterisation test became
+`testArcFactorsStaySettledAcrossPasses`: the ratio after four passes must sit in the SAME band
+the one-pass oracle asserts and within 25 % of the one-pass value. The guard test became
+`testArcFactorGuardIsSilentOnASettledRun`. The guard itself STAYS — it is what would catch this
+class returning on a user's own data, where no test of ours runs — and its firing direction is
+on the record with WP-97's numbers rather than in a live test, because nothing on this tree can
+provoke it any more. That is stated in its help, so nobody deletes it for being quiet.
+
+**STILL OPEN, and not claimed as fixed.** Only the RATIO between a stream's arcs is pinned by
+evidence. The absolute split between a stream's LEVEL and its arc factors is fixed by
+`gammaBar` (eq. 6.5.30), and on the fixture the level settles at 0.678 where the undegraded
+arcs were planted at 0.5. The oracle asserts the ratio for that reason. Also unchanged and
+still recorded: `sweepArcs` weights every arc by one `C` while `Cgroups` holds a law per pool
+group (§12.21), which the F-01 fixture proved is not F-01 but is still not what `Pool` promises.
+
+| WP | title | depends on | status |
+|---|---|---|---|
+| 98 | Finding F-01 FIXED: eq. 6.5.28 multiplies the factor the weighting used, so the arc factors settle instead of compounding 8.4x a pass; §12.21's own M3 measurement corrected (`demo_gravity` runs `ArcFactors=false` and its per-stream spread is 1.00); the characterisation test inverted, the guard kept as a ratchet, `demo_noisePolicy` back to ONE run | 97 | READY-PLACEHOLDER-98 |
+
+**ROUND WP-98 (2026-09-08, model Claude Opus 5, tier A).** The round's first act was to correct
+a measurement of my own (above); its second was to derive the mechanism and PREDICT a number
+before measuring it, which is the only kind of confirmation worth having here. The prediction
+was a constant per-pass growth factor; measured 8.48, 8.44, 8.38, 8.34.
+
+VERDICTS. Local `ci_gate` GREEN **534/534** (546 declared, unchanged — two tests reworked, none
+added or removed), 26/26 suites, 1 excluded; example smoke **15/15**; Linux audit with the
+Manual rebuilt under WSL **CLEAN, zero findings**, self-test 14/14. The blast radius was
+measured before the round was allowed to continue: the whole suite run test by test failed
+exactly the two points that existed to describe the defect. CI: pending on the draft PR.
