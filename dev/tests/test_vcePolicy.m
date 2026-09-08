@@ -532,3 +532,109 @@ function testDemoNoisePolicyIsTheWorkedPolicyExample(tc)
     tc.verifyEqual(s.badEstimate, "lsqvce:fit:badEstimate", ...
                    'a policy that is not one of the three names is refused by name');
 end
+
+%% ------------------------------------------- arc factors (R6 WP-97, F-01)
+function testArcFactorsRecoverThePlantedRatioInOnePass(tc)
+% categories: reference, precision
+    % R6 WP-97: the oracle dev/tests never had. test_ellmer pins the MECHANISM
+    % of the arc factors ("none" leaves them alone, "scale" estimates them,
+    % sigmaScale == sqrt(mean sigma2)); nothing asserted the NUMBER against a
+    % planted truth, which is why finding F-01 survived every green run.
+    % Planted here: arc 2 of every day is 3x worse in sigma, so the arc
+    % VARIANCE factors are 1 / 9 / 1.
+    R = lsqvce.fit(arcFactorFixture(3), ...
+                   lsqvce.Options(Estimate="noise", Pool="stream", MaxPasses=1, ...
+                                  Verbose=false));
+    f2 = mean(reshape(R.noise.model{1}.sigma2, 3, []), 2).';
+    ratio = f2(2) / mean(f2([1 3]));
+    % tol: an EMPIRICAL band. Six seeds gave 7.83 8.49 8.84 9.37 9.62 9.85
+    % against the planted 9 (measured 2026-09-08), so [6, 13] clears seed
+    % noise by a wide margin while staying far from 1 (no split at all) and
+    % from the compounded values the next test pins (> 3700).
+    tc.verifyGreaterThan(ratio, 6, 'the degraded arc is found in ONE pass');
+    tc.verifyLessThan(ratio, 13, 'and not exaggerated');
+    % tol: a factor 2 -- the two undegraded arcs are one population; more than
+    % that between them would be structure, not sampling
+    tc.verifyLessThan(max(f2([1 3])) / min(f2([1 3])), 2, 'the two good arcs agree');
+end
+
+function testArcFactorsCompoundAcrossPassesF01(tc)
+% categories: contract, robustness
+    % R6 WP-97 -- THIS TEST PINS A DEFECT, NOT A PROMISE (finding F-01,
+    % HANDOVER 12.21). The per-arc factors never reach the data
+    % (lsqvce.engine.jointModelOpt applies the stream MEAN only), so eq. 6.5.28
+    % multiplies by a factor the weighting never used and the spread roughly
+    % SQUARES every pass: six seeds gave 3766 to 6927 after four passes against
+    % the planted 9 (measured 2026-09-08).
+    % WHEN F-01 IS FIXED, INVERT THIS TEST: the ratio must then stay inside the
+    % band the one-pass oracle above asserts, and this comment must go with it.
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:arcFactorsDiverging');
+    R = lsqvce.fit(arcFactorFixture(3), ...
+                   lsqvce.Options(Estimate="noise", Pool="stream", MaxPasses=4, ...
+                                  Verbose=false));
+    f2 = mean(reshape(R.noise.model{1}.sigma2, 3, []), 2).';
+    ratio = f2(2) / mean(f2([1 3]));
+    % tol: 100 -- more than an order below the smallest measured (3766) and an
+    % order above the one-pass band, so this says "compounded", not "noisy"
+    tc.verifyGreaterThan(ratio, 100, 'F-01: the factors compound instead of settling');
+end
+
+function testArcFactorDivergenceIsReported(tc)
+% categories: contract, robustness
+    % R6 WP-97: the guard must FIRE on the compounding fixture and stay SILENT
+    % when there is nothing to compound -- both directions, because an
+    % instrument that cannot be shown to be silent proves nothing by being
+    % silent. The run INVENTORY is read rather than the console: it records the
+    % identifier even when the warning's display is muted, so this assertion
+    % does not depend on the warning state. Measured on the shipped demos, both
+    % silent: demo_gravity 16 -> 15.6 -> 17 over four passes, demo_grace
+    % 4.13 -> 3.27 over six.
+    id = 'lsqvce:adjustVCEjoint:arcFactorsDiverging';
+    muteWarn(tc, id);
+    opts = lsqvce.Options(Estimate="noise", Pool="stream", MaxPasses=4, Verbose=false);
+    lsqvce.fit(arcFactorFixture(3), opts);          % fit resets the inventory
+    tc.verifyTrue(any(strcmp(lsqvce.util.log.inventory(), id)), ...
+                  'the guard fires on a spread that keeps growing');
+    lsqvce.fit(arcFactorFixture(1), opts);
+    tc.verifyFalse(any(strcmp(lsqvce.util.log.inventory(), id)), ...
+                   'and is silent when no arc is degraded');
+end
+
+function data = arcFactorFixture(badScale)
+%ARCFACTORFIXTURE  ONE white stream, three arcs a day, arc 2 badScale x worse
+%   in SIGMA -- so the planted arc VARIANCE factors are [1 badScale^2 1] and
+%   the stream's level is 0.5. The law is estimated ("law") so the loop keeps
+%   iterating and the arc factors have somewhere to drift; no local unknowns,
+%   so nothing else can absorb the difference. Deterministic: the noise comes
+%   from a stream seeded on the day.
+    cfg = struct('nc', 4, 'days', 1:3, 'arcs', 3, 'mArc', 256, 'dt', 5, ...
+                 'badArc', 2, 'badScale', badScale, 'sigma', 0.5, ...
+                 'xTrue', [0.8 -0.45 0.3 0.15]);
+    data = struct();
+    data.commonParams = [repmat({'common'}, cfg.nc, 1), ...
+                         arrayfun(@(j) sprintf('c%d', j), (1:cfg.nc).', ...
+                                  'UniformOutput', false)];
+    data.days = cfg.days;
+    data.systems = struct( ...
+        'buildDay', @(day, ot) arcFactorDay(cfg, day), ...
+        'covariance', struct('a', struct('type', 'diag', 'sigma', cfg.sigma, ...
+                                         'estimate', "law", 'arcFactors', true)), ...
+        'arcs', cfg.arcs, 'id', 1, 'name', 'arcFactorFixture');
+end
+
+function D = arcFactorDay(cfg, day)
+%ARCFACTORDAY  One day of the fixture above.
+    m = cfg.arcs * cfg.mArc;
+    t = (day - 1)*86400 + (0:m-1).' * cfg.dt;
+    w = 2*pi / (0.5 * 86400);
+    D.A = [sin(w*t), cos(w*t), sin(2*w*t), cos(2*w*t)];
+    D.B = zeros(m, 0);
+    rs = RandStream('mt19937ar', 'Seed', 9100 + day);
+    e  = cfg.sigma * randn(rs, m, 1);
+    rows = (cfg.badArc - 1)*cfg.mArc + (1:cfg.mArc);
+    e(rows) = e(rows) * cfg.badScale;
+    D.l = D.A * cfg.xTrue(:) + e;
+    D.t = t;
+    D.arcIdx = arrayfun(@(a) (a-1)*cfg.mArc + (1:cfg.mArc), 1:cfg.arcs, ...
+                        'UniformOutput', false);
+end

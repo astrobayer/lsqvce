@@ -27,7 +27,15 @@ classdef Options
 %                                   spectral shape (every stream keeps its own
 %                                   level regardless); default "all"
 %     ArcFactors logical            per-arc variance factors on (Ellmer 6.5.4),
-%                                   default true; false = one level per stream
+%                                   default true; false = one level per stream.
+%                                   THEY ARE A ONE-PASS ESTIMATE (R6 F-01):
+%                                   the factors never reach the weighting, so
+%                                   over several passes they compound -- 7.9
+%                                   after one pass against a planted 9, 3512
+%                                   after four. Read them from a MaxPasses=1
+%                                   run, or set false and read the per-stream
+%                                   level; the loop warns when it sees a
+%                                   stream's spread run away.
 %     Robust     "none" | "huber" | "igg3" | "bisquare"   IRLS on the same
 %                                   loop, every kind (details in RobustOpts)
 %     MaxPasses  double  10         the ONE pass budget (v4: MaxOuter / JointMaxIter)
@@ -108,6 +116,9 @@ classdef Options
 %
 %   See also LSQVCE.FIT, LSQVCE.RESULTS, the Manual, chapter 3, RELEASE_NOTES.md
 %
+%   Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-97: ArcFactors carries the
+%   measured F-01 limitation -- the per-arc factors are a ONE-PASS estimate.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.
 %   Created 2026-09-03 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.1 -- R5 Level M5, WP-87 (v5 interface).
 
