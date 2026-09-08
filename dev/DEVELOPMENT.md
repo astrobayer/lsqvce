@@ -7,7 +7,7 @@ the module census, correctness history, design decisions, validation, and the
 measured chapters. `dev/HANDOVER.md` remains the single status-and-plans
 document; this file is the technical companion the README used to be.*
 
-> **Status (2026-09-01, v2.0 — see RELEASE_NOTES.md).** Green everywhere: **26 suite files, 549 test
+> **Status (2026-09-01, v2.0 — see RELEASE_NOTES.md).** Green everywhere: **27 suite files, 551 test
 > points, 0 fail** — verified locally in MATLAB R2026a (including the
 > pool suites with real `parfor`/`spmd` workers and the machine-local
 > speed budgets) and on every push by GitHub Actions CI (a static `audit`
