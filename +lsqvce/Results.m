@@ -97,6 +97,9 @@ classdef Results < handle
 %   See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCE, LSQVCE.REPORT,
 %            LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-99: R.report() forwards the
+%   loop state, so the verdict says whether the stochastic model settled.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.
 %   Updated 2026-09-01 (CEST, UTC+02:00), R4 WP-61 (Level L3): ACCURACY block
 %   (the sigma0 / Cxx contract stated once). With assistance from Claude
 %   (Anthropic), model Claude Fable 5.
@@ -169,9 +172,20 @@ classdef Results < handle
         function V = report(obj, varargin)
         %REPORT  Judge the adjustment in words (LSQVCE.REPORT), levels 0-4.
         %   Forwards the run provenance so the printed level-0 block carries
-        %   the one provenance line (WP-44); user options pass through and a
-        %   user-supplied 'Provenance' would win (last-match NV semantics).
-            V = lsqvce.report(obj.diag, 'Provenance', obj.meta, varargin{:});
+        %   the one provenance line (WP-44), and the LOOP STATE so level 1 can
+        %   say whether the stochastic model settled (R6 WP-99: every number
+        %   from level 1 down rests on those weights). A single solve reports
+        %   stopReason "single" and report() then says nothing about it. User
+        %   options pass through and a user-supplied 'Provenance' / 'Iteration'
+        %   would win (last-match NV semantics).
+            nPass = 1;                       % a single solve is one pass
+            if ~isempty(obj.history) && isfield(obj.history, 'nIter')
+                nPass = obj.history.nIter;
+            end
+            it = struct('converged', obj.converged, 'stopReason', obj.stopReason, ...
+                        'nIter', nPass);
+            V = lsqvce.report(obj.diag, 'Provenance', obj.meta, 'Iteration', it, ...
+                              varargin{:});
         end
 
         function r = redundancy(obj)

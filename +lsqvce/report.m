@@ -29,6 +29,14 @@ function V = report(D, opt)
 %                      (code 'PROVENANCE') states toolbox version, MATLAB
 %                      release, and creation time. R.report() forwards it
 %                      automatically; a bare lsqvce.report(D) prints none.
+%     'Iteration'  struct()  the loop state of an ITERATIVE run (R6 WP-99):
+%                      .converged, .stopReason, .nIter. When non-empty and the
+%                      run was not a single solve, ONE level-1 line says
+%                      whether the stochastic model settled -- 'NOISE_SETTLED'
+%                      (NOTE) or 'NOISE_UNSETTLED' (WARN). Every number from
+%                      level 1 down rests on those weights, so a model that was
+%                      still moving qualifies all of them. R.report() forwards
+%                      it automatically.
 %
 %   OUTPUT V
 %     V.verdict   'PASS' | 'PASS WITH WARNINGS' | 'SUSPECT' | 'INVALID'
@@ -60,6 +68,11 @@ function V = report(D, opt)
 %   model Claude Fable 5.
 %   See also LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.SYSTEMATIC.
 %
+%   Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-99: the new 'Iteration'
+%   option puts ONE level-1 line in the verdict saying whether the stochastic
+%   model settled -- a report that stays silent about weights that were still
+%   moving is a report that misleads. With assistance from Claude (Anthropic),
+%   model Claude Opus 5.
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
 
@@ -71,6 +84,10 @@ arguments
     opt.Width (1,1) double {mustBeGreaterThanOrEqual(opt.Width, 40)} = 78
     opt.Provenance (1,1) struct = struct()   % WP-44: Results.meta, prints one
                                              % level-0 line when non-empty
+    opt.Iteration (1,1) struct = struct()    % R6 WP-99: .converged .stopReason
+                                             % .nIter of an iterative run; one
+                                             % level-1 line when non-empty and
+                                             % the run was not a single solve
 end
 
 verbose = opt.Verbose;
@@ -155,6 +172,31 @@ if D.s0Fallback
 end
 
 %% ======================================================== LEVEL 1: GLOBAL
+% R6 WP-99: FIRST, whether the weights this level judges had settled at all.
+% Every number from here down rests on the stochastic model, so a model that
+% was still moving when the loop stopped qualifies all of them. The engine
+% warns (lsqvce:adjustVCEjoint:notConverged), but warnings are routinely muted
+% -- this toolbox's own suite mutes that one in three places -- and a verdict
+% that stays silent about it is a verdict that misleads. Nothing is said for a
+% single solve, which has no loop: stopReason "single".
+if ~isempty(fieldnames(opt.Iteration))
+    it = opt.Iteration;
+    if ~strcmp(char(it.stopReason), 'single')
+        if it.converged
+            push(1, 'NOTE', 'NOISE_SETTLED', ...
+                'The stochastic model settled in %d pass(es).', it.nIter);
+        else
+            push(1, 'WARN', 'NOISE_UNSETTLED', ...
+                ['The stochastic model did NOT settle: the loop stopped after %d ' ...
+                 'pass(es), stopReason "%s". The weights every number below rests ' ...
+                 'on were still moving, so read what follows as provisional. Raise ' ...
+                 'MaxPasses or loosen Tolerance and run this report again; ' ...
+                 'R.convergence() shows what was still changing.'], ...
+                 it.nIter, char(it.stopReason));
+        end
+    end
+end
+
 if integrityOK
     r     = D.r;
     ratio = D.varRatio;

@@ -71,6 +71,14 @@ LEVELS
                    (code &#x27;PROVENANCE&#x27;) states toolbox version, MATLAB
                    release, and creation time. R.report() forwards it
                    automatically; a bare lsqvce.report(D) prints none.
+  &#x27;Iteration&#x27;  struct()  the loop state of an ITERATIVE run (R6 WP-99):
+                   .converged, .stopReason, .nIter. When non-empty and the
+                   run was not a single solve, ONE level-1 line says
+                   whether the stochastic model settled -- &#x27;NOISE_SETTLED&#x27;
+                   (NOTE) or &#x27;NOISE_UNSETTLED&#x27; (WARN). Every number from
+                   level 1 down rests on those weights, so a model that was
+                   still moving qualifies all of them. R.report() forwards
+                   it automatically.
 
 OUTPUT V
   V.verdict   &#x27;PASS&#x27; | &#x27;PASS WITH WARNINGS&#x27; | &#x27;SUSPECT&#x27; | &#x27;INVALID&#x27;
@@ -100,6 +108,11 @@ case-sensitive lowercase). With assistance from Claude (Anthropic),
 model Claude Fable 5.
 See also LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.SYSTEMATIC.
 
+Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-99: the new &#x27;Iteration&#x27;
+option puts ONE level-1 line in the verdict saying whether the stochastic
+model settled -- a report that stays silent about weights that were still
+moving is a report that misleads. With assistance from Claude (Anthropic),
+model Claude Opus 5.
 Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 2026-07-11.</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>

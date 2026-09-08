@@ -151,6 +151,40 @@ function testStreamModelCarriesOnlyItsOwnEstimatedLaw(tc)
     end
 end
 
+function testReportSaysWhetherTheStochasticModelSettled(tc)
+% categories: contract
+    % R6 WP-99: lsqvce.report read NOTHING of the iteration state, so a run of
+    % Estimate="noise" that stopped on maxPasses -- whose weights were still
+    % moving -- got a verdict that said nothing about it. The engine warns, and
+    % warnings are routinely muted (this suite mutes that one in three places),
+    % so the verdict has to carry it. Three cases, because the interesting part
+    % is what it must NOT say: a single solve has no loop and must stay silent.
+    A = randn(200, 5);  xt = (1:5).';
+    R0 = lsqvce.fit(struct('A', A, 'l', A*xt + 0.1*randn(200, 1)), ...
+                    lsqvce.Options(Verbose=false));
+    V0 = R0.report('Verbose', false);
+    tc.verifyEmpty(codesOf(V0, 'NOISE_'), 'a single solve says nothing about a loop it never ran');
+
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');
+    data = tc.TestData.data;
+    Ru = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", MaxPasses=1, ...
+                     Noise=struct('Grid', 16), Seed=3, Verbose=false));
+    tc.assumeFalse(Ru.converged, 'the one-pass run is the unsettled case');
+    Vu = Ru.report('Verbose', false);
+    tc.verifyEqual(codesOf(Vu, 'NOISE_'), {'NOISE_UNSETTLED'}, 'it names the unsettled model');
+    f = Vu.findings{find(strcmp(cellfun(@(q) q.code, Vu.findings, 'UniformOutput', false), ...
+                               'NOISE_UNSETTLED'), 1)};
+    tc.verifyEqual(f.severity, 'WARN', 'a WARN: it qualifies every level below, it does not void them');
+    tc.verifyEqual(f.level, 1, 'level 1 -- the weights are what level 1 judges');
+    tc.verifyTrue(contains(f.msg, 'maxPasses'), 'and it says WHY the loop stopped');
+end
+
+function codes = codesOf(V, prefix)
+%CODESOF  The finding codes of V that start with prefix, in order.
+    all = cellfun(@(f) f.code, V.findings, 'UniformOutput', false);
+    codes = all(startsWith(all, prefix));
+end
+
 %% ------------------------------------------------------------- messaging
 function testVerboseZeroIsSilent(tc)
 % categories: contract, robustness | tags: diagnostics
