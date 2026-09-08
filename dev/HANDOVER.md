@@ -6345,7 +6345,7 @@ changes no number in the F-01 fixture, but it is not what `Pool` promises.
 
 | WP | title | depends on | status |
 |---|---|---|---|
-| 97 | Finding F-01: the arc-factor ORACLE the suite never had (planted 1 / 9 / 1, recovered in one pass), a CHARACTERISATION test that pins the compounding until it is fixed, and a guard (`lsqvce:adjustVCEjoint:arcFactorsDiverging`) that reports a runaway spread instead of returning it silently; `Options.ArcFactors`, the Manual and `demo_noisePolicy` state the limitation | 96 | READY (2026-09-08, PR #97; local ci_gate GREEN 534/534 over 26/26 suites, examples 15/15, Linux audit CLEAN with the Manual rebuilt, self-test 14/14; DONE flips on the merge) |
+| 97 | Finding F-01: the arc-factor ORACLE the suite never had (planted 1 / 9 / 1, recovered in one pass), a CHARACTERISATION test that pins the compounding until it is fixed, and a guard (`lsqvce:adjustVCEjoint:arcFactorsDiverging`) that reports a runaway spread instead of returning it silently; `Options.ArcFactors`, the Manual and `demo_noisePolicy` state the limitation | 96 | READY (2026-09-08, PR #97, CI green on 3446ac5: audit 20 s, matlab 2m51s; local ci_gate GREEN 534/534 over 26/26 suites, examples 15/15, Linux audit CLEAN with the Manual rebuilt, self-test 14/14; DONE flips on the merge) |
 
 **ROUND WP-97 (2026-09-08, model Claude Opus 5, tier A).** The round's first product was a
 REFUTED hypothesis (§12.21 above); everything below is what measurement then established.
@@ -6383,4 +6383,6 @@ compounding, not its cause).
 VERDICTS. Local `ci_gate` GREEN **534/534** (546 declared, 531 + 3 as predicted), 26/26 suites,
 1 excluded; example smoke **15/15**; Linux audit (Manual rebuilt under WSL) **CLEAN, zero
 findings**, self-test 14/14; the new identifier is catalogued (299 raised = 299 catalogued)
-and documented in its unit's help. CI: pending on the draft PR.
+and documented in its unit's help. CI green on 3446ac5: audit **pass 20 s**, matlab
+**pass 2m51s** -- the new guard fires on no shipped run, so the gate's warning inventory
+is unchanged.
