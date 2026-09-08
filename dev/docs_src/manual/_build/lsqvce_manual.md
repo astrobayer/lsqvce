@@ -983,6 +983,10 @@ LSQVCE.FIT  Fit a least-squares adjustment (optionally with VCE) to declared dat
   model Claude Fable 5 -- R4 Level L2, WP-56 (decision R4-D4).
   Help rewritten 2026-09-04 for v5.2 (R5 M5 / R5-D8), model Claude Fable 5.1:
   the v5 surface (Estimate, priors, paramColumns, OnPass, layout, toTable).
+  Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-99: R.noise.model{k}.C is the
+  law of the stream's pool group and EMPTY where no law was estimated, instead
+  of falling back to another stream's fitted spectrum. With assistance from
+  Claude (Anthropic), model Claude Opus 5.
   Updated 2026-09-06 (CEST, UTC+02:00), R6 WP-90: the error information
   travels with the day (D.Cep); epochCovariance retired; the See also on
   the units that exist. With assistance from Claude (Anthropic), model
@@ -1220,6 +1224,9 @@ LSQVCE.RESULTS  The outcome of a recovery: solution, diagnostics, provenance.
   See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCE, LSQVCE.REPORT,
            LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.BLOCKACCUMULATOR
 
+  Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-99: R.report() forwards the
+  loop state, so the verdict says whether the stochastic model settled.
+  With assistance from Claude (Anthropic), model Claude Opus 5.
   Updated 2026-09-01 (CEST, UTC+02:00), R4 WP-61 (Level L3): ACCURACY block
   (the sigma0 / Cxx contract stated once). With assistance from Claude
   (Anthropic), model Claude Fable 5.
@@ -1281,6 +1288,14 @@ LSQVCE.REPORT  Judge a least-squares adjustment and say so in words.
                      (code 'PROVENANCE') states toolbox version, MATLAB
                      release, and creation time. R.report() forwards it
                      automatically; a bare lsqvce.report(D) prints none.
+    'Iteration'  struct()  the loop state of an ITERATIVE run (R6 WP-99):
+                     .converged, .stopReason, .nIter. When non-empty and the
+                     run was not a single solve, ONE level-1 line says
+                     whether the stochastic model settled -- 'NOISE_SETTLED'
+                     (NOTE) or 'NOISE_UNSETTLED' (WARN). Every number from
+                     level 1 down rests on those weights, so a model that was
+                     still moving qualifies all of them. R.report() forwards
+                     it automatically.
 
   OUTPUT V
     V.verdict   'PASS' | 'PASS WITH WARNINGS' | 'SUSPECT' | 'INVALID'
@@ -1312,6 +1327,11 @@ LSQVCE.REPORT  Judge a least-squares adjustment and say so in words.
   model Claude Fable 5.
   See also LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.SYSTEMATIC.
 
+  Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-99: the new 'Iteration'
+  option puts ONE level-1 line in the verdict saying whether the stochastic
+  model settled -- a report that stays silent about weights that were still
+  moving is a report that misleads. With assistance from Claude (Anthropic),
+  model Claude Opus 5.
   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
   2026-07-11.
 ```

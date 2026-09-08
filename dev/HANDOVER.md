@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-09-08 — WP-97 DONE (PR #97, merge f47306d; postflight on merged main: ci_gate 534/534, examples 15/15); WP-98 OPEN: F-01's mechanism is ESTABLISHED and one of §12.21's own measurements is CORRECTED; §12.22.
+Last substantive update: 2026-09-08 — WP-98 DONE (PR #98, merge cf10d71; finding F-01 FIXED; postflight on merged main: ci_gate 535/535, examples 15/15); WP-99 OPEN: the four carried instrument-and-honesty items, one commit each; §12.23.
+Preceding entry: Last substantive update: 2026-09-08 — WP-97 DONE (PR #97, merge f47306d; postflight on merged main: ci_gate 534/534, examples 15/15); WP-98 OPEN: F-01's mechanism is ESTABLISHED and one of §12.21's own measurements is CORRECTED; §12.22.
 Preceding entry: Last substantive update: 2026-09-08 — WP-96 DONE (PR #96, merge cd14d22; postflight on merged main: ci_gate 531/531, examples 15/15); WP-97 OPEN: finding F-01 gets the oracle it never had and a guard, after the first hypothesis was MEASURED and refuted; §12.21.
 Preceding entry: Last substantive update: 2026-09-07 — WP-95 DONE (PR #95, merge 96ed78f; postflight on merged main: ci_gate 529/529, examples 13/13); WP-96 OPEN: the two gaps carried out of §12.19 get worked examples — `lsqvce.layout` and the per-stream noise policy (`estimate` / `arcFactors`, a `psd` law); §12.20.
 Preceding entry: Last substantive update: 2026-09-07 — WP-94 DONE (PR #94, merge f726660); WP-95 READY (the examples audited against v5.3 by a 186-agent workflow: 85 raw / 54 confirmed / 12 set-level findings, all fixed; ci_gate 529/529, examples 13/13, Linux audit 0 findings; §12.19).
@@ -6497,7 +6498,7 @@ group (§12.21), which the F-01 fixture proved is not F-01 but is still not what
 
 | WP | title | depends on | status |
 |---|---|---|---|
-| 98 | Finding F-01 FIXED: eq. 6.5.28 multiplies the factor the weighting used, so the arc factors settle instead of compounding 8.4x a pass; §12.21's own M3 measurement corrected (`demo_gravity` runs `ArcFactors=false` and its per-stream spread is 1.00); the characterisation test inverted, the guard kept as a ratchet, `demo_noisePolicy` back to ONE run | 97 | READY (2026-09-08, PR #98, CI green on e8779d9: audit 38 s, matlab 2m33s; local ci_gate GREEN 535/535 over 26/26 suites, examples 15/15, Linux audit CLEAN with the Manual rebuilt, self-test 14/14; DONE flips on the merge) |
+| 98 | Finding F-01 FIXED: eq. 6.5.28 multiplies the factor the weighting used, so the arc factors settle instead of compounding 8.4x a pass; §12.21's own M3 measurement corrected (`demo_gravity` runs `ArcFactors=false` and its per-stream spread is 1.00); the characterisation test inverted, the guard kept as a ratchet, `demo_noisePolicy` back to ONE run | 97 | DONE (2026-09-08, PR #98, merge cf10d71; CI green on the record head: audit 27 s, matlab 2m49s. POSTFLIGHT on merged main: ci_gate GREEN 535/535 over 26/26 suites, examples 15/15) |
 
 **ROUND WP-98 (2026-09-08, model Claude Opus 5, tier A).** The round's first act was to correct
 a measurement of my own (above); its second was to derive the mechanism and PREDICT a number
@@ -6519,3 +6520,98 @@ Manual rebuilt under WSL **CLEAN, zero findings**, self-test 14/14. The blast ra
 measured before the round was allowed to continue: the whole suite run test by test failed
 exactly the two points that existed to describe the defect. CI green on the record head
 e8779d9: audit **pass 38 s**, matlab **pass 2m33s**.
+
+### 12.23 WP-99 — the four carried items: two instruments, two honest values (2026-09-08, model Claude Opus 5, tier A)
+
+**Origin.** Four items carried out of §12.19–§12.22, each recorded when it was found and each
+deliberately not fixed at the time because it belonged to a different round. The user asked for
+all four. They are a batch: one branch, one PR, ONE COMMIT PER ITEM.
+
+1. **The example harness is not in the repository.** MEASURED: 8 of the 15 files in `examples/`
+   are executed by nothing in `dev/tests` — `bench_qr_vs_normal`, `demo_combine`, `demo_grace`,
+   `demo_gravfire`, `demo_lsqvce`, `demo_messaging`, `demo_sensors`, `demo_workflow` — and the
+   "examples 15/15" cited in every PR of this review comes from a harness that lives in a
+   scratch directory and is rebuilt by hand each round. The postflight's second half has no
+   authority in the tree.
+2. **No instrument reads a markdown pointer.** MEASURED: `dev/DEVELOPMENT.md` still points at
+   four HTML manuals deleted in the docs level (`html/lsqvce_user_manual.html`,
+   `lsqvce_reference_manual.html`, `lsqvce_interpretation_guide.html`, `lsqvce_choosing.html`).
+   Audit check 5 reads links inside `html/` only. WP-94 built two checks to keep the docs in
+   sync and this class walked past both.
+3. **`R.noise.model{k}.C` returns another stream's law.** `fit>streamModels` does
+   `C = out.C; if isKey(out.Cgroups, gk), C = out.Cgroups(gk); end`, and a stream whose law is
+   NOT estimated has no group entry, so it gets the global `out.C`. MEASURED: in a four-stream
+   run with one `"law"` stream, all four `model{k}.C` were identical (lag-1 1.313 for every
+   one). The field is documented as "the stream's law". A plausible wrong value, returned in
+   silence — the one outcome R4 forbids.
+4. **`R.report()` is blind to the noise loop.** `report.m` reads neither `converged` nor
+   `stopReason` nor `history`. A run that stopped on `maxPasses` — whose stochastic model did
+   NOT settle — gets a verdict that says nothing about it. The warning exists, and warnings are
+   routinely muted; this suite mutes that one in three places.
+
+**Decision (scope frozen).** All four, in this order, one commit each, on `claude/wp-99`.
+Items 1 and 2 add instruments and are therefore fault-injected in the same round: the harness
+must FAIL when an example is added without a row, and check 26 must fire on a dead pointer and
+stay silent on a healthy tree. Items 3 and 4 change what the toolbox REPORTS, never what it
+estimates: if any pinned number moves, the round stops and the movement is explained before it
+continues. Each item's plan was written and adversarially reviewed before implementation.
+
+| WP | title | depends on | status |
+|---|---|---|---|
+| 99 | The four carried items, one commit each: `dev/tests/test_examples.m` (every example runs, and none can be added without a row), audit check 26 (markdown pointers resolve; ten dead ones repaired), `R.noise.model{k}.C` empty where no law was estimated instead of another stream's, and `R.report()` saying whether the stochastic model settled | 98 | READY (2026-09-08, PR #99, CI green on 55ad573: audit 26 s, matlab 2m56s; local ci_gate GREEN 539/539 over 27/27 suites -- the examples are IN that number now -- Linux audit CLEAN with the Manual rebuilt, self-test 18/18; DONE flips on the merge) |
+
+**ROUND WP-99 (2026-09-08, model Claude Opus 5, tier A).** Four items, four commits, and one
+consequence that changes the loop itself.
+
+**Item 1, and what it retires.** The example run is IN the gate now, so the postflight is
+`ci_gate` and nothing else — `CLAUDE.md` says so. For the whole of R6 the "examples N/N" line
+in every PR came from a harness in a scratch directory, rebuilt by hand each round; a claim
+that cannot be re-run by the next reader is not evidence. Both halves fault-injected: a new
+`examples/demo_faultInject_tmp.m` with no row makes the census FAIL naming the file; a table
+row pointed at a throwing call makes the run half FAIL naming the example. Silent on the
+healthy tree, 2/2 in **25.8 s**.
+
+**Item 2, measured before it was wired in.** Check 26 found **ten** dead pointers, all in
+`dev/DEVELOPMENT.md`: the four HTML manuals deleted in the docs level (as markdown links AND
+as backticked paths), `dev/docs_src/build_master_pdf.py` (the Manual moved to pandoc and
+`build_manual.py`), and `dev/validation/bench_m0.m` (log kept, script not). All repaired,
+with the prose around them — that section still described four browsable manuals built with
+ReportLab. The measurement SHAPED the check: its only false positives were a backticked
+COMMAND and a path written relative to its own document, so a candidate is the LAST token of a
+backticked span, resolved against both the root and the document's directory. **56 pointers in
+7 documents, zero findings.** Four self-test cases (18 now), and the two SILENT ones are the
+two that cost a refinement.
+
+**Item 3.** `R.noise.model{k}.C` is empty where no law was estimated. Blast radius checked
+first: nothing in the tree reads that field — every reader uses `.sigma`, `.sigma2`, or
+`Cgroups` directly.
+
+**Item 4.** One level-1 line in the verdict: `NOISE_UNSETTLED` (WARN) or `NOISE_SETTLED`
+(NOTE). A single solve has no loop and says nothing new — that silence is the first thing the
+test asserts, because it is what a careless change would break. Severity checked against the
+verdict rule: WARN reaches "PASS WITH WARNINGS", never "SUSPECT".
+
+**Three more, from the reviewers of that workflow, all repaired here.** (a) Item 3's inline
+policy read restated the map's default; `streamPolicy` now seeds `estMap` for every stream, so
+the default is stated ONCE. (b) `dev/DEVELOPMENT.md` carried a SECOND, unchecked copy of the
+test-count claim, already rotted to "26 files, 541 test points" — removed, with a sentence
+naming the one authority (the Status line, which check 17 reads). (c) The harness called
+`demo_gravfire("")`, whose default resolves to `../testdata.mat`: a developer with a real
+GRAVFIRE bundle on disk would have run the whole pipeline where CI ran a print. The row now
+uses a path that CANNOT exist, so the suite means the same thing on every machine — and the
+suite got faster, 25.8 s to 19.7 s.
+
+**A process note, because it cost something.** A 12-agent planning workflow was launched for
+the four items and implementation started in parallel, so the plans landed AFTER items 3 and 4
+were committed — the fan-out bought nothing on those two. The REVIEWS still earned their keep:
+one caught that item 3's inline policy read restated the map's default ("law" when absent),
+which is one fact written in two places. Fixed at the source instead: `streamPolicy` now seeds
+`estMap` for every stream, so the default is stated ONCE and every reader reads the map. The
+lesson is scheduling, not the instrument: plan OR implement, not both at once.
+
+VERDICTS. Local `ci_gate` GREEN **539/539** over **27/27** suites, 1 excluded (551 declared:
++2 for the example suite, +1 for the model-law test, +1 for the report test) — and the example
+run is now INSIDE that number, so it is the whole postflight. Linux audit with the Manual
+rebuilt under WSL **CLEAN, zero findings**, self-test **18/18**. The Windows audit is at its
+one-finding baseline. CI green on the record head 55ad573: audit **pass 26 s**,
+matlab **pass 2m56s**.

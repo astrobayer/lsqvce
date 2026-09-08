@@ -119,6 +119,72 @@ function testPoolByObsTypeCoarsens(tc)
     tc.verifyEqual(sort(keys(R.noise.Cgroups)), sort(types));
 end
 
+function testStreamModelCarriesOnlyItsOwnEstimatedLaw(tc)
+% categories: contract
+    % R6 WP-99: R.noise.model{k}.C is documented as "the stream's law". Until
+    % this round it fell back to the GLOBAL out.C for a stream whose law was
+    % not estimated, so a "none" or "scale" stream reported a law fitted from
+    % somebody else's arcs -- measured on a four-stream run with ONE "law"
+    % stream, all four .C came back identical. A plausible wrong value returned
+    % in silence is what R4 forbids, so the field is now EMPTY there: the law
+    % that stream used is the one the user declared, and the toolbox did not
+    % touch it. Fixture: the demo declaration with ONE stream demoted to
+    % "scale", so both branches are exercised in one run.
+    data = tc.TestData.data;
+    ots = fieldnames(data.systems(1).covariance);
+    demoted = ots{1};
+    data.systems(1).covariance.(demoted).estimate = "scale";
+    R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", MaxPasses=2, ...
+                     Noise=struct('Grid', 16), Seed=3, Verbose=false));
+    kDem = find(strcmp(extractAfter(string(R.noise.stream), '|'), demoted), 1);
+    tc.verifyNotEmpty(kDem, 'the demoted stream is still reported');
+    tc.verifyEmpty(R.noise.model{kDem}.C, ...
+                   'a stream whose law was NOT estimated reports no law');
+    tc.verifyGreaterThan(R.noise.model{kDem}.sigma, 0, ...
+                         'its LEVEL is still estimated -- that is what "scale" means');
+    others = setdiff(1:numel(R.noise.stream), kDem);
+    for k = others
+        tc.verifyNotEmpty(R.noise.model{k}.C, 'a "law" stream reports the law it fitted');
+        % and it is ITS pool group's law, not some other group's
+        tc.verifyEqual(R.noise.model{k}.C, R.noise.Cgroups(R.noise.stream{k}), ...
+                       'the law reported is the one keyed on this stream');
+    end
+end
+
+function testReportSaysWhetherTheStochasticModelSettled(tc)
+% categories: contract
+    % R6 WP-99: lsqvce.report read NOTHING of the iteration state, so a run of
+    % Estimate="noise" that stopped on maxPasses -- whose weights were still
+    % moving -- got a verdict that said nothing about it. The engine warns, and
+    % warnings are routinely muted (this suite mutes that one in three places),
+    % so the verdict has to carry it. Three cases, because the interesting part
+    % is what it must NOT say: a single solve has no loop and must stay silent.
+    A = randn(200, 5);  xt = (1:5).';
+    R0 = lsqvce.fit(struct('A', A, 'l', A*xt + 0.1*randn(200, 1)), ...
+                    lsqvce.Options(Verbose=false));
+    V0 = R0.report('Verbose', false);
+    tc.verifyEmpty(codesOf(V0, 'NOISE_'), 'a single solve says nothing about a loop it never ran');
+
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');
+    data = tc.TestData.data;
+    Ru = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", MaxPasses=1, ...
+                     Noise=struct('Grid', 16), Seed=3, Verbose=false));
+    tc.assumeFalse(Ru.converged, 'the one-pass run is the unsettled case');
+    Vu = Ru.report('Verbose', false);
+    tc.verifyEqual(codesOf(Vu, 'NOISE_'), {'NOISE_UNSETTLED'}, 'it names the unsettled model');
+    f = Vu.findings{find(strcmp(cellfun(@(q) q.code, Vu.findings, 'UniformOutput', false), ...
+                               'NOISE_UNSETTLED'), 1)};
+    tc.verifyEqual(f.severity, 'WARN', 'a WARN: it qualifies every level below, it does not void them');
+    tc.verifyEqual(f.level, 1, 'level 1 -- the weights are what level 1 judges');
+    tc.verifyTrue(contains(f.msg, 'maxPasses'), 'and it says WHY the loop stopped');
+end
+
+function codes = codesOf(V, prefix)
+%CODESOF  The finding codes of V that start with prefix, in order.
+    all = cellfun(@(f) f.code, V.findings, 'UniformOutput', false);
+    codes = all(startsWith(all, prefix));
+end
+
 %% ------------------------------------------------------------- messaging
 function testVerboseZeroIsSilent(tc)
 % categories: contract, robustness | tags: diagnostics
