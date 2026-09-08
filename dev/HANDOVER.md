@@ -6754,7 +6754,7 @@ this round.
 
 | WP | title | depends on | status |
 |---|---|---|---|
-| 101 | The documentation audit and its repairs: four dead `Options` retired and refused at the door, `Verbose` documented as the 0/1 surface it is, the stale claims in help / html / Manual / README / DEVELOPMENT corrected, the theory document reduced to ONE builder and ONE name (the orphan ReportLab generator and the duplicate PDF deleted), and audit check 27 so a documented option with no consumer cannot ship again | 100 | READY-PLACEHOLDER-101 |
+| 101 | The documentation audit and its repairs: four dead `Options` retired and refused at the door, `Verbose` documented as the 0/1 surface it is, the stale claims in help / html / Manual / README / DEVELOPMENT corrected, the theory document reduced to ONE builder and ONE name (the orphan ReportLab generator and the duplicate PDF deleted), and audit check 27 so a documented option with no consumer cannot ship again | 100 | READY (2026-09-08, PR #101, stacked on #100; CI green: audit 25 s, matlab 3m3s; local ci_gate GREEN 541/541 over 27/27 suites, Linux audit CLEAN with the Manual and the theory PDF rebuilt, self-test 20 cases; DONE flips on the merge) |
 
 **ROUND WP-101 (2026-09-08, model Claude Opus 5, tier A).** The mechanical layer was green
 throughout — 26 checks, exit 0 — which is the whole reason the content audit was worth running.
@@ -6808,3 +6808,5 @@ THE RATCHET. Audit check 27: every public `Options` property must have a consume
 outside `Options.m`. `MinPasses` and `LogFile` would have failed it on the day they were added.
 Fault-injected in this round, both directions: a dead property fires, a property something
 reads is silent. Self-test 20 cases.
+
+VERDICTS. Local `ci_gate` GREEN **541/541** over 27/27 suites (553 declared, unchanged — no test added or removed; `test_options` pins 17 properties instead of 19). Linux audit with the Manual rebuilt under WSL **CLEAN, zero findings**; audit self-test **20 cases**; the Windows audit at its one-finding baseline. The theory PDF was rebuilt with pdflatex under WSL and `pdftotext` confirms the corrected enum is in the shipped file. CI green: audit **pass 25 s**, matlab **pass 3m3s**.
