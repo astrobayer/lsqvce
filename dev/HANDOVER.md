@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-09-07 — WP-95 DONE (PR #95, merge 96ed78f; postflight on merged main: ci_gate 529/529, examples 13/13); WP-96 OPEN: the two gaps carried out of §12.19 get worked examples — `lsqvce.layout` and the per-stream noise policy (`estimate` / `arcFactors`, a `psd` law); §12.20.
+Last substantive update: 2026-09-08 — WP-96 DONE (PR #96, merge cd14d22; postflight on merged main: ci_gate 531/531, examples 15/15); WP-97 OPEN: finding F-01 gets the oracle it never had and a guard, after the first hypothesis was MEASURED and refuted; §12.21.
+Preceding entry: Last substantive update: 2026-09-07 — WP-95 DONE (PR #95, merge 96ed78f; postflight on merged main: ci_gate 529/529, examples 13/13); WP-96 OPEN: the two gaps carried out of §12.19 get worked examples — `lsqvce.layout` and the per-stream noise policy (`estimate` / `arcFactors`, a `psd` law); §12.20.
 Preceding entry: Last substantive update: 2026-09-07 — WP-94 DONE (PR #94, merge f726660); WP-95 READY (the examples audited against v5.3 by a 186-agent workflow: 85 raw / 54 confirmed / 12 set-level findings, all fixed; ci_gate 529/529, examples 13/13, Linux audit 0 findings; §12.19).
 Preceding entry: Last substantive update: 2026-09-07 — WP-92 DONE (PR #92, merge adfc572); WP-93 DONE (PR #93, merge ace2f08); WP-94 READY (PR #94, §12.18).
 Preceding entry: Last substantive update: 2026-09-06 — REVIEW R6 + WP-90 opened on `claude/wp-90`
@@ -6202,7 +6203,7 @@ pandoc absent) and ZERO on Linux.
 
 | WP | title | depends on | status |
 |---|---|---|---|
-| 96 | The two gaps carried out of §12.19 get worked examples: `examples/demo_priors.m` (regularisation written in the columns `lsqvce.layout` announces, on a rank-deficient calibration case) and `examples/demo_noisePolicy.m` (`estimate` "none"/"scale"/"law", `arcFactors`, a `psd` law), each with a measured ACCURACY block and one guarding test point; `CLAUDE.md` refreshed as a POINTER | 95 | READY (2026-09-07, PR #96, CI green on c5a8a64: audit 29 s CLEAN with the self-test, matlab 2m52s; local ci_gate GREEN 531/531 over 26/26 suites, examples 15/15, Windows audit at its one-finding baseline, checkcode 0 on both demos; DONE flips on the merge) |
+| 96 | The two gaps carried out of §12.19 get worked examples: `examples/demo_priors.m` (regularisation written in the columns `lsqvce.layout` announces, on a rank-deficient calibration case) and `examples/demo_noisePolicy.m` (`estimate` "none"/"scale"/"law", `arcFactors`, a `psd` law), each with a measured ACCURACY block and one guarding test point; `CLAUDE.md` refreshed as a POINTER | 95 | DONE (2026-09-07, PR #96, merge cd14d22; CI green on the record head fdebdf7: audit 20 s, matlab 2m28s. POSTFLIGHT on merged main: ci_gate GREEN 531/531 over 26/26 suites, examples 15/15) |
 
 **ROUND WP-96 (2026-09-07, model Claude Opus 5, tier A).** Both demos RETURN the summary
 struct their ACCURACY block quotes, and the guarding test asserts the same numbers the help
@@ -6285,3 +6286,59 @@ that indexed by position would report the wrong row the day the covariance field
 changed, and say nothing — R3); and a run-to-run spread quoted from two runs when four had been
 measured. The measured numbers are unchanged by the refactor (identical to four decimals), and
 `checkcode` reports ZERO messages on both new files.
+
+### 12.21 WP-97 — F-01 gets the oracle it never had, and a guard (2026-09-08, model Claude Opus 5, tier A)
+
+**Origin.** §12.20 recorded finding F-01 and did not fix it. The user asked for the fix. The
+first thing the round produced was a REFUTED HYPOTHESIS, and that is worth more than the
+guess would have been.
+
+**The hypothesis, and how it died.** Reading `adjustVCEjoint` gave a clean story: `sweepArcs`
+weights every arc with ONE `C` (its argument), while `Cmap` holds a law per pool group, so a
+run with more than one law weights every stream by another stream's spectrum, and a stream
+whose law is not estimated is weighted by a law it never declared. It even explained why the
+three `Pool` settings gave IDENTICAL numbers. It was implemented (per-group law in the sweep;
+the delta for a stream whose law is fixed) and MEASURED: the fixture moved from
+0.000 / 43.263 / 0.000 to 0.000 / 43.259 / 0.000. Refuted. Reverted. The conflation is real
+and is recorded below, but it is not F-01's mechanism.
+
+**What measurement then found — F-01 is bigger than §12.20 said.** A minimal fixture (ONE
+stream, no local parameters, three arcs a day, arc 2 planted 3x worse, so the planted arc
+VARIANCE factors are 1 / 9 / 1) shows the factors are right after one pass and destroy
+themselves geometrically afterwards:
+
+| passes | 1 | 2 | 3 | 4 | 6 | 8 |
+|---|---|---|---|---|---|---|
+| recovered bad-arc ratio (planted 9) | 7.9 | 60 | 458 | 3512 | 2.1e5 | 1.3e7 |
+| level (planted 0.5) | 0.667 | 1.034 | 1.443 | 1.797 | 2.387 | 3.028 |
+
+Each pass roughly SQUARES the spread, which is what an iteration with no feedback does:
+`jointModelOpt` says so in its own comment — "the arc-to-arc detail cannot be expressed in a
+per-stream override, so the mean is used and the arc factors remain the driver's business" —
+so eq. 6.5.28's `gamma2_m = alpha2_m * sigma2_m` multiplies by a factor the data never saw.
+No stream interaction is needed: this is `ArcFactors = true`, the Options DEFAULT, on one
+stream. It does NOT reproduce everywhere: `demo_gravity` (48 arcs, default options, no planted
+per-arc difference) holds a stable spread across 1, 2 and 4 passes (16 → 15.6 → 17), so
+something feeds back there and the mechanism is NOT yet established.
+
+**Decision (scope frozen, the user's choice of 2026-09-08: "oracle + guard first").** This
+round does NOT redesign the estimator on a half-finished diagnosis. It delivers:
+1. **The oracle the suite never had** — a fixture with PLANTED per-arc variance factors and a
+   test that asserts recovery on the sound path (one pass). Nothing in `dev/tests` asserted
+   arc-factor RECOVERY against a planted truth; test_ellmer pins the mechanism (`none` leaves
+   factors alone, `scale` estimates them, `sigmaScale == sqrt(mean sigma2)`) but never the
+   number. That is why this survived every green run.
+2. **A characterisation test** that pins the defect as it stands, so it cannot change
+   unnoticed, and says in its comment that it must be INVERTED when F-01 is fixed.
+3. **A guard**: the loop measures the spread of each stream's arc factors per pass and refuses
+   to return a diverging one silently — a warning with a documented identifier naming what to
+   do. Fault-injected in the same round: it must fire on the planted fixture and stay silent
+   on `demo_gravity`, `demo_grace` and `demo_noisePolicy`.
+4. **The documentation** corrected where it now misleads: `demo_noisePolicy`'s LIMITATIONS
+   blames the law-plus-arcFactors combination, which is true but is not the whole truth.
+
+**Also recorded, not fixed (the refuted hypothesis is still a real conflation).** `sweepArcs`
+weights every arc by one `C`; `Cmap`'s per-group laws never reach it, and `fit>streamModels`
+mirrors the same conflation by falling back to the global `out.C`. With `Pool="stream"` the
+toolbox therefore fits per-stream laws and then weights every stream by one of them. It
+changes no number in the F-01 fixture, but it is not what `Pool` promises.
