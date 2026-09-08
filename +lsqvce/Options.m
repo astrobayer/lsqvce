@@ -28,11 +28,17 @@ classdef Options
 %                                   level regardless); default "all"
 %     ArcFactors logical            per-arc variance factors on (Ellmer 6.5.4),
 %                                   default true; false = one level per stream.
-%                                   Only the RATIO between a stream's arcs is
-%                                   identifiable -- the level absorbs their mean
+%                                   TO READ AN ARC'S STANDARD DEVIATION back,
+%                                   use all three terms (R6 WP-100):
+%                                     declared sigma * sqrt(factor) * R.sigma0
+%                                   -- the level and the factor split one scale
+%                                   by a convention (eq. 6.5.30's gammaBar) and
+%                                   sigma0 carries the rest, as in any GLS
+%                                   adjustment. MEASURED on a fixture planted at
+%                                   0.5 / 1.5 / 0.5: 0.517 / 1.499 / 0.507.
 %                                   (R6 F-01, fixed in WP-98: the ratio settles
 %                                   across passes, 9.4 / 8.6 / 8.6 / 8.6 against
-%                                   a planted 9; before it grew 8.4x a pass).
+%                                   a planted 9; before it grew 8.4x a pass.)
 %     Robust     "none" | "huber" | "igg3" | "bisquare"   IRLS on the same
 %                                   loop, every kind (details in RobustOpts)
 %     MaxPasses  double  10         the ONE pass budget (v4: MaxOuter / JointMaxIter)
@@ -113,6 +119,9 @@ classdef Options
 %
 %   See also LSQVCE.FIT, LSQVCE.RESULTS, the Manual, chapter 3, RELEASE_NOTES.md
 %
+%   Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-100: ArcFactors says how to
+%   read an arc's sigma back -- all three terms, sigma0 included. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.
 %   Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-98: ArcFactors says what is
 %   identifiable (the ratio) now that F-01 is fixed. With assistance from
 %   Claude (Anthropic), model Claude Opus 5.

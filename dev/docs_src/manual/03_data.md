@@ -70,8 +70,11 @@ Fable 5. Rewritten for v3 and again for v4 (scoped tables) the same day (Claude 
    default the Options policy). A law whose `sigma` is a VECTOR (per-row weights) is a fixed
    structure: it can carry a level (`"scale"`) but not a spectral shape (`"law"` is refused,
    `lsqvce:fit:lawOnFixedStructure`). `Options.Pool` decides which streams SHARE one
-   estimated spectral shape; every stream keeps its own level. Of a stream's per-arc factors only the
-   **ratio** is identifiable — the level absorbs their mean. (R6 finding F-01, fixed in
+   estimated spectral shape; every stream keeps its own level. To read an arc's standard deviation back, use all
+   three terms: **declared sigma × sqrt(arc factor) × `R.sigma0`** — the level and the
+   factor split one scale by a convention (eq. 6.5.30's `gammaBar`) and `sigma0` carries
+   the rest, as in any GLS adjustment; measured on a fixture planted at 0.5 / 1.5 / 0.5,
+   that reconstruction gives 0.517 / 1.499 / 0.507 (R6 WP-100). (R6 finding F-01, fixed in
    WP-98: eq. 6.5.28 multiplies by the factor the weighting used, so the ratio now settles
    across passes — 9.4 / 8.6 / 8.6 / 8.6 against a planted 9, where before it grew by 8.4x
    every pass. Runs with `arcFactors = false` are unchanged.)
