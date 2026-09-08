@@ -60,21 +60,22 @@ O(u&sup2;&middot;nk) time and O(u&sup2; + nk) memory per batch.</p>
 <pre class="example">% batchFcn(k) returns the k-th batch: A (nk x u), l (nk x 1), p (nk x 1)
 src = @(k) deal(A(idx{k},:), l(idx{k}), p(idx{k}));
 
-[sol, D, V] = adjust(u, src, numel(idx));
+R = lsqvce.fit(struct('batchFcn', src, 'numUnknowns', u, 'numBatches', numel(idx)));
+V = R.report();
 
 if ~strcmp(V.verdict, 'PASS')
-    systematic(D);                        % smooth error?
-    [sol, D, REJ] = snoop(sol, D, src);   % iterative rejection
+    R.diag.flagIdx                        % which observations were flagged
+    R.plot("residuals")                   % and what they look like
 end</pre>
 
 <div class="note"><b>batchFcn is called twice</b> &mdash; once to accumulate,
 once to diagnose &mdash; and must return identical data both times. This is
 checked; a mismatch is an error, not a silent misattribution.</div>
 
-<div class="note"><b>Not sure which front door to use?</b> See
-<a href="lsqvce_manual.html">the Manual</a> &mdash;
-a decision flowchart (adjust / adjustBlock / adjustVCE) plus the exact-vs-Hutchinson
-cost curves. The runnable build-your-own-case guide is
+<div class="note"><b>Not sure which front door to use?</b> There is only one:
+<code>lsqvce.fit</code> reads the KIND from the shape of your <code>data</code>
+struct. <a href="lsqvce_manual.html">The Manual</a>, chapter 3, is the binding
+specification; the runnable build-your-own-case guide is
 <code>examples/demo_workflow.m</code>.</div>
 
 <div class="note"><b>Starting your own case?</b> Copy
@@ -134,12 +135,12 @@ reveals only the fraction <code>r_i</code> of any error present
 <h2>Function reference</h2>
 <h3>Start here &mdash; the USER tier</h3><table>
 <tr><td class="name"><a href="lsqvce.layout.html">lsqvce.layout</a></td><td>The column layout of A and B announced before fit (declare priors in it).</td></tr>
-<tr><td class="name"><a href="lsqvce.fit.html">lsqvce.fit</a></td><td>The one user verb: fit(data, opts) &mdash; a plain data struct (DATA_CONTRACT.md) + Options &rarr; Results. Builds the loaders itself; dispatches on Model (gls | vce | pooled).</td></tr>
+<tr><td class="name"><a href="lsqvce.fit.html">lsqvce.fit</a></td><td>The one user verb: fit(data, opts) &mdash; a plain data struct (the Manual, chapter 3) + Options &rarr; Results. Builds the loaders itself; reads the KIND from the data and what to estimate from Options.Estimate ("none" | "noise").</td></tr>
 <tr><td class="name"><a href="lsqvce.Options.html">lsqvce.Options</a></td><td>The one settings object: every knob named, typed, defaulted to the engines' own defaults.</td></tr>
 <tr><td class="name"><a href="lsqvce.Results.html">lsqvce.Results</a></td><td>What comes back: x, sigma0, diagnostics, report(), coefficients(), summary(), convergence().</td></tr>
 <tr><td class="name"><a href="lsqvce.report.html">lsqvce.report</a></td><td>The level-0..4 verdict (R.report forwards here).</td></tr>
 </table>
-<p>Everything below is the ENGINE and KERNEL tier (docs_src/tiers.csv): reachable and documented &mdash; it is what <code>fit</code> runs &mdash; but not where a user starts.</p>
+<p>Everything below is the ENGINE and KERNEL tier (dev/docs_src/tiers.csv): reachable and documented &mdash; it is what <code>fit</code> runs &mdash; but not where a user starts.</p>
 <h3>Solving</h3><table>
 <tr><td class="name"><a href="lsqvce.engine.NormalEqSystem.html">lsqvce.engine.NormalEqSystem</a></td><td></td></tr>
 <tr><td class="name"><a href="lsqvce.engine.QRSystem.html">lsqvce.engine.QRSystem</a></td><td></td></tr>
@@ -167,7 +168,7 @@ reveals only the fraction <code>r_i</code> of any error present
 <tr><td class="name"><a href="lsqvce.engine.mapreduce.html">lsqvce.engine.mapreduce</a></td><td>Execution-strategy layer: serial | parfor | spmd.</td></tr>
 <tr><td class="name"><a href="lsqvce.engine.synthLoader.html">lsqvce.engine.synthLoader</a></td><td>Synthetic ground-truth loader -- and the loader TEMPLATE.</td></tr>
 </table>
-<h3>Separable-GLS helpers (the GRACE-FO template is examples/demo_grace_dataLoader.m)</h3><table>
+<h3>Stream and covariance helpers (the GRACE-FO template is examples/demo_grace_dataLoader.m)</h3><table>
 <tr><td class="name"><a href="lsqvce.engine.collectResiduals.html">lsqvce.engine.collectResiduals</a></td><td>Stack one residual field over the arcs of a stream.</td></tr>
 <tr><td class="name"><a href="lsqvce.kernel.whitenessCorr.html">lsqvce.kernel.whitenessCorr</a></td><td>Largest absolute autocorrelation over a lag range.</td></tr>
 <tr><td class="name"><a href="lsqvce.engine.satKeyOf.html">lsqvce.engine.satKeyOf</a></td><td>Valid struct field name for a satellite identifier.</td></tr>

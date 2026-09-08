@@ -43,6 +43,9 @@ WHAT IT CHECKS
        paths in the documents that TELL A READER WHERE TO GO (R6 WP-99;
        dev/HANDOVER.md and dev/HISTORY_v1.md are records and are excluded --
        naming a deleted file is half their job)
+    27 every public Options property has a consumer: engineArgs, or somewhere
+       in +lsqvce outside Options.m (R6 WP-101; MinPasses and LogFile shipped
+       dead for a whole review)
     THE AUTHORITATIVE LIST is the order of calls in main(); this summary is a
        reading aid and was already four checks behind when 26 was added.
     Self-test: dev/docs_src/audit_selftest.py injects one fault per new
@@ -1063,6 +1066,43 @@ def check_md_pointers():
           % (n, sum(1 for f in MD_SCOPE if os.path.exists(f))))
 
 
+def check_options_are_consumed():
+    print('\n27. every public Options property has a consumer (R6 WP-101)')
+    # WHY: MinPasses and LogFile shipped for a whole review as DEAD KNOBS --
+    # each appeared exactly three times in the package (the help line, the
+    # property declaration, the disp() group table) and nowhere else. A
+    # documented option that nothing reads is worse than a missing one: the
+    # user sets it, nothing refuses it, and the run quietly ignores what they
+    # asked for. No other check could see it -- the help was well-formed, the
+    # page matched the help, the identifier catalogue was closed.
+    #
+    # THE RULE: a property is CONSUMED if its name appears either inside
+    # Options.engineArgs (the ONE hand-off to the drivers, which may forward it
+    # under a different engine name) or anywhere in the package outside
+    # Options.m. Anything else is dead surface.
+    src = open('+lsqvce/Options.m', encoding='utf-8', errors='replace').read()
+    mprop = re.search(r'^    properties\s*$(.*?)^    end\s*$', src, re.S | re.M)
+    if not mprop:
+        note('options', '+lsqvce/Options.m: no properties block found')
+        return
+    props = re.findall(r'^        ([A-Z]\w*)\s', mprop.group(1), re.M)
+    marg = re.search(r'function args = engineArgs\(.*?\n(.*?)\n        end', src, re.S)
+    handoff = marg.group(1) if marg else ''
+    elsewhere = ''
+    for f in pglob(PKG_GLOB, recursive=True):
+        if f.replace('\\', '/').endswith('+lsqvce/Options.m'):
+            continue
+        elsewhere += open(f, encoding='utf-8', errors='replace').read()
+    for p in props:
+        if re.search(r'\b%s\b' % re.escape(p), handoff):
+            continue
+        if re.search(r'\b%s\b' % re.escape(p), elsewhere):
+            continue
+        note('options', 'Options.%s is declared and documented but NOTHING reads '
+             'it: not engineArgs, not anywhere else in +lsqvce' % p)
+    print('   %d public properties checked' % len(props))
+
+
 def main():
     if not os.path.isdir('+lsqvce'):
         sys.exit('run from the toolbox root (the folder holding +lsqvce)')
@@ -1095,6 +1135,7 @@ def main():
     check_help_examples_call_live_units()
     check_index_lists_every_unit()
     check_md_pointers()
+    check_options_are_consumed()
     print('\n' + '=' * 60)
     if FINDINGS:
         print('%d finding(s).' % len(FINDINGS))

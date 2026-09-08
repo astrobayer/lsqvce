@@ -114,6 +114,33 @@ case('21 stale baseline row fires', audit.check_layering_ratchet, 'layering',
      lambda d: append(os.path.join(d, 'dev/docs_src/layering_baseline.csv'),
                       'kernel.dctI,report,KERNEL,USER\n'))
 
+# ---- 27 (R6 WP-101): a documented option with no consumer ----------------
+# MinPasses and LogFile shipped dead for a whole review; this is the ratchet.
+# The scratch copy carries +lsqvce, so the fault appends a property to the
+# REAL Options.m copy and the check must see it as unread.
+def add_dead_prop(d):
+    p = os.path.join(d, '+lsqvce/Options.m')
+    s = open(p, encoding='utf-8').read()
+    s = s.replace("        OnPass     = []",
+                  "        OnPass     = []\n        ZzzSelftest (1,1) double = 1", 1)
+    open(p, 'w', encoding='utf-8').write(s)
+
+
+def add_used_prop(d):
+    p = os.path.join(d, '+lsqvce/Options.m')
+    s = open(p, encoding='utf-8').read()
+    s = s.replace("        OnPass     = []",
+                  "        OnPass     = []\n        ZzzSelftest (1,1) double = 1", 1)
+    open(p, 'w', encoding='utf-8').write(s)
+    q = os.path.join(d, '+lsqvce/fit.m')
+    append(q, "\n% selftest: opts.ZzzSelftest is read here\n")
+
+
+case('27 a dead Options property fires', audit.check_options_are_consumed, 'options',
+     add_dead_prop)
+case('27 a property something reads is silent', audit.check_options_are_consumed, 'options',
+     add_used_prop, expect_fire=False)
+
 # ---- 26 (R6 WP-99): markdown pointers ------------------------------------
 # The scratch copy carries no scope document at all, so the healthy run checks
 # zero pointers and is silent by construction; each fault WRITES the document

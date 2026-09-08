@@ -4,7 +4,7 @@ function cm = applyCovOverride(cm, ovr, obsType, opt)
 %
 %   The ONE place the toolbox resolves opt.covOverride. Both loader kinds
 %   call it -- LSQVCE.ENGINE.MAKELOADER batches and the raw-closure template
-%   LSQVCE.ENGINE.SYNTHLOADER -- so the two shapes LSQVCE.ENGINE.ADJUSTVCE and
+%   LSQVCE.ENGINE.SYNTHLOADER -- so the two shapes LSQVCE.ENGINE.ADJUSTVCEJOINT and
 %   LSQVCE.ENGINE.JOINTMODELOPT emit are honoured identically everywhere (R4
 %   finding G-06: the template used to read only the flat shape while the
 %   VCE engines emit only the per-satellite shape, so a template-derived
@@ -28,7 +28,7 @@ function cm = applyCovOverride(cm, ovr, obsType, opt)
 %   ERRORS
 %     none of its own; LSQVCE.UTIL.MERGESTRUCT errors on non-struct layers
 %
-%   See also LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.SYNTHLOADER, LSQVCE.ENGINE.ADJUSTVCE,
+%   See also LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.SYNTHLOADER, LSQVCE.ENGINE.ADJUSTVCEJOINT,
 %            LSQVCE.ENGINE.JOINTMODELOPT, LSQVCE.UTIL.MERGESTRUCT
 %
 %   Created 2026-08-31 (CEST, UTC+02:00) with assistance from Claude

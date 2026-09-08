@@ -6699,3 +6699,114 @@ VERDICTS. Local `ci_gate` GREEN **541/541** over 27/27 suites (553 declared, +2 
 Linux audit with the Manual rebuilt under WSL **CLEAN, zero findings**, self-test 18/18; the
 Windows audit at its one-finding baseline. CI green: audit **pass 22 s**, matlab
 **pass 3m2s**.
+
+### 12.25 WP-101 — the documentation audit, and what it found in the CODE (2026-09-08, model Claude Opus 5, tier A)
+
+**Origin.** The user, after WP-100: "audit the help text, html docs and pdf documentation and
+ensure that everything is in sync." Instruments: the 26 mechanical checks (all green: pages
+equal their help blocks, the Manual is a fresh build, identifiers closed both ways, markdown
+pointers resolve) and then a **55-agent content audit** — six readers, one per surface, every
+finding through TWO refuting lenses (code truth / user impact), then a completeness critic:
+**24 raw findings, 15 confirmed.** The mechanical layer being green is exactly why the audit was
+worth running: every one of the 15 is a well-formed sentence on a live page pointing at a live
+name, and wrong.
+
+**THE HEADLINE: four of them are CODE defects, not documentation typos.** Four documented
+`Options` do not do what they say, and two of them are FATAL mid-run:
+  * `Noise.Grid = "auto"` ("= the longest arc") is whitelisted by `Options.validate`
+    (`+lsqvce/Options.m:173-179`) and forwarded verbatim (`:224`), and the engine declares
+    `opt.NumLags (1,1) double` (`adjustVCEjoint.m:223`). Nothing anywhere computes a longest
+    arc. The user's run dies inside the engine with a `MATLAB:validators:*` error — not an
+    `lsqvce:*` identifier, so the catalogue and the error chapter give them no thread to pull.
+  * `Probes = 0` ("= the exact route") is accepted at assignment (`mustBeNonnegative`,
+    `:140`) and refused by the engine (`mustBePositive`, `adjustVCEjoint.m:228`). There is no
+    exact branch in the joint estimator at all.
+  * `MinPasses` and `LogFile` are INERT: each appears exactly three times in the package — the
+    help line, the property declaration, and the `disp` table. No consumer.
+Verified by hand, independently of the agents, before any of this was written down.
+
+**Decision (the user's, 2026-09-08).** RETIRE all four and refuse at the door: the two live
+knobs get an immediate `lsqvce:Options:*` refusal instead of a mid-run MATLAB error, and the two
+inert ones leave the class. `Verbose` is documented as the 0/1 surface it actually is
+(`engineArgs` wraps it in `logical()` at four hand-offs, so level 2 has never been reachable
+through `fit`).
+  * CONCERN STATED, and the decision stands: `MinPasses` was added on the user's own GRAVFIRE
+    evidence — `dev/GRAVFIRE_INTERFACE.md:316` maps `minimumIterations 3` to `MinPasses=3`.
+    Retiring it makes that row false, and the row is corrected in this round to say the toolbox
+    has no minimum-passes knob. Restoring it later is a floor on one loop, one round's work.
+
+**And one more, found while checking the PDFs.** `lsqvce_theory.pdf` is a **pdfTeX** product
+(its `/Producer` says so), i.e. it is built from `dev/docs_src/theory_r5/*.tex` — but
+`dev/DEVELOPMENT.md:669,703` names `dev/docs_src/build_theory_pdf.py` (ReportLab, over
+`theory_content.py`) as its builder, and `dev/docs_src/README.md:103` says theory_r5 supersedes
+those "once decision R5-D6 is taken; until then both exist". The supersession happened in
+ACTION and was never recorded, so the repository ships a script that would silently overwrite
+the theory PDF with a DIFFERENT, older document under the same name. That is why the stale
+`stopReason` enum in §7.6 (five values, four of which are never assigned — the real ones are
+`"single"`, `"converged"`, `"maxPasses"`, `"userStop"`) survived every round.
+
+**Scope frozen.** One branch, one commit per group: (1) the four Options retired and refused at
+the door, with `Verbose` documented as 0/1; (2) the Manual, README, DEVELOPMENT, GRAVFIRE and
+RELEASE_NOTES claims corrected; (3) the theory PDF: source fixed, ONE builder writing ONE name,
+the orphan generator retired; (4) an audit check so a documented option with no consumer cannot
+ship again — the ratchet that would have caught `MinPasses` and `LogFile`, fault-injected in
+this round.
+
+| WP | title | depends on | status |
+|---|---|---|---|
+| 101 | The documentation audit and its repairs: four dead `Options` retired and refused at the door, `Verbose` documented as the 0/1 surface it is, the stale claims in help / html / Manual / README / DEVELOPMENT corrected, the theory document reduced to ONE builder and ONE name (the orphan ReportLab generator and the duplicate PDF deleted), and audit check 27 so a documented option with no consumer cannot ship again | 100 | READY (2026-09-08, PR #101, stacked on #100; CI green: audit 25 s, matlab 3m3s; local ci_gate GREEN 541/541 over 27/27 suites, Linux audit CLEAN with the Manual and the theory PDF rebuilt, self-test 20 cases; DONE flips on the merge) |
+
+**ROUND WP-101 (2026-09-08, model Claude Opus 5, tier A).** The mechanical layer was green
+throughout — 26 checks, exit 0 — which is the whole reason the content audit was worth running.
+
+WHAT THE AUDIT FOUND, and what it cost to confirm: 55 agents, six surfaces, two refuting lenses
+per finding, one completeness critic. **24 raw, 15 confirmed**, and the critic then found eight
+CROSS-SURFACE contradictions no single reader could see — the worst of them on
+`html/index.html`, the page `doc lsqvce` actually opens, which still described `fit` as
+"dispatches on Model (gls | vce | pooled)" and pointed at the retired `DATA_CONTRACT.md`, and
+whose Getting-started example called `adjust(u, src, ...)`, a function that does not exist.
+
+THE FOUR CODE DEFECTS (the user's decision: retire, refuse at the door):
+  * `Noise.Grid = "auto"` — whitelisted by `validate`, forwarded verbatim, killed by the
+    engine's `(1,1) double`. Now refused AT ASSIGNMENT with `lsqvce:Options:badGrid` and a
+    message that says what to write instead.
+  * `Probes = 0` ("the exact route") — accepted by `mustBeNonnegative`, refused by the engine's
+    `mustBePositive`. The property is `mustBePositive` now: the refusal happens where the user
+    typed it. There is no exact route in the joint estimator to point at.
+  * `MinPasses`, `LogFile` — inert since the day they were added. Removed from the class, the
+    help, the `disp` table and the Manual. 17 public properties now, not 19.
+  * `Verbose` is documented as the 0/1 flag it is: `engineArgs` wraps it in `logical()` at four
+    hand-offs, so level 2 has never been reachable through `fit`.
+
+THE STALE CLAIMS (a selection of the fifteen): `fit`'s own ERRORS block described two live
+identifiers in the retired `Model` vocabulary and a third one backwards — it said a full SPD
+weight matrix is REFUSED where `batchSystem` accepts it and whitens by its Cholesky factor;
+`Results`'s help was written around `LSQVCE.ENGINE.ADJUSTVCE`, a class deleted in M4 4c, and
+that name was still live in EIGHT package files, each republished on its html page and inside
+the Manual; `dev/DEVELOPMENT.md` named four engine units that do not exist (`adjust`,
+`adjustVCE`, `Accumulator`, `robust`) and used two of them in runnable examples; the Manual
+claimed planted stream sigmas are "recovered within their formal errors" when the suite asserts
+a RELATIVE 25 % bound and stream sigmas carry no formal error; `MaxPasses` was documented as
+the IRLS budget on the same page that gives IRLS `RobustOpts.MaxIter`.
+
+THE THEORY DOCUMENT, found while checking the PDFs and worth its own paragraph.
+`lsqvce_theory.pdf`'s `/Producer` says **pdfTeX**, so it is built from
+`dev/docs_src/theory_r5/*.tex` — while `dev/DEVELOPMENT.md` named the ReportLab
+`build_theory_pdf.py` as its builder and `dev/docs_src/README.md` still said the supersession
+would happen "once decision R5-D6 is taken; until then both exist". The supersession had
+happened in ACTION years of rounds ago and was never recorded, so the repository shipped a
+script that would have silently overwritten the theory PDF with a different, older document
+under the same name — and a byte-identical DUPLICATE of the PDF under a second name
+(`dev/lsqvce_theory_r5.pdf`), cited live by `RELEASE_NOTES.md`. That is how the stale
+`stopReason` enum survived: five values, four of which are never assigned. Now: the enum says
+`"single" | "converged" | "maxPasses" | "userStop"`, `build.sh` writes the shipped name
+directly, the orphan generator and its content module are deleted, and the duplicate PDF is
+gone. One document, one builder, one name.
+
+THE RATCHET. Audit check 27: every public `Options` property must have a consumer — inside
+`engineArgs` (which may forward it under a different engine name) or anywhere in `+lsqvce`
+outside `Options.m`. `MinPasses` and `LogFile` would have failed it on the day they were added.
+Fault-injected in this round, both directions: a dead property fires, a property something
+reads is silent. Self-test 20 cases.
+
+VERDICTS. Local `ci_gate` GREEN **541/541** over 27/27 suites (553 declared, unchanged — no test added or removed; `test_options` pins 17 properties instead of 19). Linux audit with the Manual rebuilt under WSL **CLEAN, zero findings**; audit self-test **20 cases**; the Windows audit at its one-finding baseline. The theory PDF was rebuilt with pdflatex under WSL and `pdftotext` confirms the corrected enum is in the shipped file. CI green: audit **pass 25 s**, matlab **pass 3m3s**.

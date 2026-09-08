@@ -100,7 +100,7 @@ function out = synthLoader(cfg, sat, day, obsType, arcID, opt)
 %
 %   Updated 2026-08-31 (CEST, UTC+02:00), R4 G-06 (Level L1): the covariance
 %   override is resolved by the package-private APPLYCOVOVERRIDE, so the
-%   per-satellite shape LSQVCE.ENGINE.ADJUSTVCE emits is honoured by this template
+%   per-satellite shape LSQVCE.ENGINE.ADJUSTVCEJOINT emits is honoured by this template
 %   (it used to read only the flat shape and silently dropped every variance
 %   component under adjustVCE). With assistance from Claude (Anthropic),
 %   model Claude Fable 5.
@@ -157,7 +157,7 @@ function out = synthLoader(cfg, sat, day, obsType, arcID, opt)
 
     % Runtime override of the covariance model, if the caller asked for one.
     % R4 G-06: resolved by the ONE package-private merge, so the per-satellite
-    % shape LSQVCE.ENGINE.ADJUSTVCE emits (opt.covOverride.bySys.(satKey).(obsType))
+    % shape LSQVCE.ENGINE.ADJUSTVCEJOINT emits (opt.covOverride.bySys.(satKey).(obsType))
     % reaches a template-derived loader exactly as it reaches a makeLoader
     % batch. The flat shape opt.covOverride.(obsType) keeps working.
     cm = cfg.cov.(obsType);

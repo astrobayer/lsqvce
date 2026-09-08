@@ -97,8 +97,14 @@ function, and before shipping. See HANDOVER.md §4e-bis.
 
 ## theory_r5/ (REVIEW R5, 2026-09-01)
 
-LaTeX source of `dev/lsqvce_theory_r5.pdf`: theory, practical considerations,
-implementation, error handling (Parts I–III) and the R5 review + v5 redesign
-plan (Parts IV–V). Build: `dev/docs_src/theory_r5/build.sh` (pdflatex, two
-passes). Supersedes `theory_content.py` / `build_theory_pdf.py` for the theory
-PDF once decision R5-D6 (HANDOVER §12.6) is taken; until then both exist.
+LaTeX source of **`lsqvce_theory.pdf`** — THE theory document: theory, practical
+considerations, implementation, error handling (Parts I–III) and the R5 review +
+v5 redesign plan (Parts IV–V). Build: `sh dev/docs_src/theory_r5/build.sh`
+(pdflatex, two passes), which writes the shipped file directly.
+
+The supersession is DONE (R6 WP-101). It had happened in action and not in the
+record: the shipped PDF's `/Producer` said pdfTeX while this file still said
+"until then both exist" and dev/DEVELOPMENT.md still named the ReportLab
+builder — so the repository carried a script that would have silently
+overwritten the theory PDF with a different, older document under the same
+name. `theory_content.py` and `build_theory_pdf.py` are deleted.

@@ -46,20 +46,20 @@ factors are `R.history(end).factor`. Not combinable with `Estimate="noise"` in o
 
 ## The loop
 
-**`MaxPasses`** — integer ≥ 1, default 10. The one pass budget of every iterative run
-(variance components, IRLS, Gauss–Newton). Exhausting it returns the last pass with
+**`MaxPasses`** — integer ≥ 1, default 10. The pass budget of the variance-component
+loop and of Gauss–Newton. **IRLS has its own**, `RobustOpts.MaxIter` (30), as it has its
+own tolerance — `engineArgs` hands `adjustRobust` that one and never `MaxPasses`
+(R6 WP-101). Exhausting the budget returns the last pass with
 `R.stopReason = "maxPasses"` and one warning.
-
-**`MinPasses`** — integer ≥ 1, default 1. Passes run even if the tolerance is already met
-(GRAVFIRE's `minimumIterations`).
 
 **`Tolerance`** — positive, default 1e-2. The stop rule of the variance-component loop:
 max |α² − 1| over frequencies and arcs below it; for Gauss–Newton the relative step in
 units of the formal error; IRLS uses `RobustOpts.Tol`.
 
-**`Probes`** — integer ≥ 0, default 100. Hutchinson probes for the per-lag redundancies
-of the joint estimator; `0` = the exact route (measured to be the better default up to
-u ≈ 4000; the probe route is faster only for the dense inverse at small nc).
+**`Probes`** — integer ≥ 1, default 100 (Ellmer's value). Hutchinson probes for the
+per-lag redundancies of the joint estimator. There is **no exact route** in that
+estimator, so 0 is refused at assignment (R6 WP-101; the `'TraceMethod','exact'` route
+exists only on the engine-tier `lsqvce.engine.redundancy`, which `fit` does not call).
 
 **`Seed`** — `[]` (default) or a double. RNG seed for the probes; recorded in
 `R.meta.seeds` so a run is reproducible.
@@ -75,11 +75,12 @@ pass builds every day twice (accumulate + sweep) and a VCE run 2n+1 times; `Inf`
 calendar and builds each day once per run — your memory decision (a built type-day is
 m × nc doubles, ≈190 MB at degree 60 for a 6-h three-axis piece).
 
-**`Verbose`** — logical or 0..2, default `false`. Screen messages: 0 silent, 1 progress, 2 detail.
+**`Verbose`** — logical, 0 or 1, default `false`. Screen messages: 0 silent, 1 progress.
+This surface is a FLAG: `Options.engineArgs` hands every driver `logical(Verbose)`, so
+level 2 has never been reachable through `fit` — it is an engine-tier setting of
+`lsqvce.util.verbosity` (R6 WP-101). A 2 is still accepted here and behaves as 1.
 (Level 3 was merged into 2 in 2026-07; `lsqvce.util.verbosity` refuses it, and since v5.3 so does
 `Options` itself, by name.)
-
-**`LogFile`** — string, default `""`. Mirror the messages to this file.
 
 **`OnPass`** — `[]` (default) or `@(ctx)`. Your inspection hook, called at the end of
 **every pass** of every iterative run with one struct: `driver`, `pass`, `x`, `Cxx`,
@@ -103,7 +104,7 @@ merged onto the defaults; an unknown field is refused (`lsqvce:Options:badGroupF
 
 | field | default | meaning |
 |---|---|---|
-| `Grid` | 60 | frequencies (lags) of the estimated shape; must be ≥ the longest arc for an exact law (`"auto"` = the longest arc) |
+| `Grid` | 60 | frequencies (lags) of the estimated shape; an integer ≥ 2, and ≥ the longest arc for an exact law. `"auto"` was documented until v5.3 and never implemented; it is refused now (R6 WP-101) |
 | `Whitener` | `"toeplitz"` | how a PSD law whitens an arc: exact Toeplitz Cholesky, or an AR / ARMA filter fitted to it (`"ar"`, `"arma"`: O(m·p) instead of O(m²)) |
 | `MeanType` | `"robust"` | the normalising mean of the arc factors: trimmed (`"robust"`) or plain |
 | `Smooth` | 0 | moving-average half-width on the estimated PSD (0 = none) |

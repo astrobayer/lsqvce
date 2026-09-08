@@ -24,5 +24,11 @@ What comes back: `R.noise.Cgroups` (one covariance function per pool group),
 `R.history.streams / sigma / white / whitePval` per pass (the Ljung–Box whiteness of every
 stream, K = 20, α = 0.05), `R.convergence()`, `R.plot("psd")`, `R.plot("convergence")`.
 
-The acceptance of the estimator is physical: a planted field and planted stream sigmas
-are recovered within their formal errors (`demo_gravity`, counted in the test suite).
+The acceptance of the estimator is physical, and the two halves are pinned differently
+(R6 WP-101 — the sentence here used to claim one bound for both). The planted FIELD is
+recovered within its formal errors: `demo_gravity` reports z-scores per coefficient and
+`test_physOracle` asserts them. The planted stream SIGMAS carry no formal error, and what
+the suite asserts is a RELATIVE bound: the ratios between streams, to 25 %
+(`test_vcePolicy>testRecoversPlantedRelativeWeights`; measured 1.18 / 2.10 / 0.51 against
+a planted 1 / 2 / 0.5). A per-arc standard deviation is read back as declared sigma ×
+sqrt(arc factor) × `R.sigma0` (chapter 3 §2).

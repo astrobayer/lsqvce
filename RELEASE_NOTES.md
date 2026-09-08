@@ -107,7 +107,8 @@ declarations still fit — but three things were added to it.
 - **`Options` v5** — `Estimate="none"|"noise"` replaces `Model`; the v4 model
   words are explicit policy (`"vce"` = `Estimate="noise", Pool="stream",
   ArcFactors=false`; `"pooled"` = `Pool="all", ArcFactors=false`; `"ellmer"` =
-  `Estimate="noise"`). One budget: `MaxPasses` / `MinPasses` / `Tolerance`.
+  `Estimate="noise"`). One budget: `MaxPasses` / `Tolerance` (`MinPasses` was
+  retired in R6 WP-101: it never had a consumer).
   `Robust` names the influence (`"huber"|"igg3"|"bisquare"`); groups
   `Noise`, `RobustOpts`, `Diagnostics`, `Parallel`, `GaussNewton` merge partial
   structs onto defaults. `CacheDays` (resident built days) and `OnPass` (see
@@ -178,7 +179,7 @@ declarations still fit — but three things were added to it.
 | `MeanType`, `Smooth`, `MinRedundancy`, `SkipThreshold` | `Noise.MeanType / .Smooth / .FreezeRedundancy / .SkipThreshold` |
 | `Parallel`, `DistributeDays`, `ParallelThreshold` | `Parallel.Mode / .DistributeDays / .Threshold` |
 | `Alpha`, `Bonferroni`, `Beta`, `RMin`, `RWeak`, `Test`, `RobustCheck`, `Store`, `NWorst` | `Diagnostics.<same>` |
-| `LogFid`, `LogFlag`, `ShowSeconds`, `ExportDir`, `plotPostSolve`, `plotPostModel` | `LogFile`; `OnPass`; `R.plot(kind)` |
+| `LogFid`, `LogFlag`, `ShowSeconds`, `ExportDir`, `plotPostSolve`, `plotPostModel` | `OnPass`; `R.plot(kind)` (`LogFile` was offered here and retired in R6 WP-101: it never opened a file) |
 | `DatumB` | `data.priors = struct('L', B.', 'sigma', 1, 'name', 'datum')` |
 | `Sigma0`, `Sparse`, `Verify`, `Progress` | retired |
 | `GroupBy`, `ComponentsPerEpoch`, `MaxOrder`, `AcvTol`, `MaxLag`, `WhiteAlpha` | retired with the separate mode (groups are streams; the axis count comes from the builder; whiteness is fixed at K = 20, α = 0.05) |
@@ -187,7 +188,7 @@ declarations still fit — but three things were added to it.
 | `R.source.verdict`, `history.nOuter` | `R.report().verdict`, `history.nIter` |
 
 Full ledger, decisions and round notes: `dev/HANDOVER.md` §12; theory:
-`dev/lsqvce_theory_r5.pdf`.
+`lsqvce_theory.pdf` (R6 WP-101: it shipped under a second name in dev/ as well; that duplicate is gone -- one document, one name).
 
 ## 4.0 — 2026-08-31 (Level L11, WP-75: SCOPED parameter tables)
 

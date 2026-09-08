@@ -47,7 +47,8 @@ a { color: #0b5ea8; }
 <pre class="example">R = lsqvce.Results(sol, D, acc, diagSol, batchFcn, nBatch, systems)
 R = lsqvce.Results(sol, D, acc, diagSol, batchFcn, nBatch, systems, meta)
 
-Returned by LSQVCE.ENGINE.ADJUSTBLOCK (and, later, LSQVCE.ENGINE.ADJUSTVCE). It gathers
+Returned by every driver LSQVCE.FIT dispatches to -- LSQVCE.ENGINE.ADJUSTBLOCK,
+ADJUSTVCEJOINT, ADJUSTROBUST, ADJUSTNONLINEAR. It gathers
 everything a user needs to read and judge an adjustment in one object, and
 keeps the lower layers reachable for experts. You rarely construct it
 yourself; you receive it from adjustBlock and call R.report().
@@ -64,9 +65,9 @@ PROPERTIES (read-only)
   diag       1x1      struct   Per-observation diagnostics (LSQVCE.ENGINE.DIAGNOSE):
                                redundancy, leverage, w-tests, MDB, ...
   history    1xI      struct   Per-iteration record (empty for a single
-                               solve; filled by LSQVCE.ENGINE.ADJUSTVCE).
+                               solve; filled by LSQVCE.ENGINE.ADJUSTVCEJOINT).
   noise      1x1      struct   Fitted noise models per stream (empty until
-                               the separable/VCE loop populates it).
+                               the variance-component loop populates it).
   sol        1x1      struct   Raw output of acc.solve() (.x, .sigma0, ...).
   acc        1x1      lsqvce.engine.BlockAccumulator   The accumulator (drop here
                                to re-solve, inspect blocks, get residuals).
@@ -134,7 +135,7 @@ lsqvce:Results:noAccumulator  residuals()/contribution() on a Results
   report() is lsqvce.report on .diag, coefficients() is arithmetic on x
   and diag(Cxx) with z(0.05) = 1.959963984540054 in closed form.
 
-See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCE, LSQVCE.REPORT,
+See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.REPORT,
          LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.BLOCKACCUMULATOR
 
 Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-99: R.report() forwards the

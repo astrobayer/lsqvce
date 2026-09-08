@@ -171,17 +171,15 @@ qualified one you type.
 
 | Function | Purpose |
 |---|---|
-| `lsqvce.engine.adjust` | one-call driver: accumulate → solve → diagnose → judge |
-| `lsqvce.engine.adjustBlock` | one-call **block-arrow** front door → `Results`; the base of the separable/VCE engine. Pairs with `adjust` (flat) and `adjustVCE` (iterative). _(Was `recover`; that name was REMOVED on 2026-07-18 — all aliases were dropped pre-release.)_ |
+| `lsqvce.engine.adjustBlock` | one-call **block-arrow** front door → `Results`; the single solve every kind runs through (`Estimate="none"`). The iterative sibling is `adjustVCEjoint`; the IRLS one is `adjustRobust`; the Gauss–Newton one is `adjustNonlinear`. _(Was `recover`; that name was REMOVED on 2026-07-18 — all aliases were dropped pre-release.)_ |
 | `lsqvce.engine.makeLoader` | turn a `buildDay(day,obsType)` into an accumulator-ready `Loader` (meta / per-arc / one-day cache) |
-| `lsqvce.engine.adjustVCE` | iterative separable-GLS engine — **SHAPE** (temporal AR whitening) + **SCALE** (VCE), configured on the constructor (`Shape`/`Scale`/`Outer`/`Joint`/`Axes` groups, constructor-only since 2.0) over `adjustBlock`. Pairs by name with the in-memory shortcut `adjust`. `P.empiricalStochastic()` runs **empirical stochastic modelling** end to end (homogenise → loop → validate); `P.validate(R)` is the formal-vs-empirical **acceptance test**. _(Was `SeparableProblem`; that name was REMOVED on 2026-07-18 — all aliases were dropped pre-release.)_ |
 | `lsqvce.engine.adjustVCEjoint` | Ellmer-style JOINT spectral VCE: declared per-stream PSD co-estimated with per-arc variance factors over shared Rademacher probes. **Production guidance (measured, F-15):** run it OPEN LOOP or with at most 3 damped passes (`'StepSchedule','decay','AvgTail',4`) — the undamped closed loop is bistable and never beat open-loop pass-1 quality at any tested volume |
-| `lsqvce.engine.Accumulator` | streaming NE/QR; correlated batches; free-network; sparse |
+| `lsqvce.engine.BlockAccumulator` | streaming NE/QR with per-system pre-elimination; correlated batches; free-network; sparse |
 | `lsqvce.engine.diagnose` | per-observation `v`, `r_i`, `w`, MDB, external reliability |
 | `lsqvce.engine.systematic` | **Ljung–Box, runs test, covariate binning** — the blind spot |
 | `lsqvce.engine.snoop` | iterative rejection via Cholesky **downdate** |
-| `lsqvce.engine.robust` | Huber / IGG3 reweighting |
-| `lsqvce.engine.varComp` (retired R5 M2 — the block path's `engine.vce` / `adjustVCE` are the VCE) | Helmert variance components, with a **resolution limit** |
+| `lsqvce.engine.adjustRobust` | IRLS: Huber / IGG3 / bisquare reweighting on the block path |
+| `lsqvce.engine.vce` | Helmert variance components on the block path, with a **resolution limit** _(the flat `varComp` was retired in R5 M2)_ |
 | `lsqvce.engine.traceEstimate` | Monte-Carlo (Hutchinson) trace estimator, **Ellmer 2018 §6.5.6** — estimates `tr(N⁻¹Nₘ)` without forming `N⁻¹`. **Opt-in** VCE accelerator (`'TraceMethod','hutchinson'` in `redundancy`/`vce`); exact leverage stays the default |
 | `lsqvce.engine.datum` | null-space basis; free-network / minimum-constraint solutions |
 | `lsqvce.engine.solveNonlinear` | re-linearisation loop with convergence history |
@@ -314,7 +312,7 @@ on any imperfection however harmless. **Read the ratio, not the verdict.**
 ## Options
 
 ```matlab
-lsqvce.engine.adjust(u, src, nb, ...
+lsqvce.fit(struct('batchFcn', src, 'numUnknowns', u, 'numBatches', nb), ...
     'method',     'qr', ...      % 'qr' (default) | 'normal'
     'sparse',     false, ...     % keep N sparse (normal method only)
     'datumB',     B, ...         % free-network / minimum constraint
@@ -337,8 +335,8 @@ lsqvce.engine.adjust(u, src, nb, ...
 
 
 ```matlab
-R = lsqvce.engine.adjustVCE(L, days, 'verbose', 2, 'GroupBy', 'obsType').run();
-% through the user front door: lsqvce.fit(data, lsqvce.Options(Model="vce", Verbose=2))
+R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="obsType", ArcFactors=false));
+% the engine underneath is lsqvce.engine.adjustVCEjoint; adjustVCE was deleted in M4 4c
 ```
 
 A LOGICAL still works and keeps its old meaning (`false` → 0, `true` → 1), so
@@ -390,7 +388,7 @@ batch instead of a vector:
 
 ```matlab
 src = @(k) deal(A(idx{k},:), l(idx{k}), Pk{k});   % Pk{k} is nk x nk SPD
-[sol, D, V] = lsqvce.engine.adjust(u, src, nBatch);
+R = lsqvce.fit(struct('batchFcn', src, 'numUnknowns', u, 'numBatches', nBatch));
 ```
 
 P is block-diagonal with the **batches as its blocks** — correlation within a
@@ -430,7 +428,7 @@ downdate the function is built on does not apply.
 
 You can still **find** the outliers (`diagnose` works fine). To act on them:
 drop the whole affected block, rebuild the block covariance without the rejected
-observation and re-run, or use `lsqvce.engine.robust`, which downweights rather than
+observation and re-run, or use `Robust="huber"` (the engine is `lsqvce.engine.adjustRobust`), which downweights rather than
 deletes and leaves the block structure intact.
 
 ---
@@ -666,7 +664,7 @@ byte for byte, so a stale build cannot ship:
 
 ```bash
 python3 dev/docs_src/build_manual.py            # -> html/lsqvce_manual.html + lsqvce_manual.pdf
-python3 dev/docs_src/build_theory_pdf.py        # -> lsqvce_theory.pdf  (R4 WP-59)
+sh dev/docs_src/theory_r5/build.sh              # -> lsqvce_theory.pdf  (pdflatex, two passes)
 ```
 
 The **theory document** `lsqvce_theory.pdf` (R4, Level L3) is the authoritative
@@ -693,14 +691,14 @@ on the `doc lsqvce` landing page); every function also has a runnable `EXAMPLE`
 block:
 
 ```matlab
-help lsqvce.engine.adjust      % EXAMPLE + hyperlinked See also
+help lsqvce.engine.adjustBlock % EXAMPLE + hyperlinked See also
 doc lsqvce              % the landing page
 ```
 
 | File | Purpose |
 |---|---|
 | `lsqvce_manual.pdf` | **THE Manual** — one document, built by pandoc (`python3 dev/docs_src/build_manual.py`) |
-| `lsqvce_theory.pdf` | **The theory document** (R4 WP-59) — theory, practice, implementation, error handling; `python3 dev/docs_src/build_theory_pdf.py` |
+| `lsqvce_theory.pdf` | **The theory document** — theory, practice, implementation, error handling, the R5 review and the v5 redesign plan; LaTeX source in `dev/docs_src/theory_r5/`, built by `sh dev/docs_src/theory_r5/build.sh` |
 | `html/lsqvce_manual.html` | **THE Manual, what `doc lsqvce` opens. Start here** — install, the data contract, every option, the API, priors, migration |
 | `html/lsqvce.*.html` | **per-function API pages — params, size, type, default, description** |
 | `html/` + `helptoc.xml` + `info.xml` | MATLAB `doc` pages |

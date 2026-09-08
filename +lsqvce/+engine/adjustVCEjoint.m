@@ -11,7 +11,7 @@ function out = adjustVCEjoint(accFcn, opt)
 %   present -- the geophysical factor sigma2_gpm.
 %
 %   JOINT vs SEPARATE -- WHY THIS IS ITS OWN DRIVER
-%     LSQVCE.ENGINE.ADJUSTVCE alternates: fit the temporal whitening, then the
+%     LSQVCE.ENGINE.ADJUSTVCEJOINT alternates: fit the temporal whitening, then the
 %     between-group variance components, each with its own criterion. That is the SEPARABLE model,
 %     and it is the toolbox DEFAULT because the whiteness gate gives a clean
 %     stopping rule and the alternation is robust.

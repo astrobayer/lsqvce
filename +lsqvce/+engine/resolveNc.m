@@ -5,7 +5,7 @@ function [nc, info] = resolveNc(systems)
 %   [nc, info]  = LSQVCE.ENGINE.RESOLVENC(systems)
 %
 %   THE PARAMETRISATION IS THE SINGLE SOURCE OF TRUTH. nc used to be a leading
-%   argument on LSQVCE.ENGINE.ADJUSTVCE and LSQVCE.ENGINE.ADJUSTBLOCK, which meant the same
+%   argument on LSQVCE.ENGINE.ADJUSTVCEJOINT and LSQVCE.ENGINE.ADJUSTBLOCK, which meant the same
 %   number was stated twice -- once as the argument and once as the number of
 %   rows in the 'commonParams' table -- free to disagree. The demos showed the
 %   failure mode: `cfg.nc = 6` on one line and `cfg.common` with six rows on
@@ -40,7 +40,7 @@ function [nc, info] = resolveNc(systems)
 %     L  = lsqvce.engine.makeLoader(bd, 'commonParams', tbl, 'localParams', loc, ...);
 %     nc = lsqvce.engine.resolveNc({L});          % = size(tbl,1), never restated
 %
-%   See also LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCE
+%   See also LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT
 %
 %   Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Opus 4.8.
