@@ -6558,7 +6558,7 @@ continues. Each item's plan was written and adversarially reviewed before implem
 
 | WP | title | depends on | status |
 |---|---|---|---|
-| 99 | The four carried items, one commit each: `dev/tests/test_examples.m` (every example runs, and none can be added without a row), audit check 26 (markdown pointers resolve; ten dead ones repaired), `R.noise.model{k}.C` empty where no law was estimated instead of another stream's, and `R.report()` saying whether the stochastic model settled | 98 | READY-PLACEHOLDER-99 |
+| 99 | The four carried items, one commit each: `dev/tests/test_examples.m` (every example runs, and none can be added without a row), audit check 26 (markdown pointers resolve; ten dead ones repaired), `R.noise.model{k}.C` empty where no law was estimated instead of another stream's, and `R.report()` saying whether the stochastic model settled | 98 | READY (2026-09-08, PR #99, CI green on 55ad573: audit 26 s, matlab 2m56s; local ci_gate GREEN 539/539 over 27/27 suites -- the examples are IN that number now -- Linux audit CLEAN with the Manual rebuilt, self-test 18/18; DONE flips on the merge) |
 
 **ROUND WP-99 (2026-09-08, model Claude Opus 5, tier A).** Four items, four commits, and one
 consequence that changes the loop itself.
@@ -6613,4 +6613,5 @@ VERDICTS. Local `ci_gate` GREEN **539/539** over **27/27** suites, 1 excluded (5
 +2 for the example suite, +1 for the model-law test, +1 for the report test) — and the example
 run is now INSIDE that number, so it is the whole postflight. Linux audit with the Manual
 rebuilt under WSL **CLEAN, zero findings**, self-test **18/18**. The Windows audit is at its
-one-finding baseline. CI: pending on the draft PR.
+one-finding baseline. CI green on the record head 55ad573: audit **pass 26 s**,
+matlab **pass 2m56s**.
