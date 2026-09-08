@@ -6699,3 +6699,55 @@ VERDICTS. Local `ci_gate` GREEN **541/541** over 27/27 suites (553 declared, +2 
 Linux audit with the Manual rebuilt under WSL **CLEAN, zero findings**, self-test 18/18; the
 Windows audit at its one-finding baseline. CI green: audit **pass 22 s**, matlab
 **pass 3m2s**.
+
+### 12.25 WP-101 — the documentation audit, and what it found in the CODE (2026-09-08, model Claude Opus 5, tier A)
+
+**Origin.** The user, after WP-100: "audit the help text, html docs and pdf documentation and
+ensure that everything is in sync." Instruments: the 26 mechanical checks (all green: pages
+equal their help blocks, the Manual is a fresh build, identifiers closed both ways, markdown
+pointers resolve) and then a **55-agent content audit** — six readers, one per surface, every
+finding through TWO refuting lenses (code truth / user impact), then a completeness critic:
+**24 raw findings, 15 confirmed.** The mechanical layer being green is exactly why the audit was
+worth running: every one of the 15 is a well-formed sentence on a live page pointing at a live
+name, and wrong.
+
+**THE HEADLINE: four of them are CODE defects, not documentation typos.** Four documented
+`Options` do not do what they say, and two of them are FATAL mid-run:
+  * `Noise.Grid = "auto"` ("= the longest arc") is whitelisted by `Options.validate`
+    (`+lsqvce/Options.m:173-179`) and forwarded verbatim (`:224`), and the engine declares
+    `opt.NumLags (1,1) double` (`adjustVCEjoint.m:223`). Nothing anywhere computes a longest
+    arc. The user's run dies inside the engine with a `MATLAB:validators:*` error — not an
+    `lsqvce:*` identifier, so the catalogue and the error chapter give them no thread to pull.
+  * `Probes = 0` ("= the exact route") is accepted at assignment (`mustBeNonnegative`,
+    `:140`) and refused by the engine (`mustBePositive`, `adjustVCEjoint.m:228`). There is no
+    exact branch in the joint estimator at all.
+  * `MinPasses` and `LogFile` are INERT: each appears exactly three times in the package — the
+    help line, the property declaration, and the `disp` table. No consumer.
+Verified by hand, independently of the agents, before any of this was written down.
+
+**Decision (the user's, 2026-09-08).** RETIRE all four and refuse at the door: the two live
+knobs get an immediate `lsqvce:Options:*` refusal instead of a mid-run MATLAB error, and the two
+inert ones leave the class. `Verbose` is documented as the 0/1 surface it actually is
+(`engineArgs` wraps it in `logical()` at four hand-offs, so level 2 has never been reachable
+through `fit`).
+  * CONCERN STATED, and the decision stands: `MinPasses` was added on the user's own GRAVFIRE
+    evidence — `dev/GRAVFIRE_INTERFACE.md:316` maps `minimumIterations 3` to `MinPasses=3`.
+    Retiring it makes that row false, and the row is corrected in this round to say the toolbox
+    has no minimum-passes knob. Restoring it later is a floor on one loop, one round's work.
+
+**And one more, found while checking the PDFs.** `lsqvce_theory.pdf` is a **pdfTeX** product
+(its `/Producer` says so), i.e. it is built from `dev/docs_src/theory_r5/*.tex` — but
+`dev/DEVELOPMENT.md:669,703` names `dev/docs_src/build_theory_pdf.py` (ReportLab, over
+`theory_content.py`) as its builder, and `dev/docs_src/README.md:103` says theory_r5 supersedes
+those "once decision R5-D6 is taken; until then both exist". The supersession happened in
+ACTION and was never recorded, so the repository ships a script that would silently overwrite
+the theory PDF with a DIFFERENT, older document under the same name. That is why the stale
+`stopReason` enum in §7.6 (five values, four of which are never assigned — the real ones are
+`"single"`, `"converged"`, `"maxPasses"`, `"userStop"`) survived every round.
+
+**Scope frozen.** One branch, one commit per group: (1) the four Options retired and refused at
+the door, with `Verbose` documented as 0/1; (2) the Manual, README, DEVELOPMENT, GRAVFIRE and
+RELEASE_NOTES claims corrected; (3) the theory PDF: source fixed, ONE builder writing ONE name,
+the orphan generator retired; (4) an audit check so a documented option with no consumer cannot
+ship again — the ratchet that would have caught `MinPasses` and `LogFile`, fault-injected in
+this round.
