@@ -6555,3 +6555,52 @@ must FAIL when an example is added without a row, and check 26 must fire on a de
 stay silent on a healthy tree. Items 3 and 4 change what the toolbox REPORTS, never what it
 estimates: if any pinned number moves, the round stops and the movement is explained before it
 continues. Each item's plan was written and adversarially reviewed before implementation.
+
+| WP | title | depends on | status |
+|---|---|---|---|
+| 99 | The four carried items, one commit each: `dev/tests/test_examples.m` (every example runs, and none can be added without a row), audit check 26 (markdown pointers resolve; ten dead ones repaired), `R.noise.model{k}.C` empty where no law was estimated instead of another stream's, and `R.report()` saying whether the stochastic model settled | 98 | READY-PLACEHOLDER-99 |
+
+**ROUND WP-99 (2026-09-08, model Claude Opus 5, tier A).** Four items, four commits, and one
+consequence that changes the loop itself.
+
+**Item 1, and what it retires.** The example run is IN the gate now, so the postflight is
+`ci_gate` and nothing else — `CLAUDE.md` says so. For the whole of R6 the "examples N/N" line
+in every PR came from a harness in a scratch directory, rebuilt by hand each round; a claim
+that cannot be re-run by the next reader is not evidence. Both halves fault-injected: a new
+`examples/demo_faultInject_tmp.m` with no row makes the census FAIL naming the file; a table
+row pointed at a throwing call makes the run half FAIL naming the example. Silent on the
+healthy tree, 2/2 in **25.8 s**.
+
+**Item 2, measured before it was wired in.** Check 26 found **ten** dead pointers, all in
+`dev/DEVELOPMENT.md`: the four HTML manuals deleted in the docs level (as markdown links AND
+as backticked paths), `dev/docs_src/build_master_pdf.py` (the Manual moved to pandoc and
+`build_manual.py`), and `dev/validation/bench_m0.m` (log kept, script not). All repaired,
+with the prose around them — that section still described four browsable manuals built with
+ReportLab. The measurement SHAPED the check: its only false positives were a backticked
+COMMAND and a path written relative to its own document, so a candidate is the LAST token of a
+backticked span, resolved against both the root and the document's directory. **56 pointers in
+7 documents, zero findings.** Four self-test cases (18 now), and the two SILENT ones are the
+two that cost a refinement.
+
+**Item 3.** `R.noise.model{k}.C` is empty where no law was estimated. Blast radius checked
+first: nothing in the tree reads that field — every reader uses `.sigma`, `.sigma2`, or
+`Cgroups` directly.
+
+**Item 4.** One level-1 line in the verdict: `NOISE_UNSETTLED` (WARN) or `NOISE_SETTLED`
+(NOTE). A single solve has no loop and says nothing new — that silence is the first thing the
+test asserts, because it is what a careless change would break. Severity checked against the
+verdict rule: WARN reaches "PASS WITH WARNINGS", never "SUSPECT".
+
+**A process note, because it cost something.** A 12-agent planning workflow was launched for
+the four items and implementation started in parallel, so the plans landed AFTER items 3 and 4
+were committed — the fan-out bought nothing on those two. The REVIEWS still earned their keep:
+one caught that item 3's inline policy read restated the map's default ("law" when absent),
+which is one fact written in two places. Fixed at the source instead: `streamPolicy` now seeds
+`estMap` for every stream, so the default is stated ONCE and every reader reads the map. The
+lesson is scheduling, not the instrument: plan OR implement, not both at once.
+
+VERDICTS. Local `ci_gate` GREEN **539/539** over **27/27** suites, 1 excluded (551 declared:
++2 for the example suite, +1 for the model-law test, +1 for the report test) — and the example
+run is now INSIDE that number, so it is the whole postflight. Linux audit with the Manual
+rebuilt under WSL **CLEAN, zero findings**, self-test **18/18**. The Windows audit is at its
+one-finding baseline. CI: pending on the draft PR.

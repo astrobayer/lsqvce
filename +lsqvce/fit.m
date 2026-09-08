@@ -548,6 +548,10 @@ function [estMap, afMap] = streamPolicy(systems, specs, streams, afDefault)
     estMap = containers.Map('KeyType', 'char', 'ValueType', 'any');
     afMap  = containers.Map('KeyType', 'char', 'ValueType', 'any');
     for k = 1:numel(streams)
+        % R6 WP-99: seed the estimate map too, so it is TOTAL over the streams.
+        % The default "law" is then stated ONCE, here, instead of being restated
+        % by every reader of the map (R1: one authority per fact).
+        estMap(char(string(streams{k}))) = 'law';
         afMap(char(string(streams{k}))) = logical(afDefault);
         if contains(char(string(streams{k})), '|prior_')     % R5-D8 round 5: a local prior group is a
             afMap(char(string(streams{k}))) = false;          % stream; its estimate policy comes from
@@ -630,11 +634,13 @@ function [names, models] = streamModels(systems, specs, out, pool, estMap)
                 case 'stream',  gk = sk;
                 otherwise,      gk = 'all';
             end
-            % R6 WP-99: only a stream whose law was ESTIMATED has one to report
-            pol = 'law';
-            if ~isempty(estMap) && isKey(estMap, sk), pol = lower(char(estMap(sk))); end
+            % R6 WP-99: only a stream whose law was ESTIMATED has one to report.
+            % estMap is total over the streams (streamPolicy seeds it), so this
+            % reads the policy rather than restating its default.
             C = [];
-            if strcmp(pol, 'law') && isKey(out.Cgroups, gk), C = out.Cgroups(gk); end
+            if isKey(estMap, sk) && strcmp(estMap(sk), 'law') && isKey(out.Cgroups, gk)
+                C = out.Cgroups(gk);
+            end
             names{end+1}  = sk;                                                %#ok<AGROW>
             models{end+1} = struct('type', 'psd', 'sigma', s0 * f, 'C', C, 'sigma2', s2); %#ok<AGROW>
         end

@@ -36,10 +36,12 @@ box without pandoc the audit's honest baseline is **exactly one finding**
 ("the Manual could not be rebuilt"); anything more is yours. To rebuild the
 Manual locally, use the Debian pandoc under WSL — CI is the authority.
 
-The **postflight** cited in every PR is both of: `ci_gate` green, and every
-script in `examples/` smoke-run once in an isolated call (one `@()` per
-example, `evalc`, `close all force` between them — a shared workspace makes
-them clobber each other).
+The **postflight** cited in every PR is `ci_gate` green — and that is now the
+whole of it. Since R6 WP-99 the examples are IN the gate: `test_examples.m`
+runs every script in `examples/` once, in isolation, and refuses to let one be
+added without a row in its call table. Before that the example run lived in a
+scratch directory and was rebuilt by hand every round, so the "examples N/N"
+in each PR had no authority in the tree.
 
 Local ground-truth run: `matlab -batch "cd('dev/tests'); ci_gate"` — on the
 user's PC preferably through the MATLAB MCP bridge (official
