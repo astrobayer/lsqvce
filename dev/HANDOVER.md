@@ -6666,7 +6666,7 @@ into `sweepArcs`, and §12.21/§12.22 corrected above. **Predicted counts: 553 d
 
 | WP | title | depends on | status |
 |---|---|---|---|
-| 100 | The two standing estimator questions CLOSED BY MEASUREMENT, both against the obvious change: the level/factor split is a convention (an arc's sigma is declared x sqrt(factor) x sigma0, measured 0.517/1.499/0.507 against a planted 0.5/1.5/0.5) and per-group weighting in `sweepArcs` DIVERGES (three fixtures). Two oracles added, the refutation written into `sweepArcs`, §12.21 and §12.22 corrected | 99 | READY-PLACEHOLDER-100 |
+| 100 | The two standing estimator questions CLOSED BY MEASUREMENT, both against the obvious change: the level/factor split is a convention (an arc's sigma is declared x sqrt(factor) x sigma0, measured 0.517/1.499/0.507 against a planted 0.5/1.5/0.5) and per-group weighting in `sweepArcs` DIVERGES (three fixtures). Two oracles added, the refutation written into `sweepArcs`, §12.21 and §12.22 corrected | 99 | READY (2026-09-08, PR #100, CI green on the branch: audit 22 s, matlab 3m2s; local ci_gate GREEN 541/541 over 27/27 suites, Linux audit CLEAN with the Manual rebuilt, self-test 18/18; DONE flips on the merge) |
 
 **ROUND WP-100 (2026-09-08, model Claude Opus 5, tier A).** The round changed no estimator
 code and that is its result. Both items were measured first, and both measurements went
@@ -6697,4 +6697,5 @@ against planted 0.20 / 0.50 — and the shared weight is what keeps that estimat
 
 VERDICTS. Local `ci_gate` GREEN **541/541** over 27/27 suites (553 declared, +2 as predicted);
 Linux audit with the Manual rebuilt under WSL **CLEAN, zero findings**, self-test 18/18; the
-Windows audit at its one-finding baseline. CI: pending on the draft PR.
+Windows audit at its one-finding baseline. CI green: audit **pass 22 s**, matlab
+**pass 3m2s**.
