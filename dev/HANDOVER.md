@@ -6497,7 +6497,7 @@ group (§12.21), which the F-01 fixture proved is not F-01 but is still not what
 
 | WP | title | depends on | status |
 |---|---|---|---|
-| 98 | Finding F-01 FIXED: eq. 6.5.28 multiplies the factor the weighting used, so the arc factors settle instead of compounding 8.4x a pass; §12.21's own M3 measurement corrected (`demo_gravity` runs `ArcFactors=false` and its per-stream spread is 1.00); the characterisation test inverted, the guard kept as a ratchet, `demo_noisePolicy` back to ONE run | 97 | READY-PLACEHOLDER-98 |
+| 98 | Finding F-01 FIXED: eq. 6.5.28 multiplies the factor the weighting used, so the arc factors settle instead of compounding 8.4x a pass; §12.21's own M3 measurement corrected (`demo_gravity` runs `ArcFactors=false` and its per-stream spread is 1.00); the characterisation test inverted, the guard kept as a ratchet, `demo_noisePolicy` back to ONE run | 97 | READY (2026-09-08, PR #98, CI green on e8779d9: audit 38 s, matlab 2m33s; local ci_gate GREEN 535/535 over 26/26 suites, examples 15/15, Linux audit CLEAN with the Manual rebuilt, self-test 14/14; DONE flips on the merge) |
 
 **ROUND WP-98 (2026-09-08, model Claude Opus 5, tier A).** The round's first act was to correct
 a measurement of my own (above); its second was to derive the mechanism and PREDICT a number
@@ -6517,4 +6517,5 @@ VERDICTS. Local `ci_gate` GREEN **535/535** (547 declared: two tests reworked, o
 26/26 suites, 1 excluded; example smoke **15/15**; Linux audit with the
 Manual rebuilt under WSL **CLEAN, zero findings**, self-test 14/14. The blast radius was
 measured before the round was allowed to continue: the whole suite run test by test failed
-exactly the two points that existed to describe the defect. CI: pending on the draft PR.
+exactly the two points that existed to describe the defect. CI green on the record head
+e8779d9: audit **pass 38 s**, matlab **pass 2m33s**.
