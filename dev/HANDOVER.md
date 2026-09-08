@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-09-08 — WP-97 DONE (PR #97, merge f47306d; postflight on merged main: ci_gate 534/534, examples 15/15); WP-98 OPEN: F-01's mechanism is ESTABLISHED and one of §12.21's own measurements is CORRECTED; §12.22.
+Last substantive update: 2026-09-08 — WP-98 DONE (PR #98, merge cf10d71; finding F-01 FIXED; postflight on merged main: ci_gate 535/535, examples 15/15); WP-99 OPEN: the four carried instrument-and-honesty items, one commit each; §12.23.
+Preceding entry: Last substantive update: 2026-09-08 — WP-97 DONE (PR #97, merge f47306d; postflight on merged main: ci_gate 534/534, examples 15/15); WP-98 OPEN: F-01's mechanism is ESTABLISHED and one of §12.21's own measurements is CORRECTED; §12.22.
 Preceding entry: Last substantive update: 2026-09-08 — WP-96 DONE (PR #96, merge cd14d22; postflight on merged main: ci_gate 531/531, examples 15/15); WP-97 OPEN: finding F-01 gets the oracle it never had and a guard, after the first hypothesis was MEASURED and refuted; §12.21.
 Preceding entry: Last substantive update: 2026-09-07 — WP-95 DONE (PR #95, merge 96ed78f; postflight on merged main: ci_gate 529/529, examples 13/13); WP-96 OPEN: the two gaps carried out of §12.19 get worked examples — `lsqvce.layout` and the per-stream noise policy (`estimate` / `arcFactors`, a `psd` law); §12.20.
 Preceding entry: Last substantive update: 2026-09-07 — WP-94 DONE (PR #94, merge f726660); WP-95 READY (the examples audited against v5.3 by a 186-agent workflow: 85 raw / 54 confirmed / 12 set-level findings, all fixed; ci_gate 529/529, examples 13/13, Linux audit 0 findings; §12.19).
@@ -6497,7 +6498,7 @@ group (§12.21), which the F-01 fixture proved is not F-01 but is still not what
 
 | WP | title | depends on | status |
 |---|---|---|---|
-| 98 | Finding F-01 FIXED: eq. 6.5.28 multiplies the factor the weighting used, so the arc factors settle instead of compounding 8.4x a pass; §12.21's own M3 measurement corrected (`demo_gravity` runs `ArcFactors=false` and its per-stream spread is 1.00); the characterisation test inverted, the guard kept as a ratchet, `demo_noisePolicy` back to ONE run | 97 | READY (2026-09-08, PR #98, CI green on e8779d9: audit 38 s, matlab 2m33s; local ci_gate GREEN 535/535 over 26/26 suites, examples 15/15, Linux audit CLEAN with the Manual rebuilt, self-test 14/14; DONE flips on the merge) |
+| 98 | Finding F-01 FIXED: eq. 6.5.28 multiplies the factor the weighting used, so the arc factors settle instead of compounding 8.4x a pass; §12.21's own M3 measurement corrected (`demo_gravity` runs `ArcFactors=false` and its per-stream spread is 1.00); the characterisation test inverted, the guard kept as a ratchet, `demo_noisePolicy` back to ONE run | 97 | DONE (2026-09-08, PR #98, merge cf10d71; CI green on the record head: audit 27 s, matlab 2m49s. POSTFLIGHT on merged main: ci_gate GREEN 535/535 over 26/26 suites, examples 15/15) |
 
 **ROUND WP-98 (2026-09-08, model Claude Opus 5, tier A).** The round's first act was to correct
 a measurement of my own (above); its second was to derive the mechanism and PREDICT a number
@@ -6519,3 +6520,38 @@ Manual rebuilt under WSL **CLEAN, zero findings**, self-test 14/14. The blast ra
 measured before the round was allowed to continue: the whole suite run test by test failed
 exactly the two points that existed to describe the defect. CI green on the record head
 e8779d9: audit **pass 38 s**, matlab **pass 2m33s**.
+
+### 12.23 WP-99 — the four carried items: two instruments, two honest values (2026-09-08, model Claude Opus 5, tier A)
+
+**Origin.** Four items carried out of §12.19–§12.22, each recorded when it was found and each
+deliberately not fixed at the time because it belonged to a different round. The user asked for
+all four. They are a batch: one branch, one PR, ONE COMMIT PER ITEM.
+
+1. **The example harness is not in the repository.** MEASURED: 8 of the 15 files in `examples/`
+   are executed by nothing in `dev/tests` — `bench_qr_vs_normal`, `demo_combine`, `demo_grace`,
+   `demo_gravfire`, `demo_lsqvce`, `demo_messaging`, `demo_sensors`, `demo_workflow` — and the
+   "examples 15/15" cited in every PR of this review comes from a harness that lives in a
+   scratch directory and is rebuilt by hand each round. The postflight's second half has no
+   authority in the tree.
+2. **No instrument reads a markdown pointer.** MEASURED: `dev/DEVELOPMENT.md` still points at
+   four HTML manuals deleted in the docs level (`html/lsqvce_user_manual.html`,
+   `lsqvce_reference_manual.html`, `lsqvce_interpretation_guide.html`, `lsqvce_choosing.html`).
+   Audit check 5 reads links inside `html/` only. WP-94 built two checks to keep the docs in
+   sync and this class walked past both.
+3. **`R.noise.model{k}.C` returns another stream's law.** `fit>streamModels` does
+   `C = out.C; if isKey(out.Cgroups, gk), C = out.Cgroups(gk); end`, and a stream whose law is
+   NOT estimated has no group entry, so it gets the global `out.C`. MEASURED: in a four-stream
+   run with one `"law"` stream, all four `model{k}.C` were identical (lag-1 1.313 for every
+   one). The field is documented as "the stream's law". A plausible wrong value, returned in
+   silence — the one outcome R4 forbids.
+4. **`R.report()` is blind to the noise loop.** `report.m` reads neither `converged` nor
+   `stopReason` nor `history`. A run that stopped on `maxPasses` — whose stochastic model did
+   NOT settle — gets a verdict that says nothing about it. The warning exists, and warnings are
+   routinely muted; this suite mutes that one in three places.
+
+**Decision (scope frozen).** All four, in this order, one commit each, on `claude/wp-99`.
+Items 1 and 2 add instruments and are therefore fault-injected in the same round: the harness
+must FAIL when an example is added without a row, and check 26 must fire on a dead pointer and
+stay silent on a healthy tree. Items 3 and 4 change what the toolbox REPORTS, never what it
+estimates: if any pinned number moves, the round stops and the movement is explained before it
+continues. Each item's plan was written and adversarially reviewed before implementation.
