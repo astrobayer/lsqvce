@@ -759,7 +759,9 @@ function testRobustPassInsideTheJointLoopRecoversTheLawUnderOutliers(tc)
     data.systems.buildDay = @(day, ot) blunders(inner(day, ot), day, ot, 0.02, 25);   % 2 %, 25 sigma
     base = {'Estimate', "noise", 'Pool', "stream", 'MaxPasses', 16, 'Verbose', false};
     Rp = lsqvce.fit(data, lsqvce.Options(base{:}));                      % plain
-    Rr = lsqvce.fit(data, lsqvce.Options(base{:}, 'Robust', "igg3"));    % robust pass inside
+    trail = containers.Map('KeyType', 'double', 'ValueType', 'any');    % round 6: the pass trajectory
+    watch = @(ctx) trailOf(trail, ctx);
+    Rr = lsqvce.fit(data, lsqvce.Options(base{:}, 'Robust', "igg3", 'OnPass', watch));    % robust pass inside
     rho = @(R, k) R.noise.Cgroups(k);
     rhoP = rho(Rp, 'x1|a');  rhoR = rho(Rr, 'x1|a');
     rhoP = rhoP(2) / rhoP(1);  rhoR = rhoR(2) / rhoR(1);
@@ -768,8 +770,10 @@ function testRobustPassInsideTheJointLoopRecoversTheLawUnderOutliers(tc)
     % tol: 0.08 absolute on a lag-1 correlation from 9 arcs of 256 epochs --
     % the bound testPoolStreamGivesEachStreamItsOwnLaw uses on clean data
     tc.verifyEqual(rhoR, plantA, 'AbsTol', 0.08, sprintf(['the robust pass recovers stream a''s colour under ' ...
-        'blunders (plain %.3f; robust C(1:4) = %s, level a %.3f, sigma0 %.3f, passes %d, converged %d)'], ...
-        rhoP, mat2str(Ca(1:4).', 3), Rr.noise.model{ia}.sigma, Rr.sigma0, Rr.history.nIter, Rr.converged));
+        'blunders (plain %.3f; robust C(1:4) = %s, level a %.3f, sigma0 %.3f, passes %d, converged %d; ' ...
+        'per pass [rho_a nZero maxDev]: %s)'], ...
+        rhoP, mat2str(Ca(1:4).', 3), Rr.noise.model{ia}.sigma, Rr.sigma0, Rr.history.nIter, Rr.converged, ...
+        mat2str(cell2mat(values(trail, num2cell(sort(cell2mat(keys(trail)))))'), 3)));
     tc.verifyGreaterThan(abs(rhoP - plantA), abs(rhoR - plantA), ...
         'the plain estimator is further from the planted colour than the robust one');
     % the blunders, located exactly (the same RNG sequence the injector used):
@@ -814,6 +818,14 @@ function testRobustPassInsideTheJointLoopRecoversTheLawUnderOutliers(tc)
     tc.verifyEqual(lvlB, 1, 'RelTol', 0.15, 'the clean stream''s level is unbiased under the robust pass');
     % Robust "none" carries no factors at all
     tc.verifyEmpty(Rp.noise.robust.factor);
+end
+
+function trailOf(trail, ctx)
+%TRAILOF  Per-pass record for the diagnostic: stream a's lag-1 colour, the
+%   zero-weight count, the convergence measure.
+    r = NaN;
+    if isKey(ctx.Cgroups, 'x1|a'), C = ctx.Cgroups('x1|a');  r = C(2) / C(1); end
+    trail(ctx.pass) = [r, sum(ctx.factor == 0), ctx.maxDev];   %#ok<NASGU>
 end
 
 function D = blunders(D, day, obsType, fraction, nSigma)
