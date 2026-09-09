@@ -48,7 +48,7 @@ function testSystemWithoutLocalUnknownsIsValid(tc)
     cfg1 = buildCfg();  cfg1.nl = 1;  cfg1.y1 = 0;              % dummy carries nothing
     buildOne  = @(d, ot) buildDayImpl(cfg1, d, ot);
     buildZero = @(d, ot) setfield(buildDayImpl(cfg1, d, ot), 'B', ...
-                    zeros(cfg1.arcsPerDay*cfg1.mArc, 0));        %#ok<SFLD>  same A, l
+                    repmat({zeros(cfg1.mArc, 0)}, 1, cfg1.arcsPerDay));   %#ok<SFLD>  same A, l; v6 cells
     L0 = lsqvce.engine.makeLoader(buildZero, ...
             'observationTypes',{'pos','kbr'}, 'covariance',cfg1.cov, 'arcs',cfg1.arcsPerDay, ...
             'systemId',1, 'numLocal',0, 'numCommon',cfg1.nc, 'days',1:3);
@@ -278,13 +278,14 @@ function testParamPipedToFiveArgBuilder(tc)
     cfg = buildCfg();
     common = paramRows(6);  local = paramRows(4);
     po = struct('flag', 42);
-    grab = @(d,ot,c,l,p) captureBuild(cfg,d,ot,c,l,p);
+    seen = containers.Map('KeyType','char','ValueType','any');   % v6: a day carries
+    grab = @(d,ot,c,l,p) captureBuild(cfg,d,ot,c,l,p,seen);      % no extra fields
     L = lsqvce.engine.makeLoader(grab, 'observationTypes',{'pos'}, 'covariance',cfg.cov, 'arcs',2, ...
             'commonParams', common, 'localParams', local, 'processingOptions', po);
-    D = L.day(1, 'pos');                          % whole day carries the echoes
-    tc.verifyEqual(D.gotCommon, common);
-    tc.verifyEqual(D.gotLocal,  local);
-    tc.verifyEqual(D.gotPO.flag, 42);
+    L.day(1, 'pos');
+    tc.verifyEqual(seen('common'), common);
+    tc.verifyEqual(seen('local'),  local);
+    tc.verifyEqual(seen('po').flag, 42);
 end
 
 function testParamDerivesNcNl(tc)
@@ -407,6 +408,7 @@ function D = buildDayImpl(cfg, day, obsType)
     e   = synthE(rs, cfg.cov.(obsType), M);
     D.l = D.A*cfg.x_c + D.B*cfg.y1 + e;
     D.arcIdx = {1:cfg.mArc, cfg.mArc + (1:cfg.mArc)};
+    D = arcCells(D);                                % v6: the cells are the arcs
 end
 
 function e = synthE(rs, cm, M)
@@ -429,13 +431,12 @@ function C = paramRows(nRow)
     end
 end
 
-function D = captureBuild(cfg, day, obsType, common, local, procOpt)
-% A 5-arg builder that both builds a day AND echoes what it received, so the
-% test can assert the parametrisation reached buildDay intact.
+function D = captureBuild(cfg, day, obsType, common, local, procOpt, seen)
+% A 5-arg builder that both builds a day AND records what it received in the
+% handle Map SEEN, so the test can assert the parametrisation reached
+% buildDay intact (v6: a day struct carries no field but the contract's).
     D = buildDayImpl(cfg, day, obsType);
-    D.gotCommon = common;
-    D.gotLocal  = local;
-    D.gotPO     = procOpt;
+    seen('common') = common;  seen('local') = local;  seen('po') = procOpt;   %#ok<NASGU>
 end
 
 function cfg = synthCfg()
@@ -626,18 +627,22 @@ function testArcResolverAnswersPerDay(tc)
     tc.verifyEqual(Ls.closure('meta', 2, [], struct()).arcs{1}, 1:4);
 end
 
-function testAbsentArcIdIsADataGapNotAnError(tc)
+function testEmptyCellIsADataGapNotAnError(tc)
 % categories: contract, robustness
-% With .arcId the day names the arcs it carries, so an id it does NOT carry
-% is a data gap (empty batch, which every engine skips) rather than the
-% positional out-of-range error. The positional guard must survive for
-% loaders that declare a STATIC schedule -- a different mistake.
-    L = raggedLoader(tc, {[1 2 3], [1 3], [2 3 4]}, []);
+% v6 (R6 WP-102): the cells are the arcs. Under a declared schedule the day
+% returns one cell per SCHEDULED id, and an EMPTY cell is that id's data gap
+% (empty batch, which every engine skips). An id the schedule does not name
+% stays the positional out-of-range error -- a mis-declared static schedule
+% is a different mistake from a ragged one -- and a day returning the wrong
+% NUMBER of cells is refused by name.
+    L = gapLoader(tc);                          % schedule [1 2 3]; day 2 lacks arc 2
     got = L.closure(2, 'pot', 3, struct());     % day 2 HAS arc 3
     tc.verifyNotEmpty(got);
     tc.verifyNotEmpty(got.l);
-    gap = L.closure(2, 'pot', 2, struct());     % day 2 does NOT have arc 2
-    tc.verifyEmpty(gap, 'an absent arc id must come back as a data gap');
+    gap = L.closure(2, 'pot', 2, struct());     % day 2's cell for arc 2 is empty
+    tc.verifyEmpty(gap, 'an empty cell must come back as a data gap');
+    m = L.closure('meta', 2, [], struct());
+    tc.verifyEqual(m.arcs{1}, [1 2 3], 'the meta probe answers the SCHEDULE, gaps included');
 
     caught = MException.empty;
     Ls = staticPositionalLoader(tc);
@@ -648,6 +653,86 @@ function testAbsentArcIdIsADataGapNotAnError(tc)
     end
     tc.verifyNotEmpty(caught, 'the positional guard must survive');
     tc.verifyEqual(caught.identifier, 'lsqvce:makeLoader:badArc');
+
+    % three arcs scheduled, two cells returned: refused by name
+    Lc = lsqvce.engine.makeLoader(@(d, ot) simpleDay(d, ot), ...
+        'observationTypes', {'pot'}, ...
+        'covariance', struct('pot', struct('type','diag','sigma',1e-3)), ...
+        'arcs', 3, 'days', 1:2, 'numCommon', 4, 'numLocal', 1);
+    tc.verifyError(@() Lc.closure(1, 'pot', 1, struct()), 'lsqvce:makeLoader:arcCount');
+end
+
+function testCellsAreTheScheduleWhenNoneIsDeclared(tc)
+% categories: contract, metamorphic
+% v6 (R6 WP-102): 'Arcs' is optional. Without it the 'meta' probe reads the
+% day and answers 1:nArc from its cells, and the loader is BITWISE the same
+% loader as the one declaring the count it would have discovered -- the
+% declaration states nothing the data does not already state.
+    cfg = buildCfg();
+    Ld = lsqvce.engine.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
+            'observationTypes',{'pos','kbr'}, 'covariance',cfg.cov, 'numLocal',4, 'numCommon',6);
+    Ls = lsqvce.engine.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
+            'observationTypes',{'pos','kbr'}, 'covariance',cfg.cov, 'arcs',cfg.arcsPerDay, ...
+            'numLocal',4, 'numCommon',6);
+    m = Ld.closure('meta', 1, [], struct());
+    tc.verifyEqual(m.arcs, {1:cfg.arcsPerDay, 1:cfg.arcsPerDay}, 'discovered from the cells');
+    for a = 1:cfg.arcsPerDay
+        bd = Ld.closure(1, 'pos', a, struct());  bs = Ls.closure(1, 'pos', a, struct());
+        tc.verifyEqual(bd.A, bs.A);  tc.verifyEqual(bd.l, bs.l);  tc.verifyEqual(bd.t, bs.t);
+    end
+    Rd = lsqvce.engine.adjustBlock({Ld}, 1:2);
+    Rs = lsqvce.engine.adjustBlock({Ls}, 1:2);
+    tc.verifyEqual(Rd.x, Rs.x, 'discovered == declared, bitwise');
+    tc.verifyEqual(Rd.sigma0, Rs.sigma0);
+    % the string form is gone: refused at the door, by name
+    tc.verifyError(@() lsqvce.engine.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
+            'observationTypes',{'pos'}, 'covariance',cfg.cov, 'arcs','fromDay', ...
+            'numLocal',4, 'numCommon',6), 'lsqvce:makeLoader:badArcs');
+end
+
+function testDayContractRefusesTheV5Shape(tc)
+% categories: contract, robustness
+% v6: A, B, l, t must be 1 x nArc cells agreeing in number, every arc's four
+% entries sharing a row count; the v5 fields arcIdx / arcId and any other
+% stray field are refused BY NAME, at the day, with day and stream in the
+% message; Cep must be a matching cell.
+    cov = struct('pot', struct('type','diag','sigma',1));
+    mk  = @(bd) lsqvce.engine.makeLoader(bd, 'observationTypes', {'pot'}, 'covariance', cov, ...
+                                         'numCommon', 2, 'numLocal', 0);
+    m = 10;  A = ones(m, 2);  B = zeros(m, 0);  l = ones(m, 1);  t = (1:m).';
+    ok = struct('A', {{A}}, 'B', {{B}}, 'l', {{l}}, 't', {{t}});
+    L = mk(@(d, ot) ok);
+    tc.verifyEqual(size(L.closure(1, 'pot', 1, struct()).A), [m 2], 'the single-arc day is {A}');
+
+    v5 = struct('A', A, 'B', B, 'l', l, 't', t);                   % matrices, not cells
+    L = mk(@(d, ot) v5);
+    tc.verifyError(@() L.closure(1, 'pot', 1, struct()), 'lsqvce:makeLoader:badDay');
+    withIdx = ok;  withIdx.arcIdx = {1:m};                            % the v5 field
+    L = mk(@(d, ot) withIdx);
+    try
+        L.closure(1, 'pot', 1, struct());
+        tc.verifyFail('arcIdx must be refused');
+    catch e
+        tc.verifyEqual(e.identifier, 'lsqvce:makeLoader:badDay');
+        tc.verifySubstring(e.message, 'arcIdx');
+        tc.verifySubstring(e.message, 'retired');
+    end
+    uneven = ok;  uneven.B = {B, B};                                  % 1 vs 2 cells
+    L = mk(@(d, ot) uneven);
+    tc.verifyError(@() L.closure(1, 'pot', 1, struct()), 'lsqvce:makeLoader:dayShape');
+    short = ok;  short.l = {l(1:m-1)};                                % rows disagree inside arc 1
+    L = mk(@(d, ot) short);
+    tc.verifyError(@() L.closure(1, 'pot', 1, struct()), 'lsqvce:makeLoader:dayShape');
+    cepMat = ok;  cepMat.Cep = ones(m, 1);                            % Cep not a cell
+    L = mk(@(d, ot) cepMat);
+    tc.verifyError(@() L.closure(1, 'pot', 1, struct()), 'lsqvce:makeLoader:badDayCep');
+    cepShort = ok;  cepShort.Cep = {ones(m - 1, 1)};                  % Cep does not cover the arc
+    L = mk(@(d, ot) cepShort);
+    tc.verifyError(@() L.closure(1, 'pot', 1, struct()), 'lsqvce:makeLoader:badDayCep');
+    % an empty day (no cells at all) is valid: the meta probe reports no arcs
+    empty = struct('A', {{}}, 'B', {{}}, 'l', {{}}, 't', {{}});
+    L = mk(@(d, ot) empty);
+    tc.verifyEqual(L.closure('meta', 1, [], struct()).arcs{1}, zeros(1, 0));
 end
 
 function testLocalsPerArcDerivesNlAndOffsets(tc)
@@ -680,7 +765,8 @@ end
 function testLocalsPerArcRejectsUnknowableSchedules(tc)
 % categories: contract, robustness
 % nl must be known at construction, so the plan refuses the two cases where
-% it is not: no day list, and a schedule that would have to READ data.
+% it is not: no day list, and no declared schedule (v6: the cells would then
+% be the schedule, and they exist only once the day is read).
     caught = MException.empty;
     try
         lsqvce.engine.makeLoader(@(d, ot) simpleDay(d, ot), ...
@@ -698,7 +784,7 @@ function testLocalsPerArcRejectsUnknowableSchedules(tc)
         lsqvce.engine.makeLoader(@(d, ot) simpleDay(d, ot), ...
             'observationTypes', {'pot'}, ...
             'covariance', struct('pot', struct('type','diag','sigma',1)), ...
-            'arcs', 'fromDay', 'days', 1:2, 'numCommon', 2, 'localsPerArc', 2);
+            'days', 1:2, 'numCommon', 2, 'localsPerArc', 2);   % no 'arcs': would have to READ
     catch e
         caught = e;
     end
@@ -761,19 +847,31 @@ function L = raggedLoader(tc, arcPlan, localsPerArc, seen)   %#ok<INUSD>
     L = lsqvce.engine.makeLoader(builder, args{:});
 end
 
+function L = gapLoader(tc)   %#ok<INUSD>
+%GAPLOADER  Schedule [1 2 3] on every day; day 2 carries arcs 1 and 3 only and
+%   returns an EMPTY cell for arc 2 (the v6 data gap).
+    plan = {[1 2 3], [1 3], [1 2 3]};
+    L = lsqvce.engine.makeLoader(@(d, ot) raggedDay(d, ot, plan, 4, [], [], [1 2 3]), ...
+        'observationTypes', {'pot'}, ...
+        'covariance', struct('pot', struct('type','diag','sigma',1e-3)), ...
+        'arcs', [1 2 3], 'days', 1:3, 'numCommon', 4, 'numLocal', 1);
+end
+
 function L = staticPositionalLoader(tc)   %#ok<INUSD>
-%STATICPOSITIONALLOADER  A plain STATIC loader whose days carry no .arcId, so
-%   arc addressing stays positional (the pre-WP-52 behaviour and its guard).
+%STATICPOSITIONALLOADER  A plain STATIC loader: two arcs a day, addressed by
+%   the declared count (the pre-WP-52 behaviour and its guard).
     L = lsqvce.engine.makeLoader(@(d, ot) simpleDay(d, ot), ...
         'observationTypes', {'pot'}, ...
         'covariance', struct('pot', struct('type','diag','sigma',1e-3)), ...
         'arcs', 2, 'days', 1:2, 'numCommon', 4, 'numLocal', 1);
 end
 
-function D = raggedDay(day, obsType, arcPlan, nc, arcInfo, seen)   %#ok<INUSL>
+function D = raggedDay(day, obsType, arcPlan, nc, arcInfo, seen, schedule)   %#ok<INUSL>
 %RAGGEDDAY  One day of the ragged fixture: only the arcs this day carries,
 %   every arc a DIFFERENT length, locals placed at the offsets makeLoader
-%   handed over (when it owns the plan).
+%   handed over (when it owns the plan). v6: the day's cells follow SCHEDULE
+%   (default: the ids it carries); a scheduled id it lacks is an empty cell.
+    if nargin < 7, schedule = []; end
     if iscell(arcPlan), ids = arcPlan{day}; else, ids = 1:arcPlan; end
     if ~isempty(arcInfo), seen(day) = arcInfo; end                  %#ok<NASGU>
     lens = 40 + 7 * ids + 3 * day;              % every arc a different length
@@ -805,6 +903,7 @@ function D = raggedDay(day, obsType, arcPlan, nc, arcInfo, seen)   %#ok<INUSL>
     l = l + 1e-3 * randn(rs, mTot, 1);
     D = struct('A', A, 'B', B, 'l', l, 't', (1:mTot).', ...
                'arcIdx', {arcSlices(lens)}, 'arcId', ids);
+    D = arcCells(D, schedule);                       % v6: the cells are the arcs
 end
 
 function c = arcSlices(lens)
@@ -816,10 +915,11 @@ function c = arcSlices(lens)
 end
 
 function D = simpleDay(day, obsType)   %#ok<INUSD>
-%SIMPLEDAY  Two equal arcs, no .arcId: the plain static case.
+%SIMPLEDAY  Two equal arcs: the plain static case (two cells).
     m = 60;  nc = 4;
     tau = (0:m-1).' / m;
     A = [ones(m,1), tau, cos(2*pi*tau), sin(2*pi*tau)];
     D = struct('A', A, 'B', ones(m,1), 'l', A * ((1:nc).'/10), ...
                't', (1:m).', 'arcIdx', {{1:m/2, m/2+1:m}});
+    D = arcCells(D);                                 % v6: the cells are the arcs
 end

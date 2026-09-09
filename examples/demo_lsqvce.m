@@ -203,8 +203,8 @@ fprintf(['\nThe one to fear is #3 and #4: the adjustment can look healthy on\n' 
 function D = groupDay(A, l, t, g, obsType)
 % The buildDay of case 5: one instrument group as one observation type.
     rows = find(g == 1 + strcmp(obsType, 'g2'));
-    D.A = A(rows, :);
-    D.B = zeros(numel(rows), 0);        % no local unknowns (nl = 0, the default)
-    D.l = l(rows);
-    D.t = t(rows) * 86400;              % seconds
+    D.A = {A(rows, :)};                 % v6: one cell = one arc; the group is one arc
+    D.B = {zeros(numel(rows), 0)};      % no local unknowns (nl = 0, the default)
+    D.l = {l(rows)};
+    D.t = {t(rows) * 86400};            % seconds
 end

@@ -108,6 +108,9 @@ function L = lsqvce_template(procOpt)
 %   See also LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.FIT,
 %            DEMO_GRACE_DATALOADER
 %
+%   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-102 (v6): myBuildDay returns
+%   one cell per arc (the cells are the arcs; arcIdx is gone). With
+%   assistance from Claude (Anthropic), model Claude Fable 5.1.
 %   Updated 2026-09-07 (CEST, UTC+02:00), R6 WP-95: one stub, not two; the
 %   overview fid goes to lsqvce.util.log.set (there is no 'logFid'); procOpt
 %   reaches a hook only through 'OnPassContext' (ctx.processingOptions is a
@@ -181,7 +184,9 @@ function L = buildLoaders(procOpt)
                  'covariance',        cov, ...
                  'systemId',          g.systemId, ...
                  'name',              groupName(g, k), ...
-                 'arcs',              g.arcsPerDay, ...
+                 ...                  % no 'arcs': the cells myBuildDay returns are the
+                 ...                  % arcs (v6); declare a schedule only for 'arc'-scoped
+                 ...                  % local rows (nl must be known before any read)
                  'days',              procOpt.days, ...
                  'commonParams',      procOpt.estimation.commonParams, ...
                  'localParams',       g.localParams, ...
@@ -207,23 +212,25 @@ function D = myBuildDay(day, obsType, common, local, procOpt)  %#ok<STOUT,INUSD>
 %     procOpt  1x1   struct   your processing configuration, piped unchanged
 %
 %   OUTPUT
-%     D  1x1 struct with fields
-%       .A       m x nc   common design matrix for the whole day
-%       .B       m x nl   local design matrix (may be sparse)
-%       .l       m x 1    observations
-%       .t       m x 1    epoch timestamps [s]
-%       .arcIdx  1 x nArc cell of row-index vectors, one per arc
-%                         (optional; omitted -> the whole day is ONE arc)
-%       .Cep     nEpoch x 1 | nEpoch x d | nEpoch x d x d   THE ERROR INFORMATION
-%                         of the day (R6 WP-90): the per-epoch standard deviation
-%                         of a scalar stream, the per-axis standard deviations, or
-%                         the full per-epoch covariance (e.g. from a PPP solution)
-%                         of a multi-axis stream. The toolbox composes it with the
-%                         temporal law: C = D (R_t kron I_d) D. The axis count is
-%                         derived from it. (optional; omit when every observation
-%                         is equally accurate)
+%     D  1x1 struct -- THE CELLS ARE THE ARCS (v6, R6 WP-102): every field
+%        is a 1 x nArc cell, one cell per arc of the day; a day with one arc
+%        returns {A}; an EMPTY cell is a data gap of a scheduled arc
+%       .A       {1 x nArc}  each m_a x nc   common design matrix of arc a
+%       .B       {1 x nArc}  each m_a x nl   local design matrix (may be sparse)
+%       .l       {1 x nArc}  each m_a x 1    observations
+%       .t       {1 x nArc}  each m_a x 1    epoch timestamps [s]
+%       .Cep     {1 x nArc}  THE ERROR INFORMATION of every arc (R6 WP-90):
+%                         per arc nEpoch_a x 1 (the per-epoch standard deviation
+%                         of a scalar stream), nEpoch_a x d (per-axis standard
+%                         deviations) or nEpoch_a x d x d (the full per-epoch
+%                         covariance, e.g. from a PPP solution). The toolbox
+%                         composes it with the temporal law: C = D (R_t kron I_d) D.
+%                         The axis count is derived from it. (optional; omit when
+%                         every observation is equally accurate)
 %       .nAxis   1x1      axes per epoch of a multi-axis stream WITHOUT Cep
 %                         (optional; derived from Cep when present)
+%     Without an 'Arcs' schedule the cells ARE the schedule (arcs 1:nArc);
+%     with one, cell a is the a-th scheduled id and the count must match.
 %
 %   ROW ORDER FOR MULTI-AXIS STREAMS: rows are EPOCH-MAJOR, i.e.
 %   [x1 y1 z1 | x2 y2 z2 | ...]. The temporal correlation model strides by
@@ -235,8 +242,8 @@ function D = myBuildDay(day, obsType, common, local, procOpt)  %#ok<STOUT,INUSD>
 %   the duplication the parametrisation pipe removes.
     error('lsqvce_template:notImplemented', ...
         ['myBuildDay is a stub -- write it for your data.\n' ...
-         'Asked for day %s, obsType ''%s''. Return .A .B .l .t (and .arcIdx, ' ...
-         '.Cep for the error information); see `help lsqvce_template`.'], ...
+         'Asked for day %s, obsType ''%s''. Return .A .B .l .t as one cell per ' ...
+         'arc (and .Cep for the error information); see `help lsqvce_template`.'], ...
          num2str(day), obsType);
 end
 

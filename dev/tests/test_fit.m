@@ -15,6 +15,14 @@ function tests = test_fit
 %
 %   Run: runtests('tests/test_fit')
 %
+%   Updated 2026-09-09 (CEST, UTC+02:00), v6 (R6 WP-102): THE CELLS ARE THE
+%   ARCS -- every fixture day is cut by the test-private arcCells into the
+%   1 x nArc cell contract; NEW points: the schedule is optional on the fit
+%   surface (discovered == declared, bitwise), an empty cell is the gap of a
+%   scheduled arc (== the resolver that omits it), 'day' rows without a
+%   schedule live on every calendar day and an empty day is refused
+%   (emptyDay), 'arc' rows need the schedule (localPlan, relabelled). With
+%   assistance from Claude (Anthropic), model Claude Fable 5.1.
 %   Updated 2026-08-31 (CEST, UTC+02:00), v4 SCOPED tables (Level L11,
 %   WP-76): fixtures on the scope column; badScope cases (direct + relabel);
 %   localsPerArc -> unknownField; NEW reference parity scoped == hand-numbered
@@ -130,7 +138,7 @@ function testDeclarationRulesFireBeforeAnyRead(tc)
     tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:badScope');
     d = data;  d.commonParams{1, 1} = 42;                        % not a token at all
     tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:badScope');
-    d = data;  d.systems(1).arcs = 'fromDay';                    % ENGINE-tier only
+    d = data;  d.systems(1).arcs = 'fromDay';                    % v6: the string form is gone
     tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:badArcs');
     d = rmfield(data, 'commonParams');
     tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:noCommon');
@@ -243,8 +251,8 @@ function testSystemWithoutLocalsThroughFit(tc)
     % localsPerArc nor localParams declared, B = zeros(m, 0).
     [data, cfg] = declaration();
     cfg.nl = 0;
-    m = cfg.arcsPerDay * cfg.mArc;
-    data.systems(1).buildDay = @(d, ot) setfield(buildDayImpl(cfg, d, ot), 'B', zeros(m, 0)); %#ok<SFLD>
+    data.systems(1).buildDay = @(d, ot) setfield(buildDayImpl(cfg, d, ot), 'B', ...   %#ok<SFLD>
+                                        {zeros(cfg.mArc, 0), zeros(cfg.mArc, 0)});   % v6: one cell per arc
     data.systems(1).localParams = [];                            % explicit 'not used'
     R = lsqvce.fit(data);
     tc.verifyClass(R, 'lsqvce.Results');
@@ -667,6 +675,90 @@ function ids = arcListWithGap(day)
     if day == 2, ids = zeros(1, 0); else, ids = [1 2]; end
 end
 
+%% ============================================ v6 (R6 WP-102): the cells are the arcs
+function testScheduleIsOptionalOnTheFitSurface(tc)
+% categories: contract, metamorphic
+    % v6: `arcs` is optional. Without it the cells buildDay returns are the
+    % schedule (ids 1:nArc), and the run is BITWISE the run that declares the
+    % count it would have discovered -- the declaration states nothing the
+    % data does not already state. 'system'-scoped locals: no plan depends
+    % on the arc count.
+    [data, ~] = declaration();
+    Rs = lsqvce.fit(data, lsqvce.Options(Verbose=false));           % arcs = 2 declared
+    d  = data;  d.systems = rmfield(d.systems, 'arcs');
+    Rd = lsqvce.fit(d, lsqvce.Options(Verbose=false));              % discovered
+    tc.verifyEqual(Rd.x, Rs.x, 'discovered == declared, bitwise');
+    tc.verifyEqual(Rd.sigma0, Rs.sigma0);
+    tc.verifyEqual(Rd.sol.Cxx, Rs.sol.Cxx);
+    tc.verifyEqual(Rd.redundancy(), Rs.redundancy());
+end
+
+function testEmptyCellIsTheGapOfAScheduledArc(tc)
+% categories: contract, metamorphic
+    % v6: under a declared schedule the day returns one cell per scheduled id
+    % and an EMPTY cell is that id's data gap. Scheduling a third arc that
+    % every day returns empty must give BITWISE the two-arc run: a gap adds
+    % nothing, and the redundancy count says so.
+    [data, cfg] = declaration();
+    R2 = lsqvce.fit(data, lsqvce.Options(Verbose=false));
+    d  = data;
+    d.systems(1).arcs = [1 2 3];                                     % arc 3 is scheduled ...
+    d.systems(1).buildDay = @(dd, ot) padGap(buildDayImpl(cfg, dd, ot), cfg);  % ... and empty
+    R3 = lsqvce.fit(d, lsqvce.Options(Verbose=false));
+    tc.verifyEqual(R3.x, R2.x, 'a gap cell contributes nothing');
+    tc.verifyEqual(R3.sigma0, R2.sigma0);
+    tc.verifyEqual(R3.redundancy(), R2.redundancy());
+    % the count is enforced: a schedule of 3 and two cells is refused by name
+    d.systems(1).buildDay = @(dd, ot) buildDayImpl(cfg, dd, ot);
+    tc.verifyEqual(idOf(@() lsqvce.fit(d, lsqvce.Options(Verbose=false))), 'lsqvce:makeLoader:arcCount');
+end
+
+function D = padGap(D, cfg)
+% Append the empty cell of a scheduled-but-absent third arc.
+    D.A{3} = zeros(0, cfg.nc);  D.B{3} = zeros(0, cfg.nl);  D.l{3} = zeros(0, 1);  D.t{3} = zeros(0, 1);
+end
+
+function testDayRowsWithoutScheduleLiveOnEveryCalendarDay(tc)
+% categories: contract, robustness
+    % v6: without `arcs`, the calendar is the declaration -- every calendar
+    % day owns its 'day' blocks (common and local) and nc / nl count them --
+    % and a calendar day that then returns no arc in any stream is refused
+    % at its 'meta' probe (emptyDay), before any solve could go rank-deficient
+    % on an unobserved block.
+    cfg = scopedCfg();
+    data = struct();
+    data.commonParams = [{'common', 'g1'}; {'common', 'g2'}; {'day', 'accScale'}];
+    data.days = 1:3;
+    s = struct();
+    s.buildDay   = @(d, ot, common, local, po, info) scopedBuildDay(cfg, d, ot, info, 2);
+    s.covariance = cfg.cov;
+    s.localParams = [{'day', 'bias'}; {'system', 'scale'}];         % no 'arc' rows: no schedule needed
+    data.systems = s;
+    R = lsqvce.fit(data, lsqvce.Options(Verbose=false));
+    tc.verifyEqual(numel(R.x), 2 + 3, 'every calendar day owns a common day block');
+    tc.verifyEqual(R.systems(1).nl, 3 + 1, 'every calendar day owns its local day block');
+    % day 2 returns no cells: refused by name, at the read
+    d = data;
+    d.systems(1).buildDay = @(dd, ot, common, local, po, info) emptyOnDay2(cfg, dd, ot, info);
+    tc.verifyEqual(idOf(@() lsqvce.fit(d, lsqvce.Options(Verbose=false))), 'lsqvce:makeLoader:emptyDay');
+    % the same day taken off the calendar is the declared way to say so
+    d.systems(1).days = [1 3];
+    R2 = lsqvce.fit(d, lsqvce.Options(Verbose=false));
+    tc.verifyEqual(numel(R2.x), 2 + 2, 'day 2 off this system''s calendar: no common day block');
+    tc.verifyEqual(R2.systems(1).nl, 2 + 1);
+    % 'arc' rows without a schedule: refused at the declaration, relabelled
+    d = data;  d.systems(1).localParams = [{'arc', 'ic'}; {'day', 'bias'}];
+    tc.verifyEqual(idOf(@() lsqvce.fit(d, lsqvce.Options(Verbose=false))), 'lsqvce:fit:localPlan');
+end
+
+function D = emptyOnDay2(cfg, day, obsType, info)
+    if day == 2
+        D = struct('A', {{}}, 'B', {{}}, 'l', {{}}, 't', {{}});
+    else
+        D = scopedBuildDay(cfg, day, obsType, info, 2);
+    end
+end
+
 function cfg = scopedCfg()
 % Deterministic content generator shared by BOTH roads of the parity test.
     cfg = struct('mArc', 120, 'dt', 5, 'seed', 31);
@@ -685,9 +777,11 @@ function [Ael, Bel, l, tt] = scopedDayContent(cfg, day, obsType, nArc)
     tt  = (0:M-1).' * cfg.dt;
 end
 
-function D = scopedBuildDay(cfg, day, obsType, info)
+function D = scopedBuildDay(cfg, day, obsType, info, nArc)
 % The v4 road: every placement comes from INFO, no literal offset anywhere.
-    nArc = numel(info.arcId);
+% v6: without a declared schedule info.arcId is empty and the caller says
+% how many arcs (cells) the day carries.
+    if nargin < 5, nArc = numel(info.arcId); end
     [Ael, Bel, D.l, D.t] = scopedDayContent(cfg, day, obsType, nArc);
     M = size(Ael, 1);
     D.A = zeros(M, info.nc);
@@ -700,12 +794,15 @@ function D = scopedBuildDay(cfg, day, obsType, info)
     D.arcIdx = cell(1, nArc);
     for a = 1:nArc
         D.arcIdx{a} = (a-1)*cfg.mArc + (1:cfg.mArc);
-        D.B(D.arcIdx{a}, info.offsetOf(info.arcId(a)) + 1) = Bel(D.arcIdx{a}, a);
+        if ~isempty(info.arcId)                      % 'arc' rows exist only with a schedule
+            D.B(D.arcIdx{a}, info.offsetOf(info.arcId(a)) + 1) = Bel(D.arcIdx{a}, a);
+        end
     end
     if info.dayCount > 0
         D.B(:, info.dayOffset + 1) = Bel(:, nArc + 1);
     end
     D.B(:, info.sysOffset + 1) = Bel(:, nArc + 2);
+    D = arcCells(D);                                 % v6: the cells are the arcs
 end
 
 function D = handBuildDay(cfg, day, obsType)
@@ -727,6 +824,7 @@ function D = handBuildDay(cfg, day, obsType)
     end
     D.B(:, base + 3) = Bel(:, nArc + 1);         % the day block
     D.B(:, 7)        = Bel(:, nArc + 2);         % the system block
+    D = arcCells(D);                             % v6: the cells are the arcs
 end
 
 function [data, cfg] = declaration()
@@ -781,6 +879,7 @@ function D = buildDayImpl(cfg, day, obsType)
     e   = synthE(rs, cfg.cov.(obsType), M);
     D.l = D.A*cfg.x_c + D.B*cfg.y1(1:cfg.nl) + e;
     D.arcIdx = {1:cfg.mArc, cfg.mArc + (1:cfg.mArc)};
+    D = arcCells(D);                                  % v6: the cells are the arcs
 end
 
 function e = synthE(rs, cm, M)

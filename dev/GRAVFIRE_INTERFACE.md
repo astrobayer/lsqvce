@@ -6,7 +6,9 @@ degree 10) on R2026a: the declaration passes every `lsqvce:fit` check and a
 dry run with random design matrices accumulates both days in 2 s. Read this
 guide with that file open; the STEP numbers match its comments. Created
 2026-09-02 (CEST, UTC+02:00) with assistance from Claude (Anthropic), model
-Claude Fable 5.1.*
+Claude Fable 5.1. Updated 2026-09-09 for v6 (R6 WP-102): THE CELLS ARE THE
+ARCS — `buildDay` returns one cell per piece and no arc schedule is declared
+(STEP 5 is empty; STEPS 8–11 renumbered). Model Claude Fable 5.1.*
 
 ---
 
@@ -33,7 +35,7 @@ type a count.
 | `name` | `'GRACE'` (any label; used in reports) | STEP 7 |
 | `buildDay` | your day builder, see Part B | STEP 7 |
 | `covariance` | a struct whose **field names are the observation types** | STEP 3 |
-| `arcs` | a function `@(day, obsType)` returning the piece ids of that day | STEP 5 |
+| *(no `arcs`)* | v6: the pieces `buildDay` returns as cells ARE the arcs of the day; a schedule is declared only for `'arc'`-scoped local rows | STEP 5 |
 | `localParams` | one day's local templates, 72 rows | STEP 4 |
 | `processingOptions` | anything `buildDay` needs (your bundles, the design function) | STEP 6 |
 
@@ -103,7 +105,7 @@ cov.kbr  = struct('type','diag','sigma', sqrt(sd.variance(3)));   % 1e-6 m/s
 The VCE loop estimates the temporal law (`fftmodel` in your options) **from
 these starting points**; nothing about the FFT model is declared here, and
 nothing about the per-epoch accuracy either — that is the day's `Cep`
-(STEP 10), which the toolbox composes with the law (v5.3; the `separable`
+(STEP 9), which the toolbox composes with the law (v5.3; the `separable`
 type and its `d` are gone).
 **In GRAVFIRE:** store the bundle as `bundles.posA`, `.posB`, `.kbr` (or keep
 the `days × groups` cell and a name→column map, as the template does). Never
@@ -137,10 +139,12 @@ so nothing is per piece. If one day you integrate per piece, those rows
 become `'arc'` — one line changes, nothing else.
 
 **How the `'day'` mechanism works (from `makeLoader.buildScopePlan`).** Before any
-data is read, the engine walks the calendar once: for every day it asks the arc
-resolver (STEP 5) which pieces exist; a day with at least one piece gets ONE
-`'day'` block = all `'day'` rows in table order; a day without pieces gets no
-block. Column offsets follow in day order, nl is the total. For your table:
+data is read, the engine walks the calendar once: without an arc schedule (v6,
+STEP 5) EVERY calendar day gets ONE `'day'` block = all `'day'` rows in table
+order — the calendar is the declaration, and a day that then returns no piece
+in any stream is refused at its `meta` probe (`lsqvce:makeLoader:emptyDay`:
+take it off the calendar). Column offsets follow in day order, nl is the total.
+For your table:
 
 ```
 B = [ day 59396: columns 1..72 | day 59397: columns 73..144 ]       nl = 144
@@ -173,20 +177,20 @@ group by name → 72 rows with `[]`; rows that differ on one day → two rows wi
 explicit selectors. (A resolver `localParams = @(day) rows`, like `arcs`, gives
 the same power but hides the structure in a function; it stays engine-tier.)
 
-### STEP 5 — the arc schedule = the pieces, resolvable WITHOUT reading data
+### STEP 5 — the arc schedule: none (v6, R6 WP-102)
 
-`indexOfPiece` (1…4 for positions, 1…8 for KBR) are the Toeplitz blocks. `fit`
-must know the schedule before it reads anything (it sizes the covariance grid
-and the local blocks from it), so declare a resolver from `numberOfPieces`:
+`indexOfPiece` (1…4 for positions, 1…8 for KBR) are the Toeplitz blocks, and
+in v6 THE CELLS ARE THE ARCS: `buildDay` returns one cell per piece (STEP 11)
+and the toolbox takes them as that day's arcs, ids 1…nPiece. Nothing is
+declared — `numberOfPieces` is not restated, no resolver, no `myArcTable`. The
+ragged last KBR piece (2111 rows on 59396) needs nothing special: every cell
+has its own length.
 
-```matlab
-nPieces = sd.numberOfPieces;                                   % days x groups
-s.arcs  = @(day, obsType) 1:nPieces(day == data.days, groupIndex(obsType));
-```
-
-and let `buildDay` return `arcId = unique(indexOfPiece)` (STEP 9). The ragged
-last KBR piece (2111 rows on 59396) needs nothing special: pieces are
-addressed by id, not by position.
+A schedule (`s.arcs = @(day, obsType) ...`) is REQUIRED only when the local
+table carries `'arc'`-scoped rows, because nl then counts one block per
+(day, piece) and must be known before any day is read. Your locals are all
+`'day'`-scoped, so the field stays absent. (With a schedule, cell k must be
+the k-th scheduled id and an EMPTY cell is that id's data gap.)
 
 ### STEP 6 — bind what `buildDay` needs
 
@@ -205,7 +209,7 @@ Nothing here is copied per call.
 
 ```matlab
 s.id = 1;  s.name = 'GRACE';  s.buildDay = @buildGravfireDay;
-s.covariance = cov;  s.localParams = localParams;  s.arcs = ...;  s.processingOptions = po;
+s.covariance = cov;  s.localParams = localParams;  s.processingOptions = po;   % no arcs (v6)
 data.systems = s;
 ```
 
@@ -217,13 +221,15 @@ exactly that coupling. Three systems would sever it.
 
 ---
 
-## Part B — `buildDay` (what you write; the template has everything except STEP 11)
+## Part B — `buildDay` (what you write; the template has everything except STEP 10)
 
 `fit` calls `D = buildDay(day, obsType, common, local, po, info)` **once per
 (day, observation type)** and reads each day twice per pass (accumulate,
 residuals). It must return raw, un-whitened matrices — the toolbox whitens,
-weights, eliminates and cuts. Required fields: `A`, `B`, `l`, `t`; optional:
-`arcIdx`, `arcId`, `nAxis`, `Cep`.
+weights and eliminates. **v6: every field is a 1 × nPiece cell, one cell per
+piece** (the cells are the arcs). Required fields: `A`, `B`, `l`, `t`;
+optional: `Cep` (a matching cell), `nAxis`. Any other field — `arcIdx`,
+`arcId` included — is refused by name.
 
 ### STEP 8 — observations, epoch-major
 
@@ -231,26 +237,16 @@ weights, eliminates and cuts. Required fields: `A`, `B`, `l`, `t`; optional:
 (x₁ y₁ z₁ x₂ y₂ z₂ …), and the epoch of every row in seconds:
 
 ```matlab
-D.l = reshape(lobs.', [], 1);           % m = nEpoch * nAxis
-D.t = repelem(time(:,2), nAxis);        % seconds of day, one per row
+l = reshape(lobs.', [], 1);             % m = nEpoch * nAxis, the whole day
+t = repelem(time(:,2), nAxis);          % seconds of day, one per row
 ```
+
+(the cut into per-piece cells `D.l{k}`, `D.t{k}` is STEP 11).
 
 Drop the epochs flagged in `nanIndexOfPiece` from `lobs`, `time`, `indexOfPiece`
 and `iSpp` **together** before this (the template does; the file has none).
 
-### STEP 9 — pieces → `arcIdx` + `arcId`
-
-```matlab
-pieceRow = repelem(indexOfPiece, nAxis);
-ids      = unique(indexOfPiece).';                                   % [1 2 3 4]
-D.arcIdx = arrayfun(@(k) find(pieceRow == k).', ids, 'UniformOutput', false);
-D.arcId  = ids;
-```
-
-`arcIdx{k}` are the ROW numbers of piece `k`; `arcId` says which piece each
-entry is. Every id the resolver (STEP 5) announced must appear exactly once.
-
-### STEP 10 — the error information: `Cep` on the day (v5.3, R6 WP-90)
+### STEP 9 — the error information: `Cep` (v5.3, R6 WP-90)
 
 What the preprocessing knows about the accuracy of each observation comes
 back **with the day**, as `D.Cep`; the covariance spec (STEP 3) declares only
@@ -259,8 +255,10 @@ covariance of the kinematic orbit as 9 columns per epoch. Hand it over as
 `nEpoch × 3 × 3` — the axis count is derived from it:
 
 ```matlab
-D.Cep = permute(reshape(iSpp.', 3, 3, []), [3 1 2]);     % nEpoch x 3 x 3
+Cep = permute(reshape(iSpp.', 3, 3, []), [3 1 2]);       % nEpoch x 3 x 3, whole day
 ```
+
+(cut per piece in STEP 11: `D.Cep{k} = Cep(epochsOfPiece_k, :, :)`).
 
 The toolbox composes C = D (R_t ⊗ I_3) D per piece: every epoch is de-scaled
 by its 3×3 factor, then the temporal whitener runs down the epochs of each
@@ -274,10 +272,10 @@ instead of the `weights` of Part C). Nothing is declared twice: a `Cep` or
 GRAVFIRE:** store `iSpp` as `nEpoch × 3 × 3` once, at preparation, instead of
 reshaping it per pass.
 
-### STEP 11 — the design matrices (yours)
+### STEP 10 — the design matrices (yours)
 
 ```matlab
-[D.A, D.B] = gravfireDesign(o, day, obsType, common, local, po, info);
+[A, B] = gravfireDesign(o, day, obsType, common, local, po, info);
 ```
 
 with `A` of size `m × info.nc` (117) and `B` of size `m × info.nl` (144 for
@@ -297,6 +295,23 @@ satellites' columns; posA rows fill only GraceA's. `A` is the same 117
 columns for every stream. The dry run replaces this step with seeded random
 matrices so the rest of the pipeline can be checked before it exists.
 
+### STEP 11 — the cut: one cell per piece (v6)
+
+```matlab
+ids = unique(indexOfPiece).';                                  % [1 2 3 4]
+for k = 1:numel(ids)
+    ep   = find(indexOfPiece == ids(k));                       % this piece's epochs
+    rows = reshape(((ep(:) - 1) * nAxis + (1:nAxis)).', [], 1); % their epoch-major rows
+    D.A{k} = A(rows, :);  D.B{k} = B(rows, :);  D.l{k} = l(rows);  D.t{k} = t(rows);
+    D.Cep{k} = Cep(ep, :, :);                                  % positions only
+end
+```
+
+Cell k is arc k of the day; the toolbox reads the count from the cells (the
+`meta` probe of a day reads it, and the cache keeps a whole day resident, so
+nothing is read twice). Whole-day matrices with row lists (`arcIdx`) were the
+v5 form and are refused.
+
 ### What `buildDay` must NOT do
 
 Whiten, apply `Sll`/`weights`, regularise, or split the day into pieces for
@@ -311,7 +326,7 @@ rest. A builder that scales its own rows is scaled twice.
 |---|---|---|
 | **column 13 = column SCALE** (1e-9 on the Stokes rows, 1 / 1e-7 on the locals): the factor that balances the columns of A and B so that N has ≈ unit diagonal — *not* a prior (corrected 2026-09-02) | v4 has **no** column scaling: apply it in your design function (`A(:,j)*s_j`, `B(:,j)*s_j`) and undo it on `R.x` (`x = S*x̃`) and `R.Cxx` (`S*C̃*S`) yourself | a declared per-row `scale`: the toolbox solves the equilibrated system and unscales the results and the reported condition number (R5-D8) |
 | **column 11 = regularisation** (`'none'` or `{'Tikhonov', 1, 0.01}`) — API parked by the user (R5-D8) | `data.priors(k) = struct('L', ..., 'sigma', ...)` on the common block (v5: a declared pseudo-observation group; `{'Tikhonov', 1, 0.01}` on row j is `L = e_j'`, `sigma = 0.01`, stacked over rows); `lsqvce.Options(Reg=..., RegMatrix=...)` remains the block-path regularisation | CLOSED (M7 7b): one `data.priors(k)` struct per label with `estimate = "scale"` is the `priorGroup` — its rows share ONE variance component, updated every pass by the Helmert / Koch–Kusche rule (`R.noise.priors`, `R.noise.priorHistory`) |
-| `weights` (Huber, from the previous outer iteration) | `Robust="huber"` runs IRLS on the streaming kind (R5 M2) — iteration state stays the toolbox's; a FIXED per-epoch accuracy from an earlier screening goes into `D.Cep` (nEpoch × 1, STEP 10, v5.3) | unchanged |
+| `weights` (Huber, from the previous outer iteration) | `Robust="huber"` runs IRLS on the streaming kind (R5 M2) — iteration state stays the toolbox's; a FIXED per-epoch accuracy from an earlier screening goes into `D.Cep` (nEpoch × 1 per piece, STEP 9, v5.3) | unchanged |
 | `covarianceModel 'fftmodel'`, `correlationLength 2160` | `Options(Estimate="noise", Noise=struct('Grid', 2160))` | per-stream `estimate="law"`, `Noise.Grid` from the schedule |
 | `maximumIterations 7`, `minimumIterations 3` | `MaxPasses=7`; **no** minimum knob | `MaxPasses=7`; **still no minimum knob**. `MinPasses` was added on this evidence and RETIRED in R6 WP-101, where it was found to have had no consumer since the day it was added — help line, property, `disp` table, and nothing else. Say the word and it comes back as a floor on the pass loop |
 | `minimumNumberObservations 100` | `MinRedundancy=100` | `Noise.FreezeRedundancy` |
@@ -335,7 +350,7 @@ R.report;  T = R.coefficients;  C = R.convergence;
 > **Multi-axis streams on the joint estimator (R5 M3, 2026-09-02):** the 3-axis
 > position pieces are processed per axis after the per-epoch de-scale by `Cep`; both
 > days at 2160 lags take ~40 s (HANDOVER §12.5, round 3c). Since v5.3 the positions
-> declare `diag` and return `Cep` (STEP 10) — no `separable` type, no axis count in the
+> declare `diag` and return `Cep` (STEP 9) — no `separable` type, no axis count in the
 > spec.
 
 If `fit` rejects the declaration, the identifier names the rule
@@ -350,7 +365,7 @@ design function arrives as the **cause** of `lsqvce:makeLoader:buildDay`.
    `processingOptions` or in the closure.
 2. Local table as 72 templates with seconds-of-day (STEP 4), not 144 expanded rows.
 3. Observation types by name (STEP 3).
-4. `iSpp` as `nEpoch × 3 × 3` (STEP 10).
+4. `iSpp` as `nEpoch × 3 × 3` (STEP 9), cut per piece with the cells (STEP 11).
 5. No `weights`, `lest`, `iteridx` in the bundle (iteration state is the toolbox's).
 6. `gravfireDesign` deterministic: same `(day, obsType)` → byte-identical A/B.
 7. Priors stay numbers in the tables (Part C), never applied in the builder.

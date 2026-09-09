@@ -15,8 +15,12 @@ function R = fit(data, opts, nv)
 %
 %   THREE DATA KINDS, told apart by the fields of `data`, all on ONE accumulator:
 %     (A) streaming   data.commonParams, data.days, data.systems(k) with
-%                     buildDay / covariance / arcs / localParams / priors /
-%                     processingOptions; optional data.priors, data.paramColumns
+%                     buildDay / covariance / localParams / priors /
+%                     processingOptions and the optional arc schedule `arcs`
+%                     (v6: buildDay returns one CELL per arc -- A, B, l, t,
+%                     Cep as 1 x nArc cells -- and the cells are the schedule
+%                     unless `arcs` declares one); optional data.priors,
+%                     data.paramColumns
 %     (B) in memory   data.A (m x u), data.l (m x 1), optional data.p (m x 1
 %                     weights); optional data.priors. A FULL m x m SPD weight
 %                     matrix is kind C's: return it from batchFcn (R6 WP-101)
@@ -76,9 +80,10 @@ function R = fit(data, opts, nv)
 %       lsqvce:fit:duplicateSystem two systems share an id (explicit or
 %                                  index default)
 %       lsqvce:fit:builderKind     buildDay is not a function handle
-%       lsqvce:fit:badArcs         arcs = 'fromDay' (ENGINE-tier only: it
-%                                  reads data before the run; declare a
-%                                  resolver @(day,obsType) instead)
+%       lsqvce:fit:badArcs         arcs is a string (the v5 'fromDay' is retired:
+%                                  omit arcs -- the cells are the arcs), or a
+%                                  resolver returned something that is not
+%                                  unique positive integers
 %       lsqvce:fit:<makeLoader id> a makeLoader construction error, relabelled
 %                                  (e.g. paramType, badArcs, localPlan);
 %                                  the original is attached as the cause
@@ -125,6 +130,9 @@ function R = fit(data, opts, nv)
 %   model Claude Fable 5 -- R4 Level L2, WP-56 (decision R4-D4).
 %   Help rewritten 2026-09-04 for v5.2 (R5 M5 / R5-D8), model Claude Fable 5.1:
 %   the v5 surface (Estimate, priors, paramColumns, OnPass, layout, toTable).
+%   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-102 (v6): the day contract is
+%   ONE CELL PER ARC and the arc schedule is optional. With assistance from
+%   Claude (Anthropic), model Claude Fable 5.1.
 %   Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-99: R.noise.model{k}.C is the
 %   law of the stream's pool group and EMPTY where no law was estimated, instead
 %   of falling back to another stream's fitted spectrum. With assistance from

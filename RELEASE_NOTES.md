@@ -1,5 +1,58 @@
 # lsqvce release notes
 
+## 6.0 — 2026-09-09 (R6 WP-102: the cells are the arcs)
+
+BREAKING for every `buildDay` (the sixth contract change: 2.0 namespace, 3.0
+counts derived, 4.0 scoped tables, 5.0 one loop, 6.0 this); everything else
+about the declaration — tables, priors, `Cep`, `Options` — is unchanged.
+
+- **`buildDay` returns ONE CELL PER ARC:** `D.A`, `D.B`, `D.l`, `D.t` are
+  1 × nArc cells, cell a = arc a (`{A}` for a single arc, empty cells for a
+  day without data); `D.Cep` is a matching cell (nEpoch_a × 1 / × d / × d × d
+  per arc); `D.nAxis` stays scalar. Arc lengths differ freely. The v5 fields
+  `arcIdx` / `arcId` are GONE — a returned `arcIdx`, `arcId` or any field
+  beyond `A B l t Cep nAxis` is refused by name (`lsqvce:makeLoader:badDay`),
+  as is a matrix where a cell belongs. Driver: the GRAVFIRE preprocessing
+  delivers every day as a cell array, one cell per noise-independence piece
+  — the day's cells now ARE the arcs, no bookkeeping in between.
+- **`arcs` is OPTIONAL.** Omitted, the arcs of a day are its cells (ids
+  1 … nArc), learned when the engine's per-day `meta` probe reads the day
+  (which the engine reads right after; the cache holds a whole day). Then
+  `'day'` template rows and common `'day'` rows live on EVERY calendar day
+  of the system, and a calendar day returning no arc in any stream is
+  refused at its probe (`lsqvce:makeLoader:emptyDay`) — take it off the
+  calendar. `arcs` is REQUIRED only by `'arc'` template rows and the
+  engine-tier `LocalsPerArc` (`localPlan`: nl must be known before a read).
+- **Declared schedule:** cell a is the a-th scheduled id and the count must
+  match (`lsqvce:makeLoader:arcCount`); an **EMPTY cell is the data gap** of
+  a scheduled arc (replaces the v5 `arcId` subset). An id outside the
+  schedule stays `badArc`. `badArcId` is retired.
+- **BREAKING (no aliases):** the string form `arcs = 'fromDay'` is retired
+  everywhere (`lsqvce:fit:badArcs` / `lsqvce:makeLoader:badArcs`): omitting
+  `arcs` is what it meant.
+- `CacheDays` now means what it says: one resident DAY is one slot per data
+  stream (the key is day|stream; with one slot a 3-stream day evicted what
+  the engine was about to read).
+- Test instrument `dev/tests/private/arcCells.m`: the ONE cut from the v5
+  row-index day shape to the v6 cells (schedule order, gaps, per-arc `Cep`),
+  so every fixture keeps generating whole-day matrices. 558 points (+5).
+- Docs: the Manual chapter 3 (§0c, §2.3, §3, §4.0–4.3, §6, §7, §8, §10),
+  `makeLoader` / `fit` help, both templates (`gravfire_data` STEP 5 gone,
+  STEPS 8–11 = the cut), `dev/GRAVFIRE_INTERFACE.md`, every example
+  builder; record: `dev/HANDOVER.md` §12.26.
+
+**Migration v5 → v6**
+
+| v5 | v6 |
+|---|---|
+| `D.A = A; D.B = B; D.l = l; D.t = t; D.arcIdx = {rows1, rows2}` | `D.A = {A(rows1,:), A(rows2,:)}` … one cell per arc for `A`, `B`, `l`, `t` |
+| a single-arc day: matrices, no `arcIdx` | `D.A = {A}`, `D.B = {B}`, `D.l = {l}`, `D.t = {t}` |
+| `D.Cep` per day-epoch | `D.Cep = {Cep1, Cep2}` per arc |
+| `D.arcId = [1 3]` with `s.arcs = @(day,~) [1 2 3]` | cells `{arc1, {}, arc3}` — the empty cell is arc 2's gap — or a resolver returning `[1 3]` |
+| `s.arcs = 4` on a `'system'`/`'day'`-scoped system | omit `arcs`: the four cells are the arcs |
+| `s.arcs = 'fromDay'` | omit `arcs` |
+| `'arc'` template rows | unchanged: keep the schedule (count, vector or resolver) |
+
 ## 5.3 — 2026-09-06 (R6 WP-90: the error information travels with the day)
 
 Additive on 5.2 for every declaration that used `diag` / `arma` / `psd` laws;

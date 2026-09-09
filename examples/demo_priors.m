@@ -303,25 +303,29 @@ function D = priorDay(cfg, day, info)
     Ssig = [sin(w*t), cos(w*t), sin(2*w*t), cos(2*w*t)];
     temp = cos(2*pi * t / (1.7 * 86400));           % a known auxiliary series
 
-    D.A = zeros(m, info.nc);
-    D.A(:, 1:cfg.nSig) = Ssig;
-    D.A(:, info.commonDayOffset + 1) = 1;           % this day's offset
-    D.B = zeros(m, info.nl);
-    D.B(:, info.sysOffset + 1) = temp;              % the 'system' row
-    D.l = Ssig * cfg.xSig(:) + cfg.offset(day) + cfg.tempScale * temp;
-    D.arcIdx = cell(1, cfg.arcs);
+    A = zeros(m, info.nc);
+    A(:, 1:cfg.nSig) = Ssig;
+    A(:, info.commonDayOffset + 1) = 1;             % this day's offset
+    B = zeros(m, info.nl);
+    B(:, info.sysOffset + 1) = temp;                % the 'system' row
+    l = Ssig * cfg.xSig(:) + cfg.offset(day) + cfg.tempScale * temp;
+    rs  = RandStream('mt19937ar', 'Seed', 4200 + day);
+    l = l + cfg.sigma * randn(rs, m, 1);
+    % v6: THE CELLS ARE THE ARCS -- one cell per arc for A, B, l, t
+    D = struct('A', {cell(1, cfg.arcs)}, 'B', {cell(1, cfg.arcs)}, ...
+               'l', {cell(1, cfg.arcs)}, 't', {cell(1, cfg.arcs)});
     for a = 1:cfg.arcs
         rows = (a-1)*cfg.mArc + (1:cfg.mArc);
         tau  = (t(rows) - t(rows(1))) / 3600;       % hours since the arc start
         col  = info.offsetOf(a);
-        D.B(rows, col + cfg.rowBias)  = 1;
-        D.B(rows, col + cfg.rowDrift) = tau;
-        D.l(rows) = D.l(rows) + cfg.bias(day, a) + cfg.drift(day, a) * tau;
-        D.arcIdx{a} = rows;
+        Ba = B(rows, :);
+        Ba(:, col + cfg.rowBias)  = 1;
+        Ba(:, col + cfg.rowDrift) = tau;
+        D.A{a} = A(rows, :);
+        D.B{a} = Ba;
+        D.l{a} = l(rows) + cfg.bias(day, a) + cfg.drift(day, a) * tau;
+        D.t{a} = t(rows);
     end
-    rs  = RandStream('mt19937ar', 'Seed', 4200 + day);
-    D.l = D.l + cfg.sigma * randn(rs, m, 1);
-    D.t = t;
 end
 
 function n = nullDimension(cfg, lay, dayCols)
@@ -331,7 +335,7 @@ function n = nullDimension(cfg, lay, dayCols)
     M = zeros(0, lay.nc + lay.systems(1).nl);
     for d = cfg.days
         D = priorDay(cfg, d, layoutInfo(cfg, lay, d, dayCols));
-        M = [M; D.A, D.B]; %#ok<AGROW>
+        M = [M; vertcat(D.A{:}), vertcat(D.B{:})]; %#ok<AGROW>   v6: the cells are the arcs
     end
     n = size(M, 2) - rank(M);
 end

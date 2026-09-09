@@ -32,9 +32,10 @@ function data = gravfire_data(commonData, myOptions, systemsData, opt)
 %                  fit pipeline can be exercised BEFORE the design step exists.
 %                  The numbers of a dry run mean nothing.
 %   OUTPUT
-%     data  1x1 struct   the v5 lsqvce declaration: commonParams, days, priors,
-%           systems(1) with id, name, buildDay, covariance, arcs, localParams,
-%           priors, processingOptions.  The two priors fields are the DECLARED
+%     data  1x1 struct   the v6 lsqvce declaration: commonParams, days, priors,
+%           systems(1) with id, name, buildDay, covariance, localParams,
+%           priors, processingOptions -- and NO arc schedule: the pieces
+%           buildDay returns as cells ARE the arcs of the day (v6, R6 WP-102).  The two priors fields are the DECLARED
 %           regularisation (the Manual, chapter 3): data.priors from column 11
 %           of the common table, data.systems.priors from the local templates.
 %
@@ -55,6 +56,13 @@ function data = gravfire_data(commonData, myOptions, systemsData, opt)
 %     R    = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Noise=struct('Grid', 2160), MaxPasses=7));
 %
 %   See also LSQVCE.FIT, LSQVCE.OPTIONS, the Manual, chapter 3, dev/GRAVFIRE_INTERFACE.md
+%
+%   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-102 (v6): THE CELLS ARE THE
+%   ARCS -- buildGravfireDay returns one cell per piece (A, B, l, t, Cep),
+%   the arc schedule (STEP 5, arcsFcn) is gone: the locals are 'day'-scoped,
+%   so no plan needs the piece count before a read, and the toolbox learns
+%   the pieces of a day from its cells. With assistance from Claude
+%   (Anthropic), model Claude Fable 5.1.
 %
 %   VERIFIED 2026-09-02 on the user's testdata.mat (R2026a): the declaration
 %   passes every declaration check of fit; DryRun + Estimate="none" accumulates 2 days x 16
@@ -113,9 +121,10 @@ end
     %      times as seconds-of-day (the day itself is NOT in a template)
     localParams = templateFromExpanded(sd.parameter, days(1));
 
-    % ---- STEP 5: the arc schedule = the pieces, resolvable without reading
-    nPieces = sd.numberOfPieces;                              % D x G
-    arcsFcn = @(day, obsType) 1:nPieces(day == days, groupIndex(obsTypes, obsType));
+    % ---- STEP 5: the arc schedule -- NONE (v6). The pieces of a (day, group)
+    %      come back from buildDay as cells, one per piece, and the toolbox
+    %      takes them as the arcs of the day. numberOfPieces is not restated.
+    %      (A schedule is required only for 'arc'-scoped template rows.)
 
     % ---- STEP 6: what buildDay needs, bound once
     po = struct();
@@ -132,7 +141,6 @@ end
     s.name              = 'GRACE';                            % the label lives here
     s.buildDay          = @buildGravfireDay;
     s.covariance        = cov;
-    s.arcs              = arcsFcn;
     s.localParams       = localParams;
     s.processingOptions = po;
     data.systems = s;
@@ -166,7 +174,7 @@ end
 
 % ======================================================================
 function D = buildGravfireDay(day, obsType, common, local, po, info)
-%BUILDGRAVFIREDAY  One (day, observation type): raw A, B, l, t, pieces, Cep.
+%BUILDGRAVFIREDAY  One (day, observation type): raw A, B, l, t, Cep -- ONE CELL PER PIECE.
     g  = groupIndex(po.obsTypes, obsType);
     d  = find(po.days == day, 1);
     o  = po.bundles{d, g};
@@ -179,39 +187,48 @@ function D = buildGravfireDay(day, obsType, common, local, po, info)
     nEp   = size(lobs, 1);
     m     = nEp * nAx;
 
-    % STEP 8: epoch-major rows (x1 y1 z1 x2 y2 z2 ...)
-    D.l = reshape(lobs.', [], 1);
-    D.t = repelem(tEp(:), nAx);
+    % STEP 8: epoch-major rows (x1 y1 z1 x2 y2 z2 ...), the whole day first
+    l = reshape(lobs.', [], 1);
+    t = repelem(tEp(:), nAx);
 
-    % STEP 9: pieces -> arcIdx (row lists) + arcId (their identity)
-    pieceRow = repelem(piece(:), nAx);
-    ids      = unique(piece(:)).';
-    D.arcIdx = arrayfun(@(k) find(pieceRow == k).', ids, 'UniformOutput', false);
-    D.arcId  = ids;
-
-    % STEP 10: the ERROR INFORMATION of the day -- the per-epoch 3x3
-    % covariance from iSpp as nEpoch x 3 x 3; the axis count is derived
-    % from it (WP-90). A scalar stream with a per-epoch sigma would return
-    % it as nEpoch x 1 the same way.
+    % STEP 9: the ERROR INFORMATION -- the per-epoch 3x3 covariance from
+    % iSpp as nEpoch x 3 x 3 (the axis count is derived from it, WP-90). A
+    % scalar stream with a per-epoch sigma would carry it as nEpoch x 1.
+    Cep = [];
     if nAx > 1
-        C = o.iSpp{1}(keep, :);                               % nEp x 9 (3x3 per epoch)
-        D.Cep = permute(reshape(C.', nAx, nAx, []), [3 1 2]); % nEp x 3 x 3
+        C   = o.iSpp{1}(keep, :);                             % nEp x 9 (3x3 per epoch)
+        Cep = permute(reshape(C.', nAx, nAx, []), [3 1 2]);   % nEp x 3 x 3
     end
 
-    % STEP 11: the design matrices -- yours, or the dry-run stand-in
+    % STEP 10: the design matrices -- yours, or the dry-run stand-in (whole
+    % day, m x nc / m x nl; the cut into pieces follows)
     if po.dryRun
         sd = mod(7919 * day + sum(double(obsType)), 2^31 - 1);
         rs = RandStream('mt19937ar', 'Seed', sd);             % deterministic per call
-        D.A = randn(rs, m, info.nc);
-        D.B = randn(rs, m, info.nl);
+        A = randn(rs, m, info.nc);
+        B = randn(rs, m, info.nl);
     else
-        [D.A, D.B] = po.designFcn(o, day, obsType, common, local, po, info);
-        if ~isequal(size(D.A), [m info.nc]) || ~isequal(size(D.B), [m info.nl])
+        [A, B] = po.designFcn(o, day, obsType, common, local, po, info);
+        if ~isequal(size(A), [m info.nc]) || ~isequal(size(B), [m info.nl])
             error('gravfire:designShape', ...
                   ['DesignFcn returned A %s / B %s; expected A [%d %d] and B [%d %d] ' ...
-                   '(day %d, %s).'], mat2str(size(D.A)), mat2str(size(D.B)), ...
+                   '(day %d, %s).'], mat2str(size(A)), mat2str(size(B)), ...
                    m, info.nc, m, info.nl, day, obsType);
         end
+    end
+
+    % STEP 11: THE CELLS ARE THE ARCS (v6) -- one cell per piece, in piece
+    % order; the toolbox takes them as this day's arcs (ids 1:nPiece)
+    ids  = unique(piece(:)).';
+    nP   = numel(ids);
+    D = struct('A', {cell(1, nP)}, 'B', {cell(1, nP)}, 'l', {cell(1, nP)}, 't', {cell(1, nP)});
+    if nAx > 1, D.Cep = cell(1, nP); end
+    for k = 1:nP
+        ep   = find(piece == ids(k));                          % this piece's epochs
+        rows = (ep(:) - 1) * nAx + (1:nAx);                   % nEp_k x nAx, epoch per row
+        rows = reshape(rows.', [], 1);                         % their epoch-major rows
+        D.A{k} = A(rows, :);  D.B{k} = B(rows, :);  D.l{k} = l(rows);  D.t{k} = t(rows);
+        if nAx > 1, D.Cep{k} = Cep(ep, :, :); end
     end
 end
 
