@@ -762,6 +762,17 @@ function testRobustPassInsideTheJointLoopRecoversTheLawUnderOutliers(tc)
     trail = containers.Map('KeyType', 'double', 'ValueType', 'any');    % round 6: the pass trajectory
     watch = @(ctx) trailOf(trail, ctx);
     Rr = lsqvce.fit(data, lsqvce.Options(base{:}, 'Robust', "igg3", 'OnPass', watch));    % robust pass inside
+    % THE CONTROL (round 7, the user's "measure"): the same blunders declared
+    % as data of huge variance through Cep -- the toolbox composes Cep BEFORE
+    % the temporal filter, i.e. the KOCH convention (weight, then filter) --
+    % and NO robust pass. If the plain estimator recovers the colour here in
+    % a few passes, the crawl above is the Yang convention's (weight AFTER the
+    % filter: a zero-weight innovation neutralises the filter's whole tail).
+    dk = data;
+    dk.systems.buildDay = @(day, ot) declareBlunders(blunders(inner(day, ot), day, ot, 0.02, 25), day, ot, 0.02);
+    trailK = containers.Map('KeyType', 'double', 'ValueType', 'any');
+    Rk = lsqvce.fit(dk, lsqvce.Options(base{:}, 'OnPass', @(ctx) trailOf(trailK, ctx)));
+    rhoK = rho(Rk, 'x1|a');  rhoK = rhoK(2) / rhoK(1);
     rho = @(R, k) R.noise.Cgroups(k);
     rhoP = rho(Rp, 'x1|a');  rhoR = rho(Rr, 'x1|a');
     rhoP = rhoP(2) / rhoP(1);  rhoR = rhoR(2) / rhoR(1);
@@ -774,6 +785,13 @@ function testRobustPassInsideTheJointLoopRecoversTheLawUnderOutliers(tc)
         'per pass [rho_a nZero maxDev]: %s)'], ...
         rhoP, mat2str(Ca(1:4).', 3), Rr.noise.model{ia}.sigma, Rr.sigma0, Rr.history.nIter, Rr.converged, ...
         mat2str(cell2mat(values(trail, num2cell(sort(cell2mat(keys(trail)))))'), 3)));
+    % tol: 0.08 absolute, the same clean-data bound -- the CONTROL's claim is
+    % that Koch-style declaration of the blunders lets the plain estimator
+    % recover the colour
+    tc.verifyEqual(rhoK, plantA, 'AbsTol', 0.08, sprintf(['CONTROL: blunders declared through Cep (weight ' ...
+        'BEFORE the filter), no robust pass -- passes %d, converged %d, sigma0 %.3f; per pass [rho_a nZero maxDev]: %s'], ...
+        Rk.history.nIter, Rk.converged, Rk.sigma0, ...
+        mat2str(cell2mat(values(trailK, num2cell(sort(cell2mat(keys(trailK)))))'), 3)));
     tc.verifyGreaterThan(abs(rhoP - plantA), abs(rhoR - plantA), ...
         'the plain estimator is further from the planted colour than the robust one');
     % the blunders, located exactly (the same RNG sequence the injector used):
@@ -825,7 +843,8 @@ function trailOf(trail, ctx)
 %   zero-weight count, the convergence measure.
     r = NaN;
     if isKey(ctx.Cgroups, 'x1|a'), C = ctx.Cgroups('x1|a');  r = C(2) / C(1); end
-    trail(ctx.pass) = [r, sum(ctx.factor == 0), ctx.maxDev];   %#ok<NASGU>
+    nz = NaN;  if ~isempty(ctx.factor), nz = sum(ctx.factor == 0); end
+    trail(ctx.pass) = [r, nz, ctx.maxDev];   %#ok<NASGU>
 end
 
 function D = blunders(D, day, obsType, fraction, nSigma)
@@ -834,6 +853,19 @@ function D = blunders(D, day, obsType, fraction, nSigma)
     for a = 1:numel(D.l)
         [idx, sgn] = blunderRows(day, a, fraction, numel(D.l{a}));
         D.l{a}(idx) = D.l{a}(idx) + nSigma * sgn;
+    end
+end
+
+function D = declareBlunders(D, day, obsType, fraction)
+%DECLAREBLUNDERS  The control's declaration: the planted rows of stream a get
+%   a per-epoch sigma of 1e6 through Cep (composed BEFORE the temporal law:
+%   the Koch convention), every other row sigma 1.
+    if ~strcmp(obsType, 'a'), return, end
+    D.Cep = cell(size(D.l));
+    for a = 1:numel(D.l)
+        c = ones(numel(D.l{a}), 1);
+        c(blunderRows(day, a, fraction, numel(D.l{a}))) = 1e6;
+        D.Cep{a} = c;
     end
 end
 
