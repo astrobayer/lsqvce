@@ -18,11 +18,13 @@ Additive on 6.0; no declaration changes.
   level (a global scale, or the level itself, sends a clean stream's level into a spiral —
   measured). Prefer `igg3` / `bisquare` for gross blunders: Huber keeps c/|u| of their
   weight.
-- The price, stated: the levels are those of the RETAINED observations — no consistency
-  correction is applied. Under Huber (c = 1.345) on Gaussian residuals the effective level
-  ratio is E[w u²]/E[w] ≈ 0.80 (σ ≈ 0.89); the oracle in `test_vcePolicy` measures it.
-  This is Koch's iterated re-weighting inside a VCE, not Ellmer (2018), whose robustness is
-  preprocessing screening plus the arc-wise variance factors (Manual chapter 7, §7.8).
+- The level is UNBIASED under the robust pass (measured 1.007 on a clean stream under IGG3;
+  the retained-observation ratio E[w u²]/E[w] that was expected was refuted by the oracle):
+  Ellmer's per-lag redundancy is the model expectation under the same weighted whitening,
+  so the weights cancel in alpha². Multi-axis streams are weighted per EPOCH (the RMS over
+  the d law-whitened rows, one factor per epoch). This is Koch's iterated re-weighting
+  inside a VCE, not Ellmer (2018), whose robustness is preprocessing screening plus the
+  arc-wise variance factors (Manual chapter 7, §7.8).
 - New identifier `lsqvce:adjustVCEjoint:collapsed` (beyond the breakdown point);
   `lsqvce:fit:notYet` now fires only for `Robust` on a nonlinear (`x0`) batch problem.
 

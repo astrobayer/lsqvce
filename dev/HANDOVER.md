@@ -7164,6 +7164,16 @@ recorded: the epoch statistic is the RMS, standardised by the stream's MAD like 
 residual -- a chi-shaped variable treated as symmetric; adequate for blunder rejection, not
 a calibrated multivariate scale (a later refinement if the oracle asks for one).
 
+**ROUND 4 (CI on df17239: 546/547).** The weighted sweep works: the planted rows are at
+factor 0, the colour moved 0.003 -> 0.054 (still short of the 0.12 bound) and the CLEAN
+stream's level came back **1.007 -- the expected retained-observation ratio (0.73) is
+REFUTED**: Ellmer's s_n is the model expectation of Omega_n under the same weighted
+whitening, so the weights cancel in alpha^2 (unlike Helmert's Omega/(n-u)). Pinned at 1,
+docs corrected. 87 zero rows = 45 planted + their filter-contaminated neighbours (bounded in
+the test). Round 5: the planted rows located exactly (one RNG sequence per day, replayed),
+and the colour assertion now REPORTS the run (plain rho, C(1:4), level a, sigma0, passes,
+converged) so the next red says where the dilution is left.
+
 | WP | title | depends on | status |
 |---|---|---|---|
 | 105 | The robust pass inside the joint loop: `Robust` x `Estimate="noise"` runs (adjustVCEjoint 'Influence'/'Tuning', factors in every arc's whitener on the next pass, one re-weighted metric for accumulation, probes and components; prior streams exempt; `collapsed`; `R.noise.robust`); `lawWhitenedResiduals` shared by both drivers; the retained-observation level stated and measured, no silent correction; version 6.1 | 104 | OPEN (2026-09-09; branch `claude/wp-105`; Linux audit CLEAN with the Manual rebuilt; CI decides) |

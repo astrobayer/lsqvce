@@ -231,15 +231,16 @@ retain 0.02 · 1.345 · 25 ≈ 0.67 of white variance and dilute a lag-1 colour 
 about 0.12; `igg3` (zero beyond 3 sigma) and `bisquare` reject them outright and recover
 the colour.
 
-**The price, stated.** The levels are those of the *retained* observations: no consistency
-correction is applied. Under Huber (c = 1.345) on Gaussian residuals a row of weight
-w = min(1, c/|u|) contributes w·u² and w, so the effective level ratio is
-E[w u²]/E[w] ≈ 0.80 (a sigma about 11 % low), and a stream with no outliers at all is still
-estimated at that ratio; the same closed form with `igg3`'s weight function is what the
-oracle pins. The oracle in `test_vcePolicy` measures exactly this. If you want
-the plain GLS level with outliers removed, use `R.noise.robust.factor` to identify them, fix
-the data, and re-run without `Robust`. This composition is Koch's iterated re-weighting
-inside a variance-component estimation, not something Ellmer (2018) does.
+**The level, measured.** The obvious expectation — that a robust pass estimates the level of
+the *retained* observations, E[w u²]/E[w] (0.73 for `igg3`, 0.80 for Huber on Gaussian
+residuals) — was written down and then **refuted by the oracle**: a clean stream comes back
+at 1.007. The reason is Ellmer's per-lag redundancy s_n (eq. 6.5.23): it is the model
+expectation of Omega_n under the *same* weighted whitening, so a down-weighted row shrinks
+numerator and denominator alike and alpha² = Omega/s stays at 1. This differs from the
+classical Helmert Omega/(n − u), where a zero-weight row still counts a full redundancy and
+the level would be biased low. No consistency correction is needed, and none is applied.
+This composition is Koch's iterated re-weighting inside a variance-component estimation,
+not something Ellmer (2018) does.
 
 Two further routes remain useful:
 

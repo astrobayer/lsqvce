@@ -84,9 +84,13 @@ function out = adjustVCEjoint(accFcn, opt)
 %              redundancy. NOT Ellmer (2018): he screens outliers in
 %              preprocessing and down-weights whole ARCS through the variance
 %              factors; this is Koch's iterated re-weighting inside a VCE,
-%              and the levels it returns are those of the RETAINED
-%              observations (no consistency correction is applied -- the
-%              bias is measured by the oracle, test_vcePolicy). The residuals
+%              and the level it returns is UNBIASED (measured 1.007 on a
+%              clean stream, test_vcePolicy: the per-lag redundancy s_n is
+%              the model expectation of Omega_n under the SAME weighted
+%              whitening, so the weights cancel in alpha^2 -- the
+%              retained-observation ratio that was expected was refuted by
+%              the oracle). Multi-axis streams are weighted PER EPOCH (the
+%              RMS over the d law-whitened rows). The residuals
 %              are standardised by ONE MAD SCALE PER STREAM, never by the
 %              estimated level (perStreamWeights says why). Prior streams
 %              are never re-weighted. Prefer "igg3" / "bisquare" for gross

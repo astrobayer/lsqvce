@@ -763,46 +763,55 @@ function testRobustPassInsideTheJointLoopRecoversTheLawUnderOutliers(tc)
     rho = @(R, k) R.noise.Cgroups(k);
     rhoP = rho(Rp, 'x1|a');  rhoR = rho(Rr, 'x1|a');
     rhoP = rhoP(2) / rhoP(1);  rhoR = rhoR(2) / rhoR(1);
+    Ca = Rr.noise.Cgroups('x1|a');
+    ia = find(strcmp(Rr.noise.stream, 'x1|a'), 1);
     % tol: 0.08 absolute on a lag-1 correlation from 9 arcs of 256 epochs --
     % the bound testPoolStreamGivesEachStreamItsOwnLaw uses on clean data
-    tc.verifyEqual(rhoR, plantA, 'AbsTol', 0.08, 'the robust pass recovers stream a''s colour under blunders');
+    tc.verifyEqual(rhoR, plantA, 'AbsTol', 0.08, sprintf(['the robust pass recovers stream a''s colour under ' ...
+        'blunders (plain %.3f; robust C(1:4) = %s, level a %.3f, sigma0 %.3f, passes %d, converged %d)'], ...
+        rhoP, mat2str(Ca(1:4).', 3), Rr.noise.model{ia}.sigma, Rr.sigma0, Rr.history.nIter, Rr.converged));
     tc.verifyGreaterThan(abs(rhoP - plantA), abs(rhoR - plantA), ...
         'the plain estimator is further from the planted colour than the robust one');
-    % the blunders: 2 % of the rows of stream a at factor 0 (IGG3 rejects
-    % beyond k1 = 3 sigma; the standardisation is the stream's own MAD, so a
-    % 25-sigma blunder is 25 sigma whatever level the whitener applied)
+    % the blunders, located exactly (the same RNG sequence the injector used):
+    % every planted row must be at factor 0 (IGG3 rejects beyond k1 = 3
+    % sigma; the standardisation is the stream's own MAD, so a 25-sigma
+    % blunder is 25 sigma whatever level the whitener applied); the rest of
+    % stream a keeps unit weight in the bulk, and the rows the law filter
+    % contaminates from a blunder next door may go too -- but no more than
+    % that (the 41 extra zeros of round 4 are that neighbourhood)
     f = Rr.noise.robust.factor;  k = Rr.noise.robust.keys;
-    isA = false(size(f));  off = 0;
+    planted = false(size(f));  isA = false(size(f));  off = 0;
     for j = 1:size(k, 1)
-        n = numel(f) / size(k, 1);                                  % equal arcs: 256 rows each
-        if strcmp(k{j, 2}, 'a'), isA(off + (1:n)) = true; end
+        n = 256;                                                    % equal arcs
+        if strcmp(k{j, 2}, 'a')
+            isA(off + (1:n)) = true;
+            planted(off + blunderRows(k{j, 3}, k{j, 4}, 0.02, n)) = true;
+        end
         off = off + n;
     end
-    fa = f(isA);
-    % tol: the planted fraction 0.02 of 2304 rows = 46, plus the clean rows
-    % beyond 3 sigma (0.27 % of the rest ~ 6): +/- 15 rows
-    tc.verifyEqual(sum(fa == 0), round(0.02 * numel(fa)), 'AbsTol', 15, 'the blunders are rejected');
+    tc.verifyEqual(sum(planted), 45, 'the injector planted round(0.02*256) = 5 rows in each of 9 arcs');
+    tc.verifyEqual(f(planted), zeros(sum(planted), 1), 'every planted blunder is rejected');
+    fa = f(isA & ~planted);
     tc.verifyEqual(median(fa), 1, 'the bulk keeps unit weight');
+    % tol: the rows a blunder contaminates through the whitening filter --
+    % at most its two neighbours -- plus the 0.27 % of N(0,1) beyond 3 sigma
+    tc.verifyLessThanOrEqual(sum(fa == 0), 2 * 45 + 10, 'no rejection beyond the blunders'' neighbourhood');
     tc.verifyEqual(Rr.noise.robust.influence, 'igg3');
     tc.verifyEqual(Rr.noise.robust.streams, {'x1|a', 'x1|b'}, 'one MAD scale per stream');
     tc.verifyEqual(size(Rr.history.robustScale), [Rr.history.nIter, 2]);
-    % THE PRICE, measured: the robust pass estimates the level of the
-    % RETAINED observations. On N(0,1) residuals a row of weight w contributes
-    % w to Omega and w to the redundancy, so the level ratio is
-    % E[w u^2] / E[w] with the influence's own weight function -- a closed form
-    % the test computes, not a number it declares. No consistency correction
-    % is applied (the design decision of WP-105); the effective level of the
-    % CLEAN stream b must sit at that ratio, not at 1.
-    k0 = 1.5;  k1 = 3;  phi = @(u) exp(-u.^2/2) / sqrt(2*pi);
-    wIgg = @(u) (abs(u) <= k0) + (abs(u) > k0 & abs(u) <= k1) .* (k0 ./ max(abs(u), eps)) .* ((k1 - abs(u)) / (k1 - k0)).^2;
-    Ewu2 = integral(@(u) wIgg(u) .* u.^2 .* phi(u), -k1, k1);
-    Ew   = integral(@(u) wIgg(u) .* phi(u), -k1, k1);
+    % THE LEVEL, measured -- and the prediction it refuted. WP-105 expected
+    % the retained-observation ratio E[w u^2]/E[w] (0.73 for IGG3, 0.80 for
+    % Huber): round 4 measured 1.007 on the CLEAN stream b. Ellmer's per-lag
+    % redundancy s_n (eq. 6.5.23) is the model expectation of Omega_n under
+    % the SAME weighted whitening, so a down-weighted row shrinks numerator
+    % and denominator alike and alpha^2 = Omega/s stays 1 for the clean
+    % stream: the level is UNBIASED, unlike Helmert's Omega/(n - u), where
+    % the redundancy of a zero-weight row stays 1. Pinned at 1.
     ib = find(strcmp(Rr.noise.stream, 'x1|b'), 1);
     lvlB = Rr.noise.model{ib}.sigma * Rr.sigma0;
     % tol: 15 % relative on an effective level from 9 arcs of 256 epochs
     % (the clean-data bound of testRecoversPlantedRelativeWeights is 25 %)
-    tc.verifyEqual(lvlB^2, Ewu2 / Ew, 'RelTol', 0.15, ...
-        'the retained-observation level: E[w u^2]/E[w] under IGG3, measured');
+    tc.verifyEqual(lvlB, 1, 'RelTol', 0.15, 'the clean stream''s level is unbiased under the robust pass');
     % Robust "none" carries no factors at all
     tc.verifyEmpty(Rp.noise.robust.factor);
 end
@@ -810,12 +819,22 @@ end
 function D = blunders(D, day, obsType, fraction, nSigma)
 %BLUNDERS  Replace FRACTION of stream a's rows by NSIGMA-sigma blunders (v6 cells).
     if ~strcmp(obsType, 'a'), return, end
-    rs = RandStream('mt19937ar', 'Seed', 9900 + day);
     for a = 1:numel(D.l)
-        m = numel(D.l{a});
-        idx = randperm(rs, m, round(fraction * m));
-        D.l{a}(idx) = D.l{a}(idx) + nSigma * (2 * (rand(rs, numel(idx), 1) > 0.5) - 1);
+        [idx, sgn] = blunderRows(day, a, fraction, numel(D.l{a}));
+        D.l{a}(idx) = D.l{a}(idx) + nSigma * sgn;
     end
+end
+
+function [idx, sgn] = blunderRows(day, arc, fraction, m)
+%BLUNDERROWS  The rows the injector hits in (day, arc), and their signs: ONE
+%   RNG sequence per day, consumed arc by arc, so the test can locate every
+%   planted row without the injector telling it.
+    rs = RandStream('mt19937ar', 'Seed', 9900 + day);
+    for a = 1:arc
+        idx = randperm(rs, m, round(fraction * m));
+        sgn = 2 * (rand(rs, numel(idx), 1) > 0.5) - 1;
+    end
+    idx = idx(:).';
 end
 
 function r = localRho(C)
