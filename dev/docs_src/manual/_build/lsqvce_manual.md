@@ -1157,7 +1157,9 @@ LSQVCE.OPTIONS  The one settings object for LSQVCE.FIT (v5: 12 knobs + 5 groups)
                                   plotPostModel / plotPostSolve seams.
 
   GROUPS (structs; set fields one at a time or give a whole struct)
-    Noise        Grid (60 | "auto")  frequencies of the estimated shape
+    Noise        Grid 60             lags/frequencies of the estimated shape;
+                                     an integer >= 2, at least the longest arc
+                                     for an exact law ("auto" is refused)
                  Whitener "toeplitz"|"ar"|"arma"  how a PSD law whitens (v4 PsdMode)
                  MeanType "robust"|"plain"        arc-factor normalisation
                  Smooth 0                         moving average on the PSD
@@ -1186,7 +1188,8 @@ LSQVCE.OPTIONS  The one settings object for LSQVCE.FIT (v5: 12 knobs + 5 groups)
   ERRORS
     MATLAB:validators:*          a typed property receives a value outside
                                  its type / set / range (at assignment)
-    lsqvce:Options:badGrid       Noise.Grid is neither "auto" nor an integer >= 2
+    lsqvce:Options:badGrid       Noise.Grid is not an integer >= 2 ("auto"
+                                 was documented until v5.3, never implemented)
     lsqvce:Options:badVerbose    Verbose is neither logical nor an integer 0..2
     lsqvce:Options:badOnPass     OnPass is neither [] nor a function handle
     lsqvce:Options:badGroupField a group struct carries an unknown field
@@ -1202,6 +1205,11 @@ LSQVCE.OPTIONS  The one settings object for LSQVCE.FIT (v5: 12 knobs + 5 groups)
 
   See also LSQVCE.FIT, LSQVCE.RESULTS, the Manual, chapter 3, RELEASE_NOTES.md
 
+  Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-104: the two remaining
+  "auto" claims about Noise.Grid corrected -- WP-101 retired the value in
+  the code and in the Manual but left it standing on THIS page, which is
+  what `doc lsqvce.Options` opens. With assistance from Claude (Anthropic),
+  model Claude Fable 5.1.
   Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-100: ArcFactors says how to
   read an arc's sigma back -- all three terms, sigma0 included. With
   assistance from Claude (Anthropic), model Claude Opus 5.
@@ -1558,38 +1566,235 @@ the `group` form with `estimate="scale"`, rows without a label one fixed-σ grou
 
 # Stochastic models and their estimation
 
-Every observation stream carries a covariance spec in `data.systems(k).covariance.<type>`
-(chapter 3 lists the fields) — its TEMPORAL law: `diag` (white), `arma` / `ar` (a whitening
-filter), `acf` / `psd` (an exact Toeplitz law). The per-epoch accuracy of the observations
-(a sigma per epoch, or a full d × d covariance per epoch for a multi-axis stream) is not
-declared: `buildDay` returns it with the day as `D.Cep` (chapter 3, §7) and the toolbox
-composes C = D (R_t ⊗ I_d) D per arc — for every temporal law, scalar streams included.
-Batches are overlapped by the filter memory automatically, so batching never changes the
-result.
+This chapter is the reference for the covariance specification: what you declare, what
+travels with the data, how the two are composed, what the estimator does with them, and how
+to read the result back. Chapter 3 lists the fields as a contract; this chapter says what
+they mean and how to choose them.
 
-With `Estimate="noise"` the joint estimator (theory ch. 6, Ellmer 2018) runs on every
-stream whose spec allows it (`estimate = "law"` default; `"scale"` = level only, the
-declared shape kept; `"none"` = untouched). Per pass it accumulates and solves under the
-current laws, sweeps every arc once for its whitened residual and Hutchinson-probed
-redundancies at every lag (all lags from one FFT per column), updates the spectral shape
-per pool group in the PSD domain (positive by construction, resampled to every arc's
-length), the level per stream, the per-arc factors, and the prior groups' σ; it stops at
-`Tolerance` or `MaxPasses`. A law with a per-row sigma is a fixed structure: it can carry
-a level but not a spectral shape.
+## 7.1 The division of labour — three facts, three places
 
-What comes back: `R.noise.Cgroups` (one covariance function per pool group),
-`R.noise.stream` / `R.noise.model{k}` (per stream: the level, its law, its arc factors),
-`R.history.streams / sigma / white / whitePval` per pass (the Ljung–Box whiteness of every
-stream, K = 20, α = 0.05), `R.convergence()`, `R.plot("psd")`, `R.plot("convergence")`.
+The noise of one observation stream is three separate facts, and each is stated in exactly
+one place:
 
-The acceptance of the estimator is physical, and the two halves are pinned differently
-(R6 WP-101 — the sentence here used to claim one bound for both). The planted FIELD is
-recovered within its formal errors: `demo_gravity` reports z-scores per coefficient and
-`test_physOracle` asserts them. The planted stream SIGMAS carry no formal error, and what
-the suite asserts is a RELATIVE bound: the ratios between streams, to 25 %
-(`test_vcePolicy>testRecoversPlantedRelativeWeights`; measured 1.18 / 2.10 / 0.51 against
-a planted 1 / 2 / 0.5). A per-arc standard deviation is read back as declared sigma ×
-sqrt(arc factor) × `R.sigma0` (chapter 3 §2).
+| fact | where it is stated | who owns it |
+|---|---|---|
+| the **temporal law** R_t — how the errors of a stream correlate down the epochs | `covariance.<stream>.type` and its parameters | you declare a starting point; the estimator refines it |
+| the **level** of that law | `covariance.<stream>.sigma` (always a standard deviation) | you declare it; the estimator scales it |
+| the **per-epoch accuracy** D — what the preprocessing knows about each observation | `D.Cep`, returned by `buildDay` with the day (chapter 3, §7) | you, always; it is never estimated |
+
+The toolbox composes them per arc as **C = D (R_t ⊗ I_d) D**: every epoch is de-scaled by
+D^-1/2, then the temporal whitener runs down the epochs of each axis. Batches are
+overlapped by the filter memory automatically, so cutting an arc into batches never changes
+the result.
+
+`Cep` is **relative to** `sigma`. A `diag` law of level s with a per-epoch sigma c whitens
+as `l ./ (s*c)`. If `Cep` already carries the absolute accuracy — a PPP covariance in m²,
+for instance — declare `sigma = 1`, or the accuracy is counted twice.
+
+## 7.2 `Cep` — the three shapes, and the asymmetry that bites
+
+`D.Cep` is a **cell like `A`**, one entry per arc (v6). Each entry may be:
+
+| shape | meaning | what the numbers are |
+|---|---|---|
+| nEpoch × 1 | a scalar stream with per-epoch accuracy | **standard deviations** |
+| nEpoch × d | a multi-axis stream, axes uncorrelated within an epoch | **standard deviations** per axis |
+| nEpoch × d × d | a multi-axis stream, full per-epoch covariance | **covariance matrices** (the toolbox takes their Cholesky factor) |
+
+The vector forms are sigmas and the matrix form is a covariance. That asymmetry is the
+commonest way to be wrong by a square: check one epoch by hand before a campaign.
+
+Rules:
+
+- the axis count is `d = size(Cep, 2)`, derived, and the same for the whole day; a `nAxis`
+  given as well must agree (`axisConflict`);
+- a `Cep` on the covariance spec *and* on the day is refused (`cepTwice`) — one fact, one
+  authority. The spec field is the engine-tier carrier the loader fills from the day;
+- a `var` law takes **no** `Cep` (`cepOnVar`): it carries its own cross-axis structure;
+- a multi-axis day **without** `Cep` is composed with D = I and reported once per run
+  (`noCep`), so an omission is distinguishable from a choice;
+- rows of a multi-axis stream are **epoch-major** (x₁ y₁ z₁ x₂ y₂ z₂ …) and every arc holds
+  whole epochs. The temporal law is placed on the **epoch** grid, `t(1:d:end)`.
+
+## 7.3 The temporal laws
+
+| `type` | fields | when to use it | cost per batch |
+|---|---|---|---|
+| `diag` | `sigma` | white noise — and the honest **starting point** when the colour is unknown: `Estimate="noise"` discovers it | O(b) |
+| `arma` | `ar = [1 a₁ … a_p]`, `ma` (default 1), `sigma` (innovation std) | a known whitening filter | O(b·p) |
+| `psd` | `f` (Hz, one-sided), `S` (unit²/Hz) | noise given as a measured spectrum | O(b·p) as AR, O(b³) as Toeplitz |
+| `acf` | `acf = @(dt, opt)`, `sigma` | correlation as a function of the lag | O(b³) |
+| `var` | `ar` (d×d×p), `sigma` (d×d) | genuine **cross-axis temporal** correlation | O(b·p·d²) |
+| `custom` | `fcn = @(t, opt)` | anything else, dense | O(b³) |
+
+`sigma` is a standard deviation, never a variance.
+
+**A PSD is best whitened as an AR filter, and that is exact.** Fitting an AR(p) to the
+spectrum and whitening with the FIR filter is not an approximation of the dense Cholesky:
+the filter *is* the Cholesky inverse factor, and both are lower-triangular square roots of
+the inverse covariance, unique up to sign, agreeing to ~1e-14 row for row. Set
+`Noise.Whitener = "ar"` and pay O(b·p) instead of O(b³). Validate the fit once per stream
+with `lsqvce.engine.checkPSD` (aim for `acvRelErr < 1e-3`; raise `arOrder`, or fall back to
+`"toeplitz"` if it does not reach that).
+
+## 7.4 The two policy fields on a spec
+
+Beside the law, a spec may carry:
+
+| field | values | meaning |
+|---|---|---|
+| `estimate` | `"law"` (default), `"scale"`, `"none"` | `"law"`: the spectral shape **and** the level are estimated; `"scale"`: your declared shape is kept, only the level is estimated; `"none"`: the stream is left exactly as declared |
+| `arcFactors` | logical | per-arc variance factors for this stream (Ellmer §6.5.4); default: the `Options.ArcFactors` policy |
+
+One refusal to know about: a **per-row `sigma` vector** makes the spec a *fixed structure*.
+It can carry a level but not a spectral shape, so `estimate = "law"` on it is
+`lsqvce:fit:lawOnFixedStructure`. A `Cep` does **not** trigger this — per-epoch accuracy
+together with an estimated temporal law is exactly the supported combination, and the
+reason the error information travels with the day at all.
+
+`Options.Pool` decides which streams **share one estimated spectral shape**; every stream
+keeps its own level regardless. `"all"` (the default) pools every stream, `"obsType"`
+groups by stream name, `"stream"` gives each (system, stream) its own shape. With a single
+system, `"obsType"` and `"stream"` are the same grouping. Pooling streams of different
+physics is a mistake worth naming: pooling positions with range-rate was measured to drive
+the conditioning to RCOND 1e-50 on the gravity demo.
+
+## 7.5 What `Estimate="noise"` does
+
+The joint estimator (theory chapter 6; Ellmer 2018 §6.5.7) treats every PSD frequency and
+every arc factor as variance components of **one** Helmert VCE and updates them together.
+Per pass it
+
+1. accumulates and solves under the current laws,
+2. sweeps every arc once for its whitened residual and its Hutchinson-probed redundancies
+   at every lag (all lags from one FFT per column),
+3. updates the spectral shape per pool group in the PSD domain (positive by construction,
+   resampled to each arc's length), the level per stream, the per-arc factors, and the sigma
+   of any prior group with `estimate = "scale"`,
+
+and stops at `Tolerance` (max |alpha² − 1|) or `MaxPasses`. `Noise.Grid` is the number of
+lags/frequencies of the estimated shape: at least the longest arc for an exact law.
+`Probes` is the Hutchinson probe count (100 is Ellmer's value); the joint estimator has no
+exact route, so `Probes = 0` is refused.
+
+Arcs can be **skipped** for a pass with reason `gap` (no data) or `nonPD` (the arc's
+covariance is not positive definite — a mis-scaled `Cep` produces exactly this). A skipped
+arc keeps its previous factor and is listed in the run's skip record; beyond
+`Noise.SkipThreshold` (0.2) the pass is refused rather than estimated on a fraction of the
+data.
+
+For multi-axis streams the residuals are de-scaled by D **before** the lag statistics are
+formed, per axis over epochs. The estimated law is therefore the law of the *normalised*
+errors, which is what makes a 3-axis stream with a per-epoch 3×3 and a scalar stream with a
+per-epoch sigma behave identically.
+
+## 7.6 Worked example — kinematic orbits with a 3×3 per epoch, KBR with one variance
+
+The GRACE-FO case: two position streams whose preprocessing delivers a full 3×3 covariance
+per epoch, one range-rate stream with a single scalar variance, all in one system (the
+range-rate rows depend on both satellites' local parameters), and Ellmer's estimator.
+
+```matlab
+% ---- the specs: the TEMPORAL law and its level, nothing else ----------
+% positions: Cep carries the absolute accuracy -> level 1; white start, so
+% the estimator finds the colour; per-arc factors on
+cov.posA = struct('type','diag', 'sigma', 1, 'estimate', "law");
+cov.posB = struct('type','diag', 'sigma', 1, 'estimate', "law");
+% range-rate: the scalar variance IS the level; no Cep on the day
+cov.kbr  = struct('type','diag', 'sigma', sqrt(varianceKbr), 'estimate', "law");
+s.covariance = cov;
+
+% ---- buildDay: the error information travels with the day ------------
+%   D.Cep{k} = nEp_k x 3 x 3     the per-epoch covariance of arc k
+%   (rows epoch-major; the kbr stream returns no Cep field at all)
+
+% ---- the run ---------------------------------------------------------
+opts = lsqvce.Options( ...
+        Estimate   = "noise", ...          % the joint (Ellmer) estimator
+        Pool       = "obsType", ...        % one shape per stream, NOT one for all three
+        ArcFactors = true, ...             % Ellmer eq. 6.5.4
+        MaxPasses  = 7, ...
+        Probes     = 100, Seed = 1, ...    % reproducible probes
+        Noise      = struct('Grid', 2160, 'Whitener', "ar"), ...
+        CacheDays  = Inf, ...
+        Verbose    = 1);
+R = lsqvce.fit(data, opts);
+```
+
+Why each line: `sigma = 1` on the positions because the 3×3 already carries m²;
+`Pool = "obsType"` because positions and range-rate differ in units and in spectrum;
+`Grid = 2160` because that is the length of the longest arc in epochs (6 h at 10 s, 3 h at
+5 s); `Whitener = "ar"` because a 2160-epoch arc on the dense Toeplitz path is O(b³).
+
+**Before trusting the numbers, run one pass with `Estimate = "none"`.** If sigma0 is near 1
+the declared weights are consistent. A sigma0 far from 1 says the `Cep` scale is wrong —
+most often an information matrix used where a covariance was expected — and no amount of
+estimating a law on top of it will fix that.
+
+## 7.7 Reading the result back
+
+```matlab
+R.noise.Cgroups          % one covariance function per pool group
+R.noise.model{k}.sigma   % the estimated LEVEL of stream k
+R.noise.model{k}.C       % its law; EMPTY where no law was estimated
+R.noise.stream           % the stream keys, in the order of model{}
+R.history(end).white     % Ljung-Box whiteness per stream (K = 20, alpha = 0.05)
+R.convergence(); R.plot("psd"); R.plot("convergence");
+```
+
+An arc's standard deviation is **all three terms**: declared `sigma` × sqrt(arc factor) ×
+`R.sigma0`. The level and the factor split one scale by a convention (Ellmer eq. 6.5.30's
+gamma-bar normalisation) and sigma0 carries the rest, as in any GLS adjustment. Measured on
+a fixture planted at 0.5 / 1.5 / 0.5: 0.517 / 1.499 / 0.507. With `sigma = 1` and a `Cep`
+carrying the absolute accuracy, that product reads directly as "by how much the
+preprocessing's covariance was too optimistic on this arc".
+
+The acceptance of the estimator is physical, and its two halves are pinned differently. The
+planted FIELD is recovered within its formal errors (`demo_gravity` reports z-scores per
+coefficient; `test_physOracle` asserts them). The planted stream SIGMAS carry no formal
+error, and what the suite asserts is a RELATIVE bound: the ratios between streams to 25 %
+(measured 1.18 / 2.10 / 0.51 against a planted 1 / 2 / 0.5).
+
+## 7.8 Robustness: what is available, and what is refused
+
+`Robust = "huber" | "igg3" | "bisquare"` together with `Estimate = "noise"` is refused with
+`lsqvce:fit:notYet`. That is a **scope decision**, not a statement that the two cannot be
+combined; the composition of the two loops is unwritten. Three things are worth separating,
+because Ellmer's own robustness is not per-observation M-estimation:
+
+1. **Gross outlier screening happens in preprocessing**, before the adjustment (Ellmer
+   §6.2, after Klinger 2018: the level-1B data is screened for outliers and periods of
+   reduced quality, and segments shorter than one hour are discarded). Nothing in the
+   adjustment replaces that.
+2. **The arc-wise variance factors ARE the down-weighting** at arc granularity: a bad arc
+   receives a large variance factor and loses weight automatically. That is
+   `ArcFactors = true`, and it runs inside `Estimate = "noise"`.
+3. **The normalisation of those factors is itself robust**: gamma-bar (eq. 6.5.29) is
+   computed in GROOPS from the central half of the sorted factors, ignoring both tails.
+   That is `Noise.MeanType = "robust"`, the default here.
+
+So the Ellmer configuration is fully available. What is not available is per-observation
+IRLS *simultaneously* with the noise estimation. If you need per-observation down-weighting
+today, two routes work:
+
+- **Diagnose, then decide.** Run `Estimate = "noise"` and read `R.report()` — the w-tests,
+  redundancies and MDBs identify the observations carrying the outliers; remove or repair
+  them in your `buildDay` and re-run.
+- **Fold fixed weights into `Cep`.** Run a robust pass with `Estimate = "none"`, take the
+  final factors from `R.history(end).factor` and their keys, and let `buildDay` return
+  `Cep` divided by sqrt(factor) on those rows. The weights are then **data**, exactly like
+  any other per-epoch accuracy, and the noise estimation runs on the re-weighted stream.
+  Two caveats: the weights must be stored, never recomputed inside `buildDay` (the day
+  builder must be deterministic — each day is read twice per pass), and using the same data
+  to derive the weights and then to estimate the law is a known bias source. It is not the
+  joint fixed point a combined loop would give.
+
+The obstacle for that combined loop is real and worth stating: the IRLS factors ride
+**inside** each arc's whitener, so a down-weighted row changes both the residual and the
+redundancy the variance-component step consumes. Without carrying the weights through the
+per-lag redundancies, the variance components would absorb the down-weighting and the two
+loops would fight — the same double counting the gamma-bar normalisation exists to prevent
+between the spectral amplitudes and the arc factors.
 
 
 # Diagnostics and the verdict

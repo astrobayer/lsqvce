@@ -84,7 +84,9 @@ classdef Options
 %                                   plotPostModel / plotPostSolve seams.
 %
 %   GROUPS (structs; set fields one at a time or give a whole struct)
-%     Noise        Grid (60 | "auto")  frequencies of the estimated shape
+%     Noise        Grid 60             lags/frequencies of the estimated shape;
+%                                      an integer >= 2, at least the longest arc
+%                                      for an exact law ("auto" is refused)
 %                  Whitener "toeplitz"|"ar"|"arma"  how a PSD law whitens (v4 PsdMode)
 %                  MeanType "robust"|"plain"        arc-factor normalisation
 %                  Smooth 0                         moving average on the PSD
@@ -113,7 +115,8 @@ classdef Options
 %   ERRORS
 %     MATLAB:validators:*          a typed property receives a value outside
 %                                  its type / set / range (at assignment)
-%     lsqvce:Options:badGrid       Noise.Grid is neither "auto" nor an integer >= 2
+%     lsqvce:Options:badGrid       Noise.Grid is not an integer >= 2 ("auto"
+%                                  was documented until v5.3, never implemented)
 %     lsqvce:Options:badVerbose    Verbose is neither logical nor an integer 0..2
 %     lsqvce:Options:badOnPass     OnPass is neither [] nor a function handle
 %     lsqvce:Options:badGroupField a group struct carries an unknown field
@@ -129,6 +132,11 @@ classdef Options
 %
 %   See also LSQVCE.FIT, LSQVCE.RESULTS, the Manual, chapter 3, RELEASE_NOTES.md
 %
+%   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-104: the two remaining
+%   "auto" claims about Noise.Grid corrected -- WP-101 retired the value in
+%   the code and in the Manual but left it standing on THIS page, which is
+%   what `doc lsqvce.Options` opens. With assistance from Claude (Anthropic),
+%   model Claude Fable 5.1.
 %   Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-100: ArcFactors says how to
 %   read an arc's sigma back -- all three terms, sigma0 included. With
 %   assistance from Claude (Anthropic), model Claude Opus 5.

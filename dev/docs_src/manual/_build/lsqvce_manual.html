@@ -188,7 +188,40 @@ class="toc-section-number">6.7</span> Your table’s column 11</a></li>
 <li><a href="#stochastic-models-and-their-estimation"
 id="toc-stochastic-models-and-their-estimation"><span
 class="toc-section-number">7</span> Stochastic models and their
-estimation</a></li>
+estimation</a>
+<ul>
+<li><a href="#the-division-of-labour-three-facts-three-places"
+id="toc-the-division-of-labour-three-facts-three-places"><span
+class="toc-section-number">7.1</span> 7.1 The division of labour — three
+facts, three places</a></li>
+<li><a href="#cep-the-three-shapes-and-the-asymmetry-that-bites"
+id="toc-cep-the-three-shapes-and-the-asymmetry-that-bites"><span
+class="toc-section-number">7.2</span> 7.2 <code>Cep</code> — the three
+shapes, and the asymmetry that bites</a></li>
+<li><a href="#the-temporal-laws" id="toc-the-temporal-laws"><span
+class="toc-section-number">7.3</span> 7.3 The temporal laws</a></li>
+<li><a href="#the-two-policy-fields-on-a-spec"
+id="toc-the-two-policy-fields-on-a-spec"><span
+class="toc-section-number">7.4</span> 7.4 The two policy fields on a
+spec</a></li>
+<li><a href="#what-estimatenoise-does"
+id="toc-what-estimatenoise-does"><span
+class="toc-section-number">7.5</span> 7.5 What
+<code>Estimate="noise"</code> does</a></li>
+<li><a
+href="#worked-example-kinematic-orbits-with-a-33-per-epoch-kbr-with-one-variance"
+id="toc-worked-example-kinematic-orbits-with-a-33-per-epoch-kbr-with-one-variance"><span
+class="toc-section-number">7.6</span> 7.6 Worked example — kinematic
+orbits with a 3×3 per epoch, KBR with one variance</a></li>
+<li><a href="#reading-the-result-back"
+id="toc-reading-the-result-back"><span
+class="toc-section-number">7.7</span> 7.7 Reading the result
+back</a></li>
+<li><a href="#robustness-what-is-available-and-what-is-refused"
+id="toc-robustness-what-is-available-and-what-is-refused"><span
+class="toc-section-number">7.8</span> 7.8 Robustness: what is available,
+and what is refused</a></li>
+</ul></li>
 <li><a href="#diagnostics-and-the-verdict"
 id="toc-diagnostics-and-the-verdict"><span
 class="toc-section-number">8</span> Diagnostics and the verdict</a></li>
@@ -2176,7 +2209,9 @@ class="header-section-number">5.2</span> lsqvce.Options</h2>
                                   plotPostModel / plotPostSolve seams.
 
   GROUPS (structs; set fields one at a time or give a whole struct)
-    Noise        Grid (60 | &quot;auto&quot;)  frequencies of the estimated shape
+    Noise        Grid 60             lags/frequencies of the estimated shape;
+                                     an integer &gt;= 2, at least the longest arc
+                                     for an exact law (&quot;auto&quot; is refused)
                  Whitener &quot;toeplitz&quot;|&quot;ar&quot;|&quot;arma&quot;  how a PSD law whitens (v4 PsdMode)
                  MeanType &quot;robust&quot;|&quot;plain&quot;        arc-factor normalisation
                  Smooth 0                         moving average on the PSD
@@ -2205,7 +2240,8 @@ class="header-section-number">5.2</span> lsqvce.Options</h2>
   ERRORS
     MATLAB:validators:*          a typed property receives a value outside
                                  its type / set / range (at assignment)
-    lsqvce:Options:badGrid       Noise.Grid is neither &quot;auto&quot; nor an integer &gt;= 2
+    lsqvce:Options:badGrid       Noise.Grid is not an integer &gt;= 2 (&quot;auto&quot;
+                                 was documented until v5.3, never implemented)
     lsqvce:Options:badVerbose    Verbose is neither logical nor an integer 0..2
     lsqvce:Options:badOnPass     OnPass is neither [] nor a function handle
     lsqvce:Options:badGroupField a group struct carries an unknown field
@@ -2221,6 +2257,11 @@ class="header-section-number">5.2</span> lsqvce.Options</h2>
 
   See also LSQVCE.FIT, LSQVCE.RESULTS, the Manual, chapter 3, RELEASE_NOTES.md
 
+  Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-104: the two remaining
+  &quot;auto&quot; claims about Noise.Grid corrected -- WP-101 retired the value in
+  the code and in the Manual but left it standing on THIS page, which is
+  what `doc lsqvce.Options` opens. With assistance from Claude (Anthropic),
+  model Claude Fable 5.1.
   Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-100: ArcFactors says how to
   read an arc&#39;s sigma back -- all three terms, sigma0 included. With
   assistance from Claude (Anthropic), model Claude Opus 5.
@@ -2614,48 +2655,402 @@ a label one fixed-σ group each.</p>
 <h1 data-number="7" id="stochastic-models-and-their-estimation"><span
 class="header-section-number">7</span> Stochastic models and their
 estimation</h1>
-<p>Every observation stream carries a covariance spec in
-<code>data.systems(k).covariance.&lt;type&gt;</code> (chapter 3 lists
-the fields) — its TEMPORAL law: <code>diag</code> (white),
-<code>arma</code> / <code>ar</code> (a whitening filter),
-<code>acf</code> / <code>psd</code> (an exact Toeplitz law). The
-per-epoch accuracy of the observations (a sigma per epoch, or a full d ×
-d covariance per epoch for a multi-axis stream) is not declared:
-<code>buildDay</code> returns it with the day as <code>D.Cep</code>
-(chapter 3, §7) and the toolbox composes C = D (R_t ⊗ I_d) D per arc —
-for every temporal law, scalar streams included. Batches are overlapped
-by the filter memory automatically, so batching never changes the
-result.</p>
-<p>With <code>Estimate="noise"</code> the joint estimator (theory ch. 6,
-Ellmer 2018) runs on every stream whose spec allows it
-(<code>estimate = "law"</code> default; <code>"scale"</code> = level
-only, the declared shape kept; <code>"none"</code> = untouched). Per
-pass it accumulates and solves under the current laws, sweeps every arc
-once for its whitened residual and Hutchinson-probed redundancies at
-every lag (all lags from one FFT per column), updates the spectral shape
-per pool group in the PSD domain (positive by construction, resampled to
-every arc’s length), the level per stream, the per-arc factors, and the
-prior groups’ σ; it stops at <code>Tolerance</code> or
-<code>MaxPasses</code>. A law with a per-row sigma is a fixed structure:
-it can carry a level but not a spectral shape.</p>
-<p>What comes back: <code>R.noise.Cgroups</code> (one covariance
-function per pool group), <code>R.noise.stream</code> /
-<code>R.noise.model{k}</code> (per stream: the level, its law, its arc
-factors), <code>R.history.streams / sigma / white / whitePval</code> per
-pass (the Ljung–Box whiteness of every stream, K = 20, α = 0.05),
-<code>R.convergence()</code>, <code>R.plot("psd")</code>,
-<code>R.plot("convergence")</code>.</p>
-<p>The acceptance of the estimator is physical, and the two halves are
-pinned differently (R6 WP-101 — the sentence here used to claim one
-bound for both). The planted FIELD is recovered within its formal
-errors: <code>demo_gravity</code> reports z-scores per coefficient and
-<code>test_physOracle</code> asserts them. The planted stream SIGMAS
+<p>This chapter is the reference for the covariance specification: what
+you declare, what travels with the data, how the two are composed, what
+the estimator does with them, and how to read the result back. Chapter 3
+lists the fields as a contract; this chapter says what they mean and how
+to choose them.</p>
+<h2 data-number="7.1"
+id="the-division-of-labour-three-facts-three-places"><span
+class="header-section-number">7.1</span> 7.1 The division of labour —
+three facts, three places</h2>
+<p>The noise of one observation stream is three separate facts, and each
+is stated in exactly one place:</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>fact</th>
+<th>where it is stated</th>
+<th>who owns it</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>the <strong>temporal law</strong> R_t — how the errors of a stream
+correlate down the epochs</td>
+<td><code>covariance.&lt;stream&gt;.type</code> and its parameters</td>
+<td>you declare a starting point; the estimator refines it</td>
+</tr>
+<tr class="even">
+<td>the <strong>level</strong> of that law</td>
+<td><code>covariance.&lt;stream&gt;.sigma</code> (always a standard
+deviation)</td>
+<td>you declare it; the estimator scales it</td>
+</tr>
+<tr class="odd">
+<td>the <strong>per-epoch accuracy</strong> D — what the preprocessing
+knows about each observation</td>
+<td><code>D.Cep</code>, returned by <code>buildDay</code> with the day
+(chapter 3, §7)</td>
+<td>you, always; it is never estimated</td>
+</tr>
+</tbody>
+</table>
+<p>The toolbox composes them per arc as <strong>C = D (R_t ⊗ I_d)
+D</strong>: every epoch is de-scaled by D^-1/2, then the temporal
+whitener runs down the epochs of each axis. Batches are overlapped by
+the filter memory automatically, so cutting an arc into batches never
+changes the result.</p>
+<p><code>Cep</code> is <strong>relative to</strong> <code>sigma</code>.
+A <code>diag</code> law of level s with a per-epoch sigma c whitens as
+<code>l ./ (s*c)</code>. If <code>Cep</code> already carries the
+absolute accuracy — a PPP covariance in m², for instance — declare
+<code>sigma = 1</code>, or the accuracy is counted twice.</p>
+<h2 data-number="7.2"
+id="cep-the-three-shapes-and-the-asymmetry-that-bites"><span
+class="header-section-number">7.2</span> 7.2 <code>Cep</code> — the
+three shapes, and the asymmetry that bites</h2>
+<p><code>D.Cep</code> is a <strong>cell like <code>A</code></strong>,
+one entry per arc (v6). Each entry may be:</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>shape</th>
+<th>meaning</th>
+<th>what the numbers are</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>nEpoch × 1</td>
+<td>a scalar stream with per-epoch accuracy</td>
+<td><strong>standard deviations</strong></td>
+</tr>
+<tr class="even">
+<td>nEpoch × d</td>
+<td>a multi-axis stream, axes uncorrelated within an epoch</td>
+<td><strong>standard deviations</strong> per axis</td>
+</tr>
+<tr class="odd">
+<td>nEpoch × d × d</td>
+<td>a multi-axis stream, full per-epoch covariance</td>
+<td><strong>covariance matrices</strong> (the toolbox takes their
+Cholesky factor)</td>
+</tr>
+</tbody>
+</table>
+<p>The vector forms are sigmas and the matrix form is a covariance. That
+asymmetry is the commonest way to be wrong by a square: check one epoch
+by hand before a campaign.</p>
+<p>Rules:</p>
+<ul>
+<li>the axis count is <code>d = size(Cep, 2)</code>, derived, and the
+same for the whole day; a <code>nAxis</code> given as well must agree
+(<code>axisConflict</code>);</li>
+<li>a <code>Cep</code> on the covariance spec <em>and</em> on the day is
+refused (<code>cepTwice</code>) — one fact, one authority. The spec
+field is the engine-tier carrier the loader fills from the day;</li>
+<li>a <code>var</code> law takes <strong>no</strong> <code>Cep</code>
+(<code>cepOnVar</code>): it carries its own cross-axis structure;</li>
+<li>a multi-axis day <strong>without</strong> <code>Cep</code> is
+composed with D = I and reported once per run (<code>noCep</code>), so
+an omission is distinguishable from a choice;</li>
+<li>rows of a multi-axis stream are <strong>epoch-major</strong> (x₁ y₁
+z₁ x₂ y₂ z₂ …) and every arc holds whole epochs. The temporal law is
+placed on the <strong>epoch</strong> grid, <code>t(1:d:end)</code>.</li>
+</ul>
+<h2 data-number="7.3" id="the-temporal-laws"><span
+class="header-section-number">7.3</span> 7.3 The temporal laws</h2>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th><code>type</code></th>
+<th>fields</th>
+<th>when to use it</th>
+<th>cost per batch</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>diag</code></td>
+<td><code>sigma</code></td>
+<td>white noise — and the honest <strong>starting point</strong> when
+the colour is unknown: <code>Estimate="noise"</code> discovers it</td>
+<td>O(b)</td>
+</tr>
+<tr class="even">
+<td><code>arma</code></td>
+<td><code>ar = [1 a₁ … a_p]</code>, <code>ma</code> (default 1),
+<code>sigma</code> (innovation std)</td>
+<td>a known whitening filter</td>
+<td>O(b·p)</td>
+</tr>
+<tr class="odd">
+<td><code>psd</code></td>
+<td><code>f</code> (Hz, one-sided), <code>S</code> (unit²/Hz)</td>
+<td>noise given as a measured spectrum</td>
+<td>O(b·p) as AR, O(b³) as Toeplitz</td>
+</tr>
+<tr class="even">
+<td><code>acf</code></td>
+<td><code>acf = @(dt, opt)</code>, <code>sigma</code></td>
+<td>correlation as a function of the lag</td>
+<td>O(b³)</td>
+</tr>
+<tr class="odd">
+<td><code>var</code></td>
+<td><code>ar</code> (d×d×p), <code>sigma</code> (d×d)</td>
+<td>genuine <strong>cross-axis temporal</strong> correlation</td>
+<td>O(b·p·d²)</td>
+</tr>
+<tr class="even">
+<td><code>custom</code></td>
+<td><code>fcn = @(t, opt)</code></td>
+<td>anything else, dense</td>
+<td>O(b³)</td>
+</tr>
+</tbody>
+</table>
+<p><code>sigma</code> is a standard deviation, never a variance.</p>
+<p><strong>A PSD is best whitened as an AR filter, and that is
+exact.</strong> Fitting an AR(p) to the spectrum and whitening with the
+FIR filter is not an approximation of the dense Cholesky: the filter
+<em>is</em> the Cholesky inverse factor, and both are lower-triangular
+square roots of the inverse covariance, unique up to sign, agreeing to
+~1e-14 row for row. Set <code>Noise.Whitener = "ar"</code> and pay
+O(b·p) instead of O(b³). Validate the fit once per stream with
+<code>lsqvce.engine.checkPSD</code> (aim for
+<code>acvRelErr &lt; 1e-3</code>; raise <code>arOrder</code>, or fall
+back to <code>"toeplitz"</code> if it does not reach that).</p>
+<h2 data-number="7.4" id="the-two-policy-fields-on-a-spec"><span
+class="header-section-number">7.4</span> 7.4 The two policy fields on a
+spec</h2>
+<p>Beside the law, a spec may carry:</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>field</th>
+<th>values</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>estimate</code></td>
+<td><code>"law"</code> (default), <code>"scale"</code>,
+<code>"none"</code></td>
+<td><code>"law"</code>: the spectral shape <strong>and</strong> the
+level are estimated; <code>"scale"</code>: your declared shape is kept,
+only the level is estimated; <code>"none"</code>: the stream is left
+exactly as declared</td>
+</tr>
+<tr class="even">
+<td><code>arcFactors</code></td>
+<td>logical</td>
+<td>per-arc variance factors for this stream (Ellmer §6.5.4); default:
+the <code>Options.ArcFactors</code> policy</td>
+</tr>
+</tbody>
+</table>
+<p>One refusal to know about: a <strong>per-row <code>sigma</code>
+vector</strong> makes the spec a <em>fixed structure</em>. It can carry
+a level but not a spectral shape, so <code>estimate = "law"</code> on it
+is <code>lsqvce:fit:lawOnFixedStructure</code>. A <code>Cep</code> does
+<strong>not</strong> trigger this — per-epoch accuracy together with an
+estimated temporal law is exactly the supported combination, and the
+reason the error information travels with the day at all.</p>
+<p><code>Options.Pool</code> decides which streams <strong>share one
+estimated spectral shape</strong>; every stream keeps its own level
+regardless. <code>"all"</code> (the default) pools every stream,
+<code>"obsType"</code> groups by stream name, <code>"stream"</code>
+gives each (system, stream) its own shape. With a single system,
+<code>"obsType"</code> and <code>"stream"</code> are the same grouping.
+Pooling streams of different physics is a mistake worth naming: pooling
+positions with range-rate was measured to drive the conditioning to
+RCOND 1e-50 on the gravity demo.</p>
+<h2 data-number="7.5" id="what-estimatenoise-does"><span
+class="header-section-number">7.5</span> 7.5 What
+<code>Estimate="noise"</code> does</h2>
+<p>The joint estimator (theory chapter 6; Ellmer 2018 §6.5.7) treats
+every PSD frequency and every arc factor as variance components of
+<strong>one</strong> Helmert VCE and updates them together. Per pass
+it</p>
+<ol type="1">
+<li>accumulates and solves under the current laws,</li>
+<li>sweeps every arc once for its whitened residual and its
+Hutchinson-probed redundancies at every lag (all lags from one FFT per
+column),</li>
+<li>updates the spectral shape per pool group in the PSD domain
+(positive by construction, resampled to each arc’s length), the level
+per stream, the per-arc factors, and the sigma of any prior group with
+<code>estimate = "scale"</code>,</li>
+</ol>
+<p>and stops at <code>Tolerance</code> (max |alpha² − 1|) or
+<code>MaxPasses</code>. <code>Noise.Grid</code> is the number of
+lags/frequencies of the estimated shape: at least the longest arc for an
+exact law. <code>Probes</code> is the Hutchinson probe count (100 is
+Ellmer’s value); the joint estimator has no exact route, so
+<code>Probes = 0</code> is refused.</p>
+<p>Arcs can be <strong>skipped</strong> for a pass with reason
+<code>gap</code> (no data) or <code>nonPD</code> (the arc’s covariance
+is not positive definite — a mis-scaled <code>Cep</code> produces
+exactly this). A skipped arc keeps its previous factor and is listed in
+the run’s skip record; beyond <code>Noise.SkipThreshold</code> (0.2) the
+pass is refused rather than estimated on a fraction of the data.</p>
+<p>For multi-axis streams the residuals are de-scaled by D
+<strong>before</strong> the lag statistics are formed, per axis over
+epochs. The estimated law is therefore the law of the
+<em>normalised</em> errors, which is what makes a 3-axis stream with a
+per-epoch 3×3 and a scalar stream with a per-epoch sigma behave
+identically.</p>
+<h2 data-number="7.6"
+id="worked-example-kinematic-orbits-with-a-33-per-epoch-kbr-with-one-variance"><span
+class="header-section-number">7.6</span> 7.6 Worked example — kinematic
+orbits with a 3×3 per epoch, KBR with one variance</h2>
+<p>The GRACE-FO case: two position streams whose preprocessing delivers
+a full 3×3 covariance per epoch, one range-rate stream with a single
+scalar variance, all in one system (the range-rate rows depend on both
+satellites’ local parameters), and Ellmer’s estimator.</p>
+<div class="sourceCode" id="cb25"><pre
+class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="co">% ---- the specs: the TEMPORAL law and its level, nothing else ----------</span></span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a><span class="co">% positions: Cep carries the absolute accuracy -&gt; level 1; white start, so</span></span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a><span class="co">% the estimator finds the colour; per-arc factors on</span></span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a><span class="va">cov</span>.<span class="va">posA</span> <span class="op">=</span> <span class="va">struct</span>(<span class="ss">&#39;type&#39;</span><span class="op">,</span><span class="ss">&#39;diag&#39;</span><span class="op">,</span> <span class="ss">&#39;sigma&#39;</span><span class="op">,</span> <span class="fl">1</span><span class="op">,</span> <span class="ss">&#39;estimate&#39;</span><span class="op">,</span> <span class="st">&quot;law&quot;</span>)<span class="op">;</span></span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a><span class="va">cov</span>.<span class="va">posB</span> <span class="op">=</span> <span class="va">struct</span>(<span class="ss">&#39;type&#39;</span><span class="op">,</span><span class="ss">&#39;diag&#39;</span><span class="op">,</span> <span class="ss">&#39;sigma&#39;</span><span class="op">,</span> <span class="fl">1</span><span class="op">,</span> <span class="ss">&#39;estimate&#39;</span><span class="op">,</span> <span class="st">&quot;law&quot;</span>)<span class="op">;</span></span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a><span class="co">% range-rate: the scalar variance IS the level; no Cep on the day</span></span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a><span class="va">cov</span>.<span class="va">kbr</span>  <span class="op">=</span> <span class="va">struct</span>(<span class="ss">&#39;type&#39;</span><span class="op">,</span><span class="ss">&#39;diag&#39;</span><span class="op">,</span> <span class="ss">&#39;sigma&#39;</span><span class="op">,</span> <span class="va">sqrt</span>(<span class="va">varianceKbr</span>)<span class="op">,</span> <span class="ss">&#39;estimate&#39;</span><span class="op">,</span> <span class="st">&quot;law&quot;</span>)<span class="op">;</span></span>
+<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a><span class="va">s</span>.<span class="va">covariance</span> <span class="op">=</span> <span class="va">cov</span><span class="op">;</span></span>
+<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a><span class="co">% ---- buildDay: the error information travels with the day ------------</span></span>
+<span id="cb25-11"><a href="#cb25-11" aria-hidden="true" tabindex="-1"></a><span class="co">%   D.Cep{k} = nEp_k x 3 x 3     the per-epoch covariance of arc k</span></span>
+<span id="cb25-12"><a href="#cb25-12" aria-hidden="true" tabindex="-1"></a><span class="co">%   (rows epoch-major; the kbr stream returns no Cep field at all)</span></span>
+<span id="cb25-13"><a href="#cb25-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-14"><a href="#cb25-14" aria-hidden="true" tabindex="-1"></a><span class="co">% ---- the run ---------------------------------------------------------</span></span>
+<span id="cb25-15"><a href="#cb25-15" aria-hidden="true" tabindex="-1"></a><span class="va">opts</span> <span class="op">=</span> <span class="va">lsqvce</span>.<span class="va">Options</span>( <span class="op">...</span></span>
+<span id="cb25-16"><a href="#cb25-16" aria-hidden="true" tabindex="-1"></a>        <span class="va">Estimate</span>   <span class="op">=</span> <span class="st">&quot;noise&quot;</span><span class="op">,</span> <span class="op">...</span>          <span class="co">% the joint (Ellmer) estimator</span></span>
+<span id="cb25-17"><a href="#cb25-17" aria-hidden="true" tabindex="-1"></a>        <span class="va">Pool</span>       <span class="op">=</span> <span class="st">&quot;obsType&quot;</span><span class="op">,</span> <span class="op">...</span>        <span class="co">% one shape per stream, NOT one for all three</span></span>
+<span id="cb25-18"><a href="#cb25-18" aria-hidden="true" tabindex="-1"></a>        <span class="va">ArcFactors</span> <span class="op">=</span> <span class="va">true</span><span class="op">,</span> <span class="op">...</span>             <span class="co">% Ellmer eq. 6.5.4</span></span>
+<span id="cb25-19"><a href="#cb25-19" aria-hidden="true" tabindex="-1"></a>        <span class="va">MaxPasses</span>  <span class="op">=</span> <span class="fl">7</span><span class="op">,</span> <span class="op">...</span></span>
+<span id="cb25-20"><a href="#cb25-20" aria-hidden="true" tabindex="-1"></a>        <span class="va">Probes</span>     <span class="op">=</span> <span class="fl">100</span><span class="op">,</span> <span class="va">Seed</span> <span class="op">=</span> <span class="fl">1</span><span class="op">,</span> <span class="op">...</span>    <span class="co">% reproducible probes</span></span>
+<span id="cb25-21"><a href="#cb25-21" aria-hidden="true" tabindex="-1"></a>        <span class="va">Noise</span>      <span class="op">=</span> <span class="va">struct</span>(<span class="ss">&#39;Grid&#39;</span><span class="op">,</span> <span class="fl">2160</span><span class="op">,</span> <span class="ss">&#39;Whitener&#39;</span><span class="op">,</span> <span class="st">&quot;ar&quot;</span>)<span class="op">,</span> <span class="op">...</span></span>
+<span id="cb25-22"><a href="#cb25-22" aria-hidden="true" tabindex="-1"></a>        <span class="va">CacheDays</span>  <span class="op">=</span> <span class="va">Inf</span><span class="op">,</span> <span class="op">...</span></span>
+<span id="cb25-23"><a href="#cb25-23" aria-hidden="true" tabindex="-1"></a>        <span class="va">Verbose</span>    <span class="op">=</span> <span class="fl">1</span>)<span class="op">;</span></span>
+<span id="cb25-24"><a href="#cb25-24" aria-hidden="true" tabindex="-1"></a><span class="va">R</span> <span class="op">=</span> <span class="va">lsqvce</span>.<span class="va">fit</span>(<span class="va">data</span><span class="op">,</span> <span class="va">opts</span>)<span class="op">;</span></span></code></pre></div>
+<p>Why each line: <code>sigma = 1</code> on the positions because the
+3×3 already carries m²; <code>Pool = "obsType"</code> because positions
+and range-rate differ in units and in spectrum; <code>Grid = 2160</code>
+because that is the length of the longest arc in epochs (6 h at 10 s, 3
+h at 5 s); <code>Whitener = "ar"</code> because a 2160-epoch arc on the
+dense Toeplitz path is O(b³).</p>
+<p><strong>Before trusting the numbers, run one pass with
+<code>Estimate = "none"</code>.</strong> If sigma0 is near 1 the
+declared weights are consistent. A sigma0 far from 1 says the
+<code>Cep</code> scale is wrong — most often an information matrix used
+where a covariance was expected — and no amount of estimating a law on
+top of it will fix that.</p>
+<h2 data-number="7.7" id="reading-the-result-back"><span
+class="header-section-number">7.7</span> 7.7 Reading the result
+back</h2>
+<div class="sourceCode" id="cb26"><pre
+class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="va">R</span>.<span class="va">noise</span>.<span class="va">Cgroups</span>          <span class="co">% one covariance function per pool group</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="va">R</span>.<span class="va">noise</span>.<span class="va">model</span>{<span class="va">k</span>}.<span class="va">sigma</span>   <span class="co">% the estimated LEVEL of stream k</span></span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a><span class="va">R</span>.<span class="va">noise</span>.<span class="va">model</span>{<span class="va">k</span>}.<span class="va">C</span>       <span class="co">% its law; EMPTY where no law was estimated</span></span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a><span class="va">R</span>.<span class="va">noise</span>.<span class="va">stream</span>           <span class="co">% the stream keys, in the order of model{}</span></span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a><span class="va">R</span>.<span class="va">history</span>(<span class="kw">end</span>).<span class="va">white</span>     <span class="co">% Ljung-Box whiteness per stream (K = 20, alpha = 0.05)</span></span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a><span class="va">R</span>.<span class="va">convergence</span>()<span class="op">;</span> <span class="va">R</span>.<span class="va">plot</span>(<span class="st">&quot;psd&quot;</span>)<span class="op">;</span> <span class="va">R</span>.<span class="va">plot</span>(<span class="st">&quot;convergence&quot;</span>)<span class="op">;</span></span></code></pre></div>
+<p>An arc’s standard deviation is <strong>all three terms</strong>:
+declared <code>sigma</code> × sqrt(arc factor) × <code>R.sigma0</code>.
+The level and the factor split one scale by a convention (Ellmer eq.
+6.5.30’s gamma-bar normalisation) and sigma0 carries the rest, as in any
+GLS adjustment. Measured on a fixture planted at 0.5 / 1.5 / 0.5: 0.517
+/ 1.499 / 0.507. With <code>sigma = 1</code> and a <code>Cep</code>
+carrying the absolute accuracy, that product reads directly as “by how
+much the preprocessing’s covariance was too optimistic on this arc”.</p>
+<p>The acceptance of the estimator is physical, and its two halves are
+pinned differently. The planted FIELD is recovered within its formal
+errors (<code>demo_gravity</code> reports z-scores per coefficient;
+<code>test_physOracle</code> asserts them). The planted stream SIGMAS
 carry no formal error, and what the suite asserts is a RELATIVE bound:
-the ratios between streams, to 25 %
-(<code>test_vcePolicy&gt;testRecoversPlantedRelativeWeights</code>;
-measured 1.18 / 2.10 / 0.51 against a planted 1 / 2 / 0.5). A per-arc
-standard deviation is read back as declared sigma × sqrt(arc factor) ×
-<code>R.sigma0</code> (chapter 3 §2).</p>
+the ratios between streams to 25 % (measured 1.18 / 2.10 / 0.51 against
+a planted 1 / 2 / 0.5).</p>
+<h2 data-number="7.8"
+id="robustness-what-is-available-and-what-is-refused"><span
+class="header-section-number">7.8</span> 7.8 Robustness: what is
+available, and what is refused</h2>
+<p><code>Robust = "huber" | "igg3" | "bisquare"</code> together with
+<code>Estimate = "noise"</code> is refused with
+<code>lsqvce:fit:notYet</code>. That is a <strong>scope
+decision</strong>, not a statement that the two cannot be combined; the
+composition of the two loops is unwritten. Three things are worth
+separating, because Ellmer’s own robustness is not per-observation
+M-estimation:</p>
+<ol type="1">
+<li><strong>Gross outlier screening happens in preprocessing</strong>,
+before the adjustment (Ellmer §6.2, after Klinger 2018: the level-1B
+data is screened for outliers and periods of reduced quality, and
+segments shorter than one hour are discarded). Nothing in the adjustment
+replaces that.</li>
+<li><strong>The arc-wise variance factors ARE the
+down-weighting</strong> at arc granularity: a bad arc receives a large
+variance factor and loses weight automatically. That is
+<code>ArcFactors = true</code>, and it runs inside
+<code>Estimate = "noise"</code>.</li>
+<li><strong>The normalisation of those factors is itself
+robust</strong>: gamma-bar (eq. 6.5.29) is computed in GROOPS from the
+central half of the sorted factors, ignoring both tails. That is
+<code>Noise.MeanType = "robust"</code>, the default here.</li>
+</ol>
+<p>So the Ellmer configuration is fully available. What is not available
+is per-observation IRLS <em>simultaneously</em> with the noise
+estimation. If you need per-observation down-weighting today, two routes
+work:</p>
+<ul>
+<li><strong>Diagnose, then decide.</strong> Run
+<code>Estimate = "noise"</code> and read <code>R.report()</code> — the
+w-tests, redundancies and MDBs identify the observations carrying the
+outliers; remove or repair them in your <code>buildDay</code> and
+re-run.</li>
+<li><strong>Fold fixed weights into <code>Cep</code>.</strong> Run a
+robust pass with <code>Estimate = "none"</code>, take the final factors
+from <code>R.history(end).factor</code> and their keys, and let
+<code>buildDay</code> return <code>Cep</code> divided by sqrt(factor) on
+those rows. The weights are then <strong>data</strong>, exactly like any
+other per-epoch accuracy, and the noise estimation runs on the
+re-weighted stream. Two caveats: the weights must be stored, never
+recomputed inside <code>buildDay</code> (the day builder must be
+deterministic — each day is read twice per pass), and using the same
+data to derive the weights and then to estimate the law is a known bias
+source. It is not the joint fixed point a combined loop would give.</li>
+</ul>
+<p>The obstacle for that combined loop is real and worth stating: the
+IRLS factors ride <strong>inside</strong> each arc’s whitener, so a
+down-weighted row changes both the residual and the redundancy the
+variance-component step consumes. Without carrying the weights through
+the per-lag redundancies, the variance components would absorb the
+down-weighting and the two loops would fight — the same double counting
+the gamma-bar normalisation exists to prevent between the spectral
+amplitudes and the arc factors.</p>
 <h1 data-number="8" id="diagnostics-and-the-verdict"><span
 class="header-section-number">8</span> Diagnostics and the verdict</h1>
 <p>Every solve carries per-observation diagnostics in
@@ -2685,13 +3080,13 @@ returns one figure per question; nothing is exported by the toolbox.
 <code>R.stopReason</code> says why the loop stopped
 (<code>"single"</code>, <code>"converged"</code>,
 <code>"maxPasses"</code>, <code>"userStop"</code>).</p>
-<div class="sourceCode" id="cb25"><pre
-class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="va">go</span> <span class="op">=</span> <span class="va">myInspect</span>(<span class="va">ctx</span>)</span>
-<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">res</span> <span class="op">=</span> <span class="va">lsqvce</span>.<span class="va">engine</span>.<span class="va">residuals</span>(<span class="va">ctx</span>.<span class="va">acc</span><span class="op">,</span> <span class="va">struct</span>(<span class="ss">&#39;x&#39;</span><span class="op">,</span> <span class="va">ctx</span>.<span class="va">x</span><span class="op">,</span> <span class="ss">&#39;sigma0&#39;</span><span class="op">,</span> <span class="va">ctx</span>.<span class="va">sigma0</span><span class="op">,</span> <span class="op">...</span></span>
-<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>                                                  <span class="ss">&#39;s0sq&#39;</span><span class="op">,</span> <span class="va">ctx</span>.<span class="va">s0sq</span><span class="op">,</span> <span class="ss">&#39;Cxx&#39;</span><span class="op">,</span> <span class="va">ctx</span>.<span class="va">Cxx</span>)<span class="op">,</span> <span class="ss">&#39;Verbose&#39;</span><span class="op">,</span> <span class="va">false</span>)<span class="op">;</span></span>
-<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>    <span class="va">figure</span>(<span class="fl">1</span>)<span class="op">;</span> <span class="va">plot</span>(<span class="va">res</span>.<span class="va">sys</span>(<span class="fl">1</span>).<span class="va">obs</span>(<span class="fl">1</span>).<span class="va">t</span><span class="op">,</span> <span class="va">res</span>.<span class="va">sys</span>(<span class="fl">1</span>).<span class="va">obs</span>(<span class="fl">1</span>).<span class="va">w</span><span class="op">,</span> <span class="ss">&#39;.&#39;</span>)<span class="op">;</span> <span class="va">drawnow</span><span class="op">;</span></span>
-<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a>    <span class="va">go</span> <span class="op">=</span> <span class="va">ctx</span>.<span class="va">maxDev</span> <span class="op">&gt;</span> <span class="fl">1e-3</span><span class="op">;</span>                 <span class="co">% or return nothing to continue</span></span>
-<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code></pre></div>
+<div class="sourceCode" id="cb27"><pre
+class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="va">go</span> <span class="op">=</span> <span class="va">myInspect</span>(<span class="va">ctx</span>)</span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">res</span> <span class="op">=</span> <span class="va">lsqvce</span>.<span class="va">engine</span>.<span class="va">residuals</span>(<span class="va">ctx</span>.<span class="va">acc</span><span class="op">,</span> <span class="va">struct</span>(<span class="ss">&#39;x&#39;</span><span class="op">,</span> <span class="va">ctx</span>.<span class="va">x</span><span class="op">,</span> <span class="ss">&#39;sigma0&#39;</span><span class="op">,</span> <span class="va">ctx</span>.<span class="va">sigma0</span><span class="op">,</span> <span class="op">...</span></span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>                                                  <span class="ss">&#39;s0sq&#39;</span><span class="op">,</span> <span class="va">ctx</span>.<span class="va">s0sq</span><span class="op">,</span> <span class="ss">&#39;Cxx&#39;</span><span class="op">,</span> <span class="va">ctx</span>.<span class="va">Cxx</span>)<span class="op">,</span> <span class="ss">&#39;Verbose&#39;</span><span class="op">,</span> <span class="va">false</span>)<span class="op">;</span></span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>    <span class="va">figure</span>(<span class="fl">1</span>)<span class="op">;</span> <span class="va">plot</span>(<span class="va">res</span>.<span class="va">sys</span>(<span class="fl">1</span>).<span class="va">obs</span>(<span class="fl">1</span>).<span class="va">t</span><span class="op">,</span> <span class="va">res</span>.<span class="va">sys</span>(<span class="fl">1</span>).<span class="va">obs</span>(<span class="fl">1</span>).<span class="va">w</span><span class="op">,</span> <span class="ss">&#39;.&#39;</span>)<span class="op">;</span> <span class="va">drawnow</span><span class="op">;</span></span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a>    <span class="va">go</span> <span class="op">=</span> <span class="va">ctx</span>.<span class="va">maxDev</span> <span class="op">&gt;</span> <span class="fl">1e-3</span><span class="op">;</span>                 <span class="co">% or return nothing to continue</span></span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code></pre></div>
 <h1 data-number="10" id="the-engine-kernel-and-util-tiers"><span
 class="header-section-number">10</span> The engine, kernel and util
 tiers</h1>
