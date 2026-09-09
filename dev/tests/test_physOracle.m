@@ -321,6 +321,7 @@ function D = oracleBuildDay(cfg, sat, day, obsType)
     D.t = tD;
     D.arcIdx = arrayfun(@(a) (a-1)*cfg.mEpoch + (1:cfg.mEpoch), ...
                         1:cfg.arcsPerDay, 'UniformOutput', false);
+    D = arcCells(D);                                 % v6: the cells are the arcs
 end
 
 %% ------------------------------------------- WP-51: the demo is executable

@@ -165,7 +165,7 @@ function D = makeTinyDay()
     D.B = 0.1*ones(m,2);
     D.l = randn(m,1);
     D.t = (0:m-1).' * 5;
-    D.arcIdx = {1:m};
+    D = arcCells(D);                                 % v6: the cells are the arcs
 end
 
 %% ==================================== R5-D8 round 3: validity-aware expansion
@@ -214,7 +214,7 @@ end
 
 function D = recordInfo(seen, day, info)
     seen(day) = info;
-    D = struct('A', zeros(0, 3), 'B', zeros(0, info.nl), 'l', zeros(0, 1), 't', zeros(0, 1), 'arcIdx', {{}});
+    D = struct('A', {{}}, 'B', {{}}, 'l', {{}}, 't', {{}});      % v6: a day of no cells
 end
 
 function test_prior_group_pattern_builds_L_from_the_name_column(tc)
@@ -225,7 +225,7 @@ function test_prior_group_pattern_builds_L_from_the_name_column(tc)
     % from lsqvce.engine.localColumns.
     days = 100:101;
     T = {'day', 'bias',  [], [];  'day', 'xacc', [], [];  'day', 'yacc', [], [];  'arc', 'ic', [], []};
-    bd = @(day, ot, common, local, po, info) struct('A', zeros(0, 2), 'B', zeros(0, info.nl), 'l', zeros(0, 1), 't', zeros(0, 1), 'arcIdx', {{}});
+    bd = @(day, ot, common, local, po, info) struct('A', {{}}, 'B', {{}}, 'l', {{}}, 't', {{}});   % v6: no cells
     mk = @(P) lsqvce.engine.makeLoader(bd, 'ObservationTypes', {'obs'}, ...
             'Covariance', struct('obs', struct('type', 'diag', 'sigma', 1)), ...
             'Arcs', @(d, ot) 1:2, 'Days', days, 'LocalParams', T, 'Scoped', true, ...
@@ -277,7 +277,8 @@ function test_day_cep_composes_with_the_temporal_law_through_the_loader(tc)
     D = struct('A', randn(rs, m, 4), 'B', randn(rs, m, 2), 'l', randn(rs, m, 1), ...
                't', reshape(repmat((0:nE-1)*5, d, 1), [], 1), 'Cep', Cep);   % NO nAxis: derived
     cov.pos = struct('type', 'arma', 'ar', a, 'sigma', s);               % the temporal law only
-    L = lsqvce.engine.makeLoader(@(day, ot) D, 'ObservationTypes', {'pos'}, 'Covariance', cov, ...
+    Dc = arcCells(D);                                                    % v6: one cell = one arc
+    L = lsqvce.engine.makeLoader(@(day, ot) Dc, 'ObservationTypes', {'pos'}, 'Covariance', cov, ...
                                  'Arcs', 1, 'SystemId', 1, 'NumLocal', 2, 'NumCommon', 4);
     arc = L.closure(1, 'pos', 1, struct('sysID', 1));
     tc.verifyEqual(arc.nAxis, d, 'the axis count is derived from Cep');
@@ -307,7 +308,8 @@ function test_scalar_stream_cep_is_a_per_epoch_sigma(tc)
     m = 50;  sig = 0.3;
     cep = 0.5 + rand(rs, m, 1);
     D = struct('A', randn(rs, m, 2), 'B', zeros(m, 0), 'l', randn(rs, m, 1), 't', (0:m-1).' * 5, 'Cep', cep);
-    mk = @(cm) lsqvce.engine.makeLoader(@(day, ot) D, 'ObservationTypes', {'rr'}, ...
+    Dc = arcCells(D);                                                    % v6: one cell = one arc
+    mk = @(cm) lsqvce.engine.makeLoader(@(day, ot) Dc, 'ObservationTypes', {'rr'}, ...
              'Covariance', struct('rr', cm), 'Arcs', 1, 'SystemId', 1, 'NumLocal', 0, 'NumCommon', 2);
     arc = mk(struct('type', 'diag', 'sigma', sig)).closure(1, 'rr', 1, struct('sysID', 1));
     tc.verifyFalse(isfield(arc, 'nAxis'), 'a scalar stream stays scalar');
@@ -334,23 +336,25 @@ function test_cep_refusals_by_name(tc)
     % said ONCE per run (the omission is distinguishable from a choice).
     rs = RandStream('mt19937ar', 'Seed', 92);
     nE = 10;  d = 3;  m = nE * d;
-    base = struct('A', randn(rs, m, 2), 'B', zeros(m, 0), 'l', randn(rs, m, 1), ...
-                  't', reshape(repmat((0:nE-1)*5, d, 1), [], 1));
+    base = arcCells(struct('A', randn(rs, m, 2), 'B', zeros(m, 0), 'l', randn(rs, m, 1), ...
+                  't', reshape(repmat((0:nE-1)*5, d, 1), [], 1)));    % v6: one cell = one arc
     mk = @(D, cm) lsqvce.engine.makeLoader(@(day, ot) D, 'ObservationTypes', {'pos'}, ...
              'Covariance', struct('pos', cm), 'Arcs', 1, 'SystemId', 1, 'NumLocal', 0, 'NumCommon', 2);
     read = @(D, cm) mk(D, cm).closure(1, 'pos', 1, struct('sysID', 1));
     arm = struct('type', 'arma', 'ar', [1 -0.5], 'sigma', 1);
-    D = base;  D.Cep = ones(nE, d);  D.nAxis = 2;                       % nAxis disagrees with Cep
+    D = base;  D.Cep = {ones(nE, d)};  D.nAxis = 2;                     % nAxis disagrees with Cep
     tc.verifyError(@() read(D, arm), 'lsqvce:makeLoader:axisConflict');
-    D = base;  D.Cep = ones(nE - 1, d);                                 % Cep does not cover the day
+    D = base;  D.Cep = {ones(nE - 1, d)};                               % Cep does not cover the arc
     tc.verifyError(@() read(D, arm), 'lsqvce:makeLoader:badDayCep');
-    D = base;  D.Cep = ones(1, m);                                      % a row is not a per-epoch sigma
+    D = base;  D.Cep = {ones(1, m)};                                    % a row is not a per-epoch sigma
     tc.verifyError(@() read(D, arm), 'lsqvce:makeLoader:badDayCep');
-    D = base;  D.Cep = ones(nE, d, 2);                                  % d x d only
+    D = base;  D.Cep = {ones(nE, d, 2)};                                % d x d only
+    tc.verifyError(@() read(D, arm), 'lsqvce:makeLoader:badDayCep');
+    D = base;  D.Cep = ones(nE, d);                                     % v6: Cep must be a cell like A
     tc.verifyError(@() read(D, arm), 'lsqvce:makeLoader:badDayCep');
     D = base;  D.nAxis = 4;                                             % nAxis must divide the rows
     tc.verifyError(@() read(D, arm), 'lsqvce:makeLoader:axisConflict');
-    D = base;  D.Cep = ones(nE, d);
+    D = base;  D.Cep = {ones(nE, d)};
     cm = arm;  cm.d = 2;                                                % the spec's d disagrees
     tc.verifyError(@() read(D, cm), 'lsqvce:makeLoader:axisConflict');
     cm = arm;  cm.Cep = ones(nE, d);                                    % Cep on the spec AND the day
@@ -380,18 +384,21 @@ function test_cep_refusals_by_name(tc)
     tc.verifyEqual(sum(strcmp(inv, 'lsqvce:makeLoader:noCep')), 1, 'said once per run');
 end
 
-function test_cep_is_sliced_by_arc_position_not_id(tc)
+function test_cep_is_the_arcs_own_cell(tc)
 % categories: contract, robustness
-    % Finding E-01: the day's Cep was sliced with the arc ID instead of the
-    % arc's POSITION in D.arcId. A day carrying arcs [3 1] (in that order)
-    % with DIFFERENT per-epoch sigmas per arc must whiten arc 3 with ITS
+    % Finding E-01 (v5): the day's Cep was sliced with the arc ID instead of
+    % the arc's POSITION. v6 (R6 WP-102) removes the slice: an arc's Cep is
+    % its own cell. A day generated with arc 3's rows first and arc 1's
+    % second, cut into the schedule [1 3], must whiten arc 3 with ITS
     % epochs' sigmas. Scalar stream, white law of level 1: whitened l = l ./ Cep.
     rs = RandStream('mt19937ar', 'Seed', 93);
     n1 = 8;  n3 = 12;  m = n1 + n3;
     cep = [10 * ones(n3, 1); 0.1 * ones(n1, 1)];        % rows of arc 3 first, then arc 1
     D = struct('A', randn(rs, m, 2), 'B', zeros(m, 0), 'l', randn(rs, m, 1), 't', (0:m-1).' * 5, ...
                'Cep', cep, 'arcIdx', {{1:n3, n3 + (1:n1)}}, 'arcId', [3 1]);
-    L = lsqvce.engine.makeLoader(@(day, ot) D, 'ObservationTypes', {'rr'}, ...
+    Dc = arcCells(D, [1 3]);                             % cells in schedule order
+    tc.verifyEqual(Dc.Cep{2}, cep(1:n3), 'arc 3 is the second cell, with its own sigmas');
+    L = lsqvce.engine.makeLoader(@(day, ot) Dc, 'ObservationTypes', {'rr'}, ...
              'Covariance', struct('rr', struct('type', 'diag', 'sigma', 1)), ...
              'Arcs', @(day, ot) [1 3], 'SystemId', 1, 'NumLocal', 0, 'NumCommon', 2);
     a3 = L.closure(1, 'rr', 3, struct('sysID', 1));
@@ -417,7 +424,8 @@ function test_psd_law_composes_on_the_epoch_grid(tc)
     S = 0.7^2 * dt * 2 * abs(H).^2;
     D = struct('A', randn(rs, m, 2), 'B', zeros(m, 0), 'l', randn(rs, m, 1), ...
                't', reshape(repmat((0:nE-1)*dt, d, 1), [], 1), 'Cep', ones(nE, d));
-    L = lsqvce.engine.makeLoader(@(day, ot) D, 'ObservationTypes', {'pos'}, ...
+    Dc = arcCells(D);                                                    % v6: one cell = one arc
+    L = lsqvce.engine.makeLoader(@(day, ot) Dc, 'ObservationTypes', {'pos'}, ...
              'Covariance', struct('pos', struct('type', 'psd', 'f', f, 'S', S)), ...
              'Arcs', 1, 'SystemId', 1, 'NumLocal', 0, 'NumCommon', 2);
     arc = L.closure(1, 'pos', 1, struct('sysID', 1, 'psdMode', 'toeplitz'));

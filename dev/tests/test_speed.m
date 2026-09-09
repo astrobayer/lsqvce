@@ -318,6 +318,7 @@ function D = speedBuildDay(cfg, sat, day, obsType)
     D.B = randn(rs, M, cfg.nl);
     D.l = D.A*cfg.x_c + D.B*cfg.y(sat) + 0.1*randn(rs, M, 1);
     D.arcIdx = {1:cfg.mArc, cfg.mArc + (1:cfg.mArc)};
+    D = arcCells(D);                                 % v6: the cells are the arcs
 end
 
 function sol = runAcc(cfg, days, varargin)

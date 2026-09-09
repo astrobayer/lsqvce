@@ -563,6 +563,7 @@ function D = perEpochDay(day, nc, nl, nE, nArc, xTrue, withCep)
     D.t = (0:m-1).' * 5;
     D.arcIdx = arrayfun(@(a) (a-1)*nE + (1:nE), 1:nArc, 'UniformOutput', false);
     if withCep, D.Cep = cep; end
+    D = arcCells(D);                                 % v6: the cells are the arcs
 end
 
 function testDemoNoisePolicyIsTheWorkedPolicyExample(tc)
@@ -774,6 +775,7 @@ function D = colourDay(cfg, day, obsType)
     D.t = t;
     D.arcIdx = arrayfun(@(a) (a-1)*cfg.mArc + (1:cfg.mArc), 1:cfg.arcs, ...
                         'UniformOutput', false);
+    D = arcCells(D);                                 % v6: the cells are the arcs
 end
 
 function data = arcFactorFixture(badScale)
@@ -813,4 +815,5 @@ function D = arcFactorDay(cfg, day)
     D.t = t;
     D.arcIdx = arrayfun(@(a) (a-1)*cfg.mArc + (1:cfg.mArc), 1:cfg.arcs, ...
                         'UniformOutput', false);
+    D = arcCells(D);                                 % v6: the cells are the arcs
 end

@@ -497,6 +497,7 @@ function testMultiAxisArcLongerThanBatchInEverySweep(tc)
     Cep = 0.5 + rand(rs, nE, d);
     D = struct('A', randn(rs, m, nc), 'B', randn(rs, m, nl), 'l', randn(rs, m, 1), ...
                't', reshape(repmat((0:nE-1)*5, d, 1), [], 1), 'Cep', Cep);
+    D = arcCells(D);                                 % v6: the cells are the arcs
     cov.pos = struct('type', 'arma', 'ar', [1 -0.6], 'sigma', 0.8);
     L = lsqvce.engine.makeLoader(@(day, ot) D, 'ObservationTypes', {'pos'}, 'Covariance', cov, ...
                                  'Arcs', 1, 'SystemId', 1, 'NumLocal', nl, 'NumCommon', nc, 'Days', 1);
