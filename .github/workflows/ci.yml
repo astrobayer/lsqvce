@@ -1,7 +1,8 @@
 # lsqvce CI - the D8 gate (HANDOVER.md §5 WP-30, D2 reference).
-# Hosted variant ONLY (public repo => matlab-actions licenses MATLAB free).
-# The MATLAB release is PINNED to the user's local R2026a - the local run
-# has been the ground truth, so CI must match it, not "latest".
+# The MATLAB job runs on the SELF-HOSTED Windows runner (the user's PC,
+# R2026a with the Parallel Computing Toolbox): since R6 WP-103 it runs EVERY
+# suite, test_parallel included, so the CI run IS the full gate on the target
+# platform (tier B); the MATLAB MCP bridge is the interactive tier (tier A).
 # Checks `audit` + `matlab` are the branch-protection requirements on main.
 name: lsqvce CI
 
@@ -38,8 +39,8 @@ jobs:
     runs-on: [self-hosted, Windows]
     timeout-minutes: 45        # backstop: no wedge sits for hours
     env:
-      LSQVCE_CI: 1             # ci_gate: skip pool suites (printed in the
-                               # log), cap pools at 2, headless figures
+      LSQVCE_CI: 1             # ci_gate: headless figures (no skip, no pool
+                               # cap since WP-103 -- the runner has the PCT)
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       # The probe and the reasoning behind it now live in

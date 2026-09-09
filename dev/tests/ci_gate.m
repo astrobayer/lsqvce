@@ -3,8 +3,9 @@ function ci_gate()
 %
 %   ci_gate()
 %
-%   Called by the CI (`matlab-actions/run-command`: `cd('dev/tests'); ci_gate`)
-%   and by the local postflight (MATLAB MCP bridge / `matlab -batch`). It is
+%   Called by the CI (`matlab-actions/run-command`: `cd('dev/tests'); ci_gate`
+%   on the self-hosted Windows runner, tier B) and interactively over the
+%   MATLAB MCP bridge / `matlab -batch` (tier A). It is
 %   the gate the D8 loop protects `main` with - NEVER a bare `runtests`:
 %   a bare runtests reports failures but says nothing about coverage, and a
 %   suite that fails to LOAD would pass unseen (§0a-2, the 2026-07-19
@@ -13,14 +14,15 @@ function ci_gate()
 %   WHAT IT DOES
 %     1. Runs RUN_ALL_LSQVCE on the toolbox root (the folder above tests/).
 %     2. Under CI (environment variable LSQVCE_CI=1):
-%        - skips the pool suite test_parallel (hosted runners have no
-%          Parallel Computing Toolbox licence until `products:` requests it
-%          in ci.yml) - the skip is PRINTED by run_all and recorded in the
-%          log, never silent;
-%        - caps any parallel pool at 2 workers should one be opened anyway
-%          (2 = the hosted-runner core count; more workers only queue);
-%        - creates figures invisible (headless Linux runner; MATLAB -batch
-%          is display-less, this guards tests that open figures).
+%        - runs EVERY suite, the pool suite test_parallel included (R6
+%          WP-103: the self-hosted runner is the user's PC and carries the
+%          Parallel Computing Toolbox; the hosted-runner skip and its
+%          2-worker pool cap are gone, so the CI run IS the full gate on
+%          the target platform -- one gate, no postflight debt);
+%        - creates figures invisible (MATLAB -batch is display-less; this
+%          guards tests that open figures).
+%        A skip, should one ever be reinstated here, is PRINTED by run_all
+%        and recorded in the log, never silent.
 %     3. Globs tests/test_*.m and hands run + skip + disk + the documented
 %        benchmark exclusion (test_speed) to GATEVERDICT.
 %     4. Prints the verdict; on red it ERRORS so the CI job (and any
@@ -48,6 +50,10 @@ function ci_gate()
 %
 %   See also RUN_ALL_LSQVCE, GATEVERDICT, LSQVCE_SETUP
 %
+%   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-103: the CI skip of
+%   test_parallel and the 2-worker pool cap removed -- the self-hosted
+%   runner has the PCT (user, 2026-09-09). With assistance from Claude
+%   (Anthropic), model Claude Fable 5.1.
 %   Created 2026-08-18 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.
 
@@ -59,18 +65,14 @@ function ci_gate()
     restorePath = onCleanup(@() path(pathBefore)); %#ok<NASGU>
 
     % --- CI policy (the ONE place it is decided) --------------------------
+    % R6 WP-103: nothing is skipped and no pool is capped -- the self-hosted
+    % runner is the target platform with the PCT, so the CI run and the
+    % interactive run judge the SAME suites (the hosted-runner skip of
+    % test_parallel lived here 2026-08-18 .. 2026-09-09).
     isCI = strcmp(getenv('LSQVCE_CI'), '1');
     skip = {};
     if isCI
-        skip = {'test_parallel'};   % no PCT licence on the hosted runner;
-                                    % enable products: in ci.yml to lift.
-        try                          % cap a pool if one is opened anyway
-            c = parcluster('Processes');
-            c.NumWorkers = min(c.NumWorkers, 2);
-        catch
-            % no PCT at all - nothing to cap.
-        end
-        set(groot, 'DefaultFigureVisible', 'off');  % headless runner
+        set(groot, 'DefaultFigureVisible', 'off');  % -batch is display-less
     end
 
     % --- run --------------------------------------------------------------
