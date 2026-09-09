@@ -772,8 +772,8 @@ function testRobustPassInsideTheJointLoopRecoversTheLawUnderOutliers(tc)
     dk.systems.buildDay = @(day, ot) declareBlunders(blunders(inner(day, ot), day, ot, 0.02, 25), day, ot, 0.02);
     trailK = containers.Map('KeyType', 'double', 'ValueType', 'any');
     Rk = lsqvce.fit(dk, lsqvce.Options(base{:}, 'OnPass', @(ctx) trailOf(trailK, ctx)));
-    rhoK = rho(Rk, 'x1|a');  rhoK = rhoK(2) / rhoK(1);
     rho = @(R, k) R.noise.Cgroups(k);
+    rhoK = rho(Rk, 'x1|a');  rhoK = rhoK(2) / rhoK(1);
     rhoP = rho(Rp, 'x1|a');  rhoR = rho(Rr, 'x1|a');
     rhoP = rhoP(2) / rhoP(1);  rhoR = rhoR(2) / rhoR(1);
     Ca = Rr.noise.Cgroups('x1|a');
