@@ -202,12 +202,10 @@ function f = makeBuildDay(st, nk)
     f = @buildDay;
     function D = buildDay(day, obsType)
         b = st(sprintf('%s|%d', obsType, day));
-        D.A = b.AC;                          % nk x uC
-        D.B = b.AL;                          % nk x uL -- the per-system locals
-        D.l = b.l;
-        D.t = day*86400 + (0:nk-1).' * 5;    % seconds
-        D.arcIdx = {1:nk};
-        D.arcId  = 1;
+        D.A = {b.AC};                        % v6: one cell = one arc (nk x uC)
+        D.B = {b.AL};                        % nk x uL -- the per-system locals
+        D.l = {b.l};
+        D.t = {day*86400 + (0:nk-1).' * 5};  % seconds
     end
 end
 

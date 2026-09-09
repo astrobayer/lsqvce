@@ -287,18 +287,20 @@ function D = policyDay(cfg, day, obsType, info)
     m = cfg.arcs * cfg.mArc;
     t = (day - 1)*86400 + (0:m-1).' * cfg.dt;
     w = 2*pi / (0.5 * 86400);
-    D.A = [sin(w*t), cos(w*t), sin(2*w*t), cos(2*w*t)];
-    D.B = zeros(m, info.nl);
-    D.l = D.A * cfg.xTrue(:);
-    D.arcIdx = cell(1, cfg.arcs);
+    A = [sin(w*t), cos(w*t), sin(2*w*t), cos(2*w*t)];
+    l = A * cfg.xTrue(:) + policyNoise(cfg, day, obsType);
+    % v6: THE CELLS ARE THE ARCS -- one cell per arc for A, B, l, t
+    D = struct('A', {cell(1, cfg.arcs)}, 'B', {cell(1, cfg.arcs)}, ...
+               'l', {cell(1, cfg.arcs)}, 't', {cell(1, cfg.arcs)});
     for a = 1:cfg.arcs
         rows = (a-1)*cfg.mArc + (1:cfg.mArc);
-        D.B(rows, info.offsetOf(a) + 1) = 1;
-        D.l(rows) = D.l(rows) + cfg.bias;
-        D.arcIdx{a} = rows;
+        B = zeros(cfg.mArc, info.nl);
+        B(:, info.offsetOf(a) + 1) = 1;
+        D.A{a} = A(rows, :);
+        D.B{a} = B;
+        D.l{a} = l(rows) + cfg.bias;
+        D.t{a} = t(rows);
     end
-    D.l = D.l + policyNoise(cfg, day, obsType);
-    D.t = t;
 end
 
 function e = policyNoise(cfg, day, obsType)

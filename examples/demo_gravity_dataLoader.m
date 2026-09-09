@@ -54,7 +54,9 @@ function [cfg, data] = demo_gravity_dataLoader()
 %     3. A DIFFERENT ARC LENGTH FOR EVERY ARC (140 to 220 epochs). Nothing in
 %        the toolbox may assume a fixed arc length.
 %        Points 1 to 3 are DECLARED, not hand-wired (WP-52): 'arcs' takes a
-%        per-day resolver, the day names its arcs with .arcId, and
+%        per-day resolver (required here: the 'arc' template rows make nl a
+%        function of the schedule), the day returns ONE CELL PER SCHEDULED
+%        ARC (v6, R6 WP-102: the cells are the arcs), and
 %        the 'arc' template rows hand the toolbox the local bookkeeping -- it
 %        numbers every (day, arc), DERIVES nl, and passes this day's column
 %        offsets to the builder. An earlier version of this file wrapped the
@@ -104,6 +106,10 @@ function [cfg, data] = demo_gravity_dataLoader()
 %   See also DEMO_GRAVITY, DEMO_GRAVITY_DESIGN, DEMO_GRACE_DATALOADER,
 %   LSQVCE.FIT
 %
+%   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-102 (v6): buildGravityDay
+%   returns one cell per scheduled arc (the cells are the arcs; arcIdx /
+%   arcId are gone). With assistance from Claude (Anthropic), model Claude
+%   Fable 5.1.
 %   Updated 2026-09-07 (CEST, UTC+02:00), R6 WP-95: the contract is named v5,
 %   and the stale third output L "ready for LSQVCE.ENGINE.ADJUSTVCE" is gone --
 %   the signature is [cfg, data] and that engine unit no longer exists; the
@@ -244,30 +250,23 @@ function D = buildGravityDay(cfg, day, obsType, arcInfo)
 %   INPUT   cfg 1x1 struct; day 1x1 double; obsType 1xK char;
 %           arcInfo 1x1 struct  the day's local-block plan from makeLoader
 %                               (WP-52): .arcId .offset .count .nl .offsetOf
-%   OUTPUT  D 1x1 struct  .A (mxnc) .B (mxnl) .l (mx1) .t (mx1)
-%                         .arcIdx {1xnArc} cell, ONLY the arcs this day has
-%                         .arcId  1xnArc     naming them (WP-52)
+%   OUTPUT  D 1x1 struct  .A .B .l .t  {1xnArc} cells, ONE CELL PER ARC of
+%                         the day's schedule (v6): cell ia is arc arcs(ia),
+%                         A m x nc, B m x nl, l and t m x 1
     di   = find(cfg.days == day);
-    arcs = cfg.arcsOfDay{di};
+    arcs = cfg.arcsOfDay{di};              % == the resolver's list for this day
     s    = find(strcmp({cfg.sys.obsType}, obsType));
     nlPA = cfg.sys(s).nlPerArc;
     nl   = arcInfo.nl;                     % DERIVED by makeLoader, not restated
 
-    mTot = sum(cfg.mOfArc(di, arcs));
-    D.A  = zeros(mTot, cfg.nc);
-    D.B  = zeros(mTot, nl);
-    D.l  = zeros(mTot, 1);
-    D.t  = zeros(mTot, 1);
-    D.arcIdx = cell(1, numel(arcs));       % no padding: the day says what it has
-    D.arcId  = arcs;
+    nArc = numel(arcs);
+    D = struct('A', {cell(1, nArc)}, 'B', {cell(1, nArc)}, 'l', {cell(1, nArc)}, 't', {cell(1, nArc)});
 
     rs = RandStream('mt19937ar', 'Seed', cfg.seed.(obsType) + 97*day);
-    r0 = 0;
     tOff = 0;
-    for ia = 1:numel(arcs)
+    for ia = 1:nArc
         a    = arcs(ia);
         m    = cfg.mOfArc(di, a);
-        rows = r0 + (1:m);
 
         % ---- the physical design ---------------------------------------
         Ac = demo_gravity_design(cfg.nmax, arcOrbit(cfg, day, a, m, 0));
@@ -297,13 +296,12 @@ function D = buildGravityDay(cfg, day, obsType, arcInfo)
         w = cfg.trueSigma.(obsType) * randn(rs, m, 1);
         e = filter(1, cfg.trueAR.(obsType), w);
 
-        D.A(rows, :)    = A;
-        D.B(rows, cols) = Barc;
-        D.l(rows)       = A * cfg.xTrue + Barc * cfg.yTrue.(obsType)(cols) + e;
-        D.t(rows)       = tOff + (0:m-1).' * cfg.dt;
-        D.arcIdx{ia}    = rows;                  % positional; .arcId names it
+        B = zeros(m, nl);  B(:, cols) = Barc;
+        D.A{ia} = A;
+        D.B{ia} = B;
+        D.l{ia} = A * cfg.xTrue + Barc * cfg.yTrue.(obsType)(cols) + e;
+        D.t{ia} = tOff + (0:m-1).' * cfg.dt;
 
-        r0   = r0 + m;
         tOff = tOff + m * cfg.dt + 600;        % a gap between arcs
     end
 end

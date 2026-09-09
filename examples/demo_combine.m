@@ -147,10 +147,10 @@ function f = makeBuildDay(g, nk)
     f = @buildDay;
     function D = buildDay(day, ~)
         rows = (day-1)*nk + (1:nk);
-        D.A  = g.AC(rows, :);
-        D.B  = g.AL(rows, :);
-        D.l  = g.l(rows);
-        D.t  = day*86400 + (0:nk-1).' * 5;   % seconds
+        D.A  = {g.AC(rows, :)};              % v6: one cell = one arc; the day is one arc
+        D.B  = {g.AL(rows, :)};
+        D.l  = {g.l(rows)};
+        D.t  = {day*86400 + (0:nk-1).' * 5}; % seconds
     end
 end
 

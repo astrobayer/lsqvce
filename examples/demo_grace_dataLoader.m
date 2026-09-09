@@ -64,6 +64,11 @@ function [cfg, data] = demo_grace_dataLoader()
 %
 %   See also LSQVCE.FIT, LSQVCE.OPTIONS, DEMO_GRACE, DEMO_GRAVITY_DATALOADER
 %
+%   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-102 (v6): THE CELLS ARE THE
+%   ARCS -- demoBuildDay returns A, B, l, t and Cep as one cell per arc and
+%   the declaration carries no `arcs` (the cells are the schedule; the
+%   locals are 'system'-scoped). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.1.
 %   Updated 2026-09-07 (CEST, UTC+02:00), R6 WP-95: the contract is named v5,
 %   the column catalogue is renumbered onto the 15 columns the tables really
 %   carry (the scope token is column 1, checked by the toolbox), and the dead
@@ -102,7 +107,8 @@ function data = graceData(cfg)
     s = struct();
     s.buildDay          = @(d,ot,common,local,po) demoBuildDay(cfg, d, ot, common, local, po);
     s.covariance        = whiteCov(cfg.obsTypes);     % posC, posD, rr -- wrong on purpose
-    s.arcs              = cfg.arcsPerDay;
+    % no `arcs`: the CELLS demoBuildDay returns are the arcs of the day (v6);
+    % the locals are 'system'-scoped, so no plan needs the count before a read
     % NOTE: id must survive [store.sysID] concatenation as ONE element --
     % numeric or a single char, never a multi-char string like 'CD'.
     s.id                = 1;
@@ -212,7 +218,6 @@ function D = demoBuildDay(cfg, day, obsType, common, local, procOpt)  %#ok<INUSD
     if nAx > 1
         sigT = cfg.trueSigma.(obsType);
         Ld   = chol(cfg.Dep, 'lower');       % 3x3
-        nEd  = mE * nArc;                    % epochs in the day
         e    = zeros(m, 1);
         for a = 1:nArc
             base = (a-1) * mE * nAx;
@@ -224,16 +229,23 @@ function D = demoBuildDay(cfg, day, obsType, common, local, procOpt)  %#ok<INUSD
             W = sigT * (Ld * W);             % cross-axis mix + scale
             e(base + (1:mE*nAx)) = W(:);      % epoch-major [x1 y1 z1 ...]
         end
-        % the ERROR INFORMATION of the day: the per-epoch 3x3 covariance
-        % (nEpoch x 3 x 3) -- the axis count is derived from it (WP-90)
-        D.Cep = repmat(reshape(cfg.Dep, 1, nAx, nAx), nEd, 1, 1);
     else
         e = colouredNoise(s, m, cfg.trueAR.(obsType), ...
                           cfg.trueSigma.(obsType), nAx, nArc);
     end
-    D.A = A;  D.B = B;  D.l = l0 + e;
-    D.t = reshape(repmat((0:mE*nArc-1)*cfg.dt, nAx, 1), [], 1);  % epoch-major
-    D.arcIdx = arcIndex(nArc, mE*nAx);
+    l = l0 + e;
+    t = reshape(repmat((0:mE*nArc-1)*cfg.dt, nAx, 1), [], 1);  % epoch-major
+    % v6: THE CELLS ARE THE ARCS -- one cell per arc for A, B, l, t (and Cep)
+    D = struct('A', {cell(1, nArc)}, 'B', {cell(1, nArc)}, 'l', {cell(1, nArc)}, 't', {cell(1, nArc)});
+    for a = 1:nArc
+        rows = (a-1)*mE*nAx + (1:mE*nAx);
+        D.A{a} = A(rows, :);  D.B{a} = B(rows, :);  D.l{a} = l(rows);  D.t{a} = t(rows);
+    end
+    if nAx > 1
+        % the ERROR INFORMATION of every arc: the per-epoch 3x3 covariance
+        % (mE x 3 x 3 per arc) -- the axis count is derived from it (WP-90)
+        D.Cep = repmat({repmat(reshape(cfg.Dep, 1, nAx, nAx), mE, 1, 1)}, 1, nArc);
+    end
 end
 
 function n = demoAxes(obsType)
@@ -311,9 +323,3 @@ function e = colouredNoise(rs, m, ar, sig, nAx, nArc)
     end
 end
 
-function idx = arcIndex(nArc, mArc)
-    idx = cell(1, nArc);
-    for a = 1:nArc
-        idx{a} = (a-1)*mArc + (1:mArc);
-    end
-end
