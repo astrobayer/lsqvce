@@ -11,9 +11,13 @@ Additive on 6.0; no declaration changes.
   accumulation, probe redundancies and the component update see ONE re-weighted problem.
   `MaxPasses` is the budget; `RobustOpts.MaxIter` / `Tol` belong to the stand-alone IRLS
   only. Prior streams are never re-weighted.
-- What comes back: `R.noise.robust` (`influence`, `scale`, `factor` per observation in
-  sweep order, `keys`), `R.history.robustScale` / `nDown` / `nZero` per pass, and the same
-  fields on the `OnPass` context.
+- What comes back: `R.noise.robust` (`influence`, `scale` and `streams` — one MAD scale per
+  stream, `factor` per observation in sweep order, `keys`), `R.history.robustScale` (one
+  column per stream) / `nDown` / `nZero` per pass, and the same fields on the `OnPass`
+  context. The residuals are standardised by the stream's own MAD, never by the estimated
+  level (a global scale, or the level itself, sends a clean stream's level into a spiral —
+  measured). Prefer `igg3` / `bisquare` for gross blunders: Huber keeps c/|u| of their
+  weight.
 - The price, stated: the levels are those of the RETAINED observations — no consistency
   correction is applied. Under Huber (c = 1.345) on Gaussian residuals the effective level
   ratio is E[w u²]/E[w] ≈ 0.80 (σ ≈ 0.89); the oracle in `test_vcePolicy` measures it.

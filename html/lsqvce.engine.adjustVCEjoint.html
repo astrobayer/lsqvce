@@ -127,8 +127,12 @@ OPTIONS (Name/Value)
            factors; this is Koch&#x27;s iterated re-weighting inside a VCE,
            and the levels it returns are those of the RETAINED
            observations (no consistency correction is applied -- the
-           bias is measured by the oracle, test_vcePolicy). Prior streams
-           are never re-weighted. &quot;none&quot; is bitwise the plain estimator.
+           bias is measured by the oracle, test_vcePolicy). The residuals
+           are standardised by ONE MAD SCALE PER STREAM, never by the
+           estimated level (perStreamWeights says why). Prior streams
+           are never re-weighted. Prefer &quot;igg3&quot; / &quot;bisquare&quot; for gross
+           blunders: Huber keeps c/|u| of their weight. &quot;none&quot; is bitwise
+           the plain estimator.
   &#x27;Tuning&#x27;    [] | 1xK   tuning constants of the influence (its defaults)
   &#x27;Verbose&#x27;   logical    per-iteration banner (default false)
   &#x27;StepSchedule&#x27; &#x27;none&#x27; (default) | &#x27;decay&#x27;.  WP-40 r2 (F-15): the
@@ -155,11 +159,12 @@ OPTIONS (Name/Value)
   .Shat      nLag x 1   the converged PSD amplitudes
   .sigma2    M x 1      the converged arc variance factors, ALIGNED TO
                         .arcKeys (the pass-1 enumeration order; WP-34)
-  .robust    struct     .influence, .scale (the MAD scale of the last
-                        robust sweep), .factor (n x 1, the final
-                        per-observation factors in sweep order), .keys
-                        (A x 4 {sysID, obsType, day, arc}); empty
-                        fields under Influence &quot;none&quot; (R6 WP-105)
+  .robust    struct     .influence, .scale (1 x S, the MAD scale per
+                        stream of the last robust sweep), .streams
+                        (1 x S &#x27;satKey|obsType&#x27;, sorted), .factor
+                        (n x 1, the final per-observation factors in
+                        sweep order), .keys (A x 4 {sysID, obsType,
+                        day, arc}); empty under &quot;none&quot; (R6 WP-105)
   .arcKeys   M x 1 cell arc keys s&lt;sys&gt;_&lt;obsType&gt;_d&lt;day&gt;_a&lt;arc&gt; pinned
                         on pass 1 (LSQVCE.ENGINE.REDUNDANCY&#x27;s &#x27;arc&#x27; format) --
                         the ONE identity .sigma2 and Sigma2_0 align to

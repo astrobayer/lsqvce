@@ -86,8 +86,12 @@ function out = adjustVCEjoint(accFcn, opt)
 %              factors; this is Koch's iterated re-weighting inside a VCE,
 %              and the levels it returns are those of the RETAINED
 %              observations (no consistency correction is applied -- the
-%              bias is measured by the oracle, test_vcePolicy). Prior streams
-%              are never re-weighted. "none" is bitwise the plain estimator.
+%              bias is measured by the oracle, test_vcePolicy). The residuals
+%              are standardised by ONE MAD SCALE PER STREAM, never by the
+%              estimated level (perStreamWeights says why). Prior streams
+%              are never re-weighted. Prefer "igg3" / "bisquare" for gross
+%              blunders: Huber keeps c/|u| of their weight. "none" is bitwise
+%              the plain estimator.
 %     'Tuning'    [] | 1xK   tuning constants of the influence (its defaults)
 %     'Verbose'   logical    per-iteration banner (default false)
 %     'StepSchedule' 'none' (default) | 'decay'.  WP-40 r2 (F-15): the
@@ -115,11 +119,12 @@ function out = adjustVCEjoint(accFcn, opt)
 %       .Shat      nLag x 1   the converged PSD amplitudes
 %       .sigma2    M x 1      the converged arc variance factors, ALIGNED TO
 %                             .arcKeys (the pass-1 enumeration order; WP-34)
-%       .robust    struct     .influence, .scale (the MAD scale of the last
-%                             robust sweep), .factor (n x 1, the final
-%                             per-observation factors in sweep order), .keys
-%                             (A x 4 {sysID, obsType, day, arc}); empty
-%                             fields under Influence "none" (R6 WP-105)
+%       .robust    struct     .influence, .scale (1 x S, the MAD scale per
+%                             stream of the last robust sweep), .streams
+%                             (1 x S 'satKey|obsType', sorted), .factor
+%                             (n x 1, the final per-observation factors in
+%                             sweep order), .keys (A x 4 {sysID, obsType,
+%                             day, arc}); empty under "none" (R6 WP-105)
 %       .arcKeys   M x 1 cell arc keys s<sys>_<obsType>_d<day>_a<arc> pinned
 %                             on pass 1 (LSQVCE.ENGINE.REDUNDANCY's 'arc' format) --
 %                             the ONE identity .sigma2 and Sigma2_0 align to
@@ -315,7 +320,7 @@ end
     lastSol = [];                                % R5 M7 7b: the previous pass's solution
     robust = ~strcmp(o.Influence, "none");       % R6 WP-105
     W = containers.Map('KeyType', 'char', 'ValueType', 'any');   % per-arc row factors
-    fac = [];  rkeys = cell(0, 4);  rscale = NaN;
+    fac = [];  rkeys = cell(0, 4);  rscale = [];  rstreams = {};
     hist.robustScale = [];  hist.nDown = [];  hist.nZero = [];
     for it = 1:o.MaxIter
         % ---- steps 1-5: build under the current model, accumulate, solve --
@@ -524,15 +529,7 @@ end
         if robust
             res = lsqvce.engine.residuals(acc, sol, 'Whitened', true, 'Collect', true, 'Verbose', false);
             [vw, rkeys, sizes] = lawWhitenedResiduals(res, W);
-            [fac, rscale] = lsqvce.kernel.robustWeights(vw, o.Influence, o.Tuning);
-            off = 0;
-            for kk = 1:size(rkeys, 1)
-                n = sizes(kk);
-                if startsWith(char(string(rkeys{kk,2})), 'prior_')
-                    fac(off + (1:n)) = 1;            % a prior row is never down-weighted
-                end
-                off = off + n;
-            end
+            [fac, rscale, rstreams] = perStreamWeights(vw, rkeys, sizes, o.Influence, o.Tuning);
             nAlive = sum(fac > 0);
             if nAlive < size(sol.x, 1) + 1
                 error('lsqvce:adjustVCEjoint:collapsed', ...
@@ -548,12 +545,12 @@ end
                 W(lsqvce.util.rowWeightKey(rkeys{kk,1}, rkeys{kk,3}, rkeys{kk,2}, rkeys{kk,4})) = fac(off + (1:n));
                 off = off + n;
             end
-            hist.robustScale(it,1) = rscale;                     %#ok<AGROW>
+            hist.robustScale(it,1:numel(rscale)) = rscale;       %#ok<AGROW>  one MAD scale per stream
             hist.nDown(it,1) = sum(fac < 0.5 & fac > 0);         %#ok<AGROW>
             hist.nZero(it,1) = sum(fac == 0);                    %#ok<AGROW>
             if v
-                lsqvce.util.log.msg('  [joint %2d] robust (%s): scale %.4f, %d down-weighted, %d at zero\n', ...
-                    it, o.Influence, rscale, hist.nDown(it), hist.nZero(it));
+                lsqvce.util.log.msg('  [joint %2d] robust (%s): scales %s, %d down-weighted, %d at zero\n', ...
+                    it, o.Influence, mat2str(rscale, 3), hist.nDown(it), hist.nZero(it));
             end
         end
 
@@ -613,7 +610,43 @@ end
                  'arcKeys', {pinnedKeys(:)}, ...
                  'skips', {hist.skips}, ...
                  'robust', struct('influence', char(o.Influence), 'scale', rscale, ...
-                                  'factor', fac, 'keys', {rkeys}));   % R6 WP-105
+                                  'streams', {rstreams}, 'factor', fac, 'keys', {rkeys}));   % R6 WP-105
+end
+
+%==========================================================================
+function [fac, scale, streams] = perStreamWeights(vw, keys, sizes, influence, tuning)
+%PERSTREAMWEIGHTS  Robust factors PER STREAM (R6 WP-105, round 2).
+%   The influence function standardises residuals by a MAD scale, and that
+%   scale must be ONE PER STREAM and must NOT be the estimated level: the
+%   first design used a global MAD and it drove the level of a clean stream
+%   into a spiral (0.377 measured against 0.80 expected) -- a global scale
+%   mis-standardises every stream whose level differs from the mix, the
+%   next level is estimated from the mis-weighted residuals, and the next
+%   scale sees that. With a MAD per stream the standardisation is
+%   v / MAD(v), invariant to the level the whitener applied, so the weights
+%   do not feed on the level they will shape: the level converges to the
+%   retained-observation ratio, not to zero. Prior streams get factor 1.
+%   OUTPUT fac n x 1; scale 1 x S (the MAD per stream); streams 1 x S cell
+%          'satKey|obsType', sorted.
+    n = numel(vw);
+    fac = ones(n, 1);
+    skey = cell(size(keys, 1), 1);
+    for kk = 1:size(keys, 1)
+        skey{kk} = sprintf('%s|%s', matlab.lang.makeValidName(char(string(keys{kk,1}))), ...
+                           char(string(keys{kk,2})));
+    end
+    streams = unique(skey).';
+    streams = streams(~startsWith(streams, 'prior_') & ~contains(streams, '|prior_'));
+    scale = nan(1, numel(streams));
+    ends = cumsum(sizes(:));  starts = ends - sizes(:) + 1;
+    for si = 1:numel(streams)
+        arcs = find(strcmp(skey, streams{si}));
+        rows = [];
+        for kk = arcs(:).'
+            rows = [rows, starts(kk):ends(kk)]; %#ok<AGROW>
+        end
+        [fac(rows), scale(si)] = lsqvce.kernel.robustWeights(vw(rows), influence, tuning);
+    end
 end
 
 %==========================================================================

@@ -7129,6 +7129,23 @@ first robust pass under the joint estimator's Toeplitz override (the default Whi
 too (`denseRows`, the iterator's own `decorrFactor` line), so a robust pass works on every
 law. Found by running, not by reading -- again.
 
+**ROUND 2 (CI on 83ac614 RED: 546/547 -- the mechanism runs, the NUMBERS were wrong; two
+design errors, both of the "two loops fight" class §12.28 predicted, found by the oracle).**
+  * Stream a's colour came back 0.003 (planted 0.20), 26 of 46 blunders below 0.1, and the
+    CLEAN stream b's effective level 0.377 against the Huber ratio 0.86 in sigma^2 (0.80 in
+    variance) -- and still falling. (1) The influence used ONE GLOBAL MAD scale over all
+    streams, so every stream whose level differed from the mix was mis-standardised, its
+    level then re-estimated from mis-weighted residuals, and the next scale saw that: the
+    level-shaping loop and the weight loop fed on each other. Now ONE MAD PER STREAM
+    (`perStreamWeights`): the standardisation is v / MAD(v), invariant to the level the
+    whitener applied, so the weights cannot chase the level; the level converges to the
+    retained-observation ratio instead of to zero. (2) Huber is MONOTONE: a 25-sigma
+    blunder keeps 1.345/25 of its weight, so 2 % of them retain 0.67 of white variance and
+    dilute the colour -- the oracle can only be met by a REDESCENDING influence. The oracle
+    runs IGG3 now (zero beyond 3 sigma), asserts factor == 0 on the blunders, and computes
+    the level ratio with IGG3's own weight function. Both lessons are in the help, the
+    release note and Manual §7.8 as rules of use.
+
 | WP | title | depends on | status |
 |---|---|---|---|
 | 105 | The robust pass inside the joint loop: `Robust` x `Estimate="noise"` runs (adjustVCEjoint 'Influence'/'Tuning', factors in every arc's whitener on the next pass, one re-weighted metric for accumulation, probes and components; prior streams exempt; `collapsed`; `R.noise.robust`); `lawWhitenedResiduals` shared by both drivers; the retained-observation level stated and measured, no silent correction; version 6.1 | 104 | OPEN (2026-09-09; branch `claude/wp-105`; Linux audit CLEAN with the Manual rebuilt; CI decides) |

@@ -1803,11 +1803,23 @@ rank defect, not an outlier. What comes back: `R.noise.robust` (`influence`, `sc
 `factor` per observation in sweep order, `keys`), and `R.history.robustScale` / `nDown` /
 `nZero` per pass.
 
+Two things the mechanism learned by measurement, both binding on how to use it. **The
+standardisation is the stream's own MAD scale, never the estimated level**: a global scale
+mis-standardises every stream whose level differs from the mix, and using the level the
+whitener just applied makes the weights feed on the level they shape — the clean stream's
+level spiralled to 0.38 that way. With `v / MAD(v)` per stream the weights are invariant to
+the level, and the level converges. **Prefer a redescending influence for gross blunders**:
+Huber is monotone and keeps c/|u| of a blunder's weight, so 2 % of a stream at 25 sigma
+retain 0.02 · 1.345 · 25 ≈ 0.67 of white variance and dilute a lag-1 colour of 0.20 to
+about 0.12; `igg3` (zero beyond 3 sigma) and `bisquare` reject them outright and recover
+the colour.
+
 **The price, stated.** The levels are those of the *retained* observations: no consistency
 correction is applied. Under Huber (c = 1.345) on Gaussian residuals a row of weight
 w = min(1, c/|u|) contributes w·u² and w, so the effective level ratio is
 E[w u²]/E[w] ≈ 0.80 (a sigma about 11 % low), and a stream with no outliers at all is still
-estimated at that ratio. The oracle in `test_vcePolicy` measures exactly this. If you want
+estimated at that ratio; the same closed form with `igg3`'s weight function is what the
+oracle pins. The oracle in `test_vcePolicy` measures exactly this. If you want
 the plain GLS level with outliers removed, use `R.noise.robust.factor` to identify them, fix
 the data, and re-run without `Robust`. This composition is Koch's iterated re-weighting
 inside a variance-component estimation, not something Ellmer (2018) does.
