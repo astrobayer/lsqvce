@@ -33,7 +33,10 @@ function R = fit(data, opts, nv)
 %                        one spectral shape per Pool group, one level per stream,
 %                        per-arc factors when ArcFactors; prior groups with
 %                        estimate "scale" get their sigma by Helmert / Koch-Kusche
-%     Robust "huber" | "igg3" | "bisquare"   IRLS on the same loop (adjustRobust)
+%     Robust "huber" | "igg3" | "bisquare"   IRLS on the same loop: alone it is
+%                        adjustRobust; with Estimate "noise" the robust pass runs
+%                        INSIDE the joint loop (R6 WP-105), R.noise.robust carries
+%                        the final factors
 %     data.x0            Gauss-Newton with damping (adjustNonlinear)
 %   REGULARISATION is declared, never an option: data.priors(j) on the common
 %   parameters and data.systems(k).priors(l) on the local ones -- one struct per
@@ -88,11 +91,11 @@ function R = fit(data, opts, nv)
 %                                  (e.g. paramType, badArcs, localPlan);
 %                                  the original is attached as the cause
 %     Your choice is not available here:
-%       lsqvce:fit:notYet          Robust ~= "none" together with
-%                                  Estimate = "noise" -- the one-loop
-%                                  composition of M4 is not written yet; run the
-%                                  two separately, or screen outliers through the
-%                                  diagnostics (report())
+%       lsqvce:fit:notYet          Robust ~= "none" on a NONLINEAR batch problem
+%                                  (x0): IRLS inside Gauss-Newton is not written;
+%                                  linearise first. (Robust with Estimate "noise"
+%                                  RUNS since R6 WP-105: the robust pass inside
+%                                  the joint loop)
 %       lsqvce:fit:modelKind       Estimate = "noise" on kinds B / C, which have
 %                                  no streams to estimate a law for
 %       lsqvce:batchSystem:weightMatrix  a batch returned a weight argument that
@@ -130,6 +133,10 @@ function R = fit(data, opts, nv)
 %   model Claude Fable 5 -- R4 Level L2, WP-56 (decision R4-D4).
 %   Help rewritten 2026-09-04 for v5.2 (R5 M5 / R5-D8), model Claude Fable 5.1:
 %   the v5 surface (Estimate, priors, paramColumns, OnPass, layout, toTable).
+%   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-105: Robust together with
+%   Estimate "noise" runs (the robust pass inside the joint loop; the notYet
+%   refusal stays for x0 problems only). With assistance from Claude
+%   (Anthropic), model Claude Fable 5.1.
 %   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-102 (v6): the day contract is
 %   ONE CELL PER ARC and the arc schedule is optional. With assistance from
 %   Claude (Anthropic), model Claude Fable 5.1.
@@ -174,15 +181,10 @@ end
     end
 
     % R5 M2 2b: robust IRLS is a POLICY on the block path -- on the streaming
-    % kind it is Model "gls" with reweighting (H-02: the same accumulator);
-    % combining it with a VCE model is a v5 loop feature, refused for now.
-    if ~strcmp(opts.Robust, "none")
-        if ~strcmp(opts.Estimate, "none")
-            error('lsqvce:fit:notYet', ...
-                ['Robust = "%s" together with Estimate = "noise" is the one-loop policy ' ...
-                 'composition of a later level; run the robust pass with Estimate "none".'], ...
-                opts.Robust);
-        end
+    % kind it is Estimate "none" with reweighting (H-02: the same accumulator).
+    % R6 WP-105: with Estimate "noise" the robust pass runs INSIDE the joint
+    % loop (adjustVCEjoint 'Influence'), so it falls through to fitEllmer.
+    if ~strcmp(opts.Robust, "none") && strcmp(opts.Estimate, "none")
         a = opts.engineArgs('adjustRobust');
         prov = opts.toStruct();  prov.kind = 'stream';
         R = lsqvce.engine.adjustRobust(systems, days, a.nv{:}, 'Provenance', prov, 'Prior', pri, ...
@@ -337,6 +339,7 @@ function R = fitEllmer(systems, days, opts, pri, opc, priorGroups)
     % Results carried and the gravity demo reads
     [noise.stream, noise.model] = streamModels(systems, specs, out, char(pool), estMap);
     noise.priors = priState('groups');               % R5 M7 7b: the prior groups with their final sigmas
+    noise.robust = out.robust;                       % R6 WP-105: influence, scale, factor, keys ([] under "none")
     noise.priorHistory = priState('rec');            % one record per pass that updated them
     reason = "";  if isfield(out, 'userStop') && out.userStop, reason = "userStop"; end
     R.setIterative(hist, noise, out.converged, reason);
@@ -687,9 +690,15 @@ end
 
 function uo = withPass(uo, model)
 %WITHPASS  The pass number rides on the loader's UserOpt (R5-D8 round 2: the
-%   local priors' 'from' is honoured by lsqvce.engine.makeLoader>priorArc).
+%   local priors' 'from' is honoured by lsqvce.engine.makeLoader>priorArc),
+%   and so do the robust factors of the previous pass (R6 WP-105:
+%   model.rowWeights -> UserOpt.rowWeights, applied inside every arc's
+%   whitener by lsqvce.engine.makeLoader).
     uo.pass = 1;
     if isfield(model, 'iter'), uo.pass = model.iter; end
+    if isfield(model, 'rowWeights') && ~isempty(model.rowWeights) && model.rowWeights.Count > 0
+        uo.rowWeights = model.rowWeights;
+    end
 end
 
 function rejectUnknown(names, allowed, where)

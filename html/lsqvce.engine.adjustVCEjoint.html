@@ -112,6 +112,24 @@ OPTIONS (Name/Value)
   &#x27;Seed&#x27;      1x1 | []   RNG seed for reproducible probes (default [])
   &#x27;Norm&#x27;      char       DCT normalisation, &#x27;ortho&#x27; (default) | &#x27;ellmer&#x27;
   &#x27;MeanType&#x27;  char       arc-factor mean, &#x27;robust&#x27; (default) | &#x27;plain&#x27;
+  &#x27;Influence&#x27; string     &quot;none&quot; (default) | &quot;huber&quot; | &quot;igg3&quot; | &quot;bisquare&quot;
+           R6 WP-105: the ROBUST PASS INSIDE THE LOOP. Every pass ends
+           with one residual sweep; its LAW-whitened residuals (the
+           current law, level, arc factor and Cep divided out) go through
+           LSQVCE.KERNEL.ROBUSTWEIGHTS and the factors ride inside every
+           arc&#x27;s whitener on the NEXT pass (model.rowWeights, which the
+           caller&#x27;s factory forwards as UserOpt.rowWeights). Accumulation,
+           probe redundancies and the component update then all see ONE
+           re-weighted problem, so the Helmert equations stay consistent:
+           a row of weight w contributes w to Omega AND w to the
+           redundancy. NOT Ellmer (2018): he screens outliers in
+           preprocessing and down-weights whole ARCS through the variance
+           factors; this is Koch&#x27;s iterated re-weighting inside a VCE,
+           and the levels it returns are those of the RETAINED
+           observations (no consistency correction is applied -- the
+           bias is measured by the oracle, test_vcePolicy). Prior streams
+           are never re-weighted. &quot;none&quot; is bitwise the plain estimator.
+  &#x27;Tuning&#x27;    [] | 1xK   tuning constants of the influence (its defaults)
   &#x27;Verbose&#x27;   logical    per-iteration banner (default false)
   &#x27;StepSchedule&#x27; &#x27;none&#x27; (default) | &#x27;decay&#x27;.  WP-40 r2 (F-15): the
            closed-loop alternation is a stochastic approximation; the
@@ -137,6 +155,11 @@ OPTIONS (Name/Value)
   .Shat      nLag x 1   the converged PSD amplitudes
   .sigma2    M x 1      the converged arc variance factors, ALIGNED TO
                         .arcKeys (the pass-1 enumeration order; WP-34)
+  .robust    struct     .influence, .scale (the MAD scale of the last
+                        robust sweep), .factor (n x 1, the final
+                        per-observation factors in sweep order), .keys
+                        (A x 4 {sysID, obsType, day, arc}); empty
+                        fields under Influence &quot;none&quot; (R6 WP-105)
   .arcKeys   M x 1 cell arc keys s&lt;sys&gt;_&lt;obsType&gt;_d&lt;day&gt;_a&lt;arc&gt; pinned
                         on pass 1 (LSQVCE.ENGINE.REDUNDANCY&#x27;s &#x27;arc&#x27; format) --
                         the ONE identity .sigma2 and Sigma2_0 align to
@@ -168,6 +191,9 @@ plot(r.sigma2);            % the arc-wise weights</pre>
                                 the former noCep refusal is gone -- the loader
                                 composes D = I and says so once)
   lsqvce:adjustVCEjoint:noArcs    a system declares no arcs
+  lsqvce:adjustVCEjoint:collapsed the influence function left fewer live
+                                  observations than parameters + 1 (beyond
+                                  the breakdown point; R6 WP-105)
 
 IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
   lsqvce:adjustVCEjoint:localNotPD           System X
@@ -194,6 +220,10 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
          LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 
+Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-105: the robust pass inside
+the loop (&#x27;Influence&#x27;, &#x27;Tuning&#x27;, model.rowWeights, out.robust, the
+collapsed refusal) -- the one-loop composition of IRLS and the joint
+estimator. With assistance from Claude (Anthropic), model Claude Fable 5.1.
 Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-98 (finding F-01 FIXED): eq.
 6.5.28 now multiplies alpha2_m by the factor the WEIGHTING used -- the
 per-stream level -- instead of the per-arc factor, which alpha2 cancels

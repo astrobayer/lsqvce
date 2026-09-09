@@ -1,5 +1,27 @@
 # lsqvce release notes
 
+## 6.1 — 2026-09-09 (R6 WP-105: the robust pass inside the joint loop)
+
+Additive on 6.0; no declaration changes.
+
+- **`Robust` together with `Estimate="noise"` runs.** Every pass of the joint estimator ends
+  with one residual sweep; its law-whitened residuals (the current law, level, arc factor
+  and `Cep` divided out) go through the influence function (`huber` | `igg3` | `bisquare`,
+  `RobustOpts.Tuning`) and the factors ride inside every arc's whitener on the next pass, so
+  accumulation, probe redundancies and the component update see ONE re-weighted problem.
+  `MaxPasses` is the budget; `RobustOpts.MaxIter` / `Tol` belong to the stand-alone IRLS
+  only. Prior streams are never re-weighted.
+- What comes back: `R.noise.robust` (`influence`, `scale`, `factor` per observation in
+  sweep order, `keys`), `R.history.robustScale` / `nDown` / `nZero` per pass, and the same
+  fields on the `OnPass` context.
+- The price, stated: the levels are those of the RETAINED observations — no consistency
+  correction is applied. Under Huber (c = 1.345) on Gaussian residuals the effective level
+  ratio is E[w u²]/E[w] ≈ 0.80 (σ ≈ 0.89); the oracle in `test_vcePolicy` measures it.
+  This is Koch's iterated re-weighting inside a VCE, not Ellmer (2018), whose robustness is
+  preprocessing screening plus the arc-wise variance factors (Manual chapter 7, §7.8).
+- New identifier `lsqvce:adjustVCEjoint:collapsed` (beyond the breakdown point);
+  `lsqvce:fit:notYet` now fires only for `Robust` on a nonlinear (`x0`) batch problem.
+
 ## 6.0 — 2026-09-09 (R6 WP-102: the cells are the arcs)
 
 BREAKING for every `buildDay` (the sixth contract change: 2.0 namespace, 3.0

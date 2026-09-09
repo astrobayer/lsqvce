@@ -75,7 +75,10 @@ THREE DATA KINDS, told apart by the fields of `data`, all on ONE accumulator:
                      one spectral shape per Pool group, one level per stream,
                      per-arc factors when ArcFactors; prior groups with
                      estimate &quot;scale&quot; get their sigma by Helmert / Koch-Kusche
-  Robust &quot;huber&quot; | &quot;igg3&quot; | &quot;bisquare&quot;   IRLS on the same loop (adjustRobust)
+  Robust &quot;huber&quot; | &quot;igg3&quot; | &quot;bisquare&quot;   IRLS on the same loop: alone it is
+                     adjustRobust; with Estimate &quot;noise&quot; the robust pass runs
+                     INSIDE the joint loop (R6 WP-105), R.noise.robust carries
+                     the final factors
   data.x0            Gauss-Newton with damping (adjustNonlinear)
 REGULARISATION is declared, never an option: data.priors(j) on the common
 parameters and data.systems(k).priors(l) on the local ones -- one struct per
@@ -128,11 +131,11 @@ Name, Value          any property of lsqvce.Options</pre>
                                (e.g. paramType, badArcs, localPlan);
                                the original is attached as the cause
   Your choice is not available here:
-    lsqvce:fit:notYet          Robust ~= &quot;none&quot; together with
-                               Estimate = &quot;noise&quot; -- the one-loop
-                               composition of M4 is not written yet; run the
-                               two separately, or screen outliers through the
-                               diagnostics (report())
+    lsqvce:fit:notYet          Robust ~= &quot;none&quot; on a NONLINEAR batch problem
+                               (x0): IRLS inside Gauss-Newton is not written;
+                               linearise first. (Robust with Estimate &quot;noise&quot;
+                               RUNS since R6 WP-105: the robust pass inside
+                               the joint loop)
     lsqvce:fit:modelKind       Estimate = &quot;noise&quot; on kinds B / C, which have
                                no streams to estimate a law for
     lsqvce:batchSystem:weightMatrix  a batch returned a weight argument that
@@ -170,6 +173,10 @@ Created 2026-08-31 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5 -- R4 Level L2, WP-56 (decision R4-D4).
 Help rewritten 2026-09-04 for v5.2 (R5 M5 / R5-D8), model Claude Fable 5.1:
 the v5 surface (Estimate, priors, paramColumns, OnPass, layout, toTable).
+Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-105: Robust together with
+Estimate &quot;noise&quot; runs (the robust pass inside the joint loop; the notYet
+refusal stays for x0 problems only). With assistance from Claude
+(Anthropic), model Claude Fable 5.1.
 Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-102 (v6): the day contract is
 ONE CELL PER ARC and the arc schedule is optional. With assistance from
 Claude (Anthropic), model Claude Fable 5.1.

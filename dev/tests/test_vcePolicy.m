@@ -738,6 +738,79 @@ function testPoolStreamGivesEachStreamItsOwnLaw(tc)
     tc.verifyEqual(R.sigma0, 1, 'RelTol', 0.10, 'and the run stays consistently weighted');
 end
 
+%% ------------------------------- R6 WP-105: the robust pass inside the joint loop
+function testRobustPassInsideTheJointLoopRecoversTheLawUnderOutliers(tc)
+% categories: reference, robustness, contract
+    % R6 WP-105: Robust together with Estimate "noise" runs -- one residual
+    % sweep per pass, the factors inside every arc's whitener on the next
+    % pass, so accumulation, probe redundancies and the component update see
+    % ONE re-weighted problem. THE ORACLE: the colour fixture (two AR(1)
+    % streams, planted 0.20 / 0.50, level 1) with 2 % of stream a's rows
+    % replaced by 25-sigma blunders. Plain "noise" must be pulled off the
+    % planted law by them; the robust pass must recover it and put the
+    % blunders at (nearly) zero weight.
+    plantA = 0.20;  plantB = 0.50;
+    data = colourFixture(plantA, plantB);
+    inner = data.systems.buildDay;
+    data.systems.buildDay = @(day, ot) blunders(inner(day, ot), day, ot, 0.02, 25);   % 2 %, 25 sigma
+    base = {Estimate="noise", Pool="stream", MaxPasses=16, Verbose=false};
+    Rp = lsqvce.fit(data, lsqvce.Options(base{:}));                    % plain
+    Rr = lsqvce.fit(data, lsqvce.Options(base{:}, Robust="huber"));    % robust pass inside
+    rho = @(R, k) R.noise.Cgroups(k);
+    rhoP = rho(Rp, 'x1|a');  rhoR = rho(Rr, 'x1|a');
+    rhoP = rhoP(2) / rhoP(1);  rhoR = rhoR(2) / rhoR(1);
+    % tol: 0.08 absolute on a lag-1 correlation from 9 arcs of 256 epochs --
+    % the bound testPoolStreamGivesEachStreamItsOwnLaw uses on clean data
+    tc.verifyEqual(rhoR, plantA, 'AbsTol', 0.08, 'the robust pass recovers stream a''s colour under blunders');
+    tc.verifyGreaterThan(abs(rhoP - plantA), abs(rhoR - plantA), ...
+        'the plain estimator is further from the planted colour than the robust one');
+    % the blunders: 2 % of the rows of stream a carry factor < 0.1 (a Huber
+    % weight of c/|u| = 1.345/25 = 0.054 at the planted size), the bulk 1
+    f = Rr.noise.robust.factor;  k = Rr.noise.robust.keys;
+    isA = false(size(f));  off = 0;
+    for j = 1:size(k, 1)
+        n = numel(Rr.noise.robust.factor) / size(k, 1);            % equal arcs: 256 rows each
+        if strcmp(k{j, 2}, 'a'), isA(off + (1:n)) = true; end
+        off = off + n;
+    end
+    fa = f(isA);
+    % tol: the planted fraction 0.02 of 2304 rows = 46; +/- 15 rows for the
+    % Huber transition band around the MAD scale
+    tc.verifyEqual(sum(fa < 0.1), round(0.02 * numel(fa)), 'AbsTol', 15, 'the blunders are down-weighted');
+    tc.verifyEqual(median(fa), 1, 'the bulk keeps unit weight');
+    tc.verifyEqual(Rr.noise.robust.influence, 'huber');
+    tc.verifyEqual(numel(Rr.history.robustScale), Rr.history.nIter);
+    % THE PRICE, measured: a Huber pass estimates the level of the RETAINED
+    % observations. On N(0,1) residuals a row of weight w contributes w to
+    % Omega and w to the redundancy, so the level ratio is
+    % E[w u^2] / E[w] with w = min(1, c/|u|), c = 1.345 -- a closed form the
+    % test computes, not a number it declares. No consistency correction is
+    % applied (the design decision of WP-105); the effective level of the
+    % CLEAN stream b must sit at that ratio, not at 1.
+    c = 1.345;  phi = @(u) exp(-u.^2/2) / sqrt(2*pi);
+    Ewu2 = integral(@(u) u.^2 .* phi(u), -c, c) + 2 * c * integral(@(u) u .* phi(u), c, Inf);
+    Ew   = integral(phi, -c, c) + 2 * c * integral(@(u) phi(u) ./ u, c, Inf);
+    ib = find(strcmp(Rr.noise.stream, 'x1|b'), 1);
+    lvlB = Rr.noise.model{ib}.sigma * Rr.sigma0;
+    % tol: 15 % relative on an effective level from 9 arcs of 256 epochs
+    % (the clean-data bound of testRecoversPlantedRelativeWeights is 25 %)
+    tc.verifyEqual(lvlB^2, Ewu2 / Ew, 'RelTol', 0.15, ...
+        'the retained-observation level: E[w u^2]/E[w] under Huber, measured');
+    % Robust "none" carries no factors at all
+    tc.verifyEmpty(Rp.noise.robust.factor);
+end
+
+function D = blunders(D, day, obsType, fraction, nSigma)
+%BLUNDERS  Replace FRACTION of stream a's rows by NSIGMA-sigma blunders (v6 cells).
+    if ~strcmp(obsType, 'a'), return, end
+    rs = RandStream('mt19937ar', 'Seed', 9900 + day);
+    for a = 1:numel(D.l)
+        m = numel(D.l{a});
+        idx = randperm(rs, m, round(fraction * m));
+        D.l{a}(idx) = D.l{a}(idx) + nSigma * (2 * (rand(rs, numel(idx), 1) > 0.5) - 1);
+    end
+end
+
 function r = localRho(C)
 %LOCALRHO  Lag-1 autocorrelation of a fitted lag covariance.
     r = C(2) / C(1);

@@ -189,12 +189,10 @@ coefficient; `test_physOracle` asserts them). The planted stream SIGMAS carry no
 error, and what the suite asserts is a RELATIVE bound: the ratios between streams to 25 %
 (measured 1.18 / 2.10 / 0.51 against a planted 1 / 2 / 0.5).
 
-## 7.8 Robustness: what is available, and what is refused
+## 7.8 Robustness: what Ellmer does, and what `Robust` adds inside the loop
 
-`Robust = "huber" | "igg3" | "bisquare"` together with `Estimate = "noise"` is refused with
-`lsqvce:fit:notYet`. That is a **scope decision**, not a statement that the two cannot be
-combined; the composition of the two loops is unwritten. Three things are worth separating,
-because Ellmer's own robustness is not per-observation M-estimation:
+Three things are worth separating, because Ellmer's own robustness is not per-observation
+M-estimation and all three of his are available with `Estimate = "noise"` alone:
 
 1. **Gross outlier screening happens in preprocessing**, before the adjustment (Ellmer
    §6.2, after Klinger 2018: the level-1B data is screened for outliers and periods of
@@ -202,30 +200,42 @@ because Ellmer's own robustness is not per-observation M-estimation:
    adjustment replaces that.
 2. **The arc-wise variance factors ARE the down-weighting** at arc granularity: a bad arc
    receives a large variance factor and loses weight automatically. That is
-   `ArcFactors = true`, and it runs inside `Estimate = "noise"`.
+   `ArcFactors = true`.
 3. **The normalisation of those factors is itself robust**: gamma-bar (eq. 6.5.29) is
    computed in GROOPS from the central half of the sorted factors, ignoring both tails.
    That is `Noise.MeanType = "robust"`, the default here.
 
-So the Ellmer configuration is fully available. What is not available is per-observation
-IRLS *simultaneously* with the noise estimation. If you need per-observation down-weighting
-today, two routes work:
+**Per-observation down-weighting inside the same loop (since 6.1).** `Robust = "huber" |
+"igg3" | "bisquare"` together with `Estimate = "noise"` runs the robust pass *inside* the
+joint estimator: every pass ends with one residual sweep, its law-whitened residuals (the
+current law, level, arc factor and `Cep` divided out — the standardised residual under the
+current stochastic model) go through the influence function (`RobustOpts.Tuning` for the
+constants), and the resulting factors ride inside every arc's whitener on the next pass.
+Accumulation, the probe redundancies and the component update therefore all see **one**
+re-weighted problem: a row of weight w contributes w to Omega *and* w to the redundancy, so
+the Helmert equations stay consistent — the same thing that keeps the amplitudes and the arc
+factors from double counting. `MaxPasses` is the budget (`RobustOpts.MaxIter` / `Tol` belong
+to the stand-alone IRLS). Prior streams are never re-weighted: a down-weighted datum is a
+rank defect, not an outlier. What comes back: `R.noise.robust` (`influence`, `scale`,
+`factor` per observation in sweep order, `keys`), and `R.history.robustScale` / `nDown` /
+`nZero` per pass.
+
+**The price, stated.** The levels are those of the *retained* observations: no consistency
+correction is applied. Under Huber (c = 1.345) on Gaussian residuals a row of weight
+w = min(1, c/|u|) contributes w·u² and w, so the effective level ratio is
+E[w u²]/E[w] ≈ 0.80 (a sigma about 11 % low), and a stream with no outliers at all is still
+estimated at that ratio. The oracle in `test_vcePolicy` measures exactly this. If you want
+the plain GLS level with outliers removed, use `R.noise.robust.factor` to identify them, fix
+the data, and re-run without `Robust`. This composition is Koch's iterated re-weighting
+inside a variance-component estimation, not something Ellmer (2018) does.
+
+Two further routes remain useful:
 
 - **Diagnose, then decide.** Run `Estimate = "noise"` and read `R.report()` — the w-tests,
   redundancies and MDBs identify the observations carrying the outliers; remove or repair
   them in your `buildDay` and re-run.
-- **Fold fixed weights into `Cep`.** Run a robust pass with `Estimate = "none"`, take the
-  final factors from `R.history(end).factor` and their keys, and let `buildDay` return
-  `Cep` divided by sqrt(factor) on those rows. The weights are then **data**, exactly like
-  any other per-epoch accuracy, and the noise estimation runs on the re-weighted stream.
-  Two caveats: the weights must be stored, never recomputed inside `buildDay` (the day
-  builder must be deterministic — each day is read twice per pass), and using the same data
-  to derive the weights and then to estimate the law is a known bias source. It is not the
-  joint fixed point a combined loop would give.
-
-The obstacle for that combined loop is real and worth stating: the IRLS factors ride
-**inside** each arc's whitener, so a down-weighted row changes both the residual and the
-redundancy the variance-component step consumes. Without carrying the weights through the
-per-lag redundancies, the variance components would absorb the down-weighting and the two
-loops would fight — the same double counting the gamma-bar normalisation exists to prevent
-between the spectral amplitudes and the arc factors.
+- **Fold fixed weights into `Cep`.** Take factors from any robust run and let `buildDay`
+  return `Cep` divided by sqrt(factor) on those rows. The weights are then data; the noise
+  estimation runs on the re-weighted stream without the retained-observation bias moving
+  with every pass. The weights must be stored, never recomputed inside `buildDay` (the day
+  builder must be deterministic).

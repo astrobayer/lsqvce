@@ -71,6 +71,24 @@ function out = adjustVCEjoint(accFcn, opt)
 %     'Seed'      1x1 | []   RNG seed for reproducible probes (default [])
 %     'Norm'      char       DCT normalisation, 'ortho' (default) | 'ellmer'
 %     'MeanType'  char       arc-factor mean, 'robust' (default) | 'plain'
+%     'Influence' string     "none" (default) | "huber" | "igg3" | "bisquare"
+%              R6 WP-105: the ROBUST PASS INSIDE THE LOOP. Every pass ends
+%              with one residual sweep; its LAW-whitened residuals (the
+%              current law, level, arc factor and Cep divided out) go through
+%              LSQVCE.KERNEL.ROBUSTWEIGHTS and the factors ride inside every
+%              arc's whitener on the NEXT pass (model.rowWeights, which the
+%              caller's factory forwards as UserOpt.rowWeights). Accumulation,
+%              probe redundancies and the component update then all see ONE
+%              re-weighted problem, so the Helmert equations stay consistent:
+%              a row of weight w contributes w to Omega AND w to the
+%              redundancy. NOT Ellmer (2018): he screens outliers in
+%              preprocessing and down-weights whole ARCS through the variance
+%              factors; this is Koch's iterated re-weighting inside a VCE,
+%              and the levels it returns are those of the RETAINED
+%              observations (no consistency correction is applied -- the
+%              bias is measured by the oracle, test_vcePolicy). Prior streams
+%              are never re-weighted. "none" is bitwise the plain estimator.
+%     'Tuning'    [] | 1xK   tuning constants of the influence (its defaults)
 %     'Verbose'   logical    per-iteration banner (default false)
 %     'StepSchedule' 'none' (default) | 'decay'.  WP-40 r2 (F-15): the
 %              closed-loop alternation is a stochastic approximation; the
@@ -97,6 +115,11 @@ function out = adjustVCEjoint(accFcn, opt)
 %       .Shat      nLag x 1   the converged PSD amplitudes
 %       .sigma2    M x 1      the converged arc variance factors, ALIGNED TO
 %                             .arcKeys (the pass-1 enumeration order; WP-34)
+%       .robust    struct     .influence, .scale (the MAD scale of the last
+%                             robust sweep), .factor (n x 1, the final
+%                             per-observation factors in sweep order), .keys
+%                             (A x 4 {sysID, obsType, day, arc}); empty
+%                             fields under Influence "none" (R6 WP-105)
 %       .arcKeys   M x 1 cell arc keys s<sys>_<obsType>_d<day>_a<arc> pinned
 %                             on pass 1 (LSQVCE.ENGINE.REDUNDANCY's 'arc' format) --
 %                             the ONE identity .sigma2 and Sigma2_0 align to
@@ -130,6 +153,9 @@ function out = adjustVCEjoint(accFcn, opt)
 %                                   the former noCep refusal is gone -- the loader
 %                                   composes D = I and says so once)
 %     lsqvce:adjustVCEjoint:noArcs    a system declares no arcs
+%     lsqvce:adjustVCEjoint:collapsed the influence function left fewer live
+%                                     observations than parameters + 1 (beyond
+%                                     the breakdown point; R6 WP-105)
 %
 %   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 %     lsqvce:adjustVCEjoint:localNotPD           System X
@@ -157,6 +183,10 @@ function out = adjustVCEjoint(accFcn, opt)
 %   See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
 %            LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 %
+%   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-105: the robust pass inside
+%   the loop ('Influence', 'Tuning', model.rowWeights, out.robust, the
+%   collapsed refusal) -- the one-loop composition of IRLS and the joint
+%   estimator. With assistance from Claude (Anthropic), model Claude Fable 5.1.
 %   Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-98 (finding F-01 FIXED): eq.
 %   6.5.28 now multiplies alpha2_m by the factor the WEIGHTING used -- the
 %   per-stream level -- instead of the per-arc factor, which alpha2 cancels
@@ -237,6 +267,17 @@ arguments
     opt.Pool (1,1) string {mustBeMember(opt.Pool, ["all","obsType","stream"])} = "all"
     opt.Estimate = []            % containers.Map key -> "none"|"scale"|"law"; [] = "law" for all
     opt.ArcFactors = []          % containers.Map key -> logical;              [] = true for all
+    % R6 WP-105: the ROBUST pass inside the loop. "none" = the plain estimator
+    % (bitwise the old behaviour). Otherwise every pass ends with one residual
+    % sweep whose LAW-whitened residuals give the next pass's per-observation
+    % factors (lsqvce.kernel.robustWeights); the factors ride inside every
+    % arc's whitener (model.rowWeights -> the factory's UserOpt.rowWeights),
+    % so the accumulation, the probe redundancies and the component update
+    % of the next pass all see ONE re-weighted problem. Prior streams are
+    % never re-weighted (a down-weighted datum is a rank defect, not an
+    % outlier).
+    opt.Influence (1,1) string {mustBeMember(opt.Influence, ["none","huber","igg3","bisquare"])} = "none"
+    opt.Tuning double = []       % tuning constants of the influence ([] = its defaults)
     opt.OnPass = []              % R5 M5 5c': function handle fired after EVERY pass
                                  % with the ctx below (see lsqvce.util.onPass); return
                                  % false to stop the loop (stopReason "userStop")
@@ -272,6 +313,10 @@ end
 
     shatTail = {};                               % WP-40 r2: AvgTail buffer
     lastSol = [];                                % R5 M7 7b: the previous pass's solution
+    robust = ~strcmp(o.Influence, "none");       % R6 WP-105
+    W = containers.Map('KeyType', 'char', 'ValueType', 'any');   % per-arc row factors
+    fac = [];  rkeys = cell(0, 4);  rscale = NaN;
+    hist.robustScale = [];  hist.nDown = [];  hist.nZero = [];
     for it = 1:o.MaxIter
         % ---- steps 1-5: build under the current model, accumulate, solve --
         % R5 M3 3b: the caller's override needs a LEVEL per stream (the pooled
@@ -282,7 +327,7 @@ end
         model = struct('C', C, 'sigma2', sigma2, 'iter', it, ...
                        'streamSigma2', streamMeans(pinnedKeys, sigma2), ...
                        'Cgroups', Cmap, 'Pool', char(o.Pool), 'Estimate', o.Estimate, ...
-                       'lastSol', lastSol);
+                       'lastSol', lastSol, 'rowWeights', W);   % R6 WP-105: the robust factors
         acc   = accFcn(model);
         sol   = acc.solve();
         lastSol = struct('x', sol.x(:), 'Cxx', sol.Cxx, 's0sq', sol.s0sq);
@@ -470,6 +515,48 @@ end
             spreadHist(sk{1}) = [r0; max(f)/min(f)];
         end
 
+        % ---- step 9c (R6 WP-105): the robust pass -- next pass's factors ----
+        % One residual sweep under THIS pass's accumulator; the factors of
+        % this pass are divided out (lawWhitenedResiduals), so the influence
+        % function sees the standardised residual under the current law,
+        % level, arc factor and Cep. The factors are written for the NEXT
+        % pass, one pass behind the model -- the same lag adjustRobust has.
+        if robust
+            res = lsqvce.engine.residuals(acc, sol, 'Whitened', true, 'Collect', true, 'Verbose', false);
+            [vw, rkeys, sizes] = lawWhitenedResiduals(res, W);
+            [fac, rscale] = lsqvce.kernel.robustWeights(vw, o.Influence, o.Tuning);
+            off = 0;
+            for kk = 1:size(rkeys, 1)
+                n = sizes(kk);
+                if startsWith(char(string(rkeys{kk,2})), 'prior_')
+                    fac(off + (1:n)) = 1;            % a prior row is never down-weighted
+                end
+                off = off + n;
+            end
+            nAlive = sum(fac > 0);
+            if nAlive < size(sol.x, 1) + 1
+                error('lsqvce:adjustVCEjoint:collapsed', ...
+                     ['The influence function left %d observations with a non-zero ' ...
+                      'weight, fewer than the %d parameters + 1: more than half the ' ...
+                      'data is discrepant, which is beyond the breakdown point of ' ...
+                      'any M-estimator. This is not an outlier problem -- check the model.'], ...
+                      nAlive, size(sol.x, 1));
+            end
+            off = 0;
+            for kk = 1:size(rkeys, 1)
+                n = sizes(kk);
+                W(lsqvce.util.rowWeightKey(rkeys{kk,1}, rkeys{kk,3}, rkeys{kk,2}, rkeys{kk,4})) = fac(off + (1:n));
+                off = off + n;
+            end
+            hist.robustScale(it,1) = rscale;                     %#ok<AGROW>
+            hist.nDown(it,1) = sum(fac < 0.5 & fac > 0);         %#ok<AGROW>
+            hist.nZero(it,1) = sum(fac == 0);                    %#ok<AGROW>
+            if v
+                lsqvce.util.log.msg('  [joint %2d] robust (%s): scale %.4f, %d down-weighted, %d at zero\n', ...
+                    it, o.Influence, rscale, hist.nDown(it), hist.nZero(it));
+            end
+        end
+
         hist.maxDev(it,1)  = pv.maxDev;              %#ok<AGROW>
         hist.Shat(it,:)    = Shat(:).';              %#ok<AGROW>
         % R5 M4 4a: the per-stream pass record Results.convergence reads --
@@ -491,7 +578,8 @@ end
                      'sigma2', sigma2, 'arcKeys', {pinnedKeys}, 'streams', {hist.streams}, ...
                      'sigma', hist.sigma(it, :), 'white', hist.white(it, :), ...
                      'whitePval', hist.whitePval(it, :), 'maxDev', pv.maxDev, ...
-                     'skips', {skips}, 'acc', acc);
+                     'skips', {skips}, 'acc', acc, ...
+                     'factor', fac, 'keys', {rkeys}, 'scale', rscale);   % R6 WP-105 ([] when Influence "none")
         userStop = ~lsqvce.util.onPass(opt.OnPass, opt.OnPassContext, ctx);
 
         % ---- step 10: converged? -----------------------------------------
@@ -523,7 +611,9 @@ end
                  'sol', solF, 'converged', converged, 'nIter', numel(hist.maxDev), ...
                  'history', hist, ...
                  'arcKeys', {pinnedKeys(:)}, ...
-                 'skips', {hist.skips});
+                 'skips', {hist.skips}, ...
+                 'robust', struct('influence', char(o.Influence), 'scale', rscale, ...
+                                  'factor', fac, 'keys', {rkeys}));   % R6 WP-105
 end
 
 %==========================================================================

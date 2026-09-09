@@ -9,6 +9,7 @@ architecture, the task list, and the implementation prompts — lives HERE.
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
 Last substantive update: 2026-09-09 — WP-101 DONE (PR #101, merge 340eb3b); WP-102 OPEN on `claude/wp-102` (tier B, model Claude Fable 5.1): VERSION 6.0 — THE CELLS ARE THE ARCS (buildDay returns one cell per arc; arcIdx/arcId gone; `arcs` optional; 'fromDay' retired; six user decisions pinned); §12.26.
+Preceding entry: Last substantive update: 2026-09-09 — WP-103 and WP-104 DONE (merged aad61a2, #103 stacked under #104); WP-105 OPEN: the robust pass INSIDE the joint loop (Robust x Estimate="noise"), version 6.1; §12.29.
 Preceding entry: Last substantive update: 2026-09-09 — WP-104 OPEN: Manual chapter 7 rewritten as the covariance reference (the user: "the manual is too short"), and the last two `Noise.Grid = "auto"` claims corrected on the page WP-101 was written to fix; §12.28 also answers WHY Robust + Estimate="noise" is refused and what Ellmer actually does instead (screening, arc factors, the robust gamma-bar mean) — proposed WP-105 needs a decision.
 Preceding entry: Last substantive update: 2026-09-09 — WP-102 DONE (PR #102, merge 1105acb; CI on main green); WP-103 OPEN: the pool suite runs in CI — the self-hosted runner has the PCT (user), the hosted-runner skip and the 2-worker cap leave ci_gate; TIER NAMES fixed by the user: tier A = the MATLAB MCP bridge, tier B = the self-hosted CI runner; §12.27.
 Preceding entry: Last substantive update: 2026-09-09 — WP-102 round 1: CI RED on 43a8b8b (5 failed) diagnosed and fixed — a v5 FINDING (the day cache evicted the alphabetically first key, not the oldest; FIFO now, and the discovery probe memoised so it never adds a build) plus two nl = 0 fixtures and one demo on the old matrix shape; §12.26 round 1.
@@ -6991,7 +6992,7 @@ pass/fail suite — unchanged by this round).
 
 | WP | title | depends on | status |
 |---|---|---|---|
-| 103 | The pool suite runs in CI: `ci_gate` stops skipping `test_parallel` and capping pools under `LSQVCE_CI` (the self-hosted runner has the PCT); tier names fixed (A = MCP bridge, B = self-hosted runner); the WP-30 backlog item closed | 102 | READY (2026-09-09, PR #103; CI GREEN on c026dde: audit 56 s, matlab 3m30s, **546/546 over 27 suites, test_parallel 25/25 on an 8-worker pool, no skip line, warning inventory = the one allowed id**; 546 + test_speed 12 (the excluded benchmark) = 558 = the README claim; the prediction 558/558 was WRONG by exactly the benchmark's 12 — recorded below; DONE flips on the merge) |
+| 103 | The pool suite runs in CI: `ci_gate` stops skipping `test_parallel` and capping pools under `LSQVCE_CI` (the self-hosted runner has the PCT); tier names fixed (A = MCP bridge, B = self-hosted runner); the WP-30 backlog item closed | 102 | DONE (2026-09-09, PR #103, merged with aad61a2; 2026-09-09, PR #103; CI GREEN on c026dde: audit 56 s, matlab 3m30s, **546/546 over 27 suites, test_parallel 25/25 on an 8-worker pool, no skip line, warning inventory = the one allowed id**; 546 + test_speed 12 (the excluded benchmark) = 558 = the README claim; the prediction 558/558 was WRONG by exactly the benchmark's 12 — recorded below; CI on merged main green) |
 
 **VERDICT (2026-09-09, CI on `c026dde`).** GREEN: audit 56 s, matlab 3m30s — **546/546 over 27
 suites**, `test_parallel` **25/25** in 18.5 s on the runner's `Processes` pool of **8 workers**
@@ -7059,4 +7060,64 @@ not do it), so it needs its own reference and its own acceptance criterion.
 
 | WP | title | depends on | status |
 |---|---|---|---|
-| 104 | Manual chapter 7 rewritten as the covariance reference (division of labour, the three `Cep` shapes, the six laws, `estimate` / `arcFactors` / `Pool`, a pass of the joint estimator, the worked GRACE-FO declaration, the readback, robustness); the two stale `Noise.Grid = "auto"` claims on `lsqvce.Options`'s own help page corrected (WP-101 fixed the code and the Manual, not the page) | 103 | READY (2026-09-09, PR #104, stacked on #103; CI GREEN on 93f98b5: audit + matlab, 546/546 over 27 suites incl. test_parallel 25/25, warning inventory = the one allowed id; Linux audit CLEAN with the Manual and every page rebuilt; DONE flips on the merge) |
+| 104 | Manual chapter 7 rewritten as the covariance reference (division of labour, the three `Cep` shapes, the six laws, `estimate` / `arcFactors` / `Pool`, a pass of the joint estimator, the worked GRACE-FO declaration, the readback, robustness); the two stale `Noise.Grid = "auto"` claims on `lsqvce.Options`'s own help page corrected (WP-101 fixed the code and the Manual, not the page) | 103 | DONE (2026-09-09, PR #104, merged with aad61a2; 2026-09-09, PR #104, stacked on #103; CI GREEN on 93f98b5: audit + matlab, 546/546 over 27 suites incl. test_parallel 25/25, warning inventory = the one allowed id; Linux audit CLEAN with the Manual and every page rebuilt; CI on merged main green) |
+
+### 12.29 WP-105 — the robust pass inside the joint loop (2026-09-09, model Claude Fable 5.1, tier B)
+
+**Origin.** The user, after §12.28's answer ("why is a robust estimator not possible with
+Estimate="noise"? Ellmer uses it?"): "Go ahead." Recorded first, then implemented.
+
+**DECISIONS (the design, stated as what is true after this round).**
+
+1. **One loop, one re-weighted problem.** `adjustVCEjoint` gains `'Influence'` ("none" |
+   "huber" | "igg3" | "bisquare") and `'Tuning'`. Every pass ends (step 9c) with ONE residual
+   sweep under that pass's accumulator; the law-whitened residuals -- this pass's factors
+   divided out, so the influence function sees the standardised residual under the current
+   law, level, arc factor and Cep -- go through `kernel.robustWeights`, and the factors are
+   written to `model.rowWeights` for the NEXT pass (one pass behind the model, the lag
+   adjustRobust has). The caller's factory forwards them as `UserOpt.rowWeights` (fit's
+   `withPass`), where `makeLoader` already applies them INSIDE every arc's whitener (R5 M2
+   2b). Consequence: accumulation, the shared probe, the per-lag redundancies of `sweepArcs`
+   and the component update all see the same weighted metric -- a row of weight w
+   contributes w to Omega and w to s_n. That is the consistency the double-counting concern
+   of §12.28 asked for, and it comes for free from WHERE the factors live.
+2. **No consistency correction.** The levels are those of the RETAINED observations. Under
+   Huber with c = 1.345 on N(0,1) the ratio is E[w u^2]/E[w] with w = min(1, c/|u|) -- 0.80
+   in variance, 0.89 in sigma -- and the oracle COMPUTES that closed form (two `integral`s)
+   and pins the clean stream's effective level (`model{k}.sigma * sigma0`) against it at
+   15 %, rather than declaring the bias away. A correction factor is one line when wanted;
+   applying one silently would make the level depend on an assumed distribution.
+3. **Prior streams are never re-weighted** (factor 1): a down-weighted datum row is a rank
+   defect, not an outlier.
+4. **`collapsed`** refuses past the breakdown point (fewer live rows than nc + 1), as in
+   adjustRobust; `lsqvce:adjustVCEjoint:collapsed`, catalogued v6.1.
+5. **`fit`:** `Robust` with `Estimate="noise"` falls through to fitEllmer; `Options.engineArgs`
+   forwards `Robust` as `'Influence'` and `RobustOpts.Tuning`; `MaxPasses` is the budget
+   (`RobustOpts.MaxIter`/`Tol` stay the stand-alone IRLS's). `lsqvce:fit:notYet` fires only
+   for Robust on an x0 problem now. Result: `R.noise.robust` (influence, scale, factor,
+   keys), `R.history.robustScale/nDown/nZero`, the same on the OnPass ctx.
+6. **One definition:** `adjustRobust>collectWhitened` became the engine-private
+   `lawWhitenedResiduals`, shared by both drivers.
+7. **Not Ellmer.** He screens in preprocessing and down-weights ARCS through the variance
+   factors (§12.28); this is Koch's iterated re-weighting inside a VCE. The help, the
+   release note and Manual §7.8 say so, and say the price.
+8. **Version 6.1** (additive; no declaration change).
+
+**Oracle register.** O-105: the colour fixture (two AR(1) streams, planted 0.20 / 0.50,
+level 1, no locals) with 2 % of stream a's rows replaced by +/-25-sigma blunders
+(deterministic per day). Claims: (i) the robust run recovers stream a's lag-1 colour within
+the clean-data bound 0.08; (ii) the plain run is FURTHER from the planted colour than the
+robust one (a relative claim, so the test cannot pass by the blunders being harmless);
+(iii) the blunder rows carry factor < 0.1 (Huber c/|u| = 0.054 at 25 sigma), the bulk's
+median factor is exactly 1; (iv) the clean stream b's effective level equals the Huber
+retained-observation ratio E[w u^2]/E[w], computed in the test, at 15 %; (v) Robust "none"
+carries no factors. Plus the contract points in test_fit (the front door runs it, one factor
+per observation, one robust record per pass; the x0 refusal stays).
+
+**Predicted count:** 559 declared (558 + 1: the oracle in test_vcePolicy; the notYet point
+in test_fit is rewritten, not added). CI on the self-hosted runner decides -- 547/547 with
+the benchmark excluded.
+
+| WP | title | depends on | status |
+|---|---|---|---|
+| 105 | The robust pass inside the joint loop: `Robust` x `Estimate="noise"` runs (adjustVCEjoint 'Influence'/'Tuning', factors in every arc's whitener on the next pass, one re-weighted metric for accumulation, probes and components; prior streams exempt; `collapsed`; `R.noise.robust`); `lawWhitenedResiduals` shared by both drivers; the retained-observation level stated and measured, no silent correction; version 6.1 | 104 | OPEN (2026-09-09; branch `claude/wp-105`; Linux audit CLEAN with the Manual rebuilt; CI decides) |
