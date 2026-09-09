@@ -7174,6 +7174,30 @@ the test). Round 5: the planted rows located exactly (one RNG sequence per day, 
 and the colour assertion now REPORTS the run (plain rho, C(1:4), level a, sigma0, passes,
 converged) so the next red says where the dilution is left.
 
+**ROUND 5/6 (CI on feb8531 / c166c3a: 546/547 -- ONE claim left, and the trajectory now
+in the log).** Everything but the colour holds: all 45 planted rows at factor 0, the bulk at
+1, the clean level 1.007 (unbiased), level a 0.958, sigma0 1.037. The colour of stream a
+CRAWLS: rho_a per pass 0.006, 0.008, 0.010, 0.012, 0.015, 0.018, 0.022, 0.026, 0.031,
+0.036, 0.041, 0.046, 0.051, 0.054, 0.055, 0.054 -- alpha^2 sits at ~1.02 per pass (maxDev
+0.017 at pass 4, nearly the 1e-2 Tol), then maxDev GROWS to 0.37 by pass 16 and the loop
+ends unconverged. So the weighted sweep is self-consistent almost everywhere and the
+spectral update carries almost no signal. READING (not yet measured): under the Yang
+convention (weight AFTER the law filter) a zero-weight INNOVATION at row i makes the raw
+covariance L D^-2 L' huge for every row the filter tail reaches from i -- rows i..i+k share
+the 1e12 variance through L_ki L_li / w_i -- so each blunder neutralises a NEIGHBOURHOOD
+(the whole filter memory, ~10 rows of a resampled PSD law), and the lag statistics lose
+the very correlations near every blunder that the update needs; the neighbourhood count
+in nZero (57 -> 95) is the visible part. The Koch convention (weight BEFORE the filter,
+Sigma~ = D^-1 Sigma D^-1: a blunder is one observation of huge variance, the filter adapts
+around it) confines the loss to the row itself. DECISION NEEDED (the user): (a) switch the
+robust convention to Koch for the joint loop (and adjustRobust with it -- one definition;
+its diagonal-law parity is unaffected, its correlated-law claim changes), or (b) keep Yang
+and accept that the joint loop rejects blunders and keeps levels honest but recovers a
+colour only slowly under gross blunders -- in which case the oracle's colour bound must be
+stated as the measured 0.054 and the Manual must say so. A third measurement would settle
+it cheaply: the same oracle with the blunder rows DELETED by the fixture (if deletion gives
+0.20 in a few passes, the convention is the cause).
+
 | WP | title | depends on | status |
 |---|---|---|---|
-| 105 | The robust pass inside the joint loop: `Robust` x `Estimate="noise"` runs (adjustVCEjoint 'Influence'/'Tuning', factors in every arc's whitener on the next pass, one re-weighted metric for accumulation, probes and components; prior streams exempt; `collapsed`; `R.noise.robust`); `lawWhitenedResiduals` shared by both drivers; the retained-observation level stated and measured, no silent correction; version 6.1 | 104 | OPEN (2026-09-09; branch `claude/wp-105`; Linux audit CLEAN with the Manual rebuilt; CI decides) |
+| 105 | The robust pass inside the joint loop: `Robust` x `Estimate="noise"` runs (adjustVCEjoint 'Influence'/'Tuning', factors in every arc's whitener on the next pass, one re-weighted metric for accumulation, probes and components; prior streams exempt; `collapsed`; `R.noise.robust`); `lawWhitenedResiduals` shared by both drivers; the retained-observation level stated and measured, no silent correction; version 6.1 | 104 | IN PROGRESS (2026-09-09; branch `claude/wp-105`, draft PR #105; six CI rounds, 546/547 on c166c3a -- the mechanism, the rejection and the unbiased level hold, the colour recovery under gross blunders crawls; a DECISION on the weighting convention (Yang vs Koch) is open, §12.29 round 5/6) |
