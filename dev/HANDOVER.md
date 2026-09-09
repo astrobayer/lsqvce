@@ -7312,4 +7312,4 @@ silent; a retired usage form in the Manual fires. Self-test 23 cases.
 
 | WP | title | depends on | status |
 |---|---|---|---|
-| 106 | The docs in sync, by reading: Manual ch. 4 `Robust`, `Results` / `residuals` / `makeLoader` help on the WP-105 fields and channels, `covModel`'s retired type; the theory PDF's three dated-record banners (the user's (a)); audit check 28 -- superseded claims, seeded with twelve, fault-injected | 105 | OPEN (2026-09-09; branch `claude/wp-106`; Linux audit CLEAN with pages, Manual and theory PDF rebuilt; self-test 23 cases; CI decides -- no MATLAB change beyond help blocks) |
+| 106 | The docs in sync, by reading: Manual ch. 4 `Robust`, `Results` / `residuals` / `makeLoader` help on the WP-105 fields and channels, `covModel`'s retired type; the theory PDF's three dated-record banners (the user's (a)); audit check 28 -- superseded claims, seeded with twelve, fault-injected | 105 | READY (2026-09-09, PR #106; CI GREEN on e8d4b13: audit (incl. check 28, self-test 23 cases) + matlab 547/547 over 27 suites, warning inventory = the one allowed id; Linux audit CLEAN with pages, Manual and theory PDF rebuilt; DONE flips on the merge) |
