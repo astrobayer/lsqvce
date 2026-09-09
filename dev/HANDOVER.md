@@ -9,6 +9,7 @@ architecture, the task list, and the implementation prompts — lives HERE.
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
 Last substantive update: 2026-09-09 — WP-101 DONE (PR #101, merge 340eb3b); WP-102 OPEN on `claude/wp-102` (tier B, model Claude Fable 5.1): VERSION 6.0 — THE CELLS ARE THE ARCS (buildDay returns one cell per arc; arcIdx/arcId gone; `arcs` optional; 'fromDay' retired; six user decisions pinned); §12.26.
+Preceding entry: Last substantive update: 2026-09-09 — WP-105 READY (PR #105, CI green 547/547 on 8ac8ab9 after twelve rounds; the robust pass inside the joint loop in the KOCH convention, settled by the user's measurement; version 6.1); §12.29.
 Preceding entry: Last substantive update: 2026-09-09 — WP-103 and WP-104 DONE (merged aad61a2, #103 stacked under #104); WP-105 OPEN: the robust pass INSIDE the joint loop (Robust x Estimate="noise"), version 6.1; §12.29.
 Preceding entry: Last substantive update: 2026-09-09 — WP-104 OPEN: Manual chapter 7 rewritten as the covariance reference (the user: "the manual is too short"), and the last two `Noise.Grid = "auto"` claims corrected on the page WP-101 was written to fix; §12.28 also answers WHY Robust + Estimate="noise" is refused and what Ellmer actually does instead (screening, arc factors, the robust gamma-bar mean) — proposed WP-105 needs a decision.
 Preceding entry: Last substantive update: 2026-09-09 — WP-102 DONE (PR #102, merge 1105acb; CI on main green); WP-103 OPEN: the pool suite runs in CI — the self-hosted runner has the PCT (user), the hosted-runner skip and the 2-worker cap leave ci_gate; TIER NAMES fixed by the user: tier A = the MATLAB MCP bridge, tier B = the self-hosted CI runner; §12.27.
@@ -7246,6 +7247,20 @@ fired on every robust pass -- Whitened=true now; the raw .v is on the record eit
 and `adjustVCEjoint:notConverged` (the PLAIN run under blunders, which need not settle:
 muted in the oracle by name, the one way a test silences a warning it provokes).
 
+**ROUND 12 -- VERDICT (CI on 8ac8ab9): GREEN, 547/547 over 27 suites incl. test_parallel,
+warning inventory = the one allowed id, 559 declared as predicted.** Twelve rounds; what
+they were, in one line each: 1 the parse error + the dense-law wrapper defect (R5 M2);
+2 one MAD per stream (a global scale spirals the level); 3 the sweep whitens from Cfcn,
+not Wfcn (the weights were invisible to the components); 4 the weighted covariance reaches
+the sweep; 5 the level is UNBIASED (prediction refuted, docs corrected); 6 the trajectory in
+the diagnostic; 7 THE MEASUREMENT (the user): blunders declared through Cep recover the
+colour -- the convention is the cause; 8 the Koch channel (factors folded into Cep before the
+law); 9 descale by the DECLARED Cep (the on/off oscillation); 10 pass 0 before the first
+spectral update (the start was the difference to the control) -- 547/547; 11-12 the warning
+inventory. Lessons pinned: a spectral estimator must weight OBSERVATIONS, not innovations;
+the influence must never see a scale it shapes (MAD per stream; the declared Cep); the first
+spectral update must not see the blunders. Version 6.1.
+
 | WP | title | depends on | status |
 |---|---|---|---|
-| 105 | The robust pass inside the joint loop: `Robust` x `Estimate="noise"` runs (adjustVCEjoint 'Influence'/'Tuning', factors in every arc's whitener on the next pass, one re-weighted metric for accumulation, probes and components; prior streams exempt; `collapsed`; `R.noise.robust`); `lawWhitenedResiduals` shared by both drivers; the retained-observation level stated and measured, no silent correction; version 6.1 | 104 | IN PROGRESS (2026-09-09; branch `claude/wp-105`, draft PR #105; six CI rounds, 546/547 on c166c3a -- the mechanism, the rejection and the unbiased level hold, the colour recovery under gross blunders crawls; a DECISION on the weighting convention (Yang vs Koch) is open, §12.29 round 5/6) |
+| 105 | The robust pass inside the joint loop: `Robust` x `Estimate="noise"` runs (adjustVCEjoint 'Influence'/'Tuning', factors in every arc's whitener on the next pass, one re-weighted metric for accumulation, probes and components; prior streams exempt; `collapsed`; `R.noise.robust`); `lawWhitenedResiduals` shared by both drivers; the retained-observation level stated and measured, no silent correction; version 6.1 | 104 | READY (2026-09-09, PR #105; TWELVE CI rounds, §12.29 -- the design settled by measurement (the control) and refined by four measured corrections; CI GREEN on 8ac8ab9: audit + matlab, **547/547 over 27 suites** incl. test_parallel, warning inventory = the one allowed id, 559 declared as predicted; Linux audit CLEAN with the Manual rebuilt; DONE flips on the merge) |
