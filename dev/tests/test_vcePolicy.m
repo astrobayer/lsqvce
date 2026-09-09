@@ -758,6 +758,7 @@ function testRobustPassInsideTheJointLoopRecoversTheLawUnderOutliers(tc)
     inner = data.systems.buildDay;
     data.systems.buildDay = @(day, ot) blunders(inner(day, ot), day, ot, 0.02, 25);   % 2 %, 25 sigma
     base = {'Estimate', "noise", 'Pool', "stream", 'MaxPasses', 16, 'Verbose', false};
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % the PLAIN run under blunders may not settle -- that is its point
     Rp = lsqvce.fit(data, lsqvce.Options(base{:}));                      % plain
     trail = containers.Map('KeyType', 'double', 'ValueType', 'any');    % round 6: the pass trajectory
     watch = @(ctx) trailOf(trail, ctx);

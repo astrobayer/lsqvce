@@ -7237,6 +7237,15 @@ one accumulation under the start model, one robust sweep, the factors -- BEFORE 
 spectral update, so the spectrum never sees the blunders (what the control had from the
 start). `robustSweep` is the one local function both call.
 
+**ROUND 10 result (CI on 6f29e40): 547/547 -- EVERY CLAIM HOLDS.** With pass 0 the colour
+is recovered within the clean-data bound, the planted rows are at 0, the bulk at 1, the
+levels unbiased, the control agrees. The gate was still red on the WARNING INVENTORY, the
+part of the verdict a pass count cannot see: `residuals:sigma0Mismatch` (the robust sweep
+called residuals with Whitened=false, whose vtv is the RAW sum, so the honest sigma0 guard
+fired on every robust pass -- Whitened=true now; the raw .v is on the record either way)
+and `adjustVCEjoint:notConverged` (the PLAIN run under blunders, which need not settle:
+muted in the oracle by name, the one way a test silences a warning it provokes).
+
 | WP | title | depends on | status |
 |---|---|---|---|
 | 105 | The robust pass inside the joint loop: `Robust` x `Estimate="noise"` runs (adjustVCEjoint 'Influence'/'Tuning', factors in every arc's whitener on the next pass, one re-weighted metric for accumulation, probes and components; prior streams exempt; `collapsed`; `R.noise.robust`); `lawWhitenedResiduals` shared by both drivers; the retained-observation level stated and measured, no silent correction; version 6.1 | 104 | IN PROGRESS (2026-09-09; branch `claude/wp-105`, draft PR #105; six CI rounds, 546/547 on c166c3a -- the mechanism, the rejection and the unbiased level hold, the colour recovery under gross blunders crawls; a DECISION on the weighting convention (Yang vs Koch) is open, §12.29 round 5/6) |

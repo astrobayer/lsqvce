@@ -636,7 +636,11 @@ function [W, fac, rkeys, rscale, rstreams, nDown, nZero] = robustSweep(acc, sol,
 %   accuracy (this pass's folded factors divided back out), one value per
 %   epoch, the influence per stream (perStreamWeights), the collapse
 %   refusal, and the factor map W for the NEXT pass (one per epoch).
-    res = lsqvce.engine.residuals(acc, sol, 'Whitened', false, 'Collect', true, 'Verbose', false);
+    % Whitened=true: the record carries the RAW residual .v either way, and
+    % the sweep's own sigma0 check must see the WHITENED sum (round 11: with
+    % Whitened=false its vtv is the raw sum, and the honest sigma0Mismatch
+    % guard fired on every robust pass).
+    res = lsqvce.engine.residuals(acc, sol, 'Whitened', true, 'Collect', true, 'Verbose', false);
     [uEp, rkeys, sizes] = epochResiduals(res, W);
     [fac, rscale, rstreams] = perStreamWeights(uEp, rkeys, sizes, o.Influence, o.Tuning);
     nAlive = sum(fac > 0);
