@@ -4,11 +4,16 @@
 
 Additive on 6.0; no declaration changes.
 
-- **`Robust` together with `Estimate="noise"` runs.** Every pass of the joint estimator ends
-  with one residual sweep; its law-whitened residuals (the current law, level, arc factor
-  and `Cep` divided out) go through the influence function (`huber` | `igg3` | `bisquare`,
-  `RobustOpts.Tuning`) and the factors ride inside every arc's whitener on the next pass, so
-  accumulation, probe redundancies and the component update see ONE re-weighted problem.
+- **`Robust` together with `Estimate="noise"` runs — in the Koch convention.** Every pass of
+  the joint estimator ends with one residual sweep; the RAW residuals, descaled by each
+  epoch's declared accuracy and reduced to one value per epoch, go through the influence
+  function (`huber` | `igg3` | `bisquare`, `RobustOpts.Tuning`) per stream, and the factors
+  are folded into the per-epoch error information of the next pass (sigma / sqrt(w),
+  BEFORE the temporal law) — the one composition C = D (R_t ⊗ I_d) D carries them
+  everywhere. Measured: weighting the law-whitened innovation instead (Yang, the
+  stand-alone IRLS's convention) neutralises the filter tail around every blunder and a
+  spectral estimator cannot recover the colour (0.054 against 0.20 in 16 passes); with the
+  same blunders declared through `Cep` the plain estimator recovers it.
   `MaxPasses` is the budget; `RobustOpts.MaxIter` / `Tol` belong to the stand-alone IRLS
   only. Prior streams are never re-weighted.
 - What comes back: `R.noise.robust` (`influence`, `scale` and `streams` — one MAD scale per

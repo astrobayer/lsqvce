@@ -1,6 +1,8 @@
 function [vw, keys, sizes] = lawWhitenedResiduals(res, W)
 %LAWWHITENEDRESIDUALS  Law-whitened residuals in sweep order, the IRLS factors
-%   undone (R6 WP-105: the ONE definition adjustRobust and adjustVCEjoint share).
+%   undone (R6 WP-105: lifted from adjustRobust; the joint estimator's robust
+%   pass weights the RAW residual instead -- adjustVCEjoint>epochResiduals --
+%   so this is the Yang-convention half, adjustRobust's).
 %   [vw, keys, sizes] = lawWhitenedResiduals(res, W)
 %
 %   The factors of a robust pass ride INSIDE each arc's whitener

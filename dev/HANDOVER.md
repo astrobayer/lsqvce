@@ -7198,6 +7198,28 @@ stated as the measured 0.054 and the Manual must say so. A third measurement wou
 it cheaply: the same oracle with the blunder rows DELETED by the fixture (if deletion gives
 0.20 in a few passes, the convention is the cause).
 
+**ROUND 7 -- THE MEASUREMENT (the user: "Messen"; CI on 5edd59a).** The control: the same
+45 blunders DECLARED through `Cep` (sigma 1e6 on the planted rows -- which the toolbox
+composes BEFORE the temporal law, i.e. the Koch convention) and NO robust pass. The plain
+estimator recovered stream a's colour within the 0.08 bound (the control assertion PASSED
+while the Yang-weighted robust run stayed at 0.054). The convention is the cause, settled by
+measurement, not by argument.
+
+**ROUND 8 -- the joint loop switches to the Koch convention.** The weight is a statement
+about the OBSERVATION: `adjustVCEjoint>epochResiduals` takes the RAW residuals, descales
+every epoch by its own `Cep` (`separableWhiten` with AR(0)), reduces a multi-axis epoch to
+the RMS over its rows, and `perStreamWeights` standardises per stream by the MAD; the
+factors -- ONE PER EPOCH -- travel as `UserOpt.epochWeights` and `makeLoader>batchOf` folds
+them into the arc's per-epoch error information (`inflateCep`: sigma / sqrt(w), a covariance
+/ w) before the temporal law, so the one composition C = D (R_t kron I_d) D carries them to
+the accumulation, the sweep and the residuals with no second mechanism (the round-4
+`weightedCov` wrapper stays for the Yang channel of adjustRobust, whose Cfcn it keeps
+consistent with its Wfcn). `residuals` records `Cep` on every arc for the descale. The two
+conventions are now DELIBERATE and documented: Yang for the stand-alone IRLS (a fixed law,
+the innovation is the right frame), Koch inside the spectral estimator (the observation is,
+because the innovation weight destroys the lag structure the update needs). `R.noise.robust.factor`
+is per EPOCH. CI decides round 8.
+
 | WP | title | depends on | status |
 |---|---|---|---|
 | 105 | The robust pass inside the joint loop: `Robust` x `Estimate="noise"` runs (adjustVCEjoint 'Influence'/'Tuning', factors in every arc's whitener on the next pass, one re-weighted metric for accumulation, probes and components; prior streams exempt; `collapsed`; `R.noise.robust`); `lawWhitenedResiduals` shared by both drivers; the retained-observation level stated and measured, no silent correction; version 6.1 | 104 | IN PROGRESS (2026-09-09; branch `claude/wp-105`, draft PR #105; six CI rounds, 546/547 on c166c3a -- the mechanism, the rejection and the unbiased level hold, the colour recovery under gross blunders crawls; a DECISION on the weighting convention (Yang vs Koch) is open, §12.29 round 5/6) |

@@ -3034,27 +3034,36 @@ robust</strong>: gamma-bar (eq. 6.5.29) is computed in GROOPS from the
 central half of the sorted factors, ignoring both tails. That is
 <code>Noise.MeanType = "robust"</code>, the default here.</li>
 </ol>
-<p><strong>Per-observation down-weighting inside the same loop (since
-6.1).</strong> <code>Robust = "huber" | "igg3" | "bisquare"</code>
-together with <code>Estimate = "noise"</code> runs the robust pass
-<em>inside</em> the joint estimator: every pass ends with one residual
-sweep, its law-whitened residuals (the current law, level, arc factor
-and <code>Cep</code> divided out — the standardised residual under the
-current stochastic model) go through the influence function
-(<code>RobustOpts.Tuning</code> for the constants), and the resulting
-factors ride inside every arc’s whitener on the next pass. Accumulation,
-the probe redundancies and the component update therefore all see
-<strong>one</strong> re-weighted problem: a row of weight w contributes
-w to Omega <em>and</em> w to the redundancy, so the Helmert equations
-stay consistent — the same thing that keeps the amplitudes and the arc
-factors from double counting. <code>MaxPasses</code> is the budget
+<p><strong>Per-epoch down-weighting inside the same loop (since 6.1), in
+the Koch convention.</strong>
+<code>Robust = "huber" | "igg3" | "bisquare"</code> together with
+<code>Estimate = "noise"</code> runs the robust pass <em>inside</em> the
+joint estimator. Every pass ends with one residual sweep; the
+<strong>raw</strong> residuals, descaled by each epoch’s own declared
+accuracy (<code>Cep</code>) and reduced to one value per epoch (the RMS
+over a multi-axis epoch’s rows), go through the influence function per
+stream (<code>RobustOpts.Tuning</code> for the constants), and the
+factors are folded into the per-epoch error information of the next pass
+— sigma / sqrt(w), <strong>before</strong> the temporal law, through the
+one composition C = D (R_t ⊗ I_d) D. Accumulation, the probe
+redundancies and the component update therefore see <strong>one</strong>
+re-weighted problem with nothing added. A weight is a statement about
+the <em>observation</em>; the stand-alone IRLS
+(<code>Estimate = "none"</code>) weights the law-whitened
+<em>innovation</em> instead (Yang 1994), and the two are deliberately
+different: the control measurement showed that an innovation weight of
+zero neutralises the whitening filter’s whole tail around a blunder, so
+a spectral estimator loses exactly the lag correlations it needs there
+(a planted colour of 0.20 crawled to 0.054 in 16 passes), while the same
+blunders declared through <code>Cep</code> let the plain estimator
+recover it. <code>MaxPasses</code> is the budget
 (<code>RobustOpts.MaxIter</code> / <code>Tol</code> belong to the
 stand-alone IRLS). Prior streams are never re-weighted: a down-weighted
 datum is a rank defect, not an outlier. What comes back:
-<code>R.noise.robust</code> (<code>influence</code>, <code>scale</code>,
-<code>factor</code> per observation in sweep order, <code>keys</code>),
-and <code>R.history.robustScale</code> / <code>nDown</code> /
-<code>nZero</code> per pass.</p>
+<code>R.noise.robust</code> (<code>influence</code>, <code>scale</code>
+per stream, <code>factor</code> per <strong>epoch</strong> in sweep
+order, <code>keys</code>), and <code>R.history.robustScale</code> /
+<code>nDown</code> / <code>nZero</code> per pass.</p>
 <p>Two things the mechanism learned by measurement, both binding on how
 to use it. <strong>The standardisation is the stream’s own MAD scale,
 never the estimated level</strong>: a global scale mis-standardises

@@ -212,7 +212,10 @@ function L = makeLoader(buildDay, opt)
 %       lsqvce:makeLoader:noCep        [warning, once per run] a multi-axis day without
 %                                      Cep: composed with D = I (R6 WP-90)
 %       lsqvce:makeLoader:rowWeightSize  (R5 M2) the robust weight vector of an arc does
-%                                      not match the arc's row count
+%                                      not match the arc's row count (rowWeights, per
+%                                      row, applied after the law -- adjustRobust) or its
+%                                      epoch count (epochWeights, per epoch, folded into
+%                                      Cep before the law -- the joint estimator, WP-105)
 %       lsqvce:covModel:*              the temporal law is malformed (see covModel)
 %
 %   See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.DECLARATION,
@@ -1232,6 +1235,29 @@ function out = batchOf(dayFcn, arcs, cov, day, obsType, arcID, opt)
     d = lsqvce.util.getfielddef(D, 'nAxis', 1);
     specCep = isfield(cm, 'Cep') && ~isempty(cm.Cep);
     isVar = strcmpi(lsqvce.util.getfielddef(cm, 'type', ''), 'var');
+    % R6 WP-105 round 8 (measured, the user's "measure"): the joint
+    % estimator's robust factors are applied BEFORE the temporal law -- the
+    % Koch convention, weights on the OBSERVATIONS -- by folding them into
+    % the per-epoch error information: sigma_i / sqrt(w_i). The composition
+    % C = D (R_t kron I_d) D then carries them everywhere (accumulation, the
+    % sweep, the residuals) with no second mechanism. The control measured
+    % it: blunders declared this way let the PLAIN estimator recover the
+    % planted colour, while the Yang convention (opt.rowWeights below,
+    % weights on the INNOVATIONS, adjustRobust's) neutralises the filter's
+    % whole tail around every blunder and the colour crawled (0.054 vs 0.20).
+    epochW = [];
+    if isfield(opt, 'epochWeights') && ~isempty(opt.epochWeights)
+        key = lsqvce.util.rowWeightKey(opt.sysID, day, obsType, arcID);
+        if isKey(opt.epochWeights, key)
+            epochW = max(opt.epochWeights(key), 1e-12);
+            if numel(epochW) ~= numel(out.l) / d
+                error('lsqvce:makeLoader:rowWeightSize', ...
+                      ['epochWeights(%s) has %d entries; the arc has %d epochs -- the ' ...
+                       'builder must return the same arc on every call.'], ...
+                      key, numel(epochW), numel(out.l) / d);
+            end
+        end
+    end
     if isfield(D, 'Cep') && ~isempty(D.Cep)
         if specCep
             error('lsqvce:makeLoader:cepTwice', ...
@@ -1239,6 +1265,9 @@ function out = batchOf(dayFcn, arcs, cov, day, obsType, arcID, opt)
                    'per-epoch error information ONCE, on the day.'], obsType, string(day), obsType);
         end
         cm.Cep = D.Cep{pos};
+        if ~isempty(epochW), cm.Cep = inflateCep(cm.Cep, epochW); end
+    elseif ~isempty(epochW) && ~specCep && ~isVar
+        cm.Cep = inflateCep(ones(numel(out.l) / d, d), epochW);   % Koch weights on a plain stream
     elseif d > 1 && ~specCep && ~isVar
         % a multi-axis stream without per-epoch scaling is composed with
         % D = I -- said once per run, so the omission is distinguishable from
@@ -1331,6 +1360,17 @@ function [A, B, l] = weightedWhiten(W0, sq, idx, A, B, l, o)
     [A, B, l] = W0(idx, A, B, l, o);
     sc = sq(idx(:));
     A = sc .* A;  B = sc .* B;  l = sc .* l;
+end
+
+function Cep = inflateCep(Cep, w)
+%INFLATECEP  Per-epoch error information with the Koch factors folded in:
+%   sigmas divided by sqrt(w), covariances divided by w (R6 WP-105).
+    w = w(:);
+    if ismatrix(Cep)
+        Cep = Cep ./ sqrt(w);                          % nEpoch x d sigmas
+    else
+        Cep = Cep ./ w;                                % nEpoch x d x d covariances
+    end
 end
 
 function Cw = weightedCov(C, w)

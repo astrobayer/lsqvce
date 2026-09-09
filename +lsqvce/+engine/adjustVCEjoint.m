@@ -72,16 +72,25 @@ function out = adjustVCEjoint(accFcn, opt)
 %     'Norm'      char       DCT normalisation, 'ortho' (default) | 'ellmer'
 %     'MeanType'  char       arc-factor mean, 'robust' (default) | 'plain'
 %     'Influence' string     "none" (default) | "huber" | "igg3" | "bisquare"
-%              R6 WP-105: the ROBUST PASS INSIDE THE LOOP. Every pass ends
-%              with one residual sweep; its LAW-whitened residuals (the
-%              current law, level, arc factor and Cep divided out) go through
-%              LSQVCE.KERNEL.ROBUSTWEIGHTS and the factors ride inside every
-%              arc's whitener on the NEXT pass (model.rowWeights, which the
-%              caller's factory forwards as UserOpt.rowWeights). Accumulation,
-%              probe redundancies and the component update then all see ONE
-%              re-weighted problem, so the Helmert equations stay consistent:
-%              a row of weight w contributes w to Omega AND w to the
-%              redundancy. NOT Ellmer (2018): he screens outliers in
+%              R6 WP-105: the ROBUST PASS INSIDE THE LOOP, in the KOCH
+%              convention -- the weight is a statement about the
+%              OBSERVATION. Every pass ends with one residual sweep; the RAW
+%              residuals, descaled by each epoch's own declared accuracy
+%              (Cep) and reduced to ONE value per epoch (the RMS over a
+%              multi-axis epoch's rows), go through
+%              LSQVCE.KERNEL.ROBUSTWEIGHTS per stream, and the factors are
+%              folded into the per-epoch error information of the NEXT pass
+%              (model.rowWeights -> UserOpt.epochWeights -> sigma / sqrt(w)
+%              in makeLoader>batchOf), i.e. applied BEFORE the temporal law
+%              through the one composition C = D (R_t kron I_d) D.
+%              Accumulation, probe redundancies and the component update
+%              then see ONE re-weighted problem with nothing added. MEASURED
+%              (rounds 4-8): weighting the law-whitened INNOVATION instead
+%              (Yang 1994, adjustRobust's convention) neutralises the
+%              filter's whole tail around every blunder and the colour of a
+%              blunder-laden stream crawled 0.006 -> 0.054 in 16 passes;
+%              with the same blunders declared through Cep the plain
+%              estimator recovered it. NOT Ellmer (2018): he screens outliers in
 %              preprocessing and down-weights whole ARCS through the variance
 %              factors; this is Koch's iterated re-weighting inside a VCE,
 %              and the level it returns is UNBIASED (measured 1.007 on a
@@ -126,9 +135,10 @@ function out = adjustVCEjoint(accFcn, opt)
 %       .robust    struct     .influence, .scale (1 x S, the MAD scale per
 %                             stream of the last robust sweep), .streams
 %                             (1 x S 'satKey|obsType', sorted), .factor
-%                             (n x 1, the final per-observation factors in
-%                             sweep order), .keys (A x 4 {sysID, obsType,
-%                             day, arc}); empty under "none" (R6 WP-105)
+%                             (nEpoch x 1, the final factors, ONE PER EPOCH
+%                             in sweep order -- a multi-axis epoch's d rows
+%                             share it), .keys (A x 4 {sysID, obsType, day,
+%                             arc}); empty under "none" (R6 WP-105)
 %       .arcKeys   M x 1 cell arc keys s<sys>_<obsType>_d<day>_a<arc> pinned
 %                             on pass 1 (LSQVCE.ENGINE.REDUNDANCY's 'arc' format) --
 %                             the ONE identity .sigma2 and Sigma2_0 align to
@@ -531,12 +541,21 @@ end
         % level, arc factor and Cep. The factors are written for the NEXT
         % pass, one pass behind the model -- the same lag adjustRobust has.
         if robust
-            res = lsqvce.engine.residuals(acc, sol, 'Whitened', true, 'Collect', true, 'Verbose', false);
-            [vw, rkeys, sizes] = lawWhitenedResiduals(res, W);
-            axes = arcAxes(res);
-            [fac, rscale, rstreams] = perStreamWeights(vw, rkeys, sizes, axes, o.Influence, o.Tuning);
+            % Round 8: the KOCH convention -- the weight is a statement about
+            % the OBSERVATION, so the influence sees the RAW residual,
+            % descaled by the epoch's own declared accuracy (Cep), one
+            % factor per EPOCH, standardised by the stream's MAD; the loader
+            % folds the factors into Cep, i.e. before the temporal law.
+            % (Round 4-6 weighted the law-whitened INNOVATION -- Yang -- and
+            % the control measured why that cannot serve a spectral
+            % estimator: a zero-weight innovation neutralises the filter's
+            % whole tail, and the lag statistics around every blunder are
+            % lost; the colour crawled 0.006 -> 0.054 in 16 passes.)
+            res = lsqvce.engine.residuals(acc, sol, 'Whitened', false, 'Collect', true, 'Verbose', false);
+            [uEp, rkeys, sizes] = epochResiduals(res);
+            [fac, rscale, rstreams] = perStreamWeights(uEp, rkeys, sizes, o.Influence, o.Tuning);
             nAlive = sum(fac > 0);
-            if nAlive < size(sol.x, 1) + 1
+            if nAlive < size(sol.x, 1) + 1                          % live EPOCHS
                 error('lsqvce:adjustVCEjoint:collapsed', ...
                      ['The influence function left %d observations with a non-zero ' ...
                       'weight, fewer than the %d parameters + 1: more than half the ' ...
@@ -546,7 +565,7 @@ end
             end
             off = 0;
             for kk = 1:size(rkeys, 1)
-                n = sizes(kk);
+                n = sizes(kk);                                      % EPOCHS of the arc
                 W(lsqvce.util.rowWeightKey(rkeys{kk,1}, rkeys{kk,3}, rkeys{kk,2}, rkeys{kk,4})) = fac(off + (1:n));
                 off = off + n;
             end
@@ -619,7 +638,7 @@ end
 end
 
 %==========================================================================
-function [fac, scale, streams] = perStreamWeights(vw, keys, sizes, axes, influence, tuning)
+function [fac, scale, streams] = perStreamWeights(vw, keys, sizes, influence, tuning)
 %PERSTREAMWEIGHTS  Robust factors PER STREAM (R6 WP-105, round 2).
 %   The influence function standardises residuals by a MAD scale, and that
 %   scale must be ONE PER STREAM and must NOT be the estimated level: the
@@ -652,29 +671,47 @@ function [fac, scale, streams] = perStreamWeights(vw, keys, sizes, axes, influen
     ends = cumsum(sizes(:));  starts = ends - sizes(:) + 1;
     for si = 1:numel(streams)
         arcs = find(strcmp(skey, streams{si}));
-        rows = [];  d = 1;
+        rows = [];
         for kk = arcs(:).'
             rows = [rows, starts(kk):ends(kk)]; %#ok<AGROW>
-            d = max(d, axes(kk));
         end
-        if d == 1
-            [fac(rows), scale(si)] = lsqvce.kernel.robustWeights(vw(rows), influence, tuning);
-        else
-            % per-epoch RMS over the d rows; a factor per epoch, replicated
-            u = vw(rows);
-            uEp = sqrt(mean(reshape(u, d, []).^2, 1)).';
-            [fEp, scale(si)] = lsqvce.kernel.robustWeights(uEp, influence, tuning);
-            fac(rows) = repelem(fEp(:), d);
-        end
+        [fac(rows), scale(si)] = lsqvce.kernel.robustWeights(vw(rows), influence, tuning);
     end
 end
 
-function axes = arcAxes(res)
-%ARCAXES  The axis count of every arc, in the sweep order of lawWhitenedResiduals.
-    axes = [];
+function [uEp, keys, sizes] = epochResiduals(res)
+%EPOCHRESIDUALS  One standardised RAW residual per EPOCH, in sweep order
+%   (R6 WP-105 round 8, the Koch convention): the raw residual v = l - A x
+%   - B y of every arc, descaled by the epoch's own declared accuracy (the
+%   arc's Cep: a per-epoch sigma, per-axis sigmas or a full d x d), then for
+%   a d-axis epoch its RMS over the d descaled rows -- the multivariate
+%   statistic of a vector observation. The level of the law is NOT divided
+%   out here: perStreamWeights standardises by the stream's MAD, so the
+%   weights are invariant to the level and cannot chase it.
+%   OUTPUT uEp n_epochs x 1; keys A x 4 {sysID, obsType, day, arc};
+%          sizes 1 x A epochs per arc.
+    uEp = [];  keys = cell(0, 4);  sizes = [];
     for k = 1:numel(res.sys)
-        for j = 1:numel(res.sys(k).obs)
-            axes(end+1) = res.sys(k).obs(j).nAxis; %#ok<AGROW>
+        S = res.sys(k);
+        for j = 1:numel(S.obs)
+            o = S.obs(j);
+            v = o.v(:);  d = o.nAxis;  m = numel(v);
+            if ~isempty(o.Cep)
+                Cep = o.Cep;
+                if ismatrix(Cep) && size(Cep, 2) == 1 && d == 1
+                    v = v ./ Cep(:);
+                else
+                    [~, ~, v] = lsqvce.kernel.separableWhiten(1, 1, 1, Cep, d, zeros(m, 0), zeros(m, 0), v, true);
+                end
+            end
+            if d > 1
+                u = sqrt(mean(reshape(v, d, []).^2, 1)).';
+            else
+                u = v;
+            end
+            uEp = [uEp; u]; %#ok<AGROW>
+            keys(end+1, :) = {S.sysID, o.obsType, o.day, o.arc}; %#ok<AGROW>
+            sizes(end+1) = numel(u); %#ok<AGROW>
         end
     end
 end

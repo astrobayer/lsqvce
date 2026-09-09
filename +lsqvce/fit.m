@@ -692,12 +692,13 @@ function uo = withPass(uo, model)
 %WITHPASS  The pass number rides on the loader's UserOpt (R5-D8 round 2: the
 %   local priors' 'from' is honoured by lsqvce.engine.makeLoader>priorArc),
 %   and so do the robust factors of the previous pass (R6 WP-105:
-%   model.rowWeights -> UserOpt.rowWeights, applied inside every arc's
-%   whitener by lsqvce.engine.makeLoader).
+%   model.rowWeights -> UserOpt.epochWeights, folded into every arc's
+%   per-epoch error information BEFORE the temporal law by
+%   lsqvce.engine.makeLoader>batchOf -- the Koch convention).
     uo.pass = 1;
     if isfield(model, 'iter'), uo.pass = model.iter; end
     if isfield(model, 'rowWeights') && ~isempty(model.rowWeights) && model.rowWeights.Count > 0
-        uo.rowWeights = model.rowWeights;
+        uo.epochWeights = model.rowWeights;     % per epoch, BEFORE the temporal law (Koch; makeLoader>batchOf)
     end
 end
 

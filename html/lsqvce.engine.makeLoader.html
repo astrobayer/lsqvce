@@ -249,7 +249,10 @@ R6 WP-102), and an arc&#x27;s Cep is its own cell (finding E-01 cannot recur).</
     lsqvce:makeLoader:noCep        [warning, once per run] a multi-axis day without
                                    Cep: composed with D = I (R6 WP-90)
     lsqvce:makeLoader:rowWeightSize  (R5 M2) the robust weight vector of an arc does
-                                   not match the arc&#x27;s row count
+                                   not match the arc&#x27;s row count (rowWeights, per
+                                   row, applied after the law -- adjustRobust) or its
+                                   epoch count (epochWeights, per epoch, folded into
+                                   Cep before the law -- the joint estimator, WP-105)
     lsqvce:covModel:*              the temporal law is malformed (see covModel)
 
 See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.DECLARATION,
