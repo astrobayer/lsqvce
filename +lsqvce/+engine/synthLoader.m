@@ -98,6 +98,10 @@ function out = synthLoader(cfg, sat, day, obsType, arcID, opt)
 %
 %   See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.COVMODEL
 %
+%   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-102 (v6): the internal day
+%   is cut into arc CELLS (the v6 day contract; the raw closure's arc slice
+%   is a cell pick). With assistance from Claude (Anthropic), model Claude
+%   Fable 5.1.
 %   Updated 2026-08-31 (CEST, UTC+02:00), R4 G-06 (Level L1): the covariance
 %   override is resolved by the package-private APPLYCOVOVERRIDE, so the
 %   per-satellite shape LSQVCE.ENGINE.ADJUSTVCEJOINT emits is honoured by this template
@@ -143,17 +147,16 @@ function out = synthLoader(cfg, sat, day, obsType, arcID, opt)
     end
     D = CACHE.D;
 
-    if arcID < 1 || arcID > numel(D.arcIdx)
+    if arcID < 1 || arcID > numel(D.A)
         error('lsqvce:synthLoader:badArc', ...
               'Arc %d does not exist (day %d has %d arcs).', ...
-              arcID, day, numel(D.arcIdx));
+              arcID, day, numel(D.A));
     end
 
-    r = D.arcIdx{arcID};
-    out.A = D.A(r,:);
-    out.B = D.B(r,:);
-    out.l = D.l(r);
-    out.t = D.t(r);
+    out.A = D.A{arcID};                         % v6: the cells are the arcs
+    out.B = D.B{arcID};
+    out.l = D.l{arcID};
+    out.t = D.t{arcID};
 
     % Runtime override of the covariance model, if the caller asked for one.
     % R4 G-06: resolved by the ONE package-private merge, so the per-satellite
@@ -201,11 +204,16 @@ function D = buildDay(cfg, sat, day, obsType)
 
     e   = synthNoise(rs, cfg.cov.(obsType), M, cfg.dt);
     y   = cfg.y(sat);
-    D.l = D.A*cfg.x_c + D.B*y + e;
+    l   = D.A*cfg.x_c + D.B*y + e;
 
-    D.arcIdx = cell(1, cfg.arcsPerDay);
+    % v6 (R6 WP-102): THE CELLS ARE THE ARCS -- cut the day's M rows into
+    % arcsPerDay cells of mArc rows each
+    A = D.A;  B = D.B;  t = D.t;
+    D = struct('A', {cell(1, cfg.arcsPerDay)}, 'B', {cell(1, cfg.arcsPerDay)}, ...
+               'l', {cell(1, cfg.arcsPerDay)}, 't', {cell(1, cfg.arcsPerDay)});
     for a = 1:cfg.arcsPerDay
-        D.arcIdx{a} = (a-1)*cfg.mArc + (1:cfg.mArc);
+        r = (a-1)*cfg.mArc + (1:cfg.mArc);
+        D.A{a} = A(r, :);  D.B{a} = B(r, :);  D.l{a} = l(r);  D.t{a} = t(r);
     end
 end
 

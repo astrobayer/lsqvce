@@ -21,6 +21,11 @@ function [spec, systems] = declaration(data, cacheDays)
 %
 %   See also LSQVCE.FIT, LSQVCE.ENGINE.MAKELOADER, LSQVCE.RESULTS
 %
+%   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-102 (v6): the arc schedule
+%   is optional -- a system without `arcs` claims every day of its calendar
+%   for the common 'day' rows; the string form 'fromDay' is refused at the
+%   declaration (lsqvce:fit:badArcs). With assistance from Claude
+%   (Anthropic), model Claude Fable 5.1.
 %   Created 2026-09-03 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.1 -- R5-D8 round 4 (lifted from fit.m,
 %   where these functions lived since R4 Level L2).
@@ -98,9 +103,10 @@ function spec = validateData(data)
         end
         if isfield(s, 'arcs') && (ischar(s.arcs) || isstring(s.arcs))
             error('lsqvce:fit:badArcs', ...
-                ['data.systems(%d).arcs = ''%s'': the string form (''fromDay'') is ' ...
-                 'ENGINE-tier only -- it reads data before the run. Declare a count, ' ...
-                 'an id vector, or a resolver @(day,obsType).'], k, char(s.arcs));
+                ['data.systems(%d).arcs = ''%s'': the string form is retired (v6). Omit ' ...
+                 'arcs -- the cells buildDay returns are the arcs of the day -- or declare ' ...
+                 'a count, an id vector, a per-stream struct or a resolver @(day,obsType).'], ...
+                k, char(s.arcs));
         end
         if isfield(s, 'id') && ~isempty(s.id)
             id = s.id;
@@ -190,9 +196,12 @@ end
 
 function tf = calendarDayHasArcs(sys, day)
 %CALENDARDAYHASARCS  Does at least one system's SCHEDULE carry an arc on DAY?
-%   Mirrors the engine's arc resolution on the declared forms (default 1;
-%   count; id vector; per-type struct; @(day,obsType) resolver) -- resolvable
-%   pre-run by contract.
+%   Mirrors the engine's arc resolution on the declared forms (count; id
+%   vector; per-type struct; @(day,obsType) resolver) -- resolvable pre-run
+%   by contract. A system WITHOUT a schedule (v6, R6 WP-102: the cells its
+%   buildDay returns are its arcs) claims every day of its calendar -- the
+%   calendar is the declaration, and a day that then returns no data is
+%   refused at its 'meta' probe (lsqvce:makeLoader:emptyDay).
     tf = false;
     for k = 1:numel(sys)
         s = sys(k);
@@ -200,8 +209,8 @@ function tf = calendarDayHasArcs(sys, day)
             continue                                   % this system skips the day
         end
         if ~isfield(s, 'arcs') || isempty(s.arcs)
-            tf = true;  return                         % default: one arc per day
-        end
+            tf = true;  return                         % no schedule: the calendar is
+        end                                            % the declaration (v6)
         a = s.arcs;
         types = fieldnames(s.covariance);
         for j = 1:numel(types)

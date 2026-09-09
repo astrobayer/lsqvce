@@ -43,6 +43,9 @@ function L = batchSystem(u, batchFcn, nBatch, opt)
 %
 %   See also LSQVCE.FIT, LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTNONLINEAR
 %
+%   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-102 (v6): the batch day
+%   returns its one arc as one cell (the v6 day contract). With assistance
+%   from Claude (Anthropic), model Claude Fable 5.1.
 %   Created 2026-09-02 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.1 -- R5 Level M2, WP-81 round 2c'
 %   (moved out of lsqvce.fit so the engine drivers can build the same system).
@@ -105,6 +108,5 @@ function D = batchDay(day, ~, ~, ~, po, ~)
                    'or an m x m positive-definite weight matrix (m = %d).'], day, mat2str(size(p)), m);
         end
     end
-    D.A = A;  D.B = zeros(m, 0);  D.l = l;  D.t = (1:m).';
-    D.arcIdx = {1:m};  D.arcId = 1;
+    D.A = {A};  D.B = {zeros(m, 0)};  D.l = {l};  D.t = {(1:m).'};   % v6: one cell = one arc
 end
