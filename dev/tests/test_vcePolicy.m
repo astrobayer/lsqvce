@@ -753,9 +753,9 @@ function testRobustPassInsideTheJointLoopRecoversTheLawUnderOutliers(tc)
     data = colourFixture(plantA, plantB);
     inner = data.systems.buildDay;
     data.systems.buildDay = @(day, ot) blunders(inner(day, ot), day, ot, 0.02, 25);   % 2 %, 25 sigma
-    base = {Estimate="noise", Pool="stream", MaxPasses=16, Verbose=false};
-    Rp = lsqvce.fit(data, lsqvce.Options(base{:}));                    % plain
-    Rr = lsqvce.fit(data, lsqvce.Options(base{:}, Robust="huber"));    % robust pass inside
+    base = {'Estimate', "noise", 'Pool', "stream", 'MaxPasses', 16, 'Verbose', false};
+    Rp = lsqvce.fit(data, lsqvce.Options(base{:}));                      % plain
+    Rr = lsqvce.fit(data, lsqvce.Options(base{:}, 'Robust', "huber"));   % robust pass inside
     rho = @(R, k) R.noise.Cgroups(k);
     rhoP = rho(Rp, 'x1|a');  rhoR = rho(Rr, 'x1|a');
     rhoP = rhoP(2) / rhoP(1);  rhoR = rhoR(2) / rhoR(1);

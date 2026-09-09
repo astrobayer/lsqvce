@@ -7118,6 +7118,17 @@ per observation, one robust record per pass; the x0 refusal stays).
 in test_fit is rewritten, not added). CI on the self-hosted runner decides -- 547/547 with
 the benchmark excluded.
 
+**ROUND 1 (CI on 44e544a RED: 515/516 + test_vcePolicy failed to LOAD).** Two causes.
+(a) `{Estimate="noise", ...}` -- name=value syntax inside a cell literal is a parse error;
+the suite did not load (the gate counts that as red, as it must). Comma pairs now.
+(b) A DEFECT of R5 M2 2b, latent for a week: `makeLoader`'s rowWeights wrapper called
+`out.Wfcn`, which is EMPTY for every dense law (psd 'toeplitz', acf, custom -- the batch
+iterator decorrelates those from Cfcn). adjustRobust's tests only ever met filter laws; the
+first robust pass under the joint estimator's Toeplitz override (the default Whitener) hit
+`MATLAB:needMoreRhsOutputs` inside `weightedWhiten`. Fixed: the factors wrap the dense step
+too (`denseRows`, the iterator's own `decorrFactor` line), so a robust pass works on every
+law. Found by running, not by reading -- again.
+
 | WP | title | depends on | status |
 |---|---|---|---|
 | 105 | The robust pass inside the joint loop: `Robust` x `Estimate="noise"` runs (adjustVCEjoint 'Influence'/'Tuning', factors in every arc's whitener on the next pass, one re-weighted metric for accumulation, probes and components; prior streams exempt; `collapsed`; `R.noise.robust`); `lawWhitenedResiduals` shared by both drivers; the retained-observation level stated and measured, no silent correction; version 6.1 | 104 | OPEN (2026-09-09; branch `claude/wp-105`; Linux audit CLEAN with the Manual rebuilt; CI decides) |

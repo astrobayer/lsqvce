@@ -218,6 +218,11 @@ function L = makeLoader(buildDay, opt)
 %   See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.DECLARATION,
 %            LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.ENGINE.SYNTHLOADER
 %
+%   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-105: robust row factors wrap
+%   the DENSE step too (a law without a filter Wfcn used to break the
+%   rowWeights wrapper -- reached the first time a robust pass met the joint
+%   estimator's Toeplitz law). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.1.
 %   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-102 (v6): THE CELLS ARE THE
 %   ARCS -- A, B, l, t (and Cep) come back as 1 x nArc cells, arcIdx / arcId
 %   are gone, an empty cell is a data gap, 'Arcs' is optional (the cells of a
@@ -1275,7 +1280,18 @@ function out = batchOf(dayFcn, arcs, cov, day, obsType, arcID, opt)
                        'builder must return the same arc on every call.'], ...
                       key, numel(fac), numel(out.l));
             end
-            W0 = out.Wfcn;  sq = sqrt(fac(:));
+            % R6 WP-105: a DENSE law (psd 'toeplitz', acf, custom) has no
+            % filter Wfcn -- the batch iterator decorrelates it from Cfcn. The
+            % factors then wrap that same dense step, so a robust pass works on
+            % every law (the wrapper used to call the empty Wfcn: found by the
+            % first robust run under the joint estimator's Toeplitz override).
+            if ~isempty(out.Wfcn)
+                W0 = out.Wfcn;
+            else
+                C0 = out.Cfcn;
+                W0 = @(idx, A, B, l, o) denseRows(C0(idx, o), A, B, l);
+            end
+            sq = sqrt(fac(:));
             out.Wfcn = @(idx, A, B, l, o) weightedWhiten(W0, sq, idx, A, B, l, o);
         end
     end
@@ -1298,6 +1314,13 @@ function [A, B, l] = weightedWhiten(W0, sq, idx, A, B, l, o)
     [A, B, l] = W0(idx, A, B, l, o);
     sc = sq(idx(:));
     A = sc .* A;  B = sc .* B;  l = sc .* l;
+end
+
+function [A, B, l] = denseRows(C, A, B, l)
+%DENSEROWS  The batch iterator's dense step (lsqvce.engine.private.arcBatchWhiten):
+%   decorrelate one batch by the factor of its dense covariance. R6 WP-105.
+    W = lsqvce.kernel.decorrFactor(C);
+    A = W * A;  B = W * B;  l = W * l;
 end
 
 %==========================================================================
