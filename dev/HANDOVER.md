@@ -9,6 +9,7 @@ architecture, the task list, and the implementation prompts — lives HERE.
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
 Last substantive update: 2026-09-09 — WP-101 DONE (PR #101, merge 340eb3b); WP-102 OPEN on `claude/wp-102` (tier B, model Claude Fable 5.1): VERSION 6.0 — THE CELLS ARE THE ARCS (buildDay returns one cell per arc; arcIdx/arcId gone; `arcs` optional; 'fromDay' retired; six user decisions pinned); §12.26.
+Preceding entry: Last substantive update: 2026-09-09 — WP-102 DONE (PR #102, merge 1105acb; CI on main green); WP-103 OPEN: the pool suite runs in CI — the self-hosted runner has the PCT (user), the hosted-runner skip and the 2-worker cap leave ci_gate; TIER NAMES fixed by the user: tier A = the MATLAB MCP bridge, tier B = the self-hosted CI runner; §12.27.
 Preceding entry: Last substantive update: 2026-09-09 — WP-102 round 1: CI RED on 43a8b8b (5 failed) diagnosed and fixed — a v5 FINDING (the day cache evicted the alphabetically first key, not the oldest; FIFO now, and the discovery probe memoised so it never adds a build) plus two nl = 0 fixtures and one demo on the old matrix shape; §12.26 round 1.
 Preceding entry: Last substantive update: 2026-09-08 — WP-99 DONE (PR #99, merge 385b0d9; postflight on merged main: ci_gate 539/539, examples included); WP-100 OPEN: the two standing estimator questions CLOSED BY MEASUREMENT, both against the change that looked obvious; §12.24.
 Preceding entry: Last substantive update: 2026-09-08 — WP-98 DONE (PR #98, merge cf10d71; finding F-01 FIXED; postflight on merged main: ci_gate 535/535, examples 15/15); WP-99 OPEN: the four carried instrument-and-honesty items, one commit each; §12.23.
@@ -397,6 +398,11 @@ These do not expire between chats. They are the same rules v1 was built under
 - There is no MATLAB in the sandbox. Validation is STRUCTURAL (function/end
   balance), NUMERICAL (Python vs exact formulae), and STATIC (the audit
   script, ported in WP-0). **The user's MATLAB run is the ground truth.**
+- **THE TWO TIERS (names fixed by the user, 2026-09-09): tier A = the MATLAB
+  MCP bridge (interactive MATLAB R2026a on the user's PC, reachable from a
+  session); tier B = the self-hosted CI runner (the same PC, `ci_gate` under
+  `LSQVCE_CI=1`, every suite incl. test_parallel since WP-103). Both judge the
+  same tree on the same machine; a session names the tier it ran on.**
 - Ship the ENTIRE tree as ONE zip per round via `present_files` — never a
   partial file set.
 - Run the full suite with the ONE runner `run_all_lsqvce`; from WP-30
@@ -6908,7 +6914,7 @@ references (D (R_t kron I_d) D at 1e-8) unchanged, now per cell.
 
 | WP | title | depends on | status |
 |---|---|---|---|
-| 102 | VERSION 6.0 -- THE CELLS ARE THE ARCS: `buildDay` returns one cell per arc (A, B, l, t, Cep), `arcIdx`/`arcId` deleted, an empty cell is a data gap, `arcs` optional (the cells are the schedule; `'day'` rows on every calendar day; `emptyDay`), required only by `'arc'` rows, `'fromDay'` retired, `CacheDays` = days x streams; the test instrument `arcCells`; every example, template, the Manual and the GRAVFIRE guide on the v6 contract | 101 | READY (2026-09-09, PR #102; round 1 red -> fixed (§12.26 round 1); CI GREEN on f5c9cd9: audit 55 s, matlab 3m8s, 521/521 over 26 suites + test_parallel skipped on the hosted runner = 558 declared as predicted, warning inventory = the one allowed id; Linux audit CLEAN with the Manual rebuilt, self-test green. POSTFLIGHT = the user's ci_gate on the PR head, incl. test_parallel (37 points) and the GRAVFIRE dry run on testdata.mat; DONE flips on the merge) |
+| 102 | VERSION 6.0 -- THE CELLS ARE THE ARCS: `buildDay` returns one cell per arc (A, B, l, t, Cep), `arcIdx`/`arcId` deleted, an empty cell is a data gap, `arcs` optional (the cells are the schedule; `'day'` rows on every calendar day; `emptyDay`), required only by `'arc'` rows, `'fromDay'` retired, `CacheDays` = days x streams; the test instrument `arcCells`; every example, template, the Manual and the GRAVFIRE guide on the v6 contract | 101 | DONE (2026-09-09, PR #102, merge 1105acb 14:51; CI on merged main GREEN (audit + matlab); round 1 red -> fixed (§12.26 round 1); CI GREEN on f5c9cd9: audit 55 s, matlab 3m8s, 521/521 over 26 suites + test_parallel skipped on the hosted runner = 558 declared as predicted, warning inventory = the one allowed id; Linux audit CLEAN with the Manual rebuilt, self-test green. POSTFLIGHT = the user's ci_gate on the PR head, incl. test_parallel (37 points) and the GRAVFIRE dry run on testdata.mat; POSTFLIGHT: the user's ci_gate on merged main incl. test_parallel — from WP-103 on this IS the CI run) |
 
 **Predicted count:** 558 declared over 27 suites (553 + 5: two new points in test_adjustBlock,
 three in test_fit; one renamed). CI decides.
@@ -6940,6 +6946,8 @@ feature); 1 is a genuine v5 defect exposed by the capacity correction; 1 a demo'
 dense assembly. Linux audit CLEAN after `build_missing_pages.py all` (the makeLoader page
 regenerated); self-test green; 558 declared points unchanged.
 
+**MERGED 2026-09-09 14:51, `1105acb`; CI on merged main GREEN (audit + matlab).**
+
 **VERDICT (2026-09-09).** CI on `f5c9cd9` GREEN: audit 55 s, matlab 3m8s -- **521/521** over
 26 suites, `test_parallel` skipped on request (hosted runner), 521 + 37 = **558 declared, as
 predicted** (three ways: the per-suite table, pass + skip, the tag sums of the audit);
@@ -6951,3 +6959,46 @@ one Cep per piece). What the next session could be wrong for not reading: a `con
 sorts its keys -- never take `keys{1}` as "the oldest" (§12.26 round 1); and the v6 day
 contract refuses a MATRIX where a cell belongs, on purpose -- a red `badDay` on a fixture is
 the fixture's shape, not the loader's.
+
+### 12.27 WP-103 — the pool suite runs in CI (2026-09-09, model Claude Fable 5.1, tier B)
+
+**Origin.** The user, after the WP-102 merge: "The self-hosted runner has the PCT since a
+while. Please test." And a clarification that binds from here on: **tier A is the MCP bridge,
+tier B the self-hosted CI runner** (written into §0). Until this round `ci_gate` under
+`LSQVCE_CI=1` still carried the HOSTED-runner policy of 2026-08-18: skip `test_parallel` ("no
+PCT licence") and cap any pool at 2 workers ("the hosted-runner core count") — stale since PRs
+#85–#87 moved the MATLAB job to the self-hosted runner (2026-09-07): every CI verdict since
+then said "521/521 + test_parallel skipped" on a machine that could have run the 37 points,
+and the WP-30 backlog line ("a PCT-licensed runner so test_parallel runs in CI") was already
+satisfied in fact.
+
+**Change (workflow only, nothing mixed):** `dev/tests/ci_gate.m` — the skip list under CI is
+empty and the pool cap is gone (the cap also wrote `NumWorkers` onto the runner's `Processes`
+cluster object on every run — session-scoped without `saveProfile`, but a side effect on the
+user's PC that no gate should have); headless figures stay. `ci.yml` — comments only (the env
+variable is unchanged). `test_ci_gate` is untouched: it pins the MECHANISM (a skip must be
+visible in the verdict), not the policy.
+
+**Consequence for the loop.** The CI run on the self-hosted runner now judges every suite on
+the target platform: **tier B IS the full gate; no postflight debt accrues** — the "local
+ci_gate on merged main" rule of 2026-09-01 is discharged by the push-to-main run itself. Tier
+A stays the interactive tier (dry runs on `testdata.mat`, benches, diagnosis).
+
+**Predicted count:** 558/558 over 27 suites (521 + test_parallel 37), no skip line in the log,
+warning inventory = the one allowed id, `test_speed` excluded as before (a benchmark, not a
+pass/fail suite — unchanged by this round).
+
+| WP | title | depends on | status |
+|---|---|---|---|
+| 103 | The pool suite runs in CI: `ci_gate` stops skipping `test_parallel` and capping pools under `LSQVCE_CI` (the self-hosted runner has the PCT); tier names fixed (A = MCP bridge, B = self-hosted runner); the WP-30 backlog item closed | 102 | READY (2026-09-09, PR #103; CI GREEN on c026dde: audit 56 s, matlab 3m30s, **546/546 over 27 suites, test_parallel 25/25 on an 8-worker pool, no skip line, warning inventory = the one allowed id**; 546 + test_speed 12 (the excluded benchmark) = 558 = the README claim; the prediction 558/558 was WRONG by exactly the benchmark's 12 — recorded below; DONE flips on the merge) |
+
+**VERDICT (2026-09-09, CI on `c026dde`).** GREEN: audit 56 s, matlab 3m30s — **546/546 over 27
+suites**, `test_parallel` **25/25** in 18.5 s on the runner's `Processes` pool of **8 workers**
+(uncapped, as intended), no skip line in the log, warning inventory = `lsqvce:internal:testProbe`
+only. **The prediction was wrong**: 558/558 was written, 546/546 measured. Reconciliation:
+558 is the README claim and counts `test_speed`'s 12 declared points, which `ci_gate` EXCLUDES
+as the benchmark (not pass/fail) — 546 + 12 = 558, and the pool suite declares 25, not the 37
+the prediction assumed (37 was 558 − 521, i.e. it silently folded the benchmark into the pool
+suite). A missed prediction is a finding even on green: the count must be reconciled from the
+per-suite table (25 + 12), not from a difference of totals. Tier B verdict: **green, and tier B
+is now the whole gate** — nothing is left for a local postflight except what tier A is for.
