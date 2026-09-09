@@ -212,12 +212,20 @@ function L = makeLoader(buildDay, opt)
 %       lsqvce:makeLoader:noCep        [warning, once per run] a multi-axis day without
 %                                      Cep: composed with D = I (R6 WP-90)
 %       lsqvce:makeLoader:rowWeightSize  (R5 M2) the robust weight vector of an arc does
-%                                      not match the arc's row count
+%                                      not match the arc's row count (rowWeights, per
+%                                      row, applied after the law -- adjustRobust) or its
+%                                      epoch count (epochWeights, per epoch, folded into
+%                                      Cep before the law -- the joint estimator, WP-105)
 %       lsqvce:covModel:*              the temporal law is malformed (see covModel)
 %
 %   See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.DECLARATION,
 %            LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.ENGINE.SYNTHLOADER
 %
+%   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-105: robust row factors wrap
+%   the DENSE step too (a law without a filter Wfcn used to break the
+%   rowWeights wrapper -- reached the first time a robust pass met the joint
+%   estimator's Toeplitz law). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.1.
 %   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-102 (v6): THE CELLS ARE THE
 %   ARCS -- A, B, l, t (and Cep) come back as 1 x nArc cells, arcIdx / arcId
 %   are gone, an empty cell is a data gap, 'Arcs' is optional (the cells of a
@@ -1227,6 +1235,29 @@ function out = batchOf(dayFcn, arcs, cov, day, obsType, arcID, opt)
     d = lsqvce.util.getfielddef(D, 'nAxis', 1);
     specCep = isfield(cm, 'Cep') && ~isempty(cm.Cep);
     isVar = strcmpi(lsqvce.util.getfielddef(cm, 'type', ''), 'var');
+    % R6 WP-105 round 8 (measured, the user's "measure"): the joint
+    % estimator's robust factors are applied BEFORE the temporal law -- the
+    % Koch convention, weights on the OBSERVATIONS -- by folding them into
+    % the per-epoch error information: sigma_i / sqrt(w_i). The composition
+    % C = D (R_t kron I_d) D then carries them everywhere (accumulation, the
+    % sweep, the residuals) with no second mechanism. The control measured
+    % it: blunders declared this way let the PLAIN estimator recover the
+    % planted colour, while the Yang convention (opt.rowWeights below,
+    % weights on the INNOVATIONS, adjustRobust's) neutralises the filter's
+    % whole tail around every blunder and the colour crawled (0.054 vs 0.20).
+    epochW = [];
+    if isfield(opt, 'epochWeights') && ~isempty(opt.epochWeights)
+        key = lsqvce.util.rowWeightKey(opt.sysID, day, obsType, arcID);
+        if isKey(opt.epochWeights, key)
+            epochW = max(opt.epochWeights(key), 1e-12);
+            if numel(epochW) ~= numel(out.l) / d
+                error('lsqvce:makeLoader:rowWeightSize', ...
+                      ['epochWeights(%s) has %d entries; the arc has %d epochs -- the ' ...
+                       'builder must return the same arc on every call.'], ...
+                      key, numel(epochW), numel(out.l) / d);
+            end
+        end
+    end
     if isfield(D, 'Cep') && ~isempty(D.Cep)
         if specCep
             error('lsqvce:makeLoader:cepTwice', ...
@@ -1234,6 +1265,9 @@ function out = batchOf(dayFcn, arcs, cov, day, obsType, arcID, opt)
                    'per-epoch error information ONCE, on the day.'], obsType, string(day), obsType);
         end
         cm.Cep = D.Cep{pos};
+        if ~isempty(epochW), cm.Cep = inflateCep(cm.Cep, epochW); end
+    elseif ~isempty(epochW) && ~specCep && ~isVar
+        cm.Cep = inflateCep(ones(numel(out.l) / d, d), epochW);   % Koch weights on a plain stream
     elseif d > 1 && ~specCep && ~isVar
         % a multi-axis stream without per-epoch scaling is composed with
         % D = I -- said once per run, so the omission is distinguishable from
@@ -1275,8 +1309,36 @@ function out = batchOf(dayFcn, arcs, cov, day, obsType, arcID, opt)
                        'builder must return the same arc on every call.'], ...
                       key, numel(fac), numel(out.l));
             end
-            W0 = out.Wfcn;  sq = sqrt(fac(:));
+            % R6 WP-105: a DENSE law (psd 'toeplitz', acf, custom) has no
+            % filter Wfcn -- the batch iterator decorrelates it from Cfcn. The
+            % factors then wrap that same dense step, so a robust pass works on
+            % every law (the wrapper used to call the empty Wfcn: found by the
+            % first robust run under the joint estimator's Toeplitz override).
+            if ~isempty(out.Wfcn)
+                W0 = out.Wfcn;
+            else
+                C0 = out.Cfcn;
+                W0 = @(idx, A, B, l, o) denseRows(C0(idx, o), A, B, l);
+            end
+            sq = sqrt(fac(:));
             out.Wfcn = @(idx, A, B, l, o) weightedWhiten(W0, sq, idx, A, B, l, o);
+            % R6 WP-105 round 4: the joint estimator's sweep does NOT use
+            % Wfcn -- it forms the explicit W = chol(Sigma) from Cfcn (it needs
+            % the triangular factor for the per-lag redundancies). So the
+            % weighted problem must be visible THERE too, or the accumulation
+            % is weighted and the component update is not (measured: the
+            % colour of a blunder-laden stream stayed 0.003, the clean level
+            % 0.41). Weighting AFTER the law filter (Yang 1994, the convention
+            % adjustRobust pins) is e_w = D L^-1 v, whose covariance is
+            % L D^-2 L' -- the weightedCov below. With Cep, Cfcn is the
+            % TEMPORAL covariance over epochs, so the weight per epoch is
+            % taken (perStreamWeights makes it one per epoch on a multi-axis
+            % stream: the d rows of an epoch share one factor).
+            if ~isempty(out.Cfcn)
+                C0 = out.Cfcn;
+                wEp = fac(1:d:end);
+                out.Cfcn = @(idx, o) weightedCov(C0(idx, o), wEp(idx));
+            end
         end
     end
 
@@ -1298,6 +1360,34 @@ function [A, B, l] = weightedWhiten(W0, sq, idx, A, B, l, o)
     [A, B, l] = W0(idx, A, B, l, o);
     sc = sq(idx(:));
     A = sc .* A;  B = sc .* B;  l = sc .* l;
+end
+
+function Cep = inflateCep(Cep, w)
+%INFLATECEP  Per-epoch error information with the Koch factors folded in:
+%   sigmas divided by sqrt(w), covariances divided by w (R6 WP-105).
+    w = w(:);
+    if ismatrix(Cep)
+        Cep = Cep ./ sqrt(w);                          % nEpoch x d sigmas
+    else
+        Cep = Cep ./ w;                                % nEpoch x d x d covariances
+    end
+end
+
+function Cw = weightedCov(C, w)
+%WEIGHTEDCOV  The covariance of the re-weighted problem, L diag(1./w) L' with
+%   C = L L' (R6 WP-105): the explicit form of "law-whiten, then scale the
+%   rows by sqrt(w)". A row of weight ~0 becomes a row of huge variance,
+%   which is what makes its residual and its redundancy vanish together.
+    if isvector(C), C = diag(C(:)); end
+    L  = chol((C + C.') / 2, 'lower');
+    Cw = L * ((1 ./ w(:)) .* L.');
+end
+
+function [A, B, l] = denseRows(C, A, B, l)
+%DENSEROWS  The batch iterator's dense step (lsqvce.engine.private.arcBatchWhiten):
+%   decorrelate one batch by the factor of its dense covariance. R6 WP-105.
+    W = lsqvce.kernel.decorrFactor(C);
+    A = W * A;  B = W * B;  l = W * l;
 end
 
 %==========================================================================

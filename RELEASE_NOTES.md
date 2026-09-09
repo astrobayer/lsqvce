@@ -1,5 +1,38 @@
 # lsqvce release notes
 
+## 6.1 — 2026-09-09 (R6 WP-105: the robust pass inside the joint loop)
+
+Additive on 6.0; no declaration changes.
+
+- **`Robust` together with `Estimate="noise"` runs — in the Koch convention.** Every pass of
+  the joint estimator ends with one residual sweep; the RAW residuals, descaled by each
+  epoch's declared accuracy and reduced to one value per epoch, go through the influence
+  function (`huber` | `igg3` | `bisquare`, `RobustOpts.Tuning`) per stream, and the factors
+  are folded into the per-epoch error information of the next pass (sigma / sqrt(w),
+  BEFORE the temporal law) — the one composition C = D (R_t ⊗ I_d) D carries them
+  everywhere. Measured: weighting the law-whitened innovation instead (Yang, the
+  stand-alone IRLS's convention) neutralises the filter tail around every blunder and a
+  spectral estimator cannot recover the colour (0.054 against 0.20 in 16 passes); with the
+  same blunders declared through `Cep` the plain estimator recovers it.
+  `MaxPasses` is the budget; `RobustOpts.MaxIter` / `Tol` belong to the stand-alone IRLS
+  only. Prior streams are never re-weighted.
+- What comes back: `R.noise.robust` (`influence`, `scale` and `streams` — one MAD scale per
+  stream, `factor` per observation in sweep order, `keys`), `R.history.robustScale` (one
+  column per stream) / `nDown` / `nZero` per pass, and the same fields on the `OnPass`
+  context. The residuals are standardised by the stream's own MAD, never by the estimated
+  level (a global scale, or the level itself, sends a clean stream's level into a spiral —
+  measured). Prefer `igg3` / `bisquare` for gross blunders: Huber keeps c/|u| of their
+  weight.
+- The level is UNBIASED under the robust pass (measured 1.007 on a clean stream under IGG3;
+  the retained-observation ratio E[w u²]/E[w] that was expected was refuted by the oracle):
+  Ellmer's per-lag redundancy is the model expectation under the same weighted whitening,
+  so the weights cancel in alpha². Multi-axis streams are weighted per EPOCH (the RMS over
+  the d law-whitened rows, one factor per epoch). This is Koch's iterated re-weighting
+  inside a VCE, not Ellmer (2018), whose robustness is preprocessing screening plus the
+  arc-wise variance factors (Manual chapter 7, §7.8).
+- New identifier `lsqvce:adjustVCEjoint:collapsed` (beyond the breakdown point);
+  `lsqvce:fit:notYet` now fires only for `Robust` on a nonlinear (`x0`) batch problem.
+
 ## 6.0 — 2026-09-09 (R6 WP-102: the cells are the arcs)
 
 BREAKING for every `buildDay` (the sixth contract change: 2.0 namespace, 3.0

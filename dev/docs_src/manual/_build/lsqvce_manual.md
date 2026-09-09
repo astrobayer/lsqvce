@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.0 — User Manual"
+title: "lsqvce 6.1 — User Manual"
 subtitle: "least-squares adjustment with variance component estimation"
 date: "built from the sources; the single documentation authority"
 ---
@@ -956,7 +956,10 @@ LSQVCE.FIT  Fit a least-squares adjustment (optionally with VCE) to declared dat
                        one spectral shape per Pool group, one level per stream,
                        per-arc factors when ArcFactors; prior groups with
                        estimate "scale" get their sigma by Helmert / Koch-Kusche
-    Robust "huber" | "igg3" | "bisquare"   IRLS on the same loop (adjustRobust)
+    Robust "huber" | "igg3" | "bisquare"   IRLS on the same loop: alone it is
+                       adjustRobust; with Estimate "noise" the robust pass runs
+                       INSIDE the joint loop (R6 WP-105), R.noise.robust carries
+                       the final factors
     data.x0            Gauss-Newton with damping (adjustNonlinear)
   REGULARISATION is declared, never an option: data.priors(j) on the common
   parameters and data.systems(k).priors(l) on the local ones -- one struct per
@@ -1011,11 +1014,11 @@ LSQVCE.FIT  Fit a least-squares adjustment (optionally with VCE) to declared dat
                                  (e.g. paramType, badArcs, localPlan);
                                  the original is attached as the cause
     Your choice is not available here:
-      lsqvce:fit:notYet          Robust ~= "none" together with
-                                 Estimate = "noise" -- the one-loop
-                                 composition of M4 is not written yet; run the
-                                 two separately, or screen outliers through the
-                                 diagnostics (report())
+      lsqvce:fit:notYet          Robust ~= "none" on a NONLINEAR batch problem
+                                 (x0): IRLS inside Gauss-Newton is not written;
+                                 linearise first. (Robust with Estimate "noise"
+                                 RUNS since R6 WP-105: the robust pass inside
+                                 the joint loop)
       lsqvce:fit:modelKind       Estimate = "noise" on kinds B / C, which have
                                  no streams to estimate a law for
       lsqvce:batchSystem:weightMatrix  a batch returned a weight argument that
@@ -1053,6 +1056,10 @@ LSQVCE.FIT  Fit a least-squares adjustment (optionally with VCE) to declared dat
   model Claude Fable 5 -- R4 Level L2, WP-56 (decision R4-D4).
   Help rewritten 2026-09-04 for v5.2 (R5 M5 / R5-D8), model Claude Fable 5.1:
   the v5 surface (Estimate, priors, paramColumns, OnPass, layout, toTable).
+  Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-105: Robust together with
+  Estimate "noise" runs (the robust pass inside the joint loop; the notYet
+  refusal stays for x0 problems only). With assistance from Claude
+  (Anthropic), model Claude Fable 5.1.
   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-102 (v6): the day contract is
   ONE CELL PER ARC and the arc schedule is optional. With assistance from
   Claude (Anthropic), model Claude Fable 5.1.
@@ -1113,7 +1120,14 @@ LSQVCE.OPTIONS  The one settings object for LSQVCE.FIT (v5: 12 knobs + 5 groups)
                                   across passes, 9.4 / 8.6 / 8.6 / 8.6 against
                                   a planted 9; before it grew 8.4x a pass.)
     Robust     "none" | "huber" | "igg3" | "bisquare"   IRLS on the same
-                                  loop, every kind (details in RobustOpts)
+                                  loop, every kind (details in RobustOpts).
+                                  With Estimate "noise" the robust pass runs
+                                  INSIDE the joint loop (R6 WP-105): one
+                                  residual sweep per pass, the factors in
+                                  every arc's whitener on the next pass;
+                                  MaxPasses is the budget, RobustOpts.Tuning
+                                  the constants (RobustOpts.MaxIter / Tol
+                                  belong to the stand-alone IRLS only)
     MaxPasses  double  10         the pass budget of the variance-component
                                   loop and of Gauss-Newton (v4: MaxOuter /
                                   JointMaxIter). IRLS has its OWN budget,
@@ -1205,6 +1219,9 @@ LSQVCE.OPTIONS  The one settings object for LSQVCE.FIT (v5: 12 knobs + 5 groups)
 
   See also LSQVCE.FIT, LSQVCE.RESULTS, the Manual, chapter 3, RELEASE_NOTES.md
 
+  Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-105: Robust is forwarded to
+  the joint estimator as its 'Influence' (with RobustOpts.Tuning). With
+  assistance from Claude (Anthropic), model Claude Fable 5.1.
   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-104: the two remaining
   "auto" claims about Noise.Grid corrected -- WP-101 retired the value in
   the code and in the Manual but left it standing on THIS page, which is
@@ -1755,12 +1772,10 @@ coefficient; `test_physOracle` asserts them). The planted stream SIGMAS carry no
 error, and what the suite asserts is a RELATIVE bound: the ratios between streams to 25 %
 (measured 1.18 / 2.10 / 0.51 against a planted 1 / 2 / 0.5).
 
-## 7.8 Robustness: what is available, and what is refused
+## 7.8 Robustness: what Ellmer does, and what `Robust` adds inside the loop
 
-`Robust = "huber" | "igg3" | "bisquare"` together with `Estimate = "noise"` is refused with
-`lsqvce:fit:notYet`. That is a **scope decision**, not a statement that the two cannot be
-combined; the composition of the two loops is unwritten. Three things are worth separating,
-because Ellmer's own robustness is not per-observation M-estimation:
+Three things are worth separating, because Ellmer's own robustness is not per-observation
+M-estimation and all three of his are available with `Estimate = "noise"` alone:
 
 1. **Gross outlier screening happens in preprocessing**, before the adjustment (Ellmer
    §6.2, after Klinger 2018: the level-1B data is screened for outliers and periods of
@@ -1768,33 +1783,63 @@ because Ellmer's own robustness is not per-observation M-estimation:
    adjustment replaces that.
 2. **The arc-wise variance factors ARE the down-weighting** at arc granularity: a bad arc
    receives a large variance factor and loses weight automatically. That is
-   `ArcFactors = true`, and it runs inside `Estimate = "noise"`.
+   `ArcFactors = true`.
 3. **The normalisation of those factors is itself robust**: gamma-bar (eq. 6.5.29) is
    computed in GROOPS from the central half of the sorted factors, ignoring both tails.
    That is `Noise.MeanType = "robust"`, the default here.
 
-So the Ellmer configuration is fully available. What is not available is per-observation
-IRLS *simultaneously* with the noise estimation. If you need per-observation down-weighting
-today, two routes work:
+**Per-epoch down-weighting inside the same loop (since 6.1), in the Koch convention.**
+`Robust = "huber" | "igg3" | "bisquare"` together with `Estimate = "noise"` runs the robust
+pass *inside* the joint estimator. Every pass ends with one residual sweep; the **raw**
+residuals, descaled by each epoch's own declared accuracy (`Cep`) and reduced to one value
+per epoch (the RMS over a multi-axis epoch's rows), go through the influence function per
+stream (`RobustOpts.Tuning` for the constants), and the factors are folded into the
+per-epoch error information of the next pass — sigma / sqrt(w), **before** the temporal law,
+through the one composition C = D (R_t ⊗ I_d) D. Accumulation, the probe redundancies and
+the component update therefore see **one** re-weighted problem with nothing added. A weight
+is a statement about the *observation*; the stand-alone IRLS (`Estimate = "none"`) weights
+the law-whitened *innovation* instead (Yang 1994), and the two are deliberately different:
+the control measurement showed that an innovation weight of zero neutralises the whitening
+filter's whole tail around a blunder, so a spectral estimator loses exactly the lag
+correlations it needs there (a planted colour of 0.20 crawled to 0.054 in 16 passes), while
+the same blunders declared through `Cep` let the plain estimator recover it. `MaxPasses` is
+the budget (`RobustOpts.MaxIter` / `Tol` belong to the stand-alone IRLS). Prior streams are
+never re-weighted: a down-weighted datum is a rank defect, not an outlier. What comes back:
+`R.noise.robust` (`influence`, `scale` per stream, `factor` per **epoch** in sweep order,
+`keys`), and `R.history.robustScale` / `nDown` / `nZero` per pass.
+
+Two things the mechanism learned by measurement, both binding on how to use it. **The
+standardisation is the stream's own MAD scale, never the estimated level**: a global scale
+mis-standardises every stream whose level differs from the mix, and using the level the
+whitener just applied makes the weights feed on the level they shape — the clean stream's
+level spiralled to 0.38 that way. With `v / MAD(v)` per stream the weights are invariant to
+the level, and the level converges. **Prefer a redescending influence for gross blunders**:
+Huber is monotone and keeps c/|u| of a blunder's weight, so 2 % of a stream at 25 sigma
+retain 0.02 · 1.345 · 25 ≈ 0.67 of white variance and dilute a lag-1 colour of 0.20 to
+about 0.12; `igg3` (zero beyond 3 sigma) and `bisquare` reject them outright and recover
+the colour.
+
+**The level, measured.** The obvious expectation — that a robust pass estimates the level of
+the *retained* observations, E[w u²]/E[w] (0.73 for `igg3`, 0.80 for Huber on Gaussian
+residuals) — was written down and then **refuted by the oracle**: a clean stream comes back
+at 1.007. The reason is Ellmer's per-lag redundancy s_n (eq. 6.5.23): it is the model
+expectation of Omega_n under the *same* weighted whitening, so a down-weighted row shrinks
+numerator and denominator alike and alpha² = Omega/s stays at 1. This differs from the
+classical Helmert Omega/(n − u), where a zero-weight row still counts a full redundancy and
+the level would be biased low. No consistency correction is needed, and none is applied.
+This composition is Koch's iterated re-weighting inside a variance-component estimation,
+not something Ellmer (2018) does.
+
+Two further routes remain useful:
 
 - **Diagnose, then decide.** Run `Estimate = "noise"` and read `R.report()` — the w-tests,
   redundancies and MDBs identify the observations carrying the outliers; remove or repair
   them in your `buildDay` and re-run.
-- **Fold fixed weights into `Cep`.** Run a robust pass with `Estimate = "none"`, take the
-  final factors from `R.history(end).factor` and their keys, and let `buildDay` return
-  `Cep` divided by sqrt(factor) on those rows. The weights are then **data**, exactly like
-  any other per-epoch accuracy, and the noise estimation runs on the re-weighted stream.
-  Two caveats: the weights must be stored, never recomputed inside `buildDay` (the day
-  builder must be deterministic — each day is read twice per pass), and using the same data
-  to derive the weights and then to estimate the law is a known bias source. It is not the
-  joint fixed point a combined loop would give.
-
-The obstacle for that combined loop is real and worth stating: the IRLS factors ride
-**inside** each arc's whitener, so a down-weighted row changes both the residual and the
-redundancy the variance-component step consumes. Without carrying the weights through the
-per-lag redundancies, the variance components would absorb the down-weighting and the two
-loops would fight — the same double counting the gamma-bar normalisation exists to prevent
-between the spectral amplitudes and the arc factors.
+- **Fold fixed weights into `Cep`.** Take factors from any robust run and let `buildDay`
+  return `Cep` divided by sqrt(factor) on those rows. The weights are then data; the noise
+  estimation runs on the re-weighted stream without the retained-observation bias moving
+  with every pass. The weights must be stored, never recomputed inside `buildDay` (the day
+  builder must be deterministic).
 
 
 # Diagnostics and the verdict
@@ -2031,6 +2076,7 @@ Every identifier the package raises, from `dev/docs_src/error_ids.csv` (the cata
 | `lsqvce:adjustVCEjoint:localNotPD` | engine.adjustVCEjoint — error — v4.0 |
 | `lsqvce:adjustVCEjoint:needCfcn` | engine.adjustVCEjoint — error — v4.0 |
 | `lsqvce:adjustVCEjoint:noArcs` | engine.adjustVCEjoint — error — v4.0 |
+| `lsqvce:adjustVCEjoint:collapsed` | engine.adjustVCEjoint — error — v6.1 |
 | `lsqvce:adjustVCEjoint:notConverged` | engine.adjustVCEjoint — warning — v4.0 |
 | `lsqvce:adjustVCEjoint:arcFactorsDiverging` | engine.adjustVCEjoint — warning — v5.3 |
 | `lsqvce:adjustVCEjoint:notPD` | engine.adjustVCEjoint — error — v4.0 |

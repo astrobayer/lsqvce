@@ -183,11 +183,21 @@ end
 
 function testNotYetPathsAreRefusedExplicitly(tc)
 % categories: contract
-    % R5 M2 2b: Robust IRLS now RUNS on the streaming kind (a policy on the
-    % block path); what is still refused explicitly is its composition with a
-    % VCE model (the one-loop feature of M4) -- never a silent fallback.
+    % R5 M2 2b: Robust IRLS RUNS on the streaming kind (a policy on the block
+    % path). R6 WP-105: its composition with Estimate "noise" RUNS too -- the
+    % robust pass inside the joint loop -- so the front door no longer refuses
+    % it, and the run carries the factors. What stays refused, explicitly and
+    % never as a silent fallback, is Robust on a NONLINEAR batch problem.
     [data, ~] = declaration();
-    tc.verifyEqual(idOf(@() lsqvce.fit(data, lsqvce.Options(Robust="huber", Estimate="noise", Pool="stream", ArcFactors=false))), 'lsqvce:fit:notYet');
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % MaxPasses 2 stops early by design (a contract point)
+    R = lsqvce.fit(data, lsqvce.Options(Robust="huber", Estimate="noise", Pool="stream", ...
+                                        ArcFactors=false, MaxPasses=2, Verbose=false));
+    tc.verifyEqual(R.noise.robust.influence, 'huber');
+    tc.verifyEqual(numel(R.noise.robust.factor), 2 * 3 * 2 * 300, 'one factor per observation');
+    tc.verifyEqual(size(R.noise.robust.keys, 2), 4);
+    tc.verifyEqual(numel(R.history.nDown), R.history.nIter, 'one robust record per pass');
+    nl = struct('batchFcn', @(k, x) deal(ones(3, 1), zeros(3, 1), ones(3, 1)), 'numBatches', 2, 'x0', 0);
+    tc.verifyEqual(idOf(@() lsqvce.fit(nl, lsqvce.Options(Robust="huber"))), 'lsqvce:fit:notYet');
 end
 
 function testRobustRunsOnTheStreamingKind(tc)

@@ -189,12 +189,10 @@ coefficient; `test_physOracle` asserts them). The planted stream SIGMAS carry no
 error, and what the suite asserts is a RELATIVE bound: the ratios between streams to 25 %
 (measured 1.18 / 2.10 / 0.51 against a planted 1 / 2 / 0.5).
 
-## 7.8 Robustness: what is available, and what is refused
+## 7.8 Robustness: what Ellmer does, and what `Robust` adds inside the loop
 
-`Robust = "huber" | "igg3" | "bisquare"` together with `Estimate = "noise"` is refused with
-`lsqvce:fit:notYet`. That is a **scope decision**, not a statement that the two cannot be
-combined; the composition of the two loops is unwritten. Three things are worth separating,
-because Ellmer's own robustness is not per-observation M-estimation:
+Three things are worth separating, because Ellmer's own robustness is not per-observation
+M-estimation and all three of his are available with `Estimate = "noise"` alone:
 
 1. **Gross outlier screening happens in preprocessing**, before the adjustment (Ellmer
    §6.2, after Klinger 2018: the level-1B data is screened for outliers and periods of
@@ -202,30 +200,60 @@ because Ellmer's own robustness is not per-observation M-estimation:
    adjustment replaces that.
 2. **The arc-wise variance factors ARE the down-weighting** at arc granularity: a bad arc
    receives a large variance factor and loses weight automatically. That is
-   `ArcFactors = true`, and it runs inside `Estimate = "noise"`.
+   `ArcFactors = true`.
 3. **The normalisation of those factors is itself robust**: gamma-bar (eq. 6.5.29) is
    computed in GROOPS from the central half of the sorted factors, ignoring both tails.
    That is `Noise.MeanType = "robust"`, the default here.
 
-So the Ellmer configuration is fully available. What is not available is per-observation
-IRLS *simultaneously* with the noise estimation. If you need per-observation down-weighting
-today, two routes work:
+**Per-epoch down-weighting inside the same loop (since 6.1), in the Koch convention.**
+`Robust = "huber" | "igg3" | "bisquare"` together with `Estimate = "noise"` runs the robust
+pass *inside* the joint estimator. Every pass ends with one residual sweep; the **raw**
+residuals, descaled by each epoch's own declared accuracy (`Cep`) and reduced to one value
+per epoch (the RMS over a multi-axis epoch's rows), go through the influence function per
+stream (`RobustOpts.Tuning` for the constants), and the factors are folded into the
+per-epoch error information of the next pass — sigma / sqrt(w), **before** the temporal law,
+through the one composition C = D (R_t ⊗ I_d) D. Accumulation, the probe redundancies and
+the component update therefore see **one** re-weighted problem with nothing added. A weight
+is a statement about the *observation*; the stand-alone IRLS (`Estimate = "none"`) weights
+the law-whitened *innovation* instead (Yang 1994), and the two are deliberately different:
+the control measurement showed that an innovation weight of zero neutralises the whitening
+filter's whole tail around a blunder, so a spectral estimator loses exactly the lag
+correlations it needs there (a planted colour of 0.20 crawled to 0.054 in 16 passes), while
+the same blunders declared through `Cep` let the plain estimator recover it. `MaxPasses` is
+the budget (`RobustOpts.MaxIter` / `Tol` belong to the stand-alone IRLS). Prior streams are
+never re-weighted: a down-weighted datum is a rank defect, not an outlier. What comes back:
+`R.noise.robust` (`influence`, `scale` per stream, `factor` per **epoch** in sweep order,
+`keys`), and `R.history.robustScale` / `nDown` / `nZero` per pass.
+
+Two things the mechanism learned by measurement, both binding on how to use it. **The
+standardisation is the stream's own MAD scale, never the estimated level**: a global scale
+mis-standardises every stream whose level differs from the mix, and using the level the
+whitener just applied makes the weights feed on the level they shape — the clean stream's
+level spiralled to 0.38 that way. With `v / MAD(v)` per stream the weights are invariant to
+the level, and the level converges. **Prefer a redescending influence for gross blunders**:
+Huber is monotone and keeps c/|u| of a blunder's weight, so 2 % of a stream at 25 sigma
+retain 0.02 · 1.345 · 25 ≈ 0.67 of white variance and dilute a lag-1 colour of 0.20 to
+about 0.12; `igg3` (zero beyond 3 sigma) and `bisquare` reject them outright and recover
+the colour.
+
+**The level, measured.** The obvious expectation — that a robust pass estimates the level of
+the *retained* observations, E[w u²]/E[w] (0.73 for `igg3`, 0.80 for Huber on Gaussian
+residuals) — was written down and then **refuted by the oracle**: a clean stream comes back
+at 1.007. The reason is Ellmer's per-lag redundancy s_n (eq. 6.5.23): it is the model
+expectation of Omega_n under the *same* weighted whitening, so a down-weighted row shrinks
+numerator and denominator alike and alpha² = Omega/s stays at 1. This differs from the
+classical Helmert Omega/(n − u), where a zero-weight row still counts a full redundancy and
+the level would be biased low. No consistency correction is needed, and none is applied.
+This composition is Koch's iterated re-weighting inside a variance-component estimation,
+not something Ellmer (2018) does.
+
+Two further routes remain useful:
 
 - **Diagnose, then decide.** Run `Estimate = "noise"` and read `R.report()` — the w-tests,
   redundancies and MDBs identify the observations carrying the outliers; remove or repair
   them in your `buildDay` and re-run.
-- **Fold fixed weights into `Cep`.** Run a robust pass with `Estimate = "none"`, take the
-  final factors from `R.history(end).factor` and their keys, and let `buildDay` return
-  `Cep` divided by sqrt(factor) on those rows. The weights are then **data**, exactly like
-  any other per-epoch accuracy, and the noise estimation runs on the re-weighted stream.
-  Two caveats: the weights must be stored, never recomputed inside `buildDay` (the day
-  builder must be deterministic — each day is read twice per pass), and using the same data
-  to derive the weights and then to estimate the law is a known bias source. It is not the
-  joint fixed point a combined loop would give.
-
-The obstacle for that combined loop is real and worth stating: the IRLS factors ride
-**inside** each arc's whitener, so a down-weighted row changes both the residual and the
-redundancy the variance-component step consumes. Without carrying the weights through the
-per-lag redundancies, the variance components would absorb the down-weighting and the two
-loops would fight — the same double counting the gamma-bar normalisation exists to prevent
-between the spectral amplitudes and the arc factors.
+- **Fold fixed weights into `Cep`.** Take factors from any robust run and let `buildDay`
+  return `Cep` divided by sqrt(factor) on those rows. The weights are then data; the noise
+  estimation runs on the re-weighted stream without the retained-observation bias moving
+  with every pass. The weights must be stored, never recomputed inside `buildDay` (the day
+  builder must be deterministic).

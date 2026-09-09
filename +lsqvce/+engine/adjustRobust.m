@@ -59,6 +59,10 @@ function R = adjustRobust(systems, days, opt)
 %
 %   Created 2026-09-02 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.1 -- R5 Level M2, WP-81 round 2b.
+%   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-105: collectWhitened became
+%   the engine-private lawWhitenedResiduals, the ONE definition this driver
+%   and the joint estimator's robust pass share. With assistance from
+%   Claude (Anthropic), model Claude Fable 5.1.
 
 arguments
     systems
@@ -99,7 +103,7 @@ end
 
         % law-whitened residuals of every observation, and the keys to put
         % the next factors back where they belong
-        [vw, keys, sizes] = collectWhitened(res, W);
+        [vw, keys, sizes] = lawWhitenedResiduals(res, W);   % engine-private, shared with adjustVCEjoint (WP-105)
         [fac, s] = lsqvce.kernel.robustWeights(vw, opt.Influence, opt.Tuning);
 
         nAlive = sum(fac > 0);
@@ -168,24 +172,4 @@ function acc = newAcc(nc, specs, opt, W)
               'ParallelThreshold', opt.ParallelThreshold, ...
               'UserOpt', struct('rowWeights', W));
     acc.addSystems(specs);
-end
-
-function [vw, keys, sizes] = collectWhitened(res, W)
-%COLLECTWHITENED  Law-whitened residuals in sweep order, undoing the factors
-%   that rode inside the whitener (w_sweep = sqrt(factor) .* w_law).
-    vw = [];  keys = cell(0, 4);  sizes = [];
-    for k = 1:numel(res.sys)
-        S = res.sys(k);
-        for j = 1:numel(S.obs)
-            o = S.obs(j);
-            w = o.w(:);
-            key = lsqvce.util.rowWeightKey(S.sysID, o.day, o.obsType, o.arc);
-            if isKey(W, key)
-                w = w ./ sqrt(max(W(key), 1e-12));
-            end
-            vw = [vw; w]; %#ok<AGROW>
-            keys(end+1, :) = {S.sysID, o.obsType, o.day, o.arc}; %#ok<AGROW>
-            sizes(end+1) = numel(w); %#ok<AGROW>
-        end
-    end
 end

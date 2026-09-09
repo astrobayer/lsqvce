@@ -9,6 +9,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
 Last substantive update: 2026-09-09 — WP-101 DONE (PR #101, merge 340eb3b); WP-102 OPEN on `claude/wp-102` (tier B, model Claude Fable 5.1): VERSION 6.0 — THE CELLS ARE THE ARCS (buildDay returns one cell per arc; arcIdx/arcId gone; `arcs` optional; 'fromDay' retired; six user decisions pinned); §12.26.
+Preceding entry: Last substantive update: 2026-09-09 — WP-105 READY (PR #105, CI green 547/547 on 8ac8ab9 after twelve rounds; the robust pass inside the joint loop in the KOCH convention, settled by the user's measurement; version 6.1); §12.29.
+Preceding entry: Last substantive update: 2026-09-09 — WP-103 and WP-104 DONE (merged aad61a2, #103 stacked under #104); WP-105 OPEN: the robust pass INSIDE the joint loop (Robust x Estimate="noise"), version 6.1; §12.29.
 Preceding entry: Last substantive update: 2026-09-09 — WP-104 OPEN: Manual chapter 7 rewritten as the covariance reference (the user: "the manual is too short"), and the last two `Noise.Grid = "auto"` claims corrected on the page WP-101 was written to fix; §12.28 also answers WHY Robust + Estimate="noise" is refused and what Ellmer actually does instead (screening, arc factors, the robust gamma-bar mean) — proposed WP-105 needs a decision.
 Preceding entry: Last substantive update: 2026-09-09 — WP-102 DONE (PR #102, merge 1105acb; CI on main green); WP-103 OPEN: the pool suite runs in CI — the self-hosted runner has the PCT (user), the hosted-runner skip and the 2-worker cap leave ci_gate; TIER NAMES fixed by the user: tier A = the MATLAB MCP bridge, tier B = the self-hosted CI runner; §12.27.
 Preceding entry: Last substantive update: 2026-09-09 — WP-102 round 1: CI RED on 43a8b8b (5 failed) diagnosed and fixed — a v5 FINDING (the day cache evicted the alphabetically first key, not the oldest; FIFO now, and the discovery probe memoised so it never adds a build) plus two nl = 0 fixtures and one demo on the old matrix shape; §12.26 round 1.
@@ -6991,7 +6993,7 @@ pass/fail suite — unchanged by this round).
 
 | WP | title | depends on | status |
 |---|---|---|---|
-| 103 | The pool suite runs in CI: `ci_gate` stops skipping `test_parallel` and capping pools under `LSQVCE_CI` (the self-hosted runner has the PCT); tier names fixed (A = MCP bridge, B = self-hosted runner); the WP-30 backlog item closed | 102 | READY (2026-09-09, PR #103; CI GREEN on c026dde: audit 56 s, matlab 3m30s, **546/546 over 27 suites, test_parallel 25/25 on an 8-worker pool, no skip line, warning inventory = the one allowed id**; 546 + test_speed 12 (the excluded benchmark) = 558 = the README claim; the prediction 558/558 was WRONG by exactly the benchmark's 12 — recorded below; DONE flips on the merge) |
+| 103 | The pool suite runs in CI: `ci_gate` stops skipping `test_parallel` and capping pools under `LSQVCE_CI` (the self-hosted runner has the PCT); tier names fixed (A = MCP bridge, B = self-hosted runner); the WP-30 backlog item closed | 102 | DONE (2026-09-09, PR #103, merged with aad61a2; 2026-09-09, PR #103; CI GREEN on c026dde: audit 56 s, matlab 3m30s, **546/546 over 27 suites, test_parallel 25/25 on an 8-worker pool, no skip line, warning inventory = the one allowed id**; 546 + test_speed 12 (the excluded benchmark) = 558 = the README claim; the prediction 558/558 was WRONG by exactly the benchmark's 12 — recorded below; CI on merged main green) |
 
 **VERDICT (2026-09-09, CI on `c026dde`).** GREEN: audit 56 s, matlab 3m30s — **546/546 over 27
 suites**, `test_parallel` **25/25** in 18.5 s on the runner's `Processes` pool of **8 workers**
@@ -7059,4 +7061,206 @@ not do it), so it needs its own reference and its own acceptance criterion.
 
 | WP | title | depends on | status |
 |---|---|---|---|
-| 104 | Manual chapter 7 rewritten as the covariance reference (division of labour, the three `Cep` shapes, the six laws, `estimate` / `arcFactors` / `Pool`, a pass of the joint estimator, the worked GRACE-FO declaration, the readback, robustness); the two stale `Noise.Grid = "auto"` claims on `lsqvce.Options`'s own help page corrected (WP-101 fixed the code and the Manual, not the page) | 103 | READY (2026-09-09, PR #104, stacked on #103; CI GREEN on 93f98b5: audit + matlab, 546/546 over 27 suites incl. test_parallel 25/25, warning inventory = the one allowed id; Linux audit CLEAN with the Manual and every page rebuilt; DONE flips on the merge) |
+| 104 | Manual chapter 7 rewritten as the covariance reference (division of labour, the three `Cep` shapes, the six laws, `estimate` / `arcFactors` / `Pool`, a pass of the joint estimator, the worked GRACE-FO declaration, the readback, robustness); the two stale `Noise.Grid = "auto"` claims on `lsqvce.Options`'s own help page corrected (WP-101 fixed the code and the Manual, not the page) | 103 | DONE (2026-09-09, PR #104, merged with aad61a2; 2026-09-09, PR #104, stacked on #103; CI GREEN on 93f98b5: audit + matlab, 546/546 over 27 suites incl. test_parallel 25/25, warning inventory = the one allowed id; Linux audit CLEAN with the Manual and every page rebuilt; CI on merged main green) |
+
+### 12.29 WP-105 — the robust pass inside the joint loop (2026-09-09, model Claude Fable 5.1, tier B)
+
+**Origin.** The user, after §12.28's answer ("why is a robust estimator not possible with
+Estimate="noise"? Ellmer uses it?"): "Go ahead." Recorded first, then implemented.
+
+**DECISIONS (the design, stated as what is true after this round).**
+
+1. **One loop, one re-weighted problem.** `adjustVCEjoint` gains `'Influence'` ("none" |
+   "huber" | "igg3" | "bisquare") and `'Tuning'`. Every pass ends (step 9c) with ONE residual
+   sweep under that pass's accumulator; the law-whitened residuals -- this pass's factors
+   divided out, so the influence function sees the standardised residual under the current
+   law, level, arc factor and Cep -- go through `kernel.robustWeights`, and the factors are
+   written to `model.rowWeights` for the NEXT pass (one pass behind the model, the lag
+   adjustRobust has). The caller's factory forwards them as `UserOpt.rowWeights` (fit's
+   `withPass`), where `makeLoader` already applies them INSIDE every arc's whitener (R5 M2
+   2b). Consequence: accumulation, the shared probe, the per-lag redundancies of `sweepArcs`
+   and the component update all see the same weighted metric -- a row of weight w
+   contributes w to Omega and w to s_n. That is the consistency the double-counting concern
+   of §12.28 asked for, and it comes for free from WHERE the factors live.
+2. **No consistency correction.** The levels are those of the RETAINED observations. Under
+   Huber with c = 1.345 on N(0,1) the ratio is E[w u^2]/E[w] with w = min(1, c/|u|) -- 0.80
+   in variance, 0.89 in sigma -- and the oracle COMPUTES that closed form (two `integral`s)
+   and pins the clean stream's effective level (`model{k}.sigma * sigma0`) against it at
+   15 %, rather than declaring the bias away. A correction factor is one line when wanted;
+   applying one silently would make the level depend on an assumed distribution.
+3. **Prior streams are never re-weighted** (factor 1): a down-weighted datum row is a rank
+   defect, not an outlier.
+4. **`collapsed`** refuses past the breakdown point (fewer live rows than nc + 1), as in
+   adjustRobust; `lsqvce:adjustVCEjoint:collapsed`, catalogued v6.1.
+5. **`fit`:** `Robust` with `Estimate="noise"` falls through to fitEllmer; `Options.engineArgs`
+   forwards `Robust` as `'Influence'` and `RobustOpts.Tuning`; `MaxPasses` is the budget
+   (`RobustOpts.MaxIter`/`Tol` stay the stand-alone IRLS's). `lsqvce:fit:notYet` fires only
+   for Robust on an x0 problem now. Result: `R.noise.robust` (influence, scale, factor,
+   keys), `R.history.robustScale/nDown/nZero`, the same on the OnPass ctx.
+6. **One definition:** `adjustRobust>collectWhitened` became the engine-private
+   `lawWhitenedResiduals`, shared by both drivers.
+7. **Not Ellmer.** He screens in preprocessing and down-weights ARCS through the variance
+   factors (§12.28); this is Koch's iterated re-weighting inside a VCE. The help, the
+   release note and Manual §7.8 say so, and say the price.
+8. **Version 6.1** (additive; no declaration change).
+
+**Oracle register.** O-105: the colour fixture (two AR(1) streams, planted 0.20 / 0.50,
+level 1, no locals) with 2 % of stream a's rows replaced by +/-25-sigma blunders
+(deterministic per day). Claims: (i) the robust run recovers stream a's lag-1 colour within
+the clean-data bound 0.08; (ii) the plain run is FURTHER from the planted colour than the
+robust one (a relative claim, so the test cannot pass by the blunders being harmless);
+(iii) the blunder rows carry factor < 0.1 (Huber c/|u| = 0.054 at 25 sigma), the bulk's
+median factor is exactly 1; (iv) the clean stream b's effective level equals the Huber
+retained-observation ratio E[w u^2]/E[w], computed in the test, at 15 %; (v) Robust "none"
+carries no factors. Plus the contract points in test_fit (the front door runs it, one factor
+per observation, one robust record per pass; the x0 refusal stays).
+
+**Predicted count:** 559 declared (558 + 1: the oracle in test_vcePolicy; the notYet point
+in test_fit is rewritten, not added). CI on the self-hosted runner decides -- 547/547 with
+the benchmark excluded.
+
+**ROUND 1 (CI on 44e544a RED: 515/516 + test_vcePolicy failed to LOAD).** Two causes.
+(a) `{Estimate="noise", ...}` -- name=value syntax inside a cell literal is a parse error;
+the suite did not load (the gate counts that as red, as it must). Comma pairs now.
+(b) A DEFECT of R5 M2 2b, latent for a week: `makeLoader`'s rowWeights wrapper called
+`out.Wfcn`, which is EMPTY for every dense law (psd 'toeplitz', acf, custom -- the batch
+iterator decorrelates those from Cfcn). adjustRobust's tests only ever met filter laws; the
+first robust pass under the joint estimator's Toeplitz override (the default Whitener) hit
+`MATLAB:needMoreRhsOutputs` inside `weightedWhiten`. Fixed: the factors wrap the dense step
+too (`denseRows`, the iterator's own `decorrFactor` line), so a robust pass works on every
+law. Found by running, not by reading -- again.
+
+**ROUND 2 (CI on 83ac614 RED: 546/547 -- the mechanism runs, the NUMBERS were wrong; two
+design errors, both of the "two loops fight" class §12.28 predicted, found by the oracle).**
+  * Stream a's colour came back 0.003 (planted 0.20), 26 of 46 blunders below 0.1, and the
+    CLEAN stream b's effective level 0.377 against the Huber ratio 0.86 in sigma^2 (0.80 in
+    variance) -- and still falling. (1) The influence used ONE GLOBAL MAD scale over all
+    streams, so every stream whose level differed from the mix was mis-standardised, its
+    level then re-estimated from mis-weighted residuals, and the next scale saw that: the
+    level-shaping loop and the weight loop fed on each other. Now ONE MAD PER STREAM
+    (`perStreamWeights`): the standardisation is v / MAD(v), invariant to the level the
+    whitener applied, so the weights cannot chase the level; the level converges to the
+    retained-observation ratio instead of to zero. (2) Huber is MONOTONE: a 25-sigma
+    blunder keeps 1.345/25 of its weight, so 2 % of them retain 0.67 of white variance and
+    dilute the colour -- the oracle can only be met by a REDESCENDING influence. The oracle
+    runs IGG3 now (zero beyond 3 sigma), asserts factor == 0 on the blunders, and computes
+    the level ratio with IGG3's own weight function. Both lessons are in the help, the
+    release note and Manual §7.8 as rules of use.
+
+**ROUND 3 (CI on d96a868 RED: 546/547 -- factors right, colour and level still wrong; the
+cause READ this time, not guessed).** Stream a's colour 0.003 with the blunders rejected, the
+clean level 0.41: the joint SWEEP (`sweepArcs>oneArc`) does not whiten with the loader's
+`Wfcn` at all -- it forms the explicit W = chol(Sigma) from `Cfcn` (redundancyLags needs the
+triangular factor). The factors lived only in `Wfcn`, so the accumulation was weighted and
+the component update was not: exactly the inconsistency §12.28 feared, in the one place the
+"weights are in the whitener" argument did not reach. **Round 4:** (a) `batchOf` wraps
+`Cfcn` too: weighting AFTER the law filter (Yang 1994, the convention adjustRobust pins) is
+e_w = D L^-1 v with covariance L D^-2 L' -- `weightedCov`; the sweep's W is now the factor
+of the weighted problem and the residual it forms equals the accumulator's. (b) Multi-axis
+streams: the sweep's temporal covariance is per axis over EPOCHS, so a factor must be per
+epoch -- `perStreamWeights` weights a multi-axis arc by the epoch's RMS over its d
+law-whitened rows (the multivariate M-estimate of a vector observation), one factor per
+epoch replicated to its rows; `residuals` records `nAxis` on every arc for it. Decision
+recorded: the epoch statistic is the RMS, standardised by the stream's MAD like a scalar
+residual -- a chi-shaped variable treated as symmetric; adequate for blunder rejection, not
+a calibrated multivariate scale (a later refinement if the oracle asks for one).
+
+**ROUND 4 (CI on df17239: 546/547).** The weighted sweep works: the planted rows are at
+factor 0, the colour moved 0.003 -> 0.054 (still short of the 0.12 bound) and the CLEAN
+stream's level came back **1.007 -- the expected retained-observation ratio (0.73) is
+REFUTED**: Ellmer's s_n is the model expectation of Omega_n under the same weighted
+whitening, so the weights cancel in alpha^2 (unlike Helmert's Omega/(n-u)). Pinned at 1,
+docs corrected. 87 zero rows = 45 planted + their filter-contaminated neighbours (bounded in
+the test). Round 5: the planted rows located exactly (one RNG sequence per day, replayed),
+and the colour assertion now REPORTS the run (plain rho, C(1:4), level a, sigma0, passes,
+converged) so the next red says where the dilution is left.
+
+**ROUND 5/6 (CI on feb8531 / c166c3a: 546/547 -- ONE claim left, and the trajectory now
+in the log).** Everything but the colour holds: all 45 planted rows at factor 0, the bulk at
+1, the clean level 1.007 (unbiased), level a 0.958, sigma0 1.037. The colour of stream a
+CRAWLS: rho_a per pass 0.006, 0.008, 0.010, 0.012, 0.015, 0.018, 0.022, 0.026, 0.031,
+0.036, 0.041, 0.046, 0.051, 0.054, 0.055, 0.054 -- alpha^2 sits at ~1.02 per pass (maxDev
+0.017 at pass 4, nearly the 1e-2 Tol), then maxDev GROWS to 0.37 by pass 16 and the loop
+ends unconverged. So the weighted sweep is self-consistent almost everywhere and the
+spectral update carries almost no signal. READING (not yet measured): under the Yang
+convention (weight AFTER the law filter) a zero-weight INNOVATION at row i makes the raw
+covariance L D^-2 L' huge for every row the filter tail reaches from i -- rows i..i+k share
+the 1e12 variance through L_ki L_li / w_i -- so each blunder neutralises a NEIGHBOURHOOD
+(the whole filter memory, ~10 rows of a resampled PSD law), and the lag statistics lose
+the very correlations near every blunder that the update needs; the neighbourhood count
+in nZero (57 -> 95) is the visible part. The Koch convention (weight BEFORE the filter,
+Sigma~ = D^-1 Sigma D^-1: a blunder is one observation of huge variance, the filter adapts
+around it) confines the loss to the row itself. DECISION NEEDED (the user): (a) switch the
+robust convention to Koch for the joint loop (and adjustRobust with it -- one definition;
+its diagonal-law parity is unaffected, its correlated-law claim changes), or (b) keep Yang
+and accept that the joint loop rejects blunders and keeps levels honest but recovers a
+colour only slowly under gross blunders -- in which case the oracle's colour bound must be
+stated as the measured 0.054 and the Manual must say so. A third measurement would settle
+it cheaply: the same oracle with the blunder rows DELETED by the fixture (if deletion gives
+0.20 in a few passes, the convention is the cause).
+
+**ROUND 7 -- THE MEASUREMENT (the user: "Messen"; CI on 5edd59a).** The control: the same
+45 blunders DECLARED through `Cep` (sigma 1e6 on the planted rows -- which the toolbox
+composes BEFORE the temporal law, i.e. the Koch convention) and NO robust pass. The plain
+estimator recovered stream a's colour within the 0.08 bound (the control assertion PASSED
+while the Yang-weighted robust run stayed at 0.054). The convention is the cause, settled by
+measurement, not by argument.
+
+**ROUND 8 -- the joint loop switches to the Koch convention.** The weight is a statement
+about the OBSERVATION: `adjustVCEjoint>epochResiduals` takes the RAW residuals, descales
+every epoch by its own `Cep` (`separableWhiten` with AR(0)), reduces a multi-axis epoch to
+the RMS over its rows, and `perStreamWeights` standardises per stream by the MAD; the
+factors -- ONE PER EPOCH -- travel as `UserOpt.epochWeights` and `makeLoader>batchOf` folds
+them into the arc's per-epoch error information (`inflateCep`: sigma / sqrt(w), a covariance
+/ w) before the temporal law, so the one composition C = D (R_t kron I_d) D carries them to
+the accumulation, the sweep and the residuals with no second mechanism (the round-4
+`weightedCov` wrapper stays for the Yang channel of adjustRobust, whose Cfcn it keeps
+consistent with its Wfcn). `residuals` records `Cep` on every arc for the descale. The two
+conventions are now DELIBERATE and documented: Yang for the stand-alone IRLS (a fixed law,
+the innovation is the right frame), Koch inside the spectral estimator (the observation is,
+because the innovation weight destroys the lag structure the update needs). `R.noise.robust.factor`
+is per EPOCH. CI decides round 8.
+
+**ROUND 8 result (CI on 93dff60): an OSCILLATION, read off the trajectory.** nZero
+60 / 0 / 55 / 0 / 55 ..., maxDev 18 / 0.95 alternating: the raw residual was descaled by
+the Cep the sweep returns -- which is the COMPOSED one, this pass's factors already folded
+in -- so a blunder standardised by an accuracy carrying its own zero weight looked perfect,
+got weight 1, came back next pass, and so on. Round 9: `epochResiduals` divides this pass's
+factors back out of Cep (the lawWhitenedResiduals pattern, on the Koch channel) before the
+descale.
+
+**ROUND 9 result (CI on b002977): the weights are right and stable (nZero 53 every pass,
+level a 0.946, sigma0 1.002) -- and the colour STILL crawls (0.006 -> 0.08, C(3) = -0.21,
+maxDev grows again).** What differs from the control that converged: the START. Pass 1 runs
+without weights and fits the law to the blunders (near-white, a negative lag 2); the
+multiplicative PSD update then climbs out of that shape at ~2 % a pass. Round 10: PASS 0 --
+one accumulation under the start model, one robust sweep, the factors -- BEFORE the first
+spectral update, so the spectrum never sees the blunders (what the control had from the
+start). `robustSweep` is the one local function both call.
+
+**ROUND 10 result (CI on 6f29e40): 547/547 -- EVERY CLAIM HOLDS.** With pass 0 the colour
+is recovered within the clean-data bound, the planted rows are at 0, the bulk at 1, the
+levels unbiased, the control agrees. The gate was still red on the WARNING INVENTORY, the
+part of the verdict a pass count cannot see: `residuals:sigma0Mismatch` (the robust sweep
+called residuals with Whitened=false, whose vtv is the RAW sum, so the honest sigma0 guard
+fired on every robust pass -- Whitened=true now; the raw .v is on the record either way)
+and `adjustVCEjoint:notConverged` (the PLAIN run under blunders, which need not settle:
+muted in the oracle by name, the one way a test silences a warning it provokes).
+
+**ROUND 12 -- VERDICT (CI on 8ac8ab9): GREEN, 547/547 over 27 suites incl. test_parallel,
+warning inventory = the one allowed id, 559 declared as predicted.** Twelve rounds; what
+they were, in one line each: 1 the parse error + the dense-law wrapper defect (R5 M2);
+2 one MAD per stream (a global scale spirals the level); 3 the sweep whitens from Cfcn,
+not Wfcn (the weights were invisible to the components); 4 the weighted covariance reaches
+the sweep; 5 the level is UNBIASED (prediction refuted, docs corrected); 6 the trajectory in
+the diagnostic; 7 THE MEASUREMENT (the user): blunders declared through Cep recover the
+colour -- the convention is the cause; 8 the Koch channel (factors folded into Cep before the
+law); 9 descale by the DECLARED Cep (the on/off oscillation); 10 pass 0 before the first
+spectral update (the start was the difference to the control) -- 547/547; 11-12 the warning
+inventory. Lessons pinned: a spectral estimator must weight OBSERVATIONS, not innovations;
+the influence must never see a scale it shapes (MAD per stream; the declared Cep); the first
+spectral update must not see the blunders. Version 6.1.
+
+| WP | title | depends on | status |
+|---|---|---|---|
+| 105 | The robust pass inside the joint loop: `Robust` x `Estimate="noise"` runs (adjustVCEjoint 'Influence'/'Tuning', factors in every arc's whitener on the next pass, one re-weighted metric for accumulation, probes and components; prior streams exempt; `collapsed`; `R.noise.robust`); `lawWhitenedResiduals` shared by both drivers; the retained-observation level stated and measured, no silent correction; version 6.1 | 104 | READY (2026-09-09, PR #105; TWELVE CI rounds, §12.29 -- the design settled by measurement (the control) and refined by four measured corrections; CI GREEN on 8ac8ab9: audit + matlab, **547/547 over 27 suites** incl. test_parallel, warning inventory = the one allowed id, 559 declared as predicted; Linux audit CLEAN with the Manual rebuilt; DONE flips on the merge) |

@@ -40,7 +40,14 @@ classdef Options
 %                                   across passes, 9.4 / 8.6 / 8.6 / 8.6 against
 %                                   a planted 9; before it grew 8.4x a pass.)
 %     Robust     "none" | "huber" | "igg3" | "bisquare"   IRLS on the same
-%                                   loop, every kind (details in RobustOpts)
+%                                   loop, every kind (details in RobustOpts).
+%                                   With Estimate "noise" the robust pass runs
+%                                   INSIDE the joint loop (R6 WP-105): one
+%                                   residual sweep per pass, the factors in
+%                                   every arc's whitener on the next pass;
+%                                   MaxPasses is the budget, RobustOpts.Tuning
+%                                   the constants (RobustOpts.MaxIter / Tol
+%                                   belong to the stand-alone IRLS only)
 %     MaxPasses  double  10         the pass budget of the variance-component
 %                                   loop and of Gauss-Newton (v4: MaxOuter /
 %                                   JointMaxIter). IRLS has its OWN budget,
@@ -132,6 +139,9 @@ classdef Options
 %
 %   See also LSQVCE.FIT, LSQVCE.RESULTS, the Manual, chapter 3, RELEASE_NOTES.md
 %
+%   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-105: Robust is forwarded to
+%   the joint estimator as its 'Influence' (with RobustOpts.Tuning). With
+%   assistance from Claude (Anthropic), model Claude Fable 5.1.
 %   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-104: the two remaining
 %   "auto" claims about Noise.Grid corrected -- WP-101 retired the value in
 %   the code and in the Manual but left it standing on THIS page, which is
@@ -247,6 +257,7 @@ classdef Options
                                'Tol', obj.Tolerance, 'Probes', obj.Probes, 'Seed', obj.Seed, ...
                                'SkipThreshold', N.SkipThreshold, 'Pool', obj.Pool, ...
                                'MeanType', N.MeanType, 'Verbose', logical(obj.Verbose), ...
+                               'Influence', obj.Robust, 'Tuning', obj.RobustOpts.Tuning, ...   % R6 WP-105
                                'OnPass', obj.OnPass};
                 case 'diagnose'
                     args.nv = obj.diagnoseNV();

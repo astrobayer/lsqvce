@@ -112,6 +112,41 @@ OPTIONS (Name/Value)
   &#x27;Seed&#x27;      1x1 | []   RNG seed for reproducible probes (default [])
   &#x27;Norm&#x27;      char       DCT normalisation, &#x27;ortho&#x27; (default) | &#x27;ellmer&#x27;
   &#x27;MeanType&#x27;  char       arc-factor mean, &#x27;robust&#x27; (default) | &#x27;plain&#x27;
+  &#x27;Influence&#x27; string     &quot;none&quot; (default) | &quot;huber&quot; | &quot;igg3&quot; | &quot;bisquare&quot;
+           R6 WP-105: the ROBUST PASS INSIDE THE LOOP, in the KOCH
+           convention -- the weight is a statement about the
+           OBSERVATION. Every pass ends with one residual sweep; the RAW
+           residuals, descaled by each epoch&#x27;s own declared accuracy
+           (Cep) and reduced to ONE value per epoch (the RMS over a
+           multi-axis epoch&#x27;s rows), go through
+           LSQVCE.KERNEL.ROBUSTWEIGHTS per stream, and the factors are
+           folded into the per-epoch error information of the NEXT pass
+           (model.rowWeights -&gt; UserOpt.epochWeights -&gt; sigma / sqrt(w)
+           in makeLoader&gt;batchOf), i.e. applied BEFORE the temporal law
+           through the one composition C = D (R_t kron I_d) D.
+           Accumulation, probe redundancies and the component update
+           then see ONE re-weighted problem with nothing added. MEASURED
+           (rounds 4-8): weighting the law-whitened INNOVATION instead
+           (Yang 1994, adjustRobust&#x27;s convention) neutralises the
+           filter&#x27;s whole tail around every blunder and the colour of a
+           blunder-laden stream crawled 0.006 -&gt; 0.054 in 16 passes;
+           with the same blunders declared through Cep the plain
+           estimator recovered it. NOT Ellmer (2018): he screens outliers in
+           preprocessing and down-weights whole ARCS through the variance
+           factors; this is Koch&#x27;s iterated re-weighting inside a VCE,
+           and the level it returns is UNBIASED (measured 1.007 on a
+           clean stream, test_vcePolicy: the per-lag redundancy s_n is
+           the model expectation of Omega_n under the SAME weighted
+           whitening, so the weights cancel in alpha^2 -- the
+           retained-observation ratio that was expected was refuted by
+           the oracle). Multi-axis streams are weighted PER EPOCH (the
+           RMS over the d law-whitened rows). The residuals
+           are standardised by ONE MAD SCALE PER STREAM, never by the
+           estimated level (perStreamWeights says why). Prior streams
+           are never re-weighted. Prefer &quot;igg3&quot; / &quot;bisquare&quot; for gross
+           blunders: Huber keeps c/|u| of their weight. &quot;none&quot; is bitwise
+           the plain estimator.
+  &#x27;Tuning&#x27;    [] | 1xK   tuning constants of the influence (its defaults)
   &#x27;Verbose&#x27;   logical    per-iteration banner (default false)
   &#x27;StepSchedule&#x27; &#x27;none&#x27; (default) | &#x27;decay&#x27;.  WP-40 r2 (F-15): the
            closed-loop alternation is a stochastic approximation; the
@@ -137,6 +172,13 @@ OPTIONS (Name/Value)
   .Shat      nLag x 1   the converged PSD amplitudes
   .sigma2    M x 1      the converged arc variance factors, ALIGNED TO
                         .arcKeys (the pass-1 enumeration order; WP-34)
+  .robust    struct     .influence, .scale (1 x S, the MAD scale per
+                        stream of the last robust sweep), .streams
+                        (1 x S &#x27;satKey|obsType&#x27;, sorted), .factor
+                        (nEpoch x 1, the final factors, ONE PER EPOCH
+                        in sweep order -- a multi-axis epoch&#x27;s d rows
+                        share it), .keys (A x 4 {sysID, obsType, day,
+                        arc}); empty under &quot;none&quot; (R6 WP-105)
   .arcKeys   M x 1 cell arc keys s&lt;sys&gt;_&lt;obsType&gt;_d&lt;day&gt;_a&lt;arc&gt; pinned
                         on pass 1 (LSQVCE.ENGINE.REDUNDANCY&#x27;s &#x27;arc&#x27; format) --
                         the ONE identity .sigma2 and Sigma2_0 align to
@@ -168,6 +210,9 @@ plot(r.sigma2);            % the arc-wise weights</pre>
                                 the former noCep refusal is gone -- the loader
                                 composes D = I and says so once)
   lsqvce:adjustVCEjoint:noArcs    a system declares no arcs
+  lsqvce:adjustVCEjoint:collapsed the influence function left fewer live
+                                  observations than parameters + 1 (beyond
+                                  the breakdown point; R6 WP-105)
 
 IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
   lsqvce:adjustVCEjoint:localNotPD           System X
@@ -194,6 +239,10 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
          LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 
+Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-105: the robust pass inside
+the loop (&#x27;Influence&#x27;, &#x27;Tuning&#x27;, model.rowWeights, out.robust, the
+collapsed refusal) -- the one-loop composition of IRLS and the joint
+estimator. With assistance from Claude (Anthropic), model Claude Fable 5.1.
 Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-98 (finding F-01 FIXED): eq.
 6.5.28 now multiplies alpha2_m by the factor the WEIGHTING used -- the
 per-stream level -- instead of the per-arc factor, which alpha2 cancels

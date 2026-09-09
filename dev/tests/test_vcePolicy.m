@@ -738,6 +738,150 @@ function testPoolStreamGivesEachStreamItsOwnLaw(tc)
     tc.verifyEqual(R.sigma0, 1, 'RelTol', 0.10, 'and the run stays consistently weighted');
 end
 
+%% ------------------------------- R6 WP-105: the robust pass inside the joint loop
+function testRobustPassInsideTheJointLoopRecoversTheLawUnderOutliers(tc)
+% categories: reference, robustness, contract
+    % R6 WP-105: Robust together with Estimate "noise" runs -- one residual
+    % sweep per pass, the factors inside every arc's whitener on the next
+    % pass, so accumulation, probe redundancies and the component update see
+    % ONE re-weighted problem. THE ORACLE: the colour fixture (two AR(1)
+    % streams, planted 0.20 / 0.50, level 1) with 2 % of stream a's rows
+    % replaced by 25-sigma blunders. Plain "noise" must be pulled off the
+    % planted law by them; the robust pass must recover it and put the
+    % blunders at ZERO weight -- which is why the oracle uses IGG3, a
+    % REDESCENDING influence: Huber is monotone and keeps c/|u| of a
+    % blunder's weight, so 2 % at 25 sigma retain 0.02*1.345*25 = 0.67 of
+    % white variance and dilute the colour to ~0.12 (round 1, measured with
+    % a global scale: 0.003). The manual says so.
+    plantA = 0.20;  plantB = 0.50;
+    data = colourFixture(plantA, plantB);
+    inner = data.systems.buildDay;
+    data.systems.buildDay = @(day, ot) blunders(inner(day, ot), day, ot, 0.02, 25);   % 2 %, 25 sigma
+    base = {'Estimate', "noise", 'Pool', "stream", 'MaxPasses', 16, 'Verbose', false};
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % the PLAIN run under blunders may not settle -- that is its point
+    Rp = lsqvce.fit(data, lsqvce.Options(base{:}));                      % plain
+    trail = containers.Map('KeyType', 'double', 'ValueType', 'any');    % round 6: the pass trajectory
+    watch = @(ctx) trailOf(trail, ctx);
+    Rr = lsqvce.fit(data, lsqvce.Options(base{:}, 'Robust', "igg3", 'OnPass', watch));    % robust pass inside
+    % THE CONTROL (round 7, the user's "measure"): the same blunders declared
+    % as data of huge variance through Cep -- the toolbox composes Cep BEFORE
+    % the temporal filter, i.e. the KOCH convention (weight, then filter) --
+    % and NO robust pass. If the plain estimator recovers the colour here in
+    % a few passes, the crawl above is the Yang convention's (weight AFTER the
+    % filter: a zero-weight innovation neutralises the filter's whole tail).
+    dk = data;
+    dk.systems.buildDay = @(day, ot) declareBlunders(blunders(inner(day, ot), day, ot, 0.02, 25), day, ot, 0.02);
+    trailK = containers.Map('KeyType', 'double', 'ValueType', 'any');
+    Rk = lsqvce.fit(dk, lsqvce.Options(base{:}, 'OnPass', @(ctx) trailOf(trailK, ctx)));
+    rho = @(R, k) R.noise.Cgroups(k);
+    rhoK = rho(Rk, 'x1|a');  rhoK = rhoK(2) / rhoK(1);
+    rhoP = rho(Rp, 'x1|a');  rhoR = rho(Rr, 'x1|a');
+    rhoP = rhoP(2) / rhoP(1);  rhoR = rhoR(2) / rhoR(1);
+    Ca = Rr.noise.Cgroups('x1|a');
+    ia = find(strcmp(Rr.noise.stream, 'x1|a'), 1);
+    % tol: 0.08 absolute on a lag-1 correlation from 9 arcs of 256 epochs --
+    % the bound testPoolStreamGivesEachStreamItsOwnLaw uses on clean data
+    tc.verifyEqual(rhoR, plantA, 'AbsTol', 0.08, sprintf(['the robust pass recovers stream a''s colour under ' ...
+        'blunders (plain %.3f; robust C(1:4) = %s, level a %.3f, sigma0 %.3f, passes %d, converged %d; ' ...
+        'per pass [rho_a nZero maxDev]: %s)'], ...
+        rhoP, mat2str(Ca(1:4).', 3), Rr.noise.model{ia}.sigma, Rr.sigma0, Rr.history.nIter, Rr.converged, ...
+        mat2str(cell2mat(values(trail, num2cell(sort(cell2mat(keys(trail)))))'), 3)));
+    % tol: 0.08 absolute, the same clean-data bound -- the CONTROL's claim is
+    % that Koch-style declaration of the blunders lets the plain estimator
+    % recover the colour
+    tc.verifyEqual(rhoK, plantA, 'AbsTol', 0.08, sprintf(['CONTROL: blunders declared through Cep (weight ' ...
+        'BEFORE the filter), no robust pass -- passes %d, converged %d, sigma0 %.3f; per pass [rho_a nZero maxDev]: %s'], ...
+        Rk.history.nIter, Rk.converged, Rk.sigma0, ...
+        mat2str(cell2mat(values(trailK, num2cell(sort(cell2mat(keys(trailK)))))'), 3)));
+    tc.verifyGreaterThan(abs(rhoP - plantA), abs(rhoR - plantA), ...
+        'the plain estimator is further from the planted colour than the robust one');
+    % the blunders, located exactly (the same RNG sequence the injector used):
+    % every planted row must be at factor 0 (IGG3 rejects beyond k1 = 3
+    % sigma; the standardisation is the stream's own MAD, so a 25-sigma
+    % blunder is 25 sigma whatever level the whitener applied); the rest of
+    % stream a keeps unit weight in the bulk, and the rows the law filter
+    % contaminates from a blunder next door may go too -- but no more than
+    % that (the 41 extra zeros of round 4 are that neighbourhood)
+    f = Rr.noise.robust.factor;  k = Rr.noise.robust.keys;
+    planted = false(size(f));  isA = false(size(f));  off = 0;
+    for j = 1:size(k, 1)
+        n = 256;                                                    % equal arcs
+        if strcmp(k{j, 2}, 'a')
+            isA(off + (1:n)) = true;
+            planted(off + blunderRows(k{j, 3}, k{j, 4}, 0.02, n)) = true;
+        end
+        off = off + n;
+    end
+    tc.verifyEqual(sum(planted), 45, 'the injector planted round(0.02*256) = 5 rows in each of 9 arcs');
+    tc.verifyEqual(f(planted), zeros(sum(planted), 1), 'every planted blunder is rejected');
+    fa = f(isA & ~planted);
+    tc.verifyEqual(median(fa), 1, 'the bulk keeps unit weight');
+    % tol: the rows a blunder contaminates through the whitening filter --
+    % at most its two neighbours -- plus the 0.27 % of N(0,1) beyond 3 sigma
+    tc.verifyLessThanOrEqual(sum(fa == 0), 2 * 45 + 10, 'no rejection beyond the blunders'' neighbourhood');
+    tc.verifyEqual(Rr.noise.robust.influence, 'igg3');
+    tc.verifyEqual(Rr.noise.robust.streams, {'x1|a', 'x1|b'}, 'one MAD scale per stream');
+    tc.verifyEqual(size(Rr.history.robustScale), [Rr.history.nIter, 2]);
+    % THE LEVEL, measured -- and the prediction it refuted. WP-105 expected
+    % the retained-observation ratio E[w u^2]/E[w] (0.73 for IGG3, 0.80 for
+    % Huber): round 4 measured 1.007 on the CLEAN stream b. Ellmer's per-lag
+    % redundancy s_n (eq. 6.5.23) is the model expectation of Omega_n under
+    % the SAME weighted whitening, so a down-weighted row shrinks numerator
+    % and denominator alike and alpha^2 = Omega/s stays 1 for the clean
+    % stream: the level is UNBIASED, unlike Helmert's Omega/(n - u), where
+    % the redundancy of a zero-weight row stays 1. Pinned at 1.
+    ib = find(strcmp(Rr.noise.stream, 'x1|b'), 1);
+    lvlB = Rr.noise.model{ib}.sigma * Rr.sigma0;
+    % tol: 15 % relative on an effective level from 9 arcs of 256 epochs
+    % (the clean-data bound of testRecoversPlantedRelativeWeights is 25 %)
+    tc.verifyEqual(lvlB, 1, 'RelTol', 0.15, 'the clean stream''s level is unbiased under the robust pass');
+    % Robust "none" carries no factors at all
+    tc.verifyEmpty(Rp.noise.robust.factor);
+end
+
+function trailOf(trail, ctx)
+%TRAILOF  Per-pass record for the diagnostic: stream a's lag-1 colour, the
+%   zero-weight count, the convergence measure.
+    r = NaN;
+    if isKey(ctx.Cgroups, 'x1|a'), C = ctx.Cgroups('x1|a');  r = C(2) / C(1); end
+    nz = NaN;  if ~isempty(ctx.factor), nz = sum(ctx.factor == 0); end
+    trail(ctx.pass) = [r, nz, ctx.maxDev];   %#ok<NASGU>
+end
+
+function D = blunders(D, day, obsType, fraction, nSigma)
+%BLUNDERS  Replace FRACTION of stream a's rows by NSIGMA-sigma blunders (v6 cells).
+    if ~strcmp(obsType, 'a'), return, end
+    for a = 1:numel(D.l)
+        [idx, sgn] = blunderRows(day, a, fraction, numel(D.l{a}));
+        D.l{a}(idx) = D.l{a}(idx) + nSigma * sgn;
+    end
+end
+
+function D = declareBlunders(D, day, obsType, fraction)
+%DECLAREBLUNDERS  The control's declaration: the planted rows of stream a get
+%   a per-epoch sigma of 1e6 through Cep (composed BEFORE the temporal law:
+%   the Koch convention), every other row sigma 1.
+    if ~strcmp(obsType, 'a'), return, end
+    D.Cep = cell(size(D.l));
+    for a = 1:numel(D.l)
+        c = ones(numel(D.l{a}), 1);
+        c(blunderRows(day, a, fraction, numel(D.l{a}))) = 1e6;
+        D.Cep{a} = c;
+    end
+end
+
+function [idx, sgn] = blunderRows(day, arc, fraction, m)
+%BLUNDERROWS  The rows the injector hits in (day, arc), and their signs: ONE
+%   RNG sequence per day, consumed arc by arc, so the test can locate every
+%   planted row without the injector telling it.
+    rs = RandStream('mt19937ar', 'Seed', 9900 + day);
+    for a = 1:arc
+        idx = randperm(rs, m, round(fraction * m));
+        sgn = 2 * (rand(rs, numel(idx), 1) > 0.5) - 1;
+    end
+    idx = idx(:).';
+end
+
 function r = localRho(C)
 %LOCALRHO  Lag-1 autocorrelation of a fitted lag covariance.
     r = C(2) / C(1);
