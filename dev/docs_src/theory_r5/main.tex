@@ -90,12 +90,15 @@ Expert C & software design and MATLAB programming\\
 \end{tabular}
 \vspace{14mm}
 
-{\large Version 5.0-plan, 1 September 2026\par}
+{\large Version 5.0-plan, 1 September 2026 --- the R5 record; implementation authority: the Manual\par}
 \vspace{3mm}
 {Created 2026-09-01 (CEST, UTC+02:00) with assistance from Claude (Anthropic), model Claude Fable 5.1 --- Review R5. Source: \code{dev/docs\_src/theory\_r5/}. Binding status and ledger: \code{dev/HANDOVER.md} \S12.\par}
 \vfill
 \begin{principle}[How to read this document]
 Parts I--III are the \emph{theory authority} of the toolbox: what is computed, why, and where the computation must refuse. They supersede \code{lsqvce\_theory.pdf} (R4 WP-59) once decision R5-D6 is taken. Parts IV--V are the review of the tree at \code{main} head \code{d7ad051} (v4.0, 634 test points, 83 public names) and the plan for v5. Every claim about the toolbox names a file, a line or a work package so it can be checked rather than believed. Nothing in Part V is implemented; it is a plan awaiting the user's decisions (\S\ref{sec:decisions}).
+\end{principle}
+\begin{principle}[Where this record stops (added 2026-09-09, R6 WP-106)]
+Parts IV--V and Appendix C are a DATED RECORD: the review of v4.0 and the plan and option mapping of v5.0 as of 1--3 September 2026. They are kept as written. Every implementation-facing statement in them --- the \code{epochCovariance} hook, \code{arcId}, the \code{lsqvce:fit:notYet} refusal of a robust pass on the streaming kind, \code{LogFile}, the 14-knob option table --- has since been superseded, and the current state is NOT in this document: the \emph{implementation authority} is the Manual (\code{doc lsqvce}, chapters 3, 4 and 7), \code{RELEASE\_NOTES.md} lists what changed per version (5.1 \ldots{} 6.1), and \code{dev/HANDOVER.md} \S12 carries the decisions. Parts I--III (the theory) are current.
 \end{principle}
 \end{titlepage}
 

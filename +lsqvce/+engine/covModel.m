@@ -121,7 +121,7 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 %       lsqvce:covModel:noSigma        .sigma missing        (most types)
 %       lsqvce:covModel:badSigma       .sigma not a positive scalar
 %       lsqvce:covModel:sigmaLength    per-observation .sigma has the wrong length
-%       lsqvce:covModel:noAR           .ar missing           ('arma', 'separable')
+%       lsqvce:covModel:noAR           .ar missing           ('arma')
 %       lsqvce:covModel:noACF          .acv missing          ('acf')
 %       lsqvce:covModel:noPSD          .psd missing          ('psd')
 %       lsqvce:covModel:noVAR          .ar/.sigma missing    ('var')
@@ -158,6 +158,9 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 %   See also LSQVCE.ENGINE.CHECKPSD, LSQVCE.KERNEL.ARMAWHITEN, LSQVCE.KERNEL.SEPARABLEWHITEN,
 %            LSQVCE.KERNEL.DECORRFACTOR, LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.MAKELOADER
 %
+%   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-106: the retired 'separable'
+%   type no longer listed under noAR (found by audit check 28 on its first
+%   run). With assistance from Claude (Anthropic), model Claude Fable 5.1.
 %   Updated 2026-09-06 (CEST, UTC+02:00), R6 WP-90: ONE composition of any
 %   temporal law with the per-epoch Cep replaces the 'separable' type; the
 %   law is built on the epoch grid. With assistance from Claude (Anthropic),

@@ -1,0 +1,19 @@
+# Superseded claims (R6 WP-106, audit check 28) -- THE ratchet for stale documentation.
+# Every row is a sentence fragment that was TRUE on some live surface once and is FALSE
+# now; the check greps the live surfaces (help blocks up to 'See also', the Manual sources,
+# README, the GRAVFIRE guide, templates, examples) and fires on any hit. When a work package
+# retires a behaviour, it adds the phrase that used to describe it. Historical records
+# (RELEASE_NOTES, HANDOVER, HISTORY, the theory PDF sources) are not scanned.
+# pattern (Python regex, case-sensitive), retired by, what it claimed
+Not combinable with .Estimate="noise",WP-105,Robust + Estimate noise was refused (runs since 6.1)
+run the robust pass with .Estimate="none".,WP-105,the old remedy for the refusal above
+Grid \(60 \| "auto"\),WP-101/104,Noise.Grid accepted "auto" (never implemented)
+neither "auto" nor an integer,WP-101/104,the badGrid description mentioned "auto" as accepted
+\.arcIdx\s*=,WP-102,a day returned row-index arcs (the cells are the arcs since v6)
+\.arcId\s*=,WP-102,a day named its arcs (cells since v6)
+\.arcs\s*=\s*'fromDay',WP-102,the string schedule form (retired v6)
+epochCovariance\s*=,WP-90,the per-epoch covariance hook (retired 5.3; the day returns Cep)
+localsPerArc\s*=,L11,the count-based local plan on the user surface (scoped tables since 4.0)
+MinPasses\s*=,WP-101,an inert option (retired 5.3)
+LogFile\s*=,WP-101,an inert option (retired 5.3)
+'separable'\),WP-90,the separable type listed among the live types (retired 5.3; arma + Cep)

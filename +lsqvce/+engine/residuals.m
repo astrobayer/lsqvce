@@ -27,7 +27,11 @@ function res = residuals(acc, sol, opt)
 %     res.sys(k).vtv          weighted residual square sum of this system
 %     res.sys(k).m            number of observations
 %     res.sys(k).rms          sqrt(vtv/m), in units of sigma0
-%     res.sys(k).obs(j)       .obsType .day .arc .t .v .w
+%     res.sys(k).obs(j)       .obsType .day .arc .t .v .w .nAxis .Cep
+%                             (.nAxis, .Cep: the arc's axis count and its
+%                             per-epoch error information as the loader
+%                             returned them -- the joint estimator's robust
+%                             pass descales .v by them, R6 WP-105)
 %     res.vtv, res.dof, res.s0sq, res.sigma0    recomputed globally
 %     res.supersedesSol       1x1 logical  true when THESE numbers supersede
 %                             sol.vtv/sol.sigma0 (WP-49): either the backend

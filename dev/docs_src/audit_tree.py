@@ -1103,6 +1103,71 @@ def check_options_are_consumed():
     print('   %d public properties checked' % len(props))
 
 
+def _help_descriptive(path):
+    """The help block of an .m file up to (excluding) its 'See also' line --
+    the part that makes claims; the stamps after it are history."""
+    lines = open(path, encoding='utf-8', errors='replace').read().split('\n')
+    out = []
+    started = False
+    for ln in lines:
+        st = ln.strip()
+        if not started:
+            if st.startswith('%'):
+                started = True
+            elif st and not st.startswith('function') and not st.startswith('classdef'):
+                break
+            else:
+                continue
+        if started:
+            if not st.startswith('%'):
+                break
+            if re.match(r'%\s*See also', st, re.I):
+                break
+            out.append(ln)
+    return '\n'.join(out)
+
+
+def check_superseded_claims():
+    print('\n28. no live surface still makes a superseded claim (R6 WP-106)')
+    # WHY: check 22 proved every page equals its help block and check 23 that
+    # the Manual equals its sources -- and a sentence that was TRUE at 5.2 and
+    # FALSE at 6.1 passed both, twice in one day: Options.m still offered
+    # Noise.Grid "auto" after WP-101 retired it, and Manual chapter 4 still
+    # said Robust and Estimate="noise" were "not combinable" after WP-105 made
+    # them run. Byte-equality cannot see a claim go stale. This check can see
+    # ONE thing: a phrase that once described a behaviour that no longer
+    # exists. Every retirement adds its phrase to superseded_claims.csv, and
+    # from then on it cannot come back anywhere it would mislead a reader.
+    csv_path = os.path.join('dev', 'docs_src', 'superseded_claims.csv')
+    rows = []
+    for ln in open(csv_path, encoding='utf-8'):
+        ln = ln.rstrip('\n')
+        if not ln.strip() or ln.lstrip().startswith('#'):
+            continue
+        parts = ln.split(',', 2)
+        if len(parts) < 3:
+            note('superseded', 'superseded_claims.csv: malformed row %r' % ln)
+            continue
+        rows.append((parts[0].strip(), parts[1].strip(), parts[2].strip()))
+    surfaces = []
+    for f in pglob(PKG_GLOB, recursive=True):
+        surfaces.append((f, _help_descriptive(f)))
+    for pat in ('dev/docs_src/manual/*.md', 'README.md', 'dev/GRAVFIRE_INTERFACE.md',
+                'dev/DEVELOPMENT.md', 'template/*.m', 'examples/*.m'):
+        for f in pglob(pat):
+            surfaces.append((f, open(f, encoding='utf-8', errors='replace').read()))
+    n = 0
+    for pattern, by, claim in rows:
+        rx = re.compile(pattern)
+        for f, text in surfaces:
+            for i, ln in enumerate(text.split('\n'), 1):
+                if rx.search(ln):
+                    note('superseded', '%s:%d still makes a claim retired by %s (%s): %r'
+                         % (f, i, by, claim, ln.strip()[:100]))
+                    n += 1
+    print('   %d superseded claims checked on %d surfaces; hits: %d' % (len(rows), len(surfaces), n))
+
+
 def main():
     if not os.path.isdir('+lsqvce'):
         sys.exit('run from the toolbox root (the folder holding +lsqvce)')
@@ -1136,6 +1201,7 @@ def main():
     check_index_lists_every_unit()
     check_md_pointers()
     check_options_are_consumed()
+    check_superseded_claims()
     print('\n' + '=' * 60)
     if FINDINGS:
         print('%d finding(s).' % len(FINDINGS))

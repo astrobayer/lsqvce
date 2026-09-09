@@ -120,6 +120,17 @@ function L = makeLoader(buildDay, opt)
 %                                   count is CacheDays x streams, the key is day|stream),
 %                                   Inf = the calendar (one build per run) (default 1)
 %
+%   RUNTIME ROBUST FACTORS -- TWO CHANNELS, ONE FACT EACH (R5 M2, R6 WP-105)
+%     opt.rowWeights   containers.Map 'sysID|day|obsType|arcId' -> m_arc x 1
+%                      factors applied AFTER the law filter (rows scaled by
+%                      sqrt(w) inside Wfcn; Cfcn made consistent as L D^-2 L'):
+%                      the innovation is weighted -- lsqvce.engine.adjustRobust.
+%     opt.epochWeights the same map with ONE factor per EPOCH, folded into the
+%                      arc's per-epoch error information BEFORE the temporal
+%                      law (Cep: sigma / sqrt(w), a covariance / w): the
+%                      observation is weighted -- the robust pass of
+%                      lsqvce.engine.adjustVCEjoint. Never both on one arc.
+%
 %   RUNTIME COVARIANCE OVERRIDE (opt.covOverride)
 %     Every batch merges a runtime override into the base spec, so an outer
 %     loop can reshape the law per pass WITHOUT rebuilding the loader. Two

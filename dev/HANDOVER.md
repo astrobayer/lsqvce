@@ -9,6 +9,7 @@ architecture, the task list, and the implementation prompts — lives HERE.
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
 Last substantive update: 2026-09-09 — WP-101 DONE (PR #101, merge 340eb3b); WP-102 OPEN on `claude/wp-102` (tier B, model Claude Fable 5.1): VERSION 6.0 — THE CELLS ARE THE ARCS (buildDay returns one cell per arc; arcIdx/arcId gone; `arcs` optional; 'fromDay' retired; six user decisions pinned); §12.26.
+Preceding entry: Last substantive update: 2026-09-09 — WP-105 DONE (PR #105, merge a0e0500); WP-106 OPEN: the docs-sync question ("are help, html and the pdfs in sync?") answered by reading — four content drifts fixed, the theory PDF given its dated-record banners (the user's (a)), and audit check 28 (superseded claims) so a stale sentence cannot pass byte-equality again; §12.30.
 Preceding entry: Last substantive update: 2026-09-09 — WP-105 READY (PR #105, CI green 547/547 on 8ac8ab9 after twelve rounds; the robust pass inside the joint loop in the KOCH convention, settled by the user's measurement; version 6.1); §12.29.
 Preceding entry: Last substantive update: 2026-09-09 — WP-103 and WP-104 DONE (merged aad61a2, #103 stacked under #104); WP-105 OPEN: the robust pass INSIDE the joint loop (Robust x Estimate="noise"), version 6.1; §12.29.
 Preceding entry: Last substantive update: 2026-09-09 — WP-104 OPEN: Manual chapter 7 rewritten as the covariance reference (the user: "the manual is too short"), and the last two `Noise.Grid = "auto"` claims corrected on the page WP-101 was written to fix; §12.28 also answers WHY Robust + Estimate="noise" is refused and what Ellmer actually does instead (screening, arc factors, the robust gamma-bar mean) — proposed WP-105 needs a decision.
@@ -7263,4 +7264,52 @@ spectral update must not see the blunders. Version 6.1.
 
 | WP | title | depends on | status |
 |---|---|---|---|
-| 105 | The robust pass inside the joint loop: `Robust` x `Estimate="noise"` runs (adjustVCEjoint 'Influence'/'Tuning', factors in every arc's whitener on the next pass, one re-weighted metric for accumulation, probes and components; prior streams exempt; `collapsed`; `R.noise.robust`); `lawWhitenedResiduals` shared by both drivers; the retained-observation level stated and measured, no silent correction; version 6.1 | 104 | READY (2026-09-09, PR #105; TWELVE CI rounds, §12.29 -- the design settled by measurement (the control) and refined by four measured corrections; CI GREEN on 8ac8ab9: audit + matlab, **547/547 over 27 suites** incl. test_parallel, warning inventory = the one allowed id, 559 declared as predicted; Linux audit CLEAN with the Manual rebuilt; DONE flips on the merge) |
+| 105 | The robust pass inside the joint loop: `Robust` x `Estimate="noise"` runs (adjustVCEjoint 'Influence'/'Tuning', factors in every arc's whitener on the next pass, one re-weighted metric for accumulation, probes and components; prior streams exempt; `collapsed`; `R.noise.robust`); `lawWhitenedResiduals` shared by both drivers; the retained-observation level stated and measured, no silent correction; version 6.1 | 104 | DONE (2026-09-09, PR #105, merge a0e0500; TWELVE CI rounds, §12.29 -- the design settled by measurement (the control) and refined by four measured corrections; CI GREEN on 8ac8ab9: audit + matlab, **547/547 over 27 suites** incl. test_parallel, warning inventory = the one allowed id, 559 declared as predicted; Linux audit CLEAN with the Manual rebuilt; CI on merged main green) |
+
+### 12.30 WP-106 — the docs in sync, by reading; and the ratchet for stale claims (2026-09-09, model Claude Fable 5.1, tier B)
+
+**Origin.** The user, after the WP-105 merge: "Are all help text, html docs and the pdfs in
+sync?" The MECHANICAL answer was yes (audit CLEAN on merged main: check 22 pages == help
+blocks, check 23 Manual == a fresh build, check 17 README == tree, the catalogue closed; the
+Manual PDF is built in the same step as its html). The READ answer was no, four times -- three
+of them mine from WP-105, one older -- plus the theory PDF, which is a dated record with
+nothing saying so.
+
+**Content drifts, fixed.** (1) Manual chapter 4, `Robust`: "Not combinable with
+Estimate=\"noise\" ... refused by name" -- false since 6.1 and contradicting chapter 7 of the
+same Manual; rewritten as the two conventions. (2) `Results` help: `noise.robust` and the
+per-pass `history.robustScale/nDown/nZero` (and the joint history fields in general) were
+nowhere on the page `doc lsqvce.Results` opens; listed now. (3) `residuals` help: the record
+carries `.nAxis .Cep` since WP-105; documented. (4) `makeLoader` help: the second runtime
+channel `opt.epochWeights` (per epoch, before the law -- Koch) was only in an error entry; a
+RUNTIME ROBUST FACTORS section states both channels, one fact each. And (5), found by the new
+check on its first run: `covModel`'s ERRORS listed the retired `'separable'` type as a live
+type for `noAR`.
+
+**The theory PDF -- the user's (a).** `lsqvce_theory.pdf` is "Version 5.0-plan, 1 September
+2026" and is that by design: Parts I--III are the theory authority (current), Parts IV--V and
+Appendix C are the R5 review, plan and option mapping as of 5.0. Its implementation-facing
+statements (the epochCovariance hook, arcId, notYet on the streaming kind, LogFile, 14 knobs)
+are two versions old and NOTHING in the document said where the record stopped. Now three
+dated banners say it: on the title page (subtitle + a "Where this record stops" box naming the
+Manual as the implementation authority and RELEASE_NOTES as the change log), at the head of
+Part IV, and on Appendix C. The text is kept as written; rebuilt with pdflatex.
+
+**Audit check 28 -- superseded claims.** WHY: byte-equality (22, 23) cannot see a sentence go
+stale -- both stale sentences above passed it. THE RULE: `dev/docs_src/superseded_claims.csv`
+holds phrases that once described a behaviour that no longer exists (pattern, retired by,
+what it claimed); the check greps the LIVE surfaces -- help blocks up to `See also` (the
+stamps after it are history), the Manual sources, README, DEVELOPMENT, the GRAVFIRE guide,
+templates, examples -- and fires on any hit. Historical records (RELEASE_NOTES, HANDOVER,
+HISTORY, the theory sources) are not scanned. Every retirement adds its phrase. Seeded with
+twelve (the two of this round, Grid "auto", arcIdx/arcId usage, 'fromDay', epochCovariance,
+localsPerArc, MinPasses, LogFile, 'separable' as a live type). Calibrated on the real tree:
+the first patterns for 'fromDay' and 'separable' matched RETIREMENT NOTICES ("is retired",
+"the former ... was") -- the check must fire on claims, not on mentions, so the patterns are
+usage forms (`.arcs = 'fromDay'`, `'separable')` in a type list). Fault-injected three ways:
+a retired claim inside a help block fires; the same phrase after `See also` (a stamp) is
+silent; a retired usage form in the Manual fires. Self-test 23 cases.
+
+| WP | title | depends on | status |
+|---|---|---|---|
+| 106 | The docs in sync, by reading: Manual ch. 4 `Robust`, `Results` / `residuals` / `makeLoader` help on the WP-105 fields and channels, `covModel`'s retired type; the theory PDF's three dated-record banners (the user's (a)); audit check 28 -- superseded claims, seeded with twelve, fault-injected | 105 | OPEN (2026-09-09; branch `claude/wp-106`; Linux audit CLEAN with pages, Manual and theory PDF rebuilt; self-test 23 cases; CI decides -- no MATLAB change beyond help blocks) |
