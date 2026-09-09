@@ -9,6 +9,7 @@ architecture, the task list, and the implementation prompts — lives HERE.
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
 Last substantive update: 2026-09-09 — WP-101 DONE (PR #101, merge 340eb3b); WP-102 OPEN on `claude/wp-102` (tier B, model Claude Fable 5.1): VERSION 6.0 — THE CELLS ARE THE ARCS (buildDay returns one cell per arc; arcIdx/arcId gone; `arcs` optional; 'fromDay' retired; six user decisions pinned); §12.26.
+Preceding entry: Last substantive update: 2026-09-09 — WP-104 OPEN: Manual chapter 7 rewritten as the covariance reference (the user: "the manual is too short"), and the last two `Noise.Grid = "auto"` claims corrected on the page WP-101 was written to fix; §12.28 also answers WHY Robust + Estimate="noise" is refused and what Ellmer actually does instead (screening, arc factors, the robust gamma-bar mean) — proposed WP-105 needs a decision.
 Preceding entry: Last substantive update: 2026-09-09 — WP-102 DONE (PR #102, merge 1105acb; CI on main green); WP-103 OPEN: the pool suite runs in CI — the self-hosted runner has the PCT (user), the hosted-runner skip and the 2-worker cap leave ci_gate; TIER NAMES fixed by the user: tier A = the MATLAB MCP bridge, tier B = the self-hosted CI runner; §12.27.
 Preceding entry: Last substantive update: 2026-09-09 — WP-102 round 1: CI RED on 43a8b8b (5 failed) diagnosed and fixed — a v5 FINDING (the day cache evicted the alphabetically first key, not the oldest; FIFO now, and the discovery probe memoised so it never adds a build) plus two nl = 0 fixtures and one demo on the old matrix shape; §12.26 round 1.
 Preceding entry: Last substantive update: 2026-09-08 — WP-99 DONE (PR #99, merge 385b0d9; postflight on merged main: ci_gate 539/539, examples included); WP-100 OPEN: the two standing estimator questions CLOSED BY MEASUREMENT, both against the change that looked obvious; §12.24.
@@ -7002,3 +7003,60 @@ the prediction assumed (37 was 558 − 521, i.e. it silently folded the benchmar
 suite). A missed prediction is a finding even on green: the count must be reconciled from the
 per-suite table (25 + 12), not from a difference of totals. Tier B verdict: **green, and tier B
 is now the whole gate** — nothing is left for a local postflight except what tier A is for.
+
+### 12.28 WP-104 — the covariance chapter, and the last "auto" (2026-09-09, model Claude Fable 5.1, tier B)
+
+**Origin.** The user, after a detailed question about setting up `covariance` for the
+GRAVFIRE case (3x3 per-epoch covariance on the kinematic orbits, one scalar variance on the
+KBR, the Ellmer estimator): "The manual is too short." It was: chapter 7 was 34 lines and
+said nothing about how to CHOOSE a law, what the three `Cep` shapes mean, what `Pool` does
+to the physics, or how to read an arc's sigma back.
+
+**A DEFECT found while answering, on the page WP-101 was written to fix.** `Options.m` still
+documented `Noise.Grid (60 | "auto")` in the group table AND told the reader in its ERRORS
+block that `badGrid` fires when Grid "is neither "auto" nor an integer >= 2" -- while the
+code refuses `"auto"` at assignment. WP-101 retired the value in the code, in the Manual and
+in the release notes, and left the two claims standing on the class's own help page, which
+is what `doc lsqvce.Options` opens. Corrected here. Audit check 22 could not see it: the
+page and the help block agree with each other, they are both wrong. An identifier's
+DESCRIPTION is not checked against its behaviour, and nothing mechanical can do that.
+
+**Chapter 7 rewritten** (34 -> 210 lines), as the reference the covariance struct never had:
+7.1 the division of labour (law / level / per-epoch accuracy, C = D (R_t kron I_d) D, and
+that Cep is RELATIVE to sigma); 7.2 the three Cep shapes and the asymmetry that bites (the
+vector forms are STANDARD DEVIATIONS, the matrix form is a COVARIANCE) with every rule
+(axisConflict, cepTwice, cepOnVar, noCep, epoch-major); 7.3 the six laws with their cost per
+batch and why PSD -> AR is exact; 7.4 `estimate` / `arcFactors` and the
+`lawOnFixedStructure` refusal, plus what `Pool` means physically (the RCOND 1e-50
+measurement); 7.5 what a pass of the joint estimator does, `Grid` >= the longest arc,
+`Probes`, the skip reasons and `SkipThreshold`, the per-axis descale before the lag
+statistics; 7.6 THE WORKED GRACE-FO CASE, runnable, with the `Estimate="none"` sanity pass
+first; 7.7 the readback and the three-term sigma rule; 7.8 robustness.
+
+**7.8 answers a question the record could not (the user asked; Ellmer was READ, not
+recalled).** `Robust ~= "none"` with `Estimate="noise"` is `lsqvce:fit:notYet` -- a SCOPE
+decision from R5 M2, not an impossibility. Ellmer (2018) does not run an M-estimator inside
+the VCE loop at all; his robustness is three other things, and all three are available here:
+(1) gross outlier screening in PREPROCESSING (his §6.2, after Klinger 2018: level-1B
+screened for outliers and periods of reduced quality, segments < 1 h discarded); (2) the
+arc-wise variance factors themselves, which down-weight a bad arc automatically
+(`ArcFactors=true`); (3) the ROBUST MEAN in their normalisation -- gamma-bar (eq. 6.5.29) is
+computed in GROOPS from the central half of the sorted factors, both tails ignored, which is
+`Noise.MeanType="robust"`, the default. So "the Ellmer approach" needs no IRLS. Two interim
+routes for per-observation down-weighting are written out (diagnose-then-decide; fold fixed
+factors into `Cep`, with the determinism and data-reuse caveats). The obstacle for the
+combined loop is named: the IRLS factors ride INSIDE each arc's whitener, so a down-weighted
+row changes the residual AND the redundancy the variance-component step consumes; without
+carrying the weights through the per-lag redundancies the components absorb the
+down-weighting -- the double counting gamma-bar exists to prevent between amplitudes and arc
+factors.
+
+**PROPOSED WP-105 (needs a user decision; NOT opened here):** the one-loop composition
+Robust x Estimate="noise" -- IRLS factors carried through `redundancyLags` so the components
+see the weighted redundancy (Yang 1994 / Koch's robust VCE), with an oracle that plants both
+an outlier and a coloured law and recovers both. Ellmer is NOT the authority for it (he does
+not do it), so it needs its own reference and its own acceptance criterion.
+
+| WP | title | depends on | status |
+|---|---|---|---|
+| 104 | Manual chapter 7 rewritten as the covariance reference (division of labour, the three `Cep` shapes, the six laws, `estimate` / `arcFactors` / `Pool`, a pass of the joint estimator, the worked GRACE-FO declaration, the readback, robustness); the two stale `Noise.Grid = "auto"` claims on `lsqvce.Options`'s own help page corrected (WP-101 fixed the code and the Manual, not the page) | 103 | OPEN (2026-09-09; branch `claude/wp-104`, stacked on #103; Linux audit CLEAN with the Manual rebuilt; CI decides) |
