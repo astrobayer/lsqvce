@@ -39,10 +39,15 @@ of the stream's level, normalised to unit mean over the run. `false` = one level
 stream (the Helmert factor of its arcs). Turn off when arcs are few or short.
 
 **`Robust`** — `"none"` (default) | `"huber"` | `"igg3"` | `"bisquare"`.
-IRLS M-estimation on the same loop, every data kind: the influence function named here
-reweights the standardised whitened residuals with a MAD scale each pass; the final
-factors are `R.history(end).factor`. Not combinable with `Estimate="noise"` in one run
-(refused by name: run the robust pass with `Estimate="none"`).
+M-estimation on the same loop, every data kind, in two deliberately different conventions
+(chapter 7, §7.8). With `Estimate="none"` it is the stand-alone IRLS (`adjustRobust`): the
+influence function re-weights the law-whitened *innovations* (Yang) with a MAD scale each
+pass, `RobustOpts.MaxIter` / `Tol` are its budget, the final factors are
+`R.history(end).factor`. With `Estimate="noise"` (since 6.1) the robust pass runs *inside* the
+joint estimator and weights *observations* (Koch): the raw residuals, descaled by each
+epoch's declared accuracy, one factor per epoch, folded into `Cep` before the temporal law;
+`MaxPasses` is the budget, the factors are `R.noise.robust.factor`. Prefer `"igg3"` or
+`"bisquare"` for gross blunders — Huber keeps c/|u| of their weight.
 
 ## The loop
 

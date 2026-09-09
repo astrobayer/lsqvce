@@ -158,7 +158,7 @@ info.filterMemory      % = 20 -&gt; the accumulator overlaps by 20 rows</pre>
     lsqvce:covModel:noSigma        .sigma missing        (most types)
     lsqvce:covModel:badSigma       .sigma not a positive scalar
     lsqvce:covModel:sigmaLength    per-observation .sigma has the wrong length
-    lsqvce:covModel:noAR           .ar missing           (&#x27;arma&#x27;, &#x27;separable&#x27;)
+    lsqvce:covModel:noAR           .ar missing           (&#x27;arma&#x27;)
     lsqvce:covModel:noACF          .acv missing          (&#x27;acf&#x27;)
     lsqvce:covModel:noPSD          .psd missing          (&#x27;psd&#x27;)
     lsqvce:covModel:noVAR          .ar/.sigma missing    (&#x27;var&#x27;)
@@ -194,6 +194,9 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 See also LSQVCE.ENGINE.CHECKPSD, LSQVCE.KERNEL.ARMAWHITEN, LSQVCE.KERNEL.SEPARABLEWHITEN,
          LSQVCE.KERNEL.DECORRFACTOR, LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.MAKELOADER
 
+Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-106: the retired &#x27;separable&#x27;
+type no longer listed under noAR (found by audit check 28 on its first
+run). With assistance from Claude (Anthropic), model Claude Fable 5.1.
 Updated 2026-09-06 (CEST, UTC+02:00), R6 WP-90: ONE composition of any
 temporal law with the per-epoch Cep replaces the &#x27;separable&#x27; type; the
 law is built on the epoch grid. With assistance from Claude (Anthropic),

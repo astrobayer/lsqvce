@@ -34,7 +34,7 @@ audit = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(audit)
 
 COPY = ['+lsqvce', 'html/index.html', 'helptoc.xml', 'dev/docs_src/tiers.csv', 'dev/docs_src/catch_baseline.csv',
-        'dev/docs_src/error_ids.csv', 'dev/docs_src/layering_baseline.csv',
+        'dev/docs_src/error_ids.csv', 'dev/docs_src/layering_baseline.csv', 'dev/docs_src/superseded_claims.csv',
         'dev/tests/category_exemptions.csv', 'dev/tests']
 
 
@@ -138,6 +138,31 @@ def add_used_prop(d):
 
 case('27 a dead Options property fires', audit.check_options_are_consumed, 'options',
      add_dead_prop)
+
+# ---- 28 (R6 WP-106): superseded claims ------------------------------------
+def add_help_claim(d):
+    # INSIDE the help block (before See also), where the check reads claims
+    p = os.path.join(d, '+lsqvce/fit.m')
+    lines = open(p, encoding='utf-8').read().split('\n')
+    lines.insert(2, '%   Robust: Not combinable with `Estimate="noise"` in one run')
+    open(p, 'w', encoding='utf-8').write('\n'.join(lines))
+
+
+case('28 a retired claim in a help block fires', audit.check_superseded_claims, 'superseded',
+     add_help_claim)
+case('28 the same phrase after See also (a stamp) is silent', audit.check_superseded_claims,
+     'superseded',
+     lambda d: append(os.path.join(d, '+lsqvce/fit.m'),
+                      '\n%   See also NOTHING\n%   Updated: Not combinable with `Estimate="noise"` was retired\n'),
+     expect_fire=False)
+def add_manual_claim(d):
+    os.makedirs(os.path.join(d, 'dev/docs_src/manual'), exist_ok=True)
+    append(os.path.join(d, 'dev/docs_src/manual/03_data.md'),
+           "\n```matlab\nD.arcIdx = {1:m};\n```\n")
+
+
+case('28 a retired usage form in the Manual fires', audit.check_superseded_claims, 'superseded',
+     add_manual_claim)
 case('27 a property something reads is silent', audit.check_options_are_consumed, 'options',
      add_used_prop, expect_fire=False)
 

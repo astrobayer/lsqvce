@@ -21,9 +21,22 @@ classdef Results < handle
 %     diag       1x1      struct   Per-observation diagnostics (LSQVCE.ENGINE.DIAGNOSE):
 %                                  redundancy, leverage, w-tests, MDB, ...
 %     history    1xI      struct   Per-iteration record (empty for a single
-%                                  solve; filled by LSQVCE.ENGINE.ADJUSTVCEJOINT).
+%                                  solve; filled by LSQVCE.ENGINE.ADJUSTVCEJOINT:
+%                                  .maxDev .Shat .streams .sigma .white
+%                                  .whitePval per pass, .skips, .nIter, and
+%                                  under Robust the per-pass .robustScale (one
+%                                  column per stream) .nDown .nZero -- R6 WP-105;
+%                                  by LSQVCE.ENGINE.ADJUSTROBUST: .scale .dx
+%                                  .nDown .nZero and, on the last pass, .factor
+%                                  .keys).
 %     noise      1x1      struct   Fitted noise models per stream (empty until
-%                                  the variance-component loop populates it).
+%                                  the variance-component loop populates it):
+%                                  .stream (keys) .model{k} (.sigma the level,
+%                                  .C the law) .Cgroups (one C per pool group)
+%                                  .priors .priorHistory, and .robust
+%                                  (R6 WP-105: .influence, .scale per stream,
+%                                  .streams, .factor ONE PER EPOCH in sweep
+%                                  order, .keys; empty fields under "none").
 %     sol        1x1      struct   Raw output of acc.solve() (.x, .sigma0, ...).
 %     acc        1x1      lsqvce.engine.BlockAccumulator   The accumulator (drop here
 %                                  to re-solve, inspect blocks, get residuals).
