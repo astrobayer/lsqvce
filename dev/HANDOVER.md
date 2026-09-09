@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-09-08 — WP-99 DONE (PR #99, merge 385b0d9; postflight on merged main: ci_gate 539/539, examples included); WP-100 OPEN: the two standing estimator questions CLOSED BY MEASUREMENT, both against the change that looked obvious; §12.24.
+Last substantive update: 2026-09-09 — WP-101 DONE (PR #101, merge 340eb3b); WP-102 OPEN on `claude/wp-102` (tier B, model Claude Fable 5.1): VERSION 6.0 — THE CELLS ARE THE ARCS (buildDay returns one cell per arc; arcIdx/arcId gone; `arcs` optional; 'fromDay' retired; six user decisions pinned); §12.26.
+Preceding entry: Last substantive update: 2026-09-08 — WP-99 DONE (PR #99, merge 385b0d9; postflight on merged main: ci_gate 539/539, examples included); WP-100 OPEN: the two standing estimator questions CLOSED BY MEASUREMENT, both against the change that looked obvious; §12.24.
 Preceding entry: Last substantive update: 2026-09-08 — WP-98 DONE (PR #98, merge cf10d71; finding F-01 FIXED; postflight on merged main: ci_gate 535/535, examples 15/15); WP-99 OPEN: the four carried instrument-and-honesty items, one commit each; §12.23.
 Preceding entry: Last substantive update: 2026-09-08 — WP-97 DONE (PR #97, merge f47306d; postflight on merged main: ci_gate 534/534, examples 15/15); WP-98 OPEN: F-01's mechanism is ESTABLISHED and one of §12.21's own measurements is CORRECTED; §12.22.
 Preceding entry: Last substantive update: 2026-09-08 — WP-96 DONE (PR #96, merge cd14d22; postflight on merged main: ci_gate 531/531, examples 15/15); WP-97 OPEN: finding F-01 gets the oracle it never had and a guard, after the first hypothesis was MEASURED and refuted; §12.21.
@@ -6754,7 +6755,7 @@ this round.
 
 | WP | title | depends on | status |
 |---|---|---|---|
-| 101 | The documentation audit and its repairs: four dead `Options` retired and refused at the door, `Verbose` documented as the 0/1 surface it is, the stale claims in help / html / Manual / README / DEVELOPMENT corrected, the theory document reduced to ONE builder and ONE name (the orphan ReportLab generator and the duplicate PDF deleted), and audit check 27 so a documented option with no consumer cannot ship again | 100 | READY (2026-09-08, PR #101, stacked on #100; CI green: audit 25 s, matlab 3m3s; local ci_gate GREEN 541/541 over 27/27 suites, Linux audit CLEAN with the Manual and the theory PDF rebuilt, self-test 20 cases; DONE flips on the merge) |
+| 101 | The documentation audit and its repairs: four dead `Options` retired and refused at the door, `Verbose` documented as the 0/1 surface it is, the stale claims in help / html / Manual / README / DEVELOPMENT corrected, the theory document reduced to ONE builder and ONE name (the orphan ReportLab generator and the duplicate PDF deleted), and audit check 27 so a documented option with no consumer cannot ship again | 100 | DONE (2026-09-08, PR #101, merge 340eb3b; CI green: audit 25 s, matlab 3m3s; local ci_gate GREEN 541/541 over 27/27 suites on the PR head; POSTFLIGHT on merged main: the user's ci_gate — open until stated) |
 
 **ROUND WP-101 (2026-09-08, model Claude Opus 5, tier A).** The mechanical layer was green
 throughout — 26 checks, exit 0 — which is the whole reason the content audit was worth running.
@@ -6810,3 +6811,103 @@ Fault-injected in this round, both directions: a dead property fires, a property
 reads is silent. Self-test 20 cases.
 
 VERDICTS. Local `ci_gate` GREEN **541/541** over 27/27 suites (553 declared, unchanged — no test added or removed; `test_options` pins 17 properties instead of 19). Linux audit with the Manual rebuilt under WSL **CLEAN, zero findings**; audit self-test **20 cases**; the Windows audit at its one-finding baseline. The theory PDF was rebuilt with pdflatex under WSL and `pdftotext` confirms the corrected enum is in the shipped file. CI green: audit **pass 25 s**, matlab **pass 3m3s**.
+
+### 12.26 WP-102 — VERSION 6.0: THE CELLS ARE THE ARCS (2026-09-09, model Claude Fable 5.1, tier B)
+
+**Origin.** The user, continuing the GRAVFIRE interface work: "Currently, it is required
+that each arc is defined by s.arcs, which requires additional bookkeeping in the moment.
+The gravfire_data provides arcsFcn for this. The manual suggest a dedicated function
+myArcTable. However, gravfire provides each day as cell arrays. One cell defines one arc.
+Adapt this in the toolbox and make the arc scheduling optional. A, B, l, t shall always be
+returned as cell arrays that define the arcs. Likewise Cep. arcIdx and arcId are
+superfluous then." Tier B: no MATLAB in the sandbox; CI is the gate, the user's `ci_gate` on
+the local machine is the postflight; the Linux audit ran here with pandoc (the Manual and
+every unit page rebuilt).
+
+**DECISIONS (proposed 2026-09-09, the user's word: "Excellent. Please proceed").**
+
+1. **The cells are the arcs.** `buildDay` returns `A`, `B`, `l`, `t` as 1 x nArc cells,
+   cell a = arc a; `Cep` likewise (nEpoch_a x 1 | x d | x d x d per cell); `nAxis` stays a
+   scalar. `arcIdx` / `arcId` are DELETED: a returned `arcIdx`, `arcId` or any field beyond
+   `A B l t Cep nAxis` is `lsqvce:makeLoader:badDay` by name; a matrix where a cell belongs
+   is the same id (`{A}` for one arc, one way).
+2. **`arcs` is optional.** Without it the arcs of a day are its cells (ids 1:nArc), learned
+   at the engine's per-day `meta` probe by reading the day -- which the engine reads right
+   after, so the cache makes it free. That needed a correction: the cache is keyed
+   day|stream, but `CacheDays = 1` held ONE slot, not one day; capacity is now
+   CacheDays x data streams (the meaning the option always claimed; the prior streams never
+   enter the cache).
+3. **Declared schedule:** ids(a) <-> cell a, `numel` must agree (`lsqvce:makeLoader:arcCount`,
+   which replaces the positional out-of-range guard as the catch for a mis-declared static
+   schedule; an id OUTSIDE the schedule stays `badArc`). An EMPTY cell is the data gap of a
+   scheduled arc (replaces the v5 `arcId` subset). The string form `'fromDay'` is retired
+   (`badArcs` at makeLoader, `lsqvce:fit:badArcs` at the declaration): omitting `arcs` is
+   what it meant.
+4. **`arcs` stays REQUIRED only for `'arc'` template rows** (and the engine-tier
+   `LocalsPerArc`): nl counts one block per (day, arc) and must be known before any day is
+   read. A pre-run probe is NOT an option: a 6-argument builder needs `info` -- the layout --
+   which is what the plan produces (circular). `lsqvce:makeLoader:localPlan`, relabelled
+   through fit. GRAVFIRE is purely `'day'`-scoped: no `arcs`, `arcsFcn` deleted from the
+   template.
+5. **`'day'` rows without a schedule** are instantiated on EVERY calendar day of the system
+   (local plan and common plan alike; `calendarDayHasArcs` returns true for a system without
+   `arcs`): the calendar is the declaration. A calendar day that returns no arc in ANY stream
+   while owning a `'day'` block is refused at its `meta` probe (`lsqvce:makeLoader:emptyDay`,
+   with day and system in the message: take the day off `days`, or declare a schedule) --
+   before any solve could go rank-deficient on the unobserved block. (One deliberate false
+   positive: a system without `'day'` rows on a day the common plan owns because of THIS
+   system's claim -- the message names `days`, which is the declared way to say a system
+   skips a day.)
+6. **Version 6.0** -- the sixth contract change (2.0 namespace, 3.0 counts derived, 4.0
+   scoped, 5.0 one loop, 6.0 the cells). RELEASE_NOTES with the v5 -> v6 migration table.
+
+**What changed (inventory = the tree).**
+  * `engine.makeLoader`: help on the v6 contract; `Arcs` default `[]`; the string form
+    refused at the door; `capacity = Cache * CacheDays * streams`; `metaOf` reads the day
+    under discovery and applies the emptyDay rule (`dayOwnsBlock`, `L.commonPlan`);
+    `arcVec` / `resolveArcSpec` without `'fromDay'`; NEW `dayArcIds` (the count check);
+    `buildLocalPlan` / `buildScopePlan` demand a declared schedule for `'arc'` rows /
+    `LocalsPerArc` and put `'day'` rows on every day without one; `validateDay` rewritten
+    (whitelist, cells, per-arc rows, Cep per arc, nAxis derived, whole epochs); `batchOf`
+    picks cells, empty cell -> `[]`; `sliceEpochCov` deleted (E-01 cannot recur: an arc's
+    Cep is its own cell).
+  * `engine.declaration` (`calendarDayHasArcs` v6 semantics, the v6 `badArcs` message),
+    `engine.batchSystem` (one cell), `engine.synthLoader` (its internal day cut into cells),
+    `fit` help.
+  * Test instrument `dev/tests/private/arcCells.m`: the ONE cut from the v5 row-index shape
+    (matrices + `arcIdx` [+ `arcId`, `Cep`]) to the cells, in schedule order with gaps and the
+    per-arc Cep slice -- every fixture keeps generating whole-day matrices and calls it last.
+  * Tests: `test_adjustBlock` (NEW: empty cell = gap + `arcCount` + the positional guard;
+    discovered == declared BITWISE + `badArcs`; the v5 shape refused by name incl. `arcIdx`,
+    uneven cells, rows, Cep not a cell, an empty day; the LocalsPerArc refusal now for "no
+    schedule"; `captureBuild` records through a Map -- a day carries no stray field),
+    `test_fit` (NEW: the schedule optional on the fit surface, discovered == declared
+    bitwise incl. Cxx and redundancy; a scheduled-but-empty third arc == the two-arc run
+    bitwise + `arcCount`; `'day'` rows without a schedule on every calendar day, `emptyDay`
+    at the read, the same day off `days` as the declared way, `'arc'` rows -> `localPlan`
+    relabelled), `test_streamUtils` (the WP-90 seam tests on cells; E-01 becomes "an arc's
+    Cep is its own cell"; Cep-not-a-cell refusal), `test_vcePolicy`, `test_lsqAccum`,
+    `test_physOracle`, `test_speed`, both fixtures (`Arcs` only when declared). 553 -> 558
+    declared points (+5).
+  * Examples, all native cells: `demo_combine`, `demo_lsqvce`, `demo_noisePolicy`,
+    `demo_priors`, `demo_sensors`, `demo_workflow`, `demo_grace_dataLoader` (no `arcs`:
+    the cells are the schedule), `demo_gravity_dataLoader` (resolver kept: `'arc'` rows).
+    Templates: `gravfire_data` (STEP 5 = none, STEP 11 = the cut, pieces as cells with
+    their own Cep), `lsqvce_template`.
+  * Docs: Manual ch. 3 (§0c the v6 delta, §2.3, §3.1-3.5, §4.0-4.3, §6, §7, §8 worked
+    example, §9, §10), `dev/GRAVFIRE_INTERFACE.md` (STEP 5 none, STEPS 8-11), README (6.0,
+    quick start), `Contents.m` 6.0, `RELEASE_NOTES.md` 6.0 + migration table, `error_ids.csv`
+    (`arcCount`, `emptyDay` v6.0; `badArcId` gone), DEVELOPMENT count, every drifted unit page
+    and the Manual rebuilt.
+
+**Oracle register.** Discovered == declared: BITWISE (the same loader, the same reads).
+Gap cell == the two-arc run: BITWISE (a gap contributes nothing; the redundancy says so).
+Scoped == hand-numbered: the existing 1e-12 parity, now through the cells. The WP-90 dense
+references (D (R_t kron I_d) D at 1e-8) unchanged, now per cell.
+
+| WP | title | depends on | status |
+|---|---|---|---|
+| 102 | VERSION 6.0 -- THE CELLS ARE THE ARCS: `buildDay` returns one cell per arc (A, B, l, t, Cep), `arcIdx`/`arcId` deleted, an empty cell is a data gap, `arcs` optional (the cells are the schedule; `'day'` rows on every calendar day; `emptyDay`), required only by `'arc'` rows, `'fromDay'` retired, `CacheDays` = days x streams; the test instrument `arcCells`; every example, template, the Manual and the GRAVFIRE guide on the v6 contract | 101 | OPEN (2026-09-09; branch `claude/wp-102`; Linux audit exit 0 with the Manual rebuilt; CI pending; the user's ci_gate = the postflight) |
+
+**Predicted count:** 558 declared over 27 suites (553 + 5: two new points in test_adjustBlock,
+three in test_fit; one renamed). CI decides.

@@ -174,8 +174,8 @@ lsqvce:levinson:orderTooHigh,kernel.levinsonDurbin,error,v4.0
 lsqvce:localDiagnostics:notFinite,engine.localDiagnostics,error,v4.0
 lsqvce:log:noParallelQueue,util.log,warning,v4.0
 lsqvce:makeKeyFcn:badGroupBy,engine.private.makeKeyFcn,error,v4.0
+lsqvce:makeLoader:arcCount,engine.makeLoader,error,v6.0
 lsqvce:makeLoader:badArc,engine.makeLoader,error,v4.0
-lsqvce:makeLoader:badArcId,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:badArcs,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:axisConflict,engine.makeLoader,error,v5.3
 lsqvce:makeLoader:badDay,engine.makeLoader,error,v4.0
@@ -186,6 +186,7 @@ lsqvce:makeLoader:badValidity,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:cepTwice,engine.makeLoader,error,v5.3
 lsqvce:makeLoader:buildDay,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:dayShape,engine.makeLoader,error,v4.0
+lsqvce:makeLoader:emptyDay,engine.makeLoader,error,v6.0
 lsqvce:makeLoader:localPlan,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:ncConflict,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:nlConflict,engine.makeLoader,error,v4.0

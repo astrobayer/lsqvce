@@ -64,6 +64,11 @@ ERRORS  lsqvce:fit:noSystems / noCommon / unknownField / badScope / badId /
 
 See also LSQVCE.FIT, LSQVCE.ENGINE.MAKELOADER, LSQVCE.RESULTS
 
+Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-102 (v6): the arc schedule
+is optional -- a system without `arcs` claims every day of its calendar
+for the common &#x27;day&#x27; rows; the string form &#x27;fromDay&#x27; is refused at the
+declaration (lsqvce:fit:badArcs). With assistance from Claude
+(Anthropic), model Claude Fable 5.1.
 Created 2026-09-03 (CEST, UTC+02:00) with assistance from Claude
 (Anthropic), model Claude Fable 5.1 -- R5-D8 round 4 (lifted from fit.m,
 where these functions lived since R4 Level L2).</pre>

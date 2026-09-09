@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 5.3 — User Manual"
+title: "lsqvce 6.0 — User Manual"
 subtitle: "least-squares adjustment with variance component estimation"
 date: "built from the sources; the single documentation authority"
 ---
@@ -98,16 +98,17 @@ lsqvce_setup('uninstall')  % removes the two path entries, saves the path, delet
 This chapter is the binding data contract of the toolbox (formerly the file `DATA_CONTRACT.md`, retired 2026-09-04: the Manual is the single authority). Everything the toolbox knows about your problem enters through the `data` struct described here.
 
 
-**Status.** Binding specification, **version 5** (adopted 2026-09-03, Review R5 level M5:
-the v4 SHAPES are unchanged — every v4 declaration still fits — and three things were
-ADDED, listed in §0a below; option names are those of `lsqvce.Options` v5, the v4 → v5
-map is in `RELEASE_NOTES.md`).
+**Status.** Binding specification, **version 6** (adopted 2026-09-09, Review R6 WP-102:
+ONE shape changed — `buildDay` returns one CELL per arc, §0c — and the arc schedule became
+optional; everything the v5 declaration says about tables, priors and `Cep` is unchanged.
+Option names are those of `lsqvce.Options` v5, the v5 → v6 map is in `RELEASE_NOTES.md`).
 `lsqvce.fit` is live for all three data kinds, `Estimate = "none" | "noise"`, `Robust`, the
 nonlinear form and `OnPass`. §9 shows the equivalent direct engine calls. This file is the
 source of the `fit` help text and of the HTML guide: one authority, no second copy.
 
 Created 2026-08-31 (CEST, UTC+02:00) with assistance from Claude (Anthropic), model Claude
-Fable 5. Rewritten for v3 and again for v4 (scoped tables) the same day (Claude Fable 5).
+Fable 5. Rewritten for v3 and again for v4 (scoped tables) the same day (Claude Fable 5);
+v6 (the cells are the arcs) 2026-09-09, Claude Fable 5.1.
 
 ---
 
@@ -196,6 +197,26 @@ the `epochCovariance` hook (an unknown field now), and a static `Cep` on the spe
 when the day carries one: one fact, one authority). Nothing else about the declaration
 changed.
 
+### 0c. The v6 delta (R6 WP-102): the cells are the arcs, and the schedule is optional
+
+`buildDay` returns every field as a **1 × nArc cell, one cell per arc of the day**: `A`, `B`,
+`l`, `t` and, when given, `Cep` (§3.3, §3.4). A day with one arc returns `{A}`; a day
+without data returns empty cells. The v5 row-index fields `arcIdx` / `arcId` are gone — the
+cells say what they said — and an **empty cell is a data gap** (§4.3). The driver was the
+GRAVFIRE preprocessing, which delivers every day as a cell array, one cell per
+noise-independence piece: the day's cells now ARE the arcs, with no bookkeeping in between.
+
+`arcs` is **optional**. Without it, the arcs of a day are its cells (ids 1 … nArc) and the
+toolbox learns their number when the engine's per-day `meta` probe reads the day — which the
+engine reads right after, so the day cache makes the discovery free (`CacheDays` counts DAYS:
+one resident day is one slot per stream). `'day'` template rows then live on **every**
+calendar day, and a calendar day that returns no arc in any stream is refused at its probe
+(`lsqvce:makeLoader:emptyDay`) — take it off the calendar, or declare a schedule. A schedule
+is **required** only by `'arc'` template rows (nl counts one block per (day, arc) and must be
+known before any day is read); declared, cell a is the a-th scheduled id and the count must
+match (`lsqvce:makeLoader:arcCount`). The v5 string form `'fromDay'` is retired: omitting
+`arcs` is what it meant.
+
 ### 0. The v4 principle: state nothing the data already states — and scope, don't number
 
 The contract declares **structure**, never **counts**, and since v4 it declares **scope,
@@ -283,16 +304,17 @@ unused optional field with `[]`.
 
 | field | type / size | default | meaning |
 |---|---|---|---|
-| `arcs` | double or fh | `1` | which arcs each day carries, §4. (`'fromDay'` is ENGINE-tier only.) |
+| `arcs` | double or fh | *(none)* | the arc schedule, §4: omitted, the cells `buildDay` returns are the arcs of the day; required only by `'arc'` template rows. |
 | `localParams` | cell, R×C (C ≥ 1) | `{}` | the local **templates**, §6: column 1 is the scope token `'arc'` \| `'day'` \| `'system'`, columns 2…C your convention; nl is **derived** from the expansion. Passed to `buildDay` as its 4th argument. Not declared → **nl = 0** (§6.4). |
 | `days` | double, 1×D | `data.days` | per-system schedule override. |
 | `id` | double 1×1 **or** single char | the index k | system identifier, unique across systems (explicit ids and index defaults share one namespace). Longer labels go in `name`. |
 | `name` | char / string | `''` | human-readable label used in reports. |
 | `processingOptions` | struct | `struct()` | anything your `buildDay` needs (paths, force models); passed as its 5th argument. |
 
-**Rule of thumb for beginners:** `buildDay` + `covariance` is a complete system. Add `arcs`
-when a day has more than one arc, `'arc'` template rows in `localParams` when arcs carry
-their own unknowns, the rest when you need it. (The v5.2 `epochCovariance` hook is gone —
+**Rule of thumb for beginners:** `buildDay` + `covariance` is a complete system — return one
+cell per arc and the arcs are declared. Add `'arc'` template rows in `localParams` when arcs
+carry their own unknowns (and then `arcs`, the schedule those rows need), the rest when you
+need it. (The v5.2 `epochCovariance` hook is gone —
 the per-epoch error information comes back from `buildDay` as `D.Cep`, §7.)
 
 #### 2.4 A pitfall you will hit once: `struct()` with cell values
@@ -311,17 +333,17 @@ s.localParams = {'bias'; 'drift'};                    % clearest
 
 #### 3.1 Who calls it, and how often
 
-`fit` calls `buildDay` **once per (day, observationType)** and cuts the returned day into
-arcs itself. Every pass over the data reads each day **twice** (once to accumulate the
+`fit` calls `buildDay` **once per (day, observationType)**; the cells it returns are the
+day's arcs. Every pass over the data reads each day **twice** (once to accumulate the
 normal equations, once for the residuals), and the variance-component loop multiplies that
 by the number of passes. Two consequences:
 
 1. **Determinism is mandatory.** Same arguments → byte-identical output. Random numbers,
    clocks, mutable globals are forbidden inside `buildDay`. (The residuals are formed as
    `v = l − A·x − B·y` from the second read; any difference lands in σ₀.)
-2. **Cache expensive reads yourself.** The toolbox caches *one built day*; if the raw file
-   read is the expensive part and serves several observation types, keep your own cache
-   in the closure that binds `buildDay`.
+2. **Cache expensive reads yourself.** The toolbox caches *one built day* (every stream of
+   it; `Options.CacheDays` for more); if the raw file read is the expensive part and serves
+   several observation types, keep your own cache in the closure that binds `buildDay`.
 
 #### 3.2 Signature — declare only what you need
 
@@ -344,39 +366,46 @@ D = buildDay(day, obsType, common, local, procOpt, info)          % with the exp
 
 A `varargin` builder receives all six.
 
-#### 3.3 Return value — required fields
+#### 3.3 Return value — required fields: THE CELLS ARE THE ARCS
+
+Every field is a **1 × nArc cell**, one cell per arc of the day; cell a is arc a. A day with
+one arc returns `{A}`, `{B}`, `{l}`, `{t}`; a day without data returns empty cells (nArc = 0).
 
 | field | size | meaning |
 |---|---|---|
-| `A` | m×nc | design matrix of the **common** unknowns, all observations of the day |
-| `B` | m×nl | design matrix of the **local** unknowns; may be `sparse` (recommended when arc-wise) |
-| `l` | m×1 | **observed minus computed** (the reduced observation). Not the raw observation. |
-| `t` | m×1 | epoch of each row in **seconds** (the whitener needs the lags) |
+| `A` | cell, 1×nArc; each m_a×nc | design matrix of the **common** unknowns of arc a |
+| `B` | cell, 1×nArc; each m_a×nl | design matrix of the **local** unknowns; may be `sparse` |
+| `l` | cell, 1×nArc; each m_a×1 | **observed minus computed** (the reduced observation). Not the raw observation. |
+| `t` | cell, 1×nArc; each m_a×1 | epoch of each row in **seconds** (the whitener needs the lags) |
 
-Return **raw, unwhitened** matrices. Whitening happens per arc inside the toolbox from your
-covariance spec, and the VCE loop reweights there too — a builder that scales its own rows
-would be reweighted twice.
+Arc lengths may differ freely; the whitener is built per arc. An arc whose four entries have
+**0 rows is a data gap** (§4.3) and is skipped. Return **raw, unwhitened** matrices. Whitening
+happens per arc inside the toolbox from your covariance spec, and the VCE loop reweights there
+too — a builder that scales its own rows would be reweighted twice.
 
 #### 3.4 Return value — optional fields
 
 | field | size | meaning |
 |---|---|---|
-| `arcIdx` | cell, 1×nArc | row-index vector of each arc (lengths may differ). Absent → the whole day is one arc. |
-| `arcId` | double, 1×nArc | the **identity** of each arc, when the schedule is ragged (§4.2). Must name every `arcIdx` entry exactly once with unique positive integers. |
-| `Cep` | nEpoch×1, nEpoch×d or nEpoch×d×d | **the error information of this day** (§7): the per-epoch standard deviation of a scalar stream, the per-axis standard deviations, or the full per-epoch covariance of a multi-axis stream. nEpoch·d must equal the row count; the axis count d is derived from it. |
-| `nAxis` | 1×1 | the axis count of a multi-axis stream WITHOUT `Cep` (rows epoch-major, m = nEpoch·nAxis, §7). Derived from `Cep` when that is present; given as well, it must agree. |
+| `Cep` | cell, 1×nArc; each nEpoch_a×1, nEpoch_a×d or nEpoch_a×d×d | **the error information of each arc** (§7): the per-epoch standard deviation of a scalar stream, the per-axis standard deviations, or the full per-epoch covariance of a multi-axis stream. nEpoch_a·d must equal the arc's row count; the axis count d is derived from it and is one for the day. |
+| `nAxis` | 1×1 | the axis count of a multi-axis stream WITHOUT `Cep` (rows epoch-major, m_a = nEpoch_a·nAxis, §7). Derived from `Cep` when that is present; given as well, it must agree. |
+
+No other field is allowed — `arcIdx` / `arcId` (the v5 way of saying what the cells say) or a
+misspelt `cep` are refused by name (`lsqvce:makeLoader:badDay`), so a typo cannot be ignored
+silently.
 
 #### 3.5 What is checked, and the error you get
 
 | error id | meaning |
 |---|---|
 | `lsqvce:makeLoader:buildDay` | your `buildDay` threw; the original error is attached as the cause |
-| `lsqvce:makeLoader:badDay` | a required field (`A`, `B`, `l`, `t`) is missing |
-| `lsqvce:makeLoader:dayShape` | `A`, `B`, `l`, `t` do not share a row count |
-| `lsqvce:accum:arcBadNc` / `arcBadNl` | `A` or `B` has the wrong number of columns — the derived nc/nl are enforced against **every** day |
-| `lsqvce:makeLoader:badArc` | a positional arc id is out of range (static schedule declared wrongly), or an arc of a multi-axis day does not hold whole epochs |
-| `lsqvce:makeLoader:badArcId` | `arcId` does not name every `arcIdx` entry exactly once |
-| `lsqvce:makeLoader:badDayCep` | `Cep` is not nEpoch×1 / nEpoch×d / nEpoch×d×d, or nEpoch·d is not the row count |
+| `lsqvce:makeLoader:badDay` | a required field (`A`, `B`, `l`, `t`) is missing or is not a 1×nArc cell, or the day carries a field that is not `A` `B` `l` `t` `Cep` `nAxis` |
+| `lsqvce:makeLoader:dayShape` | the cells do not agree in number, or an arc's `A`, `B`, `l`, `t` do not share a row count |
+| `lsqvce:accum:arcBadNc` / `arcBadNl` | `A` or `B` has the wrong number of columns — the derived nc/nl are enforced against **every** arc |
+| `lsqvce:makeLoader:arcCount` | a declared schedule names n arcs for the day and `buildDay` returned a different number of cells |
+| `lsqvce:makeLoader:emptyDay` | without a schedule, a calendar day that owns a `'day'` block returned no arc in any stream |
+| `lsqvce:makeLoader:badArc` | an arc id outside the declared schedule was asked for (a static schedule declared wrongly), or an arc of a multi-axis day does not hold whole epochs |
+| `lsqvce:makeLoader:badDayCep` | `Cep` is not a 1×nArc cell, or an arc's entry is not nEpoch×1 / nEpoch×d / nEpoch×d×d, or nEpoch·d is not the arc's row count |
 | `lsqvce:makeLoader:axisConflict` | `nAxis` disagrees with `Cep` (or with a `d` on the spec), or does not divide the row count |
 | `lsqvce:makeLoader:cepTwice` | the covariance spec carries a `Cep` AND the day returns one |
 | `lsqvce:covModel:cepOnVar` | a `var` law (its own cross-axis structure) with a `Cep` |
@@ -392,6 +421,22 @@ relabelled, e.g. `lsqvce:fit:badScope`).
 
 ### 4. Arc schedules
 
+#### 4.0 None — the cells are the schedule (the default since v6)
+
+Omit `arcs`. The arcs of a day are the cells `buildDay` returns, ids 1 … nArc, and days may
+differ freely in their count. The toolbox learns the count when the engine's per-day `meta`
+probe reads the day (the engine reads it right after; the cache keeps a whole day resident,
+so nothing is read twice). Consequences:
+
+- `'day'` template rows (§6) and `'day'` rows of `commonParams` are instantiated on **every**
+  calendar day of the system — the calendar is the declaration.
+- A calendar day that returns **no** arc in any stream is refused at its probe
+  (`lsqvce:makeLoader:emptyDay`) before any solve could go rank-deficient on an unobserved
+  block. Take the day off the system's calendar (`days`), or declare a schedule that names no
+  arc for it.
+- `'arc'` template rows need a schedule (§4.1 / §4.2): nl counts one block per (day, arc)
+  and must be known before any day is read (the `localPlan` construction error otherwise).
+
 #### 4.1 Static — every day looks the same
 
 ```matlab
@@ -400,24 +445,30 @@ s.arcs = [1 2 4];      % these ids on every day
 s.arcs.kbr = 2;  s.arcs.pos = 4;    % per observation type
 ```
 
-Arcs are then addressed **by position** in `arcIdx`; an id beyond `numel(arcIdx)` is an
-error, which catches a mis-declared schedule.
+Cell a of the returned day is arc ids(a); the day must return exactly as many cells as the
+schedule names (`lsqvce:makeLoader:arcCount`), which catches a mis-declared schedule.
 
 #### 4.2 Ragged — days differ (gaps, manoeuvres, short months)
 
 Declare a **resolver** that returns the arc ids of a day *without reading data*:
 
 ```matlab
-s.arcs = @(day, obsType) myArcTable{day};      % 1xA vector of ids for that day
+s.arcs = @(day, obsType) arcTable{day};      % 1xA vector of ids for that day
 ```
 
-and let `buildDay` return `arcId` naming the arcs it actually carries. Arcs are then
-addressed **by id**; an id that a day does not carry is treated as a **data gap** and
-skipped — no padding, no empty arcs.
+and return one cell per id, in that order. This is the form `'arc'` template rows need: a day
+whose list is empty gets no local blocks and no common day block (§6.4).
 
-(The v2 string form `arcs = 'fromDay'` is not part of this contract: it reads data before
-the run starts and cannot be combined with `localsPerArc`. It survives as an ENGINE-tier
-convenience on `lsqvce.engine.makeLoader`; `fit` rejects it with `lsqvce:fit:badArcs`.)
+#### 4.3 Data gaps — the empty cell
+
+Under a declared schedule, an arc the day does not carry is returned as an **empty cell**
+(0 rows in `A`, `B`, `l`, `t`): every engine skips it, no padding, no error. The same run
+declared with a resolver that simply omits the id gives bitwise the same result. (An empty
+cell of an arc that carries `'arc'` template rows leaves those unknowns unobserved — say the
+gap in the resolver instead.)
+
+The v5 string form `arcs = 'fromDay'` is retired (`lsqvce:fit:badArcs`): omitting `arcs` is
+what it meant.
 
 ---
 
@@ -460,17 +511,18 @@ s.localParams = [ ...
 | token | one block per … | typical use |
 |---|---|---|
 | `'arc'` | (day, arc) of this system | initial conditions, per-arc empiricals |
-| `'day'` | day whose schedule carries ≥ 1 arc | ACC scale/bias/drift |
+| `'day'` | day whose schedule carries ≥ 1 arc — every calendar day when no schedule is declared | ACC scale/bias/drift |
 | `'system'` | whole adjustment | instrument constants; also the v3 free table (see migration) |
 
-Requires `days` and a schedule resolvable **without reading data** (static or resolver)
-whenever `'arc'`/`'day'` rows are present; `'system'`-only tables need neither. nl is
-derived; declaring `numLocal` too is the conflict error.
+Requires `days` whenever `'arc'`/`'day'` rows are present, and a declared schedule (static or
+resolver, §4) for `'arc'` rows; `'day'` rows without a schedule live on every calendar day
+(§4.0); `'system'`-only tables need neither. nl is derived; declaring `numLocal` too is the
+conflict error.
 
 **Binding column layout of B (per system):** per day (declared order) — the arc blocks in
 **sorted arc-id order** (each block = the `'arc'` rows, table order), then the `'day'`
-block — and after all days one trailing `'system'` block. A day whose schedule has no
-arcs gets **no blocks at all** (§6.4).
+block — and after all days one trailing `'system'` block. A day whose declared schedule has
+no arcs gets **no blocks at all** (§6.4).
 
 #### 6.2 Heterogeneous per-arc counts stay ENGINE-tier
 
@@ -501,8 +553,9 @@ Fill `B(rows, info.offsetOf(id) + (1:k))`, `A(:, info.commonDayOffset + (1:w))` 
 #### 6.4 Days without arcs, systems without locals
 
 A calendar day on which **no system** schedules an arc gets no common day block (nc
-shrinks); a system day without arcs gets no arc and no `'day'` blocks (nl shrinks) —
-offsets stay gap-safe on ragged schedules and manoeuvre days. A system without local
+shrinks); a system day whose declared schedule has no arcs gets no arc and no `'day'` blocks
+(nl shrinks) — offsets stay gap-safe on ragged schedules and manoeuvre days. A system
+**without** a schedule claims every day of its calendar (§4.0). A system without local
 unknowns is still the **default**: declare no `localParams` and return `B = zeros(m, 0)`
 (the engine skips the pre-elimination; empty diagnostics per HANDOVER G-07).
 
@@ -516,10 +569,12 @@ preprocessing knows about each observation: a PPP covariance, a per-epoch sigma 
 fit, a weight from an earlier screening — is DATA, and you return it with the day:
 
 ```matlab
-D.Cep = sigmaPerEpoch;                     % nEpoch x 1      scalar stream
-D.Cep = [sx sy sz];                        % nEpoch x 3      per-axis sigmas (diagonal D)
-D.Cep = permute(reshape(Q.', 3, 3, []), [3 1 2]);   % nEpoch x 3 x 3  full per-epoch covariance
+D.Cep{a} = sigmaPerEpoch;                  % nEpoch_a x 1      scalar stream
+D.Cep{a} = [sx sy sz];                     % nEpoch_a x 3      per-axis sigmas (diagonal D)
+D.Cep{a} = permute(reshape(Q.', 3, 3, []), [3 1 2]);   % nEpoch_a x 3 x 3  full per-epoch covariance
 ```
+
+(one entry per arc, a 1×nArc cell like `A`; v6)
 
 The toolbox composes C = D (R_t ⊗ I_d) D per arc: every epoch is de-scaled by D^-1/2 (for
 d = 1 that is a division by the sigma), then the temporal whitener runs down the epochs of
@@ -551,19 +606,22 @@ empiricals — the case v3 could only hand-number, and the driver of v4:
 ```matlab
 % ---- the one function you write --------------------------------------
 function D = buildDayGrace(day, obsType, common, ~, procOpt, info)
-    raw = readGraceDay(procOpt.dataDir, day, obsType);   % your reader, deterministic
-    D.A = shPartials(raw, common);                       % m x info.nc; the 'common' block
-    D.l = raw.observed - raw.computed;                   % O - C
-    D.t = raw.tSeconds;
-    D.arcIdx = raw.arcRows;                              % cell, one row vector per arc
-    D.arcId  = raw.arcIds;                               % this day's arc identities
-    D.B = sparse(numel(D.l), info.nl);
-    for a = 1:numel(D.arcId)
-        off = info.offsetOf(D.arcId(a));
-        D.B(D.arcIdx{a}, off + (1:info.count(a))) = icAndKbrPartials(raw, a);
-    end
-    if info.dayCount > 0                                 % this day's ACC block
-        D.B(:, info.dayOffset + (1:info.dayCount)) = accPartials(raw);
+    raw = readGraceDay(procOpt.dataDir, day, obsType);   % your reader, deterministic;
+                                                         % one entry per arc of the schedule
+    nArc = numel(info.arcId);                            % the resolver's ids, in order
+    D = struct('A', {cell(1, nArc)}, 'B', {cell(1, nArc)}, 'l', {cell(1, nArc)}, 't', {cell(1, nArc)});
+    for a = 1:nArc                                       % THE CELLS ARE THE ARCS (v6)
+        arc = raw.arc(a);                                % empty on a data gap -> empty cell
+        D.A{a} = shPartials(arc, common);                % m_a x info.nc; the 'common' block
+        D.l{a} = arc.observed - arc.computed;            % O - C
+        D.t{a} = arc.tSeconds;
+        B = sparse(numel(D.l{a}), info.nl);
+        off = info.offsetOf(info.arcId(a));
+        B(:, off + (1:info.count(a))) = icAndKbrPartials(arc);
+        if info.dayCount > 0                             % this day's ACC block
+            B(:, info.dayOffset + (1:info.dayCount)) = accPartials(arc);
+        end
+        D.B{a} = B;
     end
 end
 
@@ -578,7 +636,7 @@ s.buildDay = @buildDayGrace;
 s.covariance = cov;
 s.id = 'C';
 s.name = 'GRACE-FO C';
-s.arcs = @(day, obsType) arcSchedule('C', day);
+s.arcs = @(day, obsType) arcSchedule('C', day);            % required by the 'arc' rows below
 s.localParams = [ ...
     [repmat({'arc'}, 6, 1), {'x0';'y0';'z0';'vx0';'vy0';'vz0'}];  % ICs per arc
     {'arc', 'kbrBias'; 'arc', 'kbrCos1cpr'};                      % KBR per arc
@@ -608,7 +666,7 @@ for k = 1:numel(data.systems)
     s = data.systems(k);
     L{k} = lsqvce.engine.makeLoader(s.buildDay, ...
         ObservationTypes=fieldnames(s.covariance).', Covariance=s.covariance, ...
-        SystemId=s.id, Name=s.name, Arcs=s.arcs, ...
+        SystemId=s.id, Name=s.name, Arcs=s.arcs, ...                 % Arcs only when declared
         LocalParams=s.localParams, Scoped=true, CommonPlan=plan, ...  % fit builds `plan`
         Days=data.days, CommonParams=data.commonParams, ...           % over the global calendar
         ProcessingOptions=s.processingOptions);
@@ -622,8 +680,7 @@ R = lsqvce.engine.adjustRobust(L, data.days, 'Influence', "huber");  % Robust "h
 These are ENGINE-tier calls (experts); a user needs none of them. The ENGINE tier keeps the
 v2/v3 conveniences (`numCommon`/`numLocal` counts, free un-scoped tables with
 `Scoped=false` — the default — `LocalsPerArc` incl. the heterogeneous `@(day,arcId)` form,
-`'fromDay'`, `cache`, the plot hooks, raw 4-arg loader closures) — they left the USER
-surface, not the toolbox.
+`cache`, raw 4-arg loader closures) — they left the USER surface, not the toolbox.
 
 Field names map 1:1 to `makeLoader`'s Name-Value names (lowerCamelCase field ↔
 UpperCamelCase name); `fit` performs exactly this mapping internally, plus the three
@@ -633,18 +690,20 @@ derivations of §0.
 
 ### 10. Checklist before the first run
 
-- [ ] `buildDay` returns `A`, `B`, `l`, `t` with one row count; `l` is O − C; nothing is whitened.
+- [ ] `buildDay` returns `A`, `B`, `l`, `t` as one cell per arc, each arc with one row count;
+      `l` is O − C; nothing is whitened; no field beyond `Cep` / `nAxis`.
 - [ ] Calling `buildDay` twice with the same arguments gives identical output.
 - [ ] `t` is in seconds; the sampling matches the covariance spec you declared.
 - [ ] `data.commonParams` rows carry the scope token in column 1; `size(A, 2)` must equal
       `info.nc` (use `zeros(m, info.nc)` and place blocks by the `info` offsets).
 - [ ] Every observation type is a field of `covariance` — the fieldnames are the type list.
-- [ ] Ragged schedule → resolver + `arcId`; static schedule → count/vector, no `arcId`.
+- [ ] Arc schedule: none (the cells are the arcs) unless `'arc'` template rows need one;
+      declared, one cell per scheduled id, an empty cell for a gap.
 - [ ] Local unknowns: scoped `localParams` templates, `B` filled from `info` offsets only;
       not declared → `B = zeros(m, 0)`.
-- [ ] The error information: `Cep` on the day (nEpoch×1 for a scalar stream; nEpoch×d or
-      nEpoch×d×d, rows epoch-major, for a multi-axis one); the spec declares the temporal
-      law and its level only.
+- [ ] The error information: `Cep` on the day, one cell per arc (nEpoch×1 for a scalar
+      stream; nEpoch×d or nEpoch×d×d, rows epoch-major, for a multi-axis one); the spec
+      declares the temporal law and its level only.
 - [ ] No unknown field names in `data` (a typo is an error, on purpose — and so are the v2
       count fields and, since v4, `localsPerArc`).
 
@@ -879,8 +938,12 @@ LSQVCE.FIT  Fit a least-squares adjustment (optionally with VCE) to declared dat
 
   THREE DATA KINDS, told apart by the fields of `data`, all on ONE accumulator:
     (A) streaming   data.commonParams, data.days, data.systems(k) with
-                    buildDay / covariance / arcs / localParams / priors /
-                    processingOptions; optional data.priors, data.paramColumns
+                    buildDay / covariance / localParams / priors /
+                    processingOptions and the optional arc schedule `arcs`
+                    (v6: buildDay returns one CELL per arc -- A, B, l, t,
+                    Cep as 1 x nArc cells -- and the cells are the schedule
+                    unless `arcs` declares one); optional data.priors,
+                    data.paramColumns
     (B) in memory   data.A (m x u), data.l (m x 1), optional data.p (m x 1
                     weights); optional data.priors. A FULL m x m SPD weight
                     matrix is kind C's: return it from batchFcn (R6 WP-101)
@@ -940,9 +1003,10 @@ LSQVCE.FIT  Fit a least-squares adjustment (optionally with VCE) to declared dat
       lsqvce:fit:duplicateSystem two systems share an id (explicit or
                                  index default)
       lsqvce:fit:builderKind     buildDay is not a function handle
-      lsqvce:fit:badArcs         arcs = 'fromDay' (ENGINE-tier only: it
-                                 reads data before the run; declare a
-                                 resolver @(day,obsType) instead)
+      lsqvce:fit:badArcs         arcs is a string (the v5 'fromDay' is retired:
+                                 omit arcs -- the cells are the arcs), or a
+                                 resolver returned something that is not
+                                 unique positive integers
       lsqvce:fit:<makeLoader id> a makeLoader construction error, relabelled
                                  (e.g. paramType, badArcs, localPlan);
                                  the original is attached as the cause
@@ -989,6 +1053,9 @@ LSQVCE.FIT  Fit a least-squares adjustment (optionally with VCE) to declared dat
   model Claude Fable 5 -- R4 Level L2, WP-56 (decision R4-D4).
   Help rewritten 2026-09-04 for v5.2 (R5 M5 / R5-D8), model Claude Fable 5.1:
   the v5 surface (Estimate, priors, paramColumns, OnPass, layout, toTable).
+  Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-102 (v6): the day contract is
+  ONE CELL PER ARC and the arc schedule is optional. With assistance from
+  Claude (Anthropic), model Claude Fable 5.1.
   Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-99: R.noise.model{k}.C is the
   law of the stream's pool group and EMPTY where no law was estimated, instead
   of falling back to another stream's fitted spectrum. With assistance from
@@ -1874,8 +1941,8 @@ Every identifier the package raises, from `dev/docs_src/error_ids.csv` (the cata
 | `lsqvce:localDiagnostics:notFinite` | engine.localDiagnostics — error — v4.0 |
 | `lsqvce:log:noParallelQueue` | util.log — warning — v4.0 |
 | `lsqvce:makeKeyFcn:badGroupBy` | engine.private.makeKeyFcn — error — v4.0 |
+| `lsqvce:makeLoader:arcCount` | engine.makeLoader — error — v6.0 |
 | `lsqvce:makeLoader:badArc` | engine.makeLoader — error — v4.0 |
-| `lsqvce:makeLoader:badArcId` | engine.makeLoader — error — v4.0 |
 | `lsqvce:makeLoader:badArcs` | engine.makeLoader — error — v4.0 |
 | `lsqvce:makeLoader:axisConflict` | engine.makeLoader — error — v5.3 |
 | `lsqvce:makeLoader:badDay` | engine.makeLoader — error — v4.0 |
@@ -1886,6 +1953,7 @@ Every identifier the package raises, from `dev/docs_src/error_ids.csv` (the cata
 | `lsqvce:makeLoader:cepTwice` | engine.makeLoader — error — v5.3 |
 | `lsqvce:makeLoader:buildDay` | engine.makeLoader — error — v4.0 |
 | `lsqvce:makeLoader:dayShape` | engine.makeLoader — error — v4.0 |
+| `lsqvce:makeLoader:emptyDay` | engine.makeLoader — error — v6.0 |
 | `lsqvce:makeLoader:localPlan` | engine.makeLoader — error — v4.0 |
 | `lsqvce:makeLoader:ncConflict` | engine.makeLoader — error — v4.0 |
 | `lsqvce:makeLoader:nlConflict` | engine.makeLoader — error — v4.0 |

@@ -1,4 +1,4 @@
-# lsqvce v5.3 — least-squares adjustment with variance component estimation
+# lsqvce v6.0 — least-squares adjustment with variance component estimation
 
 Declare your problem as a plain `data` struct, `fit` it, and get a judged
 result: estimates with formal errors, per-observation diagnostics, and a
@@ -61,13 +61,13 @@ data = struct('batchFcn', @(k) src(k), 'numUnknowns', u, 'numBatches', nBatch);
 % (A) streaming: days, arcs, scoped parameter tables, coloured noise (GRACE-FO)
 data.commonParams = [repmat({'common'}, nc, 1), yourColumns];   data.days = 59396:59425;
 data.systems = struct('buildDay', @buildDayC, 'covariance', cov, 'id', 'C', ...
-                      'arcs', @(day, obsType) 1:4, 'localParams', localTemplates);
-R = lsqvce.fit(data, Estimate="noise", Pool="obsType", OnPass=@myInspect);
+                      'localParams', localTemplates);       % buildDayC returns one CELL
+R = lsqvce.fit(data, Estimate="noise", Pool="obsType", OnPass=@myInspect);   % per arc (v6)
 ```
 
 Every kind runs on the same accumulator and the same loop; `Robust`, the
 nonlinear form and `OnPass` (your inspection hook after every pass) work on
-all of them. The v4 names map one-to-one onto v5 (`RELEASE_NOTES.md`).
+all of them. The v5 → v6 migration is one change (`RELEASE_NOTES.md`).
 
 **New here?** `doc lsqvce` opens the landing page (`html/index.html`); the Manual is its first entry (`html/lsqvce_manual.html`, also `lsqvce_manual.pdf`) and is the single documentation authority: install, data, every option, the API, priors, migration. In this order:
 
@@ -100,7 +100,9 @@ filter), `acf` / `psd` (an exact Toeplitz law) — plus the per-stream policy
 (`examples/demo_noisePolicy.m` runs all four against a planted truth). The per-epoch accuracy
 of the observations (a sigma per epoch, or a 3 × 3 covariance per epoch for
 positions) comes back from `buildDay` with the day as `D.Cep`; the toolbox
-composes the two (v5.3). Batches are
+composes the two (v5.3). Since v6 the day comes back as ONE CELL PER ARC
+(`A`, `B`, `l`, `t`, `Cep`) and the arc schedule is optional — the cells are the
+arcs. Batches are
 overlapped by the filter memory automatically, so batching never changes the
 result. Priors on the common parameters — a datum, a Kaula rule, a
 background model — are `data.priors`, written in the columns
