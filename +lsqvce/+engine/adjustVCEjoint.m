@@ -333,9 +333,28 @@ end
     shatTail = {};                               % WP-40 r2: AvgTail buffer
     lastSol = [];                                % R5 M7 7b: the previous pass's solution
     robust = ~strcmp(o.Influence, "none");       % R6 WP-105
-    W = containers.Map('KeyType', 'char', 'ValueType', 'any');   % per-arc row factors
+    W = containers.Map('KeyType', 'char', 'ValueType', 'any');   % per-epoch factors
     fac = [];  rkeys = cell(0, 4);  rscale = [];  rstreams = {};
     hist.robustScale = [];  hist.nDown = [];  hist.nZero = [];
+    if robust
+        % PASS 0 (round 10, measured): the first robust sweep runs BEFORE the
+        % first spectral update. Started without it, pass 1 fitted the law to
+        % the blunders (a near-white, negative-lag shape) and the
+        % multiplicative PSD update crawled out of it at ~2 % a pass for 16
+        % passes (0.006 -> 0.08); the control that declared the blunders from
+        % the start converged. So: one accumulation under the start model,
+        % one residual sweep, the factors -- and only then the loop.
+        model0 = struct('C', C, 'sigma2', sigma2, 'iter', 1, 'streamSigma2', [], ...   % iter 1: priors with from = 1 active
+                        'Cgroups', Cmap, 'Pool', char(o.Pool), 'Estimate', o.Estimate, ...
+                        'lastSol', [], 'rowWeights', W);
+        acc0 = accFcn(model0);
+        sol0 = acc0.solve();
+        [W, ~, ~, rscale0, ~, nDown0, nZero0] = robustSweep(acc0, sol0, W, o, size(sol0.x, 1));
+        if v
+            lsqvce.util.log.msg('  [joint  0] robust (%s): scales %s, %d down-weighted, %d at zero\n', ...
+                o.Influence, mat2str(rscale0, 3), nDown0, nZero0);
+        end
+    end
     for it = 1:o.MaxIter
         % ---- steps 1-5: build under the current model, accumulate, solve --
         % R5 M3 3b: the caller's override needs a LEVEL per stream (the pooled
@@ -541,40 +560,13 @@ end
         % level, arc factor and Cep. The factors are written for the NEXT
         % pass, one pass behind the model -- the same lag adjustRobust has.
         if robust
-            % Round 8: the KOCH convention -- the weight is a statement about
-            % the OBSERVATION, so the influence sees the RAW residual,
-            % descaled by the epoch's own declared accuracy (Cep), one
-            % factor per EPOCH, standardised by the stream's MAD; the loader
-            % folds the factors into Cep, i.e. before the temporal law.
-            % (Round 4-6 weighted the law-whitened INNOVATION -- Yang -- and
-            % the control measured why that cannot serve a spectral
-            % estimator: a zero-weight innovation neutralises the filter's
-            % whole tail, and the lag statistics around every blunder are
-            % lost; the colour crawled 0.006 -> 0.054 in 16 passes.)
-            res = lsqvce.engine.residuals(acc, sol, 'Whitened', false, 'Collect', true, 'Verbose', false);
-            [uEp, rkeys, sizes] = epochResiduals(res, W);
-            [fac, rscale, rstreams] = perStreamWeights(uEp, rkeys, sizes, o.Influence, o.Tuning);
-            nAlive = sum(fac > 0);
-            if nAlive < size(sol.x, 1) + 1                          % live EPOCHS
-                error('lsqvce:adjustVCEjoint:collapsed', ...
-                     ['The influence function left %d observations with a non-zero ' ...
-                      'weight, fewer than the %d parameters + 1: more than half the ' ...
-                      'data is discrepant, which is beyond the breakdown point of ' ...
-                      'any M-estimator. This is not an outlier problem -- check the model.'], ...
-                      nAlive, size(sol.x, 1));
-            end
-            off = 0;
-            for kk = 1:size(rkeys, 1)
-                n = sizes(kk);                                      % EPOCHS of the arc
-                W(lsqvce.util.rowWeightKey(rkeys{kk,1}, rkeys{kk,3}, rkeys{kk,2}, rkeys{kk,4})) = fac(off + (1:n));
-                off = off + n;
-            end
+            [W, fac, rkeys, rscale, rstreams, nDown, nZero] = robustSweep(acc, sol, W, o, size(sol.x, 1));
             hist.robustScale(it,1:numel(rscale)) = rscale;       %#ok<AGROW>  one MAD scale per stream
-            hist.nDown(it,1) = sum(fac < 0.5 & fac > 0);         %#ok<AGROW>
-            hist.nZero(it,1) = sum(fac == 0);                    %#ok<AGROW>
+            hist.nDown(it,1) = nDown;                            %#ok<AGROW>
+            hist.nZero(it,1) = nZero;                            %#ok<AGROW>
             if v
                 lsqvce.util.log.msg('  [joint %2d] robust (%s): scales %s, %d down-weighted, %d at zero\n', ...
-                    it, o.Influence, mat2str(rscale, 3), hist.nDown(it), hist.nZero(it));
+                    it, o.Influence, mat2str(rscale, 3), nDown, nZero);
             end
         end
 
@@ -635,6 +627,36 @@ end
                  'skips', {hist.skips}, ...
                  'robust', struct('influence', char(o.Influence), 'scale', rscale, ...
                                   'streams', {rstreams}, 'factor', fac, 'keys', {rkeys}));   % R6 WP-105
+end
+
+%==========================================================================
+function [W, fac, rkeys, rscale, rstreams, nDown, nZero] = robustSweep(acc, sol, W, o, nc)
+%ROBUSTSWEEP  One robust sweep (R6 WP-105, the KOCH convention): the RAW
+%   residuals under this accumulator, descaled by each epoch's DECLARED
+%   accuracy (this pass's folded factors divided back out), one value per
+%   epoch, the influence per stream (perStreamWeights), the collapse
+%   refusal, and the factor map W for the NEXT pass (one per epoch).
+    res = lsqvce.engine.residuals(acc, sol, 'Whitened', false, 'Collect', true, 'Verbose', false);
+    [uEp, rkeys, sizes] = epochResiduals(res, W);
+    [fac, rscale, rstreams] = perStreamWeights(uEp, rkeys, sizes, o.Influence, o.Tuning);
+    nAlive = sum(fac > 0);
+    if nAlive < nc + 1                                              % live EPOCHS
+        error('lsqvce:adjustVCEjoint:collapsed', ...
+             ['The influence function left %d observations with a non-zero ' ...
+              'weight, fewer than the %d parameters + 1: more than half the ' ...
+              'data is discrepant, which is beyond the breakdown point of ' ...
+              'any M-estimator. This is not an outlier problem -- check the model.'], ...
+              nAlive, nc);
+    end
+    W = containers.Map('KeyType', 'char', 'ValueType', 'any');
+    off = 0;
+    for kk = 1:size(rkeys, 1)
+        n = sizes(kk);                                              % EPOCHS of the arc
+        W(lsqvce.util.rowWeightKey(rkeys{kk,1}, rkeys{kk,3}, rkeys{kk,2}, rkeys{kk,4})) = fac(off + (1:n));
+        off = off + n;
+    end
+    nDown = sum(fac < 0.5 & fac > 0);
+    nZero = sum(fac == 0);
 end
 
 %==========================================================================

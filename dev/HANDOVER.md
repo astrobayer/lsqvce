@@ -7228,6 +7228,15 @@ got weight 1, came back next pass, and so on. Round 9: `epochResiduals` divides 
 factors back out of Cep (the lawWhitenedResiduals pattern, on the Koch channel) before the
 descale.
 
+**ROUND 9 result (CI on b002977): the weights are right and stable (nZero 53 every pass,
+level a 0.946, sigma0 1.002) -- and the colour STILL crawls (0.006 -> 0.08, C(3) = -0.21,
+maxDev grows again).** What differs from the control that converged: the START. Pass 1 runs
+without weights and fits the law to the blunders (near-white, a negative lag 2); the
+multiplicative PSD update then climbs out of that shape at ~2 % a pass. Round 10: PASS 0 --
+one accumulation under the start model, one robust sweep, the factors -- BEFORE the first
+spectral update, so the spectrum never sees the blunders (what the control had from the
+start). `robustSweep` is the one local function both call.
+
 | WP | title | depends on | status |
 |---|---|---|---|
 | 105 | The robust pass inside the joint loop: `Robust` x `Estimate="noise"` runs (adjustVCEjoint 'Influence'/'Tuning', factors in every arc's whitener on the next pass, one re-weighted metric for accumulation, probes and components; prior streams exempt; `collapsed`; `R.noise.robust`); `lawWhitenedResiduals` shared by both drivers; the retained-observation level stated and measured, no silent correction; version 6.1 | 104 | IN PROGRESS (2026-09-09; branch `claude/wp-105`, draft PR #105; six CI rounds, 546/547 on c166c3a -- the mechanism, the rejection and the unbiased level hold, the colour recovery under gross blunders crawls; a DECISION on the weighting convention (Yang vs Koch) is open, §12.29 round 5/6) |
