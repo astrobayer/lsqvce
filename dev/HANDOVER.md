@@ -7220,6 +7220,14 @@ the innovation is the right frame), Koch inside the spectral estimator (the obse
 because the innovation weight destroys the lag structure the update needs). `R.noise.robust.factor`
 is per EPOCH. CI decides round 8.
 
+**ROUND 8 result (CI on 93dff60): an OSCILLATION, read off the trajectory.** nZero
+60 / 0 / 55 / 0 / 55 ..., maxDev 18 / 0.95 alternating: the raw residual was descaled by
+the Cep the sweep returns -- which is the COMPOSED one, this pass's factors already folded
+in -- so a blunder standardised by an accuracy carrying its own zero weight looked perfect,
+got weight 1, came back next pass, and so on. Round 9: `epochResiduals` divides this pass's
+factors back out of Cep (the lawWhitenedResiduals pattern, on the Koch channel) before the
+descale.
+
 | WP | title | depends on | status |
 |---|---|---|---|
 | 105 | The robust pass inside the joint loop: `Robust` x `Estimate="noise"` runs (adjustVCEjoint 'Influence'/'Tuning', factors in every arc's whitener on the next pass, one re-weighted metric for accumulation, probes and components; prior streams exempt; `collapsed`; `R.noise.robust`); `lawWhitenedResiduals` shared by both drivers; the retained-observation level stated and measured, no silent correction; version 6.1 | 104 | IN PROGRESS (2026-09-09; branch `claude/wp-105`, draft PR #105; six CI rounds, 546/547 on c166c3a -- the mechanism, the rejection and the unbiased level hold, the colour recovery under gross blunders crawls; a DECISION on the weighting convention (Yang vs Koch) is open, §12.29 round 5/6) |

@@ -552,7 +552,7 @@ end
             % whole tail, and the lag statistics around every blunder are
             % lost; the colour crawled 0.006 -> 0.054 in 16 passes.)
             res = lsqvce.engine.residuals(acc, sol, 'Whitened', false, 'Collect', true, 'Verbose', false);
-            [uEp, rkeys, sizes] = epochResiduals(res);
+            [uEp, rkeys, sizes] = epochResiduals(res, W);
             [fac, rscale, rstreams] = perStreamWeights(uEp, rkeys, sizes, o.Influence, o.Tuning);
             nAlive = sum(fac > 0);
             if nAlive < size(sol.x, 1) + 1                          % live EPOCHS
@@ -679,7 +679,7 @@ function [fac, scale, streams] = perStreamWeights(vw, keys, sizes, influence, tu
     end
 end
 
-function [uEp, keys, sizes] = epochResiduals(res)
+function [uEp, keys, sizes] = epochResiduals(res, W)
 %EPOCHRESIDUALS  One standardised RAW residual per EPOCH, in sweep order
 %   (R6 WP-105 round 8, the Koch convention): the raw residual v = l - A x
 %   - B y of every arc, descaled by the epoch's own declared accuracy (the
@@ -687,7 +687,12 @@ function [uEp, keys, sizes] = epochResiduals(res)
 %   a d-axis epoch its RMS over the d descaled rows -- the multivariate
 %   statistic of a vector observation. The level of the law is NOT divided
 %   out here: perStreamWeights standardises by the stream's MAD, so the
-%   weights are invariant to the level and cannot chase it.
+%   weights are invariant to the level and cannot chase it. The Cep the
+%   sweep returns is the COMPOSED one -- this pass's factors already folded
+%   in (makeLoader>inflateCep) -- so they are divided back out first, from
+%   W: standardising a blunder by an accuracy that already carries its own
+%   zero weight made it look perfect, and the weights flipped on and off
+%   every pass (round 8, measured: nZero 60 / 0 / 55 / 0 ...).
 %   OUTPUT uEp n_epochs x 1; keys A x 4 {sysID, obsType, day, arc};
 %          sizes 1 x A epochs per arc.
     uEp = [];  keys = cell(0, 4);  sizes = [];
@@ -698,6 +703,11 @@ function [uEp, keys, sizes] = epochResiduals(res)
             v = o.v(:);  d = o.nAxis;  m = numel(v);
             if ~isempty(o.Cep)
                 Cep = o.Cep;
+                key = lsqvce.util.rowWeightKey(S.sysID, o.day, o.obsType, o.arc);
+                if ~isempty(W) && isKey(W, key)          % undo this pass's folded factors
+                    w = max(W(key), 1e-12);  w = w(:);
+                    if ismatrix(Cep), Cep = Cep .* sqrt(w); else, Cep = Cep .* w; end
+                end
                 if ismatrix(Cep) && size(Cep, 2) == 1 && d == 1
                     v = v ./ Cep(:);
                 else
