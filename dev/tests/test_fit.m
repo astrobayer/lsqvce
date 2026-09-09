@@ -189,6 +189,7 @@ function testNotYetPathsAreRefusedExplicitly(tc)
     % it, and the run carries the factors. What stays refused, explicitly and
     % never as a silent fallback, is Robust on a NONLINEAR batch problem.
     [data, ~] = declaration();
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % MaxPasses 2 stops early by design (a contract point)
     R = lsqvce.fit(data, lsqvce.Options(Robust="huber", Estimate="noise", Pool="stream", ...
                                         ArcFactors=false, MaxPasses=2, Verbose=false));
     tc.verifyEqual(R.noise.robust.influence, 'huber');
