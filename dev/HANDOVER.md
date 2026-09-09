@@ -6908,7 +6908,7 @@ references (D (R_t kron I_d) D at 1e-8) unchanged, now per cell.
 
 | WP | title | depends on | status |
 |---|---|---|---|
-| 102 | VERSION 6.0 -- THE CELLS ARE THE ARCS: `buildDay` returns one cell per arc (A, B, l, t, Cep), `arcIdx`/`arcId` deleted, an empty cell is a data gap, `arcs` optional (the cells are the schedule; `'day'` rows on every calendar day; `emptyDay`), required only by `'arc'` rows, `'fromDay'` retired, `CacheDays` = days x streams; the test instrument `arcCells`; every example, template, the Manual and the GRAVFIRE guide on the v6 contract | 101 | OPEN (2026-09-09; branch `claude/wp-102`; Linux audit exit 0 with the Manual rebuilt; CI pending; the user's ci_gate = the postflight) |
+| 102 | VERSION 6.0 -- THE CELLS ARE THE ARCS: `buildDay` returns one cell per arc (A, B, l, t, Cep), `arcIdx`/`arcId` deleted, an empty cell is a data gap, `arcs` optional (the cells are the schedule; `'day'` rows on every calendar day; `emptyDay`), required only by `'arc'` rows, `'fromDay'` retired, `CacheDays` = days x streams; the test instrument `arcCells`; every example, template, the Manual and the GRAVFIRE guide on the v6 contract | 101 | READY (2026-09-09, PR #102; round 1 red -> fixed (§12.26 round 1); CI GREEN on f5c9cd9: audit 55 s, matlab 3m8s, 521/521 over 26 suites + test_parallel skipped on the hosted runner = 558 declared as predicted, warning inventory = the one allowed id; Linux audit CLEAN with the Manual rebuilt, self-test green. POSTFLIGHT = the user's ci_gate on the PR head, incl. test_parallel (37 points) and the GRAVFIRE dry run on testdata.mat; DONE flips on the merge) |
 
 **Predicted count:** 558 declared over 27 suites (553 + 5: two new points in test_adjustBlock,
 three in test_fit; one renamed). CI decides.
@@ -6939,3 +6939,15 @@ Round 1 verdict: 3 of the 5 are the contract biting its own fixtures (the refusa
 feature); 1 is a genuine v5 defect exposed by the capacity correction; 1 a demo's private
 dense assembly. Linux audit CLEAN after `build_missing_pages.py all` (the makeLoader page
 regenerated); self-test green; 558 declared points unchanged.
+
+**VERDICT (2026-09-09).** CI on `f5c9cd9` GREEN: audit 55 s, matlab 3m8s -- **521/521** over
+26 suites, `test_parallel` skipped on request (hosted runner), 521 + 37 = **558 declared, as
+predicted** (three ways: the per-suite table, pass + skip, the tag sums of the audit);
+warning inventory = `lsqvce:internal:testProbe` only; every suite loaded. Tier B verdict:
+**green on CI; the local tier is the user's** -- `ci_gate` on the PR head (adds
+`test_parallel`, 37 points) and the GRAVFIRE dry run `gravfire_data(..., 'DryRun', true)`
++ `fit` on `testdata.mat`, the first real declaration WITHOUT `arcs` (the pieces as cells,
+one Cep per piece). What the next session could be wrong for not reading: a `containers.Map`
+sorts its keys -- never take `keys{1}` as "the oldest" (§12.26 round 1); and the v6 day
+contract refuses a MATRIX where a cell belongs, on purpose -- a red `badDay` on a fixture is
+the fixture's shape, not the loader's.
