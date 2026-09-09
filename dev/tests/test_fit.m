@@ -251,8 +251,8 @@ function testSystemWithoutLocalsThroughFit(tc)
     % localsPerArc nor localParams declared, B = zeros(m, 0).
     [data, cfg] = declaration();
     cfg.nl = 0;
-    m = cfg.arcsPerDay * cfg.mArc;
-    data.systems(1).buildDay = @(d, ot) setfield(buildDayImpl(cfg, d, ot), 'B', zeros(m, 0)); %#ok<SFLD>
+    data.systems(1).buildDay = @(d, ot) setfield(buildDayImpl(cfg, d, ot), 'B', ...   %#ok<SFLD>
+                                        {zeros(cfg.mArc, 0), zeros(cfg.mArc, 0)});   % v6: one cell per arc
     data.systems(1).localParams = [];                            % explicit 'not used'
     R = lsqvce.fit(data);
     tc.verifyClass(R, 'lsqvce.Results');

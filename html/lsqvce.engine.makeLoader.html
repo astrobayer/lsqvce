@@ -181,6 +181,8 @@ RUNTIME COVARIANCE OVERRIDE (opt.covOverride)
                                        data gap (an empty cell)
    .day      @(day,obsType)  the cached, validated whole day
    .isLoader .sysID .nc .nl .obsTypes .cov .name .days .plan .priors
+   .commonPlan .discover    the common plan and the discovery instrument the
+                            &#x27;meta&#x27; probe reads without a declared schedule
    .common .local .procOpt   the tables and options piped to buildDay</pre>
 <h3>THE LOADER CONTRACT (what the engines require)</h3>
 <pre class="example">The ONLY hard requirement is the 4-arg data callback that also answers
@@ -257,8 +259,10 @@ Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-102 (v6): THE CELLS ARE THE
 ARCS -- A, B, l, t (and Cep) come back as 1 x nArc cells, arcIdx / arcId
 are gone, an empty cell is a data gap, &#x27;Arcs&#x27; is optional (the cells of a
 day are its schedule; a declared schedule must match their number), the
-string form &#x27;fromDay&#x27; is retired, and the day cache holds CacheDays x
-streams slots. With assistance from Claude (Anthropic), model Claude
+string form &#x27;fromDay&#x27; is retired, the day cache holds CacheDays x
+streams slots evicted FIFO (the v5 eviction took the alphabetically
+first key), and the arc count of every built day is memoised so the
+discovery probe never adds a build. With assistance from Claude (Anthropic), model Claude
 Fable 5.1.
 Updated 2026-09-06 (CEST, UTC+02:00), R6 WP-90: the error information
 travels with the day (.Cep for every stream, nAxis derived, validated at

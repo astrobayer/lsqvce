@@ -9,6 +9,7 @@ architecture, the task list, and the implementation prompts — lives HERE.
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
 Last substantive update: 2026-09-09 — WP-101 DONE (PR #101, merge 340eb3b); WP-102 OPEN on `claude/wp-102` (tier B, model Claude Fable 5.1): VERSION 6.0 — THE CELLS ARE THE ARCS (buildDay returns one cell per arc; arcIdx/arcId gone; `arcs` optional; 'fromDay' retired; six user decisions pinned); §12.26.
+Preceding entry: Last substantive update: 2026-09-09 — WP-102 round 1: CI RED on 43a8b8b (5 failed) diagnosed and fixed — a v5 FINDING (the day cache evicted the alphabetically first key, not the oldest; FIFO now, and the discovery probe memoised so it never adds a build) plus two nl = 0 fixtures and one demo on the old matrix shape; §12.26 round 1.
 Preceding entry: Last substantive update: 2026-09-08 — WP-99 DONE (PR #99, merge 385b0d9; postflight on merged main: ci_gate 539/539, examples included); WP-100 OPEN: the two standing estimator questions CLOSED BY MEASUREMENT, both against the change that looked obvious; §12.24.
 Preceding entry: Last substantive update: 2026-09-08 — WP-98 DONE (PR #98, merge cf10d71; finding F-01 FIXED; postflight on merged main: ci_gate 535/535, examples 15/15); WP-99 OPEN: the four carried instrument-and-honesty items, one commit each; §12.23.
 Preceding entry: Last substantive update: 2026-09-08 — WP-97 DONE (PR #97, merge f47306d; postflight on merged main: ci_gate 534/534, examples 15/15); WP-98 OPEN: F-01's mechanism is ESTABLISHED and one of §12.21's own measurements is CORRECTED; §12.22.
@@ -6911,3 +6912,30 @@ references (D (R_t kron I_d) D at 1e-8) unchanged, now per cell.
 
 **Predicted count:** 558 declared over 27 suites (553 + 5: two new points in test_adjustBlock,
 three in test_fit; one renamed). CI decides.
+
+**ROUND 1 (2026-09-09, CI on 43a8b8b RED: 516/521, 5 failed; audit green). Diagnosis
+order configuration -> criterion -> code; all five are code, and one of them is a FINDING
+about v5.**
+  * **The day cache evicted the ALPHABETICALLY FIRST key, not the oldest.** `dayOf` evicted
+    `cache.keys{1}` -- a `containers.Map` sorts its keys, so with more than one slot the
+    victim was whichever (day, stream) sorted first, not the one inserted first. Invisible in
+    v5 (one slot: the only entry IS the oldest); visible the moment `CacheDays = 1` became one
+    DAY (three slots for the three streams of `demo_grace_dataLoader`'s pair system):
+    `testCacheDaysCountsTheBuilds` measured [1 5 9] builds per (day, stream) where every one
+    must be 2n+1 = 5. Fixed: every entry carries a sequence number and eviction is FIFO by
+    it. And the discovery probe is now free after the first build: `dayOf` memoises the arc
+    count of every built (day, stream) in `arcCounts`; `arcVec` under discovery answers from
+    the memo and reads only a day nobody has built yet -- so a probe over ALL days before a
+    read (`engine.redundancy`'s task count) costs nothing on a later pass, and
+    discovered == declared holds in the build COUNT as well as bitwise in the numbers. `L.discover`
+    carries the instrument; `dayKey` is the one key of both maps.
+  * The two nl = 0 fixtures (`testSystemWithoutLocalsThroughFit`,
+    `testSystemWithoutLocalUnknownsIsValid`) still set `B = zeros(m, 0)` as a MATRIX after
+    the cut -- exactly the shape the v6 contract refuses (`badDay` fired as documented, on the
+    test's own builder). Now one `zeros(mArc, 0)` cell per arc.
+  * `demo_priors>nullDimension` stacked `[D.A, D.B]` from the day it builds for its dense rank
+    check -- `vertcat(D.A{:})` now, the demo's ONE place that reads a day outside the toolbox.
+Round 1 verdict: 3 of the 5 are the contract biting its own fixtures (the refusal is the
+feature); 1 is a genuine v5 defect exposed by the capacity correction; 1 a demo's private
+dense assembly. Linux audit CLEAN after `build_missing_pages.py all` (the makeLoader page
+regenerated); self-test green; 558 declared points unchanged.

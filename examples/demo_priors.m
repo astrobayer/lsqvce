@@ -335,7 +335,7 @@ function n = nullDimension(cfg, lay, dayCols)
     M = zeros(0, lay.nc + lay.systems(1).nl);
     for d = cfg.days
         D = priorDay(cfg, d, layoutInfo(cfg, lay, d, dayCols));
-        M = [M; D.A, D.B]; %#ok<AGROW>
+        M = [M; vertcat(D.A{:}), vertcat(D.B{:})]; %#ok<AGROW>   v6: the cells are the arcs
     end
     n = size(M, 2) - rank(M);
 end

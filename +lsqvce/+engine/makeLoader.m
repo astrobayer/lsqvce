@@ -140,6 +140,8 @@ function L = makeLoader(buildDay, opt)
 %                                            data gap (an empty cell)
 %        .day      @(day,obsType)  the cached, validated whole day
 %        .isLoader .sysID .nc .nl .obsTypes .cov .name .days .plan .priors
+%        .commonPlan .discover    the common plan and the discovery instrument the
+%                                 'meta' probe reads without a declared schedule
 %        .common .local .procOpt   the tables and options piped to buildDay
 %
 %   THE LOADER CONTRACT (what the engines require)
@@ -220,8 +222,10 @@ function L = makeLoader(buildDay, opt)
 %   ARCS -- A, B, l, t (and Cep) come back as 1 x nArc cells, arcIdx / arcId
 %   are gone, an empty cell is a data gap, 'Arcs' is optional (the cells of a
 %   day are its schedule; a declared schedule must match their number), the
-%   string form 'fromDay' is retired, and the day cache holds CacheDays x
-%   streams slots. With assistance from Claude (Anthropic), model Claude
+%   string form 'fromDay' is retired, the day cache holds CacheDays x
+%   streams slots evicted FIFO (the v5 eviction took the alphabetically
+%   first key), and the arc count of every built day is memoised so the
+%   discovery probe never adds a build. With assistance from Claude (Anthropic), model Claude
 %   Fable 5.1.
 %   Updated 2026-09-06 (CEST, UTC+02:00), R6 WP-90: the error information
 %   travels with the day (.Cep for every stream, nAxis derived, validated at
@@ -396,7 +400,13 @@ end
     % slot per data stream (the meaning 'CacheDays' has always claimed; with
     % one slot the discovery probe of a 3-stream day evicted what the engine
     % was about to read). The prior streams added below never enter it.
-    capacity = o.cache * o.cacheDays * numel(obsTypes);
+    % Eviction is FIFO by a sequence number stored with the entry (the
+    % Map's keys are sorted, not in insertion order). ARCCOUNTS memoises
+    % the arc count of every built (day, stream), so the discovery probe
+    % of a day without a declared schedule reads it at most ONCE per run --
+    % after that the 'meta' answer costs nothing, whatever the sweep order.
+    capacity  = o.cache * o.cacheDays * numel(obsTypes);
+    arcCounts = containers.Map('KeyType','char', 'ValueType','double');
 
     % R5-D8 round 2: priors on local template rows are pseudo-observations of
     % THIS system -- the observation type 'prior' (one arc per day, unit-whitened
@@ -445,12 +455,14 @@ end
     % The day accessor is built FIRST and captured by value: L.meta needs it
     % without a declared schedule (R6 WP-102), and an anonymous function
     % cannot capture a struct field that does not exist yet.
-    dayAccessor = @(day, obsType) dayOf(buildDay, cache, capacity, day, obsType, ...
+    dayAccessor = @(day, obsType) dayOf(buildDay, cache, arcCounts, capacity, day, obsType, ...
                                         o.common, o.local, o.procOpt, plan, o.commonPlan);
+    disc = struct('dayFcn', dayAccessor, 'counts', arcCounts);   % the discovery instrument
     L.meta    = @(varargin) metaOf(obsTypes, o.arcs, ...
-                                   metaDay(varargin, o.days), dayAccessor, L);
+                                   metaDay(varargin, o.days), disc, L);
     L.localPlan = plan;               % WP-52: [] unless 'localsPerArc' declared
     L.day     = dayAccessor;
+    L.discover = disc;
     L.batch   = @(day, obsType, arcID, opt) batchOf(L.day, o.arcs, o.cov, day, obsType, arcID, opt);
     L.closure = @(day, obsType, arcID, opt) dispatch(L, o.arcs, day, obsType, arcID, opt);
 end
@@ -475,7 +487,7 @@ function out = dispatch(L, arcs, day, obsType, arcID, opt)
     if (ischar(day) || isstring(day)) && strcmp(day, 'meta')
         % WP-52: the probe carries the DAY (every engine passes it), so a
         % ragged schedule is answered natively -- see metaOf/arcVec.
-        out = metaOf(L.obsTypes, arcs, obsType, L.day, L);
+        out = metaOf(L.obsTypes, arcs, obsType, L.discover, L);
         return
     end
     if startsWith(obsType, 'prior_')                  % R5-D8 round 5: a local prior group's pseudo-arc
@@ -485,13 +497,14 @@ function out = dispatch(L, arcs, day, obsType, arcID, opt)
     out = L.batch(day, obsType, arcID, opt);
 end
 
-function m = metaOf(obsTypes, arcs, day, dayFcn, L)
+function m = metaOf(obsTypes, arcs, day, disc, L)
 %METAOF  The (obsTypes, arcs-per-type) probe answer for ONE day.
 %   With a declared schedule the answer needs no data. Without one (R6
-%   WP-102) every data stream of the day is read -- the engine reads them
-%   right after, and the cache holds a whole day, so nothing is read twice --
-%   and a day the plan gave a 'day' block that turns out empty in EVERY
-%   stream is refused here, before any solve could go rank-deficient on it.
+%   WP-102) every data stream of the day is read ONCE per run (the memo in
+%   disc.counts answers every later probe; the first read is what the engine
+%   reads right after anyway, and the cache holds a whole day), and a day the
+%   plan gave a 'day' block that turns out empty in EVERY stream is refused
+%   here, before any solve could go rank-deficient on it.
     m.obsTypes = obsTypes;
     m.arcs     = cell(1, numel(obsTypes));
     nData = 0;
@@ -499,7 +512,7 @@ function m = metaOf(obsTypes, arcs, day, dayFcn, L)
         if startsWith(obsTypes{k}, 'prior_')
             m.arcs{k} = priorArcsOfDay(L, day, obsTypes{k});   % R5-D8 round 5: one arc, or none
         else
-            m.arcs{k} = arcVec(arcs, obsTypes{k}, day, dayFcn);
+            m.arcs{k} = arcVec(arcs, obsTypes{k}, day, disc);
             nData = nData + numel(m.arcs{k});
         end
     end
@@ -690,21 +703,25 @@ function out = priorArc(L, day, obsType, arcID, opt, cov)
     [out.Cfcn, out.Wfcn, info2] = lsqvce.engine.covModel(cm, out.t, struct());
     out.filterMemory = info2.filterMemory;
 end
-function v = arcVec(arcs, obsType, day, dayFcn)
+function v = arcVec(arcs, obsType, day, disc)
 %ARCVEC  Resolve the arc-ID vector for one obsType and ONE DAY.
 %   Static forms (count / vector / per-obsType struct) ignore the day; the
 %   function_handle form @(day[,obsType]) is a ragged schedule (WP-52). No
 %   data is read for a declared schedule. With NO schedule (R6 WP-102) the
-%   day is read and its cells are its arcs, ids 1:nArc.
+%   cells of the day are its arcs, ids 1:nArc: the count comes from the
+%   memo disc.counts (filled by every build), else the day is read once.
 %   OUTPUT v 1xA double  the arc IDs present on THIS day.
     if isempty(arcs)
-        if isempty(dayFcn)
+        if isempty(disc)
             error('lsqvce:makeLoader:localPlan', ...
                   ['the arc set of day %s (stream %s) is needed before any day is read, ' ...
                    'and no ''Arcs'' schedule is declared.'], string(day), obsType);
         end
-        D = dayFcn(day, obsType);
-        v = 1:numel(D.A);
+        key = dayKey(day, obsType);
+        if ~isKey(disc.counts, key)
+            disc.dayFcn(day, obsType);                 % the build memoises its count
+        end
+        v = 1:disc.counts(key);
     elseif isstruct(arcs)
         if ~isfield(arcs, obsType)
             error('lsqvce:makeLoader:noArcs', 'arcs has no field for ''%s''.', obsType);
@@ -987,28 +1004,43 @@ function v = checkArcIds(v, obsType, day, who)
     end
 end
 
-function D = dayOf(buildDay, cache, capacity, day, obsType, common, local, procOpt, plan, commonPlan)
+function D = dayOf(buildDay, cache, arcCounts, capacity, day, obsType, common, local, procOpt, plan, commonPlan)
 %DAYOF  Return the built+validated day struct for (day,obsType), using a
-%   cache of CAPACITY resident days (0 = none, 1 = the single slot of v4,
-%   Inf = every day of the run -- R5 M4 4d: a two-stage pass builds every day
-%   twice, accumulate + sweep, and a VCE run 2n+1 times; with the calendar
-%   resident it is ONCE per run). OUTPUT D 1x1 struct  the day data.
-    if nargin < 10, commonPlan = []; end
-    key = sprintf('%d|%s', day, obsType);
+%   cache of CAPACITY resident (day, stream) slots (0 = none; CacheDays x
+%   streams; Inf = every day of the run -- R5 M4 4d: a two-stage pass builds
+%   every day twice, accumulate + sweep, and a VCE run 2n+1 times; with the
+%   calendar resident it is ONCE per run). Eviction is FIFO by the sequence
+%   number stored with each entry (R6 WP-102). Every build memoises the
+%   day's arc count in ARCCOUNTS for the discovery probe.
+%   OUTPUT D 1x1 struct  the day data.
+    if nargin < 11, commonPlan = []; end
+    key = dayKey(day, obsType);
     useCache = capacity > 0;
     if useCache && isKey(cache, key)
-        D = cache(key);  return
+        e = cache(key);  D = e.D;  return
     end
     arcInfo = arcInfoOf(plan, day);           % WP-52: [] unless a plan exists
     arcInfo = addCommonInfo(arcInfo, commonPlan, day);   % L11: v4 common slice
     D = callBuildDay(buildDay, day, obsType, common, local, procOpt, arcInfo);
     D = validateDay(D, day, obsType);
+    arcCounts(key) = numel(D.A);             %#ok<NASGU>  the memo (handle Map)
     if useCache
-        while cache.Count >= capacity          % evict the oldest (insertion order)
-            ks = cache.keys;  remove(cache, ks{1});
+        seq = 0;
+        if cache.Count > 0
+            ks = cache.keys;  seqs = cellfun(@(x) x.seq, cache.values);   % same order
+            seq = max(seqs);
+            while numel(ks) >= capacity        % evict the OLDEST entry (FIFO)
+                [~, i] = min(seqs);
+                remove(cache, ks{i});  seqs(i) = [];  ks(i) = [];
+            end
         end
-        cache(key) = D;              %#ok<NASGU>
+        cache(key) = struct('D', D, 'seq', seq + 1);   %#ok<NASGU>
     end
+end
+
+function key = dayKey(day, obsType)
+%DAYKEY  The ONE key of a (day, stream) in the cache and the arc-count memo.
+    key = sprintf('%d|%s', day, obsType);
 end
 
 function D = callBuildDay(buildDay, day, obsType, common, local, procOpt, arcInfo)
