@@ -7146,6 +7146,24 @@ design errors, both of the "two loops fight" class §12.28 predicted, found by t
     the level ratio with IGG3's own weight function. Both lessons are in the help, the
     release note and Manual §7.8 as rules of use.
 
+**ROUND 3 (CI on d96a868 RED: 546/547 -- factors right, colour and level still wrong; the
+cause READ this time, not guessed).** Stream a's colour 0.003 with the blunders rejected, the
+clean level 0.41: the joint SWEEP (`sweepArcs>oneArc`) does not whiten with the loader's
+`Wfcn` at all -- it forms the explicit W = chol(Sigma) from `Cfcn` (redundancyLags needs the
+triangular factor). The factors lived only in `Wfcn`, so the accumulation was weighted and
+the component update was not: exactly the inconsistency §12.28 feared, in the one place the
+"weights are in the whitener" argument did not reach. **Round 4:** (a) `batchOf` wraps
+`Cfcn` too: weighting AFTER the law filter (Yang 1994, the convention adjustRobust pins) is
+e_w = D L^-1 v with covariance L D^-2 L' -- `weightedCov`; the sweep's W is now the factor
+of the weighted problem and the residual it forms equals the accumulator's. (b) Multi-axis
+streams: the sweep's temporal covariance is per axis over EPOCHS, so a factor must be per
+epoch -- `perStreamWeights` weights a multi-axis arc by the epoch's RMS over its d
+law-whitened rows (the multivariate M-estimate of a vector observation), one factor per
+epoch replicated to its rows; `residuals` records `nAxis` on every arc for it. Decision
+recorded: the epoch statistic is the RMS, standardised by the stream's MAD like a scalar
+residual -- a chi-shaped variable treated as symmetric; adequate for blunder rejection, not
+a calibrated multivariate scale (a later refinement if the oracle asks for one).
+
 | WP | title | depends on | status |
 |---|---|---|---|
 | 105 | The robust pass inside the joint loop: `Robust` x `Estimate="noise"` runs (adjustVCEjoint 'Influence'/'Tuning', factors in every arc's whitener on the next pass, one re-weighted metric for accumulation, probes and components; prior streams exempt; `collapsed`; `R.noise.robust`); `lawWhitenedResiduals` shared by both drivers; the retained-observation level stated and measured, no silent correction; version 6.1 | 104 | OPEN (2026-09-09; branch `claude/wp-105`; Linux audit CLEAN with the Manual rebuilt; CI decides) |

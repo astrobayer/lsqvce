@@ -529,7 +529,8 @@ end
         if robust
             res = lsqvce.engine.residuals(acc, sol, 'Whitened', true, 'Collect', true, 'Verbose', false);
             [vw, rkeys, sizes] = lawWhitenedResiduals(res, W);
-            [fac, rscale, rstreams] = perStreamWeights(vw, rkeys, sizes, o.Influence, o.Tuning);
+            axes = arcAxes(res);
+            [fac, rscale, rstreams] = perStreamWeights(vw, rkeys, sizes, axes, o.Influence, o.Tuning);
             nAlive = sum(fac > 0);
             if nAlive < size(sol.x, 1) + 1
                 error('lsqvce:adjustVCEjoint:collapsed', ...
@@ -614,7 +615,7 @@ end
 end
 
 %==========================================================================
-function [fac, scale, streams] = perStreamWeights(vw, keys, sizes, influence, tuning)
+function [fac, scale, streams] = perStreamWeights(vw, keys, sizes, axes, influence, tuning)
 %PERSTREAMWEIGHTS  Robust factors PER STREAM (R6 WP-105, round 2).
 %   The influence function standardises residuals by a MAD scale, and that
 %   scale must be ONE PER STREAM and must NOT be the estimated level: the
@@ -626,6 +627,12 @@ function [fac, scale, streams] = perStreamWeights(vw, keys, sizes, influence, tu
 %   v / MAD(v), invariant to the level the whitener applied, so the weights
 %   do not feed on the level they will shape: the level converges to the
 %   retained-observation ratio, not to zero. Prior streams get factor 1.
+%   A MULTI-AXIS arc (axes(kk) = d > 1, rows epoch-major) is weighted PER
+%   EPOCH (round 4): the influence acts on the epoch's RMS over its d
+%   law-whitened rows -- the multivariate M-estimate of a vector
+%   observation -- and the d rows of an epoch share the factor. That is what
+%   the sweep needs: its temporal covariance is per axis and per epoch, so a
+%   factor must be per epoch to be expressible there.
 %   OUTPUT fac n x 1; scale 1 x S (the MAD per stream); streams 1 x S cell
 %          'satKey|obsType', sorted.
     n = numel(vw);
@@ -641,11 +648,30 @@ function [fac, scale, streams] = perStreamWeights(vw, keys, sizes, influence, tu
     ends = cumsum(sizes(:));  starts = ends - sizes(:) + 1;
     for si = 1:numel(streams)
         arcs = find(strcmp(skey, streams{si}));
-        rows = [];
+        rows = [];  d = 1;
         for kk = arcs(:).'
             rows = [rows, starts(kk):ends(kk)]; %#ok<AGROW>
+            d = max(d, axes(kk));
         end
-        [fac(rows), scale(si)] = lsqvce.kernel.robustWeights(vw(rows), influence, tuning);
+        if d == 1
+            [fac(rows), scale(si)] = lsqvce.kernel.robustWeights(vw(rows), influence, tuning);
+        else
+            % per-epoch RMS over the d rows; a factor per epoch, replicated
+            u = vw(rows);
+            uEp = sqrt(mean(reshape(u, d, []).^2, 1)).';
+            [fEp, scale(si)] = lsqvce.kernel.robustWeights(uEp, influence, tuning);
+            fac(rows) = repelem(fEp(:), d);
+        end
+    end
+end
+
+function axes = arcAxes(res)
+%ARCAXES  The axis count of every arc, in the sweep order of lawWhitenedResiduals.
+    axes = [];
+    for k = 1:numel(res.sys)
+        for j = 1:numel(res.sys(k).obs)
+            axes(end+1) = res.sys(k).obs(j).nAxis; %#ok<AGROW>
+        end
     end
 end
 

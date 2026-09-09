@@ -1293,6 +1293,23 @@ function out = batchOf(dayFcn, arcs, cov, day, obsType, arcID, opt)
             end
             sq = sqrt(fac(:));
             out.Wfcn = @(idx, A, B, l, o) weightedWhiten(W0, sq, idx, A, B, l, o);
+            % R6 WP-105 round 4: the joint estimator's sweep does NOT use
+            % Wfcn -- it forms the explicit W = chol(Sigma) from Cfcn (it needs
+            % the triangular factor for the per-lag redundancies). So the
+            % weighted problem must be visible THERE too, or the accumulation
+            % is weighted and the component update is not (measured: the
+            % colour of a blunder-laden stream stayed 0.003, the clean level
+            % 0.41). Weighting AFTER the law filter (Yang 1994, the convention
+            % adjustRobust pins) is e_w = D L^-1 v, whose covariance is
+            % L D^-2 L' -- the weightedCov below. With Cep, Cfcn is the
+            % TEMPORAL covariance over epochs, so the weight per epoch is
+            % taken (perStreamWeights makes it one per epoch on a multi-axis
+            % stream: the d rows of an epoch share one factor).
+            if ~isempty(out.Cfcn)
+                C0 = out.Cfcn;
+                wEp = fac(1:d:end);
+                out.Cfcn = @(idx, o) weightedCov(C0(idx, o), wEp(idx));
+            end
         end
     end
 
@@ -1314,6 +1331,16 @@ function [A, B, l] = weightedWhiten(W0, sq, idx, A, B, l, o)
     [A, B, l] = W0(idx, A, B, l, o);
     sc = sq(idx(:));
     A = sc .* A;  B = sc .* B;  l = sc .* l;
+end
+
+function Cw = weightedCov(C, w)
+%WEIGHTEDCOV  The covariance of the re-weighted problem, L diag(1./w) L' with
+%   C = L L' (R6 WP-105): the explicit form of "law-whiten, then scale the
+%   rows by sqrt(w)". A row of weight ~0 becomes a row of huge variance,
+%   which is what makes its residual and its redundancy vanish together.
+    if isvector(C), C = diag(C(:)); end
+    L  = chol((C + C.') / 2, 'lower');
+    Cw = L * ((1 ./ w(:)) .* L.');
 end
 
 function [A, B, l] = denseRows(C, A, B, l)
