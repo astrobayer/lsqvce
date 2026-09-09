@@ -6990,4 +6990,15 @@ pass/fail suite — unchanged by this round).
 
 | WP | title | depends on | status |
 |---|---|---|---|
-| 103 | The pool suite runs in CI: `ci_gate` stops skipping `test_parallel` and capping pools under `LSQVCE_CI` (the self-hosted runner has the PCT); tier names fixed (A = MCP bridge, B = self-hosted runner); the WP-30 backlog item closed | 102 | OPEN (2026-09-09; branch `claude/wp-103`; CI decides — 558/558 predicted) |
+| 103 | The pool suite runs in CI: `ci_gate` stops skipping `test_parallel` and capping pools under `LSQVCE_CI` (the self-hosted runner has the PCT); tier names fixed (A = MCP bridge, B = self-hosted runner); the WP-30 backlog item closed | 102 | READY (2026-09-09, PR #103; CI GREEN on c026dde: audit 56 s, matlab 3m30s, **546/546 over 27 suites, test_parallel 25/25 on an 8-worker pool, no skip line, warning inventory = the one allowed id**; 546 + test_speed 12 (the excluded benchmark) = 558 = the README claim; the prediction 558/558 was WRONG by exactly the benchmark's 12 — recorded below; DONE flips on the merge) |
+
+**VERDICT (2026-09-09, CI on `c026dde`).** GREEN: audit 56 s, matlab 3m30s — **546/546 over 27
+suites**, `test_parallel` **25/25** in 18.5 s on the runner's `Processes` pool of **8 workers**
+(uncapped, as intended), no skip line in the log, warning inventory = `lsqvce:internal:testProbe`
+only. **The prediction was wrong**: 558/558 was written, 546/546 measured. Reconciliation:
+558 is the README claim and counts `test_speed`'s 12 declared points, which `ci_gate` EXCLUDES
+as the benchmark (not pass/fail) — 546 + 12 = 558, and the pool suite declares 25, not the 37
+the prediction assumed (37 was 558 − 521, i.e. it silently folded the benchmark into the pool
+suite). A missed prediction is a finding even on green: the count must be reconciled from the
+per-suite table (25 + 12), not from a difference of totals. Tier B verdict: **green, and tier B
+is now the whole gate** — nothing is left for a local postflight except what tier A is for.
