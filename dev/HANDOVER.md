@@ -7314,3 +7314,53 @@ silent; a retired usage form in the Manual fires. Self-test 23 cases.
 | WP | title | depends on | status |
 |---|---|---|---|
 | 106 | The docs in sync, by reading: Manual ch. 4 `Robust`, `Results` / `residuals` / `makeLoader` help on the WP-105 fields and channels, `covModel`'s retired type; the theory PDF's three dated-record banners (the user's (a)); audit check 28 -- superseded claims, seeded with twelve, fault-injected | 105 | READY (2026-09-09, PR #106; CI GREEN on e8d4b13: audit (incl. check 28, self-test 23 cases) + matlab 547/547 over 27 suites, warning inventory = the one allowed id; Linux audit CLEAN with pages, Manual and theory PDF rebuilt; DONE flips on the merge) |
+
+### 12.31 WP-107 — V-6 answered by reading; release v6.1.0 (2026-09-19, model Claude Opus 5, tier B)
+
+**Why.** The timeSeriesPreparation concept (astrobayer/timeSeriesPreparation
+`docs/CONCEPT.md`, V-6) makes lsqvce the one estimator of NonGravForces'
+accelerometer calibration (N-02, N-09) and of rangingPreparation's KBR↔LRI
+comparison (L-03). Two things had to be settled first:
+- whether one `fit` call carries what they declare;
+- a release tag, so that consumers can pin `lsqvce >= 6.1` (issue #107).
+
+**V-6, read from source and tests (tag state `ac981cd`):**
+
+| capability | verdict | evidence |
+|---|---|---|
+| local parameters, pre-eliminated per arc / day / system | yes, kind A | `fit` help (kind A, `localParams` scopes `arc` / `day` / `system`); `makeLoader` |
+| priors on common and on local parameters | yes, kind A (common also B/C) | `fit` help (REGULARISATION); `adjustBlock` / `adjustRobust` `opt.Prior`; `test_fit.m` `testLocalPriorsAreTheCounterpartOfDataPriors` |
+| temporal laws per stream: `diag`, `acf`, `psd` (AR / ARMA / Toeplitz whitening), `arma`, `var` (vector AR), `custom`, composed with per-epoch `Cep` | yes, kind A | `+engine/covModel.m` help |
+| robust IRLS (`huber`, `igg3`, `bisquare`) | yes — alone (`adjustRobust`) and inside `Estimate="noise"` (6.1) | `fit` help; `test_fit.m` `testRobustRunsOnTheStreamingKind` (local params + ARMA law + two arcs per day + Huber, in ONE call); `test_vcePolicy.m` `testRobustPassInsideTheJointLoopRecoversTheLawUnderOutliers` |
+| variance components per stream, per-arc factors | yes, kind A (`Estimate="noise"`, `ArcFactors`) | `fit` help |
+
+**Not available:**
+- `Robust` on a nonlinear (`x0`) problem (`lsqvce:fit:notYet`);
+- `Estimate="noise"` on kinds B/C (`lsqvce:fit:modelKind`);
+- laws on kinds B/C. Kind C takes a full SPD weight matrix, whitened by its
+  Cholesky factor.
+
+**So:** calibration and the KBR↔LRI comparison declare **kind A**.
+
+**Gap, recommended and not done here:** no test runs robust + common and local
+priors + an ARMA/PSD law + local parameters together in one call. The code path
+supports it (priors reach the accumulator in `adjustRobust`; local priors come
+through the loader). A combined metamorphic test — robust on clean data equals
+GLS within the Huber tolerance, with priors present — is the natural next lsqvce
+WP, before N-02 depends on the combination.
+
+**Release.** `Contents.m` 6.1 → **6.1.0**; README title follows (audit check
+(a)); RELEASE_NOTES heading follows. The Manual (HTML and PDF) is rebuilt for its
+title. The sandbox's pandoc 3.1.3 reproduced the committed HTML byte-identically
+before the change, so the rebuild is attributable to the title alone. No code
+change. `lsqvce.util.toolboxVersion`
+and `test_adjustBlock` read `Contents.m`, so they follow by construction.
+
+- **Tag** `v6.1.0` (annotated, on the merge commit) **after the owner's
+  merge**, per ci-actions `VERSIONING.md`. It is the first tag since `v5.2.1`.
+  The lightweight `v1.0.0`, `v1.0.1` and `v5.2.1` stay as they are, since tags
+  are immutable.
+- **Verdicts:** `audit_tree.py` and `audit_selftest.py` clean in the sandbox;
+  CI (`audit`, `matlab`) on the PR. The MATLAB suite is predicted unchanged at
+  547 = 547 + 0 + 0, because no code or test changed.
+

@@ -1,6 +1,10 @@
 # lsqvce release notes
 
-## 6.1 — 2026-09-09 (R6 WP-105: the robust pass inside the joint loop)
+## 6.1.0 — 2026-09-09, tagged 2026-09-19 (R6 WP-105: the robust pass inside the joint loop)
+
+Tagged as `v6.1.0` on 2026-09-19 (WP-107): the version string gains its PATCH field
+(ci-actions `VERSIONING.md`: `MAJOR.MINOR.PATCH`, one annotated tag per release). The
+content is the 6.1 of 2026-09-09; no code changed.
 
 Additive on 6.0; no declaration changes.
 
