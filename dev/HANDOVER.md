@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-09-09 — WP-101 DONE (PR #101, merge 340eb3b); WP-102 OPEN on `claude/wp-102` (tier B, model Claude Fable 5.1): VERSION 6.0 — THE CELLS ARE THE ARCS (buildDay returns one cell per arc; arcIdx/arcId gone; `arcs` optional; 'fromDay' retired; six user decisions pinned); §12.26.
+Last substantive update: 2026-09-19 — WP-107 OPEN on `claude/wp-107-release-6.1.0` (issue #107, tier B, model Claude Opus 5): V-6 of the timeSeriesPreparation concept answered by reading, and the release **v6.1.0** prepared (version string gains its PATCH field per ci-actions VERSIONING.md; no code change); §12.31.
+Preceding entry: Last substantive update: 2026-09-09 — WP-101 DONE (PR #101, merge 340eb3b); WP-102 OPEN on `claude/wp-102` (tier B, model Claude Fable 5.1): VERSION 6.0 — THE CELLS ARE THE ARCS (buildDay returns one cell per arc; arcIdx/arcId gone; `arcs` optional; 'fromDay' retired; six user decisions pinned); §12.26.
 Preceding entry: Last substantive update: 2026-09-09 — WP-105 DONE (PR #105, merge a0e0500); WP-106 OPEN: the docs-sync question ("are help, html and the pdfs in sync?") answered by reading — four content drifts fixed, the theory PDF given its dated-record banners (the user's (a)), and audit check 28 (superseded claims) so a stale sentence cannot pass byte-equality again; §12.30.
 Preceding entry: Last substantive update: 2026-09-09 — WP-105 READY (PR #105, CI green 547/547 on 8ac8ab9 after twelve rounds; the robust pass inside the joint loop in the KOCH convention, settled by the user's measurement; version 6.1); §12.29.
 Preceding entry: Last substantive update: 2026-09-09 — WP-103 and WP-104 DONE (merged aad61a2, #103 stacked under #104); WP-105 OPEN: the robust pass INSIDE the joint loop (Robust x Estimate="noise"), version 6.1; §12.29.
