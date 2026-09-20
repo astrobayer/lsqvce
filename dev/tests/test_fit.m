@@ -218,6 +218,59 @@ function testRobustRunsOnTheStreamingKind(tc)
     tc.verifyEqual(R.meta.options.kind, 'stream');
 end
 
+function testRobustNeverReWeightsPriorRows(tc)
+% categories: contract, robustness
+    % R6 WP-108 (issue #110). A local prior group rides as its own stream
+    % 'prior_<name>' (makeLoader>priorArc), and adjustRobust's
+    % lawWhitenedResiduals collected EVERY stream: prior pseudo-residuals
+    % entered the MAD scale, the nAlive collapse check and the factor/keys
+    % output. priorArc never reads opt.rowWeights, so the factor written
+    % under a prior key was never applied, and the next pass divided the
+    % prior residual by a sqrt(factor) that had not been there -- a ratchet.
+    % adjustVCEjoint has excluded prior streams since WP-105; this is the
+    % stand-alone driver's half of the same rule.
+    [data, ~] = declaration();
+    lay = lsqvce.layout(data);
+    nl  = lay.systems(1).nl;
+    e   = @(c) double((1:nl) == c);
+    cj  = lay.systems(1).col(2, [], []);
+    ropt = lsqvce.Options(Robust="huber", Verbose=false);
+
+    % (i) the pass reports no factor for a pseudo-row
+    dTight = data;
+    dTight.systems(1).priors = struct('L', e(cj), 'x0', 0.123, 'sigma', 1e-6, ...
+                                      'from', 1, 'name', 'pin', 'estimate', "none");
+    Rt = lsqvce.fit(dTight, ropt);
+    obsTypes = string(Rt.history(end).keys(:, 2));
+    tc.verifyFalse(any(startsWith(obsTypes, "prior_")), ...
+        'the robust pass must report no factor for a prior pseudo-row');
+
+    % (ii) regression guard: a tight group pins its local under IRLS exactly
+    % as it does without it. This holds either way -- the factor was never
+    % applied to the prior arc -- so it guards the fix, it does not detect
+    % the defect.
+    yIrls = Rt.residuals('Verbose', false).sys(1).y;
+    yGls  = lsqvce.fit(dTight, Verbose=false).residuals('Verbose', false).sys(1).y;
+    % tol: 1e-6 absolute -- the group's own sigma. On clean data IRLS may
+    % move the pinned local only within the pin that holds it.
+    tc.verifyEqual(yIrls(2), yGls(2), 'AbsTol', 1e-6, ...
+        'IRLS must not move a pinned local relative to the GLS solve');
+
+    % (iii) the robust scale is formed over the DATA rows alone. A loose
+    % group (sigma 1e6) leaves the solution, and therefore every data
+    % residual, where it was; so with the pseudo-rows excluded the MAD is
+    % formed over an identical sample and must reproduce exactly.
+    dLoose = data;
+    dLoose.systems(1).priors = struct('L', e(cj), 'x0', 0, 'sigma', 1e6, ...
+                                      'from', 1, 'name', 'loose', 'estimate', "none");
+    sLoose = lsqvce.fit(dLoose, ropt).history(end).scale;
+    sNone  = lsqvce.fit(data,   ropt).history(end).scale;
+    % tol: 1e-12 relative -- the same data residuals through the same MAD;
+    % only floating-point re-association separates them.
+    tc.verifyEqual(sLoose, sNone, 'RelTol', 1e-12, ...
+        'a prior group must not enter the robust scale of the data');
+end
+
 function testSignatureRejectsNonStructAndNonOptions(tc)
 % categories: contract
     % Positional typing at the signature (MATLAB ids): the in-memory
