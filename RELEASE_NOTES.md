@@ -1,5 +1,32 @@
 # lsqvce release notes
 
+## 6.1.2 — 2026-09-20 (R6 WP-109: the PDF Manual is gated, and issue #110 is closed out)
+
+Documentation and tests; no code in `+lsqvce` changed, no declaration changes.
+
+- **`lsqvce_manual.pdf` carried 6.1.0 into the 6.1.1 release, because nothing read it.**
+  It is rebuilt, and audit check 29 now holds its document title to `+lsqvce/Contents.m`
+  — the same single version source check 17 (a) holds the README title to. The PDF cannot
+  be gated the way the HTML Manual is (check 23 compares a fresh build byte for byte):
+  rebuilding the identical source changes the font subset tags, the document `/ID` and
+  the xref offsets, which is measured here rather than assumed — 21 of 141 inflated
+  streams differ, every one of them accounted for, and not one content byte. The title is
+  what can be gated and the title is what drifted. The check fails CLOSED: a missing file
+  or an unreadable Info dictionary is a finding, not silence.
+- **Issue #110's remaining tests (3–6) are in the suite**, each with its margin measured
+  in the same run rather than assumed: planted blunders against the fixture's own
+  clean-data error under `igg3` and `bisquare`; the IRLS fixed point on kind C with an
+  explicit `p`; and `arma` against the PSD evaluated from it, where the AR-order gap is
+  measured by the GLS pair so the robust pair can be asked the only question IRLS can
+  answer — that re-weighting does not amplify it.
+- **A finding, recorded not fixed: the collapse guard is close to unreachable.**
+  `adjustRobust` refuses a pass when `nAlive < nc + 1`, but `robustWeights` standardises
+  by the normalised MAD, so at least half of any sample survives a redescending influence
+  at its default tuning: `nAlive >= ceil(n/2)` always, and the guard can only fire for
+  `n < 2*(nc + 1)`. On a real-sized fit it cannot fire at any contamination. 6.1.1
+  reported that prior pseudo-rows padded `nAlive` — a guard failing open; the guard was
+  nearly unreachable to begin with. The tuning is the user's, so nothing is changed here.
+
 ## 6.1.1 — 2026-09-20 (R6 WP-108: the stand-alone IRLS stops re-weighting priors)
 
 Fix and tests only; no declaration changes, no new capability.
