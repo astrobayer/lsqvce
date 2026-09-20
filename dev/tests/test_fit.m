@@ -472,8 +472,18 @@ function testAnAllRejectingInfluenceRaisesTheCollapseError(tc)
     % fire at default tuning, however discrepant the data. Driving the
     % tuning to reject essentially everything is the only route to it on a
     % real-sized problem, and that is what this point does.
+    %
+    % THE TUNING IS ARITHMETIC, NOT A ROUND NUMBER, and the first attempt got
+    % it wrong in a way worth recording. igg3 keeps a row alive iff
+    % |w| <= k1, and for standardised residuals P(|w| <= k1) ~ 2*k1*phi(0),
+    % so the survivors number about 3600 * 2*k1*0.3989:
+    %
+    %     k1 = 2e-3   ->  E[nAlive] = 5.7   against the threshold 7  -- A COIN
+    %                     FLIP, and CI flipped it: 99.84 % rejected was not
+    %                     enough, which is this WP's finding biting its own test
+    %     k1 = 2e-8   ->  E[nAlive] = 6e-5  -- the guard fires, deterministically
     d = declaration();
-    opts = lsqvce.Options(Robust="igg3", RobustOpts=struct('Tuning', [1e-3 2e-3]), ...
+    opts = lsqvce.Options(Robust="igg3", RobustOpts=struct('Tuning', [1e-8 2e-8]), ...
                           Verbose=false);
     tc.verifyEqual(idOf(@() lsqvce.fit(d, opts)), 'lsqvce:adjustRobust:collapsed');
 end
