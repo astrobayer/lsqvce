@@ -7537,3 +7537,32 @@ the same reason §12.32 gave — `data.priors` reaches `adjustRobust` through
 `opt.Prior` → `acc.setPrior`, outside the sweep entirely.
 
 **Version 6.1.2**, documentation and tests only; `+lsqvce` is untouched.
+
+**Round 2 — the finding bit its own test, and a wrong claim is withdrawn.**
+CI came back RED at 557/558 with one failure and one new warning identifier,
+and the console named neither: the names live in `last_run_all.txt`, the
+uploaded artifact, and this session's egress policy refuses the blob host
+that serves it. So the verdict reported a COUNT and not a CLAIM — §12.32's
+lesson one level up, now fixed in `run_all_lsqvce`: a failing suite prints
+its points by name.
+
+Its first run answered both questions at once.
+
+| | |
+|---|---|
+| the failing point | `testAnAllRejectingInfluenceRaisesTheCollapseError` — **not** the `arma`/`psd` point this session suspected |
+| what passed first time | both blunder points, the kind-C fixed point, the `arma`/`psd` point, and the metamorphic MAD bound. Every margin written as a ratio held on the first run |
+| the cause | `igg3` keeps a row alive iff \|w\| ≤ k1, and P(\|w\| ≤ k1) ≈ 2·k1·φ(0), so survivors ≈ 3600·2·k1·0.3989. At k1 = 2e-3 that is **5.7 against the threshold 7** — a coin flip, and CI flipped it. Rejecting 99.84 % was not enough to trip a guard whose finding is that it is nearly unreachable. Now k1 = 2e-8, E = 6e-5 |
+| the warning | `lsqvce:residuals:sigma0Mismatch` was the SAME defect's second symptom, not noise: the guard did not fire, so the fit ran on with a handful of live rows against nc = 6, and the accumulated `l'Pl − n'x` lost `sigma0` while the direct sum stayed honest (the WP-49 mechanism `residuals.m` documents). Fixing the tuning removed it. **Nothing was muted** — `muteWarn` would have hidden the evidence that the test was not collapsing |
+
+**A claim made in this WP and WITHDRAWN.** Round 2's first commit said a
+warning could be attributed to the test POINT that raised it, using the
+`Running <suite>/<point>` marker. There is no such marker: `runtests` prints
+one `Running <suite>` and a dot per point, so the attribution resolved to the
+suite and named nothing already known. It is replaced by printing the
+warning's MESSAGE, whose numbers identify the call. Recorded because the
+mechanism was asserted before it was checked, which is the error this whole
+WP is about.
+
+**Final verdict:** `ci_gate` GREEN 558/558, 27/27 suites, warning inventory
+back to `lsqvce:internal:testProbe` alone; CI `audit` green every round.
