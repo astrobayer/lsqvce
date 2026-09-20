@@ -335,6 +335,149 @@ function [data, e, cj] = priorFixture()
     cj   = lay.systems(1).col(2, [], []);
 end
 
+% --- issue #110 tests 3-6 / WP-109: the rest of the robust declaration ----
+% WP-108 answered test 1 and the finding behind test 2. These are the four
+% the issue left: they need API surface no point in this file exercised, and
+% each states its claim as a RATIO of quantities measured in the same run,
+% so no tolerance here is a number guessed at tier B.
+
+function testIgg3RecoversPlantedBlundersWhereGlsDoesNot(tc)
+% categories: robustness, reference
+    verifyBlundersAreRejected(tc, "igg3");
+end
+
+function testBisquareRecoversPlantedBlundersWhereGlsDoesNot(tc)
+% categories: robustness, reference
+    verifyBlundersAreRejected(tc, "bisquare");
+end
+
+function verifyBlundersAreRejected(tc, influence)
+%VERIFYBLUNDERSAREREJECTED  Issue #110 test 3, for one redescending influence.
+%   ONE claim, two halves that cannot be separated: the robust estimate
+%   recovers the planted truth to the accuracy the SAME fit reaches on clean
+%   data, and the plain GLS estimate does not. A recovery claim without its
+%   control says nothing -- an estimator that ignored the data entirely would
+%   pass the first half on its own.
+%
+%   The margin is measured, not assumed: eClean is this fixture's own GLS
+%   error on undisturbed data, so the two bounds below are ratios and carry
+%   no absolute scale. 60 blunders of 200 (about 68 sigma on the ARMA 'pos'
+%   stream, 1000 on the white 'kbr' one) over 3600 rows: 1.7 %, far inside
+%   any breakdown point, and gross enough that the GLS bias is unambiguous.
+    [clean, cfg] = declaration();
+    dirty = clean;
+    dirty.systems(1).buildDay = @(day, ot) plantBlunders(buildDayImpl(cfg, day, ot), 5, 200);
+    xTrue  = cfg.x_c;
+    eClean = norm(lsqvce.fit(clean, Verbose=false).x - xTrue);
+    eGls   = norm(lsqvce.fit(dirty, Verbose=false).x - xTrue);
+    R      = lsqvce.fit(dirty, lsqvce.Options(Robust=influence, Verbose=false));
+    eRob   = norm(R.x - xTrue);
+    tc.verifyEqual(R.stopReason, "converged");
+    tc.verifyLessThan(eRob, eGls/10, ...
+        sprintf('%s must beat the GLS estimate on planted blunders by an order of magnitude', influence));
+    tc.verifyLessThan(eRob, 3*eClean, ...
+        sprintf('%s must reach the accuracy this fixture has on clean data', influence));
+end
+
+function D = plantBlunders(D, nPerArc, amp)
+%PLANTBLUNDERS  Add a gross error to nPerArc rows of every arc of a built day.
+%   Deterministic (no RNG, so the planted set is the same on every runner)
+%   and spread over the arc's interior, away from the boundaries where the
+%   ARMA whitener's start-up would blur the spike into its neighbours.
+    for k = 1:numel(D.l)
+        m = numel(D.l{k});
+        if m < nPerArc + 2, continue, end
+        r = round(linspace(1, m, nPerArc + 2));
+        D.l{k}(r(2:end-1)) = D.l{k}(r(2:end-1)) + amp;
+    end
+end
+
+function testRobustFixedPointOnTheBatchKind(tc)
+% categories: reference, contract
+    % Issue #110 test 4, on kind C (batchFcn with an explicit p) -- the kind
+    % the issue names and the one no robust point covered; the kind-B pin
+    % testMatrixKindRobustReproducesRobust is its counterpart.
+    %
+    % The issue asks for 1e-10. THAT BOUND IS NOT REACHABLE IN PRINCIPLE and
+    % the kind-B point says why: the factors returned by the last pass were
+    % computed from the PREVIOUS estimate, so x and the closed form on those
+    % factors differ by the influence's Lipschitz constant times the final
+    % step. 1e-6 is the bound that point measured, and this one inherits it
+    % rather than stating a second number for the same fact.
+    [A, l, p] = matrixFixture();
+    l(7) = l(7) + 25;  l(22) = l(22) - 18;           % two gross errors
+    idx  = {1:15, 16:30};
+    bf   = @(k) deal(A(idx{k}, :), l(idx{k}), p(idx{k}));
+    data = struct('batchFcn', bf, 'numUnknowns', size(A, 2), 'numBatches', 2);
+    R = lsqvce.fit(data, lsqvce.Options(Robust="huber", ...
+                   RobustOpts=struct('MaxIter', 40, 'Tol', 1e-12), Verbose=false));
+    fac = R.history(end).factor;
+    tc.verifyEqual(R.meta.options.kind, 'batch');
+    tc.verifyEqual(numel(fac), numel(l), 'one factor per observation, batches in order');
+    tc.verifyLessThan(fac([7 22]), 0.2, 'both planted errors are down-weighted');
+    Pw = diag(p(:) .* fac(:));  xd = (A.'*Pw*A) \ (A.'*Pw*l);
+    % tol: 1e-6 relative -- the bound testMatrixKindRobustReproducesRobust
+    % measured for this same fixed-point identity, for the reason above
+    tc.verifyEqual(R.x, xd, 'RelTol', 1e-6);
+end
+
+function testArmaAndPsdLawsAgreeNoWorseUnderIrls(tc)
+% categories: metamorphic, precision
+    % Issue #110 test 5. The same process declared two ways -- the ARMA
+    % itself, and the PSD evaluated from it -- is NOT the same model: 'psd'
+    % fits an AR(30) to the sampled spectrum, so the two disagree at the
+    % AR-order level whatever the estimator. The issue asks for agreement
+    % "within the AR-order tolerance", which is a number this session cannot
+    % know; so the point MEASURES that tolerance as the GLS gap between the
+    % two declarations and asks the only question IRLS can answer: does
+    % re-weighting AMPLIFY it? It must not, because the factors are a
+    % Lipschitz function of residuals that differ only by that gap.
+    [dArma, cfg] = declaration();
+    dPsd = withPsdLaw(dArma, cfg);
+    xA = lsqvce.fit(dArma, Verbose=false).x;
+    xP = lsqvce.fit(dPsd,  Verbose=false).x;
+    ropt = lsqvce.Options(Robust="huber", Verbose=false);
+    rA = lsqvce.fit(dArma, ropt).x;
+    rP = lsqvce.fit(dPsd,  ropt).x;
+    gapGls  = norm(xA - xP);
+    gapIrls = norm(rA - rP);
+    % the premise: the two declarations ARE the same process to the AR order,
+    % so the GLS gap is small against the estimate itself. Without this the
+    % ratio below could pass on two unrelated fits.
+    tc.verifyLessThan(gapGls, 1e-2 * norm(xA), 'the psd declaration must model the same process');
+    tc.verifyLessThan(gapIrls, 10 * gapGls, ...
+        'IRLS must not amplify the difference between two spellings of one law');
+end
+
+function d = withPsdLaw(d, cfg)
+%WITHPSDLAW  The declaration with 'pos' declared as a PSD instead of the ARMA.
+%   Only the DECLARED law changes: buildDay still closes over the ARMA cfg,
+%   so both runs see the same observations to the last bit. The conversion is
+%   the one lsqvce.engine.covModel's own EXAMPLE gives.
+    a  = cfg.cov.pos.ar;   dt = cfg.dt;
+    f  = linspace(0, 0.5/dt, 4096).';
+    H  = 1 ./ (exp(-1i*2*pi*f*dt*(0:numel(a)-1)) * a(:));
+    d.systems(1).covariance.pos = struct('type', 'psd', 'f', f, ...
+                                         'S', cfg.cov.pos.sigma^2 * dt * 2 * abs(H).^2);
+end
+
+function testAnAllRejectingInfluenceRaisesTheCollapseError(tc)
+% categories: contract, robustness
+    % Issue #110 test 6, the half that is reachable -- and HOW it is reached
+    % is the result. adjustRobust refuses a pass when nAlive < nc + 1, but
+    % the scale is the normalised MAD, so at least half the sample survives
+    % any redescending influence at its default tuning
+    % (test_metamorphic>testTheMadScaleLeavesHalfTheSampleAlive proves the
+    % bound). On 3600 observations against nc = 6 the guard therefore CANNOT
+    % fire at default tuning, however discrepant the data. Driving the
+    % tuning to reject essentially everything is the only route to it on a
+    % real-sized problem, and that is what this point does.
+    d = declaration();
+    opts = lsqvce.Options(Robust="igg3", RobustOpts=struct('Tuning', [1e-3 2e-3]), ...
+                          Verbose=false);
+    tc.verifyEqual(idOf(@() lsqvce.fit(d, opts)), 'lsqvce:adjustRobust:collapsed');
+end
+
 function testSignatureRejectsNonStructAndNonOptions(tc)
 % categories: contract
     % Positional typing at the signature (MATLAB ids): the in-memory

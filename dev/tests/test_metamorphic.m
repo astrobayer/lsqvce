@@ -140,6 +140,48 @@ function testRobustFactorsAreScaleFree(tc)
     end
 end
 
+function testTheMadScaleLeavesHalfTheSampleAlive(tc)
+% categories: metamorphic, robustness
+    % R6 WP-109 (issue #110 test 6): WHY THE COLLAPSE GUARD IS ALMOST
+    % UNREACHABLE, as a property of the scale rather than of any one fit.
+    %
+    % lsqvce.engine.adjustRobust refuses a pass when nAlive = sum(fac > 0)
+    % falls below nc + 1. But robustWeights standardises by the normalised
+    % MAD, s = 1.4826 * median(|vw - med|), and by the definition of a median
+    % at least half the sample lies within MAD of med. A redescending
+    % influence zeroes only beyond k1*s = 4.45*MAD (igg3) or c*s = 6.95*MAD
+    % (bisquare), so that half survives whenever |med| <= 3.4*MAD -- and
+    %
+    %     nAlive >= ceil(n/2)   for ANY sample, however contaminated.
+    %
+    % The guard can therefore only ever fire for n < 2*(nc + 1): on the
+    % 3600 observations of test_fit's fixture against nc = 6 it cannot, at
+    % any contamination. That is the other half of WP-108's finding that
+    % prior pseudo-rows padded nAlive -- the guard was not merely failing
+    % OPEN, it was close to unreachable to begin with. Recorded as a finding
+    % in HANDOVER 12.33, not fixed here: the tuning is the user's.
+    %
+    % The four samples are adversarial on purpose: clean, half gross, a
+    % bimodal set two orders apart, and a Cauchy one with no variance at all.
+    rs = RandStream('mt19937ar', 'Seed', 109);
+    n  = 400;
+    sets = { randn(rs, n, 1), ...
+             [randn(rs, n/2, 1); 80*randn(rs, n/2, 1)], ...
+             [zeros(n/2, 1); 1e4*ones(n/2, 1)], ...
+             tan(pi*(rand(rs, n, 1) - 0.5)) };
+    for k = 1:numel(sets)
+        vw = sets{k};
+        for infl = ["igg3", "bisquare"]
+            [fac, s] = lsqvce.kernel.robustWeights(vw, infl, []);
+            mad = s / 1.4826;
+            tc.verifyLessThanOrEqual(abs(median(vw)), 3.4 * mad, ...
+                'the stated premise: the residuals are not offset far from zero');
+            tc.verifyGreaterThanOrEqual(sum(fac > 0), ceil(n/2), ...
+                sprintf('sample %d, %s: the MAD scale must leave half the sample alive', k, infl));
+        end
+    end
+end
+
 function testPermutingTheRowsPermutesTheDiagnostics(tc)
 % categories: metamorphic
     % a row permutation of (A, l, p) permutes lsqvce.engine.diagnose's
