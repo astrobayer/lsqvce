@@ -58,6 +58,11 @@ function results = run_all_lsqvce(root, skip)
 %
 %   Created 2026-07-16 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Opus 4.8.
+%   Updated 2026-09-20 (CEST, UTC+02:00), R6 WP-109: a failing or warning
+%   suite NAMES its points on the console, not only in last_run_all.txt.
+%   The artifact is not always reachable, and "1 fail" with no name is a
+%   verdict that cannot answer the question it was run to answer. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.
 %   Updated 2026-08-20 (CEST, UTC+02:00), WP-47: declared-vs-executed per
 %   suite (adopted external handover 2.6.4) and the warning inventory by
 %   identifier (2.5). With assistance from Claude (Anthropic), model
@@ -201,6 +206,28 @@ function results = run_all_lsqvce(root, skip)
         end
         fprintf('  %-20s : %3d/%-3d pass, %d fail, %d incomplete  %6.1fs%s\n', ...
                 nm, p, t, fl, ic, secs, flag);
+        % R6 WP-109: NAME what broke, on the CONSOLE. The names were already
+        % in hand -- r.Name and wid -- and went only into last_run_all.txt,
+        % the uploaded artifact. A reader who cannot fetch that artifact (an
+        % egress policy, an expired link, a runner that died before the
+        % upload) sees "1 fail" and cannot tell WHICH claim broke. That is
+        % the granularity defect WP-108 met one level down, where three
+        % verifications in one test point could only report "1 failed": a
+        % verdict has to be reportable at the granularity of the question.
+        % Nothing is printed on a green suite, so a clean run reads as before.
+        if fl > 0
+            fprintf('       FAILED     : %s\n', strjoin({r([r.Failed]).Name}, ', '));
+        end
+        if ic > 0
+            fprintf('       INCOMPLETE : %s\n', strjoin({r([r.Incomplete]).Name}, ', '));
+        end
+        foreignW = setdiff(wid, {'lsqvce:internal:testProbe'});
+        if ~isempty(foreignW)
+            % attributed to the point that raised it: gateVerdict refuses ANY
+            % foreign identifier, so the next question is always "raised where?"
+            fprintf('       WARNED     : %s   in %s\n', strjoin(foreignW, ', '), ...
+                    strjoin(warningSites(capt), ', '));
+        end
     end
 
     % WALL CLOCK. Recorded because a slowdown is otherwise unattributable: a
@@ -272,4 +299,24 @@ function results = run_all_lsqvce(root, skip)
         end
         fprintf('full log: %s\n', logFile);
     end
+end
+
+
+function names = warningSites(capt)
+%WARNINGSITES  The test points whose captured output carries a Warning line.
+%   The verbose runtests capture prints "Running <suite>/<point>" before each
+%   point, so the last such marker above a Warning line names its site. Used
+%   only to ATTRIBUTE an inventory identifier; it never changes a verdict.
+    names = {};
+    cur = '(before the first point)';
+    lines = strsplit(capt, newline);
+    for i = 1:numel(lines)
+        m = regexp(lines{i}, 'Running\s+(\S+)', 'tokens', 'once');
+        if ~isempty(m), cur = m{1}; end
+        if ~isempty(regexp(lines{i}, '^\s*(\[\x08)?Warning:', 'once'))
+            names{end+1} = cur; %#ok<AGROW>
+        end
+    end
+    names = unique(names);
+    if isempty(names), names = {'(no Warning line found)'}; end
 end
