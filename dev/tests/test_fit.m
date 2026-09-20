@@ -279,6 +279,53 @@ function testRobustDoesNotMoveAPinnedLocal(tc)
         'IRLS must not move a pinned local relative to the GLS solve');
 end
 
+function testRobustFactorVectorCountsDataRowsOnly(tc)
+% categories: contract
+    % DISCRIMINATOR for consequence (b) of issue #110, the one the other two
+    % points do not reach. nAlive, nDown and nZero are all formed over the
+    % factor vector, and the collapse check compares nAlive against nc + 1.
+    % A prior pseudo-row in that vector pads every one of those counts, so
+    % the check could pass on data already past the breakdown point -- a
+    % guard that fails OPEN. The vector must be the same length with a prior
+    % group as without one. A loose group is used so the solution, and so
+    % the data rows themselves, are identical in both runs.
+    [d, e, cj] = priorFixture();
+    ropt = lsqvce.Options(Robust="huber", Verbose=false);
+    nWithout = numel(lsqvce.fit(d, ropt).history(end).factor);
+    dP = d;
+    dP.systems(1).priors = struct('L', e(cj), 'x0', 0, 'sigma', 1e6, ...
+                                  'from', 1, 'name', 'loose', 'estimate', "none");
+    nWith = numel(lsqvce.fit(dP, ropt).history(end).factor);
+    tc.verifyEqual(nWith, nWithout, ...
+        'the factor vector, and so nAlive, must count data rows only');
+end
+
+function testRobustWithPriorsAndALawReproducesGlsOnCleanData(tc)
+% categories: metamorphic
+    % Issue #110 test 1, and the gap WP-107 recorded: nothing ran robust +
+    % priors + a law + local parameters in ONE call. declaration() supplies
+    % the ARMA law on pos, the diag law on kbr, nc = 6 common and nl = 4
+    % local parameters over 2 arcs x 3 days; a LOOSE local group adds the
+    % priors without moving the solution. On clean data the robust solve
+    % must then reproduce the GLS one.
+    %
+    % The COMMON prior half of WP-107's sentence is deliberately not here.
+    % data.priors reaches adjustRobust through opt.Prior -> acc.setPrior,
+    % which is not part of the sweep at all, so it cannot interact with this
+    % finding; and no test in this file exercises that schema, so writing
+    % one blind would assert a spelling rather than a behaviour.
+    [d, e, cj] = priorFixture();
+    d.systems(1).priors = struct('L', e(cj), 'x0', 0, 'sigma', 1e6, ...
+                                 'from', 1, 'name', 'loose', 'estimate', "none");
+    R  = lsqvce.fit(d, lsqvce.Options(Robust="huber", Verbose=false));
+    R0 = lsqvce.fit(d, Verbose=false);
+    tc.verifyEqual(R.stopReason, "converged");
+    % tol: 3e-3 absolute -- the bound testRobustRunsOnTheStreamingKind states,
+    % for the same reason: Huber leaves ~5 % of Gaussian rows below factor 1,
+    % so the two O(1) estimates differ by a fraction of those rows' share.
+    tc.verifyEqual(R.x, R0.x, 'AbsTol', 3e-3);
+end
+
 function [data, e, cj] = priorFixture()
 %PRIORFIXTURE  declaration(), plus the column selector its prior groups use.
     data = declaration();
