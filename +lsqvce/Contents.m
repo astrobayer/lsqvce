@@ -1,5 +1,5 @@
 % LSQVCE  Batch least squares: accumulation, variance components, and judgment.
-% Version 6.1  09-Sep-2026
+% Version 6.1.0  09-Sep-2026
 %
 % lsqvce -- least-squares adjustment with variance component estimation.
 %
