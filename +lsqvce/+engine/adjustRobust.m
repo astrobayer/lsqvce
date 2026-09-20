@@ -103,7 +103,7 @@ end
 
         % law-whitened residuals of every observation, and the keys to put
         % the next factors back where they belong
-        [vw, keys, sizes] = lawWhitenedResiduals(res, W);   % engine-private, shared with adjustVCEjoint (WP-105)
+        [vw, keys, sizes] = lawWhitenedResiduals(res, W);   % engine-private, THIS driver's alone (WP-108: adjustVCEjoint has its own producer and its own prior exclusion)
         [fac, s] = lsqvce.kernel.robustWeights(vw, opt.Influence, opt.Tuning);
 
         nAlive = sum(fac > 0);

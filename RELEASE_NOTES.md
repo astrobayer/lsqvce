@@ -1,5 +1,29 @@
 # lsqvce release notes
 
+## 6.1.1 — 2026-09-20 (R6 WP-108: the stand-alone IRLS stops re-weighting priors)
+
+Fix and tests only; no declaration changes, no new capability.
+
+- **`Robust` alone no longer lets a local prior group into the robust sweep.** 6.1 said
+  "Prior streams are never re-weighted", and `adjustVCEjoint` did exactly that. The
+  STAND-ALONE driver did not: a local group rides as its own stream `prior_<name>`, and
+  `adjustRobust`'s residual collection took every stream. Three consequences, all
+  measured on CI before the fix (issue #110): the pseudo-residuals entered the MAD scale
+  that sets every DATA row's factor; they were counted in `nAlive`, `nDown` and `nZero`,
+  so the collapse guard could pass on data already past the breakdown point — a guard
+  failing OPEN; and because `priorArc` never applies `rowWeights`, the next pass divided
+  a prior residual by a `sqrt(factor)` that had never been applied, so that residual grew
+  and its bookkeeping factor fell, pass after pass. `private/lawWhitenedResiduals` now
+  skips `prior_` streams, which is the whole fix — `adjustRobust`'s write-back iterates
+  the keys that function returns, so nothing is written under a prior key any more.
+  The two halves of one rule are now written in the same terms.
+- **Not changed, deliberately:** `priorArc` still does not apply `rowWeights`. Making the
+  bookkeeping consistent the other way would down-weight a prior for disagreeing with the
+  data, which is what a prior exists to resist.
+- **`adjustRobust`'s `% shared with adjustVCEjoint` comment was wrong** and is corrected:
+  `lawWhitenedResiduals` is called only from `adjustRobust`. The joint loop has its own
+  producer and its own exclusion.
+
 ## 6.1.0 — 2026-09-09, tagged 2026-09-19 (R6 WP-105: the robust pass inside the joint loop)
 
 Tagged as `v6.1.0` on 2026-09-19 (WP-107): the version string gains its PATCH field

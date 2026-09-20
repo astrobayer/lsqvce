@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-09-19 — WP-107 DONE (PR #108, merge 21e470d; CI on the PR green 547/547); **tag `v6.1.0`** annotated on the merge commit, GitHub release published, issue #107 closed; §12.31.
+Last substantive update: 2026-09-20 — WP-108 OPEN on `claude/wp-108` (issue #110, tier B, model Claude Opus 5): the stand-alone IRLS stopped re-weighting local prior groups. The finding was MEASURED on CI before it was fixed — two red runs, the second discriminating — and all three of its consequences are real; version **6.1.1**; §12.32.
+Preceding entry: Last substantive update: 2026-09-19 — WP-107 DONE (PR #108, merge 21e470d; CI on the PR green 547/547); **tag `v6.1.0`** annotated on the merge commit, GitHub release published, issue #107 closed; §12.31.
 Preceding entry: Last substantive update: 2026-09-19 — WP-107 OPEN on `claude/wp-107-release-6.1.0` (issue #107, tier B, model Claude Opus 5): V-6 of the timeSeriesPreparation concept answered by reading, and the release **v6.1.0** prepared (version string gains its PATCH field per ci-actions VERSIONING.md; no code change); §12.31.
 Preceding entry: Last substantive update: 2026-09-09 — WP-101 DONE (PR #101, merge 340eb3b); WP-102 OPEN on `claude/wp-102` (tier B, model Claude Fable 5.1): VERSION 6.0 — THE CELLS ARE THE ARCS (buildDay returns one cell per arc; arcIdx/arcId gone; `arcs` optional; 'fromDay' retired; six user decisions pinned); §12.26.
 Preceding entry: Last substantive update: 2026-09-09 — WP-105 DONE (PR #105, merge a0e0500); WP-106 OPEN: the docs-sync question ("are help, html and the pdfs in sync?") answered by reading — four content drifts fixed, the theory PDF given its dated-record banners (the user's (a)), and audit check 28 (superseded claims) so a stale sentence cannot pass byte-equality again; §12.30.
@@ -7368,3 +7369,91 @@ and `test_adjustBlock` read `Contents.m`, so they follow by construction.
   CI (`audit`, `matlab`) on the PR. The MATLAB suite is predicted unchanged at
   547 = 547 + 0 + 0, because no code or test changed.
 
+### 12.32 WP-108 — the priors were in the robust sweep, and CI proved it (2026-09-20, model Claude Opus 5, tier B)
+
+**Why.** Issue #110, opened out of WP-107's V-6 reading: `adjustRobust` looked
+as though it let local prior groups into the robust sweep, and N-02 is designed
+to run robust + local priors + a law + local parameters in ONE `lsqvce.fit`
+call. The issue said plainly that only tests could decide whether the finding
+was real.
+
+**Tier B, and CI was the instrument, not a fallback.** No MATLAB in the
+session. `ci.yml` records that since WP-103 the CI run executes every suite on
+the target platform, so the experiment was run by pushing tests WITHOUT the fix
+and reading the verdict.
+
+**The finding, read from source first (tree `33d29cf`), three links:**
+
+| | |
+|---|---|
+| 1 | a local group rides as its own stream `prior_<name>` — `makeLoader:657`, `:512` → `priorArc` |
+| 2 | `adjustRobust:106` → `private/lawWhitenedResiduals` walked EVERY `res.sys(k).obs(j)`, no exclusion |
+| 3 | `priorArc` (`makeLoader:695`) never reads `opt.rowWeights`; only the data-arc path does, at `:1313` |
+
+**The experiment, and one methodological correction to it:**
+
+```
+184ffa4   three verifications in ONE point   ->  ci_gate RED: 1 test point(s) FAILED
+1dbc586   three points, one claim each       ->  ci_gate RED: 2 test point(s) FAILED
+29f4ca9   the fix                            ->  ci_gate GREEN
+```
+
+The first run matched its prediction (548 executed, one failure in `test_fit`)
+and still answered nothing: three verifications in one test point can only
+report "1 failed", and WHICH consequence is real was the whole question. The
+prediction had been made at a granularity the instrument cannot report. Split
+into one claim per point, the count itself became the answer — **2 of 3, the
+third being the regression guard written to pass on unfixed code. So both
+discriminators fired: the finding is real in both consequences they test, not
+one.**
+
+**The fix.** `private/lawWhitenedResiduals` skips `prior_` streams. One point,
+because this WP established that `adjustVCEjoint` does NOT call it — the
+`% shared with adjustVCEjoint (WP-105)` comment at `adjustRobust:106` was
+wrong and is corrected. `adjustRobust`'s write-back iterates the keys that
+function returns, so nothing is written under a prior key any more and the
+ratchet has nothing to feed on. RELEASE_NOTES 6.1 already promised "Prior
+streams are never re-weighted": the notes were right, the code was half-right.
+
+**Not changed, deliberately.** `priorArc` still does not apply `rowWeights`.
+Making the bookkeeping consistent that way would down-weight a prior for
+disagreeing with the data, which is what a prior exists to resist — the
+decision WP-105 already took for the joint loop.
+
+**Coverage of the three consequences**, five points in `test_fit.m`:
+
+| point | consequence |
+|---|---|
+| `testRobustReportsNoFactorForAPriorRow` | the reporting; discriminator |
+| `testRobustScaleIsFormedOverDataRowsAlone` | (a) the MAD scale; discriminator, and LOOSE on purpose — a tight group moves the solution and could not separate the two behaviours |
+| `testRobustFactorVectorCountsDataRowsOnly` | (b) `nAlive`/`nDown`/`nZero` and the collapse guard, which failed OPEN |
+| `testRobustDoesNotMoveAPinnedLocal` | regression guard; expected to pass unfixed, and its comment says so |
+| `testRobustWithPriorsAndALawReproducesGlsOnCleanData` | issue test 1, and the gap WP-107 recorded |
+
+**What this WP does NOT close, and why — proposed WP-109.**
+
+- Issue #110 tests 3 (planted blunders, IGG3/bisquare against plain GLS),
+  4 (fixed point against kind C with explicit `p`), 5 (`arma` vs `psd` law
+  equivalence under IRLS) and 6 (a degenerate arc carried by its prior, and
+  the collapse identifier). Each needs API surface no test in `test_fit.m`
+  exercises today, and a tier-B session writing them blind asserts a spelling
+  rather than a behaviour — every guess costs a CI cycle. They are science,
+  not bookkeeping, and deserve a round with tier A or a careful budget.
+- The COMMON prior half of WP-107's sentence. `data.priors` reaches
+  `adjustRobust` via `opt.Prior` → `acc.setPrior`, which is not in the sweep
+  at all, so it cannot interact with this finding; and no test here exercises
+  that schema.
+- **`lsqvce_manual.pdf` still carries 6.1.0 in its title, and NOTHING READS
+  IT.** The HTML Manual is rebuilt and byte-checked by audit check 23 (pandoc
+  3.1.3 here, the version WP-107 recorded as reproducing CI's build). The PDF
+  is derived from the same source and tracked, but no audit check looks at it,
+  so its version surface is ungated — the same shape as audit check (a) for
+  the README title, missing. Rebuilding it here was declined on purpose: this
+  session has no xelatex, and committing a binary from an unverified toolchain
+  is worse than a stale title that is written down. **Proposed: a check that
+  reads the PDF's title against `Contents.m`**, and a rebuild in the round
+  that adds it.
+
+**Verdicts.** `audit_tree.py` CLEAN (all 28 checks, Manual included) and
+`audit_selftest.py` clean in the sandbox; CI `audit` + `matlab` green on
+`29f4ca9`. Counts: 547 → 552 executed, 559 → 564 declared points.
