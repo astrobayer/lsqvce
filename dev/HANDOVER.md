@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-09-19 — WP-107 OPEN on `claude/wp-107-release-6.1.0` (issue #107, tier B, model Claude Opus 5): V-6 of the timeSeriesPreparation concept answered by reading, and the release **v6.1.0** prepared (version string gains its PATCH field per ci-actions VERSIONING.md; no code change); §12.31.
+Last substantive update: 2026-09-19 — WP-107 DONE (PR #108, merge 21e470d; CI on the PR green 547/547); **tag `v6.1.0`** annotated on the merge commit, GitHub release published, issue #107 closed; §12.31.
+Preceding entry: Last substantive update: 2026-09-19 — WP-107 OPEN on `claude/wp-107-release-6.1.0` (issue #107, tier B, model Claude Opus 5): V-6 of the timeSeriesPreparation concept answered by reading, and the release **v6.1.0** prepared (version string gains its PATCH field per ci-actions VERSIONING.md; no code change); §12.31.
 Preceding entry: Last substantive update: 2026-09-09 — WP-101 DONE (PR #101, merge 340eb3b); WP-102 OPEN on `claude/wp-102` (tier B, model Claude Fable 5.1): VERSION 6.0 — THE CELLS ARE THE ARCS (buildDay returns one cell per arc; arcIdx/arcId gone; `arcs` optional; 'fromDay' retired; six user decisions pinned); §12.26.
 Preceding entry: Last substantive update: 2026-09-09 — WP-105 DONE (PR #105, merge a0e0500); WP-106 OPEN: the docs-sync question ("are help, html and the pdfs in sync?") answered by reading — four content drifts fixed, the theory PDF given its dated-record banners (the user's (a)), and audit check 28 (superseded claims) so a stale sentence cannot pass byte-equality again; §12.30.
 Preceding entry: Last substantive update: 2026-09-09 — WP-105 READY (PR #105, CI green 547/547 on 8ac8ab9 after twelve rounds; the robust pass inside the joint loop in the KOCH convention, settled by the user's measurement; version 6.1); §12.29.
@@ -7360,6 +7361,9 @@ and `test_adjustBlock` read `Contents.m`, so they follow by construction.
   merge**, per ci-actions `VERSIONING.md`. It is the first tag since `v5.2.1`.
   The lightweight `v1.0.0`, `v1.0.1` and `v5.2.1` stay as they are, since tags
   are immutable.
+- **Done 2026-09-19:** PR #108 merged as `21e470d`; annotated tag `v6.1.0`
+  (tag object `8e16bf4`) read back with `git ls-remote`; GitHub release published;
+  issue #107 closed. CI on the PR: `ci_gate: GREEN: 547/547`.
 - **Verdicts:** `audit_tree.py` and `audit_selftest.py` clean in the sandbox;
   CI (`audit`, `matlab`) on the PR. The MATLAB suite is predicted unchanged at
   547 = 547 + 0 + 0, because no code or test changed.
