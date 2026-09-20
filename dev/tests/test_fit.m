@@ -218,57 +218,74 @@ function testRobustRunsOnTheStreamingKind(tc)
     tc.verifyEqual(R.meta.options.kind, 'stream');
 end
 
-function testRobustNeverReWeightsPriorRows(tc)
-% categories: contract, robustness
-    % R6 WP-108 (issue #110). A local prior group rides as its own stream
-    % 'prior_<name>' (makeLoader>priorArc), and adjustRobust's
-    % lawWhitenedResiduals collected EVERY stream: prior pseudo-residuals
-    % entered the MAD scale, the nAlive collapse check and the factor/keys
-    % output. priorArc never reads opt.rowWeights, so the factor written
-    % under a prior key was never applied, and the next pass divided the
-    % prior residual by a sqrt(factor) that had not been there -- a ratchet.
-    % adjustVCEjoint has excluded prior streams since WP-105; this is the
-    % stand-alone driver's half of the same rule.
-    [data, ~] = declaration();
-    lay = lsqvce.layout(data);
-    nl  = lay.systems(1).nl;
-    e   = @(c) double((1:nl) == c);
-    cj  = lay.systems(1).col(2, [], []);
-    ropt = lsqvce.Options(Robust="huber", Verbose=false);
+% --- issue #110 / WP-108: robust IRLS against local prior groups ----------
+% Three points, not one: each names a single claim, so the runner's failure
+% COUNT says which of them fired. Written as one point first, the red run
+% could only say "1 failed" -- true, and useless for deciding which
+% consequence of the finding is real.
+%
+% The shared fixture is declaration(): kind A, one system, common (nc 6) and
+% local (nl 4) parameters over 2 arcs x 3 days, an ARMA law on pos and a
+% diag law on kbr -- already what issue #110's test declaration asks for.
 
-    % (i) the pass reports no factor for a pseudo-row
-    dTight = data;
-    dTight.systems(1).priors = struct('L', e(cj), 'x0', 0.123, 'sigma', 1e-6, ...
-                                      'from', 1, 'name', 'pin', 'estimate', "none");
-    Rt = lsqvce.fit(dTight, ropt);
-    obsTypes = string(Rt.history(end).keys(:, 2));
+function testRobustReportsNoFactorForAPriorRow(tc)
+% categories: contract
+    % DISCRIMINATOR. A local prior group rides as its own stream
+    % 'prior_<name>' (makeLoader>priorArc). adjustRobust's
+    % lawWhitenedResiduals collected every stream, so the pass reported a
+    % factor for pseudo-rows that priorArc never applies one to.
+    [d, e, cj] = priorFixture();
+    d.systems(1).priors = struct('L', e(cj), 'x0', 0.123, 'sigma', 1e-6, ...
+                                 'from', 1, 'name', 'pin', 'estimate', "none");
+    R = lsqvce.fit(d, lsqvce.Options(Robust="huber", Verbose=false));
+    obsTypes = string(R.history(end).keys(:, 2));
     tc.verifyFalse(any(startsWith(obsTypes, "prior_")), ...
         'the robust pass must report no factor for a prior pseudo-row');
+end
 
-    % (ii) regression guard: a tight group pins its local under IRLS exactly
-    % as it does without it. This holds either way -- the factor was never
-    % applied to the prior arc -- so it guards the fix, it does not detect
-    % the defect.
-    yIrls = Rt.residuals('Verbose', false).sys(1).y;
-    yGls  = lsqvce.fit(dTight, Verbose=false).residuals('Verbose', false).sys(1).y;
+function testRobustScaleIsFormedOverDataRowsAlone(tc)
+% categories: contract, precision
+    % DISCRIMINATOR. A LOOSE group (sigma 1e6) leaves the solution, and so
+    % every data residual, where it was; with pseudo-rows excluded the MAD
+    % is formed over an identical sample and must reproduce exactly. Loose
+    % on purpose: a tight group moves the solution and could not separate
+    % the two behaviours.
+    [d, e, cj] = priorFixture();
+    ropt = lsqvce.Options(Robust="huber", Verbose=false);
+    dLoose = d;
+    dLoose.systems(1).priors = struct('L', e(cj), 'x0', 0, 'sigma', 1e6, ...
+                                      'from', 1, 'name', 'loose', 'estimate', "none");
+    % tol: 1e-12 relative -- the same data residuals through the same MAD;
+    % only floating-point re-association separates them.
+    tc.verifyEqual(lsqvce.fit(dLoose, ropt).history(end).scale, ...
+                   lsqvce.fit(d, ropt).history(end).scale, 'RelTol', 1e-12, ...
+        'a prior group must not enter the robust scale of the data');
+end
+
+function testRobustDoesNotMoveAPinnedLocal(tc)
+% categories: contract, robustness
+    % REGRESSION GUARD, not a discriminator, and it is expected to pass on
+    % the unfixed code too -- precisely because the factor computed for the
+    % prior row was never applied to it. It guards the fix.
+    [d, e, cj] = priorFixture();
+    d.systems(1).priors = struct('L', e(cj), 'x0', 0.123, 'sigma', 1e-6, ...
+                                 'from', 1, 'name', 'pin', 'estimate', "none");
+    yIrls = lsqvce.fit(d, lsqvce.Options(Robust="huber", Verbose=false)) ...
+                .residuals('Verbose', false).sys(1).y;
+    yGls  = lsqvce.fit(d, Verbose=false).residuals('Verbose', false).sys(1).y;
     % tol: 1e-6 absolute -- the group's own sigma. On clean data IRLS may
     % move the pinned local only within the pin that holds it.
     tc.verifyEqual(yIrls(2), yGls(2), 'AbsTol', 1e-6, ...
         'IRLS must not move a pinned local relative to the GLS solve');
+end
 
-    % (iii) the robust scale is formed over the DATA rows alone. A loose
-    % group (sigma 1e6) leaves the solution, and therefore every data
-    % residual, where it was; so with the pseudo-rows excluded the MAD is
-    % formed over an identical sample and must reproduce exactly.
-    dLoose = data;
-    dLoose.systems(1).priors = struct('L', e(cj), 'x0', 0, 'sigma', 1e6, ...
-                                      'from', 1, 'name', 'loose', 'estimate', "none");
-    sLoose = lsqvce.fit(dLoose, ropt).history(end).scale;
-    sNone  = lsqvce.fit(data,   ropt).history(end).scale;
-    % tol: 1e-12 relative -- the same data residuals through the same MAD;
-    % only floating-point re-association separates them.
-    tc.verifyEqual(sLoose, sNone, 'RelTol', 1e-12, ...
-        'a prior group must not enter the robust scale of the data');
+function [data, e, cj] = priorFixture()
+%PRIORFIXTURE  declaration(), plus the column selector its prior groups use.
+    data = declaration();
+    lay  = lsqvce.layout(data);
+    nl   = lay.systems(1).nl;
+    e    = @(c) double((1:nl) == c);
+    cj   = lay.systems(1).col(2, [], []);
 end
 
 function testSignatureRejectsNonStructAndNonOptions(tc)
