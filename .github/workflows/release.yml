@@ -1,0 +1,67 @@
+# Tag and release on merge - lsqvce's adoption of the shared action.
+#
+# WHAT IT DOES HERE
+#   mode: file. +lsqvce/Contents.m is this repository's ONE version source
+#   (CLAUDE.md; the README title and runMeta are checked against it by
+#   audit check 17), so nothing in this workflow decides a number. The bump
+#   happens INSIDE the pull request that earns it, where audit_tree.py
+#   verifies the agreement, and the action only asks whether a tag for the
+#   stated version exists yet.
+#
+#   A merge that does not touch Contents.m releases nothing and says so.
+#   Today Contents.m reads 6.1.0 and v6.1.0 is tagged, so the first merge
+#   after this lands will do exactly that - the quiet way to prove the
+#   wiring before it has anything to create.
+#
+# WHY NOT A version: LABEL, AS ci-actions USES
+#   A label stating the version beside a file stating the version is two
+#   authorities for one fact, and the file wins here because the audit
+#   already checks the README and runMeta against it. ci-actions has no
+#   version file, which is why its labels decide there and not here.
+#
+#   r2-baseline IS NOT A VERSION. The action reads only vX.Y.Z tags: a
+#   marker is not a release and must never become the base of the next one.
+#
+# WHY THE TAG IS ANNOTATED
+#   Creating a release for a tag that does not exist makes GitHub create
+#   the tag, lightweight. The action runs `git tag -a` first and then
+#   `gh release create --verify-tag`, so that cannot happen here.
+#
+# THE ACTION IS PINNED TO AN IMMUTABLE TAG, not @v1 and not @main, by the
+#   same rule the matlab-probe step in ci.yml follows: a moving tag would
+#   let a commit in ci-actions change this repository's release behaviour
+#   with nothing in this repository's diff to explain it.
+#
+# Created: 2026-09-20
+# Author:  Developed by Matthias Weigelt with the help of Anthropic
+#          Claude Opus 5, 2026-09-20
+
+name: release
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: release
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+
+      - uses: astrobayer/ci-actions/matlab-release@v1.3.1
+        with:
+          mode: file
+          version-file: +lsqvce/Contents.m
