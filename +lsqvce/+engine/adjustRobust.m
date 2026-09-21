@@ -37,9 +37,21 @@ function R = adjustRobust(systems, days, opt)
 %        .factor (last pass: n x 1) .keys (last pass: n x 4 cell)
 %
 %   ERRORS
-%     lsqvce:adjustRobust:collapsed   fewer live observations than parameters
-%                                     + 1 after reweighting (beyond the
-%                                     breakdown point: check the model)
+%     lsqvce:adjustRobust:collapsed   fewer live observations than nc + 1
+%                                     after reweighting -- ALMOST EVERY row
+%                                     rejected. MEASURED (R6 WP-110), this is
+%                                     reached two ways, neither an ordinary
+%                                     outlier problem: residuals offset
+%                                     BODILY from zero by several MAD (a bias
+%                                     the model did not absorb, a datum
+%                                     defect -- the influence standardises
+%                                     vw/s, not (vw - med)/s), or
+%                                     contamination so near total that fewer
+%                                     than nc + 1 clean rows are left. It is
+%                                     NOT a 50 % contamination detector:
+%                                     nAlive tracks the CLEAN count, so 60 %
+%                                     contamination of 1000 rows still leaves
+%                                     400 alive. Check the model, not the data.
 %     + everything adjustBlock / makeLoader / robustWeights raise
 %   WARNINGS
 %     lsqvce:adjustRobust:notConverged  MaxIter reached; the last pass is
@@ -59,6 +71,14 @@ function R = adjustRobust(systems, days, opt)
 %
 %   Created 2026-09-02 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.1 -- R5 Level M2, WP-81 round 2b.
+%   Updated 2026-09-21 (CEST, UTC+02:00), R6 WP-110: the collapsed error said
+%   it detected "more than half the data discrepant, beyond the breakdown
+%   point". It does not, and the measurement is in HANDOVER 12.34: nAlive
+%   tracks the CLEAN count, so the guard is reached by a bodily residual
+%   offset or by near-total contamination, not at 50 %. The message and this
+%   help now say what it detects. No behaviour changed -- the threshold is
+%   the user's to set, and 12.34 puts that decision. With assistance from
+%   Claude (Anthropic), model Claude Opus 5.
 %   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-105: collectWhitened became
 %   the engine-private lawWhitenedResiduals, the ONE definition this driver
 %   and the joint estimator's robust pass share. With assistance from
@@ -110,10 +130,16 @@ end
         if nAlive < nc + 1
             error('lsqvce:adjustRobust:collapsed', ...
                  ['The influence function left %d observations with a non-zero ' ...
-                  'weight, fewer than the %d parameters + 1: more than half the ' ...
-                  'data is discrepant, which is beyond the breakdown point of ' ...
-                  'any M-estimator. This is not an outlier problem -- check the model.'], ...
-                  nAlive, nc);
+                  'weight, fewer than the %d common parameters + 1: almost every ' ...
+                  'row was rejected. Two things do that, and neither is an ' ...
+                  'ordinary outlier problem. (1) The residuals are offset BODILY ' ...
+                  'from zero by several MAD -- a bias the model did not absorb, ' ...
+                  'a datum defect -- because the influence standardises vw/s, ' ...
+                  'not (vw - med)/s. (2) Contamination so near total that fewer ' ...
+                  'than %d clean rows are left; contamination merely past 50 %% ' ...
+                  'does NOT reach here, since nAlive tracks the clean count. ' ...
+                  'Check the model, not the data.'], ...
+                  nAlive, nc, nc + 1);
         end
 
         dx = Inf;

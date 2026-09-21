@@ -154,12 +154,16 @@ function testTheMadScaleLeavesHalfTheSampleAlive(tc)
     %
     %     nAlive >= ceil(n/2)   for ANY sample, however contaminated.
     %
-    % The guard can therefore only ever fire for n < 2*(nc + 1): on the
-    % 3600 observations of test_fit's fixture against nc = 6 it cannot, at
-    % any contamination. That is the other half of WP-108's finding that
-    % prior pseudo-rows padded nAlive -- the guard was not merely failing
-    % OPEN, it was close to unreachable to begin with. Recorded as a finding
-    % in HANDOVER 12.33, not fixed here: the tuning is the user's.
+    % WP-110 CORRECTS WHAT WP-109 CONCLUDED FROM THIS BOUND. The bound is
+    % real, and it is what the four samples below verify. The CONSEQUENCE
+    % 12.33 drew from it -- "the guard can fire only for n < 2*(nc + 1), and
+    % cannot fire at any contamination" -- is FALSE, because it ignored the
+    % bound's own premise. The premise |med| <= 3.4*MAD fails exactly at the
+    % 50% breakdown point (measured: it holds at 49% contamination and
+    % fails at 51%), so this bound says no more than "we are below
+    % breakdown". Above it nAlive falls with the clean fraction, and the
+    % guard does fire. The three points below pin that; 12.34 has the
+    % measurement.
     %
     % The four samples are adversarial on purpose: clean, half gross, a
     % bimodal set two orders apart, and a Cauchy one with no variance at all.
@@ -180,6 +184,91 @@ function testTheMadScaleLeavesHalfTheSampleAlive(tc)
                 sprintf('sample %d, %s: the MAD scale must leave half the sample alive', k, infl));
         end
     end
+end
+
+function testTheHalfSampleBoundsPremiseFailsExactlyAtBreakdown(tc)
+% categories: metamorphic, robustness
+    % R6 WP-110, and the CORRECTION of WP-109. The bound above is conditional
+    % on |med| <= 3.4*MAD, and that premise is not a technicality: it is the
+    % breakdown point itself, wearing a different hat. Below 50% the median
+    % sits in the clean cluster and the ratio is O(1); above it the median
+    % moves into the contaminated cluster and the ratio explodes.
+    %
+    % Deterministic by construction -- no RandStream, so the numbers here are
+    % the same arithmetic on every runner and were predicted exactly before
+    % the run (0.50 below, 518.89 above).
+    n = 1000;
+    [below, madB] = contaminated(n, 490);         % 49% contaminated
+    [above, madA] = contaminated(n, 510);         % 51% contaminated
+    tc.verifyLessThanOrEqual(abs(median(below)) / madB, 3.4, ...
+        'below breakdown the premise of the half-sample bound holds');
+    tc.verifyGreaterThan(abs(median(above)) / madA, 3.4, ...
+        'above breakdown it fails -- which is why the bound says nothing there');
+end
+
+function testTheHalfSampleBoundHoldsOnlyBelowBreakdown(tc)
+% categories: metamorphic, robustness
+    % The other half of the correction: the bound itself flips with its
+    % premise, at the same place. 510 alive at 49% contamination, 490 at
+    % 51% -- so nAlive >= ceil(n/2) is a RESTATEMENT of being below
+    % breakdown, not an independent limit on what the collapse guard can see.
+    n = 1000;
+    below = contaminated(n, 490);
+    above = contaminated(n, 510);
+    tc.verifyGreaterThanOrEqual(sum(lsqvce.kernel.robustWeights(below, "igg3", []) > 0), ...
+        ceil(n/2), 'below breakdown at least half the sample survives');
+    tc.verifyLessThan(sum(lsqvce.kernel.robustWeights(above, "igg3", []) > 0), ...
+        ceil(n/2), 'above breakdown it does not');
+end
+
+function testContaminationLeavesExactlyTheCleanRowsAlive(tc)
+% categories: metamorphic, robustness
+    % What the collapse guard actually sees under contamination: nAlive is
+    % the CLEAN count, to the row. The guard compares that against an
+    % ABSOLUTE nc + 1, so on n rows it needs the clean count below nc + 1 --
+    % 99.8% contamination on test_fit's 3600-row fixture against nc = 6.
+    % "More than half the data is discrepant", which the error message
+    % names, is nowhere near the trigger: at 60% contamination 400 of 1000
+    % rows are still alive.
+    %
+    % Standardisation is by |vw|, not |vw - med| (the Yang convention the
+    % kernel documents), which is why the contaminated MAJORITY is the part
+    % that gets zeroed above breakdown, not the clean minority.
+    n = 1000;
+    for k = [600 900 995]
+        vw = contaminated(n, k);
+        for infl = ["igg3", "bisquare"]
+            tc.verifyEqual(sum(lsqvce.kernel.robustWeights(vw, infl, []) > 0), n - k, ...
+                sprintf('%s, %d contaminated: the clean rows, and only those, stay alive', infl, k));
+        end
+    end
+end
+
+function testAUniformResidualOffsetRejectsEveryRow(tc)
+% categories: metamorphic, robustness
+    % The route to the collapse guard that DOES exist on a full-sized problem,
+    % and it is not an outlier problem at all: residuals offset bodily from
+    % zero by several MAD, with no contamination whatsoever. Because the
+    % influence standardises vw/s rather than (vw - med)/s, a systematic
+    % offset -- an unabsorbed bias, a datum defect -- rejects the whole
+    % sample. That is exactly the case adjustRobust's message should name,
+    % and after WP-110 it does.
+    n = 1000;
+    vw = 6 + linspace(-1, 1, n).';            % MAD ~ 0.5, so the offset is ~12 MAD
+    for infl = ["igg3", "bisquare"]
+        tc.verifyEqual(sum(lsqvce.kernel.robustWeights(vw, infl, []) > 0), 0, ...
+            sprintf('%s: a bodily offset rejects every row', infl));
+    end
+end
+
+function [vw, mad] = contaminated(n, k)
+%CONTAMINATED  n law-whitened residuals of which k are shifted to +1000.
+%   Deterministic: each block is a linspace, so there is no RandStream and
+%   the numbers are identical on every runner. The spread keeps the MAD away
+%   from zero, which would otherwise take robustWeights' std fallback.
+    vw = [linspace(-1, 1, n - k).'; 1000 + linspace(-1, 1, k).'];
+    [~, s] = lsqvce.kernel.robustWeights(vw, "igg3", []);
+    mad = s / 1.4826;
 end
 
 function testPermutingTheRowsPermutesTheDiagnostics(tc)
