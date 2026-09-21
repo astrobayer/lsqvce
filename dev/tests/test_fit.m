@@ -488,6 +488,93 @@ function testAnAllRejectingInfluenceRaisesTheCollapseError(tc)
     tc.verifyEqual(idOf(@() lsqvce.fit(d, opts)), 'lsqvce:adjustRobust:collapsed');
 end
 
+% --- issue #110 test 6 / WP-110: the degenerate arc, carried by its prior ---
+% WP-109 could not write this: declaration()'s locals are SYSTEM-scoped, one
+% set for all twelve arcs, so rejecting one arc's data leaves nothing to
+% carry. This is the arc-scoped fixture it needed. scopedCfg() had the arc
+% scope already but declared no priors, and 'arc' rows are only populated
+% under a declared SCHEDULE (scopedBuildDay: info.arcId) -- which is why
+% s.arcs is the id vector [1 2] here and not the count 2.
+
+function testADegenerateArcRejectsAWholeArcWorthOfRows(tc)
+% categories: robustness, contract
+    % The PRECONDITION of the point below, made a claim of its own so the
+    % failure count says which half broke. Day 1's arc 1 is wrecked with an
+    % alternating +-500 that no column of its design can absorb, so a
+    % redescending influence must reject the whole arc: 120 rows of the 480.
+    % 25 % contamination, comfortably below any breakdown point.
+    [d, cfg, colOf, e] = arcScopedPriorFixture();
+    d.systems(1).buildDay = @(day, ot, common, local, po, info) ...
+        wreckDayOne(scopedBuildDay(cfg, day, ot, info), day, 500);
+    d.systems(1).priors = struct('L', e(colOf(1, 1)), 'x0', 0.25, 'sigma', 0.1, ...
+                                 'from', 1, 'name', 'arcPin', 'estimate', "none");
+    R = lsqvce.fit(d, lsqvce.Options(Robust="bisquare", Verbose=false));
+    tc.verifyEqual(R.stopReason, "converged");
+    tc.verifyGreaterThanOrEqual(R.history(end).nZero, cfg.mArc, ...
+        'a whole arc of unfittable rows must be zeroed, not merely down-weighted');
+end
+
+function testADegenerateArcIsCarriedByItsLocalPrior(tc)
+% categories: robustness, reference
+    % ISSUE #110 TEST 6. With every data row of one arc rejected, that arc's
+    % local parameter has exactly one equation left -- its prior -- and must
+    % sit on it. The control is the SAME wrecked declaration solved by plain
+    % GLS, which does not reject anything and is dragged far off.
+    %
+    % The prior is deliberately LOOSE (sigma 0.1 against a data weight some
+    % five times larger), the lesson WP-108 paid for: a tight prior would pin
+    % the local whether or not the data were rejected, and the point would
+    % claim nothing. On CLEAN data this prior leaves the local near 0, not
+    % near its x0.
+    [d, cfg, colOf, e] = arcScopedPriorFixture();
+    c = colOf(1, 1);                                   % day 1, arc 1: the starved column
+    d.systems(1).buildDay = @(day, ot, common, local, po, info) ...
+        wreckDayOne(scopedBuildDay(cfg, day, ot, info), day, 500);
+    d.systems(1).priors = struct('L', e(c), 'x0', 0.25, 'sigma', 0.1, ...
+                                 'from', 1, 'name', 'arcPin', 'estimate', "none");
+    yRob = lsqvce.fit(d, lsqvce.Options(Robust="bisquare", Verbose=false)) ...
+               .residuals('Verbose', false).sys(1).y;
+    yGls = lsqvce.fit(d, Verbose=false).residuals('Verbose', false).sys(1).y;
+    % tol: 1e-6 absolute -- with its data rejected the column's ONLY equation
+    % is the prior, so the solve returns x0 to rounding, not to sigma
+    tc.verifyEqual(yRob(c), 0.25, 'AbsTol', 1e-6, ...
+        'the arc is carried by its local prior alone');
+    tc.verifyGreaterThan(abs(yGls(c) - 0.25), 3 * 0.1, ...
+        'and the control: GLS keeps the wrecked rows and is dragged off the prior');
+end
+
+function [data, cfg, colOf, e] = arcScopedPriorFixture()
+%ARCSCOPEDPRIORFIXTURE  scopedCfg() as a fit declaration with ARC-scoped
+%   locals, a declared schedule (without one the 'arc' columns are never
+%   populated) and the column accessor a prior group's L needs.
+%   2 days x 2 arcs x 120 rows; nc = 2 common, nl = 2*2 arc rows + 1 system.
+    cfg  = scopedCfg();
+    data = struct();
+    data.commonParams = [{'common', 'g1'}; {'common', 'g2'}];
+    data.days = 1:2;
+    s = struct();
+    s.buildDay    = @(d, ot, common, local, po, info) scopedBuildDay(cfg, d, ot, info);
+    s.covariance  = cfg.cov;
+    s.localParams = [{'arc', 'ic'}; {'system', 'scale'}];
+    s.arcs        = [1 2];                       % the SCHEDULE, not the count
+    data.systems  = s;
+    lay   = lsqvce.layout(data);
+    nl    = lay.systems(1).nl;
+    colOf = @(day, arc) lay.systems(1).col(1, day, arc);
+    e     = @(c) double((1:nl) == c);
+end
+
+function D = wreckDayOne(D, day, amp)
+%WRECKDAYONE  Make every row of day 1's FIRST arc unfittable, and no other.
+%   An alternating +-amp: no single design column can absorb it, so the rows
+%   stay discrepant however the local parameter moves. Only day 1, because
+%   day 2's arc 1 carries no prior -- starving it too would leave its column
+%   with no equation at all, which is a rank defect, not a robustness test.
+    if day ~= 1 || isempty(D.l), return, end
+    m = numel(D.l{1});
+    D.l{1} = D.l{1} + amp * (-1).^(1:m).';
+end
+
 function testSignatureRejectsNonStructAndNonOptions(tc)
 % categories: contract
     % Positional typing at the signature (MATLAB ids): the in-memory

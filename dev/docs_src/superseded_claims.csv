@@ -17,3 +17,4 @@ localsPerArc\s*=,L11,the count-based local plan on the user surface (scoped tabl
 MinPasses\s*=,WP-101,an inert option (retired 5.3)
 LogFile\s*=,WP-101,an inert option (retired 5.3)
 'separable'\),WP-90,the separable type listed among the live types (retired 5.3; arma + Cep)
+beyond the breakdown point,WP-110,the collapse guard was said to detect >50 % contamination; measured, nAlive tracks the clean count

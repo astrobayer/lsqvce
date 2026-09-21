@@ -79,9 +79,21 @@ days     1xD double          the calendar</pre>
    .pass .scale .dx .nDown (0 &lt; factor &lt; 0.5) .nZero (factor == 0)
    .factor (last pass: n x 1) .keys (last pass: n x 4 cell)</pre>
 <h3>Errors</h3>
-<pre class="example">  lsqvce:adjustRobust:collapsed   fewer live observations than parameters
-                                  + 1 after reweighting (beyond the
-                                  breakdown point: check the model)
+<pre class="example">  lsqvce:adjustRobust:collapsed   fewer live observations than nc + 1
+                                  after reweighting -- ALMOST EVERY row
+                                  rejected. MEASURED (R6 WP-110), this is
+                                  reached two ways, neither an ordinary
+                                  outlier problem: residuals offset
+                                  BODILY from zero by several MAD (a bias
+                                  the model did not absorb, a datum
+                                  defect -- the influence standardises
+                                  vw/s, not (vw - med)/s), or
+                                  contamination so near total that fewer
+                                  than nc + 1 clean rows are left. It is
+                                  NOT a 50 % contamination detector:
+                                  nAlive tracks the CLEAN count, so 60 %
+                                  contamination of 1000 rows still leaves
+                                  400 alive. Check the model, not the data.
   + everything adjustBlock / makeLoader / robustWeights raise
 WARNINGS
   lsqvce:adjustRobust:notConverged  MaxIter reached; the last pass is
@@ -100,6 +112,14 @@ See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.KERNEL.ROBUSTWEIGHTS,
 
 Created 2026-09-02 (CEST, UTC+02:00) with assistance from Claude
 (Anthropic), model Claude Fable 5.1 -- R5 Level M2, WP-81 round 2b.
+Updated 2026-09-21 (CEST, UTC+02:00), R6 WP-110: the collapsed error said
+it detected &quot;more than half the data discrepant, beyond the breakdown
+point&quot;. It does not, and the measurement is in HANDOVER 12.34: nAlive
+tracks the CLEAN count, so the guard is reached by a bodily residual
+offset or by near-total contamination, not at 50 %. The message and this
+help now say what it detects. No behaviour changed -- the threshold is
+the user&#x27;s to set, and 12.34 puts that decision. With assistance from
+Claude (Anthropic), model Claude Opus 5.
 Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-105: collectWhitened became
 the engine-private lawWhitenedResiduals, the ONE definition this driver
 and the joint estimator&#x27;s robust pass share. With assistance from

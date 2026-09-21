@@ -1,5 +1,32 @@
 # lsqvce release notes
 
+## 6.1.3 — 2026-09-21 (R6 WP-110: what the collapse guard really detects, and a 6.1.2 claim corrected)
+
+Documentation, a corrected error message and tests; no estimator behaviour changed.
+
+- **6.1.2 said the collapse guard "can fire only for `n < 2(nc+1)` … it cannot fire at any
+  contamination". That is wrong, and this release withdraws it.** The half-sample bound
+  6.1.2 proved is real, but it is conditional on `|med| ≤ 3.4·MAD`, and that premise is the
+  50 % breakdown point wearing a different hat: measured on deterministic samples, it holds
+  at 49 % contamination (ratio 0.50) and fails at 51 % (ratio 518.89). Above breakdown
+  `nAlive` falls with the clean fraction and the guard does fire. The bound therefore says
+  no more than "we are below breakdown"; 6.1.2 drew a consequence its own premise forbids.
+- **What the guard actually detects, measured.** `nAlive` tracks the CLEAN row count to the
+  row, and the threshold is an absolute `nc + 1`, so contamination reaches it only when
+  almost nothing clean is left (99.8 % on a 3600-row fit against `nc = 6`; 60 % contamination
+  of 1000 rows still leaves 400 alive). What does reach it on a full-sized problem is
+  residuals offset **bodily** from zero by several MAD — an unabsorbed bias, a datum defect —
+  because the influence standardises `vw/s`, not `(vw − med)/s`. That is a model error, not
+  an outlier problem, which is what the message always meant to say and now does.
+- **`lsqvce:adjustRobust:collapsed`'s message and help are corrected** to name those two
+  routes instead of claiming a 50 % breakdown detector. The phrase it used to carry is in
+  `superseded_claims.csv`, so it cannot come back. **The threshold itself is unchanged** —
+  turning the guard into a genuine breakdown test means choosing a policy, which is the
+  user's call, not a release note's.
+- **Issue #110's test 6 is closed**: the arc-scoped local fixture with priors that WP-109
+  said it needed now exists, and a degenerate arc — every row rejected — is carried by its
+  local prior alone, with plain GLS on the same data as the control.
+
 ## 6.1.2 — 2026-09-20 (R6 WP-109: the PDF Manual is gated, and issue #110 is closed out)
 
 Documentation and tests; no code in `+lsqvce` changed, no declaration changes.
