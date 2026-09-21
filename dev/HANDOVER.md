@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-09-20 — WP-109 OPEN on `claude/wp-109` (tier B, model Claude Opus 5): the PDF Manual's version surface gets its first gate (check 29; the rebuild was justified by MEASURING the old binary's toolchain, not by asserting it), issue #110's tests 3–6 land with every margin measured in its own run, and a FINDING is recorded — the collapse guard can fire only for n < 2(nc+1), so on a real fit it cannot fire at all; version **6.1.2**; §12.33.
+Last substantive update: 2026-09-21 — WP-110 OPEN on `claude/wp-110` (tier B, model Claude Opus 5): acting on §12.33's finding began by measuring it, and the measurement REFUTED its consequence — the collapse guard does fire, the half-sample bound is just a restatement of being below breakdown, and the guard is a model-error detector (a bodily residual offset) rather than the 50 % breakdown detector its message claimed. The 6.1.2 claim is withdrawn in the 6.1.3 notes. Issue #110 test 6 closed with the arc-scoped prior fixture; version **6.1.3**; §12.34.
+Preceding entry: Last substantive update: 2026-09-20 — WP-109 OPEN on `claude/wp-109` (tier B, model Claude Opus 5): the PDF Manual's version surface gets its first gate (check 29; the rebuild was justified by MEASURING the old binary's toolchain, not by asserting it), issue #110's tests 3–6 land with every margin measured in its own run, and a FINDING is recorded — the collapse guard can fire only for n < 2(nc+1), so on a real fit it cannot fire at all; version **6.1.2**; §12.33.
 Preceding entry: Last substantive update: 2026-09-20 — WP-108 OPEN on `claude/wp-108` (issue #110, tier B, model Claude Opus 5): the stand-alone IRLS stopped re-weighting local prior groups. The finding was MEASURED on CI before it was fixed — two red runs, the second discriminating — and all three of its consequences are real; version **6.1.1**; §12.32.
 Preceding entry: Last substantive update: 2026-09-19 — WP-107 DONE (PR #108, merge 21e470d; CI on the PR green 547/547); **tag `v6.1.0`** annotated on the merge commit, GitHub release published, issue #107 closed; §12.31.
 Preceding entry: Last substantive update: 2026-09-19 — WP-107 OPEN on `claude/wp-107-release-6.1.0` (issue #107, tier B, model Claude Opus 5): V-6 of the timeSeriesPreparation concept answered by reading, and the release **v6.1.0** prepared (version string gains its PATCH field per ci-actions VERSIONING.md; no code change); §12.31.
@@ -7566,3 +7567,77 @@ WP is about.
 
 **Final verdict:** `ci_gate` GREEN 558/558, 27/27 suites, warning inventory
 back to `lsqvce:internal:testProbe` alone; CI `audit` green every round.
+
+### 12.34 WP-110 — the guard does fire, and §12.33 is corrected (2026-09-21, model Claude Opus 5, tier B)
+
+**Why.** §12.33 recorded a finding and proposed WP-110 to act on it. Acting
+on it began by measuring it, and the measurement **refuted the finding's
+consequence**. That correction is this WP's main result; issue #110's test 6
+is its second.
+
+**§12.33 SAID:** *"nAlive ≥ ⌈n/2⌉ for any sample, however contaminated — and
+the guard can fire only for n < 2·(nc+1) … on 3600 observations against
+nc = 6 it cannot fire at any contamination."* The first clause is true under
+its stated premise. **The second is false**, and it shipped in the 6.1.2
+release notes.
+
+**The premise is the breakdown point.** `lsqvce.kernel.robustWeights` is pure
+arithmetic, so it was swept exactly, on DETERMINISTIC vectors (two
+`linspace` blocks, no RandStream — the numbers below are the same on every
+runner and were predicted before the MATLAB run):
+
+| contamination | \|med\|/MAD | premise \|med\| ≤ 3.4·MAD | nAlive | n/2 |
+|---|---|---|---|---|
+| 40 % | 0.50 | HOLDS | 600 | 500 |
+| **49 %** | **0.50** | **HOLDS** | **510** | 500 |
+| **51 %** | **518.89** | **FAILS** | **490** | 500 |
+| 60 % | 748.25 | FAILS | 400 | 500 |
+
+The premise and the bound flip **together, at 50 %**. So `nAlive ≥ ⌈n/2⌉` is
+a restatement of "we are below breakdown", not an independent limit on what
+the guard can see. Above breakdown the median moves into the contaminated
+cluster, the ratio explodes, and nAlive falls with the clean fraction.
+
+**What the guard does detect**, measured on the same instrument:
+
+| | |
+|---|---|
+| under contamination | `nAlive` = the CLEAN count, to the row. The threshold is an absolute `nc + 1`, so it needs the clean count below `nc + 1`: **99.8 %** contamination on test_fit's 3600 rows. 60 % of 1000 rows still leaves **400** alive |
+| under a bodily offset | every row rejected with **no contamination at all** — `vw = 6 + linspace(-1,1,n)` (≈12·MAD) zeroes all 1000 under igg3 AND bisquare, because the influence standardises `vw/s`, not `(vw − med)/s` |
+| why the minority survives above breakdown | the same non-centred convention: at 51 % it is the contaminated MAJORITY that is zeroed, since "far" means far from ZERO, not far from the median |
+
+So the guard works, and it is a **model-error detector**, not a breakdown
+detector — which is exactly what its last sentence ("check the model") always
+said, and the opposite of what its first sentence claimed.
+
+**Changed.** The message and help of `lsqvce:adjustRobust:collapsed` now name
+the two routes. `"beyond the breakdown point"` is retired into
+`superseded_claims.csv`, so check 28 refuses its return. The corrected
+comment on `testTheMadScaleLeavesHalfTheSampleAlive` says what its own bound
+does and does not imply.
+
+**NOT changed, and this is the user's decision.** The threshold stays
+`nAlive < nc + 1`. Making the guard a real breakdown test means comparing a
+FRACTION against a policy (say, refuse when the zeroed fraction exceeds 0.4),
+and that changes which fits are refused — a behaviour change nobody asked
+for. **Two options, both cheap, neither taken here:**
+
+1. a fraction threshold, refusing at the breakdown boundary rather than at
+   near-total rejection;
+2. a WARNING (`lsqvce:adjustRobust:atBreakdown`) when the zeroed fraction
+   passes ~0.45, leaving the error where it is. Diagnostic only, no result
+   changes — but it is new public surface and a new identifier, so it is
+   proposed, not shipped.
+
+**Issue #110 test 6, closed.** `arcScopedPriorFixture` is the arc-scoped
+declaration §12.33 said the tree lacked: `scopedCfg()` had the arc scope but
+no priors, and `'arc'` rows are only populated under a declared SCHEDULE
+(`s.arcs = [1 2]`, the id vector, not the count 2). Day 1's arc 1 is wrecked
+with an alternating ±500 no design column can absorb; bisquare zeroes the
+whole arc (120 of 480 rows, 25 %, well below breakdown) and its local
+parameter sits on its prior alone, with plain GLS on the same data as the
+control. The prior is deliberately LOOSE — σ 0.1 against a data weight some
+five times larger — for the reason WP-108 paid to learn: a tight prior would
+pin the local whether or not the data were rejected.
+
+**Version 6.1.3**; counts 570 → 576 declared, 558 → 564 executed.
