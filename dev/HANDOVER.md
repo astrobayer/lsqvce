@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-09-20 — WP-108 OPEN on `claude/wp-108` (issue #110, tier B, model Claude Opus 5): the stand-alone IRLS stopped re-weighting local prior groups. The finding was MEASURED on CI before it was fixed — two red runs, the second discriminating — and all three of its consequences are real; version **6.1.1**; §12.32.
+Last substantive update: 2026-09-20 — WP-109 OPEN on `claude/wp-109` (tier B, model Claude Opus 5): the PDF Manual's version surface gets its first gate (check 29; the rebuild was justified by MEASURING the old binary's toolchain, not by asserting it), issue #110's tests 3–6 land with every margin measured in its own run, and a FINDING is recorded — the collapse guard can fire only for n < 2(nc+1), so on a real fit it cannot fire at all; version **6.1.2**; §12.33.
+Preceding entry: Last substantive update: 2026-09-20 — WP-108 OPEN on `claude/wp-108` (issue #110, tier B, model Claude Opus 5): the stand-alone IRLS stopped re-weighting local prior groups. The finding was MEASURED on CI before it was fixed — two red runs, the second discriminating — and all three of its consequences are real; version **6.1.1**; §12.32.
 Preceding entry: Last substantive update: 2026-09-19 — WP-107 DONE (PR #108, merge 21e470d; CI on the PR green 547/547); **tag `v6.1.0`** annotated on the merge commit, GitHub release published, issue #107 closed; §12.31.
 Preceding entry: Last substantive update: 2026-09-19 — WP-107 OPEN on `claude/wp-107-release-6.1.0` (issue #107, tier B, model Claude Opus 5): V-6 of the timeSeriesPreparation concept answered by reading, and the release **v6.1.0** prepared (version string gains its PATCH field per ci-actions VERSIONING.md; no code change); §12.31.
 Preceding entry: Last substantive update: 2026-09-09 — WP-101 DONE (PR #101, merge 340eb3b); WP-102 OPEN on `claude/wp-102` (tier B, model Claude Fable 5.1): VERSION 6.0 — THE CELLS ARE THE ARCS (buildDay returns one cell per arc; arcIdx/arcId gone; `arcs` optional; 'fromDay' retired; six user decisions pinned); §12.26.
@@ -7457,3 +7458,111 @@ decision WP-105 already took for the joint loop.
 **Verdicts.** `audit_tree.py` CLEAN (all 28 checks, Manual included) and
 `audit_selftest.py` clean in the sandbox; CI `audit` + `matlab` green on
 `29f4ca9`. Counts: 547 → 552 executed, 559 → 564 declared points.
+
+### 12.33 WP-109 — the ungated binary, and why the collapse guard cannot fire (2026-09-20, model Claude Opus 5, tier B)
+
+**Why.** The two debts §12.32 named: `lsqvce_manual.pdf` shipped inside the
+6.1.1 release still saying **6.1.0**, because no check read it; and issue
+#110's tests 3–6, declined there because "written blind at tier B they would
+assert a spelling rather than a behaviour".
+
+**The PDF, and the objection that was answered by measuring it.** WP-108
+refused to rebuild the PDF from an unverified toolchain — the right call on
+what it knew. What it did not know is checkable: the `xdvipdfmx` available
+here reports **20220710**, the version written inside the PDF that was
+already committed. The rebuild was then compared stream by stream against
+the old file:
+
+| | |
+|---|---|
+| pages / bookmarks / streams | 47 / 51 / 141 — identical |
+| inflated stream lengths | identical multiset, 1 064 536 bytes both |
+| streams that differ | **21**, every one accounted for |
+| what they are | the eight font **subset tags** (`NTJCLF+DejaVuSerif` → `UVZWMJ+…`), the document `/ID`, the xref offsets, the Info `/Title`, and **one glyph** on the title page: `0013` → `0014`, the `0` of 6.1.0 becoming the `1` of 6.1.1 |
+| content bytes changed | **none** |
+
+That is also the reason check 29 reads a title instead of comparing bytes
+the way check 23 does for the HTML: **the PDF is not reproducible and this
+says exactly why**. The subset tags and the `/ID` are randomised per run.
+
+**Check 29.** `lsqvce_manual.pdf`'s document title against `+lsqvce/Contents.m`
+— the same one version source check 17 (a) holds the README title to. The
+Info dictionary is located by `/Producer` and delimited by its own `<< >>`,
+so none of the 51 **bookmark** `/Title`s can be mistaken for the document's;
+both PDF string forms are decoded, because both occur in this tree (the
+Manual writes UTF-16BE hex, `lsqvce_theory.pdf` an octal-escaped literal).
+It **fails closed**: a missing file, an unreadable Info dictionary or two
+different answers are findings. `lsqvce_theory.pdf` is deliberately outside
+it — its title carries no version at all, so there is no surface to gate;
+WP-106 gave it dated banners instead. Three self-test cases, the first of
+them the real defect: move `Contents.m` ahead, leave the PDF where it is.
+
+**Issue #110 tests 3–6, and the rule that made them writable at tier B.**
+Not "guess the number better" but **state every claim as a ratio of
+quantities the same run measures**:
+
+| point | the claim, and where its margin comes from |
+|---|---|
+| `testIgg3RecoversPlantedBlundersWhereGlsDoesNot` | 60 deterministic blunders of 200 over 3600 rows (1.7 %). The margin is the fixture's OWN GLS error on clean data: robust must reach it, plain GLS must miss by 10× more. One claim in two halves — a recovery claim without its control says nothing |
+| `testBisquareRecoversPlantedBlundersWhereGlsDoesNot` | the same, redescending harder |
+| `testRobustFixedPointOnTheBatchKind` | kind C with an explicit `p`. The issue asks for 1e-10; **that is not reachable in principle** and the kind-B point says why (the last factors came from the previous estimate). This point inherits its measured 1e-6 rather than stating a second number for one fact |
+| `testArmaAndPsdLawsAgreeNoWorseUnderIrls` | `arma` vs the PSD evaluated from it are different models (AR(30) fitted to the spectrum). The "AR-order tolerance" the issue names is MEASURED as the GLS gap, and IRLS is asked the only question it can answer: it must not amplify it |
+| `testAnAllRejectingInfluenceRaisesTheCollapseError` | the only route to the guard on a real-sized problem |
+| `test_metamorphic>testTheMadScaleLeavesHalfTheSampleAlive` | the bound below, on four adversarial samples |
+
+**FINDING (recorded, not fixed): the collapse guard is close to unreachable.**
+`adjustRobust` refuses a pass when `nAlive < nc + 1`. But `robustWeights`
+standardises by the normalised MAD, `s = 1.4826·median(|vw − med|)`, and by
+the definition of a median at least half the sample lies within `MAD` of
+`med`; a redescending influence zeroes only beyond `k1·s = 4.45·MAD` (igg3)
+or `c·s = 6.95·MAD` (bisquare). So whenever `|med| ≤ 3.4·MAD`,
+
+> **nAlive ≥ ⌈n/2⌉ for any sample, however contaminated**, and the guard can
+> fire only for **n < 2·(nc + 1)**.
+
+On `declaration()`'s 3600 observations against `nc = 6` it cannot fire at any
+contamination; the fit-level point reaches it only by driving `RobustOpts.Tuning`
+to `[1e-3 2e-3]`. **This sharpens §12.32's consequence (b):** the prior
+pseudo-rows padding `nAlive` made a guard fail open that was nearly
+unreachable to begin with. Nothing is changed for it — the tuning is the
+user's, and a guard nobody can trip is a documentation question before it is
+a code one. **Proposed WP-110**, with the two carried items below.
+
+**Not closed here, and why.** Issue #110 test 6's degenerate arc "carried by
+its local prior alone" needs an **arc-scoped** local fixture with priors:
+`declaration()`'s locals are system-scoped, one set for all twelve arcs, so
+rejecting one arc's data leaves nothing to carry, and `scopedCfg()` declares
+no priors. The COMMON prior half of WP-107's sentence is still untested for
+the same reason §12.32 gave — `data.priors` reaches `adjustRobust` through
+`opt.Prior` → `acc.setPrior`, outside the sweep entirely.
+
+**Version 6.1.2**, documentation and tests only; `+lsqvce` is untouched.
+
+**Round 2 — the finding bit its own test, and a wrong claim is withdrawn.**
+CI came back RED at 557/558 with one failure and one new warning identifier,
+and the console named neither: the names live in `last_run_all.txt`, the
+uploaded artifact, and this session's egress policy refuses the blob host
+that serves it. So the verdict reported a COUNT and not a CLAIM — §12.32's
+lesson one level up, now fixed in `run_all_lsqvce`: a failing suite prints
+its points by name.
+
+Its first run answered both questions at once.
+
+| | |
+|---|---|
+| the failing point | `testAnAllRejectingInfluenceRaisesTheCollapseError` — **not** the `arma`/`psd` point this session suspected |
+| what passed first time | both blunder points, the kind-C fixed point, the `arma`/`psd` point, and the metamorphic MAD bound. Every margin written as a ratio held on the first run |
+| the cause | `igg3` keeps a row alive iff \|w\| ≤ k1, and P(\|w\| ≤ k1) ≈ 2·k1·φ(0), so survivors ≈ 3600·2·k1·0.3989. At k1 = 2e-3 that is **5.7 against the threshold 7** — a coin flip, and CI flipped it. Rejecting 99.84 % was not enough to trip a guard whose finding is that it is nearly unreachable. Now k1 = 2e-8, E = 6e-5 |
+| the warning | `lsqvce:residuals:sigma0Mismatch` was the SAME defect's second symptom, not noise: the guard did not fire, so the fit ran on with a handful of live rows against nc = 6, and the accumulated `l'Pl − n'x` lost `sigma0` while the direct sum stayed honest (the WP-49 mechanism `residuals.m` documents). Fixing the tuning removed it. **Nothing was muted** — `muteWarn` would have hidden the evidence that the test was not collapsing |
+
+**A claim made in this WP and WITHDRAWN.** Round 2's first commit said a
+warning could be attributed to the test POINT that raised it, using the
+`Running <suite>/<point>` marker. There is no such marker: `runtests` prints
+one `Running <suite>` and a dot per point, so the attribution resolved to the
+suite and named nothing already known. It is replaced by printing the
+warning's MESSAGE, whose numbers identify the call. Recorded because the
+mechanism was asserted before it was checked, which is the error this whole
+WP is about.
+
+**Final verdict:** `ci_gate` GREEN 558/558, 27/27 suites, warning inventory
+back to `lsqvce:internal:testProbe` alone; CI `audit` green every round.

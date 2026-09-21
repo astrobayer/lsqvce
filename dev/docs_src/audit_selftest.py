@@ -20,6 +20,7 @@ model Claude Fable 5.1 -- R5 Level M0, WP-78.
 """
 import importlib.util
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -35,7 +36,7 @@ spec.loader.exec_module(audit)
 
 COPY = ['+lsqvce', 'html/index.html', 'helptoc.xml', 'dev/docs_src/tiers.csv', 'dev/docs_src/catch_baseline.csv',
         'dev/docs_src/error_ids.csv', 'dev/docs_src/layering_baseline.csv', 'dev/docs_src/superseded_claims.csv',
-        'dev/tests/category_exemptions.csv', 'dev/tests']
+        'dev/tests/category_exemptions.csv', 'dev/tests', 'lsqvce_manual.pdf']
 
 
 def scratch():
@@ -233,6 +234,29 @@ case('25 unit missing from index and helptoc fires', audit.check_index_lists_eve
      'index',
      lambda d: append(os.path.join(d, '+lsqvce/+util/zzzNewUnit.m'),
                       'function zzzNewUnit()\n%ZZZNEWUNIT  x\nend\n'))
+# ---- 29 (R6 WP-109): the PDF Manual's version surface --------------------
+# The defect this check was written for is the REAL one: the tree went to
+# 6.1.1 in WP-108 and lsqvce_manual.pdf stayed at 6.1.0 because nothing read
+# it. The fault here reproduces exactly that -- move the ONE version source
+# ahead and leave the PDF where it is. The other two cases are the
+# fails-closed half: an unreadable PDF and a missing one must be findings,
+# because a check that goes quiet when its instrument breaks is worse than no
+# check at all.
+def bump_version(d):
+    p = os.path.join(d, '+lsqvce/Contents.m')
+    s = open(p, encoding='utf-8').read()
+    open(p, 'w', encoding='utf-8').write(
+        re.sub(r'^%(\s*)Version(\s+)\S+', r'%\g<1>Version\g<2>9.9.9', s, count=1, flags=re.M))
+
+
+case('29 a stale PDF title fires', audit.check_manual_pdf_version, 'manual-pdf',
+     bump_version)
+case('29 an unreadable PDF fires', audit.check_manual_pdf_version, 'manual-pdf',
+     lambda d: open(os.path.join(d, 'lsqvce_manual.pdf'), 'wb').write(b'%PDF-1.5\n%not a pdf\n'))
+case('29 a missing PDF fires', audit.check_manual_pdf_version, 'manual-pdf',
+     lambda d: os.remove(os.path.join(d, 'lsqvce_manual.pdf')))
+
+
 def main():
     failures = 0
     print('audit self-test: %d cases' % len(CASES))

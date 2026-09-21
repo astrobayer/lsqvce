@@ -43,6 +43,9 @@ WHAT IT CHECKS
        paths in the documents that TELL A READER WHERE TO GO (R6 WP-99;
        dev/HANDOVER.md and dev/HISTORY_v1.md are records and are excluded --
        naming a deleted file is half their job)
+    29 the PDF Manual's title carries the Contents.m version (check 23
+       rebuilds the HTML Manual and compares bytes; the PDF cannot be
+       compared that way, so the ONE fact that must not drift is read)
     27 every public Options property has a consumer: engineArgs, or somewhere
        in +lsqvce outside Options.m (R6 WP-101; MinPasses and LogFile shipped
        dead for a whole review)
@@ -59,10 +62,12 @@ Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Opus 4.8.
 """
 
+import binascii
 import glob
 import os
 import re
 import sys
+import zlib
 import xml.etree.ElementTree as ET
 
 
@@ -1202,6 +1207,7 @@ def main():
     check_md_pointers()
     check_options_are_consumed()
     check_superseded_claims()
+    check_manual_pdf_version()
     print('\n' + '=' * 60)
     if FINDINGS:
         print('%d finding(s).' % len(FINDINGS))
@@ -1507,6 +1513,121 @@ def check_manual_built_and_complete():
         if not re.search(r'`%s`' % f, src):
             note('manual', 'the Options group field %s is not described in the Manual chapter 4' % f)
     print('   %d knobs and %d group fields checked' % (len(props), len(fields - set(props))))
+
+
+# ----------------------------------------------------------------------
+# 29 (R6 WP-109, 2026-09-20): the PDF Manual's version surface. Written with
+# the assistance of Claude (Anthropic), model Claude Opus 5.
+
+def pdf_doc_title(path):
+    """The DOCUMENT title of a PDF (the /Title of its Info dictionary), or None.
+
+    Why this is hand-rolled rather than shelled out to pdftotext/pypdf: the
+    audit must run on the CI runner with nothing but Python, and it needs ONE
+    string, not a text layer. A pandoc/xelatex PDF hides its Info dictionary
+    inside a FlateDecode'd object stream, so the bytes are searched after
+    inflating every stream. The dictionary is identified by /Producer (every
+    TeX PDF in this tree has one) and delimited by its own << >>, so a
+    BOOKMARK /Title -- there are 51 of them in the Manual -- cannot be
+    mistaken for the document's.
+
+    Both PDF string forms are handled, because both occur in this tree:
+    lsqvce_manual.pdf (xelatex/xdvipdfmx) writes UTF-16BE hex <feff...>, and
+    lsqvce_theory.pdf (pdfTeX/hyperref) writes an octal-escaped literal.
+    """
+    raw = open(path, 'rb').read()
+    bufs = [raw]
+    for m in re.finditer(rb'stream\r?\n', raw):
+        a = m.end()
+        b = raw.find(b'endstream', a)
+        if b < 0:
+            continue
+        try:
+            bufs.append(zlib.decompress(raw[a:b]))
+        except Exception:
+            pass                       # not a Flate stream: nothing to read
+    titles = []
+    for buf in bufs:
+        for m in re.finditer(rb'/Producer', buf):
+            lo = buf.rfind(b'<<', 0, m.start())
+            hi = buf.find(b'>>', m.start())
+            if lo < 0 or hi < 0:
+                continue
+            info = buf[lo:hi]
+            h = re.search(rb'/Title\s*<(feff[0-9a-fA-F]+)>', info)
+            if h:
+                titles.append(binascii.unhexlify(h.group(1))
+                              .decode('utf-16-be').lstrip('\ufeff'))
+                continue
+            t = re.search(rb'/Title\s*\((.*?)(?<!\\)\)', info, re.S)
+            if t:
+                titles.append(pdf_literal(t.group(1)))
+    uniq = sorted(set(titles))
+    return uniq[0] if len(uniq) == 1 else None
+
+
+def pdf_literal(s):
+    """Decode a PDF literal string: octal escapes, then UTF-16BE if it has a BOM."""
+    out = bytearray()
+    i = 0
+    while i < len(s):
+        if s[i:i + 1] == b'\\' and s[i + 1:i + 2].isdigit():
+            out.append(int(s[i + 1:i + 4], 8))
+            i += 4
+        elif s[i:i + 1] == b'\\':
+            out.append(s[i + 1])
+            i += 2
+        else:
+            out.append(s[i])
+            i += 1
+    b = bytes(out)
+    if b[:2] == b'\xfe\xff':
+        return b[2:].decode('utf-16-be', 'replace')
+    return b.decode('latin-1')
+
+
+def check_manual_pdf_version():
+    print('\n29. the PDF Manual carries the Contents.m version in its title')
+    # WHY (R6 WP-109, out of WP-108): lsqvce_manual.pdf sat at 6.1.0 while the
+    # tree was at 6.1.1 and NOTHING read it. Check 23 rebuilds the HTML Manual
+    # and compares it byte for byte; the PDF is built from the same markdown by
+    # the same script but cannot be compared that way -- a rebuild of the SAME
+    # source differs in the font subset tags, the document /ID and the xref
+    # offsets, which xdvipdfmx randomises per run (measured: 21 of 141 streams,
+    # every difference accounted for, none of them content). So this check
+    # reads the ONE fact that must not drift: the title build_manual.py writes
+    # from Contents.m, the same single version source check 17 (a) holds the
+    # README title to.
+    #
+    # lsqvce_theory.pdf is deliberately NOT checked: its title is
+    # "lsqvce - Theory, practice, ..." and carries no version at all. It is a
+    # dated record and WP-106 gave it banners instead; there is no version
+    # surface here to gate.
+    #
+    # It FAILS CLOSED. A missing file, an unreadable Info dictionary or two
+    # different answers are findings, not silence -- the instrument saying
+    # nothing must never be read as the artefact being right.
+    pdf = 'lsqvce_manual.pdf'
+    if not os.path.isfile(pdf):
+        note('manual-pdf', '%s is missing (build_manual.py writes it)' % pdf)
+        return
+    contents = open(os.path.join('+lsqvce', 'Contents.m'),
+                    encoding='utf-8', errors='replace').read()
+    mv = re.search(r'^%\s*Version\s+(\S+)', contents, re.M)
+    if not mv:
+        note('manual-pdf', '+lsqvce/Contents.m has no Version line to check against')
+        return
+    title = pdf_doc_title(pdf)
+    if title is None:
+        note('manual-pdf', '%s: no single document title could be read from the '
+             'Info dictionary (the check cannot pass on an unreadable PDF)' % pdf)
+        return
+    want = 'lsqvce %s \u2014 User Manual' % mv.group(1)
+    if title != want:
+        note('manual-pdf', '%s title is "%s"; Contents.m says %s, so it must be '
+             '"%s" (run build_manual.py)' % (pdf, title, mv.group(1), want))
+    else:
+        print('   %s == Contents.m %s' % (title, mv.group(1)))
 
 
 if __name__ == '__main__':
