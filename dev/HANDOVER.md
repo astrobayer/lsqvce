@@ -7688,6 +7688,7 @@ threshold, plus R7-25's epoch-vs-row unit; (d) WP-86 (memory) pulled forward for
 **What the next session could be wrong for not reading.** (1) The mirrors are evidence
 of mechanism, not MATLAB results: reproduce at tier A before changing code. (2) The
 §12.20 runaway item now has a mechanism (R7-02) and a "converged" verdict on it. (3) The
-audit's CLEAN line does not cover `dev/tests` until WP-117 lands. (4) Push from the
-review session was refused (no GitHub App on the repo, the project PAT returned 403); this
-round arrives as a patch.
+audit's CLEAN line does not cover `dev/tests` until WP-117 lands. (4) The repository now
+lives at `astrobayer/lsqvce` (GitHub redirects the old `matweigelt/lsqvce` URL); the project
+PAT stored with the chat returned 403 on the API, while the session's git proxy pushed —
+check which credential a session holds before relying on the PAT.
