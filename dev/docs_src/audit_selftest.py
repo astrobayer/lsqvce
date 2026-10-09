@@ -256,6 +256,43 @@ case('29 an unreadable PDF fires', audit.check_manual_pdf_version, 'manual-pdf',
 case('29 a missing PDF fires', audit.check_manual_pdf_version, 'manual-pdf',
      lambda d: os.remove(os.path.join(d, 'lsqvce_manual.pdf')))
 
+# ---- 2, 3, 7, 9, 10, 15 (R7-26): the checks see dev/tests ----------------
+# Since L8 these checks swept a top-level tests/ folder that no longer
+# existed; a fault in a TEST file left the whole audit CLEAN. Each case
+# injects into dev/tests, where the check had been blind.
+def edit(path, old, new):
+    s = open(path, encoding='utf-8').read()
+    assert old in s, 'selftest anchor not found in %s' % path
+    open(path, 'w', encoding='utf-8').write(s.replace(old, new, 1))
+
+
+TFILE = 'dev/tests/test_util.m'
+case('10 duplicate local function in a TEST file fires', audit.check_duplicate_functions,
+     'duplicate', lambda d: append(os.path.join(d, TFILE),
+                                   '\nfunction zzzDup()\nend\nfunction zzzDup()\nend\n'))
+case('7 unbalanced end in a TEST file fires', audit.check_balance, 'balance',
+     lambda d: append(os.path.join(d, TFILE), '\nfunction zzzOpen()\n    if true\nend\n'))
+case("7 ['^' f(x) '$'] in a TEST file is silent", audit.check_balance, 'balance',
+     lambda d: append(os.path.join(d, TFILE),
+                      "\nfunction zzzCat()\n    p = ['^' upper('x') '$'];\nend\n"),
+     expect_fire=False)
+case('2 removed name in TEST code fires', audit.check_removed_names, 'names',
+     lambda d: append(os.path.join(d, TFILE),
+                      '\nfunction zzzOld()\n    covModelFactory(1);\nend\n'))
+case('15 wrong H1 in a TEST file fires', audit.check_h1_names, 'h1',
+     lambda d: edit(os.path.join(d, TFILE), '%TEST_UTIL ', '%TEST_ZZZ '))
+case('3 nc as leading arg in TEST code fires', audit.check_signatures, 'signature',
+     lambda d: append(os.path.join(d, TFILE),
+                      '\nfunction zzzSig()\n    adjustBlock(nc, {}, 1);\nend\n'))
+case('3 a missing adjustBlock fires', audit.check_signatures, 'signature',
+     lambda d: os.remove(os.path.join(d, '+lsqvce/+engine/adjustBlock.m')))
+case('9 a diverging block-spec literal fires', audit.check_spec_fields, 'spec',
+     lambda d: edit(os.path.join(d, '+lsqvce/fit.m'),
+                    "'dayList', dl, 'name', nm);", "'dayList', dl, 'name', nm, 'zzz', 1);"))
+case('9 no block-spec literal at all fires', audit.check_spec_fields, 'spec',
+     lambda d: [os.remove(os.path.join(d, p)) for p in
+                ('+lsqvce/fit.m', '+lsqvce/+engine/private/normalizeSystems.m')])
+
 
 def main():
     failures = 0
