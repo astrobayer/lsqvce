@@ -7641,3 +7641,53 @@ five times larger — for the reason WP-108 paid to learn: a tight prior would
 pin the local whether or not the data were rejected.
 
 **Version 6.1.3**; counts 570 → 576 declared, 558 → 564 executed.
+
+### 12.35 REVIEW R7 (2026-10-09, model Claude Opus 5.5, tier B) — four-lane review of 6.1.3, findings only
+
+**Origin.** The user's request: "Review the toolbox. Look for weakness and errors. Use
+skills available for the review." Run under the scientific-toolbox-discipline review
+roles: two software-engineering lanes (code/interfaces; tests/gate/audit) and two
+domain lanes (joint VCE estimator; linear model, solvers, robust, Gauss–Newton,
+diagnostics), in parallel, findings only. **No code under `+lsqvce/` changed.**
+
+**The report is the record**, attached and not paraphrased here:
+`dev/reviews/R7_2026-10-09/README.md` (index, 46 findings R7-01…R7-46, checked-and-sound,
+proposed WPs) + the four lane reports + their Python mirrors (`mirrors/`).
+
+**Instruments.** `audit_tree.py` CLEAN (29 checks, pandoc present); `audit_selftest.py`
+all faults caught; own parse 576 declared / 564 executed = §12.34. Tier B: every
+REPRODUCED claim is a Python mirror of the MATLAB arithmetic, not a MATLAB run — the
+first step of each WP below is the tier-A reproduction.
+
+**Headline (S1, silently wrong numbers — twelve rows, four places):**
+
+| place | findings |
+|---|---|
+| PSD law → covariance | R7-01 the whitener's ACV is circulant (r(m−1) = r(1) / r(0)); R7-02 ortho inverse DCT vs plain cosine re-synthesis → negative bins → runaway level with "converged" |
+| where QR elimination happens | R7-03 `QRSystem.blocks` → `R1'R1` → `chol`: cond(A)² on the default path |
+| priors / Gauss–Newton | R7-04 prior on the increment in nonlinear fits; R7-05 datum Cxx depends on the datum σ |
+| robust × correlated × multi-axis, joint policy | R7-06 `%g` row-weight keys collide for day ids ≥ 1e6; R7-07 `var` + noise; R7-08 uncentred multi-axis epoch statistic zeroes clean data; R7-09 cross-stream γ̄; R7-10 Koch fold under correlated laws; R7-11 no-law runs stop on pass 1; R7-12 robust level bias |
+
+**Corrections to earlier records found by R7:** §12.29 round 4 "RMS epoch statistic
+adequate" (R7-08); WP-100 Q1 for multi-stream runs (R7-09); WP-105 "unbiased" and
+"filter adapts around it" (R7-10, R7-12); §12.14 E-10 "surviving ids pinned" (R7-28);
+WP-110 corrected `adjustRobust` only — the retired claim lives on in `adjustVCEjoint`
+(R7-25); DEVELOPMENT.md:460–473 as applied to `BlockAccumulator` (R7-03); seven audit
+checks have scanned a deleted `tests/` folder since L8 (R7-26).
+
+**Proposed work packages (NOT opened — the user decides order and scope):**
+WP-111 PSD → covariance path · WP-112 QR on the accumulator path · WP-113 Gauss–Newton ·
+WP-114 priors without a second path · WP-115 robust conventions · WP-116 joint-loop
+policy · WP-117 instruments · WP-118 docs truth and hygiene. Scope, findings and oracle
+per WP: the report's last table.
+
+**Decisions needed:** (a) R7-13 arc factors in the weighting, or Manual §7.8 corrected;
+(b) R7-10 multiplicative Koch fold vs deletion / additive nugget; (c) §12.34's collapse
+threshold, plus R7-25's epoch-vs-row unit; (d) WP-86 (memory) pulled forward for R7-24.
+
+**What the next session could be wrong for not reading.** (1) The mirrors are evidence
+of mechanism, not MATLAB results: reproduce at tier A before changing code. (2) The
+§12.20 runaway item now has a mechanism (R7-02) and a "converged" verdict on it. (3) The
+audit's CLEAN line does not cover `dev/tests` until WP-117 lands. (4) Push from the
+review session was refused (no GitHub App on the repo, the project PAT returned 403); this
+round arrives as a patch.
