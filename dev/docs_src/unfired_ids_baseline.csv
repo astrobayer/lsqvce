@@ -98,7 +98,6 @@ lsqvce:qr:noData,engine.QRSystem
 lsqvce:qr:noRedundancy,engine.QRSystem
 lsqvce:qr:sizeMismatch,engine.QRSystem
 lsqvce:redundancy:hutchFailed,engine.redundancy
-lsqvce:redundancy:hutchinsonExperimental,engine.redundancy
 lsqvce:redundancy:identityViolated,engine.redundancy
 lsqvce:redundancy:noStore,engine.redundancy
 lsqvce:redundancy:smallGroup,engine.redundancy
