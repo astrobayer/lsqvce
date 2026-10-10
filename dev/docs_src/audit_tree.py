@@ -1337,16 +1337,66 @@ def check_superseded_claims():
                 'dev/DEVELOPMENT.md', 'template/*.m', 'examples/*.m'):
         for f in pglob(pat):
             surfaces.append((f, open(f, encoding='utf-8', errors='replace').read()))
+    # R7-25 (2026-10-10): two blind spots let a retired claim survive WP-110 --
+    # a phrase WRAPPED across two help lines, and the claim inside a runtime
+    # MESSAGE (error / warning / log text), which no help block holds. Both
+    # are read now: adjacent help lines are also matched joined, and every
+    # message call's string literals are matched concatenated.
+    messages = []
+    for f in pglob(PKG_GLOB, recursive=True):
+        messages.extend((f, ln, txt) for ln, txt in message_bodies(f))
     n = 0
     for pattern, by, claim in rows:
         rx = re.compile(pattern)
         for f, text in surfaces:
-            for i, ln in enumerate(text.split('\n'), 1):
+            lines = text.split('\n')
+            for i, ln in enumerate(lines, 1):
                 if rx.search(ln):
                     note('superseded', '%s:%d still makes a claim retired by %s (%s): %r'
                          % (f, i, by, claim, ln.strip()[:100]))
                     n += 1
-    print('   %d superseded claims checked on %d surfaces; hits: %d' % (len(rows), len(surfaces), n))
+                elif i < len(lines) and not rx.search(lines[i]):
+                    joined = _prose(ln) + ' ' + _prose(lines[i])
+                    if rx.search(joined):
+                        note('superseded', '%s:%d still makes a claim retired by %s (%s), '
+                             'wrapped onto the next line: %r' % (f, i, by, claim, joined[:100]))
+                        n += 1
+        for f, ln, txt in messages:
+            if rx.search(txt):
+                note('superseded', '%s:%d a runtime message still makes a claim retired by '
+                     '%s (%s): %r' % (f, ln, by, claim, txt[:100]))
+                n += 1
+    print('   %d superseded claims checked on %d surfaces and %d runtime messages; hits: %d'
+          % (len(rows), len(surfaces), len(messages), n))
+
+
+def _prose(line):
+    """A help/markdown line without its comment marker and outer blanks."""
+    return re.sub(r'^\s*%+\s?', '', line).strip()
+
+
+MESSAGE_CALL = re.compile(r'\b(?:error|warning|MException|log\.warn\w*|log\.msg|warnOnce)\s*\(')
+
+
+def message_bodies(path):
+    """(line, text) for every message call in a .m file: the statement with
+    its ... continuations joined, and the text = its single- or double-quoted
+    literals concatenated (so a phrase split across literals is whole)."""
+    raw = open(path, encoding='utf-8', errors='replace').read().split('\n')
+    out, k = [], 0
+    while k < len(raw):
+        start, stmt = k, raw[k]
+        while stmt.rstrip().endswith('...') and k + 1 < len(raw):
+            k += 1
+            stmt = stmt.rstrip()[:-3] + ' ' + raw[k]
+        k += 1
+        if stmt.lstrip().startswith('%') or not MESSAGE_CALL.search(stmt):
+            continue
+        lits = re.findall(r"'((?:[^']|'')*)'|\"((?:[^\"]|\"\")*)\"", stmt)
+        text = ''.join(a or b for a, b in lits).replace("''", "'")
+        if text:
+            out.append((start + 1, text))
+    return out
 
 
 def main():

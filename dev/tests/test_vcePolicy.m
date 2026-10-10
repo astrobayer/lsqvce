@@ -826,19 +826,18 @@ function testRobustPassInsideTheJointLoopRecoversTheLawUnderOutliers(tc)
     tc.verifyEqual(Rr.noise.robust.influence, 'igg3');
     tc.verifyEqual(Rr.noise.robust.streams, {'x1|a', 'x1|b'}, 'one MAD scale per stream');
     tc.verifyEqual(size(Rr.history.robustScale), [Rr.history.nIter, 2]);
-    % THE LEVEL, measured -- and the prediction it refuted. WP-105 expected
-    % the retained-observation ratio E[w u^2]/E[w] (0.73 for IGG3, 0.80 for
-    % Huber): round 4 measured 1.007 on the CLEAN stream b. Ellmer's per-lag
-    % redundancy s_n (eq. 6.5.23) is the model expectation of Omega_n under
-    % the SAME weighted whitening, so a down-weighted row shrinks numerator
-    % and denominator alike and alpha^2 = Omega/s stays 1 for the clean
-    % stream: the level is UNBIASED, unlike Helmert's Omega/(n - u), where
-    % the redundancy of a zero-weight row stays 1. Pinned at 1.
+    % THE LEVEL. WP-105 expected the retained-observation ratio E[w u^2]/E[w]
+    % (0.73 IGG3, 0.80 Huber); round 4 read 1.007 on the CLEAN stream b. The
+    % "weights cancel in alpha^2" explanation is disputed by R7-12 (s_0 holds
+    % tr(Sigma_t^-1) of the unweighted law; a mirror reads 0.83-0.93), and
+    % this 15 % band cannot tell 0.86 from 1 -- it pins "no gross bias",
+    % not "unbiased". The discriminating multi-seed measurement is WP-115's
+    % open tier-A item.
     ib = find(strcmp(Rr.noise.stream, 'x1|b'), 1);
     lvlB = Rr.noise.model{ib}.sigma * Rr.sigma0;
     % tol: 15 % relative on an effective level from 9 arcs of 256 epochs
     % (the clean-data bound of testRecoversPlantedRelativeWeights is 25 %)
-    tc.verifyEqual(lvlB, 1, 'RelTol', 0.15, 'the clean stream''s level is unbiased under the robust pass');
+    tc.verifyEqual(lvlB, 1, 'RelTol', 0.15, 'the clean stream''s level shows no gross bias under the robust pass');
     % Robust "none" carries no factors at all
     tc.verifyEmpty(Rp.noise.robust.factor);
 end

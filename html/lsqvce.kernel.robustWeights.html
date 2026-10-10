@@ -44,15 +44,20 @@ a { color: #0b5ea8; }
 <h1>lsqvce.kernel.robustWeights</h1>
 <div class="purpose">IRLS weight factors from standardised whitened residuals.</div>
 <h2>Description</h2>
-<pre class="example">[fac, s, w] = lsqvce.kernel.robustWeights(vw, influence, tuning)</pre>
+<pre class="example">[fac, s, w, scalePath] = lsqvce.kernel.robustWeights(vw, influence, tuning)</pre>
 <h3>THE one influence-function evaluation of the toolbox (R5 M2 round 2b):</h3>
 <pre class="example">the flat driver lsqvce.engine.robust and the block-path driver
 lsqvce.engine.adjustRobust both call it, so Huber / IGG3 / bisquare and
 the MAD scale are defined once. Pure kernel: arrays in, arrays out.
 
 The robust scale is the normalised MAD of the whitened residuals,
-s = 1.4826 * median(|vw - median(vw)|) (falls back to std(vw), then 1,
-when the MAD is zero or not finite); the standardised residual is
+s = 1.4826 * median(|vw - median(vw)|). When the MAD is degenerate --
+zero, not finite, or below 1e3*eps of the largest |vw - median(vw)|
+(half the residuals tied, e.g. quantised data or zero-redundancy rows)
+-- it falls back to std(vw), then 1, SAYS SO once per run
+(lsqvce:robustWeights:scaleFallback) and returns the path taken; the
+std is inflated by the very blunders the MAD exists to expose, so a
+fallback result is a weaker robust fit. The standardised residual is
 w = vw / s; the factor multiplies the observation&#x27;s weight:
   huber     fac = 1 for |w| &lt;= c, c/|w| beyond                 (c = 1.345)
   igg3      1 on [0, k0]; (k0/|w|) ((k1-|w|)/(k1-k0))^2 on (k0, k1];
@@ -65,11 +70,15 @@ tuning     [] | 1xK double  tuning constants; [] = the defaults above</pre>
 <h3>Output</h3>
 <pre class="example">fac  n x 1 double  weight factors in [0, 1]
 s    1x1 double    the robust scale used
-w    n x 1 double  the standardised residuals vw / s</pre>
+w    n x 1 double  the standardised residuals vw / s
+scalePath  1xK char  &#x27;mad&#x27; | &#x27;std&#x27; | &#x27;unit&#x27; -- which scale s is</pre>
 <h3>Errors</h3>
 <pre class="example">  lsqvce:robustWeights:badInfluence  unknown influence name
   lsqvce:robustWeights:badTuning     tuning has the wrong length for the
                                      influence (huber/bisquare 1, igg3 2)
+WARNINGS
+  lsqvce:robustWeights:scaleFallback  the MAD was degenerate; s is the
+                                     std (or 1) -- once per run
 
 ACCURACY  exact arithmetic on the inputs; no tolerance of its own.</pre>
 <h3>Example</h3>
@@ -79,7 +88,13 @@ See also LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ROBUST
 
 Created 2026-09-02 (CEST, UTC+02:00) with assistance from Claude
 (Anthropic), model Claude Fable 5.1 -- R5 Level M2, WP-81 round 2b
-(extracted verbatim from lsqvce.engine.robust so there is ONE definition).</pre>
+(extracted verbatim from lsqvce.engine.robust so there is ONE definition).
+Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-115 (finding R7-21): the
+MAD -&gt; std -&gt; 1 fallback was silent, and a NEAR-tie MAD (3.5e-15) was
+accepted, giving every ordinary row a factor of ~1e-14 that the collapse
+guard could not see. Near-ties now count as degenerate, the fallback
+warns once and returns its path. With assistance from Claude
+(Anthropic), model Claude Opus 5.5.</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
 <div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

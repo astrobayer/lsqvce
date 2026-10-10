@@ -425,6 +425,25 @@ case('30 a baseline row for an id a test fires fires', audit.check_ids_fired_by_
      'id-fired', lambda d: append(os.path.join(d, 'dev/docs_src/unfired_ids_baseline.csv'),
                                   'lsqvce:fit:badPrior,fit\n'))
 
+# ---- 28 (R7-25): wrapped help lines and runtime message bodies -----------
+ZZZ_UNIT = '+lsqvce/+util/zzzSelftest.m'
+case('28 a claim wrapped across two help lines fires', audit.check_superseded_claims,
+     'superseded', lambda d: append(os.path.join(d, ZZZ_UNIT),
+                                    'function zzzSelftest()\n%ZZZSELFTEST  x.\n'
+                                    '%   fewer live rows than parameters + 1 (beyond the\n'
+                                    '%   breakdown point; selftest)\nend\n'))
+case('28 a claim inside a runtime message fires', audit.check_superseded_claims,
+     'superseded', lambda d: append(os.path.join(d, ZZZ_UNIT),
+                                    "function zzzSelftest()\n%ZZZSELFTEST  x.\n"
+                                    "    error('lsqvce:zzz:x', ['left too few rows: beyond the ' ...\n"
+                                    "          'breakdown point of any M-estimator']);\nend\n"))
+case('28 the same words split by a real line break in prose are silent',
+     audit.check_superseded_claims, 'superseded',
+     lambda d: append(os.path.join(d, ZZZ_UNIT),
+                      'function zzzSelftest()\n%ZZZSELFTEST  x.\n'
+                      '%   beyond the scope here.\n%   The breakdown is elsewhere.\nend\n'),
+     expect_fire=False)
+
 def main():
     failures = 0
     print('audit self-test: %d cases' % len(CASES))

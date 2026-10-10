@@ -191,13 +191,25 @@ classdef Results < handle
         %   from level 1 down rests on those weights). A single solve reports
         %   stopReason "single" and report() then says nothing about it. User
         %   options pass through and a user-supplied 'Provenance' / 'Iteration'
-        %   would win (last-match NV semantics).
+        %   would win (last-match NV semantics). A robust run also forwards its
+        %   influence (Iteration.influence), so the verdict says the sigma0 and
+        %   covariance are those of the reweighted problem (R7-18; updated
+        %   2026-10-10 with assistance from Claude (Anthropic), model Claude
+        %   Opus 5.5).
             nPass = 1;                       % a single solve is one pass
             if ~isempty(obj.history) && isfield(obj.history, 'nIter')
                 nPass = obj.history.nIter;
             end
             it = struct('converged', obj.converged, 'stopReason', obj.stopReason, ...
-                        'nIter', nPass);
+                        'nIter', nPass, 'influence', '');
+            % R7-18: a robust fit says so -- adjustRobust records the influence
+            % in R.noise.influence, the joint loop's robust pass in R.noise.robust
+            if isstruct(obj.noise) && isfield(obj.noise, 'influence')
+                it.influence = char(obj.noise.influence);
+            elseif isstruct(obj.noise) && isfield(obj.noise, 'robust') && ...
+                    isstruct(obj.noise.robust) && isfield(obj.noise.robust, 'influence')
+                it.influence = char(obj.noise.robust.influence);
+            end
             V = lsqvce.report(obj.diag, 'Provenance', obj.meta, 'Iteration', it, ...
                               varargin{:});
         end

@@ -27,7 +27,8 @@ function R = adjustRobust(systems, days, opt)
 %     'Influence'  "huber" | "igg3" | "bisquare"            default "huber"
 %     'Tuning'     [] | constants of the influence          default [] (its default)
 %     'MaxIter'    passes (>= 1)                            default 30
-%     'Tol'        stop when max|dx| < Tol * max(max|x|, 1) default 1e-8
+%     'Tol'        stop when max|dx| < Tol * max(max|x|, max sigma_x)
+%                  -- relative to the problem's own scale     default 1e-8
 %     'Parallel', 'DistributeDays', 'ParallelThreshold'     as adjustBlock
 %     'Verbose'    logical                                  default false
 %     'Provenance' struct   resolved user options for Results.meta (fit)
@@ -71,6 +72,12 @@ function R = adjustRobust(systems, days, opt)
 %
 %   Created 2026-09-02 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.1 -- R5 Level M2, WP-81 round 2b.
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-115 (finding R7-17): the stop
+%   rule's absolute floor of 1 on max|x| made it unit-dependent -- the same
+%   fit in SH units (1e-9) stopped at pass 2 about one formal sigma from the
+%   fixed point while reporting "converged". It is now relative to the
+%   larger of max|x| and the largest formal sigma. With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-09-21 (CEST, UTC+02:00), R6 WP-110: the collapsed error said
 %   it detected "more than half the data discrepant, beyond the breakdown
 %   point". It does not, and the measurement is in HANDOVER 12.34: nAlive
@@ -156,7 +163,11 @@ end
                      'sigma0', sol.sigma0, 's0sq', sol.s0sq, 'factor', fac, 'keys', {keys}, 'scale', s, ...
                      'dx', dx, 'acc', acc);
         userStop = ~lsqvce.util.onPass(opt.OnPass, opt.OnPassContext, ctx);
-        if it > 1 && dx < opt.Tol * max(max(abs(x)), 1)
+        % R7-17: relative to the problem's OWN scale -- the larger of the
+        % parameters and their formal errors -- so the same fit in other
+        % units stops on the same pass (the floor of 1 stopped SH-scale
+        % coefficients, ~1e-9, at pass 2 ~1 sigma from the fixed point)
+        if it > 1 && dx < opt.Tol * max(max(abs(x)), sqrt(max(diag(sol.Cxx))))
             converged = true;
             break
         end

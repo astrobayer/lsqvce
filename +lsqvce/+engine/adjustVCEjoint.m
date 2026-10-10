@@ -92,13 +92,16 @@ function out = adjustVCEjoint(accFcn, opt)
 %              with the same blunders declared through Cep the plain
 %              estimator recovered it. NOT Ellmer (2018): he screens outliers in
 %              preprocessing and down-weights whole ARCS through the variance
-%              factors; this is Koch's iterated re-weighting inside a VCE,
-%              and the level it returns is UNBIASED (measured 1.007 on a
-%              clean stream, test_vcePolicy: the per-lag redundancy s_n is
-%              the model expectation of Omega_n under the SAME weighted
-%              whitening, so the weights cancel in alpha^2 -- the
-%              retained-observation ratio that was expected was refuted by
-%              the oracle). Multi-axis streams are weighted PER EPOCH (the
+%              factors; this is Koch's iterated re-weighting inside a VCE.
+%              THE LEVEL IS AN OPEN QUESTION (R7-12): one MATLAB run read
+%              1.007 on a clean stream (test_vcePolicy, a 15 % band), and
+%              the "weights cancel in alpha^2" argument made for it is
+%              disputed -- s_0 carries tr(Sigma_t^-1) of the UNWEIGHTED
+%              temporal law, which no factor touches -- with a Python mirror
+%              reading 0.83-0.86 (law fixed) / ~0.93 (law free). Until a
+%              multi-seed MATLAB measurement settles it, read the level of a
+%              robust pass as possibly biased LOW. Multi-axis streams are
+%              weighted PER EPOCH (the
 %              RMS over the d law-whitened rows). The residuals
 %              are standardised by ONE MAD SCALE PER STREAM, never by the
 %              estimated level (perStreamWeights says why). Prior streams
@@ -173,8 +176,10 @@ function out = adjustVCEjoint(accFcn, opt)
 %                                   composes D = I and says so once)
 %     lsqvce:adjustVCEjoint:noArcs    a system declares no arcs
 %     lsqvce:adjustVCEjoint:collapsed the influence function left fewer live
-%                                     observations than parameters + 1 (beyond
-%                                     the breakdown point; R6 WP-105)
+%                                     EPOCHS than parameters + 1: a bodily
+%                                     residual offset or near-total
+%                                     contamination, NOT 50 % (R6 WP-105;
+%                                     measured in HANDOVER 12.34)
 %
 %   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 %     lsqvce:adjustVCEjoint:localNotPD           System X
@@ -202,6 +207,12 @@ function out = adjustVCEjoint(accFcn, opt)
 %   See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
 %            LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 %
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-115: the collapsed refusal
+%   and its ERRORS line no longer claim "beyond the breakdown point" (R7-25:
+%   the claim WP-110 retired from adjustRobust survived here, line-wrapped
+%   past audit check 28) and count EPOCHS, which is what the guard compares;
+%   the "level is UNBIASED" claim is withdrawn to an open question (R7-12).
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-105: the robust pass inside
 %   the loop ('Influence', 'Tuning', model.rowWeights, out.robust, the
 %   collapsed refusal) -- the one-loop composition of IRLS and the joint
@@ -646,11 +657,15 @@ function [W, fac, rkeys, rscale, rstreams, nDown, nZero] = robustSweep(acc, sol,
     nAlive = sum(fac > 0);
     if nAlive < nc + 1                                              % live EPOCHS
         error('lsqvce:adjustVCEjoint:collapsed', ...
-             ['The influence function left %d observations with a non-zero ' ...
-              'weight, fewer than the %d parameters + 1: more than half the ' ...
-              'data is discrepant, which is beyond the breakdown point of ' ...
-              'any M-estimator. This is not an outlier problem -- check the model.'], ...
-              nAlive, nc);
+             ['The influence function left %d epochs with a non-zero weight, ' ...
+              'fewer than the %d parameters + 1: almost every epoch was rejected. ' ...
+              'Two things do that, and neither is an ordinary outlier problem. ' ...
+              '(1) The residuals are offset BODILY from zero by several MAD -- a ' ...
+              'bias the model did not absorb -- because the influence standardises ' ...
+              'u/s, not (u - med)/s. (2) Contamination so near total that fewer ' ...
+              'than %d clean epochs are left; contamination merely past 50 %% does ' ...
+              'NOT reach here (HANDOVER 12.34). Check the model, not the data.'], ...
+              nAlive, nc, nc + 1);
     end
     W = containers.Map('KeyType', 'char', 'ValueType', 'any');
     off = 0;

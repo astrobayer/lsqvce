@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.1.3 — User Manual"
+title: "lsqvce 6.1.4 — User Manual"
 subtitle: "least-squares adjustment with variance component estimation"
 date: "built from the sources; the single documentation authority"
 ---
@@ -1431,7 +1431,10 @@ LSQVCE.REPORT  Judge a least-squares adjustment and say so in words.
                      (NOTE) or 'NOISE_UNSETTLED' (WARN). Every number from
                      level 1 down rests on those weights, so a model that was
                      still moving qualifies all of them. R.report() forwards
-                     it automatically.
+                     it automatically. An optional .influence (char) names
+                     the robust influence of an IRLS run; when non-empty ONE
+                     level-1 NOTE ('ROBUST_FIT') says sigma0 and the
+                     covariance are those of the reweighted problem (R7-18).
 
   OUTPUT V
     V.verdict   'PASS' | 'PASS WITH WARNINGS' | 'SUSPECT' | 'INVALID'
@@ -1463,6 +1466,13 @@ LSQVCE.REPORT  Judge a least-squares adjustment and say so in words.
   model Claude Fable 5.
   See also LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.SYSTEMATIC.
 
+  Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-115 (finding R7-18):
+  adjustRobust's help promised "report() says so" and report said nothing --
+  a robust fit's sigma0 and covariance are those of the REWEIGHTED problem,
+  not an M-estimator's scale or sandwich covariance, and the level-1 test
+  and the bounds read them as least squares. Iteration.influence now puts
+  one NOTE in the verdict. With assistance from Claude (Anthropic), model
+  Claude Opus 5.5.
   Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-99: the new 'Iteration'
   option puts ONE level-1 line in the verdict saying whether the stochastic
   model settled -- a report that stays silent about weights that were still
@@ -1837,16 +1847,17 @@ retain 0.02 · 1.345 · 25 ≈ 0.67 of white variance and dilute a lag-1 colour 
 about 0.12; `igg3` (zero beyond 3 sigma) and `bisquare` reject them outright and recover
 the colour.
 
-**The level, measured.** The obvious expectation — that a robust pass estimates the level of
-the *retained* observations, E[w u²]/E[w] (0.73 for `igg3`, 0.80 for Huber on Gaussian
-residuals) — was written down and then **refuted by the oracle**: a clean stream comes back
-at 1.007. The reason is Ellmer's per-lag redundancy s_n (eq. 6.5.23): it is the model
-expectation of Omega_n under the *same* weighted whitening, so a down-weighted row shrinks
-numerator and denominator alike and alpha² = Omega/s stays at 1. This differs from the
-classical Helmert Omega/(n − u), where a zero-weight row still counts a full redundancy and
-the level would be biased low. No consistency correction is needed, and none is applied.
-This composition is Koch's iterated re-weighting inside a variance-component estimation,
-not something Ellmer (2018) does.
+**The level — an open question.** The obvious expectation — that a robust pass estimates the
+level of the *retained* observations, E[w u²]/E[w] (0.73 for `igg3`, 0.80 for Huber on
+Gaussian residuals) — was not what one MATLAB run showed: a clean stream came back at 1.007
+(a 15 % band in `test_vcePolicy`). The explanation first given for it — that the per-lag
+redundancy s_n sees the same weighted whitening, so the weights cancel in alpha² — is
+**disputed by review R7 (R7-12)**: s_0 carries the trace of the *unweighted* temporal law,
+which no factor touches, and a line-by-line mirror reads 0.83–0.86 with the law fixed and
+about 0.93 with it free. Until a multi-seed MATLAB measurement settles it, read the level a
+robust pass returns as possibly biased **low**; no consistency correction is applied. This
+composition is Koch's iterated re-weighting inside a variance-component estimation, not
+something Ellmer (2018) does.
 
 Two further routes remain useful:
 
@@ -2279,6 +2290,7 @@ Every identifier the package raises, from `dev/docs_src/error_ids.csv` (the cata
 | `lsqvce:resolveNc:missing` | engine.resolveNc — error — v4.0 |
 | `lsqvce:robustWeights:badInfluence` | kernel.robustWeights — error — v4.0 |
 | `lsqvce:robustWeights:badTuning` | kernel.robustWeights — error — v4.0 |
+| `lsqvce:robustWeights:scaleFallback` | kernel.robustWeights — warning — v6.1.4 |
 | `lsqvce:runMeta:badArg` | engine.runMeta — error — v4.0 |
 | `lsqvce:separable:acvTooShort` | kernel.separableWhiten — error — v4.0 |
 | `lsqvce:separable:badSigma` | kernel.separableWhiten — error — v4.0 |

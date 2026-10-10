@@ -1,5 +1,41 @@
 # lsqvce release notes
 
+## 6.1.4 — 2026-10-10 (R7 WP-115 part 1: robust conventions that need no design decision)
+
+One silently-wrong-numbers fix, three behaviour corrections, and documentation truth. The
+estimator design questions review R7 raised (the multi-axis epoch statistic, the Koch fold
+under correlated laws, the collapse threshold) are NOT in this release.
+
+- **Robust weights could be applied to the wrong day (R7-06).** `lsqvce.util.rowWeightKey`
+  printed day ids with `%g`, which keeps six significant digits, so seven-digit day ids —
+  YYYYMMDD dates, Julian Day Numbers — collapsed onto one key: with `Robust` on, one day's
+  blunder factors were applied to another day of equal length, or a misleading
+  `makeLoader:rowWeightSize` blamed the builder. Integer ids now print with `%d` (exact,
+  the loader cache's own format), others with `%.17g`. MJD and datenum days (< 1e6) were
+  never affected.
+- **The robust scale's fallback is no longer silent (R7-21).** When half or more of the
+  whitened residuals tie (quantised data, zero-redundancy rows) the MAD is degenerate and
+  `lsqvce.kernel.robustWeights` falls back to the std; it now warns once per run
+  (`lsqvce:robustWeights:scaleFallback`), returns the path taken as a fourth output, and
+  treats a near-tie MAD (a 1e-15 spread) as a tie instead of a scale — which had given every
+  ordinary row a factor of ~1e-14 that the collapse guard could not see.
+- **The IRLS stop rule is unit-invariant (R7-17).** `adjustRobust` stopped when
+  `max|dx| < Tol·max(max|x|, 1)`; the floor of 1 made SH-scale coefficients (~1e-9) stop at
+  pass 2, "converged", about one formal sigma from the fixed point. The scale is now the
+  larger of `max|x|` and the largest formal sigma: unchanged for parameters of order one and
+  larger, and the same pass count in any units.
+- **`R.report()` says when a fit is robust (R7-18).** `adjustRobust`'s help promised it and
+  the report said nothing; a robust fit's sigma0 and covariance are those of the reweighted
+  problem, not an M-estimator's scale or sandwich covariance. One level-1 NOTE
+  (`ROBUST_FIT`) now says so.
+- **Claims withdrawn.** The joint loop's `collapsed` refusal no longer says "beyond the
+  breakdown point" (R7-25: the claim 6.1.3 retired from `adjustRobust` survived there, wrapped
+  across two help lines and inside the runtime message), and counts epochs, which is what it
+  compares. "The level a robust pass returns is UNBIASED" is withdrawn to an open question
+  (R7-12) in the help, the Manual and the test that pinned it; it is settled by measurement
+  in a later part. Audit check 28 now reads wrapped help lines and runtime messages, so
+  neither route can carry a retired claim again.
+
 ## 6.1.3 — 2026-09-21 (R6 WP-110: what the collapse guard really detects, and a 6.1.2 claim corrected)
 
 Documentation, a corrected error message and tests; no estimator behaviour changed.

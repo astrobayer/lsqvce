@@ -242,6 +242,30 @@ function testRobustWeightsContract(tc)
     verifyError(tc, @() lsqvce.kernel.robustWeights([1 2 3], 'huber', [1 2]), 'lsqvce:robustWeights:badTuning');
 end
 
+function testRobustWeightsScaleFallbackIsReported(tc)
+% categories: robustness, contract
+    % R7-21: the MAD -> std -> 1 fallback was silent, and a NEAR-tie MAD was
+    % accepted. Half the residuals tied (zero-redundancy rows) -> std, said
+    % once per run; a near-tie (1e-15 spread) counts as a tie; healthy data
+    % stays on the MAD.
+    muteWarn(tc, 'lsqvce:robustWeights:scaleFallback');   % provoked on purpose
+    lsqvce.util.log.inventory('reset');
+    vw = [zeros(51, 1); linspace(-1, 1, 44).'; 20; -20; 20; -20; 20];   % 51 % ties
+    [~, s, ~, p] = lsqvce.kernel.robustWeights(vw, 'huber', []);
+    tc.verifyEqual(p, 'std');
+    % tol: 1e-14 relative -- the same std on the same 100 numbers
+    tc.verifyEqual(s, std(vw), 'RelTol', 1e-14);
+    tc.verifyTrue(any(strcmp(lsqvce.util.log.inventory(), 'lsqvce:robustWeights:scaleFallback')), ...
+                  'the fallback is reported, not silent');
+    near = vw;  near(1:51) = 1e-15 * (1:51).';                       % near-ties
+    [facN, ~, ~, pN] = lsqvce.kernel.robustWeights(near, 'huber', []);
+    tc.verifyEqual(pN, 'std', 'a 1e-15 MAD is a tie, not a scale');
+    tc.verifyGreaterThan(median(facN(52:95)), 0.5, 'ordinary rows keep their weight');
+    [~, ~, ~, pH] = lsqvce.kernel.robustWeights(linspace(-3, 3, 101).', 'huber', []);
+    tc.verifyEqual(pH, 'mad');
+    lsqvce.util.log.inventory('reset');
+end
+
 function testRobustWeightsAgainstTheFormulas(tc)
 % categories: reference
     % residuals whose MAD scale is exactly 1: symmetric +-1 around 0 with a
@@ -269,6 +293,15 @@ function testRowWeightKeyFormat(tc)
     tc.verifyEqual(lsqvce.util.rowWeightKey(1, 59396, 'kbr', 3), '1|59396|kbr|3');
     tc.verifyEqual(lsqvce.util.rowWeightKey('C', 2, "posA", 'a1'), 'C|2|posA|a1');
     tc.verifyNotEqual(lsqvce.util.rowWeightKey(1, 2, 'x', 3), lsqvce.util.rowWeightKey(1, 2, 'x', 4));
+    % R7-06: %g kept six significant digits, so YYYYMMDD days and Julian Day
+    % Numbers collided (30 September days -> ONE key) and robust factors of
+    % one day were applied to another. Every day of a month must stay apart.
+    yyyymmdd = 20260901:20260930;
+    k = arrayfun(@(d) lsqvce.util.rowWeightKey(1, d, 'kbr', 1), yyyymmdd, 'UniformOutput', false);
+    tc.verifyEqual(numel(unique(k)), 30, 'YYYYMMDD days must give distinct keys');
+    tc.verifyEqual(lsqvce.util.rowWeightKey(1, 20260901, 'kbr', 1), '1|20260901|kbr|1');
+    tc.verifyEqual(lsqvce.util.rowWeightKey(2460580, 2460581, 'p', 7), '2460580|2460581|p|7');
+    tc.verifyEqual(lsqvce.util.rowWeightKey(1, 0.1, 'p', 1), '1|0.10000000000000001|p|1');   % non-integer: round-trip exact
 end
 
 %% ============================================================ R5 M2 2c': the batch adapter

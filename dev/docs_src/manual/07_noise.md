@@ -236,16 +236,17 @@ retain 0.02 · 1.345 · 25 ≈ 0.67 of white variance and dilute a lag-1 colour 
 about 0.12; `igg3` (zero beyond 3 sigma) and `bisquare` reject them outright and recover
 the colour.
 
-**The level, measured.** The obvious expectation — that a robust pass estimates the level of
-the *retained* observations, E[w u²]/E[w] (0.73 for `igg3`, 0.80 for Huber on Gaussian
-residuals) — was written down and then **refuted by the oracle**: a clean stream comes back
-at 1.007. The reason is Ellmer's per-lag redundancy s_n (eq. 6.5.23): it is the model
-expectation of Omega_n under the *same* weighted whitening, so a down-weighted row shrinks
-numerator and denominator alike and alpha² = Omega/s stays at 1. This differs from the
-classical Helmert Omega/(n − u), where a zero-weight row still counts a full redundancy and
-the level would be biased low. No consistency correction is needed, and none is applied.
-This composition is Koch's iterated re-weighting inside a variance-component estimation,
-not something Ellmer (2018) does.
+**The level — an open question.** The obvious expectation — that a robust pass estimates the
+level of the *retained* observations, E[w u²]/E[w] (0.73 for `igg3`, 0.80 for Huber on
+Gaussian residuals) — was not what one MATLAB run showed: a clean stream came back at 1.007
+(a 15 % band in `test_vcePolicy`). The explanation first given for it — that the per-lag
+redundancy s_n sees the same weighted whitening, so the weights cancel in alpha² — is
+**disputed by review R7 (R7-12)**: s_0 carries the trace of the *unweighted* temporal law,
+which no factor touches, and a line-by-line mirror reads 0.83–0.86 with the law fixed and
+about 0.93 with it free. Until a multi-seed MATLAB measurement settles it, read the level a
+robust pass returns as possibly biased **low**; no consistency correction is applied. This
+composition is Koch's iterated re-weighting inside a variance-component estimation, not
+something Ellmer (2018) does.
 
 Two further routes remain useful:
 

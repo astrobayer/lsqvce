@@ -78,7 +78,10 @@ LEVELS
                    (NOTE) or &#x27;NOISE_UNSETTLED&#x27; (WARN). Every number from
                    level 1 down rests on those weights, so a model that was
                    still moving qualifies all of them. R.report() forwards
-                   it automatically.
+                   it automatically. An optional .influence (char) names
+                   the robust influence of an IRLS run; when non-empty ONE
+                   level-1 NOTE (&#x27;ROBUST_FIT&#x27;) says sigma0 and the
+                   covariance are those of the reweighted problem (R7-18).
 
 OUTPUT V
   V.verdict   &#x27;PASS&#x27; | &#x27;PASS WITH WARNINGS&#x27; | &#x27;SUSPECT&#x27; | &#x27;INVALID&#x27;
@@ -108,6 +111,13 @@ case-sensitive lowercase). With assistance from Claude (Anthropic),
 model Claude Fable 5.
 See also LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.SYSTEMATIC.
 
+Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-115 (finding R7-18):
+adjustRobust&#x27;s help promised &quot;report() says so&quot; and report said nothing --
+a robust fit&#x27;s sigma0 and covariance are those of the REWEIGHTED problem,
+not an M-estimator&#x27;s scale or sandwich covariance, and the level-1 test
+and the bounds read them as least squares. Iteration.influence now puts
+one NOTE in the verdict. With assistance from Claude (Anthropic), model
+Claude Opus 5.5.
 Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-99: the new &#x27;Iteration&#x27;
 option puts ONE level-1 line in the verdict saying whether the stochastic
 model settled -- a report that stays silent about weights that were still

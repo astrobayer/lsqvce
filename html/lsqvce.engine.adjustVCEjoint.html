@@ -133,13 +133,16 @@ OPTIONS (Name/Value)
            with the same blunders declared through Cep the plain
            estimator recovered it. NOT Ellmer (2018): he screens outliers in
            preprocessing and down-weights whole ARCS through the variance
-           factors; this is Koch&#x27;s iterated re-weighting inside a VCE,
-           and the level it returns is UNBIASED (measured 1.007 on a
-           clean stream, test_vcePolicy: the per-lag redundancy s_n is
-           the model expectation of Omega_n under the SAME weighted
-           whitening, so the weights cancel in alpha^2 -- the
-           retained-observation ratio that was expected was refuted by
-           the oracle). Multi-axis streams are weighted PER EPOCH (the
+           factors; this is Koch&#x27;s iterated re-weighting inside a VCE.
+           THE LEVEL IS AN OPEN QUESTION (R7-12): one MATLAB run read
+           1.007 on a clean stream (test_vcePolicy, a 15 % band), and
+           the &quot;weights cancel in alpha^2&quot; argument made for it is
+           disputed -- s_0 carries tr(Sigma_t^-1) of the UNWEIGHTED
+           temporal law, which no factor touches -- with a Python mirror
+           reading 0.83-0.86 (law fixed) / ~0.93 (law free). Until a
+           multi-seed MATLAB measurement settles it, read the level of a
+           robust pass as possibly biased LOW. Multi-axis streams are
+           weighted PER EPOCH (the
            RMS over the d law-whitened rows). The residuals
            are standardised by ONE MAD SCALE PER STREAM, never by the
            estimated level (perStreamWeights says why). Prior streams
@@ -211,8 +214,10 @@ plot(r.sigma2);            % the arc-wise weights</pre>
                                 composes D = I and says so once)
   lsqvce:adjustVCEjoint:noArcs    a system declares no arcs
   lsqvce:adjustVCEjoint:collapsed the influence function left fewer live
-                                  observations than parameters + 1 (beyond
-                                  the breakdown point; R6 WP-105)
+                                  EPOCHS than parameters + 1: a bodily
+                                  residual offset or near-total
+                                  contamination, NOT 50 % (R6 WP-105;
+                                  measured in HANDOVER 12.34)
 
 IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
   lsqvce:adjustVCEjoint:localNotPD           System X
@@ -239,6 +244,12 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
          LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 
+Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-115: the collapsed refusal
+and its ERRORS line no longer claim &quot;beyond the breakdown point&quot; (R7-25:
+the claim WP-110 retired from adjustRobust survived here, line-wrapped
+past audit check 28) and count EPOCHS, which is what the guard compares;
+the &quot;level is UNBIASED&quot; claim is withdrawn to an open question (R7-12).
+With assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-105: the robust pass inside
 the loop (&#x27;Influence&#x27;, &#x27;Tuning&#x27;, model.rowWeights, out.robust, the
 collapsed refusal) -- the one-loop composition of IRLS and the joint

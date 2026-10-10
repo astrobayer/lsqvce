@@ -49,17 +49,24 @@ a { color: #0b5ea8; }
 &#x27;sysID|day|obsType|arcId&#x27; as char, used by lsqvce.engine.adjustRobust
 (writer) and lsqvce.engine.makeLoader (reader) for the containers.Map of
 IRLS weight factors (R5 M2 round 2b). One definition, so the two sides
-can never disagree on formatting (a numeric sysID prints as %g, a char
-one verbatim; day and arcId as %g).
+can never disagree on formatting: an integer-valued number prints with
+%d (exact up to 2^53, the format the loader&#x27;s day cache uses), any other
+number with %.17g (round-trip exact), a char/string verbatim.
 
 INPUT   sysID double|char;  day 1x1 double;  obsType char/string;
         arcId 1x1 double|char
 OUTPUT  key 1xK char
 ERRORS  none of its own
-EXAMPLE lsqvce.util.rowWeightKey(1, 59396, &#x27;kbr&#x27;, 3)  -&gt; &#x27;1|59396|kbr|3&#x27;
+EXAMPLE lsqvce.util.rowWeightKey(1, 59396, &#x27;kbr&#x27;, 3)     -&gt; &#x27;1|59396|kbr|3&#x27;
+        lsqvce.util.rowWeightKey(1, 20260901, &#x27;kbr&#x27;, 3)  -&gt; &#x27;1|20260901|kbr|3&#x27;
 
 See also LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.MAKELOADER
 
+Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-115 (finding R7-06): numbers
+were printed with %g, which keeps six significant digits, so day ids of
+seven or more digits (YYYYMMDD, Julian Day Numbers) collapsed onto one
+key and one day&#x27;s robust factors were applied to another. With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Created 2026-09-02 (CEST, UTC+02:00) with assistance from Claude
 (Anthropic), model Claude Fable 5.1 -- R5 Level M2, WP-81 round 2b.</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
