@@ -31,3 +31,4 @@ Noise\.MeanType = "robust",WP-118 part 2,Noise.MeanType was a live option (retir
 MeanType "robust"\|"plain",WP-118 part 2,the Options help listed the retired MeanType
 Q = m \(m\+2\) sum_k rho_k\^2 / \(m-k\),R7-38 (WP-118),the joint whiteness test divided by m - k for pooled arcs
 nothing of size `n`\s+is ever formed,R7-24 (WP-118),README said nothing of size n is formed; the diagnostics stage keeps n x u (WP-86 open)
+stage does not stream yet,WP-86 part 1,the diagnostics stage stored all n x u whitened rows (re-read on demand since 6.2.0)
