@@ -697,6 +697,54 @@ def check_h1_names():
                     break
 
 
+def gate_excluded_suites():
+    """The suites ci_gate runs but does not count (read from ci_gate.m)."""
+    path = os.path.join('dev', 'tests', 'ci_gate.m')
+    if not os.path.isfile(path):
+        return set()
+    m = re.search(r"^\s*excluded\s*=\s*\{([^}]*)\}",
+                  open(path, encoding='utf-8', errors='replace').read(), re.M)
+    return set(re.findall(r"'(\w+)'", m.group(1))) if m else set()
+
+
+def blank_block_comments(lines):
+    """Return lines with every %{ ... %} block blanked (MATLAB: the markers
+    must stand alone on their line), the definition declaredPoints.m uses."""
+    out, inblock = [], False
+    for l in lines:
+        t = l.strip()
+        if t == '%{':
+            inblock = True
+            out.append('')
+            continue
+        if t == '%}':
+            inblock = False
+            out.append('')
+            continue
+        out.append('' if inblock else l)
+    return out
+
+
+def unit_file(u):
+    """+lsqvce source file of a public unit name (engine.x -> +engine/x.m)."""
+    parts = u.split('.')
+    return os.path.join('+lsqvce', *['+' + p for p in parts[:-1]],
+                        parts[-1] + '.m')
+
+
+def unit_validates(u):
+    """True when unit u validates its arguments (R7-27 rule (2))."""
+    f = unit_file(u)
+    if not os.path.isfile(f):
+        return False
+    code = '\n'.join(s for _, s in code_lines(f))
+    raw = open(f, encoding='utf-8', errors='replace').read()
+    return bool(re.search(r'^\s*arguments\b', code, re.M)
+                or re.search(r'\b(?:narginchk|validateattributes|inputParser)\b',
+                             code)
+                or re.search(r"error\(\s*'lsqvce:[\w:]*:bad\w*'", raw))
+
+
 def check_test_categories():
     print('\n16. test categories are declared, counted per unit, and enforced')
     # WHY (WP-43, HANDOVER par. 6.1.2 as amended 2026-08-19): the doctrine
@@ -738,10 +786,21 @@ def check_test_categories():
         r'^\s*% categories:\s*([a-z, ]+?)\s*(?:\|\s*tags:\s*([a-z, ]+?)\s*)?$')
     fn_re = re.compile(r'function\s+(?:\w+\s*=\s*)?(test\w+)\s*\(')
 
+    # R7-27 (2026-10-10): the matrix credits only what the GATE runs and
+    # only CODE. It had credited comment mentions ("% lsqvce.engine.diagnose
+    # is reached through ...") and the never-gated benchmark test_speed: 17
+    # cells were comment-only, 9 speed cells came from a suite ci_gate
+    # excludes. The excluded set is read from ci_gate.m itself (one
+    # authority), and a %{ ... %} block declares nothing -- the same
+    # definition as private/declaredPoints.m.
+    excluded = gate_excluded_suites()
     unit_cat = {}          # unit -> set of categories reaching it
     n_points = 0
     for f in sorted(pglob('dev/tests/test_*.m')):
-        lines = open(f, encoding='utf-8', errors='replace').read().split('\n')
+        if os.path.splitext(os.path.basename(f))[0] in excluded:
+            continue
+        lines = blank_block_comments(
+            open(f, encoding='utf-8', errors='replace').read().split('\n'))
         starts = [(i, m.group(1)) for i, l in enumerate(lines)
                   if (m := fn_re.match(l))
                   and not re.match(r'function\s+tests\s*=', l)]
@@ -761,7 +820,11 @@ def check_test_categories():
                 note('cat', '%s: %s declares unknown category/tag %s'
                      % (f, name, sorted(bad)))
                 continue
-            body = '\n'.join(lines[i + 1:end])
+            # code only -- but code handed to evalc('...') is code, though
+            # the stripper blanks it as a string literal
+            body = '\n'.join(
+                l if re.search(r'\bevalc\s*\(', strip_matlab(l)) else strip_matlab(l)
+                for l in lines[i + 1:end])
             for u in set(re.findall(r'lsqvce\.((?:util|engine|kernel)\.\w+|[A-Za-z]\w+)', body)):
                 unit_cat.setdefault(u, set()).update(cats)
 
@@ -783,7 +846,11 @@ def check_test_categories():
                 continue
             parts = row.split(',', 2)
             if len(parts) == 3 and parts[2].strip():
-                exempt[(parts[0].strip(), parts[1].strip())] = parts[2]
+                key = (parts[0].strip(), parts[1].strip())
+                if key in exempt:
+                    note('cat', 'category_exemptions.csv exempts %s/%s twice'
+                         % key)
+                exempt[key] = parts[2]
             else:
                 note('cat', 'category_exemptions.csv row lacks a reason: %r'
                      % row)
@@ -815,6 +882,25 @@ def check_test_categories():
                      'exemption row (M7: tested or argued)' % (u, c))
     print('   category gaps in the matrix: %d (every one either covered '
           'or argued in category_exemptions.csv)' % gaps)
+
+    # R7-27: the ledger's two mechanical rules, enforced. (1) An exemption
+    # is a claim that a test is impossible; a row whose category the matrix
+    # now SHOWS covered is stale and must go (24 such rows had piled up).
+    # (2) 'contract' may never be exempted for a unit that validates its
+    # arguments -- an arguments block, narginchk / validateattributes /
+    # inputParser, or a raised ':bad...' identifier is that validation.
+    unit_set = set(units)
+    for (u, c) in sorted(exempt):
+        if u not in unit_set:
+            note('cat', 'category_exemptions.csv row %s/%s names no public '
+                 'unit' % (u, c))
+        elif c in unit_cat.get(u, set()):
+            note('cat', 'category_exemptions.csv row %s/%s is STALE -- the '
+                 'category is covered; delete the row' % (u, c))
+        if c == 'contract' and u in unit_set and unit_validates(u):
+            note('cat', 'category_exemptions.csv exempts contract for %s, '
+                 'which validates its arguments -- write the contract test'
+                 % u)
 
     # (d0) a tol: comment must never sit INSIDE a ... continuation -- a
     # standalone comment line there is a PARSE ERROR on the runner (WP-43 r2

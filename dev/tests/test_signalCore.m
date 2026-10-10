@@ -72,7 +72,7 @@ end
 
 %% ===================================================== lsqvce.kernel.varWhiten
 function testVarWhitenMatchesDenseGLS(tc)
-% categories: precision, robustness
+% categories: precision, robustness, reference
 % The vector-AR FIR whitener with the exact stationary startup must reproduce
 % the dense block-Cholesky GLS solve, row for row (docstring: rel diff ~1e-10;
 % v8verify.py: 2e-16). Everything is derived from the toolbox's own varACV so

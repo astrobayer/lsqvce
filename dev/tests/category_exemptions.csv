@@ -14,11 +14,6 @@
 # gaps the first mechanical count found were closed by direct tests
 # in the same round, none by exemption.
 unit,category,reason
-engine.runMeta,contract,promoted from private (WP-64a); its contract is Results.meta's -- pinned by test_adjustBlock/test_fit provenance points that read R.meta, never called by name
-engine.ReducedContribution,contract,contract points lived in test_lsqvce_combine (deleted with Combine in R5 M2); exercised by every block-path solve (test_adjustBlock); absorbed into the one accumulator in M4
-engine.residuals,contract,its contract points lived in test_adjustVCE (retired with the separate mode, R5 M4 4c); exercised by every adjustRobust pass and by the one-sweep work of M4 that absorbs it
-engine.ftest,contract,its contract points needed the flat Accumulator's sol structs (retired R5 M5 5b'); ftest is an instrument on two solutions -- re-homed onto Results in M7's instrument sweep
-engine.adjustRobust,contract,covered through lsqvce.fit (test_fit robust points: pass record / stopReason / factors / the IRLS fixed point; test_lsqvce_ext + _opts robust oracles through the flatRobust bridge); the driver has no user-facing argument surface of its own
 util.onPass,contract,covered through Options.OnPass on lsqvce.fit (test_vcePolicy: fires per pass on all three drivers, ctx fields, stop, cause-wrapped throw); the unit has no argument surface of its own beyond the hook
 engine.CommonPrior,reference,no closed form of its own beyond the dense references its callers are pinned against
 engine.CommonPrior,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
@@ -59,7 +54,6 @@ engine.applyRegularisation,speed,covered by the fit-level solve budget (test_spe
 engine.applyRegularisation,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path
 engine.arcVarianceFactors,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
 engine.arcVarianceFactors,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
-engine.arcVarianceFactors,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path
 engine.batchSystem,precision,the numbers it produces are pinned at the fit level against dense closed forms (test_fit, test_lsqvce*, test_physOracle); the driver adds plumbing, not arithmetic
 engine.batchSystem,reference,no closed form of its own beyond the dense references its callers are pinned against
 engine.batchSystem,robustness,its refusals are named identifiers pinned under contract; no numerical edge regime beyond those
@@ -98,8 +92,6 @@ engine.diagnose,robustness,its refusals are named identifiers pinned under contr
 engine.diagnose,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
 engine.diagnose,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
 engine.diagnoseAccum,reference,no closed form of its own beyond the dense references its callers are pinned against
-engine.diagnoseAccum,robustness,its refusals are named identifiers pinned under contract; no numerical edge regime beyond those
-engine.diagnoseAccum,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
 engine.diagnoseAccum,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
 engine.ellipse,reference,no closed form of its own beyond the dense references its callers are pinned against
 engine.ellipse,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
@@ -132,8 +124,6 @@ engine.localDiagnostics,robustness,its refusals are named identifiers pinned und
 engine.localDiagnostics,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
 engine.localDiagnostics,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
 engine.localDiagnostics,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path
-engine.makeLoader,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
-engine.makeLoader,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path
 engine.mapreduce,reference,no closed form of its own beyond the dense references its callers are pinned against
 engine.mapreduce,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
 engine.mapreduce,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
@@ -152,8 +142,6 @@ engine.redundancy,speed,covered by the fit-level solve budget (test_speedBudget)
 engine.redundancy,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path
 engine.residuals,precision,the numbers it produces are pinned at the fit level against dense closed forms (test_fit, test_lsqvce*, test_physOracle); the driver adds plumbing, not arithmetic
 engine.residuals,reference,no closed form of its own beyond the dense references its callers are pinned against
-engine.residuals,robustness,its refusals are named identifiers pinned under contract; no numerical edge regime beyond those
-engine.residuals,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
 engine.residuals,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
 engine.residuals,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path
 engine.resolveNc,precision,the numbers it produces are pinned at the fit level against dense closed forms (test_fit, test_lsqvce*, test_physOracle); the driver adds plumbing, not arithmetic
@@ -174,7 +162,6 @@ engine.satKeyOf,robustness,its refusals are named identifiers pinned under contr
 engine.satKeyOf,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
 engine.satKeyOf,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
 engine.satKeyOf,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path
-engine.sharedProbe,reference,no closed form of its own beyond the dense references its callers are pinned against
 engine.sharedProbe,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
 engine.sharedProbe,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path
 engine.snoop,reference,no closed form of its own beyond the dense references its callers are pinned against
@@ -214,8 +201,6 @@ kernel.crossCorr,speed,its cost is inside its caller's budget (test_speedBudget:
 kernel.crossCorr,metamorphic,the invariance that applies (scaling / linearity) is pinned through the caller in test_metamorphic; a second copy per kernel would repeat it
 kernel.dctI,speed,its cost is inside its caller's budget (test_speedBudget: the lag sums; test_instruments: the timing instrument); a standalone budget would pin BLAS, not the toolbox
 kernel.decorrFactor,reference,covered by the metamorphic and precision points of its callers (test_metamorphic / test_vceMath / test_ellmer name the kernel through them); a standalone textbook value would repeat the same arithmetic
-kernel.decorrFactor,robustness,pure array arithmetic with validated shapes; the edge regime (non-PD, non-stationary) is a named refusal pinned under contract
-kernel.decorrFactor,vectorisation,already the vectorised form (matrix ops / FFT); a loop reference would be the slower twin, and the speed budget pins the fast one where it matters (redundancyLags)
 kernel.decorrFactor,speed,its cost is inside its caller's budget (test_speedBudget: the lag sums; test_instruments: the timing instrument); a standalone budget would pin BLAS, not the toolbox
 kernel.decorrFactor,metamorphic,the invariance that applies (scaling / linearity) is pinned through the caller in test_metamorphic; a second copy per kernel would repeat it
 kernel.levinsonDurbin,reference,covered by the metamorphic and precision points of its callers (test_metamorphic / test_vceMath / test_ellmer name the kernel through them); a standalone textbook value would repeat the same arithmetic
@@ -225,7 +210,6 @@ kernel.psd2acv,vectorisation,already the vectorised form (matrix ops / FFT); a l
 kernel.redundancyLags,reference,covered by the metamorphic and precision points of its callers (test_metamorphic / test_vceMath / test_ellmer name the kernel through them); a standalone textbook value would repeat the same arithmetic
 kernel.redundancyLags,metamorphic,the invariance that applies (scaling / linearity) is pinned through the caller in test_metamorphic; a second copy per kernel would repeat it
 kernel.robustWeights,precision,argued in M7: precision does not apply to a kernel unit of this kind
-kernel.robustWeights,robustness,pure array arithmetic with validated shapes; the edge regime (non-PD, non-stationary) is a named refusal pinned under contract
 kernel.robustWeights,vectorisation,already the vectorised form (matrix ops / FFT); a loop reference would be the slower twin, and the speed budget pins the fast one where it matters (redundancyLags)
 kernel.robustWeights,speed,its cost is inside its caller's budget (test_speedBudget: the lag sums; test_instruments: the timing instrument); a standalone budget would pin BLAS, not the toolbox
 kernel.separableWhiten,reference,covered by the metamorphic and precision points of its callers (test_metamorphic / test_vceMath / test_ellmer name the kernel through them); a standalone textbook value would repeat the same arithmetic
@@ -292,7 +276,6 @@ util.verbosity,vectorisation,no loop over observations or lags -- scalar/struct 
 util.verbosity,speed,O(1) per call; no data-sized work to budget
 util.verbosity,metamorphic,no invariance beyond the identity already pinned by its contract
 Options,vectorisation,the user surface loops over nothing data-sized
-Options,metamorphic,the fit-level invariances in test_metamorphic are the user-surface ones (fit named there); Options/Results/report transport them
 Results,vectorisation,the user surface loops over nothing data-sized
 Results,speed,the fit-level solve budget in test_speedBudget is the user-surface budget
 Results,metamorphic,the fit-level invariances in test_metamorphic are the user-surface ones (fit named there); Options/Results/report transport them
@@ -303,28 +286,37 @@ report,robustness,argued in M7: robustness does not apply to a user unit of this
 report,vectorisation,the user surface loops over nothing data-sized
 report,speed,the fit-level solve budget in test_speedBudget is the user-surface budget
 report,metamorphic,the fit-level invariances in test_metamorphic are the user-surface ones (fit named there); Options/Results/report transport them
-engine.declaration,contract,the declaration step of fit: every contract refusal of test_fit / test_errorDoctrine exercises it (they name lsqvce.fit, whose first call is this unit); its own name appears in test_vcePolicy through Results.toTable
 engine.declaration,precision,no arithmetic -- validation and loader construction
 engine.declaration,reference,no closed form -- a declaration parser
 engine.declaration,robustness,its refusals are the named lsqvce:fit:* identifiers pinned under contract in test_fit / test_errorDoctrine
 engine.declaration,vectorisation,no data-sized loop -- one pass over the declaration's fields
 engine.declaration,speed,O(#systems + #rows); its cost is inside fit's solve budget (test_speedBudget)
 engine.declaration,metamorphic,the order-freedom of the declaration (test_fit testDeclarationIsOrderFree) is the invariance that applies; asserted through fit
-layout,metamorphic,its content is the expansion plan already pinned under contract (test_fit, test_streamUtils validity); the invariance that applies -- declaration order-freedom -- is asserted through fit
-layout,robustness,its refusals are the declaration's named lsqvce:fit:* identifiers (it calls lsqvce.engine.declaration)
 layout,speed,O(nc + nl) bookkeeping over the plans; no data-sized work
 layout,vectorisation,no data loop -- a table of (row, day, arc) per column
-engine.localColumns,contract,covered through lsqvce.layout and the local prior groups (test_fit, test_streamUtils name lsqvce.layout / makeLoader Priors which call it); a pure unroll of the plan
-engine.localColumns,precision,no arithmetic -- an index unroll
 engine.localColumns,reference,no closed form -- bookkeeping
 engine.localColumns,robustness,its input is the loader's own plan; no external edge regime
 engine.localColumns,vectorisation,O(nl) bookkeeping, no data-sized loop
 engine.localColumns,speed,O(nl); inside fit's solve budget
 engine.localColumns,metamorphic,the plan's invariances are pinned in test_streamUtils (validity) through the loader
-util.toolboxVersion,contract,pinned through every Results meta.toolboxVersion (test_fit provenance points) and lsqvce_setup
 util.toolboxVersion,precision,a string read
 util.toolboxVersion,reference,none
 util.toolboxVersion,robustness,returns unknown when the line is missing (its only edge)
 util.toolboxVersion,vectorisation,no data
 util.toolboxVersion,speed,one file read
 util.toolboxVersion,metamorphic,none
+engine.BlockAccumulator,metamorphic,batch-partition invariance (1 / 3 / 7 batches give one solve) pinned through lsqvce.fit in test_metamorphic (R7-27: the matrix credits code only; the unit is driven on every block-path solve there but not called by name)
+engine.QRSystem,metamorphic,batch-partition and row-permutation invariance pinned through lsqvce.fit in test_metamorphic (R7-27: the matrix credits code only; the unit is driven on every block-path solve there but not called by name) -- QR is that accumulator's default backend
+engine.batchSystem,metamorphic,batch-partition invariance pinned through lsqvce.fit in test_metamorphic (R7-27: the matrix credits code only; the unit is driven on every block-path solve there but not called by name) -- batchSystem is fit's adapter for the batched and in-memory kinds
+engine.diagnose,metamorphic,row-permutation equivariance of the per-observation diagnostics (testPermutingTheRowsPermutesTheDiagnostics reads R.diag) pinned through lsqvce.fit in test_metamorphic (R7-27: the matrix credits code only; the unit is driven on every block-path solve there but not called by name)
+engine.diagnoseAccum,metamorphic,row-permutation equivariance of R.diag pinned through lsqvce.fit in test_metamorphic (R7-27: the matrix credits code only; the unit is driven on every block-path solve there but not called by name) -- diagnoseAccum is the bridge that builds the replayable source for diagnose
+engine.adjustNonlinear,reference,the dense Gauss-Newton fixed point (exponential decay; x to 1e-8) is pinned through lsqvce.fit in test_fit; the driver is reached only through fit (R7-27: no longer credited from the comment that names it)
+Results,reference,R.x / Cxx / sigma0 against dense references are pinned on the Results lsqvce.fit returns (test_fit / test_adjustBlock); Results holds what the drivers compute -- the one method with arithmetic of its own (compare) has an open finding (R7-19 / WP-118) and gets its reference there
+engine.BlockAccumulator,speed,measured by the benchmark test_speed only, which ci_gate excludes by design (absolute seconds are logged, not asserted -- HANDOVER 6.1.2); no gated ratio budget on this unit yet (R7-27 removed the credit test_speed used to give)
+engine.QRSystem,speed,measured by the benchmark test_speed only, which ci_gate excludes by design (absolute seconds are logged, not asserted -- HANDOVER 6.1.2); no gated ratio budget on this unit yet (R7-27 removed the credit test_speed used to give)
+engine.adjustBlock,speed,measured by the benchmark test_speed only, which ci_gate excludes by design (absolute seconds are logged, not asserted -- HANDOVER 6.1.2); no gated ratio budget on this unit yet (R7-27 removed the credit test_speed used to give)
+engine.makeLoader,speed,measured by the benchmark test_speed only, which ci_gate excludes by design (absolute seconds are logged, not asserted -- HANDOVER 6.1.2); no gated ratio budget on this unit yet (R7-27 removed the credit test_speed used to give)
+kernel.armaACV,speed,measured by the benchmark test_speed only, which ci_gate excludes by design (absolute seconds are logged, not asserted -- HANDOVER 6.1.2); no gated ratio budget on this unit yet (R7-27 removed the credit test_speed used to give)
+kernel.armaWhiten,speed,measured by the benchmark test_speed only, which ci_gate excludes by design (absolute seconds are logged, not asserted -- HANDOVER 6.1.2); no gated ratio budget on this unit yet (R7-27 removed the credit test_speed used to give)
+kernel.levinsonDurbin,speed,measured by the benchmark test_speed only, which ci_gate excludes by design (absolute seconds are logged, not asserted -- HANDOVER 6.1.2); no gated ratio budget on this unit yet (R7-27 removed the credit test_speed used to give)
+kernel.psd2acv,speed,measured by the benchmark test_speed only, which ci_gate excludes by design (absolute seconds are logged, not asserted -- HANDOVER 6.1.2); no gated ratio budget on this unit yet (R7-27 removed the credit test_speed used to give)

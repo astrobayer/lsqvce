@@ -294,6 +294,48 @@ case('9 no block-spec literal at all fires', audit.check_spec_fields, 'spec',
                 ('+lsqvce/fit.m', '+lsqvce/+engine/private/normalizeSystems.m')])
 
 
+# ---- 16 (R7-27): the matrix credits code in gated suites only ------------
+def credit_by_comment_only(d):
+    # strip every code reference to lsqvce.engine.resolveNc from the suites,
+    # leaving a comment that names it: the contract cell must open
+    for f in audit.pglob(os.path.join(d, 'dev/tests/test_*.m')):
+        s = open(f, encoding='utf-8').read()
+        if 'lsqvce.engine.resolveNc(' in s:
+            s = s.replace('lsqvce.engine.resolveNc(', 'zzzGone(')
+            open(f, 'w', encoding='utf-8').write(s)
+    append(os.path.join(d, 'dev/tests/test_zzz_selftest.m'),
+           'function tests = test_zzz_selftest\n'
+           '    tests = functiontests(localfunctions);\nend\n'
+           'function testOnlyAComment(tc)\n% categories: contract\n'
+           '    % lsqvce.engine.resolveNc is named here, never called\n'
+           '    tc.verifyTrue(true);\nend\n')
+
+
+def credit_from_excluded_suite(d):
+    for f in audit.pglob(os.path.join(d, 'dev/tests/test_*.m')):
+        s = open(f, encoding='utf-8').read()
+        if 'lsqvce.engine.resolveNc(' in s:
+            open(f, 'w', encoding='utf-8').write(
+                s.replace('lsqvce.engine.resolveNc(', 'zzzGone('))
+    append(os.path.join(d, 'dev/tests/test_speed.m'),
+           '\nfunction testZzzSpeedOnly(tc)\n% categories: contract\n'
+           '    lsqvce.engine.resolveNc({struct(\'nc\', 1)});\nend\n')
+
+
+case('16 a unit credited only by a comment fires', audit.check_test_categories, 'cat',
+     credit_by_comment_only)
+case('16 a unit credited only by the excluded benchmark fires', audit.check_test_categories,
+     'cat', credit_from_excluded_suite)
+case('16 a stale exemption row fires', audit.check_test_categories, 'cat',
+     lambda d: append(os.path.join(d, 'dev/tests/category_exemptions.csv'),
+                      'kernel.robustWeights,contract,zzz selftest\n'))
+case('16 a contract exemption for a validating unit fires', audit.check_test_categories,
+     'cat', lambda d: append(os.path.join(d, 'dev/tests/category_exemptions.csv'),
+                             'engine.runMeta,contract,zzz selftest\n'))
+case('16 a duplicated exemption row fires', audit.check_test_categories, 'cat',
+     lambda d: append(os.path.join(d, 'dev/tests/category_exemptions.csv'),
+                      'engine.QRSystem,speed,zzz twice\n'))
+
 def main():
     failures = 0
     print('audit self-test: %d cases' % len(CASES))
