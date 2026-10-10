@@ -623,6 +623,9 @@ end
         % stopped "converged" on pass 1 under the DECLARED weights, and prior
         % groups were never updated. The stop rule now also needs every arc's
         % factor to have settled: max |sigma2_new / sigma2_old - 1| <= Tol.
+        if numel(s2Prev) ~= numel(sigma2)        % pass 1 without Sigma2_0: the start is all ones
+            s2Prev = ones(size(sigma2));
+        end
         okL = isfinite(sigma2) & isfinite(s2Prev) & s2Prev > 0;
         levelDev = 0;
         if any(okL), levelDev = max(abs(sigma2(okL) ./ s2Prev(okL) - 1)); end
