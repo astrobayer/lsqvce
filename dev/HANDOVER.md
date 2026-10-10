@@ -8248,3 +8248,10 @@ diagnose/snoop rewrite; (b) keep R but over the COMMONS only and correct per row
 Schur blocks (smaller change, keeps diagnose's structure; snoop stays full-width and is
 refused above a size); (c) stop at part 1.
 
+**Part 1, CI round 1 (b0bee47): RED, 432/605 -- every test through `diagnoseAccum`
+failed.** Cause, found by reading the code (the gate's summary carries no message):
+`struct(..., 'index', index, ...)` with `index` a K x 5 CELL makes MATLAB expand the
+call into a K x 5 struct ARRAY -- the struct()-cell pitfall the Manual names (ch. 3
+§2.4) and that fit.m's arcKeys line already guards against. Fixed with `{index}`. No
+other struct() call in the unit takes a cell value.
+

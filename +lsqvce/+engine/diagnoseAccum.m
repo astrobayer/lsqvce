@@ -136,8 +136,9 @@ function [diagSol, batchFcn, nBatch] = diagnoseAccum(acc, sol)
     % full-width batch was stored -- n x uFull doubles inside the Results,
     % ~228 GB for one GRAVFIRE-scale month.
     [Rfull, n, index] = enumerateBatches(stores, sysIds, localOffset, localCount, nc, uFull);
+    % braces around the cells: a cell VALUE, not a struct array (the struct()-cell pitfall)
     src = struct('stores', {stores}, 'localOffset', localOffset, 'localCount', localCount, ...
-                 'nc', nc, 'uFull', uFull, 'index', index, 'prior', [], ...
+                 'nc', nc, 'uFull', uFull, 'index', {index}, 'prior', [], ...
                  'cache', containers.Map('KeyType', 'char', 'ValueType', 'any'));
     % R5 M5 5b: the common-block PRIOR is one more batch of pseudo-observations
     % (rows K/sigma on the common columns, observations x0/sigma), so the hat
