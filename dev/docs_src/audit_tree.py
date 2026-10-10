@@ -93,6 +93,7 @@ def strip_matlab(line):
     """Blank out comments and string literals, keeping transposes intact."""
     out = []
     i, n, instr = 0, len(line), None
+    cat = 0                       # depth of [ ] / { } -- concatenation context
     while i < n:
         c = line[i]
         if instr:
@@ -115,13 +116,24 @@ def strip_matlab(line):
             while j >= 0 and out[j] == ' ':
                 j -= 1
             prev = out[j] if j >= 0 else ''
-            if re.match(r"[\w\)\]\}\.']", prev):
+            # Inside [ ] or { } whitespace SEPARATES elements, so a quote
+            # after a blank opens a string: ['^' f(x) '$'] is three
+            # elements, not a transpose of f(x). Read as a transpose, the
+            # '$' literal leaked its brackets into the balance count and
+            # test_fit.m looked unbalanced the day check 7 first saw dev/tests
+            # (R7-26).
+            spaced = j < len(out) - 1
+            if re.match(r"[\w\)\]\}\.']", prev) and not (cat > 0 and spaced):
                 out.append("'")            # transpose
             else:
                 instr = "'"
                 out.append(' ')
             i += 1
             continue
+        if c in '[{':
+            cat += 1
+        elif c in ']}':
+            cat = max(cat - 1, 0)
         out.append(c)
         i += 1
     return ''.join(out)
@@ -160,7 +172,7 @@ def check_removed_names():
     removed = ['SeparableProblem', 'covModelFactory', 'fromAccum', 'psdIterate',
                'descaledResidualAcv', 'maxLagCorr', 'selectAROrder',
                'vceGroupsBy', 'coalesceOpt']
-    for d in ('+lsqvce', 'tests', 'examples'):
+    for d in ('+lsqvce', 'dev/tests', 'examples'):
         for f in pglob(d + '/**/*.m', recursive=True):
             for k, s in code_lines(f):
                 for nm in removed:
@@ -179,7 +191,7 @@ def check_removed_names():
             'was SeparableProblem')
     dead = re.compile(r'SeparableProblem|SEPARABLEPROBLEM|LSQVCE\.RECOVER'
                       r'|lsqvce\.recover\b', re.I)
-    for d in ('+lsqvce', 'tests', 'examples'):
+    for d in ('+lsqvce', 'dev/tests', 'examples'):
         for f in pglob(d + '/**/*.m', recursive=True):
             for k, raw in enumerate(open(f, encoding='utf-8',
                                          errors='replace').read().split('\n'), 1):
@@ -197,7 +209,7 @@ def check_signatures():
     print('\n3. entry-point signatures')
     # nc was removed as a leading argument on 2026-07-18.
     pat = re.compile(r'\badjust(?:Block|VCE)\s*\(\s*(?:nc\b|\d+\s*,)')
-    for d in ('+lsqvce', 'tests', 'examples'):
+    for d in ('+lsqvce', 'dev/tests', 'examples'):
         for f in pglob(d + '/**/*.m', recursive=True):
             for k, s in code_lines(f):
                 if pat.search(s):
@@ -215,9 +227,15 @@ def check_signatures():
     # Only warn when adjustBlock ACTUALLY still derives nc before validating,
     # so the check reports the defect and goes quiet once it is fixed. A check
     # that cries wolf on a healthy tree gets ignored (HANDOVER §4d).
+    # The entry point moved to +engine (R4); the check read the old path for
+    # years and saw an empty source, so it could never fire (R7-26). A
+    # missing target is now a finding, not a silent pass.
+    ab = os.path.join('+lsqvce', '+engine', 'adjustBlock.m')
     src = ''
-    if os.path.exists('+lsqvce/adjustBlock.m'):
-        src = '\n'.join(s for _, s in code_lines('+lsqvce/adjustBlock.m'))
+    if os.path.exists(ab):
+        src = '\n'.join(s for _, s in code_lines(ab))
+    else:
+        note('signature', '%s is missing -- check 3 has nothing to read' % ab)
     i_nc = src.find('resolveNc')
     i_norm = src.find('normalizeSystems(')
     derives_first = (0 <= i_nc < i_norm) if (i_nc >= 0 and i_norm >= 0) else False
@@ -341,7 +359,7 @@ def check_balance():
     OPEN = {'function', 'if', 'for', 'while', 'switch', 'try', 'parfor',
             'classdef', 'methods', 'properties', 'arguments', 'enumeration',
             'events', 'spmd'}
-    for d in ('+lsqvce', 'tests', 'examples'):
+    for d in ('+lsqvce', 'dev/tests', 'examples'):
         for f in pglob(d + '/**/*.m', recursive=True):
             depth = bdepth = 0
             for _, s in code_lines(f):
@@ -411,13 +429,16 @@ def check_spec_fields():
     # `specs(i) = struct(...)` when the field sets differ, and it does so at RUN
     # time -- nothing catches it until the loop executes. Adding 'name' on
     # 2026-07-19 updated two of the four and broke demo_messaging.
+    #
+    # The two files it named were moved or deleted at R4/L8, so the check
+    # read nothing and printed "0 definition(s), one field list" (R7-26).
+    # It now sweeps the package -- the inventory is the tree -- and finding
+    # no definition at all is itself a finding.
     pat = re.compile(r"struct\(\s*((?:'[A-Za-z_]\w*'\s*,[^;]*?))\)", re.S)
     sets = {}
-    for f in ('+lsqvce/adjustBlock.m', '+lsqvce/adjustVCE.m'):
-        if not os.path.exists(f):
-            continue
+    for f in sorted(pglob('+lsqvce/**/*.m', recursive=True)):
         raw = open(f, encoding='utf-8', errors='replace').read()
-        for m in re.finditer(r"^[^%\n]*\b(?:tmpl|specs\(i\)|s)\s*=\s*struct\(",
+        for m in re.finditer(r"^[^%\n]*\b(?:tmpl|specs?)(?:\([^)\n]*\))?\s*=\s*struct\(",
                              raw, re.M):
             seg = raw[m.end() - 7:]
             mm = pat.match(seg)
@@ -432,9 +453,13 @@ def check_spec_fields():
         for names, where in sets.items():
             note('spec', 'block-spec fields %s at %s'
                  % (', '.join(names), '; '.join(where)))
+    elif not sets:
+        note('spec', 'no block-spec struct literal (sysID + dayList) found '
+             'under +lsqvce -- check 9 has nothing to compare')
     else:
-        n = len(next(iter(sets.values()))) if sets else 0
-        print('   %d definition(s), one field list' % n)
+        where = next(iter(sets.values()))
+        print('   %d definition(s), one field list: %s'
+              % (len(where), '; '.join(where)))
 
 
 def check_dedup_lock():
@@ -447,7 +472,7 @@ def check_dedup_lock():
     pat = re.compile(r'^\s*function\s+(?:(?:\[[^\]]*\]|[\w~]+)\s*=\s*)?'
                      r'(makeKeyFcn|arcBatchWhiten)\s*\(', re.M)
     hits = {}
-    for d in ('+lsqvce', 'tests', 'examples'):
+    for d in ('+lsqvce', 'dev/tests', 'examples'):
         for f in pglob(d + '/**/*.m', recursive=True):
             raw = open(f, encoding='utf-8', errors='replace').read()
             code = '\n'.join(l for l in raw.split('\n')
@@ -477,7 +502,7 @@ def check_duplicate_functions():
     # the function name ('testFoo(' -> 'o'), so every file looked duplicated.
     pat = re.compile(r'^\s*function\s+(?:(?:\[[^\]]*\]|[\w~]+)\s*=\s*)?'
                      r'([A-Za-z]\w*)\s*\(')
-    for d in ('+lsqvce', 'tests', 'examples'):
+    for d in ('+lsqvce', 'dev/tests', 'examples'):
         for f in pglob(d + '/**/*.m', recursive=True):
             raw = open(f, encoding='utf-8', errors='replace').read()
             names = []
@@ -513,7 +538,7 @@ def check_deprecated_words():
                       r'ylabel|fprintf)\s*\(')
     dead = re.compile(r"\b(SCALE|SHAPE|GATE|SOLVE|OUTER PASS|both gates)\b")
     allow = ('verbosity.m',)          # its help QUOTES the retired form
-    for d in ('+lsqvce', 'tests', 'examples'):
+    for d in ('+lsqvce', 'dev/tests', 'examples'):
         for f in pglob(d + '/**/*.m', recursive=True):
             if os.path.basename(f) in allow:
                 continue
@@ -656,7 +681,7 @@ def check_h1_names():
     # 2026-07-19 separable->grace rename this way (demo_grace_dataLoader,
     # demo_grace, test_adjustVCE), because check 2 guards removed FUNCTION
     # names in code, not the prose of an H1 line.
-    for d in ('+lsqvce', 'tests', 'examples', 'template'):
+    for d in ('+lsqvce', 'dev/tests', 'examples', 'template'):
         for f in sorted(pglob(d + '/**/*.m', recursive=True)):
             name = os.path.splitext(os.path.basename(f))[0]
             if name == 'Contents':

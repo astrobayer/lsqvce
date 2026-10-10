@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-09-21 — WP-110 OPEN on `claude/wp-110` (tier B, model Claude Opus 5): acting on §12.33's finding began by measuring it, and the measurement REFUTED its consequence — the collapse guard does fire, the half-sample bound is just a restatement of being below breakdown, and the guard is a model-error detector (a bodily residual offset) rather than the 50 % breakdown detector its message claimed. The 6.1.2 claim is withdrawn in the 6.1.3 notes. Issue #110 test 6 closed with the arc-scoped prior fixture; version **6.1.3**; §12.34.
+Last substantive update: 2026-10-09 — REVIEW R7 recorded (§12.35, findings R7-01…R7-46, WPs 111–118 proposed, none opened by the user yet); WP-117 part 1 OPEN on `ccr-e0276092-1b95jg` (tier B, model Claude Opus 5.5): R7-26 fixed — seven audit checks sweep `dev/tests` again, checks 3 and 9 read live files and fail closed, nine fault cases prove it; §12.36.
+Preceding entry: Last substantive update: 2026-09-21 — WP-110 OPEN on `claude/wp-110` (tier B, model Claude Opus 5): acting on §12.33's finding began by measuring it, and the measurement REFUTED its consequence — the collapse guard does fire, the half-sample bound is just a restatement of being below breakdown, and the guard is a model-error detector (a bodily residual offset) rather than the 50 % breakdown detector its message claimed. The 6.1.2 claim is withdrawn in the 6.1.3 notes. Issue #110 test 6 closed with the arc-scoped prior fixture; version **6.1.3**; §12.34.
 Preceding entry: Last substantive update: 2026-09-20 — WP-109 OPEN on `claude/wp-109` (tier B, model Claude Opus 5): the PDF Manual's version surface gets its first gate (check 29; the rebuild was justified by MEASURING the old binary's toolchain, not by asserting it), issue #110's tests 3–6 land with every margin measured in its own run, and a FINDING is recorded — the collapse guard can fire only for n < 2(nc+1), so on a real fit it cannot fire at all; version **6.1.2**; §12.33.
 Preceding entry: Last substantive update: 2026-09-20 — WP-108 OPEN on `claude/wp-108` (issue #110, tier B, model Claude Opus 5): the stand-alone IRLS stopped re-weighting local prior groups. The finding was MEASURED on CI before it was fixed — two red runs, the second discriminating — and all three of its consequences are real; version **6.1.1**; §12.32.
 Preceding entry: Last substantive update: 2026-09-19 — WP-107 DONE (PR #108, merge 21e470d; CI on the PR green 547/547); **tag `v6.1.0`** annotated on the merge commit, GitHub release published, issue #107 closed; §12.31.
@@ -7641,3 +7642,98 @@ five times larger — for the reason WP-108 paid to learn: a tight prior would
 pin the local whether or not the data were rejected.
 
 **Version 6.1.3**; counts 570 → 576 declared, 558 → 564 executed.
+
+### 12.35 REVIEW R7 (2026-10-09, model Claude Opus 5.5, tier B) — four-lane review of 6.1.3, findings only
+
+**Origin.** The user's request: "Review the toolbox. Look for weakness and errors. Use
+skills available for the review." Run under the scientific-toolbox-discipline review
+roles: two software-engineering lanes (code/interfaces; tests/gate/audit) and two
+domain lanes (joint VCE estimator; linear model, solvers, robust, Gauss–Newton,
+diagnostics), in parallel, findings only. **No code under `+lsqvce/` changed.**
+
+**The report is the record**, attached and not paraphrased here:
+`dev/reviews/R7_2026-10-09/README.md` (index, 46 findings R7-01…R7-46, checked-and-sound,
+proposed WPs) + the four lane reports + their Python mirrors (`mirrors/`).
+
+**Instruments.** `audit_tree.py` CLEAN (29 checks, pandoc present); `audit_selftest.py`
+all faults caught; own parse 576 declared / 564 executed = §12.34. Tier B: every
+REPRODUCED claim is a Python mirror of the MATLAB arithmetic, not a MATLAB run — the
+first step of each WP below is the tier-A reproduction.
+
+**Headline (S1, silently wrong numbers — twelve rows, four places):**
+
+| place | findings |
+|---|---|
+| PSD law → covariance | R7-01 the whitener's ACV is circulant (r(m−1) = r(1) / r(0)); R7-02 ortho inverse DCT vs plain cosine re-synthesis → negative bins → runaway level with "converged" |
+| where QR elimination happens | R7-03 `QRSystem.blocks` → `R1'R1` → `chol`: cond(A)² on the default path |
+| priors / Gauss–Newton | R7-04 prior on the increment in nonlinear fits; R7-05 datum Cxx depends on the datum σ |
+| robust × correlated × multi-axis, joint policy | R7-06 `%g` row-weight keys collide for day ids ≥ 1e6; R7-07 `var` + noise; R7-08 uncentred multi-axis epoch statistic zeroes clean data; R7-09 cross-stream γ̄; R7-10 Koch fold under correlated laws; R7-11 no-law runs stop on pass 1; R7-12 robust level bias |
+
+**Corrections to earlier records found by R7:** §12.29 round 4 "RMS epoch statistic
+adequate" (R7-08); WP-100 Q1 for multi-stream runs (R7-09); WP-105 "unbiased" and
+"filter adapts around it" (R7-10, R7-12); §12.14 E-10 "surviving ids pinned" (R7-28);
+WP-110 corrected `adjustRobust` only — the retired claim lives on in `adjustVCEjoint`
+(R7-25); DEVELOPMENT.md:460–473 as applied to `BlockAccumulator` (R7-03); seven audit
+checks have scanned a deleted `tests/` folder since L8 (R7-26).
+
+**Proposed work packages (NOT opened — the user decides order and scope):**
+WP-111 PSD → covariance path · WP-112 QR on the accumulator path · WP-113 Gauss–Newton ·
+WP-114 priors without a second path · WP-115 robust conventions · WP-116 joint-loop
+policy · WP-117 instruments · WP-118 docs truth and hygiene. Scope, findings and oracle
+per WP: the report's last table.
+
+**Decisions needed:** (a) R7-13 arc factors in the weighting, or Manual §7.8 corrected;
+(b) R7-10 multiplicative Koch fold vs deletion / additive nugget; (c) §12.34's collapse
+threshold, plus R7-25's epoch-vs-row unit; (d) WP-86 (memory) pulled forward for R7-24.
+
+**What the next session could be wrong for not reading.** (1) The mirrors are evidence
+of mechanism, not MATLAB results: reproduce at tier A before changing code. (2) The
+§12.20 runaway item now has a mechanism (R7-02) and a "converged" verdict on it. (3) The
+audit's CLEAN line does not cover `dev/tests` until WP-117 lands. (4) The repository now
+lives at `astrobayer/lsqvce` (GitHub redirects the old `matweigelt/lsqvce` URL); the project
+PAT stored with the chat returned 403 on the API, while the session's git proxy pushed —
+check which credential a session holds before relying on the PAT.
+
+### 12.36 WP-117 part 1 — the audit sees `dev/tests` again (R7-26) (2026-10-09, model Claude Opus 5.5, tier B)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 117 (part 1) | R7-26: checks 2, 3, 7, 10, 10b, 11, 15 sweep `dev/tests` instead of the `tests/` folder deleted at L8; check 3 reads `+lsqvce/+engine/adjustBlock.m`, check 9 sweeps `+lsqvce` for the block-spec literals (`fit.m` ×2, `normalizeSystems.m`); both fail CLOSED when their target is gone; the quote scanner reads `['^' f(x) '$']` as three elements; nine fault cases on a test file | R7 (§12.35) | OPEN (2026-10-09, branch `ccr-e0276092-1b95jg`; audit CLEAN, self-test all cases caught; CI pending; no `+lsqvce` change, so no version bump) |
+
+**Why.** §12.35 R7-26 (REPRODUCED by the review's fault injection): since L8
+seven audit checks iterated `('+lsqvce', 'tests', 'examples')` and `tests/`
+no longer exists, so no test file was checked, and check 9 read two deleted
+files and printed "0 definition(s), one field list" as a pass. The same lesson
+as before: the inventory is the tree, never a hand-picked list.
+
+**What changed (`dev/docs_src/audit_tree.py`).**
+- The seven sweeps read `dev/tests`.
+- Check 3's second half reads `+lsqvce/+engine/adjustBlock.m` (moved in R4); a
+  missing file is a finding.
+- Check 9 sweeps `+lsqvce/**` for `tmpl|spec(s)(…) = struct(` literals that carry
+  `sysID` and `dayList`; it finds three today (`normalizeSystems.m:24`,
+  `fit.m:350`, `fit.m:357`), all with one field list. None found is a finding.
+  `BlockAccumulator.systemStore`'s info struct is not a spec and is not matched.
+- `strip_matlab`: inside `[ ]` / `{ }` a quote after whitespace opens a string
+  (MATLAB's element-separator rule). Without it `test_fit.m:1304`
+  `['^' regexptranslate(…) '$']` read as a transpose, and the first run of
+  check 7 over `dev/tests` reported three FALSE imbalances (`test_fit`,
+  `test_vcePolicy`, `run_all_lsqvce`) — all three gone with this one rule.
+
+**The instrument is proven, not asserted (`audit_selftest.py`).** Nine new
+cases: a duplicate local function, an unbalanced `end`, a removed name, a wrong
+H1 and a leading `nc` — each injected into `dev/tests/test_util.m`; a missing
+`adjustBlock`; a diverging and an absent block-spec literal; and the
+`['^' f(x) '$']` silence case. Discrimination: run against the PRE-fix
+`audit_tree.py`, **8 of the 9 fail** (the silence case passes on both, as it
+must); against the fixed one all pass, healthy copies silent.
+
+**Not in this part (the rest of WP-117 stays open):** R7-27 (check 16 from code
+lines and gated suites, stale exemptions), R7-28 ids, R7-29 the cannot-fail
+test, R7-30 warning mutes, R7-31 `tol:` sources, R7-32 fault cases for every
+check (checks 10b and 11 now sweep `dev/tests` but still have no fault case),
+R7-33 §6.1, R7-42, R7-45. Those touching `.m` suites need the gate run.
+
+**Branch note.** The cloud harness designated `ccr-e0276092-1b95jg` for this
+session, not `claude/wp-117`; recorded so the one-WP-one-branch rule's
+exception is visible.
