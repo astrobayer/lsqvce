@@ -165,7 +165,7 @@ function out = synthLoader(cfg, sat, day, obsType, arcID, opt)
     % batch. The flat shape opt.covOverride.(obsType) keeps working.
     cm = cfg.cov.(obsType);
     if isfield(opt,'covOverride')
-        cm = applyCovOverride(cm, opt.covOverride, obsType, opt);
+        cm = applyCovOverride(cm, opt.covOverride, obsType, opt, day, arcID);   % R7-13: + the per-arc factor
     end
 
     [out.Cfcn, out.Wfcn, info] = lsqvce.engine.covModel(cm, out.t, opt);

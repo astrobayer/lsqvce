@@ -21,3 +21,6 @@ beyond the breakdown point,WP-110,the collapse guard was said to detect >50 % co
 level it returns is UNBIASED,R7-12 (WP-115),the robust pass's level was called unbiased; disputed and open since R7
 No consistency correction is needed,R7-12 (WP-115),the Manual's conclusion from the disputed cancellation argument
 beyond the breakdown point of,R7-25 (WP-115),the joint loop's collapsed message repeated the claim WP-110 retired
+never fed back into the weighting,R7-13 (WP-116),per-arc factors were estimated but only the stream mean weighted the solve (they weight it since 6.1.6)
+only their \*\*stream mean\*\* reaches the weighting,R7-13 (WP-116),the Manual's statement of the same gap
+split one scale by a convention,R7-13 (WP-116),level and arc factor were said to split by gamma-bar; the factors are absolute since 6.1.6

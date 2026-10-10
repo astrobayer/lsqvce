@@ -111,7 +111,7 @@ merged onto the defaults; an unknown field is refused (`lsqvce:Options:badGroupF
 |---|---|---|
 | `Grid` | 60 | frequencies (lags) of the estimated shape; an integer ≥ 2, and ≥ the longest arc for an exact law. `"auto"` was documented until v5.3 and never implemented; it is refused now (R6 WP-101) |
 | `Whitener` | `"toeplitz"` | how a PSD law whitens an arc: exact Toeplitz Cholesky, or an AR / ARMA filter fitted to it (`"ar"`, `"arma"`: O(m·p) instead of O(m²)) |
-| `MeanType` | `"robust"` | the normalising mean of the arc factors: trimmed (`"robust"`) or plain |
+| `MeanType` | `"robust"` | gamma-bar, the mean of the arc factors: trimmed (`"robust"`) or plain. Since 6.1.6 the factors are absolute and gamma-bar sets only the scale of their clamp floor (§7.8 item 3) |
 | `Smooth` | 0 | moving-average half-width on the estimated PSD (0 = none) |
 | `FreezeRedundancy` | 1 | a frequency whose redundancy is below this holds its value instead of being updated |
 | `SkipThreshold` | 0.2 | the skip *rate* (arcs the sweep could not process / arcs of the stream) above which the pass is refused rather than silently thinned |

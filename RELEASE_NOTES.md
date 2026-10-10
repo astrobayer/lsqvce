@@ -1,5 +1,26 @@
 # lsqvce release notes
 
+## 6.1.6 — 2026-10-10 (R7 WP-116 part 2: the arc factors weight the solve)
+
+Behaviour change for every `Estimate = "noise"` run with `ArcFactors = true`; no declaration
+changes.
+
+- **Per-arc factors weight the solve (R7-13, user decision: Ellmer's convention).** Until
+  now an arc's estimated factor was reported but only its stream's mean reached the
+  weighting, so a bad arc kept its stream's weight. Each arc now enters the next pass with
+  its own variance (stream level × arc factor), and the update (eq. 6.5.28) multiplies by
+  that same factor. Measured on one arc 10× in sigma among nine, beside two other streams
+  (16 seeds): the true scatter of the estimated parameters is 13–47 % smaller.
+- **Arc factors are absolute — a 6.1.5 regression fixed.** The 6.1.5 per-stream form,
+  (gamma2_m / gamma-bar_s²) · mean(gamma2_s), counted a stream's level twice as soon as its
+  arcs differ: on the fixture above the factors came back 1176 / 11.65 against the planted
+  100 / 1, and the other stream's level 30 % low. A factor is now the arc's Helmert factor
+  gamma2_m itself (100.0 / 1.00). 6.1.5's own fixtures had homogeneous arcs and could not
+  see it. `Noise.MeanType` (gamma-bar) now sets only the scale of the clamp floor.
+- A caller driving `lsqvce.engine.adjustVCEjoint` with its own accFcn must apply
+  `model.arcFactor` (`lsqvce.engine.jointModelOpt` does, as `covOverride.byArc`); one that
+  drops it gets compounding factors and the `arcFactorsDiverging` warning.
+
 ## 6.1.5 — 2026-10-10 (R7 WP-116 part 1: the joint-loop policy)
 
 Behaviour changes in `Estimate = "noise"` runs; no declaration changes.

@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.1.5 — User Manual</title>
+  <title>lsqvce 6.1.6 — User Manual</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.1.5 — User Manual</h1>
+<h1 class="title">lsqvce 6.1.6 — User Manual</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 <p class="date">built from the sources; the single documentation
@@ -506,15 +506,14 @@ spectral shape (<code>"law"</code> is refused,
 decides which streams SHARE one estimated spectral shape; every stream
 keeps its own level. To read an arc’s standard deviation back, use all
 three terms: <strong>declared sigma × sqrt(arc factor) ×
-<code>R.sigma0</code></strong> — the level and the factor split one
-scale by a convention (eq. 6.5.30’s <code>gammaBar</code>) and
-<code>sigma0</code> carries the rest, as in any GLS adjustment; measured
-on a fixture planted at 0.5 / 1.5 / 0.5, that reconstruction gives 0.517
-/ 1.499 / 0.507 (R6 WP-100). (R6 finding F-01, fixed in WP-98: eq.
-6.5.28 multiplies by the factor the weighting used, so the ratio now
-settles across passes — 9.4 / 8.6 / 8.6 / 8.6 against a planted 9, where
-before it grew by 8.4x every pass. Runs with
-<code>arcFactors = false</code> are unchanged.)</li>
+<code>R.sigma0</code></strong>. Since 6.1.6 the factor is the arc’s
+absolute Helmert factor and <strong>weights the solve</strong> (review
+R7-13), so <code>sigma0</code> settles near 1 and carries only what no
+component absorbed, as in any GLS adjustment (§7.7, §7.8 item 2). (R6
+finding F-01, fixed in WP-98: eq. 6.5.28 multiplies by the factor the
+weighting used, so the factors settle across passes instead of growing
+8.4x a pass. Runs with <code>arcFactors = false</code> are
+unchanged.)</li>
 <li><strong>The per-pass inspection hook</strong> —
 <code>Options.OnPass = @(ctx)</code> receives, after every pass of every
 iterative run, the pass state, the live accumulator,
@@ -1777,8 +1776,10 @@ instead of O(m²))</td>
 <tr class="odd">
 <td><code>MeanType</code></td>
 <td><code>"robust"</code></td>
-<td>the normalising mean of the arc factors: trimmed
-(<code>"robust"</code>) or plain</td>
+<td>gamma-bar, the mean of the arc factors: trimmed
+(<code>"robust"</code>) or plain. Since 6.1.6 the factors are absolute
+and gamma-bar sets only the scale of their clamp floor (§7.8 item
+3)</td>
 </tr>
 <tr class="even">
 <td><code>Smooth</code></td>
@@ -2179,14 +2180,12 @@ class="header-section-number">5.2</span> lsqvce.Options</h2>
                                   TO READ AN ARC&#39;S STANDARD DEVIATION back,
                                   use all three terms (R6 WP-100):
                                     declared sigma * sqrt(factor) * R.sigma0
-                                  -- the level and the factor split one scale
-                                  by a convention (eq. 6.5.30&#39;s gammaBar) and
-                                  sigma0 carries the rest, as in any GLS
-                                  adjustment. MEASURED on a fixture planted at
-                                  0.5 / 1.5 / 0.5: 0.517 / 1.499 / 0.507.
-                                  (R6 F-01, fixed in WP-98: the ratio settles
-                                  across passes, 9.4 / 8.6 / 8.6 / 8.6 against
-                                  a planted 9; before it grew 8.4x a pass.)
+                                  -- since 6.1.6 the factor is the arc&#39;s
+                                  ABSOLUTE Helmert factor and weights the
+                                  solve (R7-13), so sigma0 settles near 1.
+                                  (R6 F-01, fixed in WP-98: the factors
+                                  settle across passes; before they grew
+                                  8.4x a pass.)
     Robust     &quot;none&quot; | &quot;huber&quot; | &quot;igg3&quot; | &quot;bisquare&quot;   IRLS on the same
                                   loop, every kind (details in RobustOpts).
                                   With Estimate &quot;noise&quot; the robust pass runs
@@ -2243,7 +2242,7 @@ class="header-section-number">5.2</span> lsqvce.Options</h2>
                                      an integer &gt;= 2, at least the longest arc
                                      for an exact law (&quot;auto&quot; is refused)
                  Whitener &quot;toeplitz&quot;|&quot;ar&quot;|&quot;arma&quot;  how a PSD law whitens (v4 PsdMode)
-                 MeanType &quot;robust&quot;|&quot;plain&quot;        arc-factor normalisation
+                 MeanType &quot;robust&quot;|&quot;plain&quot;        gamma-bar: the clamp floor&#39;s scale
                  Smooth 0                         moving average on the PSD
                  FreezeRedundancy 1               components below it hold
                  SkipThreshold 0.2                skip RATE that refuses the pass
@@ -2287,6 +2286,10 @@ class="header-section-number">5.2</span> lsqvce.Options</h2>
 
   See also LSQVCE.FIT, LSQVCE.RESULTS, the Manual, chapter 3, RELEASE_NOTES.md
 
+  Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-116 part 2 (R7-13): the arc
+  factors are absolute and weight the solve; MeanType&#39;s remaining role
+  (the clamp floor&#39;s scale) stated. With assistance from Claude
+  (Anthropic), model Claude Opus 5.5.
   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-105: Robust is forwarded to
   the joint estimator as its &#39;Influence&#39; (with RobustOpts.Tuning). With
   assistance from Claude (Anthropic), model Claude Fable 5.1.
@@ -3037,15 +3040,18 @@ class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb26-1"><a h
 <span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a><span class="va">R</span>.<span class="va">convergence</span>()<span class="op">;</span> <span class="va">R</span>.<span class="va">plot</span>(<span class="st">&quot;psd&quot;</span>)<span class="op">;</span> <span class="va">R</span>.<span class="va">plot</span>(<span class="st">&quot;convergence&quot;</span>)<span class="op">;</span></span></code></pre></div>
 <p>An arc’s standard deviation is <strong>all three terms</strong>:
 declared <code>sigma</code> × sqrt(arc factor) × <code>R.sigma0</code>.
-Since 6.1.5 the gamma-bar normalisation (Ellmer eq. 6.5.29–30) is formed
-<strong>per stream</strong>, and an arc-factor stream’s factors carry
-that stream’s own absolute level (the same Helmert mean a stream without
-arc factors gets), so sigma0 settles near 1. Before, gamma-bar was
-formed over every stream’s arcs at once, and one stream’s reconstructed
-sigma moved with <em>another</em> stream’s truth (review R7-09: 1.01 /
-0.79 / 1.15 as only the other stream’s truth changed). Measured on a
-one-stream fixture planted at 0.5 / 1.5 / 0.5: 0.517 / 1.499 / 0.507.
-With <code>sigma = 1</code> and a <code>Cep</code> carrying the absolute
+Since 6.1.6 an arc factor is the arc’s <strong>absolute</strong> Helmert
+factor (Ellmer eq. 6.5.28) — the same number a stream without arc
+factors averages into its level — so sigma0 settles near 1 and a
+stream’s level is the mean of its factors. Ellmer normalises the factors
+by gamma-bar (eqs. 6.5.29–30) because his PSD carries the level; here
+the law is a shape, so the level has to stay in the factors. Two earlier
+forms were wrong: gamma-bar over every stream’s arcs tied one stream’s
+sigma to <em>another</em> stream’s truth (review R7-09: 1.01 / 0.79 /
+1.15 as only the other stream changed), and the 6.1.5 per-stream form
+counted the level twice as soon as a stream’s arcs differ (one arc 10×
+in sigma among nine: 1176 / 11.65 against the planted 100 / 1). With
+<code>sigma = 1</code> and a <code>Cep</code> carrying the absolute
 accuracy, that product reads directly as “by how much the
 preprocessing’s covariance was too optimistic on this arc”.</p>
 <p>The acceptance of the estimator is physical, and its two halves are
@@ -3070,15 +3076,22 @@ segments shorter than one hour are discarded). Nothing in the adjustment
 replaces that.</li>
 <li><strong>The arc-wise variance factors</strong> are Ellmer’s
 down-weighting at arc granularity: a bad arc receives a large variance
-factor. In this release the factors are estimated and reported
-(<code>R.noise.model{k}.sigma2</code>), but only their <strong>stream
-mean</strong> reaches the weighting; per-arc weighting of the solve is
-the next change (review R7-13, user decision 2026-10-10). That is
-<code>ArcFactors = true</code>.</li>
-<li><strong>The normalisation of those factors is itself
-robust</strong>: gamma-bar (eq. 6.5.29) is computed in GROOPS from the
-central half of the sorted factors, ignoring both tails. That is
-<code>Noise.MeanType = "robust"</code>, the default here.</li>
+factor, and since 6.1.6 that factor <strong>weights the solve</strong>
+(review R7-13): each arc enters the next pass with its own variance,
+level × factor, and the same factor multiplies the update (eq. 6.5.28).
+Measured on one arc 10× in sigma among nine, beside two other streams
+(16 seeds): the factors come back 100.0 / 1.00, and the true scatter of
+the estimated parameters is 13–47 % smaller than when only the stream’s
+mean factor reached the weighting. That is
+<code>ArcFactors = true</code>; the factors are reported in
+<code>R.noise.model{k}.sigma2</code>.</li>
+<li><strong>The normalisation of those factors</strong>: gamma-bar (eq.
+6.5.29) is computed in GROOPS from the central half of the sorted
+factors, ignoring both tails (<code>Noise.MeanType = "robust"</code>,
+the default here). In this joint estimator the factors are absolute
+(§7.7), so gamma-bar no longer scales them; it sets only the scale of
+the floor below which a factor is clamped
+(<code>lsqvce:arcVarianceFactors:clamped</code>).</li>
 </ol>
 <p><strong>Per-epoch down-weighting inside the same loop (since 6.1), in
 the Koch convention.</strong>

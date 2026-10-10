@@ -177,13 +177,15 @@ R.convergence(); R.plot("psd"); R.plot("convergence");
 ```
 
 An arc's standard deviation is **all three terms**: declared `sigma` × sqrt(arc factor) ×
-`R.sigma0`. Since 6.1.5 the gamma-bar normalisation (Ellmer eq. 6.5.29–30) is formed **per
-stream**, and an arc-factor stream's factors carry that stream's own absolute level (the same
-Helmert mean a stream without arc factors gets), so sigma0 settles near 1. Before, gamma-bar
-was formed over every stream's arcs at once, and one stream's reconstructed sigma moved
-with *another* stream's truth (review R7-09: 1.01 / 0.79 / 1.15 as only the other stream's
-truth changed). Measured on a one-stream fixture planted at 0.5 / 1.5 / 0.5: 0.517 / 1.499 /
-0.507. With `sigma = 1` and a `Cep`
+`R.sigma0`. Since 6.1.6 an arc factor is the arc's **absolute** Helmert factor (Ellmer eq.
+6.5.28) — the same number a stream without arc factors averages into its level — so sigma0
+settles near 1 and a stream's level is the mean of its factors. Ellmer normalises the factors
+by gamma-bar (eqs. 6.5.29–30) because his PSD carries the level; here the law is a shape, so
+the level has to stay in the factors. Two earlier forms were wrong: gamma-bar over every
+stream's arcs tied one stream's sigma to *another* stream's truth (review R7-09: 1.01 / 0.79 /
+1.15 as only the other stream changed), and the 6.1.5 per-stream form counted the level twice
+as soon as a stream's arcs differ (one arc 10× in sigma among nine: 1176 / 11.65 against the
+planted 100 / 1). With `sigma = 1` and a `Cep`
 carrying the absolute accuracy, that product reads directly as "by how much the
 preprocessing's covariance was too optimistic on this arc".
 
@@ -203,13 +205,18 @@ M-estimation and all three of his are available with `Estimate = "noise"` alone:
    reduced quality, and segments shorter than one hour are discarded). Nothing in the
    adjustment replaces that.
 2. **The arc-wise variance factors** are Ellmer's down-weighting at arc granularity: a bad
-   arc receives a large variance factor. In this release the factors are estimated and
-   reported (`R.noise.model{k}.sigma2`), but only their **stream mean** reaches the weighting;
-   per-arc weighting of the solve is the next change (review R7-13, user decision
-   2026-10-10). That is `ArcFactors = true`.
-3. **The normalisation of those factors is itself robust**: gamma-bar (eq. 6.5.29) is
-   computed in GROOPS from the central half of the sorted factors, ignoring both tails.
-   That is `Noise.MeanType = "robust"`, the default here.
+   arc receives a large variance factor, and since 6.1.6 that factor **weights the solve**
+   (review R7-13): each arc enters the next pass with its own variance, level × factor,
+   and the same factor multiplies the update (eq. 6.5.28). Measured on one arc 10× in sigma
+   among nine, beside two other streams (16 seeds): the factors come back 100.0 / 1.00, and
+   the true scatter of the estimated parameters is 13–47 % smaller than when only the
+   stream's mean factor reached the weighting. That is `ArcFactors = true`; the factors are
+   reported in `R.noise.model{k}.sigma2`.
+3. **The normalisation of those factors**: gamma-bar (eq. 6.5.29) is computed in GROOPS from
+   the central half of the sorted factors, ignoring both tails (`Noise.MeanType = "robust"`,
+   the default here). In this joint estimator the factors are absolute (§7.7), so
+   gamma-bar no longer scales them; it sets only the scale of the floor below which a factor
+   is clamped (`lsqvce:arcVarianceFactors:clamped`).
 
 **Per-epoch down-weighting inside the same loop (since 6.1), in the Koch convention.**
 `Robust = "huber" | "igg3" | "bisquare"` together with `Estimate = "noise"` runs the robust

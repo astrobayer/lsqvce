@@ -31,14 +31,12 @@ classdef Options
 %                                   TO READ AN ARC'S STANDARD DEVIATION back,
 %                                   use all three terms (R6 WP-100):
 %                                     declared sigma * sqrt(factor) * R.sigma0
-%                                   -- the level and the factor split one scale
-%                                   by a convention (eq. 6.5.30's gammaBar) and
-%                                   sigma0 carries the rest, as in any GLS
-%                                   adjustment. MEASURED on a fixture planted at
-%                                   0.5 / 1.5 / 0.5: 0.517 / 1.499 / 0.507.
-%                                   (R6 F-01, fixed in WP-98: the ratio settles
-%                                   across passes, 9.4 / 8.6 / 8.6 / 8.6 against
-%                                   a planted 9; before it grew 8.4x a pass.)
+%                                   -- since 6.1.6 the factor is the arc's
+%                                   ABSOLUTE Helmert factor and weights the
+%                                   solve (R7-13), so sigma0 settles near 1.
+%                                   (R6 F-01, fixed in WP-98: the factors
+%                                   settle across passes; before they grew
+%                                   8.4x a pass.)
 %     Robust     "none" | "huber" | "igg3" | "bisquare"   IRLS on the same
 %                                   loop, every kind (details in RobustOpts).
 %                                   With Estimate "noise" the robust pass runs
@@ -95,7 +93,7 @@ classdef Options
 %                                      an integer >= 2, at least the longest arc
 %                                      for an exact law ("auto" is refused)
 %                  Whitener "toeplitz"|"ar"|"arma"  how a PSD law whitens (v4 PsdMode)
-%                  MeanType "robust"|"plain"        arc-factor normalisation
+%                  MeanType "robust"|"plain"        gamma-bar: the clamp floor's scale
 %                  Smooth 0                         moving average on the PSD
 %                  FreezeRedundancy 1               components below it hold
 %                  SkipThreshold 0.2                skip RATE that refuses the pass
@@ -139,6 +137,10 @@ classdef Options
 %
 %   See also LSQVCE.FIT, LSQVCE.RESULTS, the Manual, chapter 3, RELEASE_NOTES.md
 %
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-116 part 2 (R7-13): the arc
+%   factors are absolute and weight the solve; MeanType's remaining role
+%   (the clamp floor's scale) stated. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-105: Robust is forwarded to
 %   the joint estimator as its 'Influence' (with RobustOpts.Tuning). With
 %   assistance from Claude (Anthropic), model Claude Fable 5.1.
