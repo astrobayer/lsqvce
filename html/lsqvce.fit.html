@@ -152,6 +152,8 @@ Name, Value          any property of lsqvce.Options</pre>
                                &quot;none&quot; | &quot;scale&quot; | &quot;law&quot;
     lsqvce:fit:lawOnFixedStructure  (R5 M4 4b) estimate &quot;law&quot; on a stream whose
                                sigma is per-row (a fixed structure: level only)
+    lsqvce:fit:varUnderNoise   (R7-07) a &#x27;var&#x27; law under Estimate = &quot;noise&quot;: the
+                               joint sweep has no vector-AR path
     lsqvce:fit:badMatrix       kind B shapes disagree (A m x u, l m x 1,
                                p m x 1)
     lsqvce:fit:missingField    kind C lacks batchFcn / numBatches, or the
@@ -168,6 +170,10 @@ Name, Value          any property of lsqvce.Options</pre>
 See also LSQVCE.OPTIONS, LSQVCE.RESULTS, LSQVCE.LAYOUT, LSQVCE.ENGINE.DECLARATION,
          LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT,
          LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTNONLINEAR
+
+Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-116 part 1: a &#x27;var&#x27; law under Estimate = &quot;noise&quot; is refused by
+name (lsqvce:fit:varUnderNoise, R7-07). With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 
 Created 2026-08-31 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5 -- R4 Level L2, WP-56 (decision R4-D4).

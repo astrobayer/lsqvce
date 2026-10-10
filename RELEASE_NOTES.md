@@ -1,5 +1,31 @@
 # lsqvce release notes
 
+## 6.1.5 — 2026-10-10 (R7 WP-116 part 1: the joint-loop policy)
+
+Behaviour changes in `Estimate = "noise"` runs; no declaration changes.
+
+- **One stream's level no longer depends on another's (R7-09).** The arc factors were
+  normalised by gamma-bar over every stream's arcs, so an arc-factor stream's reconstructed
+  sigma moved with an unrelated stream's truth (1.01 / 0.79 / 1.15). gamma-bar is now formed
+  per stream, and an arc-factor stream keeps its own absolute level (the Helmert mean the
+  other streams already get). Note: the review's proposed remedy, per-stream gamma-bar alone,
+  was measured on its own mirror and loses that level (a stream truly 3× its declared sigma
+  came back 1.93); the shipped form recovers 3.02.
+- **The joint loop's stop rule covers every free component (R7-11).** It used to watch the
+  law alone, so a run with no `"law"` stream stopped "converged" on pass 1 under the
+  DECLARED weights and prior groups were never updated. It now also needs every level and
+  arc factor to settle (`R.history.levelDev`), and the returned solution is accumulated
+  under the returned model — before, x, Cxx and sigma0 were one pass behind the noise model
+  handed back next to them.
+- **`Noise.Smooth` and `Noise.FreezeRedundancy` do what they say (R7-22).** Both were
+  documented and reached nothing. `Smooth` is `psdVCE`'s moving average; `FreezeRedundancy`
+  is a real freeze: a frequency whose summed redundancy is below it holds its value. The
+  GRAVFIRE recipe's `FreezeRedundancy = 100` now takes effect.
+- **A `var` law under `Estimate = "noise"` is refused by name (R7-07)**
+  (`lsqvce:fit:varUnderNoise`): the joint sweep has no vector-AR path and used a wrong
+  covariance for it silently.
+- Per-arc factors still do not weight the solve; that is the next change (R7-13, user decision).
+
 ## 6.1.4 — 2026-10-10 (R7 WP-115: robust conventions — wrong-day weights, calibrated multi-axis epochs, honest scales)
 
 Two silently-wrong-numbers fixes, three behaviour corrections, one new diagnostic and

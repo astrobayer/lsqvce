@@ -1403,6 +1403,17 @@ function testLawOnFixedStructureIsRefused(tc)
                    'lsqvce:fit:lawOnFixedStructure');
 end
 
+function testVarLawUnderNoiseIsRefused(tc)
+% categories: contract
+    % R7-07: the joint sweep treated a 'var' law's d-interleaved block-Toeplitz
+    % Cfcn as a per-axis temporal law over epochs (a wrong Sigma, silently) and
+    % applied the estimated level as a std to a covariance. Refused by name.
+    [data, ~] = declaration();
+    data.systems(1).covariance.kbr = struct('type', 'var', 'ar', 0.3, 'sigma', 0.04);
+    tc.verifyEqual(idOf(@() lsqvce.fit(data, lsqvce.Options(Estimate="noise", Verbose=false))), ...
+                   'lsqvce:fit:varUnderNoise');
+end
+
 function testLocalPriorGroupIsEstimatedLikeACommonOne(tc)
 % categories: contract, reference
     % R5-D8 round 5 (Koch-Kusche on locals): a local group with estimate

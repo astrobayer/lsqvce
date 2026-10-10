@@ -407,9 +407,21 @@ def add_dead_group_field(d):
 
 case('27 a group field nothing reads fires', audit.check_options_are_consumed, 'options',
      add_dead_group_field)
-case('27 a debt entry that is now read fires', audit.check_options_are_consumed, 'options',
-     lambda d: append(os.path.join(d, PKGF),
-                      '\nfunction zzzRead(o)\n    x = o.Noise.Smooth;\nend\n'))
+def options_with_injected_debt():
+    # the fault is a debt entry for a field the package READS (WP-116 emptied
+    # the real list); the marker file in the scratch tree switches it on
+    saved = set(audit.DEAD_GROUP_DEBT)
+    if os.path.exists('zzz_debt_marker'):
+        audit.DEAD_GROUP_DEBT.add(('Noise', 'Grid'))
+    try:
+        audit.check_options_are_consumed()
+    finally:
+        audit.DEAD_GROUP_DEBT.clear()
+        audit.DEAD_GROUP_DEBT.update(saved)
+
+
+case('27 a debt entry for a field that is read fires', options_with_injected_debt, 'options',
+     lambda d: append(os.path.join(d, 'zzz_debt_marker'), 'x'))
 
 
 def add_uncatalogued_untested_id(d):

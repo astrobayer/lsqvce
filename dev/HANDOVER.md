@@ -7875,7 +7875,7 @@ reworded: it is timed inside the dispatch budget but not called by name.
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 115 (parts 1+2) | R7-06 row-weight keys exact for any integer day; R7-21 the MAD fallback reported, near-ties caught; R7-17 the IRLS stop rule unit-invariant; R7-18 `report` says a fit is robust; R7-25 the joint `collapsed` claim withdrawn; R7-12 "unbiased" withdrawn to an open question; check 28 reads wrapped help lines and runtime messages; part 2: R7-08 χ-calibrated multi-axis epoch statistic, the breakdown warning `lsqvce:robust:atBreakdown`; **version 6.1.4** | 117 part 3 (§12.38) | OPEN (2026-10-10; audit CLEAN, self-test 63/63; the Manual PDF rebuilt here with XeLaTeX installed in the container; CI pending) |
+| 115 (parts 1+2) | R7-06 row-weight keys exact for any integer day; R7-21 the MAD fallback reported, near-ties caught; R7-17 the IRLS stop rule unit-invariant; R7-18 `report` says a fit is robust; R7-25 the joint `collapsed` claim withdrawn; R7-12 "unbiased" withdrawn to an open question; check 28 reads wrapped help lines and runtime messages; part 2: R7-08 χ-calibrated multi-axis epoch statistic, the breakdown warning `lsqvce:robust:atBreakdown`; **version 6.1.4** | 117 part 3 (§12.38) | DONE (2026-10-10, PR #118, merge 7e83f1a; CI GREEN on 4aab537: ci_gate 588/588 first run) |
 
 **User decisions (2026-10-10, recorded here, implemented in part 2):** (b) R7-10 — the
 **additive nugget** replaces the multiplicative Koch fold under correlated laws; (c) the
@@ -7937,3 +7937,45 @@ bias". The settling measurement is the first item of WP-115's design part.
   **WP-115 part 3**, its own PR and version.
 
 **Counts after part 2.** 600 declared, 588 gate-executed.
+
+### 12.40 WP-116 — the joint-loop policy (2026-10-10, model Claude Opus 5.5, tier B)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 116 (part 1) | R7-07 `var` under `Estimate="noise"` refused by name; R7-09 gamma-bar per stream WITH the stream's level; R7-22 `Noise.Smooth` / `Noise.FreezeRedundancy` wired; R7-11 a complete stop rule and the returned solution under the returned model; **version 6.1.5** | 115 (§12.39) | OPEN (2026-10-10; audit CLEAN; CI pending) |
+| 116 (part 2) | R7-13 per-arc factors weight the solve | 116 part 1 | NOT STARTED |
+
+**User decisions (2026-10-10).** (a) R7-13: **the arc factors weight the solve**
+(Ellmer's convention) rather than the Manual being corrected — part 2, because it
+changes every `ArcFactors=true` fit and WP-100 measured per-group weighting in the sweep
+diverging; it needs its own convergence fixture. R7-22: **wire both** knobs —
+`Noise.Smooth` to `psdVCE`'s existing option, `Noise.FreezeRedundancy` as a real freeze.
+
+**Part 1, what was done and measured.**
+- **R7-09 — the review's remedy was wrong, and the mirror showed it.** The review proposed
+  "gamma-bar per stream". Its own mirror (`t15b.py`), parameterised
+  (`dev/reviews/R7_2026-10-09/mirrors/wp116/gammabar_modes.py`, three white streams,
+  reconstructed sigma = declared × √level × sigma0):
+
+  | normalisation | A=1, B=1 | A=1, B=4 | A=1, B=0.25 | A=3, B=1 | A=3, B=4 | A=3,B=1,C=2 (C law+arcF) |
+  |---|---|---|---|---|---|---|
+  | shipped (global) | 1.011 | 0.785 | 1.153 | 2.508 | 1.963 | 2.63 / 1.68 / 1.72 |
+  | per stream only | 1.001 | 1.001 | 1.001 | **1.928** | **1.928** | — |
+  | per stream × level (shipped now) | 1.007 | 1.007 | 1.008 | **3.022** | **3.021** | 3.02 / 0.99 / 1.98 |
+
+  Per-stream gamma-bar alone removes the cross-stream dependence but leaves an arc-factor
+  stream with no level at all (it only looked right because A's truth equalled its
+  declaration). Shipped: sigma2_m = (gamma2_m / gamma-bar_s²) · mean(gamma2_s).
+- **R7-11.** `levelDev = max|sigma2_new / sigma2_old − 1|` joins `maxDev` in the stop
+  rule (`R.history.levelDev`); after the loop one accumulation under the final model
+  (same pass index; not after a user stop) gives the returned x / Cxx / sigma0.
+- **R7-22.** `psdVCE 'FreezeRedundancy'` (kernel default 0 = bitwise-unchanged; Options
+  default 1 as documented); `adjustVCEjoint` forwards both; `DEAD_GROUP_DEBT` emptied (the
+  ratchet flagged both entries stale the moment they were wired, as designed); its
+  self-test case now injects its own debt entry.
+- **R7-07.** `lsqvce:fit:varUnderNoise` in `fit>streamPolicy`.
+- Tests: `testVarLawUnderNoiseIsRefused`, `test_psdVCE_freeze_redundancy_holds_weak_bins`,
+  `testScaleOnlyRunIteratesAndRecoversTheLevels`, `testArcFactorStreamIgnoresOtherStreamsLevels`.
+  Tier B: the CI run is the first MATLAB execution; R7-09 / R7-11 change numbers on every
+  joint fit, so existing fixtures may move inside or outside their bands — each move is
+  read, not re-tolerated.

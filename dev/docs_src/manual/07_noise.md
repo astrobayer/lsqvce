@@ -177,9 +177,13 @@ R.convergence(); R.plot("psd"); R.plot("convergence");
 ```
 
 An arc's standard deviation is **all three terms**: declared `sigma` × sqrt(arc factor) ×
-`R.sigma0`. The level and the factor split one scale by a convention (Ellmer eq. 6.5.30's
-gamma-bar normalisation) and sigma0 carries the rest, as in any GLS adjustment. Measured on
-a fixture planted at 0.5 / 1.5 / 0.5: 0.517 / 1.499 / 0.507. With `sigma = 1` and a `Cep`
+`R.sigma0`. Since 6.1.5 the gamma-bar normalisation (Ellmer eq. 6.5.29–30) is formed **per
+stream**, and an arc-factor stream's factors carry that stream's own absolute level (the same
+Helmert mean a stream without arc factors gets), so sigma0 settles near 1. Before, gamma-bar
+was formed over every stream's arcs at once, and one stream's reconstructed sigma moved
+with *another* stream's truth (review R7-09: 1.01 / 0.79 / 1.15 as only the other stream's
+truth changed). Measured on a one-stream fixture planted at 0.5 / 1.5 / 0.5: 0.517 / 1.499 /
+0.507. With `sigma = 1` and a `Cep`
 carrying the absolute accuracy, that product reads directly as "by how much the
 preprocessing's covariance was too optimistic on this arc".
 
@@ -198,9 +202,11 @@ M-estimation and all three of his are available with `Estimate = "noise"` alone:
    §6.2, after Klinger 2018: the level-1B data is screened for outliers and periods of
    reduced quality, and segments shorter than one hour are discarded). Nothing in the
    adjustment replaces that.
-2. **The arc-wise variance factors ARE the down-weighting** at arc granularity: a bad arc
-   receives a large variance factor and loses weight automatically. That is
-   `ArcFactors = true`.
+2. **The arc-wise variance factors** are Ellmer's down-weighting at arc granularity: a bad
+   arc receives a large variance factor. In this release the factors are estimated and
+   reported (`R.noise.model{k}.sigma2`), but only their **stream mean** reaches the weighting;
+   per-arc weighting of the solve is the next change (review R7-13, user decision
+   2026-10-10). That is `ArcFactors = true`.
 3. **The normalisation of those factors is itself robust**: gamma-bar (eq. 6.5.29) is
    computed in GROOPS from the central half of the sorted factors, ignoring both tails.
    That is `Noise.MeanType = "robust"`, the default here.

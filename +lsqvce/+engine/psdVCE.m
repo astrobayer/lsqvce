@@ -88,6 +88,11 @@ function out = psdVCE(omegaT, sT, Cprior, opt)
 %                               covariance -- that is a RESOLUTION problem, cured
 %                               by using enough frequencies (nf >= m/2 + 1), not
 %                               by smoothing.
+%     'FreezeRedundancy' 1x1    a frequency whose redundancy summed over the arcs,
+%                               s_j, is below this HOLDS its amplitude (alpha2_j
+%                               = 1) instead of being updated from a ratio of
+%                               two small, noisy numbers (default 0: only
+%                               s_j <= 0 holds). R7-22: Options.Noise.FreezeRedundancy.
 %     'AllowDegenerate' logical proceed without warning on a degenerate start
 %                               (default false).
 %
@@ -96,6 +101,8 @@ function out = psdVCE(omegaT, sT, Cprior, opt)
 %       .Shat      nLag x 1  the updated PSD amplitudes (strictly positive)
 %       .alpha2    nLag x 1  the per-frequency variance factors alpha2_j. The
 %                            iteration has converged when these are all ~ 1.
+%       .frozen    nLag x 1  logical, true where s_j < FreezeRedundancy (or not
+%                            finite / zero): those bins held their value
 %       .Cnew      nLag x 1  the updated covariance function, inverse-DCT of Shat.
 %                            MAY CONTAIN NEGATIVE LAGS -- that is correct and is
 %                            the point of estimating in the spectral domain.
@@ -117,6 +124,10 @@ function out = psdVCE(omegaT, sT, Cprior, opt)
 %
 %   See also LSQVCE.KERNEL.DCTI, LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.KERNEL.TOEPLITZCOFACTOR,
 %            LSQVCE.ENGINE.ARCVARIANCEFACTORS
+%
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-116 part 1: 'FreezeRedundancy' -- a bin whose summed
+%   redundancy is below it holds its value; .frozen in the output. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) (F-07): typed
 %   `arguments` signature, canonical UpperCamelCase option names (legacy
@@ -144,6 +155,7 @@ arguments
     opt.ZeroFreqRule (1,1) string {mustBeMember(opt.ZeroFreqRule, ["lowest","keep"])} = "lowest"
     opt.MinAmplitude (1,1) double {mustBeNonnegative} = 1e-12
     opt.Smooth (1,1) double {mustBeInteger, mustBeNonnegative} = 0
+    opt.FreezeRedundancy (1,1) double {mustBeNonnegative} = 0
     opt.AllowDegenerate (1,1) logical = false
 end
 
@@ -192,6 +204,15 @@ end
     ok     = isfinite(Omj) & isfinite(sj) & (abs(sj) > 0);
     alpha2(ok) = Omj(ok) ./ sj(ok);
     alpha2(~isfinite(alpha2)) = 1;
+    % R7-22: a frequency whose summed redundancy s_j is below FreezeRedundancy
+    % is not estimable from this pass's residuals -- it HOLDS its value
+    % (alpha2_j = 1) instead of taking a ratio of two small noisy numbers.
+    % 0 (the kernel default) freezes only s_j <= 0, which the line above
+    % already holds.
+    frozen = ~(sj >= o.FreezeRedundancy) | ~ok;
+    if o.FreezeRedundancy > 0
+        alpha2(frozen) = 1;
+    end
 
     % ---- updated amplitudes                                      (6.5.19) --
     Sprior = lsqvce.kernel.dctI(Cprior, 'Norm', o.Norm);
@@ -254,7 +275,7 @@ end
 
     out = struct('Shat', Shat, 'alpha2', alpha2, 'Cnew', Cnew, ...
                  'Sprior', Sprior, 'maxDev', max(abs(alpha2 - 1)), ...
-                 'degenerate', degenerate);
+                 'degenerate', degenerate, 'frozen', frozen);
 end
 
 function S = smoothSpectrum(S, h)

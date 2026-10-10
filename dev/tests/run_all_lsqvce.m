@@ -230,7 +230,10 @@ function results = run_all_lsqvce(root, skip)
             % attributed to the point that raised it: gateVerdict refuses ANY
             % foreign identifier, so the next question is always "raised where?"
             fprintf('       WARNED     : %s\n', strjoin(foreignW, ', '));
-            for wl = warningLines(capt)
+            % R7 WP-116: iterate a ROW -- warningLines can return an empty
+            % column cell, whose one column made wl{1} index past the end and
+            % crashed the runner before it wrote its log (CI on a55f6f4)
+            for wl = reshape(warningLines(capt), 1, [])
                 fprintf('                  >> %s\n', wl{1});
             end
         end
