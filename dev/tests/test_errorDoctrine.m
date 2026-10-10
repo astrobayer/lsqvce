@@ -391,3 +391,15 @@ function testDeclarationContract(tc)
     verifyError(tc, @() lsqvce.engine.declaration(struct('systems', sys, ...
                 'commonParams', {{'arc', 1}})), 'lsqvce:fit:badScope');
 end
+
+function testResultsRefusalsByName(tc)
+% categories: contract
+    % R7-28: two USER-tier identifiers no test had fired. A Results built
+    % without an accumulator (kinds B/C, or by hand) refuses the accumulator
+    % methods by name, and compare() refuses a solution without a v'Pv.
+    sol = struct('x', [1; 2], 'sigma0', 1);
+    Rb = lsqvce.Results(sol, struct(), [], struct(), @() deal([], [], []), 0, []);
+    verifyError(tc, @() Rb.residuals(), 'lsqvce:Results:noAccumulator');
+    verifyError(tc, @() Rb.contribution(), 'lsqvce:Results:noAccumulator');
+    verifyError(tc, @() Rb.compare(Rb), 'lsqvce:Results:noVPv');
+end

@@ -641,9 +641,11 @@ def check_error_ids():
     # it, or writes a try/catch against it. If no code throws it, that promise
     # is broken silently -- nothing else in this audit would notice, because the
     # id is well-formed and the file parses.
+    # R7-32 (2026-10-10): the code that may keep the promise is the code a
+    # USER runs -- the package and the template. dev/tests used to count, so
+    # a help block citing an id only a test file raised passed silently.
     thrown = set()
-    for f in pglob('+lsqvce/**/*.m', recursive=True) + \
-             pglob('template/*.m') + pglob('dev/tests/*.m'):
+    for f in pglob('+lsqvce/**/*.m', recursive=True) + pglob('template/*.m'):
         src = open(f, encoding='utf-8', errors='replace').read()
         # Every way this toolbox raises an identified condition. The log
         # wrapper (lsqvce.util.log.warn/warnOnce) is the big one: most WARNING
@@ -964,7 +966,10 @@ def check_readme_sync():
     fn_re = re.compile(r'^function\s+(?:\w+\s*=\s*)?test\w+\s*\(')
     n_pts = 0
     for f in files:
-        for l in open(f, encoding='utf-8', errors='replace'):
+        # R7-32: a %{ ... %} block declares nothing -- the definition
+        # private/declaredPoints.m uses, so audit and gate count alike
+        for l in blank_block_comments(
+                open(f, encoding='utf-8', errors='replace').read().split('\n')):
             if fn_re.match(l) and not re.match(r'function\s+tests\s*=', l):
                 n_pts += 1
     mc = re.search(r'(\d+)\s+suite files,\s*\*{0,2}?(\d+)\s+test\s*\n?>?\s*points',
@@ -1217,6 +1222,66 @@ def check_options_are_consumed():
         note('options', 'Options.%s is declared and documented but NOTHING reads '
              'it: not engineArgs, not anywhere else in +lsqvce' % p)
     print('   %d public properties checked' % len(props))
+    check_group_fields_are_consumed(src)
+
+
+# R7-22 (2026-10-10): group fields nothing reads, accepted as DEBT until
+# WP-116 wires or retires them. A field leaves this set in the commit that
+# fixes it; the check refuses a stale entry.
+DEAD_GROUP_DEBT = {('Noise', 'Smooth'), ('Noise', 'FreezeRedundancy')}
+
+
+def option_groups(src):
+    """{group: [field, ...]} from Options.m's group defaults."""
+    groups = {}
+    for g, fn in (('Noise', 'noiseDefaults'), ('Diagnostics', 'diagnosticsDefaults')):
+        m = re.search(r'function s = %s\(\)\s*\n(.*?)\n        end' % fn, src, re.S)
+        if m:
+            groups[g] = re.findall(r"'([A-Z]\w*)'\s*,", m.group(1))
+    for g in ('RobustOpts', 'Parallel', 'GaussNewton'):
+        m = re.search(r'^        %s\s+\(1,1\) struct = struct\((.*)\)\s*$' % g, src, re.M)
+        if m:
+            groups[g] = re.findall(r"'([A-Z]\w*)'\s*,", m.group(1))
+    return groups
+
+
+def check_group_fields_are_consumed(src):
+    # R7-22: check 27 saw top-level properties only, so Noise.Smooth and
+    # Noise.FreezeRedundancy shipped with no consumer and the GRAVFIRE
+    # guide's FreezeRedundancy=100 recipe ran bit-identically. A group field
+    # is CONSUMED if Options.m reads it outside the defaults / merge /
+    # display code (engineArgs, diagnoseNV, validate: `N.Grid`, `D.Alpha`),
+    # or the package reads `<Group>.<Field>` anywhere else.
+    groups = option_groups(src)
+    if not groups:
+        note('options', '+lsqvce/Options.m: no option groups found')
+        return
+    red = src
+    for fn in ('noiseDefaults', 'diagnosticsDefaults', 'groupDefaults', 'groupTable',
+               'disp', 'mergeGroup'):
+        red = re.sub(r'function [^\n]*\b%s\(.*?\n        end\n' % fn, '', red, flags=re.S)
+    red = re.sub(r'^    properties\s*$.*?^    end\s*$', '', red, flags=re.S | re.M)
+    red = '\n'.join(l for l in red.split('\n') if not l.lstrip().startswith('%'))
+    pkg = ''
+    for f in pglob(PKG_GLOB, recursive=True):
+        if f.replace('\\', '/').endswith('+lsqvce/Options.m'):
+            continue
+        pkg += '\n'.join(l for l in open(f, encoding='utf-8', errors='replace').read().split('\n')
+                         if not l.lstrip().startswith('%'))
+    dead, n = set(), 0
+    for g, fields in groups.items():
+        for fld in fields:
+            n += 1
+            if not (re.search(r'\.%s\b' % fld, red) or re.search(r'\b%s\.%s\b' % (g, fld), pkg)):
+                dead.add((g, fld))
+    for g, fld in sorted(dead - DEAD_GROUP_DEBT):
+        note('options', 'Options.%s.%s is a documented group field that NOTHING reads'
+             % (g, fld))
+    for g, fld in sorted(DEAD_GROUP_DEBT - dead):
+        note('options', 'DEAD_GROUP_DEBT lists Options.%s.%s, which is now read or gone '
+             '-- delete the entry' % (g, fld))
+    print('   %d group fields checked; dead and accepted as debt (R7-22 / WP-116): %s'
+          % (n, ', '.join('%s.%s' % d for d in sorted(dead & DEAD_GROUP_DEBT)) or 'none'))
 
 
 def _help_descriptive(path):
@@ -1319,6 +1384,7 @@ def main():
     check_options_are_consumed()
     check_superseded_claims()
     check_manual_pdf_version()
+    check_ids_fired_by_tests()
     print('\n' + '=' * 60)
     if FINDINGS:
         print('%d finding(s).' % len(FINDINGS))
@@ -1477,6 +1543,71 @@ def check_id_catalogue():
             undocumented += 1
     print('   raised ids not documented in their unit\'s help: %d '
           '(M1 debt; the doctrine target is 0)' % undocumented)
+
+
+UNFIRED_BASELINE = 'dev/docs_src/unfired_ids_baseline.csv'
+
+
+def fired_ids():
+    """Catalogued-form identifiers that a GATED suite names on a code line
+    (a verifyError / verifyWarning / idOf target, a muteWarn): the id is
+    exercised by some test. Comment-only lines and the excluded benchmark
+    do not count -- the same reading as check 16."""
+    excluded = gate_excluded_suites()
+    got = set()
+    for f in sorted(pglob('dev/tests/test_*.m')):
+        if os.path.splitext(os.path.basename(f))[0] in excluded:
+            continue
+        lines = blank_block_comments(
+            open(f, encoding='utf-8', errors='replace').read().split('\n'))
+        for l in lines:
+            if l.lstrip().startswith('%'):
+                continue
+            got |= set(re.findall(r"\blsqvce:[A-Za-z]\w*(?::\w+)+", l))
+    return got
+
+
+def check_ids_fired_by_tests():
+    print('\n30. catalogued identifiers are fired by a test (R7-28 ratchet)')
+    # WHY (R7-28, 2026-10-10): "every documented identifier fires" was a
+    # rule without an instrument -- 156 of 301 catalogued ids, three of them
+    # USER-tier, appeared on no code line of a gated suite, and WP-90's
+    # "the surviving ids are pinned" (12.14 E-10) had quietly stopped being
+    # true. The debt is frozen in unfired_ids_baseline.csv: an id that is
+    # catalogued, fired by no test and NOT in the baseline is a finding (new
+    # debt), and a baseline row whose id a test now fires, or that is no
+    # longer catalogued, is a finding too (delete the row in the same
+    # commit) -- the ratchet only turns one way.
+    cat = {row[0] for row in _read_baseline('dev/docs_src/error_ids.csv', 4)}
+    fired = fired_ids()
+    base = {row[0] for row in _read_baseline(UNFIRED_BASELINE, 2)}
+    unfired = cat - fired
+    for i in sorted(unfired - base):
+        note('id-fired', '%s is catalogued but no gated test fires it and it '
+             'is not in %s (write the test)' % (i, UNFIRED_BASELINE))
+    for i in sorted(base & fired):
+        note('id-fired', '%s is fired by a test now -- delete its row from %s'
+             % (i, UNFIRED_BASELINE))
+    for i in sorted(base - cat):
+        note('id-fired', '%s in %s is not catalogued any more -- delete the row'
+             % (i, UNFIRED_BASELINE))
+    print('   catalogued: %d; fired by a gated test: %d; baseline debt: %d'
+          % (len(cat), len(cat & fired), len(base)))
+
+
+def write_unfired_baseline():
+    """The R7-28 debt list, generated once; afterwards rows are only DELETED."""
+    cat = {row[0]: row[1] for row in _read_baseline('dev/docs_src/error_ids.csv', 4)}
+    unfired = sorted(set(cat) - fired_ids())
+    with open(UNFIRED_BASELINE, 'w', encoding='utf-8') as fh:
+        fh.write('# Catalogued identifiers no gated test fires, accepted as DEBT\n'
+                 '# (R7-28, check 30). A row is DELETED in the commit that adds the\n'
+                 '# test; a new id never enters here -- it gets its test instead.\n'
+                 '# generated by audit_tree.py --write-unfired (once, 2026-10-10)\n'
+                 'id,units\n')
+        for i in unfired:
+            fh.write('%s,%s\n' % (i, cat[i]))
+    print('%s written: %d rows' % (UNFIRED_BASELINE, len(unfired)))
 
 
 TIER_RANK = {'USER': 3, 'ENGINE': 2, 'KERNEL': 1, 'UTIL': 0}
@@ -1746,5 +1877,10 @@ if __name__ == '__main__':
         if not os.path.isdir('+lsqvce'):
             sys.exit('run from the toolbox root (the folder holding +lsqvce)')
         write_baselines()
+        sys.exit(0)
+    if '--write-unfired' in sys.argv:
+        if not os.path.isdir('+lsqvce'):
+            sys.exit('run from the toolbox root (the folder holding +lsqvce)')
+        write_unfired_baseline()
         sys.exit(0)
     sys.exit(main())

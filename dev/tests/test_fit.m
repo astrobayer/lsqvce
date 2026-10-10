@@ -1334,6 +1334,18 @@ function testLocalPriorsAreTheCounterpartOfDataPriors(tc)
     tc.verifyEqual(idOf(@() lsqvce.fit(data, Verbose=false)), 'lsqvce:fit:badPrior');
 end
 
+function testLawOnFixedStructureIsRefused(tc)
+% categories: contract
+    % R7-28: a USER-tier identifier no test had fired. A per-row sigma is a
+    % fixed structure: it can carry a level ("scale"), not a spectral shape
+    % ("law"); fit refuses the request by name before anything is solved.
+    [data, ~] = declaration();
+    data.systems(1).covariance.kbr.sigma = [0.2; 0.2];
+    data.systems(1).covariance.kbr.estimate = "law";
+    tc.verifyEqual(idOf(@() lsqvce.fit(data, lsqvce.Options(Estimate="noise", Verbose=false))), ...
+                   'lsqvce:fit:lawOnFixedStructure');
+end
+
 function testLocalPriorGroupIsEstimatedLikeACommonOne(tc)
 % categories: contract, reference
     % R5-D8 round 5 (Koch-Kusche on locals): a local group with estimate

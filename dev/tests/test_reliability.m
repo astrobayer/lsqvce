@@ -99,6 +99,20 @@ function testCovModelRejectsUnknownType(tc)
                    'lsqvce:covModel:noType');
 end
 
+function testCovModelRejectsBadCep(tc)
+% categories: contract
+    % R7-28 / 12.14 E-10: badCep survived WP-90 and was recorded as pinned,
+    % yet no suite fired it. Three of its sites: rows vs epochs x axes, a
+    % non-square per-epoch covariance, and an axis count stated twice.
+    t = (0:5).'*5;                                   % 6 rows
+    tc.verifyError(@() lsqvce.engine.covModel(struct('type','diag','sigma',1, ...
+                   'Cep',ones(4,2)), t, struct()), 'lsqvce:covModel:badCep');   % 8 rows declared
+    tc.verifyError(@() lsqvce.engine.covModel(struct('type','diag','sigma',1, ...
+                   'Cep',ones(3,2,3)), t, struct()), 'lsqvce:covModel:badCep');  % d x d' not square
+    tc.verifyError(@() lsqvce.engine.covModel(struct('type','diag','sigma',1, ...
+                   'Cep',ones(3,2),'d',3), t, struct()), 'lsqvce:covModel:badCep'); % d stated twice
+end
+
 function testCovModelRejectsBadSigma(tc)
 % categories: contract
     t = (0:99).'*5;
