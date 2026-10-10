@@ -22,7 +22,6 @@ engine.CommonPrior,metamorphic,the scaling / partition / permutation invariances
 engine.NormalEqSystem,precision,the numbers it produces are pinned at the fit level against dense closed forms (test_fit, test_lsqvce*, test_physOracle); the driver adds plumbing, not arithmetic
 engine.NormalEqSystem,reference,no closed form of its own beyond the dense references its callers are pinned against
 engine.NormalEqSystem,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
-engine.NormalEqSystem,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
 engine.NormalEqSystem,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path
 engine.QRSystem,reference,no closed form of its own beyond the dense references its callers are pinned against
 engine.QRSystem,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
@@ -175,7 +174,6 @@ engine.streamContribution,reference,no closed form of its own beyond the dense r
 engine.streamContribution,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
 engine.streamContribution,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
 engine.streamContribution,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path
-engine.synthLoader,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
 engine.synthLoader,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path
 engine.systematic,reference,no closed form of its own beyond the dense references its callers are pinned against
 engine.systematic,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
@@ -201,7 +199,6 @@ kernel.crossCorr,speed,its cost is inside its caller's budget (test_speedBudget:
 kernel.crossCorr,metamorphic,the invariance that applies (scaling / linearity) is pinned through the caller in test_metamorphic; a second copy per kernel would repeat it
 kernel.dctI,speed,its cost is inside its caller's budget (test_speedBudget: the lag sums; test_instruments: the timing instrument); a standalone budget would pin BLAS, not the toolbox
 kernel.decorrFactor,reference,covered by the metamorphic and precision points of its callers (test_metamorphic / test_vceMath / test_ellmer name the kernel through them); a standalone textbook value would repeat the same arithmetic
-kernel.decorrFactor,speed,its cost is inside its caller's budget (test_speedBudget: the lag sums; test_instruments: the timing instrument); a standalone budget would pin BLAS, not the toolbox
 kernel.decorrFactor,metamorphic,the invariance that applies (scaling / linearity) is pinned through the caller in test_metamorphic; a second copy per kernel would repeat it
 kernel.levinsonDurbin,reference,covered by the metamorphic and precision points of its callers (test_metamorphic / test_vceMath / test_ellmer name the kernel through them); a standalone textbook value would repeat the same arithmetic
 kernel.levinsonDurbin,vectorisation,already the vectorised form (matrix ops / FFT); a loop reference would be the slower twin, and the speed budget pins the fast one where it matters (redundancyLags)
@@ -290,7 +287,6 @@ engine.declaration,precision,no arithmetic -- validation and loader construction
 engine.declaration,reference,no closed form -- a declaration parser
 engine.declaration,robustness,its refusals are the named lsqvce:fit:* identifiers pinned under contract in test_fit / test_errorDoctrine
 engine.declaration,vectorisation,no data-sized loop -- one pass over the declaration's fields
-engine.declaration,speed,O(#systems + #rows); its cost is inside fit's solve budget (test_speedBudget)
 engine.declaration,metamorphic,the order-freedom of the declaration (test_fit testDeclarationIsOrderFree) is the invariance that applies; asserted through fit
 layout,speed,O(nc + nl) bookkeeping over the plans; no data-sized work
 layout,vectorisation,no data loop -- a table of (row, day, arc) per column
@@ -312,11 +308,4 @@ engine.diagnose,metamorphic,row-permutation equivariance of the per-observation 
 engine.diagnoseAccum,metamorphic,row-permutation equivariance of R.diag pinned through lsqvce.fit in test_metamorphic (R7-27: the matrix credits code only; the unit is driven on every block-path solve there but not called by name) -- diagnoseAccum is the bridge that builds the replayable source for diagnose
 engine.adjustNonlinear,reference,the dense Gauss-Newton fixed point (exponential decay; x to 1e-8) is pinned through lsqvce.fit in test_fit; the driver is reached only through fit (R7-27: no longer credited from the comment that names it)
 Results,reference,R.x / Cxx / sigma0 against dense references are pinned on the Results lsqvce.fit returns (test_fit / test_adjustBlock); Results holds what the drivers compute -- the one method with arithmetic of its own (compare) has an open finding (R7-19 / WP-118) and gets its reference there
-engine.BlockAccumulator,speed,measured by the benchmark test_speed only, which ci_gate excludes by design (absolute seconds are logged, not asserted -- HANDOVER 6.1.2); no gated ratio budget on this unit yet (R7-27 removed the credit test_speed used to give)
-engine.QRSystem,speed,measured by the benchmark test_speed only, which ci_gate excludes by design (absolute seconds are logged, not asserted -- HANDOVER 6.1.2); no gated ratio budget on this unit yet (R7-27 removed the credit test_speed used to give)
-engine.adjustBlock,speed,measured by the benchmark test_speed only, which ci_gate excludes by design (absolute seconds are logged, not asserted -- HANDOVER 6.1.2); no gated ratio budget on this unit yet (R7-27 removed the credit test_speed used to give)
-engine.makeLoader,speed,measured by the benchmark test_speed only, which ci_gate excludes by design (absolute seconds are logged, not asserted -- HANDOVER 6.1.2); no gated ratio budget on this unit yet (R7-27 removed the credit test_speed used to give)
-kernel.armaACV,speed,measured by the benchmark test_speed only, which ci_gate excludes by design (absolute seconds are logged, not asserted -- HANDOVER 6.1.2); no gated ratio budget on this unit yet (R7-27 removed the credit test_speed used to give)
-kernel.armaWhiten,speed,measured by the benchmark test_speed only, which ci_gate excludes by design (absolute seconds are logged, not asserted -- HANDOVER 6.1.2); no gated ratio budget on this unit yet (R7-27 removed the credit test_speed used to give)
-kernel.levinsonDurbin,speed,measured by the benchmark test_speed only, which ci_gate excludes by design (absolute seconds are logged, not asserted -- HANDOVER 6.1.2); no gated ratio budget on this unit yet (R7-27 removed the credit test_speed used to give)
-kernel.psd2acv,speed,measured by the benchmark test_speed only, which ci_gate excludes by design (absolute seconds are logged, not asserted -- HANDOVER 6.1.2); no gated ratio budget on this unit yet (R7-27 removed the credit test_speed used to give)
+engine.makeLoader,speed,timed inside test_speedBudget testFitAddsLittleToTheBlockDriver (both sides build the loaders through lsqvce.engine.declaration) but not called by name there; a budget of its own would time the same work twice

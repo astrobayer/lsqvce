@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-10 — WP-117 part 1 DONE (PR #115, 5402f62); WP-117 part 2 OPEN on PR #116 (tier B, model Claude Opus 5.5): the rest of R7's instrument findings — check 16 credits code in gated suites only (8 contract points written), check 30 freezes the 140 untested ids as a one-way ratchet, every audit check has a fault case, the blanket warning mutes are gone (they hid two ids), test session state is restored, §6.1 rewritten; check 28's extension waits for WP-115; §12.37.
+Last substantive update: 2026-10-10 — WP-117 part 2 DONE (PR #116, merge 5b94e1f; CI 575/575); WP-117 part 3 OPEN (tier B, model Claude Opus 5.5): the speed claims test_speed only benchmarked become eight gated ratio budgets, incl. the kernel lag sums (R7-42 closed); the two absolute-second bounds stay as stated exceptions (user decision); §12.38.
+Preceding entry: Last substantive update: 2026-10-10 — WP-117 part 1 DONE (PR #115, 5402f62); WP-117 part 2 OPEN on PR #116 (tier B, model Claude Opus 5.5): the rest of R7's instrument findings — check 16 credits code in gated suites only (8 contract points written), check 30 freezes the 140 untested ids as a one-way ratchet, every audit check has a fault case, the blanket warning mutes are gone (they hid two ids), test session state is restored, §6.1 rewritten; check 28's extension waits for WP-115; §12.37.
 Preceding entry: Last substantive update: 2026-10-09 — REVIEW R7 recorded (§12.35, findings R7-01…R7-46, WPs 111–118 proposed, none opened by the user yet); WP-117 part 1 OPEN on `ccr-e0276092-1b95jg` (tier B, model Claude Opus 5.5): R7-26 fixed — seven audit checks sweep `dev/tests` again, checks 3 and 9 read live files and fail closed, nine fault cases prove it; §12.36.
 Preceding entry: Last substantive update: 2026-09-21 — WP-110 OPEN on `claude/wp-110` (tier B, model Claude Opus 5): acting on §12.33's finding began by measuring it, and the measurement REFUTED its consequence — the collapse guard does fire, the half-sample bound is just a restatement of being below breakdown, and the guard is a model-error detector (a bodily residual offset) rather than the 50 % breakdown detector its message claimed. The 6.1.2 claim is withdrawn in the 6.1.3 notes. Issue #110 test 6 closed with the arc-scoped prior fixture; version **6.1.3**; §12.34.
 Preceding entry: Last substantive update: 2026-09-20 — WP-109 OPEN on `claude/wp-109` (tier B, model Claude Opus 5): the PDF Manual's version surface gets its first gate (check 29; the rebuild was justified by MEASURING the old binary's toolchain, not by asserting it), issue #110's tests 3–6 land with every margin measured in its own run, and a FINDING is recorded — the collapse guard can fire only for n < 2(nc+1), so on a real fit it cannot fire at all; version **6.1.2**; §12.33.
@@ -2226,7 +2227,7 @@ R7-27/R7-33.)*
 | contract | The promises in the help text: output shapes and types, argument rejection with the DOCUMENTED identifier and only that one, determinism where promised, error messages naming the offending field. Documented-id <-> raised-id agreement is ALSO enforced statically (audit checks 14 and 20), and every catalogued id must be fired by a gated test (check 30; the frozen debt is `dev/docs_src/unfired_ids_baseline.csv`, rows only deleted). |
 | reference | Agreement with an outside authority — a published example, a closed form, a dense independent solve, a second language, real data. |
 | precision | The numerical claim, with an explicit tolerance AND a `tol:` comment naming where the tolerance came from — its real source (cond·eps, statistical band, model approximation, ...), not a comment copied from another kind of bound (R7-31). House starting points: exact identity <= 1e-10 relative; factorisation round-trips <= 1e-12; Monte-Carlo quantities within 4/sqrt(Z) (a 2.93-sigma bar, NOT containment). Never loosen a tolerance to make a test pass — that is a finding. |
-| speed | A RATIO budget measured by `private/timePair.m` (warm-up, both sides in one repeat, rotation, median of per-repeat ratios, 15 repeats by default) against a bound pinned from a recorded measurement. Absolute seconds are LOGGED, not asserted — with two recorded exceptions, each a generous sanity bound against a complexity class coming back: `test_ellmer` `test_lags_long_arc_speed_no_cubic_term` (< 5 s at N = 4000; the cubic path measured 12–30 s) and `test_speedBudget` `testOneSolveOnTheDemoIsBounded` (< 20 s; measured ~1 s). Turning them into ratios is open (R7-42), as is moving the FFT lag-sum budget from test-local copies onto the kernel. |
+| speed | A RATIO budget measured by `private/timePair.m` (warm-up, both sides in one repeat, rotation, median of per-repeat ratios, 15 repeats by default) against a bound pinned from a recorded measurement. Absolute seconds are LOGGED, not asserted — with two recorded exceptions, each a generous sanity bound against a complexity class coming back: `test_ellmer` `test_lags_long_arc_speed_no_cubic_term` (< 5 s at N = 4000; the cubic path measured 12–30 s) and `test_speedBudget` `testOneSolveOnTheDemoIsBounded` (< 20 s; measured ~1 s). Those two stay as stated exceptions (user decision 2026-10-10). Every other speed claim is a gated ratio: `test_speedBudget` carries the relations `test_speed` only benchmarked (filter vs dense whitening, armaACV / levinsonDurbin / psd2acv scaling, QR vs normal equations, accumulator linear in days, fit's dispatch, the kernel's lag sums flat in nLag — R7-42, §12.38). |
 | robustness | Behaviour at and beyond the edge of validity: degeneracy CONSTRUCTED FROM THE ALGEBRA, conditioning, boundary and empty inputs, non-finite propagation, reproducibility under worker count. |
 | vectorisation | A batched call equals the same inputs one at a time. Each such property states whether the expectation is BITWISE or eps-level, and why. |
 | metamorphic | An invariance or equivariance through the public API — row permutation, batch partition, unit scaling — the cheap test nobody writes. |
@@ -7769,7 +7770,7 @@ exception is visible.
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 117 (part 2) | R7-27 check 16 honest; R7-28 id ratchet (check 30) + four ids fired; R7-29 the cannot-fail test; R7-30 no blanket mutes; R7-31 tol: sources; R7-32 a fault case for every check, check 14 package-only, check 17 block comments, check 27 group fields; R7-42 (part); R7-45 session state; R7-33 §6.1 rewritten | 117 part 1 (§12.36) | OPEN (2026-10-10, PR #116, branch `ccr-e0276092-1b95jg`; audit CLEAN, self-test 60/60; CI: see the round notes below; no `+lsqvce` change, so no version bump) |
+| 117 (part 2) | R7-27 check 16 honest; R7-28 id ratchet (check 30) + four ids fired; R7-29 the cannot-fail test; R7-30 no blanket mutes; R7-31 tol: sources; R7-32 a fault case for every check, check 14 package-only, check 17 block comments, check 27 group fields; R7-42 (part); R7-45 session state; R7-33 §6.1 rewritten | 117 part 1 (§12.36) | DONE (2026-10-10, PR #116, merge 5b94e1f; CI GREEN on 1894de9: ci_gate 575/575 over 27/27 suites, inventory = the probe only) |
 
 **What each finding became.**
 - **R7-27** (check 16). The matrix credits CODE lines (and code handed to
@@ -7839,3 +7840,32 @@ points), 575 gate-executed (minus `test_speed` 12).
 **Process note.** One push (2625533) went out with the audit red — check
 30 flagging a baseline row the same commit had made stale; fixed in the
 next commit (dfabb22). The audit runs before every push.
+
+### 12.38 WP-117 part 3 — the speed claims become gated ratio budgets (2026-10-10, model Claude Opus 5.5, tier B)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 117 (part 3) | R7-42 closed: eight gated `timePair` ratio budgets in `test_speedBudget` for the units whose speed only the excluded `test_speed` measured, plus the kernel lag-sum budget; the two absolute-second bounds kept as stated exceptions | 117 part 2 (§12.37, PR #116 merged 5b94e1f) | OPEN (2026-10-10, branch `ccr-e0276092-1b95jg`; audit CLEAN, self-test 60/60; CI pending) |
+
+**User decisions (2026-10-10).** "Keep them as exceptions" — the two
+absolute-second bounds (§6.1.2) stay, stated; "make the speeds ratio
+budgets" — every other speed claim is a gated ratio.
+
+**What landed.** Eight budgets, each `timePair` (both sides in one repeat,
+rotation, median of per-repeat ratios), each with its bound's provenance at
+the site: armaWhiten/dense < 1, QRSystem/NormalEqSystem < 4, accumulator
+8 days / 2 days < 4^1.4, levinsonDurbin 4p/p < 4^2.6, psd2acv 4L/L < 8 —
+all five bounds are `test_speed`'s own; fit/adjustBlock < 1.25 — `timePair`'s
+recorded measurement (2026-08-31); armaACV 4n/n < 8 and redundancyLags
+512/16 lags < 3 — DERIVED from the algorithms (n log n; the FFT lag sums
+flat in nLag, ~1.2 expected, ~10 for a per-lag loop regression), not
+measured, so their first CI runs are the measurement to read.
+`test_speedBudget`'s FFT/loop pair stays as the algorithm pin; the kernel
+budget is the new `testKernelLagSumsAreFlatInLags`.
+
+**Exemption rows.** The audit flagged 11 speed rows stale the moment the
+budgets named their units (incl. NormalEqSystem, decorrFactor, declaration,
+synthLoader, which the budgets time); deleted. `makeLoader` keeps a row,
+reworded: it is timed inside the dispatch budget but not called by name.
+
+**Counts.** 595 declared (587 + 8), 583 gate-executed.
