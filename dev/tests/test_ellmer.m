@@ -1559,6 +1559,7 @@ function acc = jointAccMapped(cfg, model) %#ok<DEFNU>
     else
         uo.covOverride.pos = struct('type','diag', 'sigma', 1.0);
     end
+    uo = withArcFactors(uo, model);              % R7-13: the contract since 6.1.6
     acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'KeepLocal', true, 'Verbose', false, ...
                                   'UserOpt', uo);
     for s = cfg.sats
@@ -1567,20 +1568,39 @@ function acc = jointAccMapped(cfg, model) %#ok<DEFNU>
     end
 end
 
-function acc = jointAcc(cfg, model) %#ok<INUSD>
+function acc = jointAcc(cfg, model)
     % Rebuild the accumulator. A production caller would map model.C / model.sigma2
-    % into the loader's covariance; here the fixture keeps the weighting fixed so
+    % into the loader's covariance; here the fixture keeps the LAW fixed so
     % the test exercises the DRIVER's plumbing, not the loader's. A cfg.override
     % reaches the loader as UserOpt (generic hook; the coloured fixture now
-    % owns its declaration in jointAccMapped instead).
+    % owns its declaration in jointAccMapped instead). The per-arc factors ARE
+    % applied (withArcFactors): since 6.1.6 the driver's update assumes them,
+    % and a fixture that drops them compounds them (R7-13; CI 2cc7efb).
     uo = struct();
     if isfield(cfg, 'override'), uo = cfg.override; end
+    uo = withArcFactors(uo, model);
     acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'KeepLocal', true, 'Verbose', false, ...
                                   'UserOpt', uo);
     for s = cfg.sats
         acc.addSystem(s, cfg.nl, ...
             @(d,ot,a,uo) lsqvce.engine.synthLoader(cfg, s, d, ot, a, uo), 1);
     end
+end
+
+function uo = withArcFactors(uo, model)
+    % R7-13 (WP-116 part 2): the per-arc factors of the driver's model, as the
+    % ONE translation emits them (jointModelOpt -> covOverride.byArc), added to
+    % a fixture's own UserOpt. No stream list: the fixture keeps its own law and
+    % level; only the relative per-arc layer is taken. CI 2cc7efb measured why
+    % it is needed: without it the factors compounded over the passes and
+    % arcFactorsDiverging fired -- the guard doing its job on a fixture that
+    % broke the new accFcn contract.
+    if isempty(model) || ~isstruct(model) || ~isfield(model, 'arcFactor') || isempty(model.arcFactor) ...
+            || model.arcFactor.Count == 0
+        return
+    end
+    J = lsqvce.engine.jointModelOpt(model, {});
+    uo.covOverride.byArc = J.covOverride.byArc;
 end
 
 function [Abar, W, sp, ebar, N] = lagFixture(tc, N, P, Z) %#ok<INUSL>

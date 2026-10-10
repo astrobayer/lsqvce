@@ -8037,3 +8037,12 @@ ci_gate 592/592. Merged as PR #119 (4587fd0).
   `testArcFactorsAreAbsoluteOnAHeterogeneousStream` (test_vcePolicy; fails on 6.1.5's
   normalisation). Counts: 608 declared, 596 gate-executed. Version **6.1.6**.
 
+**Part 2, CI round 1 (2cc7efb): 596/596 pass, gate RED on one new warning id,
+`arcFactorsDiverging`, from test_ellmer.** Exactly the contract change stated above:
+test_ellmer's driver fixtures (`jointAcc`, `jointAccMapped`) hold the law fixed or map
+only `model.C`, so the per-arc factors the update now assumes never reached their
+weighting, and over the 3- and 12-pass runs they compounded until the guard fired. Not
+muted -- the fixtures were brought under the contract: `withArcFactors` takes the per-arc
+layer from `jointModelOpt` (the one translation, no stream list, so each fixture keeps
+its own law and level) into the fixture's UserOpt.
+
