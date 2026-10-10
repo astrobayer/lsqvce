@@ -50,13 +50,19 @@ classdef log
 %     pass, call
 %         q = lsqvce.util.log.startParallel();
 %     to install a parallel.pool.DataQueue whose callback drains every worker
-%     message into the client's current (fid, screen). Inside the parfor body,
-%     worker calls to msg/warn detect the queue and SEND their text to it instead
-%     of printing locally; the client's callback writes it to the one log file,
-%     in arrival order. After the pass, call
+%     message into the client's current (fid, screen). A worker does not see
+%     the client's persistent state, so the queue must be HANDED to it: the
+%     parfor body starts with lsqvce.util.log.attachWorker(q) (R7-41 -- without
+%     it the sink was inert). Worker calls to msg/warn then SEND their text to
+%     the queue; the client's callback writes it to the one log file, in
+%     arrival order, a warnOnce id once per run across all workers. The task
+%     returns inventory() with its result and the client merges it
+%     (mergeInventory), so worker warnings reach R.meta.warnings in task
+%     order. After the pass, call
 %         lsqvce.util.log.stopParallel();
 %     If the Parallel Computing Toolbox is absent or no pool exists, startParallel
-%     is a safe no-op and logging stays per-process.
+%     is a safe no-op (q = []) and attachWorker still collects the inventory.
+%     LSQVCE.ENGINE.MAPREDUCE does all of this for the toolbox's own passes.
 %
 %   EXAMPLE
 %     fid = fopen('vce.log', 'w');
@@ -67,10 +73,14 @@ classdef log
 %
 %   EXAMPLE (parfor-safe)
 %     fid = fopen('run.log','w');  lsqvce.util.log.set('fid', fid);
-%     lsqvce.util.log.startParallel();                   % client installs sink
+%     q = lsqvce.util.log.startParallel();               % client installs sink
+%     ids = cell(nTask, 1);
 %     parfor k = 1:nTask
+%         lsqvce.util.log.attachWorker(q);                % worker: hand it the sink
 %         lsqvce.util.log.msg('worker did task %d\n', k);  % -> client's run.log
+%         ids{k} = lsqvce.util.log.inventory();          % this task's warnings
 %     end
+%     for k = 1:nTask, lsqvce.util.log.mergeInventory(ids{k}); end
 %     lsqvce.util.log.stopParallel();  lsqvce.util.log.reset();  fclose(fid);
 %
 %   ERRORS
@@ -79,8 +89,14 @@ classdef log
 %   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 %     lsqvce:log:noParallelQueue                 [warning] Worker log messages cannot be forwarded to the client (X); they are p...
 %
-%   See also FPRINTF, WARNING, PARALLEL.POOL.DATAQUEUE, LSQVCE.ENGINE.ADJUSTVCEJOINT
+%   See also FPRINTF, WARNING, PARALLEL.POOL.DATAQUEUE, LSQVCE.ENGINE.ADJUSTVCEJOINT,
+%            LSQVCE.ENGINE.MAPREDUCE
 %
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 2 (R7-41): the
+%   parallel sink reaches the workers (attachWorker), worker warnings reach
+%   the run inventory (mergeInventory), and a warnOnce id is shown once per
+%   run, not once per worker. With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
 %   Created 2026-07-16 (CEST, UTC+02:00) with assistance from
 %   Claude (Anthropic), model Claude Opus 4.8.
 
@@ -137,6 +153,40 @@ classdef log
                 q = [];  return
             end
             lsqvce.util.log.state('queue', q);
+            % R7-41: the display dedup of this pass starts from what the client
+            % already fired (a SNAPSHOT: the drain runs asynchronously, possibly
+            % after mergeInventory, so it must not read the live inventory --
+            % it would then suppress a worker warning's only display)
+            lsqvce.util.log.state('seen', []);
+            fired = lsqvce.util.log.state('fired');
+            for k = 1:numel(fired), lsqvce.util.log.state('seen', fired{k}); end
+        end
+
+        function onWorker = attachWorker(q)
+        %ATTACHWORKER  Worker side of the parallel sink (R7-41). Call at the
+        %   START of every parfor task / spmd block with the queue that
+        %   startParallel returned (may be []): the worker forwards its log
+        %   text to the client and starts a fresh warning inventory for THIS
+        %   task, which the task returns (inventory()) and the client merges
+        %   (mergeInventory) -- so worker warnings reach R.meta.warnings. Before,
+        %   the queue lived only in the client's persistent state, workers never
+        %   saw it, and their warnings were missing from the inventory.
+        %   No-op on the client (a parfor without a pool runs there), so the
+        %   run's own inventory is never cleared by it.
+        %   OUTPUT  onWorker  1x1 logical  true when running on a worker
+            onWorker = exist('getCurrentTask', 'file') == 2 && ~isempty(getCurrentTask());
+            if ~onWorker, return, end
+            lsqvce.util.log.state('queue', q);
+            lsqvce.util.log.state('fired', []);
+        end
+
+        function mergeInventory(ids)
+        %MERGEINVENTORY  Client side (R7-41): add the warning identifiers a
+        %   worker task fired to this run's inventory, first-fired order kept.
+        %   INPUT  ids  1xK cell  as returned by inventory() on the worker
+            for k = 1:numel(ids)
+                lsqvce.util.log.state('fired', ids{k});
+            end
         end
 
         function stopParallel()
@@ -164,7 +214,7 @@ classdef log
         %   lsqvce.util.log.warnOnce(id, fmt, ...)
             fired = ~any(strcmp(lsqvce.util.log.state('fired'), char(id)));
             if fired
-                lsqvce.util.log.warn(id, varargin{:});
+                lsqvce.util.log.raise(id, true, varargin{:});
             end
         end
 
@@ -183,6 +233,16 @@ classdef log
         %WARN  Register a MATLAB warning, mirror its text to logfid, and show it
         %   on screen only if logflag is true.
         %   lsqvce.util.log.warn(id, fmt, ...)   -- id is a warning identifier.
+            lsqvce.util.log.raise(id, false, varargin{:});
+        end
+
+    end
+
+    methods (Static, Hidden)
+
+        function raise(id, once, varargin)
+        %RAISE  warn's body; once = true when called by warnOnce (R7-41: the
+        %   client shows a once-per-run warning ONCE across all workers).
         %
         %   The warning is always RAISED in the warning system (so lastwarn, the
         %   warning state, and error-on-warning keep working) and always written
@@ -192,9 +252,15 @@ classdef log
             lsqvce.util.log.state('fired', id);       % R5 M1: the run inventory
 
             % On a worker with a sink installed, forward to the client (tagged as
-            % a warning) and still raise a local warning so worker-side state and
-            % error-on-warning keep working; skip the local file/screen mirror.
-            if lsqvce.util.log.sendToQueue('warn', txt)
+            % a warning, with its id) and still raise a local warning so
+            % worker-side state and error-on-warning keep working -- with its
+            % DISPLAY off: parfor relays a displayed worker warning to the
+            % client itself, which printed a once-per-run warning once per
+            % worker (R7-41). The client's drain shows it, deduplicated.
+            kind = 'warn';  if once, kind = 'warnOnce'; end
+            if lsqvce.util.log.sendToQueue(kind, txt, id)
+                st = warning('off', id);
+                cw = onCleanup(@() warning(st));
                 warning(id, '%s', txt);
                 return
             end
@@ -239,11 +305,7 @@ classdef log
             end
         end
 
-    end
-
-    methods (Static, Hidden)
-
-        function sent = sendToQueue(kind, txt)
+        function sent = sendToQueue(kind, txt, id)
         %SENDTOQUEUE  If a DataQueue sink is installed, send {kind, txt} to it and
         %   return true; otherwise return false. On the CLIENT the queue exists
         %   too, but afterEach drains on the client's event loop -- to avoid a
@@ -255,8 +317,9 @@ classdef log
             % getCurrentTask exists only with PCT: a CONDITION, not a catch (R5 M1)
             onWorker = exist('getCurrentTask', 'file') == 2 && ~isempty(getCurrentTask());
             if ~onWorker, return, end
+            if nargin < 3, id = ''; end
             try
-                send(q, {kind, txt});
+                send(q, {kind, txt, char(id)});
                 sent = true;
             catch ME
                 sent = false;                  % the caller emits locally; the
@@ -268,10 +331,22 @@ classdef log
         function drain(fid, screen, m)
         %DRAIN  Client-side afterEach callback: write a worker message {kind,txt}
         %   to the captured (fid, screen). Warnings are prefixed like warn does.
-            if iscell(m) && numel(m) == 2
+            id = '';
+            if iscell(m) && numel(m) >= 2
                 kind = m{1};  txt = m{2};
+                if numel(m) >= 3, id = m{3}; end
             else
                 kind = 'msg'; txt = char(m);
+            end
+            if strcmp(kind, 'warnOnce')
+                % R7-41: once per RUN, not once per worker -- skip it when the
+                % client had fired it before this pass or another worker's copy
+                % was shown ('seen', seeded by startParallel)
+                if any(strcmp(lsqvce.util.log.state('seen'), id))
+                    return
+                end
+                lsqvce.util.log.state('seen', id);
+                kind = 'warn';
             end
             if strcmp(kind, 'warn')
                 lsqvce.util.log.emit(fid, screen, sprintf('Warning: %s\n', txt));
@@ -357,10 +432,11 @@ classdef log
         function out = state(key, val)
         %STATE  Persistent (fid, screen, queue) store. state(key) reads;
         %   state(key,val) sets. 'queue' holds the parallel DataQueue or [].
-            persistent FID SCREEN QUEUE FIRED
+            persistent FID SCREEN QUEUE FIRED SEEN
             if isempty(FID),    FID    = 1;    end
             if isempty(SCREEN), SCREEN = true; end
             if isempty(FIRED),  FIRED  = {};   end
+            if isempty(SEEN),   SEEN   = {};   end
             switch key
                 case 'fired'
                     % R5 M1: the run's warning INVENTORY -- every identifier
@@ -372,6 +448,15 @@ classdef log
                         end
                     end
                     out = FIRED;
+                case 'seen'
+                    % R7-41: once-per-run warning ids a parallel pass already
+                    % displayed (the drain's dedup; reset by startParallel)
+                    if nargin > 1
+                        if isempty(val), SEEN = {};
+                        elseif ~any(strcmp(SEEN, val)), SEEN{end+1} = char(val);
+                        end
+                    end
+                    out = SEEN;
                 case 'fid'
                     if nargin > 1, FID = val; end
                     out = FID;

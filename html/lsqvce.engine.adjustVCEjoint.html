@@ -117,8 +117,6 @@ OPTIONS (Name/Value)
   &#x27;Seed&#x27;      1x1 | []   RNG seed for reproducible probes (default []: one
                          seed is pinned for the run and returned, out.seed)
   &#x27;Norm&#x27;      char       DCT normalisation, &#x27;ortho&#x27; (default) | &#x27;ellmer&#x27;
-  &#x27;MeanType&#x27;  char       gamma-bar, &#x27;robust&#x27; (default) | &#x27;plain&#x27;; since
-                         6.1.6 the scale of the clamp floor only
   &#x27;Influence&#x27; string     &quot;none&quot; (default) | &quot;huber&quot; | &quot;igg3&quot; | &quot;bisquare&quot;
            R6 WP-105: the ROBUST PASS INSIDE THE LOOP, in the KOCH
            convention -- the weight is a statement about the
@@ -271,6 +269,10 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
          LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 
+Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 2 (R7-38): the per-
+stream Ljung-Box statistic divides by the pooled pair counts N_k;
+Noise.MeanType / &#x27;MeanType&#x27; retired (user decision 2026-10-10). With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34, R7-35,
 R7-37): the separable-driver history rewritten; Pool / Estimate /
 ArcFactors / OnPass / OnPassContext documented; an unseeded run pins and

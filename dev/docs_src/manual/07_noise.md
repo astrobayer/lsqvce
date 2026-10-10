@@ -176,6 +176,12 @@ R.history(end).white     % Ljung-Box whiteness per stream (K = 20, alpha = 0.05)
 R.convergence(); R.plot("psd"); R.plot("convergence");
 ```
 
+The whiteness test pools a stream's arcs: the lag products of every arc are summed, and the
+statistic divides each lag by the number of products it actually holds (N_k, the sum over arcs
+of m_a − k), so it is sized on short arcs too (since 6.1.8; before, 64 white arcs of 30
+epochs were flagged with probability 0.001 instead of 0.05). K stays 20 lags: on arcs of
+thousands of epochs the test sees only the shortest lags.
+
 An arc's standard deviation is **all three terms**: declared `sigma` × sqrt(arc factor) ×
 `R.sigma0`. Since 6.1.6 an arc factor is the arc's **absolute** Helmert factor (Ellmer eq.
 6.5.28) — the same number a stream without arc factors averages into its level — so sigma0
@@ -213,10 +219,11 @@ M-estimation and all three of his are available with `Estimate = "noise"` alone:
    stream's mean factor reached the weighting. That is `ArcFactors = true`; the factors are
    reported in `R.noise.model{k}.sigma2`.
 3. **The normalisation of those factors**: gamma-bar (eq. 6.5.29) is computed in GROOPS from
-   the central half of the sorted factors, ignoring both tails (`Noise.MeanType = "robust"`,
-   the default here). In this joint estimator the factors are absolute (§7.7), so
-   gamma-bar no longer scales them; it sets only the scale of the floor below which a factor
-   is clamped (`lsqvce:arcVarianceFactors:clamped`).
+   the central half of the sorted factors, ignoring both tails. In this joint estimator the
+   factors are absolute (§7.7), so gamma-bar no longer scales them; it sets only the scale of
+   the floor below which a factor is clamped (`lsqvce:arcVarianceFactors:clamped`), with the
+   robust mean. The option that chose plain or robust, `Noise.MeanType`, is retired since
+   6.1.8; the kernel `lsqvce.engine.arcVarianceFactors` keeps both forms of the thesis.
 
 **Per-epoch down-weighting inside the same loop (since 6.1), in the Koch convention.**
 `Robust = "huber" | "igg3" | "bisquare"` together with `Estimate = "noise"` runs the robust

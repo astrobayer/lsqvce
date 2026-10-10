@@ -134,6 +134,9 @@ function R = fit(data, opts, nv)
 %            LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT,
 %            LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTNONLINEAR
 %
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 2 (R7-23): the
+%   warning inventory is reset once, before anything can warn, for every
+%   kind. With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34, R7-37):
 %   ERRORS lists badParamColumns; the joint seed recorded is the one used.
 %   With assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -168,6 +171,11 @@ end
     f = fieldnames(nv);
     for k = 1:numel(f), opts.(f{k}) = nv.(f{k}); end
 
+    % R5 M1: this run's warning inventory -- reset ONCE, here, before anything
+    % can warn. R7-23: kinds B / C reset inside runBatch, AFTER its
+    % priorNotActive warnOnce, so the id never reached R.meta.warnings; and a
+    % kind-A run that fired it first made the kind-B warnOnce silent too.
+    lsqvce.util.log.inventory('reset');
     opts.validate();
 
     % ---- kinds B / C (R4 WP-56b): no systems, no loaders -------------------
@@ -181,7 +189,6 @@ end
     end
 
     % ---- kind A: streaming --------------------------------------------------
-    lsqvce.util.log.inventory('reset');          % R5 M1: this run's warning inventory
     [spec, systems] = lsqvce.engine.declaration(data, opts.CacheDays);   % R5-D8 4: the one declaration step
     days = spec.days;
     [pri, priorGroups] = priorsOf(data, lsqvce.engine.resolveNc(systems), spec);   % R5 M5 5b / D8-6: data.priors
@@ -298,7 +305,6 @@ function R = runBatch(u, batchFcn, nBatch, x0, opts, kind, data)
                'policy composition of a later level; run the robust pass on the ' ...
                'linearised problem.'], opts.Robust);
     end
-    lsqvce.util.log.inventory('reset');
     a = opts.engineArgs('adjustNonlinear');
     prov = opts.toStruct();  prov.kind = kind;
     R = lsqvce.engine.adjustNonlinear(u, batchFcn, nBatch, x0, a.nv{:}, 'Provenance', prov, 'Prior', pri, ...
@@ -550,7 +556,6 @@ function R = runBatchOnBlockPath(u, batchFcn, nBatch, opts, kind, pri, data)
     if nargin < 6, pri = []; end
     if nargin < 7, data = struct(); end
     L = lsqvce.engine.batchSystem(u, batchFcn, nBatch, 'Name', kind);
-    lsqvce.util.log.inventory('reset');
     prov = opts.toStruct();  prov.kind = kind;   % provenance = the user's resolved Options
     if strcmp(opts.Robust, "none")
         a = opts.engineArgs('adjustBlock');

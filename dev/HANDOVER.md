@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-10 — WP-116 part 2 DONE (PR #120, merge 683d36e; CI 596/596); WP-118 part 1 OPEN (tier B, model Claude Opus 5.5): docs truth with two new audit instruments — check 31 (every accepted Name-Value option is documented; 17 were not) and check 32 (every named unit exists, in help, messages and user prose; 33 named deleted units) — plus the 2F(2,r) ellipse (R7-39), the pinned joint probe seed (R7-37), diagnose off the global RNG (R7-36), one rMin default (R7-35), localCovariance on the solve's s0² (R7-40); version 6.1.7; §12.41.
+Last substantive update: 2026-10-10 — WP-118 part 1 DONE (PR #121, merge 9919f5e; CI 600/600); WP-118 part 2 OPEN (tier B, model Claude Opus 5.5): compare's redundancy counts the locals (R7-19), one inventory reset first (R7-23), a sized pooled Ljung-Box (R7-38, mirror: 0.001 -> 0.048 on 64 x 30), worker warnings reach the inventory (R7-41); user decisions: the accFcn contract ACCEPTED, Noise.MeanType RETIRED; version 6.1.8; §12.41.
+Preceding entry: Last substantive update: 2026-10-10 — WP-116 part 2 DONE (PR #120, merge 683d36e; CI 596/596); WP-118 part 1 OPEN (tier B, model Claude Opus 5.5): docs truth with two new audit instruments — check 31 (every accepted Name-Value option is documented; 17 were not) and check 32 (every named unit exists, in help, messages and user prose; 33 named deleted units) — plus the 2F(2,r) ellipse (R7-39), the pinned joint probe seed (R7-37), diagnose off the global RNG (R7-36), one rMin default (R7-35), localCovariance on the solve's s0² (R7-40); version 6.1.7; §12.41.
 Preceding entry: Last substantive update: 2026-10-10 — WP-116 part 1 DONE (PR #119, merge 4587fd0; CI 592/592); WP-116 part 2 OPEN (tier B, model Claude Opus 5.5): the per-arc factors WEIGHT the solve (R7-13, user decision) — a keyed `covOverride.byArc` layer from adjustVCEjoint through jointModelOpt to both loaders, eq. 6.5.28 multiplies the per-arc factor; and a 6.1.5 regression found by the same mirror and fixed — the per-stream normalisation counted a stream's level twice when its arcs differ (1176 / 11.65 against 100 / 1), factors are now the absolute gamma2_m; version 6.1.6; §12.40.
 Preceding entry: Last substantive update: 2026-10-10 — WP-115 part 1 OPEN (tier B, model Claude Opus 5.5): the decision-free robust findings fixed or withdrawn — day keys exact (R7-06), MAD fallback reported (R7-21), IRLS stop rule unit-invariant (R7-17), report says robust (R7-18), the joint collapsed claim and "unbiased" withdrawn (R7-25, R7-12), check 28 reads wrapped lines and messages; version 6.1.4; R7-08 / R7-10 / the collapse threshold wait for the user; §12.39.
 Preceding entry: Last substantive update: 2026-10-10 — WP-117 part 2 DONE (PR #116, merge 5b94e1f; CI 575/575); WP-117 part 3 OPEN (tier B, model Claude Opus 5.5): the speed claims test_speed only benchmarked become eight gated ratio budgets, incl. the kernel lag sums (R7-42 closed); the two absolute-second bounds stay as stated exceptions (user decision); §12.38.
@@ -8057,8 +8058,8 @@ runs the audit to a file and tests its own exit code.) Merged as PR #120 (683d36
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 118 (part 1) | R7-34 deleted units / retired behaviour out of live text (check 32); R7-35 every accepted NV option documented (check 31), `diagnose` 'verify' retired, one `rMin` default; R7-36 `diagnose` off the global RNG; R7-37 unseeded joint runs pin and record their probe seed; R7-39 ellipse 2F(2, r); R7-40 `localCovariance` on the solve's s0²; **version 6.1.7** | 116 part 2 (§12.40, PR #120 merged 683d36e) | OPEN (2026-10-10; audit CLEAN; CI pending) |
-| 118 (part 2) | R7-19 `compare` df2 with eliminated locals; R7-23 `priorNotActive` in R.meta.warnings; R7-38 Ljung-Box K and per-arc lag sums; R7-41 worker log queue | 118 part 1 | NOT STARTED |
+| 118 (part 1) | R7-34 deleted units / retired behaviour out of live text (check 32); R7-35 every accepted NV option documented (check 31), `diagnose` 'verify' retired, one `rMin` default; R7-36 `diagnose` off the global RNG; R7-37 unseeded joint runs pin and record their probe seed; R7-39 ellipse 2F(2, r); R7-40 `localCovariance` on the solve's s0²; **version 6.1.7** | 116 part 2 (§12.40, PR #120 merged 683d36e) | DONE (2026-10-10, PR #121, merge 9919f5e; CI GREEN on 06e38ab first run: ci_gate 600/600) |
+| 118 (part 2) | R7-19 `compare` df2 counts the eliminated locals; R7-23 one inventory reset, first; R7-38 Ljung-Box divided by the pooled pair counts; R7-41 the log queue reaches the workers, their warnings the inventory; `Noise.MeanType` retired (user decision); **version 6.1.8** | 118 part 1 (PR #121 merged 9919f5e) | OPEN (2026-10-10; audit CLEAN; CI pending) |
 | 118 (part 3) | R7-24 the README memory claim (with WP-86); R7-44 long functions with a recorded reason | 118 part 2 | NOT STARTED |
 
 **Split.** WP-118 bundles twelve findings of very different weight. Part 1 takes the ones
@@ -8105,4 +8106,54 @@ questions (WP-86's memory work; whether 400-line functions are split or justifie
   engine-method API change is in the release notes); `residuals` calls it, so there is one
   formula. Reference test: the local block of the dense joint covariance s0²(A'A)⁻¹.
 - Counts: 612 declared, 600 gate-executed (+4: ellipse, RNG, seed replay, Cyy).
+
+**Part 1 CI (06e38ab): GREEN on the first run, ci_gate 600/600**, warning inventory the
+test probe only. Merged as PR #121 (9919f5e).
+
+**User decisions (2026-10-10, after part 1).** (a) The 6.1.6 engine contract -- an accFcn
+driving `adjustVCEjoint` must apply `model.arcFactor` -- is ACCEPTED as is. (b)
+`Noise.MeanType`: "retire if no other dependency exists". Its only other consumer is the
+kernel `arcVarianceFactors`, whose 'MeanType' reproduces the thesis' two means (eq.
+6.5.29 plain, 6.5.57 GROOPS robust) and is tested directly; that is the kernel's own
+option, not a dependency of the user knob. Retired: the Options field (now refused by
+name, `badGroupField`), `adjustVCEjoint`'s 'MeanType', the Manual row; two superseded
+claims.
+
+**Part 2, what was done and measured.**
+- **R7-19.** `Results.compare` built the full model's parameter count from `numel(R.x)`
+  (commons only); it is `R.diag.u` now (commons + eliminated locals, what the diagnose
+  record already held). Test: on test_fit's canonical declaration (nl = 4) with one
+  common dropped for the nested model, df2 = n - nc - nl = R.diag.r, and F equals the
+  closed form. The review's 2000-trial mirror (m5_irls_stats.py (c)): 7.4 % -> 4.9 %.
+- **R7-23.** `fit` resets the warning inventory ONCE, before `opts.validate()` and the
+  kind dispatch; the three later resets (kind A, kind B/C block path, the x0 path) are
+  gone. Test: a kind-B fit with a `from = 3` prior has `priorNotActive` in
+  `R.meta.warnings`, and a second identical fit warns again.
+- **R7-41.** `log.attachWorker(q)` (worker side; a no-op on the client, so a pool-less
+  parfor cannot clear the run's inventory) hands the DataQueue to the worker and starts a
+  per-task inventory; `mapreduce` passes `logQ` into every parfor task (`workerTask`) and
+  spmd block and merges the returned ids in task order (`log.mergeInventory`) -- no
+  dependence on when the asynchronous `afterEach` callbacks run. A worker's
+  `warnOnce` is forwarded as 'warnOnce' with its id and shown by the client's drain once
+  per run (the worker's own warning() is raised with its display off, so parfor's
+  automatic relay no longer prints it once per worker). Test: the parfor inventory of a
+  task that warns equals the serial one (CI runs test_parallel on a real pool).
+- **R7-38.** Mirror `dev/reviews/R7_2026-10-09/mirrors/wp118/ljungbox_pooled.py`, white
+  null, alpha 0.05:
+
+  | arcs x epochs | shipped size / E[Q] | pooled size / E[Q] |
+  |---|---|---|
+  | 9 x 256 | 0.032 / 19.3 | 0.047 / 20.0 |
+  | 8 x 2160 | 0.055 / 20.1 | 0.058 / 20.2 |
+  | 64 x 30 | **0.001 / 13.0** | 0.048 / 20.0 |
+  | 200 x 12 | **0.000 / 5.5** | 0.051 / 10.9 (K' = 11) |
+  | 1 x 500 | 0.058 / 20.0 | 0.058 / 20.0 (identical) |
+
+  Shipped: sweepArcs carries per-lag pair counts N_k next to the lag sums (`lagPairs`);
+  Q = N(N+2) sum rho_k^2 / N_k over the K' lags with N_k > 0. Test: 16 seeds of a white
+  stream of 30 x 30-epoch arcs, mean p-value in [0.29, 0.71] (the mis-sized statistic put
+  it near 0.87). NOT changed: K = 20 itself -- on 2160-epoch arcs the test sees only the
+  shortest lags (the review's second sentence); a K tied to the Grid is a power question,
+  left open, stated in Manual 7.7.
+- Counts: 616 declared, 604 gate-executed. Version **6.1.8**.
 

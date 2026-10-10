@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.1.7 — User Manual</title>
+  <title>lsqvce 6.1.8 — User Manual</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.1.7 — User Manual</h1>
+<h1 class="title">lsqvce 6.1.8 — User Manual</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 <p class="date">built from the sources; the single documentation
@@ -1775,25 +1775,17 @@ ARMA filter fitted to it (<code>"ar"</code>, <code>"arma"</code>: O(m·p)
 instead of O(m²))</td>
 </tr>
 <tr class="odd">
-<td><code>MeanType</code></td>
-<td><code>"robust"</code></td>
-<td>gamma-bar, the mean of the arc factors: trimmed
-(<code>"robust"</code>) or plain. Since 6.1.6 the factors are absolute
-and gamma-bar sets only the scale of their clamp floor (§7.8 item
-3)</td>
-</tr>
-<tr class="even">
 <td><code>Smooth</code></td>
 <td>0</td>
 <td>moving-average half-width on the estimated PSD (0 = none)</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>FreezeRedundancy</code></td>
 <td>1</td>
 <td>a frequency whose redundancy is below this holds its value instead
 of being updated</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>SkipThreshold</code></td>
 <td>0.2</td>
 <td>the skip <em>rate</em> (arcs the sweep could not process / arcs of
@@ -2125,6 +2117,9 @@ declared data.</p>
            LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT,
            LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTNONLINEAR
 
+  Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 2 (R7-23): the
+  warning inventory is reset once, before anything can warn, for every
+  kind. With assistance from Claude (Anthropic), model Claude Opus 5.5.
   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34, R7-37):
   ERRORS lists badParamColumns; the joint seed recorded is the one used.
   With assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -2249,7 +2244,6 @@ class="header-section-number">5.2</span> lsqvce.Options</h2>
                                      an integer &gt;= 2, at least the longest arc
                                      for an exact law (&quot;auto&quot; is refused)
                  Whitener &quot;toeplitz&quot;|&quot;ar&quot;|&quot;arma&quot;  how a PSD law whitens (v4 PsdMode)
-                 MeanType &quot;robust&quot;|&quot;plain&quot;        gamma-bar: the clamp floor&#39;s scale
                  Smooth 0                         moving average on the PSD
                  FreezeRedundancy 1               components below it hold
                  SkipThreshold 0.2                skip RATE that refuses the pass
@@ -2293,6 +2287,11 @@ class="header-section-number">5.2</span> lsqvce.Options</h2>
 
   See also LSQVCE.FIT, LSQVCE.RESULTS, the Manual, chapter 3, RELEASE_NOTES.md
 
+  Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 2: Noise.MeanType
+  retired (user decision 2026-10-10): since 6.1.6 the arc factors are
+  absolute and gamma-bar no longer scaled them; setting it is refused as
+  an unknown group field. With assistance from Claude (Anthropic), model
+  Claude Opus 5.5.
   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): the
   EXAMPLE no longer says Robust with Estimate = &quot;noise&quot; is refused (it
   runs since 6.1). With assistance from Claude (Anthropic), model Claude
@@ -2434,6 +2433,10 @@ provenance.</p>
   See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.REPORT,
            LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.BLOCKACCUMULATOR
 
+  Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 2 (R7-19): compare
+  counts the eliminated locals in the redundancy (R.diag.u, not
+  numel(R.x)). With assistance from Claude (Anthropic), model Claude Opus
+  5.5.
   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): the
   noHistory remedy no longer names the deleted adjustVCE. With assistance
   from Claude (Anthropic), model Claude Opus 5.5.
@@ -3053,6 +3056,12 @@ class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb26-1"><a h
 <span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a><span class="va">R</span>.<span class="va">noise</span>.<span class="va">stream</span>           <span class="co">% the stream keys, in the order of model{}</span></span>
 <span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a><span class="va">R</span>.<span class="va">history</span>(<span class="kw">end</span>).<span class="va">white</span>     <span class="co">% Ljung-Box whiteness per stream (K = 20, alpha = 0.05)</span></span>
 <span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a><span class="va">R</span>.<span class="va">convergence</span>()<span class="op">;</span> <span class="va">R</span>.<span class="va">plot</span>(<span class="st">&quot;psd&quot;</span>)<span class="op">;</span> <span class="va">R</span>.<span class="va">plot</span>(<span class="st">&quot;convergence&quot;</span>)<span class="op">;</span></span></code></pre></div>
+<p>The whiteness test pools a stream’s arcs: the lag products of every
+arc are summed, and the statistic divides each lag by the number of
+products it actually holds (N_k, the sum over arcs of m_a − k), so it is
+sized on short arcs too (since 6.1.8; before, 64 white arcs of 30 epochs
+were flagged with probability 0.001 instead of 0.05). K stays 20 lags:
+on arcs of thousands of epochs the test sees only the shortest lags.</p>
 <p>An arc’s standard deviation is <strong>all three terms</strong>:
 declared <code>sigma</code> × sqrt(arc factor) × <code>R.sigma0</code>.
 Since 6.1.6 an arc factor is the arc’s <strong>absolute</strong> Helmert
@@ -3102,11 +3111,14 @@ mean factor reached the weighting. That is
 <code>R.noise.model{k}.sigma2</code>.</li>
 <li><strong>The normalisation of those factors</strong>: gamma-bar (eq.
 6.5.29) is computed in GROOPS from the central half of the sorted
-factors, ignoring both tails (<code>Noise.MeanType = "robust"</code>,
-the default here). In this joint estimator the factors are absolute
-(§7.7), so gamma-bar no longer scales them; it sets only the scale of
-the floor below which a factor is clamped
-(<code>lsqvce:arcVarianceFactors:clamped</code>).</li>
+factors, ignoring both tails. In this joint estimator the factors are
+absolute (§7.7), so gamma-bar no longer scales them; it sets only the
+scale of the floor below which a factor is clamped
+(<code>lsqvce:arcVarianceFactors:clamped</code>), with the robust mean.
+The option that chose plain or robust, <code>Noise.MeanType</code>, is
+retired since 6.1.8; the kernel
+<code>lsqvce.engine.arcVarianceFactors</code> keeps both forms of the
+thesis.</li>
 </ol>
 <p><strong>Per-epoch down-weighting inside the same loop (since 6.1), in
 the Koch convention.</strong>
@@ -3207,8 +3219,11 @@ the arcs for the whitened residuals per stream;
 stream in the common parameters; <code>lsqvce.engine.snoop</code>
 iterates data snooping with a clean re-solve on the block path;
 <code>R.compare(Rred)</code> is the nested-model F test between two
-fits. For correlated batches the per-observation quantities live in the
-whitened frame; only their sums are frame-invariant.</p>
+fits; its redundancy counts the eliminated local parameters too (since
+6.1.8; it counted the commons only and was anti-conservative, 7.4 %
+false positives at 5 %). For correlated batches the per-observation
+quantities live in the whitened frame; only their sums are
+frame-invariant.</p>
 <h1 data-number="9" id="watching-a-run"><span
 class="header-section-number">9</span> Watching a run</h1>
 <p><code>Options.OnPass</code> (chapter 4) is called after every pass

@@ -1,5 +1,35 @@
 # lsqvce release notes
 
+## 6.1.8 — 2026-10-10 (R7 WP-118 part 2: four reported numbers corrected; MeanType retired)
+
+- **`R.compare` counts every parameter (R7-19).** The nested-model F test took the
+  redundancy from the common parameters alone; on a streaming fit the eliminated locals are
+  parameters too, so the full model's s0² was too small and F too large: 7.4 % false
+  positives at α = 0.05. It now uses `R.diag.u` (commons + locals). Kinds B/C (no locals)
+  are unchanged.
+- **The whiteness test is sized on short arcs (R7-38).** The per-stream Ljung–Box
+  statistic of the joint estimator (`R.history.whitePval`, `white`) pooled the arcs' lag
+  products but divided by (N − k) as for one long series. It now divides by the number of
+  products each lag actually holds. Measured size under a white null: 64 arcs × 30 epochs
+  0.001 → 0.048; 200 × 12 0.000 → 0.051; long arcs and single arcs unchanged.
+- **Kind B/C warnings reach `R.meta.warnings` (R7-23).** The run's warning inventory was
+  reset after the batch path had already warned (`lsqvce:fit:priorNotActive`), so the id
+  was lost — and after a run that fired it, the next one warned nothing at all. `fit` now
+  resets once, first.
+- **Worker warnings reach the run inventory (R7-41).** With `Parallel.Mode = "parfor"` or
+  `"spmd"`, the log sink never reached the workers: their warnings were missing from
+  `R.meta.warnings` and a once-per-run warning printed once per worker. The queue is now
+  handed to every task, the tasks return their warning ids, and the client merges them in
+  task order (the order a serial run fires them in); a once-per-run warning shows once.
+  New public helpers `lsqvce.util.log.attachWorker` / `mergeInventory` for callers
+  running their own parfor.
+- **`Noise.MeanType` is retired (user decision).** Since 6.1.6 the arc factors are
+  absolute and gamma-bar no longer scales them; setting the field is refused
+  (`lsqvce:Options:badGroupField`), and `adjustVCEjoint` no longer takes `'MeanType'`. The
+  kernel `lsqvce.engine.arcVarianceFactors` keeps both of the thesis' means.
+- **Engine contract (user decision, documented in 6.1.6):** an accFcn driving
+  `adjustVCEjoint` must apply `model.arcFactor`.
+
 ## 6.1.7 — 2026-10-10 (R7 WP-118 part 1: docs truth, one default per fact, honest numbers)
 
 - **The "95 %" error ellipse covers 95 % (R7-39).** `lsqvce.engine.ellipse` with the

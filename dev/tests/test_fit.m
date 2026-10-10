@@ -783,6 +783,35 @@ function testEllmerThroughFitReproducesDirect(tc)
     tc.verifyEqual(idOf(@() R.report('Verbose', false)), '');
 end
 
+function testCompareCountsTheEliminatedLocals(tc)
+% categories: reference, precision
+    % R7-19: compare built df2 = n - numel(R.x) -- the COMMONS only -- while the
+    % eliminated locals are parameters of the fit too (DEVELOPMENT, "the
+    % redundancy ... counting the eliminated parameters"). s0^2 of the full
+    % model was then too small and F too large: 7.4 % false positives at
+    % alpha 0.05 (R7 mirror m5_irls_stats.py, 2000 trials). Reference: the
+    % closed-form F with r = n - nc - nl, and r is the fit's own redundancy.
+    [data, cfg] = declaration();
+    Rfull = lsqvce.fit(data, Verbose=false);
+    red = data;
+    red.commonParams = data.commonParams(1:end-1, :);
+    red.systems(1).buildDay = @(d, ot) dropLastCommon(buildDayImpl(cfg, d, ot));
+    Rred = lsqvce.fit(red, Verbose=false);
+    F = Rfull.compare(Rred);
+    n = Rfull.diag.n;
+    tc.verifyEqual(F.df2, n - cfg.nc - cfg.nl, 'df2 counts the eliminated locals');
+    tc.verifyEqual(F.df2, Rfull.diag.r, 'and is the fit''s own redundancy');
+    tc.verifyEqual(F.df1, 1);
+    Fref = (Rred.sol.vtv - Rfull.sol.vtv) / (Rfull.sol.vtv / (n - cfg.nc - cfg.nl));
+    % tol: 1e-10 relative -- the same two residual sums in a closed form
+    tc.verifyEqual(F.F, Fref, 'RelTol', 1e-10);
+end
+
+function D = dropLastCommon(D)
+%DROPLASTCOMMON  The nested model: the last common column removed from every arc.
+    for a = 1:numel(D.A), D.A{a} = D.A{a}(:, 1:end-1); end
+end
+
 function testUnseededJointRunRecordsAReplayableSeed(tc)
 % categories: contract, reference
     % R7-37: an unseeded joint run drew a fresh private seed every pass and

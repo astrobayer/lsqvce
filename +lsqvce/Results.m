@@ -112,6 +112,10 @@ classdef Results < handle
 %   See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.REPORT,
 %            LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 2 (R7-19): compare
+%   counts the eliminated locals in the redundancy (R.diag.u, not
+%   numel(R.x)). With assistance from Claude (Anthropic), model Claude Opus
+%   5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): the
 %   noHistory remedy no longer names the deleted adjustVCE. With assistance
 %   from Claude (Anthropic), model Claude Opus 5.5.
@@ -423,7 +427,7 @@ classdef Results < handle
         %   fits must share observations and weights, the reduced one a SUBSET
         %   of the parameters; the test is F = [(vPv_red - vPv_full)/(u_full -
         %   u_red)] / s0sq_full ~ F(du, r_full) under "the extra parameters are
-        %   zero". Both Results must carry a honest v'Pv (NaN-honest folds refuse
+        %   zero", u counting the eliminated locals too (R7-19: R.diag.u). Both Results must carry a honest v'Pv (NaN-honest folds refuse
         %   with lsqvce:Results:noVPv). The residual-sum PREMISE (same rows) is
         %   checked by the engine when both Results have diagnostics.
         %   INPUT   Rred 1x1 lsqvce.Results; Alpha (0.05); Verbose (false)
@@ -445,7 +449,11 @@ classdef Results < handle
                     error('lsqvce:Results:noVPv', ...
                           'compare() needs a finite v''Pv on both Results (this one is NaN or missing).');
                 end
-                u = numel(Rk.x);  n = Rk.diag.n;
+                % R7-19: the parameter count is the FULL one -- commons AND the
+                % eliminated locals (diag.u; numel(Rk.x) is the commons only).
+                % With the commons alone df2 was too large, s0^2 of the full
+                % model too small, and F too large: 7.4 % false positives at 5 %.
+                u = Rk.diag.u;  n = Rk.diag.n;
                 s = struct('vPv', Rk.sol.vtv, 'n', n, 'u', u, 'rank', u, 'r', n - u);
             end
         end

@@ -76,8 +76,6 @@ function out = adjustVCEjoint(accFcn, opt)
 %     'Seed'      1x1 | []   RNG seed for reproducible probes (default []: one
 %                            seed is pinned for the run and returned, out.seed)
 %     'Norm'      char       DCT normalisation, 'ortho' (default) | 'ellmer'
-%     'MeanType'  char       gamma-bar, 'robust' (default) | 'plain'; since
-%                            6.1.6 the scale of the clamp floor only
 %     'Influence' string     "none" (default) | "huber" | "igg3" | "bisquare"
 %              R6 WP-105: the ROBUST PASS INSIDE THE LOOP, in the KOCH
 %              convention -- the weight is a statement about the
@@ -234,6 +232,10 @@ function out = adjustVCEjoint(accFcn, opt)
 %   See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
 %            LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 %
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 2 (R7-38): the per-
+%   stream Ljung-Box statistic divides by the pooled pair counts N_k;
+%   Noise.MeanType / 'MeanType' retired (user decision 2026-10-10). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34, R7-35,
 %   R7-37): the separable-driver history rewritten; Pool / Estimate /
 %   ArcFactors / OnPass / OnPassContext documented; an unseeded run pins and
@@ -330,7 +332,6 @@ arguments
     opt.Probes   (1,1) double {mustBeInteger, mustBePositive} = 100
     opt.Seed     double {mustBeScalarOrEmpty} = []
     opt.Norm     (1,1) string = "ortho"
-    opt.MeanType (1,1) string = "robust"
     opt.StepSchedule (1,1) string {mustBeMember(opt.StepSchedule, ["none","decay"])} = "none"
     opt.AvgTail  (1,1) double {mustBeInteger, mustBeNonnegative} = 0
     opt.SkipThreshold (1,1) double {mustBeInRange(opt.SkipThreshold, 0, 1)} = 0.2
@@ -591,12 +592,14 @@ end
         % among nine came back 1176 / 11.65 against 100 / 1, and the stream's
         % level 8x too high against the other streams. MEASURED (16 seeds,
         % mirrors/wp116/perarc_weighting.py): absolute factors 100.0 / 1.00.
-        % gamma-bar keeps one job: the scale of the clamp floor (ClampEps).
+        % gamma-bar keeps one job: the scale of the clamp floor (ClampEps), with
+        % the kernel's default robust mean -- the 'MeanType' option that chose it
+        % is retired (WP-118 part 2, user decision 2026-10-10).
         av = struct('gamma2', nan(nArc, 1), 'sigma2', nan(nArc, 1), 'gammaBar', []);
         for sk = unique(streamOf(:)).'
             cols = strcmp(streamOf, sk{1});
             avk = lsqvce.engine.arcVarianceFactors(omegaT(:, cols), sT(:, cols), s2Applied(cols), ...
-                                            'Norm', o.Norm, 'MeanType', o.MeanType);
+                                            'Norm', o.Norm);   % gamma-bar: the kernel's robust default
             av.gamma2(cols) = avk.gamma2;
             if isfinite(avk.gammaBar) && avk.gammaBar > 0
                 av.sigma2(cols) = avk.sigma2 * avk.gammaBar^2;     % the clamped gamma2_m
@@ -991,7 +994,7 @@ function [omegaT, sT, keys, keysAll, skips, wstats, rowAll] = sweepArcs(acc, sol
     rowAll  = {};
     skips  = cell(0, 2);
     nArc   = 0;
-    wstats = containers.Map('KeyType', 'char', 'ValueType', 'any');   % stream -> [sums; m]
+    wstats = containers.Map('KeyType', 'char', 'ValueType', 'any');   % stream -> [lag sums; pair counts] (R7-38)
 
     for k = 1:numel(ids)
         st = acc.getStore(ids(k));
@@ -1030,7 +1033,7 @@ function [omegaT, sT, keys, keysAll, skips, wstats, rowAll] = sweepArcs(acc, sol
                         continue
                     end
                     sk = sprintf('%s|%s', matlab.lang.makeValidName(char(string(st.sysID))), char(obsType));
-                    if isKey(wstats, sk), w0 = wstats(sk); else, w0 = zeros(WHITE_LAGS() + 2, 1); end
+                    if isKey(wstats, sk), w0 = wstats(sk); else, w0 = zeros(2*(WHITE_LAGS() + 1), 1); end
                     wstats(sk) = w0 + [wsum; wm];
                     nArc = nArc + 1;
                     % weight by THIS ARC'S factor (keyed, F-02) and lag cov
@@ -1065,7 +1068,7 @@ function [om, sn, why, wsum, wm] = oneArc(st, obsType, arc, day, uo, UiZ, nLag, 
     uo.day     = day;
     uo.arc     = arc;
     why = '';
-    wsum = zeros(WHITE_LAGS + 1, 1);  wm = 0;     % R5 M4 4a: whiteness collector
+    wsum = zeros(WHITE_LAGS + 1, 1);  wm = zeros(WHITE_LAGS + 1, 1);   % R5 M4 4a / R7-38: sums and pair counts
     a = st.dataFcn(day, obsType, arc, uo);
     if isempty(a) || ~isfield(a, 'l') || isempty(a.l)
         om = [];  sn = [];  why = 'gap';  return
@@ -1115,7 +1118,7 @@ function [om, sn, why, wsum, wm] = oneArc(st, obsType, arc, day, uo, UiZ, nLag, 
                                        'LocalBbar', Bbar, 'LocalLl', LlS);
             om = om + padTo(r.omega, nLag);
             sn = sn + padTo(r.s,     nLag);
-            wsum = wsum + whiteLagSums(ebar);  wm = wm + numel(ebar);
+            wsum = wsum + whiteLagSums(ebar);  wm = wm + lagPairs(numel(ebar));
         end
         return
     end
@@ -1149,12 +1152,19 @@ function [om, sn, why, wsum, wm] = oneArc(st, obsType, arc, day, uo, UiZ, nLag, 
                                'LocalBbar', Bbar, 'LocalLl', LlS);
     om = padTo(r.omega, nLag);
     sn = padTo(r.s    , nLag);
-    wsum = whiteLagSums(ebar);  wm = numel(ebar);
+    wsum = whiteLagSums(ebar);  wm = lagPairs(numel(ebar));
 end
 
 function K = WHITE_LAGS()
 %WHITE_LAGS  Lags of the Ljung-Box whiteness statistic per stream (20).
     K = 20;
+end
+
+function c = lagPairs(n)
+%LAGPAIRS  Number of products e(i) e(i+k) in one arc's lag-k sum, k = 0..K:
+%   max(n - k, 0). Pooled over a stream's arcs, these are the N_k the
+%   Ljung-Box statistic must divide by (R7-38).
+    c = max(n - (0:WHITE_LAGS()).', 0);
 end
 
 function s = whiteLagSums(e)
@@ -1306,21 +1316,29 @@ end
 function [streams, sig, white, pval] = whitenessRow(wstats, sMeans)
 %WHITENESSROW  One convergence-table row: per stream, the level factor
 %   sqrt(mean arc factor) and the Ljung-Box test on the pass's law-whitened
-%   residuals: Q = m (m+2) sum_k rho_k^2 / (m-k), k = 1..K, ~ chi2_K under
-%   whiteness; white = p > 0.05 (the convention of the separate mode's
-%   history, so Results.convergence reads both alike).
+%   residuals, POOLED over the stream's arcs: rho_k = s_k / s_0 from the
+%   summed lag products, Q = N (N+2) sum_k rho_k^2 / N_k ~ chi2_K' under
+%   whiteness, with N the residual count, N_k = sum over arcs of max(m_a - k,
+%   0) the products actually in s_k, and K' the lags with N_k > 0; white =
+%   p > 0.05. For ONE arc this is Ljung-Box exactly. R7-38: it divided by
+%   (N - k), as if the stream were one series, while each arc loses k
+%   products -- on 64 arcs of 30 epochs a white stream had size 0.001 (E[Q]
+%   13 instead of 20) and on 200 x 12 epochs 0.000; pooled, 0.047-0.058 on
+%   every layout (mirrors/wp118/ljungbox_pooled.py, 1000-2000 trials).
     streams = sort(keys(wstats));
     S = numel(streams);
     sig = ones(1, S);  white = false(1, S);  pval = nan(1, S);
     K = WHITE_LAGS();
     for j = 1:S
         w = wstats(streams{j});
-        m = w(end);  r0 = w(1);
+        sk = w(1:K+1);  Nk = w(K+2:end);              % lag sums; pair counts (R7-38)
+        m = Nk(1);  r0 = sk(1);
         if isKey(sMeans, streams{j}), sig(j) = sqrt(max(sMeans(streams{j}), eps)); end
-        if m <= K + 1 || r0 <= 0, continue, end
-        rho = w(2:K+1) / r0;
-        Q = m * (m + 2) * sum(rho.^2 ./ (m - (1:K).'));
-        pval(j)  = gammainc(Q/2, K/2, 'upper');      % 1 - chi2cdf(Q, K), base MATLAB
+        ok = Nk(2:end) > 0;  Ke = nnz(ok);
+        if Ke == 0 || r0 <= 0, continue, end
+        rho = sk(2:end) / r0;
+        Q = m * (m + 2) * sum(rho(ok).^2 ./ Nk([false; ok]));
+        pval(j)  = gammainc(Q/2, Ke/2, 'upper');     % 1 - chi2cdf(Q, K'), base MATLAB
         white(j) = pval(j) > 0.05;
     end
 end

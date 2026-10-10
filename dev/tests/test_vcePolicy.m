@@ -854,6 +854,57 @@ function testArcFactorsAreAbsoluteOnAHeterogeneousStream(tc)
     tc.verifyEqual(lvlB, 2, 'RelTol', 0.10, 'and the other stream keeps its own level');
 end
 
+function testLjungBoxIsSizedOnShortArcs(tc)
+% categories: reference, robustness
+    % R7-38: the per-stream Ljung-Box statistic pooled per-arc lag sums but
+    % divided by (N - k), as if the stream were ONE series; every arc loses k
+    % products, so on short arcs Q came out small and a white stream was
+    % never flagged -- and never close to it (64 x 30 epochs: size 0.001,
+    % E[Q] 13 instead of 20; mirrors/wp118/ljungbox_pooled.py). Pooled with
+    % the pair counts N_k it is sized (0.048 there). Under a white null the
+    % p-value is uniform: over 16 seeds its mean must sit near 0.5.
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % one pass on purpose: the test reads pass 1
+    p = zeros(1, 16);
+    for sd = 1:16
+        R = lsqvce.fit(shortArcFixture(sd), lsqvce.Options(Estimate="noise", Pool="stream", ...
+                       ArcFactors=false, MaxPasses=1, Verbose=false));
+        p(sd) = R.history.whitePval(end, 1);
+    end
+    % tol: the mean of 16 U(0,1) draws has sd 0.072; [0.29, 0.71] is three
+    % sd around 0.5. The mis-sized statistic put the p-values near 1 (E[Q]
+    % 13 against 20 degrees of freedom gives p ~ 0.87 at the mean).
+    tc.verifyGreaterThan(mean(p), 0.29, 'p-values are not pushed towards 0');
+    tc.verifyLessThan(mean(p), 0.71, 'nor piled up towards 1 (the R7-38 symptom)');
+end
+
+function data = shortArcFixture(seed)
+%SHORTARCFIXTURE  ONE white stream, "scale" on a declared diag law of the
+%   right level, 3 days x 10 arcs x 30 epochs, 4 commons. Deterministic per seed.
+    cfg = struct('nc', 4, 'days', 1:3, 'arcs', 10, 'mArc', 30, 'dt', 5, ...
+                 'xTrue', [0.8 -0.45 0.3 0.15], 'seed', seed);
+    data = struct();
+    data.commonParams = [repmat({'common'}, cfg.nc, 1), ...
+                         arrayfun(@(j) sprintf('c%d', j), (1:cfg.nc).', 'UniformOutput', false)];
+    data.days = cfg.days;
+    spec = struct('type', 'diag', 'sigma', 1, 'estimate', "scale", 'arcFactors', false);
+    data.systems = struct('buildDay', @(day, ot) shortArcDay(cfg, day), ...
+                          'covariance', struct('a', spec), 'arcs', cfg.arcs, 'id', 1, 'name', 'shortArcs');
+end
+
+function D = shortArcDay(cfg, day)
+%SHORTARCDAY  One day of the fixture above.
+    m = cfg.arcs * cfg.mArc;
+    t = (day - 1)*86400 + (0:m-1).' * cfg.dt;
+    w = 2*pi / 3000;
+    D.A = [sin(w*t), cos(w*t), sin(2*w*t), cos(2*w*t)];
+    D.B = zeros(m, 0);
+    rs = RandStream('mt19937ar', 'Seed', 7700 + 100*cfg.seed + day);
+    D.l = D.A * cfg.xTrue(:) + randn(rs, m, 1);
+    D.t = t;
+    D.arcIdx = arrayfun(@(a) (a-1)*cfg.mArc + (1:cfg.mArc), 1:cfg.arcs, 'UniformOutput', false);
+    D = arcCells(D);                                 % v6: the cells are the arcs
+end
+
 function data = scaleOnlyFixture(scaleA, scaleB, arcFactorsA, badA)
 %SCALEONLYFIXTURE  TWO white streams, both "scale" (no law), declared sigma 1;
 %   stream a truly scaleA x, stream b scaleB x its declared sigma; stream a
