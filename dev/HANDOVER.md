@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-09 — REVIEW R7 recorded (§12.35, findings R7-01…R7-46, WPs 111–118 proposed, none opened by the user yet); WP-117 part 1 OPEN on `ccr-e0276092-1b95jg` (tier B, model Claude Opus 5.5): R7-26 fixed — seven audit checks sweep `dev/tests` again, checks 3 and 9 read live files and fail closed, nine fault cases prove it; §12.36.
+Last substantive update: 2026-10-10 — WP-117 part 1 DONE (PR #115, 5402f62); WP-117 part 2 OPEN on PR #116 (tier B, model Claude Opus 5.5): the rest of R7's instrument findings — check 16 credits code in gated suites only (8 contract points written), check 30 freezes the 140 untested ids as a one-way ratchet, every audit check has a fault case, the blanket warning mutes are gone (they hid two ids), test session state is restored, §6.1 rewritten; check 28's extension waits for WP-115; §12.37.
+Preceding entry: Last substantive update: 2026-10-09 — REVIEW R7 recorded (§12.35, findings R7-01…R7-46, WPs 111–118 proposed, none opened by the user yet); WP-117 part 1 OPEN on `ccr-e0276092-1b95jg` (tier B, model Claude Opus 5.5): R7-26 fixed — seven audit checks sweep `dev/tests` again, checks 3 and 9 read live files and fail closed, nine fault cases prove it; §12.36.
 Preceding entry: Last substantive update: 2026-09-21 — WP-110 OPEN on `claude/wp-110` (tier B, model Claude Opus 5): acting on §12.33's finding began by measuring it, and the measurement REFUTED its consequence — the collapse guard does fire, the half-sample bound is just a restatement of being below breakdown, and the guard is a model-error detector (a bodily residual offset) rather than the 50 % breakdown detector its message claimed. The 6.1.2 claim is withdrawn in the 6.1.3 notes. Issue #110 test 6 closed with the arc-scoped prior fixture; version **6.1.3**; §12.34.
 Preceding entry: Last substantive update: 2026-09-20 — WP-109 OPEN on `claude/wp-109` (tier B, model Claude Opus 5): the PDF Manual's version surface gets its first gate (check 29; the rebuild was justified by MEASURING the old binary's toolchain, not by asserting it), issue #110's tests 3–6 land with every margin measured in its own run, and a FINDING is recorded — the collapse guard can fire only for n < 2(nc+1), so on a real fit it cannot fire at all; version **6.1.2**; §12.33.
 Preceding entry: Last substantive update: 2026-09-20 — WP-108 OPEN on `claude/wp-108` (issue #110, tier B, model Claude Opus 5): the stand-alone IRLS stopped re-weighting local prior groups. The finding was MEASURED on CI before it was fixed — two red runs, the second discriminating — and all three of its consequences are real; version **6.1.1**; §12.32.
@@ -2197,54 +2198,65 @@ asserted.
 
 ### 6.1 Test guidelines
 
-**6.1.1 Organisation.** `tests/` is FLAT. One file per public unit:
-`test_<name>.m`, function-based tests with `setupOnce` fixtures; expensive
-fixtures (the WP-19 campaign) built once and SHARED, with the determinism
-assertion kept separate from the solve assertion (v1 §1.4b lesson). The ONE
-runner is `tests/run_lsqvce2.m`; never `runtests('tests')`. The runner log
-records: pass/fail/incomplete, WHICH FILES LOADED, per-suite seconds, and
-the warning inventory by identifier. A green gate means: 0 failed AND every
-suite loaded AND no NEW warning identifier AND no speed budget exceeded.
+**6.1.1 Organisation** *(rewritten 2026-10-10, R7-33: the text named a
+runner and a folder that no longer exist)*. `dev/tests/` is FLAT (L8). One
+file per public unit or concern: `test_<name>.m`, function-based tests with
+`setupOnce` fixtures; expensive fixtures built once and SHARED, with the
+determinism assertion kept separate from the solve assertion (v1 §1.4b
+lesson). THE gate is `cd('dev/tests'); ci_gate` — it wraps the one runner
+`run_all_lsqvce.m` (registry of every suite) and judges the run with
+`private/gateVerdict.m`; never bare `runtests`. `test_speed.m` is a
+benchmark: registered, run by hand, EXCLUDED by `ci_gate` (its list
+`excluded` is the one authority; audit checks 16 and 30 read it). The log
+`last_run_all.txt` records pass/fail/incomplete per suite, which files
+loaded, per-suite seconds and the warning inventory by identifier. GREEN
+means all of: every suite loaded; 0 failed; 0 incomplete (an
+`assume`-filtered point is red, so a skip is never silent); suites on disk
+= suites run, both ways; declared points (`private/declaredPoints.m`) =
+executed points per suite; the warning inventory holds no identifier but
+the probe `lsqvce:internal:testProbe`; the capture probe was seen.
 
 **6.1.2 The test categories — every test point declares which it ships.**
-*(Rewritten 2026-08-19, WP-43: the adapted taxonomy from
-references/BEST_PRACTICE_v4-1.md §3.3, user decision. The former four-kind
-list is superseded; METAMORPHIC is no longer a category of its own — its
-properties classify as contract (order/batch invariance where promised),
-robustness (worker count) or vectorisation (split/merge), which is where
-the WP-29 suite's points now sit.)*
+*(WP-43, 2026-08-19; SEVEN categories since R5 M0 / WP-78, when
+`metamorphic` became a counted category; mechanics re-stated 2026-10-10,
+R7-27/R7-33.)*
 
 | Category | Asserts |
 |---|---|
-| contract | The promises in the help text: output shapes and types, argument rejection with the DOCUMENTED identifier and only that one, determinism where promised, error messages naming the offending field. Documented-id <-> code-id agreement is ALSO enforced statically (audit check 14). |
-| reference | Agreement with an outside authority — a published example, a second toolkit/language, real data. |
-| precision | The numerical claim, with an explicit tolerance AND a comment saying where the tolerance came from. House starting points: exact-identity <= 1e-10 relative; factorisation round-trips <= 1e-12; Monte-Carlo quantities within 4/sqrt(Z) (a 2.93-sigma bar, NOT containment). Never loosen a tolerance to make a test pass — that is a finding. |
-| speed | A RELATIVE budget against a recorded baseline on the same machine (medians; absolute seconds are LOGGED, not asserted; speed suites marked so the runner reports them separately). |
+| contract | The promises in the help text: output shapes and types, argument rejection with the DOCUMENTED identifier and only that one, determinism where promised, error messages naming the offending field. Documented-id <-> raised-id agreement is ALSO enforced statically (audit checks 14 and 20), and every catalogued id must be fired by a gated test (check 30; the frozen debt is `dev/docs_src/unfired_ids_baseline.csv`, rows only deleted). |
+| reference | Agreement with an outside authority — a published example, a closed form, a dense independent solve, a second language, real data. |
+| precision | The numerical claim, with an explicit tolerance AND a `tol:` comment naming where the tolerance came from — its real source (cond·eps, statistical band, model approximation, ...), not a comment copied from another kind of bound (R7-31). House starting points: exact identity <= 1e-10 relative; factorisation round-trips <= 1e-12; Monte-Carlo quantities within 4/sqrt(Z) (a 2.93-sigma bar, NOT containment). Never loosen a tolerance to make a test pass — that is a finding. |
+| speed | A RATIO budget measured by `private/timePair.m` (warm-up, both sides in one repeat, rotation, median of per-repeat ratios, 15 repeats by default) against a bound pinned from a recorded measurement. Absolute seconds are LOGGED, not asserted — with two recorded exceptions, each a generous sanity bound against a complexity class coming back: `test_ellmer` `test_lags_long_arc_speed_no_cubic_term` (< 5 s at N = 4000; the cubic path measured 12–30 s) and `test_speedBudget` `testOneSolveOnTheDemoIsBounded` (< 20 s; measured ~1 s). Turning them into ratios is open (R7-42), as is moving the FFT lag-sum budget from test-local copies onto the kernel. |
 | robustness | Behaviour at and beyond the edge of validity: degeneracy CONSTRUCTED FROM THE ALGEBRA, conditioning, boundary and empty inputs, non-finite propagation, reproducibility under worker count. |
-| vectorisation | A batched call equals the same inputs one at a time — the single cheapest reference test in a vectorised language, and the one most often assumed. Each such property states whether the expectation is BITWISE or eps-level, and why. |
+| vectorisation | A batched call equals the same inputs one at a time. Each such property states whether the expectation is BITWISE or eps-level, and why. |
+| metamorphic | An invariance or equivariance through the public API — row permutation, batch partition, unit scaling — the cheap test nobody writes. |
 
-Two CROSS-CUTTING TAGS, not categories: `diagnostics` (does every measured
-number reach the report) and `provenance` (does every result carry the
-metadata saying where it came from).
+Five CROSS-CUTTING TAGS, not categories: `diagnostics` (does every
+measured number reach the report), `provenance` (does every result carry
+where it came from), `layering`, `concurrency`, `convergence`.
 
 MECHANICS (binding, enforced by audit check 16):
 - Every test point carries `% categories: <list>` as the FIRST line after
-  its function signature, optionally `| tags: <list>`. Only the six
-  category names and the two tag names are legal vocabulary.
+  its signature, optionally `| tags: <list>`. Only the seven category
+  names and the five tags are legal vocabulary. A point inside a
+  `%{ ... %}` block declares nothing (audit and `declaredPoints.m` share
+  that definition).
 - The unit x category matrix is DERIVED per run from the `lsqvce.<name>`
-  references in each test body — no second bookkeeping file to drift —
-  and printed by the audit; gaps show as rows, not as absences nobody
-  notices.
-- A public unit with zero `contract` coverage is RED unless
-  `tests/category_exemptions.csv` carries a reasoned row. An exemption is
-  a claim that the test is IMPOSSIBLE, not inconvenient; `contract` may
-  never be exempted for a function that validates its arguments.
-- TOLERANCE PROVENANCE: every 'AbsTol'/'RelTol' carries a `tol:` comment
-  (same line or up to three lines above) naming its origin. Enforced RED
-  in the swept suites listed in the audit (start: test_signalCore,
-  test_precision); elsewhere the unannotated count is REPORTED as the
-  standing debt number, driven to zero suite by suite (WP-39 rollout
-  pattern).
+  references on CODE lines (and in code handed to `evalc`) of the GATED
+  suites — a comment that names a unit credits nothing, and neither does
+  the excluded benchmark (R7-27). No second bookkeeping file to drift.
+- Every (unit, category) gap is RED unless
+  `dev/tests/category_exemptions.csv` carries a reasoned row. An
+  exemption is a claim that the test is IMPOSSIBLE, or names the route
+  that does test it (e.g. "pinned through lsqvce.fit in ..."), never
+  plain inconvenience. Refused mechanically: `contract` exempted for a
+  unit that validates its arguments (an `arguments` block,
+  narginchk / validateattributes / inputParser, or a raised `:bad...` id);
+  a row whose category the matrix shows covered (stale); a duplicated row;
+  a row naming no public unit.
+- TOLERANCE PROVENANCE: every 'AbsTol'/'RelTol' in every suite carries a
+  `tol:` comment (same line or up to three lines above); a `tol:` comment
+  inside a `...` continuation is refused (a parse error on load).
 
 **6.1.2b Diagnosis order** *(added 2026-08-20, WP-47; external handover
 §2.10)*. When a number is wrong: CONFIGURATION (replay the exact frozen
@@ -2255,10 +2267,25 @@ that is a finding (already binding via §6.1.2). Cluster rule: unrelated
 failures sharing one symptom are SESSION STATE, not code — check the
 state before reading a single diff.
 
-**6.1.3 Regression discipline.** Every defect fixed during v2 gets a named
-regression test citing the WP section that records it (the v1 habit that
-worked). Randomness is seeded per test. Tests that need a pool carry an
-assumption filter and are counted as incomplete, not skipped silently.
+**6.1.3 Regression discipline and session state** *(state rules added
+2026-10-10, R7-30/R7-45)*. Every defect fixed gets a named regression test
+citing the section that records it. A test leaves the session as it found
+it:
+- RANDOMNESS: statistical tests draw from a private `RandStream`; a point
+  whose inputs are arbitrary but must repeat seeds the global stream with
+  `private/seedFor.m` (seed + restore in teardown; from `setupOnce` it
+  scopes the suite). A bare `rng(n)` leaks into every later suite.
+- WARNINGS: `private/muteWarn.m` is THE one way to silence a warning, one
+  identifier, in the point that provokes it on purpose — never
+  `warning('off','all')` (it hides every other id from gate rule 7; the
+  sixteen such points removed by R7-30 were hiding two), never an id that
+  cannot fire.
+- PATH: a suite that calls `addpath` restores the path in `setupOnce`'s
+  teardown, so a standalone `run_lsqvce` / `runtests` leaves it as found.
+- POOLS: a suite (or point) that opens a parallel pool closes it in
+  teardown; a pool that was already open is left alone.
+- Tests that need the PCT carry an `assume` filter: incomplete, hence red
+  where the PCT is expected (the self-hosted runner has it).
 
 **6.1.4 The authority table (added 2026-08-19, WP-43).** One table listing
 every external authority the `reference` tests consume, what it certifies,
@@ -7737,3 +7764,78 @@ R7-33 §6.1, R7-42, R7-45. Those touching `.m` suites need the gate run.
 **Branch note.** The cloud harness designated `ccr-e0276092-1b95jg` for this
 session, not `claude/wp-117`; recorded so the one-WP-one-branch rule's
 exception is visible.
+
+### 12.37 WP-117 part 2 — the rest of R7's instrument findings (2026-10-10, model Claude Opus 5.5, tier B)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 117 (part 2) | R7-27 check 16 honest; R7-28 id ratchet (check 30) + four ids fired; R7-29 the cannot-fail test; R7-30 no blanket mutes; R7-31 tol: sources; R7-32 a fault case for every check, check 14 package-only, check 17 block comments, check 27 group fields; R7-42 (part); R7-45 session state; R7-33 §6.1 rewritten | 117 part 1 (§12.36) | OPEN (2026-10-10, PR #116, branch `ccr-e0276092-1b95jg`; audit CLEAN, self-test 60/60; CI: see the round notes below; no `+lsqvce` change, so no version bump) |
+
+**What each finding became.**
+- **R7-27** (check 16). The matrix credits CODE lines (and code handed to
+  `evalc`) in GATED suites only, skips `%{ %}` blocks, and enforces the
+  ledger's two rules (stale rows, `contract` on validating units) plus
+  duplicate rows and rows naming no unit. Fallout, all resolved: 18 stale
+  rows deleted; **8 contract points** in `test_errorDoctrine`
+  (adjustNonlinear, diagnose, resolveNc, runMeta, ReducedContribution,
+  ftest, adjustRobust, declaration) replacing 5 refused exemptions and 3
+  comment-only credits — **green on CI at the first run (abe1f6e)**;
+  `testVarWhitenMatchesDenseGLS` declares `reference` (it is one);
+  15 reasoned rows — 5 metamorphic + 2 reference gaps reached only
+  through `lsqvce.fit`, 8 speed gaps measured only by the excluded
+  `test_speed`. These 15 rows are honest but they are DEBT, not
+  impossibility: each names the route that tests it.
+- **R7-28** (check 30, new). A catalogued id must be named on a code line
+  of a gated suite. Debt frozen in `dev/docs_src/unfired_ids_baseline.csv`
+  (written once, `--write-unfired`): 145 rows at creation, **140 now** —
+  the user-tier `Results:noAccumulator`, `Results:noVPv`,
+  `fit:lawOnFixedStructure`, the E-10 `covModel:badCep`, and
+  `redundancy:hutchinsonExperimental` (named by an R7-30 mute) left it;
+  the ratchet flagged each in the commit that fired it.
+  `adjustVCEjoint:badAxisRows` stays (needs a multi-axis joint fixture);
+  `badSigma2_0`'s missing ERRORS line is a help fix for WP-118.
+- **R7-29.** One `Parallel` struct, `Mode` asserted; with the PCT the
+  distributed path now really runs (parfor), a pool the test opened is
+  closed. Passed on CI (test_fit 39/39 on 9ac132b).
+- **R7-30.** The sixteen `warning('off','all')` points are gone. CI on
+  9ac132b: **572/572 passed and the gate went red on exactly two ids the
+  blanket mutes had hidden** — `redundancy:hutchinsonExperimental` (three
+  vce points choose the experimental trace) and `decorrFactor:notPD` (two
+  PD-toggle points make an arc indefinite). Both deliberate: `muteWarn` in
+  those five points. The "warns about nothing" point now asserts it; the
+  onCleanup-in-a-loop is removed.
+- **R7-31.** Four copied `tol:` comments now name their real source.
+- **R7-32.** `audit_selftest` scratch tree carries everything a check
+  reads; 60 cases, every check has at least one (the self-test's case 23
+  ignores a pandoc-less rebuild so it stays platform-free); check 14
+  counts ids raised by package/template only; check 17 skips block
+  comments; check 27 reads group fields — `Noise.Smooth` and
+  `Noise.FreezeRedundancy` are named debt (`DEAD_GROUP_DEBT`) until
+  WP-116.
+- **R7-33.** §6.1.1–6.1.3 rewritten against the gate (runner, folder,
+  seven categories, five tags, the gate's green definition, the session-
+  state rules).
+- **R7-42 (part).** `test_vceMath`'s sequential `timeit` pair → `timePair`;
+  both ratio budgets back to 15 repeats. OPEN: the FFT budget times
+  test-local copies (moving it onto `kernel.redundancyLags` needs a
+  measured bound, tier A), and the two absolute-second bounds are now
+  recorded in §6.1.2 as exceptions — **user decision**: keep them as
+  stated exceptions, or convert to ratios.
+- **R7-45.** `private/seedFor.m` (seed + restore) at the 11 unseeded
+  global-stream points and the suites that seeded bare; path restored in
+  the 7 suites that `addpath`; the mute on an id nothing raises removed;
+  dead `makeTinyDay` deleted; `test_parallel` closes a pool it opened.
+
+**Not done here, and why.** Check 28 on message bodies and wrapped lines
+fires at once on R7-25 (`adjustVCEjoint` help l.175–177 and its runtime
+`collapsed` message). Fixing that text changes `+lsqvce`, which by the
+project's practice means a version bump, and a bump needs the PDF Manual
+rebuilt (check 29) — there is no LaTeX in this container. The extension
+therefore lands with R7-25 in WP-115.
+
+**Counts.** 587 declared (576 + 11: eight contract points, three id
+points), 575 gate-executed (minus `test_speed` 12).
+
+**Process note.** One push (2625533) went out with the audit red — check
+30 flagging a baseline row the same commit had made stale; fixed in the
+next commit (dfabb22). The audit runs before every push.
