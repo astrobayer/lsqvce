@@ -11,7 +11,7 @@ No behaviour change.
   that stage is WP-86 (open). `diagnose`'s help and `dev/DEVELOPMENT.md` say the same.
 - **Long functions and long lines are on the record (R7-44).** The five functions over 400
   lines (`diagnose`, `report`, `adjustVCEjoint`, `snoop`, `makeLoader`) carry a written
-  reason and a ceiling in `dev/docs_src/long_functions.csv`, and the 74 lines over 120
+  reason and a code-line ceiling in `dev/docs_src/long_functions.csv`, and the 74 lines over 120
   characters a per-file ceiling in `long_lines.csv`; audit check 33 refuses growth, a new
   unrecorded case, and a stale row. `makeLoader`'s 569-character struct literal is wrapped.
 

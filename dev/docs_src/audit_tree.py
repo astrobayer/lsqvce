@@ -1504,7 +1504,7 @@ def check_nv_options_documented():
 
 
 def function_lengths(path):
-    """[(name, first line, lines)] of every function in an .m file: from its
+    """[(name, first line, lines, code lines)] of every function in an .m file: from its
     function line to the next function of the same or lower indentation,
     minus the nested functions inside it (a nested function ends at its own
     same-indent 'end'). The help block counts -- it is part of the unit."""
@@ -1524,8 +1524,10 @@ def function_lengths(path):
             f[1] = e + 1
     out = []
     for f in fn:
-        inner = sum(c[1] - c[0] for c in fn if c is not f and f[0] < c[0] < f[1])
-        out.append((f[3], f[0] + 1, f[1] - f[0] - inner))
+        nested = [c for c in fn if c is not f and f[0] < c[0] < f[1]]
+        rows = [t for t in range(f[0], f[1]) if not any(c[0] <= t < c[1] for c in nested)]
+        code = sum(1 for t in rows if L[t].strip() and not L[t].strip().startswith('%'))
+        out.append((f[3], f[0] + 1, len(rows), code))
     return out
 
 
@@ -1549,7 +1551,7 @@ def check_length_ratchets():
     seen, nf, nl = set(), 0, 0
     for f in sorted(pglob(PKG_GLOB, recursive=True)):
         fx = f.replace(os.sep, '/')
-        for name, line, n in function_lengths(f):
+        for name, line, n, code in function_lengths(f):
             if n <= 400:
                 continue
             nf += 1
@@ -1559,13 +1561,16 @@ def check_length_ratchets():
                 note('length', '%s:%d function %s is %d lines with no recorded reason in long_functions.csv'
                      % (fx, line, name, n))
                 continue
+            # the CEILING is on CODE lines: a help edit or a dated stamp (which every
+            # touched help block gets) must not trip it; code growth must
             cap, reason = int(frows[key][0]), (frows[key][1] if len(frows[key]) > 1 else '')
             if not reason.strip():
                 note('length', 'long_functions.csv row %s/%s gives no reason' % key)
-            if n > cap:
-                note('length', '%s function %s grew to %d lines (ceiling %d)' % (fx, name, n, cap))
-            elif n < cap:
-                note('length', '%s function %s is %d lines now: lower its ceiling (%d)' % (fx, name, n, cap))
+            if code > cap:
+                note('length', '%s function %s grew to %d code lines (ceiling %d)' % (fx, name, code, cap))
+            elif code < cap:
+                note('length', '%s function %s has %d code lines now: lower its ceiling (%d)'
+                     % (fx, name, code, cap))
         cnt = sum(1 for l in open(f, encoding='utf-8', errors='replace') if len(l.rstrip('\n')) > 120)
         nl += cnt
         cap = int(lrows[(fx,)][0]) if (fx,) in lrows else 0

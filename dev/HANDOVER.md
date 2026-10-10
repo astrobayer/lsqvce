@@ -8176,13 +8176,21 @@ long functions get recorded reasons, not a split.
   `dev/docs_src/long_functions.csv` (a reason and a ceiling), a row is a ceiling (growth
   fires; shrinking fires "lower it"; a row for a function under 400 lines or gone is
   stale), and `long_lines.csv` holds the per-file count of lines over 120 characters as a
-  ceiling. The length metric counts from the function line to the next function of the
-  same or lower indentation, nested functions subtracted (report's `push`), help
-  included. Measured: diagnose 1017, report 840, adjustVCEjoint 767, makeLoader 496,
-  snoop 496 -- the review's five. The reasons are concrete: shared per-batch accumulator
+  ceiling. LONG counts from the function line to the next function of the same or lower
+  indentation, nested functions subtracted (report's `push`), help included -- measured
+  diagnose 1021, report 840, adjustVCEjoint 767, makeLoader 496, snoop 496, the
+  review's five; the CEILING is on code lines (496 / 596 / 295 / 153 / 244), because the
+  first version capped total lines and the help stamp of this very round tripped it
+  (c-push below). The reasons are concrete: shared per-batch accumulator
   state (diagnose), a top-down five-level specification (report), help-dominated units
   whose loops already delegate to local functions (adjustVCEjoint, snoop, makeLoader),
   each with the seam a future split would use. The 569-character struct literal of
   makeLoader was wrapped (verified identical text; +7 lines, recorded in its ceiling --
   the ratchet caught the growth on its first run). Four fault cases in the self-test (72).
+- **A push with the audit red, again (c-push).** The first push of part 3 carried
+  `diagnose`'s new help stamp, which grew the function past its total-line ceiling;
+  the audit said so (exit 1) and the command chain pushed anyway -- the push did not
+  depend on the audit's exit code (the same slip as c654515 in WP-116). Fixed by moving
+  the ceiling to code lines (a stamp is not growth) and, for the process: the push now
+  runs only inside `if audit && selftest; then push; fi`.
 
