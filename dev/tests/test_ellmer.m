@@ -803,6 +803,24 @@ function test_jointModelOpt_places_override_bySys(tc)
     verifyTrue(tc, isfield(uo.covOverride.bySys.x2, 'rr'));
 end
 
+function test_jointModelOpt_emits_the_arc_factors_as_a_std(tc)
+% categories: contract, precision
+    % R7-13 (WP-116 part 2): model.arcFactor (rowWeightKey -> the arc's VARIANCE
+    % factor relative to its stream's level) leaves as covOverride.byArc, a
+    % STANDARD DEVIATION -- convention 1 again, now per arc. No arcFactor, no
+    % byArc: a run without arc factors builds the same UserOpt as before.
+    model = struct('C', [1; 0.3], 'sigma2', [], 'iter', 2);
+    uo = lsqvce.engine.jointModelOpt(model, {'x1|a'});
+    verifyFalse(tc, isfield(uo.covOverride, 'byArc'), 'no factors, no per-arc layer');
+    k1 = lsqvce.util.rowWeightKey(1, 3, 'a', 2);
+    k2 = lsqvce.util.rowWeightKey(1, 3, 'a', 1);
+    model.arcFactor = containers.Map({k1, k2}, {9, 0.25});
+    uo = lsqvce.engine.jointModelOpt(model, {'x1|a'});
+    % tol: value plumbing identity (sqrt of a stored number); house round-trip bound 1e-12
+    verifyEqual(tc, [uo.covOverride.byArc(k1), uo.covOverride.byArc(k2)], [3 0.5], 'AbsTol', 1e-12, ...
+        'a variance factor of 9 arrives as a relative std of 3');
+end
+
 function test_jointModelOpt_sets_psdMode_on_useropt(tc)
 % categories: contract
     % CONVENTION 3: psdMode is read from the UserOpt, NOT from the spec. It must

@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-10 — WP-115 part 1 OPEN (tier B, model Claude Opus 5.5): the decision-free robust findings fixed or withdrawn — day keys exact (R7-06), MAD fallback reported (R7-21), IRLS stop rule unit-invariant (R7-17), report says robust (R7-18), the joint collapsed claim and "unbiased" withdrawn (R7-25, R7-12), check 28 reads wrapped lines and messages; version 6.1.4; R7-08 / R7-10 / the collapse threshold wait for the user; §12.39.
+Last substantive update: 2026-10-10 — WP-116 part 1 DONE (PR #119, merge 4587fd0; CI 592/592); WP-116 part 2 OPEN (tier B, model Claude Opus 5.5): the per-arc factors WEIGHT the solve (R7-13, user decision) — a keyed `covOverride.byArc` layer from adjustVCEjoint through jointModelOpt to both loaders, eq. 6.5.28 multiplies the per-arc factor; and a 6.1.5 regression found by the same mirror and fixed — the per-stream normalisation counted a stream's level twice when its arcs differ (1176 / 11.65 against 100 / 1), factors are now the absolute gamma2_m; version 6.1.6; §12.40.
+Preceding entry: Last substantive update: 2026-10-10 — WP-115 part 1 OPEN (tier B, model Claude Opus 5.5): the decision-free robust findings fixed or withdrawn — day keys exact (R7-06), MAD fallback reported (R7-21), IRLS stop rule unit-invariant (R7-17), report says robust (R7-18), the joint collapsed claim and "unbiased" withdrawn (R7-25, R7-12), check 28 reads wrapped lines and messages; version 6.1.4; R7-08 / R7-10 / the collapse threshold wait for the user; §12.39.
 Preceding entry: Last substantive update: 2026-10-10 — WP-117 part 2 DONE (PR #116, merge 5b94e1f; CI 575/575); WP-117 part 3 OPEN (tier B, model Claude Opus 5.5): the speed claims test_speed only benchmarked become eight gated ratio budgets, incl. the kernel lag sums (R7-42 closed); the two absolute-second bounds stay as stated exceptions (user decision); §12.38.
 Preceding entry: Last substantive update: 2026-10-10 — WP-117 part 1 DONE (PR #115, 5402f62); WP-117 part 2 OPEN on PR #116 (tier B, model Claude Opus 5.5): the rest of R7's instrument findings — check 16 credits code in gated suites only (8 contract points written), check 30 freezes the 140 untested ids as a one-way ratchet, every audit check has a fault case, the blanket warning mutes are gone (they hid two ids), test session state is restored, §6.1 rewritten; check 28's extension waits for WP-115; §12.37.
 Preceding entry: Last substantive update: 2026-10-09 — REVIEW R7 recorded (§12.35, findings R7-01…R7-46, WPs 111–118 proposed, none opened by the user yet); WP-117 part 1 OPEN on `ccr-e0276092-1b95jg` (tier B, model Claude Opus 5.5): R7-26 fixed — seven audit checks sweep `dev/tests` again, checks 3 and 9 read live files and fail closed, nine fault cases prove it; §12.36.
@@ -7942,8 +7943,8 @@ bias". The settling measurement is the first item of WP-115's design part.
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 116 (part 1) | R7-07 `var` under `Estimate="noise"` refused by name; R7-09 gamma-bar per stream WITH the stream's level; R7-22 `Noise.Smooth` / `Noise.FreezeRedundancy` wired; R7-11 a complete stop rule and the returned solution under the returned model; **version 6.1.5** | 115 (§12.39) | OPEN (2026-10-10; audit CLEAN; CI pending) |
-| 116 (part 2) | R7-13 per-arc factors weight the solve | 116 part 1 | NOT STARTED |
+| 116 (part 1) | R7-07 `var` under `Estimate="noise"` refused by name; R7-09 gamma-bar per stream WITH the stream's level; R7-22 `Noise.Smooth` / `Noise.FreezeRedundancy` wired; R7-11 a complete stop rule and the returned solution under the returned model; **version 6.1.5** | 115 (§12.39) | DONE (2026-10-10, PR #119, merge 4587fd0; CI GREEN on 3a54701: ci_gate 592/592 after two CI rounds, see below) |
+| 116 (part 2) | R7-13 per-arc factors weight the solve (`covOverride.byArc`); the 6.1.5 double-counted level fixed — arc factors are the absolute gamma2_m; **version 6.1.6** | 116 part 1 (PR #119 merged 4587fd0) | OPEN (2026-10-10; audit CLEAN; CI pending) |
 
 **User decisions (2026-10-10).** (a) R7-13: **the arc factors weight the solve**
 (Ellmer's convention) rather than the Manual being corrected — part 2, because it
@@ -7979,3 +7980,60 @@ diverging; it needs its own convergence fixture. R7-22: **wire both** knobs —
   Tier B: the CI run is the first MATLAB execution; R7-09 / R7-11 change numbers on every
   joint fit, so existing fixtures may move inside or outside their bands — each move is
   read, not re-tolerated.
+
+**Part 1, CI rounds (tier B: CI is the first MATLAB run).** a55f6f4: every joint test
+errored -- `sigma2` is empty on pass 1 without `Sigma2_0`, so the R7-11 baseline `s2Prev`
+was `[]`; fixed by starting it at ones. The same run exposed a runner crash (`unique({})`
+is 0x1, so the warning loop ran once on an empty capture), fixed with a row reshape.
+fd7aa30: `testCacheDaysCountsTheBuilds` expected 2n+1 builds; R7-11's accumulation under
+the returned model is one more, 2n+2, with the reason at the site. 3a54701: green,
+ci_gate 592/592. Merged as PR #119 (4587fd0).
+
+**Part 2 (R7-13), what was done and measured.**
+- **Mirror first** (`dev/reviews/R7_2026-10-09/mirrors/wp116/perarc_weighting.py`; three
+  white streams sharing 4 parameters, stream A with arc factors and ONE arc 10x in sigma
+  among nine, B "scale" truly 2x, C "law"; 16 seeds; exact traces):
+
+  | mode | A bad / good factor (truth 100 / 1) | levels x s0^2 A / B / C (truth 12 / 4 / 1) | true sd of x |
+  |---|---|---|---|
+  | 6.1.5 as shipped | **1176 / 11.65** | 98.2 / 2.80 / 0.69 | 0.268 0.310 0.069 0.257 |
+  | mean weighting, absolute factors | 100.0 / 1.001 | 12.0 / 4.03 / 0.99 | 0.279 0.359 0.100 0.271 |
+  | **per-arc weighting, absolute (shipped now)** | 100.0 / 1.002 | 12.0 / 4.03 / 0.99 | **0.242 0.262 0.053 0.218** |
+
+  Formal / true sd: 0.92 / 1.00 / 1.28 / 0.94 with per-arc weighting (16 seeds: the sd of
+  an sd estimate is ~18 %, so "consistent", not more). The factors settle by pass 3
+  (levelDev 1e-3 -> 5e-5); the rest of a Tol 1e-3 run is the white law's PSD crawl.
+- **A 6.1.5 regression, found by this mirror and fixed here.** Part 1 shipped
+  sigma2_m = (gamma2_m / gamma-bar_s^2) * mean(gamma2_s). On a stream whose arcs are
+  homogeneous that is gamma2_m; as soon as they differ it counts the level twice (row 1
+  of the table), and through the stream's override level it pushes every OTHER stream off
+  as well (B: 2.80 against 4). Part 1's own mirror (`gammabar_modes.py`) and tests had
+  homogeneous arcs and could not see it. A factor is now the absolute Helmert factor
+  gamma2_m (clamped); gamma-bar keeps one job, the scale of the clamp floor, and
+  `Noise.MeanType` says so in its help, the Options page and Manual 7.8 item 3. Whether
+  `MeanType` should then be retired is a question for the user (it is not dead: the clamp
+  reads it).
+- **The plumbing.** `sweepArcs` returns the loader key of every enumerated arc
+  (`lsqvce.util.rowWeightKey`, the one per-arc key convention), pinned on pass 1;
+  `arcFactorMap` gives the model `arcFactor` = sigma2_m / stream mean for arc-factor
+  streams that are estimated; `jointModelOpt` emits `covOverride.byArc` (sqrt, a relative
+  std on top of the stream's `sigmaScale`); `applyCovOverride` gained layer (3), read only
+  when the caller passes day and arc (`makeLoader>batchOf`, `synthLoader`; a prior
+  pseudo-arc has none). `s2Applied` is the per-arc factor for arc-factor streams, the
+  stream mean otherwise -- the WP-98 rule, now with nothing left to cancel.
+- **Contract change for engine callers**, stated in `adjustVCEjoint`'s INPUT: an accFcn
+  that drops `model.arcFactor` re-creates the F-01 recursion; `arcFactorsDiverging` (kept
+  as a ratchet since WP-98) is what names it. The engine tests' own accFcns ignore the
+  model but generate data from the declared covariance (alpha2 ~ 1), so they are expected
+  to stay put; CI decides.
+- Surfaces: Manual 3, 4 (MeanType row), 7.7, 7.8; `Options` help; three superseded claims
+  ("never fed back into the weighting", the Manual's "stream mean" sentence, "split one
+  scale by a convention"); the 0.517 / 1.499 / 0.507 numbers kept only where dated as
+  before 6.1.6.
+- Tests: `testPerArcOverrideScalesOnlyItsArc` (test_adjustBlock),
+  `test_jointModelOpt_emits_the_arc_factors_as_a_std` (test_ellmer),
+  `testArcFactorsWeightTheSolve` (end to end through every seam, read from pass 2's live
+  accumulator: before, the arc-2 / arc-1 covariance ratio was 1) and
+  `testArcFactorsAreAbsoluteOnAHeterogeneousStream` (test_vcePolicy; fails on 6.1.5's
+  normalisation). Counts: 608 declared, 596 gate-executed. Version **6.1.6**.
+

@@ -121,6 +121,35 @@ function testRawClosureHonoursPerSatelliteOverride(tc)
     tc.verifyEqual(wX, w0, 'an override keyed on another satellite must not apply');
 end
 
+function testPerArcOverrideScalesOnlyItsArc(tc)
+% categories: contract
+    % R7-13 (WP-116 part 2): the joint estimator's per-arc factor rides as
+    % covOverride.byArc, keyed lsqvce.util.rowWeightKey(sysID, day, obsType,
+    % arcID), a RELATIVE standard deviation on top of the stream's level. It
+    % must reach the arc it names and no other -- the per-arc factors were
+    % estimated but never weighted anything until this layer existed.
+    cfg = synthCfg();
+    loader = @(d,ot,a,uo) lsqvce.engine.synthLoader(cfg, 1, d, ot, a, uo);
+    uo0 = struct('sysID', 1);
+    satKey = matlab.lang.makeValidName(char(string(1)));
+    uo0.covOverride.bySys.(satKey).kbr = struct('sigmaScale', 1);
+    uoA = uo0;
+    uoA.covOverride.byArc = containers.Map({lsqvce.util.rowWeightKey(1, 1, 'kbr', 2)}, {3});
+    for a = 1:2
+        b0 = loader(1, 'kbr', a, uo0);  idx = 1:numel(b0.l);
+        [~, ~, w0] = b0.Wfcn(idx, b0.A, b0.B, b0.l, uo0);
+        bA = loader(1, 'kbr', a, uoA);
+        [~, ~, wA] = bA.Wfcn(idx, bA.A, bA.B, bA.l, uoA);
+        if a == 2
+            % tol: 1e-14 -- (l/0.2)/3 against l/0.6, one extra rounding of a scalar
+            tc.verifyEqual(wA, w0/3, 'RelTol', 1e-14, 'the named arc carries its factor');
+        else
+            % tol: exact -- no factor for this arc, the same code path as the base
+            tc.verifyEqual(wA, w0, 'an arc the map does not name is untouched');
+        end
+    end
+end
+
 %% ============================================================ recover paths
 function testRecoverSynthClosure(tc)
 % categories: contract, precision

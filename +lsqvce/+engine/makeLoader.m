@@ -1235,7 +1235,7 @@ function out = batchOf(dayFcn, arcs, cov, day, obsType, arcID, opt)
 
     cm = cov.(obsType);
     if isfield(opt,'covOverride')
-        cm = applyCovOverride(cm, opt.covOverride, obsType, opt);
+        cm = applyCovOverride(cm, opt.covOverride, obsType, opt, day, arcID);   % R7-13: + the per-arc factor
     end
 
     % R6 WP-90: the ERROR INFORMATION travels with the day -- per arc since

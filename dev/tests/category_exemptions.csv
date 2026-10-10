@@ -261,7 +261,6 @@ util.onPass,robustness,inputs are validated by name at the contract level; no nu
 util.onPass,vectorisation,no loop over observations or lags -- scalar/struct plumbing
 util.onPass,speed,O(1) per call; no data-sized work to budget
 util.onPass,metamorphic,no invariance beyond the identity already pinned by its contract
-util.rowWeightKey,precision,plumbing (structs/handles/strings): no floating-point result to bound; its identity behaviour is the contract
 util.rowWeightKey,reference,no closed form: the unit transports values, it does not compute
 util.rowWeightKey,robustness,inputs are validated by name at the contract level; no numerical edge regime exists
 util.rowWeightKey,vectorisation,no loop over observations or lags -- scalar/struct plumbing

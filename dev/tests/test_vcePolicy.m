@@ -702,8 +702,9 @@ function testArcFactorsReconstructThePlantedPerArcSigma(tc)
     % overall scale. Reading the first two alone is what made HANDOVER 12.22
     % record a level of 0.678 "where the arcs were planted at 0.5" as an open
     % question; it was an incomplete reconstruction, not a defect. MEASURED
-    % here on the same fixture: 0.517 / 1.499 / 0.507 against the planted
-    % 0.5 / 1.5 / 0.5.
+    % here on the same fixture before 6.1.6: 0.517 / 1.499 / 0.507 against the
+    % planted 0.5 / 1.5 / 0.5. Since 6.1.6 (R7-13) the factors are absolute
+    % and weight the solve, so sigma0 carries less of it; the band is unchanged.
     R = lsqvce.fit(arcFactorFixture(3), ...
                    lsqvce.Options(Estimate="noise", Pool="stream", MaxPasses=4, ...
                                   Verbose=false));
@@ -787,12 +788,80 @@ function testArcFactorStreamIgnoresOtherStreamsLevels(tc)
     tc.verifyEqual(implied(R4, 'x1|a'), implied(R1, 'x1|a'), 'RelTol', 0.05);
 end
 
-function data = scaleOnlyFixture(scaleA, scaleB, arcFactorsA)
+function testArcFactorsWeightTheSolve(tc)
+% categories: contract | tags: convergence
+    % R7-13 (WP-116 part 2, user decision 2026-10-10: Ellmer's convention). The
+    % per-arc factors estimated on pass 1 must be what weights pass 2's arcs.
+    % End to end, through every seam it crosses: adjustVCEjoint keys the factor
+    % by the loader's key (sweepArcs, rowWeightKey), jointModelOpt emits it as
+    % covOverride.byArc, makeLoader>batchOf hands day and arc to
+    % applyCovOverride. Read back from pass 2's LIVE accumulator: the
+    % covariance of arc 2 over that of arc 1 is the ratio of their pass-1
+    % factors. Before 6.1.6 only the stream mean reached the loader, and this
+    % ratio was 1 whatever the factors said.
+    store = containers.Map('KeyType', 'double', 'ValueType', 'any');
+    opts = lsqvce.Options(Estimate="noise", Pool="stream", MaxPasses=2, Verbose=false, ...
+                          OnPass=@(ctx) stashPass(store, ctx));
+    lsqvce.fit(arcFactorFixture(3), opts);
+    tc.assertTrue(isKey(store, 1) && isKey(store, 2), 'both passes reached the hook');
+    p1 = store(1);  acc = store(2).acc;
+    ids = acc.systemIDs();
+    st = acc.getStore(ids(1));
+    c = zeros(1, 2);
+    for a = 1:2
+        uo = st.uo;  uo.obsType = 'a';  uo.day = 1;  uo.arc = a;
+        arc = st.dataFcn(1, 'a', a, uo);
+        S = arc.Cfcn(1:numel(arc.l), uo);
+        c(a) = S(1);
+    end
+    f = @(a) p1.sigma2(strcmp(p1.arcKeys, sprintf('s%s_a_d1_a%d', string(ids(1)), a)));
+    % tol: 1e-10 relative -- both covariances are one law scaled by a stored
+    % factor; only rounding separates them. Before R7-13 the ratio was 1.
+    tc.verifyEqual(c(2) / c(1), f(2) / f(1), 'RelTol', 1e-10, ...
+        'pass 2 weights each arc with its own pass-1 factor');
+    tc.verifyGreaterThan(c(2) / c(1), 4, 'and the degraded arc IS weighted down');
+end
+
+function go = stashPass(store, ctx)
+%STASHPASS  OnPass hook: keep each pass's factors, keys and live accumulator.
+    store(ctx.pass) = struct('sigma2', ctx.sigma2, 'arcKeys', {ctx.arcKeys}, 'acc', ctx.acc);
+    go = true;
+end
+
+function testArcFactorsAreAbsoluteOnAHeterogeneousStream(tc)
+% categories: reference, precision
+    % WP-116 part 2: the 6.1.5 normalisation, (gamma2_m / gamma-bar_s^2) *
+    % mean(gamma2_s), counted a stream's level twice as soon as its arcs
+    % differ -- its homogeneous fixtures could not see it. Mirror
+    % (mirrors/wp116/perarc_weighting.py, one arc 10x among nine, 16 seeds):
+    % 1176 / 11.65 against the planted variances 100 / 1, and the OTHER
+    % stream's level pushed off too (2.8 against 4). Since 6.1.6 a factor is
+    % the arc's absolute gamma2_m. Planted here: stream a's arc 2 of every day
+    % 10x in sigma, stream b 2x its declared sigma.
+    R = lsqvce.fit(scaleOnlyFixture(1, 2, true, 10), lsqvce.Options(Estimate="noise", ...
+                   Pool="stream", MaxPasses=8, Verbose=false));
+    ka = find(strcmp(R.noise.stream, 'x1|a'), 1);
+    f = reshape(R.noise.model{ka}.sigma2, 3, []) * R.sigma0^2;    % declared sigma 1
+    % tol: 15 % relative -- a per-arc variance from 3 x 256 white epochs
+    % (~5 % sampling); the double count put the good arcs at ~4x and the bad
+    % at ~4x its truth on this layout
+    tc.verifyEqual(mean(f(2, :)), 100, 'RelTol', 0.15, 'the degraded arcs: planted variance 100');
+    % tol: as above
+    tc.verifyEqual(mean(mean(f([1 3], :))), 1, 'RelTol', 0.15, 'the good arcs: planted variance 1');
+    lvlB = R.noise.model{find(strcmp(R.noise.stream, 'x1|b'), 1)}.sigma * R.sigma0;
+    % tol: 10 % relative -- stream b's level from 9 arcs of 256 epochs (~3 %);
+    % the double count moved it by ~15 % in the mirror
+    tc.verifyEqual(lvlB, 2, 'RelTol', 0.10, 'and the other stream keeps its own level');
+end
+
+function data = scaleOnlyFixture(scaleA, scaleB, arcFactorsA, badA)
 %SCALEONLYFIXTURE  TWO white streams, both "scale" (no law), declared sigma 1;
 %   stream a truly scaleA x, stream b scaleB x its declared sigma; stream a
-%   carries arc factors when arcFactorsA. No locals. Deterministic.
+%   carries arc factors when arcFactorsA, and its arc 2 of every day is badA x
+%   worse in sigma (default 1: no bad arc). No locals. Deterministic.
+    if nargin < 4, badA = 1; end
     cfg = struct('nc', 4, 'days', 1:3, 'arcs', 3, 'mArc', 256, 'dt', 5, ...
-                 'xTrue', [0.8 -0.45 0.3 0.15], 'scaleA', scaleA, 'scaleB', scaleB);
+                 'xTrue', [0.8 -0.45 0.3 0.15], 'scaleA', scaleA, 'scaleB', scaleB, 'badA', badA);
     data = struct();
     data.commonParams = [repmat({'common'}, cfg.nc, 1), ...
                          arrayfun(@(j) sprintf('c%d', j), (1:cfg.nc).', 'UniformOutput', false)];
@@ -812,8 +881,10 @@ function D = scaleOnlyDay(cfg, day, obsType)
     D.A = [sin(w*t), cos(w*t), sin(2*w*t), cos(2*w*t)];
     D.B = zeros(m, 0);
     rs = RandStream('mt19937ar', 'Seed', 6600 + 10*day + double(obsType(1)));
-    sc = cfg.scaleA;  if strcmp(obsType, 'b'), sc = cfg.scaleB; end
-    D.l = D.A * cfg.xTrue(:) + sc * randn(rs, m, 1);
+    sc = cfg.scaleA * ones(m, 1);
+    sc(cfg.mArc + (1:cfg.mArc)) = cfg.scaleA * cfg.badA;          % arc 2 of stream a
+    if strcmp(obsType, 'b'), sc(:) = cfg.scaleB; end
+    D.l = D.A * cfg.xTrue(:) + sc .* randn(rs, m, 1);
     D.t = t;
     D.arcIdx = arrayfun(@(a) (a-1)*cfg.mArc + (1:cfg.mArc), 1:cfg.arcs, 'UniformOutput', false);
     D = arcCells(D);                                 % v6: the cells are the arcs

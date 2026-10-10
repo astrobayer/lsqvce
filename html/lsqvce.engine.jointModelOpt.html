@@ -75,6 +75,11 @@ THREE CONVENTIONS THAT ARE EASY TO GET WRONG (all encoded here)
                           .C       nLag x 1  current covariance function
                           .sigma2  M x 1     current arc variance factors
                           .iter    1x1       iteration number
+                          .arcFactor containers.Map (optional)
+                                   LSQVCE.UTIL.ROWWEIGHTKEY -&gt; the arc&#x27;s
+                                   variance factor RELATIVE to its stream&#x27;s
+                                   level (R7-13); emitted as
+                                   covOverride.byArc (sqrt: a std)
                         On iter == 1 .C may be the starting guess and
                         .sigma2 may be empty; both are handled.
   streams  1xS cell     the (sysID, obsType) pairs the override must cover,
@@ -91,6 +96,7 @@ OPTIONS (Name/Value)
 <h3>Output</h3>
 <pre class="example">uo   1x1 struct   a UserOpt ready to hand to LSQVCE.ENGINE.BLOCKACCUMULATOR:
                     .covOverride.bySys.(satKey).(obsType) = spec
+                    .covOverride.byArc  (when model.arcFactor is given)
                     .psdMode</pre>
 <h3>Example</h3>
 <pre class="example">  streams = {&#x27;x1|posC&#x27;, &#x27;x1|posD&#x27;, &#x27;x1|rr&#x27;, &#x27;x2|posE&#x27;};
@@ -117,6 +123,10 @@ the loader, so multi-axis and scalar streams need no special case here
 
 See also LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.MAKELOADER
 
+Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-116 part 2 (R7-13): the
+per-arc factors reach the loader (covOverride.byArc, a relative standard
+deviation per arc on top of the stream&#x27;s level), so they weight the
+solve. With assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-09-06 (CEST, UTC+02:00), R6 WP-90: the &#x27;Separable&#x27; option
 and the AR form of the law retired -- the loader composes the PSD law
 with the arc&#x27;s Cep. With assistance from Claude (Anthropic), model

@@ -56,8 +56,15 @@ function out = adjustVCEjoint(accFcn, opt)
 %               .C       nLag x 1  the current covariance function C^n_xx
 %               .sigma2  M x 1     the current arc variance factors
 %               .iter    1x1       the iteration number (1 on the first call)
+%               .streamSigma2, .arcFactor  the per-stream level and the per-arc
+%                                  factor relative to it (R7-13, since 6.1.6);
+%                                  LSQVCE.ENGINE.JOINTMODELOPT turns the whole
+%                                  model into the loader's covOverride
 %             On the FIRST call the caller may ignore the model and use its own
-%             a-priori weighting; the driver then estimates from there.
+%             a-priori weighting; the driver then estimates from there. On later
+%             calls an accFcn that drops .arcFactor weights an arc-factor stream
+%             by a level the update does not assume: its factors then compound
+%             (the class of finding F-01), and arcFactorsDiverging says so.
 %
 %   OPTIONS (Name/Value)
 %     'NumLags'   1x1 int    Nmax, number of lags/frequencies (default 60)
@@ -70,7 +77,8 @@ function out = adjustVCEjoint(accFcn, opt)
 %     'Probes'    1x1 int    Z Hutchinson probes (default 100, Ellmer's value)
 %     'Seed'      1x1 | []   RNG seed for reproducible probes (default [])
 %     'Norm'      char       DCT normalisation, 'ortho' (default) | 'ellmer'
-%     'MeanType'  char       arc-factor mean, 'robust' (default) | 'plain'
+%     'MeanType'  char       gamma-bar, 'robust' (default) | 'plain'; since
+%                            6.1.6 the scale of the clamp floor only
 %     'Influence' string     "none" (default) | "huber" | "igg3" | "bisquare"
 %              R6 WP-105: the ROBUST PASS INSIDE THE LOOP, in the KOCH
 %              convention -- the weight is a statement about the
@@ -193,10 +201,11 @@ function out = adjustVCEjoint(accFcn, opt)
 %
 %   WHAT eq. 6.5.28 MULTIPLIES, AND WHY IT MATTERS (R6 WP-98, finding F-01)
 %     gamma2_m = alpha2_m * sigma2_m is correct only when sigma2_m is the factor
-%     the WEIGHTING used. It is not the per-arc factor: LSQVCE.ENGINE.JOINTMODELOPT
-%     can express only a per-STREAM level in the covariance override, so that
-%     level is what the data saw and that level is what multiplies here.
-%     Multiplying by the per-arc factor instead made the update a geometric
+%     the WEIGHTING used. Since 6.1.6 (R7-13) that IS the per-arc factor for a
+%     stream with arc factors: LSQVCE.ENGINE.JOINTMODELOPT carries it to the
+%     loader (covOverride.byArc), so the arcs are weighted the way Ellmer
+%     weights them. Until then only the per-STREAM level reached the loader,
+%     and multiplying by the per-arc factor anyway made the update a geometric
 %     recursion with NO FIXED POINT, because alpha2_m cancels its own arc's
 %     factor exactly -- sweepArcs scales omegaT and sT by the same s2_m -- and
 %     so never responds to it. MEASURED on a fixture with planted factors
@@ -204,14 +213,20 @@ function out = adjustVCEjoint(accFcn, opt)
 %     constant 8.4x per pass; it now settles at 9.4, 8.6, 8.6, 8.6, 8.6.
 %     For a stream with arcFactors = false the two numbers are identical (every
 %     arc carries the one stream level), so those runs are unchanged.
-%     STILL OPEN: only the RATIO between a stream's arcs is pinned by evidence.
-%     The absolute split between a stream's LEVEL and its arc factors is fixed
-%     by gammaBar (eq. 6.5.30), and on that fixture the level settles at 0.678
-%     where the undegraded arcs were planted at 0.5. HANDOVER 12.22.
+%     The factors are ABSOLUTE (gamma2_m itself, not gamma2_m / gammaBar^2):
+%     the law is a shape here, so the level lives in the factors (R7-09 and
+%     WP-116 part 2, HANDOVER 12.40). One arc 10x in sigma among nine:
+%     factors 100.0 / 1.00 against planted 100 / 1, and the true scatter of x
+%     13-47 % smaller than under the stream-mean weighting (16 seeds).
 %
 %   See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
 %            LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 %
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-116 part 2 (R7-13): the per-arc
+%   factors weight the solve (model.arcFactor -> jointModelOpt byArc) and eq.
+%   6.5.28 multiplies by them; the factors are the absolute gamma2_m -- the
+%   6.1.5 per-stream form counted the level twice on a stream whose arcs
+%   differ. With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-116 part 1: gamma-bar per stream with
 %   the stream's absolute level (R7-09); a stop rule that also needs the levels
 %   and arc factors to settle, and the returned solution accumulated under the
@@ -350,6 +365,7 @@ end
     Cmap = containers.Map('KeyType', 'char', 'ValueType', 'any');   % R5 M3 3d: C per pool group
     pinnedKeys = {};                     % WP-34: pass-1 arc identity
     pinnedStream = {};                   % R6 WP-97: their stream keys, once
+    pinnedRow = {};                      % R7-13: their loader keys (rowWeightKey)
     s2Map = [];                          % keyed factors; built on pass 1
     spreadHist = containers.Map('KeyType', 'char', 'ValueType', 'any');   % R6 WP-97 (F-01)
 
@@ -387,6 +403,7 @@ end
         % component outside the streams -- the prior groups (Koch-Kusche).
         model = struct('C', C, 'sigma2', sigma2, 'iter', it, ...
                        'streamSigma2', streamMeans(pinnedKeys, sigma2), ...
+                       'arcFactor', arcFactorMap(pinnedKeys, pinnedRow, sigma2, o), ...   % R7-13
                        'Cgroups', Cmap, 'Pool', char(o.Pool), 'Estimate', o.Estimate, ...
                        'lastSol', lastSol, 'rowWeights', W);   % R6 WP-105: the robust factors
         acc   = accFcn(model);
@@ -411,7 +428,7 @@ end
         % WP-34 (fixes F-02): arcs are KEYED, the factor map is pinned on the
         % PASS-1 ENUMERATION, and a skipped arc keeps its previous factor --
         % one skip can no longer shift every later arc's factor by position.
-        [omegaT, sT, keys, keysAll, skips, wstats] = ...
+        [omegaT, sT, keys, keysAll, skips, wstats, rowAll] = ...
             sweepArcs(acc, sol, sp.UiZ, nLag, C, s2Map, v);
         nArc = numel(keys);
         if nArc == 0
@@ -436,6 +453,7 @@ end
             % included -- a pass-1 skip keeps the default factor 1).
             pinnedKeys = keysAll;
             pinnedStream = cellfun(@streamKeyOf, pinnedKeys(:), 'UniformOutput', false);
+            pinnedRow = rowAll;
             s2Map = containers.Map('KeyType','char', 'ValueType','double');
             if isempty(o.Sigma2_0)
                 for kk = 1:numel(pinnedKeys), s2Map(pinnedKeys{kk}) = 1; end
@@ -523,33 +541,43 @@ end
         % growth of 8.4x per pass over four decades. For a stream with
         % arcFactors = false every arc already carries the one stream level, so
         % these two are the same number and such runs cannot move.
+        % R7-13 (WP-116 part 2): an arc-factor stream's factors now REACH the
+        % weighting (arcFactorMap -> jointModelOpt byArc -> the loader), so for
+        % its arcs the factor the weighting used IS the per-arc factor, and that
+        % is what multiplies here -- the same rule, with nothing left to cancel.
+        % A stream without arc factors is weighted by its mean, as before.
         s2Applied = s2Cols;
         for sk = unique(streamOf(:)).'
+            if arcFactorsOf(o.ArcFactors, sk{1}), continue, end
             cols = strcmp(streamOf, sk{1});
             s2Applied(cols) = mean(s2Cols(cols));
         end
-        % R7-09: the factors are normalised PER STREAM, and an arc-factor
-        % stream keeps its own ABSOLUTE level. gamma-bar over every column made
-        % an arc-factor stream's factors gamma2_m / gamma-bar^2 with gamma-bar
-        % moving with UNRELATED streams' levels (stream A came back 1.01 / 0.79 /
-        % 1.15 as only stream B's truth changed; sigma0 is shared and cannot
-        % absorb a per-stream factor). Per-stream gamma-bar ALONE -- the
-        % review's proposal -- removes that, but then the stream's level lives
-        % nowhere: a stream truly 3x its declared sigma smeared every stream to
-        % ~1.9. So sigma2_m = (gamma2_m / gamma-bar_s^2) * mean(gamma2_s): the
-        % relative spread from the stream's own gamma-bar, the level from the
-        % same Helmert mean the no-arc-factor streams use (fStream below).
-        % Mirror dev/reviews/R7_2026-10-09/mirrors/wp116/gammabar_modes.py:
-        % truths 3 / 1 / 2 come back 3.02 / 0.99 / 1.98 (shipped: 2.63 / 1.68 / 1.72).
+        % R7-09 / WP-116 part 2: an arc-factor stream's factor is the arc's
+        % ABSOLUTE Helmert factor gamma2_m = alpha2_m * sigma2_m (eq. 6.5.28),
+        % the same number a stream without arc factors averages into its level
+        % (fStream below). Ellmer's normalisation by gamma-bar (eqs. 6.5.29-30)
+        % exists because there the PSD carries the level; here the law is a
+        % SHAPE (jointModelOpt normalises it to C(1) = 1), so the level must
+        % stay in the factors. Two wrong turns are on the record. gamma-bar over
+        % EVERY column tied a stream's factors to UNRELATED streams' levels
+        % (R7-09: 1.01 / 0.79 / 1.15 as only another stream changed). And the
+        % 6.1.5 form (gamma2_m / gamma-bar_s^2) * mean(gamma2_s) counted the
+        % level twice as soon as a stream's arcs differ: one arc 10x in sigma
+        % among nine came back 1176 / 11.65 against 100 / 1, and the stream's
+        % level 8x too high against the other streams. MEASURED (16 seeds,
+        % mirrors/wp116/perarc_weighting.py): absolute factors 100.0 / 1.00.
+        % gamma-bar keeps one job: the scale of the clamp floor (ClampEps).
         av = struct('gamma2', nan(nArc, 1), 'sigma2', nan(nArc, 1), 'gammaBar', []);
         for sk = unique(streamOf(:)).'
             cols = strcmp(streamOf, sk{1});
             avk = lsqvce.engine.arcVarianceFactors(omegaT(:, cols), sT(:, cols), s2Applied(cols), ...
                                             'Norm', o.Norm, 'MeanType', o.MeanType);
             av.gamma2(cols) = avk.gamma2;
-            g2 = avk.gamma2(isfinite(avk.gamma2) & avk.gamma2 > 0);
-            lvl = 1;  if ~isempty(g2), lvl = mean(g2); end
-            av.sigma2(cols) = avk.sigma2 * lvl;
+            if isfinite(avk.gammaBar) && avk.gammaBar > 0
+                av.sigma2(cols) = avk.sigma2 * avk.gammaBar^2;     % the clamped gamma2_m
+            else
+                av.sigma2(cols) = s2Applied(cols);                  % badMean: unchanged this pass
+            end
             av.gammaBar(end+1) = avk.gammaBar;
         end
         % WP-40 r2 (F-15): Polyak tail averaging of the RETURNED spectrum
@@ -690,6 +718,7 @@ end
     if ~userStop
         modelF = struct('C', C, 'sigma2', sigma2, 'iter', numel(hist.maxDev), ...
                         'streamSigma2', streamMeans(pinnedKeys, sigma2), ...
+                        'arcFactor', arcFactorMap(pinnedKeys, pinnedRow, sigma2, o), ...   % R7-13
                         'Cgroups', Cmap, 'Pool', char(o.Pool), 'Estimate', o.Estimate, ...
                         'lastSol', lastSol, 'rowWeights', W);
         accF = accFcn(modelF);
@@ -895,7 +924,7 @@ function [uEp, keys, sizes, qEp, dEp] = epochResiduals(res, W)
 end
 
 %==========================================================================
-function [omegaT, sT, keys, keysAll, skips, wstats] = sweepArcs(acc, sol, UiZ, nLag, C, s2Map, v)
+function [omegaT, sT, keys, keysAll, skips, wstats, rowAll] = sweepArcs(acc, sol, UiZ, nLag, C, s2Map, v)
 %SWEEPARCS  Steps 7-8: re-stream every arc, returning the WEIGHTED per-lag
 %   temporal vectors Omega^m_n and s^m_n (eqs. 6.5.22-6.5.23), one COLUMN per
 %   arc. Mirrors the arc enumeration used by LSQVCE.ENGINE.REDUNDANCY and
@@ -907,6 +936,10 @@ function [omegaT, sT, keys, keysAll, skips, wstats] = sweepArcs(acc, sol, UiZ, n
 %     keysAll  1 x Ma  cell  keys of every ENUMERATED arc (the identity the
 %                            caller pins on pass 1)
 %     skips    S x 2   cell  {key, reason} for every arc skipped THIS pass
+%     rowAll   Ma x 1  cell  the LOADER's key of every enumerated arc,
+%                            LSQVCE.UTIL.ROWWEIGHTKEY(sysID, day, obsType, arc),
+%                            aligned to keysAll (R7-13: how a per-arc factor
+%                            reaches the arc it belongs to)
 %   The arc factor is looked up BY KEY in s2Map (containers.Map; missing or
 %   empty map -> 1), never by position: one skip can no longer shift every
 %   later arc's factor.
@@ -929,6 +962,7 @@ function [omegaT, sT, keys, keysAll, skips, wstats] = sweepArcs(acc, sol, UiZ, n
     sT     = [];
     keys   = {};
     keysAll = {};
+    rowAll  = {};
     skips  = cell(0, 2);
     nArc   = 0;
     wstats = containers.Map('KeyType', 'char', 'ValueType', 'any');   % stream -> [sums; m]
@@ -962,6 +996,7 @@ function [omegaT, sT, keys, keysAll, skips, wstats] = sweepArcs(acc, sol, UiZ, n
                     key = sprintf('s%s_%s_d%s_a%s', string(st.sysID), ...
                                   string(obsType), string(d), string(a));
                     keysAll{end+1} = key;                    %#ok<AGROW>
+                    rowAll{end+1, 1} = lsqvce.util.rowWeightKey(st.sysID, d, obsType, a); %#ok<AGROW>
                     [om, sn, why, wsum, wm] = oneArc(st, obsType, a, d, uo, UiZ, ...
                                            nLag, x, ySys, Gsys, LlS);
                     if isempty(om)
@@ -1153,6 +1188,24 @@ function M = streamMeans(arcKeys, sigma2)
     end
 end
 
+function F = arcFactorMap(arcKeys, rowKeys, sigma2, o)
+%ARCFACTORMAP  containers.Map rowWeightKey -> the arc's variance factor
+%   RELATIVE to its stream's level (sigma2_m / mean over the stream), for the
+%   arcs of every stream that carries arc factors and is estimated (R7-13).
+%   LSQVCE.ENGINE.JOINTMODELOPT turns it into covOverride.byArc; the stream's
+%   level rides on bySys as before, so level x factor = sigma2_m is what the
+%   loader weights the arc with. Empty before pass 1 pins the arcs.
+    F = containers.Map('KeyType', 'char', 'ValueType', 'double');
+    if isempty(arcKeys) || numel(rowKeys) ~= numel(arcKeys) || numel(sigma2) ~= numel(arcKeys), return, end
+    lvl = streamMeans(arcKeys, sigma2);
+    for k = 1:numel(arcKeys)
+        sk = streamKeyOf(arcKeys{k});
+        if ~arcFactorsOf(o.ArcFactors, sk) || strcmp(policyOf(o.Estimate, sk), 'none'), continue, end
+        if ~isKey(lvl, sk) || ~(isfinite(sigma2(k)) && sigma2(k) > 0), continue, end
+        F(rowKeys{k}) = sigma2(k) / lvl(sk);
+    end
+end
+
 function sk = streamKeyOf(arcKey)
 %STREAMKEYOF  's<sysID>_<obsType>_d..' -> 'satKey|obsType' (the override key).
     tok = regexp(arcKey, '^s(.+?)_(.+)_d[^_]+_a', 'tokens', 'once');   % R5-D8 6: obsType may carry underscores
@@ -1188,11 +1241,11 @@ function arcSpreadGuard(spreadHist)
             lsqvce.util.log.warnOnce('lsqvce:adjustVCEjoint:arcFactorsDiverging', ...
                ['Stream %s: the spread of its per-arc variance factors grew from %.3g to ' ...
                 '%.3g over %d passes and was still growing at the last one. Per-arc factors ' ...
-                'are estimated but never fed back into the weighting (finding F-01), so they ' ...
-                'compound instead of settling. Take the ONE-PASS estimate (MaxPasses = 1) ' ...
-                'for per-arc factors, or set arcFactors = false on this stream and read its ' ...
-                'level instead. A stream with arcFactors = false is unaffected; the level of ' ...
-                'THIS stream is the mean of these factors, so it drifts with them.'], ...
+                'that compound instead of settling are not an estimate (the class of finding ' ...
+                'F-01). Take the ONE-PASS estimate (MaxPasses = 1) for per-arc factors, or set ' ...
+                'arcFactors = false on this stream and read its level instead. A stream with ' ...
+                'arcFactors = false is unaffected; the level of THIS stream is the mean of ' ...
+                'these factors, so it drifts with them.'], ...
                 ks{i}, r(1), r(end), numel(r));
         end
     end

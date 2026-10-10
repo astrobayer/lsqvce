@@ -33,6 +33,11 @@ function uo = jointModelOpt(model, streams, opt)
 %                             .C       nLag x 1  current covariance function
 %                             .sigma2  M x 1     current arc variance factors
 %                             .iter    1x1       iteration number
+%                             .arcFactor containers.Map (optional)
+%                                      LSQVCE.UTIL.ROWWEIGHTKEY -> the arc's
+%                                      variance factor RELATIVE to its stream's
+%                                      level (R7-13); emitted as
+%                                      covOverride.byArc (sqrt: a std)
 %                           On iter == 1 .C may be the starting guess and
 %                           .sigma2 may be empty; both are handled.
 %     streams  1xS cell     the (sysID, obsType) pairs the override must cover,
@@ -50,6 +55,7 @@ function uo = jointModelOpt(model, streams, opt)
 %   OUTPUT
 %     uo   1x1 struct   a UserOpt ready to hand to LSQVCE.ENGINE.BLOCKACCUMULATOR:
 %                         .covOverride.bySys.(satKey).(obsType) = spec
+%                         .covOverride.byArc  (when model.arcFactor is given)
 %                         .psdMode
 %
 %   EXAMPLE
@@ -78,6 +84,10 @@ function uo = jointModelOpt(model, streams, opt)
 %
 %   See also LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.MAKELOADER
 %
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-116 part 2 (R7-13): the
+%   per-arc factors reach the loader (covOverride.byArc, a relative standard
+%   deviation per arc on top of the stream's level), so they weight the
+%   solve. With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-09-06 (CEST, UTC+02:00), R6 WP-90: the 'Separable' option
 %   and the AR form of the law retired -- the loader composes the PSD law
 %   with the arc's Cep. With assistance from Claude (Anthropic), model
@@ -125,8 +135,7 @@ end
     % ---- the overall scale: VARIANCE -> STANDARD DEVIATION (convention 1) ---
     %   model.sigma2 holds per-arc VARIANCE factors. A covariance spec wants a
     %   standard deviation, so the scale is sqrt of the (mean) variance. The
-    %   arc-to-arc detail cannot be expressed in a per-stream override, so the
-    %   mean is used and the arc factors remain the driver's business.
+    %   arc-to-arc detail rides separately (model.arcFactor -> byArc, below).
     s2 = 1;
     if isfield(model, 'sigma2') && ~isempty(model.sigma2)
         v = model.sigma2(:);
@@ -195,7 +204,18 @@ end
         bySys.(satKey).(ot) = sp;
     end
 
-    uo = struct('covOverride', struct('bySys', bySys), ...
+    ovr = struct('bySys', bySys);
+    % R7-13: the per-arc factors WEIGHT the solve (Ellmer's convention). Each
+    % is relative to its stream's level above, so the arc's variance is level
+    % x factor -- the number eq. 6.5.28 multiplies in adjustVCEjoint. Before,
+    % only the stream mean reached the loader and a bad arc kept its stream's
+    % weight (review R7-13: one arc 10x in sigma, formal/true sd 2.6).
+    if isfield(model, 'arcFactor') && ~isempty(model.arcFactor) && model.arcFactor.Count > 0
+        ak = keys(model.arcFactor);
+        av = cellfun(@(k) sqrt(max(model.arcFactor(k), eps)), ak);
+        ovr.byArc = containers.Map(ak, num2cell(av));
+    end
+    uo = struct('covOverride', ovr, ...
                 'psdMode', lower(char(o.PsdMode)));      % convention 3
 end
 

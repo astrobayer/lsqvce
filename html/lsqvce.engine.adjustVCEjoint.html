@@ -97,8 +97,15 @@ JOINT vs SEPARATE -- WHY THIS IS ITS OWN DRIVER
             .C       nLag x 1  the current covariance function C^n_xx
             .sigma2  M x 1     the current arc variance factors
             .iter    1x1       the iteration number (1 on the first call)
+            .streamSigma2, .arcFactor  the per-stream level and the per-arc
+                               factor relative to it (R7-13, since 6.1.6);
+                               LSQVCE.ENGINE.JOINTMODELOPT turns the whole
+                               model into the loader&#x27;s covOverride
           On the FIRST call the caller may ignore the model and use its own
-          a-priori weighting; the driver then estimates from there.
+          a-priori weighting; the driver then estimates from there. On later
+          calls an accFcn that drops .arcFactor weights an arc-factor stream
+          by a level the update does not assume: its factors then compound
+          (the class of finding F-01), and arcFactorsDiverging says so.
 
 OPTIONS (Name/Value)
   &#x27;NumLags&#x27;   1x1 int    Nmax, number of lags/frequencies (default 60)
@@ -111,7 +118,8 @@ OPTIONS (Name/Value)
   &#x27;Probes&#x27;    1x1 int    Z Hutchinson probes (default 100, Ellmer&#x27;s value)
   &#x27;Seed&#x27;      1x1 | []   RNG seed for reproducible probes (default [])
   &#x27;Norm&#x27;      char       DCT normalisation, &#x27;ortho&#x27; (default) | &#x27;ellmer&#x27;
-  &#x27;MeanType&#x27;  char       arc-factor mean, &#x27;robust&#x27; (default) | &#x27;plain&#x27;
+  &#x27;MeanType&#x27;  char       gamma-bar, &#x27;robust&#x27; (default) | &#x27;plain&#x27;; since
+                         6.1.6 the scale of the clamp floor only
   &#x27;Influence&#x27; string     &quot;none&quot; (default) | &quot;huber&quot; | &quot;igg3&quot; | &quot;bisquare&quot;
            R6 WP-105: the ROBUST PASS INSIDE THE LOOP, in the KOCH
            convention -- the weight is a statement about the
@@ -230,10 +238,11 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
   lsqvce:adjustVCEjoint:arcFactorsDiverging  [warning] arc-factor spread grew (F-01)</pre>
 <h3>WHAT eq. 6.5.28 MULTIPLIES, AND WHY IT MATTERS (R6 WP-98, finding F-01)</h3>
 <pre class="example">  gamma2_m = alpha2_m * sigma2_m is correct only when sigma2_m is the factor
-  the WEIGHTING used. It is not the per-arc factor: LSQVCE.ENGINE.JOINTMODELOPT
-  can express only a per-STREAM level in the covariance override, so that
-  level is what the data saw and that level is what multiplies here.
-  Multiplying by the per-arc factor instead made the update a geometric
+  the WEIGHTING used. Since 6.1.6 (R7-13) that IS the per-arc factor for a
+  stream with arc factors: LSQVCE.ENGINE.JOINTMODELOPT carries it to the
+  loader (covOverride.byArc), so the arcs are weighted the way Ellmer
+  weights them. Until then only the per-STREAM level reached the loader,
+  and multiplying by the per-arc factor anyway made the update a geometric
   recursion with NO FIXED POINT, because alpha2_m cancels its own arc&#x27;s
   factor exactly -- sweepArcs scales omegaT and sT by the same s2_m -- and
   so never responds to it. MEASURED on a fixture with planted factors
@@ -241,14 +250,20 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
   constant 8.4x per pass; it now settles at 9.4, 8.6, 8.6, 8.6, 8.6.
   For a stream with arcFactors = false the two numbers are identical (every
   arc carries the one stream level), so those runs are unchanged.
-  STILL OPEN: only the RATIO between a stream&#x27;s arcs is pinned by evidence.
-  The absolute split between a stream&#x27;s LEVEL and its arc factors is fixed
-  by gammaBar (eq. 6.5.30), and on that fixture the level settles at 0.678
-  where the undegraded arcs were planted at 0.5. HANDOVER 12.22.
+  The factors are ABSOLUTE (gamma2_m itself, not gamma2_m / gammaBar^2):
+  the law is a shape here, so the level lives in the factors (R7-09 and
+  WP-116 part 2, HANDOVER 12.40). One arc 10x in sigma among nine:
+  factors 100.0 / 1.00 against planted 100 / 1, and the true scatter of x
+  13-47 % smaller than under the stream-mean weighting (16 seeds).
 
 See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
          LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 
+Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-116 part 2 (R7-13): the per-arc
+factors weight the solve (model.arcFactor -&gt; jointModelOpt byArc) and eq.
+6.5.28 multiplies by them; the factors are the absolute gamma2_m -- the
+6.1.5 per-stream form counted the level twice on a stream whose arcs
+differ. With assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-116 part 1: gamma-bar per stream with
 the stream&#x27;s absolute level (R7-09); a stop rule that also needs the levels
 and arc factors to settle, and the returned solution accumulated under the
