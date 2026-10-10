@@ -488,6 +488,26 @@ case('32 a deleted unit inside a dated stamp is history, silent',
      expect_fire=False)
 
 
+# ---- 33 (R7-44): long functions / long lines are recorded ceilings ---------
+def add_long_function(d):
+    append(os.path.join(d, '+lsqvce/+util/zzzLong.m'),
+           'function zzzLong()\n%ZZZLONG  x.\n' + '    x = 1;\n' * 420 + 'end\n')
+def grow_recorded_function(d):
+    p = os.path.join(d, '+lsqvce/+engine/snoop.m')
+    s = open(p, encoding='utf-8').read()
+    s = s.replace('\nfunction ', '\n    x = 1;\n' * 3 + 'function ', 1)
+    open(p, 'w', encoding='utf-8').write(s)
+case('33 an unrecorded long function fires', audit.check_length_ratchets, 'length', add_long_function)
+case('33 a recorded long function that grows fires', audit.check_length_ratchets, 'length',
+     grow_recorded_function)
+case('33 a stale long-function row fires', audit.check_length_ratchets, 'length',
+     lambda d: append(os.path.join(d, 'dev/docs_src/long_functions.csv'),
+                      '+lsqvce/fit.m,fit,999,"no longer long"\n'))
+case('33 a new line over 120 characters fires', audit.check_length_ratchets, 'length',
+     lambda d: append(os.path.join(d, ZZZ_UNIT),
+                      'function zzzSelftest()\n%ZZZSELFTEST  x.\n    y = ' + '1 + ' * 40 + '1;\nend\n'))
+
+
 def main():
     failures = 0
     print('audit self-test: %d cases' % len(CASES))

@@ -24,8 +24,9 @@ document; this file is the technical companion the README used to be.*
 Solving and **diagnosing** large least-squares problems where `A` and `P` can
 only be built in batches.
 
-Streaming: nothing of size `n` is ever formed. `O(u²·nk)` time and `O(u² + nk)`
-memory per batch.
+Streaming inside `diagnose`: `O(u²·nk)` time and `O(u² + nk)` memory per batch, nothing
+n-sized formed there. Its batch source on every fit, `diagnoseAccum`, still holds all
+whitened rows at full width (n × u; R7-24, the README states the scale) — WP-86.
 
 ---
 

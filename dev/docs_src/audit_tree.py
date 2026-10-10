@@ -65,6 +65,7 @@ model Claude Opus 4.8.
 import binascii
 import glob
 import os
+import csv
 import re
 import sys
 import zlib
@@ -1502,6 +1503,87 @@ def check_nv_options_documented():
     print('   %d Name-Value options checked against their help blocks' % n)
 
 
+def function_lengths(path):
+    """[(name, first line, lines, code lines)] of every function in an .m file: from its
+    function line to the next function of the same or lower indentation,
+    minus the nested functions inside it (a nested function ends at its own
+    same-indent 'end'). The help block counts -- it is part of the unit."""
+    L = open(path, encoding='utf-8', errors='replace').read().split('\n')
+    fn = []
+    for i, l in enumerate(L):
+        m = re.match(r'(\s*)function\s+(?:\[[^\]]*\]\s*=\s*|\w+\s*=\s*)?([\w.]+)', l)
+        if m:
+            fn.append([i, None, len(m.group(1).expandtabs(4)), m.group(2)])
+    for k, f in enumerate(fn):
+        f[1] = next((g[0] for g in fn[k+1:] if g[2] <= f[2]), len(L))
+    for f in fn:
+        parent = next((p for p in fn if p is not f and p[0] < f[0] < p[1] and f[2] > p[2]), None)
+        if parent is not None:
+            e = next((t for t in range(f[0] + 1, parent[1])
+                      if re.match(r'\s{%d}end\b\s*(%%.*)?$' % f[2], L[t])), f[1] - 1)
+            f[1] = e + 1
+    out = []
+    for f in fn:
+        nested = [c for c in fn if c is not f and f[0] < c[0] < f[1]]
+        rows = [t for t in range(f[0], f[1]) if not any(c[0] <= t < c[1] for c in nested)]
+        code = sum(1 for t in rows if L[t].strip() and not L[t].strip().startswith('%'))
+        out.append((f[3], f[0] + 1, len(rows), code))
+    return out
+
+
+def _ceiling_rows(path, ncol):
+    rows = {}
+    for row in csv.reader(l for l in open(path, encoding='utf-8') if l.strip() and not l.startswith('#')):
+        rows[tuple(row[:ncol - 1])] = row[ncol - 1:]
+    return rows
+
+
+def check_length_ratchets():
+    print('\n33. long functions and long lines carry a recorded reason and never grow (R7-44)')
+    # WHY: HANDOVER 6.3 asks for "no function longer than ~400 lines without a
+    # written justification"; R7 swe_code F13 found five and no justification,
+    # and 74 lines past the MathWorks 120-character limit. User decision
+    # 2026-10-10: record the reasons, do not split. Both lists are CEILINGS.
+    fpath = os.path.join('dev', 'docs_src', 'long_functions.csv')
+    lpath = os.path.join('dev', 'docs_src', 'long_lines.csv')
+    frows = _ceiling_rows(fpath, 3)          # (file, function) -> [lines, reason]
+    lrows = _ceiling_rows(lpath, 2)          # (file,) -> [count]
+    seen, nf, nl = set(), 0, 0
+    for f in sorted(pglob(PKG_GLOB, recursive=True)):
+        fx = f.replace(os.sep, '/')
+        for name, line, n, code in function_lengths(f):
+            if n <= 400:
+                continue
+            nf += 1
+            key = (fx, name)
+            seen.add(key)
+            if key not in frows:
+                note('length', '%s:%d function %s is %d lines with no recorded reason in long_functions.csv'
+                     % (fx, line, name, n))
+                continue
+            # the CEILING is on CODE lines: a help edit or a dated stamp (which every
+            # touched help block gets) must not trip it; code growth must
+            cap, reason = int(frows[key][0]), (frows[key][1] if len(frows[key]) > 1 else '')
+            if not reason.strip():
+                note('length', 'long_functions.csv row %s/%s gives no reason' % key)
+            if code > cap:
+                note('length', '%s function %s grew to %d code lines (ceiling %d)' % (fx, name, code, cap))
+            elif code < cap:
+                note('length', '%s function %s has %d code lines now: lower its ceiling (%d)'
+                     % (fx, name, code, cap))
+        cnt = sum(1 for l in open(f, encoding='utf-8', errors='replace') if len(l.rstrip('\n')) > 120)
+        nl += cnt
+        cap = int(lrows[(fx,)][0]) if (fx,) in lrows else 0
+        if cnt > cap:
+            note('length', '%s has %d lines over 120 characters (ceiling %d)' % (fx, cnt, cap))
+        elif cnt < cap:
+            note('length', '%s has %d lines over 120 characters now: lower its row (%d)' % (fx, cnt, cap))
+    for key in frows:
+        if key not in seen:
+            note('length', 'long_functions.csv row %s/%s is STALE (gone or under 400 lines): delete it' % key)
+    print('   %d functions over 400 lines (all recorded), %d lines over 120 characters' % (nf, nl))
+
+
 def _prose(line):
     """A help/markdown line without its comment marker and outer blanks."""
     return re.sub(r'^\s*%+\s?', '', line).strip()
@@ -1569,6 +1651,7 @@ def main():
     check_ids_fired_by_tests()
     check_nv_options_documented()
     check_unit_references_resolve()
+    check_length_ratchets()
     print('\n' + '=' * 60)
     if FINDINGS:
         print('%d finding(s).' % len(FINDINGS))

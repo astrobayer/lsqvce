@@ -56,8 +56,10 @@ order to judge the adjustment:
     ext    external reliability: |dx| induced by an undetected MDB,
            expressed as a multiple of the parameter&#x27;s own sigma
 
-Nothing of size n-by-n or n-by-u is ever formed. Per batch the cost is
-O(u^2 * nk) and the memory is O(u^2 + nk).</pre>
+Nothing of size n-by-n or n-by-u is formed HERE: per batch the cost is
+O(u^2 * nk) and the memory is O(u^2 + nk). The batch SOURCE may hold more:
+the one every fit uses, LSQVCE.ENGINE.DIAGNOSEACCUM, keeps all whitened rows
+at full width, n x u (R7-24, open as WP-86).</pre>
 <h3>Inputs</h3>
 <pre class="example">sol       the diagnosed solution (R.source; LSQVCE.ENGINE.DIAGNOSEACCUM builds it)
 batchFcn  function handle, [A,l,p] = batchFcn(k), k = 1..nBatch.
@@ -137,6 +139,10 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 
 See also LSQVCE.ENGINE.DIAGNOSEACCUM, LSQVCE.REPORT, LSQVCE.ENGINE.SNOOP.
 
+Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 3 (R7-24): the help
+separates this function&#x27;s own working set from its batch source&#x27;s --
+diagnoseAccum keeps all whitened rows at full width (WP-86). With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34..36): the
 dead &#x27;verify&#x27; option retired, RobustCheck / Progress documented, rMin
 defaults to Options.Diagnostics.RMin (0.01), the MDB reservoir draws
