@@ -158,6 +158,7 @@ end
 %% ===================================================== vce hutchinson wiring
 function test_vce_hutchinson_matches_exact_sigma(tc)
 % categories: precision, robustness
+    muteWarn(tc, 'lsqvce:redundancy:hutchinsonExperimental');   % R7-30: the experimental trace path is chosen on purpose
     % The §1.1 wiring estimates the REDUNDANCY r_g = n_g - local_g -
     % tr(N^-1 N_g^cc) matrix-free (WP-32; only the cc-trace is stochastic);
     % vtv stays exact. The load-bearing property is that the streamed r_g
@@ -257,6 +258,7 @@ end
 
 function test_vce_hutchinson_regression_F01(tc)
 % categories: precision | tags: diagnostics
+    muteWarn(tc, 'lsqvce:redundancy:hutchinsonExperimental');   % R7-30: the experimental trace path is chosen on purpose
     % Spec test (3) + the v10review.py T2 port: this test FAILS on the
     % pre-WP-32 code, where 'hutchinson' divided by tr(N^-1 N_g^cc). There
     % (T2a/b/c, measured): sum_g denominator ~ nc = 6 instead of m-u
@@ -372,6 +374,7 @@ end
 
 function test_vce_hutchinson_final_reuses_loop_probes(tc)
 % categories: robustness
+    muteWarn(tc, 'lsqvce:redundancy:hutchinsonExperimental');   % R7-30: the experimental trace path is chosen on purpose
     % WP-36 in vce: an EMPTY TraceSeed is pinned once up front, exposed as
     % vc.traceSeedUsed, and a replay with that seed reproduces vc.r and
     % sigma BIT-IDENTICALLY -- the "final pass probes with the loop's Z"

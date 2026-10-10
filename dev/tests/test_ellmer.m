@@ -1311,6 +1311,7 @@ end
 %% ========================== WP-34: keyed arc identity in adjustVCEjoint (F-02)
 function test_joint_keyed_skip_keeps_factors_aligned(tc)
 % categories: precision, robustness
+    muteWarn(tc, 'lsqvce:decorrFactor:notPD');   % R7-30: the PD-toggle fixture makes an arc indefinite on purpose
     % Spec test (a)+(b): induce a mid-run skip (one arc's covariance goes
     % non-PD on pass 2) and verify the factors stay ALIGNED BY KEY. Exact
     % assertions: the key sets are pinned and identical across runs; the
@@ -1365,6 +1366,7 @@ end
 
 function test_joint_skip_rate_above_threshold_refuses(tc)
 % categories: contract, robustness
+    muteWarn(tc, 'lsqvce:decorrFactor:notPD');   % R7-30: the PD-toggle fixture makes an arc indefinite on purpose
     % R5 M1 (WP-80): a skip RATE above SkipThreshold is a REFUSAL, not a
     % smaller estimate. Same fixture as the alignment test: pass 2 makes one
     % of two arcs non-PD (50 %), which exceeds the default 20 %.
