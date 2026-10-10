@@ -8255,3 +8255,10 @@ call into a K x 5 struct ARRAY -- the struct()-cell pitfall the Manual names (ch
 §2.4) and that fit.m's arcKeys line already guards against. Fixed with `{index}`. No
 other struct() call in the unit takes a cell value.
 
+**Part 1, CI round 2 (dd18666): 604/605.** The one failure is the build count of
+`testCacheDaysCountsTheBuilds` (CacheDays = 1): the designed price of part 1 made
+visible -- diagnose's two sweeps (robust check + main) now re-read every (day,
+obsType) through the lazy source, so a VCE run of n passes builds each 2n+4 times,
+not 2n+2. The expectation moved with the reason written at the site; CacheDays = Inf
+still builds every day once.
+
