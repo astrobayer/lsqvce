@@ -52,6 +52,24 @@ function [A, l, p] = emptyMiddle(Af, lf, pf, k)
     A = Af(i,:);  l = lf(i);  p = pf(i);
 end
 
+function test_diagnose_leaves_the_global_rng_alone(tc)
+% categories: contract, robustness | tags: diagnostics
+    % R7-36: past 5000 finite MDBs the reservoir drew randi from the GLOBAL
+    % stream -- every fit with n > 5000 advanced the user's RNG (against
+    % WP-36) and the reported MDB quantiles changed run to run on identical
+    % input. The reservoir has its own fixed-seed stream now.
+    [A, l, p] = prob(6000, 3, 41);
+    B = chop(A, l, p, 3);
+    s0 = rng;                                     % restore the session's RNG afterwards
+    tc.addTeardown(@() rng(s0));
+    rng(1);  a = rand;
+    rng(1);  [~, D1] = flatAdjust(3, srcOf(B), 3, 'verbose', false);  b = rand;
+    tc.verifyEqual(b, a, 'a diagnosed fit with n > 5000 does not advance the global RNG');
+    [~, D2] = flatAdjust(3, srcOf(B), 3, 'verbose', false);
+    % tol: exact -- identical input, identical reservoir draws
+    tc.verifyEqual(D2.mdbQuantiles, D1.mdbQuantiles, 'the MDB quantiles are reproducible');
+end
+
 function test_store_none_still_gives_scalars(tc)
 % categories: precision, robustness | tags: diagnostics
     % 'store','none' must still produce every SUMMARY statistic -- it only
@@ -237,6 +255,31 @@ function test_ellipse_confidence_scales_axes(tc)
     % cancels EXACTLY, fp division noise only -- house bound 1e-9
     verifyEqual(tc, E2.semiMajor/E2.semiMinor, E1.semiMajor/E1.semiMinor, ...
         'RelTol', 1e-9);
+end
+
+function test_ellipse_uses_2F_with_the_estimated_variance_factor(tc)
+% categories: reference, precision
+    % R7-39: with the ESTIMATED s0^2 the joint region of two parameters is
+    % 2 F(2, r), not chi2(2); chi2(2) under-covered ("95 %" -> 86 % at r = 5,
+    % R7 mirror m7_ellipse.py). Both quantiles have closed forms for two
+    % dimensions, so the reference is independent of stat.fInv / chi2Inv:
+    %   2 F(2, r)_p = r ((1 - p)^(-2/r) - 1),   chi2(2)_p = -2 log(1 - p).
+    p = 0.95;
+    D = struct('u', 2, 'x', [0; 0], 'Qxx', eye(2), 's0sq', 1.3, 'sigma0', 1, 'r', 5);
+    Ea = lsqvce.engine.ellipse(D, [1 2], 'conf', p);
+    % tol: 1e-10 relative -- betaincinv against the closed form, rounding only
+    tc.verifyEqual(Ea.k2, 5 * ((1 - p)^(-2/5) - 1), 'RelTol', 1e-10, ...
+        'a posteriori: 2 F(2, r) at r = 5 (11.57, not 5.99)');
+    % tol: 1e-12 relative -- the semi-axis is sqrt(k2 * s0sq) for Qxx = I
+    tc.verifyEqual(Ea.semiMajor, sqrt(Ea.k2 * 1.3), 'RelTol', 1e-12);
+    Ep = lsqvce.engine.ellipse(D, [1 2], 'conf', p, 'scale', 'apriori');
+    % tol: 1e-10 relative -- chi2Inv against the closed form
+    tc.verifyEqual(Ep.k2, -2 * log(1 - p), 'RelTol', 1e-10, ...
+        'a priori (sigma0 known): chi2(2) stays');
+    D.r = 1e6;
+    Eb = lsqvce.engine.ellipse(D, [1 2], 'conf', p);
+    % tol: 1e-4 relative -- 2 F(2, r) -> chi2(2) as r grows (difference O(1/r))
+    tc.verifyEqual(Eb.k2, -2 * log(1 - p), 'RelTol', 1e-4, 'and the two meet at large r');
 end
 
 function test_ellipse_returns_a_drawable_boundary(tc)

@@ -59,17 +59,20 @@ them well and the orthogonal combination hardly at all.
 The ellipse says what you actually know. Its semi-major axis is the
 direction you know WORST, and its length is how badly.</pre>
 <h3>Input</h3>
-<pre class="example">D     1x1 struct  diagnostics from lsqvce.engine.adjust / lsqvce.engine.diagnose; uses
+<pre class="example">D     1x1 struct  diagnostics from lsqvce.engine.diagnose (R.diag); uses
                   the parameter estimate and Qxx (cofactor) plus sigma0/s0.
 pair  1x2 double  the two parameter indices [i j] to plot the ellipse for.</pre>
 <h3>Name-Value</h3>
 <pre class="example">  &#x27;conf&#x27;     confidence level (default 0.95)
   &#x27;scale&#x27;    &#x27;apriori&#x27; (use sigma0) | &#x27;aposteriori&#x27; (use s0)  [default
-             &#x27;aposteriori&#x27;, matching what the report tabulates]
+             &#x27;aposteriori&#x27;, matching what the report tabulates]. With
+             the estimated s0 the region is 2 F(2, r) (r = D.r, the
+             redundancy), with sigma0 chi2(2) -- R7-39
   &#x27;npts&#x27;     points on the returned outline (default 200)
 
 OUTPUT E
   .semiMajor, .semiMinor    axis half-lengths at the requested confidence
+  .k2                       the squared scale used: 2 F(2, r) or chi2(2)
   .angle                    orientation of the major axis, radians CCW from
                             the +i axis
   .ratio                    semiMajor/semiMinor -- the elongation. Above
@@ -106,6 +109,10 @@ case-sensitive lowercase). With assistance from Claude (Anthropic),
 model Claude Fable 5.
 See also LSQVCE.ENGINE.DIAGNOSE.
 
+Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34, R7-39): 2
+F(2, r) with the estimated s0^2 (chi2(2) under-covered at small r);
+output .k2. With assistance from Claude (Anthropic), model Claude Opus
+5.5.
 Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 2026-07-11.
 Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,

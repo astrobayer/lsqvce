@@ -27,7 +27,7 @@ classdef BlockAccumulator < handle
 %                    b = 5000 is already a 200 MB matrix and ~40 GFLOP.
 %     'BatchOverlap' rows of overlap between batches (default [] = auto)
 %                    Leave empty. The accumulator then reads arc.filterMemory
-%                    from the loader, which LSQVCE.COVMODELFACTORY sets. Forcing
+%                    from the loader, which LSQVCE.ENGINE.COVMODEL sets. Forcing
 %                    it to 0 with a filter covariance costs ~12 orders of
 %                    magnitude of accuracy. See BATCH OVERLAP below.
 %     'Reg'          'none' (default) | 'tikhonov' | 'tsvd' | 'lm' | 'auto'
@@ -38,6 +38,10 @@ classdef BlockAccumulator < handle
 %     'TruncTol'     rank tolerance relative to lambda_max (default 1e-10)
 %     'CondWarn'     cond(Nll) above this -> 'ill-conditioned' (default 1e8)
 %     'CondAbort'    cond(Nll) above this -> 'rank-deficient'  (default 1e14)
+%     'LocalBlockSize'  [] | k: the locals form independent blocks of k
+%                    columns (arc-wise locals), so Nll is pre-eliminated
+%                    block by block -- O(nBlk k^3) instead of O(nl^3); used
+%                    only when k divides nl (default [] = dense)
 %     'KeepLocal'    keep the Schur blocks so the local parameters can be
 %                    recovered and residuals computed (default true)
 %     'Verbose'      print one line per system (default true)
@@ -64,7 +68,7 @@ classdef BlockAccumulator < handle
 %     addSystems(specs)                        several systems, parallelisable
 %     sol = solve()                            solve for the common parameters
 %     y   = backSubstitute(sysID, x)           recover one system's locals
-%     Cyy = localCovariance(sysID, Cxx)        their covariance
+%     Cyy = localCovariance(sysID, Cxx, s0sq)  their covariance (sol.Cxx, sol.s0sq)
 %     res = residuals(sol, ...)                second pass over the data
 %     tbl = report()                           per-system diagnostics table
 %
@@ -82,7 +86,7 @@ classdef BlockAccumulator < handle
 %         .t             m x 1    epochs (optional)
 %         .Wfcn          @(idx,A,B,l,opt) -> whitened A,B,l   (preferred)
 %         .Cfcn          @(idx,opt) -> dense batch covariance (fallback)
-%         .filterMemory  required BatchOverlap (set by LSQVCE.COVMODELFACTORY)
+%         .filterMemory  required BatchOverlap (set by LSQVCE.ENGINE.COVMODEL)
 %
 %     The accumulator visits day -> obsType -> arc and releases each arc
 %     immediately. Return an empty arc (l = []) for a data gap; it is skipped.
@@ -226,8 +230,12 @@ classdef BlockAccumulator < handle
 %     lsqvce:accum:localSummarySkipped           [warning] locals[X]
 %     lsqvce:accum:pinvFallback                  [warning] System X
 %
-%   See also LSQVCE.COVMODELFACTORY, LSQVCE.ENGINE.RESIDUALS, LSQVCE.ENGINE.CHECKPSD, LSQVCE.ENGINE.QRSYSTEM
+%   See also LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.RESIDUALS, LSQVCE.ENGINE.CHECKPSD, LSQVCE.ENGINE.QRSYSTEM
 %
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34, R7-35,
+%   R7-40): the deleted COVMODELFACTORY reference replaced, LocalBlockSize
+%   documented, localCovariance takes the solve's s0sq. With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
@@ -565,17 +573,18 @@ classdef BlockAccumulator < handle
                 % Compact per-system LOCAL parameter summary (estimates + sds),
                 % written to the log after the common solve. Full vectors are
                 % available via R.backSubstitute / acc.backSubstitute(sysID, x).
-                obj.logLocalSummary(x, Cxx);
+                obj.logLocalSummary(x, Cxx, s0sq);
             end
         end
 
         %------------------------------------------------------------------
-        function logLocalSummary(obj, x, Cxx)
+        function logLocalSummary(obj, x, Cxx, s0sq)
         %LOGLOCALSUMMARY  Write a compact per-system summary of the LOCAL
         %   parameter estimates and their standard deviations to the log.
         %   Summary only (count, value range, mean sd) -- systems can carry
         %   thousands of locals; the full vectors come from backSubstitute.
-        %   INPUT  x   nc x 1  common estimate;  Cxx nc x nc common cofactor
+        %   INPUT  x   nc x 1  common estimate;  Cxx nc x nc common covariance;
+        %          s0sq 1x1 the solve's variance factor (R7-40)
         %   OUTPUT none (writes via lsqvce.util.log.msg)
             if ~obj.opt.KeepLocal, return, end
             ids = obj.systemIDs();
@@ -594,7 +603,7 @@ classdef BlockAccumulator < handle
                 if isempty(y), continue, end
                 sdText = '';
                 if ~isempty(Cxx)                      % the cofactor is a CONDITION, not a catch
-                    Cyy = obj.localCovariance(ids(i), Cxx);
+                    Cyy = obj.localCovariance(ids(i), Cxx, s0sq);
                     sd  = sqrt(max(real(diag(Cyy)), 0));
                     sdText = sprintf('   mean sd = %.3e', mean(sd));
                 end
@@ -625,17 +634,24 @@ classdef BlockAccumulator < handle
         end
 
         %------------------------------------------------------------------
-        function Cyy = localCovariance(obj, sysID, Cxx)
+        function Cyy = localCovariance(obj, sysID, Cxx, s0sq)
         %LOCALCOVARIANCE  Covariance of one system's local parameters.
         %
+        %       Cyy = localCovariance(sysID, Cxx, s0sq)   (sol.Cxx, sol.s0sq)
         %       Cyy = s0^2*inv(Nll) + inv(Nll)*Nlc * Cxx * Nlc'*inv(Nll)
+        %
+        %   s0sq is the SOLVE's variance factor, the one Cxx carries. R7-40: it
+        %   used to be the store's s0sq_hint = l'l / dof after eliminating the
+        %   locals only -- the commons unsolved, so it carried the whole common
+        %   signal and the verbose locals line read ~300x too large (the
+        %   user-facing residuals path was right; both now call this).
         %
         %   The second term propagates the uncertainty of the common block into
         %   the locals. Omitting it (as a naive inv(Nll) would) understates the
         %   local uncertainty, sometimes badly, because locals and commons are
         %   correlated through Nlc.
 
-            narginchk(3,3);
+            narginchk(4,4);
             s = obj.store(obj.findStore(sysID));
             if ~isequal(size(Cxx), [obj.nc obj.nc])
                 error('lsqvce:accum:badCxx', 'Cxx must be %d x %d.', obj.nc, obj.nc);
@@ -643,7 +659,7 @@ classdef BlockAccumulator < handle
 
             G   = s.Nll_r \ s.Nlc;                     % nl x nc
             Qll = s.Nll_r \ eye(size(s.Nll_r,1));      % cofactor matrix
-            Cyy = s.s0sq_hint * Qll + G * Cxx * G.';
+            Cyy = s0sq * Qll + G * Cxx * G.';
             Cyy = (Cyy + Cyy.')/2;
         end
 

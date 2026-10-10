@@ -167,10 +167,7 @@ end
 
         % ---- back-substitution of the local block ------------------------
         y   = st.Nll_r \ (st.nl_r - st.Nlc * x);
-        G   = st.Nll_r \ st.Nlc;
-        Qll = st.Nll_r \ eye(size(st.Nll_r,1));
-        Cyy = sol.s0sq * Qll + G * sol.Cxx * G.';
-        Cyy = (Cyy + Cyy.')/2;
+        Cyy = acc.localCovariance(ids(k), sol.Cxx, sol.s0sq);   % R7-40: the ONE formula
 
         S = struct('sysID', ids(k), 'y', y, 'Cyy', Cyy, ...
                    'vtv', 0, 'm', 0, 'rms', NaN, 'obs', struct([]));

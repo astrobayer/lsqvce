@@ -32,6 +32,12 @@ function R = adjustRobust(systems, days, opt)
 %     'Parallel', 'DistributeDays', 'ParallelThreshold'     as adjustBlock
 %     'Verbose'    logical                                  default false
 %     'Provenance' struct   resolved user options for Results.meta (fit)
+%     'Prior'      [] | lsqvce.engine.CommonPrior on the common block   default []
+%     'Diagnostics' cell   Name-Value pairs for lsqvce.engine.diagnose default {}
+%     'OnPass'     [] | @(ctx)  the per-pass inspection hook (lsqvce.util.onPass:
+%                return false to stop after this pass)           default []
+%     'OnPassContext' struct  fields merged into every ctx (lsqvce.fit
+%                passes .data and .processingOptions)            default struct()
 %   OUTPUT
 %     R  1x1 lsqvce.Results   stopReason "converged" | "maxPasses"; history(k):
 %        .pass .scale .dx .nDown (0 < factor < 0.5) .nZero (factor == 0)
@@ -61,8 +67,8 @@ function R = adjustRobust(systems, days, opt)
 %                                       rows: at the breakdown point (once
 %                                       per run; diagnostic only)
 %
-%   ACCURACY  the fixed point equals lsqvce.engine.robust's on a diagonal
-%   law (same influence, same MAD scale; pinned in test_fit to 1e-10); on a
+%   ACCURACY  on a diagonal law the fixed point is classic IRLS (same
+%   influence, same MAD scale as the retired flat driver had); on a
 %   correlated law the factors act on the LAW-WHITENED residuals (Yang 1994),
 %   which the flat driver could not express.
 %
@@ -73,6 +79,10 @@ function R = adjustRobust(systems, days, opt)
 %   See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.KERNEL.ROBUSTWEIGHTS,
 %            LSQVCE.ENGINE.RESIDUALS, LSQVCE.FIT
 %
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34, R7-35):
+%   the ACCURACY note no longer cites the deleted flat driver; Prior /
+%   Diagnostics / OnPass / OnPassContext documented. With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Created 2026-09-02 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.1 -- R5 Level M2, WP-81 round 2b.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-115 (finding R7-17): the stop

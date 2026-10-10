@@ -24,3 +24,6 @@ beyond the breakdown point of,R7-25 (WP-115),the joint loop's collapsed message 
 never fed back into the weighting,R7-13 (WP-116),per-arc factors were estimated but only the stream mean weighted the solve (they weight it since 6.1.6)
 only their \*\*stream mean\*\* reaches the weighting,R7-13 (WP-116),the Manual's statement of the same gap
 split one scale by a convention,R7-13 (WP-116),level and arc factor were said to split by gamma-bar; the factors are absolute since 6.1.6
+is refused by fit \(lsqvce:fit:notYet\),R7-34 (WP-118),Robust with Estimate noise was said to be refused (runs since 6.1)
+use the result of adjustVCE,R7-34 (WP-118),a remedy naming the deleted separable driver
+UNCONTROLLED and its w is not reported \(default 1e-6\),R7-35 (WP-118),diagnose's rMin default disagreed with Options.Diagnostics.RMin

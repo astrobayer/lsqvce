@@ -131,12 +131,16 @@ classdef Options
 %     opts = lsqvce.Options(Estimate="noise", Pool="obsType");
 %     opts.Noise.Grid = 2160;  opts.Parallel.Mode = "parfor";
 %     R = lsqvce.fit(data, opts);
-%     % Robust is NOT in that line on purpose: Robust ~= "none" together with
-%     % Estimate = "noise" is refused by fit (lsqvce:fit:notYet). This example
-%     % carried Robust="huber" until v5.3 and could not run (R6 WP-101).
+%     % Robust ~= "none" together with Estimate = "noise" runs the robust pass
+%     % inside the joint loop (since 6.1, Manual 7.8):
+%     opts.Robust = "huber";
 %
 %   See also LSQVCE.FIT, LSQVCE.RESULTS, the Manual, chapter 3, RELEASE_NOTES.md
 %
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): the
+%   EXAMPLE no longer says Robust with Estimate = "noise" is refused (it
+%   runs since 6.1). With assistance from Claude (Anthropic), model Claude
+%   Opus 5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-116 part 2 (R7-13): the arc
 %   factors are absolute and weight the solve; MeanType's remaining role
 %   (the clamp floor's scale) stated. With assistance from Claude

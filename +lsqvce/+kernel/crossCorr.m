@@ -38,8 +38,8 @@ function c = crossCorr(w, d, opt)
 %         temporal model. This is the most common failure and the easiest fix.
 %
 %     'ar-order-low'          R(tau>0) has a nonzero DIAGONAL
-%         Leftover TEMPORAL correlation within each axis. Raise the AR order.
-%         See LSQVCE.ENGINE.SELECTARORDER.
+%         Leftover TEMPORAL correlation within each axis. Raise the AR order
+%         (or estimate the law: Estimate = "noise").
 %
 %     'needs-var'             R(tau>0) has significant OFF-diagonals
 %         Genuine cross-axis TEMPORAL correlation: axis i at epoch k correlates
@@ -67,8 +67,11 @@ function c = crossCorr(w, d, opt)
 %   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 %     lsqvce:crossCorr:shortSeries               [warning] Only X epochs for a max lag of X. The cross-covariance estimates will...
 %
-%   See also LSQVCE.ENGINE.SELECTARORDER, LSQVCE.ENGINE.RESIDUALS, LSQVCE.ENGINE.COVMODEL
+%   See also LSQVCE.ENGINE.RESIDUALS, LSQVCE.ENGINE.COVMODEL
 %
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): the
+%   deleted SELECTARORDER references removed. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+kernel (R4 decision R4-D1,

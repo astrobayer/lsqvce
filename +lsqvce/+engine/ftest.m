@@ -29,7 +29,7 @@ function F = ftest(solFull, solRed, opt)
 %   does this GROUP of parameters, taken together, earn its keep.
 %
 %   INPUT
-%     solFull  1x1 struct  solution of the FULL model (from lsqvce.engine.adjust /
+%     solFull  1x1 struct  solution of the FULL model (from lsqvce.engine.adjustBlock /
 %                          Accumulator.solve); uses .vtv (or .vPv), .m/.n,
 %                          .u/.rank and .sigma0/.s0 as available.
 %     solRed   1x1 struct  solution of the nested REDUCED model, same fields.
@@ -74,8 +74,11 @@ function F = ftest(solFull, solRed, opt)
 %   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 %     lsqvce:ftest:invalidPremise                [warning]  ... ... ... ... ... 
 %
-%   See also LSQVCE.ENGINE.SYSTEMATIC, LSQVCE.ENGINE.ADJUST.
+%   See also LSQVCE.ENGINE.SYSTEMATIC, LSQVCE.ENGINE.ADJUSTBLOCK.
 %
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): the
+%   deleted engine.adjust reference replaced. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,

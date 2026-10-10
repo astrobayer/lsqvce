@@ -59,7 +59,7 @@ function testSystemWithoutLocalUnknownsIsValid(tc)
     tc.verifyLessThan(abs(R0.sigma0 - 1), 0.15);
     y = R0.acc.backSubstitute(1, R0.x);
     tc.verifyEqual(size(y), [0 1], 'no locals -> a 0x1 back-substitution');
-    Cyy = R0.acc.localCovariance(1, R0.sol.Cxx);
+    Cyy = R0.acc.localCovariance(1, R0.sol.Cxx, R0.sol.s0sq);
     tc.verifyEqual(size(Cyy), [0 0], 'no locals -> a 0x0 local covariance');
     st = R0.acc.systemStore(1);
     tc.verifyEqual(st.nl, 0);

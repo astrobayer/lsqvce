@@ -630,10 +630,10 @@ has no `systems` at all — `fit` tells the kinds apart by the fields present:
 
 | field | size | meaning |
 |---|---|---|
-| `batchFcn` | fh | `[A, l, p] = batchFcn(k)`, k = 1…nBatch — the `lsqvce.engine.adjust` contract |
+| `batchFcn` | fh | `[A, l, p] = batchFcn(k)`, k = 1…nBatch — one batch: design rows `A`, observations `l`, weights `p` |
 | `numBatches` | 1×1 | nBatch |
 | `numUnknowns` | 1×1 | u — **linear form only** |
-| `x0` | u×1 | optional. With it the problem is **nonlinear**: `[A, w, p] = batchFcn(k, x)` returns the Jacobian at `x` and `w = l − f(x)`; solved by Gauss-Newton (`lsqvce.engine.solveNonlinear`). **u = numel(x0)** — `numUnknowns` must then be absent (`lsqvce:fit:uCount`) |
+| `x0` | u×1 | optional. With it the problem is **nonlinear**: `[A, w, p] = batchFcn(k, x)` returns the Jacobian at `x` and `w = l − f(x)`; solved by damped Gauss-Newton (`lsqvce.engine.adjustNonlinear`). **u = numel(x0)** — `numUnknowns` must then be absent (`lsqvce:fit:uCount`) |
 
 Rules: `opts.Estimate` must be `"none"` (variance components need the streams of a
 streaming system — `lsqvce:fit:modelKind`); `opts.Robust = "huber" | "igg3" | "bisquare"`

@@ -76,6 +76,9 @@ function R = fit(data, opts, nv)
 %                                  here), localParams needs
 %                                  'arc'|'day'|'system' (raised by makeLoader
 %                                  and relabelled)
+%       lsqvce:fit:badParamColumns data.paramColumns is malformed: not a
+%                                  struct, an unknown field, only one of
+%                                  start / end, or a column the table lacks
 %       lsqvce:fit:missingField    a required system field is absent, or
 %                                  covariance carries no observation type
 %       lsqvce:fit:noDays          no day list anywhere
@@ -131,6 +134,9 @@ function R = fit(data, opts, nv)
 %            LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT,
 %            LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTNONLINEAR
 %
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34, R7-37):
+%   ERRORS lists badParamColumns; the joint seed recorded is the one used.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-116 part 1: a 'var' law under Estimate = "noise" is refused by
 %   name (lsqvce:fit:varUnderNoise, R7-07). With
 %   assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -329,7 +335,7 @@ function R = fitEllmer(systems, days, opts, pri, opc, priorGroups)
     D = lsqvce.engine.diagnose(dsol, batchFcn, 'nBatch', nB, opts.engineArgs("diagnose").nv{:});
     resolved = opts.toStruct();
     resolved.kind = 'stream';
-    seeds = struct('jointSeed', opts.Seed);
+    seeds = struct('jointSeed', out.seed);       % R7-37: the seed USED (pinned when opts.Seed is empty)
     R = lsqvce.Results(out.sol, D, out.acc, dsol, batchFcn, nB, specs, lsqvce.engine.runMeta(seeds, resolved));
     hist = out.history;
     hist.kind  = 'ellmer';

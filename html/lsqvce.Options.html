@@ -171,12 +171,16 @@ lsqvce:Options:badTarget     engineArgs target is unknown</pre>
 <pre class="example">  opts = lsqvce.Options(Estimate=&quot;noise&quot;, Pool=&quot;obsType&quot;);
   opts.Noise.Grid = 2160;  opts.Parallel.Mode = &quot;parfor&quot;;
   R = lsqvce.fit(data, opts);
-  % Robust is NOT in that line on purpose: Robust ~= &quot;none&quot; together with
-  % Estimate = &quot;noise&quot; is refused by fit (lsqvce:fit:notYet). This example
-  % carried Robust=&quot;huber&quot; until v5.3 and could not run (R6 WP-101).
+  % Robust ~= &quot;none&quot; together with Estimate = &quot;noise&quot; runs the robust pass
+  % inside the joint loop (since 6.1, Manual 7.8):
+  opts.Robust = &quot;huber&quot;;
 
 See also LSQVCE.FIT, LSQVCE.RESULTS, the Manual, chapter 3, RELEASE_NOTES.md
 
+Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): the
+EXAMPLE no longer says Robust with Estimate = &quot;noise&quot; is refused (it
+runs since 6.1). With assistance from Claude (Anthropic), model Claude
+Opus 5.5.
 Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-116 part 2 (R7-13): the arc
 factors are absolute and weight the solve; MeanType&#x27;s remaining role
 (the clamp floor&#x27;s scale) stated. With assistance from Claude

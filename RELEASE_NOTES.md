@@ -1,5 +1,35 @@
 # lsqvce release notes
 
+## 6.1.7 — 2026-10-10 (R7 WP-118 part 1: docs truth, one default per fact, honest numbers)
+
+- **The "95 %" error ellipse covers 95 % (R7-39).** `lsqvce.engine.ellipse` with the
+  estimated s0² (the default, `'aposteriori'`) now scales by 2·F(2, r) instead of χ²(2),
+  which covered 86 % at redundancy 5 and 90.5 % at 10. With σ0 known (`'apriori'`) χ²(2)
+  stays; the two meet at large r. The used constant is returned as `E.k2`.
+- **Unseeded joint runs are replayable (R7-37).** With `Seed = []` the joint estimator
+  pins one probe seed up front (from the private probe stream, the global RNG untouched),
+  probes with it on every pass, returns it as `out.seed`, and `fit` records it in
+  `R.meta.seeds.jointSeed`. Before, every pass drew a fresh seed and none was recorded.
+  Behaviour change: an unseeded run now uses the same probes on every pass, as a seeded
+  run always did.
+- **Diagnostics no longer advance your RNG (R7-36).** Past 5000 observations the MDB
+  reservoir of `lsqvce.engine.diagnose` drew from the global stream; it has its own fixed
+  stream now, so the reported MDB quantiles are reproducible.
+- **One default per fact (R7-35).** `diagnose`'s `rMin` defaults to 0.01, the value
+  `Options.Diagnostics.RMin` always had (it was 1e-6), and `snoop`'s re-diagnosis inherits
+  the thresholds of the D it was given. The documented-but-dead `diagnose` option
+  `'verify'` is retired (passing it is an error now). `adjustBlock`'s help no longer
+  documents `ShowSeconds` / `ExportDir`, which it never accepted.
+- **Every accepted option is documented, every named unit exists (R7-34, R7-35).** Two
+  new audit checks: 31 (each Name-Value option an `arguments` block accepts is named in
+  its help; 17 were not) and 32 (each `lsqvce.*` unit named in help text, runtime
+  messages, the Manual, README, templates and examples exists; 33 named deleted units,
+  among them `snoop`'s runtime remedy).
+- **The verbose locals line reports the right size (R7-40).** `localCovariance` takes the
+  solve's s0² (`acc.localCovariance(sysID, sol.Cxx, sol.s0sq)`, now one formula shared
+  with `residuals`); the log line used a pre-solve hint and read ~300× too large. API
+  change on this engine method: the third argument is required.
+
 ## 6.1.6 — 2026-10-10 (R7 WP-116 part 2: the arc factors weight the solve)
 
 Behaviour change for every `Estimate = "noise"` run with `ArcFactors = true`; no declaration

@@ -3,8 +3,8 @@ function [fac, s, w, scalePath] = robustWeights(vw, influence, tuning)
 %   [fac, s, w, scalePath] = lsqvce.kernel.robustWeights(vw, influence, tuning)
 %
 %   THE one influence-function evaluation of the toolbox (R5 M2 round 2b):
-%   the flat driver lsqvce.engine.robust and the block-path driver
-%   lsqvce.engine.adjustRobust both call it, so Huber / IGG3 / bisquare and
+%   the block-path driver lsqvce.engine.adjustRobust and the joint
+%   estimator's robust pass both call it, so Huber / IGG3 / bisquare and
 %   the MAD scale are defined once. Pure kernel: arrays in, arrays out.
 %
 %   The robust scale is the normalised MAD of the whitened residuals,
@@ -44,8 +44,11 @@ function [fac, s, w, scalePath] = robustWeights(vw, influence, tuning)
 %   EXAMPLE
 %     fac = lsqvce.kernel.robustWeights(w, 'huber', []);   % 1 below 1.345 sigma
 %
-%   See also LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ROBUST
+%   See also LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTVCEJOINT
 %
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): names
+%   its live callers. With assistance from Claude (Anthropic), model Claude
+%   Opus 5.5.
 %   Created 2026-09-02 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.1 -- R5 Level M2, WP-81 round 2b
 %   (extracted verbatim from lsqvce.engine.robust so there is ONE definition).

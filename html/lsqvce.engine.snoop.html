@@ -149,11 +149,12 @@ R = lsqvce.fit(data, Verbose=false);
 % Use the robust scale there:
 [sol, D, REJ] = lsqvce.engine.snoop(R.source, R.diag, R.batchFcn, &#x27;test&#x27;, &#x27;mad&#x27;);</pre>
 <h3>Input</h3>
-<pre class="example">sol       1x1 struct  the solution to start from (from LSQVCE.ENGINE.ADJUST)
+<pre class="example">sol       1x1 struct  the solution to start from (R.source)
 D         1x1 struct  its diagnostics
 batchFcn  1x1 fh      the SAME batch function, for the re-solves
-varargin  Name/Value: &#x27;test&#x27; (&#x27;auto&#x27;|&#x27;pope&#x27;|&#x27;baarda&#x27;|&#x27;mad&#x27;), &#x27;alpha&#x27;,
-                      &#x27;maxReject&#x27;, &#x27;force&#x27;, &#x27;verbose&#x27;</pre>
+Name/Value: &#x27;Test&#x27; (&#x27;pope&#x27;|&#x27;mad&#x27;), &#x27;Alpha&#x27;, &#x27;Bonferroni&#x27;, &#x27;MaxReject&#x27;,
+            &#x27;MaxRejectFrac&#x27; (the breakdown cap, default 0.25), &#x27;RMinReject&#x27;,
+            &#x27;Reaccumulate&#x27;, &#x27;NBatch&#x27; (default D.nBatch), &#x27;Force&#x27;, &#x27;Verbose&#x27;</pre>
 <h3>Errors</h3>
 <pre class="example">  lsqvce:snoop:badBatch        batchFcn did not return [A, l, p], or
                                returned different data on the second call
@@ -162,7 +163,7 @@ varargin  Name/Value: &#x27;test&#x27; (&#x27;auto&#x27;|&#x27;pope&#x27;|&#x27;
                                observations cannot be rejected individually
   lsqvce:snoop:tooContaminated the contamination gauge is past the point
                                where tau is meaningful -- switch to
-                               &#x27;test&#x27;,&#x27;mad&#x27;, or use LSQVCE.ENGINE.ROBUST
+                               &#x27;test&#x27;,&#x27;mad&#x27;, or use LSQVCE.ENGINE.ADJUSTROBUST
   lsqvce:snoop:breakdown       the rejection cap was reached and the scale
                                estimate has broken down; the data are not
                                a few blunders on a good model
@@ -182,8 +183,12 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
   lsqvce:snoop:maxReject                     [warning] Reached the rejection cap (X)
   lsqvce:snoop:rejectFraction                [warning] STOPPING
 
-See also LSQVCE.ENGINE.ROBUST, LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.SYSTEMATIC.
+See also LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.SYSTEMATIC.
 
+Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34, R7-35):
+the runtime remedy names live units; the Name-Value list matches the
+arguments block; the re-diagnosis inherits D&#x27;s thresholds. With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 2026-07-11.
 Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,

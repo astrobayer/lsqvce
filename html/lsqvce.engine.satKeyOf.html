@@ -46,10 +46,9 @@ a { color: #0b5ea8; }
 <h2>Description</h2>
 <pre class="example">key = lsqvce.engine.satKeyOf(satId)
 
-The single place that defines the satellite-key convention shared by the
-GRACE-FO example drivers ITERATESEPARABLE (which WRITES
-temporalModel.(key).(obsType)) and GRACELOADER (which READS it) and by
-LSQVCE.ENGINE.RESOLVESATSPECS, so they can never drift.</pre>
+The single place that defines the &#x27;s_&#x27; + satId satellite-key convention,
+so every caller that writes a per-satellite field and every caller that
+reads it form the same name.</pre>
 <h3>Input</h3>
 <pre class="example">satId   1x1 | 1xk   char | string | numeric   Satellite identifier, e.g.
                                                &#x27;C&#x27;, &quot;D&quot;, or 1. Required.</pre>
@@ -58,8 +57,11 @@ LSQVCE.ENGINE.RESOLVESATSPECS, so they can never drift.</pre>
                               passed through matlab.lang.makeValidName
                               (&#x27;C&#x27; -&gt; &#x27;s_C&#x27;, 1 -&gt; &#x27;s_1&#x27;).
 
-See also LSQVCE.ENGINE.RESOLVESATSPECS, LSQVCE.ENGINE.NORMALIZESATLIST
+See also MATLAB.LANG.MAKEVALIDNAME
 
+Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): the
+references to drivers that exist nowhere removed. With assistance from
+Claude (Anthropic), model Claude Opus 5.5.
 Created 2026-07-15 13:40 (CEST, UTC+02:00) with assistance from
 Claude (Anthropic), model Claude Opus 4.8.
 Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,

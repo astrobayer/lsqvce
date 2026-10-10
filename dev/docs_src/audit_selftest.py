@@ -456,6 +456,38 @@ case('28 the same words split by a real line break in prose are silent',
                       '%   beyond the scope here.\n%   The breakdown is elsewhere.\nend\n'),
      expect_fire=False)
 
+# ---- 31 (R7-35): an accepted Name-Value option its help never names --------
+ZZZ_NV = '+lsqvce/+engine/zzzSelftestNV.m'
+case('31 an undocumented accepted option fires', audit.check_nv_options_documented, 'nvdoc',
+     lambda d: append(os.path.join(d, ZZZ_NV),
+                      "function zzzSelftestNV(opt)\n%ZZZSELFTESTNV  x.\n"
+                      "%   'Alpha'  the documented one\n%\n%   See also LSQVCE.FIT\n"
+                      "arguments\n    opt.Alpha (1,1) double = 1\n"
+                      "    opt.Hidden (1,1) double = 2\nend\nend\n"))
+case('31 a documented option is silent', audit.check_nv_options_documented, 'nvdoc',
+     lambda d: append(os.path.join(d, ZZZ_NV),
+                      "function zzzSelftestNV(opt)\n%ZZZSELFTESTNV  x.\n"
+                      "%   'Alpha'  the documented one\n%\n%   See also LSQVCE.FIT\n"
+                      "arguments\n    opt.Alpha (1,1) double = 1\nend\nend\n"),
+     expect_fire=False)
+
+# ---- 32 (R7-34): a reference to a unit that does not exist ----------------
+case('32 a See-also entry naming a deleted unit fires', audit.check_unit_references_resolve,
+     'unitref', lambda d: append(os.path.join(d, ZZZ_UNIT),
+                                 'function zzzSelftest()\n%ZZZSELFTEST  x.\n%\n'
+                                 '%   See also LSQVCE.ENGINE.ADJUSTVCE\nend\n'))
+case('32 a runtime remedy naming a deleted unit fires', audit.check_unit_references_resolve,
+     'unitref', lambda d: append(os.path.join(d, ZZZ_UNIT),
+                                 "function zzzSelftest()\n%ZZZSELFTEST  x.\n"
+                                 "    error('lsqvce:zzz:x', 'use lsqvce.engine.robust instead');\nend\n"))
+case('32 a deleted unit inside a dated stamp is history, silent',
+     audit.check_unit_references_resolve, 'unitref',
+     lambda d: append(os.path.join(d, ZZZ_UNIT),
+                      'function zzzSelftest()\n%ZZZSELFTEST  x.\n%\n%   See also LSQVCE.FIT\n%\n'
+                      '%   Updated 2026-10-10, lsqvce.engine.adjust retired.\nend\n'),
+     expect_fire=False)
+
+
 def main():
     failures = 0
     print('audit self-test: %d cases' % len(CASES))

@@ -55,7 +55,7 @@ accumulator&#x27;s own Levenberg damping (Reg &quot;lm&quot;), solves for the st
 and the NEXT pass&#x27;s accumulation at x + dx is also the step&#x27;s
 evaluation (its vPv decides acceptance), so nothing is read twice.
 
-Step control mirrors LSQVCE.ENGINE.SOLVENONLINEAR exactly: a step that
+Step control (that of the retired flat solver, kept unchanged): a step that
 raises vPv is rejected and the damping grows tenfold (up to 1e12 -&gt;
 diverged); an accepted step shrinks it tenfold; convergence when
 max|dx_j / sigma_j| &lt; TolX, or the relative vPv change &lt; TolF. The final
@@ -69,7 +69,10 @@ x0        u x 1 double        starting point</pre>
 <h3>Name-Value</h3>
 <pre class="example">&#x27;MaxIter&#x27; 20; &#x27;TolX&#x27; 1e-8; &#x27;TolF&#x27; 1e-10; &#x27;Lambda0&#x27; 1e-6 (0 = pure GN);
 &#x27;Backend&#x27; &quot;qr&quot;|&quot;normal&quot;; &#x27;Parallel&#x27;, &#x27;DistributeDays&#x27;, &#x27;ParallelThreshold&#x27;;
-&#x27;Verbose&#x27; false; &#x27;Provenance&#x27; struct (fit&#x27;s resolved Options)</pre>
+&#x27;Verbose&#x27; false; &#x27;Provenance&#x27; struct (fit&#x27;s resolved Options);
+&#x27;Prior&#x27; [] | lsqvce.engine.CommonPrior on the common block; &#x27;Diagnostics&#x27;
+{} (Name-Value pairs for lsqvce.engine.diagnose); &#x27;OnPass&#x27; [] | @(ctx)
+the per-pass hook (lsqvce.util.onPass) with &#x27;OnPassContext&#x27; struct()</pre>
 <h3>Output</h3>
 <pre class="example">R  1x1 lsqvce.Results  stopReason &quot;converged&quot; | &quot;maxPasses&quot;; history(k):
    .pass .vPv .dxRel .lambda .accepted; R.noise = struct(&#x27;x0&#x27;, x0, &#x27;reason&#x27;)</pre>
@@ -87,9 +90,13 @@ accumulator&#x27;s normal-form fold (NaN-honest on cancellation).</pre>
 <pre class="example">  bf = @(k, x) deal(J(x, k), l(k) - f(x, k));       % your model
   R  = lsqvce.engine.adjustNonlinear(2, bf, 4, [0.5; 0]);
 
-See also LSQVCE.ENGINE.SOLVENONLINEAR, LSQVCE.ENGINE.BATCHSYSTEM,
+See also LSQVCE.ENGINE.BATCHSYSTEM,
          LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.FIT
 
+Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34, R7-35):
+the deleted SOLVENONLINEAR reference removed; Prior / Diagnostics /
+OnPass / OnPassContext documented. With assistance from Claude
+(Anthropic), model Claude Opus 5.5.
 Created 2026-09-02 (CEST, UTC+02:00) with assistance from Claude
 (Anthropic), model Claude Fable 5.1 -- R5 Level M2, WP-81 round 2c&#x27;.</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>

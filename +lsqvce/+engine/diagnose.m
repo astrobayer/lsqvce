@@ -17,10 +17,12 @@ function D = diagnose(sol, batchFcn, opt)
 %   O(u^2 * nk) and the memory is O(u^2 + nk).
 %
 %   INPUTS
-%     sol       the struct returned by lsqvce.engine.Accumulator/solve
+%     sol       the diagnosed solution (R.source; LSQVCE.ENGINE.DIAGNOSEACCUM builds it)
 %     batchFcn  function handle, [A,l,p] = batchFcn(k), k = 1..nBatch.
 %               Must reproduce EXACTLY the batches given to the accumulator,
-%               in the same order. This is checked (see 'verify').
+%               in the same order. This is checked: a replay that sees a
+%               different observation count is lsqvce:diagnose:batchMismatch,
+%               and D.sumRRelErr / D.vPvRelDiff report the integrity numbers.
 %
 %   NAME-VALUE
 %     'nBatch'      number of batches (default sol.nBatch)
@@ -28,7 +30,8 @@ function D = diagnose(sol, batchFcn, opt)
 %     'bonferroni'  correct alpha for n tests      (default true)
 %     'beta'        MDB type-II error              (default 0.20)
 %     'rMin'        redundancy below which an observation is declared
-%                   UNCONTROLLED and its w is not reported (default 1e-6)
+%                   UNCONTROLLED and its w is not reported (default 0.01,
+%                   the same as Options.Diagnostics.RMin -- R7-35)
 %     'rWeak'       redundancy below which an observation is flagged as
 %                   weakly controlled                        (default 0.10)
 %     'test'        'auto' | 'pope' | 'baarda'   (default 'auto')
@@ -40,7 +43,9 @@ function D = diagnose(sol, batchFcn, opt)
 %                   the worst offenders -- use this when n is enormous.
 %     'nWorst'      how many worst-|w| observations to retain under
 %                   'store','flagged'                        (default 1000)
-%     'verify'      re-check sum(r) == n-u and vPv consistency (default true)
+%     'robustCheck' also form the MAD scale and the contamination gauge
+%                   (one extra sweep; always on for 'test','mad') (default true)
+%     'progress'    print a progress line every ~2 s     (default false)
 %
 %   ON BONFERRONI
 %   -------------
@@ -92,8 +97,13 @@ function D = diagnose(sol, batchFcn, opt)
 %   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 %     lsqvce:diagnose:largeU                     [warning] u = X parameters
 %
-%   See also LSQVCE.ENGINE.ADJUST, LSQVCE.REPORT, LSQVCE.ENGINE.SNOOP.
+%   See also LSQVCE.ENGINE.DIAGNOSEACCUM, LSQVCE.REPORT, LSQVCE.ENGINE.SNOOP.
 %
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34..36): the
+%   dead 'verify' option retired, RobustCheck / Progress documented, rMin
+%   defaults to Options.Diagnostics.RMin (0.01), the MDB reservoir draws
+%   from its own stream. With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
@@ -110,17 +120,16 @@ arguments
     opt.Alpha (1,1) double {mustBePositive, mustBeLessThan(opt.Alpha,1)} = 1e-3
     opt.Bonferroni (1,1) logical = true
     opt.Beta (1,1) double {mustBePositive, mustBeLessThan(opt.Beta,1)} = 0.20
-    opt.RMin (1,1) double {mustBeNonnegative} = 1e-6
+    opt.RMin (1,1) double {mustBeNonnegative} = 0.01   % R7-35: Options.Diagnostics.RMin's value
     opt.RWeak (1,1) double {mustBeNonnegative, mustBeLessThanOrEqual(opt.RWeak,1)} = 0.10
     opt.Test (1,1) string {mustBeMember(opt.Test, ["auto","pope","baarda","mad"])} = "auto"
     opt.RobustCheck (1,1) logical = true
     opt.Store (1,1) string {mustBeMember(opt.Store, ["all","flagged","none"])} = "all"
     opt.NWorst (1,1) double {mustBeNonnegative} = 1000
-    opt.Verify (1,1) logical = true
     opt.Progress (1,1) logical = false
 end
 
-o = struct('nBatch', opt.NBatch, 'alpha', opt.Alpha, 'bonferroni', opt.Bonferroni, 'beta', opt.Beta, 'rMin', opt.RMin, 'rWeak', opt.RWeak, 'test', char(opt.Test), 'robustCheck', opt.RobustCheck, 'store', char(opt.Store), 'nWorst', opt.NWorst, 'verify', opt.Verify, 'progress', opt.Progress);
+o = struct('nBatch', opt.NBatch, 'alpha', opt.Alpha, 'bonferroni', opt.Bonferroni, 'beta', opt.Beta, 'rMin', opt.RMin, 'rWeak', opt.RWeak, 'test', char(opt.Test), 'robustCheck', opt.RobustCheck, 'store', char(opt.Store), 'nWorst', opt.NWorst, 'progress', opt.Progress);
 
 nB = o.nBatch;
 if isempty(nB)
@@ -205,6 +214,11 @@ nUncontrolled = 0;   idxUncontrolled = [];
 % (w, r) quadrant counters and the bounded MDB reservoir.
 nQ_cleanOut = 0;  nQ_ambiguous = 0;  nQ_verified = 0;  nQ_untested = 0;
 mdbCap   = 5000;          % reservoir size: quantiles to ~1% with 5000 samples
+% R7-36: the reservoir draws from its OWN fixed-seed stream. randi on the
+% global stream advanced the user's RNG on every fit with n > 5000 (against
+% WP-36: the global RNG is never touched) and made the reported MDB
+% quantiles differ run to run on identical input.
+mdbRng   = RandStream('mt19937ar', 'Seed', 0);
 mdbPool  = zeros(0, 1);
 nMdbSeen = 0;
 nMdbInf  = 0;
@@ -651,7 +665,7 @@ for k = 1:nB
         if numel(mdbPool) < mdbCap
             mdbPool(end+1, 1) = mv(q); %#ok<AGROW>
         else
-            j = randi(nMdbSeen);
+            j = randi(mdbRng, nMdbSeen);
             if j <= mdbCap
                 mdbPool(j) = mv(q);
             end

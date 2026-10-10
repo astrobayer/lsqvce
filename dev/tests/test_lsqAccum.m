@@ -356,7 +356,7 @@ function testLocalCovarianceIsPD(tc)
     acc = lsqvce.engine.BlockAccumulator(cfg.nc,'Backend','qr','Verbose',false);
     for s = cfg.sats, acc.addSystem(s, cfg.nl, binder(cfg,s), 1:2); end
     sol = acc.solve();
-    Cyy = acc.localCovariance(cfg.sats(1), sol.Cxx);
+    Cyy = acc.localCovariance(cfg.sats(1), sol.Cxx, sol.s0sq);
     % tol: two backends on one well-conditioned problem; difference ~ cond*eps, bound with release-drift headroom
     tc.verifyEqual(Cyy, Cyy.', 'AbsTol', 1e-12);
     tc.verifyGreaterThan(min(eig(Cyy)), 0);

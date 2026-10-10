@@ -101,11 +101,8 @@ and disagree, which is exactly the bug this removes.
     &#x27;ParallelThreshold&#x27; double 1x1  tasks below which no pool is used
                                                            (default 8)
     &#x27;Verbose&#x27;    logical 1x1  accumulator chatter           (default false)
-    &#x27;ShowSeconds&#x27; double 1x1  seconds to display each plot-hook figure
-                         (default 0 = export only; &lt; 0 = show and
-                         LEAVE OPEN -- the v1 contract, unchanged).
-                         Engine-side knob, mirrors LSQVCE.ENGINE.ADJUSTVCEJOINT.
-    &#x27;ExportDir&#x27;  string 1x1  folder for plot-hook PNGs (&quot;&quot; = do not export).
+    &#x27;Prior&#x27;      [] | lsqvce.engine.CommonPrior  the prior on the common
+                             block (lsqvce.fit stacks data.priors)   (default [])
 
 PLOTTING (R5 M5 5c): the post-solve plot hooks of v4 are retired; plot
   from the returned Results -- R.plot(&quot;residuals&quot; | &quot;contribution&quot; | ...).</pre>
@@ -138,6 +135,9 @@ See also LSQVCE.RESULTS, LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTVCEJOINT,
          LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.DIAGNOSEACCUM, LSQVCE.ENGINE.DIAGNOSE,
          LSQVCE.REPORT, LSQVCE.RESULTS
 
+Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-35): Prior
+documented; ShowSeconds / ExportDir, documented but never accepted,
+removed. With assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-08-31 (CEST, UTC+02:00), R4 WP-62 (Level L4): &#x27;DistributeDays&#x27;
 and &#x27;ParallelThreshold&#x27; exposed (pass-through to the accumulator; the
 engine&#x27;s own defaults). With assistance from Claude (Anthropic), model
