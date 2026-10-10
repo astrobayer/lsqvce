@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-10 — WP-118 part 1 DONE (PR #121, merge 9919f5e; CI 600/600); WP-118 part 2 OPEN (tier B, model Claude Opus 5.5): compare's redundancy counts the locals (R7-19), one inventory reset first (R7-23), a sized pooled Ljung-Box (R7-38, mirror: 0.001 -> 0.048 on 64 x 30), worker warnings reach the inventory (R7-41); user decisions: the accFcn contract ACCEPTED, Noise.MeanType RETIRED; version 6.1.8; §12.41.
+Last substantive update: 2026-10-10 — WP-118 part 2 DONE (PR #122, merge 139f511; CI 604/604); WP-118 part 3 OPEN (tier B, model Claude Opus 5.5): user decisions -- fix the README now, record reasons rather than split; the memory claim corrected on three surfaces (R7-24, WP-86 stays open), the five long functions and 74 long lines recorded as ceilings under a new audit check 33 (R7-44); version 6.1.9; §12.41.
+Preceding entry: Last substantive update: 2026-10-10 — WP-118 part 1 DONE (PR #121, merge 9919f5e; CI 600/600); WP-118 part 2 OPEN (tier B, model Claude Opus 5.5): compare's redundancy counts the locals (R7-19), one inventory reset first (R7-23), a sized pooled Ljung-Box (R7-38, mirror: 0.001 -> 0.048 on 64 x 30), worker warnings reach the inventory (R7-41); user decisions: the accFcn contract ACCEPTED, Noise.MeanType RETIRED; version 6.1.8; §12.41.
 Preceding entry: Last substantive update: 2026-10-10 — WP-116 part 2 DONE (PR #120, merge 683d36e; CI 596/596); WP-118 part 1 OPEN (tier B, model Claude Opus 5.5): docs truth with two new audit instruments — check 31 (every accepted Name-Value option is documented; 17 were not) and check 32 (every named unit exists, in help, messages and user prose; 33 named deleted units) — plus the 2F(2,r) ellipse (R7-39), the pinned joint probe seed (R7-37), diagnose off the global RNG (R7-36), one rMin default (R7-35), localCovariance on the solve's s0² (R7-40); version 6.1.7; §12.41.
 Preceding entry: Last substantive update: 2026-10-10 — WP-116 part 1 DONE (PR #119, merge 4587fd0; CI 592/592); WP-116 part 2 OPEN (tier B, model Claude Opus 5.5): the per-arc factors WEIGHT the solve (R7-13, user decision) — a keyed `covOverride.byArc` layer from adjustVCEjoint through jointModelOpt to both loaders, eq. 6.5.28 multiplies the per-arc factor; and a 6.1.5 regression found by the same mirror and fixed — the per-stream normalisation counted a stream's level twice when its arcs differ (1176 / 11.65 against 100 / 1), factors are now the absolute gamma2_m; version 6.1.6; §12.40.
 Preceding entry: Last substantive update: 2026-10-10 — WP-115 part 1 OPEN (tier B, model Claude Opus 5.5): the decision-free robust findings fixed or withdrawn — day keys exact (R7-06), MAD fallback reported (R7-21), IRLS stop rule unit-invariant (R7-17), report says robust (R7-18), the joint collapsed claim and "unbiased" withdrawn (R7-25, R7-12), check 28 reads wrapped lines and messages; version 6.1.4; R7-08 / R7-10 / the collapse threshold wait for the user; §12.39.
@@ -8059,8 +8060,8 @@ runs the audit to a file and tests its own exit code.) Merged as PR #120 (683d36
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
 | 118 (part 1) | R7-34 deleted units / retired behaviour out of live text (check 32); R7-35 every accepted NV option documented (check 31), `diagnose` 'verify' retired, one `rMin` default; R7-36 `diagnose` off the global RNG; R7-37 unseeded joint runs pin and record their probe seed; R7-39 ellipse 2F(2, r); R7-40 `localCovariance` on the solve's s0²; **version 6.1.7** | 116 part 2 (§12.40, PR #120 merged 683d36e) | DONE (2026-10-10, PR #121, merge 9919f5e; CI GREEN on 06e38ab first run: ci_gate 600/600) |
-| 118 (part 2) | R7-19 `compare` df2 counts the eliminated locals; R7-23 one inventory reset, first; R7-38 Ljung-Box divided by the pooled pair counts; R7-41 the log queue reaches the workers, their warnings the inventory; `Noise.MeanType` retired (user decision); **version 6.1.8** | 118 part 1 (PR #121 merged 9919f5e) | OPEN (2026-10-10; audit CLEAN; CI pending) |
-| 118 (part 3) | R7-24 the README memory claim (with WP-86); R7-44 long functions with a recorded reason | 118 part 2 | NOT STARTED |
+| 118 (part 2) | R7-19 `compare` df2 counts the eliminated locals; R7-23 one inventory reset, first; R7-38 Ljung-Box divided by the pooled pair counts; R7-41 the log queue reaches the workers, their warnings the inventory; `Noise.MeanType` retired (user decision); **version 6.1.8** | 118 part 1 (PR #121 merged 9919f5e) | DONE (2026-10-10, PR #122, merge 139f511; CI GREEN on e966dc5 first run: ci_gate 604/604) |
+| 118 (part 3) | R7-24 the memory claim corrected in README / DEVELOPMENT / `diagnose` help (the fix itself stays WP-86); R7-44 the five long functions and 74 long lines recorded with reasons and ceilings, audit check 33; **version 6.1.9** | 118 part 2 (PR #122 merged 139f511) | OPEN (2026-10-10; audit CLEAN; CI pending) |
 
 **Split.** WP-118 bundles twelve findings of very different weight. Part 1 takes the ones
 with no user decision and a clear oracle; part 2 the statistical ones that change a
@@ -8156,4 +8157,32 @@ claims.
   shortest lags (the review's second sentence); a K tied to the Grid is a power question,
   left open, stated in Manual 7.7.
 - Counts: 616 declared, 604 gate-executed. Version **6.1.8**.
+
+**Part 2 CI (e966dc5): GREEN on the first run, ci_gate 604/604.** Merged as PR #122 (139f511).
+
+**Part 3 -- user decisions (2026-10-10):** README fixed now (not deferred to WP-86);
+long functions get recorded reasons, not a split.
+- **R7-24.** Verified in the code first: `diagnoseAccum>whitenArcIntoBatches` builds
+  `fullA = zeros(numel(keepRows), uFull)` per batch and the batch closure lives in the
+  Results (`Results.batchFcn`); every driver goes through it (fit, adjustBlock,
+  adjustRobust, adjustNonlinear, snoop) and nothing lets a user skip it. README now says
+  the solve streams and the diagnostics stage does not, with the review's arithmetic
+  (2.07 M rows x 13 729 parameters ~ 228 GB) and the pointer to WP-86. The superseded
+  claim, entered in `superseded_claims.csv`, immediately found a SECOND copy in
+  `dev/DEVELOPMENT.md` ("Streaming: nothing of size n is ever formed") -- corrected; and
+  `diagnose`'s help now separates its own working set (O(u^2 + nk)) from its source's.
+  The memory itself is NOT changed here: that is WP-86 (open since M4).
+- **R7-44.** Check 33: a function over 400 lines needs a row in
+  `dev/docs_src/long_functions.csv` (a reason and a ceiling), a row is a ceiling (growth
+  fires; shrinking fires "lower it"; a row for a function under 400 lines or gone is
+  stale), and `long_lines.csv` holds the per-file count of lines over 120 characters as a
+  ceiling. The length metric counts from the function line to the next function of the
+  same or lower indentation, nested functions subtracted (report's `push`), help
+  included. Measured: diagnose 1017, report 840, adjustVCEjoint 767, makeLoader 496,
+  snoop 496 -- the review's five. The reasons are concrete: shared per-batch accumulator
+  state (diagnose), a top-down five-level specification (report), help-dominated units
+  whose loops already delegate to local functions (adjustVCEjoint, snoop, makeLoader),
+  each with the seam a future split would use. The 569-character struct literal of
+  makeLoader was wrapped (verified identical text; +7 lines, recorded in its ceiling --
+  the ratchet caught the growth on its first run). Four fault cases in the self-test (72).
 

@@ -1,5 +1,20 @@
 # lsqvce release notes
 
+## 6.1.9 — 2026-10-10 (R7 WP-118 part 3: the memory claim corrected; long code on the record)
+
+No behaviour change.
+
+- **The README no longer says "nothing of size n is ever formed" (R7-24).** The solve
+  streams; the diagnostics stage does not yet: every fit rebuilds the whitened rows at full
+  width, n × (commons + all locals), and keeps them in the `Results` — about 228 GB for one
+  GRAVFIRE-scale month, which runs out of memory after the solve has succeeded. Streaming
+  that stage is WP-86 (open). `diagnose`'s help and `dev/DEVELOPMENT.md` say the same.
+- **Long functions and long lines are on the record (R7-44).** The five functions over 400
+  lines (`diagnose`, `report`, `adjustVCEjoint`, `snoop`, `makeLoader`) carry a written
+  reason and a ceiling in `dev/docs_src/long_functions.csv`, and the 74 lines over 120
+  characters a per-file ceiling in `long_lines.csv`; audit check 33 refuses growth, a new
+  unrecorded case, and a stale row. `makeLoader`'s 569-character struct literal is wrapped.
+
 ## 6.1.8 — 2026-10-10 (R7 WP-118 part 2: four reported numbers corrected; MeanType retired)
 
 - **`R.compare` counts every parameter (R7-19).** The nested-model F test took the

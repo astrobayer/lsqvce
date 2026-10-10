@@ -1,0 +1,34 @@
+# Lines longer than 120 characters in +lsqvce (R7-44, WP-118 part 3; audit check 33; MathWorks coding
+# standard). A row is a per-file CEILING: a file may lose long lines (then lower or delete the row), never
+# gain them; a file with long lines needs a row. 74 at the start (the 569-character struct literal of
+# makeLoader was wrapped in the same round).
+# file,count
++lsqvce/+engine/BlockAccumulator.m,6
++lsqvce/+engine/QRSystem.m,1
++lsqvce/+engine/adjustNonlinear.m,1
++lsqvce/+engine/adjustRobust.m,2
++lsqvce/+engine/adjustVCEjoint.m,3
++lsqvce/+engine/arcVarianceFactors.m,2
++lsqvce/+engine/checkPSD.m,1
++lsqvce/+engine/declaration.m,1
++lsqvce/+engine/diagnose.m,1
++lsqvce/+engine/gcvLambda.m,1
++lsqvce/+engine/makeLoader.m,15
++lsqvce/+engine/mapreduce.m,2
++lsqvce/+engine/outliers.m,2
++lsqvce/+engine/redundancy.m,4
++lsqvce/+engine/snoop.m,3
++lsqvce/+engine/systematic.m,1
++lsqvce/+engine/traceEstimate.m,1
++lsqvce/+engine/vce.m,2
++lsqvce/+kernel/ar2arma.m,1
++lsqvce/+kernel/armaWhiten.m,1
++lsqvce/+kernel/crossCorr.m,1
++lsqvce/+kernel/psd2acv.m,1
++lsqvce/+kernel/redundancyLags.m,1
++lsqvce/+kernel/separableWhiten.m,1
++lsqvce/+kernel/toeplitzCofactor.m,2
++lsqvce/+util/log.m,1
++lsqvce/Options.m,7
++lsqvce/Results.m,3
++lsqvce/fit.m,6

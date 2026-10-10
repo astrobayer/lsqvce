@@ -13,8 +13,10 @@ function D = diagnose(sol, batchFcn, opt)
 %       ext    external reliability: |dx| induced by an undetected MDB,
 %              expressed as a multiple of the parameter's own sigma
 %
-%   Nothing of size n-by-n or n-by-u is ever formed. Per batch the cost is
-%   O(u^2 * nk) and the memory is O(u^2 + nk).
+%   Nothing of size n-by-n or n-by-u is formed HERE: per batch the cost is
+%   O(u^2 * nk) and the memory is O(u^2 + nk). The batch SOURCE may hold more:
+%   the one every fit uses, LSQVCE.ENGINE.DIAGNOSEACCUM, keeps all whitened rows
+%   at full width, n x u (R7-24, open as WP-86).
 %
 %   INPUTS
 %     sol       the diagnosed solution (R.source; LSQVCE.ENGINE.DIAGNOSEACCUM builds it)
@@ -99,6 +101,10 @@ function D = diagnose(sol, batchFcn, opt)
 %
 %   See also LSQVCE.ENGINE.DIAGNOSEACCUM, LSQVCE.REPORT, LSQVCE.ENGINE.SNOOP.
 %
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 3 (R7-24): the help
+%   separates this function's own working set from its batch source's --
+%   diagnoseAccum keeps all whitened rows at full width (WP-86). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34..36): the
 %   dead 'verify' option retired, RobustCheck / Progress documented, rMin
 %   defaults to Options.Diagnostics.RMin (0.01), the MDB reservoir draws
