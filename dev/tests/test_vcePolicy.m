@@ -229,7 +229,9 @@ function testCacheDaysCountsTheBuilds(tc)
 % categories: contract, speed
     % R5 M4 4d: the number a sweep level is judged by. A two-stage pass builds
     % every (day, obsType) twice (accumulate + sweep) and a VCE run of n
-    % passes 2n+1 times (+ the final diagnostics); with CacheDays = Inf the
+    % passes 2n+2 times: + the accumulation under the RETURNED model (R7-11,
+    % WP-116: the solution used to be one pass behind it) + the final
+    % diagnostics; with CacheDays = Inf the
     % calendar stays resident and every day is built ONCE per run. Counted
     % through a wrapped buildDay on the demo declaration (2 systems, 3 days).
     data = tc.TestData.data;
@@ -243,7 +245,8 @@ function testCacheDaysCountsTheBuilds(tc)
     cnts = cellfun(@(s) s.counter, {data.systems.processingOptions}, 'UniformOutput', false);
     lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=n, Noise=struct('Grid', 16), Seed=3, Verbose=false, CacheDays=1));
     v1 = cell2mat(cellfun(@(c) cell2mat(values(c)), cnts, 'UniformOutput', false));
-    tc.verifyEqual(unique(v1), 2*n + 1, 'CacheDays 1: accumulate + sweep per pass, + the final diagnostics');
+    tc.verifyEqual(unique(v1), 2*n + 2, ['CacheDays 1: accumulate + sweep per pass, + the ' ...
+                   'solve under the returned model (R7-11), + the final diagnostics']);
     for c = cnts, remove(c{1}, keys(c{1})); end
     lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=n, Noise=struct('Grid', 16), Seed=3, Verbose=false, CacheDays=Inf));
     vInf = cell2mat(cellfun(@(c) cell2mat(values(c)), cnts, 'UniformOutput', false));
