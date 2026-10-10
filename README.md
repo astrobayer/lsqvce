@@ -1,4 +1,4 @@
-# lsqvce v6.1.9 — least-squares adjustment with variance component estimation
+# lsqvce v6.2.0 — least-squares adjustment with variance component estimation
 
 Declare your problem as a plain `data` struct, `fit` it, and get a judged
 result: estimates with formal errors, per-observation diagnostics, and a
@@ -17,15 +17,16 @@ nuisance parameters eliminated per system), coloured noise whitened per arc from
 a declared covariance model, Helmert variance component estimation with
 Monte-Carlo redundancy, robust estimation and data snooping, and diagnostics
 that refuse to invent numbers (a `sigma0` of `NaN` is a result, not a bug).
-Base MATLAB only — no Statistics or Optimization Toolbox. The **solve** streams:
-the normal equations are accumulated batch by batch and nothing of size `n` is formed
-there. The **diagnostics** stage does not stream yet: every fit rebuilds the whitened
-rows at full width, n × (commons + all locals), for `lsqvce.engine.diagnose`, and the
-`Results` keeps them — about 228 GB for one GRAVFIRE-scale month (2.07 M rows ×
-13 729 parameters), so such a fit runs out of memory after the solve has succeeded.
-Streaming that stage is open work (WP-86; review R7-24). MIT licensed. Version and release notes: `RELEASE_NOTES.md`;
-the development record (status, correctness history, design decisions,
-measurements) lives in `dev/DEVELOPMENT.md`.
+Base MATLAB only — no Statistics or Optimization Toolbox. The **solve** streams: the
+normal equations are accumulated batch by batch and nothing of size `n` is formed
+there. The **diagnostics** stage streams the data too since 6.2.0 — the whitened
+rows are re-read arc by arc, not stored (WP-86 part 1) — but it still rebuilds a
+dense factor of the full parameter set, commons plus all locals: about 1.5 GB for
+one GRAVFIRE-scale month (13 729 parameters), and about 10⁸ flops per observation
+for each diagnostic pass over the data (~2·10¹⁴ for 2.07 M rows). Removing that
+factor is WP-86 part 2 (review R7-24). MIT licensed. Version and release notes:
+`RELEASE_NOTES.md`; the development record (status, correctness history, design
+decisions, measurements) lives in `dev/DEVELOPMENT.md`.
 
 ## Installation
 

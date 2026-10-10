@@ -783,6 +783,52 @@ function testEllmerThroughFitReproducesDirect(tc)
     tc.verifyEqual(idOf(@() R.report('Verbose', false)), '');
 end
 
+function testDiagnosticSourceDoesNotStoreTheRows(tc)
+% categories: contract, robustness | tags: diagnostics
+    % WP-86 part 1 (R7-24): diagnoseAccum stored every whitened batch at full
+    % width -- n x (nc + sum nl) doubles kept alive in R.batchFcn, ~228 GB for
+    % one GRAVFIRE-scale month. The source now keeps only each batch's ADDRESS
+    % and rebuilds it on demand. Pinned two ways: what the closure holds (minus
+    % the accumulator's stores and the one-arc cache) does not grow with the
+    % number of rows, and a batch rebuilt after a cache switch is bitwise the
+    % one first served (the loader contract the rebuild relies on).
+    small = fitWithArcLength(300);
+    large = fitWithArcLength(3000);                  % 10x the rows, same arcs
+    tc.assertEqual(large.nBatch, small.nBatch, 'same arcs, one batch each (fixture premise)');
+    tc.verifyGreaterThan(large.diag.n, 9 * small.diag.n, 'the large fit really has ~10x the rows');
+    tc.verifyEqual(heldBytes(large), heldBytes(small), ...
+        'the diagnostic source holds addresses, not rows: its size does not follow n');
+    [A1, l1] = large.batchFcn(1);
+    [~, ~] = large.batchFcn(large.nBatch - 1);       % another arc: the cache switches
+    [A2, l2] = large.batchFcn(1);                    % rebuilt from the loader
+    tc.verifyEqual(A2, A1, 'a rebuilt batch is the batch first served (exact)');
+    tc.verifyEqual(l2, l1);
+end
+
+function R = fitWithArcLength(mArc)
+%FITWITHARCLENGTH  test_fit's canonical declaration with a chosen arc length.
+    cfg = buildCfg();  cfg.mArc = mArc;
+    data = struct();
+    data.commonParams = [repmat({'common'}, cfg.nc, 1), num2cell((1:cfg.nc).')];
+    data.days = 1:3;
+    s = struct();
+    s.buildDay = @(d, ot) buildDayImpl(cfg, d, ot);
+    s.covariance = cfg.cov;
+    s.localParams = [repmat({'system'}, cfg.nl, 1), num2cell((1:cfg.nl).')];
+    s.arcs = cfg.arcsPerDay;
+    data.systems = s;
+    R = lsqvce.fit(data, Verbose=false);
+end
+
+function b = heldBytes(R)
+%HELDBYTES  Bytes the diagnostic source holds beyond the accumulator's own
+%   stores and its one-arc cache (both independent of what is being tested).
+    ws = functions(R.batchFcn).workspace{1};
+    src = rmfield(ws.src, {'stores', 'cache'}); %#ok<NASGU> measured by whos
+    w = whos('src');
+    b = w.bytes;
+end
+
 function testCompareCountsTheEliminatedLocals(tc)
 % categories: reference, precision
     % R7-19: compare built df2 = n - numel(R.x) -- the COMMONS only -- while the

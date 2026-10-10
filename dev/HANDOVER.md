@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-10 — WP-118 part 2 DONE (PR #122, merge 139f511; CI 604/604); WP-118 part 3 OPEN (tier B, model Claude Opus 5.5): user decisions -- fix the README now, record reasons rather than split; the memory claim corrected on three surfaces (R7-24, WP-86 stays open), the five long functions and 74 long lines recorded as ceilings under a new audit check 33 (R7-44); version 6.1.9; §12.41.
+Last substantive update: 2026-10-10 — WP-118 part 3 DONE (PR #123, merge 472a3eb); WP-86 part 1 OPEN (tier B, model Claude Opus 5.5): the diagnostic source no longer stores the data -- diagnoseAccum folds each batch into the full factor and keeps only its address, rebuilding on demand (the ~228 GB n x u store of R7-24 gone); part 2 (the dense u_full factor and its O(u^2)-per-row cost) designed, awaiting the user; version 6.2.0; §12.42.
+Preceding entry: Last substantive update: 2026-10-10 — WP-118 part 2 DONE (PR #122, merge 139f511; CI 604/604); WP-118 part 3 OPEN (tier B, model Claude Opus 5.5): user decisions -- fix the README now, record reasons rather than split; the memory claim corrected on three surfaces (R7-24, WP-86 stays open), the five long functions and 74 long lines recorded as ceilings under a new audit check 33 (R7-44); version 6.1.9; §12.41.
 Preceding entry: Last substantive update: 2026-10-10 — WP-118 part 1 DONE (PR #121, merge 9919f5e; CI 600/600); WP-118 part 2 OPEN (tier B, model Claude Opus 5.5): compare's redundancy counts the locals (R7-19), one inventory reset first (R7-23), a sized pooled Ljung-Box (R7-38, mirror: 0.001 -> 0.048 on 64 x 30), worker warnings reach the inventory (R7-41); user decisions: the accFcn contract ACCEPTED, Noise.MeanType RETIRED; version 6.1.8; §12.41.
 Preceding entry: Last substantive update: 2026-10-10 — WP-116 part 2 DONE (PR #120, merge 683d36e; CI 596/596); WP-118 part 1 OPEN (tier B, model Claude Opus 5.5): docs truth with two new audit instruments — check 31 (every accepted Name-Value option is documented; 17 were not) and check 32 (every named unit exists, in help, messages and user prose; 33 named deleted units) — plus the 2F(2,r) ellipse (R7-39), the pinned joint probe seed (R7-37), diagnose off the global RNG (R7-36), one rMin default (R7-35), localCovariance on the solve's s0² (R7-40); version 6.1.7; §12.41.
 Preceding entry: Last substantive update: 2026-10-10 — WP-116 part 1 DONE (PR #119, merge 4587fd0; CI 592/592); WP-116 part 2 OPEN (tier B, model Claude Opus 5.5): the per-arc factors WEIGHT the solve (R7-13, user decision) — a keyed `covOverride.byArc` layer from adjustVCEjoint through jointModelOpt to both loaders, eq. 6.5.28 multiplies the per-arc factor; and a 6.1.5 regression found by the same mirror and fixed — the per-stream normalisation counted a stream's level twice when its arcs differ (1176 / 11.65 against 100 / 1), factors are now the absolute gamma2_m; version 6.1.6; §12.40.
@@ -8061,7 +8062,7 @@ runs the audit to a file and tests its own exit code.) Merged as PR #120 (683d36
 |----|-------|-----------|--------|
 | 118 (part 1) | R7-34 deleted units / retired behaviour out of live text (check 32); R7-35 every accepted NV option documented (check 31), `diagnose` 'verify' retired, one `rMin` default; R7-36 `diagnose` off the global RNG; R7-37 unseeded joint runs pin and record their probe seed; R7-39 ellipse 2F(2, r); R7-40 `localCovariance` on the solve's s0²; **version 6.1.7** | 116 part 2 (§12.40, PR #120 merged 683d36e) | DONE (2026-10-10, PR #121, merge 9919f5e; CI GREEN on 06e38ab first run: ci_gate 600/600) |
 | 118 (part 2) | R7-19 `compare` df2 counts the eliminated locals; R7-23 one inventory reset, first; R7-38 Ljung-Box divided by the pooled pair counts; R7-41 the log queue reaches the workers, their warnings the inventory; `Noise.MeanType` retired (user decision); **version 6.1.8** | 118 part 1 (PR #121 merged 9919f5e) | DONE (2026-10-10, PR #122, merge 139f511; CI GREEN on e966dc5 first run: ci_gate 604/604) |
-| 118 (part 3) | R7-24 the memory claim corrected in README / DEVELOPMENT / `diagnose` help (the fix itself stays WP-86); R7-44 the five long functions and 74 long lines recorded with reasons and ceilings, audit check 33; **version 6.1.9** | 118 part 2 (PR #122 merged 139f511) | OPEN (2026-10-10; audit CLEAN; CI pending) |
+| 118 (part 3) | R7-24 the memory claim corrected in README / DEVELOPMENT / `diagnose` help (the fix itself stays WP-86); R7-44 the five long functions and 74 long lines recorded with reasons and ceilings, audit check 33; **version 6.1.9** | 118 part 2 (PR #122 merged 139f511) | DONE (2026-10-10, PR #123, merge 472a3eb; CI GREEN on 8d67731) |
 
 **Split.** WP-118 bundles twelve findings of very different weight. Part 1 takes the ones
 with no user decision and a clear oracle; part 2 the statistical ones that change a
@@ -8193,4 +8194,57 @@ long functions get recorded reasons, not a split.
   depend on the audit's exit code (the same slip as c654515 in WP-116). Fixed by moving
   the ceiling to code lines (a stamp is not growth) and, for the process: the push now
   runs only inside `if audit && selftest; then push; fi`.
+
+### 12.42 WP-86 — the diagnostics stage streams (2026-10-10, model Claude Opus 5.5, tier B)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 86 (part 1) | `diagnoseAccum` keeps batch ADDRESSES, not batches: one enumeration pass folds every whitened batch into the full factor, `batchFcn` rebuilds a batch from its address through the loader and `arcBatchWhiten`, one arc cached; the n x u_full store (R7-24, ~228 GB at a GRAVFIRE month) is gone; **version 6.2.0** | 118 (PR #123 merged 472a3eb) | OPEN (2026-10-10; audit CLEAN; CI pending) |
+| 86 (part 2) | the block-native verdict: per-observation redundancy from the reduced common system and the per-system Schur blocks instead of a dense factor over u_full = nc + sum nl; then the M4 row's absorption (engine.verdict) | 86 part 1 | NOT STARTED -- design below, awaiting the user |
+
+**Scope (user: "continue with WP-86").** The M4 ledger row (line ~4974) defines WP-86 as
+the whole verdict-from-the-sweep redesign (one `engine.verdict` absorbing diagnose /
+diagnoseAccum / stat / systematic / snoop / ftest / ellipse), depending on WP-85. That is
+an architecture change, not a fix; part 1 takes the one piece that is mechanical, has no
+user decision in it and removes the out-of-memory of R7-24.
+
+**Part 1, what was done.**
+- `enumerateBatches` whitens every arc once (the same loop, the same `arcBatchWhiten`
+  iterator) and, per batch, places it into the full-width columns, folds it into Rfull
+  immediately (the same streamed QR, the same order -- data batches, then the prior) and
+  records `{iSys, day, obsType, arcId, sub}`; the batch is then dropped.
+- `batchOf(src, k)` rebuilds batch k: it re-reads the arc through `st.dataFcn` with the
+  store's own UserOpt and re-runs the iterator, caching that arc's batches in a
+  `containers.Map` (a handle, so the cache survives across calls of the closure). A
+  sequential pass -- diagnose's two sweeps, the robust-check sweep -- re-reads each arc
+  once; snoop's row lookups go through the same sequential pattern. The prior's
+  pseudo-batch (nk x u_full, small) is the one batch still stored.
+- The rebuild RELIES on the loader contract (an arc is returned identically on every
+  call), stated in the help. Before, the stored batches made the replay self-consistent
+  by construction; a non-deterministic loader would now give diagnostics on different
+  numbers (a changed count is still caught by `lsqvce:diagnose:batchMismatch`).
+- Test `testDiagnosticSourceDoesNotStoreTheRows` (test_fit): what the closure holds,
+  minus the accumulator's stores and the one-arc cache, is byte-identical for a fit with
+  10x the rows; and batch 1, rebuilt after the cache switched to another arc, equals the
+  batch first served, exactly. The rest of the suite pins the diagnostic NUMBERS (every
+  report / snoop / reliability test runs through this source).
+- README, diagnose's help, DEVELOPMENT and the release notes now state what remains.
+
+**Part 2 -- the design, for the user's decision.** What stays after part 1 is the dense
+factor over the FULL parameter set: 13 729^2 x 8 B ~ 1.5 GB at a GRAVFIRE month, and
+diagnose's triangular solves at ~u_full^2 / 2 ~ 10^8 flops per row and pass (~2e14 for
+2.07 M rows). The redundancy of one observation does not need it: with the per-system
+Schur blocks the accumulator already keeps, h_i = a' Q_cc a + b' (N_ll^-1 + G Q_cc G') b
+- 2 a' Q_cc G' b, which `lsqvce.engine.leverageBlocks` / `leverage` already implement
+(the review checked the formula, swe_code "checked and sound"). Per row that costs
+O(nc^2 + nl_sys^2), memory O(nc^2 + max nl_sys^2). What part 2 would change: diagnose's
+w / tau / MDB / external-reliability quantities read the hat diagonal and the cofactor of
+the estimate (Qxx a) -- both available block-wise -- so diagnose gets a block-native
+"source" (residual, h_i, Qxx-projection per row) instead of (A, l, p) + R. That is the
+interface change the M4 row means by "verdict from the sweep"; its cost is a rewrite of
+diagnose's two sweeps (1017 lines, recorded in long_functions.csv) and of snoop's
+downdate (which assumes a full R). Options for the user: (a) part 2 as above, with the
+diagnose/snoop rewrite; (b) keep R but over the COMMONS only and correct per row with the
+Schur blocks (smaller change, keeps diagnose's structure; snoop stays full-width and is
+refused above a size); (c) stop at part 1.
 

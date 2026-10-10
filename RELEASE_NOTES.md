@@ -1,5 +1,20 @@
 # lsqvce release notes
 
+## 6.2.0 — 2026-10-10 (WP-86 part 1: the diagnostics no longer store the data)
+
+- **Every fit's diagnostic source streams (R7-24).** `lsqvce.engine.diagnoseAccum` stored
+  every whitened row at full width — n × (commons + all locals) doubles, kept alive in
+  `R.batchFcn` — about 228 GB for one GRAVFIRE-scale month. It now folds each batch into
+  the full factor during one enumeration pass, keeps only the batch's address (system,
+  day, obsType, arc, sub-batch), and rebuilds a batch on demand through the system's
+  loader and the same whitening iterator, caching one arc. The arithmetic is unchanged
+  (same batches, same order); the price is one re-read of the data per diagnostic pass,
+  and the rebuild relies on the loader contract that an arc is returned identically on
+  every call.
+- **What remains (WP-86 part 2):** the diagnostics still build a dense factor over the
+  FULL parameter set (≈ 1.5 GB at 13 729 parameters) and cost ~u²/2 flops per row and
+  pass (~2·10¹⁴ for a GRAVFIRE month). The README says so.
+
 ## 6.1.9 — 2026-10-10 (R7 WP-118 part 3: the memory claim corrected; long code on the record)
 
 No behaviour change.

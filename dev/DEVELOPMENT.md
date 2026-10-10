@@ -7,7 +7,7 @@ the module census, correctness history, design decisions, validation, and the
 measured chapters. `dev/HANDOVER.md` remains the single status-and-plans
 document; this file is the technical companion the README used to be.*
 
-> **Status (2026-09-01, v2.0 — see RELEASE_NOTES.md).** Green everywhere: **27 suite files, 616 test
+> **Status (2026-09-01, v2.0 — see RELEASE_NOTES.md).** Green everywhere: **27 suite files, 617 test
 > points, 0 fail** — verified locally in MATLAB R2026a (including the
 > pool suites with real `parfor`/`spmd` workers and the machine-local
 > speed budgets) and on every push by GitHub Actions CI (a static `audit`
@@ -25,8 +25,9 @@ Solving and **diagnosing** large least-squares problems where `A` and `P` can
 only be built in batches.
 
 Streaming inside `diagnose`: `O(u²·nk)` time and `O(u² + nk)` memory per batch, nothing
-n-sized formed there. Its batch source on every fit, `diagnoseAccum`, still holds all
-whitened rows at full width (n × u; R7-24, the README states the scale) — WP-86.
+n-sized formed there. Its batch source on every fit, `diagnoseAccum`, rebuilds the batches
+on demand since WP-86 part 1 (it held all n × u whitened rows before, R7-24); the dense
+u × u factor over the FULL parameter set remains (WP-86 part 2; the README states the scale).
 
 ---
 

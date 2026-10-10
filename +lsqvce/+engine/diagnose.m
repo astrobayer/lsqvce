@@ -14,9 +14,10 @@ function D = diagnose(sol, batchFcn, opt)
 %              expressed as a multiple of the parameter's own sigma
 %
 %   Nothing of size n-by-n or n-by-u is formed HERE: per batch the cost is
-%   O(u^2 * nk) and the memory is O(u^2 + nk). The batch SOURCE may hold more:
-%   the one every fit uses, LSQVCE.ENGINE.DIAGNOSEACCUM, keeps all whitened rows
-%   at full width, n x u (R7-24, open as WP-86).
+%   O(u^2 * nk) and the memory is O(u^2 + nk). The batch source every fit uses,
+%   LSQVCE.ENGINE.DIAGNOSEACCUM, rebuilds the batches on demand since WP-86
+%   part 1 (it stored all n x u whitened rows before, R7-24); u here is the FULL
+%   parameter count (commons + locals), which part 2 is to remove.
 %
 %   INPUTS
 %     sol       the diagnosed solution (R.source; LSQVCE.ENGINE.DIAGNOSEACCUM builds it)

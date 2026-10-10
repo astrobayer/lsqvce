@@ -78,10 +78,18 @@ same overlap discard as accumulation -- so the batches are bit-identical to
 what the accumulator saw. This is the &#x27;verify&#x27; contract lsqvce checks.</pre>
 <h3>Cost</h3>
 <pre class="example">----
-diagSol carries the full R (u_full x u_full, u_full = nc + sum(nl)). For
-GRACE-FO with two satellites and a handful of local parameters each this is
-trivial; if the locals are per-arc and number in the thousands, R is large
-and you want lsqvce &#x27;store&#x27;,&#x27;flagged&#x27; to bound memory.
+diagSol carries the full R (u_full x u_full, u_full = nc + sum(nl)), and
+lsqvce.engine.diagnose costs O(u_full^2) per row with it. For GRACE-FO with
+two satellites and a handful of local parameters each this is trivial; with
+per-arc locals in the thousands both are large (WP-86 part 2: the
+block-native verdict). The batches themselves are NOT stored (WP-86 part 1,
+R7-24): batchFcn re-reads an arc through its loader and re-whitens it on
+demand, caching one arc, so the memory is one arc&#x27;s full-width batches.
+Before, every whitened row was kept at full width -- n x u_full doubles in
+the Results, ~228 GB for one GRAVFIRE-scale month. The price is a re-read
+of the data per diagnostic pass, and it RELIES ON THE LOADER&#x27;S CONTRACT that
+an arc is returned identically on every call (a changed count is still
+caught: lsqvce:diagnose:batchMismatch).
 
 REQUIRES  acc constructed with &#x27;KeepLocal&#x27;, true (the default).</pre>
 <h3>Input</h3>
@@ -101,6 +109,10 @@ varargin  Name/Value forwarded to LSQVCE.ENGINE.DIAGNOSE</pre>
 
 See also LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.SNOOP, LSQVCE.REPORT, LSQVCE.ENGINE.REDUNDANCY
 
+Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-86 part 1 (R7-24): the
+batches are rebuilt on demand from their address, one arc cached, instead
+of being stored at full width (n x u_full). With assistance from Claude
+(Anthropic), model Claude Opus 5.5.
 Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): the
 deleted engine.adjust reference replaced. With assistance from Claude
 (Anthropic), model Claude Opus 5.5.
