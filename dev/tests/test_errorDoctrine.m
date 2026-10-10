@@ -142,6 +142,26 @@ function testFitStoresTheInventoryInMeta(tc)
     verifyEqual(tc, R.stopReason, "single");
 end
 
+function testKindBWarningReachesTheInventory(tc)
+% categories: contract | tags: provenance
+    % R7-23: kinds B / C reset the inventory AFTER runBatch's priorNotActive
+    % warnOnce, so the id never reached R.meta.warnings; and once any run had
+    % fired it, the next kind-B warnOnce was suppressed before that reset --
+    % no warning at all. fit now resets once, before anything can warn.
+    muteWarn(tc, 'lsqvce:fit:priorNotActive');   % provoked on purpose (gate rule 7)
+    rs = RandStream('mt19937ar', 'Seed', 4);
+    A  = randn(rs, 40, 3);  l = A*[1; 2; 3] + 0.01*randn(rs, 40, 1);
+    data = struct('A', A, 'l', l, 'priors', struct('L', [0 0 1], 'sigma', 1, 'from', 3));
+    R1 = lsqvce.fit(data, Verbose=false);
+    verifyTrue(tc, any(strcmp(R1.meta.warnings, 'lsqvce:fit:priorNotActive')), ...
+        'the kind-B warning is in its own run''s inventory');
+    lastwarn('');
+    R2 = lsqvce.fit(data, Verbose=false);         % the id fired in the previous run
+    [~, wid] = lastwarn;
+    verifyEqual(tc, wid, 'lsqvce:fit:priorNotActive', 'and the next run warns again, once');
+    verifyTrue(tc, any(strcmp(R2.meta.warnings, 'lsqvce:fit:priorNotActive')));
+end
+
 %% ============================================================ stopReason
 function testStopReasonIsDerived(tc)
 % categories: contract

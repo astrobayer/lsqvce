@@ -27,3 +27,6 @@ split one scale by a convention,R7-13 (WP-116),level and arc factor were said to
 is refused by fit \(lsqvce:fit:notYet\),R7-34 (WP-118),Robust with Estimate noise was said to be refused (runs since 6.1)
 use the result of adjustVCE,R7-34 (WP-118),a remedy naming the deleted separable driver
 UNCONTROLLED and its w is not reported \(default 1e-6\),R7-35 (WP-118),diagnose's rMin default disagreed with Options.Diagnostics.RMin
+Noise\.MeanType = "robust",WP-118 part 2,Noise.MeanType was a live option (retired 6.1.8; user decision 2026-10-10)
+MeanType "robust"\|"plain",WP-118 part 2,the Options help listed the retired MeanType
+Q = m \(m\+2\) sum_k rho_k\^2 / \(m-k\),R7-38 (WP-118),the joint whiteness test divided by m - k for pooled arcs

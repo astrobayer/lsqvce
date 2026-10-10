@@ -75,6 +75,10 @@ function [out, info] = mapreduce(nTask, taskFcn, opt)
 %   model Claude Fable 5.
 %   See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.REDUNDANCY, LSQVCE.ENGINE.VCE
 %
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 2 (R7-41): the log
+%   queue is handed to every parfor task and spmd block, and their warning
+%   ids are merged into the run inventory in task order. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
@@ -163,8 +167,18 @@ end
             % classifies the referenced handle as a SLICED variable and rejects
             % it ("sliced variable must not be a function handle"). feval keeps
             % taskFcn a broadcast variable, which is what we want.
+            % R7-41: the queue is HANDED to every task (a worker cannot see the
+            % client's persistent state) and every task returns the warning ids
+            % it fired; the client merges them in task order, the order a
+            % serial run fires them in. Before, logQ was never referenced in the
+            % body: the sink was inert and worker warnings never reached
+            % R.meta.warnings.
+            wids = cell(nTask, 1);
             parfor j = 1:nTask
-                raw{j} = feval(taskFcn, j);                      %#ok<PFBNS>
+                [raw{j}, wids{j}] = workerTask(taskFcn, j, logQ);  %#ok<PFBNS>
+            end
+            for j = 1:nTask
+                lsqvce.util.log.mergeInventory(wids{j});
             end
             clear cleanupQ                                       % drain & remove sink
             if doReduce
@@ -178,14 +192,23 @@ end
 
         case 'spmd'
             red  = o.reduce;  ini = o.init;  cmb = o.combine;
+            logQ = lsqvce.util.log.startParallel();                  % R7-41, as parfor
+            cleanupQ = onCleanup(@() lsqvce.util.log.stopParallel());  %#ok<NASGU>
             spmd
+                onW = lsqvce.util.log.attachWorker(logQ);
                 loc = ini;
                 for j = spmdIndex:spmdSize:nTask   % worker-local, ascending
                     loc = red(loc, feval(taskFcn, j));
                 end
                 loc = spmdReduce(cmb, loc);        % associative tree combine
+                wid = {};
+                if onW, wid = lsqvce.util.log.inventory(); end
             end
             out = loc{1};
+            for w = 1:numel(wid)
+                lsqvce.util.log.mergeInventory(wid{w});
+            end
+            clear cleanupQ
     end
 end
 
@@ -213,3 +236,19 @@ function [ok, why, nW] = poolReady(autoPool)
         why = sprintf('could not open a pool (%s)', me.message);
     end
 end
+
+%==========================================================================
+function [out, ids] = workerTask(taskFcn, j, q)
+%WORKERTASK  One parfor task with the log sink attached (R7-41): the worker
+%   forwards its log text to the client's queue q and returns the warning
+%   identifiers this task fired, for lsqvce.util.log.mergeInventory. On the
+%   client (a parfor without a pool) it is a plain call and returns {}.
+    onW = lsqvce.util.log.attachWorker(q);
+    if onW   % detach afterwards: a later log call on this worker must not send to a stale queue
+        cu = onCleanup(@() lsqvce.util.log.attachWorker([])); %#ok<NASGU>
+    end
+    out = feval(taskFcn, j);
+    ids = {};
+    if onW, ids = lsqvce.util.log.inventory(); end
+end
+

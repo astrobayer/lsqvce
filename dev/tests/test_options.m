@@ -51,6 +51,11 @@ function testGroupMergeOntoDefaults(tc)
     tc.verifyEqual(o.Parallel.Mode, "parfor");
     tc.verifyEqual(o.Parallel.Threshold, 8);
     tc.verifyError(@() lsqvce.Options(Noise=struct('Lags', 5)), 'lsqvce:Options:badGroupField');
+    % WP-118 part 2 (user decision 2026-10-10): Noise.MeanType is retired -- the
+    % arc factors are absolute since 6.1.6, gamma-bar no longer scales them
+    tc.verifyError(@() lsqvce.Options(Noise=struct('MeanType', "plain")), 'lsqvce:Options:badGroupField', ...
+        'the retired MeanType is refused by name, not silently ignored');
+    tc.verifyFalse(isfield(lsqvce.Options().Noise, 'MeanType'));
     tc.verifyError(@() lsqvce.Options(Diagnostics=42), 'MATLAB:validation:UnableToConvert', 'a non-struct is refused by the type');
 end
 

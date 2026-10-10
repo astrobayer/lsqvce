@@ -101,6 +101,27 @@ function testMapreduceSpmdMatchesSerialToTolerance(tc)
     tc.verifyEqual(sp, s, 'RelTol', 1e-10);
 end
 
+function testWorkerWarningsReachTheRunInventory(tc)
+% categories: contract, robustness | tags: provenance, concurrency
+% R7-41: the parallel log sink never reached the workers (the DataQueue lived
+% in the client's persistent state; the parfor body never referenced it), so a
+% warning raised on a worker was missing from the run's inventory --
+% R.meta.warnings differed between a serial and a parfor run of the same data.
+    tc.assumeTrue(hasPCT(), 'Parallel Computing Toolbox not available');
+    st = warning('off', 'lsqvce:internal:testProbe');
+    tc.addTeardown(@() warning(st));
+    tc.addTeardown(@() lsqvce.util.log.inventory('reset'));
+    f = @(j) lsqvce.util.log.warnOnce('lsqvce:internal:testProbe', 'task %d', j);
+    lsqvce.util.log.inventory('reset');
+    lsqvce.engine.mapreduce(8, f, 'Mode','serial');
+    serialInv = lsqvce.util.log.inventory();
+    lsqvce.util.log.inventory('reset');
+    [~, info] = lsqvce.engine.mapreduce(8, f, 'Mode','parfor', 'Threshold',1);
+    tc.assumeEqual(info.mode, 'parfor', 'no pool could be opened');
+    tc.verifyEqual(lsqvce.util.log.inventory(), serialInv, ...
+        'a worker''s warning is in the client''s run inventory, as in the serial run');
+end
+
 %% ======================================================== addSystems
 function testAddSystemsEqualsSequentialAddSystem(tc)
 % categories: precision | tags: diagnostics

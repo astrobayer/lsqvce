@@ -93,7 +93,6 @@ classdef Options
 %                                      an integer >= 2, at least the longest arc
 %                                      for an exact law ("auto" is refused)
 %                  Whitener "toeplitz"|"ar"|"arma"  how a PSD law whitens (v4 PsdMode)
-%                  MeanType "robust"|"plain"        gamma-bar: the clamp floor's scale
 %                  Smooth 0                         moving average on the PSD
 %                  FreezeRedundancy 1               components below it hold
 %                  SkipThreshold 0.2                skip RATE that refuses the pass
@@ -137,6 +136,11 @@ classdef Options
 %
 %   See also LSQVCE.FIT, LSQVCE.RESULTS, the Manual, chapter 3, RELEASE_NOTES.md
 %
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 2: Noise.MeanType
+%   retired (user decision 2026-10-10): since 6.1.6 the arc factors are
+%   absolute and gamma-bar no longer scaled them; setting it is refused as
+%   an unknown group field. With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): the
 %   EXAMPLE no longer says Robust with Estimate = "noise" is refused (it
 %   runs since 6.1). With assistance from Claude (Anthropic), model Claude
@@ -262,7 +266,7 @@ classdef Options
                     args.nv = {'NumLags', N.Grid, 'MaxIter', obj.MaxPasses, ...
                                'Tol', obj.Tolerance, 'Probes', obj.Probes, 'Seed', obj.Seed, ...
                                'SkipThreshold', N.SkipThreshold, 'Pool', obj.Pool, ...
-                               'MeanType', N.MeanType, 'Verbose', logical(obj.Verbose), ...
+                               'Verbose', logical(obj.Verbose), ...
                                'Smooth', N.Smooth, 'FreezeRedundancy', N.FreezeRedundancy, ...   % R7-22
                                'Influence', obj.Robust, 'Tuning', obj.RobustOpts.Tuning, ...   % R6 WP-105
                                'OnPass', obj.OnPass};
@@ -316,7 +320,7 @@ classdef Options
 
     methods (Static)
         function s = noiseDefaults()
-            s = struct('Grid', 60, 'Whitener', "toeplitz", 'MeanType', "robust", ...
+            s = struct('Grid', 60, 'Whitener', "toeplitz", ...
                        'Smooth', 0, 'FreezeRedundancy', 1, 'SkipThreshold', 0.2);
         end
         function s = diagnosticsDefaults()

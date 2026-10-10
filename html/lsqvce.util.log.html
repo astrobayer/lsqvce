@@ -93,13 +93,19 @@ THREAD SAFETY / PARALLEL
   pass, call
       q = lsqvce.util.log.startParallel();
   to install a parallel.pool.DataQueue whose callback drains every worker
-  message into the client&#x27;s current (fid, screen). Inside the parfor body,
-  worker calls to msg/warn detect the queue and SEND their text to it instead
-  of printing locally; the client&#x27;s callback writes it to the one log file,
-  in arrival order. After the pass, call
+  message into the client&#x27;s current (fid, screen). A worker does not see
+  the client&#x27;s persistent state, so the queue must be HANDED to it: the
+  parfor body starts with lsqvce.util.log.attachWorker(q) (R7-41 -- without
+  it the sink was inert). Worker calls to msg/warn then SEND their text to
+  the queue; the client&#x27;s callback writes it to the one log file, in
+  arrival order, a warnOnce id once per run across all workers. The task
+  returns inventory() with its result and the client merges it
+  (mergeInventory), so worker warnings reach R.meta.warnings in task
+  order. After the pass, call
       lsqvce.util.log.stopParallel();
   If the Parallel Computing Toolbox is absent or no pool exists, startParallel
-  is a safe no-op and logging stays per-process.</pre>
+  is a safe no-op (q = []) and attachWorker still collects the inventory.
+  LSQVCE.ENGINE.MAPREDUCE does all of this for the toolbox&#x27;s own passes.</pre>
 <h3>Example</h3>
 <pre class="example">  fid = fopen(&#x27;vce.log&#x27;, &#x27;w&#x27;);
   lsqvce.util.log.set(&#x27;fid&#x27;, fid, &#x27;screen&#x27;, true);   % file AND screen
@@ -109,10 +115,14 @@ THREAD SAFETY / PARALLEL
 
 EXAMPLE (parfor-safe)
   fid = fopen(&#x27;run.log&#x27;,&#x27;w&#x27;);  lsqvce.util.log.set(&#x27;fid&#x27;, fid);
-  lsqvce.util.log.startParallel();                   % client installs sink
+  q = lsqvce.util.log.startParallel();               % client installs sink
+  ids = cell(nTask, 1);
   parfor k = 1:nTask
+      lsqvce.util.log.attachWorker(q);                % worker: hand it the sink
       lsqvce.util.log.msg(&#x27;worker did task %d\n&#x27;, k);  % -&gt; client&#x27;s run.log
+      ids{k} = lsqvce.util.log.inventory();          % this task&#x27;s warnings
   end
+  for k = 1:nTask, lsqvce.util.log.mergeInventory(ids{k}); end
   lsqvce.util.log.stopParallel();  lsqvce.util.log.reset();  fclose(fid);</pre>
 <h3>Errors</h3>
 <pre class="example">  lsqvce:util:log:badKey        an unknown log option key
@@ -120,8 +130,14 @@ EXAMPLE (parfor-safe)
 IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
   lsqvce:log:noParallelQueue                 [warning] Worker log messages cannot be forwarded to the client (X); they are p...
 
-See also FPRINTF, WARNING, PARALLEL.POOL.DATAQUEUE, LSQVCE.ENGINE.ADJUSTVCEJOINT
+See also FPRINTF, WARNING, PARALLEL.POOL.DATAQUEUE, LSQVCE.ENGINE.ADJUSTVCEJOINT,
+         LSQVCE.ENGINE.MAPREDUCE
 
+Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 2 (R7-41): the
+parallel sink reaches the workers (attachWorker), worker warnings reach
+the run inventory (mergeInventory), and a warnOnce id is shown once per
+run, not once per worker. With assistance from Claude (Anthropic), model
+Claude Opus 5.5.
 Created 2026-07-16 (CEST, UTC+02:00) with assistance from
 Claude (Anthropic), model Claude Opus 4.8.</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
