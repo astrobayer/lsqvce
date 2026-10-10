@@ -70,7 +70,8 @@ days     1xD double          the calendar</pre>
 &#x27;Influence&#x27;  &quot;huber&quot; | &quot;igg3&quot; | &quot;bisquare&quot;            default &quot;huber&quot;
 &#x27;Tuning&#x27;     [] | constants of the influence          default [] (its default)
 &#x27;MaxIter&#x27;    passes (&gt;= 1)                            default 30
-&#x27;Tol&#x27;        stop when max|dx| &lt; Tol * max(max|x|, 1) default 1e-8
+&#x27;Tol&#x27;        stop when max|dx| &lt; Tol * max(max|x|, max sigma_x)
+             -- relative to the problem&#x27;s own scale     default 1e-8
 &#x27;Parallel&#x27;, &#x27;DistributeDays&#x27;, &#x27;ParallelThreshold&#x27;     as adjustBlock
 &#x27;Verbose&#x27;    logical                                  default false
 &#x27;Provenance&#x27; struct   resolved user options for Results.meta (fit)</pre>
@@ -98,6 +99,9 @@ days     1xD double          the calendar</pre>
 WARNINGS
   lsqvce:adjustRobust:notConverged  MaxIter reached; the last pass is
                                     returned with stopReason &quot;maxPasses&quot;
+  lsqvce:robust:atBreakdown         the influence zeroed &gt; 45 % of the
+                                    rows: at the breakdown point (once
+                                    per run; diagnostic only)
 
 ACCURACY  the fixed point equals lsqvce.engine.robust&#x27;s on a diagonal
 law (same influence, same MAD scale; pinned in test_fit to 1e-10); on a
@@ -112,6 +116,12 @@ See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.KERNEL.ROBUSTWEIGHTS,
 
 Created 2026-09-02 (CEST, UTC+02:00) with assistance from Claude
 (Anthropic), model Claude Fable 5.1 -- R5 Level M2, WP-81 round 2b.
+Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-115 (finding R7-17): the stop
+rule&#x27;s absolute floor of 1 on max|x| made it unit-dependent -- the same
+fit in SH units (1e-9) stopped at pass 2 about one formal sigma from the
+fixed point while reporting &quot;converged&quot;. It is now relative to the
+larger of max|x| and the largest formal sigma. With assistance from
+Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-09-21 (CEST, UTC+02:00), R6 WP-110: the collapsed error said
 it detected &quot;more than half the data discrepant, beyond the breakdown
 point&quot;. It does not, and the measurement is in HANDOVER 12.34: nAlive

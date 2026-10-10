@@ -1,6 +1,6 @@
-function [fac, s, w] = robustWeights(vw, influence, tuning)
+function [fac, s, w, scalePath] = robustWeights(vw, influence, tuning)
 %ROBUSTWEIGHTS  IRLS weight factors from standardised whitened residuals.
-%   [fac, s, w] = lsqvce.kernel.robustWeights(vw, influence, tuning)
+%   [fac, s, w, scalePath] = lsqvce.kernel.robustWeights(vw, influence, tuning)
 %
 %   THE one influence-function evaluation of the toolbox (R5 M2 round 2b):
 %   the flat driver lsqvce.engine.robust and the block-path driver
@@ -8,8 +8,13 @@ function [fac, s, w] = robustWeights(vw, influence, tuning)
 %   the MAD scale are defined once. Pure kernel: arrays in, arrays out.
 %
 %   The robust scale is the normalised MAD of the whitened residuals,
-%   s = 1.4826 * median(|vw - median(vw)|) (falls back to std(vw), then 1,
-%   when the MAD is zero or not finite); the standardised residual is
+%   s = 1.4826 * median(|vw - median(vw)|). When the MAD is degenerate --
+%   zero, not finite, or below 1e3*eps of the largest |vw - median(vw)|
+%   (half the residuals tied, e.g. quantised data or zero-redundancy rows)
+%   -- it falls back to std(vw), then 1, SAYS SO once per run
+%   (lsqvce:robustWeights:scaleFallback) and returns the path taken; the
+%   std is inflated by the very blunders the MAD exists to expose, so a
+%   fallback result is a weaker robust fit. The standardised residual is
 %   w = vw / s; the factor multiplies the observation's weight:
 %     huber     fac = 1 for |w| <= c, c/|w| beyond                 (c = 1.345)
 %     igg3      1 on [0, k0]; (k0/|w|) ((k1-|w|)/(k1-k0))^2 on (k0, k1];
@@ -24,11 +29,15 @@ function [fac, s, w] = robustWeights(vw, influence, tuning)
 %     fac  n x 1 double  weight factors in [0, 1]
 %     s    1x1 double    the robust scale used
 %     w    n x 1 double  the standardised residuals vw / s
+%     scalePath  1xK char  'mad' | 'std' | 'unit' -- which scale s is
 %
 %   ERRORS
 %     lsqvce:robustWeights:badInfluence  unknown influence name
 %     lsqvce:robustWeights:badTuning     tuning has the wrong length for the
 %                                        influence (huber/bisquare 1, igg3 2)
+%   WARNINGS
+%     lsqvce:robustWeights:scaleFallback  the MAD was degenerate; s is the
+%                                        std (or 1) -- once per run
 %
 %   ACCURACY  exact arithmetic on the inputs; no tolerance of its own.
 %
@@ -40,6 +49,12 @@ function [fac, s, w] = robustWeights(vw, influence, tuning)
 %   Created 2026-09-02 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.1 -- R5 Level M2, WP-81 round 2b
 %   (extracted verbatim from lsqvce.engine.robust so there is ONE definition).
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-115 (finding R7-21): the
+%   MAD -> std -> 1 fallback was silent, and a NEAR-tie MAD (3.5e-15) was
+%   accepted, giving every ordinary row a factor of ~1e-14 that the collapse
+%   guard could not see. Near-ties now count as degenerate, the fallback
+%   warns once and returns its path. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 
     vw = vw(:);
     infl = lower(char(influence));
@@ -60,10 +75,19 @@ function [fac, s, w] = robustWeights(vw, influence, tuning)
     end
 
     med = median(vw);
-    s   = 1.4826 * median(abs(vw - med));
-    if s <= 0 || ~isfinite(s)
+    dev = abs(vw - med);
+    s   = 1.4826 * median(dev);
+    scalePath = 'mad';
+    if ~isfinite(s) || s <= 1e3 * eps * max(dev)       % zero OR a near-tie (R7-21)
         s = std(vw);
-        if s <= 0 || ~isfinite(s), s = 1; end
+        scalePath = 'std';
+        if s <= 0 || ~isfinite(s), s = 1;  scalePath = 'unit'; end
+        lsqvce.util.log.warnOnce('lsqvce:robustWeights:scaleFallback', ...
+            ['The MAD of the whitened residuals is degenerate (half or more of them ' ...
+             'tie -- quantised data or zero-redundancy rows); the robust scale falls ' ...
+             'back to the %s (s = %.3g). That scale is inflated by the blunders the ' ...
+             'MAD exists to expose: the robust weights are weaker than intended.'], ...
+            scalePath, s);
     end
     w  = vw / s;
     aw = abs(w);

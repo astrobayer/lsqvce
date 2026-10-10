@@ -1,5 +1,55 @@
 # lsqvce release notes
 
+## 6.1.4 — 2026-10-10 (R7 WP-115: robust conventions — wrong-day weights, calibrated multi-axis epochs, honest scales)
+
+Two silently-wrong-numbers fixes, three behaviour corrections, one new diagnostic and
+documentation truth. Of the design questions review R7 raised, the user decided all three on
+2026-10-10; two ship here, and the third (an additive nugget instead of the multiplicative
+Koch fold under correlated laws, R7-10) is a larger change to the loader, the sweep and the
+lag kernel and follows in its own release.
+
+- **Clean multi-axis epochs are no longer rejected (R7-08).** The joint loop's robust pass
+  reduced a d-axis epoch to its RMS — a χ-shaped value with median near 1 — and the
+  influence standardises uncentred, so `igg3` zeroed about 24 % of CLEAN 3-axis epochs (62 %
+  at d = 6). The epoch statistic is now χ-calibrated (user decision): the sum of squares is
+  mapped through χ²(d) to the equivalent normal deviate with the sign of the rows' sum, so a
+  clean epoch is standardised exactly like a clean scalar residual (0.3 % zeroed at any d,
+  measured on a mirror); blunders are still rejected. Scalar streams are unchanged.
+- **A breakdown warning (user decision).** `lsqvce:robust:atBreakdown`, once per run, when a
+  robust pass (stand-alone or joint) zeroes more than 45 % of its observations. The collapse
+  refusal is unchanged — it remains the model-error detector 6.1.3 described. Diagnostic only;
+  Huber never zeroes a factor, so it cannot fire under Huber.
+
+- **Robust weights could be applied to the wrong day (R7-06).** `lsqvce.util.rowWeightKey`
+  printed day ids with `%g`, which keeps six significant digits, so seven-digit day ids —
+  YYYYMMDD dates, Julian Day Numbers — collapsed onto one key: with `Robust` on, one day's
+  blunder factors were applied to another day of equal length, or a misleading
+  `makeLoader:rowWeightSize` blamed the builder. Integer ids now print with `%d` (exact,
+  the loader cache's own format), others with `%.17g`. MJD and datenum days (< 1e6) were
+  never affected.
+- **The robust scale's fallback is no longer silent (R7-21).** When half or more of the
+  whitened residuals tie (quantised data, zero-redundancy rows) the MAD is degenerate and
+  `lsqvce.kernel.robustWeights` falls back to the std; it now warns once per run
+  (`lsqvce:robustWeights:scaleFallback`), returns the path taken as a fourth output, and
+  treats a near-tie MAD (a 1e-15 spread) as a tie instead of a scale — which had given every
+  ordinary row a factor of ~1e-14 that the collapse guard could not see.
+- **The IRLS stop rule is unit-invariant (R7-17).** `adjustRobust` stopped when
+  `max|dx| < Tol·max(max|x|, 1)`; the floor of 1 made SH-scale coefficients (~1e-9) stop at
+  pass 2, "converged", about one formal sigma from the fixed point. The scale is now the
+  larger of `max|x|` and the largest formal sigma: unchanged for parameters of order one and
+  larger, and the same pass count in any units.
+- **`R.report()` says when a fit is robust (R7-18).** `adjustRobust`'s help promised it and
+  the report said nothing; a robust fit's sigma0 and covariance are those of the reweighted
+  problem, not an M-estimator's scale or sandwich covariance. One level-1 NOTE
+  (`ROBUST_FIT`) now says so.
+- **Claims withdrawn.** The joint loop's `collapsed` refusal no longer says "beyond the
+  breakdown point" (R7-25: the claim 6.1.3 retired from `adjustRobust` survived there, wrapped
+  across two help lines and inside the runtime message), and counts epochs, which is what it
+  compares. "The level a robust pass returns is UNBIASED" is withdrawn to an open question
+  (R7-12) in the help, the Manual and the test that pinned it; it is settled by measurement
+  in a later part. Audit check 28 now reads wrapped help lines and runtime messages, so
+  neither route can carry a retired claim again.
+
 ## 6.1.3 — 2026-09-21 (R6 WP-110: what the collapse guard really detects, and a 6.1.2 claim corrected)
 
 Documentation, a corrected error message and tests; no estimator behaviour changed.

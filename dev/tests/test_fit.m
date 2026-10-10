@@ -228,6 +228,63 @@ end
 % local (nl 4) parameters over 2 arcs x 3 days, an ARMA law on pos and a
 % diag law on kbr -- already what issue #110's test declaration asks for.
 
+function testRobustStopRuleIsUnitInvariant(tc)
+% categories: metamorphic, robustness
+    % R7-17: the IRLS stop rule had an absolute floor of 1 on max|x|, so the
+    % same problem in SH units (x ~ 1e-9) stopped at pass 2 "converged" about
+    % one formal sigma from the fixed point. Rescaling the unknowns (A -> A/k,
+    % x -> k x) must not change the pass count, and the estimate must scale.
+    rs = RandStream('mt19937ar', 'Seed', 17);
+    m = 400;  A = [ones(m, 1), randn(rs, m, 3)];  x = [1; -2; 0.5; 3];
+    l = A*x + randn(rs, m, 1);  b = randperm(rs, m, 40);  l(b) = l(b) + 25;   % 10 % blunders
+    opts = lsqvce.Options(Robust="igg3", Verbose=false);
+    R1 = lsqvce.fit(struct('A', A, 'l', l), opts);
+    k  = 1e-9;
+    Rk = lsqvce.fit(struct('A', A / k, 'l', l), opts);
+    tc.verifyEqual(numel(Rk.history), numel(R1.history), 'the same pass count in any units');
+    tc.verifyGreaterThan(numel(R1.history), 2, 'a 10 %-blunder IRLS does not settle in 2 passes');
+    % tol: 1e-8 relative -- the same arithmetic on rescaled columns; the stop
+    % rule's own Tol (1e-8) bounds how far two runs of equal length can differ
+    tc.verifyEqual(Rk.x / k, R1.x, 'RelTol', 1e-8);
+end
+
+function testRobustReportSaysTheFitIsRobust(tc)
+% categories: contract | tags: diagnostics
+    % R7-18: adjustRobust's help promised "report() says so"; report said
+    % nothing, and judged the reweighted sigma0 and covariance as least squares.
+    rs = RandStream('mt19937ar', 'Seed', 18);
+    A = [ones(200, 1), randn(rs, 200, 2)];  l = A*[1; 2; 3] + randn(rs, 200, 1);
+    Rr = lsqvce.fit(struct('A', A, 'l', l), lsqvce.Options(Robust="huber", Verbose=false));
+    V = Rr.report('Verbose', false);
+    codes = cellfun(@(f) f.code, V.findings, 'UniformOutput', false);
+    tc.verifyTrue(any(strcmp(codes, 'ROBUST_FIT')), 'a robust fit says so in its verdict');
+    R0 = lsqvce.fit(struct('A', A, 'l', l), Verbose=false);
+    V0 = R0.report('Verbose', false);
+    codes0 = cellfun(@(f) f.code, V0.findings, 'UniformOutput', false);
+    tc.verifyFalse(any(strcmp(codes0, 'ROBUST_FIT')), 'a least-squares fit does not');
+end
+
+function testRobustWarnsAtTheBreakdownPoint(tc)
+% categories: robustness | tags: diagnostics
+    % User decision 2026-10-10 (HANDOVER 12.34 option 2, R7 WP-115): the
+    % collapse refusal fires only on a model error or near-total
+    % contamination, so a pass that ZEROES more than 45 % of the rows says it
+    % is at the breakdown point -- once, changing nothing. 48 % blunders of
+    % 25 sigma under IGG3: zeroed, warned, and the fit still returns.
+    rs = RandStream('mt19937ar', 'Seed', 45);
+    m = 500;  A = [ones(m, 1), randn(rs, m, 2)];  l = A*[1; 2; 3] + randn(rs, m, 1);
+    b = randperm(rs, m, 240);  l(b) = l(b) + 25 * sign(randn(rs, 240, 1));
+    muteWarn(tc, 'lsqvce:robust:atBreakdown');   % provoked on purpose
+    R = lsqvce.fit(struct('A', A, 'l', l), lsqvce.Options(Robust="igg3", Verbose=false));
+    tc.verifyTrue(any(strcmp(R.meta.warnings, 'lsqvce:robust:atBreakdown')), ...
+                  'the breakdown warning is in the run''s warning inventory');
+    tc.verifyTrue(all(isfinite(R.x)), 'diagnostic only: the fit still returns');
+    % 10 % blunders: far from breakdown, no warning
+    l2 = A*[1; 2; 3] + randn(rs, m, 1);  l2(b(1:50)) = l2(b(1:50)) + 25;
+    R2 = lsqvce.fit(struct('A', A, 'l', l2), lsqvce.Options(Robust="igg3", Verbose=false));
+    tc.verifyFalse(any(strcmp(R2.meta.warnings, 'lsqvce:robust:atBreakdown')));
+end
+
 function testRobustReportsNoFactorForAPriorRow(tc)
 % categories: contract
     % DISCRIMINATOR. A local prior group rides as its own stream

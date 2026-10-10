@@ -92,14 +92,20 @@ function out = adjustVCEjoint(accFcn, opt)
 %              with the same blunders declared through Cep the plain
 %              estimator recovered it. NOT Ellmer (2018): he screens outliers in
 %              preprocessing and down-weights whole ARCS through the variance
-%              factors; this is Koch's iterated re-weighting inside a VCE,
-%              and the level it returns is UNBIASED (measured 1.007 on a
-%              clean stream, test_vcePolicy: the per-lag redundancy s_n is
-%              the model expectation of Omega_n under the SAME weighted
-%              whitening, so the weights cancel in alpha^2 -- the
-%              retained-observation ratio that was expected was refuted by
-%              the oracle). Multi-axis streams are weighted PER EPOCH (the
-%              RMS over the d law-whitened rows). The residuals
+%              factors; this is Koch's iterated re-weighting inside a VCE.
+%              THE LEVEL IS AN OPEN QUESTION (R7-12): one MATLAB run read
+%              1.007 on a clean stream (test_vcePolicy, a 15 % band), and
+%              the "weights cancel in alpha^2" argument made for it is
+%              disputed -- s_0 carries tr(Sigma_t^-1) of the UNWEIGHTED
+%              temporal law, which no factor touches -- with a Python mirror
+%              reading 0.83-0.86 (law fixed) / ~0.93 (law free). Until a
+%              multi-seed MATLAB measurement settles it, read the level of a
+%              robust pass as possibly biased LOW. Multi-axis streams are
+%              weighted PER EPOCH by one chi-calibrated statistic (R7-08:
+%              the d descaled rows' sum of squares mapped to an equivalent
+%              N(0,1) deviate, so a clean 3-axis epoch is standardised like a
+%              scalar residual; the RMS used before zeroed 24 % of clean
+%              epochs under IGG3). The residuals
 %              are standardised by ONE MAD SCALE PER STREAM, never by the
 %              estimated level (perStreamWeights says why). Prior streams
 %              are never re-weighted. Prefer "igg3" / "bisquare" for gross
@@ -173,10 +179,14 @@ function out = adjustVCEjoint(accFcn, opt)
 %                                   composes D = I and says so once)
 %     lsqvce:adjustVCEjoint:noArcs    a system declares no arcs
 %     lsqvce:adjustVCEjoint:collapsed the influence function left fewer live
-%                                     observations than parameters + 1 (beyond
-%                                     the breakdown point; R6 WP-105)
+%                                     EPOCHS than parameters + 1: a bodily
+%                                     residual offset or near-total
+%                                     contamination, NOT 50 % (R6 WP-105;
+%                                     measured in HANDOVER 12.34)
 %
 %   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+%     lsqvce:robust:atBreakdown                  [warning] the robust pass zeroed > 45 % of
+%                                                the epochs (once per run; R7 WP-115)
 %     lsqvce:adjustVCEjoint:localNotPD           System X
 %     lsqvce:adjustVCEjoint:notConverged         [warning] The joint stochastic model did not settle in X outer iterations (last...
 %     lsqvce:adjustVCEjoint:arcFactorsDiverging  [warning] arc-factor spread grew (F-01)
@@ -202,6 +212,12 @@ function out = adjustVCEjoint(accFcn, opt)
 %   See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
 %            LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 %
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-115: the collapsed refusal
+%   and its ERRORS line no longer claim "beyond the breakdown point" (R7-25:
+%   the claim WP-110 retired from adjustRobust survived here, line-wrapped
+%   past audit check 28) and count EPOCHS, which is what the guard compares;
+%   the "level is UNBIASED" claim is withdrawn to an open question (R7-12).
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-105: the robust pass inside
 %   the loop ('Influence', 'Tuning', model.rowWeights, out.robust, the
 %   collapsed refusal) -- the one-loop composition of IRLS and the joint
@@ -641,17 +657,23 @@ function [W, fac, rkeys, rscale, rstreams, nDown, nZero] = robustSweep(acc, sol,
     % Whitened=false its vtv is the raw sum, and the honest sigma0Mismatch
     % guard fired on every robust pass).
     res = lsqvce.engine.residuals(acc, sol, 'Whitened', true, 'Collect', true, 'Verbose', false);
-    [uEp, rkeys, sizes] = epochResiduals(res, W);
+    [uEp, rkeys, sizes, qEp, dEp] = epochResiduals(res, W);
+    uEp = chiCalibrated(uEp, qEp, dEp, rkeys, sizes);               % R7-08: d > 1 epochs
     [fac, rscale, rstreams] = perStreamWeights(uEp, rkeys, sizes, o.Influence, o.Tuning);
     nAlive = sum(fac > 0);
     if nAlive < nc + 1                                              % live EPOCHS
         error('lsqvce:adjustVCEjoint:collapsed', ...
-             ['The influence function left %d observations with a non-zero ' ...
-              'weight, fewer than the %d parameters + 1: more than half the ' ...
-              'data is discrepant, which is beyond the breakdown point of ' ...
-              'any M-estimator. This is not an outlier problem -- check the model.'], ...
-              nAlive, nc);
+             ['The influence function left %d epochs with a non-zero weight, ' ...
+              'fewer than the %d parameters + 1: almost every epoch was rejected. ' ...
+              'Two things do that, and neither is an ordinary outlier problem. ' ...
+              '(1) The residuals are offset BODILY from zero by several MAD -- a ' ...
+              'bias the model did not absorb -- because the influence standardises ' ...
+              'u/s, not (u - med)/s. (2) Contamination so near total that fewer ' ...
+              'than %d clean epochs are left; contamination merely past 50 %% does ' ...
+              'NOT reach here (HANDOVER 12.34). Check the model, not the data.'], ...
+              nAlive, nc, nc + 1);
     end
+    warnAtBreakdown(fac, 'adjustVCEjoint');        % engine-private: > 45 % of the epochs zeroed (R7 WP-115)
     W = containers.Map('KeyType', 'char', 'ValueType', 'any');
     off = 0;
     for kk = 1:size(rkeys, 1)
@@ -677,9 +699,10 @@ function [fac, scale, streams] = perStreamWeights(vw, keys, sizes, influence, tu
 %   do not feed on the level they will shape: the level converges to the
 %   retained-observation ratio, not to zero. Prior streams get factor 1.
 %   A MULTI-AXIS arc (axes(kk) = d > 1, rows epoch-major) is weighted PER
-%   EPOCH (round 4): the influence acts on the epoch's RMS over its d
-%   law-whitened rows -- the multivariate M-estimate of a vector
-%   observation -- and the d rows of an epoch share the factor. That is what
+%   EPOCH (round 4): the influence acts on ONE statistic per epoch, and the d
+%   rows of an epoch share the factor. Since R7-08 that statistic is the
+%   chi-calibrated deviate of chiCalibrated (it was the RMS, which zeroed a
+%   quarter of clean 3-axis epochs under IGG3). That is what
 %   the sweep needs: its temporal covariance is per axis and per epoch, so a
 %   factor must be per epoch to be expressible there.
 %   OUTPUT fac n x 1; scale 1 x S (the MAD per stream); streams 1 x S cell
@@ -705,7 +728,58 @@ function [fac, scale, streams] = perStreamWeights(vw, keys, sizes, influence, tu
     end
 end
 
-function [uEp, keys, sizes] = epochResiduals(res, W)
+function z = chiCalibrated(uEp, qEp, dEp, keys, sizes)
+%CHICALIBRATED  One signed, normal-calibrated statistic per multi-axis epoch
+%   (R7-08, user decision 2026-10-10). The RMS over d descaled axes is
+%   chi-shaped (median ~1, small MAD) and robustWeights standardises vw/s
+%   UNCENTRED, so on clean 3-axis data IGG3 zeroed 24 % of the epochs (62 %
+%   at d = 6; review R7 mirror). Instead the epoch's sum of squares q is
+%   mapped through the chi^2(d) distribution to the equivalent |N(0,1)|
+%   deviate and given the sign of the axes' sum:
+%       z = sign(sum v) * sqrt(2) * erfcinv(Q(d/2, q / (2 s^2)))
+%   with s^2 = median(q ./ med_d) per stream (med_d = the chi^2(d) median), so
+%   the statistic -- and hence every weight -- is invariant to the level the
+%   whitener applied, as perStreamWeights requires. For isotropic Gaussian
+%   epochs the norm and the direction are independent, so z is exactly
+%   N(0,1): a clean multi-axis epoch is standardised like a scalar residual.
+%   Scalar epochs (d = 1) are returned unchanged.
+    z = uEp;
+    multi = dEp > 1;
+    if ~any(multi), return, end
+    nA = size(keys, 1);
+    skey = cell(nA, 1);
+    for kk = 1:nA
+        skey{kk} = sprintf('%s|%s', matlab.lang.makeValidName(char(string(keys{kk,1}))), ...
+                           char(string(keys{kk,2})));
+    end
+    arcOf = repelem((1:nA).', sizes(:));
+    streamOf = skey(arcOf);
+    for st = unique(streamOf(multi)).'
+        rows = find(multi & strcmp(streamOf, st{1}));
+        d = dEp(rows);
+        medD = arrayfun(@chi2Median, d);
+        s2 = median(qEp(rows) ./ medD);
+        if ~(s2 > 0 && isfinite(s2)), continue, end    % all-zero residuals: nothing to calibrate
+        tail = gammainc(qEp(rows) ./ (2 * s2), d / 2, 'upper');
+        z(rows) = sign(uEp(rows)) .* min(sqrt(2) * erfcinv(tail), 40);
+    end
+end
+
+function m = chi2Median(d)
+%CHI2MEDIAN  Median of chi^2(d), by bisection on the regularised gamma.
+    persistent cache
+    if isempty(cache), cache = containers.Map('KeyType', 'double', 'ValueType', 'double'); end
+    if isKey(cache, d), m = cache(d); return, end
+    lo = 0;  hi = d + 10 * sqrt(2 * d);
+    for it = 1:200
+        m = (lo + hi) / 2;
+        if gammainc(m / 2, d / 2) < 0.5, lo = m; else, hi = m; end
+        if hi - lo <= 4 * eps(m), break, end
+    end
+    cache(d) = m;
+end
+
+function [uEp, keys, sizes, qEp, dEp] = epochResiduals(res, W)
 %EPOCHRESIDUALS  One standardised RAW residual per EPOCH, in sweep order
 %   (R6 WP-105 round 8, the Koch convention): the raw residual v = l - A x
 %   - B y of every arc, descaled by the epoch's own declared accuracy (the
@@ -719,9 +793,12 @@ function [uEp, keys, sizes] = epochResiduals(res, W)
 %   W: standardising a blunder by an accuracy that already carries its own
 %   zero weight made it look perfect, and the weights flipped on and off
 %   every pass (round 8, measured: nZero 60 / 0 / 55 / 0 ...).
-%   OUTPUT uEp n_epochs x 1; keys A x 4 {sysID, obsType, day, arc};
-%          sizes 1 x A epochs per arc.
-    uEp = [];  keys = cell(0, 4);  sizes = [];
+%   OUTPUT uEp n_epochs x 1 (d = 1: the descaled residual; d > 1: the sign
+%          of the axes' sum, +1 for a zero sum -- chiCalibrated supplies the
+%          magnitude); keys A x 4 {sysID, obsType, day, arc}; sizes 1 x A
+%          epochs per arc; qEp n_epochs x 1 the epoch's sum of squares over its
+%          d descaled axes (NaN for d = 1); dEp n_epochs x 1 the axis count.
+    uEp = [];  keys = cell(0, 4);  sizes = [];  qEp = [];  dEp = [];
     for k = 1:numel(res.sys)
         S = res.sys(k);
         for j = 1:numel(S.obs)
@@ -741,11 +818,15 @@ function [uEp, keys, sizes] = epochResiduals(res, W)
                 end
             end
             if d > 1
-                u = sqrt(mean(reshape(v, d, []).^2, 1)).';
+                V = reshape(v, d, []);
+                q = sum(V.^2, 1).';
+                u = sign(sum(V, 1)).';  u(u == 0) = 1;     % R7-08: magnitude from chiCalibrated
             else
-                u = v;
+                u = v;  q = nan(m, 1);
             end
             uEp = [uEp; u]; %#ok<AGROW>
+            qEp = [qEp; q]; %#ok<AGROW>
+            dEp = [dEp; d * ones(numel(u), 1)]; %#ok<AGROW>
             keys(end+1, :) = {S.sysID, o.obsType, o.day, o.arc}; %#ok<AGROW>
             sizes(end+1) = numel(u); %#ok<AGROW>
         end

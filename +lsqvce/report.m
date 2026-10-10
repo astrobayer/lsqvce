@@ -36,7 +36,10 @@ function V = report(D, opt)
 %                      (NOTE) or 'NOISE_UNSETTLED' (WARN). Every number from
 %                      level 1 down rests on those weights, so a model that was
 %                      still moving qualifies all of them. R.report() forwards
-%                      it automatically.
+%                      it automatically. An optional .influence (char) names
+%                      the robust influence of an IRLS run; when non-empty ONE
+%                      level-1 NOTE ('ROBUST_FIT') says sigma0 and the
+%                      covariance are those of the reweighted problem (R7-18).
 %
 %   OUTPUT V
 %     V.verdict   'PASS' | 'PASS WITH WARNINGS' | 'SUSPECT' | 'INVALID'
@@ -68,6 +71,13 @@ function V = report(D, opt)
 %   model Claude Fable 5.
 %   See also LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.SYSTEMATIC.
 %
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-115 (finding R7-18):
+%   adjustRobust's help promised "report() says so" and report said nothing --
+%   a robust fit's sigma0 and covariance are those of the REWEIGHTED problem,
+%   not an M-estimator's scale or sandwich covariance, and the level-1 test
+%   and the bounds read them as least squares. Iteration.influence now puts
+%   one NOTE in the verdict. With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
 %   Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-99: the new 'Iteration'
 %   option puts ONE level-1 line in the verdict saying whether the stochastic
 %   model settled -- a report that stays silent about weights that were still
@@ -179,6 +189,14 @@ end
 % -- this toolbox's own suite mutes that one in three places -- and a verdict
 % that stays silent about it is a verdict that misleads. Nothing is said for a
 % single solve, which has no loop: stopReason "single".
+if isfield(opt.Iteration, 'influence') && ~isempty(opt.Iteration.influence)
+    push(1, 'NOTE', 'ROBUST_FIT', ...
+        ['This is a robust (%s) fit: sigma0 and the covariance are those of the ' ...
+         'REWEIGHTED problem -- not an M-estimator''s scale nor its sandwich ' ...
+         'covariance. The global test and the parameter bounds below read them as ' ...
+         'least squares and are approximate in both directions.'], ...
+         char(opt.Iteration.influence));
+end
 if ~isempty(fieldnames(opt.Iteration))
     it = opt.Iteration;
     if ~strcmp(char(it.stopReason), 'single')

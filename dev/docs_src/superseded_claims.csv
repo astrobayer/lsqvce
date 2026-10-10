@@ -18,3 +18,6 @@ MinPasses\s*=,WP-101,an inert option (retired 5.3)
 LogFile\s*=,WP-101,an inert option (retired 5.3)
 'separable'\),WP-90,the separable type listed among the live types (retired 5.3; arma + Cep)
 beyond the breakdown point,WP-110,the collapse guard was said to detect >50 % contamination; measured, nAlive tracks the clean count
+level it returns is UNBIASED,R7-12 (WP-115),the robust pass's level was called unbiased; disputed and open since R7
+No consistency correction is needed,R7-12 (WP-115),the Manual's conclusion from the disputed cancellation argument
+beyond the breakdown point of,R7-25 (WP-115),the joint loop's collapsed message repeated the claim WP-110 retired

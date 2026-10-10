@@ -209,8 +209,15 @@ M-estimation and all three of his are available with `Estimate = "noise"` alone:
 `Robust = "huber" | "igg3" | "bisquare"` together with `Estimate = "noise"` runs the robust
 pass *inside* the joint estimator. Every pass ends with one residual sweep; the **raw**
 residuals, descaled by each epoch's own declared accuracy (`Cep`) and reduced to one value
-per epoch (the RMS over a multi-axis epoch's rows), go through the influence function per
-stream (`RobustOpts.Tuning` for the constants), and the factors are folded into the
+per epoch, go through the influence function per stream (`RobustOpts.Tuning` for the
+constants). For a multi-axis epoch that value is **χ-calibrated** (since 6.1.4): the sum of
+squares of its d descaled rows is mapped through the χ²(d) distribution to the equivalent
+normal deviate, with the sign of the rows' sum, so a clean 3-axis epoch is standardised
+exactly like a clean scalar residual — the RMS used before was χ-shaped and, standardised
+uncentred, zeroed about a quarter of clean 3-axis epochs under `igg3`. When a pass zeroes
+more than 45 % of the epochs the toolbox warns once that it is at the breakdown point
+(`lsqvce:robust:atBreakdown`; diagnostic only — the stand-alone IRLS says the same about
+rows). The factors are folded into the
 per-epoch error information of the next pass — sigma / sqrt(w), **before** the temporal law,
 through the one composition C = D (R_t ⊗ I_d) D. Accumulation, the probe redundancies and
 the component update therefore see **one** re-weighted problem with nothing added. A weight
@@ -236,16 +243,17 @@ retain 0.02 · 1.345 · 25 ≈ 0.67 of white variance and dilute a lag-1 colour 
 about 0.12; `igg3` (zero beyond 3 sigma) and `bisquare` reject them outright and recover
 the colour.
 
-**The level, measured.** The obvious expectation — that a robust pass estimates the level of
-the *retained* observations, E[w u²]/E[w] (0.73 for `igg3`, 0.80 for Huber on Gaussian
-residuals) — was written down and then **refuted by the oracle**: a clean stream comes back
-at 1.007. The reason is Ellmer's per-lag redundancy s_n (eq. 6.5.23): it is the model
-expectation of Omega_n under the *same* weighted whitening, so a down-weighted row shrinks
-numerator and denominator alike and alpha² = Omega/s stays at 1. This differs from the
-classical Helmert Omega/(n − u), where a zero-weight row still counts a full redundancy and
-the level would be biased low. No consistency correction is needed, and none is applied.
-This composition is Koch's iterated re-weighting inside a variance-component estimation,
-not something Ellmer (2018) does.
+**The level — an open question.** The obvious expectation — that a robust pass estimates the
+level of the *retained* observations, E[w u²]/E[w] (0.73 for `igg3`, 0.80 for Huber on
+Gaussian residuals) — was not what one MATLAB run showed: a clean stream came back at 1.007
+(a 15 % band in `test_vcePolicy`). The explanation first given for it — that the per-lag
+redundancy s_n sees the same weighted whitening, so the weights cancel in alpha² — is
+**disputed by review R7 (R7-12)**: s_0 carries the trace of the *unweighted* temporal law,
+which no factor touches, and a line-by-line mirror reads 0.83–0.86 with the law fixed and
+about 0.93 with it free. Until a multi-seed MATLAB measurement settles it, read the level a
+robust pass returns as possibly biased **low**; no consistency correction is applied. This
+composition is Koch's iterated re-weighting inside a variance-component estimation, not
+something Ellmer (2018) does.
 
 Two further routes remain useful:
 
