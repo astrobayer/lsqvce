@@ -8314,3 +8314,10 @@ block-native route at scale. `engine.leverage` / `leverageBlocks` (the VCE redun
 path) implement the same block formula separately and `redundancy.m` broadcasts a copy of
 the commons factor per system -- both follow-ups (one formula, one factor), not done here.
 The M4 row's `engine.verdict` absorption stays open (depends on WP-85).
+
+**Part 2, CI round 1 (00f3b0a): 611/612.** Every new point green (test_vceFunction
+14/14, the 2n+3 build count, the snoop downdate). The one failure:
+`test_lsqvce_opts/test_ellipse_uses_2F_with_the_estimated_variance_factor` hand-builds
+its D with a `'Qxx'` field -- the sweep for consumers grepped `D.Qxx`, not a struct
+literal. It now builds `'Q', lsqvce.engine.BlockCofactor(eye(2), [])` (Qxx = I); no other
+hand-built D carries the retired fields (grep of every `'Qxx'` / `'corr'` / `'R'` literal).

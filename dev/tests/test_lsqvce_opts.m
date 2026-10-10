@@ -265,7 +265,9 @@ function test_ellipse_uses_2F_with_the_estimated_variance_factor(tc)
     % dimensions, so the reference is independent of stat.fInv / chi2Inv:
     %   2 F(2, r)_p = r ((1 - p)^(-2/r) - 1),   chi2(2)_p = -2 log(1 - p).
     p = 0.95;
-    D = struct('u', 2, 'x', [0; 0], 'Qxx', eye(2), 's0sq', 1.3, 'sigma0', 1, 'r', 5);
+    % Qxx = I as a block cofactor: Rc = I, no locals (D.Q since WP-86 part 2)
+    D = struct('u', 2, 'x', [0; 0], 'Q', lsqvce.engine.BlockCofactor(eye(2), []), ...
+               's0sq', 1.3, 'sigma0', 1, 'r', 5);
     Ea = lsqvce.engine.ellipse(D, [1 2], 'conf', p);
     % tol: 1e-10 relative -- betaincinv against the closed form, rounding only
     tc.verifyEqual(Ea.k2, 5 * ((1 - p)^(-2/5) - 1), 'RelTol', 1e-10, ...
