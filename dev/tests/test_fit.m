@@ -577,6 +577,7 @@ end
 
 function testSignatureRejectsNonStructAndNonOptions(tc)
 % categories: contract
+    seedFor(tc, 584);   % R7-45: drew from the global stream unseeded (suite-order dependent)
     % Positional typing at the signature (MATLAB ids): the in-memory
     % fit(A, l, ...) form is WP-56b, so a matrix is refused today.
     ok = false;
@@ -739,16 +740,34 @@ function testDistributeDaysThroughFitEqualsFused(tc)
     % raw partials merged in day order -- so the numerical claim is the same
     % one test_parallel pins for the engine: equal to the fused loop up to
     % the summation-order gap, no pool needed on CI.
+    %
+    % R7-29 (2026-10-10): the test passed Parallel= TWICE. set.Parallel merges
+    % onto the DEFAULTS, so the second struct reset Mode to "serial", the
+    % accumulator never took the distributed path, and the fused solve was
+    % compared with itself. One struct now, and the recorded Mode is
+    % asserted. The distributed path needs nDays >= Threshold, and so does
+    % mapreduce's parfor, so with the PCT present this opens a pool; a pool
+    % opened HERE is closed again in teardown (validation Part 10: a test
+    % does not change the machine it measures). Without the PCT mapreduce
+    % runs the same distributed tasks serially and says so.
+    if exist('gcp', 'file') == 2 && license('test', 'Distrib_Computing_Toolbox')
+        if isempty(gcp('nocreate'))
+            tc.addTeardown(@() delete(gcp('nocreate')));
+        end
+    else
+        muteWarn(tc, 'lsqvce:mapreduce:serialFallback');   % no PCT: the fallback is the expected path
+    end
     [data, ~] = declaration();
     R1 = lsqvce.fit(data, lsqvce.Options(Verbose=false));
-    R2 = lsqvce.fit(data, lsqvce.Options(Verbose=false, Parallel=struct('Mode', "parfor"), ...
-                                         Parallel=struct('DistributeDays', true, 'Threshold', 2)));
+    R2 = lsqvce.fit(data, lsqvce.Options(Verbose=false, Parallel=struct('Mode', "parfor", ...
+                                         'DistributeDays', true, 'Threshold', 2)));
     % tol: 1e-11 -- serial-vs-distributed reduction order (test_parallel
     % testDistributeDaysEqualsFusedSerial's measured bound); bitwise NOT promised
     tc.verifyEqual(R2.x,      R1.x,      'RelTol', 1e-11);
     tc.verifyEqual(R2.sigma0, R1.sigma0, 'RelTol', 1e-11);
     % adjustBlock records its RESOLVED option struct (lowerCamel, WP-44)
     % R5 M5 5b: every kind records the USER's resolved Options as provenance
+    tc.verifyEqual(string(R2.meta.options.Parallel.Mode), "parfor", 'one Parallel struct, Mode not reset (R7-29)');
     tc.verifyEqual(R2.meta.options.Parallel.DistributeDays, true, 'the policy is recorded in the provenance');
     tc.verifyEqual(R2.meta.options.Parallel.Threshold, 2);
     tc.verifyEqual(R1.meta.options.Parallel.DistributeDays, false);

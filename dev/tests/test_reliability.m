@@ -371,8 +371,6 @@ function testAllRegularisationBranchesRun(tc)
     for r = {'none','tikhonov','tsvd','lm','auto'}
         acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Backend','qr', 'Reg',r{1}, ...
                               'RegLambda',1e-4, 'Verbose',false);
-        w = warning('off','all');
-        c = onCleanup(@() warning(w));
         acc.addSystem(1, cfg.nl, binder(cfg,1), 1:2);
         sol = acc.solve();
         tc.verifyTrue(all(isfinite(sol.x)), sprintf('Reg = %s produced NaN', r{1}));

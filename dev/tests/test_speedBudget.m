@@ -27,6 +27,8 @@ function tests = test_speedBudget
 end
 
 function setupOnce(tc)
+    pathBefore = path;   % R7-45: a standalone run (run_lsqvce / runtests) leaves the path as found
+    tc.addTeardown(@() path(pathBefore));
     here = fileparts(mfilename('fullpath'));
     root = fileparts(fileparts(here));
     addpath(root);  addpath(fullfile(root, 'examples'));
@@ -44,7 +46,11 @@ function testFftLagSumsBeatTheLoop(tc)
     loop = @() lagSumsLoop(X, nL);
     % tol: the two routes agree to rounding (a precision leg inside the budget)
     tc.verifyEqual(fft(), loop(), 'RelTol', 1e-10, 'AbsTol', 1e-9);
-    rec = timePair(fft, loop, 'Repeats', 7, 'Inner', 1, 'Label', 'fft/loop lag sums');
+    % R7-42: Repeats back to timePair's default 15 (its help: 5 repeats ->
+    % 31 % spread, 15 -> 10 %). NOTE: both sides are TEST-LOCAL copies, so this
+    % budget pins the algorithm, not the kernel's columnLagSums -- moving it
+    % onto lsqvce.kernel.redundancyLags needs a measured bound (tier A).
+    rec = timePair(fft, loop, 'Inner', 1, 'Label', 'fft/loop lag sums');
     tc.verifyLessThan(rec.ratio, 0.5, sprintf('FFT lag sums must be < 0.5x the loop (measured %.3f)', rec.ratio));
 end
 
@@ -61,7 +67,7 @@ function testProbeAndExactSweepsAreComparable(tc)
     M = randn(rs, nc, nc);  N = M.'*M + nc*eye(nc);  R = chol(N);
     exact = @() sum(diag(inv(N)));
     probe = @() lsqvce.engine.traceEstimate(@(Z) R \ (R.' \ Z), 'Size', nc, 'NumProbes', 100, 'Seed', 3);
-    rec = timePair(exact, probe, 'Repeats', 5, 'Inner', 1, 'Label', 'exact/probe trace');
+    rec = timePair(exact, probe, 'Inner', 1, 'Label', 'exact/probe trace');   % R7-42: default 15 repeats
     tc.verifyGreaterThanOrEqual(rec.ratio, 1, sprintf('the probe route fell behind the dense inverse (ratio %.2f)', rec.ratio));
     tc.verifyLessThan(rec.ratio, 10, sprintf('the dense inverse cannot be 10x slower than 100 probes (ratio %.2f)', rec.ratio));
 end

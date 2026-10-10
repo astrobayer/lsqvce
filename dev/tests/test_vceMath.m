@@ -531,12 +531,12 @@ function testBlockSchurIsFaster(tc)
         Nll(ib,ib) = Q*Q.' + nlA*eye(nlA);
     end
 
-    tDense = timeit(@() Nll \ [Nlc, nl_]);
-    tBlock = timeit(@() blockSolve(Nll, [Nlc, nl_], nArc, nlA));
-
-    tc.verifyLessThan(tBlock, tDense / 1.5, ...
-        sprintf('block %.2f ms vs dense %.2f ms (want block < dense/1.5)', ...
-                tBlock*1e3, tDense*1e3));
+    % R7-42: two sequential timeit calls (drift lands on the later side, no
+    % rotation) replaced by THE timing instrument; same 1.5x bound
+    rec = timePair(@() blockSolve(Nll, [Nlc, nl_], nArc, nlA), @() Nll \ [Nlc, nl_], ...
+                   'Label', 'block/dense local solve');
+    tc.verifyLessThan(rec.ratio, 1/1.5, ...
+        sprintf('block/dense = %.3f [%.3f %.3f] (want < 1/1.5)', rec.ratio, rec.band));
 end
 
 %% ================================================== helpers

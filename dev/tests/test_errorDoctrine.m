@@ -24,6 +24,8 @@ function tests = test_errorDoctrine
 end
 
 function setupOnce(tc)
+    pathBefore = path;   % R7-45: a standalone run (run_lsqvce / runtests) leaves the path as found
+    tc.addTeardown(@() path(pathBefore));
     here = fileparts(mfilename('fullpath'));
     root = fileparts(fileparts(here));
     addpath(root);

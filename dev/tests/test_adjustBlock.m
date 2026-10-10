@@ -180,6 +180,7 @@ end
 
 function testMakeLoaderValidation(tc)
 % categories: contract
+    seedFor(tc, 188);   % R7-45: drew from the global stream unseeded (suite-order dependent)
     cfg = buildCfg();
     tc.verifyError(@() lsqvce.engine.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
         'covariance',cfg.cov, 'arcs',2), 'lsqvce:makeLoader:noObsTypes');
@@ -195,8 +196,8 @@ function testMakeLoaderCanonicalNames(tc)
 % categories: contract
     % Every option has ONE name. Building with them must warn about nothing.
     cfg = buildCfg();
-    ws = warning('off', 'all'); c = onCleanup(@() warning(ws)); %#ok<NASGU>
-    lastwarn('', '');
+    lastwarn('', '');   % R7-30: no blanket warning('off','all') -- it blinded gate rule 7 here;
+                        % the claim "warns about nothing" is now ASSERTED below
     L = lsqvce.engine.makeLoader(@(d,ot) buildDayImpl(cfg,d,ot), ...
             'observationTypes',{'pos'}, 'covariance',cfg.cov, ...
             'systemId',3, 'numLocal',4, 'numCommon',6);
@@ -204,6 +205,8 @@ function testMakeLoaderCanonicalNames(tc)
     tc.verifyEqual(L.nl, 4);
     tc.verifyEqual(L.nc, 6);
     tc.verifyEqual(L.obsTypes, {'pos'});
+    [~, wid] = lastwarn;
+    tc.verifyEmpty(wid, 'building with the canonical names must warn about nothing');
 end
 
 function testMakeLoaderShortAliasesRemoved(tc)

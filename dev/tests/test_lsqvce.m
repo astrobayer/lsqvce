@@ -15,7 +15,7 @@ end
 
 %% ===================================================== fixtures
 function setupOnce(tc)
-    rng(42, 'twister');
+    seedFor(tc, 42);   % R7-45: was a bare rng(42) that leaked to later suites
     tc.TestData.mk = @makeProblem;
 end
 

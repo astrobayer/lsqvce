@@ -66,6 +66,7 @@ end
 
 function testFilterEqualsCholeskyWhitening(tc)
 % categories: precision
+    seedFor(tc, 73);   % R7-45: drew from the global stream unseeded (suite-order dependent)
 % THE key invariant: the FIR whitening filter and the dense Cholesky
 % decorrelation give the SAME Y'*Y (they differ by an orthogonal rotation).
     a = [1 -1.6 0.9 -0.25];  s = 0.7;  n = 300;
@@ -100,7 +101,9 @@ function testRecoversTruthWhiteNoise(tc)
     cfg.cov.pos = struct('type','diag','sigma',0.05);
     cfg.cov.kbr = struct('type','diag','sigma',0.05);
     sol = runIt(cfg, 1:3, 'Backend','qr', 'Verbose',false);
-    % tol: two backends on one well-conditioned problem; difference ~ cond*eps, bound with release-drift headroom
+    % tol: STATISTICAL, not numerical (R7-31: the comment here had been copied
+    % from a backend-agreement bound) -- x_c recovered from sigma-0.05 noise; 5e-3
+    % is an estimation-error band whose margin in formal sigma is not recorded
     tc.verifyEqual(sol.x, cfg.x_c, 'AbsTol', 5e-3);
 end
 
@@ -219,7 +222,9 @@ function testPSDModeMatchesToeplitz(tc)
     sTP = runIt(cfg, 1:2, 'Backend','qr','BatchSize',400,'BatchOverlap',20, ...
                 'UserOpt',oTP, 'Verbose',false);
 
-    % tol: two backends on one well-conditioned problem; difference ~ cond*eps, bound with release-drift headroom
+    % tol: MODEL APPROXIMATION, not cond*eps (R7-31) -- an AR(20) fit with a
+    % 20-row batch overlap against the exact Toeplitz whitener of the same law;
+    % the estimates differ by that approximation, bounded at 1e-3 relative
     tc.verifyEqual(sAR.x, sTP.x, 'RelTol', 1e-3);
 end
 

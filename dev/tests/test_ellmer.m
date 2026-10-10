@@ -37,6 +37,14 @@ function tests = test_ellmer
     tests = functiontests(localfunctions);
 end
 
+function setupOnce(tc)
+    % R7-45: the points below seed the global stream with bare rng(n); the
+    % state the suite found is put back when it ends, so later suites do
+    % not inherit it.
+    prev = rng;
+    tc.addTeardown(@() rng(prev));
+end
+
 %% ============================================ dctI: orthonormal DCT-I
 function test_dctI_ortho_is_self_inverse(tc)
 % categories: precision
@@ -223,6 +231,7 @@ end
 
 function test_sharedProbe_accepts_fixed_probes(tc)
 % categories: precision
+    seedFor(tc, 228);   % R7-45: drew from the global stream unseeded (suite-order dependent)
     P = 3;  Z = 5;
     U = chol(eye(P)*3);
     raw = sign(randn(P,Z));  raw(raw==0) = 1;
@@ -349,6 +358,7 @@ end
 
 function test_psdVCE_warns_on_degenerate_white_start(tc)
 % categories: contract, robustness
+    seedFor(tc, 357);   % R7-45: drew from the global stream unseeded (suite-order dependent)
     % C = [1 0 0 ...] annihilates every lag n>0 in the weighting, so those lags
     % can never update: the iteration "converges" to the wrong PSD. Must warn.
     N = 8;  M = 3;
@@ -374,7 +384,7 @@ function test_psdVCE_zero_power_bin_floors_not_abs(tc)
     a2 = [1; -0.5; 1; 1];
     Om = lsqvce.kernel.dctI(a2);              % OmegaTilde = a2 .* sTilde, sTilde = 1
     s  = lsqvce.kernel.dctI(ones(4, 1));
-    w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
+    % R7-30: no blanket warning('off','all') -- it blinded gate rule 7 here
     pv = lsqvce.engine.psdVCE(Om, s, C, 'MinAmplitude', 1e-8, 'Smooth', 0, ...
                        'ZeroFreqRule', 'keep');
     Sprior = lsqvce.kernel.dctI(C);
@@ -399,7 +409,7 @@ function test_arcVarianceFactors_clamps_negative_sigma2(tc)
     omegaT = [ones(3,1), ones(3,1), -0.4*ones(3,1)];   % arc 3: alpha2 < 0
     sT     = ones(3, 3);
     sig2   = ones(3, 1);
-    w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
+    muteWarn(tc, 'lsqvce:arcVarianceFactors:clamped');   % provoked on purpose (arc 3)
     a = lsqvce.engine.arcVarianceFactors(omegaT, sT, sig2, 'MeanType', 'plain');
     verifyTrue(tc, a.clamped(3),  'the negative-alpha2 arc must be flagged');
     verifyFalse(tc, any(a.clamped(1:2)), 'healthy arcs must not be flagged');
@@ -433,6 +443,7 @@ end
 
 function test_psdVCE_degenerate_flag_and_override(tc)
 % categories: robustness
+    seedFor(tc, 438);   % R7-45: drew from the global stream unseeded (suite-order dependent)
     N = 8;  M = 3;
     Cdelta = [1; zeros(N-1,1)];
     p = lsqvce.engine.psdVCE(rand(N,M), rand(N,M), Cdelta, 'AllowDegenerate', true);
@@ -457,6 +468,7 @@ end
 
 function test_psdVCE_rejects_bad_shapes(tc)
 % categories: contract
+    seedFor(tc, 462);   % R7-45: drew from the global stream unseeded (suite-order dependent)
     N = 6;
     C = [1; 0.2*ones(N-1,1)];
     verifyError(tc, @() lsqvce.engine.psdVCE(rand(N-1,3), rand(N-1,3), C), ...
@@ -523,6 +535,7 @@ end
 
 function test_arcVarianceFactors_rejects_arc_mismatch(tc)
 % categories: contract
+    seedFor(tc, 527);   % R7-45: drew from the global stream unseeded (suite-order dependent)
     verifyError(tc, ...
         @() lsqvce.engine.arcVarianceFactors(rand(5,3), rand(5,3), ones(4,1)), ...
         'lsqvce:arcVarianceFactors:arcMismatch');
@@ -1227,7 +1240,7 @@ function test_joint_stabilised_alternation_beats_collapse(tc)
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % provoked on purpose here (WP-47, gate rule 7)
     cfg  = jointCfgColoured();
     nLag = 10;
-    w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
+    % R7-30: no blanket warning('off','all') -- it blinded gate rule 7 here
     r = lsqvce.engine.adjustVCEjoint(@(model) jointAccMapped(cfg, model), ...
             'NumLags', nLag, 'MaxIter', 12, 'Probes', 300, 'Seed', 13, ...
             'StepSchedule', 'decay', 'AvgTail', 4, 'Verbose', false);
@@ -1253,7 +1266,7 @@ function test_joint_default_schedule_is_plain_step(tc)
     % options must agree exactly.
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % provoked on purpose here (WP-47, gate rule 7)
     cfg = jointCfg();
-    w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
+    % R7-30: no blanket warning('off','all') -- it blinded gate rule 7 here
     a = lsqvce.engine.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
             'NumLags', 6, 'MaxIter', 1, 'Probes', 100, 'Seed', 5, ...
             'Verbose', false);
@@ -1283,7 +1296,7 @@ function test_adjustVCEjoint_psd_recovery_coloured_with_locals(tc)
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % provoked on purpose here (WP-47, gate rule 7)
     cfg  = jointCfgColoured();
     nLag = 10;
-    w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
+    % R7-30: no blanket warning('off','all') -- it blinded gate rule 7 here
     r = lsqvce.engine.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
             'NumLags', nLag, 'MaxIter', 1, 'Probes', 300, 'Seed', 13, ...
             'Verbose', false);
@@ -1314,7 +1327,7 @@ function test_joint_keyed_skip_keeps_factors_aligned(tc)
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % provoked on purpose here (WP-47, gate rule 7)
     cfg = jointCfg();
     badArc = 2;                          % skipped on pass 2 in run B
-    w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
+    % R7-30: no blanket warning('off','all') -- it blinded gate rule 7 here
     runA1 = lsqvce.engine.adjustVCEjoint(@(m) jointAccPDToggle(cfg, m, [], badArc), ...
                 'NumLags', 6, 'MaxIter', 1, 'Probes', 150, 'Seed', 5, ...
                 'Verbose', false);
@@ -1358,7 +1371,7 @@ function test_joint_skip_rate_above_threshold_refuses(tc)
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');
     cfg = jointCfg();
     badArc = 2;
-    w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
+    % R7-30: no blanket warning('off','all') -- it blinded gate rule 7 here
     verifyError(tc, @() lsqvce.engine.adjustVCEjoint(@(m) jointAccPDToggle(cfg, m, 2, badArc), ...
                 'NumLags', 6, 'MaxIter', 2, 'Probes', 150, 'Seed', 5, 'Verbose', false), ...
                 'lsqvce:adjustVCEjoint:skipThreshold');
@@ -1375,7 +1388,7 @@ function test_joint_arc_mismatch_raises(tc)
     % an identity error, not a skip -- arcMismatch, mirroring vce's
     % groupMismatch contract ("the loader must be deterministic").
     cfg = jointCfg();
-    w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
+    % R7-30: no blanket warning('off','all') -- it blinded gate rule 7 here
     verifyError(tc, @() lsqvce.engine.adjustVCEjoint( ...
             @(m) jointAccDropArc(cfg, m, 2), ...
             'NumLags', 6, 'MaxIter', 2, 'Probes', 150, 'Seed', 5, ...

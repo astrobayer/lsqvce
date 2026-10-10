@@ -148,8 +148,8 @@ function testAr2armaSmoothFloorStaysStable(tc)
     rTarget = lsqvce.kernel.armaACV(aAR, 1, 128);
     [aHi, s2Hi] = lsqvce.kernel.levinsonDurbin(rTarget, 40);
     opt = struct('armaP', 6, 'armaN', 2048);
-    warning('off', 'lsqvce:ar2arma:nonStationary');
-    c = onCleanup(@() warning('on', 'lsqvce:ar2arma:nonStationary'));
+    % R7-45: a mute on 'lsqvce:ar2arma:nonStationary' stood here -- no code
+    % raises that id, and it was restored to 'on' instead of its prior state
     [a, b, ~] = lsqvce.kernel.ar2arma(aHi, s2Hi, 1, opt);
     % tol: normalisation exact by construction; house round-trip bound 1e-12
     tc.verifyEqual(a(1), 1, 'AbsTol', 1e-12);

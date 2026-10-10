@@ -20,6 +20,8 @@ function tests = test_vcePolicy
 end
 
 function setupOnce(tc)
+    pathBefore = path;   % R7-45: a standalone run (run_lsqvce / runtests) leaves the path as found
+    tc.addTeardown(@() path(pathBefore));
     here = fileparts(mfilename('fullpath'));
     root = fileparts(fileparts(here));
     addpath(root);  addpath(fullfile(root, 'examples'));
@@ -153,6 +155,7 @@ end
 
 function testReportSaysWhetherTheStochasticModelSettled(tc)
 % categories: contract
+    seedFor(tc, 162);   % R7-45: drew from the global stream unseeded (suite-order dependent)
     % R6 WP-99: lsqvce.report read NOTHING of the iteration state, so a run of
     % Estimate="noise" that stopped on maxPasses -- whose weights were still
     % moving -- got a verdict that said nothing about it. The engine warns, and
@@ -480,6 +483,7 @@ end
 %% ------------------------------------------------- R5-D8 round 4: the write-back
 function testToTableWritesEstimatesIntoTheExpandedTables(tc)
 % categories: contract, precision
+    seedFor(tc, 511);   % R7-45: drew from the global stream unseeded (suite-order dependent)
     % R.toTable(data): the expanded n x W cells (one row per instantiated
     % parameter) with the estimate and its standard deviation in the named
     % columns, every other column copied from the template row, and a map
