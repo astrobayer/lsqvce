@@ -7698,7 +7698,7 @@ check which credential a session holds before relying on the PAT.
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 117 (part 1) | R7-26: checks 2, 3, 7, 10, 10b, 11, 15 sweep `dev/tests` instead of the `tests/` folder deleted at L8; check 3 reads `+lsqvce/+engine/adjustBlock.m`, check 9 sweeps `+lsqvce` for the block-spec literals (`fit.m` ×2, `normalizeSystems.m`); both fail CLOSED when their target is gone; the quote scanner reads `['^' f(x) '$']` as three elements; nine fault cases on a test file | R7 (§12.35) | OPEN (2026-10-09, branch `ccr-e0276092-1b95jg`; audit CLEAN, self-test all cases caught; CI pending; no `+lsqvce` change, so no version bump) |
+| 117 (part 1) | R7-26: checks 2, 3, 7, 10, 10b, 11, 15 sweep `dev/tests` instead of the `tests/` folder deleted at L8; check 3 reads `+lsqvce/+engine/adjustBlock.m`, check 9 sweeps `+lsqvce` for the block-spec literals (`fit.m` ×2, `normalizeSystems.m`); both fail CLOSED when their target is gone; the quote scanner reads `['^' f(x) '$']` as three elements; nine fault cases on a test file | R7 (§12.35) | DONE (2026-10-10, PR #115, merge 5402f62; CI green on b479192: audit + matlab; no `+lsqvce` change, so no version bump) |
 
 **Why.** §12.35 R7-26 (REPRODUCED by the review's fault injection): since L8
 seven audit checks iterated `('+lsqvce', 'tests', 'examples')` and `tests/`
