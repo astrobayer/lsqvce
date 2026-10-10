@@ -7846,7 +7846,7 @@ next commit (dfabb22). The audit runs before every push.
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 117 (part 3) | R7-42 closed: eight gated `timePair` ratio budgets in `test_speedBudget` for the units whose speed only the excluded `test_speed` measured, plus the kernel lag-sum budget; the two absolute-second bounds kept as stated exceptions | 117 part 2 (§12.37, PR #116 merged 5b94e1f) | OPEN (2026-10-10, branch `ccr-e0276092-1b95jg`; audit CLEAN, self-test 60/60; CI pending) |
+| 117 (part 3) | R7-42 closed: eight gated `timePair` ratio budgets in `test_speedBudget` for the units whose speed only the excluded `test_speed` measured, plus the kernel lag-sum budget; the two absolute-second bounds kept as stated exceptions | 117 part 2 (§12.37, PR #116 merged 5b94e1f) | DONE (2026-10-10, PR #117, merge f66e175; CI GREEN on e2ff206: ci_gate 583/583, test_speedBudget 11/11) |
 
 **User decisions (2026-10-10).** "Keep them as exceptions" — the two
 absolute-second bounds (§6.1.2) stay, stated; "make the speeds ratio
