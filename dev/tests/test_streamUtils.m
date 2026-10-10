@@ -14,7 +14,9 @@ function tests = test_streamUtils
     tests = functiontests(localfunctions);
 end
 
-function setupOnce(~)
+function setupOnce(tc)
+    pathBefore = path;   % R7-45: a standalone run (run_lsqvce / runtests) leaves the path as found
+    tc.addTeardown(@() path(pathBefore));
     root = fileparts(fileparts(fileparts(mfilename('fullpath'))));
     addpath(root);  addpath(fullfile(root, 'examples'));   % fixture_grace (moved tests, R5 M4 4c)
 end
@@ -159,14 +161,6 @@ end
 
 %% ===================================================== SCALE (VCE) recovers weights
 
-function D = makeTinyDay()
-    m = 20;
-    D.A = [ones(m,1), (1:m).'];
-    D.B = 0.1*ones(m,2);
-    D.l = randn(m,1);
-    D.t = (0:m-1).' * 5;
-    D = arcCells(D);                                 % v6: the cells are the arcs
-end
 
 %% ==================================== R5-D8 round 3: validity-aware expansion
 function test_validity_columns_expand_day_rows_only_where_valid(tc)

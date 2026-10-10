@@ -158,6 +158,7 @@ end
 %% ===================================================== vce hutchinson wiring
 function test_vce_hutchinson_matches_exact_sigma(tc)
 % categories: precision, robustness
+    muteWarn(tc, 'lsqvce:redundancy:hutchinsonExperimental');   % R7-30: the experimental trace path is chosen on purpose
     % The §1.1 wiring estimates the REDUNDANCY r_g = n_g - local_g -
     % tr(N^-1 N_g^cc) matrix-free (WP-32; only the cc-trace is stochastic);
     % vtv stays exact. The load-bearing property is that the streamed r_g
@@ -167,7 +168,7 @@ function test_vce_hutchinson_matches_exact_sigma(tc)
     cfg = tc.TestData.cfg;
     accFcn = @(sig) buildAcc(cfg, sig);
     groups = {'pos','kbr'};
-    w = warning('off','all'); cleaner = onCleanup(@() warning(w));
+    % R7-30: no blanket warning('off','all') -- it blinded gate rule 7 here
 
     % (1) core property: at unit weights, the streamed per-group traces are
     % positive and partition nc (sum = nc), which is exactly what the vce
@@ -221,7 +222,7 @@ function test_streamed_redundancy_partitions_and_matches_exact(tc)
     % sum_g localAbsorbed_g = sum_s nl_s (block identity: whole systems),
     % sum_g trace_g ~ nc -- hence sum_g r_g ~ m - u.
     cfg = tc.TestData.cfg;
-    w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
+    % R7-30: no blanket warning('off','all') -- it blinded gate rule 7 here
     acc = buildAcc(cfg, []);
     sol = acc.solve();
     groups = {'pos','kbr'};
@@ -257,6 +258,7 @@ end
 
 function test_vce_hutchinson_regression_F01(tc)
 % categories: precision | tags: diagnostics
+    muteWarn(tc, 'lsqvce:redundancy:hutchinsonExperimental');   % R7-30: the experimental trace path is chosen on purpose
     % Spec test (3) + the v10review.py T2 port: this test FAILS on the
     % pre-WP-32 code, where 'hutchinson' divided by tr(N^-1 N_g^cc). There
     % (T2a/b/c, measured): sum_g denominator ~ nc = 6 instead of m-u
@@ -266,7 +268,7 @@ function test_vce_hutchinson_regression_F01(tc)
     cfg = tc.TestData.cfg;
     accFcn = @(sig) buildAcc(cfg, sig);
     groups = {'pos','kbr'};
-    w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
+    % R7-30: no blanket warning('off','all') -- it blinded gate rule 7 here
 
     vcE = lsqvce.engine.vce(accFcn, 'GroupBy','obsType', 'Groups',groups, ...
                      'MaxIter',20, 'Tol',1e-3, 'Verbose',false, ...
@@ -299,10 +301,10 @@ function test_stream_default_seed_global_rng_untouched(tc)
     % the global RNG state bit-identical. Fails on the pre-fix code (probes
     % came from the global stream while the comment claimed otherwise).
     cfg = tc.TestData.cfg;
-    w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
+    % R7-30: no blanket warning('off','all') -- it blinded gate rule 7 here
     acc = buildAcc(cfg, []);
     sol = acc.solve();
-    rng(31337, 'twister');
+    seedFor(tc, 31337);   % R7-45: restored after the test
     before = rng;
     lsqvce.engine.streamContribution(acc, sol, 'GroupBy','obsType', ...
         'Groups', {'pos','kbr'}, 'Probes', 64, 'WantDiag', false);
@@ -357,7 +359,7 @@ function test_vce_freezeR_freezes_and_warns(tc)
     % (frozen, upd = 1) and the low-redundancy warning must fire once.
     cfg = tc.TestData.cfg;
     accFcn = @(sig) buildAcc(cfg, sig);
-    w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
+    muteWarn(tc, 'lsqvce:vce:lowRedundancy');   % provoked on purpose; lastwarn still records it
     fired = false;
     ws = warning('query', 'lsqvce:vce:lowRedundancy'); %#ok<NASGU>
     lastwarn('', '');
@@ -372,6 +374,7 @@ end
 
 function test_vce_hutchinson_final_reuses_loop_probes(tc)
 % categories: robustness
+    muteWarn(tc, 'lsqvce:redundancy:hutchinsonExperimental');   % R7-30: the experimental trace path is chosen on purpose
     % WP-36 in vce: an EMPTY TraceSeed is pinned once up front, exposed as
     % vc.traceSeedUsed, and a replay with that seed reproduces vc.r and
     % sigma BIT-IDENTICALLY -- the "final pass probes with the loop's Z"
@@ -380,7 +383,7 @@ function test_vce_hutchinson_final_reuses_loop_probes(tc)
     cfg = tc.TestData.cfg;
     accFcn = @(sig) buildAcc(cfg, sig);
     groups = {'pos','kbr'};
-    w = warning('off','all'); cleaner = onCleanup(@() warning(w)); %#ok<NASGU>
+    % R7-30: no blanket warning('off','all') -- it blinded gate rule 7 here
     vc1 = lsqvce.engine.vce(accFcn, 'GroupBy','obsType', 'Groups',groups, ...
                      'MaxIter',6, 'Tol',1e-3, 'Verbose',false, ...
                      'TraceMethod','hutchinson', 'Probes',300);

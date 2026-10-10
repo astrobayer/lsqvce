@@ -19,7 +19,7 @@ end
 
 %% =================================================== fixtures
 function setupOnce(tc) %#ok<*DEFNU>
-    rng(7, 'twister');
+    seedFor(tc, 7);   % R7-45: was a bare rng(7) that leaked to later suites
 end
 
 function B = chop(A, l, p, nb)

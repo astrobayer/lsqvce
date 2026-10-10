@@ -28,6 +28,13 @@ end
 
 function setupOnce(tc)
     tc.TestData.cfg = makeCfg();
+    % R7-45: mapreduce opens a pool on demand (AutoPool) and nothing closed
+    % it, so every later suite -- the speed budgets among them -- ran with
+    % workers resident. A pool this suite opened is closed when it ends; a
+    % pool that was already open is left as it was found.
+    if hasPCT() && isempty(gcp('nocreate'))
+        tc.addTeardown(@() delete(gcp('nocreate')));
+    end
 end
 
 %% ===================================================== mapreduce (the layer)
@@ -326,7 +333,9 @@ function testDensePathBoundaryBiasIsBenign(tc)
     s0b = sqrt(max(vtv - n.'*xb, 0) / (m - nc));
 
     tc.verifyLessThan(norm(xb - xr) / sigF, 0.5);   % well inside formal err
-    % tol: independent dense solve of the same system; difference ~ cond*eps, house bounds add headroom (HANDOVER 6.1.2)
+    % tol: BATCHING LOSS, not cond*eps (R7-31) -- no-overlap batches drop the
+    % cross-batch correlation, so sigma0 is preserved only to ~1e-2 (the header's
+    % measured 2.2 result, validation/v4boundary.py); 2e-2 is that bound x2
     tc.verifyEqual(s0b, s0r, 'RelTol', 2e-2);
 end
 

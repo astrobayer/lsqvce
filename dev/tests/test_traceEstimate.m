@@ -205,6 +205,7 @@ end
 %% =================================================== validation & hygiene
 function test_rejects_nonsquare(tc)
 % categories: contract
+    seedFor(tc, 210);   % R7-45: drew from the global stream unseeded (suite-order dependent)
     threw = false;
     try
         lsqvce.engine.traceEstimate(randn(4,5));
@@ -266,7 +267,9 @@ function test_redundancy_seam_trNinvN_is_nc(tc)
     [t, info] = lsqvce.engine.traceEstimate(Xfun, 'Size', P, 'NumProbes', 100, 'Seed', 13);
     % tr(I) = P exactly; the estimator is unbiased and I is perfectly conditioned
     % (all eigenvalues 1), so even a single probe set is essentially exact here.
-    % tol: quantile/CDF round-trip through base-MATLAB special functions; their relative error is ~1e-14, bound leaves headroom
+    % tol: ROUNDING in the probe products (R7-31: the comment had been copied
+    % from a quantile/CDF bound) -- every Rademacher probe gives z'Iz = P up to the
+    % triangular solves' rounding, ~P*eps relative; 1e-8 leaves 6 decades
     verifyEqual(tc, t, P, 'RelTol', 1e-8, ...
         'tr(N^-1 N) must estimate to nc = P (the redundancy-seam check)');
     verifyLessThan(tc, info.relse, 1e-6, ...
@@ -281,7 +284,7 @@ function testDefaultSeedLeavesGlobalRNGUntouched(tc)
     % consumers with an EMPTY seed must leave the global RNG state
     % bit-identical. streamContribution's twin assertion lives in
     % test_contribution (it needs the accumulator fixture).
-    rng(424242, 'twister');
+    seedFor(tc, 424242);   % R7-45: restored after the test
     before = rng;
     U = chol(spd(12, 3) + 12*eye(12));
     lsqvce.engine.sharedProbe(U, 'numProbes', 8);

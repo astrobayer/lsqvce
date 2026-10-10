@@ -24,6 +24,8 @@ function tests = test_errorDoctrine
 end
 
 function setupOnce(tc)
+    pathBefore = path;   % R7-45: a standalone run (run_lsqvce / runtests) leaves the path as found
+    tc.addTeardown(@() path(pathBefore));
     here = fileparts(mfilename('fullpath'));
     root = fileparts(fileparts(here));
     addpath(root);
@@ -292,4 +294,112 @@ function testBatchSystemContract(tc)
     % a wrong A shape is named
     Lw = lsqvce.engine.batchSystem(4, @(k) deal(A, l), 1);
     verifyError(tc, @() Lw.closure(1, 'obs', 1, uo), 'lsqvce:batchSystem:badMatrix');
+end
+
+%% ============================================================ R7-27: contract points the audit had credited from comments
+% Audit check 16 used to credit a unit from any `lsqvce.<name>` mention,
+% comments included, and accepted 'contract' exemptions for units that
+% validate their arguments. Counted from code, these eight had no contract
+% point; each now rejects by its documented identifier.
+function testAdjustNonlinearContract(tc)
+% categories: contract
+    bf = @(k, x) deal(ones(3, 2), zeros(3, 1));
+    verifyError(tc, @() lsqvce.engine.adjustNonlinear(2, bf, 1, [1; 2; 3]), ...
+                'lsqvce:adjustNonlinear:badX0');
+    verifyError(tc, @() lsqvce.engine.adjustNonlinear(0, bf, 1, 1), ...
+                'MATLAB:validators:mustBePositive');
+    verifyError(tc, @() lsqvce.engine.adjustNonlinear(2, bf, 1, [0; 0], 'Backend', "lu"), ...
+                'MATLAB:validators:mustBeMember');
+end
+
+function testDiagnoseContract(tc)
+% categories: contract
+    % no batch count on the solution and none given: refused by name
+    verifyError(tc, @() lsqvce.engine.diagnose(struct(), @(k) deal(1, 1, 1)), ...
+                'lsqvce:diagnose:nBatch');
+    verifyError(tc, @() lsqvce.engine.diagnose(struct(), [], 'Test', "bogus"), ...
+                'MATLAB:validators:mustBeMember');
+    verifyError(tc, @() lsqvce.engine.diagnose(struct(), [], 'Alpha', 2), ...
+                'MATLAB:validators:mustBeLessThan');
+end
+
+function testResolveNcContract(tc)
+% categories: contract
+    verifyError(tc, @() lsqvce.engine.resolveNc({}), 'lsqvce:resolveNc:empty');
+    verifyError(tc, @() lsqvce.engine.resolveNc({struct('nl', 1)}), 'lsqvce:resolveNc:missing');
+    verifyError(tc, @() lsqvce.engine.resolveNc({struct('isLoader', true)}), 'lsqvce:resolveNc:missing');
+    verifyError(tc, @() lsqvce.engine.resolveNc({struct('nc', 2), struct('nc', 3)}), ...
+                'lsqvce:resolveNc:conflict');
+    [nc, info] = lsqvce.engine.resolveNc({struct('nc', 4), struct('nc', 4)});
+    tc.verifyEqual(nc, 4);
+    tc.verifyEqual(info.values, [4 4]);
+end
+
+function testRunMetaContract(tc)
+% categories: contract
+    verifyError(tc, @() lsqvce.engine.runMeta(1, struct()), 'lsqvce:runMeta:badArg');
+    verifyError(tc, @() lsqvce.engine.runMeta(struct(), 'x'), 'lsqvce:runMeta:badArg');
+    verifyError(tc, @() lsqvce.engine.runMeta(struct()), 'MATLAB:narginchk:notEnoughInputs');
+    m = lsqvce.engine.runMeta(struct('probe', 7), struct('a', 1));
+    tc.verifyEqual(m.seeds.probe, 7);
+    tc.verifyEqual(m.toolboxVersion, lsqvce.util.toolboxVersion());
+end
+
+function testReducedContributionContract(tc)
+% categories: contract
+    verifyError(tc, @() lsqvce.engine.ReducedContribution(ones(2, 3), [1; 1], 0, 1), ...
+                'lsqvce:reduced:notSquare');
+    verifyError(tc, @() lsqvce.engine.ReducedContribution(eye(2), [1; 1; 1], 0, 1), ...
+                'lsqvce:reduced:sizeMismatch');
+    c = lsqvce.engine.ReducedContribution(eye(2), [1 2], 3, 4);
+    tc.verifyEqual(c.n, [1; 2], 'n is stored as a column');
+end
+
+function testFtestContract(tc)
+% categories: contract
+    s = @(u, n, v) struct('rank', u, 'u', u, 'n', n, 'vPv', v);
+    verifyError(tc, @() lsqvce.engine.ftest(s(3, 10, 2), s(2, 11, 3), 'Verbose', false), ...
+                'lsqvce:ftest:differentData');
+    verifyError(tc, @() lsqvce.engine.ftest(s(3, 10, 2), s(3, 10, 3), 'Verbose', false), ...
+                'lsqvce:ftest:notNested');
+    verifyError(tc, @() lsqvce.engine.ftest(s(10, 10, 2), s(2, 10, 3), 'Verbose', false), ...
+                'lsqvce:ftest:noRedundancy');
+    verifyError(tc, @() lsqvce.engine.ftest(s(3, 10, 0), s(2, 10, 0), 'Verbose', false), ...
+                'lsqvce:ftest:zeroVariance');
+    verifyError(tc, @() lsqvce.engine.ftest(s(3, 10, 2), s(2, 10, 3), 'Alpha', 2), ...
+                'MATLAB:validators:mustBeLessThan');
+end
+
+function testAdjustRobustContract(tc)
+% categories: contract
+    % the argument block rejects before any system is read
+    verifyError(tc, @() lsqvce.engine.adjustRobust({}, 1, 'Influence', "cauchy"), ...
+                'MATLAB:validators:mustBeMember');
+    verifyError(tc, @() lsqvce.engine.adjustRobust({}, 1, 'MaxIter', 0), ...
+                'MATLAB:validators:mustBePositive');
+    verifyError(tc, @() lsqvce.engine.adjustRobust({}, 1, 'Backend', "lu"), ...
+                'MATLAB:validators:mustBeMember');
+end
+
+function testDeclarationContract(tc)
+% categories: contract
+    verifyError(tc, @() lsqvce.engine.declaration(struct('bogus', 1)), 'lsqvce:fit:unknownField');
+    verifyError(tc, @() lsqvce.engine.declaration(struct('commonParams', {{'common', 1}})), ...
+                'lsqvce:fit:noSystems');
+    sys = struct('buildDay', @(d) 1, 'covariance', struct('obs', 1));
+    verifyError(tc, @() lsqvce.engine.declaration(struct('systems', sys)), 'lsqvce:fit:noCommon');
+    verifyError(tc, @() lsqvce.engine.declaration(struct('systems', sys, ...
+                'commonParams', {{'arc', 1}})), 'lsqvce:fit:badScope');
+end
+
+function testResultsRefusalsByName(tc)
+% categories: contract
+    % R7-28: two USER-tier identifiers no test had fired. A Results built
+    % without an accumulator (kinds B/C, or by hand) refuses the accumulator
+    % methods by name, and compare() refuses a solution without a v'Pv.
+    sol = struct('x', [1; 2], 'sigma0', 1);
+    Rb = lsqvce.Results(sol, struct(), [], struct(), @() deal([], [], []), 0, []);
+    verifyError(tc, @() Rb.residuals(), 'lsqvce:Results:noAccumulator');
+    verifyError(tc, @() Rb.contribution(), 'lsqvce:Results:noAccumulator');
+    verifyError(tc, @() Rb.compare(Rb), 'lsqvce:Results:noVPv');
 end

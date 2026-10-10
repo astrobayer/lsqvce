@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fault-injection self-test of the R5 M0 audit checks (16, 19, 20, 21).
+"""Fault-injection self-test of the audit checks (every check has a case since R7-32).
 
 WHY THIS EXISTS
     "A check without a fixture proving it fires is not a check"
@@ -34,9 +34,13 @@ spec = importlib.util.spec_from_file_location(
 audit = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(audit)
 
-COPY = ['+lsqvce', 'html/index.html', 'helptoc.xml', 'dev/docs_src/tiers.csv', 'dev/docs_src/catch_baseline.csv',
-        'dev/docs_src/error_ids.csv', 'dev/docs_src/layering_baseline.csv', 'dev/docs_src/superseded_claims.csv',
-        'dev/tests/category_exemptions.csv', 'dev/tests', 'lsqvce_manual.pdf']
+# R7-32: the scratch tree carries everything a check reads (the whole html
+# set, the doc sources and builders, README / DEVELOPMENT, template), so
+# every check -- not only the ten that had a case -- can be fault-injected.
+COPY = ['+lsqvce', 'html', 'helptoc.xml', 'dev/docs_src', 'dev/tests', 'template',
+        'examples', 'README.md', 'RELEASE_NOTES.md', 'dev/DEVELOPMENT.md', 'dev/HANDOVER.md',
+        'dev/GRAVFIRE_INTERFACE.md',
+        'lsqvce_manual.pdf']
 
 
 def scratch():
@@ -293,6 +297,133 @@ case('9 no block-spec literal at all fires', audit.check_spec_fields, 'spec',
      lambda d: [os.remove(os.path.join(d, p)) for p in
                 ('+lsqvce/fit.m', '+lsqvce/+engine/private/normalizeSystems.m')])
 
+
+# ---- 16 (R7-27): the matrix credits code in gated suites only ------------
+def credit_by_comment_only(d):
+    # strip every code reference to lsqvce.engine.resolveNc from the suites,
+    # leaving a comment that names it: the contract cell must open
+    for f in audit.pglob(os.path.join(d, 'dev/tests/test_*.m')):
+        s = open(f, encoding='utf-8').read()
+        if 'lsqvce.engine.resolveNc(' in s:
+            s = s.replace('lsqvce.engine.resolveNc(', 'zzzGone(')
+            open(f, 'w', encoding='utf-8').write(s)
+    append(os.path.join(d, 'dev/tests/test_zzz_selftest.m'),
+           'function tests = test_zzz_selftest\n'
+           '    tests = functiontests(localfunctions);\nend\n'
+           'function testOnlyAComment(tc)\n% categories: contract\n'
+           '    % lsqvce.engine.resolveNc is named here, never called\n'
+           '    tc.verifyTrue(true);\nend\n')
+
+
+def credit_from_excluded_suite(d):
+    for f in audit.pglob(os.path.join(d, 'dev/tests/test_*.m')):
+        s = open(f, encoding='utf-8').read()
+        if 'lsqvce.engine.resolveNc(' in s:
+            open(f, 'w', encoding='utf-8').write(
+                s.replace('lsqvce.engine.resolveNc(', 'zzzGone('))
+    append(os.path.join(d, 'dev/tests/test_speed.m'),
+           '\nfunction testZzzSpeedOnly(tc)\n% categories: contract\n'
+           '    lsqvce.engine.resolveNc({struct(\'nc\', 1)});\nend\n')
+
+
+case('16 a unit credited only by a comment fires', audit.check_test_categories, 'cat',
+     credit_by_comment_only)
+case('16 a unit credited only by the excluded benchmark fires', audit.check_test_categories,
+     'cat', credit_from_excluded_suite)
+case('16 a stale exemption row fires', audit.check_test_categories, 'cat',
+     lambda d: append(os.path.join(d, 'dev/tests/category_exemptions.csv'),
+                      'kernel.robustWeights,contract,zzz selftest\n'))
+case('16 a contract exemption for a validating unit fires', audit.check_test_categories,
+     'cat', lambda d: append(os.path.join(d, 'dev/tests/category_exemptions.csv'),
+                             'engine.runMeta,contract,zzz selftest\n'))
+case('16 a duplicated exemption row fires', audit.check_test_categories, 'cat',
+     lambda d: append(os.path.join(d, 'dev/tests/category_exemptions.csv'),
+                      'engine.QRSystem,speed,zzz twice\n'))
+
+# ---- R7-32: a fault case for every check that had none --------------------
+PKGF = '+lsqvce/+util/getfielddef.m'
+ZZZ_SUITE = ('function tests = test_zzz_selftest\n'
+             '    tests = functiontests(localfunctions);\nend\n'
+             'function testZzz(tc)\n% categories: contract\n'
+             '    tc.verifyTrue(true);\nend\n')
+case('1 an unregistered suite fires', audit.check_test_registration, 'tests',
+     lambda d: append(os.path.join(d, 'dev/tests/test_zzz_selftest.m'), ZZZ_SUITE))
+case('4 a unit without its html page fires', audit.check_doc_coverage, 'docs',
+     lambda d: os.remove(os.path.join(d, 'html/lsqvce.fit.html')))
+case('5 a dead html link fires', audit.check_links, 'links',
+     lambda d: append(os.path.join(d, 'html/index.html'), '<a href="zzz_nowhere.html">x</a>\n'))
+case('6 a .js file fires', audit.check_no_js, 'js',
+     lambda d: append(os.path.join(d, 'html/zzz.js'), 'var x = 1;\n'))
+case('8 a hardcoded banner fires', audit.check_banners, 'banner',
+     lambda d: append(os.path.join(d, PKGF),
+                      "\nfunction zzzBanner()\n    lsqvce.util.log.msg('[zzz] hi\\n');\nend\n"))
+case('10b a second makeKeyFcn fires', audit.check_dedup_lock, 'dedup-lock',
+     lambda d: append(os.path.join(d, TFILE), '\nfunction k = makeKeyFcn(x)\n    k = x;\nend\n'))
+case('11 retired stage vocabulary in output fires', audit.check_deprecated_words, 'words',
+     lambda d: append(os.path.join(d, PKGF),
+                      "\nfunction zzzWords()\n    lsqvce.util.log.msg('OUTER PASS 1\\n');\nend\n"))
+case('12 an addpath to a missing folder fires', audit.check_addpath_targets, 'addpath',
+     lambda d: append(os.path.join(d, TFILE),
+                      "\nfunction zzzPath(root)\n    addpath(fullfile(root, 'zzz_nope'));\nend\n"))
+case('13 a removed name in an html example fires', audit.check_html_examples, 'html-example',
+     lambda d: append(os.path.join(d, 'html/index.html'), '<pre>runtests(\'x\')</pre>\n'))
+case('14 a cited id nothing raises fires', audit.check_error_ids, 'error-id',
+     lambda d: append(os.path.join(d, PKGF), '\n% lsqvce:zz:ghost is cited here\n'))
+case('14 an id raised only by a TEST does not count', audit.check_error_ids, 'error-id',
+     lambda d: (append(os.path.join(d, PKGF), '\n% lsqvce:zz:ghost is cited here\n'),
+                append(os.path.join(d, TFILE),
+                       "\nfunction zzzGhost()\n    error('lsqvce:zz:ghost', 'x');\nend\n")))
+case('17 a wrong test-point claim fires', audit.check_readme_sync, 'readme',
+     lambda d: append(os.path.join(d, TFILE),
+                      '\nfunction testZzzExtra(tc)\n% categories: contract\n'
+                      '    tc.verifyTrue(true);\nend\n'))
+case('17 a block-commented test is not counted', audit.check_readme_sync, 'readme',
+     lambda d: append(os.path.join(d, TFILE),
+                      '\n%{\nfunction testZzzHidden(tc)\n% categories: contract\n'
+                      '    tc.verifyTrue(true);\nend\n%}\n'),
+     expect_fire=False)
+case('18 a tier row naming nothing fires', audit.check_tiers_and_case, 'tiers',
+     lambda d: append(os.path.join(d, 'dev/docs_src/tiers.csv'), 'zzzGhost,USER,selftest\n'))
+case('22 a page that drifted from its help fires', audit.check_pages_match_help, 'docdrift',
+     lambda d: append(os.path.join(d, 'html/lsqvce.fit.html'), '<p>zzz drift</p>\n'))
+def manual_knobs_only():
+    # check 23's rebuild half needs the CI runner's pandoc; this case tests
+    # its OTHER half (every knob and group field described), so a box without
+    # pandoc (the Windows baseline in CLAUDE.md) still runs the self-test clean
+    audit.check_manual_built_and_complete()
+    audit.FINDINGS[:] = [f for f in audit.FINDINGS if 'could not be rebuilt' not in f[1]]
+
+
+case('23 a group field missing from Manual ch. 4 fires', manual_knobs_only,
+     'manual', lambda d: edit(os.path.join(d, 'dev/docs_src/manual/04_options.md'),
+                              '`SkipThreshold`', 'SkipThreshold'))
+
+
+# ---- 27 groups (R7-22) and 30 (R7-28): the new instruments ---------------
+def add_dead_group_field(d):
+    edit(os.path.join(d, '+lsqvce/Options.m'),
+         "'SkipThreshold', 0.2);", "'SkipThreshold', 0.2, 'ZzzDead', 1);")
+
+
+case('27 a group field nothing reads fires', audit.check_options_are_consumed, 'options',
+     add_dead_group_field)
+case('27 a debt entry that is now read fires', audit.check_options_are_consumed, 'options',
+     lambda d: append(os.path.join(d, PKGF),
+                      '\nfunction zzzRead(o)\n    x = o.Noise.Smooth;\nend\n'))
+
+
+def add_uncatalogued_untested_id(d):
+    append(os.path.join(d, PKGF),
+           "\nfunction zzzNew()\n    error('lsqvce:getfielddef:zzzNew', 'x');\nend\n")
+    append(os.path.join(d, 'dev/docs_src/error_ids.csv'),
+           'lsqvce:getfielddef:zzzNew,util.getfielddef,error,v6.1\n')
+
+
+case('30 a new catalogued id no test fires fires', audit.check_ids_fired_by_tests, 'id-fired',
+     add_uncatalogued_untested_id)
+case('30 a baseline row for an id a test fires fires', audit.check_ids_fired_by_tests,
+     'id-fired', lambda d: append(os.path.join(d, 'dev/docs_src/unfired_ids_baseline.csv'),
+                                  'lsqvce:fit:badPrior,fit\n'))
 
 def main():
     failures = 0

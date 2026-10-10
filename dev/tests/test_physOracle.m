@@ -28,6 +28,8 @@ end
 
 %% ---------------------------------------------------------------- fixtures
 function setupOnce(tc)
+    pathBefore = path;   % R7-45: a standalone run (run_lsqvce / runtests) leaves the path as found
+    tc.addTeardown(@() path(pathBefore));
     root = fileparts(fileparts(fileparts(mfilename('fullpath'))));   % dev/tests -> root (L8)
     if exist('lsqvce.engine.adjustVCEjoint', 'file') ~= 2 && ...
        exist('+lsqvce', 'dir') ~= 7
@@ -406,8 +408,9 @@ function testDemoGravityUsesTheNativeRaggedPath(tc)
 % independent arc-ordinal table), and the source no longer wraps .closure.
     exDir = fullfile(fileparts(fileparts(fileparts(mfilename('fullpath')))), 'examples');   % L8
     tc.assumeTrue(exist(fullfile(exDir, 'demo_gravity_dataLoader.m'), 'file') == 2);
+    p0 = path;   % R7-45: restore, not rmpath -- setupOnce had put exDir there already
     addpath(exDir);
-    tc.addTeardown(@() rmpath(exDir));
+    tc.addTeardown(@() path(p0));
 
     [cfg, L] = fixture_gravity();
     for s = 1:numel(L)
