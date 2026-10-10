@@ -77,12 +77,14 @@ in the data), not the benign one (a little good data discarded).</pre>
 <h3>The Downdate</h3>
 <pre class="example">------------
 Re-accumulating from scratch after each rejection is O(n*u^2) per
-rejection. Instead we downdate the Cholesky factor:
-
-    R&#x27;R = N   -&gt;   R~&#x27;R~ = N - p_i a_i a_i&#x27;      via cholupdate(R, x, &#x27;-&#x27;)
-
-at O(u^2). Verified to reproduce a full re-accumulation to 5e-16, and to
-stay accurate (1e-15) over 200 sequential downdates.</pre>
+rejection. Instead we downdate the cofactor, N -&gt; N - p_i a_i a_i&#x27;, on its
+BLOCKS (LSQVCE.ENGINE.BLOCKCOFACTOR, WP-86 part 2): the Schur complement of
+a rank-one downdate is a rank-one downdate, so the commons factor takes
+one cholupdate(Rc, x, &#x27;-&#x27;) at O(nc^2) and the observation&#x27;s own system its
+O(nl^2 + nl*nc) local update -- no u x u factor exists. The estimate
+follows in closed form, x &lt;- x + p_i v_i Qxx~ a_i (Qxx~ after the
+downdate), so no pass over the data is needed to re-solve. Verified
+against a dense re-solve to 1e-15 (mirror wp86/blockcofactor.py).</pre>
 <h3>THE vPv UPDATE -- the subtle part</h3>
 <pre class="example">---------------------------------
 It is natural to write vPv_new = vPv - p_i*v_i^2. THIS IS WRONG. Removing
@@ -116,8 +118,9 @@ observation itself, so rejecting it is close to a coin flip.
 
 So we check BOTH:
   * BEFORE: refuse to reject any observation with r_i &lt; rMinReject;
-  * AFTER:  verify the smallest |diag(R)| has not collapsed, and roll back
-            if it has.</pre>
+  * AFTER:  verify the smallest |diag(Rc)| has not collapsed and the
+            observation is not its local block&#x27;s only information, and
+            roll back if either fails.</pre>
 <h3>Name-Value</h3>
 <pre class="example">  &#x27;maxReject&#x27;    cap on rejections (default: max(10, 0.01*n))
   &#x27;rMinReject&#x27;   refuse to reject below this redundancy (default 0.10)
@@ -149,17 +152,15 @@ R = lsqvce.fit(data, Verbose=false);
 % Use the robust scale there:
 [sol, D, REJ] = lsqvce.engine.snoop(R.source, R.diag, R.batchFcn, &#x27;test&#x27;, &#x27;mad&#x27;);</pre>
 <h3>Input</h3>
-<pre class="example">sol       1x1 struct  the solution to start from (R.source)
+<pre class="example">sol       1x1 struct  the solution to start from (R.source): x, Q (its
+                      LSQVCE.ENGINE.BLOCKCOFACTOR), n, u, rank, defect
 D         1x1 struct  its diagnostics
 batchFcn  1x1 fh      the SAME batch function, for the re-solves
 Name/Value: &#x27;Test&#x27; (&#x27;pope&#x27;|&#x27;mad&#x27;), &#x27;Alpha&#x27;, &#x27;Bonferroni&#x27;, &#x27;MaxReject&#x27;,
             &#x27;MaxRejectFrac&#x27; (the breakdown cap, default 0.25), &#x27;RMinReject&#x27;,
             &#x27;Reaccumulate&#x27;, &#x27;NBatch&#x27; (default D.nBatch), &#x27;Force&#x27;, &#x27;Verbose&#x27;</pre>
 <h3>Errors</h3>
-<pre class="example">  lsqvce:snoop:badBatch        batchFcn did not return [A, l, p], or
-                               returned different data on the second call
-  lsqvce:snoop:badIndex        an observation index is outside 1..n
-  lsqvce:snoop:correlatedBatch a batch carries a full covariance, so its
+<pre class="example">  lsqvce:snoop:correlatedBatch a batch carries a full covariance, so its
                                observations cannot be rejected individually
   lsqvce:snoop:tooContaminated the contamination gauge is past the point
                                where tau is meaningful -- switch to
@@ -184,6 +185,13 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
   lsqvce:snoop:rejectFraction                [warning] STOPPING
 
 See also LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.SYSTEMATIC.
+
+Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-86 part 2 (R7-24): the
+downdate runs on the block cofactor (sol.Q) and the estimate follows in
+closed form; the row search and the b re-accumulation passes, and the
+badBatch / badIndex refusals of the retired helpers, are gone; the clean
+re-solve reads one batch at a time. With assistance from Claude
+(Anthropic), model Claude Opus 5.5.
 
 Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34, R7-35):
 the runtime remedy names live units; the Name-Value list matches the

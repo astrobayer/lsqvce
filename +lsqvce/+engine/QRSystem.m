@@ -68,6 +68,10 @@ classdef QRSystem < handle
 %
 %   See also LSQVCE.ENGINE.NORMALEQSYSTEM, LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-86 part 2 (R7-24):
+%   squareRoot, the parameter columns' triangular factor
+%   (BlockAccumulator.commonFactor). With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-08-20 (CEST, UTC+02:00), WP-50: honest vtv on both QR
 %   loss paths (merge-fold cancellation guard + rotation-round-off
 %   guard) -> NaN + lsqvce:qr:cancellation; vtvPoisoned property. With
@@ -329,6 +333,15 @@ classdef QRSystem < handle
             Ri   = R1 \ eye(d);
             Cxx  = s0sq * (Ri*Ri.');
             Cxx  = (Cxx + Cxx.')/2;
+        end
+
+        function R1 = squareRoot(o)
+        %SQUAREROOT  The d x d upper-triangular factor R1 of the parameter
+        %   columns (A'*A = R1'*R1), zero-padded while fewer than d rows exist.
+            d  = o.dim;
+            R1 = zeros(d, d);
+            k  = min(size(o.R,1), d);
+            R1(1:k, :) = o.R(1:k, 1:d);
         end
 
         function [N, n, ltl, m] = commonBlocks(o)

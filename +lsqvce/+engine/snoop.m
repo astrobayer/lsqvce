@@ -35,12 +35,14 @@ function [sol, D, REJ] = snoop(sol, D, batchFcn, opt)
 %   THE DOWNDATE
 %   ------------
 %   Re-accumulating from scratch after each rejection is O(n*u^2) per
-%   rejection. Instead we downdate the Cholesky factor:
-%
-%       R'R = N   ->   R~'R~ = N - p_i a_i a_i'      via cholupdate(R, x, '-')
-%
-%   at O(u^2). Verified to reproduce a full re-accumulation to 5e-16, and to
-%   stay accurate (1e-15) over 200 sequential downdates.
+%   rejection. Instead we downdate the cofactor, N -> N - p_i a_i a_i', on its
+%   BLOCKS (LSQVCE.ENGINE.BLOCKCOFACTOR, WP-86 part 2): the Schur complement of
+%   a rank-one downdate is a rank-one downdate, so the commons factor takes
+%   one cholupdate(Rc, x, '-') at O(nc^2) and the observation's own system its
+%   O(nl^2 + nl*nc) local update -- no u x u factor exists. The estimate
+%   follows in closed form, x <- x + p_i v_i Qxx~ a_i (Qxx~ after the
+%   downdate), so no pass over the data is needed to re-solve. Verified
+%   against a dense re-solve to 1e-15 (mirror wp86/blockcofactor.py).
 %
 %   THE vPv UPDATE -- the subtle part
 %   ---------------------------------
@@ -76,8 +78,9 @@ function [sol, D, REJ] = snoop(sol, D, batchFcn, opt)
 %
 %   So we check BOTH:
 %     * BEFORE: refuse to reject any observation with r_i < rMinReject;
-%     * AFTER:  verify the smallest |diag(R)| has not collapsed, and roll back
-%               if it has.
+%     * AFTER:  verify the smallest |diag(Rc)| has not collapsed and the
+%               observation is not its local block's only information, and
+%               roll back if either fails.
 %
 %   NAME-VALUE
 %     'maxReject'    cap on rejections (default: max(10, 0.01*n))
@@ -112,7 +115,8 @@ function [sol, D, REJ] = snoop(sol, D, batchFcn, opt)
 %       [sol, D, REJ] = lsqvce.engine.snoop(R.source, R.diag, R.batchFcn, 'test', 'mad');
 %
 %   INPUT
-%     sol       1x1 struct  the solution to start from (R.source)
+%     sol       1x1 struct  the solution to start from (R.source): x, Q (its
+%                           LSQVCE.ENGINE.BLOCKCOFACTOR), n, u, rank, defect
 %     D         1x1 struct  its diagnostics
 %     batchFcn  1x1 fh      the SAME batch function, for the re-solves
 %     Name/Value: 'Test' ('pope'|'mad'), 'Alpha', 'Bonferroni', 'MaxReject',
@@ -120,9 +124,6 @@ function [sol, D, REJ] = snoop(sol, D, batchFcn, opt)
 %                 'Reaccumulate', 'NBatch' (default D.nBatch), 'Force', 'Verbose'
 %
 %   ERRORS
-%     lsqvce:snoop:badBatch        batchFcn did not return [A, l, p], or
-%                                  returned different data on the second call
-%     lsqvce:snoop:badIndex        an observation index is outside 1..n
 %     lsqvce:snoop:correlatedBatch a batch carries a full covariance, so its
 %                                  observations cannot be rejected individually
 %     lsqvce:snoop:tooContaminated the contamination gauge is past the point
@@ -148,6 +149,13 @@ function [sol, D, REJ] = snoop(sol, D, batchFcn, opt)
 %     lsqvce:snoop:rejectFraction                [warning] STOPPING
 %
 %   See also LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.SYSTEMATIC.
+%
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-86 part 2 (R7-24): the
+%   downdate runs on the block cofactor (sol.Q) and the estimate follows in
+%   closed form; the row search and the b re-accumulation passes, and the
+%   badBatch / badIndex refusals of the retired helpers, are gone; the clean
+%   re-solve reads one batch at a time. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34, R7-35):
 %   the runtime remedy names live units; the Name-Value list matches the
@@ -198,7 +206,7 @@ if sol.defect > 0 && o.verbose
              sol.defect);
 end
 
-R    = sol.R;
+Q    = sol.Q;                      % the cofactor, as blocks (WP-86 part 2)
 rejected = false(n0, 1);
 REJ  = struct('idx', [], 'w', [], 'r', [], 'refused', [], ...
               'nIter', 0, 'converged', false, 'history', []);
@@ -313,9 +321,8 @@ for it = 1:(maxRej + 1)
     if o.bonferroni, alphaEff = o.alpha / max(nAlive, 1); end
     kCrit = lsqvce.engine.stat.tauCrit(alphaEff, rdf);
 
-    [bestW, bestI, bestR, bestV, bestP, vPvCur, nFlag] = ...
-        scanWorst(batchFcn, nB, R, sol.x, rejected, rdf, kCrit, sol.rank, ...
-                  useRobust);
+    [bestW, bestI, bestR, bestV, bestP, vPvCur, nFlag, bestA, sizes] = ...
+        scanWorst(batchFcn, nB, Q, sol.x, rejected, rdf, kCrit, useRobust);
 
     s0cur = sqrt(max(vPvCur / max(rdf, 1), 0));
     REJ.history(end+1, :) = [nFlag, bestW, s0cur^2]; %#ok<AGROW>
@@ -389,19 +396,14 @@ for it = 1:(maxRej + 1)
         break;
     end
 
-    % ---- downdate
-    xi = sqrt(bestP) * getRow(batchFcn, nB, bestI);
-    Rold = R;
-    [Rnew, fail] = cholupdate(R, xi(:), '-');
-
-    % ---- GUARD 2: verify the factor did not collapse.
-    % cholupdate's own flag is necessary but NOT sufficient: a downdate can
-    % "succeed" and still leave a diagonal entry at ~0, after which every
-    % solve is garbage.
-    dg = abs(diag(Rnew));
-    collapsed = fail ~= 0 || any(dg < eps(max(dg)) * u * 100);
-    if collapsed
-        R = Rold;
+    % ---- downdate the cofactor's blocks (WP-86 part 2).
+    % GUARD 2: Q.downdate refuses (ok = false, Q unchanged) when the removal
+    % would make the system singular -- cholupdate's own flag, a commons
+    % factor whose smallest diagonal collapsed (a downdate can "succeed" and
+    % still leave ~0 there, after which every solve is garbage), or an
+    % observation that is its local block's only information.
+    [Qnew, ok] = Q.downdate(bestA, bestP);
+    if ~ok
         REJ.refused(end+1) = bestI; %#ok<AGROW>
         lsqvce.util.log.warn('lsqvce:snoop:downdateFailed', ...
             ['Removing observation %d would make the normal matrix singular ' ...
@@ -411,7 +413,7 @@ for it = 1:(maxRej + 1)
              'REFUSING and stopping.'], bestI);
         break;
     end
-    R = Rnew;
+    Q = Qnew;
 
     % ---- vPv update, with the essential 1/r_i factor (see header).
     vPvCur = vPvCur - bestP * bestV^2 / bestR;
@@ -421,11 +423,9 @@ for it = 1:(maxRej + 1)
     REJ.w(end+1)   = bestW;   %#ok<AGROW>
     REJ.r(end+1)   = bestR;   %#ok<AGROW>
 
-    % ---- re-solve for x with the downdated R.
-    % b is not maintained incrementally: recompute it in the same pass that
-    % scanWorst will make next iteration. Simpler and one pass either way.
-    bnew = accumB(batchFcn, nB, rejected, u);
-    sol.x = R \ (R' \ bnew);
+    % ---- the estimate without observation i, in closed form: with v_i = a_i'x - l_i,
+    % x~ = x + p_i v_i Qxx~ a_i (Sherman-Morrison; Qxx~ is the downdated cofactor).
+    sol.x = sol.x + bestP * bestV * Q.qxxTimes(bestA);
 
     if lsqvce.util.verbosity.progress(o.verbose)
         s0new = sqrt(max(vPvCur / max(rdf - 1, 1), 0));
@@ -437,6 +437,7 @@ end
 REJ.nIter     = size(REJ.history, 1);
 REJ.converged = converged;
 REJ.rejected  = rejected;
+sol.Q         = Q;               % the downdated cofactor, consistent with sol.x
 
 % ------------------------------------------------------------ final solution
 % Re-accumulate from scratch. Two reasons: it purges any accumulated downdate
@@ -455,16 +456,21 @@ if o.reaccumulate && ~isempty(REJ.idx)
     % the prior on the null space, and the diagnostics come from the same
     % sweep every other solve uses. The flat lsqvce.engine.Accumulator is
     % retired with this level.
-    keptSrc = @(k) maskedBatch(batchFcn, k, rejected, nB);
-    allKept = @(k) concatKept(keptSrc, nB);
-    L = lsqvce.engine.batchSystem(u, allKept, 1, 'Name', 'snoop');
+    % One batch per batch that keeps a row, read through its row offset: the
+    % surviving rows are never concatenated (that was n x u at full width --
+    % R7-24 once more -- and the offset search re-read batches 1..k for each k).
+    edges = [0; cumsum(sizes)];
+    alive = arrayfun(@(k) any(~rejected(edges(k)+1:edges(k+1))), (1:nB).');
+    kept  = find(alive);
+    keptSrc = @(j) maskedBatch(batchFcn, kept(j), rejected, edges);
+    L = lsqvce.engine.batchSystem(u, keptSrc, numel(kept), 'Name', 'snoop');
     backend = 'qr';
     if isfield(sol, 'method') && strcmpi(char(sol.method), 'normal'), backend = 'normal'; end
     acc = lsqvce.engine.BlockAccumulator(u, 'Backend', backend, 'KeepLocal', true, 'Verbose', false);
     if isfield(sol, 'defect') && sol.defect > 0 && isfield(sol, 'datumB') && ~isempty(sol.datumB)
         acc.setPrior(lsqvce.engine.CommonPrior(sol.datumB.', zeros(size(sol.datumB, 2), 1), 1));
     end
-    acc.addSystem(L.sysID, 0, L.closure, 1);
+    acc.addSystem(L.sysID, 0, L.closure, 1:numel(kept));   % one day per kept batch
     solB = acc.solve();
     [dsol, bf, nBd] = lsqvce.engine.diagnoseAccum(acc, solB);
     % R7-35: the re-diagnosis classifies with the SAME thresholds as the D it
@@ -479,7 +485,7 @@ if o.reaccumulate && ~isempty(REJ.idx)
     % the returned sol keeps the caller's fields and carries the clean solve
     sol.x = solB.x(:);  sol.s0sq = solB.s0sq;  sol.sigma0 = solB.sigma0;
     if isfield(solB, 'Cxx'), sol.Cxx = solB.Cxx; end
-    sol.n = dsol.n;  sol.dof = solB.dof;
+    sol.n = dsol.n;  sol.dof = solB.dof;  sol.Q = dsol.Q;
 end
 
 if lsqvce.util.verbosity.progress(o.verbose)
@@ -494,21 +500,20 @@ end
 
 %% ======================================================== helpers
 
-function [bestW, bestI, bestR, bestV, bestP, vPv, nFlag] = ...
-        scanWorst(batchFcn, nB, R, x, rejected, rdf, kCrit, rank_, useRobust)
+function [bestW, bestI, bestR, bestV, bestP, vPv, nFlag, bestA, sizes] = ...
+        scanWorst(batchFcn, nB, Q, x, rejected, rdf, kCrit, useRobust)
 %SCANWORST  One streaming pass over all batches to find the single worst
 %   (largest |w|) surviving observation and accumulate vPv honestly.
 %   INPUT
 %     batchFcn  1x1 fh      [A,l,p] = batchFcn(k), k = 1..nB
 %     nB        1x1 double  number of batches
-%     R         u x u       upper-triangular factor of the reduced normal (for
-%                           the leverage back-substitution a' N^-1 a)
+%     Q         1x1         lsqvce.engine.BlockCofactor of the current system
+%                           (the leverage a' Qxx a, WP-86 part 2)
 %     x         u x 1       current parameter estimate
 %     rejected  m x 1 log   mask of already-rejected observations (global index)
 %     rdf       1x1 double  residual degrees of freedom (for s0)
 %     kCrit     1x1 double  critical value for flagging (|w| threshold)
-%     rank_     1x1 double  rank of the system (for the s0 scaling)
-%     useRobust 1x1 log     use a robust (MAD) scale for w (default false)
+%     useRobust 1x1 log     use a robust (MAD) scale for w
 %   OUTPUT
 %     bestW  1x1  the largest |w| found among surviving observations
 %     bestI  1x1  its global observation index (0 if none)
@@ -517,8 +522,11 @@ function [bestW, bestI, bestR, bestV, bestP, vPv, nFlag] = ...
 %     bestP  1x1  its weight p_i
 %     vPv    1x1  weighted residual sum of squares over survivors
 %     nFlag  1x1  count of survivors exceeding kCrit
-    if nargin < 9, useRobust = false; end
+%     bestA  1xu  its design row (the downdate needs it; no second search pass)
+%     sizes  nBx1 the row count of every batch
     rawPool = [];
+    sizes = zeros(nB, 1);
+    bestA = [];
 % One streaming pass: find the worst |w| among surviving observations, and
 % accumulate vPv honestly along the way.
     bestW = 0; bestI = 0; bestR = 0; bestV = 0; bestP = 1;
@@ -534,6 +542,7 @@ function [bestW, bestI, bestR, bestV, bestP, vPv, nFlag] = ...
     for k = 1:nB
         [Ak, lk, pk] = batchFcn(k);
         lk = lk(:); nk = size(Ak,1);
+        sizes(k) = nk;
         if nk == 0, continue; end
         if isempty(pk), pk = ones(nk,1); end
         if ~isvector(pk)
@@ -579,7 +588,7 @@ function [bestW, bestI, bestR, bestV, bestP, vPv, nFlag] = ...
             % Collect the raw standardised score for the robust scale.
             % Scale-free, so it can be pooled across batches.
             if useRobust
-                Wa = R' \ Aa.';
+                Wa = Q.halfRows(Aa);
                 qva = 1 ./ pk(alive) - sum(Wa.^2, 1).';
                 qva(qva < 0) = 0;
                 gd = qva > 0;
@@ -619,7 +628,7 @@ function [bestW, bestI, bestR, bestV, bestP, vPv, nFlag] = ...
         ia = idx(alive);
 
         vk = Aa * x - la;
-        W  = R' \ Aa.';
+        W  = Q.halfRows(Aa);
         qx = sum(W.^2, 1).';
         qv = 1 ./ pa - qx;
         qv(qv < 0) = 0;
@@ -636,86 +645,20 @@ function [bestW, bestI, bestR, bestV, bestP, vPv, nFlag] = ...
             [mw, mi] = max(abs(wk .* fl));
             if mw > bestW
                 bestW = mw;  bestI = ia(mi);  bestR = rk(mi);
-                bestV = vk(mi);  bestP = pa(mi);
+                bestV = vk(mi);  bestP = pa(mi);  bestA = Aa(mi, :);
             end
         end
         nSeen = nSeen + nk;
     end
 end
 
-function a = getRow(batchFcn, nB, target)
-% Fetch the design row of a single observation, by index.
-    nSeen = 0;
-    for k = 1:nB
-        [Ak, lk, ~] = batchFcn(k);
-        nk = size(Ak, 1);
-        if target <= nSeen + nk
-            a = Ak(target - nSeen, :);
-            return;
-        end
-        nSeen = nSeen + nk;
-    end
-    error('lsqvce:snoop:badIndex', 'Observation %d not found.', target);
-end
-
-function b = accumB(batchFcn, nB, rejected, u)
-%ACCUMB  Recompute the reduced right-hand side b = A' P l over SURVIVING
-%   observations only (those not in the rejected mask), in one streaming pass.
-%   INPUT
-%     batchFcn  1x1 fh      [A,l,p] = batchFcn(k)
-%     nB        1x1 double  number of batches
-%     rejected  m x 1 log   global mask of rejected observations
-%     u         1x1 double  number of parameters
-%   OUTPUT
-%     b         u x 1       A' P l summed over surviving observations
-    b = zeros(u, 1);
-    nSeen = 0;
-    for k = 1:nB
-        [Ak, lk, pk] = batchFcn(k);
-        lk = lk(:); nk = size(Ak,1);
-        if nk == 0, continue; end
-        if isempty(pk), pk = ones(nk,1); end
-        pk = pk(:);
-        idx = nSeen + (1:nk);
-        alive = ~rejected(idx);
-        if any(alive)
-            b = b + Ak(alive,:).' * (pk(alive) .* lk(alive));
-        end
-        nSeen = nSeen + nk;
-    end
-end
-
-function [A, l, p] = maskedBatch(batchFcn, k, rejected, nB)
-% Return batch k with the rejected observations removed.
-    nSeen = 0;
-    for j = 1:nB
-        [Aj, lj, pj] = batchFcn(j);
-        lj = lj(:); nj = size(Aj,1);
-        if j == k
-            if isempty(pj), pj = ones(nj,1); end
-            pj = pj(:);
-            alive = ~rejected(nSeen + (1:nj));
-            A = Aj(alive, :);
-            l = lj(alive);
-            p = pj(alive);
-            return;
-        end
-        nSeen = nSeen + nj;
-    end
-    error('lsqvce:snoop:badBatch', 'Batch %d not found.', k);
-end
-
-%==========================================================================
-function [A, l, p] = concatKept(keptSrc, nB)
-%CONCATKEPT  All surviving rows of every batch as ONE batch (rows stay in
-%   batch order; p carried when the source has it, else unit).
-    As = cell(nB, 1);  ls = cell(nB, 1);  ps = cell(nB, 1);
-    for k = 1:nB
-        [Ak, lk, pk] = keptSrc(k);
-        if isempty(lk), continue, end
-        As{k} = Ak;  ls{k} = lk(:);
-        if isempty(pk), pk = ones(numel(lk), 1); end
-        ps{k} = pk(:);
-    end
-    A = vertcat(As{:});  l = vertcat(ls{:});  p = vertcat(ps{:});
+function [A, l, p] = maskedBatch(batchFcn, k, rejected, edges)
+%MASKEDBATCH  Batch k with the rejected observations removed; edges(k) is the
+%   row offset of batch k, so only batch k is read.
+    [A, l, p] = batchFcn(k);
+    l = l(:);
+    if isempty(p), p = ones(numel(l), 1); end
+    alive = ~rejected(edges(k) + (1:numel(l)));
+    A = A(alive, :);  l = l(alive);  p = p(alive);
+    p = p(:);
 end

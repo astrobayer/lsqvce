@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-10 — WP-118 part 3 DONE (PR #123, merge 472a3eb); WP-86 part 1 OPEN (tier B, model Claude Opus 5.5): the diagnostic source no longer stores the data -- diagnoseAccum folds each batch into the full factor and keeps only its address, rebuilding on demand (the ~228 GB n x u store of R7-24 gone); part 2 (the dense u_full factor and its O(u^2)-per-row cost) designed, awaiting the user; version 6.2.0; §12.42.
+Last substantive update: 2026-10-10 — WP-86 part 1 DONE (PR #124, merge cfd72b5; CI GREEN on b6a17fd); WP-86 part 2 OPEN (tier B, model Claude Opus 5.5; user decision: option (a), the block-native rewrite): the diagnostics' cofactor is kept as blocks -- new engine unit BlockCofactor (reduced commons factor + per-system local blocks; mirror-verified to ~1e-16 against the dense inverse), diagnose / snoop / ellipse / report on it, D.R / D.Qxx / D.corr retired, snoop downdates the blocks with a closed-form x, diagnoseAccum reads no data (arc batches indexed from meta, n from the accumulator); version 6.3.0; §12.42.
+Preceding entry: Last substantive update: 2026-10-10 — WP-118 part 3 DONE (PR #123, merge 472a3eb); WP-86 part 1 OPEN (tier B, model Claude Opus 5.5): the diagnostic source no longer stores the data -- diagnoseAccum folds each batch into the full factor and keeps only its address, rebuilding on demand (the ~228 GB n x u store of R7-24 gone); part 2 (the dense u_full factor and its O(u^2)-per-row cost) designed, awaiting the user; version 6.2.0; §12.42.
 Preceding entry: Last substantive update: 2026-10-10 — WP-118 part 2 DONE (PR #122, merge 139f511; CI 604/604); WP-118 part 3 OPEN (tier B, model Claude Opus 5.5): user decisions -- fix the README now, record reasons rather than split; the memory claim corrected on three surfaces (R7-24, WP-86 stays open), the five long functions and 74 long lines recorded as ceilings under a new audit check 33 (R7-44); version 6.1.9; §12.41.
 Preceding entry: Last substantive update: 2026-10-10 — WP-118 part 1 DONE (PR #121, merge 9919f5e; CI 600/600); WP-118 part 2 OPEN (tier B, model Claude Opus 5.5): compare's redundancy counts the locals (R7-19), one inventory reset first (R7-23), a sized pooled Ljung-Box (R7-38, mirror: 0.001 -> 0.048 on 64 x 30), worker warnings reach the inventory (R7-41); user decisions: the accFcn contract ACCEPTED, Noise.MeanType RETIRED; version 6.1.8; §12.41.
 Preceding entry: Last substantive update: 2026-10-10 — WP-116 part 2 DONE (PR #120, merge 683d36e; CI 596/596); WP-118 part 1 OPEN (tier B, model Claude Opus 5.5): docs truth with two new audit instruments — check 31 (every accepted Name-Value option is documented; 17 were not) and check 32 (every named unit exists, in help, messages and user prose; 33 named deleted units) — plus the 2F(2,r) ellipse (R7-39), the pinned joint probe seed (R7-37), diagnose off the global RNG (R7-36), one rMin default (R7-35), localCovariance on the solve's s0² (R7-40); version 6.1.7; §12.41.
@@ -8199,8 +8200,8 @@ long functions get recorded reasons, not a split.
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 86 (part 1) | `diagnoseAccum` keeps batch ADDRESSES, not batches: one enumeration pass folds every whitened batch into the full factor, `batchFcn` rebuilds a batch from its address through the loader and `arcBatchWhiten`, one arc cached; the n x u_full store (R7-24, ~228 GB at a GRAVFIRE month) is gone; **version 6.2.0** | 118 (PR #123 merged 472a3eb) | OPEN (2026-10-10; audit CLEAN; CI pending) |
-| 86 (part 2) | the block-native verdict: per-observation redundancy from the reduced common system and the per-system Schur blocks instead of a dense factor over u_full = nc + sum nl; then the M4 row's absorption (engine.verdict) | 86 part 1 | NOT STARTED -- design below, awaiting the user |
+| 86 (part 1) | `diagnoseAccum` keeps batch ADDRESSES, not batches: one enumeration pass folds every whitened batch into the full factor, `batchFcn` rebuilds a batch from its address through the loader and `arcBatchWhiten`, one arc cached; the n x u_full store (R7-24, ~228 GB at a GRAVFIRE month) is gone; **version 6.2.0** | 118 (PR #123 merged 472a3eb) | DONE (2026-10-10, PR #124, merge cfd72b5; CI GREEN on b6a17fd) |
+| 86 (part 2) | the block-native cofactor: `engine.BlockCofactor` (reduced commons factor + per-system local blocks) answers every Qxx question of diagnose / snoop / ellipse / report; no u_full x u_full matrix anywhere in the diagnostics; snoop's downdate on the blocks; `diagnoseAccum` reads no data; **version 6.3.0** | 86 part 1 (PR #124 merged cfd72b5) | OPEN (2026-10-10; audit CLEAN; CI pending) |
 
 **Scope (user: "continue with WP-86").** The M4 ledger row (line ~4974) defines WP-86 as
 the whole verdict-from-the-sweep redesign (one `engine.verdict` absorbing diagnose /
@@ -8262,3 +8263,54 @@ obsType) through the lazy source, so a VCE run of n passes builds each 2n+4 time
 not 2n+2. The expectation moved with the reason written at the site; CacheDays = Inf
 still builds every day once.
 
+**Part 2 -- user decision (2026-10-10): option (a)**, the block-native rewrite of
+diagnose / snoop (not (b) a commons-only R with per-row corrections, not (c) stopping).
+
+**Part 2, what was done.**
+- **`lsqvce.engine.BlockCofactor`** (new ENGINE unit, value class). From Rc (Rc'Rc =
+  N_red, the prior folded in) and per system H_s (H'H = pinv(Nll_s)) and G_s =
+  pinv(Nll_s) Nlc_s it answers: `halfRows(A)` (W with W'W = A Qxx A', the dense code's
+  R' \ A'), `qxxTimes(A)` (Qxx A'), `diagonal`, `block(idx)`, `maxCorrelation` (column
+  panels of ~64 MB), `condLowerBound` (diagonals + 30 power steps on N and Qxx -- a
+  rigorous LOWER bound, report prints it as one), `downdate(a, p)` (the Schur complement
+  of a rank-one downdate is rank-one: cholupdate of Rc with sqrt(p/d) z, z = a_c - G'b,
+  d = 1 - p b'inv(Nll) b; Nll and G updated in closed form). A singular local block
+  (the accumulator's pinv fallback, same switch rcond < eps and the same TruncTol cut)
+  gets the eigen pseudo-inverse half, so Qxx is the cofactor of the solve made.
+  Mirror `dev/reviews/R7_2026-10-09/mirrors/wp86/blockcofactor.py`: every method equals
+  the dense inverse to ~1e-16, incl. two downdates, the closed-form x and a pinv block.
+- **`BlockAccumulator.commonFactor`** (+ `QRSystem.squareRoot`): on the QR backend the
+  backend's own square root with the prior rows folded in by QR (no chol of squared
+  normals); on the normal backend chol of `reducedNormalMatrix` (the factor solve() used).
+- **`diagnoseAccum`**: Q from the accumulator's blocks (Nll_r, the REGULARISED block the
+  solve used -- the dense path factored the raw rows, which disagreed with x whenever a
+  local block was regularised); one batch = one ARC, indexed from the loaders' memoised
+  meta answers, n = sum(mObs) + prior rows: the bridge reads no data (the build count of
+  `testCacheDaysCountsTheBuilds` 2n+4 -> 2n+3). diagSol gains rank / defect (snoop read
+  them; R.source lacked them) and condIsBound; loses R.
+- **`diagnose`**: `R' \ A'` -> `Q.halfRows`, `Qxx * A'` -> `Q.qxxTimes`, diag(Qxx) from
+  the blocks; D.R / D.Qxx / D.corr retired (D.Q in their place; corrMax from panels); the
+  dead QxxCorr free-network branch removed (a datum is a prior inside Q since R5 5b);
+  `lsqvce:diagnose:largeU` retired.
+- **`snoop`**: downdate on Q (GUARD 2 inside `downdate`), x in closed form x + p v Qxx~ a
+  (no `accumB` pass per rejection), the row returned by `scanWorst` (no `getRow` pass);
+  the clean re-solve reads one batch at a time through precomputed offsets (it
+  concatenated every surviving row at full width -- R7-24 again -- and the offset search
+  re-read batches 1..k for each k). `badBatch` / `badIndex` retired with their helpers.
+- `ellipse` reads `D.Q.block`; report's PAR_COND names the bound's construction.
+- Tests (test_vceFunction, +7 points, 624 declared): BlockCofactor against the dense
+  inverse (reference), downdate + closed-form x vs dense re-solve (precision), scale
+  equivariance (metamorphic), a singular local block (robustness), batched == per-row
+  (vectorisation), badBlocks / multiSystemRow (contract), snoop's downdated x == its clean
+  re-solve on a fit WITH locals; the bridge tests now pin Q = inv(N of the replayed rows).
+
+**What part 2 does NOT change (measured by arithmetic, GRAVFIRE month nc = 9 409, sum
+nl = 4 320, 2.07 M rows):** the per-row cost stays O(nc^2) because the commons dominate:
+halfRows ~4.4e7 + qxxTimes ~1.3e8 flops per row in the main pass, ~4e14 per diagnose
+(1.7x less than the dense path's ~7.8e14). Memory: Rc 0.71 GB + G 0.33 GB instead of four
+dense 1.5 GB matrices. snoop's clean re-solve (Reaccumulate=true) still re-accumulates all
+u_full parameters as commons (a dense u_full factor): Reaccumulate=false is the
+block-native route at scale. `engine.leverage` / `leverageBlocks` (the VCE redundancy
+path) implement the same block formula separately and `redundancy.m` broadcasts a copy of
+the commons factor per system -- both follow-ups (one formula, one factor), not done here.
+The M4 row's `engine.verdict` absorption stays open (depends on WP-85).

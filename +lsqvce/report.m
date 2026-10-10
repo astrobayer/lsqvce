@@ -71,6 +71,10 @@ function V = report(D, opt)
 %   model Claude Fable 5.
 %   See also LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.SYSTEMATIC.
 %
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-86 part 2 (R7-24): PAR_COND
+%   states how the lower bound on cond(N) is formed (from the block
+%   cofactor, no SVD). With assistance from Claude (Anthropic), model Claude
+%   Opus 5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-115 (finding R7-18):
 %   adjustRobust's help promised "report() says so" and report said nothing --
 %   a robust fit's sigma0 and covariance are those of the REWEIGHTED problem,
@@ -685,22 +689,22 @@ end
 
 %% ==================================================== LEVEL 4: PARAMETERS
 if integrityOK
-    % condEst returns an EXACT svd-based condition number for small dense R,
-    % but only a LOWER BOUND (the ratio of extreme diagonal entries) when R is
-    % sparse or large, because svd() does not accept sparse input and
-    % densifying a big R would defeat the sparse path.
+    % Every fit's diagnostics give cond(N) as a LOWER BOUND (WP-86 part 2):
+    % the largest diagonal entries and Rayleigh quotients of N and of its
+    % inverse, from the block cofactor -- an SVD of the u_full x u_full
+    % factor is exactly the O(u^3) step the block-native diagnostics remove.
     %
     % A lower bound can only UNDER-report trouble, never invent it -- but it
-    % must not be printed as though it were exact, or a sparse run looks better
+    % must not be printed as though it were exact, or a run looks better
     % conditioned than it is.
     if isfield(D, 'condIsBound') && D.condIsBound
         push(4, 'NOTE', 'PAR_COND', ...
             ['cond(R) >= %.3e     cond(N) >= %.3e   [LOWER BOUND]\n' ...
-             'R is sparse or large, so the condition number is estimated from ' ...
-             'the extreme diagonal entries of the triangular factor rather than ' ...
-             'by an SVD. This is a lower bound: the true conditioning may be ' ...
-             'WORSE than shown, never better. Treat the ill-conditioning ' ...
-             'thresholds below as optimistic.'], D.condR, D.condN);
+             'The condition number is bounded from the cofactor''s blocks (the ' ...
+             'largest diagonal entries and power iterations on N and its ' ...
+             'inverse) rather than by an SVD of the full factor. This is a ' ...
+             'lower bound: the true conditioning may be WORSE than shown, never ' ...
+             'better. The ill-conditioning thresholds below are optimistic.'], D.condR, D.condN);
     else
         push(4, 'NOTE', 'PAR_COND', ...
             'cond(R) = %.3e     cond(N) = %.3e   [exact, from SVD]', ...

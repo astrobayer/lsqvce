@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.2.0 — User Manual"
+title: "lsqvce 6.3.0 — User Manual"
 subtitle: "least-squares adjustment with variance component estimation"
 date: "built from the sources; the single documentation authority"
 ---
@@ -1497,6 +1497,10 @@ LSQVCE.REPORT  Judge a least-squares adjustment and say so in words.
   model Claude Fable 5.
   See also LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.SYSTEMATIC.
 
+  Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-86 part 2 (R7-24): PAR_COND
+  states how the lower bound on cond(N) is formed (from the block
+  cofactor, no SVD). With assistance from Claude (Anthropic), model Claude
+  Opus 5.5.
   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-115 (finding R7-18):
   adjustRobust's help promised "report() says so" and report said nothing --
   a robust fit's sigma0 and covariance are those of the REWEIGHTED problem,
@@ -1983,6 +1987,7 @@ What `fit` dispatches to and what it is built from. One line per public unit, fr
 | `applyRegularisation` | regularisation of the reduced system |
 | `arcVarianceFactors` | per-arc variance factors |
 | `BlockAccumulator` | block-arrow accumulation with per-system Schur pre-elimination |
+| `BlockCofactor` | the cofactor of the full parameter set, kept as blocks (WP-86) |
 | `checkPSD` | PSD sanity check |
 | `collectResiduals` | residual collection per stream |
 | `CommonPrior` | prior on the common block (regularisation as observations) |
@@ -2109,6 +2114,8 @@ Every identifier the package raises, from `dev/docs_src/error_ids.csv` (the cata
 
 | identifier | where / what |
 |---|---|
+| `lsqvce:BlockCofactor:badBlocks` | engine.BlockCofactor — error — v6.3.0 |
+| `lsqvce:BlockCofactor:multiSystemRow` | engine.BlockCofactor — error — v6.3.0 |
 | `lsqvce:Options:badGrid` | Options — error — v4.0 |
 | `lsqvce:Options:badGroupField` | Options — error — v4.0 |
 | `lsqvce:Options:badOnPass` | Options — error — v4.0 |
@@ -2232,7 +2239,6 @@ Every identifier the package raises, from `dev/docs_src/error_ids.csv` (the cata
 | `lsqvce:diagnose:badPmatrix` | engine.diagnose — error — v4.0 |
 | `lsqvce:diagnose:badTest` | engine.diagnose — error — v4.0 |
 | `lsqvce:diagnose:batchMismatch` | engine.diagnose — error — v4.0 |
-| `lsqvce:diagnose:largeU` | engine.diagnose — warning — v4.0 |
 | `lsqvce:diagnose:nBatch` | engine.diagnose — error — v4.0 |
 | `lsqvce:diagnose:noRobustScale` | engine.diagnose — error — v4.0 |
 | `lsqvce:diagnoseAccum:needKeepLocal` | engine.diagnoseAccum — error — v4.0 |
@@ -2363,8 +2369,6 @@ Every identifier the package raises, from `dev/docs_src/error_ids.csv` (the cata
 | `lsqvce:separable:startupNotPD` | kernel.separableWhiten — warning — v4.0 |
 | `lsqvce:sharedProbe:badProbes` | engine.sharedProbe — error — v4.0 |
 | `lsqvce:sharedProbe:notSquare` | engine.sharedProbe — error — v4.0 |
-| `lsqvce:snoop:badBatch` | engine.snoop — error — v4.0 |
-| `lsqvce:snoop:badIndex` | engine.snoop — error — v4.0 |
 | `lsqvce:snoop:breakdown` | engine.snoop — error — v4.0 |
 | `lsqvce:snoop:contaminated` | engine.snoop — warning — v4.0 |
 | `lsqvce:snoop:correlatedBatch` | engine.snoop — error — v4.0 |

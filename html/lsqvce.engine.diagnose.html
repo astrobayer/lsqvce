@@ -56,13 +56,15 @@ order to judge the adjustment:
     ext    external reliability: |dx| induced by an undetected MDB,
            expressed as a multiple of the parameter&#x27;s own sigma
 
-Nothing of size n-by-n or n-by-u is formed HERE: per batch the cost is
-O(u^2 * nk) and the memory is O(u^2 + nk). The batch source every fit uses,
-LSQVCE.ENGINE.DIAGNOSEACCUM, rebuilds the batches on demand since WP-86
-part 1 (it stored all n x u whitened rows before, R7-24); u here is the FULL
-parameter count (commons + locals), which part 2 is to remove.</pre>
+Nothing of size n-by-n, n-by-u or u-by-u is formed: the cofactor of the
+FULL parameter set (commons + every system&#x27;s locals) is sol.Q, an
+LSQVCE.ENGINE.BLOCKCOFACTOR, so per row the cost is O(nc^2 + nl*nc) and the
+memory O(nc^2 + sum nl*nc) (WP-86 part 2; a dense u x u factor before). The
+batch source every fit uses, LSQVCE.ENGINE.DIAGNOSEACCUM, rebuilds the
+batches on demand (WP-86 part 1, R7-24).</pre>
 <h3>Inputs</h3>
-<pre class="example">sol       the diagnosed solution (R.source; LSQVCE.ENGINE.DIAGNOSEACCUM builds it)
+<pre class="example">sol       the diagnosed solution (R.source; LSQVCE.ENGINE.DIAGNOSEACCUM builds
+          it): x, Q (the block cofactor), n, u, r, sigma0, s0sq, vPv, ...
 batchFcn  function handle, [A,l,p] = batchFcn(k), k = 1..nBatch.
           Must reproduce EXACTLY the batches given to the accumulator,
           in the same order. This is checked: a replay that sees a
@@ -102,7 +104,10 @@ is the difference between a usable outlier list and a meaningless one.</pre>
 <h3>Output</h3>
 <pre class="example">D  1x1 struct  residuals, redundancy numbers r_i, leverage h_i, the
                standardised w_i / tau_i, MDB, flagIdx and the
-               contamination gauge -- everything LSQVCE.REPORT reads</pre>
+               contamination gauge -- everything LSQVCE.REPORT reads.
+               The parameter cofactor is D.Q (D.Q.block(idx) is
+               Qxx(idx, idx)); D.sigX / D.qxxDiag its diagonal, and
+               D.corrMax / D.corrMaxPar the strongest correlation</pre>
 <h3>Example</h3>
 <pre class="example">% The SAME batch source must be replayed -- this is checked. On the
 % block path (v5) R.source is the diagnosed solution and R.batchFcn /
@@ -135,11 +140,13 @@ typed `arguments` signature, canonical UpperCamelCase option names
 (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
 case-sensitive lowercase). With assistance from Claude (Anthropic),
 model Claude Fable 5.
-IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
-  lsqvce:diagnose:largeU                     [warning] u = X parameters
+See also LSQVCE.ENGINE.DIAGNOSEACCUM, LSQVCE.REPORT, LSQVCE.ENGINE.SNOOP,
+LSQVCE.ENGINE.BLOCKCOFACTOR.
 
-See also LSQVCE.ENGINE.DIAGNOSEACCUM, LSQVCE.REPORT, LSQVCE.ENGINE.SNOOP.
-
+Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-86 part 2 (R7-24): the
+cofactor comes as blocks (sol.Q); the dense R, Qxx and correlation matrix
+(D.R, D.Qxx, D.corr) and the largeU warning about them are retired. With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 3 (R7-24): the help
 separates this function&#x27;s own working set from its batch source&#x27;s --
 diagnoseAccum keeps all whitened rows at full width (WP-86). With

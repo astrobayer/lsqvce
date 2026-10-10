@@ -18,7 +18,7 @@ function E = ellipse(D, pair, opt)
 %
 %   INPUT
 %     D     1x1 struct  diagnostics from lsqvce.engine.diagnose (R.diag); uses
-%                       the parameter estimate and Qxx (cofactor) plus sigma0/s0.
+%                       the parameter estimate and the cofactor D.Q plus sigma0/s0.
 %     pair  1x2 double  the two parameter indices [i j] to plot the ellipse for.
 %
 %   NAME-VALUE
@@ -68,8 +68,11 @@ function E = ellipse(D, pair, opt)
 %   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
 %   case-sensitive lowercase). With assistance from Claude (Anthropic),
 %   model Claude Fable 5.
-%   See also LSQVCE.ENGINE.DIAGNOSE.
+%   See also LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.BLOCKCOFACTOR.
 %
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-86 part 2 (R7-24): the 2 x 2
+%   cofactor comes from D.Q.block (the dense D.Qxx is retired). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34, R7-39): 2
 %   F(2, r) with the estimated s0^2 (chi2(2) under-covered at small r);
 %   output .k2. With assistance from Claude (Anthropic), model Claude Opus
@@ -102,7 +105,7 @@ if i == j
     error('lsqvce:ellipse:samePair', 'The two indices must differ.');
 end
 
-Q = D.Qxx([i j], [i j]);
+Q = D.Q.block([i j]);          % Qxx([i j], [i j]) from the block cofactor (WP-86 part 2)
 Q = (Q + Q') / 2;
 
 estimated = false;

@@ -60,7 +60,6 @@ lsqvce:datum:zeroN,engine.datum
 lsqvce:diagnose:badPmatrix,engine.diagnose
 lsqvce:diagnose:badTest,engine.diagnose
 lsqvce:diagnose:batchMismatch,engine.diagnose
-lsqvce:diagnose:largeU,engine.diagnose
 lsqvce:diagnose:noRobustScale,engine.diagnose
 lsqvce:diagnoseAccum:needKeepLocal,engine.diagnoseAccum
 lsqvce:diagnoseAccum:noSystems,engine.diagnoseAccum
@@ -113,8 +112,6 @@ lsqvce:separable:epochNotPD,kernel.separableWhiten
 lsqvce:separable:sigmaLength,kernel.separableWhiten
 lsqvce:separable:startupNotPD,kernel.separableWhiten
 lsqvce:sharedProbe:badProbes,engine.sharedProbe
-lsqvce:snoop:badBatch,engine.snoop
-lsqvce:snoop:badIndex,engine.snoop
 lsqvce:snoop:breakdown,engine.snoop
 lsqvce:snoop:contaminated,engine.snoop
 lsqvce:snoop:downdateFailed,engine.snoop

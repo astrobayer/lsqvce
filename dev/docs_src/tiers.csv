@@ -12,6 +12,7 @@ engine.adjustVCEjoint,ENGINE,Ellmer ten-step joint co-estimation with keyed arc 
 engine.localColumns,ENGINE,the per-column (row day arc) unroll of a scoped local plan; read by layout / toTable / prior-group expansion
 engine.makeLoader,ENGINE,"day-builder -> Loader (built INSIDE fit from the data struct, R4-D4)"
 engine.BlockAccumulator,ENGINE,block-arrow accumulation with per-system Schur pre-elimination
+engine.BlockCofactor,ENGINE,"the cofactor of the full parameter set, kept as blocks (WP-86)"
 engine.CommonPrior,ENGINE,prior on the common block (regularisation as observations)
 engine.NormalEqSystem,ENGINE,normal-equation backend
 engine.QRSystem,ENGINE,QR backend

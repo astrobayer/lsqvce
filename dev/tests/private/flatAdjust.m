@@ -19,13 +19,17 @@ function [sol, D, V] = flatAdjust(u, batchFcn, nBatch, varargin)
 %     'Verbose'  -> Options.Verbose
 %   OUTPUT (the flat contract)
 %     sol.x, .n, .u, .r (= dof), .vPv, .s0sq, .sigma0 (a-priori 1), .rank,
-%     .defect, .method, .datumB, .Cxx, .R (the diagnostic-frame factor)
+%     .defect, .method, .datumB, .Cxx, .Q (the diagnostic-frame cofactor,
+%     lsqvce.engine.BlockCofactor -- WP-86 part 2)
 %     D   = R.diag (the same lsqvce.engine.diagnose on the whitened rows: D.v
 %           is sqrt(p).*v -- the whitened residual)
 %     V   = R.report(Verbose=false)
 %
 %   Created 2026-09-03 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.1 -- R5 Level M5, WP-87 round 5b'.
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-86 part 2: sol carries the
+%   block cofactor Q instead of the dense R. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
     p = inputParser;  p.KeepUnmatched = false;
     addParameter(p, 'Method', 'qr');
     addParameter(p, 'DatumB', []);
@@ -60,5 +64,5 @@ function [sol, D, V] = flatAdjust(u, batchFcn, nBatch, varargin)
                  'vPv', R.sol.vtv, 's0sq', R.sigma0^2, 'sigma0', 1, ...
                  'rank', u - d, 'defect', d, 'method', char(o.Method), ...
                  'datumB', o.DatumB, 'Cxx', R.sol.Cxx);
-    if isfield(R.source, 'R'), sol.R = R.source.R; end
+    sol.Q = R.source.Q;                 % the block cofactor (WP-86 part 2)
 end

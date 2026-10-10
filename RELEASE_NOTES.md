@@ -1,5 +1,34 @@
 # lsqvce release notes
 
+## 6.3.0 — 2026-10-10 (WP-86 part 2: the diagnostics' cofactor is kept as blocks)
+
+- **No dense factor of the full parameter set (R7-24).** The diagnostics used a dense
+  u × u factor over commons plus all locals (13 729 at a GRAVFIRE month, 1.5 GB per copy;
+  `diagnose` held four: R, its inverse, Qxx and the correlation matrix). The new engine unit
+  `lsqvce.engine.BlockCofactor` answers every question they ask of Qxx — leverage, Qxx·a,
+  diag(Qxx), a 2 × 2 block, the strongest correlation, a conditioning bound, snoop's
+  one-row removal — from the reduced commons factor and each system's local blocks, the
+  ones the solve used: about 1 GB at that scale. Verified against the dense inverse to
+  ~1e-16 (the Python mirror wp86/blockcofactor.py in the R7 review folder) and pinned by
+  seven new tests.
+- **`diagnoseAccum` reads no data itself.** One batch is one arc; the index comes from
+  the loaders' memoised meta answers and the row count from the accumulator. A VCE run with
+  `CacheDays = 1` builds each day 2n+3 times (2n+4 in 6.2.0).
+- **`snoop` downdates the blocks.** The rank-one removal is a rank-one update of the
+  commons factor plus the observation's own local block, and the estimate follows in
+  closed form (x + p·v·Qxx~·a): no row-search pass, no right-hand-side re-accumulation pass
+  per rejection. The clean re-solve reads one batch at a time (it concatenated every
+  surviving row at full width), but still treats all parameters as commons.
+- **Changed result fields (breaking for code that read them):** `D.R`, `D.Qxx` and
+  `D.corr` are gone, and `R.source.R` with them; the cofactor is `D.Q` / `R.source.Q`
+  (`D.Q.block(idx)` is `Qxx(idx, idx)`, `D.Q.diagonal()` its diagonal). `D.condN` /
+  `D.condR` are now a LOWER bound (`D.condIsBound`), formed without an SVD; the report says
+  so. Retired identifiers: `lsqvce:diagnose:largeU` (the dense matrices it warned about are
+  gone), `lsqvce:snoop:badBatch`, `lsqvce:snoop:badIndex` (their helpers are gone). New:
+  `lsqvce:BlockCofactor:badBlocks`, `lsqvce:BlockCofactor:multiSystemRow`.
+- **What it does not change:** the per-observation cost stays O(nc²) — the commons
+  dominate (about 1.7× fewer flops than the dense factor at GRAVFIRE scale).
+
 ## 6.2.0 — 2026-10-10 (WP-86 part 1: the diagnostics no longer store the data)
 
 - **Every fit's diagnostic source streams (R7-24).** `lsqvce.engine.diagnoseAccum` stored
