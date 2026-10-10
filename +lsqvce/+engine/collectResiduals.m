@@ -30,9 +30,11 @@ function x = collectResiduals(res, satId, obsType, field)
 %     lsqvce:collectResiduals:badRes  the residual field is absent or the wrong
 %                                   shape
 %
-%   See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.KERNEL.RESIDUALACV,
-%            LSQVCE.KERNEL.WHITENESSCORR
+%   See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.KERNEL.WHITENESSCORR
 %
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): the
+%   deleted KERNEL.RESIDUALACV reference removed. With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Created 2026-07-15 13:40 (CEST, UTC+02:00) with assistance from
 %   Claude (Anthropic), model Claude Opus 4.8.
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,

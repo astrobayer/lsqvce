@@ -69,7 +69,7 @@ CONSTRUCTOR
                  b = 5000 is already a 200 MB matrix and ~40 GFLOP.
   &#x27;BatchOverlap&#x27; rows of overlap between batches (default [] = auto)
                  Leave empty. The accumulator then reads arc.filterMemory
-                 from the loader, which LSQVCE.COVMODELFACTORY sets. Forcing
+                 from the loader, which LSQVCE.ENGINE.COVMODEL sets. Forcing
                  it to 0 with a filter covariance costs ~12 orders of
                  magnitude of accuracy. See BATCH OVERLAP below.
   &#x27;Reg&#x27;          &#x27;none&#x27; (default) | &#x27;tikhonov&#x27; | &#x27;tsvd&#x27; | &#x27;lm&#x27; | &#x27;auto&#x27;
@@ -80,6 +80,10 @@ CONSTRUCTOR
   &#x27;TruncTol&#x27;     rank tolerance relative to lambda_max (default 1e-10)
   &#x27;CondWarn&#x27;     cond(Nll) above this -&gt; &#x27;ill-conditioned&#x27; (default 1e8)
   &#x27;CondAbort&#x27;    cond(Nll) above this -&gt; &#x27;rank-deficient&#x27;  (default 1e14)
+  &#x27;LocalBlockSize&#x27;  [] | k: the locals form independent blocks of k
+                 columns (arc-wise locals), so Nll is pre-eliminated
+                 block by block -- O(nBlk k^3) instead of O(nl^3); used
+                 only when k divides nl (default [] = dense)
   &#x27;KeepLocal&#x27;    keep the Schur blocks so the local parameters can be
                  recovered and residuals computed (default true)
   &#x27;Verbose&#x27;      print one line per system (default true)
@@ -106,7 +110,7 @@ METHODS
   addSystems(specs)                        several systems, parallelisable
   sol = solve()                            solve for the common parameters
   y   = backSubstitute(sysID, x)           recover one system&#x27;s locals
-  Cyy = localCovariance(sysID, Cxx)        their covariance
+  Cyy = localCovariance(sysID, Cxx, s0sq)  their covariance (sol.Cxx, sol.s0sq)
   res = residuals(sol, ...)                second pass over the data
   tbl = report()                           per-system diagnostics table</pre>
 <h3>The Loader Contract</h3>
@@ -123,7 +127,7 @@ METHODS
     .t             m x 1    epochs (optional)
     .Wfcn          @(idx,A,B,l,opt) -&gt; whitened A,B,l   (preferred)
     .Cfcn          @(idx,opt) -&gt; dense batch covariance (fallback)
-    .filterMemory  required BatchOverlap (set by LSQVCE.COVMODELFACTORY)
+    .filterMemory  required BatchOverlap (set by LSQVCE.ENGINE.COVMODEL)
 
 The accumulator visits day -&gt; obsType -&gt; arc and releases each arc
 immediately. Return an empty arc (l = []) for a data gap; it is skipped.
@@ -264,8 +268,12 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
   lsqvce:accum:localSummarySkipped           [warning] locals[X]
   lsqvce:accum:pinvFallback                  [warning] System X
 
-See also LSQVCE.COVMODELFACTORY, LSQVCE.ENGINE.RESIDUALS, LSQVCE.ENGINE.CHECKPSD, LSQVCE.ENGINE.QRSYSTEM
+See also LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.RESIDUALS, LSQVCE.ENGINE.CHECKPSD, LSQVCE.ENGINE.QRSYSTEM
 
+Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34, R7-35,
+R7-40): the deleted COVMODELFACTORY reference replaced, LocalBlockSize
+documented, localCovariance takes the solve&#x27;s s0sq. With assistance from
+Claude (Anthropic), model Claude Opus 5.5.
 Generated with assistance from Claude (Anthropic), model Claude
 Opus 4.8.
 Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,

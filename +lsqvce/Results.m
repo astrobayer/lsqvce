@@ -95,7 +95,8 @@ classdef Results < handle
 %     lsqvce:Results:noVPv          compare() on a Results without a finite v'Pv
 %     lsqvce:Results:noHistory      an iteration reader was called on a
 %                                   single-solve Results (adjustBlock does not
-%                                   iterate); use the result of adjustVCE
+%                                   iterate); use the result of an iterating
+%                                   fit (Estimate = "noise", Robust, Nonlinear)
 %     lsqvce:Results:noCovariance   coefficients() on a Results whose sol
 %                                   carries no Cxx
 %     lsqvce:Results:noAccumulator  residuals()/contribution() on a Results
@@ -111,6 +112,9 @@ classdef Results < handle
 %   See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.REPORT,
 %            LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): the
+%   noHistory remedy no longer names the deleted adjustVCE. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-99: R.report() forwards the
 %   loop state, so the verdict says whether the stochastic model settled.
 %   With assistance from Claude (Anthropic), model Claude Opus 5.
@@ -769,14 +773,11 @@ classdef Results < handle
                     plot(ax2, passes, P(:, k), '-o', 'LineWidth', 1.2, ...
                          'DisplayName', lbl{k});
                 end
-                % The threshold travels WITH the history (adjustVCE stores
-                % hist.whiteAlpha), so this reads nothing from the builder.
-                % Older Results predating that field simply get no line.
-                if isfield(h, 'whiteAlpha') && ~isempty(h.whiteAlpha)
-                    alpha = h.whiteAlpha;
-                    yline(ax2, alpha, '--', sprintf('WhiteAlpha = %.3g', alpha), ...
-                          'Color', [0.2 0.5 0.2]);
-                end
+                % R7-34: the threshold is the joint estimator's fixed Ljung-Box
+                % level (adjustVCEjoint>whitenessRow, alpha 0.05). The former
+                % reader of hist.whiteAlpha drew nothing: no producer wrote it
+                % since the separable driver was retired.
+                yline(ax2, 0.05, '--', 'alpha = 0.05', 'Color', [0.2 0.5 0.2]);
                 legend(ax2, 'Interpreter', 'none', 'Location', 'best');
             else
                 text(0.5, 0.5, 'no whitePval recorded', 'Parent', ax2, ...

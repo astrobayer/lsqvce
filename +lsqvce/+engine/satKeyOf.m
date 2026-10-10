@@ -2,10 +2,9 @@ function key = satKeyOf(satId)
 %LSQVCE.ENGINE.SATKEYOF  Valid struct field name for a satellite identifier.
 %   key = lsqvce.engine.satKeyOf(satId)
 %
-%   The single place that defines the satellite-key convention shared by the
-%   GRACE-FO example drivers ITERATESEPARABLE (which WRITES
-%   temporalModel.(key).(obsType)) and GRACELOADER (which READS it) and by
-%   LSQVCE.ENGINE.RESOLVESATSPECS, so they can never drift.
+%   The single place that defines the 's_' + satId satellite-key convention,
+%   so every caller that writes a per-satellite field and every caller that
+%   reads it form the same name.
 %
 %   INPUT
 %     satId   1x1 | 1xk   char | string | numeric   Satellite identifier, e.g.
@@ -16,8 +15,11 @@ function key = satKeyOf(satId)
 %                                 passed through matlab.lang.makeValidName
 %                                 ('C' -> 's_C', 1 -> 's_1').
 %
-%   See also LSQVCE.ENGINE.RESOLVESATSPECS, LSQVCE.ENGINE.NORMALIZESATLIST
+%   See also MATLAB.LANG.MAKEVALIDNAME
 %
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): the
+%   references to drivers that exist nowhere removed. With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Created 2026-07-15 13:40 (CEST, UTC+02:00) with assistance from
 %   Claude (Anthropic), model Claude Opus 4.8.
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,

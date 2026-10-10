@@ -112,11 +112,12 @@ function [sol, D, REJ] = snoop(sol, D, batchFcn, opt)
 %       [sol, D, REJ] = lsqvce.engine.snoop(R.source, R.diag, R.batchFcn, 'test', 'mad');
 %
 %   INPUT
-%     sol       1x1 struct  the solution to start from (from LSQVCE.ENGINE.ADJUST)
+%     sol       1x1 struct  the solution to start from (R.source)
 %     D         1x1 struct  its diagnostics
 %     batchFcn  1x1 fh      the SAME batch function, for the re-solves
-%     varargin  Name/Value: 'test' ('auto'|'pope'|'baarda'|'mad'), 'alpha',
-%                           'maxReject', 'force', 'verbose'
+%     Name/Value: 'Test' ('pope'|'mad'), 'Alpha', 'Bonferroni', 'MaxReject',
+%                 'MaxRejectFrac' (the breakdown cap, default 0.25), 'RMinReject',
+%                 'Reaccumulate', 'NBatch' (default D.nBatch), 'Force', 'Verbose'
 %
 %   ERRORS
 %     lsqvce:snoop:badBatch        batchFcn did not return [A, l, p], or
@@ -126,7 +127,7 @@ function [sol, D, REJ] = snoop(sol, D, batchFcn, opt)
 %                                  observations cannot be rejected individually
 %     lsqvce:snoop:tooContaminated the contamination gauge is past the point
 %                                  where tau is meaningful -- switch to
-%                                  'test','mad', or use LSQVCE.ENGINE.ROBUST
+%                                  'test','mad', or use LSQVCE.ENGINE.ADJUSTROBUST
 %     lsqvce:snoop:breakdown       the rejection cap was reached and the scale
 %                                  estimate has broken down; the data are not
 %                                  a few blunders on a good model
@@ -146,8 +147,12 @@ function [sol, D, REJ] = snoop(sol, D, batchFcn, opt)
 %     lsqvce:snoop:maxReject                     [warning] Reached the rejection cap (X)
 %     lsqvce:snoop:rejectFraction                [warning] STOPPING
 %
-%   See also LSQVCE.ENGINE.ROBUST, LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.SYSTEMATIC.
+%   See also LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.SYSTEMATIC.
 %
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34, R7-35):
+%   the runtime remedy names live units; the Name-Value list matches the
+%   arguments block; the re-diagnosis inherits D's thresholds. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
@@ -462,9 +467,14 @@ if o.reaccumulate && ~isempty(REJ.idx)
     acc.addSystem(L.sysID, 0, L.closure, 1);
     solB = acc.solve();
     [dsol, bf, nBd] = lsqvce.engine.diagnoseAccum(acc, solB);
+    % R7-35: the re-diagnosis classifies with the SAME thresholds as the D it
+    % was handed (rMin / rWeak / beta), not diagnose's defaults -- before, R.diag
+    % and snoop's D could call one observation controlled and uncontrolled.
     D   = lsqvce.engine.diagnose(dsol, bf, 'nBatch', nBd, ...
                            'alpha', o.alpha, 'bonferroni', o.bonferroni, ...
-                           'test', o.test);
+                           'test', o.test, 'rMin', lsqvce.util.getfielddef(D, 'rMin', 0.01), ...
+                           'rWeak', lsqvce.util.getfielddef(D, 'rWeak', 0.10), ...
+                           'beta', lsqvce.util.getfielddef(D, 'beta', 0.20));
     D.rejectedIdx = REJ.idx;
     % the returned sol keeps the caller's fields and carries the clean solve
     sol.x = solB.x(:);  sol.s0sq = solB.s0sq;  sol.sigma0 = solB.sigma0;
@@ -554,7 +564,7 @@ function [bestW, bestI, bestR, bestV, bestP, vPv, nFlag] = ...
                  'batches, so run it to LOCATE the outliers (D.flagIdx). Then ' ...
                  'either (a) drop the whole affected block, (b) rebuild the ' ...
                  'block covariance without the rejected observation and re-run ' ...
-                 'lsqvce.engine.adjust, or (c) use lsqvce.engine.robust, which downweights ' ...
+                 'lsqvce.fit, or (c) use lsqvce.engine.adjustRobust, which downweights ' ...
                  'rather than deletes and therefore leaves the block ' ...
                  'structure intact.'], k);
         end

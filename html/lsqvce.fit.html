@@ -116,6 +116,9 @@ Name, Value          any property of lsqvce.Options</pre>
                                here), localParams needs
                                &#x27;arc&#x27;|&#x27;day&#x27;|&#x27;system&#x27; (raised by makeLoader
                                and relabelled)
+    lsqvce:fit:badParamColumns data.paramColumns is malformed: not a
+                               struct, an unknown field, only one of
+                               start / end, or a column the table lacks
     lsqvce:fit:missingField    a required system field is absent, or
                                covariance carries no observation type
     lsqvce:fit:noDays          no day list anywhere
@@ -171,6 +174,9 @@ See also LSQVCE.OPTIONS, LSQVCE.RESULTS, LSQVCE.LAYOUT, LSQVCE.ENGINE.DECLARATIO
          LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT,
          LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTNONLINEAR
 
+Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34, R7-37):
+ERRORS lists badParamColumns; the joint seed recorded is the one used.
+With assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-116 part 1: a &#x27;var&#x27; law under Estimate = &quot;noise&quot; is refused by
 name (lsqvce:fit:varUnderNoise, R7-07). With
 assistance from Claude (Anthropic), model Claude Opus 5.5.

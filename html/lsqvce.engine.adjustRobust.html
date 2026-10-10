@@ -74,7 +74,13 @@ days     1xD double          the calendar</pre>
              -- relative to the problem&#x27;s own scale     default 1e-8
 &#x27;Parallel&#x27;, &#x27;DistributeDays&#x27;, &#x27;ParallelThreshold&#x27;     as adjustBlock
 &#x27;Verbose&#x27;    logical                                  default false
-&#x27;Provenance&#x27; struct   resolved user options for Results.meta (fit)</pre>
+&#x27;Provenance&#x27; struct   resolved user options for Results.meta (fit)
+&#x27;Prior&#x27;      [] | lsqvce.engine.CommonPrior on the common block   default []
+&#x27;Diagnostics&#x27; cell   Name-Value pairs for lsqvce.engine.diagnose default {}
+&#x27;OnPass&#x27;     [] | @(ctx)  the per-pass inspection hook (lsqvce.util.onPass:
+           return false to stop after this pass)           default []
+&#x27;OnPassContext&#x27; struct  fields merged into every ctx (lsqvce.fit
+           passes .data and .processingOptions)            default struct()</pre>
 <h3>Output</h3>
 <pre class="example">R  1x1 lsqvce.Results   stopReason &quot;converged&quot; | &quot;maxPasses&quot;; history(k):
    .pass .scale .dx .nDown (0 &lt; factor &lt; 0.5) .nZero (factor == 0)
@@ -103,8 +109,8 @@ WARNINGS
                                     rows: at the breakdown point (once
                                     per run; diagnostic only)
 
-ACCURACY  the fixed point equals lsqvce.engine.robust&#x27;s on a diagonal
-law (same influence, same MAD scale; pinned in test_fit to 1e-10); on a
+ACCURACY  on a diagonal law the fixed point is classic IRLS (same
+influence, same MAD scale as the retired flat driver had); on a
 correlated law the factors act on the LAW-WHITENED residuals (Yang 1994),
 which the flat driver could not express.</pre>
 <h3>Example</h3>
@@ -114,6 +120,10 @@ which the flat driver could not express.</pre>
 See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.KERNEL.ROBUSTWEIGHTS,
          LSQVCE.ENGINE.RESIDUALS, LSQVCE.FIT
 
+Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34, R7-35):
+the ACCURACY note no longer cites the deleted flat driver; Prior /
+Diagnostics / OnPass / OnPassContext documented. With assistance from
+Claude (Anthropic), model Claude Opus 5.5.
 Created 2026-09-02 (CEST, UTC+02:00) with assistance from Claude
 (Anthropic), model Claude Fable 5.1 -- R5 Level M2, WP-81 round 2b.
 Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-115 (finding R7-17): the stop

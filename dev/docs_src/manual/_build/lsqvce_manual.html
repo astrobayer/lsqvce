@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.1.6 — User Manual</title>
+  <title>lsqvce 6.1.7 — User Manual</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.1.6 — User Manual</h1>
+<h1 class="title">lsqvce 6.1.7 — User Manual</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 <p class="date">built from the sources; the single documentation
@@ -1554,8 +1554,9 @@ matrix, or naturally batched)</p>
 <tr class="odd">
 <td><code>batchFcn</code></td>
 <td>fh</td>
-<td><code>[A, l, p] = batchFcn(k)</code>, k = 1…nBatch — the
-<code>lsqvce.engine.adjust</code> contract</td>
+<td><code>[A, l, p] = batchFcn(k)</code>, k = 1…nBatch — one batch:
+design rows <code>A</code>, observations <code>l</code>, weights
+<code>p</code></td>
 </tr>
 <tr class="even">
 <td><code>numBatches</code></td>
@@ -1572,8 +1573,8 @@ matrix, or naturally batched)</p>
 <td>u×1</td>
 <td>optional. With it the problem is <strong>nonlinear</strong>:
 <code>[A, w, p] = batchFcn(k, x)</code> returns the Jacobian at
-<code>x</code> and <code>w = l − f(x)</code>; solved by Gauss-Newton
-(<code>lsqvce.engine.solveNonlinear</code>). <strong>u =
+<code>x</code> and <code>w = l − f(x)</code>; solved by damped
+Gauss-Newton (<code>lsqvce.engine.adjustNonlinear</code>). <strong>u =
 numel(x0)</strong> — <code>numUnknowns</code> must then be absent
 (<code>lsqvce:fit:uCount</code>)</td>
 </tr>
@@ -2066,6 +2067,9 @@ declared data.</p>
                                  here), localParams needs
                                  &#39;arc&#39;|&#39;day&#39;|&#39;system&#39; (raised by makeLoader
                                  and relabelled)
+      lsqvce:fit:badParamColumns data.paramColumns is malformed: not a
+                                 struct, an unknown field, only one of
+                                 start / end, or a column the table lacks
       lsqvce:fit:missingField    a required system field is absent, or
                                  covariance carries no observation type
       lsqvce:fit:noDays          no day list anywhere
@@ -2121,6 +2125,9 @@ declared data.</p>
            LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT,
            LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTNONLINEAR
 
+  Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34, R7-37):
+  ERRORS lists badParamColumns; the joint seed recorded is the one used.
+  With assistance from Claude (Anthropic), model Claude Opus 5.5.
   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-116 part 1: a &#39;var&#39; law under Estimate = &quot;noise&quot; is refused by
   name (lsqvce:fit:varUnderNoise, R7-07). With
   assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -2280,12 +2287,16 @@ class="header-section-number">5.2</span> lsqvce.Options</h2>
     opts = lsqvce.Options(Estimate=&quot;noise&quot;, Pool=&quot;obsType&quot;);
     opts.Noise.Grid = 2160;  opts.Parallel.Mode = &quot;parfor&quot;;
     R = lsqvce.fit(data, opts);
-    % Robust is NOT in that line on purpose: Robust ~= &quot;none&quot; together with
-    % Estimate = &quot;noise&quot; is refused by fit (lsqvce:fit:notYet). This example
-    % carried Robust=&quot;huber&quot; until v5.3 and could not run (R6 WP-101).
+    % Robust ~= &quot;none&quot; together with Estimate = &quot;noise&quot; runs the robust pass
+    % inside the joint loop (since 6.1, Manual 7.8):
+    opts.Robust = &quot;huber&quot;;
 
   See also LSQVCE.FIT, LSQVCE.RESULTS, the Manual, chapter 3, RELEASE_NOTES.md
 
+  Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): the
+  EXAMPLE no longer says Robust with Estimate = &quot;noise&quot; is refused (it
+  runs since 6.1). With assistance from Claude (Anthropic), model Claude
+  Opus 5.5.
   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-116 part 2 (R7-13): the arc
   factors are absolute and weight the solve; MeanType&#39;s remaining role
   (the clamp floor&#39;s scale) stated. With assistance from Claude
@@ -2406,7 +2417,8 @@ provenance.</p>
     lsqvce:Results:noVPv          compare() on a Results without a finite v&#39;Pv
     lsqvce:Results:noHistory      an iteration reader was called on a
                                   single-solve Results (adjustBlock does not
-                                  iterate); use the result of adjustVCE
+                                  iterate); use the result of an iterating
+                                  fit (Estimate = &quot;noise&quot;, Robust, Nonlinear)
     lsqvce:Results:noCovariance   coefficients() on a Results whose sol
                                   carries no Cxx
     lsqvce:Results:noAccumulator  residuals()/contribution() on a Results
@@ -2422,6 +2434,9 @@ provenance.</p>
   See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.REPORT,
            LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.BLOCKACCUMULATOR
 
+  Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): the
+  noHistory remedy no longer names the deleted adjustVCE. With assistance
+  from Claude (Anthropic), model Claude Opus 5.5.
   Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-99: R.report() forwards the
   loop state, so the verdict says whether the stochastic model settled.
   With assistance from Claude (Anthropic), model Claude Opus 5.

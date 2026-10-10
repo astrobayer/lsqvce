@@ -17,18 +17,21 @@ function E = ellipse(D, pair, opt)
 %   direction you know WORST, and its length is how badly.
 %
 %   INPUT
-%     D     1x1 struct  diagnostics from lsqvce.engine.adjust / lsqvce.engine.diagnose; uses
+%     D     1x1 struct  diagnostics from lsqvce.engine.diagnose (R.diag); uses
 %                       the parameter estimate and Qxx (cofactor) plus sigma0/s0.
 %     pair  1x2 double  the two parameter indices [i j] to plot the ellipse for.
 %
 %   NAME-VALUE
 %     'conf'     confidence level (default 0.95)
 %     'scale'    'apriori' (use sigma0) | 'aposteriori' (use s0)  [default
-%                'aposteriori', matching what the report tabulates]
+%                'aposteriori', matching what the report tabulates]. With
+%                the estimated s0 the region is 2 F(2, r) (r = D.r, the
+%                redundancy), with sigma0 chi2(2) -- R7-39
 %     'npts'     points on the returned outline (default 200)
 %
 %   OUTPUT E
 %     .semiMajor, .semiMinor    axis half-lengths at the requested confidence
+%     .k2                       the squared scale used: 2 F(2, r) or chi2(2)
 %     .angle                    orientation of the major axis, radians CCW from
 %                               the +i axis
 %     .ratio                    semiMajor/semiMinor -- the elongation. Above
@@ -67,6 +70,10 @@ function E = ellipse(D, pair, opt)
 %   model Claude Fable 5.
 %   See also LSQVCE.ENGINE.DIAGNOSE.
 %
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34, R7-39): 2
+%   F(2, r) with the estimated s0^2 (chi2(2) under-covered at small r);
+%   output .k2. With assistance from Claude (Anthropic), model Claude Opus
+%   5.5.
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
@@ -98,9 +105,11 @@ end
 Q = D.Qxx([i j], [i j]);
 Q = (Q + Q') / 2;
 
+estimated = false;
 if strcmpi(o.scale, 'aposteriori')
     fac = D.s0sq;
-    if ~isfinite(fac) || fac <= 0, fac = D.sigma0^2; end
+    estimated = isfinite(fac) && fac > 0;
+    if ~estimated, fac = D.sigma0^2; end
 else
     fac = D.sigma0^2;
 end
@@ -115,10 +124,19 @@ if any(lam < 0)
     lam = max(lam, 0);
 end
 
-% Chi-square with 2 dof gives the scale factor for a joint confidence region.
-% (Using 1 dof would give the marginal interval on each axis, which is a
-% DIFFERENT and smaller region -- the classic factor-of-2.45-vs-1.96 confusion.)
-k2 = lsqvce.engine.stat.chi2Inv(o.conf, 2);
+% Chi-square with 2 dof gives the scale factor for a joint confidence region
+% when the variance factor is KNOWN. (Using 1 dof would give the marginal
+% interval on each axis, which is a DIFFERENT and smaller region -- the
+% classic factor-of-2.45-vs-1.96 confusion.) R7-39: with the ESTIMATED s0^2
+% the exact region is 2 F(2, r): chi2(2) under-covers at small redundancy
+% (a "95 %" ellipse covered 86 % at r = 5, 90.5 % at r = 10; 20 000 draws,
+% R7 mirror m7_ellipse.py) and converges to it as r grows.
+r = lsqvce.util.getfielddef(D, 'r', Inf);
+if estimated && isfinite(r) && r >= 1
+    k2 = 2 * lsqvce.engine.stat.fInv(o.conf, 2, r);
+else
+    k2 = lsqvce.engine.stat.chi2Inv(o.conf, 2);
+end
 
 a = sqrt(k2 * lam(1));      % semi-major
 b = sqrt(k2 * lam(2));      % semi-minor
@@ -142,5 +160,5 @@ E = struct('semiMajor', a, 'semiMinor', b, 'angle', ang, ...
            'xy', xy + cx.', 'centre', cx, 'corr', rho, ...
            'sigInd', si, 'conf', o.conf, 'pair', [i j], ...
            'worstDir', V(:,1), 'bestDir', V(:,2), ...
-           'lambda', lam, 'scale', o.scale);
+           'lambda', lam, 'scale', o.scale, 'k2', k2);
 end

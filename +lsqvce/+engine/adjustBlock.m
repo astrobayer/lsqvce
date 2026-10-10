@@ -58,11 +58,8 @@ function R = adjustBlock(systems, days, opt)
 %       'ParallelThreshold' double 1x1  tasks below which no pool is used
 %                                                              (default 8)
 %       'Verbose'    logical 1x1  accumulator chatter           (default false)
-%       'ShowSeconds' double 1x1  seconds to display each plot-hook figure
-%                            (default 0 = export only; < 0 = show and
-%                            LEAVE OPEN -- the v1 contract, unchanged).
-%                            Engine-side knob, mirrors LSQVCE.ENGINE.ADJUSTVCEJOINT.
-%       'ExportDir'  string 1x1  folder for plot-hook PNGs ("" = do not export).
+%       'Prior'      [] | lsqvce.engine.CommonPrior  the prior on the common
+%                                block (lsqvce.fit stacks data.priors)   (default [])
 %
 %   PLOTTING (R5 M5 5c): the post-solve plot hooks of v4 are retired; plot
 %     from the returned Results -- R.plot("residuals" | "contribution" | ...).
@@ -98,6 +95,9 @@ function R = adjustBlock(systems, days, opt)
 %            LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.DIAGNOSEACCUM, LSQVCE.ENGINE.DIAGNOSE,
 %            LSQVCE.REPORT, LSQVCE.RESULTS
 %
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-35): Prior
+%   documented; ShowSeconds / ExportDir, documented but never accepted,
+%   removed. With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-08-31 (CEST, UTC+02:00), R4 WP-62 (Level L4): 'DistributeDays'
 %   and 'ParallelThreshold' exposed (pass-through to the accumulator; the
 %   engine's own defaults). With assistance from Claude (Anthropic), model

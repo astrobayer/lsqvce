@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-10 — WP-116 part 1 DONE (PR #119, merge 4587fd0; CI 592/592); WP-116 part 2 OPEN (tier B, model Claude Opus 5.5): the per-arc factors WEIGHT the solve (R7-13, user decision) — a keyed `covOverride.byArc` layer from adjustVCEjoint through jointModelOpt to both loaders, eq. 6.5.28 multiplies the per-arc factor; and a 6.1.5 regression found by the same mirror and fixed — the per-stream normalisation counted a stream's level twice when its arcs differ (1176 / 11.65 against 100 / 1), factors are now the absolute gamma2_m; version 6.1.6; §12.40.
+Last substantive update: 2026-10-10 — WP-116 part 2 DONE (PR #120, merge 683d36e; CI 596/596); WP-118 part 1 OPEN (tier B, model Claude Opus 5.5): docs truth with two new audit instruments — check 31 (every accepted Name-Value option is documented; 17 were not) and check 32 (every named unit exists, in help, messages and user prose; 33 named deleted units) — plus the 2F(2,r) ellipse (R7-39), the pinned joint probe seed (R7-37), diagnose off the global RNG (R7-36), one rMin default (R7-35), localCovariance on the solve's s0² (R7-40); version 6.1.7; §12.41.
+Preceding entry: Last substantive update: 2026-10-10 — WP-116 part 1 DONE (PR #119, merge 4587fd0; CI 592/592); WP-116 part 2 OPEN (tier B, model Claude Opus 5.5): the per-arc factors WEIGHT the solve (R7-13, user decision) — a keyed `covOverride.byArc` layer from adjustVCEjoint through jointModelOpt to both loaders, eq. 6.5.28 multiplies the per-arc factor; and a 6.1.5 regression found by the same mirror and fixed — the per-stream normalisation counted a stream's level twice when its arcs differ (1176 / 11.65 against 100 / 1), factors are now the absolute gamma2_m; version 6.1.6; §12.40.
 Preceding entry: Last substantive update: 2026-10-10 — WP-115 part 1 OPEN (tier B, model Claude Opus 5.5): the decision-free robust findings fixed or withdrawn — day keys exact (R7-06), MAD fallback reported (R7-21), IRLS stop rule unit-invariant (R7-17), report says robust (R7-18), the joint collapsed claim and "unbiased" withdrawn (R7-25, R7-12), check 28 reads wrapped lines and messages; version 6.1.4; R7-08 / R7-10 / the collapse threshold wait for the user; §12.39.
 Preceding entry: Last substantive update: 2026-10-10 — WP-117 part 2 DONE (PR #116, merge 5b94e1f; CI 575/575); WP-117 part 3 OPEN (tier B, model Claude Opus 5.5): the speed claims test_speed only benchmarked become eight gated ratio budgets, incl. the kernel lag sums (R7-42 closed); the two absolute-second bounds stay as stated exceptions (user decision); §12.38.
 Preceding entry: Last substantive update: 2026-10-10 — WP-117 part 1 DONE (PR #115, 5402f62); WP-117 part 2 OPEN on PR #116 (tier B, model Claude Opus 5.5): the rest of R7's instrument findings — check 16 credits code in gated suites only (8 contract points written), check 30 freezes the 140 untested ids as a one-way ratchet, every audit check has a fault case, the blanket warning mutes are gone (they hid two ids), test session state is restored, §6.1 rewritten; check 28's extension waits for WP-115; §12.37.
@@ -7944,7 +7945,7 @@ bias". The settling measurement is the first item of WP-115's design part.
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
 | 116 (part 1) | R7-07 `var` under `Estimate="noise"` refused by name; R7-09 gamma-bar per stream WITH the stream's level; R7-22 `Noise.Smooth` / `Noise.FreezeRedundancy` wired; R7-11 a complete stop rule and the returned solution under the returned model; **version 6.1.5** | 115 (§12.39) | DONE (2026-10-10, PR #119, merge 4587fd0; CI GREEN on 3a54701: ci_gate 592/592 after two CI rounds, see below) |
-| 116 (part 2) | R7-13 per-arc factors weight the solve (`covOverride.byArc`); the 6.1.5 double-counted level fixed — arc factors are the absolute gamma2_m; **version 6.1.6** | 116 part 1 (PR #119 merged 4587fd0) | OPEN (2026-10-10; audit CLEAN; CI pending) |
+| 116 (part 2) | R7-13 per-arc factors weight the solve (`covOverride.byArc`); the 6.1.5 double-counted level fixed — arc factors are the absolute gamma2_m; **version 6.1.6** | 116 part 1 (PR #119 merged 4587fd0) | DONE (2026-10-10, PR #120, merge 683d36e; CI GREEN on b22918b: ci_gate 596/596 after one red round, see below) |
 
 **User decisions (2026-10-10).** (a) R7-13: **the arc factors weight the solve**
 (Ellmer's convention) rather than the Manual being corrected — part 2, because it
@@ -8045,4 +8046,63 @@ weighting, and over the 3- and 12-pass runs they compounded until the guard fire
 muted -- the fixtures were brought under the contract: `withArcFactors` takes the per-arc
 layer from `jointModelOpt` (the one translation, no stream list, so each fixture keeps
 its own law and level) into the fixture's UserOpt.
+
+**Part 2, CI round 2 (b22918b): GREEN, ci_gate 596/596**, warning inventory the test
+probe only; audit job green. (c654515 in between went red on the audit only: a stale
+`jointModelOpt/robustness` category exemption, pushed with the finding open -- the push
+chain tested `tail`'s exit code, not the audit's. Fixed in b22918b; since then every push
+runs the audit to a file and tests its own exit code.) Merged as PR #120 (683d36e).
+
+### 12.41 WP-118 part 1 — docs truth, one default per fact, honest numbers (2026-10-10, model Claude Opus 5.5, tier B)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 118 (part 1) | R7-34 deleted units / retired behaviour out of live text (check 32); R7-35 every accepted NV option documented (check 31), `diagnose` 'verify' retired, one `rMin` default; R7-36 `diagnose` off the global RNG; R7-37 unseeded joint runs pin and record their probe seed; R7-39 ellipse 2F(2, r); R7-40 `localCovariance` on the solve's s0²; **version 6.1.7** | 116 part 2 (§12.40, PR #120 merged 683d36e) | OPEN (2026-10-10; audit CLEAN; CI pending) |
+| 118 (part 2) | R7-19 `compare` df2 with eliminated locals; R7-23 `priorNotActive` in R.meta.warnings; R7-38 Ljung-Box K and per-arc lag sums; R7-41 worker log queue | 118 part 1 | NOT STARTED |
+| 118 (part 3) | R7-24 the README memory claim (with WP-86); R7-44 long functions with a recorded reason | 118 part 2 | NOT STARTED |
+
+**Split.** WP-118 bundles twelve findings of very different weight. Part 1 takes the ones
+with no user decision and a clear oracle; part 2 the statistical ones that change a
+reported number (each needs its own measurement); part 3 the two that are scope
+questions (WP-86's memory work; whether 400-line functions are split or justified).
+
+**What was done.**
+- **Instruments first (R7-34, R7-35).** Check 31: every `opt.<Name>` of an `arguments`
+  block must be named in the file's help or the declaring function's / method's help
+  (case-insensitive). It found 17 (`adjustVCEjoint` Pool / Estimate / OnPass /
+  OnPassContext, the OnPass seam and `Prior` on three drivers, `snoop` NBatch /
+  MaxRejectFrac, `BlockAccumulator` LocalBlockSize, `diagnose` RobustCheck / Progress);
+  `Results.plot` Visible was already named. A reverse direction (documented but not
+  accepted) was prototyped and dropped: quoted enum VALUES look exactly like option names
+  (27 false hits); the one real case it would have caught, `adjustBlock`'s
+  ShowSeconds / ExportDir, was removed by hand. Check 32: every `lsqvce.<unit>` /
+  `LSQVCE.<TIER>.<UNIT>` in a help block up to and including its See-also list (stamps
+  are history), in every runtime message, and in the Manual sources, README, the GRAVFIRE
+  guide, templates and examples must name an existing unit. 33 hits on the first run,
+  among them `snoop`'s runtime remedy ("re-run lsqvce.engine.adjust, or use
+  lsqvce.engine.robust") and the Manual's kind-B table (`engine.adjust`,
+  `engine.solveNonlinear`). Five fault cases in the self-test (68 now).
+- **R7-34, the bare-name sites check 32 cannot see:** the `Options` EXAMPLE (Robust with
+  noise "refused by fit" -- it runs since 6.1; the example now sets it), `Results`
+  noHistory's "use the result of adjustVCE", the `whiteAlpha` threshold line that no
+  producer ever wrote (now the joint estimator's fixed 0.05), `adjustVCEjoint`'s "JOINT
+  vs SEPARATE" text that described the deleted driver as the default, `declaration`'s
+  pointer to an ERRORS line `fit` did not have (added). Three superseded claims.
+- **R7-35.** `diagnose` 'verify' was documented and never read: retired (passing it is an
+  error). `rMin` defaulted to 1e-6 in `diagnose` and 0.01 in Options; the engine default
+  is 0.01 now, and `snoop`'s re-diagnosis passes the D it was given (rMin / rWeak / beta)
+  instead of falling back to defaults.
+- **R7-36.** The MDB reservoir draws from `RandStream('mt19937ar','Seed',0)`. Test:
+  `rng(1); a = rand; rng(1); fit(n = 6000); b = rand` gives a == b, and two fits give
+  identical `mdbQuantiles`.
+- **R7-37.** `adjustVCEjoint` pins a seed from the private probe stream when `Seed` is
+  empty (the `vce` pattern since WP-36), returns `out.seed`, and `fit` records the seed
+  used. Behaviour change: every pass of an unseeded run now probes with the same Z (as a
+  seeded run always did). Test: an unseeded fit's recorded seed replays it exactly.
+- **R7-39.** `ellipse` uses 2·F(2, r) with the estimated s0² (`E.k2`); the test checks it
+  against the closed form r((1-p)^(-2/r) - 1), independent of `stat.fInv`.
+- **R7-40.** `localCovariance(sysID, Cxx, s0sq)`: the third argument is required (the
+  engine-method API change is in the release notes); `residuals` calls it, so there is one
+  formula. Reference test: the local block of the dense joint covariance s0²(A'A)⁻¹.
+- Counts: 612 declared, 600 gate-executed (+4: ellipse, RNG, seed replay, Cyy).
 

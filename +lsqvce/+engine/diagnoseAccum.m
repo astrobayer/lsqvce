@@ -2,7 +2,7 @@ function [diagSol, batchFcn, nBatch] = diagnoseAccum(acc, sol)
 %LSQVCE.ENGINE.DIAGNOSEACCUM  Bridge a block-arrow lsqvce.engine.BlockAccumulator adjustment into LSQVCE diagnostics.
 %
 %   [diagSol, batchFcn, nBatch] = LSQVCE.ENGINE.DIAGNOSEACCUM(acc, sol) returns exactly what
-%   lsqvce.engine.diagnose / lsqvce.engine.adjust expect:
+%   lsqvce.engine.diagnose / lsqvce.engine.snoop expect:
 %       diagSol   struct with fields {x, R, n, u, r, sigma0, s0sq, vPv, vPvSource, nBatch}
 %       batchFcn  @(k) -> [A, l, p]   the k-th WHITENED batch, unit weight
 %       nBatch    number of batches
@@ -61,8 +61,11 @@ function [diagSol, batchFcn, nBatch] = diagnoseAccum(acc, sol)
 %                                   the common redundancies cannot be corrected;
 %                                   re-run keeping them
 %
-%   See also LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.ADJUST, LSQVCE.REPORT, LSQVCE.ENGINE.REDUNDANCY
+%   See also LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.SNOOP, LSQVCE.REPORT, LSQVCE.ENGINE.REDUNDANCY
 %
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): the
+%   deleted engine.adjust reference replaced. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,

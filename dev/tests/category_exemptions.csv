@@ -92,7 +92,6 @@ engine.diagnose,vectorisation,the data loop lives in the accumulator / kernels (
 engine.diagnose,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
 engine.diagnoseAccum,reference,no closed form of its own beyond the dense references its callers are pinned against
 engine.diagnoseAccum,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
-engine.ellipse,reference,no closed form of its own beyond the dense references its callers are pinned against
 engine.ellipse,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
 engine.ellipse,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
 engine.ellipse,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path

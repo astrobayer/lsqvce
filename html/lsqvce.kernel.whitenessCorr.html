@@ -62,8 +62,11 @@ maxLag   1x1         integer   Highest lag to test, &gt;= 1. Required.
 <pre class="example">  w = randn(4000,1);
   assert(lsqvce.kernel.whitenessCorr(w, 5) &lt; 3/sqrt(4000));   % white -&gt; below band
 
-See also LSQVCE.ENGINE.COLLECTRESIDUALS, LSQVCE.ENGINE.SELECTARACV, LSQVCE.KERNEL.CROSSCORR
+See also LSQVCE.ENGINE.COLLECTRESIDUALS, LSQVCE.KERNEL.CROSSCORR
 
+Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): the
+deleted SELECTARACV reference removed. With assistance from Claude
+(Anthropic), model Claude Opus 5.5.
 Created 2026-07-15 13:40 (CEST, UTC+02:00) with assistance from
 Claude (Anthropic), model Claude Opus 4.8.
 Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+kernel (R4 decision R4-D1,

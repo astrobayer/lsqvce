@@ -59,17 +59,20 @@ order to judge the adjustment:
 Nothing of size n-by-n or n-by-u is ever formed. Per batch the cost is
 O(u^2 * nk) and the memory is O(u^2 + nk).</pre>
 <h3>Inputs</h3>
-<pre class="example">sol       the struct returned by lsqvce.engine.Accumulator/solve
+<pre class="example">sol       the diagnosed solution (R.source; LSQVCE.ENGINE.DIAGNOSEACCUM builds it)
 batchFcn  function handle, [A,l,p] = batchFcn(k), k = 1..nBatch.
           Must reproduce EXACTLY the batches given to the accumulator,
-          in the same order. This is checked (see &#x27;verify&#x27;).</pre>
+          in the same order. This is checked: a replay that sees a
+          different observation count is lsqvce:diagnose:batchMismatch,
+          and D.sumRRelErr / D.vPvRelDiff report the integrity numbers.</pre>
 <h3>Name-Value</h3>
 <pre class="example">  &#x27;nBatch&#x27;      number of batches (default sol.nBatch)
   &#x27;alpha&#x27;       per-test significance          (default 0.001)
   &#x27;bonferroni&#x27;  correct alpha for n tests      (default true)
   &#x27;beta&#x27;        MDB type-II error              (default 0.20)
   &#x27;rMin&#x27;        redundancy below which an observation is declared
-                UNCONTROLLED and its w is not reported (default 1e-6)
+                UNCONTROLLED and its w is not reported (default 0.01,
+                the same as Options.Diagnostics.RMin -- R7-35)
   &#x27;rWeak&#x27;       redundancy below which an observation is flagged as
                 weakly controlled                        (default 0.10)
   &#x27;test&#x27;        &#x27;auto&#x27; | &#x27;pope&#x27; | &#x27;baarda&#x27;   (default &#x27;auto&#x27;)
@@ -81,7 +84,9 @@ batchFcn  function handle, [A,l,p] = batchFcn(k), k = 1..nBatch.
                 the worst offenders -- use this when n is enormous.
   &#x27;nWorst&#x27;      how many worst-|w| observations to retain under
                 &#x27;store&#x27;,&#x27;flagged&#x27;                        (default 1000)
-  &#x27;verify&#x27;      re-check sum(r) == n-u and vPv consistency (default true)
+  &#x27;robustCheck&#x27; also form the MAD scale and the contamination gauge
+                (one extra sweep; always on for &#x27;test&#x27;,&#x27;mad&#x27;) (default true)
+  &#x27;progress&#x27;    print a progress line every ~2 s     (default false)
 
 ON BONFERRONI
 -------------
@@ -130,8 +135,13 @@ model Claude Fable 5.
 IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
   lsqvce:diagnose:largeU                     [warning] u = X parameters
 
-See also LSQVCE.ENGINE.ADJUST, LSQVCE.REPORT, LSQVCE.ENGINE.SNOOP.
+See also LSQVCE.ENGINE.DIAGNOSEACCUM, LSQVCE.REPORT, LSQVCE.ENGINE.SNOOP.
 
+Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34..36): the
+dead &#x27;verify&#x27; option retired, RobustCheck / Progress documented, rMin
+defaults to Options.Diagnostics.RMin (0.01), the MDB reservoir draws
+from its own stream. With assistance from Claude (Anthropic), model
+Claude Opus 5.5.
 Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 2026-07-11.
 Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,

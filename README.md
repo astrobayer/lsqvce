@@ -1,4 +1,4 @@
-# lsqvce v6.1.6 — least-squares adjustment with variance component estimation
+# lsqvce v6.1.7 — least-squares adjustment with variance component estimation
 
 Declare your problem as a plain `data` struct, `fit` it, and get a judged
 result: estimates with formal errors, per-observation diagnostics, and a

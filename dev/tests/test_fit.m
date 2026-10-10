@@ -783,6 +783,26 @@ function testEllmerThroughFitReproducesDirect(tc)
     tc.verifyEqual(idOf(@() R.report('Verbose', false)), '');
 end
 
+function testUnseededJointRunRecordsAReplayableSeed(tc)
+% categories: contract, reference
+    % R7-37: an unseeded joint run drew a fresh private seed every pass and
+    % recorded none (R.meta.seeds.jointSeed was []), so it could not be
+    % replayed -- against the "seeds in provenance" contract. The driver now
+    % pins one seed up front and records it; feeding it back replays the run.
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % MaxPasses 2 stops early by design
+    [data, cfg] = declaration();
+    nLag = cfg.mArc;
+    base = {'Estimate', "noise", 'Noise', struct('Grid', nLag), 'MaxPasses', 2, ...
+            'Probes', 20, 'Verbose', false};
+    R1 = lsqvce.fit(data, lsqvce.Options(base{:}));
+    s  = R1.meta.seeds.jointSeed;
+    tc.assertTrue(isscalar(s) && isfinite(s), 'an unseeded run records the seed it used');
+    R2 = lsqvce.fit(data, lsqvce.Options(base{:}, 'Seed', s));
+    % tol: exact -- the same seed fixes the same probes on the same code path
+    tc.verifyEqual(R2.x, R1.x, 'replaying the recorded seed reproduces the run');
+    tc.verifyEqual(R2.noise.C, R1.noise.C);
+end
+
 function acc = directJointAcc(nc, L, days, uo)
     acc = lsqvce.engine.BlockAccumulator(nc, 'KeepLocal', true, 'Verbose', false, 'UserOpt', uo);
     acc.addSystem(L.sysID, L.nl, L.closure, days);

@@ -136,7 +136,8 @@ x = R.x;   s0 = R.sigma0;</pre>
 <pre class="example">lsqvce:Results:noVPv          compare() on a Results without a finite v&#x27;Pv
 lsqvce:Results:noHistory      an iteration reader was called on a
                               single-solve Results (adjustBlock does not
-                              iterate); use the result of adjustVCE
+                              iterate); use the result of an iterating
+                              fit (Estimate = &quot;noise&quot;, Robust, Nonlinear)
 lsqvce:Results:noCovariance   coefficients() on a Results whose sol
                               carries no Cxx
 lsqvce:Results:noAccumulator  residuals()/contribution() on a Results
@@ -151,6 +152,9 @@ lsqvce:Results:noAccumulator  residuals()/contribution() on a Results
 See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.REPORT,
          LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.BLOCKACCUMULATOR
 
+Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): the
+noHistory remedy no longer names the deleted adjustVCE. With assistance
+from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-99: R.report() forwards the
 loop state, so the verdict says whether the stochastic model settled.
 With assistance from Claude (Anthropic), model Claude Opus 5.

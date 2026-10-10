@@ -236,6 +236,30 @@ function testBackSubstitutionExact(tc)
     end
 end
 
+function testLocalCovarianceEqualsTheJointSolve(tc)
+% categories: reference, precision
+% R7-40: the local block of the monolithic joint covariance s0^2 (A'A)^-1 is
+% what localCovariance(sysID, Cxx, s0sq) must return -- with the SOLVE's s0sq.
+% It used the store's s0sq_hint (l'l / dof with the commons unsolved), which
+% put the verbose locals line ~300x too high (R7 mirror m6_schur_cyy.py).
+    cfg  = tc.TestData.cfg;
+    days = 1:2;
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Backend','qr', 'Verbose',false);
+    for s = cfg.sats, acc.addSystem(s, cfg.nl, binder(cfg,s), days); end
+    sol = acc.solve();
+    [Af, lf] = assembleFull(cfg, days);
+    xf  = Af \ lf;
+    s0f = sum((lf - Af*xf).^2) / (size(Af,1) - size(Af,2));
+    Cf  = s0f * inv(Af.' * Af);                          %#ok<MINV> the reference, dense on purpose
+    for k = 1:numel(cfg.sats)
+        iy  = cfg.nc + (k-1)*cfg.nl + (1:cfg.nl);
+        Cyy = acc.localCovariance(cfg.sats(k), sol.Cxx, sol.s0sq);
+        % tol: dense-vs-batched same algebra; 1e-8 = the whitened-path house bound
+        tc.verifyEqual(Cyy, Cf(iy, iy), 'RelTol', 1e-8, ...
+            'the local block of the joint covariance, with the solve''s s0^2');
+    end
+end
+
 function testBatchOverlapGivesMachinePrecision(tc)
 % categories: vectorisation
 % With overlap = filter memory, batching is EXACT -- not merely accurate.
@@ -467,7 +491,7 @@ function testCovarianceIsPositiveDefinite(tc)
     tc.verifyEqual(sol.Cxx, sol.Cxx.', 'AbsTol', 1e-14);
     tc.verifyGreaterThan(min(eig(sol.Cxx)), 0);
 
-    Cyy = acc.localCovariance(cfg.sats(1), sol.Cxx);
+    Cyy = acc.localCovariance(cfg.sats(1), sol.Cxx, sol.s0sq);
     tc.verifyEqual(Cyy, Cyy.', 'AbsTol', 1e-14);   % tol: same source
     tc.verifyGreaterThan(min(eig(Cyy)), 0);
 end

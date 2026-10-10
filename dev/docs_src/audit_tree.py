@@ -1370,6 +1370,138 @@ def check_superseded_claims():
           % (len(rows), len(surfaces), len(messages), n))
 
 
+def help_claim_lines(path):
+    """(lineno, line) of the file's first help block up to and including its
+    'See also' list -- the lines that make claims and name units; the dated
+    stamps after the list are history and are not returned."""
+    lines = open(path, encoding='utf-8', errors='replace').read().split('\n')
+    out, started, seealso = [], False, False
+    for i, ln in enumerate(lines, 1):
+        st = ln.strip()
+        if not started:
+            if st.startswith('%'):
+                started = True
+            elif st and not st.startswith(('function', 'classdef')):
+                break
+            else:
+                continue
+        if not st.startswith('%'):
+            break
+        body = re.sub(r'^%+\s?', '', st)
+        if re.match(r'\s*(Updated 20|Created 20|Moved 20|Generated with)', body):
+            break                                   # the dated stamps: history
+        if seealso and (not body.strip() or re.match(r'(Updated|Created|Moved|Changed)\b', body.strip())
+                        or not re.match(r'\s{2,}\S', body)):
+            break
+        if re.match(r'\s*See also', body, re.I):
+            seealso = True
+        out.append((i, ln))
+    return out
+
+
+UNIT_REF = re.compile(r'(?<![A-Za-z0-9_])lsqvce\.((?:util|engine|kernel)\.\w+|[A-Za-z]\w*)', re.I)
+
+
+def check_unit_references_resolve():
+    print('\n32. help text and runtime messages name units that exist (R7-34)')
+    # WHY: check 24 reads EXAMPLE blocks only and check 2 knows a fixed list of
+    # removed names that predates the M2..WP-92 deletions, so a runtime REMEDY
+    # ("re-run lsqvce.engine.adjust, or use lsqvce.engine.robust") and sixteen
+    # See-also entries kept naming units that no longer exist (R7 swe_code F9).
+    # Every lsqvce.<unit> / LSQVCE.<TIER>.<UNIT> in a help block (up to and
+    # including its See also list) and in every error / warning / log message
+    # must resolve to a unit file of the package -- case-insensitively, as
+    # MATLAB help capitalises them.
+    units = {u.lower() for u in public_units()} | {'engine', 'kernel', 'util'}   # the packages
+    n = 0
+    for f in sorted(pglob(PKG_GLOB, recursive=True)):
+        texts = list(help_claim_lines(f)) + list(message_bodies(f))
+        for i, text in texts:
+            for u in UNIT_REF.findall(text):
+                n += 1
+                if u.lower() not in units:
+                    note('unitref', '%s:%d names lsqvce.%s, which does not exist: %r'
+                         % (f, i, u, text.strip()[:90]))
+    # the user-facing prose: the Manual sources, README, the GRAVFIRE guide,
+    # the template and the examples (HANDOVER / HISTORY / RELEASE_NOTES are
+    # history and may name what was retired)
+    for pat in ('dev/docs_src/manual/*.md', 'README.md', 'dev/GRAVFIRE_INTERFACE.md',
+                'template/*.m', 'examples/*.m'):
+        for f in sorted(pglob(pat)):
+            # an .m file: its help claims (stamps are history) and its code lines
+            lines = (help_claim_lines(f) + [(k, l) for k, l in
+                     enumerate(open(f, encoding='utf-8', errors='replace'), 1)
+                     if l.strip() and not l.lstrip().startswith('%')]
+                     if f.endswith('.m') else
+                     enumerate(open(f, encoding='utf-8', errors='replace'), 1))
+            for i, text in lines:
+                for u in UNIT_REF.findall(text):
+                    n += 1
+                    if u.lower() not in units:
+                        note('unitref', '%s:%d names lsqvce.%s, which does not exist: %r'
+                             % (f, i, u, text.strip()[:90]))
+    print('   %d unit references in help blocks, runtime messages and user prose checked '
+          'against %d units' % (n, len(units)))
+
+
+def nv_options(path):
+    """[(lineno, name, function line)] for every opt.<Name> declared in an
+    arguments block of the file (functions and class methods alike)."""
+    lines = open(path, encoding='utf-8', errors='replace').read().split('\n')
+    out, fn, inargs = [], None, False
+    for i, ln in enumerate(lines, 1):
+        st = strip_matlab(ln).strip()
+        if re.match(r'function\b', st):
+            fn = i
+        if re.match(r'arguments\b', st) and not re.match(r'arguments\s*\(\s*Output', st, re.I):
+            inargs = True
+            continue
+        if inargs:
+            if st == 'end':
+                inargs = False
+                continue
+            m = re.match(r'(\w+)\.(\w+)\b', st)
+            if m and m.group(1) != 'obj':
+                out.append((i, m.group(2), fn))
+    return out
+
+
+def help_after(lines, fn):
+    """The comment block directly after the function line fn (a method's help)."""
+    out = []
+    for ln in lines[fn:]:
+        if not ln.strip().startswith('%'):
+            if out or ln.strip():
+                break
+            continue
+        out.append(ln)
+    return '\n'.join(out)
+
+
+def check_nv_options_documented():
+    print('\n31. every accepted Name-Value option is named in its help (R7-35)')
+    # WHY: the arguments block is what a function ACCEPTS; the help block is
+    # what a user can KNOW it accepts. R7 swe_code F10 counted 17 accepted
+    # pairs no help block names (adjustVCEjoint Pool / Estimate / ArcFactors,
+    # the OnPass seam on three drivers, snoop's NBatch ...) and one documented
+    # option ('verify') that nothing read. Every opt.<Name> of an arguments
+    # block must appear in the file's help or in the help of the function or
+    # method that declares it (case-insensitive, as MATLAB matches NV names).
+    n = 0
+    for f in sorted(pglob(PKG_GLOB, recursive=True)):
+        if '/private/' in f:
+            continue
+        lines = open(f, encoding='utf-8', errors='replace').read().split('\n')
+        filehelp = '\n'.join(l for _, l in help_claim_lines(f))
+        for i, name, fn in nv_options(f):
+            n += 1
+            text = filehelp + '\n' + (help_after(lines, fn) if fn else '')
+            if not re.search(r'(?<![A-Za-z0-9_])' + re.escape(name) + r'(?![A-Za-z0-9_])', text, re.I):
+                note('nvdoc', '%s:%d accepts the Name-Value option %r, which its help never names'
+                     % (f, i, name))
+    print('   %d Name-Value options checked against their help blocks' % n)
+
+
 def _prose(line):
     """A help/markdown line without its comment marker and outer blanks."""
     return re.sub(r'^\s*%+\s?', '', line).strip()
@@ -1435,6 +1567,8 @@ def main():
     check_superseded_claims()
     check_manual_pdf_version()
     check_ids_fired_by_tests()
+    check_nv_options_documented()
+    check_unit_references_resolve()
     print('\n' + '=' * 60)
     if FINDINGS:
         print('%d finding(s).' % len(FINDINGS))

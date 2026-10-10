@@ -11,7 +11,7 @@ function R = adjustNonlinear(u, batchFcn, nBatch, x0, opt)
 %   and the NEXT pass's accumulation at x + dx is also the step's
 %   evaluation (its vPv decides acceptance), so nothing is read twice.
 %
-%   Step control mirrors LSQVCE.ENGINE.SOLVENONLINEAR exactly: a step that
+%   Step control (that of the retired flat solver, kept unchanged): a step that
 %   raises vPv is rejected and the damping grows tenfold (up to 1e12 ->
 %   diverged); an accepted step shrinks it tenfold; convergence when
 %   max|dx_j / sigma_j| < TolX, or the relative vPv change < TolF. The final
@@ -26,7 +26,10 @@ function R = adjustNonlinear(u, batchFcn, nBatch, x0, opt)
 %   NAME-VALUE
 %     'MaxIter' 20; 'TolX' 1e-8; 'TolF' 1e-10; 'Lambda0' 1e-6 (0 = pure GN);
 %     'Backend' "qr"|"normal"; 'Parallel', 'DistributeDays', 'ParallelThreshold';
-%     'Verbose' false; 'Provenance' struct (fit's resolved Options)
+%     'Verbose' false; 'Provenance' struct (fit's resolved Options);
+%     'Prior' [] | lsqvce.engine.CommonPrior on the common block; 'Diagnostics'
+%     {} (Name-Value pairs for lsqvce.engine.diagnose); 'OnPass' [] | @(ctx)
+%     the per-pass hook (lsqvce.util.onPass) with 'OnPassContext' struct()
 %   OUTPUT
 %     R  1x1 lsqvce.Results  stopReason "converged" | "maxPasses"; history(k):
 %        .pass .vPv .dxRel .lambda .accepted; R.noise = struct('x0', x0, 'reason')
@@ -46,9 +49,13 @@ function R = adjustNonlinear(u, batchFcn, nBatch, x0, opt)
 %     bf = @(k, x) deal(J(x, k), l(k) - f(x, k));       % your model
 %     R  = lsqvce.engine.adjustNonlinear(2, bf, 4, [0.5; 0]);
 %
-%   See also LSQVCE.ENGINE.SOLVENONLINEAR, LSQVCE.ENGINE.BATCHSYSTEM,
+%   See also LSQVCE.ENGINE.BATCHSYSTEM,
 %            LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.FIT
 %
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34, R7-35):
+%   the deleted SOLVENONLINEAR reference removed; Prior / Diagnostics /
+%   OnPass / OnPassContext documented. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Created 2026-09-02 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.1 -- R5 Level M2, WP-81 round 2c'.
 

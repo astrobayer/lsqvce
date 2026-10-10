@@ -10,11 +10,9 @@ function out = adjustVCEjoint(accFcn, opt)
 %   variance factors sigma2_m (the within-group variance factors), and -- when a prior is
 %   present -- the geophysical factor sigma2_gpm.
 %
-%   JOINT vs SEPARATE -- WHY THIS IS ITS OWN DRIVER
-%     LSQVCE.ENGINE.ADJUSTVCEJOINT alternates: fit the temporal whitening, then the
-%     between-group variance components, each with its own criterion. That is the SEPARABLE model,
-%     and it is the toolbox DEFAULT because the whiteness gate gives a clean
-%     stopping rule and the alternation is robust.
+%   JOINT, NOT ALTERNATING -- WHY
+%     The retired separable driver alternated: fit the temporal whitening, then
+%     the between-group variance components, each with its own criterion.
 %     Ellmer instead treats every PSD frequency and every arc factor as variance
 %     components of ONE Helmert VCE and updates them SIMULTANEOUSLY (step 9).
 %     This matters: alternating (block-coordinate) and joint updates share fixed
@@ -22,8 +20,8 @@ function out = adjustVCEjoint(accFcn, opt)
 %     factor and the frequency amplitudes both scale the same Sigma_ll (eqs.
 %     6.5.7, 6.5.18), which is exactly why the gamma normalisation (eq. 6.5.28)
 %     exists to prevent double counting. The two schemes can therefore converge
-%     to DIFFERENT Sigma. Use 'joint' for Ellmer fidelity, 'separate' (the
-%     default elsewhere) for the general separable model.
+%     to DIFFERENT Sigma. This driver is the joint scheme, and since R6 the
+%     only stochastic-model estimator of the toolbox (Estimate = "noise").
 %
 %   THE TEN STEPS (Ellmer §6.5.7), and where each lives
 %     1-3  build Delta_l, A; form Sigma from the current model; decorrelate
@@ -75,7 +73,8 @@ function out = adjustVCEjoint(accFcn, opt)
 %     'MaxIter'   1x1 int    outer iterations (default 10)
 %     'Tol'       1x1        convergence on max|alpha2 - 1| (default 1e-2)
 %     'Probes'    1x1 int    Z Hutchinson probes (default 100, Ellmer's value)
-%     'Seed'      1x1 | []   RNG seed for reproducible probes (default [])
+%     'Seed'      1x1 | []   RNG seed for reproducible probes (default []: one
+%                            seed is pinned for the run and returned, out.seed)
 %     'Norm'      char       DCT normalisation, 'ortho' (default) | 'ellmer'
 %     'MeanType'  char       gamma-bar, 'robust' (default) | 'plain'; since
 %                            6.1.6 the scale of the clamp floor only
@@ -84,8 +83,8 @@ function out = adjustVCEjoint(accFcn, opt)
 %              convention -- the weight is a statement about the
 %              OBSERVATION. Every pass ends with one residual sweep; the RAW
 %              residuals, descaled by each epoch's own declared accuracy
-%              (Cep) and reduced to ONE value per epoch (the RMS over a
-%              multi-axis epoch's rows), go through
+%              (Cep) and reduced to ONE value per epoch (chi-calibrated over
+%              a multi-axis epoch's rows, below), go through
 %              LSQVCE.KERNEL.ROBUSTWEIGHTS per stream, and the factors are
 %              folded into the per-epoch error information of the NEXT pass
 %              (model.rowWeights -> UserOpt.epochWeights -> sigma / sqrt(w)
@@ -139,6 +138,16 @@ function out = adjustVCEjoint(accFcn, opt)
 %              late-pass drift -- keep it <= 4) and does nothing useful
 %              without it (mirror-measured). The iteration itself always
 %              runs on the raw C.
+%     'Pool'     "all" (default) | "obstype" | "stream": which streams SHARE
+%                one estimated law (one psdVCE per pool group, out.Cgroups)
+%     'Estimate' [] | containers.Map 'satKey|obsType' -> "none" | "scale" |
+%                "law": the per-stream policy ([] = "law" for every stream)
+%     'ArcFactors' [] | containers.Map 'satKey|obsType' -> logical: whether
+%                the stream's arcs carry factors ([] = true for every stream)
+%     'OnPass'   [] | @(ctx)  the per-pass inspection hook (lsqvce.util.onPass:
+%                return false to stop after this pass)           default []
+%     'OnPassContext' struct  fields merged into every ctx (lsqvce.fit
+%                passes .data and .processingOptions)            default struct()
 %
 %   OUTPUT
 %     out  1x1 struct
@@ -146,6 +155,9 @@ function out = adjustVCEjoint(accFcn, opt)
 %       .Shat      nLag x 1   the converged PSD amplitudes
 %       .sigma2    M x 1      the converged arc variance factors, ALIGNED TO
 %                             .arcKeys (the pass-1 enumeration order; WP-34)
+%       .seed      1x1        the probe seed used (the given Seed, or the one
+%                             pinned for an unseeded run -- R7-37; passing it
+%                             back as 'Seed' replays the run)
 %       .robust    struct     .influence, .scale (1 x S, the MAD scale per
 %                             stream of the last robust sweep), .streams
 %                             (1 x S 'satKey|obsType', sorted), .factor
@@ -222,6 +234,11 @@ function out = adjustVCEjoint(accFcn, opt)
 %   See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
 %            LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 %
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34, R7-35,
+%   R7-37): the separable-driver history rewritten; Pool / Estimate /
+%   ArcFactors / OnPass / OnPassContext documented; an unseeded run pins and
+%   returns its probe seed (out.seed). With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-116 part 2 (R7-13): the per-arc
 %   factors weight the solve (model.arcFactor -> jointModelOpt byArc) and eq.
 %   6.5.28 multiplies by them; the factors are the absolute gamma2_m -- the
@@ -342,6 +359,14 @@ arguments
     opt.Verbose  (1,1) logical = false
 end
     o = opt;
+    % R7-37: an unseeded run PINS one probe seed up front (the package-private
+    % probe stream; the global RNG is untouched), as LSQVCE.ENGINE.VCE does. Every
+    % pass then probes with the same Z, and out.seed is the number that
+    % replays the run -- before, each pass drew a fresh private seed and none
+    % was recoverable, against the "seeds in provenance" contract.
+    if isempty(o.Seed)
+        [~, o.Seed] = probeMatrix(1, 1, 'rademacher', []);
+    end
     v = logical(o.Verbose);
 
     nLag = o.NumLags;
@@ -731,6 +756,7 @@ end
                  'history', hist, ...
                  'arcKeys', {pinnedKeys(:)}, ...
                  'skips', {hist.skips}, ...
+                 'seed', o.Seed, ...                                   % R7-37
                  'robust', struct('influence', char(o.Influence), 'scale', rscale, ...
                                   'streams', {rstreams}, 'factor', fac, 'keys', {rkeys}));   % R6 WP-105
 end

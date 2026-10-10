@@ -8,8 +8,8 @@ function [A, Sigma, info] = whittle(G, p)
 %   multichannel generalisation of LSQVCE.KERNEL.LEVINSONDURBIN. On the EXACT ACV of a
 %   VAR(p) it returns the generating coefficients to ~1e-9, and fitting a
 %   higher order makes the extra matrices vanish (validation/v6verify.py
-%   tests 3-4) -- the same order-sufficiency signature the scalar
-%   LSQVCE.ENGINE.SELECTARORDER exploits.
+%   tests 3-4) -- the same order-sufficiency signature as the scalar
+%   Levinson-Durbin recursion.
 %
 %   INPUT
 %     G   d x d x (>= p+1)   Gamma(0..), Gamma(j) = E[z_t z_{t-j}']
@@ -37,6 +37,9 @@ function [A, Sigma, info] = whittle(G, p)
 %
 %   See also LSQVCE.KERNEL.VARACV, LSQVCE.KERNEL.VARWHITEN, LSQVCE.KERNEL.LEVINSONDURBIN
 %
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): the
+%   deleted SELECTARORDER reference removed. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,

@@ -17,10 +17,13 @@ function [spec, systems] = declaration(data, cacheDays)
 %                                   .systems .ids .commonPlan .validityColumns .nc ...
 %           systems    1xK cell     Loader structs (isLoader true; .plan, .nc, .nl, ...)
 %   ERRORS  lsqvce:fit:noSystems / noCommon / unknownField / badScope / badId /
-%           badParamColumns / ...  (the fit help lists them)
+%           badParamColumns / ...  (lsqvce.fit's ERRORS lists them)
 %
 %   See also LSQVCE.FIT, LSQVCE.ENGINE.MAKELOADER, LSQVCE.RESULTS
 %
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): points
+%   at lsqvce.fit's ERRORS, which now lists badParamColumns. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-102 (v6): the arc schedule
 %   is optional -- a system without `arcs` claims every day of its calendar
 %   for the common 'day' rows; the string form 'fromDay' is refused at the
