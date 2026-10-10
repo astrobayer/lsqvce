@@ -441,6 +441,32 @@ function test_arcVarianceFactors_noop_on_healthy(tc)
          'formula (4 eps: summation-order ULPs, CI-measured 2.6e-16)']);
 end
 
+function test_psdVCE_freeze_redundancy_holds_weak_bins(tc)
+% categories: contract, robustness
+    % R7-22: Options.Noise.FreezeRedundancy was documented ("a frequency whose
+    % redundancy is below this holds its value") and reached nothing. psdVCE
+    % now holds a bin whose summed redundancy s_j is below the threshold.
+    % Built in the SPECTRAL domain ('ortho' DCT-I is self-inverse): every
+    % bin's ratio is 2, bin 3's redundancy is 0.5.
+    sTil  = [10; 10; 0.5; 10];
+    omTil = 2 * sTil;
+    omegaT = lsqvce.kernel.dctI(omTil);   sT = lsqvce.kernel.dctI(sTil);
+    C = lsqvce.kernel.dctI([4; 3; 2; 1]);              % a prior with support beyond lag 0 (no degenerate start)
+    free = lsqvce.engine.psdVCE(omegaT, sT, C, 'ZeroFreqRule', 'keep');
+    held = lsqvce.engine.psdVCE(omegaT, sT, C, 'ZeroFreqRule', 'keep', 'FreezeRedundancy', 1);
+    % tol: 1e-12 absolute -- one DCT round trip of O(10) numbers
+    tc.verifyEqual(free.alpha2, [2; 2; 2; 2], 'AbsTol', 1e-12, 'without a freeze every bin updates');
+    % tol: as above
+    tc.verifyEqual(held.alpha2, [2; 2; 1; 2], 'AbsTol', 1e-12, 'the weak bin holds');
+    tc.verifyEqual(held.frozen, [false; false; true; false]);
+    % and the Options knob reaches the joint driver (it was forwarded nowhere)
+    a = lsqvce.Options(Noise=struct('FreezeRedundancy', 100, 'Smooth', 2)).engineArgs('adjustVCEjoint');
+    k = find(strcmp(a.nv(1:2:end), 'FreezeRedundancy'));
+    tc.verifyEqual(a.nv{2*k}, 100);
+    k = find(strcmp(a.nv(1:2:end), 'Smooth'));
+    tc.verifyEqual(a.nv{2*k}, 2);
+end
+
 function test_psdVCE_degenerate_flag_and_override(tc)
 % categories: robustness
     seedFor(tc, 438);   % R7-45: drew from the global stream unseeded (suite-order dependent)

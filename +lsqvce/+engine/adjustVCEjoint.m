@@ -212,6 +212,11 @@ function out = adjustVCEjoint(accFcn, opt)
 %   See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
 %            LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 %
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-116 part 1: gamma-bar per stream with
+%   the stream's absolute level (R7-09); a stop rule that also needs the levels
+%   and arc factors to settle, and the returned solution accumulated under the
+%   returned model (R7-11); 'Smooth' / 'FreezeRedundancy' reach psdVCE (R7-22). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-115: the collapsed refusal
 %   and its ERRORS line no longer claim "beyond the breakdown point" (R7-25:
 %   the claim WP-110 retired from adjustRobust survived here, line-wrapped
@@ -297,6 +302,8 @@ arguments
     opt.StepSchedule (1,1) string {mustBeMember(opt.StepSchedule, ["none","decay"])} = "none"
     opt.AvgTail  (1,1) double {mustBeInteger, mustBeNonnegative} = 0
     opt.SkipThreshold (1,1) double {mustBeInRange(opt.SkipThreshold, 0, 1)} = 0.2
+    opt.Smooth   (1,1) double {mustBeInteger, mustBeNonnegative} = 0      % R7-22: psdVCE's moving average
+    opt.FreezeRedundancy (1,1) double {mustBeNonnegative} = 0             % R7-22: psdVCE's freeze
     % R5 M3 3d: per-stream policy (WP-83, decision R5-D4). Streams are keyed
     % 'satKey|obsType' (matlab.lang.makeValidName of the system id).
     opt.Pool (1,1) string {mustBeMember(opt.Pool, ["all","obsType","stream"])} = "all"
@@ -337,7 +344,7 @@ end
     sigma2 = o.Sigma2_0(:);              % may be empty; sized on first sweep
 
     hist = struct('maxDev', [], 'Shat', [], 'skips', {cell(0,3)}, ...
-                  'streams', {{}}, 'sigma', [], 'white', [], 'whitePval', []);
+                  'streams', {{}}, 'sigma', [], 'white', [], 'whitePval', [], 'levelDev', []);
     converged = false;  userStop = false;
     accF = []; solF = []; Shat = [];
     Cmap = containers.Map('KeyType', 'char', 'ValueType', 'any');   % R5 M3 3d: C per pool group
@@ -386,6 +393,7 @@ end
         sol   = acc.solve();
         lastSol = struct('x', sol.x(:), 'Cxx', sol.Cxx, 's0sq', sol.s0sq);
         accF  = acc;  solF = sol;
+        s2Prev = sigma2;                     % R7-11: the levels this pass was weighted with
 
         N = acc.reducedNormalMatrix();
         [U, pd] = chol((N + N.')/2);      % upper: N = U'*U  (Ellmer's U)
@@ -494,7 +502,8 @@ end
             cols = lawCols & strcmp(grpOf, groups{g});
             Cg = C;
             if isKey(Cmap, groups{g}), Cg = Cmap(groups{g}); end
-            pvg = lsqvce.engine.psdVCE(omegaT(:, cols), sT(:, cols), Cg, 'Norm', o.Norm, 'Gamma', gammaIt);
+            pvg = lsqvce.engine.psdVCE(omegaT(:, cols), sT(:, cols), Cg, 'Norm', o.Norm, 'Gamma', gammaIt, ...
+                                       'Smooth', o.Smooth, 'FreezeRedundancy', o.FreezeRedundancy);
             Cmap(groups{g}) = pvg.Cnew;
             pvMax = max(pvMax, pvg.maxDev);
             if isempty(Shat), Shat = pvg.Shat; end         % the first group's spectrum for the record
@@ -519,8 +528,30 @@ end
             cols = strcmp(streamOf, sk{1});
             s2Applied(cols) = mean(s2Cols(cols));
         end
-        av = lsqvce.engine.arcVarianceFactors(omegaT, sT, s2Applied, ...
-                                       'Norm', o.Norm, 'MeanType', o.MeanType);
+        % R7-09: the factors are normalised PER STREAM, and an arc-factor
+        % stream keeps its own ABSOLUTE level. gamma-bar over every column made
+        % an arc-factor stream's factors gamma2_m / gamma-bar^2 with gamma-bar
+        % moving with UNRELATED streams' levels (stream A came back 1.01 / 0.79 /
+        % 1.15 as only stream B's truth changed; sigma0 is shared and cannot
+        % absorb a per-stream factor). Per-stream gamma-bar ALONE -- the
+        % review's proposal -- removes that, but then the stream's level lives
+        % nowhere: a stream truly 3x its declared sigma smeared every stream to
+        % ~1.9. So sigma2_m = (gamma2_m / gamma-bar_s^2) * mean(gamma2_s): the
+        % relative spread from the stream's own gamma-bar, the level from the
+        % same Helmert mean the no-arc-factor streams use (fStream below).
+        % Mirror dev/reviews/R7_2026-10-09/mirrors/wp116/gammabar_modes.py:
+        % truths 3 / 1 / 2 come back 3.02 / 0.99 / 1.98 (shipped: 2.63 / 1.68 / 1.72).
+        av = struct('gamma2', nan(nArc, 1), 'sigma2', nan(nArc, 1), 'gammaBar', []);
+        for sk = unique(streamOf(:)).'
+            cols = strcmp(streamOf, sk{1});
+            avk = lsqvce.engine.arcVarianceFactors(omegaT(:, cols), sT(:, cols), s2Applied(cols), ...
+                                            'Norm', o.Norm, 'MeanType', o.MeanType);
+            av.gamma2(cols) = avk.gamma2;
+            g2 = avk.gamma2(isfinite(avk.gamma2) & avk.gamma2 > 0);
+            lvl = 1;  if ~isempty(g2), lvl = mean(g2); end
+            av.sigma2(cols) = avk.sigma2 * lvl;
+            av.gammaBar(end+1) = avk.gammaBar;
+        end
         % WP-40 r2 (F-15): Polyak tail averaging of the RETURNED spectrum
         % (log domain, last AvgTail passes). The loop keeps iterating on the
         % raw C; only the final Shat/C are averaged -- measured to add ~0.02
@@ -587,6 +618,15 @@ end
         end
 
         hist.maxDev(it,1)  = pv.maxDev;              %#ok<AGROW>
+        % R7-11: the LEVELS and ARC FACTORS are free components too. A run
+        % whose only free components are levels (no "law" stream: pvMax = 0)
+        % stopped "converged" on pass 1 under the DECLARED weights, and prior
+        % groups were never updated. The stop rule now also needs every arc's
+        % factor to have settled: max |sigma2_new / sigma2_old - 1| <= Tol.
+        okL = isfinite(sigma2) & isfinite(s2Prev) & s2Prev > 0;
+        levelDev = 0;
+        if any(okL), levelDev = max(abs(sigma2(okL) ./ s2Prev(okL) - 1)); end
+        hist.levelDev(it,1) = levelDev;              %#ok<AGROW>
         hist.Shat(it,:)    = Shat(:).';              %#ok<AGROW>
         % R5 M4 4a: the per-stream pass record Results.convergence reads --
         % the stream's level factor and its Ljung-Box whiteness on the
@@ -598,7 +638,8 @@ end
 
         if v
             lsqvce.util.log.msg(['  [joint %2d] max|alpha2-1| = %.4e   ' ...
-                'arcs = %d   gammaBar = %.4f\n'], it, pv.maxDev, nArc, av.gammaBar);
+                'arcs = %d   gammaBar (per stream) = %s\n'], it, pv.maxDev, nArc, ...
+                mat2str(av.gammaBar, 4));
         end
 
         % ---- step 9b: the user's per-pass inspection hook (R5 M5 5c') -----
@@ -612,7 +653,7 @@ end
         userStop = ~lsqvce.util.onPass(opt.OnPass, opt.OnPassContext, ctx);
 
         % ---- step 10: converged? -----------------------------------------
-        if pv.maxDev <= o.Tol
+        if pv.maxDev <= o.Tol && levelDev <= o.Tol
             converged = true;
             break
         end
@@ -622,10 +663,11 @@ end
     if ~converged && ~userStop
         lsqvce.util.log.warn('lsqvce:adjustVCEjoint:notConverged', ...
            ['The joint stochastic model did not settle in %d outer iterations ' ...
-            '(last max|alpha2-1| = %.3e > tol %.1e). Inspect out.history.Shat: ' ...
-            'a PSD that keeps moving usually means too few arcs per frequency, ' ...
-            'or a starting covariance far from the data.'], ...
-            o.MaxIter, hist.maxDev(end), o.Tol);
+            '(last max|alpha2-1| = %.3e, last max level change %.3e, tol %.1e). ' ...
+            'Inspect out.history.Shat and out.history.levelDev: a PSD that keeps ' ...
+            'moving usually means too few arcs per frequency, or a starting ' ...
+            'covariance far from the data.'], ...
+            o.MaxIter, hist.maxDev(end), hist.levelDev(end), o.Tol);
     end
 
     arcSpreadGuard(spreadHist);          % R6 WP-97 (F-01): report, never silence
@@ -633,6 +675,22 @@ end
     if o.AvgTail > 0 && numel(shatTail) >= o.AvgTail
         Shat = exp(mean(cat(2, shatTail{end-o.AvgTail+1:end}), 2));
         C    = lsqvce.kernel.dctI(Shat, 'Norm', o.Norm, 'Inverse', true);  % psdVCE's exact inverse
+    end
+
+    % R7-11: the returned SOLUTION under the returned MODEL. The loop's last
+    % accumulation was weighted with the model BEFORE that pass's update, so
+    % x, Cxx and sigma0 were one pass behind the C / levels / factors handed
+    % back next to them. One more accumulation under the final model (same
+    % pass index, so the prior activation is that of the last pass; lastSol
+    % lets the prior groups take their last update). Not after a user stop:
+    % the hook asked for the loop to end where it was.
+    if ~userStop
+        modelF = struct('C', C, 'sigma2', sigma2, 'iter', numel(hist.maxDev), ...
+                        'streamSigma2', streamMeans(pinnedKeys, sigma2), ...
+                        'Cgroups', Cmap, 'Pool', char(o.Pool), 'Estimate', o.Estimate, ...
+                        'lastSol', lastSol, 'rowWeights', W);
+        accF = accFcn(modelF);
+        solF = accF.solve();
     end
     out = struct('C', C, 'Shat', Shat, 'sigma2', sigma2, 'acc', accF, ...
                  'userStop', userStop, ...

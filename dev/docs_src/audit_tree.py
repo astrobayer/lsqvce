@@ -1228,7 +1228,7 @@ def check_options_are_consumed():
 # R7-22 (2026-10-10): group fields nothing reads, accepted as DEBT until
 # WP-116 wires or retires them. A field leaves this set in the commit that
 # fixes it; the check refuses a stale entry.
-DEAD_GROUP_DEBT = {('Noise', 'Smooth'), ('Noise', 'FreezeRedundancy')}
+DEAD_GROUP_DEBT = set()   # emptied by WP-116 (R7-22): both fields wired
 
 
 def option_groups(src):

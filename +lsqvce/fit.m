@@ -112,6 +112,8 @@ function R = fit(data, opts, nv)
 %                                  "none" | "scale" | "law"
 %       lsqvce:fit:lawOnFixedStructure  (R5 M4 4b) estimate "law" on a stream whose
 %                                  sigma is per-row (a fixed structure: level only)
+%       lsqvce:fit:varUnderNoise   (R7-07) a 'var' law under Estimate = "noise": the
+%                                  joint sweep has no vector-AR path
 %       lsqvce:fit:badMatrix       kind B shapes disagree (A m x u, l m x 1,
 %                                  p m x 1)
 %       lsqvce:fit:missingField    kind C lacks batchFcn / numBatches, or the
@@ -128,6 +130,10 @@ function R = fit(data, opts, nv)
 %   See also LSQVCE.OPTIONS, LSQVCE.RESULTS, LSQVCE.LAYOUT, LSQVCE.ENGINE.DECLARATION,
 %            LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT,
 %            LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTNONLINEAR
+%
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-116 part 1: a 'var' law under Estimate = "noise" is refused by
+%   name (lsqvce:fit:varUnderNoise, R7-07). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %
 %   Created 2026-08-31 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Fable 5 -- R4 Level L2, WP-56 (decision R4-D4).
@@ -578,6 +584,18 @@ function [estMap, afMap] = streamPolicy(systems, specs, streams, afDefault)
         for j = 1:numel(ots)
             cm = L.cov.(ots{j});
             key = sprintf('%s|%s', satKey, ots{j});
+            % R7-07: a 'var' law carries its own cross-axis structure, which the
+            % joint sweep cannot use -- it would treat the d-interleaved block-
+            % Toeplitz Cfcn as a per-axis temporal law over epochs (wrong Sigma,
+            % silently) and apply an estimated level as a std to a covariance.
+            % Refused by name until the sweep supports it.
+            if strcmpi(char(string(lsqvce.util.getfielddef(cm, 'type', ''))), 'var')
+                error('lsqvce:fit:varUnderNoise', ...
+                     ['covariance.%s of system %s is a ''var'' law: Estimate = "noise" ' ...
+                      'cannot estimate it (the joint sweep has no vector-AR path). Run it ' ...
+                      'with Estimate = "none", or declare the axes as a scalar temporal ' ...
+                      'law plus the per-epoch Cep.'], ots{j}, satKey);
+            end
             % a law with a NON-SCALAR sigma (per-row weights) is a fixed
             % structure: it can carry a LEVEL, not a spectral shape -- its
             % default policy is "scale"; asking for "law" is refused (R5 M4 4b)

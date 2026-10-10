@@ -742,6 +742,80 @@ function testPoolStreamGivesEachStreamItsOwnLaw(tc)
     tc.verifyEqual(R.sigma0, 1, 'RelTol', 0.10, 'and the run stays consistently weighted');
 end
 
+function testScaleOnlyRunIteratesAndRecoversTheLevels(tc)
+% categories: reference, robustness | tags: convergence
+    % R7-11: with no "law" stream the loop's only criterion, max|alpha2 - 1|,
+    % was 0 by construction, so the run stopped "converged" on pass 1 and
+    % returned the solve under the DECLARED weights (demo_lsqvce case 5:
+    % sigma0 2.31 printed under "variance ratio back at ~1"). The stop rule
+    % now needs the levels to settle too, and the returned solution is the
+    % one under the returned model. Stream b is truly 3x its declared sigma.
+    R = lsqvce.fit(scaleOnlyFixture(1, 3, false), lsqvce.Options(Estimate="noise", Pool="stream", ...
+                   MaxPasses=8, Verbose=false));
+    tc.verifyGreaterThan(R.history.nIter, 1, 'a level-only run does not stop on pass 1');
+    tc.verifyTrue(R.converged);
+    lvl = @(s) R.noise.model{find(strcmp(R.noise.stream, s), 1)}.sigma * R.sigma0;
+    % tol: 10 % relative -- a level from 3 days x 3 arcs x 256 white epochs
+    % (sampling ~3 %); the pass-1 answer this replaces was off by ~2x
+    tc.verifyEqual([lvl('x1|a'), lvl('x1|b')], [1 3], 'RelTol', 0.10, ...
+        'declared x sqrt(level) x sigma0 reconstructs both planted sigmas');
+end
+
+function testArcFactorStreamIgnoresOtherStreamsLevels(tc)
+% categories: metamorphic, reference
+    % R7-09: an arc-factor stream's factors were normalised by gamma-bar over
+    % EVERY column, so stream a's reconstructed sigma moved with stream b's
+    % truth (review mirror: 1.01 / 0.79 / 1.15 for b = 1 / 4 / 0.25). The
+    % review's remedy -- gamma-bar per stream alone -- loses a's own level
+    % (mirrors/wp116/gammabar_modes.py: a truly 3x came back 1.93); per-stream
+    % gamma-bar times the stream's Helmert level recovers 3.02 for any b.
+    opts = lsqvce.Options(Estimate="noise", Pool="stream", MaxPasses=8, Verbose=false);
+    implied = @(R, s) sqrt(mean(R.noise.model{find(strcmp(R.noise.stream, s), 1)}.sigma2)) * R.sigma0;
+    R1 = lsqvce.fit(scaleOnlyFixture(3, 1, true), opts);
+    R4 = lsqvce.fit(scaleOnlyFixture(3, 4, true), opts);
+    % tol: 10 % relative -- stream a's level from 9 arcs of 256 white epochs
+    % (sampling ~3 %); the shipped normalisation was off by 20-35 % here
+    tc.verifyEqual(implied(R1, 'x1|a'), 3, 'RelTol', 0.10, 'a recovers its own level (b = 1)');
+    % tol: as above
+    tc.verifyEqual(implied(R4, 'x1|a'), 3, 'RelTol', 0.10, 'and the same when only b changes (b = 4)');
+    % tol: 5 % relative -- the metamorphic statement itself: the same a-data
+    % and a 4x change of b must not move a's level beyond the shared sigma0's
+    % own sampling
+    tc.verifyEqual(implied(R4, 'x1|a'), implied(R1, 'x1|a'), 'RelTol', 0.05);
+end
+
+function data = scaleOnlyFixture(scaleA, scaleB, arcFactorsA)
+%SCALEONLYFIXTURE  TWO white streams, both "scale" (no law), declared sigma 1;
+%   stream a truly scaleA x, stream b scaleB x its declared sigma; stream a
+%   carries arc factors when arcFactorsA. No locals. Deterministic.
+    cfg = struct('nc', 4, 'days', 1:3, 'arcs', 3, 'mArc', 256, 'dt', 5, ...
+                 'xTrue', [0.8 -0.45 0.3 0.15], 'scaleA', scaleA, 'scaleB', scaleB);
+    data = struct();
+    data.commonParams = [repmat({'common'}, cfg.nc, 1), ...
+                         arrayfun(@(j) sprintf('c%d', j), (1:cfg.nc).', 'UniformOutput', false)];
+    data.days = cfg.days;
+    spec = struct('type', 'diag', 'sigma', 1, 'estimate', "scale", 'arcFactors', false);
+    specA = spec;  specA.arcFactors = logical(arcFactorsA);
+    data.systems = struct('buildDay', @(day, ot) scaleOnlyDay(cfg, day, ot), ...
+                          'covariance', struct('a', specA, 'b', spec), ...
+                          'arcs', cfg.arcs, 'id', 1, 'name', 'scaleOnly');
+end
+
+function D = scaleOnlyDay(cfg, day, obsType)
+%SCALEONLYDAY  One (day, stream) of the fixture above.
+    m = cfg.arcs * cfg.mArc;
+    t = (day - 1)*86400 + (0:m-1).' * cfg.dt;
+    w = 2*pi / (0.5 * 86400);
+    D.A = [sin(w*t), cos(w*t), sin(2*w*t), cos(2*w*t)];
+    D.B = zeros(m, 0);
+    rs = RandStream('mt19937ar', 'Seed', 6600 + 10*day + double(obsType(1)));
+    sc = cfg.scaleA;  if strcmp(obsType, 'b'), sc = cfg.scaleB; end
+    D.l = D.A * cfg.xTrue(:) + sc * randn(rs, m, 1);
+    D.t = t;
+    D.arcIdx = arrayfun(@(a) (a-1)*cfg.mArc + (1:cfg.mArc), 1:cfg.arcs, 'UniformOutput', false);
+    D = arcCells(D);                                 % v6: the cells are the arcs
+end
+
 %% ------------------------------- R6 WP-105: the robust pass inside the joint loop
 function testRobustPassInsideTheJointLoopRecoversTheLawUnderOutliers(tc)
 % categories: reference, robustness, contract
