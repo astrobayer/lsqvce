@@ -99,6 +99,9 @@ days     1xD double          the calendar</pre>
 WARNINGS
   lsqvce:adjustRobust:notConverged  MaxIter reached; the last pass is
                                     returned with stopReason &quot;maxPasses&quot;
+  lsqvce:robust:atBreakdown         the influence zeroed &gt; 45 % of the
+                                    rows: at the breakdown point (once
+                                    per run; diagnostic only)
 
 ACCURACY  the fixed point equals lsqvce.engine.robust&#x27;s on a diagonal
 law (same influence, same MAD scale; pinned in test_fit to 1e-10); on a

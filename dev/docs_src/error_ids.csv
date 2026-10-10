@@ -242,6 +242,7 @@ lsqvce:residuals:supersedesSol,engine.residuals,warning,v4.0
 lsqvce:resolveNc:conflict,engine.resolveNc,error,v4.0
 lsqvce:resolveNc:empty,engine.resolveNc,error,v4.0
 lsqvce:resolveNc:missing,engine.resolveNc,error,v4.0
+lsqvce:robust:atBreakdown,engine.private.warnAtBreakdown,warning,v6.1.4
 lsqvce:robustWeights:badInfluence,kernel.robustWeights,error,v4.0
 lsqvce:robustWeights:badTuning,kernel.robustWeights,error,v4.0
 lsqvce:robustWeights:scaleFallback,kernel.robustWeights,warning,v6.1.4

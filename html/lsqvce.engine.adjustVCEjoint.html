@@ -142,8 +142,11 @@ OPTIONS (Name/Value)
            reading 0.83-0.86 (law fixed) / ~0.93 (law free). Until a
            multi-seed MATLAB measurement settles it, read the level of a
            robust pass as possibly biased LOW. Multi-axis streams are
-           weighted PER EPOCH (the
-           RMS over the d law-whitened rows). The residuals
+           weighted PER EPOCH by one chi-calibrated statistic (R7-08:
+           the d descaled rows&#x27; sum of squares mapped to an equivalent
+           N(0,1) deviate, so a clean 3-axis epoch is standardised like a
+           scalar residual; the RMS used before zeroed 24 % of clean
+           epochs under IGG3). The residuals
            are standardised by ONE MAD SCALE PER STREAM, never by the
            estimated level (perStreamWeights says why). Prior streams
            are never re-weighted. Prefer &quot;igg3&quot; / &quot;bisquare&quot; for gross
@@ -220,6 +223,8 @@ plot(r.sigma2);            % the arc-wise weights</pre>
                                   measured in HANDOVER 12.34)
 
 IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+  lsqvce:robust:atBreakdown                  [warning] the robust pass zeroed &gt; 45 % of
+                                             the epochs (once per run; R7 WP-115)
   lsqvce:adjustVCEjoint:localNotPD           System X
   lsqvce:adjustVCEjoint:notConverged         [warning] The joint stochastic model did not settle in X outer iterations (last...
   lsqvce:adjustVCEjoint:arcFactorsDiverging  [warning] arc-factor spread grew (F-01)</pre>

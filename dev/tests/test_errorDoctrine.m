@@ -234,6 +234,27 @@ function testEllmerRunsOnMultiAxisStreams(tc)
     tc.verifyTrue(all(p(:) >= 0 & p(:) <= 1), 'p-values in [0, 1]');
     tc.verifyEqual(size(R.history.sigma), size(p));
 end
+function testJointRobustPassKeepsCleanMultiAxisEpochs(tc)
+% categories: robustness, precision
+    % R7-08 (user decision 2026-10-10: chi-calibrated). The joint loop's robust
+    % pass reduced a 3-axis epoch to its RMS -- chi-shaped, median ~1 -- and
+    % robustWeights standardises vw/s uncentred, so IGG3 zeroed ~24 % of CLEAN
+    % 3-axis epochs (mirror: mirrors/wp115/chi_calibrated.py). The demo's
+    % streams carry no blunders: with the calibrated statistic a clean epoch
+    % is zeroed about as often as a clean scalar residual (~0.3 %).
+    muteWarn(tc, 'lsqvce:decorrFactor:notPD');
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');
+    [~, data] = demo_grace_dataLoader();
+    R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Robust="igg3", ...
+                   Noise=struct('Grid', 16), MaxPasses=2, Verbose=0));
+    fac = R.noise.robust.factor;
+    % tol: 5 % -- the calibrated statistic zeroes ~0.3 % of clean epochs
+    % (scalar-equivalent); the RMS statistic zeroed ~24 % of the 3-axis ones,
+    % which make up most of the demo's epochs
+    tc.verifyLessThan(mean(fac == 0), 0.05, sprintf( ...
+        'clean data: %.1f %% of the epochs zeroed (want < 5 %%)', 100 * mean(fac == 0)));
+end
+
 %% ============================================================ R5 M2 2b: IRLS kernel
 function testRobustWeightsContract(tc)
 % categories: contract

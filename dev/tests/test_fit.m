@@ -264,6 +264,27 @@ function testRobustReportSaysTheFitIsRobust(tc)
     tc.verifyFalse(any(strcmp(codes0, 'ROBUST_FIT')), 'a least-squares fit does not');
 end
 
+function testRobustWarnsAtTheBreakdownPoint(tc)
+% categories: robustness | tags: diagnostics
+    % User decision 2026-10-10 (HANDOVER 12.34 option 2, R7 WP-115): the
+    % collapse refusal fires only on a model error or near-total
+    % contamination, so a pass that ZEROES more than 45 % of the rows says it
+    % is at the breakdown point -- once, changing nothing. 48 % blunders of
+    % 25 sigma under IGG3: zeroed, warned, and the fit still returns.
+    rs = RandStream('mt19937ar', 'Seed', 45);
+    m = 500;  A = [ones(m, 1), randn(rs, m, 2)];  l = A*[1; 2; 3] + randn(rs, m, 1);
+    b = randperm(rs, m, 240);  l(b) = l(b) + 25 * sign(randn(rs, 240, 1));
+    muteWarn(tc, 'lsqvce:robust:atBreakdown');   % provoked on purpose
+    R = lsqvce.fit(struct('A', A, 'l', l), lsqvce.Options(Robust="igg3", Verbose=false));
+    tc.verifyTrue(any(strcmp(R.meta.warnings, 'lsqvce:robust:atBreakdown')), ...
+                  'the breakdown warning is in the run''s warning inventory');
+    tc.verifyTrue(all(isfinite(R.x)), 'diagnostic only: the fit still returns');
+    % 10 % blunders: far from breakdown, no warning
+    l2 = A*[1; 2; 3] + randn(rs, m, 1);  l2(b(1:50)) = l2(b(1:50)) + 25;
+    R2 = lsqvce.fit(struct('A', A, 'l', l2), lsqvce.Options(Robust="igg3", Verbose=false));
+    tc.verifyFalse(any(strcmp(R2.meta.warnings, 'lsqvce:robust:atBreakdown')));
+end
+
 function testRobustReportsNoFactorForAPriorRow(tc)
 % categories: contract
     % DISCRIMINATOR. A local prior group rides as its own stream

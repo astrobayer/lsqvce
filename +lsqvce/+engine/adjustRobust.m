@@ -57,6 +57,9 @@ function R = adjustRobust(systems, days, opt)
 %   WARNINGS
 %     lsqvce:adjustRobust:notConverged  MaxIter reached; the last pass is
 %                                       returned with stopReason "maxPasses"
+%     lsqvce:robust:atBreakdown         the influence zeroed > 45 % of the
+%                                       rows: at the breakdown point (once
+%                                       per run; diagnostic only)
 %
 %   ACCURACY  the fixed point equals lsqvce.engine.robust's on a diagonal
 %   law (same influence, same MAD scale; pinned in test_fit to 1e-10); on a
@@ -148,6 +151,7 @@ end
                   'Check the model, not the data.'], ...
                   nAlive, nc, nc + 1);
         end
+        warnAtBreakdown(fac, 'adjustRobust');      % engine-private: > 45 % zeroed, said once (R7 WP-115)
 
         dx = Inf;
         if ~isempty(x), dx = max(abs(sol.x(:) - x)); end

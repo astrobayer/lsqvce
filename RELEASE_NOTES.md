@@ -1,10 +1,24 @@
 # lsqvce release notes
 
-## 6.1.4 — 2026-10-10 (R7 WP-115 part 1: robust conventions that need no design decision)
+## 6.1.4 — 2026-10-10 (R7 WP-115: robust conventions — wrong-day weights, calibrated multi-axis epochs, honest scales)
 
-One silently-wrong-numbers fix, three behaviour corrections, and documentation truth. The
-estimator design questions review R7 raised (the multi-axis epoch statistic, the Koch fold
-under correlated laws, the collapse threshold) are NOT in this release.
+Two silently-wrong-numbers fixes, three behaviour corrections, one new diagnostic and
+documentation truth. Of the design questions review R7 raised, the user decided all three on
+2026-10-10; two ship here, and the third (an additive nugget instead of the multiplicative
+Koch fold under correlated laws, R7-10) is a larger change to the loader, the sweep and the
+lag kernel and follows in its own release.
+
+- **Clean multi-axis epochs are no longer rejected (R7-08).** The joint loop's robust pass
+  reduced a d-axis epoch to its RMS — a χ-shaped value with median near 1 — and the
+  influence standardises uncentred, so `igg3` zeroed about 24 % of CLEAN 3-axis epochs (62 %
+  at d = 6). The epoch statistic is now χ-calibrated (user decision): the sum of squares is
+  mapped through χ²(d) to the equivalent normal deviate with the sign of the rows' sum, so a
+  clean epoch is standardised exactly like a clean scalar residual (0.3 % zeroed at any d,
+  measured on a mirror); blunders are still rejected. Scalar streams are unchanged.
+- **A breakdown warning (user decision).** `lsqvce:robust:atBreakdown`, once per run, when a
+  robust pass (stand-alone or joint) zeroes more than 45 % of its observations. The collapse
+  refusal is unchanged — it remains the model-error detector 6.1.3 described. Diagnostic only;
+  Huber never zeroes a factor, so it cannot fire under Huber.
 
 - **Robust weights could be applied to the wrong day (R7-06).** `lsqvce.util.rowWeightKey`
   printed day ids with `%g`, which keeps six significant digits, so seven-digit day ids —

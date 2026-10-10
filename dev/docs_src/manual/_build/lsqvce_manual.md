@@ -1820,8 +1820,15 @@ M-estimation and all three of his are available with `Estimate = "noise"` alone:
 `Robust = "huber" | "igg3" | "bisquare"` together with `Estimate = "noise"` runs the robust
 pass *inside* the joint estimator. Every pass ends with one residual sweep; the **raw**
 residuals, descaled by each epoch's own declared accuracy (`Cep`) and reduced to one value
-per epoch (the RMS over a multi-axis epoch's rows), go through the influence function per
-stream (`RobustOpts.Tuning` for the constants), and the factors are folded into the
+per epoch, go through the influence function per stream (`RobustOpts.Tuning` for the
+constants). For a multi-axis epoch that value is **χ-calibrated** (since 6.1.4): the sum of
+squares of its d descaled rows is mapped through the χ²(d) distribution to the equivalent
+normal deviate, with the sign of the rows' sum, so a clean 3-axis epoch is standardised
+exactly like a clean scalar residual — the RMS used before was χ-shaped and, standardised
+uncentred, zeroed about a quarter of clean 3-axis epochs under `igg3`. When a pass zeroes
+more than 45 % of the epochs the toolbox warns once that it is at the breakdown point
+(`lsqvce:robust:atBreakdown`; diagnostic only — the stand-alone IRLS says the same about
+rows). The factors are folded into the
 per-epoch error information of the next pass — sigma / sqrt(w), **before** the temporal law,
 through the one composition C = D (R_t ⊗ I_d) D. Accumulation, the probe redundancies and
 the component update therefore see **one** re-weighted problem with nothing added. A weight
@@ -2288,6 +2295,7 @@ Every identifier the package raises, from `dev/docs_src/error_ids.csv` (the cata
 | `lsqvce:resolveNc:conflict` | engine.resolveNc — error — v4.0 |
 | `lsqvce:resolveNc:empty` | engine.resolveNc — error — v4.0 |
 | `lsqvce:resolveNc:missing` | engine.resolveNc — error — v4.0 |
+| `lsqvce:robust:atBreakdown` | engine.private.warnAtBreakdown — warning — v6.1.4 |
 | `lsqvce:robustWeights:badInfluence` | kernel.robustWeights — error — v4.0 |
 | `lsqvce:robustWeights:badTuning` | kernel.robustWeights — error — v4.0 |
 | `lsqvce:robustWeights:scaleFallback` | kernel.robustWeights — warning — v6.1.4 |

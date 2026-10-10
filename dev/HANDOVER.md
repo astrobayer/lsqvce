@@ -7875,7 +7875,14 @@ reworded: it is timed inside the dispatch budget but not called by name.
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 115 (part 1) | R7-06 row-weight keys exact for any integer day; R7-21 the MAD fallback reported, near-ties caught; R7-17 the IRLS stop rule unit-invariant; R7-18 `report` says a fit is robust; R7-25 the joint `collapsed` claim withdrawn; R7-12 "unbiased" withdrawn to an open question; check 28 reads wrapped help lines and runtime messages; **version 6.1.4** | 117 part 3 (§12.38) | OPEN (2026-10-10; audit CLEAN, self-test 63/63; the Manual PDF rebuilt here with XeLaTeX installed in the container; CI pending) |
+| 115 (parts 1+2) | R7-06 row-weight keys exact for any integer day; R7-21 the MAD fallback reported, near-ties caught; R7-17 the IRLS stop rule unit-invariant; R7-18 `report` says a fit is robust; R7-25 the joint `collapsed` claim withdrawn; R7-12 "unbiased" withdrawn to an open question; check 28 reads wrapped help lines and runtime messages; part 2: R7-08 χ-calibrated multi-axis epoch statistic, the breakdown warning `lsqvce:robust:atBreakdown`; **version 6.1.4** | 117 part 3 (§12.38) | OPEN (2026-10-10; audit CLEAN, self-test 63/63; the Manual PDF rebuilt here with XeLaTeX installed in the container; CI pending) |
+
+**User decisions (2026-10-10, recorded here, implemented in part 2):** (b) R7-10 — the
+**additive nugget** replaces the multiplicative Koch fold under correlated laws; (c) the
+collapse guard keeps its error and gains a **breakdown WARNING** at a zeroed fraction of
+~0.45 (diagnostic only); R7-08 — the multi-axis epoch statistic is **χ-calibrated** (the
+sum of squares mapped through the χ²(d) CDF to an equivalent normal deviate; d = 1
+unchanged).
 
 **Scope, and what waits for the user.** WP-115 as R7 proposed it holds three design
 questions this part does NOT touch: R7-08 (the multi-axis epoch statistic: centred or
@@ -7907,3 +7914,26 @@ Manual §7.8 and the test's comment and message; the 15 % assertion stays as "no
 bias". The settling measurement is the first item of WP-115's design part.
 
 **Counts.** 598 declared (595 + 3), 586 gate-executed.
+
+**Part 2 (2026-10-10, same version 6.1.4, same PR).** The user decided (b), (c) and R7-08.
+- **R7-08 → χ-calibrated** (`adjustVCEjoint>chiCalibrated`): per multi-axis epoch,
+  z = sign(Σ v) · √2 · erfcinv(Q(d/2, q / 2s²)), s² = median(q / med χ²_d) per stream. For
+  isotropic Gaussian epochs norm and direction are independent, so z is exactly N(0,1); the
+  weights stay level-invariant (s² comes from the same stream). Mirror
+  (`dev/reviews/R7_2026-10-09/mirrors/wp115/chi_calibrated.py`, 200 000 clean epochs, IGG3):
+  zeroed 0.29 % / 0.28 % / 0.27 % at d = 3 / 6 / 12 (scalar 0.32 %), the old RMS 24.4 % /
+  62.9 % / 97.4 % — the review's numbers reproduced; 8-sigma one-axis blunders: 100 %
+  zeroed. MATLAB test `testJointRobustPassKeepsCleanMultiAxisEpochs` (demo_grace, IGG3,
+  < 5 % zeroed). Scalar epochs bitwise unchanged.
+- **(c) → the breakdown warning** `lsqvce:robust:atBreakdown`, one engine-private helper
+  (`warnAtBreakdown`) for both drivers: zeroed fraction > 0.45, once per run, nothing
+  changed. Test `testRobustWarnsAtTheBreakdownPoint` (48 % blunders warns, 10 % does not).
+- **(b) → the additive nugget is NOT in this PR**, by design: C + diag(c_i) breaks the
+  separable composition C = D (R_t ⊗ I_d) D that the loader's filter whitening
+  (`covModel>composeWithCep`), the joint sweep's per-axis temporal path (`oneArc`) and the
+  Toeplitz/Gohberg–Semencul fast path of `kernel.redundancyLags` all rely on; a nugget arc
+  needs a dense (or low-rank-updated) path in all three, and its cost and accuracy must be
+  measured at tier A (the review's φ = 0.9 fixture: formal/true sd 0.31 → ~1). Recorded as
+  **WP-115 part 3**, its own PR and version.
+
+**Counts after part 2.** 600 declared, 588 gate-executed.
