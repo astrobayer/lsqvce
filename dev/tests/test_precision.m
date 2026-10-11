@@ -182,6 +182,49 @@ function testPSDToACVRoundTrip(tc)
     tc.verifyLessThan(norm(r_num - r_ana)/norm(r_ana), 2e-3);
 end
 
+function testPSD2ACVHasNoLagPeriod(tc)
+% categories: precision, reference
+% R7-01 (WP-111 part 2): a COARSE law (60 bins, the joint estimator's Grid)
+% must give its own ACV at every lag of a long arc. Trapezoidal quadrature
+% of S cos on nf points is periodic in the lag with period 2(nf-1): on the
+% uniform grid covModel used to resample to, r(m-1) came back as r(1) (even
+% m) or r(0) (odd m) -- a circulant covariance (Toeplitz cond 3.3e8, measured
+% on the runner). The exact integral of the piecewise-linear S has no period.
+    L = 60;  phi = 0.5;  dt = 5;
+    fN = (0:L-1).' / (2 * (L - 1));
+    S  = 2 * dt ./ abs(1 - phi * exp(-2i * pi * fN)).^2;      % one-sided, physical
+    f  = fN / dt;
+    for m = [255 256 2111]
+        r = lsqvce.kernel.psd2acv(f, S, dt, m);
+        % tol: the AR(1) correlation at lag m-1 >= 254 is 0.5^254 ~ 0; what the
+        % linear interpolant adds is O(1e-8) (measured 1e-8 .. 2e-8); a
+        % circulant gives 0.5 or 1
+        tc.verifyLessThan(abs(r(m) / r(1)), 1e-6, sprintf('no wrap at m = %d', m));
+        % tol: the interpolant of a 60-bin AR(1) law reproduces lag 1 to 1e-3
+        tc.verifyEqual(r(2) / r(1), phi, 'AbsTol', 1e-3, sprintf('lag 1 at m = %d', m));
+        % tol: cond of the exact law's Toeplitz is ~9 at every size (AR(1) 0.5)
+        tc.verifyLessThan(cond(toeplitz(r)), 20, sprintf('well conditioned at m = %d', m));
+    end
+    % tol: the identity r(0) = trapz(f, S) still holds (the same linear interpolant)
+    tc.verifyEqual(r(1), trapz(f, S), 'RelTol', 1e-12);
+end
+
+function testCovModelToeplitzLawIsNotCirculant(tc)
+% categories: contract, precision
+% R7-01 at the seam: covModel 'psd' 'toeplitz' no longer resamples the law
+% onto floor(m/2)+1 points; its covariance is psd2acv's exact ACV, so an odd
+% arc is not a circulant (the shipped 6.6.1 gave corr(1, m) = 1.000).
+    L = 60;  phi = 0.5;  dt = 5;  m = 255;
+    fN = (0:L-1).' / (2 * (L - 1));
+    cm = struct('type', 'psd', 'fNorm', fN, 'S', 2 ./ abs(1 - phi * exp(-2i * pi * fN)).^2);
+    Cfcn = lsqvce.engine.covModel(cm, (0:m-1).' * dt, struct('psdMode', 'toeplitz'));
+    C = Cfcn(1:m, struct());
+    % tol: as testPSD2ACVHasNoLagPeriod -- ~1e-8 interpolant, a circulant gives 1
+    tc.verifyLessThan(abs(C(m, 1) / C(1, 1)), 1e-6, 'epoch 1 and epoch m are not neighbours');
+    % tol: cond ~9 for the exact AR(1) 0.5 law, 3.3e8 for the circulant
+    tc.verifyLessThan(cond(C), 20);
+end
+
 function testCheckPSDVerdicts(tc)
 % categories: contract | tags: diagnostics
     dt = 5;  a = [1 -1.6 0.9 -0.25];

@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.6.1 — User Manual</title>
+  <title>lsqvce 6.6.2 — User Manual</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.6.1 — User Manual</h1>
+<h1 class="title">lsqvce 6.6.2 — User Manual</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 <p class="date">built from the sources; the single documentation
@@ -2996,9 +2996,10 @@ it</p>
 <li>sweeps every arc once for its whitened residual and its
 Hutchinson-probed redundancies at every lag (all lags from one FFT per
 column),</li>
-<li>updates the spectral shape per pool group in the PSD domain
-(positive by construction, resampled to each arc’s length), the level
-per stream, the per-arc factors, and the sigma of any prior group with
+<li>updates the spectral shape per pool group in the PSD domain (the
+loader turns it into its exact ACV at every lag of each arc – since
+6.6.2 no longer a resampled, circulant one, review R7-01), the level per
+stream, the per-arc factors, and the sigma of any prior group with
 <code>estimate = "scale"</code>,</li>
 </ol>
 <p>and stops at <code>Tolerance</code> (max |alpha² − 1|) or

@@ -180,6 +180,10 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 %   See also LSQVCE.ENGINE.CHECKPSD, LSQVCE.KERNEL.ARMAWHITEN, LSQVCE.KERNEL.SEPARABLEWHITEN,
 %            LSQVCE.KERNEL.DECORRFACTOR, LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.MAKELOADER
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 2 (R7-01): the
+%   'toeplitz' PSD law is no longer resampled onto floor(m/2)+1 points; its
+%   ACV is psd2acv's exact integral (no circulant). With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-115 part 3b (R7-10, user
 %   decision (b)): the robust factors compose as an additive nugget
 %   (cm.nugget) instead of the multiplicative fold through Cep. With
@@ -627,23 +631,15 @@ function [Cfcn, Wfcn, info] = psdModel(cm, t, dt, opt, info)
         nmax = lsqvce.util.getfielddef(opt, 'BatchSize', 20000) + ...
                lsqvce.util.getfielddef(opt, 'BatchOverlap', 0);
         nmax = min(nmax, numel(t));
-        % RESOLUTION. A PSD sampled at nf frequencies spans exactly 2*(nf-1)
-        % independent lags, so the Toeplitz matrix it generates is RANK
-        % DEFICIENT -- not merely ill-conditioned -- for any window longer
-        % than that (sharp: at nf = m/2 the matrix is indefinite, at
-        % nf = m/2 + 1 positive definite). R5 M3 3b (findings H-17 / G-08):
-        % the law is INTERPOLATED onto the grid THIS window needs, m MEASURED
-        % from the arc -- positive by construction, valid for any arc length.
-        % The coarse estimate is not made finer, only resampled (nothing is
-        % assumed, so no warning; before 3b a ridge was applied and a warning
-        % said it masked the shortfall).
-        nfNeed = floor(nmax/2) + 1;
-        if numel(f) < nfNeed
-            fFine = linspace(f(1), f(end), nfNeed).';
-            S = interp1(f, S, fFine, 'linear');
-            f = fFine;
-            S(~isfinite(S) | S < fl*Smax) = fl*Smax;
-        end
+        % RESOLUTION (R7 WP-111 part 2, finding R7-01). The ACV is the EXACT
+        % integral of the piecewise-linear spectrum through the given
+        % ordinates (LSQVCE.KERNEL.PSD2ACV): no lag period, so a coarse law
+        % (the joint estimator's Grid of 60 bins) yields its own ACV at every
+        % lag of any arc, and a positive S a positive-definite Toeplitz. The
+        % law used to be resampled onto floor(m/2)+1 points and integrated by
+        % trapezoids, which is periodic in the lag: r(m-1) = r(1) on even
+        % arcs, = r(0) on odd ones (a circulant, Toeplitz cond 3.3e8 at
+        % phi 0.5, measured on the runner -- HANDOVER 12.44).
         r    = lsqvce.kernel.psd2acv(f, S, dt, nmax);      % once per arc, reused per batch
         rg   = lsqvce.util.getfielddef(opt, 'psdRidge', 1e-8);
         if rg > 0 && ~isempty(r), r(1) = r(1) * (1 + rg); end

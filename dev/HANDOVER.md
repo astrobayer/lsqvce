@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-11 — WP-115 part 4 DONE (PR #130, merge 13bf7d0), WP-115 complete; WP-111 part 1 OPEN (tier A via CI, model Claude Opus 5.5; user decision: POSITIVE COMPONENTS replace the DCT-domain update): the measurement first -- dev/validation/wp111_measure.m reproduces R7-02's runaway through lsqvce.fit and runs the candidate (hat-spectrum components, exact ACV r = K S) on the same data, plus R7-01's wrap through covModel; no toolbox change; §12.44.
+Last substantive update: 2026-10-11 — WP-111 part 1 DONE (PR #131, merge 3ed7f98; the results recorded on this branch); WP-111 part 2 OPEN (tier B, model Claude Opus 5.5): R7-01 -- psd2acv integrates the piecewise-linear spectrum exactly (no lag period), covModel 'psd' 'toeplitz' no longer resamples onto floor(m/2)+1 points; version 6.6.2; §12.44.
+Preceding entry: Last substantive update: 2026-10-11 — WP-115 part 4 DONE (PR #130, merge 13bf7d0), WP-115 complete; WP-111 part 1 OPEN (tier A via CI, model Claude Opus 5.5; user decision: POSITIVE COMPONENTS replace the DCT-domain update): the measurement first -- dev/validation/wp111_measure.m reproduces R7-02's runaway through lsqvce.fit and runs the candidate (hat-spectrum components, exact ACV r = K S) on the same data, plus R7-01's wrap through covModel; no toolbox change; §12.44.
 Preceding entry: Last substantive update: 2026-10-11 — WP-115 part 3b DONE (PR #129, merge f2b164d; CI GREEN on cf4db8c); WP-115 part 4 OPEN (tier B, model Claude Opus 5.5): R7-43 -- one stream key (util.streamKey), one arc key (util.arcKey), the arc's stream carried as out.arcStreams instead of parsed back by regex, engine.satKeyOf retired; version 6.6.1; §12.43.
 Preceding entry: Last substantive update: 2026-10-11 — WP-115 part 3a DONE (PR #128, merge 3eb193c; CI GREEN on cfa9375); WP-115 part 3b OPEN (tier B, model Claude Opus 5.5; user decisions: build the nugget; R7-12 by hard rejection + the Gaussian truncation factor, after the mirror showed the weighted redundancy leaves the bias): the robust factors are an additive nugget (covModel cm.nugget, whole-arc Woodbury whitener, inflateCep retired, redundancyLags 'Nugget'/'LawW'); the component update sees only rejected epochs and the level is divided by tau (R.noise.robust.truncation); version 6.6.0; §12.43.
 Preceding entry: Last substantive update: 2026-10-11 — WP-86 part 4 DONE (PR #127, merge 8aef05c; CI GREEN on 23117f0), WP-86 complete; WP-115 part 3 OPEN (tier A via the self-hosted runner, model Claude Opus 5.5; user: "use CI for WP-115 part 3"): the measurement first -- dev/validation/wp115_measure.m on a new non-gating workflow measure.yml; R7-12's multi-seed level and R7-10's fold / nugget / deletion on the phi = 0.9 fixture, with the nugget's per-arc cost (dense vs Woodbury); no toolbox code changed, no version; §12.43.
@@ -8557,7 +8558,8 @@ adjustVCEjoint>streamMeans / streamKeyOf).
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 111 (part 1) | the tier-A measurement: R7-02's runaway reproduced through `lsqvce.fit`, the candidate (positive components) on the same data, R7-01's wrap through covModel; `dev/validation/wp111_measure.m` on `measure.yml`; no toolbox change, no version | 115 (PR #130 merged 13bf7d0) | OPEN (2026-10-11; audit CLEAN; measured: run 38145552366; results below) |
+| 111 (part 1) | the tier-A measurement: R7-02's runaway reproduced through `lsqvce.fit`, the candidate (positive components) on the same data, R7-01's wrap through covModel; `dev/validation/wp111_measure.m` on `measure.yml`; no toolbox change, no version | 115 (PR #130 merged 13bf7d0) | DONE (2026-10-11, PR #131, merge 3ed7f98; measured: run 38145552366) |
+| 111 (part 2) | R7-01: `kernel.psd2acv` integrates the piecewise-linear spectrum EXACTLY (closed form per segment) -- no lag period; `covModel` 'psd' 'toeplitz' no longer resamples onto floor(m/2)+1 points; **version 6.6.2** | 111 part 1 (PR #131 merged 3ed7f98) | OPEN (2026-10-11; audit CLEAN; CI pending) |
 
 **The design question, and the user's decision (2026-10-11).** R7-01 (the 'toeplitz' ACV is
 circulant), R7-02 (the estimated law runs away x1e7 and the loop says "converged") and
@@ -8611,3 +8613,22 @@ through `covModel` 'psd' 'toeplitz' an AR(1) phi 0.5 law gives r(m-1)/r(0) = 0.4
   ZeroFreqRule -- R7-20 dissolves), the arc factor alpha2_m = S'q_m / S't_m, jointModelOpt
   hands S on to the loader as the 'psd' law; psdVCE's interface, test_ellmer's DCT-domain
   tests and Manual 7.5 rewritten; 'Norm' (the bit-exact Ellmer reproduction) retired.
+
+**Part 2 -- R7-01 (user: "continue with WP-111 part 2", 2026-10-11; version 6.6.2; tier B).**
+- `kernel.psd2acv` now integrates the PIECEWISE-LINEAR spectrum through the ordinates
+  exactly: per segment (centre c, half-width h, x = 2 pi tau h)
+  (S_a + S_b) h cos(2 pi tau c) sinc(x) - (S_b - S_a) h sin(2 pi tau c) (sin x - x cos x)/x^2,
+  the last factor by its series x/3 - x^3/30 below x = 1e-2 (cancellation). Checked against
+  a 2e6-point quadrature of the same interpolant: 1e-11 (scratch check); r(0) = trapz(f, S)
+  is unchanged (same interpolant). The trapezoid rule on nf points was periodic in the lag
+  (period 2(nf-1)), which is the whole of R7-01 once covModel resampled to floor(m/2)+1.
+- `covModel` 'psd' 'toeplitz': the resampling block is gone; psd2acv's ACV is used at every
+  lag. Uniform-bin joint laws are then exactly the hat-spectrum ACV of part 3's K.
+- Tests (+2, 632): `test_precision>testPSD2ACVHasNoLagPeriod` (m = 255 / 256 / 2111:
+  r(m-1)/r(0) < 1e-6, lag 1 = 0.5 to 1e-3, cond < 20; trapz identity),
+  `testCovModelToeplitzLawIsNotCirculant` (the seam, odd arc). The 4-ordinate law test in
+  test_ellmer re-read: the exact ACV gives 0.365 / 0.068 against 0.4 / 0.1, inside its 5e-2
+  shape band (trapz had hit them exactly -- and wrapped lag 3 onto lag 2).
+- Expected CI movement: every joint-estimator fit (its 60-bin law on 256+-epoch arcs) and
+  every coarse user 'psd' law changes its numbers; the R7-02 runaway is NOT addressed here
+  (part 3).

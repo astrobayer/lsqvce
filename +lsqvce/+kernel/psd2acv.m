@@ -6,7 +6,17 @@ function r = psd2acv(f, S, dt, n)
 %
 %       r(tau) = int_0^{fNy} S(f) * cos(2*pi*f*tau) df
 %
-%   evaluated with trapezoidal quadrature on the supplied frequency grid.
+%   with S the PIECEWISE-LINEAR spectrum through the given ordinates, integrated
+%   EXACTLY: per segment [a, b] (centre c, half-width h, x = 2 pi tau h)
+%       (S_a + S_b) h cos(2 pi tau c) sin(x)/x - (S_b - S_a) h sin(2 pi tau c) (sin x - x cos x)/x^2
+%   (the second factor by its series below x = 1e-2, where it cancels).
+%   R7 WP-111 part 2 (finding R7-01): this was trapezoidal quadrature of
+%   S cos on the grid, which is periodic in the lag with period 2(nf-1)/(2 fNy dt)
+%   samples -- on the uniform grid covModel resampled to, r(m-1) came back as
+%   r(1) (even m) or r(0) (odd m), a circulant covariance (measured: Toeplitz
+%   cond 3.3e8 for a phi = 0.5 law). The exact integral has no period: r is
+%   the ACV of the spectrum S itself, at every lag, and a non-negative S gives a
+%   positive semi-definite Toeplitz(r) of every size.
 %
 %   INPUT
 %     f    nf x 1  frequency grid [Hz], strictly increasing, f >= 0
@@ -24,10 +34,10 @@ function r = psd2acv(f, S, dt, n)
 %     not as an obvious failure -- check r(1) against var(residuals).
 %
 %   ACCURACY
-%     The quadrature error is set by the frequency grid, not by n. A grid that
-%     is too coarse near a spectral peak biases r(0) low. Use >= 2048 points
-%     and make sure the grid resolves the narrowest feature of S. Verify with
-%       assert(abs(r(1) - trapz(f,S))/r(1) < 1e-10)   % identity at tau = 0
+%     Exact for the piecewise-linear S (1e-11 against a 2e6-point quadrature of
+%     the same interpolant, at any lag); r(1) == trapz(f, S). What remains is
+%     how well the linear interpolant represents YOUR spectrum: a grid too
+%     coarse near a peak biases r(0) low -- resolve the narrowest feature of S.
 %
 %   BEST PRACTICE
 %     Do not extend f beyond the Nyquist frequency 1/(2*dt) of the data: power
@@ -53,6 +63,10 @@ function r = psd2acv(f, S, dt, n)
 %
 %   See also LSQVCE.KERNEL.LEVINSONDURBIN, LSQVCE.KERNEL.ARMAACV, LSQVCE.ENGINE.CHECKPSD
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 2 (R7-01): the exact
+%   integral of the piecewise-linear spectrum replaces trapezoidal quadrature
+%   (no lag period, no circulant). With assistance from Claude (Anthropic),
+%   model Claude Opus 5.5.
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+kernel (R4 decision R4-D1,
@@ -85,8 +99,17 @@ function r = psd2acv(f, S, dt, n)
              'process. Truncate the PSD at Nyquist.'], f(end), fNy, dt);
     end
 
-    tau = (0:double(n)-1).' * dt;               % n x 1
-    r   = trapz(f, S .* cos(2*pi*tau*f), 2);    % n x 1
+    w  = 2*pi * (0:double(n)-1).' * dt;         % n x 1 angular lags
+    h  = (f(2:end) - f(1:end-1)) / 2;           % 1 x nseg half-widths
+    c  = (f(2:end) + f(1:end-1)) / 2;           % 1 x nseg centres
+    Sa = S(1:end-1);  Sb = S(2:end);
+    x  = w .* h;                                % n x nseg
+    sx = ones(size(x));
+    nz = x ~= 0;  sx(nz) = sin(x(nz)) ./ x(nz);
+    g  = x / 3 - x.^3 / 30;                     % (sin x - x cos x)/x^2, small x
+    bg = abs(x) >= 1e-2;
+    g(bg) = (sin(x(bg)) - x(bg) .* cos(x(bg))) ./ x(bg).^2;
+    r  = sum((Sa + Sb) .* h .* cos(w .* c) .* sx - (Sb - Sa) .* h .* sin(w .* c) .* g, 2);
 
     if r(1) <= 0
         error('lsqvce:psd2acv:nonPositiveVariance', ...
