@@ -12,6 +12,7 @@
 %   applyRegularisation  - regularisation of the reduced system
 %   arcVarianceFactors   - per-arc variance factors
 %   BlockAccumulator     - block-arrow accumulation with per-system Schur pre-elimination
+%   BlockCofactor        - the cofactor of the full parameter set, kept as blocks (WP-86)
 %   checkPSD             - PSD sanity check
 %   collectResiduals     - residual collection per stream
 %   CommonPrior          - prior on the common block (regularisation as observations)

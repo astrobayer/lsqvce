@@ -28,6 +28,7 @@
     <tocitem target="html/index.html">Gravity recovery - streaming block-arrow (merged from lsqAccum)
       <tocitem target="html/lsqvce.engine.BlockAccumulator.html">lsqvce.engine.BlockAccumulator</tocitem>
       <tocitem target="html/lsqvce.engine.diagnoseAccum.html">lsqvce.engine.diagnoseAccum</tocitem>
+      <tocitem target="html/lsqvce.engine.BlockCofactor.html">lsqvce.engine.BlockCofactor</tocitem>
       <tocitem target="html/lsqvce.engine.redundancy.html">lsqvce.engine.redundancy</tocitem>
       <tocitem target="html/lsqvce.engine.leverage.html">lsqvce.engine.leverage</tocitem>
       <tocitem target="html/lsqvce.engine.outliers.html">lsqvce.engine.outliers</tocitem>

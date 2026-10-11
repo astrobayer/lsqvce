@@ -232,6 +232,10 @@ classdef BlockAccumulator < handle
 %
 %   See also LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.RESIDUALS, LSQVCE.ENGINE.CHECKPSD, LSQVCE.ENGINE.QRSYSTEM
 %
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-86 part 2 (R7-24):
+%   commonFactor, the reduced commons factor of lsqvce.engine.BlockCofactor
+%   (the QR backend's own square root, the prior folded in by QR). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34, R7-35,
 %   R7-40): the deleted COVMODELFACTORY reference replaced, LocalBlockSize
 %   documented, localCovariance takes the solve's s0sq. With assistance from
@@ -708,6 +712,27 @@ classdef BlockAccumulator < handle
                 N = N + obj.prior.normals();
             end
             N = (N + N.')/2;
+        end
+
+        %------------------------------------------------------------------
+        function Rc = commonFactor(obj)
+        %COMMONFACTOR  Upper-triangular Rc with Rc'*Rc = the TOTAL reduced
+        %   common normal matrix, the prior included (WP-86 part 2: the commons
+        %   factor of lsqvce.engine.BlockCofactor). On the QR backend it is the
+        %   backend's own square root with the prior rows folded in by QR --
+        %   never chol of the squared normals; on the normal backend chol of
+        %   reducedNormalMatrix, the factor solve() uses. Positive diagonal.
+            if strcmp(obj.backend, 'qr')
+                Rc = obj.sys.squareRoot();
+                if ~isempty(obj.prior)
+                    Rc = triu(qr(full([Rc; obj.prior.K / obj.prior.sigma]), 0));
+                    Rc = Rc(1:obj.nc, :);
+                end
+            else
+                Rc = chol(obj.reducedNormalMatrix());   % the matrix solve() factored
+            end
+            sg = sign(diag(Rc));  sg(sg == 0) = 1;
+            Rc = sg .* Rc;
         end
 
         %------------------------------------------------------------------

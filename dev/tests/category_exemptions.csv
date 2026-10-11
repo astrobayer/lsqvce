@@ -85,12 +85,10 @@ engine.datum,reference,no closed form of its own beyond the dense references its
 engine.datum,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
 engine.datum,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
 engine.datum,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path
-engine.diagnose,precision,the numbers it produces are pinned at the fit level against dense closed forms (test_fit, test_lsqvce*, test_physOracle); the driver adds plumbing, not arithmetic
 engine.diagnose,reference,no closed form of its own beyond the dense references its callers are pinned against
 engine.diagnose,robustness,its refusals are named identifiers pinned under contract; no numerical edge regime beyond those
 engine.diagnose,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
 engine.diagnose,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
-engine.diagnoseAccum,reference,no closed form of its own beyond the dense references its callers are pinned against
 engine.diagnoseAccum,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
 engine.ellipse,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
 engine.ellipse,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
@@ -306,3 +304,4 @@ engine.diagnoseAccum,metamorphic,row-permutation equivariance of R.diag pinned t
 engine.adjustNonlinear,reference,the dense Gauss-Newton fixed point (exponential decay; x to 1e-8) is pinned through lsqvce.fit in test_fit; the driver is reached only through fit (R7-27: no longer credited from the comment that names it)
 Results,reference,R.x / Cxx / sigma0 against dense references are pinned on the Results lsqvce.fit returns (test_fit / test_adjustBlock); Results holds what the drivers compute -- the one method with arithmetic of its own (compare) has an open finding (R7-19 / WP-118) and gets its reference there
 engine.makeLoader,speed,timed inside test_speedBudget testFitAddsLittleToTheBlockDriver (both sides build the loaders through lsqvce.engine.declaration) but not called by name there; a budget of its own would time the same work twice
+engine.BlockCofactor,speed,covered by the fit-level solve budget (test_speedBudget): every fit's diagnostics run through it; the per-row cost O(nc^2 + nl*nc) is argued in its help and DEVELOPMENT

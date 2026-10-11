@@ -290,7 +290,7 @@ function test_ellipse_matches_eig_of_submatrix(tc)
     [~, D] = flatAdjust(u, srcOf(B), 3, 'verbose', false);
 
     E = lsqvce.engine.ellipse(D, [1 2]);
-    Q = D.Qxx([1 2],[1 2]) * D.s0^2;
+    Q = D.Q.block([1 2]) * D.s0^2;
     ev = sort(eig((Q+Q')/2), 'descend');
 
     % semi-axes at the 1-sigma (standard) level are sqrt of the eigenvalues,

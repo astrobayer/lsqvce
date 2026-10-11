@@ -13,14 +13,16 @@ function D = diagnose(sol, batchFcn, opt)
 %       ext    external reliability: |dx| induced by an undetected MDB,
 %              expressed as a multiple of the parameter's own sigma
 %
-%   Nothing of size n-by-n or n-by-u is formed HERE: per batch the cost is
-%   O(u^2 * nk) and the memory is O(u^2 + nk). The batch source every fit uses,
-%   LSQVCE.ENGINE.DIAGNOSEACCUM, rebuilds the batches on demand since WP-86
-%   part 1 (it stored all n x u whitened rows before, R7-24); u here is the FULL
-%   parameter count (commons + locals), which part 2 is to remove.
+%   Nothing of size n-by-n, n-by-u or u-by-u is formed: the cofactor of the
+%   FULL parameter set (commons + every system's locals) is sol.Q, an
+%   LSQVCE.ENGINE.BLOCKCOFACTOR, so per row the cost is O(nc^2 + nl*nc) and the
+%   memory O(nc^2 + sum nl*nc) (WP-86 part 2; a dense u x u factor before). The
+%   batch source every fit uses, LSQVCE.ENGINE.DIAGNOSEACCUM, rebuilds the
+%   batches on demand (WP-86 part 1, R7-24).
 %
 %   INPUTS
-%     sol       the diagnosed solution (R.source; LSQVCE.ENGINE.DIAGNOSEACCUM builds it)
+%     sol       the diagnosed solution (R.source; LSQVCE.ENGINE.DIAGNOSEACCUM builds
+%               it): x, Q (the block cofactor), n, u, r, sigma0, s0sq, vPv, ...
 %     batchFcn  function handle, [A,l,p] = batchFcn(k), k = 1..nBatch.
 %               Must reproduce EXACTLY the batches given to the accumulator,
 %               in the same order. This is checked: a replay that sees a
@@ -62,7 +64,10 @@ function D = diagnose(sol, batchFcn, opt)
 %   OUTPUT
 %     D  1x1 struct  residuals, redundancy numbers r_i, leverage h_i, the
 %                    standardised w_i / tau_i, MDB, flagIdx and the
-%                    contamination gauge -- everything LSQVCE.REPORT reads
+%                    contamination gauge -- everything LSQVCE.REPORT reads.
+%                    The parameter cofactor is D.Q (D.Q.block(idx) is
+%                    Qxx(idx, idx)); D.sigX / D.qxxDiag its diagonal, and
+%                    D.corrMax / D.corrMaxPar the strongest correlation
 %
 %   EXAMPLE
 %       % The SAME batch source must be replayed -- this is checked. On the
@@ -97,11 +102,13 @@ function D = diagnose(sol, batchFcn, opt)
 %   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
 %   case-sensitive lowercase). With assistance from Claude (Anthropic),
 %   model Claude Fable 5.
-%   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
-%     lsqvce:diagnose:largeU                     [warning] u = X parameters
+%   See also LSQVCE.ENGINE.DIAGNOSEACCUM, LSQVCE.REPORT, LSQVCE.ENGINE.SNOOP,
+%   LSQVCE.ENGINE.BLOCKCOFACTOR.
 %
-%   See also LSQVCE.ENGINE.DIAGNOSEACCUM, LSQVCE.REPORT, LSQVCE.ENGINE.SNOOP.
-%
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-86 part 2 (R7-24): the
+%   cofactor comes as blocks (sol.Q); the dense R, Qxx and correlation matrix
+%   (D.R, D.Qxx, D.corr) and the largeU warning about them are retired. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 3 (R7-24): the help
 %   separates this function's own working set from its batch source's --
 %   diagnoseAccum keeps all whitened rows at full width (WP-86). With
@@ -148,7 +155,7 @@ if isempty(nB)
     end
 end
 
-R  = sol.R;
+Q  = sol.Q;
 x  = sol.x;
 n  = sol.n;
 u  = sol.u;
@@ -234,65 +241,18 @@ rmin_seen     = inf;  rmin_idx = 0;
 maxAbsW       = 0;    maxAbsW_idx = 0;
 
 % External-reliability accumulator: the worst effect on any parameter, in
-% units of that parameter's own sigma. Needs Qxx diagonal, which we can get
-% once from R without ever forming Qxx fully at n-scale.
+% units of that parameter's own sigma. Needs diag(Qxx), which the block
+% cofactor gives without forming Qxx (WP-86 part 2: the dense u x u Qxx, its
+% inverse factor and the correlation matrix were the toolbox's O(u^3) step and
+% its only O(u^2) allocations -- 1.5 GB each at u = 13 729).
 %
-% COST NOTE. This is the only O(u^3) step in the toolbox and the only O(u^2)
-% allocation. Everything else is O(u^2 * nk) time and O(u^2 + nk) memory, so
-% for large u this -- not the observation count -- is the bottleneck:
-%
-%     u = 1e3   ->  Qxx is    8 MB   (trivial)
-%     u = 1e4   ->  Qxx is  800 MB   (painful)
-%     u = 3e4   ->  Qxx is  7.2 GB   (fatal)
-%
-% If R is SPARSE, inv(R) is generally DENSE, so forming Rinv here would throw
-% away the entire benefit of the sparse path. We therefore warn loudly rather
-% than quietly allocating a matrix that will not fit.
-if u > 5000
-    bytes = 8 * u^2;
-    lsqvce.util.log.warn('lsqvce:diagnose:largeU', ...
-        ['u = %d parameters. Forming Qxx requires a dense %dx%d matrix ' ...
-         '(%.2f GB) and an O(u^3) inversion.\n' ...
-         'This is the ONLY step in the toolbox that scales with u^3 -- the ' ...
-         'observation handling is fully streaming. If this is too slow or too ' ...
-         'large, you do not need full Qxx: r_i and w_i need only the ' ...
-         'triangular solve R''\\A'', which is already streaming. Pass ' ...
-         '''store'',''none'' to skip the correlation matrix, or extract ' ...
-         'diag(Qxx) by selected inversion (Takahashi) if you have a sparse R.'], ...
-         u, u, u, bytes / 2^30);
-end
-if issparse(R)
-    % inv(sparse) is dense. Say so, then do it -- but only once, and only
-    % because Qxx is genuinely needed for the correlation report.
-    Rinv = full(R) \ eye(u);
-else
-    Rinv = R \ eye(u);
-end
+% A free network enters as a prior on its null space (data.priors), folded
+% into the cofactor like every other prior, so Qxx is the cofactor of the
+% solve actually made and needs no correction here.
+qxxDiag = Q.diagonal();
 
-% --- FREE-NETWORK CORRECTION.
-% On a free network R factorises N + B*B', so inv(R'R) is NOT the pseudoinverse
-% N+: they differ by B*B' (with B orthonormal). Reporting inv(R'R) as Qxx
-% overstates the parameter variances -- measured at 12% on a small levelling
-% net. Subtract the correction.
-%
-% Crucially this affects ONLY Qxx. It does NOT affect r_i or w_i, because
-% A*B = 0 exactly (the observations cannot see the datum), so the correction
-% term drops out of A*Qxx*A'. Verified: sum(r_i) is identical with either Qxx.
-% That is the formal statement that the residuals -- and therefore every
-% diagnostic built on them -- are datum-invariant, as they must be physically.
-if isfield(sol, 'QxxCorr') && ~isempty(sol.QxxCorr)
-    Bc = sol.QxxCorr;
-else
-    Bc = zeros(u, 0);
-end
-dDefect = size(Bc, 2);
-
-Qxx     = Rinv * Rinv.' - Bc * Bc.';
-qxxDiag = diag(Qxx);
-
-% The correction can push a diagonal entry a few eps negative for a parameter
-% that lies almost entirely in the datum null space (i.e. one that is barely
-% estimable at all). Clamp rather than emit a complex sigma.
+% A parameter that lies almost entirely in the datum null space can come out
+% a few eps negative. Clamp rather than emit a complex sigma.
 negQ = qxxDiag < 0;
 if any(negQ)
     qxxDiag(negQ) = 0;
@@ -363,7 +323,7 @@ if o.robustCheck || strcmp(testName, 'mad')
         if isempty(pk), pk = ones(nk, 1); end
 
         vk = Ak * x - lk;
-        Wk = R' \ Ak.';
+        Wk = Q.halfRows(Ak);
 
         % The raw score is the test statistic WITHOUT the scale factor:
         %       raw_i = (P v)_i / sqrt( (P Qvv P)_ii )
@@ -374,7 +334,7 @@ if o.robustCheck || strcmp(testName, 'mad')
         if isCorrK
             Pk  = (pk + pk') / 2;
             Gk  = Pk * Ak;
-            WGk = R' \ Gk.';
+            WGk = Q.halfRows(Gk);
             qpk = diag(Pk) - sum(WGk.^2, 1).';
             Pvk = Pk * vk;
         else
@@ -473,7 +433,7 @@ for k = 1:nB
     %       (Qvv P)_ii   = 1 - (A_k Qxx G_k')_ii
     %       (P Qvv P)_ii = P_k(i,i) - g_i' Qxx g_i
     %
-    % Every term needs only P_k, A_k and Qxx. Cost is O(u^2 nk) per batch --
+    % Every term needs only P_k, A_k and Qxx. Cost is O((nc^2 + nl*nc) nk) per batch --
     % IDENTICAL to the diagonal path -- and nothing of size n is ever formed.
     % Verified exact to 2e-15 against a dense reference.
     %
@@ -510,10 +470,10 @@ for k = 1:nB
     vk = Ak * x - lk;
 
     % --- redundancy numbers and the denominator of the test statistic
-    W  = R' \ Ak.';                    % u x nk   (= R'^-1 A')
+    W  = Q.halfRows(Ak);               % u x nk, W'W = A Qxx A'
     if isCorr
         Gk  = Pk * Ak;                 % nk x u
-        WG  = R' \ Gk.';               % u x nk
+        WG  = Q.halfRows(Gk);          % u x nk
         % (Qvv P)_ii = 1 - (A Qxx G')_ii, and A Qxx G' = W' * WG columnwise
         rk  = 1 - sum(W .* WG, 1).';
         % (P Qvv P)_ii = P(i,i) - g_i' Qxx g_i
@@ -594,13 +554,11 @@ for k = 1:nB
     %     correlated batch the bias enters through the WHOLE column of P, i.e.
     %     through g_i = (P_k A_k)(i,:)', which is exactly Gk' -- so the two
     %     cases differ only in which matrix multiplies Qxx.
-    %     Qxx here is the CORRECTED (pseudoinverse) one on a free network:
-    %     the bias propagates through N+, not through inv(N+BB').
     if isCorr
-        dX = Qxx * Gk.';               % u x nk : Qxx * g_i  (columns)
+        dX = Q.qxxTimes(Gk);           % u x nk : Qxx * g_i  (columns)
         scal = mdbk.';                 % the p_i factor is already inside g_i
     else
-        dX = Qxx * Ak.';               % u x nk : Qxx * a_i  (columns)
+        dX = Q.qxxTimes(Ak);           % u x nk : Qxx * a_i  (columns)
         scal = (pk .* mdbk).';         % 1 x nk
     end
     scal(~isfinite(scal)) = 0;         % uncontrolled -> undefined, skip
@@ -772,7 +730,7 @@ D.nBatch   = nB;
 D.x        = x;
 D.sigX     = sigX;
 D.qxxDiag  = qxxDiag;
-D.R        = R;
+D.Q        = Q;                       % the cofactor, as blocks (WP-86 part 2)
 
 D.vPv          = vPv_direct;          % the trustworthy one
 D.vPvAccum     = sol.vPv;             % what the accumulator reported
@@ -991,10 +949,10 @@ else
     D.condIsBound = false;
 end
 
-% --- datum / free-network reporting
-D.defect  = dDefect;
-D.rank    = u - dDefect;
-D.datumB  = Bc;
+% --- datum / free-network reporting: a datum is a prior inside Q (above)
+D.defect  = 0;
+D.rank    = u;
+D.datumB  = zeros(u, 0);
 
 if storeAll
     D.v   = v_all;
@@ -1005,18 +963,11 @@ if storeAll
     D.mdb = mdb_all;
 end
 
-% Correlation matrix of the parameters -- u x u, always affordable.
-% Uses the CORRECTED Qxx (see above): on a free network the uncorrected
-% inv(R'R) would inflate the variances and distort every correlation.
-dsig = sqrt(max(diag(Qxx), realmin));
-D.Qxx  = Qxx;
-D.corr = Qxx ./ (dsig * dsig.');
-C = D.corr;  C(1:u+1:end) = 0;
-C(~isfinite(C)) = 0;                 % a null-space parameter has sigma 0
-[cmax, ci] = max(abs(C(:)));
-[ci1, ci2] = ind2sub([u u], ci);
+% The strongest parameter correlation, from column panels of Qxx: the u x u
+% correlation matrix is never held (it was 1.5 GB at u = 13 729).
+[cmax, cpair] = Q.maxCorrelation();
 D.corrMax    = cmax;
-D.corrMaxPar = [ci1 ci2];
+D.corrMaxPar = cpair;
 
 end
 

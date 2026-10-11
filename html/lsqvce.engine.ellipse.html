@@ -60,7 +60,7 @@ The ellipse says what you actually know. Its semi-major axis is the
 direction you know WORST, and its length is how badly.</pre>
 <h3>Input</h3>
 <pre class="example">D     1x1 struct  diagnostics from lsqvce.engine.diagnose (R.diag); uses
-                  the parameter estimate and Qxx (cofactor) plus sigma0/s0.
+                  the parameter estimate and the cofactor D.Q plus sigma0/s0.
 pair  1x2 double  the two parameter indices [i j] to plot the ellipse for.</pre>
 <h3>Name-Value</h3>
 <pre class="example">  &#x27;conf&#x27;     confidence level (default 0.95)
@@ -107,8 +107,11 @@ typed `arguments` signature, canonical UpperCamelCase option names
 (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
 case-sensitive lowercase). With assistance from Claude (Anthropic),
 model Claude Fable 5.
-See also LSQVCE.ENGINE.DIAGNOSE.
+See also LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.BLOCKCOFACTOR.
 
+Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-86 part 2 (R7-24): the 2 x 2
+cofactor comes from D.Q.block (the dense D.Qxx is retired). With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34, R7-39): 2
 F(2, r) with the estimated s0^2 (chi2(2) under-covered at small r);
 output .k2. With assistance from Claude (Anthropic), model Claude Opus

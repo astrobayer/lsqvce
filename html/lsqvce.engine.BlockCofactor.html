@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.engine.BlockCofactor</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.engine.BlockCofactor</div>
+<h1>lsqvce.engine.BlockCofactor</h1>
+<div class="purpose">The cofactor Qxx = inv(N) of a block-arrow system, kept as blocks.</div>
+<h2>Description</h2>
+<pre class="example">The diagnostics need Qxx of the FULL parameter set [commons | locals of
+every system] -- a u x u matrix with u = nc + sum(nl), 13 729 at a
+GRAVFIRE month (1.5 GB per dense copy). They never need it dense. With
+the reduced commons factor Rc (Rc&#x27;Rc = N_red, the prior folded in) and,
+per system, the local normal block Nll and G = inv(Nll)*Nlc,
+
+    Qcc = inv(N_red)                  Qlc,s = -G_s Qcc
+    Qll,s = inv(Nll_s) + G_s Qcc G_s&#x27;    Qll,st = G_s Qcc G_t&#x27;  (s ~= t)
+
+so for a full-width row a = [a_c ; b] (b on the locals),
+
+    a&#x27; Qxx a = || Rc&#x27; \ (a_c - sum_s G_s&#x27; b_s) ||^2 + sum_s || H_s b_s ||^2
+
+with H_s&#x27;H_s = inv(Nll_s). Every question diagnose, snoop, ellipse and
+report ask of Qxx is answered from these blocks: memory O(nc^2 + sum
+nl*nc), cost O(nc^2 + nl*nc) per row instead of O(u^2) (WP-86 part 2).
+
+CONSTRUCTOR
+  Q = LSQVCE.ENGINE.BLOCKCOFACTOR(Rc, blocks)
+    Rc      nc x nc  upper triangular, Rc&#x27;*Rc = the reduced common normal
+                     matrix INCLUDING the prior (BlockAccumulator.commonFactor)
+    blocks  1 x S struct  .cols (the system&#x27;s local columns in the full
+                     vector), .Nll (the REGULARISED local block the solve
+                     used), .Nlc, optionally .truncTol (the relative
+                     eigenvalue cut of the solve&#x27;s pinv fallback, the
+                     accumulator&#x27;s TruncTol); [] for a local-free problem
+
+METHODS
+  W = halfRows(Q, A)           u x nk, W&#x27;*W = A*Qxx*A&#x27; for full-width rows
+                               A (nk x u): the dense code&#x27;s R&#x27; \ A&#x27;
+  Y = qxxTimes(Q, A)           u x nk, Qxx*A&#x27;
+  d = diagonal(Q)              u x 1, diag(Qxx)
+  C = block(Q, idx)            Qxx(idx, idx)
+  [c, ij] = maxCorrelation(Q)  the largest |corr| off the diagonal, its pair
+  k = condLowerBound(Q)        a LOWER bound on cond(N) (Rayleigh quotients)
+  [Q, ok] = downdate(Q, a, p)  remove one row a (weight p): snoop&#x27;s step
+
+A LOCAL BLOCK THAT IS SINGULAR (the accumulator&#x27;s pinv fallback) gets the
+pseudo-inverse half H = S^-1/2 V&#x27; over its range -- the same pseudo-inverse
+the pre-elimination used, so Qxx is the cofactor of the solve actually made.</pre>
+<h3>Example</h3>
+<pre class="example">R = lsqvce.fit(data);                          % any fit
+Q = R.source.Q;                                % built by diagnoseAccum
+A = R.batchFcn(1);                             % unit-weight rows
+h = sum(Q.halfRows(A).^2, 1).&#x27;;                % leverage of batch 1
+C = Q.block([1 2]);                            % 2 x 2 cofactor of x(1:2)</pre>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:BlockCofactor:badBlocks       a block&#x27;s sizes disagree with Rc
+  lsqvce:BlockCofactor:multiSystemRow  downdate of a row that touches the
+                                       locals of more than one system (the
+                                       block-arrow structure would not survive)
+
+See also LSQVCE.ENGINE.DIAGNOSEACCUM, LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.SNOOP,
+LSQVCE.ENGINE.BLOCKACCUMULATOR
+
+Created 2026-10-10 (CEST, UTC+02:00), R7 WP-86 part 2 (R7-24): the
+block-native cofactor replacing the dense full-width factor of the
+diagnostics. With assistance from Claude (Anthropic), model Claude Opus 5.5.</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
+</body></html>

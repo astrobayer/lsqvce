@@ -7,7 +7,7 @@ the module census, correctness history, design decisions, validation, and the
 measured chapters. `dev/HANDOVER.md` remains the single status-and-plans
 document; this file is the technical companion the README used to be.*
 
-> **Status (2026-09-01, v2.0 — see RELEASE_NOTES.md).** Green everywhere: **27 suite files, 617 test
+> **Status (2026-09-01, v2.0 — see RELEASE_NOTES.md).** Green everywhere: **27 suite files, 624 test
 > points, 0 fail** — verified locally in MATLAB R2026a (including the
 > pool suites with real `parfor`/`spmd` workers and the machine-local
 > speed budgets) and on every push by GitHub Actions CI (a static `audit`
@@ -24,10 +24,12 @@ document; this file is the technical companion the README used to be.*
 Solving and **diagnosing** large least-squares problems where `A` and `P` can
 only be built in batches.
 
-Streaming inside `diagnose`: `O(u²·nk)` time and `O(u² + nk)` memory per batch, nothing
-n-sized formed there. Its batch source on every fit, `diagnoseAccum`, rebuilds the batches
-on demand since WP-86 part 1 (it held all n × u whitened rows before, R7-24); the dense
-u × u factor over the FULL parameter set remains (WP-86 part 2; the README states the scale).
+Streaming inside `diagnose`: `O((nc² + nl·nc)·nk)` time and `O(nc² + Σnl·nc + nk·u)` memory
+per batch, nothing n-sized and nothing u × u formed there: the cofactor of the FULL parameter
+set is `lsqvce.engine.BlockCofactor`, the reduced commons factor plus each system's local
+blocks (WP-86 part 2; a dense u × u factor, its inverse and the correlation matrix before).
+Its batch source on every fit, `diagnoseAccum`, rebuilds the batches on demand (WP-86 part 1;
+it held all n × u whitened rows before, R7-24) and reads no data itself.
 
 ---
 
