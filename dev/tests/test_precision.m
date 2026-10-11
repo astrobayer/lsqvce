@@ -480,6 +480,18 @@ function testFreeNetworkRefusalIsDeterministic(tc)
     end
 end
 
+function testQRRefusesFewerRowsThanParameters(tc)
+% categories: contract
+% The other refusal of QRSystem.solve: the factor holds fewer rows than
+% parameters (3 observations, 5 unknowns) -- rankDeficient, before any pivot
+% test. Pinned on its own since R7 WP-112: the demo_priors case that used to
+% fire it now keeps all rows and is refused by the pivot test (singularR).
+    rs = RandStream('mt19937ar', 'Seed', 1112);
+    q = lsqvce.engine.QRSystem(5);
+    q.add(randn(rs, 3, 5), randn(rs, 3, 1));
+    tc.verifyError(@() q.solve(), 'lsqvce:qr:rankDeficient');
+end
+
 function testNormalEquationsLoseTheAnswerAtHighCondition(tc)
 % categories: contract
 % The failure mode the QR backend exists to prevent. At cond(A) = 1e8 the normal

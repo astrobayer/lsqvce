@@ -8761,7 +8761,7 @@ shipped path: 1261 refused / 739 solved). The price: a problem of cond(A) > ~4e1
 - `BlockAccumulator.solve` with a prior on the QR backend: `solveQRWithPrior` stacks
   [K/sigma, x0/sigma] onto the factor; x, vtv (the residual row) and Cxx from the square
   root, refusal (priorNotPD) by RankTol, r_K from R1' (CommonPrior.redundancy).
-- Tests (630 = 628 + 2): `test_precision>testAccumulatorQRStaysSquareRoot` (cond 1e7 / 1e8.5
+- Tests (631 = 628 + 3; `testQRRefusesFewerRowsThanParameters` keeps rankDeficient fired): `test_precision>testAccumulatorQRStaysSquareRoot` (cond 1e7 / 1e8.5
   / 1e9, nl 0 / 3, 4 seeds: x_c within 1e-3 formal sd of the dense solve, no refusal);
   `testFreeNetworkRefusalIsDeterministic` (40 random free networks through lsqvce.fit all
   singularR, the same with one fixed height all solved); `testQrMergeFoldCancellationIsNaN`
@@ -8771,4 +8771,10 @@ shipped path: 1261 refused / 739 solved). The price: a problem of cond(A) > ~4e1
   "the NEQ backend has the same coin flip"); `reducedNormalMatrix` (the shared probe's
   factor in the joint estimator) still squares -- a trace estimate, not the solution.
 - NOT validated before CI: no MATLAB in the container; CI is the first run.
+- CI round 1 (860f99f): 617 / 618 -- every precision, accumulator, parallel and fit suite
+  green, including the two new tests. The one red: `test_fit>testDemoPriorsIsTheWorkedLayoutExample`
+  pinned the unregularised refusal of demo_priors as `lsqvce:qr:rankDeficient`. That id came
+  from the normal-form fold dropping the 3 null directions (fewer rows than parameters); with
+  square-root rows the factor keeps all rows and the pivot test refuses: `singularR`. Test
+  and the demo's ACCURACY block updated (the refusal itself is the claim, not its id).
 
