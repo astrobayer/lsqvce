@@ -32,7 +32,13 @@ function res = residuals(acc, sol, opt)
 %                             per-epoch error information as the loader
 %                             returned them -- the joint estimator's robust
 %                             pass descales .v by them, R6 WP-105)
-%     res.vtv, res.dof, res.s0sq, res.sigma0    recomputed globally
+%     res.vtv, res.dof, res.s0sq, res.sigma0    recomputed globally -- WITH
+%                             a common prior's pseudo-observations: its
+%                             residual |(K x - x0)/sigma|^2 in vtv and its nk
+%                             rows in dof, as the solve counts them (R7 WP-114,
+%                             R7-15; without them every fit with data.priors
+%                             warned sigma0Mismatch and blamed the loader)
+%     res.prior               [] | .nk .vtv  the common prior's share
 %     res.supersedesSol       1x1 logical  true when THESE numbers supersede
 %                             sol.vtv/sol.sigma0 (WP-49): either the backend
 %                             NaN-poisoned a cancellation-destroyed vtv, or
@@ -107,6 +113,10 @@ function res = residuals(acc, sol, opt)
 %   case-sensitive lowercase). With assistance from Claude (Anthropic),
 %   model Claude Fable 5.
 %   See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.CHECKPSD
+%
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-114 (R7-15): the common prior
+%   enters vtv and dof (res.prior), one estimator, one sigma0. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %
 %   Updated 2026-08-20 (CEST, UTC+02:00), WP-49: NaN-aware supersede
 %   logic + res.supersedesSol; this pass is the documented authority for
@@ -269,7 +279,15 @@ end
     end
 
     res.vtv    = vtvTot;
-    res.dof    = mTot - nParTot;
+    % R7 WP-114 (R7-15): the common prior is part of the estimate -- the solve
+    % counts its rows in m and its residual in vtv, so this pass does too
+    res.prior = [];
+    nk = 0;
+    if ~isempty(acc.prior)
+        res.prior = struct('nk', acc.prior.nk, 'vtv', acc.prior.vtv(x));
+        vtvTot = vtvTot + res.prior.vtv;  res.vtv = vtvTot;  nk = acc.prior.nk;
+    end
+    res.dof    = mTot + nk - nParTot;
     res.s0sq   = vtvTot / max(res.dof, 1);
     res.sigma0 = sqrt(res.s0sq);
 

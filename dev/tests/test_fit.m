@@ -1160,6 +1160,49 @@ function testGaussNewtonPriorIsOnXNotOnTheStep(tc)
     end
 end
 
+function testDatumCovarianceIsTheMinimumConstraintOne(tc)
+% categories: precision, contract
+    % R7 WP-114 (R7-05): a datum fixes x for ANY sigma, and now the covariance
+    % too -- the minimum-constraint cofactor pinv(N), not s0^2 inv(N + BB'/s^2),
+    % whose se grew 0.005 -> 2.48 as the datum sigma went 1 -> 1e3 (review). The
+    % parameter cofactor of the diagnostics (D.sigX) follows. And R7-15: with
+    % the prior counted, residuals() and redundancy() agree with the solve --
+    % no sigma0Mismatch, no identityViolated.
+    rs = RandStream('mt19937ar', 'Seed', 5);
+    u = 4;  pairs = [1 2; 2 3; 3 4; 4 1; 1 3];
+    A = zeros(size(pairs, 1), u);
+    for k = 1:size(pairs, 1), A(k, pairs(k, 1)) = -1;  A(k, pairs(k, 2)) = 1; end
+    l = A*[0; 1.5; -0.7; 2.2] + 0.01*randn(rs, size(A, 1), 1);
+    Np = pinv(A.'*A);
+    for sg = [1 1e3 1e6]
+        data = struct('A', A, 'l', l, 'priors', struct('L', ones(1, u), 'sigma', sg, 'name', 'datum'));
+        R = lsqvce.fit(data, Verbose=false);
+        se = sqrt(diag(R.sol.Cxx));
+        % tol: 1e-8 relative -- the minimum-constraint cofactor from the re-weighted
+        % factor vs the dense pseudo-inverse (mirror: 3e-16 at every sigma)
+        tc.verifyEqual(se, sqrt(R.sol.s0sq * diag(Np)), 'RelTol', 1e-8, sprintf('datum sigma %g', sg));
+        % tol: as above -- the diagnostics' parameter cofactor is the same one
+        tc.verifyEqual(R.diag.sigX(:), sqrt(diag(Np)), 'RelTol', 1e-8, sprintf('D.sigX at datum sigma %g', sg));
+        res = tc.verifyWarningFree(@() R.residuals('Verbose', false));
+        % tol: 1e-8 relative -- two routes to the same v'Pv over the same dof
+        tc.verifyEqual(res.sigma0, R.sigma0, 'RelTol', 1e-8, 'residuals() counts the prior');
+        red = tc.verifyWarningFree(@() R.acc.redundancy(R.sol));
+        tc.verifyLessThan(red.check, 1e-8, 'sum(r_i) + r_prior = m + nk - u');
+    end
+    % a REGULARISING prior is not a datum: its covariance stays the solve's
+    rs = RandStream('mt19937ar', 'Seed', 6);
+    A2 = randn(rs, 40, 6);  l2 = A2 * randn(rs, 6, 1) + randn(rs, 40, 1);
+    R = lsqvce.fit(struct('A', A2, 'l', l2, 'priors', struct('L', eye(6), 'sigma', 1, 'name', 'ridge')), Verbose=false);
+    % tol: 1e-8 relative -- s0^2 inv(A'A + I) from the factor vs the dense inverse
+    tc.verifyEqual(diag(R.sol.Cxx), R.sol.s0sq * diag(inv(A2.'*A2 + eye(6))), 'RelTol', 1e-8);
+    res = tc.verifyWarningFree(@() R.residuals('Verbose', false));
+    % tol: as above
+    tc.verifyEqual(res.sigma0, R.sigma0, 'RelTol', 1e-8, 'the ridge prior is counted');
+    red = tc.verifyWarningFree(@() R.acc.redundancy(R.sol));
+    tc.verifyLessThan(red.check, 1e-8);
+    tc.verifyGreaterThan(red.priorRedundancy, 0);
+end
+
 function testDatumIsADeclaredPrior(tc)
 % categories: contract, reference, robustness
     % R5 M5 5b: a free network's DATUM is a declared prior on the null space

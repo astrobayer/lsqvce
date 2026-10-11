@@ -134,6 +134,9 @@ function R = fit(data, opts, nv)
 %            LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT,
 %            LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTNONLINEAR
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-114 (R7-05): priorsOf notes
+%   that a datum's covariance is weight-independent too. With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 3: R.noise carries
 %   the law as the bin spectrum (.S, .Sgroups) next to its ACV (.C,
 %   .Cgroups); .Shat is gone. With assistance from Claude (Anthropic), model
@@ -417,7 +420,8 @@ function [pri, groups] = priorsOf(data, nc, spec)
 %   pseudo-observation set L x ~ x0 with weight 1/sigma^2; the groups are
 %   stacked with their rows divided by sigma into one prior of sigma 1
 %   (exact). A DATUM (minimum constraints B'x = 0 of a free network) is the
-%   group L = B', x0 = 0: exact for any weight when B spans the null space.
+%   group L = B', x0 = 0: exact for any weight when B spans the null space --
+%   the covariance too since 6.10 (BlockAccumulator.datumPart, R7 WP-114).
 %   OUTPUT  pri     [] | CommonPrior     the stacked prior
 %           groups  1xG struct (.L .x0 .sigma .name .estimate .from)
     if nargin < 3, spec = []; end

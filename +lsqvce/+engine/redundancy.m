@@ -59,7 +59,8 @@ function red = redundancy(acc, sol, opt)
 %     red.group(k).sigma0    sqrt(s0sq)
 %     red.obs(j).h, .r       per-observation, if Collect
 %     red.rTotal             sum over all groups
-%     red.check              |sum(r_g) - (m - u)|, must be ~0
+%     red.priorRedundancy    r_K of a common prior's nk rows (0 without one)
+%     red.check              |sum(r_g) + r_K - (m + nk - u)|, must be ~0
 %     red.traceEstimate      present only with 'TraceMethod','hutchinson': a
 %                            struct (.value/.expected/.relErr/.se/.relSE/.probes/
 %                            .note) with the Hutchinson estimate of tr(N^-1 N) on
@@ -116,12 +117,14 @@ function red = redundancy(acc, sol, opt)
 %   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 %     lsqvce:redundancy:hutchFailed              [warning] Hutchinson trace check failed (X); exact r_g are unaffected.valueexpe...
 %     lsqvce:redundancy:hutchinsonExperimental   [warning] 'TraceMethod','hutchinson' is EXPERIMENTAL
-%     lsqvce:redundancy:identityViolated         [warning] sum(r_i) = X but m - u = X (relative error X)
+%     lsqvce:redundancy:identityViolated         [warning] sum(r_i) + r_prior = X but m + nk - u = X (relative error X)
 %     lsqvce:redundancy:smallGroup               [warning] X group(s) have redundancy below X. The variance component of a group...
 %     lsqvce:redundancy:spmdNoCollect            [warning] 'spmd' reduces on the workers, so per-observation h/r/v are not shipp...
 %
 %   See also LSQVCE.ENGINE.BLOCKCOFACTOR, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.OUTLIERS, LSQVCE.ENGINE.RESIDUALS
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-114 (R7-15): the identity counts a common
+%   prior (red.priorRedundancy). With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3 (R7-24): the
 %   leverage comes from lsqvce.engine.BlockCofactor -- one commons factor
 %   broadcast, not one per system (leverage / leverageBlocks retired). With
@@ -361,22 +364,24 @@ end
         end
     end
 
-    % ---- the global identity: sum(r_i) = m - u ----------------------------
-    red.check = abs(red.rTotal - (mTot - nParTot));
-    relChk    = red.check / max(mTot - nParTot, 1);
+    % ---- the global identity: sum(r_i) + r_K = m + nk - u (R7 WP-114, R7-15:
+    % a common prior's rows and their redundancy r_K, on the solve's factor) --
+    nk = 0;  red.priorRedundancy = 0;
+    if ~isempty(acc.prior), nk = acc.prior.nk;  red.priorRedundancy = acc.prior.redundancy(acc.commonFactor().'); end
+    rExp      = mTot + nk - nParTot;
+    red.check = abs(red.rTotal + red.priorRedundancy - rExp);
+    relChk    = red.check / max(rExp, 1);
 
     if lsqvce.util.verbosity.progress(o.verbose)
-        lsqvce.util.log.msg('%sgroups = %d   sum(r) = %.4f   m-u = %d   check = %.2e\n', lsqvce.util.verbosity.banner('Redundancy'), ...
-                numel(G), red.rTotal, mTot - nParTot, red.check);
-    end
+        lsqvce.util.log.msg('%sgroups = %d   sum(r) = %.4f   r_prior = %.4f   m+nk-u = %d   check = %.2e\n', ...
+                lsqvce.util.verbosity.banner('Redundancy'), numel(G), red.rTotal, red.priorRedundancy, rExp, red.check); end
 
     if relChk > 1e-6
         lsqvce.util.log.warn('lsqvce:redundancy:identityViolated', ...
-            ['sum(r_i) = %.6f but m - u = %d (relative error %.2e). The ' ...
-             'redundancy identity MUST hold exactly. Do not trust the variance ' ...
-             'components. Likely causes: the loader returned different data on ' ...
-             'this pass, or the stored Schur blocks are stale.'], ...
-             red.rTotal, mTot - nParTot, relChk);
+            ['sum(r_i) + r_prior = %.6f but m + nk - u = %d (relative error %.2e). The redundancy identity ' ...
+             'MUST hold exactly. Do not trust the variance components. Likely causes: the loader returned ' ...
+             'different data on this pass, or the stored Schur blocks are stale.'], ...
+             red.rTotal + red.priorRedundancy, rExp, relChk);
     end
 
     % ---- small-group warning ---------------------------------------------

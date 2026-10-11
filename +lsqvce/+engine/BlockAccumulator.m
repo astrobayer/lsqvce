@@ -562,6 +562,16 @@ classdef BlockAccumulator < handle
                 Cxx = (Cxx + Cxx.')/2;
             end
 
+            % R7 WP-114 (R7-05): a DATUM prior (the data do not see its
+            % directions) fixes x for any sigma, and so must the covariance --
+            % the minimum-constraint cofactor, not s0^2 inv(N + K'K/sigma^2),
+            % which carries sigma^2 K'(KK')^-2 K on the datum directions.
+            dp = [];  if ~isempty(obj.prior), dp = obj.datumPart(); end
+            if ~isempty(dp)
+                Rmi = dp.Rm \ eye(obj.nc);
+                Cxx = s0sq * (Rmi * Rmi.' - dp.Dm * dp.Dm.');
+                Cxx = (Cxx + Cxx.')/2;
+            end
             sol = struct('x', x, 'Cxx', Cxx, 's0sq', s0sq, 'sigma0', sqrt(s0sq), ...
                          'dof', dof, 'vtv', vtv, 'diag', obj.diag, ...
                          'priorAbsorbed', priorAbsorbed, 'priorRedundancy', rK);
@@ -841,6 +851,42 @@ classdef BlockAccumulator < handle
         function ids = systemIDs(obj)
         %SYSTEMIDS  Row vector of the sysIDs added so far ([] if none).
             if isempty(obj.store), ids = []; else, ids = [obj.store.sysID]; end
+        end
+
+        function dp = datumPart(obj)
+        %DATUMPART  The minimum-constraint cofactor's pieces when the common
+        %   prior is a DATUM, else [] (R7 WP-114, R7-05). A datum: the data
+        %   do not see the prior's directions, |N K'| <= 1e-10 |N| |K| on the
+        %   reduced common normal N (on the QR backend |R K'| <= 1e-8 |R| |K| on
+        %   its factor, N never formed) -- then x is the minimum-constraint
+        %   solution whatever the prior's sigma, and its cofactor is pinv(N).
+        %   Computed stably with the datum rows re-weighted to the data's
+        %   scale, c = sqrt(|N|_F) / |K|_F (|R|_F / |K|_F on the QR backend):
+        %       pinv(N) = inv(Rm'Rm) - Dm*Dm',  Rm'Rm = N + c^2 K'K,
+        %       Dm = K'(KK')^-1 / c
+        %   (both terms O(1/|N|); subtracting sigma^2 K'(KK')^-2 K from the
+        %   solve's cofactor instead cancels: 5e-5 off at sigma 1e6 in the
+        %   mirror, mirrors/wp114/datum_cofactor.py, against 3e-16 here).
+        %   A prior that is only PARTLY in the null space is not a datum: its
+        %   covariance stays the solve's (prior information is information).
+        %   OUTPUT  dp  [] | struct .Rm (nc x nc upper) .Dm (nc x nk)
+            dp = [];
+            if isempty(obj.prior), return, end
+            K = full(obj.prior.K);
+            if strcmp(obj.backend, 'qr')                 % on the factor: |R K'| <= 1e-8 |R||K|
+                R = obj.sys.squareRoot();
+                if norm(R * K.', 'fro') > 1e-8 * norm(R, 'fro') * norm(K, 'fro'), return, end
+                c = norm(R, 'fro') / norm(K, 'fro');
+                Rm = triu(qr([R; c * K], 0));
+                Rm = Rm(1:obj.nc, :);
+            else
+                N = obj.sys.commonBlocks();
+                if norm(N * K.', 'fro') > 1e-10 * norm(N, 'fro') * norm(K, 'fro'), return, end
+                c = sqrt(norm(N, 'fro')) / norm(K, 'fro');
+                [Rm, fail] = chol((N + N.')/2 + c^2 * (K.' * K));
+                if fail > 0, return, end
+            end
+            dp = struct('Rm', Rm, 'Dm', (K.' / (K * K.')) / c);
         end
     end
 

@@ -1,5 +1,31 @@
 # lsqvce release notes
 
+## 6.10.0 — 2026-10-11 (WP-114: priors without a second path)
+
+- **A datum's covariance no longer depends on the datum's σ** (review R7, R7-05). x was
+  already the minimum-constraint solution for any weight. The covariance, however, was
+  s0²·inv(N + BB'/σ²), so it carried σ² on the datum directions: se 0.005 at σ = 1 and
+  2.48 at σ = 1e3 on the levelling network.
+  - `BlockAccumulator` now recognises a datum: a prior whose directions the data do not
+    see, |N K'| ≤ 1e-10 |N||K|.
+  - For a datum, `sol.Cxx` and the parameter cofactor of the diagnostics (`D.sigX`,
+    `D.Q.block`, correlations) are the minimum-constraint ones, s0²·pinv(N).
+  - They are computed stably: the datum rows are re-weighted to the data's scale, then
+    inv(Rm'Rm) − Dm·Dm'. Subtracting the σ² term from the solve's cofactor would lose
+    11 digits at σ = 1e6.
+  - Leverage keeps the solve's cofactor, so the datum rows stay absorbed. Data rows are
+    unaffected.
+  - A prior only partly in the null space is genuine information and keeps the solve's
+    covariance.
+- **`residuals()` and `redundancy()` count a common prior** (R7-15).
+  - `residuals()` adds the prior's residual to vtv and its rows to dof. New field:
+    `res.prior`.
+  - `redundancy()` closes the identity as sum(r_i) + r_prior = m + nk − u. New field:
+    `red.priorRedundancy`.
+  - Before, every fit with `data.priors` warned `lsqvce:residuals:sigma0Mismatch`, which
+    blamed the loader, and `lsqvce:redundancy:identityViolated`. The wrong dof was marked
+    authoritative.
+
 ## 6.9.0 — 2026-10-11 (WP-113: Gauss–Newton damps the parameters and keeps the prior on x)
 
 - **The damping now acts on the common block** (review R7, R7-14). `adjustNonlinear` used to

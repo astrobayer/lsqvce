@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-11 — WP-112 DONE (PR #134, merge ec4625a); WP-113 OPEN (tier B, model Claude Opus 5.5): R7-14 / R7-04 -- Gauss-Newton damps the common block (Marquardt rows), shifts the prior to x, checks descent from pass 1 on the declared objective, returns the best accepted point; version 6.9.0; §12.46.
+Last substantive update: 2026-10-11 — WP-113 DONE (PR #135, merge 2ec85d6); WP-114 OPEN (tier B, model Claude Opus 5.5): R7-05 / R7-15 -- a datum prior's covariance is the minimum-constraint one (sigma-independent), residuals() / redundancy() count a common prior; version 6.10.0; §12.47.
+Preceding entry: Last substantive update: 2026-10-11 — WP-112 DONE (PR #134, merge ec4625a); WP-113 OPEN (tier B, model Claude Opus 5.5): R7-14 / R7-04 -- Gauss-Newton damps the common block (Marquardt rows), shifts the prior to x, checks descent from pass 1 on the declared objective, returns the best accepted point; version 6.9.0; §12.46.
 Preceding entry: Last substantive update: 2026-10-11 — WP-111 part 3 DONE (PR #133, merge 290d7ff), WP-111 complete; WP-112 OPEN (tier B, model Claude Opus 5.5): R7-03 / R7-16 -- the QR backend's accumulator path square-root throughout (locals eliminated on the factor, contributions and the common prior merged as rows), the rank decision QRSystem.RankTol on the pivots; version 6.8.0; §12.45.
 Preceding entry: Last substantive update: 2026-10-11 — WP-111 part 2 DONE (PR #132, merge 96ad12b; CI GREEN on ba810e4); WP-111 part 3 OPEN (tier B, model Claude Opus 5.5): R7-02 / R7-20 -- the joint law is a positive spectrum on Grid bins (kernel.hatACV, r = K S, every bin's component PSD), psdVCE on per-bin statistics over all lags, the arc factor from the arc's whole covariance, state S / Sgroups ('C0' -> 'S0' white; Norm, ZeroFreqRule, floors, degenerateStart retired); version 6.7.0; §12.44.
 Preceding entry: Last substantive update: 2026-10-11 — WP-111 part 1 DONE (PR #131, merge 3ed7f98; the results recorded on this branch); WP-111 part 2 OPEN (tier B, model Claude Opus 5.5): R7-01 -- psd2acv integrates the piecewise-linear spectrum exactly (no lag period), covModel 'psd' 'toeplitz' no longer resamples onto floor(m/2)+1 points; version 6.6.2; §12.44.
@@ -8783,7 +8784,7 @@ shipped path: 1261 refused / 739 solved). The price: a problem of cond(A) > ~4e1
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 113 | R7-14 / R7-04: `adjustNonlinear` damps the COMMON block (Marquardt rows, d = diag(J'PJ)), shifts the prior to x (K dx ~ x0 - K x), checks descent from pass 1 on the declared objective, re-solves a rejected step on the same accumulation, returns the best accepted point when unconverged; **version 6.9.0** | 112 (PR #134 merged ec4625a) | OPEN (2026-10-11; audit CLEAN; CI pending) |
+| 113 | R7-14 / R7-04: `adjustNonlinear` damps the COMMON block (Marquardt rows, d = diag(J'PJ)), shifts the prior to x (K dx ~ x0 - K x), checks descent from pass 1 on the declared objective, re-solves a rejected step on the same accumulation, returns the best accepted point when unconverged; **version 6.9.0** | 112 (PR #134 merged ec4625a) | DONE (2026-10-11, PR #135, merge 2ec85d6; CI GREEN on 06c51b9 first run) |
 
 **The findings (review R7, dom_lsq F2 / F3).** R7-14: the damping was `Reg "lm"`, which
 `applyRegularisation` applies to the LOCAL block; a batch source has nl = 0, so `preeliminate`
@@ -8815,5 +8816,42 @@ converge to the reference optimum, every accepted step downhill from F(x0); budg
 maxPasses on the best accepted point), `testGaussNewtonPriorIsOnXNotOnTheStep` (stationarity
 of the declared objective at R.x for b ~ 0.30 / 0 with sigma 1e-3 / 1e-6; the tight prior
 holds to 1e-4). Manual 3 (kind C) and 4 (Lambda0) updated.
+NOT validated before CI: no MATLAB in the container.
+
+### 12.47 WP-114 — priors without a second path (2026-10-11, model Claude Opus 5.5)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 114 | R7-05 / R7-15: a DATUM prior (data blind to its directions) gets the minimum-constraint covariance in `sol.Cxx` and the diagnostics' parameter cofactor (`BlockAccumulator.datumPart`, `BlockCofactor` datum part); `residuals()` / `redundancy()` count a common prior (vtv, dof, r_prior); **version 6.10.0** | 113 (PR #135 merged 2ec85d6) | OPEN (2026-10-11; audit CLEAN; CI pending) |
+
+**The findings (review R7, dom_lsq F4 / F5).** R7-05: `Cxx = s0^2 inv(N + BB'/s^2)` =
+s0^2 (pinv(N) + s^2 B(B'B)^-2 B') -- se 0.005 / 2.48 at datum sigma 1 / 1e3 while x does not
+move; `QxxCorr`, which the review found read but never set, is already gone from the tree.
+R7-15: the solve counts a common prior's rows in m and its residual in vtv, the sweeps did
+not -- sigma0Mismatch (rel 4e-1 on the datum fixture, 4e-2..6e-1 on a ridge) blaming the
+loader, identityViolated (sum r 34.0 / 34.2 / 38.4 against m - u = 34).
+
+**Mirror** (`dev/reviews/R7_2026-10-09/mirrors/wp114/datum_cofactor.py`): the
+minimum-constraint cofactor from the re-weighted factor, inv(Rm'Rm) - Dm Dm' with
+Rm'Rm = N + c^2 K'K, c = sqrt(|N|_F)/|K|_F, Dm = K'(KK')^-1 / c, equals pinv(N) to 3e-16 at
+datum sigma 1 / 1e3 / 1e6 (se identical at all three; the solve's se 0.009 / 2.36 / 2362);
+the naive Q - s^2 K'(KK')^-2 K is off by 5e-5 at sigma 1e6. A ridge on two heights is not
+detected as a datum. The ridge identities: residuals with the prior term reproduce the
+solve's s0^2 to 4e-16 (without: 7.5e-2..1.8e-1 off); sum r_data + r_K = m + nk - u exactly.
+
+**Built.** `BlockAccumulator.datumPart` (Hidden): the datum test |N K'| <= 1e-10 |N||K| on the
+reduced common normal and the pieces Rm (QR of [R; cK] on the QR backend, chol on the
+normal one), Dm; `solve` replaces Cxx by s0^2 (inv(Rm'Rm) - Dm Dm') for a datum.
+`BlockCofactor` takes the datum part: diagonal, qxxTimes, block (now via qxxTimes),
+maxCorrelation use the minimum-constraint cofactor; leverage / halfRows keep Rc (identical on
+data rows, which are orthogonal to the datum; a datum row must stay absorbed); downdate
+updates Rm with Rc. `residuals`: + prior.vtv(x), dof + nk, `res.prior`. `redundancy`: the
+identity sum r + r_prior = m + nk - u (`red.priorRedundancy` from CommonPrior.redundancy on
+commonFactor). A prior that is only PARTLY in the null space (or a datum stacked with a
+regularising group) keeps the solve's covariance -- recorded, not detected.
+Tests (634 = 633 + 1): `test_fit>testDatumCovarianceIsTheMinimumConstraintOne` (datum sigma 1
+/ 1e3 / 1e6: se and D.sigX equal the pinv(N) ones to 1e-8; residuals() and redundancy()
+warning-free and consistent; a ridge keeps the solve's covariance and closes the identity
+with r_prior > 0). Manual 3 section 0a and fit's priorsOf help updated.
 NOT validated before CI: no MATLAB in the container.
 

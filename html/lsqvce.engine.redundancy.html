@@ -99,7 +99,8 @@ red.group(k).s0sq      vtv / r    -- the variance component of this group
 red.group(k).sigma0    sqrt(s0sq)
 red.obs(j).h, .r       per-observation, if Collect
 red.rTotal             sum over all groups
-red.check              |sum(r_g) - (m - u)|, must be ~0
+red.priorRedundancy    r_K of a common prior&#x27;s nk rows (0 without one)
+red.check              |sum(r_g) + r_K - (m + nk - u)|, must be ~0
 red.traceEstimate      present only with &#x27;TraceMethod&#x27;,&#x27;hutchinson&#x27;: a
                        struct (.value/.expected/.relErr/.se/.relSE/.probes/
                        .note) with the Hutchinson estimate of tr(N^-1 N) on
@@ -152,12 +153,14 @@ end</pre>
 IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
   lsqvce:redundancy:hutchFailed              [warning] Hutchinson trace check failed (X); exact r_g are unaffected.valueexpe...
   lsqvce:redundancy:hutchinsonExperimental   [warning] &#x27;TraceMethod&#x27;,&#x27;hutchinson&#x27; is EXPERIMENTAL
-  lsqvce:redundancy:identityViolated         [warning] sum(r_i) = X but m - u = X (relative error X)
+  lsqvce:redundancy:identityViolated         [warning] sum(r_i) + r_prior = X but m + nk - u = X (relative error X)
   lsqvce:redundancy:smallGroup               [warning] X group(s) have redundancy below X. The variance component of a group...
   lsqvce:redundancy:spmdNoCollect            [warning] &#x27;spmd&#x27; reduces on the workers, so per-observation h/r/v are not shipp...
 
 See also LSQVCE.ENGINE.BLOCKCOFACTOR, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.OUTLIERS, LSQVCE.ENGINE.RESIDUALS
 
+Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-114 (R7-15): the identity counts a common
+prior (red.priorRedundancy). With assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3 (R7-24): the
 leverage comes from lsqvce.engine.BlockCofactor -- one commons factor
 broadcast, not one per system (leverage / leverageBlocks retired). With

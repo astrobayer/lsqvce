@@ -63,6 +63,16 @@ nl*nc), cost O(nc^2 + nl*nc) per row instead of O(u^2) (WP-86 part 2).
 
 CONSTRUCTOR
   Q = LSQVCE.ENGINE.BLOCKCOFACTOR(Rc, blocks)
+  Q = LSQVCE.ENGINE.BLOCKCOFACTOR(Rc, blocks, datum)
+    datum   [] | struct .Rm .Dm (BlockAccumulator.datumPart): the common
+                     prior is a DATUM (the data do not see its directions),
+                     and the PARAMETER cofactor -- diagonal, block,
+                     qxxTimes, maxCorrelation -- is the minimum-constraint
+                     one, Qcc = inv(Rm&#x27;Rm) - Dm*Dm&#x27; (R7 WP-114, R7-05),
+                     independent of the datum&#x27;s sigma. leverage / halfRows
+                     keep Rc: on data rows the two agree exactly (a data
+                     row is orthogonal to the datum), and a datum row must
+                     stay absorbed (r = 0) as the solve made it.
     Rc      nc x nc  upper triangular, Rc&#x27;*Rc = the reduced common normal
                      matrix INCLUDING the prior (BlockAccumulator.commonFactor)
     blocks  1 x S struct  .cols (the system&#x27;s local columns in the full
@@ -119,6 +129,10 @@ C = Q.block([1 2]);                            % 2 x 2 cofactor of x(1:2)</pre>
 See also LSQVCE.ENGINE.VERDICT.SOURCE, LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SNOOP,
 LSQVCE.ENGINE.BLOCKACCUMULATOR
 
+Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-114 (R7-05): the optional
+datum part -- the parameter cofactor of a datum-constrained problem is the
+minimum-constraint one; downdate updates its factor too. With assistance
+from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 4: the absorbed
 diagnostics units are named as lsqvce.engine.verdict methods. With
 assistance from Claude (Anthropic), model Claude Opus 5.5.
