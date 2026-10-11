@@ -8557,7 +8557,7 @@ adjustVCEjoint>streamMeans / streamKeyOf).
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 111 (part 1) | the tier-A measurement: R7-02's runaway reproduced through `lsqvce.fit`, the candidate (positive components) on the same data, R7-01's wrap through covModel; `dev/validation/wp111_measure.m` on `measure.yml`; no toolbox change, no version | 115 (PR #130 merged 13bf7d0) | OPEN (2026-10-11; audit CLEAN; measurement pending) |
+| 111 (part 1) | the tier-A measurement: R7-02's runaway reproduced through `lsqvce.fit`, the candidate (positive components) on the same data, R7-01's wrap through covModel; `dev/validation/wp111_measure.m` on `measure.yml`; no toolbox change, no version | 115 (PR #130 merged 13bf7d0) | OPEN (2026-10-11; audit CLEAN; measured: run 38145552366; results below) |
 
 **The design question, and the user's decision (2026-10-11).** R7-01 (the 'toeplitz' ACV is
 circulant), R7-02 (the estimated law runs away x1e7 and the loop says "converged") and
@@ -8584,4 +8584,30 @@ shipped `lsqvce.fit` (Grid 60, MaxPasses 10) and the candidate (dense MATLAB, ex
 all lags) on the SAME arcs; stop reason, passes, r0 / truth, rho1, |z|max; and R7-01 through
 `covModel` 'psd' 'toeplitz' at m = 256 / 255 / 2111 against the closed form.
 
-**Results.** Pending the run.
+**Results** (R2026a Update 5 on the runner, [run 38145552366](https://github.com/astrobayer/lsqvce/actions/runs/38145552366), 6 seeds per phi).
+
+| phi, arcs | SHIPPED: stop / r0 / truth / rho1 / \|z\|max | CANDIDATE: stop / passes / r0 / truth / rho1 / \|z\|max |
+|---|---|---|
+| 0.5, 9 x 256 | maxPasses 6/6; 0.94-1.09; 0.47-0.52; up to 3.76 | converged 6/6 in 14-21; 0.94-1.05; 0.47-0.51; <= 2.22 |
+| 0.8, 20 x 256 | maxPasses 6/6; **5.7e7-6.9e7**; **-0.33 to -0.69**; 4.4-5.8 | converged 6/6 in 8-12; 0.91-1.07; 0.79-0.81; <= 2.33 |
+| 0.9, 40 x 256 | maxPasses 6/6; **4.9e7-6.7e7**; **-0.42 to -0.68**; 3.1-9.4 | converged 6/6 in 8-10; 0.99-1.05; 0.90-0.91; <= 2.10 |
+
+R7-02 is REPRODUCED at tier A: at phi 0.8 / 0.9 the shipped level runs to 5e7-7e7 x the
+truth, the estimated lag-1 correlation turns NEGATIVE (-0.68 against 0.8), and the
+coefficients are off by up to 9.4 formal sd. Even phi 0.5 never meets the stop rule in 10
+passes (R7-20: alpha2_0 cannot settle under "lowest"). The candidate converged in 18/18 runs,
+min alpha2 >= 0.990, at 0.2-0.5 s per fit (dense, exact traces). **R7-01 REPRODUCED:**
+through `covModel` 'psd' 'toeplitz' an AR(1) phi 0.5 law gives r(m-1)/r(0) = 0.4999 at m = 256
+(= r(1)/r(0)) and 1.0000 at m = 255 / 2111 with Toeplitz cond 3.3e8; the closed form gives
+1e-8 and cond 9.0 on all three, r(1)/r(0) 0.4999 either way.
+
+**Implementation plan (parts 2-3, each its own PR and version).**
+- Part 2 -- the exact PSD -> ACV: one kernel for the closed-form ACV of a piecewise-linear
+  spectrum (uniform bins: r = K S; any grid: the per-segment closed form), used by
+  `covModel` 'psd' 'toeplitz' for EVERY psd law (R7-01 gone for user laws too).
+- Part 3 -- the positive-component estimator: per arc the bin statistics q = K' Omega,
+  t = K' s over ALL lags of the arc (redundancyLags with nLag = m), alpha2 = sum q / sum t,
+  the loop's state is the bin spectrum S (no DCT, no C-weighting, no floors, no
+  ZeroFreqRule -- R7-20 dissolves), the arc factor alpha2_m = S'q_m / S't_m, jointModelOpt
+  hands S on to the loader as the 'psd' law; psdVCE's interface, test_ellmer's DCT-domain
+  tests and Manual 7.5 rewritten; 'Norm' (the bit-exact Ellmer reproduction) retired.
