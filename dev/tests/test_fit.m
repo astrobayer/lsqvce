@@ -1186,7 +1186,7 @@ function testDatumCovarianceIsTheMinimumConstraintOne(tc)
         res = tc.verifyWarningFree(@() R.residuals('Verbose', false));
         % tol: 1e-8 relative -- two routes to the same v'Pv over the same dof
         tc.verifyEqual(res.sigma0, R.sigma0, 'RelTol', 1e-8, 'residuals() counts the prior');
-        red = tc.verifyWarningFree(@() R.acc.redundancy(R.sol));
+        red = tc.verifyWarningFree(@() R.acc.redundancy(R.sol, 'Verbose', false));
         tc.verifyLessThan(red.check, 1e-8, 'sum(r_i) + r_prior = m + nk - u');
     end
     % a REGULARISING prior is not a datum: its covariance stays the solve's
@@ -1198,7 +1198,7 @@ function testDatumCovarianceIsTheMinimumConstraintOne(tc)
     res = tc.verifyWarningFree(@() R.residuals('Verbose', false));
     % tol: as above
     tc.verifyEqual(res.sigma0, R.sigma0, 'RelTol', 1e-8, 'the ridge prior is counted');
-    red = tc.verifyWarningFree(@() R.acc.redundancy(R.sol));
+    red = tc.verifyWarningFree(@() R.acc.redundancy(R.sol, 'Verbose', false));
     tc.verifyLessThan(red.check, 1e-8);
     tc.verifyGreaterThan(red.priorRedundancy, 0);
 end
