@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-11 — WP-111 part 2 DONE (PR #132, merge 96ad12b; CI GREEN on ba810e4); WP-111 part 3 OPEN (tier B, model Claude Opus 5.5): R7-02 / R7-20 -- the joint law is a positive spectrum on Grid bins (kernel.hatACV, r = K S, every bin's component PSD), psdVCE on per-bin statistics over all lags, the arc factor from the arc's whole covariance, state S / Sgroups ('C0' -> 'S0' white; Norm, ZeroFreqRule, floors, degenerateStart retired); version 6.7.0; §12.44.
+Last substantive update: 2026-10-11 — WP-111 part 3 DONE (PR #133, merge 290d7ff), WP-111 complete; WP-112 OPEN (tier B, model Claude Opus 5.5): R7-03 / R7-16 -- the QR backend's accumulator path square-root throughout (locals eliminated on the factor, contributions and the common prior merged as rows), the rank decision QRSystem.RankTol on the pivots; version 6.8.0; §12.45.
+Preceding entry: Last substantive update: 2026-10-11 — WP-111 part 2 DONE (PR #132, merge 96ad12b; CI GREEN on ba810e4); WP-111 part 3 OPEN (tier B, model Claude Opus 5.5): R7-02 / R7-20 -- the joint law is a positive spectrum on Grid bins (kernel.hatACV, r = K S, every bin's component PSD), psdVCE on per-bin statistics over all lags, the arc factor from the arc's whole covariance, state S / Sgroups ('C0' -> 'S0' white; Norm, ZeroFreqRule, floors, degenerateStart retired); version 6.7.0; §12.44.
 Preceding entry: Last substantive update: 2026-10-11 — WP-111 part 1 DONE (PR #131, merge 3ed7f98; the results recorded on this branch); WP-111 part 2 OPEN (tier B, model Claude Opus 5.5): R7-01 -- psd2acv integrates the piecewise-linear spectrum exactly (no lag period), covModel 'psd' 'toeplitz' no longer resamples onto floor(m/2)+1 points; version 6.6.2; §12.44.
 Preceding entry: Last substantive update: 2026-10-11 — WP-115 part 4 DONE (PR #130, merge 13bf7d0), WP-115 complete; WP-111 part 1 OPEN (tier A via CI, model Claude Opus 5.5; user decision: POSITIVE COMPONENTS replace the DCT-domain update): the measurement first -- dev/validation/wp111_measure.m reproduces R7-02's runaway through lsqvce.fit and runs the candidate (hat-spectrum components, exact ACV r = K S) on the same data, plus R7-01's wrap through covModel; no toolbox change; §12.44.
 Preceding entry: Last substantive update: 2026-10-11 — WP-115 part 3b DONE (PR #129, merge f2b164d; CI GREEN on cf4db8c); WP-115 part 4 OPEN (tier B, model Claude Opus 5.5): R7-43 -- one stream key (util.streamKey), one arc key (util.arcKey), the arc's stream carried as out.arcStreams instead of parsed back by regex, engine.satKeyOf retired; version 6.6.1; §12.43.
@@ -8561,7 +8562,7 @@ adjustVCEjoint>streamMeans / streamKeyOf).
 |----|-------|-----------|--------|
 | 111 (part 1) | the tier-A measurement: R7-02's runaway reproduced through `lsqvce.fit`, the candidate (positive components) on the same data, R7-01's wrap through covModel; `dev/validation/wp111_measure.m` on `measure.yml`; no toolbox change, no version | 115 (PR #130 merged 13bf7d0) | DONE (2026-10-11, PR #131, merge 3ed7f98; measured: run 38145552366) |
 | 111 (part 2) | R7-01: `kernel.psd2acv` integrates the piecewise-linear spectrum EXACTLY (closed form per segment) -- no lag period; `covModel` 'psd' 'toeplitz' no longer resamples onto floor(m/2)+1 points; **version 6.6.2** | 111 part 1 (PR #131 merged 3ed7f98) | DONE (2026-10-11, PR #132, merge 96ad12b; CI GREEN on ba810e4 first run, 632 tests) |
-| 111 (part 3) | R7-02 / R7-20: the joint law is a POSITIVE spectrum on Grid bins (`kernel.hatACV`, r = K S); `psdVCE(Q, T, Sprior)` on per-bin statistics over ALL lags; the arc factor is the Helmert factor of the arc's whole covariance; state / outputs `S`, `Sgroups` ('C0' -> 'S0', white default; 'Norm', ZeroFreqRule, floors, degenerateStart retired); `jointModelOpt` emits 2 S on fNorm; **version 6.7.0** | 111 part 2 (PR #132 merged 96ad12b) | OPEN (2026-10-11; audit CLEAN; CI GREEN on ace7109; R7-02 re-measured through lsqvce.fit: run 38149857047) |
+| 111 (part 3) | R7-02 / R7-20: the joint law is a POSITIVE spectrum on Grid bins (`kernel.hatACV`, r = K S); `psdVCE(Q, T, Sprior)` on per-bin statistics over ALL lags; the arc factor is the Helmert factor of the arc's whole covariance; state / outputs `S`, `Sgroups` ('C0' -> 'S0', white default; 'Norm', ZeroFreqRule, floors, degenerateStart retired); `jointModelOpt` emits 2 S on fNorm; **version 6.7.0** | 111 part 2 (PR #132 merged 96ad12b) | DONE (2026-10-11, PR #133, merge 290d7ff; CI GREEN on ace7109 and 89dbc43; R7-02 re-measured through lsqvce.fit: run 38149857047) |
 
 **The design question, and the user's decision (2026-10-11).** R7-01 (the 'toeplitz' ACV is
 circulant), R7-02 (the estimated law runs away x1e7 and the loop says "converged") and
@@ -8712,3 +8713,62 @@ part 3", 2026-10-11; version 6.7.0; tier B -- CI is the first MATLAB run).**
   numbers); the multiplicative Helmert update is slow near a strongly coloured
   fixed point, not unstable. R7-01 through covModel: r(m-1)/r(0) 0.0000 and cond 9.0
   on m = 255 / 256 / 2111 (part 2 confirmed).
+
+### 12.45 WP-112 — QR on the accumulator path (2026-10-11, model Claude Opus 5.5)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 112 | R7-03 / R7-16: the QR backend's accumulator path stays square-root -- locals eliminated on the factor (`QRSystem.reducedRows`), contributions merged as rows (`ReducedContribution.Rows`), the common prior folded in as rows; the rank decision is `QRSystem.RankTol` (1e3 eps) on the pivots; **version 6.8.0** | 111 (PR #133 merged 290d7ff) | OPEN (2026-10-11; audit CLEAN; CI pending) |
+
+**The finding (review R7, dom_lsq F1 / F6).** R7-03: every accumulator solve on the default
+backend read the QR factor back as N = R1'R1 (`QRSystem.blocks`), Schur-eliminated the locals
+in normal form and re-rooted the contribution by `chol` in `merge` -- also for nl = 0 -- and
+the prior branch of `solve` did the same through `commonBlocks`. So cond(A)^2 after all:
+median 2-3 formal sd error at cond(A) = 1e7-1e9, full-rank problems refused from 1e8.5,
+against the backend's own help ("cond(A), not cond(A)^2") and DEVELOPMENT's "QR is not
+optional". R7-16: a free levelling network was refused or solved depending on whether that
+`chol` succeeded (61 % / 39 %, the solved ones with an arbitrary datum and sd ~1e7).
+
+**Mirror first** (`dev/reviews/R7_2026-10-09/mirrors/wp112/square_root_accumulator.py`):
+the new path line by line -- R of [A B l] re-triangularised with the local columns first
+(an orthogonal transform of R: Rp'Rp = P'[A B l]'[A B l]P without forming it), [R22 r2; 0 rho]
+stacked into the common factor, x = R \ r, refusal at RankTol on the pivots.
+
+| cond, nl | NEW: median / max formal sd, refused (20) | SHIPPED |
+|---|---|---|
+| 1e7, 0 / 3 | 2.2e-7 / 6.0e-7, 0 ; 1.3e-5 / 1.6e-4, 0 | 2.1 / 10, 0 ; 3.0 / 16, 0 |
+| 1e8, 0 / 3 | 6.3e-9 / 2.4e-8, 0 ; 6.5e-9 / 1.5e-8, 0 | 0.02 / 1.2, 0 ; 0.07 / 0.42, 0 |
+| 1e8.5, 0 / 3 | 1.2e-8 / 7.4e-8, 0 ; 1.2e-8 / 7.0e-8, 0 | 0.25 / 5.3, 4 ; 0.27 / 3.0, 8 |
+| 1e9, 0 / 3 | 5.4e-8 / 1.4e-7, 0 ; 3.0e-8 / 1.4e-7, 0 | 0.28 / 1.1, 7 ; 0.51 / 2.6, 11 |
+
+Pivot ratios min / max |diag R| of the new path: free networks <= 5.1e-16 (2000), with a
+datum >= 0.27, full rank at cond 1e8 / 1e10 / 1e12 >= 2.4e-8 / 1.8e-10 / 1.9e-12. RankTol =
+1e3 eps = 2.2e-13 separates them: free 2000 / 2000 refused, datum 2000 / 2000 solved (the
+shipped path: 1261 refused / 739 solved). The price: a problem of cond(A) > ~4e12 is refused
+(the old tolerance max(size) eps(max) sat at the roundoff floor, H-16).
+
+**Built.**
+- `QRSystem`: `RankTol` (Constant), `reducedRows(nl)` (the square root of the contribution
+  with the last nl columns eliminated, and R11), `merge` stacks `red.Rows` when given (the
+  normal-form fold with its WP-50 guard remains for a REGULARISED local block), `solve`'s
+  pivot test is RankTol.
+- `ReducedContribution`: optional fifth input `Rows`; N / n / ltl derived from it.
+- `BlockAccumulator.preeliminate`: on the QR backend, nl = 0 hands the factor itself; nl > 0
+  with an unregularised local block (`dg.regUsed` 'none') and R11's pivots above RankTol
+  goes through `reducedRows`; anything else keeps the normal-form Schur (regularisation and
+  the pinv fallback are defined on Nll). The back-substitution store (Nll_r, Nlc, nl_r) is
+  unchanged -- y is local, R7-03 is about x_c.
+- `BlockAccumulator.solve` with a prior on the QR backend: `solveQRWithPrior` stacks
+  [K/sigma, x0/sigma] onto the factor; x, vtv (the residual row) and Cxx from the square
+  root, refusal (priorNotPD) by RankTol, r_K from R1' (CommonPrior.redundancy).
+- Tests (630 = 628 + 2): `test_precision>testAccumulatorQRStaysSquareRoot` (cond 1e7 / 1e8.5
+  / 1e9, nl 0 / 3, 4 seeds: x_c within 1e-3 formal sd of the dense solve, no refusal);
+  `testFreeNetworkRefusalIsDeterministic` (40 random free networks through lsqvce.fit all
+  singularR, the same with one fixed height all solved); `testQrMergeFoldCancellationIsNaN`
+  rewritten as `testQrMergeFoldKeepsTheResidualMass` (the WP-50 deep regime now yields an
+  honest sigma0 ~ 1 at the fold, no warning).
+- Not in scope, recorded: the NORMAL backend's own rank decision is still chol's (R7-16's
+  "the NEQ backend has the same coin flip"); `reducedNormalMatrix` (the shared probe's
+  factor in the joint estimator) still squares -- a trace estimate, not the solution.
+- NOT validated before CI: no MATLAB in the container; CI is the first run.
+

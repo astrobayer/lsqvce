@@ -51,7 +51,23 @@ exchange for double the effective precision.
 
 This is the default backend, and the right one whenever the local block
 might be poorly conditioned (near-collinear empirical accelerations, short
-arcs, weakly separated bias/scale pairs -- i.e. most real problems).
+arcs, weakly separated bias/scale pairs -- i.e. most real problems).</pre>
+<h3>THE ACCUMULATOR PATH STAYS SQUARE-ROOT (R7 WP-112, review R7-03). A</h3>
+<pre class="example">system&#x27;s local parameters are eliminated ON THE FACTOR: reducedRows
+re-triangularises R with the local columns first, and the trailing block
+[R22 r2; 0 rho] is the square root of the reduced contribution
+(R22&#x27;R22 = Ncc - Nlc&#x27;Nll^-1 Nlc, rho^2 + r2&#x27;r2 = l&#x27;l reduced). merge
+stacks those rows -- no chol, no eig. Until 6.7 the contribution went
+through N = R1&#x27;R1, a normal-form Schur complement and chol in merge:
+cond(A)^2 after all, 2-3 formal sd error at cond(A) = 1e7-1e9 and
+full-rank problems refused from 1e8.5 (mirror, HANDOVER 12.45).</pre>
+<h3>THE RANK DECISION (R7-16) is this class&#x27;s own: a pivot of the final</h3>
+<pre class="example">factor with |R(k,k)| &lt;= RankTol * max|diag R| is refused. RankTol =
+1e3 eps: a free levelling network leaves pivot ratios &lt;= 5e-16 (2000
+random networks), a full-rank problem of cond(A) = 1e12 keeps &gt;= 1.9e-12.
+Before, the decision fell to LAPACK -- chol in merge succeeded or not on
+rounding, and a free network was refused 61 % / solved with an arbitrary
+datum 39 %.
 
 PROPERTIES (read-only)
   R     (dim+1) x (dim+1)  triangular factor of [A l], compressed
@@ -84,7 +100,8 @@ end
   lsqvce:qr:badMerge       merging two systems of different widths
   lsqvce:qr:noData         solve() before anything was added
   lsqvce:qr:rankDeficient  R is rank deficient and no datum was supplied
-  lsqvce:qr:singularR      the triangular factor cannot be back-substituted
+  lsqvce:qr:singularR      a pivot of the factor is below RankTol (relative):
+                           a parameter or combination is not determined
 
 WARNINGS
   lsqvce:qr:cancellation   the residual mass was destroyed by
@@ -98,16 +115,21 @@ WARNINGS
 <pre class="example">  x from Householder/Givens updates: relative error ~ eps*cond(A) (the
   reason this backend exists; see the measured comparison in
   test_precision). vtv is carried as the squared residual row of the
-  augmented factor: exact to ~eps*mass through ROTATIONS, but a merge()
-  of a pre-eliminated contribution recovers it by NORMAL-form
-  subtraction and inherits that route&#x27;s 8-digit cancellation limit --
-  both guarded since WP-50 (NaN, never a wrong plausible number; the
-  WP-49 deep-regime probe measured an EXACT-ZERO sigma0 before).
+  augmented factor: exact to ~eps*mass through ROTATIONS. Since 6.7
+  (R7 WP-112) a pre-eliminated contribution arrives as rows with its
+  residual row, so this holds through merge() too; only a contribution
+  whose local block was REGULARISED is still folded in normal form and
+  recovers rho2 by subtraction (the WP-50 guard: NaN, never a wrong
+  plausible number).
   lsqvce:qr:noRedundancy   n = rank, so sigma0 is undefined (the model
                            reproduces the data exactly by construction)
 
 See also LSQVCE.ENGINE.NORMALEQSYSTEM, LSQVCE.ENGINE.BLOCKACCUMULATOR
 
+Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-112 (R7-03, R7-16):
+reducedRows (local elimination on the factor), merge takes square-root
+rows, the rank decision is RankTol on the pivots. With assistance from
+Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-86 part 2 (R7-24):
 squareRoot, the parameter columns&#x27; triangular factor
 (BlockAccumulator.commonFactor). With assistance from Claude

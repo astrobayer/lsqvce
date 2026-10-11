@@ -254,6 +254,11 @@ lsqvce.util.log.msg(&#x27;sigma0 = %.4f (want ~1)\n&#x27;, sol.sigma0);</pre>
     lsqvce:accum:localNotRedundant  an arc&#x27;s local block has no redundancy,
                                   so its variance factor is undefined
 
+Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-112 (R7-03, R7-16): on the
+QR backend the whole path stays square-root -- locals eliminated on the
+factor (QRSystem.reducedRows), contributions merged as rows, the prior
+folded in as rows; the rank decision is QRSystem.RankTol on the pivots.
+With assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-08-31 (CEST, UTC+02:00), R4 G-07 (Level L2): nl = 0 is a
 valid system (user decision) -- addSystem accepts it, preeliminate
 returns the unreduced common block with consistent empty local shapes.

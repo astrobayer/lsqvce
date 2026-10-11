@@ -381,11 +381,10 @@ function testQRBeatsNormalOnIllConditioned(tc)
 % categories: robustness
 % The whole justification for the QR backend: cond(A) versus cond(A)^2.
 %
-% Measured on the BACKEND IN ISOLATION, because in the full pipeline the effect
-% is masked -- once the local block is ill conditioned enough to matter, the
-% regularisation kicks in and sets the accuracy for both backends alike (see
-% testRegularisationMasksBackendChoice). The backend difference is real, but it
-% only shows where the design matrix is ill conditioned AND unregularised.
+% Measured on the BACKEND IN ISOLATION; the accumulator path is pinned by
+% testAccumulatorQRStaysSquareRoot (R7 WP-112). The masking this test used to
+% blame on regularisation was structural (review R7-03): until 6.7 the
+% accumulator squared the factor before the Schur step.
     muteWarn(tc, 'lsqvce:normalEq:cancellation');   % tight-fit / ill-conditioned regime provoker (WP-49 unified id)
     rs = RandStream('mt19937ar','Seed',5);
     m  = 800;   n = 8;
@@ -412,6 +411,72 @@ function testQRBeatsNormalOnIllConditioned(tc)
             sprintf('cond = 1e%d: QR (%.2e) must beat normal (%.2e)', k, eQ, eN));
         tc.verifyLessThan(eQ, 1e-8, ...
             sprintf('cond = 1e%d: QR error %.2e is too large', k, eQ));
+    end
+end
+
+function testAccumulatorQRStaysSquareRoot(tc)
+% categories: precision, robustness
+% R7 WP-112 (review R7-03): the ACCUMULATOR path of the QR backend, not the
+% backend in isolation. Commons of cond(A) = 1e7 .. 1e9, with and without
+% local parameters, one system through BlockAccumulator: x_c must equal the
+% dense [A B] \ l to a tiny fraction of its formal sd, and no full-rank
+% problem may be refused. Until 6.7 the locals were Schur-eliminated in
+% normal form and merge took chol of the reduced N: median 2-3 formal sd off
+% at cond 1e7-1e9, and 4-11 of 20 full-rank problems refused at 1e8.5-1e9
+% (mirror mirrors/wp112/square_root_accumulator.py; the square-root path
+% measured <= 1.6e-4 sd, mostly 1e-8).
+    m = 800;  nc = 8;
+    for k = [7 8.5 9]
+        for nl = [0 3]
+            rs = RandStream('mt19937ar', 'Seed', round(10*k) + nl);
+            for seed = 1:4
+                [U, ~] = qr(randn(rs, m, nc), 0);  [V, ~] = qr(randn(rs, nc, nc), 0);
+                A = U * diag(logspace(0, -k, nc)) * V.';
+                B = randn(rs, m, nl);
+                l = [A B] * randn(rs, nc + nl, 1) + 1e-4 * randn(rs, m, 1);
+                [Q, Rd] = qr([A B], 0);
+                xr = Rd \ (Q.' * l);
+                v  = l - [A B] * xr;
+                Ri = Rd \ eye(nc + nl);
+                sd = sqrt(v.' * v / (m - nc - nl)) * sqrt(sum(Ri.^2, 2));
+                sol = oneSystemAcc(A, B, l);
+                err = max(abs(sol.x - xr(1:nc)) ./ sd(1:nc));
+                tc.verifyLessThan(err, 1e-3, sprintf(['cond 1e%g, nl = %d, seed %d: x_c is %.2e ' ...
+                    'formal sd off the dense solve'], k, nl, seed, err));
+            end
+        end
+    end
+end
+
+function testFreeNetworkRefusalIsDeterministic(tc)
+% categories: contract, robustness
+% R7 WP-112 (review R7-16): the rank decision is QRSystem.RankTol on the
+% pivots, not LAPACK's chol. Random connected levelling networks: WITHOUT a
+% datum every one is refused (lsqvce:qr:singularR), WITH one fixed height
+% every one is solved. The review measured the shipped path at 61 % refused /
+% 39 % solved with an arbitrary datum (sd ~1e7) on 2000 such networks; the
+% mirror's square-root path refuses 2000 / 2000 and solves 2000 / 2000.
+    rs = RandStream('mt19937ar', 'Seed', 112);
+    for trial = 1:40
+        u = randi(rs, [4 11]);
+        pairs = [(1:u).', [2:u, 1].'];
+        for c = 1:randi(rs, [1 u-1])
+            pairs(end+1, :) = randperm(rs, u, 2);   %#ok<AGROW>
+        end
+        A = zeros(size(pairs, 1), u);
+        for r = 1:size(pairs, 1), A(r, pairs(r, 1)) = -1;  A(r, pairs(r, 2)) = 1; end
+        A = A * (0.5 + 2.5 * rand(rs));
+        l = A * (10 * randn(rs, u, 1)) + 0.01 * randn(rs, size(A, 1), 1);
+        id = '';
+        try
+            lsqvce.fit(struct('A', A, 'l', l), Verbose=false);
+        catch err
+            id = err.identifier;
+        end
+        tc.verifyEqual(id, 'lsqvce:qr:singularR', sprintf('free network %d (u = %d) must be refused', trial, u));
+        Ad = [A; [1, zeros(1, u-1)]];  ld = [l; 0];
+        R = lsqvce.fit(struct('A', Ad, 'l', ld), Verbose=false);
+        tc.verifyTrue(all(isfinite(R.x)), sprintf('network %d with a datum must be solved', trial));
     end
 end
 
@@ -599,6 +664,19 @@ function f = binder(cfg, s)
     f = @(d,ot,a,uo) lsqvce.engine.synthLoader(cfg, s, d, ot, a, uo);
 end
 
+function sol = oneSystemAcc(A, B, l)
+%ONESYSTEMACC  One system, one day, one white arc through BlockAccumulator
+%   (Backend "qr"): the accumulator path R7 WP-112 is about.
+    nc = size(A, 2);  nl = size(B, 2);
+    build = @(d, ot) struct('A', {{A}}, 'B', {{B}}, 'l', {{l}}, 't', {{(1:numel(l)).'}});
+    L = lsqvce.engine.makeLoader(build, 'ObservationTypes', {'x'}, ...
+            'Covariance', struct('x', struct('type', 'diag', 'sigma', 1)), ...
+            'NumLocal', nl, 'NumCommon', nc);
+    acc = lsqvce.engine.BlockAccumulator(nc, 'Backend', 'qr', 'Verbose', false);
+    acc.addSystem(1, nl, L.closure, 1);
+    sol = acc.solve();
+end
+
 function sol = runAcc(cfg, days, varargin)
     acc = lsqvce.engine.BlockAccumulator(cfg.nc, varargin{:});
     for s = cfg.sats
@@ -737,14 +815,15 @@ function testResidualPassSupersedesPoisonedSigma0(tc)
 end
 
 %% ================================================== WP-50: honest vtv, QR
-function testQrMergeFoldCancellationIsNaN(tc)
+function testQrMergeFoldKeepsTheResidualMass(tc)
 % categories: contract, robustness | tags: diagnostics
-% WP-50: the block-QR path recovers the residual mass of a pre-eliminated
-% contribution by a NORMAL-form subtraction (rho2 = ltl_red - |rhs|^2) --
-% the same cancellation the other routes guard. At the WP-49 deep-regime
-% probe this produced sigma0 = EXACTLY 0, a wrong plausible number
-% (10.11 finding c). It must now refuse: warn once at the fold, NaN at
-% solve, and the residual pass supersedes with the honest number.
+% WP-50 asked the block-QR path to REFUSE (NaN) when the normal-form fold of a
+% pre-eliminated contribution destroyed the residual mass (rho2 = ltl_red -
+% |rhs|^2; at the WP-49 deep-regime probe it had produced sigma0 = EXACTLY 0).
+% R7 WP-112 (R7-03) removed the subtraction: the contribution is merged as
+% square-root rows, the residual row rides along, so at the SAME regime the
+% accumulated sigma0 is now honest -- no warning at the fold, finite, ~1, and
+% equal to the residual pass's.
     cfg = tc.TestData.cfg;
     cfg.x_c = 3e4 * (1:cfg.nc).';              % the exact observed regime
     cfg.cov.pos.sigma = 1e-5;
@@ -752,27 +831,19 @@ function testQrMergeFoldCancellationIsNaN(tc)
 
     accQ = lsqvce.engine.BlockAccumulator(cfg.nc, 'Backend','qr', ...
                                    'KeepLocal',true, 'Verbose',false);
-    % the fold -- and therefore the warning -- happens at addSystem time,
-    % when the pre-eliminated contribution is merged (measured: the r0
-    % verifyWarning around solve() saw nothing and the id leaked into the
-    % runner inventory)
-    verifyWarning(tc, @() addAllSystems(accQ, cfg, 1:2), ...
-                  'lsqvce:qr:cancellation');
-    solQ = accQ.solve();
-    tc.verifyTrue(isnan(solQ.sigma0), ...
-        'the destroyed residual mass must surface as NaN, not as 0');
-
-    res = verifyWarning(tc, @() accQ.residuals(solQ, 'verbose', false), ...
-                        'lsqvce:residuals:supersedesSol');
-    tc.verifyTrue(res.supersedesSol);
-    tc.verifyTrue(isfinite(res.sigma0) && res.sigma0 > 0, ...
-        'the residual pass must recover the honest sigma0');
-    % tol: the residual pass measured 1.0072 at this regime in the WP-49
-    % probe (pf49_measure); the declared law is exact, so sigma0 ~ 1 with
-    % sampling scatter 1/sqrt(2*dof) ~ 1.4e-2 -- band 5 sigma
-    tc.verifyEqual(res.sigma0, 1, 'AbsTol', 0.07);
+    tc.verifyWarningFree(@() addAllSystems(accQ, cfg, 1:2));
+    solQ = tc.verifyWarningFree(@() accQ.solve());
+    % tol: the declared law is exact, so sigma0 ~ 1 with sampling scatter
+    % 1/sqrt(2*dof) ~ 1.4e-2 -- band 5 sigma (the WP-49 residual pass measured 1.0072)
+    tc.verifyEqual(solQ.sigma0, 1, 'AbsTol', 0.07, ...
+        'the square-root fold keeps the residual mass: an honest sigma0');
+    % the residual pass recomputes l - A x - B y at a 1e9 dynamic range and may
+    % differ from the square root past its 1e-6 consistency bar
+    muteWarn(tc, 'lsqvce:residuals:sigma0Mismatch');
+    res = accQ.residuals(solQ, 'verbose', false);
+    % tol: 1e-3 relative, below sigma0's sampling scatter 1/sqrt(2*dof) ~ 1.4e-2
+    tc.verifyEqual(res.sigma0, solQ.sigma0, 'RelTol', 1e-3);
 end
-
 function testQrHealthyPathUnchangedByTheGuards(tc)
 % categories: contract
 % Regression lock for WP-50: on a healthy fixture the guards must be

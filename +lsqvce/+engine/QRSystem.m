@@ -10,6 +10,24 @@ classdef QRSystem < handle
 %   might be poorly conditioned (near-collinear empirical accelerations, short
 %   arcs, weakly separated bias/scale pairs -- i.e. most real problems).
 %
+%   THE ACCUMULATOR PATH STAYS SQUARE-ROOT (R7 WP-112, review R7-03). A
+%   system's local parameters are eliminated ON THE FACTOR: reducedRows
+%   re-triangularises R with the local columns first, and the trailing block
+%   [R22 r2; 0 rho] is the square root of the reduced contribution
+%   (R22'R22 = Ncc - Nlc'Nll^-1 Nlc, rho^2 + r2'r2 = l'l reduced). merge
+%   stacks those rows -- no chol, no eig. Until 6.7 the contribution went
+%   through N = R1'R1, a normal-form Schur complement and chol in merge:
+%   cond(A)^2 after all, 2-3 formal sd error at cond(A) = 1e7-1e9 and
+%   full-rank problems refused from 1e8.5 (mirror, HANDOVER 12.45).
+%
+%   THE RANK DECISION (R7-16) is this class's own: a pivot of the final
+%   factor with |R(k,k)| <= RankTol * max|diag R| is refused. RankTol =
+%   1e3 eps: a free levelling network leaves pivot ratios <= 5e-16 (2000
+%   random networks), a full-rank problem of cond(A) = 1e12 keeps >= 1.9e-12.
+%   Before, the decision fell to LAPACK -- chol in merge succeeded or not on
+%   rounding, and a free network was refused 61 % / solved with an arbitrary
+%   datum 39 %.
+%
 %   PROPERTIES (read-only)
 %     R     (dim+1) x (dim+1)  triangular factor of [A l], compressed
 %     m     scalar             number of observations
@@ -43,7 +61,8 @@ classdef QRSystem < handle
 %     lsqvce:qr:badMerge       merging two systems of different widths
 %     lsqvce:qr:noData         solve() before anything was added
 %     lsqvce:qr:rankDeficient  R is rank deficient and no datum was supplied
-%     lsqvce:qr:singularR      the triangular factor cannot be back-substituted
+%     lsqvce:qr:singularR      a pivot of the factor is below RankTol (relative):
+%                              a parameter or combination is not determined
 %
 %   WARNINGS
 %     lsqvce:qr:cancellation   the residual mass was destroyed by
@@ -58,16 +77,21 @@ classdef QRSystem < handle
 %     x from Householder/Givens updates: relative error ~ eps*cond(A) (the
 %     reason this backend exists; see the measured comparison in
 %     test_precision). vtv is carried as the squared residual row of the
-%     augmented factor: exact to ~eps*mass through ROTATIONS, but a merge()
-%     of a pre-eliminated contribution recovers it by NORMAL-form
-%     subtraction and inherits that route's 8-digit cancellation limit --
-%     both guarded since WP-50 (NaN, never a wrong plausible number; the
-%     WP-49 deep-regime probe measured an EXACT-ZERO sigma0 before).
+%     augmented factor: exact to ~eps*mass through ROTATIONS. Since 6.7
+%     (R7 WP-112) a pre-eliminated contribution arrives as rows with its
+%     residual row, so this holds through merge() too; only a contribution
+%     whose local block was REGULARISED is still folded in normal form and
+%     recovers rho2 by subtraction (the WP-50 guard: NaN, never a wrong
+%     plausible number).
 %     lsqvce:qr:noRedundancy   n = rank, so sigma0 is undefined (the model
 %                              reproduces the data exactly by construction)
 %
 %   See also LSQVCE.ENGINE.NORMALEQSYSTEM, LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-112 (R7-03, R7-16):
+%   reducedRows (local elimination on the factor), merge takes square-root
+%   rows, the rank decision is RankTol on the pivots. With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-86 part 2 (R7-24):
 %   squareRoot, the parameter columns' triangular factor
 %   (BlockAccumulator.commonFactor). With assistance from Claude
@@ -90,6 +114,10 @@ classdef QRSystem < handle
         vtvPoisoned = false     % WP-50: a merge() fold destroyed the residual
                                 % mass by cancellation; solve() returns
                                 % vtv/s0sq = NaN, never a plausible number
+    end
+
+    properties (Constant)
+        RankTol = 1e3 * eps     % R7-16: refuse a pivot below RankTol * max|diag R|
     end
 
     methods
@@ -144,9 +172,10 @@ classdef QRSystem < handle
         end
 
         function [Nll,Nlc,Ncc,nl,nc,ltl,m] = blocks(o, ic, il)        %BLOCKS  Recover the normal-equation blocks from R.
-        %   N = R1'*R1 and n = R1'*r. The squaring happens here, but on a
-        %   matrix that is already triangular and well scaled, which is a very
-        %   different proposition from squaring the raw design matrix.
+        %   N = R1'*R1 and n = R1'*r -- in normal form, for the local block's
+        %   diagnostics, its regularisation and the back-substitution store.
+        %   NOT the route of the common solution (R7 WP-112, R7-03: reducedRows
+        %   and merge keep that square-root; this method squares cond).
             d  = o.dim;
             R1 = zeros(d, d);
             r  = zeros(d, 1);
@@ -166,8 +195,54 @@ classdef QRSystem < handle
             m = o.m;
         end
 
+        function [rows, R11] = reducedRows(o, nl)
+        %REDUCEDROWS  The square root of the contribution with the LAST nl
+        %   columns (the locals) eliminated -- on the factor, never in normal
+        %   form (R7 WP-112, R7-03).
+        %
+        %   R is re-triangularised with the local columns first; that is an
+        %   orthogonal transform of R, so Rp'Rp = P'[A l]'[A l]P exactly to
+        %   rounding without forming it. With Rp = [R11 R12 r1; 0 R22 r2;
+        %   0 0 rho]:
+        %     rows = [R22 r2; 0 rho]   (dim-nl)+1 columns: the reduced
+        %                              contribution's pseudo-observations
+        %     R11                      the local block's factor (its pivots
+        %                              decide whether the elimination is sound)
+        %   nl = 0 returns R itself and an empty R11.
+            d  = o.dim;
+            nc = d - nl;
+            if nl == 0
+                rows = o.R;  R11 = zeros(0, 0);
+                return
+            end
+            Rp  = triu(qr(o.R(:, [nc+1:d, 1:nc, d+1]), 0));
+            k   = min(size(Rp, 1), d + 1);
+            Rp  = Rp(1:k, :);
+            kl  = min(nl, k);
+            R11 = Rp(1:kl, 1:nl);
+            rows = Rp(kl+1:k, nl+1:end);
+        end
+
         function merge(o, red)
         %MERGE  Fold a pre-eliminated contribution back into the square root.
+        %
+        %   R7 WP-112: a contribution that carries square-root rows (red.Rows,
+        %   from reducedRows) is stacked as it is -- the residual row rides
+        %   along, nothing is subtracted, nothing squared. The normal-form
+        %   route below remains for a contribution whose local block was
+        %   regularised (the regularisation is defined on Nll).
+            if ~isempty(red.Rows)
+                if size(red.Rows, 2) ~= o.dim + 1
+                    error('lsqvce:qr:badMerge', ...
+                          'The contribution has %d columns but the system has %d parameters.', ...
+                          size(red.Rows, 2) - 1, o.dim);
+                end
+                o.R = triu(qr([o.R ; red.Rows], 0));
+                k   = min(size(o.R,1), o.dim+1);
+                o.R = o.R(1:k, :);
+                o.m = o.m + red.dof;
+                return
+            end
         %
         %   The reduced contribution is in normal form (N, n, ltl). Convert it
         %   to pseudo-observation rows: chol(N) = Rc and Rc'*rhs = n.
@@ -279,11 +354,11 @@ classdef QRSystem < handle
             % runner): the rank test must NOT sit at the roundoff boundary. A
             % Householder QR of a rank-deficient block leaves a trailing pivot
             % of order eps*|A|, above or below eps*max(dR) depending on the
-            % LAPACK build -- refused on Windows, solved on Linux. The
-            % tolerance is MATLAB's own rank() convention, max(size)*eps(max):
-            % two orders above the roundoff floor, far below any legitimate
-            % conditioning (kappa(A) ~ 1e13 before refusal).
-            rtol = max(size(R1)) * eps(max(dR));
+            % LAPACK build -- refused on Windows, solved on Linux. R7-16 (WP-112):
+            % the decision is RankTol (1e3 eps) on the pivots, the class's own
+            % threshold -- measured gap: free networks <= 5e-16, full rank at
+            % cond(A) = 1e12 >= 1.9e-12 (mirrors/wp112).
+            rtol = lsqvce.engine.QRSystem.RankTol * max(dR);
             if min(dR) <= rtol
                 [~, k] = min(dR);
                 error('lsqvce:qr:singularR', ...
