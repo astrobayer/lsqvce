@@ -282,7 +282,11 @@ only; and each stream's level is divided by the Gaussian truncation factor of th
 point, τ = F_{d+2}(q_k) / F_d(q_k) with P(χ²_d > q_k) = P(|N(0,1)| > k) — 0.9733 for
 `igg3`'s k1 = 3 at d = 1, practically 1 for `bisquare`, exactly 1 for Huber, which rejects
 nothing (`R.noise.robust.truncation`). A mirror of the loop reads 0.978 / 0.976 (φ = 0.5 /
-white) before the factor. Under a correlated law τ is the white-noise value, an approximation
+white) before the factor. The returned solution is hard too: after the loop one accumulation
+with the rejected epochs deleted and every partial factor set back to 1, whose `sigma0` and
+`Cxx` are corrected for the rejected rows and for τ. With the partial factors in that last
+solve, σ·σ0 had stayed at 0.83, because `sigma0`, recomputed under the corrected levels,
+gave the selection bias back (measured on the runner). Under a correlated law τ is the white-noise value, an approximation
 of the same order as that residual. This composition is Koch's iterated re-weighting inside
 a variance-component estimation, not something Ellmer (2018) does.
 

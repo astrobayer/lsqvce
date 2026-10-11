@@ -20,6 +20,9 @@
   the REJECTED epochs (deleted), partial factors weight the solution only, and each
   stream's level is divided by the Gaussian truncation factor of the rejection point
   (0.9733 for IGG3's k1 = 3; 1 for Huber), returned as `R.noise.robust.truncation`.
+  The returned solution is hard as well (rejected epochs deleted, partial factors 1), its
+  `sigma0` / `Cxx` corrected for the rejected rows and τ: with the partial factors in the
+  final solve, σ·σ0 stayed 0.83 on the runner even with the corrected levels.
   Every robust `Estimate = "noise"` fit changes its numbers.
 - `kernel.robustWeights` returns the influence's rejection point as a fifth output.
 - New identifiers: `lsqvce:covModel:badNugget`, `lsqvce:covModel:nuggetNeedsWholeArc`,

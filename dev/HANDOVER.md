@@ -8511,6 +8511,16 @@ version 6.6.0; tier B -- the CI run is the first MATLAB execution).**
   fixed weights" route no longer recommends a Cep fold for a zero factor); help of
   covModel / makeLoader / arcBatchWhiten / redundancyLags / robustWeights /
   adjustVCEjoint; two superseded claims (the fold sentence, "possibly biased low").
+- **CI round 1 (ca0c39d): 616/618, RED** -- testRobustLevelOfACleanStreamIsUnbiased and
+  testRobustPassInside...; the measurement on the same head (run 38136740953, 20 seeds):
+  robust/plain 0.833 / 0.840 (scale mode; 0.813 / 0.862 before). Root cause: the loop's
+  level IS corrected, but R.sigma0 came from the final accumulation with the PARTIAL
+  factors in the solve -- v'C^-1 v selection-biased -- and sigma0, recomputed under the
+  corrected levels, gave the bias back (sigma*sigma0 is invariant to the level). Put to the
+  user (PR comment + question); **decision: the final solution is hard** -- one
+  accumulation after the loop with the rejected epochs deleted and partial factors 1
+  (`hardWeights`), its s0sq / sigma0 / Cxx scaled by dof / ((dof - nRej) tau)
+  (`hardSolution`; tau row-weighted over the weighted epochs, nRej the rejected rows).
 - **Expected CI movement** (tier B): every robust `Estimate = "noise"` test changes its
   numbers (testRobustPassInside..., testJointRobustPassKeepsCleanMultiAxisEpochs,
   testRobustWarnsAtTheBreakdownPoint); each move is read, not re-tolerated.

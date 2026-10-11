@@ -3218,10 +3218,17 @@ F_{d+2}(q_k) / F_d(q_k) with P(χ²_d &gt; q_k) = P(|N(0,1)| &gt; k) —
 0.9733 for <code>igg3</code>’s k1 = 3 at d = 1, practically 1 for
 <code>bisquare</code>, exactly 1 for Huber, which rejects nothing
 (<code>R.noise.robust.truncation</code>). A mirror of the loop reads
-0.978 / 0.976 (φ = 0.5 / white) before the factor. Under a correlated
-law τ is the white-noise value, an approximation of the same order as
-that residual. This composition is Koch’s iterated re-weighting inside a
-variance-component estimation, not something Ellmer (2018) does.</p>
+0.978 / 0.976 (φ = 0.5 / white) before the factor. The returned solution
+is hard too: after the loop one accumulation with the rejected epochs
+deleted and every partial factor set back to 1, whose
+<code>sigma0</code> and <code>Cxx</code> are corrected for the rejected
+rows and for τ. With the partial factors in that last solve, σ·σ0 had
+stayed at 0.83, because <code>sigma0</code>, recomputed under the
+corrected levels, gave the selection bias back (measured on the runner).
+Under a correlated law τ is the white-noise value, an approximation of
+the same order as that residual. This composition is Koch’s iterated
+re-weighting inside a variance-component estimation, not something
+Ellmer (2018) does.</p>
 <p>Two further routes remain useful:</p>
 <ul>
 <li><strong>Diagnose, then decide.</strong> Run

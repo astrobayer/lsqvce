@@ -113,6 +113,12 @@ function out = adjustVCEjoint(accFcn, opt)
 %              tau = F_{d+2}(q_k) / F_d(q_k) with P(chi2_d > q_k) =
 %              P(|N(0,1)| > kReject) -- 0.9733 for IGG3's k1 = 3 at d = 1,
 %              1 for Huber, which rejects nothing (out.robust.truncation).
+%              The RETURNED solution is hard as well: after the loop one
+%              accumulation with the rejected epochs deleted and every
+%              partial factor 1, its sigma0 / Cxx corrected for the rejected
+%              rows and the truncation (measured: with the partial factors in
+%              that solve, sigma*sigma0 stayed 0.83 -- sigma0 gave the bias
+%              back).
 %              Mirror (mirrors/wp115/nugget.py): 0.978 / 0.976 (phi 0.5 /
 %              white) before the factor. Multi-axis streams are
 %              weighted PER EPOCH by one chi-calibrated statistic (R7-08:
@@ -416,7 +422,7 @@ end
     lastSol = [];                                % R5 M7 7b: the previous pass's solution
     robust = ~strcmp(o.Influence, "none");       % R6 WP-105
     W = containers.Map('KeyType', 'char', 'ValueType', 'any');   % per-epoch factors
-    fac = [];  rkeys = cell(0, 4);  rscale = [];  rstreams = {};  tauMap = [];
+    fac = [];  rkeys = cell(0, 4);  rscale = [];  rstreams = {};  tauMap = [];  hardFix = [];
     hist.robustScale = [];  hist.nDown = [];  hist.nZero = [];
     if robust
         % PASS 0 (round 10, measured): the first robust sweep runs BEFORE the
@@ -431,7 +437,7 @@ end
                         'lastSol', [], 'rowWeights', W);
         acc0 = accFcn(model0);
         sol0 = acc0.solve();
-        [W, ~, ~, rscale0, ~, nDown0, nZero0, tauMap] = robustSweep(acc0, sol0, o, size(sol0.x, 1));
+        [W, ~, ~, rscale0, ~, nDown0, nZero0, tauMap, hardFix] = robustSweep(acc0, sol0, o, size(sol0.x, 1));
         if v
             lsqvce.util.log.msg('  [joint  0] robust (%s): scales %s, %d down-weighted, %d at zero\n', ...
                 o.Influence, mat2str(rscale0, 3), nDown0, nZero0);
@@ -684,7 +690,7 @@ end
         % factors are written for the NEXT
         % pass, one pass behind the model -- the same lag adjustRobust has.
         if robust
-            [W, fac, rkeys, rscale, rstreams, nDown, nZero, tauMap] = robustSweep(acc, sol, o, size(sol.x, 1));
+            [W, fac, rkeys, rscale, rstreams, nDown, nZero, tauMap, hardFix] = robustSweep(acc, sol, o, size(sol.x, 1));
             hist.robustScale(it,1:numel(rscale)) = rscale;       %#ok<AGROW>  one MAD scale per stream
             hist.nDown(it,1) = nDown;                            %#ok<AGROW>
             hist.nZero(it,1) = nZero;                            %#ok<AGROW>
@@ -764,14 +770,20 @@ end
     % pass index, so the prior activation is that of the last pass; lastSol
     % lets the prior groups take their last update). Not after a user stop:
     % the hook asked for the loop to end where it was.
+    % R7 WP-115 part 3b (user decision 2026-10-11, measured on CI): a robust
+    % run's final solution is HARD -- the rejected epochs deleted, partial
+    % factors back to 1 -- and its sigma0 / Cxx are corrected for the
+    % truncation (hardSolution). With the partial factors in this solve,
+    % v'C^-1 v carried the selection bias and sigma0, recomputed under the
+    % corrected levels, gave it all back: sigma*sigma0 stayed 0.83.
     if ~userStop
         modelF = struct('C', C, 'sigma2', sigma2, 'iter', numel(hist.maxDev), ...
                         'streamSigma2', streamMeans(pinnedKeys, sigma2), ...
                         'arcFactor', arcFactorMap(pinnedKeys, pinnedRow, sigma2, o), ...   % R7-13
                         'Cgroups', Cmap, 'Pool', char(o.Pool), 'Estimate', o.Estimate, ...
-                        'lastSol', lastSol, 'rowWeights', W);
+                        'lastSol', lastSol, 'rowWeights', hardWeights(W));
         accF = accFcn(modelF);
-        solF = accF.solve();
+        solF = hardSolution(accF.solve(), hardFix);
     end
     out = struct('C', C, 'Shat', Shat, 'sigma2', sigma2, 'acc', accF, ...
                  'userStop', userStop, 'Cgroups', Cmap, ...
@@ -786,7 +798,7 @@ end
 end
 
 %==========================================================================
-function [W, fac, rkeys, rscale, rstreams, nDown, nZero, tauMap] = robustSweep(acc, sol, o, nc)
+function [W, fac, rkeys, rscale, rstreams, nDown, nZero, tauMap, hardFix] = robustSweep(acc, sol, o, nc)
 %ROBUSTSWEEP  One robust sweep (R6 WP-105, the KOCH convention): the RAW
 %   residuals under this accumulator, descaled by each epoch's DECLARED
 %   accuracy (Cep; the factors are a nugget since R7 WP-115 part 3b, so
@@ -794,7 +806,9 @@ function [W, fac, rkeys, rscale, rstreams, nDown, nZero, tauMap] = robustSweep(a
 %   per stream (perStreamWeights), the collapse refusal, the factor map W
 %   for the NEXT pass (one per epoch) and tauMap, the level's truncation
 %   factor per stream (truncationFactor at the influence's rejection point,
-%   averaged over the stream's epochs by their axis count).
+%   averaged over the stream's epochs by their axis count), and hardFix
+%   (.tau the row-weighted factor over every weighted epoch, .nRej the
+%   rejected ROWS) for the final hard solution (hardSolution).
     % Whitened=true: the record carries the RAW residual .v either way, and
     % the sweep's own sigma0 check must see the WHITENED sum (round 11: with
     % Whitened=false its vtv is the raw sum, and the honest sigma0Mismatch
@@ -809,6 +823,9 @@ function [W, fac, rkeys, rscale, rstreams, nDown, nZero, tauMap] = robustSweep(a
         tv = arrayfun(@(d) truncationFactor(kReject, d), ud);
         tauMap(rstreams{si}) = mean(tv(j));
     end
+    ud = unique(dEp);  tAll = arrayfun(@(d) truncationFactor(kReject, d), ud);
+    [~, j] = ismember(dEp, ud);
+    hardFix = struct('tau', sum(dEp .* tAll(j)) / sum(dEp), 'nRej', sum(dEp(fac == 0)));
     nAlive = sum(fac > 0);
     if nAlive < nc + 1                                              % live EPOCHS
         error('lsqvce:adjustVCEjoint:collapsed', ...
@@ -902,6 +919,31 @@ function tau = truncationFactor(k, d)
         end
     end
     tau = gammainc(qk / 2, d / 2 + 1) / gammainc(qk / 2, d / 2);
+end
+
+function H = hardWeights(W)
+%HARDWEIGHTS  The factor map of the final hard solution: 0 stays 0 (rejected,
+%   a deletion-sized nugget), every partial factor becomes 1. [] / empty in,
+%   the same out (no robust pass).
+    H = W;
+    if isempty(W) || W.Count == 0, return, end
+    H = containers.Map('KeyType', 'char', 'ValueType', 'any');
+    for k = keys(W)
+        H(k{1}) = double(W(k{1}) > 0);
+    end
+end
+
+function sol = hardSolution(sol, hardFix)
+%HARDSOLUTION  sigma0, s0sq and Cxx of the hard solution, corrected for the
+%   truncation: the rejected rows still count in sol.dof (a nugget deletes
+%   their content, not their row), and the kept rows are a Gaussian sample
+%   truncated at the rejection point, E = tau. So s0sq * dof / ((dof - nRej)
+%   tau). hardFix = [] (no robust pass): unchanged.
+    if isempty(hardFix) || ~isfinite(sol.s0sq), return, end
+    f = sol.dof / max(sol.dof - hardFix.nRej, 1) / hardFix.tau;
+    sol.s0sq = sol.s0sq * f;
+    sol.sigma0 = sqrt(sol.s0sq);
+    sol.Cxx = sol.Cxx * f;
 end
 
 function t = tauRow(tauMap, streams)

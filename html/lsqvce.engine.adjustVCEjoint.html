@@ -154,6 +154,12 @@ OPTIONS (Name/Value)
            tau = F_{d+2}(q_k) / F_d(q_k) with P(chi2_d &gt; q_k) =
            P(|N(0,1)| &gt; kReject) -- 0.9733 for IGG3&#x27;s k1 = 3 at d = 1,
            1 for Huber, which rejects nothing (out.robust.truncation).
+           The RETURNED solution is hard as well: after the loop one
+           accumulation with the rejected epochs deleted and every
+           partial factor 1, its sigma0 / Cxx corrected for the rejected
+           rows and the truncation (measured: with the partial factors in
+           that solve, sigma*sigma0 stayed 0.83 -- sigma0 gave the bias
+           back).
            Mirror (mirrors/wp115/nugget.py): 0.978 / 0.976 (phi 0.5 /
            white) before the factor. Multi-axis streams are
            weighted PER EPOCH by one chi-calibrated statistic (R7-08:
