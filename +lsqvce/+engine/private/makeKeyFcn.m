@@ -36,8 +36,7 @@ function f = makeKeyFcn(g)
         f = g;  return
     end
     switch lower(g)
-        case 'arc',     f = @(s,ot,a,d) sprintf('s%s_%s_d%s_a%s', ...
-                                    string(s), string(ot), string(d), string(a));
+        case 'arc',     f = @(s,ot,a,d) lsqvce.util.arcKey(s, ot, d, a);   % R7-43: the one arc key
         case 'obstype', f = @(s,ot,a,d) sprintf('%s', string(ot));
         case 'system',  f = @(s,ot,a,d) sprintf('s%s', string(s));
         case 'day',     f = @(s,ot,a,d) sprintf('d%s', string(d));

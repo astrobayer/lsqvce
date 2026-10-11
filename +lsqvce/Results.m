@@ -274,7 +274,7 @@ classdef Results < handle
                     for k = 1:numel(res.sys)
                         S = res.sys(k);
                         for j = 1:numel(S.obs)
-                            key = sprintf('%s|%s', matlab.lang.makeValidName(char(string(S.sysID))), S.obs(j).obsType);
+                            key = lsqvce.util.streamKey(S.sysID, S.obs(j).obsType);
                             if strlength(opt.Stream) > 0 && ~strcmp(key, char(opt.Stream)), continue, end
                             panels{end+1} = struct('key', key, 't', S.obs(j).t(:), 'w', S.obs(j).w(:)); %#ok<AGROW>
                         end

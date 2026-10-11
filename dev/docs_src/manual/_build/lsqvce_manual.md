@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.6.0 — User Manual"
+title: "lsqvce 6.6.1 — User Manual"
 subtitle: "least-squares adjustment with variance component estimation"
 date: "built from the sources; the single documentation authority"
 ---
@@ -2040,7 +2040,6 @@ What `fit` dispatches to and what it is built from. One line per public unit, fr
 | `redundancy` | redundancy numbers (data pass) |
 | `residuals` | second data pass: residuals and quadratic forms |
 | `resolveNc` | common-parameter count derived from the systems |
-| `satKeyOf` | satellite key (makeValidName) helper |
 | `synthLoader` | synthetic block-arrow loader (engine-tier fixture; leaves in M4) |
 | `sharedProbe` | shared Hutchinson probe generator (RNG contract) |
 | `streamContribution` | contribution per stream |
@@ -2080,6 +2079,8 @@ What `fit` dispatches to and what it is built from. One line per public unit, fr
 | `toolboxVersion` | the version string from Contents.m (one source) (v5.2) |
 | `onPass` | fire the per-pass inspection hook (Options.OnPass) (R5 M5) |
 | `rowWeightKey` | the one key convention for per-arc robust weights (R5 M2) |
+| `streamKey` | the one stream key 'satKey|obsType' (R7-43) |
+| `arcKey` | the one arc key of the joint estimator (R7-43) |
 | `log` | toolbox-wide logging state |
 | `mergeStruct` | struct merge (later wins) |
 | `verbosity` | verbosity level resolution and formatting |

@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html><head><meta charset="utf-8">
-<title>lsqvce.engine.satKeyOf</title><style>
+<title>lsqvce.util.streamKey</title><style>
 body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
        color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
        max-width: 900px; line-height: 1.5; }
@@ -40,33 +40,36 @@ a { color: #0b5ea8; }
           font-size: 12px; color: #888; }
 </style></head>
 <body>
-<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.engine.satKeyOf</div>
-<h1>lsqvce.engine.satKeyOf</h1>
-<div class="purpose">Valid struct field name for a satellite identifier.</div>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.util.streamKey</div>
+<h1>lsqvce.util.streamKey</h1>
+<div class="purpose">The one key of a stream: &#x27;satKey|obsType&#x27;, and its satKey.</div>
 <h2>Description</h2>
-<pre class="example">key = lsqvce.engine.satKeyOf(satId)
+<pre class="example">[key, satKey] = lsqvce.util.streamKey(sysID, obsType)
+[key, satKey] = lsqvce.util.streamKey(sysID)        key = satKey
 
-The single place that defines the &#x27;s_&#x27; + satId satellite-key convention,
-so every caller that writes a per-satellite field and every caller that
-reads it form the same name.</pre>
-<h3>Input</h3>
-<pre class="example">satId   1x1 | 1xk   char | string | numeric   Satellite identifier, e.g.
-                                               &#x27;C&#x27;, &quot;D&quot;, or 1. Required.</pre>
-<h3>Output</h3>
-<pre class="example">  key     1xm         char   A legal MATLAB struct field name: &quot;s_&quot; + satId
-                              passed through matlab.lang.makeValidName
-                              (&#x27;C&#x27; -&gt; &#x27;s_C&#x27;, 1 -&gt; &#x27;s_1&#x27;).
+A STREAM is one (system, observation type) pair. Its key names the
+stream in every per-stream map of the joint estimator (levels, laws,
+estimate policies, robust scales), in R.noise and in the covariance
+override bySys.(satKey).(obsType). satKey is the system id made a legal
+struct field name (matlab.lang.makeValidName: 1 -&gt; &#x27;x1&#x27;). Defined ONCE
+here (review R7, R7-43, coding rule R1): it was composed inline in eight
+places and recovered from the arc key by a regex. A caller that needs the
+parts carries them; nothing parses a key back apart.
 
-See also MATLAB.LANG.MAKEVALIDNAME
+INPUT   sysID    1x1 double | char | string   the system id
+        obsType  char | string                the observation type
+                                              (optional)
+OUTPUT  key      1xK char   &#x27;satKey|obsType&#x27; (satKey without obsType)
+        satKey   1xS char   the system&#x27;s struct-field name
+ERRORS  none of its own
+EXAMPLE lsqvce.util.streamKey(1, &#x27;kbr&#x27;)      -&gt; &#x27;x1|kbr&#x27;
+        [~, s] = lsqvce.util.streamKey(&quot;C&quot;)  -&gt; s = &#x27;C&#x27;
 
-Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): the
-references to drivers that exist nowhere removed. With assistance from
-Claude (Anthropic), model Claude Opus 5.5.
-Created 2026-07-15 13:40 (CEST, UTC+02:00) with assistance from
-Claude (Anthropic), model Claude Opus 4.8.
-Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
-WP-64a): the ENGINE tier leaves the USER surface; every qualified
-reference was rewritten mechanically by docs_src/refactor_tiers.py.</pre>
+See also LSQVCE.UTIL.ARCKEY, LSQVCE.UTIL.ROWWEIGHTKEY,
+         LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.ENGINE.JOINTMODELOPT
+
+Created 2026-10-11 (CEST, UTC+02:00) with assistance from Claude
+(Anthropic), model Claude Opus 5.5 -- R7 WP-115 part 4 (R7-43).</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
 <div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

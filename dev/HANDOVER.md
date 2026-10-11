@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-11 — WP-115 part 3a DONE (PR #128, merge 3eb193c; CI GREEN on cfa9375); WP-115 part 3b OPEN (tier B, model Claude Opus 5.5; user decisions: build the nugget; R7-12 by hard rejection + the Gaussian truncation factor, after the mirror showed the weighted redundancy leaves the bias): the robust factors are an additive nugget (covModel cm.nugget, whole-arc Woodbury whitener, inflateCep retired, redundancyLags 'Nugget'/'LawW'); the component update sees only rejected epochs and the level is divided by tau (R.noise.robust.truncation); version 6.6.0; §12.43.
+Last substantive update: 2026-10-11 — WP-115 part 3b DONE (PR #129, merge f2b164d; CI GREEN on cf4db8c); WP-115 part 4 OPEN (tier B, model Claude Opus 5.5): R7-43 -- one stream key (util.streamKey), one arc key (util.arcKey), the arc's stream carried as out.arcStreams instead of parsed back by regex, engine.satKeyOf retired; version 6.6.1; §12.43.
+Preceding entry: Last substantive update: 2026-10-11 — WP-115 part 3a DONE (PR #128, merge 3eb193c; CI GREEN on cfa9375); WP-115 part 3b OPEN (tier B, model Claude Opus 5.5; user decisions: build the nugget; R7-12 by hard rejection + the Gaussian truncation factor, after the mirror showed the weighted redundancy leaves the bias): the robust factors are an additive nugget (covModel cm.nugget, whole-arc Woodbury whitener, inflateCep retired, redundancyLags 'Nugget'/'LawW'); the component update sees only rejected epochs and the level is divided by tau (R.noise.robust.truncation); version 6.6.0; §12.43.
 Preceding entry: Last substantive update: 2026-10-11 — WP-86 part 4 DONE (PR #127, merge 8aef05c; CI GREEN on 23117f0), WP-86 complete; WP-115 part 3 OPEN (tier A via the self-hosted runner, model Claude Opus 5.5; user: "use CI for WP-115 part 3"): the measurement first -- dev/validation/wp115_measure.m on a new non-gating workflow measure.yml; R7-12's multi-seed level and R7-10's fold / nugget / deletion on the phi = 0.9 fixture, with the nugget's per-arc cost (dense vs Woodbury); no toolbox code changed, no version; §12.43.
 Preceding entry: Last substantive update: 2026-10-11 — WP-86 part 3 DONE (PR #126, merge 9184a36; CI GREEN on 77ffd46); WP-86 part 4 OPEN (tier B, model Claude Opus 5.5; user decision: the FULL absorption): lsqvce.engine.verdict, one classdef whose static methods are the former diagnoseAccum (source) / diagnose / snoop / systematic / ftest / ellipse plus fromAccumulator; stat -> lsqvce.kernel.stat; Results methods systematic / snoop / reliability / ellipse; report and snoop remedies name R methods (H-05); version 6.5.0; §12.42.
 Preceding entry: Last substantive update: 2026-10-11 — WP-86 part 2 DONE (PR #125, merge 25cbce7; CI GREEN on 9ff2426); WP-86 part 3 OPEN (tier B, model Claude Opus 5.5): one block formula, one commons factor -- engine.redundancy (VCE / outliers / contribution) on BlockCofactor (one cofactor broadcast instead of a commons factor per system), engine.leverage / leverageBlocks retired, snoop's clean re-solve rebuilds the block-arrow systems (batchSystem 'LocalColumns' / 'SystemId'); version 6.4.0; §12.42.
@@ -8390,7 +8391,8 @@ only").**
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
 | 115 (part 3a) | the tier-A measurement §12.39 asked for before the additive nugget is built: `dev/validation/wp115_measure.m` on the self-hosted runner through a new, NON-gating workflow `measure.yml` (pull requests touching `dev/validation/*.m` or the workflow, or by hand); R7-12 multi-seed level, R7-10 fold / nugget / deletion, the nugget's per-arc cost; no toolbox change, no version | 86 part 4 (PR #127 merged 8aef05c) | DONE (2026-10-11, PR #128, merge 3eb193c; CI GREEN on cfa9375; measured: run 38131010881) |
-| 115 (part 3b) | R7-10 the robust factors as an ADDITIVE nugget (`covModel` `cm.nugget`, whole-arc Woodbury whitener; `inflateCep` retired; `redundancyLags` 'Nugget'/'LawW'); R7-12 the level unbiased: the component update sees only REJECTED epochs, the level divided by the rejection point's Gaussian truncation factor (`R.noise.robust.truncation`); **version 6.6.0** | 115 part 3a (PR #128 merged 3eb193c) | OPEN (2026-10-11; audit CLEAN; CI GREEN on baf428b after one red round; measured: run 38137611458) |
+| 115 (part 3b) | R7-10 the robust factors as an ADDITIVE nugget (`covModel` `cm.nugget`, whole-arc Woodbury whitener; `inflateCep` retired; `redundancyLags` 'Nugget'/'LawW'); R7-12 the level unbiased: the component update sees only REJECTED epochs, the level divided by the rejection point's Gaussian truncation factor (`R.noise.robust.truncation`); **version 6.6.0** | 115 part 3a (PR #128 merged 3eb193c) | DONE (2026-10-11, PR #129, merge f2b164d; CI GREEN on cf4db8c after one red round; measured: run 38137611458) |
+| 115 (part 4) | R7-43 one stream key (`util.streamKey`), one arc key (`util.arcKey`); the arc's stream carried (`out.arcStreams`), the regex parse gone; `engine.satKeyOf` retired; **version 6.6.1** | 115 part 3b (PR #129 merged f2b164d) | OPEN (2026-10-11; audit CLEAN; CI pending) |
 
 **Why CI (user: "Can you use CI for WP115 part3", 2026-10-11).** §12.39 left the nugget
 waiting on a tier-A measurement; the container has no MATLAB and the runner is the
@@ -8528,3 +8530,24 @@ version 6.6.0; tier B -- the CI run is the first MATLAB execution).**
 - **Expected CI movement** (tier B): every robust `Estimate = "noise"` test changes its
   numbers (testRobustPassInside..., testJointRobustPassKeepsCleanMultiAxisEpochs,
   testRobustWarnsAtTheBreakdownPoint); each move is read, not re-tolerated.
+
+**Part 4 -- R7-43 (user: "Continue with R7-43", 2026-10-11; version 6.6.1; tier B).** The
+R1 hygiene finding (swe_code F12): the stream key 'satKey|obsType' was composed inline in
+eight places (fit x3, adjustVCEjoint x3, Results, applyCovOverride, jointModelOpt) and the
+arc key 's<sys>_<obsType>_d<day>_a<arc>' formatted in two (adjustVCEjoint, makeKeyFcn) and
+parsed back by the regex '^s(.+?)_(.+)_d[^_]+_a' in three (fit>streamModels,
+adjustVCEjoint>streamMeans / streamKeyOf).
+- `lsqvce.util.streamKey(sysID[, obsType])` -> [key, satKey] and
+  `lsqvce.util.arcKey(sysID, obsType, day, arc)`: the one definition of each, formats
+  unchanged (no number moves). Every inline site calls them.
+- Nothing parses a key any more: `adjustVCEjoint>sweepArcs` returns each arc's stream key
+  next to its arc key (streamAll / keyStream); streamMeans and arcFactorMap take the
+  stream keys; `streamKeyOf` is deleted; the run returns `out.arcStreams` (aligned to
+  out.arcKeys) and `fit>streamModels` reads it. jointModelOpt still SPLITS a user-given
+  'satKey|obsType' at '|' -- an input form it documents, unambiguous because neither part
+  can hold a '|' (satKey is makeValidName'd, obsType is a field name).
+- `lsqvce.engine.satKeyOf` retired (no caller in the package; its 's_' prefix was a
+  third convention for the same name): file, page, helptoc/index rows, tiers, category
+  exemptions, Contents, DEVELOPMENT rows; its test became
+  `test_streamUtils>testStreamAndArcKeysAreDefinedOnce` (counts unchanged, 630).
+- fit.m's long-line ceiling lowered 6 -> 5 (one long inline key gone).

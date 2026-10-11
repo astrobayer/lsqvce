@@ -1,5 +1,17 @@
 # lsqvce release notes
 
+## 6.6.1 — 2026-10-11 (WP-115 part 4: one stream key, one arc key)
+
+- **The stream key and the arc key each have one definition** (review R7, R7-43; coding
+  rule R1). `lsqvce.util.streamKey(sysID, obsType)` returns `'satKey|obsType'` (and the
+  satKey); `lsqvce.util.arcKey(sysID, obsType, day, arc)` returns
+  `'s<sys>_<obsType>_d<day>_a<arc>'`. They were composed inline in eight places and the
+  stream was recovered from the arc key by a regex in three. The joint estimator now
+  carries each arc's stream next to it: new output `out.arcStreams`, aligned to
+  `out.arcKeys`. Every key keeps its format; no number changes.
+- `lsqvce.engine.satKeyOf` is retired: nothing in the toolbox called it, and its `'s_'`
+  prefix was a third convention for the same name.
+
 ## 6.6.0 — 2026-10-11 (WP-115 part 3b: the robust pass as an additive nugget; an unbiased robust level)
 
 - **The joint estimator's robust factors are an additive NUGGET** (review R7, R7-10; user

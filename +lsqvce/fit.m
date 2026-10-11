@@ -383,9 +383,8 @@ function keys = streamKeys(systems, specs)
     keys = {};
     for k = 1:numel(specs)
         ot = cellstr(systems{k}.obsTypes);
-        satKey = matlab.lang.makeValidName(char(string(specs(k).sysID)));
         for j = 1:numel(ot)
-            keys{end+1} = sprintf('%s|%s', satKey, ot{j});  %#ok<AGROW>
+            keys{end+1} = lsqvce.util.streamKey(specs(k).sysID, ot{j});  %#ok<AGROW>
         end
     end
 end
@@ -590,11 +589,11 @@ function [estMap, afMap] = streamPolicy(systems, specs, streams, afDefault)
     for k = 1:numel(systems)
         L = systems{k};
         if ~isfield(L, 'cov') || ~isstruct(L.cov), continue, end
-        satKey = matlab.lang.makeValidName(char(string(specs(k).sysID)));
+        [~, satKey] = lsqvce.util.streamKey(specs(k).sysID);
         ots = fieldnames(L.cov);
         for j = 1:numel(ots)
             cm = L.cov.(ots{j});
-            key = sprintf('%s|%s', satKey, ots{j});
+            key = lsqvce.util.streamKey(specs(k).sysID, ots{j});
             % R7-07: a 'var' law carries its own cross-axis structure, which the
             % joint sweep cannot use -- it would treat the d-interleaved block-
             % Toeplitz Cfcn as a per-axis temporal law over epochs (wrong Sigma,
@@ -651,20 +650,17 @@ function [names, models] = streamModels(systems, specs, out, pool, estMap)
 %   silence is the one outcome the doctrine forbids (R4).
     names = {};  models = {};
     sMean = containers.Map('KeyType', 'char', 'ValueType', 'any');
-    for i = 1:numel(out.arcKeys)
-        tok = regexp(out.arcKeys{i}, '^s(.+?)_(.+)_d[^_]+_a', 'tokens', 'once');   % R5-D8 6: obsType may carry underscores
-        if isempty(tok), continue, end
-        sk = sprintf('%s|%s', matlab.lang.makeValidName(tok{1}), tok{2});
+    for i = 1:numel(out.arcStreams)
+        sk = out.arcStreams{i};                      % R7-43: carried, not parsed
         if ~isKey(sMean, sk), sMean(sk) = []; end
         sMean(sk) = [sMean(sk); out.sigma2(i)];
     end
     for k = 1:numel(systems)
         L = systems{k};
         if ~isfield(L, 'cov') || ~isstruct(L.cov), continue, end
-        satKey = matlab.lang.makeValidName(char(string(specs(k).sysID)));
         ots = fieldnames(L.cov);
         for j = 1:numel(ots)
-            sk = sprintf('%s|%s', satKey, ots{j});
+            sk = lsqvce.util.streamKey(specs(k).sysID, ots{j});
             s0 = lsqvce.util.getfielddef(L.cov.(ots{j}), 'sigma', 1);
             if ~isscalar(s0), s0 = 1; end
             f = 1;  s2 = [];
