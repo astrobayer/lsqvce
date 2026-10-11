@@ -1,4 +1,4 @@
-function K = hatACV(L, m)
+function K = hatACV(L, m, X)
 %LSQVCE.KERNEL.HATACV  The ACV of every bin of a piecewise-linear spectrum: r = K * S.
 %
 %   K = LSQVCE.KERNEL.HATACV(L, m)
