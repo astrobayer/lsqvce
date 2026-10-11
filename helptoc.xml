@@ -80,6 +80,7 @@
       <tocitem target="html/lsqvce.kernel.armaACV.html">lsqvce.kernel.armaACV</tocitem>
       <tocitem target="html/lsqvce.kernel.varACV.html">lsqvce.kernel.varACV</tocitem>
       <tocitem target="html/lsqvce.kernel.psd2acv.html">lsqvce.kernel.psd2acv</tocitem>
+      <tocitem target="html/lsqvce.kernel.hatACV.html">lsqvce.kernel.hatACV</tocitem>
       <tocitem target="html/lsqvce.kernel.crossCorr.html">lsqvce.kernel.crossCorr</tocitem>
       <tocitem target="html/lsqvce.engine.checkPSD.html">lsqvce.engine.checkPSD</tocitem>
       <tocitem target="html/lsqvce.engine.gcvLambda.html">lsqvce.engine.gcvLambda</tocitem>

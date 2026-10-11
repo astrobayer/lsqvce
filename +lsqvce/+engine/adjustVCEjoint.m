@@ -6,7 +6,7 @@ function out = adjustVCEjoint(accFcn, opt)
 %
 %   Runs Ellmer's (2018, §6.5.7) ten-step algorithm, in which ALL variance
 %   components are updated TOGETHER from one residual pass and one shared probe:
-%   the per-frequency PSD amplitudes Shat^j (the temporal law), the arc-wise
+%   the per-bin spectral amplitudes S_j (the temporal law), the arc-wise
 %   variance factors sigma2_m (the within-group variance factors), and -- when a prior is
 %   present -- the geophysical factor sigma2_gpm.
 %
@@ -35,23 +35,34 @@ function out = adjustVCEjoint(accFcn, opt)
 %            -> re-streamed per arc via the store's dataFcn
 %     8    Rtilde, etilde, and from them Omega and s per lag
 %            -> LSQVCE.KERNEL.REDUNDANCYLAGS
-%     9    updated Shat^j, sigma2_m (and sigma2_gpm)
+%     9    updated S_j, sigma2_m (and sigma2_gpm)
 %            -> LSQVCE.ENGINE.PSDVCE and LSQVCE.ENGINE.ARCVARIANCEFACTORS
 %     10   if not converged, rebuild Sigma and go to step 2
 %
-%   *** START MATTERS (verified; read this) ***
-%     Ellmer's literal white start (eq. 6.5.62) is a DEGENERATE fixed point of
-%     his own weighting -- see the warning in LSQVCE.ENGINE.PSDVCE. This driver
-%     therefore defaults 'C0' to a mildly correlated covariance rather than a
-%     delta, and passes any degeneracy straight through to psdVCE so the warning
-%     is raised rather than hidden.
+%   THE LAW: POSITIVE COMPONENTS (R7 WP-111 part 3, user decision 2026-10-11)
+%     The temporal law is a NON-NEGATIVE spectrum S on L = NumLags bins,
+%     piecewise linear in frequency, with the exact covariance r = K S at
+%     every lag of every arc (LSQVCE.KERNEL.HATACV). Each bin is a variance
+%     component whose matrix is the ACV of a hat spectrum -- positive
+%     semi-definite -- so its Helmert factor is >= 0 by construction and the
+%     law needs neither a floor nor a zero-frequency rule. Ellmer's
+%     components were the columns of the inverse type-I DCT of a truncated
+%     ACF: indefinite, so a bin's factor could go negative, a floored bin made
+%     the declared covariance near-singular, and at phi 0.8 / 0.9 the level ran
+%     away x5e7 (review R7, R7-02; HANDOVER 12.44). Ellmer's white start (eq.
+%     6.5.62) is a regular start here: S = ones is white noise, r = [1; 0; ...]
+%     (his degenerate fixed point was a property of the DCT weighting).
 %
 %   INPUT
 %     accFcn  function_handle  @(model) -> a SOLVED-READY lsqvce.engine.BlockAccumulator
 %             built under the given stochastic model. It is called once per outer
 %             iteration and must apply the model when whitening (steps 1-3).
 %             `model` is a struct with fields:
-%               .C       nLag x 1  the current covariance function C^n_xx
+%               .S       L x 1     the current law: the bin spectrum, scaled
+%                                  so that r(0) = 1 (the level lives in the
+%                                  factors); .Sgroups one per pool group
+%               .C       L x 1     its covariance at lags 0..L-1, K S (for the
+%                                  record; .Cgroups likewise)
 %               .sigma2  M x 1     the current arc variance factors
 %               .iter    1x1       the iteration number (1 on the first call)
 %               .streamSigma2, .arcFactor  the per-stream level and the per-arc
@@ -65,17 +76,15 @@ function out = adjustVCEjoint(accFcn, opt)
 %             (the class of finding F-01), and arcFactorsDiverging says so.
 %
 %   OPTIONS (Name/Value)
-%     'NumLags'   1x1 int    Nmax, number of lags/frequencies (default 60)
-%     'C0'        nLag x 1   starting covariance function. Default: a mildly
-%                            correlated [1; 0.3; 0.3; ...] rather than a delta,
-%                            because the delta is degenerate (see above).
+%     'NumLags'   1x1 int    L, the number of spectral bins (default 60)
+%     'S0'        L x 1 | [] starting spectrum (>= 0, not all zero). Default
+%                            ones: white noise (Ellmer's eq. 6.5.62)
 %     'Sigma2_0'  M x 1 | [] starting arc factors (default all ones, eq. 6.5.62)
 %     'MaxIter'   1x1 int    outer iterations (default 10)
 %     'Tol'       1x1        convergence on max|alpha2 - 1| (default 1e-2)
 %     'Probes'    1x1 int    Z Hutchinson probes (default 100, Ellmer's value)
 %     'Seed'      1x1 | []   RNG seed for reproducible probes (default []: one
 %                            seed is pinned for the run and returned, out.seed)
-%     'Norm'      char       DCT normalisation, 'ortho' (default) | 'ellmer'
 %     'Influence' string     "none" (default) | "huber" | "igg3" | "bisquare"
 %              R6 WP-105: the ROBUST PASS INSIDE THE LOOP, in the KOCH
 %              convention -- the weight is a statement about the
@@ -150,9 +159,9 @@ function out = adjustVCEjoint(accFcn, opt)
 %              rescue an undamped collapse, and longer tails average over
 %              late-pass drift -- keep it <= 4) and does nothing useful
 %              without it (mirror-measured). The iteration itself always
-%              runs on the raw C.
+%              runs on the raw S.
 %     'Pool'     "all" (default) | "obstype" | "stream": which streams SHARE
-%                one estimated law (one psdVCE per pool group, out.Cgroups)
+%                one estimated law (one psdVCE per pool group, out.Sgroups)
 %     'Estimate' [] | containers.Map 'satKey|obsType' -> "none" | "scale" |
 %                "law": the per-stream policy ([] = "law" for every stream)
 %     'ArcFactors' [] | containers.Map 'satKey|obsType' -> logical: whether
@@ -164,8 +173,11 @@ function out = adjustVCEjoint(accFcn, opt)
 %
 %   OUTPUT
 %     out  1x1 struct
-%       .C         nLag x 1   the converged covariance function
-%       .Shat      nLag x 1   the converged PSD amplitudes
+%       .S         L x 1      the converged law: the bin spectrum on
+%                             f_j = j / (2(L-1)) cycles per sample, r(0) = 1
+%                             (the 'all' group, else the first pool group)
+%       .C         L x 1      its covariance at lags 0..L-1 (K S)
+%       .Sgroups   containers.Map  pool group -> its S; .Cgroups -> its C
 %       .sigma2    M x 1      the converged arc variance factors, ALIGNED TO
 %                             .arcKeys (the pass-1 enumeration order; WP-34)
 %       .seed      1x1        the probe seed used (the given Seed, or the one
@@ -193,18 +205,18 @@ function out = adjustVCEjoint(accFcn, opt)
 %       .sol       1x1        the final solution struct
 %       .converged 1x1 logical whether max|alpha2-1| fell below Tol
 %       .nIter     1x1        outer iterations actually run
-%       .history   struct     .maxDev (nIter x 1), .Shat (nIter x nLag)
+%       .history   struct     .maxDev (nIter x 1), .S (nIter x L)
 %
 %   EXAMPLE
 %     accFcn = @(model) buildAccumulatorWithModel(cfg, model);
 %     r = lsqvce.engine.adjustVCEjoint(accFcn, 'NumLags', 60, 'MaxIter', 8);
-%     semilogy(r.Shat);          % the estimated noise PSD
+%     semilogy(r.S);             % the estimated noise spectrum (the bins)
 %     plot(r.sigma2);            % the arc-wise weights
 %
 %   ERRORS
 %     lsqvce:adjustVCEjoint:needCfcn  the joint mode needs a cross-covariance
 %                                     function and none was supplied
-%     lsqvce:adjustVCEjoint:badC0     the starting cross-covariance is malformed
+%     lsqvce:adjustVCEjoint:badS0     the starting spectrum is malformed
 %     lsqvce:adjustVCEjoint:notPD     the joint covariance is not positive
 %                                     definite, so it cannot be factored
 %     lsqvce:adjustVCEjoint:skipThreshold  a pass skipped more than
@@ -237,7 +249,7 @@ function out = adjustVCEjoint(accFcn, opt)
 %     weights them. Until then only the per-STREAM level reached the loader,
 %     and multiplying by the per-arc factor anyway made the update a geometric
 %     recursion with NO FIXED POINT, because alpha2_m cancels its own arc's
-%     factor exactly -- sweepArcs scales omegaT and sT by the same s2_m -- and
+%     factor exactly -- the arc's numerator and denominator carry the same s2_m -- and
 %     so never responds to it. MEASURED on a fixture with planted factors
 %     1 / 9 / 1: the ratio ran 9.4, 79, 671, 5626, 4.7e4 over five passes, a
 %     constant 8.4x per pass; it now settles at 9.4, 8.6, 8.6, 8.6, 8.6.
@@ -252,6 +264,14 @@ function out = adjustVCEjoint(accFcn, opt)
 %   See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
 %            LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 3 (R7-01, R7-02,
+%   R7-20; user decision 2026-10-11): the law is a positive spectrum S on L
+%   bins (state .S / .Sgroups, start 'S0' = white); every bin's component is
+%   PSD and exact at every lag (sweepArcs projects the arc's full lag sums on
+%   LSQVCE.KERNEL.HATACV, scaled by the arc's own variance), the arc factor is
+%   the Helmert factor of the arc's whole covariance; 'C0' and 'Norm' are
+%   retired with the DCT. With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-115 part 4 (R7-43): stream
 %   and arc keys from lsqvce.util.streamKey / arcKey; the stream of an arc is
 %   carried (out.arcStreams), the regex that parsed it back is gone. With
@@ -355,13 +375,12 @@ function out = adjustVCEjoint(accFcn, opt)
 arguments
     accFcn (1,1) function_handle
     opt.NumLags  (1,1) double {mustBeInteger, mustBeGreaterThanOrEqual(opt.NumLags, 2)} = 60
-    opt.C0       double = []
+    opt.S0       double = []
     opt.Sigma2_0 double = []
     opt.MaxIter  (1,1) double {mustBeInteger, mustBePositive} = 10
     opt.Tol      (1,1) double {mustBePositive} = 1e-2
     opt.Probes   (1,1) double {mustBeInteger, mustBePositive} = 100
     opt.Seed     double {mustBeScalarOrEmpty} = []
-    opt.Norm     (1,1) string = "ortho"
     opt.StepSchedule (1,1) string {mustBeMember(opt.StepSchedule, ["none","decay"])} = "none"
     opt.AvgTail  (1,1) double {mustBeInteger, mustBeNonnegative} = 0
     opt.SkipThreshold (1,1) double {mustBeInRange(opt.SkipThreshold, 0, 1)} = 0.2
@@ -401,24 +420,24 @@ end
     v = logical(o.Verbose);
 
     nLag = o.NumLags;
+    Kc = lsqvce.kernel.hatACV(nLag, nLag);   % the law's ACV at lags 0..L-1 (the record, C)
 
-    % ---- starting model (step 1 / eq. 6.5.62, degeneracy-aware) -----------
-    if isempty(o.C0)
-        C = [1; 0.3*ones(nLag-1,1)];     % NOT a delta: see the header warning
-    else
-        C = o.C0(:);
-        if numel(C) ~= nLag
-            error('lsqvce:adjustVCEjoint:badC0', ...
-                  'C0 has %d entries but NumLags is %d.', numel(C), nLag);
-        end
+    % ---- starting model (step 1 / eq. 6.5.62): white unless S0 says else ---
+    S = ones(nLag, 1);
+    if ~isempty(o.S0), S = o.S0(:); end
+    if numel(S) ~= nLag || any(~isfinite(S)) || any(S < 0) || ~any(S > 0)
+        error('lsqvce:adjustVCEjoint:badS0', ...
+             'S0 must be %d finite non-negative bin amplitudes, not all zero (got %d entries).', nLag, numel(S));
     end
+    S = S / (Kc(1, :) * S);  C = Kc * S;     % r(0) = 1: the law is a shape
     sigma2 = o.Sigma2_0(:);              % may be empty; sized on first sweep
 
-    hist = struct('maxDev', [], 'Shat', [], 'skips', {cell(0,3)}, ...
+    hist = struct('maxDev', [], 'S', [], 'skips', {cell(0,3)}, ...
                   'streams', {{}}, 'sigma', [], 'white', [], 'whitePval', [], 'levelDev', []);
     converged = false;  userStop = false;
-    accF = []; solF = []; Shat = [];
-    Cmap = containers.Map('KeyType', 'char', 'ValueType', 'any');   % R5 M3 3d: C per pool group
+    accF = []; solF = [];
+    Smap = containers.Map('KeyType', 'char', 'ValueType', 'any');   % R5 M3 3d: the law per pool group
+    Cmap = containers.Map('KeyType', 'char', 'ValueType', 'any');   % ... and its covariance (derived)
     pinnedKeys = {};                     % WP-34: pass-1 arc identity
     pinnedStream = {};                   % R6 WP-97: their stream keys, once
     pinnedRow = {};                      % R7-13: their loader keys (rowWeightKey)
@@ -439,8 +458,8 @@ end
         % passes (0.006 -> 0.08); the control that declared the blunders from
         % the start converged. So: one accumulation under the start model,
         % one residual sweep, the factors -- and only then the loop.
-        model0 = struct('C', C, 'sigma2', sigma2, 'iter', 1, 'streamSigma2', [], ...   % iter 1: priors with from = 1 active
-                        'Cgroups', Cmap, 'Pool', char(o.Pool), 'Estimate', o.Estimate, ...
+        model0 = struct('S', S, 'C', C, 'sigma2', sigma2, 'iter', 1, 'streamSigma2', [], ...   % iter 1: priors with from = 1 active
+                        'Sgroups', Smap, 'Cgroups', Cmap, 'Pool', char(o.Pool), 'Estimate', o.Estimate, ...
                         'lastSol', [], 'rowWeights', W);
         acc0 = accFcn(model0);
         sol0 = acc0.solve();
@@ -453,14 +472,14 @@ end
     for it = 1:o.MaxIter
         % ---- steps 1-5: build under the current model, accumulate, solve --
         % R5 M3 3b: the caller's override needs a LEVEL per stream (the pooled
-        % C is a shape): the mean arc factor of every 'satKey|obsType' stream.
+        % law is a shape): the mean arc factor of every 'satKey|obsType' stream.
         % R5 M7 7b: model.lastSol (x, Cxx, s0sq of the previous pass; [] on
         % pass 1) lets the factory update anything that has its own variance
         % component outside the streams -- the prior groups (Koch-Kusche).
-        model = struct('C', C, 'sigma2', sigma2, 'iter', it, ...
+        model = struct('S', S, 'C', C, 'sigma2', sigma2, 'iter', it, ...
                        'streamSigma2', streamMeans(pinnedStream, sigma2), ...
                        'arcFactor', arcFactorMap(pinnedStream, pinnedRow, sigma2, o), ...   % R7-13
-                       'Cgroups', Cmap, 'Pool', char(o.Pool), 'Estimate', o.Estimate, ...
+                       'Sgroups', Smap, 'Cgroups', Cmap, 'Pool', char(o.Pool), 'Estimate', o.Estimate, ...
                        'lastSol', lastSol, 'rowWeights', W);   % R6 WP-105: the robust factors
         acc   = accFcn(model);
         sol   = acc.solve();
@@ -480,12 +499,12 @@ end
         % ---- step 6: the shared probe, ONCE for every arc -----------------
         sp = lsqvce.engine.sharedProbe(U, 'numProbes', o.Probes, 'seed', o.Seed);
 
-        % ---- steps 7-8: re-stream arcs, per-lag Omega and s ---------------
+        % ---- steps 7-8: re-stream arcs, per-bin and per-arc statistics -----
         % WP-34 (fixes F-02): arcs are KEYED, the factor map is pinned on the
         % PASS-1 ENUMERATION, and a skipped arc keeps its previous factor --
         % one skip can no longer shift every later arc's factor by position.
-        [omegaT, sT, keys, keysAll, skips, wstats, rowAll, streamAll, streamOf] = ...
-            sweepArcs(acc, sol, sp.UiZ, nLag, C, s2Map, v);
+        [Qb, Tb, qa, ta, keys, keysAll, skips, wstats, rowAll, streamAll, streamOf] = ...
+            sweepArcs(acc, sol, sp.UiZ, nLag, v);
         nArc = numel(keys);
         if nArc == 0
             error('lsqvce:adjustVCEjoint:noArcs', ...
@@ -548,7 +567,6 @@ end
         end
 
         % ---- step 9: co-update the PSD AND the arc factors ----------------
-        s2Cols = cellfun(@(k) s2Map(k), keys(:));    % survived, keyed lookup
         % WP-40 r2 (F-15): the alternation is a stochastic approximation --
         % the plain step (Gamma = 1 every pass) re-amplifies per-bin
         % estimation noise and is BISTABLE for short arcs (corr collapse to
@@ -565,35 +583,39 @@ end
         % R5 M3 3d: the law is estimated PER GROUP of streams (Pool), from the
         % arcs of streams whose policy is "law"; "scale" streams get arc
         % factors only (their mean is the Helmert factor); "none" streams are
-        % untouched. out.C stays the 'all'-group C (the first group's otherwise).
+        % untouched. out.S stays the 'all'-group S (the first group's otherwise).
         streamOf = streamOf(:);
         polOf    = cellfun(@(sk) policyOf(o.Estimate, sk), streamOf, 'UniformOutput', false);
         grpOf    = cellfun(@(sk) groupKeyOf(o.Pool, sk), streamOf, 'UniformOutput', false);
         lawCols  = strcmp(polOf, 'law');
         groups   = unique(grpOf(lawCols));
-        pvMax = 0;  Shat = [];
+        % R7 WP-111 part 3: the bin statistics are exact for EVERY arc of the
+        % group (all lags, the arc's own variance); the update is Helmert's
+        % ratio per bin and the new law is rescaled to r(0) = 1 -- the level
+        % change it carried moves into the factors through alpha2 below.
+        pvMax = 0;
         for g = 1:numel(groups)
             cols = lawCols & strcmp(grpOf, groups{g});
-            Cg = C;
-            if isKey(Cmap, groups{g}), Cg = Cmap(groups{g}); end
-            pvg = lsqvce.engine.psdVCE(omegaT(:, cols), sT(:, cols), Cg, 'Norm', o.Norm, 'Gamma', gammaIt, ...
+            Sg = S;  if isKey(Smap, groups{g}), Sg = Smap(groups{g}); end
+            pvg = lsqvce.engine.psdVCE(Qb(:, cols), Tb(:, cols), Sg, 'Gamma', gammaIt, ...
                                        'Smooth', o.Smooth, 'FreezeRedundancy', o.FreezeRedundancy);
-            Cmap(groups{g}) = pvg.Cnew;
+            Smap(groups{g}) = pvg.Shat / (Kc(1, :) * pvg.Shat);
+            Cmap(groups{g}) = Kc * Smap(groups{g});
             pvMax = max(pvMax, pvg.maxDev);
-            if isempty(Shat), Shat = pvg.Shat; end         % the first group's spectrum for the record
         end
         if ~isempty(groups)
-            if isKey(Cmap, 'all'), C = Cmap('all'); else, C = Cmap(groups{1}); end
+            if isKey(Smap, 'all'), S = Smap('all'); else, S = Smap(groups{1}); end
+            C = Kc * S;
         end
         pv = struct('maxDev', pvMax);
-        if isempty(Shat), Shat = lsqvce.kernel.dctI(C, 'Norm', o.Norm); end
+        s2Cols = cellfun(@(k) s2Map(k), keys(:));    % survived, keyed lookup
         % R6 WP-98 (finding F-01): eq. 6.5.28 multiplies alpha2_m by the factor
         % the WEIGHTING used. What the weighting used is the per-STREAM level --
         % LSQVCE.ENGINE.JOINTMODELOPT can express nothing finer -- so that is
         % what must multiply here. Multiplying by the per-ARC factor instead
         % makes the update a geometric recursion with no fixed point, because
-        % alpha2_m cancels its own arc's factor exactly (both omegaT and sT are
-        % scaled by it in sweepArcs) and so never responds to it: MEASURED
+        % alpha2_m cancels its own arc's factor exactly (the arc's numerator and
+        % denominator both carry it) and so never responds to it: MEASURED
         % growth of 8.4x per pass over four decades. For a stream with
         % arcFactors = false every arc already carries the one stream level, so
         % these two are the same number and such runs cannot move.
@@ -613,7 +635,7 @@ end
         % the same number a stream without arc factors averages into its level
         % (fStream below). Ellmer's normalisation by gamma-bar (eqs. 6.5.29-30)
         % exists because there the PSD carries the level; here the law is a
-        % SHAPE (jointModelOpt normalises it to C(1) = 1), so the level must
+        % SHAPE (normalised to r(0) = 1 above), so the level must
         % stay in the factors. Two wrong turns are on the record. gamma-bar over
         % EVERY column tied a stream's factors to UNRELATED streams' levels
         % (R7-09: 1.01 / 0.79 / 1.15 as only another stream changed). And the
@@ -628,8 +650,9 @@ end
         av = struct('gamma2', nan(nArc, 1), 'sigma2', nan(nArc, 1), 'gammaBar', []);
         for sk = unique(streamOf(:)).'
             cols = strcmp(streamOf, sk{1});
-            avk = lsqvce.engine.arcVarianceFactors(omegaT(:, cols), sT(:, cols), s2Applied(cols), ...
-                                            'Norm', o.Norm);   % gamma-bar: the kernel's robust default
+            % R7 WP-111 part 3: the arc's component is its WHOLE covariance, so
+            % alpha2_m = r' Omega / r' s over all lags (qa / ta from sweepArcs)
+            avk = lsqvce.engine.arcVarianceFactors(qa(cols), ta(cols), s2Applied(cols));   % 1 x M rows
             % R7 WP-115 part 3b (R7-12): the sweep deleted the REJECTED epochs, so
             % the stream's Helmert factor is that of a sample truncated at the
             % rejection point -- divided by its Gaussian truncation factor tau
@@ -644,11 +667,11 @@ end
         end
         % WP-40 r2 (F-15): Polyak tail averaging of the RETURNED spectrum
         % (log domain, last AvgTail passes). The loop keeps iterating on the
-        % raw C; only the final Shat/C are averaged -- measured to add ~0.02
+        % raw S; only the final S/C are averaged -- measured to add ~0.02
         % corr on top of the decay schedule (and to do NOTHING without it:
         % averaging cannot rescue an undamped collapse; mirror grid).
         if o.AvgTail > 0
-            shatTail{end+1} = log(max(Shat, realmin));       %#ok<AGROW>
+            shatTail{end+1} = log(max(S, realmin));          %#ok<AGROW>
         end
         % R5 M4 4b: a stream WITHOUT arc factors still needs its LEVEL estimated
         % (the PSD shape is normalised; the level rode on the arc factors).
@@ -720,7 +743,7 @@ end
         levelDev = 0;
         if any(okL), levelDev = max(abs(sigma2(okL) ./ s2Prev(okL) - 1)); end
         hist.levelDev(it,1) = levelDev;              %#ok<AGROW>
-        hist.Shat(it,:)    = Shat(:).';              %#ok<AGROW>
+        hist.S(it,:)       = S(:).';                 %#ok<AGROW>
         % R5 M4 4a: the per-stream pass record Results.convergence reads --
         % the stream's level factor and its Ljung-Box whiteness on the
         % law-whitened residuals of THIS pass (K = 20 lags, alpha 0.05).
@@ -737,7 +760,8 @@ end
 
         % ---- step 9b: the user's per-pass inspection hook (R5 M5 5c') -----
         ctx = struct('driver', 'adjustVCEjoint', 'pass', it, 'x', sol.x(:), ...
-                     'Cxx', sol.Cxx, 'sigma0', sol.sigma0, 's0sq', sol.s0sq, 'C', C, 'Cgroups', Cmap, ...
+                     'Cxx', sol.Cxx, 'sigma0', sol.sigma0, 's0sq', sol.s0sq, 'S', S, 'C', C, ...
+                     'Sgroups', Smap, 'Cgroups', Cmap, ...
                      'sigma2', sigma2, 'arcKeys', {pinnedKeys}, 'streams', {hist.streams}, ...
                      'sigma', hist.sigma(it, :), 'white', hist.white(it, :), ...
                      'whitePval', hist.whitePval(it, :), 'maxDev', pv.maxDev, ...
@@ -757,7 +781,7 @@ end
         lsqvce.util.log.warn('lsqvce:adjustVCEjoint:notConverged', ...
            ['The joint stochastic model did not settle in %d outer iterations ' ...
             '(last max|alpha2-1| = %.3e, last max level change %.3e, tol %.1e). ' ...
-            'Inspect out.history.Shat and out.history.levelDev: a PSD that keeps ' ...
+            'Inspect out.history.S and out.history.levelDev: a spectrum that keeps ' ...
             'moving usually means too few arcs per frequency, or a starting ' ...
             'covariance far from the data.'], ...
             o.MaxIter, hist.maxDev(end), hist.levelDev(end), o.Tol);
@@ -766,8 +790,8 @@ end
     arcSpreadGuard(spreadHist);          % R6 WP-97 (F-01): report, never silence
 
     if o.AvgTail > 0 && numel(shatTail) >= o.AvgTail
-        Shat = exp(mean(cat(2, shatTail{end-o.AvgTail+1:end}), 2));
-        C    = lsqvce.kernel.dctI(Shat, 'Norm', o.Norm, 'Inverse', true);  % psdVCE's exact inverse
+        S = exp(mean(cat(2, shatTail{end-o.AvgTail+1:end}), 2));
+        S = S / (Kc(1, :) * S);  C = Kc * S;
     end
 
     % R7-11: the returned SOLUTION under the returned MODEL. The loop's last
@@ -784,16 +808,16 @@ end
     % v'C^-1 v carried the selection bias and sigma0, recomputed under the
     % corrected levels, gave it all back: sigma*sigma0 stayed 0.83.
     if ~userStop
-        modelF = struct('C', C, 'sigma2', sigma2, 'iter', numel(hist.maxDev), ...
+        modelF = struct('S', S, 'C', C, 'sigma2', sigma2, 'iter', numel(hist.maxDev), ...
                         'streamSigma2', streamMeans(pinnedStream, sigma2), ...
                         'arcFactor', arcFactorMap(pinnedStream, pinnedRow, sigma2, o), ...   % R7-13
-                        'Cgroups', Cmap, 'Pool', char(o.Pool), 'Estimate', o.Estimate, ...
+                        'Sgroups', Smap, 'Cgroups', Cmap, 'Pool', char(o.Pool), 'Estimate', o.Estimate, ...
                         'lastSol', lastSol, 'rowWeights', hardWeights(W));
         accF = accFcn(modelF);
         solF = hardSolution(accF.solve(), hardFix);
     end
-    out = struct('C', C, 'Shat', Shat, 'sigma2', sigma2, 'acc', accF, ...
-                 'userStop', userStop, 'Cgroups', Cmap, ...
+    out = struct('S', S, 'C', C, 'sigma2', sigma2, 'acc', accF, ...
+                 'userStop', userStop, 'Sgroups', Smap, 'Cgroups', Cmap, ...
                  'sol', solF, 'converged', converged, 'nIter', numel(hist.maxDev), ...
                  'history', hist, ...
                  'arcKeys', {pinnedKeys(:)}, 'arcStreams', {pinnedStream(:)}, ...
@@ -1064,16 +1088,26 @@ function [uEp, keys, sizes, qEp, dEp] = epochResiduals(res)
 end
 
 %==========================================================================
-function [omegaT, sT, keys, keysAll, skips, wstats, rowAll, streamAll, keyStream] = ...
-    sweepArcs(acc, sol, UiZ, nLag, C, s2Map, v)
-%SWEEPARCS  Steps 7-8: re-stream every arc, returning the WEIGHTED per-lag
-%   temporal vectors Omega^m_n and s^m_n (eqs. 6.5.22-6.5.23), one COLUMN per
-%   arc. Mirrors the arc enumeration used by LSQVCE.ENGINE.REDUNDANCY and
+function [Qb, Tb, qa, ta, keys, keysAll, skips, wstats, rowAll, streamAll, keyStream] = ...
+    sweepArcs(acc, sol, UiZ, L, v)
+%SWEEPARCS  Steps 7-8: re-stream every arc and return its Helmert statistics,
+%   one COLUMN per arc (R7 WP-111 part 3):
+%     Qb(:, m) = lambda_m K' Omega^m,  Tb(:, m) = lambda_m K' s^m   (L x M)
+%       the per-BIN numerators / denominators psdVCE sums per pool group, with
+%       Omega^m / s^m the arc's lag sums over ALL its lags
+%       (LSQVCE.KERNEL.REDUNDANCYLAGS), K = LSQVCE.KERNEL.HATACV(L, arc length)
+%       and lambda_m = r_m(0) the arc's own law variance (level x factor, as
+%       weighted): the bin component of the arc is lambda_m S_j toeplitz(K_j);
+%       K' is applied in hatACV's projection form (fold + one FFT, no m x L K)
+%     qa(m) = r_m' Omega^m,  ta(m) = r_m' s^m                        (1 x M)
+%       the arc's numerator / denominator with its WHOLE covariance r_m (its
+%       law's first column) as the component -- the arc factor (eq. 6.5.27).
+%   Mirrors the arc enumeration used by LSQVCE.ENGINE.REDUNDANCY and
 %   LSQVCE.ENGINE.STREAMCONTRIBUTION, so grouping and whitening stay consistent.
 %   WP-34 (fixes F-02): every arc is KEYED s<sys>_<obsType>_d<day>_a<arc>
 %   (LSQVCE.ENGINE.REDUNDANCY's 'arc' key format, verbatim). OUTPUTS:
 %     keys     1 x M   cell  keys of the arcs that produced columns, ALIGNED
-%                            to the columns of omegaT/sT
+%                            to the columns of Qb/Tb/qa/ta
 %     keysAll  1 x Ma  cell  keys of every ENUMERATED arc (the identity the
 %                            caller pins on pass 1)
 %     skips    S x 2   cell  {key, reason} for every arc skipped THIS pass
@@ -1085,26 +1119,19 @@ function [omegaT, sT, keys, keysAll, skips, wstats, rowAll, streamAll, keyStream
 %                            (lsqvce.util.streamKey), aligned to keysAll
 %     keyStream 1 x M  cell  the same, aligned to keys
 %   R7-43: the stream of an arc is CARRIED, never parsed back out of its key.
-%   The arc factor is looked up BY KEY in s2Map (containers.Map; missing or
-%   empty map -> 1), never by position: one skip can no longer shift every
-%   later arc's factor.
 %
-%   WHY ONE `C` WEIGHTS EVERY ARC, when Cgroups holds a law per pool group
-%   (R6 WP-100 -- read this before "fixing" it, because it has been proposed
-%   twice and measured twice). The laws ARE fitted per group: psdVCE runs once
-%   per pool group and writes Cmap. What is shared is the WEIGHT in eqs.
-%   6.5.22-6.5.23, and sharing it is what keeps the iteration from feeding on
-%   itself. Threading each group's own freshly fitted law into its own arcs
-%   was implemented and MEASURED on three two-stream fixtures: the second
-%   group diverged every time -- planted lag-1 0.70 came back 0.852, planted
-%   0.50 came back 1.331, planted 0.40 came back 1.365, and sigma0 fell to
-%   0.709. With the shared C the same fixtures give 0.198 / 0.477 against
-%   planted 0.20 / 0.50, sigma0 0.997. The behaviour is pinned by
-%   test_vcePolicy>testPoolStreamGivesEachStreamItsOwnLaw.
+%   NO SHARED WEIGHT ANY MORE (R6 WP-100 is superseded). Until part 3 one
+%   pooled C weighted the lag statistics of every arc in eqs. 6.5.22-6.5.23
+%   while each pool group's prior was its own law -- a compromise that was
+%   measured better than threading each group's freshly fitted law into its
+%   arcs (planted lag-1 0.50 came back 1.331). With positive components the
+%   weight is not a choice: an arc's bin component is lambda_m S_j
+%   toeplitz(K_j) under the covariance it WAS weighted with, so lambda_m is
+%   read from that covariance and K does not depend on the law at all.
+%   The behaviour is pinned by test_vcePolicy>testPoolStreamGivesEachStreamItsOwnLaw.
     ids    = acc.systemIDs();
     x      = sol.x(:);
-    omegaT = [];
-    sT     = [];
+    Qb = zeros(L, 0);  Tb = zeros(L, 0);  qa = zeros(1, 0);  ta = zeros(1, 0);
     keys   = {};
     keysAll = {};
     rowAll  = {};
@@ -1144,8 +1171,8 @@ function [omegaT, sT, keys, keysAll, skips, wstats, rowAll, streamAll, keyStream
                     keysAll{end+1} = key;                    %#ok<AGROW>
                     streamAll{end+1, 1} = sk;                %#ok<AGROW>
                     rowAll{end+1, 1} = lsqvce.util.rowWeightKey(st.sysID, d, obsType, a); %#ok<AGROW>
-                    [om, sn, why, wsum, wm] = oneArc(st, obsType, a, d, uo, UiZ, ...
-                                           nLag, x, ySys, Gsys, LlS);
+                    [om, sn, r, why, wsum, wm] = oneArc(st, obsType, a, d, uo, UiZ, ...
+                                                        x, ySys, Gsys, LlS);
                     if isempty(om)
                         skips(end+1, :) = {key, why};        %#ok<AGROW>
                         continue
@@ -1153,16 +1180,12 @@ function [omegaT, sT, keys, keysAll, skips, wstats, rowAll, streamAll, keyStream
                     if isKey(wstats, sk), w0 = wstats(sk); else, w0 = zeros(2*(WHITE_LAGS() + 1), 1); end
                     wstats(sk) = w0 + [wsum; wm];
                     nArc = nArc + 1;
-                    % weight by THIS ARC'S factor (keyed, F-02) and lag cov
-                    if ~isempty(s2Map) && isKey(s2Map, key)
-                        s2 = s2Map(key);
-                    else
-                        s2 = 1;                              % pass 1 default
-                    end
                     keys{end+1}     = key;                   %#ok<AGROW>
                     keyStream{end+1} = sk;                   %#ok<AGROW>
-                    omegaT(:, nArc) = s2 * C .* om;          %#ok<AGROW>
-                    sT(:, nArc)     = s2 * C .* sn;          %#ok<AGROW>
+                    qt = r(1) * lsqvce.kernel.hatACV(L, numel(om), [om sn]);   % lambda_m K' [Omega s]
+                    Qb(:, nArc) = qt(:, 1);  Tb(:, nArc) = qt(:, 2);           %#ok<AGROW>
+                    qa(nArc) = r.' * om;                     %#ok<AGROW>
+                    ta(nArc) = r.' * sn;                     %#ok<AGROW>
                 end
             end
         end
@@ -1173,9 +1196,11 @@ function [omegaT, sT, keys, keysAll, skips, wstats, rowAll, streamAll, keyStream
 end
 
 %==========================================================================
-function [om, sn, why, wsum, wm] = oneArc(st, obsType, arc, day, uo, UiZ, nLag, x, ySys, Gsys, LlS)
+function [om, sn, r, why, wsum, wm] = oneArc(st, obsType, arc, day, uo, UiZ, x, ySys, Gsys, LlS)
 %ONEARC  Decorrelate one arc, form its residual, and return the per-lag Omega
-%   and s from LSQVCE.KERNEL.REDUNDANCYLAGS. WP-34: a skipped arc REPORTS why --
+%   and s from LSQVCE.KERNEL.REDUNDANCYLAGS over ALL the arc's lags, and r, the
+%   first column of the arc's law covariance (without the robust nugget; R7
+%   WP-111 part 3). WP-34: a skipped arc REPORTS why --
 %   `why` is '' on success, 'gap' (no data) or 'nonPD' (covariance not
 %   positive definite this pass); silence was finding F-02's accomplice.
 %   WP-33: ySys/Gsys/LlS are the system's local solution, Schur factor and
@@ -1189,7 +1214,7 @@ function [om, sn, why, wsum, wm] = oneArc(st, obsType, arc, day, uo, UiZ, nLag, 
     wsum = zeros(WHITE_LAGS + 1, 1);  wm = zeros(WHITE_LAGS + 1, 1);   % R5 M4 4a / R7-38: sums and pair counts
     a = st.dataFcn(day, obsType, arc, uo);
     if isempty(a) || ~isfield(a, 'l') || isempty(a.l)
-        om = [];  sn = [];  why = 'gap';  return
+        om = [];  sn = [];  r = [];  why = 'gap';  return
     end
 
     A = a.A;  l = a.l(:);
@@ -1225,7 +1250,7 @@ function [om, sn, why, wsum, wm] = oneArc(st, obsType, arc, day, uo, UiZ, nLag, 
         Sig = (Sig + Sig.')/2;
         [W, pd] = chol(Sig);
         if pd > 0
-            om = [];  sn = [];  why = 'nonPD';  return
+            om = [];  sn = [];  r = [];  why = 'nonPD';  return
         end
         % R7 WP-115 part 3b (R7-12, user decision 2026-10-11): the component
         % update sees the REJECTED epochs only -- factor 0, floored to 1e-12 by
@@ -1245,19 +1270,18 @@ function [om, sn, why, wsum, wm] = oneArc(st, obsType, arc, day, uo, UiZ, nLag, 
             cN(rej) = q(rej) .* dSig(rej);
             [W, pd] = chol(Sig + diag(cN));
             if pd > 0
-                om = [];  sn = [];  why = 'nonPD';  return
+                om = [];  sn = [];  r = [];  why = 'nonPD';  return
             end
         end
-        nLagA = min(nLag, mE);
-        om = zeros(nLag, 1);  sn = zeros(nLag, 1);
+        om = zeros(mE, 1);  sn = zeros(mE, 1);  r = Sig(:, 1);
         for k = 1:nAx
             rows = k:nAx:m;
             [AtilBar, Bbar, ebar] = jointArcParts(Ad(rows, :), Bd(rows, :), ld(rows), W, ...
                                                   x(1:size(A,2)), ySys, Gsys);
-            r  = lsqvce.kernel.redundancyLags(AtilBar, W, UiZ, ebar, nLagA, ...
+            rl = lsqvce.kernel.redundancyLags(AtilBar, W, UiZ, ebar, mE, ...
                                        'LocalBbar', Bbar, 'LocalLl', LlS, 'Nugget', cN, 'LawW', WL);
-            om = om + padTo(r.omega, nLag);
-            sn = sn + padTo(r.s,     nLag);
+            om = om + finiteOf(rl.omega);
+            sn = sn + finiteOf(rl.s);
             wsum = wsum + whiteLagSums(ebar);  wm = wm + lagPairs(numel(ebar));
         end
         return
@@ -1265,9 +1289,10 @@ function [om, sn, why, wsum, wm] = oneArc(st, obsType, arc, day, uo, UiZ, nLag, 
     if isfield(a, 'Cfcn') && ~isempty(a.Cfcn)
         Sig = a.Cfcn(1:m, uo);
         if isvector(Sig), Sig = diag(Sig(:)); end
-        [W, pd] = chol((Sig + Sig.')/2);
+        Sig = (Sig + Sig.')/2;
+        [W, pd] = chol(Sig);
         if pd > 0
-            om = [];  sn = [];  why = 'nonPD';  return   % skipped, REPORTED
+            om = [];  sn = [];  r = [];  why = 'nonPD';  return   % skipped, REPORTED
         end
     else
         % A Wfcn-only loader hands back a whitening OPERATOR, not the explicit
@@ -1288,10 +1313,11 @@ function [om, sn, why, wsum, wm] = oneArc(st, obsType, arc, day, uo, UiZ, nLag, 
     % hand the exact local block to the projector (WP-33, fixes F-03).
     [AtilBar, Bbar, ebar] = jointArcParts(A, B, l, W, x(1:size(A,2)), ...
                                           ySys, Gsys);
-    r  = lsqvce.kernel.redundancyLags(AtilBar, W, UiZ, ebar, min(nLag, m), ...
+    rl = lsqvce.kernel.redundancyLags(AtilBar, W, UiZ, ebar, m, ...
                                'LocalBbar', Bbar, 'LocalLl', LlS);
-    om = padTo(r.omega, nLag);
-    sn = padTo(r.s    , nLag);
+    om = finiteOf(rl.omega);
+    sn = finiteOf(rl.s);
+    r  = Sig(:, 1);
     wsum = whiteLagSums(ebar);  wm = lagPairs(numel(ebar));
 end
 
@@ -1322,12 +1348,9 @@ function s = whiteLagSums(e)
 end
 
 %==========================================================================
-function y = padTo(v, n)
-%PADTO  Pad a per-lag vector with zeros to length n (eqs. 6.5.22-6.5.23 set the
-%   contribution to ZERO for lags beyond the arc length).
-    y = zeros(n, 1);
-    k = min(numel(v), n);
-    y(1:k) = v(1:k);
+function y = finiteOf(v)
+%FINITEOF  A per-lag vector as a column with non-finite entries set to zero.
+    y = v(:);
     y(~isfinite(y)) = 0;
 end
 

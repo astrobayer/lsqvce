@@ -66,7 +66,7 @@ PROPERTIES (read-only)
                                redundancy, leverage, w-tests, MDB, ...
   history    1xI      struct   Per-iteration record (empty for a single
                                solve; filled by LSQVCE.ENGINE.ADJUSTVCEJOINT:
-                               .maxDev .Shat .streams .sigma .white
+                               .maxDev .S .streams .sigma .white
                                .whitePval per pass, .skips, .nIter, and
                                under Robust the per-pass .robustScale (one
                                column per stream) .nDown .nZero -- R6 WP-105;
@@ -76,7 +76,9 @@ PROPERTIES (read-only)
   noise      1x1      struct   Fitted noise models per stream (empty until
                                the variance-component loop populates it):
                                .stream (keys) .model{k} (.sigma the level,
-                               .C the law) .Cgroups (one C per pool group)
+                               .C the law&#x27;s ACV) .S (the law: the bin
+                               spectrum, LSQVCE.KERNEL.HATACV) .Sgroups /
+                               .Cgroups (one per pool group)
                                .priors .priorHistory, and .robust
                                (R6 WP-105: .influence, .scale per stream,
                                .streams, .factor ONE PER EPOCH in sweep
@@ -159,6 +161,10 @@ lsqvce:Results:noPerObservation reliability() on a fit whose diagnostics
 See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.REPORT,
          LSQVCE.ENGINE.VERDICT, LSQVCE.ENGINE.BLOCKACCUMULATOR
 
+Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 3: noise.S /
+noise.Sgroups (the bin spectrum) replace noise.Shat; plot(&quot;psd&quot;) draws the
+bins themselves. With assistance from Claude (Anthropic), model Claude
+Opus 5.5.
 Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 4: systematic, snoop,
 reliability and ellipse -- everything the verdict tells the user to do is
 a method on R (lsqvce.engine.verdict behind them). With assistance from

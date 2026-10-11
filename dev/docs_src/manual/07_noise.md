@@ -95,20 +95,28 @@ the conditioning to RCOND 1e-50 on the gravity demo.
 
 ## 7.5 What `Estimate="noise"` does
 
-The joint estimator (theory chapter 6; Ellmer 2018 §6.5.7) treats every PSD frequency and
+The joint estimator (theory chapter 6; Ellmer 2018 §6.5.7) treats every spectral bin and
 every arc factor as variance components of **one** Helmert VCE and updates them together.
-Per pass it
+The law is a **non-negative spectrum S on `Noise.Grid` bins** between 0 and Nyquist,
+linear in between; its covariance at every lag of every arc is the exact integral
+r = K·S (`lsqvce.kernel.hatACV`). Each bin's component is the covariance of a "hat"
+spectrum and therefore positive semi-definite, so its Helmert factor can never be
+negative and the law needs no floor (since 6.7.0, R7 WP-111; Ellmer's type-I DCT
+components were indefinite, and at strong colour the level ran away by 10⁷ with a
+negative lag-1 correlation — review R7-02). The start is white noise (S = 1, Ellmer's
+eq. 6.5.62). Per pass it
 
 1. accumulates and solves under the current laws,
 2. sweeps every arc once for its whitened residual and its Hutchinson-probed redundancies
-   at every lag (all lags from one FFT per column),
-3. updates the spectral shape per pool group in the PSD domain (the loader turns it into
-   its exact ACV at every lag of each arc -- since 6.6.2 no longer a resampled, circulant
-   one, review R7-01), the level per stream, the per-arc factors, and the sigma
-   of any prior group with `estimate = "scale"`,
+   at **every** lag of the arc (all lags from one FFT per column),
+3. updates the spectrum per pool group (bin j: the ratio of the projections of those lag
+   sums on the bin's component, summed over the group's arcs), the level per stream,
+   the per-arc factors (the Helmert factor of the arc's whole covariance), and the
+   sigma of any prior group with `estimate = "scale"`,
 
-and stops at `Tolerance` (max |alpha² − 1|) or `MaxPasses`. `Noise.Grid` is the number of
-lags/frequencies of the estimated shape: at least the longest arc for an exact law.
+and stops at `Tolerance` (max |alpha² − 1|) or `MaxPasses`. `Noise.Grid` is the
+spectral resolution: the law is exact at every lag whatever the Grid, so the Grid trades
+resolution against the redundancy each bin collects per pass.
 `Probes` is the Hutchinson probe count (100 is Ellmer's value); the joint estimator has no
 exact route, so `Probes = 0` is refused.
 
@@ -158,8 +166,9 @@ R = lsqvce.fit(data, opts);
 
 Why each line: `sigma = 1` on the positions because the 3×3 already carries m²;
 `Pool = "obsType"` because positions and range-rate differ in units and in spectrum;
-`Grid = 2160` because that is the length of the longest arc in epochs (6 h at 10 s, 3 h at
-5 s); `Whitener = "ar"` because a 2160-epoch arc on the dense Toeplitz path is O(b³).
+`Grid = 2160` resolves the spectrum as finely as the longest arc does (2160 epochs: 6 h at
+10 s, 3 h at 5 s) -- a coarser Grid is just as exact, only smoother; `Whitener = "ar"`
+because a 2160-epoch arc on the dense Toeplitz path is O(b³).
 
 **Before trusting the numbers, run one pass with `Estimate = "none"`.** If sigma0 is near 1
 the declared weights are consistent. A sigma0 far from 1 says the `Cep` scale is wrong —
@@ -169,7 +178,8 @@ estimating a law on top of it will fix that.
 ## 7.7 Reading the result back
 
 ```matlab
-R.noise.Cgroups          % one covariance function per pool group
+R.noise.Sgroups          % one law (the bin spectrum) per pool group
+R.noise.Cgroups          % ... and its covariance at lags 0 .. Grid-1
 R.noise.model{k}.sigma   % the estimated LEVEL of stream k
 R.noise.model{k}.C       % its law; EMPTY where no law was estimated
 R.noise.stream           % the stream keys, in the order of model{}

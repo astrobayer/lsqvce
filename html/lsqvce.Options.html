@@ -131,9 +131,9 @@ TOP LEVEL
                                 plotPostModel / plotPostSolve seams.
 
 GROUPS (structs; set fields one at a time or give a whole struct)
-  Noise        Grid 60             lags/frequencies of the estimated shape;
-                                   an integer &gt;= 2, at least the longest arc
-                                   for an exact law (&quot;auto&quot; is refused)
+  Noise        Grid 60             spectral bins of the estimated law, 0 ..
+                                   Nyquist (an integer &gt;= 2; &quot;auto&quot; is
+                                   refused); exact at every lag for any Grid
                Whitener &quot;toeplitz&quot;|&quot;ar&quot;|&quot;arma&quot;  how a PSD law whitens (v4 PsdMode)
                Smooth 0                         moving average on the PSD
                FreezeRedundancy 1               components below it hold
@@ -176,6 +176,10 @@ lsqvce:Options:badTarget     engineArgs target is unknown</pre>
 
 See also LSQVCE.FIT, LSQVCE.RESULTS, the Manual, chapter 3, RELEASE_NOTES.md
 
+Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 3: Noise.Grid is the
+number of spectral bins of the positive-component law; the law is exact at
+every lag of every arc whatever the Grid. With assistance from Claude
+(Anthropic), model Claude Opus 5.5.
 Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 2: Noise.MeanType
 retired (user decision 2026-10-10): since 6.1.6 the arc factors are
 absolute and gamma-bar no longer scaled them; setting it is refused as

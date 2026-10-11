@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-11 — WP-111 part 1 DONE (PR #131, merge 3ed7f98; the results recorded on this branch); WP-111 part 2 OPEN (tier B, model Claude Opus 5.5): R7-01 -- psd2acv integrates the piecewise-linear spectrum exactly (no lag period), covModel 'psd' 'toeplitz' no longer resamples onto floor(m/2)+1 points; version 6.6.2; §12.44.
+Last substantive update: 2026-10-11 — WP-111 part 2 DONE (PR #132, merge 96ad12b; CI GREEN on ba810e4); WP-111 part 3 OPEN (tier B, model Claude Opus 5.5): R7-02 / R7-20 -- the joint law is a positive spectrum on Grid bins (kernel.hatACV, r = K S, every bin's component PSD), psdVCE on per-bin statistics over all lags, the arc factor from the arc's whole covariance, state S / Sgroups ('C0' -> 'S0' white; Norm, ZeroFreqRule, floors, degenerateStart retired); version 6.7.0; §12.44.
+Preceding entry: Last substantive update: 2026-10-11 — WP-111 part 1 DONE (PR #131, merge 3ed7f98; the results recorded on this branch); WP-111 part 2 OPEN (tier B, model Claude Opus 5.5): R7-01 -- psd2acv integrates the piecewise-linear spectrum exactly (no lag period), covModel 'psd' 'toeplitz' no longer resamples onto floor(m/2)+1 points; version 6.6.2; §12.44.
 Preceding entry: Last substantive update: 2026-10-11 — WP-115 part 4 DONE (PR #130, merge 13bf7d0), WP-115 complete; WP-111 part 1 OPEN (tier A via CI, model Claude Opus 5.5; user decision: POSITIVE COMPONENTS replace the DCT-domain update): the measurement first -- dev/validation/wp111_measure.m reproduces R7-02's runaway through lsqvce.fit and runs the candidate (hat-spectrum components, exact ACV r = K S) on the same data, plus R7-01's wrap through covModel; no toolbox change; §12.44.
 Preceding entry: Last substantive update: 2026-10-11 — WP-115 part 3b DONE (PR #129, merge f2b164d; CI GREEN on cf4db8c); WP-115 part 4 OPEN (tier B, model Claude Opus 5.5): R7-43 -- one stream key (util.streamKey), one arc key (util.arcKey), the arc's stream carried as out.arcStreams instead of parsed back by regex, engine.satKeyOf retired; version 6.6.1; §12.43.
 Preceding entry: Last substantive update: 2026-10-11 — WP-115 part 3a DONE (PR #128, merge 3eb193c; CI GREEN on cfa9375); WP-115 part 3b OPEN (tier B, model Claude Opus 5.5; user decisions: build the nugget; R7-12 by hard rejection + the Gaussian truncation factor, after the mirror showed the weighted redundancy leaves the bias): the robust factors are an additive nugget (covModel cm.nugget, whole-arc Woodbury whitener, inflateCep retired, redundancyLags 'Nugget'/'LawW'); the component update sees only rejected epochs and the level is divided by tau (R.noise.robust.truncation); version 6.6.0; §12.43.
@@ -8559,7 +8560,8 @@ adjustVCEjoint>streamMeans / streamKeyOf).
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
 | 111 (part 1) | the tier-A measurement: R7-02's runaway reproduced through `lsqvce.fit`, the candidate (positive components) on the same data, R7-01's wrap through covModel; `dev/validation/wp111_measure.m` on `measure.yml`; no toolbox change, no version | 115 (PR #130 merged 13bf7d0) | DONE (2026-10-11, PR #131, merge 3ed7f98; measured: run 38145552366) |
-| 111 (part 2) | R7-01: `kernel.psd2acv` integrates the piecewise-linear spectrum EXACTLY (closed form per segment) -- no lag period; `covModel` 'psd' 'toeplitz' no longer resamples onto floor(m/2)+1 points; **version 6.6.2** | 111 part 1 (PR #131 merged 3ed7f98) | OPEN (2026-10-11; audit CLEAN; CI pending) |
+| 111 (part 2) | R7-01: `kernel.psd2acv` integrates the piecewise-linear spectrum EXACTLY (closed form per segment) -- no lag period; `covModel` 'psd' 'toeplitz' no longer resamples onto floor(m/2)+1 points; **version 6.6.2** | 111 part 1 (PR #131 merged 3ed7f98) | DONE (2026-10-11, PR #132, merge 96ad12b; CI GREEN on ba810e4 first run, 632 tests) |
+| 111 (part 3) | R7-02 / R7-20: the joint law is a POSITIVE spectrum on Grid bins (`kernel.hatACV`, r = K S); `psdVCE(Q, T, Sprior)` on per-bin statistics over ALL lags; the arc factor is the Helmert factor of the arc's whole covariance; state / outputs `S`, `Sgroups` ('C0' -> 'S0', white default; 'Norm', ZeroFreqRule, floors, degenerateStart retired); `jointModelOpt` emits 2 S on fNorm; **version 6.7.0** | 111 part 2 (PR #132 merged 96ad12b) | OPEN (2026-10-11; audit CLEAN; CI GREEN on ace7109; R7-02 re-measured through lsqvce.fit: run 38149857047) |
 
 **The design question, and the user's decision (2026-10-11).** R7-01 (the 'toeplitz' ACV is
 circulant), R7-02 (the estimated law runs away x1e7 and the loop says "converged") and
@@ -8632,3 +8634,81 @@ through `covModel` 'psd' 'toeplitz' an AR(1) phi 0.5 law gives r(m-1)/r(0) = 0.4
 - Expected CI movement: every joint-estimator fit (its 60-bin law on 256+-epoch arcs) and
   every coarse user 'psd' law changes its numbers; the R7-02 runaway is NOT addressed here
   (part 3).
+- CI GREEN on ba810e4 at the first run (632 tests); merged as PR #132 (96ad12b).
+
+**Part 3 -- R7-02 / R7-20, the positive-component estimator (user: "continue with WP-111
+part 3", 2026-10-11; version 6.7.0; tier B -- CI is the first MATLAB run).**
+- `kernel.hatACV(L, m)` (new, KERNEL): the closed-form K of the plan, one m x L outer
+  product; `hatACV(L, m, X)` = K' X without K -- every bin's cosine has period 2(L-1) in the
+  lag, so env .* X is folded modulo 2(L-1) and one FFT gives all bins (O(m + L log L);
+  K itself is 37 MB for a 2160-bin law on a 2160-epoch arc, and a per-length cache would
+  have held one per distinct arc length). numpy check of the fold: <= 1.2e-17 of sum |X|
+  for (L, m) from (2, 1) to (2160, 2161). Test: quadrature per bin and lag (1e-10), every
+  column's Toeplitz PSD, flat = white to 1e-12, the metamorphic no-period relation (a
+  longer arc only appends lags, bitwise), projection = K' X, badX.
+- `engine.psdVCE(Q, T, Sprior)`: Helmert per bin, alpha2 = sum Q / sum T, Shat = alpha2^Gamma
+  Sprior, optional Smooth, one relative numerical floor 1e-10 x max (the same as covModel's
+  psdFloor). FreezeRedundancy now tests the bin's REDUNDANCY Sprior_j sum T (its tr(R V_j))
+  instead of a DCT-domain s. Gone: Norm, MinAmplitude, ZeroFreqRule, AllowDegenerate,
+  .Cnew, .degenerate, and the degenerateStart warning.
+- `engine.adjustVCEjoint`: state S (r(0) = 1, the level stays in the factors) and Smap per
+  pool group; C / Cmap DERIVED (K at lags 0..L-1) and kept for the record and the ctx.
+  sweepArcs returns per arc Qb = lambda K' Omega, Tb = lambda K' s (L x M, hatACV's
+  projection form) and qa = r' Omega, ta = r' s; oneArc asks redundancyLags for ALL m lags and hands
+  back r = Sig(:, 1). lambda = r(0) of the covariance the arc WAS weighted with, so each
+  arc's bin component is exact under its own law -- the one pooled C of R6 WP-100 is gone
+  (its divergence came from weighting by one law and updating another; here K does not
+  depend on the law). arcVarianceFactors gets the arc's one-row qa / ta (the Helmert factor
+  of the whole arc covariance); 'Norm' retired there too. 'C0' -> 'S0' (default ones =
+  white, Ellmer 6.5.62; badC0 -> badS0). AvgTail averages log S. Out: S, C, Sgroups,
+  Cgroups; history.S.
+- `kernel.redundancyLags`: the general (non-Toeplitz) Sigma^-1 sums were a ring buffer of
+  rows of W^-1 (N x nL memory, N^2 nL / 2 scalar dot products) -- with nL = N that is O(N^3)
+  loop iterations and N^2 memory. Now columns of Sigma^-1 in blocks of 256 (BLAS-3, memory
+  N x 256), each column's lower part added to its lags. The Toeplitz path (Levinson +
+  Gohberg-Semencul, O(N nL)) is unchanged and is what regular arcs take.
+- `engine.jointModelOpt`: takes model.S / model.Sgroups (badModel unless .S; badC -> badS:
+  finite, >= 0, not all zero); the spec is 'psd' on fNorm with ordinates 2 S / r(0) -- by
+  part 2's psd2acv exactly K S at every lag and dt (test: 1e-10 at dt 1 and 5).
+- fit / Results: R.noise.S / .Sgroups next to .C / .Cgroups (no .Shat); plot("psd") draws
+  the bins. Options: Noise.Grid is the spectral resolution (the "at least the longest arc"
+  claims retired, superseded_claims.csv).
+- Tests (628 = 632 - 6 + 2): test_ellmer's DCT-domain psdVCE tests (degenerate start,
+  zero-frequency rule, floor policy, "the ACV may go negative") are deleted with the
+  behaviour; new: `test_psdVCE_factors_are_nonnegative_by_construction` (random e, random
+  PSD R: every bin statistic >= 0), `test_hatACV_columns_are_psd_and_exact`; rewritten:
+  identity, freeze (redundancy form), the white start (`..._default_start_is_white`),
+  badS0, jointModelOpt on S (the K S exactness above), the coloured recovery and the
+  stabilised loop against the exact ARMA spectrum on the bins (the closed-loop fixture
+  declares the law back through jointModelOpt).
+- NOT validated before CI: no MATLAB in the container. The mirror (part 1) used exact
+  traces; the shipped loop uses Hutchinson probes -- the test bars of the recovery tests
+  (corr > 0.85 / 0.5) are the first evidence. Optionally re-run measure.yml on the branch
+  to see R7-02 through lsqvce.fit (the SHIPPED rows of the table should now read like the
+  CANDIDATE rows).
+- CI round 1 (32e9f3e): 74 / 616 red -- hatACV's function line named two inputs, its
+  arguments block three, so every call failed its definition (fixed ac38c75). Round 2
+  (ac38c75): 614 / 616 -- every fit suite green (test_vcePolicy 37/37, physOracle,
+  errorDoctrine, examples). The two reds were tests: `..._default_start_is_white` read the
+  final re-accumulation's model (same pass index) instead of pass 1's (the recorder keeps
+  the first now); `..._flat_psd_on_white_noise_with_locals` held the DCT-era bar max/min < 3
+  after TWO passes of a fixture that never feeds the law back. Simulated (exact traces,
+  2000 draws, white, 6 bins on 2 x 40): max/min one pass median 2.10, p99 5.06, two passes
+  p95 13; low / high (bins 1-2 vs 3-6) p99 2.14, p99.9 2.58. The test is one pass with
+  low / high < 2.6 (the leakage claim) and max/min < 6.
+- CI round 3 (ace7109): **GREEN**, 616 / 616 in ci_gate.
+- **R7-02 through `lsqvce.fit`, re-measured** ([run 38149857047](https://github.com/astrobayer/lsqvce/actions/runs/38149857047),
+  `wp111_measure` on ace7109, same arcs and seeds as part 1). The SHIPPED estimator now
+  reproduces the dense candidate to 3-4 digits on every one of the 18 fits:
+
+  | phi, arcs | SHIPPED (6.7.0): stop / r0 / truth / rho1 / \|z\|max | part 1, 6.6.1 |
+  |---|---|---|
+  | 0.5, 9 x 256 | maxPasses 6/6; 0.94-1.04; 0.47-0.51; <= 2.23 | maxPasses; 0.94-1.09; <= 3.76 |
+  | 0.8, 20 x 256 | converged 2/6, maxPasses 4/6; 0.91-1.07; 0.79-0.81; <= 2.33 | 5.7e7-6.9e7 x; rho1 -0.33 to -0.69 |
+  | 0.9, 40 x 256 | converged 6/6 in 8-10; 0.99-1.05; 0.90-0.91; <= 2.11 | 4.9e7-6.7e7 x; rho1 -0.42 to -0.68 |
+
+  The runaway is gone. "maxPasses" is the 10-pass cap of the measurement (the
+  candidate needed 11-21 passes at phi 0.5 / 0.8 for Tol 1e-2 and reached the same
+  numbers); the multiplicative Helmert update is slow near a strongly coloured
+  fixed point, not unstable. R7-01 through covModel: r(m-1)/r(0) 0.0000 and cond 9.0
+  on m = 255 / 256 / 2111 (part 2 confirmed).

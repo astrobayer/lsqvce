@@ -136,6 +136,10 @@ function out = redundancyLags(Abar, W, UiZ, ebar, nMaxLag, opt)
 %   See also LSQVCE.ENGINE.COVCOMPONENT, LSQVCE.KERNEL.TOEPLITZCOFACTOR, LSQVCE.KERNEL.DCTI,
 %            LSQVCE.ENGINE.TRACEESTIMATE, LSQVCE.ENGINE.STREAMCONTRIBUTION
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 3: the general
+%   (non-Toeplitz) Sigma^-1 lag sums run in BLAS-3 column blocks -- the
+%   joint estimator now asks for every lag of an arc. With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-115 part 3b: 'Nugget' /
 %   'LawW' -- a stationary law plus a per-row nugget keeps the structured
 %   Sigma^-1 sums (Woodbury over the nugget rows). With assistance from
@@ -249,9 +253,9 @@ end
     %   N x N inverse never needs to exist. Stationary (Toeplitz) arcs -- the
     %   case every covModel ACF/ARMA/PSD produces -- go through Levinson +
     %   Gohberg-Semencul: O(N^2) time, O(N) memory. A non-Toeplitz W falls
-    %   back to streaming the columns of W^-T with an nMaxLag-deep ring
-    %   buffer: still O(N^3) time (no structure, no shortcut) but O(N*nLag)
-    %   memory -- which makes the memory claim in the help TRUE at last.
+    %   back to blocks of 256 columns of Sigma^-1: O(N^3) time in BLAS-3
+    %   (no structure, no shortcut), O(N*256) memory (R7 WP-111 part 3; the
+    %   nMaxLag-deep ring buffer before it held N x nLag).
     if ~isempty(o.Nugget) && any(o.Nugget(:) > 0)
         dS = nuggetSubdiagSums(o.LawW, o.Nugget(:), nMaxLag);   % R7 WP-115 part 3b
     else
@@ -310,8 +314,8 @@ function dS = sigmaInvSubdiagSums(W, nL)
 %   whose triangular-Toeplitz sub-diagonal sums are weighted correlations:
 %       S_n(u) = sum_j u(j+n) u(j) (N-n-j+1),   O(N) per lag.
 %   (Validated against the dense inverse to 3e-16, WP-37 round note.)
-%   General W: stream the columns of W^-T (each is a row of W^-1) with an
-%   nL-deep ring buffer and accumulate the offset dot products.
+%   General W: columns of Sigma^-1 in blocks of 256, each column's entries on
+%   and below the diagonal added to the lag they sit on.
     N  = size(W, 1);
     dS = zeros(nL, 1);
 
@@ -342,18 +346,20 @@ function dS = sigmaInvSubdiagSums(W, nL)
         return
     end
 
-    % General fallback: r_j = W' \ e_j is row j of W^-1; keep the last nL.
-    ring = zeros(N, nL);
-    e    = zeros(N, 1);
-    for j = 1:N
-        e(j) = 1;
-        r = W.' \ e;                             % forward solve, O(N^2)
-        e(j) = 0;
-        slot = mod(j-1, nL) + 1;
-        ring(:, slot) = r;
-        dS(1) = dS(1) + r.' * r;
-        for n = 1:min(nL-1, j-1)
-            dS(n+1) = dS(n+1) + r.' * ring(:, mod(j-1-n, nL) + 1);
+    % General fallback (R7 WP-111 part 3): Sigma^-1 in blocks of columns,
+    % Sigma^-1 E = W \ (W' \ E), each column's sub-diagonal added to dS --
+    % BLAS-3, memory N x 256, cost independent of nL. The former ring buffer
+    % of rows of W^-1 held N x nL and took N^2 nL / 2 scalar dot products,
+    % i.e. O(N^3) loop iterations once the joint estimator asks for every lag.
+    nb = 256;
+    for j0 = 1:nb:N
+        jj = j0:min(j0 + nb - 1, N);
+        E  = zeros(N, numel(jj));
+        E(sub2ind(size(E), jj, 1:numel(jj))) = 1;
+        Si = W \ (W.' \ E);                     % columns jj of Sigma^-1
+        for c = 1:numel(jj)
+            n = min(nL, N - jj(c) + 1);
+            dS(1:n) = dS(1:n) + Si(jj(c):jj(c) + n - 1, c);
         end
     end
 end

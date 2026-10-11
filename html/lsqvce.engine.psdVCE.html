@@ -42,148 +42,85 @@ a { color: #0b5ea8; }
 <body>
 <div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.engine.psdVCE</div>
 <h1>lsqvce.engine.psdVCE</h1>
-<div class="purpose">Per-frequency PSD amplitude by variance component estimation.</div>
+<div class="purpose">Per-bin spectral amplitudes by variance component estimation.</div>
 <h2>Description</h2>
-<pre class="example">out = LSQVCE.ENGINE.PSDVCE(omegaT, sT, Cprior)
-out = LSQVCE.ENGINE.PSDVCE(omegaT, sT, Cprior, &#x27;Name&#x27;, value, ...)
+<pre class="example">out = LSQVCE.ENGINE.PSDVCE(Q, T, Sprior)
+out = LSQVCE.ENGINE.PSDVCE(Q, T, Sprior, &#x27;Name&#x27;, value, ...)
 
-The core of Ellmer&#x27;s (2018) non-parametric stochastic model: instead of
-fitting a parametric AR/ARMA process, the AMPLITUDE OF THE PSD AT EVERY
-FREQUENCY is estimated by VCE, treating each lag of the covariance function
-as its own variance component (eqs. 6.5.19-6.5.27).
+The spectral half of the joint estimator&#x27;s update (R7 WP-111 part 3, user
+decision 2026-10-11: POSITIVE COMPONENTS). The law is a non-negative
+spectrum S on L bins, piecewise linear in frequency, with covariance
+r = K S (LSQVCE.KERNEL.HATACV). Every bin j is a variance component whose
+matrix V_j = toeplitz(K(:, j)) is the ACV of a hat spectrum -- positive
+semi-definite -- so the Helmert factor of a bin,
 
-    Shat^j = alpha2_j * S^j,     alpha2_j = OmegaTilde_j / sTilde_j   (6.5.19-20)
-    OmegaTilde_j = sum_m OmegaTilde^m_j,  sTilde_j = sum_m sTilde^m_j (6.5.21)
-    OmegaTilde^m = X * Omega^m,   sTilde^m = X * s^m                  (6.5.25-26)
+    alpha2_j = sum_m Q(j, m) / sum_m T(j, m),
+    Q(:, m) = lambda_m K&#x27; Omega^m,   T(:, m) = lambda_m K&#x27; s^m,
 
-with X the type-I DCT (LSQVCE.KERNEL.DCTI). The per-arc TEMPORAL vectors are the
-weighted per-lag quantities of eqs. (6.5.22)-(6.5.23),
+(Omega^m, s^m the arc&#x27;s lag sums of the doubly whitened residual and of the
+redundancy matrix over ALL lags, LSQVCE.KERNEL.REDUNDANCYLAGS; lambda_m the
+arc&#x27;s scale) is a ratio of two NON-NEGATIVE quantities, and
 
-    Omega^m_n = sigma2_m * C^n_xx * (ehat&#x27; Sigma^-T V_n Sigma^-1 ehat)
-    s^m_n     = sigma2_m * C^n_xx * trace(R V_n)
+    Shat_j = alpha2_j * Sprior_j                                (Helmert)
 
-i.e. the RAW quantities from LSQVCE.KERNEL.REDUNDANCYLAGS scaled by the CURRENT arc
-factor and lag covariance. This function takes the ALREADY-WEIGHTED temporal
-vectors (see &#x27;omegaT&#x27;, &#x27;sT&#x27; below) and does the spectral half.</pre>
-<h3>WHY THE PSD AND NOT THE COVARIANCE FUNCTION (eq. 6.5.19 discussion)</h3>
-<pre class="example">  A VCE factor is estimated as a square, so a covariance value estimated
-  directly in the time domain could NEVER change sign. The PSD is positive by
-  definition, so estimating it is unrestricted -- and the inverse DCT of a
-  positive PSD is free to produce NEGATIVE covariance lags, which real noise
-  processes require. This is the whole reason the estimation happens in the
-  spectral domain.
-
-*** DEGENERATE START WARNING (verified numerically; read this) ***
-  Ellmer&#x27;s literal white start (eq. 6.5.62), Cprior = [1 0 0 ... 0], is a
-  DEGENERATE FIXED POINT of his own weighting: with C^n = 0 for every n &gt; 0,
-  eqs. (6.5.22)-(6.5.23) annihilate every lag but n = 0, so those lags can
-  never be updated. The iteration then reports convergence (|alpha2-1| ~ 1e-13)
-  while the recovered PSD is WRONG. Numerically: starting AT the true PSD gives
-  corr(Shat,Strue) = 0.9999 (the estimator is correct and holds the truth), a
-  non-degenerate flat-ACV start converges to corr 0.945, but the delta start
-  lands at corr -0.19 and calls it converged. This function DETECTS such a
-  start and warns (&#x27;lsqvce:psdVCE:degenerateStart&#x27;); pass &#x27;AllowDegenerate&#x27;
-  true to proceed anyway (e.g. to reproduce ITSG bit-exactly, knowingly).</pre>
+stays a valid spectrum without a floor or a zero-frequency rule. Ellmer&#x27;s
+(2018) per-frequency factors were taken in the type-I DCT domain, whose
+components (the columns of the inverse DCT) are INDEFINITE: alpha2_j could
+be negative, needed an absolute floor, and a floored bin made the declared
+covariance near-singular -- the level ran away x5e7 with a NEGATIVE lag-1
+correlation at phi 0.8 / 0.9 (review R7, R7-02, measured on the runner,
+HANDOVER 12.44). Under the same data the positive-component update
+converged 18 / 18 with the level 0.91-1.07 x the truth.</pre>
 <h3>Input</h3>
-<pre class="example">  omegaT   nLag x M double  per-arc TEMPORAL Omega^m_n vectors, ALREADY
-                            weighted by sigma2_m * C^n (eq. 6.5.22), one
-                            COLUMN per arc. Rows are lags n = 0..nLag-1.
-  sT       nLag x M double  the matching weighted redundancies s^m_n
-                            (eq. 6.5.23), same shape.
-  Cprior   nLag x 1 double  the CURRENT discretised covariance function C^n_xx
-                            the weighting used. Its DCT gives the a-priori
-                            S^j that alpha2_j scales (eq. 6.5.19).
+<pre class="example">  Q       L x M double   per-arc bin numerators, one COLUMN per arc (&gt;= 0)
+  T       L x M double   per-arc bin denominators (&gt;= 0)
+  Sprior  L x 1 double   the spectrum the arcs were weighted with (&gt;= 0)
 
 OPTIONS (Name/Value)
-(WP-39 stage (b): canonical UpperCamelCase names below; legacy
-casings still match -- MATLAB NV semantics -- and enum VALUES are
-case-sensitive lowercase.)
-  &#x27;Norm&#x27;            char    DCT normalisation, &#x27;ortho&#x27; (default) | &#x27;ellmer&#x27;
-  &#x27;Gamma&#x27;  1x1 in (0,1], default 1.  Damping exponent of the
-           multiplicative update, Shat = alpha2.^Gamma .* Sprior
-           (WP-40 r2, F-15): 1 is Ellmer&#x27;s plain step; a closed-loop
-           caller passes a DECAYING Gamma per pass to stabilise the
-           alternation.
-                            (see LSQVCE.KERNEL.DCTI).
-  &#x27;ZeroFreqRule&#x27;    char    how to treat the zero-frequency amplitude, which
-                            is ill-defined for a zero-mean process (Ellmer
-                            §6.5.6, &quot;Estimation of the Zero-Frequency&quot;):
-                            &#x27;lowest&#x27; (default) replace Shat^0 by the lowest
-                            non-zero frequency amplitude; &#x27;keep&#x27; leave as is.
-  &#x27;MinAmplitude&#x27;    1x1     FLOOR applied to Shat (max(Shat, MinAmplitude);
-                            negative estimates land ON the floor, they are
-                            never abs()-folded -- WP-35/F-04, see the
-                            policy comment at the update line) to keep the
-                            PSD strictly
-                            positive (default 1e-12). A PSD must be &gt;= 0.
-  &#x27;Smooth&#x27;          1x1     half-width of a moving average applied to the
-                            estimated amplitudes (default 0 = off). The
-                            per-frequency estimate alpha2_j = Omega_j/s_j is
-                            a RATIO from finite residuals, so it is noisy;
-                            smoothing across neighbouring frequencies trades
-                            spectral resolution for variance, the standard
-                            lag-window / spectral-averaging idea (and the
-                            approach favoured by the Delft school). Use a
-                            half-width of 1-3 for a mildly noisy spectrum.
-                            NOTE this does NOT fix a rank-deficient
-                            covariance -- that is a RESOLUTION problem, cured
-                            by using enough frequencies (nf &gt;= m/2 + 1), not
-                            by smoothing.
-  &#x27;FreezeRedundancy&#x27; 1x1    a frequency whose redundancy summed over the arcs,
-                            s_j, is below this HOLDS its amplitude (alpha2_j
-                            = 1) instead of being updated from a ratio of
-                            two small, noisy numbers (default 0: only
-                            s_j &lt;= 0 holds). R7-22: Options.Noise.FreezeRedundancy.
-  &#x27;AllowDegenerate&#x27; logical proceed without warning on a degenerate start
-                            (default false).</pre>
+  &#x27;Gamma&#x27;  1x1 in (0,1], default 1.  Damping of the multiplicative update,
+           Shat = alpha2.^Gamma .* Sprior (WP-40 r2): 1 is the plain step;
+           a closed-loop caller may pass a DECAYING Gamma per pass.
+  &#x27;Smooth&#x27; 1x1 integer &gt;= 0, default 0.  Half-width of a moving average over
+           neighbouring bins (reflected edges), trading resolution for
+           variance. R7-22: Options.Noise.Smooth.
+  &#x27;FreezeRedundancy&#x27; 1x1 &gt;= 0, default 0.  A bin whose redundancy
+           Sprior_j * sum_m T(j, m) (its share tr(R V_j) of the total) is
+           below it HOLDS its amplitude (alpha2_j = 1) instead of taking a
+           ratio of two small numbers; a bin whose denominator is zero or
+           not finite always holds. R7-22.</pre>
 <h3>Output</h3>
 <pre class="example">out   1x1 struct
-  .Shat      nLag x 1  the updated PSD amplitudes (strictly positive)
-  .alpha2    nLag x 1  the per-frequency variance factors alpha2_j. The
-                       iteration has converged when these are all ~ 1.
-  .frozen    nLag x 1  logical, true where s_j &lt; FreezeRedundancy (or not
-                       finite / zero): those bins held their value
-  .Cnew      nLag x 1  the updated covariance function, inverse-DCT of Shat.
-                       MAY CONTAIN NEGATIVE LAGS -- that is correct and is
-                       the point of estimating in the spectral domain.
-  .Sprior    nLag x 1  the a-priori amplitudes X*Cprior
-  .maxDev    1x1       max|alpha2 - 1|, the convergence measure
-  .degenerate 1x1 logical  true if the start had no support beyond lag 0</pre>
+  .Shat    L x 1  the updated spectrum (&gt;= 0; bins below 1e-10 x its
+                  maximum are lifted to that, the one numerical floor)
+  .alpha2  L x 1  the per-bin factors (&gt;= 0); the model has settled when
+                  they are all ~ 1
+  .frozen  L x 1  logical, the bins that held their value
+  .Sprior  L x 1  the prior, as given
+  .maxDev  1x1    max |alpha2 - 1| over EVERY bin (there is no
+                  zero-frequency rule left to exclude one: R7-20)</pre>
 <h3>Example</h3>
-<pre class="example">% per arc: r = lsqvce.kernel.redundancyLags(...); weight by sigma2_m and Cprior
-omegaT(:,m) = sig2(m) * Cprior .* r.omega;
-sT(:,m)     = sig2(m) * Cprior .* r.s;
-p = lsqvce.engine.psdVCE(omegaT, sT, Cprior);
-Cprior = p.Cnew;                       % next iteration&#x27;s covariance
-p.maxDev                               % -&gt; 0 as the model settles</pre>
+<pre class="example">K = lsqvce.kernel.hatACV(L, m);         % per arc length
+Q(:, a) = lam(a) * (K&#x27; * r.omega);  T(:, a) = lam(a) * (K&#x27; * r.s);
+p = lsqvce.engine.psdVCE(Q, T, S);  S = p.Shat;</pre>
 <h3>Errors</h3>
-<pre class="example">  lsqvce:psdVCE:arcMismatch     the arc list disagrees with the residuals
-  lsqvce:psdVCE:shapeMismatch   the spectral shape has the wrong length
+<pre class="example">  lsqvce:psdVCE:shapeMismatch   Q or T does not have one row per bin of Sprior
+  lsqvce:psdVCE:arcMismatch     Q and T disagree on the number of arcs
 
-See also LSQVCE.KERNEL.DCTI, LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.KERNEL.TOEPLITZCOFACTOR,
-         LSQVCE.ENGINE.ARCVARIANCEFACTORS
+See also LSQVCE.KERNEL.HATACV, LSQVCE.KERNEL.REDUNDANCYLAGS,
+         LSQVCE.ENGINE.ARCVARIANCEFACTORS, LSQVCE.ENGINE.ADJUSTVCEJOINT
 
-Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-116 part 1: &#x27;FreezeRedundancy&#x27; -- a bin whose summed
-redundancy is below it holds its value; .frozen in the output. With
-assistance from Claude (Anthropic), model Claude Opus 5.5.
-
-Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) (F-07): typed
-`arguments` signature, canonical UpperCamelCase option names (legacy
-casings keep matching; enum VALUES case-sensitive lowercase). With
-assistance from Claude (Anthropic), model Claude Fable 5.
+Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 3 (R7-02, R7-20):
+REWRITTEN for positive components -- the inputs are per-bin statistics
+(K&#x27; Omega, K&#x27; s), the prior is the bin spectrum; the DCT (&#x27;Norm&#x27;), the
+absolute floor (&#x27;MinAmplitude&#x27;), &#x27;ZeroFreqRule&#x27; and the degenerate-start
+check (&#x27;AllowDegenerate&#x27;) are gone with the indefinite components that
+needed them. With assistance from Claude (Anthropic), model Claude Opus 5.5.
+Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-116 part 1: &#x27;FreezeRedundancy&#x27;.
+With assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-08-19 (CEST, UTC+02:00), WP-40 r2 (F-15): optional damped
-update &#x27;Gamma&#x27; (alpha2.^Gamma, default 1 = unchanged). With assistance
-from Claude (Anthropic), model Claude Fable 5.
-Updated 2026-08-19 (CEST, UTC+02:00), WP-35 (fixes F-04): negative
-amplitude estimates are FLOORED at MinAmplitude, never abs()-folded --
-abs injected ~2x the power at zero-power bins (v10review.py T6); bins
-with genuine positive power are unchanged. With assistance from Claude
-(Anthropic), model Claude Fable 5.
+update &#x27;Gamma&#x27;. With assistance from Claude (Anthropic), model Claude Fable 5.
 Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
-model Claude Opus 4.8.
-Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
-WP-64a): the ENGINE tier leaves the USER surface; every qualified
-reference was rewritten mechanically by docs_src/refactor_tiers.py.</pre>
+model Claude Opus 4.8.</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
 <div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

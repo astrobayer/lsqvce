@@ -109,7 +109,7 @@ merged onto the defaults; an unknown field is refused (`lsqvce:Options:badGroupF
 
 | field | default | meaning |
 |---|---|---|
-| `Grid` | 60 | frequencies (lags) of the estimated shape; an integer ≥ 2, and ≥ the longest arc for an exact law. `"auto"` was documented until v5.3 and never implemented; it is refused now (R6 WP-101) |
+| `Grid` | 60 | spectral bins of the estimated law between 0 and Nyquist (its resolution); an integer ≥ 2. Since 6.7.0 the law is exact at every lag of every arc whatever the Grid (R7 WP-111). `"auto"` was documented until v5.3 and never implemented; it is refused now (R6 WP-101) |
 | `Whitener` | `"toeplitz"` | how a PSD law whitens an arc: exact Toeplitz Cholesky, or an AR / ARMA filter fitted to it (`"ar"`, `"arma"`: O(m·p) instead of O(m²)) |
 | `Smooth` | 0 | moving-average half-width on the estimated PSD (0 = none) |
 | `FreezeRedundancy` | 1 | a frequency whose redundancy is below this holds its value instead of being updated |

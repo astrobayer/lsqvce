@@ -349,86 +349,80 @@ function test_redundancyLags_nugget_matches_the_general_path(tc)
         'lsqvce:redundancyLags:badNugget');
 end
 
-%% ============================================ Phase C: per-frequency PSD VCE
-function test_psdVCE_identity_when_omega_equals_s(tc)
+%% ============================== Phase C: per-bin spectral VCE (positive components)
+function test_psdVCE_identity_when_Q_equals_T(tc)
 % categories: precision
-    % If Omega == s then alpha2 == 1 at every frequency, so the PSD is unchanged:
+    % If Q == T then alpha2 == 1 in every bin, so the spectrum is unchanged:
     % the estimator is at a fixed point and reports convergence.
-    rng(50);
-    N = 10;  M = 4;
-    C  = [1; 0.4.^(1:N-1).'];
-    om = rand(N, M) + 0.5;
-    p  = lsqvce.engine.psdVCE(om, om, C);
-    % tol: fixed-point identity om==s -> alpha2=1 by the update law; fp division noise only, house exact-identity bound
-    verifyEqual(tc, p.alpha2, ones(N,1), 'AbsTol', 1e-10, 'alpha2 must be 1');
+    rs = RandStream('mt19937ar', 'Seed', 50);
+    L = 10;  M = 4;
+    S  = 0.5 + rand(rs, L, 1);
+    q  = rand(rs, L, M) + 0.5;
+    p  = lsqvce.engine.psdVCE(q, q, S);
+    % tol: fixed-point identity Q == T -> alpha2 = 1; fp division noise only, house exact-identity bound
+    verifyEqual(tc, p.alpha2, ones(L,1), 'AbsTol', 1e-10, 'alpha2 must be 1');
+    % tol: as above
+    verifyEqual(tc, p.Shat, S, 'RelTol', 1e-10, 'the spectrum must not move');
+    % tol: as above
     verifyEqual(tc, p.maxDev, 0, 'AbsTol', 1e-10);
 end
-
-function test_psdVCE_amplitudes_stay_positive(tc)
-% categories: contract
-    % A PSD is non-negative by definition, whatever the inputs do.
-    rng(51);
-    N = 12;  M = 5;
-    C  = [1; 0.3.^(1:N-1).'];
-    p  = lsqvce.engine.psdVCE(randn(N,M), randn(N,M), C);
-    verifyTrue(tc, all(p.Shat > 0), 'the estimated PSD must be strictly positive');
-    verifySize(tc, p.Cnew, [N 1]);
+function test_psdVCE_factors_are_nonnegative_by_construction(tc)
+% categories: precision, reference
+    % R7 WP-111 part 3 (R7-02): THE property the positive components exist
+    % for. Every bin's component toeplitz(K(:, j)) is PSD, so for ANY residual
+    % e and ANY PSD redundancy matrix R the bin statistics K' Omega = e' V_j e
+    % and K' s = tr(R V_j) are >= 0, and so is alpha2 -- no floor needed. The
+    % DCT components were indefinite: the same draw gave negative factors.
+    rs = RandStream('mt19937ar', 'Seed', 51);
+    m = 48;  L = 9;  M = 5;
+    K = lsqvce.kernel.hatACV(L, m);
+    Q = zeros(L, M);  T = zeros(L, M);
+    for a = 1:M
+        e = randn(rs, m, 1);  B = randn(rs, m, m - 4);
+        Q(:, a) = K.' * lagSumsLocal(e * e.');
+        T(:, a) = K.' * lagSumsLocal(B * B.');
+    end
+    % tol: 1e-12 relative to the largest statistic -- rounding of a PSD quadratic form
+    verifyGreaterThanOrEqual(tc, min([Q(:); T(:)]), -1e-12 * max(abs([Q(:); T(:)])), ...
+        'every bin statistic is a PSD quadratic form');
+    p = lsqvce.engine.psdVCE(Q, T, ones(L, 1));
+    verifyTrue(tc, all(p.alpha2 >= 0) && all(p.Shat > 0), 'factors >= 0, spectrum > 0');
 end
 
-function test_psdVCE_covariance_may_go_negative(tc)
-% categories: reference
-    % The POINT of estimating in the spectral domain: a positive PSD inverts to a
-    % covariance function that is free to change sign (Ellmer eq. 6.5.19 note).
-    N = 8;
-    S = zeros(N,1);  S(3) = 1;  S(1) = 0.1;      % a peaked spectrum
-    C = lsqvce.kernel.dctI(S, 'Inverse', true);
-    verifyTrue(tc, any(C < 0), ...
-        'a peaked PSD must invert to an ACV with negative lags');
+function test_hatACV_columns_are_psd_and_exact(tc)
+% categories: reference, precision, metamorphic
+    % R7 WP-111 part 3: column j of hatACV is the exact ACV of the hat spectrum
+    % on bin j (two-sided, unit sample), checked against adaptive quadrature;
+    % its Toeplitz matrix is PSD; a flat spectrum is white noise exactly; and
+    % the ACV has no lag period (R7-01): a longer arc only APPENDS lags.
+    L = 7;  m = 40;
+    K = lsqvce.kernel.hatACV(L, m);
+    d = 1 / (2*(L-1));
+    % tol: quadrature settings -- 1e-14 / 1e-12, two digits below the assertion's bar
+    qOpt = {'AbsTol', 1e-14, 'RelTol', 1e-12};
+    for j = [1 4 L]
+        fj = (j-1) * d;
+        hat = @(f) max(0, 1 - abs(f - fj) / d);
+        for tau = [0 1 5 23]
+            ref = 2 * integral(@(f) hat(f) .* cos(2*pi*f*tau), 0, 0.5, 'Waypoints', fj, qOpt{:});
+            % tol: 1e-10 absolute -- the quadrature's own accuracy on a kinked integrand
+            verifyEqual(tc, K(tau+1, j), ref, 'AbsTol', 1e-10, sprintf('bin %d, lag %d', j, tau));
+        end
+        % tol: 1e-12 relative to r(0) -- eigenvalues of an exact PSD Toeplitz, rounding only
+        verifyGreaterThanOrEqual(tc, min(eig(toeplitz(K(:, j)))), -1e-12 * K(1, j), ...
+            sprintf('bin %d: its component is PSD', j));
+    end
+    % tol: 1e-12 absolute -- a flat spectrum interpolates exactly: r = [1; 0; ...]
+    verifyEqual(tc, K * ones(L, 1), [1; zeros(m-1, 1)], 'AbsTol', 1e-12, 'flat = white');
+    K2 = lsqvce.kernel.hatACV(L, 3*m + 1);
+    % tol: exact -- the same closed form at the same lags (no resampling, no period)
+    verifyEqual(tc, K2(1:m, :), K, 'AbsTol', 0, 'a longer arc only appends lags');
+    % the projection form (fold modulo 2(L-1) + one FFT) is K' * X without K
+    X = randn(RandStream('mt19937ar', 'Seed', 4), 3*m + 1, 2);
+    % tol: 1e-13 of sum |X| -- two summation orders (FFT vs matrix product), rounding only
+    verifyEqual(tc, lsqvce.kernel.hatACV(L, 3*m + 1, X), K2.' * X, 'AbsTol', 1e-13 * sum(abs(X(:))));
+    verifyError(tc, @() lsqvce.kernel.hatACV(L, m, X), 'lsqvce:hatACV:badX');
 end
-
-function test_psdVCE_warns_on_degenerate_white_start(tc)
-% categories: contract, robustness
-    seedFor(tc, 357);   % R7-45: drew from the global stream unseeded (suite-order dependent)
-    % C = [1 0 0 ...] annihilates every lag n>0 in the weighting, so those lags
-    % can never update: the iteration "converges" to the wrong PSD. Must warn.
-    N = 8;  M = 3;
-    Cdelta = [1; zeros(N-1,1)];
-    verifyWarning(tc, ...
-        @() lsqvce.engine.psdVCE(rand(N,M), rand(N,M), Cdelta), ...
-        'lsqvce:psdVCE:degenerateStart');
-end
-
-%% ===================== WP-35: floor policy + negative-factor clamp (F-04/05)
-function test_psdVCE_zero_power_bin_floors_not_abs(tc)
-% categories: precision
-    % F-04 pin: a bin whose pooled alpha2 is NEGATIVE must land ON the
-    % MinAmplitude floor -- never at |alpha2|*Sprior (the abs fold injected
-    % ~2x the power at zero-power bins, v10review T6). On the pre-WP-35
-    % code Shat(2) = 0.5*Sprior(2) >> floor, so this test fails there
-    % (the §6.1 lever).
-    C  = [1; 0.3; 0.3; 0.3];
-    % psdVCE forms alpha2 IN THE FREQUENCY DOMAIN (Omega and s are DCT-I
-    % transformed first, eq. 6.5.19-20) -- so the fixture picks the TARGET
-    % frequency-domain pair and inverse-transforms (DCT-I ortho is
-    % self-inverse): alpha2_j = [1 -0.5 1 1].
-    a2 = [1; -0.5; 1; 1];
-    Om = lsqvce.kernel.dctI(a2);              % OmegaTilde = a2 .* sTilde, sTilde = 1
-    s  = lsqvce.kernel.dctI(ones(4, 1));
-    % R7-30: no blanket warning('off','all') -- it blinded gate rule 7 here
-    pv = lsqvce.engine.psdVCE(Om, s, C, 'MinAmplitude', 1e-8, 'Smooth', 0, ...
-                       'ZeroFreqRule', 'keep');
-    Sprior = lsqvce.kernel.dctI(C);
-    verifyEqual(tc, pv.Shat(2), 1e-8, ...
-        'a negative-alpha2 bin must sit exactly ON the floor');
-    verifyGreaterThan(tc, 0.5*abs(Sprior(2)), 1e-6, ...
-        'fixture sanity: the abs fold would sit far above the floor');
-    healthy = [1 3 4];
-    % tol: untouched-bin identity (the floor policy must pass positive-power
-    % bins through unchanged); house exact-identity bound 1e-9
-    verifyEqual(tc, pv.Shat(healthy), Sprior(healthy), ...
-        'RelTol', 1e-9, 'positive-power bins are untouched by the policy');
-end
-
 function test_arcVarianceFactors_clamps_negative_sigma2(tc)
 % categories: contract
     % F-05 pin: a constructed negative alpha2 (one arc's Omega column
@@ -475,20 +469,18 @@ function test_psdVCE_freeze_redundancy_holds_weak_bins(tc)
 % categories: contract, robustness
     % R7-22: Options.Noise.FreezeRedundancy was documented ("a frequency whose
     % redundancy is below this holds its value") and reached nothing. psdVCE
-    % now holds a bin whose summed redundancy s_j is below the threshold.
-    % Built in the SPECTRAL domain ('ortho' DCT-I is self-inverse): every
-    % bin's ratio is 2, bin 3's redundancy is 0.5.
-    sTil  = [10; 10; 0.5; 10];
-    omTil = 2 * sTil;
-    omegaT = lsqvce.kernel.dctI(omTil);   sT = lsqvce.kernel.dctI(sTil);
-    C = lsqvce.kernel.dctI([4; 3; 2; 1]);              % a prior with support beyond lag 0 (no degenerate start)
-    free = lsqvce.engine.psdVCE(omegaT, sT, C, 'ZeroFreqRule', 'keep');
-    held = lsqvce.engine.psdVCE(omegaT, sT, C, 'ZeroFreqRule', 'keep', 'FreezeRedundancy', 1);
-    % tol: 1e-12 absolute -- one DCT round trip of O(10) numbers
+    % holds a bin whose redundancy Sprior_j * sum_m T(j, m) is below the
+    % threshold: every bin's ratio is 2, bin 3's redundancy is 0.5.
+    T = [10; 10; 0.5; 10];  Q = 2 * T;  S = ones(4, 1);
+    free = lsqvce.engine.psdVCE(Q, T, S);
+    held = lsqvce.engine.psdVCE(Q, T, S, 'FreezeRedundancy', 1);
+    % tol: 1e-12 absolute -- one division of O(10) numbers
     tc.verifyEqual(free.alpha2, [2; 2; 2; 2], 'AbsTol', 1e-12, 'without a freeze every bin updates');
     % tol: as above
     tc.verifyEqual(held.alpha2, [2; 2; 1; 2], 'AbsTol', 1e-12, 'the weak bin holds');
     tc.verifyEqual(held.frozen, [false; false; true; false]);
+    % the redundancy, not the bare denominator: the same bin with a 4x prior is free
+    tc.verifyFalse(any(lsqvce.engine.psdVCE(Q, T, [1; 1; 4; 1], 'FreezeRedundancy', 1).frozen));
     % and the Options knob reaches the joint driver (it was forwarded nowhere)
     a = lsqvce.Options(Noise=struct('FreezeRedundancy', 100, 'Smooth', 2)).engineArgs('adjustVCEjoint');
     k = find(strcmp(a.nv(1:2:end), 'FreezeRedundancy'));
@@ -496,44 +488,14 @@ function test_psdVCE_freeze_redundancy_holds_weak_bins(tc)
     k = find(strcmp(a.nv(1:2:end), 'Smooth'));
     tc.verifyEqual(a.nv{2*k}, 2);
 end
-
-function test_psdVCE_degenerate_flag_and_override(tc)
-% categories: robustness
-    seedFor(tc, 438);   % R7-45: drew from the global stream unseeded (suite-order dependent)
-    N = 8;  M = 3;
-    Cdelta = [1; zeros(N-1,1)];
-    p = lsqvce.engine.psdVCE(rand(N,M), rand(N,M), Cdelta, 'AllowDegenerate', true);
-    verifyTrue(tc, p.degenerate, 'the degenerate start must be flagged');
-    Cok = [1; 0.3*ones(N-1,1)];
-    q = lsqvce.engine.psdVCE(rand(N,M), rand(N,M), Cok);
-    verifyFalse(tc, q.degenerate);
-end
-
-function test_psdVCE_zero_frequency_rule(tc)
-% categories: contract, precision
-    rng(52);
-    N = 9;  M = 3;
-    C  = [1; 0.35.^(1:N-1).'];
-    pl = lsqvce.engine.psdVCE(rand(N,M), rand(N,M), C, 'ZeroFreqRule', 'lowest');
-    % tol: 0 -- an EXACT identity claim (same stored value, no arithmetic)
-    verifyEqual(tc, pl.Shat(1), pl.Shat(2), 'AbsTol', 0, ...
-        '''lowest'' must replace S^0 by the next amplitude');
-    pk = lsqvce.engine.psdVCE(rand(N,M), rand(N,M), C, 'ZeroFreqRule', 'keep');
-    verifySize(tc, pk.Shat, [N 1]);
-end
-
 function test_psdVCE_rejects_bad_shapes(tc)
 % categories: contract
-    seedFor(tc, 462);   % R7-45: drew from the global stream unseeded (suite-order dependent)
-    N = 6;
-    C = [1; 0.2*ones(N-1,1)];
-    verifyError(tc, @() lsqvce.engine.psdVCE(rand(N-1,3), rand(N-1,3), C), ...
+    S = ones(6, 1);
+    verifyError(tc, @() lsqvce.engine.psdVCE(ones(5,3), ones(5,3), S), ...
         'lsqvce:psdVCE:shapeMismatch');
-    verifyError(tc, @() lsqvce.engine.psdVCE(rand(N,3), rand(N,4), C), ...
+    verifyError(tc, @() lsqvce.engine.psdVCE(ones(6,3), ones(6,4), S), ...
         'lsqvce:psdVCE:arcMismatch');
 end
-
-%% ============================================ Phase D: arc-wise variance factors
 function test_arcVarianceFactors_plain_mean_normalises_to_one(tc)
 % categories: precision, reference
     % With the PLAIN mean (eq. 6.5.29) the mean of the arc FACTORS (not their
@@ -600,9 +562,9 @@ end
 function test_arcVarianceFactors_alpha2_is_blind_to_the_arcs_own_factor(tc)
 % categories: metamorphic, precision
     % R6 WP-98: THE INVARIANT THE F-01 FIX RESTS ON, pinned at machine
-    % precision. adjustVCEjoint>sweepArcs scales an arc's omegaT AND its sT by
-    % the same scalar s2_m, and alpha2_m is their ratio through two LINEAR maps
-    % (dctI, then a column sum), so s2_m divides out algebraically: alpha2 is a
+    % precision. adjustVCEjoint>sweepArcs hands an arc's numerator AND its
+    % denominator scaled by the same arc variance, and alpha2_m is their ratio
+    % through a LINEAR map (a column sum), so the factor divides out: alpha2 is a
     % function of the data and the law only and can NEVER respond to the factor
     % being estimated. That is why eq. 6.5.28 must multiply by the factor the
     % WEIGHTING used, not by the per-arc one -- multiplying by a number the
@@ -618,7 +580,7 @@ function test_arcVarianceFactors_alpha2_is_blind_to_the_arcs_own_factor(tc)
     a0 = lsqvce.engine.arcVarianceFactors(om,          sn,          ones(M, 1));
     a1 = lsqvce.engine.arcVarianceFactors(om .* s2.',  sn .* s2.',  s2);
     % tol: 1e-12 relative -- the cancellation is exact in exact arithmetic, so
-    % what is left is the rounding of two dctI transforms and two column sums
+    % what is left is the rounding of two column sums
     tc.verifyEqual(a1.alpha2, a0.alpha2, 'RelTol', 1e-12, ...
                    'alpha2 does not see the arc factor it is estimating');
     % and eq. 6.5.28 therefore multiplies a CONSTANT by whatever it is handed
@@ -639,9 +601,13 @@ function test_adjustVCEjoint_runs_and_returns_shapes(tc)
     r = lsqvce.engine.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
             'NumLags', nLag, 'MaxIter', 2, 'Probes', 40, 'Seed', 3, ...
             'Verbose', false);
-    verifySize(tc, r.C   , [nLag 1]);
-    verifySize(tc, r.Shat, [nLag 1]);
-    verifyTrue(tc, all(r.Shat > 0), 'the PSD must stay strictly positive');
+    verifySize(tc, r.C, [nLag 1]);
+    verifySize(tc, r.S, [nLag 1]);
+    verifyTrue(tc, all(r.S > 0), 'the spectrum must stay strictly positive');
+    % tol: 1e-12 -- the law is a shape by construction, r(0) = K(1, :) S = 1
+    verifyEqual(tc, r.C(1), 1, 'AbsTol', 1e-12, 'the returned law is normalised');
+    % tol: 1e-12 relative -- C is DERIVED from S, the same product evaluated once more
+    verifyEqual(tc, r.C, lsqvce.kernel.hatACV(nLag, nLag) * r.S, 'RelTol', 1e-12);
     verifyTrue(tc, numel(r.sigma2) >= 1, 'at least one arc factor');
     verifyTrue(tc, all(isfinite(r.sigma2)), 'arc factors must be finite');
     verifyClass(tc, r.acc, 'lsqvce.engine.BlockAccumulator');
@@ -656,7 +622,7 @@ function test_adjustVCEjoint_history_grows_per_iteration(tc)
             'NumLags', nLag, 'MaxIter', 3, 'Probes', 30, 'Seed', 5, ...
             'Tol', 1e-12);                       % force all iterations
     verifyEqual(tc, numel(r.history.maxDev), r.nIter);
-    verifySize(tc, r.history.Shat, [r.nIter nLag]);
+    verifySize(tc, r.history.S, [r.nIter nLag]);
     verifyTrue(tc, all(isfinite(r.history.maxDev)), ...
         'the convergence measure must be finite every pass');
 end
@@ -675,35 +641,47 @@ function test_adjustVCEjoint_model_reaches_accFcn(tc)
     verifyGreaterThanOrEqual(tc, rec.Count, 2, 'accFcn called once per pass');
     verifyTrue(tc, rec.isKey(1) && rec.isKey(2), 'iterations 1 and 2 recorded');
     m1 = rec(1);
-    verifyTrue(tc, isfield(m1, 'C') && isfield(m1, 'iter'), ...
-        'the model struct must carry C and iter');
+    verifyTrue(tc, isfield(m1, 'S') && isfield(m1, 'C') && isfield(m1, 'iter'), ...
+        'the model struct must carry S, C and iter');
     verifyEqual(tc, m1.iter, 1);
 end
 
-function test_adjustVCEjoint_default_start_is_not_degenerate(tc)
-% categories: contract, robustness
-    % The default C0 must NOT be a delta -- that start is a degenerate fixed
-    % point of the weighting (see LSQVCE.ENGINE.PSDVCE). A delta start DOES warn; the
-    % default must not.
-    cfg  = jointCfg();
-    nLag = 5;
-    % explicit delta start -> the degeneracy warning must fire
-    verifyWarning(tc, @() lsqvce.engine.adjustVCEjoint( ...
-            @(model) jointAcc(cfg, model), 'NumLags', nLag, 'MaxIter', 1, ...
-            'Probes', 20, 'Seed', 9, 'C0', [1; zeros(nLag-1,1)]), ...
-        'lsqvce:psdVCE:degenerateStart');
+function test_adjustVCEjoint_default_start_is_white(tc)
+% categories: contract, precision
+    % R7 WP-111 part 3: Ellmer's white start (eq. 6.5.62) is the default and
+    % is REGULAR under positive components (the DCT weighting made it a
+    % degenerate fixed point, and the default had to be [1; 0.3; ...]). Pass 1
+    % receives a flat spectrum and r = [1; 0; ...]; an explicit S0 arrives
+    % normalised to r(0) = 1.
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % provoked on purpose here (WP-47, gate rule 7)
+    cfg = jointCfg();
+    rec = containers.Map('KeyType', 'double', 'ValueType', 'any');
+    lsqvce.engine.adjustVCEjoint(@(model) recordAndBuild(rec, cfg, model), 'NumLags', 5, ...
+                                 'MaxIter', 1, 'Probes', 20, 'Seed', 9);
+    m1 = rec(1);
+    % tol: 1e-12 -- a flat spectrum interpolates exactly to white noise
+    verifyEqual(tc, m1.C, [1; 0; 0; 0; 0], 'AbsTol', 1e-12, 'the default start is white');
+    % tol: 1e-12 relative -- one normalisation of equal numbers
+    verifyEqual(tc, m1.S / m1.S(1), ones(5, 1), 'RelTol', 1e-12);
+    rec2 = containers.Map('KeyType', 'double', 'ValueType', 'any');
+    lsqvce.engine.adjustVCEjoint(@(model) recordAndBuild(rec2, cfg, model), 'NumLags', 5, ...
+                                 'MaxIter', 1, 'Probes', 20, 'Seed', 9, 'S0', [5; 4; 3; 2; 1]);
+    m2 = rec2(1);
+    % tol: 1e-12 -- the normalisation r(0) = 1 of the given S0
+    verifyEqual(tc, m2.C(1), 1, 'AbsTol', 1e-12, 'S0 arrives as a shape');
+    % tol: 1e-12 relative -- the same shape, rescaled
+    verifyEqual(tc, m2.S / m2.S(end), [5; 4; 3; 2; 1], 'RelTol', 1e-12);
 end
-
-function test_adjustVCEjoint_rejects_bad_C0(tc)
+function test_adjustVCEjoint_rejects_bad_S0(tc)
 % categories: contract
     cfg = jointCfg();
-    verifyError(tc, ...
-        @() lsqvce.engine.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
-                'NumLags', 8, 'C0', ones(3,1)), ...
-        'lsqvce:adjustVCEjoint:badC0');
+    for S0 = {ones(3,1), [1; -1; 1; 1; 1; 1; 1; 1], zeros(8,1), [1; NaN; 1; 1; 1; 1; 1; 1]}
+        verifyError(tc, ...
+            @() lsqvce.engine.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
+                    'NumLags', 8, 'S0', S0{1}), ...
+            'lsqvce:adjustVCEjoint:badS0');
+    end
 end
-
-%% ============================================ vceMode flag on adjustVCE
 function test_redundancyLags_fft_lag_sums_match_the_loop_form(tc)
 % categories: precision, vectorisation
     % R5 M3 3c: all per-lag sub-diagonal sums come from one FFT per column
@@ -738,7 +716,7 @@ function test_joint_policy_none_and_scale_and_pool(tc)
     %   'none'  : the stream's arc factors stay 1 and jointModelOpt emits NO
     %             override for it (untouched);
     %   'scale' : factors are estimated, the override carries the level ONLY;
-    %   Pool "stream": out.Cgroups holds one C per stream and out.C is it.
+    %   Pool "stream": out.Sgroups holds one law per stream and out.S is it.
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');
     cfg = jointCfg();
     key = 'x91|pos';
@@ -747,7 +725,7 @@ function test_joint_policy_none_and_scale_and_pool(tc)
              'MaxIter', 2, 'Probes', 80, 'Seed', 3, 'Verbose', false, 'Estimate', E);
     % tol: exact -- no factor is ever written back under 'none'
     tc.verifyEqual(rN.sigma2, ones(size(rN.sigma2)), 'none: factors untouched');
-    uoN = lsqvce.engine.jointModelOpt(struct('C', rN.C, 'sigma2', rN.sigma2, 'iter', 2, ...
+    uoN = lsqvce.engine.jointModelOpt(struct('S', rN.S, 'sigma2', rN.sigma2, 'iter', 2, ...
              'Estimate', E), {key});
     tc.verifyFalse(isfield(uoN.covOverride.bySys, 'x91'), 'none: no override at all');
 
@@ -755,7 +733,7 @@ function test_joint_policy_none_and_scale_and_pool(tc)
     rS = lsqvce.engine.adjustVCEjoint(@(model) jointAcc(cfg, model), 'NumLags', 6, ...
              'MaxIter', 2, 'Probes', 80, 'Seed', 3, 'Verbose', false, 'Estimate', E);
     tc.verifyTrue(any(rS.sigma2 ~= 1), 'scale: factors are estimated');
-    uoS = lsqvce.engine.jointModelOpt(struct('C', rS.C, 'sigma2', rS.sigma2, 'iter', 2, ...
+    uoS = lsqvce.engine.jointModelOpt(struct('S', rS.S, 'sigma2', rS.sigma2, 'iter', 2, ...
              'Estimate', E, 'streamSigma2', containers.Map({key}, {mean(rS.sigma2)})), {key});
     sp = uoS.covOverride.bySys.x91.pos;
     tc.verifyEqual(fieldnames(sp), {'sigmaScale'}, 'scale: the level only, on the declared law');
@@ -764,14 +742,15 @@ function test_joint_policy_none_and_scale_and_pool(tc)
 
     rP = lsqvce.engine.adjustVCEjoint(@(model) jointAcc(cfg, model), 'NumLags', 6, ...
              'MaxIter', 2, 'Probes', 80, 'Seed', 3, 'Verbose', false, 'Pool', "stream");
-    tc.verifyEqual(keys(rP.Cgroups), {key}, 'one law per stream');
-    % tol: exact -- out.C IS the single group's C
-    tc.verifyEqual(rP.C, rP.Cgroups(key));
-    % parity: with one stream, Pool "stream" and Pool "all" estimate the same C
+    tc.verifyEqual(keys(rP.Sgroups), {key}, 'one law per stream');
+    tc.verifyEqual(keys(rP.Cgroups), {key});
+    % tol: exact -- out.S IS the single group's S
+    tc.verifyEqual(rP.S, rP.Sgroups(key));
+    % parity: with one stream, Pool "stream" and Pool "all" estimate the same law
     rA = lsqvce.engine.adjustVCEjoint(@(model) jointAcc(cfg, model), 'NumLags', 6, ...
              'MaxIter', 2, 'Probes', 80, 'Seed', 3, 'Verbose', false);
     % tol: exact -- same arcs, same probes (seeded), same arithmetic on one group
-    tc.verifyEqual(rP.C, rA.C);
+    tc.verifyEqual(rP.S, rA.S);
 end
 
 function test_jointModelOpt_takes_sqrt_of_variance(tc)
@@ -780,7 +759,7 @@ function test_jointModelOpt_takes_sqrt_of_variance(tc)
     % carries is a STANDARD DEVIATION. R5 M3 3b: the level is RELATIVE to the
     % stream's declared sigma (sigmaScale, applied by applyCovOverride), so a
     % mean variance factor of 4 arrives as sigmaScale 2 -- never as sigma.
-    model = struct('C', [1; 0.4; 0.1], 'sigma2', [4; 4; 4], 'iter', 2);
+    model = struct('S', [1; 0.4; 0.1], 'sigma2', [4; 4; 4], 'iter', 2);
     uo = lsqvce.engine.jointModelOpt(model, {'x1|pos'});
     spec = uo.covOverride.bySys.x1.pos;
     % tol: value plumbing identity (stored numbers surfaced unchanged); house round-trip bound 1e-12
@@ -797,35 +776,34 @@ function test_jointModelOpt_takes_sqrt_of_variance(tc)
 end
 function test_jointModelOpt_emits_a_psd_on_normalised_frequency(tc)
 % categories: contract, precision
-    % R5 M3 3b (H-17): the joint law leaves as a PSD on NORMALISED frequency
-    % (the driver's C is per SAMPLE lag; covModel places it on the arc's dt),
-    % positive by construction, and its autocovariance reproduces the SHAPE
-    % of C -- for every dt, which the truncated acf of R4 G-08 got wrong.
-    c = [1; 0.4; 0.1; 0.05];
-    model = struct('C', c, 'sigma2', [], 'iter', 1);
-    uo = lsqvce.engine.jointModelOpt(model, {'x1|kbr'});
+    % R5 M3 3b (H-17) / R7 WP-111 part 3: the joint law leaves as a PSD on
+    % NORMALISED frequency (the bins are per SAMPLE; covModel places them on
+    % the arc's dt): ordinates 2 S on fNorm = f_j, scaled to r(0) = 1, and
+    % its autocovariance IS the hat-basis law K S -- exactly, at every lag
+    % and for every dt (the 3b cosine transform of a truncated ACF matched
+    % only the shape, to 5e-2).
+    S = [3; 2; 0.5; 0.1; 0.02];  L = numel(S);
+    uo = lsqvce.engine.jointModelOpt(struct('S', S, 'sigma2', [], 'iter', 1), {'x1|kbr'});
     spec = uo.covOverride.bySys.x1.kbr;
     tc.verifyEqual(spec.type, 'psd');
     tc.verifyEqual(spec.fNorm(1), 0);
     % tol: exact -- the last grid point IS the normalised Nyquist by construction
     tc.verifyEqual(spec.fNorm(end), 0.5);
-    tc.verifyTrue(all(spec.S > 0), 'positive by construction');
+    m = 30;
+    K = lsqvce.kernel.hatACV(L, m);
+    rLaw = K * S / (K(1, :) * S);
     for dt = [1 5]
         % on the physical axis f = fNorm/dt the density is S*dt (covModel does this)
-        r = lsqvce.kernel.psd2acv(spec.fNorm / dt, spec.S * dt, dt, 4);
-        % The exact ACV of the piecewise-linear law through 4 ordinates
-        % (psd2acv since WP-111 part 2) gives 0.365 / 0.068 against 0.4 / 0.1;
-        % the SHAPE (c(1) = 1, monotone decay) is the claim, exactness is not.
-        % tol: 5e-2 absolute, a few percent of a 4-ordinate law
-        tc.verifyEqual(r(1), 1, 'AbsTol', 5e-2, sprintf('lag 0 at dt = %g', dt));
-        % tol: as above
-        tc.verifyEqual(r(2:3), c(2:3), 'AbsTol', 5e-2, sprintf('shape at dt = %g', dt));
+        r = lsqvce.kernel.psd2acv(spec.fNorm / dt, spec.S * dt, dt, m);
+        % tol: 1e-10 absolute on r(0) = 1 -- psd2acv's small-argument series (x < 1e-2) is
+        % accurate to x^4 / 280 relative, the rest is rounding
+        tc.verifyEqual(r(:), rLaw, 'AbsTol', 1e-10, sprintf('the law K S at dt = %g', dt));
     end
 end
 function test_jointModelOpt_places_override_bySys(tc)
 % categories: contract
     % CONVENTION 2: loaders read opt.covOverride.bySys.(satKey).(obsType).
-    model = struct('C', [1; 0.3], 'sigma2', [], 'iter', 1);
+    model = struct('S', [1; 0.3], 'sigma2', [], 'iter', 1);
     uo = lsqvce.engine.jointModelOpt(model, {'x1|posC', 'x2|rr'});
     verifyTrue(tc, isfield(uo, 'covOverride'));
     verifyTrue(tc, isfield(uo.covOverride, 'bySys'));
@@ -840,7 +818,7 @@ function test_jointModelOpt_emits_the_arc_factors_as_a_std(tc)
     % factor relative to its stream's level) leaves as covOverride.byArc, a
     % STANDARD DEVIATION -- convention 1 again, now per arc. No arcFactor, no
     % byArc: a run without arc factors builds the same UserOpt as before.
-    model = struct('C', [1; 0.3], 'sigma2', [], 'iter', 2);
+    model = struct('S', [1; 0.3], 'sigma2', [], 'iter', 2);
     uo = lsqvce.engine.jointModelOpt(model, {'x1|a'});
     verifyFalse(tc, isfield(uo.covOverride, 'byArc'), 'no factors, no per-arc layer');
     k1 = lsqvce.util.rowWeightKey(1, 3, 'a', 2);
@@ -856,7 +834,7 @@ function test_jointModelOpt_sets_psdMode_on_useropt(tc)
 % categories: contract
     % CONVENTION 3: psdMode is read from the UserOpt, NOT from the spec. It must
     % appear at the top level or covModel silently uses its 'ar' default.
-    model = struct('C', [1; 0.2], 'sigma2', 1, 'iter', 1);
+    model = struct('S', [1; 0.2], 'sigma2', 1, 'iter', 1);
     uo = lsqvce.engine.jointModelOpt(model, {'x1|pos'});
     verifyEqual(tc, uo.psdMode, 'toeplitz', ...
         'joint mode must ask for the direct Toeplitz build, not an AR fit');
@@ -866,12 +844,12 @@ end
 
 function test_jointModelOpt_psd_is_a_shape(tc)
 % categories: precision
-    % The pooled law is normalised (C(1) -> 1): a C ten times larger gives the
+    % The pooled law is normalised (r(0) -> 1): an S ten times larger gives the
     % SAME PSD; the level rides on sigmaScale (per stream), never on S.
-    c = [1; 0.5; 0.2];
-    u1 = lsqvce.engine.jointModelOpt(struct('C', c,     'sigma2', 1, 'iter', 1), {'x1|pos'});
-    u2 = lsqvce.engine.jointModelOpt(struct('C', 10*c,  'sigma2', 1, 'iter', 1), {'x1|pos'});
-    % tol: 1e-12 relative -- one cosine sum on three numbers, evaluated twice
+    S = [2; 1; 0.5];
+    u1 = lsqvce.engine.jointModelOpt(struct('S', S,     'sigma2', 1, 'iter', 1), {'x1|pos'});
+    u2 = lsqvce.engine.jointModelOpt(struct('S', 10*S,  'sigma2', 1, 'iter', 1), {'x1|pos'});
+    % tol: 1e-12 relative -- one normalisation of three numbers, evaluated twice
     verifyEqual(tc, u2.covOverride.bySys.x1.pos.S, u1.covOverride.bySys.x1.pos.S, 'RelTol', 1e-12);
     % tol: value plumbing identity (sqrt(1)); house round-trip bound 1e-12
     verifyEqual(tc, u1.covOverride.bySys.x1.pos.sigmaScale, 1, 'AbsTol', 1e-12);
@@ -879,7 +857,7 @@ function test_jointModelOpt_psd_is_a_shape(tc)
 end
 function test_jointModelOpt_accepts_cell_streams(tc)
 % categories: contract
-    model = struct('C', [1; 0.3], 'sigma2', 1, 'iter', 1);
+    model = struct('S', [1; 0.3], 'sigma2', 1, 'iter', 1);
     uo = lsqvce.engine.jointModelOpt(model, {{1, 'pos'}});
     verifyTrue(tc, isfield(uo.covOverride.bySys, 'x1'), ...
         'a numeric sysID must become the makeValidName key');
@@ -890,10 +868,13 @@ function test_jointModelOpt_rejects_bad_input(tc)
     verifyError(tc, @() lsqvce.engine.jointModelOpt(struct('a',1), {'x1|pos'}), ...
         'lsqvce:jointModelOpt:badModel');
     verifyError(tc, @() lsqvce.engine.jointModelOpt( ...
-        struct('C', [], 'sigma2', 1, 'iter', 1), {'x1|pos'}), ...
-        'lsqvce:jointModelOpt:badC');
+        struct('S', [], 'sigma2', 1, 'iter', 1), {'x1|pos'}), ...
+        'lsqvce:jointModelOpt:badS');
     verifyError(tc, @() lsqvce.engine.jointModelOpt( ...
-        struct('C', [1;0.2], 'sigma2', 1, 'iter', 1), {'nopipe'}), ...
+        struct('S', [1; -0.2], 'sigma2', 1, 'iter', 1), {'x1|pos'}), ...
+        'lsqvce:jointModelOpt:badS');
+    verifyError(tc, @() lsqvce.engine.jointModelOpt( ...
+        struct('S', [1;0.2], 'sigma2', 1, 'iter', 1), {'nopipe'}), ...
         'lsqvce:jointModelOpt:badStream');
 end
 
@@ -941,6 +922,23 @@ function test_axis_pooling_recovers_temporal_law(tc)
         'the row-based ACV must peak at the axis stride, not at lag 1');
 end
 
+function v = lagSumsLocal(M)
+    % v(n+1) = sum of M over the +n and -n diagonals (n = 0..m-1), so that
+    % v' * r = trace(M * toeplitz(r)) -- the dense reference of redundancyLags.
+    m = size(M, 1);  v = zeros(m, 1);
+    v(1) = trace(M);
+    for n = 1:m-1
+        v(n+1) = sum(diag(M, -n)) + sum(diag(M, n));
+    end
+end
+
+function S = armaSpecLocal(ar, ma, L)
+    % The ARMA spectral SHAPE |MA|^2 / |AR|^2 on the L bins f_j = j / (2(L-1)).
+    f = (0:L-1).' / (2*(L-1));
+    z = @(c) exp(-2i*pi*f*(0:numel(c)-1)) * c(:);
+    S = abs(z(ma)).^2 ./ abs(z(ar)).^2;
+end
+
 function r = biasedAcvLocal(v, L)
     v = v(:);  n = numel(v);
     r = zeros(L,1);
@@ -970,7 +968,9 @@ end
 
 function acc = recordAndBuild(rec, cfg, model)
     % Record the model the driver passed in, then build the accumulator.
-    rec(model.iter) = model; %#ok<NASGU>  (containers.Map is a handle)
+    % The FIRST model per pass: the final re-accumulation carries the last
+    % pass's index and must not overwrite what that pass was weighted with.
+    if ~isKey(rec, model.iter), rec(model.iter) = model; end   % containers.Map is a handle
     acc = jointAcc(cfg, model);
 end
 
@@ -1126,15 +1126,23 @@ end
 %% =========================== WP-39 stage (a): typed-signature enforcement
 function test_stageB_signatures_psd_and_lags(tc)
 % categories: contract
-    % WP-39 stage (b) (F-07): psdVCE's enum-value lever (specific
-    % mustBeMember id) and redundancyLags' typed positionals.
+    % WP-39 stage (b) (F-07): psdVCE's typed prior (R7 WP-111 part 3: a
+    % spectrum, so non-negative -- the ZeroFreqRule enum it replaced is gone)
+    % and redundancyLags' typed positionals.
     ok = false;
     try
-        lsqvce.engine.psdVCE(ones(4,2), ones(4,2), ones(4,1), 'ZeroFreqRule', 'Lowest');
+        lsqvce.engine.psdVCE(ones(4,2), ones(4,2), [1; -1; 1; 1]);
     catch e
-        ok = strcmp(e.identifier, 'MATLAB:validators:mustBeMember');
+        ok = strcmp(e.identifier, 'MATLAB:validators:mustBeNonnegative');
     end
-    verifyTrue(tc, ok, 'psdVCE ZeroFreqRule ''Lowest'' must fail mustBeMember');
+    verifyTrue(tc, ok, 'a negative prior spectrum must fail mustBeNonnegative');
+    ok = false;
+    try
+        lsqvce.engine.psdVCE(ones(4,2), ones(4,2), ones(4,1), 'ZeroFreqRule', 'keep');
+    catch
+        ok = true;
+    end
+    verifyTrue(tc, ok, 'the retired ZeroFreqRule is an unknown option');
     ok = false;
     try
         lsqvce.engine.psdVCE(ones(4,2), ones(4,2), ones(4,1), 'Gamma', 1.5);
@@ -1286,20 +1294,30 @@ end
 function test_adjustVCEjoint_flat_psd_on_white_noise_with_locals(tc)
 % categories: contract
     % Driver-level accuracy (spec 1 at the adjustVCEjoint level): on the
-    % white (diag) fixture WITH nl = 2 locals the estimated PSD must stay
-    % FLAT -- no arc-parameter signal folded into the "noise". Pre-WP-33 the
-    % omitted B*y inflated the low lags (Omega_0 x3.8, T3).
+    % white (diag) fixture WITH nl = 2 locals the estimated spectrum must stay
+    % FLAT -- no arc-parameter signal folded into the "noise", which would
+    % lift the LOW bins (pre-WP-33 the omitted B*y inflated the low lags,
+    % Omega_0 x3.8, T3).
+    % R7 WP-111 part 3: ONE pass. The fixture keeps the declared (white) law
+    % fixed, so a second pass multiplies the same bin scatter in again; and
+    % the bars are the estimator's own scatter, not a wish: 6 bins on 2 arcs
+    % of 40 epochs give each bin a redundancy of only 7-15. Simulated with
+    % exact traces (white truth, 6 parameters, 2000 draws): max/min of the
+    % bins median 2.10, p99 5.06; mean(bins 1-2) / mean(bins 3-6) p99 2.14,
+    % p99.9 2.58. (The DCT-era bar max/min < 3 after two passes sits at
+    % p95 13 here -- CI ac38c75.)
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % provoked on purpose here (WP-47, gate rule 7)
     cfg  = jointCfg();
     r = lsqvce.engine.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
-            'NumLags', 6, 'MaxIter', 2, 'Probes', 200, 'Seed', 11, ...
+            'NumLags', 6, 'MaxIter', 1, 'Probes', 200, 'Seed', 11, ...
             'Verbose', false);
-    S = r.Shat / median(r.Shat);
-    verifyTrue(tc, max(S)/min(S) < 3.0, ...
-        sprintf(['white truth => flat PSD: max/min = %.2f (arc-parameter ' ...
-                 'leakage shows up as structure)'], max(S)/min(S)));
+    S = r.S;
+    verifyLessThan(tc, mean(S(1:2)) / mean(S(3:end)), 2.6, ...
+        sprintf(['white truth => no low-frequency excess: low/high = %.2f ' ...
+                 '(arc-parameter leakage lifts the low bins)'], mean(S(1:2)) / mean(S(3:end))));
+    verifyLessThan(tc, max(S) / min(S), 6, ...
+        sprintf('white truth => flat within the bin scatter: max/min = %.2f', max(S) / min(S)));
 end
-
 function test_joint_stabilised_alternation_beats_collapse(tc)
 % categories: robustness
     % WP-40 r2 (F-15; fails on the old code: the options are unknown): the
@@ -1319,9 +1337,8 @@ function test_joint_stabilised_alternation_beats_collapse(tc)
     r = lsqvce.engine.adjustVCEjoint(@(model) jointAccMapped(cfg, model), ...
             'NumLags', nLag, 'MaxIter', 12, 'Probes', 300, 'Seed', 13, ...
             'StepSchedule', 'decay', 'AvgTail', 4, 'Verbose', false);
-    Strue = lsqvce.kernel.dctI(lsqvce.kernel.armaACV(cfg.cov.pos.ar, cfg.cov.pos.ma, nLag));
-    Strue = abs(Strue(:));
-    cc = corrcoef(r.Shat(2:end), Strue(2:end));
+    Strue = armaSpecLocal(cfg.cov.pos.ar, cfg.cov.pos.ma, nLag);   % the truth on the bins
+    cc = corrcoef(r.S(2:end), Strue(2:end));
     % Round-6 bar (FAITHFUL-mirror measured; the 0.8 bar rested on the
     % unfaithful mirror's 0.87-0.91 promise): with the psd2acv declaration
     % the stabilised loop's seed floor is ~0.59 at this volume and the
@@ -1348,7 +1365,7 @@ function test_joint_default_schedule_is_plain_step(tc)
     b = lsqvce.engine.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
             'NumLags', 6, 'MaxIter', 1, 'Probes', 100, 'Seed', 5, ...
             'StepSchedule', 'none', 'AvgTail', 0, 'Verbose', false);
-    verifyEqual(tc, b.Shat, a.Shat);             % NO tolerance: bitwise
+    verifyEqual(tc, b.S, a.S);                   % NO tolerance: bitwise
     verifyEqual(tc, b.C,    a.C);
 end
 
@@ -1368,6 +1385,9 @@ function test_adjustVCEjoint_psd_recovery_coloured_with_locals(tc)
     % code corr ranged 0.55-0.95 over seeds) -- the §6.1 fail-on-old-code
     % lever for F-03 is round 1's alpha2-at-truth test, NOT this one. This
     % test guards the chain's recovery quality against future regressions.
+    % R7 WP-111 part 3: the law is the bin spectrum S (white start) and the
+    % truth is the exact ARMA spectrum on the same bins -- the DCT of the
+    % truncated ACF it was compared with before is gone with the DCT.
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % provoked on purpose here (WP-47, gate rule 7)
     cfg  = jointCfgColoured();
     nLag = 10;
@@ -1375,9 +1395,8 @@ function test_adjustVCEjoint_psd_recovery_coloured_with_locals(tc)
     r = lsqvce.engine.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
             'NumLags', nLag, 'MaxIter', 1, 'Probes', 300, 'Seed', 13, ...
             'Verbose', false);
-    Strue = lsqvce.kernel.dctI(lsqvce.kernel.armaACV(cfg.cov.pos.ar, cfg.cov.pos.ma, nLag));
-    Strue = abs(Strue(:));
-    cc = corrcoef(r.Shat(:), Strue);
+    Strue = armaSpecLocal(cfg.cov.pos.ar, cfg.cov.pos.ma, nLag);   % the truth on the bins
+    cc = corrcoef(r.S(:), Strue);
     verifyGreaterThan(tc, cc(1,2), 0.85, ...
         sprintf('coloured-chain accuracy floor: corr = %.3f (need > 0.85)', ...
                 cc(1,2)));
@@ -1559,33 +1578,17 @@ function acc = jointAccMapped(cfg, model) %#ok<DEFNU>
     % NOT called by the r2f floor test: kept as the documented CLOSED-LOOP
     % reproduction fixture for finding F-15 (alternation bistability, §8;
     % queued on WP-40) and the wp33_loop_mirror.py cross-reference.
-    % The coloured fixture's CLOSED LOOP (Ellmer's alternation, r2c route):
-    % the driver's current model.C is declared back as the covariance via
-    % the toolbox's PD-safe 'psd' path — Shat = dctI(C) upsampled to 160
-    % frequencies (>= mArc/2 + 1 = 129, covModel's rank rule) and psdMode
-    % 'toeplitz' for the dense Cfcn oneArc needs. Generation always follows
-    % cfg.cov. Restored in r2e: r2d's open-loop replacement was wrong — the
-    % sigma^2*C.*omega weighting suppresses all lags under a flat prior, so
-    % Ellmer's scheme NEEDS the alternation (mirror evidence:
-    % validation/wp33_loop_mirror.py).
+    % The coloured fixture's CLOSED LOOP: the driver's current law is
+    % declared back as the covariance and psdMode 'toeplitz' gives the dense
+    % Cfcn oneArc needs. Generation always follows cfg.cov.
+    % R7 WP-111 part 3: the driver's law is the bin spectrum model.S; it is
+    % declared back exactly as jointModelOpt emits it ('psd' on fNorm, the
+    % ordinates 2 S scaled to r(0) = 1), so the loader's covariance IS K S.
     uo = struct();
-    if ~isempty(model) && isfield(model, 'C') && ~isempty(model.C)
-        C     = model.C(:);
-        Shat  = max(lsqvce.kernel.dctI(C), 0);
-        % WP-40 r2 hardening: under the STABILISED loop the fed-back C can
-        % produce interpolation edge cases the zero-clamp below does not
-        % cover on every path (CI: psd2acv rejected a non-nonnegative S
-        % inside the declaration; MATLAB's max() also heals NaN). Declare
-        % with a strictly positive floor relative to the spectrum's peak --
-        % psdModel floors again internally, so this changes nothing for
-        % healthy spectra.
-        sFloor = 1e-12 * max([Shat(:); realmin]);
-        fNyq  = 1/(2*cfg.dt);
-        fC    = (0:numel(C)-1).' * fNyq/(numel(C)-1);
-        fD    = linspace(0, fNyq, 160).';        % 160 >= 256/2 + 1
-        SD    = max(interp1(fC, Shat(:), fD, 'pchip'), sFloor);
-        uo.covOverride.pos = struct('type','psd', 'f', fD, 'S', SD, ...
-                                    'sigma', 1);
+    if ~isempty(model) && isfield(model, 'S') && ~isempty(model.S)
+        J = lsqvce.engine.jointModelOpt(struct('S', model.S), {'x92|pos'});
+        sp = J.covOverride.bySys.x92.pos;
+        uo.covOverride.pos = struct('type', 'psd', 'fNorm', sp.fNorm, 'S', sp.S, 'sigma', 1);
         uo.psdMode = 'toeplitz';
     else
         uo.covOverride.pos = struct('type','diag', 'sigma', 1.0);
@@ -1600,7 +1603,7 @@ function acc = jointAccMapped(cfg, model) %#ok<DEFNU>
 end
 
 function acc = jointAcc(cfg, model)
-    % Rebuild the accumulator. A production caller would map model.C / model.sigma2
+    % Rebuild the accumulator. A production caller would map model.S / model.sigma2
     % into the loader's covariance; here the fixture keeps the LAW fixed so
     % the test exercises the DRIVER's plumbing, not the loader's. A cfg.override
     % reaches the loader as UserOpt (generic hook; the coloured fixture now

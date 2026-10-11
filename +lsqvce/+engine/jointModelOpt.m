@@ -30,7 +30,10 @@ function uo = jointModelOpt(model, streams, opt)
 %
 %   INPUT
 %     model    1x1 struct   as handed to accFcn by LSQVCE.ENGINE.ADJUSTVCEJOINT:
-%                             .C       nLag x 1  current covariance function
+%                             .S       L x 1     the current law: the bin
+%                                      spectrum (>= 0) on f_j = j / (2(L-1))
+%                                      cycles per sample, LSQVCE.KERNEL.HATACV;
+%                                      .Sgroups the same per pool group
 %                             .sigma2  M x 1     current arc variance factors
 %                             .iter    1x1       iteration number
 %                             .arcFactor containers.Map (optional)
@@ -38,7 +41,7 @@ function uo = jointModelOpt(model, streams, opt)
 %                                      variance factor RELATIVE to its stream's
 %                                      level (R7-13); emitted as
 %                                      covOverride.byArc (sqrt: a std)
-%                           On iter == 1 .C may be the starting guess and
+%                           On iter == 1 .S may be the starting guess and
 %                           .sigma2 may be empty; both are handled.
 %     streams  1xS cell     the (sysID, obsType) pairs the override must cover,
 %                           each either 'satKey|obsType' (as LSQVCE.FIT
@@ -80,10 +83,15 @@ function uo = jointModelOpt(model, streams, opt)
 %   ERRORS
 %     lsqvce:jointModelOpt:badModel   the model spec is unrecognised
 %     lsqvce:jointModelOpt:badStream  the stream key is unknown
-%     lsqvce:jointModelOpt:badC       the cross-covariance has the wrong shape
+%     lsqvce:jointModelOpt:badS       the law is not a finite non-negative spectrum
 %
 %   See also LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.MAKELOADER
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 3 (R7-02): the law
+%   arrives as the bin spectrum model.S / .Sgroups and leaves as the 'psd'
+%   spec with ordinates 2 S on fNorm = f_j -- exactly the hat-basis law, with
+%   no cosine transform of a truncated ACF and no floor (badC -> badS). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-116 part 2 (R7-13): the
 %   per-arc factors reach the loader (covOverride.byArc, a relative standard
 %   deviation per arc on top of the stream's level), so they weight the
@@ -121,16 +129,12 @@ end
 
     o = struct('PsdMode', char(opt.PsdMode), 'Sigma', opt.Sigma, 'Base', opt.Base);
 
-    if ~isstruct(model) || ~isfield(model, 'C')
+    if ~isstruct(model) || ~isfield(model, 'S')
         error('lsqvce:jointModelOpt:badModel', ...
              ['model must be the struct LSQVCE.ENGINE.ADJUSTVCEJOINT passes to accFcn ' ...
-              '(fields .C, .sigma2, .iter).']);
+              '(fields .S, .sigma2, .iter).']);
     end
-    C = model.C(:);
-    if isempty(C) || ~all(isfinite(C))
-        error('lsqvce:jointModelOpt:badC', ...
-              'model.C must be a finite covariance function.');
-    end
+    S = checkedLaw(model.S);
 
     % ---- the overall scale: VARIANCE -> STANDARD DEVIATION (convention 1) ---
     %   model.sigma2 holds per-arc VARIANCE factors. A covariance spec wants a
@@ -144,18 +148,19 @@ end
     end
 
     % ---- the covariance spec, shared by every stream -----------------------
-    % R5 M3 3b (finding H-17): the law leaves here in the PSD DOMAIN, on
-    % normalised frequency (the lags are sample lags): S(fNorm) =
-    % 2 [C_0 + 2 sum_n C_n cos(2 pi fNorm n)] on L points 0 .. 0.5, floored
-    % at eps*max -- positive by construction; covModel places it on the arc's
-    % physical axis with the arc's dt and resamples it to whatever grid the
-    % arc's length needs. Before 3b the override was a truncated ACF, which is
-    % a non-PD Toeplitz for every arc longer than NumLags (the G-08 class).
-    % The pooled C is a SHAPE (normalised to C(1) = 1); every stream keeps its
+    % R5 M3 3b (finding H-17) / R7 WP-111 part 3: the law leaves here in the
+    % PSD DOMAIN, on normalised frequency (the lags are sample lags): the bin
+    % spectrum S itself, as covModel's ONE-sided ordinates 2 S on fNorm = f_j;
+    % covModel places it on the arc's physical axis with the arc's dt and
+    % LSQVCE.KERNEL.PSD2ACV integrates it exactly -- r = K S at every lag,
+    % positive semi-definite for every arc length. (3b sent the cosine
+    % transform of a truncated ACF, floored at eps*max: the floor is what made
+    % the declared covariance near-singular, review R7-02.)
+    % The pooled law is a SHAPE (normalised to r(0) = 1); every stream keeps its
     % declared level times its own factor (sigmaScale, applied by
     % applyCovOverride) -- one global level would erase the scale difference
     % between, say, range-rate and positions (found on the demo: RCOND 1e-50).
-    spec = lawSpecs(C, o.Base);
+    spec = lawSpecs(S, o.Base);
     % R6 WP-90: the override carries the PSD law for EVERY 'law' stream; the
     % LOADER composes it with the per-epoch Cep the arc carries (multi-axis
     % or scalar) -- the former 'Separable' AR form is gone, the decision sits
@@ -166,11 +171,11 @@ end
     % ---- pack into opt.covOverride.bySys.(satKey).(obsType) (convention 2) --
     % R5 M3 3d: per-stream POLICY (model.Estimate: 'none' -> no override at
     % all; 'scale' -> the level only, on the declared law; 'law' -> the
-    % PSD shape of the stream's pool group (model.Cgroups / model.Pool)
+    % PSD shape of the stream's pool group (model.Sgroups / model.Pool)
     % plus the level).
-    E = [];  Cg = [];  pool = 'all';
+    E = [];  Sg = [];  pool = 'all';
     if isfield(model, 'Estimate'), E = model.Estimate; end
-    if isfield(model, 'Cgroups'),  Cg = model.Cgroups; end
+    if isfield(model, 'Sgroups'),  Sg = model.Sgroups; end
     if isfield(model, 'Pool'),     pool = lower(char(model.Pool)); end
     bySys = struct();
     for k = 1:numel(streams)
@@ -190,15 +195,15 @@ end
             bySys.(satKey).(ot) = struct('sigmaScale', lvl);
             continue
         end
-        % 'law': the group's C when a per-group estimate exists, else the pooled C
+        % 'law': the group's S when a per-group estimate exists, else the pooled S
         switch pool
             case 'obstype', gk = ot;
             case 'stream',  gk = key;
             otherwise,      gk = 'all';
         end
         sp = spec;
-        if ~isempty(Cg) && isKey(Cg, gk) && ~strcmp(gk, 'all')
-            sp = lawSpecs(Cg(gk), o.Base);
+        if ~isempty(Sg) && isKey(Sg, gk) && ~strcmp(gk, 'all')
+            sp = lawSpecs(checkedLaw(Sg(gk)), o.Base);
         end
         sp.sigmaScale = lvl;
         bySys.(satKey).(ot) = sp;
@@ -237,19 +242,25 @@ function [satKey, ot] = splitStreamKey(s)
     ot     = char(parts(2));
 end
 
-function spec = lawSpecs(C, base)
-%LAWSPECS  The PSD-shape spec of one covariance function C (sample lags):
-%   S(fNorm) = 2 [C_0 + 2 sum_n C_n cos(2 pi fNorm n)] on L points 0..0.5,
-%   normalised to C(1) = 1, floored at eps*max.
-    C = C(:);
-    L = numel(C);
-    Cn = C / max(C(1), eps);
-    fNorm = (0:L-1).' / (2*(L-1));
-    n = 1:L-1;
-    S = 2 * (Cn(1) + 2 * (cos(2*pi*fNorm*n) * Cn(2:end)));
-    S = max(S, eps * max(S));
+function S = checkedLaw(S)
+%CHECKEDLAW  The bin spectrum as a column, refused unless finite, >= 0, not all zero.
+    S = S(:);
+    if numel(S) < 2 || ~all(isfinite(S)) || any(S < 0) || ~any(S > 0)
+        error('lsqvce:jointModelOpt:badS', ...
+              'model.S must be a finite non-negative bin spectrum (>= 2 bins, not all zero).');
+    end
+end
+
+function spec = lawSpecs(S, base)
+%LAWSPECS  The 'psd' spec of the bin spectrum S: covModel's ONE-sided
+%   ordinates 2 S on fNorm = j / (2(L-1)) (LSQVCE.KERNEL.HATACV's convention),
+%   scaled to r(0) = 1 (the law is a shape; the level is sigmaScale), merged
+%   into base. r(0) = d sum_j c_j S_j, d = 1/(2(L-1)), c_j = 2 (1 at the ends).
+    L = numel(S);
+    c = 2 * ones(L, 1);  c([1 L]) = 1;
+    r0 = sum(c .* S) / (2*(L-1));
     spec = base;
     spec.type  = 'psd';
-    spec.fNorm = fNorm;
-    spec.S     = S;
+    spec.fNorm = (0:L-1).' / (2*(L-1));
+    spec.S     = 2 * S / r0;
 end

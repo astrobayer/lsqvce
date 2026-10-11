@@ -22,7 +22,7 @@ classdef Results < handle
 %                                  redundancy, leverage, w-tests, MDB, ...
 %     history    1xI      struct   Per-iteration record (empty for a single
 %                                  solve; filled by LSQVCE.ENGINE.ADJUSTVCEJOINT:
-%                                  .maxDev .Shat .streams .sigma .white
+%                                  .maxDev .S .streams .sigma .white
 %                                  .whitePval per pass, .skips, .nIter, and
 %                                  under Robust the per-pass .robustScale (one
 %                                  column per stream) .nDown .nZero -- R6 WP-105;
@@ -32,7 +32,9 @@ classdef Results < handle
 %     noise      1x1      struct   Fitted noise models per stream (empty until
 %                                  the variance-component loop populates it):
 %                                  .stream (keys) .model{k} (.sigma the level,
-%                                  .C the law) .Cgroups (one C per pool group)
+%                                  .C the law's ACV) .S (the law: the bin
+%                                  spectrum, LSQVCE.KERNEL.HATACV) .Sgroups /
+%                                  .Cgroups (one per pool group)
 %                                  .priors .priorHistory, and .robust
 %                                  (R6 WP-105: .influence, .scale per stream,
 %                                  .streams, .factor ONE PER EPOCH in sweep
@@ -119,6 +121,10 @@ classdef Results < handle
 %   See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.REPORT,
 %            LSQVCE.ENGINE.VERDICT, LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 3: noise.S /
+%   noise.Sgroups (the bin spectrum) replace noise.Shat; plot("psd") draws the
+%   bins themselves. With assistance from Claude (Anthropic), model Claude
+%   Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 4: systematic, snoop,
 %   reliability and ellipse -- everything the verdict tells the user to do is
 %   a method on R (lsqvce.engine.verdict behind them). With assistance from
@@ -304,18 +310,16 @@ classdef Results < handle
                     h = obj.requireHistory('plot("psd")');
                     fh = figure('Visible', opt.Visible, 'Name', 'lsqvce: estimated spectra');
                     ax = axes('Parent', fh);
-                    if isfield(obj.noise, 'Cgroups') && ~isempty(obj.noise.Cgroups) && obj.noise.Cgroups.Count > 0
-                        ks = obj.noise.Cgroups.keys;
+                    if isfield(obj.noise, 'Sgroups') && ~isempty(obj.noise.Sgroups) && obj.noise.Sgroups.Count > 0
+                        ks = obj.noise.Sgroups.keys;
                         hold(ax, 'on');
                         for k = 1:numel(ks)
-                            C = obj.noise.Cgroups(ks{k});  L = numel(C);
-                            fN = (0:L-1).' / (2*(L-1));
-                            S = 2 * (C(1) + 2 * (cos(2*pi*fN*(1:L-1)) * C(2:end)));
-                            semilogy(ax, fN, max(S, eps*max(S)), 'DisplayName', ks{k});
+                            S = obj.noise.Sgroups(ks{k});  L = numel(S);     % the bins themselves (WP-111)
+                            semilogy(ax, (0:L-1).' / (2*(L-1)), max(S, realmin), 'DisplayName', ks{k});
                         end
                         hold(ax, 'off');  legend(ax, 'Interpreter', 'none');
-                    elseif isfield(h, 'Shat') && ~isempty(h.Shat)
-                        semilogy(ax, linspace(0, 0.5, size(h.Shat, 2)), max(h.Shat(end, :), realmin));
+                    elseif isfield(h, 'S') && ~isempty(h.S)
+                        semilogy(ax, linspace(0, 0.5, size(h.S, 2)), max(h.S(end, :), realmin));
                     else
                         error('lsqvce:Results:noHistory', 'No estimated spectrum on this Results.');
                     end
