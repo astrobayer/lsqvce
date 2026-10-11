@@ -35,3 +35,5 @@ stage does not stream yet,WP-86 part 1,the diagnostics stage stored all n x u wh
 still rebuilds a\s+dense factor of the full parameter set,WP-86 part 2,the diagnostics built a dense u_full x u_full factor (kept as blocks since 6.3.0)
 the dense\s+u × u factor over the FULL parameter set remains,WP-86 part 2,DEVELOPMENT said the dense u x u diagnostics factor remains (blocks since 6.3.0)
 still re-accumulates all parameters as commons,WP-86 part 3,README said snoop's clean re-solve treats every parameter as a common one (block-arrow since 6.4.0)
+read the level a\s+robust pass returns as possibly biased,WP-115 part 3b,the Manual called the robust level an open question (measured and corrected in 6.6.0)
+folded into the\s+per-epoch error information of the next pass,WP-115 part 3b,the joint robust factors were folded into Cep (an additive nugget since 6.6.0)

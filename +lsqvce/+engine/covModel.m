@@ -40,6 +40,21 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 %                  (the Manual, chapter 3 section 7); a user never writes it
 %                  on the spec. d = size(Cep, 2), and a .d on the spec must
 %                  agree. The former 'separable' type was 'arma' plus this field.
+%         .nugget  nEpoch x 1, >= 0   (R7 WP-115 part 3b; with Cep only) the
+%                  joint estimator's robust factors f as an ADDITIVE nugget,
+%                  q = 1/f - 1: every axis of epoch e gains q_e * Sigma_ee on
+%                  the diagonal of its temporal covariance, so the epoch's
+%                  marginal variance is Sigma_ee / f_e (as the multiplicative
+%                  fold gave) while its covariances with the neighbours stay
+%                  those of the law. The fold scaled them by 1/sqrt(f) too,
+%                  and under a correlated law a zero-weight epoch then became
+%                  a phantom observation for its neighbours (formal/true sd
+%                  0.31 at phi 0.9, HANDOVER 12.43). The whitener is EXACT
+%                  and needs the whole arc (info.wholeArc): the law whitener
+%                  F, then a rank-k correction G = I - Q V diag(g) V' Q' over
+%                  the k nugget epochs (Q R = qr(F U), Woodbury), O(m k + k^3).
+%                  Cfcn stays the LAW; the nugget travels as info.nugget for
+%                  the joint sweep, which composes it itself.
 %
 %     t    m x 1  epochs of the current arc [s] (epoch-major with Cep: every
 %                 d-th value is one epoch)
@@ -60,6 +75,9 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 %           with F'*F = inv(C). [] if no filter form exists.
 %     info  .filterMemory  required BatchOverlap (0 if none)
 %           .type, .arOrder, .sigma, .acv, .cost
+%           .nugget, .wholeArc   (with cm.nugget) the relative nugget per
+%                         epoch and true when any is > 0: the arc must be
+%                         whitened in ONE batch (arcBatchWhiten honours it)
 %
 %   THE ACCUMULATOR PREFERS Wfcn
 %     If both are returned, LSQVCE.ENGINE.BLOCKACCUMULATOR uses Wfcn and never builds a
@@ -132,6 +150,10 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 %                                      does not cover the arc's rows, or disagrees
 %                                      with a .d on the spec
 %       lsqvce:covModel:cepOnVar       a 'var' law with a .Cep
+%       lsqvce:covModel:badNugget      .nugget without a Cep, of the wrong length,
+%                                      negative or not finite
+%       lsqvce:covModel:nuggetNeedsWholeArc  a nugget arc's whitener called on a
+%                                      batch that is not the whole arc
 %       lsqvce:covModel:notWholeEpochs a batch (or a dense VAR request) does not
 %                                      hold whole epochs; rows must be EPOCH-MAJOR
 %                                      and the arc must carry nAxis = d
@@ -158,6 +180,10 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 %   See also LSQVCE.ENGINE.CHECKPSD, LSQVCE.KERNEL.ARMAWHITEN, LSQVCE.KERNEL.SEPARABLEWHITEN,
 %            LSQVCE.KERNEL.DECORRFACTOR, LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.MAKELOADER
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-115 part 3b (R7-10, user
+%   decision (b)): the robust factors compose as an additive nugget
+%   (cm.nugget) instead of the multiplicative fold through Cep. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-106: the retired 'separable'
 %   type no longer listed under noAR (found by audit check 28 on its first
 %   run). With assistance from Claude (Anthropic), model Claude Fable 5.1.
@@ -211,6 +237,7 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
         t = t(1:d:end);                              % the epoch grid
     end
     m = numel(t);
+    nug = nuggetOf(cm, hasCep, m);                   % R7 WP-115 part 3b
 
     dt = median(diff(t));
     if m < 2 || ~isfinite(dt) || dt <= 0
@@ -360,7 +387,7 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 
     %------------------------------------------------ the composition (WP-90)
     if hasCep
-        [Cfcn, Wfcn, info] = composeWithCep(Cfcn, Wfcn, info, Cep, d);
+        [Cfcn, Wfcn, info] = composeWithCep(Cfcn, Wfcn, info, Cep, d, nug);
     end
 end
 
@@ -383,7 +410,7 @@ function [nEp, d] = cepShape(Cep)
 end
 
 %==========================================================================
-function [Cfcn, Wfcn, info] = composeWithCep(Ct, Wt, info, Cep, d)
+function [Cfcn, Wfcn, info] = composeWithCep(Ct, Wt, info, Cep, d, nug)
 %COMPOSEWITHCEP  C = D (R_t kron I_d) D from the temporal law and the per-epoch D.
 %   Ct / Wt are the temporal covariance / whitener over EPOCHS (built above
 %   on the epoch grid). The row whitener descales every epoch by D^-1/2 and
@@ -409,6 +436,78 @@ function [Cfcn, Wfcn, info] = composeWithCep(Ct, Wt, info, Cep, d)
     info.filterMemory = info.filterMemory * d;       % ROWS of overlap (epoch-major)
     info.nAxis = d;
     info.Cep   = Cep;                                % the fixed per-epoch part travels with the arc
+    if ~isempty(nug) && any(nug > 0)
+        % R7 WP-115 part 3b: the nugget. The temporal whitener per axis becomes
+        % G F (nuggetRows); it is not causal, so the arc is whitened whole.
+        if isempty(Ct)
+            error('lsqvce:covModel:badNugget', ...
+                  'the temporal law ''%s'' has no dense form: a nugget cannot be scaled to its variance.', info.type);
+        end
+        if ~isempty(Wt)
+            Wlaw = @(ep, A, B, l, varargin) Wt(ep, A, B, l, varargin{:});
+        else
+            Wlaw = @(ep, A, B, l, varargin) denseWhiten(Ct(ep, varargin{:}), A, B, l);
+        end
+        Wep0 = Wfcn;
+        Wfcn = @(idx, A, B, l, varargin) nuggetRows(Wep0, Wlaw, Ct, nug, d, idx, A, B, l, varargin{:});
+        info.nugget   = nug;
+        info.wholeArc = true;
+    end
+end
+
+function nug = nuggetOf(cm, hasCep, m)
+%NUGGETOF  The validated cm.nugget (m x 1, >= 0, finite; with Cep only), or [].
+    nug = lsqvce.util.getfielddef(cm, 'nugget', []);
+    if isempty(nug), return, end
+    nug = nug(:);
+    if ~hasCep || numel(nug) ~= m || any(~isfinite(nug)) || any(nug < 0)
+        error('lsqvce:covModel:badNugget', ...
+              ['cm.nugget must be a finite, non-negative nEpoch x 1 vector (%d epochs) and ' ...
+               'composes with the per-epoch Cep only (got %d values, Cep given: %d).'], ...
+              m, numel(nug), hasCep);
+    end
+end
+
+function [A, B, l] = nuggetRows(Wc, Wlaw, Ct, q, d, idx, A, B, l, varargin)
+%NUGGETROWS  Whiten a WHOLE arc under C = D ((R_t + diag(c)) kron I_d) D,
+%   c_e = q_e Sigma_ee (R7 WP-115 part 3b, mirrors/wp115/nugget.py).
+%   Wc is the composed whitener (descale by D, then the law's whitener F
+%   down the epochs of each axis); Wlaw is F alone, over epochs. The nugget
+%   is a rank-k correction over the k epochs with q > 0: with U their unit
+%   columns, F U = Q R (thin QR) and K = diag(1/c) + R'R,
+%   inv(R_t + U diag(c) U') = F' (I - Q B Q') F with B = R K^-1 R'
+%   (Woodbury), and G = I - Q V diag(1 - sqrt(1 - beta)) V' Q' (B = V
+%   diag(beta) V') satisfies G'G = I - Q B Q'. G is applied to every axis
+%   series after Wc. K holds 1/c, never c, so a zero-weight epoch (c ~ 1e12
+%   Sigma_ee) costs no accuracy: the rows reproduce A' C^-1 A to rounding
+%   (1e-15 in the mirror).
+    mE = numel(q);
+    if numel(idx) ~= mE * d || idx(1) ~= 1
+        error('lsqvce:covModel:nuggetNeedsWholeArc', ...
+              ['A nugget arc is whitened whole (%d rows); this batch holds rows %d..%d. ' ...
+               'The batch iterator honours the arc''s wholeArc flag; a caller that batches ' ...
+               'by hand must pass the whole arc.'], mE * d, idx(1), idx(end));
+    end
+    [A, B, l] = Wc(idx, A, B, l, varargin{:});
+    z  = find(q > 0);  k = numel(z);
+    Cz = Ct(z, varargin{:});                          % the law over the nugget epochs
+    if isvector(Cz), cz = Cz(:); else, cz = diag(Cz); end
+    c  = q(z) .* cz;
+    E  = zeros(mE, k);
+    E(sub2ind([mE, k], z(:), (1:k).')) = 1;
+    [FU, ~, ~] = Wlaw(1:mE, E, zeros(mE, 0), zeros(mE, 1), varargin{:});
+    [Q, R] = qr(FU, 0);
+    Km = diag(1 ./ c) + R.' * R;
+    Bm = R * (Km \ R.');
+    [V, beta] = eig((Bm + Bm.') / 2, 'vector');
+    g = 1 - sqrt(max(1 - beta, 0));
+    P = Q * V;
+    for j = 1:d
+        rows = j:d:mE * d;
+        A(rows, :) = A(rows, :) - P * (g .* (P.' * A(rows, :)));
+        B(rows, :) = B(rows, :) - P * (g .* (P.' * B(rows, :)));
+        l(rows)    = l(rows)    - P * (g .* (P.' * l(rows)));
+    end
 end
 
 function [A, B, l] = composeRows(Wep, Cep, d, idx, A, B, l)

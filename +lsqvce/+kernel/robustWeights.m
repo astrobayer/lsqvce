@@ -1,6 +1,6 @@
-function [fac, s, w, scalePath] = robustWeights(vw, influence, tuning)
+function [fac, s, w, scalePath, kReject] = robustWeights(vw, influence, tuning)
 %ROBUSTWEIGHTS  IRLS weight factors from standardised whitened residuals.
-%   [fac, s, w, scalePath] = lsqvce.kernel.robustWeights(vw, influence, tuning)
+%   [fac, s, w, scalePath, kReject] = lsqvce.kernel.robustWeights(vw, influence, tuning)
 %
 %   THE one influence-function evaluation of the toolbox (R5 M2 round 2b):
 %   the block-path driver lsqvce.engine.adjustRobust and the joint
@@ -30,6 +30,10 @@ function [fac, s, w, scalePath] = robustWeights(vw, influence, tuning)
 %     s    1x1 double    the robust scale used
 %     w    n x 1 double  the standardised residuals vw / s
 %     scalePath  1xK char  'mad' | 'std' | 'unit' -- which scale s is
+%     kReject    1x1 double  the rejection point in units of s: the |w|
+%                beyond which fac = 0 (igg3 k1, bisquare c; Inf for huber,
+%                which rejects nothing) -- what the joint estimator's level
+%                correction needs (R7 WP-115 part 3b)
 %
 %   ERRORS
 %     lsqvce:robustWeights:badInfluence  unknown influence name
@@ -46,6 +50,9 @@ function [fac, s, w, scalePath] = robustWeights(vw, influence, tuning)
 %
 %   See also LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTVCEJOINT
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-115 part 3b: the rejection
+%   point kReject is returned (one table of tuning constants). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): names
 %   its live callers. With assistance from Claude (Anthropic), model Claude
 %   Opus 5.5.
@@ -77,6 +84,11 @@ function [fac, s, w, scalePath] = robustWeights(vw, influence, tuning)
         tune = tuning(:).';
     end
 
+    switch infl
+        case 'huber',    kReject = Inf;
+        case 'igg3',     kReject = tune(2);
+        case 'bisquare', kReject = tune(1);
+    end
     med = median(vw);
     dev = abs(vw - med);
     s   = 1.4826 * median(dev);

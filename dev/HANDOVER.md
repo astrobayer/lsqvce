@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-11 — WP-86 part 4 DONE (PR #127, merge 8aef05c; CI GREEN on 23117f0), WP-86 complete; WP-115 part 3 OPEN (tier A via the self-hosted runner, model Claude Opus 5.5; user: "use CI for WP-115 part 3"): the measurement first -- dev/validation/wp115_measure.m on a new non-gating workflow measure.yml; R7-12's multi-seed level and R7-10's fold / nugget / deletion on the phi = 0.9 fixture, with the nugget's per-arc cost (dense vs Woodbury); no toolbox code changed, no version; §12.43.
+Last substantive update: 2026-10-11 — WP-115 part 3a DONE (PR #128, merge 3eb193c; CI GREEN on cfa9375); WP-115 part 3b OPEN (tier B, model Claude Opus 5.5; user decisions: build the nugget; R7-12 by hard rejection + the Gaussian truncation factor, after the mirror showed the weighted redundancy leaves the bias): the robust factors are an additive nugget (covModel cm.nugget, whole-arc Woodbury whitener, inflateCep retired, redundancyLags 'Nugget'/'LawW'); the component update sees only rejected epochs and the level is divided by tau (R.noise.robust.truncation); version 6.6.0; §12.43.
+Preceding entry: Last substantive update: 2026-10-11 — WP-86 part 4 DONE (PR #127, merge 8aef05c; CI GREEN on 23117f0), WP-86 complete; WP-115 part 3 OPEN (tier A via the self-hosted runner, model Claude Opus 5.5; user: "use CI for WP-115 part 3"): the measurement first -- dev/validation/wp115_measure.m on a new non-gating workflow measure.yml; R7-12's multi-seed level and R7-10's fold / nugget / deletion on the phi = 0.9 fixture, with the nugget's per-arc cost (dense vs Woodbury); no toolbox code changed, no version; §12.43.
 Preceding entry: Last substantive update: 2026-10-11 — WP-86 part 3 DONE (PR #126, merge 9184a36; CI GREEN on 77ffd46); WP-86 part 4 OPEN (tier B, model Claude Opus 5.5; user decision: the FULL absorption): lsqvce.engine.verdict, one classdef whose static methods are the former diagnoseAccum (source) / diagnose / snoop / systematic / ftest / ellipse plus fromAccumulator; stat -> lsqvce.kernel.stat; Results methods systematic / snoop / reliability / ellipse; report and snoop remedies name R methods (H-05); version 6.5.0; §12.42.
 Preceding entry: Last substantive update: 2026-10-11 — WP-86 part 2 DONE (PR #125, merge 25cbce7; CI GREEN on 9ff2426); WP-86 part 3 OPEN (tier B, model Claude Opus 5.5): one block formula, one commons factor -- engine.redundancy (VCE / outliers / contribution) on BlockCofactor (one cofactor broadcast instead of a commons factor per system), engine.leverage / leverageBlocks retired, snoop's clean re-solve rebuilds the block-arrow systems (batchSystem 'LocalColumns' / 'SystemId'); version 6.4.0; §12.42.
 Preceding entry: Last substantive update: 2026-10-10 — WP-86 part 1 DONE (PR #124, merge cfd72b5; CI GREEN on b6a17fd); WP-86 part 2 OPEN (tier B, model Claude Opus 5.5; user decision: option (a), the block-native rewrite): the diagnostics' cofactor is kept as blocks -- new engine unit BlockCofactor (reduced commons factor + per-system local blocks; mirror-verified to ~1e-16 against the dense inverse), diagnose / snoop / ellipse / report on it, D.R / D.Qxx / D.corr retired, snoop downdates the blocks with a closed-form x, diagnoseAccum reads no data (arc batches indexed from meta, n from the accumulator); version 6.3.0; §12.42.
@@ -8388,7 +8389,8 @@ only").**
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 115 (part 3a) | the tier-A measurement §12.39 asked for before the additive nugget is built: `dev/validation/wp115_measure.m` on the self-hosted runner through a new, NON-gating workflow `measure.yml` (pull requests touching `dev/validation/*.m` or the workflow, or by hand); R7-12 multi-seed level, R7-10 fold / nugget / deletion, the nugget's per-arc cost; no toolbox change, no version | 86 part 4 (PR #127 merged 8aef05c) | OPEN (2026-10-11; audit CLEAN; CI GREEN on ecb462c; measured: run 38131010881 -- results below; the remedy for R7-12 waits for the user) |
+| 115 (part 3a) | the tier-A measurement §12.39 asked for before the additive nugget is built: `dev/validation/wp115_measure.m` on the self-hosted runner through a new, NON-gating workflow `measure.yml` (pull requests touching `dev/validation/*.m` or the workflow, or by hand); R7-12 multi-seed level, R7-10 fold / nugget / deletion, the nugget's per-arc cost; no toolbox change, no version | 86 part 4 (PR #127 merged 8aef05c) | DONE (2026-10-11, PR #128, merge 3eb193c; CI GREEN on cfa9375; measured: run 38131010881) |
+| 115 (part 3b) | R7-10 the robust factors as an ADDITIVE nugget (`covModel` `cm.nugget`, whole-arc Woodbury whitener; `inflateCep` retired; `redundancyLags` 'Nugget'/'LawW'); R7-12 the level unbiased: the component update sees only REJECTED epochs, the level divided by the rejection point's Gaussian truncation factor (`R.noise.robust.truncation`); **version 6.6.0** | 115 part 3a (PR #128 merged 3eb193c) | OPEN (2026-10-11; audit CLEAN; CI pending) |
 
 **Why CI (user: "Can you use CI for WP115 part3", 2026-10-11).** §12.39 left the nugget
 waiting on a tier-A measurement; the container has no MATLAB and the runner is the
@@ -8455,7 +8457,60 @@ cheaper than the fold's dense-chol reference column (0.06 / 0.64 / 12 ms). So th
 nugget's path is the low-rank one: the AR filter for R^-1, plus a k x k solve over the
 down-weighted epochs. No dense arc is needed.
 
-**Open for the user:**
-1. The remedy for the robust level bias (a consistency factor for the influence function,
-   or the redundancy weighted by the factors).
-2. Whether the nugget (Woodbury on the AR precision) is built as part 3b.
+**User decisions (2026-10-11).** Build the nugget as part 3b; for R7-12 first "the weighted
+redundancy" -- revised the same day to **hard rejection + the truncation factor** after the
+part-3b mirror showed the weighted redundancy does not remove the bias (below).
+
+**Part 3b (user: "gewichtete Redundanz, und baue das Nugget als Teil 3b", 2026-10-11;
+version 6.6.0; tier B -- the CI run is the first MATLAB execution).**
+- **The mirror first** (`dev/reviews/R7_2026-10-09/mirrors/wp115/nugget.py`, exit 0):
+  the whitener G F reproduces A' C^-1 A with C = T + diag(c) to 1.8e-15 (a 1e12 nugget
+  included; the first form, an eigen-decomposition of I + R diag(c) R', lost 7 digits --
+  K = diag(1/c) + R'R holds 1/c and is exact); the Woodbury sub-diagonal sums of Sigma^-1
+  1.9e-16; the weighted redundancy s^w = s - lagsums((Rbar U) diag(c) (Rbar U)') equals
+  E_T[Omega_n] to 7.7e-16 -- exact for FIXED weights.
+- **But the weighted redundancy does not fix R7-12.** The mirror's robust joint loop (IGG3,
+  clean AR(1), law declared, 8 seeds, level truth 1): phi 0.5 -- fold 0.746, nugget 0.738,
+  nugget + s^w 0.761; white -- 0.688 / 0.655 / 0.670. The bias is SELECTION: IGG3
+  down-weights exactly the epochs with large residuals (E[f u^2]/E[f] = 0.726 under
+  N(0,1)), which no redundancy count undoes. "Hard rejection" -- the component update sees
+  only the epochs at factor 0 (as deletion-sized nuggets), partial factors weight the
+  solution only -- reads 0.978 (phi 0.5) / 0.976 (white): what is left is the truncation
+  at k1 = 3 sigma, E[u^2 | |u| < 3] = 0.9733. Put to the user with the numbers; decision:
+  hard rejection + the Gaussian truncation factor.
+- **Implementation.** `covModel`: `cm.nugget` (q = 1/w - 1 per epoch, with Cep only;
+  `lsqvce:covModel:badNugget`); `composeWithCep` wraps the composed whitener in
+  `nuggetRows` (law whitener F over epochs, thin QR of F U, K = diag(1/c) + R'R,
+  G = I - Q V diag(1 - sqrt(1 - beta)) V' Q', applied per axis; c_e = q_e Sigma_ee from
+  Cfcn), `info.nugget` / `info.wholeArc`; a partial batch is refused
+  (`lsqvce:covModel:nuggetNeedsWholeArc`). Cfcn stays the LAW. `makeLoader`: epochWeights
+  become `cm.nugget` (Cep stays the declared one; `inflateCep` deleted; a spec Cep now
+  takes the weights too -- it silently did not before); the arc carries `.nugget`,
+  `.wholeArc`, `.filterMemory` = its rows. `arcBatchWhiten`: `wholeArc` -> one batch;
+  `residuals` copies the flag. `redundancyLags`: `'Nugget'` / `'LawW'` -- Sigma^-1's sums
+  from T's Toeplitz path minus a k x k Woodbury (`lsqvce:redundancyLags:badNugget`).
+  `adjustVCEjoint`: `oneArc` adds the REJECTED epochs' nuggets (q > 1e11, i.e. factor 0
+  floored at 1e-12) to the sweep's Sigma and passes 'Nugget'/'LawW'; `epochResiduals` no
+  longer divides folded factors back out; `robustSweep` returns tauMap (per stream, the
+  epoch-mean of `truncationFactor(kReject, d)`, tau = F_{d+2}(q_k)/F_d(q_k),
+  P(chi2_d > q_k) = P(|N| > k)); the av loop divides gamma2 / sigma2 by it;
+  `out.robust.truncation`. `kernel.robustWeights` returns kReject (igg3 k1, bisquare c,
+  Huber Inf) -- the tuning table stays in one place.
+- **Tests (+4, 630 declared).** `test_ellmer>test_redundancyLags_nugget_matches_the_general_path`
+  (Woodbury sums vs the O(N^3) fallback, a 1e12 nugget included; badNugget);
+  `test_streamUtils>test_epoch_weights_are_an_additive_nugget` (a 3-axis full-Cep arc
+  through the loader: normals vs the dense D((R_t + diag(q Sigma_ee)) kron I)D at 1e-8;
+  wholeArc, nugget, Cep undeclared-fold; nuggetNeedsWholeArc; BatchSize 7 == one batch
+  through BlockAccumulator) and `test_nugget_refusals_by_name`;
+  `test_vcePolicy>testRobustLevelOfACleanStreamIsUnbiased` (the part-3a fixture, seed 3:
+  robust/plain within 0.06, level within 0.06 of 1, truncation == the closed form). The old
+  level assertion of `testRobustPassInsideTheJointLoopRecoversTheLawUnderOutliers` was
+  read against 1 while the law-estimated level is the process sd (1.155): now against
+  1/sqrt(1 - 0.5^2), 10 %.
+- **Docs.** Manual 7.8 (the nugget, the measured bias and its correction; the "declare
+  fixed weights" route no longer recommends a Cep fold for a zero factor); help of
+  covModel / makeLoader / arcBatchWhiten / redundancyLags / robustWeights /
+  adjustVCEjoint; two superseded claims (the fold sentence, "possibly biased low").
+- **Expected CI movement** (tier B): every robust `Estimate = "noise"` test changes its
+  numbers (testRobustPassInside..., testJointRobustPassKeepsCleanMultiAxisEpochs,
+  testRobustWarnsAtTheBreakdownPoint); each move is read, not re-tolerated.

@@ -368,7 +368,7 @@ function [v, w] = arcResiduals(arc, x, y, uo, o)
     % are empty and whose "observation" is v (what the old loop passed to
     % Wfcn as ze, ze, v(idx): byte-identical).
     av = struct('A', zeros(m, 0), 'B', zeros(m, 0), 'l', v);
-    for f = {'Wfcn', 'Cfcn', 'W', 'filterMemory', 'nAxis'}
+    for f = {'Wfcn', 'Cfcn', 'W', 'filterMemory', 'nAxis', 'wholeArc'}
         if isfield(arc, f{1}), av.(f{1}) = arc.(f{1}); end
     end
     w = zeros(m,1);

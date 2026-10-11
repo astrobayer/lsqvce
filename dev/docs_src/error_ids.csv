@@ -302,3 +302,6 @@ lsqvce:verbosity:badLevel,util.verbosity,error,v4.0
 lsqvce:verbosity:badTag,util.verbosity,error,v4.0
 lsqvce:whittle:badG,kernel.whittle,error,v4.0
 lsqvce:whittle:notPD,kernel.whittle,error,v4.0
+lsqvce:covModel:badNugget,engine.covModel,error,v6.6.0
+lsqvce:covModel:nuggetNeedsWholeArc,engine.covModel,error,v6.6.0
+lsqvce:redundancyLags:badNugget,kernel.redundancyLags,error,v6.6.0

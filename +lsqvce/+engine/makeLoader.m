@@ -125,11 +125,14 @@ function L = makeLoader(buildDay, opt)
 %                      factors applied AFTER the law filter (rows scaled by
 %                      sqrt(w) inside Wfcn; Cfcn made consistent as L D^-2 L'):
 %                      the innovation is weighted -- lsqvce.engine.adjustRobust.
-%     opt.epochWeights the same map with ONE factor per EPOCH, folded into the
-%                      arc's per-epoch error information BEFORE the temporal
-%                      law (Cep: sigma / sqrt(w), a covariance / w): the
+%     opt.epochWeights the same map with ONE factor per EPOCH, applied BEFORE
+%                      the temporal law as an ADDITIVE nugget q = 1/w - 1 on
+%                      the temporal covariance (covModel's cm.nugget; R7
+%                      WP-115 part 3b -- it was a fold into Cep): the
 %                      observation is weighted -- the robust pass of
-%                      lsqvce.engine.adjustVCEjoint. Never both on one arc.
+%                      lsqvce.engine.adjustVCEjoint. Never both on one arc. A
+%                      nugget arc carries .nugget and .wholeArc (whitened in
+%                      ONE batch).
 %
 %   RUNTIME COVARIANCE OVERRIDE (opt.covOverride)
 %     Every batch merges a runtime override into the base spec, so an outer
@@ -225,13 +228,17 @@ function L = makeLoader(buildDay, opt)
 %       lsqvce:makeLoader:rowWeightSize  (R5 M2) the robust weight vector of an arc does
 %                                      not match the arc's row count (rowWeights, per
 %                                      row, applied after the law -- adjustRobust) or its
-%                                      epoch count (epochWeights, per epoch, folded into
-%                                      Cep before the law -- the joint estimator, WP-105)
+%                                      epoch count (epochWeights, per epoch, a nugget
+%                                      before the law -- the joint estimator, WP-105)
 %       lsqvce:covModel:*              the temporal law is malformed (see covModel)
 %
 %   See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.DECLARATION,
 %            LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.ENGINE.SYNTHLOADER
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-115 part 3b (R7-10): the
+%   epoch weights compose as an additive nugget (cm.nugget, whole-arc
+%   whitening) instead of the fold into Cep (inflateCep retired). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-105: robust row factors wrap
 %   the DENSE step too (a law without a filter Wfcn used to break the
 %   rowWeights wrapper -- reached the first time a robust pass met the joint
@@ -1255,14 +1262,20 @@ function out = batchOf(dayFcn, arcs, cov, day, obsType, arcID, opt)
     isVar = strcmpi(lsqvce.util.getfielddef(cm, 'type', ''), 'var');
     % R6 WP-105 round 8 (measured, the user's "measure"): the joint
     % estimator's robust factors are applied BEFORE the temporal law -- the
-    % Koch convention, weights on the OBSERVATIONS -- by folding them into
-    % the per-epoch error information: sigma_i / sqrt(w_i). The composition
-    % C = D (R_t kron I_d) D then carries them everywhere (accumulation, the
-    % sweep, the residuals) with no second mechanism. The control measured
-    % it: blunders declared this way let the PLAIN estimator recover the
-    % planted colour, while the Yang convention (opt.rowWeights below,
-    % weights on the INNOVATIONS, adjustRobust's) neutralises the filter's
-    % whole tail around every blunder and the colour crawled (0.054 vs 0.20).
+    % Koch convention, weights on the OBSERVATIONS. The control measured it:
+    % blunders declared this way let the PLAIN estimator recover the planted
+    % colour, while the Yang convention (opt.rowWeights below, weights on the
+    % INNOVATIONS, adjustRobust's) neutralises the filter's whole tail around
+    % every blunder and the colour crawled (0.054 vs 0.20).
+    % R7 WP-115 part 3b (R7-10, user decision (b)): HOW they are applied. They
+    % used to be FOLDED into Cep (sigma_i / sqrt(w_i)), which scales an
+    % epoch's covariances with its neighbours too: under a correlated law a
+    % zero-weight epoch then stayed a phantom observation that the filter
+    % leaned on (formal/true sd 0.31 at phi 0.9, measured, HANDOVER 12.43).
+    % Now they are an ADDITIVE nugget q = 1/w - 1 on the temporal covariance
+    % (covModel's cm.nugget): the same marginal variance, the neighbours'
+    % covariances untouched, a zero weight is a deletion (formal/true 1.000).
+    % Cep stays the DECLARED error information.
     epochW = [];
     if isfield(opt, 'epochWeights') && ~isempty(opt.epochWeights)
         key = lsqvce.util.rowWeightKey(opt.sysID, day, obsType, arcID);
@@ -1283,9 +1296,8 @@ function out = batchOf(dayFcn, arcs, cov, day, obsType, arcID, opt)
                    'per-epoch error information ONCE, on the day.'], obsType, string(day), obsType);
         end
         cm.Cep = D.Cep{pos};
-        if ~isempty(epochW), cm.Cep = inflateCep(cm.Cep, epochW); end
     elseif ~isempty(epochW) && ~specCep && ~isVar
-        cm.Cep = inflateCep(ones(numel(out.l) / d, d), epochW);   % Koch weights on a plain stream
+        cm.Cep = ones(numel(out.l) / d, d);            % the nugget composes with a (unit) Cep
     elseif d > 1 && ~specCep && ~isVar
         % a multi-axis stream without per-epoch scaling is composed with
         % D = I -- said once per run, so the omission is distinguishable from
@@ -1303,10 +1315,21 @@ function out = batchOf(dayFcn, arcs, cov, day, obsType, arcID, opt)
                'count is stated once, on the day.'], obsType, dDecl, d);
     end
 
-    [out.Cfcn, out.Wfcn, info] = lsqvce.engine.covModel(cm, out.t, opt);
+    optC = opt;
+    if ~isempty(epochW) && ~isVar && any(epochW < 1)
+        cm.nugget = 1 ./ epochW(:) - 1;               % R7 WP-115 part 3b: the additive nugget
+        % the arc is whitened WHOLE, so a dense law must reach over all of it
+        optC.BatchSize = max(lsqvce.util.getfielddef(opt, 'BatchSize', 20000), numel(out.l));
+    end
+    [out.Cfcn, out.Wfcn, info] = lsqvce.engine.covModel(cm, out.t, optC);
     out.filterMemory = info.filterMemory;
     if isfield(info, 'Cep') && ~isempty(info.Cep)
         out.Cep = info.Cep;                          % the per-epoch descale travels with the arc
+    end
+    if isfield(info, 'nugget') && ~isempty(info.nugget)
+        out.nugget   = info.nugget;                  % for the joint sweep (adjustVCEjoint>oneArc)
+        out.wholeArc = true;                         % for arcBatchWhiten: ONE batch
+        out.filterMemory = numel(out.l);             % the window the accumulator records
     end
 
     % R5 M2 (WP-81 round 2b): per-observation ROBUST weights ride INSIDE the
@@ -1378,17 +1401,6 @@ function [A, B, l] = weightedWhiten(W0, sq, idx, A, B, l, o)
     [A, B, l] = W0(idx, A, B, l, o);
     sc = sq(idx(:));
     A = sc .* A;  B = sc .* B;  l = sc .* l;
-end
-
-function Cep = inflateCep(Cep, w)
-%INFLATECEP  Per-epoch error information with the Koch factors folded in:
-%   sigmas divided by sqrt(w), covariances divided by w (R6 WP-105).
-    w = w(:);
-    if ismatrix(Cep)
-        Cep = Cep ./ sqrt(w);                          % nEpoch x d sigmas
-    else
-        Cep = Cep ./ w;                                % nEpoch x d x d covariances
-    end
 end
 
 function Cw = weightedCov(C, w)

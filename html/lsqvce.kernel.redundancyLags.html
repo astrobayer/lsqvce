@@ -119,7 +119,17 @@ case-sensitive lowercase.)
                        (nl = 0 arcs are bitwise unchanged).
   &#x27;LocalLl&#x27;  nl x nl double  the SYSTEM&#x27;s lower Cholesky factor
                        chol(Nll,&#x27;lower&#x27;) (the factor LSQVCE.ENGINE.BLOCKCOFACTOR inverts);
-                       required with &#x27;LocalBbar&#x27;.</pre>
+                       required with &#x27;LocalBbar&#x27;.
+  &#x27;Nugget&#x27;   N x 1 double  (R7 WP-115 part 3b) Sigma = T + diag(Nugget):
+                       a stationary law T plus an additive per-row
+                       variance (the joint estimator&#x27;s rejected epochs).
+                       W must then be the factor of the WHOLE Sigma; the
+                       sub-diagonal sums of Sigma^-1 come from T&#x27;s
+                       Toeplitz fast path and a k x k Woodbury over the
+                       k rows with Nugget &gt; 0, instead of the O(N^3)
+                       general fallback. Requires &#x27;LawW&#x27;.
+  &#x27;LawW&#x27;     N x N double  the upper Cholesky factor of T alone (T = LawW&#x27;LawW);
+                       required with &#x27;Nugget&#x27;.</pre>
 <h3>Output</h3>
 <pre class="example">  out   1x1 struct
     .s        nMaxLag x 1  the per-lag redundancies s_n (n = 0 first). NOTE:
@@ -158,10 +168,15 @@ r.s(1)          % s_0</pre>
 
 IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
   lsqvce:redundancyLags:badLocal             LocalBbar has X rows but the arc has X.lsqvce:redundancyLags:badLocal...
+  lsqvce:redundancyLags:badNugget            Nugget / LawW do not match the arc (R7 WP-115 part 3b)
 
 See also LSQVCE.ENGINE.COVCOMPONENT, LSQVCE.KERNEL.TOEPLITZCOFACTOR, LSQVCE.KERNEL.DCTI,
          LSQVCE.ENGINE.TRACEESTIMATE, LSQVCE.ENGINE.STREAMCONTRIBUTION
 
+Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-115 part 3b: &#x27;Nugget&#x27; /
+&#x27;LawW&#x27; -- a stationary law plus a per-row nugget keeps the structured
+Sigma^-1 sums (Woodbury over the nugget rows). With assistance from
+Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3 (R7-24): the
 retired leverageBlocks references point at lsqvce.engine.BlockCofactor.
 With assistance from Claude (Anthropic), model Claude Opus 5.5.

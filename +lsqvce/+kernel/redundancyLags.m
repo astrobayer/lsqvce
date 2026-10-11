@@ -80,6 +80,16 @@ function out = redundancyLags(Abar, W, UiZ, ebar, nMaxLag, opt)
 %     'LocalLl'  nl x nl double  the SYSTEM's lower Cholesky factor
 %                          chol(Nll,'lower') (the factor LSQVCE.ENGINE.BLOCKCOFACTOR inverts);
 %                          required with 'LocalBbar'.
+%     'Nugget'   N x 1 double  (R7 WP-115 part 3b) Sigma = T + diag(Nugget):
+%                          a stationary law T plus an additive per-row
+%                          variance (the joint estimator's rejected epochs).
+%                          W must then be the factor of the WHOLE Sigma; the
+%                          sub-diagonal sums of Sigma^-1 come from T's
+%                          Toeplitz fast path and a k x k Woodbury over the
+%                          k rows with Nugget > 0, instead of the O(N^3)
+%                          general fallback. Requires 'LawW'.
+%     'LawW'     N x N double  the upper Cholesky factor of T alone (T = LawW'LawW);
+%                          required with 'Nugget'.
 %
 %   OUTPUT
 %     out   1x1 struct
@@ -121,10 +131,15 @@ function out = redundancyLags(Abar, W, UiZ, ebar, nMaxLag, opt)
 %
 %   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 %     lsqvce:redundancyLags:badLocal             LocalBbar has X rows but the arc has X.lsqvce:redundancyLags:badLocal...
+%     lsqvce:redundancyLags:badNugget            Nugget / LawW do not match the arc (R7 WP-115 part 3b)
 %
 %   See also LSQVCE.ENGINE.COVCOMPONENT, LSQVCE.KERNEL.TOEPLITZCOFACTOR, LSQVCE.KERNEL.DCTI,
 %            LSQVCE.ENGINE.TRACEESTIMATE, LSQVCE.ENGINE.STREAMCONTRIBUTION
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-115 part 3b: 'Nugget' /
+%   'LawW' -- a stationary law plus a per-row nugget keeps the structured
+%   Sigma^-1 sums (Woodbury over the nugget rows). With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3 (R7-24): the
 %   retired leverageBlocks references point at lsqvce.engine.BlockCofactor.
 %   With assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -156,6 +171,8 @@ arguments
     opt.WantRbar (1,1) logical = false
     opt.LocalBbar double = []
     opt.LocalLl double = []
+    opt.Nugget double = []
+    opt.LawW double = []
 end
 
     % WP-39 stage (b): typed `arguments` signature (names were already
@@ -206,6 +223,13 @@ end
         K = W \ (o.LocalBbar / o.LocalLl.');    % Sigma^-1-metric local block
     end
 
+    if ~isempty(o.Nugget) && (numel(o.Nugget) ~= N || ~isequal(size(o.LawW), [N N]))
+        error('lsqvce:redundancyLags:badNugget', ...
+             ['Nugget must hold %d variances and LawW be the %d x %d upper Cholesky factor of ' ...
+              'the law without it (got %d values and a %d x %d LawW).'], ...
+              N, N, N, numel(o.Nugget), size(o.LawW, 1), size(o.LawW, 2));
+    end
+
     % ---- Rtilde = W^-1 (Abar * UiZ)                              (eq. 6.5.48)
     %   W is upper triangular with Sigma = W'W, so W^-1 X is a backslash solve.
     %   With locals, Abar must be the REDUCED AtilBar = W^-T (A - B G): only
@@ -228,7 +252,11 @@ end
     %   back to streaming the columns of W^-T with an nMaxLag-deep ring
     %   buffer: still O(N^3) time (no structure, no shortcut) but O(N*nLag)
     %   memory -- which makes the memory claim in the help TRUE at last.
-    dS = sigmaInvSubdiagSums(W, nMaxLag);        % dS(1) = trace(Sigma^-1)
+    if ~isempty(o.Nugget) && any(o.Nugget(:) > 0)
+        dS = nuggetSubdiagSums(o.LawW, o.Nugget(:), nMaxLag);   % R7 WP-115 part 3b
+    else
+        dS = sigmaInvSubdiagSums(W, nMaxLag);    % dS(1) = trace(Sigma^-1)
+    end
     s = zeros(nMaxLag, 1);
     if hasLocal
         % Rbar = Sinv - Rt*Rt' - K*K': one more row-dot per sub-diagonal.
@@ -328,6 +356,24 @@ function dS = sigmaInvSubdiagSums(W, nL)
             dS(n+1) = dS(n+1) + r.' * ring(:, mod(j-1-n, nL) + 1);
         end
     end
+end
+
+function dS = nuggetSubdiagSums(WT, c, nL)
+%NUGGETSUBDIAGSUMS  Sub-diagonal sums of (T + diag(c))^-1, T = WT'WT stationary.
+%   Woodbury over the k rows z with c > 0 (U their unit columns):
+%       Sigma^-1 = T^-1 - H K^-1 H',  H = T^-1 U,  K = diag(1/c) + U' T^-1 U,
+%   so the sums are T's (Toeplitz fast path) minus the lag sums of
+%   H LK^-T (K = LK LK'), one FFT per column. K holds 1/c, so an epoch with
+%   c ~ 1e12 T_ii is deleted to rounding (mirrors/wp115/nugget.py: 1e-16).
+    N = size(WT, 1);
+    z = find(c > 0);  k = numel(z);
+    E = zeros(N, k);
+    E(sub2ind([N, k], z(:), (1:k).')) = 1;
+    Y = WT.' \ E;                                % WT^-T U
+    H = WT \ Y;                                  % T^-1 U
+    K = diag(1 ./ c(z)) + Y.' * Y;
+    LK = chol((K + K.') / 2, 'lower');
+    dS = sigmaInvSubdiagSums(WT, nL) - columnLagSums(H / LK.', nL);
 end
 
 function x = toeplitzInvFirstCol(c)

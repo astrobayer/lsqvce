@@ -1031,20 +1031,81 @@ function testRobustPassInsideTheJointLoopRecoversTheLawUnderOutliers(tc)
     tc.verifyEqual(Rr.noise.robust.influence, 'igg3');
     tc.verifyEqual(Rr.noise.robust.streams, {'x1|a', 'x1|b'}, 'one MAD scale per stream');
     tc.verifyEqual(size(Rr.history.robustScale), [Rr.history.nIter, 2]);
-    % THE LEVEL. WP-105 expected the retained-observation ratio E[w u^2]/E[w]
-    % (0.73 IGG3, 0.80 Huber); round 4 read 1.007 on the CLEAN stream b. The
-    % "weights cancel in alpha^2" explanation is disputed by R7-12 (s_0 holds
-    % tr(Sigma_t^-1) of the unweighted law; a mirror reads 0.83-0.93), and
-    % this 15 % band cannot tell 0.86 from 1 -- it pins "no gross bias",
-    % not "unbiased". The discriminating multi-seed measurement is WP-115's
-    % open tier-A item.
+    % THE LEVEL. With the law estimated, sigma*sigma0 is the PROCESS sd of the
+    % stream: 1/sqrt(1 - 0.5^2) = 1.155 for the clean AR(1) stream b, not 1.
+    % Round 4's 1.007, read against 1 inside a 15 % band, was 0.87 of the
+    % truth -- R7-12's bias, measured at tier A in WP-115 part 3a (HANDOVER
+    % 12.43: robust/plain 0.83 over 20 seeds) and corrected in part 3b (only
+    % rejected epochs leave the component update; the truncation factor).
+    % The discriminating test is testRobustLevelOfACleanStreamIsUnbiased.
     ib = find(strcmp(Rr.noise.stream, 'x1|b'), 1);
     lvlB = Rr.noise.model{ib}.sigma * Rr.sigma0;
-    % tol: 15 % relative on an effective level from 9 arcs of 256 epochs
-    % (the clean-data bound of testRecoversPlantedRelativeWeights is 25 %)
-    tc.verifyEqual(lvlB, 1, 'RelTol', 0.15, 'the clean stream''s level shows no gross bias under the robust pass');
+    % tol: 10 % relative on an effective level from 9 arcs of 256 epochs; the
+    % plain run of part 3a read 1.134 against 1.155 (law estimated, 20 seeds)
+    tc.verifyEqual(lvlB, 1 / sqrt(1 - plantB^2), 'RelTol', 0.10, ...
+        'the clean stream''s level is its process sd under the robust pass');
     % Robust "none" carries no factors at all
     tc.verifyEmpty(Rp.noise.robust.factor);
+end
+
+function testRobustLevelOfACleanStreamIsUnbiased(tc)
+% categories: reference, robustness
+    % R7-12 (WP-115 part 3b, user decision 2026-10-11). Two CLEAN AR(1)
+    % streams with their TRUE law declared ('arma', estimate "scale"), so the
+    % level is 1 by construction and the plain loop returns 0.997 (part 3a,
+    % 20 seeds). With IGG3 inside the component update the level came back
+    % 0.81 / 0.86 (robust/plain, se 0.004): the influence selects the epochs
+    % with large residuals. Since part 3b only REJECTED epochs leave the
+    % update, and the level is divided by the rejection point's Gaussian
+    % truncation factor (0.9733 at k1 = 3, R.noise.robust.truncation).
+    data = levelFixture(struct('a', 0.2, 'b', 0.5), 3);
+    base = {'Estimate', "noise", 'Pool', "stream", 'MaxPasses', 16, 'Verbose', false};
+    Rp = lsqvce.fit(data, lsqvce.Options(base{:}));
+    Rr = lsqvce.fit(data, lsqvce.Options(base{:}, 'Robust', "igg3"));
+    for st = {'x1|a', 'x1|b'}
+        lv = @(R) R.noise.model{find(strcmp(R.noise.stream, st{1}), 1)}.sigma * R.sigma0;
+        % tol: 6 % -- the per-seed sd of the robust/plain ratio is 0.012-0.016
+        % (part 3a, 20 seeds); 6 % is four of them and a third of the bias
+        % being guarded (0.81-0.86)
+        tc.verifyEqual(lv(Rr) / lv(Rp), 1, 'AbsTol', 0.06, sprintf(['%s: the robust level ' ...
+            'equals the plain one on clean data (plain %.4f, robust %.4f)'], st{1}, lv(Rp), lv(Rr)));
+        % tol: 6 % -- the plain level is 1 by construction (0.997 +- 0.011)
+        tc.verifyEqual(lv(Rr), 1, 'AbsTol', 0.06, sprintf('%s: the robust level is 1', st{1}));
+    end
+    % tol: closed form 1 - 2 k phi(k) / (2 Phi(k) - 1) at k = 3, to 1e-10
+    tc.verifyEqual(Rr.noise.robust.truncation, [1 1] * (1 - 6 * exp(-4.5) / sqrt(2*pi) / erf(3 / sqrt(2))), ...
+        'RelTol', 1e-10, 'the truncation factor of IGG3''s k1 = 3, per stream');
+end
+
+function data = levelFixture(phi, seed)
+%LEVELFIXTURE  Two CLEAN AR(1) streams, unit innovations, the TRUE law declared
+%   ('arma', estimate "scale": only the level is free, and it is 1), 3 days x
+%   3 arcs x 256 epochs -- dev/validation/wp115_measure.m's part-A fixture.
+    cfg = struct('nc', 4, 'days', 1:3, 'arcs', 3, 'mArc', 256, 'dt', 5, ...
+                 'xTrue', [0.8 -0.45 0.3 0.15]);
+    data = struct();
+    data.commonParams = [repmat({'common'}, cfg.nc, 1), ...
+                         arrayfun(@(j) sprintf('c%d', j), (1:cfg.nc).', 'UniformOutput', false)];
+    data.days = cfg.days;
+    spec = @(p) struct('type', 'arma', 'ar', [1 -p], 'sigma', 1, 'estimate', "scale", 'arcFactors', false);
+    data.systems = struct('buildDay', @(day, ot) levelDay(cfg, phi.(ot), seed, day, ot), ...
+                          'covariance', struct('a', spec(phi.a), 'b', spec(phi.b)), ...
+                          'arcs', cfg.arcs, 'id', 1, 'name', 'levelFixture');
+end
+
+function D = levelDay(cfg, phi, seed, day, obsType)
+%LEVELDAY  One (day, stream) of levelFixture: stationary AR(1) noise.
+    m = cfg.arcs * cfg.mArc;
+    t = (day - 1)*86400 + (0:m-1).' * cfg.dt;
+    w = 2*pi / (0.5 * 86400);
+    D.A = [sin(w*t), cos(w*t), sin(2*w*t), cos(2*w*t)];
+    D.B = zeros(m, 0);
+    rs = RandStream('mt19937ar', 'Seed', 1e5*seed + 10*day + double(obsType(1)));
+    e = filter(1, [1 -phi], randn(rs, m + 2000, 1));
+    D.l = D.A * cfg.xTrue(:) + e(2001:end);
+    D.t = t;
+    D.arcIdx = arrayfun(@(a) (a-1)*cfg.mArc + (1:cfg.mArc), 1:cfg.arcs, 'UniformOutput', false);
+    D = arcCells(D);                                 % v6: the cells are the arcs
 end
 
 function trailOf(trail, ctx)

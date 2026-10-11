@@ -82,6 +82,21 @@ handles the model parameters again.</pre>
                (the Manual, chapter 3 section 7); a user never writes it
                on the spec. d = size(Cep, 2), and a .d on the spec must
                agree. The former &#x27;separable&#x27; type was &#x27;arma&#x27; plus this field.
+      .nugget  nEpoch x 1, &gt;= 0   (R7 WP-115 part 3b; with Cep only) the
+               joint estimator&#x27;s robust factors f as an ADDITIVE nugget,
+               q = 1/f - 1: every axis of epoch e gains q_e * Sigma_ee on
+               the diagonal of its temporal covariance, so the epoch&#x27;s
+               marginal variance is Sigma_ee / f_e (as the multiplicative
+               fold gave) while its covariances with the neighbours stay
+               those of the law. The fold scaled them by 1/sqrt(f) too,
+               and under a correlated law a zero-weight epoch then became
+               a phantom observation for its neighbours (formal/true sd
+               0.31 at phi 0.9, HANDOVER 12.43). The whitener is EXACT
+               and needs the whole arc (info.wholeArc): the law whitener
+               F, then a rank-k correction G = I - Q V diag(g) V&#x27; Q&#x27; over
+               the k nugget epochs (Q R = qr(F U), Woodbury), O(m k + k^3).
+               Cfcn stays the LAW; the nugget travels as info.nugget for
+               the joint sweep, which composes it itself.
 
   t    m x 1  epochs of the current arc [s] (epoch-major with Cep: every
               d-th value is one epoch)
@@ -100,7 +115,10 @@ OPTIONS (opt)
 Wfcn  @(idx, A, B, l, opt) -&gt; whitened A, B, l. Applies an operator F
       with F&#x27;*F = inv(C). [] if no filter form exists.
 info  .filterMemory  required BatchOverlap (0 if none)
-      .type, .arOrder, .sigma, .acv, .cost</pre>
+      .type, .arOrder, .sigma, .acv, .cost
+      .nugget, .wholeArc   (with cm.nugget) the relative nugget per
+                    epoch and true when any is &gt; 0: the arc must be
+                    whitened in ONE batch (arcBatchWhiten honours it)</pre>
 <h3>THE ACCUMULATOR PREFERS Wfcn</h3>
 <pre class="example">If both are returned, LSQVCE.ENGINE.BLOCKACCUMULATOR uses Wfcn and never builds a
 covariance matrix at all. Cfcn is kept as a reference path: run one arc
@@ -169,6 +187,10 @@ info.filterMemory      % = 20 -&gt; the accumulator overlaps by 20 rows</pre>
                                    does not cover the arc&#x27;s rows, or disagrees
                                    with a .d on the spec
     lsqvce:covModel:cepOnVar       a &#x27;var&#x27; law with a .Cep
+    lsqvce:covModel:badNugget      .nugget without a Cep, of the wrong length,
+                                   negative or not finite
+    lsqvce:covModel:nuggetNeedsWholeArc  a nugget arc&#x27;s whitener called on a
+                                   batch that is not the whole arc
     lsqvce:covModel:notWholeEpochs a batch (or a dense VAR request) does not
                                    hold whole epochs; rows must be EPOCH-MAJOR
                                    and the arc must carry nAxis = d
@@ -194,6 +216,10 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 See also LSQVCE.ENGINE.CHECKPSD, LSQVCE.KERNEL.ARMAWHITEN, LSQVCE.KERNEL.SEPARABLEWHITEN,
          LSQVCE.KERNEL.DECORRFACTOR, LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.MAKELOADER
 
+Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-115 part 3b (R7-10, user
+decision (b)): the robust factors compose as an additive nugget
+(cm.nugget) instead of the multiplicative fold through Cep. With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-106: the retired &#x27;separable&#x27;
 type no longer listed under noAR (found by audit check 28 on its first
 run). With assistance from Claude (Anthropic), model Claude Fable 5.1.

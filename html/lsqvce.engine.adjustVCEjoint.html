@@ -124,13 +124,16 @@ OPTIONS (Name/Value)
            residuals, descaled by each epoch&#x27;s own declared accuracy
            (Cep) and reduced to ONE value per epoch (chi-calibrated over
            a multi-axis epoch&#x27;s rows, below), go through
-           LSQVCE.KERNEL.ROBUSTWEIGHTS per stream, and the factors are
-           folded into the per-epoch error information of the NEXT pass
-           (model.rowWeights -&gt; UserOpt.epochWeights -&gt; sigma / sqrt(w)
-           in makeLoader&gt;batchOf), i.e. applied BEFORE the temporal law
-           through the one composition C = D (R_t kron I_d) D.
-           Accumulation, probe redundancies and the component update
-           then see ONE re-weighted problem with nothing added. MEASURED
+           LSQVCE.KERNEL.ROBUSTWEIGHTS per stream, and the factors
+           enter the NEXT pass as an additive NUGGET on the temporal
+           covariance (model.rowWeights -&gt; UserOpt.epochWeights -&gt;
+           covModel&#x27;s cm.nugget, q = 1/w - 1), i.e. BEFORE the temporal
+           law: the epoch&#x27;s variance becomes Sigma_ee / w, its
+           covariances with the neighbours stay the law&#x27;s (R7 WP-115
+           part 3b, user decision (b) on R7-10: the former FOLD into Cep,
+           sigma / sqrt(w), scaled those too, and a zero-weight epoch
+           stayed a phantom observation under a correlated law --
+           formal/true sd 0.31 at phi 0.9, measured). MEASURED
            (rounds 4-8): weighting the law-whitened INNOVATION instead
            (Yang 1994, adjustRobust&#x27;s convention) neutralises the
            filter&#x27;s whole tail around every blunder and the colour of a
@@ -139,14 +142,20 @@ OPTIONS (Name/Value)
            estimator recovered it. NOT Ellmer (2018): he screens outliers in
            preprocessing and down-weights whole ARCS through the variance
            factors; this is Koch&#x27;s iterated re-weighting inside a VCE.
-           THE LEVEL IS AN OPEN QUESTION (R7-12): one MATLAB run read
-           1.007 on a clean stream (test_vcePolicy, a 15 % band), and
-           the &quot;weights cancel in alpha^2&quot; argument made for it is
-           disputed -- s_0 carries tr(Sigma_t^-1) of the UNWEIGHTED
-           temporal law, which no factor touches -- with a Python mirror
-           reading 0.83-0.86 (law fixed) / ~0.93 (law free). Until a
-           multi-seed MATLAB measurement settles it, read the level of a
-           robust pass as possibly biased LOW. Multi-axis streams are
+           THE LEVEL (R7-12, measured at tier A, HANDOVER 12.43): with
+           the factors inside the component update the level of a CLEAN
+           stream came back 14-19 % LOW (20 seeds, IGG3) -- the influence
+           selects the epochs with large residuals, which no redundancy
+           count undoes. So (user decision 2026-10-11) the component
+           update (the sweep) sees only the REJECTED epochs, factor 0, as
+           nuggets (deleted); partial factors weight the solution only;
+           and the stream&#x27;s level is divided by the Gaussian truncation
+           factor of the rejection point kReject,
+           tau = F_{d+2}(q_k) / F_d(q_k) with P(chi2_d &gt; q_k) =
+           P(|N(0,1)| &gt; kReject) -- 0.9733 for IGG3&#x27;s k1 = 3 at d = 1,
+           1 for Huber, which rejects nothing (out.robust.truncation).
+           Mirror (mirrors/wp115/nugget.py): 0.978 / 0.976 (phi 0.5 /
+           white) before the factor. Multi-axis streams are
            weighted PER EPOCH by one chi-calibrated statistic (R7-08:
            the d descaled rows&#x27; sum of squares mapped to an equivalent
            N(0,1) deviate, so a clean 3-axis epoch is standardised like a
@@ -202,7 +211,9 @@ OPTIONS (Name/Value)
                         (nEpoch x 1, the final factors, ONE PER EPOCH
                         in sweep order -- a multi-axis epoch&#x27;s d rows
                         share it), .keys (A x 4 {sysID, obsType, day,
-                        arc}); empty under &quot;none&quot; (R6 WP-105)
+                        arc}), .truncation (1 x S, the level&#x27;s
+                        truncation factor tau per stream, R7 WP-115
+                        part 3b); empty under &quot;none&quot; (R6 WP-105)
   .arcKeys   M x 1 cell arc keys s&lt;sys&gt;_&lt;obsType&gt;_d&lt;day&gt;_a&lt;arc&gt; pinned
                         on pass 1 (LSQVCE.ENGINE.REDUNDANCY&#x27;s &#x27;arc&#x27; format) --
                         the ONE identity .sigma2 and Sigma2_0 align to
@@ -269,6 +280,12 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
          LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 
+Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-115 part 3b (R7-10, R7-12;
+user decisions (b) and 2026-10-11): the robust factors are an additive
+nugget (no longer folded into Cep); the component update sees only the
+rejected epochs and the level is divided by the rejection point&#x27;s
+Gaussian truncation factor (out.robust.truncation). With assistance from
+Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 2 (R7-38): the per-
 stream Ljung-Box statistic divides by the pooled pair counts N_k;
 Noise.MeanType / &#x27;MeanType&#x27; retired (user decision 2026-10-10). With

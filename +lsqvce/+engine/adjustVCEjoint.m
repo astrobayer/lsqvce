@@ -83,13 +83,16 @@ function out = adjustVCEjoint(accFcn, opt)
 %              residuals, descaled by each epoch's own declared accuracy
 %              (Cep) and reduced to ONE value per epoch (chi-calibrated over
 %              a multi-axis epoch's rows, below), go through
-%              LSQVCE.KERNEL.ROBUSTWEIGHTS per stream, and the factors are
-%              folded into the per-epoch error information of the NEXT pass
-%              (model.rowWeights -> UserOpt.epochWeights -> sigma / sqrt(w)
-%              in makeLoader>batchOf), i.e. applied BEFORE the temporal law
-%              through the one composition C = D (R_t kron I_d) D.
-%              Accumulation, probe redundancies and the component update
-%              then see ONE re-weighted problem with nothing added. MEASURED
+%              LSQVCE.KERNEL.ROBUSTWEIGHTS per stream, and the factors
+%              enter the NEXT pass as an additive NUGGET on the temporal
+%              covariance (model.rowWeights -> UserOpt.epochWeights ->
+%              covModel's cm.nugget, q = 1/w - 1), i.e. BEFORE the temporal
+%              law: the epoch's variance becomes Sigma_ee / w, its
+%              covariances with the neighbours stay the law's (R7 WP-115
+%              part 3b, user decision (b) on R7-10: the former FOLD into Cep,
+%              sigma / sqrt(w), scaled those too, and a zero-weight epoch
+%              stayed a phantom observation under a correlated law --
+%              formal/true sd 0.31 at phi 0.9, measured). MEASURED
 %              (rounds 4-8): weighting the law-whitened INNOVATION instead
 %              (Yang 1994, adjustRobust's convention) neutralises the
 %              filter's whole tail around every blunder and the colour of a
@@ -98,14 +101,20 @@ function out = adjustVCEjoint(accFcn, opt)
 %              estimator recovered it. NOT Ellmer (2018): he screens outliers in
 %              preprocessing and down-weights whole ARCS through the variance
 %              factors; this is Koch's iterated re-weighting inside a VCE.
-%              THE LEVEL IS AN OPEN QUESTION (R7-12): one MATLAB run read
-%              1.007 on a clean stream (test_vcePolicy, a 15 % band), and
-%              the "weights cancel in alpha^2" argument made for it is
-%              disputed -- s_0 carries tr(Sigma_t^-1) of the UNWEIGHTED
-%              temporal law, which no factor touches -- with a Python mirror
-%              reading 0.83-0.86 (law fixed) / ~0.93 (law free). Until a
-%              multi-seed MATLAB measurement settles it, read the level of a
-%              robust pass as possibly biased LOW. Multi-axis streams are
+%              THE LEVEL (R7-12, measured at tier A, HANDOVER 12.43): with
+%              the factors inside the component update the level of a CLEAN
+%              stream came back 14-19 % LOW (20 seeds, IGG3) -- the influence
+%              selects the epochs with large residuals, which no redundancy
+%              count undoes. So (user decision 2026-10-11) the component
+%              update (the sweep) sees only the REJECTED epochs, factor 0, as
+%              nuggets (deleted); partial factors weight the solution only;
+%              and the stream's level is divided by the Gaussian truncation
+%              factor of the rejection point kReject,
+%              tau = F_{d+2}(q_k) / F_d(q_k) with P(chi2_d > q_k) =
+%              P(|N(0,1)| > kReject) -- 0.9733 for IGG3's k1 = 3 at d = 1,
+%              1 for Huber, which rejects nothing (out.robust.truncation).
+%              Mirror (mirrors/wp115/nugget.py): 0.978 / 0.976 (phi 0.5 /
+%              white) before the factor. Multi-axis streams are
 %              weighted PER EPOCH by one chi-calibrated statistic (R7-08:
 %              the d descaled rows' sum of squares mapped to an equivalent
 %              N(0,1) deviate, so a clean 3-axis epoch is standardised like a
@@ -162,7 +171,9 @@ function out = adjustVCEjoint(accFcn, opt)
 %                             (nEpoch x 1, the final factors, ONE PER EPOCH
 %                             in sweep order -- a multi-axis epoch's d rows
 %                             share it), .keys (A x 4 {sysID, obsType, day,
-%                             arc}); empty under "none" (R6 WP-105)
+%                             arc}), .truncation (1 x S, the level's
+%                             truncation factor tau per stream, R7 WP-115
+%                             part 3b); empty under "none" (R6 WP-105)
 %       .arcKeys   M x 1 cell arc keys s<sys>_<obsType>_d<day>_a<arc> pinned
 %                             on pass 1 (LSQVCE.ENGINE.REDUNDANCY's 'arc' format) --
 %                             the ONE identity .sigma2 and Sigma2_0 align to
@@ -232,6 +243,12 @@ function out = adjustVCEjoint(accFcn, opt)
 %   See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
 %            LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-115 part 3b (R7-10, R7-12;
+%   user decisions (b) and 2026-10-11): the robust factors are an additive
+%   nugget (no longer folded into Cep); the component update sees only the
+%   rejected epochs and the level is divided by the rejection point's
+%   Gaussian truncation factor (out.robust.truncation). With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 2 (R7-38): the per-
 %   stream Ljung-Box statistic divides by the pooled pair counts N_k;
 %   Noise.MeanType / 'MeanType' retired (user decision 2026-10-10). With
@@ -399,7 +416,7 @@ end
     lastSol = [];                                % R5 M7 7b: the previous pass's solution
     robust = ~strcmp(o.Influence, "none");       % R6 WP-105
     W = containers.Map('KeyType', 'char', 'ValueType', 'any');   % per-epoch factors
-    fac = [];  rkeys = cell(0, 4);  rscale = [];  rstreams = {};
+    fac = [];  rkeys = cell(0, 4);  rscale = [];  rstreams = {};  tauMap = [];
     hist.robustScale = [];  hist.nDown = [];  hist.nZero = [];
     if robust
         % PASS 0 (round 10, measured): the first robust sweep runs BEFORE the
@@ -414,7 +431,7 @@ end
                         'lastSol', [], 'rowWeights', W);
         acc0 = accFcn(model0);
         sol0 = acc0.solve();
-        [W, ~, ~, rscale0, ~, nDown0, nZero0] = robustSweep(acc0, sol0, W, o, size(sol0.x, 1));
+        [W, ~, ~, rscale0, ~, nDown0, nZero0, tauMap] = robustSweep(acc0, sol0, o, size(sol0.x, 1));
         if v
             lsqvce.util.log.msg('  [joint  0] robust (%s): scales %s, %d down-weighted, %d at zero\n', ...
                 o.Influence, mat2str(rscale0, 3), nDown0, nZero0);
@@ -600,9 +617,13 @@ end
             cols = strcmp(streamOf, sk{1});
             avk = lsqvce.engine.arcVarianceFactors(omegaT(:, cols), sT(:, cols), s2Applied(cols), ...
                                             'Norm', o.Norm);   % gamma-bar: the kernel's robust default
-            av.gamma2(cols) = avk.gamma2;
+            % R7 WP-115 part 3b (R7-12): the sweep deleted the REJECTED epochs, so
+            % the stream's Helmert factor is that of a sample truncated at the
+            % rejection point -- divided by its Gaussian truncation factor tau
+            % (1 without a robust pass, or for Huber)
+            av.gamma2(cols) = avk.gamma2 / tauRow(tauMap, sk);
             if isfinite(avk.gammaBar) && avk.gammaBar > 0
-                av.sigma2(cols) = avk.sigma2 * avk.gammaBar^2;     % the clamped gamma2_m
+                av.sigma2(cols) = avk.sigma2 * avk.gammaBar^2 / tauRow(tauMap, sk);   % the clamped gamma2_m
             else
                 av.sigma2(cols) = s2Applied(cols);                  % badMean: unchanged this pass
             end
@@ -657,13 +678,13 @@ end
         end
 
         % ---- step 9c (R6 WP-105): the robust pass -- next pass's factors ----
-        % One residual sweep under THIS pass's accumulator; the factors of
-        % this pass are divided out (lawWhitenedResiduals), so the influence
-        % function sees the standardised residual under the current law,
-        % level, arc factor and Cep. The factors are written for the NEXT
+        % One residual sweep under THIS pass's accumulator; the RAW residuals,
+        % descaled by the declared Cep (epochResiduals -- the factors are a
+        % nugget, never in Cep), standardised per stream by their MAD. The
+        % factors are written for the NEXT
         % pass, one pass behind the model -- the same lag adjustRobust has.
         if robust
-            [W, fac, rkeys, rscale, rstreams, nDown, nZero] = robustSweep(acc, sol, W, o, size(sol.x, 1));
+            [W, fac, rkeys, rscale, rstreams, nDown, nZero, tauMap] = robustSweep(acc, sol, o, size(sol.x, 1));
             hist.robustScale(it,1:numel(rscale)) = rscale;       %#ok<AGROW>  one MAD scale per stream
             hist.nDown(it,1) = nDown;                            %#ok<AGROW>
             hist.nZero(it,1) = nZero;                            %#ok<AGROW>
@@ -753,32 +774,41 @@ end
         solF = accF.solve();
     end
     out = struct('C', C, 'Shat', Shat, 'sigma2', sigma2, 'acc', accF, ...
-                 'userStop', userStop, ...
-                 'Cgroups', Cmap, ...
+                 'userStop', userStop, 'Cgroups', Cmap, ...
                  'sol', solF, 'converged', converged, 'nIter', numel(hist.maxDev), ...
                  'history', hist, ...
                  'arcKeys', {pinnedKeys(:)}, ...
                  'skips', {hist.skips}, ...
                  'seed', o.Seed, ...                                   % R7-37
                  'robust', struct('influence', char(o.Influence), 'scale', rscale, ...
-                                  'streams', {rstreams}, 'factor', fac, 'keys', {rkeys}));   % R6 WP-105
+                                  'streams', {rstreams}, 'factor', fac, 'keys', {rkeys}, ...      % R6 WP-105
+                                  'truncation', tauRow(tauMap, rstreams)));                      % R7 WP-115
 end
 
 %==========================================================================
-function [W, fac, rkeys, rscale, rstreams, nDown, nZero] = robustSweep(acc, sol, W, o, nc)
+function [W, fac, rkeys, rscale, rstreams, nDown, nZero, tauMap] = robustSweep(acc, sol, o, nc)
 %ROBUSTSWEEP  One robust sweep (R6 WP-105, the KOCH convention): the RAW
 %   residuals under this accumulator, descaled by each epoch's DECLARED
-%   accuracy (this pass's folded factors divided back out), one value per
-%   epoch, the influence per stream (perStreamWeights), the collapse
-%   refusal, and the factor map W for the NEXT pass (one per epoch).
+%   accuracy (Cep; the factors are a nugget since R7 WP-115 part 3b, so
+%   nothing has to be divided back out), one value per epoch, the influence
+%   per stream (perStreamWeights), the collapse refusal, the factor map W
+%   for the NEXT pass (one per epoch) and tauMap, the level's truncation
+%   factor per stream (truncationFactor at the influence's rejection point,
+%   averaged over the stream's epochs by their axis count).
     % Whitened=true: the record carries the RAW residual .v either way, and
     % the sweep's own sigma0 check must see the WHITENED sum (round 11: with
     % Whitened=false its vtv is the raw sum, and the honest sigma0Mismatch
     % guard fired on every robust pass).
     res = lsqvce.engine.residuals(acc, sol, 'Whitened', true, 'Collect', true, 'Verbose', false);
-    [uEp, rkeys, sizes, qEp, dEp] = epochResiduals(res, W);
+    [uEp, rkeys, sizes, qEp, dEp] = epochResiduals(res);
     uEp = chiCalibrated(uEp, qEp, dEp, rkeys, sizes);               % R7-08: d > 1 epochs
-    [fac, rscale, rstreams] = perStreamWeights(uEp, rkeys, sizes, o.Influence, o.Tuning);
+    [fac, rscale, rstreams, kReject, rowsOf] = perStreamWeights(uEp, rkeys, sizes, o.Influence, o.Tuning);
+    tauMap = containers.Map('KeyType', 'char', 'ValueType', 'double');
+    for si = 1:numel(rstreams)
+        [ud, ~, j] = unique(dEp(rowsOf{si}));          % one factor per axis count
+        tv = arrayfun(@(d) truncationFactor(kReject, d), ud);
+        tauMap(rstreams{si}) = mean(tv(j));
+    end
     nAlive = sum(fac > 0);
     if nAlive < nc + 1                                              % live EPOCHS
         error('lsqvce:adjustVCEjoint:collapsed', ...
@@ -805,7 +835,7 @@ function [W, fac, rkeys, rscale, rstreams, nDown, nZero] = robustSweep(acc, sol,
 end
 
 %==========================================================================
-function [fac, scale, streams] = perStreamWeights(vw, keys, sizes, influence, tuning)
+function [fac, scale, streams, kReject, rowsOf] = perStreamWeights(vw, keys, sizes, influence, tuning)
 %PERSTREAMWEIGHTS  Robust factors PER STREAM (R6 WP-105, round 2).
 %   The influence function standardises residuals by a MAD scale, and that
 %   scale must be ONE PER STREAM and must NOT be the estimated level: the
@@ -825,7 +855,8 @@ function [fac, scale, streams] = perStreamWeights(vw, keys, sizes, influence, tu
 %   the sweep needs: its temporal covariance is per axis and per epoch, so a
 %   factor must be per epoch to be expressible there.
 %   OUTPUT fac n x 1; scale 1 x S (the MAD per stream); streams 1 x S cell
-%          'satKey|obsType', sorted.
+%          'satKey|obsType', sorted; kReject 1x1 the influence's rejection
+%          point (Inf for Huber); rowsOf 1 x S cell, each stream's epochs.
     n = numel(vw);
     fac = ones(n, 1);
     skey = cell(size(keys, 1), 1);
@@ -836,6 +867,8 @@ function [fac, scale, streams] = perStreamWeights(vw, keys, sizes, influence, tu
     streams = unique(skey).';
     streams = streams(~startsWith(streams, 'prior_') & ~contains(streams, '|prior_'));
     scale = nan(1, numel(streams));
+    rowsOf = cell(1, numel(streams));
+    kReject = Inf;
     ends = cumsum(sizes(:));  starts = ends - sizes(:) + 1;
     for si = 1:numel(streams)
         arcs = find(strcmp(skey, streams{si}));
@@ -843,7 +876,42 @@ function [fac, scale, streams] = perStreamWeights(vw, keys, sizes, influence, tu
         for kk = arcs(:).'
             rows = [rows, starts(kk):ends(kk)]; %#ok<AGROW>
         end
-        [fac(rows), scale(si)] = lsqvce.kernel.robustWeights(vw(rows), influence, tuning);
+        [fac(rows), scale(si), ~, ~, kReject] = lsqvce.kernel.robustWeights(vw(rows), influence, tuning);
+        rowsOf{si} = rows;
+    end
+end
+
+function tau = truncationFactor(k, d)
+%TRUNCATIONFACTOR  E[q | q < q_k] / d for q ~ chi2_d, the rejection point k
+%   mapped through the two-sided normal tail: P(chi2_d > q_k) = P(|N| > k)
+%   (the chi-calibrated statistic of a d-axis epoch is that N, R7-08). The
+%   mean square of a Gaussian sample truncated there is tau times the
+%   untruncated one, tau = F_{d+2}(q_k) / F_d(q_k); d = 1 gives
+%   1 - 2 k phi(k) / (2 Phi(k) - 1) (0.97334 at k = 3). k = Inf: 1.
+%   R7 WP-115 part 3b, user decision 2026-10-11.
+    if ~isfinite(k), tau = 1; return, end
+    p = erfc(k / sqrt(2));
+    if d == 1
+        qk = k^2;
+    else
+        lo = 0;  hi = d + 50 * sqrt(2 * d) + k^2;
+        for it = 1:200
+            qk = (lo + hi) / 2;
+            if gammainc(qk / 2, d / 2, 'upper') > p, lo = qk; else, hi = qk; end
+            if hi - lo <= 4 * eps(qk), break, end
+        end
+    end
+    tau = gammainc(qk / 2, d / 2 + 1) / gammainc(qk / 2, d / 2);
+end
+
+function t = tauRow(tauMap, streams)
+%TAUROW  The truncation factors of STREAMS (1 x S, aligned): the level's
+%   divisor per stream, 1 where none applies (no robust pass, Huber, a
+%   prior stream, or tauMap = [] before the first robust sweep).
+    t = ones(1, numel(streams));
+    if isempty(tauMap), return, end
+    for si = 1:numel(streams)
+        if isKey(tauMap, streams{si}), t(si) = tauMap(streams{si}); end
     end
 end
 
@@ -898,7 +966,7 @@ function m = chi2Median(d)
     cache(d) = m;
 end
 
-function [uEp, keys, sizes, qEp, dEp] = epochResiduals(res, W)
+function [uEp, keys, sizes, qEp, dEp] = epochResiduals(res)
 %EPOCHRESIDUALS  One standardised RAW residual per EPOCH, in sweep order
 %   (R6 WP-105 round 8, the Koch convention): the raw residual v = l - A x
 %   - B y of every arc, descaled by the epoch's own declared accuracy (the
@@ -907,11 +975,12 @@ function [uEp, keys, sizes, qEp, dEp] = epochResiduals(res, W)
 %   statistic of a vector observation. The level of the law is NOT divided
 %   out here: perStreamWeights standardises by the stream's MAD, so the
 %   weights are invariant to the level and cannot chase it. The Cep the
-%   sweep returns is the COMPOSED one -- this pass's factors already folded
-%   in (makeLoader>inflateCep) -- so they are divided back out first, from
-%   W: standardising a blunder by an accuracy that already carries its own
-%   zero weight made it look perfect, and the weights flipped on and off
-%   every pass (round 8, measured: nZero 60 / 0 / 55 / 0 ...).
+%   sweep returns is the DECLARED one: the factors are a nugget on the
+%   temporal law since R7 WP-115 part 3b, never folded into Cep (when they
+%   were, they had to be divided back out here -- standardising a blunder
+%   by an accuracy that carried its own zero weight made it look perfect,
+%   and the weights flipped on and off every pass, round 8: nZero 60 / 0 /
+%   55 / 0 ...).
 %   OUTPUT uEp n_epochs x 1 (d = 1: the descaled residual; d > 1: the sign
 %          of the axes' sum, +1 for a zero sum -- chiCalibrated supplies the
 %          magnitude); keys A x 4 {sysID, obsType, day, arc}; sizes 1 x A
@@ -925,11 +994,6 @@ function [uEp, keys, sizes, qEp, dEp] = epochResiduals(res, W)
             v = o.v(:);  d = o.nAxis;  m = numel(v);
             if ~isempty(o.Cep)
                 Cep = o.Cep;
-                key = lsqvce.util.rowWeightKey(S.sysID, o.day, o.obsType, o.arc);
-                if ~isempty(W) && isKey(W, key)          % undo this pass's folded factors
-                    w = max(W(key), 1e-12);  w = w(:);
-                    if ismatrix(Cep), Cep = Cep .* sqrt(w); else, Cep = Cep .* w; end
-                end
                 if ismatrix(Cep) && size(Cep, 2) == 1 && d == 1
                     v = v ./ Cep(:);
                 else
@@ -1104,9 +1168,31 @@ function [om, sn, why, wsum, wm] = oneArc(st, obsType, arc, day, uo, UiZ, nLag, 
         [Ad, Bd, ld] = lsqvce.kernel.separableWhiten(1, 1, 1, Cep, nAx, A, B, l, true);
         Sig = a.Cfcn(1:mE, uo);                       % TEMPORAL, over epochs
         if isvector(Sig), Sig = diag(Sig(:)); end
-        [W, pd] = chol((Sig + Sig.')/2);
+        Sig = (Sig + Sig.')/2;
+        [W, pd] = chol(Sig);
         if pd > 0
             om = [];  sn = [];  why = 'nonPD';  return
+        end
+        % R7 WP-115 part 3b (R7-12, user decision 2026-10-11): the component
+        % update sees the REJECTED epochs only -- factor 0, floored to 1e-12 by
+        % the loader, i.e. q = 1/f - 1 ~ 1e12 -- as nuggets, which deletes
+        % them to rounding; partial factors weighted the solution (the
+        % accumulator's full nugget) and are NOT repeated here, because the
+        % influence selects exactly the epochs with large residuals and the
+        % level of a clean stream came back 14-19 % low with them inside
+        % (HANDOVER 12.43). The truncation this leaves is corrected per
+        % stream (truncationFactor).
+        WL = W;  cN = [];
+        q = lsqvce.util.getfielddef(a, 'nugget', []);
+        if ~isempty(q) && any(q(:) > 1e11)
+            cN = zeros(mE, 1);
+            rej = q(:) > 1e11;
+            dSig = diag(Sig);
+            cN(rej) = q(rej) .* dSig(rej);
+            [W, pd] = chol(Sig + diag(cN));
+            if pd > 0
+                om = [];  sn = [];  why = 'nonPD';  return
+            end
         end
         nLagA = min(nLag, mE);
         om = zeros(nLag, 1);  sn = zeros(nLag, 1);
@@ -1115,7 +1201,7 @@ function [om, sn, why, wsum, wm] = oneArc(st, obsType, arc, day, uo, UiZ, nLag, 
             [AtilBar, Bbar, ebar] = jointArcParts(Ad(rows, :), Bd(rows, :), ld(rows), W, ...
                                                   x(1:size(A,2)), ySys, Gsys);
             r  = lsqvce.kernel.redundancyLags(AtilBar, W, UiZ, ebar, nLagA, ...
-                                       'LocalBbar', Bbar, 'LocalLl', LlS);
+                                       'LocalBbar', Bbar, 'LocalLl', LlS, 'Nugget', cN, 'LawW', WL);
             om = om + padTo(r.omega, nLag);
             sn = sn + padTo(r.s,     nLag);
             wsum = wsum + whiteLagSums(ebar);  wm = wm + lagPairs(numel(ebar));

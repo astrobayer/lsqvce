@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.5.0 — User Manual"
+title: "lsqvce 6.6.0 — User Manual"
 subtitle: "least-squares adjustment with variance component estimation"
 date: "built from the sources; the single documentation authority"
 ---
@@ -1897,10 +1897,17 @@ exactly like a clean scalar residual — the RMS used before was χ-shaped and, 
 uncentred, zeroed about a quarter of clean 3-axis epochs under `igg3`. When a pass zeroes
 more than 45 % of the epochs the toolbox warns once that it is at the breakdown point
 (`lsqvce:robust:atBreakdown`; diagnostic only — the stand-alone IRLS says the same about
-rows). The factors are folded into the
-per-epoch error information of the next pass — sigma / sqrt(w), **before** the temporal law,
-through the one composition C = D (R_t ⊗ I_d) D. Accumulation, the probe redundancies and
-the component update therefore see **one** re-weighted problem with nothing added. A weight
+rows). The factors enter the next pass as an **additive nugget** on the temporal law
+(since 6.6.0): epoch e's temporal variance Σ_ee becomes Σ_ee / w_e, its covariances with the
+neighbours stay the law's, **before** the composition with `Cep`:
+C = D ((R_t + diag(q ∘ Σ_ee)) ⊗ I_d) D with q = 1/w − 1. Until 6.5.0 the factors were
+*folded* into `Cep` (sigma / sqrt(w)), which scales the neighbours' covariances too: under a
+correlated law a zero-weight epoch then stayed a phantom observation the filter leaned on —
+at φ = 0.9 the formal standard deviation was 0.31 of the true one, and the estimate 1.2–1.5
+times worse than deleting the epoch (review R7, R7-10; measured at tier A, HANDOVER §12.43).
+With the nugget a zero weight *is* a deletion (formal/true 1.000). A nugget arc is whitened
+in one batch: the law's filter, then an exact rank-k correction over the k down-weighted
+epochs (Woodbury), O(m k + k³) — 0.1–4 ms for a 4096-epoch arc. A weight
 is a statement about the *observation*; the stand-alone IRLS (`Estimate = "none"`) weights
 the law-whitened *innovation* instead (Yang 1994), and the two are deliberately different:
 the control measurement showed that an innovation weight of zero neutralises the whitening
@@ -1910,7 +1917,7 @@ the same blunders declared through `Cep` let the plain estimator recover it. `Ma
 the budget (`RobustOpts.MaxIter` / `Tol` belong to the stand-alone IRLS). Prior streams are
 never re-weighted: a down-weighted datum is a rank defect, not an outlier. What comes back:
 `R.noise.robust` (`influence`, `scale` per stream, `factor` per **epoch** in sweep order,
-`keys`), and `R.history.robustScale` / `nDown` / `nZero` per pass.
+`keys`, `truncation` per stream), and `R.history.robustScale` / `nDown` / `nZero` per pass.
 
 Two things the mechanism learned by measurement, both binding on how to use it. **The
 standardisation is the stream's own MAD scale, never the estimated level**: a global scale
@@ -1923,27 +1930,32 @@ retain 0.02 · 1.345 · 25 ≈ 0.67 of white variance and dilute a lag-1 colour 
 about 0.12; `igg3` (zero beyond 3 sigma) and `bisquare` reject them outright and recover
 the colour.
 
-**The level — an open question.** The obvious expectation — that a robust pass estimates the
-level of the *retained* observations, E[w u²]/E[w] (0.73 for `igg3`, 0.80 for Huber on
-Gaussian residuals) — was not what one MATLAB run showed: a clean stream came back at 1.007
-(a 15 % band in `test_vcePolicy`). The explanation first given for it — that the per-lag
-redundancy s_n sees the same weighted whitening, so the weights cancel in alpha² — is
-**disputed by review R7 (R7-12)**: s_0 carries the trace of the *unweighted* temporal law,
-which no factor touches, and a line-by-line mirror reads 0.83–0.86 with the law fixed and
-about 0.93 with it free. Until a multi-seed MATLAB measurement settles it, read the level a
-robust pass returns as possibly biased **low**; no consistency correction is applied. This
-composition is Koch's iterated re-weighting inside a variance-component estimation, not
-something Ellmer (2018) does.
+**The level (since 6.6.0).** Up to 6.5.0 the factors also weighted the component update,
+and the level of a *clean* stream came back **14–19 % low** — measured on the runner over 20
+seeds with the true law declared (plain 0.997, `igg3` 0.81 / 0.86; HANDOVER §12.43; the one
+earlier reading of 1.007 had been read against 1 while the truth was the process sd 1.155).
+The cause is selection: the influence down-weights exactly the epochs with large residuals,
+which no redundancy count undoes (counting the redundancy with the weights, exact for fixed
+weights, moved a mirror only from 0.74 to 0.76). So the component update now sees only the
+**rejected** epochs (factor 0, deleted by their nugget); partial factors weight the solution
+only; and each stream's level is divided by the Gaussian truncation factor of the rejection
+point, τ = F_{d+2}(q_k) / F_d(q_k) with P(χ²_d > q_k) = P(|N(0,1)| > k) — 0.9733 for
+`igg3`'s k1 = 3 at d = 1, practically 1 for `bisquare`, exactly 1 for Huber, which rejects
+nothing (`R.noise.robust.truncation`). A mirror of the loop reads 0.978 / 0.976 (φ = 0.5 /
+white) before the factor. Under a correlated law τ is the white-noise value, an approximation
+of the same order as that residual. This composition is Koch's iterated re-weighting inside
+a variance-component estimation, not something Ellmer (2018) does.
 
 Two further routes remain useful:
 
 - **Diagnose, then decide.** Run `Estimate = "noise"` and read `R.report()` — the w-tests,
   redundancies and MDBs identify the observations carrying the outliers; remove or repair
   them in your `buildDay` and re-run.
-- **Fold fixed weights into `Cep`.** Take factors from any robust run and let `buildDay`
-  return `Cep` divided by sqrt(factor) on those rows. The weights are then data; the noise
-  estimation runs on the re-weighted stream without the retained-observation bias moving
-  with every pass. The weights must be stored, never recomputed inside `buildDay` (the day
+- **Declare fixed weights as data.** Take factors from any robust run and let `buildDay`
+  remove the rejected epochs (a data gap) or return `Cep` divided by sqrt(factor) for a partial
+  one. The weights are then data and stay put from pass to pass. Under a correlated law a
+  `Cep` division is the fold described above, so a zero factor belongs in the gap, not in
+  `Cep`. The weights must be stored, never recomputed inside `buildDay` (the day
   builder must be deterministic).
 
 
@@ -2420,3 +2432,6 @@ Every identifier the package raises, from `dev/docs_src/error_ids.csv` (the cata
 | `lsqvce:verbosity:badTag` | util.verbosity — error — v4.0 |
 | `lsqvce:whittle:badG` | kernel.whittle — error — v4.0 |
 | `lsqvce:whittle:notPD` | kernel.whittle — error — v4.0 |
+| `lsqvce:covModel:badNugget` | engine.covModel — error — v6.6.0 |
+| `lsqvce:covModel:nuggetNeedsWholeArc` | engine.covModel — error — v6.6.0 |
+| `lsqvce:redundancyLags:badNugget` | kernel.redundancyLags — error — v6.6.0 |
