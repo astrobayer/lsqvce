@@ -67,7 +67,9 @@ function [R, s] = demo_priors(varargin)
 %   probes and which read 0.747, 0.753, 0.756 and 0.757 over four runs.)
 %     nc = 7 and nl = 13, both DERIVED; the design has 3 null directions, one
 %       per day, and rank() confirms it on the densely assembled [A B].
-%     Without priors fit REFUSES: lsqvce:qr:rankDeficient.
+%     Without priors fit REFUSES: lsqvce:qr:singularR (a pivot below
+%       QRSystem.RankTol; until 6.8 the normal-form fold dropped the null
+%       directions and the refusal read lsqvce:qr:rankDeficient).
 %     Regularised: sigma0 = 1.017; the four signal coefficients sit at
 %       z = +0.16, +0.00, -0.21, +0.04 of their formal errors; the three
 %       groups add 9 pseudo-observations (1 datum + 2 smoothness + 6 drift).
@@ -89,6 +91,9 @@ function [R, s] = demo_priors(varargin)
 %   See also LSQVCE.LAYOUT, LSQVCE.FIT, LSQVCE.OPTIONS, DEMO_NOISEPOLICY,
 %   DEMO_WORKFLOW
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-112 (R7-16): the refusal
+%   without priors is lsqvce:qr:singularR, the rank decision on the pivots.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Created 2026-09-07 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Opus 5 -- R6 WP-96: lsqvce.layout had no worked
 %   example (HANDOVER 12.19, carried; 12.20).

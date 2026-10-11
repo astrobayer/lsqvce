@@ -1,5 +1,31 @@
 # lsqvce release notes
 
+## 6.8.0 — 2026-10-11 (WP-112: the QR backend's accumulator path is square-root throughout)
+
+- **The default backend no longer squares the condition number on the accumulator path**
+  (review R7, R7-03). `BlockAccumulator` used to read each system's QR factor back as
+  N = R1'R1, Schur-eliminate the locals in normal form, and re-root the contribution with
+  `chol` in `merge`. It did so also for systems without locals, and the prior-folded solve
+  did the same.
+  - Now the locals are eliminated on the factor: `QRSystem.reducedRows` re-triangularises
+    with the local columns first.
+  - The reduced contribution is merged as square-root rows (`ReducedContribution.Rows`).
+  - A common prior is stacked as rows (K/σ, x0/σ).
+  - Measured in a mirror at cond(A) = 1e7–1e9, with and without locals: x_c is 1e-8–1e-4
+    formal sd from the dense `[A B] \ l`, against a median of 2–3 sd before. No full-rank
+    problem is refused; before, 4–11 of 20 were refused at 1e8.5–1e9.
+- **The rank decision is the code's own** (R7-16): `QRSystem.RankTol` = 1e3·eps on the
+  pivots of the final factor.
+  - Every free levelling network is refused (`lsqvce:qr:singularR`), and every one with a
+    datum is solved. Before, `chol` decided by rounding: 61 % refused, 39 % solved with an
+    arbitrary datum and sd ~1e7.
+  - Problems with cond(A) above about 4e12 are now refused.
+- At the WP-49/50 deep regime the QR path now returns an honest sigma0 at the fold (no
+  `lsqvce:qr:cancellation`): the residual row rides along with the merged rows. A
+  regularised local block still folds in normal form, with the WP-50 guard.
+- Numbers on the QR backend change in the last digits for well-conditioned problems, and
+  substantially for ill-conditioned ones. The normal backend is unchanged.
+
 ## 6.7.0 — 2026-10-11 (WP-111 part 3: the joint law as positive components)
 
 - **The joint estimator's law is a non-negative spectrum on `Noise.Grid` bins** (review

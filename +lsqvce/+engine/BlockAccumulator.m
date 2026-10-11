@@ -216,6 +216,11 @@ classdef BlockAccumulator < handle
 %       lsqvce:accum:localNotRedundant  an arc's local block has no redundancy,
 %                                     so its variance factor is undefined
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-112 (R7-03, R7-16): on the
+%   QR backend the whole path stays square-root -- locals eliminated on the
+%   factor (QRSystem.reducedRows), contributions merged as rows, the prior
+%   folded in as rows; the rank decision is QRSystem.RankTol on the pivots.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-08-31 (CEST, UTC+02:00), R4 G-07 (Level L2): nl = 0 is a
 %   valid system (user decision) -- addSystem accepts it, preeliminate
 %   returns the unreduced common block with consistent empty local shapes.
@@ -495,6 +500,17 @@ classdef BlockAccumulator < handle
                     Ncc0 = obj.sys.commonBlocks();
                     rc0  = rcond(full((Ncc0 + Ncc0.')/2));
                     rc1  = rc0;                       % no regularisation applied
+                end
+            elseif strcmp(obj.backend, 'qr')
+                % R7 WP-112 (R7-03): the prior's pseudo-observations K x ~ x0
+                % (weight 1/sigma) are stacked onto the factor as ROWS and the
+                % augmented system re-triangularised -- x, vtv (the residual
+                % row) and Cxx from the square root; nothing is squared.
+                [x, Cxx, s0sq, dof, vtv, rK, priorAbsorbed] = obj.solveQRWithPrior();
+                if lsqvce.util.verbosity.detail(obj.opt.Verbose)
+                    [Nk, ~] = obj.prior.normals();
+                    Ncc = obj.sys.commonBlocks();
+                    rc0 = rcond(full((Ncc + Ncc.')/2));  rc1 = rcond(full((Ncc + Nk + (Ncc + Nk).')/2));
                 end
             else
                 % Fold the prior in as pseudo-observations, then solve.
@@ -1083,6 +1099,37 @@ classdef BlockAccumulator < handle
 
     %======================================================================
     methods (Access = private)
+        %------------------------------------------------------------------
+        function [x, Cxx, s0sq, dof, vtv, rK, absorbed] = solveQRWithPrior(obj)
+        %SOLVEQRWITHPRIOR  The prior-folded solve on the QR backend, square-root
+        %   throughout (R7 WP-112): [R; K/sigma, x0/sigma] re-triangularised,
+        %   refused by QRSystem.RankTol on its pivots (priorNotPD), vtv the
+        %   squared residual row (NaN when the backend's own vtv is poisoned).
+        %   OUTPUT  as solve(), plus rK / absorbed (CommonPrior.redundancy).
+            nc = obj.nc;
+            w  = 1 / obj.prior.sigma;
+            G  = triu(qr([obj.sys.R; full(obj.prior.K) * w, obj.prior.x0 * w], 0));
+            G  = G(1:min(size(G, 1), nc + 1), :);
+            dR = abs(diag(G(1:min(nc, size(G, 1)), 1:nc)));
+            if numel(dR) < nc || min(dR) <= lsqvce.engine.QRSystem.RankTol * max(dR)
+                error('lsqvce:accum:priorNotPD', ...
+                    ['Even with the prior, the common normal matrix is not ' ...
+                     'positive definite. The prior does not span the null ' ...
+                     'space of the data.']);
+            end
+            R1  = G(1:nc, 1:nc);
+            x   = R1 \ G(1:nc, end);
+            vtv = 0;
+            if size(G, 1) > nc, vtv = G(nc + 1, end)^2; end
+            if obj.sys.vtvPoisoned, vtv = NaN; end           % warned at merge()
+            [rK, absorbed] = obj.prior.redundancy(R1.');     % lower: R1' R1 = N
+            dof  = obj.sys.m + obj.prior.nk - nc;
+            s0sq = vtv / max(dof, 1);
+            Ri   = R1 \ eye(nc);
+            Cxx  = s0sq * (Ri * Ri.');
+            Cxx  = (Cxx + Cxx.')/2;
+        end
+
 
         %------------------------------------------------------------------
         function commit(obj, out)
@@ -1226,7 +1273,11 @@ classdef BlockAccumulator < handle
                             'diagDom', 1, 'status', 'ok', 'regUsed', 'none', ...
                             'lambdaUsed', 0);
                 Ncc  = (Ncc + Ncc.')/2;
-                red  = lsqvce.engine.ReducedContribution(Ncc, nc_rhs, ltl, mObs);
+                if isa(loc, 'lsqvce.engine.QRSystem')     % R7 WP-112: the factor itself
+                    red = lsqvce.engine.ReducedContribution([], [], [], mObs, loc.reducedRows(0));
+                else
+                    red = lsqvce.engine.ReducedContribution(Ncc, nc_rhs, ltl, mObs);
+                end
                 keep = struct('Nll_r', zeros(0,0), 'Nlc', zeros(0,nc), ...
                               'nl_r', zeros(0,1), 'ltl', ltl, 'mObs', mObs, ...
                               's0sq_hint', max(ltl,0)/max(mObs,1));
@@ -1246,6 +1297,31 @@ classdef BlockAccumulator < handle
 
             dg = lsqvce.engine.localDiagnostics(Nll, opt);
             [Nll_r, nl_r, dg] = lsqvce.engine.applyRegularisation(Nll, nl_rhs, dg, opt);
+
+            % R7 WP-112 (R7-03): on the QR backend an UNREGULARISED local block
+            % is eliminated on the factor (QRSystem.reducedRows) -- the reduced
+            % contribution leaves as square-root rows and merge never squares
+            % it. The normal-form Schur below remains for a regularised block
+            % (the regularisation is defined on Nll) and for a local factor
+            % whose pivots fail QRSystem.RankTol (the pinv fallback's case).
+            if isa(loc, 'lsqvce.engine.QRSystem') && strcmp(dg.regUsed, 'none')
+                [rows, R11] = loc.reducedRows(nl);
+                dR = abs(diag(R11));
+                if numel(dR) == nl && min(dR) > lsqvce.engine.QRSystem.RankTol * max(dR)
+                    red  = lsqvce.engine.ReducedContribution([], [], [], mObs - nl, rows);
+                    keep = struct('Nll_r', Nll_r, 'Nlc', Nlc, 'nl_r', nl_r, ...
+                                  'ltl', ltl, 'mObs', mObs, ...
+                                  's0sq_hint', max(red.ltl, 0)/max(mObs - nl, 1));
+                    if lsqvce.util.verbosity.detail(opt.Verbose)
+                        hdr = sprintf('System %s "%s"', string(sysID), sysName);
+                        lsqvce.util.log.msg('%s', lsqvce.util.verbosity.fieldBlock(hdr, ...
+                            {'observations',    sprintf('%d', mObs); ...
+                             'local unknowns',  sprintf('%d (eliminated on the QR factor)', nl); ...
+                             'cond(Nll)',       sprintf('%.3e', dg.condNll)}));
+                    end
+                    return
+                end
+            end
 
             % Arc-wise local parameters make Nll BLOCK-DIAGONAL: arc a only
             % touches its own columns of B. Exploiting that turns an O(nl^3)

@@ -7,7 +7,7 @@ the module census, correctness history, design decisions, validation, and the
 measured chapters. `dev/HANDOVER.md` remains the single status-and-plans
 document; this file is the technical companion the README used to be.*
 
-> **Status (2026-09-01, v2.0 — see RELEASE_NOTES.md).** Green everywhere: **27 suite files, 628 test
+> **Status (2026-09-01, v2.0 — see RELEASE_NOTES.md).** Green everywhere: **27 suite files, 631 test
 > points, 0 fail** — verified locally in MATLAB R2026a (including the
 > pool suites with real `parfor`/`spmd` workers and the machine-local
 > speed budgets) and on every push by GitHub Actions CI (a static `audit`
@@ -475,6 +475,16 @@ columns:
 *no correct digits*; Householder still has eight. Forming `N` — even only to
 Schur-complement it — squares the condition number, and nothing afterwards undoes
 that. `'qr'` eliminates on the *observation equations*.
+
+Since 6.7.0 (R7 WP-112) that holds for the accumulator path too. Until then
+`BlockAccumulator` read the QR factor back as `N = R1'R1`, Schur-eliminated the
+locals in normal form and re-rooted the contribution by `chol`. That is
+cond(A)² after all: median 2–3 formal sd error at cond(A) = 1e7–1e9, and
+full-rank problems refused from 1e8.5 (review R7-03). Now the locals are
+eliminated on the factor (`QRSystem.reducedRows`), and the contribution and any
+common prior are stacked as rows. The rank decision is `QRSystem.RankTol` on
+the pivots (R7-16). The square-root path measures ≤ 1.6e-4 sd, mostly 1e-8,
+with no refusal up to cond 1e12 (`dev/reviews/R7_2026-10-09/mirrors/wp112`).
 
 ### Two traps, both measured, both optimistic
 

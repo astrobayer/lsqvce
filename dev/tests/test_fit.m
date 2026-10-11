@@ -1582,7 +1582,10 @@ function testDemoPriorsIsTheWorkedLayoutExample(tc)
     tc.verifyTrue(contains(out, 'lsqvce.layout says'), 'it prints the layout census');
     tc.verifyEqual([s.nc, s.nl], [7, 13], 'nc and nl are derived from the two tables');
     tc.verifyEqual(s.nullDim, 3, 'one null direction per day');
-    tc.verifyEqual(s.unregularised, 'lsqvce:qr:rankDeficient', ...
+    % R7 WP-112 (R7-16): the refusal is the rank decision on the pivots,
+    % singularR -- the normal-form fold that dropped the null directions (and
+    % made it rankDeficient) is gone from the QR accumulator path
+    tc.verifyEqual(s.unregularised, 'lsqvce:qr:singularR', ...
                    'without priors the singular case is REFUSED, not solved');
     tc.verifyEqual(s.nPseudo, 9, '1 datum + 2 smoothness + 6 drift rows');
     % the two ways of writing ONE group must give ONE solution: same operator,

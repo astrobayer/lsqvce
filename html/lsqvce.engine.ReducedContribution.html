@@ -53,6 +53,15 @@ PROPERTIES
   n     nc x 1   nc  - Nlc&#x27;*inv(Nll)*nl       reduced right-hand side
   ltl   scalar   l&#x27;l - nl&#x27;*inv(Nll)*nl        reduced residual mass
   dof   scalar   m - nl                       observations minus locals
+  Rows  k x (nc+1) | []  the SAME contribution as square-root rows
+                 [R22 r2; 0 rho] (LSQVCE.ENGINE.QRSYSTEM.reducedRows):
+                 Rows&#x27;Rows = [N n; n&#x27; ltl]. Given, QRSystem.merge stacks
+                 them and never touches N (R7 WP-112, R7-03); N, n, ltl
+                 are then derived from them, for the normal backend and
+                 the diagnostics.
+
+c = LSQVCE.ENGINE.REDUCEDCONTRIBUTION(N, n, ltl, dof)
+c = LSQVCE.ENGINE.REDUCEDCONTRIBUTION([], [], [], dof, Rows)
 
 ltl IS NOT OPTIONAL
   It carries the residual sum of squares of the pre-eliminated system. Both
@@ -66,6 +75,9 @@ ltl IS NOT OPTIONAL
 
 See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.QRSYSTEM, LSQVCE.ENGINE.NORMALEQSYSTEM
 
+Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-112 (R7-03): the optional
+square-root form Rows. With assistance from Claude (Anthropic), model
+Claude Opus 5.5.
 Generated with assistance from Claude (Anthropic), model Claude
 Opus 4.8.
 Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
