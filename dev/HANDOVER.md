@@ -8388,7 +8388,7 @@ only").**
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 115 (part 3a) | the tier-A measurement §12.39 asked for before the additive nugget is built: `dev/validation/wp115_measure.m` on the self-hosted runner through a new, NON-gating workflow `measure.yml` (pull requests touching `dev/validation/*.m` or the workflow, or by hand); R7-12 multi-seed level, R7-10 fold / nugget / deletion, the nugget's per-arc cost; no toolbox change, no version | 86 part 4 (PR #127 merged 8aef05c) | OPEN (2026-10-11; audit CLEAN; measurement pending) |
+| 115 (part 3a) | the tier-A measurement §12.39 asked for before the additive nugget is built: `dev/validation/wp115_measure.m` on the self-hosted runner through a new, NON-gating workflow `measure.yml` (pull requests touching `dev/validation/*.m` or the workflow, or by hand); R7-12 multi-seed level, R7-10 fold / nugget / deletion, the nugget's per-arc cost; no toolbox change, no version | 86 part 4 (PR #127 merged 8aef05c) | OPEN (2026-10-11; audit CLEAN; CI GREEN on ecb462c; measured: run 38131010881 -- results below; the remedy for R7-12 waits for the user) |
 
 **Why CI (user: "Can you use CI for WP115 part3", 2026-10-11).** §12.39 left the nugget
 waiting on a tier-A measurement; the container has no MATLAB and the runner is the
@@ -8413,4 +8413,49 @@ run's URL.
   down-weighted: the fold's path, the nugget by dense chol, the nugget by a Woodbury
   update on the AR precision (k x k capacitance) -- and their agreement.
 
-**Results.** Pending the first run.
+**Results** (R2026a Update 5 on the runner, [run 38131010881](https://github.com/astrobayer/lsqvce/actions/runs/38131010881), 2 min 17 s).
+
+*Part A -- R7-12 is REAL: the robust level is biased low by 14-19 %.* Mean over 20 seeds
+(sd across seeds 0.01-0.02):
+
+| stream | law / plain | law / igg3 | scale / plain | scale / igg3 | robust/plain (law) | robust/plain (scale) |
+|---|---|---|---|---|---|---|
+| a (phi 0.2) | 1.021 | 0.831 | **0.997** | 0.811 | 0.814 ± 0.004 | **0.813 ± 0.004** |
+| b (phi 0.5) | 1.134 | 0.936 | **0.998** | 0.859 | 0.826 ± 0.004 | **0.862 ± 0.003** |
+
+(± = standard error.) With the true law declared the plain level is 0.997 / 0.998, so
+the loop itself is unbiased. IGG3 on clean data (0.31 % zeroed, mean factor 0.931) takes
+14-19 % off it, in both modes, at ~50 standard errors. The mirror's 0.83-0.86 is
+reproduced. In law mode the "level" sigma*sigma0 is the process sd, not 1: AR(1)
+gives 1.021 / 1.155, measured 1.021 / 1.134. So round 4's 1.007 on stream b, read
+against 1, was 1.007 / 1.155 = 0.87 of the truth -- the same bias. The 15 % band of
+`testRobustPassInsideTheJointLoopRecoversTheLawUnderOutliers` passes by that coincidence.
+Mechanism (reading): down-weighting clean tail epochs inflates their declared variance,
+while the Helmert step's redundancy still counts them in full. This is the missing
+consistency correction of a robust level, not a correlation effect. Part B's lvl column
+shows the same effect on one arc.
+
+*Part B -- R7-10: the nugget is exact, the fold is not.* formal/true sd on the sinusoid
+coefficient:
+
+| | phi 0.5, f->0, k 13 / 51 | phi 0.9, f->0, k 1 / 5 / 13 / 51 | phi 0.9, f 0.3, k 5 / 13 / 51 |
+|---|---|---|---|
+| fold | 0.915 / 0.791 | 0.591 / 0.491 / **0.305** / 0.194 | 0.679 / 0.586 / 0.392 |
+| nugget | 1.000 / 1.000 | 1.000 everywhere | 1.000 / 1.000 / 1.000 |
+
+The review's 0.31 is reproduced at k = 13. The fold's true sd is also 1.2-1.5x
+deletion's at phi 0.9, and its lag-0 level expectation rises to 1.22 / 1.85
+(k 13 / 51). At f -> 0 the nugget's true sd equals deletion's to three digits.
+
+*Cost of a nugget arc (A'C^-1 A, nc 4, phi 0.9).* The dense nugget chol takes
+0.35 ms / 7.4 ms / 0.19 s at m = 256 / 1024 / 4096. A Woodbury update on the AR
+precision (banded) with a k x k capacitance takes 0.02-0.04 ms / 0.04-0.17 ms /
+0.14-4.2 ms (2 % / 20 % of the epochs). It agrees with the dense nugget to 6e-15 and is
+cheaper than the fold's dense-chol reference column (0.06 / 0.64 / 12 ms). So the
+nugget's path is the low-rank one: the AR filter for R^-1, plus a k x k solve over the
+down-weighted epochs. No dense arc is needed.
+
+**Open for the user:**
+1. The remedy for the robust level bias (a consistency factor for the influence function,
+   or the redundancy weighted by the factors).
+2. Whether the nugget (Woodbury on the AR precision) is built as part 3b.
