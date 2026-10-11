@@ -11,7 +11,7 @@ function [AtilBar, Bbar, ebar] = jointArcParts(A, B, l, W, x, y, G)
 %                                   Its hat against the reduced normal
 %                                   N = Ncc_red is exactly the common part of
 %                                   the JOINT hat (block identity, see
-%                                   LSQVCE.ENGINE.LEVERAGE), so the shared probe
+%                                   LSQVCE.ENGINE.BLOCKCOFACTOR), so the shared probe
 %                                   U^-1 Zbar built from chol(N) is finally
 %                                   probing the operator it factors.
 %     Bbar    = W^-T B              the decorrelated local design; the local
@@ -35,7 +35,7 @@ function [AtilBar, Bbar, ebar] = jointArcParts(A, B, l, W, x, y, G)
 %                         pass as Nll_r \ (nl_r - Nlc*x) -- exactly as
 %                         LSQVCE.ENGINE.REDUNDANCY does
 %     G   nl x nc double  this SYSTEM's Schur factor inv(Nll) * Nlc (the same
-%                         G as LSQVCE.ENGINE.LEVERAGEBLOCKS)
+%                         G as LSQVCE.ENGINE.BLOCKCOFACTOR)
 %
 %   OUTPUT
 %     AtilBar  m x nc double   W^-T (A - B G)
@@ -56,9 +56,12 @@ function [AtilBar, Bbar, ebar] = jointArcParts(A, B, l, W, x, y, G)
 %     r = lsqvce.kernel.redundancyLags(At, W, UiZ, eb, nLag, ...
 %                               'LocalBbar', Bb, 'LocalLl', Ll);
 %
-%   See also LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.LEVERAGE, LSQVCE.ENGINE.REDUNDANCY,
+%   See also LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.BLOCKCOFACTOR, LSQVCE.ENGINE.REDUNDANCY,
 %            LSQVCE.ENGINE.ADJUSTVCEJOINT
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3 (R7-24): the
+%   retired leverage references point at lsqvce.engine.BlockCofactor. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Created 2026-08-18 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.
 

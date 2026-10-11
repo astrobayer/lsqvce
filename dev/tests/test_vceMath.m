@@ -14,6 +14,10 @@ function tests = test_vceMath
 %   Run:  results = runtests('tests/test_vceMath');  disp(table(results))
 %
 %   See also TEST_PRECISION, TEST_RELIABILITY, TEST_SPEED
+%
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3: the leverage
+%   points run on lsqvce.engine.BlockCofactor (leverage / leverageBlocks
+%   retired). With assistance from Claude (Anthropic), model Claude Opus 5.5.
     tests = functiontests(localfunctions);
 end
 
@@ -59,10 +63,10 @@ function testLeverageEqualsBruteForceHatMatrix(tc)
         Ncc_red = Ncc_red + A{s}.'*A{s} - Nlc{s}.'*(Nll{s}\Nlc{s});
     end
 
+    Q = cofactorOf(Ncc_red, Nll, Nlc);
     hEst = [];
     for s = 1:nSys
-        blk  = lsqvce.engine.leverageBlocks(Ncc_red, Nll{s}, Nlc{s});
-        hEst = [hEst; lsqvce.engine.leverage(A{s}, B{s}, blk)];      %#ok<AGROW>
+        hEst = [hEst; Q.leverage(s, A{s}, B{s})];      %#ok<AGROW>
     end
 
     % tol: block-computed leverages vs the dense joint hat diagonal -- same
@@ -87,10 +91,10 @@ function testRedundancyIdentity(tc)
         Ncc_red = Ncc_red + A{s}.'*A{s} - Nlc{s}.'*(Nll{s}\Nlc{s});
     end
 
+    Q = cofactorOf(Ncc_red, Nll, Nlc);
     h = [];
     for s = 1:nSys
-        blk = lsqvce.engine.leverageBlocks(Ncc_red, Nll{s}, Nlc{s});
-        h   = [h; lsqvce.engine.leverage(A{s}, B{s}, blk)];          %#ok<AGROW>
+        h = [h; Q.leverage(s, A{s}, B{s})];          %#ok<AGROW>
     end
 
     r = 1 - h;
@@ -144,13 +148,13 @@ function testVCERecoversVarianceComponents(tc)
 
         % --- redundancy and vtv per group ---------------------------------
         rg = zeros(1,nGrp);  vtv = zeros(1,nGrp);
+        Q = cofactorOf(Ncc_red, {S.Nll}, {S.Nlc});
         for s = 1:nSys
-            blk = lsqvce.engine.leverageBlocks(Ncc_red, S(s).Nll, S(s).Nlc);
             y   = S(s).Nll \ (S(s).nl - S(s).Nlc*x);
             for g = 1:nGrp
                 w = 1/sig(g);
                 Ai = Ad{s,g}*w;  Bi = Bd{s,g}*w;  li = ld{s,g}*w;
-                h  = lsqvce.engine.leverage(Ai, Bi, blk);
+                h  = Q.leverage(s, Ai, Bi);
                 rg(g)  = rg(g)  + numel(li) - sum(h);
                 v      = li - Ai*x - Bi*y;
                 vtv(g) = vtv(g) + v.'*v;
@@ -184,8 +188,8 @@ function testOutlierDetection(tc)
     x = Ncc_red \ ncc_red;
     y = Nll \ (B.'*l - Nlc*x);
 
-    blk = lsqvce.engine.leverageBlocks(Ncc_red, Nll, Nlc);
-    h   = lsqvce.engine.leverage(A, B, blk);
+    Q   = cofactorOf(Ncc_red, {Nll}, {Nlc});
+    h   = Q.leverage(1, A, B);
     v   = l - A*x - B*y;
     w   = abs(v) ./ sqrt(max(1-h, eps));
 
@@ -213,8 +217,8 @@ function testRawResidualWouldMissHighLeverageOutlier(tc)
     x = N \ (A.'*l);
     v = l - A*x;
 
-    blk = lsqvce.engine.leverageBlocks(N, eye(0), zeros(0,nc));
-    h   = lsqvce.engine.leverage(A, B, blk);
+    Q   = lsqvce.engine.BlockCofactor(chol((N + N.')/2), []);   % no locals
+    h   = Q.leverage(0, A, B);
 
     tc.verifyGreaterThan(h(1), 0.5, 'row 1 should have high leverage');
 
@@ -565,4 +569,21 @@ function cfg = makeCfg()
     cfg.collinearEps = 1e-7;
     cfg.cov.pos = struct('type','arma','ar',[1 -1.6 0.9 -0.25],'ma',1,'sigma',0.7);
     cfg.cov.kbr = struct('type','diag','sigma',0.2);
+end
+
+%% ===================================================================== helpers
+function Q = cofactorOf(Ncc_red, Nll, Nlc)
+%COFACTOROF  The block cofactor of a block-arrow system given its reduced
+%   commons normal Ncc_red and, per system s, Nll{s} / Nlc{s}; the local
+%   columns of system s follow the commons in system order (WP-86 part 3:
+%   lsqvce.engine.BlockCofactor replaces leverageBlocks + leverage).
+    nc = size(Ncc_red, 1);
+    blocks = struct('cols', {}, 'Nll', {}, 'Nlc', {});
+    col = nc;
+    for s = 1:numel(Nll)
+        nl = size(Nll{s}, 1);
+        blocks(s) = struct('cols', col + (1:nl), 'Nll', Nll{s}, 'Nlc', Nlc{s});
+        col = col + nl;
+    end
+    Q = lsqvce.engine.BlockCofactor(chol((Ncc_red + Ncc_red.') / 2), blocks);
 end

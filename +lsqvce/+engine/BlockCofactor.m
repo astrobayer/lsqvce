@@ -28,15 +28,34 @@ classdef BlockCofactor
 %                        eigenvalue cut of the solve's pinv fallback, the
 %                        accumulator's TruncTol); [] for a local-free problem
 %
+%     Q = LSQVCE.ENGINE.BLOCKCOFACTOR.fromAccumulator(acc)
+%       the cofactor of a solved lsqvce.engine.BlockAccumulator ('KeepLocal'),
+%       its systems in the accumulator's order, local columns after the commons
+%
 %   METHODS
 %     W = halfRows(Q, A)           u x nk, W'*W = A*Qxx*A' for full-width rows
 %                                  A (nk x u): the dense code's R' \ A'
+%     h = leverage(Q, s, Ac, B)    the same diagonal for rows of system s given
+%                                  as their commons part Ac (nk x nc) and local
+%                                  part B (nk x nl_s); s = 0 for local-free rows
+%     s = systemOf(Q, A)           the system whose locals full-width rows A
+%                                  touch (0: none)
 %     Y = qxxTimes(Q, A)           u x nk, Qxx*A'
 %     d = diagonal(Q)              u x 1, diag(Qxx)
 %     C = block(Q, idx)            Qxx(idx, idx)
 %     [c, ij] = maxCorrelation(Q)  the largest |corr| off the diagonal, its pair
 %     k = condLowerBound(Q)        a LOWER bound on cond(N) (Rayleigh quotients)
 %     [Q, ok] = downdate(Q, a, p)  remove one row a (weight p): snoop's step
+%
+%   A NOTE ON WHAT DOES NOT WORK (moved here from the retired leverage unit,
+%   WP-86 part 3). A stochastic (Hutchinson) trace estimator looks attractive
+%   because it costs O(nProbe) solves independent of nc. It was tried and
+%   REJECTED for the per-observation redundancies: on a realistically
+%   ill-conditioned gravity normal matrix the relative error is 20-50% at 32
+%   probes, because ||M||_F / trace(M) ~ 1 -- the operator's energy sits in
+%   essentially one mode, the worst case for Hutchinson. Neither a sum
+%   constraint nor Hutch++ rescued it. The exact triangular-solve route here
+%   is both faster (measured 2x against forming inv(N) at nc = 2500) and exact.
 %
 %   A LOCAL BLOCK THAT IS SINGULAR (the accumulator's pinv fallback) gets the
 %   pseudo-inverse half H = S^-1/2 V' over its range -- the same pseudo-inverse
@@ -51,13 +70,19 @@ classdef BlockCofactor
 %
 %   ERRORS
 %     lsqvce:BlockCofactor:badBlocks       a block's sizes disagree with Rc
-%     lsqvce:BlockCofactor:multiSystemRow  downdate of a row that touches the
-%                                          locals of more than one system (the
-%                                          block-arrow structure would not survive)
+%     lsqvce:BlockCofactor:multiSystemRow  downdate (or systemOf) of rows that
+%                                          touch the locals of more than one
+%                                          system (the block-arrow structure
+%                                          would not survive)
 %
 %   See also LSQVCE.ENGINE.DIAGNOSEACCUM, LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.SNOOP,
 %   LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3 (R7-24): leverage
+%   (per system, without widening the rows), systemOf, fromAccumulator;
+%   local-free systems keep their index; the Hutchinson note moved here from
+%   the retired leverage. With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
 %   Created 2026-10-10 (CEST, UTC+02:00), R7 WP-86 part 2 (R7-24): the
 %   block-native cofactor replacing the dense full-width factor of the
 %   diagnostics. With assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -66,7 +91,9 @@ classdef BlockCofactor
         Rc          % nc x nc upper triangular, Rc'*Rc = N_red (prior included)
         nc          % number of common parameters
         u           % full parameter count nc + sum(nl)
-        sys         % 1 x S struct: cols, Nll, H (H'*H = pinv(Nll)), G = pinv(Nll)*Nlc
+        sys         % 1 x S struct: cols, Nll, H (H'*H = pinv(Nll)), G = pinv(Nll)*Nlc;
+                    % a local-free system keeps its slot (empty cols), so s indexes
+                    % the systems in the order given
     end
 
     methods
@@ -80,7 +107,11 @@ classdef BlockCofactor
             for s = 1:numel(blocks)
                 b = blocks(s);
                 nl = numel(b.cols);
-                if nl == 0, continue, end
+                if nl == 0                               % local-free: keeps its index
+                    Q.sys(end+1) = struct('cols', zeros(1, 0), 'Nll', zeros(0), ...
+                                          'H', zeros(0), 'G', zeros(0, nc));
+                    continue
+                end
                 if ~isequal(size(b.Nll), [nl nl]) || ~isequal(size(b.Nlc), [nl nc])
                     error('lsqvce:BlockCofactor:badBlocks', ...
                         ['block %d: Nll is %s and Nlc %s for %d local columns and ' ...
@@ -104,6 +135,34 @@ classdef BlockCofactor
             for s = find(~cellfun(@isempty, Bs))
                 W(Q.sys(s).cols, :) = Q.sys(s).H * Bs{s};
             end
+        end
+
+        %------------------------------------------------------------------
+        function h = leverage(Q, s, Ac, B)
+        %LEVERAGE  h_i = a_i'*Qxx*a_i for rows [Ac B] of system s (s = 0 or an
+        %   empty B: local-free rows), without widening them to u columns:
+        %   h = ||Rc' \ (Ac' - G_s'*B')||^2 + ||H_s*B'||^2 per column.
+            Z = Ac.';
+            if s > 0 && ~isempty(B)
+                Bt = B.';
+                Z = Z - Q.sys(s).G.' * Bt;
+                h = sum((Q.Rc.' \ Z).^2, 1).' + sum((Q.sys(s).H * Bt).^2, 1).';
+            else
+                h = sum((Q.Rc.' \ Z).^2, 1).';
+            end
+        end
+
+        %------------------------------------------------------------------
+        function s = systemOf(Q, A)
+        %SYSTEMOF  The system whose local columns the rows A (full width)
+        %   touch: 0 when none (commons or prior rows), an error when several.
+            hit = find(arrayfun(@(t) any(any(A(:, t.cols))), Q.sys));
+            if numel(hit) > 1
+                error('lsqvce:BlockCofactor:multiSystemRow', ...
+                      'the rows touch the locals of %d systems; one batch is one system.', numel(hit));
+            end
+            s = 0;
+            if ~isempty(hit), s = hit; end
         end
 
         %------------------------------------------------------------------
@@ -258,6 +317,29 @@ classdef BlockCofactor
                 Y(1:Q.nc, :) = Y(1:Q.nc, :) + Q.sys(s).G.' * T;
                 Y(Q.sys(s).cols, :) = T;
             end
+        end
+    end
+
+    methods (Static)
+        %------------------------------------------------------------------
+        function Q = fromAccumulator(acc)
+        %FROMACCUMULATOR  The cofactor of a solved accumulator ('KeepLocal'):
+        %   the commons factor (acc.commonFactor) and, per system in the
+        %   accumulator's order, the REGULARISED local block the solve used,
+        %   with the solve's pinv cut. Local columns follow the commons in
+        %   system order -- the layout of lsqvce.engine.diagnoseAccum.
+            ids = acc.systems();
+            nc = acc.nc;
+            blocks = struct('cols', cell(1, numel(ids)), 'Nll', [], 'Nlc', [], 'truncTol', []);
+            col = nc;
+            for k = 1:numel(ids)
+                st = acc.getStore(ids(k));
+                nl = size(st.Nll_r, 1);
+                blocks(k) = struct('cols', col + (1:nl), 'Nll', st.Nll_r, 'Nlc', st.Nlc, ...
+                                   'truncTol', acc.opt.TruncTol);   % the solve's pinv cut
+                col = col + nl;
+            end
+            Q = lsqvce.engine.BlockCofactor(acc.commonFactor(), blocks);
         end
     end
 

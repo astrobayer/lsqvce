@@ -69,7 +69,8 @@ case-sensitive lowercase.)
   &#x27;Verbose&#x27;    default true
   &#x27;Parallel&#x27;   &#x27;serial&#x27; | &#x27;parfor&#x27; | &#x27;spmd&#x27;. Default: the accumulator&#x27;s
                &#x27;Parallel&#x27; option. The pass is parallel OVER ARCS: the
-               leverage blocks are built once per system and broadcast,
+               block cofactor (one commons factor, the local blocks) is
+               built once and broadcast,
                then each arc-task runs independently and the partial sums
                are reduced in task order (proven exact in
                validation/v4verify.py). This is THE pass to parallelise:
@@ -86,7 +87,7 @@ case-sensitive lowercase.)
                a per-group scalar only, not the per-observation r_i the
                snooping and the sum(r)=m-u identity need). Intended as an
                accelerator/cross-check at very large nc; read the accuracy
-               caveat in LSQVCE.ENGINE.LEVERAGE.
+               caveat in LSQVCE.ENGINE.BLOCKCOFACTOR.
   &#x27;Probes&#x27;     1x1  number of Hutchinson probes Z (default 100).
   &#x27;TraceSeed&#x27;  1x1  RNG seed for reproducible probes (default []).</pre>
 <h3>Output</h3>
@@ -122,7 +123,7 @@ structurally wrong -- do not trust the variance components.</pre>
   So VCE roughly DOUBLES the cost per Helmert iteration, and you need 2-4
   iterations. That is the honest price of exact per-arc redundancy. It is
   not reducible by a stochastic estimator -- that was tried and gives
-  20-50% error on realistically conditioned normals (see LSQVCE.ENGINE.LEVERAGE).
+  20-50% error on realistically conditioned normals (see LSQVCE.ENGINE.BLOCKCOFACTOR).
 
 CHOOSING THE GROUP
   &#x27;arc&#x27; is the default and the physically meaningful unit: an arc is a
@@ -155,8 +156,12 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
   lsqvce:redundancy:smallGroup               [warning] X group(s) have redundancy below X. The variance component of a group...
   lsqvce:redundancy:spmdNoCollect            [warning] &#x27;spmd&#x27; reduces on the workers, so per-observation h/r/v are not shipp...
 
-See also LSQVCE.ENGINE.LEVERAGE, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.OUTLIERS, LSQVCE.ENGINE.RESIDUALS
+See also LSQVCE.ENGINE.BLOCKCOFACTOR, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.OUTLIERS, LSQVCE.ENGINE.RESIDUALS
 
+Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3 (R7-24): the
+leverage comes from lsqvce.engine.BlockCofactor -- one commons factor
+broadcast, not one per system (leverage / leverageBlocks retired). With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) (F-07): typed
 `arguments` signature, canonical UpperCamelCase option names (legacy
 casings keep matching; enum VALUES case-sensitive lowercase). With

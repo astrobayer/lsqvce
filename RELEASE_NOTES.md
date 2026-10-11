@@ -1,5 +1,26 @@
 # lsqvce release notes
 
+## 6.4.0 — 2026-10-11 (WP-86 part 3: one block formula, one commons factor)
+
+- **The VCE redundancy pass runs on `lsqvce.engine.BlockCofactor`.** `engine.redundancy`
+  (behind `engine.vce`, `outliers`, `contribution`) built, per system, its own copy of the
+  commons factor and the nc × nl products (`leverageBlocks`) -- nSys copies of an
+  nc × nc matrix, about 0.7 GB each at a GRAVFIRE month -- and evaluated the same
+  block-arrow leverage formula a second time (`leverage`). It now builds ONE cofactor
+  from the accumulator (`BlockCofactor.fromAccumulator`, the same one the diagnostics use)
+  and broadcasts it to every arc task. **`lsqvce.engine.leverage` and
+  `lsqvce.engine.leverageBlocks` are retired** with their five identifiers
+  (`lsqvce:leverage:*`, `lsqvce:leverageBlocks:*`); `BlockCofactor.leverage(s, Ac, B)`
+  is the per-system form (`h` of system s's rows from their commons and local parts).
+- **`snoop`'s clean re-solve keeps the block structure.** With `Reaccumulate=true` the
+  surviving rows used to be re-solved with every parameter as a common one (a dense
+  u_full factor). Each original system is now rebuilt from its surviving batches with its
+  own locals (`engine.batchSystem` gained `'LocalColumns'` / `'SystemId'`), the batches
+  that touch no locals as one local-free system: the original structure and column
+  layout, and the returned `sol.Q` is block-arrow again.
+- `BlockCofactor` gained `systemOf` and the static `fromAccumulator`; a local-free system
+  keeps its index in `Q.sys`.
+
 ## 6.3.0 — 2026-10-10 (WP-86 part 2: the diagnostics' cofactor is kept as blocks)
 
 - **No dense factor of the full parameter set (R7-24).** The diagnostics used a dense

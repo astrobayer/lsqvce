@@ -127,7 +127,9 @@ So we check BOTH:
   &#x27;alpha&#x27;        significance per test (default 1e-3)
   &#x27;bonferroni&#x27;   correct for n tests (default true)
   &#x27;reaccumulate&#x27; re-accumulate from scratch at the end to purge downdate
-                 roundoff and produce a clean final D (default true)
+                 roundoff and produce a clean final D (default true): the
+                 original block-arrow structure is rebuilt -- each system
+                 from its surviving batches, with its own locals
   &#x27;verbose&#x27;      print the rejection sequence (default true)
 
 OUTPUT REJ
@@ -186,6 +188,11 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 
 See also LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.SYSTEMATIC.
 
+Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3 (R7-24): the clean
+re-solve rebuilds the block-arrow system (each system from its surviving
+batches, with its locals) instead of re-solving every parameter as a
+common one. With assistance from Claude (Anthropic), model Claude Opus
+5.5.
 Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-86 part 2 (R7-24): the
 downdate runs on the block cofactor (sol.Q) and the estimate follows in
 closed form; the row search and the b re-accumulation passes, and the

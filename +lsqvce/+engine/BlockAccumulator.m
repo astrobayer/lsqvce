@@ -232,6 +232,10 @@ classdef BlockAccumulator < handle
 %
 %   See also LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.RESIDUALS, LSQVCE.ENGINE.CHECKPSD, LSQVCE.ENGINE.QRSYSTEM
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3 (R7-24):
+%   reducedNormalMatrix names lsqvce.engine.BlockCofactor (leverageBlocks
+%   retired). With assistance from Claude (Anthropic), model Claude Opus
+%   5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-86 part 2 (R7-24):
 %   commonFactor, the reduced commons factor of lsqvce.engine.BlockCofactor
 %   (the QR backend's own square root, the prior folded in by QR). With
@@ -704,7 +708,7 @@ classdef BlockAccumulator < handle
         %REDUCEDNORMALMATRIX  The TOTAL reduced common normal matrix.
         %
         %   Summed over ALL systems, and INCLUDING the prior if one was set.
-        %   This is what LSQVCE.ENGINE.LEVERAGEBLOCKS needs: the leverage of an
+        %   This is what LSQVCE.ENGINE.BLOCKCOFACTOR factors: the leverage of an
         %   observation depends on the JOINT inverse, so a single system's own
         %   Ncc is the wrong thing to use.
             N = obj.sys.commonBlocks();

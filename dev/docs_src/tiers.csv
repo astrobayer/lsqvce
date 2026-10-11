@@ -44,8 +44,6 @@ engine.satKeyOf,ENGINE,satellite key (makeValidName) helper
 kernel.robustWeights,KERNEL,IRLS weight factors (Huber / IGG3 / bisquare, MAD scale)
 kernel.whittle,ENGINE,Whittle likelihood fit of a VAR model
 engine.checkPSD,ENGINE,PSD sanity check
-engine.leverage,ENGINE,"leverage (hat-matrix diagonal), batch"
-engine.leverageBlocks,ENGINE,leverage over blocks
 engine.ellipse,ENGINE,confidence ellipse from a covariance
 engine.ftest,ENGINE,F-test on variance factors
 engine.stat,ENGINE,statistics helper

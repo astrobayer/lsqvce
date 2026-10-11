@@ -167,11 +167,6 @@ lsqvce:jointArcParts:sizeMismatch,engine.private.jointArcParts,error,v4.0
 lsqvce:jointModelOpt:badC,engine.jointModelOpt,error,v4.0
 lsqvce:jointModelOpt:badModel,engine.jointModelOpt,error,v4.0
 lsqvce:jointModelOpt:badStream,engine.jointModelOpt,error,v4.0
-lsqvce:leverage:outOfRange,engine.leverage,warning,v4.0
-lsqvce:leverage:sizeMismatch,engine.leverage,error,v4.0
-lsqvce:leverageBlocks:cNotPD,engine.leverageBlocks,error,v4.0
-lsqvce:leverageBlocks:lNotPD,engine.leverageBlocks,error,v4.0
-lsqvce:leverageBlocks:sizeMismatch,engine.leverageBlocks,error,v4.0
 lsqvce:levinson:notPD,kernel.levinsonDurbin,mixed,v4.0
 lsqvce:levinson:orderTooHigh,kernel.levinsonDurbin,error,v4.0
 lsqvce:localDiagnostics:notFinite,engine.localDiagnostics,error,v4.0

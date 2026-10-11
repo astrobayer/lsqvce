@@ -17,6 +17,10 @@ function tests = test_parallel
 %
 %   See also TEST_V3, TEST_LSQACCUM, TEST_PRECISION
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3: the brute-force
+%   redundancy reference runs on lsqvce.engine.BlockCofactor (leverage /
+%   leverageBlocks retired). With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
 %   Updated 2026-08-18 (CEST, UTC+02:00): pool guard moved to the ONE probe
 %   (WP-30 postflight finding). Updated 2026-09-02 (R5 M2, WP-82): the
 %   PrefetchLoader / hasBackgroundPool / iterateNoiseModel points left with
@@ -208,13 +212,18 @@ function testRedundancyMatchesIndependentBruteForce(tc)
     [Nsys, Nred] = rebuildNormals(cfg, days);
     ref = containers.Map('KeyType','char','ValueType','any');
     mT = 0;
-    for s = cfg.sats
-        st  = Nsys(sprintf('%d', s));
-        blk = lsqvce.engine.leverageBlocks(Nred, st.Nll, st.Nlc);
+    sts = arrayfun(@(s) Nsys(sprintf('%d', s)), cfg.sats);
+    blocks = struct('cols', {}, 'Nll', {}, 'Nlc', {});
+    for k = 1:numel(sts)                              % locals after the commons, in sats order
+        blocks(k) = struct('cols', cfg.nc + (k-1)*cfg.nl + (1:cfg.nl), 'Nll', sts(k).Nll, 'Nlc', sts(k).Nlc);
+    end
+    Q = lsqvce.engine.BlockCofactor(chol(Nred), blocks);
+    for k = 1:numel(sts)
+        st  = sts(k);
         y   = st.Nll \ (st.nl - st.Nlc * sol.x);
         for j = 1:numel(st.arcs)
             e = st.arcs(j);
-            h = lsqvce.engine.leverage(e.A, e.B, blk);
+            h = Q.leverage(k, e.A, e.B);
             v = e.l - e.A*sol.x - e.B*y;
             if ~ref.isKey(e.obsType)
                 ref(e.obsType) = struct('m',0,'r',0,'vtv',0);

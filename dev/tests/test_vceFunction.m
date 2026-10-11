@@ -13,6 +13,9 @@ function tests = test_vceFunction
 %   See also TEST_V3, TEST_V4, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.DIAGNOSEACCUM,
 %   LSQVCE.ENGINE.BLOCKCOFACTOR
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3: systemOf, and
+%   snoop's clean re-solve keeps the block structure. With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-86 part 2: the bridge's
 %   cofactor comes as blocks; BlockCofactor is pinned against the dense
 %   inverse, and snoop's block downdate against its clean re-solve. With
@@ -274,6 +277,9 @@ function testBlockCofactorContract(tc)
     Q = lsqvce.engine.BlockCofactor(Rc, blocks);
     two = A(1, :);  two(blocks(2).cols) = 1;        % a row on the locals of systems 1 and 2
     tc.verifyError(@() Q.downdate(two, 1), 'lsqvce:BlockCofactor:multiSystemRow');
+    tc.verifyError(@() Q.systemOf(two), 'lsqvce:BlockCofactor:multiSystemRow');
+    tc.verifyEqual(Q.systemOf(A(1, :)), 1, 'a row of system 1');
+    tc.verifyEqual(Q.systemOf([A(1, 1:5), zeros(1, Q.u - 5)]), 0, 'a commons-only row');
     flat = lsqvce.engine.BlockCofactor(Rc, []);      % local-free: the commons alone
     tc.verifyEqual(flat.u, size(Rc, 1));
 end
@@ -282,7 +288,8 @@ function testSnoopBlockDowndateMatchesCleanResolve(tc)
 % categories: precision | tags: diagnostics
 % snoop on a fit WITH locals: its downdated estimate (block cofactor + closed
 % form, Reaccumulate=false) is the clean re-solve over the survivors
-% (Reaccumulate=true) -- the same rejections, the same x.
+% (Reaccumulate=true) -- the same rejections, the same x; and the clean
+% re-solve is block-arrow again (part 3), not all-commons.
     muteWarn(tc, 'lsqvce:snoop:maxReject');   % provoked on purpose here (WP-47, gate rule 7)
     cfg = tc.TestData.cfg;
     acc = buildVceAcc(cfg, 1:2, [1 2.5]);
@@ -293,6 +300,10 @@ function testSnoopBlockDowndateMatchesCleanResolve(tc)
     [solD, ~, R1] = lsqvce.engine.snoop(dsol, D, bf, args{:}, 'Reaccumulate', false);
     [solR, ~, R2] = lsqvce.engine.snoop(dsol, D, bf, args{:}, 'Reaccumulate', true);
     tc.assertEqual(R1.idx, R2.idx, 'the same rejections either way');
+    % WP-86 part 3: the clean re-solve rebuilds the block-arrow system (commons
+    % + each system's locals, the original layout), not an all-commons one
+    tc.verifyEqual(solR.Q.nc, cfg.nc, 'the clean re-solve keeps the commons / locals split');
+    tc.verifyEqual(solR.Q.u, dsol.u);
     tc.assertNotEmpty(R1.idx, 'the fixture rejects something at alpha 0.05');
     % tol: three rank-one downdates + closed-form updates vs a fresh QR solve;
     % ~cond*eps per step, 1e-8 relative headroom

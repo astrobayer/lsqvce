@@ -88,7 +88,9 @@ function [sol, D, REJ] = snoop(sol, D, batchFcn, opt)
 %     'alpha'        significance per test (default 1e-3)
 %     'bonferroni'   correct for n tests (default true)
 %     'reaccumulate' re-accumulate from scratch at the end to purge downdate
-%                    roundoff and produce a clean final D (default true)
+%                    roundoff and produce a clean final D (default true): the
+%                    original block-arrow structure is rebuilt -- each system
+%                    from its surviving batches, with its own locals
 %     'verbose'      print the rejection sequence (default true)
 %
 %   OUTPUT REJ
@@ -150,6 +152,11 @@ function [sol, D, REJ] = snoop(sol, D, batchFcn, opt)
 %
 %   See also LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.SYSTEMATIC.
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3 (R7-24): the clean
+%   re-solve rebuilds the block-arrow system (each system from its surviving
+%   batches, with its locals) instead of re-solving every parameter as a
+%   common one. With assistance from Claude (Anthropic), model Claude Opus
+%   5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-86 part 2 (R7-24): the
 %   downdate runs on the block cofactor (sol.Q) and the estimate follows in
 %   closed form; the row search and the b re-accumulation passes, and the
@@ -192,7 +199,6 @@ nB = o.nBatch;
 if isempty(nB), nB = D.nBatch; end
 
 n0 = sol.n;
-u  = sol.u;
 maxRej = o.maxReject;
 if isempty(maxRej)
     maxRej = max(10, ceil(0.01 * n0));
@@ -321,7 +327,7 @@ for it = 1:(maxRej + 1)
     if o.bonferroni, alphaEff = o.alpha / max(nAlive, 1); end
     kCrit = lsqvce.engine.stat.tauCrit(alphaEff, rdf);
 
-    [bestW, bestI, bestR, bestV, bestP, vPvCur, nFlag, bestA, sizes] = ...
+    [bestW, bestI, bestR, bestV, bestP, vPvCur, nFlag, bestA, sizes, sysOf] = ...
         scanWorst(batchFcn, nB, Q, sol.x, rejected, rdf, kCrit, useRobust);
 
     s0cur = sqrt(max(vPvCur / max(rdf, 1), 0));
@@ -450,27 +456,7 @@ if o.reaccumulate && ~isempty(REJ.idx)
                  'result is a clean solve, not a\n  sequence of subtractions).\n'], ...
                  n0 - numel(REJ.idx));
     end
-    % R5 M5 5b': the clean re-solve runs on the BLOCK path (the one
-    % accumulator, finding H-02): the surviving rows of all batches become
-    % one local-free system (lsqvce.engine.batchSystem), a datum survives as
-    % the prior on the null space, and the diagnostics come from the same
-    % sweep every other solve uses. The flat lsqvce.engine.Accumulator is
-    % retired with this level.
-    % One batch per batch that keeps a row, read through its row offset: the
-    % surviving rows are never concatenated (that was n x u at full width --
-    % R7-24 once more -- and the offset search re-read batches 1..k for each k).
-    edges = [0; cumsum(sizes)];
-    alive = arrayfun(@(k) any(~rejected(edges(k)+1:edges(k+1))), (1:nB).');
-    kept  = find(alive);
-    keptSrc = @(j) maskedBatch(batchFcn, kept(j), rejected, edges);
-    L = lsqvce.engine.batchSystem(u, keptSrc, numel(kept), 'Name', 'snoop');
-    backend = 'qr';
-    if isfield(sol, 'method') && strcmpi(char(sol.method), 'normal'), backend = 'normal'; end
-    acc = lsqvce.engine.BlockAccumulator(u, 'Backend', backend, 'KeepLocal', true, 'Verbose', false);
-    if isfield(sol, 'defect') && sol.defect > 0 && isfield(sol, 'datumB') && ~isempty(sol.datumB)
-        acc.setPrior(lsqvce.engine.CommonPrior(sol.datumB.', zeros(size(sol.datumB, 2), 1), 1));
-    end
-    acc.addSystem(L.sysID, 0, L.closure, 1:numel(kept));   % one day per kept batch
+    acc = blockResolveAccumulator(sol, Q, batchFcn, nB, rejected, sizes, sysOf);
     solB = acc.solve();
     [dsol, bf, nBd] = lsqvce.engine.diagnoseAccum(acc, solB);
     % R7-35: the re-diagnosis classifies with the SAME thresholds as the D it
@@ -483,7 +469,7 @@ if o.reaccumulate && ~isempty(REJ.idx)
                            'beta', lsqvce.util.getfielddef(D, 'beta', 0.20));
     D.rejectedIdx = REJ.idx;
     % the returned sol keeps the caller's fields and carries the clean solve
-    sol.x = solB.x(:);  sol.s0sq = solB.s0sq;  sol.sigma0 = solB.sigma0;
+    sol.x = dsol.x(:);  sol.s0sq = solB.s0sq;  sol.sigma0 = solB.sigma0;   % commons + locals
     if isfield(solB, 'Cxx'), sol.Cxx = solB.Cxx; end
     sol.n = dsol.n;  sol.dof = solB.dof;  sol.Q = dsol.Q;
 end
@@ -500,7 +486,7 @@ end
 
 %% ======================================================== helpers
 
-function [bestW, bestI, bestR, bestV, bestP, vPv, nFlag, bestA, sizes] = ...
+function [bestW, bestI, bestR, bestV, bestP, vPv, nFlag, bestA, sizes, sysOf] = ...
         scanWorst(batchFcn, nB, Q, x, rejected, rdf, kCrit, useRobust)
 %SCANWORST  One streaming pass over all batches to find the single worst
 %   (largest |w|) surviving observation and accumulate vPv honestly.
@@ -524,8 +510,11 @@ function [bestW, bestI, bestR, bestV, bestP, vPv, nFlag, bestA, sizes] = ...
 %     nFlag  1x1  count of survivors exceeding kCrit
 %     bestA  1xu  its design row (the downdate needs it; no second search pass)
 %     sizes  nBx1 the row count of every batch
+%     sysOf  nBx1 the system whose locals each batch touches (0: none) --
+%                 the clean re-solve rebuilds the systems from it
     rawPool = [];
     sizes = zeros(nB, 1);
+    sysOf = zeros(nB, 1);
     bestA = [];
 % One streaming pass: find the worst |w| among surviving observations, and
 % accumulate vPv honestly along the way.
@@ -544,6 +533,7 @@ function [bestW, bestI, bestR, bestV, bestP, vPv, nFlag, bestA, sizes] = ...
         lk = lk(:); nk = size(Ak,1);
         sizes(k) = nk;
         if nk == 0, continue; end
+        sysOf(k) = Q.systemOf(Ak);
         if isempty(pk), pk = ones(nk,1); end
         if ~isvector(pk)
             % A matrix here would be silently FLATTENED by pk(:) into a
@@ -649,6 +639,44 @@ function [bestW, bestI, bestR, bestV, bestP, vPv, nFlag, bestA, sizes] = ...
             end
         end
         nSeen = nSeen + nk;
+    end
+end
+
+%==========================================================================
+function acc = blockResolveAccumulator(sol, Q, batchFcn, nB, rejected, sizes, sysOf)
+%BLOCKRESOLVEACCUMULATOR  The surviving rows, accumulated on the block-arrow
+%   structure the cofactor Q describes (WP-86 part 3): one system per
+%   original system (its surviving batches, its own local columns), the
+%   batches that touch no locals as one local-free system, ready to solve.
+%   INPUT  sol (method / defect / datumB), Q, batchFcn, nB, the rejected
+%          mask, the batch sizes and each batch's system (scanWorst)
+%   OUTPUT acc  1x1 lsqvce.engine.BlockAccumulator (KeepLocal), not solved
+    % The clean re-solve rebuilds the BLOCK-ARROW system the cofactor
+    % describes (WP-86 part 3): each original system becomes one system
+    % again -- its surviving batches, its own local columns -- and the
+    % batches that touch no locals (a kind B/C source, the prior's rows)
+    % one local-free system. So the clean solve has the original structure
+    % and the original column layout; before, every parameter was re-solved
+    % as a common one (a dense u_full factor). One batch per batch that
+    % keeps a row, read through its row offset: the surviving rows are never
+    % concatenated (n x u at full width -- R7-24 once more).
+    edges = [0; cumsum(sizes)];
+    alive = arrayfun(@(k) any(~rejected(edges(k)+1:edges(k+1))), (1:nB).');
+    backend = 'qr';
+    if isfield(sol, 'method') && strcmpi(char(sol.method), 'normal'), backend = 'normal'; end
+    acc = lsqvce.engine.BlockAccumulator(Q.nc, 'Backend', backend, 'KeepLocal', true, 'Verbose', false);
+    if isfield(sol, 'defect') && sol.defect > 0 && isfield(sol, 'datumB') && ~isempty(sol.datumB)
+        acc.setPrior(lsqvce.engine.CommonPrior(sol.datumB.', zeros(size(sol.datumB, 2), 1), 1));
+    end
+    nS = numel(Q.sys);
+    for s = [1:nS, 0]                                   % the systems in order, local-free last
+        kept = find(alive & sysOf(:) == s);
+        if isempty(kept), continue, end
+        cols = zeros(1, 0);  sid = nS + 1;
+        if s > 0, cols = Q.sys(s).cols;  sid = s; end
+        L = lsqvce.engine.batchSystem(Q.nc, @(j) maskedBatch(batchFcn, kept(j), rejected, edges), ...
+                numel(kept), 'LocalColumns', cols, 'SystemId', sid, 'Name', 'snoop');
+        acc.addSystem(L.sysID, numel(cols), L.closure, 1:numel(kept));   % one day per kept batch
     end
 end
 

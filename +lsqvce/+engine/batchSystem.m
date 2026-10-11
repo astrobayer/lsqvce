@@ -1,5 +1,5 @@
 function L = batchSystem(u, batchFcn, nBatch, opt)
-%LSQVCE.ENGINE.BATCHSYSTEM  A batch source as ONE local-free streaming system.
+%LSQVCE.ENGINE.BATCHSYSTEM  A batch source as ONE streaming system (local-free by default).
 %   L = lsqvce.engine.batchSystem(u, batchFcn, nBatch)
 %   L = lsqvce.engine.batchSystem(u, batchFcn, nBatch, 'State', xState, ...)
 %
@@ -23,6 +23,13 @@ function L = batchSystem(u, batchFcn, nBatch, opt)
 %   NAME-VALUE
 %     'State'   containers.Map | []  when non-empty, batchFcn(k, State('x'))
 %     'Name'    char               the system's label (default 'batch')
+%     'LocalColumns'  1 x nl double  columns of the source's rows that are this
+%                                  system's LOCAL parameters (default [], none):
+%                                  the rows are then full width, A = rows(:, 1:u)
+%                                  and B = rows(:, LocalColumns) -- how snoop's
+%                                  clean re-solve rebuilds a block-arrow system
+%                                  from its batches (WP-86 part 3)
+%     'SystemId'      1x1          the system's identifier (default 1)
 %   OUTPUT
 %     L  1x1 struct   the Loader (see LSQVCE.ENGINE.MAKELOADER)
 %
@@ -43,6 +50,10 @@ function L = batchSystem(u, batchFcn, nBatch, opt)
 %
 %   See also LSQVCE.FIT, LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTNONLINEAR
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3 (R7-24):
+%   'LocalColumns' / 'SystemId': a batch source of full-width rows can stand
+%   for a system WITH locals (snoop's block re-solve). With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-102 (v6): the batch day
 %   returns its one arc as one cell (the v6 day contract). With assistance
 %   from Claude (Anthropic), model Claude Fable 5.1.
@@ -56,12 +67,14 @@ arguments
     nBatch (1,1) double {mustBeInteger, mustBePositive}
     opt.State = []
     opt.Name (1,:) char = 'batch'
+    opt.LocalColumns (1,:) double {mustBeInteger, mustBePositive} = zeros(1, 0)
+    opt.SystemId = 1
 end
     if ~isa(batchFcn, 'function_handle')
         error('lsqvce:batchSystem:badSource', 'batchFcn must be a function handle.');
     end
-    po = struct('batchFcn', batchFcn, 'state', opt.State, 'nc', u);   % nc carried here: the
-                                                                    % non-scoped loader passes no info struct
+    % nc / cols carried here: the non-scoped loader passes no info struct
+    po = struct('batchFcn', batchFcn, 'state', opt.State, 'nc', u, 'cols', opt.LocalColumns);
     % R5 M5 5b': a RE-LINEARISING source (State given) must never be served
     % from the loader's day cache -- the cache would return the day built at
     % the previous x, and Gauss-Newton would take one step and then see the
@@ -71,12 +84,13 @@ end
             'ObservationTypes', {'obs'}, ...
             'Covariance', struct('obs', struct('type', 'diag', 'sigma', 1)), ...
             'Arcs', @(day, obsType) 1, ...
-            'NumCommon', u, 'NumLocal', 0, 'Days', 1:nBatch, ...
-            'SystemId', 1, 'Name', opt.Name, 'ProcessingOptions', po);
+            'NumCommon', u, 'NumLocal', numel(opt.LocalColumns), 'Days', 1:nBatch, ...
+            'SystemId', opt.SystemId, 'Name', opt.Name, 'ProcessingOptions', po);
 end
 
 function D = batchDay(day, ~, ~, ~, po, ~)
-%BATCHDAY  One batch as one local-free day with unit-weight rows.
+%BATCHDAY  One batch as one day with unit-weight rows (its locals, if any,
+%   sliced from the full-width rows).
     if isempty(po.state)
         [~, A, l, p] = lsqvce.util.callUser(po.batchFcn, 2, 3, 'batchFcn(k)', day);
     else
@@ -84,10 +98,12 @@ function D = batchDay(day, ~, ~, ~, po, ~)
         [~, A, l, p] = lsqvce.util.callUser(po.batchFcn, 2, 3, 'batchFcn(k, x)', day, x);
     end
     l = l(:);  m = numel(l);
-    if ~isnumeric(A) || size(A, 1) ~= m || size(A, 2) ~= po.nc
+    width = max([po.nc, po.cols]);                % full-width rows when locals are sliced
+    badWidth = size(A, 2) < width || (isempty(po.cols) && size(A, 2) ~= width);
+    if ~isnumeric(A) || size(A, 1) ~= m || badWidth
         error('lsqvce:batchSystem:badMatrix', ...
               'batch %d returned A %s and l %d x 1; expected A %d x %d.', ...
-              day, mat2str(size(A)), m, m, po.nc);
+              day, mat2str(size(A)), m, m, width);
     end
     if ~isempty(p)
         if isvector(p) && numel(p) == m
@@ -108,5 +124,6 @@ function D = batchDay(day, ~, ~, ~, po, ~)
                    'or an m x m positive-definite weight matrix (m = %d).'], day, mat2str(size(p)), m);
         end
     end
-    D.A = {A};  D.B = {zeros(m, 0)};  D.l = {l};  D.t = {(1:m).'};   % v6: one cell = one arc
+    B = A(:, po.cols);  A = A(:, 1:po.nc);        % whitened together, then split
+    D.A = {A};  D.B = {B};  D.l = {l};  D.t = {(1:m).'};   % v6: one cell = one arc
 end
