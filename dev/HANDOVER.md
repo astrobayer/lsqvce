@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-11 — WP-111 part 3 DONE (PR #133, merge 290d7ff), WP-111 complete; WP-112 OPEN (tier B, model Claude Opus 5.5): R7-03 / R7-16 -- the QR backend's accumulator path square-root throughout (locals eliminated on the factor, contributions and the common prior merged as rows), the rank decision QRSystem.RankTol on the pivots; version 6.8.0; §12.45.
+Last substantive update: 2026-10-11 — WP-112 DONE (PR #134, merge ec4625a); WP-113 OPEN (tier B, model Claude Opus 5.5): R7-14 / R7-04 -- Gauss-Newton damps the common block (Marquardt rows), shifts the prior to x, checks descent from pass 1 on the declared objective, returns the best accepted point; version 6.9.0; §12.46.
+Preceding entry: Last substantive update: 2026-10-11 — WP-111 part 3 DONE (PR #133, merge 290d7ff), WP-111 complete; WP-112 OPEN (tier B, model Claude Opus 5.5): R7-03 / R7-16 -- the QR backend's accumulator path square-root throughout (locals eliminated on the factor, contributions and the common prior merged as rows), the rank decision QRSystem.RankTol on the pivots; version 6.8.0; §12.45.
 Preceding entry: Last substantive update: 2026-10-11 — WP-111 part 2 DONE (PR #132, merge 96ad12b; CI GREEN on ba810e4); WP-111 part 3 OPEN (tier B, model Claude Opus 5.5): R7-02 / R7-20 -- the joint law is a positive spectrum on Grid bins (kernel.hatACV, r = K S, every bin's component PSD), psdVCE on per-bin statistics over all lags, the arc factor from the arc's whole covariance, state S / Sgroups ('C0' -> 'S0' white; Norm, ZeroFreqRule, floors, degenerateStart retired); version 6.7.0; §12.44.
 Preceding entry: Last substantive update: 2026-10-11 — WP-111 part 1 DONE (PR #131, merge 3ed7f98; the results recorded on this branch); WP-111 part 2 OPEN (tier B, model Claude Opus 5.5): R7-01 -- psd2acv integrates the piecewise-linear spectrum exactly (no lag period), covModel 'psd' 'toeplitz' no longer resamples onto floor(m/2)+1 points; version 6.6.2; §12.44.
 Preceding entry: Last substantive update: 2026-10-11 — WP-115 part 4 DONE (PR #130, merge 13bf7d0), WP-115 complete; WP-111 part 1 OPEN (tier A via CI, model Claude Opus 5.5; user decision: POSITIVE COMPONENTS replace the DCT-domain update): the measurement first -- dev/validation/wp111_measure.m reproduces R7-02's runaway through lsqvce.fit and runs the candidate (hat-spectrum components, exact ACV r = K S) on the same data, plus R7-01's wrap through covModel; no toolbox change; §12.44.
@@ -8718,7 +8719,7 @@ part 3", 2026-10-11; version 6.7.0; tier B -- CI is the first MATLAB run).**
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 112 | R7-03 / R7-16: the QR backend's accumulator path stays square-root -- locals eliminated on the factor (`QRSystem.reducedRows`), contributions merged as rows (`ReducedContribution.Rows`), the common prior folded in as rows; the rank decision is `QRSystem.RankTol` (1e3 eps) on the pivots; **version 6.8.0** | 111 (PR #133 merged 290d7ff) | OPEN (2026-10-11; audit CLEAN; CI pending) |
+| 112 | R7-03 / R7-16: the QR backend's accumulator path stays square-root -- locals eliminated on the factor (`QRSystem.reducedRows`), contributions merged as rows (`ReducedContribution.Rows`), the common prior folded in as rows; the rank decision is `QRSystem.RankTol` (1e3 eps) on the pivots; **version 6.8.0** | 111 (PR #133 merged 290d7ff) | DONE (2026-10-11, PR #134, merge ec4625a; CI GREEN on ba43598) |
 
 **The finding (review R7, dom_lsq F1 / F6).** R7-03: every accumulator solve on the default
 backend read the QR factor back as N = R1'R1 (`QRSystem.blocks`), Schur-eliminated the locals
@@ -8777,4 +8778,42 @@ shipped path: 1261 refused / 739 solved). The price: a problem of cond(A) > ~4e1
   from the normal-form fold dropping the 3 null directions (fewer rows than parameters); with
   square-root rows the factor keeps all rows and the pivot test refuses: `singularR`. Test
   and the demo's ACCURACY block updated (the refusal itself is the claim, not its id).
+
+### 12.46 WP-113 — Gauss–Newton (2026-10-11, model Claude Opus 5.5)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 113 | R7-14 / R7-04: `adjustNonlinear` damps the COMMON block (Marquardt rows, d = diag(J'PJ)), shifts the prior to x (K dx ~ x0 - K x), checks descent from pass 1 on the declared objective, re-solves a rejected step on the same accumulation, returns the best accepted point when unconverged; **version 6.9.0** | 112 (PR #134 merged ec4625a) | OPEN (2026-10-11; audit CLEAN; CI pending) |
+
+**The findings (review R7, dom_lsq F2 / F3).** R7-14: the damping was `Reg "lm"`, which
+`applyRegularisation` applies to the LOCAL block; a batch source has nl = 0, so `preeliminate`
+returned before it -- the step did not depend on lambda. A rejected step was re-solved
+identically until MaxIter / 1e12 ("diverged", whose message claimed damping), the descent
+check skipped pass 1 (`it > 1`), and the final result was x + the undamped step just
+rejected (F 36.8 / 17.5 against the best accepted 4.9 / 5.5). R7-04: with data.priors the
+CommonPrior's K'x0/s^2 entered every step's right-hand side -- a prior on the INCREMENT;
+b came back +0.60 against the declared +0.30 (sigma 1e-6), the unconstrained optimum when
+x0 = 0.
+
+**Mirror first** (`dev/reviews/R7_2026-10-09/mirrors/wp113/gauss_newton.py`, the new loop
+step for step): exponential fit from [1 0.5] / [10 -5] / [0.1 1] -- tolF at the optimum
+(|x - x*| <= 3e-9) in 8 / 14 / 18 passes (7 / 9 rejections; with the shipped budget of 10 the
+far starts stop at maxIter on their best accepted point, F 0.0362 / 5.45); Rosenbrock from
+five starts all tolX at (1, 1), the classic [-1.2 1] in 47 passes, no uphill first step;
+the decay fixture with b ~ +0.30 / 0 / -0.20 (sigma 1e-6, 1e-3) lands on scipy's optimum
+of the declared objective to <= 5e-8.
+
+**Built.** `adjustNonlinear`: `accumulate(x)` -> the accumulation, F(x) = l'Pl + prior.vtv(x),
+d = diag(N); `stepSolve` sets the step's CommonPrior (`stepPrior`: the declared prior shifted
+to x plus s sqrt(lam) diag(sqrt d) rows at the prior's sigma) and solves -- on the QR backend
+the rows are stacked (WP-112); rejection: lam x10 (0 -> 1e-3), re-solve on the same
+accumulation; acceptance: lam / 10 (< 1e-12 -> 0); final undamped accumulation with the
+shifted prior; `sol.x` = x + the final step if converged, else x. The damping rows count in
+the step's dof (sigma0 cancels in dxRel = |dx| / sqrt(diag Q)); the final solve has none.
+Tests (633 = 631 + 2): `test_fit>testGaussNewtonDampsAndKeepsTheBestPoint` (far starts
+converge to the reference optimum, every accepted step downhill from F(x0); budget 10 ->
+maxPasses on the best accepted point), `testGaussNewtonPriorIsOnXNotOnTheStep` (stationarity
+of the declared objective at R.x for b ~ 0.30 / 0 with sigma 1e-3 / 1e-6; the tight prior
+holds to 1e-4). Manual 3 (kind C) and 4 (Lambda0) updated.
+NOT validated before CI: no MATLAB in the container.
 

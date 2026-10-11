@@ -150,7 +150,7 @@ merged onto the defaults; an unknown field is refused (`lsqvce:Options:badGroupF
 | field | default | meaning |
 |---|---|---|
 | `TolF` | 1e-10 | relative change of the objective that ends the iteration |
-| `Lambda0` | 1e-6 | initial Levenberg–Marquardt damping; a rejected step multiplies it |
+| `Lambda0` | 1e-6 | initial Marquardt damping of the parameters (`sqrt(λ·diag(J'PJ))` rows); a rejected step multiplies it by 10 (from 0: 1e-3), an accepted one divides it (below 1e-12: 0) |
 
 ## Retired knobs
 

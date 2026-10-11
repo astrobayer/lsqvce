@@ -1097,6 +1097,69 @@ function testBatchKindNonlinearReproducesSolveNonlinear(tc)
     tc.verifyNotEmpty(R.acc, 'kind C nonlinear carries the accumulator');
 end
 
+function testGaussNewtonDampsAndKeepsTheBestPoint(tc)
+% categories: robustness, contract
+    % R7 WP-113 (review R7-14): the damping works on the COMMON block, the
+    % descent check runs from pass 1, and an unconverged run returns the best
+    % ACCEPTED point. Exponential fit y = a exp(b t) (+ a non-zero residual),
+    % from two far starts where the shipped loop re-solved a rejected step
+    % unchanged until MaxIter and reported x + that step (F 36.8 / 17.5
+    % against the best accepted 4.9 / 5.5; mirror mirrors/wp113).
+    t = linspace(0, 4, 30).';  y = 3*exp(-1.3*t) + 0.05*sin(7*t);
+    bf = @(k, x) deal([exp(x(2)*t), x(1)*t.*exp(x(2)*t)], y - x(1)*exp(x(2)*t), []);
+    F  = @(x) sum((y - x(1)*exp(x(2)*t)).^2);
+    ref = lsqvce.fit(struct('batchFcn', bf, 'numBatches', 1, 'x0', [1; 0.5]), ...
+                     lsqvce.Options(MaxPasses=30, Tolerance=1e-10, Verbose=false));
+    for x0 = {[10; -5], [0.1; 1]}
+        R = lsqvce.fit(struct('batchFcn', bf, 'numBatches', 1, 'x0', x0{1}), ...
+                       lsqvce.Options(MaxPasses=30, Tolerance=1e-10, Verbose=false));
+        tc.verifyEqual(R.stopReason, "converged", sprintf('start [%g %g] converges', x0{1}));
+        % tol: 1e-9 relative -- both runs stop at TolX 1e-10 formal sd on the same optimum
+        tc.verifyEqual(F(R.x), F(ref.x), 'RelTol', 1e-9, 'the far start reaches the optimum');
+        ok = [R.history.accepted];  Fs = [R.history(ok).vPv];
+        tc.verifyTrue(all(diff([F(x0{1}), Fs]) <= 0), 'every accepted step goes downhill, the first included');
+    end
+    % a budget too small for the far start: maxPasses, and R.x is the best accepted point
+    muteWarn(tc, 'lsqvce:adjustNonlinear:maxIter');
+    R = lsqvce.fit(struct('batchFcn', bf, 'numBatches', 1, 'x0', [0.1; 1]), ...
+                   lsqvce.Options(MaxPasses=10, Tolerance=1e-10, Verbose=false));
+    tc.verifyEqual(R.stopReason, "maxPasses");
+    ok = [R.history.accepted];
+    % tol: 1e-12 relative -- R.x IS the last accepted iterate, F re-evaluated
+    tc.verifyEqual(F(R.x), min([R.history(ok).vPv]), 'RelTol', 1e-12, ...
+        'an unconverged run returns the best accepted point, not a rejected step');
+end
+
+function testGaussNewtonPriorIsOnXNotOnTheStep(tc)
+% categories: precision, reference
+    % R7 WP-113 (review R7-04): a prior K x ~ x0 on a NONLINEAR problem enters
+    % every step as K dx ~ x0 - K x. On the increment (the shipped form) the
+    % fixed point was not the declared optimum: b reported +0.60 against the
+    % regularised +0.30 (sigma 1e-6). Oracle: the stationarity of the DECLARED
+    % objective |w|^2_P + |(K x - x0)/sigma|^2, and the tight prior holding.
+    rs = RandStream('mt19937ar', 'Seed', 5);
+    t  = linspace(0, 1, 40).';
+    lobs = exp(0.7*t) - 0.2 + 1e-3*randn(rs, 40, 1);
+    p  = 1e6 * ones(40, 1);                          % weights of 1e-3 noise
+    bf = @(k, x) deal([t.*exp(x(1)*t), ones(40, 1)], lobs - (exp(x(1)*t) + x(2)), p);
+    for c = [0.30 1e-3; 0.30 1e-6; 0 1e-3].'
+        data = struct('batchFcn', bf, 'numBatches', 1, 'x0', [0.5; 0], ...
+                      'priors', struct('L', [0 1], 'x0', c(1), 'sigma', c(2), 'name', 'b'));
+        R = lsqvce.fit(data, lsqvce.Options(MaxPasses=30, Tolerance=1e-10, Verbose=false));
+        tc.verifyEqual(R.stopReason, "converged");
+        J  = [t.*exp(R.x(1)*t), ones(40, 1)];  w = lobs - (exp(R.x(1)*t) + R.x(2));
+        gD = J.' * (p .* w);  gP = [0; 1] * (c(1) - R.x(2)) / c(2)^2;
+        % tol: 1e-6 relative to the gradient's parts -- the data and prior pulls
+        % cancel at the declared optimum; TolX 1e-10 leaves far less than that
+        tc.verifyLessThan(norm(gD + gP), 1e-6 * (norm(gD) + norm(gP) + 1), ...
+            sprintf('b ~ %g (sigma %g): the declared objective is stationary at R.x', c(1), c(2)));
+        if c(2) < 1e-5
+            % tol: 1e-4 absolute -- a 1e-6 prior holds b to its target up to the data's pull
+            tc.verifyEqual(R.x(2), c(1), 'AbsTol', 1e-4, 'the tight prior holds');
+        end
+    end
+end
+
 function testDatumIsADeclaredPrior(tc)
 % categories: contract, reference, robustness
     % R5 M5 5b: a free network's DATUM is a declared prior on the null space

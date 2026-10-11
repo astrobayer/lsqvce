@@ -1,5 +1,31 @@
 # lsqvce release notes
 
+## 6.9.0 — 2026-10-11 (WP-113: Gauss–Newton damps the parameters and keeps the prior on x)
+
+- **The damping now acts on the common block** (review R7, R7-14). `adjustNonlinear` used to
+  damp through the accumulator's `Reg "lm"`. That option acts on a local block, and a batch
+  source has none, so the damping did nothing:
+  - a rejected step was re-solved unchanged until `MaxIter`;
+  - `R.x` was then the last accepted point plus that rejected step (F 36.8 against the best
+    accepted 4.9 on the review's exponential fit).
+
+  What changed:
+  - The step is now one solve with Marquardt rows `sqrt(λ·d_j)·dx_j ≈ 0`, d = diag(J'PJ).
+  - A rejection re-solves on the same accumulation with ten times the damping.
+  - The descent check runs from the first pass, on the declared objective with the prior
+    included.
+  - An unconverged run returns the best accepted point.
+- **A prior on a nonlinear problem acts on x, not on the step** (R7-04). Each step now
+  solves `K·dx ≈ x0 − K·x`. The old form `K·dx ≈ x0` converged away from the declared
+  optimum: b = +0.60 against +0.30 with σ = 1e-6, and the unconstrained answer when x0 = 0.
+- `Lambda0 = 0` now means "start undamped": a rejected step still turns the damping on,
+  starting at 1e-3.
+- Mirror (the R7 review's mirrors, `wp113`):
+  - the exponential fit reaches the optimum from [10, −5] and from [0.1, 1], with 30 passes;
+  - Rosenbrock converges from five starts, the classic one included;
+  - the prior fixtures land on the declared optimum to 1e-7.
+- `R.history(k).vPv` is now F(x) with the prior term included.
+
 ## 6.8.0 — 2026-10-11 (WP-112: the QR backend's accumulator path is square-root throughout)
 
 - **The default backend no longer squares the condition number on the accumulator path**

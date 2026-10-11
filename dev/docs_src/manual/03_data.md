@@ -655,5 +655,16 @@ data = struct('batchFcn', @(k, x) myJacobian(k, x), 'numBatches', 20, 'x0', x0);
 R = lsqvce.fit(data, MaxPasses=15);                     % adjustNonlinear (Gauss-Newton)
 ```
 
+How Gauss–Newton steps (since 6.9.0, R7 WP-113):
+- Every step is one least-squares solve at the current x. Marquardt damping is applied to
+  the parameters themselves, as rows `sqrt(λ·d_j)·dx_j ≈ 0` with `d = diag(J'PJ)`.
+- A declared prior `K·x ≈ x0` enters each step as `K·dx ≈ x0 − K·x`, so the iteration
+  converges to the optimum of the declared objective `‖w‖²_P + ‖(K·x − x0)/σ‖²`. Before,
+  the prior acted on the increment and missed that optimum.
+- A step that raises the objective is rejected from the first pass on. λ grows tenfold
+  (from 0, it starts at 1e-3), and a shorter step is solved from the same x.
+- A run that stops at `MaxPasses` returns the best point it accepted, never the step it
+  had just rejected.
+
 Stream names carry no meaning: the axis count of a stream comes from the day it returns
 (`Cep` or `nAxis`, §7), never from its name.
