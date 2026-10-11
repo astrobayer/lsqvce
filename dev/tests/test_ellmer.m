@@ -813,9 +813,10 @@ function test_jointModelOpt_emits_a_psd_on_normalised_frequency(tc)
     for dt = [1 5]
         % on the physical axis f = fNorm/dt the density is S*dt (covModel does this)
         r = lsqvce.kernel.psd2acv(spec.fNorm / dt, spec.S * dt, dt, 4);
-        % tol: 5e-2 absolute -- trapezoidal quadrature of a 4-term cosine
-        % series on 4 grid points reproduces c(1..3) to a few percent; the
-        % SHAPE (c(1) = 1, monotone decay) is the claim, exactness is not
+        % The exact ACV of the piecewise-linear law through 4 ordinates
+        % (psd2acv since WP-111 part 2) gives 0.365 / 0.068 against 0.4 / 0.1;
+        % the SHAPE (c(1) = 1, monotone decay) is the claim, exactness is not.
+        % tol: 5e-2 absolute, a few percent of a 4-ordinate law
         tc.verifyEqual(r(1), 1, 'AbsTol', 5e-2, sprintf('lag 0 at dt = %g', dt));
         % tol: as above
         tc.verifyEqual(r(2:3), c(2:3), 'AbsTol', 5e-2, sprintf('shape at dt = %g', dt));

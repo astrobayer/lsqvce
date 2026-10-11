@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.6.1 — User Manual"
+title: "lsqvce 6.6.2 — User Manual"
 subtitle: "least-squares adjustment with variance component estimation"
 date: "built from the sources; the single documentation authority"
 ---
@@ -1762,8 +1762,9 @@ Per pass it
 1. accumulates and solves under the current laws,
 2. sweeps every arc once for its whitened residual and its Hutchinson-probed redundancies
    at every lag (all lags from one FFT per column),
-3. updates the spectral shape per pool group in the PSD domain (positive by construction,
-   resampled to each arc's length), the level per stream, the per-arc factors, and the sigma
+3. updates the spectral shape per pool group in the PSD domain (the loader turns it into
+   its exact ACV at every lag of each arc -- since 6.6.2 no longer a resampled, circulant
+   one, review R7-01), the level per stream, the per-arc factors, and the sigma
    of any prior group with `estimate = "scale"`,
 
 and stops at `Tolerance` (max |alpha² − 1|) or `MaxPasses`. `Noise.Grid` is the number of

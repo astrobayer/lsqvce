@@ -1,5 +1,19 @@
 # lsqvce release notes
 
+## 6.6.2 — 2026-10-11 (WP-111 part 2: the PSD law's covariance without a lag period)
+
+- **A declared PSD law no longer becomes a circulant covariance** (review R7, R7-01).
+  `lsqvce.kernel.psd2acv` integrates the piecewise-linear spectrum through the given
+  ordinates EXACTLY (a closed form per segment) instead of by trapezoids, and `covModel`
+  'psd' 'toeplitz' no longer resamples the law onto floor(m/2)+1 points. Trapezoidal
+  quadrature on nf points is periodic in the lag with period 2(nf-1): with the joint
+  estimator's 60-bin law, epoch 1 of every arc longer than 118 epochs was correlated with
+  epoch m like a neighbour (r(m-1) = r(1) on even arcs, = r(0) on odd ones, Toeplitz cond
+  3.3e8 at φ 0.5 -- measured on the runner, HANDOVER §12.44). Now r(m-1)/r(0) ~ 1e-8 and
+  cond 9 on every arc length; r(0) = trapz(f, S) as before. Numbers change for every
+  'psd' law whose grid is coarse against the arc (the joint estimator's laws above all);
+  fine grids (thousands of points) move by the quadrature error only.
+
 ## 6.6.1 — 2026-10-11 (WP-115 part 4: one stream key, one arc key)
 
 - **The stream key and the arc key each have one definition** (review R7, R7-43; coding

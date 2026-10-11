@@ -216,6 +216,10 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 See also LSQVCE.ENGINE.CHECKPSD, LSQVCE.KERNEL.ARMAWHITEN, LSQVCE.KERNEL.SEPARABLEWHITEN,
          LSQVCE.KERNEL.DECORRFACTOR, LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.MAKELOADER
 
+Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 2 (R7-01): the
+&#x27;toeplitz&#x27; PSD law is no longer resampled onto floor(m/2)+1 points; its
+ACV is psd2acv&#x27;s exact integral (no circulant). With assistance from
+Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-115 part 3b (R7-10, user
 decision (b)): the robust factors compose as an additive nugget
 (cm.nugget) instead of the multiplicative fold through Cep. With
