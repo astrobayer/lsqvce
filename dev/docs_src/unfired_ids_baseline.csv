@@ -70,11 +70,6 @@ lsqvce:gcv:atUpperBound,engine.gcvLambda
 lsqvce:gcv:degenerate,engine.gcvLambda
 lsqvce:gcvLambda:qzFallback,engine.gcvLambda
 lsqvce:jointArcParts:sizeMismatch,engine.private.jointArcParts
-lsqvce:leverage:outOfRange,engine.leverage
-lsqvce:leverage:sizeMismatch,engine.leverage
-lsqvce:leverageBlocks:cNotPD,engine.leverageBlocks
-lsqvce:leverageBlocks:lNotPD,engine.leverageBlocks
-lsqvce:leverageBlocks:sizeMismatch,engine.leverageBlocks
 lsqvce:localDiagnostics:notFinite,engine.localDiagnostics
 lsqvce:log:noParallelQueue,util.log
 lsqvce:makeKeyFcn:badGroupBy,engine.private.makeKeyFcn

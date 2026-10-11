@@ -60,7 +60,7 @@ function vc = vce(accFcn, opt)
 %                   evidence validation/v10review.py T2). The final pass also
 %                   fills vc.red.traceEstimate. Being stochastic it adds noise
 %                   to sigma -- prefer 'exact' whenever affordable; see the
-%                   accuracy note in LSQVCE.ENGINE.LEVERAGE.
+%                   accuracy note in LSQVCE.ENGINE.BLOCKCOFACTOR.
 %     'Probes'      1x1  number of Hutchinson probes Z (default 100, Ellmer's).
 %     'TraceSeed'   1x1  RNG seed for reproducible probes (default []).
 %
@@ -120,8 +120,11 @@ function vc = vce(accFcn, opt)
 %     lsqvce:vce:lowRedundancy                   [warning] X group(s) have redundancy below freezeR = X and their sigma is FROZE...
 %     lsqvce:vce:notConverged                    [warning] VCE did not converge in X iterations (last change X > tol X)
 %
-%   See also LSQVCE.ENGINE.REDUNDANCY, LSQVCE.ENGINE.LEVERAGE, LSQVCE.ENGINE.OUTLIERS
+%   See also LSQVCE.ENGINE.REDUNDANCY, LSQVCE.ENGINE.BLOCKCOFACTOR, LSQVCE.ENGINE.OUTLIERS
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3 (R7-24): the
+%   retired leverage references point at lsqvce.engine.BlockCofactor. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) (F-07): typed

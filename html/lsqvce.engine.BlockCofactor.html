@@ -71,15 +71,34 @@ CONSTRUCTOR
                      eigenvalue cut of the solve&#x27;s pinv fallback, the
                      accumulator&#x27;s TruncTol); [] for a local-free problem
 
+  Q = LSQVCE.ENGINE.BLOCKCOFACTOR.fromAccumulator(acc)
+    the cofactor of a solved lsqvce.engine.BlockAccumulator (&#x27;KeepLocal&#x27;),
+    its systems in the accumulator&#x27;s order, local columns after the commons
+
 METHODS
   W = halfRows(Q, A)           u x nk, W&#x27;*W = A*Qxx*A&#x27; for full-width rows
                                A (nk x u): the dense code&#x27;s R&#x27; \ A&#x27;
+  h = leverage(Q, s, Ac, B)    the same diagonal for rows of system s given
+                               as their commons part Ac (nk x nc) and local
+                               part B (nk x nl_s); s = 0 for local-free rows
+  s = systemOf(Q, A)           the system whose locals full-width rows A
+                               touch (0: none)
   Y = qxxTimes(Q, A)           u x nk, Qxx*A&#x27;
   d = diagonal(Q)              u x 1, diag(Qxx)
   C = block(Q, idx)            Qxx(idx, idx)
   [c, ij] = maxCorrelation(Q)  the largest |corr| off the diagonal, its pair
   k = condLowerBound(Q)        a LOWER bound on cond(N) (Rayleigh quotients)
   [Q, ok] = downdate(Q, a, p)  remove one row a (weight p): snoop&#x27;s step
+
+A NOTE ON WHAT DOES NOT WORK (moved here from the retired leverage unit,
+WP-86 part 3). A stochastic (Hutchinson) trace estimator looks attractive
+because it costs O(nProbe) solves independent of nc. It was tried and
+REJECTED for the per-observation redundancies: on a realistically
+ill-conditioned gravity normal matrix the relative error is 20-50% at 32
+probes, because ||M||_F / trace(M) ~ 1 -- the operator&#x27;s energy sits in
+essentially one mode, the worst case for Hutchinson. Neither a sum
+constraint nor Hutch++ rescued it. The exact triangular-solve route here
+is both faster (measured 2x against forming inv(N) at nc = 2500) and exact.
 
 A LOCAL BLOCK THAT IS SINGULAR (the accumulator&#x27;s pinv fallback) gets the
 pseudo-inverse half H = S^-1/2 V&#x27; over its range -- the same pseudo-inverse
@@ -92,13 +111,19 @@ h = sum(Q.halfRows(A).^2, 1).&#x27;;                % leverage of batch 1
 C = Q.block([1 2]);                            % 2 x 2 cofactor of x(1:2)</pre>
 <h3>Errors</h3>
 <pre class="example">  lsqvce:BlockCofactor:badBlocks       a block&#x27;s sizes disagree with Rc
-  lsqvce:BlockCofactor:multiSystemRow  downdate of a row that touches the
-                                       locals of more than one system (the
-                                       block-arrow structure would not survive)
+  lsqvce:BlockCofactor:multiSystemRow  downdate (or systemOf) of rows that
+                                       touch the locals of more than one
+                                       system (the block-arrow structure
+                                       would not survive)
 
 See also LSQVCE.ENGINE.DIAGNOSEACCUM, LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.SNOOP,
 LSQVCE.ENGINE.BLOCKACCUMULATOR
 
+Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3 (R7-24): leverage
+(per system, without widening the rows), systemOf, fromAccumulator;
+local-free systems keep their index; the Hutchinson note moved here from
+the retired leverage. With assistance from Claude (Anthropic), model
+Claude Opus 5.5.
 Created 2026-10-10 (CEST, UTC+02:00), R7 WP-86 part 2 (R7-24): the
 block-native cofactor replacing the dense full-width factor of the
 diagnostics. With assistance from Claude (Anthropic), model Claude Opus 5.5.</pre>

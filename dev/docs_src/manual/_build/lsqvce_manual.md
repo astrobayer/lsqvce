@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.3.0 — User Manual"
+title: "lsqvce 6.4.0 — User Manual"
 subtitle: "least-squares adjustment with variance component estimation"
 date: "built from the sources; the single documentation authority"
 ---
@@ -2002,8 +2002,6 @@ What `fit` dispatches to and what it is built from. One line per public unit, fr
 | `ftest` | F-test on variance factors |
 | `gcvLambda` | GCV choice of the regularisation weight |
 | `jointModelOpt` | joint-mode model -> loader UserOpt translation |
-| `leverage` | leverage (hat-matrix diagonal), batch |
-| `leverageBlocks` | leverage over blocks |
 | `localDiagnostics` | diagnostics of the local blocks |
 | `localColumns` | which (row, day, arc) owns each column of B (R5-D8) |
 | `makeLoader` | day-builder -> Loader (built INSIDE fit from the data struct, R4-D4) |
@@ -2278,11 +2276,6 @@ Every identifier the package raises, from `dev/docs_src/error_ids.csv` (the cata
 | `lsqvce:jointModelOpt:badC` | engine.jointModelOpt — error — v4.0 |
 | `lsqvce:jointModelOpt:badModel` | engine.jointModelOpt — error — v4.0 |
 | `lsqvce:jointModelOpt:badStream` | engine.jointModelOpt — error — v4.0 |
-| `lsqvce:leverage:outOfRange` | engine.leverage — warning — v4.0 |
-| `lsqvce:leverage:sizeMismatch` | engine.leverage — error — v4.0 |
-| `lsqvce:leverageBlocks:cNotPD` | engine.leverageBlocks — error — v4.0 |
-| `lsqvce:leverageBlocks:lNotPD` | engine.leverageBlocks — error — v4.0 |
-| `lsqvce:leverageBlocks:sizeMismatch` | engine.leverageBlocks — error — v4.0 |
 | `lsqvce:levinson:notPD` | kernel.levinsonDurbin — mixed — v4.0 |
 | `lsqvce:levinson:orderTooHigh` | kernel.levinsonDurbin — error — v4.0 |
 | `lsqvce:localDiagnostics:notFinite` | engine.localDiagnostics — error — v4.0 |

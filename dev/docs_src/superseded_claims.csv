@@ -34,3 +34,4 @@ nothing of size `n`\s+is ever formed,R7-24 (WP-118),README said nothing of size 
 stage does not stream yet,WP-86 part 1,the diagnostics stage stored all n x u whitened rows (re-read on demand since 6.2.0)
 still rebuilds a\s+dense factor of the full parameter set,WP-86 part 2,the diagnostics built a dense u_full x u_full factor (kept as blocks since 6.3.0)
 the dense\s+u × u factor over the FULL parameter set remains,WP-86 part 2,DEVELOPMENT said the dense u x u diagnostics factor remains (blocks since 6.3.0)
+still re-accumulates all parameters as commons,WP-86 part 3,README said snoop's clean re-solve treats every parameter as a common one (block-arrow since 6.4.0)

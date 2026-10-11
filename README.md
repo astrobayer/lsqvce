@@ -1,4 +1,4 @@
-# lsqvce v6.3.0 — least-squares adjustment with variance component estimation
+# lsqvce v6.4.0 — least-squares adjustment with variance component estimation
 
 Declare your problem as a plain `data` struct, `fit` it, and get a judged
 result: estimates with formal errors, per-observation diagnostics, and a
@@ -25,8 +25,8 @@ all locals) is kept as blocks — the commons factor and each system's local blo
 1 GB for one GRAVFIRE-scale month (9 409 commons, 4 320 locals), where 6.2 built dense
 13 729² matrices of 1.5 GB each (6.3.0, WP-86 part 2). The work per observation stays
 O(nc²) because the commons dominate: about 1.7·10⁸ flops per row for the main diagnostic
-pass at that scale, ~4·10¹⁴ for 2.07 M rows (1.7× less than the dense factor). `snoop`'s
-clean re-solve (`Reaccumulate=true`) still re-accumulates all parameters as commons.
+pass at that scale, ~4·10¹⁴ for 2.07 M rows (1.7× less than the dense factor). The VCE
+redundancy pass and `snoop`'s clean re-solve use the same blocks (6.4.0, WP-86 part 3).
 MIT licensed. Version and release notes:
 `RELEASE_NOTES.md`; the development record (status, correctness history, design
 decisions, measurements) lives in `dev/DEVELOPMENT.md`.

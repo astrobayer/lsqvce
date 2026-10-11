@@ -28,7 +28,7 @@ function out = streamContribution(acc, sol, opt)
 %
 %     with A_arc the whitened common design of the arc (m x nc), G_s = inv(Nll_s)
 %     Nlc_s the per-SYSTEM Schur factor (built once, shared by all that system's
-%     arcs, identical to LSQVCE.ENGINE.LEVERAGEBLOCKS.G). The first term streams per arc;
+%     arcs, identical to the G of LSQVCE.ENGINE.BLOCKCOFACTOR). The first term streams per arc;
 %     the second is a single per-system correction applied once. All groups are
 %     accumulated in ONE sweep -- each arc routes its A'(A Z) into its own group's
 %     nc x Z accumulator, so the cost is a handful of data passes independent of G.
@@ -37,11 +37,11 @@ function out = streamContribution(acc, sol, opt)
 %     Lc of N (two triangular solves), never by forming N^-1.
 %
 %   RELATION TO THE EXACT PATH (read this before trusting the numbers)
-%     The exact per-arc leverage path (LSQVCE.ENGINE.REDUNDANCY, LSQVCE.ENGINE.LEVERAGE) already
+%     The exact per-arc leverage path (LSQVCE.ENGINE.REDUNDANCY, LSQVCE.ENGINE.BLOCKCOFACTOR) already
 %     gives t_g EXACTLY as r_g = sum_{i in g}(1 - h_i), cheaply, and is the
 %     DEFAULT and the authority. This estimator is an OPT-IN accelerator for very
 %     large nc where the exact per-group DIAGONAL diag(N^-1 N_g^cc) would cost
-%     O(G*nc^2) to form. LSQVCE.ENGINE.LEVERAGE documents that Hutchinson on the JOINT
+%     O(G*nc^2) to form. LSQVCE.ENGINE.BLOCKCOFACTOR documents that Hutchinson on the JOINT
 %     leverage operator N^-1 N (trace u, energy in one mode) has 20-50% error and
 %     was rejected there -- that caveat is real. Here the PER-GROUP operators
 %     N^-1 N_g^cc have trace r_g (typically << u) and the group-sum constraint is
@@ -98,7 +98,7 @@ function out = streamContribution(acc, sol, opt)
 %                                           - tr(B_g'A_g Sxx G')
 %                                   from the leverage-block identities
 %                                   inv(N)_ll = Nll^-1 + G Sxx G' and
-%                                   inv(N)_lc = -G Sxx (LSQVCE.ENGINE.LEVERAGE); a
+%                                   inv(N)_lc = -G Sxx (LSQVCE.ENGINE.BLOCKCOFACTOR); a
 %                                   whole-system group gives exactly nl_s. No
 %                                   probes enter this term.
 %                   .r      1x1     STREAMED REDUNDANCY (WP-32, fixes F-01):
@@ -138,9 +138,13 @@ function out = streamContribution(acc, sol, opt)
 %     lsqvce:streamContribution:cNotPD      a contribution block is not positive
 %                                           definite
 %
-%   See also LSQVCE.ENGINE.CONTRIBUTION, LSQVCE.ENGINE.REDUNDANCY, LSQVCE.ENGINE.LEVERAGEBLOCKS,
+%   See also LSQVCE.ENGINE.CONTRIBUTION, LSQVCE.ENGINE.REDUNDANCY, LSQVCE.ENGINE.BLOCKCOFACTOR,
 %            LSQVCE.ENGINE.TRACEESTIMATE, LSQVCE.ENGINE.VCE
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3 (R7-24): the
+%   retired leverage / leverageBlocks references point at
+%   lsqvce.engine.BlockCofactor. With assistance from Claude (Anthropic),
+%   model Claude Opus 5.5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) (F-07): typed
 %   `arguments` signature, canonical UpperCamelCase option names (legacy
 %   casings keep matching; enum VALUES case-sensitive lowercase). With
@@ -217,7 +221,7 @@ end
 
     % ---- per-system broadcast state (serial, cheap) ----------------------
     %   G_s = inv(Nll_s) Nlc_s (nl x nc), the per-system Schur factor, identical
-    %   to LSQVCE.ENGINE.LEVERAGEBLOCKS.G. Precompute G_s*Z (nl x Z) once per system.
+    %   to the G of LSQVCE.ENGINE.BLOCKCOFACTOR. Precompute G_s*Z (nl x Z) once per system.
     nSys   = numel(ids);
     stores = cell(nSys, 1);
     for k = 1:nSys
@@ -225,7 +229,7 @@ end
         G  = st.Nll_r \ st.Nlc;                      % nl x nc
         % WP-32: the exact local-absorbed term needs the two leverage-block
         % identities inv(N)_ll = Nll^-1 + G Sxx G' and inv(N)_lc = -G Sxx
-        % (LSQVCE.ENGINE.LEVERAGE). One nc-solve per system yields X = Sxx G';
+        % (LSQVCE.ENGINE.BLOCKCOFACTOR). One nc-solve per system yields X = Sxx G';
         % everything else is nl x nl.
         X   = Lc.' \ (Lc \ G.');                    % Sxx G', nc x nl
         GSG = G * X;                                 % G Sxx G', nl x nl

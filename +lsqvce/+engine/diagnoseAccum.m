@@ -121,16 +121,13 @@ function [diagSol, batchFcn, nBatch] = diagnoseAccum(acc, sol)
     localCount  = zeros(1, nSys);
     col         = nc;
     stores      = cell(1, nSys);
-    blocks      = struct('cols', cell(1, nSys), 'Nll', [], 'Nlc', [], 'truncTol', []);
     n           = 0;
     for iSys = 1:nSys
         st = acc.systemStore(sysIds(iSys));
         stores{iSys}     = st;
         localOffset(iSys) = col;
         localCount(iSys)  = st.nl;
-        kept = acc.getStore(sysIds(iSys));             % the Schur blocks the solve used
-        blocks(iSys) = struct('cols', col + (1:st.nl), 'Nll', kept.Nll_r, 'Nlc', kept.Nlc, ...
-                              'truncTol', acc.opt.TruncTol);   % the solve's pinv cut
+        kept = acc.getStore(sysIds(iSys));
         n   = n + kept.mObs;                           % rows the accumulator folded
         col = col + st.nl;
     end
@@ -149,7 +146,7 @@ function [diagSol, batchFcn, nBatch] = diagnoseAccum(acc, sol)
     % per-system blocks: nothing u_full x u_full is factored or held (it was a
     % dense QR of every whitened row at full width, 1.5 GB per copy and
     % ~u_full^2/2 flops per row at a GRAVFIRE month).
-    Q = lsqvce.engine.BlockCofactor(acc.commonFactor(), blocks);
+    Q = lsqvce.engine.BlockCofactor.fromAccumulator(acc);   % same system order, same layout
 
     % ---- the batch index: one batch = one ARC, from the meta calls alone --
     % batchFcn rebuilds an arc's whitened rows from its address on demand

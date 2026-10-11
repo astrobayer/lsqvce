@@ -78,7 +78,7 @@ function out = redundancyLags(Abar, W, UiZ, ebar, nMaxLag, opt)
 %                          the pre-WP-33 common-only projector, VERBATIM
 %                          (nl = 0 arcs are bitwise unchanged).
 %     'LocalLl'  nl x nl double  the SYSTEM's lower Cholesky factor
-%                          chol(Nll,'lower') (as LSQVCE.ENGINE.LEVERAGEBLOCKS.Ll);
+%                          chol(Nll,'lower') (the factor LSQVCE.ENGINE.BLOCKCOFACTOR inverts);
 %                          required with 'LocalBbar'.
 %
 %   OUTPUT
@@ -125,6 +125,9 @@ function out = redundancyLags(Abar, W, UiZ, ebar, nMaxLag, opt)
 %   See also LSQVCE.ENGINE.COVCOMPONENT, LSQVCE.KERNEL.TOEPLITZCOFACTOR, LSQVCE.KERNEL.DCTI,
 %            LSQVCE.ENGINE.TRACEESTIMATE, LSQVCE.ENGINE.STREAMCONTRIBUTION
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3 (R7-24): the
+%   retired leverageBlocks references point at lsqvce.engine.BlockCofactor.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) (F-07): typed
 %   `arguments` signature, canonical UpperCamelCase option names (legacy
 %   casings keep matching; enum VALUES case-sensitive lowercase). With
@@ -180,7 +183,7 @@ end
 
     % ---- the EXACT local block (WP-33, fixes F-03) ------------------------
     %   With the local design present, the joint hat splits by the leverage
-    %   block identities (LSQVCE.ENGINE.LEVERAGE) into
+    %   block identities (LSQVCE.ENGINE.BLOCKCOFACTOR) into
     %       [A B] N_joint^-1 [A B]' = Atil Sxx Atil' + B Nll^-1 B',
     %   Atil = A - B G. The FIRST term is what the shared probe covers when
     %   the caller passes AtilBar (see LSQVCE private jointArcParts); the

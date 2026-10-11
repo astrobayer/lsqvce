@@ -28,7 +28,8 @@ function red = redundancy(acc, sol, opt)
 %     'Verbose'    default true
 %     'Parallel'   'serial' | 'parfor' | 'spmd'. Default: the accumulator's
 %                  'Parallel' option. The pass is parallel OVER ARCS: the
-%                  leverage blocks are built once per system and broadcast,
+%                  block cofactor (one commons factor, the local blocks) is
+%                  built once and broadcast,
 %                  then each arc-task runs independently and the partial sums
 %                  are reduced in task order (proven exact in
 %                  validation/v4verify.py). This is THE pass to parallelise:
@@ -45,7 +46,7 @@ function red = redundancy(acc, sol, opt)
 %                  a per-group scalar only, not the per-observation r_i the
 %                  snooping and the sum(r)=m-u identity need). Intended as an
 %                  accelerator/cross-check at very large nc; read the accuracy
-%                  caveat in LSQVCE.ENGINE.LEVERAGE.
+%                  caveat in LSQVCE.ENGINE.BLOCKCOFACTOR.
 %     'Probes'     1x1  number of Hutchinson probes Z (default 100).
 %     'TraceSeed'  1x1  RNG seed for reproducible probes (default []).
 %
@@ -84,7 +85,7 @@ function red = redundancy(acc, sol, opt)
 %     So VCE roughly DOUBLES the cost per Helmert iteration, and you need 2-4
 %     iterations. That is the honest price of exact per-arc redundancy. It is
 %     not reducible by a stochastic estimator -- that was tried and gives
-%     20-50% error on realistically conditioned normals (see LSQVCE.ENGINE.LEVERAGE).
+%     20-50% error on realistically conditioned normals (see LSQVCE.ENGINE.BLOCKCOFACTOR).
 %
 %   CHOOSING THE GROUP
 %     'arc' is the default and the physically meaningful unit: an arc is a
@@ -119,8 +120,12 @@ function red = redundancy(acc, sol, opt)
 %     lsqvce:redundancy:smallGroup               [warning] X group(s) have redundancy below X. The variance component of a group...
 %     lsqvce:redundancy:spmdNoCollect            [warning] 'spmd' reduces on the workers, so per-observation h/r/v are not shipp...
 %
-%   See also LSQVCE.ENGINE.LEVERAGE, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.OUTLIERS, LSQVCE.ENGINE.RESIDUALS
+%   See also LSQVCE.ENGINE.BLOCKCOFACTOR, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.OUTLIERS, LSQVCE.ENGINE.RESIDUALS
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3 (R7-24): the
+%   leverage comes from lsqvce.engine.BlockCofactor -- one commons factor
+%   broadcast, not one per system (leverage / leverageBlocks retired). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) (F-07): typed
 %   `arguments` signature, canonical UpperCamelCase option names (legacy
 %   casings keep matching; enum VALUES case-sensitive lowercase). With
@@ -181,7 +186,7 @@ end
              'Hutchinson estimator (Ellmer 2018 6.5.6) is returned in ' ...
              'red.traceEstimate as a stochastic estimate of the TOTAL common ' ...
              'redundancy for comparison. See LSQVCE.ENGINE.TRACEESTIMATE and the ' ...
-             'accuracy note in LSQVCE.ENGINE.LEVERAGE.']);
+             'accuracy note in LSQVCE.ENGINE.BLOCKCOFACTOR.']);
     end
 
     % the execution mode: explicit option > accumulator option > serial
@@ -208,21 +213,20 @@ end
               'Construct the accumulator with ''KeepLocal'', true.');
     end
 
-    Ncc_red = acc.reducedNormalMatrix();      % TOTAL, summed over all systems
-
-    % ---- phase 1: per-system broadcast state (serial, cheap) --------------
-    % The leverage blocks are the ONLY O(nc^3)/O(nl^3) work. Built once per
-    % system, then broadcast to every task -- a few hundred MB at d/o 90,
-    % negligible next to the compute they enable. The accumulator itself is
-    % NEVER captured by a task: only these plain arrays and the loader.
+    % ---- phase 1: the broadcast state (serial, cheap) ---------------------
+    % The cofactor is the ONLY O(nc^3)/O(nl^3) work: ONE commons factor and
+    % each system's local blocks (lsqvce.engine.BlockCofactor, WP-86 part 3 --
+    % before, every system carried its own copy of the nc x nc factor and the
+    % nc x nl products, nSys x 0.7 GB at a GRAVFIRE month). Broadcast to every
+    % task; the accumulator itself is NEVER captured by a task: only Q, these
+    % plain arrays and the loader.
+    Q       = lsqvce.engine.BlockCofactor.fromAccumulator(acc);
     nSys    = numel(ids);
     stores  = cell(nSys, 1);
-    blks    = cell(nSys, 1);
     ys      = cell(nSys, 1);
     nParTot = numel(x);
     for k = 1:nSys
         st        = acc.getStore(ids(k));
-        blks{k}   = lsqvce.engine.leverageBlocks(Ncc_red, st.Nll_r, st.Nlc);
         ys{k}     = st.Nll_r \ (st.nl_r - st.Nlc * x);
         stores{k} = struct('sysID', st.sysID, 'dataFcn', st.dataFcn, ...
                            'uo', st.uo, 'dayList', st.dayList);
@@ -270,7 +274,7 @@ end
     % (m, sum r, v'v, sum h) plus, if Collect, the per-observation series.
     % validation/v4verify.py proves partial sums over any partition of these
     % tasks reconstruct the serial result -- the schedule is free.
-    taskFcn = @(j) arcTask(tasks(j), stores{tasks(j).k}, blks{tasks(j).k}, ...
+    taskFcn = @(j) arcTask(tasks(j), stores{tasks(j).k}, Q, tasks(j).k, ...
                            ys{tasks(j).k}, x, keyFcn, o.collect);
 
     switch mode
@@ -326,6 +330,7 @@ end
     % release will estimate the per-group tr(N^-1 N_g^cc) directly (needs a
     % group-level common-normal assembly). The exact r_g above are unchanged.
     if useHutch
+        Ncc_red = acc.reducedNormalMatrix();      % TOTAL, summed over all systems
         try
             U = chol((Ncc_red + Ncc_red.')/2);        % Ncc_red = U'*U
             nc = size(Ncc_red, 1);
@@ -387,7 +392,7 @@ end
 end
 
 %==========================================================================
-function t = arcTask(tk, st, blk, y, x, keyFcn, collect)
+function t = arcTask(tk, st, Q, s, y, x, keyFcn, collect)
 %ARCTASK  One independent unit of the redundancy pass: load, whiten, sum.
     uo = st.uo;
     uo.obsType = tk.obsType;
@@ -400,7 +405,7 @@ function t = arcTask(tk, st, blk, y, x, keyFcn, collect)
         return
     end
 
-    [h, v] = arcLeverageAndResidual(arc, x, y, uo, blk);
+    [h, v] = arcLeverageAndResidual(arc, x, y, uo, Q, s);
     r = 1 - h;
 
     key = keyFcn(st.sysID, tk.obsType, tk.arc, tk.day);
@@ -473,7 +478,7 @@ end
 %==========================================================================
 
 %==========================================================================
-function [h, v] = arcLeverageAndResidual(arc, x, y, uo, blk)
+function [h, v] = arcLeverageAndResidual(arc, x, y, uo, Q, s)
 %ARCLEVERAGEANDRESIDUAL  Whiten one arc, then get h and v, batched.
 %   WP-38 (fixes F-08): the batch/overlap/whitening skeleton lives in the
 %   ONE private arcBatchWhiten; this callback keeps the numeric payload
@@ -485,7 +490,9 @@ function [h, v] = arcLeverageAndResidual(arc, x, y, uo, blk)
     arcBatchWhiten(arc, uo, @perBatch);
 
     function perBatch(rows, keep, Ab, Bb, lb)
-        hb = lsqvce.engine.leverage(Ab, Bb, blk);
+        % the block cofactor's leverage of system s's rows; h in [0,1] up to
+        % rounding (the sum(r) = m - u identity below is the integrity check)
+        hb = min(max(Q.leverage(s, Ab, Bb), 0), 1);
         vb = lb - Ab*x - Bb*y;
         h(rows) = hb(keep);
         v(rows) = vb(keep);

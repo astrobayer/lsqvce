@@ -84,9 +84,9 @@ function [t, info] = traceEstimate(M, opt)
 %     The relative error scales like sqrt(Var/Z), and Var depends on the matrix:
 %     for a near-rank-one operator (||M||_F / trace(M) ~ 1) the single-probe
 %     variance is large and Z=100 can leave tens of percent of error. The
-%     toolbox's EXACT leverage path (LSQVCE.ENGINE.LEVERAGE / LSQVCE.ENGINE.REDUNDANCY) was
+%     toolbox's EXACT leverage path (LSQVCE.ENGINE.BLOCKCOFACTOR / LSQVCE.ENGINE.REDUNDANCY) was
 %     kept as the default for exactly this reason -- see the note in
-%     LSQVCE.ENGINE.LEVERAGE. Ellmer's construction probes the BETTER-conditioned
+%     LSQVCE.ENGINE.BLOCKCOFACTOR. Ellmer's construction probes the BETTER-conditioned
 %     operator U^-T N_g U^-1 (redundancies in [0,1]) and averages over many arcs
 %     and iterations, which is why Z=100 suffices there. Check .relse before
 %     trusting a single estimate, and prefer the exact path when P is small
@@ -122,8 +122,11 @@ function [t, info] = traceEstimate(M, opt)
 %     lsqvce:traceEstimate:notSquare    the operator is not square
 %     lsqvce:traceEstimate:sizeMismatch the probe dimension disagrees
 %
-%   See also LSQVCE.ENGINE.REDUNDANCY, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.LEVERAGE, LSQVCE.KERNEL.DECORRFACTOR
+%   See also LSQVCE.ENGINE.REDUNDANCY, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.BLOCKCOFACTOR, LSQVCE.KERNEL.DECORRFACTOR
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3 (R7-24): the
+%   retired leverage references point at lsqvce.engine.BlockCofactor. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
 %   typed `arguments` signature, canonical UpperCamelCase option names
 %   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
