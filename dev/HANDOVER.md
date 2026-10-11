@@ -8854,7 +8854,7 @@ Tests (634 = 633 + 1): `test_fit>testDatumCovarianceIsTheMinimumConstraintOne` (
 warning-free and consistent; a ridge keeps the solve's covariance and closes the identity
 with r_prior > 0). Manual 3 section 0a and fit's priorsOf help updated.
 NOT validated before CI: no MATLAB in the container.
-CI round 1 (d1b076c): 633/634, the new test red -- redundancy() at its default
+CI round 1 (d1b076c): 621/622 test points, the new test red -- redundancy() at its default
 MinRedundancy 50 warned `smallGroup` (r_g = 2 and 34) inside verifyWarningFree, and the
 gate also refused the new warning id. Fix: the test calls redundancy with 'Verbose', false
 (identityViolated stays unconditional, so the identity is still checked warning-free).
