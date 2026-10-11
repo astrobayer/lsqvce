@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-11 — WP-113 DONE (PR #135, merge 2ec85d6); WP-114 OPEN (tier B, model Claude Opus 5.5): R7-05 / R7-15 -- a datum prior's covariance is the minimum-constraint one (sigma-independent), residuals() / redundancy() count a common prior; version 6.10.0; §12.47.
+Last substantive update: 2026-10-11 — WP-114 DONE (PR #136, merge 4bdcfe5; CI GREEN on 4c31b83); R7 TRACK CLOSED (model Claude Opus 5.5, user decision): every WP 111-118 merged, 45 of 46 findings fixed in the tree (R7-46 is the review skill's own instrument); the residues are recorded, not opened; no code change, no version; §12.48.
+Preceding entry: Last substantive update: 2026-10-11 — WP-113 DONE (PR #135, merge 2ec85d6); WP-114 OPEN (tier B, model Claude Opus 5.5): R7-05 / R7-15 -- a datum prior's covariance is the minimum-constraint one (sigma-independent), residuals() / redundancy() count a common prior; version 6.10.0; §12.47.
 Preceding entry: Last substantive update: 2026-10-11 — WP-112 DONE (PR #134, merge ec4625a); WP-113 OPEN (tier B, model Claude Opus 5.5): R7-14 / R7-04 -- Gauss-Newton damps the common block (Marquardt rows), shifts the prior to x, checks descent from pass 1 on the declared objective, returns the best accepted point; version 6.9.0; §12.46.
 Preceding entry: Last substantive update: 2026-10-11 — WP-111 part 3 DONE (PR #133, merge 290d7ff), WP-111 complete; WP-112 OPEN (tier B, model Claude Opus 5.5): R7-03 / R7-16 -- the QR backend's accumulator path square-root throughout (locals eliminated on the factor, contributions and the common prior merged as rows), the rank decision QRSystem.RankTol on the pivots; version 6.8.0; §12.45.
 Preceding entry: Last substantive update: 2026-10-11 — WP-111 part 2 DONE (PR #132, merge 96ad12b; CI GREEN on ba810e4); WP-111 part 3 OPEN (tier B, model Claude Opus 5.5): R7-02 / R7-20 -- the joint law is a positive spectrum on Grid bins (kernel.hatACV, r = K S, every bin's component PSD), psdVCE on per-bin statistics over all lags, the arc factor from the arc's whole covariance, state S / Sgroups ('C0' -> 'S0' white; Norm, ZeroFreqRule, floors, degenerateStart retired); version 6.7.0; §12.44.
@@ -8822,7 +8823,7 @@ NOT validated before CI: no MATLAB in the container.
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 114 | R7-05 / R7-15: a DATUM prior (data blind to its directions) gets the minimum-constraint covariance in `sol.Cxx` and the diagnostics' parameter cofactor (`BlockAccumulator.datumPart`, `BlockCofactor` datum part); `residuals()` / `redundancy()` count a common prior (vtv, dof, r_prior); **version 6.10.0** | 113 (PR #135 merged 2ec85d6) | OPEN (2026-10-11; audit CLEAN; CI pending) |
+| 114 | R7-05 / R7-15: a DATUM prior (data blind to its directions) gets the minimum-constraint covariance in `sol.Cxx` and the diagnostics' parameter cofactor (`BlockAccumulator.datumPart`, `BlockCofactor` datum part); `residuals()` / `redundancy()` count a common prior (vtv, dof, r_prior); **version 6.10.0** | 113 (PR #135 merged 2ec85d6) | DONE (2026-10-11, PR #136, merge 4bdcfe5; CI GREEN on 4c31b83 after one red round) |
 
 **The findings (review R7, dom_lsq F4 / F5).** R7-05: `Cxx = s0^2 inv(N + BB'/s^2)` =
 s0^2 (pinv(N) + s^2 B(B'B)^-2 B') -- se 0.005 / 2.48 at datum sigma 1 / 1e3 while x does not
@@ -8859,3 +8860,45 @@ MinRedundancy 50 warned `smallGroup` (r_g = 2 and 34) inside verifyWarningFree, 
 gate also refused the new warning id. Fix: the test calls redundancy with 'Verbose', false
 (identityViolated stays unconditional, so the identity is still checked warning-free).
 
+### 12.48 R7 closed (2026-10-11, model Claude Opus 5.5)
+
+**The user's decision (2026-10-11):** WP-115 was already complete (parts 1-4), so the
+request "continue with WP-115" became the R7 closure: the WP-114 ledger row, this note,
+no code change, no version (6.10.0 stays, 634 tests).
+
+**R7 TRACK CLOSED (2026-10-11, WP-114 merge 4bdcfe5).** Every package the review
+proposed (§12.35) is merged:
+
+| WP | findings | PRs | round note |
+|----|----------|-----|------------|
+| 111 | R7-01, R7-02, R7-20 | #131, #132, #133 | §12.44 |
+| 112 | R7-03, R7-16 | #134 | §12.45 |
+| 113 | R7-04, R7-14 | #135 | §12.46 |
+| 114 | R7-05, R7-15 | #136 | §12.47 |
+| 115 | R7-06, R7-08, R7-10, R7-12, R7-17, R7-18, R7-21, R7-25, R7-43 | #118, #128, #129, #130 | §12.39, §12.43 |
+| 116 | R7-07, R7-09, R7-11, R7-13, R7-22 | #119, #120 | §12.40 |
+| 117 | R7-26 ... R7-33, R7-42, R7-45 | #115, #116, #117 | §12.36 - §12.38 |
+| 118 | R7-19, R7-23, R7-24, R7-34 ... R7-41, R7-44 | #121, #122, #123 | §12.41 |
+
+WP-86 (memory, decision (d)) was pulled forward for R7-24 and is complete (§12.42).
+The four decisions §12.35 asked for were taken: (a) arc factors weight the solve
+(WP-116 part 2); (b) the additive nugget (WP-115 part 3b); (c) the collapse threshold and
+R7-25's unit, with R7-08 (WP-115 part 2); (d) WP-86 pulled forward.
+
+**Not fixed in the tree, and why.** R7-46 (`count_tests.py` parses classdef only and
+exits 0 on zero classes) belongs to the review skill, not to this repository.
+
+**Residues, recorded and not opened** (each is stated in the user-facing text that owns
+it; a new WP needs the user):
+- A common prior that lies only PARTLY in the data's null space, or a datum stacked with a
+  regularising group, keeps the solve's covariance: `datumPart` treats the prior as a whole
+  (§12.47; Manual 3 section 0a states the partial case).
+- The Ljung-Box lag count K = 20 is not tied to the Grid; on 2160-epoch arcs the test sees
+  only the shortest lags. A power question (§12.41, Manual 7.7).
+- Outside R7, from WP-86: snoop's `Reaccumulate=true` re-solve still builds a dense
+  commons factor (`Reaccumulate=false` is the block-native route), and the verdict
+  re-reads the data in its two diagnose sweeps (§12.42).
+
+**What the next session could be wrong for not reading.** The last subsection of §12 is
+this closure, not a round in progress: nothing is open on `main` until the user opens a
+WP or a new review.
