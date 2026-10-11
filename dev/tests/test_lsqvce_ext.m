@@ -51,7 +51,7 @@ function test_systematic_detects_drift(tc)
 
     B = chop(A, l, p, 8);
     [~, D] = flatAdjust(u, srcOf(B), 8, 'verbose', false);
-    S = lsqvce.engine.systematic(D, 'covariates', struct('t', t), 'verbose', false);
+    S = lsqvce.engine.verdict.systematic(D, 'covariates', struct('t', t), 'verbose', false);
 
     verifyTrue(tc, S.detected, ...
         'a strong sinusoidal systematic was NOT detected');
@@ -72,7 +72,7 @@ function test_systematic_quiet_on_clean_data(tc)
         t = (1:n).';
         B = chop(A, l, p, 5);
         [~, D] = flatAdjust(u, srcOf(B), 5, 'verbose', false);
-        S = lsqvce.engine.systematic(D, 'covariates', struct('t', t), ...
+        S = lsqvce.engine.verdict.systematic(D, 'covariates', struct('t', t), ...
                                'verbose', false);
         nFalse = nFalse + double(S.detected);
     end
@@ -93,7 +93,7 @@ function test_systematic_runs_test_is_calibrated(tc)
         l = A*xt + randn(rs, n, 1);
         B = chop(A, l, ones(n,1), 4);
         [~, D] = flatAdjust(u, srcOf(B), 4, 'verbose', false);
-        S = lsqvce.engine.systematic(D, 'verbose', false);
+        S = lsqvce.engine.verdict.systematic(D, 'verbose', false);
         zs(m) = S.runs.z;
     end
     zs = zs(isfinite(zs));
@@ -289,7 +289,7 @@ function test_ellipse_matches_eig_of_submatrix(tc)
     B = chop(A, l, p, 3);
     [~, D] = flatAdjust(u, srcOf(B), 3, 'verbose', false);
 
-    E = lsqvce.engine.ellipse(D, [1 2]);
+    E = lsqvce.engine.verdict.ellipse(D, [1 2]);
     Q = D.Q.block([1 2]) * D.s0^2;
     ev = sort(eig((Q+Q')/2), 'descend');
 
@@ -453,7 +453,7 @@ function test_fhat_floor_is_exact(tc)
     B = chop(A, l, ones(n,1), 4);
     [~, D] = flatAdjust(u, srcOf(B), 4, 'verbose', false);
     % tol: exact-path identity (same numbers recombined); house round-trip bound 1e-12/1e-10 (HANDOVER 6.1.2)
-    verifyEqual(tc, D.fhatFloor, 2*lsqvce.engine.stat.normCdf(-2.5), 'AbsTol', 1e-12);
+    verifyEqual(tc, D.fhatFloor, 2*lsqvce.kernel.stat.normCdf(-2.5), 'AbsTol', 1e-12);
     verifyEqual(tc, D.fhatFloor, 0.0124190, 'AbsTol', 1e-5);
 end
 
@@ -519,7 +519,7 @@ function test_snoop_refuses_when_too_contaminated(tc)
     % Rejecting 30% of the data is not outlier rejection; it is laundering a
     % model error. snoop must REFUSE rather than quietly delete a third of the
     % dataset.
-    verifyError(tc, @() lsqvce.engine.snoop(sol, D, src, 'verbose', false), ...
+    verifyError(tc, @() lsqvce.engine.verdict.snoop(sol, D, src, 'verbose', false), ...
         'lsqvce:snoop:tooContaminated');
 end
 
@@ -537,7 +537,7 @@ function test_snoop_force_overrides_refusal(tc)
 
     % 'force' must still WARN -- an override should never be silent.
     verifyWarning(tc, ...
-        @() lsqvce.engine.snoop(sol, D, src, 'verbose', false, 'force', true, ...
+        @() lsqvce.engine.verdict.snoop(sol, D, src, 'verbose', false, 'force', true, ...
                           'test', 'mad'), ...
         'lsqvce:snoop:forcedContaminated');
 end

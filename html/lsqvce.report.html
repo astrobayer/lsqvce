@@ -44,7 +44,7 @@ a { color: #0b5ea8; }
 <h1>lsqvce.report</h1>
 <div class="purpose">Judge a least-squares adjustment and say so in words.</div>
 <h2>Description</h2>
-<pre class="example">V = LSQVCE.REPORT(D) takes the struct from lsqvce.engine.diagnose and prints a
+<pre class="example">V = LSQVCE.REPORT(D) takes the struct from lsqvce.engine.verdict.diagnose and prints a
 verdict. It returns a struct of machine-readable findings so the same logic
 can drive an automated pipeline.
 
@@ -88,7 +88,7 @@ OUTPUT V
   V.findings  cell array of struct(level, severity, code, msg)
   V.nError, V.nWarn, V.nNote</pre>
 <h3>Input</h3>
-<pre class="example">D         1x1 struct  diagnostics from LSQVCE.ENGINE.DIAGNOSE
+<pre class="example">D         1x1 struct  diagnostics from LSQVCE.ENGINE.VERDICT.DIAGNOSE
 varargin  Name/Value: &#x27;verbose&#x27;, &#x27;width&#x27;, &#x27;alpha&#x27;, &#x27;rWeak&#x27;, ...</pre>
 <h3>Example</h3>
 <pre class="example">    data = struct(&#x27;batchFcn&#x27;, src, &#x27;numUnknowns&#x27;, u, &#x27;numBatches&#x27;, 4);
@@ -109,8 +109,11 @@ typed `arguments` signature, canonical UpperCamelCase option names
 (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
 case-sensitive lowercase). With assistance from Claude (Anthropic),
 model Claude Fable 5.
-See also LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.SYSTEMATIC.
+See also LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SYSTEMATIC.
 
+Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 4: the remedies name
+R.systematic() / R.snoop(), never an engine function (H-05). With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-86 part 2 (R7-24): PAR_COND
 states how the lower bound on cond(N) is formed (from the block
 cofactor, no SVD). With assistance from Claude (Anthropic), model Claude

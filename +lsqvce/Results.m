@@ -18,7 +18,7 @@ classdef Results < handle
 %                                  returned with its covariance and one warning.
 %     converged  1x1      logical  Did the pipeline converge? (true for a single
 %                                  solve; set by the iterative engines.)
-%     diag       1x1      struct   Per-observation diagnostics (LSQVCE.ENGINE.DIAGNOSE):
+%     diag       1x1      struct   Per-observation diagnostics (LSQVCE.ENGINE.VERDICT.DIAGNOSE):
 %                                  redundancy, leverage, w-tests, MDB, ...
 %     history    1xI      struct   Per-iteration record (empty for a single
 %                                  solve; filled by LSQVCE.ENGINE.ADJUSTVCEJOINT:
@@ -40,8 +40,8 @@ classdef Results < handle
 %     sol        1x1      struct   Raw output of acc.solve() (.x, .sigma0, ...).
 %     acc        1x1      lsqvce.engine.BlockAccumulator   The accumulator (drop here
 %                                  to re-solve, inspect blocks, get residuals).
-%     source     1x1      struct   Bridged solution from LSQVCE.ENGINE.DIAGNOSEACCUM.
-%     batchFcn   1x1      function_handle   Re-reader used by LSQVCE.ENGINE.DIAGNOSE.
+%     source     1x1      struct   Bridged solution from LSQVCE.ENGINE.VERDICT.SOURCE.
+%     batchFcn   1x1      function_handle   Re-reader used by LSQVCE.ENGINE.VERDICT.DIAGNOSE.
 %     nBatch     1x1      double   Batch count from the bridge.
 %     systems    1xM      struct   The resolved system specs (sysID/nl/dayList).
 %     meta       1x1      struct   Run provenance (WP-44). Field list is
@@ -69,6 +69,11 @@ classdef Results < handle
 %     T = R.convergence(Name,Value)  Per-ITERATION trajectory: when the loop
 %                                    settled (needs .history).
 %     F = R.compare(Rred)            Nested-model F test against a reduced fit (R5 M7).
+%     S = R.systematic(Name,Value)   Unmodelled signal in the residuals: Ljung-Box,
+%                                    runs, binned means (WP-86 part 4).
+%     [D, REJ, sol] = R.snoop(...)   Iterative data snooping; R is not changed.
+%     T = R.reliability()            Per-observation r, w, MDB and (w, r) quadrant.
+%     E = R.ellipse(i, j, ...)       Confidence ellipse of the parameter pair (i, j).
 %     fh = R.plot(kind)              "residuals" | "contribution" | "psd" | "convergence"
 %                                    (R5 M5: one figure per question, nothing exported).
 %     [C, L, map] = R.toTable(data)  The expanded parameter tables with estimate and
@@ -101,6 +106,8 @@ classdef Results < handle
 %                                   carries no Cxx
 %     lsqvce:Results:noAccumulator  residuals()/contribution() on a Results
 %                                   without an accumulator (fit kinds B / C)
+%     lsqvce:Results:noPerObservation reliability() on a fit whose diagnostics
+%                                   kept no per-observation vectors
 %
 %   ACCURACY
 %     Results adds no numerics: x and sigma0 are the engine's (sigma0 is the
@@ -110,8 +117,12 @@ classdef Results < handle
 %     and diag(Cxx) with z(0.05) = 1.959963984540054 in closed form.
 %
 %   See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.REPORT,
-%            LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.BLOCKACCUMULATOR
+%            LSQVCE.ENGINE.VERDICT, LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 4: systematic, snoop,
+%   reliability and ellipse -- everything the verdict tells the user to do is
+%   a method on R (lsqvce.engine.verdict behind them). With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 2 (R7-19): compare
 %   counts the eliminated locals in the redundancy (R.diag.u, not
 %   numel(R.x)). With assistance from Claude (Anthropic), model Claude Opus
@@ -423,7 +434,7 @@ classdef Results < handle
         %COMPARE  Is the extra parameter earning its place? (nested-model F test)
         %   F = R.compare(Rred)            R = the FULL model, Rred = the REDUCED (nested) one
         %   F = R.compare(Rred, Alpha=0.01, Verbose=false)
-        %   R5 M7 7c: lsqvce.engine.ftest re-homed onto the Results -- the two
+        %   R5 M7 7c: lsqvce.engine.verdict.ftest re-homed onto the Results -- the two
         %   fits must share observations and weights, the reduced one a SUBSET
         %   of the parameters; the test is F = [(vPv_red - vPv_full)/(u_full -
         %   u_red)] / s0sq_full ~ F(du, r_full) under "the extra parameters are
@@ -432,7 +443,7 @@ classdef Results < handle
         %   checked by the engine when both Results have diagnostics.
         %   INPUT   Rred 1x1 lsqvce.Results; Alpha (0.05); Verbose (false)
         %   OUTPUT  F    1x1 struct  the engine's record (.F .p .df1 .df2 .significant
-        %                            .alpha .valid) -- see LSQVCE.ENGINE.FTEST
+        %                            .alpha .valid) -- see LSQVCE.ENGINE.VERDICT.FTEST
         %   ERRORS  lsqvce:Results:noVPv    a v'Pv is NaN or missing
         %           lsqvce:ftest:*          the engine's own refusals (not nested, ...)
         arguments
@@ -442,7 +453,7 @@ classdef Results < handle
             opt.Verbose (1,1) logical = false
         end
             sF = solOf(obj);  sR = solOf(Rred);
-            F = lsqvce.engine.ftest(sF, sR, 'Alpha', opt.Alpha, 'Verbose', opt.Verbose);
+            F = lsqvce.engine.verdict.ftest(sF, sR, 'Alpha', opt.Alpha, 'Verbose', opt.Verbose);
 
             function s = solOf(Rk)
                 if isempty(Rk.sol) || ~isfield(Rk.sol, 'vtv') || ~isfinite(Rk.sol.vtv)
@@ -456,6 +467,66 @@ classdef Results < handle
                 u = Rk.diag.u;  n = Rk.diag.n;
                 s = struct('vPv', Rk.sol.vtv, 'n', n, 'u', u, 'rank', u, 'r', n - u);
             end
+        end
+
+        function S = systematic(obj, varargin)
+        %SYSTEMATIC  Is there unmodelled signal in the residuals? Ljung-Box,
+        %   runs and binned-mean tests on the normalised residuals of this fit
+        %   (LSQVCE.ENGINE.VERDICT.SYSTEMATIC on R.diag; Name-Value pairs --
+        %   Covariates, NBins, Lags, Alpha, Verbose -- pass straight through).
+        %   OUTPUT  S  1x1 struct  the three tests and the verdict string
+            S = lsqvce.engine.verdict.systematic(obj.diag, varargin{:});
+        end
+
+        function [D, REJ, sol] = snoop(obj, varargin)
+        %SNOOP  Iterative data snooping on this fit: reject the worst flagged
+        %   observation, update the solution by a rank-one downdate, re-test,
+        %   repeat; a clean re-solve over the survivors at the end (default).
+        %   R itself is NOT changed. Name-Value pairs (Test, Alpha,
+        %   Bonferroni, MaxReject, MaxRejectFrac, RMinReject, Reaccumulate,
+        %   Force, Verbose) pass to LSQVCE.ENGINE.VERDICT.SNOOP.
+        %   OUTPUT  D    1x1 struct  the diagnostics after rejection (.rejectedIdx)
+        %           REJ  1x1 struct  the rejection record (.idx .w .r .refused ...)
+        %           sol  1x1 struct  the solution after rejection (.x .Q .s0sq ...)
+            [sol, D, REJ] = lsqvce.engine.verdict.snoop(obj.source, obj.diag, obj.batchFcn, varargin{:});
+        end
+
+        function T = reliability(obj)
+        %RELIABILITY  Per-observation reliability of this fit as a table, one
+        %   row per observation in sweep order: obs (the index), v (whitened
+        %   residual), r (redundancy number), w (the test statistic), mdb
+        %   (minimal detectable bias in the observation's units; Inf where the
+        %   network does not control it) and quadrant -- "cleanOutlier"
+        %   (|w| > kCrit, r >= rWeak), "ambiguous" (|w| > kCrit, r < rWeak),
+        %   "verified" (|w| <= kCrit, r >= rWeak), "untested" (r < rWeak).
+        %   Needs the per-observation diagnostics (Diagnostics.Store = "all",
+        %   the default).
+        %   ERRORS  lsqvce:Results:noPerObservation  R.diag keeps no per-
+        %           observation vectors (Store "flagged" or "none")
+            D = obj.diag;
+            if ~all(isfield(D, {'v', 'rNum', 'w', 'mdb'}))
+                error('lsqvce:Results:noPerObservation', ...
+                      ['reliability() needs the per-observation diagnostics; this fit ' ...
+                       'kept none (Diagnostics.Store = "%s"). Re-run with Store = "all".'], ...
+                      char(string(lsqvce.util.getfielddef(D, 'store', 'flagged'))));
+            end
+            r = D.rNum(:);  w = D.w(:);
+            hiW = abs(w) > D.kCrit & r > D.rMin;
+            loR = r < D.rWeak;
+            q = repmat("verified", numel(r), 1);
+            q(hiW & ~loR) = "cleanOutlier";
+            q(hiW &  loR) = "ambiguous";
+            q(~hiW & loR) = "untested";
+            T = table((1:numel(r)).', D.v(:), r, w, D.mdb(:), q, ...
+                      'VariableNames', {'obs', 'v', 'r', 'w', 'mdb', 'quadrant'});
+        end
+
+        function E = ellipse(obj, i, j, varargin)
+        %ELLIPSE  Confidence ellipse of the parameter pair (i, j) of this fit
+        %   (LSQVCE.ENGINE.VERDICT.ELLIPSE on R.diag; Name-Value pairs -- Conf,
+        %   Scale, NPts -- pass straight through).
+        %   OUTPUT  E  1x1 struct  semi-axes, orientation, the outline .xy
+            E = lsqvce.engine.verdict.ellipse(obj.diag, [i j], varargin{:});
         end
 
         function con = contribution(obj, varargin)

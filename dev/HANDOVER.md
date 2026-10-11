@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-11 — WP-86 part 2 DONE (PR #125, merge 25cbce7; CI GREEN on 9ff2426); WP-86 part 3 OPEN (tier B, model Claude Opus 5.5): one block formula, one commons factor -- engine.redundancy (VCE / outliers / contribution) on BlockCofactor (one cofactor broadcast instead of a commons factor per system), engine.leverage / leverageBlocks retired, snoop's clean re-solve rebuilds the block-arrow systems (batchSystem 'LocalColumns' / 'SystemId'); version 6.4.0; §12.42.
+Last substantive update: 2026-10-11 — WP-86 part 3 DONE (PR #126, merge 9184a36; CI GREEN on 77ffd46); WP-86 part 4 OPEN (tier B, model Claude Opus 5.5; user decision: the FULL absorption): lsqvce.engine.verdict, one classdef whose static methods are the former diagnoseAccum (source) / diagnose / snoop / systematic / ftest / ellipse plus fromAccumulator; stat -> lsqvce.kernel.stat; Results methods systematic / snoop / reliability / ellipse; report and snoop remedies name R methods (H-05); version 6.5.0; §12.42.
+Preceding entry: Last substantive update: 2026-10-11 — WP-86 part 2 DONE (PR #125, merge 25cbce7; CI GREEN on 9ff2426); WP-86 part 3 OPEN (tier B, model Claude Opus 5.5): one block formula, one commons factor -- engine.redundancy (VCE / outliers / contribution) on BlockCofactor (one cofactor broadcast instead of a commons factor per system), engine.leverage / leverageBlocks retired, snoop's clean re-solve rebuilds the block-arrow systems (batchSystem 'LocalColumns' / 'SystemId'); version 6.4.0; §12.42.
 Preceding entry: Last substantive update: 2026-10-10 — WP-86 part 1 DONE (PR #124, merge cfd72b5; CI GREEN on b6a17fd); WP-86 part 2 OPEN (tier B, model Claude Opus 5.5; user decision: option (a), the block-native rewrite): the diagnostics' cofactor is kept as blocks -- new engine unit BlockCofactor (reduced commons factor + per-system local blocks; mirror-verified to ~1e-16 against the dense inverse), diagnose / snoop / ellipse / report on it, D.R / D.Qxx / D.corr retired, snoop downdates the blocks with a closed-form x, diagnoseAccum reads no data (arc batches indexed from meta, n from the accumulator); version 6.3.0; §12.42.
 Preceding entry: Last substantive update: 2026-10-10 — WP-118 part 3 DONE (PR #123, merge 472a3eb); WP-86 part 1 OPEN (tier B, model Claude Opus 5.5): the diagnostic source no longer stores the data -- diagnoseAccum folds each batch into the full factor and keeps only its address, rebuilding on demand (the ~228 GB n x u store of R7-24 gone); part 2 (the dense u_full factor and its O(u^2)-per-row cost) designed, awaiting the user; version 6.2.0; §12.42.
 Preceding entry: Last substantive update: 2026-10-10 — WP-118 part 2 DONE (PR #122, merge 139f511; CI 604/604); WP-118 part 3 OPEN (tier B, model Claude Opus 5.5): user decisions -- fix the README now, record reasons rather than split; the memory claim corrected on three surfaces (R7-24, WP-86 stays open), the five long functions and 74 long lines recorded as ceilings under a new audit check 33 (R7-44); version 6.1.9; §12.41.
@@ -8203,7 +8204,8 @@ long functions get recorded reasons, not a split.
 |----|-------|-----------|--------|
 | 86 (part 1) | `diagnoseAccum` keeps batch ADDRESSES, not batches: one enumeration pass folds every whitened batch into the full factor, `batchFcn` rebuilds a batch from its address through the loader and `arcBatchWhiten`, one arc cached; the n x u_full store (R7-24, ~228 GB at a GRAVFIRE month) is gone; **version 6.2.0** | 118 (PR #123 merged 472a3eb) | DONE (2026-10-10, PR #124, merge cfd72b5; CI GREEN on b6a17fd) |
 | 86 (part 2) | the block-native cofactor: `engine.BlockCofactor` (reduced commons factor + per-system local blocks) answers every Qxx question of diagnose / snoop / ellipse / report; no u_full x u_full matrix anywhere in the diagnostics; snoop's downdate on the blocks; `diagnoseAccum` reads no data; **version 6.3.0** | 86 part 1 (PR #124 merged cfd72b5) | DONE (2026-10-10, PR #125, merge 25cbce7; CI GREEN on 9ff2426) |
-| 86 (part 3) | one block formula, one commons factor: `engine.redundancy` on `BlockCofactor.fromAccumulator` (broadcast once), `engine.leverage` / `leverageBlocks` retired; `snoop`'s clean re-solve rebuilds the block-arrow systems; **version 6.4.0** | 86 part 2 (PR #125 merged 25cbce7) | OPEN (2026-10-11; audit CLEAN; CI pending) |
+| 86 (part 3) | one block formula, one commons factor: `engine.redundancy` on `BlockCofactor.fromAccumulator` (broadcast once), `engine.leverage` / `leverageBlocks` retired; `snoop`'s clean re-solve rebuilds the block-arrow systems; **version 6.4.0** | 86 part 2 (PR #125 merged 25cbce7) | DONE (2026-10-11, PR #126, merge 9184a36; CI GREEN on 77ffd46) |
+| 86 (part 4) | the M4 row itself: ONE `engine.verdict` (static methods source / diagnose / snoop / systematic / ftest / ellipse / fromAccumulator), `kernel.stat`, `Results` methods systematic / snoop / reliability / ellipse, the report names no engine function; **version 6.5.0** | 86 part 3 (PR #126 merged 9184a36) | OPEN (2026-10-11; audit CLEAN; CI pending) |
 
 **Scope (user: "continue with WP-86").** The M4 ledger row (line ~4974) defines WP-86 as
 the whole verdict-from-the-sweep redesign (one `engine.verdict` absorbing diagnose /
@@ -8350,3 +8352,33 @@ WP-85 is DONE, but the absorption is an interface decision for the user).
   Pinned by test_vceFunction's snoop point (solR.Q.nc == nc, solR.Q.u == u_full) and the
   existing downdate-equals-re-solve equality.
 - Not changed: the per-row O(nc^2) cost; the arc tasks still whiten per batch.
+
+**Part 4 (user: "continue with WP-86 part 4", 2026-10-11; scope decision: the FULL
+absorption, chosen over "Results surface + fromAccumulator only" and "Results methods
+only").**
+- `+lsqvce/+engine/verdict.m`: one `classdef verdict` with `methods (Static)`; the six
+  absorbed files' main functions are its methods VERBATIM (built mechanically -- the
+  only edits are the renamed references, the H1 lines, `diagnoseAccum` -> `source`), their
+  local helpers (batchOf, arcRows, enumerateArcs, prctileLocal, scanWorst,
+  blockResolveAccumulator, maskedBatch, mark -- no name collided) local functions after
+  the classdef. Function handles to them (src's batchFcn, snoop's masked batches) work
+  outside the file as before. `fromAccumulator(acc, sol, ...)` = source + diagnose,
+  replacing the pair repeated in fit / adjustBlock / adjustRobust / adjustNonlinear.
+  `diagnose` additionally records `D.store` (on the D.test line: the code ceiling 465
+  holds). The long-function ceilings moved with their functions (verdict.m/diagnose 465,
+  verdict.m/snoop 228); the file's long lines 5 (1 + 3 + 1).
+- `engine.stat` -> `kernel.stat` (a classdef of distributions; no engine call, prints
+  nothing: the KERNEL rule). Every `lsqvce.engine.stat.` became `lsqvce.kernel.stat.`.
+- `Results`: `systematic`, `snoop` (returns `[D, REJ, sol]`, R unchanged),
+  `reliability` (table obs / v / r / w / mdb / quadrant; the quadrant counts ARE D.quad;
+  new id `lsqvce:Results:noPerObservation`), `ellipse(i, j)`. report.m's two remedies and
+  snoop's three runtime remedies now say `R.systematic()` / `R.snoop()`; systematic's and
+  the correlated-batch refusal name the fit's `Diagnostics.Store` / `R.diag` (H-05).
+- Error identifiers keep their names (`lsqvce:diagnose:*`, `lsqvce:snoop:*`, ...); the
+  catalogue's unit column says engine.verdict / kernel.stat.
+- Tests: every direct call renamed (test_lsqvce*, test_vceFunction, test_errorDoctrine,
+  test_metamorphic, ...); test_fit +2 points (the four methods, quadrants == D.quad; the
+  noPerObservation refusal). 626 declared.
+- NOT done, and why: the R5 plan's "levels 0-4 from the sweep's collectors (no re-read)"
+  -- round 4d decided the collector rewrite down (the diagnostics are on-demand sweeps);
+  the verdict still re-reads the data in its two diagnose sweeps.

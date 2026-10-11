@@ -829,6 +829,36 @@ function b = heldBytes(R)
     b = w.bytes;
 end
 
+function testResultsCarryTheVerdictMethods(tc)
+% categories: contract | tags: diagnostics
+    % WP-86 part 4: everything the verdict tells the user to do is a method on
+    % R (lsqvce.engine.verdict behind it) -- systematic, snoop, reliability,
+    % ellipse. reliability's quadrants are the report's D.quad counts.
+    [data, ~] = declaration();
+    R = lsqvce.fit(data, Verbose=false);
+    T = R.reliability();
+    tc.verifyEqual(height(T), R.diag.n, 'one row per observation');
+    tc.verifyEqual(T.r, R.diag.rNum(:));
+    tc.verifyEqual(T.w, R.diag.w(:));
+    tc.verifyTrue(all(ismember(T.quadrant, ["cleanOutlier", "ambiguous", "verified", "untested"])));
+    % the quadrant counts are the report's (D.quad)
+    tc.verifyEqual(nnz(T.quadrant == "verified"), R.diag.quad.verified);
+    tc.verifyEqual(nnz(T.quadrant == "untested"), R.diag.quad.untested);
+    S = R.systematic('Verbose', false);
+    tc.verifyTrue(isstruct(S));
+    E = R.ellipse(1, 2);
+    tc.verifyGreaterThanOrEqual(E.semiMajor, E.semiMinor);
+    [D2, REJ] = R.snoop('Verbose', false);
+    tc.verifyTrue(isstruct(D2) && isfield(REJ, 'idx'));
+end
+
+function testReliabilityNeedsThePerObservationDiagnostics(tc)
+% categories: contract | tags: diagnostics
+    [data, ~] = declaration();
+    R = lsqvce.fit(data, lsqvce.Options(Verbose=false, Diagnostics=struct('Store', "none")));
+    tc.verifyError(@() R.reliability(), 'lsqvce:Results:noPerObservation');
+end
+
 function testCompareCountsTheEliminatedLocals(tc)
 % categories: reference, precision
     % R7-19: compare built df2 = n - numel(R.x) -- the COMMONS only -- while the

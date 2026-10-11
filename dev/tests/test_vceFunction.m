@@ -1,7 +1,7 @@
 function tests = test_vceFunction
 %TEST_VCEFUNCTION  The two functions that had no dedicated test: lsqvce.engine.vce (Helmert
 %   variance components, called end to end through its accFcn contract) and
-%   lsqvce.engine.diagnoseAccum (the bridge to the diagnostics layer).
+%   lsqvce.engine.verdict.source (the bridge to the diagnostics layer).
 %
 %   test_vceMath already checks the VCE *mathematics* by hand; this checks the VCE
 %   *function* -- the accFcn convention, the convergence loop, the output
@@ -10,7 +10,7 @@ function tests = test_vceFunction
 %   Proven first in validation/v7verify.py (6/6). Run:
 %     results = runtests('tests/test_vceFunction');  disp(table(results))
 %
-%   See also TEST_V3, TEST_V4, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.DIAGNOSEACCUM,
+%   See also TEST_V3, TEST_V4, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.VERDICT.SOURCE,
 %   LSQVCE.ENGINE.BLOCKCOFACTOR
 %
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3: systemOf, and
@@ -79,10 +79,10 @@ function testVceConvergesFast(tc)
     tc.verifyLessThanOrEqual(vc.nIter, 5);
 end
 
-%% ============================================= lsqvce.engine.diagnoseAccum (the bridge)
+%% ============================================= lsqvce.engine.verdict.source (the bridge)
 function testFromAccumSolContract(tc)
 % categories: contract | tags: diagnostics
-% The bridge must return a sol carrying exactly the fields lsqvce.engine.diagnose
+% The bridge must return a sol carrying exactly the fields lsqvce.engine.verdict.diagnose
 % needs, with the FULL parameter count and the redundancy identity. The
 % cofactor comes as blocks (WP-86 part 2): no u_full x u_full factor.
     cfg = tc.TestData.cfg;
@@ -90,7 +90,7 @@ function testFromAccumSolContract(tc)
     acc = buildVceAcc(cfg, days, [1 1]);
     sol = acc.solve();
 
-    [dsol, batchFcn, nBatch] = lsqvce.engine.diagnoseAccum(acc, sol);
+    [dsol, batchFcn, nBatch] = lsqvce.engine.verdict.source(acc, sol);
 
     tc.verifyTrue(all(isfield(dsol, {'x','Q','n','u','r','rank','defect'})));
     tc.verifyFalse(isfield(dsol, 'R'), 'no dense full-width factor (WP-86 part 2)');
@@ -112,7 +112,7 @@ function testFromAccumCommonMatchesReduced(tc)
     days = 1:3;
     acc = buildVceAcc(cfg, days, [1 1]);
     sol = acc.solve();
-    dsol = lsqvce.engine.diagnoseAccum(acc, sol);
+    dsol = lsqvce.engine.verdict.source(acc, sol);
     % tol: recomputation of the same quadratic form; house exact-identity bound (HANDOVER 6.1.2)
     tc.verifyEqual(dsol.x(1:cfg.nc), sol.x, 'RelTol', 1e-9);
 end
@@ -126,7 +126,7 @@ function testFromAccumBatchesReproduceNormals(tc)
     days = 1:2;
     acc = buildVceAcc(cfg, days, [1 1]);
     sol = acc.solve();
-    [dsol, batchFcn, nBatch] = lsqvce.engine.diagnoseAccum(acc, sol);
+    [dsol, batchFcn, nBatch] = lsqvce.engine.verdict.source(acc, sol);
 
     uFull = dsol.u;
     N = zeros(uFull);  nObs = 0;  sumh = 0;
@@ -294,11 +294,11 @@ function testSnoopBlockDowndateMatchesCleanResolve(tc)
     cfg = tc.TestData.cfg;
     acc = buildVceAcc(cfg, 1:2, [1 2.5]);
     sol = acc.solve();
-    [dsol, bf, nB] = lsqvce.engine.diagnoseAccum(acc, sol);
-    D = lsqvce.engine.diagnose(dsol, bf, 'nBatch', nB);
+    [dsol, bf, nB] = lsqvce.engine.verdict.source(acc, sol);
+    D = lsqvce.engine.verdict.diagnose(dsol, bf, 'nBatch', nB);
     args = {'Verbose', false, 'Alpha', 0.05, 'Bonferroni', false, 'MaxReject', 3};
-    [solD, ~, R1] = lsqvce.engine.snoop(dsol, D, bf, args{:}, 'Reaccumulate', false);
-    [solR, ~, R2] = lsqvce.engine.snoop(dsol, D, bf, args{:}, 'Reaccumulate', true);
+    [solD, ~, R1] = lsqvce.engine.verdict.snoop(dsol, D, bf, args{:}, 'Reaccumulate', false);
+    [solR, ~, R2] = lsqvce.engine.verdict.snoop(dsol, D, bf, args{:}, 'Reaccumulate', true);
     tc.assertEqual(R1.idx, R2.idx, 'the same rejections either way');
     % WP-86 part 3: the clean re-solve rebuilds the block-arrow system (commons
     % + each system's locals, the original layout), not an all-commons one
@@ -318,7 +318,7 @@ function testFromAccumRequiresKeepLocal(tc)
     acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Verbose',false, 'KeepLocal',false);
     acc.addSystem(cfg.sats(1), cfg.nl, binder(cfg, cfg.sats(1)), 1:2);
     sol = acc.solve();
-    tc.verifyError(@() lsqvce.engine.diagnoseAccum(acc, sol), ?MException);
+    tc.verifyError(@() lsqvce.engine.verdict.source(acc, sol), ?MException);
 end
 
 %% =================================================================== helpers

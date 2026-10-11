@@ -11,14 +11,11 @@
 +lsqvce/+engine/arcVarianceFactors.m,2
 +lsqvce/+engine/checkPSD.m,1
 +lsqvce/+engine/declaration.m,1
-+lsqvce/+engine/diagnose.m,1
 +lsqvce/+engine/gcvLambda.m,1
 +lsqvce/+engine/makeLoader.m,15
 +lsqvce/+engine/mapreduce.m,2
 +lsqvce/+engine/outliers.m,2
 +lsqvce/+engine/redundancy.m,4
-+lsqvce/+engine/snoop.m,3
-+lsqvce/+engine/systematic.m,1
 +lsqvce/+engine/traceEstimate.m,1
 +lsqvce/+engine/vce.m,2
 +lsqvce/+kernel/ar2arma.m,1
@@ -32,3 +29,5 @@
 +lsqvce/Options.m,7
 +lsqvce/Results.m,3
 +lsqvce/fit.m,6
+
++lsqvce/+engine/verdict.m,5

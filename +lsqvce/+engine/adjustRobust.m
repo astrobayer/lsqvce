@@ -33,7 +33,7 @@ function R = adjustRobust(systems, days, opt)
 %     'Verbose'    logical                                  default false
 %     'Provenance' struct   resolved user options for Results.meta (fit)
 %     'Prior'      [] | lsqvce.engine.CommonPrior on the common block   default []
-%     'Diagnostics' cell   Name-Value pairs for lsqvce.engine.diagnose default {}
+%     'Diagnostics' cell   Name-Value pairs for lsqvce.engine.verdict.diagnose default {}
 %     'OnPass'     [] | @(ctx)  the per-pass inspection hook (lsqvce.util.onPass:
 %                return false to stop after this pass)           default []
 %     'OnPassContext' struct  fields merged into every ctx (lsqvce.fit
@@ -79,6 +79,10 @@ function R = adjustRobust(systems, days, opt)
 %   See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.KERNEL.ROBUSTWEIGHTS,
 %            LSQVCE.ENGINE.RESIDUALS, LSQVCE.FIT
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 4: the verdict comes
+%   from lsqvce.engine.verdict.fromAccumulator (diagnoseAccum + diagnose
+%   absorbed). With assistance from Claude (Anthropic), model Claude Opus
+%   5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34, R7-35):
 %   the ACCURACY note no longer cites the deleted flat driver; Prior /
 %   Diagnostics / OnPass / OnPassContext documented. With assistance from
@@ -117,7 +121,7 @@ arguments
     opt.ParallelThreshold (1,1) double {mustBeInteger, mustBeNonnegative} = 8
     opt.Verbose (1,1) logical = false
     opt.Prior = []                       % R5 M5 5b: CommonPrior on the common block, or []
-    opt.Diagnostics cell = {}          % R5 M5 5b': Name-Value pairs for lsqvce.engine.diagnose
+    opt.Diagnostics cell = {}          % R5 M5 5b': Name-Value pairs for lsqvce.engine.verdict.diagnose
     opt.OnPass = []                    % R5 M5 5c': per-pass inspection hook (lsqvce.util.onPass)
     opt.OnPassContext struct = struct()
     opt.Provenance struct = struct()
@@ -204,8 +208,7 @@ end
     end
 
     % final diagnostics on the reweighted problem (the factors are in Wfcn)
-    [dsol, batchFcn, nB] = lsqvce.engine.diagnoseAccum(acc, sol);
-    D = lsqvce.engine.diagnose(dsol, batchFcn, 'nBatch', nB, opt.Diagnostics{:});
+    [D, dsol, batchFcn, nB] = lsqvce.engine.verdict.fromAccumulator(acc, sol, opt.Diagnostics{:});
     prov = opt.Provenance;
     if isempty(fieldnames(prov)), prov = rmfield(rmfield(rmfield(rmfield(rmfield(opt, 'Provenance'), 'Prior'), 'Diagnostics'), 'OnPass'), 'OnPassContext'); end
     R = lsqvce.Results(sol, D, acc, dsol, batchFcn, nB, specs, ...

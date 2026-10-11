@@ -48,9 +48,10 @@ stochastic model right &mdash; in batches.</div>
 lineages: a <b>streaming block-arrow accumulator</b> with per-arc variance
 component estimation (for gravity-field recovery), and a <b>per-observation
 diagnostics</b> layer (redundancy numbers, the five-level verdict, data
-snooping, robust reweighting, systematic-error tests). The bridge
-<code>diagnoseAccum</code> runs the full verdict on a gravity-recovery
-adjustment.</div>
+snooping, robust reweighting, systematic-error tests). One engine unit,
+<code>lsqvce.engine.verdict</code>, judges every fit; the user reaches it
+through <code>R.report</code>, <code>R.systematic</code>, <code>R.snoop</code>,
+<code>R.reliability</code> and <code>R.ellipse</code>.</div>
 
 <h2>Getting started</h2>
 <p>Everything is streaming: <code>A</code> and <code>P</code> are supplied in
@@ -158,7 +159,7 @@ reveals only the fraction <code>r_i</code> of any error present
 </table>
 <h3>Gravity recovery &mdash; streaming block-arrow (merged from lsqAccum)</h3><table>
 <tr><td class="name"><a href="lsqvce.engine.BlockAccumulator.html">lsqvce.engine.BlockAccumulator</a></td><td></td></tr>
-<tr><td class="name"><a href="lsqvce.engine.diagnoseAccum.html">lsqvce.engine.diagnoseAccum</a></td><td>Bridge a block-arrow lsqvce.engine.BlockAccumulator adjustment into LSQVCE diagnostics.</td></tr>
+<tr><td class="name"><a href="lsqvce.engine.verdict.html">lsqvce.engine.verdict</a></td><td>The verdict: diagnostics, snooping, systematics, F test, ellipse.</td></tr>
 <tr><td class="name"><a href="lsqvce.engine.BlockCofactor.html">lsqvce.engine.BlockCofactor</a></td><td>The cofactor Qxx = inv(N) of a block-arrow system, kept as blocks.</td></tr>
 <tr><td class="name"><a href="lsqvce.engine.redundancy.html">lsqvce.engine.redundancy</a></td><td>Per-group and per-observation redundancy, exactly.</td></tr>
 <tr><td class="name"><a href="lsqvce.engine.outliers.html">lsqvce.engine.outliers</a></td><td>Data snooping (Baarda) using exact partial redundancy.</td></tr>
@@ -178,13 +179,10 @@ reveals only the fraction <code>r_i</code> of any error present
 <h3>Diagnostics</h3><table>
 <tr><td class="name"><a href="lsqvce.engine.localDiagnostics.html">lsqvce.engine.localDiagnostics</a></td><td>Stability test of a local block before pre-elimination.</td></tr>
 <tr><td class="name"><a href="lsqvce.engine.runMeta.html">lsqvce.engine.runMeta</a></td><td>Compose the run-provenance struct carried by lsqvce.Results.</td></tr>
-<tr><td class="name"><a href="lsqvce.engine.diagnose.html">lsqvce.engine.diagnose</a></td><td>Second-pass per-observation diagnostics for a batch LSQ.</td></tr>
 <tr><td class="name"><a href="lsqvce.report.html">lsqvce.report</a></td><td>Judge a least-squares adjustment and say so in words.</td></tr>
-<tr><td class="name"><a href="lsqvce.engine.systematic.html">lsqvce.engine.systematic</a></td><td>Detect unmodelled systematic errors in the residuals.</td></tr>
 </table>
 <h3>Outliers &amp; robust</h3><table>
 <tr><td class="name"><a href="lsqvce.kernel.robustWeights.html">lsqvce.kernel.robustWeights</a></td><td>IRLS weight factors from standardised whitened residuals.</td></tr>
-<tr><td class="name"><a href="lsqvce.engine.snoop.html">lsqvce.engine.snoop</a></td><td>Iterative data snooping: reject outliers one at a time.</td></tr>
 </table>
 <h3>Stochastic model &mdash; VCE</h3><table>
 <tr><td class="name"><a href="lsqvce.engine.vce.html">lsqvce.engine.vce</a></td><td>Helmert variance component estimation, per arc.</td></tr>
@@ -220,14 +218,12 @@ reveals only the fraction <code>r_i</code> of any error present
 <tr><td class="name"><a href="lsqvce.engine.gcvLambda.html">lsqvce.engine.gcvLambda</a></td><td>Generalised cross-validation choice of the Tikhonov weight.</td></tr>
 </table>
 <h3>Model testing</h3><table>
-<tr><td class="name"><a href="lsqvce.engine.ellipse.html">lsqvce.engine.ellipse</a></td><td>Confidence ellipse for a pair of correlated parameters.</td></tr>
-<tr><td class="name"><a href="lsqvce.engine.ftest.html">lsqvce.engine.ftest</a></td><td>Is the extra parameter earning its place?</td></tr>
 </table>
 <h3>Free networks</h3><table>
 <tr><td class="name"><a href="lsqvce.engine.datum.html">lsqvce.engine.datum</a></td><td>Detect a datum defect and construct the datum matrix B.</td></tr>
 </table>
 <h3>Support</h3><table>
-<tr><td class="name"><a href="lsqvce.engine.stat.html">lsqvce.engine.stat</a></td><td></td></tr>
+<tr><td class="name"><a href="lsqvce.kernel.stat.html">lsqvce.kernel.stat</a></td><td></td></tr>
 </table>
 <h3>Utilities (+util)</h3><table>
 <tr><td class="name"><a href="lsqvce.util.callUser.html">lsqvce.util.callUser</a></td><td>Call a user-supplied function: outputs counted once, errors wrapped.</td></tr>

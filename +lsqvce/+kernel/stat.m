@@ -22,22 +22,26 @@ classdef stat
 %   All functions are elementwise where it makes sense and validate inputs.
 %
 %   EXAMPLE
-%       lsqvce.engine.stat.normCrit(1e-3)          % 3.2905  Baarda's threshold
-%       lsqvce.engine.stat.delta0(1e-3, 0.20)      % 4.1321  MDB non-centrality
-%       lsqvce.engine.stat.chi2Inv(0.95, 10)       % 18.3070
-%       lsqvce.engine.stat.tauCrit(1e-3, 100)      % Pope's tau, r = 100
+%       lsqvce.kernel.stat.normCrit(1e-3)          % 3.2905  Baarda's threshold
+%       lsqvce.kernel.stat.delta0(1e-3, 0.20)      % 4.1321  MDB non-centrality
+%       lsqvce.kernel.stat.chi2Inv(0.95, 10)       % 18.3070
+%       lsqvce.kernel.stat.tauCrit(1e-3, 100)      % Pope's tau, r = 100
 %
 %       % Pope's tau is BOUNDED by sqrt(r). That is the formal statement that
 %       % a weak network cannot detect its own blunders:
-%       lsqvce.engine.stat.tauCrit(1e-8, 5) < sqrt(5)      % always true
+%       lsqvce.kernel.stat.tauCrit(1e-8, 5) < sqrt(5)      % always true
 %
 %   ERRORS
 %     lsqvce:stat:badProb           the probability is outside (0,1)
 %     lsqvce:stat:badDof            a degrees-of-freedom argument is not positive
 %     lsqvce:stat:sizeMismatch      the arguments do not broadcast
 %
-%   See also LSQVCE.ENGINE.DIAGNOSE.
+%   See also LSQVCE.ENGINE.VERDICT.DIAGNOSE.
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 4: moved from the
+%   ENGINE to the KERNEL tier (the distributions; the tests live
+%   in lsqvce.engine.verdict). With assistance from Claude (Anthropic),
+%   model Claude Opus 5.5.
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
@@ -58,13 +62,13 @@ function z = normInv(p)
 %NORMINV  Standard-normal inverse CDF (quantile), Phi^-1(p), via erfcinv.
 %   INPUT   p  any-size double   probabilities in [0,1] (checked)
 %   OUTPUT  z  same size as p    the z with Phi(z) = p
-    lsqvce.engine.stat.mustBeProb(p, 'normInv');
+    lsqvce.kernel.stat.mustBeProb(p, 'normInv');
     z = -sqrt(2) .* erfcinv(2 .* p);
 end
 
 function k = normCrit(alpha)
     % Two-sided critical value: P(|Z| > k) = alpha.
-    k = lsqvce.engine.stat.normInv(1 - alpha / 2);
+    k = lsqvce.kernel.stat.normInv(1 - alpha / 2);
 end
 
 %% ------------------------------------------------------------ chi-square
@@ -101,11 +105,11 @@ function x = chi2Inv(p, r)
     %                  relative, and the chi-square acceptance band at that
     %                  redundancy is ~2e-5 wide, so the error is irrelevant.
 
-    lsqvce.engine.stat.mustBeProb(p, 'chi2Inv');
+    lsqvce.kernel.stat.mustBeProb(p, 'chi2Inv');
     if any(r(:) <= 0)
         error('lsqvce:stat:badDof', 'chi2Inv: degrees of freedom must be > 0.');
     end
-    [p, r] = lsqvce.engine.stat.expand(p, r);
+    [p, r] = lsqvce.kernel.stat.expand(p, r);
 
     x = zeros(size(p));
 
@@ -118,7 +122,7 @@ function x = chi2Inv(p, r)
     pa = p(act);  ra = r(act);
 
     % --- Wilson-Hilferty seed
-    z  = lsqvce.engine.stat.normInv(pa);
+    z  = lsqvce.kernel.stat.normInv(pa);
     x0 = ra .* (1 - 2 ./ (9 .* ra) + z .* sqrt(2 ./ (9 .* ra))).^3;
     % WH can return a non-positive seed for small r and small p.
     bad = ~(x0 > 0) | ~isfinite(x0);
@@ -158,11 +162,11 @@ function t = tInv(p, nu)
     %                   t = sqrt(nu*(1-x)/x).
     %   Symmetry handles p < 1/2.  betaincinv is base MATLAB.
 
-    lsqvce.engine.stat.mustBeProb(p, 'tInv');
+    lsqvce.kernel.stat.mustBeProb(p, 'tInv');
     if any(nu(:) <= 0)
         error('lsqvce:stat:badDof', 'tInv: degrees of freedom must be > 0.');
     end
-    [p, nu] = lsqvce.engine.stat.expand(p, nu);
+    [p, nu] = lsqvce.kernel.stat.expand(p, nu);
 
     t = zeros(size(p));
     t(p == 0) = -Inf;
@@ -197,7 +201,7 @@ function tc = tauCrit(alpha, r)
     %   can ever look extreme, which is exactly the statement that a weak
     %   network cannot detect its own blunders.
 
-    [alpha, r] = lsqvce.engine.stat.expand(alpha, r);
+    [alpha, r] = lsqvce.kernel.stat.expand(alpha, r);
     tc = nan(size(r));
 
     tc(r <= 1) = Inf;                % no redundancy -> nothing is testable
@@ -205,7 +209,7 @@ function tc = tauCrit(alpha, r)
     if ~any(act(:)), return; end
 
     ra = r(act);  aa = alpha(act);
-    t  = lsqvce.engine.stat.tInv(1 - aa ./ 2, ra - 1);
+    t  = lsqvce.kernel.stat.tInv(1 - aa ./ 2, ra - 1);
     tc(act) = t .* sqrt(ra) ./ sqrt(ra - 1 + t.^2);
 end
 
@@ -223,16 +227,16 @@ function d = delta0(alpha, beta)
     %
     %   delta0(0.001, 0.20) = 4.1321  (the textbook 4.13).
 
-    [alpha, beta] = lsqvce.engine.stat.expand(alpha, beta);
-    lsqvce.engine.stat.mustBeProb(alpha, 'delta0');
-    lsqvce.engine.stat.mustBeProb(beta,  'delta0');
+    [alpha, beta] = lsqvce.kernel.stat.expand(alpha, beta);
+    lsqvce.kernel.stat.mustBeProb(alpha, 'delta0');
+    lsqvce.kernel.stat.mustBeProb(beta,  'delta0');
 
     d = zeros(size(alpha));
     for i = 1:numel(alpha)
-        k    = lsqvce.engine.stat.normCrit(alpha(i));
+        k    = lsqvce.kernel.stat.normCrit(alpha(i));
         want = 1 - beta(i);
-        pow  = @(dd) 1 - lsqvce.engine.stat.normCdf(k - dd) ...
-                       + lsqvce.engine.stat.normCdf(-k - dd) - want;
+        pow  = @(dd) 1 - lsqvce.kernel.stat.normCdf(k - dd) ...
+                       + lsqvce.kernel.stat.normCdf(-k - dd) - want;
 
         loB = 0;  hiB = 1;
         while pow(hiB) < 0 && hiB < 1e6
@@ -250,8 +254,8 @@ end
 %% --------------------------------------------------------------------- F
 function x = fInv(p, d1, d2)
     %FINV  F quantile via the inverse incomplete beta.
-    lsqvce.engine.stat.mustBeProb(p, 'fInv');
-    [p, d1, d2] = lsqvce.engine.stat.expand(p, d1, d2);
+    lsqvce.kernel.stat.mustBeProb(p, 'fInv');
+    [p, d1, d2] = lsqvce.kernel.stat.expand(p, d1, d2);
     xb = betaincinv(p, d1 ./ 2, d2 ./ 2);
     xb = min(max(xb, 0), 1 - eps);
     x  = (d2 ./ d1) .* xb ./ (1 - xb);

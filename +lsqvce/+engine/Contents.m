@@ -21,10 +21,6 @@
 %   covModel             - covariance spec -> whitening operators (per arc)
 %   datum                - datum defect detection and handling
 %   declaration        - validate a kind-A data struct and build its loaders (R5-D8)
-%   diagnose             - per-observation diagnostics (batch)
-%   diagnoseAccum        - diagnostics bridge from the accumulator
-%   ellipse              - confidence ellipse from a covariance
-%   ftest                - F-test on variance factors
 %   gcvLambda            - GCV choice of the regularisation weight
 %   jointModelOpt        - joint-mode model -> loader UserOpt translation
 %   localDiagnostics     - diagnostics of the local blocks
@@ -42,10 +38,8 @@
 %   satKeyOf             - satellite key (makeValidName) helper
 %   synthLoader        - synthetic block-arrow loader (engine-tier fixture; leaves in M4)
 %   sharedProbe          - shared Hutchinson probe generator (RNG contract)
-%   snoop                - block-native data snooping and downweighting
-%   stat                 - statistics helper
 %   streamContribution   - contribution per stream
-%   systematic           - systematic-effect test
 %   traceEstimate        - stochastic trace estimate
 %   vce                  - Helmert group variance components (exact | hutchinson)
+%   verdict              - the verdict: diagnostics, snooping, systematics, F test, ellipse (WP-86)
 %   runMeta              - immutable provenance record for Results.meta

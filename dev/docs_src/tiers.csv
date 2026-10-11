@@ -21,11 +21,9 @@ engine.vce,ENGINE,Helmert group variance components (exact | hutchinson)
 engine.psdVCE,ENGINE,PSD amplitude + arc-factor VCE (Ellmer workhorse)
 engine.arcVarianceFactors,ENGINE,per-arc variance factors
 engine.covComponent,ENGINE,covariance component estimation
-engine.snoop,ENGINE,block-native data snooping and downweighting
+engine.verdict,ENGINE,"the verdict of an adjustment: diagnostics, snooping, systematics, F test, ellipse (WP-86)"
 engine.outliers,ENGINE,outlier listing from diagnostics
 engine.declaration,ENGINE,the one declaration step of fit (validate + loaders), reused by Results.toTable
-engine.diagnose,ENGINE,per-observation diagnostics (batch)
-engine.diagnoseAccum,ENGINE,diagnostics bridge from the accumulator
 engine.localDiagnostics,ENGINE,diagnostics of the local blocks
 engine.residuals,ENGINE,second data pass: residuals and quadratic forms
 engine.collectResiduals,ENGINE,residual collection per stream
@@ -44,10 +42,7 @@ engine.satKeyOf,ENGINE,satellite key (makeValidName) helper
 kernel.robustWeights,KERNEL,IRLS weight factors (Huber / IGG3 / bisquare, MAD scale)
 kernel.whittle,ENGINE,Whittle likelihood fit of a VAR model
 engine.checkPSD,ENGINE,PSD sanity check
-engine.ellipse,ENGINE,confidence ellipse from a covariance
-engine.ftest,ENGINE,F-test on variance factors
-engine.stat,ENGINE,statistics helper
-engine.systematic,ENGINE,systematic-effect test
+kernel.stat,KERNEL,"the distributions (normal, chi2, t, tau, F) and the test thresholds, base MATLAB only"
 engine.sharedProbe,ENGINE,shared Hutchinson probe generator (RNG contract)
 engine.traceEstimate,ENGINE,stochastic trace estimate
 kernel.dctI,KERNEL,DCT-I transform

@@ -1,7 +1,7 @@
 function V = report(D, opt)
 %LSQVCE.REPORT  Judge a least-squares adjustment and say so in words.
 %
-%   V = LSQVCE.REPORT(D) takes the struct from lsqvce.engine.diagnose and prints a
+%   V = LSQVCE.REPORT(D) takes the struct from lsqvce.engine.verdict.diagnose and prints a
 %   verdict. It returns a struct of machine-readable findings so the same logic
 %   can drive an automated pipeline.
 %
@@ -47,7 +47,7 @@ function V = report(D, opt)
 %     V.nError, V.nWarn, V.nNote
 %
 %   INPUT
-%     D         1x1 struct  diagnostics from LSQVCE.ENGINE.DIAGNOSE
+%     D         1x1 struct  diagnostics from LSQVCE.ENGINE.VERDICT.DIAGNOSE
 %     varargin  Name/Value: 'verbose', 'width', 'alpha', 'rWeak', ...
 %
 %   EXAMPLE
@@ -69,8 +69,11 @@ function V = report(D, opt)
 %   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
 %   case-sensitive lowercase). With assistance from Claude (Anthropic),
 %   model Claude Fable 5.
-%   See also LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.SYSTEMATIC.
+%   See also LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SYSTEMATIC.
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 4: the remedies name
+%   R.systematic() / R.snoop(), never an engine function (H-05). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-86 part 2 (R7-24): PAR_COND
 %   states how the lower bound on cond(N) is formed (from the block
 %   cofactor, no SVD). With assistance from Claude (Anthropic), model Claude
@@ -223,8 +226,8 @@ if integrityOK
     r     = D.r;
     ratio = D.varRatio;
 
-    lo = lsqvce.engine.stat.chi2Inv(0.005, r) / r;
-    hi = lsqvce.engine.stat.chi2Inv(0.995, r) / r;
+    lo = lsqvce.kernel.stat.chi2Inv(0.005, r) / r;
+    hi = lsqvce.kernel.stat.chi2Inv(0.995, r) / r;
 
     T  = D.vPv / D.sigma0^2;
     inBand = (ratio >= lo) && (ratio <= hi);
@@ -241,8 +244,8 @@ if integrityOK
     % so a two-sided 95% interval for sigma0 is
     %   s0 * sqrt(r / chi2inv(0.975, r))  ..  s0 * sqrt(r / chi2inv(0.025, r))
     if r > 0 && isfinite(D.s0) && D.s0 > 0
-        ciLo = D.s0 * sqrt(r / lsqvce.engine.stat.chi2Inv(0.975, r));
-        ciHi = D.s0 * sqrt(r / lsqvce.engine.stat.chi2Inv(0.025, r));
+        ciLo = D.s0 * sqrt(r / lsqvce.kernel.stat.chi2Inv(0.975, r));
+        ciHi = D.s0 * sqrt(r / lsqvce.kernel.stat.chi2Inv(0.025, r));
         push(1, 'NOTE', 'GLOBAL_CI', ...
             ['sigma0_hat = %.5f,  95%% CI [%.5f, %.5f]   (a priori sigma0 = ' ...
              '%.5f)\n' ...
@@ -348,7 +351,7 @@ if integrityOK
                  'The robust test is also degrading here (detection falls to ' ...
                  '~75%% at 30%% contamination and ~17%% at 40%%), so even the ' ...
                  'flag list you are looking at is incomplete.\n' ...
-                 'Run lsqvce.engine.systematic() and fix the functional model before ' ...
+                 'Run R.systematic() and fix the functional model before ' ...
                  'rejecting a single observation.'], ...
                  100 * D.fhat, D.fhat);
 
@@ -487,7 +490,7 @@ if integrityOK
 
         push(2, 'NOTE', 'SNOOP_ITER', ...
             ['Reject ONE observation at a time (the largest |w|), re-solve, and ' ...
-             're-snoop -- lsqvce.engine.snoop() does this for you.\n' ...
+             're-snoop -- R.snoop() does this for you.\n' ...
              'The reason is MASKING, not over-rejection: several blunders ' ...
              'inflate s0 together and therefore hide one another, so a single ' ...
              'pass MISSES some of them. Measured: with two equal blunders in a ' ...

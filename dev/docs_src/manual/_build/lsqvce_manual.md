@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.4.0 — User Manual"
+title: "lsqvce 6.5.0 — User Manual"
 subtitle: "least-squares adjustment with variance component estimation"
 date: "built from the sources; the single documentation authority"
 ---
@@ -1290,7 +1290,7 @@ LSQVCE.RESULTS  The outcome of a recovery: solution, diagnostics, provenance.
                                  returned with its covariance and one warning.
     converged  1x1      logical  Did the pipeline converge? (true for a single
                                  solve; set by the iterative engines.)
-    diag       1x1      struct   Per-observation diagnostics (LSQVCE.ENGINE.DIAGNOSE):
+    diag       1x1      struct   Per-observation diagnostics (LSQVCE.ENGINE.VERDICT.DIAGNOSE):
                                  redundancy, leverage, w-tests, MDB, ...
     history    1xI      struct   Per-iteration record (empty for a single
                                  solve; filled by LSQVCE.ENGINE.ADJUSTVCEJOINT:
@@ -1312,8 +1312,8 @@ LSQVCE.RESULTS  The outcome of a recovery: solution, diagnostics, provenance.
     sol        1x1      struct   Raw output of acc.solve() (.x, .sigma0, ...).
     acc        1x1      lsqvce.engine.BlockAccumulator   The accumulator (drop here
                                  to re-solve, inspect blocks, get residuals).
-    source     1x1      struct   Bridged solution from LSQVCE.ENGINE.DIAGNOSEACCUM.
-    batchFcn   1x1      function_handle   Re-reader used by LSQVCE.ENGINE.DIAGNOSE.
+    source     1x1      struct   Bridged solution from LSQVCE.ENGINE.VERDICT.SOURCE.
+    batchFcn   1x1      function_handle   Re-reader used by LSQVCE.ENGINE.VERDICT.DIAGNOSE.
     nBatch     1x1      double   Batch count from the bridge.
     systems    1xM      struct   The resolved system specs (sysID/nl/dayList).
     meta       1x1      struct   Run provenance (WP-44). Field list is
@@ -1341,6 +1341,11 @@ LSQVCE.RESULTS  The outcome of a recovery: solution, diagnostics, provenance.
     T = R.convergence(Name,Value)  Per-ITERATION trajectory: when the loop
                                    settled (needs .history).
     F = R.compare(Rred)            Nested-model F test against a reduced fit (R5 M7).
+    S = R.systematic(Name,Value)   Unmodelled signal in the residuals: Ljung-Box,
+                                   runs, binned means (WP-86 part 4).
+    [D, REJ, sol] = R.snoop(...)   Iterative data snooping; R is not changed.
+    T = R.reliability()            Per-observation r, w, MDB and (w, r) quadrant.
+    E = R.ellipse(i, j, ...)       Confidence ellipse of the parameter pair (i, j).
     fh = R.plot(kind)              "residuals" | "contribution" | "psd" | "convergence"
                                    (R5 M5: one figure per question, nothing exported).
     [C, L, map] = R.toTable(data)  The expanded parameter tables with estimate and
@@ -1373,6 +1378,8 @@ LSQVCE.RESULTS  The outcome of a recovery: solution, diagnostics, provenance.
                                   carries no Cxx
     lsqvce:Results:noAccumulator  residuals()/contribution() on a Results
                                   without an accumulator (fit kinds B / C)
+    lsqvce:Results:noPerObservation reliability() on a fit whose diagnostics
+                                  kept no per-observation vectors
 
   ACCURACY
     Results adds no numerics: x and sigma0 are the engine's (sigma0 is the
@@ -1382,8 +1389,12 @@ LSQVCE.RESULTS  The outcome of a recovery: solution, diagnostics, provenance.
     and diag(Cxx) with z(0.05) = 1.959963984540054 in closed form.
 
   See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.REPORT,
-           LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.BLOCKACCUMULATOR
+           LSQVCE.ENGINE.VERDICT, LSQVCE.ENGINE.BLOCKACCUMULATOR
 
+  Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 4: systematic, snoop,
+  reliability and ellipse -- everything the verdict tells the user to do is
+  a method on R (lsqvce.engine.verdict behind them). With assistance from
+  Claude (Anthropic), model Claude Opus 5.5.
   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 2 (R7-19): compare
   counts the eliminated locals in the redundancy (R.diag.u, not
   numel(R.x)). With assistance from Claude (Anthropic), model Claude Opus
@@ -1427,7 +1438,7 @@ LSQVCE.REPORT  Judge a least-squares adjustment and say so in words.
 ```
 LSQVCE.REPORT  Judge a least-squares adjustment and say so in words.
 
-  V = LSQVCE.REPORT(D) takes the struct from lsqvce.engine.diagnose and prints a
+  V = LSQVCE.REPORT(D) takes the struct from lsqvce.engine.verdict.diagnose and prints a
   verdict. It returns a struct of machine-readable findings so the same logic
   can drive an automated pipeline.
 
@@ -1473,7 +1484,7 @@ LSQVCE.REPORT  Judge a least-squares adjustment and say so in words.
     V.nError, V.nWarn, V.nNote
 
   INPUT
-    D         1x1 struct  diagnostics from LSQVCE.ENGINE.DIAGNOSE
+    D         1x1 struct  diagnostics from LSQVCE.ENGINE.VERDICT.DIAGNOSE
     varargin  Name/Value: 'verbose', 'width', 'alpha', 'rWeak', ...
 
   EXAMPLE
@@ -1495,8 +1506,11 @@ LSQVCE.REPORT  Judge a least-squares adjustment and say so in words.
   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
   case-sensitive lowercase). With assistance from Claude (Anthropic),
   model Claude Fable 5.
-  See also LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.SYSTEMATIC.
+  See also LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SYSTEMATIC.
 
+  Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 4: the remedies name
+  R.systematic() / R.snoop(), never an engine function (H-05). With
+  assistance from Claude (Anthropic), model Claude Opus 5.5.
   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-86 part 2 (R7-24): PAR_COND
   states how the lower bound on cond(N) is formed (from the block
   cofactor, no SVD). With assistance from Claude (Anthropic), model Claude
@@ -1942,7 +1956,7 @@ a-priori backstop). `R.report(Level=0..4)` reduces them to one verdict and its e
 `R.summary()` and `R.convergence()` read the pass record of an iterative run;
 `R.residuals()` re-reads the arcs for the whitened residuals per stream; `R.contribution()`
 gives the information share of every stream in the common parameters;
-`lsqvce.engine.snoop` iterates data snooping with a clean re-solve on the block path;
+`lsqvce.engine.verdict.snoop` iterates data snooping with a clean re-solve on the block path;
 `R.compare(Rred)` is the nested-model F test between two fits; its redundancy counts the
 eliminated local parameters too (since 6.1.8; it counted the commons only and was
 anti-conservative, 7.4 % false positives at 5 %). For correlated batches the
@@ -1996,10 +2010,6 @@ What `fit` dispatches to and what it is built from. One line per public unit, fr
 | `covModel` | covariance spec -> whitening operators (per arc) |
 | `datum` | datum defect detection and handling |
 | `declaration` | validate a kind-A data struct and build its loaders (R5-D8) |
-| `diagnose` | per-observation diagnostics (batch) |
-| `diagnoseAccum` | diagnostics bridge from the accumulator |
-| `ellipse` | confidence ellipse from a covariance |
-| `ftest` | F-test on variance factors |
 | `gcvLambda` | GCV choice of the regularisation weight |
 | `jointModelOpt` | joint-mode model -> loader UserOpt translation |
 | `localDiagnostics` | diagnostics of the local blocks |
@@ -2017,12 +2027,10 @@ What `fit` dispatches to and what it is built from. One line per public unit, fr
 | `satKeyOf` | satellite key (makeValidName) helper |
 | `synthLoader` | synthetic block-arrow loader (engine-tier fixture; leaves in M4) |
 | `sharedProbe` | shared Hutchinson probe generator (RNG contract) |
-| `snoop` | block-native data snooping and downweighting |
-| `stat` | statistics helper |
 | `streamContribution` | contribution per stream |
-| `systematic` | systematic-effect test |
 | `traceEstimate` | stochastic trace estimate |
 | `vce` | Helmert group variance components (exact | hutchinson) |
+| `verdict` | the verdict: diagnostics, snooping, systematics, F test, ellipse (WP-86) |
 | `runMeta` | immutable provenance record for Results.meta |
 
 ## lsqvce.kernel — the numerical kernels
@@ -2039,6 +2047,7 @@ What `fit` dispatches to and what it is built from. One line per public unit, fr
 | `psd2acv` | PSD -> autocovariance |
 | `redundancyLags` | redundancy per lag without the dense W^-1 |
 | `separableWhiten` | separable (temporal x axis) whitening |
+| `stat` | distributions and test thresholds, base MATLAB only (from engine, WP-86) |
 | `toeplitzCofactor` | Toeplitz cofactor construction |
 | `varACV` | VAR autocovariance |
 | `varWhiten` | VAR whitening |
@@ -2123,6 +2132,7 @@ Every identifier the package raises, from `dev/docs_src/error_ids.csv` (the cata
 | `lsqvce:Results:noAccumulator` | Results — error — v4.0 |
 | `lsqvce:Results:noCovariance` | Results — error — v4.0 |
 | `lsqvce:Results:noHistory` | Results — error — v4.0 |
+| `lsqvce:Results:noPerObservation` | Results — error — v6.5.0 |
 | `lsqvce:Results:noVPv` | Results — error — v4.0 |
 | `lsqvce:Results:tableMismatch` | Results — error — v4.0 |
 | `lsqvce:accum:arcBadNc` | engine.BlockAccumulator — error — v4.0 |
@@ -2234,15 +2244,15 @@ Every identifier the package raises, from `dev/docs_src/error_ids.csv` (the cata
 | `lsqvce:datum:zeroN` | engine.datum — error — v4.0 |
 | `lsqvce:dctI:tooShort` | kernel.dctI — error — v4.0 |
 | `lsqvce:decorrFactor:notPD` | kernel.decorrFactor — mixed — v4.0 |
-| `lsqvce:diagnose:badPmatrix` | engine.diagnose — error — v4.0 |
-| `lsqvce:diagnose:badTest` | engine.diagnose — error — v4.0 |
-| `lsqvce:diagnose:batchMismatch` | engine.diagnose — error — v4.0 |
-| `lsqvce:diagnose:nBatch` | engine.diagnose — error — v4.0 |
-| `lsqvce:diagnose:noRobustScale` | engine.diagnose — error — v4.0 |
-| `lsqvce:diagnoseAccum:needKeepLocal` | engine.diagnoseAccum — error — v4.0 |
-| `lsqvce:diagnoseAccum:noSystems` | engine.diagnoseAccum — error — v4.0 |
-| `lsqvce:ellipse:badPair` | engine.ellipse — error — v4.0 |
-| `lsqvce:ellipse:samePair` | engine.ellipse — error — v4.0 |
+| `lsqvce:diagnose:badPmatrix` | engine.verdict — error — v4.0 |
+| `lsqvce:diagnose:badTest` | engine.verdict — error — v4.0 |
+| `lsqvce:diagnose:batchMismatch` | engine.verdict — error — v4.0 |
+| `lsqvce:diagnose:nBatch` | engine.verdict — error — v4.0 |
+| `lsqvce:diagnose:noRobustScale` | engine.verdict — error — v4.0 |
+| `lsqvce:diagnoseAccum:needKeepLocal` | engine.verdict — error — v4.0 |
+| `lsqvce:diagnoseAccum:noSystems` | engine.verdict — error — v4.0 |
+| `lsqvce:ellipse:badPair` | engine.verdict — error — v4.0 |
+| `lsqvce:ellipse:samePair` | engine.verdict — error — v4.0 |
 | `lsqvce:fit:badArcs` | engine.declaration — error — v4.0 |
 | `lsqvce:fit:badEstimate` | fit — error — v4.0 |
 | `lsqvce:fit:badId` | engine.declaration — error — v4.0 |
@@ -2263,11 +2273,11 @@ Every identifier the package raises, from `dev/docs_src/error_ids.csv` (the cata
 | `lsqvce:fit:uCount` | fit — error — v4.0 |
 | `lsqvce:fit:varUnderNoise` | fit — error — v6.1.5 |
 | `lsqvce:fit:unknownField` | engine.declaration;fit — error — v4.0 |
-| `lsqvce:ftest:differentData` | engine.ftest — error — v4.0 |
-| `lsqvce:ftest:invalidPremise` | engine.ftest — warning — v4.0 |
-| `lsqvce:ftest:noRedundancy` | engine.ftest — error — v4.0 |
-| `lsqvce:ftest:notNested` | engine.ftest — error — v4.0 |
-| `lsqvce:ftest:zeroVariance` | engine.ftest — error — v4.0 |
+| `lsqvce:ftest:differentData` | engine.verdict — error — v4.0 |
+| `lsqvce:ftest:invalidPremise` | engine.verdict — warning — v4.0 |
+| `lsqvce:ftest:noRedundancy` | engine.verdict — error — v4.0 |
+| `lsqvce:ftest:notNested` | engine.verdict — error — v4.0 |
+| `lsqvce:ftest:zeroVariance` | engine.verdict — error — v4.0 |
 | `lsqvce:gcv:atLowerBound` | engine.gcvLambda — warning — v4.0 |
 | `lsqvce:gcv:atUpperBound` | engine.gcvLambda — warning — v4.0 |
 | `lsqvce:gcv:degenerate` | engine.gcvLambda — warning — v4.0 |
@@ -2362,30 +2372,30 @@ Every identifier the package raises, from `dev/docs_src/error_ids.csv` (the cata
 | `lsqvce:separable:startupNotPD` | kernel.separableWhiten — warning — v4.0 |
 | `lsqvce:sharedProbe:badProbes` | engine.sharedProbe — error — v4.0 |
 | `lsqvce:sharedProbe:notSquare` | engine.sharedProbe — error — v4.0 |
-| `lsqvce:snoop:breakdown` | engine.snoop — error — v4.0 |
-| `lsqvce:snoop:contaminated` | engine.snoop — warning — v4.0 |
-| `lsqvce:snoop:correlatedBatch` | engine.snoop — error — v4.0 |
-| `lsqvce:snoop:downdateFailed` | engine.snoop — warning — v4.0 |
-| `lsqvce:snoop:forcedBreakdown` | engine.snoop — warning — v4.0 |
-| `lsqvce:snoop:forcedContaminated` | engine.snoop — warning — v4.0 |
-| `lsqvce:snoop:forcedOverCap` | engine.snoop — warning — v4.0 |
-| `lsqvce:snoop:lowRedundancy` | engine.snoop — warning — v4.0 |
-| `lsqvce:snoop:maxReject` | engine.snoop — warning — v4.0 |
-| `lsqvce:snoop:rejectFraction` | engine.snoop — warning — v4.0 |
-| `lsqvce:snoop:tooContaminated` | engine.snoop — error — v4.0 |
-| `lsqvce:stat:badDof` | engine.stat — error — v4.0 |
-| `lsqvce:stat:badProb` | engine.stat — error — v4.0 |
-| `lsqvce:stat:sizeMismatch` | engine.stat — error — v4.0 |
+| `lsqvce:snoop:breakdown` | engine.verdict — error — v4.0 |
+| `lsqvce:snoop:contaminated` | engine.verdict — warning — v4.0 |
+| `lsqvce:snoop:correlatedBatch` | engine.verdict — error — v4.0 |
+| `lsqvce:snoop:downdateFailed` | engine.verdict — warning — v4.0 |
+| `lsqvce:snoop:forcedBreakdown` | engine.verdict — warning — v4.0 |
+| `lsqvce:snoop:forcedContaminated` | engine.verdict — warning — v4.0 |
+| `lsqvce:snoop:forcedOverCap` | engine.verdict — warning — v4.0 |
+| `lsqvce:snoop:lowRedundancy` | engine.verdict — warning — v4.0 |
+| `lsqvce:snoop:maxReject` | engine.verdict — warning — v4.0 |
+| `lsqvce:snoop:rejectFraction` | engine.verdict — warning — v4.0 |
+| `lsqvce:snoop:tooContaminated` | engine.verdict — error — v4.0 |
+| `lsqvce:stat:badDof` | kernel.stat — error — v4.0 |
+| `lsqvce:stat:badProb` | kernel.stat — error — v4.0 |
+| `lsqvce:stat:sizeMismatch` | kernel.stat — error — v4.0 |
 | `lsqvce:streamContribution:badSol` | engine.streamContribution — error — v4.0 |
 | `lsqvce:streamContribution:cNotPD` | engine.streamContribution — error — v4.0 |
 | `lsqvce:streamContribution:noArcs` | engine.streamContribution — error — v4.0 |
 | `lsqvce:streamContribution:noStore` | engine.streamContribution — error — v4.0 |
 | `lsqvce:synthLoader:badArc` | engine.synthLoader — error — v4.0 |
 | `lsqvce:synthLoader:noNoiseModel` | engine.synthLoader — error — v4.0 |
-| `lsqvce:systematic:badCovariate` | engine.systematic — error — v4.0 |
-| `lsqvce:systematic:lbUnreliable` | engine.systematic — warning — v4.0 |
-| `lsqvce:systematic:noResiduals` | engine.systematic — error — v4.0 |
-| `lsqvce:systematic:tooFew` | engine.systematic — warning — v4.0 |
+| `lsqvce:systematic:badCovariate` | engine.verdict — error — v4.0 |
+| `lsqvce:systematic:lbUnreliable` | engine.verdict — warning — v4.0 |
+| `lsqvce:systematic:noResiduals` | engine.verdict — error — v4.0 |
+| `lsqvce:systematic:tooFew` | engine.verdict — warning — v4.0 |
 | `lsqvce:toeplitzCofactor:badVariance` | kernel.toeplitzCofactor — warning — v4.0 |
 | `lsqvce:toeplitzCofactor:empty` | kernel.toeplitzCofactor — error — v4.0 |
 | `lsqvce:toeplitzCofactor:notACV` | kernel.toeplitzCofactor — warning — v4.0 |

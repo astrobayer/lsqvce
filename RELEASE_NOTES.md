@@ -1,5 +1,28 @@
 # lsqvce release notes
 
+## 6.5.0 — 2026-10-11 (WP-86 part 4: one verdict unit; the verdict's methods on R)
+
+- **`lsqvce.engine.verdict` is the ONE engine unit that judges a fit** (the R5 M4
+  "verdict from the sweep" row; user decision: the full absorption). `diagnoseAccum`,
+  `diagnose`, `snoop`, `systematic`, `ftest` and `ellipse` are its static methods —
+  `verdict.source`, `verdict.diagnose`, `verdict.snoop`, `verdict.systematic`,
+  `verdict.ftest`, `verdict.ellipse` — with their bodies unchanged; the new
+  `verdict.fromAccumulator(acc, sol, ...)` is the source + diagnose pair every driver
+  ran (fit, adjustBlock, adjustRobust, adjustNonlinear). The distributions moved to the
+  KERNEL tier: **`lsqvce.kernel.stat`** (was `lsqvce.engine.stat`). Breaking for code
+  that called the six engine units or `engine.stat` directly: prefix `verdict.`
+  (`lsqvce.engine.diagnose(...)` → `lsqvce.engine.verdict.diagnose(...)`,
+  `diagnoseAccum` → `verdict.source`) and `engine.stat` → `kernel.stat`. Error
+  identifiers are unchanged.
+- **Everything the verdict tells you to do is a method on `R`.** New `Results` methods:
+  `R.systematic(...)` (Ljung–Box / runs / binned means on the residuals),
+  `[D, REJ, sol] = R.snoop(...)` (iterative snooping; R unchanged), `T = R.reliability()`
+  (per observation: v, r, w, MDB and the (w, r) quadrant; `lsqvce:Results:noPerObservation`
+  without the per-observation diagnostics), `E = R.ellipse(i, j)`. The report's remedies
+  and snoop's runtime messages name `R.systematic()` / `R.snoop()`, never an engine
+  function (finding H-05).
+- `R.diag.store` records what the diagnostics kept per observation.
+
 ## 6.4.0 — 2026-10-11 (WP-86 part 3: one block formula, one commons factor)
 
 - **The VCE redundancy pass runs on `lsqvce.engine.BlockCofactor`.** `engine.redundancy`

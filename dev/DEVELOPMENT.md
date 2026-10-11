@@ -7,7 +7,7 @@ the module census, correctness history, design decisions, validation, and the
 measured chapters. `dev/HANDOVER.md` remains the single status-and-plans
 document; this file is the technical companion the README used to be.*
 
-> **Status (2026-09-01, v2.0 — see RELEASE_NOTES.md).** Green everywhere: **27 suite files, 624 test
+> **Status (2026-09-01, v2.0 — see RELEASE_NOTES.md).** Green everywhere: **27 suite files, 626 test
 > points, 0 fail** — verified locally in MATLAB R2026a (including the
 > pool suites with real `parfor`/`spmd` workers and the machine-local
 > speed budgets) and on every push by GitHub Actions CI (a static `audit`
@@ -179,17 +179,17 @@ qualified one you type.
 | `lsqvce.engine.makeLoader` | turn a `buildDay(day,obsType)` into an accumulator-ready `Loader` (meta / per-arc / one-day cache) |
 | `lsqvce.engine.adjustVCEjoint` | Ellmer-style JOINT spectral VCE: declared per-stream PSD co-estimated with per-arc variance factors over shared Rademacher probes. **Production guidance (measured, F-15):** run it OPEN LOOP or with at most 3 damped passes (`'StepSchedule','decay','AvgTail',4`) — the undamped closed loop is bistable and never beat open-loop pass-1 quality at any tested volume |
 | `lsqvce.engine.BlockAccumulator` | streaming NE/QR with per-system pre-elimination; correlated batches; free-network; sparse |
-| `lsqvce.engine.diagnose` | per-observation `v`, `r_i`, `w`, MDB, external reliability |
-| `lsqvce.engine.systematic` | **Ljung–Box, runs test, covariate binning** — the blind spot |
-| `lsqvce.engine.snoop` | iterative rejection via Cholesky **downdate** |
+| `lsqvce.engine.verdict.diagnose` | per-observation `v`, `r_i`, `w`, MDB, external reliability |
+| `lsqvce.engine.verdict.systematic` | **Ljung–Box, runs test, covariate binning** — the blind spot |
+| `lsqvce.engine.verdict.snoop` | iterative rejection via Cholesky **downdate** |
 | `lsqvce.engine.adjustRobust` | IRLS: Huber / IGG3 / bisquare reweighting on the block path |
 | `lsqvce.engine.vce` | Helmert variance components on the block path, with a **resolution limit** _(the flat `varComp` was retired in R5 M2)_ |
 | `lsqvce.engine.traceEstimate` | Monte-Carlo (Hutchinson) trace estimator, **Ellmer 2018 §6.5.6** — estimates `tr(N⁻¹Nₘ)` without forming `N⁻¹`. **Opt-in** VCE accelerator (`'TraceMethod','hutchinson'` in `redundancy`/`vce`); exact leverage stays the default |
 | `lsqvce.engine.datum` | null-space basis; free-network / minimum-constraint solutions |
 | `lsqvce.engine.solveNonlinear` | re-linearisation loop with convergence history |
-| `lsqvce.engine.ftest` | nested-model F-test |
-| `lsqvce.engine.ellipse` | confidence ellipses |
-| `lsqvce.engine.stat` | distribution kernel (no Statistics Toolbox) |
+| `lsqvce.engine.verdict.ftest` | nested-model F-test |
+| `lsqvce.engine.verdict.ellipse` | confidence ellipses |
+| `lsqvce.kernel.stat` | distribution kernel (no Statistics Toolbox) |
 | `lsqvce.engine.resolveSatSpecs`, `lsqvce.engine.satKeyOf` | per-satellite config resolution and the shared satellite-key convention |
 
 ### KERNEL tier — numerical building blocks
@@ -299,7 +299,7 @@ fails the gate.
 ## What no automated test can do for you
 
 **Systematic errors** produce inflated χ² *and* a clean snooping result. That
-combination is the signature. `lsqvce.engine.systematic(D, 'covariates', ...)` now
+combination is the signature. `lsqvce.engine.verdict.systematic(D, 'covariates', ...)` now
 automates the search — Ljung–Box, runs test, and binned means against any
 covariate you supply (time, elevation, azimuth, temperature, satellite ID). It
 turns *"go look at a plot"* into *"bin 7 of elevation has mean w = 2.9, p = 1e-4"*.
@@ -424,7 +424,7 @@ identity check found it immediately. That is what Level 0 is for.
 
 ### What is *not* supported
 
-`lsqvce.engine.snoop` **refuses** correlated batches, and the refusal is principled:
+`lsqvce.engine.verdict.snoop` **refuses** correlated batches, and the refusal is principled:
 removing one observation from a correlated block takes the **Schur complement**
 of the block covariance, changing the covariance of every *surviving*
 observation in that block. It is not a row deletion, so the rank-one Cholesky
@@ -648,7 +648,7 @@ QR sits at **7.8e-09**.
 ```matlab
 lsqvce_setup          % add to path, register the Help browser docs
 doc lsqvce            % landing page
-doc lsqvce.engine.diagnose   % any function
+doc lsqvce.engine.verdict.diagnose   % any function
 demo_workflow          % build your OWN case, from scratch  <- start here
 run('dev/tests/run_all_lsqvce')   % the FULL unit-test suite
 run_lsqvce('adjustvce')           % one suite, while iterating (dev/tests on the temp path)

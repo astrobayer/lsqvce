@@ -493,9 +493,11 @@ def add_long_function(d):
     append(os.path.join(d, '+lsqvce/+util/zzzLong.m'),
            'function zzzLong()\n%ZZZLONG  x.\n' + '    x = 1;\n' * 420 + 'end\n')
 def grow_recorded_function(d):
-    p = os.path.join(d, '+lsqvce/+engine/snoop.m')
+    # WP-86 part 4: the recorded functions live in verdict.m; three code lines in
+    # front of snoop's header land in diagnose's measured region (465 recorded)
+    p = os.path.join(d, '+lsqvce/+engine/verdict.m')
     s = open(p, encoding='utf-8').read()
-    s = s.replace('\nfunction ', '\n    x = 1;\n' * 3 + 'function ', 1)
+    s = s.replace('\nfunction [sol, D, REJ] = snoop(', '\n    x = 1;\n' * 3 + 'function [sol, D, REJ] = snoop(', 1)
     open(p, 'w', encoding='utf-8').write(s)
 case('33 an unrecorded long function fires', audit.check_length_ratchets, 'length', add_long_function)
 case('33 a recorded long function that grows fires', audit.check_length_ratchets, 'length',

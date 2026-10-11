@@ -68,14 +68,14 @@ function test_normCrit_textbook(tc)
 % categories: precision, reference
     % The classic Baarda threshold.
     % tol: closed-form literature value; kernel's own accuracy claim (help text) bounds the error, tol adds headroom
-    verifyEqual(tc, lsqvce.engine.stat.normCrit(0.001), 3.29053, 'AbsTol', 1e-4);
+    verifyEqual(tc, lsqvce.kernel.stat.normCrit(0.001), 3.29053, 'AbsTol', 1e-4);
 end
 
 function test_delta0_textbook(tc)
 % categories: precision, reference
     % The classic MDB non-centrality, alpha=0.001 beta=0.20.
     % tol: closed-form literature value; kernel's own accuracy claim (help text) bounds the error, tol adds headroom
-    verifyEqual(tc, lsqvce.engine.stat.delta0(0.001, 0.20), 4.1321, 'AbsTol', 1e-3);
+    verifyEqual(tc, lsqvce.kernel.stat.delta0(0.001, 0.20), 4.1321, 'AbsTol', 1e-3);
 end
 
 function test_chi2Inv_roundtrip(tc)
@@ -84,8 +84,8 @@ function test_chi2Inv_roundtrip(tc)
     % into the CDF returns the probability you asked for.
     for r = [1 2 5 10 100 1e4 1e6]
         for p = [1e-6 0.005 0.5 0.995 1-1e-6]
-            x = lsqvce.engine.stat.chi2Inv(p, r);
-            back = lsqvce.engine.stat.chi2Cdf(x, r);
+            x = lsqvce.kernel.stat.chi2Inv(p, r);
+            back = lsqvce.kernel.stat.chi2Cdf(x, r);
             % tol: quantile/CDF round-trip through base-MATLAB special functions; their relative error is ~1e-14, bound leaves headroom
             verifyEqual(tc, back, p, 'RelTol', 1e-8, ...
                 sprintf('chi2Inv round-trip failed at r=%g p=%g', r, p));
@@ -104,17 +104,17 @@ function test_stat_contract_rejections(tc)
     % the id AND the caller-naming message through the caught exception.
     caught = MException.empty;
     try
-        lsqvce.engine.stat.chi2Inv(1.5, 5);
+        lsqvce.kernel.stat.chi2Inv(1.5, 5);
     catch e
         caught = e;
     end
     tc.verifyNotEmpty(caught, 'p outside (0,1) must be rejected');
     tc.verifyEqual(caught.identifier, 'lsqvce:stat:badProb');
     tc.verifySubstring(caught.message, 'chi2Inv');    % message names the caller
-    tc.verifyError(@() lsqvce.engine.stat.chi2Inv(NaN, 5),   'lsqvce:stat:badProb');
-    tc.verifyError(@() lsqvce.engine.stat.chi2Inv(0.5, 0),   'lsqvce:stat:badDof');
-    tc.verifyError(@() lsqvce.engine.stat.tInv(0.9, -1),     'lsqvce:stat:badDof');
-    tc.verifyError(@() lsqvce.engine.stat.chi2Inv([0.1 0.5], [1;2;3]), ...
+    tc.verifyError(@() lsqvce.kernel.stat.chi2Inv(NaN, 5),   'lsqvce:stat:badProb');
+    tc.verifyError(@() lsqvce.kernel.stat.chi2Inv(0.5, 0),   'lsqvce:stat:badDof');
+    tc.verifyError(@() lsqvce.kernel.stat.tInv(0.9, -1),     'lsqvce:stat:badDof');
+    tc.verifyError(@() lsqvce.kernel.stat.chi2Inv([0.1 0.5], [1;2;3]), ...
                    'lsqvce:stat:sizeMismatch');
 end
 
@@ -122,9 +122,9 @@ function test_chi2Inv_singular_density(tc)
 % categories: precision, robustness
     % r = 1 makes the chi2 density diverge at the origin. A Newton iteration
     % in x stalls here; the log-space iteration must not.
-    x = lsqvce.engine.stat.chi2Inv(1e-6, 1);
+    x = lsqvce.kernel.stat.chi2Inv(1e-6, 1);
     % tol: quantile/CDF round-trip through base-MATLAB special functions; their relative error is ~1e-14, bound leaves headroom
-    verifyEqual(tc, lsqvce.engine.stat.chi2Cdf(x, 1), 1e-6, 'RelTol', 1e-9);
+    verifyEqual(tc, lsqvce.kernel.stat.chi2Cdf(x, 1), 1e-6, 'RelTol', 1e-9);
 end
 
 function test_tau_is_bounded_by_sqrt_r(tc)
@@ -133,7 +133,7 @@ function test_tau_is_bounded_by_sqrt_r(tc)
     % weak network cannot detect its own blunders, and the toolbox relies on
     % it to warn that snooping has become vacuous.
     for r = [3 5 10 30]
-        tcv = lsqvce.engine.stat.tauCrit(1e-8, r);
+        tcv = lsqvce.kernel.stat.tauCrit(1e-8, r);
         verifyLessThan(tc, tcv, sqrt(r) + 1e-9);
     end
 end
@@ -142,8 +142,8 @@ function test_tau_tends_to_normal(tc)
 % categories: precision
     % tol: tau -> normal is an ASYMPTOTIC limit at r = 1e7, not an identity;
     % the O(1/r) remainder sets the 1e-3 bar
-    verifyEqual(tc, lsqvce.engine.stat.tauCrit(0.001, 1e7), ...
-                    lsqvce.engine.stat.normCrit(0.001), 'AbsTol', 1e-3);
+    verifyEqual(tc, lsqvce.kernel.stat.tauCrit(0.001, 1e7), ...
+                    lsqvce.kernel.stat.normCrit(0.001), 'AbsTol', 1e-3);
 end
 
 %% ================================================ accumulator

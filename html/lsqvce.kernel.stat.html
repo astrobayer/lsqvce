@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html><head><meta charset="utf-8">
-<title>lsqvce.engine.stat</title><style>
+<title>lsqvce.kernel.stat</title><style>
 body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
        color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
        max-width: 900px; line-height: 1.5; }
@@ -40,8 +40,8 @@ a { color: #0b5ea8; }
           font-size: 12px; color: #888; }
 </style></head>
 <body>
-<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.engine.stat</div>
-<h1>lsqvce.engine.stat</h1>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.kernel.stat</div>
+<h1>lsqvce.kernel.stat</h1>
 <div class="purpose">Statistical kernel for lsqvce -- base MATLAB only.</div>
 <h2>Description</h2>
 <pre class="example">Deliberately free of the Statistics and Machine Learning Toolbox. Every
@@ -64,21 +64,25 @@ Static methods
 
 All functions are elementwise where it makes sense and validate inputs.</pre>
 <h3>Example</h3>
-<pre class="example">lsqvce.engine.stat.normCrit(1e-3)          % 3.2905  Baarda&#x27;s threshold
-lsqvce.engine.stat.delta0(1e-3, 0.20)      % 4.1321  MDB non-centrality
-lsqvce.engine.stat.chi2Inv(0.95, 10)       % 18.3070
-lsqvce.engine.stat.tauCrit(1e-3, 100)      % Pope&#x27;s tau, r = 100
+<pre class="example">lsqvce.kernel.stat.normCrit(1e-3)          % 3.2905  Baarda&#x27;s threshold
+lsqvce.kernel.stat.delta0(1e-3, 0.20)      % 4.1321  MDB non-centrality
+lsqvce.kernel.stat.chi2Inv(0.95, 10)       % 18.3070
+lsqvce.kernel.stat.tauCrit(1e-3, 100)      % Pope&#x27;s tau, r = 100
 
 % Pope&#x27;s tau is BOUNDED by sqrt(r). That is the formal statement that
 % a weak network cannot detect its own blunders:
-lsqvce.engine.stat.tauCrit(1e-8, 5) &lt; sqrt(5)      % always true</pre>
+lsqvce.kernel.stat.tauCrit(1e-8, 5) &lt; sqrt(5)      % always true</pre>
 <h3>Errors</h3>
 <pre class="example">  lsqvce:stat:badProb           the probability is outside (0,1)
   lsqvce:stat:badDof            a degrees-of-freedom argument is not positive
   lsqvce:stat:sizeMismatch      the arguments do not broadcast
 
-See also LSQVCE.ENGINE.DIAGNOSE.
+See also LSQVCE.ENGINE.VERDICT.DIAGNOSE.
 
+Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 4: moved from the
+ENGINE to the KERNEL tier (the distributions; the tests live
+in lsqvce.engine.verdict). With assistance from Claude (Anthropic),
+model Claude Opus 5.5.
 Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 2026-07-11.
 Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,

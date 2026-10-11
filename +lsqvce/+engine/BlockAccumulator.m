@@ -232,6 +232,9 @@ classdef BlockAccumulator < handle
 %
 %   See also LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.RESIDUALS, LSQVCE.ENGINE.CHECKPSD, LSQVCE.ENGINE.QRSYSTEM
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 4: systemStore's
+%   help names lsqvce.engine.verdict. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3 (R7-24):
 %   reducedNormalMatrix names lsqvce.engine.BlockCofactor (leverageBlocks
 %   retired). With assistance from Claude (Anthropic), model Claude Opus
@@ -766,7 +769,7 @@ classdef BlockAccumulator < handle
         %   info = acc.systemStore(sysID) returns struct(sysID, nl, dataFcn,
         %   dayList, uo): everything an external diagnostics adapter needs to
         %   RE-ENUMERATE and re-whiten that system's arcs (e.g. to build the
-        %   full-parameter batches lsqvce.engine.diagnose consumes). Requires
+        %   full-parameter batches lsqvce.engine.verdict.diagnose consumes). Requires
         %   'KeepLocal', true. Returns the loader handle and options only --
         %   never the accumulated normals -- so it cannot corrupt the solve.
             s = obj.store(obj.findStore(sysID));

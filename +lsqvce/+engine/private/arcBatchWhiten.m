@@ -5,7 +5,7 @@ function arcBatchWhiten(a, uo, cb)
 %   The ONE batch-and-whiten iterator (WP-38, fixes F-08; rule 3). Since
 %   R6 WP-91 (finding E-09) it is behind EVERY loop that reads an arc in
 %   whitened batches: LSQVCE.ENGINE.BLOCKACCUMULATOR's accumArc,
-%   LSQVCE.ENGINE.RESIDUALS' arcResiduals, LSQVCE.ENGINE.DIAGNOSEACCUM's
+%   LSQVCE.ENGINE.RESIDUALS' arcResiduals, LSQVCE.ENGINE.VERDICT.SOURCE's
 %   whitenArcIntoBatches, LSQVCE.ENGINE.REDUNDANCY's arcLeverageAndResidual
 %   and LSQVCE.ENGINE.STREAMCONTRIBUTION's arcCommonProbe -- before, three of
 %   them were verbatim copies WITHOUT the accumulator's whole-epoch rounding,
@@ -54,9 +54,12 @@ function arcBatchWhiten(a, uo, cb)
 %     arcBatchWhiten(a, uo, @(rows,keep,Ab,Bb,lb) accum(rows,keep,Ab,Bb));
 %
 %   See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.RESIDUALS,
-%            LSQVCE.ENGINE.DIAGNOSEACCUM, LSQVCE.ENGINE.REDUNDANCY,
+%            LSQVCE.ENGINE.VERDICT.SOURCE, LSQVCE.ENGINE.REDUNDANCY,
 %            LSQVCE.ENGINE.STREAMCONTRIBUTION, LSQVCE.KERNEL.DECORRFACTOR
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 4: the diagnostics
+%   replay is lsqvce.engine.verdict.source. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-09-07 (CEST, UTC+02:00), R6 WP-91 (E-09): the whole-epoch
 %   rounding and the dense-W branch moved in from the accumulator; the
 %   residual sweep and the diagnostic re-read became callbacks. With
