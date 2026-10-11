@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.9.0 — User Manual"
+title: "lsqvce 6.10.0 — User Manual"
 subtitle: "least-squares adjustment with variance component estimation"
 date: "built from the sources; the single documentation authority"
 ---
@@ -119,7 +119,14 @@ v6 (the cells are the arcs) 2026-09-09, Claude Fable 5.1.
    folded into the solve AND into the diagnostic sweep (they carry a redundancy). A free
    network's datum is the prior `L = B'` on the null space: the exact minimum-constraint
    solution, for any weight, because the data's range and the null space are orthogonal
-   (`lsqvce:fit:badPrior` on malformed fields). A Kaula rule or a background model is the
+   (`lsqvce:fit:badPrior` on malformed fields).
+   - Since 6.10.0 (R7 WP-114) the covariance is weight-independent too: a prior the data do
+     not see is recognised as a datum, and `R.sol.Cxx` and the diagnostics' parameter
+     cofactor are the minimum-constraint ones, s0²·pinv(N). Before, the datum's σ entered
+     the standard errors: 0.005 at σ = 1, 2.48 at σ = 1e3.
+   - A prior that is only partly in the null space keeps the solve's covariance.
+   - `R.residuals()` and the redundancy count include the prior's rows, so they agree with
+     the solve. A Kaula rule or a background model is the
    same declaration with a scientific `L`. With `estimate = "scale"` (R5 M7 7b) the group has
    its OWN variance component: under `Estimate="noise"` its sigma is updated every pass by the
    Helmert / Koch–Kusche rule (Ω_k = ‖(L x − x0)/σ‖², r_k = p − tr(L N⁻¹ L')/σ², σ² ← σ²·Ω_k/r_k;
@@ -1071,6 +1078,9 @@ LSQVCE.FIT  Fit a least-squares adjustment (optionally with VCE) to declared dat
            LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT,
            LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTNONLINEAR
 
+  Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-114 (R7-05): priorsOf notes
+  that a datum's covariance is weight-independent too. With assistance from
+  Claude (Anthropic), model Claude Opus 5.5.
   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 3: R.noise carries
   the law as the bin spectrum (.S, .Sgroups) next to its ACV (.C,
   .Cgroups); .Shat is gone. With assistance from Claude (Anthropic), model

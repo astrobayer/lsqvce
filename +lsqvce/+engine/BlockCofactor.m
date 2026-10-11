@@ -20,6 +20,16 @@ classdef BlockCofactor
 %
 %   CONSTRUCTOR
 %     Q = LSQVCE.ENGINE.BLOCKCOFACTOR(Rc, blocks)
+%     Q = LSQVCE.ENGINE.BLOCKCOFACTOR(Rc, blocks, datum)
+%       datum   [] | struct .Rm .Dm (BlockAccumulator.datumPart): the common
+%                        prior is a DATUM (the data do not see its directions),
+%                        and the PARAMETER cofactor -- diagonal, block,
+%                        qxxTimes, maxCorrelation -- is the minimum-constraint
+%                        one, Qcc = inv(Rm'Rm) - Dm*Dm' (R7 WP-114, R7-05),
+%                        independent of the datum's sigma. leverage / halfRows
+%                        keep Rc: on data rows the two agree exactly (a data
+%                        row is orthogonal to the datum), and a datum row must
+%                        stay absorbed (r = 0) as the solve made it.
 %       Rc      nc x nc  upper triangular, Rc'*Rc = the reduced common normal
 %                        matrix INCLUDING the prior (BlockAccumulator.commonFactor)
 %       blocks  1 x S struct  .cols (the system's local columns in the full
@@ -78,6 +88,10 @@ classdef BlockCofactor
 %   See also LSQVCE.ENGINE.VERDICT.SOURCE, LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SNOOP,
 %   LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-114 (R7-05): the optional
+%   datum part -- the parameter cofactor of a datum-constrained problem is the
+%   minimum-constraint one; downdate updates its factor too. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 4: the absorbed
 %   diagnostics units are named as lsqvce.engine.verdict methods. With
 %   assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -97,14 +111,20 @@ classdef BlockCofactor
         sys         % 1 x S struct: cols, Nll, H (H'*H = pinv(Nll)), G = pinv(Nll)*Nlc;
                     % a local-free system keeps its slot (empty cols), so s indexes
                     % the systems in the order given
+        Rm = []     % [] | nc x nc, Rm'*Rm = N_red + c^2 K'K (the datum re-weighted, R7 WP-114)
+        Dm = []     % nc x k, Dm*Dm' = K'(KK')^-2 K / c^2: Qcc = inv(Rm'Rm) - Dm*Dm'
     end
 
     methods
         %------------------------------------------------------------------
-        function Q = BlockCofactor(Rc, blocks)
+        function Q = BlockCofactor(Rc, blocks, datum)
             nc = size(Rc, 1);
             Q.Rc = Rc;
             Q.nc = nc;
+            Q.Dm = zeros(nc, 0);
+            if nargin > 2 && ~isempty(datum)
+                Q.Rm = datum.Rm;  Q.Dm = datum.Dm;
+            end
             Q.sys = struct('cols', {}, 'Nll', {}, 'H', {}, 'G', {});
             u = nc;
             for s = 1:numel(blocks)
@@ -172,7 +192,8 @@ classdef BlockCofactor
         function Y = qxxTimes(Q, A)
         %QXXTIMES  Qxx*A' (u x nk): the shift of x per unit of each row's bias.
             [Z, Bs] = splitRows(Q, A);
-            Yc = Q.Rc \ (Q.Rc.' \ Z);                    % Qcc * z
+            F = parFactor(Q);
+            Yc = F \ (F.' \ Z) - Q.Dm * (Q.Dm.' * Z);    % Qcc * z (minimum-constraint under a datum)
             Y = zeros(Q.u, size(A, 1));
             Y(1:Q.nc, :) = Yc;
             for s = 1:numel(Q.sys)
@@ -188,11 +209,12 @@ classdef BlockCofactor
         function d = diagonal(Q)
         %DIAGONAL  diag(Qxx) (u x 1). One O(nc^3) triangular inverse, then
         %   O(nl*nc^2) per system; nothing u x u is formed.
-            Ri = Q.Rc \ eye(Q.nc);                       % Qcc = Ri*Ri'
+            Ri = parFactor(Q) \ eye(Q.nc);              % Qcc = Ri*Ri' - Dm*Dm'
             d = zeros(Q.u, 1);
-            d(1:Q.nc) = sum(Ri.^2, 2);
+            d(1:Q.nc) = sum(Ri.^2, 2) - sum(Q.Dm.^2, 2);
             for s = 1:numel(Q.sys)
-                d(Q.sys(s).cols) = sum(Q.sys(s).H.^2, 1).' + sum((Q.sys(s).G * Ri).^2, 2);
+                d(Q.sys(s).cols) = sum(Q.sys(s).H.^2, 1).' + sum((Q.sys(s).G * Ri).^2, 2) ...
+                                   - sum((Q.sys(s).G * Q.Dm).^2, 2);
             end
         end
 
@@ -201,8 +223,9 @@ classdef BlockCofactor
         %BLOCK  Qxx(idx, idx) for a short index list (an ellipse, a pair).
             E = zeros(numel(idx), Q.u);
             E(sub2ind(size(E), 1:numel(idx), idx(:).')) = 1;
-            W = halfRows(Q, E);
-            C = W.' * W;
+            Y = qxxTimes(Q, E);                          % the parameter cofactor (datum-aware)
+            C = Y(idx(:), :);
+            C = (C + C.') / 2;
         end
 
         %------------------------------------------------------------------
@@ -283,6 +306,11 @@ classdef BlockCofactor
             dg = abs(diag(Rn));
             ok = flag == 0 && ~any(dg < eps(max(dg)) * Q.u * 100);
             if ~ok, return, end
+            if ~isempty(Q.Rm)                            % the datum factor sees the same data
+                [Rm2, f2] = cholupdate(Q.Rm, sqrt(pt) * Z, '-');
+                if f2 ~= 0, ok = false;  return, end
+                Q.Rm = Rm2;
+            end
             Q.Rc = Rn;
             if ~isempty(hit)
                 S.Nll = S.Nll - p * (b * b.');
@@ -294,6 +322,14 @@ classdef BlockCofactor
     end
 
     methods (Access = private)
+        %------------------------------------------------------------------
+        function F = parFactor(Q)
+        %PARFACTOR  The commons factor of the PARAMETER cofactor: Rm under a
+        %   datum (with Dm subtracted by the caller), else Rc.
+            F = Q.Rc;
+            if ~isempty(Q.Rm), F = Q.Rm; end
+        end
+
         %------------------------------------------------------------------
         function [Z, Bs] = splitRows(Q, A)
         %SPLITROWS  The reduced rows z = a_c - sum G_s'*b_s (nc x nk) and each
@@ -342,7 +378,7 @@ classdef BlockCofactor
                                    'truncTol', acc.opt.TruncTol);   % the solve's pinv cut
                 col = col + nl;
             end
-            Q = lsqvce.engine.BlockCofactor(acc.commonFactor(), blocks);
+            Q = lsqvce.engine.BlockCofactor(acc.commonFactor(), blocks, acc.datumPart());
         end
     end
 

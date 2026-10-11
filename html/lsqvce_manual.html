@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.9.0 — User Manual</title>
+  <title>lsqvce 6.10.0 — User Manual</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.9.0 — User Manual</h1>
+<h1 class="title">lsqvce 6.10.0 — User Manual</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 <p class="date">built from the sources; the single documentation
@@ -429,18 +429,28 @@ AND into the diagnostic sweep (they carry a redundancy). A free
 network’s datum is the prior <code>L = B'</code> on the null space: the
 exact minimum-constraint solution, for any weight, because the data’s
 range and the null space are orthogonal
-(<code>lsqvce:fit:badPrior</code> on malformed fields). A Kaula rule or
-a background model is the same declaration with a scientific
-<code>L</code>. With <code>estimate = "scale"</code> (R5 M7 7b) the
-group has its OWN variance component: under
-<code>Estimate="noise"</code> its sigma is updated every pass by the
-Helmert / Koch–Kusche rule (Ω_k = ‖(L x − x0)/σ‖², r_k = p − tr(L N⁻¹
-L’)/σ², σ² ← σ²·Ω_k/r_k; the fixed point Ω_k = r_k is “the prior’s
-weighted residual sum equals its redundancy”), so λ = s0²/σ_k² is the
-regularisation the data support; <code>R.noise.priors</code> and
-<code>R.noise.priorHistory</code> record it. <code>from</code> is the
-pass at which the group becomes active (default 1; a single-pass run
-reports <code>lsqvce:fit:priorNotActive</code> and skips it). A group is
+(<code>lsqvce:fit:badPrior</code> on malformed fields).
+<ul>
+<li>Since 6.10.0 (R7 WP-114) the covariance is weight-independent too: a
+prior the data do not see is recognised as a datum, and
+<code>R.sol.Cxx</code> and the diagnostics’ parameter cofactor are the
+minimum-constraint ones, s0²·pinv(N). Before, the datum’s σ entered the
+standard errors: 0.005 at σ = 1, 2.48 at σ = 1e3.</li>
+<li>A prior that is only partly in the null space keeps the solve’s
+covariance.</li>
+<li><code>R.residuals()</code> and the redundancy count include the
+prior’s rows, so they agree with the solve. A Kaula rule or a background
+model is the same declaration with a scientific <code>L</code>. With
+<code>estimate = "scale"</code> (R5 M7 7b) the group has its OWN
+variance component: under <code>Estimate="noise"</code> its sigma is
+updated every pass by the Helmert / Koch–Kusche rule (Ω_k = ‖(L x −
+x0)/σ‖², r_k = p − tr(L N⁻¹ L’)/σ², σ² ← σ²·Ω_k/r_k; the fixed point Ω_k
+= r_k is “the prior’s weighted residual sum equals its redundancy”), so
+λ = s0²/σ_k² is the regularisation the data support;
+<code>R.noise.priors</code> and <code>R.noise.priorHistory</code> record
+it. <code>from</code> is the pass at which the group becomes active
+(default 1; a single-pass run reports
+<code>lsqvce:fit:priorNotActive</code> and skips it). A group is
 declared EITHER by <code>group</code> — a regular expression on the NAME
 column of <code>commonParams</code>
 (<code>data.paramColumns.name</code>, default 2); fit builds L, one row
@@ -495,6 +505,7 @@ template rows exist on the day: <code>info.arcRows</code>,
 order). Without <code>paramColumns</code> every row is valid always —
 the v4 behaviour. This is how a one-day manoeuvre parameter and a
 “literal” row become the same mechanism as everything else.</li>
+</ul></li>
 <li><strong>Per-stream policy on the covariance spec</strong> —
 <code>covariance.&lt;type&gt;.estimate = "none" |    "scale" | "law"</code>
 (default <code>"law"</code> under <code>Estimate="noise"</code>) and
@@ -2132,6 +2143,9 @@ declared data.</p>
            LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT,
            LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTNONLINEAR
 
+  Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-114 (R7-05): priorsOf notes
+  that a datum&#39;s covariance is weight-independent too. With assistance from
+  Claude (Anthropic), model Claude Opus 5.5.
   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 3: R.noise carries
   the law as the bin spectrum (.S, .Sgroups) next to its ACV (.C,
   .Cgroups); .Shat is gone. With assistance from Claude (Anthropic), model
