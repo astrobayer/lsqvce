@@ -8561,7 +8561,7 @@ adjustVCEjoint>streamMeans / streamKeyOf).
 |----|-------|-----------|--------|
 | 111 (part 1) | the tier-A measurement: R7-02's runaway reproduced through `lsqvce.fit`, the candidate (positive components) on the same data, R7-01's wrap through covModel; `dev/validation/wp111_measure.m` on `measure.yml`; no toolbox change, no version | 115 (PR #130 merged 13bf7d0) | DONE (2026-10-11, PR #131, merge 3ed7f98; measured: run 38145552366) |
 | 111 (part 2) | R7-01: `kernel.psd2acv` integrates the piecewise-linear spectrum EXACTLY (closed form per segment) -- no lag period; `covModel` 'psd' 'toeplitz' no longer resamples onto floor(m/2)+1 points; **version 6.6.2** | 111 part 1 (PR #131 merged 3ed7f98) | DONE (2026-10-11, PR #132, merge 96ad12b; CI GREEN on ba810e4 first run, 632 tests) |
-| 111 (part 3) | R7-02 / R7-20: the joint law is a POSITIVE spectrum on Grid bins (`kernel.hatACV`, r = K S); `psdVCE(Q, T, Sprior)` on per-bin statistics over ALL lags; the arc factor is the Helmert factor of the arc's whole covariance; state / outputs `S`, `Sgroups` ('C0' -> 'S0', white default; 'Norm', ZeroFreqRule, floors, degenerateStart retired); `jointModelOpt` emits 2 S on fNorm; **version 6.7.0** | 111 part 2 (PR #132 merged 96ad12b) | OPEN (2026-10-11; audit CLEAN; CI pending) |
+| 111 (part 3) | R7-02 / R7-20: the joint law is a POSITIVE spectrum on Grid bins (`kernel.hatACV`, r = K S); `psdVCE(Q, T, Sprior)` on per-bin statistics over ALL lags; the arc factor is the Helmert factor of the arc's whole covariance; state / outputs `S`, `Sgroups` ('C0' -> 'S0', white default; 'Norm', ZeroFreqRule, floors, degenerateStart retired); `jointModelOpt` emits 2 S on fNorm; **version 6.7.0** | 111 part 2 (PR #132 merged 96ad12b) | OPEN (2026-10-11; audit CLEAN; CI GREEN on ace7109; R7-02 re-measured through lsqvce.fit: run 38149857047) |
 
 **The design question, and the user's decision (2026-10-11).** R7-01 (the 'toeplitz' ACV is
 circulant), R7-02 (the estimated law runs away x1e7 and the loop says "converged") and
@@ -8696,3 +8696,19 @@ part 3", 2026-10-11; version 6.7.0; tier B -- CI is the first MATLAB run).**
   2000 draws, white, 6 bins on 2 x 40): max/min one pass median 2.10, p99 5.06, two passes
   p95 13; low / high (bins 1-2 vs 3-6) p99 2.14, p99.9 2.58. The test is one pass with
   low / high < 2.6 (the leakage claim) and max/min < 6.
+- CI round 3 (ace7109): **GREEN**, 616 / 616 in ci_gate.
+- **R7-02 through `lsqvce.fit`, re-measured** ([run 38149857047](https://github.com/astrobayer/lsqvce/actions/runs/38149857047),
+  `wp111_measure` on ace7109, same arcs and seeds as part 1). The SHIPPED estimator now
+  reproduces the dense candidate to 3-4 digits on every one of the 18 fits:
+
+  | phi, arcs | SHIPPED (6.7.0): stop / r0 / truth / rho1 / \|z\|max | part 1, 6.6.1 |
+  |---|---|---|
+  | 0.5, 9 x 256 | maxPasses 6/6; 0.94-1.04; 0.47-0.51; <= 2.23 | maxPasses; 0.94-1.09; <= 3.76 |
+  | 0.8, 20 x 256 | converged 2/6, maxPasses 4/6; 0.91-1.07; 0.79-0.81; <= 2.33 | 5.7e7-6.9e7 x; rho1 -0.33 to -0.69 |
+  | 0.9, 40 x 256 | converged 6/6 in 8-10; 0.99-1.05; 0.90-0.91; <= 2.11 | 4.9e7-6.7e7 x; rho1 -0.42 to -0.68 |
+
+  The runaway is gone. "maxPasses" is the 10-pass cap of the measurement (the
+  candidate needed 11-21 passes at phi 0.5 / 0.8 for Tol 1e-2 and reached the same
+  numbers); the multiplicative Helmert update is slow near a strongly coloured
+  fixed point, not unstable. R7-01 through covModel: r(m-1)/r(0) 0.0000 and cond 9.0
+  on m = 255 / 256 / 2111 (part 2 confirmed).
