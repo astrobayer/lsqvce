@@ -44,7 +44,7 @@ a { color: #0b5ea8; }
 <h1>lsqvce.kernel.robustWeights</h1>
 <div class="purpose">IRLS weight factors from standardised whitened residuals.</div>
 <h2>Description</h2>
-<pre class="example">[fac, s, w, scalePath] = lsqvce.kernel.robustWeights(vw, influence, tuning)</pre>
+<pre class="example">[fac, s, w, scalePath, kReject] = lsqvce.kernel.robustWeights(vw, influence, tuning)</pre>
 <h3>THE one influence-function evaluation of the toolbox (R5 M2 round 2b):</h3>
 <pre class="example">the block-path driver lsqvce.engine.adjustRobust and the joint
 estimator&#x27;s robust pass both call it, so Huber / IGG3 / bisquare and
@@ -71,7 +71,11 @@ tuning     [] | 1xK double  tuning constants; [] = the defaults above</pre>
 <pre class="example">fac  n x 1 double  weight factors in [0, 1]
 s    1x1 double    the robust scale used
 w    n x 1 double  the standardised residuals vw / s
-scalePath  1xK char  &#x27;mad&#x27; | &#x27;std&#x27; | &#x27;unit&#x27; -- which scale s is</pre>
+scalePath  1xK char  &#x27;mad&#x27; | &#x27;std&#x27; | &#x27;unit&#x27; -- which scale s is
+kReject    1x1 double  the rejection point in units of s: the |w|
+           beyond which fac = 0 (igg3 k1, bisquare c; Inf for huber,
+           which rejects nothing) -- what the joint estimator&#x27;s level
+           correction needs (R7 WP-115 part 3b)</pre>
 <h3>Errors</h3>
 <pre class="example">  lsqvce:robustWeights:badInfluence  unknown influence name
   lsqvce:robustWeights:badTuning     tuning has the wrong length for the
@@ -86,6 +90,9 @@ ACCURACY  exact arithmetic on the inputs; no tolerance of its own.</pre>
 
 See also LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTVCEJOINT
 
+Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-115 part 3b: the rejection
+point kReject is returned (one table of tuning constants). With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): names
 its live callers. With assistance from Claude (Anthropic), model Claude
 Opus 5.5.

@@ -167,11 +167,14 @@ RUNTIME ROBUST FACTORS -- TWO CHANNELS, ONE FACT EACH (R5 M2, R6 WP-105)
                    factors applied AFTER the law filter (rows scaled by
                    sqrt(w) inside Wfcn; Cfcn made consistent as L D^-2 L&#x27;):
                    the innovation is weighted -- lsqvce.engine.adjustRobust.
-  opt.epochWeights the same map with ONE factor per EPOCH, folded into the
-                   arc&#x27;s per-epoch error information BEFORE the temporal
-                   law (Cep: sigma / sqrt(w), a covariance / w): the
+  opt.epochWeights the same map with ONE factor per EPOCH, applied BEFORE
+                   the temporal law as an ADDITIVE nugget q = 1/w - 1 on
+                   the temporal covariance (covModel&#x27;s cm.nugget; R7
+                   WP-115 part 3b -- it was a fold into Cep): the
                    observation is weighted -- the robust pass of
-                   lsqvce.engine.adjustVCEjoint. Never both on one arc.
+                   lsqvce.engine.adjustVCEjoint. Never both on one arc. A
+                   nugget arc carries .nugget and .wholeArc (whitened in
+                   ONE batch).
 
 RUNTIME COVARIANCE OVERRIDE (opt.covOverride)
   Every batch merges a runtime override into the base spec, so an outer
@@ -262,13 +265,17 @@ R6 WP-102), and an arc&#x27;s Cep is its own cell (finding E-01 cannot recur).</
     lsqvce:makeLoader:rowWeightSize  (R5 M2) the robust weight vector of an arc does
                                    not match the arc&#x27;s row count (rowWeights, per
                                    row, applied after the law -- adjustRobust) or its
-                                   epoch count (epochWeights, per epoch, folded into
-                                   Cep before the law -- the joint estimator, WP-105)
+                                   epoch count (epochWeights, per epoch, a nugget
+                                   before the law -- the joint estimator, WP-105)
     lsqvce:covModel:*              the temporal law is malformed (see covModel)
 
 See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.DECLARATION,
          LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.ENGINE.SYNTHLOADER
 
+Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-115 part 3b (R7-10): the
+epoch weights compose as an additive nugget (cm.nugget, whole-arc
+whitening) instead of the fold into Cep (inflateCep retired). With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-105: robust row factors wrap
 the DENSE step too (a law without a filter Wfcn used to break the
 rowWeights wrapper -- reached the first time a robust pass met the joint

@@ -291,6 +291,81 @@ function test_day_cep_composes_with_the_temporal_law_through_the_loader(tc)
     tc.verifyEqual(arc.Cfcn(1:nE, struct()), s^2 * toeplitz(lsqvce.kernel.armaACV(a, 1, nE)), 'RelTol', 1e-12);
 end
 
+function test_epoch_weights_are_an_additive_nugget(tc)
+% categories: contract, precision
+    % R7 WP-115 part 3b (R7-10, user decision (b)): the joint estimator's
+    % per-epoch robust factors w reach the loader as opt.epochWeights and
+    % compose as an ADDITIVE nugget on the temporal law,
+    %   C = D ((R_t + diag(q .* Sigma_ee)) kron I_d) D,  q = 1/w - 1,
+    % not as the old fold D / sqrt(w), which scaled the neighbours'
+    % covariances too. The arc's whitened normals must equal the dense
+    % decorrelation of THAT covariance -- a zero weight (floored 1e-12)
+    % included -- and the arc must announce itself as whitened whole.
+    rs = RandStream('mt19937ar', 'Seed', 1153);
+    d = 3;  nE = 40;  m = nE * d;
+    a = [1 -0.9];  s = 0.8;
+    r = s^2 * lsqvce.kernel.armaACV(a, 1, nE);
+    Cep = zeros(nE, d, d);  Db = zeros(m);
+    for k = 1:nE
+        Q = 0.2 * randn(rs, d, d) + diag([1 1 2.5]);  Ck = Q * Q.';
+        Cep(k, :, :) = Ck;
+        ib = (k-1)*d + (1:d);  Db(ib, ib) = chol(Ck, 'lower');
+    end
+    w = ones(nE, 1);  w([3 11 12 30]) = [0.4 0 0.05 0.9];
+    q = 1 ./ max(w, 1e-12) - 1;
+    C = Db * kron(toeplitz(r) + diag(q * r(1)), eye(d)) * Db.';
+    D = struct('A', randn(rs, m, 4), 'B', randn(rs, m, 2), 'l', randn(rs, m, 1), ...
+               't', reshape(repmat((0:nE-1)*5, d, 1), [], 1), 'Cep', Cep);
+    cov.pos = struct('type', 'arma', 'ar', a, 'sigma', s);
+    L = lsqvce.engine.makeLoader(@(day, ot) arcCells(D), 'ObservationTypes', {'pos'}, 'Covariance', cov, ...
+                                 'Arcs', 1, 'SystemId', 1, 'NumLocal', 2, 'NumCommon', 4);
+    ew = containers.Map({lsqvce.util.rowWeightKey(1, 1, 'pos', 1)}, {w});
+    arc = L.closure(1, 'pos', 1, struct('sysID', 1, 'epochWeights', ew));
+    tc.verifyTrue(arc.wholeArc, 'a nugget arc is whitened in ONE batch');
+    % tol: 1/max(w,1e-12) - 1 recomputed on the same doubles -- exact
+    tc.verifyEqual(arc.nugget, q, 'the relative nugget travels with the arc');
+    tc.verifyEqual(arc.Cep, Cep, 'Cep stays the DECLARED error information (no fold)');
+    [Aw, Bw, lw] = arc.Wfcn(1:m, arc.A, arc.B, arc.l, struct());
+    W = lsqvce.kernel.decorrFactor(C);
+    Ad = W * D.A;  Bd = W * D.B;  ld = W * D.l;
+    % tol: rotation-invariant quadratic forms of two square roots of the same
+    % inverse (G F vs the dense factor); the mirror reproduces A'C^-1 A to
+    % 2e-15 with a 1e12 nugget, 1e-8 is the composition tests' bound
+    tc.verifyEqual(Aw.'*Aw, Ad.'*Ad, 'RelTol', 1e-8);
+    tc.verifyEqual(Aw.'*lw, Ad.'*ld, 'RelTol', 1e-8);     % tol: same source
+    tc.verifyEqual(Bw.'*Bw, Bd.'*Bd, 'RelTol', 1e-8);     % tol: same source
+    tc.verifyError(@() arc.Wfcn(1:m-d, arc.A(1:m-d, :), arc.B(1:m-d, :), arc.l(1:m-d), struct()), ...
+        'lsqvce:covModel:nuggetNeedsWholeArc');
+    % the batch iterator honours wholeArc: BatchSize 7 accumulates the same
+    % normals as one batch (a causal-filter overlap would be wrong here)
+    sols = cell(1, 2);  bss = [7 1e9];
+    for kb = 1:2
+        acc = lsqvce.engine.BlockAccumulator(4, 'Backend', 'qr', 'BatchSize', bss(kb), ...
+                                             'UserOpt', struct('epochWeights', ew));
+        acc.addSystem(1, 2, L.closure, 1);
+        sols{kb} = acc.solve();
+    end
+    % tol: one QR of the same whitened rows, merged in two orders
+    tc.verifyEqual(sols{1}.x, sols{2}.x, 'RelTol', 1e-10, 'BatchSize does not touch a nugget arc');
+end
+
+function test_nugget_refusals_by_name(tc)
+% categories: contract
+    % covModel's cm.nugget composes with the per-epoch Cep only, one finite
+    % non-negative value per epoch (R7 WP-115 part 3b)
+    t = (0:9).' * 5;
+    law = struct('type', 'arma', 'ar', [1 -0.5], 'sigma', 1);
+    tc.verifyError(@() lsqvce.engine.covModel(setfield(law, 'nugget', ones(10, 1)), t), ...
+        'lsqvce:covModel:badNugget');                               % no Cep
+    lc = setfield(law, 'Cep', ones(10, 1));                          %#ok<SFLD>
+    tc.verifyError(@() lsqvce.engine.covModel(setfield(lc, 'nugget', ones(9, 1)), t), ...
+        'lsqvce:covModel:badNugget');                               % wrong length
+    tc.verifyError(@() lsqvce.engine.covModel(setfield(lc, 'nugget', -ones(10, 1)), t), ...
+        'lsqvce:covModel:badNugget');                               % negative
+    [~, ~, info] = lsqvce.engine.covModel(setfield(lc, 'nugget', zeros(10, 1)), t);
+    tc.verifyFalse(isfield(info, 'wholeArc'), 'an all-zero nugget is the plain composition');
+end
+
 function test_scalar_stream_cep_is_a_per_epoch_sigma(tc)
 % categories: contract, precision
     % A scalar stream returns D.Cep as nEpoch x 1: the per-epoch standard

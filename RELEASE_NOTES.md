@@ -1,5 +1,33 @@
 # lsqvce release notes
 
+## 6.6.0 — 2026-10-11 (WP-115 part 3b: the robust pass as an additive nugget; an unbiased robust level)
+
+- **The joint estimator's robust factors are an additive NUGGET** (review R7, R7-10; user
+  decision (b)). A factor w of an epoch raises its temporal variance to Σ_ee / w and leaves
+  its covariances with the neighbours to the law (`covModel`'s new `cm.nugget`,
+  q = 1/w − 1, composed before `Cep`). Until 6.5.0 the factor was folded into `Cep`
+  (sigma / sqrt(w)), which scaled those covariances too: under a correlated law a
+  zero-weight epoch stayed a phantom observation, and at φ = 0.9 the formal standard
+  deviation was 0.31 of the true one (measured on the runner, HANDOVER §12.43). With the
+  nugget, formal/true is 1.000 and a zero weight is a deletion. A nugget arc is whitened in
+  ONE batch (the law's filter plus an exact Woodbury correction over the down-weighted
+  epochs, 0.1–4 ms per 4096-epoch arc); `kernel.redundancyLags` gains `'Nugget'` /
+  `'LawW'` to keep its structured Σ⁻¹ sums on such an arc.
+- **The level of a robust joint run is no longer biased low** (R7-12). Measured over 20
+  seeds with the true law declared: plain 0.997, IGG3 0.81 / 0.86. The influence selects
+  the epochs with large residuals; counting the redundancy with the weights does not undo
+  that (a mirror moved 0.74 → 0.76). Now (user decision) the component update sees only
+  the REJECTED epochs (deleted), partial factors weight the solution only, and each
+  stream's level is divided by the Gaussian truncation factor of the rejection point
+  (0.9733 for IGG3's k1 = 3; 1 for Huber), returned as `R.noise.robust.truncation`.
+  The returned solution is hard as well (rejected epochs deleted, partial factors 1), its
+  `sigma0` / `Cxx` corrected for the rejected rows and τ: with the partial factors in the
+  final solve, σ·σ0 stayed 0.83 on the runner even with the corrected levels.
+  Every robust `Estimate = "noise"` fit changes its numbers.
+- `kernel.robustWeights` returns the influence's rejection point as a fifth output.
+- New identifiers: `lsqvce:covModel:badNugget`, `lsqvce:covModel:nuggetNeedsWholeArc`,
+  `lsqvce:redundancyLags:badNugget`.
+
 ## 6.5.0 — 2026-10-11 (WP-86 part 4: one verdict unit; the verdict's methods on R)
 
 - **`lsqvce.engine.verdict` is the ONE engine unit that judges a fit** (the R5 M4

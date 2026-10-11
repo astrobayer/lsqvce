@@ -22,6 +22,8 @@ function arcBatchWhiten(a, uo, cb)
 %                       (a dense m x m whitening matrix), optional
 %                       .filterMemory (default overlap), optional .nAxis
 %                       (rows epoch-major; batches hold whole epochs)
+%                       optional .wholeArc (true: ONE batch, no overlap --
+%                       a nugget arc, whose whitener is not causal)
 %     uo   1x1 struct   user options; honours .BatchSize (default 20000)
 %                       and .BatchOverlap (default a.filterMemory, else 0)
 %     cb   1x1 function_handle   cb(rows, keep, Ab, Bb, lb) called once per
@@ -57,6 +59,9 @@ function arcBatchWhiten(a, uo, cb)
 %            LSQVCE.ENGINE.VERDICT.SOURCE, LSQVCE.ENGINE.REDUNDANCY,
 %            LSQVCE.ENGINE.STREAMCONTRIBUTION, LSQVCE.KERNEL.DECORRFACTOR
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-115 part 3b: an arc that
+%   carries wholeArc (a nugget arc) is whitened in ONE batch. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 4: the diagnostics
 %   replay is lsqvce.engine.verdict.source. With assistance from Claude
 %   (Anthropic), model Claude Opus 5.5.
@@ -85,6 +90,9 @@ function arcBatchWhiten(a, uo, cb)
         end
         bs  = max(nAx, floor(bs /nAx)*nAx);
         nOv =           floor(nOv/nAx)*nAx;
+    end
+    if lsqvce.util.getfielddef(a, 'wholeArc', false)
+        bs = m;  nOv = 0;                            % R7 WP-115 part 3b: a nugget arc
     end
     bs  = max(1, min(round(bs),  m));
     nOv = max(0, min(round(nOv), bs-1));

@@ -319,6 +319,36 @@ function test_redundancyLags_rejects_bad_shapes(tc)
         'MATLAB:validators:mustBePositive');
 end
 
+function test_redundancyLags_nugget_matches_the_general_path(tc)
+% categories: precision, contract
+    % R7 WP-115 part 3b: Sigma = T + diag(c), a stationary law plus the joint
+    % estimator's rejected-epoch nuggets. 'Nugget' / 'LawW' take Sigma^-1's
+    % sub-diagonal sums from T's Toeplitz path and a Woodbury over the nugget
+    % rows; the general O(N^3) fallback on the SAME W is the reference --
+    % including a deletion-sized nugget (1e12 T_ii) next to a partial one.
+    rs = RandStream('mt19937ar', 'Seed', 115);
+    N = 80;  P = 3;  nLag = 7;
+    T  = toeplitz(0.8 .^ (0:N-1));
+    WT = chol(T);
+    c  = zeros(N, 1);  c([5 17 18 40 77]) = [0.3 2 1e12 0.7 1e12];
+    W  = chol(T + diag(c));
+    Abar = W.' \ randn(rs, N, P);
+    sp   = lsqvce.engine.sharedProbe(chol(Abar.'*Abar), 'numProbes', 40, 'seed', 9);
+    ebar = W.' \ randn(rs, N, 1);
+    rN = lsqvce.kernel.redundancyLags(Abar, W, sp.UiZ, ebar, nLag, 'Nugget', c, 'LawW', WT);
+    rG = lsqvce.kernel.redundancyLags(Abar, W, sp.UiZ, ebar, nLag);
+    % tol: two exact routes to the same sums (Woodbury + Gohberg-Semencul vs
+    % N triangular solves); the mirror agrees to 1e-16, 1e-9 of s_0 leaves
+    % eps*cond headroom for the 1e12 nugget (house bounds, HANDOVER 6.1.2)
+    verifyEqual(tc, rN.s, rG.s, 'AbsTol', 1e-9 * abs(rG.s(1)), 'the nugget sums equal the general path');
+    % tol: exact -- Omega does not touch the sums, the same arithmetic on both calls
+    verifyEqual(tc, rN.omega, rG.omega, 'Omega is the same computation');
+    verifyError(tc, @() lsqvce.kernel.redundancyLags(Abar, W, sp.UiZ, ebar, nLag, 'Nugget', c(1:end-1), ...
+        'LawW', WT), 'lsqvce:redundancyLags:badNugget');
+    verifyError(tc, @() lsqvce.kernel.redundancyLags(Abar, W, sp.UiZ, ebar, nLag, 'Nugget', c), ...
+        'lsqvce:redundancyLags:badNugget');
+end
+
 %% ============================================ Phase C: per-frequency PSD VCE
 function test_psdVCE_identity_when_omega_equals_s(tc)
 % categories: precision
