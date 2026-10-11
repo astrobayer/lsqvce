@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.util.arcKey</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.util.arcKey</div>
+<h1>lsqvce.util.arcKey</h1>
+<div class="purpose">The one key of an arc in the joint estimator: &#x27;s&lt;sys&gt;_&lt;obsType&gt;_d&lt;day&gt;_a&lt;arc&gt;&#x27;.</div>
+<h2>Description</h2>
+<pre class="example">key = lsqvce.util.arcKey(sysID, obsType, day, arc)
+
+The identity the joint estimator pins its arc factors on (WP-34:
+out.arcKeys, Sigma2_0) and the &#x27;arc&#x27; preset of the redundancy / stream
+contribution group keys. Defined ONCE here (review R7, R7-43): it was
+formatted in two places and parsed back by a regex in three, which an
+obsType containing &#x27;_d&lt;digits&gt;_a&#x27; could defeat. Nothing parses it now:
+the joint estimator carries each arc&#x27;s stream key next to it
+(out.arcStreams).
+
+INPUT   sysID 1x1 double | char;  obsType char | string;
+        day 1x1 double;  arc 1x1 double | char
+OUTPUT  key 1xK char
+ERRORS  none of its own
+EXAMPLE lsqvce.util.arcKey(71, &#x27;pos&#x27;, 12, 3)   -&gt; &#x27;s71_pos_d12_a3&#x27;
+
+See also LSQVCE.UTIL.STREAMKEY, LSQVCE.UTIL.ROWWEIGHTKEY,
+         LSQVCE.ENGINE.ADJUSTVCEJOINT
+
+Created 2026-10-11 (CEST, UTC+02:00) with assistance from Claude
+(Anthropic), model Claude Opus 5.5 -- R7 WP-115 part 4 (R7-43).</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
+</body></html>

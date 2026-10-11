@@ -190,7 +190,7 @@ qualified one you type.
 | `lsqvce.engine.verdict.ftest` | nested-model F-test |
 | `lsqvce.engine.verdict.ellipse` | confidence ellipses |
 | `lsqvce.kernel.stat` | distribution kernel (no Statistics Toolbox) |
-| `lsqvce.engine.resolveSatSpecs`, `lsqvce.engine.satKeyOf` | per-satellite config resolution and the shared satellite-key convention |
+| `lsqvce.engine.resolveSatSpecs`, `lsqvce.util.streamKey` | per-satellite config resolution and the one stream key `satKey\|obsType` (R7-43) |
 
 ### KERNEL tier — numerical building blocks
 
@@ -715,7 +715,7 @@ doc lsqvce              % the landing page
 | `dev/tests/test_util.m` | `getfielddef`, `mergeStruct` (10) |
 | `dev/tests/test_vceFunction.m` | `vce` + `diagnoseAccum` (KeepLocal guard) |
 | `dev/tests/test_signalCore.m` | `outliers`, `varWhiten`, `ar2arma` |
-| `dev/tests/test_streamUtils.m` | `collectResiduals`, `whitenessCorr`, `satKeyOf`, and the loader / covModel error-information seam (`Cep`, R6 WP-90) (15) |
+| `dev/tests/test_streamUtils.m` | `collectResiduals`, `whitenessCorr`, `streamKey` / `arcKey`, and the loader / covModel error-information seam (`Cep`, R6 WP-90) (15) |
 | `validation/*.py` | Python mirrors of the numerical properties |
 
 ---

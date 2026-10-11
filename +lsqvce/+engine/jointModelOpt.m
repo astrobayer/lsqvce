@@ -223,7 +223,7 @@ end
 function [satKey, ot] = splitStreamKey(s)
 %SPLITSTREAMKEY  Accept 'satKey|obsType' or {sysID, obsType}.
     if iscell(s) && numel(s) == 2
-        satKey = matlab.lang.makeValidName(char(string(s{1})));
+        [~, satKey] = lsqvce.util.streamKey(s{1});
         ot     = char(string(s{2}));
         return
     end
@@ -233,7 +233,7 @@ function [satKey, ot] = splitStreamKey(s)
              ['A stream must be ''satKey|obsType'' or {sysID, obsType} ' ...
               '(got ''%s'').'], char(string(s)));
     end
-    satKey = matlab.lang.makeValidName(char(parts(1)));
+    [~, satKey] = lsqvce.util.streamKey(parts(1));
     ot     = char(parts(2));
 end
 

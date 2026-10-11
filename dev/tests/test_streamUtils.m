@@ -75,12 +75,20 @@ function testCollectResidualsRejectsMissingField(tc)
     tc.verifySubstring(caught.message, 'zz');   % the message names the field
 end
 
-function testSatKeyOf(tc)
+function testStreamAndArcKeysAreDefinedOnce(tc)
 % categories: contract
-    tc.verifyEqual(lsqvce.engine.satKeyOf('C'), 's_C');
-    tc.verifyEqual(lsqvce.engine.satKeyOf("D"), 's_D');
-    tc.verifyEqual(lsqvce.engine.satKeyOf(1),   's_1');
-    tc.verifyTrue(isvarname(lsqvce.engine.satKeyOf(7)));   % always a legal field name
+    % R7-43 (WP-115 part 4): the stream key and the arc key each have ONE
+    % definition (lsqvce.util.streamKey / arcKey); they were composed inline
+    % in eight places and parsed back by a regex. The formats are the ones
+    % out.arcKeys / R.noise.stream always had.
+    tc.verifyEqual(lsqvce.util.streamKey(1, 'kbr'), 'x1|kbr');
+    tc.verifyEqual(lsqvce.util.streamKey("C", "pos"), 'C|pos');
+    [k, s] = lsqvce.util.streamKey(7);
+    tc.verifyEqual({k, s}, {'x7', 'x7'}, 'without obsType the key is the satKey');
+    tc.verifyTrue(isvarname(s), 'satKey is always a legal field name');
+    tc.verifyEqual(lsqvce.util.arcKey(71, 'pos', 12, 3), 's71_pos_d12_a3');
+    tc.verifyEqual(lsqvce.util.arcKey(1, 'acc_x', 20260901, 2), 's1_acc_x_d20260901_a2', ...
+        'a YYYYMMDD day prints exactly; an underscore in the obsType is carried, not parsed');
 end
 
 %% =================================================================== helpers

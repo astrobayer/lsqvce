@@ -35,7 +35,6 @@
 %   redundancy           - redundancy numbers (data pass)
 %   residuals            - second data pass: residuals and quadratic forms
 %   resolveNc            - common-parameter count derived from the systems
-%   satKeyOf             - satellite key (makeValidName) helper
 %   synthLoader        - synthetic block-arrow loader (engine-tier fixture; leaves in M4)
 %   sharedProbe          - shared Hutchinson probe generator (RNG contract)
 %   streamContribution   - contribution per stream

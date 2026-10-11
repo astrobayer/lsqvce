@@ -53,7 +53,7 @@ function cm = applyCovOverride(cm, ovr, obsType, opt, day, arcID)
         cm = lsqvce.util.mergeStruct(cm, ovr.(obsType));
     end
     if isfield(ovr, 'bySys') && isfield(opt, 'sysID')
-        satKey = matlab.lang.makeValidName(char(string(opt.sysID)));
+        [~, satKey] = lsqvce.util.streamKey(opt.sysID);
         if isfield(ovr.bySys, satKey) && isfield(ovr.bySys.(satKey), obsType)
             cm = lsqvce.util.mergeStruct(cm, ovr.bySys.(satKey).(obsType));
         end

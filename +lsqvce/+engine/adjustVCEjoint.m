@@ -183,6 +183,9 @@ function out = adjustVCEjoint(accFcn, opt)
 %       .arcKeys   M x 1 cell arc keys s<sys>_<obsType>_d<day>_a<arc> pinned
 %                             on pass 1 (LSQVCE.ENGINE.REDUNDANCY's 'arc' format) --
 %                             the ONE identity .sigma2 and Sigma2_0 align to
+%       .arcStreams M x 1 cell each arc's stream key 'satKey|obsType'
+%                             (LSQVCE.UTIL.STREAMKEY), aligned to .arcKeys --
+%                             carried, so nobody parses an arc key (R7-43)
 %       .skips     S x 3 cell {pass, key, reason} for every arc skipped in
 %                             any pass ('gap' | 'nonPD'); a skipped arc KEEPS
 %                             its previous factor
@@ -249,6 +252,10 @@ function out = adjustVCEjoint(accFcn, opt)
 %   See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
 %            LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-115 part 4 (R7-43): stream
+%   and arc keys from lsqvce.util.streamKey / arcKey; the stream of an arc is
+%   carried (out.arcStreams), the regex that parsed it back is gone. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-115 part 3b (R7-10, R7-12;
 %   user decisions (b) and 2026-10-11): the robust factors are an additive
 %   nugget (no longer folded into Cep); the component update sees only the
@@ -451,8 +458,8 @@ end
         % pass 1) lets the factory update anything that has its own variance
         % component outside the streams -- the prior groups (Koch-Kusche).
         model = struct('C', C, 'sigma2', sigma2, 'iter', it, ...
-                       'streamSigma2', streamMeans(pinnedKeys, sigma2), ...
-                       'arcFactor', arcFactorMap(pinnedKeys, pinnedRow, sigma2, o), ...   % R7-13
+                       'streamSigma2', streamMeans(pinnedStream, sigma2), ...
+                       'arcFactor', arcFactorMap(pinnedStream, pinnedRow, sigma2, o), ...   % R7-13
                        'Cgroups', Cmap, 'Pool', char(o.Pool), 'Estimate', o.Estimate, ...
                        'lastSol', lastSol, 'rowWeights', W);   % R6 WP-105: the robust factors
         acc   = accFcn(model);
@@ -477,7 +484,7 @@ end
         % WP-34 (fixes F-02): arcs are KEYED, the factor map is pinned on the
         % PASS-1 ENUMERATION, and a skipped arc keeps its previous factor --
         % one skip can no longer shift every later arc's factor by position.
-        [omegaT, sT, keys, keysAll, skips, wstats, rowAll] = ...
+        [omegaT, sT, keys, keysAll, skips, wstats, rowAll, streamAll, streamOf] = ...
             sweepArcs(acc, sol, sp.UiZ, nLag, C, s2Map, v);
         nArc = numel(keys);
         if nArc == 0
@@ -501,7 +508,7 @@ end
             % Pass 1: pin the arc identity on the ENUMERATION (skipped arcs
             % included -- a pass-1 skip keeps the default factor 1).
             pinnedKeys = keysAll;
-            pinnedStream = cellfun(@streamKeyOf, pinnedKeys(:), 'UniformOutput', false);
+            pinnedStream = streamAll;
             pinnedRow = rowAll;
             s2Map = containers.Map('KeyType','char', 'ValueType','double');
             if isempty(o.Sigma2_0)
@@ -559,7 +566,7 @@ end
         % arcs of streams whose policy is "law"; "scale" streams get arc
         % factors only (their mean is the Helmert factor); "none" streams are
         % untouched. out.C stays the 'all'-group C (the first group's otherwise).
-        streamOf = cellfun(@streamKeyOf, keys(:), 'UniformOutput', false);
+        streamOf = streamOf(:);
         polOf    = cellfun(@(sk) policyOf(o.Estimate, sk), streamOf, 'UniformOutput', false);
         grpOf    = cellfun(@(sk) groupKeyOf(o.Pool, sk), streamOf, 'UniformOutput', false);
         lawCols  = strcmp(polOf, 'law');
@@ -717,7 +724,7 @@ end
         % R5 M4 4a: the per-stream pass record Results.convergence reads --
         % the stream's level factor and its Ljung-Box whiteness on the
         % law-whitened residuals of THIS pass (K = 20 lags, alpha 0.05).
-        [hist.streams, sigRow, whiteRow, pRow] = whitenessRow(wstats, streamMeans(pinnedKeys, sigma2));
+        [hist.streams, sigRow, whiteRow, pRow] = whitenessRow(wstats, streamMeans(pinnedStream, sigma2));
         hist.sigma(it, :)     = sigRow;              %#ok<AGROW>
         hist.white(it, :)     = whiteRow;            %#ok<AGROW>
         hist.whitePval(it, :) = pRow;                %#ok<AGROW>
@@ -778,8 +785,8 @@ end
     % corrected levels, gave it all back: sigma*sigma0 stayed 0.83.
     if ~userStop
         modelF = struct('C', C, 'sigma2', sigma2, 'iter', numel(hist.maxDev), ...
-                        'streamSigma2', streamMeans(pinnedKeys, sigma2), ...
-                        'arcFactor', arcFactorMap(pinnedKeys, pinnedRow, sigma2, o), ...   % R7-13
+                        'streamSigma2', streamMeans(pinnedStream, sigma2), ...
+                        'arcFactor', arcFactorMap(pinnedStream, pinnedRow, sigma2, o), ...   % R7-13
                         'Cgroups', Cmap, 'Pool', char(o.Pool), 'Estimate', o.Estimate, ...
                         'lastSol', lastSol, 'rowWeights', hardWeights(W));
         accF = accFcn(modelF);
@@ -789,7 +796,7 @@ end
                  'userStop', userStop, 'Cgroups', Cmap, ...
                  'sol', solF, 'converged', converged, 'nIter', numel(hist.maxDev), ...
                  'history', hist, ...
-                 'arcKeys', {pinnedKeys(:)}, ...
+                 'arcKeys', {pinnedKeys(:)}, 'arcStreams', {pinnedStream(:)}, ...
                  'skips', {hist.skips}, ...
                  'seed', o.Seed, ...                                   % R7-37
                  'robust', struct('influence', char(o.Influence), 'scale', rscale, ...
@@ -878,8 +885,7 @@ function [fac, scale, streams, kReject, rowsOf] = perStreamWeights(vw, keys, siz
     fac = ones(n, 1);
     skey = cell(size(keys, 1), 1);
     for kk = 1:size(keys, 1)
-        skey{kk} = sprintf('%s|%s', matlab.lang.makeValidName(char(string(keys{kk,1}))), ...
-                           char(string(keys{kk,2})));
+        skey{kk} = lsqvce.util.streamKey(keys{kk,1}, keys{kk,2});
     end
     streams = unique(skey).';
     streams = streams(~startsWith(streams, 'prior_') & ~contains(streams, '|prior_'));
@@ -978,8 +984,7 @@ function z = chiCalibrated(uEp, qEp, dEp, keys, sizes)
     nA = size(keys, 1);
     skey = cell(nA, 1);
     for kk = 1:nA
-        skey{kk} = sprintf('%s|%s', matlab.lang.makeValidName(char(string(keys{kk,1}))), ...
-                           char(string(keys{kk,2})));
+        skey{kk} = lsqvce.util.streamKey(keys{kk,1}, keys{kk,2});
     end
     arcOf = repelem((1:nA).', sizes(:));
     streamOf = skey(arcOf);
@@ -1059,7 +1064,8 @@ function [uEp, keys, sizes, qEp, dEp] = epochResiduals(res)
 end
 
 %==========================================================================
-function [omegaT, sT, keys, keysAll, skips, wstats, rowAll] = sweepArcs(acc, sol, UiZ, nLag, C, s2Map, v)
+function [omegaT, sT, keys, keysAll, skips, wstats, rowAll, streamAll, keyStream] = ...
+    sweepArcs(acc, sol, UiZ, nLag, C, s2Map, v)
 %SWEEPARCS  Steps 7-8: re-stream every arc, returning the WEIGHTED per-lag
 %   temporal vectors Omega^m_n and s^m_n (eqs. 6.5.22-6.5.23), one COLUMN per
 %   arc. Mirrors the arc enumeration used by LSQVCE.ENGINE.REDUNDANCY and
@@ -1075,6 +1081,10 @@ function [omegaT, sT, keys, keysAll, skips, wstats, rowAll] = sweepArcs(acc, sol
 %                            LSQVCE.UTIL.ROWWEIGHTKEY(sysID, day, obsType, arc),
 %                            aligned to keysAll (R7-13: how a per-arc factor
 %                            reaches the arc it belongs to)
+%     streamAll Ma x 1 cell  the STREAM key of every enumerated arc
+%                            (lsqvce.util.streamKey), aligned to keysAll
+%     keyStream 1 x M  cell  the same, aligned to keys
+%   R7-43: the stream of an arc is CARRIED, never parsed back out of its key.
 %   The arc factor is looked up BY KEY in s2Map (containers.Map; missing or
 %   empty map -> 1), never by position: one skip can no longer shift every
 %   later arc's factor.
@@ -1098,6 +1108,7 @@ function [omegaT, sT, keys, keysAll, skips, wstats, rowAll] = sweepArcs(acc, sol
     keys   = {};
     keysAll = {};
     rowAll  = {};
+    streamAll = {};  keyStream = {};
     skips  = cell(0, 2);
     nArc   = 0;
     wstats = containers.Map('KeyType', 'char', 'ValueType', 'any');   % stream -> [lag sums; pair counts] (R7-38)
@@ -1128,9 +1139,10 @@ function [omegaT, sT, keys, keysAll, skips, wstats, rowAll] = sweepArcs(acc, sol
             for ot = 1:numel(meta.obsTypes)
                 obsType = meta.obsTypes{ot};
                 for a = meta.arcs{ot}(:).'
-                    key = sprintf('s%s_%s_d%s_a%s', string(st.sysID), ...
-                                  string(obsType), string(d), string(a));
+                    key = lsqvce.util.arcKey(st.sysID, obsType, d, a);
+                    sk  = lsqvce.util.streamKey(st.sysID, obsType);
                     keysAll{end+1} = key;                    %#ok<AGROW>
+                    streamAll{end+1, 1} = sk;                %#ok<AGROW>
                     rowAll{end+1, 1} = lsqvce.util.rowWeightKey(st.sysID, d, obsType, a); %#ok<AGROW>
                     [om, sn, why, wsum, wm] = oneArc(st, obsType, a, d, uo, UiZ, ...
                                            nLag, x, ySys, Gsys, LlS);
@@ -1138,7 +1150,6 @@ function [omegaT, sT, keys, keysAll, skips, wstats, rowAll] = sweepArcs(acc, sol
                         skips(end+1, :) = {key, why};        %#ok<AGROW>
                         continue
                     end
-                    sk = sprintf('%s|%s', matlab.lang.makeValidName(char(string(st.sysID))), char(obsType));
                     if isKey(wstats, sk), w0 = wstats(sk); else, w0 = zeros(2*(WHITE_LAGS() + 1), 1); end
                     wstats(sk) = w0 + [wsum; wm];
                     nArc = nArc + 1;
@@ -1149,6 +1160,7 @@ function [omegaT, sT, keys, keysAll, skips, wstats, rowAll] = sweepArcs(acc, sol
                         s2 = 1;                              % pass 1 default
                     end
                     keys{end+1}     = key;                   %#ok<AGROW>
+                    keyStream{end+1} = sk;                   %#ok<AGROW>
                     omegaT(:, nArc) = s2 * C .* om;          %#ok<AGROW>
                     sT(:, nArc)     = s2 * C .* sn;          %#ok<AGROW>
                 end
@@ -1329,18 +1341,17 @@ function s = skipSummary(skips)
     s = strjoin(parts, ', ');
 end
 
-function M = streamMeans(arcKeys, sigma2)
+function M = streamMeans(arcStreams, sigma2)
 %STREAMMEANS  containers.Map 'satKey|obsType' -> mean arc factor of the stream.
-%   Keys are the pinned arc keys 's<sysID>_<obsType>_d<day>_a<arc>' (WP-34);
-%   empty before pass 1 pins them (then every stream's level is its declared
+%   arcStreams are the pinned arcs' STREAM keys, aligned to sigma2 (R7-43:
+%   carried from sweepArcs, no longer parsed out of the arc keys); empty
+%   before pass 1 pins them (then every stream's level is its declared
 %   sigma, factor 1).
     M = containers.Map('KeyType', 'char', 'ValueType', 'double');
-    if isempty(arcKeys) || isempty(sigma2) || numel(arcKeys) ~= numel(sigma2), return, end
+    if isempty(arcStreams) || isempty(sigma2) || numel(arcStreams) ~= numel(sigma2), return, end
     acc = containers.Map('KeyType', 'char', 'ValueType', 'any');
-    for k = 1:numel(arcKeys)
-        tok = regexp(arcKeys{k}, '^s(.+?)_(.+)_d[^_]+_a', 'tokens', 'once');   % R5-D8 6: obsType may carry underscores
-        if isempty(tok), continue, end
-        sk = sprintf('%s|%s', matlab.lang.makeValidName(tok{1}), tok{2});
+    for k = 1:numel(arcStreams)
+        sk = arcStreams{k};
         if ~isKey(acc, sk), acc(sk) = []; end
         v = sigma2(k);
         if isfinite(v) && v > 0, acc(sk) = [acc(sk); v]; end
@@ -1352,7 +1363,7 @@ function M = streamMeans(arcKeys, sigma2)
     end
 end
 
-function F = arcFactorMap(arcKeys, rowKeys, sigma2, o)
+function F = arcFactorMap(arcStreams, rowKeys, sigma2, o)
 %ARCFACTORMAP  containers.Map rowWeightKey -> the arc's variance factor
 %   RELATIVE to its stream's level (sigma2_m / mean over the stream), for the
 %   arcs of every stream that carries arc factors and is estimated (R7-13).
@@ -1360,21 +1371,14 @@ function F = arcFactorMap(arcKeys, rowKeys, sigma2, o)
 %   level rides on bySys as before, so level x factor = sigma2_m is what the
 %   loader weights the arc with. Empty before pass 1 pins the arcs.
     F = containers.Map('KeyType', 'char', 'ValueType', 'double');
-    if isempty(arcKeys) || numel(rowKeys) ~= numel(arcKeys) || numel(sigma2) ~= numel(arcKeys), return, end
-    lvl = streamMeans(arcKeys, sigma2);
-    for k = 1:numel(arcKeys)
-        sk = streamKeyOf(arcKeys{k});
+    if isempty(arcStreams) || numel(rowKeys) ~= numel(arcStreams) || numel(sigma2) ~= numel(arcStreams), return, end
+    lvl = streamMeans(arcStreams, sigma2);
+    for k = 1:numel(arcStreams)
+        sk = arcStreams{k};
         if ~arcFactorsOf(o.ArcFactors, sk) || strcmp(policyOf(o.Estimate, sk), 'none'), continue, end
         if ~isKey(lvl, sk) || ~(isfinite(sigma2(k)) && sigma2(k) > 0), continue, end
         F(rowKeys{k}) = sigma2(k) / lvl(sk);
     end
-end
-
-function sk = streamKeyOf(arcKey)
-%STREAMKEYOF  's<sysID>_<obsType>_d..' -> 'satKey|obsType' (the override key).
-    tok = regexp(arcKey, '^s(.+?)_(.+)_d[^_]+_a', 'tokens', 'once');   % R5-D8 6: obsType may carry underscores
-    if isempty(tok), sk = arcKey; return, end
-    sk = sprintf('%s|%s', matlab.lang.makeValidName(tok{1}), tok{2});
 end
 
 function arcSpreadGuard(spreadHist)

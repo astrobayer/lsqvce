@@ -223,6 +223,9 @@ OPTIONS (Name/Value)
   .arcKeys   M x 1 cell arc keys s&lt;sys&gt;_&lt;obsType&gt;_d&lt;day&gt;_a&lt;arc&gt; pinned
                         on pass 1 (LSQVCE.ENGINE.REDUNDANCY&#x27;s &#x27;arc&#x27; format) --
                         the ONE identity .sigma2 and Sigma2_0 align to
+  .arcStreams M x 1 cell each arc&#x27;s stream key &#x27;satKey|obsType&#x27;
+                        (LSQVCE.UTIL.STREAMKEY), aligned to .arcKeys --
+                        carried, so nobody parses an arc key (R7-43)
   .skips     S x 3 cell {pass, key, reason} for every arc skipped in
                         any pass (&#x27;gap&#x27; | &#x27;nonPD&#x27;); a skipped arc KEEPS
                         its previous factor
@@ -286,6 +289,10 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
          LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 
+Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-115 part 4 (R7-43): stream
+and arc keys from lsqvce.util.streamKey / arcKey; the stream of an arc is
+carried (out.arcStreams), the regex that parsed it back is gone. With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-115 part 3b (R7-10, R7-12;
 user decisions (b) and 2026-10-11): the robust factors are an additive
 nugget (no longer folded into Cep); the component update sees only the

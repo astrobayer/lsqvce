@@ -39,7 +39,6 @@
     <tocitem target="html/index.html">Stream and covariance helpers (the GRACE-FO template is examples/demo_grace_dataLoader.m)
       <tocitem target="html/lsqvce.engine.collectResiduals.html">lsqvce.engine.collectResiduals</tocitem>
       <tocitem target="html/lsqvce.kernel.whitenessCorr.html">lsqvce.kernel.whitenessCorr</tocitem>
-      <tocitem target="html/lsqvce.engine.satKeyOf.html">lsqvce.engine.satKeyOf</tocitem>
     </tocitem>
     <tocitem target="html/index.html">Combining data sets
     </tocitem>
@@ -97,6 +96,8 @@
 <tocitem target="html/lsqvce.util.callUser.html">lsqvce.util.callUser</tocitem>
       <tocitem target="html/lsqvce.util.onPass.html">lsqvce.util.onPass</tocitem>
       <tocitem target="html/lsqvce.util.rowWeightKey.html">lsqvce.util.rowWeightKey</tocitem>
+      <tocitem target="html/lsqvce.util.streamKey.html">lsqvce.util.streamKey</tocitem>
+      <tocitem target="html/lsqvce.util.arcKey.html">lsqvce.util.arcKey</tocitem>
       <tocitem target="html/lsqvce.util.toolboxVersion.html">lsqvce.util.toolboxVersion</tocitem>
       <tocitem target="html/lsqvce.util.getfielddef.html">lsqvce.util.getfielddef</tocitem>
       <tocitem target="html/lsqvce.util.mergeStruct.html">lsqvce.util.mergeStruct</tocitem>

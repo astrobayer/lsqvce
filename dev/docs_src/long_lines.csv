@@ -28,6 +28,6 @@
 +lsqvce/+util/log.m,1
 +lsqvce/Options.m,7
 +lsqvce/Results.m,3
-+lsqvce/fit.m,6
++lsqvce/fit.m,5
 
 +lsqvce/+engine/verdict.m,5

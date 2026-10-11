@@ -38,7 +38,6 @@ engine.gcvLambda,ENGINE,GCV choice of the regularisation weight
 engine.datum,ENGINE,datum defect detection and handling
 engine.mapreduce,ENGINE,serial / parfor / spmd task runner with ordered reduce
 engine.resolveNc,ENGINE,common-parameter count derived from the systems
-engine.satKeyOf,ENGINE,satellite key (makeValidName) helper
 kernel.robustWeights,KERNEL,IRLS weight factors (Huber / IGG3 / bisquare, MAD scale)
 kernel.whittle,ENGINE,Whittle likelihood fit of a VAR model
 engine.checkPSD,ENGINE,PSD sanity check
@@ -64,6 +63,8 @@ util.callUser,KERNEL,call a user function: outputs counted once and errors wrapp
 util.toolboxVersion,KERNEL,the version string from Contents.m (runMeta provenance, setup report)
 util.onPass,KERNEL,fires Options.OnPass with the merged per-pass context
 util.rowWeightKey,KERNEL,key convention for per-arc robust weights
+util.streamKey,KERNEL,the one stream key satKey|obsType (R7-43)
+util.arcKey,KERNEL,the one arc key of the joint estimator (R7-43)
 util.log,KERNEL,toolbox-wide logging state
 util.mergeStruct,KERNEL,struct merge (later wins)
 util.verbosity,KERNEL,verbosity level resolution and formatting
