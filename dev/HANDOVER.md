@@ -8390,7 +8390,7 @@ only").**
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
 | 115 (part 3a) | the tier-A measurement §12.39 asked for before the additive nugget is built: `dev/validation/wp115_measure.m` on the self-hosted runner through a new, NON-gating workflow `measure.yml` (pull requests touching `dev/validation/*.m` or the workflow, or by hand); R7-12 multi-seed level, R7-10 fold / nugget / deletion, the nugget's per-arc cost; no toolbox change, no version | 86 part 4 (PR #127 merged 8aef05c) | DONE (2026-10-11, PR #128, merge 3eb193c; CI GREEN on cfa9375; measured: run 38131010881) |
-| 115 (part 3b) | R7-10 the robust factors as an ADDITIVE nugget (`covModel` `cm.nugget`, whole-arc Woodbury whitener; `inflateCep` retired; `redundancyLags` 'Nugget'/'LawW'); R7-12 the level unbiased: the component update sees only REJECTED epochs, the level divided by the rejection point's Gaussian truncation factor (`R.noise.robust.truncation`); **version 6.6.0** | 115 part 3a (PR #128 merged 3eb193c) | OPEN (2026-10-11; audit CLEAN; CI pending) |
+| 115 (part 3b) | R7-10 the robust factors as an ADDITIVE nugget (`covModel` `cm.nugget`, whole-arc Woodbury whitener; `inflateCep` retired; `redundancyLags` 'Nugget'/'LawW'); R7-12 the level unbiased: the component update sees only REJECTED epochs, the level divided by the rejection point's Gaussian truncation factor (`R.noise.robust.truncation`); **version 6.6.0** | 115 part 3a (PR #128 merged 3eb193c) | OPEN (2026-10-11; audit CLEAN; CI GREEN on baf428b after one red round; measured: run 38137611458) |
 
 **Why CI (user: "Can you use CI for WP115 part3", 2026-10-11).** §12.39 left the nugget
 waiting on a tier-A measurement; the container has no MATLAB and the runner is the
@@ -8521,6 +8521,10 @@ version 6.6.0; tier B -- the CI run is the first MATLAB execution).**
   accumulation after the loop with the rejected epochs deleted and partial factors 1
   (`hardWeights`), its s0sq / sigma0 / Cxx scaled by dof / ((dof - nRej) tau)
   (`hardSolution`; tau row-weighted over the weighted epochs, nRej the rejected rows).
+- **CI round 2 (baf428b): GREEN.** The measurement on the same head (run 38137611458, 20
+  seeds, robust/plain, se in brackets): law mode a 0.9961 (0.0015), b 1.0009 (0.0014);
+  scale mode (the true law declared) a 0.9962 (0.0012), b 1.0054 (0.0007) -- against
+  0.833 / 0.840 before. R7-12 is closed at tier A.
 - **Expected CI movement** (tier B): every robust `Estimate = "noise"` test changes its
   numbers (testRobustPassInside..., testJointRobustPassKeepsCleanMultiAxisEpochs,
   testRobustWarnsAtTheBreakdownPoint); each move is read, not re-tolerated.
