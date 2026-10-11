@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.8.0 — User Manual</title>
+  <title>lsqvce 6.9.0 — User Manual</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.8.0 — User Manual</h1>
+<h1 class="title">lsqvce 6.9.0 — User Manual</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 <p class="date">built from the sources; the single documentation
@@ -1605,6 +1605,18 @@ class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb15-1"><a h
 <span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="va">R</span> <span class="op">=</span> <span class="va">lsqvce</span>.<span class="va">fit</span>(<span class="va">data</span><span class="op">,</span> <span class="va">Robust</span><span class="op">=</span><span class="st">&quot;huber&quot;</span>)<span class="op">;</span>                   <span class="co">% adjustRobust (IRLS)</span></span>
 <span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="va">data</span> <span class="op">=</span> <span class="va">struct</span>(<span class="ss">&#39;batchFcn&#39;</span><span class="op">,</span> <span class="op">@</span>(<span class="va">k</span><span class="op">,</span> <span class="va">x</span>) <span class="va">myJacobian</span>(<span class="va">k</span><span class="op">,</span> <span class="va">x</span>)<span class="op">,</span> <span class="ss">&#39;numBatches&#39;</span><span class="op">,</span> <span class="fl">20</span><span class="op">,</span> <span class="ss">&#39;x0&#39;</span><span class="op">,</span> <span class="va">x0</span>)<span class="op">;</span></span>
 <span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="va">R</span> <span class="op">=</span> <span class="va">lsqvce</span>.<span class="va">fit</span>(<span class="va">data</span><span class="op">,</span> <span class="va">MaxPasses</span><span class="op">=</span><span class="fl">15</span>)<span class="op">;</span>                     <span class="co">% adjustNonlinear (Gauss-Newton)</span></span></code></pre></div>
+<p>How Gauss–Newton steps (since 6.9.0, R7 WP-113): - Every step is one
+least-squares solve at the current x. Marquardt damping is applied to
+the parameters themselves, as rows <code>sqrt(λ·d_j)·dx_j ≈ 0</code>
+with <code>d = diag(J'PJ)</code>. - A declared prior
+<code>K·x ≈ x0</code> enters each step as <code>K·dx ≈ x0 − K·x</code>,
+so the iteration converges to the optimum of the declared objective
+<code>‖w‖²_P + ‖(K·x − x0)/σ‖²</code>. Before, the prior acted on the
+increment and missed that optimum. - A step that raises the objective is
+rejected from the first pass on. λ grows tenfold (from 0, it starts at
+1e-3), and a shorter step is solved from the same x. - A run that stops
+at <code>MaxPasses</code> returns the best point it accepted, never the
+step it had just rejected.</p>
 <p>Stream names carry no meaning: the axis count of a stream comes from
 the day it returns (<code>Cep</code> or <code>nAxis</code>, §7), never
 from its name.</p>
@@ -1960,8 +1972,9 @@ problems with <code>data.x0</code></h3>
 <tr class="even">
 <td><code>Lambda0</code></td>
 <td>1e-6</td>
-<td>initial Levenberg–Marquardt damping; a rejected step multiplies
-it</td>
+<td>initial Marquardt damping of the parameters
+(<code>sqrt(λ·diag(J'PJ))</code> rows); a rejected step multiplies it by
+10 (from 0: 1e-3), an accepted one divides it (below 1e-12: 0)</td>
 </tr>
 </tbody>
 </table>

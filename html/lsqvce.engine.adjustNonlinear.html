@@ -50,24 +50,40 @@ Re-linearisation as a POLICY over the one accumulator (R5 M2, WP-81
 round 2c&#x27;; finding H-02): the batched source [A, w, p] = batchFcn(k, x)
 (Jacobian and reduced observation l - f(x) at the current x) is read as
 a local-free streaming system (LSQVCE.ENGINE.BATCHSYSTEM with a State
-map holding x); every pass accumulates at the current x with the
-accumulator&#x27;s own Levenberg damping (Reg &quot;lm&quot;), solves for the step,
-and the NEXT pass&#x27;s accumulation at x + dx is also the step&#x27;s
-evaluation (its vPv decides acceptance), so nothing is read twice.
+map holding x); every pass accumulates at the current x, solves for the
+step, and the NEXT pass&#x27;s accumulation at x + dx is also the step&#x27;s
+evaluation (its F decides acceptance), so nothing is read twice.</pre>
+<h3>THE STEP (R7 WP-113). One least-squares solve on the accumulation at x</h3>
+<pre class="example">with two kinds of pseudo-observations on the COMMON block:
+  the prior, shifted to x:   K dx ~ x0 - K x            (R7-04)
+  Marquardt damping:         sqrt(lam d_j) dx_j ~ 0,  d = diag(J&#x27;PJ)  (R7-14)
+Until 6.9 the prior entered as K dx ~ x0 -- a prior on the INCREMENT,
+whose fixed point is not the declared optimum (b reported +0.60 against
+the regularised +0.30 on the decay fixture) -- and the damping was the
+accumulator&#x27;s Reg &quot;lm&quot;, which acts on a LOCAL block; a batch source has
+none, so the damping was a no-op and a rejected step was re-solved
+unchanged until MaxIter (review R7, dom_lsq F2 / F3).
 
-Step control (that of the retired flat solver, kept unchanged): a step that
-raises vPv is rejected and the damping grows tenfold (up to 1e12 -&gt;
-diverged); an accepted step shrinks it tenfold; convergence when
-max|dx_j / sigma_j| &lt; TolX, or the relative vPv change &lt; TolF. The final
-Results is an UNDAMPED solve at the converged x, so its covariance is
-that of the linearised problem, not of the damped one.</pre>
+STEP CONTROL. F(x) = l&#x27;Pl(x) + |(K x - x0)/sigma|^2, the DECLARED objective.
+A step that raises F is rejected -- from the first pass on -- and lam
+grows tenfold (0 -&gt; 1e-3; above 1e12 -&gt; diverged), the shorter step
+re-solved on the SAME accumulation; an accepted step shrinks lam tenfold
+(below 1e-12 -&gt; 0, pure Gauss-Newton). Convergence when max|dx_j/sigma_j|
+&lt; TolX, or the relative change of F &lt; TolF. A converged run returns x plus
+the final UNDAMPED step; an unconverged one returns the best ACCEPTED point
+x (never a rejected one). The covariance is that of the undamped
+linearised problem at x. Mirror (mirrors/wp113/gauss_newton.py): the
+exponential fit from [10 -5] / [0.1 1] and Rosenbrock from five starts
+reach the optimum (|x - x*| &lt;= 3e-9, 5e-16); the prior fixture lands on
+the declared optimum to 1e-7.</pre>
 <h3>Input</h3>
 <pre class="example">u         1x1 double          unknowns
 batchFcn  1x1 function_handle [A, w(, p)] = batchFcn(k, x)
 nBatch    1x1 double          batches
 x0        u x 1 double        starting point</pre>
 <h3>Name-Value</h3>
-<pre class="example">&#x27;MaxIter&#x27; 20; &#x27;TolX&#x27; 1e-8; &#x27;TolF&#x27; 1e-10; &#x27;Lambda0&#x27; 1e-6 (0 = pure GN);
+<pre class="example">&#x27;MaxIter&#x27; 20; &#x27;TolX&#x27; 1e-8; &#x27;TolF&#x27; 1e-10; &#x27;Lambda0&#x27; 1e-6 (0 = start
+undamped; a rejected step still turns the damping on);
 &#x27;Backend&#x27; &quot;qr&quot;|&quot;normal&quot;; &#x27;Parallel&#x27;, &#x27;DistributeDays&#x27;, &#x27;ParallelThreshold&#x27;;
 &#x27;Verbose&#x27; false; &#x27;Provenance&#x27; struct (fit&#x27;s resolved Options);
 &#x27;Prior&#x27; [] | lsqvce.engine.CommonPrior on the common block; &#x27;Diagnostics&#x27;
@@ -75,7 +91,8 @@ x0        u x 1 double        starting point</pre>
 the per-pass hook (lsqvce.util.onPass) with &#x27;OnPassContext&#x27; struct()</pre>
 <h3>Output</h3>
 <pre class="example">R  1x1 lsqvce.Results  stopReason &quot;converged&quot; | &quot;maxPasses&quot;; history(k):
-   .pass .vPv .dxRel .lambda .accepted; R.noise = struct(&#x27;x0&#x27;, x0, &#x27;reason&#x27;)</pre>
+   .pass .vPv (F(x), the prior included) .dxRel .lambda .accepted;
+   R.noise = struct(&#x27;x0&#x27;, x0, &#x27;reason&#x27;)</pre>
 <h3>Errors</h3>
 <pre class="example">  lsqvce:adjustNonlinear:badX0       x0 is not u x 1
   lsqvce:adjustNonlinear:nonFinite   the model returned non-finite residuals
@@ -84,8 +101,8 @@ WARNINGS
   lsqvce:adjustNonlinear:maxIter     MaxIter reached (stopReason &quot;maxPasses&quot;)
 
 ACCURACY  the Gauss-Newton fixed point of the dense reference in test_fit (x to 1e-8 on
-the exponential-decay fixture); the block path&#x27;s vPv comes from the
-accumulator&#x27;s normal-form fold (NaN-honest on cancellation).</pre>
+the exponential-decay fixture); with a prior, the optimum of the declared
+objective (test_fit, R7 WP-113).</pre>
 <h3>Example</h3>
 <pre class="example">  bf = @(k, x) deal(J(x, k), l(k) - f(x, k));       % your model
   R  = lsqvce.engine.adjustNonlinear(2, bf, 4, [0.5; 0]);
@@ -93,6 +110,12 @@ accumulator&#x27;s normal-form fold (NaN-honest on cancellation).</pre>
 See also LSQVCE.ENGINE.BATCHSYSTEM,
          LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.FIT
 
+Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-113 (R7-14, R7-04): the step
+damps the common block (Marquardt rows) and shifts the prior to x; the
+descent check runs from pass 1 on the declared objective; a rejected step
+is re-solved on the same accumulation; an unconverged run returns the best
+accepted point. With assistance from Claude (Anthropic), model Claude Opus
+5.5.
 Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 4: the verdict comes
 from lsqvce.engine.verdict.fromAccumulator (diagnoseAccum + diagnose
 absorbed). With assistance from Claude (Anthropic), model Claude Opus
