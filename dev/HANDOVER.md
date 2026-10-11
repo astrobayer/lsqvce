@@ -8686,3 +8686,13 @@ part 3", 2026-10-11; version 6.7.0; tier B -- CI is the first MATLAB run).**
   (corr > 0.85 / 0.5) are the first evidence. Optionally re-run measure.yml on the branch
   to see R7-02 through lsqvce.fit (the SHIPPED rows of the table should now read like the
   CANDIDATE rows).
+- CI round 1 (32e9f3e): 74 / 616 red -- hatACV's function line named two inputs, its
+  arguments block three, so every call failed its definition (fixed ac38c75). Round 2
+  (ac38c75): 614 / 616 -- every fit suite green (test_vcePolicy 37/37, physOracle,
+  errorDoctrine, examples). The two reds were tests: `..._default_start_is_white` read the
+  final re-accumulation's model (same pass index) instead of pass 1's (the recorder keeps
+  the first now); `..._flat_psd_on_white_noise_with_locals` held the DCT-era bar max/min < 3
+  after TWO passes of a fixture that never feeds the law back. Simulated (exact traces,
+  2000 draws, white, 6 bins on 2 x 40): max/min one pass median 2.10, p99 5.06, two passes
+  p95 13; low / high (bins 1-2 vs 3-6) p99 2.14, p99.9 2.58. The test is one pass with
+  low / high < 2.6 (the leakage claim) and max/min < 6.

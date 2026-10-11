@@ -968,7 +968,9 @@ end
 
 function acc = recordAndBuild(rec, cfg, model)
     % Record the model the driver passed in, then build the accumulator.
-    rec(model.iter) = model; %#ok<NASGU>  (containers.Map is a handle)
+    % The FIRST model per pass: the final re-accumulation carries the last
+    % pass's index and must not overwrite what that pass was weighted with.
+    if ~isKey(rec, model.iter), rec(model.iter) = model; end   % containers.Map is a handle
     acc = jointAcc(cfg, model);
 end
 
@@ -1292,20 +1294,30 @@ end
 function test_adjustVCEjoint_flat_psd_on_white_noise_with_locals(tc)
 % categories: contract
     % Driver-level accuracy (spec 1 at the adjustVCEjoint level): on the
-    % white (diag) fixture WITH nl = 2 locals the estimated PSD must stay
-    % FLAT -- no arc-parameter signal folded into the "noise". Pre-WP-33 the
-    % omitted B*y inflated the low lags (Omega_0 x3.8, T3).
+    % white (diag) fixture WITH nl = 2 locals the estimated spectrum must stay
+    % FLAT -- no arc-parameter signal folded into the "noise", which would
+    % lift the LOW bins (pre-WP-33 the omitted B*y inflated the low lags,
+    % Omega_0 x3.8, T3).
+    % R7 WP-111 part 3: ONE pass. The fixture keeps the declared (white) law
+    % fixed, so a second pass multiplies the same bin scatter in again; and
+    % the bars are the estimator's own scatter, not a wish: 6 bins on 2 arcs
+    % of 40 epochs give each bin a redundancy of only 7-15. Simulated with
+    % exact traces (white truth, 6 parameters, 2000 draws): max/min of the
+    % bins median 2.10, p99 5.06; mean(bins 1-2) / mean(bins 3-6) p99 2.14,
+    % p99.9 2.58. (The DCT-era bar max/min < 3 after two passes sits at
+    % p95 13 here -- CI ac38c75.)
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % provoked on purpose here (WP-47, gate rule 7)
     cfg  = jointCfg();
     r = lsqvce.engine.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
-            'NumLags', 6, 'MaxIter', 2, 'Probes', 200, 'Seed', 11, ...
+            'NumLags', 6, 'MaxIter', 1, 'Probes', 200, 'Seed', 11, ...
             'Verbose', false);
-    S = r.S / median(r.S);
-    verifyTrue(tc, max(S)/min(S) < 3.0, ...
-        sprintf(['white truth => flat PSD: max/min = %.2f (arc-parameter ' ...
-                 'leakage shows up as structure)'], max(S)/min(S)));
+    S = r.S;
+    verifyLessThan(tc, mean(S(1:2)) / mean(S(3:end)), 2.6, ...
+        sprintf(['white truth => no low-frequency excess: low/high = %.2f ' ...
+                 '(arc-parameter leakage lifts the low bins)'], mean(S(1:2)) / mean(S(3:end))));
+    verifyLessThan(tc, max(S) / min(S), 6, ...
+        sprintf('white truth => flat within the bin scatter: max/min = %.2f', max(S) / min(S)));
 end
-
 function test_joint_stabilised_alternation_beats_collapse(tc)
 % categories: robustness
     % WP-40 r2 (F-15; fails on the old code: the options are unknown): the
