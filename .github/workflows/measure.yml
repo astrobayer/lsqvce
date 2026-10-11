@@ -1,0 +1,36 @@
+# lsqvce measurements - tier A on the self-hosted runner, NOT a gate.
+# A measurement script under dev/validation/ runs once in MATLAB; its log and
+# its diary file are the record (an artifact, never committed: measurement
+# output stays out of the public repository). The numbers that matter are
+# copied into HANDOVER by hand, with this run's URL.
+# Triggered by a pull request that touches a measurement script or this file,
+# or by hand. ci.yml and its gate are untouched by it.
+name: lsqvce measure
+
+on:
+  pull_request:
+    paths:
+      - 'dev/validation/*.m'
+      - '.github/workflows/measure.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  wp115:
+    runs-on: [self-hosted, Windows]
+    timeout-minutes: 60
+    env:
+      LSQVCE_CI: 1
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: astrobayer/ci-actions/matlab-probe@v1.0.0
+        timeout-minutes: 2
+      - uses: matlab-actions/run-command@bfa857648f4895aa98a446fe41c85e0788421ed5 # v3
+        with:
+          command: cd('dev/validation'); wp115_measure(20, 'wp115_measure.txt')
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with: { name: wp115_measure, path: dev/validation/wp115_measure.txt }

@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-11 — WP-86 part 3 DONE (PR #126, merge 9184a36; CI GREEN on 77ffd46); WP-86 part 4 OPEN (tier B, model Claude Opus 5.5; user decision: the FULL absorption): lsqvce.engine.verdict, one classdef whose static methods are the former diagnoseAccum (source) / diagnose / snoop / systematic / ftest / ellipse plus fromAccumulator; stat -> lsqvce.kernel.stat; Results methods systematic / snoop / reliability / ellipse; report and snoop remedies name R methods (H-05); version 6.5.0; §12.42.
+Last substantive update: 2026-10-11 — WP-86 part 4 DONE (PR #127, merge 8aef05c; CI GREEN on 23117f0), WP-86 complete; WP-115 part 3 OPEN (tier A via the self-hosted runner, model Claude Opus 5.5; user: "use CI for WP-115 part 3"): the measurement first -- dev/validation/wp115_measure.m on a new non-gating workflow measure.yml; R7-12's multi-seed level and R7-10's fold / nugget / deletion on the phi = 0.9 fixture, with the nugget's per-arc cost (dense vs Woodbury); no toolbox code changed, no version; §12.43.
+Preceding entry: Last substantive update: 2026-10-11 — WP-86 part 3 DONE (PR #126, merge 9184a36; CI GREEN on 77ffd46); WP-86 part 4 OPEN (tier B, model Claude Opus 5.5; user decision: the FULL absorption): lsqvce.engine.verdict, one classdef whose static methods are the former diagnoseAccum (source) / diagnose / snoop / systematic / ftest / ellipse plus fromAccumulator; stat -> lsqvce.kernel.stat; Results methods systematic / snoop / reliability / ellipse; report and snoop remedies name R methods (H-05); version 6.5.0; §12.42.
 Preceding entry: Last substantive update: 2026-10-11 — WP-86 part 2 DONE (PR #125, merge 25cbce7; CI GREEN on 9ff2426); WP-86 part 3 OPEN (tier B, model Claude Opus 5.5): one block formula, one commons factor -- engine.redundancy (VCE / outliers / contribution) on BlockCofactor (one cofactor broadcast instead of a commons factor per system), engine.leverage / leverageBlocks retired, snoop's clean re-solve rebuilds the block-arrow systems (batchSystem 'LocalColumns' / 'SystemId'); version 6.4.0; §12.42.
 Preceding entry: Last substantive update: 2026-10-10 — WP-86 part 1 DONE (PR #124, merge cfd72b5; CI GREEN on b6a17fd); WP-86 part 2 OPEN (tier B, model Claude Opus 5.5; user decision: option (a), the block-native rewrite): the diagnostics' cofactor is kept as blocks -- new engine unit BlockCofactor (reduced commons factor + per-system local blocks; mirror-verified to ~1e-16 against the dense inverse), diagnose / snoop / ellipse / report on it, D.R / D.Qxx / D.corr retired, snoop downdates the blocks with a closed-form x, diagnoseAccum reads no data (arc batches indexed from meta, n from the accumulator); version 6.3.0; §12.42.
 Preceding entry: Last substantive update: 2026-10-10 — WP-118 part 3 DONE (PR #123, merge 472a3eb); WP-86 part 1 OPEN (tier B, model Claude Opus 5.5): the diagnostic source no longer stores the data -- diagnoseAccum folds each batch into the full factor and keeps only its address, rebuilding on demand (the ~228 GB n x u store of R7-24 gone); part 2 (the dense u_full factor and its O(u^2)-per-row cost) designed, awaiting the user; version 6.2.0; §12.42.
@@ -8205,7 +8206,7 @@ long functions get recorded reasons, not a split.
 | 86 (part 1) | `diagnoseAccum` keeps batch ADDRESSES, not batches: one enumeration pass folds every whitened batch into the full factor, `batchFcn` rebuilds a batch from its address through the loader and `arcBatchWhiten`, one arc cached; the n x u_full store (R7-24, ~228 GB at a GRAVFIRE month) is gone; **version 6.2.0** | 118 (PR #123 merged 472a3eb) | DONE (2026-10-10, PR #124, merge cfd72b5; CI GREEN on b6a17fd) |
 | 86 (part 2) | the block-native cofactor: `engine.BlockCofactor` (reduced commons factor + per-system local blocks) answers every Qxx question of diagnose / snoop / ellipse / report; no u_full x u_full matrix anywhere in the diagnostics; snoop's downdate on the blocks; `diagnoseAccum` reads no data; **version 6.3.0** | 86 part 1 (PR #124 merged cfd72b5) | DONE (2026-10-10, PR #125, merge 25cbce7; CI GREEN on 9ff2426) |
 | 86 (part 3) | one block formula, one commons factor: `engine.redundancy` on `BlockCofactor.fromAccumulator` (broadcast once), `engine.leverage` / `leverageBlocks` retired; `snoop`'s clean re-solve rebuilds the block-arrow systems; **version 6.4.0** | 86 part 2 (PR #125 merged 25cbce7) | DONE (2026-10-11, PR #126, merge 9184a36; CI GREEN on 77ffd46) |
-| 86 (part 4) | the M4 row itself: ONE `engine.verdict` (static methods source / diagnose / snoop / systematic / ftest / ellipse / fromAccumulator), `kernel.stat`, `Results` methods systematic / snoop / reliability / ellipse, the report names no engine function; **version 6.5.0** | 86 part 3 (PR #126 merged 9184a36) | OPEN (2026-10-11; audit CLEAN; CI pending) |
+| 86 (part 4) | the M4 row itself: ONE `engine.verdict` (static methods source / diagnose / snoop / systematic / ftest / ellipse / fromAccumulator), `kernel.stat`, `Results` methods systematic / snoop / reliability / ellipse, the report names no engine function; **version 6.5.0** | 86 part 3 (PR #126 merged 9184a36) | DONE (2026-10-11, PR #127, merge 8aef05c; CI GREEN on 23117f0) |
 
 **Scope (user: "continue with WP-86").** The M4 ledger row (line ~4974) defines WP-86 as
 the whole verdict-from-the-sweep redesign (one `engine.verdict` absorbing diagnose /
@@ -8382,3 +8383,34 @@ only").**
 - NOT done, and why: the R5 plan's "levels 0-4 from the sweep's collectors (no re-read)"
   -- round 4d decided the collector rewrite down (the diagnostics are on-demand sweeps);
   the verdict still re-reads the data in its two diagnose sweeps.
+
+### 12.43 WP-115 part 3 — the nugget's measurement first (2026-10-11, model Claude Opus 5.5, tier A via CI)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 115 (part 3a) | the tier-A measurement §12.39 asked for before the additive nugget is built: `dev/validation/wp115_measure.m` on the self-hosted runner through a new, NON-gating workflow `measure.yml` (pull requests touching `dev/validation/*.m` or the workflow, or by hand); R7-12 multi-seed level, R7-10 fold / nugget / deletion, the nugget's per-arc cost; no toolbox change, no version | 86 part 4 (PR #127 merged 8aef05c) | OPEN (2026-10-11; audit CLEAN; measurement pending) |
+
+**Why CI (user: "Can you use CI for WP115 part3", 2026-10-11).** §12.39 left the nugget
+waiting on a tier-A measurement; the container has no MATLAB and the runner is the
+user's MATLAB. `measure.yml` reuses `ci.yml`'s pinned checkout / probe / run-command
+steps but is NOT a required check and does not run `ci_gate`: a measurement asserts
+nothing. Its record is the job log and the uploaded diary (`wp115_measure.txt`, an
+artifact, never committed); the numbers that decide the design are copied here with the
+run's URL.
+
+**What is measured.**
+- **Part A (R7-12).** Two clean AR(1) streams (phi 0.2 / 0.5, the colour fixture of
+  `test_vcePolicy`, 3 days x 3 arcs x 256), 20 seeds, four fits each through `lsqvce.fit`
+  (`Estimate = "noise"`): law estimated / the true law declared (`arma`, estimate
+  "scale"), each plain and IGG3. Effective level sigma*sigma0 per stream and the
+  robust/plain ratio on the same data, with its standard error -- the number that
+  separates the mirror's 0.83-0.93 from round 4's 1.007.
+- **Part B (R7-10).** Dense GLS on one arc (m = 256, [1 trend sinusoid], phi 0.5 / 0.9),
+  k in {1, 5, 13, 51} epochs at factor f in {1e-12, 0.3}, true noise R: the fold
+  C = D R D, the nugget C = R + diag(1/f - 1) (the same marginal variance), deletion.
+  formal/true sd, true sd against deletion's, and the lag-0 level E[v'C^-1 v]/(m-n).
+- **Part B cost.** Per-arc A'C^-1 A at m = 256 / 1024 / 4096 with 2 % / 20 % of the epochs
+  down-weighted: the fold's path, the nugget by dense chol, the nugget by a Woodbury
+  update on the AR precision (k x k capacitance) -- and their agreement.
+
+**Results.** Pending the first run.
