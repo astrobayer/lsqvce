@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-11 — WP-115 part 3b DONE (PR #129, merge f2b164d; CI GREEN on cf4db8c); WP-115 part 4 OPEN (tier B, model Claude Opus 5.5): R7-43 -- one stream key (util.streamKey), one arc key (util.arcKey), the arc's stream carried as out.arcStreams instead of parsed back by regex, engine.satKeyOf retired; version 6.6.1; §12.43.
+Last substantive update: 2026-10-11 — WP-115 part 4 DONE (PR #130, merge 13bf7d0), WP-115 complete; WP-111 part 1 OPEN (tier A via CI, model Claude Opus 5.5; user decision: POSITIVE COMPONENTS replace the DCT-domain update): the measurement first -- dev/validation/wp111_measure.m reproduces R7-02's runaway through lsqvce.fit and runs the candidate (hat-spectrum components, exact ACV r = K S) on the same data, plus R7-01's wrap through covModel; no toolbox change; §12.44.
+Preceding entry: Last substantive update: 2026-10-11 — WP-115 part 3b DONE (PR #129, merge f2b164d; CI GREEN on cf4db8c); WP-115 part 4 OPEN (tier B, model Claude Opus 5.5): R7-43 -- one stream key (util.streamKey), one arc key (util.arcKey), the arc's stream carried as out.arcStreams instead of parsed back by regex, engine.satKeyOf retired; version 6.6.1; §12.43.
 Preceding entry: Last substantive update: 2026-10-11 — WP-115 part 3a DONE (PR #128, merge 3eb193c; CI GREEN on cfa9375); WP-115 part 3b OPEN (tier B, model Claude Opus 5.5; user decisions: build the nugget; R7-12 by hard rejection + the Gaussian truncation factor, after the mirror showed the weighted redundancy leaves the bias): the robust factors are an additive nugget (covModel cm.nugget, whole-arc Woodbury whitener, inflateCep retired, redundancyLags 'Nugget'/'LawW'); the component update sees only rejected epochs and the level is divided by tau (R.noise.robust.truncation); version 6.6.0; §12.43.
 Preceding entry: Last substantive update: 2026-10-11 — WP-86 part 4 DONE (PR #127, merge 8aef05c; CI GREEN on 23117f0), WP-86 complete; WP-115 part 3 OPEN (tier A via the self-hosted runner, model Claude Opus 5.5; user: "use CI for WP-115 part 3"): the measurement first -- dev/validation/wp115_measure.m on a new non-gating workflow measure.yml; R7-12's multi-seed level and R7-10's fold / nugget / deletion on the phi = 0.9 fixture, with the nugget's per-arc cost (dense vs Woodbury); no toolbox code changed, no version; §12.43.
 Preceding entry: Last substantive update: 2026-10-11 — WP-86 part 3 DONE (PR #126, merge 9184a36; CI GREEN on 77ffd46); WP-86 part 4 OPEN (tier B, model Claude Opus 5.5; user decision: the FULL absorption): lsqvce.engine.verdict, one classdef whose static methods are the former diagnoseAccum (source) / diagnose / snoop / systematic / ftest / ellipse plus fromAccumulator; stat -> lsqvce.kernel.stat; Results methods systematic / snoop / reliability / ellipse; report and snoop remedies name R methods (H-05); version 6.5.0; §12.42.
@@ -8392,7 +8393,7 @@ only").**
 |----|-------|-----------|--------|
 | 115 (part 3a) | the tier-A measurement §12.39 asked for before the additive nugget is built: `dev/validation/wp115_measure.m` on the self-hosted runner through a new, NON-gating workflow `measure.yml` (pull requests touching `dev/validation/*.m` or the workflow, or by hand); R7-12 multi-seed level, R7-10 fold / nugget / deletion, the nugget's per-arc cost; no toolbox change, no version | 86 part 4 (PR #127 merged 8aef05c) | DONE (2026-10-11, PR #128, merge 3eb193c; CI GREEN on cfa9375; measured: run 38131010881) |
 | 115 (part 3b) | R7-10 the robust factors as an ADDITIVE nugget (`covModel` `cm.nugget`, whole-arc Woodbury whitener; `inflateCep` retired; `redundancyLags` 'Nugget'/'LawW'); R7-12 the level unbiased: the component update sees only REJECTED epochs, the level divided by the rejection point's Gaussian truncation factor (`R.noise.robust.truncation`); **version 6.6.0** | 115 part 3a (PR #128 merged 3eb193c) | DONE (2026-10-11, PR #129, merge f2b164d; CI GREEN on cf4db8c after one red round; measured: run 38137611458) |
-| 115 (part 4) | R7-43 one stream key (`util.streamKey`), one arc key (`util.arcKey`); the arc's stream carried (`out.arcStreams`), the regex parse gone; `engine.satKeyOf` retired; **version 6.6.1** | 115 part 3b (PR #129 merged f2b164d) | OPEN (2026-10-11; audit CLEAN; CI pending) |
+| 115 (part 4) | R7-43 one stream key (`util.streamKey`), one arc key (`util.arcKey`); the arc's stream carried (`out.arcStreams`), the regex parse gone; `engine.satKeyOf` retired; **version 6.6.1** | 115 part 3b (PR #129 merged f2b164d) | DONE (2026-10-11, PR #130, merge 13bf7d0; CI GREEN on 0486849 first run) |
 
 **Why CI (user: "Can you use CI for WP115 part3", 2026-10-11).** §12.39 left the nugget
 waiting on a tier-A measurement; the container has no MATLAB and the runner is the
@@ -8551,3 +8552,36 @@ adjustVCEjoint>streamMeans / streamKeyOf).
   exemptions, Contents, DEVELOPMENT rows; its test became
   `test_streamUtils>testStreamAndArcKeysAreDefinedOnce` (counts unchanged, 630).
 - fit.m's long-line ceiling lowered 6 -> 5 (one long inline key gone).
+
+### 12.44 WP-111 — the PSD → covariance path (2026-10-11, model Claude Opus 5.5)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 111 (part 1) | the tier-A measurement: R7-02's runaway reproduced through `lsqvce.fit`, the candidate (positive components) on the same data, R7-01's wrap through covModel; `dev/validation/wp111_measure.m` on `measure.yml`; no toolbox change, no version | 115 (PR #130 merged 13bf7d0) | OPEN (2026-10-11; audit CLEAN; measurement pending) |
+
+**The design question, and the user's decision (2026-10-11).** R7-01 (the 'toeplitz' ACV is
+circulant), R7-02 (the estimated law runs away x1e7 and the loop says "converged") and
+R7-20 (alpha2_0 in the stop rule under ZeroFreqRule "lowest"). The review's own
+counterfactuals (`mirrors/dom_vce/t16_fixpair.py`, `t17_rootcause.py`) show that neither a
+Wiener-Khinchin DCT pair nor a 1e-3 floor cures R7-02: re-run here, the WK pair still ran
+away to 1e7-1e10 on phi 0.7-0.95. Reading: Ellmer's per-frequency components (the columns
+of the inverse DCT) are INDEFINITE matrices, so alpha2_j can be negative, needs a floor, and
+a floored bin makes the declared covariance near-singular. **Candidate (prototype
+`mirrors/wp111/positive_components.py`):** the law is a positive spectrum on L bins,
+piecewise linear in frequency; its covariance is the exact integral r = K S (K closed form:
+K(tau, j) = 2 c_j cos(2 pi f_j tau) (1 - cos(2 pi tau d)) / (d (2 pi tau)^2), d = 1/(2(L-1)),
+c = 2 inside, 1 at the ends; checked against quadrature to 9e-8) -- no wrap, positive
+definite for every arc length; every bin's component toeplitz(K(:, j)) is the ACV of a hat
+spectrum and hence PSD, so the Helmert factor alpha2_j = (K' Omega)_j / (K' s)_j >= 0 by
+construction -- no floor, no ZeroFreqRule (R7-20 dissolves). Mirror, 9 x 256 / 20 x 256 /
+40 x 256, phi 0.5 / 0.8 / 0.9, 3 seeds each, exact traces: all CONVERGED in 7-17 passes,
+r0 0.97-1.04 x truth, rho1 0.49-0.51 / 0.80-0.81 / 0.90, |z| <= 2.03 (shipped: up to 37).
+Put to the user with these numbers; **decision: positive components** (over "R7-01/R7-20
+only" and "WK pair + relative floor").
+
+**Part 1 measures before anything is built** (`wp111_measure.m`, 6 seeds per phi): the
+shipped `lsqvce.fit` (Grid 60, MaxPasses 10) and the candidate (dense MATLAB, exact traces,
+all lags) on the SAME arcs; stop reason, passes, r0 / truth, rho1, |z|max; and R7-01 through
+`covModel` 'psd' 'toeplitz' at m = 256 / 255 / 2111 against the closed form.
+
+**Results.** Pending the run.
