@@ -85,20 +85,6 @@ engine.datum,reference,no closed form of its own beyond the dense references its
 engine.datum,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
 engine.datum,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
 engine.datum,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path
-engine.diagnose,reference,no closed form of its own beyond the dense references its callers are pinned against
-engine.diagnose,robustness,its refusals are named identifiers pinned under contract; no numerical edge regime beyond those
-engine.diagnose,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
-engine.diagnose,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
-engine.diagnoseAccum,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
-engine.ellipse,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
-engine.ellipse,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
-engine.ellipse,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path
-engine.ftest,precision,the numbers it produces are pinned at the fit level against dense closed forms (test_fit, test_lsqvce*, test_physOracle); the driver adds plumbing, not arithmetic
-engine.ftest,reference,no closed form of its own beyond the dense references its callers are pinned against
-engine.ftest,robustness,its refusals are named identifiers pinned under contract; no numerical edge regime beyond those
-engine.ftest,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
-engine.ftest,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
-engine.ftest,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path
 engine.gcvLambda,precision,the numbers it produces are pinned at the fit level against dense closed forms (test_fit, test_lsqvce*, test_physOracle); the driver adds plumbing, not arithmetic
 engine.gcvLambda,reference,no closed form of its own beyond the dense references its callers are pinned against
 engine.gcvLambda,robustness,its refusals are named identifiers pinned under contract; no numerical edge regime beyond those
@@ -153,22 +139,14 @@ engine.satKeyOf,speed,covered by the fit-level solve budget (test_speedBudget) a
 engine.satKeyOf,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path
 engine.sharedProbe,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
 engine.sharedProbe,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path
-engine.snoop,reference,no closed form of its own beyond the dense references its callers are pinned against
-engine.snoop,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
-engine.snoop,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
-engine.snoop,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path
-engine.stat,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
-engine.stat,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
-engine.stat,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path
+kernel.stat,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
+kernel.stat,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
+kernel.stat,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path
 engine.streamContribution,reference,no closed form of its own beyond the dense references its callers are pinned against
 engine.streamContribution,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
 engine.streamContribution,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
 engine.streamContribution,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path
 engine.synthLoader,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path
-engine.systematic,reference,no closed form of its own beyond the dense references its callers are pinned against
-engine.systematic,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
-engine.systematic,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
-engine.systematic,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path
 engine.traceEstimate,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
 engine.traceEstimate,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path
 engine.vce,reference,no closed form of its own beyond the dense references its callers are pinned against
@@ -293,8 +271,8 @@ util.toolboxVersion,metamorphic,none
 engine.BlockAccumulator,metamorphic,batch-partition invariance (1 / 3 / 7 batches give one solve) pinned through lsqvce.fit in test_metamorphic (R7-27: the matrix credits code only; the unit is driven on every block-path solve there but not called by name)
 engine.QRSystem,metamorphic,batch-partition and row-permutation invariance pinned through lsqvce.fit in test_metamorphic (R7-27: the matrix credits code only; the unit is driven on every block-path solve there but not called by name) -- QR is that accumulator's default backend
 engine.batchSystem,metamorphic,batch-partition invariance pinned through lsqvce.fit in test_metamorphic (R7-27: the matrix credits code only; the unit is driven on every block-path solve there but not called by name) -- batchSystem is fit's adapter for the batched and in-memory kinds
-engine.diagnose,metamorphic,row-permutation equivariance of the per-observation diagnostics (testPermutingTheRowsPermutesTheDiagnostics reads R.diag) pinned through lsqvce.fit in test_metamorphic (R7-27: the matrix credits code only; the unit is driven on every block-path solve there but not called by name)
-engine.diagnoseAccum,metamorphic,row-permutation equivariance of R.diag pinned through lsqvce.fit in test_metamorphic (R7-27: the matrix credits code only; the unit is driven on every block-path solve there but not called by name) -- diagnoseAccum is the bridge that builds the replayable source for diagnose
 engine.adjustNonlinear,reference,the dense Gauss-Newton fixed point (exponential decay; x to 1e-8) is pinned through lsqvce.fit in test_fit; the driver is reached only through fit (R7-27: no longer credited from the comment that names it)
 Results,reference,R.x / Cxx / sigma0 against dense references are pinned on the Results lsqvce.fit returns (test_fit / test_adjustBlock); Results holds what the drivers compute -- the one method with arithmetic of its own (compare) has an open finding (R7-19 / WP-118) and gets its reference there
 engine.makeLoader,speed,timed inside test_speedBudget testFitAddsLittleToTheBlockDriver (both sides build the loaders through lsqvce.engine.declaration) but not called by name there; a budget of its own would time the same work twice
+engine.verdict,metamorphic,row-permutation equivariance of the per-observation diagnostics (testPermutingTheRowsPermutesTheDiagnostics reads R.diag) pinned through lsqvce.fit in test_metamorphic; the unit is driven on every block-path solve
+engine.verdict,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count

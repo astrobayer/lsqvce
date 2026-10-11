@@ -14,6 +14,7 @@
 %   psd2acv              - PSD -> autocovariance
 %   redundancyLags       - redundancy per lag without the dense W^-1
 %   separableWhiten      - separable (temporal x axis) whitening
+%   stat                 - distributions and test thresholds, base MATLAB only (from engine, WP-86)
 %   toeplitzCofactor     - Toeplitz cofactor construction
 %   varACV               - VAR autocovariance
 %   varWhiten            - VAR whitening

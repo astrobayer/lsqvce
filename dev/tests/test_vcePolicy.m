@@ -408,7 +408,7 @@ end
 %% ------------------------------------------------ compare (M7 7c): ftest onto Results
 function testCompareIsTheNestedModelFTest(tc)
 % categories: contract, reference
-    % R5 M7 7c: R.compare(Rred) re-homes lsqvce.engine.ftest. Reference: the
+    % R5 M7 7c: R.compare(Rred) re-homes lsqvce.engine.verdict.ftest. Reference: the
     % F statistic in closed form from the two residual sums; a needed
     % parameter is kept (reject H0), an unneeded one is not.
     rs = RandStream('mt19937ar', 'Seed', 17);

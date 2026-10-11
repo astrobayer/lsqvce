@@ -27,7 +27,7 @@
     </tocitem>
     <tocitem target="html/index.html">Gravity recovery - streaming block-arrow (merged from lsqAccum)
       <tocitem target="html/lsqvce.engine.BlockAccumulator.html">lsqvce.engine.BlockAccumulator</tocitem>
-      <tocitem target="html/lsqvce.engine.diagnoseAccum.html">lsqvce.engine.diagnoseAccum</tocitem>
+      <tocitem target="html/lsqvce.engine.verdict.html">lsqvce.engine.verdict</tocitem>
       <tocitem target="html/lsqvce.engine.BlockCofactor.html">lsqvce.engine.BlockCofactor</tocitem>
       <tocitem target="html/lsqvce.engine.redundancy.html">lsqvce.engine.redundancy</tocitem>
       <tocitem target="html/lsqvce.engine.outliers.html">lsqvce.engine.outliers</tocitem>
@@ -46,14 +46,11 @@
     <tocitem target="html/index.html">Diagnostics
       <tocitem target="html/lsqvce.engine.localDiagnostics.html">lsqvce.engine.localDiagnostics</tocitem>
       <tocitem target="html/lsqvce.engine.runMeta.html">lsqvce.engine.runMeta</tocitem>
-      <tocitem target="html/lsqvce.engine.diagnose.html">lsqvce.engine.diagnose</tocitem>
       <tocitem target="html/lsqvce.report.html">lsqvce.report</tocitem>
       <tocitem target="html/lsqvce.layout.html">lsqvce.layout</tocitem>
-      <tocitem target="html/lsqvce.engine.systematic.html">lsqvce.engine.systematic</tocitem>
     </tocitem>
     <tocitem target="html/index.html">Outliers &amp; robust
 <tocitem target="html/lsqvce.kernel.robustWeights.html">lsqvce.kernel.robustWeights</tocitem>
-      <tocitem target="html/lsqvce.engine.snoop.html">lsqvce.engine.snoop</tocitem>
     </tocitem>
     <tocitem target="html/index.html">Stochastic model - VCE
       <tocitem target="html/lsqvce.engine.vce.html">lsqvce.engine.vce</tocitem>
@@ -89,14 +86,12 @@
       <tocitem target="html/lsqvce.engine.gcvLambda.html">lsqvce.engine.gcvLambda</tocitem>
     </tocitem>
     <tocitem target="html/index.html">Model testing
-      <tocitem target="html/lsqvce.engine.ellipse.html">lsqvce.engine.ellipse</tocitem>
-      <tocitem target="html/lsqvce.engine.ftest.html">lsqvce.engine.ftest</tocitem>
     </tocitem>
     <tocitem target="html/index.html">Free networks
       <tocitem target="html/lsqvce.engine.datum.html">lsqvce.engine.datum</tocitem>
     </tocitem>
     <tocitem target="html/index.html">Support
-      <tocitem target="html/lsqvce.engine.stat.html">lsqvce.engine.stat</tocitem>
+      <tocitem target="html/lsqvce.kernel.stat.html">lsqvce.kernel.stat</tocitem>
     </tocitem>
     <tocitem target="html/index.html">Utilities (+util)
 <tocitem target="html/lsqvce.util.callUser.html">lsqvce.util.callUser</tocitem>

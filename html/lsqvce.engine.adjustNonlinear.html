@@ -71,7 +71,7 @@ x0        u x 1 double        starting point</pre>
 &#x27;Backend&#x27; &quot;qr&quot;|&quot;normal&quot;; &#x27;Parallel&#x27;, &#x27;DistributeDays&#x27;, &#x27;ParallelThreshold&#x27;;
 &#x27;Verbose&#x27; false; &#x27;Provenance&#x27; struct (fit&#x27;s resolved Options);
 &#x27;Prior&#x27; [] | lsqvce.engine.CommonPrior on the common block; &#x27;Diagnostics&#x27;
-{} (Name-Value pairs for lsqvce.engine.diagnose); &#x27;OnPass&#x27; [] | @(ctx)
+{} (Name-Value pairs for lsqvce.engine.verdict.diagnose); &#x27;OnPass&#x27; [] | @(ctx)
 the per-pass hook (lsqvce.util.onPass) with &#x27;OnPassContext&#x27; struct()</pre>
 <h3>Output</h3>
 <pre class="example">R  1x1 lsqvce.Results  stopReason &quot;converged&quot; | &quot;maxPasses&quot;; history(k):
@@ -93,6 +93,10 @@ accumulator&#x27;s normal-form fold (NaN-honest on cancellation).</pre>
 See also LSQVCE.ENGINE.BATCHSYSTEM,
          LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.FIT
 
+Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 4: the verdict comes
+from lsqvce.engine.verdict.fromAccumulator (diagnoseAccum + diagnose
+absorbed). With assistance from Claude (Anthropic), model Claude Opus
+5.5.
 Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34, R7-35):
 the deleted SOLVENONLINEAR reference removed; Prior / Diagnostics /
 OnPass / OnPassContext documented. With assistance from Claude

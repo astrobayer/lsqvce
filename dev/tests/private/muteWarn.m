@@ -22,7 +22,7 @@ function muteWarn(tc, id)
 %
 %   EXAMPLE
 %     muteWarn(tc, 'lsqvce:snoop:maxReject');
-%     [sol, D, REJ] = lsqvce.engine.snoop(...);        % provokes it on purpose
+%     [sol, D, REJ] = lsqvce.engine.verdict.snoop(...);        % provokes it on purpose
 %
 %   See also RUN_ALL_LSQVCE, GATEVERDICT
 %

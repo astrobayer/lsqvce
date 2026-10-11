@@ -7,7 +7,7 @@ a-priori backstop). `R.report(Level=0..4)` reduces them to one verdict and its e
 `R.summary()` and `R.convergence()` read the pass record of an iterative run;
 `R.residuals()` re-reads the arcs for the whitened residuals per stream; `R.contribution()`
 gives the information share of every stream in the common parameters;
-`lsqvce.engine.snoop` iterates data snooping with a clean re-solve on the block path;
+`lsqvce.engine.verdict.snoop` iterates data snooping with a clean re-solve on the block path;
 `R.compare(Rred)` is the nested-model F test between two fits; its redundancy counts the
 eliminated local parameters too (since 6.1.8; it counted the commons only and was
 anti-conservative, 7.4 % false positives at 5 %). For correlated batches the

@@ -337,8 +337,8 @@ function R = fitEllmer(systems, days, opts, pri, opc, priorGroups)
     out = lsqvce.engine.adjustVCEjoint(accFcn, nvj{:}, 'Estimate', estMap, 'ArcFactors', afMap, ...
                                        'OnPassContext', opc);
 
-    [dsol, batchFcn, nB] = lsqvce.engine.diagnoseAccum(out.acc, out.sol);
-    D = lsqvce.engine.diagnose(dsol, batchFcn, 'nBatch', nB, opts.engineArgs("diagnose").nv{:});
+    [D, dsol, batchFcn, nB] = lsqvce.engine.verdict.fromAccumulator(out.acc, out.sol, ...
+                                  opts.engineArgs("diagnose").nv{:});
     resolved = opts.toStruct();
     resolved.kind = 'stream';
     seeds = struct('jointSeed', out.seed);       % R7-37: the seed USED (pinned when opts.Seed is empty)

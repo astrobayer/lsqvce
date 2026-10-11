@@ -147,7 +147,7 @@ function test_snoop_removes_the_planted_outliers(tc)
     B = chop(A, l, p, 8);
     src = srcOf(B);
     [sol, D] = flatAdjust(6, src, 8, 'verbose', false);
-    [~, ~, REJ] = lsqvce.engine.snoop(sol, D, src, 'verbose', false, ...
+    [~, ~, REJ] = lsqvce.engine.verdict.snoop(sol, D, src, 'verbose', false, ...
                                 'bonferroni', false);
     verifyTrue(tc, all(ismember(bad, REJ.idx)), ...
         sprintf('snoop rejected %s, expected to include %s', ...
@@ -168,7 +168,7 @@ function test_snoop_refuses_low_redundancy(tc)
     B = chop(A, l, p, 2);
     src = srcOf(B);
     [sol, D] = flatAdjust(u, src, 2, 'verbose', false);
-    [~, ~, REJ] = lsqvce.engine.snoop(sol, D, src, 'verbose', false);
+    [~, ~, REJ] = lsqvce.engine.verdict.snoop(sol, D, src, 'verbose', false);
     verifyFalse(tc, ismember(7, REJ.idx), ...
         'snoop must NOT reject a zero-redundancy observation');
 end
@@ -181,7 +181,7 @@ function test_snoop_maxReject_cap(tc)
     B = chop(A, l, p, 8);
     src = srcOf(B);
     [sol, D] = flatAdjust(6, src, 8, 'verbose', false);
-    [~, ~, REJ] = lsqvce.engine.snoop(sol, D, src, 'verbose', false, ...
+    [~, ~, REJ] = lsqvce.engine.verdict.snoop(sol, D, src, 'verbose', false, ...
                                 'maxReject', 5, 'bonferroni', false);
     verifyLessThanOrEqual(tc, numel(REJ.idx), 5);
 end
@@ -197,7 +197,7 @@ function test_snoop_reaccumulate_gives_clean_solution(tc)
     B = chop(A, l, p, 6);
     src = srcOf(B);
     [sol, D] = flatAdjust(5, src, 6, 'verbose', false);
-    [solR, ~, REJ] = lsqvce.engine.snoop(sol, D, src, 'verbose', false, ...
+    [solR, ~, REJ] = lsqvce.engine.verdict.snoop(sol, D, src, 'verbose', false, ...
                                    'bonferroni', false, 'reaccumulate', true);
     % compare against a manual solve over the survivors
     keep = true(600,1);  keep(REJ.idx) = false;
@@ -246,8 +246,8 @@ function test_ellipse_confidence_scales_axes(tc)
     [A, l, p] = prob(400, 4, 141);
     B = chop(A, l, p, 4);
     [~, D] = flatAdjust(4, srcOf(B), 4, 'verbose', false);
-    E1 = lsqvce.engine.ellipse(D, [1 2], 'conf', 0.39);  % ~1 sigma
-    E2 = lsqvce.engine.ellipse(D, [1 2], 'conf', 0.95);
+    E1 = lsqvce.engine.verdict.ellipse(D, [1 2], 'conf', 0.39);  % ~1 sigma
+    E2 = lsqvce.engine.verdict.ellipse(D, [1 2], 'conf', 0.95);
     verifyGreaterThan(tc, E2.semiMajor, E1.semiMajor, ...
         'a 95% ellipse must be LARGER than a 1-sigma ellipse');
     % the axis RATIO is a property of Qxx and must not change with confidence
@@ -268,18 +268,18 @@ function test_ellipse_uses_2F_with_the_estimated_variance_factor(tc)
     % Qxx = I as a block cofactor: Rc = I, no locals (D.Q since WP-86 part 2)
     D = struct('u', 2, 'x', [0; 0], 'Q', lsqvce.engine.BlockCofactor(eye(2), []), ...
                's0sq', 1.3, 'sigma0', 1, 'r', 5);
-    Ea = lsqvce.engine.ellipse(D, [1 2], 'conf', p);
+    Ea = lsqvce.engine.verdict.ellipse(D, [1 2], 'conf', p);
     % tol: 1e-10 relative -- betaincinv against the closed form, rounding only
     tc.verifyEqual(Ea.k2, 5 * ((1 - p)^(-2/5) - 1), 'RelTol', 1e-10, ...
         'a posteriori: 2 F(2, r) at r = 5 (11.57, not 5.99)');
     % tol: 1e-12 relative -- the semi-axis is sqrt(k2 * s0sq) for Qxx = I
     tc.verifyEqual(Ea.semiMajor, sqrt(Ea.k2 * 1.3), 'RelTol', 1e-12);
-    Ep = lsqvce.engine.ellipse(D, [1 2], 'conf', p, 'scale', 'apriori');
+    Ep = lsqvce.engine.verdict.ellipse(D, [1 2], 'conf', p, 'scale', 'apriori');
     % tol: 1e-10 relative -- chi2Inv against the closed form
     tc.verifyEqual(Ep.k2, -2 * log(1 - p), 'RelTol', 1e-10, ...
         'a priori (sigma0 known): chi2(2) stays');
     D.r = 1e6;
-    Eb = lsqvce.engine.ellipse(D, [1 2], 'conf', p);
+    Eb = lsqvce.engine.verdict.ellipse(D, [1 2], 'conf', p);
     % tol: 1e-4 relative -- 2 F(2, r) -> chi2(2) as r grows (difference O(1/r))
     tc.verifyEqual(Eb.k2, -2 * log(1 - p), 'RelTol', 1e-4, 'and the two meet at large r');
 end
@@ -289,7 +289,7 @@ function test_ellipse_returns_a_drawable_boundary(tc)
     [A, l, p] = prob(300, 4, 151);
     B = chop(A, l, p, 3);
     [~, D] = flatAdjust(4, srcOf(B), 3, 'verbose', false);
-    E = lsqvce.engine.ellipse(D, [1 2], 'npts', 64);
+    E = lsqvce.engine.verdict.ellipse(D, [1 2], 'npts', 64);
     verifySize(tc, E.xy, [64 2]);
     verifyTrue(tc, all(isfinite(E.xy(:))));
 end
@@ -299,7 +299,7 @@ function test_ellipse_rejects_bad_pair(tc)
     [A, l, p] = prob(200, 3, 161);
     B = chop(A, l, p, 2);
     [~, D] = flatAdjust(3, srcOf(B), 2, 'verbose', false);
-    verifyError(tc, @() lsqvce.engine.ellipse(D, [1 9]), ...
+    verifyError(tc, @() lsqvce.engine.verdict.ellipse(D, [1 9]), ...
         'lsqvce:ellipse:badPair');
 end
 
@@ -389,7 +389,7 @@ function test_systematic_finds_the_right_covariate(tc)
     l = A*xt + 0.3*randn(rs,n,1) + 2.0*t;      % LINEAR drift in t
     B = chop(A, l, ones(n,1), 8);
     [~, D] = flatAdjust(u, srcOf(B), 8, 'verbose', false);
-    S = lsqvce.engine.systematic(D, 'covariates', struct('time', t, 'junk', junk), ...
+    S = lsqvce.engine.verdict.systematic(D, 'covariates', struct('time', t, 'junk', junk), ...
                            'verbose', false);
     verifyTrue(tc, S.detected);
 
@@ -417,7 +417,7 @@ function test_systematic_ljungbox_on_correlated_residuals(tc)
     l = A*randn(rs,u,1) + e;
     B = chop(A, l, ones(n,1), 6);
     [~, D] = flatAdjust(u, srcOf(B), 6, 'verbose', false);
-    S = lsqvce.engine.systematic(D, 'verbose', false);
+    S = lsqvce.engine.verdict.systematic(D, 'verbose', false);
     verifyTrue(tc, S.ljungBox.reliable);
     verifyLessThan(tc, S.ljungBox.p, 1e-3, ...
         'Ljung-Box missed a strongly autocorrelated residual sequence');
@@ -587,6 +587,6 @@ function test_snoop_refuses_correlated(tc)
     src = @(k) deal(A((k-1)*nk+(1:nk), :), l((k-1)*nk+(1:nk)), Pb{k});
     [sol, D] = flatAdjust(u, src, nb, 'verbose', false);
 
-    verifyError(tc, @() lsqvce.engine.snoop(sol, D, src, 'verbose', false), ...
+    verifyError(tc, @() lsqvce.engine.verdict.snoop(sol, D, src, 'verbose', false), ...
         'lsqvce:snoop:correlatedBatch');
 end

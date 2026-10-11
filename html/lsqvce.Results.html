@@ -62,7 +62,7 @@ PROPERTIES (read-only)
                                returned with its covariance and one warning.
   converged  1x1      logical  Did the pipeline converge? (true for a single
                                solve; set by the iterative engines.)
-  diag       1x1      struct   Per-observation diagnostics (LSQVCE.ENGINE.DIAGNOSE):
+  diag       1x1      struct   Per-observation diagnostics (LSQVCE.ENGINE.VERDICT.DIAGNOSE):
                                redundancy, leverage, w-tests, MDB, ...
   history    1xI      struct   Per-iteration record (empty for a single
                                solve; filled by LSQVCE.ENGINE.ADJUSTVCEJOINT:
@@ -84,8 +84,8 @@ PROPERTIES (read-only)
   sol        1x1      struct   Raw output of acc.solve() (.x, .sigma0, ...).
   acc        1x1      lsqvce.engine.BlockAccumulator   The accumulator (drop here
                                to re-solve, inspect blocks, get residuals).
-  source     1x1      struct   Bridged solution from LSQVCE.ENGINE.DIAGNOSEACCUM.
-  batchFcn   1x1      function_handle   Re-reader used by LSQVCE.ENGINE.DIAGNOSE.
+  source     1x1      struct   Bridged solution from LSQVCE.ENGINE.VERDICT.SOURCE.
+  batchFcn   1x1      function_handle   Re-reader used by LSQVCE.ENGINE.VERDICT.DIAGNOSE.
   nBatch     1x1      double   Batch count from the bridge.
   systems    1xM      struct   The resolved system specs (sysID/nl/dayList).
   meta       1x1      struct   Run provenance (WP-44). Field list is
@@ -113,6 +113,11 @@ METHODS
   T = R.convergence(Name,Value)  Per-ITERATION trajectory: when the loop
                                  settled (needs .history).
   F = R.compare(Rred)            Nested-model F test against a reduced fit (R5 M7).
+  S = R.systematic(Name,Value)   Unmodelled signal in the residuals: Ljung-Box,
+                                 runs, binned means (WP-86 part 4).
+  [D, REJ, sol] = R.snoop(...)   Iterative data snooping; R is not changed.
+  T = R.reliability()            Per-observation r, w, MDB and (w, r) quadrant.
+  E = R.ellipse(i, j, ...)       Confidence ellipse of the parameter pair (i, j).
   fh = R.plot(kind)              &quot;residuals&quot; | &quot;contribution&quot; | &quot;psd&quot; | &quot;convergence&quot;
                                  (R5 M5: one figure per question, nothing exported).
   [C, L, map] = R.toTable(data)  The expanded parameter tables with estimate and
@@ -141,7 +146,9 @@ lsqvce:Results:noHistory      an iteration reader was called on a
 lsqvce:Results:noCovariance   coefficients() on a Results whose sol
                               carries no Cxx
 lsqvce:Results:noAccumulator  residuals()/contribution() on a Results
-                              without an accumulator (fit kinds B / C)</pre>
+                              without an accumulator (fit kinds B / C)
+lsqvce:Results:noPerObservation reliability() on a fit whose diagnostics
+                              kept no per-observation vectors</pre>
 <h3>Accuracy</h3>
 <pre class="example">  Results adds no numerics: x and sigma0 are the engine&#x27;s (sigma0 is the
   A-POSTERIORI std of unit weight; sol.Cxx the covariance scaled by it --
@@ -150,8 +157,12 @@ lsqvce:Results:noAccumulator  residuals()/contribution() on a Results
   and diag(Cxx) with z(0.05) = 1.959963984540054 in closed form.
 
 See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.REPORT,
-         LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.BLOCKACCUMULATOR
+         LSQVCE.ENGINE.VERDICT, LSQVCE.ENGINE.BLOCKACCUMULATOR
 
+Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 4: systematic, snoop,
+reliability and ellipse -- everything the verdict tells the user to do is
+a method on R (lsqvce.engine.verdict behind them). With assistance from
+Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 2 (R7-19): compare
 counts the eliminated locals in the redundancy (R.diag.u, not
 numel(R.x)). With assistance from Claude (Anthropic), model Claude Opus

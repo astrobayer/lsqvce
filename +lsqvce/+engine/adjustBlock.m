@@ -5,8 +5,8 @@ function R = adjustBlock(systems, days, opt)
 %
 %   The single front door over the streaming pipeline. It builds a
 %   LSQVCE.ENGINE.BLOCKACCUMULATOR, adds every system, solves the reduced common
-%   system, bridges the result into the diagnostics (LSQVCE.ENGINE.DIAGNOSEACCUM /
-%   LSQVCE.ENGINE.DIAGNOSE), and returns a LSQVCE.RESULTS object that carries the
+%   system, bridges the result into the diagnostics (LSQVCE.ENGINE.VERDICT.SOURCE /
+%   LSQVCE.ENGINE.VERDICT.DIAGNOSE), and returns a LSQVCE.RESULTS object that carries the
 %   solution, the per-observation diagnostics, and the accumulator itself. The
 %   six-step dance (accumulator -> addSystem -> solve -> diagnoseAccum -> diagnose
 %   -> report) becomes one line; the lower layers stay reachable on R for
@@ -92,9 +92,13 @@ function R = adjustBlock(systems, days, opt)
 %                 struct() = record the driver's own resolved options
 %
 %   See also LSQVCE.RESULTS, LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTVCEJOINT,
-%            LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.DIAGNOSEACCUM, LSQVCE.ENGINE.DIAGNOSE,
+%            LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.VERDICT.SOURCE, LSQVCE.ENGINE.VERDICT.DIAGNOSE,
 %            LSQVCE.REPORT, LSQVCE.RESULTS
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 4: the verdict comes
+%   from lsqvce.engine.verdict.fromAccumulator (diagnoseAccum + diagnose
+%   absorbed). With assistance from Claude (Anthropic), model Claude Opus
+%   5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-35): Prior
 %   documented; ShowSeconds / ExportDir, documented but never accepted,
 %   removed. With assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -134,7 +138,7 @@ arguments
     opt.Verbose  (1,1) logical = false
     opt.Prior = []                       % R5 M5 5b: lsqvce.engine.CommonPrior on the common
                                          % block (data.priors, stacked by lsqvce.fit), or []
-    opt.Diagnostics cell = {}          % R5 M5 5b': Name-Value pairs for lsqvce.engine.diagnose
+    opt.Diagnostics cell = {}          % R5 M5 5b': Name-Value pairs for lsqvce.engine.verdict.diagnose
     opt.Provenance struct = struct()     % R5 M2: the RESOLVED user options to record
                                          % in Results.meta instead of this driver's own
                                          % option struct (lsqvce.fit passes opts.toStruct()
@@ -173,8 +177,7 @@ end
     acc.addSystems(specs);
     sol = acc.solve();
 
-    [dsol, batchFcn, nB] = lsqvce.engine.diagnoseAccum(acc, sol);
-    D = lsqvce.engine.diagnose(dsol, batchFcn, 'nBatch', nB, opt.Diagnostics{:});
+    [D, dsol, batchFcn, nB] = lsqvce.engine.verdict.fromAccumulator(acc, sol, opt.Diagnostics{:});
 
     % WP-44: run provenance through the ONE composer -- adjustBlock resolves
     % no RNG seed (empty struct), and o IS its resolved option struct.

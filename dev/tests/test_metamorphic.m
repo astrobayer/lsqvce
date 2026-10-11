@@ -34,7 +34,7 @@ function testScalingTheObservationsScalesTheEstimate(tc)
 % categories: metamorphic
     % l -> c*l  =>  x -> c*x, sigma0 -> |c|*sigma0, Cxx -> c^2 Cxx (the block
     % adapter lsqvce.engine.batchSystem, lsqvce.engine.adjustBlock, the
-    % diagnostics lsqvce.engine.diagnose / lsqvce.engine.diagnoseAccum)
+    % diagnostics lsqvce.engine.verdict.diagnose / lsqvce.engine.verdict.source)
     A = tc.TestData.A;  l = tc.TestData.l;  p = tc.TestData.p;  c = -3.7;
     R1 = lsqvce.fit(struct('A', A, 'l', l,   'p', p), Verbose=false);
     R2 = lsqvce.fit(struct('A', A, 'l', c*l, 'p', p), Verbose=false);
@@ -275,7 +275,7 @@ end
 
 function testPermutingTheRowsPermutesTheDiagnostics(tc)
 % categories: metamorphic
-    % a row permutation of (A, l, p) permutes lsqvce.engine.diagnose's
+    % a row permutation of (A, l, p) permutes lsqvce.engine.verdict.diagnose's
     % per-observation outputs and leaves the estimate alone
     A = tc.TestData.A;  l = tc.TestData.l;  p = tc.TestData.p;  n = numel(l);
     rs = RandStream('mt19937ar', 'Seed', 11);  q = randperm(rs, n);

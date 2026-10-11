@@ -28,7 +28,7 @@ function R = adjustNonlinear(u, batchFcn, nBatch, x0, opt)
 %     'Backend' "qr"|"normal"; 'Parallel', 'DistributeDays', 'ParallelThreshold';
 %     'Verbose' false; 'Provenance' struct (fit's resolved Options);
 %     'Prior' [] | lsqvce.engine.CommonPrior on the common block; 'Diagnostics'
-%     {} (Name-Value pairs for lsqvce.engine.diagnose); 'OnPass' [] | @(ctx)
+%     {} (Name-Value pairs for lsqvce.engine.verdict.diagnose); 'OnPass' [] | @(ctx)
 %     the per-pass hook (lsqvce.util.onPass) with 'OnPassContext' struct()
 %   OUTPUT
 %     R  1x1 lsqvce.Results  stopReason "converged" | "maxPasses"; history(k):
@@ -52,6 +52,10 @@ function R = adjustNonlinear(u, batchFcn, nBatch, x0, opt)
 %   See also LSQVCE.ENGINE.BATCHSYSTEM,
 %            LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.FIT
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 4: the verdict comes
+%   from lsqvce.engine.verdict.fromAccumulator (diagnoseAccum + diagnose
+%   absorbed). With assistance from Claude (Anthropic), model Claude Opus
+%   5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34, R7-35):
 %   the deleted SOLVENONLINEAR reference removed; Prior / Diagnostics /
 %   OnPass / OnPassContext documented. With assistance from Claude
@@ -74,7 +78,7 @@ arguments
     opt.ParallelThreshold (1,1) double {mustBeInteger, mustBeNonnegative} = 8
     opt.Verbose (1,1) logical = false
     opt.Prior = []                       % R5 M5 5b: CommonPrior on the common block, or []
-    opt.Diagnostics cell = {}          % R5 M5 5b': Name-Value pairs for lsqvce.engine.diagnose
+    opt.Diagnostics cell = {}          % R5 M5 5b': Name-Value pairs for lsqvce.engine.verdict.diagnose
     opt.OnPass = []                    % R5 M5 5c': per-pass inspection hook (lsqvce.util.onPass)
     opt.OnPassContext struct = struct()
     opt.Provenance struct = struct()
@@ -163,8 +167,7 @@ end
     acc = finalAcc(L, days, x, state, opt);
     dsol = acc.solve();
     sol  = dsol;  sol.x = x + dsol.x(:);
-    [dsol2, batchFcn, nB] = lsqvce.engine.diagnoseAccum(acc, dsol);
-    D = lsqvce.engine.diagnose(dsol2, batchFcn, 'nBatch', nB, opt.Diagnostics{:});
+    [D, dsol2, batchFcn, nB] = lsqvce.engine.verdict.fromAccumulator(acc, dsol, opt.Diagnostics{:});
     R = lsqvce.Results(sol, D, acc, dsol2, batchFcn, nB, [], lsqvce.engine.runMeta(struct(), prov));
     sr = "";  if userStop, sr = "userStop"; end
     R.setIterative(hist, struct('x0', x0, 'reason', reason, 'kind', 'nonlinear'), converged, sr);

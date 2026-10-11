@@ -21,7 +21,7 @@ function [sol, D, V] = flatAdjust(u, batchFcn, nBatch, varargin)
 %     sol.x, .n, .u, .r (= dof), .vPv, .s0sq, .sigma0 (a-priori 1), .rank,
 %     .defect, .method, .datumB, .Cxx, .Q (the diagnostic-frame cofactor,
 %     lsqvce.engine.BlockCofactor -- WP-86 part 2)
-%     D   = R.diag (the same lsqvce.engine.diagnose on the whitened rows: D.v
+%     D   = R.diag (the same lsqvce.engine.verdict.diagnose on the whitened rows: D.v
 %           is sqrt(p).*v -- the whitened residual)
 %     V   = R.report(Verbose=false)
 %

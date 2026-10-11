@@ -75,9 +75,12 @@ classdef BlockCofactor
 %                                          system (the block-arrow structure
 %                                          would not survive)
 %
-%   See also LSQVCE.ENGINE.DIAGNOSEACCUM, LSQVCE.ENGINE.DIAGNOSE, LSQVCE.ENGINE.SNOOP,
+%   See also LSQVCE.ENGINE.VERDICT.SOURCE, LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SNOOP,
 %   LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 4: the absorbed
+%   diagnostics units are named as lsqvce.engine.verdict methods. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3 (R7-24): leverage
 %   (per system, without widening the rows), systemOf, fromAccumulator;
 %   local-free systems keep their index; the Hutchinson note moved here from
@@ -327,7 +330,7 @@ classdef BlockCofactor
         %   the commons factor (acc.commonFactor) and, per system in the
         %   accumulator's order, the REGULARISED local block the solve used,
         %   with the solve's pinv cut. Local columns follow the commons in
-        %   system order -- the layout of lsqvce.engine.diagnoseAccum.
+        %   system order -- the layout of lsqvce.engine.verdict.source.
             ids = acc.systems();
             nc = acc.nc;
             blocks = struct('cols', cell(1, numel(ids)), 'Nll', [], 'Nlc', [], 'truncTol', []);

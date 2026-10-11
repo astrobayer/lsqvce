@@ -1,0 +1,2802 @@
+classdef verdict
+%LSQVCE.ENGINE.VERDICT  The verdict of an adjustment: diagnostics, snooping, systematics, tests.
+%
+%   The ONE engine unit that judges a solved adjustment (R5 M4 WP-86, the
+%   "verdict from the sweep" row; part 4). It absorbs the seven units that
+%   did it before -- diagnoseAccum, diagnose, snoop, systematic, ftest,
+%   ellipse and the statistics half of stat (the distributions moved to
+%   LSQVCE.KERNEL.STAT) -- as static methods of one class. Users reach it
+%   through lsqvce.Results: R.diag is its diagnose, R.systematic / R.snoop
+%   / R.reliability / R.ellipse / R.compare call it, and LSQVCE.REPORT prints
+%   it. The report never names an engine function.
+%
+%   METHODS (static)
+%     [D, dsol, src, nB] = fromAccumulator(acc, sol, Name, Value, ...)
+%         the five-level verdict of a solved block accumulator in one call:
+%         source + diagnose (what every driver runs; Name-Value forwarded)
+%     [dsol, src, nB] = source(acc, sol)
+%         the full-parameter solution (its cofactor as blocks,
+%         LSQVCE.ENGINE.BLOCKCOFACTOR) and the replayable batch source
+%     D = diagnose(dsol, src, Name, Value, ...)
+%         per-observation residuals, redundancy, w / tau, MDB, external
+%         reliability, the contamination gauge, conditioning, correlation
+%     [sol, D, REJ] = snoop(dsol, D, src, Name, Value, ...)
+%         iterative data snooping (rank-one downdates of the block cofactor)
+%     S = systematic(D, Name, Value, ...)
+%         Ljung-Box / runs / covariate tests for unmodelled signal
+%     F = ftest(solFull, solRed, Name, Value, ...)
+%         nested-model F test
+%     E = ellipse(D, [i j], Name, Value, ...)
+%         confidence ellipse of a parameter pair
+%   Each method's own help: help lsqvce.engine.verdict.<method>.
+%
+%   EXAMPLE
+%       R = lsqvce.fit(data, Verbose=false);          % R.diag is the verdict
+%       [D, dsol, src, nB] = lsqvce.engine.verdict.fromAccumulator(R.acc, R.sol, 'Test', "mad");
+%       S = lsqvce.engine.verdict.systematic(D);      % what R.systematic() runs
+%
+%   See also LSQVCE.RESULTS, LSQVCE.REPORT, LSQVCE.ENGINE.BLOCKCOFACTOR, LSQVCE.KERNEL.STAT
+%
+%   Created 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 4 (user decision:
+%   the full absorption): diagnoseAccum, diagnose, snoop, systematic, ftest
+%   and ellipse are this class's static methods, their bodies unchanged but
+%   for the renamed references; stat moved to lsqvce.kernel.stat. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
+
+methods (Static)
+
+function [D, diagSol, batchFcn, nBatch] = fromAccumulator(acc, sol, varargin)
+%LSQVCE.ENGINE.VERDICT.FROMACCUMULATOR  The verdict of a solved block accumulator, in one call.
+%
+%   [D, diagSol, batchFcn, nBatch] = LSQVCE.ENGINE.VERDICT.FROMACCUMULATOR(acc, sol, ...)
+%   is source (the full-parameter solution and the replayable batch source)
+%   followed by diagnose on them -- the pair every driver ran (fit,
+%   adjustBlock, adjustRobust, adjustNonlinear, snoop's clean re-solve).
+%
+%   INPUT
+%     acc       1x1 lsqvce.engine.BlockAccumulator  solved, 'KeepLocal' true
+%     sol       1x1 struct  the solution it returned
+%     varargin  Name-Value pairs forwarded to LSQVCE.ENGINE.VERDICT.DIAGNOSE
+%               (Alpha, Bonferroni, Beta, RMin, RWeak, Test, RobustCheck,
+%               Store, NWorst, Progress; NBatch is set here)
+%   OUTPUT
+%     D         1x1 struct  the diagnostics (R.diag)
+%     diagSol   1x1 struct  the full-parameter solution (R.source)
+%     batchFcn  1x1 fh      the batch source (R.batchFcn)
+%     nBatch    1x1 double  its batch count (R.nBatch)
+%
+%   EXAMPLE
+%       [D, dsol, src, nB] = lsqvce.engine.verdict.fromAccumulator(R.acc, R.sol, 'Test', "mad");
+%
+%   See also LSQVCE.ENGINE.VERDICT.SOURCE, LSQVCE.ENGINE.VERDICT.DIAGNOSE
+    [diagSol, batchFcn, nBatch] = lsqvce.engine.verdict.source(acc, sol);
+    D = lsqvce.engine.verdict.diagnose(diagSol, batchFcn, 'nBatch', nBatch, varargin{:});
+end
+
+function [diagSol, batchFcn, nBatch] = source(acc, sol)
+%LSQVCE.ENGINE.VERDICT.SOURCE  Bridge a block-arrow lsqvce.engine.BlockAccumulator adjustment into LSQVCE diagnostics.
+%
+%   [diagSol, batchFcn, nBatch] = LSQVCE.ENGINE.VERDICT.SOURCE(acc, sol) returns exactly what
+%   lsqvce.engine.verdict.diagnose / lsqvce.engine.verdict.snoop expect:
+%       diagSol   struct with fields {x, Q, n, u, r, rank, defect, sigma0, s0sq,
+%                 vPv, vPvSource, condR, condN, condIsBound, nBatch}; Q is the
+%                 LSQVCE.ENGINE.BLOCKCOFACTOR of the full parameter set
+%       batchFcn  @(k) -> [A, l, p]   the k-th WHITENED batch (one arc), unit weight
+%       nBatch    number of batches (the arcs, then the prior's pseudo-batch)
+%
+%   so you can run the full five-level lsqvce verdict on a gravity-recovery
+%   adjustment built with the streaming accumulator:
+%
+%       R   = lsqvce.fit(data, Estimate="noise", Pool="obsType");
+%       acc = R.acc;   sol = R.sol;               % fit did the next three lines
+%       [dsol, src, nB] = lsqvce.engine.verdict.source(acc, sol);   % already: R.source / R.batchFcn / R.nBatch
+%       D = lsqvce.engine.verdict.diagnose(dsol, src, 'nBatch', nB);
+%       V = lsqvce.report(D);              % the five levels
+%       S = lsqvce.engine.verdict.systematic(D);          % Ljung-Box / runs / covariate
+%
+%   WHY THE FULL PARAMETER SET, NOT THE REDUCED ONE
+%   -----------------------------------------------
+%   lsqAccum pre-eliminates the local parameters per system by Schur complement
+%   and keeps only reduced common normals. lsqvce per-observation redundancy
+%   r_i = 1 - a_i' Qxx a_i is only correct if a_i and Qxx span the SAME
+%   parameter set the observation actually constrains -- i.e. the FULL set
+%   [common | all locals]. Diagnosing against the reduced common block alone
+%   would miscount the degrees of freedom the local parameters absorb and
+%   inflate every r_i. So this bridge works on the full block-arrow system:
+%   columns are [x_common | y_sys1 | y_sys2 | ...], and each batch places its
+%   whitened A into the common columns and its whitened B into that system's
+%   local columns. Its cofactor Qxx is never formed: BlockCofactor answers
+%   a'*Qxx*a from the reduced commons factor and the per-system Schur blocks
+%   the solve used (WP-86 part 2), exactly the block-arrow inverse.
+%
+%   The whitening replays the loader's own Wfcn/Cfcn, batch by batch, with the
+%   same overlap discard as accumulation -- so the batches are bit-identical to
+%   what the accumulator saw.
+%
+%   COST
+%   ----
+%   Nothing u_full x u_full (u_full = nc + sum(nl)) is formed (WP-86 part 2):
+%   the cofactor is the nc x nc commons factor plus, per system, its nl x nl
+%   local factor and the nl x nc coupling G -- memory O(nc^2 + sum nl*nc),
+%   and lsqvce.engine.verdict.diagnose costs O(nc^2 + nl*nc) per row with it. Before,
+%   a dense QR of every row at full width built a u_full x u_full R (1.5 GB at
+%   a GRAVFIRE month, ~u_full^2/2 flops per row and pass, and diagnose held
+%   four such matrices). The batches are NOT stored (WP-86 part 1, R7-24):
+%   batchFcn re-reads an arc through its loader and re-whitens it on demand,
+%   caching one arc, so the memory is one arc at full width. The row count
+%   comes from the accumulator and the index from the loaders' meta answers,
+%   so the bridge itself reads no data. The price is a re-read of the data
+%   per diagnostic pass, and it RELIES ON THE LOADER'S CONTRACT that an arc is
+%   returned identically on every call (a changed count is still caught:
+%   lsqvce:diagnose:batchMismatch).
+%
+%   REQUIRES  acc constructed with 'KeepLocal', true (the default).
+%
+%   INPUT
+%     acc       1x1 lsqvce.engine.BlockAccumulator  the accumulator that solved
+%     sol       1x1 struct  the solution it returned
+%
+%   OUTPUT
+%     diagSol   1x1 struct   the FULL-parameter solution (fields above): the
+%                            common redundancies are CORRECTED for the
+%                            eliminated locals -- reading the reduced common
+%                            system alone inflates every reliability number
+%     batchFcn  1x1 fh       the replay source, one arc per batch
+%     nBatch    1x1 double   number of batches
+%
+%   ERRORS
+%     lsqvce:diagnoseAccum:noSystems     the accumulator carries no systems
+%     lsqvce:diagnoseAccum:needKeepLocal the local blocks were not retained, so
+%                                   the common redundancies cannot be corrected;
+%                                   re-run keeping them
+%
+%   See also LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SNOOP, LSQVCE.REPORT, LSQVCE.ENGINE.REDUNDANCY,
+%   LSQVCE.ENGINE.BLOCKCOFACTOR
+%
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-86 part 2 (R7-24): the dense
+%   full-width factor replaced by the block cofactor; one batch per arc,
+%   indexed from the meta answers, n from the accumulator -- the bridge reads
+%   no data. With assistance from Claude (Anthropic), model Claude Opus 5.5.
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-86 part 1 (R7-24): the
+%   batches are rebuilt on demand from their address, one arc cached, instead
+%   of being stored at full width (n x u_full). With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): the
+%   deleted engine.adjust reference replaced. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
+%   Generated with assistance from Claude (Anthropic), model Claude
+%   Opus 4.8.
+%   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
+%   WP-64a): the ENGINE tier leaves the USER surface; every qualified
+%   reference was rewritten mechanically by docs_src/refactor_tiers.py.
+
+    % The bridge needs the per-system Schur blocks (the cofactor's local
+    % factors, the back-substitution, the arc replay). They are only retained
+    % when the accumulator was built with 'KeepLocal', true; refuse loudly
+    % rather than return a silently degenerate (zero-batch) diagSol.
+    if ~lsqvce.util.getfielddef(acc.opt, 'KeepLocal', true)
+        error('lsqvce:diagnoseAccum:needKeepLocal', ...
+            ['diagnoseAccum needs the per-system Schur blocks to rebuild the ' ...
+             'full block-arrow system, but the accumulator was built with ' ...
+             '''KeepLocal'', false. Reconstruct it with ''KeepLocal'', true ' ...
+             '(the default) before bridging into diagnostics.']);
+    end
+
+    sysIds = acc.systems();
+    nSys   = numel(sysIds);
+    if nSys == 0
+        error('lsqvce:diagnoseAccum:noSystems', ...
+            ['The accumulator has no stored systems to diagnose. Add at ' ...
+             'least one system and solve before calling diagnoseAccum.']);
+    end
+    nc     = numel(sol.x);
+
+    % ---- global column layout: [common | locals(sys1) | locals(sys2) | ...]
+    localOffset = zeros(1, nSys);
+    localCount  = zeros(1, nSys);
+    col         = nc;
+    stores      = cell(1, nSys);
+    n           = 0;
+    for iSys = 1:nSys
+        st = acc.systemStore(sysIds(iSys));
+        stores{iSys}     = st;
+        localOffset(iSys) = col;
+        localCount(iSys)  = st.nl;
+        kept = acc.getStore(sysIds(iSys));
+        n   = n + kept.mObs;                           % rows the accumulator folded
+        col = col + st.nl;
+    end
+    uFull = col;                                    % nc + sum(nl)
+
+    % ---- full parameter vector: x_common then each system's back-substituted y
+    xFull = zeros(uFull, 1);
+    xFull(1:nc) = sol.x;
+    for iSys = 1:nSys
+        y = acc.backSubstitute(sysIds(iSys), sol.x);
+        xFull(localOffset(iSys) + (1:localCount(iSys))) = y;
+    end
+
+    % ---- the cofactor, as blocks (WP-86 part 2) -------------------------
+    % Qxx of the full parameter set from the reduced commons factor and the
+    % per-system blocks: nothing u_full x u_full is factored or held (it was a
+    % dense QR of every whitened row at full width, 1.5 GB per copy and
+    % ~u_full^2/2 flops per row at a GRAVFIRE month).
+    Q = lsqvce.engine.BlockCofactor.fromAccumulator(acc);   % same system order, same layout
+
+    % ---- the batch index: one batch = one ARC, from the meta calls alone --
+    % batchFcn rebuilds an arc's whitened rows from its address on demand
+    % (WP-86 part 1, R7-24); the row count comes from the accumulator, so
+    % building the index reads no data (part 2).
+    index = enumerateArcs(stores);
+    % braces around the cells: a cell VALUE, not a struct array (the struct()-cell pitfall)
+    src = struct('stores', {stores}, 'localOffset', localOffset, 'localCount', localCount, ...
+                 'nc', nc, 'uFull', uFull, 'index', {index}, 'prior', [], ...
+                 'cache', containers.Map('KeyType', 'char', 'ValueType', 'any'));
+    % R5 M5 5b: the common-block PRIOR is one more batch of pseudo-observations
+    % (rows K/sigma on the common columns, observations x0/sigma), so the hat
+    % matrix, the redundancies and the residual sum include it exactly as the
+    % solve did (Koch: the prior's redundancy is what it absorbs).
+    nBatch = size(index, 1);
+    if ~isempty(acc.prior)
+        K  = full(acc.prior.K) / acc.prior.sigma;
+        Ap = [K, zeros(size(K, 1), uFull - nc)];
+        lp = acc.prior.x0(:) / acc.prior.sigma;
+        src.prior = struct('A', Ap, 'l', lp);       % nk x uFull: the one stored batch
+        nBatch = nBatch + 1;
+        n     = n + size(Ap, 1);
+    end
+
+    % ---- diagSol in lsqvce contract -------------------------------------
+    % cond: a LOWER bound from the blocks (an SVD of the u_full factor is the
+    % O(u_full^3) step part 2 removes); report prints it as one.
+    kN = Q.condLowerBound();
+    % R5 M5 5b': sigma0 below is the A-PRIORI sigma0 of the law-whitened rows,
+    % 1 by construction, so diagnose's varRatio and its a-priori backstop are
+    % s0sq/1. The accumulator's sol.sigma0 is the a-posteriori one -- passing
+    % it here made both identically 1 (the breakdown backstop could never fire).
+    diagSol = struct( ...
+        'x',      xFull, ...
+        'Q',      Q, ...
+        'n',      n, ...
+        'u',      uFull, ...
+        'r',      n - uFull, ...
+        'rank',   uFull, ...
+        'defect', 0, ...
+        'sigma0', 1, ...
+        's0sq',   sol.s0sq, ...
+        'vPv',    sol.vtv, ...
+        'vPvSource', 'accumulator (v''v)', ...
+        'condR',  sqrt(kN), ...
+        'condN',  kN, ...
+        'condIsBound', true, ...
+        'nBatch', nBatch);
+
+    % ---- batchFcn: replay the k-th whitened batch --------------------------
+    % A local function (not deal) so a caller may take 1, 2, or 3 outputs:
+    % lsqvce.engine.verdict.diagnose asks for [A,l,p], but a redundancy-only sweep wants just
+    % A. deal() would throw on nargout < 3; batchOf never does.
+    batchFcn = @(k) batchOf(src, k);
+end
+
+function D = diagnose(sol, batchFcn, opt)
+%LSQVCE.ENGINE.VERDICT.DIAGNOSE  Second-pass per-observation diagnostics for a batch LSQ.
+%
+%   D = LSQVCE.ENGINE.VERDICT.DIAGNOSE(sol, batchFcn) sweeps the observations a second time
+%   and produces, for every observation, the quantities you actually need in
+%   order to judge the adjustment:
+%
+%       v      residual
+%       qv     cofactor of the residual, diag(Qvv)
+%       r      redundancy number,  r_i = (Qvv P)_ii
+%       w      normalised residual (Baarda) or studentised (Pope)
+%       mdb    minimal detectable bias in the units of the observation
+%       ext    external reliability: |dx| induced by an undetected MDB,
+%              expressed as a multiple of the parameter's own sigma
+%
+%   Nothing of size n-by-n, n-by-u or u-by-u is formed: the cofactor of the
+%   FULL parameter set (commons + every system's locals) is sol.Q, an
+%   LSQVCE.ENGINE.BLOCKCOFACTOR, so per row the cost is O(nc^2 + nl*nc) and the
+%   memory O(nc^2 + sum nl*nc) (WP-86 part 2; a dense u x u factor before). The
+%   batch source every fit uses, LSQVCE.ENGINE.VERDICT.SOURCE, rebuilds the
+%   batches on demand (WP-86 part 1, R7-24).
+%
+%   INPUTS
+%     sol       the diagnosed solution (R.source; LSQVCE.ENGINE.VERDICT.SOURCE builds
+%               it): x, Q (the block cofactor), n, u, r, sigma0, s0sq, vPv, ...
+%     batchFcn  function handle, [A,l,p] = batchFcn(k), k = 1..nBatch.
+%               Must reproduce EXACTLY the batches given to the accumulator,
+%               in the same order. This is checked: a replay that sees a
+%               different observation count is lsqvce:diagnose:batchMismatch,
+%               and D.sumRRelErr / D.vPvRelDiff report the integrity numbers.
+%
+%   NAME-VALUE
+%     'nBatch'      number of batches (default sol.nBatch)
+%     'alpha'       per-test significance          (default 0.001)
+%     'bonferroni'  correct alpha for n tests      (default true)
+%     'beta'        MDB type-II error              (default 0.20)
+%     'rMin'        redundancy below which an observation is declared
+%                   UNCONTROLLED and its w is not reported (default 0.01,
+%                   the same as Options.Diagnostics.RMin -- R7-35)
+%     'rWeak'       redundancy below which an observation is flagged as
+%                   weakly controlled                        (default 0.10)
+%     'test'        'auto' | 'pope' | 'baarda'   (default 'auto')
+%                   'baarda' assumes sigma0 is known a priori; 'pope'
+%                   studentises with the estimated s0. 'auto' picks pope,
+%                   because in practice sigma0 is essentially never known.
+%     'store'       'all' | 'flagged' | 'none'   (default 'all')
+%                   'flagged' keeps only observations that trip a test plus
+%                   the worst offenders -- use this when n is enormous.
+%     'nWorst'      how many worst-|w| observations to retain under
+%                   'store','flagged'                        (default 1000)
+%     'robustCheck' also form the MAD scale and the contamination gauge
+%                   (one extra sweep; always on for 'test','mad') (default true)
+%     'progress'    print a progress line every ~2 s     (default false)
+%
+%   ON BONFERRONI
+%   -------------
+%   Data snooping runs one hypothesis test PER OBSERVATION. With n = 1e7 and an
+%   uncorrected alpha = 0.001, roughly 10,000 perfectly good observations will
+%   exceed the critical value by chance alone. Reporting those as "outliers" is
+%   not conservatism, it is noise. The default therefore corrects alpha to
+%   alpha/n. This raises the critical value from ~3.29 to ~5.7 at n = 1e7, and
+%   is the difference between a usable outlier list and a meaningless one.
+%
+%   OUTPUT
+%     D  1x1 struct  residuals, redundancy numbers r_i, leverage h_i, the
+%                    standardised w_i / tau_i, MDB, flagIdx and the
+%                    contamination gauge -- everything LSQVCE.REPORT reads.
+%                    The parameter cofactor is D.Q (D.Q.block(idx) is
+%                    Qxx(idx, idx)); D.sigX / D.qxxDiag its diagonal, and
+%                    D.corrMax / D.corrMaxPar the strongest correlation
+%
+%   EXAMPLE
+%       % The SAME batch source must be replayed -- this is checked. On the
+%       % block path (v5) R.source is the diagnosed solution and R.batchFcn /
+%       % R.nBatch the replayable source LSQVCE.ENGINE.VERDICT.SOURCE built.
+%       data = struct('batchFcn', src, 'numUnknowns', u, 'numBatches', 4);
+%       R = lsqvce.fit(data, Verbose=false);           % R.diag is this D
+%
+%       % Re-diagnose with the ROBUST scale instead of Pope's tau. Do this
+%       % whenever D.contamLevel is 'moderate' or worse: Pope goes BLIND at
+%       % ~10%% contamination because the blunders inflate the s0 it divides by.
+%       Dm = lsqvce.engine.verdict.diagnose(R.source, R.batchFcn, 'nBatch', R.nBatch, 'test', 'mad');
+%
+%       % Dm.flagIdx    -> [40 150]
+%       % Dm.quad       -> the (w, r) quadrants; read UNTESTED, not just w
+%       % Dm.mdb        -> largest error that could hide in each observation
+%
+%   ERRORS
+%     lsqvce:diagnose:nBatch          nBatch disagrees with what the solve used
+%     lsqvce:diagnose:batchMismatch   batchFcn returned DIFFERENT data on this
+%                                     second pass. It is called twice -- once to
+%                                     accumulate, once to diagnose -- and must
+%                                     be deterministic
+%     lsqvce:diagnose:badPmatrix      a full weight matrix where a diagonal was
+%                                     expected
+%     lsqvce:diagnose:badTest         'test' is not 'auto', 'pope' or 'baarda'
+%     lsqvce:diagnose:noRobustScale   a robust scale was requested but the
+%                                     residuals cannot support one
+%
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
+%   typed `arguments` signature, canonical UpperCamelCase option names
+%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+%   case-sensitive lowercase). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
+%   See also LSQVCE.ENGINE.VERDICT.SOURCE, LSQVCE.REPORT, LSQVCE.ENGINE.VERDICT.SNOOP,
+%   LSQVCE.ENGINE.BLOCKCOFACTOR.
+%
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-86 part 2 (R7-24): the
+%   cofactor comes as blocks (sol.Q); the dense R, Qxx and correlation matrix
+%   (D.R, D.Qxx, D.corr) and the largeU warning about them are retired. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 3 (R7-24): the help
+%   separates this function's own working set from its batch source's --
+%   diagnoseAccum keeps all whitened rows at full width (WP-86). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34..36): the
+%   dead 'verify' option retired, RobustCheck / Progress documented, rMin
+%   defaults to Options.Diagnostics.RMin (0.01), the MDB reservoir draws
+%   from its own stream. With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
+%   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
+%   2026-07-11.
+%   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
+%   WP-64a): the ENGINE tier leaves the USER surface; every qualified
+%   reference was rewritten mechanically by docs_src/refactor_tiers.py.
+
+% WP-39 stage (b) b2: typed `arguments` signature (canonical
+% UpperCamelCase; legacy casings keep matching -- MATLAB NV
+% semantics; enum VALUES case-sensitive lowercase).
+arguments
+    sol
+    batchFcn
+    opt.NBatch double {mustBeScalarOrEmpty} = []
+    opt.Alpha (1,1) double {mustBePositive, mustBeLessThan(opt.Alpha,1)} = 1e-3
+    opt.Bonferroni (1,1) logical = true
+    opt.Beta (1,1) double {mustBePositive, mustBeLessThan(opt.Beta,1)} = 0.20
+    opt.RMin (1,1) double {mustBeNonnegative} = 0.01   % R7-35: Options.Diagnostics.RMin's value
+    opt.RWeak (1,1) double {mustBeNonnegative, mustBeLessThanOrEqual(opt.RWeak,1)} = 0.10
+    opt.Test (1,1) string {mustBeMember(opt.Test, ["auto","pope","baarda","mad"])} = "auto"
+    opt.RobustCheck (1,1) logical = true
+    opt.Store (1,1) string {mustBeMember(opt.Store, ["all","flagged","none"])} = "all"
+    opt.NWorst (1,1) double {mustBeNonnegative} = 1000
+    opt.Progress (1,1) logical = false
+end
+
+o = struct('nBatch', opt.NBatch, 'alpha', opt.Alpha, 'bonferroni', opt.Bonferroni, 'beta', opt.Beta, 'rMin', opt.RMin, 'rWeak', opt.RWeak, 'test', char(opt.Test), 'robustCheck', opt.RobustCheck, 'store', char(opt.Store), 'nWorst', opt.NWorst, 'progress', opt.Progress);
+
+nB = o.nBatch;
+if isempty(nB)
+    if isfield(sol, 'nBatch') && sol.nBatch > 0
+        nB = sol.nBatch;
+    else
+        error('lsqvce:diagnose:nBatch', ...
+              'Cannot infer the batch count; pass ''nBatch''.');
+    end
+end
+
+Q  = sol.Q;
+x  = sol.x;
+n  = sol.n;
+u  = sol.u;
+rdf = sol.r;                          % redundancy = n - u
+
+% -------------------------------------------------------------- test setup
+alphaEff = o.alpha;
+if o.bonferroni
+    alphaEff = o.alpha / max(n, 1);
+end
+
+testName = lower(o.test);
+if strcmp(testName, 'auto'), testName = 'pope'; end
+
+switch testName
+    case 'pope'
+        kCrit = lsqvce.kernel.stat.tauCrit(alphaEff, rdf);
+    case 'mad'
+        % The MAD statistic is still a STUDENTISED residual -- only the scale in
+        % the denominator is robust. It remains tau-distributed, so the critical
+        % value is Pope's.
+        %
+        % THIS CASE WAS MISSING. kCrit was simply never assigned on the 'mad'
+        % path, and diagnose died with "Unrecognized function or variable
+        % kCrit". The entire robust-scale cure -- the toolbox's headline fix for
+        % Pope's breakdown -- was therefore DEAD ON ARRIVAL. The Python port
+        % computed kCrit separately and so structurally could not see it.
+        % Caught only by finally running the suite in MATLAB.
+        kCrit = lsqvce.kernel.stat.tauCrit(alphaEff, rdf);
+    case 'baarda'
+        kCrit = lsqvce.kernel.stat.normCrit(alphaEff);
+    otherwise
+        error('lsqvce:diagnose:badTest', ...
+              'Unknown test "%s". Use pope, baarda or mad.', testName);
+end
+delta0 = lsqvce.kernel.stat.delta0(alphaEff, o.beta);
+
+% Pope's tau is bounded by sqrt(rdf). Under a hard Bonferroni correction the
+% requested critical value can exceed that bound, in which case NO residual can
+% ever be flagged and the snooping is vacuous. Say so rather than silently
+% returning an empty outlier list.
+tauBound = sqrt(rdf);
+snoopVacuous = strcmp(testName, 'pope') && kCrit >= tauBound;
+
+% ---------------------------------------------------------- allocate output
+storeAll = strcmpi(o.store, 'all');
+storeNone = strcmpi(o.store, 'none');
+if storeAll
+    v_all  = zeros(n, 1);
+    r_all  = zeros(n, 1);
+    w_all  = zeros(n, 1);
+    qv_all = zeros(n, 1);
+    mdb_all = zeros(n, 1);
+else
+    v_all = []; r_all = []; w_all = []; qv_all = []; mdb_all = [];
+end
+
+% Running scalars -- these are the honest recomputations.
+vPv_direct = 0;      % sum(p .* v.^2)   -- NOT l'Pl - b'x
+sumR       = 0;      % must equal n - u
+nSeen      = 0;
+
+% Streaming collectors that never grow with n
+flagIdx = [];  flagW = [];  flagR = [];  flagV = [];  flagMDB = [];
+worstW  = -inf(min(o.nWorst, n), 1);
+worstI  = zeros(numel(worstW), 1);
+
+nUncontrolled = 0;   idxUncontrolled = [];
+
+% (w, r) quadrant counters and the bounded MDB reservoir.
+nQ_cleanOut = 0;  nQ_ambiguous = 0;  nQ_verified = 0;  nQ_untested = 0;
+mdbCap   = 5000;          % reservoir size: quantiles to ~1% with 5000 samples
+% R7-36: the reservoir draws from its OWN fixed-seed stream. randi on the
+% global stream advanced the user's RNG on every fit with n > 5000 (against
+% WP-36: the global RNG is never touched) and made the reported MDB
+% quantiles differ run to run on identical input.
+mdbRng   = RandStream('mt19937ar', 'Seed', 0);
+mdbPool  = zeros(0, 1);
+nMdbSeen = 0;
+nMdbInf  = 0;
+nWeak         = 0;
+rmin_seen     = inf;  rmin_idx = 0;
+maxAbsW       = 0;    maxAbsW_idx = 0;
+
+% External-reliability accumulator: the worst effect on any parameter, in
+% units of that parameter's own sigma. Needs diag(Qxx), which the block
+% cofactor gives without forming Qxx (WP-86 part 2: the dense u x u Qxx, its
+% inverse factor and the correlation matrix were the toolbox's O(u^3) step and
+% its only O(u^2) allocations -- 1.5 GB each at u = 13 729).
+%
+% A free network enters as a prior on its null space (data.priors), folded
+% into the cofactor like every other prior, so Qxx is the cofactor of the
+% solve actually made and needs no correction here.
+qxxDiag = Q.diagonal();
+
+% A parameter that lies almost entirely in the datum null space can come out
+% a few eps negative. Clamp rather than emit a complex sigma.
+negQ = qxxDiag < 0;
+if any(negQ)
+    qxxDiag(negQ) = 0;
+end
+sigX    = sqrt(max(qxxDiag, 0));
+extMax  = 0;  extMax_idx = 0;  extMax_par = 0;
+
+s0sq = sol.s0sq;
+if ~isfinite(s0sq) || s0sq <= 0
+    % Zero redundancy, or a poisoned vPv. Fall back to sigma0 so the studentised
+    % residual is at least defined; flag it in the report.
+    s0sq_use = sol.sigma0^2;
+    s0Fallback = true;
+else
+    s0sq_use = s0sq;
+    s0Fallback = false;
+end
+
+% =========================================================================
+% ROBUST variance factor -- the fix for Pope's breakdown
+% =========================================================================
+% Pope's tau studentises the residual by s0, which is estimated FROM THE DATA.
+% When several blunders are present they inflate s0, and since each blunder is
+% then divided by that inflated s0, THEY MASK EACH OTHER. This is not a leverage
+% effect and iterating does not cure it: if nothing crosses the threshold on the
+% first pass, the rejection loop terminates immediately having removed nothing.
+%
+% Measured breakdown (n=200, u=8, blunders of 20 sigma, fraction of TRUE
+% blunders detected):
+%
+%     contamination     Pope      MAD-scaled
+%          2.5 %        100 %        100 %
+%          5   %         23 %        100 %      <- Pope already collapsing
+%         10   %          0 %        100 %      <- Pope totally blind
+%         20   %          0 %         99 %
+%         30   %          0 %         75 %
+%
+% At 10 % contamination a 100-sigma blunder is UNDETECTABLE by Pope: max|w|
+% saturates around 3.3 while the critical value sits at 3.9. Tau is bounded by
+% sqrt(r), so it cannot grow without limit however gross the error.
+%
+% The cure is a scale estimate with a high breakdown point. The MAD of the
+% standardised residuals v_i/sqrt(qv_i) costs nothing on clean data (measured:
+% zero extra false alarms over 200 clean realisations; mean scale 1.0036 vs
+% s0's 0.9976) and is merely less EFFICIENT (sd 0.085 vs 0.051). That is a
+% trade every adjustment should be willing to make.
+%
+% We therefore always compute BOTH, and cross-check them (see robustCheck).
+% A large disagreement between s0 and the MAD scale is a direct symptom of
+% contamination, and is reported even when the user has chosen 'pope'.
+%
+% The MAD needs the raw standardised residuals, so it requires its own sweep.
+% That sweep is cheap: it reuses the same triangular solves and stores nothing.
+
+robustScale = NaN;
+madAvailable = false;
+fhat = NaN;
+if o.robustCheck || strcmp(testName, 'mad')
+    rawAll = zeros(n, 1);
+    pos = 0;
+    for k = 1:nB
+        [Ak, lk, pk] = batchFcn(k);
+        lk = lk(:);
+        nk = size(Ak, 1);
+        if nk == 0, continue; end
+
+        isCorrK = ~isempty(pk) && ~isvector(pk);
+        if isempty(pk), pk = ones(nk, 1); end
+
+        vk = Ak * x - lk;
+        Wk = Q.halfRows(Ak);
+
+        % The raw score is the test statistic WITHOUT the scale factor:
+        %       raw_i = (P v)_i / sqrt( (P Qvv P)_ii )
+        % which is exactly what the MAD then rescales. It is defined for a
+        % correlated batch just as it is for a diagonal one -- Baarda's
+        % generalised form covers both -- so the robust check no longer has to
+        % bail out on correlated data.
+        if isCorrK
+            Pk  = (pk + pk') / 2;
+            Gk  = Pk * Ak;
+            WGk = Q.halfRows(Gk);
+            qpk = diag(Pk) - sum(WGk.^2, 1).';
+            Pvk = Pk * vk;
+        else
+            pk  = pk(:);
+            qvk = 1 ./ pk - sum(Wk.^2, 1).';
+            qvk(qvk < 0) = 0;
+            qpk = pk.^2 .* qvk;
+            Pvk = pk .* vk;
+        end
+        qpk = max(qpk, 0);
+
+        good = qpk > 0;
+        rk_ = zeros(nk, 1);
+        rk_(good) = Pvk(good) ./ sqrt(qpk(good));
+        rawAll(pos + (1:nk)) = rk_;
+        pos = pos + nk;
+    end
+
+    if ~isempty(rawAll) && pos == n
+        nz = rawAll(isfinite(rawAll) & rawAll ~= 0);
+        if numel(nz) >= 3
+            med = median(nz);
+            % 1.4826 makes the MAD consistent for the normal distribution.
+            robustScale = 1.4826 * median(abs(nz - med));
+            if isfinite(robustScale) && robustScale > 0
+                madAvailable = true;
+
+                % ---- CONTAMINATION FRACTION (the gauge) ----------------
+                % fhat = fraction of observations whose ROBUSTLY-standardised
+                % residual exceeds a FIXED cut. The cut is 2.5, deliberately
+                % NOT the Bonferroni critical value: we want a scale-free
+                % COUNT of how much of the data looks bad, not a hypothesis
+                % test. A test answers "is this observation an outlier?";
+                % fhat answers "what fraction of my data is unusable?", and
+                % those call for completely different responses.
+                %
+                % Measured accuracy (n=300, u=8, 20-sigma blunders):
+                %     true f :  0%    5%   10%   20%   30%   40%
+                %     fhat   : 0.015 0.059 0.106 0.201 0.300 0.388
+                % i.e. |fhat - f| <= 0.015 for f <= 30%, with a ~1.5% floor on
+                % clean data (the expected count beyond 2.5 sigma).
+                %
+                % ABOVE ~40% fhat COLLAPSES TO ZERO. This is not a bug: at 50%
+                % contamination the MAD locks onto the BLUNDER population and
+                % the good data become "the outliers". Every scale-based
+                % indicator fails this way, which is why fhat alone is not
+                % enough -- see contamBackstop below.
+                fhat = mean(abs(nz / robustScale) > 2.5);
+            end
+        end
+    end
+end
+
+if strcmp(testName, 'mad')
+    if ~madAvailable
+        error('lsqvce:diagnose:noRobustScale', ...
+            ['''test'',''mad'' was requested but a robust scale could not be ' ...
+             'formed (correlated batches, or too few usable residuals). Use ' ...
+             '''pope'' or ''baarda'', or decorrelate the batches first.']);
+    end
+    scaleUse = robustScale;
+else
+    scaleUse = sqrt(s0sq_use);
+end
+
+% ================================================================== 2nd pass
+% Progress reporting. Two passes over 1e8 observations backed by disk I/O is a
+% long silence otherwise, and a user cannot tell a slow run from a hung one.
+tProg = tic;
+lastProg = 0;
+
+for k = 1:nB
+    [Ak, lk, pk] = batchFcn(k);
+    lk = lk(:);
+    nk = size(Ak, 1);
+    if nk == 0, continue; end
+
+    % =====================================================================
+    % CORRELATED BATCHES
+    % =====================================================================
+    % P is block-diagonal with the BATCHES as its blocks: correlation within a
+    % batch, independence between batches. That is the structure of most real
+    % geodetic data (per-arc, per-pass, per-session noise models), and it is
+    % exactly what makes the general case tractable.
+    %
+    % The diagnostics do NOT need whitening, and the flags do NOT degrade into
+    % statements about "linear combinations". Baarda's GENERALISED data snooping
+    % works directly on the physical observations:
+    %
+    %       r_i = (Qvv P)_ii
+    %       w_i = (e_i' P v) / sqrt( (P Qvv P)_ii )
+    %
+    % and with  Qvv = P^-1 - A Qxx A'  these expand to
+    %
+    %       G_k          = P_k A_k                       (nk x u)
+    %       (Qvv P)_ii   = 1 - (A_k Qxx G_k')_ii
+    %       (P Qvv P)_ii = P_k(i,i) - g_i' Qxx g_i
+    %
+    % Every term needs only P_k, A_k and Qxx. Cost is O((nc^2 + nl*nc) nk) per batch --
+    % IDENTICAL to the diagonal path -- and nothing of size n is ever formed.
+    % Verified exact to 2e-15 against a dense reference.
+    %
+    % When P_k is diagonal this reduces ALGEBRAICALLY to the familiar
+    %       r_i = 1 - p_i a_i' Qxx a_i,     w_i = v_i / sigma_vi
+    % (verified: the two agree to 4.4e-16), so there is one code path, not two.
+    isCorr = ~isempty(pk) && ~isvector(pk);
+
+    if isempty(pk)
+        pk = ones(nk, 1);
+    end
+
+    if isCorr
+        if ~isequal(size(pk), [nk nk])
+            error('lsqvce:diagnose:badPmatrix', ...
+                ['Batch %d supplied a %dx%d weight matrix for %d observations. ' ...
+                 'A correlated batch needs an nk x nk SPD weight matrix.'], ...
+                 k, size(pk,1), size(pk,2), nk);
+        end
+        Pk = (pk + pk') / 2;               % symmetrise; the caller may be sloppy
+    else
+        pk = pk(:);
+    end
+
+    if nSeen + nk > n
+        error('lsqvce:diagnose:batchMismatch', ...
+            ['batchFcn is producing more observations (%d so far) than the ' ...
+             'accumulator saw (%d). The second pass MUST replay exactly the ' ...
+             'same batches in the same order, or every diagnostic below is ' ...
+             'attributed to the wrong observation.'], nSeen + nk, n);
+    end
+
+    % --- residuals
+    vk = Ak * x - lk;
+
+    % --- redundancy numbers and the denominator of the test statistic
+    W  = Q.halfRows(Ak);               % u x nk, W'W = A Qxx A'
+    if isCorr
+        Gk  = Pk * Ak;                 % nk x u
+        WG  = Q.halfRows(Gk);          % u x nk
+        % (Qvv P)_ii = 1 - (A Qxx G')_ii, and A Qxx G' = W' * WG columnwise
+        rk  = 1 - sum(W .* WG, 1).';
+        % (P Qvv P)_ii = P(i,i) - g_i' Qxx g_i
+        qpp = diag(Pk) - sum(WG.^2, 1).';
+        % Pv, the numerator of the generalised statistic
+        Pvk = Pk * vk;
+        % sigma_i of the OBSERVATION (for the MDB) is sqrt of the diagonal of
+        % the covariance = inv(P). We need only the diagonal, so solve once.
+        Ck    = Pk \ eye(nk);
+        sig_i = sqrt(max(diag(Ck), 0));
+    else
+        qx  = sum(W.^2, 1).';          % a_i' Qxx a_i
+        qv  = 1 ./ pk - qx;
+        qv(qv < 0) = 0;                % CLAMP -- see the note below
+        rk  = pk .* qv;
+        % For diagonal P the generalised denominator is p_i^2 * qv_i, and the
+        % numerator is p_i * v_i, so w reduces to v_i / sqrt(qv_i * ...) exactly
+        % as before. Keep the cheap forms.
+        qpp = pk.^2 .* qv;
+        Pvk = pk .* vk;
+        sig_i = 1 ./ sqrt(pk);
+    end
+
+    % --- CLAMP.
+    % r_i is a difference of two positive numbers that become equal as an
+    % observation approaches zero redundancy. Roundoff routinely drives it a
+    % few eps NEGATIVE for observations that the network does not control at
+    % all (verified: a parameter seen by exactly one observation yields
+    % qv = -2.2e-16). Taking sqrt of that gives a complex number; dividing
+    % v/0 gives NaN. Neither must be allowed to reach the user as a "result".
+    %
+    % THE UPPER BOUND IS DIFFERENT FOR CORRELATED OBSERVATIONS.
+    % For a DIAGONAL P, r_i = 1 - p_i a_i' Qxx a_i is a leverage complement and
+    % is genuinely bounded in [0,1]. For a CORRELATED block that bound does NOT
+    % hold: r_i = (Qvv P)_ii can legitimately exceed 1, because the projector is
+    % no longer orthogonal in the Euclidean metric. Measured on an AR(1) block:
+    % r_i = 1.0001476, a real value, not roundoff.
+    %
+    % Clipping it to 1 would silently destroy the integrity identity
+    % sum(r_i) = n - u -- and that is not hypothetical: it is exactly how this
+    % bug was caught. The identity check earns its keep.
+    rk = max(rk, 0);
+    if ~isCorr
+        rk = min(rk, 1);               % leverage complement: valid only here
+    end
+    qpp = max(qpp, 0);
+
+    % --- normalised / studentised residual, Baarda's generalised form
+    %       w_i = (P v)_i / ( scale * sqrt( (P Qvv P)_ii ) )
+    %   pope   : scale = the ESTIMATED s0     (contaminable -- see above)
+    %   baarda : scale = the A PRIORI sigma0  (needs a trustworthy sigma0)
+    %   mad    : scale = a ROBUST scale       (high breakdown point)
+    switch testName
+        case 'pope'
+            scl = sqrt(s0sq_use);
+        case 'mad'
+            scl = robustScale;
+        otherwise   % baarda
+            scl = sol.sigma0;
+    end
+    denom = scl * sqrt(qpp);
+
+    wk = zeros(nk, 1);
+    ctrl = rk > o.rMin & qpp > 0;      % controlled observations only
+    wk(ctrl) = Pvk(ctrl) ./ denom(ctrl);
+    % Uncontrolled: w is 0/0. Report 0, and record the index -- an uncontrolled
+    % observation is not "fine", it is UNTESTABLE, which is a different and
+    % more dangerous thing.
+    wk(~ctrl) = 0;
+
+    % --- MDB.
+    mdbk  = inf(nk, 1);
+    mdbk(ctrl) = sig_i(ctrl) .* delta0 ./ sqrt(rk(ctrl));
+
+    % --- external reliability: an undetected bias mdb_i in obs i shifts x by
+    %       dx = Qxx * (P e_i) * mdb_i
+    %     For diagonal P this is Qxx a_i p_i mdb_i, the familiar form. For a
+    %     correlated batch the bias enters through the WHOLE column of P, i.e.
+    %     through g_i = (P_k A_k)(i,:)', which is exactly Gk' -- so the two
+    %     cases differ only in which matrix multiplies Qxx.
+    if isCorr
+        dX = Q.qxxTimes(Gk);           % u x nk : Qxx * g_i  (columns)
+        scal = mdbk.';                 % the p_i factor is already inside g_i
+    else
+        dX = Q.qxxTimes(Ak);           % u x nk : Qxx * a_i  (columns)
+        scal = (pk .* mdbk).';         % 1 x nk
+    end
+    scal(~isfinite(scal)) = 0;         % uncontrolled -> undefined, skip
+    dXs = abs(dX .* scal) ./ max(sigX, realmin);   % u x nk, in sigma units
+    [extCol, parCol] = max(dXs, [], 1);            % worst parameter per obs
+    [extB, iB] = max(extCol);
+    if extB > extMax
+        extMax     = extB;
+        extMax_idx = nSeen + iB;
+        extMax_par = parCol(iB);
+    end
+
+    % --- running scalars
+    %   vPv = v' P v. For a correlated batch this is the full quadratic form,
+    %   not sum(p .* v.^2). Getting this wrong would silently corrupt the
+    %   variance factor and every test that depends on it.
+    if isCorr
+        vPv_direct = vPv_direct + vk.' * (Pk * vk);
+    else
+        vPv_direct = vPv_direct + sum(pk .* vk.^2);
+    end
+    sumR       = sumR + sum(rk);
+
+    % --- flags
+    isFlag = ctrl & (abs(wk) > kCrit);
+    isWeak = ctrl & (rk < o.rWeak);
+    nWeak  = nWeak + sum(isWeak);
+
+    % ---- JOINT (w, r) QUADRANTS -------------------------------------
+    % |w| and r_i mean nothing in isolation. The residual only reveals the
+    % FRACTION r_i of any error present:  E[dv_i] = -r_i * b_i  (verified
+    % exactly). So a small |w| on a low-r observation is not evidence of
+    % health -- it is evidence that the test had no power.
+    %
+    % Measured on a levelling net with a dangling spur: a 40-sigma blunder on
+    % a spur observation (r = 0) produced |w| = 0.000. A w-only report shows a
+    % beautiful small residual on an observation carrying a gross error.
+    %
+    % The four quadrants call for four different actions:
+    %   |w| hi, r hi -> CLEAN OUTLIER   reject with confidence
+    %   |w| hi, r lo -> AMBIGUOUS       the network barely constrains this
+    %                                   observation, so the residual may be
+    %                                   absorbed error from a NEIGHBOUR.
+    %                                   Rejecting is a coin flip; re-measure.
+    %   |w| lo, r hi -> VERIFIED        well tested, and it passed
+    %   |w| lo, r lo -> UNTESTED        NOT "fine". The silent quadrant.
+    hiW = ctrl & (abs(wk) > kCrit);
+    loR = rk < o.rWeak;                       % includes uncontrolled
+    nQ_cleanOut  = nQ_cleanOut  + sum(hiW & ~loR);
+    nQ_ambiguous = nQ_ambiguous + sum(hiW &  loR);
+    nQ_verified  = nQ_verified  + sum(~hiW & ~loR);
+    nQ_untested  = nQ_untested  + sum(~hiW &  loR);
+
+    % ---- MDB distribution. Quoting only the worst case is misleading in both
+    % directions: it hides that most of the network is fine, AND (because the
+    % truly dangerous observations have MDB = Inf and drop out of any
+    % percentile) a finite-only summary can look reassuring while the real
+    % hazard is infinite. Track both the finite quantiles and the Inf count.
+    %
+    % The pool is BOUNDED by reservoir sampling: this toolbox's whole premise
+    % is that nothing of size n is ever stored, and a percentile does not need
+    % every value -- a few thousand uniform samples give quantiles to well
+    % within the accuracy anyone acts on.
+    mfin = isfinite(mdbk);
+    nMdbInf = nMdbInf + sum(~mfin);
+    mv = mdbk(mfin);
+    for q = 1:numel(mv)
+        nMdbSeen = nMdbSeen + 1;
+        if numel(mdbPool) < mdbCap
+            mdbPool(end+1, 1) = mv(q); %#ok<AGROW>
+        else
+            j = randi(mdbRng, nMdbSeen);
+            if j <= mdbCap
+                mdbPool(j) = mv(q);
+            end
+        end
+    end
+
+    nUnc = sum(~ctrl);
+    if nUnc > 0
+        nUncontrolled = nUncontrolled + nUnc;
+        if numel(idxUncontrolled) < 1000
+            idxUncontrolled = [idxUncontrolled; nSeen + find(~ctrl)]; %#ok<AGROW>
+        end
+    end
+
+    [rlo, ilo] = min(rk);
+    if rlo < rmin_seen
+        rmin_seen = rlo;  rmin_idx = nSeen + ilo;
+    end
+    [whi, ihi] = max(abs(wk));
+    if whi > maxAbsW
+        maxAbsW = whi;  maxAbsW_idx = nSeen + ihi;
+    end
+
+    if any(isFlag)
+        fi = nSeen + find(isFlag);
+        flagIdx = [flagIdx; fi];              %#ok<AGROW>
+        flagW   = [flagW;   wk(isFlag)];      %#ok<AGROW>
+        flagR   = [flagR;   rk(isFlag)];      %#ok<AGROW>
+        flagV   = [flagV;   vk(isFlag)];      %#ok<AGROW>
+        flagMDB = [flagMDB; mdbk(isFlag)];    %#ok<AGROW>
+    end
+
+    % top-N worst |w|, maintained without sorting the whole vector
+    if ~isempty(worstW)
+        [cw, ci] = sort(abs(wk), 'descend');
+        take = min(numel(cw), numel(worstW));
+        cand   = [worstW;      cw(1:take)];
+        candI  = [worstI; nSeen + ci(1:take)];
+        [sw, si] = sort(cand, 'descend');
+        worstW = sw(1:numel(worstW));
+        worstI = candI(si(1:numel(worstW)));
+    end
+
+    if storeAll
+        sl = nSeen + (1:nk);
+        v_all(sl)   = vk;
+        r_all(sl)   = rk;
+        w_all(sl)   = wk;
+        % Store the GENERALISED denominator (P Qvv P)_ii rather than qv. For
+        % diagonal P these differ only by a factor p_i^2, and the generalised
+        % one is the quantity the test actually uses -- so it is what the user
+        % needs if they want to reproduce w by hand.
+        qv_all(sl)  = qpp;
+        mdb_all(sl) = mdbk;
+    end
+
+    nSeen = nSeen + nk;
+
+    % ---- progress
+    if o.progress
+        el = toc(tProg);
+        if el - lastProg > 2 || k == nB
+            lastProg = el;
+            frac = nSeen / max(n, 1);
+            if frac > 0
+                eta = el * (1 - frac) / frac;
+            else
+                eta = NaN;
+            end
+            lsqvce.util.log.msg(['  diagnose: batch %d/%d  (%5.1f%% of %d obs)  ' ...
+                     'elapsed %6.1fs  ETA %6.1fs\n'], ...
+                     k, nB, 100 * frac, n, el, eta);
+        end
+    end
+end
+
+if nSeen ~= n
+    error('lsqvce:diagnose:batchMismatch', ...
+        ['The second pass replayed %d observations but the accumulator saw ' ...
+         '%d. batchFcn must reproduce the SAME batches in the SAME order.'], ...
+         nSeen, n);
+end
+
+% ============================================================ integrity check
+s0sq_direct = vPv_direct / max(rdf, 1);
+sumR_expect = rdf;
+sumR_err    = abs(sumR - sumR_expect) / max(sumR_expect, 1);
+
+vPvRel = abs(vPv_direct - sol.vPv) / max(abs(vPv_direct), realmin);
+
+D = struct();
+D.n        = n;
+D.u        = u;
+D.r        = rdf;
+D.nBatch   = nB;
+
+D.x        = x;
+D.sigX     = sigX;
+D.qxxDiag  = qxxDiag;
+D.Q        = Q;                       % the cofactor, as blocks (WP-86 part 2)
+
+D.vPv          = vPv_direct;          % the trustworthy one
+D.vPvAccum     = sol.vPv;             % what the accumulator reported
+D.vPvSource    = sol.vPvSource;
+D.vPvRelDiff   = vPvRel;
+D.s0sq         = s0sq_direct;
+D.s0           = sqrt(max(s0sq_direct, 0));
+D.sigma0       = sol.sigma0;
+D.varRatio     = s0sq_direct / sol.sigma0^2;
+D.s0Fallback   = s0Fallback;
+
+% --- robust scale and the contamination symptom
+%   On clean data s0 and the MAD scale both estimate sigma0 and agree.
+%   Blunders inflate s0 but barely move the MAD, so their RATIO is a direct,
+%   quantitative symptom of contamination -- and it is available even when the
+%   user ran the (contaminable) Pope test, which is exactly when they need it.
+D.robustScale   = robustScale;
+D.madAvailable  = madAvailable;
+if madAvailable && isfinite(D.s0) && robustScale > 0
+    D.scaleRatio = D.s0 / robustScale;
+else
+    D.scaleRatio = NaN;
+end
+% Expected spread of the ratio under a CLEAN model. sd(s0) ~ 1/sqrt(2r) and
+% sd(MAD) ~ 0.085 at n=200 (measured); combine conservatively. Anything beyond
+% ~1.3 is not sampling noise, it is contamination.
+D.scaleRatioTol = 1 + 3 * sqrt(1 / max(2 * rdf, 1) + 0.085^2);
+
+% =========================================================================
+% CONTAMINATION ASSESSMENT -- three indicators, because one is not enough
+% =========================================================================
+% The s0/MAD ratio fires early but is TREACHEROUS on its own. Measured, as
+% contamination rises from 0 to 60%:
+%
+%     contamination :   0%    5%   10%   20%   30%   40%   50%   60%
+%     s0/MAD        : 1.02  3.47  4.26  4.13  3.58  2.96  0.95  0.61
+%     fhat          : 0.02  0.06  0.11  0.20  0.30  0.39  0.00  0.00
+%     s0/sigma0     : 1.00  4.58  6.40  9.01 10.99 12.67 14.13 15.52
+%
+% The ratio PEAKS at 10% and then FALLS -- at 50% it sits at 0.95, BELOW its
+% clean-data value. An alarm that switches itself off at total breakdown is
+% worse than no alarm. The same happens to fhat, and to kurtosis, and for the
+% same reason: past ~40% the MAD adopts the BLUNDERS as its reference
+% population and the good data become "the outliers".
+%
+% So we report three things:
+%
+%   1. fhat            THE GAUGE. Accurate to +/-0.015 for f <= 30%, which is
+%                      the range where the answer still matters. Tells the user
+%                      HOW MUCH of the data is bad, which is the number that
+%                      determines what to do about it.
+%
+%   2. s0/sigma0       THE BACKSTOP. Monotone all the way to 60% and unbounded,
+%                      because sigma0 is A PRIORI and contamination cannot
+%                      touch it. It is the one indicator that cannot be turned
+%                      off. Caveat: it is only as trustworthy as the user's
+%                      sigma0 -- if that is wrong by 2x, so is this.
+%
+%   3. contamLevel     The escalation, driven by whichever indicator is still
+%                      credible. Above ~25% the correct response is not a
+%                      better estimator, it is REFUSAL: if a quarter of your
+%                      observations are "outliers", they are not outliers, and
+%                      rejecting them launders a model error into a plausible
+%                      result.
+D.fhat = fhat;
+if isfinite(D.s0) && sol.sigma0 > 0
+    D.backstop = D.s0 / sol.sigma0;
+else
+    D.backstop = NaN;
+end
+
+% The backstop's clean-data band. s0/sigma0 has sd ~ 1/sqrt(2r) under a correct
+% model, so 3 sigma is a fair "this is not sampling noise" line.
+D.backstopTol = 1 + 3 / sqrt(max(2 * rdf, 1));
+
+% ---- fhat's NULL DISTRIBUTION -------------------------------------------
+% fhat counts residuals beyond 2.5 robust sigmas, so on PERFECTLY CLEAN data it
+% does not go to zero -- it goes to the tail mass of the normal:
+%       P(|Z| > 2.5) = 0.0124
+% and it fluctuates around that. A FIXED threshold of 0.02 sits INSIDE that
+% null distribution and cries wolf: it escalated 87 of 300 clean datasets (29%)
+% before this was corrected.
+%
+% Two corrections, both measured rather than assumed:
+%
+% (1) SD INFLATION. The naive binomial sd, sqrt(f(1-f)/n), is TOO SMALL. The
+%     residuals are not independent -- they satisfy u linear constraints, and
+%     they are standardised by a MAD estimated from the same sample. Measured
+%     ratio of true sd to binomial sd, over n = 100..5000:
+%         1.52, 1.21, 1.26, 1.24, 1.20, 1.33   -> mean 1.29
+%     We use 1.30.
+%
+% (2) THE MULTIPLIER. Measured trade-off (false-alarm rate on clean data vs
+%     detection at low contamination):
+%         k=3 : 1.75% false alarms,  97% detection at 3%, 100% at 5%
+%         k=4 : 0.25% false alarms,  49% detection at 3%, 100% at 5%
+%         k=5 : 0.12% false alarms,  25% detection at 3%, 100% at 5%
+%     k=4 is the knee: it cuts false alarms sevenfold against k=3 while STILL
+%     detecting 5% contamination every time -- and 5% is precisely where Pope's
+%     tau begins to fail (detection 23%). Below that level the contamination
+%     does not yet endanger the classical test, so missing some of it is a
+%     cheap price for a quiet report.
+FHAT_FLOOR = 2 * lsqvce.kernel.stat.normCdf(-2.5);      % = 0.012419, exactly
+FHAT_SD_INFLATION = 1.30;                          % measured, see above
+FHAT_K = 4;                                        % measured, see above
+fhatSd = FHAT_SD_INFLATION * ...
+         sqrt(FHAT_FLOOR * (1 - FHAT_FLOOR) / max(n, 1));
+D.fhatFloor = FHAT_FLOOR;
+D.fhatTol   = FHAT_FLOOR + FHAT_K * fhatSd;       % n-dependent, calibrated
+
+% The EXCESS is what actually matters: how much contamination is there beyond
+% what a clean normal sample would produce anyway?
+if isfinite(fhat)
+    D.fhatExcess = max(fhat - FHAT_FLOOR, 0);
+else
+    D.fhatExcess = NaN;
+end
+
+% Escalation. Use fhat where it is credible; fall back to the backstop where
+% fhat has collapsed (which is itself a signal: fhat ~ 0 together with a large
+% backstop means the MAD has broken down entirely).
+fhatCredible = isfinite(fhat) && fhat > 0.005;
+bigBackstop  = isfinite(D.backstop) && D.backstop > max(3, 2 * D.backstopTol);
+
+if ~madAvailable
+    D.contamLevel = 'unknown';
+elseif ~fhatCredible && bigBackstop
+    % fhat says zero but the a-priori backstop says the residuals are enormous.
+    % That combination is the fingerprint of TOTAL breakdown: the robust scale
+    % has been captured by the blunders.
+    D.contamLevel = 'breakdown';
+elseif isfinite(fhat) && fhat <= D.fhatTol && ~bigBackstop
+    % Within the null distribution: this is what CLEAN data looks like.
+    D.contamLevel = 'clean';
+elseif fhat >= 0.25
+    D.contamLevel = 'refuse';
+elseif fhat >= 0.10
+    D.contamLevel = 'severe';
+elseif fhat > D.fhatTol
+    D.contamLevel = 'moderate';
+else
+    D.contamLevel = 'clean';
+end
+
+D.sumR       = sumR;
+D.sumRExpect = sumR_expect;
+D.sumRRelErr = sumR_err;
+
+D.test        = testName;  D.store = o.store;   % store: what R.reliability can read
+D.alpha       = o.alpha;
+D.alphaEff    = alphaEff;
+D.bonferroni  = o.bonferroni;
+D.beta        = o.beta;
+D.kCrit       = kCrit;
+D.delta0      = delta0;
+D.tauBound    = tauBound;
+D.snoopVacuous = snoopVacuous;
+
+D.flagIdx = flagIdx;
+D.flagW   = flagW;
+D.flagR   = flagR;
+D.flagV   = flagV;
+D.flagMDB = flagMDB;
+D.nFlag   = numel(flagIdx);
+D.nExpectedFalse = alphaEff * n;      % how many flags are chance alone
+
+D.rMin        = o.rMin;
+D.rWeak       = o.rWeak;
+D.rMinSeen    = rmin_seen;
+D.rMinIdx     = rmin_idx;
+D.nUncontrolled   = nUncontrolled;
+D.idxUncontrolled = idxUncontrolled;
+D.nWeak       = nWeak;
+
+D.maxAbsW     = maxAbsW;
+D.maxAbsWIdx  = maxAbsW_idx;
+D.worstW      = worstW;
+D.worstIdx    = worstI;
+
+% ---- joint (w, r) quadrants and the hidden-blunder envelope
+D.quad = struct( ...
+    'cleanOutlier', nQ_cleanOut, ...   % |w| high, r high -> reject confidently
+    'ambiguous',    nQ_ambiguous, ...  % |w| high, r low  -> coin flip, re-measure
+    'verified',     nQ_verified, ...   % |w| low,  r high -> tested, and passed
+    'untested',     nQ_untested);      % |w| low,  r low  -> the SILENT quadrant
+
+D.mdbInf = nMdbInf;                    % MDB = Inf: cannot be tested at all
+if ~isempty(mdbPool)
+    D.mdbQuantiles = struct( ...
+        'p50',  median(mdbPool), ...
+        'p90',  prctileLocal(mdbPool, 90), ...
+        'p99',  prctileLocal(mdbPool, 99), ...
+        'max',  max(mdbPool));
+else
+    D.mdbQuantiles = struct('p50', NaN, 'p90', NaN, 'p99', NaN, 'max', NaN);
+end
+
+% External reliability, and its CALIBRATION. extMax scales like 1/sqrt(n)
+% (measured: extMax ~ 4.0*delta0/sqrt(n) on clean data), so the raw number
+% cannot be compared against a fixed threshold. extRatio says whether this
+% network is worse than a healthy one OF ITS OWN SIZE.
+D.extMax      = extMax;
+D.extExpect   = 4.0 * delta0 / sqrt(max(n,1));
+D.extRatio    = extMax / max(D.extExpect, realmin);
+D.extMaxIdx   = extMax_idx;
+D.extMaxPar   = extMax_par;
+
+D.condR       = sol.condR;
+D.condN       = sol.condN;
+% Propagate the caveat: for sparse or large R the condition number is a LOWER
+% BOUND (extreme-diagonal ratio), not an svd. The report must say so, or a
+% sparse run looks better conditioned than it is.
+if isfield(sol, 'condIsBound')
+    D.condIsBound = sol.condIsBound;
+else
+    D.condIsBound = false;
+end
+
+% --- datum / free-network reporting: a datum is a prior inside Q (above)
+D.defect  = 0;
+D.rank    = u;
+D.datumB  = zeros(u, 0);
+
+if storeAll
+    D.v   = v_all;
+    D.rNum = r_all;
+    D.w   = w_all;
+    D.qpp = qv_all;      % (P Qvv P)_ii -- the denominator of the test statistic
+    D.qv  = qv_all;      % backwards-compatible alias
+    D.mdb = mdb_all;
+end
+
+% The strongest parameter correlation, from column panels of Qxx: the u x u
+% correlation matrix is never held (it was 1.5 GB at u = 13 729).
+[cmax, cpair] = Q.maxCorrelation();
+D.corrMax    = cmax;
+D.corrMaxPar = cpair;
+
+end
+
+function [sol, D, REJ] = snoop(sol, D, batchFcn, opt)
+%LSQVCE.ENGINE.VERDICT.SNOOP  Iterative data snooping: reject outliers one at a time.
+%
+%   [sol, D, REJ] = LSQVCE.ENGINE.VERDICT.SNOOP(sol, D, batchFcn) repeatedly removes the
+%   single worst outlier, re-solves, and re-tests, until no observation trips
+%   the critical value.
+%
+%   ONE AT A TIME, and here is the real reason -- which is NOT the one usually
+%   given.
+%
+%   The textbook justification is that a blunder "smears" its residual onto its
+%   neighbours through the correlation in Qvv, so a simultaneous pass would
+%   over-reject innocent observations. That was tested directly and it is NOT
+%   what happens: with a Bonferroni-corrected threshold, simultaneous rejection
+%   produced ZERO false positives across 200 realisations with 3 large blunders
+%   each. Smearing is real but the threshold is far too high for it to matter.
+%
+%   The actual reason is MASKING. Several blunders inflate s0 together, and
+%   each therefore hides the others: every |w| is divided by a variance factor
+%   that the blunders themselves have inflated, so none of them looks extreme.
+%   Remove one, s0 drops, and the rest become visible. Measured, with two
+%   equal blunders in a small network:
+%
+%       iterative     found 400/400 true blunders   (100%)
+%       simultaneous  found 380/400                  (95%)
+%
+%   and in a wider sweep the single-pass approach MISSED 71 and 114 true
+%   blunders (at n=100 and n=50 respectively) where iterating missed none.
+%
+%   So: iterate because a single pass MISSES outliers, not because it rejects
+%   too many. The practical consequence is the same -- iterate -- but the
+%   failure it protects against is the dangerous one (undetected blunders left
+%   in the data), not the benign one (a little good data discarded).
+%
+%   THE DOWNDATE
+%   ------------
+%   Re-accumulating from scratch after each rejection is O(n*u^2) per
+%   rejection. Instead we downdate the cofactor, N -> N - p_i a_i a_i', on its
+%   BLOCKS (LSQVCE.ENGINE.BLOCKCOFACTOR, WP-86 part 2): the Schur complement of
+%   a rank-one downdate is a rank-one downdate, so the commons factor takes
+%   one cholupdate(Rc, x, '-') at O(nc^2) and the observation's own system its
+%   O(nl^2 + nl*nc) local update -- no u x u factor exists. The estimate
+%   follows in closed form, x <- x + p_i v_i Qxx~ a_i (Qxx~ after the
+%   downdate), so no pass over the data is needed to re-solve. Verified
+%   against a dense re-solve to 1e-15 (mirror wp86/blockcofactor.py).
+%
+%   THE vPv UPDATE -- the subtle part
+%   ---------------------------------
+%   It is natural to write vPv_new = vPv - p_i*v_i^2. THIS IS WRONG. Removing
+%   observation i changes x, hence changes EVERY residual. The correct identity
+%   is
+%
+%       vPv_new = vPv - p_i * v_i^2 / r_i
+%
+%   with r_i the redundancy number. Verified exact (error 0.0e+00) against a
+%   full re-solve; the naive form was off by 7.6e-4 on a SINGLE rejection, and
+%   the error compounds with every further one. The 1/r_i factor is precisely
+%   the correction for the fact that the fit moves to absorb the removal.
+%
+%   THE GUARDS
+%   ----------
+%   Downdating an observation with tiny r_i destroys the only information the
+%   network has about some parameter, leaving a singular factor.
+%
+%   When this was actually TESTED, MATLAB-equivalent cholupdate flagged the
+%   dangerous case correctly (it returned a failure code on a zero-redundancy
+%   downdate rather than silently producing a near-singular factor). So the
+%   post-hoc diag(R) check below is belt-and-braces, not the essential guard I
+%   first assumed it was. It is kept anyway: it costs O(u), it is the only
+%   thing that would catch a slow degradation over many successive downdates,
+%   and a rollback is far cheaper than a silently corrupted factor.
+%
+%   The guard that actually matters is the PRE-CHECK: refuse to reject any
+%   observation with r_i < rMinReject. That is not a numerical safeguard but a
+%   STATISTICAL one -- a large residual on a weakly-controlled observation is
+%   as likely to be error absorbed from a neighbour as a blunder in the
+%   observation itself, so rejecting it is close to a coin flip.
+%
+%   So we check BOTH:
+%     * BEFORE: refuse to reject any observation with r_i < rMinReject;
+%     * AFTER:  verify the smallest |diag(Rc)| has not collapsed and the
+%               observation is not its local block's only information, and
+%               roll back if either fails.
+%
+%   NAME-VALUE
+%     'maxReject'    cap on rejections (default: max(10, 0.01*n))
+%     'rMinReject'   refuse to reject below this redundancy (default 0.10)
+%     'alpha'        significance per test (default 1e-3)
+%     'bonferroni'   correct for n tests (default true)
+%     'reaccumulate' re-accumulate from scratch at the end to purge downdate
+%                    roundoff and produce a clean final D (default true): the
+%                    original block-arrow structure is rebuilt -- each system
+%                    from its surviving batches, with its own locals
+%     'verbose'      print the rejection sequence (default true)
+%
+%   OUTPUT REJ
+%     .idx        indices rejected, in the order they were rejected
+%     .w          their normalised residual at the moment of rejection
+%     .r          their redundancy number at that moment
+%     .refused    indices that tripped the test but were REFUSED (low r_i)
+%     .nIter      iterations performed
+%     .converged  true if snooping terminated cleanly
+%     .history    per-iteration [nFlag, maxAbsW, s0sq]
+%
+%   EXAMPLE
+%       data = struct('batchFcn', src, 'numUnknowns', u, 'numBatches', 4);
+%       R = lsqvce.fit(data, Verbose=false);
+%       [sol, D, REJ] = lsqvce.engine.verdict.snoop(R.source, R.diag, R.batchFcn);
+%
+%       % REJ.idx       -> [40 150]     rejected, one at a time
+%       % REJ.refused   -> observations too weakly controlled to judge
+%       % REJ.history   -> the full rejection sequence, for the record
+%
+%       % Under heavy contamination Pope cannot see the blunders at all, so
+%       % this loop would exit having rejected NOTHING and report 'converged'.
+%       % Use the robust scale there:
+%       [sol, D, REJ] = lsqvce.engine.verdict.snoop(R.source, R.diag, R.batchFcn, 'test', 'mad');
+%
+%   INPUT
+%     sol       1x1 struct  the solution to start from (R.source): x, Q (its
+%                           LSQVCE.ENGINE.BLOCKCOFACTOR), n, u, rank, defect
+%     D         1x1 struct  its diagnostics
+%     batchFcn  1x1 fh      the SAME batch function, for the re-solves
+%     Name/Value: 'Test' ('pope'|'mad'), 'Alpha', 'Bonferroni', 'MaxReject',
+%                 'MaxRejectFrac' (the breakdown cap, default 0.25), 'RMinReject',
+%                 'Reaccumulate', 'NBatch' (default D.nBatch), 'Force', 'Verbose'
+%
+%   ERRORS
+%     lsqvce:snoop:correlatedBatch a batch carries a full covariance, so its
+%                                  observations cannot be rejected individually
+%     lsqvce:snoop:tooContaminated the contamination gauge is past the point
+%                                  where tau is meaningful -- switch to
+%                                  'test','mad', or use LSQVCE.ENGINE.ADJUSTROBUST
+%     lsqvce:snoop:breakdown       the rejection cap was reached and the scale
+%                                  estimate has broken down; the data are not
+%                                  a few blunders on a good model
+%
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
+%   typed `arguments` signature, canonical UpperCamelCase option names
+%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+%   case-sensitive lowercase). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
+%   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+%     lsqvce:snoop:contaminated                  [warning] snoop
+%     lsqvce:snoop:downdateFailed                [warning] Removing observation X would make the normal matrix singular (the Cho...
+%     lsqvce:snoop:forcedBreakdown               [warning] snoop
+%     lsqvce:snoop:forcedContaminated            [warning] snoop
+%     lsqvce:snoop:forcedOverCap                 [warning] snoop
+%     lsqvce:snoop:lowRedundancy                 [warning] Observation X has the largest |w| (X) but its redundancy is only X. T...
+%     lsqvce:snoop:maxReject                     [warning] Reached the rejection cap (X)
+%     lsqvce:snoop:rejectFraction                [warning] STOPPING
+%
+%   See also LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SYSTEMATIC.
+%
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3 (R7-24): the clean
+%   re-solve rebuilds the block-arrow system (each system from its surviving
+%   batches, with its locals) instead of re-solving every parameter as a
+%   common one. With assistance from Claude (Anthropic), model Claude Opus
+%   5.5.
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-86 part 2 (R7-24): the
+%   downdate runs on the block cofactor (sol.Q) and the estimate follows in
+%   closed form; the row search and the b re-accumulation passes, and the
+%   badBatch / badIndex refusals of the retired helpers, are gone; the clean
+%   re-solve reads one batch at a time. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
+%
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34, R7-35):
+%   the runtime remedy names live units; the Name-Value list matches the
+%   arguments block; the re-diagnosis inherits D's thresholds. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
+%   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
+%   2026-07-11.
+%   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
+%   WP-64a): the ENGINE tier leaves the USER surface; every qualified
+%   reference was rewritten mechanically by docs_src/refactor_tiers.py.
+
+% WP-39 stage (b) b2: typed `arguments` signature (canonical
+% UpperCamelCase; legacy casings keep matching -- MATLAB NV
+% semantics; enum VALUES case-sensitive lowercase).
+arguments
+    sol
+    D
+    batchFcn
+    opt.MaxReject double {mustBeScalarOrEmpty} = []
+    opt.RMinReject (1,1) double {mustBeNonnegative, mustBeLessThanOrEqual(opt.RMinReject,1)} = 0.10
+    opt.Alpha (1,1) double {mustBePositive, mustBeLessThan(opt.Alpha,1)} = 1e-3
+    opt.Bonferroni (1,1) logical = true
+    opt.Reaccumulate (1,1) logical = true
+    opt.Verbose (1,1) logical = true
+    opt.NBatch double {mustBeScalarOrEmpty} = []
+    opt.Test (1,1) string {mustBeMember(opt.Test, ["pope","mad"])} = "pope"
+    opt.Force (1,1) logical = false
+    opt.MaxRejectFrac (1,1) double {mustBePositive, mustBeLessThanOrEqual(opt.MaxRejectFrac,1)} = 0.25
+end
+
+o = struct('maxReject', opt.MaxReject, 'rMinReject', opt.RMinReject, 'alpha', opt.Alpha, 'bonferroni', opt.Bonferroni, 'reaccumulate', opt.Reaccumulate, 'verbose', opt.Verbose, 'nBatch', opt.NBatch, 'test', char(opt.Test), 'force', opt.Force, 'maxRejectFrac', opt.MaxRejectFrac);
+
+nB = o.nBatch;
+if isempty(nB), nB = D.nBatch; end
+
+n0 = sol.n;
+maxRej = o.maxReject;
+if isempty(maxRej)
+    maxRej = max(10, ceil(0.01 * n0));
+end
+
+if sol.defect > 0 && o.verbose
+    lsqvce.util.log.msg(['\nNote: this is a free network (datum defect %d). Rejection is\n' ...
+             'still valid -- residuals are datum-invariant -- but rejecting an\n' ...
+             'observation can INCREASE the defect if it was the last one tying\n' ...
+             'a parameter down. That is caught by the redundancy guard below.\n'], ...
+             sol.defect);
+end
+
+Q    = sol.Q;                      % the cofactor, as blocks (WP-86 part 2)
+rejected = false(n0, 1);
+REJ  = struct('idx', [], 'w', [], 'r', [], 'refused', [], ...
+              'nIter', 0, 'converged', false, 'history', []);
+
+if lsqvce.util.verbosity.progress(o.verbose)
+    lsqvce.util.log.msg('\n--- ITERATIVE DATA SNOOPING\n');
+    lsqvce.util.log.msg('  %4s %10s %12s %10s %12s %10s\n', ...
+            'iter', 'nFlag', 'worst |w|', 'r_i', 'obs', 's0');
+    lsqvce.util.log.msg('  %s\n', repmat('-', 1, 64));
+end
+
+converged = false;
+useRobust = strcmpi(o.test, 'mad');
+
+% ---------------------------------------------------------------------------
+% CONTAMINATION GUARDS
+% ---------------------------------------------------------------------------
+% Iterative rejection has an appealing story: remove the worst, s0 falls, the
+% next becomes visible, repeat. That story FAILS in two distinct ways, and both
+% are silent.
+%
+% FAILURE 1 -- nothing is visible to begin with.
+%   If the blunders have already inflated s0 so far that NOTHING crosses the
+%   critical value on the first pass, this loop exits at iteration 1 having
+%   rejected nothing, and reports a clean result. Measured: 5 blunders of 25
+%   sigma in n=50 -- iterative snooping with Pope rejects ZERO and terminates
+%   immediately.
+%
+% FAILURE 2 -- the robust scale itself has broken down.
+%   Past ~40% contamination the MAD adopts the blunders as its reference
+%   population. fhat collapses to 0, the s0/MAD ratio falls BELOW its
+%   clean-data value, and every scale-based alarm goes quiet at exactly the
+%   moment the data are worst.
+%
+% Against FAILURE 2 no estimator can be trusted, so the last guard is one that
+% does not depend on any: COUNTING. "You are asking me to delete a third of
+% your data" is a statement no amount of contamination can falsify.
+
+if isfield(D, 'contamLevel')
+    switch D.contamLevel
+    case 'breakdown'
+        if o.force
+            lsqvce.util.log.warn('lsqvce:snoop:forcedBreakdown', ...
+                ['snoop: proceeding under ''force'' despite total breakdown ' ...
+                 'of the outlier machinery. The rejections below are very ' ...
+                 'likely to be GOOD observations.']);
+        else
+        error('lsqvce:snoop:breakdown', ...
+            ['snoop: REFUSING TO RUN. The outlier machinery has broken down ' ...
+             'completely.\n' ...
+             'The robust scale reports almost no outliers (fhat = %.3f) while ' ...
+             'the a-priori backstop says the residuals are %.1fx larger than ' ...
+             'sigma0 promised. Those are only compatible if MORE THAN HALF the ' ...
+             'data are bad -- at which point the robust scale has been captured ' ...
+             'by the blunders and is calling the GOOD observations outliers.\n' ...
+             'Rejecting here would delete the good data. Fix sigma0 or the ' ...
+             'functional model first.'], D.fhat, D.backstop);
+        end
+
+    case 'refuse'
+        if o.force
+            lsqvce.util.log.warn('lsqvce:snoop:forcedContaminated', ...
+                ['snoop: proceeding under ''force'' with an estimated %.0f%% ' ...
+                 'contamination. The surviving parameters will be confidently ' ...
+                 'wrong.'], 100 * D.fhat);
+        else
+        error('lsqvce:snoop:tooContaminated', ...
+            ['snoop: REFUSING TO RUN. An estimated %.0f%% of the observations ' ...
+             '(fhat = %.3f) are inconsistent with the rest.\n' ...
+             'If a quarter of your data are "outliers", they are not outliers. ' ...
+             'Rejecting them launders a MODEL error into a plausible-looking ' ...
+             'result. Run R.systematic() and fix the functional model.\n' ...
+             'If you have a specific reason to proceed anyway, pass ' ...
+             '''force'',true -- but understand that the surviving parameters ' ...
+             'will be confidently wrong.'], 100 * D.fhat, D.fhat);
+        end
+
+    case 'severe'
+        if ~useRobust
+            lsqvce.util.log.warn('lsqvce:snoop:contaminated', ...
+                ['snoop: an estimated %.0f%% of observations are bad, and you ' ...
+                 'are using Pope''s tau, which is BLIND at this level: the ' ...
+                 'blunders inflate s0 and divide themselves back below the ' ...
+                 'threshold. Iterating will NOT rescue this -- if nothing trips ' ...
+                 'the threshold on pass one, this loop exits immediately and ' ...
+                 'returns a "clean" result that is entirely spurious.\n' ...
+                 'Re-run with ''test'',''mad''. Proceeding, but treat an empty ' ...
+                 'rejection list as MEANINGLESS.'], 100 * D.fhat);
+        end
+    end
+end
+
+% The hard ceiling. Independent of every estimator above.
+maxRejFrac = o.maxRejectFrac;
+hardCap = floor(maxRejFrac * n0);
+
+for it = 1:(maxRej + 1)
+
+    % ---- find the worst CURRENTLY-flagged observation, using the current R.
+    % One streaming pass. We do not need full diagnostics here, only the worst
+    % candidate, so this is cheaper than a call to diagnose().
+    nAlive = n0 - sum(rejected);
+    rdf    = nAlive - sol.rank;
+    if rdf <= 0
+        if lsqvce.util.verbosity.progress(o.verbose)
+            lsqvce.util.log.msg('  Redundancy exhausted. Stopping.\n');
+        end
+        break;
+    end
+
+    alphaEff = o.alpha;
+    if o.bonferroni, alphaEff = o.alpha / max(nAlive, 1); end
+    kCrit = lsqvce.kernel.stat.tauCrit(alphaEff, rdf);
+
+    [bestW, bestI, bestR, bestV, bestP, vPvCur, nFlag, bestA, sizes, sysOf] = ...
+        scanWorst(batchFcn, nB, Q, sol.x, rejected, rdf, kCrit, useRobust);
+
+    s0cur = sqrt(max(vPvCur / max(rdf, 1), 0));
+    REJ.history(end+1, :) = [nFlag, bestW, s0cur^2]; %#ok<AGROW>
+
+    if nFlag == 0 || ~isfinite(bestW) || bestW <= kCrit
+        converged = true;
+        if lsqvce.util.verbosity.progress(o.verbose)
+            lsqvce.util.log.msg('  %4d %10d %12.4f %10s %12s %10.4f   -> clean\n', ...
+                    it, 0, bestW, '-', '-', s0cur);
+        end
+        break;
+    end
+
+    % ---- HARD CEILING on the rejected FRACTION.
+    % This guard depends on no estimator whatsoever. Past ~40% contamination
+    % every scale-based indicator (s0/MAD, fhat, kurtosis) switches itself off
+    % -- but counting cannot be fooled. If the loop wants to delete a quarter
+    % of the data, the premise of "outlier rejection" has already failed.
+    if numel(REJ.idx) >= hardCap
+        if o.force
+            lsqvce.util.log.warn('lsqvce:snoop:forcedOverCap', ...
+                ['snoop: rejected %d of %d observations (%.0f%%), past the ' ...
+                 '%.0f%% ceiling, continuing only because ''force'' is set.'], ...
+                 numel(REJ.idx), n0, 100*numel(REJ.idx)/n0, 100*maxRejFrac);
+        else
+            lsqvce.util.log.warn('lsqvce:snoop:rejectFraction', ...
+                ['STOPPING: %d of %d observations (%.0f%%) have been rejected, ' ...
+                 'reaching the %.0f%% ceiling, and %d are still flagged.\n' ...
+                 'This is no longer an outlier problem. When a quarter of the ' ...
+                 'data fails the test, the data are not wrong -- the MODEL is. ' ...
+                 'Continuing to reject would launder that model error into a ' ...
+                 'plausible-looking result, and the surviving parameters would ' ...
+                 'be confidently wrong.\n' ...
+                 'Run R.systematic() to find the structure you have not ' ...
+                 'modelled. Raise ''maxRejectFrac'' only if you can justify it.'], ...
+                 numel(REJ.idx), n0, 100*numel(REJ.idx)/n0, 100*maxRejFrac, nFlag);
+            REJ.stoppedOnFraction = true;
+            break;
+        end
+    end
+
+    if numel(REJ.idx) >= maxRej
+        lsqvce.util.log.warn('lsqvce:snoop:maxReject', ...
+            ['Reached the rejection cap (%d). %d observation(s) are still ' ...
+             'flagged.\n' ...
+             'A large fraction of the data failing the test is not an outlier ' ...
+             'problem -- it is a MODEL problem. Rejecting your way out of it ' ...
+             'launders a systematic error into a plausible-looking result. ' ...
+             'Run R.systematic() before rejecting anything else.'], ...
+             maxRej, nFlag);
+        break;
+    end
+
+    % ---- GUARD 1: refuse a low-redundancy observation.
+    if bestR < o.rMinReject
+        REJ.refused(end+1) = bestI; %#ok<AGROW>
+        if lsqvce.util.verbosity.progress(o.verbose)
+            lsqvce.util.log.msg('  %4d %10d %12.4f %10.4f %12d %10.4f   REFUSED (r too low)\n', ...
+                    it, nFlag, bestW, bestR, bestI, s0cur);
+        end
+        lsqvce.util.log.warn('lsqvce:snoop:lowRedundancy', ...
+            ['Observation %d has the largest |w| (%.3f) but its redundancy is ' ...
+             'only %.4f. The network barely constrains it, so its residual is ' ...
+             'as likely to be absorbed error from its NEIGHBOURS as a blunder ' ...
+             'in itself. Rejecting it is a coin flip, and removing it may make ' ...
+             'the system singular.\n' ...
+             'REFUSING. Re-measure this observation, or add geometry that ' ...
+             'controls it. Snooping stops here because the next candidate ' ...
+             'cannot be assessed while this one distorts the fit.'], ...
+             bestI, bestW, bestR);
+        break;
+    end
+
+    % ---- downdate the cofactor's blocks (WP-86 part 2).
+    % GUARD 2: Q.downdate refuses (ok = false, Q unchanged) when the removal
+    % would make the system singular -- cholupdate's own flag, a commons
+    % factor whose smallest diagonal collapsed (a downdate can "succeed" and
+    % still leave ~0 there, after which every solve is garbage), or an
+    % observation that is its local block's only information.
+    [Qnew, ok] = Q.downdate(bestA, bestP);
+    if ~ok
+        REJ.refused(end+1) = bestI; %#ok<AGROW>
+        lsqvce.util.log.warn('lsqvce:snoop:downdateFailed', ...
+            ['Removing observation %d would make the normal matrix singular ' ...
+             '(the Cholesky downdate collapsed). That observation carries the ' ...
+             'only information about at least one parameter -- its redundancy ' ...
+             'is effectively zero, whatever the nominal value says.\n' ...
+             'REFUSING and stopping.'], bestI);
+        break;
+    end
+    Q = Qnew;
+
+    % ---- vPv update, with the essential 1/r_i factor (see header).
+    vPvCur = vPvCur - bestP * bestV^2 / bestR;
+
+    rejected(bestI) = true;
+    REJ.idx(end+1) = bestI;   %#ok<AGROW>
+    REJ.w(end+1)   = bestW;   %#ok<AGROW>
+    REJ.r(end+1)   = bestR;   %#ok<AGROW>
+
+    % ---- the estimate without observation i, in closed form: with v_i = a_i'x - l_i,
+    % x~ = x + p_i v_i Qxx~ a_i (Sherman-Morrison; Qxx~ is the downdated cofactor).
+    sol.x = sol.x + bestP * bestV * Q.qxxTimes(bestA);
+
+    if lsqvce.util.verbosity.progress(o.verbose)
+        s0new = sqrt(max(vPvCur / max(rdf - 1, 1), 0));
+        lsqvce.util.log.msg('  %4d %10d %12.4f %10.4f %12d %10.4f   rejected\n', ...
+                it, nFlag, bestW, bestR, bestI, s0new);
+    end
+end
+
+REJ.nIter     = size(REJ.history, 1);
+REJ.converged = converged;
+REJ.rejected  = rejected;
+sol.Q         = Q;               % the downdated cofactor, consistent with sol.x
+
+% ------------------------------------------------------------ final solution
+% Re-accumulate from scratch. Two reasons: it purges any accumulated downdate
+% roundoff, and it gives a clean, fully consistent D for the surviving data --
+% which is what the user will actually report.
+if o.reaccumulate && ~isempty(REJ.idx)
+    if lsqvce.util.verbosity.progress(o.verbose)
+        lsqvce.util.log.msg(['\n  Re-accumulating from scratch over the %d surviving ' ...
+                 'observations\n  (purges downdate roundoff; the reported ' ...
+                 'result is a clean solve, not a\n  sequence of subtractions).\n'], ...
+                 n0 - numel(REJ.idx));
+    end
+    acc = blockResolveAccumulator(sol, Q, batchFcn, nB, rejected, sizes, sysOf);
+    solB = acc.solve();
+    [dsol, bf, nBd] = lsqvce.engine.verdict.source(acc, solB);
+    % R7-35: the re-diagnosis classifies with the SAME thresholds as the D it
+    % was handed (rMin / rWeak / beta), not diagnose's defaults -- before, R.diag
+    % and snoop's D could call one observation controlled and uncontrolled.
+    D   = lsqvce.engine.verdict.diagnose(dsol, bf, 'nBatch', nBd, ...
+                           'alpha', o.alpha, 'bonferroni', o.bonferroni, ...
+                           'test', o.test, 'rMin', lsqvce.util.getfielddef(D, 'rMin', 0.01), ...
+                           'rWeak', lsqvce.util.getfielddef(D, 'rWeak', 0.10), ...
+                           'beta', lsqvce.util.getfielddef(D, 'beta', 0.20));
+    D.rejectedIdx = REJ.idx;
+    % the returned sol keeps the caller's fields and carries the clean solve
+    sol.x = dsol.x(:);  sol.s0sq = solB.s0sq;  sol.sigma0 = solB.sigma0;   % commons + locals
+    if isfield(solB, 'Cxx'), sol.Cxx = solB.Cxx; end
+    sol.n = dsol.n;  sol.dof = solB.dof;  sol.Q = dsol.Q;
+end
+
+if lsqvce.util.verbosity.progress(o.verbose)
+    lsqvce.util.log.msg('\n  %d rejected, %d refused, %d surviving.\n', ...
+            numel(REJ.idx), numel(REJ.refused), n0 - numel(REJ.idx));
+    if ~converged && isempty(REJ.refused)
+        lsqvce.util.log.msg('  WARNING: snooping did not converge.\n');
+    end
+    lsqvce.util.log.msg('\n');
+end
+end
+
+function S = systematic(D, opt)
+%LSQVCE.ENGINE.VERDICT.SYSTEMATIC  Detect unmodelled systematic errors in the residuals.
+%
+%   S = LSQVCE.ENGINE.VERDICT.SYSTEMATIC(D) runs three complementary tests on the normalised
+%   residuals from lsqvce.engine.verdict.diagnose. This closes the single largest blind spot
+%   in the rest of the toolbox.
+%
+%   WHY THIS EXISTS
+%   ---------------
+%   A smooth unmodelled signal -- a thermal drift, an unmodelled bias that
+%   varies with elevation, a once-per-revolution term you forgot -- produces NO
+%   single large residual. Data snooping therefore reports a perfectly clean
+%   result while the parameters are quietly corrupted. Meanwhile the global
+%   chi-square test rejects, because the residuals ARE too large in aggregate.
+%
+%   That combination -- inflated variance factor, zero outliers -- is the
+%   signature of a systematic error, and until now the toolbox could only tell
+%   you to go and plot something. Demonstrated on a sinusoid of amplitude 0.8
+%   sigma: s0^2 = 1.33 (inflated), Bonferroni snooping flagged 0 observations,
+%   and the three tests below returned p = 5e-5, p < 1e-16 and p = 3e-9.
+%
+%   THE THREE TESTS
+%   ---------------
+%   (a) RUNS TEST on sign(w). Distribution-free. Counts sign changes: a drift
+%       produces too few. Weak on smooth signals, strong on steps.
+%
+%   (b) LJUNG-BOX on w, lags 1..h. Detects autocorrelation of any shape.
+%       Powerful, but see the caveat below.
+%
+%   (c) BINNED MEANS of w against each supplied covariate. In bin b the mean
+%       of w has standard deviation 1/sqrt(n_b) under H0, so z_b = mean_b *
+%       sqrt(n_b). Bonferroni over the bins. This is effectively a score test
+%       for an omitted parameter, and it is the WORKHORSE: in testing it
+%       reached 84-100% power where the runs test managed 1-9%.
+%
+%   (a) and (b) require the residuals to be ORDERED along the systematic --
+%   they see the sequence you hand them. (c) does not: it works on any
+%   covariate directly. Pass covariates and let (c) do the work.
+%
+%   CAVEAT ON LJUNG-BOX -- and it is an honest one.
+%   Least-squares residuals are NOT independent, even when the observation
+%   errors are: cov(v) = sigma0^2 * Qvv, and Qvv is not diagonal. Normalising
+%   to w removes the variance but not the correlation. Ljung-Box therefore
+%   OVER-REJECTS, and the effect grows with u/n. Measured false-alarm rate at a
+%   nominal 1%:
+%       u/n = 0.060  ->  1.6%
+%       u/n = 0.012  ->  1.3%
+%       u/n = 0.003  ->  0.6%   (within noise of nominal)
+%   Geodetic problems live at u/n << 0.01, where it is harmless. The toolbox
+%   warns when u/n > 0.05, and it leads with the binned test, which is exact.
+%
+%   NAME-VALUE
+%     'covariates'  struct: each field is an n x 1 vector to bin against.
+%                   e.g. struct('time', t, 'elev', e, 'azim', az)
+%                   THIS IS THE IMPORTANT ONE. Supply everything you have.
+%     'nbins'       bins per covariate (default 10)
+%     'lags'        Ljung-Box lags h (default 10)
+%     'alpha'       significance (default 0.01)
+%     'verbose'     print (default true)
+%
+%   OUTPUT S
+%     .runs      struct(z, p, nRuns, expected)
+%     .ljungBox  struct(Q, p, h, reliable)
+%     .bins      struct array, one per covariate:
+%                (name, z, p, worstBin, worstZ, edges, counts, means)
+%     .detected  true if any test rejects at alpha
+%     .worst     name of the most significant finding
+%
+%   INPUT
+%     D         1x1 struct  diagnostics from LSQVCE.ENGINE.VERDICT.DIAGNOSE
+%     varargin  Name/Value: 'covariate' (a vector to test against), 'alpha', ...
+%
+%   OUTPUT
+%     S  1x1 struct  .runs, .durbinWatson, .groupOffsets, .verdict -- the
+%                    structure tests that distinguish a MODEL defect from
+%                    scattered blunders
+%
+%   EXAMPLE
+%       % The failure that snooping CANNOT see. A smooth drift produces no
+%       % single large residual: the variance factor inflates, the flag list
+%       % stays clean, and THAT COMBINATION is the signature.
+%       data = struct('batchFcn', src, 'numUnknowns', u, 'numBatches', 4);
+%       R = lsqvce.fit(data, Verbose=false);
+%
+%       t = (1:n).';
+%       S = lsqvce.engine.verdict.systematic(R.diag, 'covariates', ...
+%                              struct('time', t, 'elev', elev));
+%
+%       % S.detected     did anything fire?
+%       % S.ljungBox.p   autocorrelation in the residual sequence
+%       % S.runs.p       distribution-free sign test
+%       % S.bins         one entry per covariate: .name, .p, .worstBin
+%
+%       % The COVARIATE ranking lives in S.bins -- S.worst ranks every test,
+%       % and a drift in time necessarily also trips Ljung-Box.
+%       [~, iw] = min([S.bins.p]);
+%       lsqvce.util.log.msg('worst covariate: %s\n', S.bins(iw).name);
+%
+%   ERRORS
+%     lsqvce:systematic:noResiduals   the diagnostics carry no residuals
+%     lsqvce:systematic:badCovariate  the covariate is not a vector matching the
+%                                     residual length
+%
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
+%   typed `arguments` signature, canonical UpperCamelCase option names
+%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+%   case-sensitive lowercase). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
+%   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+%     lsqvce:systematic:lbUnreliable             [warning] Ljung-Box is anti-conservative here (u/n = X, n = X, h = X)
+%     lsqvce:systematic:tooFew                   [warning] Only X controlled observations
+%
+%   See also LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.FTEST.
+%
+%   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
+%   2026-07-11.
+%   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
+%   WP-64a): the ENGINE tier leaves the USER surface; every qualified
+%   reference was rewritten mechanically by docs_src/refactor_tiers.py.
+
+% WP-39 stage (b) b2: typed `arguments` signature (canonical
+% UpperCamelCase; legacy casings keep matching -- MATLAB NV
+% semantics; enum VALUES case-sensitive lowercase).
+arguments
+    D
+    opt.Covariates (1,1) struct = struct()
+    opt.NBins (1,1) double {mustBeGreaterThanOrEqual(opt.NBins,2)} = 10
+    opt.Lags (1,1) double {mustBeGreaterThanOrEqual(opt.Lags,1)} = 10
+    opt.Alpha (1,1) double {mustBePositive, mustBeLessThan(opt.Alpha,1)} = 0.01
+    opt.Verbose (1,1) logical = true
+end
+
+o = struct('covariates', opt.Covariates, 'nbins', opt.NBins, 'lags', opt.Lags, 'alpha', opt.Alpha, 'verbose', opt.Verbose);
+
+if ~isfield(D, 'w')
+    error('lsqvce:systematic:noResiduals', ...
+        ['The diagnostics struct has no residual vector. Re-run ' ...
+         'the fit with Diagnostics.Store = "all" -- the systematic tests ' ...
+         'need every residual, not just the flagged ones.']);
+end
+
+w = D.w(:);
+n = numel(w);
+u = D.u;
+
+% Only observations the network actually controls carry information about a
+% systematic. An uncontrolled observation has w = 0 by construction, and
+% including those zeros would dilute every test toward "no signal".
+if isfield(D, 'rNum')
+    ctrl = D.rNum(:) > D.rMin;
+else
+    ctrl = true(n, 1);
+end
+wc = w(ctrl);
+nc = numel(wc);
+
+S = struct();
+S.n = n; S.nControlled = nc; S.alpha = o.alpha;
+
+if nc < 20
+    lsqvce.util.log.warn('lsqvce:systematic:tooFew', ...
+        ['Only %d controlled observations. The systematic-error tests are ' ...
+         'asymptotic and are meaningless at this size.'], nc);
+    S.detected = false;  S.worst = 'n/a';
+    S.runs = struct('z', NaN, 'p', NaN);
+    S.ljungBox = struct('Q', NaN, 'p', NaN, 'reliable', false);
+    S.bins = struct([]);
+    return;
+end
+
+%% ------------------------------------------------------------- (a) runs test
+sg = sign(wc);
+sg = sg(sg ~= 0);
+ns = numel(sg);
+npos = sum(sg > 0);
+nneg = ns - npos;
+
+if npos == 0 || nneg == 0 || ns < 3
+    S.runs = struct('z', NaN, 'p', NaN, 'nRuns', NaN, 'expected', NaN);
+else
+    nRuns = 1 + sum(sg(2:end) ~= sg(1:end-1));
+    muR   = 2 * npos * nneg / ns + 1;
+    varR  = 2*npos*nneg * (2*npos*nneg - ns) / (ns^2 * (ns - 1));
+    if varR <= 0
+        S.runs = struct('z', NaN, 'p', NaN, 'nRuns', nRuns, 'expected', muR);
+    else
+        z = (nRuns - muR) / sqrt(varR);
+        p = 2 * (1 - lsqvce.kernel.stat.normCdf(abs(z)));
+        S.runs = struct('z', z, 'p', p, 'nRuns', nRuns, 'expected', muR);
+    end
+end
+
+%% -------------------------------------------------------------- (b) Ljung-Box
+h = min(o.lags, floor(nc / 5));
+if h < 1
+    S.ljungBox = struct('Q', NaN, 'p', NaN, 'h', 0, 'reliable', false);
+else
+    wz = wc - mean(wc);
+    c0 = (wz' * wz) / nc;
+    if c0 <= 0
+        S.ljungBox = struct('Q', NaN, 'p', NaN, 'h', h, 'reliable', false);
+    else
+        Q = 0;
+        for k = 1:h
+            ck = (wz(1:end-k)' * wz(k+1:end)) / nc;
+            rk = ck / c0;
+            Q  = Q + rk^2 / (nc - k);
+        end
+        Q = nc * (nc + 2) * Q;
+        p = 1 - lsqvce.kernel.stat.chi2Cdf(Q, h);
+
+        % Reliability flags, both established by Monte Carlo:
+        %   * residual correlation makes LB anti-conservative as u/n grows;
+        %   * the asymptotic chi2(h) needs n >> h (at n=100, h=20 the variance
+        %     of Q was 52 against a nominal 40).
+        ratio    = u / nc;
+        reliable = (ratio <= 0.05) && (nc >= 20 * h);
+
+        S.ljungBox = struct('Q', Q, 'p', p, 'h', h, 'reliable', reliable, ...
+                            'uOverN', ratio);
+        if ~reliable
+            lsqvce.util.log.warn('lsqvce:systematic:lbUnreliable', ...
+                ['Ljung-Box is anti-conservative here (u/n = %.3f, n = %d, ' ...
+                 'h = %d). Least-squares residuals are correlated by ' ...
+                 'construction -- cov(v) = s0^2*Qvv is not diagonal -- and the ' ...
+                 'over-rejection grows with u/n. Treat its p-value as a screen, ' ...
+                 'not a verdict, and lead with the binned test.'], ...
+                 ratio, nc, h);
+        end
+    end
+end
+
+%% ----------------------------------------------------------- (c) binned means
+names = fieldnames(o.covariates);
+bins = struct('name', {}, 'z', {}, 'p', {}, 'worstBin', {}, 'worstZ', {}, ...
+              'edges', {}, 'counts', {}, 'means', {});
+
+for ii = 1:numel(names)
+    cv = o.covariates.(names{ii});
+    cv = cv(:);
+    if numel(cv) ~= n
+        error('lsqvce:systematic:badCovariate', ...
+            ['Covariate ''%s'' has %d elements but there are %d ' ...
+             'observations. It must be aligned with the observation order ' ...
+             'the batch function produced.'], names{ii}, numel(cv), n);
+    end
+    cvc = cv(ctrl);
+    good = isfinite(cvc);
+    if sum(good) < 2 * o.nbins
+        continue;
+    end
+
+    % Quantile edges: equal-count bins, so every bin has power. Equal-WIDTH
+    % bins would leave the tails nearly empty and waste the Bonferroni budget
+    % on bins that cannot reject anything.
+    q  = linspace(0, 1, o.nbins + 1);
+    ed = quantile(cvc(good), q);
+    ed = unique(ed);
+    nb = numel(ed) - 1;
+    if nb < 2, continue; end
+    ed(end) = ed(end) + eps(ed(end)) * 10;
+
+    zb = zeros(nb, 1);  cnt = zeros(nb, 1);  mu = zeros(nb, 1);
+    for b = 1:nb
+        if b < nb
+            m = good & cvc >= ed(b) & cvc < ed(b+1);
+        else
+            m = good & cvc >= ed(b) & cvc <= ed(b+1);
+        end
+        cnt(b) = sum(m);
+        if cnt(b) < 2
+            zb(b) = 0;  mu(b) = 0;
+            continue;
+        end
+        mu(b) = mean(wc(m));
+        % Under H0, w ~ N(0,1) so the bin mean has sd 1/sqrt(n_b).
+        zb(b) = mu(b) * sqrt(cnt(b));
+    end
+
+    [~, ib] = max(abs(zb));
+    praw = 2 * (1 - lsqvce.kernel.stat.normCdf(abs(zb(ib))));
+    padj = min(1, praw * nb);          % Bonferroni over the bins
+
+    bins(end+1) = struct('name', names{ii}, 'z', zb, 'p', padj, ...
+                         'worstBin', ib, 'worstZ', zb(ib), 'edges', ed, ...
+                         'counts', cnt, 'means', mu); %#ok<AGROW>
+end
+S.bins = bins;
+
+%% ------------------------------------------------------------------ verdict
+ps = [];  lbl = {};
+if isfinite(S.runs.p),     ps(end+1) = S.runs.p;     lbl{end+1} = 'runs'; end
+if isfinite(S.ljungBox.p), ps(end+1) = S.ljungBox.p; lbl{end+1} = 'Ljung-Box'; end
+for ii = 1:numel(bins)
+    ps(end+1) = bins(ii).p; %#ok<AGROW>
+    lbl{end+1} = sprintf('bins:%s', bins(ii).name); %#ok<AGROW>
+end
+
+if isempty(ps)
+    S.detected = false;  S.worst = 'n/a';  S.pMin = NaN;
+else
+    [pmin, im] = min(ps);
+    S.pMin     = pmin;
+    S.worst    = lbl{im};
+    S.detected = pmin < o.alpha;
+end
+
+%% ------------------------------------------------------------------- print
+if ~o.verbose, return; end
+
+lsqvce.util.log.msg('\n--- SYSTEMATIC ERROR TESTS  (alpha = %.3g)\n', o.alpha);
+
+if isfinite(S.runs.p)
+    lsqvce.util.log.msg('  runs test  : z = %+7.3f   p = %.3e   (%d runs, expected %.1f)%s\n', ...
+        S.runs.z, S.runs.p, S.runs.nRuns, S.runs.expected, mark(S.runs.p, o.alpha));
+end
+if isfinite(S.ljungBox.p)
+    rel = '';
+    if ~S.ljungBox.reliable
+        rel = '   [anti-conservative here: treat as a screen]';
+    end
+    lsqvce.util.log.msg('  Ljung-Box  : Q = %8.2f   p = %.3e   (h = %d)%s%s\n', ...
+        S.ljungBox.Q, S.ljungBox.p, S.ljungBox.h, ...
+        mark(S.ljungBox.p, o.alpha), rel);
+end
+
+if isempty(bins)
+    lsqvce.util.log.msg(['  binned     : no covariates supplied.\n' ...
+             '               This is the most powerful test and you have not\n' ...
+             '               given it anything to work with. Pass every ordering\n' ...
+             '               variable you have:\n' ...
+             '                 ''covariates'', struct(''time'',t,''elev'',e,''azim'',az)\n']);
+else
+    for ii = 1:numel(bins)
+        b = bins(ii);
+        lsqvce.util.log.msg('  bins:%-8s: worst bin %d/%d, mean w = %+.4f (n=%d), z = %+.3f, p = %.3e%s\n', ...
+            b.name, b.worstBin, numel(b.z), b.means(b.worstBin), ...
+            b.counts(b.worstBin), b.worstZ, b.p, mark(b.p, o.alpha));
+    end
+end
+
+lsqvce.util.log.msg('\n');
+if S.detected
+    lsqvce.util.log.msg(['  ==> SYSTEMATIC ERROR DETECTED (%s, p = %.2e).\n' ...
+             '      The residuals carry structure that the model does not.\n' ...
+             '      This is NOT an outlier problem and rejecting observations\n' ...
+             '      will not fix it -- it will only hide it. Find the missing\n' ...
+             '      parameter.\n'], S.worst, S.pMin);
+    if ~isempty(bins)
+        [~, iw] = min([bins.p]);
+        b = bins(iw);
+        lsqvce.util.log.msg(['      The signal is strongest against ''%s''. Plot w against\n' ...
+                 '      it and look at the shape -- that shape IS the missing\n' ...
+                 '      term.\n'], b.name);
+    end
+else
+    lsqvce.util.log.msg(['  ==> No systematic structure detected at alpha = %.3g.\n' ...
+             '      Note this is only as good as the covariates you supplied:\n' ...
+             '      a systematic in a variable you did not pass is invisible\n' ...
+             '      to every test here.\n'], o.alpha);
+end
+lsqvce.util.log.msg('\n');
+end
+
+function F = ftest(solFull, solRed, opt)
+%LSQVCE.ENGINE.VERDICT.FTEST  Is the extra parameter earning its place?
+%
+%   F = LSQVCE.ENGINE.VERDICT.FTEST(solFull, solRed) tests whether the additional parameters
+%   in the FULL model give a statistically significant improvement in fit over
+%   the REDUCED (nested) model.
+%
+%       F = [ (vPv_red - vPv_full) / (u_full - u_red) ] / s0sq_full
+%           ~ F(u_full - u_red,  r_full)   under H0 (the extra params are zero)
+%
+%   The reduced model must be strictly NESTED inside the full one -- same
+%   observations, same weights, a subset of the parameters. This is checked as
+%   far as it can be: n must match, and vPv_red >= vPv_full (adding freedom can
+%   only improve the fit, so a reduced model that fits BETTER means the two
+%   solutions are not what you think they are).
+%
+%   WHY YOU NEED THIS
+%   -----------------
+%   The report tells you that a LOW variance factor may mean over-
+%   parameterisation -- the model has enough freedom to absorb the noise, which
+%   produces a beautiful fit and meaningless parameters. That warning is useless
+%   without a way to act on it. This is the way to act on it.
+%
+%   The temptation is to look at the t-statistic x_j / sigma_j for each
+%   parameter and drop the insignificant ones. That is fine for ONE parameter,
+%   but it is wrong for several at once when they are correlated: two parameters
+%   can each be individually insignificant while their JOINT contribution is
+%   highly significant (and vice versa). The F-test asks the right question --
+%   does this GROUP of parameters, taken together, earn its keep.
+%
+%   INPUT
+%     solFull  1x1 struct  solution of the FULL model (from lsqvce.engine.adjustBlock /
+%                          Accumulator.solve); uses .vtv (or .vPv), .m/.n,
+%                          .u/.rank and .sigma0/.s0 as available.
+%     solRed   1x1 struct  solution of the nested REDUCED model, same fields.
+%
+%   NAME-VALUE
+%     'alpha'    significance (default 0.05 -- model selection is not blunder
+%                detection, and 0.001 here would retain almost nothing)
+%     'verbose'  print (default true)
+%
+%   OUTPUT F
+%     .F, .p, .df1, .df2, .crit
+%     .significant   true if the extra parameters are justified
+%     .dvPv          the improvement in vPv
+%
+%   EXAMPLE
+%       % Is the extra parameter justified, or is it fitting noise?
+%       Rfull = lsqvce.fit(struct('A', [A extra], 'l', l, 'p', p), Verbose=false);
+%       Rred  = lsqvce.fit(struct('A', A,         'l', l, 'p', p), Verbose=false);
+%
+%       F = lsqvce.engine.verdict.ftest(Rfull.sol, Rred.sol);   % = Rfull.compare(Rred)
+%
+%       % F.significant   false for a pure-noise column (measured p = 0.548)
+%       % F.p             the p-value
+%
+%       % The test assumes the REDUCED model is correct. If a systematic error
+%       % is present, both models are wrong and the p-value means nothing --
+%       % pass 'checkD' and it will refuse:
+%       F = lsqvce.engine.verdict.ftest(sF, sR, 'checkD', S);
+%
+%   ERRORS
+%     lsqvce:ftest:notNested       the two models are not nested, so the F ratio
+%                                  has no meaning
+%     lsqvce:ftest:differentData    they were not fitted to the same observations
+%     lsqvce:ftest:noRedundancy     the fuller model has no degrees of freedom left
+%     lsqvce:ftest:zeroVariance     the residual sum of squares is zero
+%
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
+%   typed `arguments` signature, canonical UpperCamelCase option names
+%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+%   case-sensitive lowercase). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
+%   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
+%     lsqvce:ftest:invalidPremise                [warning]  ... ... ... ... ... 
+%
+%   See also LSQVCE.ENGINE.VERDICT.SYSTEMATIC, LSQVCE.ENGINE.ADJUSTBLOCK.
+%
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): the
+%   deleted engine.adjust reference replaced. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
+%   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
+%   2026-07-11.
+%   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
+%   WP-64a): the ENGINE tier leaves the USER surface; every qualified
+%   reference was rewritten mechanically by docs_src/refactor_tiers.py.
+
+% WP-39 stage (b) b2: typed `arguments` signature (canonical
+% UpperCamelCase; legacy casings keep matching -- MATLAB NV
+% semantics; enum VALUES case-sensitive lowercase).
+arguments
+    solFull
+    solRed
+    opt.Alpha (1,1) double {mustBePositive, mustBeLessThan(opt.Alpha,1)} = 0.05
+    opt.Verbose (1,1) logical = true
+    opt.CheckD = []
+end
+
+o = struct('alpha', opt.Alpha, 'verbose', opt.Verbose, 'checkD', opt.CheckD);
+
+uF = solFull.rank;   if isempty(uF), uF = solFull.u; end
+uR = solRed.rank;    if isempty(uR), uR = solRed.u;  end
+
+if solFull.n ~= solRed.n
+    error('lsqvce:ftest:differentData', ...
+        ['The two models were fitted to different numbers of observations ' ...
+         '(%d and %d). An F-test compares two models on the SAME data; ' ...
+         'otherwise the difference in vPv reflects the data, not the model.'], ...
+         solFull.n, solRed.n);
+end
+
+df1 = uF - uR;
+df2 = solFull.n - uF;
+
+if df1 <= 0
+    error('lsqvce:ftest:notNested', ...
+        ['The "full" model has %d estimable parameters and the "reduced" one ' ...
+         'has %d. The full model must have MORE.'], uF, uR);
+end
+if df2 <= 0
+    error('lsqvce:ftest:noRedundancy', ...
+        'The full model has no redundancy (n = %d, rank = %d).', solFull.n, uF);
+end
+
+dvPv = solRed.vPv - solFull.vPv;
+
+if dvPv < 0
+    if abs(dvPv) < 1e-8 * max(solFull.vPv, 1)
+        dvPv = 0;      % roundoff
+    else
+        error('lsqvce:ftest:notNested', ...
+            ['The REDUCED model fits BETTER than the full one ' ...
+             '(vPv %.6e vs %.6e). That is impossible for genuinely nested ' ...
+             'models -- adding parameters cannot worsen a least-squares fit.\n' ...
+             'The two models are not nested, or they were not fitted to the ' ...
+             'same data with the same weights, or one of them has not ' ...
+             'converged.'], solRed.vPv, solFull.vPv);
+    end
+end
+
+s0sqF = solFull.vPv / df2;
+if s0sqF <= 0
+    error('lsqvce:ftest:zeroVariance', 'The full model has zero residual.');
+end
+
+Fstat = (dvPv / df1) / s0sqF;
+crit  = lsqvce.kernel.stat.fInv(1 - o.alpha, df1, df2);
+% p-value from the F CDF, via the incomplete beta
+xb = (df1 * Fstat) / (df1 * Fstat + df2);
+pval = 1 - betainc(xb, df1/2, df2/2);
+
+F = struct('F', Fstat, 'p', pval, 'df1', df1, 'df2', df2, ...
+           'crit', crit, 'alpha', o.alpha, 'dvPv', dvPv, ...
+           'significant', Fstat > crit, ...
+           'vPvFull', solFull.vPv, 'vPvRed', solRed.vPv);
+
+% ---------------------------------------------------------------------------
+% VALIDITY GUARD
+% ---------------------------------------------------------------------------
+% The F-test asks "does the extra parameter improve the fit MORE THAN CHANCE?"
+% and answers it by comparing dvPv against the full model's residual variance.
+% That comparison is only meaningful if the residual variance is NOISE.
+%
+% If a systematic error is present, or the data are contaminated, then s0sqF
+% measures the systematic error rather than the noise, and the F-statistic is
+% the ratio of two things that are both wrong. It will happily declare a
+% parameter "significant" because it soaks up part of an unmodelled signal --
+% which is precisely how a spurious parameter gets into a model and stays there.
+F.valid = true;
+F.validityWarning = '';
+if ~isempty(o.checkD) && isstruct(o.checkD)
+    bad = '';
+    if isfield(o.checkD, 'contamLevel') && ...
+       any(strcmp(o.checkD.contamLevel, {'moderate','severe','refuse','breakdown'}))
+        bad = sprintf('contamination (level "%s")', o.checkD.contamLevel);
+    elseif isfield(o.checkD, 'detected') && o.checkD.detected
+        bad = 'an unmodelled systematic error';
+    end
+    if ~isempty(bad)
+        F.valid = false;
+        F.validityWarning = bad;
+        lsqvce.util.log.warn('lsqvce:ftest:invalidPremise', ...
+            ['ftest: the residuals show %s, so this F-test is NOT valid.\n' ...
+             'The F-statistic divides the improvement in fit by the full ' ...
+             'model''s residual variance, which is only meaningful when that ' ...
+             'variance is NOISE. Here it is measuring the model error itself, ' ...
+             'so the test compares two wrong things.\n' ...
+             'A parameter can come out "significant" simply because it soaks up ' ...
+             'part of an unmodelled signal -- which is exactly how a spurious ' ...
+             'parameter enters a model and stays there. Fix the model first.'], ...
+             bad);
+    end
+end
+
+if lsqvce.util.verbosity.progress(o.verbose)
+    lsqvce.util.log.msg('\n--- F-TEST: are the %d extra parameter(s) justified?\n', df1);
+    lsqvce.util.log.msg('  vPv (reduced, %d par) = %.6e\n', uR, solRed.vPv);
+    lsqvce.util.log.msg('  vPv (full,    %d par) = %.6e\n', uF, solFull.vPv);
+    lsqvce.util.log.msg('  improvement          = %.6e\n', dvPv);
+    lsqvce.util.log.msg('  F = %.4f   ~ F(%d, %d)   critical = %.4f   p = %.4e\n', ...
+            Fstat, df1, df2, crit, pval);
+    lsqvce.util.log.msg('\n');
+    if F.significant
+        lsqvce.util.log.msg(['  ==> SIGNIFICANT. The extra parameter(s) reduce the residual\n' ...
+                 '      by more than chance would. Keep them.\n']);
+    else
+        lsqvce.util.log.msg(['  ==> NOT significant. The extra parameter(s) buy an\n' ...
+                 '      improvement no bigger than noise. They are absorbing\n' ...
+                 '      random error, not signal -- which makes the fit look\n' ...
+                 '      better while making the parameters MEAN less. Drop them.\n']);
+    end
+    lsqvce.util.log.msg('\n');
+end
+end
+
+function E = ellipse(D, pair, opt)
+%LSQVCE.ENGINE.VERDICT.ELLIPSE  Confidence ellipse for a pair of correlated parameters.
+%
+%   E = LSQVCE.ENGINE.VERDICT.ELLIPSE(D, [i j]) returns the confidence ellipse of parameters
+%   i and j from the 2x2 submatrix of Qxx.
+%
+%   WHEN THE REPORT SAYS "look at the error ellipse instead", THIS IS IT.
+%
+%   Two parameters correlated at 0.99 may each have a small standard deviation
+%   while being almost completely inseparable. The individual sigmas describe
+%   the two SIDES of a bounding box; the ellipse inside it can be a needle. The
+%   sigmas are then true but deeply misleading: they suggest you know each
+%   parameter to that precision, when in fact you only know one combination of
+%   them well and the orthogonal combination hardly at all.
+%
+%   The ellipse says what you actually know. Its semi-major axis is the
+%   direction you know WORST, and its length is how badly.
+%
+%   INPUT
+%     D     1x1 struct  diagnostics from lsqvce.engine.verdict.diagnose (R.diag); uses
+%                       the parameter estimate and the cofactor D.Q plus sigma0/s0.
+%     pair  1x2 double  the two parameter indices [i j] to plot the ellipse for.
+%
+%   NAME-VALUE
+%     'conf'     confidence level (default 0.95)
+%     'scale'    'apriori' (use sigma0) | 'aposteriori' (use s0)  [default
+%                'aposteriori', matching what the report tabulates]. With
+%                the estimated s0 the region is 2 F(2, r) (r = D.r, the
+%                redundancy), with sigma0 chi2(2) -- R7-39
+%     'npts'     points on the returned outline (default 200)
+%
+%   OUTPUT E
+%     .semiMajor, .semiMinor    axis half-lengths at the requested confidence
+%     .k2                       the squared scale used: 2 F(2, r) or chi2(2)
+%     .angle                    orientation of the major axis, radians CCW from
+%                               the +i axis
+%     .ratio                    semiMajor/semiMinor -- the elongation. Above
+%                               ~10 the parameters are effectively one.
+%     .xy                       2 x npts outline, centred on the estimate
+%     .centre                   [x_i; x_j]
+%     .corr                     the correlation between them
+%     .sigInd                   [sigma_i; sigma_j] -- the misleading numbers
+%     .worstDir                 unit vector of the semi-major axis: the
+%                               combination of the two parameters you know least
+%
+%   EXAMPLE
+%       data = struct('batchFcn', src, 'numUnknowns', u, 'numBatches', 4);
+%       R = lsqvce.fit(data, Verbose=false);
+%       E = lsqvce.engine.verdict.ellipse(R.diag, [1 2]);       % parameters 1 and 2
+%
+%       plot(E.xy(:,1), E.xy(:,2), 'LineWidth', 1.5);  hold on
+%       plot(E.centre(1), E.centre(2), 'r+');
+%       axis equal; grid on
+%
+%       % E.xy         npts x 2, ready for plot()
+%       % E.semiMajor  / E.semiMinor / E.angle
+%       % E.ratio      elongation -- large means the pair is poorly separated
+%
+%       % Draw this whenever |rho| > 0.95: the individual sigmas are then
+%       % meaningless in isolation, however small they look.
+%
+%   ERRORS
+%     lsqvce:ellipse:badPair        the parameter pair is not two valid indices
+%     lsqvce:ellipse:samePair       both indices are the same parameter
+%
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
+%   typed `arguments` signature, canonical UpperCamelCase option names
+%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+%   case-sensitive lowercase). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
+%   See also LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.BLOCKCOFACTOR.
+%
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-86 part 2 (R7-24): the 2 x 2
+%   cofactor comes from D.Q.block (the dense D.Qxx is retired). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34, R7-39): 2
+%   F(2, r) with the estimated s0^2 (chi2(2) under-covered at small r);
+%   output .k2. With assistance from Claude (Anthropic), model Claude Opus
+%   5.5.
+%   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
+%   2026-07-11.
+%   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
+%   WP-64a): the ENGINE tier leaves the USER surface; every qualified
+%   reference was rewritten mechanically by docs_src/refactor_tiers.py.
+
+% WP-39 stage (b) b2: typed `arguments` signature (canonical
+% UpperCamelCase; legacy casings keep matching -- MATLAB NV
+% semantics; enum VALUES case-sensitive lowercase).
+arguments
+    D
+    pair
+    opt.Conf (1,1) double {mustBePositive, mustBeLessThan(opt.Conf,1)} = 0.95
+    opt.Scale (1,1) string {mustBeMember(opt.Scale, ["apriori","aposteriori"])} = "aposteriori"
+    opt.NPts (1,1) double {mustBeGreaterThanOrEqual(opt.NPts,8)} = 200
+end
+
+o = struct('conf', opt.Conf, 'scale', char(opt.Scale), 'npts', opt.NPts);
+
+if numel(pair) ~= 2 || any(pair < 1) || any(pair > D.u) || any(pair ~= fix(pair))
+    error('lsqvce:ellipse:badPair', ...
+          'pair must be two integer parameter indices in 1..%d.', D.u);
+end
+i = pair(1);  j = pair(2);
+if i == j
+    error('lsqvce:ellipse:samePair', 'The two indices must differ.');
+end
+
+Q = D.Q.block([i j]);          % Qxx([i j], [i j]) from the block cofactor (WP-86 part 2)
+Q = (Q + Q') / 2;
+
+estimated = false;
+if strcmpi(o.scale, 'aposteriori')
+    fac = D.s0sq;
+    estimated = isfinite(fac) && fac > 0;
+    if ~estimated, fac = D.sigma0^2; end
+else
+    fac = D.sigma0^2;
+end
+C = fac * Q;
+
+[V, Lam] = eig(C);
+lam = diag(Lam);
+[lam, ix] = sort(lam, 'descend');
+V = V(:, ix);
+
+if any(lam < 0)
+    lam = max(lam, 0);
+end
+
+% Chi-square with 2 dof gives the scale factor for a joint confidence region
+% when the variance factor is KNOWN. (Using 1 dof would give the marginal
+% interval on each axis, which is a DIFFERENT and smaller region -- the
+% classic factor-of-2.45-vs-1.96 confusion.) R7-39: with the ESTIMATED s0^2
+% the exact region is 2 F(2, r): chi2(2) under-covers at small redundancy
+% (a "95 %" ellipse covered 86 % at r = 5, 90.5 % at r = 10; 20 000 draws,
+% R7 mirror m7_ellipse.py) and converges to it as r grows.
+r = lsqvce.util.getfielddef(D, 'r', Inf);
+if estimated && isfinite(r) && r >= 1
+    k2 = 2 * lsqvce.kernel.stat.fInv(o.conf, 2, r);
+else
+    k2 = lsqvce.kernel.stat.chi2Inv(o.conf, 2);
+end
+
+a = sqrt(k2 * lam(1));      % semi-major
+b = sqrt(k2 * lam(2));      % semi-minor
+ang = atan2(V(2,1), V(1,1));
+
+th = linspace(0, 2*pi, o.npts);
+% npts x 2, NOT 2 x npts: this is the orientation plot() expects, so the caller
+% can write plot(E.xy(:,1), E.xy(:,2)) directly.
+%
+% It WAS 2 x npts, which silently broke demo_workflow: E.xy(:,1) plotted a
+% single POINT instead of the ellipse, and no error was raised. Caught only by
+% running in MATLAB.
+xy = (V * [a*cos(th); b*sin(th)]).';
+
+cx = [D.x(i); D.x(j)];
+si = sqrt(fac * [Q(1,1); Q(2,2)]);
+rho = Q(1,2) / sqrt(max(Q(1,1)*Q(2,2), realmin));
+
+E = struct('semiMajor', a, 'semiMinor', b, 'angle', ang, ...
+           'ratio', a / max(b, realmin), ...
+           'xy', xy + cx.', 'centre', cx, 'corr', rho, ...
+           'sigInd', si, 'conf', o.conf, 'pair', [i j], ...
+           'worstDir', V(:,1), 'bestDir', V(:,2), ...
+           'lambda', lam, 'scale', o.scale, 'k2', k2);
+end
+
+end   % methods (Static)
+end   % classdef
+
+% ---------------------------------------------- source (formerly lsqvce.engine.verdict.source)
+
+%==========================================================================
+function [A, l, p] = batchOf(src, k)
+%BATCHOF  The k-th whitened batch (one arc), unit weight. Tolerates nargout 1..3.
+%   Rebuilt from its address (WP-86 part 1): the arc is re-read through the
+%   system's loader and re-whitened by the ONE iterator, so the rows are
+%   bit-identical to accumulation. The last arc served is cached (src.cache
+%   is a handle), so asking for the same batch twice reads it once.
+    if k > size(src.index, 1)                      % the prior pseudo-batch, last
+        A = src.prior.A;  l = src.prior.l;  p = ones(size(A, 1), 1);
+        return
+    end
+    e = src.index(k, :);                           % {iSys, day, obsType, arcId}
+    key = sprintf('%d|%s|%s|%s', e{1}, num2str(e{2}, 17), e{3}, num2str(e{4}, 17));
+    c = src.cache;
+    if ~(isKey(c, 'key') && strcmp(c('key'), key))
+        [Ak, lk] = arcRows(src, e{1}, e{2}, e{3}, e{4});
+        c('key') = key;  c('A') = Ak;  c('l') = lk;
+    end
+    A = c('A');  l = c('l');  p = ones(size(A, 1), 1);
+end
+
+function [A, l] = arcRows(src, iSys, day, obsType, arcId)
+%ARCROWS  One arc's whitened rows placed into the columns [common | this
+%   system's locals], every kept row of every iterator batch, in order.
+    st = src.stores{iSys};
+    uo = st.uo;  uo.obsType = obsType;  uo.day = day;  uo.arc = arcId;
+    arc = st.dataFcn(day, obsType, arcId, uo);
+    A = zeros(0, src.uFull);  l = zeros(0, 1);
+    if isempty(arc) || ~isfield(arc, 'l') || isempty(arc.l)
+        return
+    end
+    colLocal = src.localOffset(iSys) + (1:src.localCount(iSys));
+    % the iterator's batches, gathered in a handle (a local function of a
+    % classdef file takes no nested function): key = batch number, in order
+    got = containers.Map('KeyType', 'double', 'ValueType', 'any');
+    arcBatchWhiten(arc, uo, @(~, keepRows, Ablk, Bblk, lblk) ...
+        keepBatch(got, keepRows, Ablk, Bblk, lblk, colLocal, src.nc, src.uFull));
+    parts = values(got);                           % ascending keys = iterator order
+    As = cellfun(@(c) c{1}, parts, 'UniformOutput', false);
+    ls = cellfun(@(c) c{2}, parts, 'UniformOutput', false);
+    A = vertcat(A, As{:});  l = vertcat(l, ls{:});
+end
+
+function keepBatch(got, keepRows, Ablk, Bblk, lblk, colLocal, nc, uFull)
+%KEEPBATCH  One iterator batch, its kept rows placed full width, appended to
+%   the handle GOT under the next batch number.
+    Ab = zeros(numel(keepRows), uFull);
+    Ab(:, 1:nc) = Ablk(keepRows, :);
+    Ab(:, colLocal) = Bblk(keepRows, :);
+    got(got.Count + 1) = {Ab, lblk(keepRows)};
+end
+
+function index = enumerateArcs(stores)
+%ENUMERATEARCS  The address {iSys, day, obsType, arcId} of every arc, in the
+%   accumulator's order (system, day, obsType, arc), from the loaders' meta
+%   answers only -- no arc is read (the loader memoises its discovery).
+    index = cell(0, 4);
+    for iSys = 1:numel(stores)
+        st = stores{iSys};
+        for day = st.dayList(:).'
+            meta = st.dataFcn('meta', day, [], st.uo);
+            for iType = 1:numel(meta.obsTypes)
+                for arcId = meta.arcs{iType}(:).'
+                    index(end+1, :) = {iSys, day, meta.obsTypes{iType}, arcId};   %#ok<AGROW> addresses only
+                end
+            end
+        end
+    end
+end
+
+% ---------------------------------------------- diagnose (formerly lsqvce.engine.verdict.diagnose)
+
+function q = prctileLocal(x, pct)
+%PRCTILELOCAL  Percentile without the Statistics Toolbox.
+%   Linear interpolation between order statistics, matching the default
+%   convention of prctile(). Written out because the whole point of this
+%   toolbox is that it runs on base MATLAB.
+    x = sort(x(:));
+    n = numel(x);
+    if n == 0, q = NaN; return; end
+    if n == 1, q = x;   return; end
+    % prctile places the k-th order statistic at percentile 100*(k-0.5)/n.
+    pos = n * pct / 100 + 0.5;
+    if pos <= 1
+        q = x(1);
+    elseif pos >= n
+        q = x(n);
+    else
+        lo = floor(pos);
+        f  = pos - lo;
+        q  = (1 - f) * x(lo) + f * x(lo + 1);
+    end
+end
+
+% ---------------------------------------------- snoop (formerly lsqvce.engine.verdict.snoop)
+
+%% ======================================================== helpers
+
+function [bestW, bestI, bestR, bestV, bestP, vPv, nFlag, bestA, sizes, sysOf] = ...
+        scanWorst(batchFcn, nB, Q, x, rejected, rdf, kCrit, useRobust)
+%SCANWORST  One streaming pass over all batches to find the single worst
+%   (largest |w|) surviving observation and accumulate vPv honestly.
+%   INPUT
+%     batchFcn  1x1 fh      [A,l,p] = batchFcn(k), k = 1..nB
+%     nB        1x1 double  number of batches
+%     Q         1x1         lsqvce.engine.BlockCofactor of the current system
+%                           (the leverage a' Qxx a, WP-86 part 2)
+%     x         u x 1       current parameter estimate
+%     rejected  m x 1 log   mask of already-rejected observations (global index)
+%     rdf       1x1 double  residual degrees of freedom (for s0)
+%     kCrit     1x1 double  critical value for flagging (|w| threshold)
+%     useRobust 1x1 log     use a robust (MAD) scale for w
+%   OUTPUT
+%     bestW  1x1  the largest |w| found among surviving observations
+%     bestI  1x1  its global observation index (0 if none)
+%     bestR  1x1  its partial redundancy r_i
+%     bestV  1x1  its residual v_i
+%     bestP  1x1  its weight p_i
+%     vPv    1x1  weighted residual sum of squares over survivors
+%     nFlag  1x1  count of survivors exceeding kCrit
+%     bestA  1xu  its design row (the downdate needs it; no second search pass)
+%     sizes  nBx1 the row count of every batch
+%     sysOf  nBx1 the system whose locals each batch touches (0: none) --
+%                 the clean re-solve rebuilds the systems from it
+    rawPool = [];
+    sizes = zeros(nB, 1);
+    sysOf = zeros(nB, 1);
+    bestA = [];
+% One streaming pass: find the worst |w| among surviving observations, and
+% accumulate vPv honestly along the way.
+    bestW = 0; bestI = 0; bestR = 0; bestV = 0; bestP = 1;
+    vPv = 0; nFlag = 0; nSeen = 0;
+
+    % s0 must come from THIS pass, but we need it to studentise... so do two
+    % sub-passes over the (cheap) scalars: first vPv, then w. In practice we
+    % accumulate the raw v and qv and finish afterwards, which needs one pass
+    % and O(1) memory beyond the batch.
+    cand = struct('w', {}, 'i', {}, 'r', {}, 'v', {}, 'p', {});
+
+    % --- pass A: vPv
+    for k = 1:nB
+        [Ak, lk, pk] = batchFcn(k);
+        lk = lk(:); nk = size(Ak,1);
+        sizes(k) = nk;
+        if nk == 0, continue; end
+        sysOf(k) = Q.systemOf(Ak);
+        if isempty(pk), pk = ones(nk,1); end
+        if ~isvector(pk)
+            % A matrix here would be silently FLATTENED by pk(:) into a
+            % meaningless vector, which is the worst possible failure: a
+            % confident wrong answer. Refuse instead.
+            %
+            % The refusal is not laziness. Rejecting one observation from a
+            % correlated block is genuinely harder than rejecting an
+            % independent one: removing row i from a block means taking the
+            % SCHUR COMPLEMENT of the block covariance, not merely deleting a
+            % row of P. The surviving observations in that block have their
+            % covariance CHANGED by the removal, so the downdate is not a
+            % rank-one cholupdate and the whole O(u^2) argument collapses.
+            %
+            % lsqvce.engine.verdict.diagnose DOES handle correlated batches (Baarda's
+            % generalised statistic), so you can FIND the outliers. You just
+            % cannot use this function to remove them.
+            error('lsqvce:snoop:correlatedBatch', ...
+                ['snoop: batch %d supplies a full weight MATRIX (correlated ' ...
+                 'observations). Iterative rejection is not supported for ' ...
+                 'correlated blocks.\n' ...
+                 'Removing one observation from a correlated block changes the ' ...
+                 'covariance of every SURVIVING observation in that block (a ' ...
+                 'Schur complement, not a row deletion), so the rank-one ' ...
+                 'Cholesky downdate this function is built on does not apply.\n' ...
+                 'WHAT YOU CAN DO: the diagnostics (R.diag) fully support correlated ' ...
+                 'batches, so run it to LOCATE the outliers (D.flagIdx). Then ' ...
+                 'either (a) drop the whole affected block, (b) rebuild the ' ...
+                 'block covariance without the rejected observation and re-run ' ...
+                 'lsqvce.fit, or (c) use lsqvce.engine.adjustRobust, which downweights ' ...
+                 'rather than deletes and therefore leaves the block ' ...
+                 'structure intact.'], k);
+        end
+        pk = pk(:);
+        idx = nSeen + (1:nk);
+        alive = ~rejected(idx);
+        if any(alive)
+            Aa = Ak(alive,:);
+            vk = Aa * x - lk(alive);
+            vPv = vPv + sum(pk(alive) .* vk.^2);
+
+            % Collect the raw standardised score for the robust scale.
+            % Scale-free, so it can be pooled across batches.
+            if useRobust
+                Wa = Q.halfRows(Aa);
+                qva = 1 ./ pk(alive) - sum(Wa.^2, 1).';
+                qva(qva < 0) = 0;
+                gd = qva > 0;
+                tmp = vk(gd) ./ sqrt(qva(gd));
+                rawPool = [rawPool; tmp]; %#ok<AGROW>
+            end
+        end
+        nSeen = nSeen + nk;
+    end
+    s0sq = vPv / max(rdf, 1);
+    if ~isfinite(s0sq) || s0sq <= 0, s0sq = 1; end
+
+    % Choose the denominator. The robust (MAD) scale has a high breakdown
+    % point; s0 does not, and under contamination the blunders inflate s0 and
+    % divide themselves back down below the threshold.
+    if useRobust && numel(rawPool) >= 3
+        med  = median(rawPool);
+        sMad = 1.4826 * median(abs(rawPool - med));
+        if isfinite(sMad) && sMad > 0
+            s0sq = sMad^2;
+        end
+    end
+
+    % --- pass B: w and the worst candidate
+    nSeen = 0;
+    for k = 1:nB
+        [Ak, lk, pk] = batchFcn(k);
+        lk = lk(:); nk = size(Ak,1);
+        if nk == 0, continue; end
+        if isempty(pk), pk = ones(nk,1); end
+        pk = pk(:);
+        idx = nSeen + (1:nk);
+        alive = ~rejected(idx);
+        if ~any(alive), nSeen = nSeen + nk; continue; end
+
+        Aa = Ak(alive,:); la = lk(alive); pa = pk(alive);
+        ia = idx(alive);
+
+        vk = Aa * x - la;
+        W  = Q.halfRows(Aa);
+        qx = sum(W.^2, 1).';
+        qv = 1 ./ pa - qx;
+        qv(qv < 0) = 0;
+        rk = min(max(pa .* qv, 0), 1);
+
+        wk = zeros(numel(la), 1);
+        ok = rk > 1e-6;
+        wk(ok) = vk(ok) ./ sqrt(s0sq * qv(ok));
+
+        fl = ok & (abs(wk) > kCrit);
+        nFlag = nFlag + sum(fl);
+
+        if any(fl)
+            [mw, mi] = max(abs(wk .* fl));
+            if mw > bestW
+                bestW = mw;  bestI = ia(mi);  bestR = rk(mi);
+                bestV = vk(mi);  bestP = pa(mi);  bestA = Aa(mi, :);
+            end
+        end
+        nSeen = nSeen + nk;
+    end
+end
+
+%==========================================================================
+function acc = blockResolveAccumulator(sol, Q, batchFcn, nB, rejected, sizes, sysOf)
+%BLOCKRESOLVEACCUMULATOR  The surviving rows, accumulated on the block-arrow
+%   structure the cofactor Q describes (WP-86 part 3): one system per
+%   original system (its surviving batches, its own local columns), the
+%   batches that touch no locals as one local-free system, ready to solve.
+%   INPUT  sol (method / defect / datumB), Q, batchFcn, nB, the rejected
+%          mask, the batch sizes and each batch's system (scanWorst)
+%   OUTPUT acc  1x1 lsqvce.engine.BlockAccumulator (KeepLocal), not solved
+    % The clean re-solve rebuilds the BLOCK-ARROW system the cofactor
+    % describes (WP-86 part 3): each original system becomes one system
+    % again -- its surviving batches, its own local columns -- and the
+    % batches that touch no locals (a kind B/C source, the prior's rows)
+    % one local-free system. So the clean solve has the original structure
+    % and the original column layout; before, every parameter was re-solved
+    % as a common one (a dense u_full factor). One batch per batch that
+    % keeps a row, read through its row offset: the surviving rows are never
+    % concatenated (n x u at full width -- R7-24 once more).
+    edges = [0; cumsum(sizes)];
+    alive = arrayfun(@(k) any(~rejected(edges(k)+1:edges(k+1))), (1:nB).');
+    backend = 'qr';
+    if isfield(sol, 'method') && strcmpi(char(sol.method), 'normal'), backend = 'normal'; end
+    acc = lsqvce.engine.BlockAccumulator(Q.nc, 'Backend', backend, 'KeepLocal', true, 'Verbose', false);
+    if isfield(sol, 'defect') && sol.defect > 0 && isfield(sol, 'datumB') && ~isempty(sol.datumB)
+        acc.setPrior(lsqvce.engine.CommonPrior(sol.datumB.', zeros(size(sol.datumB, 2), 1), 1));
+    end
+    nS = numel(Q.sys);
+    for s = [1:nS, 0]                                   % the systems in order, local-free last
+        kept = find(alive & sysOf(:) == s);
+        if isempty(kept), continue, end
+        cols = zeros(1, 0);  sid = nS + 1;
+        if s > 0, cols = Q.sys(s).cols;  sid = s; end
+        L = lsqvce.engine.batchSystem(Q.nc, @(j) maskedBatch(batchFcn, kept(j), rejected, edges), ...
+                numel(kept), 'LocalColumns', cols, 'SystemId', sid, 'Name', 'snoop');
+        acc.addSystem(L.sysID, numel(cols), L.closure, 1:numel(kept));   % one day per kept batch
+    end
+end
+
+function [A, l, p] = maskedBatch(batchFcn, k, rejected, edges)
+%MASKEDBATCH  Batch k with the rejected observations removed; edges(k) is the
+%   row offset of batch k, so only batch k is read.
+    [A, l, p] = batchFcn(k);
+    l = l(:);
+    if isempty(p), p = ones(numel(l), 1); end
+    alive = ~rejected(edges(k) + (1:numel(l)));
+    A = A(alive, :);  l = l(alive);  p = p(alive);
+    p = p(:);
+end
+
+% ---------------------------------------------- systematic (formerly lsqvce.engine.verdict.systematic)
+
+function s = mark(p, a)
+%MARK  Return a '<<< REJECT' tag when a p-value falls below the level a, else ''.
+%   INPUT   p 1x1 double  a test p-value;  a 1x1 double  the significance level
+%   OUTPUT  s 1xk char     the marker string ('' if not significant)
+    if p < a, s = '   <<< REJECT'; else, s = ''; end
+end
