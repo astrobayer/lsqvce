@@ -1,8 +1,8 @@
-function out = arcVarianceFactors(omegaT, sT, sigma2, opt)
+function out = arcVarianceFactors(Q, T, sigma2, opt)
 %LSQVCE.ENGINE.ARCVARIANCEFACTORS  Relative per-arc variance factors within a group.
 %
-%   out = LSQVCE.ENGINE.ARCVARIANCEFACTORS(omegaT, sT, sigma2)
-%   out = LSQVCE.ENGINE.ARCVARIANCEFACTORS(omegaT, sT, sigma2, 'Name', value, ...)
+%   out = LSQVCE.ENGINE.ARCVARIANCEFACTORS(Q, T, sigma2)
+%   out = LSQVCE.ENGINE.ARCVARIANCEFACTORS(Q, T, sigma2, 'Name', value, ...)
 %
 %   Estimates Ellmer's (2018) arc-wise variance factors: the RELATIVE weight of
 %   each short arc with respect to the other arcs of the SAME observation type
@@ -10,7 +10,7 @@ function out = arcVarianceFactors(omegaT, sT, sigma2, opt)
 %   frequency across all arcs, the arc factors are the mirror image -- the
 %   CUMULATIVE amplitude over all frequencies for one arc:
 %
-%       alpha2_m = sum_j OmegaTilde^m_j / sum_j sTilde^m_j            (6.5.27)
+%       alpha2_m = sum_i Q(i, m) / sum_i T(i, m)                      (6.5.27)
 %       gamma2_m = alpha2_m * sigma2_m                                (6.5.28)
 %       gammaBar = mean over arcs of gamma_m                          (6.5.29)
 %       sigma2hat_m = gamma2_m / gammaBar^2                           (6.5.30)
@@ -36,15 +36,18 @@ function out = arcVarianceFactors(omegaT, sT, sigma2, opt)
 %       outliers the plain mean was 1.69 against a robust 1.24 and a median 1.24.
 %
 %   INPUT
-%     omegaT   nLag x M double  per-arc TEMPORAL Omega^m_n vectors, already
-%                               weighted by sigma2_m * C^n (eq. 6.5.22); one
-%                               COLUMN per arc, rows are lags.
-%     sT       nLag x M double  the matching weighted redundancies s^m_n.
+%     Q        K x M double     per-arc numerators, one COLUMN per arc; the
+%                               joint estimator passes ONE row, the arc's whole
+%                               covariance as the component: Q = r' Omega,
+%                               T = r' s (r the arc's ACV, Omega / s its lag
+%                               sums) -- the exact Helmert factor of the arc
+%                               (R7 WP-111 part 3; it was the DCT-summed
+%                               C-weighted lag vector, Ellmer's eq. 6.5.27).
+%     T        K x M double     the matching denominators.
 %     sigma2   M x 1 double     the CURRENT arc variance factors sigma2_m that
 %                               were used in the weighting (eq. 6.5.28 needs them).
 %
 %   OPTIONS (Name/Value)
-%     'Norm'      char    DCT normalisation, 'ortho' (default) | 'ellmer'
 %     'MeanType'  char    'robust' (default) | 'plain'   (see above)
 %     'TrimFrac'  1x1     fraction trimmed from EACH tail for 'robust'
 %                         (default 0.25, i.e. Ellmer's central half)
@@ -61,7 +64,7 @@ function out = arcVarianceFactors(omegaT, sT, sigma2, opt)
 %       .meanType char    which mean was applied
 %
 %   EXAMPLE
-%     a = lsqvce.engine.arcVarianceFactors(omegaT, sT, sig2);
+%     a = lsqvce.engine.arcVarianceFactors(qa, ta, sig2);   % qa = r*Omega, ta = r*s
 %     sig2 = a.sigma2;                 % feed back into the next iteration
 %
 %   OPTIONS (Name/Value, in addition to 'MeanType'/'TrimFrac')
@@ -82,8 +85,12 @@ function out = arcVarianceFactors(omegaT, sT, sigma2, opt)
 %   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 %     lsqvce:arcVarianceFactors:badMean          [warning] The normalising mean of the arc factors is X, which cannot scale anyt...
 %
-%   See also LSQVCE.ENGINE.PSDVCE, LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.KERNEL.DCTI
+%   See also LSQVCE.ENGINE.PSDVCE, LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.ADJUSTVCEJOINT
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 3: no DCT -- the
+%   factor is the column-sum ratio of what the caller passes (the joint
+%   estimator: the arc's whole covariance as one component); 'Norm' retired.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
 %   typed `arguments` signature, canonical UpperCamelCase option names
 %   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
@@ -104,30 +111,27 @@ function out = arcVarianceFactors(omegaT, sT, sigma2, opt)
     % UpperCamelCase; legacy casings keep matching -- MATLAB NV
     % semantics; enum VALUES case-sensitive lowercase).
 arguments
-    omegaT
-    sT
+    Q
+    T
     sigma2
-    opt.Norm (1,1) string = "ortho"
     opt.MeanType (1,1) string {mustBeMember(opt.MeanType, ["robust","plain"])} = "robust"
     opt.TrimFrac (1,1) double {mustBeGreaterThanOrEqual(opt.TrimFrac,0), mustBeLessThan(opt.TrimFrac,0.5)} = 0.25
     opt.ClampEps (1,1) double {mustBePositive} = 1e-8
 end
 
-    o = struct('Norm', char(opt.Norm), 'MeanType', char(opt.MeanType), 'TrimFrac', opt.TrimFrac, 'ClampEps', opt.ClampEps);
+    o = struct('MeanType', char(opt.MeanType), 'TrimFrac', opt.TrimFrac, 'ClampEps', opt.ClampEps);
 
     sigma2 = sigma2(:);
     M      = numel(sigma2);
-    if size(omegaT,2) ~= M || size(sT,2) ~= M
+    if size(Q,2) ~= M || size(T,2) ~= M
         error('lsqvce:arcVarianceFactors:arcMismatch', ...
-             ['omegaT has %d and sT has %d columns, but sigma2 lists %d arcs; ' ...
-              'one COLUMN per arc is required.'], size(omegaT,2), size(sT,2), M);
+             ['Q has %d and T has %d columns, but sigma2 lists %d arcs; ' ...
+              'one COLUMN per arc is required.'], size(Q,2), size(T,2), M);
     end
 
-    % ---- spectral transform, then cumulative over frequencies    (6.5.27) --
-    OmTilde = lsqvce.kernel.dctI(omegaT, 'Norm', o.Norm);
-    sTilde  = lsqvce.kernel.dctI(sT    , 'Norm', o.Norm);
-    num     = sum(OmTilde, 1).';                 % M x 1
-    den     = sum(sTilde , 1).';                 % M x 1
+    % ---- the arc's cumulative factor                              (6.5.27) --
+    num     = sum(Q, 1).';                       % M x 1
+    den     = sum(T, 1).';                       % M x 1
 
     alpha2      = ones(M,1);
     ok          = isfinite(num) & isfinite(den) & (abs(den) > 0);

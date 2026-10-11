@@ -52,7 +52,7 @@ function R = fit(data, opts, nv)
 %     Name, Value          any property of lsqvce.Options
 %   OUTPUT
 %     R      1x1 lsqvce.Results   x, sigma0, sol (Cxx, dof, vtv), diag, acc, history,
-%                                 noise (C, Cgroups, stream, model, priors), stopReason,
+%                                 noise (S, Sgroups, C, Cgroups, stream, model, priors), stopReason,
 %                                 meta (options as resolved, warnings, seeds, version);
 %                                 methods report, summary, convergence, residuals,
 %                                 contribution, compare, plot, toTable, coefficients
@@ -134,6 +134,10 @@ function R = fit(data, opts, nv)
 %            LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT,
 %            LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTNONLINEAR
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 3: R.noise carries
+%   the law as the bin spectrum (.S, .Sgroups) next to its ACV (.C,
+%   .Cgroups); .Shat is gone. With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 2 (R7-23): the
 %   warning inventory is reset once, before anything can warn, for every
 %   kind. With assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -349,8 +353,8 @@ function R = fitEllmer(systems, days, opts, pri, opc, priorGroups)
     hist.skips = out.skips;
     % arcKeys is a CELL: braces keep struct() from expanding it into a struct
     % ARRAY (the Manual ch. 3 §2.4 pitfall -- it bit this very line in L3 r1).
-    noise = struct('C', out.C, 'Shat', out.Shat, 'sigma2', out.sigma2, 'arcKeys', {out.arcKeys}, ...
-                   'Cgroups', out.Cgroups);            % R5 M3 3d: one C per pool group
+    noise = struct('S', out.S, 'C', out.C, 'sigma2', out.sigma2, 'arcKeys', {out.arcKeys}, ...
+                   'Sgroups', out.Sgroups, 'Cgroups', out.Cgroups);   % R5 M3 3d: one law per pool group
     % R5 M4 4b: the per-stream summary every model shares -- .stream (keys),
     % .model{k}.sigma = the stream's LEVEL (declared sigma x its estimated
     % factor) and its law (the pool group's C); what the separate mode's

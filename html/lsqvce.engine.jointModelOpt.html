@@ -72,7 +72,10 @@ THREE CONVENTIONS THAT ARE EASY TO GET WRONG (all encoded here)
      6.5.6/6.5.17) and is what joint mode wants.</pre>
 <h3>Input</h3>
 <pre class="example">  model    1x1 struct   as handed to accFcn by LSQVCE.ENGINE.ADJUSTVCEJOINT:
-                          .C       nLag x 1  current covariance function
+                          .S       L x 1     the current law: the bin
+                                   spectrum (&gt;= 0) on f_j = j / (2(L-1))
+                                   cycles per sample, LSQVCE.KERNEL.HATACV;
+                                   .Sgroups the same per pool group
                           .sigma2  M x 1     current arc variance factors
                           .iter    1x1       iteration number
                           .arcFactor containers.Map (optional)
@@ -80,7 +83,7 @@ THREE CONVENTIONS THAT ARE EASY TO GET WRONG (all encoded here)
                                    variance factor RELATIVE to its stream&#x27;s
                                    level (R7-13); emitted as
                                    covOverride.byArc (sqrt: a std)
-                        On iter == 1 .C may be the starting guess and
+                        On iter == 1 .S may be the starting guess and
                         .sigma2 may be empty; both are handled.
   streams  1xS cell     the (sysID, obsType) pairs the override must cover,
                         each either &#x27;satKey|obsType&#x27; (as LSQVCE.FIT
@@ -119,10 +122,15 @@ the loader, so multi-axis and scalar streams need no special case here
 <h3>Errors</h3>
 <pre class="example">  lsqvce:jointModelOpt:badModel   the model spec is unrecognised
   lsqvce:jointModelOpt:badStream  the stream key is unknown
-  lsqvce:jointModelOpt:badC       the cross-covariance has the wrong shape
+  lsqvce:jointModelOpt:badS       the law is not a finite non-negative spectrum
 
 See also LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.MAKELOADER
 
+Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 3 (R7-02): the law
+arrives as the bin spectrum model.S / .Sgroups and leaves as the &#x27;psd&#x27;
+spec with ordinates 2 S on fNorm = f_j -- exactly the hat-basis law, with
+no cosine transform of a truncated ACF and no floor (badC -&gt; badS). With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-116 part 2 (R7-13): the
 per-arc factors reach the loader (covOverride.byArc, a relative standard
 deviation per arc on top of the stream&#x27;s level), so they weight the

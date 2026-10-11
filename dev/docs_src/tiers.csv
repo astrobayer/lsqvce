@@ -46,6 +46,7 @@ engine.sharedProbe,ENGINE,shared Hutchinson probe generator (RNG contract)
 engine.traceEstimate,ENGINE,stochastic trace estimate
 kernel.dctI,KERNEL,DCT-I transform
 kernel.psd2acv,KERNEL,PSD -> autocovariance
+kernel.hatACV,KERNEL,ACV of every bin of a piecewise-linear spectrum (the joint law's components)
 kernel.levinsonDurbin,KERNEL,Levinson-Durbin recursion
 kernel.armaACV,KERNEL,ARMA autocovariance
 kernel.ar2arma,KERNEL,AR -> ARMA conversion

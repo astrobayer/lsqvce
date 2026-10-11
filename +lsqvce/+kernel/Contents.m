@@ -10,6 +10,7 @@
 %   crossCorr            - cross-correlation of residual streams
 %   dctI                 - DCT-I transform
 %   decorrFactor         - decorrelation factor of a dense covariance
+%   hatACV               - ACV of every bin of a piecewise-linear spectrum (R7 WP-111)
 %   levinsonDurbin       - Levinson-Durbin recursion
 %   psd2acv              - PSD -> autocovariance
 %   redundancyLags       - redundancy per lag without the dense W^-1

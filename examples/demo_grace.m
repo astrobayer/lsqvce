@@ -36,7 +36,7 @@ function R = demo_grace(varargin)
 %       detected) and settles NEAR the planted values by the last pass.
 %     * the 'rr' stream's true noise IS white; the 'pos' streams carry
 %       injected colour, which the loop recovers as the estimated spectral
-%       shape (R.plot("psd") / R.noise.Shat) and reports in the white and
+%       shape (R.plot("psd") / R.noise.S) and reports in the white and
 %       pValue columns of R.summary(). The joint estimator fits a spectrum,
 %       not an AR order, so summary()'s arOrder column stays NaN here. Four
 %       streams: posC, posD, rr, posE.
@@ -49,6 +49,9 @@ function R = demo_grace(varargin)
 %
 %   See also LSQVCE.FIT, LSQVCE.OPTIONS, LSQVCE.RESULTS, DEMO_GRACE_DATALOADER
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 3: R.noise.S names
+%   the estimated spectrum. With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
 %   Updated 2026-09-07 (CEST, UTC+02:00), R6 WP-95: v5 vocabulary -- the
 %   declaration is the v5 data struct (the Manual, chapter 3), the demo's own
 %   knob is 'maxPasses' (it sets Options.MaxPasses, the ONE budget), and the

@@ -89,9 +89,9 @@ classdef Options
 %                                   plotPostModel / plotPostSolve seams.
 %
 %   GROUPS (structs; set fields one at a time or give a whole struct)
-%     Noise        Grid 60             lags/frequencies of the estimated shape;
-%                                      an integer >= 2, at least the longest arc
-%                                      for an exact law ("auto" is refused)
+%     Noise        Grid 60             spectral bins of the estimated law, 0 ..
+%                                      Nyquist (an integer >= 2; "auto" is
+%                                      refused); exact at every lag for any Grid
 %                  Whitener "toeplitz"|"ar"|"arma"  how a PSD law whitens (v4 PsdMode)
 %                  Smooth 0                         moving average on the PSD
 %                  FreezeRedundancy 1               components below it hold
@@ -136,6 +136,10 @@ classdef Options
 %
 %   See also LSQVCE.FIT, LSQVCE.RESULTS, the Manual, chapter 3, RELEASE_NOTES.md
 %
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 3: Noise.Grid is the
+%   number of spectral bins of the positive-component law; the law is exact at
+%   every lag of every arc whatever the Grid. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 2: Noise.MeanType
 %   retired (user decision 2026-10-10): since 6.1.6 the arc factors are
 %   absolute and gamma-bar no longer scaled them; setting it is refused as
@@ -216,8 +220,7 @@ classdef Options
                 error('lsqvce:Options:badGrid', ...
                     ['Noise.Grid must be an integer >= 2 (got %s). "auto" was ' ...
                      'documented until v5.3 and never implemented; give the ' ...
-                     'number of lags you want, at least the longest arc for an ' ...
-                     'exact law.'], mat2str(g));
+                     'number of spectral bins you want (60 is the default).'], mat2str(g));
             end
             v = obj.Verbose;
             % R6 WP-95: the range is the one lsqvce.util.verbosity has enforced

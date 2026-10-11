@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<title>lsqvce.kernel.hatACV</title><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 14px;
+       color: #000; background: #fff; margin: 0; padding: 0 20px 40px 20px;
+       max-width: 900px; line-height: 1.5; }
+h1 { font-size: 24px; font-weight: normal; color: #d9541e;
+     border-bottom: 1px solid #d9541e; padding-bottom: 6px; margin-top: 24px; }
+h2 { font-size: 18px; font-weight: bold; color: #000; margin-top: 28px; }
+h3 { font-size: 15px; font-weight: bold; margin-top: 20px; }
+.purpose { font-size: 15px; font-style: italic; color: #444;
+           margin: 4px 0 20px 0; }
+pre.syntax, pre.example {
+  background: #f3f3f3; border: 1px solid #d3d3d3; border-left: 4px solid #d9541e;
+  padding: 10px 12px; font-family: Menlo, Consolas, monospace; font-size: 13px;
+  overflow-x: auto; white-space: pre-wrap; }
+pre.example { border-left-color: #4a90d9; }
+code { font-family: Menlo, Consolas, monospace; background: #f3f3f3;
+       padding: 1px 4px; border-radius: 2px; }
+table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+th { background: #eee; text-align: left; padding: 6px 10px;
+     border: 1px solid #ccc; font-size: 13px; }
+td { padding: 6px 10px; border: 1px solid #ccc; vertical-align: top;
+     font-size: 13px; }
+td.name { font-family: Menlo, Consolas, monospace; white-space: nowrap;
+          width: 1%; }
+.warn { background: #fff4e5; border-left: 4px solid #e8912d; padding: 10px 12px;
+        margin: 14px 0; }
+.danger { background: #fdecea; border-left: 4px solid #c0392b; padding: 10px 12px;
+          margin: 14px 0; }
+.note { background: #eaf3fb; border-left: 4px solid #4a90d9; padding: 10px 12px;
+        margin: 14px 0; }
+.nav { font-size: 13px; color: #666; margin: 14px 0 0 0; }
+.nav a { color: #0b5ea8; text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+a { color: #0b5ea8; }
+.seealso { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ddd;
+           font-size: 13px; }
+.footer { margin-top: 34px; padding-top: 10px; border-top: 1px solid #ddd;
+          font-size: 12px; color: #888; }
+</style></head>
+<body>
+<div class="nav"><a href="index.html">lsqvce</a> &rsaquo; lsqvce.kernel.hatACV</div>
+<h1>lsqvce.kernel.hatACV</h1>
+<div class="purpose">The ACV of every bin of a piecewise-linear spectrum: r = K * S.</div>
+<h2>Description</h2>
+<pre class="example">K = LSQVCE.KERNEL.HATACV(L, m)
+Q = LSQVCE.KERNEL.HATACV(L, m, X)       % = K&#x27; * X, without forming K
+
+The spectral law of the joint estimator (R7 WP-111 part 3) is a NON-NEGATIVE
+spectrum S on L equispaced bins f_j = j / (2(L-1)), j = 0..L-1 (cycles per
+sample), linear in between. Its autocovariance at sample lags 0..m-1 is
+r = K * S, where column j of K is the exact ACV of the &quot;hat&quot; spectrum of
+bin j (1 at f_j, 0 at the neighbouring bins), integrated over the two-sided
+band [-1/2, 1/2]:
+
+    K(tau, j) = 2 c_j cos(2 pi f_j tau) (1 - cos(2 pi tau d)) / (d (2 pi tau)^2)
+    K(0, j)   = c_j d,       d = 1 / (2(L-1)),   c_j = 2 inside, 1 at both ends
+
+Why this basis (and not a DCT): every column is the ACV of a non-negative
+spectrum, so toeplitz(K(:, j)) is positive semi-definite for every size, and
+so is any combination with S &gt;= 0 -- the Helmert factor of a bin,
+(K&#x27; Omega)_j / (K&#x27; s)_j, is then &gt;= 0 by construction and the law never
+needs a floor (review R7, R7-02: the inverse-DCT components are
+indefinite). There is no lag period: K is exact at every lag of any arc.
+S = ones(L, 1) is white noise of unit variance (r = [1; 0; 0; ...]).
+The same law handed to LSQVCE.ENGINE.COVMODEL as a one-sided &#x27;psd&#x27; on
+fNorm = f_j has ordinates 2 S, and LSQVCE.KERNEL.PSD2ACV reproduces K * S.</pre>
+<h3>THE PROJECTION FORM. The joint estimator needs only K&#x27; * X (X the m x p lag</h3>
+<pre class="example">sums of an arc). cos(2 pi f_j tau) has period 2(L-1) in tau for every bin,
+so X .* env is folded modulo 2(L-1) and one FFT gives all bins: O(m + L log
+L) time and O(m + L) memory, against m x L for K itself (37 MB for a
+2160-bin law on a 2160-epoch arc, once per distinct arc length).</pre>
+<h3>Input</h3>
+<pre class="example">L   1x1 integer &gt;= 2   number of bins (the Grid)
+m   1x1 integer &gt;= 1   number of lags (the arc length in samples)
+X   m x p double       optional: lag sums to project (lag 0 first)</pre>
+<h3>Output</h3>
+<pre class="example">K   m x L double       the bin ACVs, lag 0 first; with X: L x p, K&#x27; * X</pre>
+<h3>Errors</h3>
+<pre class="example">lsqvce:hatACV:badX     X does not have m rows
+(the arguments block refuses L &lt; 2 and m &lt; 1 by MATLAB&#x27;s validators)</pre>
+<h3>Accuracy</h3>
+<pre class="example">Closed form; against quadrature of the hat spectra 9e-8 (the quadrature&#x27;s
+own error, mirrors/wp111/positive_components.py). The projection form
+agrees with K&#x27; * X to rounding (the FFT&#x27;s, ~1e-15 of sum |X|).</pre>
+<h3>Example</h3>
+<pre class="example">  K = lsqvce.kernel.hatACV(60, 256);
+  r = K * ones(60, 1);          % white: r(1) = 1, r(2:end) ~ 0
+  q = lsqvce.kernel.hatACV(60, 256, randn(256, 1));   % = K&#x27; * x
+
+See also LSQVCE.KERNEL.PSD2ACV, LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ADJUSTVCEJOINT
+
+Created 2026-10-11 (CEST, UTC+02:00) with assistance from Claude
+(Anthropic), model Claude Opus 5.5 -- R7 WP-111 part 3 (R7-02).</pre>
+<div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
+<div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
+</body></html>

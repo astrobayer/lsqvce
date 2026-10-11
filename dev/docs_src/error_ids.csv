@@ -57,7 +57,7 @@ lsqvce:adjustRobust:collapsed,engine.adjustRobust,error,v4.0
 lsqvce:adjustRobust:notConverged,engine.adjustRobust,warning,v4.0
 lsqvce:adjustVCEjoint:arcMismatch,engine.adjustVCEjoint,error,v4.0
 lsqvce:adjustVCEjoint:badAxisRows,engine.adjustVCEjoint,error,v4.0
-lsqvce:adjustVCEjoint:badC0,engine.adjustVCEjoint,error,v4.0
+lsqvce:adjustVCEjoint:badS0,engine.adjustVCEjoint,error,v6.7.0
 lsqvce:adjustVCEjoint:badSigma2_0,engine.adjustVCEjoint,error,v4.0
 lsqvce:adjustVCEjoint:localNotPD,engine.adjustVCEjoint,error,v4.0
 lsqvce:adjustVCEjoint:needCfcn,engine.adjustVCEjoint,error,v4.0
@@ -164,8 +164,9 @@ lsqvce:gcv:atLowerBound,engine.gcvLambda,warning,v4.0
 lsqvce:gcv:atUpperBound,engine.gcvLambda,warning,v4.0
 lsqvce:gcv:degenerate,engine.gcvLambda,warning,v4.0
 lsqvce:gcvLambda:qzFallback,engine.gcvLambda,warning,v4.0
+lsqvce:hatACV:badX,kernel.hatACV,error,v6.7.0
 lsqvce:jointArcParts:sizeMismatch,engine.private.jointArcParts,error,v4.0
-lsqvce:jointModelOpt:badC,engine.jointModelOpt,error,v4.0
+lsqvce:jointModelOpt:badS,engine.jointModelOpt,error,v6.7.0
 lsqvce:jointModelOpt:badModel,engine.jointModelOpt,error,v4.0
 lsqvce:jointModelOpt:badStream,engine.jointModelOpt,error,v4.0
 lsqvce:levinson:notPD,kernel.levinsonDurbin,mixed,v4.0
@@ -211,7 +212,6 @@ lsqvce:psd2acv:aboveNyquist,kernel.psd2acv,warning,v4.0
 lsqvce:psd2acv:nonPositiveVariance,kernel.psd2acv,error,v4.0
 lsqvce:psd2acv:tooFewPoints,kernel.psd2acv,error,v4.0
 lsqvce:psdVCE:arcMismatch,engine.psdVCE,error,v4.0
-lsqvce:psdVCE:degenerateStart,engine.psdVCE,warning,v4.0
 lsqvce:psdVCE:shapeMismatch,engine.psdVCE,error,v4.0
 lsqvce:qr:badMerge,engine.QRSystem,error,v4.0
 lsqvce:qr:badWidth,engine.QRSystem,error,v4.0

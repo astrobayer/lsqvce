@@ -1,281 +1,124 @@
-function out = psdVCE(omegaT, sT, Cprior, opt)
-%LSQVCE.ENGINE.PSDVCE  Per-frequency PSD amplitude by variance component estimation.
+function out = psdVCE(Q, T, Sprior, opt)
+%LSQVCE.ENGINE.PSDVCE  Per-bin spectral amplitudes by variance component estimation.
 %
-%   out = LSQVCE.ENGINE.PSDVCE(omegaT, sT, Cprior)
-%   out = LSQVCE.ENGINE.PSDVCE(omegaT, sT, Cprior, 'Name', value, ...)
+%   out = LSQVCE.ENGINE.PSDVCE(Q, T, Sprior)
+%   out = LSQVCE.ENGINE.PSDVCE(Q, T, Sprior, 'Name', value, ...)
 %
-%   The core of Ellmer's (2018) non-parametric stochastic model: instead of
-%   fitting a parametric AR/ARMA process, the AMPLITUDE OF THE PSD AT EVERY
-%   FREQUENCY is estimated by VCE, treating each lag of the covariance function
-%   as its own variance component (eqs. 6.5.19-6.5.27).
+%   The spectral half of the joint estimator's update (R7 WP-111 part 3, user
+%   decision 2026-10-11: POSITIVE COMPONENTS). The law is a non-negative
+%   spectrum S on L bins, piecewise linear in frequency, with covariance
+%   r = K S (LSQVCE.KERNEL.HATACV). Every bin j is a variance component whose
+%   matrix V_j = toeplitz(K(:, j)) is the ACV of a hat spectrum -- positive
+%   semi-definite -- so the Helmert factor of a bin,
 %
-%       Shat^j = alpha2_j * S^j,     alpha2_j = OmegaTilde_j / sTilde_j   (6.5.19-20)
-%       OmegaTilde_j = sum_m OmegaTilde^m_j,  sTilde_j = sum_m sTilde^m_j (6.5.21)
-%       OmegaTilde^m = X * Omega^m,   sTilde^m = X * s^m                  (6.5.25-26)
+%       alpha2_j = sum_m Q(j, m) / sum_m T(j, m),
+%       Q(:, m) = lambda_m K' Omega^m,   T(:, m) = lambda_m K' s^m,
 %
-%   with X the type-I DCT (LSQVCE.KERNEL.DCTI). The per-arc TEMPORAL vectors are the
-%   weighted per-lag quantities of eqs. (6.5.22)-(6.5.23),
+%   (Omega^m, s^m the arc's lag sums of the doubly whitened residual and of the
+%   redundancy matrix over ALL lags, LSQVCE.KERNEL.REDUNDANCYLAGS; lambda_m the
+%   arc's scale) is a ratio of two NON-NEGATIVE quantities, and
 %
-%       Omega^m_n = sigma2_m * C^n_xx * (ehat' Sigma^-T V_n Sigma^-1 ehat)
-%       s^m_n     = sigma2_m * C^n_xx * trace(R V_n)
+%       Shat_j = alpha2_j * Sprior_j                                (Helmert)
 %
-%   i.e. the RAW quantities from LSQVCE.KERNEL.REDUNDANCYLAGS scaled by the CURRENT arc
-%   factor and lag covariance. This function takes the ALREADY-WEIGHTED temporal
-%   vectors (see 'omegaT', 'sT' below) and does the spectral half.
-%
-%   WHY THE PSD AND NOT THE COVARIANCE FUNCTION (eq. 6.5.19 discussion)
-%     A VCE factor is estimated as a square, so a covariance value estimated
-%     directly in the time domain could NEVER change sign. The PSD is positive by
-%     definition, so estimating it is unrestricted -- and the inverse DCT of a
-%     positive PSD is free to produce NEGATIVE covariance lags, which real noise
-%     processes require. This is the whole reason the estimation happens in the
-%     spectral domain.
-%
-%   *** DEGENERATE START WARNING (verified numerically; read this) ***
-%     Ellmer's literal white start (eq. 6.5.62), Cprior = [1 0 0 ... 0], is a
-%     DEGENERATE FIXED POINT of his own weighting: with C^n = 0 for every n > 0,
-%     eqs. (6.5.22)-(6.5.23) annihilate every lag but n = 0, so those lags can
-%     never be updated. The iteration then reports convergence (|alpha2-1| ~ 1e-13)
-%     while the recovered PSD is WRONG. Numerically: starting AT the true PSD gives
-%     corr(Shat,Strue) = 0.9999 (the estimator is correct and holds the truth), a
-%     non-degenerate flat-ACV start converges to corr 0.945, but the delta start
-%     lands at corr -0.19 and calls it converged. This function DETECTS such a
-%     start and warns ('lsqvce:psdVCE:degenerateStart'); pass 'AllowDegenerate'
-%     true to proceed anyway (e.g. to reproduce ITSG bit-exactly, knowingly).
+%   stays a valid spectrum without a floor or a zero-frequency rule. Ellmer's
+%   (2018) per-frequency factors were taken in the type-I DCT domain, whose
+%   components (the columns of the inverse DCT) are INDEFINITE: alpha2_j could
+%   be negative, needed an absolute floor, and a floored bin made the declared
+%   covariance near-singular -- the level ran away x5e7 with a NEGATIVE lag-1
+%   correlation at phi 0.8 / 0.9 (review R7, R7-02, measured on the runner,
+%   HANDOVER 12.44). Under the same data the positive-component update
+%   converged 18 / 18 with the level 0.91-1.07 x the truth.
 %
 %   INPUT
-%     omegaT   nLag x M double  per-arc TEMPORAL Omega^m_n vectors, ALREADY
-%                               weighted by sigma2_m * C^n (eq. 6.5.22), one
-%                               COLUMN per arc. Rows are lags n = 0..nLag-1.
-%     sT       nLag x M double  the matching weighted redundancies s^m_n
-%                               (eq. 6.5.23), same shape.
-%     Cprior   nLag x 1 double  the CURRENT discretised covariance function C^n_xx
-%                               the weighting used. Its DCT gives the a-priori
-%                               S^j that alpha2_j scales (eq. 6.5.19).
+%     Q       L x M double   per-arc bin numerators, one COLUMN per arc (>= 0)
+%     T       L x M double   per-arc bin denominators (>= 0)
+%     Sprior  L x 1 double   the spectrum the arcs were weighted with (>= 0)
 %
 %   OPTIONS (Name/Value)
-%   (WP-39 stage (b): canonical UpperCamelCase names below; legacy
-%   casings still match -- MATLAB NV semantics -- and enum VALUES are
-%   case-sensitive lowercase.)
-%     'Norm'            char    DCT normalisation, 'ortho' (default) | 'ellmer'
-%     'Gamma'  1x1 in (0,1], default 1.  Damping exponent of the
-%              multiplicative update, Shat = alpha2.^Gamma .* Sprior
-%              (WP-40 r2, F-15): 1 is Ellmer's plain step; a closed-loop
-%              caller passes a DECAYING Gamma per pass to stabilise the
-%              alternation.
-%                               (see LSQVCE.KERNEL.DCTI).
-%     'ZeroFreqRule'    char    how to treat the zero-frequency amplitude, which
-%                               is ill-defined for a zero-mean process (Ellmer
-%                               §6.5.6, "Estimation of the Zero-Frequency"):
-%                               'lowest' (default) replace Shat^0 by the lowest
-%                               non-zero frequency amplitude; 'keep' leave as is.
-%     'MinAmplitude'    1x1     FLOOR applied to Shat (max(Shat, MinAmplitude);
-%                               negative estimates land ON the floor, they are
-%                               never abs()-folded -- WP-35/F-04, see the
-%                               policy comment at the update line) to keep the
-%                               PSD strictly
-%                               positive (default 1e-12). A PSD must be >= 0.
-%     'Smooth'          1x1     half-width of a moving average applied to the
-%                               estimated amplitudes (default 0 = off). The
-%                               per-frequency estimate alpha2_j = Omega_j/s_j is
-%                               a RATIO from finite residuals, so it is noisy;
-%                               smoothing across neighbouring frequencies trades
-%                               spectral resolution for variance, the standard
-%                               lag-window / spectral-averaging idea (and the
-%                               approach favoured by the Delft school). Use a
-%                               half-width of 1-3 for a mildly noisy spectrum.
-%                               NOTE this does NOT fix a rank-deficient
-%                               covariance -- that is a RESOLUTION problem, cured
-%                               by using enough frequencies (nf >= m/2 + 1), not
-%                               by smoothing.
-%     'FreezeRedundancy' 1x1    a frequency whose redundancy summed over the arcs,
-%                               s_j, is below this HOLDS its amplitude (alpha2_j
-%                               = 1) instead of being updated from a ratio of
-%                               two small, noisy numbers (default 0: only
-%                               s_j <= 0 holds). R7-22: Options.Noise.FreezeRedundancy.
-%     'AllowDegenerate' logical proceed without warning on a degenerate start
-%                               (default false).
+%     'Gamma'  1x1 in (0,1], default 1.  Damping of the multiplicative update,
+%              Shat = alpha2.^Gamma .* Sprior (WP-40 r2): 1 is the plain step;
+%              a closed-loop caller may pass a DECAYING Gamma per pass.
+%     'Smooth' 1x1 integer >= 0, default 0.  Half-width of a moving average over
+%              neighbouring bins (reflected edges), trading resolution for
+%              variance. R7-22: Options.Noise.Smooth.
+%     'FreezeRedundancy' 1x1 >= 0, default 0.  A bin whose redundancy
+%              Sprior_j * sum_m T(j, m) (its share tr(R V_j) of the total) is
+%              below it HOLDS its amplitude (alpha2_j = 1) instead of taking a
+%              ratio of two small numbers; a bin whose denominator is zero or
+%              not finite always holds. R7-22.
 %
 %   OUTPUT
 %     out   1x1 struct
-%       .Shat      nLag x 1  the updated PSD amplitudes (strictly positive)
-%       .alpha2    nLag x 1  the per-frequency variance factors alpha2_j. The
-%                            iteration has converged when these are all ~ 1.
-%       .frozen    nLag x 1  logical, true where s_j < FreezeRedundancy (or not
-%                            finite / zero): those bins held their value
-%       .Cnew      nLag x 1  the updated covariance function, inverse-DCT of Shat.
-%                            MAY CONTAIN NEGATIVE LAGS -- that is correct and is
-%                            the point of estimating in the spectral domain.
-%       .Sprior    nLag x 1  the a-priori amplitudes X*Cprior
-%       .maxDev    1x1       max|alpha2 - 1|, the convergence measure
-%       .degenerate 1x1 logical  true if the start had no support beyond lag 0
+%       .Shat    L x 1  the updated spectrum (>= 0; bins below 1e-10 x its
+%                       maximum are lifted to that, the one numerical floor)
+%       .alpha2  L x 1  the per-bin factors (>= 0); the model has settled when
+%                       they are all ~ 1
+%       .frozen  L x 1  logical, the bins that held their value
+%       .Sprior  L x 1  the prior, as given
+%       .maxDev  1x1    max |alpha2 - 1| over EVERY bin (there is no
+%                       zero-frequency rule left to exclude one: R7-20)
 %
 %   EXAMPLE
-%     % per arc: r = lsqvce.kernel.redundancyLags(...); weight by sigma2_m and Cprior
-%     omegaT(:,m) = sig2(m) * Cprior .* r.omega;
-%     sT(:,m)     = sig2(m) * Cprior .* r.s;
-%     p = lsqvce.engine.psdVCE(omegaT, sT, Cprior);
-%     Cprior = p.Cnew;                       % next iteration's covariance
-%     p.maxDev                               % -> 0 as the model settles
+%     K = lsqvce.kernel.hatACV(L, m);         % per arc length
+%     Q(:, a) = lam(a) * (K' * r.omega);  T(:, a) = lam(a) * (K' * r.s);
+%     p = lsqvce.engine.psdVCE(Q, T, S);  S = p.Shat;
 %
 %   ERRORS
-%     lsqvce:psdVCE:arcMismatch     the arc list disagrees with the residuals
-%     lsqvce:psdVCE:shapeMismatch   the spectral shape has the wrong length
+%     lsqvce:psdVCE:shapeMismatch   Q or T does not have one row per bin of Sprior
+%     lsqvce:psdVCE:arcMismatch     Q and T disagree on the number of arcs
 %
-%   See also LSQVCE.KERNEL.DCTI, LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.KERNEL.TOEPLITZCOFACTOR,
-%            LSQVCE.ENGINE.ARCVARIANCEFACTORS
+%   See also LSQVCE.KERNEL.HATACV, LSQVCE.KERNEL.REDUNDANCYLAGS,
+%            LSQVCE.ENGINE.ARCVARIANCEFACTORS, LSQVCE.ENGINE.ADJUSTVCEJOINT
 %
-%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-116 part 1: 'FreezeRedundancy' -- a bin whose summed
-%   redundancy is below it holds its value; .frozen in the output. With
-%   assistance from Claude (Anthropic), model Claude Opus 5.5.
-%
-%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) (F-07): typed
-%   `arguments` signature, canonical UpperCamelCase option names (legacy
-%   casings keep matching; enum VALUES case-sensitive lowercase). With
-%   assistance from Claude (Anthropic), model Claude Fable 5.
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 3 (R7-02, R7-20):
+%   REWRITTEN for positive components -- the inputs are per-bin statistics
+%   (K' Omega, K' s), the prior is the bin spectrum; the DCT ('Norm'), the
+%   absolute floor ('MinAmplitude'), 'ZeroFreqRule' and the degenerate-start
+%   check ('AllowDegenerate') are gone with the indefinite components that
+%   needed them. With assistance from Claude (Anthropic), model Claude Opus 5.5.
+%   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-116 part 1: 'FreezeRedundancy'.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-40 r2 (F-15): optional damped
-%   update 'Gamma' (alpha2.^Gamma, default 1 = unchanged). With assistance
-%   from Claude (Anthropic), model Claude Fable 5.
-%   Updated 2026-08-19 (CEST, UTC+02:00), WP-35 (fixes F-04): negative
-%   amplitude estimates are FLOORED at MinAmplitude, never abs()-folded --
-%   abs injected ~2x the power at zero-power bins (v10review.py T6); bins
-%   with genuine positive power are unchanged. With assistance from Claude
-%   (Anthropic), model Claude Fable 5.
+%   update 'Gamma'. With assistance from Claude (Anthropic), model Claude Fable 5.
 %   Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Opus 4.8.
-%   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
-%   WP-64a): the ENGINE tier leaves the USER surface; every qualified
-%   reference was rewritten mechanically by docs_src/refactor_tiers.py.
 arguments
-    omegaT (:,:) double
-    sT (:,:) double
-    Cprior double
-    opt.Norm (1,1) string = "ortho"
+    Q (:,:) double
+    T (:,:) double
+    Sprior (:,1) double {mustBeNonnegative, mustBeFinite}
     opt.Gamma (1,1) double {mustBePositive, mustBeLessThanOrEqual(opt.Gamma, 1)} = 1
-    opt.ZeroFreqRule (1,1) string {mustBeMember(opt.ZeroFreqRule, ["lowest","keep"])} = "lowest"
-    opt.MinAmplitude (1,1) double {mustBeNonnegative} = 1e-12
     opt.Smooth (1,1) double {mustBeInteger, mustBeNonnegative} = 0
     opt.FreezeRedundancy (1,1) double {mustBeNonnegative} = 0
-    opt.AllowDegenerate (1,1) logical = false
 end
-
-    % WP-39 stage (b): typed `arguments` signature (names already
-    % UpperCamelCase; NAME matching case-insensitive per MATLAB semantics;
-    % enum VALUES case-sensitive lowercase).
-    o = opt;
-
-    Cprior = Cprior(:);
-    nLag   = numel(Cprior);
-    if size(omegaT,1) ~= nLag || size(sT,1) ~= nLag
+    L = numel(Sprior);
+    if size(Q, 1) ~= L || size(T, 1) ~= L
         error('lsqvce:psdVCE:shapeMismatch', ...
-             ['omegaT (%d x %d) and sT (%d x %d) must have one ROW per lag to ' ...
-              'match Cprior (%d lags).'], size(omegaT,1), size(omegaT,2), ...
-              size(sT,1), size(sT,2), nLag);
+             ['Q (%d x %d) and T (%d x %d) must have one ROW per bin to match ' ...
+              'Sprior (%d bins).'], size(Q,1), size(Q,2), size(T,1), size(T,2), L);
     end
-    if size(omegaT,2) ~= size(sT,2)
-        error('lsqvce:psdVCE:arcMismatch', ...
-              'omegaT has %d arcs but sT has %d.', size(omegaT,2), size(sT,2));
+    if size(Q, 2) ~= size(T, 2)
+        error('lsqvce:psdVCE:arcMismatch', 'Q has %d arcs but T has %d.', size(Q,2), size(T,2));
     end
 
-    % ---- degenerate-start detection (see the header warning) -------------
-    degenerate = all(abs(Cprior(2:end)) <= 0);
-    if degenerate && ~logical(o.AllowDegenerate)
-        lsqvce.util.log.warn('lsqvce:psdVCE:degenerateStart', ...
-           ['The prior covariance has NO support beyond lag 0 (a delta / pure ' ...
-            'white start). The weighting sigma^2*C^n then annihilates every lag ' ...
-            'n > 0, so those lags can NEVER be updated: the iteration will ' ...
-            'report convergence while the PSD stays wrong. Start from a ' ...
-            'covariance with some correlation (e.g. an empirical residual ACV, ' ...
-            'or C = [1 c c ...] with small c), or pass ''AllowDegenerate'',true ' ...
-            'if you are reproducing this behaviour deliberately.']);
-    end
-
-    % ---- spectral transform of the per-arc temporal vectors  (6.5.25-26) --
-    %   X acts column-wise, so all arcs transform in one call.
-    OmTilde = lsqvce.kernel.dctI(omegaT, 'Norm', o.Norm);      % nLag x M
-    sTilde  = lsqvce.kernel.dctI(sT    , 'Norm', o.Norm);      % nLag x M
-
-    % ---- accumulate over arcs                                    (6.5.21) --
-    Omj = sum(OmTilde, 2);
-    sj  = sum(sTilde , 2);
-
-    % ---- the per-frequency variance factor                       (6.5.20) --
-    alpha2 = ones(nLag, 1);
-    ok     = isfinite(Omj) & isfinite(sj) & (abs(sj) > 0);
-    alpha2(ok) = Omj(ok) ./ sj(ok);
-    alpha2(~isfinite(alpha2)) = 1;
-    % R7-22: a frequency whose summed redundancy s_j is below FreezeRedundancy
-    % is not estimable from this pass's residuals -- it HOLDS its value
-    % (alpha2_j = 1) instead of taking a ratio of two small noisy numbers.
-    % 0 (the kernel default) freezes only s_j <= 0, which the line above
-    % already holds.
-    frozen = ~(sj >= o.FreezeRedundancy) | ~ok;
-    if o.FreezeRedundancy > 0
+    Qj = sum(Q, 2);  Tj = sum(T, 2);
+    ok = isfinite(Qj) & isfinite(Tj) & Tj > 0;
+    alpha2 = ones(L, 1);
+    alpha2(ok) = max(Qj(ok), 0) ./ Tj(ok);           % both >= 0 in exact arithmetic
+    frozen = ~ok | ~(Sprior .* Tj >= opt.FreezeRedundancy);   % the bin's redundancy
+    if opt.FreezeRedundancy > 0
         alpha2(frozen) = 1;
     end
-
-    % ---- updated amplitudes                                      (6.5.19) --
-    Sprior = lsqvce.kernel.dctI(Cprior, 'Norm', o.Norm);
-    % WP-40 r2 (F-15): the damped multiplicative update. Gamma = 1 is the
-    % plain Ellmer step (default, bitwise-unchanged); Gamma < 1 contracts
-    % the fixed-point map, alpha2.^Gamma, which is what a decaying step
-    % schedule in the CLOSED loop needs (see ADJUSTVCEJOINT 'StepSchedule';
-    % the alternation is a stochastic approximation, and the undamped step
-    % re-amplifies per-bin estimation noise -- the F-15 bistability).
-    % WP-40 r2 round-3 fix (the CI complex-S escape, stack pinned in the
-    % round note): alpha2 CAN be negative at a (near-)zero-power bin -- the
-    % WP-35 policy floors it downstream FOR GAMMA = 1, but a FRACTIONAL
-    % power of a negative ratio is COMPLEX, and that complex Shat sailed
-    % through every real-part sanitation into psd2acv. The WP-35 floor
-    % philosophy therefore applies BEFORE the power: negative ratios are
-    % noise around zero and are floored to 0 first. Gamma == 1 keeps the
-    % pre-existing expression VERBATIM (the bitwise default regression).
-    if o.Gamma == 1
+    if opt.Gamma == 1
         Shat = alpha2 .* Sprior;
     else
-        % Round-4 fix: clamping to 0 created ABSORBING zero bins (Shat_j = 0
-        % => Sprior_j = 0 forever) and dropped the recovered corr to 0.51 on
-        % CI. The mirror's measured semantics (0.87-0.91,
-        % wp33_loop_mirror.py line ~111) are HOLD: a nonpositive ratio is
-        % unidentifiable noise at a dead bin, so it takes NO step this pass
-        % (alpha2 -> 1); the WP-35 MinAmplitude floor below still applies.
-        a2 = alpha2;
-        a2(~(a2 > 0)) = 1;                       % nonpositive/NaN: hold
-        Shat = (a2 .^ o.Gamma) .* Sprior;
+        Shat = (alpha2 .^ opt.Gamma) .* Sprior;
     end
-    % POLICY (WP-35, fixes F-04): FLOOR, never abs. A PSD is non-negative by
-    % definition; a negative estimate at a (near-)zero-power bin is NOISE
-    % around zero, and abs() FOLDS that noise -- E|x| = 2 E[x+] for zero-mean
-    % x, i.e. abs injects ~2x the power a floor admits (measured:
-    % validation/v10review.py T6). Bins with genuine positive power are
-    % untouched by either policy. The comment above this line always
-    % promised the floor; the code now keeps the promise.
-    Shat   = max(Shat, o.MinAmplitude);
-    if o.Smooth > 0
-        Shat = smoothSpectrum(Shat, o.Smooth);
-        Shat = max(Shat, o.MinAmplitude);
+    if opt.Smooth > 0
+        Shat = smoothSpectrum(Shat, opt.Smooth);
     end
-
-    % ---- zero-frequency handling (Ellmer §6.5.6) --------------------------
-    %   For a zero-mean process the theoretical S^0 is well defined but the
-    %   discretised estimate can be ~0, making eq. (6.5.19) ill-conditioned.
-    if strcmpi(o.ZeroFreqRule, 'lowest') && nLag >= 2
-        Shat(1) = Shat(2);
-    end
-
-    % ---- back to the covariance function ---------------------------------
-    %   Inverse DCT. For 'ortho' the transform is self-inverse; for 'ellmer'
-    %   the explicit inverse is applied. Negative lags here are EXPECTED.
-    Cnew = lsqvce.kernel.dctI(Shat, 'Norm', o.Norm, 'Inverse', true);
-    % NOTE: no ridge is applied to Cnew here. The structural singularity of a
-    % PSD-derived Toeplitz covariance is handled where the FULL-LENGTH ACV is
-    % built, in LSQVCE.ENGINE.COVMODEL's 'toeplitz' branch (option 'psdRidge'); doing it
-    % on this truncated nLag-vector would not help, because truncating an ACV is
-    % itself not a valid covariance.
-
-    out = struct('Shat', Shat, 'alpha2', alpha2, 'Cnew', Cnew, ...
-                 'Sprior', Sprior, 'maxDev', max(abs(alpha2 - 1)), ...
-                 'degenerate', degenerate, 'frozen', frozen);
+    Shat = max(Shat, 1e-10 * max(Shat));              % the ONE numerical floor, relative
+    out = struct('Shat', Shat, 'alpha2', alpha2, 'frozen', frozen, 'Sprior', Sprior, ...
+                 'maxDev', max(abs(alpha2 - 1)));
 end
 
 function S = smoothSpectrum(S, h)

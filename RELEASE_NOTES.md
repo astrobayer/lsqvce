@@ -1,5 +1,56 @@
 # lsqvce release notes
 
+## 6.7.0 — 2026-10-11 (WP-111 part 3: the joint law as positive components)
+
+- **The joint estimator's law is a non-negative spectrum on `Noise.Grid` bins** (review
+  R7, R7-02 and R7-20; user decision 2026-10-11). The spectrum is linear between the bins
+  and its covariance at every lag of every arc is the exact integral r = K·S, with K from
+  the new kernel `lsqvce.kernel.hatACV`; its projection form `hatACV(L, m, X)` gives
+  K'·X by one FFT, without forming K. Each bin is a variance component whose matrix is
+  the covariance of a "hat" spectrum, which is positive semi-definite. Its Helmert factor
+  (the projections of the arc's lag sums over **all** its lags, summed per pool group) is
+  therefore never negative, and the law needs no floor and no zero-frequency rule.
+  - Ellmer's components were the columns of the inverse type-I DCT of a truncated ACF.
+    They are indefinite, so a bin's factor could go negative, and a floored bin left the
+    declared covariance near-singular.
+  - Measured on the runner (HANDOVER §12.44), on AR(1) streams at φ 0.8 / 0.9:
+    - the shipped estimator's level ran away to 5e7 × the truth, with a negative lag-1
+      correlation and coefficient z-scores up to 9.4;
+    - at φ 0.5 it never converged;
+    - on the same data the positive-component update converged 18/18, with the level
+      0.91–1.07 × the truth and |z| ≤ 2.33.
+- **Ellmer's white start is regular now:** S0 = ones (white noise) is the default.
+  - Option `'C0'` is replaced by `'S0'` (the starting spectrum), with error
+    `lsqvce:adjustVCEjoint:badS0`.
+  - `'Norm'` is retired from `adjustVCEjoint` and `arcVarianceFactors`.
+  - The warning `lsqvce:psdVCE:degenerateStart` is retired: its fixed point belonged to the
+    DCT weighting.
+- **`psdVCE` is rewritten** as `psdVCE(Q, T, Sprior)` on per-bin statistics.
+  - `'Gamma'`, `'Smooth'` and `'FreezeRedundancy'` stay. A bin now freezes on its
+    redundancy, `Sprior_j · sum T`.
+  - `'Norm'`, `'MinAmplitude'`, `'ZeroFreqRule'`, `'AllowDegenerate'`, `.Cnew` and
+    `.degenerate` are gone.
+- **The arc factor is the Helmert factor of the arc's whole covariance** (r'Ω / r's over
+  all lags). It used to be the DCT-summed, C-weighted lag vector truncated at Grid.
+- **Each arc is weighted by its own law.** The bin statistics of an arc are scaled by the
+  arc's own variance r(0), read from the covariance it was weighted with. The one pooled C
+  that weighted every arc (R6 WP-100) is gone, because K does not depend on the law.
+- **The law is reported as the bin spectrum.**
+  - `out.S` / `out.Sgroups` and `R.noise.S` / `R.noise.Sgroups`, next to its covariance
+    `C` / `Cgroups` at lags 0..Grid-1, which is derived and kept for the record.
+  - `out.Shat`, `R.noise.Shat` and `history.Shat` are renamed `S`.
+  - `R.plot("psd")` draws the bins.
+- **`jointModelOpt` takes `model.S` / `model.Sgroups`** and emits the 'psd' spec with
+  ordinates 2·S on fNorm, scaled to r(0) = 1, so covModel reproduces K·S exactly.
+  - Error `badC` is now `badS`.
+  - The cosine transform of a truncated ACF, floored at eps·max, is gone.
+- `Noise.Grid` is the spectral resolution. It no longer has to cover the longest arc:
+  the law is exact at every lag whatever the Grid.
+- `redundancyLags`: the general (non-Toeplitz) Σ⁻¹ lag sums run in BLAS-3 column blocks
+  (memory N × 256), because the joint sweep now asks for every lag.
+- **Every estimated law changes.** Runs with `Estimate = "noise"` give different numbers
+  from 6.6.2.
+
 ## 6.6.2 — 2026-10-11 (WP-111 part 2: the PSD law's covariance without a lag period)
 
 - **A declared PSD law no longer becomes a circulant covariance** (review R7, R7-01).
