@@ -3142,8 +3142,66 @@ class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb26-1"><a h
 arc are summed, and the statistic divides each lag by the number of
 products it actually holds (N_k, the sum over arcs of m_a − k), so it is
 sized on short arcs too (since 6.1.8; before, 64 white arcs of 30 epochs
-were flagged with probability 0.001 instead of 0.05). K stays 20 lags:
-on arcs of thousands of epochs the test sees only the shortest lags.</p>
+were flagged with probability 0.001 instead of 0.05).</p>
+<p><strong>K = 20 lags, measured (6.11.0, user decision).</strong> On 8
+arcs × 2160 epochs a larger K buys nothing against the misfits a
+spectral law leaves and costs power where it matters. Rejection rate at
+α = 0.05:</p>
+<table>
+<thead>
+<tr class="header">
+<th>misfit</th>
+<th>K = 20</th>
+<th>K = 60</th>
+<th>K = 120</th>
+<th>K = 540</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>none (size)</td>
+<td>0.04</td>
+<td>0.05</td>
+<td>0.05</td>
+<td>0.06</td>
+</tr>
+<tr class="even">
+<td>short-lag, AR(1) φ = 0.025</td>
+<td><strong>0.45</strong></td>
+<td>0.27</td>
+<td>0.20</td>
+<td>0.11</td>
+</tr>
+<tr class="odd">
+<td>sinusoid, period 200 epochs</td>
+<td>0.07</td>
+<td>0.07</td>
+<td>0.11</td>
+<td>0.12</td>
+</tr>
+<tr class="even">
+<td>low-frequency excess</td>
+<td>0.16</td>
+<td>0.16</td>
+<td>0.18</td>
+<td>0.12</td>
+</tr>
+<tr class="odd">
+<td>correlation at lag 150 only</td>
+<td>0.05</td>
+<td>0.06</td>
+<td>0.05</td>
+<td>0.90</td>
+</tr>
+</tbody>
+</table>
+<p>A sinusoid or a low-frequency excess already shows at the short lags.
+The one blind spot is a correlation that lives ONLY at a long lag (an
+echo, a repeat-track pattern): K = 20 cannot see it, and
+<code>white = true</code> does not exclude it. If you suspect one,
+<code>R.systematic('Lags', L)</code> runs Ljung-Box on the fit’s
+normalised residuals out to lag L. The simulation is
+<code>dev/reviews/R7_2026-10-09/mirrors/wp120/whiteness_power.py</code>.</p>
 <p>An arc’s standard deviation is <strong>all three terms</strong>:
 declared <code>sigma</code> × sqrt(arc factor) × <code>R.sigma0</code>.
 Since 6.1.6 an arc factor is the arc’s <strong>absolute</strong> Helmert

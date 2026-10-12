@@ -190,8 +190,25 @@ R.convergence(); R.plot("psd"); R.plot("convergence");
 The whiteness test pools a stream's arcs: the lag products of every arc are summed, and the
 statistic divides each lag by the number of products it actually holds (N_k, the sum over arcs
 of m_a − k), so it is sized on short arcs too (since 6.1.8; before, 64 white arcs of 30
-epochs were flagged with probability 0.001 instead of 0.05). K stays 20 lags: on arcs of
-thousands of epochs the test sees only the shortest lags.
+epochs were flagged with probability 0.001 instead of 0.05).
+
+**K = 20 lags, measured (6.11.0, user decision).** On 8 arcs × 2160 epochs a larger K buys
+nothing against the misfits a spectral law leaves and costs power where it matters. Rejection
+rate at α = 0.05:
+
+| misfit | K = 20 | K = 60 | K = 120 | K = 540 |
+|---|---|---|---|---|
+| none (size) | 0.04 | 0.05 | 0.05 | 0.06 |
+| short-lag, AR(1) φ = 0.025 | **0.45** | 0.27 | 0.20 | 0.11 |
+| sinusoid, period 200 epochs | 0.07 | 0.07 | 0.11 | 0.12 |
+| low-frequency excess | 0.16 | 0.16 | 0.18 | 0.12 |
+| correlation at lag 150 only | 0.05 | 0.06 | 0.05 | 0.90 |
+
+A sinusoid or a low-frequency excess already shows at the short lags. The one blind spot is a
+correlation that lives ONLY at a long lag (an echo, a repeat-track pattern): K = 20 cannot see
+it, and `white = true` does not exclude it. If you suspect one, `R.systematic('Lags', L)`
+runs Ljung-Box on the fit's normalised residuals out to lag L. The simulation is
+`dev/reviews/R7_2026-10-09/mirrors/wp120/whiteness_power.py`.
 
 An arc's standard deviation is **all three terms**: declared `sigma` × sqrt(arc factor) ×
 `R.sigma0`. Since 6.1.6 an arc factor is the arc's **absolute** Helmert factor (Ellmer eq.
