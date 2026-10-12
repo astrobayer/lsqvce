@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-12 — WP-122 DONE (PR #142, merge 1d8c89b; CI GREEN on ac4bfa4); WP-123 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-123"): the kernel whiteners (separableWhiten, varWhiten, armaWhiten) take a sparse A / B / l -- the dense filter runs on the non-zero columns only (private kernel helper activeColumns), sparse in, sparse out; the dense path unchanged; template/kbr_variational returns its position B sparse again; 1 gate test; version 6.12.1; §12.54.
+Last substantive update: 2026-10-12 — WP-123 DONE (PR #143, merge cebbfd1; CI GREEN on e617a95, first round); closure PR (user decision: "Ja, mach den Abschluss-PR"): the ledger row and §12.55, no code change, no version (6.12.1 stays, 641 tests).
+Preceding entry: Last substantive update: 2026-10-12 — WP-122 DONE (PR #142, merge 1d8c89b; CI GREEN on ac4bfa4); WP-123 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-123"): the kernel whiteners (separableWhiten, varWhiten, armaWhiten) take a sparse A / B / l -- the dense filter runs on the non-zero columns only (private kernel helper activeColumns), sparse in, sparse out; the dense path unchanged; template/kbr_variational returns its position B sparse again; 1 gate test; version 6.12.1; §12.54.
 Preceding entry: Last substantive update: 2026-10-12 — WP-122 OPEN (tier B, model Claude Opus 5.5; user: "a real-life buildDay for range-rate observations using a variational equation approach", scope decision: SELF-CONTAINED): template/kbr_variational.m -- GRACE-FO L1B (GNV1B, KBR1B, ACT1B, SCA1B) + ICGEM .gfc -> range-rate and position streams by the variational equations (analytic a, G, da/dC_nm from normalized solid harmonics and exact sparse derivative operators; ABM8 PECE), declared column units; mirror dev/validation/kbr_variational_mirror.py; 4 gate tests in test_physOracle; version 6.12.0; §12.53.
 Preceding entry: Last substantive update: 2026-10-12 — WP-121 DONE (PR #140, merge 2a85acf; CI GREEN on 47555ef); the three §12.48 residues CLOSED (user decision: closure PR): 119 fixed (v6.11.0), 120 measured and kept (K = 20), 121 fixed (v6.11.1); no code change, no version; §12.52.
 Preceding entry: Last substantive update: 2026-10-12 — WP-120 DONE (PR #139, merge 99e3dff; CI GREEN on 1017d42); WP-121 OPEN (tier B, model Claude Opus 5.5): diagnose's robust check formed in the main pass -- one read of the data and one halfRows per row instead of two (bitwise the same scale); the §12.48 claim that snoop's Reaccumulate=true re-solve is dense corrected (block-arrow since WP-86 part 3, 6.4.0); version 6.11.1; §12.51. With it the three §12.48 residues are closed.
@@ -9133,7 +9134,7 @@ job log is the record, 2e4eaa4):
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 123 | `separableWhiten`, `varWhiten`, `armaWhiten` accept sparse A / B / l: the dense filter on the non-zero columns only (`+lsqvce/+kernel/private/activeColumns.m`), sparse in, sparse out, full width; dense input unchanged; the WP-122 template's position `B` sparse again; **version 6.12.1** | 122 (PR #142 merged 1d8c89b) | OPEN (tier B; CI is the gate) |
+| 123 | `separableWhiten`, `varWhiten`, `armaWhiten` accept sparse A / B / l: the dense filter on the non-zero columns only (`+lsqvce/+kernel/private/activeColumns.m`), sparse in, sparse out, full width; dense input unchanged; the WP-122 template's position `B` sparse again; **version 6.12.1** | 122 (PR #142 merged 1d8c89b) | DONE (2026-10-12, PR #143, merge cebbfd1; CI GREEN on e617a95 in the first round: ci_gate 629/629) |
 
 **The defect (found by WP-122, CI round 1).** Manual 3 and `makeLoader` allow a sparse local
 design matrix, and `synthLoader` recommends it ("nl counts ALL arcs, B is mostly zeros").
@@ -9158,4 +9159,22 @@ AR(2): sparse A / B in -> sparse out, the five all-zero columns of B stay zero, 
 equal the dense path (1e-12 relative), and a sparse B with no active column at all. The
 WP-122 closed loop (`testKbrClosedLoopThroughFit`) now runs with the sparse position `B`
 end to end through `lsqvce.fit`. NOT validated before CI: no MATLAB in the container.
+
+### 12.55 WP-122 and WP-123 closed (2026-10-12, model Claude Opus 5.5)
+
+**The user's decision (2026-10-12):** the closure PR -- the WP-123 ledger row, this note, no
+code change, no version (6.12.1 stays, 641 tests).
+
+| WP | what | PR | merge | version |
+|----|------|----|-------|---------|
+| 122 | `template/kbr_variational.m`: GRACE-FO L1B range-rates and positions by the variational equations | #142 | 1d8c89b | 6.12.0 |
+| 123 | the kernel whiteners take a sparse A / B / l (found by 122's CI round 1) | #143 | cebbfd1 | 6.12.1 |
+
+**State after the round.** The template's position streams carry a sparse `B` through the
+whitened path end to end (`testKbrClosedLoopThroughFit`). The template's own LIMITATIONS
+(§12.53: the Earth-rotation stand-in, the declared L1B layouts and conventions to check against
+the handbook, forces beyond field + ACC via `cfg.background`, one linearization per call) are
+stated in its help, not residues of a WP. `measure.yml` still points at
+`dev/validation/wp122_measure.m`; it runs only on PRs that touch `dev/validation/*.m`, so it is
+dormant until the next measurement repoints it.
 
