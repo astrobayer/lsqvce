@@ -1,5 +1,22 @@
 # lsqvce release notes
 
+## 6.11.0 — 2026-10-12 (WP-119: a datum beside a regulariser)
+
+- **The datum test runs per declared prior group** (the residue §12.48 of review R7
+  recorded). In 6.10.0 the stacked prior was a datum only as a whole, so minimum
+  constraints declared beside a regularising group kept a σ-dependent covariance:
+  se 0.09 / 41.6 / 4.2e4 on a levelled height at datum σ 1 / 1e3 / 1e6, with x unchanged.
+  - A group (`data.priors(k)`) is a datum when the data and every other group are blind
+    to its rows. `R.sol.Cxx` and the diagnostics' parameter cofactor are then the
+    minimum-constraint ones of the data plus the other groups, s0²·pinv(N + Ki'Ki), at
+    every σ, on both backends.
+  - A group only partly in the null space, or one another group overlaps (a ridge on every
+    parameter beside a datum), is information: its x moves with its σ, and it keeps the
+    solve's covariance. Declare datum rows as a group of their own.
+  - `lsqvce.engine.CommonPrior` carries the group of each row (`group`, 4th argument,
+    default one group; `lsqvce:prior:badGroup`). Gauss–Newton's damping rows are a group
+    of their own.
+
 ## 6.10.0 — 2026-10-11 (WP-114: priors without a second path)
 
 - **A datum's covariance no longer depends on the datum's σ** (review R7, R7-05). x was

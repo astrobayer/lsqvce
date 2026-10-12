@@ -421,7 +421,10 @@ function [pri, groups] = priorsOf(data, nc, spec)
 %   stacked with their rows divided by sigma into one prior of sigma 1
 %   (exact). A DATUM (minimum constraints B'x = 0 of a free network) is the
 %   group L = B', x0 = 0: exact for any weight when B spans the null space --
-%   the covariance too since 6.10 (BlockAccumulator.datumPart, R7 WP-114).
+%   the covariance too since 6.10 (BlockAccumulator.datumPart, R7 WP-114), and
+%   since 6.11 also when other groups regularise parameters the datum does not
+%   touch (a group is a datum when the data and every other group are blind to
+%   it, R7 WP-119; a group only partly in the null space is information).
 %   OUTPUT  pri     [] | CommonPrior     the stacked prior
 %           groups  1xG struct (.L .x0 .sigma .name .estimate .from)
     if nargin < 3, spec = []; end
@@ -523,14 +526,16 @@ function L = commonRowsOfPattern(pattern, spec)
 end
 function pri = stackPriors(groups, pass)
 %STACKPRIORS  The groups ACTIVE at this pass (from <= pass; default: all)
-%   with their CURRENT sigmas as one CommonPrior (sigma 1).
+%   with their CURRENT sigmas as one CommonPrior (sigma 1), each group's rows
+%   tagged with its index (the datum test's unit, R7 WP-119).
     if nargin < 2, pass = Inf; end
     if isempty(groups), pri = [];  return, end
     act = groups([groups.from] <= pass);
     if isempty(act), pri = [];  return, end
     Ks = arrayfun(@(g) g.L / g.sigma, act, 'UniformOutput', false);
     xs = arrayfun(@(g) g.x0 / g.sigma, act, 'UniformOutput', false);
-    pri = lsqvce.engine.CommonPrior(vertcat(Ks{:}), vertcat(xs{:}), 1);
+    gs = arrayfun(@(k) k * ones(size(Ks{k}, 1), 1), 1:numel(Ks), 'UniformOutput', false);
+    pri = lsqvce.engine.CommonPrior(vertcat(Ks{:}), vertcat(xs{:}), 1, vertcat(gs{:}));
 end
 
 function [groups, rec] = priorUpdate(groups, lastSol)

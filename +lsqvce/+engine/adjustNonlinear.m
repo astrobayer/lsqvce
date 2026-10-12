@@ -245,15 +245,16 @@ function P = stepPrior(pri, x, lam, d)
 %   plus the damping rows at the same sigma (so their weight is lam d). [] when
 %   there is neither.
     nc = numel(x);
-    K = zeros(0, nc);  t = zeros(0, 1);  s = 1;
+    K = zeros(0, nc);  t = zeros(0, 1);  s = 1;  g = zeros(0, 1);
     if ~isempty(pri)
-        K = pri.K;  t = pri.x0 - pri.K * x;  s = pri.sigma;
+        K = pri.K;  t = pri.x0 - pri.K * x;  s = pri.sigma;  g = pri.group;
     end
     if lam > 0
         dd = max(d(:), eps * max([d(:); realmin]));   % a parameter J does not see is damped too
         K = [K; s * sqrt(lam) * diag(sqrt(dd))];
         t = [t; zeros(nc, 1)];
+        g = [g; (max([g; 0]) + 1) * ones(nc, 1)];     % the damping is a group of its own (WP-119)
     end
     P = [];
-    if ~isempty(K), P = lsqvce.engine.CommonPrior(K, t, s); end
+    if ~isempty(K), P = lsqvce.engine.CommonPrior(K, t, s, g); end
 end

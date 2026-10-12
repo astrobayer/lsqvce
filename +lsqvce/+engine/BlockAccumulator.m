@@ -237,6 +237,10 @@ classdef BlockAccumulator < handle
 %
 %   See also LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.RESIDUALS, LSQVCE.ENGINE.CHECKPSD, LSQVCE.ENGINE.QRSYSTEM
 %
+%   Updated 2026-10-12 (CEST, UTC+02:00), R7 WP-119: datumPart tests each
+%   declared prior GROUP (CommonPrior.group) -- a datum stacked with a
+%   regularising group gets the minimum-constraint covariance too. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 4: systemStore's
 %   help names lsqvce.engine.verdict. With assistance from Claude
 %   (Anthropic), model Claude Opus 5.5.
@@ -855,38 +859,62 @@ classdef BlockAccumulator < handle
 
         function dp = datumPart(obj)
         %DATUMPART  The minimum-constraint cofactor's pieces when the common
-        %   prior is a DATUM, else [] (R7 WP-114, R7-05). A datum: the data
-        %   do not see the prior's directions, |N K'| <= 1e-10 |N| |K| on the
-        %   reduced common normal N (on the QR backend |R K'| <= 1e-8 |R| |K| on
-        %   its factor, N never formed) -- then x is the minimum-constraint
-        %   solution whatever the prior's sigma, and its cofactor is pinv(N).
-        %   Computed stably with the datum rows re-weighted to the data's
-        %   scale, c = sqrt(|N|_F) / |K|_F (|R|_F / |K|_F on the QR backend):
-        %       pinv(N) = inv(Rm'Rm) - Dm*Dm',  Rm'Rm = N + c^2 K'K,
-        %       Dm = K'(KK')^-1 / c
-        %   (both terms O(1/|N|); subtracting sigma^2 K'(KK')^-2 K from the
+        %   prior holds a DATUM, else [] (R7 WP-114, R7-05; per group since
+        %   WP-119). The unit is the declared GROUP (CommonPrior.group, one per
+        %   data.priors(k)): group g is a datum when the data AND every other
+        %   group are blind to its rows,
+        %       |N Kg'| <= 1e-10 |N| |Kg|    (on the QR backend |R Kg'| <= 1e-8 |R| |Kg|
+        %                                     on its factor, N never formed)
+        %       |Ko Kg'| <= 1e-10 |Ko| |Kg|  (Ko: the other groups' rows)
+        %   -- with every term PSD, the same as Kg in the null space of N plus
+        %   the other groups. Kd = the datum groups' rows, Ki = the rest,
+        %   Ni = N + Ki'Ki: span(Kd') is the null space of Ni, so x is Ni's
+        %   minimum-constraint solution whatever the datum's sigma, and its
+        %   cofactor is pinv(Ni). Computed stably with the datum rows
+        %   re-weighted to the data's scale, c = sqrt(|Ni|_F) / |Kd|_F
+        %   (|R|_F / |Kd|_F on the QR backend):
+        %       pinv(Ni) = inv(Rm'Rm) - Dm*Dm',  Rm'Rm = Ni + c^2 Kd'Kd,
+        %       Dm = Kd'(Kd Kd')^-1 / c
+        %   (both terms O(1/|N|); subtracting sigma^2 Kd'(Kd Kd')^-2 Kd from the
         %   solve's cofactor instead cancels: 5e-5 off at sigma 1e6 in the
-        %   mirror, mirrors/wp114/datum_cofactor.py, against 3e-16 here).
-        %   A prior that is only PARTLY in the null space is not a datum: its
-        %   covariance stays the solve's (prior information is information).
-        %   OUTPUT  dp  [] | struct .Rm (nc x nc upper) .Dm (nc x nk)
+        %   mirror, mirrors/wp114/datum_cofactor.py, against 3e-16 here;
+        %   mirrors/wp119/datum_split.py: 1e-15 with a regularising group).
+        %   A group only PARTLY in the null space is not a datum -- its x moves
+        %   with its sigma, so its covariance stays the solve's (a ridge on
+        %   every parameter is a Bayesian prior on the null part, not a datum).
+        %   OUTPUT  dp  [] | struct .Rm (nc x nc upper) .Dm (nc x nd)
             dp = [];
             if isempty(obj.prior), return, end
-            K = full(obj.prior.K);
-            if strcmp(obj.backend, 'qr')                 % on the factor: |R K'| <= 1e-8 |R||K|
-                R = obj.sys.squareRoot();
-                if norm(R * K.', 'fro') > 1e-8 * norm(R, 'fro') * norm(K, 'fro'), return, end
-                c = norm(R, 'fro') / norm(K, 'fro');
-                Rm = triu(qr([R; c * K], 0));
+            K = full(obj.prior.K) / obj.prior.sigma;
+            grp = obj.prior.group;
+            isQR = strcmp(obj.backend, 'qr');
+            if isQR                                      % on the factor
+                S = obj.sys.squareRoot();  tolS = 1e-8;
+            else
+                S = obj.sys.commonBlocks();  S = (S + S.')/2;  tolS = 1e-10;
+            end
+            nS = norm(S, 'fro');
+            isDatum = false(size(grp));
+            for g = unique(grp).'
+                in = grp == g;  Kg = K(in, :);  Ko = K(~in, :);
+                nKg = norm(Kg, 'fro');
+                if norm(S * Kg.', 'fro') > tolS * nS * nKg, continue, end
+                if ~isempty(Ko) && norm(Ko * Kg.', 'fro') > 1e-10 * norm(Ko, 'fro') * nKg, continue, end
+                isDatum(in) = true;
+            end
+            if ~any(isDatum), return, end
+            Kd = K(isDatum, :);  Ki = K(~isDatum, :);
+            if isQR
+                c = nS / norm(Kd, 'fro');
+                Rm = triu(qr([S; Ki; c * Kd], 0));
                 Rm = Rm(1:obj.nc, :);
             else
-                N = obj.sys.commonBlocks();
-                if norm(N * K.', 'fro') > 1e-10 * norm(N, 'fro') * norm(K, 'fro'), return, end
-                c = sqrt(norm(N, 'fro')) / norm(K, 'fro');
-                [Rm, fail] = chol((N + N.')/2 + c^2 * (K.' * K));
+                Ni = S + Ki.' * Ki;
+                c = sqrt(norm(Ni, 'fro')) / norm(Kd, 'fro');
+                [Rm, fail] = chol((Ni + Ni.')/2 + c^2 * (Kd.' * Kd));
                 if fail > 0, return, end
             end
-            dp = struct('Rm', Rm, 'Dm', (K.' / (K * K.')) / c);
+            dp = struct('Rm', Rm, 'Dm', (Kd.' / (Kd * Kd.')) / c);
         end
     end
 

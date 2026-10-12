@@ -206,6 +206,7 @@ lsqvce:normalEq:noData,engine.NormalEqSystem,error,v4.0
 lsqvce:normalEq:noRedundancy,engine.NormalEqSystem,error,v4.0
 lsqvce:normalEq:notSPD,engine.NormalEqSystem,error,v4.0
 lsqvce:normalEq:sizeMismatch,engine.NormalEqSystem,error,v4.0
+lsqvce:prior:badGroup,engine.CommonPrior,error,v6.11.0
 lsqvce:prior:badTarget,engine.CommonPrior,error,v4.0
 lsqvce:probeMatrix:badDist,engine.private.probeMatrix,error,v4.0
 lsqvce:psd2acv:aboveNyquist,kernel.psd2acv,warning,v4.0

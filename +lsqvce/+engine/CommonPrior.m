@@ -11,6 +11,14 @@ classdef CommonPrior
 %     pri = LSQVCE.ENGINE.COMMONPRIOR(K)                    x0 = 0, sigma = 1
 %     pri = LSQVCE.ENGINE.COMMONPRIOR(K, x0)
 %     pri = LSQVCE.ENGINE.COMMONPRIOR(K, x0, sigma)
+%     pri = LSQVCE.ENGINE.COMMONPRIOR(K, x0, sigma, group)
+%
+%   group (nk x 1 positive integers, default ones): the declared group of each
+%   row -- lsqvce.fit stacks data.priors(k) as group k. The group is the unit of
+%   meaning for the datum test (BlockAccumulator.datumPart, R7 WP-119): a group
+%   the data and every OTHER group are blind to is a DATUM and gets the
+%   minimum-constraint covariance; a group only partly in the null space is
+%   information. One group (the default) is the whole prior, as before 6.11.
 %
 %   K IS THE SCIENCE -- CHOOSE IT DELIBERATELY
 %     K = eye(nc)                     plain damping (rarely what you want)
@@ -72,6 +80,7 @@ classdef CommonPrior
 %
 %   ERRORS
 %     lsqvce:prior:badTarget        the prior target has the wrong length
+%     lsqvce:prior:badGroup         group is not nk positive integers
 %
 %   See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.APPLYREGULARISATION
 %
@@ -80,6 +89,8 @@ classdef CommonPrior
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
 %   WP-64a): the ENGINE tier leaves the USER surface; every qualified
 %   reference was rewritten mechanically by docs_src/refactor_tiers.py.
+%   2026-10-12 (CEST, UTC+02:00), R7 WP-119: the per-row group (the datum test's
+%   unit). With assistance from Claude (Anthropic), model Claude Opus 5.5.
 
     properties (SetAccess = immutable)
         K            % nk x nc  constraint matrix
@@ -87,11 +98,12 @@ classdef CommonPrior
         sigma        % scalar   prior standard deviation
         nk           % number of pseudo-observations
         nc           % number of common parameters
+        group        % nk x 1   declared group of each row (R7 WP-119)
     end
 
     methods
-        function o = CommonPrior(K, x0, sigma)
-            narginchk(1,3);
+        function o = CommonPrior(K, x0, sigma, group)
+            narginchk(1,4);
             if nargin < 2 || isempty(x0),    x0    = [];  end
             if nargin < 3 || isempty(sigma), sigma = 1.0; end
 
@@ -117,6 +129,17 @@ classdef CommonPrior
                 o.x0 = x0;
             end
             o.sigma = sigma;
+            if nargin < 4 || isempty(group)
+                o.group = ones(o.nk, 1);
+            else
+                group = double(group(:));
+                if numel(group) ~= o.nk || any(group < 1 | group ~= round(group))
+                    error('lsqvce:prior:badGroup', ...
+                        'group must be %d positive integers (one per row of K), got %d.', ...
+                        o.nk, numel(group));
+                end
+                o.group = group;
+            end
         end
 
         %------------------------------------------------------------------
@@ -153,7 +176,7 @@ classdef CommonPrior
         %------------------------------------------------------------------
         function o2 = withSigma(o, sigma)
         %WITHSIGMA  A copy with a new sigma (for the VCE iteration).
-            o2 = lsqvce.engine.CommonPrior(o.K, o.x0, sigma);
+            o2 = lsqvce.engine.CommonPrior(o.K, o.x0, sigma, o.group);
         end
     end
 end
