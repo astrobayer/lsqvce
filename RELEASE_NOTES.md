@@ -1,5 +1,17 @@
 # lsqvce release notes
 
+## 6.12.1 — 2026-10-12 (WP-123: the kernel whiteners take a sparse design matrix)
+
+- **A sparse `B` no longer breaks a whitened stream.** The Manual (chapter 3) allows a sparse
+  local design matrix, and `synthLoader` recommends it, but the kernel whiteners reshape to N-D
+  arrays or call `filter`, which MATLAB refuses for sparse input: a multi-axis stream with
+  `Cep` stopped in `lsqvce.kernel.separableWhiten` with `MATLAB:reshape:sparseNDmatrix`
+  (found by the WP-122 template). `separableWhiten`, `varWhiten` and `armaWhiten` now run
+  their dense filter on the non-zero columns of a sparse block only and return it sparse, at
+  its full width (memory: batch rows x active columns). Dense input takes the unchanged path.
+- `template/kbr_variational.m` returns its position streams' `B` sparse again (6.12.0 had to
+  return it dense).
+
 ## 6.12.0 — 2026-10-12 (WP-122: a variational-equation range-rate builder for real data)
 
 - **`template/kbr_variational.m`** — a runnable `buildDay` for the GRACE-FO C/D pair:

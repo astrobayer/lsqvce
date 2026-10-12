@@ -46,7 +46,7 @@ function [Aw, Bw, lw] = varWhiten(Avar, Sigma, G, d, A, B, l, isFirstBatch)
 %     G            d x d x >=p  stationary cross-ACV (from LSQVCE.KERNEL.VARACV)
 %     d            1x1        axes per epoch
 %     A            m x nc     common design rows (EPOCH-MAJOR)
-%     B            m x nl     local design rows (may be [])
+%     B            m x nl     local design rows (may be [] or sparse; sparse in, sparse out)
 %     l            m x 1      observations
 %     isFirstBatch 1x1 logical  apply the exact stationary startup
 %
@@ -67,8 +67,19 @@ function [Aw, Bw, lw] = varWhiten(Avar, Sigma, G, d, A, B, l, isFirstBatch)
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+kernel (R4 decision R4-D1,
 %   WP-64a): the KERNEL tier leaves the USER surface; every qualified
 %   reference was rewritten mechanically by docs_src/refactor_tiers.py.
+%
+%   Sparse blocks: 2026-10-12 (CEST, UTC+02:00) with assistance from Claude
+%   (Anthropic), model Claude Opus 5.5 -- WP-123.
 
     narginchk(8,8);
+    % WP-123: sparse blocks (makeLoader allows a sparse B) run the dense
+    % whitener on their non-zero columns -- N-D reshape and filter refuse
+    % sparse input. The dense path below is unchanged.
+    if issparse(A) || issparse(B) || issparse(l)
+        dense = @(A, B, l) lsqvce.kernel.varWhiten(Avar, Sigma, G, d, A, B, l, isFirstBatch);
+        [Aw, Bw, lw] = activeColumns(dense, A, B, l);
+        return
+    end
     [dd, d2, p] = size(Avar);
     m = size(l,1);
     d = double(d);

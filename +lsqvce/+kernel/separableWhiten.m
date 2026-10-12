@@ -75,7 +75,7 @@ function [Aw, Bw, lw] = separableWhiten(a, s, r, sigEpoch, d, A, B, l, isFirstBa
 %     sigEpoch     nEp x d | nEp x d x d  the per-epoch scaling D
 %     d            1x1     double  axes per epoch
 %     A            m x nc  double  common design rows (EPOCH-MAJOR)
-%     B            m x nl  double  local design rows  (may be [])
+%     B            m x nl  double  local design rows  (may be [] or sparse; sparse in, sparse out)
 %     l            m x 1   double  observations
 %     isFirstBatch 1x1     logical apply the stationary startup
 %
@@ -103,8 +103,19 @@ function [Aw, Bw, lw] = separableWhiten(a, s, r, sigEpoch, d, A, B, l, isFirstBa
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+kernel (R4 decision R4-D1,
 %   WP-64a): the KERNEL tier leaves the USER surface; every qualified
 %   reference was rewritten mechanically by docs_src/refactor_tiers.py.
+%
+%   Sparse blocks: 2026-10-12 (CEST, UTC+02:00) with assistance from Claude
+%   (Anthropic), model Claude Opus 5.5 -- WP-123.
 
     narginchk(9,9);
+    % WP-123: sparse blocks (makeLoader allows a sparse B) run the dense
+    % whitener on their non-zero columns -- N-D reshape and filter refuse
+    % sparse input. The dense path below is unchanged.
+    if issparse(A) || issparse(B) || issparse(l)
+        dense = @(A, B, l) lsqvce.kernel.separableWhiten(a, s, r, sigEpoch, d, A, B, l, isFirstBatch);
+        [Aw, Bw, lw] = activeColumns(dense, A, B, l);
+        return
+    end
 
     a = a(:).';
     r = r(:);

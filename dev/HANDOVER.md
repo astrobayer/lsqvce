@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-12 — WP-122 OPEN (tier B, model Claude Opus 5.5; user: "a real-life buildDay for range-rate observations using a variational equation approach", scope decision: SELF-CONTAINED): template/kbr_variational.m -- GRACE-FO L1B (GNV1B, KBR1B, ACT1B, SCA1B) + ICGEM .gfc -> range-rate and position streams by the variational equations (analytic a, G, da/dC_nm from normalized solid harmonics and exact sparse derivative operators; ABM8 PECE), declared column units; mirror dev/validation/kbr_variational_mirror.py; 4 gate tests in test_physOracle; version 6.12.0; §12.53.
+Last substantive update: 2026-10-12 — WP-122 DONE (PR #142, merge 1d8c89b; CI GREEN on ac4bfa4); WP-123 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-123"): the kernel whiteners (separableWhiten, varWhiten, armaWhiten) take a sparse A / B / l -- the dense filter runs on the non-zero columns only (private kernel helper activeColumns), sparse in, sparse out; the dense path unchanged; template/kbr_variational returns its position B sparse again; 1 gate test; version 6.12.1; §12.54.
+Preceding entry: Last substantive update: 2026-10-12 — WP-122 OPEN (tier B, model Claude Opus 5.5; user: "a real-life buildDay for range-rate observations using a variational equation approach", scope decision: SELF-CONTAINED): template/kbr_variational.m -- GRACE-FO L1B (GNV1B, KBR1B, ACT1B, SCA1B) + ICGEM .gfc -> range-rate and position streams by the variational equations (analytic a, G, da/dC_nm from normalized solid harmonics and exact sparse derivative operators; ABM8 PECE), declared column units; mirror dev/validation/kbr_variational_mirror.py; 4 gate tests in test_physOracle; version 6.12.0; §12.53.
 Preceding entry: Last substantive update: 2026-10-12 — WP-121 DONE (PR #140, merge 2a85acf; CI GREEN on 47555ef); the three §12.48 residues CLOSED (user decision: closure PR): 119 fixed (v6.11.0), 120 measured and kept (K = 20), 121 fixed (v6.11.1); no code change, no version; §12.52.
 Preceding entry: Last substantive update: 2026-10-12 — WP-120 DONE (PR #139, merge 99e3dff; CI GREEN on 1017d42); WP-121 OPEN (tier B, model Claude Opus 5.5): diagnose's robust check formed in the main pass -- one read of the data and one halfRows per row instead of two (bitwise the same scale); the §12.48 claim that snoop's Reaccumulate=true re-solve is dense corrected (block-arrow since WP-86 part 3, 6.4.0); version 6.11.1; §12.51. With it the three §12.48 residues are closed.
 Preceding entry: Last substantive update: 2026-10-12 — WP-119 DONE (PR #138, merge 49a27ec; CI GREEN on f856a63); WP-120 OPEN (tier B, model Claude Opus 5.5; user decision: K = 20 STAYS): the Ljung-Box lag count measured, not changed -- a larger K loses short-lag power (0.45 -> 0.11 at K 540) and gains only on a correlation at an isolated long lag; the blind spot stated in Manual 7.7 with the numbers; no code, no version; §12.50.
@@ -9058,7 +9059,7 @@ or a new review.
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 122 | `template/kbr_variational.m`: GRACE-FO Level-1B range-rates (and GNV1B positions) as `lsqvce` streams by the variational equations -- reference field from an ICGEM `.gfc`, arc-wise initial states and KBR empiricals, day-wise ACC bias / scale, declared column units; numerical twin `dev/validation/kbr_variational_mirror.py`; **version 6.12.0** | the §12.48 residues closed (§12.52) | OPEN (tier B; CI is the gate) |
+| 122 | `template/kbr_variational.m`: GRACE-FO Level-1B range-rates (and GNV1B positions) as `lsqvce` streams by the variational equations -- reference field from an ICGEM `.gfc`, arc-wise initial states and KBR empiricals, day-wise ACC bias / scale, declared column units; numerical twin `dev/validation/kbr_variational_mirror.py`; **version 6.12.0** | the §12.48 residues closed (§12.52) | DONE (2026-10-12, PR #142, merge 1d8c89b; CI GREEN on ac4bfa4 after one red round: S53 step, sparse B -> WP-123) |
 
 **The user's request (2026-10-12):** "Provide a real-life buildDay function for range-rate
 observations using a variational equation approach." Scope decision (AskUserQuestion):
@@ -9127,3 +9128,34 @@ job log is the record, 2e4eaa4):
   the Manual (chapter 3 section 3.3) allows a sparse B. A TOOLBOX DEFECT, not this WP's: the
   template returns B dense on its position streams (commented), and the kernel fix is
   proposed as its own WP (a suggested task), not widened into this PR.
+
+### 12.54 WP-123 — the kernel whiteners take a sparse design matrix (2026-10-12, model Claude Opus 5.5)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 123 | `separableWhiten`, `varWhiten`, `armaWhiten` accept sparse A / B / l: the dense filter on the non-zero columns only (`+lsqvce/+kernel/private/activeColumns.m`), sparse in, sparse out, full width; dense input unchanged; the WP-122 template's position `B` sparse again; **version 6.12.1** | 122 (PR #142 merged 1d8c89b) | OPEN (tier B; CI is the gate) |
+
+**The defect (found by WP-122, CI round 1).** Manual 3 and `makeLoader` allow a sparse local
+design matrix, and `synthLoader` recommends it ("nl counts ALL arcs, B is mostly zeros").
+The whitening kernels do not: `separableWhiten` reshapes each block to (axis, epoch, column)
+-- N-D, which MATLAB refuses for sparse arrays (`MATLAB:reshape:sparseNDmatrix`) -- and so
+does `varWhiten` (epoch slabs of [A B l]); `armaWhiten` calls `filter`. A stream that is
+whitened (an AR / VAR law, or any per-epoch `Cep`, which goes through `separableWhiten` as
+AR(0) in `covModel`, `adjustVCEjoint` and the residual replay) therefore stopped on a
+sparse `B`; a white stream without `Cep` never reached a kernel, which is why the suite
+never saw it.
+
+**The fix.** Every kernel whitener is a ROW operator applied column by column, so a column
+that is zero in the batch stays zero. On sparse input each kernel hands its own dense path
+(model arguments bound) to the private helper, which runs it on `full(X(:, any(X, 1)))` and
+scatters the result back into a sparse matrix of the input's width -- memory batch rows x
+active columns, not batch rows x every local of the system. One helper, three guards; the
+dense path is not touched (byte-identical). The help blocks say "sparse in, sparse out".
+
+**Test (641 = 640 + 1, test_vceMath):** `testKernelWhitenersAcceptSparseBlocks` -- all three
+whiteners, a 3-axis stream with a full per-epoch covariance (separable), a VAR(2) and an
+AR(2): sparse A / B in -> sparse out, the five all-zero columns of B stay zero, the values
+equal the dense path (1e-12 relative), and a sparse B with no active column at all. The
+WP-122 closed loop (`testKbrClosedLoopThroughFit`) now runs with the sparse position `B`
+end to end through `lsqvce.fit`. NOT validated before CI: no MATLAB in the container.
+

@@ -12,7 +12,7 @@ function [Aw, Bw, lw] = armaWhiten(a, b, s, r, A, B, l, isFirstBatch)
 %     b             1 x (q+1)  MA polynomial [1 b1 ... bq]; use 1 for pure AR
 %     s             scalar     innovation std, > 0
 %     r             >= p x 1   autocovariance r(0..), already scaled by s^2
-%     A, B          m x *      design blocks (either may be m x 0)
+%     A, B          m x *      design blocks (either may be m x 0 or sparse; sparse in, sparse out)
 %     l             m x 1      observation vector
 %     isFirstBatch  logical    true for the first batch of an arc
 %
@@ -78,8 +78,19 @@ function [Aw, Bw, lw] = armaWhiten(a, b, s, r, A, B, l, isFirstBatch)
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+kernel (R4 decision R4-D1,
 %   WP-64a): the KERNEL tier leaves the USER surface; every qualified
 %   reference was rewritten mechanically by docs_src/refactor_tiers.py.
+%
+%   Sparse blocks: 2026-10-12 (CEST, UTC+02:00) with assistance from Claude
+%   (Anthropic), model Claude Opus 5.5 -- WP-123.
 
     narginchk(8,8);
+    % WP-123: sparse blocks (makeLoader allows a sparse B) run the dense
+    % whitener on their non-zero columns -- N-D reshape and filter refuse
+    % sparse input. The dense path below is unchanged.
+    if issparse(A) || issparse(B) || issparse(l)
+        dense = @(A, B, l) lsqvce.kernel.armaWhiten(a, b, s, r, A, B, l, isFirstBatch);
+        [Aw, Bw, lw] = activeColumns(dense, A, B, l);
+        return
+    end
     a = a(:).';   b = b(:).';   r = r(:);
 
     p = numel(a) - 1;
