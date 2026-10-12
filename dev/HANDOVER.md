@@ -9027,3 +9027,7 @@ NOT validated before CI: no MATLAB in the container.
 **The three §12.48 residues are closed** -- 119 fixed (a datum group beside a regulariser),
 120 measured and kept (K = 20, user decision), 121 fixed (one read) with the stale half
 corrected. Nothing is open on `main` until the user opens a WP or a new review.
+CI round 1 (a65c3eb): 623/624; the new test green, `test_vcePolicy>testCacheDaysCountsTheBuilds`
+red -- the end-to-end build count through `lsqvce.fit` (CacheDays 1, a VCE run of n passes)
+pinned 2n+3, of which one was diagnose's robust-check sweep. That is the WP's effect seen
+from the loader, not a regression: the pin is 2n+2 now, its comment says why.
