@@ -11,7 +11,10 @@ function [Aw, Bw, lw] = armaWhiten(a, b, s, r, A, B, l, isFirstBatch)
 %     a             1 x (p+1)  AR polynomial [1 a1 ... ap]
 %     b             1 x (q+1)  MA polynomial [1 b1 ... bq]; use 1 for pure AR
 %     s             scalar     innovation std, > 0
-%     r             >= p x 1   autocovariance r(0..), already scaled by s^2
+%     r             >= p x 1   autocovariance r(0..), already scaled by s^2; with
+%                              an MA part its length K is the exact startup:
+%                              pass it over the filter memory p + N, N the
+%                              decay of 1/B(z) (LSQVCE.ENGINE.COVMODEL does)
 %     A, B          m x *      design blocks (either may be m x 0 or sparse; sparse in, sparse out)
 %     l             m x 1      observation vector
 %     isFirstBatch  logical    true for the first batch of an arc
@@ -44,6 +47,10 @@ function [Aw, Bw, lw] = armaWhiten(a, b, s, r, A, B, l, isFirstBatch)
 %     assumes x(k) = 0 for k < 1. Those rows are replaced by the exact
 %     stationary whitener chol(toeplitz(r(1:p)))^-1, which is the leading
 %     p x p block of chol(C)^-1. Only done when isFirstBatch is true.
+%     With an MA part the recursion 1/B(z) carries state, so the exact block
+%     covers K = numel(r) rows and the recursion continues from their exact
+%     innovations u_k = L(k,k) w_k (WP-127); for K >= p + the decay of 1/B(z)
+%     to eps the operator is chol(C)^-1 to ~1e-13. Cost O(K^3) once per arc.
 %
 %   BATCH OVERLAP IS MANDATORY
 %     On any batch after the first, the filter restarts from zero state and
@@ -79,6 +86,11 @@ function [Aw, Bw, lw] = armaWhiten(a, b, s, r, A, B, l, isFirstBatch)
 %   WP-64a): the KERNEL tier leaves the USER surface; every qualified
 %   reference was rewritten mechanically by docs_src/refactor_tiers.py.
 %
+%   Updated 2026-10-12 (CEST, UTC+02:00), WP-127: with an MA part the exact
+%   startup covers numel(r) rows and the recursion continues from their exact
+%   innovations (the rows after p were not chol(C)^-1). With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
+%
 %   Sparse blocks: 2026-10-12 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Opus 5.5 -- WP-123.
 
@@ -113,8 +125,37 @@ function [Aw, Bw, lw] = armaWhiten(a, b, s, r, A, B, l, isFirstBatch)
     Bw = filter(a, b, B, [], 1) / s;
     lw = filter(a, b, l, [], 1) / s;
 
-    % --- exact stationary startup for the leading p rows -------------------
-    if p > 0 && isFirstBatch
+    % --- exact stationary startup ------------------------------------------
+    hasMA = numel(b) > 1 && any(b(2:end) ~= 0);
+    if ~isFirstBatch, return, end
+    if hasMA
+        % WP-127: with an MA part the recursion 1/B(z) carries STATE. Replacing
+        % the leading p rows alone left that state built from the zero-state
+        % transient, so the rows after p were not chol(C)^-1 (F'F off inv(C)
+        % by 1.6 % at a = [1 -0.5], b = [1 0.4]; whitened variance 10.7 at row 2
+        % for b = [1 0.8]). The leading K = numel(r) rows -- the caller passes
+        % the ACV over the filter memory p + the decay of 1/B(z) -- are
+        % whitened exactly, and the recursion continues from their EXACT
+        % innovations u_k = L(k,k) w_k: beyond K the innovations-algorithm
+        % coefficients equal b to rounding. Mirror: dev/validation/
+        % wp127_arma_whiten_mirror.py, |F - chol(C)^-1| / |.| <= 3e-13.
+        K = min(numel(r), m);
+        if K < min(p, m)
+            error('lsqvce:armaWhiten:acvTooShort', ...
+                ['The autocovariance has %d lags but the startup block needs ' ...
+                 'at least %d. Pass r over the filter memory.'], numel(r), min(p, m));
+        end
+        [Lc, fail] = chol(toeplitz(r(1:K)), 'lower');
+        if fail ~= 0
+            warnStartup(K);
+            return
+        end
+        Aw = exactMa(a, b, s, Lc, A, Aw);
+        Bw = exactMa(a, b, s, Lc, B, Bw);
+        lw = exactMa(a, b, s, Lc, l, lw);
+        return
+    end
+    if p > 0
         nS = min(p, m);
         if numel(r) < nS
             error('lsqvce:armaWhiten:acvTooShort', ...
@@ -129,10 +170,34 @@ function [Aw, Bw, lw] = armaWhiten(a, b, s, r, A, B, l, isFirstBatch)
             if ~isempty(B), Bw(1:nS,:) = Wp * B(1:nS,:); end
             lw(1:nS,:) = Wp * l(1:nS,:);
         else
-            lsqvce.util.log.warn('lsqvce:armaWhiten:startupNotPD', ...
-                ['The %d x %d stationary startup block is not positive ' ...
-                 'definite; keeping the filter transient instead. The first ' ...
-                 '%d rows of this arc are slightly mis-weighted.'], nS, nS, nS);
+            warnStartup(nS);
         end
     end
+end
+
+%==========================================================================
+function Y = exactMa(a, b, s, Lc, X, Y)
+%EXACTMA  Rows 1..K exact (Lc \ X), rows K+1.. the recursion 1/B(z) seeded
+%   with the exact innovations: filter(1, b, [filter(b, 1, u); (a * X)(K+1:m)])
+%   reproduces u on rows 1..K and continues u_k = (a*X)_k - sum_j b_j u_(k-j).
+%   INPUT  Lc K x K lower chol of toeplitz(r(1:K)); X m x n a raw block;
+%          Y m x n its zero-state output (overwritten)
+    if isempty(X), return, end
+    K = size(Lc, 1);
+    W = Lc \ X(1:K, :);
+    Y(1:K, :) = W;
+    if K == size(X, 1), return, end
+    u = diag(Lc) .* W;                              % the exact innovations
+    v = filter(a, 1, X, [], 1);                     % the AR part: exact for k > p
+    z = filter(1, b, [filter(b, 1, u, [], 1); v(K+1:end, :)], [], 1);
+    Y(K+1:end, :) = z(K+1:end, :) / s;
+end
+
+%==========================================================================
+function warnStartup(nS)
+%WARNSTARTUP  The stationary startup block is not positive definite.
+    lsqvce.util.log.warn('lsqvce:armaWhiten:startupNotPD', ...
+        ['The %d x %d stationary startup block is not positive ' ...
+         'definite; keeping the filter transient instead. The first ' ...
+         '%d rows of this arc are slightly mis-weighted.'], nS, nS, nS);
 end

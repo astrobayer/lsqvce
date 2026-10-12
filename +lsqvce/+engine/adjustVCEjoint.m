@@ -264,6 +264,10 @@ function out = adjustVCEjoint(accFcn, opt)
 %   See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
 %            LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 %
+%   Updated 2026-10-12 (CEST, UTC+02:00), WP-127: a local prior arc before its
+%   group's from pass is inactive, not a skip; the per-pass record has one
+%   column per pinned stream (a stream absent in one pass broke it). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 3 (R7-01, R7-02,
 %   R7-20; user decision 2026-10-11): the law is a positive spectrum S on L
 %   bins (state .S / .Sgroups, start 'S0' = white); every bin's component is
@@ -756,7 +760,7 @@ end
         % R5 M4 4a: the per-stream pass record Results.convergence reads --
         % the stream's level factor and its Ljung-Box whiteness on the
         % law-whitened residuals of THIS pass (K = 20 lags, alpha 0.05).
-        [hist.streams, sigRow, whiteRow, pRow] = whitenessRow(wstats, streamMeans(pinnedStream, sigma2));
+        [hist.streams, sigRow, whiteRow, pRow] = whitenessRow(wstats, pinnedStream, sigma2);
         hist.sigma(it, :)     = sigRow;              %#ok<AGROW>
         hist.white(it, :)     = whiteRow;            %#ok<AGROW>
         hist.whitePval(it, :) = pRow;                %#ok<AGROW>
@@ -1183,7 +1187,9 @@ function [Qb, Tb, qa, ta, keys, keysAll, skips, wstats, rowAll, streamAll, keySt
                     [om, sn, r, why, wsum, wm] = oneArc(st, obsType, a, d, uo, UiZ, ...
                                                         x, ySys, Gsys, LlS);
                     if isempty(om)
-                        skips(end+1, :) = {key, why};        %#ok<AGROW>
+                        % an inactive prior arc is not a skip (WP-127): it counted
+                        % against SkipThreshold before its group's 'from' pass
+                        if ~strcmp(why, 'inactive'), skips(end+1, :) = {key, why}; end   %#ok<AGROW>
                         continue
                     end
                     if isKey(wstats, sk), w0 = wstats(sk); else, w0 = zeros(2*(WHITE_LAGS() + 1), 1); end
@@ -1223,7 +1229,11 @@ function [om, sn, r, why, wsum, wm] = oneArc(st, obsType, arc, day, uo, UiZ, x, 
     wsum = zeros(WHITE_LAGS + 1, 1);  wm = zeros(WHITE_LAGS + 1, 1);   % R5 M4 4a / R7-38: sums and pair counts
     a = st.dataFcn(day, obsType, arc, uo);
     if isempty(a) || ~isfield(a, 'l') || isempty(a.l)
-        om = [];  sn = [];  r = [];  why = 'gap';  return
+        % WP-127: a local prior group's pseudo-arc is listed on every pass (the
+        % arc identity is pinned on pass 1) but carries rows only from its
+        % 'from' pass on -- empty before that is INACTIVE, not a data gap
+        why = 'gap';  if startsWith(obsType, 'prior_'), why = 'inactive'; end
+        om = [];  sn = [];  r = [];  return
     end
 
     A = a.A;  l = a.l(:);
@@ -1477,7 +1487,7 @@ function g = groupKeyOf(pool, sk)
     end
 end
 
-function [streams, sig, white, pval] = whitenessRow(wstats, sMeans)
+function [streams, sig, white, pval] = whitenessRow(wstats, pinnedStream, sigma2)
 %WHITENESSROW  One convergence-table row: per stream, the level factor
 %   sqrt(mean arc factor) and the Ljung-Box test on the pass's law-whitened
 %   residuals, POOLED over the stream's arcs: rho_k = s_k / s_0 from the
@@ -1489,15 +1499,22 @@ function [streams, sig, white, pval] = whitenessRow(wstats, sMeans)
 %   products -- on 64 arcs of 30 epochs a white stream had size 0.001 (E[Q]
 %   13 instead of 20) and on 200 x 12 epochs 0.000; pooled, 0.047-0.058 on
 %   every layout (mirrors/wp118/ljungbox_pooled.py, 1000-2000 trials).
-    streams = sort(keys(wstats));
+%   WP-127: the columns are the PINNED streams (pass 1, sorted), not the
+%   streams that delivered residuals THIS pass -- a stream with no surviving
+%   arc in one pass (a prior group before its 'from', a whole stream skipped
+%   nonPD) changed the row width and the history assignment failed. Such a
+%   stream gets its level, white = false and p = NaN.
+    streams = unique(pinnedStream(:)).';         % sorted
+    sMeans  = streamMeans(pinnedStream, sigma2);
     S = numel(streams);
     sig = ones(1, S);  white = false(1, S);  pval = nan(1, S);
     K = WHITE_LAGS();
     for j = 1:S
+        if isKey(sMeans, streams{j}), sig(j) = sqrt(max(sMeans(streams{j}), eps)); end
+        if ~isKey(wstats, streams{j}), continue, end
         w = wstats(streams{j});
         sk = w(1:K+1);  Nk = w(K+2:end);              % lag sums; pair counts (R7-38)
         m = Nk(1);  r0 = sk(1);
-        if isKey(sMeans, streams{j}), sig(j) = sqrt(max(sMeans(streams{j}), eps)); end
         ok = Nk(2:end) > 0;  Ke = nnz(ok);
         if Ke == 0 || r0 <= 0, continue, end
         rho = sk(2:end) / r0;

@@ -229,6 +229,10 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 See also LSQVCE.ENGINE.CHECKPSD, LSQVCE.KERNEL.ARMAWHITEN, LSQVCE.KERNEL.SEPARABLEWHITEN,
          LSQVCE.KERNEL.DECORRFACTOR, LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.MAKELOADER
 
+Updated 2026-10-12 (CEST, UTC+02:00), WP-127: an ARMA law with an MA part
+passes the whitener its ACV over the whole filter memory (the exact
+startup; the psd &#x27;arma&#x27; route the ARMA&#x27;s own ACV). With assistance from
+Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-12 (CEST, UTC+02:00), WP-126: a dense law refuses an arc
 longer than cm.maxDenseArc epochs (lsqvce:covModel:denseArcTooLong); the
 cost table states the whole-arc factor. With assistance from Claude

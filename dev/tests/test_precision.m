@@ -66,6 +66,32 @@ function testWhitenerIsTheCholeskyFactorItself(tc)
     tc.verifyEqual(Xf.'*lf, (W*X).'*(W*l), 'RelTol', 1e-11);  % tol: same source
 end
 
+function testArmaWithMaWhitenerIsTheCholeskyFactor(tc)
+% categories: precision, robustness
+% WP-127: with an MA part the whitener A(z)/B(z) is recursive, and its state
+% must start from the EXACT innovations -- replacing the leading p rows alone
+% left rows p+1.. off chol(C)^-1 (whitened variance 10.7 at row 2 for
+% b = [1 0.8]). Through covModel, the route lsqvce.fit takes: the filter law
+% against the dense Cholesky inverse of its own Cfcn, on an arc longer than
+% the exact startup (K = p + the decay of 1/B(z), 325 rows here) and on one
+% shorter (all rows exact). Mirror: dev/validation/wp127_arma_whiten_mirror.py,
+% 1.7e-13 relative.
+    cases = {[1 -0.9], [1 0.8], 1.3, 600;  [1 -1.6 0.9 -0.25], [1 0.5 0.3], 0.5, 400; ...
+             [1 -0.5], [1 0.4], 0.7, 20};
+    for k = 1:size(cases, 1)
+        [a, b, s, n] = cases{k, :};
+        cm = struct('type', 'arma', 'ar', a, 'ma', b, 'sigma', s);
+        [Cfcn, Wfcn] = lsqvce.engine.covModel(cm, (0:n-1).', struct());
+        z = zeros(n, 0);
+        [~, ~, F] = Wfcn(1:n, z, z, eye(n), struct());
+        W = lsqvce.kernel.decorrFactor(Cfcn(1:n, struct()));
+        % tol: both are Cholesky inverse factors of the same Toeplitz C (cond
+        % up to ~1e4 here); the mirror measures 1.7e-13 relative, 1e-9 leaves
+        % four decades for the platform's rounding
+        tc.verifyLessThan(norm(F - W, 'fro') / norm(W, 'fro'), 1e-9, ...
+            sprintf('ARMA(%d,%d), n = %d: the filter is chol(C)^-1', numel(a)-1, numel(b)-1, n));
+    end
+end
 function testSteadyStateRowsAreTheARCoefficients(tc)
 % categories: precision
 % Explicit structural check: away from the startup block, row k of the whitener

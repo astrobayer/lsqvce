@@ -56,9 +56,17 @@ stationary start $\mat L_p^{-1}\vc x_{1:p}$, $\mat L_p\mat L_p\T=\operatorname{t
 The resulting operator is the inverse Cholesky factor of $\mat\Sigma$ itself: both are lower
 triangular square roots of $\mat\Sigma^{-1}$, which is unique up to sign. Consecutive batches
 overlap by the filter memory, so batching does not change the result. For an ARMA$(p,q)$ law the
-whitener $A(z)/B(z)$ is recursive; its memory is $p$ plus the number of samples $N$ after which
-the impulse response of $1/B(z)$ has decayed below the rounding level, $|h_N|\le\varepsilon\max|h|$
-(finite because $B(z)$ is required to have all roots inside the unit circle). The AR coefficients of a
+whitener $A(z)/B(z)$ is recursive; its memory is $K=p+N$, with $N$ the number of samples after
+which the impulse response of $1/B(z)$ has decayed below the rounding level,
+$|h_N|\le\varepsilon\max|h|$ (finite because $B(z)$ is required to have all roots inside the
+unit circle). The recursion carries state, so the exact start covers the first $K$ rows,
+$\mat L_K^{-1}\vc x_{1:K}$, and continues from their exact innovations
+$u_k=L_{kk}\bar x_k$:
+\begin{equation}
+u_k=\sum_{j=0}^p a_jx_{k-j}-\sum_{j=1}^q b_ju_{k-j},\qquad \bar x_k=u_k/s,\qquad k>K;
+\end{equation}
+beyond $K$ the coefficients of the innovations algorithm equal $\vc b$ to rounding, so the
+operator is the inverse Cholesky factor of $\mat\Sigma$. The AR coefficients of a
 law given by its autocovariance follow from the Levinson--Durbin recursion (Yule--Walker); a
 high-order AR can be reduced to an ARMA. A spectrum with narrow features is represented better by
 the dense factor than by a low-order filter.

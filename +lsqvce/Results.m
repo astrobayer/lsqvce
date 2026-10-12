@@ -121,6 +121,9 @@ classdef Results < handle
 %   See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.REPORT,
 %            LSQVCE.ENGINE.VERDICT, LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-10-12 (CEST, UTC+02:00), WP-127: reliability() marks a prior's
+%   datum rows "datum". With assistance from Claude (Anthropic), model Claude
+%   Opus 5.5.
 %   Updated 2026-10-12 (CEST, UTC+02:00), WP-125: report() counts the passes of
 %   IRLS / Gauss-Newton from the pass record and names the loop; convergence()
 %   states what maxSigmaOffset is and adds the stop-rule columns maxDev and
@@ -525,7 +528,9 @@ classdef Results < handle
         %   (minimal detectable bias in the observation's units; Inf where the
         %   network does not control it) and quadrant -- "cleanOutlier"
         %   (|w| > kCrit, r >= rWeak), "ambiguous" (|w| > kCrit, r < rWeak),
-        %   "verified" (|w| <= kCrit, r >= rWeak), "untested" (r < rWeak).
+        %   "verified" (|w| <= kCrit, r >= rWeak), "untested" (r < rWeak), and
+        %   "datum" for the rows of a prior that only fixes the datum (r = 0 by
+        %   construction; not tested, not counted -- WP-127).
         %   Needs the per-observation diagnostics (Diagnostics.Store = "all",
         %   the default).
         %   ERRORS  lsqvce:Results:noPerObservation  R.diag keeps no per-
@@ -544,6 +549,7 @@ classdef Results < handle
             q(hiW & ~loR) = "cleanOutlier";
             q(hiW &  loR) = "ambiguous";
             q(~hiW & loR) = "untested";
+            q(lsqvce.util.getfielddef(D, 'datumRows', zeros(0, 1))) = "datum";   % WP-127
             T = table((1:numel(r)).', D.v(:), r, w, D.mdb(:), q, ...
                       'VariableNames', {'obs', 'v', 'r', 'w', 'mdb', 'quadrant'});
         end

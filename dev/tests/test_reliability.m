@@ -270,6 +270,12 @@ function testAccumulatorRejectsNaNObservations(tc)
     acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Verbose',false);
     tc.verifyError(@() acc.addSystem(1, cfg.nl, @withNaN, 1), ...
                    'lsqvce:accum:arcNotFinite');
+    % WP-127: the design too -- a NaN in A of a system WITHOUT locals passed
+    % (the only check sat in the local block) and came out as x = NaN
+    rs = RandStream('mt19937ar', 'Seed', 41);
+    A  = randn(rs, 30, 3);  A(7, 2) = NaN;
+    tc.verifyError(@() lsqvce.fit(struct('A', A, 'l', randn(rs, 30, 1)), Verbose=false), ...
+                   'lsqvce:accum:arcNotFinite');
 end
 
 function testAccumulatorRejectsBadMeta(tc)

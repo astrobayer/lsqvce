@@ -1179,6 +1179,32 @@ function testGaussNewtonDampsAndKeepsTheBestPoint(tc)
         'an unconverged run returns the best accepted point, not a rejected step');
 end
 
+
+function testGaussNewtonNeverReturnsAnUnevaluatedPoint(tc)
+% categories: robustness, metamorphic
+    % WP-127: TolX measures the step in formal-error units; on a plateau the
+    % formal errors are huge, so a tiny DAMPED step "converges", and the final
+    % UNDAMPED step was applied without evaluating F -- a logistic fit started
+    % on the saturated side returned F = 2.8e15 against an accepted 29.0
+    % (mirror of this loop, scratch of the review; starts on c = -5 and a
+    % wide s). Whatever the start, the returned point's F is no worse than
+    % the best accepted one (default Tolerance, the setting that exposed it).
+    t = linspace(0, 10, 40).';  y = 2 ./ (1 + exp(-(t - 5)/0.7)) + 0.02*sin(3*t);
+    g  = @(x) 1 ./ (1 + exp(-(t - x(2))/x(3)));
+    bf = @(k, x) deal([g(x), -x(1)*g(x).^2.*exp(-(t - x(2))/x(3))/x(3), ...
+                       -x(1)*g(x).^2.*exp(-(t - x(2))/x(3)).*(t - x(2))/x(3)^2], y - x(1)*g(x), []);
+    F  = @(x) sum((y - x(1)*g(x)).^2);
+    muteWarn(tc, 'lsqvce:adjustNonlinear:maxIter');
+    for x0 = {[0.5; -5; 0.3], [2; -5; 0.3], [0.5; 2; 10]}
+        R = lsqvce.fit(struct('batchFcn', bf, 'numBatches', 1, 'x0', x0{1}), ...
+                       lsqvce.Options(MaxPasses=30, Verbose=false));
+        ok = [R.history.accepted];
+        Fbest = min([F(x0{1}), R.history(ok).vPv]);
+        % tol: 1e-10 relative -- the rounding allowance of the final-step check
+        tc.verifyLessThanOrEqual(F(R.x), Fbest * (1 + 1e-10), ...
+            sprintf('start [%g %g %g]: R.x is no worse than the best evaluated point', x0{1}));
+    end
+end
 function testGaussNewtonPriorIsOnXNotOnTheStep(tc)
 % categories: precision, reference
     % R7 WP-113 (review R7-04): a prior K x ~ x0 on a NONLINEAR problem enters
@@ -1305,6 +1331,52 @@ function testDatumGroupBesideARegulariser(tc)
         tc.verifyEqual(diag(R.sol.Cxx), R.sol.s0sq * diag(inv(A.'*A + K.'*K)), 'RelTol', 1e-8, ...
             sprintf('information case %d keeps the solve''s covariance', k));
     end
+end
+
+function testDatumSplitOverGroupsIsOneDatum(tc)
+% categories: precision, contract, robustness
+    % WP-127. (1) A free 2-D distance network whose datum is declared as TWO
+    % groups -- translation and rotation. Off-centre, Kt Kr' ~= 0, and WP-119's
+    % rule (each group orthogonal to every OTHER group) refused both halves:
+    % the covariance fell back to inv(N + K'K/s^2), off pinv(N) by 0.9 at
+    % sigma 1 and 9e5 at 1e3 (dev/validation/wp127_datum_split_mirror.py).
+    % Blind groups only need orthogonality to the groups the data sees.
+    % (2) The datum rows (r = 0 by construction) are constraints, not
+    % observations: not uncontrolled, no MDB = Inf, not in the Bonferroni n --
+    % every free network's report said SUSPECT.
+    rs = RandStream('mt19937ar', 'Seed', 27);
+    P  = [20 5; 28 6; 30 13; 24 16; 19 11];                  % not centred; r_i 0.23..0.38
+    pairs = nchoosek(1:5, 2);  m = size(pairs, 1);
+    A = zeros(m, 10);
+    for k = 1:m
+        e = P(pairs(k, 2), :) - P(pairs(k, 1), :);  e = e / norm(e);
+        A(k, 2*pairs(k, 1) - [1 0]) = -e;  A(k, 2*pairs(k, 2) - [1 0]) = e;
+    end
+    l  = A * randn(rs, 10, 1) + 0.01 * randn(rs, m, 1);
+    Kt = kron(ones(1, 5), eye(2));                           % x and y translation
+    Kr = reshape([-P(:, 2).'; P(:, 1).'], 1, []);            % the rotation
+    Qref = pinv(A.' * A);
+    for bk = ["qr" "normal"]
+        for sg = [1 1e3]
+            pri = struct('L', {Kt, Kr}, 'sigma', {sg, sg}, 'name', {'trans', 'rot'});
+            R = lsqvce.fit(struct('A', A, 'l', l, 'priors', pri), Verbose=false, Backend=bk);
+            msg = sprintf('%s, datum sigma %g', bk, sg);
+            % tol: 1e-8 relative -- the minimum-constraint cofactor from the
+            % re-weighted factor vs the dense pseudo-inverse (mirror: 8e-11 abs)
+            tc.verifyEqual(R.diag.sigX(:), sqrt(diag(Qref)), 'RelTol', 1e-8, msg);
+            % tol: as above -- the solve's covariance is the same one
+            tc.verifyEqual(sqrt(diag(R.sol.Cxx)), sqrt(R.sol.s0sq * diag(Qref)), 'RelTol', 1e-8, msg);
+        end
+    end
+    D = R.diag;
+    tc.verifyEqual(D.datumRows(:), (m + 1 : m + 3).', 'the three prior rows are the datum');
+    tc.verifyEqual([D.nTests, D.nUncontrolled], [m, 0], 'datum rows are neither tests nor uncontrolled');
+    V = R.report('Verbose', false);
+    codes = cellfun(@(f) f.code, V.findings, 'UniformOutput', false);
+    tc.verifyFalse(any(ismember(codes, {'REL_UNCONTROLLED', 'REL_MDBINF'})), ...
+        'a datum is not an uncontrolled observation');
+    T = R.reliability();
+    tc.verifyEqual(T.quadrant(m + 1 : end), repmat("datum", 3, 1));
 end
 
 function testDatumIsADeclaredPrior(tc)
@@ -1709,6 +1781,19 @@ function testLocalPriorsAreTheCounterpartOfDataPriors(tc)
     data.systems(1).priors = struct('L', e(cj), 'x0', target, 'sigma', 1e-6, 'from', 2, 'name', 'late');
     R2 = lsqvce.fit(data, Verbose=false);
     tc.verifyEqual(R2.diag.n, R0.diag.n);
+    % WP-127: and through the joint loop. Pass 1 lists the group's pseudo-arc
+    % (the arc identity is pinned) but it carries no rows: an INACTIVE arc,
+    % not a 'gap' skip; from pass 2 it is one more stream in the per-pass
+    % record -- the record's width changed and the run died before
+    data.systems(1).priors = struct('L', e(cj), 'x0', target, 'sigma', 1e-6, 'from', 2, ...
+                                    'name', 'late', 'estimate', "none");
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');
+    Rj = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
+                    MaxPasses=3, Noise=struct('Grid', 16), Seed=3, Verbose=false));
+    h = Rj.history;
+    tc.verifyTrue(any(contains(h.streams, 'prior_late')), 'the late group is a stream of the record');
+    tc.verifyEqual(size(h.sigma, 2), numel(h.streams), 'one column per pinned stream');
+    tc.verifyFalse(any(contains(string(h.skips(:, 2)), 'prior_late')), 'an inactive prior arc is not a skip');
     % the same group by NAME PATTERN (column 2 of localParams): fit builds L
     names = data.systems(1).localParams(:, 2);
     if all(cellfun(@(v) ischar(v) || isstring(v), names))

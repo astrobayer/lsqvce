@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.14.0 — User Manual"
+title: "lsqvce 6.15.0 — User Manual"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 
@@ -512,8 +512,11 @@ a group of its own:
 data.priors(1) = struct('L', Nnull.', 'x0', 0, 'sigma', 1, 'name', 'datum');
 ```
 
-The solution and its covariance are the minimum-constraint ones for any σ. Without a datum
-a rank-deficient system is refused by name; the toolbox never guesses one.
+The solution and its covariance are the minimum-constraint ones for any σ, also when the
+datum is declared as several groups (for instance translation and rotation separately).
+The datum rows are constraints, not observations: the report does not count them as
+uncontrolled. Without a datum a rank-deficient system is refused by name; the toolbox never
+guesses one.
 
 **A Kaula rule on a gravity field.** One group per rule, σ estimated:
 
@@ -872,7 +875,8 @@ Level 3 shows which observations the tests could not check at all.
 
 A residual shows only the fraction `r_i` of an error in its observation. A small `|w|` on a
 low-`r` observation is therefore no evidence of health. `R.reliability()` gives the same
-quadrant per observation.
+quadrant per observation; the rows of a datum prior carry the label `"datum"` and are not
+counted in any quadrant.
 
 | code | severity | condition | action |
 |---|---|---|---|
