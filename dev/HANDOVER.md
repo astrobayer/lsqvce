@@ -8954,3 +8954,10 @@ redundancy() warning-free and consistent; a ridge on everything beside a datum a
 partial group keep the solve's covariance); `test_vceMath>testPriorRejectsBadTarget` gains
 the badGroup contract (no new test point).
 NOT validated before CI: no MATLAB in the container.
+CI round 1 (df2ddb3): 622/623, the new test red -- redundancy() warned `identityViolated`.
+Diagnosed in the mirror, not guessed: the identity reads the SOLVE's cofactor, and on the
+NORMAL backend at datum sigma 1e6 N + K'K/s^2 has cond 4.6e12 -- sum r + r_prior off by
+5.6e-6 (1.1e-10 at 1e3; QR 0 at every sigma), with or without the ridge group. A property
+of normal equations that WP-114's test (QR only) never met, not of the datum part. Fix
+(0c9c1f0): on the normal backend the identities are checked up to sigma 1e3; the covariance
+assertions (the new code) stay on both backends at every sigma.
