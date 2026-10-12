@@ -22,11 +22,13 @@ classdef BlockCofactor
 %     Q = LSQVCE.ENGINE.BLOCKCOFACTOR(Rc, blocks)
 %     Q = LSQVCE.ENGINE.BLOCKCOFACTOR(Rc, blocks, datum)
 %       datum   [] | struct .Rm .Dm (BlockAccumulator.datumPart): the common
-%                        prior is a DATUM (the data do not see its directions),
-%                        and the PARAMETER cofactor -- diagonal, block,
-%                        qxxTimes, maxCorrelation -- is the minimum-constraint
-%                        one, Qcc = inv(Rm'Rm) - Dm*Dm' (R7 WP-114, R7-05),
-%                        independent of the datum's sigma. leverage / halfRows
+%                        prior holds a DATUM group (the data and the other
+%                        groups do not see its directions), and the PARAMETER
+%                        cofactor -- diagonal, block, qxxTimes, maxCorrelation
+%                        -- is the minimum-constraint one of the data plus the
+%                        other groups, Qcc = inv(Rm'Rm) - Dm*Dm' (R7 WP-114,
+%                        R7-05; per group WP-119), independent of the datum's
+%                        sigma. leverage / halfRows
 %                        keep Rc: on data rows the two agree exactly (a data
 %                        row is orthogonal to the datum), and a datum row must
 %                        stay absorbed (r = 0) as the solve made it.
@@ -88,6 +90,9 @@ classdef BlockCofactor
 %   See also LSQVCE.ENGINE.VERDICT.SOURCE, LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SNOOP,
 %   LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-10-12 (CEST, UTC+02:00), R7 WP-119: the datum part may sit
+%   beside regularising prior groups (BlockAccumulator.datumPart per group).
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-114 (R7-05): the optional
 %   datum part -- the parameter cofactor of a datum-constrained problem is the
 %   minimum-constraint one; downdate updates its factor too. With assistance
@@ -111,7 +116,7 @@ classdef BlockCofactor
         sys         % 1 x S struct: cols, Nll, H (H'*H = pinv(Nll)), G = pinv(Nll)*Nlc;
                     % a local-free system keeps its slot (empty cols), so s indexes
                     % the systems in the order given
-        Rm = []     % [] | nc x nc, Rm'*Rm = N_red + c^2 K'K (the datum re-weighted, R7 WP-114)
+        Rm = []     % [] | nc x nc, Rm'*Rm = N_red + Ki'Ki + c^2 Kd'Kd (the datum re-weighted, R7 WP-114/119)
         Dm = []     % nc x k, Dm*Dm' = K'(KK')^-2 K / c^2: Qcc = inv(Rm'Rm) - Dm*Dm'
     end
 

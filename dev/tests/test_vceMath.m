@@ -353,6 +353,12 @@ function testPriorRejectsBadTarget(tc)
     K = eye(6);
     tc.verifyError(@() lsqvce.engine.CommonPrior(K, ones(3,1)), 'lsqvce:prior:badTarget');
     tc.verifyError(@() lsqvce.engine.CommonPrior(K, [], -1),    'MATLAB:lsqvce:engine:CommonPrior:expectedPositive');
+    % R7 WP-119: one positive integer group per row, or refused by name
+    tc.verifyError(@() lsqvce.engine.CommonPrior(K, [], 1, ones(5, 1)), 'lsqvce:prior:badGroup');
+    tc.verifyError(@() lsqvce.engine.CommonPrior(K, [], 1, [0; ones(5, 1)]), 'lsqvce:prior:badGroup');
+    pri = lsqvce.engine.CommonPrior(K, [], 1, [1; 1; 2; 2; 2; 3]);
+    tc.verifyEqual(pri.withSigma(2).group, [1; 1; 2; 2; 2; 3], 'withSigma keeps the groups');
+    tc.verifyEqual(lsqvce.engine.CommonPrior(K).group, ones(6, 1), 'the default is one group');
 end
 
 %% ================================================== separable multi-axis

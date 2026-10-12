@@ -29,7 +29,13 @@ v6 (the cells are the arcs) 2026-09-09, Claude Fable 5.1.
      not see is recognised as a datum, and `R.sol.Cxx` and the diagnostics' parameter
      cofactor are the minimum-constraint ones, s0²·pinv(N). Before, the datum's σ entered
      the standard errors: 0.005 at σ = 1, 2.48 at σ = 1e3.
-   - A prior that is only partly in the null space keeps the solve's covariance.
+   - Since 6.11.0 (R7 WP-119) the test runs per GROUP: a group is a datum when the data and
+     every other group are blind to its rows. A datum stacked with a group that regularises
+     other parameters (a Kaula rule on the field beside minimum constraints on the stations)
+     gets the minimum-constraint covariance of the data plus that group, s0²·pinv(N + Ki'Ki).
+   - A group only partly in the null space, or one that overlaps another group (a ridge on
+     every parameter beside a datum), is information: its x moves with its σ, so it keeps the
+     solve's covariance. Declare datum rows as a group of their own.
    - `R.residuals()` and the redundancy count include the prior's rows, so they agree with
      the solve. A Kaula rule or a background model is the
    same declaration with a scientific `L`. With `estimate = "scale"` (R5 M7 7b) the group has

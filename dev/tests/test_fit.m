@@ -1203,6 +1203,55 @@ function testDatumCovarianceIsTheMinimumConstraintOne(tc)
     tc.verifyGreaterThan(red.priorRedundancy, 0);
 end
 
+function testDatumGroupBesideARegulariser(tc)
+% categories: precision, contract, robustness
+    % R7 WP-119 (the residue §12.48 recorded): the datum test runs per declared
+    % GROUP. Minimum constraints on four levelled heights beside a ridge on two
+    % extra parameters the datum does not touch: before, the stacked prior was
+    % not a datum and se(h) grew 0.09 -> 41.6 -> 4.2e4 with the datum sigma
+    % (mirror wp119/datum_split.py); now it is s0^2 pinv(N + Ki'Ki) at every
+    % sigma, on both backends. A ridge on EVERY parameter, or datum rows inside
+    % one partial group, is information and keeps the solve's covariance.
+    rs = RandStream('mt19937ar', 'Seed', 7);
+    pairs = [1 2; 2 3; 3 4; 4 1; 1 3];
+    A = zeros(size(pairs, 1) + 3, 6);
+    for k = 1:size(pairs, 1)
+        A(k, pairs(k, 1)) = -1;  A(k, pairs(k, 2)) = 1;  A(k, 5) = 0.3*k;  A(k, 6) = (-1)^k;
+    end
+    A(size(pairs, 1) + 1:end, 5:6) = randn(rs, 3, 2);
+    l = A*[0; 1.5; -0.7; 2.2; 0.2; -0.1] + 0.01*randn(rs, size(A, 1), 1);
+    datum = [1 1 1 1 0 0];  ridge = [0 0 0 0 1 0; 0 0 0 0 0 1];  sr = 0.5;
+    Qref = pinv(A.'*A + ridge.'*ridge / sr^2);
+    for bk = ["qr" "normal"]
+        for sg = [1 1e3 1e6]
+            P = struct('L', {datum, ridge}, 'sigma', {sg, sr}, 'name', {'datum', 'ridge'});
+            R = lsqvce.fit(struct('A', A, 'l', l, 'priors', P), Verbose=false, Backend=bk);
+            msg = sprintf('%s, datum sigma %g', bk, sg);
+            % tol: 1e-8 relative -- the minimum-constraint cofactor of the data plus
+            % the ridge from the re-weighted factor vs the dense pseudo-inverse
+            % (mirror: 1e-15 at every sigma, both backends)
+            tc.verifyEqual(sqrt(diag(R.sol.Cxx)), sqrt(R.sol.s0sq * diag(Qref)), 'RelTol', 1e-8, msg);
+            % tol: as above -- the diagnostics' parameter cofactor is the same one
+            tc.verifyEqual(R.diag.sigX(:), sqrt(diag(Qref)), 'RelTol', 1e-8, msg);
+            res = tc.verifyWarningFree(@() R.residuals('Verbose', false));
+            % tol: 1e-8 relative -- two routes to the same v'Pv over the same dof
+            tc.verifyEqual(res.sigma0, R.sigma0, 'RelTol', 1e-8, msg);
+            red = tc.verifyWarningFree(@() R.acc.redundancy(R.sol, 'Verbose', false));
+            tc.verifyLessThan(red.check, 1e-8, msg);
+        end
+    end
+    % information, not a datum: the solve's own covariance s0^2 inv(N + K'K)
+    info = {struct('L', {datum, eye(6)}, 'sigma', {1, 1}), ...       % a ridge on everything overlaps the datum
+            struct('L', [datum; ridge], 'sigma', 1)};                 % ONE group, only partly in the null space
+    for k = 1:numel(info)
+        K = vertcat(info{k}.L);
+        R = lsqvce.fit(struct('A', A, 'l', l, 'priors', info{k}), Verbose=false);
+        % tol: 1e-8 relative -- the solve's cofactor from the factor vs the dense inverse
+        tc.verifyEqual(diag(R.sol.Cxx), R.sol.s0sq * diag(inv(A.'*A + K.'*K)), 'RelTol', 1e-8, ...
+            sprintf('information case %d keeps the solve''s covariance', k));
+    end
+end
+
 function testDatumIsADeclaredPrior(tc)
 % categories: contract, reference, robustness
     % R5 M5 5b: a free network's DATUM is a declared prior on the null space

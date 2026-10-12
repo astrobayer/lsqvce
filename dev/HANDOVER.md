@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-11 — WP-114 DONE (PR #136, merge 4bdcfe5; CI GREEN on 4c31b83); R7 TRACK CLOSED (model Claude Opus 5.5, user decision): every WP 111-118 merged, 45 of 46 findings fixed in the tree (R7-46 is the review skill's own instrument); the residues are recorded, not opened; no code change, no version; §12.48.
+Last substantive update: 2026-10-12 — WP-119 OPEN (tier B, model Claude Opus 5.5; user: "continue fixing the known limitations" -- the three residues §12.48 recorded, one WP each, 119 -> 120 -> 121): the datum test runs per declared prior GROUP -- a datum stacked with a regularising group gets the minimum-constraint covariance s0^2 pinv(N + Ki'Ki); a group only partly in the null space stays information (by design, stated); version 6.11.0; §12.49.
+Preceding entry: Last substantive update: 2026-10-11 — WP-114 DONE (PR #136, merge 4bdcfe5; CI GREEN on 4c31b83); R7 TRACK CLOSED (model Claude Opus 5.5, user decision): every WP 111-118 merged, 45 of 46 findings fixed in the tree (R7-46 is the review skill's own instrument); the residues are recorded, not opened; no code change, no version; §12.48.
 Preceding entry: Last substantive update: 2026-10-11 — WP-113 DONE (PR #135, merge 2ec85d6); WP-114 OPEN (tier B, model Claude Opus 5.5): R7-05 / R7-15 -- a datum prior's covariance is the minimum-constraint one (sigma-independent), residuals() / redundancy() count a common prior; version 6.10.0; §12.47.
 Preceding entry: Last substantive update: 2026-10-11 — WP-112 DONE (PR #134, merge ec4625a); WP-113 OPEN (tier B, model Claude Opus 5.5): R7-14 / R7-04 -- Gauss-Newton damps the common block (Marquardt rows), shifts the prior to x, checks descent from pass 1 on the declared objective, returns the best accepted point; version 6.9.0; §12.46.
 Preceding entry: Last substantive update: 2026-10-11 — WP-111 part 3 DONE (PR #133, merge 290d7ff), WP-111 complete; WP-112 OPEN (tier B, model Claude Opus 5.5): R7-03 / R7-16 -- the QR backend's accumulator path square-root throughout (locals eliminated on the factor, contributions and the common prior merged as rows), the rank decision QRSystem.RankTol on the pivots; version 6.8.0; §12.45.
@@ -8902,3 +8903,54 @@ it; a new WP needs the user):
 **What the next session could be wrong for not reading.** The last subsection of §12 is
 this closure, not a round in progress: nothing is open on `main` until the user opens a
 WP or a new review.
+
+### 12.49 WP-119 — a datum beside a regulariser (2026-10-12, model Claude Opus 5.5)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 119 | §12.48 residue 1: the datum test per declared prior GROUP (`CommonPrior.group`, `BlockAccumulator.datumPart`) -- a datum stacked with a regularising group gets s0^2 pinv(N + Ki'Ki); a group only partly in the null space stays information; **version 6.11.0** | R7 closed (PR #137 merged 58e3561) | OPEN (tier B; CI is the gate) |
+
+**The user's request (2026-10-12):** "continue fixing the known limitations" -- the three
+residues §12.48 recorded. One WP each, in order: 119 the partial / stacked datum, 120 the
+Ljung-Box lag count, 121 snoop's `Reaccumulate=true` dense factor and the verdict's re-read.
+
+**Scope frozen before the code.** The residue named two cases: (a) a prior only PARTLY in
+the null space, (b) a datum stacked with a regularising group. The mirror settled which of
+them is a defect:
+- A row-level split (the prior's row space minus what the data see, kept when the rest of
+  the prior leaves it invariant) also calls the null part of a RIDGE ON EVERY PARAMETER a
+  datum -- se 0 on that direction instead of the regularisation's sigma. A Kaula / Tikhonov
+  prior on an unobserved direction is a Bayesian prior, not a datum definition; the algebra
+  cannot tell them apart, the user's declaration can. **The unit is the GROUP.**
+- (b) is the defect and is fixed: group g is a datum when the data AND every other group are
+  blind to its rows (N Kg' = 0, Kh Kg' = 0 for h ~= g -- with every term PSD, the same as Kg
+  in the null space of N plus the other groups). Then span(Kd') is the null space of
+  Ni = N + Ki'Ki, x is Ni's minimum-constraint solution for any datum sigma, and the cofactor
+  is pinv(Ni) -- WP-114's stable form with Ni for N.
+- (a) is not a defect: a group partly in the null space moves x with its sigma (mirror:
+  x(5) 0.1846 / 0.2032 at sigma 1 / 1e3), so the solve's covariance is the honest one. It is
+  now stated as the rule ("declare datum rows as a group of their own"), not as a residue.
+
+**Mirror** (`dev/reviews/R7_2026-10-09/mirrors/wp119/datum_split.py`; 4 levelled heights + a
+scale and a tilt, nullity 1): datum + ridge on the extras, datum sigma 1 / 1e3 / 1e6 --
+se(h1) of the solve 0.0915 / 41.56 / 4.16e4, of the datum part 0.0815 at all three; the
+datum part equals pinv(N + Ki'Ki) to 1.3e-15 (normal) / 9.9e-16 (QR) relative, in either
+group order; the pure datum (WP-114) unchanged (3.5e-16). Not a datum on either backend:
+a ridge on everything, datum + ridge on everything, datum + ridge on heights 1-2, one
+partial group, one row mixing level and scale.
+
+**Built.** `CommonPrior` 4th argument `group` (nk x 1 positive integers, default one group;
+`lsqvce:prior:badGroup`; `withSigma` keeps it). `fit`'s `stackPriors` tags each group's rows
+with its index; Gauss-Newton's damping rows are a group of their own. `datumPart` tests
+each group (|S Kg'| <= tol |S||Kg| on N (1e-10) or the QR factor (1e-8), as WP-114, and
+|Ko Kg'| <= 1e-10 |Ko||Kg|) and builds Rm from N + Ki'Ki + c^2 Kd'Kd (chol) or
+[R; Ki; c Kd] (QR); `BlockCofactor` unchanged in code (its leverage statement still holds:
+a data row lies in range(N), orthogonal to Kd). Manual 3 section 0a, fit / CommonPrior /
+BlockAccumulator / BlockCofactor help, release notes. Cost: two Frobenius products per
+group, no SVD.
+Tests (635 = 634 + 1): `test_fit>testDatumGroupBesideARegulariser` (both backends, datum
+sigma 1 / 1e3 / 1e6: se and D.sigX equal the pinv(N + Ki'Ki) ones to 1e-8; residuals() and
+redundancy() warning-free and consistent; a ridge on everything beside a datum and one
+partial group keep the solve's covariance); `test_vceMath>testPriorRejectsBadTarget` gains
+the badGroup contract (no new test point).
+NOT validated before CI: no MATLAB in the container.

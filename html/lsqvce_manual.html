@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.10.0 — User Manual</title>
+  <title>lsqvce 6.11.0 — User Manual</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.10.0 — User Manual</h1>
+<h1 class="title">lsqvce 6.11.0 — User Manual</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 <p class="date">built from the sources; the single documentation
@@ -436,8 +436,16 @@ prior the data do not see is recognised as a datum, and
 <code>R.sol.Cxx</code> and the diagnostics’ parameter cofactor are the
 minimum-constraint ones, s0²·pinv(N). Before, the datum’s σ entered the
 standard errors: 0.005 at σ = 1, 2.48 at σ = 1e3.</li>
-<li>A prior that is only partly in the null space keeps the solve’s
-covariance.</li>
+<li>Since 6.11.0 (R7 WP-119) the test runs per GROUP: a group is a datum
+when the data and every other group are blind to its rows. A datum
+stacked with a group that regularises other parameters (a Kaula rule on
+the field beside minimum constraints on the stations) gets the
+minimum-constraint covariance of the data plus that group, s0²·pinv(N +
+Ki’Ki).</li>
+<li>A group only partly in the null space, or one that overlaps another
+group (a ridge on every parameter beside a datum), is information: its x
+moves with its σ, so it keeps the solve’s covariance. Declare datum rows
+as a group of their own.</li>
 <li><code>R.residuals()</code> and the redundancy count include the
 prior’s rows, so they agree with the solve. A Kaula rule or a background
 model is the same declaration with a scientific <code>L</code>. With
@@ -4645,398 +4653,402 @@ is not raised).</p>
 <td>engine.NormalEqSystem — error — v4.0</td>
 </tr>
 <tr class="even">
+<td><code>lsqvce:prior:badGroup</code></td>
+<td>engine.CommonPrior — error — v6.11.0</td>
+</tr>
+<tr class="odd">
 <td><code>lsqvce:prior:badTarget</code></td>
 <td>engine.CommonPrior — error — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:probeMatrix:badDist</code></td>
 <td>engine.private.probeMatrix — error — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:psd2acv:aboveNyquist</code></td>
 <td>kernel.psd2acv — warning — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:psd2acv:nonPositiveVariance</code></td>
 <td>kernel.psd2acv — error — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:psd2acv:tooFewPoints</code></td>
 <td>kernel.psd2acv — error — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:psdVCE:arcMismatch</code></td>
 <td>engine.psdVCE — error — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:psdVCE:shapeMismatch</code></td>
 <td>engine.psdVCE — error — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:qr:badMerge</code></td>
 <td>engine.QRSystem — error — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:qr:badWidth</code></td>
 <td>engine.QRSystem — error — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:qr:cancellation</code></td>
 <td>engine.QRSystem — warning — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:qr:noData</code></td>
 <td>engine.QRSystem — error — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:qr:noRedundancy</code></td>
 <td>engine.QRSystem — error — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:qr:rankDeficient</code></td>
 <td>engine.QRSystem — error — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:qr:singularR</code></td>
 <td>engine.QRSystem — error — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:qr:sizeMismatch</code></td>
 <td>engine.QRSystem — error — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:reduced:notSquare</code></td>
 <td>engine.ReducedContribution — error — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:reduced:sizeMismatch</code></td>
 <td>engine.ReducedContribution — error — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:redundancy:hutchFailed</code></td>
 <td>engine.redundancy — warning — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:redundancy:hutchinsonExperimental</code></td>
 <td>engine.redundancy — warning — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:redundancy:identityViolated</code></td>
 <td>engine.redundancy — warning — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:redundancy:noStore</code></td>
 <td>engine.redundancy — error — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:redundancy:smallGroup</code></td>
 <td>engine.redundancy — warning — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:redundancy:spmdNoCollect</code></td>
 <td>engine.redundancy — warning — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:redundancyLags:badEbar</code></td>
 <td>kernel.redundancyLags — error — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:redundancyLags:badLocal</code></td>
 <td>kernel.redundancyLags — error — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:redundancyLags:badUiZ</code></td>
 <td>kernel.redundancyLags — error — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:redundancyLags:badW</code></td>
 <td>kernel.redundancyLags — error — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:residuals:badSol</code></td>
 <td>engine.residuals — error — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:residuals:noStore</code></td>
 <td>engine.residuals — error — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:residuals:sigma0Mismatch</code></td>
 <td>engine.residuals — warning — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:residuals:supersedesSol</code></td>
 <td>engine.residuals — warning — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:resolveNc:conflict</code></td>
 <td>engine.resolveNc — error — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:resolveNc:empty</code></td>
 <td>engine.resolveNc — error — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:resolveNc:missing</code></td>
 <td>engine.resolveNc — error — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:robust:atBreakdown</code></td>
 <td>engine.private.warnAtBreakdown — warning — v6.1.4</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:robustWeights:badInfluence</code></td>
 <td>kernel.robustWeights — error — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:robustWeights:badTuning</code></td>
 <td>kernel.robustWeights — error — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:robustWeights:scaleFallback</code></td>
 <td>kernel.robustWeights — warning — v6.1.4</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:runMeta:badArg</code></td>
 <td>engine.runMeta — error — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:separable:acvTooShort</code></td>
 <td>kernel.separableWhiten — error — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:separable:badSigma</code></td>
 <td>kernel.separableWhiten — error — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:separable:badSigmaShape</code></td>
 <td>kernel.separableWhiten — error — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:separable:epochNotPD</code></td>
 <td>kernel.separableWhiten — error — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:separable:notWholeEpochs</code></td>
 <td>kernel.separableWhiten — error — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:separable:sigmaLength</code></td>
 <td>kernel.separableWhiten — error — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:separable:startupNotPD</code></td>
 <td>kernel.separableWhiten — warning — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:sharedProbe:badProbes</code></td>
 <td>engine.sharedProbe — error — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:sharedProbe:notSquare</code></td>
 <td>engine.sharedProbe — error — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:snoop:breakdown</code></td>
 <td>engine.verdict — error — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:snoop:contaminated</code></td>
 <td>engine.verdict — warning — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:snoop:correlatedBatch</code></td>
 <td>engine.verdict — error — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:snoop:downdateFailed</code></td>
 <td>engine.verdict — warning — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:snoop:forcedBreakdown</code></td>
 <td>engine.verdict — warning — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:snoop:forcedContaminated</code></td>
 <td>engine.verdict — warning — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:snoop:forcedOverCap</code></td>
 <td>engine.verdict — warning — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:snoop:lowRedundancy</code></td>
 <td>engine.verdict — warning — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:snoop:maxReject</code></td>
 <td>engine.verdict — warning — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:snoop:rejectFraction</code></td>
 <td>engine.verdict — warning — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:snoop:tooContaminated</code></td>
 <td>engine.verdict — error — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:stat:badDof</code></td>
 <td>kernel.stat — error — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:stat:badProb</code></td>
 <td>kernel.stat — error — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:stat:sizeMismatch</code></td>
 <td>kernel.stat — error — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:streamContribution:badSol</code></td>
 <td>engine.streamContribution — error — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:streamContribution:cNotPD</code></td>
 <td>engine.streamContribution — error — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:streamContribution:noArcs</code></td>
 <td>engine.streamContribution — error — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:streamContribution:noStore</code></td>
 <td>engine.streamContribution — error — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:synthLoader:badArc</code></td>
 <td>engine.synthLoader — error — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:synthLoader:noNoiseModel</code></td>
 <td>engine.synthLoader — error — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:systematic:badCovariate</code></td>
 <td>engine.verdict — error — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:systematic:lbUnreliable</code></td>
 <td>engine.verdict — warning — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:systematic:noResiduals</code></td>
 <td>engine.verdict — error — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:systematic:tooFew</code></td>
 <td>engine.verdict — warning — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:toeplitzCofactor:badVariance</code></td>
 <td>kernel.toeplitzCofactor — warning — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:toeplitzCofactor:empty</code></td>
 <td>kernel.toeplitzCofactor — error — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:toeplitzCofactor:notACV</code></td>
 <td>kernel.toeplitzCofactor — warning — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:traceEstimate:badOperator</code></td>
 <td>engine.traceEstimate — error — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:traceEstimate:needSize</code></td>
 <td>engine.traceEstimate — error — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:traceEstimate:notSquare</code></td>
 <td>engine.traceEstimate — error — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:traceEstimate:sizeMismatch</code></td>
 <td>engine.traceEstimate — error — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:util:log:badKey</code></td>
 <td>util.log — error — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:varACV:badA</code></td>
 <td>kernel.varACV — error — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:varACV:notStationary</code></td>
 <td>kernel.varACV — error — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:varWhiten:badA</code></td>
 <td>kernel.varWhiten — error — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:varWhiten:badSigma</code></td>
 <td>kernel.varWhiten — error — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:varWhiten:badStartup</code></td>
 <td>kernel.varWhiten — error — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:varWhiten:notWholeEpochs</code></td>
 <td>kernel.varWhiten — error — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:vce:badAccFcn</code></td>
 <td>engine.vce — error — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:vce:badSigma0</code></td>
 <td>engine.vce — error — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:vce:groupMismatch</code></td>
 <td>engine.vce — error — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:vce:hutchGroupMismatch</code></td>
 <td>engine.vce — error — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:vce:lowRedundancy</code></td>
 <td>engine.vce — warning — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:vce:notConverged</code></td>
 <td>engine.vce — warning — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:verbosity:badLevel</code></td>
 <td>util.verbosity — error — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:verbosity:badTag</code></td>
 <td>util.verbosity — error — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:whittle:badG</code></td>
 <td>kernel.whittle — error — v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:whittle:notPD</code></td>
 <td>kernel.whittle — error — v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:covModel:badNugget</code></td>
 <td>engine.covModel — error — v6.6.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:covModel:nuggetNeedsWholeArc</code></td>
 <td>engine.covModel — error — v6.6.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:redundancyLags:badNugget</code></td>
 <td>kernel.redundancyLags — error — v6.6.0</td>
 </tr>
