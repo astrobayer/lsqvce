@@ -1,0 +1,112 @@
+% Chapter 5 -- quality assessment.
+\chapter{Quality assessment}\label{ch:quality}
+
+All statistics of this chapter are formed in the whitened frame with a-priori $\sigma_0=1$; an
+``observation'' is a whitened row, which for a correlated law is a linear combination of raw
+epochs. The parameter set is the full one, $u=n_c+\sum_sn_{l,s}$, and the observations include the
+prior rows, so $n-u$ is the total redundancy. The cofactor matrix is held as the blocks of
+\eqref{eq:leverage}.
+
+\section{The order of the verdict}
+
+A result is judged in a fixed order, each level assuming the one before it holds:
+\begin{enumerate}
+\setcounter{enumi}{-1}
+\item \textbf{Integrity.} The redundancy identity $\sum_ir_i=n-u$ holds, and the residual sum of
+  the accumulation agrees with that of a direct pass over the residuals.
+\item \textbf{Global test.} Is the model as a whole consistent with the declared noise?
+\item \textbf{Localisation.} Which observations violate it?
+\item \textbf{Reliability.} What could not have been detected, and how far could it move the
+  estimates?
+\item \textbf{Parameters.} What is actually known: precision, correlation, conditioning.
+\end{enumerate}
+
+\section{Global test}
+
+$\hat\sigma_0^2/\sigma_0^2$ is tested against $\chi^2_{n-u}/(n-u)$ in the two-sided band
+$[\chi^2_{0.005}/(n-u),\ \chi^2_{0.995}/(n-u)]$, with the 95\,\% confidence interval
+$\bigl[\hat\sigma_0\sqrt{r/\chi^2_{0.975}(r)},\ \hat\sigma_0\sqrt{r/\chi^2_{0.025}(r)}\bigr]$. After
+variance-component estimation the fixed point $\Omega_g=r_g$ makes the test pass by construction
+for every estimated group.
+
+\section{Redundancy numbers and the outlier tests}\label{sec:redundancy}
+
+\paragraph{Redundancy numbers.} $r_i=1-\bar{\vc a}_i\T\mat Q_{xx}\bar{\vc a}_i$, evaluated exactly with
+the local block \eqref{eq:leverage}. $r_i\to0$: the observation is fitted whatever its value (no
+control); $r_i\to1$: it barely influences the solution.
+
+\paragraph{Standardised residuals.} For an observation with $r_i>r_{\min}$,
+\begin{equation}
+w_i=\frac{\bar v_i}{\hat s\sqrt{r_i}},
+\end{equation}
+with $\hat s=\hat\sigma_0$ (Pope's test, $\sigma_0$ estimated), $\hat s=\sigma_0$ (Baarda's test,
+$\sigma_0$ known) or a robust MAD scale; observations below $r_{\min}$ are uncontrolled and not
+tested. Under Pope's test $w_i$ follows the $\tau$ distribution,
+$\tau_r=t_{r-1}\sqrt r/\sqrt{r-1+t_{r-1}^2}$, bounded by $\sqrt r$. With $n$ tests the family-wise level
+is controlled by Bonferroni, $\alpha'=\alpha/n$.
+
+\paragraph{Iterative data snooping.} The observation with the largest $|w_i|$ above the critical
+value is removed, the solution is updated, and the test is repeated with $\alpha$ divided by the
+remaining number of observations. Removing whitened row $i$ with weight $p$ is a rank-one downdate:
+with $\vc z=\vc a_c-\mat G\T\vc b$ and $\delta=1-p\,\vc b\T\mat N_{ll}^{-1}\vc b$,
+\begin{equation}
+\mat R_c\leftarrow\operatorname{cholupdate}\bigl(\mat R_c,\sqrt{p/\delta}\,\vc z,-\bigr),\qquad
+\mat N_{ll}\leftarrow\mat N_{ll}-p\,\vc b\vc b\T,\qquad
+\hat{\vc x}\leftarrow\hat{\vc x}+p\,\bar v_i\,\mat Q_{xx}\vc a_i ,
+\end{equation}
+and $\bar{\vc v}\T\bar{\vc v}$ decreases by $p\bar v_i^2/r_i$. Observations with low redundancy are not
+rejected, and the number of rejections is capped; the final model is re-accumulated from the
+surviving data.
+
+\paragraph{Robust cross-check.} The raw scores $\rho_i=\bar v_i/\sqrt{r_i}$ give a robust scale
+(the centred MAD). Their ratio to $\hat\sigma_0$, and the share $\hat f$ of scores beyond $2.5$
+robust standard deviations (null value $2\Phi(-2.5)=0.0124$), gauge whether the least-squares scale
+is inflated by contamination: a contaminated fit inflates $\hat\sigma_0$ and masks its own outliers.
+
+\section{Reliability}\label{sec:reliability}
+
+The minimal detectable bias of observation $i$ is
+\begin{equation}
+\nabla_{0,i}=\frac{\sigma_i\,\delta_0}{\sqrt{r_i}},\qquad
+1-\Phi(k-\delta_0)+\Phi(-k-\delta_0)=1-\beta,\quad k=\Phi^{-1}(1-\alpha'/2),
+\end{equation}
+the two-sided power solved exactly at the Bonferroni-corrected level ($\delta_0=4.13$ for
+$\alpha'=10^{-3}$, $\beta=0.2$). Its effect on the parameters (external reliability) is
+$\nabla\hat{\vc x}=\mat Q_{xx}\vc a_i\,p_i\,\nabla_{0,i}$, reported relative to the parameters'
+standard deviations. Observations with small $r_i$ --- short arcs, many local parameters --- are
+where undetected errors hide.
+
+\section{Whiteness and systematic errors}\label{sec:whiteness}
+
+After variance-component estimation the whitened residuals of every stream should be white. The
+Ljung--Box statistic pools the arcs of a stream: with lag sums $s_k=\sum\bar e_i\bar e_{i+k}$ and
+pair counts $N_k=\sum_{\mathrm{arcs}}\max(m_a-k,0)$,
+\begin{equation}
+Q=N_0(N_0+2)\sum_{k=1}^{K}\frac{\rho_k^2}{N_k}\sim\chi^2_K,\qquad\rho_k=s_k/s_0,\quad K=20 .
+\end{equation}
+It detects correlation at short lags, periodic terms and excess low-frequency noise; a correlation
+confined to a single long lag lies outside it. Structure in the residuals against time or another
+covariate --- runs, binned means, periodogram peaks --- indicates a \emph{functional} model error.
+Variance-component estimation cannot repair such an error; it absorbs it into the noise at the
+price of pessimistic errors and down-weighted arcs.
+
+\section{Parameter-level measures}
+
+\paragraph{Correlation and conditioning.} Correlations follow from $\mat Q_{xx}$. The condition
+number of $\mat N$ is bounded from below by power iterations on $\mat N$ and $\mat Q_{xx}$; it is a lower
+bound.
+
+\paragraph{Contribution of an observation group.} The share of group $g$ in the solution is measured
+by its redundancy, $r_g/\sum_hr_h$; the per-parameter contribution
+$\bigl[\mat N^{-1}\mat N_g\bigr]_{jj}$, which sums to one over the groups, is estimated with random
+probes.
+
+\paragraph{Nested models.} A full model with $u_F$ parameters against a reduced one with $u_R<u_F$ on
+the same $n$ observations:
+\begin{equation}
+F=\frac{(\Omega_R-\Omega_F)/(u_F-u_R)}{\Omega_F/(n-u_F)}\sim F(u_F-u_R,\ n-u_F),
+\end{equation}
+where $u$ counts the common and the eliminated local parameters.
+
+\paragraph{Confidence ellipses.} For a parameter pair, the ellipse of $\mat Q_{xx}$ restricted to the
+pair, scaled by $k^2=2F_{1-\alpha}(2,r)\hat\sigma_0^2$ (or $\chi^2_{1-\alpha}(2)$ when $\sigma_0$ is known).

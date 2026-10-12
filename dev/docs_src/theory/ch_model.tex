@@ -1,0 +1,175 @@
+% Chapter 1 -- the functional model and its solution.
+\chapter{The linear model and its solution}\label{ch:model}
+
+\section{Gauss--Markov model}
+
+The observations $\vc l\in\mathbb R^n$ are modelled as
+\begin{equation}\label{eq:gm}
+\vc l = \mat A\vc x + \vc e,\qquad \E\{\vc e\}=\vc 0,\qquad \mathrm{C}\{\vc e\}=\sigma_0^2\mat\Sigma ,
+\end{equation}
+with the design matrix $\mat A$ ($n\times u$, full column rank unless stated otherwise), the
+unknown parameters $\vc x$, the cofactor matrix $\mat\Sigma$ and the variance of unit weight
+$\sigma_0^2$. The best linear unbiased estimate and its covariance are
+\begin{equation}\label{eq:lsq}
+\hat{\vc x}=\mat N^{-1}\vc n,\quad \mat N=\mat A\T\mat P\mat A,\quad \vc n=\mat A\T\mat P\vc l,\quad
+\mat P=\mat\Sigma^{-1},\qquad
+\hat\sigma_0^2=\frac{\hat{\vc v}\T\mat P\hat{\vc v}}{n-u},\quad
+\mat\Sigma_{\hat x\hat x}=\hat\sigma_0^2\mat N^{-1},
+\end{equation}
+with the residuals $\hat{\vc v}=\vc l-\mat A\hat{\vc x}$. The residual is a projection,
+$\hat{\vc v}=(\mat I-\mat H)\vc l$ with the hat matrix $\mat H=\mat A\mat N^{-1}\mat A\T\mat P$, and
+the redundancy $n-u=\tr(\mat I-\mat H)$ is distributed over the observations by the diagonal of
+$\mat R=\mat I-\mat H$, $\sum_i r_i=n-u$. Every variance estimator of Chapter~\ref{ch:vce} is a
+specialisation of ``quadratic form over its expectation''.
+
+\section{Whitening}\label{sec:whiten}
+
+With a factor $\mat W$ of $\mat P=\mat W\T\mat W$ the model becomes
+$\bar{\vc l}=\bar{\mat A}\vc x+\bar{\vc e}$ with $\bar{\mat A}=\mat W\mat A$, $\bar{\vc l}=\mat W\vc l$ and
+$\mathrm C\{\bar{\vc e}\}=\sigma_0^2\mat I$, and \eqref{eq:lsq} is ordinary least squares. The
+toolbox takes $\mat W=\mat L^{-1}$, the inverse of the lower Cholesky factor of
+$\mat\Sigma=\mat L\mat L\T$. $\mat\Sigma$ is never formed for all observations: observations are
+grouped into \emph{arcs}, independent of each other, and every arc is whitened by its own law
+(Chapter~\ref{ch:stochastic}). All quantities below --- normal equations, residuals,
+redundancies, test statistics --- are expressed in the whitened frame with a-priori
+$\sigma_0=1$; ``residual'' means $\bar{\vc v}=\mat W\hat{\vc v}$ unless said otherwise.
+
+\section{Two ways to accumulate and solve}\label{sec:backends}
+
+\paragraph{Square-root information (QR, the default).} The upper-triangular factor $\mat R$ of
+$[\bar{\mat A}\ \bar{\vc l}]$ is updated batch by batch by Householder reduction,
+$\mat R\leftarrow\operatorname{triu}\operatorname{qr}\bigl([\mat R;\ \bar{\mat A}_k\ \bar{\vc l}_k]\bigr)$, and
+truncated to $u+1$ rows. With
+\[
+\mat R=\begin{bmatrix}\mat R_1 & \vc r\\ \vc 0\T & \rho\end{bmatrix},\qquad
+\hat{\vc x}=\mat R_1^{-1}\vc r,\qquad \bar{\vc v}\T\bar{\vc v}=\rho^2,\qquad
+\mat\Sigma_{\hat x\hat x}=\hat\sigma_0^2(\mat R_1\T\mat R_1)^{-1},
+\]
+so the residual sum of squares is obtained without subtraction, and the condition number is
+that of $\bar{\mat A}$, not its square. The rank decision is a pivot test: the system is
+refused when $\min_k|R_{1,kk}|\le 10^3\,\varepsilon\,\max_k|R_{1,kk}|$.
+
+\paragraph{Normal equations.} $\mat N=\sum_k\bar{\mat A}_k\T\bar{\mat A}_k$,
+$\vc n=\sum_k\bar{\mat A}_k\T\bar{\vc l}_k$ and $\bar{\vc l}\T\bar{\vc l}$ are summed, and
+$\mat N=\mat U\T\mat U$ is factorised by Cholesky. Partial systems add, which is the exchange
+format of the field, but $\kappa(\mat N)=\kappa(\bar{\mat A})^2$ and
+\begin{equation}\label{eq:cancel}
+\bar{\vc v}\T\bar{\vc v}=\bar{\vc l}\T\bar{\vc l}-\vc n\T\hat{\vc x}
+\end{equation}
+cancels catastrophically when the fit is very good relative to $\|\bar{\vc l}\|$. Where the
+cancellation exceeds the attainable precision the value is not trusted: the residual sum is
+recomputed from the residuals in a second pass over the data.
+
+\section{Block-arrow systems and the elimination of local parameters}\label{sec:blockarrow}
+
+The parameters split into \emph{common} parameters $\vc x_c$ ($n_c$), seen by every observation,
+and \emph{local} parameters $\vc y_s$ ($n_{l,s}$) of system $s$ --- initial states, instrument
+calibrations, empirical terms --- valid for one arc, one day or the whole system. For the rows of
+system $s$
+\begin{equation}\label{eq:blockarrow}
+\bar{\vc l}_s=\bar{\mat A}_s\vc x_c+\bar{\mat B}_s\vc y_s+\bar{\vc e}_s .
+\end{equation}
+The normal matrix has block-arrow form. The local block of each system --- all its arc-, day-
+and system-scoped parameters together --- is eliminated by the Schur complement
+\begin{equation}\label{eq:schur}
+\mat N_{cc}^{\mathrm{red}}=\mat N_{cc}-\mat N_{lc}\T\mat N_{ll}^{-1}\mat N_{lc},\qquad
+\vc n_c^{\mathrm{red}}=\vc n_c-\mat N_{lc}\T\mat N_{ll}^{-1}\vc n_l,\qquad
+(\bar{\vc l}\T\bar{\vc l})^{\mathrm{red}}=\bar{\vc l}\T\bar{\vc l}-\vc n_l\T\mat N_{ll}^{-1}\vc n_l ,
+\end{equation}
+and the reduced systems of all systems add. On the square-root backend the same reduction is a
+re-triangularisation with the local columns first,
+\[
+\begin{bmatrix}\mat R_{11}&\mat R_{12}&\vc r_1\\ & \mat R_{22}&\vc r_2\\ && \rho\end{bmatrix},
+\]
+whose trailing rows $[\mat R_{22}\ \vc r_2;\ \vc 0\T\ \rho]$ are the reduced contribution; it is
+accepted only if the local block passes the pivot test. Each system contributes $m_s-n_{l,s}$
+degrees of freedom.
+
+Back-substitution recovers
+\begin{equation}\label{eq:backsub}
+\hat{\vc y}_s=\mat N_{ll}^{-1}(\vc n_l-\mat N_{lc}\hat{\vc x}_c),\qquad
+\mat\Sigma_{\hat y\hat y}=\hat\sigma_0^2\mat N_{ll}^{-1}+\mat G\mat\Sigma_{\hat x\hat x}\mat G\T,\quad
+\mat G=\mat N_{ll}^{-1}\mat N_{lc}.
+\end{equation}
+Every diagnostic that involves the hat matrix includes the local block. With
+$\vc a=[\vc a_c;\vc b]$ a row in the full parameter space and $\vc z=\vc a_c-\mat G\T\vc b$,
+\begin{equation}\label{eq:leverage}
+\vc a\T\mat Q_{xx}\vc a=\bigl\|\mat R_c^{-\mathsf T}\vc z\bigr\|^2+\bigl\|\mat H_s\vc b\bigr\|^2,\qquad
+\mat H_s\T\mat H_s=\mat N_{ll}^{-1},
+\end{equation}
+where $\mat R_c$ is the factor of the reduced common system; the full $u\times u$ cofactor matrix
+is never formed.
+
+\section{Prior information and regularisation}\label{sec:priors}
+
+A prior is a group $k$ of $p_k$ pseudo-observations
+\begin{equation}\label{eq:prior}
+\mat L_k\vc x=\vc x_{0,k}+\vc e_k,\qquad \mathrm C\{\vc e_k\}=\sigma_k^2\mat I ,
+\end{equation}
+written in the columns of the parameters. In the whitened frame it contributes the rows
+$\mat L_k/\sigma_k$ with observations $\vc x_{0,k}/\sigma_k$; this is Tikhonov regularisation with
+$\lambda_k=\sigma_0^2/\sigma_k^2$, $\mat N_\lambda=\mat N+\sum_k\mat L_k\T\mat L_k/\sigma_k^2$.
+Relative weights inside a group are carried by the rows of $\mat L_k$; $\sigma_k$ is one common
+factor and can be estimated (\S\ref{sec:priorvce}).
+
+Priors on common parameters are stacked into one operator $\mat K=[\mat L_k/\sigma_k]_k$ and
+applied at the solve: on the square-root backend by appending its rows to the factor, on the
+normal backend as $\mat N+\mat K\T\mat K$. A prior on local parameters is an observation stream of
+its own with $\bar{\mat A}=\vc 0$, $\bar{\mat B}=\mat L/\sigma$ and $\bar{\vc l}=\vc x_0/\sigma$, so it
+enters the elimination \eqref{eq:schur} like data. Either way the prior rows count as
+observations: the redundancy is $n+\sum_k p_k-u$, and the share the data overrule is the
+redundancy of the group,
+\begin{equation}\label{eq:priorred}
+r_k=p_k-\tr\bigl(\mat L_k\mat N_\lambda^{-1}\mat L_k\T\bigr)/\sigma_k^2 .
+\end{equation}
+
+\subsection{The datum of a free network}\label{sec:datum}
+A rank defect --- a datum that no observation fixes --- is removed by a prior on the null space.
+Let $\mat K_g$ be the rows of group $g$. The group is a \emph{datum} if both the data and every
+other group are blind to it,
+\[
+\|\mat N\mat K_g\T\|_F\le\epsilon\,\|\mat N\|_F\|\mat K_g\|_F,\qquad
+\|\mat K_o\mat K_g\T\|_F\le\epsilon\,\|\mat K_o\|_F\|\mat K_g\|_F\quad(o\ne g),
+\]
+(on the square-root backend the first test is evaluated on the factor). With $\mat K_d$ the rows
+of all datum groups and $\mat K_i$ the rest, $\mat N_i=\mat N+\mat K_i\T\mat K_i$. Because the range
+of the data and the null space are orthogonal, the estimate $\hat{\vc x}$ is the
+minimum-constraint solution for any datum weight, and its covariance is that of the
+minimum-constraint problem,
+\begin{equation}\label{eq:mincon}
+\mat\Sigma_{\hat x\hat x}=\hat\sigma_0^2\,\mat N_i^{+},
+\end{equation}
+evaluated stably as $\hat\sigma_0^2(\mat R_m^{-1}\mat R_m^{-\mathsf T}-\mat D_m\mat D_m\T)$ with
+$\mat R_m\T\mat R_m=\mat N_i+c^2\mat K_d\T\mat K_d$, $\mat D_m=\mat K_d\T(\mat K_d\mat K_d\T)^{-1}/c$ and a
+balancing constant $c$. A group only partly in the null space, or one that overlaps another group,
+is information: its estimate moves with its $\sigma$, and it keeps the covariance
+$\hat\sigma_0^2(\mat N+\mat K\T\mat K)^{-1}$.
+
+\section{Nonlinear models: damped Gauss--Newton}\label{sec:gn}
+
+For $\vc l=f(\vc x)+\vc e$ the objective, prior included, is
+\begin{equation}\label{eq:gnobj}
+F(\vc x)=\bigl\|\mat W(\vc l-f(\vc x))\bigr\|^2+\sum_k\bigl\|(\mat L_k\vc x-\vc x_{0,k})/\sigma_k\bigr\|^2 .
+\end{equation}
+At the iterate $\vc x$ the Jacobian $\mat J$ is accumulated once; that accumulation is both the
+linearisation and the evaluation of $F(\vc x)$. The step $\Delta\vc x$ is one least-squares solve
+with two kinds of pseudo-rows on the common block:
+\begin{equation}\label{eq:gnstep}
+\mat K\,\Delta\vc x\approx\vc x_0-\mat K\vc x,\qquad
+\sqrt{\lambda d_j}\,\Delta x_j\approx0,\quad \vc d=\diag(\mat J\T\mat P\mat J).
+\end{equation}
+The first form makes the iteration converge to the minimiser of \eqref{eq:gnobj}; the second is
+Marquardt damping of the parameters themselves. A step is accepted only if
+$F(\vc x+\Delta\vc x)\le F(\vc x)$; a rejected step multiplies $\lambda$ by ten (from zero to
+$10^{-3}$) and is re-solved on the same accumulation, an accepted one divides it by ten (below
+$10^{-12}$ it is set to zero). The iteration stops when $\max_j|\Delta x_j|/\sigma_{x_j}$ or the
+relative change of $F$ falls below its tolerance. The covariance is that of the undamped
+linearised problem at the final point, so it does not depend on the damping history; a run that
+exhausts its budget returns the best accepted point.
+
+\section{What the estimates mean}\label{sec:meaning}
+
+$\mat\Sigma_{\hat x\hat x}=\hat\sigma_0^2\mat N^{-1}$ is the \emph{formal} covariance: correct if the
+functional model is complete, the stochastic model is right and the residuals are white.
+Chapter~\ref{ch:vce} makes the second condition true as far as the data allow;
+Chapter~\ref{ch:quality} tests the first and the third.

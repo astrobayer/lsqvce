@@ -12,7 +12,7 @@ classdef Results < handle
 %   PROPERTIES (read-only)
 %     x          nc x 1   double   Common-parameter estimate (the field).
 %     sigma0     1x1      double   A-posteriori variance factor (global).
-%     stopReason 1x1      string   Why the loop stopped (R5 M1): "single" |
+%     stopReason 1x1      string   Why the loop stopped: "single" |
 %                                  "converged" | "maxPasses". Convergence
 %                                  failure is a RESULT: the last pass is
 %                                  returned with its covariance and one warning.
@@ -25,7 +25,7 @@ classdef Results < handle
 %                                  .maxDev .S .streams .sigma .white
 %                                  .whitePval per pass, .skips, .nIter, and
 %                                  under Robust the per-pass .robustScale (one
-%                                  column per stream) .nDown .nZero -- R6 WP-105;
+%                                  column per stream) .nDown .nZero;
 %                                  by LSQVCE.ENGINE.ADJUSTROBUST: .scale .dx
 %                                  .nDown .nZero and, on the last pass, .factor
 %                                  .keys).
@@ -36,7 +36,7 @@ classdef Results < handle
 %                                  spectrum, LSQVCE.KERNEL.HATACV) .Sgroups /
 %                                  .Cgroups (one per pool group)
 %                                  .priors .priorHistory, and .robust
-%                                  (R6 WP-105: .influence, .scale per stream,
+%                                  (.influence, .scale per stream,
 %                                  .streams, .factor ONE PER EPOCH in sweep
 %                                  order, .keys; empty fields under "none").
 %     sol        1x1      struct   Raw output of acc.solve() (.x, .sigma0, ...).
@@ -46,7 +46,7 @@ classdef Results < handle
 %     batchFcn   1x1      function_handle   Re-reader used by LSQVCE.ENGINE.VERDICT.DIAGNOSE.
 %     nBatch     1x1      double   Batch count from the bridge.
 %     systems    1xM      struct   The resolved system specs (sysID/nl/dayList).
-%     meta       1x1      struct   Run provenance (WP-44). Field list is
+%     meta       1x1      struct   Run provenance. Field list is
 %                                  ADD-ONLY across versions, never renamed:
 %                                  .toolboxVersion 1xK char  from Contents.m,
 %                                                  the ONE version source
@@ -70,21 +70,21 @@ classdef Results < handle
 %     con = R.contribution(...)      Per-group information share.
 %     T = R.convergence(Name,Value)  Per-ITERATION trajectory: when the loop
 %                                    settled (needs .history).
-%     F = R.compare(Rred)            Nested-model F test against a reduced fit (R5 M7).
+%     F = R.compare(Rred)            Nested-model F test against a reduced fit.
 %     S = R.systematic(Name,Value)   Unmodelled signal in the residuals: Ljung-Box,
-%                                    runs, binned means (WP-86 part 4).
+%                                    runs, binned means.
 %     [D, REJ, sol] = R.snoop(...)   Iterative data snooping; R is not changed.
 %     T = R.reliability()            Per-observation r, w, MDB and (w, r) quadrant.
 %     E = R.ellipse(i, j, ...)       Confidence ellipse of the parameter pair (i, j).
 %     fh = R.plot(kind)              "residuals" | "contribution" | "psd" | "convergence"
-%                                    (R5 M5: one figure per question, nothing exported).
+%                                    (one figure per question, nothing exported).
 %     [C, L, map] = R.toTable(data)  The expanded parameter tables with estimate and
-%                                    standard deviation written in (R5-D8).
+%                                    standard deviation written in.
 %     T = R.summary()                Per-STREAM final state: sigma, AR order,
 %                                    whiteness (needs .history).
 %     T = R.coefficients(Alpha=a)    The estimates as a table with formal
 %                                    errors and (1-a) confidence bounds
-%                                    (R4 WP-57; default a = 0.05).
+%                                    (default a = 0.05).
 %     disp(R)                        One-screen summary.
 %
 %   THE TWO ITERATION READERS ARE COMPLEMENTARY. convergence() reduces across
@@ -94,7 +94,7 @@ classdef Results < handle
 %
 %   EXAMPLE
 %     R = lsqvce.engine.adjustBlock(systems, days);
-%     R.report('Level', 2);
+%     R.report();
 %     if ~R.converged, lsqvce.util.log.warn('did not converge'); end
 %     x = R.x;   s0 = R.sigma0;
 %
@@ -114,7 +114,7 @@ classdef Results < handle
 %   ACCURACY
 %     Results adds no numerics: x and sigma0 are the engine's (sigma0 is the
 %     A-POSTERIORI std of unit weight; sol.Cxx the covariance scaled by it --
-%     the streaming contract every producer must establish, R4 §11.8 L4 r1),
+%     the streaming contract every producer must establish),
 %     report() is lsqvce.report on .diag, coefficients() is arithmetic on x
 %     and diag(Cxx) with z(0.05) = 1.959963984540054 in closed form.
 %
@@ -162,6 +162,10 @@ classdef Results < handle
 %   model Claude Fable 5.
 %   Created 2026-07-16 12:20 (CEST, UTC+02:00) with assistance from
 %   Claude (Anthropic), model Claude Opus 4.8.
+%   Updated 2026-10-12 (CEST, UTC+02:00), WP-124: development history taken
+%   out of the help text (it lives in RELEASE_NOTES.md and dev/HANDOVER.md);
+%   references point at the API reference. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 
     properties (SetAccess = immutable)
         x

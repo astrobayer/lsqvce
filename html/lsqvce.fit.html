@@ -49,8 +49,8 @@ R = lsqvce.fit(data, opts)                  a lsqvce.Options object
 R = lsqvce.fit(data, Name, Value, ...)      the Options properties, straight on fit
 R = lsqvce.fit(data, opts, Name, Value)     both: the pairs override opts</pre>
 <h3>THE ONE VERB. You describe the problem with a plain struct `data`</h3>
-<pre class="example">(manual, chapter 3), say what to do with lsqvce.Options (chapter 4), and
-get a lsqvce.Results back (chapter 5):
+<pre class="example">(the API reference), say what to do with lsqvce.Options, and
+get a lsqvce.Results back:
 
     R = lsqvce.fit(data, Estimate=&quot;noise&quot;, Pool=&quot;obsType&quot;, OnPass=@myInspect);
     R.report;  R.plot(&quot;psd&quot;);  [C, L] = R.toTable(data);
@@ -59,13 +59,13 @@ THREE DATA KINDS, told apart by the fields of `data`, all on ONE accumulator:
   (A) streaming   data.commonParams, data.days, data.systems(k) with
                   buildDay / covariance / localParams / priors /
                   processingOptions and the optional arc schedule `arcs`
-                  (v6: buildDay returns one CELL per arc -- A, B, l, t,
+                  (buildDay returns one CELL per arc -- A, B, l, t,
                   Cep as 1 x nArc cells -- and the cells are the schedule
                   unless `arcs` declares one); optional data.priors,
                   data.paramColumns
   (B) in memory   data.A (m x u), data.l (m x 1), optional data.p (m x 1
                   weights); optional data.priors. A FULL m x m SPD weight
-                  matrix is kind C&#x27;s: return it from batchFcn (R6 WP-101)
+                  matrix is kind C&#x27;s: return it from batchFcn
   (C) batched     data.batchFcn @(k) -&gt; [A, l, p] (or @(k, x) -&gt; [J, w, p] with
                   data.x0 for Gauss-Newton), data.numUnknowns, data.numBatches;
                   optional data.priors</pre>
@@ -77,7 +77,7 @@ THREE DATA KINDS, told apart by the fields of `data`, all on ONE accumulator:
                      estimate &quot;scale&quot; get their sigma by Helmert / Koch-Kusche
   Robust &quot;huber&quot; | &quot;igg3&quot; | &quot;bisquare&quot;   IRLS on the same loop: alone it is
                      adjustRobust; with Estimate &quot;noise&quot; the robust pass runs
-                     INSIDE the joint loop (R6 WP-105), R.noise.robust carries
+                     INSIDE the joint loop, R.noise.robust carries
                      the final factors
   data.x0            Gauss-Newton with damping (adjustNonlinear)
 REGULARISATION is declared, never an option: data.priors(j) on the common
@@ -101,13 +101,7 @@ Name, Value          any property of lsqvce.Options</pre>
 <pre class="example">  Your declaration is wrong (raised BEFORE any data is read):
     lsqvce:fit:unknownField    a field name the contract does not know
                                (names the field; typos are errors on
-                               purpose -- and so are the retired fields:
-                               common, numCommon, numLocal,
-                               observationTypes, systemId, cache, loader,
-                               plotPostSolve, plotPostModel, since v4
-                               localsPerArc (declare &#x27;arc&#x27; rows in
-                               localParams instead), and since v5.3
-                               epochCovariance (the day returns Cep))
+                               purpose)
     lsqvce:fit:noSystems       data.systems missing, not a struct, or empty
     lsqvce:fit:noCommon        data.commonParams missing, or not a 2-D
                                cell of template rows
@@ -126,8 +120,8 @@ Name, Value          any property of lsqvce.Options</pre>
     lsqvce:fit:duplicateSystem two systems share an id (explicit or
                                index default)
     lsqvce:fit:builderKind     buildDay is not a function handle
-    lsqvce:fit:badArcs         arcs is a string (the v5 &#x27;fromDay&#x27; is retired:
-                               omit arcs -- the cells are the arcs), or a
+    lsqvce:fit:badArcs         arcs is a string (omit arcs: the cells are
+                               the arcs), or a
                                resolver returned something that is not
                                unique positive integers
     lsqvce:fit:&lt;makeLoader id&gt; a makeLoader construction error, relabelled
@@ -136,26 +130,24 @@ Name, Value          any property of lsqvce.Options</pre>
   Your choice is not available here:
     lsqvce:fit:notYet          Robust ~= &quot;none&quot; on a NONLINEAR batch problem
                                (x0): IRLS inside Gauss-Newton is not written;
-                               linearise first. (Robust with Estimate &quot;noise&quot;
-                               RUNS since R6 WP-105: the robust pass inside
-                               the joint loop)
+                               linearise first
     lsqvce:fit:modelKind       Estimate = &quot;noise&quot; on kinds B / C, which have
                                no streams to estimate a law for
     lsqvce:batchSystem:weightMatrix  a batch returned a weight argument that
                                is neither m x 1 nor an m x m SPD matrix. A
                                full SPD P IS accepted on kind C and whitened
-                               by its Cholesky factor (R5 M5 5b&#x27;) -- raised
+                               by its Cholesky factor -- raised
                                by lsqvce.engine.batchSystem
-    lsqvce:fit:priorNotActive  (warning, R5-D8) a prior with from &gt; 1 in a
+    lsqvce:fit:priorNotActive  (warning) a prior with from &gt; 1 in a
                                single-pass run is not applied
-    lsqvce:fit:badPrior        (R5 M5 5b) data.priors is malformed (unknown
+    lsqvce:fit:badPrior        data.priors is malformed (unknown
                                field, L not p x nc, sigma not a positive scalar,
                                x0 of the wrong length)
-    lsqvce:fit:badEstimate     (R5 M3 3d) covariance.&lt;type&gt;.estimate is not
+    lsqvce:fit:badEstimate     covariance.&lt;type&gt;.estimate is not
                                &quot;none&quot; | &quot;scale&quot; | &quot;law&quot;
-    lsqvce:fit:lawOnFixedStructure  (R5 M4 4b) estimate &quot;law&quot; on a stream whose
+    lsqvce:fit:lawOnFixedStructure  estimate &quot;law&quot; on a stream whose
                                sigma is per-row (a fixed structure: level only)
-    lsqvce:fit:varUnderNoise   (R7-07) a &#x27;var&#x27; law under Estimate = &quot;noise&quot;: the
+    lsqvce:fit:varUnderNoise   a &#x27;var&#x27; law under Estimate = &quot;noise&quot;: the
                                joint sweep has no vector-AR path
     lsqvce:fit:badMatrix       kind B shapes disagree (A m x u, l m x 1,
                                p m x 1)
@@ -165,7 +157,7 @@ Name, Value          any property of lsqvce.Options</pre>
                                u is stated once (numel(x0))
   Your buildDay is wrong (raised WHILE READING, by the engine, ids
   unchanged): lsqvce:makeLoader:badDay / dayShape / badArc / badArcId /
-  buildDay / badDayCep / axisConflict / cepTwice (v5.3: the day&#x27;s Cep and
+  buildDay / badDayCep / axisConflict / cepTwice (the day&#x27;s Cep and
   axis count), lsqvce:covModel:cepOnVar, lsqvce:accum:arcBadNc / arcBadNl;
   lsqvce:makeLoader:noCep is a once-per-run warning (a multi-axis day
   without Cep is composed with D = I)
@@ -209,7 +201,12 @@ Claude (Anthropic), model Claude Opus 5.
 Updated 2026-09-06 (CEST, UTC+02:00), R6 WP-90: the error information
 travels with the day (D.Cep); epochCovariance retired; the See also on
 the units that exist. With assistance from Claude (Anthropic), model
-Claude Fable 5.1.</pre>
+Claude Fable 5.1.
+
+Updated 2026-10-12 (CEST, UTC+02:00), WP-124: development history taken
+out of the help text (it lives in RELEASE_NOTES.md and dev/HANDOVER.md);
+references point at the API reference. With assistance from Claude
+(Anthropic), model Claude Opus 5.5.</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
 <div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

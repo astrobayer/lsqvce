@@ -4,15 +4,15 @@
 % experts call them directly. Roles from docs_src/tiers.csv, the ONE tier
 % authority (audit check 18).
 %
-%   adjustNonlinear    - Gauss-Newton / Levenberg as a policy on the block path (R5 M2)
-%   batchSystem        - a batch source as one local-free streaming system (R5 M2)
-%   adjustRobust       - IRLS (Huber/IGG3/bisquare) as a policy on the block path (R5 M2)
+%   adjustNonlinear    - Gauss-Newton / Levenberg as a policy on the block path
+%   batchSystem        - a batch source as one local-free streaming system
+%   adjustRobust       - IRLS (Huber/IGG3/bisquare) as a policy on the block path
 %   adjustBlock          - one GLS solve over the streaming block-arrow pipeline
 %   adjustVCEjoint       - Ellmer ten-step joint co-estimation with keyed arc factors
 %   applyRegularisation  - regularisation of the reduced system
 %   arcVarianceFactors   - per-arc variance factors
 %   BlockAccumulator     - block-arrow accumulation with per-system Schur pre-elimination
-%   BlockCofactor        - the cofactor of the full parameter set, kept as blocks (WP-86)
+%   BlockCofactor        - the cofactor of the full parameter set, kept as blocks
 %   checkPSD             - PSD sanity check
 %   collectResiduals     - residual collection per stream
 %   CommonPrior          - prior on the common block (regularisation as observations)
@@ -20,12 +20,12 @@
 %   covComponent         - covariance component estimation
 %   covModel             - covariance spec -> whitening operators (per arc)
 %   datum                - datum defect detection and handling
-%   declaration        - validate a kind-A data struct and build its loaders (R5-D8)
+%   declaration        - validate a kind-A data struct and build its loaders
 %   gcvLambda            - GCV choice of the regularisation weight
 %   jointModelOpt        - joint-mode model -> loader UserOpt translation
 %   localDiagnostics     - diagnostics of the local blocks
-%   localColumns       - which (row, day, arc) owns each column of B (R5-D8)
-%   makeLoader           - day-builder -> Loader (built INSIDE fit from the data struct, R4-D4)
+%   localColumns       - which (row, day, arc) owns each column of B
+%   makeLoader           - day-builder -> Loader (built inside fit from the data struct)
 %   mapreduce            - serial / parfor / spmd task runner with ordered reduce
 %   NormalEqSystem       - normal-equation backend
 %   outliers             - outlier listing from diagnostics
@@ -40,5 +40,5 @@
 %   streamContribution   - contribution per stream
 %   traceEstimate        - stochastic trace estimate
 %   vce                  - Helmert group variance components (exact | hutchinson)
-%   verdict              - the verdict: diagnostics, snooping, systematics, F test, ellipse (WP-86)
+%   verdict              - the verdict: diagnostics, snooping, systematics, F test, ellipse
 %   runMeta              - immutable provenance record for Results.meta

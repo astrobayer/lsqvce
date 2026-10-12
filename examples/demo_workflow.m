@@ -5,7 +5,7 @@
 %   `data` struct, let lsqvce.fit pick the right engine from its SHAPE, choose
 %   what to ESTIMATE with lsqvce.Options, and read what comes back.
 %
-%   THE USER PATH is one verb on a plain data struct (the Manual, chapter 3 is the
+%   THE USER PATH is one verb on a plain data struct (the API reference is the
 %   binding spec; examples/demo_fit.m shows it on every data kind):
 %       R = lsqvce.fit(data, lsqvce.Options(...));   R.report
 %
@@ -35,6 +35,10 @@
 %   WP-74): USER surface only -- every run is lsqvce.fit on a data struct;
 %   the engine names remain as the MAP of what fit dispatches to. With
 %   assistance from Claude (Anthropic), model Claude Fable 5.
+%
+%   Updated 2026-10-12 (CEST, UTC+02:00), WP-124: references to the data
+%   contract point at the API reference. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 
 %% ------------------------------------------------------------------------
 % SECTION 0.  What lsqvce needs from you: a data struct.
@@ -195,7 +199,7 @@ fprintf('  blunders     : %d flagged\n', D.nFlag);
 %       R = lsqvce.fit(data);                      % Estimate="none": one solve
 %
 % where buildDay(day, obsType, common, local, procOpt) returns that day's raw
-% design and observations (A, B, l, t -- the Manual, chapter 3 section 3).
+% design and observations (A, B, l, t -- the API reference, chapter buildDay).
 %
 % WHEN to reach for this instead of the flat kinds:
 %   * you have MORE THAN ONE system with its own biases/scales, or
@@ -237,7 +241,7 @@ vs.buildDay = @(day, ot) struct( ...                % rows of ONE group, as ONE 
 % observation -- so it travels WITH the day, as D.Cep. The covariance spec keeps
 % the TEMPORAL law and its LEVEL only: sigma is 1 because Cep already carries the
 % accuracy, and estimate "scale" asks for that one LEVEL per stream -- the factor
-% group 2 is really off by (the Manual, chapter 3 sections 5 and 7).
+% group 2 is really off by (the API reference, chapters Covariance specifications and buildDay).
 vs.covariance.g1 = struct('type', 'diag', 'sigma', 1, 'estimate', "scale");
 vs.covariance.g2 = struct('type', 'diag', 'sigma', 1, 'estimate', "scale");
 vdata.systems = vs;

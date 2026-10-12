@@ -1,0 +1,88 @@
+% Chapter 2 -- the stochastic model.
+\chapter{The stochastic model}\label{ch:stochastic}
+
+\section{Stationary noise per arc}
+
+Within one arc of $m$ equally spaced epochs the noise of a scalar stream is modelled as a
+stationary process with autocovariance $c_\tau$. Its covariance matrix is Toeplitz,
+\begin{equation}\label{eq:toeplitz}
+\mat\Sigma=\bigl[c_{|i-j|}\bigr]_{i,j=1}^m ,
+\end{equation}
+and it is positive definite for every $m$ if and only if the spectrum of the process is positive
+(Bochner). Arcs are independent of each other; non-stationarity across a campaign is carried by
+one variance factor per arc (\S\ref{sec:arcfactors}).
+
+\section{Temporal laws}
+
+A law is declared by one of the following, each with a level $\sigma$ (a standard deviation):
+
+\begin{center}
+\begin{tabular}{@{}ll@{}}
+\toprule
+law & covariance \\ \midrule
+white & $\mat\Sigma=\diag(\sigma_i^2)$ \\
+ARMA$(p,q)$ & $c_\tau$ of the process $\sum_{k=0}^p a_ke_{t-k}=\sum_{k=0}^q b_k\eta_{t-k}$, $\Var\eta=\sigma^2$\\
+covariance function & $\Sigma_{ij}=\sigma^2\rho(t_i-t_j)$ (actual time differences) \\
+spectrum & $c_\tau=\int_0^{f_{\mathrm N}}S(f)\cos(2\pi f\tau\Delta t)\,\mathrm df$ \\
+vector AR$(p)$ & $\vc e_t=\sum_{k=1}^p\mat A_k\vc e_{t-k}+\vc\eta_t$, $\mathrm C\{\vc\eta\}=\mat\Sigma_\eta$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{Spectrum to covariance.} A spectrum is given by ordinates $S_j$ at frequencies $f_j$
+and is taken as piecewise linear between them. Its autocovariance is the exact integral; for one
+segment $[a,b]$ with centre $c$, half-width $h$ and $x=2\pi\tau h$,
+\begin{equation}\label{eq:psd2acv}
+\int_a^b S(f)\cos(2\pi f\tau)\,\mathrm df=(S_a+S_b)\,h\cos(2\pi\tau c)\frac{\sin x}{x}
+-(S_b-S_a)\,h\sin(2\pi\tau c)\frac{\sin x-x\cos x}{x^2}.
+\end{equation}
+The result is valid at every lag; a non-negative spectrum gives a positive semi-definite
+covariance of any size.
+
+\section{Whitening an arc}\label{sec:whitening}
+
+\paragraph{Dense factor.} $\mat W=\mat L^{-1}$ with $\mat L\mat L\T=\mat\Sigma$, cost $O(m^3)$ per
+arc. Exact for any positive definite law. An arc is processed in batches of bounded length; a
+dense law is factorised per batch, so the correlation between batches of a longer arc is
+neglected.
+
+\paragraph{Autoregressive filter.} For an AR$(p)$ process with coefficients
+$\vc a=[1,a_1,\dots,a_p]$ and innovation standard deviation $s$, whitening is the FIR filter
+\begin{equation}\label{eq:arfilter}
+\bar x_t=\frac1s\sum_{k=0}^p a_kx_{t-k},\qquad t>p,
+\end{equation}
+cost $O(mp)$, with no covariance matrix formed. The first $p$ rows are replaced by the exact
+stationary start $\mat L_p^{-1}\vc x_{1:p}$, $\mat L_p\mat L_p\T=\operatorname{toeplitz}(c_0,\dots,c_{p-1})$.
+The resulting operator is the inverse Cholesky factor of $\mat\Sigma$ itself: both are lower
+triangular square roots of $\mat\Sigma^{-1}$, which is unique up to sign. Consecutive batches
+overlap by the filter memory, so batching does not change the result. The AR coefficients of a
+law given by its autocovariance follow from the Levinson--Durbin recursion (Yule--Walker); a
+high-order AR can be reduced to an ARMA. A spectrum with narrow features is represented better by
+the dense factor than by a low-order filter.
+
+\section{Multi-axis streams and the per-epoch accuracy}\label{sec:multiaxis}
+
+A stream with $d$ axes per epoch is ordered epoch-major. What the preprocessing knows about the
+accuracy of epoch $e$ --- per-axis standard deviations or a full $d\times d$ covariance
+$\mat C_e$ --- enters as the factor $\mat D_e$ ($\mat D_e=\diag(\sigma_{e,1},\dots)$, or the lower
+Cholesky factor of $\mat C_e$). With the temporal law $\mat R_t$ on the epoch grid, the covariance of
+an arc is
+\begin{equation}\label{eq:separable}
+\mat\Sigma=\mat D\,(\mat R_t\otimes\mat I_d)\,\mat D\T,\qquad \mat D=\operatorname{blkdiag}(\mat D_e),
+\end{equation}
+and its whitener factorises: every epoch is first de-scaled by $\mat D_e^{-1}$, then the temporal
+whitener runs down the epochs of each axis. The order matters: the de-scaled errors are
+stationary, the raw ones are not when $\mat D_e$ varies. Without per-epoch information
+$\mat D=\mat I$. For a scalar stream ($d=1$) the same composition applies with $\mat D_e=\sigma_e$.
+
+Cross-axis correlation \emph{in time} is outside \eqref{eq:separable}; it is the vector AR model,
+fitted by the multichannel Levinson (Whittle) recursion and whitened by the matrix filter
+$\vc w_t=\mat L_\eta^{-1}\bigl(\vc z_t-\sum_k\mat A_k\vc z_{t-k}\bigr)$ with an exact block start.
+
+\section{Where a law can be wrong}\label{sec:nonpd}
+
+A covariance function truncated at a lag shorter than the arc is in general indefinite: its
+spectrum is the true spectrum convolved with a kernel that has negative side lobes. A law defined
+by a non-negative spectrum cannot fail this way. An indefinite law is treated as a fault: in
+accumulation its eigenvalues are floored with a warning; in the variance-component sweep the arc
+is skipped (\S\ref{sec:skips}).

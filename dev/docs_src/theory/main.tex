@@ -1,0 +1,79 @@
+% lsqvce -- the mathematical framework. Built with pdflatex (build.sh in this folder).
+% Created 2026-10-12 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
+% model Claude Opus 5.5 -- WP-124. The September 2026 R5 document it replaces is
+% archived under dev/reviews/R5_2026-09-01/theory_r5/.
+\documentclass[11pt,a4paper,twoside,openany]{report}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{mathptmx}\usepackage[scaled=0.92]{helvet}\usepackage{courier}
+\usepackage{microtype}
+\usepackage[margin=25mm,headheight=14pt]{geometry}
+\usepackage{amsmath,amssymb,bm}
+\usepackage{booktabs,array}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage[most]{tcolorbox}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage[hidelinks,pdftitle={lsqvce -- Mathematical framework},pdfauthor={Matthias Weigelt}]{hyperref}
+
+\setlist{nosep,leftmargin=*}
+\sloppy
+\setlength{\parskip}{4pt}
+\setlength{\parindent}{0pt}
+\titleformat{\chapter}[hang]{\bfseries\LARGE}{\thechapter}{1em}{}
+\titlespacing*{\chapter}{0pt}{-10pt}{14pt}
+\numberwithin{equation}{chapter}
+
+\definecolor{boxbg}{RGB}{245,245,240}
+\definecolor{rule}{RGB}{120,120,120}
+\newtcolorbox{remark}[1][]{enhanced,colback=boxbg,colframe=rule,boxrule=0.5pt,arc=1pt,left=6pt,right=6pt,top=4pt,bottom=4pt,fonttitle=\bfseries,title={#1}}
+
+\newcommand{\mat}[1]{\bm{#1}}
+\newcommand{\vc}[1]{\bm{#1}}
+\newcommand{\T}{^{\mathsf T}}
+\newcommand{\tr}{\operatorname{tr}}
+\newcommand{\diag}{\operatorname{diag}}
+\newcommand{\E}{\operatorname{E}}
+\newcommand{\Var}{\operatorname{Var}}
+\newcommand{\MAD}{\operatorname{MAD}}
+\newcommand{\code}[1]{\texttt{#1}}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[LE,RO]{\small\thepage}
+\fancyhead[RE]{\small\nouppercase{\leftmark}}
+\fancyhead[LO]{\small lsqvce -- mathematical framework}
+\renewcommand{\headrulewidth}{0.3pt}
+
+\begin{document}
+
+\begin{titlepage}
+\vspace*{35mm}
+{\bfseries\Huge lsqvce\par}
+\vspace{6mm}
+{\bfseries\LARGE Least-squares adjustment with variance component estimation\par}
+\vspace{4mm}
+{\Large The mathematical framework\par}
+\vspace{20mm}
+\begin{remark}[Scope]
+This document states what the toolbox computes and why: the functional model and its
+solution, the stochastic model, the estimation of variance components, robust and
+nonlinear estimation, and the quality measures. How to use the toolbox is the subject
+of the Manual (\code{doc lsqvce}); the interfaces are specified in the API reference.
+Equation numbers of the form ``Ellmer (6.5.x)'' refer to Ellmer (2018).
+\end{remark}
+\vfill
+{\small Matthias Weigelt, with assistance from Claude (Anthropic).\par}
+\end{titlepage}
+
+\tableofcontents
+
+\input{ch_model}
+\input{ch_stochastic}
+\input{ch_vce}
+\input{ch_robust}
+\input{ch_quality}
+\input{ch_references}
+
+\end{document}

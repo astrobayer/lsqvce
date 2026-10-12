@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-12 — WP-123 DONE (PR #143, merge cebbfd1; CI GREEN on e617a95, first round); closure PR (user decision: "Ja, mach den Abschluss-PR"): the ledger row and §12.55, no code change, no version (6.12.1 stays, 641 tests).
+Last substantive update: 2026-10-12 — WP-124 OPEN (tier B, model Claude Opus 5.5; user: "The manual shall be a step-by-step guide ... The theory shall describe only the underlying mathematical framework. Function and interface description belong to an API document"; decisions: API generated + PDF, theory stays LaTeX, ONE PR): three documents, each with one job -- Manual rewritten as a user guide, new API reference (lsqvce_api), theory rewritten to the code; the R5 record archived; no computation changed; version 6.12.2; §12.56.
+Preceding entry: Last substantive update: 2026-10-12 — WP-123 DONE (PR #143, merge cebbfd1; CI GREEN on e617a95, first round); closure PR (user decision: "Ja, mach den Abschluss-PR"): the ledger row and §12.55, no code change, no version (6.12.1 stays, 641 tests).
 Preceding entry: Last substantive update: 2026-10-12 — WP-122 DONE (PR #142, merge 1d8c89b; CI GREEN on ac4bfa4); WP-123 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-123"): the kernel whiteners (separableWhiten, varWhiten, armaWhiten) take a sparse A / B / l -- the dense filter runs on the non-zero columns only (private kernel helper activeColumns), sparse in, sparse out; the dense path unchanged; template/kbr_variational returns its position B sparse again; 1 gate test; version 6.12.1; §12.54.
 Preceding entry: Last substantive update: 2026-10-12 — WP-122 OPEN (tier B, model Claude Opus 5.5; user: "a real-life buildDay for range-rate observations using a variational equation approach", scope decision: SELF-CONTAINED): template/kbr_variational.m -- GRACE-FO L1B (GNV1B, KBR1B, ACT1B, SCA1B) + ICGEM .gfc -> range-rate and position streams by the variational equations (analytic a, G, da/dC_nm from normalized solid harmonics and exact sparse derivative operators; ABM8 PECE), declared column units; mirror dev/validation/kbr_variational_mirror.py; 4 gate tests in test_physOracle; version 6.12.0; §12.53.
 Preceding entry: Last substantive update: 2026-10-12 — WP-121 DONE (PR #140, merge 2a85acf; CI GREEN on 47555ef); the three §12.48 residues CLOSED (user decision: closure PR): 119 fixed (v6.11.0), 120 measured and kept (K = 20), 121 fixed (v6.11.1); no code change, no version; §12.52.
@@ -9177,4 +9178,91 @@ the handbook, forces beyond field + ACC via `cfg.background`, one linearization 
 stated in its help, not residues of a WP. `measure.yml` still points at
 `dev/validation/wp122_measure.m`; it runs only on PRs that touch `dev/validation/*.m`, so it is
 dormant until the next measurement repoints it.
+
+### 12.56 WP-124 — Manual, API reference, theory: three documents, each with one job (2026-10-12, model Claude Opus 5.5)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 124 | the Manual rewritten as a step-by-step user guide (10 chapters, no history); a new API reference (`dev/docs_src/api/*.md` + generated help / tiers / identifiers -> `html/lsqvce_api.html`, `lsqvce_api.pdf`); the theory rewritten as the mathematical framework only, matched to the code (`dev/docs_src/theory/`); the R5 LaTeX record moved to `dev/reviews/R5_2026-09-01/theory_r5/`; user-tier help blocks freed of development history; **version 6.12.2** | 123 (PR #143, closure #144 merged 8dd0d3a) | OPEN (tier B; CI is the gate) |
+
+**The user's request (2026-10-12):** "Review the lsqvce_manual and lsqvce_theory documents. They are a
+mixture of handover, development document and their actual intention. The manual shall be a
+step-by-step guide for installation, workflows, adaptations to the user problem and the
+interpretation of the report. It shall also describe the purpose, logic and outline of the examples
+and their implementation. The theory shall describe only the underlying mathematical framework.
+Function and interface description belong to an API document." Decisions (AskUserQuestion): the
+API reference generated + PDF; the theory stays LaTeX; all in ONE PR.
+
+**The review (what was wrong).**
+- Manual: chapter 3 opened with four version deltas (v4 ... v6) and carried ~55 WP / review / version
+  references; half of it was reference (the Options table, the generated user-tier help, the engine
+  list, the v4 -> v5 migration table, the identifier appendix); there was no workflow, no examples
+  chapter, and the report chapter was 15 lines. It still announced "Version 5 (September 2026)" and
+  pointed at chapters 5 and 12 that only the generator supplied.
+- Theory: built from `theory_r5/`, the R5 record: 4 theory chapters among 11 (review findings,
+  panel discussion, redesign plan, test plan, name maps). And the theory chapters were STALE against
+  the code (fact sheet with file:line, ~45 sentences): DCT-I components with a PSD floor (hat
+  components since 6.7.0), arc factors normalised to unit mean with MeanType (absolute since 6.1.6,
+  MeanType retired), no robust nugget (6.6.0), the epochCovariance hook (Cep since 5.3), NEQ as the
+  default backend (QR), per-arc elimination (per system), an exact redundancy route in the joint
+  estimator (none), whiteness as a stop rule (not), systematic tests as part of the verdict (not),
+  MDB as z + z (exact two-sided power at the Bonferroni alpha).
+- Tooling: `README_manual.md`, `build_pdfs.py`, `pdf_graphics.py` described builders that no
+  longer exist; `dev/docs_src/README.md` described three of them.
+
+**What is built.**
+- `build_manual.py` builds TWO documents (DOCS table): the Manual from `manual/*.md` (no generated
+  chapters) and the API reference from `api/*.md` plus three generated chapters (the five user-tier
+  help blocks cut at See also, with bare development tags stripped; the engine / kernel / util
+  units from Contents.m; the identifier catalogue as a table with its "introduced" column). The
+  migration chapter is gone (RELEASE_NOTES carries it).
+- Audit: check 23 rebuilds both and compares both HTML files; the knob/field coverage moved to
+  `api/04_options.md`; check 29 holds both PDF titles to the version; checks 28 / 32 read the API
+  sources too; the self-test case and copy list follow.
+- Manual: 01 purpose, 02 install, 03 workflow step by step, 04 declaring your problem, 05 the
+  stochastic model, 06 priors, 07 reading the results and the report, 08 watching, 09 the examples
+  (every example and template: purpose, call, logic, outline, implementation), 10 large problems.
+  Chapters 07 and 09 were drafted by sub-agents from the code and checked here.
+- Theory (16 pages): the linear model (QR default, elimination per system, priors, the datum per
+  group, damped Gauss-Newton), the stochastic model (laws, exact PSD integral, whitening, the
+  separable composition), VCE (Helmert, hat components, Hutchinson, one pass, absolute arc factors,
+  Koch-Kusche), robust estimation (IRLS on innovations; Koch nugget + truncation + hard solution),
+  quality (the five levels, Pope / Baarda, snooping downdate, MAD gauge, exact MDB, pooled
+  Ljung-Box, contribution, F test, ellipses), references.
+- Help blocks: every "the Manual, chapter 3 ..." in +lsqvce, examples, templates and test_fit
+  points at the API reference (stamped); fit / Options / Results / report / layout lost their
+  inline review tags and version deltas (stamped; `Options` also named a non-existent field
+  `systems(k).priorDay` -- now `priors`; the `Results` EXAMPLE called `R.report('Level', 2)`, an
+  option `report` does not have). The Contents.m one-liners lost their tags.
+
+**Code findings the doc work surfaced -- NOT fixed here (no computation changed in this WP):**
+1. `lsqvce.report` has no `Level` option (the old Manual ch. 8 and the Results example used one).
+2. With `Diagnostics.Bonferroni = false` the whole contamination check and SNOOP_MAD are skipped
+   (`if D.bonferroni` in report.m).
+3. The PASS verdict text promises no undetectable blunder moves a parameter by more than half its
+   sigma, while REL_EXTERNAL stays a NOTE up to 1.8x the expected value.
+4. `Results.report` derives the settled/unsettled line from `history.nIter`, which the stand-alone
+   robust and Gauss-Newton histories lack (reports 1 pass; wording says "stochastic model").
+5. `R.convergence().maxSigmaOffset` is described as the variance-factor criterion; the stop rule is
+   `maxDev` and `levelDev`.
+6. The remedies of VPV_MISMATCH and PAR_ILLCOND name the engine setting `'method','qr'`, not
+   `Backend = "qr"`.
+7. Dense laws (acf, custom, Toeplitz psd) are factorised per batch WITHOUT overlap: arcs longer
+   than BatchSize (20 000 rows) lose the inter-batch correlation; whether the joint sweep handles
+   such arcs under a Toeplitz law is unverified (its lag table is BatchSize long).
+8. ARMA batch overlap counts only the AR order (filterMemory = p) although an MA part makes the
+   filter IIR; exactness unverified.
+9. A declared `psd` law outside the joint estimator is whitened by AR(30) (`Noise.Whitener` reaches
+   the joint estimator only).
+10. A stream without arc factors gets the arithmetic mean of its arcs' Helmert ratios, not the pooled
+    ratio; local priors with estimate "scale" are estimated with probe redundancies.
+11. `contribution.m` help vs code: the help calls the share a cc-attribution trace, the code
+    divides redundancies; `R.history.contribution` is promised and never written.
+12. `R.summary().arOrder` is always NaN for the noise loop.
+The documents state the CURRENT behaviour for all of them (e.g. the batching caveat in Manual 05
+and API 03). Proposed as a follow-up WP once the user has seen them.
+
+Fact sheets (not in the tree): the theory fact sheet and the two chapter drafts lived in the session
+scratchpad; the theory chapters cite no code lines on purpose.
+NOT validated before CI: no MATLAB in the container (the changes touch help text only).
 

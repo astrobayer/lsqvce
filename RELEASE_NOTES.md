@@ -1,5 +1,26 @@
 # lsqvce release notes
 
+## 6.12.2 — 2026-10-12 (WP-124: three documents, each with one job)
+
+No change to any computation.
+
+- **The Manual** (`doc lsqvce`, `lsqvce_manual.pdf`) is rewritten as a step-by-step user guide:
+  purpose, installation, the workflow, declaring your problem, choosing the stochastic model,
+  priors, reading the results and the report (every level, every finding, what to do), watching a
+  run, the examples (purpose, logic, outline and implementation of each, and the templates), and
+  large problems. It no longer carries version history or development notes.
+- **The API reference** (`html/lsqvce_api.html`, `lsqvce_api.pdf`) is new: the `data` struct,
+  `buildDay`, covariance specifications, `Options`, priors, `Results`, the help of the user-tier
+  units, the engine / kernel / util units and the identifier catalogue. The interface tables that
+  were in the Manual moved here.
+- **The theory** (`lsqvce_theory.pdf`) now states only the mathematical framework, matched to the
+  code: square-root information as the default backend, elimination per system, the datum per
+  prior group, the hat-spectrum components, absolute arc factors, the Koch-convention robust
+  nugget with the truncation correction, the exact two-sided MDB. The review and redesign
+  chapters of September 2026 are archived under `dev/reviews/R5_2026-09-01/`.
+- The help blocks of `fit`, `Options`, `Results`, `report` and `layout` describe the current
+  interface only, and every pointer to "the Manual, chapter 3" now names the API reference.
+
 ## 6.12.1 — 2026-10-12 (WP-123: the kernel whiteners take a sparse design matrix)
 
 - **A sparse `B` no longer breaks a whitened stream.** The Manual (chapter 3) allows a sparse

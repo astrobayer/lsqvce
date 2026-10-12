@@ -1,82 +1,69 @@
-# Regularisation: priors and groups
+# Priors and regularisation
 
-## The rule
+## The idea
 
-*Parameters and their columns are yours* — the tables, `buildDay`, plots, `toTable`.
-*Regularisation is the toolbox's* — the mechanism, the redundancy, the activation pass,
-the estimation of its strength. The interface between them is an operator in your
-columns, announced by `lsqvce.layout`, checked by width.
+A prior says "these parameters are observed to be x₀, with standard deviation σ". It is
+written as pseudo-observations `L·x = x₀ + v` in your own columns, and the toolbox treats
+it as data: it enters the normal equations, it has a redundancy (how much of it the data
+overrule), and its σ can be estimated like the level of any other stream. Regularisation
+is therefore never an option on the run: it is a declared part of the problem. The
+fields are listed in the API reference (*Priors*).
 
-## What a prior is
+## Typical priors
 
-Tikhonov regularisation of a parameter is an additional observation equation,
-"parameter j is observed to be x₀ with standard deviation σ":
-
-    L · x = x₀ + v,   weight 1/σ²
-
-where L is the coefficient matrix of the pseudo-observations (one row per
-pseudo-observation) exactly as A is the coefficient matrix of the observations. The
-toolbox therefore treats a prior as data: it enters the normal equations, it has a
-redundancy (how much of it the data overrule), and estimating its σ is variance-component
-estimation on that group (Koch–Kusche).
-
-## The declaration — one mechanism for common and local parameters
+**A datum for a free network.** Minimum constraints on the null space N of the design
+(`L = Nᵀ`, `x0 = 0`) fix the datum without distorting the solution. Declare the datum as
+a group of its own:
 
 ```matlab
-data.priors(j)            = struct(...)    % on the common parameters, L in the columns of A
-data.systems(k).priors(l) = struct(...)    % on system k's local parameters, L in the columns of B
+data.priors(1) = struct('L', Nnull.', 'x0', 0, 'sigma', 1, 'name', 'datum');
 ```
 
-One struct per **group**, with the fields
+The solution and its covariance are the minimum-constraint ones for any σ. Without a datum
+a rank-deficient system is refused by name; the toolbox never guesses one.
 
-| field | meaning |
-|---|---|
-| `group` | a regular expression matched against the *name column* of the table (column 2; `data.paramColumns.name` to say otherwise). The toolbox builds L: one row per matched template row per instance (per day for a `'day'` row, per arc for an `'arc'` row, once for `'system'`/`'common'`). |
-| `L` | the explicit operator (q × nc or q × nl) in the columns that `lsqvce.layout(data)` announces. Give `group` **or** `L`, never both. |
-| `x0` | the a-priori values (q × 1, or a scalar; default 0) |
-| `sigma` | ONE standard deviation for the rows of the group. Relative weights inside a group go into L (divide a row by its own relative σ); the struct's σ is the common factor. |
-| `from` | the pass at which the group becomes active (default 1). In a single solve a `from > 1` group is reported (`lsqvce:fit:priorNotActive`) and skipped. |
-| `name` | the label (default the pattern); local groups become the stream `prior_<name>`. |
-| `estimate` | `"none"` (default; σ fixed) or `"scale"`: σ is estimated every pass of `Estimate="noise"` by the Helmert rule σ² ← σ²·Ω/r — the fixed point Ω = r ("the prior's weighted residual sum equals its redundancy"), so λ = s₀²/σ² is the regularisation the data support. |
+**A Kaula rule on a gravity field.** One group per rule, σ estimated:
 
-**Several rows make σ estimable.** A group with one row has redundancy ≤ 1 and cannot
-estimate its own σ (it is left unchanged and flagged in `R.noise.priorHistory`). The
-x/y/z accelerometer scales of both satellites over a month are one group with 180 rows.
+```matlab
+data.priors(1) = struct('group', '^[CS]', 'x0', 0, 'sigma', 1e-10, 'estimate', "scale");
+```
 
-**Local rows live in one day.** A row of a local group has its non-zero columns inside
-one day's local block (or the system block); coupling two days is done through the
-common parameters. Different days of the same parameter are different rows — that is how
-the estimate pools information across the calendar.
+`group` is a regular expression on the name column of `commonParams`; the toolbox builds
+one row per matched coefficient. Relative weights inside a group (degree-dependent Kaula
+factors) go into an explicit `L` instead: divide each row by its own relative σ.
 
-## How they are treated
+**Calibration parameters of an instrument.** Priors on local parameters sit on the system:
 
-Common groups are stacked into one prior on the common block, folded into the solve and
-appended to the diagnostic sweep (they carry a redundancy). Local groups ride as their own
-observation stream `prior_<name>` of the system — pseudo-observation arcs with A = 0,
-B = L/σ, l = x₀/σ and a unit law — so accumulation, elimination, the sweeps, `residuals()`
-and the redundancy count see them as data, and under `Estimate="noise"` the group's σ is
-the stream's level: identical behaviour to the common groups, no second estimator.
-`R.noise.priors`, `R.noise.priorHistory` (common) and `R.noise.model{k}.sigma` for stream
-`satKey|prior_<name>` (local) report the result.
+```matlab
+data.systems(k).priors(1) = struct('group', '^accScale', 'x0', 1, 'sigma', 0.02, ...
+                                   'estimate', "scale");
+```
 
-## The datum of a free network
+The accelerometer scales of both satellites over a month form one group with many rows —
+exactly what makes their σ estimable. A group with one row cannot estimate its own σ.
 
-Minimum constraints Bᵀx = 0 are the group `L = B'`, `x0 = 0`: when B spans the null space
-the solution is the exact minimum-constraint one for **any** weight (the data's range and
-the null space are orthogonal). Without it the accumulator refuses a rank-deficient
-system by name (`lsqvce:qr:singularR`); it never guesses.
+## Writing `L` yourself
 
-## The layout
+`lsqvce.layout(data)` announces which column of A and B holds which template row on which
+day and arc, so an operator can be built by name:
 
 ```matlab
 lay = lsqvce.layout(data);
-lay.nc, lay.common(j)                  % the template row (and day) of every column of A
-lay.systems(k).nl, lay.systems(k).local(c)   % (row, day, arc) of every column of B
-c = lay.systems(k).col(row, day, arc); c = lay.colCommon(row, day);   % lookups (0 = not instantiated)
+L = zeros(2, lay.nc);
+L(1, lay.colCommon(5, [])) = 1;            % template row 5 of commonParams
+L(2, lay.colCommon(6, [])) = 1;
 ```
 
-## Your table's column 11
+`examples/demo_priors.m` builds priors both ways.
 
-`{'Tikhonov', fromPass, sigma[, label]}` on a row means exactly one of the structs above;
-`template/gravfire_data.m` (STEP 6/7) emits them: rows sharing a label become one group in
-the `group` form with `estimate="scale"`, rows without a label one fixed-σ group each.
+## Reading the result
+
+`R.noise.priors` and `R.noise.priorHistory` report the σ of every common group per pass;
+a local group appears as the stream `prior_<name>` of its system in `R.noise.model`.
+λ = σ₀²/σ² is the regularisation the data support. `R.report` counts the redundancy of
+the prior rows like that of any observation.
+
+## Activating a prior later
+
+`from = 3` activates a group in the third pass of an iterative run: the first passes then
+see the data alone. A single solve skips such a group with a warning.

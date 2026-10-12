@@ -1,4 +1,4 @@
-# lsqvce v6.12.1 — least-squares adjustment with variance component estimation
+# lsqvce v6.12.2 — least-squares adjustment with variance component estimation
 
 Declare your problem as a plain `data` struct, `fit` it, and get a judged
 result: estimates with formal errors, per-observation diagnostics, and a
@@ -6,7 +6,7 @@ five-level verdict that says whether to believe them.
 
 **The user surface is five names** at `lsqvce.` — `fit`, `Options`, `Results`,
 `report` and `layout` (the column layout to declare priors in) — plus the `data`
-struct specified in the Manual, chapter 3 (`doc lsqvce`). Everything
+struct specified in the API reference (`doc lsqvce`). Everything
 that does the work lives one level down (`lsqvce.engine.*` drivers,
 accumulators, loaders, VCE, diagnostics; `lsqvce.kernel.*` transforms, filters,
 statistics) and stays reachable for experts.
@@ -78,17 +78,18 @@ Every kind runs on the same accumulator and the same loop; `Robust`, the
 nonlinear form and `OnPass` (your inspection hook after every pass) work on
 all of them. The v5 → v6 migration is one change (`RELEASE_NOTES.md`).
 
-**New here?** `doc lsqvce` opens the landing page (`html/index.html`); the Manual is its first entry (`html/lsqvce_manual.html`, also `lsqvce_manual.pdf`) and is the single documentation authority: install, data, every option, the API, priors, migration. In this order:
+**New here?** `doc lsqvce` opens the landing page (`html/index.html`). Three documents, each with one job:
 
-1. `doc lsqvce` → the Manual, **chapter 1 (Overview)** and **chapter 2
-   (Installation)**: which kind of data you have and how to put the toolbox on
-   your path.
-2. **the Manual, chapter 3 (`doc lsqvce`)** — the binding specification of the `data` struct and of the
-   one function you write, `buildDay`, with a two-satellite worked example.
-3. **`examples/demo_fit.m`** — the user path end to end on all three data kinds,
-   including the GRACE-like physical oracle as a `data` struct; copy it.
-4. `lsqvce_theory.pdf` — why the toolbox computes what it computes, and where it
-   refuses to (NaN is a result).
+1. **The Manual** (`html/lsqvce_manual.html`, `lsqvce_manual.pdf`) — how to use the toolbox:
+   installation, the workflow step by step, declaring your problem, choosing the stochastic
+   model, priors, reading the report, and every example explained.
+2. **The API reference** (`html/lsqvce_api.html`, `lsqvce_api.pdf`) — what every interface
+   accepts and returns: the `data` struct, `buildDay`, covariance specifications, `Options`,
+   `Results`, every error identifier.
+3. **The theory** (`lsqvce_theory.pdf`) — the mathematical framework.
+
+Then run `examples/demo_workflow.m` section by section, and copy the example closest to your
+problem.
 
 ## Usage guidelines
 
@@ -116,7 +117,7 @@ overlapped by the filter memory automatically, so batching never changes the
 result. Priors on the common parameters — a datum, a Kaula rule, a
 background model — are `data.priors`, written in the columns
 `lsqvce.layout` announces (`examples/demo_priors.m`). Details and the six `buildDay` rules:
-the Manual, chapter 3 (`doc lsqvce`).
+the API reference (`doc lsqvce`).
 
 **Options.** `lsqvce.Options` is a typed value class: 14 knobs and five
 groups (`Noise`, `RobustOpts`, `Diagnostics`, `Parallel`, `GaussNewton`);
@@ -155,7 +156,7 @@ parameters are eliminated by a Schur complement, and the variance components
 weight the systems against each other. Regularisation is always declared, never
 silent, and never an option: `data.priors(k)` on the common parameters and
 `data.systems(k).priors(l)` on the local ones, each a pseudo-observation group
-that carries its own redundancy (the Manual, chapter 6).
+that carries its own redundancy (the Manual, chapter Priors and regularisation).
 
 **Parallelism.** Days within a system (`DistributeDays=true`), arcs in the
 redundancy pass, and systems parallelise; nothing inside an arc (filter state)
@@ -167,8 +168,9 @@ pinned equal to 1e-11 by test.
 ```matlab
 doc lsqvce                    % landing page: Getting started, guides, API
 doc lsqvce.Options            % every knob
-open lsqvce_manual.pdf        % the master manual
-open lsqvce_theory.pdf        % theory, practice, error handling
+open lsqvce_manual.pdf        % the Manual
+open lsqvce_api.pdf           % the API reference
+open lsqvce_theory.pdf        % the mathematical framework
 edit(fullfile('template','lsqvce_template.m'))   % copy to start your own case
 ```
 

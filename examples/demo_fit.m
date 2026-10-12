@@ -6,10 +6,10 @@ function out = demo_fit(opt)
 %
 %   Four of the five names of the USER tier -- lsqvce.fit, lsqvce.Options,
 %   lsqvce.Results, lsqvce.report -- on each of the three kinds of data
-%   the Manual, chapter 3 defines. The fifth, lsqvce.layout, announces the
+%   the API reference defines. The fifth, lsqvce.layout, announces the
 %   column layout of A and B so that priors can be declared in it; it is not
 %   needed here, where the prior below is written straight in the columns of A
-%   (help lsqvce.layout, and the Manual, chapter 6). Nothing here touches the
+%   (help lsqvce.layout, and the Manual, chapter Priors and regularisation). Nothing here touches the
 %   ENGINE tier; every engine call is made by fit.
 %
 %     (B) in-memory matrices   data.A / data.l / data.p       -> one solve, then
@@ -76,6 +76,10 @@ function out = demo_fit(opt)
 %   Claude (Anthropic), model Claude Fable 5.
 %   Created 2026-09-02 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5 -- R4 Level L7, WP-67.
+%
+%   Updated 2026-10-12 (CEST, UTC+02:00), WP-124: references to the data
+%   contract point at the API reference. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 arguments
     opt.Verbose (1,1) logical = true
 end

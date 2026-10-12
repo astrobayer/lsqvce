@@ -1,35 +1,54 @@
 #!/usr/bin/env python3
-"""Build the lsqvce Manual -- the single documentation authority -- from
-dev/docs_src/manual/*.md plus three GENERATED chapters, into
-html/lsqvce_manual.html (the page `doc lsqvce` opens) and lsqvce_manual.pdf.
+"""Build the two user documents of lsqvce from their Markdown sources:
 
-Generated (so they cannot drift from the code):
-  05  the user-tier API: the full help block of fit, Options, Results, report, layout
-  10  the engine / kernel / util tiers: one line per unit from the Contents.m files
-  12  the migration table v4 -> v5, from RELEASE_NOTES.md
-  A   the error-identifier catalogue, from dev/docs_src/error_ids.csv
+  the Manual         dev/docs_src/manual/*.md -> html/lsqvce_manual.html (`doc lsqvce`)
+                                                 and lsqvce_manual.pdf
+  the API reference  dev/docs_src/api/*.md    -> html/lsqvce_api.html and lsqvce_api.pdf,
+                     plus GENERATED chapters so they cannot drift from the code:
+                       the help blocks of the user-tier units (fit, Options, Results,
+                       report, layout), the engine / kernel / util units from the
+                       Contents.m files, and the error-identifier catalogue from
+                       dev/docs_src/error_ids.csv.
+
+The theory (lsqvce_theory.pdf) is LaTeX and has its own builder,
+dev/docs_src/theory/build.sh.
 
 Run from the toolbox root:  python3 dev/docs_src/build_manual.py
-Needs pandoc (html + pdf via pdflatex). audit_tree.py check 23 verifies the built
-HTML equals a fresh build.
+Needs pandoc (html + pdf via xelatex). audit_tree.py check 23 verifies that both
+built HTML files equal a fresh build.
 """
 import os, re, subprocess, sys, csv, io
 
 ROOT = os.getcwd()
-SRC = os.path.join(ROOT, 'dev', 'docs_src', 'manual')
 sys.path.insert(0, os.path.join(ROOT, 'dev', 'docs_src'))
 import build_missing_pages as bmp
 
 
+# a parenthetical that is nothing but a development tag, e.g. "(R5 M1)", "(WP-44)",
+# "(R5-D8)": the API states the interface, the record states its history
+TAG = re.compile(r' ?\((?:R\d+(?:[- ](?:M|D|WP-?)?\d+\w*)*|WP-\d+\w*)(?: part \d+\w*)?\)')
+
+
 def help_block(path):
+    """The help block of a unit for the API reference: the text up to and including
+    its See also paragraph. The dated provenance stamps after it, and bare
+    development tags, are history and stay in the source."""
     h1, lines = bmp.read_help(path)
-    return h1, '\n'.join(lines)
+    out = []
+    see = False
+    for ln in lines:
+        if ln.strip().startswith('See also'):
+            see = True
+        elif see and not ln.strip():
+            break
+        out.append(TAG.sub('', ln))
+    return h1, '\n'.join(out)
 
 
 def chapter_api():
-    out = ['# The user tier: fit, Options, Results, report, layout\n',
-           'The help blocks of the five user-tier units, verbatim (`help lsqvce.<name>` shows the same text; '
-           '`doc lsqvce.<name>` the same page). This chapter is generated from the code at build time.\n']
+    out = ['# Help of the user-tier units\n',
+           'The help blocks of the five user-tier units, verbatim: `help lsqvce.<name>` shows the same '
+           'text and `doc lsqvce.<name>` the same page. Generated from the code at build time.\n']
     for name in ['fit', 'Options', 'Results', 'report', 'layout']:
         h1, body = help_block(os.path.join(ROOT, '+lsqvce', name + '.m'))
         out.append('\n## lsqvce.%s\n\n%s\n\n```\n%s\n```\n' % (name, h1.strip(), body.rstrip()))
@@ -38,9 +57,9 @@ def chapter_api():
 
 def chapter_engine():
     out = ['# The engine, kernel and util tiers\n',
-           'What `fit` dispatches to and what it is built from. One line per public unit, from the '
-           '`Contents.m` files (generated). `doc lsqvce.engine.<name>` opens the full page; the tier rule '
-           '(HANDOVER, tiers.csv): the user tier calls engine, engine calls kernel and util, never upward.\n']
+           'What `fit` dispatches to and what it is built from: one line per public unit, from the '
+           '`Contents.m` files (generated). `doc lsqvce.engine.<name>` opens the full page. Calls go '
+           'downward only: the user tier calls the engine, the engine calls kernel and util.\n']
     for pkg, title in [('+engine', 'lsqvce.engine — drivers, accumulator, loaders, sweeps, diagnostics'),
                        ('+kernel', 'lsqvce.kernel — the numerical kernels'),
                        ('+util', 'lsqvce.util — plumbing')]:
@@ -55,80 +74,89 @@ def chapter_engine():
     return '\n'.join(out) + '\n'
 
 
-def chapter_migration():
-    t = open(os.path.join(ROOT, 'RELEASE_NOTES.md'), encoding='utf-8').read()
-    i = t.find('### Migration table (v4 → v5)')
-    j = t.find('\n## ', i)
-    tbl = t[i:j if j > 0 else None]
-    tbl = tbl.replace('### Migration table (v4 → v5)', '## The migration table (from RELEASE_NOTES.md)')
-    head = ('# Migration from 4.x to 5\n\nEvery 4.x declaration still fits; three things were added '
-            '(priors, per-stream policy, `OnPass`), the option space was cut to 14 knobs + 5 groups, '
-            'and every retired name has the successor below. Numbers may differ from 4.0 because the '
-            'separate-mode estimator (an AR law fitted to a biased raw-residual ACF) is gone; the '
-            'acceptance of its successor is the physical oracle, not equality to 4.0.\n\n')
-    return head + tbl + '\n'
-
-
 def appendix_errors():
-    out = ['# Appendix A — error and warning identifiers\n',
-           'Every identifier the package raises, from `dev/docs_src/error_ids.csv` (the catalogue the audit '
-           'keeps closed both ways: nothing raised that is not listed, nothing listed that is not raised).\n',
-           '| identifier | where / what |\n|---|---|']
+    out = ['# Error and warning identifiers\n',
+           'Every identifier the package raises (generated from the identifier catalogue, which is kept '
+           'closed both ways: nothing is raised that is not listed, nothing is listed that is not raised).\n',
+           '| identifier | raised by | kind | introduced |\n|---|---|---|---|']
     with open(os.path.join(ROOT, 'dev', 'docs_src', 'error_ids.csv'), encoding='utf-8') as fh:
         for row in csv.reader(fh):
             if not row or row[0].startswith('#') or row[0] in ('id', 'identifier'):
                 continue
-            out.append('| `%s` | %s |' % (row[0], ' — '.join(c.strip() for c in row[1:] if c.strip()).replace('|', '\\|')))
+            row = [c.strip().replace('|', '\\|') for c in row] + [''] * 4
+            out.append('| `%s` | %s | %s | %s |' % (row[0], row[1].replace(';', ', '), row[2], row[3]))
     return '\n'.join(out) + '\n'
 
 
-def assemble():
-    files = sorted(f for f in os.listdir(SRC) if f.endswith('.md'))
+
+def assemble(src, gens, appendix=None):
+    """Concatenate src/*.md in name order; a generated chapter keyed 'NN' goes
+    before the first source file whose prefix sorts after it."""
+    files = sorted(f for f in os.listdir(src) if f.endswith('.md'))
     parts = []
-    gens = {'05': chapter_api, '10': chapter_engine, '12': chapter_migration}
     seen = set()
     for f in files:
-        for g in sorted(gens):                       # generated chapters go BEFORE the first later file
+        for g in sorted(gens):
             if g not in seen and g < f[:2]:
                 parts.append(gens[g]()); seen.add(g)
         seen.add(f[:2])
-        parts.append(open(os.path.join(SRC, f), encoding='utf-8').read().rstrip('\n') + '\n')
+        parts.append(open(os.path.join(src, f), encoding='utf-8').read().rstrip('\n') + '\n')
     for g in sorted(gens):
         if g not in seen:
             parts.append(gens[g]()); seen.add(g)
-    parts.append(appendix_errors())
+    if appendix:
+        parts.append(appendix())
     return '\n\n'.join(parts)
 
 
-def main(check=False):
-    ver = re.search(r'^%\s*Version\s+(\S+)', open(os.path.join(ROOT, '+lsqvce', 'Contents.m'), encoding='utf-8').read(), re.M).group(1)
-    md = ('---\ntitle: "lsqvce %s — User Manual"\nsubtitle: "least-squares adjustment with variance component estimation"\n'
-          'date: "built from the sources; the single documentation authority"\n---\n\n' % ver) + assemble()
+DOCS = {
+    'manual': dict(title='User Manual', gens={}, appendix=None),
+    'api': dict(title='API Reference', gens={'90': chapter_api, '95': chapter_engine},
+                appendix=appendix_errors),
+}
+
+
+def build_one(name, ver, check):
+    d = DOCS[name]
+    src = os.path.join(ROOT, 'dev', 'docs_src', name)
+    md = ('---\ntitle: "lsqvce %s — %s"\nsubtitle: "least-squares adjustment with variance component estimation"\n'
+          '---\n\n' % (ver, d['title'])) + assemble(src, d['gens'], d['appendix'])
     build = os.path.join(ROOT, 'dev', 'docs_src', 'manual', '_build')
     os.makedirs(build, exist_ok=True)
-    mdpath = os.path.join(build, 'lsqvce_manual.md')
+    stem = 'lsqvce_' + name
+    mdpath = os.path.join(build, stem + '.md')
     open(mdpath, 'w', encoding='utf-8').write(md)
-    html = os.path.join(build, 'lsqvce_manual.html')
+    html = os.path.join(build, stem + '.html')
     subprocess.run(['pandoc', mdpath, '-s', '--toc', '--toc-depth=2', '--number-sections',
                     '--metadata', 'lang=en', '-c', 'lsqvce_manual.css', '-o', html], check=True)
-    css = os.path.join(ROOT, 'html', 'lsqvce_manual.css')
-    if not os.path.exists(css):
-        open(css, 'w', encoding='utf-8').write(CSS)
-    target = os.path.join(ROOT, 'html', 'lsqvce_manual.html')
+    target = os.path.join(ROOT, 'html', stem + '.html')
     new = open(html, encoding='utf-8').read()
     if check:
         cur = open(target, encoding='utf-8').read() if os.path.exists(target) else ''
         return cur != new
     open(target, 'w', encoding='utf-8').write(new)
-    pdf = os.path.join(ROOT, 'lsqvce_manual.pdf')
+    pdf = os.path.join(ROOT, stem + '.pdf')
     r = subprocess.run(['pandoc', mdpath, '--toc', '--toc-depth=2', '--number-sections',
                         '-V', 'geometry:margin=2.2cm', '-V', 'fontsize=10pt', '-V', 'colorlinks=true',
-                        '--pdf-engine=xelatex', '-V', 'fontfamily=mathptmx', '-V', 'mainfont=DejaVu Serif', '-V', 'monofont=DejaVu Sans Mono', '-o', pdf], capture_output=True, text=True)
+                        '--pdf-engine=xelatex', '-V', 'fontfamily=mathptmx', '-V', 'mainfont=DejaVu Serif',
+                        '-V', 'monofont=DejaVu Sans Mono', '-o', pdf], capture_output=True, text=True)
     if r.returncode != 0:
-        print('PDF build failed:\n' + r.stderr[-2000:])
+        print('PDF build failed (%s):\n%s' % (name, r.stderr[-2000:]))
         return False
-    print('built html/lsqvce_manual.html and lsqvce_manual.pdf (%s)' % ver)
+    print('built html/%s.html and %s.pdf (%s)' % (stem, stem, ver))
     return True
+
+
+def main(check=False):
+    """Build both documents; with check=True return the names whose HTML is stale."""
+    ver = re.search(r'^%\s*Version\s+(\S+)', open(os.path.join(ROOT, '+lsqvce', 'Contents.m'),
+                    encoding='utf-8').read(), re.M).group(1)
+    css = os.path.join(ROOT, 'html', 'lsqvce_manual.css')
+    if not check and not os.path.exists(css):
+        open(css, 'w', encoding='utf-8').write(CSS)
+    if check:
+        return [n for n in DOCS if build_one(n, ver, True)]
+    return all(build_one(n, ver, False) for n in DOCS)
 
 
 CSS = """body{font-family:Georgia,serif;max-width:60em;margin:2em auto;padding:0 1em;line-height:1.45;color:#222}
@@ -140,5 +168,7 @@ table{border-collapse:collapse;margin:1em 0}th,td{border:1px solid #bbb;padding:
 
 if __name__ == '__main__':
     if len(sys.argv) > 1 and sys.argv[1] == 'check':
-        sys.exit(1 if main(check=True) else 0)
-    main()
+        stale = main(check=True)
+        print('stale: %s' % ', '.join(stale) if stale else 'both documents are fresh')
+        sys.exit(1 if stale else 0)
+    sys.exit(0 if main() else 1)

@@ -51,9 +51,9 @@ arcs, validity) which column of A and of every system&#x27;s B belongs to
 which instantiated parameter. This function announces that layout BEFORE
 fit runs, so that data.priors(j).L (columns of A) and
 data.systems(k).priors(l).L (columns of B) can be written in it -- the
-only knowledge the user&#x27;s regularisation and the toolbox share (R5-D8).
+only knowledge the user&#x27;s regularisation and the toolbox share.
 
-INPUT   data  1x1 struct  a kind-A declaration (the Manual, chapter 3)
+INPUT   data  1x1 struct  a kind-A declaration (the API reference)
 OUTPUT  lay   1x1 struct
   .nc            1x1        columns of A
   .common        nc x 1 struct (.row .day)      the template row and (for &#x27;day&#x27; rows) the day of every column of A
@@ -73,10 +73,15 @@ EXAMPLE  (a Tikhonov prior on local row 7 of system 1, on every day)
   end
   data.systems(1).priors = struct(&#x27;L&#x27;, rows, &#x27;x0&#x27;, 0, &#x27;sigma&#x27;, 0.01, &#x27;name&#x27;, &#x27;xaccscale&#x27;, &#x27;estimate&#x27;, &quot;scale&quot;);
 
-See also LSQVCE.FIT, LSQVCE.RESULTS/TOTABLE, the Manual, chapter 3
+See also LSQVCE.FIT, LSQVCE.RESULTS/TOTABLE, the API reference
 
 Created 2026-09-03 (CEST, UTC+02:00) with assistance from Claude
-(Anthropic), model Claude Fable 5.1 -- R5-D8 round 5.</pre>
+(Anthropic), model Claude Fable 5.1 -- R5-D8 round 5.
+
+Updated 2026-10-12 (CEST, UTC+02:00), WP-124: development history taken
+out of the help text (it lives in RELEASE_NOTES.md and dev/HANDOVER.md);
+references point at the API reference. With assistance from Claude
+(Anthropic), model Claude Opus 5.5.</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
 <div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

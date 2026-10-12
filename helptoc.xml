@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <toc version="2.0">
   <tocitem target="html/index.html">lsqvce
-    <tocitem target="html/lsqvce_manual.html">Manual (the single authority: data, options, API, priors, migration)</tocitem>
+    <tocitem target="html/lsqvce_manual.html">Manual (install, workflow, declaring a problem, the report, the examples)</tocitem>
+    <tocitem target="html/lsqvce_api.html">API reference (data contract, buildDay, Options, Results, identifiers)</tocitem>
     <tocitem target="html/index.html">Start here (USER tier)
       <tocitem target="html/lsqvce.fit.html">lsqvce.fit</tocitem>
       <tocitem target="html/lsqvce.Options.html">lsqvce.Options</tocitem>

@@ -1,59 +1,69 @@
 ---
-title: "lsqvce 6.12.1 — User Manual"
+title: "lsqvce 6.12.2 — User Manual"
 subtitle: "least-squares adjustment with variance component estimation"
-date: "built from the sources; the single documentation authority"
 ---
 
-# Overview
+# Purpose
 
 **lsqvce** is a MATLAB toolbox for least-squares adjustment with variance component
-estimation, built for satellite gravity recovery (GRACE / GRACE-FO) and equally at home
-on a levelling network. Version 5 (September 2026) is the result of the R5 review track:
-one accumulator, one stochastic-model estimator, one loop with three policies, one user
-surface.
+estimation. It was built for satellite gravity recovery (GRACE / GRACE-FO), where millions
+of correlated observations from several instruments determine a few thousand common
+parameters together with many arc-wise and day-wise local parameters, and it works just as
+well on a levelling network or a curve fit.
 
 ## What it does
 
-* **Adjusts** a linear or linearised Gauss--Markov model with a common parameter block
-  and per-system, per-day local blocks eliminated on the fly (the block-arrow structure of
-  satellite gravimetry), on one accumulator with a QR or normal-equation backend.
-* **Estimates the stochastic model** of every observation stream jointly (Ellmer 2018):
-  a spectral shape per pool group, a level per stream, optional per-arc variance factors,
-  by Hutchinson-probed redundancies -- `Estimate="noise"`.
-* **Regularises by declaration**: priors on common and on local parameters are
-  pseudo-observation groups in your columns, counted in the redundancy, with their
-  sigma fixed or estimated by Helmert / Koch--Kusche.
-* **Diagnoses**: Baarda / Pope data snooping, redundancy numbers, reliability, the
-  whiteness of every stream, a five-level verdict (`R.report`).
-* **Robust** M-estimation (IRLS) and damped Gauss--Newton on the same loop.
-* **Watches**: `Options.OnPass` fires after every pass with the state and the live
-  accumulator; `R.plot` afterwards.
+- **Adjusts** a linear or linearised Gauss–Markov model. The common parameters are shared
+  by all data; local parameters belong to one arc, one day or one system and are
+  eliminated on the fly, so the full design matrix is never formed.
+- **Estimates the stochastic model** of every observation stream from the data: the
+  spectral shape of its noise, its level, and a variance factor per arc
+  (`Estimate = "noise"`).
+- **Regularises by declaration.** A prior — a Kaula rule, minimum constraints, a
+  background model — is a group of pseudo-observations in your columns; it carries a
+  redundancy and can have its weight estimated.
+- **Judges the result.** Global test, outlier tests, redundancy numbers, minimal
+  detectable biases, whiteness of every stream, reduced to a verdict by `R.report`.
+- **Is robust on request**: M-estimation with Huber, IGG3 or bisquare weights, and damped
+  Gauss–Newton for nonlinear models, on the same loop.
+- **Lets you watch**: a hook after every pass, and one plot per question afterwards.
 
-## The three sentences you need
+## The three lines
 
 ```matlab
-lsqvce_setup                                  % once
-R = lsqvce.fit(data, Estimate="noise", Pool="obsType");   % the one verb
-R.report                                      % the verdict
+lsqvce_setup                                   % once
+R = lsqvce.fit(data, Estimate="noise");        % the one verb
+R.report                                       % the verdict
 ```
 
-`data` is a plain struct (chapter 3); everything about *how* to run is a
-`lsqvce.Options` (chapter 4); everything that comes back is a `lsqvce.Results`
-(chapter 5). The theory behind every number is `lsqvce_theory.pdf` (chapter 11).
+`data` is a plain struct that describes your problem; the options say how to run it; `R`
+is everything that comes back.
+
+## The three documents
+
+| document | answers | |
+|---|---|---|
+| **this Manual** | *how do I use it?* — install, the workflow, declaring your problem, choosing the stochastic model, priors, reading the report, the examples | `doc lsqvce`, `lsqvce_manual.pdf` |
+| **the API reference** | *what exactly does each interface accept and return?* — the `data` struct, `buildDay`, covariance specifications, `Options`, `Results`, every identifier | `html/lsqvce_api.html`, `lsqvce_api.pdf` |
+| **the theory** | *what is computed, and why?* — the mathematical framework | `lsqvce_theory.pdf` |
+
+Every unit also has its own page: `doc lsqvce.<name>` or `help lsqvce.<name>`.
 
 ## Reading order
 
-New here: chapter 2 (install), then `demo_workflow` next to chapter 3, then chapter 4
-when you want to change a knob. Migrating from 4.x: chapter 12 first.
+New users: chapter *Installation*, then *The workflow, step by step* with
+`examples/demo_workflow.m` open beside it, then *The examples* to find the one closest to
+your problem. Come back to *Declaring your problem* and *Choosing the stochastic model*
+when you write your own `buildDay`, and to *Reading the results and the report* every time
+you run.
 
 
 # Installation
 
 ## Requirements
 
-MATLAB R2024a or later (developed and gated on R2026a). The Parallel Computing Toolbox
-is optional (`Parallel.Mode="parfor"|"spmd"`, `Parallel.DistributeDays`); without it the
-toolbox runs serially and says so once per run.
+MATLAB R2024a or later. The Parallel Computing Toolbox is optional (`Parallel.Mode =
+"parfor" | "spmd"`); without it the toolbox runs serially and says so once per run.
 
 ## Install
 
@@ -62,10 +72,10 @@ cd <toolbox root>          % the folder holding +lsqvce
 lsqvce_setup               % or lsqvce_setup('install')
 ```
 
-This adds exactly two path entries (the root with the `lsqvce.*` packages, and
-`examples/`), builds the Help browser index so that `doc lsqvce` opens this manual, saves
-the path, and prints a check report. Not added by design: `dev/tests` (the suites manage
-their own path), `template/` (you copy it into your project), `dev/`.
+This adds exactly two path entries — the root with the `lsqvce.*` packages, and
+`examples/` — builds the Help browser index so that `doc lsqvce` opens this Manual, saves
+the path, and prints a check report. `template/` is not added: you copy a template into
+your own project.
 
 ## Check
 
@@ -76,2446 +86,1990 @@ lsqvce_setup('check')      % version, path entries, doc index, whether lsqvce.fi
 ## Uninstall
 
 ```matlab
-lsqvce_setup('uninstall')  % removes the two path entries, saves the path, deletes the
-                           % Help browser database it built; the folder itself is untouched
+lsqvce_setup('uninstall')  % removes the two path entries and the Help browser index;
+                           % the folder itself is untouched
 ```
 
-## Layout of the toolbox folder
+## What is in the folder
 
-| folder / file | what |
+| folder / file | content |
 |---|---|
-| `+lsqvce/` | the package: user tier (`fit`, `Options`, `Results`, `report`, `layout`), `+engine`, `+kernel`, `+util` |
-| `examples/` | the demos (`demo_workflow`, `demo_fit`, `demo_grace`, `demo_gravity`, `demo_gravfire`, ...) |
-| `template/` | `gravfire_data.m` (a GRACE bundle to the data struct), `kbr_variational.m` (GRACE-FO L1B range-rates and orbits by the variational equations, §3.8), `lsqvce_template.m` |
-| `html/` | this manual (`lsqvce_manual.html`) and one page per public unit (`doc lsqvce.<name>`) |
-| `lsqvce_theory.pdf`, `lsqvce_manual.pdf` | the theory and this manual as PDF |
-| `RELEASE_NOTES.md` | what changed, with the migration table |
-| `dev/` | the development record (`HANDOVER.md`), the test suites, the documentation sources |
+| `+lsqvce/` | the package: the user tier (`fit`, `Options`, `Results`, `report`, `layout`) and the `engine`, `kernel` and `util` tiers below it |
+| `examples/` | runnable examples (chapter *The examples*) |
+| `template/` | starting points for your own case: `kbr_variational.m` (GRACE-FO Level-1B range-rates and orbits), `gravfire_data.m` (a GRAVFIRE bundle to the `data` struct), `lsqvce_template.m` |
+| `html/` | this Manual, the API reference and one page per public unit |
+| `lsqvce_manual.pdf`, `lsqvce_api.pdf`, `lsqvce_theory.pdf` | the three documents as PDF |
+| `RELEASE_NOTES.md` | what changed in each version |
+| `dev/` | development: tests, documentation sources, the development record |
 
 
-# Declaring the data
+# The workflow, step by step
 
-This chapter is the binding data contract of the toolbox (formerly the file `DATA_CONTRACT.md`, retired 2026-09-04: the Manual is the single authority). Everything the toolbox knows about your problem enters through the `data` struct described here.
+This chapter walks once through a complete adjustment. Each step names the chapter that
+treats it in depth. `examples/demo_workflow.m` is the same path as a script to run
+section by section.
 
+## Step 1 — Decide which kind of problem you have
 
-**Status.** Binding specification, **version 6** (adopted 2026-09-09, Review R6 WP-102:
-ONE shape changed — `buildDay` returns one CELL per arc, §0c — and the arc schedule became
-optional; everything the v5 declaration says about tables, priors and `Cep` is unchanged.
-Option names are those of `lsqvce.Options` v5, the v5 → v6 map is in `RELEASE_NOTES.md`).
-`lsqvce.fit` is live for all three data kinds, `Estimate = "none" | "noise"`, `Robust`, the
-nonlinear form and `OnPass`. §9 shows the equivalent direct engine calls. This file is the
-source of the `fit` help text and of the HTML guide: one authority, no second copy.
+| your problem | kind | you supply |
+|---|---|---|
+| the design matrix fits in memory, one block of unknowns | **matrices** | `data.A`, `data.l`, `data.p` |
+| too large for memory, or nonlinear, one block of unknowns | **batched** | `data.batchFcn`, `data.numBatches`, `data.numUnknowns` (or `data.x0`) |
+| data arrive per day and arc, several instruments, nuisance parameters per arc or day, correlated noise | **streaming** | `data.commonParams`, `data.days`, `data.systems` with your `buildDay` |
 
-Created 2026-08-31 (CEST, UTC+02:00) with assistance from Claude (Anthropic), model Claude
-Fable 5. Rewritten for v3 and again for v4 (scoped tables) the same day (Claude Fable 5);
-v6 (the cells are the arcs) 2026-09-09, Claude Fable 5.1.
-
----
-
-### 0a. The v5 delta (R5 M5): three additions, no shape changes
-
-1. **`data.priors(k) = struct('group' | 'L', 'x0', 'sigma', 'from', 'name', 'estimate')`** — declared
-   pseudo-observation groups `L·x ~ x0` with weight `1/sigma²` on the COMMON parameters,
-   folded into the solve AND into the diagnostic sweep (they carry a redundancy). A free
-   network's datum is the prior `L = B'` on the null space: the exact minimum-constraint
-   solution, for any weight, because the data's range and the null space are orthogonal
-   (`lsqvce:fit:badPrior` on malformed fields).
-   - Since 6.10.0 (R7 WP-114) the covariance is weight-independent too: a prior the data do
-     not see is recognised as a datum, and `R.sol.Cxx` and the diagnostics' parameter
-     cofactor are the minimum-constraint ones, s0²·pinv(N). Before, the datum's σ entered
-     the standard errors: 0.005 at σ = 1, 2.48 at σ = 1e3.
-   - Since 6.11.0 (R7 WP-119) the test runs per GROUP: a group is a datum when the data and
-     every other group are blind to its rows. A datum stacked with a group that regularises
-     other parameters (a Kaula rule on the field beside minimum constraints on the stations)
-     gets the minimum-constraint covariance of the data plus that group, s0²·pinv(N + Ki'Ki).
-   - A group only partly in the null space, or one that overlaps another group (a ridge on
-     every parameter beside a datum), is information: its x moves with its σ, so it keeps the
-     solve's covariance. Declare datum rows as a group of their own.
-   - `R.residuals()` and the redundancy count include the prior's rows, so they agree with
-     the solve. A Kaula rule or a background model is the
-   same declaration with a scientific `L`. With `estimate = "scale"` (R5 M7 7b) the group has
-   its OWN variance component: under `Estimate="noise"` its sigma is updated every pass by the
-   Helmert / Koch–Kusche rule (Ω_k = ‖(L x − x0)/σ‖², r_k = p − tr(L N⁻¹ L')/σ², σ² ← σ²·Ω_k/r_k;
-   the fixed point Ω_k = r_k is "the prior's weighted residual sum equals its redundancy"), so
-   λ = s0²/σ_k² is the regularisation the data support; `R.noise.priors` and
-   `R.noise.priorHistory` record it. `from` is the pass at which the group becomes active
-   (default 1; a single-pass run reports `lsqvce:fit:priorNotActive` and skips it). A group is
-   declared EITHER by `group` — a regular expression on the NAME column of `commonParams`
-   (`data.paramColumns.name`, default 2); fit builds L, one row per matched row per instance —
-   OR by `L` (p × nc in the columns of A); never both (R5-D8 round 6). One `sigma` per group:
-   the rows of L are the members, and several rows are what make `estimate="scale"` estimable
-   (a single row has redundancy ≤ 1).
-1b. **`data.systems(k).priors(l) = struct('group' | 'L', 'x0', 'sigma', 'from', 'name', 'estimate')`**
-   (R5-D8 round 5/6) — the priors on system k's LOCAL parameters, the literal counterpart of
-   `data.priors(j)`: one struct per GROUP, declared EITHER by **`group`** — a regular expression
-   matched against the NAME column of the table (column 2; `data.paramColumns.name` to say
-   otherwise); the toolbox builds L with one row per matched template row per instance — OR by
-   **`L`** (q × nl in the columns of that system's B as **`lsqvce.layout(data)`** announces them,
-   used as is); never both. Then `x0`, ONE `sigma` per group (relative weights inside a group go
-   into L), `from`, `name` (default the pattern), `estimate = "none" | "scale"`. Every row must lie inside one day's local block
-   (couple days through common parameters); the width of L is checked by name
-   (`lsqvce:fit:badPrior`). Each group rides as its own observation stream `prior_<name>` of the
-   system (pseudo-observations A = 0, B = L/σ, l = x0/σ, unit law), so accumulation, elimination,
-   the sweeps, `residuals()` and the redundancy count treat it as data — and with
-   `estimate = "scale"` its σ is estimated every pass of `Estimate="noise"` as that stream's level,
-   the Helmert / Koch–Kusche factor the joint estimator computes for every stream: IDENTICAL
-   behaviour to the common groups (`R.noise.model{k}.sigma` for stream `satKey|prior_<name>`).
-   Common priors and every system's priors carry their own settings. THE RULE (R5-D8): the
-   parameters and their columns are yours (tables, `buildDay`, plots, `toTable`); regularisation is
-   the toolbox's (mechanism, redundancy, activation, VCE per group); the interface between them is
-   an operator in your columns, announced by `lsqvce.layout`, checked by width.
-   `Options.Reg / RegLambda / RegMatrix` are gone.
-1c. **`data.paramColumns = struct('start', c1, 'end', c2)`** (R5-D8 round 3) — names the columns
-   of BOTH tables that hold a row's validity (`[MJD seconds]` pairs or fractional MJD; `[]` =
-   always). A `'day'` / `'arc'` row is then instantiated only on the calendar days its validity
-   overlaps (half-open day: start < d+1 and end > d); `'common'` / `'system'` rows are always
-   present. nc and nl are derived accordingly, and `buildDay`'s 6th argument tells you which
-   template rows exist on the day: `info.arcRows`, `info.dayRows`, `info.sysRows`,
-   `info.commonDayRows` (indices into the tables, in block order). Without `paramColumns`
-   every row is valid always — the v4 behaviour. This is how a one-day manoeuvre parameter and
-   a "literal" row become the same mechanism as everything else.
-2. **Per-stream policy on the covariance spec** — `covariance.<type>.estimate = "none" |
-   "scale" | "law"` (default `"law"` under `Estimate="noise"`) and `.arcFactors` (logical,
-   default the Options policy). A law whose `sigma` is a VECTOR (per-row weights) is a fixed
-   structure: it can carry a level (`"scale"`) but not a spectral shape (`"law"` is refused,
-   `lsqvce:fit:lawOnFixedStructure`). `Options.Pool` decides which streams SHARE one
-   estimated spectral shape; every stream keeps its own level. To read an arc's standard deviation back, use all
-   three terms: **declared sigma × sqrt(arc factor) × `R.sigma0`**. Since 6.1.6 the factor
-   is the arc's absolute Helmert factor and **weights the solve** (review R7-13), so
-   `sigma0` settles near 1 and carries only what no component absorbed, as in any GLS
-   adjustment (§7.7, §7.8 item 2). (R6 finding F-01, fixed in WP-98: eq. 6.5.28 multiplies
-   by the factor the weighting used, so the factors settle across passes instead of growing
-   8.4x a pass. Runs with `arcFactors = false` are unchanged.)
-3. **The per-pass inspection hook** — `Options.OnPass = @(ctx)` receives, after every pass
-   of every iterative run, the pass state, the live accumulator, `ctx.data` (this
-   declaration as given) and `ctx.processingOptions{k}` (system k's `processingOptions` as
-   declared); return `false` to stop. Nothing else about `buildDay` or the tables changed.
-
-Semantics made explicit in v5: a full SPD weight matrix returned by a batch source is
-whitened exactly (`chol(P)`), and per-observation diagnostics of a batch problem are
-reported in the WHITENED frame (`R.diag.v = sqrt(p).*v`; only their sums are
-frame-invariant).
-
-### 0b. The v5.3 delta (R6 WP-90): the error information travels with the day
-
-What the preprocessing knows about the accuracy of every observation — a per-epoch
-standard deviation, per-axis standard deviations, or a full 3 × 3 covariance per epoch — is
-DATA, and it comes back from `buildDay` WITH the day, as **`D.Cep`** (§3.4, §7), for ANY
-stream: `nEpoch × 1` for a scalar stream, `nEpoch × d` or `nEpoch × d × d` for a multi-axis
-one. The axis count is derived from it. The covariance spec (§5) declares the TEMPORAL law
-only — `diag` (white), `arma`, `psd`, `acf` — and the toolbox composes
-C = D (R_t ⊗ I_d) D per arc. Retired with this: the `separable` type (it was `arma` + Cep),
-the `epochCovariance` hook (an unknown field now), and a static `Cep` on the spec (refused
-when the day carries one: one fact, one authority). Nothing else about the declaration
-changed.
-
-### 0c. The v6 delta (R6 WP-102): the cells are the arcs, and the schedule is optional
-
-`buildDay` returns every field as a **1 × nArc cell, one cell per arc of the day**: `A`, `B`,
-`l`, `t` and, when given, `Cep` (§3.3, §3.4). A day with one arc returns `{A}`; a day
-without data returns empty cells. The v5 row-index fields `arcIdx` / `arcId` are gone — the
-cells say what they said — and an **empty cell is a data gap** (§4.3). The driver was the
-GRAVFIRE preprocessing, which delivers every day as a cell array, one cell per
-noise-independence piece: the day's cells now ARE the arcs, with no bookkeeping in between.
-
-`arcs` is **optional**. Without it, the arcs of a day are its cells (ids 1 … nArc) and the
-toolbox learns their number when the engine's per-day `meta` probe reads the day — which the
-engine reads right after, so the day cache makes the discovery free (`CacheDays` counts DAYS:
-one resident day is one slot per stream). `'day'` template rows then live on **every**
-calendar day, and a calendar day that returns no arc in any stream is refused at its probe
-(`lsqvce:makeLoader:emptyDay`) — take it off the calendar, or declare a schedule. A schedule
-is **required** only by `'arc'` template rows (nl counts one block per (day, arc) and must be
-known before any day is read); declared, cell a is the a-th scheduled id and the count must
-match (`lsqvce:makeLoader:arcCount`). The v5 string form `'fromDay'` is retired: omitting
-`arcs` is what it meant.
-
-### 0. The v4 principle: state nothing the data already states — and scope, don't number
-
-The contract declares **structure**, never **counts**, and since v4 it declares **scope,
-never numbering**: column 1 of both parameter tables is a **scope token**, the rows are
-**templates**, and the toolbox expands them over the calendar. Every count is derived:
-
-| quantity | derived from |
-|---|---|
-| nc (common unknowns) | the expansion of `data.commonParams` (`'common'` rows once + `'day'` rows per calendar day with arcs) |
-| nl (local unknowns) | the expansion of `localParams` (`'arc'` rows per (day, arc) + `'day'` rows per day with arcs + `'system'` rows once); **not declared → nl = 0** |
-| observation types | `fieldnames(covariance)` |
-| u (batched nonlinear) | `numel(x0)` |
-
-The v2 count fields are gone (v3), and so is v3's hand-numbering split (`localsPerArc` XOR
-free `localParams`): **one mechanism**, the scoped table. Every column offset reaches
-`buildDay` through its 6th argument (`info`, §6.3) — no offset is ever computed in user
-code. The driver was the GRACE parameterization: arc-wise ICs, day-wise ACC
-scale/bias/drift, per-arc KBR empiricals — three scopes, one table.
-
-### 1. The mental model in one paragraph
-
-You describe **one adjustment problem** with a plain MATLAB struct called `data`. It answers
-three questions: *what is estimated for everybody* (`data.commonParams`, one row per common
-unknown), *which days are processed* (`data.days`), and *which observing systems deliver
-data* (`data.systems`, one entry per satellite or instrument). Each system points to **one
-function you write**, `buildDay`, that returns the design matrices and observations of a
-single day. Everything else — reading days in the right order, cutting them into arcs,
-whitening with your covariance model, iterating the variance components — is the toolbox's
-job:
+The first two are complete after one line:
 
 ```matlab
-opts = lsqvce.Options(Estimate="noise");  % what to do
-R    = lsqvce.fit(data, opts);           % the one verb
-R.report                                 % the verdict
+data = struct('A', A, 'l', l, 'p', 1 ./ sigma.^2);     % weights, not sigmas
+R = lsqvce.fit(data);
+R.report
 ```
 
-You never call `makeLoader` yourself; `fit` builds the loaders from `data`. `R.systems`
-(the existing Results field) records what ran: per system its id, nl, the loader closure,
-the day list and the name.
+The rest of this chapter is the streaming kind, the one the toolbox is built for.
 
----
+## Step 2 — List the parameters
 
-### 2. The `data` struct — field by field
+Write two tables. `data.commonParams` holds the parameters every observation can see (for
+gravity recovery: the spherical-harmonic coefficients); `localParams` of a system holds
+the nuisance parameters that live on one arc, one day or the whole system (initial
+states, accelerometer calibration, empirical terms). Column 1 of every row says how often
+it is instantiated; the remaining columns are yours:
 
-`data` is a **scalar struct**. Field names are **case-sensitive** and use lowerCamelCase.
-Unknown field names are an **error** (`lsqvce:fit:unknownField`), which is deliberate: a
-typo in a struct field would otherwise be silently ignored. The retired v2 names (`common`,
-`numCommon`, `numLocal`, `observationTypes`, `systemId`, `cache`, `loader`, the plot hooks)
-are unknown fields now — the error names the field, so a v2 declaration fails loudly, not
-subtly.
+```matlab
+data.commonParams = [repmat({'common'}, nc, 1), myCoefficientNames];   % nc rows
+s.localParams = [ {'arc', 'bias'}; {'arc', 'drift'}; {'day', 'accScale'} ];
+```
 
-#### 2.1 `data.commonParams` — the shared unknowns (required)
+The toolbox derives every count and every column position from these tables. See
+*Declaring your problem*.
 
-| field | type / size | meaning |
-|---|---|---|
-| `commonParams` | cell, R×C (C ≥ 1) | one row per common **template**. **Column 1 is the scope token**: `'common'` (one column of A, always) or `'day'` (one column per calendar day that carries at least one scheduled arc in at least one system). Columns 2…C are *your* convention (degree, order, epoch, …). nc is **derived** from the expansion; the table is piped to `buildDay` as its 3rd argument. `'arc'` is forbidden here — arc sets are system-specific (`lsqvce:fit:badScope`). |
+## Step 3 — Write `buildDay`
 
-**Binding column layout of A:** the `'common'` rows first (table order), then one day
-block per calendar day (calendar order — the sorted union of every declared day list).
-`buildDay` receives this day's block position as `info.commonDayOffset` /
-`info.commonDayCount` (§6.3). Minimal table when you have nothing to say:
-`[repmat({'common'}, nc, 1), num2cell((1:nc).')]`.
+One function returns the data of one day and one observation type, one cell per arc:
 
-#### 2.2 `data.days` — the default schedule
+```matlab
+function D = myBuildDay(day, obsType, common, ~, procOpt)
+    arcs = readMyArcs(procOpt.dataDir, day, obsType);   % your reader, deterministic
+    n = numel(arcs);
+    D = struct('A', {cell(1, n)}, 'B', {cell(1, n)}, 'l', {cell(1, n)}, 't', {cell(1, n)});
+    for a = 1:n
+        m = numel(arcs(a).omc);
+        D.A{a} = myPartials(arcs(a), common);   % m x nc
+        D.B{a} = zeros(m, 0);                   % no local parameters in this sketch
+        D.l{a} = arcs(a).omc;                   % observed minus computed
+        D.t{a} = arcs(a).tSeconds;              % epochs in seconds
+    end
+end
+```
 
-| field | type / size | meaning |
-|---|---|---|
-| `days` | double, 1×D | day identifiers, e.g. `1:30` or `datenum` values cast to integers. Every system uses this list unless it carries its own `days`. Required unless every system has one. |
+Return raw, unwhitened rows; never scale them by your weights. With local parameters, add
+a 6th argument `info` and place every column by its offsets (*Declaring your problem*).
 
-Days must be **numeric integers**: the loader cache is keyed on the number.
+## Step 4 — Declare the system and its noise
 
-#### 2.3 `data.systems(k)` — one entry per observing system
+```matlab
+s = struct();
+s.buildDay = @myBuildDay;
+s.covariance.range = struct('type', 'diag', 'sigma', 2e-7);   % white noise, level 2e-7
+s.processingOptions = struct('dataDir', '/data/mission');
+data.days = 1:30;
+data.systems = s;
+```
 
-`data.systems` is a **1×M struct array** (M ≥ 1). All entries have the same fields; fill an
-unused optional field with `[]`.
+The fieldnames of `covariance` are your observation types. Start with a `diag` law and a
+realistic level; the estimator can find the colour (*Choosing the stochastic model*).
 
-**Required — two fields**
+## Step 5 — First run: one solve under the declared model
 
-| field | type / size | meaning |
-|---|---|---|
-| `buildDay` | function handle | your day builder, §3. |
-| `covariance` | struct | one field per observation type holding a covariance spec (§5), e.g. `cov.kbr = struct('type','diag','sigma',0.2)`. **The fieldnames ARE the observation types** (their order is the processing order); `buildDay` is called once per (day, type). |
+```matlab
+R = lsqvce.fit(data);          % Estimate = "none"
+R.report
+```
 
-**Optional**
+Check two things before anything else: that the run completes without a declaration error
+(every error names the field at fault), and that `R.sigma0` is plausible. A σ₀ far from 1
+means the declared accuracies are wrong in scale — fix that before estimating anything on
+top of it.
 
-| field | type / size | default | meaning |
+## Step 6 — Estimate the stochastic model
+
+```matlab
+opts = lsqvce.Options(Estimate="noise", Pool="stream", Seed=1);
+R = lsqvce.fit(data, opts);
+R.report
+R.plot("psd"); R.plot("convergence");
+```
+
+The loop re-solves until the noise laws settle. `Pool` decides which streams share one
+spectral shape; `ArcFactors` (default on) gives every arc its own variance factor; `Seed`
+makes the probe-based redundancies reproducible.
+
+## Step 7 — Add regularisation if the problem needs it
+
+A free network needs a datum; a high-degree gravity field needs a Kaula rule. Both are
+declared as priors in your columns:
+
+```matlab
+data.priors(1) = struct('group', '^C|^S', 'x0', 0, 'sigma', 1e-10, 'estimate', "scale");
+```
+
+See *Priors and regularisation*.
+
+## Step 8 — Read the report and act on it
+
+`R.report` prints a verdict and the evidence behind it: the global test, flagged
+observations, the reliability, the whiteness of every stream. Each adverse verdict has a
+standard next step — snooping, a richer noise law, a functional model correction. See
+*Reading the results and the report*.
+
+## Step 9 — Take the results out
+
+```matlab
+T = R.coefficients();                  % estimates, formal errors, confidence bounds
+[C, L] = R.toTable(data);              % your own tables with estimates written in
+save('run.mat', 'R');                  % R.meta records version, seeds and options
+```
+
+
+# Declaring your problem
+
+This chapter shows how to map a real problem onto the `data` struct. The field-by-field
+contract — every field, its type, its default and every error — is in the API reference
+(chapters *The `data` struct* and *`buildDay`*).
+
+## The picture
+
+You describe one adjustment with three answers: *what is estimated for everybody*
+(`data.commonParams`), *which days are processed* (`data.days`), and *which systems
+deliver data* (`data.systems`, one entry per satellite, receiver or instrument). Each
+system points to one function you write, `buildDay`, that returns the design rows and
+observations of one day for one observation type. Everything else — reading the days in
+order, whitening every arc with its noise law, eliminating the local parameters,
+iterating the variance components — is done by the toolbox.
+
+The design is block-arrow shaped: every arc sees the common parameters through its
+`A` and its own local parameters through its `B`. The local blocks are eliminated arc by
+arc, so the memory need is set by the number of common parameters, not by the number of
+observations.
+
+## Choosing the scope of each parameter
+
+Ask of every parameter: *over what span is it constant?*
+
+| constant over … | table | token | examples |
 |---|---|---|---|
-| `arcs` | double or fh | *(none)* | the arc schedule, §4: omitted, the cells `buildDay` returns are the arcs of the day; required only by `'arc'` template rows. |
-| `localParams` | cell, R×C (C ≥ 1) | `{}` | the local **templates**, §6: column 1 is the scope token `'arc'` \| `'day'` \| `'system'`, columns 2…C your convention; nl is **derived** from the expansion. Passed to `buildDay` as its 4th argument. Not declared → **nl = 0** (§6.4). |
-| `days` | double, 1×D | `data.days` | per-system schedule override. |
-| `id` | double 1×1 **or** single char | the index k | system identifier, unique across systems (explicit ids and index defaults share one namespace). Longer labels go in `name`. |
-| `name` | char / string | `''` | human-readable label used in reports. |
-| `processingOptions` | struct | `struct()` | anything your `buildDay` needs (paths, force models); passed as its 5th argument. |
+| the whole adjustment, seen by all systems | `commonParams` | `'common'` | gravity-field coefficients, station coordinates |
+| one calendar day, seen by all systems | `commonParams` | `'day'` | daily common terms |
+| one arc of one system | `localParams` | `'arc'` | initial position and velocity, per-arc biases |
+| one day of one system | `localParams` | `'day'` | accelerometer scale and bias |
+| the whole adjustment, one system | `localParams` | `'system'` | antenna offsets, instrument constants |
 
-**Rule of thumb for beginners:** `buildDay` + `covariance` is a complete system — return one
-cell per arc and the arcs are declared. Add `'arc'` template rows in `localParams` when arcs
-carry their own unknowns (and then `arcs`, the schedule those rows need), the rest when you
-need it. (The v5.2 `epochCovariance` hook is gone —
-the per-epoch error information comes back from `buildDay` as `D.Cep`, §7.)
+Rows are **templates**: the toolbox instantiates every row once per scope and derives the
+column counts. With `data.paramColumns` a row can also carry a validity interval and is
+then instantiated only on the days it covers — a one-day manoeuvre parameter is just a
+row with a one-day validity.
 
-#### 2.4 A pitfall you will hit once: `struct()` with cell values
+## Writing `buildDay` with local parameters
 
-```matlab
-% WRONG: struct() expands cell values into a struct ARRAY
-s = struct('localParams', {'bias','drift'});          % s is 1x2
-% RIGHT: double braces, or assign field by field
-s = struct('localParams', {{'bias';'drift'}});        % s is 1x1
-s.localParams = {'bias'; 'drift'};                    % clearest
-```
-
----
-
-### 3. The `buildDay` contract
-
-#### 3.1 Who calls it, and how often
-
-`fit` calls `buildDay` **once per (day, observationType)**; the cells it returns are the
-day's arcs. Every pass over the data reads each day **twice** (once to accumulate the
-normal equations, once for the residuals), and the variance-component loop multiplies that
-by the number of passes. Two consequences:
-
-1. **Determinism is mandatory.** Same arguments → byte-identical output. Random numbers,
-   clocks, mutable globals are forbidden inside `buildDay`. (The residuals are formed as
-   `v = l − A·x − B·y` from the second read; any difference lands in σ₀.)
-2. **Cache expensive reads yourself.** The toolbox caches *one built day* (every stream of
-   it; `Options.CacheDays` for more); if the raw file read is the expensive part and serves
-   several observation types, keep your own cache in the closure that binds `buildDay`.
-
-#### 3.2 Signature — declare only what you need
-
-`fit` passes as many of these six arguments as your handle **declares** (`nargin`):
+Declare the 6th argument and never compute a column offset yourself:
 
 ```matlab
-D = buildDay(day, obsType)                                        % classic
-D = buildDay(day, obsType, common, local, procOpt)                % parameter-driven
-D = buildDay(day, obsType, common, local, procOpt, info)          % with the expansion info
-```
-
-| argument | what it is |
-|---|---|
-| `day` | one entry of the day list (numeric) |
-| `obsType` | one entry of `fieldnames(covariance)` (char) |
-| `common` | `data.commonParams` |
-| `local` | `localParams` of this system (or `{}`) |
-| `procOpt` | `processingOptions` of this system |
-| `info` | this day's expansion slice — every offset of A and B (§6.3); `[]` only when nothing is scoped |
-
-A `varargin` builder receives all six.
-
-#### 3.3 Return value — required fields: THE CELLS ARE THE ARCS
-
-Every field is a **1 × nArc cell**, one cell per arc of the day; cell a is arc a. A day with
-one arc returns `{A}`, `{B}`, `{l}`, `{t}`; a day without data returns empty cells (nArc = 0).
-
-| field | size | meaning |
-|---|---|---|
-| `A` | cell, 1×nArc; each m_a×nc | design matrix of the **common** unknowns of arc a |
-| `B` | cell, 1×nArc; each m_a×nl | design matrix of the **local** unknowns; may be `sparse` |
-| `l` | cell, 1×nArc; each m_a×1 | **observed minus computed** (the reduced observation). Not the raw observation. |
-| `t` | cell, 1×nArc; each m_a×1 | epoch of each row in **seconds** (the whitener needs the lags) |
-
-Arc lengths may differ freely; the whitener is built per arc. An arc whose four entries have
-**0 rows is a data gap** (§4.3) and is skipped. Return **raw, unwhitened** matrices. Whitening
-happens per arc inside the toolbox from your covariance spec, and the VCE loop reweights there
-too — a builder that scales its own rows would be reweighted twice.
-
-#### 3.4 Return value — optional fields
-
-| field | size | meaning |
-|---|---|---|
-| `Cep` | cell, 1×nArc; each nEpoch_a×1, nEpoch_a×d or nEpoch_a×d×d | **the error information of each arc** (§7): the per-epoch standard deviation of a scalar stream, the per-axis standard deviations, or the full per-epoch covariance of a multi-axis stream. nEpoch_a·d must equal the arc's row count; the axis count d is derived from it and is one for the day. |
-| `nAxis` | 1×1 | the axis count of a multi-axis stream WITHOUT `Cep` (rows epoch-major, m_a = nEpoch_a·nAxis, §7). Derived from `Cep` when that is present; given as well, it must agree. |
-
-No other field is allowed — `arcIdx` / `arcId` (the v5 way of saying what the cells say) or a
-misspelt `cep` are refused by name (`lsqvce:makeLoader:badDay`), so a typo cannot be ignored
-silently.
-
-#### 3.5 What is checked, and the error you get
-
-| error id | meaning |
-|---|---|
-| `lsqvce:makeLoader:buildDay` | your `buildDay` threw; the original error is attached as the cause |
-| `lsqvce:makeLoader:badDay` | a required field (`A`, `B`, `l`, `t`) is missing or is not a 1×nArc cell, or the day carries a field that is not `A` `B` `l` `t` `Cep` `nAxis` |
-| `lsqvce:makeLoader:dayShape` | the cells do not agree in number, or an arc's `A`, `B`, `l`, `t` do not share a row count |
-| `lsqvce:accum:arcBadNc` / `arcBadNl` | `A` or `B` has the wrong number of columns — the derived nc/nl are enforced against **every** arc |
-| `lsqvce:makeLoader:arcCount` | a declared schedule names n arcs for the day and `buildDay` returned a different number of cells |
-| `lsqvce:makeLoader:emptyDay` | without a schedule, a calendar day that owns a `'day'` block returned no arc in any stream |
-| `lsqvce:makeLoader:badArc` | an arc id outside the declared schedule was asked for (a static schedule declared wrongly), or an arc of a multi-axis day does not hold whole epochs |
-| `lsqvce:makeLoader:badDayCep` | `Cep` is not a 1×nArc cell, or an arc's entry is not nEpoch×1 / nEpoch×d / nEpoch×d×d, or nEpoch·d is not the arc's row count |
-| `lsqvce:makeLoader:axisConflict` | `nAxis` disagrees with `Cep` (or with a `d` on the spec), or does not divide the row count |
-| `lsqvce:makeLoader:cepTwice` | the covariance spec carries a `Cep` AND the day returns one |
-| `lsqvce:covModel:cepOnVar` | a `var` law (its own cross-axis structure) with a `Cep` |
-| `lsqvce:makeLoader:noCep` | *(warning, once per run)* a multi-axis day without `Cep`: the axes are weighted by the temporal law alone (D = I) |
-
-These are raised **while reading**, by the engine, and keep their engine ids. Errors in the
-*declaration* itself are raised by `fit` before any data is read and carry `lsqvce:fit:` ids
-(`unknownField`, `noSystems`, `noCommon`, `missingField`, `localCount`, `noDays`, `badId`,
-`duplicateSystem`, `builderKind`, `badArcs`, and every `makeLoader` construction id
-relabelled, e.g. `lsqvce:fit:badScope`).
-
----
-
-### 4. Arc schedules
-
-#### 4.0 None — the cells are the schedule (the default since v6)
-
-Omit `arcs`. The arcs of a day are the cells `buildDay` returns, ids 1 … nArc, and days may
-differ freely in their count. The toolbox learns the count when the engine's per-day `meta`
-probe reads the day (the engine reads it right after; the cache keeps a whole day resident,
-so nothing is read twice). Consequences:
-
-- `'day'` template rows (§6) and `'day'` rows of `commonParams` are instantiated on **every**
-  calendar day of the system — the calendar is the declaration.
-- A calendar day that returns **no** arc in any stream is refused at its probe
-  (`lsqvce:makeLoader:emptyDay`) before any solve could go rank-deficient on an unobserved
-  block. Take the day off the system's calendar (`days`), or declare a schedule that names no
-  arc for it.
-- `'arc'` template rows need a schedule (§4.1 / §4.2): nl counts one block per (day, arc)
-  and must be known before any day is read (the `localPlan` construction error otherwise).
-
-#### 4.1 Static — every day looks the same
-
-```matlab
-s.arcs = 4;            % arcs 1..4 on every day, every observation type
-s.arcs = [1 2 4];      % these ids on every day
-s.arcs.kbr = 2;  s.arcs.pos = 4;    % per observation type
-```
-
-Cell a of the returned day is arc ids(a); the day must return exactly as many cells as the
-schedule names (`lsqvce:makeLoader:arcCount`), which catches a mis-declared schedule.
-
-#### 4.2 Ragged — days differ (gaps, manoeuvres, short months)
-
-Declare a **resolver** that returns the arc ids of a day *without reading data*:
-
-```matlab
-s.arcs = @(day, obsType) arcTable{day};      % 1xA vector of ids for that day
-```
-
-and return one cell per id, in that order. This is the form `'arc'` template rows need: a day
-whose list is empty gets no local blocks and no common day block (§6.4).
-
-#### 4.3 Data gaps — the empty cell
-
-Under a declared schedule, an arc the day does not carry is returned as an **empty cell**
-(0 rows in `A`, `B`, `l`, `t`): every engine skips it, no padding, no error. The same run
-declared with a resolver that simply omits the id gives bitwise the same result. (An empty
-cell of an arc that carries `'arc'` template rows leaves those unknowns unobserved — say the
-gap in the resolver instead.)
-
-The v5 string form `arcs = 'fromDay'` is retired (`lsqvce:fit:badArcs`): omitting `arcs` is
-what it meant.
-
----
-
-### 5. Covariance specs — the `covariance.(obsType)` structs
-
-One struct per observation type; `type` selects the **temporal law** — how the errors of
-one stream are correlated down the epochs. The most common:
-
-| `type` | fields | use for |
-|---|---|---|
-| `'diag'` | `sigma` (scalar std) | uncorrelated noise, e.g. `struct('type','diag','sigma',0.2)` |
-| `'arma'` | `ar` `[1 a1 … ap]`, `ma` (default 1), `sigma` (innovation std) | coloured noise with a known filter |
-| `'acf'` | `acf` `@(dt,opt)`, `sigma` | correlation given as a function of the lag |
-| `'psd'` | `f` (nf×1, Hz), `S` (nf×1) | noise given as a one-sided PSD |
-| `'var'` | `ar` (d×d×p), `sigma` (d×d) | vector-AR for multi-axis streams with cross-axis temporal correlation (no `Cep`) |
-
-`sigma` is always a **standard deviation**, never a variance, and it is the LEVEL of the law.
-The accuracy of the individual observations — what varies from epoch to epoch — is not
-declared here: it comes back from `buildDay` with the day as `D.Cep` (§7), and the toolbox
-composes the two. The VCE loop scales and reshapes these specs at run time; you only give
-the starting point. Full reference: `doc lsqvce.engine.covModel`.
-
----
-
-### 6. Local unknowns — the scoped `localParams` table
-
-One mechanism: the table's rows are templates, column 1 says **how often** each row
-instantiates.
-
-#### 6.1 The three scopes
-
-```matlab
-s.localParams = [ ...
-    [repmat({'arc'}, 6, 1),  num2cell((1:6).')];   % 6 ICs   -> once per (day, arc)
-    {'arc','kbrBias'; 'arc','kbrCos1cpr'};         % 2 more  -> once per (day, arc)
-    {'day', 'accScale'; 'day', 'accBias'};         % 2       -> once per day with arcs
-    {'system', 'antennaOffset'}];                  % 1       -> once, full adjustment
-```
-
-| token | one block per … | typical use |
-|---|---|---|
-| `'arc'` | (day, arc) of this system | initial conditions, per-arc empiricals |
-| `'day'` | day whose schedule carries ≥ 1 arc — every calendar day when no schedule is declared | ACC scale/bias/drift |
-| `'system'` | whole adjustment | instrument constants; also the v3 free table (see migration) |
-
-Requires `days` whenever `'arc'`/`'day'` rows are present, and a declared schedule (static or
-resolver, §4) for `'arc'` rows; `'day'` rows without a schedule live on every calendar day
-(§4.0); `'system'`-only tables need neither. nl is derived; declaring `numLocal` too is the
-conflict error.
-
-**Binding column layout of B (per system):** per day (declared order) — the arc blocks in
-**sorted arc-id order** (each block = the `'arc'` rows, table order), then the `'day'`
-block — and after all days one trailing `'system'` block. A day whose declared schedule has
-no arcs gets **no blocks at all** (§6.4).
-
-#### 6.2 Heterogeneous per-arc counts stay ENGINE-tier
-
-A template has the same rows for every arc. If arcs genuinely carry *different* counts,
-that is the ENGINE-tier `lsqvce.engine.makeLoader(..., 'LocalsPerArc', @(day, arcId) n)`
-(the WP-52 plan) — deliberately not on the `fit` surface.
-
-#### 6.3 Using `info` (buildDay's 6th argument)
-
-```matlab
-info.arcId            % 1xA  ids of this day's arcs
-info.offsetOf         % @(arcId) -> column offset of that arc's block in B
-info.count            % 1xA  columns of each arc block (= number of 'arc' rows)
-info.dayOffset        % 1x1  this day's 'day' block offset ([] if none)
-info.dayCount         % 1x1  its width (0 if none)
-info.sysOffset        % 1x1  the 'system' block offset
-info.sysCount         % 1x1  its width
-info.nl               % 1x1  total local count of the adjustment
-info.nc               % 1x1  total common count
-info.commonCount      % 1x1  width of A's leading 'common' block
-info.commonDayOffset  % 1x1  this day's common day-block offset in A ([] if none)
-info.commonDayCount   % 1x1  its width (0 if none)
-```
-
-Fill `B(rows, info.offsetOf(id) + (1:k))`, `A(:, info.commonDayOffset + (1:w))` — and
-**never compute an offset yourself**.
-
-#### 6.4 Days without arcs, systems without locals
-
-A calendar day on which **no system** schedules an arc gets no common day block (nc
-shrinks); a system day whose declared schedule has no arcs gets no arc and no `'day'` blocks
-(nl shrinks) — offsets stay gap-safe on ragged schedules and manoeuvre days. A system
-**without** a schedule claims every day of its calendar (§4.0). A system without local
-unknowns is still the **default**: declare no `localParams` and return `B = zeros(m, 0)`
-(the engine skips the pre-elimination; empty diagnostics per HANDOVER G-07).
-
----
-
-### 7. The error information — `D.Cep` on the returned day
-
-The covariance of a stream has two parts. The **temporal law** R_t (white, AR, a PSD) is
-declared in §5 and estimated by `Estimate="noise"`. The **per-epoch accuracy** D — what the
-preprocessing knows about each observation: a PPP covariance, a per-epoch sigma from a
-fit, a weight from an earlier screening — is DATA, and you return it with the day:
-
-```matlab
-D.Cep{a} = sigmaPerEpoch;                  % nEpoch_a x 1      scalar stream
-D.Cep{a} = [sx sy sz];                     % nEpoch_a x 3      per-axis sigmas (diagonal D)
-D.Cep{a} = permute(reshape(Q.', 3, 3, []), [3 1 2]);   % nEpoch_a x 3 x 3  full per-epoch covariance
-```
-
-(one entry per arc, a 1×nArc cell like `A`; v6)
-
-The toolbox composes C = D (R_t ⊗ I_d) D per arc: every epoch is de-scaled by D^-1/2 (for
-d = 1 that is a division by the sigma), then the temporal whitener runs down the epochs of
-each axis. The axis count d is `size(Cep, 2)`; `nAxis` is derived from it. Rows of a
-multi-axis stream are **epoch-major** (x₁ y₁ z₁ x₂ y₂ z₂ …), so nEpoch·d must equal the row
-count, and an arc must hold whole epochs. Under `Estimate="noise"` the estimator de-scales
-the residuals of every arc by the same D before it forms the lag statistics, so the
-estimated law is the law of the *normalised* errors — a scalar stream with a per-epoch
-sigma is handled exactly like a 3-axis one.
-
-Rules:
-
-- One authority: `Cep` lives on the day. A `Cep` on the covariance spec together with one
-  on the day is refused (`cepTwice`); a `d` on the spec that disagrees with the day is
-  refused (`axisConflict`).
-- A multi-axis day **without** `Cep` (set `nAxis`) is composed with D = I and reported once
-  per run (`lsqvce:makeLoader:noCep`) — the omission is distinguishable from a choice.
-- `sigma` on the spec stays the LEVEL of the law; `Cep` is relative to it. Declare `sigma`
-  1 when `Cep` already carries the absolute accuracy.
-- A `var` law carries its own cross-axis structure and takes no `Cep`.
-
----
-
-### 8. Worked example — the GRACE parameterization: three scopes, one table
-
-Arc-wise initial conditions, **day-wise** accelerometer scale/bias/drift, per-arc KBR
-empiricals — the case v3 could only hand-number, and the driver of v4:
-
-```matlab
-% ---- the one function you write --------------------------------------
 function D = buildDayGrace(day, obsType, common, ~, procOpt, info)
-    raw = readGraceDay(procOpt.dataDir, day, obsType);   % your reader, deterministic;
-                                                         % one entry per arc of the schedule
-    nArc = numel(info.arcId);                            % the resolver's ids, in order
-    D = struct('A', {cell(1, nArc)}, 'B', {cell(1, nArc)}, 'l', {cell(1, nArc)}, 't', {cell(1, nArc)});
-    for a = 1:nArc                                       % THE CELLS ARE THE ARCS (v6)
-        arc = raw.arc(a);                                % empty on a data gap -> empty cell
-        D.A{a} = shPartials(arc, common);                % m_a x info.nc; the 'common' block
-        D.l{a} = arc.observed - arc.computed;            % O - C
+    raw  = readGraceDay(procOpt.dataDir, day, obsType);  % your reader, deterministic
+    nArc = numel(info.arcId);                            % the schedule's arcs, in order
+    D = struct('A', {cell(1, nArc)}, 'B', {cell(1, nArc)}, ...
+               'l', {cell(1, nArc)}, 't', {cell(1, nArc)});
+    for a = 1:nArc
+        arc = raw.arc(a);                                % empty on a data gap
+        D.A{a} = shPartials(arc, common);                % m_a x info.nc
+        D.l{a} = arc.observed - arc.computed;            % observed minus computed
         D.t{a} = arc.tSeconds;
         B = sparse(numel(D.l{a}), info.nl);
-        off = info.offsetOf(info.arcId(a));
-        B(:, off + (1:info.count(a))) = icAndKbrPartials(arc);
-        if info.dayCount > 0                             % this day's ACC block
+        B(:, info.offsetOf(info.arcId(a)) + (1:info.count(a))) = arcPartials(arc);
+        if info.dayCount > 0                             % this day's 'day' block
             B(:, info.dayOffset + (1:info.dayCount)) = accPartials(arc);
         end
         D.B{a} = B;
     end
 end
+```
 
-% ---- the declaration ---------------------------------------------------
-data.commonParams = [repmat({'common'}, 3717, 1), shParameterTable(60)];
+`B` may be sparse; it usually is, because an arc touches only its own block.
+
+## Arcs and schedules
+
+The cells `buildDay` returns **are** the arcs of the day. Without an `arcs` field the
+toolbox takes them as they come, and days may differ in their number of arcs. Declare a
+schedule only when `'arc'` parameters need to be counted before any data is read:
+
+```matlab
+s.arcs = 4;                                  % arcs 1..4 on every day
+s.arcs = @(day, obsType) arcTable{day};      % a resolver for ragged schedules
+```
+
+A data gap is an empty cell; a day without any data in a system belongs off that
+system's calendar (`s.days`).
+
+## Several systems
+
+Each satellite or instrument is one entry of `data.systems`, with its own `buildDay`,
+covariance specs, local parameters and calendar. Systems share only the common
+parameters. An observation that depends on the local parameters of two satellites — the
+range-rate between two GRACE spacecraft — belongs to **one** system whose local table
+holds both satellites' parameters.
+
+## Multi-axis observations and their accuracy
+
+A stream with several axes per epoch — a kinematic orbit, a gradiometer — is returned
+epoch-major (x₁ y₁ z₁ x₂ …). What the preprocessing knows about the accuracy of every
+epoch travels with the day as `D.Cep`, one cell per arc:
+
+```matlab
+D.Cep{a} = sigmaPerEpoch;                                % n x 1   scalar stream
+D.Cep{a} = [sx sy sz];                                   % n x 3   per-axis sigmas
+D.Cep{a} = permute(reshape(Q.', 3, 3, []), [3 1 2]);     % n x 3 x 3 full covariance
+```
+
+The vector forms are standard deviations and the matrix form is a covariance — check one
+epoch by hand before a campaign. `Cep` is relative to the `sigma` of the covariance spec:
+declare `sigma = 1` when `Cep` already carries the absolute accuracy.
+
+## A complete declaration: two GRACE-FO satellites
+
+```matlab
+data.commonParams = [repmat({'common'}, nSh, 1), shParameterTable(60)];
 data.days = 1:31;
-cov.kbr = struct('type','arma','ar',[1 -1.6 0.9 -0.25],'ma',1,'sigma',1e-7);
-cov.pos = struct('type','diag','sigma',0.02);             % fieldnames = the two types
+cov.kbr = struct('type', 'arma', 'ar', [1 -1.6 0.9 -0.25], 'ma', 1, 'sigma', 1e-7);
+cov.pos = struct('type', 'diag', 'sigma', 0.02);
 
 s = struct();
 s.buildDay = @buildDayGrace;
 s.covariance = cov;
-s.id = 'C';
-s.name = 'GRACE-FO C';
-s.arcs = @(day, obsType) arcSchedule('C', day);            % required by the 'arc' rows below
+s.id = 'C';  s.name = 'GRACE-FO C';
+s.arcs = @(day, obsType) arcSchedule('C', day);            % 'arc' rows need a schedule
 s.localParams = [ ...
-    [repmat({'arc'}, 6, 1), {'x0';'y0';'z0';'vx0';'vy0';'vz0'}];  % ICs per arc
-    {'arc', 'kbrBias'; 'arc', 'kbrCos1cpr'};                      % KBR per arc
-    [repmat({'day'}, 3, 1), {'accScale';'accBias';'accDrift'}]];  % ACC per day
+    [repmat({'arc'}, 6, 1), {'x0'; 'y0'; 'z0'; 'vx0'; 'vy0'; 'vz0'}];   % initial state
+    {'arc', 'kbrBias'; 'arc', 'kbrCos1cpr'};                           % KBR empiricals
+    [repmat({'day'}, 3, 1), {'accScale'; 'accBias'; 'accDrift'}]];     % ACC per day
 s.processingOptions = struct('dataDir', '/data/gracefo');
 data.systems(1) = s;
-
 s.id = 'D';  s.name = 'GRACE-FO D';  s.arcs = @(day, obsType) arcSchedule('D', day);
 data.systems(2) = s;
 
-% nl per satellite = SUM over its days-with-arcs of (arcs*8 + 3) -- derived,
-% gap-safe on manoeuvre days, never stated.
-
-% ---- the run -----------------------------------------------------------
-opts = lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, Parallel=struct('Mode', "parfor"));
-R = lsqvce.fit(data, opts);
+R = lsqvce.fit(data, Estimate="noise", Pool="stream", ArcFactors=false);
 R.report
 ```
 
----
+A runnable builder of this shape for real Level-1B data is `template/kbr_variational.m`
+(chapter *The examples*).
 
-A complete, runnable builder of this shape for REAL data is `template/kbr_variational.m`
-(6.12.0): it reads the GRACE-FO Level-1B files (GNV1B, KBR1B, ACT1B, SCA1B) of a day, integrates
-each arc's orbit with its variational equations against a reference field (an ICGEM `.gfc`),
-and returns the range-rate and position streams with arc-wise initial states and KBR
-empiricals and day-wise accelerometer calibration — `[data, kit] = kbr_variational(cfg)`,
-then `lsqvce.fit(data, opts)`. Its help states what it does not model (the Earth-rotation
-stand-in, the forces beyond the static field and the accelerometer).
+## Checklist before the first run
 
-### 9. What `fit` does internally — the equivalent direct engine calls
+- `buildDay` returns `A`, `B`, `l`, `t` as one cell per arc, each arc with one row count;
+  `l` is observed minus computed; nothing is whitened.
+- Calling `buildDay` twice with the same arguments gives identical output.
+- `t` is in seconds.
+- `size(A, 2)` equals the derived nc, `size(B, 2)` the derived nl — build them from
+  `info.nc` / `info.nl` and place blocks by the `info` offsets.
+- Every observation type is a field of `covariance`.
+- `Cep`, if given, has one cell per arc and matches the rows (n·d = m).
+- No unknown field names in `data`: a typo is an error on purpose.
+
+
+# Choosing the stochastic model
+
+The weights of a least-squares solution are the inverse of the noise covariance. This
+chapter says what to declare, what to let the data estimate, and how to read the
+estimate back. The laws and their fields are listed in the API reference (*Covariance
+specifications*); the mathematics is in the theory.
+
+## Three facts, three places
+
+| fact | declared in | estimated? |
+|---|---|---|
+| the **temporal law** — how the errors of a stream correlate from epoch to epoch | `covariance.<type>.type` and its parameters | yes, with `Estimate = "noise"` |
+| the **level** of that law | `covariance.<type>.sigma` (a standard deviation) | yes |
+| the **per-epoch accuracy** — what the preprocessing knows about each observation | `D.Cep`, returned by `buildDay` | never: it is data |
+
+The toolbox combines them per arc. An arc is whitened in batches of up to 20 000 rows. For
+a filter law (`diag`, `arma`, an AR-whitened `psd`, `var`) consecutive batches overlap by the
+memory of the filter, so batching does not change the result. A dense law (`acf`,
+`custom`, a `psd` whitened as Toeplitz) is factorised per batch: on an arc longer than one
+batch the correlation between batches is dropped — cut such arcs, or use a filter law.
+
+## What to declare
+
+- **You do not know the colour of the noise.** Declare `type = 'diag'` with a realistic
+  `sigma` and run `Estimate = "noise"`: the estimator starts from white noise and finds
+  the spectral shape. Under `estimate = "law"` (the default) this is what happens to every
+  stream, whatever law it declares: the declared law contributes only its `sigma`, as the
+  starting level, and the shape is estimated from white noise. (For an `arma` law `sigma`
+  is an innovation standard deviation; as a level it is read as the marginal one.)
+- **You know the noise spectrum.** Declare `type = 'psd'` with `f` and `S`, or an `arma`
+  filter; set `estimate = "scale"` to keep the shape and estimate only the level, or
+  `"none"` to use it as given.
+- **Your axes are correlated in time across axes.** Declare a `var` law (no `Cep`).
+- **A stream you trust completely** — a prior stream, a reference — takes
+  `estimate = "none"`.
+
+## Running the estimator
 
 ```matlab
-L = cell(1, numel(data.systems));
-for k = 1:numel(data.systems)
-    s = data.systems(k);
-    L{k} = lsqvce.engine.makeLoader(s.buildDay, ...
-        ObservationTypes=fieldnames(s.covariance).', Covariance=s.covariance, ...
-        SystemId=s.id, Name=s.name, Arcs=s.arcs, ...                 % Arcs only when declared
-        LocalParams=s.localParams, Scoped=true, CommonPlan=plan, ...  % fit builds `plan`
-        Days=data.days, CommonParams=data.commonParams, ...           % over the global calendar
-        ProcessingOptions=s.processingOptions);
-end
-R = lsqvce.engine.adjustBlock(L, data.days);                        % Estimate "none"
-R = lsqvce.engine.adjustRobust(L, data.days, 'Influence', "huber");  % Robust "huber"
-% Estimate "noise" is lsqvce.engine.adjustVCEjoint over an accumulator factory that
-% lsqvce.fit builds (jointModelOpt + the block accumulator); use fit for it.
-```
-
-These are ENGINE-tier calls (experts); a user needs none of them. The ENGINE tier keeps the
-v2/v3 conveniences (`numCommon`/`numLocal` counts, free un-scoped tables with
-`Scoped=false` — the default — `LocalsPerArc` incl. the heterogeneous `@(day,arcId)` form,
-`cache`, raw 4-arg loader closures) — they left the USER surface, not the toolbox.
-
-Field names map 1:1 to `makeLoader`'s Name-Value names (lowerCamelCase field ↔
-UpperCamelCase name); `fit` performs exactly this mapping internally, plus the three
-derivations of §0.
-
----
-
-### 10. Checklist before the first run
-
-- [ ] `buildDay` returns `A`, `B`, `l`, `t` as one cell per arc, each arc with one row count;
-      `l` is O − C; nothing is whitened; no field beyond `Cep` / `nAxis`.
-- [ ] Calling `buildDay` twice with the same arguments gives identical output.
-- [ ] `t` is in seconds; the sampling matches the covariance spec you declared.
-- [ ] `data.commonParams` rows carry the scope token in column 1; `size(A, 2)` must equal
-      `info.nc` (use `zeros(m, info.nc)` and place blocks by the `info` offsets).
-- [ ] Every observation type is a field of `covariance` — the fieldnames are the type list.
-- [ ] Arc schedule: none (the cells are the arcs) unless `'arc'` template rows need one;
-      declared, one cell per scheduled id, an empty cell for a gap.
-- [ ] Local unknowns: scoped `localParams` templates, `B` filled from `info` offsets only;
-      not declared → `B = zeros(m, 0)`.
-- [ ] The error information: `Cep` on the day, one cell per arc (nEpoch×1 for a scalar
-      stream; nEpoch×d or nEpoch×d×d, rows epoch-major, for a multi-axis one); the spec
-      declares the temporal law and its level only.
-- [ ] No unknown field names in `data` (a typo is an error, on purpose — and so are the v2
-      count fields and, since v4, `localsPerArc`).
-
----
-
-### 11. The two in-memory kinds (no local unknowns, diagonal weights)
-
-Not every problem streams. When A fits in memory and there are no arc-wise unknowns, `data`
-has no `systems` at all — `fit` tells the kinds apart by the fields present:
-
-**Kind B — matrices**
-
-| field | size | meaning |
-|---|---|---|
-| `A` | m×u | design matrix |
-| `l` | m×1 | observed minus computed |
-| `p` | m×1 | weights (diagonal of P), optional; absent = unit weights |
-
-**Kind C — batched callback** (A too large for one matrix, or naturally batched)
-
-| field | size | meaning |
-|---|---|---|
-| `batchFcn` | fh | `[A, l, p] = batchFcn(k)`, k = 1…nBatch — one batch: design rows `A`, observations `l`, weights `p` |
-| `numBatches` | 1×1 | nBatch |
-| `numUnknowns` | 1×1 | u — **linear form only** |
-| `x0` | u×1 | optional. With it the problem is **nonlinear**: `[A, w, p] = batchFcn(k, x)` returns the Jacobian at `x` and `w = l − f(x)`; solved by damped Gauss-Newton (`lsqvce.engine.adjustNonlinear`). **u = numel(x0)** — `numUnknowns` must then be absent (`lsqvce:fit:uCount`) |
-
-Rules: `opts.Estimate` must be `"none"` (variance components need the streams of a
-streaming system — `lsqvce:fit:modelKind`); `opts.Robust = "huber" | "igg3" | "bisquare"`
-switches to M-estimation (`RobustOpts` in Options); shapes are checked before anything runs
-(`lsqvce:fit:badMatrix`, `lsqvce:fit:missingField`, `lsqvce:fit:unknownField`). Both kinds
-run on the ONE accumulator as a local-free streaming system (batch k = day k), so
-`R.residuals()`, `R.contribution()`, `R.plot(..)` and `OnPass` work on them too; the
-per-observation diagnostics are in the whitened frame (`R.diag.v = sqrt(p).*v`).
-
-What comes back is the same `Results`: `R.x`, `R.sigma0`, `R.coefficients()`, `R.report()`,
-`R.diag`, and for IRLS / Gauss–Newton the pass record on `R.history` (the final IRLS factors:
-`R.history(end).factor`) with `R.stopReason`.
-
-```matlab
-data = struct('A', A, 'l', l, 'p', p);
-R = lsqvce.fit(data);                                   % adjustBlock on the batch adapter
-R = lsqvce.fit(data, Robust="huber");                   % adjustRobust (IRLS)
-data = struct('batchFcn', @(k, x) myJacobian(k, x), 'numBatches', 20, 'x0', x0);
-R = lsqvce.fit(data, MaxPasses=15);                     % adjustNonlinear (Gauss-Newton)
-```
-
-How Gauss–Newton steps (since 6.9.0, R7 WP-113):
-- Every step is one least-squares solve at the current x. Marquardt damping is applied to
-  the parameters themselves, as rows `sqrt(λ·d_j)·dx_j ≈ 0` with `d = diag(J'PJ)`.
-- A declared prior `K·x ≈ x0` enters each step as `K·dx ≈ x0 − K·x`, so the iteration
-  converges to the optimum of the declared objective `‖w‖²_P + ‖(K·x − x0)/σ‖²`. Before,
-  the prior acted on the increment and missed that optimum.
-- A step that raises the objective is rejected from the first pass on. λ grows tenfold
-  (from 0, it starts at 1e-3), and a shorter step is solved from the same x.
-- A run that stops at `MaxPasses` returns the best point it accepted, never the step it
-  had just rejected.
-
-Stream names carry no meaning: the axis count of a stream comes from the day it returns
-(`Cep` or `nAxis`, §7), never from its name.
-
-
-# Options — the complete reference
-
-`lsqvce.Options` is a typed value class: every knob has a type, a range and a default,
-checked at assignment (`MATLAB:validators:*` identifiers) or at construction
-(`lsqvce:Options:*`). It says *how to run*; everything about the data, including
-regularisation, is declared on `data` (chapter 3). Three equivalent spellings:
-
-```matlab
-opts = lsqvce.Options(Estimate="noise", MaxPasses=6);   R = lsqvce.fit(data, opts);
-opts.Noise.Grid = 2160;                                  % change one later (validated)
-R = lsqvce.fit(data, Estimate="noise", MaxPasses=6);     % straight on fit
-```
-
-`disp(opts)` lists every knob, a `*` marking the defaults. The option space is
-**14 top-level knobs and 5 groups**; the count is pinned by a test so it cannot grow
-unnoticed.
-
-## What to estimate
-
-**`Estimate`** — `"none"` (default) | `"noise"`.
-`"none"` is one generalised least-squares solve under the declared covariance laws.
-`"noise"` runs the joint variance-component estimator (Ellmer 2018, theory ch. 6): for
-every stream whose spec allows it (`covariance.<type>.estimate ~= "none"`), the spectral
-*shape* of its noise is estimated per pool group from Hutchinson-probed redundancies, one
-*level* per stream, and (with `ArcFactors`) one factor per arc; prior groups with
-`estimate="scale"` get their sigma by Helmert / Koch–Kusche in the same passes. The v4
-words map as: `"ellmer"` → `Estimate="noise"`; `"vce"` → `Estimate="noise", Pool="stream",
-ArcFactors=false`; `"pooled"` → `Estimate="noise", Pool="all", ArcFactors=false`.
-
-**`Pool`** — `"all"` (default) | `"obsType"` | `"stream"`.
-Which streams *share* one estimated spectral shape: all streams of the run; the streams
-of one observation type across systems (both satellites' KBR, say); or every
-(system, type) stream on its own. Every stream keeps its own level regardless. Fewer
-groups = more arcs per shape = a steadier estimate; more groups = more physics.
-
-**`ArcFactors`** — logical, default `true`.
-Per-arc variance factors (theory 6.5.4): every arc of a stream gets a keyed factor on top
-of the stream's level, normalised to unit mean over the run. `false` = one level per
-stream (the Helmert factor of its arcs). Turn off when arcs are few or short.
-
-**`Robust`** — `"none"` (default) | `"huber"` | `"igg3"` | `"bisquare"`.
-M-estimation on the same loop, every data kind, in two deliberately different conventions
-(chapter 7, §7.8). With `Estimate="none"` it is the stand-alone IRLS (`adjustRobust`): the
-influence function re-weights the law-whitened *innovations* (Yang) with a MAD scale each
-pass, `RobustOpts.MaxIter` / `Tol` are its budget, the final factors are
-`R.history(end).factor`. With `Estimate="noise"` (since 6.1) the robust pass runs *inside* the
-joint estimator and weights *observations* (Koch): the raw residuals, descaled by each
-epoch's declared accuracy, one factor per epoch, folded into `Cep` before the temporal law;
-`MaxPasses` is the budget, the factors are `R.noise.robust.factor`. Prefer `"igg3"` or
-`"bisquare"` for gross blunders — Huber keeps c/|u| of their weight.
-
-## The loop
-
-**`MaxPasses`** — integer ≥ 1, default 10. The pass budget of the variance-component
-loop and of Gauss–Newton. **IRLS has its own**, `RobustOpts.MaxIter` (30), as it has its
-own tolerance — `engineArgs` hands `adjustRobust` that one and never `MaxPasses`
-(R6 WP-101). Exhausting the budget returns the last pass with
-`R.stopReason = "maxPasses"` and one warning.
-
-**`Tolerance`** — positive, default 1e-2. The stop rule of the variance-component loop:
-max |α² − 1| over frequencies and arcs below it; for Gauss–Newton the relative step in
-units of the formal error; IRLS uses `RobustOpts.Tol`.
-
-**`Probes`** — integer ≥ 1, default 100 (Ellmer's value). Hutchinson probes for the
-per-lag redundancies of the joint estimator. There is **no exact route** in that
-estimator, so 0 is refused at assignment (R6 WP-101; the `'TraceMethod','exact'` route
-exists only on the engine-tier `lsqvce.engine.redundancy`, which `fit` does not call).
-
-**`Seed`** — `[]` (default) or a double. RNG seed for the probes; recorded in
-`R.meta.seeds` so a run is reproducible.
-
-## Run control
-
-**`Backend`** — `"qr"` (default) | `"normal"`. Square-root (Householder QR, rank refusal
-by `rank()`'s tolerance) or normal equations (Cholesky). Same numbers to rounding; QR is
-the safer default on ill-conditioned common blocks.
-
-**`CacheDays`** — positive, default 1. Built days kept resident per system. A two-stage
-pass builds every day twice (accumulate + sweep) and a VCE run 2n+1 times; `Inf` keeps the
-calendar and builds each day once per run — your memory decision (a built type-day is
-m × nc doubles, ≈190 MB at degree 60 for a 6-h three-axis piece).
-
-**`Verbose`** — logical, 0 or 1, default `false`. Screen messages: 0 silent, 1 progress.
-This surface is a FLAG: `Options.engineArgs` hands every driver `logical(Verbose)`, so
-level 2 has never been reachable through `fit` — it is an engine-tier setting of
-`lsqvce.util.verbosity` (R6 WP-101). A 2 is still accepted here and behaves as 1.
-(Level 3 was merged into 2 in 2026-07; `lsqvce.util.verbosity` refuses it, and since v5.3 so does
-`Options` itself, by name.)
-
-**`OnPass`** — `[]` (default) or `@(ctx)`. Your inspection hook, called at the end of
-**every pass** of every iterative run with one struct: `driver`, `pass`, `x`, `Cxx`,
-`sigma0`, `s0sq`; the loop state (noise: `C`, `Cgroups`, `sigma2`, `arcKeys`, `streams`,
-`sigma`, `white`, `whitePval`, `maxDev`, `skips`; IRLS: `factor`, `keys`, `scale`, `dx`;
-Gauss–Newton: `vPv`, `dxRel`, `lambda`); `acc` — the **live accumulator** (call
-`lsqvce.engine.residuals(ctx.acc, …)` or any engine function inside the hook); `data` —
-your declaration as passed to `fit`; `processingOptions{k}` — system k's, as declared.
-Plot, `drawnow`, save wherever you like. Return nothing to continue, `false` to stop after
-the pass (`R.stopReason = "userStop"`, the last pass returned with its covariance). A
-throwing hook is not swallowed: it arrives as `lsqvce:callUser:threw` with your error as
-the cause. This replaces the v4 `plotPostSolve` / `plotPostModel` hooks and `ShowSeconds`
-/ `ExportDir`.
-
-## The groups
-
-A group is a struct; assign a whole (partial) struct or one field. Partial structs are
-merged onto the defaults; an unknown field is refused (`lsqvce:Options:badGroupField`).
-
-### `Noise` — the estimated stochastic model
-
-| field | default | meaning |
-|---|---|---|
-| `Grid` | 60 | spectral bins of the estimated law between 0 and Nyquist (its resolution); an integer ≥ 2. Since 6.7.0 the law is exact at every lag of every arc whatever the Grid (R7 WP-111). `"auto"` was documented until v5.3 and never implemented; it is refused now (R6 WP-101) |
-| `Whitener` | `"toeplitz"` | how a PSD law whitens an arc: exact Toeplitz Cholesky, or an AR / ARMA filter fitted to it (`"ar"`, `"arma"`: O(m·p) instead of O(m²)) |
-| `Smooth` | 0 | moving-average half-width on the estimated PSD (0 = none) |
-| `FreezeRedundancy` | 1 | a frequency whose redundancy is below this holds its value instead of being updated |
-| `SkipThreshold` | 0.2 | the skip *rate* (arcs the sweep could not process / arcs of the stream) above which the pass is refused rather than silently thinned |
-
-### `RobustOpts` — IRLS
-
-| field | default | meaning |
-|---|---|---|
-| `Tuning` | `[]` | the influence function's tuning constant (its textbook default when empty: Huber 1.345, IGG3 (1.5, 2.5), bisquare 4.685) |
-| `MaxIter` | 30 | IRLS passes |
-| `Tol` | 1e-8 | relative change of x that ends the iteration |
-
-### `Diagnostics` — the per-observation tests (`R.diag`, `R.report`)
-
-| field | default | meaning |
-|---|---|---|
-| `Alpha` | 1e-3 | significance level of the outlier test |
-| `Bonferroni` | `true` | correct α for the number of tests |
-| `Beta` | 0.2 | power (1 − β) for the minimal detectable bias |
-| `RMin` | 0.01 | redundancy number below which an observation is "untestable" |
-| `RWeak` | 0.1 | below which it is "weakly controlled" |
-| `Test` | `"auto"` | `"pope"` (σ₀ estimated) / `"baarda"` (σ₀ known) / `"mad"` (robust scale) / auto by the a-priori backstop |
-| `RobustCheck` | `true` | run the MAD-scale backstop that flags a contaminated fit |
-| `Store` | `"all"` | keep per-observation arrays for all / `"flagged"` / `"none"` |
-| `NWorst` | 1000 | how many worst observations `R.report` keeps |
-
-### `Parallel`
-
-| field | default | meaning |
-|---|---|---|
-| `Mode` | `"serial"` | `"parfor"` or `"spmd"` with the Parallel Computing Toolbox; serial fallback with one warning without it |
-| `DistributeDays` | `false` | the day loop of the accumulation over workers (bitwise-identical fold order) |
-| `Threshold` | 8 | days below which distribution is not attempted |
-
-### `GaussNewton` — problems with `data.x0`
-
-| field | default | meaning |
-|---|---|---|
-| `TolF` | 1e-10 | relative change of the objective that ends the iteration |
-| `Lambda0` | 1e-6 | initial Marquardt damping of the parameters (`sqrt(λ·diag(J'PJ))` rows); a rejected step multiplies it by 10 (from 0: 1e-3), an accepted one divides it (below 1e-12: 0) |
-
-## Retired knobs
-
-Regularisation is no longer an option (`Reg`, `RegLambda`, `RegMatrix`, `DatumB`,
-`Sigma0`, `Sparse` are gone): declare `data.priors` / `data.systems(k).priors` (chapter 6).
-The full v4 → v5 map is chapter 12.
-
-
-# The user tier: fit, Options, Results, report, layout
-
-The help blocks of the five user-tier units, verbatim (`help lsqvce.<name>` shows the same text; `doc lsqvce.<name>` the same page). This chapter is generated from the code at build time.
-
-
-## lsqvce.fit
-
-LSQVCE.FIT  Fit a least-squares adjustment (optionally with VCE) to declared data.
-
-```
-LSQVCE.FIT  Fit a least-squares adjustment (optionally with VCE) to declared data.
-
-  R = lsqvce.fit(data)                        every default (one GLS solve)
-  R = lsqvce.fit(data, opts)                  a lsqvce.Options object
-  R = lsqvce.fit(data, Name, Value, ...)      the Options properties, straight on fit
-  R = lsqvce.fit(data, opts, Name, Value)     both: the pairs override opts
-
-  THE ONE VERB. You describe the problem with a plain struct `data`
-  (manual, chapter 3), say what to do with lsqvce.Options (chapter 4), and
-  get a lsqvce.Results back (chapter 5):
-
-      R = lsqvce.fit(data, Estimate="noise", Pool="obsType", OnPass=@myInspect);
-      R.report;  R.plot("psd");  [C, L] = R.toTable(data);
-
-  THREE DATA KINDS, told apart by the fields of `data`, all on ONE accumulator:
-    (A) streaming   data.commonParams, data.days, data.systems(k) with
-                    buildDay / covariance / localParams / priors /
-                    processingOptions and the optional arc schedule `arcs`
-                    (v6: buildDay returns one CELL per arc -- A, B, l, t,
-                    Cep as 1 x nArc cells -- and the cells are the schedule
-                    unless `arcs` declares one); optional data.priors,
-                    data.paramColumns
-    (B) in memory   data.A (m x u), data.l (m x 1), optional data.p (m x 1
-                    weights); optional data.priors. A FULL m x m SPD weight
-                    matrix is kind C's: return it from batchFcn (R6 WP-101)
-    (C) batched     data.batchFcn @(k) -> [A, l, p] (or @(k, x) -> [J, w, p] with
-                    data.x0 for Gauss-Newton), data.numUnknowns, data.numBatches;
-                    optional data.priors
-  WHAT RUNS (opts.Estimate / opts.Robust / data.x0):
-    Estimate "none"    one generalised solve under the declared laws (adjustBlock)
-    Estimate "noise"   the joint variance-component estimator (adjustVCEjoint):
-                       one spectral shape per Pool group, one level per stream,
-                       per-arc factors when ArcFactors; prior groups with
-                       estimate "scale" get their sigma by Helmert / Koch-Kusche
-    Robust "huber" | "igg3" | "bisquare"   IRLS on the same loop: alone it is
-                       adjustRobust; with Estimate "noise" the robust pass runs
-                       INSIDE the joint loop (R6 WP-105), R.noise.robust carries
-                       the final factors
-    data.x0            Gauss-Newton with damping (adjustNonlinear)
-  REGULARISATION is declared, never an option: data.priors(j) on the common
-  parameters and data.systems(k).priors(l) on the local ones -- one struct per
-  group, by `group` (a name pattern) or `L` (in the columns lsqvce.layout
-  announces), x0, sigma, from, name, estimate. A free network's datum is the
-  prior on its null space.
-  WATCHING A RUN: Options.OnPass fires after every pass with the pass state,
-  the live accumulator, `data` and every system's processingOptions.
-
-  INPUT
-    data   1x1 struct    the declaration (kind A, B or C as above)
-    opts   1x1 lsqvce.Options   default lsqvce.Options()
-    Name, Value          any property of lsqvce.Options
-  OUTPUT
-    R      1x1 lsqvce.Results   x, sigma0, sol (Cxx, dof, vtv), diag, acc, history,
-                                noise (S, Sgroups, C, Cgroups, stream, model, priors), stopReason,
-                                meta (options as resolved, warnings, seeds, version);
-                                methods report, summary, convergence, residuals,
-                                contribution, compare, plot, toTable, coefficients
-
-  ERRORS
-    Your declaration is wrong (raised BEFORE any data is read):
-      lsqvce:fit:unknownField    a field name the contract does not know
-                                 (names the field; typos are errors on
-                                 purpose -- and so are the retired fields:
-                                 common, numCommon, numLocal,
-                                 observationTypes, systemId, cache, loader,
-                                 plotPostSolve, plotPostModel, since v4
-                                 localsPerArc (declare 'arc' rows in
-                                 localParams instead), and since v5.3
-                                 epochCovariance (the day returns Cep))
-      lsqvce:fit:noSystems       data.systems missing, not a struct, or empty
-      lsqvce:fit:noCommon        data.commonParams missing, or not a 2-D
-                                 cell of template rows
-      lsqvce:fit:badScope        a scope-token column 1 does not carry:
-                                 commonParams needs 'common'|'day' (raised
-                                 here), localParams needs
-                                 'arc'|'day'|'system' (raised by makeLoader
-                                 and relabelled)
-      lsqvce:fit:badParamColumns data.paramColumns is malformed: not a
-                                 struct, an unknown field, only one of
-                                 start / end, or a column the table lacks
-      lsqvce:fit:missingField    a required system field is absent, or
-                                 covariance carries no observation type
-      lsqvce:fit:noDays          no day list anywhere
-      lsqvce:fit:badId           id is not a numeric scalar or single char
-      lsqvce:fit:duplicateSystem two systems share an id (explicit or
-                                 index default)
-      lsqvce:fit:builderKind     buildDay is not a function handle
-      lsqvce:fit:badArcs         arcs is a string (the v5 'fromDay' is retired:
-                                 omit arcs -- the cells are the arcs), or a
-                                 resolver returned something that is not
-                                 unique positive integers
-      lsqvce:fit:<makeLoader id> a makeLoader construction error, relabelled
-                                 (e.g. paramType, badArcs, localPlan);
-                                 the original is attached as the cause
-    Your choice is not available here:
-      lsqvce:fit:notYet          Robust ~= "none" on a NONLINEAR batch problem
-                                 (x0): IRLS inside Gauss-Newton is not written;
-                                 linearise first. (Robust with Estimate "noise"
-                                 RUNS since R6 WP-105: the robust pass inside
-                                 the joint loop)
-      lsqvce:fit:modelKind       Estimate = "noise" on kinds B / C, which have
-                                 no streams to estimate a law for
-      lsqvce:batchSystem:weightMatrix  a batch returned a weight argument that
-                                 is neither m x 1 nor an m x m SPD matrix. A
-                                 full SPD P IS accepted on kind C and whitened
-                                 by its Cholesky factor (R5 M5 5b') -- raised
-                                 by lsqvce.engine.batchSystem
-      lsqvce:fit:priorNotActive  (warning, R5-D8) a prior with from > 1 in a
-                                 single-pass run is not applied
-      lsqvce:fit:badPrior        (R5 M5 5b) data.priors is malformed (unknown
-                                 field, L not p x nc, sigma not a positive scalar,
-                                 x0 of the wrong length)
-      lsqvce:fit:badEstimate     (R5 M3 3d) covariance.<type>.estimate is not
-                                 "none" | "scale" | "law"
-      lsqvce:fit:lawOnFixedStructure  (R5 M4 4b) estimate "law" on a stream whose
-                                 sigma is per-row (a fixed structure: level only)
-      lsqvce:fit:varUnderNoise   (R7-07) a 'var' law under Estimate = "noise": the
-                                 joint sweep has no vector-AR path
-      lsqvce:fit:badMatrix       kind B shapes disagree (A m x u, l m x 1,
-                                 p m x 1)
-      lsqvce:fit:missingField    kind C lacks batchFcn / numBatches, or the
-                                 linear form lacks numUnknowns
-      lsqvce:fit:uCount          kind C carries BOTH x0 and numUnknowns --
-                                 u is stated once (numel(x0))
-    Your buildDay is wrong (raised WHILE READING, by the engine, ids
-    unchanged): lsqvce:makeLoader:badDay / dayShape / badArc / badArcId /
-    buildDay / badDayCep / axisConflict / cepTwice (v5.3: the day's Cep and
-    axis count), lsqvce:covModel:cepOnVar, lsqvce:accum:arcBadNc / arcBadNl;
-    lsqvce:makeLoader:noCep is a once-per-run warning (a multi-axis day
-    without Cep is composed with D = I)
-
-  See also LSQVCE.OPTIONS, LSQVCE.RESULTS, LSQVCE.LAYOUT, LSQVCE.ENGINE.DECLARATION,
-           LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT,
-           LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTNONLINEAR
-
-  Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-114 (R7-05): priorsOf notes
-  that a datum's covariance is weight-independent too. With assistance from
-  Claude (Anthropic), model Claude Opus 5.5.
-  Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 3: R.noise carries
-  the law as the bin spectrum (.S, .Sgroups) next to its ACV (.C,
-  .Cgroups); .Shat is gone. With assistance from Claude (Anthropic), model
-  Claude Opus 5.5.
-  Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 2 (R7-23): the
-  warning inventory is reset once, before anything can warn, for every
-  kind. With assistance from Claude (Anthropic), model Claude Opus 5.5.
-  Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34, R7-37):
-  ERRORS lists badParamColumns; the joint seed recorded is the one used.
-  With assistance from Claude (Anthropic), model Claude Opus 5.5.
-  Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-116 part 1: a 'var' law under Estimate = "noise" is refused by
-  name (lsqvce:fit:varUnderNoise, R7-07). With
-  assistance from Claude (Anthropic), model Claude Opus 5.5.
-
-  Created 2026-08-31 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
-  model Claude Fable 5 -- R4 Level L2, WP-56 (decision R4-D4).
-  Help rewritten 2026-09-04 for v5.2 (R5 M5 / R5-D8), model Claude Fable 5.1:
-  the v5 surface (Estimate, priors, paramColumns, OnPass, layout, toTable).
-  Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-105: Robust together with
-  Estimate "noise" runs (the robust pass inside the joint loop; the notYet
-  refusal stays for x0 problems only). With assistance from Claude
-  (Anthropic), model Claude Fable 5.1.
-  Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-102 (v6): the day contract is
-  ONE CELL PER ARC and the arc schedule is optional. With assistance from
-  Claude (Anthropic), model Claude Fable 5.1.
-  Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-99: R.noise.model{k}.C is the
-  law of the stream's pool group and EMPTY where no law was estimated, instead
-  of falling back to another stream's fitted spectrum. With assistance from
-  Claude (Anthropic), model Claude Opus 5.
-  Updated 2026-09-06 (CEST, UTC+02:00), R6 WP-90: the error information
-  travels with the day (D.Cep); epochCovariance retired; the See also on
-  the units that exist. With assistance from Claude (Anthropic), model
-  Claude Fable 5.1.
-```
-
-
-## lsqvce.Options
-
-LSQVCE.OPTIONS  The one settings object for LSQVCE.FIT (v5: 12 knobs + 5 groups).
-
-```
-LSQVCE.OPTIONS  The one settings object for LSQVCE.FIT (v5: 12 knobs + 5 groups).
-
-  opts = lsqvce.Options()                       every default
-  opts = lsqvce.Options(Name, Value, ...)       override some
-  opts.Name = Value                             change one later (validated)
-  R = lsqvce.fit(data, Name, Value, ...)        the same names, straight on fit
-
-  WHAT TO ESTIMATE, HOW TO RUN. Everything ABOUT A STREAM (its law, whether
-  its law / level / arc factors are estimated) is declared on the stream
-  (data.systems(k).covariance.<type>: type, sigma, estimate, arcFactors);
-  this object holds only RUN policy. R5 M5 (WP-87, decision R5-D2) cut it
-  from 62 flat knobs to the 12 below plus five typed groups; the migration
-  from every v4 name is in RELEASE_NOTES.md and HANDOVER §12.10.
-
-  TOP LEVEL
-    Estimate   "none" | "noise"   "none": one GLS solve under the declared
-                                  laws. "noise": the joint (Ellmer) variance
-                                  component estimator on every stream whose
-                                  spec allows it (estimate ~= "none"), with
-                                  the policy below. Replaces Model: the v4
-                                  spellings are Estimate="noise" plus
-                                    "ellmer" -> Pool as set, ArcFactors true
-                                    "vce"    -> Pool "stream", ArcFactors false
-                                    "pooled" -> Pool "all",    ArcFactors false
-    Pool       "all" | "obsType" | "stream"   which streams SHARE one estimated
-                                  spectral shape (every stream keeps its own
-                                  level regardless); default "all"
-    ArcFactors logical            per-arc variance factors on (Ellmer 6.5.4),
-                                  default true; false = one level per stream.
-                                  TO READ AN ARC'S STANDARD DEVIATION back,
-                                  use all three terms (R6 WP-100):
-                                    declared sigma * sqrt(factor) * R.sigma0
-                                  -- since 6.1.6 the factor is the arc's
-                                  ABSOLUTE Helmert factor and weights the
-                                  solve (R7-13), so sigma0 settles near 1.
-                                  (R6 F-01, fixed in WP-98: the factors
-                                  settle across passes; before they grew
-                                  8.4x a pass.)
-    Robust     "none" | "huber" | "igg3" | "bisquare"   IRLS on the same
-                                  loop, every kind (details in RobustOpts).
-                                  With Estimate "noise" the robust pass runs
-                                  INSIDE the joint loop (R6 WP-105): one
-                                  residual sweep per pass, the factors in
-                                  every arc's whitener on the next pass;
-                                  MaxPasses is the budget, RobustOpts.Tuning
-                                  the constants (RobustOpts.MaxIter / Tol
-                                  belong to the stand-alone IRLS only)
-    MaxPasses  double  10         the pass budget of the variance-component
-                                  loop and of Gauss-Newton (v4: MaxOuter /
-                                  JointMaxIter). IRLS has its OWN budget,
-                                  RobustOpts.MaxIter (R6 WP-101)
-    Tolerance  double  1e-2       stop when max|alpha2 - 1| over frequencies
-                                  and arcs is below it (v4: JointTol)
-    Backend    "qr" | "normal"    square-root vs normal equations
-    Probes     double  100        Hutchinson probes for the per-lag
-                                  redundancies; an integer >= 1 (Ellmer's
-                                  value is 100). The joint estimator has no
-                                  exact route: 0 is refused (R6 WP-101)
-    Seed       [] | double        RNG seed for the probes (recorded)
-    CacheDays  double  1          built days kept resident per system; Inf =
-                                  the whole calendar (one build per run)
-    Verbose    logical | 0 | 1    screen messages on this surface: 0 silent,
-                                  1 progress. THE VALUE IS PASSED AS A FLAG:
-                                  engineArgs hands every driver
-                                  logical(Verbose), so level 2 has never been
-                                  reachable through fit -- it is an
-                                  engine-tier setting of lsqvce.util.verbosity
-                                  (R6 WP-101; 2 is still accepted here and
-                                  behaves as 1)
-    OnPass     [] | @(ctx)        YOUR inspection hook, called at the end of
-                                  EVERY pass of every iterative run (the
-                                  variance-component loop, IRLS, Gauss-Newton)
-                                  with ONE ctx struct: .driver .pass .x .Cxx
-                                  .sigma0, the loop state (noise: .C .Cgroups
-                                  .sigma2 .arcKeys .streams .sigma .white
-                                  .whitePval .maxDev .skips; IRLS: .factor
-                                  .keys .scale .dx; Gauss-Newton: .vPv .dxRel
-                                  .lambda), .acc (the LIVE accumulator: call
-                                  lsqvce.engine.residuals(ctx.acc, ...) or any
-                                  engine function inside the hook), .data (your
-                                  declaration as passed to fit) and
-                                  .processingOptions (per system, as declared).
-                                  Plot, drawnow, save wherever you like; return
-                                  nothing to continue, false to stop after this
-                                  pass (stopReason "userStop"). A throwing hook
-                                  is NOT swallowed (lsqvce:callUser:threw with
-                                  your error as cause). Replaces v4's
-                                  plotPostModel / plotPostSolve seams.
-
-  GROUPS (structs; set fields one at a time or give a whole struct)
-    Noise        Grid 60             spectral bins of the estimated law, 0 ..
-                                     Nyquist (an integer >= 2; "auto" is
-                                     refused); exact at every lag for any Grid
-                 Whitener "toeplitz"|"ar"|"arma"  how a PSD law whitens (v4 PsdMode)
-                 Smooth 0                         moving average on the PSD
-                 FreezeRedundancy 1               components below it hold
-                 SkipThreshold 0.2                skip RATE that refuses the pass
-    RobustOpts   Tuning [], MaxIter 30, Tol 1e-8
-    Diagnostics  Alpha 1e-3, Bonferroni true, Beta 0.2, RMin 0.01, RWeak 0.1,
-                 Test "auto"|"pope"|"baarda"|"mad", RobustCheck true,
-                 Store "all"|"flagged"|"none", NWorst 1000
-    Parallel     Mode "serial"|"parfor"|"spmd", DistributeDays false, Threshold 8
-    GaussNewton  TolF 1e-10, Lambda0 1e-6     (x0 problems; MaxPasses / Tolerance
-                 are the budget and the step tolerance)
-
-  REGULARISATION is not an option: it is DECLARED on the data, as
-  pseudo-observations in the user's own columns -- data.priors(k) on the
-  common parameters (L in the columns of A) and data.systems(k).priorDay on
-  the local ones (L in the columns of B), each with x0, sigma, from, group
-  (R5-D8). The v4 Reg / RegLambda / RegMatrix / DatumB / Sigma0 / Sparse
-  knobs are gone (HANDOVER §12.10).
-
-  METHODS
-    engineArgs(target)   the Name-Value list a driver takes (validated)
-    toStruct()           every public property as a struct (provenance)
-    disp()               grouped display, engine defaults marked *
-
-  ERRORS
-    MATLAB:validators:*          a typed property receives a value outside
-                                 its type / set / range (at assignment)
-    lsqvce:Options:badGrid       Noise.Grid is not an integer >= 2 ("auto"
-                                 was documented until v5.3, never implemented)
-    lsqvce:Options:badVerbose    Verbose is neither logical nor an integer 0..2
-    lsqvce:Options:badOnPass     OnPass is neither [] nor a function handle
-    lsqvce:Options:badGroupField a group struct carries an unknown field
-    lsqvce:Options:badTarget     engineArgs target is unknown
-
-  EXAMPLE
-    opts = lsqvce.Options(Estimate="noise", Pool="obsType");
-    opts.Noise.Grid = 2160;  opts.Parallel.Mode = "parfor";
-    R = lsqvce.fit(data, opts);
-    % Robust ~= "none" together with Estimate = "noise" runs the robust pass
-    % inside the joint loop (since 6.1, Manual 7.8):
-    opts.Robust = "huber";
-
-  See also LSQVCE.FIT, LSQVCE.RESULTS, the Manual, chapter 3, RELEASE_NOTES.md
-
-  Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 3: Noise.Grid is the
-  number of spectral bins of the positive-component law; the law is exact at
-  every lag of every arc whatever the Grid. With assistance from Claude
-  (Anthropic), model Claude Opus 5.5.
-  Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 2: Noise.MeanType
-  retired (user decision 2026-10-10): since 6.1.6 the arc factors are
-  absolute and gamma-bar no longer scaled them; setting it is refused as
-  an unknown group field. With assistance from Claude (Anthropic), model
-  Claude Opus 5.5.
-  Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): the
-  EXAMPLE no longer says Robust with Estimate = "noise" is refused (it
-  runs since 6.1). With assistance from Claude (Anthropic), model Claude
-  Opus 5.5.
-  Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-116 part 2 (R7-13): the arc
-  factors are absolute and weight the solve; MeanType's remaining role
-  (the clamp floor's scale) stated. With assistance from Claude
-  (Anthropic), model Claude Opus 5.5.
-  Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-105: Robust is forwarded to
-  the joint estimator as its 'Influence' (with RobustOpts.Tuning). With
-  assistance from Claude (Anthropic), model Claude Fable 5.1.
-  Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-104: the two remaining
-  "auto" claims about Noise.Grid corrected -- WP-101 retired the value in
-  the code and in the Manual but left it standing on THIS page, which is
-  what `doc lsqvce.Options` opens. With assistance from Claude (Anthropic),
-  model Claude Fable 5.1.
-  Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-100: ArcFactors says how to
-  read an arc's sigma back -- all three terms, sigma0 included. With
-  assistance from Claude (Anthropic), model Claude Opus 5.
-  Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-98: ArcFactors says what is
-  identifiable (the ratio) now that F-01 is fixed. With assistance from
-  Claude (Anthropic), model Claude Opus 5.
-  Created 2026-09-03 (CEST, UTC+02:00) with assistance from Claude
-  (Anthropic), model Claude Fable 5.1 -- R5 Level M5, WP-87 (v5 interface).
-```
-
-
-## lsqvce.Results
-
-LSQVCE.RESULTS  The outcome of a recovery: solution, diagnostics, provenance.
-
-```
-LSQVCE.RESULTS  The outcome of a recovery: solution, diagnostics, provenance.
-  R = lsqvce.Results(sol, D, acc, diagSol, batchFcn, nBatch, systems)
-  R = lsqvce.Results(sol, D, acc, diagSol, batchFcn, nBatch, systems, meta)
-
-  Returned by every driver LSQVCE.FIT dispatches to -- LSQVCE.ENGINE.ADJUSTBLOCK,
-  ADJUSTVCEJOINT, ADJUSTROBUST, ADJUSTNONLINEAR. It gathers
-  everything a user needs to read and judge an adjustment in one object, and
-  keeps the lower layers reachable for experts. You rarely construct it
-  yourself; you receive it from adjustBlock and call R.report().
-
-  PROPERTIES (read-only)
-    x          nc x 1   double   Common-parameter estimate (the field).
-    sigma0     1x1      double   A-posteriori variance factor (global).
-    stopReason 1x1      string   Why the loop stopped (R5 M1): "single" |
-                                 "converged" | "maxPasses". Convergence
-                                 failure is a RESULT: the last pass is
-                                 returned with its covariance and one warning.
-    converged  1x1      logical  Did the pipeline converge? (true for a single
-                                 solve; set by the iterative engines.)
-    diag       1x1      struct   Per-observation diagnostics (LSQVCE.ENGINE.VERDICT.DIAGNOSE):
-                                 redundancy, leverage, w-tests, MDB, ...
-    history    1xI      struct   Per-iteration record (empty for a single
-                                 solve; filled by LSQVCE.ENGINE.ADJUSTVCEJOINT:
-                                 .maxDev .S .streams .sigma .white
-                                 .whitePval per pass, .skips, .nIter, and
-                                 under Robust the per-pass .robustScale (one
-                                 column per stream) .nDown .nZero -- R6 WP-105;
-                                 by LSQVCE.ENGINE.ADJUSTROBUST: .scale .dx
-                                 .nDown .nZero and, on the last pass, .factor
-                                 .keys).
-    noise      1x1      struct   Fitted noise models per stream (empty until
-                                 the variance-component loop populates it):
-                                 .stream (keys) .model{k} (.sigma the level,
-                                 .C the law's ACV) .S (the law: the bin
-                                 spectrum, LSQVCE.KERNEL.HATACV) .Sgroups /
-                                 .Cgroups (one per pool group)
-                                 .priors .priorHistory, and .robust
-                                 (R6 WP-105: .influence, .scale per stream,
-                                 .streams, .factor ONE PER EPOCH in sweep
-                                 order, .keys; empty fields under "none").
-    sol        1x1      struct   Raw output of acc.solve() (.x, .sigma0, ...).
-    acc        1x1      lsqvce.engine.BlockAccumulator   The accumulator (drop here
-                                 to re-solve, inspect blocks, get residuals).
-    source     1x1      struct   Bridged solution from LSQVCE.ENGINE.VERDICT.SOURCE.
-    batchFcn   1x1      function_handle   Re-reader used by LSQVCE.ENGINE.VERDICT.DIAGNOSE.
-    nBatch     1x1      double   Batch count from the bridge.
-    systems    1xM      struct   The resolved system specs (sysID/nl/dayList).
-    meta       1x1      struct   Run provenance (WP-44). Field list is
-                                 ADD-ONLY across versions, never renamed:
-                                 .toolboxVersion 1xK char  from Contents.m,
-                                                 the ONE version source
-                                 .matlabRelease  1xK char  version('-release')
-                                 .createdUTC     1xK char  ISO 8601, trailing Z
-                                 .seeds          1x1 struct every RNG seed the
-                                                 run resolved (struct() when
-                                                 none; a resolved-but-unset
-                                                 seed is stored as [])
-                                 .options        1x1 struct the RESOLVED
-                                                 options the run actually used
-                                 A bare construction (7 arguments) gets a
-                                 meta with empty seeds/options -- the field
-                                 is never missing.
-
-  METHODS
-    V = R.report(Name,Value,...)   Print/return the level-0..4 verdict
-                                   (LSQVCE.REPORT); options pass straight through.
-    r = R.redundancy()             Total redundancy sum(r_i) = n - u.
-    res = R.residuals(Name,Value)  Whitened/raw residuals (acc.residuals).
-    con = R.contribution(...)      Per-group information share.
-    T = R.convergence(Name,Value)  Per-ITERATION trajectory: when the loop
-                                   settled (needs .history).
-    F = R.compare(Rred)            Nested-model F test against a reduced fit (R5 M7).
-    S = R.systematic(Name,Value)   Unmodelled signal in the residuals: Ljung-Box,
-                                   runs, binned means (WP-86 part 4).
-    [D, REJ, sol] = R.snoop(...)   Iterative data snooping; R is not changed.
-    T = R.reliability()            Per-observation r, w, MDB and (w, r) quadrant.
-    E = R.ellipse(i, j, ...)       Confidence ellipse of the parameter pair (i, j).
-    fh = R.plot(kind)              "residuals" | "contribution" | "psd" | "convergence"
-                                   (R5 M5: one figure per question, nothing exported).
-    [C, L, map] = R.toTable(data)  The expanded parameter tables with estimate and
-                                   standard deviation written in (R5-D8).
-    T = R.summary()                Per-STREAM final state: sigma, AR order,
-                                   whiteness (needs .history).
-    T = R.coefficients(Alpha=a)    The estimates as a table with formal
-                                   errors and (1-a) confidence bounds
-                                   (R4 WP-57; default a = 0.05).
-    disp(R)                        One-screen summary.
-
-  THE TWO ITERATION READERS ARE COMPLEMENTARY. convergence() reduces across
-  STREAMS (one row per pass); summary() reduces across PASSES (one row per
-  stream). A converged loop can still hide a single stream that never
-  whitened -- the per-pass view reports the worst p-value without naming it.
-
-  EXAMPLE
-    R = lsqvce.engine.adjustBlock(systems, days);
-    R.report('Level', 2);
-    if ~R.converged, lsqvce.util.log.warn('did not converge'); end
-    x = R.x;   s0 = R.sigma0;
-
-  ERRORS
-    lsqvce:Results:noVPv          compare() on a Results without a finite v'Pv
-    lsqvce:Results:noHistory      an iteration reader was called on a
-                                  single-solve Results (adjustBlock does not
-                                  iterate); use the result of an iterating
-                                  fit (Estimate = "noise", Robust, Nonlinear)
-    lsqvce:Results:noCovariance   coefficients() on a Results whose sol
-                                  carries no Cxx
-    lsqvce:Results:noAccumulator  residuals()/contribution() on a Results
-                                  without an accumulator (fit kinds B / C)
-    lsqvce:Results:noPerObservation reliability() on a fit whose diagnostics
-                                  kept no per-observation vectors
-
-  ACCURACY
-    Results adds no numerics: x and sigma0 are the engine's (sigma0 is the
-    A-POSTERIORI std of unit weight; sol.Cxx the covariance scaled by it --
-    the streaming contract every producer must establish, R4 §11.8 L4 r1),
-    report() is lsqvce.report on .diag, coefficients() is arithmetic on x
-    and diag(Cxx) with z(0.05) = 1.959963984540054 in closed form.
-
-  See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.REPORT,
-           LSQVCE.ENGINE.VERDICT, LSQVCE.ENGINE.BLOCKACCUMULATOR
-
-  Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 3: noise.S /
-  noise.Sgroups (the bin spectrum) replace noise.Shat; plot("psd") draws the
-  bins themselves. With assistance from Claude (Anthropic), model Claude
-  Opus 5.5.
-  Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 4: systematic, snoop,
-  reliability and ellipse -- everything the verdict tells the user to do is
-  a method on R (lsqvce.engine.verdict behind them). With assistance from
-  Claude (Anthropic), model Claude Opus 5.5.
-  Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 2 (R7-19): compare
-  counts the eliminated locals in the redundancy (R.diag.u, not
-  numel(R.x)). With assistance from Claude (Anthropic), model Claude Opus
-  5.5.
-  Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): the
-  noHistory remedy no longer names the deleted adjustVCE. With assistance
-  from Claude (Anthropic), model Claude Opus 5.5.
-  Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-99: R.report() forwards the
-  loop state, so the verdict says whether the stochastic model settled.
-  With assistance from Claude (Anthropic), model Claude Opus 5.
-  Updated 2026-09-01 (CEST, UTC+02:00), R4 WP-61 (Level L3): ACCURACY block
-  (the sigma0 / Cxx contract stated once). With assistance from Claude
-  (Anthropic), model Claude Fable 5.
-  Updated 2026-08-31 (CEST, UTC+02:00), R4 WP-56b (Level L4): residuals()
-  and contribution() refuse with lsqvce:Results:noAccumulator on a Results
-  without an accumulator (the in-memory / batched kinds of fit). With
-  assistance from Claude (Anthropic), model Claude Fable 5.
-  Updated 2026-08-31 (CEST, UTC+02:00), R4 WP-57 (Level L2): coefficients()
-  -- estimates, formal errors and confidence bounds as ONE table (the
-  fitlm Coefficients/coefCI pair folded into one method; z from erfcinv,
-  no Statistics Toolbox). With assistance from Claude (Anthropic), model
-  Claude Fable 5.
-  Updated 2026-08-19 (CEST, UTC+02:00), WP-44 (T-05): run provenance --
-  immutable .meta composed by the ONE private builder runMeta, constructor
-  widened to an optional 8th argument, report() forwards the provenance
-  line. With assistance from Claude (Anthropic), model Claude Fable 5.
-  Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (c) c2 (F-07):
-  typed `arguments` signatures, canonical UpperCamelCase option names
-  (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
-  case-sensitive lowercase). With assistance from Claude (Anthropic),
-  model Claude Fable 5.
-  Created 2026-07-16 12:20 (CEST, UTC+02:00) with assistance from
-  Claude (Anthropic), model Claude Opus 4.8.
-```
-
-
-## lsqvce.report
-
-LSQVCE.REPORT  Judge a least-squares adjustment and say so in words.
-
-```
-LSQVCE.REPORT  Judge a least-squares adjustment and say so in words.
-
-  V = LSQVCE.REPORT(D) takes the struct from lsqvce.engine.verdict.diagnose and prints a
-  verdict. It returns a struct of machine-readable findings so the same logic
-  can drive an automated pipeline.
-
-  The report is ordered so that a failure at one level invalidates the levels
-  below it. It refuses to report parameter precision for an adjustment whose
-  integrity checks failed, because a sigma computed from a broken system is
-  not a conservative estimate -- it is a fabrication.
-
-  LEVELS
-    0  INTEGRITY   sum(r) == n-u, vPv >= 0, vPv consistent between passes.
-                   These test the CODE, not the data. Failure here means
-                   every number below is meaningless.
-    1  GLOBAL      variance factor vs chi-square.
-    2  LOCALISE    outliers (data snooping), with Bonferroni.
-    3  RELIABILITY redundancy numbers, MDB, external reliability.
-                   This is the level that says which observations you are
-                   NOT ABLE TO CHECK.
-    4  PARAMETERS  correlations, conditioning, precision.
-
-  NAME-VALUE
-    'verbose'  true  print the report (default true)
-    'width'    78    line width
-    'Provenance' struct()  a run-provenance struct (LSQVCE.RESULTS .meta,
-                     WP-44); when non-empty, ONE level-0 NOTE line
-                     (code 'PROVENANCE') states toolbox version, MATLAB
-                     release, and creation time. R.report() forwards it
-                     automatically; a bare lsqvce.report(D) prints none.
-    'Iteration'  struct()  the loop state of an ITERATIVE run (R6 WP-99):
-                     .converged, .stopReason, .nIter. When non-empty and the
-                     run was not a single solve, ONE level-1 line says
-                     whether the stochastic model settled -- 'NOISE_SETTLED'
-                     (NOTE) or 'NOISE_UNSETTLED' (WARN). Every number from
-                     level 1 down rests on those weights, so a model that was
-                     still moving qualifies all of them. R.report() forwards
-                     it automatically. An optional .influence (char) names
-                     the robust influence of an IRLS run; when non-empty ONE
-                     level-1 NOTE ('ROBUST_FIT') says sigma0 and the
-                     covariance are those of the reweighted problem (R7-18).
-
-  OUTPUT V
-    V.verdict   'PASS' | 'PASS WITH WARNINGS' | 'SUSPECT' | 'INVALID'
-    V.findings  cell array of struct(level, severity, code, msg)
-    V.nError, V.nWarn, V.nNote
-
-  INPUT
-    D         1x1 struct  diagnostics from LSQVCE.ENGINE.VERDICT.DIAGNOSE
-    varargin  Name/Value: 'verbose', 'width', 'alpha', 'rWeak', ...
-
-  EXAMPLE
-      data = struct('batchFcn', src, 'numUnknowns', u, 'numBatches', 4);
-      R = lsqvce.fit(data, Verbose=false);
-      V = lsqvce.report(R.diag);         % prints the five levels (= R.report)
-
-      % V.verdict    'PASS' | 'PASS WITH WARNINGS' | 'SUSPECT' | 'INVALID'
-      % V.findings   machine-readable: {level, severity, code, msg}
-
-      % Drive a pipeline off the codes rather than the text:
-      codes = cellfun(@(f) f.code, V.findings, 'UniformOutput', false);
-      if ismember('SNOOP_CONTAMINATED', codes)
-          error('Pope is blind here -- re-run with test=mad.');
-      end
-
-  Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
-  typed `arguments` signature, canonical UpperCamelCase option names
-  (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
-  case-sensitive lowercase). With assistance from Claude (Anthropic),
-  model Claude Fable 5.
-  See also LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SYSTEMATIC.
-
-  Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 4: the remedies name
-  R.systematic() / R.snoop(), never an engine function (H-05). With
-  assistance from Claude (Anthropic), model Claude Opus 5.5.
-  Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-86 part 2 (R7-24): PAR_COND
-  states how the lower bound on cond(N) is formed (from the block
-  cofactor, no SVD). With assistance from Claude (Anthropic), model Claude
-  Opus 5.5.
-  Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-115 (finding R7-18):
-  adjustRobust's help promised "report() says so" and report said nothing --
-  a robust fit's sigma0 and covariance are those of the REWEIGHTED problem,
-  not an M-estimator's scale or sandwich covariance, and the level-1 test
-  and the bounds read them as least squares. Iteration.influence now puts
-  one NOTE in the verdict. With assistance from Claude (Anthropic), model
-  Claude Opus 5.5.
-  Updated 2026-09-08 (CEST, UTC+02:00), R6 WP-99: the new 'Iteration'
-  option puts ONE level-1 line in the verdict saying whether the stochastic
-  model settled -- a report that stays silent about weights that were still
-  moving is a report that misleads. With assistance from Claude (Anthropic),
-  model Claude Opus 5.
-  Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
-  2026-07-11.
-```
-
-
-## lsqvce.layout
-
-LSQVCE.LAYOUT  The column layout fit will use -- so you can declare priors in it.
-
-```
-LSQVCE.LAYOUT  The column layout fit will use -- so you can declare priors in it.
-  lay = lsqvce.layout(data)
-
-  The toolbox derives from your parameter tables (scope tokens, calendar,
-  arcs, validity) which column of A and of every system's B belongs to
-  which instantiated parameter. This function announces that layout BEFORE
-  fit runs, so that data.priors(j).L (columns of A) and
-  data.systems(k).priors(l).L (columns of B) can be written in it -- the
-  only knowledge the user's regularisation and the toolbox share (R5-D8).
-
-  INPUT   data  1x1 struct  a kind-A declaration (the Manual, chapter 3)
-  OUTPUT  lay   1x1 struct
-    .nc            1x1        columns of A
-    .common        nc x 1 struct (.row .day)      the template row and (for 'day' rows) the day of every column of A
-    .systems(k)    1x1 struct per system:
-       .nl         1x1        columns of B
-       .local      nl x 1 struct (.row .day .arc) the template row / day / arc of every column of B
-       .col        @(row, day, arc) -> column     lookup: the column of template row `row` on
-                                                  `day` (and `arc` for 'arc' rows; [] otherwise);
-                                                  0 when that instance does not exist
-    .colCommon     @(row, day) -> column          the same for A ([] day for 'common' rows)
-
-  EXAMPLE  (a Tikhonov prior on local row 7 of system 1, on every day)
-    lay = lsqvce.layout(data);
-    nl  = lay.systems(1).nl;  rows = zeros(0, nl);
-    for d = data.days
-        c = lay.systems(1).col(7, d, []);  r = zeros(1, nl);  r(c) = 1;  rows(end+1, :) = r;
-    end
-    data.systems(1).priors = struct('L', rows, 'x0', 0, 'sigma', 0.01, 'name', 'xaccscale', 'estimate', "scale");
-
-  See also LSQVCE.FIT, LSQVCE.RESULTS/TOTABLE, the Manual, chapter 3
-
-  Created 2026-09-03 (CEST, UTC+02:00) with assistance from Claude
-  (Anthropic), model Claude Fable 5.1 -- R5-D8 round 5.
-```
-
-
-# Regularisation: priors and groups
-
-## The rule
-
-*Parameters and their columns are yours* — the tables, `buildDay`, plots, `toTable`.
-*Regularisation is the toolbox's* — the mechanism, the redundancy, the activation pass,
-the estimation of its strength. The interface between them is an operator in your
-columns, announced by `lsqvce.layout`, checked by width.
-
-## What a prior is
-
-Tikhonov regularisation of a parameter is an additional observation equation,
-"parameter j is observed to be x₀ with standard deviation σ":
-
-    L · x = x₀ + v,   weight 1/σ²
-
-where L is the coefficient matrix of the pseudo-observations (one row per
-pseudo-observation) exactly as A is the coefficient matrix of the observations. The
-toolbox therefore treats a prior as data: it enters the normal equations, it has a
-redundancy (how much of it the data overrule), and estimating its σ is variance-component
-estimation on that group (Koch–Kusche).
-
-## The declaration — one mechanism for common and local parameters
-
-```matlab
-data.priors(j)            = struct(...)    % on the common parameters, L in the columns of A
-data.systems(k).priors(l) = struct(...)    % on system k's local parameters, L in the columns of B
-```
-
-One struct per **group**, with the fields
-
-| field | meaning |
-|---|---|
-| `group` | a regular expression matched against the *name column* of the table (column 2; `data.paramColumns.name` to say otherwise). The toolbox builds L: one row per matched template row per instance (per day for a `'day'` row, per arc for an `'arc'` row, once for `'system'`/`'common'`). |
-| `L` | the explicit operator (q × nc or q × nl) in the columns that `lsqvce.layout(data)` announces. Give `group` **or** `L`, never both. |
-| `x0` | the a-priori values (q × 1, or a scalar; default 0) |
-| `sigma` | ONE standard deviation for the rows of the group. Relative weights inside a group go into L (divide a row by its own relative σ); the struct's σ is the common factor. |
-| `from` | the pass at which the group becomes active (default 1). In a single solve a `from > 1` group is reported (`lsqvce:fit:priorNotActive`) and skipped. |
-| `name` | the label (default the pattern); local groups become the stream `prior_<name>`. |
-| `estimate` | `"none"` (default; σ fixed) or `"scale"`: σ is estimated every pass of `Estimate="noise"` by the Helmert rule σ² ← σ²·Ω/r — the fixed point Ω = r ("the prior's weighted residual sum equals its redundancy"), so λ = s₀²/σ² is the regularisation the data support. |
-
-**Several rows make σ estimable.** A group with one row has redundancy ≤ 1 and cannot
-estimate its own σ (it is left unchanged and flagged in `R.noise.priorHistory`). The
-x/y/z accelerometer scales of both satellites over a month are one group with 180 rows.
-
-**Local rows live in one day.** A row of a local group has its non-zero columns inside
-one day's local block (or the system block); coupling two days is done through the
-common parameters. Different days of the same parameter are different rows — that is how
-the estimate pools information across the calendar.
-
-## How they are treated
-
-Common groups are stacked into one prior on the common block, folded into the solve and
-appended to the diagnostic sweep (they carry a redundancy). Local groups ride as their own
-observation stream `prior_<name>` of the system — pseudo-observation arcs with A = 0,
-B = L/σ, l = x₀/σ and a unit law — so accumulation, elimination, the sweeps, `residuals()`
-and the redundancy count see them as data, and under `Estimate="noise"` the group's σ is
-the stream's level: identical behaviour to the common groups, no second estimator.
-`R.noise.priors`, `R.noise.priorHistory` (common) and `R.noise.model{k}.sigma` for stream
-`satKey|prior_<name>` (local) report the result.
-
-## The datum of a free network
-
-Minimum constraints Bᵀx = 0 are the group `L = B'`, `x0 = 0`: when B spans the null space
-the solution is the exact minimum-constraint one for **any** weight (the data's range and
-the null space are orthogonal). Without it the accumulator refuses a rank-deficient
-system by name (`lsqvce:qr:singularR`); it never guesses.
-
-## The layout
-
-```matlab
-lay = lsqvce.layout(data);
-lay.nc, lay.common(j)                  % the template row (and day) of every column of A
-lay.systems(k).nl, lay.systems(k).local(c)   % (row, day, arc) of every column of B
-c = lay.systems(k).col(row, day, arc); c = lay.colCommon(row, day);   % lookups (0 = not instantiated)
-```
-
-## Your table's column 11
-
-`{'Tikhonov', fromPass, sigma[, label]}` on a row means exactly one of the structs above;
-`template/gravfire_data.m` (STEP 6/7) emits them: rows sharing a label become one group in
-the `group` form with `estimate="scale"`, rows without a label one fixed-σ group each.
-
-
-# Stochastic models and their estimation
-
-This chapter is the reference for the covariance specification: what you declare, what
-travels with the data, how the two are composed, what the estimator does with them, and how
-to read the result back. Chapter 3 lists the fields as a contract; this chapter says what
-they mean and how to choose them.
-
-## 7.1 The division of labour — three facts, three places
-
-The noise of one observation stream is three separate facts, and each is stated in exactly
-one place:
-
-| fact | where it is stated | who owns it |
-|---|---|---|
-| the **temporal law** R_t — how the errors of a stream correlate down the epochs | `covariance.<stream>.type` and its parameters | you declare a starting point; the estimator refines it |
-| the **level** of that law | `covariance.<stream>.sigma` (always a standard deviation) | you declare it; the estimator scales it |
-| the **per-epoch accuracy** D — what the preprocessing knows about each observation | `D.Cep`, returned by `buildDay` with the day (chapter 3, §7) | you, always; it is never estimated |
-
-The toolbox composes them per arc as **C = D (R_t ⊗ I_d) D**: every epoch is de-scaled by
-D^-1/2, then the temporal whitener runs down the epochs of each axis. Batches are
-overlapped by the filter memory automatically, so cutting an arc into batches never changes
-the result.
-
-`Cep` is **relative to** `sigma`. A `diag` law of level s with a per-epoch sigma c whitens
-as `l ./ (s*c)`. If `Cep` already carries the absolute accuracy — a PPP covariance in m²,
-for instance — declare `sigma = 1`, or the accuracy is counted twice.
-
-## 7.2 `Cep` — the three shapes, and the asymmetry that bites
-
-`D.Cep` is a **cell like `A`**, one entry per arc (v6). Each entry may be:
-
-| shape | meaning | what the numbers are |
-|---|---|---|
-| nEpoch × 1 | a scalar stream with per-epoch accuracy | **standard deviations** |
-| nEpoch × d | a multi-axis stream, axes uncorrelated within an epoch | **standard deviations** per axis |
-| nEpoch × d × d | a multi-axis stream, full per-epoch covariance | **covariance matrices** (the toolbox takes their Cholesky factor) |
-
-The vector forms are sigmas and the matrix form is a covariance. That asymmetry is the
-commonest way to be wrong by a square: check one epoch by hand before a campaign.
-
-Rules:
-
-- the axis count is `d = size(Cep, 2)`, derived, and the same for the whole day; a `nAxis`
-  given as well must agree (`axisConflict`);
-- a `Cep` on the covariance spec *and* on the day is refused (`cepTwice`) — one fact, one
-  authority. The spec field is the engine-tier carrier the loader fills from the day;
-- a `var` law takes **no** `Cep` (`cepOnVar`): it carries its own cross-axis structure;
-- a multi-axis day **without** `Cep` is composed with D = I and reported once per run
-  (`noCep`), so an omission is distinguishable from a choice;
-- rows of a multi-axis stream are **epoch-major** (x₁ y₁ z₁ x₂ y₂ z₂ …) and every arc holds
-  whole epochs. The temporal law is placed on the **epoch** grid, `t(1:d:end)`.
-
-## 7.3 The temporal laws
-
-| `type` | fields | when to use it | cost per batch |
-|---|---|---|---|
-| `diag` | `sigma` | white noise — and the honest **starting point** when the colour is unknown: `Estimate="noise"` discovers it | O(b) |
-| `arma` | `ar = [1 a₁ … a_p]`, `ma` (default 1), `sigma` (innovation std) | a known whitening filter | O(b·p) |
-| `psd` | `f` (Hz, one-sided), `S` (unit²/Hz) | noise given as a measured spectrum | O(b·p) as AR, O(b³) as Toeplitz |
-| `acf` | `acf = @(dt, opt)`, `sigma` | correlation as a function of the lag | O(b³) |
-| `var` | `ar` (d×d×p), `sigma` (d×d) | genuine **cross-axis temporal** correlation | O(b·p·d²) |
-| `custom` | `fcn = @(t, opt)` | anything else, dense | O(b³) |
-
-`sigma` is a standard deviation, never a variance.
-
-**A PSD is best whitened as an AR filter, and that is exact.** Fitting an AR(p) to the
-spectrum and whitening with the FIR filter is not an approximation of the dense Cholesky:
-the filter *is* the Cholesky inverse factor, and both are lower-triangular square roots of
-the inverse covariance, unique up to sign, agreeing to ~1e-14 row for row. Set
-`Noise.Whitener = "ar"` and pay O(b·p) instead of O(b³). Validate the fit once per stream
-with `lsqvce.engine.checkPSD` (aim for `acvRelErr < 1e-3`; raise `arOrder`, or fall back to
-`"toeplitz"` if it does not reach that).
-
-## 7.4 The two policy fields on a spec
-
-Beside the law, a spec may carry:
-
-| field | values | meaning |
-|---|---|---|
-| `estimate` | `"law"` (default), `"scale"`, `"none"` | `"law"`: the spectral shape **and** the level are estimated; `"scale"`: your declared shape is kept, only the level is estimated; `"none"`: the stream is left exactly as declared |
-| `arcFactors` | logical | per-arc variance factors for this stream (Ellmer §6.5.4); default: the `Options.ArcFactors` policy |
-
-One refusal to know about: a **per-row `sigma` vector** makes the spec a *fixed structure*.
-It can carry a level but not a spectral shape, so `estimate = "law"` on it is
-`lsqvce:fit:lawOnFixedStructure`. A `Cep` does **not** trigger this — per-epoch accuracy
-together with an estimated temporal law is exactly the supported combination, and the
-reason the error information travels with the day at all.
-
-`Options.Pool` decides which streams **share one estimated spectral shape**; every stream
-keeps its own level regardless. `"all"` (the default) pools every stream, `"obsType"`
-groups by stream name, `"stream"` gives each (system, stream) its own shape. With a single
-system, `"obsType"` and `"stream"` are the same grouping. Pooling streams of different
-physics is a mistake worth naming: pooling positions with range-rate was measured to drive
-the conditioning to RCOND 1e-50 on the gravity demo.
-
-## 7.5 What `Estimate="noise"` does
-
-The joint estimator (theory chapter 6; Ellmer 2018 §6.5.7) treats every spectral bin and
-every arc factor as variance components of **one** Helmert VCE and updates them together.
-The law is a **non-negative spectrum S on `Noise.Grid` bins** between 0 and Nyquist,
-linear in between; its covariance at every lag of every arc is the exact integral
-r = K·S (`lsqvce.kernel.hatACV`). Each bin's component is the covariance of a "hat"
-spectrum and therefore positive semi-definite, so its Helmert factor can never be
-negative and the law needs no floor (since 6.7.0, R7 WP-111; Ellmer's type-I DCT
-components were indefinite, and at strong colour the level ran away by 10⁷ with a
-negative lag-1 correlation — review R7-02). The start is white noise (S = 1, Ellmer's
-eq. 6.5.62). Per pass it
-
-1. accumulates and solves under the current laws,
-2. sweeps every arc once for its whitened residual and its Hutchinson-probed redundancies
-   at **every** lag of the arc (all lags from one FFT per column),
-3. updates the spectrum per pool group (bin j: the ratio of the projections of those lag
-   sums on the bin's component, summed over the group's arcs), the level per stream,
-   the per-arc factors (the Helmert factor of the arc's whole covariance), and the
-   sigma of any prior group with `estimate = "scale"`,
-
-and stops at `Tolerance` (max |alpha² − 1|) or `MaxPasses`. `Noise.Grid` is the
-spectral resolution: the law is exact at every lag whatever the Grid, so the Grid trades
-resolution against the redundancy each bin collects per pass.
-`Probes` is the Hutchinson probe count (100 is Ellmer's value); the joint estimator has no
-exact route, so `Probes = 0` is refused.
-
-Arcs can be **skipped** for a pass with reason `gap` (no data) or `nonPD` (the arc's
-covariance is not positive definite — a mis-scaled `Cep` produces exactly this). A skipped
-arc keeps its previous factor and is listed in the run's skip record; beyond
-`Noise.SkipThreshold` (0.2) the pass is refused rather than estimated on a fraction of the
-data.
-
-For multi-axis streams the residuals are de-scaled by D **before** the lag statistics are
-formed, per axis over epochs. The estimated law is therefore the law of the *normalised*
-errors, which is what makes a 3-axis stream with a per-epoch 3×3 and a scalar stream with a
-per-epoch sigma behave identically.
-
-## 7.6 Worked example — kinematic orbits with a 3×3 per epoch, KBR with one variance
-
-The GRACE-FO case: two position streams whose preprocessing delivers a full 3×3 covariance
-per epoch, one range-rate stream with a single scalar variance, all in one system (the
-range-rate rows depend on both satellites' local parameters), and Ellmer's estimator.
-
-```matlab
-% ---- the specs: the TEMPORAL law and its level, nothing else ----------
-% positions: Cep carries the absolute accuracy -> level 1; white start, so
-% the estimator finds the colour; per-arc factors on
-cov.posA = struct('type','diag', 'sigma', 1, 'estimate', "law");
-cov.posB = struct('type','diag', 'sigma', 1, 'estimate', "law");
-% range-rate: the scalar variance IS the level; no Cep on the day
-cov.kbr  = struct('type','diag', 'sigma', sqrt(varianceKbr), 'estimate', "law");
-s.covariance = cov;
-
-% ---- buildDay: the error information travels with the day ------------
-%   D.Cep{k} = nEp_k x 3 x 3     the per-epoch covariance of arc k
-%   (rows epoch-major; the kbr stream returns no Cep field at all)
-
-% ---- the run ---------------------------------------------------------
-opts = lsqvce.Options( ...
-        Estimate   = "noise", ...          % the joint (Ellmer) estimator
-        Pool       = "obsType", ...        % one shape per stream, NOT one for all three
-        ArcFactors = true, ...             % Ellmer eq. 6.5.4
-        MaxPasses  = 7, ...
-        Probes     = 100, Seed = 1, ...    % reproducible probes
-        Noise      = struct('Grid', 2160, 'Whitener', "ar"), ...
-        CacheDays  = Inf, ...
-        Verbose    = 1);
+opts = lsqvce.Options(Estimate="noise", Pool="obsType", ArcFactors=true, ...
+                      MaxPasses=7, Seed=1, Noise=struct('Grid', 120, 'Whitener', "ar"));
 R = lsqvce.fit(data, opts);
 ```
 
-Why each line: `sigma = 1` on the positions because the 3×3 already carries m²;
-`Pool = "obsType"` because positions and range-rate differ in units and in spectrum;
-`Grid = 2160` resolves the spectrum as finely as the longest arc does (2160 epochs: 6 h at
-10 s, 3 h at 5 s) -- a coarser Grid is just as exact, only smoother; `Whitener = "ar"`
-because a 2160-epoch arc on the dense Toeplitz path is O(b³).
+Per pass the toolbox solves under the current laws, sweeps every arc once for its
+whitened residuals and their redundancies, and updates the spectral shape of every pool
+group, the level of every stream, the factor of every arc and the σ of every prior with
+`estimate = "scale"`. It stops when no component changes by more than `Tolerance`, or
+after `MaxPasses`.
 
-**Before trusting the numbers, run one pass with `Estimate = "none"`.** If sigma0 is near 1
-the declared weights are consistent. A sigma0 far from 1 says the `Cep` scale is wrong —
-most often an information matrix used where a covariance was expected — and no amount of
-estimating a law on top of it will fix that.
+The choices that matter:
 
-## 7.7 Reading the result back
+| choice | guidance |
+|---|---|
+| `Pool` | streams of the same physics may share a shape (`"obsType"`: both satellites' range-rate); never pool streams of different physics or units — positions with range-rate drives the normal matrix towards singularity |
+| `ArcFactors` | on when arcs are numerous and long enough to carry their own variance; off for few or short arcs |
+| `Noise.Grid` | the spectral resolution of the estimated law; finer grids resolve narrow spectral features but give each bin less redundancy per pass |
+| `Noise.Whitener` | `"ar"` for long arcs (cost O(b·p) instead of O(b³)); `"toeplitz"` when the spectrum has narrow features a low-order filter cannot follow |
+| `Probes`, `Seed` | the redundancies are estimated with random probes: 100 probes are the standard; a fixed `Seed` makes the run reproducible |
+
+**Run one pass with `Estimate = "none"` first.** If σ₀ is near 1 the declared weights are
+consistent. A σ₀ far from 1 says the `Cep` scale is wrong — most often an information
+matrix used where a covariance was expected — and estimating a law on top will not fix it.
+
+## Reading the estimate
 
 ```matlab
-R.noise.Sgroups          % one law (the bin spectrum) per pool group
-R.noise.Cgroups          % ... and its covariance at lags 0 .. Grid-1
-R.noise.model{k}.sigma   % the estimated LEVEL of stream k
-R.noise.model{k}.C       % its law; EMPTY where no law was estimated
 R.noise.stream           % the stream keys, in the order of model{}
-R.history(end).white     % Ljung-Box whiteness per stream (K = 20, alpha = 0.05)
-R.convergence(); R.plot("psd"); R.plot("convergence");
+R.noise.model{k}.sigma   % the estimated level of stream k
+R.noise.Sgroups          % the estimated spectrum of each pool group
+R.summary()              % one row per stream: level, whiteness
+R.plot("psd")            % the spectra
 ```
 
-The whiteness test pools a stream's arcs: the lag products of every arc are summed, and the
-statistic divides each lag by the number of products it actually holds (N_k, the sum over arcs
-of m_a − k), so it is sized on short arcs too (since 6.1.8; before, 64 white arcs of 30
-epochs were flagged with probability 0.001 instead of 0.05).
+The standard deviation of one arc is the product of three terms: the declared `sigma`, the
+square root of the arc factor, and `R.sigma0`. With `sigma = 1` and a `Cep` carrying the
+absolute accuracy, that product reads directly as *how much too optimistic the
+preprocessing's covariance was on this arc*.
 
-**K = 20 lags, measured (6.11.0, user decision).** On 8 arcs × 2160 epochs a larger K buys
-nothing against the misfits a spectral law leaves and costs power where it matters. Rejection
-rate at α = 0.05:
+After convergence the whitened residuals of every stream should be white. The loop tests
+that in every pass, per stream, with a Ljung–Box test over 20 lags at α = 0.05; the result
+is in `R.summary()` and `R.history.white` (it is not a stop criterion). It detects short-lag
+correlation, periodic terms and excess low-frequency noise; a correlation that exists only
+at one long lag (an echo, a repeat-track pattern) is invisible to it — test for that with
+`R.systematic('Lags', L)`.
 
-| misfit | K = 20 | K = 60 | K = 120 | K = 540 |
-|---|---|---|---|---|
-| none (size) | 0.04 | 0.05 | 0.05 | 0.06 |
-| short-lag, AR(1) φ = 0.025 | **0.45** | 0.27 | 0.20 | 0.11 |
-| sinusoid, period 200 epochs | 0.07 | 0.07 | 0.11 | 0.12 |
-| low-frequency excess | 0.16 | 0.16 | 0.18 | 0.12 |
-| correlation at lag 150 only | 0.05 | 0.06 | 0.05 | 0.90 |
+Arcs can be skipped in a pass: `gap` (no data) or `nonPD` (the arc's covariance is not
+positive definite — a mis-scaled `Cep` produces exactly this). A skipped arc keeps its
+previous factor; when more than `Noise.SkipThreshold` of a stream's arcs are skipped, the
+pass is refused rather than estimated on a fraction of the data.
 
-A sinusoid or a low-frequency excess already shows at the short lags. The one blind spot is a
-correlation that lives ONLY at a long lag (an echo, a repeat-track pattern): K = 20 cannot see
-it, and `white = true` does not exclude it. If you suspect one, `R.systematic('Lags', L)`
-runs Ljung-Box on the fit's normalised residuals out to lag L. The simulation is
-`dev/reviews/R7_2026-10-09/mirrors/wp120/whiteness_power.py`.
+## Outliers
 
-An arc's standard deviation is **all three terms**: declared `sigma` × sqrt(arc factor) ×
-`R.sigma0`. Since 6.1.6 an arc factor is the arc's **absolute** Helmert factor (Ellmer eq.
-6.5.28) — the same number a stream without arc factors averages into its level — so sigma0
-settles near 1 and a stream's level is the mean of its factors. Ellmer normalises the factors
-by gamma-bar (eqs. 6.5.29–30) because his PSD carries the level; here the law is a shape, so
-the level has to stay in the factors. Two earlier forms were wrong: gamma-bar over every
-stream's arcs tied one stream's sigma to *another* stream's truth (review R7-09: 1.01 / 0.79 /
-1.15 as only the other stream changed), and the 6.1.5 per-stream form counted the level twice
-as soon as a stream's arcs differ (one arc 10× in sigma among nine: 1176 / 11.65 against the
-planted 100 / 1). With `sigma = 1` and a `Cep`
-carrying the absolute accuracy, that product reads directly as "by how much the
-preprocessing's covariance was too optimistic on this arc".
+Gross outliers belong to preprocessing. Inside the adjustment there are three tools:
 
-The acceptance of the estimator is physical, and its two halves are pinned differently. The
-planted FIELD is recovered within its formal errors (`demo_gravity` reports z-scores per
-coefficient; `test_physOracle` asserts them). The planted stream SIGMAS carry no formal
-error, and what the suite asserts is a RELATIVE bound: the ratios between streams to 25 %
-(measured 1.18 / 2.10 / 0.51 against a planted 1 / 2 / 0.5).
+1. **Arc factors** down-weight a whole bad arc automatically (`ArcFactors = true`).
+2. **Robust estimation** down-weights single epochs: `Robust = "igg3"` or `"bisquare"`
+   together with `Estimate = "noise"` weights every epoch of every stream inside the
+   joint estimator, standardised by the stream's own robust scale; a rejected epoch is
+   removed from the arc exactly. Prefer a redescending function (`igg3`, `bisquare`) for
+   gross blunders: Huber keeps part of their weight. The factors are in
+   `R.noise.robust.factor`; a pass that rejects more than 45 % of the epochs warns that
+   it has reached the breakdown point.
+3. **Diagnose, then decide.** Read the outlier tests in `R.report`, repair or remove the
+   observations in `buildDay` and run again. Weights taken from a robust run can be made
+   data: remove rejected epochs (a gap) in `buildDay`; store the weights, never recompute
+   them inside `buildDay`.
 
-## 7.8 Robustness: what Ellmer does, and what `Robust` adds inside the loop
-
-Three things are worth separating, because Ellmer's own robustness is not per-observation
-M-estimation and all three of his are available with `Estimate = "noise"` alone:
-
-1. **Gross outlier screening happens in preprocessing**, before the adjustment (Ellmer
-   §6.2, after Klinger 2018: the level-1B data is screened for outliers and periods of
-   reduced quality, and segments shorter than one hour are discarded). Nothing in the
-   adjustment replaces that.
-2. **The arc-wise variance factors** are Ellmer's down-weighting at arc granularity: a bad
-   arc receives a large variance factor, and since 6.1.6 that factor **weights the solve**
-   (review R7-13): each arc enters the next pass with its own variance, level × factor,
-   and the same factor multiplies the update (eq. 6.5.28). Measured on one arc 10× in sigma
-   among nine, beside two other streams (16 seeds): the factors come back 100.0 / 1.00, and
-   the true scatter of the estimated parameters is 13–47 % smaller than when only the
-   stream's mean factor reached the weighting. That is `ArcFactors = true`; the factors are
-   reported in `R.noise.model{k}.sigma2`.
-3. **The normalisation of those factors**: gamma-bar (eq. 6.5.29) is computed in GROOPS from
-   the central half of the sorted factors, ignoring both tails. In this joint estimator the
-   factors are absolute (§7.7), so gamma-bar no longer scales them; it sets only the scale of
-   the floor below which a factor is clamped (`lsqvce:arcVarianceFactors:clamped`), with the
-   robust mean. The option that chose plain or robust, `Noise.MeanType`, is retired since
-   6.1.8; the kernel `lsqvce.engine.arcVarianceFactors` keeps both forms of the thesis.
-
-**Per-epoch down-weighting inside the same loop (since 6.1), in the Koch convention.**
-`Robust = "huber" | "igg3" | "bisquare"` together with `Estimate = "noise"` runs the robust
-pass *inside* the joint estimator. Every pass ends with one residual sweep; the **raw**
-residuals, descaled by each epoch's own declared accuracy (`Cep`) and reduced to one value
-per epoch, go through the influence function per stream (`RobustOpts.Tuning` for the
-constants). For a multi-axis epoch that value is **χ-calibrated** (since 6.1.4): the sum of
-squares of its d descaled rows is mapped through the χ²(d) distribution to the equivalent
-normal deviate, with the sign of the rows' sum, so a clean 3-axis epoch is standardised
-exactly like a clean scalar residual — the RMS used before was χ-shaped and, standardised
-uncentred, zeroed about a quarter of clean 3-axis epochs under `igg3`. When a pass zeroes
-more than 45 % of the epochs the toolbox warns once that it is at the breakdown point
-(`lsqvce:robust:atBreakdown`; diagnostic only — the stand-alone IRLS says the same about
-rows). The factors enter the next pass as an **additive nugget** on the temporal law
-(since 6.6.0): epoch e's temporal variance Σ_ee becomes Σ_ee / w_e, its covariances with the
-neighbours stay the law's, **before** the composition with `Cep`:
-C = D ((R_t + diag(q ∘ Σ_ee)) ⊗ I_d) D with q = 1/w − 1. Until 6.5.0 the factors were
-*folded* into `Cep` (sigma / sqrt(w)), which scales the neighbours' covariances too: under a
-correlated law a zero-weight epoch then stayed a phantom observation the filter leaned on —
-at φ = 0.9 the formal standard deviation was 0.31 of the true one, and the estimate 1.2–1.5
-times worse than deleting the epoch (review R7, R7-10; measured at tier A, HANDOVER §12.43).
-With the nugget a zero weight *is* a deletion (formal/true 1.000). A nugget arc is whitened
-in one batch: the law's filter, then an exact rank-k correction over the k down-weighted
-epochs (Woodbury), O(m k + k³) — 0.1–4 ms for a 4096-epoch arc. A weight
-is a statement about the *observation*; the stand-alone IRLS (`Estimate = "none"`) weights
-the law-whitened *innovation* instead (Yang 1994), and the two are deliberately different:
-the control measurement showed that an innovation weight of zero neutralises the whitening
-filter's whole tail around a blunder, so a spectral estimator loses exactly the lag
-correlations it needs there (a planted colour of 0.20 crawled to 0.054 in 16 passes), while
-the same blunders declared through `Cep` let the plain estimator recover it. `MaxPasses` is
-the budget (`RobustOpts.MaxIter` / `Tol` belong to the stand-alone IRLS). Prior streams are
-never re-weighted: a down-weighted datum is a rank defect, not an outlier. What comes back:
-`R.noise.robust` (`influence`, `scale` per stream, `factor` per **epoch** in sweep order,
-`keys`, `truncation` per stream), and `R.history.robustScale` / `nDown` / `nZero` per pass.
-
-Two things the mechanism learned by measurement, both binding on how to use it. **The
-standardisation is the stream's own MAD scale, never the estimated level**: a global scale
-mis-standardises every stream whose level differs from the mix, and using the level the
-whitener just applied makes the weights feed on the level they shape — the clean stream's
-level spiralled to 0.38 that way. With `v / MAD(v)` per stream the weights are invariant to
-the level, and the level converges. **Prefer a redescending influence for gross blunders**:
-Huber is monotone and keeps c/|u| of a blunder's weight, so 2 % of a stream at 25 sigma
-retain 0.02 · 1.345 · 25 ≈ 0.67 of white variance and dilute a lag-1 colour of 0.20 to
-about 0.12; `igg3` (zero beyond 3 sigma) and `bisquare` reject them outright and recover
-the colour.
-
-**The level (since 6.6.0).** Up to 6.5.0 the factors also weighted the component update,
-and the level of a *clean* stream came back **14–19 % low** — measured on the runner over 20
-seeds with the true law declared (plain 0.997, `igg3` 0.81 / 0.86; HANDOVER §12.43; the one
-earlier reading of 1.007 had been read against 1 while the truth was the process sd 1.155).
-The cause is selection: the influence down-weights exactly the epochs with large residuals,
-which no redundancy count undoes (counting the redundancy with the weights, exact for fixed
-weights, moved a mirror only from 0.74 to 0.76). So the component update now sees only the
-**rejected** epochs (factor 0, deleted by their nugget); partial factors weight the solution
-only; and each stream's level is divided by the Gaussian truncation factor of the rejection
-point, τ = F_{d+2}(q_k) / F_d(q_k) with P(χ²_d > q_k) = P(|N(0,1)| > k) — 0.9733 for
-`igg3`'s k1 = 3 at d = 1, practically 1 for `bisquare`, exactly 1 for Huber, which rejects
-nothing (`R.noise.robust.truncation`). A mirror of the loop reads 0.978 / 0.976 (φ = 0.5 /
-white) before the factor. The returned solution is hard too: after the loop one accumulation
-with the rejected epochs deleted and every partial factor set back to 1, whose `sigma0` and
-`Cxx` are corrected for the rejected rows and for τ. With the partial factors in that last
-solve, σ·σ0 had stayed at 0.83, because `sigma0`, recomputed under the corrected levels,
-gave the selection bias back (measured on the runner). Under a correlated law τ is the white-noise value, an approximation
-of the same order as that residual. This composition is Koch's iterated re-weighting inside
-a variance-component estimation, not something Ellmer (2018) does.
-
-Two further routes remain useful:
-
-- **Diagnose, then decide.** Run `Estimate = "noise"` and read `R.report()` — the w-tests,
-  redundancies and MDBs identify the observations carrying the outliers; remove or repair
-  them in your `buildDay` and re-run.
-- **Declare fixed weights as data.** Take factors from any robust run and let `buildDay`
-  remove the rejected epochs (a data gap) or return `Cep` divided by sqrt(factor) for a partial
-  one. The weights are then data and stay put from pass to pass. Under a correlated law a
-  `Cep` division is the fold described above, so a zero factor belongs in the gap, not in
-  `Cep`. The weights must be stored, never recomputed inside `buildDay` (the day
-  builder must be deterministic).
+With `Estimate = "none"`, `Robust` runs a stand-alone iteratively re-weighted solve on the
+whitened innovations, with its own budget `RobustOpts`.
 
 
-# Diagnostics and the verdict
+# Priors and regularisation
 
-Every solve carries per-observation diagnostics in `R.diag` (residuals in the whitened
-frame `sqrt(p).*v`, redundancy numbers, standardised residuals, the Baarda / Pope test
-with `Diagnostics.Alpha` and Bonferroni, minimal detectable biases, reliability, the
-a-priori backstop). `R.report(Level=0..4)` reduces them to one verdict and its evidence;
-`R.summary()` and `R.convergence()` read the pass record of an iterative run;
-`R.residuals()` re-reads the arcs for the whitened residuals per stream; `R.contribution()`
-gives the information share of every stream in the common parameters;
-`lsqvce.engine.verdict.snoop` iterates data snooping with a clean re-solve on the block path;
-`R.compare(Rred)` is the nested-model F test between two fits; its redundancy counts the
-eliminated local parameters too (since 6.1.8; it counted the commons only and was
-anti-conservative, 7.4 % false positives at 5 %). For correlated batches the
-per-observation quantities live in the whitened frame; only their sums are
-frame-invariant.
+## The idea
+
+A prior says "these parameters are observed to be x₀, with standard deviation σ". It is
+written as pseudo-observations `L·x = x₀ + v` in your own columns, and the toolbox treats
+it as data: it enters the normal equations, it has a redundancy (how much of it the data
+overrule), and its σ can be estimated like the level of any other stream. Regularisation
+is therefore never an option on the run: it is a declared part of the problem. The
+fields are listed in the API reference (*Priors*).
+
+## Typical priors
+
+**A datum for a free network.** Minimum constraints on the null space N of the design
+(`L = Nᵀ`, `x0 = 0`) fix the datum without distorting the solution. Declare the datum as
+a group of its own:
+
+```matlab
+data.priors(1) = struct('L', Nnull.', 'x0', 0, 'sigma', 1, 'name', 'datum');
+```
+
+The solution and its covariance are the minimum-constraint ones for any σ. Without a datum
+a rank-deficient system is refused by name; the toolbox never guesses one.
+
+**A Kaula rule on a gravity field.** One group per rule, σ estimated:
+
+```matlab
+data.priors(1) = struct('group', '^[CS]', 'x0', 0, 'sigma', 1e-10, 'estimate', "scale");
+```
+
+`group` is a regular expression on the name column of `commonParams`; the toolbox builds
+one row per matched coefficient. Relative weights inside a group (degree-dependent Kaula
+factors) go into an explicit `L` instead: divide each row by its own relative σ.
+
+**Calibration parameters of an instrument.** Priors on local parameters sit on the system:
+
+```matlab
+data.systems(k).priors(1) = struct('group', '^accScale', 'x0', 1, 'sigma', 0.02, ...
+                                   'estimate', "scale");
+```
+
+The accelerometer scales of both satellites over a month form one group with many rows —
+exactly what makes their σ estimable. A group with one row cannot estimate its own σ.
+
+## Writing `L` yourself
+
+`lsqvce.layout(data)` announces which column of A and B holds which template row on which
+day and arc, so an operator can be built by name:
+
+```matlab
+lay = lsqvce.layout(data);
+L = zeros(2, lay.nc);
+L(1, lay.colCommon(5, [])) = 1;            % template row 5 of commonParams
+L(2, lay.colCommon(6, [])) = 1;
+```
+
+`examples/demo_priors.m` builds priors both ways.
+
+## Reading the result
+
+`R.noise.priors` and `R.noise.priorHistory` report the σ of every common group per pass;
+a local group appears as the stream `prior_<name>` of its system in `R.noise.model`.
+λ = σ₀²/σ² is the regularisation the data support. `R.report` counts the redundancy of
+the prior rows like that of any observation.
+
+## Activating a prior later
+
+`from = 3` activates a group in the third pass of an iterative run: the first passes then
+see the data alone. A single solve skips such a group with a warning.
+
+
+# Reading the results and the report
+
+`lsqvce.fit` returns a `lsqvce.Results` object. This chapter covers how to read it:
+first the object itself, then the five-level report that judges it, then the per-stream
+evidence of an `Estimate = "noise"` run, which the report does not print. For each
+adverse finding it says what to do. The full field lists are in the API reference, and
+the derivations of every statistic are in the theory.
+
+```matlab
+R = lsqvce.fit(data, opts);
+R.report                      % the verdict, levels 0..4
+V = R.report(Verbose=false);  % the same verdict, silent, as a struct
+```
+
+## The `Results` object
+
+### Properties
+
+All properties are read-only.
+
+| property | what it holds |
+|---|---|
+| `R.x` | the common-parameter estimate, `nc x 1` (the eliminated local parameters are not in it; `R.toTable` and `R.residuals` give them back) |
+| `R.sigma0` | the a-posteriori standard deviation of unit weight |
+| `R.sol` | the solver's raw output: `.x`, `.sigma0`, `.Cxx` (the covariance, **already scaled by `sigma0^2`**), `.vtv`, ... |
+| `R.diag` | the per-observation diagnostics the report reads (next sections) |
+| `R.history` | the pass record of an iterative run; empty for a single solve |
+| `R.noise` | the estimated stochastic model (`Estimate = "noise"`), or the robust record |
+| `R.converged`, `R.stopReason` | whether the loop settled, and why it stopped |
+| `R.meta` | run provenance: `.toolboxVersion`, `.matlabRelease`, `.createdUTC`, `.seeds`, `.options` (as resolved), `.warnings` |
+| `R.acc`, `R.source`, `R.batchFcn`, `R.nBatch`, `R.systems` | the accumulator, the diagnosed full-parameter solution and its replayable batch source (for expert use) |
+
+`R.stopReason` takes one of four values:
+
+| value | meaning |
+|---|---|
+| `"single"` | one solve, nothing iterated (`Estimate = "none"` without `Robust` or `x0`) |
+| `"converged"` | every stop criterion was met |
+| `"maxPasses"` | the pass budget ran out. The last pass is returned with its covariance and one warning: this is a result, not an error |
+| `"userStop"` | your `Options.OnPass` hook returned `false` |
+
+### Methods
+
+| method | answers |
+|---|---|
+| `R.report(...)` | Is the adjustment acceptable? Prints the five levels and returns the verdict |
+| `R.coefficients(Alpha=0.05)` | the estimates as a table: `index`, `estimate`, `se`, `lower`, `upper` (normal bounds, `se = sqrt(diag(Cxx))`) |
+| `R.toTable(data, Estimate=9, Std=10)` | your parameter tables with the estimate and its standard deviation written into the named columns, one row per instantiated parameter (commons and locals) |
+| `R.reliability()` | one row per observation: `obs`, `v`, `r`, `w`, `mdb`, `quadrant` |
+| `R.snoop(...)` | iterative data snooping on this fit; `R` itself is not changed |
+| `R.systematic(...)` | runs, Ljung–Box and binned-mean tests for unmodelled signal in the residuals |
+| `R.compare(Rred)` | nested-model F test: does the full model `R` earn its extra parameters over `Rred`? |
+| `R.ellipse(i, j, ...)` | confidence ellipse of the parameter pair `(i, j)` |
+| `R.residuals(...)` | the collected residuals per system and stream (re-reads the arcs) |
+| `R.contribution(...)` | the information share of every stream in the common parameters |
+| `R.summary()` | one row per **stream**: what each ended up as (iterative runs) |
+| `R.convergence(...)` | one row per **pass**: when the loop settled (iterative runs) |
+| `R.plot(kind, ...)` | `"residuals"`, `"contribution"`, `"psd"`, `"convergence"`. Returns one figure handle and exports nothing |
+| `R.redundancy()` | `sum(r_i) = n − u` |
+| `disp(R)` | a one-screen summary |
+
+Some methods cannot run on every result:
+
+* `summary`, `convergence`, `plot("psd")` and `plot("convergence")` need a variance-component history.
+  On a single solve they raise `lsqvce:Results:noHistory`.
+* `residuals`, `contribution`, `toTable`, `plot("residuals")` and `plot("contribution")` need the
+  streaming accumulator. On the two in-memory kinds they raise
+  `lsqvce:Results:noAccumulator`; read `R.diag.v` there instead.
+* `reliability` and `systematic` need every residual (`Diagnostics.Store = "all"`, the
+  default). Under `"flagged"` or `"none"` they refuse (`lsqvce:Results:noPerObservation`,
+  `lsqvce:systematic:noResiduals`). The report still runs, because it reads only aggregates
+  and the flagged list.
+
+**Standard deviations.** `R.sol.Cxx`, `R.coefficients` and `R.toTable` all carry the
+a-posteriori scaling. An arc's standard deviation in an `Estimate = "noise"` run has three
+factors: declared `sigma` × `sqrt(arc factor)` × `R.sigma0`. The chapter *Choosing the stochastic model* has the details.
+
+## How the report is built
+
+`R.report` is `lsqvce.report(R.diag)`. It also passes along the run provenance and the
+loop state, so the printed report gets one provenance line at Level 0 and one
+loop-settled line at Level 1 (described below). A bare `lsqvce.report(R.diag)` prints
+neither line.
+
+| name-value | default | effect |
+|---|---|---|
+| `Verbose` | `true` | print the report; `false` only returns `V` |
+| `Width` | `78` | line width, ≥ 40 |
+
+The report always evaluates and prints all five levels. There is no option to print only
+one level; to filter, use the `level` field of the findings. The text goes through the
+toolbox's message log, like every other status line.
+
+The returned struct:
+
+```matlab
+V.verdict       % 'PASS' | 'PASS WITH WARNINGS' | 'SUSPECT' | 'INVALID'
+V.message       % the sentence printed under the verdict
+V.findings      % cell of struct(level, severity, code, msg)
+V.nError, V.nWarn, V.nNote, V.integrityOK
+```
+
+Each finding has a severity, `ERROR`, `WARN` or `NOTE`, and a stable **code**. A pipeline
+should branch on the codes, not on the wording:
+
+```matlab
+codes = cellfun(@(f) f.code, V.findings, 'UniformOutput', false);
+if any(ismember(codes, {'SNOOP_CONTAMINATED', 'SNOOP_REFUSE', 'SNOOP_BREAKDOWN'}))
+    R2 = lsqvce.fit(data, opts, Robust="igg3");
+end
+```
+
+### The tests behind it: `Options.Diagnostics`
+
+The diagnostics are computed by `fit` itself, in a second sweep over the data. Their
+settings belong to the `Diagnostics` option group:
+
+| field | default | meaning |
+|---|---|---|
+| `Alpha` | `1e-3` | significance of each per-observation test |
+| `Bonferroni` | `true` | divide `Alpha` by `n`: the family-wise rate over all `n` tests |
+| `Beta` | `0.2` | type-II error for the MDB (power 0.8) |
+| `RMin` | `0.01` | redundancy number at or below which an observation is **uncontrolled**: its `w` is set to 0 and its MDB to `Inf` |
+| `RWeak` | `0.1` | redundancy number below which an observation is **weakly controlled** |
+| `Test` | `"auto"` | `"pope"` (studentised by the estimated `s0`), `"baarda"` (by the a-priori sigma0), `"mad"` (by a robust MAD scale); `"auto"` selects `"pope"` |
+| `RobustCheck` | `true` | also form the MAD scale and the contamination gauge |
+| `Store` | `"all"` | keep every per-observation vector, or only the `"flagged"` ones, or `"none"` |
+| `NWorst` | `1000` | how many largest-`|w|` observations are retained (`R.diag.worstW`, `.worstIdx`) |
+
+```matlab
+opts = lsqvce.Options(Diagnostics=struct('Test', "mad"));   % fields merge into the defaults
+```
+
+**What the numbers refer to.**
+
+* **Observations.** An observation index is a row in **sweep order**: the arcs in the
+  order they were accumulated, then the rows of a declared prior. Prior rows are counted in
+  `n` and in the redundancy.
+* **Units.** On the streaming kind every row is whitened by its declared law before it is
+  tested. `v`, `w`, `r_i` and the MDB therefore belong to whitened rows, and an MDB is in
+  units of that row's own sigma. For correlated data only sums such as `sum(r_i)` and `vPv`
+  are the same in both frames.
+* **Parameters.** A parameter index in the report refers to the **full** parameter vector:
+  the commons first (indices `1..numel(R.x)`), then each system's local parameters in
+  block order. The `u` in the header counts both.
+* **The a-priori sigma0.** For whitened rows the a-priori sigma0 is 1. The report's `s0`
+  is the a-posteriori value recomputed from the residual sweep and should match `R.sigma0`;
+  Level 0 checks this.
+
+## The verdict
+
+The verdict is printed last, between two rules:
+
+```
+  VERDICT: <verdict>        (<e> error, <w> warning, <n> note)
+  <message>
+```
+
+| verdict | rule | what it means | what to do |
+|---|---|---|---|
+| `INVALID` | a Level-0 integrity check failed | The arithmetic or the setup is broken (for example the second pass did not replay the batches the solve saw). Levels 1–4 are **not evaluated**. | Fix the setup. Do not read or publish any number from this run. |
+| `SUSPECT` | integrity holds, at least one `ERROR` | The adjustment computed, but at least one finding is serious enough that the result should not be published as it stands. | Work through the `[ERROR]` items, top level first. |
+| `PASS WITH WARNINGS` | no `ERROR`, at least one `WARN` | Nothing disqualifies the result, but a reviewer will ask about the warnings. | Address each `[WARN ]` item or be ready to defend it. |
+| `PASS` | no `ERROR`, no `WARN` | Every check passed. | Still read the `REL_EXTERNAL` line at Level 3. It is a `NOTE` whenever the reliability is normal for a network of this size, even when its absolute value is above one sigma. |
+
+The levels are ordered so that a failure at one level makes the levels below it
+unreliable. Read the report from the top, and fix the highest failing level first.
+
+## Level 0 — INTEGRITY (does the arithmetic hold?)
+
+These checks test the computation, not the data.
+
+| code | severity | condition | action |
+|---|---|---|---|
+| `PROVENANCE` | NOTE | always (through `R.report`) | Prints the toolbox version, the MATLAB release and the creation time. |
+| `SUM_R` | NOTE / **ERROR** | `sum(r_i)` against `n − u`; ERROR if the relative error > 1e-6 | The second pass does not replay the design or the weights the solve used. Make `buildDay` / `batchFcn` deterministic: the same rows in the same order on every call. |
+| `VPV_SIGN` | **ERROR** | `vPv` negative or non-finite | A numerical failure. Check the declared covariances for non-SPD blocks. |
+| `VPV_MISMATCH` | WARN / **ERROR** | the accumulator's `vPv` and the recomputed `sum p v²` differ by > 1e-6 (WARN) or > 1e-2 (ERROR, invalid) | The recomputed value is the one the report uses. A large gap means cancellation in the normal-equation path; re-run with `Backend = "qr"`. |
+| `NO_REDUNDANCY` | **ERROR** | `r = n − u = 0` | Nothing is testable. Add observations or remove parameters. |
+| `S0_FALLBACK` | WARN | the estimated variance factor was unusable | The `w` values were studentised with the a-priori sigma0. Read them as Baarda-type, not Pope-type. |
+
+## Level 1 — GLOBAL (is the model consistent?)
+
+Level 1 checks whether the functional and stochastic model are consistent overall.
+
+**Loop state and robust fits.** If the run iterated (any `stopReason` other than
+`"single"`), one of these lines comes first:
+
+| code | severity | meaning | action |
+|---|---|---|---|
+| `NOISE_SETTLED` | NOTE | the loop met its stop rule | — |
+| `NOISE_UNSETTLED` | WARN | the loop stopped on `"maxPasses"` or `"userStop"` before it settled. Every number below rests on weights that were still moving | Treat the result as provisional. Raise `MaxPasses` or loosen `Tolerance` and run again. `R.convergence()` shows what was still changing (see "When the loop did not settle" below). |
+| `ROBUST_FIT` | NOTE | the run used a robust influence (`Robust = "huber"`, `"igg3"` or `"bisquare"`) | `sigma0` and the covariance belong to the **reweighted** problem. They are not an M-estimator's scale or sandwich covariance, so the global test and the parameter bounds are approximate in both directions. |
+
+**The global test.** Two lines always appear:
+
+* `GLOBAL_STAT` prints `s0^2/sigma0^2` and `T = vPv/sigma0^2`, together with the
+  chi-square acceptance band for `r` degrees of freedom. The band is fixed at a two-sided
+  **α = 1 %** (quantiles 0.005 and 0.995, divided by `r`); it does not use
+  `Diagnostics.Alpha`.
+* `GLOBAL_CI` gives `sigma0_hat` with its **95 % confidence interval** and the smallest
+  relative deviation this redundancy can tell apart from sampling noise. **Read the
+  interval, not the point estimate.**
+
+What follows depends on whether the ratio falls inside the band:
+
+| code | severity | condition | meaning and action |
+|---|---|---|---|
+| `GLOBAL_PASS` | NOTE | ratio inside the band | The model is consistent. |
+| `GLOBAL_SHARP` | NOTE | ratio outside a band narrower than ±1 % | At this redundancy the test rejects any imperfection, however harmless. Judge the **ratio** and the confidence interval, not the rejection itself. |
+| `GLOBAL_HIGH` | WARN | ratio above the band | The residuals are larger than the weights promised. There are three causes, and the global test cannot tell them apart: **(a) outliers**, see Level 2. **(b) Unmodelled systematics**: run `R.systematic(Covariates=...)` and plot `w` against time, elevation, orbit position and similar covariates; neither this test nor data snooping can see a smooth bias. **(c) Over-optimistic weights**: if the residuals are clean and structureless, estimate the weights with `Estimate = "noise"`, or correct the declared `sigma`. Do not rescale `Cxx` by `s0²` before you have ruled out (a) and (b). |
+| `GLOBAL_LOW` | WARN | ratio below the band | The residuals are smaller than predicted. Either the weights are pessimistic (the declared `sigma` is too large; correct it or use `Estimate = "noise"`), or the model is **over-parameterised** and absorbs the noise. Test whether each parameter group is justified with `R.compare(Rred)`, and look at the correlations at Level 4. |
+
+## Level 2 — LOCALISE (where is it broken?)
+
+Level 2 locates individual bad observations by data snooping: one test per observation
+on its normalised residual
+
+  `w_i = (P v)_i / (scale · sqrt((P Qvv P)_ii))`.
+
+The `scale` is the estimated `s0` (Pope), the a-priori sigma0 (Baarda) or the robust MAD
+scale. With `Bonferroni = true` the level of each test is `Alpha / n`.
+
+### The contamination cross-check
+
+Pope's statistic divides by `s0`, and `s0` is estimated from the same data that contain
+the blunders. A group of blunders therefore inflates the scale it is tested against, and
+the blunders mask each other. To catch this, the report compares `s0` with a robust MAD
+scale of the raw standardised residuals and estimates the contaminated fraction `fhat`:
+the share of residuals beyond 2.5 robust sigmas. On clean data `fhat` sits near
+`P(|Z| > 2.5) = 0.0124`. As a backstop it also prints `s0/sigma0`, which contamination
+cannot suppress but which is only as good as your declared sigma0.
+
+The cross-check appears only with `Bonferroni = true` and `RobustCheck = true`. Exactly
+one of these lines is printed:
+
+| code | severity | condition | action |
+|---|---|---|---|
+| `SNOOP_SCALECHECK` | NOTE | `clean`: `fhat` within its null band `0.0124 + 4 · 1.30 · sqrt(0.0124 · 0.9876 / n)` and no large backstop | `s0` and the robust scale agree, so the flag list can be believed. (This line is omitted under `Test = "mad"`.) |
+| `SNOOP_MODERATE` | WARN | `fhat` above the null band, below 0.10 | Pope's test is starting to lose power. Re-diagnose with `Test = "mad"`, and reject one observation at a time (`R.snoop(Test="mad")`). |
+| `SNOOP_CONTAMINATED` | **ERROR** | `0.10 ≤ fhat < 0.25` | Pope's test is **blind**: an empty flag list from a Pope run is not evidence of clean data, and iterating does not help. Use `Test = "mad"`, or refit with `Robust = "huber"` (`"igg3"` / `"bisquare"` for gross blunders). |
+| `SNOOP_REFUSE` | **ERROR** | `fhat ≥ 0.25` | So large a fraction of "outliers" points to a model error, not to outliers. Rejecting them would produce a confidently wrong result, and the flag list is incomplete anyway. Run `R.systematic()` and fix the functional model before rejecting anything. |
+| `SNOOP_BREAKDOWN` | **ERROR** | `fhat ≤ 0.005` while `s0/sigma0 > max(3, 2·(1 + 3/sqrt(2r)))` | The robust scale has adopted the blunders as its reference (more than about half the data are bad). **Reject nothing** and trust no flag list in this report. Either the declared sigma or the functional model is badly wrong; fix that first. |
+| `SNOOP_NOCHECK` | NOTE | no robust scale could be formed (too few usable residuals, or `RobustCheck = false`) | Pope's test is used unchecked. Above about 5 % contamination it loses power without warning. |
+
+In addition:
+
+* `SNOOP_BACKSTOP` (NOTE) appears whenever `s0/sigma0` exceeds its clean-data tolerance
+  `1 + 3/sqrt(2r)`. It is not printed in the breakdown case, which already reports the
+  backstop. If your sigma0 is trustworthy, the residuals really are that much larger than
+  promised.
+* `SNOOP_MAD` (NOTE) states that the robust scale replaced `s0` (`Test = "mad"`).
+
+### The snooping result
+
+* `SNOOP_SETUP` (NOTE) prints the test, `Alpha`, the corrected level, `n`, the critical
+  value `|w| > k` and the number of false alarms expected by chance (`Alpha` under
+  Bonferroni).
+* `SNOOP_NOBONF` (WARN) replaces it when `Bonferroni = false`. It prints the uncorrected
+  level and roughly how many good observations will be flagged by chance. With Bonferroni
+  off, the contamination cross-check above is not printed either. Set `Bonferroni = true`.
+* `SNOOP_VACUOUS` (**ERROR**, Pope only) appears when the critical value exceeds the upper
+  bound `sqrt(r)` of Pope's statistic. No residual can ever be flagged, so an empty list is
+  guaranteed. Accept a weaker `Alpha` or a weaker family-wise correction, or accept that
+  this network cannot detect its own blunders.
+* `SNOOP_CLEAN` (NOTE) means nothing exceeds the critical value. It prints the largest
+  `|w|` and its observation index.
+* `SNOOP_FLAGS` (WARN) gives the number flagged, the number expected by chance, and so
+  about how many are real. `SNOOP_TABLE` (NOTE) lists up to 15 of them, worst first, with
+  columns `obs`, `w`, `r_i`, `v`, `MDB`. Read `w` and `r_i` **together**.
+* `SNOOP_LOWR` (WARN): some flagged observations have `r_i < RWeak`. A large residual on
+  a weakly controlled observation may be error absorbed from a neighbour. Rejecting it is
+  close to a coin flip; prefer to re-measure.
+* `SNOOP_ITER` (NOTE) prescribes the remedy. Reject **one** observation at a time (the
+  largest `|w|`), re-solve and test again, because blunders mask each other and a single
+  pass misses some of them:
+
+```matlab
+[D2, REJ, sol2] = R.snoop();               % Pope, Bonferroni, one at a time
+[D2, REJ, sol2] = R.snoop(Test="mad");     % under contamination
+REJ.idx      % rejected, in order;  REJ.refused  % tripped but r_i < RMinReject (0.10)
+```
+
+`R.snoop` takes its own `Test` (`"pope"` or `"mad"`), `Alpha` (1e-3) and `Bonferroni` (`true`)
+name-values; it does not read `Options.Diagnostics`. It caps the number of rejections at
+`max(10, 0.01·n)` and stops at a fraction of 0.25 (`MaxRejectFrac`). It refuses observations with `r_i < RMinReject`, re-solves cleanly
+over the survivors at the end, and leaves `R` unchanged. It cannot reject single rows of a
+correlated batch (`lsqvce:snoop:correlatedBatch`): there, remove the epoch in `buildDay`
+or use `Robust`.
+
+## Level 3 — RELIABILITY (what can you not check?)
+
+Level 3 shows which observations the tests could not check at all.
+
+* `REL_HEAD` (NOTE) prints the smallest redundancy number and its observation, the mean
+  redundancy `r/n`, and the MDB non-centrality `delta0`. `delta0` is computed at the
+  **Bonferroni-corrected** level and `Beta`: 4.13 at a level of 1e-3 with `Beta = 0.2`,
+  and larger as `n` grows.
+* `REL_QUADRANTS` (NOTE) counts the observations in each cell of the (|w|, r) table.
+  `|w|` is high when it exceeds the critical value; `r` is low when it is below `RWeak`.
+
+| quadrant | \|w\| | r | meaning |
+|---|---|---|---|
+| clean outlier | high | high | reject with confidence |
+| **AMBIGUOUS** | high | low | could be a neighbour's error; re-measure |
+| verified | low | high | tested, and passed |
+| **UNTESTED** | low | low | **not** "fine": the test had no power |
+
+A residual shows only the fraction `r_i` of an error in its observation. A small `|w|` on a
+low-`r` observation is therefore no evidence of health. `R.reliability()` gives the same
+quadrant per observation.
+
+| code | severity | condition | action |
+|---|---|---|---|
+| `REL_SILENT` | WARN | observations in the UNTESTED quadrant | These observations did not pass the test; the test could not see them. Strengthen the geometry (more or better-placed observations), or validate them externally. |
+| `REL_AMBIGUOUS` | WARN | flagged observations with `r_i < RWeak` | Re-measure rather than reject. |
+| `REL_ENVELOPE` | NOTE | always, when MDBs are finite | The hidden-blunder envelope: the median, 90th and 99th percentile and the worst MDB, in units of each observation's sigma. "Half of my observations could hide an undetected error larger than the median." The percentiles come from a fixed-seed reservoir of 5000 samples. |
+| `REL_MDBINF` | **ERROR** | observations with infinite MDB | No error in these observations, however large, can be detected. They drop out of the percentiles above, so the envelope looks better than it is. |
+| `REL_UNCONTROLLED` | **ERROR** | observations with `r_i ≤ RMin` | Their residual is forced to zero, so a blunder in them passes into the parameters unseen. The first indices are listed. Add observations that constrain the same parameters, or remove the parameter that only those observations determine. |
+| `REL_WEAK` | WARN | `RMin < r_i < RWeak` | A blunder in these is only partly visible. Data snooping has little power here. |
+| `REL_GOOD` | NOTE | none weak, none uncontrolled | Snooping has power everywhere. |
+
+**External reliability (`REL_EXTERNAL`)** answers one question: how far could the worst
+undetectable blunder (one MDB in the worst observation) move a parameter, in units of that
+parameter's own sigma? The report names the observation and the parameter. Under a healthy
+geometry this number shrinks like `1/sqrt(n)`, so it is judged against the value expected
+for a network of this size, `4.0 · delta0 / sqrt(n)`:
+
+| ratio to expected | severity | action |
+|---|---|---|
+| ≤ 1.8 | NOTE | Normal for this size. |
+| 1.8 – 3 | WARN | The geometry is weaker than it should be. |
+| > 3 | **ERROR** | One observation carries far more leverage than the rest. Find it through the minimum `r_i` and the named observation, and do not trust the formal sigmas. |
+
+If the absolute value exceeds one sigma, the line adds that an undetectable blunder could
+move the parameter by more than its stated precision. When that happens at a normal ratio,
+the remedy is more observations, not a different estimator.
+
+## Level 4 — PARAMETERS (what do you actually know?)
+
+Level 4 checks conditioning and correlations, and lists the parameter precisions.
+
+* `PAR_COND` (NOTE) prints `cond(R)` and `cond(N)`. On the `fit` path these are **lower
+  bounds** formed from the blocks of the cofactor (no SVD), and they are marked
+  `[LOWER BOUND]`. The true conditioning can be worse than printed, never better, so the
+  thresholds below are optimistic.
+* `PAR_ILLCOND`: WARN when `cond(N) > 1e10`, with roughly `log10(cond(N))` of 16 digits
+  lost. **ERROR** when `cond(N) > 1e14`: the printed sigmas are meaningless. Rescale the
+  parameters so that the columns of the design have comparable norms, and use
+  `Backend = "qr"`, which avoids squaring the condition number. A rank defect (a free
+  network) needs a datum, which you declare as a prior (chapter *Priors and regularisation*).
+* `PAR_CORR` reports the strongest correlation and its parameter pair. It is a NOTE at
+  most 0.95, a WARN above 0.95 (nearly inseparable: use `R.ellipse(i, j)` rather than the
+  individual sigmas), and an **ERROR** above 0.999. In the ERROR case only a combination of
+  the two parameters is determined. Fix one of them, reparameterise to estimate the
+  combination, or add observations that separate them.
+* `PAR_TABLE` (NOTE) lists the first 30 parameters of the full vector: `x`, the a-priori
+  sigma (`sigma0 · sqrt(Qxx_jj)`) and the scaled sigma (`s0 · sqrt(Qxx_jj)`). The scaled
+  column is what `R.coefficients` reports for the commons.
+* `PAR_SCALE` (WARN) appears when `|s0²/sigma0² − 1| > 0.1`, so that the two columns
+  differ. Which column is honest depends on **why** the variance factor deviates. If the
+  weights were wrong, the scaled column is right. If there are outliers or systematics,
+  **neither** is right. Resolve Levels 1 and 2 before quoting either.
+
+## Beyond the report: the stochastic model
+
+The report judges one solve under the final weights. Whether those weights describe the
+noise, stream by stream, is a separate question, and the report does not answer it. For an
+`Estimate = "noise"` run, read it from `R.history`, `R.summary()` and `R.convergence()`.
+
+### Whiteness per stream
+
+On every pass the loop tests the law-whitened residuals of each stream with a Ljung–Box
+test. The test pools over the stream's arcs, uses **K = 20 lags** and calls a stream white
+when **p > 0.05**.
+
+```matlab
+T = R.summary();             % stream | sigma | arOrder | white | pValue  (final pass)
+T(~T.white, :)               % the streams that never whitened
+R.history.streams            % stream keys 'satKey|obsType', the column order of
+R.history.white(end, :)      %   these per-pass matrices (nPass x nStream)
+R.history.whitePval(end, :)
+```
+
+In `summary()`, `sigma` is the stream's level factor `sqrt(mean arc factor)`. It is near
+1 when the declared sigma was right, and it tells you by how much the declared sigma was
+off. `arOrder` is `NaN`, because the joint estimator fits a spectrum, not an AR order.
+
+**A stream that is not white** has residual correlation that its law does not describe.
+Possible causes and remedies, roughly in order:
+
+1. **The law was not estimated for it.** If the stream's covariance spec has
+   `estimate = "none"` or `"scale"`, the declared law is used unchanged (its
+   `R.noise.model{k}.C` is then empty). Set `estimate = "law"` for that stream.
+2. **It shares a law with streams that behave differently.** Use a finer `Pool`
+   (`"obsType"`, or `"stream"` for one law per stream).
+3. **The spectral grid is too coarse** for its correlation: raise `Noise.Grid`.
+4. **The functional model is incomplete.** An unmodelled signal (a drift, a
+   once-per-revolution term) appears as coloured noise. Run
+   `R.systematic(Covariates=struct('time', t, ...))`: the binned-mean test points to the
+   covariate. A correlation that lives only at a long lag (an echo, a repeat pattern) is
+   invisible at K = 20; test it with `R.systematic(Lags=L)`.
+
+`R.plot("psd")` draws the estimated spectral shape of each pool group, and
+`R.plot("residuals", Stream="...")` draws a stream's whitened residuals against time.
+
+### When the loop did not settle
+
+The loop stops when two conditions hold: `max|α² − 1|` over frequencies and arcs, and
+the largest relative change of an arc factor, are both ≤ `Tolerance`. Each pass records
+these two numbers in `R.history.maxDev` and `R.history.levelDev`. `R.convergence()` gives
+one row per pass with `pass`, `maxSigmaOffset` (the largest `|sigma − 1|` of the
+per-stream level factors), `nWhite`, `minWhitePval` and `converged`.
+`R.convergence(Plot=true)` and `R.plot("convergence")` draw the same record.
+
+With `stopReason = "maxPasses"`:
+
+* If `maxDev` is still falling, the loop needs more passes: raise `MaxPasses`.
+* If `maxDev` oscillates, there is too little redundancy per component: coarsen `Pool`
+  (`"obsType"` or `"all"`) or use a smaller `Noise.Grid`. A spectrum that keeps moving
+  also points to too few arcs per frequency, or a start far from the data.
+* If one stream stays non-white on every pass, see "Whiteness per stream" above.
+
+### Skipped arcs and the warnings inventory
+
+An arc that cannot be used in a pass is **skipped and keeps its previous factor**. The
+reason is `'gap'` or `'nonPD'` (its covariance could not be factored). `R.history.skips`
+lists every skip as `{pass, arcKey, reason}`. A pass that skips more than
+`Noise.SkipThreshold` (0.2) of the arcs is refused with
+`lsqvce:adjustVCEjoint:skipThreshold`. A few `nonPD` skips usually mean a `Cep` or a law
+that is not positive definite on those arcs, so inspect that day's `buildDay` output.
+
+Warnings are raised once per run. Muted or not, every warning identifier the run raised is
+listed in `R.meta.warnings` (first-fired order). Check it in batch jobs. The ones that
+qualify a result:
+
+| identifier | meaning |
+|---|---|
+| `lsqvce:adjustVCEjoint:notConverged` | the stochastic model did not settle (the same fact as `NOISE_UNSETTLED`) |
+| `lsqvce:adjustVCEjoint:arcFactorsDiverging` | the spread of a stream's arc factors kept growing over the passes: they are not an estimate. Take the one-pass estimate (`MaxPasses = 1`) or set `arcFactors = false` on that stream and read its level |
+| `lsqvce:robust:atBreakdown` | a robust pass zeroed more than 45 % of the epochs (rows); the data are not a few blunders on a good model |
+| `lsqvce:adjustRobust:notConverged`, `lsqvce:adjustNonlinear:maxIter` | IRLS or Gauss–Newton exhausted its budget (`stopReason = "maxPasses"`) |
+| `lsqvce:systematic:lbUnreliable` | `R.systematic`'s Ljung–Box is anti-conservative at this `u/n`; lead with the binned test |
+
+### Robust runs
+
+A robust run reports `ROBUST_FIT` at Level 1. Its weights come back in `R.noise.robust`
+when the robust pass runs inside the noise loop: `influence`, `scale` per stream, `factor`
+per epoch in sweep order, `keys`, and `truncation`. For the stand-alone IRLS they are in
+`R.noise.influence` and `R.noise.scale`, with per-pass `scale`, `dx`, `nDown` and `nZero`
+in `R.history`. Down-weighted epochs are the robust counterpart of a flag list. Compare
+them with a Pope or MAD snooping run before you remove anything permanently.
+
+## Adverse findings at a glance
+
+| you see | first suspect | do |
+|---|---|---|
+| `INVALID` (`SUM_R`, `VPV_*`, `NO_REDUNDANCY`) | setup or arithmetic | Make the data source deterministic, use `Backend = "qr"`, add redundancy. Read nothing else. |
+| `NOISE_UNSETTLED`, `stopReason = "maxPasses"` | budget or poorly separable components | `R.convergence()`, then raise `MaxPasses`, loosen `Tolerance` or coarsen `Pool` / `Noise.Grid` |
+| `GLOBAL_HIGH`, flags present | outliers | `R.snoop()`, one at a time |
+| `GLOBAL_HIGH`, no flags | systematics or optimistic weights | `R.systematic(Covariates=...)`; if clean and structureless, `Estimate = "noise"` or correct `sigma` |
+| `GLOBAL_LOW` | pessimistic weights or over-parameterisation | correct `sigma` / `Estimate = "noise"`; `R.compare(Rred)`; Level-4 correlations |
+| `GLOBAL_HIGH`/`LOW` with `GLOBAL_SHARP` | very large `r` | judge the ratio and the confidence interval, not the rejection |
+| `SNOOP_MODERATE` / `SNOOP_CONTAMINATED` | contamination masks Pope | `Diagnostics.Test = "mad"`, `R.snoop(Test="mad")`, or `Robust` |
+| `SNOOP_REFUSE` / `SNOOP_BREAKDOWN` | model error, or wrong sigma0 | reject nothing; fix the functional model or the declared sigma |
+| `SNOOP_VACUOUS` | redundancy too small for the corrected level | weaker `Alpha`, or accept that blunders cannot be detected |
+| `SNOOP_LOWR`, `REL_AMBIGUOUS` | weak geometry | re-measure, do not reject |
+| `REL_UNCONTROLLED`, `REL_MDBINF`, `REL_SILENT`, `REL_WEAK` | untestable observations | strengthen the geometry; validate those observations externally |
+| `REL_EXTERNAL` WARN/ERROR | one observation with excessive leverage | find it (minimum `r_i`, named observation); distrust the formal sigmas |
+| `PAR_ILLCOND` | scaling or rank defect | rescale columns, `Backend = "qr"`, declare a datum prior |
+| `PAR_CORR` ERROR | inseparable parameters | fix or reparameterise, or add separating observations |
+| `PAR_SCALE` | variance factor ≠ 1 | resolve Levels 1–2 before quoting either sigma column |
+| a stream not white in `R.summary()` | stream's law or the functional model | `estimate = "law"`, finer `Pool` / `Noise.Grid`, `R.systematic` |
+
+## A worked reading
+
+Every report has the same layout. The numbers below are placeholders; `demo_lsqvce` runs
+six small adjustments, each with one failure planted (clean, outliers, a systematic drift,
+an uncontrolled observation, wrong weights, collinear parameters), and prints the verdict
+of each, so you can see the real output for each case.
+
+```
+==============================================================================
+  LEAST-SQUARES ADJUSTMENT REPORT
+  n = <n> observations,  u = <u> parameters,  r = n-u = <r>
+  <b> batches,  vPv source: accumulator (v'v)
+==============================================================================
+
+--- LEVEL 0: INTEGRITY  (does the arithmetic hold?)
+       run: lsqvce <version>, MATLAB R<release>, created <UTC time>
+       sum(r_i) = <value> vs n-u = <r>  (rel. err <e>)  [identity holds]
+
+--- LEVEL 1: GLOBAL     (is the model consistent?)
+       The stochastic model settled in <k> pass(es).
+       s0^2/sigma0^2 = <ratio>     T = vPv/sigma0^2 = <T>
+       chi2 acceptance band (alpha=1%, r=<r>): [<lo>, <hi>]  width <w>
+       sigma0_hat = <s0>,  95% CI [<a>, <b>]   (a priori sigma0 = 1.00000)
+       ...
+       Global test PASSES: functional and stochastic model are consistent.
+
+--- LEVEL 2: LOCALISE   (where is it broken?)
+       Scale cross-check: s0 = <s0>, robust scale = <m> (ratio <q>), ...
+       Data snooping: POPE test, alpha = 1.0e-03 per test, Bonferroni-
+       corrected to <alpha/n> for n = <n> simultaneous tests.
+       Critical value |w| > <k>.   Expected false alarms: 0.00
+       No observation exceeds the critical value. Largest |w| = <w> ...
+
+--- LEVEL 3: RELIABILITY(what can you not check?)
+       Redundancy numbers: min = <rmin> (observation <i>), mean = <r/n>
+       MDB non-centrality delta0 = <d0>  (alpha_eff = <..>, beta = 0.20)
+       <quadrant table>
+       Hidden-blunder envelope -- ...  median <m>  90th pct <..>  ...
+       Every observation has r_i >= 0.10: ...
+       External reliability: the worst undetectable bias (the MDB of
+       observation <i>) would shift parameter <j> by <e> of its own sigma.
+       That is normal for a network of this size ...
+
+--- LEVEL 4: PARAMETERS (what do you actually know?)
+       cond(R) >= <..>     cond(N) >= <..>   [LOWER BOUND]
+       ...
+       Maximum parameter correlation is <c> (parameters <i> and <j>).
+       <parameter table: par | x | sigma(a priori) | sigma(scaled)>
+
+==============================================================================
+  VERDICT: PASS        (0 error, 0 warning, <n> note)
+  All checks passed: ...
+==============================================================================
+```
+
+How to read it, in order:
+
+1. **Level 0.** Check that `[identity holds]` is printed and that no `[ERROR]` appears.
+   If one does, stop: the verdict is `INVALID`.
+2. **Level 1, loop line.** If the run iterated, check that the stochastic model settled.
+   If not, every later line is provisional.
+3. **Level 1, the ratio.** Read the confidence interval on sigma0, not the pass/fail.
+   A ratio well above 1 sends you to Level 2 (outliers) and to `R.systematic`.
+4. **Level 2.** Read the scale cross-check before the flag list: if the check reports
+   contamination, the list is not to be believed. With flags, read each `w` next to its
+   `r_i`, and reject with `R.snoop`, one observation at a time.
+5. **Level 3.** Check that the quadrant table has no UNTESTED or AMBIGUOUS counts and that
+   no uncontrolled or infinite-MDB observations are reported. Check that the external
+   reliability is normal for this `n`.
+6. **Level 4.** Check that the conditioning is far from 1e10 and that no correlation is
+   above 0.95. If `PAR_SCALE` fires, decide which sigma column applies only after Levels
+   1 and 2 are resolved.
+7. **Outside the report.** For a `noise` run, check `R.summary()` for non-white streams,
+   `R.history.skips`, and `R.meta.warnings`.
+
+Then quote the result: `R.coefficients()` for the commons, `R.toTable(data)` for every
+parameter in your own table layout, and `R.meta` for the provenance.
 
 
 # Watching a run
 
-`Options.OnPass` (chapter 4) is called after every pass with the pass state, the live
-accumulator, your declaration and your `processingOptions` — plot, `drawnow`, save,
-or return `false` to stop. Afterwards `R.plot("residuals" | "contribution" | "psd" |
-"convergence", Stream=…, Visible=…)` returns one figure per question; nothing is exported
-by the toolbox. `R.meta.warnings` lists every warning identifier of the run;
-`R.stopReason` says why the loop stopped (`"single"`, `"converged"`, `"maxPasses"`,
-`"userStop"`).
+## During the run: `OnPass`
+
+`Options.OnPass` is called after every pass of every iterative run (the noise loop,
+IRLS, Gauss–Newton) with the pass state, the live accumulator, your declaration and your
+`processingOptions`. Plot, `drawnow`, save — or return `false` to stop after the pass:
 
 ```matlab
 function go = myInspect(ctx)
     res = lsqvce.engine.residuals(ctx.acc, struct('x', ctx.x, 'sigma0', ctx.sigma0, ...
-                                                  's0sq', ctx.s0sq, 'Cxx', ctx.Cxx), 'Verbose', false);
+              's0sq', ctx.s0sq, 'Cxx', ctx.Cxx), 'Verbose', false);
     figure(1); plot(res.sys(1).obs(1).t, res.sys(1).obs(1).w, '.'); drawnow;
-    go = ctx.maxDev > 1e-3;                 % or return nothing to continue
+    fprintf('pass %d: largest change %.3g\n', ctx.pass, ctx.maxDev);
 end
+
+R = lsqvce.fit(data, Estimate="noise", OnPass=@myInspect);
 ```
 
+The fields of `ctx` are listed in the API reference (`lsqvce.Options`, *OnPass*). An
+error inside the hook stops the run and arrives as `lsqvce:callUser:threw` with your error
+as its cause. A stop by the hook is reported as `R.stopReason = "userStop"`, with the last
+pass returned in full.
 
-# The engine, kernel and util tiers
+`Verbose = true` prints one progress line per stage; the default is silent.
+`examples/demo_messaging.m` shows the output side by side.
 
-What `fit` dispatches to and what it is built from. One line per public unit, from the `Contents.m` files (generated). `doc lsqvce.engine.<name>` opens the full page; the tier rule (HANDOVER, tiers.csv): the user tier calls engine, engine calls kernel and util, never upward.
+## After the run: one figure per question
+
+```matlab
+R.plot("residuals")      % whitened residuals per stream
+R.plot("psd")            % the estimated spectra per pool group
+R.plot("convergence")    % the components pass by pass
+R.plot("contribution")   % which stream determines which parameter
+```
+
+Each call returns one figure handle; nothing is exported by the toolbox. `R.stopReason`
+says why the loop ended (`"single"`, `"converged"`, `"maxPasses"`, `"userStop"`), and
+`R.meta.warnings` lists every warning identifier the run raised.
+
+## Reproducing a run
+
+`R.meta` records the toolbox version, the MATLAB release, the creation time, every random
+seed the run resolved and the options as resolved. Saving `R` keeps all of them; a run with
+the same data, options and `Seed` reproduces the same numbers.
 
 
-## lsqvce.engine — drivers, accumulator, loaders, sweeps, diagnostics
+# The examples
 
-| unit | what |
+The folder `examples/` holds runnable demonstrations of the user path:
+build a `data` struct, choose `lsqvce.Options`, call `lsqvce.fit`, and read
+the `lsqvce.Results`. The folder `template/` holds starting points that you
+copy into your own project. Every example generates its own synthetic data
+from a seeded random stream, except `demo_gravfire`, which reads a private
+data bundle that is not shipped. All of them print their findings to the
+Command Window. A few of them also return their results so that you can
+inspect them afterwards.
+
+`lsqvce_setup` puts `examples/` on the path. It does not add `template/`:
+copy those files into your project. `demo_gravfire` adds `template/` to the
+path by itself.
+
+## Which example for which question
+
+| Question | Example | Kind of data |
+|---|---|---|
+| How do I wire my own data into `data` and read the verdict? | `demo_workflow` (script) | batched; streaming recipe |
+| What do the three data kinds look like in one call each? | `demo_fit` | in-memory, batched, streaming |
+| What does the report say when an adjustment is wrong in a specific way? | `demo_lsqvce` (script) | in-memory, one streaming case |
+| How do I tell the toolbox what I know about each stream's noise? | `demo_noisePolicy` | streaming, one system |
+| How do I regularise, or give a rank-deficient problem a datum? | `demo_priors` | streaming, one system |
+| How are several systems with their own local parameters combined? | `demo_combine` | streaming, three systems |
+| How do I declare system / sensor / day, with data gaps, and find a bad day? | `demo_sensors` | streaming, two systems |
+| What does a full noise-estimation run on multi-axis streams look like? | `demo_grace` (+ `demo_grace_dataLoader`) | streaming, two systems |
+| Does the noise estimation still work on a physically structured gravity design? | `demo_gravity` (+ `demo_gravity_dataLoader`, `demo_gravity_design`) | streaming, three systems |
+| How do I map a GRAVFIRE preprocessing bundle onto `data`? | `demo_gravfire` + `template/gravfire_data.m` | streaming, real bundle |
+| How do I build GRACE-FO range-rate observation equations from Level-1B files? | `template/kbr_variational.m` | streaming, real data |
+| What does each verbosity level print? | `demo_messaging` | streaming |
+| Should I use `Backend="normal"` or `Backend="qr"`? | `bench_qr_vs_normal` | batched |
+
+## Suggested reading order
+
+1. **`demo_workflow`**, then **`demo_fit`**: the shape of `data`, the three
+   kinds, `lsqvce.Options`, and how to read `R.diag` and `R.report()`.
+2. **`demo_lsqvce`**: what the diagnostics say when something is wrong.
+3. **`demo_noisePolicy`**: the per-stream noise policy (`estimate`,
+   `arcFactors`).
+4. **`demo_priors`**: `lsqvce.layout` and declared regularisation.
+5. **`demo_combine`**, then **`demo_sensors`**: several systems, local
+   parameters, data gaps, attribution by system, sensor and day.
+6. **`demo_grace`**, then **`demo_gravity`**: complete noise-estimation runs
+   on GRACE-like problems.
+7. **`demo_gravfire`** / **`gravfire_data`** and **`kbr_variational`**: the
+   templates for real data.
+8. **`demo_messaging`** and **`bench_qr_vs_normal`**: what a run prints and
+   which backend to use, on your own machine.
+
+## Examples, helpers and templates
+
+Not every file in `examples/` is a demonstration. Three of them are
+**helper files** that the demos call:
+
+| Helper | Called by | Returns |
+|---|---|---|
+| `demo_grace_dataLoader` | `demo_grace`, `demo_messaging` | `[cfg, data]`: a GRACE-FO-shaped declaration with a random design |
+| `demo_gravity_dataLoader` | `demo_gravity`, `demo_fit` | `[cfg, data]`: a gravity declaration with a physical design and planted truth |
+| `demo_gravity_design` | `demo_gravity_dataLoader` | `[A, meta]`: spherical-harmonic potential partials along an orbit |
+
+Each helper also runs on its own and returns a ready `data` struct that you
+can pass to `lsqvce.fit`.
+
+`demo_workflow` and `demo_lsqvce` are **scripts**, not functions. They
+begin with `clear`, so they wipe the base workspace. Run them in a fresh
+session, or section by section in the Editor. All other examples are
+functions.
+
+## How to run them
+
+The call forms below are the ones the test suite uses to run every file in
+`examples/` once (with figures hidden). Each call is the cheapest form that
+still runs the whole example:
+
+```matlab
+bench_qr_vs_normal('u', [10 20], 'n', 2e4, 'nk', 2000)
+demo_combine()
+demo_fit()
+demo_grace('verbose', false)
+demo_grace_dataLoader()
+demo_gravfire([tempname '.mat'])      % a path that does not exist: the no-bundle branch
+demo_gravity()
+demo_gravity_dataLoader()
+orbit = struct('u', linspace(0, 4*pi, 400).', 'lam0', linspace(0, 0.3, 400).', ...
+               'incl', 89*pi/180, 'r', 1.07);
+demo_gravity_design(4, orbit)
+demo_lsqvce                           % script
+demo_messaging()
+demo_noisePolicy()
+demo_priors()
+demo_sensors()
+demo_workflow                         % script
+```
+
+The files in `template/` are not part of that run. `gravfire_data` needs
+your bundle and `kbr_variational` needs Level-1B files.
+
+---
+
+## `demo_workflow`: build your own case
+
+**Purpose.** This is the from-scratch recipe for wiring your own data into
+`data`, letting `lsqvce.fit` pick the engine from the shape of the struct,
+choosing what to estimate, and reading the result in the right order.
+
+**Run.** `demo_workflow` is a script with no arguments and no outputs. It
+runs `clear; clc; close all`. The help text recommends running it section by
+section (Ctrl+Enter).
+
+**Outline and logic.** The script is organised as Sections 0 to 5:
+
+- *Section 0* lists the three kinds of `data`, which `lsqvce.fit` tells
+  apart by the fields present:
+  - in-memory: `A`, `l`, `p`;
+  - batched: `batchFcn`, `numBatches`, `numUnknowns`, or `x0` for the
+    nonlinear form;
+  - streaming: `commonParams`, `days`, `systems`.
+
+  It also states the batched callback contract
+  `[A, l, p] = batchFcn(k)`, with `p` the weights `1./sigma.^2`. The
+  callback is called twice per batch and must return identical data both
+  times.
+- *Section 1* synthesises 3000 observations with 8 unknowns and cuts them
+  into 30 batches with a closure over precomputed batch edges. It
+  sanity-checks `batchFcn(1)` with an `assert` and builds
+  `data = struct('batchFcn', batchFcn, 'numUnknowns', u, 'numBatches', nb)`.
+- *Section 2* is a decision tree in comments: which kind, and when to use
+  `Estimate="noise"`. It then runs `R = lsqvce.fit(data)` with default
+  options.
+- *Section 2b* reads the verdict in a fixed order:
+  1. integrity, `R.diag.sumRRelErr`;
+  2. variance, `R.diag.varRatio`;
+  3. blunders, `R.diag.nFlag`;
+  4. reliability.
+
+  The one-line verdict comes from `R.report('Verbose', false).verdict`.
+- *Section 3* is a recipe only, with no runnable code. It shows the
+  streaming declaration with `commonParams`, scoped `localParams` and one
+  `covariance` field per observation type, and points to `demo_combine`,
+  `demo_sensors` and `demo_grace`.
+- *Section 4* plants a second instrument group that is three times noisier
+  than claimed. It declares the two groups as two observation types of one
+  streaming system with one day. The inline `buildDay` returns one arc per
+  group, and the claimed per-row sigmas travel as `Cep`. Both covariance
+  specs are `struct('type','diag','sigma',1,'estimate',"scale")`. The run
+  uses `Options(Estimate="noise", Pool="stream", ArcFactors=false)`. The
+  script prints the recovered sigma ratio from `Rv.history.sigma(end,:)`
+  (the truth is 3) and `Rv.sigma0`.
+- *Section 5* prints the condensed decision tree and the rule for reading
+  a result.
+
+## `demo_fit`: the three data kinds, one call each
+
+**Purpose.** This example shows every kind of `data` that `lsqvce.fit`
+accepts, end to end on the user tier: `lsqvce.fit`, `lsqvce.Options`,
+`lsqvce.Results` and `R.report`. It also shows robust estimation, a datum
+declared as a prior, Gauss–Newton through `x0`, and watching a run with
+`OnPass`.
+
+**Run.**
+
+```matlab
+out = demo_fit();                  % prints the verdicts
+out = demo_fit(Verbose=false);     % silent
+```
+
+`out` has the fields `.matrix`, `.robust`, `.datum`, `.batch`,
+`.nonlinear`, `.gls` and `.vce`. Each of them is an `lsqvce.Results`.
+`out.truth` holds the planted values: `x = [1; -2; 0.5]`,
+`[a; b] = [0.7; -0.2]`, and `xGravity` of the gravity loader.
+
+**Logic.**
+
+1. **In-memory.** The data are 30 observations with
+   `A = [1, randn, randn]`, seeded with 17, and the call is
+   `data = struct('A',A,'l',l,'p',p)`. The same problem is then run with a
+   25-sigma gross error at row 7 and `Options(Robust="huber")`. The demo
+   prints the IRLS weight factor of that row from
+   `out.robust.history(end).factor(7)`.
+2. **Free network.** The problem has height differences between four
+   points and is rank-deficient by a common level. The datum is declared
+   as `data.priors = struct('L', ones(1,4), 'x0', 0, 'sigma', 1)`. The demo
+   prints `L*x`. It then removes `priors` and prints the error identifier
+   with which `fit` refuses the problem.
+3. **Batched, linear.** The same 30 rows are split into two batches with
+   `struct('batchFcn',bf,'numUnknowns',3,'numBatches',2)`.
+4. **Batched, nonlinear.** The model is `l = exp(a t) + b`. The callback
+   `bfn(k, x)` returns the Jacobian at `x`, and `data.x0 = [0.5; 0]`
+   (the number of unknowns is `numel(x0)`). The options are
+   `Options(MaxPasses=15, Tolerance=1e-9)`, and the demo prints `[a; b]`.
+5. **Streaming.** `[cfg, data] = demo_gravity_dataLoader()` is solved once
+   with defaults (`out.gls`). It is then solved with
+   `Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=2, OnPass=watch)`,
+   where `watch` prints `ctx.pass`, `ctx.maxDev` and `ctx.sigma` after
+   every pass. Two passes are not enough to converge, so the demo
+   suppresses the warning `lsqvce:adjustVCEjoint:notConverged`. It prints
+   `out.vce.history.sigma`.
+
+**Implementation.** The local function `show` calls
+`R.report('Verbose', true)` and prints `R.sigma0`. According to the help
+block, the in-memory estimates land within 3 formal sigma, and the
+nonlinear form recovers `[a; b]` to 5e-3.
+
+## `demo_lsqvce`: six failure modes and their verdicts
+
+**Purpose.** This example teaches you to read the diagnostics. Each of six
+scenarios isolates one failure, so that you see what `R.diag` and
+`R.report()` say when one specific thing is wrong, and what they say when
+nothing is.
+
+**Run.** `demo_lsqvce` is a script with no arguments. It runs `clear; clc`.
+It draws one figure in case 3.
+
+**Logic.** All cases share a setup of 2000 observations, 8 unknowns and
+per-row sigma in [0.5, 1.5], seeded with 2026. Each case fits an in-memory
+`struct('A',A,'l',l,'p',p)`:
+
+1. **Clean:** the baseline.
+2. **Outliers:** three gross errors at rows 137, 892 and 1455. The case
+   prints `R2.diag.flagIdx` and a note on rejecting only the largest `|w|`
+   at a time.
+3. **Systematic error:** an unmodelled `1.2 sin(2 pi t)`. The case prints
+   `nFlag` and plots `R3.diag.w` against time with the `±kCrit` lines,
+   above the clean case for comparison.
+4. **Uncontrolled observation:** unknown 8 is seen only by observation 500.
+   The case prints `nFlag` and the redundancy number `rNum(500)`.
+5. **Wrong weights:** group 2 is three times noisier than claimed. The case
+   prints `varRatio` and `nFlag`, then shows the cure: a streaming
+   declaration with two observation types `g1` and `g2` (local helper
+   `groupDay`) and `Estimate="noise", Pool="stream", ArcFactors=false`. It
+   prints the recovered sigma ratio (truth 3) and `sigma0`.
+6. **Collinear parameters:** column 2 is almost column 1. The case prints
+   `R6.diag.corrMax`.
+
+**Output.** A closing summary prints one line per case with
+`R.report('Verbose', false).verdict`.
+
+## `demo_noisePolicy`: what you know about each stream
+
+**Purpose.** This example shows the per-stream policy fields of a
+covariance spec. `estimate` is `"none"`, `"scale"` or `"law"`, and
+`arcFactors` is `true` or `false`. Each choice recovers a planted truth.
+For the policy semantics, see the chapter *Choosing the stochastic model*.
+
+**Run.**
+
+```matlab
+[R, s] = demo_noisePolicy();
+[R, s] = demo_noisePolicy('maxPasses', 20, 'verbose', true);   % defaults: 12, false
+```
+
+`R` is the `lsqvce.Results`. `s` summarises what was measured:
+
+- `.stream`, `.declared`, `.level` and `.truth`, per stream;
+- `.noneFixed`;
+- `.rho1`: the estimated and planted lag-1 correlation of `rr`;
+- `.arcFactor` and `.arcRatio`;
+- `.passes`;
+- `.badEstimate`: the identifier that a misspelt policy raises.
+
+**The case.** The data have one system, three days and three arcs a day of
+256 epochs (5 s), four common harmonic coefficients, and one `'arc'`-scoped
+bias. There are four streams:
+
+| Stream | Truth | Declared | Policy |
+|---|---|---|---|
+| `gps` | white, sigma 0.2 | `diag`, 0.2 (correct) | `"none"` |
+| `acc` | AR(1), phi 0.85, level 0.5 | `psd` of the same filter, sigma 1 | `"scale"` |
+| `rr` | AR(1), phi 0.5 | `diag`, 1 (white) | `"law"` |
+| `mag` | white 0.3, arc 2 three times worse | `diag`, 0.3 | `"scale"`, `arcFactors = true` |
+
+**Implementation.**
+
+- `policyData` builds the declaration. For `acc` it builds a `'psd'` law
+  from `firstOrderPsd`, which gives the one-sided PSD on a frequency grid.
+- `policyDay` is the six-argument `buildDay`. It uses `info.nl` and
+  `info.offsetOf(a)` to place the bias column, and it returns one cell per
+  arc.
+- `policyNoise` draws the planted noise from a stream seeded on day and
+  stream, so that `buildDay` is deterministic.
+- All four policies run in one call with
+  `Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=12)`.
+  `ArcFactors=false` is the run default. `mag` overrides it on its own
+  spec.
+
+**Output.**
+
+- A table of the level per stream (declared, estimated, planted) from
+  `R.noise.model{k}.sigma`, with streams looked up by name.
+- The lag-1 correlation of `rr` from `R.noise.Cgroups`.
+- The mean arc factor per arc of `mag` from `R.noise.model{k}.sigma2`, and
+  the ratio of the bad arc to the good arcs (planted: 9).
+- The identifier with which `fit` refuses `estimate = "shape"`.
+- `R.summary()`.
+
+The help block records the measured values of one run. For example, `gps`
+keeps its declared 0.2 exactly, and the bad-arc variance ratio is 9.4
+against the planted 9. Only the ratio between arc factors is identifiable,
+because the level absorbs their mean.
+
+## `demo_priors`: regularisation in the announced layout
+
+**Purpose.** In a scoped declaration you do not know in advance which
+column of `A` or `B` an unknown ends up in. `lsqvce.layout(data)` announces
+the layout before `fit` runs, so you can write a prior operator `L` in
+those columns. For the full reference, see the chapter *Priors and regularisation*.
+
+**Run.**
+
+```matlab
+[R, s] = demo_priors();
+[R, s] = demo_priors('verbose', true);
+```
+
+`R` is the regularised solve. `s` holds:
+
+- `.nc` and `.nl`;
+- `.nullDim`;
+- `.unregularised`: the error identifier;
+- `.sigma0` and `.zSignal`;
+- `.nPseudo`, `.formGap`, `.datumGap` and `.priorLevel`.
+
+**The case.** The data have four harmonic signal coefficients (`'common'`)
+and one offset per day (a `'day'` row of `commonParams`). The system has
+two `'arc'` rows (bias, drift) and one `'system'` row (a scale on a known
+auxiliary series). There are three days with two arcs of 150 epochs each.
+The day offset and the arc biases cannot be separated, so the normal
+matrix has one null direction per day.
+
+**Logic.**
+
+1. Call `lay = lsqvce.layout(data)`. Print `lay.nc`, `lay.systems(1).nl`
+   and the column map from `lay.common` and `lay.systems(1).local`, and
+   find the day-offset columns with `lay.colCommon(row, day)`.
+2. Count the null directions on a densely assembled `[A B]` (`rank`). Fit
+   without priors and record the refusal identifier.
+3. Declare two common groups in `data.priors`: a tight `'datum'` (the
+   offsets average to zero) and a loose `'smooth'` (first differences),
+   both with `estimate "none"`.
+4. Declare a local group `'drift'` on `data.systems(1).priors`, written
+   once through `lay.systems(1).col(row, day, arc)` and once as the
+   pattern `group = '^drift$'`. Both solutions are compared.
+5. Move the datum (`x0 = 0.5`) and measure that the signal stays put while
+   the offsets move.
+6. Run `Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=4)`
+   with the drift group at `estimate "scale"`. The group appears as its
+   own stream `x1|prior_drift`, and its level is printed.
+
+**Implementation.**
+
+- `priorData` builds the declaration.
+- `priorDay` is the six-argument `buildDay`. It uses
+  `info.commonDayOffset`, `info.sysOffset` and `info.offsetOf(a)`.
+- `nullDimension` and `layoutInfo` assemble the dense rank check. That
+  check is for demonstration only; in your own code `fit` supplies `info`.
+- `fitWithoutGroups` gives the pseudo-observation count.
+- `R.coefficients().se` gives the z-scores of the signal.
+
+## `demo_combine`: several systems by elimination
+
+**Purpose.** This example shows how to declare several systems that share
+common parameters, where each system also has local parameters that only
+it observes. `lsqvce.fit` eliminates the locals system by system. The
+example also shows how to check the degrees of freedom. A parameter is
+local only if exactly one data set observes it.
+
+**Run.** `demo_combine()` takes no arguments and returns nothing. It runs
+`clc`.
+
+**Logic and implementation.**
+
+- The data have six common unknowns and three systems with 12, 8 and 15
+  `'system'`-scoped locals. The systems have 40, 30 and 50 days of 25
+  observations each, with unit noise, seeded with 2026.
+- Each `data.systems(i)` has:
+  - `buildDay`: from `makeBuildDay`, which reads the pre-generated rows,
+    one arc per day;
+  - `covariance.obs = struct('type','diag','sigma',1)`;
+  - `localParams`;
+  - its own `days`;
+  - `name`.
+- One call `lsqvce.fit(data, lsqvce.Options(Verbose=false))`.
+
+**Output.**
+
+- An integrity block that compares `n - u_total` (the eliminated locals
+  included) with `R.diag.r`.
+- A table of the common parameters: estimate, truth, error, and sigma from
+  `R.sol.Cxx`.
+- `R.sigma0`, `R.diag.varRatio` and `R.report`.
+- A cost block that compares the full and the reduced normal-matrix sizes.
+
+## `demo_sensors`: system / sensor / day, gaps, and a bad day
+
+**Purpose.** This example declares the full hierarchy:
+
+- a system is an entry of `data.systems`;
+- a sensor is an observation type, one field of `covariance`;
+- a day is an entry of `data.days`.
+
+It shows a data gap, estimates per-sensor noise levels, and finds a bad day
+through the attribution that `R.residuals()` carries.
+
+**Run.** `demo_sensors()` takes no arguments and returns nothing.
+
+**The case.** There are six common unknowns and two systems:
+
+- `GRACE-C` (`id 'C'`) carries `KBR`, `LRI` and `GPS` and has 4 locals;
+- `GRACE-D` (`id 'D'`) carries `KBR` and `LRI` and has 3 locals.
+
+The data cover 10 days with 60 observations per sensor and day. The true
+sigmas are KBR 1.0, LRI 0.4 and GPS 2.5, but every sensor is declared with
+sigma 1. GRACE-D's LRI is missing on days 4–5, and GRACE-C's KBR carries a
+6-sigma offset on day 7.
+
+**Logic.**
+
+1. Generate the data into a `containers.Map` per system.
+2. Declare the data. `s.arcs` is a resolver from `makeSchedule` that
+   returns no arcs on an outage day, which is how a data gap is declared.
+3. Solve once with `Options(Verbose=false)` and print `R.sigma0` (the
+   symptom).
+4. Run `Options(Estimate="noise", Pool="obsType", ArcFactors=false)`. The
+   KBR streams of both systems share one spectral shape, and every stream
+   keeps its own level. The demo prints the recovered sigma per sensor,
+   normalised on the first sensor, against the truth.
+5. Use `res = R.residuals()`. Select system `C` and type `KBR` and print
+   the RMS residual per day. A day is marked `<<< EVENT` when its RMS
+   exceeds three times the median.
+
+## `demo_grace` and `demo_grace_dataLoader`: the noise loop on multi-axis streams
+
+**Purpose.** This is a complete `Estimate="noise"` run on a GRACE-FO-shaped
+synthetic problem with three-axis position streams and a scalar
+inter-satellite stream. Every stream starts from a deliberately wrong
+a-priori model: white noise with sigma 1. The help text calls it the
+copy-paste starting point. To use it on your data, replace the loader with
+your own `buildDay` and `data`.
+
+**Run.**
+
+```matlab
+R = demo_grace();                                  % maxPasses 6, verbose true
+R = demo_grace('maxPasses', 8, 'verbose', false);
+[cfg, data] = demo_grace_dataLoader();             % the declaration alone
+```
+
+**Outline.** `demo_grace` holds the run and the reading.
+`demo_grace_dataLoader` holds the declaration, with the local functions:
+
+- `graceData`, `demoCfg` and `whiteCov`;
+- `demoBuildDay`, the five-argument form
+  `(day, obsType, common, local, procOpt)`;
+- `commonParamTable` and `localParamTable`;
+- the generators `A_design`, `B_design` and `colouredNoise`.
+
+**The declaration.** There are two systems:
+
+- **System 1** merges satellites C and D. It carries the streams `posC`,
+  `posD` and `rr`. The `rr` design couples the arc states of both
+  satellites, and one system has only one local block, so C and D are
+  merged with a stacked local block `[y_C | y_D]`.
+- **System 2** is satellite E with `posE` only.
+
+Both systems share six common unknowns. The data cover four days with two
+arcs a day and 300 epochs per arc (5 s). The planted sigmas are 0.8, 1.3,
+1.6 and 1.1.
+
+The parameter tables have 15 columns. Column 1 is the scope token
+(`'common'` or `'system'`), and the other 14 follow this demo's own
+convention, listed in the loader's help. `processingOptions` is passed as
+the fifth argument.
+
+For the position streams, `buildDay` returns the per-epoch 3×3 covariance
+as `D.Cep`, and the toolbox combines it with the temporal law. Rows are in
+epoch-major order. `buildDay` returns one cell per arc.
+
+**Run options and output.** The run uses
+`Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=o.maxPasses, Tolerance=1e-3)`.
+The comments note that `Tolerance=1e-3` is a choice for demo speed. The
+demo prints:
+
+- the true sigmas;
+- `R.history.sigma`, one row per iteration and one column per stream;
+- `R.summary()`, one row per stream;
+- `R.convergence()`, one row per iteration;
+- `R.report()`;
+- `R.converged` and `R.history.nIter`.
+
+The estimated shape is available through `R.plot("psd")` and `R.noise.S`.
+In `R.summary()` the `arOrder` column stays `NaN`, because the estimator
+fits a spectrum and not an AR order.
+
+## `demo_gravity`, `demo_gravity_dataLoader` and `demo_gravity_design`: a physically structured gravity recovery
+
+**Purpose.** This example runs the same noise loop on a design whose
+columns are real spherical-harmonic potential partials along a near-polar
+orbit, so the normal matrix has order-block correlation, polar-gap
+conditioning and degree attenuation. It also shows how to read a gravity
+solution in units of its own formal error.
+
+**Run.**
+
+```matlab
+R = demo_gravity();
+[R, score] = demo_gravity('MaxPasses', 6, 'Verbose', true);
+R = demo_gravity('Plots', true, 'ExportDir', '/tmp/figs');   % two figures, saved as PNG
+```
+
+The name-value options are:
+
+- `MaxPasses` (default 4);
+- `Verbose` (default `false`);
+- `Plots` (default `false`);
+- `ExportDir` (default `''`).
+
+`score` contains:
+
+- `.sigma0`;
+- `.stream`, `.sigmaPlanted`, `.sigmaRecovered` and `.sigmaRatio`;
+- `.zMax` and `.zMeanSq`;
+- `.anomaly` (`.true`, `.est`, `.sigma`, `.z`);
+- `.degree` and `.degRatio`.
+
+An `ExportDir` that does not exist is an error. The help states a cost of about 1.5 s:
+5 days, 16 arcs, 3 streams, 77 common and 96 local unknowns.
+
+**Outline.** There are three files:
+
+- `demo_gravity` runs the problem and reads it. Its local functions are
+  `section`, `streamType`, `degreeVariances`, `plotDegreeVariances`,
+  `plotCoefficientErrors` and `exportIf`.
+- `demo_gravity_dataLoader()` returns `[cfg, data]`. Its local functions
+  are `gravityData`, `gravityCfg`, `buildGravityDay` and `arcOrbit`.
+- `demo_gravity_design(nmax, orbit)` returns `[A, meta]`. `A` has
+  `(nmax+1)^2 - 4` columns (degrees 2..nmax, C and S terms). `meta.n`,
+  `meta.m` and `meta.cs` label the columns. `orbit` needs the fields `u`,
+  `lam0`, `incl` and `r` (with `r > 1`); bad input raises
+  an error that names the faulty field.
+
+**The declaration.** The field goes to degree `nmax = 8`, which gives 77
+coefficients. The planted field follows a closed formula plus one anomaly at
+(5, 3, C). `commonParams` has four columns: the scope token, `n`, `m` and
+the C/S term.
+
+There are three systems:
+
+| System | Stream | Locals per arc |
+|---|---|---|
+| `GRACE-C` | `potC` | 2 |
+| `GRACE-D` | `potD`, trailing C along-track | 3 |
+| `KBR` | `kbr`: the potential difference D − C, whose design couples both orbits | 1 |
+
+The locals are `'arc'`-scoped. The arc schedule is ragged: 3, 4, 2, 4 and 3
+arcs per day. Arcs are missing by ID on days 3 and 5, and every arc has its
+own length between 140 and 220 epochs. Because of the `'arc'` rows, the
+schedule is declared as a resolver,
+`arcs = @(day, obsType) cfg.arcsOfDay{...}`.
+
+The declared covariance has the right AR shape and unit sigma. The planted
+sigmas are 1.0, 2.0 and 0.5.
+
+`buildGravityDay` is the six-argument form. It reads `arcInfo.nl` and
+`arcInfo.offsetOf(a)` and returns one cell per scheduled arc.
+
+**Run options and output.** The run uses
+`Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=4)`.
+The demo prints three sections:
+
+1. **The problem:** sizes, schedule and local counts.
+2. **The weights:** planted and recovered sigma per stream from
+   `R.noise.model{k}.sigma`, with their ratio. Only the ratios matter,
+   because a common factor goes into `sigma0`.
+3. **The field:** `z = (R.x - xTrue) ./ (sqrt(diag(R.sol.Cxx)) * R.sigma0)`,
+   max `|z|`, mean `z^2`, the anomaly with its sigma, and the ratio of the
+   error degree variance to its formal value per degree.
+
+The help block records the numbers of one measured run.
+
+## `demo_gravfire` and `template/gravfire_data.m`: a GRAVFIRE bundle
+
+**Purpose.** This example maps a GRAVFIRE preprocessing bundle
+(`commonData`, `myOptions`, `systemsData`) onto `data` and runs it through
+`lsqvce.fit`. The bundle contains:
+
+- Stokes coefficients as the common block;
+- per-day initial conditions, accelerometer parameters and empirical
+  parameters as locals;
+- kinematic positions of two satellites and the K-band range-rate as
+  observation groups.
+
+The design matrices are not part of the bundle. You supply them.
+
+**Run.**
+
+```matlab
+R = demo_gravfire(bundleFile);                                 % Estimate "none"
+R = demo_gravfire(bundleFile, Estimate="noise", Passes=3, Verbose=1);
+```
+
+- `bundleFile` defaults to `""`, which means `testdata.mat` in the folder
+  above the toolbox root.
+- `Estimate` is `"none"` (default, one solve) or `"noise"`.
+- `Passes` is the `MaxPasses` of the noise run (default 3).
+- `Verbose` is 0..2 (default 1).
+
+The bundle is private and not shipped. If the file does not exist, the demo
+prints what it would do and returns `[]`.
+
+**Logic.** With a bundle, the demo:
+
+1. adds `template/` to the path and loads the file;
+2. calls `gravfire_data(..., 'DryRun', true)`;
+3. runs `lsqvce.fit(data, Verbose=...)`, or for `"noise"`
+   `lsqvce.fit(data, Estimate="noise", Pool="obsType", Noise=struct('Grid', 2160), MaxPasses=Passes, CacheDays=Inf, OnPass=watch)`,
+   with the not-converged warning suppressed;
+4. prints `R.report` when `Verbose > 0`.
+
+`fit` accepts the options as name-value pairs here, without an
+`lsqvce.Options` object. `DryRun` puts random design matrices in place of
+the real design step, so the demo tests the pipeline, not gravity recovery.
+
+**`gravfire_data(commonData, myOptions, systemsData, Name=Value)`.** The
+name-value options are:
+
+- `'DesignFcn'`: your function
+  `[A, B] = f(o, day, obsType, common, local, po, info)`, returning
+  `m × info.nc` and `m × info.nl` with rows in epoch-major order;
+- `'DryRun'`: deterministic random `A` and `B`, seeded per day and
+  observation type.
+
+The function returns a `data` struct with `commonParams`, `days`, `priors`
+and one system (`id 1`, `name 'GRACE'`) with `buildDay`, `covariance`,
+`localParams`, `priors` and `processingOptions`. It declares no arc
+schedule: the pieces that `buildDay` returns as cells are the arcs.
+
+The comments are numbered as steps:
+
+1. Prefix the 14-column common table with `'common'`.
+2. Take the calendar from `myOptions.days`.
+3. Name the observation types: `posA`/`posB` for `kinematicPosition`, `kbr`
+   for `range-rate`. Each gets a white `diag` with
+   `sigma = sqrt(variance(g))`.
+4. Take one day's rows of the expanded local table as `'day'`-scoped
+   templates, with times in seconds of the day.
+5. (No arc schedule.)
+6. Bind everything `buildDay` needs into `processingOptions`.
+7. Assemble the system.
+
+The local function `buildGravfireDay` does the following:
+
+- drops flagged epochs;
+- builds epoch-major `l` and `t`;
+- converts `iSpp` into a per-epoch 3×3 `Cep`;
+- calls the design step;
+- cuts the day into one cell per piece.
+
+Regularisation comes from column 11 of the tables:
+`{'Tikhonov', fromPass, sigma[, label]}`. On common rows, `priorsFromColumn11`
+builds `data.priors` in the `L` form. On local rows, `gravfireLocalPriors`
+builds `data.systems.priors` in the `group` (regular-expression) form.
+Labelled groups get `estimate "scale"`; unlabelled rows get `"none"`.
+
+The function raises these errors:
+
+| Identifier | Cause |
 |---|---|
-| `adjustNonlinear` | Gauss-Newton / Levenberg as a policy on the block path (R5 M2) |
-| `batchSystem` | a batch source as one local-free streaming system (R5 M2) |
-| `adjustRobust` | IRLS (Huber/IGG3/bisquare) as a policy on the block path (R5 M2) |
-| `adjustBlock` | one GLS solve over the streaming block-arrow pipeline |
-| `adjustVCEjoint` | Ellmer ten-step joint co-estimation with keyed arc factors |
-| `applyRegularisation` | regularisation of the reduced system |
-| `arcVarianceFactors` | per-arc variance factors |
-| `BlockAccumulator` | block-arrow accumulation with per-system Schur pre-elimination |
-| `BlockCofactor` | the cofactor of the full parameter set, kept as blocks (WP-86) |
-| `checkPSD` | PSD sanity check |
-| `collectResiduals` | residual collection per stream |
-| `CommonPrior` | prior on the common block (regularisation as observations) |
-| `contribution` | information contribution per group |
-| `covComponent` | covariance component estimation |
-| `covModel` | covariance spec -> whitening operators (per arc) |
-| `datum` | datum defect detection and handling |
-| `declaration` | validate a kind-A data struct and build its loaders (R5-D8) |
-| `gcvLambda` | GCV choice of the regularisation weight |
-| `jointModelOpt` | joint-mode model -> loader UserOpt translation |
-| `localDiagnostics` | diagnostics of the local blocks |
-| `localColumns` | which (row, day, arc) owns each column of B (R5-D8) |
-| `makeLoader` | day-builder -> Loader (built INSIDE fit from the data struct, R4-D4) |
-| `mapreduce` | serial / parfor / spmd task runner with ordered reduce |
-| `NormalEqSystem` | normal-equation backend |
-| `outliers` | outlier listing from diagnostics |
-| `psdVCE` | PSD amplitude + arc-factor VCE (Ellmer workhorse) |
-| `QRSystem` | QR backend |
-| `ReducedContribution` | reduced-normal contribution bookkeeping |
-| `redundancy` | redundancy numbers (data pass) |
-| `residuals` | second data pass: residuals and quadratic forms |
-| `resolveNc` | common-parameter count derived from the systems |
-| `synthLoader` | synthetic block-arrow loader (engine-tier fixture; leaves in M4) |
-| `sharedProbe` | shared Hutchinson probe generator (RNG contract) |
-| `streamContribution` | contribution per stream |
-| `traceEstimate` | stochastic trace estimate |
-| `vce` | Helmert group variance components (exact | hutchinson) |
-| `verdict` | the verdict: diagnostics, snooping, systematics, F test, ellipse (WP-86) |
-| `runMeta` | immutable provenance record for Results.meta |
+| `gravfire:designMissing` | no `DesignFcn` and no `DryRun`, raised when a day is read |
+| `gravfire:unknownQuantity` | an observation group has an unsupported quantity |
+| `gravfire:designShape` | `DesignFcn` returned `A` or `B` with the wrong size |
+| `gravfire:badConstraint` | a malformed column-11 entry |
 
-## lsqvce.kernel — the numerical kernels
+The help also refers to `dev/GRAVFIRE_INTERFACE.md`, the step-by-step guide.
 
-| unit | what |
+## `template/kbr_variational.m`: GRACE-FO range-rates by the variational equations
+
+**Purpose.** This is a real-data template. It turns GRACE-FO Level-1B data
+into a `data` declaration for a gravity field in fully normalised spherical
+harmonics:
+
+- range-rates (KBR1B) of the C/D pair;
+- reduced-dynamic positions (GNV1B);
+- accelerometer (ACT1B) and attitude (SCA1B) data.
+
+For each arc and satellite, the reference orbit and the state transition
+`Psi` are integrated together with an 8th-order Adams–Bashforth–Moulton
+integrator, started with RK4. The acceleration, its gradient and the
+coefficient partials are analytic. The range-rate rows are formed on the
+fly, so `Psi` is never stored.
+
+**Run.**
+
+```matlab
+cfg = struct('days', 60000:60029, 'dataDir', '/data/gracefo/L1B', ...
+             'gravityField', '/data/models/GOCO06s.gfc', ...
+             'trf2crf', @myIers2010, 'degree', [2 60], 'arcsPerDay', 4);
+[data, kit] = kbr_variational(cfg);
+R  = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Noise=struct('Grid', 1080)));
+dC = kit.unitCommon .* R.x;                            % physical corrections
+cfg.fieldUpdate = dC;  data = kbr_variational(cfg);    % second linearisation
+```
+
+**Configuration.** Four fields of `cfg` are required:
+
+- `days` (MJD);
+- `dataDir`;
+- `gravityField`: an ICGEM `.gfc` file or a struct `.GM .R .C .S`;
+- `trf2crf`: a function `[R, Rdot] = f(tGps)`.
+
+The other fields default as follows:
+
+| Field | Default |
 |---|---|
-| `ar2arma` | AR -> ARMA conversion |
-| `armaACV` | ARMA autocovariance |
-| `armaWhiten` | ARMA whitening filter (batched) |
-| `crossCorr` | cross-correlation of residual streams |
-| `dctI` | DCT-I transform |
-| `decorrFactor` | decorrelation factor of a dense covariance |
-| `hatACV` | ACV of every bin of a piecewise-linear spectrum (R7 WP-111) |
-| `levinsonDurbin` | Levinson-Durbin recursion |
-| `psd2acv` | PSD -> autocovariance |
-| `redundancyLags` | redundancy per lag without the dense W^-1 |
-| `separableWhiten` | separable (temporal x axis) whitening |
-| `stat` | distributions and test thresholds, base MATLAB only (from engine, WP-86) |
-| `toeplitzCofactor` | Toeplitz cofactor construction |
-| `varACV` | VAR autocovariance |
-| `varWhiten` | VAR whitening |
-| `whitenessCorr` | whiteness (Ljung-Box) statistic |
-| `whittle` | multichannel Levinson (Whittle) VAR fit (moved from engine, R5 M2) |
-| `robustWeights` | IRLS weight factors from standardised residuals (R5 M2) |
+| `degree` | `[2 60]` |
+| `fieldDegree` | `degree(2)` |
+| `arcsPerDay` | 1 |
+| `arcs` | none; give a resolver to schedule arcs |
+| `step` | 5 s |
+| `posSampling` | 30 s |
+| `sigma.kbr` | 2e-7 |
+| `sigma.pos` | 0.02 |
+| `obsTypes` | `{'kbr','posC','posD'}` |
+| `files`, `formats` | GRACE-FO Level-1B v04 ASCII |
+| `quatConvention` | `'srf2crf'` |
+| `accToSrf` | `eye(3)` |
+| `accBias0` | 0 |
+| `accScale0` | 1 |
+| `fieldUpdate` | none |
+| `background` | no other forces |
+| `maxAccGap` | 10 s |
 
-## lsqvce.util — plumbing
+**Outputs.** `data` has:
 
-| unit | what |
+- `commonParams`: C_nm and S_nm with a unit of 1e-10 in column 5;
+- `days`;
+- one system (`id 1`, `'GRACE-FO'`) with:
+  - `'arc'` rows: initial position and velocity per satellite, and the KBR
+    bias, drift and once-per-revolution cos/sin terms;
+  - `'day'` rows: accelerometer bias and scale per satellite;
+  - `arcs`, `covariance`, `processingOptions` and `buildDay`.
+
+Every column carries a declared unit, so the physical value is
+`unit .* estimate`. Position streams carry their sigmas in `Cep`.
+
+`kit` exposes the physics as function handles:
+
+- `unitCommon` and `unitLocal`;
+- `coeffIndex`, `harmonics`, `makeField` and `fieldEval`;
+- `propagate` and `accModel`;
+- `eraRotation`, `readGfc`, `readL1B` and `buildDay`.
+
+`buildKbrDay` integrates the whole day once and caches it, keeping one day
+in memory. It then serves every stream of that day from the cache.
+
+**Limitations.** The help lists these:
+
+- `kit.eraRotation` is a stand-in for synthetic data only.
+- L1B layouts and frame conventions must be checked against the product
+  handbook.
+- Forces other than the static field and the accelerometer enter only
+  through `background`.
+- KBR quality flags are not screened.
+- Memory per stream is `8 m nc` bytes per day, about 0.5 GB for KBR at
+  5 s and degree 60.
+
+Errors carry `kbrvar:` identifiers, for example `kbrvar:badConfig`,
+`kbrvar:noFile`, `kbrvar:accGap` and `kbrvar:emptyArc`.
+
+## `template/lsqvce_template.m`: the engine-tier starting point
+
+**Purpose.** This template builds the cell array of `Loader` objects that
+the engine-tier functions take (`lsqvce.engine.adjustBlock`,
+`lsqvce.engine.adjustRobust`). Use it when your pipeline is driven by a
+`procOpt` configuration struct and you want the `Loader` objects in hand.
+On the user path you do not need it: declare `data` and call `lsqvce.fit`.
+
+**Run.** Copy the file, rename it, and write the stub `myBuildDay`:
+
+```matlab
+L = myCase(procOpt);
+R = lsqvce.engine.adjustBlock(L, procOpt.days);
+R.report();
+```
+
+**Structure.**
+
+- **`buildLoaders`** is real code. It makes one
+  `lsqvce.engine.makeLoader` per entry of `procOpt.observationGroups`,
+  with:
+  - the observation types;
+  - a white, unit a-priori covariance (`aprioriCovariance`);
+  - the five-argument `buildDay`;
+  - `systemId`, which must be numeric or a single character;
+  - `days`, `commonParams`, `localParams` and `processingOptions`.
+- **`myBuildDay`** is a stub. It raises `lsqvce_template:notImplemented`
+  until you replace it. It must be deterministic and return `A`, `B`, `l`,
+  `t` and optionally `Cep` as one cell per arc, with multi-axis rows in
+  epoch-major order.
+- A `procOpt` without `observationGroups` or `days` raises
+  `lsqvce_template:badProcOpt`.
+
+## `demo_messaging`: what each verbosity level prints
+
+**Purpose.** This example lets you compare the verbosity levels on real
+output before you adopt a level for long runs. See also the chapter *Watching a run*.
+
+**Run.**
+
+```matlab
+demo_messaging()                          % levels [0 1 2]
+demo_messaging('levels', [0 1])
+demo_messaging('toFile', '/tmp/levels.txt')
+```
+
+There are no outputs; everything is printed. A file that cannot be opened
+raises `demo_messaging:badFile`.
+
+**Logic.** For each level, `runAtLevel` redirects the toolbox log with
+`lsqvce.util.log.set('fid', fid, 'screen', false)` and builds
+`demo_grace_dataLoader()`. It runs
+`Options(Estimate="noise", Pool="stream", ArcFactors=false, Verbose=lvl, MaxPasses=1)`,
+then reads the captured text and prints it under a header. The header gives
+the level and `lsqvce.util.verbosity.describe(lvl)`.
+
+**What you will see.**
+
+- **Level 0** prints nothing but warnings. Warnings are not controlled by
+  the verbosity level, and a single pass does not converge.
+- **Level 1** prints the stage label for each swept system and a
+  convergence line for each pass.
+- **Level 2** prints the same as level 1 when you go through `lsqvce.fit`.
+  The help block explains why.
+
+The per-stream view is not printed. Read it afterwards with `R.summary()`
+or `R.convergence('Plot', true)`.
+
+## `bench_qr_vs_normal`: which backend, measured on your machine
+
+**Purpose.** This benchmark measures the cost of `Backend="qr"` against
+`Backend="normal"` on your hardware, and shows when the accuracy of QR is
+needed.
+
+**Run.**
+
+```matlab
+bench_qr_vs_normal()                                       % u = [10 30 50 100], n = 1e5, nk = 5000, reps = 3
+bench_qr_vs_normal('u', [10 50 100], 'n', 2e5, 'nk', 5000)
+```
+
+There are no outputs; the benchmark prints two tables.
+
+**Logic.** Both runs use the same batched declaration,
+`struct('batchFcn', src, 'numUnknowns', u, 'numBatches', nb)`, with
+`Options(Backend="normal")` and `Options(Backend="qr")`.
+
+1. **Timing.** For each `u`, the benchmark times both runs, keeping the
+   best of `reps` repetitions. It prints the times, their ratio, and the
+   relative agreement of `R.x`. The timed call is the whole `fit`,
+   including diagnostics, so the difference between the two times is the
+   cost of the backend.
+2. **Accuracy against conditioning.** With `u = 10` and `n = 20000`, the
+   benchmark makes column 2 nearly collinear with column 1, for
+   `eps = 1e-1 … 1e-8`. It compares both backends with an SVD reference
+   and prints `cond(R.sol.Cxx)`, which equals `cond(N)`, the two errors,
+   and a verdict. When `N` is singular in double precision, the normal
+   path refuses with `lsqvce:normalEq:notSPD`. The benchmark catches that
+   refusal and reports QR as mandatory.
+
+The recipe the benchmark prints: solve once with `"normal"`, read
+`cond(R.sol.Cxx)`, and switch to `"qr"` only when that number calls for it.
+For the backend option itself, see the chapter *`lsqvce.Options`* of the API reference.
+
+
+# Large problems
+
+A GRACE-FO month at degree 60 has millions of observations, about 3700 common and tens of
+thousands of local parameters. This chapter lists the settings that decide whether such a
+run fits in time and memory. The defaults are safe; change them when you have measured.
+
+## Memory
+
+The accumulator holds the reduced common system, nc × nc. Local parameters are
+eliminated arc by arc and never enter it. The largest transient object is one built day:
+m × nc doubles per observation type — at degree 60 about 190 MB for a six-hour three-axis
+arc.
+
+`CacheDays` (default 1) is the number of built days kept resident per system. An
+iterative run reads every day twice per pass; `CacheDays = Inf` builds each day once per
+run if the calendar fits in memory. If reading the raw files is the expensive part, cache
+those inside your `buildDay` closure instead.
+
+## Time
+
+| setting | effect |
 |---|---|
-| `callUser` | call a user function: outputs counted once, errors wrapped (R5 M1) |
-| `getfielddef` | struct field with default |
-| `toolboxVersion` | the version string from Contents.m (one source) (v5.2) |
-| `onPass` | fire the per-pass inspection hook (Options.OnPass) (R5 M5) |
-| `rowWeightKey` | the one key convention for per-arc robust weights (R5 M2) |
-| `streamKey` | the one stream key 'satKey|obsType' (R7-43) |
-| `arcKey` | the one arc key of the joint estimator (R7-43) |
-| `log` | toolbox-wide logging state |
-| `mergeStruct` | struct merge (later wins) |
-| `verbosity` | verbosity level resolution and formatting |
+| `Noise.Whitener = "ar"` | whitens a long arc in O(m·p) instead of the O(m³) of the dense Toeplitz factor; check the AR fit once with `lsqvce.engine.checkPSD` |
+| `Probes` | the cost of the redundancy sweep grows linearly with it; 100 is the standard, fewer gives noisier redundancies |
+| `Parallel = struct('Mode', "parfor", 'DistributeDays', true)` | distributes the day loop of the accumulation over workers; the result is bitwise identical to the serial run |
+| `MaxPasses`, `Tolerance` | the number of passes of an iterative run |
 
+## Backend
 
-# Theory
+`Backend = "qr"` (default) keeps the square-root information form and is the safer choice
+on ill-conditioned common blocks; `"normal"` forms the normal equations and is faster on
+well-conditioned ones. Both give the same numbers to rounding where both work.
+`examples/bench_qr_vs_normal.m` measures the trade-off on your machine.
 
-`lsqvce_theory.pdf` (the R5 theory, 54 pages) is the authority for every formula the
-toolbox implements: the block-arrow adjustment and its two backends, the joint
-variance-component estimator (the per-lag redundancies, the PSD-domain law, the
-per-stream level and the arc factors), priors and Koch–Kusche, the diagnostics (Baarda,
-Pope, reliability, whiteness), IRLS and Gauss–Newton, and Appendix C, the option mapping
-as implemented. The literature: Ellmer (2018), Kvas (2019), Koch and Kusche (2002),
-Baarda (1968), Pope (1976).
+## Before a long run
 
-
-# Migration from 4.x to 5
-
-Every 4.x declaration still fits; three things were added (priors, per-stream policy, `OnPass`), the option space was cut to 14 knobs + 5 groups, and every retired name has the successor below. Numbers may differ from 4.0 because the separate-mode estimator (an AR law fitted to a biased raw-residual ACF) is gone; the acceptance of its successor is the physical oracle, not equality to 4.0.
-
-## The migration table (from RELEASE_NOTES.md)
-
-| v4 | v5 |
-|---|---|
-| `Model="gls"` | `Estimate="none"` (default) |
-| `Model="ellmer"` | `Estimate="noise"` (+ `Pool`, `ArcFactors=true` default) |
-| `Model="vce"` | `Estimate="noise", Pool="stream", ArcFactors=false` |
-| `Model="pooled"` | `Estimate="noise", Pool="all", ArcFactors=false` |
-| `Robust="irls"` + `Influence` | `Robust="huber"|"igg3"|"bisquare"` |
-| `Tuning`, `RobustMaxIter`, `RobustTol` | `RobustOpts.Tuning / .MaxIter / .Tol` |
-| `MaxOuter`, `JointMaxIter`, `VceMaxIter`, `NonlinearMaxIter` | `MaxPasses` |
-| `JointTol`, `OuterTol`, `VceTol`, `TolX` | `Tolerance` |
-| `TolF`, `Lambda0` | `GaussNewton.TolF / .Lambda0` |
-| `NumLags` | `Noise.Grid` |
-| `PsdMode` | `Noise.Whitener` (`"toeplitz"` default, as before) |
-| `MeanType`, `Smooth`, `MinRedundancy`, `SkipThreshold` | `Noise.MeanType / .Smooth / .FreezeRedundancy / .SkipThreshold` |
-| `Parallel`, `DistributeDays`, `ParallelThreshold` | `Parallel.Mode / .DistributeDays / .Threshold` |
-| `Alpha`, `Bonferroni`, `Beta`, `RMin`, `RWeak`, `Test`, `RobustCheck`, `Store`, `NWorst` | `Diagnostics.<same>` |
-| `LogFid`, `LogFlag`, `ShowSeconds`, `ExportDir`, `plotPostSolve`, `plotPostModel` | `OnPass`; `R.plot(kind)` (`LogFile` was offered here and retired in R6 WP-101: it never opened a file) |
-| `DatumB` | `data.priors = struct('L', B.', 'sigma', 1, 'name', 'datum')` |
-| `Sigma0`, `Sparse`, `Verify`, `Progress` | retired |
-| `GroupBy`, `ComponentsPerEpoch`, `MaxOrder`, `AcvTol`, `MaxLag`, `WhiteAlpha` | retired with the separate mode (groups are streams; the axis count comes from the builder; whiteness is fixed at K = 20, α = 0.05) |
-| `Norm`, `C0`, `StepSchedule`, `AvgTail` | engine-tier only (`lsqvce.engine.adjustVCEjoint`) |
-| `lsqvce.engine.adjust / robust / solveNonlinear / Accumulator / adjustVCE / Combine / BatchIndex / varComp / vceHutchinson` | gone; `fit` on the block path; `lsqvce.engine.adjustBlock / adjustRobust / adjustNonlinear / adjustVCEjoint / batchSystem` at engine tier |
-| `R.source.verdict`, `history.nOuter` | `R.report().verdict`, `history.nIter` |
-
-Full ledger, decisions and round notes: `dev/HANDOVER.md` §12; theory:
-`lsqvce_theory.pdf` (R6 WP-101: it shipped under a second name in dev/ as well; that duplicate is gone -- one document, one name).
-
-
-
-# Appendix A — error and warning identifiers
-
-Every identifier the package raises, from `dev/docs_src/error_ids.csv` (the catalogue the audit keeps closed both ways: nothing raised that is not listed, nothing listed that is not raised).
-
-| identifier | where / what |
-|---|---|
-| `lsqvce:BlockCofactor:badBlocks` | engine.BlockCofactor — error — v6.3.0 |
-| `lsqvce:BlockCofactor:multiSystemRow` | engine.BlockCofactor — error — v6.3.0 |
-| `lsqvce:Options:badGrid` | Options — error — v4.0 |
-| `lsqvce:Options:badGroupField` | Options — error — v4.0 |
-| `lsqvce:Options:badOnPass` | Options — error — v4.0 |
-| `lsqvce:Options:badTarget` | Options — error — v4.0 |
-| `lsqvce:Options:badVerbose` | Options — error — v4.0 |
-| `lsqvce:Results:badPlotKind` | Results — error — v4.0 |
-| `lsqvce:Results:noAccumulator` | Results — error — v4.0 |
-| `lsqvce:Results:noCovariance` | Results — error — v4.0 |
-| `lsqvce:Results:noHistory` | Results — error — v4.0 |
-| `lsqvce:Results:noPerObservation` | Results — error — v6.5.0 |
-| `lsqvce:Results:noVPv` | Results — error — v4.0 |
-| `lsqvce:Results:tableMismatch` | Results — error — v4.0 |
-| `lsqvce:accum:arcBadNc` | engine.BlockAccumulator — error — v4.0 |
-| `lsqvce:accum:arcBadNl` | engine.BlockAccumulator — error — v4.0 |
-| `lsqvce:accum:arcNotFinite` | engine.BlockAccumulator — error — v4.0 |
-| `lsqvce:accum:arcRowMismatch` | engine.BlockAccumulator — error — v4.0 |
-| `lsqvce:accum:badArc` | engine.BlockAccumulator — error — v4.0 |
-| `lsqvce:accum:badCxx` | engine.BlockAccumulator — error — v4.0 |
-| `lsqvce:accum:badLoader` | engine.BlockAccumulator — error — v4.0 |
-| `lsqvce:accum:badMeta` | engine.BlockAccumulator — error — v4.0 |
-| `lsqvce:accum:badPrior` | engine.BlockAccumulator — error — v4.0 |
-| `lsqvce:accum:badSpecs` | engine.BlockAccumulator — error — v4.0 |
-| `lsqvce:accum:badThresholds` | engine.BlockAccumulator — error — v4.0 |
-| `lsqvce:accum:badX` | engine.BlockAccumulator — error — v4.0 |
-| `lsqvce:accum:blockSchurFailed` | engine.BlockAccumulator — warning — v4.0 |
-| `lsqvce:accum:cancellation` | engine.BlockAccumulator — warning — v4.0 |
-| `lsqvce:accum:duplicateSystem` | engine.BlockAccumulator — error — v4.0 |
-| `lsqvce:accum:localNotRedundant` | engine.BlockAccumulator — error — v4.0 |
-| `lsqvce:accum:localSummarySkipped` | engine.BlockAccumulator — warning — v4.0 |
-| `lsqvce:accum:metaMismatch` | engine.BlockAccumulator — error — v4.0 |
-| `lsqvce:accum:noArcs` | engine.BlockAccumulator — error — v4.0 |
-| `lsqvce:accum:noDays` | engine.BlockAccumulator — error — v4.0 |
-| `lsqvce:accum:noStore` | engine.BlockAccumulator — error — v4.0 |
-| `lsqvce:accum:noSystems` | engine.BlockAccumulator — error — v4.0 |
-| `lsqvce:accum:notWholeEpochs` | engine.private.arcBatchWhiten — error — v4.0 |
-| `lsqvce:accum:pinvFallback` | engine.BlockAccumulator — warning — v4.0 |
-| `lsqvce:accum:priorNotPD` | engine.BlockAccumulator — error — v4.0 |
-| `lsqvce:accum:priorSize` | engine.BlockAccumulator — error — v4.0 |
-| `lsqvce:accum:unknownSystem` | engine.BlockAccumulator — error — v4.0 |
-| `lsqvce:adjustBlock:badCell` | engine.private.normalizeSystems — error — v4.0 |
-| `lsqvce:adjustBlock:badLoader` | engine.private.normalizeSystems — error — v4.0 |
-| `lsqvce:adjustBlock:badStruct` | engine.private.normalizeSystems — error — v4.0 |
-| `lsqvce:adjustBlock:badSystems` | engine.private.normalizeSystems — error — v4.0 |
-| `lsqvce:adjustBlock:noDays` | engine.private.normalizeSystems — error — v4.0 |
-| `lsqvce:adjustNonlinear:badX0` | engine.adjustNonlinear — error — v4.0 |
-| `lsqvce:adjustNonlinear:diverged` | engine.adjustNonlinear — warning — v4.0 |
-| `lsqvce:adjustNonlinear:maxIter` | engine.adjustNonlinear — warning — v4.0 |
-| `lsqvce:adjustNonlinear:nonFinite` | engine.adjustNonlinear — error — v4.0 |
-| `lsqvce:adjustRobust:collapsed` | engine.adjustRobust — error — v4.0 |
-| `lsqvce:adjustRobust:notConverged` | engine.adjustRobust — warning — v4.0 |
-| `lsqvce:adjustVCEjoint:arcMismatch` | engine.adjustVCEjoint — error — v4.0 |
-| `lsqvce:adjustVCEjoint:badAxisRows` | engine.adjustVCEjoint — error — v4.0 |
-| `lsqvce:adjustVCEjoint:badS0` | engine.adjustVCEjoint — error — v6.7.0 |
-| `lsqvce:adjustVCEjoint:badSigma2_0` | engine.adjustVCEjoint — error — v4.0 |
-| `lsqvce:adjustVCEjoint:localNotPD` | engine.adjustVCEjoint — error — v4.0 |
-| `lsqvce:adjustVCEjoint:needCfcn` | engine.adjustVCEjoint — error — v4.0 |
-| `lsqvce:adjustVCEjoint:noArcs` | engine.adjustVCEjoint — error — v4.0 |
-| `lsqvce:adjustVCEjoint:collapsed` | engine.adjustVCEjoint — error — v6.1 |
-| `lsqvce:adjustVCEjoint:notConverged` | engine.adjustVCEjoint — warning — v4.0 |
-| `lsqvce:adjustVCEjoint:arcFactorsDiverging` | engine.adjustVCEjoint — warning — v5.3 |
-| `lsqvce:adjustVCEjoint:notPD` | engine.adjustVCEjoint — error — v4.0 |
-| `lsqvce:adjustVCEjoint:skipThreshold` | engine.adjustVCEjoint — error — v4.0 |
-| `lsqvce:applyReg:badLambda` | engine.applyRegularisation — error — v4.0 |
-| `lsqvce:applyReg:badRegMatrix` | engine.applyRegularisation — error — v4.0 |
-| `lsqvce:applyReg:notPD` | engine.applyRegularisation — error — v4.0 |
-| `lsqvce:applyReg:sizeMismatch` | engine.applyRegularisation — error — v4.0 |
-| `lsqvce:applyReg:unknown` | engine.applyRegularisation — error — v4.0 |
-| `lsqvce:ar2arma:degenerate` | kernel.ar2arma — error — v4.0 |
-| `lsqvce:ar2arma:degenerateMA` | kernel.ar2arma — warning — v4.0 |
-| `lsqvce:ar2arma:tooShort` | kernel.ar2arma — error — v4.0 |
-| `lsqvce:ar2arma:unstable` | kernel.ar2arma — warning — v4.0 |
-| `lsqvce:arcVarianceFactors:arcMismatch` | engine.arcVarianceFactors — error — v4.0 |
-| `lsqvce:arcVarianceFactors:badMean` | engine.arcVarianceFactors — warning — v4.0 |
-| `lsqvce:arcVarianceFactors:clamped` | engine.arcVarianceFactors — warning — v4.0 |
-| `lsqvce:armaACV:nonStationary` | kernel.armaACV — error — v4.0 |
-| `lsqvce:armaACV:zeroLeadingAR` | kernel.armaACV — error — v4.0 |
-| `lsqvce:armaWhiten:acvTooShort` | kernel.armaWhiten — error — v4.0 |
-| `lsqvce:armaWhiten:badSigma` | kernel.armaWhiten — error — v4.0 |
-| `lsqvce:armaWhiten:sizeMismatch` | kernel.armaWhiten — error — v4.0 |
-| `lsqvce:armaWhiten:startupNotPD` | kernel.armaWhiten — warning — v4.0 |
-| `lsqvce:batchSystem:badMatrix` | engine.batchSystem — error — v4.0 |
-| `lsqvce:batchSystem:badSource` | engine.batchSystem — error — v4.0 |
-| `lsqvce:batchSystem:weightMatrix` | engine.batchSystem — error — v4.0 |
-| `lsqvce:callUser:badHandle` | util.callUser — error — v4.0 |
-| `lsqvce:callUser:threw` | util.callUser — error — v4.0 |
-| `lsqvce:callUser:tooFew` | util.callUser — error — v4.0 |
-| `lsqvce:checkPSD:badFit` | engine.checkPSD — warning — v4.0 |
-| `lsqvce:checkPSD:badModel` | engine.checkPSD — error — v4.0 |
-| `lsqvce:checkPSD:marginalFit` | engine.checkPSD — warning — v4.0 |
-| `lsqvce:checkPSD:unstable` | engine.checkPSD — warning — v4.0 |
-| `lsqvce:collectResiduals:badRes` | engine.collectResiduals — error — v4.0 |
-| `lsqvce:covComponent:badLag` | engine.covComponent — error — v4.0 |
-| `lsqvce:covComponent:lagTooLarge` | engine.covComponent — error — v4.0 |
-| `lsqvce:covModel:badCep` | engine.covModel — error — v4.0 |
-| `lsqvce:covModel:badPsdMode` | engine.covModel — error — v4.0 |
-| `lsqvce:covModel:badSigma` | engine.covModel — error — v4.0 |
-| `lsqvce:covModel:badWhitenMode` | engine.covModel — error — v4.0 |
-| `lsqvce:covModel:cepOnVar` | engine.covModel — error — v5.3 |
-| `lsqvce:covModel:degeneratePSD` | engine.covModel — error — v4.0 |
-| `lsqvce:covModel:negativePSD` | engine.covModel — warning — v4.0 |
-| `lsqvce:covModel:noACF` | engine.covModel — error — v4.0 |
-| `lsqvce:covModel:noAR` | engine.covModel — error — v4.0 |
-| `lsqvce:covModel:noCovForm` | engine.covModel — error — v4.0 |
-| `lsqvce:covModel:noFcn` | engine.covModel — error — v4.0 |
-| `lsqvce:covModel:noFilterForm` | engine.covModel — error — v4.0 |
-| `lsqvce:covModel:noPSD` | engine.covModel — error — v4.0 |
-| `lsqvce:covModel:noSigma` | engine.covModel — error — v4.0 |
-| `lsqvce:covModel:noType` | engine.covModel — error — v4.0 |
-| `lsqvce:covModel:noVAR` | engine.covModel — error — v4.0 |
-| `lsqvce:covModel:notWholeEpochs` | engine.covModel — error — v4.0 |
-| `lsqvce:covModel:psdSanitationEscape` | engine.covModel — error — v4.0 |
-| `lsqvce:covModel:sigmaLength` | engine.covModel — error — v4.0 |
-| `lsqvce:covModel:unknownType` | engine.covModel — error — v4.0 |
-| `lsqvce:crossCorr:shortSeries` | kernel.crossCorr — warning — v4.0 |
-| `lsqvce:datum:BnotNull` | engine.datum — warning — v4.0 |
-| `lsqvce:datum:autoDetected` | engine.datum — warning — v4.0 |
-| `lsqvce:datum:badB` | engine.datum — error — v4.0 |
-| `lsqvce:datum:rankDeficientB` | engine.datum — error — v4.0 |
-| `lsqvce:datum:zeroN` | engine.datum — error — v4.0 |
-| `lsqvce:dctI:tooShort` | kernel.dctI — error — v4.0 |
-| `lsqvce:decorrFactor:notPD` | kernel.decorrFactor — mixed — v4.0 |
-| `lsqvce:diagnose:badPmatrix` | engine.verdict — error — v4.0 |
-| `lsqvce:diagnose:badTest` | engine.verdict — error — v4.0 |
-| `lsqvce:diagnose:batchMismatch` | engine.verdict — error — v4.0 |
-| `lsqvce:diagnose:nBatch` | engine.verdict — error — v4.0 |
-| `lsqvce:diagnose:noRobustScale` | engine.verdict — error — v4.0 |
-| `lsqvce:diagnoseAccum:needKeepLocal` | engine.verdict — error — v4.0 |
-| `lsqvce:diagnoseAccum:noSystems` | engine.verdict — error — v4.0 |
-| `lsqvce:ellipse:badPair` | engine.verdict — error — v4.0 |
-| `lsqvce:ellipse:samePair` | engine.verdict — error — v4.0 |
-| `lsqvce:fit:badArcs` | engine.declaration — error — v4.0 |
-| `lsqvce:fit:badEstimate` | fit — error — v4.0 |
-| `lsqvce:fit:badId` | engine.declaration — error — v4.0 |
-| `lsqvce:fit:badMatrix` | fit — error — v4.0 |
-| `lsqvce:fit:badParamColumns` | engine.declaration — error — v4.0 |
-| `lsqvce:fit:badPrior` | fit — error — v4.0 |
-| `lsqvce:fit:badScope` | engine.declaration — error — v4.0 |
-| `lsqvce:fit:builderKind` | engine.declaration — error — v4.0 |
-| `lsqvce:fit:duplicateSystem` | engine.declaration — error — v4.0 |
-| `lsqvce:fit:lawOnFixedStructure` | fit — error — v4.0 |
-| `lsqvce:fit:missingField` | engine.declaration;fit — error — v4.0 |
-| `lsqvce:fit:modelKind` | fit — error — v4.0 |
-| `lsqvce:fit:noCommon` | engine.declaration — error — v4.0 |
-| `lsqvce:fit:noDays` | engine.declaration — error — v4.0 |
-| `lsqvce:fit:noSystems` | engine.declaration — error — v4.0 |
-| `lsqvce:fit:notYet` | fit — error — v4.0 |
-| `lsqvce:fit:priorNotActive` | fit — warning — v4.0 |
-| `lsqvce:fit:uCount` | fit — error — v4.0 |
-| `lsqvce:fit:varUnderNoise` | fit — error — v6.1.5 |
-| `lsqvce:fit:unknownField` | engine.declaration;fit — error — v4.0 |
-| `lsqvce:ftest:differentData` | engine.verdict — error — v4.0 |
-| `lsqvce:ftest:invalidPremise` | engine.verdict — warning — v4.0 |
-| `lsqvce:ftest:noRedundancy` | engine.verdict — error — v4.0 |
-| `lsqvce:ftest:notNested` | engine.verdict — error — v4.0 |
-| `lsqvce:ftest:zeroVariance` | engine.verdict — error — v4.0 |
-| `lsqvce:gcv:atLowerBound` | engine.gcvLambda — warning — v4.0 |
-| `lsqvce:gcv:atUpperBound` | engine.gcvLambda — warning — v4.0 |
-| `lsqvce:gcv:degenerate` | engine.gcvLambda — warning — v4.0 |
-| `lsqvce:gcvLambda:qzFallback` | engine.gcvLambda — warning — v4.0 |
-| `lsqvce:hatACV:badX` | kernel.hatACV — error — v6.7.0 |
-| `lsqvce:jointArcParts:sizeMismatch` | engine.private.jointArcParts — error — v4.0 |
-| `lsqvce:jointModelOpt:badS` | engine.jointModelOpt — error — v6.7.0 |
-| `lsqvce:jointModelOpt:badModel` | engine.jointModelOpt — error — v4.0 |
-| `lsqvce:jointModelOpt:badStream` | engine.jointModelOpt — error — v4.0 |
-| `lsqvce:levinson:notPD` | kernel.levinsonDurbin — mixed — v4.0 |
-| `lsqvce:levinson:orderTooHigh` | kernel.levinsonDurbin — error — v4.0 |
-| `lsqvce:localDiagnostics:notFinite` | engine.localDiagnostics — error — v4.0 |
-| `lsqvce:log:noParallelQueue` | util.log — warning — v4.0 |
-| `lsqvce:makeKeyFcn:badGroupBy` | engine.private.makeKeyFcn — error — v4.0 |
-| `lsqvce:makeLoader:arcCount` | engine.makeLoader — error — v6.0 |
-| `lsqvce:makeLoader:badArc` | engine.makeLoader — error — v4.0 |
-| `lsqvce:makeLoader:badArcs` | engine.makeLoader — error — v4.0 |
-| `lsqvce:makeLoader:axisConflict` | engine.makeLoader — error — v5.3 |
-| `lsqvce:makeLoader:badDay` | engine.makeLoader — error — v4.0 |
-| `lsqvce:makeLoader:badDayCep` | engine.makeLoader — error — v4.0 |
-| `lsqvce:makeLoader:badPrior` | engine.makeLoader — error — v4.0 |
-| `lsqvce:makeLoader:badScope` | engine.makeLoader — error — v4.0 |
-| `lsqvce:makeLoader:badValidity` | engine.makeLoader — error — v4.0 |
-| `lsqvce:makeLoader:cepTwice` | engine.makeLoader — error — v5.3 |
-| `lsqvce:makeLoader:buildDay` | engine.makeLoader — error — v4.0 |
-| `lsqvce:makeLoader:dayShape` | engine.makeLoader — error — v4.0 |
-| `lsqvce:makeLoader:emptyDay` | engine.makeLoader — error — v6.0 |
-| `lsqvce:makeLoader:localPlan` | engine.makeLoader — error — v4.0 |
-| `lsqvce:makeLoader:ncConflict` | engine.makeLoader — error — v4.0 |
-| `lsqvce:makeLoader:nlConflict` | engine.makeLoader — error — v4.0 |
-| `lsqvce:makeLoader:noCep` | engine.makeLoader — warning — v5.3 |
-| `lsqvce:makeLoader:noArcs` | engine.makeLoader — error — v4.0 |
-| `lsqvce:makeLoader:noCov` | engine.makeLoader — error — v4.0 |
-| `lsqvce:makeLoader:noObsTypes` | engine.makeLoader — error — v4.0 |
-| `lsqvce:makeLoader:paramType` | engine.makeLoader — error — v4.0 |
-| `lsqvce:makeLoader:priorType` | engine.makeLoader — error — v4.0 |
-| `lsqvce:makeLoader:rowWeightSize` | engine.makeLoader — error — v4.0 |
-| `lsqvce:mapreduce:badTask` | engine.mapreduce — error — v4.0 |
-| `lsqvce:mapreduce:serialFallback` | engine.mapreduce — warning — v4.0 |
-| `lsqvce:normalEq:badMerge` | engine.NormalEqSystem — error — v4.0 |
-| `lsqvce:normalEq:badWidth` | engine.NormalEqSystem — error — v4.0 |
-| `lsqvce:normalEq:cancellation` | engine.NormalEqSystem — warning — v4.0 |
-| `lsqvce:normalEq:noData` | engine.NormalEqSystem — error — v4.0 |
-| `lsqvce:normalEq:noRedundancy` | engine.NormalEqSystem — error — v4.0 |
-| `lsqvce:normalEq:notSPD` | engine.NormalEqSystem — error — v4.0 |
-| `lsqvce:normalEq:sizeMismatch` | engine.NormalEqSystem — error — v4.0 |
-| `lsqvce:prior:badGroup` | engine.CommonPrior — error — v6.11.0 |
-| `lsqvce:prior:badTarget` | engine.CommonPrior — error — v4.0 |
-| `lsqvce:probeMatrix:badDist` | engine.private.probeMatrix — error — v4.0 |
-| `lsqvce:psd2acv:aboveNyquist` | kernel.psd2acv — warning — v4.0 |
-| `lsqvce:psd2acv:nonPositiveVariance` | kernel.psd2acv — error — v4.0 |
-| `lsqvce:psd2acv:tooFewPoints` | kernel.psd2acv — error — v4.0 |
-| `lsqvce:psdVCE:arcMismatch` | engine.psdVCE — error — v4.0 |
-| `lsqvce:psdVCE:shapeMismatch` | engine.psdVCE — error — v4.0 |
-| `lsqvce:qr:badMerge` | engine.QRSystem — error — v4.0 |
-| `lsqvce:qr:badWidth` | engine.QRSystem — error — v4.0 |
-| `lsqvce:qr:cancellation` | engine.QRSystem — warning — v4.0 |
-| `lsqvce:qr:noData` | engine.QRSystem — error — v4.0 |
-| `lsqvce:qr:noRedundancy` | engine.QRSystem — error — v4.0 |
-| `lsqvce:qr:rankDeficient` | engine.QRSystem — error — v4.0 |
-| `lsqvce:qr:singularR` | engine.QRSystem — error — v4.0 |
-| `lsqvce:qr:sizeMismatch` | engine.QRSystem — error — v4.0 |
-| `lsqvce:reduced:notSquare` | engine.ReducedContribution — error — v4.0 |
-| `lsqvce:reduced:sizeMismatch` | engine.ReducedContribution — error — v4.0 |
-| `lsqvce:redundancy:hutchFailed` | engine.redundancy — warning — v4.0 |
-| `lsqvce:redundancy:hutchinsonExperimental` | engine.redundancy — warning — v4.0 |
-| `lsqvce:redundancy:identityViolated` | engine.redundancy — warning — v4.0 |
-| `lsqvce:redundancy:noStore` | engine.redundancy — error — v4.0 |
-| `lsqvce:redundancy:smallGroup` | engine.redundancy — warning — v4.0 |
-| `lsqvce:redundancy:spmdNoCollect` | engine.redundancy — warning — v4.0 |
-| `lsqvce:redundancyLags:badEbar` | kernel.redundancyLags — error — v4.0 |
-| `lsqvce:redundancyLags:badLocal` | kernel.redundancyLags — error — v4.0 |
-| `lsqvce:redundancyLags:badUiZ` | kernel.redundancyLags — error — v4.0 |
-| `lsqvce:redundancyLags:badW` | kernel.redundancyLags — error — v4.0 |
-| `lsqvce:residuals:badSol` | engine.residuals — error — v4.0 |
-| `lsqvce:residuals:noStore` | engine.residuals — error — v4.0 |
-| `lsqvce:residuals:sigma0Mismatch` | engine.residuals — warning — v4.0 |
-| `lsqvce:residuals:supersedesSol` | engine.residuals — warning — v4.0 |
-| `lsqvce:resolveNc:conflict` | engine.resolveNc — error — v4.0 |
-| `lsqvce:resolveNc:empty` | engine.resolveNc — error — v4.0 |
-| `lsqvce:resolveNc:missing` | engine.resolveNc — error — v4.0 |
-| `lsqvce:robust:atBreakdown` | engine.private.warnAtBreakdown — warning — v6.1.4 |
-| `lsqvce:robustWeights:badInfluence` | kernel.robustWeights — error — v4.0 |
-| `lsqvce:robustWeights:badTuning` | kernel.robustWeights — error — v4.0 |
-| `lsqvce:robustWeights:scaleFallback` | kernel.robustWeights — warning — v6.1.4 |
-| `lsqvce:runMeta:badArg` | engine.runMeta — error — v4.0 |
-| `lsqvce:separable:acvTooShort` | kernel.separableWhiten — error — v4.0 |
-| `lsqvce:separable:badSigma` | kernel.separableWhiten — error — v4.0 |
-| `lsqvce:separable:badSigmaShape` | kernel.separableWhiten — error — v4.0 |
-| `lsqvce:separable:epochNotPD` | kernel.separableWhiten — error — v4.0 |
-| `lsqvce:separable:notWholeEpochs` | kernel.separableWhiten — error — v4.0 |
-| `lsqvce:separable:sigmaLength` | kernel.separableWhiten — error — v4.0 |
-| `lsqvce:separable:startupNotPD` | kernel.separableWhiten — warning — v4.0 |
-| `lsqvce:sharedProbe:badProbes` | engine.sharedProbe — error — v4.0 |
-| `lsqvce:sharedProbe:notSquare` | engine.sharedProbe — error — v4.0 |
-| `lsqvce:snoop:breakdown` | engine.verdict — error — v4.0 |
-| `lsqvce:snoop:contaminated` | engine.verdict — warning — v4.0 |
-| `lsqvce:snoop:correlatedBatch` | engine.verdict — error — v4.0 |
-| `lsqvce:snoop:downdateFailed` | engine.verdict — warning — v4.0 |
-| `lsqvce:snoop:forcedBreakdown` | engine.verdict — warning — v4.0 |
-| `lsqvce:snoop:forcedContaminated` | engine.verdict — warning — v4.0 |
-| `lsqvce:snoop:forcedOverCap` | engine.verdict — warning — v4.0 |
-| `lsqvce:snoop:lowRedundancy` | engine.verdict — warning — v4.0 |
-| `lsqvce:snoop:maxReject` | engine.verdict — warning — v4.0 |
-| `lsqvce:snoop:rejectFraction` | engine.verdict — warning — v4.0 |
-| `lsqvce:snoop:tooContaminated` | engine.verdict — error — v4.0 |
-| `lsqvce:stat:badDof` | kernel.stat — error — v4.0 |
-| `lsqvce:stat:badProb` | kernel.stat — error — v4.0 |
-| `lsqvce:stat:sizeMismatch` | kernel.stat — error — v4.0 |
-| `lsqvce:streamContribution:badSol` | engine.streamContribution — error — v4.0 |
-| `lsqvce:streamContribution:cNotPD` | engine.streamContribution — error — v4.0 |
-| `lsqvce:streamContribution:noArcs` | engine.streamContribution — error — v4.0 |
-| `lsqvce:streamContribution:noStore` | engine.streamContribution — error — v4.0 |
-| `lsqvce:synthLoader:badArc` | engine.synthLoader — error — v4.0 |
-| `lsqvce:synthLoader:noNoiseModel` | engine.synthLoader — error — v4.0 |
-| `lsqvce:systematic:badCovariate` | engine.verdict — error — v4.0 |
-| `lsqvce:systematic:lbUnreliable` | engine.verdict — warning — v4.0 |
-| `lsqvce:systematic:noResiduals` | engine.verdict — error — v4.0 |
-| `lsqvce:systematic:tooFew` | engine.verdict — warning — v4.0 |
-| `lsqvce:toeplitzCofactor:badVariance` | kernel.toeplitzCofactor — warning — v4.0 |
-| `lsqvce:toeplitzCofactor:empty` | kernel.toeplitzCofactor — error — v4.0 |
-| `lsqvce:toeplitzCofactor:notACV` | kernel.toeplitzCofactor — warning — v4.0 |
-| `lsqvce:traceEstimate:badOperator` | engine.traceEstimate — error — v4.0 |
-| `lsqvce:traceEstimate:needSize` | engine.traceEstimate — error — v4.0 |
-| `lsqvce:traceEstimate:notSquare` | engine.traceEstimate — error — v4.0 |
-| `lsqvce:traceEstimate:sizeMismatch` | engine.traceEstimate — error — v4.0 |
-| `lsqvce:util:log:badKey` | util.log — error — v4.0 |
-| `lsqvce:varACV:badA` | kernel.varACV — error — v4.0 |
-| `lsqvce:varACV:notStationary` | kernel.varACV — error — v4.0 |
-| `lsqvce:varWhiten:badA` | kernel.varWhiten — error — v4.0 |
-| `lsqvce:varWhiten:badSigma` | kernel.varWhiten — error — v4.0 |
-| `lsqvce:varWhiten:badStartup` | kernel.varWhiten — error — v4.0 |
-| `lsqvce:varWhiten:notWholeEpochs` | kernel.varWhiten — error — v4.0 |
-| `lsqvce:vce:badAccFcn` | engine.vce — error — v4.0 |
-| `lsqvce:vce:badSigma0` | engine.vce — error — v4.0 |
-| `lsqvce:vce:groupMismatch` | engine.vce — error — v4.0 |
-| `lsqvce:vce:hutchGroupMismatch` | engine.vce — error — v4.0 |
-| `lsqvce:vce:lowRedundancy` | engine.vce — warning — v4.0 |
-| `lsqvce:vce:notConverged` | engine.vce — warning — v4.0 |
-| `lsqvce:verbosity:badLevel` | util.verbosity — error — v4.0 |
-| `lsqvce:verbosity:badTag` | util.verbosity — error — v4.0 |
-| `lsqvce:whittle:badG` | kernel.whittle — error — v4.0 |
-| `lsqvce:whittle:notPD` | kernel.whittle — error — v4.0 |
-| `lsqvce:covModel:badNugget` | engine.covModel — error — v6.6.0 |
-| `lsqvce:covModel:nuggetNeedsWholeArc` | engine.covModel — error — v6.6.0 |
-| `lsqvce:redundancyLags:badNugget` | kernel.redundancyLags — error — v6.6.0 |
+1. Run one day with `Estimate = "none"` and read the report.
+2. Run a few days with `Estimate = "noise"` and `MaxPasses = 3` and look at
+   `R.plot("psd")` and `R.summary()`.
+3. Fix `Seed` so the long run is reproducible, and save `R` with its `meta`.

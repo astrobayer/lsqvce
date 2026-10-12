@@ -35,7 +35,8 @@ WHAT IT CHECKS
        edge that exists today is listed in dev/docs_src/layering_baseline.csv;
        a NEW upward edge is a finding, a stale row is a finding
     22 html pages match the help blocks they were generated from
-    23 the Manual is a FRESH build of dev/docs_src/manual/*.md (byte equality;
+    23 the Manual and the API reference are FRESH builds of
+       dev/docs_src/manual/*.md and dev/docs_src/api/*.md (byte equality;
        needs the same pandoc as the CI runner)
     24 help EXAMPLE blocks call units that exist
     25 every unit page is reachable from html/index.html and helptoc.xml
@@ -1334,7 +1335,7 @@ def check_superseded_claims():
     surfaces = []
     for f in pglob(PKG_GLOB, recursive=True):
         surfaces.append((f, _help_descriptive(f)))
-    for pat in ('dev/docs_src/manual/*.md', 'README.md', 'dev/GRAVFIRE_INTERFACE.md',
+    for pat in ('dev/docs_src/manual/*.md', 'dev/docs_src/api/*.md', 'README.md', 'dev/GRAVFIRE_INTERFACE.md',
                 'dev/DEVELOPMENT.md', 'template/*.m', 'examples/*.m'):
         for f in pglob(pat):
             surfaces.append((f, open(f, encoding='utf-8', errors='replace').read()))
@@ -1426,7 +1427,7 @@ def check_unit_references_resolve():
     # the user-facing prose: the Manual sources, README, the GRAVFIRE guide,
     # the template and the examples (HANDOVER / HISTORY / RELEASE_NOTES are
     # history and may name what was retired)
-    for pat in ('dev/docs_src/manual/*.md', 'README.md', 'dev/GRAVFIRE_INTERFACE.md',
+    for pat in ('dev/docs_src/manual/*.md', 'dev/docs_src/api/*.md', 'README.md', 'dev/GRAVFIRE_INTERFACE.md',
                 'template/*.m', 'examples/*.m'):
         for f in sorted(pglob(pat)):
             # an .m file: its help claims (stamps are history) and its code lines
@@ -1731,7 +1732,7 @@ def check_catch_ratchet():
     # WHY: five empty and thirteen bare `catch` blocks (R5 finding H-07)
     # convert an undefined variable or a shape error into a silently
     # different run -- the fourth outcome the error doctrine forbids
-    # (theory_r5 ch. 7). M1 rewrites every site; this check stops the count
+    # (R5 record, dev/reviews/R5_2026-09-01/theory_r5, ch. 7). M1 rewrites every site; this check stops the count
     # from growing in the meantime and refuses a baseline row that no longer
     # exists, so the file is always the truth.
     base = dict(_read_baseline('dev/docs_src/catch_baseline.csv', 2))
@@ -1994,7 +1995,7 @@ def check_pages_match_help():
 
 
 def check_manual_built_and_complete():
-    print('\n23. the Manual equals a fresh build and names every Options knob and group field')
+    print('\n23. the Manual and the API reference equal a fresh build; the API names every Options knob and group field')
     # R5 docs level (2026-09-04): html/lsqvce_manual.html is built by
     # dev/docs_src/build_manual.py from dev/docs_src/manual/*.md plus generated
     # chapters (API from the help blocks, tiers from Contents.m, migration from
@@ -2004,11 +2005,11 @@ def check_manual_built_and_complete():
     bm = _il.module_from_spec(spec)
     try:
         spec.loader.exec_module(bm)
-        if bm.main(check=True):
-            note('manual', 'html/lsqvce_manual.html differs from a fresh build (run build_manual.py)')
+        for name in bm.main(check=True):
+            note('manual', 'html/lsqvce_%s.html differs from a fresh build (run build_manual.py)' % name)
     except Exception as e:  # pandoc missing etc.: report, do not hide
         note('manual', 'the Manual could not be rebuilt for comparison: %s' % e)
-    src = open(os.path.join('dev', 'docs_src', 'manual', '04_options.md'), encoding='utf-8').read()
+    src = open(os.path.join('dev', 'docs_src', 'api', '04_options.md'), encoding='utf-8').read()
     opt = open(os.path.join('+lsqvce', 'Options.m'), encoding='utf-8').read()
     i = opt.index('    properties'); j = opt.index('    end', i)
     props = re.findall(r'^\s{8}([A-Z]\w*)\s', opt[i:j], re.M)
@@ -2016,11 +2017,11 @@ def check_manual_built_and_complete():
     fields = set(re.findall(r"'([A-Z][A-Za-z0-9]*)', ", tail))
     for p in props:
         if not re.search(r'`%s`' % p, src):
-            note('manual', 'Options.%s is not described in the Manual chapter 4' % p)
+            note('manual', 'Options.%s is not described in the API reference (api/04_options.md)' % p)
     for f in sorted(fields):
         if f in props: continue
         if not re.search(r'`%s`' % f, src):
-            note('manual', 'the Options group field %s is not described in the Manual chapter 4' % f)
+            note('manual', 'the Options group field %s is not described in the API reference (api/04_options.md)' % f)
     print('   %d knobs and %d group fields checked' % (len(props), len(fields - set(props))))
 
 
@@ -2096,7 +2097,7 @@ def pdf_literal(s):
 
 
 def check_manual_pdf_version():
-    print('\n29. the PDF Manual carries the Contents.m version in its title')
+    print('\n29. the PDF Manual and API reference carry the Contents.m version in their titles')
     # WHY (R6 WP-109, out of WP-108): lsqvce_manual.pdf sat at 6.1.0 while the
     # tree was at 6.1.1 and NOTHING read it. Check 23 rebuilds the HTML Manual
     # and compares it byte for byte; the PDF is built from the same markdown by
@@ -2108,36 +2109,34 @@ def check_manual_pdf_version():
     # from Contents.m, the same single version source check 17 (a) holds the
     # README title to.
     #
-    # lsqvce_theory.pdf is deliberately NOT checked: its title is
-    # "lsqvce - Theory, practice, ..." and carries no version at all. It is a
-    # dated record and WP-106 gave it banners instead; there is no version
-    # surface here to gate.
+    # lsqvce_theory.pdf is deliberately NOT checked: it states the mathematics
+    # and carries no version (WP-124), so there is no version surface to gate.
     #
     # It FAILS CLOSED. A missing file, an unreadable Info dictionary or two
     # different answers are findings, not silence -- the instrument saying
     # nothing must never be read as the artefact being right.
-    pdf = 'lsqvce_manual.pdf'
-    if not os.path.isfile(pdf):
-        note('manual-pdf', '%s is missing (build_manual.py writes it)' % pdf)
-        return
     contents = open(os.path.join('+lsqvce', 'Contents.m'),
                     encoding='utf-8', errors='replace').read()
     mv = re.search(r'^%\s*Version\s+(\S+)', contents, re.M)
     if not mv:
         note('manual-pdf', '+lsqvce/Contents.m has no Version line to check against')
         return
-    title = pdf_doc_title(pdf)
-    if title is None:
-        note('manual-pdf', '%s: no single document title could be read from the '
-             'Info dictionary (the check cannot pass on an unreadable PDF)' % pdf)
-        return
-    want = 'lsqvce %s \u2014 User Manual' % mv.group(1)
-    if title != want:
-        note('manual-pdf', '%s title is "%s"; Contents.m says %s, so it must be '
-             '"%s" (run build_manual.py)' % (pdf, title, mv.group(1), want))
-    else:
-        print('   %s == Contents.m %s' % (title, mv.group(1)))
-
+    # the Manual and the API reference: same builder, same version surface
+    for pdf, kind in (('lsqvce_manual.pdf', 'User Manual'), ('lsqvce_api.pdf', 'API Reference')):
+        if not os.path.isfile(pdf):
+            note('manual-pdf', '%s is missing (build_manual.py writes it)' % pdf)
+            continue
+        title = pdf_doc_title(pdf)
+        if title is None:
+            note('manual-pdf', '%s: no single document title could be read from the '
+                 'Info dictionary (the check cannot pass on an unreadable PDF)' % pdf)
+            continue
+        want = 'lsqvce %s \u2014 %s' % (mv.group(1), kind)
+        if title != want:
+            note('manual-pdf', '%s title is "%s"; Contents.m says %s, so it must be '
+                 '"%s" (run build_manual.py)' % (pdf, title, mv.group(1), want))
+        else:
+            print('   %s == Contents.m %s' % (title, mv.group(1)))
 
 if __name__ == '__main__':
     if '--write-baselines' in sys.argv:

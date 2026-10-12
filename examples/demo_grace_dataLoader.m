@@ -4,7 +4,7 @@ function [cfg, data] = demo_grace_dataLoader()
 %   [cfg, data] = demo_grace_dataLoader()
 %
 %   Returns a ready-to-run configuration CFG and the declaration as a v5 data
-%   struct DATA (the Manual, chapter 3), so the VCE loop on multi-axis and
+%   struct DATA (the API reference), so the VCE loop on multi-axis and
 %   scalar streams can be exercised end to end without real data:
 %
 %       [cfg, data] = demo_grace_dataLoader();
@@ -59,8 +59,8 @@ function [cfg, data] = demo_grace_dataLoader()
 %   demoBuildDay. This is the TEMPLATE:
 %   copy demoBuildDay and the two paramTable builders as the starting point
 %   for your own case. The per-epoch covariance of a position stream comes
-%   back from demoBuildDay WITH the day (D.Cep, the Manual, chapter 3
-%   section 7) -- there is no second place to state it.
+%   back from demoBuildDay WITH the day (D.Cep, the API reference, chapter buildDay,
+%   Cep) -- there is no second place to state it.
 %
 %   See also LSQVCE.FIT, LSQVCE.OPTIONS, DEMO_GRACE, DEMO_GRAVITY_DATALOADER
 %
@@ -91,6 +91,10 @@ function [cfg, data] = demo_grace_dataLoader()
 %   With assistance from Claude (Anthropic), model Claude Fable 5.
 %   Created 2026-07-16 (CEST, UTC+02:00) with assistance from
 %   Claude (Anthropic), model Claude Opus 4.8.
+%
+%   Updated 2026-10-12 (CEST, UTC+02:00), WP-124: references to the data
+%   contract point at the API reference. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
     cfg  = demoCfg();
     data = graceData(cfg);
 end

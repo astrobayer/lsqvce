@@ -10,15 +10,15 @@
 %   crossCorr            - cross-correlation of residual streams
 %   dctI                 - DCT-I transform
 %   decorrFactor         - decorrelation factor of a dense covariance
-%   hatACV               - ACV of every bin of a piecewise-linear spectrum (R7 WP-111)
+%   hatACV               - ACV of every bin of a piecewise-linear spectrum
 %   levinsonDurbin       - Levinson-Durbin recursion
 %   psd2acv              - PSD -> autocovariance
 %   redundancyLags       - redundancy per lag without the dense W^-1
 %   separableWhiten      - separable (temporal x axis) whitening
-%   stat                 - distributions and test thresholds, base MATLAB only (from engine, WP-86)
+%   stat                 - distributions and test thresholds, base MATLAB only
 %   toeplitzCofactor     - Toeplitz cofactor construction
 %   varACV               - VAR autocovariance
 %   varWhiten            - VAR whitening
 %   whitenessCorr        - whiteness (Ljung-Box) statistic
-%   whittle            - multichannel Levinson (Whittle) VAR fit (moved from engine, R5 M2)
-%   robustWeights      - IRLS weight factors from standardised residuals (R5 M2)
+%   whittle            - multichannel Levinson (Whittle) VAR fit
+%   robustWeights      - IRLS weight factors from standardised residuals

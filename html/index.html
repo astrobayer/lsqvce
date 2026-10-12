@@ -75,13 +75,13 @@ checked; a mismatch is an error, not a silent misattribution.</div>
 
 <div class="note"><b>Not sure which front door to use?</b> There is only one:
 <code>lsqvce.fit</code> reads the KIND from the shape of your <code>data</code>
-struct. <a href="lsqvce_manual.html">The Manual</a>, chapter 3, is the binding
+struct. <a href="lsqvce_api.html">The API reference</a> is the binding
 specification; the runnable build-your-own-case guide is
 <code>examples/demo_workflow.m</code>.</div>
 
 <div class="note"><b>Starting your own case?</b> Copy
 <code>examples/demo_fit.m</code> for the user path (a plain <code>data</code>
-struct through <code>lsqvce.fit</code>, the Manual ch. 3). Two other starting
+struct through <code>lsqvce.fit</code>). Two other starting
 points exist for narrower jobs: <code>template/lsqvce_template.m</code> is the
 ENGINE-tier Loader skeleton with one documented stub (<code>myBuildDay</code>),
 and <code>template/gravfire_data.m</code> maps a GRAVFIRE preprocessing bundle
@@ -259,21 +259,19 @@ library code: <code>demo_gravity.m</code> is the closed-loop oracle with measure
 <tr><td class="name">examples/demo_workflow.m</td><td>Build your OWN least-squares case, from scratch.</td></tr>
 </table>
 <h2>Manuals</h2>
-<div class="note"><b>The theory document is <code>lsqvce_theory.pdf</code></b>, in the toolbox root (R4 WP-59): the model and its two backends, conditioning and regularisation, variance component estimation (Helmert, MINQUE, LS-VCE, Monte-Carlo), the separable stochastic model and the three loops, robust estimation, the gravity-recovery setting, ERROR HANDLING (why sigma0 can be NaN, why a Cholesky verdict at the singular boundary is not the mathematics), the workflow, and the method's limitations -- each claim tied to the work package that pinned it. Rebuild it from its LaTeX source with <code>dev/docs_src/theory_r5/build.sh</code>.</div>
-<div class="note"><b>The Manual is the single documentation authority</b>:
-<code>html/lsqvce_manual.html</code> (what <code>doc lsqvce</code> opens) and
-<code>lsqvce_manual.pdf</code> in the toolbox root &mdash; installation, the data
-you declare, every option, the user-tier API, priors, stochastic models,
-diagnostics, migration, and the identifier catalogue. Rebuild both with
-<code>python3 dev/docs_src/build_manual.py</code> (needs pandoc; audit check 23
-holds the built pages equal to a fresh build). The per-unit pages below are
-generated from the help blocks by
-<code>python3 dev/docs_src/build_missing_pages.py all</code>.</div>
-<p>All documentation is HTML and travels with the toolbox (equations render
-offline). Open any of these from <code>doc lsqvce</code> or the Help browser:</p>
+<div class="note"><b>Three documents, each with one job.</b>
+The <a href="lsqvce_manual.html">Manual</a> (also <code>lsqvce_manual.pdf</code>) says how to use the
+toolbox: installation, the workflow step by step, declaring your problem, choosing the stochastic
+model, priors, reading the report, and the examples. The <a href="lsqvce_api.html">API reference</a>
+(also <code>lsqvce_api.pdf</code>) states what every interface accepts and returns: the
+<code>data</code> struct, <code>buildDay</code>, covariance specifications, <code>Options</code>,
+<code>Results</code> and every identifier. <code>lsqvce_theory.pdf</code> is the mathematical
+framework. The per-unit pages below are generated from the help blocks.</div>
 <table>
 <tr><td class="name"><a href="lsqvce_manual.html">Manual</a></td>
-    <td>theory, what you supply, reading the diagnosis, gravity recovery, step-by-step</td></tr>
+    <td>install, workflow, declaring a problem, stochastic model, priors, the report, the examples</td></tr>
+<tr><td class="name"><a href="lsqvce_api.html">API reference</a></td>
+    <td>data contract, buildDay, covariance specs, Options, Results, identifiers</td></tr>
 </table>
 
 <h2>Tests</h2>
