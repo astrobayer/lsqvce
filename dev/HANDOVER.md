@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-12 — WP-120 DONE (PR #139, merge 99e3dff; CI GREEN on 1017d42); WP-121 OPEN (tier B, model Claude Opus 5.5): diagnose's robust check formed in the main pass -- one read of the data and one halfRows per row instead of two (bitwise the same scale); the §12.48 claim that snoop's Reaccumulate=true re-solve is dense corrected (block-arrow since WP-86 part 3, 6.4.0); version 6.11.1; §12.51. With it the three §12.48 residues are closed.
+Last substantive update: 2026-10-12 — WP-121 DONE (PR #140, merge 2a85acf; CI GREEN on 47555ef); the three §12.48 residues CLOSED (user decision: closure PR): 119 fixed (v6.11.0), 120 measured and kept (K = 20), 121 fixed (v6.11.1); no code change, no version; §12.52.
+Preceding entry: Last substantive update: 2026-10-12 — WP-120 DONE (PR #139, merge 99e3dff; CI GREEN on 1017d42); WP-121 OPEN (tier B, model Claude Opus 5.5): diagnose's robust check formed in the main pass -- one read of the data and one halfRows per row instead of two (bitwise the same scale); the §12.48 claim that snoop's Reaccumulate=true re-solve is dense corrected (block-arrow since WP-86 part 3, 6.4.0); version 6.11.1; §12.51. With it the three §12.48 residues are closed.
 Preceding entry: Last substantive update: 2026-10-12 — WP-119 DONE (PR #138, merge 49a27ec; CI GREEN on f856a63); WP-120 OPEN (tier B, model Claude Opus 5.5; user decision: K = 20 STAYS): the Ljung-Box lag count measured, not changed -- a larger K loses short-lag power (0.45 -> 0.11 at K 540) and gains only on a correlation at an isolated long lag; the blind spot stated in Manual 7.7 with the numbers; no code, no version; §12.50.
 Preceding entry: Last substantive update: 2026-10-12 — WP-119 OPEN (tier B, model Claude Opus 5.5; user: "continue fixing the known limitations" -- the three residues §12.48 recorded, one WP each, 119 -> 120 -> 121): the datum test runs per declared prior GROUP -- a datum stacked with a regularising group gets the minimum-constraint covariance s0^2 pinv(N + Ki'Ki); a group only partly in the null space stays information (by design, stated); version 6.11.0; §12.49.
 Preceding entry: Last substantive update: 2026-10-11 — WP-114 DONE (PR #136, merge 4bdcfe5; CI GREEN on 4c31b83); R7 TRACK CLOSED (model Claude Opus 5.5, user decision): every WP 111-118 merged, 45 of 46 findings fixed in the tree (R7-46 is the review skill's own instrument); the residues are recorded, not opened; no code change, no version; §12.48.
@@ -8998,7 +8999,7 @@ The residue is CLOSED BY MEASUREMENT. No code change, no version (6.11.0 stays).
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 121 | §12.48 residue 3: `verdict.diagnose` forms the robust check's raw scores in the main pass (one read, one `halfRows` per row; only `'Test', "mad"` sweeps first); the stale snoop claim corrected; **version 6.11.1** | 120 (PR #139 merged 99e3dff) | OPEN (tier B; CI is the gate) |
+| 121 | §12.48 residue 3: `verdict.diagnose` forms the robust check's raw scores in the main pass (one read, one `halfRows` per row; only `'Test', "mad"` sweeps first); the stale snoop claim corrected; **version 6.11.1** | 120 (PR #139 merged 99e3dff) | DONE (2026-10-12, PR #140, merge 2a85acf; CI GREEN on 47555ef after one red round: the build-count pin 2n+3 -> 2n+2) |
 
 **Residue 3 read against the code first.** It named two things.
 - "snoop's `Reaccumulate=true` re-solve still builds a dense commons factor" -- STALE.
@@ -9031,3 +9032,23 @@ CI round 1 (a65c3eb): 623/624; the new test green, `test_vcePolicy>testCacheDays
 red -- the end-to-end build count through `lsqvce.fit` (CacheDays 1, a VCE run of n passes)
 pinned 2n+3, of which one was diagnose's robust-check sweep. That is the WP's effect seen
 from the loader, not a regression: the pin is 2n+2 now, its comment says why.
+
+### 12.52 The §12.48 residues closed (2026-10-12, model Claude Opus 5.5)
+
+**The user's decision (2026-10-12):** the closure PR -- the WP-121 ledger row, this note, no
+code change, no version (6.11.1 stays, 636 tests).
+
+| WP | residue (§12.48) | outcome | PR | merge | version |
+|----|------------------|---------|----|-------|---------|
+| 119 | a datum stacked with a regularising group kept the solve's covariance | FIXED: the datum test per declared prior group (`CommonPrior.group`) | #138 | 49a27ec | 6.11.0 |
+| 120 | the Ljung-Box K = 20 not tied to the Grid | MEASURED, KEPT (user decision): a larger K loses short-lag power; the long-lag blind spot stated in Manual 7.7 | #139 | 99e3dff | -- |
+| 121 | snoop's dense re-solve; diagnose's two sweeps | the first STALE (block-arrow since 6.4.0), the second FIXED: one read per batch | #140 | 2a85acf | 6.11.1 |
+
+**Stated, not residues.** A prior group only PARTLY in the null space is information (its x
+moves with its sigma) and keeps the solve's covariance -- the rule, in Manual 3 section 0a.
+On the normal backend at a datum sigma of 1e6 the solve's own cofactor carries cond ~1e12
+(§12.49); the QR backend (the default) is exact there.
+
+**What the next session could be wrong for not reading.** The last subsection of §12 is
+this closure, not a round in progress: nothing is open on `main` until the user opens a WP
+or a new review.
