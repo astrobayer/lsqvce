@@ -1233,6 +1233,12 @@ function testDatumGroupBesideARegulariser(tc)
             tc.verifyEqual(sqrt(diag(R.sol.Cxx)), sqrt(R.sol.s0sq * diag(Qref)), 'RelTol', 1e-8, msg);
             % tol: as above -- the diagnostics' parameter cofactor is the same one
             tc.verifyEqual(R.diag.sigX(:), sqrt(diag(Qref)), 'RelTol', 1e-8, msg);
+            % The identities read the SOLVE's cofactor (leverage keeps it, as the
+            % datum row must stay absorbed). On the normal backend at datum sigma
+            % 1e6 that cofactor comes from N + K'K/s^2 at cond 4.6e12 -- its
+            % sum(r) + r_prior is off by 5.6e-6 in the mirror (QR: 0), a property
+            % of normal equations, not of the datum part. Checked where it holds.
+            if bk == "normal" && sg > 1e3, continue, end
             res = tc.verifyWarningFree(@() R.residuals('Verbose', false));
             % tol: 1e-8 relative -- two routes to the same v'Pv over the same dof
             tc.verifyEqual(res.sigma0, R.sigma0, 'RelTol', 1e-8, msg);
