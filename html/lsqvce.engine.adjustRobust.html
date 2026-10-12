@@ -67,6 +67,9 @@ with R.history(end).keys naming the (sys, obsType, day, arc) rows.</pre>
 days     1xD double          the calendar</pre>
 <h3>Name-Value</h3>
 <pre class="example">&#x27;Backend&#x27;    &quot;qr&quot; | &quot;normal&quot;                          default &quot;qr&quot;
+&#x27;PsdMode&#x27;    &quot;toeplitz&quot; | &quot;ar&quot; | &quot;arma&quot; | &quot;&quot;           how a declared &#x27;psd&#x27;
+             law whitens (default &quot;&quot;: the covariance model&#x27;s AR(30));
+             LSQVCE.FIT passes Options.Noise.Whitener
 &#x27;Influence&#x27;  &quot;huber&quot; | &quot;igg3&quot; | &quot;bisquare&quot;            default &quot;huber&quot;
 &#x27;Tuning&#x27;     [] | constants of the influence          default [] (its default)
 &#x27;MaxIter&#x27;    passes (&gt;= 1)                            default 30
@@ -120,6 +123,9 @@ which the flat driver could not express.</pre>
 See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.KERNEL.ROBUSTWEIGHTS,
          LSQVCE.ENGINE.RESIDUALS, LSQVCE.FIT
 
+Updated 2026-10-12 (CEST, UTC+02:00), WP-125: &#x27;PsdMode&#x27; -- how a declared
+psd law whitens (fit passes Options.Noise.Whitener). With assistance from
+Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 4: the verdict comes
 from lsqvce.engine.verdict.fromAccumulator (diagnoseAccum + diagnose
 absorbed). With assistance from Claude (Anthropic), model Claude Opus

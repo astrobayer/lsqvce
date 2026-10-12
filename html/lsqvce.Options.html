@@ -117,7 +117,9 @@ GROUPS (structs; set fields one at a time or give a whole struct)
   Noise        Grid 60             spectral bins of the estimated law, 0 ..
                                    Nyquist (an integer &gt;= 2); exact at every
                                    lag for any Grid
-               Whitener &quot;toeplitz&quot;|&quot;ar&quot;|&quot;arma&quot;  how a PSD law whitens
+               Whitener &quot;toeplitz&quot;|&quot;ar&quot;|&quot;arma&quot;  how a PSD law whitens:
+                                                the estimated law and every
+                                                declared &#x27;psd&#x27; law
                Smooth 0                         moving average on the PSD
                FreezeRedundancy 1               components below it hold
                SkipThreshold 0.2                skip RATE that refuses the pass
@@ -156,6 +158,10 @@ lsqvce:Options:badTarget     engineArgs target is unknown</pre>
 
 See also LSQVCE.FIT, LSQVCE.RESULTS, the API reference, RELEASE_NOTES.md
 
+Updated 2026-10-12 (CEST, UTC+02:00), WP-125: Noise.Whitener also governs
+declared psd laws (engineArgs passes PsdMode to adjustBlock and
+adjustRobust). With assistance from Claude (Anthropic), model Claude Opus
+5.5.
 Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 3: Noise.Grid is the
 number of spectral bins of the positive-component law; the law is exact at
 every lag of every arc whatever the Grid. With assistance from Claude

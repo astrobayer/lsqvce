@@ -164,6 +164,24 @@ function testCovModelFilterMemoryIsReported(tc)
     tc.verifyEqual(infoD.filterMemory, 0);      % white noise needs no overlap
 end
 
+function testCovModelMaPartExtendsTheFilterMemory(tc)
+% categories: contract, precision
+% WP-125: with an MA part the whitener 1/B(z) is IIR; the reported memory is
+% p plus the samples after which its impulse response is below eps of its
+% peak, and a non-invertible MA part is refused by name.
+    t  = (0:999).'*5;
+    b  = [1 0.8];
+    cm = struct('type','arma', 'ar',[1 -0.5], 'ma',b, 'sigma',0.7);
+    [~, ~, info] = lsqvce.engine.covModel(cm, t, struct());
+    N  = info.filterMemory - 1;                 % p = 1
+    tc.verifyGreaterThan(N, 1, 'the MA part adds to the AR order');
+    h  = filter(1, b, [1; zeros(N - 1, 1)]);
+    % tol: the definition of the memory -- the tail of 1/B(z) below eps of its peak
+    tc.verifyLessThanOrEqual(abs(h(N)), eps * max(abs(h)));
+    tc.verifyError(@() lsqvce.engine.covModel(setfield(cm, 'ma', [1 1.2]), t, struct()), ...
+        'lsqvce:covModel:maNotInvertible');                         %#ok<SFLD>
+end
+
 %% ============================================ input validation: accumulator
 function testAccumulatorRejectsBadConstruction(tc)
 % categories: contract

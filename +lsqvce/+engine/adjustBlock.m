@@ -44,6 +44,10 @@ function R = adjustBlock(systems, days, opt)
 %     casings still match, MATLAB NV semantics; enum VALUES are
 %     case-sensitive lowercase):
 %       'Backend'    string 1x1  "qr" | "normal"                (default "qr")
+%       'PsdMode'    string 1x1  "toeplitz" | "ar" | "arma": how a declared
+%                                'psd' law whitens (default "": the
+%                                covariance model's own default, AR(30));
+%                                LSQVCE.FIT passes Options.Noise.Whitener
 %       'Reg'        string 1x1  "none"|"tikhonov"|"tsvd"|"lm"|"auto"
 %                                                               (default "none")
 %       'RegLambda'  double 1x1 >= 0  regularisation weight     (default 0)
@@ -95,6 +99,9 @@ function R = adjustBlock(systems, days, opt)
 %            LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.VERDICT.SOURCE, LSQVCE.ENGINE.VERDICT.DIAGNOSE,
 %            LSQVCE.REPORT, LSQVCE.RESULTS
 %
+%   Updated 2026-10-12 (CEST, UTC+02:00), WP-125: 'PsdMode' -- how a declared
+%   psd law whitens (fit passes Options.Noise.Whitener). With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 4: the verdict comes
 %   from lsqvce.engine.verdict.fromAccumulator (diagnoseAccum + diagnose
 %   absorbed). With assistance from Claude (Anthropic), model Claude Opus
@@ -129,6 +136,7 @@ arguments
     systems
     days
     opt.Backend  (1,1) string {mustBeMember(opt.Backend, ["normal","qr"])} = "qr"
+    opt.PsdMode  (1,1) string {mustBeMember(opt.PsdMode, ["","toeplitz","ar","arma"])} = ""
     opt.Reg      (1,1) string {mustBeMember(opt.Reg, ["none","tikhonov","tsvd","lm","auto"])} = "none"
     opt.RegLambda (1,1) double {mustBeNonnegative} = 0
     opt.RegMatrix double = []
@@ -172,7 +180,7 @@ end
               'Verbose',o.verbose, 'Reg',o.reg, 'RegLambda',o.regLambda, ...
               'RegMatrix',o.regMatrix, 'Parallel',o.parallel, ...
               'DistributeDays',o.distributeDays, ...
-              'ParallelThreshold',o.parallelThreshold);
+              'ParallelThreshold',o.parallelThreshold, 'UserOpt', psdUserOpt(opt.PsdMode));
     acc.setPrior(opt.Prior);
     acc.addSystems(specs);
     sol = acc.solve();
@@ -192,3 +200,11 @@ end
 end
 
 %==========================================================================
+
+%==========================================================================
+function uo = psdUserOpt(md)
+%PSDUSEROPT  The loader UserOpt that carries the psd whitening route (WP-125):
+%   struct() when md is empty (the covariance model's own default).
+    uo = struct();
+    if strlength(md) > 0, uo.psdMode = char(md); end
+end

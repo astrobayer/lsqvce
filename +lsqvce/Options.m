@@ -75,7 +75,9 @@ classdef Options
 %     Noise        Grid 60             spectral bins of the estimated law, 0 ..
 %                                      Nyquist (an integer >= 2); exact at every
 %                                      lag for any Grid
-%                  Whitener "toeplitz"|"ar"|"arma"  how a PSD law whitens
+%                  Whitener "toeplitz"|"ar"|"arma"  how a PSD law whitens:
+%                                                   the estimated law and every
+%                                                   declared 'psd' law
 %                  Smooth 0                         moving average on the PSD
 %                  FreezeRedundancy 1               components below it hold
 %                  SkipThreshold 0.2                skip RATE that refuses the pass
@@ -116,6 +118,10 @@ classdef Options
 %
 %   See also LSQVCE.FIT, LSQVCE.RESULTS, the API reference, RELEASE_NOTES.md
 %
+%   Updated 2026-10-12 (CEST, UTC+02:00), WP-125: Noise.Whitener also governs
+%   declared psd laws (engineArgs passes PsdMode to adjustBlock and
+%   adjustRobust). With assistance from Claude (Anthropic), model Claude Opus
+%   5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 3: Noise.Grid is the
 %   number of spectral bins of the positive-component law; the law is exact at
 %   every lag of every arc whatever the Grid. With assistance from Claude
@@ -238,7 +244,7 @@ classdef Options
                    'ParallelThreshold', P.Threshold};
             switch target
                 case 'adjustBlock'
-                    args.nv = [{'Backend', obj.Backend}, par, ...
+                    args.nv = [{'Backend', obj.Backend, 'PsdMode', lower(string(N.Whitener))}, par, ...
                                {'Verbose', logical(obj.Verbose), 'Diagnostics', obj.diagnoseNV()}];
                 case 'adjustNonlinear'
                     args.nv = [{'MaxIter', obj.MaxPasses, 'TolX', obj.Tolerance, ...
@@ -246,7 +252,8 @@ classdef Options
                                'Backend', obj.Backend}, par, {'Verbose', logical(obj.Verbose), 'Diagnostics', obj.diagnoseNV(), ...
                                'OnPass', obj.OnPass}];
                 case 'adjustRobust'
-                    args.nv = [{'Backend', obj.Backend, 'Influence', obj.Robust, ...
+                    args.nv = [{'Backend', obj.Backend, 'PsdMode', lower(string(N.Whitener)), ...
+                               'Influence', obj.Robust, ...
                                'Tuning', obj.RobustOpts.Tuning, 'MaxIter', obj.RobustOpts.MaxIter, ...
                                'Tol', obj.RobustOpts.Tol}, par, {'Verbose', logical(obj.Verbose), 'Diagnostics', obj.diagnoseNV(), ...
                                'OnPass', obj.OnPass}];

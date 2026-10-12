@@ -121,6 +121,12 @@ classdef Results < handle
 %   See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.REPORT,
 %            LSQVCE.ENGINE.VERDICT, LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-10-12 (CEST, UTC+02:00), WP-125: report() counts the passes of
+%   IRLS / Gauss-Newton from the pass record and names the loop; convergence()
+%   states what maxSigmaOffset is and adds the stop-rule columns maxDev and
+%   levelDev; summary() says arOrder is NaN for the joint estimator;
+%   contribution() help corrected. With assistance from Claude (Anthropic),
+%   model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 3: noise.S /
 %   noise.Sgroups (the bin spectrum) replace noise.Shat; plot("psd") draws the
 %   bins themselves. With assistance from Claude (Anthropic), model Claude
@@ -226,11 +232,24 @@ classdef Results < handle
         %   2026-10-10 with assistance from Claude (Anthropic), model Claude
         %   Opus 5.5).
             nPass = 1;                       % a single solve is one pass
-            if ~isempty(obj.history) && isfield(obj.history, 'nIter')
-                nPass = obj.history.nIter;
+            what = 'stochastic model';       % the noise loop (adjustVCEjoint)
+            h = obj.history;
+            if ~isempty(h) && isfield(h, 'nIter')
+                nPass = h.nIter;
+            elseif ~isempty(h)
+                % WP-125: the stand-alone IRLS and Gauss-Newton keep ONE record
+                % per pass (a struct array) and no nIter -- count the records,
+                % and name the loop that actually iterated
+                nPass = numel(h);
+                if isfield(h, 'pass'), nPass = max([h.pass]); end   % GN records rejected steps too
+                if isfield(h, 'lambda') || isfield(h, 'vPv')
+                    what = 'Gauss-Newton iteration';
+                else
+                    what = 'robust re-weighting';
+                end
             end
             it = struct('converged', obj.converged, 'stopReason', obj.stopReason, ...
-                        'nIter', nPass, 'influence', '');
+                        'nIter', nPass, 'influence', '', 'what', what);
             % R7-18: a robust fit says so -- adjustRobust records the influence
             % in R.noise.influence, the joint loop's robust pass in R.noise.robust
             if isstruct(obj.noise) && isfield(obj.noise, 'influence')
@@ -543,13 +562,11 @@ classdef Results < handle
         %   con = R.contribution('Level', 2)       + diag(N^-1 N_g^cc) per parameter
         %   con = R.contribution(Name, Value, ...) see LSQVCE.ENGINE.CONTRIBUTION
         %
-        %   WHY THIS EXISTS. The Level-1 share is already computed every outer
-        %   pass and stored in R.history.contribution, because it is free (it
-        %   reuses the redundancy numbers VCE returns). LEVEL 2 IS NOT FREE: it
-        %   costs one extra streamed data sweep with Hutchinson probes, so it is
-        %   deliberately NOT run automatically at convergence -- most runs do not
-        %   want to pay for it. This method is how you ask for it, without having
-        %   to reach into R.acc and R.sol yourself.
+        %   WHY THIS EXISTS. Both levels cost a sweep over the data (Level 1
+        %   the exact one of the redundancy pass, Level 2 one more with
+        %   Hutchinson probes), so neither runs automatically at convergence.
+        %   This method is how you ask for them, without having to reach into
+        %   R.acc and R.sol yourself.
         %
         %   INPUT   varargin  Name/Value pairs passed through to
         %                     LSQVCE.ENGINE.CONTRIBUTION ('Probes',
@@ -597,7 +614,7 @@ classdef Results < handle
         %   converge.
         %
         %   T = R.convergence('Plot', true) also draws two stacked panels:
-        %   max|sigma_g^2 - 1| per pass (the variance-factor criterion) and the
+        %   max|sigma - 1| per pass (the stream levels) and the
         %   per-stream Ljung-Box whiteness p-value per pass (the whiteness
         %   criterion), with the WhiteAlpha threshold marked. Returns [T, fh]
         %   with the figure handle.
@@ -609,9 +626,14 @@ classdef Results < handle
         %
         %   OUTPUT
         %     T   table  one row per iteration, with columns:
-        %                pass, maxSigmaOffset (max_g |sigma_g^2-1|), nWhite
-        %                (streams declared white), minWhitePval (worst stream this
-        %                pass), converged (logical, only the last row can be true).
+        %                pass, maxSigmaOffset (max over streams of |sigma - 1|:
+        %                how far the stream levels sit from their declaration --
+        %                a reading, not the stop rule), nWhite (streams declared
+        %                white), minWhitePval (worst stream this pass), converged
+        %                (logical, only the last row can be true), and the two
+        %                quantities the STOP RULE compares with Tolerance: maxDev
+        %                (max |alpha^2 - 1| over the spectral bins) and levelDev
+        %                (max relative change of an arc's variance factor).
         %
         %   ERRORS
         %     lsqvce:Results:noHistory   this Results carries no iteration
@@ -658,8 +680,9 @@ classdef Results < handle
             if isfield(h, 'converged'), conv(end) = logical(h.converged); end
 
             T = table((1:nPass).', maxOff(:), nWhite(:), minP(:), conv(:), ...
+                      perPass(h, 'maxDev', nPass), perPass(h, 'levelDev', nPass), ...
                 'VariableNames', {'pass','maxSigmaOffset','nWhite', ...
-                                  'minWhitePval','converged'});
+                                  'minWhitePval','converged','maxDev','levelDev'});
 
             if o.plot
                 fh = lsqvce.Results.plotConvergence(h, char(o.stream));
@@ -686,7 +709,9 @@ classdef Results < handle
         %     T   table  one row per stream, with columns:
         %                stream   string   'satKey|obsType'
         %                sigma    double   final variance factor (want ~1)
-        %                arOrder  double   fitted AR order (0 = white)
+        %                arOrder  double   fitted AR order (0 = white); NaN for
+        %                                  the joint estimator, whose law is a
+        %                                  spectrum (R.noise.Sgroups)
         %                white    logical  residuals declared white
         %                pValue   double   final Ljung-Box p (NaN if not recorded)
         %
@@ -896,6 +921,25 @@ function v = finalRow(h, field, nS)
     M = h.(field);
     if size(M, 2) ~= nS, return; end
     v = double(M(end, :));
+end
+
+function v = perPass(h, field, nPass)
+%PERPASS  A per-pass scalar history field as an nPass x 1 column, NaN-padded.
+%   WP-125: convergence() reports the two quantities of the stop rule (maxDev,
+%   levelDev). A history that lacks one, or records fewer passes, yields NaN
+%   rows instead of an error -- convergence() is a diagnostic.
+%
+%   INPUT
+%     h      1x1  struct  the iteration history
+%     field  1xk  char    field name (nPass x 1)
+%     nPass  1x1  double  the number of passes
+%   OUTPUT
+%     v      nPass x 1 double
+    v = nan(nPass, 1);
+    if ~isfield(h, field) || isempty(h.(field)), return; end
+    x = double(h.(field)(:));
+    k = min(numel(x), nPass);
+    v(1:k) = x(1:k);
 end
 
 function s = tern(c, a, b)

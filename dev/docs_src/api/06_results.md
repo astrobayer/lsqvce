@@ -26,11 +26,11 @@ the map.
 |---|---|
 | `R.report()` | the verdict and its evidence, levels 0 to 4 (`lsqvce.report`) |
 | `R.summary()` | one row per stream: final σ, law, whiteness (iterative runs) |
-| `R.convergence()` | one row per pass: when the loop settled (iterative runs) |
+| `R.convergence()` | one row per pass: the stream levels, whiteness and the stop-rule quantities `maxDev`, `levelDev` (iterative runs) |
 | `R.coefficients(Alpha=a)` | estimates with formal errors and (1 − a) confidence bounds |
 | `R.toTable(data)` | your parameter tables with estimate and standard deviation written in |
 | `R.residuals(...)` | whitened (and raw) residuals per stream, re-read from the arcs |
-| `R.contribution(...)` | the information share of every stream in the common parameters |
+| `R.contribution(...)` | the share of every group in the common solution, t_g = tr(N⁻¹N_g) (Level 2: per parameter) |
 | `R.redundancy()` | the total redundancy n − u |
 | `R.reliability()` | per observation: r, w, the minimal detectable bias and its quadrant |
 | `R.systematic(...)` | unmodelled signal in the residuals: Ljung–Box, runs, binned means |

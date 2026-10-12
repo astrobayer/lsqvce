@@ -72,7 +72,8 @@ LEVELS
                    release, and creation time. R.report() forwards it
                    automatically; a bare lsqvce.report(D) prints none.
   &#x27;Iteration&#x27;  struct()  the loop state of an ITERATIVE run:
-                   .converged, .stopReason, .nIter. When non-empty and the
+                   .converged, .stopReason, .nIter and optionally .what
+                   (the loop&#x27;s name; default &#x27;stochastic model&#x27;). When non-empty and the
                    run was not a single solve, ONE level-1 line says
                    whether the stochastic model settled -- &#x27;NOISE_SETTLED&#x27;
                    (NOTE) or &#x27;NOISE_UNSETTLED&#x27; (WARN). Every number from
@@ -106,6 +107,11 @@ varargin  Name/Value: &#x27;verbose&#x27;, &#x27;width&#x27;, &#x27;alpha&#x27;,
 
 See also LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SYSTEMATIC.
 
+Updated 2026-10-12 (CEST, UTC+02:00), WP-125: the contamination cross-check
+runs whatever the Bonferroni setting; the PASS text claims only what
+REL_EXTERNAL measures; the remedies name Backend = &quot;qr&quot;; Iteration.what
+names the loop that iterated. With assistance from Claude (Anthropic), model
+Claude Opus 5.5.
 Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
 typed `arguments` signature, canonical UpperCamelCase option names
 (legacy casings keep matching -- MATLAB NV semantics; enum VALUES

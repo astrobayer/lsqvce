@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.12.2 — API Reference"
+title: "lsqvce 6.13.0 — API Reference"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 
@@ -269,14 +269,14 @@ as C = D (R_t ⊗ I_d) D. Full reference: `doc lsqvce.engine.covModel`.
 
 ## Laws
 
-| `type` | fields | describes | whitening cost per batch of b rows |
+| `type` | fields | describes | whitening cost (b rows per batch, m per arc) |
 |---|---|---|---|
 | `'diag'` | `sigma` (scalar, or a vector of per-row standard deviations) | white noise | O(b) |
 | `'arma'` | `ar` = `[1 a₁ … a_p]`, `ma` (default 1), `sigma` (innovation std) | a known whitening filter | O(b·p) |
-| `'psd'` | `f` (n_f×1, Hz, one-sided), `S` (n_f×1, unit²/Hz) | a measured noise spectrum | O(b·p) (AR filter) |
-| `'acf'` | `acf = @(dt, opt)`, `sigma` | correlation as a function of the lag | O(b³) |
+| `'psd'` | `f` (n_f×1, Hz, one-sided), `S` (n_f×1, unit²/Hz) | a measured noise spectrum | O(m³) per arc (Toeplitz) or O(b·p) (AR filter) |
+| `'acf'` | `acf = @(dt, opt)`, `sigma` | correlation as a function of the lag | O(m³) per arc |
 | `'var'` | `ar` (d×d×p), `sigma` (d×d) | vector AR: cross-axis temporal correlation (no `Cep`) | O(b·p·d²) |
-| `'custom'` | `fcn = @(t, opt)` | any dense covariance | O(b³) |
+| `'custom'` | `fcn = @(t, opt)` | any dense covariance | O(m³) per arc |
 
 `sigma` is always a **standard deviation**, never a variance.
 
@@ -297,14 +297,16 @@ keeps its own level.
 
 ## How a law is whitened
 
-- A declared `psd` law is whitened by an AR(30) filter fitted to its autocovariance;
-  `Noise.Whitener` selects the route of the law the joint estimator estimates
-  (`"toeplitz"`, `"ar"`, `"arma"`). Check an AR fit with `lsqvce.engine.checkPSD` (the
-  relative error of the reproduced autocovariance should be below 1e-3).
-- An arc is whitened in batches of up to 20 000 rows. Filter laws overlap consecutive
-  batches by their memory, so the result does not depend on the batching; dense laws
-  (`acf`, `custom`, Toeplitz) are factorised per batch, and the correlation between
-  batches of a longer arc is dropped.
+- `Options.Noise.Whitener` selects how every `psd` law whitens — the estimated law and
+  every declared one: `"toeplitz"` (default, exact), `"ar"` or `"arma"` (a fitted
+  filter). Check an AR fit with `lsqvce.engine.checkPSD` (the relative error of the
+  reproduced autocovariance should be below 1e-3).
+- Filter laws are applied in batches of up to 20 000 rows that overlap by the filter
+  memory (for an MA part, until the impulse response of 1/B(z) has decayed to rounding),
+  so the result does not depend on the batching. Dense laws (`acf`, `custom`, Toeplitz
+  `psd`) are factorised over the whole arc (exact; O(m³), m² memory).
+- An `arma` law whose MA polynomial has a root on or outside the unit circle is refused
+  (`lsqvce:covModel:maNotInvertible`).
 - Under `estimate = "law"` the declared law contributes only its `sigma` (the starting
   level): the shape is estimated from a white start.
 
@@ -372,7 +374,7 @@ is merged onto the defaults; an unknown field is refused
 | field | default | meaning |
 |---|---|---|
 | `Grid` | 60 | spectral bins of the estimated law between 0 and Nyquist (its resolution), an integer ≥ 2; the law is exact at every lag of every arc whatever the Grid |
-| `Whitener` | `"toeplitz"` | how a PSD law whitens an arc: exact Toeplitz Cholesky, or a fitted AR / ARMA filter (`"ar"`, `"arma"`) |
+| `Whitener` | `"toeplitz"` | how every `psd` law (the estimated one and the declared ones) whitens an arc: exact Toeplitz Cholesky over the whole arc, or a fitted AR / ARMA filter (`"ar"`, `"arma"`) |
 | `Smooth` | 0 | moving-average half-width on the estimated spectrum (0 = none) |
 | `FreezeRedundancy` | 1 | a bin whose redundancy is below this keeps its value instead of being updated |
 | `SkipThreshold` | 0.2 | the share of skipped arcs of a stream above which a pass is refused |
@@ -496,11 +498,11 @@ the map.
 |---|---|
 | `R.report()` | the verdict and its evidence, levels 0 to 4 (`lsqvce.report`) |
 | `R.summary()` | one row per stream: final σ, law, whiteness (iterative runs) |
-| `R.convergence()` | one row per pass: when the loop settled (iterative runs) |
+| `R.convergence()` | one row per pass: the stream levels, whiteness and the stop-rule quantities `maxDev`, `levelDev` (iterative runs) |
 | `R.coefficients(Alpha=a)` | estimates with formal errors and (1 − a) confidence bounds |
 | `R.toTable(data)` | your parameter tables with estimate and standard deviation written in |
 | `R.residuals(...)` | whitened (and raw) residuals per stream, re-read from the arcs |
-| `R.contribution(...)` | the information share of every stream in the common parameters |
+| `R.contribution(...)` | the share of every group in the common solution, t_g = tr(N⁻¹N_g) (Level 2: per parameter) |
 | `R.redundancy()` | the total redundancy n − u |
 | `R.reliability()` | per observation: r, w, the minimal detectable bias and its quadrant |
 | `R.systematic(...)` | unmodelled signal in the residuals: Ljung–Box, runs, binned means |
@@ -735,7 +737,9 @@ LSQVCE.OPTIONS  The one settings object for LSQVCE.FIT: 12 knobs and 5 groups.
     Noise        Grid 60             spectral bins of the estimated law, 0 ..
                                      Nyquist (an integer >= 2); exact at every
                                      lag for any Grid
-                 Whitener "toeplitz"|"ar"|"arma"  how a PSD law whitens
+                 Whitener "toeplitz"|"ar"|"arma"  how a PSD law whitens:
+                                                  the estimated law and every
+                                                  declared 'psd' law
                  Smooth 0                         moving average on the PSD
                  FreezeRedundancy 1               components below it hold
                  SkipThreshold 0.2                skip RATE that refuses the pass
@@ -943,7 +947,8 @@ LSQVCE.REPORT  Judge a least-squares adjustment and say so in words.
                      release, and creation time. R.report() forwards it
                      automatically; a bare lsqvce.report(D) prints none.
     'Iteration'  struct()  the loop state of an ITERATIVE run:
-                     .converged, .stopReason, .nIter. When non-empty and the
+                     .converged, .stopReason, .nIter and optionally .what
+                     (the loop's name; default 'stochastic model'). When non-empty and the
                      run was not a single solve, ONE level-1 line says
                      whether the stochastic model settled -- 'NOISE_SETTLED'
                      (NOTE) or 'NOISE_UNSETTLED' (WARN). Every number from
@@ -1214,6 +1219,7 @@ Every identifier the package raises (generated from the identifier catalogue, wh
 | `lsqvce:covModel:badWhitenMode` | engine.covModel | error | v4.0 |
 | `lsqvce:covModel:cepOnVar` | engine.covModel | error | v5.3 |
 | `lsqvce:covModel:degeneratePSD` | engine.covModel | error | v4.0 |
+| `lsqvce:covModel:maNotInvertible` | engine.covModel | error | v6.13.0 |
 | `lsqvce:covModel:negativePSD` | engine.covModel | warning | v4.0 |
 | `lsqvce:covModel:noACF` | engine.covModel | error | v4.0 |
 | `lsqvce:covModel:noAR` | engine.covModel | error | v4.0 |

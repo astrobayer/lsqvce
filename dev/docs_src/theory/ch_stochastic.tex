@@ -41,10 +41,10 @@ covariance of any size.
 
 \section{Whitening an arc}\label{sec:whitening}
 
-\paragraph{Dense factor.} $\mat W=\mat L^{-1}$ with $\mat L\mat L\T=\mat\Sigma$, cost $O(m^3)$ per
-arc. Exact for any positive definite law. An arc is processed in batches of bounded length; a
-dense law is factorised per batch, so the correlation between batches of a longer arc is
-neglected.
+\paragraph{Dense factor.} $\mat W=\mat L^{-1}$ with $\mat L\mat L\T=\mat\Sigma$, cost $O(m^3)$ and
+memory $O(m^2)$ per arc. Exact for any positive definite law. The factor is formed over the whole
+arc: blocks of a dense factor cannot be joined by an overlap, because the conditional distribution
+given a finite past is not the conditional given the whole past.
 
 \paragraph{Autoregressive filter.} For an AR$(p)$ process with coefficients
 $\vc a=[1,a_1,\dots,a_p]$ and innovation standard deviation $s$, whitening is the FIR filter
@@ -55,7 +55,10 @@ cost $O(mp)$, with no covariance matrix formed. The first $p$ rows are replaced 
 stationary start $\mat L_p^{-1}\vc x_{1:p}$, $\mat L_p\mat L_p\T=\operatorname{toeplitz}(c_0,\dots,c_{p-1})$.
 The resulting operator is the inverse Cholesky factor of $\mat\Sigma$ itself: both are lower
 triangular square roots of $\mat\Sigma^{-1}$, which is unique up to sign. Consecutive batches
-overlap by the filter memory, so batching does not change the result. The AR coefficients of a
+overlap by the filter memory, so batching does not change the result. For an ARMA$(p,q)$ law the
+whitener $A(z)/B(z)$ is recursive; its memory is $p$ plus the number of samples $N$ after which
+the impulse response of $1/B(z)$ has decayed below the rounding level, $|h_N|\le\varepsilon\max|h|$
+(finite because $B(z)$ is required to have all roots inside the unit circle). The AR coefficients of a
 law given by its autocovariance follow from the Levinson--Durbin recursion (Yule--Walker); a
 high-order AR can be reduced to an ARMA. A spectrum with narrow features is represented better by
 the dense factor than by a low-order filter.

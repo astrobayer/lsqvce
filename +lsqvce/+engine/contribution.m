@@ -9,10 +9,12 @@ function con = contribution(acc, sol, opt)
 %   the defining property sum_g C_g = I. Two levels of detail:
 %
 %   LEVEL 1 -- the scalar SHARE (default, exact, cheap).
-%     share_g = tr(C_g) / u_red = r_g / sum_g r_g, the fraction of the effectively
-%     determined parameters attributable to group g. r_g is the EXACT per-group
-%     redundancy from LSQVCE.ENGINE.REDUNDANCY (r_g = sum_{i in g}(1 - h_i)); no probing,
-%     no approximation. The shares sum to 1.
+%     share_g = t_g / sum_g t_g with t_g = tr(C_g) = sum_{i in g} z_i' N^-1 z_i,
+%     the common part of the leverage of the group's rows (z_i the row reduced
+%     by the elimination of the locals): the fraction of the common solution
+%     attributable to group g. Exact, from the same sweep as the redundancy
+%     (LSQVCE.ENGINE.REDUNDANCY, field tcc); no probing. Over the data the
+%     t_g sum to nc, and the shares to 1.
 %
 %   LEVEL 2 -- the per-parameter DIAGONAL (opt-in, streamed, approximate).
 %     diag(C_g) = diag(N^-1 N_g^cc), one value per common parameter: the fraction
@@ -27,9 +29,7 @@ function con = contribution(acc, sol, opt)
 %     N and every N_g^cc depend on the whitening, so the contribution is
 %     WEIGHT-DEPENDENT and is only meaningful at the CONVERGED variance
 %     components. Call this AFTER the VCE loop has settled (on the final acc/sol),
-%     not per outer pass. In LSQVCE.ENGINE.ADJUSTVCEJOINT the Level-1 share is already tracked
-%     per pass in R.history.contribution; this function is the standalone /
-%     Level-2 door.
+%     not per outer pass.
 %
 %   INPUT
 %     acc   1x1 lsqvce.engine.BlockAccumulator   built with 'KeepLocal', true
@@ -52,14 +52,10 @@ function con = contribution(acc, sol, opt)
 %     con   1x1 struct with fields
 %       .group   1xG struct, in GroupBy order:
 %                  .key    the group key
-%                  .r      1x1     exact cc-attribution trace t_g = tr(N^-1 N_g^cc)
-%                                  (kept under the historical field name .r; it
-%                                  is NOT the redundancy -- WP-32, F-01:
-%                                  r_g = n_g - local_g - t_g)
-%                  .share  1x1     t_g / sum_g t_g  (Level-1 REDUNDANCY-trace
-%                                  share, sums to 1; contrast the Level-2
-%                                  absorbed-information DIAGONAL h_i, which
-%                                  attributes information per observation)
+%                  .t      1x1     exact common trace t_g = tr(N^-1 N_g^cc)
+%                  .r      1x1     the group's redundancy r_g = sum(1 - h_i)
+%                  .share  1x1     t_g / sum_g t_g (sums to 1); the Level-2
+%                                  diagonal of the same group sums to t_g
 %                  .diag   nc x 1  diag(N^-1 N_g^cc) (Level 2 only, else [])
 %                  .relSE  1x1     relative MC standard error of the streamed
 %                                  trace (Level 2 only, else NaN)
@@ -79,6 +75,9 @@ function con = contribution(acc, sol, opt)
 %   See also LSQVCE.ENGINE.STREAMCONTRIBUTION, LSQVCE.ENGINE.REDUNDANCY, LSQVCE.ENGINE.VCE,
 %            LSQVCE.RESULTS
 %
+%   Updated 2026-10-12 (CEST, UTC+02:00), WP-125: the Level-1 share is the
+%   common trace t_g = tr(inv(N) N_g^cc), not the redundancy. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) (F-07): typed
 %   `arguments` signature, canonical UpperCamelCase option names (legacy
 %   casings keep matching; enum VALUES case-sensitive lowercase). With
@@ -103,23 +102,29 @@ end
     % UpperCamelCase; NAME matching case-insensitive per MATLAB semantics).
     o = opt;
 
-    % ---- Level 1: exact per-group cc-trace share -------------------------
+    % ---- Level 1: exact per-group common-trace share ----------------------
     red = lsqvce.engine.redundancy(acc, sol, 'GroupBy', o.GroupBy, ...
                             'MinRedundancy', o.MinRedundancy, ...
                             'Collect', false, 'Verbose', logical(o.Verbose));
     rKeys = {red.group.key};
     rVals = [red.group.r];
     rTot  = red.rTotal;
-    if rTot > 0
-        shares = rVals / rTot;
+    % WP-125: the share is the COMMON TRACE t_g (what the group determines),
+    % not the redundancy r_g (what it leaves undetermined) -- the two are
+    % nearly complementary, so the redundancy share ranked the groups upside
+    % down on the information they carry
+    tVals = [red.group.tcc];
+    tTot  = sum(tVals);
+    if tTot > 0
+        shares = tVals / tTot;
     else
-        shares = nan(size(rVals));
+        shares = nan(size(tVals));
     end
 
-    G = struct('key', {}, 'r', {}, 'share', {}, 'diag', {}, 'relSE', {});
+    G = struct('key', {}, 't', {}, 'r', {}, 'share', {}, 'diag', {}, 'relSE', {});
     for k = 1:numel(rKeys)
-        G(k) = struct('key', rKeys{k}, 'r', rVals(k), 'share', shares(k), ...
-                      'diag', [], 'relSE', NaN); %#ok<AGROW>
+        G(k) = struct('key', rKeys{k}, 't', tVals(k), 'r', rVals(k), ...
+                      'share', shares(k), 'diag', [], 'relSE', NaN); %#ok<AGROW>
     end
 
     ncOut = [];

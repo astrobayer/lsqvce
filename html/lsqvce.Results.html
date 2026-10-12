@@ -161,6 +161,12 @@ lsqvce:Results:noPerObservation reliability() on a fit whose diagnostics
 See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.REPORT,
          LSQVCE.ENGINE.VERDICT, LSQVCE.ENGINE.BLOCKACCUMULATOR
 
+Updated 2026-10-12 (CEST, UTC+02:00), WP-125: report() counts the passes of
+IRLS / Gauss-Newton from the pass record and names the loop; convergence()
+states what maxSigmaOffset is and adds the stop-rule columns maxDev and
+levelDev; summary() says arOrder is NaN for the joint estimator;
+contribution() help corrected. With assistance from Claude (Anthropic),
+model Claude Opus 5.5.
 Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 3: noise.S /
 noise.Sgroups (the bin spectrum) replace noise.Shat; plot(&quot;psd&quot;) draws the
 bins themselves. With assistance from Claude (Anthropic), model Claude

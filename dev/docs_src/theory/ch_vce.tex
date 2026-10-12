@@ -147,7 +147,13 @@ $\gamma_m^2=\alpha_m^2\sigma_m^2$ (Ellmer 6.5.28). The factors are \emph{absolut
 solve, so $\sigma_m^2$ is the arc's variance relative to its declaration and $\hat\sigma_0$ settles
 near one. A factor is clamped below at $10^{-8}\bar\gamma^2$, with $\bar\gamma^2$ the mean of the
 central half of the stream's factors, so that no arc is silenced without a test having rejected it.
-A stream without arc factors carries one level, the mean of its arcs' Helmert factors.
+A stream without arc factors carries one level, the pooled Helmert factor of all its arcs,
+\begin{equation}\label{eq:pooledlevel}
+\sigma_s^2\leftarrow\sigma_s^2\,\frac{\sum_mq_m}{\sum_mt_m},
+\end{equation}
+the simplified estimator \eqref{eq:simplified} of the one component $\sigma_s^2$: it weights an arc
+by its redundancy, and with probe-estimated redundancies it avoids the bias of averaging ratios
+($\E[1/t]>1/\E[t]$).
 
 The standard deviation of an arc is therefore the product
 $\sigma_{\mathrm{decl},s}\cdot\sigma_m\cdot\hat\sigma_0$.

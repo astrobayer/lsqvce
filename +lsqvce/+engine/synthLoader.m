@@ -170,6 +170,10 @@ function out = synthLoader(cfg, sat, day, obsType, arcID, opt)
 
     [out.Cfcn, out.Wfcn, info] = lsqvce.engine.covModel(cm, out.t, opt);
     out.filterMemory = info.filterMemory;       % the accumulator reads this
+    if lsqvce.util.getfielddef(info, 'wholeArc', false)
+        out.wholeArc = true;                    % a dense law is whitened whole (WP-125)
+        out.filterMemory = numel(out.l);
+    end
 end
 
 %==========================================================================

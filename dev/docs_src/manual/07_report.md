@@ -188,7 +188,7 @@ Level 1 checks whether the functional and stochastic model are consistent overal
 
 | code | severity | meaning | action |
 |---|---|---|---|
-| `NOISE_SETTLED` | NOTE | the loop met its stop rule | — |
+| `NOISE_SETTLED` | NOTE | the loop met its stop rule; the line names the loop (the stochastic model, the robust re-weighting or the Gauss–Newton iteration) and its number of passes | — |
 | `NOISE_UNSETTLED` | WARN | the loop stopped on `"maxPasses"` or `"userStop"` before it settled. Every number below rests on weights that were still moving | Treat the result as provisional. Raise `MaxPasses` or loosen `Tolerance` and run again. `R.convergence()` shows what was still changing (see "When the loop did not settle" below). |
 | `ROBUST_FIT` | NOTE | the run used a robust influence (`Robust = "huber"`, `"igg3"` or `"bisquare"`) | `sigma0` and the covariance belong to the **reweighted** problem. They are not an M-estimator's scale or sandwich covariance, so the global test and the parameter bounds are approximate in both directions. |
 
@@ -231,7 +231,7 @@ the share of residuals beyond 2.5 robust sigmas. On clean data `fhat` sits near
 `P(|Z| > 2.5) = 0.0124`. As a backstop it also prints `s0/sigma0`, which contamination
 cannot suppress but which is only as good as your declared sigma0.
 
-The cross-check appears only with `Bonferroni = true` and `RobustCheck = true`. Exactly
+The cross-check appears whenever `RobustCheck = true`, whatever the `Bonferroni` setting. Exactly
 one of these lines is printed:
 
 | code | severity | condition | action |
@@ -257,8 +257,8 @@ In addition:
   value `|w| > k` and the number of false alarms expected by chance (`Alpha` under
   Bonferroni).
 * `SNOOP_NOBONF` (WARN) replaces it when `Bonferroni = false`. It prints the uncorrected
-  level and roughly how many good observations will be flagged by chance. With Bonferroni
-  off, the contamination cross-check above is not printed either. Set `Bonferroni = true`.
+  level and roughly how many good observations will be flagged by chance. Set
+  `Bonferroni = true`.
 * `SNOOP_VACUOUS` (**ERROR**, Pope only) appears when the critical value exceeds the upper
   bound `sqrt(r)` of Pope's statistic. No residual can ever be flagged, so an empty list is
   guaranteed. Accept a weaker `Alpha` or a weaker family-wise correction, or accept that
@@ -410,7 +410,8 @@ The loop stops when two conditions hold: `max|α² − 1|` over frequencies and 
 the largest relative change of an arc factor, are both ≤ `Tolerance`. Each pass records
 these two numbers in `R.history.maxDev` and `R.history.levelDev`. `R.convergence()` gives
 one row per pass with `pass`, `maxSigmaOffset` (the largest `|sigma − 1|` of the
-per-stream level factors), `nWhite`, `minWhitePval` and `converged`.
+per-stream level factors: a reading, not the stop rule), `nWhite`, `minWhitePval`,
+`converged`, and the two stop-rule quantities `maxDev` and `levelDev`.
 `R.convergence(Plot=true)` and `R.plot("convergence")` draw the same record.
 
 With `stopReason = "maxPasses"`:

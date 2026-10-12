@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.12.2 — User Manual</title>
+  <title>lsqvce 6.13.0 — User Manual</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.12.2 — User Manual</h1>
+<h1 class="title">lsqvce 6.13.0 — User Manual</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 </header>
@@ -939,14 +939,15 @@ knows about each observation</td>
 </tr>
 </tbody>
 </table>
-<p>The toolbox combines them per arc. An arc is whitened in batches of
-up to 20 000 rows. For a filter law (<code>diag</code>,
-<code>arma</code>, an AR-whitened <code>psd</code>, <code>var</code>)
-consecutive batches overlap by the memory of the filter, so batching
-does not change the result. A dense law (<code>acf</code>,
-<code>custom</code>, a <code>psd</code> whitened as Toeplitz) is
-factorised per batch: on an arc longer than one batch the correlation
-between batches is dropped — cut such arcs, or use a filter law.</p>
+<p>The toolbox combines them per arc. A filter law (<code>diag</code>,
+<code>arma</code>, an AR-whitened <code>psd</code>, <code>var</code>) is
+applied in batches of up to 20 000 rows that overlap by the memory of
+the filter (for an <code>arma</code> law with an MA part, until its
+impulse response has decayed to rounding), so the batching does not
+change the result. A dense law (<code>acf</code>, <code>custom</code>, a
+<code>psd</code> whitened as Toeplitz) is factorised over the whole arc:
+exact, at a cost of O(m³) and m² memory for an arc of m rows — for arcs
+of many thousand epochs prefer a filter law.</p>
 <h2 data-number="5.2" id="what-to-declare"><span
 class="header-section-number">5.2</span> What to declare</h2>
 <ul>
@@ -1013,9 +1014,10 @@ narrow spectral features but give each bin less redundancy per pass</td>
 </tr>
 <tr class="even">
 <td><code>Noise.Whitener</code></td>
-<td><code>"ar"</code> for long arcs (cost O(b·p) instead of O(b³));
-<code>"toeplitz"</code> when the spectrum has narrow features a
-low-order filter cannot follow</td>
+<td>how every <code>psd</code> law — the estimated one and any you
+declare — whitens an arc: <code>"ar"</code> for long arcs (cost O(m·p)
+instead of O(m³)); <code>"toeplitz"</code> (the default, exact) when the
+spectrum has narrow features a low-order filter cannot follow</td>
 </tr>
 <tr class="odd">
 <td><code>Probes</code>, <code>Seed</code></td>
@@ -1680,7 +1682,9 @@ lines comes first:</p>
 <tr class="odd">
 <td><code>NOISE_SETTLED</code></td>
 <td>NOTE</td>
-<td>the loop met its stop rule</td>
+<td>the loop met its stop rule; the line names the loop (the stochastic
+model, the robust re-weighting or the Gauss–Newton iteration) and its
+number of passes</td>
 <td>—</td>
 </tr>
 <tr class="even">
@@ -1801,9 +1805,9 @@ share of residuals beyond 2.5 robust sigmas. On clean data
 <code>fhat</code> sits near <code>P(|Z| &gt; 2.5) = 0.0124</code>. As a
 backstop it also prints <code>s0/sigma0</code>, which contamination
 cannot suppress but which is only as good as your declared sigma0.</p>
-<p>The cross-check appears only with <code>Bonferroni = true</code> and
-<code>RobustCheck = true</code>. Exactly one of these lines is
-printed:</p>
+<p>The cross-check appears whenever <code>RobustCheck = true</code>,
+whatever the <code>Bonferroni</code> setting. Exactly one of these lines
+is printed:</p>
 <table>
 <colgroup>
 <col style="width: 25%" />
@@ -1894,9 +1898,8 @@ the corrected level, <code>n</code>, the critical value
 chance (<code>Alpha</code> under Bonferroni).</li>
 <li><code>SNOOP_NOBONF</code> (WARN) replaces it when
 <code>Bonferroni = false</code>. It prints the uncorrected level and
-roughly how many good observations will be flagged by chance. With
-Bonferroni off, the contamination cross-check above is not printed
-either. Set <code>Bonferroni = true</code>.</li>
+roughly how many good observations will be flagged by chance. Set
+<code>Bonferroni = true</code>.</li>
 <li><code>SNOOP_VACUOUS</code> (<strong>ERROR</strong>, Pope only)
 appears when the critical value exceeds the upper bound
 <code>sqrt(r)</code> of Pope’s statistic. No residual can ever be
@@ -2216,9 +2219,11 @@ factor, are both ≤ <code>Tolerance</code>. Each pass records these two
 numbers in <code>R.history.maxDev</code> and
 <code>R.history.levelDev</code>. <code>R.convergence()</code> gives one
 row per pass with <code>pass</code>, <code>maxSigmaOffset</code> (the
-largest <code>|sigma − 1|</code> of the per-stream level factors),
-<code>nWhite</code>, <code>minWhitePval</code> and
-<code>converged</code>. <code>R.convergence(Plot=true)</code> and
+largest <code>|sigma − 1|</code> of the per-stream level factors: a
+reading, not the stop rule), <code>nWhite</code>,
+<code>minWhitePval</code>, <code>converged</code>, and the two stop-rule
+quantities <code>maxDev</code> and <code>levelDev</code>.
+<code>R.convergence(Plot=true)</code> and
 <code>R.plot("convergence")</code> draw the same record.</p>
 <p>With <code>stopReason = "maxPasses"</code>:</p>
 <ul>
@@ -3816,8 +3821,8 @@ class="header-section-number">10.2</span> Time</h2>
 <tr class="odd">
 <td><code>Noise.Whitener = "ar"</code></td>
 <td>whitens a long arc in O(m·p) instead of the O(m³) of the dense
-Toeplitz factor; check the AR fit once with
-<code>lsqvce.engine.checkPSD</code></td>
+Toeplitz factor, which is formed over the whole arc (m² memory); check
+the AR fit once with <code>lsqvce.engine.checkPSD</code></td>
 </tr>
 <tr class="even">
 <td><code>Probes</code></td>

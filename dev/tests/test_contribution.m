@@ -128,11 +128,33 @@ function test_contribution_level1_shares_sum_to_one(tc)
     verifyEqual(tc, sum(shares), 1, 'AbsTol', 1e-10, ...
         'Level-1 shares must sum to 1');
     verifyTrue(tc, all(shares >= 0 & shares <= 1), 'shares in [0,1]');
-    % share must equal r_g / rTotal exactly (it is the exact redundancy path)
+    % WP-125: the share is the common trace t_g, not the redundancy r_g
+    t = [con.group.t];
     % tol: exact-path identity (same numbers recombined); house round-trip bound 1e-12/1e-10 (HANDOVER 6.1.2)
-    verifyEqual(tc, shares, [con.group.r] ./ con.rTotal, 'AbsTol', 1e-12);
+    verifyEqual(tc, shares, t ./ sum(t), 'AbsTol', 1e-12);
     % Level 1 leaves the diagonal empty
     verifyEmpty(tc, con.group(1).diag);
+end
+
+function test_contribution_level1_trace_is_exact(tc)
+% categories: precision, reference
+    % WP-125: sum_g t_g = tr(N^-1 N) = nc EXACTLY (no prior in this fixture),
+    % and every t_g agrees with the streamed Hutchinson trace of the same
+    % group (a different route, LSQVCE.ENGINE.STREAMCONTRIBUTION).
+    [acc, sol, cfg] = solvedProblem(tc);
+    con = lsqvce.engine.contribution(acc, sol, 'Level', 1);
+    t = [con.group.t];
+    % tol: exact identity summed over all rows; rounding of nc triangular solves, 1e-9 relative
+    verifyEqual(tc, sum(t), cfg.nc, 'RelTol', 1e-9, 'the common traces partition nc');
+    ref = lsqvce.engine.streamContribution(acc, sol, ...
+                                    'Probes', 4000, 'Seed', 11, 'WantDiag', false);
+    [tf, loc] = ismember(cellstr(string({con.group.key})), cellstr(string({ref.group.key})));
+    verifyTrue(tc, all(tf), 'the same groups');
+    for k = 1:numel(t)
+        % tol: Monte-Carlo probe noise of the reference, 6 se or 5 %, as in test_stream_trace_matches_reference
+        tol = max(6*max(ref.group(loc(k)).se, 1e-6), 0.05*abs(t(k)));
+        verifyEqual(tc, ref.group(loc(k)).trace, t(k), 'AbsTol', tol);
+    end
 end
 
 function test_contribution_level2_diagonal(tc)

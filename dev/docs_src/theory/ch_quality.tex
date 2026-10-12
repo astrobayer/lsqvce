@@ -96,10 +96,15 @@ price of pessimistic errors and down-weighted arcs.
 number of $\mat N$ is bounded from below by power iterations on $\mat N$ and $\mat Q_{xx}$; it is a lower
 bound.
 
-\paragraph{Contribution of an observation group.} The share of group $g$ in the solution is measured
-by its redundancy, $r_g/\sum_hr_h$; the per-parameter contribution
-$\bigl[\mat N^{-1}\mat N_g\bigr]_{jj}$, which sums to one over the groups, is estimated with random
-probes.
+\paragraph{Contribution of an observation group.} The share of group $g$ in the common solution is
+its trace
+\begin{equation}
+t_g=\tr\bigl(\mat N^{-1}\mat N_g\bigr)=\sum_{i\in g}\vc z_i\T\mat N^{-1}\vc z_i ,
+\end{equation}
+the common term of the leverage \eqref{eq:leverage} summed over the group's rows; the $t_g$ of the
+data sum to $n_c$. It is computed exactly in the redundancy sweep. The per-parameter contribution
+$\bigl[\mat N^{-1}\mat N_g\bigr]_{jj}$, which sums to one over the groups and to $t_g$ over the
+parameters, is estimated with random probes.
 
 \paragraph{Nested models.} A full model with $u_F$ parameters against a reduced one with $u_R<u_F$ on
 the same $n$ observations:
