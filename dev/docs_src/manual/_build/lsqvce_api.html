@@ -1,0 +1,4426 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>lsqvce 6.12.2 — API Reference</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="lsqvce_manual.css" />
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">lsqvce 6.12.2 — API Reference</h1>
+<p class="subtitle">least-squares adjustment with variance component
+estimation</p>
+</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#the-data-struct" id="toc-the-data-struct"><span
+class="toc-section-number">1</span> The <code>data</code> struct</a>
+<ul>
+<li><a href="#the-streaming-kind" id="toc-the-streaming-kind"><span
+class="toc-section-number">1.1</span> The streaming kind</a></li>
+<li><a href="#the-matrices-kind" id="toc-the-matrices-kind"><span
+class="toc-section-number">1.2</span> The matrices kind</a></li>
+<li><a href="#the-batched-kind" id="toc-the-batched-kind"><span
+class="toc-section-number">1.3</span> The batched kind</a></li>
+</ul></li>
+<li><a href="#buildday-the-function-you-write"
+id="toc-buildday-the-function-you-write"><span
+class="toc-section-number">2</span> <code>buildDay</code> — the function
+you write</a>
+<ul>
+<li><a href="#signature" id="toc-signature"><span
+class="toc-section-number">2.1</span> Signature</a></li>
+<li><a href="#the-info-argument" id="toc-the-info-argument"><span
+class="toc-section-number">2.2</span> The <code>info</code>
+argument</a></li>
+<li><a href="#the-return-value-one-cell-per-arc"
+id="toc-the-return-value-one-cell-per-arc"><span
+class="toc-section-number">2.3</span> The return value: one cell per
+arc</a></li>
+<li><a href="#the-arc-schedule-systemsk.arcs"
+id="toc-the-arc-schedule-systemsk.arcs"><span
+class="toc-section-number">2.4</span> The arc schedule —
+<code>systems(k).arcs</code></a></li>
+<li><a href="#checks-while-reading" id="toc-checks-while-reading"><span
+class="toc-section-number">2.5</span> Checks while reading</a></li>
+</ul></li>
+<li><a href="#covariance-specifications"
+id="toc-covariance-specifications"><span
+class="toc-section-number">3</span> Covariance specifications</a>
+<ul>
+<li><a href="#laws" id="toc-laws"><span
+class="toc-section-number">3.1</span> Laws</a></li>
+<li><a href="#policy-fields" id="toc-policy-fields"><span
+class="toc-section-number">3.2</span> Policy fields</a></li>
+<li><a href="#how-a-law-is-whitened"
+id="toc-how-a-law-is-whitened"><span
+class="toc-section-number">3.3</span> How a law is whitened</a></li>
+</ul></li>
+<li><a href="#lsqvce.options" id="toc-lsqvce.options"><span
+class="toc-section-number">4</span> <code>lsqvce.Options</code></a>
+<ul>
+<li><a href="#what-to-estimate" id="toc-what-to-estimate"><span
+class="toc-section-number">4.1</span> What to estimate</a></li>
+<li><a href="#the-loop" id="toc-the-loop"><span
+class="toc-section-number">4.2</span> The loop</a></li>
+<li><a href="#run-control" id="toc-run-control"><span
+class="toc-section-number">4.3</span> Run control</a></li>
+<li><a href="#the-groups" id="toc-the-groups"><span
+class="toc-section-number">4.4</span> The groups</a></li>
+</ul></li>
+<li><a href="#priors" id="toc-priors"><span
+class="toc-section-number">5</span> Priors</a>
+<ul>
+<li><a href="#fields" id="toc-fields"><span
+class="toc-section-number">5.1</span> Fields</a></li>
+<li><a href="#rules" id="toc-rules"><span
+class="toc-section-number">5.2</span> Rules</a></li>
+<li><a href="#where-the-result-is-reported"
+id="toc-where-the-result-is-reported"><span
+class="toc-section-number">5.3</span> Where the result is
+reported</a></li>
+<li><a href="#from-a-parameter-table"
+id="toc-from-a-parameter-table"><span
+class="toc-section-number">5.4</span> From a parameter table</a></li>
+</ul></li>
+<li><a href="#lsqvce.results" id="toc-lsqvce.results"><span
+class="toc-section-number">6</span> <code>lsqvce.Results</code></a>
+<ul>
+<li><a href="#properties" id="toc-properties"><span
+class="toc-section-number">6.1</span> Properties</a></li>
+<li><a href="#methods" id="toc-methods"><span
+class="toc-section-number">6.2</span> Methods</a></li>
+</ul></li>
+<li><a href="#help-of-the-user-tier-units"
+id="toc-help-of-the-user-tier-units"><span
+class="toc-section-number">7</span> Help of the user-tier units</a>
+<ul>
+<li><a href="#lsqvce.fit" id="toc-lsqvce.fit"><span
+class="toc-section-number">7.1</span> lsqvce.fit</a></li>
+<li><a href="#lsqvce.options-1" id="toc-lsqvce.options-1"><span
+class="toc-section-number">7.2</span> lsqvce.Options</a></li>
+<li><a href="#lsqvce.results-1" id="toc-lsqvce.results-1"><span
+class="toc-section-number">7.3</span> lsqvce.Results</a></li>
+<li><a href="#lsqvce.report" id="toc-lsqvce.report"><span
+class="toc-section-number">7.4</span> lsqvce.report</a></li>
+<li><a href="#lsqvce.layout" id="toc-lsqvce.layout"><span
+class="toc-section-number">7.5</span> lsqvce.layout</a></li>
+</ul></li>
+<li><a href="#the-engine-kernel-and-util-tiers"
+id="toc-the-engine-kernel-and-util-tiers"><span
+class="toc-section-number">8</span> The engine, kernel and util
+tiers</a>
+<ul>
+<li><a
+href="#lsqvce.engine-drivers-accumulator-loaders-sweeps-diagnostics"
+id="toc-lsqvce.engine-drivers-accumulator-loaders-sweeps-diagnostics"><span
+class="toc-section-number">8.1</span> lsqvce.engine — drivers,
+accumulator, loaders, sweeps, diagnostics</a></li>
+<li><a href="#lsqvce.kernel-the-numerical-kernels"
+id="toc-lsqvce.kernel-the-numerical-kernels"><span
+class="toc-section-number">8.2</span> lsqvce.kernel — the numerical
+kernels</a></li>
+<li><a href="#lsqvce.util-plumbing" id="toc-lsqvce.util-plumbing"><span
+class="toc-section-number">8.3</span> lsqvce.util — plumbing</a></li>
+</ul></li>
+<li><a href="#error-and-warning-identifiers"
+id="toc-error-and-warning-identifiers"><span
+class="toc-section-number">9</span> Error and warning
+identifiers</a></li>
+</ul>
+</nav>
+<h1 data-number="1" id="the-data-struct"><span
+class="header-section-number">1</span> The <code>data</code> struct</h1>
+<p>Everything the toolbox knows about a problem enters through one plain
+MATLAB struct, <code>data</code>, handed to
+<code>lsqvce.fit(data, opts)</code>. <code>fit</code> tells three
+<strong>kinds</strong> apart by the fields present:</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>kind</th>
+<th>fields</th>
+<th>for</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>streaming</strong></td>
+<td><code>commonParams</code>, <code>days</code>, <code>systems</code>
+(+ <code>priors</code>, <code>paramColumns</code>)</td>
+<td>arc-wise data read day by day through a <code>buildDay</code>
+function, local unknowns eliminated on the fly, estimated stochastic
+models</td>
+</tr>
+<tr class="even">
+<td><strong>matrices</strong></td>
+<td><code>A</code>, <code>l</code>, <code>p</code> (+
+<code>priors</code>)</td>
+<td>a design matrix that fits in memory, no local unknowns, diagonal
+weights</td>
+</tr>
+<tr class="odd">
+<td><strong>batched</strong></td>
+<td><code>batchFcn</code>, <code>numBatches</code>,
+<code>numUnknowns</code> or <code>x0</code> (+ <code>priors</code>)</td>
+<td>a design too large for one matrix, or a nonlinear model</td>
+</tr>
+</tbody>
+</table>
+<p><code>data</code> is a <strong>scalar struct</strong>; field names
+are case-sensitive (lowerCamelCase). An unknown field is an error
+(<code>lsqvce:fit:unknownField</code>), so a misspelt field cannot be
+ignored silently.</p>
+<h2 data-number="1.1" id="the-streaming-kind"><span
+class="header-section-number">1.1</span> The streaming kind</h2>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>field</th>
+<th>type / size</th>
+<th>required</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>commonParams</code></td>
+<td>cell R×C, C ≥ 1</td>
+<td>yes</td>
+<td>the common parameter <strong>templates</strong> (below)</td>
+</tr>
+<tr class="even">
+<td><code>days</code></td>
+<td>double 1×D</td>
+<td>unless every system has its own <code>days</code></td>
+<td>the default calendar: integer day identifiers (the loader cache is
+keyed on them)</td>
+</tr>
+<tr class="odd">
+<td><code>systems</code></td>
+<td>struct 1×M, M ≥ 1</td>
+<td>yes</td>
+<td>one entry per observing system (below)</td>
+</tr>
+<tr class="even">
+<td><code>priors</code></td>
+<td>struct array</td>
+<td>no</td>
+<td>prior groups on the common parameters (chapter Priors)</td>
+</tr>
+<tr class="odd">
+<td><code>paramColumns</code></td>
+<td>struct</td>
+<td>no</td>
+<td>which table columns hold a row’s validity and its name (below)</td>
+</tr>
+</tbody>
+</table>
+<h3 data-number="1.1.1"
+id="commonparams-the-common-parameter-table"><span
+class="header-section-number">1.1.1</span> <code>commonParams</code> —
+the common parameter table</h3>
+<p>One row per <strong>template</strong>. <strong>Column 1 is the scope
+token</strong>, columns 2…C are your own convention (degree, order,
+name, epoch …) and are passed through to <code>buildDay</code>:</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>token</th>
+<th>instantiated as</th>
+<th>typical use</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>'common'</code></td>
+<td>one column of A, always</td>
+<td>spherical-harmonic coefficients</td>
+</tr>
+<tr class="even">
+<td><code>'day'</code></td>
+<td>one column per calendar day that carries at least one arc in at
+least one system</td>
+<td>a daily common parameter</td>
+</tr>
+</tbody>
+</table>
+<p><code>'arc'</code> is not allowed in this table
+(<code>lsqvce:fit:badScope</code>): arcs belong to a system. nc, the
+number of columns of A, is <strong>derived</strong> from the expansion
+and never declared.</p>
+<p><strong>Column layout of A.</strong> The <code>'common'</code> rows
+first, in table order; then one day block per calendar day, in calendar
+order (the sorted union of every system’s day list).
+<code>buildDay</code> receives the position of the current day’s block
+as <code>info.commonDayOffset</code> / <code>info.commonDayCount</code>.
+A minimal table:
+<code>[repmat({'common'}, nc, 1), num2cell((1:nc).')]</code>.</p>
+<h3 data-number="1.1.2"
+id="systemsk-one-entry-per-observing-system"><span
+class="header-section-number">1.1.2</span> <code>systems(k)</code> — one
+entry per observing system</h3>
+<p>All entries share the same fields; fill an unused optional field with
+<code>[]</code>.</p>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>field</th>
+<th>type / size</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>buildDay</code></td>
+<td>function handle</td>
+<td><em>(required)</em></td>
+<td>your day builder (chapter <code>buildDay</code>)</td>
+</tr>
+<tr class="even">
+<td><code>covariance</code></td>
+<td>struct</td>
+<td><em>(required)</em></td>
+<td>one field per observation type holding a covariance spec (chapter
+Covariance specifications). <strong>The fieldnames are the observation
+types</strong>, in processing order; <code>buildDay</code> is called
+once per (day, type).</td>
+</tr>
+<tr class="odd">
+<td><code>localParams</code></td>
+<td>cell R×C</td>
+<td><code>{}</code></td>
+<td>the local parameter templates (below); not declared → nl = 0</td>
+</tr>
+<tr class="even">
+<td><code>arcs</code></td>
+<td>double, struct or function handle</td>
+<td><em>(none)</em></td>
+<td>the arc schedule (chapter <code>buildDay</code>); required only by
+<code>'arc'</code> template rows</td>
+</tr>
+<tr class="odd">
+<td><code>days</code></td>
+<td>double 1×D</td>
+<td><code>data.days</code></td>
+<td>this system’s calendar</td>
+</tr>
+<tr class="even">
+<td><code>id</code></td>
+<td>double scalar or single char</td>
+<td>the index k</td>
+<td>identifier, unique across systems</td>
+</tr>
+<tr class="odd">
+<td><code>name</code></td>
+<td>char / string</td>
+<td><code>''</code></td>
+<td>label used in reports</td>
+</tr>
+<tr class="even">
+<td><code>processingOptions</code></td>
+<td>struct</td>
+<td><code>struct()</code></td>
+<td>anything <code>buildDay</code> needs (paths, force models); its 5th
+argument</td>
+</tr>
+<tr class="odd">
+<td><code>priors</code></td>
+<td>struct array</td>
+<td>none</td>
+<td>prior groups on this system’s local parameters (chapter Priors)</td>
+</tr>
+</tbody>
+</table>
+<p><code>buildDay</code> + <code>covariance</code> is a complete
+system.</p>
+<h3 data-number="1.1.3" id="localparams-the-local-parameter-table"><span
+class="header-section-number">1.1.3</span> <code>localParams</code> —
+the local parameter table</h3>
+<p>Column 1 is the scope token, columns 2…C your convention:</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>token</th>
+<th>one block per …</th>
+<th>typical use</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>'arc'</code></td>
+<td>(day, arc) of the system</td>
+<td>initial state, per-arc empirical parameters</td>
+</tr>
+<tr class="even">
+<td><code>'day'</code></td>
+<td>day of the system that carries ≥ 1 arc — every calendar day when no
+schedule is declared</td>
+<td>accelerometer scale / bias / drift</td>
+</tr>
+<tr class="odd">
+<td><code>'system'</code></td>
+<td>whole adjustment</td>
+<td>instrument constants</td>
+</tr>
+</tbody>
+</table>
+<p><code>'arc'</code> rows require a declared arc schedule;
+<code>'day'</code> rows without a schedule live on every calendar day of
+the system; <code>'system'</code>-only tables need neither. nl is
+derived.</p>
+<p><strong>Column layout of B (per system).</strong> Per day, in
+calendar order: the arc blocks in sorted arc-id order (each block = the
+<code>'arc'</code> rows in table order), then the <code>'day'</code>
+block; after all days one trailing <code>'system'</code> block. A day
+whose declared schedule names no arc gets no block at all.
+<code>buildDay</code> never computes an offset: every offset arrives in
+its <code>info</code> argument.</p>
+<p>A template has the same rows for every arc. Arcs with genuinely
+different parameter counts are an engine-tier feature
+(<code>lsqvce.engine.makeLoader</code> with
+<code>LocalsPerArc</code>).</p>
+<h3 data-number="1.1.4" id="paramcolumns-validity-and-names"><span
+class="header-section-number">1.1.4</span> <code>paramColumns</code> —
+validity and names</h3>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>field</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>start</code>, <code>end</code></td>
+<td>the columns of both tables that hold a row’s validity
+(<code>[MJD seconds]</code> pairs or fractional MJD; <code>[]</code> =
+always valid). A <code>'day'</code> / <code>'arc'</code> row is then
+instantiated only on calendar days its validity overlaps (start &lt; d+1
+and end &gt; d); <code>'common'</code> / <code>'system'</code> rows are
+always present.</td>
+</tr>
+<tr class="even">
+<td><code>name</code></td>
+<td>the column holding a row’s name, matched by the <code>group</code>
+field of a prior (default 2)</td>
+</tr>
+</tbody>
+</table>
+<p>Without <code>paramColumns</code> every row is valid always.
+<code>buildDay</code>’s <code>info</code> then lists which template rows
+exist on the day (<code>info.arcRows</code>, <code>info.dayRows</code>,
+<code>info.sysRows</code>, <code>info.commonDayRows</code>).</p>
+<h3 data-number="1.1.5"
+id="lsqvce.layoutdata-the-columns-announced"><span
+class="header-section-number">1.1.5</span>
+<code>lsqvce.layout(data)</code> — the columns announced</h3>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="va">lay</span> <span class="op">=</span> <span class="va">lsqvce</span>.<span class="va">layout</span>(<span class="va">data</span>)<span class="op">;</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="va">lay</span>.<span class="va">nc</span><span class="op">,</span> <span class="va">lay</span>.<span class="va">common</span>(<span class="va">j</span>)                          <span class="co">% template row (and day) of column j of A</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="va">lay</span>.<span class="va">systems</span>(<span class="va">k</span>).<span class="va">nl</span><span class="op">,</span> <span class="va">lay</span>.<span class="va">systems</span>(<span class="va">k</span>).<span class="va">local</span>(<span class="va">c</span>)     <span class="co">% (row, day, arc) of column c of B</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="va">c</span> <span class="op">=</span> <span class="va">lay</span>.<span class="va">systems</span>(<span class="va">k</span>).<span class="va">col</span>(<span class="va">row</span><span class="op">,</span> <span class="va">day</span><span class="op">,</span> <span class="va">arc</span>)<span class="op">;</span>          <span class="co">% lookup, 0 = not instantiated</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="va">c</span> <span class="op">=</span> <span class="va">lay</span>.<span class="va">colCommon</span>(<span class="va">row</span><span class="op">,</span> <span class="va">day</span>)<span class="op">;</span></span></code></pre></div>
+<p>This is the column map a prior operator <code>L</code> is written in,
+and the one <code>R.toTable</code> uses to write estimates back into
+your tables.</p>
+<h2 data-number="1.2" id="the-matrices-kind"><span
+class="header-section-number">1.2</span> The matrices kind</h2>
+<table>
+<thead>
+<tr class="header">
+<th>field</th>
+<th>size</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>A</code></td>
+<td>m×u</td>
+<td>design matrix</td>
+</tr>
+<tr class="even">
+<td><code>l</code></td>
+<td>m×1</td>
+<td>observed minus computed</td>
+</tr>
+<tr class="odd">
+<td><code>p</code></td>
+<td>m×1</td>
+<td>weights (the diagonal of P); absent = unit weights</td>
+</tr>
+<tr class="even">
+<td><code>priors</code></td>
+<td>struct array</td>
+<td>prior groups (chapter Priors)</td>
+</tr>
+</tbody>
+</table>
+<h2 data-number="1.3" id="the-batched-kind"><span
+class="header-section-number">1.3</span> The batched kind</h2>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>field</th>
+<th>size</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>batchFcn</code></td>
+<td>function handle</td>
+<td><code>[A, l, p] = batchFcn(k)</code>, k = 1…<code>numBatches</code>:
+one batch of design rows, observations and weights. With
+<code>x0</code>: <code>[A, w, p] = batchFcn(k, x)</code> returns the
+Jacobian at <code>x</code> and <code>w = l − f(x)</code>.</td>
+</tr>
+<tr class="even">
+<td><code>numBatches</code></td>
+<td>scalar</td>
+<td>the number of batches</td>
+</tr>
+<tr class="odd">
+<td><code>numUnknowns</code></td>
+<td>scalar</td>
+<td>u, linear form only</td>
+</tr>
+<tr class="even">
+<td><code>x0</code></td>
+<td>u×1</td>
+<td>the starting point; makes the problem <strong>nonlinear</strong>
+(damped Gauss–Newton). u = <code>numel(x0)</code>;
+<code>numUnknowns</code> must then be absent
+(<code>lsqvce:fit:uCount</code>).</td>
+</tr>
+<tr class="odd">
+<td><code>priors</code></td>
+<td>struct array</td>
+<td>prior groups (chapter Priors)</td>
+</tr>
+</tbody>
+</table>
+<p>Both in-memory kinds run with <code>Estimate = "none"</code>
+(variance components need the streams of a streaming system,
+<code>lsqvce:fit:modelKind</code>); <code>Robust</code> selects
+M-estimation. Their per-observation diagnostics are in the whitened
+frame, <code>R.diag.v = sqrt(p).*v</code>.</p>
+<h1 data-number="2" id="buildday-the-function-you-write"><span
+class="header-section-number">2</span> <code>buildDay</code> — the
+function you write</h1>
+<h2 data-number="2.1" id="signature"><span
+class="header-section-number">2.1</span> Signature</h2>
+<p><code>fit</code> passes as many of these arguments as the handle
+declares (<code>nargin</code>); a <code>varargin</code> builder receives
+all six:</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="va">D</span> <span class="op">=</span> <span class="va">buildDay</span>(<span class="va">day</span><span class="op">,</span> <span class="va">obsType</span>)</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="va">D</span> <span class="op">=</span> <span class="va">buildDay</span>(<span class="va">day</span><span class="op">,</span> <span class="va">obsType</span><span class="op">,</span> <span class="va">common</span><span class="op">,</span> <span class="va">local</span><span class="op">,</span> <span class="va">procOpt</span>)</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="va">D</span> <span class="op">=</span> <span class="va">buildDay</span>(<span class="va">day</span><span class="op">,</span> <span class="va">obsType</span><span class="op">,</span> <span class="va">common</span><span class="op">,</span> <span class="va">local</span><span class="op">,</span> <span class="va">procOpt</span><span class="op">,</span> <span class="va">info</span>)</span></code></pre></div>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>argument</th>
+<th>what it is</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>day</code></td>
+<td>one entry of the system’s calendar (numeric)</td>
+</tr>
+<tr class="even">
+<td><code>obsType</code></td>
+<td>one entry of <code>fieldnames(covariance)</code> (char)</td>
+</tr>
+<tr class="odd">
+<td><code>common</code></td>
+<td><code>data.commonParams</code></td>
+</tr>
+<tr class="even">
+<td><code>local</code></td>
+<td>this system’s <code>localParams</code> (or <code>{}</code>)</td>
+</tr>
+<tr class="odd">
+<td><code>procOpt</code></td>
+<td>this system’s <code>processingOptions</code></td>
+</tr>
+<tr class="even">
+<td><code>info</code></td>
+<td>this day’s expansion: every column offset of A and B (below);
+<code>[]</code> when nothing is scoped</td>
+</tr>
+</tbody>
+</table>
+<p><code>fit</code> calls <code>buildDay</code> once per (day,
+observation type). Every pass over the data reads each day twice
+(accumulation, then the residual sweep), and an iterative run multiplies
+that by its passes. Hence two rules:</p>
+<ol type="1">
+<li><strong>Determinism.</strong> The same arguments must give
+byte-identical output: no random numbers, clocks or mutable
+globals.</li>
+<li><strong>Cache expensive reads yourself.</strong> The toolbox keeps
+<code>Options.CacheDays</code> built days resident (default one); a raw
+file read shared by several observation types belongs in your own cache,
+in the closure that binds <code>buildDay</code>.</li>
+</ol>
+<h2 data-number="2.2" id="the-info-argument"><span
+class="header-section-number">2.2</span> The <code>info</code>
+argument</h2>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">arcId</span>            <span class="co">% 1xA  ids of this day&#39;s arcs</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">offsetOf</span>         <span class="co">% @(arcId) -&gt; column offset of that arc&#39;s block in B</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">count</span>            <span class="co">% 1xA  columns of each arc block (= number of &#39;arc&#39; rows)</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">dayOffset</span>        <span class="co">% 1x1  this day&#39;s &#39;day&#39; block offset in B ([] if none)</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">dayCount</span>         <span class="co">% 1x1  its width (0 if none)</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">sysOffset</span>        <span class="co">% 1x1  the &#39;system&#39; block offset in B</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">sysCount</span>         <span class="co">% 1x1  its width</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">nl</span>               <span class="co">% 1x1  total local count of the system</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">nc</span>               <span class="co">% 1x1  total common count</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">commonCount</span>      <span class="co">% 1x1  width of A&#39;s leading &#39;common&#39; block</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">commonDayOffset</span>  <span class="co">% 1x1  this day&#39;s common day-block offset in A ([] if none)</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">commonDayCount</span>   <span class="co">% 1x1  its width (0 if none)</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">arcRows</span><span class="op">,</span> <span class="va">info</span>.<span class="va">dayRows</span><span class="op">,</span> <span class="va">info</span>.<span class="va">sysRows</span><span class="op">,</span> <span class="va">info</span>.<span class="va">commonDayRows</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>                      <span class="co">%      template rows that exist on this day (with paramColumns)</span></span></code></pre></div>
+<p>Fill <code>B(rows, info.offsetOf(id) + (1:k))</code> and
+<code>A(:, info.commonDayOffset + (1:w))</code>.</p>
+<h2 data-number="2.3" id="the-return-value-one-cell-per-arc"><span
+class="header-section-number">2.3</span> The return value: one cell per
+arc</h2>
+<p>Every field is a <strong>1 × nArc cell</strong>; cell a is arc a. A
+day with one arc returns <code>{A}</code>; a day without data returns
+empty cells.</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>field</th>
+<th>each cell</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>A</code></td>
+<td>m_a × nc</td>
+<td>design matrix of the common unknowns</td>
+</tr>
+<tr class="even">
+<td><code>B</code></td>
+<td>m_a × nl</td>
+<td>design matrix of the local unknowns; may be <code>sparse</code></td>
+</tr>
+<tr class="odd">
+<td><code>l</code></td>
+<td>m_a × 1</td>
+<td>observed minus computed (the reduced observation)</td>
+</tr>
+<tr class="even">
+<td><code>t</code></td>
+<td>m_a × 1</td>
+<td>epoch of each row in <strong>seconds</strong> (the whitener needs
+the lags)</td>
+</tr>
+<tr class="odd">
+<td><code>Cep</code></td>
+<td>n_a×1, n_a×d or n_a×d×d</td>
+<td><em>optional</em> — the per-epoch accuracy of the arc (below)</td>
+</tr>
+<tr class="even">
+<td><code>nAxis</code></td>
+<td>scalar</td>
+<td><em>optional</em> — the axis count of a multi-axis stream without
+<code>Cep</code></td>
+</tr>
+</tbody>
+</table>
+<p>Arc lengths may differ freely. An arc whose cells have 0 rows is a
+<strong>data gap</strong> and is skipped. Return <strong>raw,
+unwhitened</strong> matrices: the toolbox whitens every arc from the
+covariance spec and reweights it during the variance-component loop. No
+other field is allowed (<code>lsqvce:makeLoader:badDay</code>).</p>
+<h3 data-number="2.3.1" id="cep-the-per-epoch-accuracy"><span
+class="header-section-number">2.3.1</span> <code>Cep</code> — the
+per-epoch accuracy</h3>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>shape</th>
+<th>meaning</th>
+<th>the numbers are</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>n_a × 1</td>
+<td>scalar stream with per-epoch accuracy</td>
+<td>standard deviations</td>
+</tr>
+<tr class="even">
+<td>n_a × d</td>
+<td>multi-axis stream, axes uncorrelated within an epoch</td>
+<td>standard deviations per axis</td>
+</tr>
+<tr class="odd">
+<td>n_a × d × d</td>
+<td>multi-axis stream, full per-epoch covariance</td>
+<td>covariance matrices</td>
+</tr>
+</tbody>
+</table>
+<p>The axis count d is <code>size(Cep, 2)</code>, the same for the whole
+day; n_a·d must equal the arc’s row count. Rows of a multi-axis stream
+are <strong>epoch-major</strong> (x₁ y₁ z₁ x₂ …) and every arc holds
+whole epochs. <code>Cep</code> is relative to the level
+<code>sigma</code> of the covariance spec: declare
+<code>sigma = 1</code> when <code>Cep</code> already carries the
+absolute accuracy. A multi-axis day without <code>Cep</code> is whitened
+with D = I and reported once per run
+(<code>lsqvce:makeLoader:noCep</code>); a <code>var</code> law takes no
+<code>Cep</code>.</p>
+<h2 data-number="2.4" id="the-arc-schedule-systemsk.arcs"><span
+class="header-section-number">2.4</span> The arc schedule —
+<code>systems(k).arcs</code></h2>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>form</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>omitted</td>
+<td>the arcs of a day are the cells <code>buildDay</code> returns (ids
+1…nArc); days may differ in their count. <code>'day'</code> rows live on
+every calendar day; a calendar day returning no arc in any stream is
+refused (<code>lsqvce:makeLoader:emptyDay</code>).</td>
+</tr>
+<tr class="even">
+<td><code>4</code> or <code>[1 2 4]</code></td>
+<td>static: these arc ids on every day</td>
+</tr>
+<tr class="odd">
+<td><code>struct('kbr', 2, 'pos', 4)</code></td>
+<td>static, per observation type</td>
+</tr>
+<tr class="even">
+<td><code>@(day, obsType) ids</code></td>
+<td>a resolver returning the ids of a day <em>without reading data</em>
+(ragged schedules, gaps, manoeuvres)</td>
+</tr>
+</tbody>
+</table>
+<p>With a declared schedule cell a is the a-th scheduled id, and the
+number of cells must match (<code>lsqvce:makeLoader:arcCount</code>). An
+arc a scheduled day does not carry is returned as an empty cell.
+<code>'arc'</code> template rows require a declared schedule.</p>
+<h2 data-number="2.5" id="checks-while-reading"><span
+class="header-section-number">2.5</span> Checks while reading</h2>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>identifier</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>lsqvce:makeLoader:buildDay</code></td>
+<td><code>buildDay</code> threw; its error is attached as the cause</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:makeLoader:badDay</code></td>
+<td>a required field is missing or not a 1×nArc cell, or an unknown
+field is present</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:makeLoader:dayShape</code></td>
+<td>the cells disagree in number, or an arc’s <code>A</code>,
+<code>B</code>, <code>l</code>, <code>t</code> disagree in rows</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:accum:arcBadNc</code> / <code>arcBadNl</code></td>
+<td><code>A</code> or <code>B</code> has the wrong number of
+columns</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:makeLoader:arcCount</code></td>
+<td>a declared schedule names n arcs and the day returned a different
+number of cells</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:makeLoader:emptyDay</code></td>
+<td>without a schedule, a calendar day returned no arc in any
+stream</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:makeLoader:badArc</code></td>
+<td>an arc id outside the declared schedule, or an arc of a multi-axis
+day that does not hold whole epochs</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:makeLoader:badDayCep</code></td>
+<td><code>Cep</code> is malformed or does not match the arc’s rows</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:makeLoader:axisConflict</code></td>
+<td><code>nAxis</code> disagrees with <code>Cep</code> or does not
+divide the row count</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:makeLoader:cepTwice</code></td>
+<td>the covariance spec carries a <code>Cep</code> and the day returns
+one</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:covModel:cepOnVar</code></td>
+<td>a <code>var</code> law with a <code>Cep</code></td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:makeLoader:noCep</code></td>
+<td><em>(warning, once per run)</em> a multi-axis day without
+<code>Cep</code></td>
+</tr>
+</tbody>
+</table>
+<p>Errors in the declaration itself are raised by <code>fit</code>
+before any data is read and carry <code>lsqvce:fit:</code> identifiers
+(<code>unknownField</code>, <code>noSystems</code>,
+<code>noCommon</code>, <code>missingField</code>, <code>noDays</code>,
+<code>badId</code>, <code>duplicateSystem</code>,
+<code>builderKind</code>, <code>badArcs</code>, <code>badScope</code>,
+…).</p>
+<h1 data-number="3" id="covariance-specifications"><span
+class="header-section-number">3</span> Covariance specifications</h1>
+<p><code>data.systems(k).covariance.(obsType)</code> is one struct per
+observation type. Its <code>type</code> selects the <strong>temporal
+law</strong> — how the errors of one stream correlate down the epochs —
+and <code>sigma</code> its <strong>level</strong>. The per-epoch
+accuracy is not declared here: it travels with the day as
+<code>Cep</code> (chapter <code>buildDay</code>). The toolbox composes
+the covariance of an arc as C = D (R_t ⊗ I_d) D. Full reference:
+<code>doc lsqvce.engine.covModel</code>.</p>
+<h2 data-number="3.1" id="laws"><span
+class="header-section-number">3.1</span> Laws</h2>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th><code>type</code></th>
+<th>fields</th>
+<th>describes</th>
+<th>whitening cost per batch of b rows</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>'diag'</code></td>
+<td><code>sigma</code> (scalar, or a vector of per-row standard
+deviations)</td>
+<td>white noise</td>
+<td>O(b)</td>
+</tr>
+<tr class="even">
+<td><code>'arma'</code></td>
+<td><code>ar</code> = <code>[1 a₁ … a_p]</code>, <code>ma</code>
+(default 1), <code>sigma</code> (innovation std)</td>
+<td>a known whitening filter</td>
+<td>O(b·p)</td>
+</tr>
+<tr class="odd">
+<td><code>'psd'</code></td>
+<td><code>f</code> (n_f×1, Hz, one-sided), <code>S</code> (n_f×1,
+unit²/Hz)</td>
+<td>a measured noise spectrum</td>
+<td>O(b·p) (AR filter)</td>
+</tr>
+<tr class="even">
+<td><code>'acf'</code></td>
+<td><code>acf = @(dt, opt)</code>, <code>sigma</code></td>
+<td>correlation as a function of the lag</td>
+<td>O(b³)</td>
+</tr>
+<tr class="odd">
+<td><code>'var'</code></td>
+<td><code>ar</code> (d×d×p), <code>sigma</code> (d×d)</td>
+<td>vector AR: cross-axis temporal correlation (no
+<code>Cep</code>)</td>
+<td>O(b·p·d²)</td>
+</tr>
+<tr class="even">
+<td><code>'custom'</code></td>
+<td><code>fcn = @(t, opt)</code></td>
+<td>any dense covariance</td>
+<td>O(b³)</td>
+</tr>
+</tbody>
+</table>
+<p><code>sigma</code> is always a <strong>standard deviation</strong>,
+never a variance.</p>
+<h2 data-number="3.2" id="policy-fields"><span
+class="header-section-number">3.2</span> Policy fields</h2>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>field</th>
+<th>values</th>
+<th>default</th>
+<th>meaning under <code>Estimate = "noise"</code></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>estimate</code></td>
+<td><code>"law"</code>, <code>"scale"</code>, <code>"none"</code></td>
+<td><code>"law"</code></td>
+<td><code>"law"</code>: spectral shape and level are estimated;
+<code>"scale"</code>: the declared shape is kept, only the level is
+estimated; <code>"none"</code>: the stream is used exactly as
+declared</td>
+</tr>
+<tr class="even">
+<td><code>arcFactors</code></td>
+<td>logical</td>
+<td><code>Options.ArcFactors</code></td>
+<td>per-arc variance factors for this stream</td>
+</tr>
+</tbody>
+</table>
+<p>A per-row <code>sigma</code> vector makes the spec a fixed structure:
+it can carry a level but not a spectral shape, so
+<code>estimate = "law"</code> on it is refused
+(<code>lsqvce:fit:lawOnFixedStructure</code>). A <code>Cep</code> does
+not trigger this — per-epoch accuracy together with an estimated
+temporal law is the supported combination.</p>
+<p><code>Options.Pool</code> decides which streams share one estimated
+spectral shape; every stream keeps its own level.</p>
+<h2 data-number="3.3" id="how-a-law-is-whitened"><span
+class="header-section-number">3.3</span> How a law is whitened</h2>
+<ul>
+<li>A declared <code>psd</code> law is whitened by an AR(30) filter
+fitted to its autocovariance; <code>Noise.Whitener</code> selects the
+route of the law the joint estimator estimates (<code>"toeplitz"</code>,
+<code>"ar"</code>, <code>"arma"</code>). Check an AR fit with
+<code>lsqvce.engine.checkPSD</code> (the relative error of the
+reproduced autocovariance should be below 1e-3).</li>
+<li>An arc is whitened in batches of up to 20 000 rows. Filter laws
+overlap consecutive batches by their memory, so the result does not
+depend on the batching; dense laws (<code>acf</code>,
+<code>custom</code>, Toeplitz) are factorised per batch, and the
+correlation between batches of a longer arc is dropped.</li>
+<li>Under <code>estimate = "law"</code> the declared law contributes
+only its <code>sigma</code> (the starting level): the shape is estimated
+from a white start.</li>
+</ul>
+<h1 data-number="4" id="lsqvce.options"><span
+class="header-section-number">4</span> <code>lsqvce.Options</code></h1>
+<p><code>lsqvce.Options</code> is a typed value class: every knob has a
+type, a range and a default, checked at assignment
+(<code>MATLAB:validators:*</code>) or at construction
+(<code>lsqvce:Options:*</code>). It says <em>how to run</em>; everything
+about the problem, including regularisation, is declared on
+<code>data</code>. Three equivalent spellings:</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="va">opts</span> <span class="op">=</span> <span class="va">lsqvce</span>.<span class="va">Options</span>(<span class="va">Estimate</span><span class="op">=</span><span class="st">&quot;noise&quot;</span><span class="op">,</span> <span class="va">MaxPasses</span><span class="op">=</span><span class="fl">6</span>)<span class="op">;</span>   <span class="va">R</span> <span class="op">=</span> <span class="va">lsqvce</span>.<span class="va">fit</span>(<span class="va">data</span><span class="op">,</span> <span class="va">opts</span>)<span class="op">;</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="va">opts</span>.<span class="va">Noise</span>.<span class="va">Grid</span> <span class="op">=</span> <span class="fl">120</span><span class="op">;</span>                                   <span class="co">% change one later (validated)</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="va">R</span> <span class="op">=</span> <span class="va">lsqvce</span>.<span class="va">fit</span>(<span class="va">data</span><span class="op">,</span> <span class="va">Estimate</span><span class="op">=</span><span class="st">&quot;noise&quot;</span><span class="op">,</span> <span class="va">MaxPasses</span><span class="op">=</span><span class="fl">6</span>)<span class="op">;</span>     <span class="co">% name-value pairs straight on fit</span></span></code></pre></div>
+<p><code>disp(opts)</code> lists every knob, marking the defaults with
+<code>*</code>.</p>
+<h2 data-number="4.1" id="what-to-estimate"><span
+class="header-section-number">4.1</span> What to estimate</h2>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>knob</th>
+<th>values</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>Estimate</code></td>
+<td><code>"none"</code>, <code>"noise"</code></td>
+<td><code>"none"</code></td>
+<td><code>"none"</code>: one generalised least-squares solve under the
+declared laws. <code>"noise"</code>: the joint variance-component
+estimator — per pool group the spectral shape of the noise, per stream
+its level, per arc a factor (with <code>ArcFactors</code>), and the σ of
+every prior group with <code>estimate = "scale"</code>.</td>
+</tr>
+<tr class="even">
+<td><code>Pool</code></td>
+<td><code>"all"</code>, <code>"obsType"</code>,
+<code>"stream"</code></td>
+<td><code>"all"</code></td>
+<td>which streams share one estimated spectral shape: all streams of the
+run, the streams of one observation type across systems, or every
+(system, type) stream on its own. Every stream keeps its own level.</td>
+</tr>
+<tr class="odd">
+<td><code>ArcFactors</code></td>
+<td>logical</td>
+<td><code>true</code></td>
+<td>one variance factor per arc on top of the stream’s level; the factor
+weights the solve. <code>false</code>: one level per stream. Turn off
+when arcs are few or short.</td>
+</tr>
+<tr class="even">
+<td><code>Robust</code></td>
+<td><code>"none"</code>, <code>"huber"</code>, <code>"igg3"</code>,
+<code>"bisquare"</code></td>
+<td><code>"none"</code></td>
+<td>M-estimation. With <code>Estimate = "none"</code>: stand-alone IRLS
+on the law-whitened innovations with a MAD scale per pass (budget
+<code>RobustOpts</code>, factors in <code>R.history(end).factor</code>).
+With <code>Estimate = "noise"</code>: a robust weight per epoch inside
+the joint estimator, on the residuals descaled by the declared accuracy
+(budget <code>MaxPasses</code>, factors in
+<code>R.noise.robust.factor</code>). Prefer <code>"igg3"</code> or
+<code>"bisquare"</code> for gross blunders.</td>
+</tr>
+</tbody>
+</table>
+<h2 data-number="4.2" id="the-loop"><span
+class="header-section-number">4.2</span> The loop</h2>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>knob</th>
+<th>values</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>MaxPasses</code></td>
+<td>integer ≥ 1</td>
+<td>10</td>
+<td>pass budget of the variance-component loop and of Gauss–Newton (IRLS
+uses <code>RobustOpts.MaxIter</code>). Exhausting it returns the last
+pass with <code>R.stopReason = "maxPasses"</code> and one warning.</td>
+</tr>
+<tr class="even">
+<td><code>Tolerance</code></td>
+<td>&gt; 0</td>
+<td>1e-2</td>
+<td>stop rule of the variance-component loop: max |α² − 1| over spectral
+bins and arcs; for Gauss–Newton the relative step in units of the formal
+error</td>
+</tr>
+<tr class="odd">
+<td><code>Probes</code></td>
+<td>integer ≥ 1</td>
+<td>100</td>
+<td>Hutchinson probes for the per-lag redundancies of the joint
+estimator</td>
+</tr>
+<tr class="even">
+<td><code>Seed</code></td>
+<td><code>[]</code> or double</td>
+<td><code>[]</code></td>
+<td>seed for the probes, recorded in <code>R.meta.seeds</code></td>
+</tr>
+</tbody>
+</table>
+<h2 data-number="4.3" id="run-control"><span
+class="header-section-number">4.3</span> Run control</h2>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>knob</th>
+<th>values</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>Backend</code></td>
+<td><code>"qr"</code>, <code>"normal"</code></td>
+<td><code>"qr"</code></td>
+<td>square-root information (Householder QR) or normal equations
+(Cholesky); the same numbers to rounding, QR the safer on
+ill-conditioned common blocks</td>
+</tr>
+<tr class="even">
+<td><code>CacheDays</code></td>
+<td>&gt; 0</td>
+<td>1</td>
+<td>built days kept resident per system; <code>Inf</code> keeps the
+calendar and builds each day once per run (a built type-day is m × nc
+doubles)</td>
+</tr>
+<tr class="odd">
+<td><code>Verbose</code></td>
+<td>logical</td>
+<td><code>false</code></td>
+<td>screen messages: 0 silent, 1 progress</td>
+</tr>
+<tr class="even">
+<td><code>OnPass</code></td>
+<td><code>[]</code> or <code>@(ctx)</code></td>
+<td><code>[]</code></td>
+<td>inspection hook called after every pass of every iterative run
+(below)</td>
+</tr>
+</tbody>
+</table>
+<h3 data-number="4.3.1" id="onpass"><span
+class="header-section-number">4.3.1</span> <code>OnPass</code></h3>
+<p>The hook receives one struct: <code>driver</code>, <code>pass</code>,
+<code>x</code>, <code>Cxx</code>, <code>sigma0</code>,
+<code>s0sq</code>; the loop state (noise loop: <code>C</code>,
+<code>Cgroups</code>, <code>sigma2</code>, <code>arcKeys</code>,
+<code>streams</code>, <code>sigma</code>, <code>white</code>,
+<code>whitePval</code>, <code>maxDev</code>, <code>skips</code>; IRLS:
+<code>factor</code>, <code>keys</code>, <code>scale</code>,
+<code>dx</code>; Gauss–Newton: <code>vPv</code>, <code>dxRel</code>,
+<code>lambda</code>); <code>acc</code>, the live accumulator;
+<code>data</code>, the declaration as passed to <code>fit</code>;
+<code>processingOptions{k}</code>, system k’s as declared. Return
+nothing to continue, <code>false</code> to stop after the pass
+(<code>R.stopReason = "userStop"</code>). An error in the hook arrives
+as <code>lsqvce:callUser:threw</code> with your error as its cause.</p>
+<h2 data-number="4.4" id="the-groups"><span
+class="header-section-number">4.4</span> The groups</h2>
+<p>A group is a struct; assign a whole or partial struct, or one field.
+A partial struct is merged onto the defaults; an unknown field is
+refused (<code>lsqvce:Options:badGroupField</code>).</p>
+<h3 data-number="4.4.1" id="noise-the-estimated-stochastic-model"><span
+class="header-section-number">4.4.1</span> <code>Noise</code> — the
+estimated stochastic model</h3>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>field</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>Grid</code></td>
+<td>60</td>
+<td>spectral bins of the estimated law between 0 and Nyquist (its
+resolution), an integer ≥ 2; the law is exact at every lag of every arc
+whatever the Grid</td>
+</tr>
+<tr class="even">
+<td><code>Whitener</code></td>
+<td><code>"toeplitz"</code></td>
+<td>how a PSD law whitens an arc: exact Toeplitz Cholesky, or a fitted
+AR / ARMA filter (<code>"ar"</code>, <code>"arma"</code>)</td>
+</tr>
+<tr class="odd">
+<td><code>Smooth</code></td>
+<td>0</td>
+<td>moving-average half-width on the estimated spectrum (0 = none)</td>
+</tr>
+<tr class="even">
+<td><code>FreezeRedundancy</code></td>
+<td>1</td>
+<td>a bin whose redundancy is below this keeps its value instead of
+being updated</td>
+</tr>
+<tr class="odd">
+<td><code>SkipThreshold</code></td>
+<td>0.2</td>
+<td>the share of skipped arcs of a stream above which a pass is
+refused</td>
+</tr>
+</tbody>
+</table>
+<h3 data-number="4.4.2" id="robustopts-irls"><span
+class="header-section-number">4.4.2</span> <code>RobustOpts</code> —
+IRLS</h3>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>field</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>Tuning</code></td>
+<td><code>[]</code></td>
+<td>tuning constant of the influence function; empty = Huber 1.345, IGG3
+(1.5, 2.5), bisquare 4.685</td>
+</tr>
+<tr class="even">
+<td><code>MaxIter</code></td>
+<td>30</td>
+<td>IRLS passes</td>
+</tr>
+<tr class="odd">
+<td><code>Tol</code></td>
+<td>1e-8</td>
+<td>relative change of x that ends the iteration</td>
+</tr>
+</tbody>
+</table>
+<h3 data-number="4.4.3" id="diagnostics-the-per-observation-tests"><span
+class="header-section-number">4.4.3</span> <code>Diagnostics</code> —
+the per-observation tests</h3>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>field</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>Alpha</code></td>
+<td>1e-3</td>
+<td>significance level of the outlier test</td>
+</tr>
+<tr class="even">
+<td><code>Bonferroni</code></td>
+<td><code>true</code></td>
+<td>divide α by the number of tests</td>
+</tr>
+<tr class="odd">
+<td><code>Beta</code></td>
+<td>0.2</td>
+<td>type-II error; the power of the minimal detectable bias is 1 −
+β</td>
+</tr>
+<tr class="even">
+<td><code>RMin</code></td>
+<td>0.01</td>
+<td>redundancy number below which an observation is untestable</td>
+</tr>
+<tr class="odd">
+<td><code>RWeak</code></td>
+<td>0.1</td>
+<td>redundancy number below which it is weakly controlled</td>
+</tr>
+<tr class="even">
+<td><code>Test</code></td>
+<td><code>"auto"</code></td>
+<td><code>"pope"</code> (σ₀ estimated), <code>"baarda"</code> (σ₀
+known), <code>"mad"</code> (robust scale), or automatic</td>
+</tr>
+<tr class="odd">
+<td><code>RobustCheck</code></td>
+<td><code>true</code></td>
+<td>run the MAD-scale check that flags a contaminated fit</td>
+</tr>
+<tr class="even">
+<td><code>Store</code></td>
+<td><code>"all"</code></td>
+<td>keep the per-observation arrays for all observations, only
+<code>"flagged"</code> ones, or <code>"none"</code></td>
+</tr>
+<tr class="odd">
+<td><code>NWorst</code></td>
+<td>1000</td>
+<td>how many worst observations <code>R.report</code> keeps</td>
+</tr>
+</tbody>
+</table>
+<h3 data-number="4.4.4" id="parallel"><span
+class="header-section-number">4.4.4</span> <code>Parallel</code></h3>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>field</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>Mode</code></td>
+<td><code>"serial"</code></td>
+<td><code>"parfor"</code> or <code>"spmd"</code> with the Parallel
+Computing Toolbox; serial with one warning without it</td>
+</tr>
+<tr class="even">
+<td><code>DistributeDays</code></td>
+<td><code>false</code></td>
+<td>distribute the day loop of the accumulation over workers
+(bitwise-identical fold order)</td>
+</tr>
+<tr class="odd">
+<td><code>Threshold</code></td>
+<td>8</td>
+<td>number of days below which distribution is not attempted</td>
+</tr>
+</tbody>
+</table>
+<h3 data-number="4.4.5" id="gaussnewton-problems-with-data.x0"><span
+class="header-section-number">4.4.5</span> <code>GaussNewton</code> —
+problems with <code>data.x0</code></h3>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>field</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>TolF</code></td>
+<td>1e-10</td>
+<td>relative change of the objective that ends the iteration</td>
+</tr>
+<tr class="even">
+<td><code>Lambda0</code></td>
+<td>1e-6</td>
+<td>initial Marquardt damping (rows
+<code>sqrt(λ·diag(JᵀPJ))·dx ≈ 0</code>); a rejected step multiplies it
+by 10 (from 0: 1e-3), an accepted one divides it (below 1e-12: 0)</td>
+</tr>
+</tbody>
+</table>
+<h1 data-number="5" id="priors"><span
+class="header-section-number">5</span> Priors</h1>
+<p>A prior is a group of pseudo-observations <code>L·x = x₀ + v</code>
+with weight <code>1/σ²</code>, declared in your columns:</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="va">data</span>.<span class="va">priors</span>(<span class="va">j</span>)            <span class="op">=</span> <span class="va">struct</span>(<span class="op">...</span>)   <span class="co">% on the common parameters: L in the columns of A</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="va">data</span>.<span class="va">systems</span>(<span class="va">k</span>).<span class="va">priors</span>(<span class="va">l</span>) <span class="op">=</span> <span class="va">struct</span>(<span class="op">...</span>)   <span class="co">% on system k&#39;s local parameters: L in the columns of B</span></span></code></pre></div>
+<h2 data-number="5.1" id="fields"><span
+class="header-section-number">5.1</span> Fields</h2>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>field</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>group</code></td>
+<td>a regular expression on the name column of the table
+(<code>data.paramColumns.name</code>, default column 2). The toolbox
+builds L: one row per matched template row per instance (per day for a
+<code>'day'</code> row, per arc for an <code>'arc'</code> row, once for
+<code>'common'</code> / <code>'system'</code>).</td>
+</tr>
+<tr class="even">
+<td><code>L</code></td>
+<td>the explicit operator (q × nc, or q × nl) in the columns
+<code>lsqvce.layout(data)</code> announces. Give <code>group</code>
+<strong>or</strong> <code>L</code>, never both.</td>
+</tr>
+<tr class="odd">
+<td><code>x0</code></td>
+<td>a-priori values (q × 1, or a scalar); default 0</td>
+</tr>
+<tr class="even">
+<td><code>sigma</code></td>
+<td>ONE standard deviation for all rows of the group; relative weights
+inside a group go into L</td>
+</tr>
+<tr class="odd">
+<td><code>from</code></td>
+<td>the pass at which the group becomes active (default 1). A single
+solve reports a group with <code>from &gt; 1</code>
+(<code>lsqvce:fit:priorNotActive</code>) and skips it.</td>
+</tr>
+<tr class="even">
+<td><code>name</code></td>
+<td>label (default: the pattern); a local group becomes the stream
+<code>prior_&lt;name&gt;</code> of its system</td>
+</tr>
+<tr class="odd">
+<td><code>estimate</code></td>
+<td><code>"none"</code> (default): σ fixed; <code>"scale"</code>: σ is
+estimated in every pass of <code>Estimate = "noise"</code></td>
+</tr>
+</tbody>
+</table>
+<p>Malformed fields, or an <code>L</code> of the wrong width, are
+refused by name (<code>lsqvce:fit:badPrior</code>).</p>
+<h2 data-number="5.2" id="rules"><span
+class="header-section-number">5.2</span> Rules</h2>
+<ul>
+<li><strong>Several rows make σ estimable.</strong> A group with one row
+has redundancy ≤ 1; its σ is left unchanged and flagged in
+<code>R.noise.priorHistory</code>.</li>
+<li><strong>Local rows live in one day.</strong> Every row of a local
+group has its non-zero columns inside one day’s local block or the
+system block; days are coupled through common parameters only.</li>
+<li><strong>A datum is a group of its own.</strong> Minimum constraints
+<code>L = Bᵀ</code> on the null space, <code>x0 = 0</code>, give the
+minimum-constraint solution and covariance for any σ. A group that only
+partly lies in the null space, or overlaps another group, is
+information.</li>
+</ul>
+<h2 data-number="5.3" id="where-the-result-is-reported"><span
+class="header-section-number">5.3</span> Where the result is
+reported</h2>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th></th>
+<th>common groups</th>
+<th>local groups</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>σ per pass</td>
+<td><code>R.noise.priorHistory</code></td>
+<td><code>R.noise.model{k}.sigma</code> of stream
+<code>satKey|prior_&lt;name&gt;</code></td>
+</tr>
+<tr class="even">
+<td>final</td>
+<td><code>R.noise.priors</code></td>
+<td>the same stream entry</td>
+</tr>
+</tbody>
+</table>
+<p>The rows of every prior enter <code>R.residuals()</code> and the
+redundancy count.</p>
+<h2 data-number="5.4" id="from-a-parameter-table"><span
+class="header-section-number">5.4</span> From a parameter table</h2>
+<p>A row of a GRAVFIRE-style parameter table carrying
+<code>{'Tikhonov', fromPass, sigma[, label]}</code> in its 11th column
+means exactly one such struct; <code>template/gravfire_data.m</code>
+emits them: rows sharing a label become one <code>group</code> with
+<code>estimate = "scale"</code>, rows without a label one fixed-σ group
+each.</p>
+<h1 data-number="6" id="lsqvce.results"><span
+class="header-section-number">6</span> <code>lsqvce.Results</code></h1>
+<p>Every run of <code>lsqvce.fit</code> returns one
+<code>lsqvce.Results</code>. Its full help block, with every property
+and method, is in the chapter <em>Help of the user-tier units</em>; this
+chapter is the map.</p>
+<h2 data-number="6.1" id="properties"><span
+class="header-section-number">6.1</span> Properties</h2>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>property</th>
+<th>size</th>
+<th>content</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>x</code></td>
+<td>nc×1</td>
+<td>the common-parameter estimate</td>
+</tr>
+<tr class="even">
+<td><code>sigma0</code></td>
+<td>scalar</td>
+<td>a-posteriori standard deviation of unit weight</td>
+</tr>
+<tr class="odd">
+<td><code>stopReason</code></td>
+<td>string</td>
+<td><code>"single"</code>, <code>"converged"</code>,
+<code>"maxPasses"</code> or <code>"userStop"</code></td>
+</tr>
+<tr class="even">
+<td><code>converged</code></td>
+<td>logical</td>
+<td>whether the iteration converged (true for a single solve)</td>
+</tr>
+<tr class="odd">
+<td><code>sol</code></td>
+<td>struct</td>
+<td>the solve: <code>.x</code>, <code>.sigma0</code>, <code>.Cxx</code>
+(covariance scaled by σ₀²), …</td>
+</tr>
+<tr class="even">
+<td><code>diag</code></td>
+<td>struct</td>
+<td>per-observation diagnostics: residuals in the whitened frame,
+redundancy numbers, test statistics, minimal detectable biases, the
+robust check</td>
+</tr>
+<tr class="odd">
+<td><code>history</code></td>
+<td>1×I struct</td>
+<td>one record per pass of an iterative run (empty for a single
+solve)</td>
+</tr>
+<tr class="even">
+<td><code>noise</code></td>
+<td>struct</td>
+<td>the estimated stochastic model: per stream <code>.stream</code> keys
+and <code>.model{k}</code> (<code>.sigma</code> the level,
+<code>.C</code> the law’s autocovariance); <code>.S</code> /
+<code>.Sgroups</code> the bin spectra per pool group;
+<code>.priors</code>, <code>.priorHistory</code>; <code>.robust</code>
+(influence, scale per stream, one factor per epoch)</td>
+</tr>
+<tr class="odd">
+<td><code>acc</code></td>
+<td><code>BlockAccumulator</code></td>
+<td>the accumulator: re-solve, inspect blocks, residuals</td>
+</tr>
+<tr class="even">
+<td><code>systems</code></td>
+<td>1×M struct</td>
+<td>what ran per system: id, nl, day list, name</td>
+</tr>
+<tr class="odd">
+<td><code>meta</code></td>
+<td>struct</td>
+<td>provenance: <code>.toolboxVersion</code>,
+<code>.matlabRelease</code>, <code>.createdUTC</code>,
+<code>.seeds</code>, <code>.options</code> (the resolved options),
+<code>.warnings</code></td>
+</tr>
+</tbody>
+</table>
+<h2 data-number="6.2" id="methods"><span
+class="header-section-number">6.2</span> Methods</h2>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>method</th>
+<th>returns</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>R.report()</code></td>
+<td>the verdict and its evidence, levels 0 to 4
+(<code>lsqvce.report</code>)</td>
+</tr>
+<tr class="even">
+<td><code>R.summary()</code></td>
+<td>one row per stream: final σ, law, whiteness (iterative runs)</td>
+</tr>
+<tr class="odd">
+<td><code>R.convergence()</code></td>
+<td>one row per pass: when the loop settled (iterative runs)</td>
+</tr>
+<tr class="even">
+<td><code>R.coefficients(Alpha=a)</code></td>
+<td>estimates with formal errors and (1 − a) confidence bounds</td>
+</tr>
+<tr class="odd">
+<td><code>R.toTable(data)</code></td>
+<td>your parameter tables with estimate and standard deviation written
+in</td>
+</tr>
+<tr class="even">
+<td><code>R.residuals(...)</code></td>
+<td>whitened (and raw) residuals per stream, re-read from the arcs</td>
+</tr>
+<tr class="odd">
+<td><code>R.contribution(...)</code></td>
+<td>the information share of every stream in the common parameters</td>
+</tr>
+<tr class="even">
+<td><code>R.redundancy()</code></td>
+<td>the total redundancy n − u</td>
+</tr>
+<tr class="odd">
+<td><code>R.reliability()</code></td>
+<td>per observation: r, w, the minimal detectable bias and its
+quadrant</td>
+</tr>
+<tr class="even">
+<td><code>R.systematic(...)</code></td>
+<td>unmodelled signal in the residuals: Ljung–Box, runs, binned
+means</td>
+</tr>
+<tr class="odd">
+<td><code>R.snoop(...)</code></td>
+<td>iterative data snooping with a clean re-solve; R is not changed</td>
+</tr>
+<tr class="even">
+<td><code>R.compare(Rred)</code></td>
+<td>the nested-model F test against a reduced fit</td>
+</tr>
+<tr class="odd">
+<td><code>R.ellipse(i, j, ...)</code></td>
+<td>the confidence ellipse of a parameter pair</td>
+</tr>
+<tr class="even">
+<td><code>R.plot(kind)</code></td>
+<td><code>"residuals"</code>, <code>"contribution"</code>,
+<code>"psd"</code>, <code>"convergence"</code>: one figure per
+question</td>
+</tr>
+</tbody>
+</table>
+<p>The readers that need an iteration (<code>summary</code>,
+<code>convergence</code>) raise <code>lsqvce:Results:noHistory</code> on
+a single solve; those that need the accumulator (<code>residuals</code>,
+<code>contribution</code>) raise
+<code>lsqvce:Results:noAccumulator</code> on the in-memory kinds.</p>
+<h1 data-number="7" id="help-of-the-user-tier-units"><span
+class="header-section-number">7</span> Help of the user-tier units</h1>
+<p>The help blocks of the five user-tier units, verbatim:
+<code>help lsqvce.&lt;name&gt;</code> shows the same text and
+<code>doc lsqvce.&lt;name&gt;</code> the same page. Generated from the
+code at build time.</p>
+<h2 data-number="7.1" id="lsqvce.fit"><span
+class="header-section-number">7.1</span> lsqvce.fit</h2>
+<p>LSQVCE.FIT Fit a least-squares adjustment (optionally with VCE) to
+declared data.</p>
+<pre><code>LSQVCE.FIT  Fit a least-squares adjustment (optionally with VCE) to declared data.
+
+  R = lsqvce.fit(data)                        every default (one GLS solve)
+  R = lsqvce.fit(data, opts)                  a lsqvce.Options object
+  R = lsqvce.fit(data, Name, Value, ...)      the Options properties, straight on fit
+  R = lsqvce.fit(data, opts, Name, Value)     both: the pairs override opts
+
+  THE ONE VERB. You describe the problem with a plain struct `data`
+  (the API reference), say what to do with lsqvce.Options, and
+  get a lsqvce.Results back:
+
+      R = lsqvce.fit(data, Estimate=&quot;noise&quot;, Pool=&quot;obsType&quot;, OnPass=@myInspect);
+      R.report;  R.plot(&quot;psd&quot;);  [C, L] = R.toTable(data);
+
+  THREE DATA KINDS, told apart by the fields of `data`, all on ONE accumulator:
+    (A) streaming   data.commonParams, data.days, data.systems(k) with
+                    buildDay / covariance / localParams / priors /
+                    processingOptions and the optional arc schedule `arcs`
+                    (buildDay returns one CELL per arc -- A, B, l, t,
+                    Cep as 1 x nArc cells -- and the cells are the schedule
+                    unless `arcs` declares one); optional data.priors,
+                    data.paramColumns
+    (B) in memory   data.A (m x u), data.l (m x 1), optional data.p (m x 1
+                    weights); optional data.priors. A FULL m x m SPD weight
+                    matrix is kind C&#39;s: return it from batchFcn
+    (C) batched     data.batchFcn @(k) -&gt; [A, l, p] (or @(k, x) -&gt; [J, w, p] with
+                    data.x0 for Gauss-Newton), data.numUnknowns, data.numBatches;
+                    optional data.priors
+  WHAT RUNS (opts.Estimate / opts.Robust / data.x0):
+    Estimate &quot;none&quot;    one generalised solve under the declared laws (adjustBlock)
+    Estimate &quot;noise&quot;   the joint variance-component estimator (adjustVCEjoint):
+                       one spectral shape per Pool group, one level per stream,
+                       per-arc factors when ArcFactors; prior groups with
+                       estimate &quot;scale&quot; get their sigma by Helmert / Koch-Kusche
+    Robust &quot;huber&quot; | &quot;igg3&quot; | &quot;bisquare&quot;   IRLS on the same loop: alone it is
+                       adjustRobust; with Estimate &quot;noise&quot; the robust pass runs
+                       INSIDE the joint loop, R.noise.robust carries
+                       the final factors
+    data.x0            Gauss-Newton with damping (adjustNonlinear)
+  REGULARISATION is declared, never an option: data.priors(j) on the common
+  parameters and data.systems(k).priors(l) on the local ones -- one struct per
+  group, by `group` (a name pattern) or `L` (in the columns lsqvce.layout
+  announces), x0, sigma, from, name, estimate. A free network&#39;s datum is the
+  prior on its null space.
+  WATCHING A RUN: Options.OnPass fires after every pass with the pass state,
+  the live accumulator, `data` and every system&#39;s processingOptions.
+
+  INPUT
+    data   1x1 struct    the declaration (kind A, B or C as above)
+    opts   1x1 lsqvce.Options   default lsqvce.Options()
+    Name, Value          any property of lsqvce.Options
+  OUTPUT
+    R      1x1 lsqvce.Results   x, sigma0, sol (Cxx, dof, vtv), diag, acc, history,
+                                noise (S, Sgroups, C, Cgroups, stream, model, priors), stopReason,
+                                meta (options as resolved, warnings, seeds, version);
+                                methods report, summary, convergence, residuals,
+                                contribution, compare, plot, toTable, coefficients
+
+  ERRORS
+    Your declaration is wrong (raised BEFORE any data is read):
+      lsqvce:fit:unknownField    a field name the contract does not know
+                                 (names the field; typos are errors on
+                                 purpose)
+      lsqvce:fit:noSystems       data.systems missing, not a struct, or empty
+      lsqvce:fit:noCommon        data.commonParams missing, or not a 2-D
+                                 cell of template rows
+      lsqvce:fit:badScope        a scope-token column 1 does not carry:
+                                 commonParams needs &#39;common&#39;|&#39;day&#39; (raised
+                                 here), localParams needs
+                                 &#39;arc&#39;|&#39;day&#39;|&#39;system&#39; (raised by makeLoader
+                                 and relabelled)
+      lsqvce:fit:badParamColumns data.paramColumns is malformed: not a
+                                 struct, an unknown field, only one of
+                                 start / end, or a column the table lacks
+      lsqvce:fit:missingField    a required system field is absent, or
+                                 covariance carries no observation type
+      lsqvce:fit:noDays          no day list anywhere
+      lsqvce:fit:badId           id is not a numeric scalar or single char
+      lsqvce:fit:duplicateSystem two systems share an id (explicit or
+                                 index default)
+      lsqvce:fit:builderKind     buildDay is not a function handle
+      lsqvce:fit:badArcs         arcs is a string (omit arcs: the cells are
+                                 the arcs), or a
+                                 resolver returned something that is not
+                                 unique positive integers
+      lsqvce:fit:&lt;makeLoader id&gt; a makeLoader construction error, relabelled
+                                 (e.g. paramType, badArcs, localPlan);
+                                 the original is attached as the cause
+    Your choice is not available here:
+      lsqvce:fit:notYet          Robust ~= &quot;none&quot; on a NONLINEAR batch problem
+                                 (x0): IRLS inside Gauss-Newton is not written;
+                                 linearise first
+      lsqvce:fit:modelKind       Estimate = &quot;noise&quot; on kinds B / C, which have
+                                 no streams to estimate a law for
+      lsqvce:batchSystem:weightMatrix  a batch returned a weight argument that
+                                 is neither m x 1 nor an m x m SPD matrix. A
+                                 full SPD P IS accepted on kind C and whitened
+                                 by its Cholesky factor -- raised
+                                 by lsqvce.engine.batchSystem
+      lsqvce:fit:priorNotActive  (warning) a prior with from &gt; 1 in a
+                                 single-pass run is not applied
+      lsqvce:fit:badPrior        data.priors is malformed (unknown
+                                 field, L not p x nc, sigma not a positive scalar,
+                                 x0 of the wrong length)
+      lsqvce:fit:badEstimate     covariance.&lt;type&gt;.estimate is not
+                                 &quot;none&quot; | &quot;scale&quot; | &quot;law&quot;
+      lsqvce:fit:lawOnFixedStructure  estimate &quot;law&quot; on a stream whose
+                                 sigma is per-row (a fixed structure: level only)
+      lsqvce:fit:varUnderNoise   a &#39;var&#39; law under Estimate = &quot;noise&quot;: the
+                                 joint sweep has no vector-AR path
+      lsqvce:fit:badMatrix       kind B shapes disagree (A m x u, l m x 1,
+                                 p m x 1)
+      lsqvce:fit:missingField    kind C lacks batchFcn / numBatches, or the
+                                 linear form lacks numUnknowns
+      lsqvce:fit:uCount          kind C carries BOTH x0 and numUnknowns --
+                                 u is stated once (numel(x0))
+    Your buildDay is wrong (raised WHILE READING, by the engine, ids
+    unchanged): lsqvce:makeLoader:badDay / dayShape / badArc / badArcId /
+    buildDay / badDayCep / axisConflict / cepTwice (the day&#39;s Cep and
+    axis count), lsqvce:covModel:cepOnVar, lsqvce:accum:arcBadNc / arcBadNl;
+    lsqvce:makeLoader:noCep is a once-per-run warning (a multi-axis day
+    without Cep is composed with D = I)
+
+  See also LSQVCE.OPTIONS, LSQVCE.RESULTS, LSQVCE.LAYOUT, LSQVCE.ENGINE.DECLARATION,
+           LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT,
+           LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTNONLINEAR</code></pre>
+<h2 data-number="7.2" id="lsqvce.options-1"><span
+class="header-section-number">7.2</span> lsqvce.Options</h2>
+<p>LSQVCE.OPTIONS The one settings object for LSQVCE.FIT: 12 knobs and 5
+groups.</p>
+<pre><code>LSQVCE.OPTIONS  The one settings object for LSQVCE.FIT: 12 knobs and 5 groups.
+
+  opts = lsqvce.Options()                       every default
+  opts = lsqvce.Options(Name, Value, ...)       override some
+  opts.Name = Value                             change one later (validated)
+  R = lsqvce.fit(data, Name, Value, ...)        the same names, straight on fit
+
+  WHAT TO ESTIMATE, HOW TO RUN. Everything ABOUT A STREAM (its law, whether
+  its law / level / arc factors are estimated) is declared on the stream
+  (data.systems(k).covariance.&lt;type&gt;: type, sigma, estimate, arcFactors);
+  this object holds only RUN policy: 12 knobs plus five typed groups.
+
+  TOP LEVEL
+    Estimate   &quot;none&quot; | &quot;noise&quot;   &quot;none&quot;: one GLS solve under the declared
+                                  laws. &quot;noise&quot;: the joint (Ellmer) variance
+                                  component estimator on every stream whose
+                                  spec allows it (estimate ~= &quot;none&quot;), with
+                                  the policy below
+    Pool       &quot;all&quot; | &quot;obsType&quot; | &quot;stream&quot;   which streams SHARE one estimated
+                                  spectral shape (every stream keeps its own
+                                  level regardless); default &quot;all&quot;
+    ArcFactors logical            per-arc variance factors on (Ellmer 6.5.4),
+                                  default true; false = one level per stream.
+                                  The factor is the arc&#39;s ABSOLUTE Helmert
+                                  factor and weights the solve, so sigma0
+                                  settles near 1. TO READ AN ARC&#39;S STANDARD
+                                  DEVIATION back, use all three terms:
+                                    declared sigma * sqrt(factor) * R.sigma0
+    Robust     &quot;none&quot; | &quot;huber&quot; | &quot;igg3&quot; | &quot;bisquare&quot;   IRLS on the same
+                                  loop, every kind (details in RobustOpts).
+                                  With Estimate &quot;noise&quot; the robust pass runs
+                                  INSIDE the joint loop: one residual sweep
+                                  per pass, the factors in every arc&#39;s
+                                  whitener on the next pass; MaxPasses is the
+                                  budget, RobustOpts.Tuning the constants
+                                  (RobustOpts.MaxIter / Tol belong to the
+                                  stand-alone IRLS only)
+    MaxPasses  double  10         the pass budget of the variance-component
+                                  loop and of Gauss-Newton. IRLS has its OWN
+                                  budget, RobustOpts.MaxIter
+    Tolerance  double  1e-2       stop when max|alpha2 - 1| over frequencies
+                                  and arcs is below it
+    Backend    &quot;qr&quot; | &quot;normal&quot;    square-root vs normal equations
+    Probes     double  100        Hutchinson probes for the per-lag
+                                  redundancies; an integer &gt;= 1 (Ellmer&#39;s
+                                  value is 100). The joint estimator has no
+                                  exact route, so 0 is refused
+    Seed       [] | double        RNG seed for the probes (recorded)
+    CacheDays  double  1          built days kept resident per system; Inf =
+                                  the whole calendar (one build per run)
+    Verbose    logical | 0 | 1    screen messages: 0 silent, 1 progress. The
+                                  value is passed to every driver as a flag
+                                  (logical(Verbose)), so 2 behaves as 1
+    OnPass     [] | @(ctx)        YOUR inspection hook, called at the end of
+                                  EVERY pass of every iterative run (the
+                                  variance-component loop, IRLS, Gauss-Newton)
+                                  with ONE ctx struct: .driver .pass .x .Cxx
+                                  .sigma0, the loop state (noise: .C .Cgroups
+                                  .sigma2 .arcKeys .streams .sigma .white
+                                  .whitePval .maxDev .skips; IRLS: .factor
+                                  .keys .scale .dx; Gauss-Newton: .vPv .dxRel
+                                  .lambda), .acc (the LIVE accumulator: call
+                                  lsqvce.engine.residuals(ctx.acc, ...) or any
+                                  engine function inside the hook), .data (your
+                                  declaration as passed to fit) and
+                                  .processingOptions (per system, as declared).
+                                  Plot, drawnow, save wherever you like; return
+                                  nothing to continue, false to stop after this
+                                  pass (stopReason &quot;userStop&quot;). A throwing hook
+                                  is NOT swallowed (lsqvce:callUser:threw with
+                                  your error as cause)
+
+  GROUPS (structs; set fields one at a time or give a whole struct)
+    Noise        Grid 60             spectral bins of the estimated law, 0 ..
+                                     Nyquist (an integer &gt;= 2); exact at every
+                                     lag for any Grid
+                 Whitener &quot;toeplitz&quot;|&quot;ar&quot;|&quot;arma&quot;  how a PSD law whitens
+                 Smooth 0                         moving average on the PSD
+                 FreezeRedundancy 1               components below it hold
+                 SkipThreshold 0.2                skip RATE that refuses the pass
+    RobustOpts   Tuning [], MaxIter 30, Tol 1e-8
+    Diagnostics  Alpha 1e-3, Bonferroni true, Beta 0.2, RMin 0.01, RWeak 0.1,
+                 Test &quot;auto&quot;|&quot;pope&quot;|&quot;baarda&quot;|&quot;mad&quot;, RobustCheck true,
+                 Store &quot;all&quot;|&quot;flagged&quot;|&quot;none&quot;, NWorst 1000
+    Parallel     Mode &quot;serial&quot;|&quot;parfor&quot;|&quot;spmd&quot;, DistributeDays false, Threshold 8
+    GaussNewton  TolF 1e-10, Lambda0 1e-6     (x0 problems; MaxPasses / Tolerance
+                 are the budget and the step tolerance)
+
+  REGULARISATION is not an option: it is DECLARED on the data, as
+  pseudo-observations in the user&#39;s own columns -- data.priors(k) on the
+  common parameters (L in the columns of A) and data.systems(k).priors(l) on
+  the local ones (L in the columns of B), each with x0, sigma, from, group.
+
+  METHODS
+    engineArgs(target)   the Name-Value list a driver takes (validated)
+    toStruct()           every public property as a struct (provenance)
+    disp()               grouped display, engine defaults marked *
+
+  ERRORS
+    MATLAB:validators:*          a typed property receives a value outside
+                                 its type / set / range (at assignment)
+    lsqvce:Options:badGrid       Noise.Grid is not an integer &gt;= 2
+    lsqvce:Options:badVerbose    Verbose is neither logical nor an integer 0..2
+    lsqvce:Options:badOnPass     OnPass is neither [] nor a function handle
+    lsqvce:Options:badGroupField a group struct carries an unknown field
+    lsqvce:Options:badTarget     engineArgs target is unknown
+
+  EXAMPLE
+    opts = lsqvce.Options(Estimate=&quot;noise&quot;, Pool=&quot;obsType&quot;);
+    opts.Noise.Grid = 2160;  opts.Parallel.Mode = &quot;parfor&quot;;
+    R = lsqvce.fit(data, opts);
+    % Robust ~= &quot;none&quot; together with Estimate = &quot;noise&quot; runs the robust pass
+    % inside the joint loop:
+    opts.Robust = &quot;huber&quot;;
+
+  See also LSQVCE.FIT, LSQVCE.RESULTS, the API reference, RELEASE_NOTES.md</code></pre>
+<h2 data-number="7.3" id="lsqvce.results-1"><span
+class="header-section-number">7.3</span> lsqvce.Results</h2>
+<p>LSQVCE.RESULTS The outcome of a recovery: solution, diagnostics,
+provenance.</p>
+<pre><code>LSQVCE.RESULTS  The outcome of a recovery: solution, diagnostics, provenance.
+  R = lsqvce.Results(sol, D, acc, diagSol, batchFcn, nBatch, systems)
+  R = lsqvce.Results(sol, D, acc, diagSol, batchFcn, nBatch, systems, meta)
+
+  Returned by every driver LSQVCE.FIT dispatches to -- LSQVCE.ENGINE.ADJUSTBLOCK,
+  ADJUSTVCEJOINT, ADJUSTROBUST, ADJUSTNONLINEAR. It gathers
+  everything a user needs to read and judge an adjustment in one object, and
+  keeps the lower layers reachable for experts. You rarely construct it
+  yourself; you receive it from adjustBlock and call R.report().
+
+  PROPERTIES (read-only)
+    x          nc x 1   double   Common-parameter estimate (the field).
+    sigma0     1x1      double   A-posteriori variance factor (global).
+    stopReason 1x1      string   Why the loop stopped: &quot;single&quot; |
+                                 &quot;converged&quot; | &quot;maxPasses&quot;. Convergence
+                                 failure is a RESULT: the last pass is
+                                 returned with its covariance and one warning.
+    converged  1x1      logical  Did the pipeline converge? (true for a single
+                                 solve; set by the iterative engines.)
+    diag       1x1      struct   Per-observation diagnostics (LSQVCE.ENGINE.VERDICT.DIAGNOSE):
+                                 redundancy, leverage, w-tests, MDB, ...
+    history    1xI      struct   Per-iteration record (empty for a single
+                                 solve; filled by LSQVCE.ENGINE.ADJUSTVCEJOINT:
+                                 .maxDev .S .streams .sigma .white
+                                 .whitePval per pass, .skips, .nIter, and
+                                 under Robust the per-pass .robustScale (one
+                                 column per stream) .nDown .nZero;
+                                 by LSQVCE.ENGINE.ADJUSTROBUST: .scale .dx
+                                 .nDown .nZero and, on the last pass, .factor
+                                 .keys).
+    noise      1x1      struct   Fitted noise models per stream (empty until
+                                 the variance-component loop populates it):
+                                 .stream (keys) .model{k} (.sigma the level,
+                                 .C the law&#39;s ACV) .S (the law: the bin
+                                 spectrum, LSQVCE.KERNEL.HATACV) .Sgroups /
+                                 .Cgroups (one per pool group)
+                                 .priors .priorHistory, and .robust
+                                 (.influence, .scale per stream,
+                                 .streams, .factor ONE PER EPOCH in sweep
+                                 order, .keys; empty fields under &quot;none&quot;).
+    sol        1x1      struct   Raw output of acc.solve() (.x, .sigma0, ...).
+    acc        1x1      lsqvce.engine.BlockAccumulator   The accumulator (drop here
+                                 to re-solve, inspect blocks, get residuals).
+    source     1x1      struct   Bridged solution from LSQVCE.ENGINE.VERDICT.SOURCE.
+    batchFcn   1x1      function_handle   Re-reader used by LSQVCE.ENGINE.VERDICT.DIAGNOSE.
+    nBatch     1x1      double   Batch count from the bridge.
+    systems    1xM      struct   The resolved system specs (sysID/nl/dayList).
+    meta       1x1      struct   Run provenance. Field list is
+                                 ADD-ONLY across versions, never renamed:
+                                 .toolboxVersion 1xK char  from Contents.m,
+                                                 the ONE version source
+                                 .matlabRelease  1xK char  version(&#39;-release&#39;)
+                                 .createdUTC     1xK char  ISO 8601, trailing Z
+                                 .seeds          1x1 struct every RNG seed the
+                                                 run resolved (struct() when
+                                                 none; a resolved-but-unset
+                                                 seed is stored as [])
+                                 .options        1x1 struct the RESOLVED
+                                                 options the run actually used
+                                 A bare construction (7 arguments) gets a
+                                 meta with empty seeds/options -- the field
+                                 is never missing.
+
+  METHODS
+    V = R.report(Name,Value,...)   Print/return the level-0..4 verdict
+                                   (LSQVCE.REPORT); options pass straight through.
+    r = R.redundancy()             Total redundancy sum(r_i) = n - u.
+    res = R.residuals(Name,Value)  Whitened/raw residuals (acc.residuals).
+    con = R.contribution(...)      Per-group information share.
+    T = R.convergence(Name,Value)  Per-ITERATION trajectory: when the loop
+                                   settled (needs .history).
+    F = R.compare(Rred)            Nested-model F test against a reduced fit.
+    S = R.systematic(Name,Value)   Unmodelled signal in the residuals: Ljung-Box,
+                                   runs, binned means.
+    [D, REJ, sol] = R.snoop(...)   Iterative data snooping; R is not changed.
+    T = R.reliability()            Per-observation r, w, MDB and (w, r) quadrant.
+    E = R.ellipse(i, j, ...)       Confidence ellipse of the parameter pair (i, j).
+    fh = R.plot(kind)              &quot;residuals&quot; | &quot;contribution&quot; | &quot;psd&quot; | &quot;convergence&quot;
+                                   (one figure per question, nothing exported).
+    [C, L, map] = R.toTable(data)  The expanded parameter tables with estimate and
+                                   standard deviation written in.
+    T = R.summary()                Per-STREAM final state: sigma, AR order,
+                                   whiteness (needs .history).
+    T = R.coefficients(Alpha=a)    The estimates as a table with formal
+                                   errors and (1-a) confidence bounds
+                                   (default a = 0.05).
+    disp(R)                        One-screen summary.
+
+  THE TWO ITERATION READERS ARE COMPLEMENTARY. convergence() reduces across
+  STREAMS (one row per pass); summary() reduces across PASSES (one row per
+  stream). A converged loop can still hide a single stream that never
+  whitened -- the per-pass view reports the worst p-value without naming it.
+
+  EXAMPLE
+    R = lsqvce.engine.adjustBlock(systems, days);
+    R.report();
+    if ~R.converged, lsqvce.util.log.warn(&#39;did not converge&#39;); end
+    x = R.x;   s0 = R.sigma0;
+
+  ERRORS
+    lsqvce:Results:noVPv          compare() on a Results without a finite v&#39;Pv
+    lsqvce:Results:noHistory      an iteration reader was called on a
+                                  single-solve Results (adjustBlock does not
+                                  iterate); use the result of an iterating
+                                  fit (Estimate = &quot;noise&quot;, Robust, Nonlinear)
+    lsqvce:Results:noCovariance   coefficients() on a Results whose sol
+                                  carries no Cxx
+    lsqvce:Results:noAccumulator  residuals()/contribution() on a Results
+                                  without an accumulator (fit kinds B / C)
+    lsqvce:Results:noPerObservation reliability() on a fit whose diagnostics
+                                  kept no per-observation vectors
+
+  ACCURACY
+    Results adds no numerics: x and sigma0 are the engine&#39;s (sigma0 is the
+    A-POSTERIORI std of unit weight; sol.Cxx the covariance scaled by it --
+    the streaming contract every producer must establish),
+    report() is lsqvce.report on .diag, coefficients() is arithmetic on x
+    and diag(Cxx) with z(0.05) = 1.959963984540054 in closed form.
+
+  See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.REPORT,
+           LSQVCE.ENGINE.VERDICT, LSQVCE.ENGINE.BLOCKACCUMULATOR</code></pre>
+<h2 data-number="7.4" id="lsqvce.report"><span
+class="header-section-number">7.4</span> lsqvce.report</h2>
+<p>LSQVCE.REPORT Judge a least-squares adjustment and say so in
+words.</p>
+<pre><code>LSQVCE.REPORT  Judge a least-squares adjustment and say so in words.
+
+  V = LSQVCE.REPORT(D) takes the struct from lsqvce.engine.verdict.diagnose and prints a
+  verdict. It returns a struct of machine-readable findings so the same logic
+  can drive an automated pipeline.
+
+  The report is ordered so that a failure at one level invalidates the levels
+  below it. It refuses to report parameter precision for an adjustment whose
+  integrity checks failed, because a sigma computed from a broken system is
+  not a conservative estimate -- it is a fabrication.
+
+  LEVELS
+    0  INTEGRITY   sum(r) == n-u, vPv &gt;= 0, vPv consistent between passes.
+                   These test the CODE, not the data. Failure here means
+                   every number below is meaningless.
+    1  GLOBAL      variance factor vs chi-square.
+    2  LOCALISE    outliers (data snooping), with Bonferroni.
+    3  RELIABILITY redundancy numbers, MDB, external reliability.
+                   This is the level that says which observations you are
+                   NOT ABLE TO CHECK.
+    4  PARAMETERS  correlations, conditioning, precision.
+
+  NAME-VALUE
+    &#39;verbose&#39;  true  print the report (default true)
+    &#39;width&#39;    78    line width
+    &#39;Provenance&#39; struct()  a run-provenance struct (LSQVCE.RESULTS .meta);
+                     when non-empty, ONE level-0 NOTE line
+                     (code &#39;PROVENANCE&#39;) states toolbox version, MATLAB
+                     release, and creation time. R.report() forwards it
+                     automatically; a bare lsqvce.report(D) prints none.
+    &#39;Iteration&#39;  struct()  the loop state of an ITERATIVE run:
+                     .converged, .stopReason, .nIter. When non-empty and the
+                     run was not a single solve, ONE level-1 line says
+                     whether the stochastic model settled -- &#39;NOISE_SETTLED&#39;
+                     (NOTE) or &#39;NOISE_UNSETTLED&#39; (WARN). Every number from
+                     level 1 down rests on those weights, so a model that was
+                     still moving qualifies all of them. R.report() forwards
+                     it automatically. An optional .influence (char) names
+                     the robust influence of an IRLS run; when non-empty ONE
+                     level-1 NOTE (&#39;ROBUST_FIT&#39;) says sigma0 and the
+                     covariance are those of the reweighted problem.
+
+  OUTPUT V
+    V.verdict   &#39;PASS&#39; | &#39;PASS WITH WARNINGS&#39; | &#39;SUSPECT&#39; | &#39;INVALID&#39;
+    V.findings  cell array of struct(level, severity, code, msg)
+    V.nError, V.nWarn, V.nNote
+
+  INPUT
+    D         1x1 struct  diagnostics from LSQVCE.ENGINE.VERDICT.DIAGNOSE
+    varargin  Name/Value: &#39;verbose&#39;, &#39;width&#39;, &#39;alpha&#39;, &#39;rWeak&#39;, ...
+
+  EXAMPLE
+      data = struct(&#39;batchFcn&#39;, src, &#39;numUnknowns&#39;, u, &#39;numBatches&#39;, 4);
+      R = lsqvce.fit(data, Verbose=false);
+      V = lsqvce.report(R.diag);         % prints the five levels (= R.report)
+
+      % V.verdict    &#39;PASS&#39; | &#39;PASS WITH WARNINGS&#39; | &#39;SUSPECT&#39; | &#39;INVALID&#39;
+      % V.findings   machine-readable: {level, severity, code, msg}
+
+      % Drive a pipeline off the codes rather than the text:
+      codes = cellfun(@(f) f.code, V.findings, &#39;UniformOutput&#39;, false);
+      if ismember(&#39;SNOOP_CONTAMINATED&#39;, codes)
+          error(&#39;Pope is blind here -- re-run with test=mad.&#39;);
+      end
+
+  See also LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SYSTEMATIC.</code></pre>
+<h2 data-number="7.5" id="lsqvce.layout"><span
+class="header-section-number">7.5</span> lsqvce.layout</h2>
+<p>LSQVCE.LAYOUT The column layout fit will use – so you can declare
+priors in it.</p>
+<pre><code>LSQVCE.LAYOUT  The column layout fit will use -- so you can declare priors in it.
+  lay = lsqvce.layout(data)
+
+  The toolbox derives from your parameter tables (scope tokens, calendar,
+  arcs, validity) which column of A and of every system&#39;s B belongs to
+  which instantiated parameter. This function announces that layout BEFORE
+  fit runs, so that data.priors(j).L (columns of A) and
+  data.systems(k).priors(l).L (columns of B) can be written in it -- the
+  only knowledge the user&#39;s regularisation and the toolbox share.
+
+  INPUT   data  1x1 struct  a kind-A declaration (the API reference)
+  OUTPUT  lay   1x1 struct
+    .nc            1x1        columns of A
+    .common        nc x 1 struct (.row .day)      the template row and (for &#39;day&#39; rows) the day of every column of A
+    .systems(k)    1x1 struct per system:
+       .nl         1x1        columns of B
+       .local      nl x 1 struct (.row .day .arc) the template row / day / arc of every column of B
+       .col        @(row, day, arc) -&gt; column     lookup: the column of template row `row` on
+                                                  `day` (and `arc` for &#39;arc&#39; rows; [] otherwise);
+                                                  0 when that instance does not exist
+    .colCommon     @(row, day) -&gt; column          the same for A ([] day for &#39;common&#39; rows)
+
+  EXAMPLE  (a Tikhonov prior on local row 7 of system 1, on every day)
+    lay = lsqvce.layout(data);
+    nl  = lay.systems(1).nl;  rows = zeros(0, nl);
+    for d = data.days
+        c = lay.systems(1).col(7, d, []);  r = zeros(1, nl);  r(c) = 1;  rows(end+1, :) = r;
+    end
+    data.systems(1).priors = struct(&#39;L&#39;, rows, &#39;x0&#39;, 0, &#39;sigma&#39;, 0.01, &#39;name&#39;, &#39;xaccscale&#39;, &#39;estimate&#39;, &quot;scale&quot;);
+
+  See also LSQVCE.FIT, LSQVCE.RESULTS/TOTABLE, the API reference</code></pre>
+<h1 data-number="8" id="the-engine-kernel-and-util-tiers"><span
+class="header-section-number">8</span> The engine, kernel and util
+tiers</h1>
+<p>What <code>fit</code> dispatches to and what it is built from: one
+line per public unit, from the <code>Contents.m</code> files
+(generated). <code>doc lsqvce.engine.&lt;name&gt;</code> opens the full
+page. Calls go downward only: the user tier calls the engine, the engine
+calls kernel and util.</p>
+<h2 data-number="8.1"
+id="lsqvce.engine-drivers-accumulator-loaders-sweeps-diagnostics"><span
+class="header-section-number">8.1</span> lsqvce.engine — drivers,
+accumulator, loaders, sweeps, diagnostics</h2>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>unit</th>
+<th>what</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>adjustNonlinear</code></td>
+<td>Gauss-Newton / Levenberg as a policy on the block path</td>
+</tr>
+<tr class="even">
+<td><code>batchSystem</code></td>
+<td>a batch source as one local-free streaming system</td>
+</tr>
+<tr class="odd">
+<td><code>adjustRobust</code></td>
+<td>IRLS (Huber/IGG3/bisquare) as a policy on the block path</td>
+</tr>
+<tr class="even">
+<td><code>adjustBlock</code></td>
+<td>one GLS solve over the streaming block-arrow pipeline</td>
+</tr>
+<tr class="odd">
+<td><code>adjustVCEjoint</code></td>
+<td>Ellmer ten-step joint co-estimation with keyed arc factors</td>
+</tr>
+<tr class="even">
+<td><code>applyRegularisation</code></td>
+<td>regularisation of the reduced system</td>
+</tr>
+<tr class="odd">
+<td><code>arcVarianceFactors</code></td>
+<td>per-arc variance factors</td>
+</tr>
+<tr class="even">
+<td><code>BlockAccumulator</code></td>
+<td>block-arrow accumulation with per-system Schur pre-elimination</td>
+</tr>
+<tr class="odd">
+<td><code>BlockCofactor</code></td>
+<td>the cofactor of the full parameter set, kept as blocks</td>
+</tr>
+<tr class="even">
+<td><code>checkPSD</code></td>
+<td>PSD sanity check</td>
+</tr>
+<tr class="odd">
+<td><code>collectResiduals</code></td>
+<td>residual collection per stream</td>
+</tr>
+<tr class="even">
+<td><code>CommonPrior</code></td>
+<td>prior on the common block (regularisation as observations)</td>
+</tr>
+<tr class="odd">
+<td><code>contribution</code></td>
+<td>information contribution per group</td>
+</tr>
+<tr class="even">
+<td><code>covComponent</code></td>
+<td>covariance component estimation</td>
+</tr>
+<tr class="odd">
+<td><code>covModel</code></td>
+<td>covariance spec -&gt; whitening operators (per arc)</td>
+</tr>
+<tr class="even">
+<td><code>datum</code></td>
+<td>datum defect detection and handling</td>
+</tr>
+<tr class="odd">
+<td><code>declaration</code></td>
+<td>validate a kind-A data struct and build its loaders</td>
+</tr>
+<tr class="even">
+<td><code>gcvLambda</code></td>
+<td>GCV choice of the regularisation weight</td>
+</tr>
+<tr class="odd">
+<td><code>jointModelOpt</code></td>
+<td>joint-mode model -&gt; loader UserOpt translation</td>
+</tr>
+<tr class="even">
+<td><code>localDiagnostics</code></td>
+<td>diagnostics of the local blocks</td>
+</tr>
+<tr class="odd">
+<td><code>localColumns</code></td>
+<td>which (row, day, arc) owns each column of B</td>
+</tr>
+<tr class="even">
+<td><code>makeLoader</code></td>
+<td>day-builder -&gt; Loader (built inside fit from the data
+struct)</td>
+</tr>
+<tr class="odd">
+<td><code>mapreduce</code></td>
+<td>serial / parfor / spmd task runner with ordered reduce</td>
+</tr>
+<tr class="even">
+<td><code>NormalEqSystem</code></td>
+<td>normal-equation backend</td>
+</tr>
+<tr class="odd">
+<td><code>outliers</code></td>
+<td>outlier listing from diagnostics</td>
+</tr>
+<tr class="even">
+<td><code>psdVCE</code></td>
+<td>PSD amplitude + arc-factor VCE (Ellmer workhorse)</td>
+</tr>
+<tr class="odd">
+<td><code>QRSystem</code></td>
+<td>QR backend</td>
+</tr>
+<tr class="even">
+<td><code>ReducedContribution</code></td>
+<td>reduced-normal contribution bookkeeping</td>
+</tr>
+<tr class="odd">
+<td><code>redundancy</code></td>
+<td>redundancy numbers (data pass)</td>
+</tr>
+<tr class="even">
+<td><code>residuals</code></td>
+<td>second data pass: residuals and quadratic forms</td>
+</tr>
+<tr class="odd">
+<td><code>resolveNc</code></td>
+<td>common-parameter count derived from the systems</td>
+</tr>
+<tr class="even">
+<td><code>synthLoader</code></td>
+<td>synthetic block-arrow loader (engine-tier fixture; leaves in
+M4)</td>
+</tr>
+<tr class="odd">
+<td><code>sharedProbe</code></td>
+<td>shared Hutchinson probe generator (RNG contract)</td>
+</tr>
+<tr class="even">
+<td><code>streamContribution</code></td>
+<td>contribution per stream</td>
+</tr>
+<tr class="odd">
+<td><code>traceEstimate</code></td>
+<td>stochastic trace estimate</td>
+</tr>
+<tr class="even">
+<td><code>vce</code></td>
+<td>Helmert group variance components (exact</td>
+</tr>
+<tr class="odd">
+<td><code>verdict</code></td>
+<td>the verdict: diagnostics, snooping, systematics, F test,
+ellipse</td>
+</tr>
+<tr class="even">
+<td><code>runMeta</code></td>
+<td>immutable provenance record for Results.meta</td>
+</tr>
+</tbody>
+</table>
+<h2 data-number="8.2" id="lsqvce.kernel-the-numerical-kernels"><span
+class="header-section-number">8.2</span> lsqvce.kernel — the numerical
+kernels</h2>
+<table>
+<thead>
+<tr class="header">
+<th>unit</th>
+<th>what</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>ar2arma</code></td>
+<td>AR -&gt; ARMA conversion</td>
+</tr>
+<tr class="even">
+<td><code>armaACV</code></td>
+<td>ARMA autocovariance</td>
+</tr>
+<tr class="odd">
+<td><code>armaWhiten</code></td>
+<td>ARMA whitening filter (batched)</td>
+</tr>
+<tr class="even">
+<td><code>crossCorr</code></td>
+<td>cross-correlation of residual streams</td>
+</tr>
+<tr class="odd">
+<td><code>dctI</code></td>
+<td>DCT-I transform</td>
+</tr>
+<tr class="even">
+<td><code>decorrFactor</code></td>
+<td>decorrelation factor of a dense covariance</td>
+</tr>
+<tr class="odd">
+<td><code>hatACV</code></td>
+<td>ACV of every bin of a piecewise-linear spectrum</td>
+</tr>
+<tr class="even">
+<td><code>levinsonDurbin</code></td>
+<td>Levinson-Durbin recursion</td>
+</tr>
+<tr class="odd">
+<td><code>psd2acv</code></td>
+<td>PSD -&gt; autocovariance</td>
+</tr>
+<tr class="even">
+<td><code>redundancyLags</code></td>
+<td>redundancy per lag without the dense W^-1</td>
+</tr>
+<tr class="odd">
+<td><code>separableWhiten</code></td>
+<td>separable (temporal x axis) whitening</td>
+</tr>
+<tr class="even">
+<td><code>stat</code></td>
+<td>distributions and test thresholds, base MATLAB only</td>
+</tr>
+<tr class="odd">
+<td><code>toeplitzCofactor</code></td>
+<td>Toeplitz cofactor construction</td>
+</tr>
+<tr class="even">
+<td><code>varACV</code></td>
+<td>VAR autocovariance</td>
+</tr>
+<tr class="odd">
+<td><code>varWhiten</code></td>
+<td>VAR whitening</td>
+</tr>
+<tr class="even">
+<td><code>whitenessCorr</code></td>
+<td>whiteness (Ljung-Box) statistic</td>
+</tr>
+<tr class="odd">
+<td><code>whittle</code></td>
+<td>multichannel Levinson (Whittle) VAR fit</td>
+</tr>
+<tr class="even">
+<td><code>robustWeights</code></td>
+<td>IRLS weight factors from standardised residuals</td>
+</tr>
+</tbody>
+</table>
+<h2 data-number="8.3" id="lsqvce.util-plumbing"><span
+class="header-section-number">8.3</span> lsqvce.util — plumbing</h2>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>unit</th>
+<th>what</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>callUser</code></td>
+<td>call a user function: outputs counted once, errors wrapped</td>
+</tr>
+<tr class="even">
+<td><code>getfielddef</code></td>
+<td>struct field with default</td>
+</tr>
+<tr class="odd">
+<td><code>toolboxVersion</code></td>
+<td>the version string from Contents.m (one source)</td>
+</tr>
+<tr class="even">
+<td><code>onPass</code></td>
+<td>fire the per-pass inspection hook (Options.OnPass)</td>
+</tr>
+<tr class="odd">
+<td><code>rowWeightKey</code></td>
+<td>the one key convention for per-arc robust weights</td>
+</tr>
+<tr class="even">
+<td><code>streamKey</code></td>
+<td>the one stream key ’satKey</td>
+</tr>
+<tr class="odd">
+<td><code>arcKey</code></td>
+<td>the one arc key of the joint estimator</td>
+</tr>
+<tr class="even">
+<td><code>log</code></td>
+<td>toolbox-wide logging state</td>
+</tr>
+<tr class="odd">
+<td><code>mergeStruct</code></td>
+<td>struct merge (later wins)</td>
+</tr>
+<tr class="even">
+<td><code>verbosity</code></td>
+<td>verbosity level resolution and formatting</td>
+</tr>
+</tbody>
+</table>
+<h1 data-number="9" id="error-and-warning-identifiers"><span
+class="header-section-number">9</span> Error and warning
+identifiers</h1>
+<p>Every identifier the package raises (generated from the identifier
+catalogue, which is kept closed both ways: nothing is raised that is not
+listed, nothing is listed that is not raised).</p>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>identifier</th>
+<th>raised by</th>
+<th>kind</th>
+<th>introduced</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>lsqvce:BlockCofactor:badBlocks</code></td>
+<td>engine.BlockCofactor</td>
+<td>error</td>
+<td>v6.3.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:BlockCofactor:multiSystemRow</code></td>
+<td>engine.BlockCofactor</td>
+<td>error</td>
+<td>v6.3.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:Options:badGrid</code></td>
+<td>Options</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:Options:badGroupField</code></td>
+<td>Options</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:Options:badOnPass</code></td>
+<td>Options</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:Options:badTarget</code></td>
+<td>Options</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:Options:badVerbose</code></td>
+<td>Options</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:Results:badPlotKind</code></td>
+<td>Results</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:Results:noAccumulator</code></td>
+<td>Results</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:Results:noCovariance</code></td>
+<td>Results</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:Results:noHistory</code></td>
+<td>Results</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:Results:noPerObservation</code></td>
+<td>Results</td>
+<td>error</td>
+<td>v6.5.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:Results:noVPv</code></td>
+<td>Results</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:Results:tableMismatch</code></td>
+<td>Results</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:accum:arcBadNc</code></td>
+<td>engine.BlockAccumulator</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:accum:arcBadNl</code></td>
+<td>engine.BlockAccumulator</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:accum:arcNotFinite</code></td>
+<td>engine.BlockAccumulator</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:accum:arcRowMismatch</code></td>
+<td>engine.BlockAccumulator</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:accum:badArc</code></td>
+<td>engine.BlockAccumulator</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:accum:badCxx</code></td>
+<td>engine.BlockAccumulator</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:accum:badLoader</code></td>
+<td>engine.BlockAccumulator</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:accum:badMeta</code></td>
+<td>engine.BlockAccumulator</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:accum:badPrior</code></td>
+<td>engine.BlockAccumulator</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:accum:badSpecs</code></td>
+<td>engine.BlockAccumulator</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:accum:badThresholds</code></td>
+<td>engine.BlockAccumulator</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:accum:badX</code></td>
+<td>engine.BlockAccumulator</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:accum:blockSchurFailed</code></td>
+<td>engine.BlockAccumulator</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:accum:cancellation</code></td>
+<td>engine.BlockAccumulator</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:accum:duplicateSystem</code></td>
+<td>engine.BlockAccumulator</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:accum:localNotRedundant</code></td>
+<td>engine.BlockAccumulator</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:accum:localSummarySkipped</code></td>
+<td>engine.BlockAccumulator</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:accum:metaMismatch</code></td>
+<td>engine.BlockAccumulator</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:accum:noArcs</code></td>
+<td>engine.BlockAccumulator</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:accum:noDays</code></td>
+<td>engine.BlockAccumulator</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:accum:noStore</code></td>
+<td>engine.BlockAccumulator</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:accum:noSystems</code></td>
+<td>engine.BlockAccumulator</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:accum:notWholeEpochs</code></td>
+<td>engine.private.arcBatchWhiten</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:accum:pinvFallback</code></td>
+<td>engine.BlockAccumulator</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:accum:priorNotPD</code></td>
+<td>engine.BlockAccumulator</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:accum:priorSize</code></td>
+<td>engine.BlockAccumulator</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:accum:unknownSystem</code></td>
+<td>engine.BlockAccumulator</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:adjustBlock:badCell</code></td>
+<td>engine.private.normalizeSystems</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:adjustBlock:badLoader</code></td>
+<td>engine.private.normalizeSystems</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:adjustBlock:badStruct</code></td>
+<td>engine.private.normalizeSystems</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:adjustBlock:badSystems</code></td>
+<td>engine.private.normalizeSystems</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:adjustBlock:noDays</code></td>
+<td>engine.private.normalizeSystems</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:adjustNonlinear:badX0</code></td>
+<td>engine.adjustNonlinear</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:adjustNonlinear:diverged</code></td>
+<td>engine.adjustNonlinear</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:adjustNonlinear:maxIter</code></td>
+<td>engine.adjustNonlinear</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:adjustNonlinear:nonFinite</code></td>
+<td>engine.adjustNonlinear</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:adjustRobust:collapsed</code></td>
+<td>engine.adjustRobust</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:adjustRobust:notConverged</code></td>
+<td>engine.adjustRobust</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:adjustVCEjoint:arcMismatch</code></td>
+<td>engine.adjustVCEjoint</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:adjustVCEjoint:badAxisRows</code></td>
+<td>engine.adjustVCEjoint</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:adjustVCEjoint:badS0</code></td>
+<td>engine.adjustVCEjoint</td>
+<td>error</td>
+<td>v6.7.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:adjustVCEjoint:badSigma2_0</code></td>
+<td>engine.adjustVCEjoint</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:adjustVCEjoint:localNotPD</code></td>
+<td>engine.adjustVCEjoint</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:adjustVCEjoint:needCfcn</code></td>
+<td>engine.adjustVCEjoint</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:adjustVCEjoint:noArcs</code></td>
+<td>engine.adjustVCEjoint</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:adjustVCEjoint:collapsed</code></td>
+<td>engine.adjustVCEjoint</td>
+<td>error</td>
+<td>v6.1</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:adjustVCEjoint:notConverged</code></td>
+<td>engine.adjustVCEjoint</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:adjustVCEjoint:arcFactorsDiverging</code></td>
+<td>engine.adjustVCEjoint</td>
+<td>warning</td>
+<td>v5.3</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:adjustVCEjoint:notPD</code></td>
+<td>engine.adjustVCEjoint</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:adjustVCEjoint:skipThreshold</code></td>
+<td>engine.adjustVCEjoint</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:applyReg:badLambda</code></td>
+<td>engine.applyRegularisation</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:applyReg:badRegMatrix</code></td>
+<td>engine.applyRegularisation</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:applyReg:notPD</code></td>
+<td>engine.applyRegularisation</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:applyReg:sizeMismatch</code></td>
+<td>engine.applyRegularisation</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:applyReg:unknown</code></td>
+<td>engine.applyRegularisation</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:ar2arma:degenerate</code></td>
+<td>kernel.ar2arma</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:ar2arma:degenerateMA</code></td>
+<td>kernel.ar2arma</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:ar2arma:tooShort</code></td>
+<td>kernel.ar2arma</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:ar2arma:unstable</code></td>
+<td>kernel.ar2arma</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:arcVarianceFactors:arcMismatch</code></td>
+<td>engine.arcVarianceFactors</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:arcVarianceFactors:badMean</code></td>
+<td>engine.arcVarianceFactors</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:arcVarianceFactors:clamped</code></td>
+<td>engine.arcVarianceFactors</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:armaACV:nonStationary</code></td>
+<td>kernel.armaACV</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:armaACV:zeroLeadingAR</code></td>
+<td>kernel.armaACV</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:armaWhiten:acvTooShort</code></td>
+<td>kernel.armaWhiten</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:armaWhiten:badSigma</code></td>
+<td>kernel.armaWhiten</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:armaWhiten:sizeMismatch</code></td>
+<td>kernel.armaWhiten</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:armaWhiten:startupNotPD</code></td>
+<td>kernel.armaWhiten</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:batchSystem:badMatrix</code></td>
+<td>engine.batchSystem</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:batchSystem:badSource</code></td>
+<td>engine.batchSystem</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:batchSystem:weightMatrix</code></td>
+<td>engine.batchSystem</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:callUser:badHandle</code></td>
+<td>util.callUser</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:callUser:threw</code></td>
+<td>util.callUser</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:callUser:tooFew</code></td>
+<td>util.callUser</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:checkPSD:badFit</code></td>
+<td>engine.checkPSD</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:checkPSD:badModel</code></td>
+<td>engine.checkPSD</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:checkPSD:marginalFit</code></td>
+<td>engine.checkPSD</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:checkPSD:unstable</code></td>
+<td>engine.checkPSD</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:collectResiduals:badRes</code></td>
+<td>engine.collectResiduals</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:covComponent:badLag</code></td>
+<td>engine.covComponent</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:covComponent:lagTooLarge</code></td>
+<td>engine.covComponent</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:covModel:badCep</code></td>
+<td>engine.covModel</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:covModel:badPsdMode</code></td>
+<td>engine.covModel</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:covModel:badSigma</code></td>
+<td>engine.covModel</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:covModel:badWhitenMode</code></td>
+<td>engine.covModel</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:covModel:cepOnVar</code></td>
+<td>engine.covModel</td>
+<td>error</td>
+<td>v5.3</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:covModel:degeneratePSD</code></td>
+<td>engine.covModel</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:covModel:negativePSD</code></td>
+<td>engine.covModel</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:covModel:noACF</code></td>
+<td>engine.covModel</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:covModel:noAR</code></td>
+<td>engine.covModel</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:covModel:noCovForm</code></td>
+<td>engine.covModel</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:covModel:noFcn</code></td>
+<td>engine.covModel</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:covModel:noFilterForm</code></td>
+<td>engine.covModel</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:covModel:noPSD</code></td>
+<td>engine.covModel</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:covModel:noSigma</code></td>
+<td>engine.covModel</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:covModel:noType</code></td>
+<td>engine.covModel</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:covModel:noVAR</code></td>
+<td>engine.covModel</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:covModel:notWholeEpochs</code></td>
+<td>engine.covModel</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:covModel:psdSanitationEscape</code></td>
+<td>engine.covModel</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:covModel:sigmaLength</code></td>
+<td>engine.covModel</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:covModel:unknownType</code></td>
+<td>engine.covModel</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:crossCorr:shortSeries</code></td>
+<td>kernel.crossCorr</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:datum:BnotNull</code></td>
+<td>engine.datum</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:datum:autoDetected</code></td>
+<td>engine.datum</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:datum:badB</code></td>
+<td>engine.datum</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:datum:rankDeficientB</code></td>
+<td>engine.datum</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:datum:zeroN</code></td>
+<td>engine.datum</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:dctI:tooShort</code></td>
+<td>kernel.dctI</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:decorrFactor:notPD</code></td>
+<td>kernel.decorrFactor</td>
+<td>mixed</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:diagnose:badPmatrix</code></td>
+<td>engine.verdict</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:diagnose:badTest</code></td>
+<td>engine.verdict</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:diagnose:batchMismatch</code></td>
+<td>engine.verdict</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:diagnose:nBatch</code></td>
+<td>engine.verdict</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:diagnose:noRobustScale</code></td>
+<td>engine.verdict</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:diagnoseAccum:needKeepLocal</code></td>
+<td>engine.verdict</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:diagnoseAccum:noSystems</code></td>
+<td>engine.verdict</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:ellipse:badPair</code></td>
+<td>engine.verdict</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:ellipse:samePair</code></td>
+<td>engine.verdict</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:fit:badArcs</code></td>
+<td>engine.declaration</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:fit:badEstimate</code></td>
+<td>fit</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:fit:badId</code></td>
+<td>engine.declaration</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:fit:badMatrix</code></td>
+<td>fit</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:fit:badParamColumns</code></td>
+<td>engine.declaration</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:fit:badPrior</code></td>
+<td>fit</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:fit:badScope</code></td>
+<td>engine.declaration</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:fit:builderKind</code></td>
+<td>engine.declaration</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:fit:duplicateSystem</code></td>
+<td>engine.declaration</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:fit:lawOnFixedStructure</code></td>
+<td>fit</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:fit:missingField</code></td>
+<td>engine.declaration, fit</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:fit:modelKind</code></td>
+<td>fit</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:fit:noCommon</code></td>
+<td>engine.declaration</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:fit:noDays</code></td>
+<td>engine.declaration</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:fit:noSystems</code></td>
+<td>engine.declaration</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:fit:notYet</code></td>
+<td>fit</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:fit:priorNotActive</code></td>
+<td>fit</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:fit:uCount</code></td>
+<td>fit</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:fit:varUnderNoise</code></td>
+<td>fit</td>
+<td>error</td>
+<td>v6.1.5</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:fit:unknownField</code></td>
+<td>engine.declaration, fit</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:ftest:differentData</code></td>
+<td>engine.verdict</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:ftest:invalidPremise</code></td>
+<td>engine.verdict</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:ftest:noRedundancy</code></td>
+<td>engine.verdict</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:ftest:notNested</code></td>
+<td>engine.verdict</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:ftest:zeroVariance</code></td>
+<td>engine.verdict</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:gcv:atLowerBound</code></td>
+<td>engine.gcvLambda</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:gcv:atUpperBound</code></td>
+<td>engine.gcvLambda</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:gcv:degenerate</code></td>
+<td>engine.gcvLambda</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:gcvLambda:qzFallback</code></td>
+<td>engine.gcvLambda</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:hatACV:badX</code></td>
+<td>kernel.hatACV</td>
+<td>error</td>
+<td>v6.7.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:jointArcParts:sizeMismatch</code></td>
+<td>engine.private.jointArcParts</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:jointModelOpt:badS</code></td>
+<td>engine.jointModelOpt</td>
+<td>error</td>
+<td>v6.7.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:jointModelOpt:badModel</code></td>
+<td>engine.jointModelOpt</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:jointModelOpt:badStream</code></td>
+<td>engine.jointModelOpt</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:levinson:notPD</code></td>
+<td>kernel.levinsonDurbin</td>
+<td>mixed</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:levinson:orderTooHigh</code></td>
+<td>kernel.levinsonDurbin</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:localDiagnostics:notFinite</code></td>
+<td>engine.localDiagnostics</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:log:noParallelQueue</code></td>
+<td>util.log</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:makeKeyFcn:badGroupBy</code></td>
+<td>engine.private.makeKeyFcn</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:makeLoader:arcCount</code></td>
+<td>engine.makeLoader</td>
+<td>error</td>
+<td>v6.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:makeLoader:badArc</code></td>
+<td>engine.makeLoader</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:makeLoader:badArcs</code></td>
+<td>engine.makeLoader</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:makeLoader:axisConflict</code></td>
+<td>engine.makeLoader</td>
+<td>error</td>
+<td>v5.3</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:makeLoader:badDay</code></td>
+<td>engine.makeLoader</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:makeLoader:badDayCep</code></td>
+<td>engine.makeLoader</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:makeLoader:badPrior</code></td>
+<td>engine.makeLoader</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:makeLoader:badScope</code></td>
+<td>engine.makeLoader</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:makeLoader:badValidity</code></td>
+<td>engine.makeLoader</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:makeLoader:cepTwice</code></td>
+<td>engine.makeLoader</td>
+<td>error</td>
+<td>v5.3</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:makeLoader:buildDay</code></td>
+<td>engine.makeLoader</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:makeLoader:dayShape</code></td>
+<td>engine.makeLoader</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:makeLoader:emptyDay</code></td>
+<td>engine.makeLoader</td>
+<td>error</td>
+<td>v6.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:makeLoader:localPlan</code></td>
+<td>engine.makeLoader</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:makeLoader:ncConflict</code></td>
+<td>engine.makeLoader</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:makeLoader:nlConflict</code></td>
+<td>engine.makeLoader</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:makeLoader:noCep</code></td>
+<td>engine.makeLoader</td>
+<td>warning</td>
+<td>v5.3</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:makeLoader:noArcs</code></td>
+<td>engine.makeLoader</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:makeLoader:noCov</code></td>
+<td>engine.makeLoader</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:makeLoader:noObsTypes</code></td>
+<td>engine.makeLoader</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:makeLoader:paramType</code></td>
+<td>engine.makeLoader</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:makeLoader:priorType</code></td>
+<td>engine.makeLoader</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:makeLoader:rowWeightSize</code></td>
+<td>engine.makeLoader</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:mapreduce:badTask</code></td>
+<td>engine.mapreduce</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:mapreduce:serialFallback</code></td>
+<td>engine.mapreduce</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:normalEq:badMerge</code></td>
+<td>engine.NormalEqSystem</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:normalEq:badWidth</code></td>
+<td>engine.NormalEqSystem</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:normalEq:cancellation</code></td>
+<td>engine.NormalEqSystem</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:normalEq:noData</code></td>
+<td>engine.NormalEqSystem</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:normalEq:noRedundancy</code></td>
+<td>engine.NormalEqSystem</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:normalEq:notSPD</code></td>
+<td>engine.NormalEqSystem</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:normalEq:sizeMismatch</code></td>
+<td>engine.NormalEqSystem</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:prior:badGroup</code></td>
+<td>engine.CommonPrior</td>
+<td>error</td>
+<td>v6.11.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:prior:badTarget</code></td>
+<td>engine.CommonPrior</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:probeMatrix:badDist</code></td>
+<td>engine.private.probeMatrix</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:psd2acv:aboveNyquist</code></td>
+<td>kernel.psd2acv</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:psd2acv:nonPositiveVariance</code></td>
+<td>kernel.psd2acv</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:psd2acv:tooFewPoints</code></td>
+<td>kernel.psd2acv</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:psdVCE:arcMismatch</code></td>
+<td>engine.psdVCE</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:psdVCE:shapeMismatch</code></td>
+<td>engine.psdVCE</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:qr:badMerge</code></td>
+<td>engine.QRSystem</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:qr:badWidth</code></td>
+<td>engine.QRSystem</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:qr:cancellation</code></td>
+<td>engine.QRSystem</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:qr:noData</code></td>
+<td>engine.QRSystem</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:qr:noRedundancy</code></td>
+<td>engine.QRSystem</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:qr:rankDeficient</code></td>
+<td>engine.QRSystem</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:qr:singularR</code></td>
+<td>engine.QRSystem</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:qr:sizeMismatch</code></td>
+<td>engine.QRSystem</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:reduced:notSquare</code></td>
+<td>engine.ReducedContribution</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:reduced:sizeMismatch</code></td>
+<td>engine.ReducedContribution</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:redundancy:hutchFailed</code></td>
+<td>engine.redundancy</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:redundancy:hutchinsonExperimental</code></td>
+<td>engine.redundancy</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:redundancy:identityViolated</code></td>
+<td>engine.redundancy</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:redundancy:noStore</code></td>
+<td>engine.redundancy</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:redundancy:smallGroup</code></td>
+<td>engine.redundancy</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:redundancy:spmdNoCollect</code></td>
+<td>engine.redundancy</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:redundancyLags:badEbar</code></td>
+<td>kernel.redundancyLags</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:redundancyLags:badLocal</code></td>
+<td>kernel.redundancyLags</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:redundancyLags:badUiZ</code></td>
+<td>kernel.redundancyLags</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:redundancyLags:badW</code></td>
+<td>kernel.redundancyLags</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:residuals:badSol</code></td>
+<td>engine.residuals</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:residuals:noStore</code></td>
+<td>engine.residuals</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:residuals:sigma0Mismatch</code></td>
+<td>engine.residuals</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:residuals:supersedesSol</code></td>
+<td>engine.residuals</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:resolveNc:conflict</code></td>
+<td>engine.resolveNc</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:resolveNc:empty</code></td>
+<td>engine.resolveNc</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:resolveNc:missing</code></td>
+<td>engine.resolveNc</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:robust:atBreakdown</code></td>
+<td>engine.private.warnAtBreakdown</td>
+<td>warning</td>
+<td>v6.1.4</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:robustWeights:badInfluence</code></td>
+<td>kernel.robustWeights</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:robustWeights:badTuning</code></td>
+<td>kernel.robustWeights</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:robustWeights:scaleFallback</code></td>
+<td>kernel.robustWeights</td>
+<td>warning</td>
+<td>v6.1.4</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:runMeta:badArg</code></td>
+<td>engine.runMeta</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:separable:acvTooShort</code></td>
+<td>kernel.separableWhiten</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:separable:badSigma</code></td>
+<td>kernel.separableWhiten</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:separable:badSigmaShape</code></td>
+<td>kernel.separableWhiten</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:separable:epochNotPD</code></td>
+<td>kernel.separableWhiten</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:separable:notWholeEpochs</code></td>
+<td>kernel.separableWhiten</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:separable:sigmaLength</code></td>
+<td>kernel.separableWhiten</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:separable:startupNotPD</code></td>
+<td>kernel.separableWhiten</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:sharedProbe:badProbes</code></td>
+<td>engine.sharedProbe</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:sharedProbe:notSquare</code></td>
+<td>engine.sharedProbe</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:snoop:breakdown</code></td>
+<td>engine.verdict</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:snoop:contaminated</code></td>
+<td>engine.verdict</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:snoop:correlatedBatch</code></td>
+<td>engine.verdict</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:snoop:downdateFailed</code></td>
+<td>engine.verdict</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:snoop:forcedBreakdown</code></td>
+<td>engine.verdict</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:snoop:forcedContaminated</code></td>
+<td>engine.verdict</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:snoop:forcedOverCap</code></td>
+<td>engine.verdict</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:snoop:lowRedundancy</code></td>
+<td>engine.verdict</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:snoop:maxReject</code></td>
+<td>engine.verdict</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:snoop:rejectFraction</code></td>
+<td>engine.verdict</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:snoop:tooContaminated</code></td>
+<td>engine.verdict</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:stat:badDof</code></td>
+<td>kernel.stat</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:stat:badProb</code></td>
+<td>kernel.stat</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:stat:sizeMismatch</code></td>
+<td>kernel.stat</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:streamContribution:badSol</code></td>
+<td>engine.streamContribution</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:streamContribution:cNotPD</code></td>
+<td>engine.streamContribution</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:streamContribution:noArcs</code></td>
+<td>engine.streamContribution</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:streamContribution:noStore</code></td>
+<td>engine.streamContribution</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:synthLoader:badArc</code></td>
+<td>engine.synthLoader</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:synthLoader:noNoiseModel</code></td>
+<td>engine.synthLoader</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:systematic:badCovariate</code></td>
+<td>engine.verdict</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:systematic:lbUnreliable</code></td>
+<td>engine.verdict</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:systematic:noResiduals</code></td>
+<td>engine.verdict</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:systematic:tooFew</code></td>
+<td>engine.verdict</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:toeplitzCofactor:badVariance</code></td>
+<td>kernel.toeplitzCofactor</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:toeplitzCofactor:empty</code></td>
+<td>kernel.toeplitzCofactor</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:toeplitzCofactor:notACV</code></td>
+<td>kernel.toeplitzCofactor</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:traceEstimate:badOperator</code></td>
+<td>engine.traceEstimate</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:traceEstimate:needSize</code></td>
+<td>engine.traceEstimate</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:traceEstimate:notSquare</code></td>
+<td>engine.traceEstimate</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:traceEstimate:sizeMismatch</code></td>
+<td>engine.traceEstimate</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:util:log:badKey</code></td>
+<td>util.log</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:varACV:badA</code></td>
+<td>kernel.varACV</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:varACV:notStationary</code></td>
+<td>kernel.varACV</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:varWhiten:badA</code></td>
+<td>kernel.varWhiten</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:varWhiten:badSigma</code></td>
+<td>kernel.varWhiten</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:varWhiten:badStartup</code></td>
+<td>kernel.varWhiten</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:varWhiten:notWholeEpochs</code></td>
+<td>kernel.varWhiten</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:vce:badAccFcn</code></td>
+<td>engine.vce</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:vce:badSigma0</code></td>
+<td>engine.vce</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:vce:groupMismatch</code></td>
+<td>engine.vce</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:vce:hutchGroupMismatch</code></td>
+<td>engine.vce</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:vce:lowRedundancy</code></td>
+<td>engine.vce</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:vce:notConverged</code></td>
+<td>engine.vce</td>
+<td>warning</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:verbosity:badLevel</code></td>
+<td>util.verbosity</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:verbosity:badTag</code></td>
+<td>util.verbosity</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:whittle:badG</code></td>
+<td>kernel.whittle</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:whittle:notPD</code></td>
+<td>kernel.whittle</td>
+<td>error</td>
+<td>v4.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:covModel:badNugget</code></td>
+<td>engine.covModel</td>
+<td>error</td>
+<td>v6.6.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:covModel:nuggetNeedsWholeArc</code></td>
+<td>engine.covModel</td>
+<td>error</td>
+<td>v6.6.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:redundancyLags:badNugget</code></td>
+<td>kernel.redundancyLags</td>
+<td>error</td>
+<td>v6.6.0</td>
+</tr>
+</tbody>
+</table>
+</body>
+</html>

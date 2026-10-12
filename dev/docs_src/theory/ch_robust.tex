@@ -1,0 +1,72 @@
+% Chapter 4 -- robust estimation.
+\chapter{Robust estimation}\label{ch:robust}
+
+\section{Influence functions}
+
+Robust estimation replaces the weight of an observation by $f(u)\,p$, where $u$ is its
+standardised residual and $f$ the weight function of an M-estimator. The scale is the centred
+median absolute deviation, $s=1.4826\,\operatorname{median}|v-\operatorname{median}v|$, and $u=v/s$.
+
+\begin{center}
+\begin{tabular}{@{}llll@{}}
+\toprule
+influence & $f(u)$ & default tuning & rejection point \\ \midrule
+Huber & $1$ for $|u|\le c$, $c/|u|$ beyond & $c=1.345$ & none \\
+IGG3 & $1$ on $[0,k_0]$, $\dfrac{k_0}{|u|}\Bigl(\dfrac{k_1-|u|}{k_1-k_0}\Bigr)^2$ on $(k_0,k_1]$, $0$ beyond & $k_0=1.5$, $k_1=3$ & $k_1$\\
+bisquare & $\bigl(1-(u/c)^2\bigr)^2$ for $|u|<c$, $0$ beyond & $c=4.685$ & $c$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Huber is monotone and keeps the fraction $c/|u|$ of a gross error's weight; IGG3 and bisquare
+redescend and reject it. Weights are floored at $10^{-12}$.
+
+\section{Iteratively reweighted least squares on the innovations}\label{sec:irls}
+
+Without variance-component estimation, IRLS weights the \emph{law-whitened} residuals (the
+innovations of the noise process; Yang 1994). Each pass accumulates under the current factors,
+solves, forms the whitened residuals with the previous factor removed, computes one MAD scale over
+all data and the factors $f_i$, and applies them after the whitener: the whitened rows are scaled
+by $\sqrt{f_i}$. The iteration stops when the change of $\hat{\vc x}$ falls below its tolerance
+relative to the size of the estimate or its formal error. The returned $\hat\sigma_0$ and covariance
+are those of the reweighted problem. For a correlated law a zero innovation weight removes the
+whitening filter's response to the blunder, not the epoch itself.
+
+\section{Robust weights inside the variance-component estimation}\label{sec:robustvce}
+
+Inside the joint estimator the weights are statements about \emph{observations} (Koch's
+convention), and they enter the covariance, not the whitened rows.
+
+\paragraph{The statistic.} The raw residuals $\vc v=\vc l-\mat A\hat{\vc x}-\mat B\hat{\vc y}$ are
+de-scaled by the declared per-epoch accuracy ($\mat D_e^{-1}\vc v_e$), not by the temporal law and not
+by the level. For a scalar stream the statistic is the de-scaled residual. For an epoch of $d$ axes
+it is $\chi$-calibrated,
+\begin{equation}
+z_e=\operatorname{sign}\Bigl(\sum_{\mathrm{axes}}v\Bigr)\,\Phi^{-1}\!\Bigl(1-\tfrac12\,Q\bigl(\tfrac d2,\tfrac{q_e}{2s^2}\bigr)\Bigr),\qquad
+q_e=\sum_{\mathrm{axes}}v^2 ,
+\end{equation}
+with the upper regularised gamma function $Q$, so that a clean $d$-axis epoch is standardised like
+a clean scalar residual. The scale is one MAD per stream, so the weights do not depend on the level
+being estimated.
+
+\paragraph{The nugget.} A factor $f_e$ enters as an additive variance on the diagonal of the
+temporal law,
+\begin{equation}\label{eq:nugget}
+\mat\Sigma=\mat D\bigl((\mat R_t+\diag(\vc c))\otimes\mat I_d\bigr)\mat D\T,\qquad c_e=q_e\,(\mat R_t)_{ee},\quad q_e=\frac1{f_e}-1 .
+\end{equation}
+The marginal variance of the epoch becomes $(\mat R_t)_{ee}/f_e$, its covariances with the
+neighbours are unchanged, and $f_e=0$ deletes the epoch exactly. The arc is whitened by the law's
+factor followed by an exact rank-$k$ correction over the $k$ down-weighted epochs (Woodbury).
+
+\paragraph{What uses which factors.} The solution uses all factors. The component update uses only
+the rejected epochs: a partial factor would bias the level downwards, because the influence
+function down-weights exactly the epochs with large residuals. The level and the arc factors are
+divided by the truncation factor of the rejection point $k$,
+\begin{equation}
+\tau=\frac{F_{\chi^2_{d+2}}(q_k)}{F_{\chi^2_d}(q_k)},\qquad P(\chi^2_d>q_k)=P(|N(0,1)|>k),
+\end{equation}
+which is $1-2k\varphi(k)/(2\Phi(k)-1)=0.9733$ for $d=1$ and $k=3$, practically one for bisquare and
+exactly one for Huber. After the loop the returned solution is the \emph{hard} one: rejected epochs
+deleted, every partial factor set back to one, and $\hat\sigma_0^2$ and the covariance corrected for
+the deleted rows and for $\tau$. A pass that rejects more than 45\,\% of the epochs has reached the
+breakdown point of the estimator.

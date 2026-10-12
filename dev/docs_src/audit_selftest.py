@@ -40,7 +40,7 @@ spec.loader.exec_module(audit)
 COPY = ['+lsqvce', 'html', 'helptoc.xml', 'dev/docs_src', 'dev/tests', 'template',
         'examples', 'README.md', 'RELEASE_NOTES.md', 'dev/DEVELOPMENT.md', 'dev/HANDOVER.md',
         'dev/GRAVFIRE_INTERFACE.md',
-        'lsqvce_manual.pdf']
+        'lsqvce_manual.pdf', 'lsqvce_api.pdf']
 
 
 def scratch():
@@ -394,8 +394,8 @@ def manual_knobs_only():
     audit.FINDINGS[:] = [f for f in audit.FINDINGS if 'could not be rebuilt' not in f[1]]
 
 
-case('23 a group field missing from Manual ch. 4 fires', manual_knobs_only,
-     'manual', lambda d: edit(os.path.join(d, 'dev/docs_src/manual/04_options.md'),
+case('23 a group field missing from the API reference fires', manual_knobs_only,
+     'manual', lambda d: edit(os.path.join(d, 'dev/docs_src/api/04_options.md'),
                               '`SkipThreshold`', 'SkipThreshold'))
 
 

@@ -44,7 +44,7 @@ function L = makeLoader(buildDay, opt)
 %     takes (common, local, procOpt) receives the parametrisation tables and
 %     processing options passed to makeLoader; the 6th argument is the day's
 %     expansion slice (offsets of every block of A and B, the rows present on
-%     the day; the Manual, chapter 3 section 6.3). A varargin builder receives
+%     the day; the API reference, chapter buildDay, info). A varargin builder receives
 %     all six. common / local have ONE ROW per template and C columns of YOUR
 %     convention; nc and nl are DERIVED (see 'CommonParams' / 'LocalParams').
 %
@@ -273,6 +273,10 @@ function L = makeLoader(buildDay, opt)
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
 %   WP-64a): the ENGINE tier leaves the USER surface; every qualified
 %   reference was rewritten mechanically by docs_src/refactor_tiers.py.
+%
+%   Updated 2026-10-12 (CEST, UTC+02:00), WP-124: references to the data
+%   contract point at the API reference. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 arguments
     buildDay
     opt.ObservationTypes = {}

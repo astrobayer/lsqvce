@@ -6,7 +6,7 @@ function R = demo_grace(varargin)
 %
 %   Runs a GRACE-FO-shaped synthetic problem through the USER surface:
 %   the declaration comes from DEMO_GRACE_DATALOADER as a v5 data struct
-%   (the Manual, chapter 3), the run is ONE call to LSQVCE.FIT, and everything
+%   (the API reference), the run is ONE call to LSQVCE.FIT, and everything
 %   you read afterwards is on the LSQVCE.RESULTS. Two observation systems:
 %     * System 1 -- satellites C and D, each with a 3-D position stream (posC,
 %       posD) whose covariance is C = D (R_t kron I_3) D -- a FIXED per-epoch
@@ -43,7 +43,7 @@ function R = demo_grace(varargin)
 %
 %   This is the copy-paste starting point. To run on YOUR data, replace
 %   demo_grace_dataLoader (in this folder) with your own buildDay and data
-%   struct -- the contract is the Manual, chapter 3 (doc lsqvce).
+%   struct -- the contract is the API reference (doc lsqvce).
 %
 %   ERRORS  none of its own; declaration errors carry lsqvce:fit ids.
 %
@@ -53,7 +53,7 @@ function R = demo_grace(varargin)
 %   the estimated spectrum. With assistance from Claude (Anthropic), model
 %   Claude Opus 5.5.
 %   Updated 2026-09-07 (CEST, UTC+02:00), R6 WP-95: v5 vocabulary -- the
-%   declaration is the v5 data struct (the Manual, chapter 3), the demo's own
+%   declaration is the v5 data struct (the API reference), the demo's own
 %   knob is 'maxPasses' (it sets Options.MaxPasses, the ONE budget), and the
 %   noise fit is described as one estimated spectral shape and one level per
 %   stream instead of an AR order per stream and a component per obsType.
@@ -70,6 +70,10 @@ function R = demo_grace(varargin)
 %   example. With assistance from Claude (Anthropic), model Claude Fable 5.
 %   Created 2026-07-16 (CEST, UTC+02:00) with assistance from
 %   Claude (Anthropic), model Claude Opus 4.8.
+%
+%   Updated 2026-10-12 (CEST, UTC+02:00), WP-124: references to the data
+%   contract point at the API reference. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 
     p = inputParser;
     p.addParameter('maxPasses', 6);

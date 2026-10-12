@@ -24,12 +24,12 @@ function V = report(D, opt)
 %   NAME-VALUE
 %     'verbose'  true  print the report (default true)
 %     'width'    78    line width
-%     'Provenance' struct()  a run-provenance struct (LSQVCE.RESULTS .meta,
-%                      WP-44); when non-empty, ONE level-0 NOTE line
+%     'Provenance' struct()  a run-provenance struct (LSQVCE.RESULTS .meta);
+%                      when non-empty, ONE level-0 NOTE line
 %                      (code 'PROVENANCE') states toolbox version, MATLAB
 %                      release, and creation time. R.report() forwards it
 %                      automatically; a bare lsqvce.report(D) prints none.
-%     'Iteration'  struct()  the loop state of an ITERATIVE run (R6 WP-99):
+%     'Iteration'  struct()  the loop state of an ITERATIVE run:
 %                      .converged, .stopReason, .nIter. When non-empty and the
 %                      run was not a single solve, ONE level-1 line says
 %                      whether the stochastic model settled -- 'NOISE_SETTLED'
@@ -39,7 +39,7 @@ function V = report(D, opt)
 %                      it automatically. An optional .influence (char) names
 %                      the robust influence of an IRLS run; when non-empty ONE
 %                      level-1 NOTE ('ROBUST_FIT') says sigma0 and the
-%                      covariance are those of the reweighted problem (R7-18).
+%                      covariance are those of the reweighted problem.
 %
 %   OUTPUT V
 %     V.verdict   'PASS' | 'PASS WITH WARNINGS' | 'SUSPECT' | 'INVALID'
@@ -64,12 +64,13 @@ function V = report(D, opt)
 %           error('Pope is blind here -- re-run with test=mad.');
 %       end
 %
+%   See also LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SYSTEMATIC.
+%
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
 %   typed `arguments` signature, canonical UpperCamelCase option names
 %   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
 %   case-sensitive lowercase). With assistance from Claude (Anthropic),
 %   model Claude Fable 5.
-%   See also LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SYSTEMATIC.
 %
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 4: the remedies name
 %   R.systematic() / R.snoop(), never an engine function (H-05). With
@@ -92,6 +93,10 @@ function V = report(D, opt)
 %   model Claude Opus 5.
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
+%   Updated 2026-10-12 (CEST, UTC+02:00), WP-124: development history taken
+%   out of the help text (it lives in RELEASE_NOTES.md and dev/HANDOVER.md);
+%   references point at the API reference. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 
 % WP-39 b2: typed `arguments` signature (canonical Verbose/Width;
 % legacy casings keep matching -- MATLAB NV semantics).

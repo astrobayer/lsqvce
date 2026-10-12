@@ -1,7 +1,7 @@
 function tests = test_fit
 %TEST_FIT  Tests for lsqvce.fit, the one user verb (R4 WP-56, decision R4-D4).
 %
-%     lsqvce.fit   data struct (the Manual, chapter 3) + lsqvce.Options -> Results;
+%     lsqvce.fit   data struct (the API reference) + lsqvce.Options -> Results;
 %                  builds the loaders through makeLoader and dispatches on
 %                  opts.Model to adjustBlock / adjustVCE
 %
@@ -35,6 +35,10 @@ function tests = test_fit
 %   assistance from Claude (Anthropic), model Claude Fable 5.
 %   Created 2026-08-31 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5 -- R4 Level L2, WP-56.
+%
+%   Updated 2026-10-12 (CEST, UTC+02:00), WP-124: references to the data
+%   contract point at the API reference. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
     tests = functiontests(localfunctions);
 end
 

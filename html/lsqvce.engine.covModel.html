@@ -79,7 +79,7 @@ handles the model parameters again.</pre>
                order); Cfcn is the TEMPORAL covariance over epochs; the
                law is built on the EPOCH grid t(1:d:end); filterMemory is
                p*d rows. The loader sets it from the day buildDay returned
-               (the Manual, chapter 3 section 7); a user never writes it
+               (the API reference, chapter buildDay, Cep); a user never writes it
                on the spec. d = size(Cep, 2), and a .d on the spec must
                agree. The former &#x27;separable&#x27; type was &#x27;arma&#x27; plus this field.
       .nugget  nEpoch x 1, &gt;= 0   (R7 WP-115 part 3b; with Cep only) the
@@ -235,7 +235,9 @@ Generated with assistance from Claude (Anthropic), model Claude
 Opus 4.8.
 Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
 WP-64a): the ENGINE tier leaves the USER surface; every qualified
-reference was rewritten mechanically by docs_src/refactor_tiers.py.</pre>
+reference was rewritten mechanically by docs_src/refactor_tiers.py.
+Updated 2026-10-12 (CEST, UTC+02:00), WP-124: Cep reference -&gt; API reference.
+With assistance from Claude (Anthropic), model Claude Opus 5.5.</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
 <div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

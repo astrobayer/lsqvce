@@ -13,7 +13,7 @@ function L = lsqvce_template(procOpt)
 %               'Verbose', procOpt.loggingLevel > 0);   % one GLS solve on the Loaders
 %
 %   ENGINE-TIER TEMPLATE (since 2.0). The user path needs no Loader at all:
-%   describe the same case as a plain `data` struct (the Manual, chapter 3) and
+%   describe the same case as a plain `data` struct (the API reference) and
 %   call lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false)) -- examples/demo_fit.m
 %   shows it end to end. Keep this template when you want the Loaders in
 %   hand (procOpt-driven cases, direct engine work, 1.x code).
@@ -123,6 +123,10 @@ function L = lsqvce_template(procOpt)
 %   gone. With assistance from Claude (Anthropic), model Claude Fable 5.1.
 %   Created 2026-07-19 (CEST, UTC+02:00) with assistance from
 %   Claude (Anthropic), model Claude Opus 4.8.
+%
+%   Updated 2026-10-12 (CEST, UTC+02:00), WP-124: references to the data
+%   contract point at the API reference. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 
     narginchk(1, 1);
     requireFields(procOpt, {'observationGroups', 'days'});

@@ -1,5 +1,5 @@
 classdef Options
-%LSQVCE.OPTIONS  The one settings object for LSQVCE.FIT (v5: 12 knobs + 5 groups).
+%LSQVCE.OPTIONS  The one settings object for LSQVCE.FIT: 12 knobs and 5 groups.
 %
 %   opts = lsqvce.Options()                       every default
 %   opts = lsqvce.Options(Name, Value, ...)       override some
@@ -9,65 +9,49 @@ classdef Options
 %   WHAT TO ESTIMATE, HOW TO RUN. Everything ABOUT A STREAM (its law, whether
 %   its law / level / arc factors are estimated) is declared on the stream
 %   (data.systems(k).covariance.<type>: type, sigma, estimate, arcFactors);
-%   this object holds only RUN policy. R5 M5 (WP-87, decision R5-D2) cut it
-%   from 62 flat knobs to the 12 below plus five typed groups; the migration
-%   from every v4 name is in RELEASE_NOTES.md and HANDOVER §12.10.
+%   this object holds only RUN policy: 12 knobs plus five typed groups.
 %
 %   TOP LEVEL
 %     Estimate   "none" | "noise"   "none": one GLS solve under the declared
 %                                   laws. "noise": the joint (Ellmer) variance
 %                                   component estimator on every stream whose
 %                                   spec allows it (estimate ~= "none"), with
-%                                   the policy below. Replaces Model: the v4
-%                                   spellings are Estimate="noise" plus
-%                                     "ellmer" -> Pool as set, ArcFactors true
-%                                     "vce"    -> Pool "stream", ArcFactors false
-%                                     "pooled" -> Pool "all",    ArcFactors false
+%                                   the policy below
 %     Pool       "all" | "obsType" | "stream"   which streams SHARE one estimated
 %                                   spectral shape (every stream keeps its own
 %                                   level regardless); default "all"
 %     ArcFactors logical            per-arc variance factors on (Ellmer 6.5.4),
 %                                   default true; false = one level per stream.
-%                                   TO READ AN ARC'S STANDARD DEVIATION back,
-%                                   use all three terms (R6 WP-100):
+%                                   The factor is the arc's ABSOLUTE Helmert
+%                                   factor and weights the solve, so sigma0
+%                                   settles near 1. TO READ AN ARC'S STANDARD
+%                                   DEVIATION back, use all three terms:
 %                                     declared sigma * sqrt(factor) * R.sigma0
-%                                   -- since 6.1.6 the factor is the arc's
-%                                   ABSOLUTE Helmert factor and weights the
-%                                   solve (R7-13), so sigma0 settles near 1.
-%                                   (R6 F-01, fixed in WP-98: the factors
-%                                   settle across passes; before they grew
-%                                   8.4x a pass.)
 %     Robust     "none" | "huber" | "igg3" | "bisquare"   IRLS on the same
 %                                   loop, every kind (details in RobustOpts).
 %                                   With Estimate "noise" the robust pass runs
-%                                   INSIDE the joint loop (R6 WP-105): one
-%                                   residual sweep per pass, the factors in
-%                                   every arc's whitener on the next pass;
-%                                   MaxPasses is the budget, RobustOpts.Tuning
-%                                   the constants (RobustOpts.MaxIter / Tol
-%                                   belong to the stand-alone IRLS only)
+%                                   INSIDE the joint loop: one residual sweep
+%                                   per pass, the factors in every arc's
+%                                   whitener on the next pass; MaxPasses is the
+%                                   budget, RobustOpts.Tuning the constants
+%                                   (RobustOpts.MaxIter / Tol belong to the
+%                                   stand-alone IRLS only)
 %     MaxPasses  double  10         the pass budget of the variance-component
-%                                   loop and of Gauss-Newton (v4: MaxOuter /
-%                                   JointMaxIter). IRLS has its OWN budget,
-%                                   RobustOpts.MaxIter (R6 WP-101)
+%                                   loop and of Gauss-Newton. IRLS has its OWN
+%                                   budget, RobustOpts.MaxIter
 %     Tolerance  double  1e-2       stop when max|alpha2 - 1| over frequencies
-%                                   and arcs is below it (v4: JointTol)
+%                                   and arcs is below it
 %     Backend    "qr" | "normal"    square-root vs normal equations
 %     Probes     double  100        Hutchinson probes for the per-lag
 %                                   redundancies; an integer >= 1 (Ellmer's
 %                                   value is 100). The joint estimator has no
-%                                   exact route: 0 is refused (R6 WP-101)
+%                                   exact route, so 0 is refused
 %     Seed       [] | double        RNG seed for the probes (recorded)
 %     CacheDays  double  1          built days kept resident per system; Inf =
 %                                   the whole calendar (one build per run)
-%     Verbose    logical | 0 | 1    screen messages on this surface: 0 silent,
-%                                   1 progress. THE VALUE IS PASSED AS A FLAG:
-%                                   engineArgs hands every driver
-%                                   logical(Verbose), so level 2 has never been
-%                                   reachable through fit -- it is an
-%                                   engine-tier setting of lsqvce.util.verbosity
-%                                   (R6 WP-101; 2 is still accepted here and
-%                                   behaves as 1)
+%     Verbose    logical | 0 | 1    screen messages: 0 silent, 1 progress. The
+%                                   value is passed to every driver as a flag
+%                                   (logical(Verbose)), so 2 behaves as 1
 %     OnPass     [] | @(ctx)        YOUR inspection hook, called at the end of
 %                                   EVERY pass of every iterative run (the
 %                                   variance-component loop, IRLS, Gauss-Newton)
@@ -85,14 +69,13 @@ classdef Options
 %                                   nothing to continue, false to stop after this
 %                                   pass (stopReason "userStop"). A throwing hook
 %                                   is NOT swallowed (lsqvce:callUser:threw with
-%                                   your error as cause). Replaces v4's
-%                                   plotPostModel / plotPostSolve seams.
+%                                   your error as cause)
 %
 %   GROUPS (structs; set fields one at a time or give a whole struct)
 %     Noise        Grid 60             spectral bins of the estimated law, 0 ..
-%                                      Nyquist (an integer >= 2; "auto" is
-%                                      refused); exact at every lag for any Grid
-%                  Whitener "toeplitz"|"ar"|"arma"  how a PSD law whitens (v4 PsdMode)
+%                                      Nyquist (an integer >= 2); exact at every
+%                                      lag for any Grid
+%                  Whitener "toeplitz"|"ar"|"arma"  how a PSD law whitens
 %                  Smooth 0                         moving average on the PSD
 %                  FreezeRedundancy 1               components below it hold
 %                  SkipThreshold 0.2                skip RATE that refuses the pass
@@ -106,10 +89,8 @@ classdef Options
 %
 %   REGULARISATION is not an option: it is DECLARED on the data, as
 %   pseudo-observations in the user's own columns -- data.priors(k) on the
-%   common parameters (L in the columns of A) and data.systems(k).priorDay on
-%   the local ones (L in the columns of B), each with x0, sigma, from, group
-%   (R5-D8). The v4 Reg / RegLambda / RegMatrix / DatumB / Sigma0 / Sparse
-%   knobs are gone (HANDOVER §12.10).
+%   common parameters (L in the columns of A) and data.systems(k).priors(l) on
+%   the local ones (L in the columns of B), each with x0, sigma, from, group.
 %
 %   METHODS
 %     engineArgs(target)   the Name-Value list a driver takes (validated)
@@ -119,8 +100,7 @@ classdef Options
 %   ERRORS
 %     MATLAB:validators:*          a typed property receives a value outside
 %                                  its type / set / range (at assignment)
-%     lsqvce:Options:badGrid       Noise.Grid is not an integer >= 2 ("auto"
-%                                  was documented until v5.3, never implemented)
+%     lsqvce:Options:badGrid       Noise.Grid is not an integer >= 2
 %     lsqvce:Options:badVerbose    Verbose is neither logical nor an integer 0..2
 %     lsqvce:Options:badOnPass     OnPass is neither [] nor a function handle
 %     lsqvce:Options:badGroupField a group struct carries an unknown field
@@ -131,10 +111,10 @@ classdef Options
 %     opts.Noise.Grid = 2160;  opts.Parallel.Mode = "parfor";
 %     R = lsqvce.fit(data, opts);
 %     % Robust ~= "none" together with Estimate = "noise" runs the robust pass
-%     % inside the joint loop (since 6.1, Manual 7.8):
+%     % inside the joint loop:
 %     opts.Robust = "huber";
 %
-%   See also LSQVCE.FIT, LSQVCE.RESULTS, the Manual, chapter 3, RELEASE_NOTES.md
+%   See also LSQVCE.FIT, LSQVCE.RESULTS, the API reference, RELEASE_NOTES.md
 %
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 3: Noise.Grid is the
 %   number of spectral bins of the positive-component law; the law is exact at
@@ -169,6 +149,11 @@ classdef Options
 %   Claude (Anthropic), model Claude Opus 5.
 %   Created 2026-09-03 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.1 -- R5 Level M5, WP-87 (v5 interface).
+%
+%   Updated 2026-10-12 (CEST, UTC+02:00), WP-124: development history taken
+%   out of the help text (it lives in RELEASE_NOTES.md and dev/HANDOVER.md);
+%   references point at the API reference. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 
     properties
         Estimate   (1,1) string {mustBeMember(Estimate, ["none","noise"])} = "none"

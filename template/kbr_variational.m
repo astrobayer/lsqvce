@@ -6,8 +6,7 @@ function [data, kit] = kbr_variational(cfg)
 %     [data, kit] = kbr_variational(cfg)
 %
 %   DESCRIPTION
-%     A real-data template for the lsqvce `data` declaration (the Manual,
-%     chapter 3): the GRACE-FO Level-1B range-rates (KBR1B) of the C/D pair,
+%     A real-data template for the lsqvce `data` declaration (the API reference): the GRACE-FO Level-1B range-rates (KBR1B) of the C/D pair,
 %     and their reduced-dynamic positions (GNV1B) that make the initial
 %     states observable, as observation equations of a gravity field in
 %     fully normalized spherical harmonics -- by the VARIATIONAL EQUATIONS.
@@ -29,7 +28,7 @@ function [data, kit] = kbr_variational(cfg)
 %     formed on the fly while the pair is integrated (Psi is never stored --
 %     at degree 60 one satellite-day of Psi would be 3 GB).
 %
-%     The parameters (scoped tables, the Manual, chapter 3 section 6):
+%     The parameters (scoped tables, the API reference, chapter The data struct):
 %       common   C_nm, S_nm for n = cfg.degree(1) .. cfg.degree(2)
 %       'arc'    per satellite r0, v0 (6 + 6); KBR bias, drift, cos u, sin u (4)
 %       'day'    per satellite ACC bias (3) and scale (3)            (6 + 6)
@@ -53,8 +52,8 @@ function [data, kit] = kbr_variational(cfg)
 %     degree        1x2  [nmin nmax] estimated degrees           ([2 60])
 %     fieldDegree   1x1  degree of the reference field     (degree(2), >= it)
 %     arcsPerDay    1x1  arcs per day; arc length 86400/arcsPerDay       (1)
-%     arcs          fh   @(day, obsType) arc ids (a resolver, the Manual
-%                        chapter 3 section 4.2) instead of 1:arcsPerDay ([])
+%     arcs          fh   @(day, obsType) arc ids (a resolver, the API
+%                        reference, buildDay) instead of 1:arcsPerDay ([])
 %     step          1x1  integration and KBR step, s                    (5)
 %     posSampling   1x1  GNV1B position sampling used, s (multiple of step) (30)
 %     sigma         struct .kbr (m/s, 2e-7), .pos (m, 0.02): the starting
@@ -109,7 +108,7 @@ function [data, kit] = kbr_variational(cfg)
 %     kbrvar:offGrid         a KBR1B epoch is not on the integration grid
 %     kbrvar:shortArc        an arc holds fewer than 8 integration steps
 %     kbrvar:emptyArc        a scheduled arc carries no data (declare cfg.arcs)
-%     (+ every declaration check of lsqvce.fit, the Manual chapter 3 section 3.5)
+%     (+ every declaration check of lsqvce.fit, the API reference, chapter buildDay)
 %
 %   EXAMPLE
 %     cfg = struct('days', 60000:60029, 'dataDir', '/data/gracefo/L1B', ...
@@ -142,6 +141,10 @@ function [data, kit] = kbr_variational(cfg)
 %
 %   Created 2026-10-12 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Opus 5.5 -- WP-122.
+%
+%   Updated 2026-10-12 (CEST, UTC+02:00), WP-124: references to the data
+%   contract point at the API reference. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 
 arguments
     cfg (1,1) struct

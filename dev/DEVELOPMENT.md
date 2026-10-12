@@ -670,39 +670,24 @@ entire file never ran. `run_all_lsqvce` iterates the registered list, counts a
 load failure as a failure, keeps the warning inventory, and records per-suite
 seconds.
 
-**Documentation ships in two forms, both self-contained.** The **Manual** is the
-single documentation authority (docs level, 2026-09-04): thirteen numbered chapters
-in `dev/docs_src/manual/*.md`, built by pandoc into `html/lsqvce_manual.html` (what
-`doc lsqvce` opens) and `lsqvce_manual.pdf`. Audit check 23 rebuilds it and compares
-byte for byte, so a stale build cannot ship:
+**Three user documents, each with one job** (WP-124, 2026-10-12): the **Manual**
+(how to use the toolbox: install, workflow, declaring a problem, the stochastic
+model, priors, reading the report, the examples), the **API reference** (what every
+interface accepts and returns: the `data` contract, `buildDay`, covariance specs,
+`Options`, `Results`, generated help and identifier chapters) and the **theory**
+(the mathematical framework only). Version history is `RELEASE_NOTES.md`, the
+development record `dev/HANDOVER.md`; neither belongs in the three documents.
 
 ```bash
-python3 dev/docs_src/build_manual.py            # -> html/lsqvce_manual.html + lsqvce_manual.pdf
-sh dev/docs_src/theory_r5/build.sh              # -> lsqvce_theory.pdf  (pdflatex, two passes)
+python3 dev/docs_src/build_manual.py   # -> html/lsqvce_manual.html + lsqvce_manual.pdf,
+                                       #    html/lsqvce_api.html + lsqvce_api.pdf
+sh dev/docs_src/theory/build.sh        # -> lsqvce_theory.pdf (pdflatex)
 ```
 
-The **theory document** `lsqvce_theory.pdf` (R4, Level L3) is the authoritative
-account of the METHOD choices -- backends, conditioning, VCE families,
-stochastic model, robust estimation, error handling, limitations -- with every
-toolbox claim tied to the work package that pinned it; the manual's theory
-chapter remains until decision R4-D3 retires it.
-
-See `dev/docs_src/README_manual.md` for the file map and for how to add an equation
-or a diagram. The **Manual** carries the same material in browsable form, with no
-JavaScript and no external references at all — open it from `doc lsqvce` or the
-Help browser, offline, with no runtime dependency.
-
-- **[The Manual](html/lsqvce_manual.html)** — **start here.** Thirteen numbered
-  chapters: overview, installation, the binding `data` contract and the six
-  `buildDay` rules, every Options knob, the diagnostics and how to read them, the
-  gravity-recovery path, the API by tier, migration, and the identifier catalogue.
-  The six v4 manuals it replaced (user, reference, interpretation, choosing, and
-  their generator) were deleted in the docs level of 2026-09-04; this is the ONE
-  documentation authority now, and audit check 23 keeps the built copy fresh.
-
-The **API reference is the per-function HTML** (one page each, listed by category
-on the `doc lsqvce` landing page); every function also has a runnable `EXAMPLE`
-block:
+Audit check 23 rebuilds the Manual and the API reference and compares both HTML
+files byte for byte; check 29 holds both PDF titles to the version.
+`dev/docs_src/README.md` is the file map. The per-function pages are generated from
+the help blocks (`python3 dev/docs_src/build_missing_pages.py all`):
 
 ```matlab
 help lsqvce.engine.adjustBlock % EXAMPLE + hyperlinked See also
@@ -711,9 +696,9 @@ doc lsqvce              % the landing page
 
 | File | Purpose |
 |---|---|
-| `lsqvce_manual.pdf` | **THE Manual** — one document, built by pandoc (`python3 dev/docs_src/build_manual.py`) |
-| `lsqvce_theory.pdf` | **The theory document** — theory, practice, implementation, error handling, the R5 review and the v5 redesign plan; LaTeX source in `dev/docs_src/theory_r5/`, built by `sh dev/docs_src/theory_r5/build.sh` |
-| `html/lsqvce_manual.html` | **THE Manual, what `doc lsqvce` opens. Start here** — install, the data contract, every option, the API, priors, migration |
+| `lsqvce_manual.pdf`, `html/lsqvce_manual.html` | **the Manual** (what `doc lsqvce` opens) — install, workflow, declaring a problem, the report, the examples |
+| `lsqvce_api.pdf`, `html/lsqvce_api.html` | **the API reference** — data contract, `buildDay`, covariance specs, `Options`, `Results`, identifiers |
+| `lsqvce_theory.pdf` | **the theory** — the mathematical framework; LaTeX source in `dev/docs_src/theory/` |
 | `html/lsqvce.*.html` | **per-function API pages — params, size, type, default, description** |
 | `html/` + `helptoc.xml` + `info.xml` | MATLAB `doc` pages |
 | `template/lsqvce_template.m` | **your own case: copy, rename, fill the two stubs** |

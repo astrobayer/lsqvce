@@ -9,7 +9,7 @@ function data = gravfire_data(commonData, myOptions, systemsData, opt)
 %   contains everything the v5 data contract asks for EXCEPT the design
 %   matrices. This function is the declaration half; the design half is the
 %   'DesignFcn' you supply (the variational-equation partials of GRAVFIRE).
-%   Every rule of the Manual, chapter 3 is applied here once, and the file is
+%   Every rule of the API reference is applied here once, and the file is
 %   meant to be READ as the step-by-step guide dev/GRAVFIRE_INTERFACE.md:
 %   the section numbers in the comments below are its steps.
 %
@@ -36,7 +36,7 @@ function data = gravfire_data(commonData, myOptions, systemsData, opt)
 %           systems(1) with id, name, buildDay, covariance, localParams,
 %           priors, processingOptions -- and NO arc schedule: the pieces
 %           buildDay returns as cells ARE the arcs of the day (v6, R6 WP-102).  The two priors fields are the DECLARED
-%           regularisation (the Manual, chapter 3): data.priors from column 11
+%           regularisation (the API reference): data.priors from column 11
 %           of the common table, data.systems.priors from the local templates.
 %
 %   ERRORS
@@ -46,7 +46,7 @@ function data = gravfire_data(commonData, myOptions, systemsData, opt)
 %     gravfire:designShape          DesignFcn returned A/B with the wrong row/column count
 %     gravfire:badConstraint        column 11 is malformed, or the rows of one label
 %                                   disagree on sigma or on the activation pass
-%     (+ every declaration check of lsqvce.fit, raised before any read; the Manual, chapter 3 §3.5)
+%     (+ every declaration check of lsqvce.fit, raised before any read; the API reference, chapter buildDay)
 %
 %   EXAMPLE
 %     S    = load('testdata.mat');
@@ -55,7 +55,7 @@ function data = gravfire_data(commonData, myOptions, systemsData, opt)
 %     data = gravfire_data(S.commonData, S.myOptions, S.systemsData, 'DesignFcn', @gravfireDesign);
 %     R    = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Noise=struct('Grid', 2160), MaxPasses=7));
 %
-%   See also LSQVCE.FIT, LSQVCE.OPTIONS, the Manual, chapter 3, dev/GRAVFIRE_INTERFACE.md
+%   See also LSQVCE.FIT, LSQVCE.OPTIONS, the API reference, dev/GRAVFIRE_INTERFACE.md
 %
 %   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-102 (v6): THE CELLS ARE THE
 %   ARCS -- buildGravfireDay returns one cell per piece (A, B, l, t, Cep),
@@ -82,6 +82,10 @@ function data = gravfire_data(commonData, myOptions, systemsData, opt)
 %   (Anthropic), model Claude Fable 5.1.
 %   Created 2026-09-02 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.1 -- R5 Level M0 close-out (§12.8).
+%
+%   Updated 2026-10-12 (CEST, UTC+02:00), WP-124: references to the data
+%   contract point at the API reference. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 
 arguments
     commonData  (1,1) struct
@@ -137,7 +141,7 @@ end
 
     % ---- STEP 7: the system
     s = struct();
-    s.id                = 1;                                  % numeric or ONE char (Manual §2.3)
+    s.id                = 1;                                  % numeric or ONE char (API reference, The data struct)
     s.name              = 'GRACE';                            % the label lives here
     s.buildDay          = @buildGravfireDay;
     s.covariance        = cov;

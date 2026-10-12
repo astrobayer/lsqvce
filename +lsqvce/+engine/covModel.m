@@ -37,7 +37,7 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 %                  order); Cfcn is the TEMPORAL covariance over epochs; the
 %                  law is built on the EPOCH grid t(1:d:end); filterMemory is
 %                  p*d rows. The loader sets it from the day buildDay returned
-%                  (the Manual, chapter 3 section 7); a user never writes it
+%                  (the API reference, chapter buildDay, Cep); a user never writes it
 %                  on the spec. d = size(Cep, 2), and a .d on the spec must
 %                  agree. The former 'separable' type was 'arma' plus this field.
 %         .nugget  nEpoch x 1, >= 0   (R7 WP-115 part 3b; with Cep only) the
@@ -200,6 +200,8 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
 %   WP-64a): the ENGINE tier leaves the USER surface; every qualified
 %   reference was rewritten mechanically by docs_src/refactor_tiers.py.
+%   Updated 2026-10-12 (CEST, UTC+02:00), WP-124: Cep reference -> API reference.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 
     narginchk(2,3);
     if nargin < 3 || isempty(opt), opt = struct(); end

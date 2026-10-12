@@ -1,0 +1,183 @@
+% Chapter 3 -- variance component estimation (the joint estimator).
+\chapter{Variance component estimation}\label{ch:vce}
+
+\section{The problem}
+
+The stochastic model is known up to a finite set of non-negative components entering linearly,
+\begin{equation}\label{eq:vcmodel}
+\mat\Sigma(\vc\theta)=\sum_{g=1}^G\theta_g\mat V_g ,
+\end{equation}
+with known symmetric positive semi-definite matrices $\mat V_g$. The toolbox estimates, jointly
+in one iteration,
+\begin{enumerate}[label=(\alph*)]
+\item the \textbf{spectral shape} of the noise of every pool group of streams
+  (\S\ref{sec:hat}),
+\item the \textbf{level} of every stream,
+\item a \textbf{variance factor per arc} (\S\ref{sec:arcfactors}), and
+\item the \textbf{weight of every prior group} declared as estimable (\S\ref{sec:priorvce}).
+\end{enumerate}
+
+\section{The Helmert estimator and its simplified form}\label{sec:helmert}
+
+The quadratic forms of the residuals have the expectation (Koch 1999)
+\begin{equation}\label{eq:helmert}
+\E\bigl[\hat{\vc v}\T\mat P\mat V_g\mat P\hat{\vc v}\bigr]=\sum_h\theta_h\tr(\mat R\mat V_g\mat R\mat V_h),\qquad
+\mat R=\mat P-\mat P\mat A\mat N^{-1}\mat A\T\mat P .
+\end{equation}
+Equating observed and expected forms gives the Helmert system, an unbiased estimator. The
+simplified estimator drops the coupling between components and iterates
+\begin{equation}\label{eq:simplified}
+\theta_g\leftarrow\theta_g\,\frac{\Omega_g}{r_g},\qquad
+\Omega_g=\theta_g\,\hat{\vc v}\T\mat P\mat V_g\mat P\hat{\vc v},\qquad
+r_g=\theta_g\tr(\mat R\mat V_g).
+\end{equation}
+The ratio $\alpha_g^2=\Omega_g/r_g$ is the \emph{Helmert factor} of component $g$; the fixed
+point $\Omega_g=r_g$ (``a weighted residual sum equals its redundancy'') is shared with the full
+estimator. Every component in this chapter is estimated by \eqref{eq:simplified}; the components
+differ only in $\mat V_g$.
+
+\section{The spectral law and its components}\label{sec:hat}
+
+\paragraph{Parameterisation.} The law of a pool group is a non-negative spectrum $\vc S$ on $L$
+bins $f_j=j\,d$, $d=1/(2(L-1))$ cycles per sample, $j=0,\dots,L-1$, linear between the bins. Its
+autocovariance at every lag $\tau=0,1,\dots$ of every arc is the exact integral
+\begin{equation}\label{eq:hatacv}
+\vc r=\mat K\vc S,\qquad
+K_{\tau j}=2c_j\cos(2\pi f_j\tau)\,\frac{1-\cos(2\pi\tau d)}{d\,(2\pi\tau)^2},\qquad K_{0j}=c_jd,
+\end{equation}
+with $c_j=2$ inside and $c_j=1$ at both ends. Column $j$ of $\mat K$ is the autocovariance of the
+``hat'' spectrum of bin $j$, so $\operatorname{toeplitz}(\mat K_{:j})$ is positive semi-definite for
+every arc length, and the components
+\begin{equation}
+\mat V_j=\operatorname{toeplitz}(\mat K_{:j}),\qquad \theta_j=S_j\ge0,
+\end{equation}
+make \eqref{eq:vcmodel} a sum of positive semi-definite terms. A Helmert factor of a positive
+semi-definite component cannot be negative, so the law needs no floor and no constraint. The
+grid sets the spectral resolution, not the lag range: the law is exact at every lag whatever $L$.
+The law is a \emph{shape}: it is normalised to $r_0=1$ after every update, and the level is
+carried separately. The start is white noise, $\vc S=\vc 1$.
+
+\paragraph{The per-lag statistics.} Write the arc covariance as
+$\mat\Sigma=\lambda\sum_j S_j\mat V_j$ and let $\mat V^{(n)}$ have ones on the $\pm n$-th diagonals.
+Per arc and lag the toolbox forms the residual sums and the redundancies
+\begin{equation}\label{eq:lagstats}
+\Omega_n=\tilde{\vc e}\T\mat V^{(n)}\tilde{\vc e},\quad\tilde{\vc e}=\mat\Sigma^{-1}\hat{\vc e},\qquad
+s_n=\tr\bigl(\bar{\mat R}\mat V^{(n)}\bigr),
+\end{equation}
+for all lags $n=0,\dots,m-1$ of the arc, with $\bar{\mat R}$ the redundancy matrix \eqref{eq:helmert}
+restricted to the arc. Since $\mat V_j=\sum_n K_{nj}\mat V^{(n)}$, the projections on the bins are
+\begin{equation}\label{eq:binstats}
+Q_j=\lambda\sum_nK_{nj}\Omega_n,\qquad T_j=\lambda\sum_nK_{nj}s_n ,
+\end{equation}
+computed for all bins at once by folding the lag sums and one FFT.
+
+\section{The redundancies by random probes}\label{sec:hutchinson}
+
+$\Omega_n$ is a sum of products of residuals and is exact. The redundancy needs $\mat N^{-1}$. Per
+arc, with the whitened designs $\bar{\mat A}=\mat W(\mat A-\mat B\mat G)$ and $\bar{\mat B}=\mat W\mat B$, the
+local block exact and the common block by Hutchinson's estimator,
+\begin{equation}\label{eq:hutch}
+\bar{\mat R}=\mat\Sigma^{-1}-\mat R_t\mat R_t\T-\mat K_l\mat K_l\T,\qquad
+\mat R_t=\mat W\T\bar{\mat A}\,\mat U^{-1}\bar{\mat Z},\qquad
+\mat K_l=\mat W\T\bar{\mat B}\,\mat L_l^{-\mathsf T},
+\end{equation}
+with $\mat N=\mat U\T\mat U$ the reduced common normal matrix (common priors included),
+$\mat N_{ll}=\mat L_l\mat L_l\T$, and $\bar{\mat Z}=\mat Z/\sqrt Z$ a matrix of $Z$ Rademacher probe
+vectors. Since $\E[\bar{\mat Z}\bar{\mat Z}\T]=\mat I$, $\E[\mat R_t\mat R_t\T]$ is the exact common
+term. The $u\times Z$ block $\mat U^{-1}\bar{\mat Z}$ is formed once per pass and shared by all arcs
+(Ellmer 6.5.48); the same probes are used in every pass. Then
+\begin{equation}
+s_0=\tr\bar{\mat R},\qquad s_n=2\sum_i\bar R_{i+n,i},
+\end{equation}
+where the sub-diagonal sums of $\mat R_t\mat R_t\T$ and $\mat K_l\mat K_l\T$ are evaluated for all lags
+by one zero-padded FFT per column, and those of $\mat\Sigma^{-1}$ by the Levinson recursion and the
+Gohberg--Semencul representation when $\mat\Sigma$ is Toeplitz (exact columns otherwise). The
+estimate is unbiased; its spread decreases as $1/\sqrt Z$. There is no exact route in the joint
+estimator; per-observation redundancies for the diagnostics are computed exactly by a different
+route (\S\ref{sec:redundancy}).
+
+\section{One pass}\label{sec:pass}
+
+Each pass of the joint estimator
+\begin{enumerate}
+\item accumulates and solves under the current model;
+\item sweeps every arc once, whitening it with its current covariance and forming
+  \eqref{eq:lagstats}--\eqref{eq:binstats} and the arc's Helmert factor (\S\ref{sec:arcfactors});
+\item updates the spectrum of every pool group (streams with an estimated law only),
+  \begin{equation}\label{eq:psdupdate}
+  \alpha_j^2=\frac{\max(\sum_mQ_{jm},0)}{\sum_mT_{jm}},\qquad S_j\leftarrow\alpha_j^2S_j ,
+  \end{equation}
+  summed over the arcs $m$ of the group. A bin whose redundancy $S_j\sum_mT_{jm}$ falls below a
+  threshold keeps its value ($\alpha_j^2=1$); an optional moving average smooths $\vc S$; a
+  relative numerical floor of $10^{-10}\max\vc S$ protects the factorisation; then $\vc S$ is
+  renormalised to $r_0=1$;
+\item updates the arc factors and stream levels (\S\ref{sec:arcfactors}) and the prior
+  weights (\S\ref{sec:priorvce});
+\item records the whiteness of every stream (\S\ref{sec:whiteness}).
+\end{enumerate}
+The iteration stops when
+\begin{equation}
+\max_j|\alpha_j^2-1|\le\varepsilon\qquad\text{and}\qquad\max_m\Bigl|\frac{\sigma^2_{m,\mathrm{new}}}{\sigma^2_{m,\mathrm{old}}}-1\Bigr|\le\varepsilon ,
+\end{equation}
+or after the pass budget. After the loop the system is accumulated once more under the final
+model; that solution is the result.
+
+\paragraph{Pooling.} Streams of a pool group share one spectrum $\vc S$; every stream keeps its own
+level. Pooling more streams gives each bin more redundancy per pass; pooling streams of different
+physics forces one shape on different spectra.
+
+\paragraph{Policies per stream.} A stream may have its law estimated (shape, level and arc
+factors), only its level and arc factors (the declared law is kept as the shape), or nothing. An
+estimated law replaces the declared one from the first pass; the declared level is kept as the
+multiplier of the estimated components.
+
+\section{Arc factors and stream levels}\label{sec:arcfactors}
+
+The covariance of arc $m$ of stream $s$ is
+\begin{equation}\label{eq:arccov}
+\mat\Sigma_m=\sigma_{\mathrm{decl},s}^2\;\sigma_m^2\;\operatorname{toeplitz}(\mat K\vc S_g),
+\end{equation}
+composed with the arc's per-epoch accuracy \eqref{eq:separable}. The Helmert factor of the arc's
+whole covariance (Ellmer 6.5.27) is
+\begin{equation}
+\alpha_m^2=\frac{q_m}{t_m},\qquad q_m=\vc r_m\T\vc\Omega^{(m)},\quad t_m=\vc r_m\T\vc s^{(m)},
+\end{equation}
+with $\vc r_m$ the first column of the arc's temporal covariance, and the updated factor is
+$\gamma_m^2=\alpha_m^2\sigma_m^2$ (Ellmer 6.5.28). The factors are \emph{absolute}: they weight the
+solve, so $\sigma_m^2$ is the arc's variance relative to its declaration and $\hat\sigma_0$ settles
+near one. A factor is clamped below at $10^{-8}\bar\gamma^2$, with $\bar\gamma^2$ the mean of the
+central half of the stream's factors, so that no arc is silenced without a test having rejected it.
+A stream without arc factors carries one level, the mean of its arcs' Helmert factors.
+
+The standard deviation of an arc is therefore the product
+$\sigma_{\mathrm{decl},s}\cdot\sigma_m\cdot\hat\sigma_0$.
+
+\section{Weights of prior groups}\label{sec:priorvce}
+
+The weight of a common prior group $k$ (\S\ref{sec:priors}) is a variance component of its own
+(Koch and Kusche 2002). From the solution of the previous pass,
+\begin{equation}\label{eq:kochkusche}
+\Omega_k=\bigl\|(\mat L_k\hat{\vc x}-\vc x_{0,k})/\sigma_k\bigr\|^2,\qquad
+r_k=p_k-\tr\bigl(\mat L_k\mat N^{-1}\mat L_k\T\bigr)/\sigma_k^2,\qquad
+\sigma_k\leftarrow\sigma_k\sqrt{\Omega_k/r_k},
+\end{equation}
+so that $\lambda_k=\sigma_0^2/\sigma_k^2$ is the regularisation the data support. A group needs
+several rows: with one row $r_k\le1$ and the component is not estimable. A prior on local
+parameters is an observation stream of its own, and its weight is estimated as that stream's
+level by \eqref{eq:simplified}.
+
+\section{Skipped arcs}\label{sec:skips}
+
+An arc without data, or whose covariance is not positive definite, is skipped in a pass and keeps
+its previous factor. A pass in which more than a set share of a stream's arcs is skipped is refused
+rather than estimated on a fraction of the data.
+
+\section{What the data can resolve}
+
+The variance of a component estimated from a redundancy $r_g$ is approximately
+$2\theta_g^2/r_g$ under normality: a factor with $r_g=30$ is known to about $\pm26\,\%$. Few or
+short arcs cannot carry their own factors; a spectral bin needs enough redundancy per pass, which
+is what the bin threshold and the choice of the grid control. A spectral law describes stationary
+noise; a periodic signal or a step in the residuals is a functional model error, which the
+estimator would absorb into the noise at the price of pessimistic errors
+(Chapter~\ref{ch:quality}).

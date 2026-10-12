@@ -7,7 +7,7 @@ function [R, s] = demo_noisePolicy(varargin)
 %   THE PROBLEM THIS EXAMPLE EXISTS FOR.  Estimate="noise" does not have to
 %   treat every stream alike, and it should not: what you know about each
 %   instrument differs. The covariance spec of a stream therefore carries a
-%   POLICY beside its law (the Manual, chapter 3 section 2):
+%   POLICY beside its law (the API reference, chapter Covariance specifications):
 %
 %       covariance.<type>.estimate   = "none" | "scale" | "law"  (default "law")
 %       covariance.<type>.arcFactors = true | false          (default: Options)
@@ -97,6 +97,10 @@ function [R, s] = demo_noisePolicy(varargin)
 %   Created 2026-09-07 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Opus 5 -- R6 WP-96: the per-stream policy fields
 %   and the 'psd' law had no worked example (HANDOVER 12.19, carried; 12.20).
+%
+%   Updated 2026-10-12 (CEST, UTC+02:00), WP-124: references to the data
+%   contract point at the API reference. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 
     p = inputParser;
     p.addParameter('maxPasses', 12);
@@ -239,7 +243,7 @@ end
 
 function data = policyData(cfg, sel)
 %POLICYDATA  The declaration: one system, the selected streams, one policy
-%   each. The fieldnames of covariance ARE the streams (the Manual, ch. 3).
+%   each. The fieldnames of covariance ARE the streams (the API reference).
     data = struct();
     data.commonParams = [repmat({'common'}, cfg.nc, 1), ...
                          arrayfun(@(j) sprintf('sig%d', j), (1:cfg.nc).', ...
