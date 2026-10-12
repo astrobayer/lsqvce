@@ -81,7 +81,7 @@ function partials()
     j = find(est == find(nn == 5 & mm == 3 & cs == 1));
     cases = {'IC x', 1, @() run(c, y0 + [1; 0; 0; 0; 0; 0], zeros(3, 1), ones(3, 1)), 1;
              'IC vy', 5, @() run(c, y0 + [0; 0; 0; 0; 1e-3; 0], zeros(3, 1), ones(3, 1)), 1e-3;
-             'S53', 6 + j, @() run(c + 1e-9 * ((1:numel(c)).' == est(j)), y0, zeros(3, 1), ones(3, 1)), 1e-9;
+             'S53', 6 + j, @() run(c + 1e-7 * ((1:numel(c)).' == est(j)), y0, zeros(3, 1), ones(3, 1)), 1e-7;
              'bias y', 6 + np + 2, @() run(c, y0, [0; 1e-8; 0], ones(3, 1)), 1e-8;
              'scale x', 9 + np + 1, @() run(c, y0, zeros(3, 1), [1.1; 1; 1]), 0.1};
     for k = 1:size(cases, 1)

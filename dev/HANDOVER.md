@@ -9113,3 +9113,17 @@ declared defaults to check against the handbook; forces beyond the field and the
 `cfg.background`; GNV1B is reduced-dynamic (swap in a kinematic orbit); KBR quality flags not
 screened; one linearization per call (iterate with `fieldUpdate` and the ACC a-priori).
 NOT validated before CI: no MATLAB in the container.
+CI round 1 (be0f5a9): 626/628 -- the harmonics / J2 / gradient and the Kepler test green in
+MATLAB; testKbrPartialsAgainstReintegration and testKbrClosedLoopThroughFit red, the gate log
+naming them only (the run-log artifact is not reachable from the container). Diagnosed by a
+MEASUREMENT, `dev/validation/wp122_measure.m` on `measure.yml` (repointed from wp111; the
+job log is the record, 2e4eaa4):
+- partials: IC x 1.2e-6, IC vy 3.6e-6, bias y 6.5e-7, scale x 1.0e-6 -- and S53 1.09e-4 over
+  the 1e-4 bound: its 1e-9 step moved the end state by 4.7 mm, against a ~5e-7 m rounding
+  floor. The physics is right; the step is now 1e-7 (exactly linear in C_nm, 0.47 m).
+- closed loop: the fixture (27 s) and the declaration ran; lsqvce.fit stopped in
+  `lsqvce.kernel.separableWhiten>tfilt` with MATLAB:reshape:sparseNDmatrix -- the whitener of a
+  multi-axis stream with Cep reshapes B to 3-D, which MATLAB refuses for a sparse B, although
+  the Manual (chapter 3 section 3.3) allows a sparse B. A TOOLBOX DEFECT, not this WP's: the
+  template returns B dense on its position streams (commented), and the kernel fix is
+  proposed as its own WP (a suggested task), not widened into this PR.

@@ -513,14 +513,16 @@ function testKbrPartialsAgainstReintegration(tc)
     j = find(est == find(nn == 5 & mm == 3 & cs == 1));
     cases = {'IC x',    1,         @() run(c, y0 + [1; 0; 0; 0; 0; 0], zeros(3, 1), ones(3, 1)), 1;
              'IC vy',   5,         @() run(c, y0 + [0; 0; 0; 0; 1e-3; 0], zeros(3, 1), ones(3, 1)), 1e-3;
-             'S53',     6 + j,     @() run(c + 1e-9 * ((1:numel(c)).' == est(j)), y0, zeros(3, 1), ones(3, 1)), 1e-9;
+             'S53',     6 + j,     @() run(c + 1e-7 * ((1:numel(c)).' == est(j)), y0, zeros(3, 1), ones(3, 1)), 1e-7;
              'bias y',  6 + np + 2, @() run(c, y0, [0; 1e-8; 0], ones(3, 1)), 1e-8;
              'scale x', 9 + np + 1, @() run(c, y0, zeros(3, 1), [1.1; 1; 1]), 0.1};
     for k = 1:size(cases, 1)
         Y2 = cases{k, 3}();
         d = (Y2(end, :) - Y(end, :)).';
         col = cases{k, 2};             % Psi columns: [r0 v0 | SH | bias | scale]
-        % tol: 1e-4 relative -- second-order terms and rounding (mirror: 2e-7..3e-6)
+        % tol: 1e-4 relative -- second-order terms and rounding (mirror: 2e-7..3e-6).
+        % The steps move the final state by >= 5 cm: the S53 step was 1e-9 in CI
+        % round 1, its 4.7 mm met the ~5e-7 m rounding floor at 1.09e-4 (WP-122)
         tc.verifyLessThan(norm(Psi(:, col) * cases{k, 4} - d) / norm(d), 1e-4, cases{k, 1});
     end
 end
