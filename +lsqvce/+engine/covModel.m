@@ -55,6 +55,12 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 %                  the k nugget epochs (Q R = qr(F U), Woodbury), O(m k + k^3).
 %                  Cfcn stays the LAW; the nugget travels as info.nugget for
 %                  the joint sweep, which composes it itself.
+%         .maxDenseArc  1x1 epochs (default 20000; WP-126)  the longest arc a
+%                  law WITHOUT a filter form (acf, custom, psd 'toeplitz',
+%                  whitenMode 'chol') is factorised over: the factor is
+%                  whole-arc, O(m^3) and 8 m^2 bytes (3.2 GB at 20 000). A
+%                  longer arc is refused (lsqvce:covModel:denseArcTooLong);
+%                  raise it deliberately when the memory is there.
 %
 %     t    m x 1  epochs of the current arc [s] (epoch-major with Cep: every
 %                 d-th value is one epoch)
@@ -84,19 +90,19 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 %     covariance matrix at all. Cfcn is kept as a reference path: run one arc
 %     both ways and check the normals agree (they do, to ~1e-11).
 %
-%   COST TABLE (b = batch size, p = filter memory)
-%     type      path       cost/batch   memory    BatchSize constraint
-%     diag      filter     O(b)         O(1)      none
-%     arma      filter     O(b*p)       O(p)      none (overlap p)
-%     psd/ar    filter     O(b*p)       O(p)      none (overlap p)
-%     psd/toep  chol       O(b^3)       O(b^2)    b >> correlation length
-%     acf       chol       O(b^3)       O(b^2)    b >> correlation length
+%   COST TABLE (b = batch size, m = epochs of the arc, p = filter memory)
+%     type      path       cost         memory    batching
+%     diag      filter     O(b)         O(1)      any batch
+%     arma      filter     O(b*p)       O(p)      overlap p (+ the decay of 1/B(z))
+%     psd/ar    filter     O(b*p)       O(p)      overlap p
+%     psd/toep  chol       O(m^3)       O(m^2)    whole arc, m <= maxDenseArc
+%     acf       chol       O(m^3)       O(m^2)    whole arc, m <= maxDenseArc
 %     var       filter     O(b*p*d^2)   O(p*d^2)  epoch-aligned, overlap p*d
-%     custom    chol       O(b^3)       O(b^2)    b >> correlation length
+%     custom    chol       O(m^3)       O(m^2)    whole arc, m <= maxDenseArc
 %
-%     At b = 5000 the dense path needs a 200 MB matrix and ~40 GFLOP. That,
-%     not RAM, is the real ceiling. The filter path has no ceiling: set
-%     BatchSize to the whole arc.
+%     A dense law is factorised over the WHOLE arc (WP-125): at m = 5000 that
+%     is a 200 MB matrix and ~40 GFLOP, at the default limit of 20 000 epochs
+%     3.2 GB. The filter path has no ceiling.
 %
 %   PSD -> AR IS THE RECOMMENDED PATH, AND IT IS EXACT
 %     A residual PSD defines a stationary process. Fitting an AR(p) to it and
@@ -147,6 +153,10 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 %       lsqvce:covModel:maNotInvertible the MA part ('arma', or a psd law in
 %                                      'arma' mode) has a root on or outside the
 %                                      unit circle: its whitener is not stable
+%       lsqvce:covModel:denseArcTooLong a law without a filter form (acf, custom,
+%                                      psd 'toeplitz', whitenMode 'chol') on an arc
+%                                      longer than .maxDenseArc epochs, or a
+%                                      .maxDenseArc that is not a positive number
 %
 %     The per-epoch error information does not fit the arc (R6 WP-90)
 %       lsqvce:covModel:badCep         .Cep is neither nEpoch x d nor nEpoch x d x d,
@@ -183,6 +193,10 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 %   See also LSQVCE.ENGINE.CHECKPSD, LSQVCE.KERNEL.ARMAWHITEN, LSQVCE.KERNEL.SEPARABLEWHITEN,
 %            LSQVCE.KERNEL.DECORRFACTOR, LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.MAKELOADER
 %
+%   Updated 2026-10-12 (CEST, UTC+02:00), WP-126: a dense law refuses an arc
+%   longer than cm.maxDenseArc epochs (lsqvce:covModel:denseArcTooLong); the
+%   cost table states the whole-arc factor. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-12 (CEST, UTC+02:00), WP-125: a dense law is whitened over
 %   the whole arc (info.wholeArc); an MA part extends filterMemory by the decay
 %   of 1/B(z); lsqvce:covModel:maNotInvertible. With assistance from Claude
@@ -300,7 +314,7 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 
         Cfcn = @(idx,o) (s^2) * cm.acf( t(idx) - t(idx).', o );
         info.sigma = s;
-        info.cost  = 'O(b^3)';
+        info.cost  = 'O(m^3)';
 
     %------------------------------------------------------------------- psd
     case 'psd'
@@ -368,7 +382,7 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
             error('lsqvce:covModel:noFcn', '''custom'' requires cm.fcn as a function handle.');
         end
         Cfcn      = @(idx,o) cm.fcn(t(idx), o);
-        info.cost = 'O(b^3)';
+        info.cost = 'O(m^3)';
 
     otherwise
         error('lsqvce:covModel:unknownType', ...
@@ -385,7 +399,7 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
         end
         Wfcn = [];
         info.filterMemory = 0;
-        info.cost = 'O(b^3)';
+        info.cost = 'O(m^3)';
     elseif strcmp(mode, 'filter')
         if isempty(Wfcn)
             error('lsqvce:covModel:noFilterForm', ...
@@ -406,7 +420,7 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
     % so an arc longer than one batch lost the correlation between batches.
     % The arc is now factorised whole -- exact, at O(m^3) and m^2 memory.
     if isempty(Wfcn) && ~isempty(Cfcn)
-        info.wholeArc = true;
+        denseArcGuard(cm, m, info.type);  info.wholeArc = true;   % WP-126: refuse before memory runs out
     end
 
     %------------------------------------------------ the composition (WP-90)
@@ -666,7 +680,7 @@ function [Cfcn, Wfcn, info] = psdModel(cm, t, dt, opt, info)
         Cfcn = @(idx,o) toeplitz(r(1:numel(idx)));
         info.filterMemory = 0;
         info.acv          = r;
-        info.cost         = 'O(b^3)';
+        info.cost         = 'O(m^3)';
 
     case {'ar','arma'}
         validateattributes(p, {'numeric'}, {'scalar','integer','positive'}, ...
@@ -696,6 +710,35 @@ function [Cfcn, Wfcn, info] = psdModel(cm, t, dt, opt, info)
     otherwise
         error('lsqvce:covModel:badPsdMode', ...
               'psdMode must be ''ar'', ''arma'' or ''toeplitz'' (got ''%s'').', md);
+    end
+end
+
+%==========================================================================
+function denseArcGuard(cm, m, type)
+%DENSEARCGUARD  Refuse a dense whole-arc factor longer than cm.maxDenseArc epochs.
+%   WP-126: a dense law is factorised over the whole arc (WP-125), at O(m^3)
+%   and 8 m^2 bytes -- 3.2 GB at the default 20 000 epochs, 60 GB at 86 400.
+%   Before WP-125 the dense factor never exceeded one batch (20 000 rows), so
+%   the default keeps that ceiling; a longer arc is refused with the routes
+%   out instead of failing on memory. The limit is part of the declared law
+%   (one place, reachable from LSQVCE.FIT): raise it deliberately with
+%   covariance.<type>.maxDenseArc.
+%
+%   INPUT   cm  1x1 struct  the law (optional .maxDenseArc, epochs, default 20000)
+%           m   1x1 double  epochs in the arc;  type  1xk char  the law's type
+%   ERRORS  lsqvce:covModel:denseArcTooLong  m > cm.maxDenseArc
+    mx = lsqvce.util.getfielddef(cm, 'maxDenseArc', 20000);
+    if ~(isnumeric(mx) && isscalar(mx) && mx >= 1)
+        error('lsqvce:covModel:denseArcTooLong', ...
+              'cm.maxDenseArc must be a positive number of epochs.');
+    end
+    if m > mx
+        error('lsqvce:covModel:denseArcTooLong', ...
+              ['The ''%s'' law has no filter form, so it is factorised over the whole arc: ' ...
+               '%d epochs need %.3g GB for the factor alone, above the limit of %d epochs ' ...
+               '(cm.maxDenseArc). Give a ''psd'' law a filter (Noise.Whitener = "ar" or ' ...
+               '"arma"), cut the arcs shorter, or raise covariance.<type>.maxDenseArc if the ' ...
+               'memory is there.'], type, m, 8 * m^2 / 1e9, mx);
     end
 end
 

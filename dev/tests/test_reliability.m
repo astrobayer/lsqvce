@@ -182,6 +182,28 @@ function testCovModelMaPartExtendsTheFilterMemory(tc)
         'lsqvce:covModel:maNotInvertible');                         %#ok<SFLD>
 end
 
+function testCovModelRefusesADenseArcAboveTheLimit(tc)
+% categories: contract, robustness
+% WP-126: a law without a filter form is factorised over the whole arc
+% (WP-125), so its length is bounded by the declared cm.maxDenseArc (default
+% 20 000 epochs, the batch the dense factor never exceeded before). The
+% boundary is exact: m == limit runs, m == limit + 1 is refused by name; a
+% filter law is not bounded; a limit that is not a positive number is refused.
+    cm = struct('type','acf', 'acf',@(dt,o) exp(-abs(dt)/50), 'sigma',1);
+    t  = (0:99).'*5;                                            % m = 100
+    [~, ~, info] = lsqvce.engine.covModel(setfield(cm, 'maxDenseArc', 100), t, struct()); %#ok<SFLD>
+    tc.verifyTrue(info.wholeArc, 'a dense law is whitened whole');
+    tc.verifyError(@() lsqvce.engine.covModel(setfield(cm, 'maxDenseArc', 99), t, struct()), ...
+        'lsqvce:covModel:denseArcTooLong');                         %#ok<SFLD>
+    tc.verifyError(@() lsqvce.engine.covModel(cm, (0:20000).'*5, struct()), ...
+        'lsqvce:covModel:denseArcTooLong');                         % the default, 20 000
+    tc.verifyError(@() lsqvce.engine.covModel(setfield(cm, 'maxDenseArc', 0), t, struct()), ...
+        'lsqvce:covModel:denseArcTooLong');                         %#ok<SFLD>
+    ar = struct('type','arma', 'ar',[1 -0.5], 'sigma',0.7, 'maxDenseArc',10);
+    [~, W, ~] = lsqvce.engine.covModel(ar, t, struct());
+    tc.verifyNotEmpty(W, 'a filter law is not bounded by the dense limit');
+end
+
 %% ============================================ input validation: accumulator
 function testAccumulatorRejectsBadConstruction(tc)
 % categories: contract

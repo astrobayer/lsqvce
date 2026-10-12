@@ -43,8 +43,15 @@ keeps its own level.
 - Filter laws are applied in batches of up to 20 000 rows that overlap by the filter
   memory (for an MA part, until the impulse response of 1/B(z) has decayed to rounding),
   so the result does not depend on the batching. Dense laws (`acf`, `custom`, Toeplitz
-  `psd`) are factorised over the whole arc (exact; O(m³), m² memory).
+  `psd`) are factorised over the whole arc (exact; O(m³), m² memory: 3.2 GB at 20 000
+  epochs). An arc longer than the spec's `maxDenseArc` (default 20 000 epochs) is refused
+  (`lsqvce:covModel:denseArcTooLong`): give a `psd` law a filter (`Whitener = "ar"`), cut
+  the arcs shorter, or raise `maxDenseArc` when the memory is there.
 - An `arma` law whose MA polynomial has a root on or outside the unit circle is refused
   (`lsqvce:covModel:maNotInvertible`).
+- `Whitener = "arma"` reduces the AR fit of the spectrum to an ARMA (Durbin's method,
+  `lsqvce.kernel.ar2arma`). A reduction that comes back non-stationary or with a
+  non-invertible MA part falls back to the AR fit, with the warning
+  `lsqvce:ar2arma:unstable` or `lsqvce:ar2arma:nonInvertibleMA`.
 - Under `estimate = "law"` the declared law contributes only its `sigma` (the starting
   level): the shape is estimated from a white start.

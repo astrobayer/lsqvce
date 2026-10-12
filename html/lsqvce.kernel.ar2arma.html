@@ -71,10 +71,14 @@ METHOD
   compact rational form B(z)/A(z) using a Hankel least-squares solve.
 
 STABILITY IS NOT GUARANTEED
-  The Hankel fit can produce a non-stationary AR part. That is detected
-  here and the function falls back to the input AR with a warning rather
-  than returning a model whose autocovariance does not exist. If you see
-  that warning, lower armaP or q, or simply use the pure AR.
+  The Hankel fit can produce a non-stationary AR part, or a non-invertible
+  MA part (a root of B(z) on or outside the unit circle, which makes the
+  whitener A(z)/B(z) unstable). Both are detected here and the function
+  falls back to the input AR with a warning rather than returning a model
+  whose autocovariance does not exist or that cannot whiten. If you see
+  either warning, lower armaP or q, or simply use the pure AR. An
+  over-parameterised fit (armaP above the true order) is where the MA part
+  goes non-invertible.
 
 ALWAYS VERIFY
   ARMA reduction is the least robust step in this toolbox. Check it:
@@ -96,11 +100,16 @@ numel(a)-1, numel(b)-1        % 10, 2  instead of 100</pre>
 IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
   lsqvce:ar2arma:degenerateMA                [warning] The MA fit is degenerate; falling back to the AR model
   lsqvce:ar2arma:unstable                    [warning] The ARMA reduction produced a non-stationary AR part (max |root| = X)
+  lsqvce:ar2arma:nonInvertibleMA             [warning] The ARMA reduction produced a non-invertible MA part
 
 See also LSQVCE.KERNEL.LEVINSONDURBIN, LSQVCE.KERNEL.ARMAACV, LSQVCE.ENGINE.CHECKPSD
 
 Generated with assistance from Claude (Anthropic), model Claude
 Opus 4.8.
+Updated 2026-10-12 (CEST, UTC+02:00), WP-126: the Hankel fit runs the
+recursion forwards (it returned reciprocal roots); a non-invertible MA part
+falls back to the AR (lsqvce:ar2arma:nonInvertibleMA). With assistance from
+Claude (Anthropic), model Claude Opus 5.5.
 Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+kernel (R4 decision R4-D1,
 WP-64a): the KERNEL tier leaves the USER surface; every qualified
 reference was rewritten mechanically by docs_src/refactor_tiers.py.</pre>

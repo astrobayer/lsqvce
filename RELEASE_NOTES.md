@@ -1,5 +1,26 @@
 # lsqvce release notes
 
+## 6.14.0 — 2026-10-12 (WP-126: the review findings on WP-125)
+
+Numbers change for `Noise.Whitener = "arma"` with an MA order (marked **numbers**).
+
+- **A dense law refuses an arc above `maxDenseArc` epochs.** Since 6.13.0 an `acf`, `custom` or
+  Toeplitz `psd` law is factorised over the whole arc (O(m³), 8·m² bytes) and the default
+  `Noise.Whitener = "toeplitz"` reaches declared `psd` laws, so a long arc could exhaust memory.
+  Above 20 000 epochs — the largest dense factor the toolbox formed before 6.13.0 — it is now
+  refused (`lsqvce:covModel:denseArcTooLong`) with the routes out: `Whitener = "ar"`, shorter
+  arcs, or `covariance.<type>.maxDenseArc` raised deliberately.
+- **`lsqvce.kernel.ar2arma` fits the AR part forwards (numbers).** The Hankel regression ran
+  the recursion backwards and returned the reciprocal roots (0.94 → 1.064), so the stationarity
+  guard fired on almost every input and `Whitener = "arma"` silently used the long AR. The true
+  ARMA is now recovered (1e-14 on the round-trip test).
+- **A non-invertible MA part falls back to the AR** with the warning
+  `lsqvce:ar2arma:nonInvertibleMA`, as a non-stationary AR part already did, instead of
+  failing the run in `covModel` (`maNotInvertible` stays for a declared `arma` law).
+- **`arcVarianceFactors` returns `.pooled`,** the pooled Helmert factor that is the joint
+  estimator's stream level since 6.13.0 — now computed in one place and unit-tested.
+- Tests: 651 (+4).
+
 ## 6.13.0 — 2026-10-12 (WP-125: the code findings of the documentation review)
 
 Numbers change for three of the items below (marked **numbers**).

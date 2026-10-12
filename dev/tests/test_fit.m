@@ -533,6 +533,28 @@ function testArmaAndPsdLawsAgreeNoWorseUnderIrls(tc)
         'IRLS must not amplify the difference between two spellings of one law');
 end
 
+function testWhitenerReachesADeclaredPsdLaw(tc)
+% categories: metamorphic, contract
+    % WP-126 (finding F3 of the WP-125 review): Noise.Whitener governs a
+    % DECLARED psd law end to end -- Options -> adjustBlock / adjustRobust
+    % 'PsdMode' -> the loaders' UserOpt -> covModel. test_options only checks
+    % the name-value pair; here the route itself: the same declaration fitted
+    % with "toeplitz" and with "ar" must give DIFFERENT estimates (a broken
+    % route makes them bitwise equal), both of the same process (the gap is
+    % the AR(30) fit, small against the estimate), with plain GLS and IRLS.
+    [dArma, cfg] = declaration();
+    dPsd = withPsdLaw(dArma, cfg);
+    xT = lsqvce.fit(dPsd, lsqvce.Options(Noise=struct('Whitener', "toeplitz"), Verbose=false)).x;
+    xR = lsqvce.fit(dPsd, lsqvce.Options(Noise=struct('Whitener', "ar"), Verbose=false)).x;
+    tc.verifyNotEqual(xT, xR, 'the Whitener must reach the declared law');
+    % tol: the same premise as testArmaAndPsdLawsAgreeNoWorseUnderIrls -- two
+    % whiteners of one process differ by the AR(30) fit, well under 1 %
+    tc.verifyLessThan(norm(xT - xR), 1e-2 * norm(xT), 'both whiten the same process');
+    rT = lsqvce.fit(dPsd, lsqvce.Options(Robust="huber", Noise=struct('Whitener', "toeplitz"), Verbose=false)).x;
+    rR = lsqvce.fit(dPsd, lsqvce.Options(Robust="huber", Noise=struct('Whitener', "ar"), Verbose=false)).x;
+    tc.verifyNotEqual(rT, rR, 'the Whitener must reach the declared law under IRLS too');
+end
+
 function d = withPsdLaw(d, cfg)
 %WITHPSDLAW  The declaration with 'pos' declared as a PSD instead of the ARMA.
 %   Only the DECLARED law changes: buildDay still closes over the ARMA cfg,

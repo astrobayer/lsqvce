@@ -97,6 +97,12 @@ handles the model parameters again.</pre>
                the k nugget epochs (Q R = qr(F U), Woodbury), O(m k + k^3).
                Cfcn stays the LAW; the nugget travels as info.nugget for
                the joint sweep, which composes it itself.
+      .maxDenseArc  1x1 epochs (default 20000; WP-126)  the longest arc a
+               law WITHOUT a filter form (acf, custom, psd &#x27;toeplitz&#x27;,
+               whitenMode &#x27;chol&#x27;) is factorised over: the factor is
+               whole-arc, O(m^3) and 8 m^2 bytes (3.2 GB at 20 000). A
+               longer arc is refused (lsqvce:covModel:denseArcTooLong);
+               raise it deliberately when the memory is there.
 
   t    m x 1  epochs of the current arc [s] (epoch-major with Cep: every
               d-th value is one epoch)
@@ -123,19 +129,19 @@ info  .filterMemory  required BatchOverlap (0 if none)
 <pre class="example">If both are returned, LSQVCE.ENGINE.BLOCKACCUMULATOR uses Wfcn and never builds a
 covariance matrix at all. Cfcn is kept as a reference path: run one arc
 both ways and check the normals agree (they do, to ~1e-11).</pre>
-<h3>COST TABLE (b = batch size, p = filter memory)</h3>
-<pre class="example">  type      path       cost/batch   memory    BatchSize constraint
-  diag      filter     O(b)         O(1)      none
-  arma      filter     O(b*p)       O(p)      none (overlap p)
-  psd/ar    filter     O(b*p)       O(p)      none (overlap p)
-  psd/toep  chol       O(b^3)       O(b^2)    b &gt;&gt; correlation length
-  acf       chol       O(b^3)       O(b^2)    b &gt;&gt; correlation length
+<h3>COST TABLE (b = batch size, m = epochs of the arc, p = filter memory)</h3>
+<pre class="example">  type      path       cost         memory    batching
+  diag      filter     O(b)         O(1)      any batch
+  arma      filter     O(b*p)       O(p)      overlap p (+ the decay of 1/B(z))
+  psd/ar    filter     O(b*p)       O(p)      overlap p
+  psd/toep  chol       O(m^3)       O(m^2)    whole arc, m &lt;= maxDenseArc
+  acf       chol       O(m^3)       O(m^2)    whole arc, m &lt;= maxDenseArc
   var       filter     O(b*p*d^2)   O(p*d^2)  epoch-aligned, overlap p*d
-  custom    chol       O(b^3)       O(b^2)    b &gt;&gt; correlation length
+  custom    chol       O(m^3)       O(m^2)    whole arc, m &lt;= maxDenseArc
 
-  At b = 5000 the dense path needs a 200 MB matrix and ~40 GFLOP. That,
-  not RAM, is the real ceiling. The filter path has no ceiling: set
-  BatchSize to the whole arc.
+  A dense law is factorised over the WHOLE arc (WP-125): at m = 5000 that
+  is a 200 MB matrix and ~40 GFLOP, at the default limit of 20 000 epochs
+  3.2 GB. The filter path has no ceiling.
 
 PSD -&gt; AR IS THE RECOMMENDED PATH, AND IT IS EXACT
   A residual PSD defines a stationary process. Fitting an AR(p) to it and
@@ -184,6 +190,10 @@ info.filterMemory      % = 20 -&gt; the accumulator overlaps by 20 rows</pre>
     lsqvce:covModel:maNotInvertible the MA part (&#x27;arma&#x27;, or a psd law in
                                    &#x27;arma&#x27; mode) has a root on or outside the
                                    unit circle: its whitener is not stable
+    lsqvce:covModel:denseArcTooLong a law without a filter form (acf, custom,
+                                   psd &#x27;toeplitz&#x27;, whitenMode &#x27;chol&#x27;) on an arc
+                                   longer than .maxDenseArc epochs, or a
+                                   .maxDenseArc that is not a positive number
 
   The per-epoch error information does not fit the arc (R6 WP-90)
     lsqvce:covModel:badCep         .Cep is neither nEpoch x d nor nEpoch x d x d,
@@ -219,6 +229,10 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 See also LSQVCE.ENGINE.CHECKPSD, LSQVCE.KERNEL.ARMAWHITEN, LSQVCE.KERNEL.SEPARABLEWHITEN,
          LSQVCE.KERNEL.DECORRFACTOR, LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.MAKELOADER
 
+Updated 2026-10-12 (CEST, UTC+02:00), WP-126: a dense law refuses an arc
+longer than cm.maxDenseArc epochs (lsqvce:covModel:denseArcTooLong); the
+cost table states the whole-arc factor. With assistance from Claude
+(Anthropic), model Claude Opus 5.5.
 Updated 2026-10-12 (CEST, UTC+02:00), WP-125: a dense law is whitened over
 the whole arc (info.wholeArc); an MA part extends filterMemory by the decay
 of 1/B(z); lsqvce:covModel:maNotInvertible. With assistance from Claude

@@ -111,10 +111,13 @@ end
 function testAr2armaRoundTrip(tc)
 % categories: precision
 % A resonant ARMA(2,1) -- a sharp spectral line, the 1/rev regime ar2arma is
-% for. Build its exact ACV, fit a long AR, reduce to ARMA(p,q), and require the
-% reduced model's ACV to match the target. v8verify.py: relErr 1.3e-14.
-    muteWarn(tc, 'lsqvce:ar2arma:unstable');   % provoked on purpose here (WP-47, gate rule 7)
-    muteWarn(tc, 'MATLAB:rankDeficientMatrix');   % provoked on purpose here (WP-47, gate rule 7)
+% for. Build its exact ACV, fit a long AR, reduce to ARMA(2,1), and require the
+% TRUE polynomials back, with no fallback. WP-126: the Hankel fit ran the
+% recursion backwards (reciprocal roots, 0.94 -> 1.064), so the stationarity
+% guard fired here and the test passed on the fallback AR(60) -- the muted
+% 'unstable' warning was the defect. Reference: Durbin's method on the exact
+% impulse response; dev/validation/wp126_ar2arma_mirror.py: 8e-16 on a,
+% 2e-14 on b, ACV relErr 2e-14.
     rad = 0.94;  ang = 2*pi*0.12;
     aTrue = real(poly([rad*exp(1i*ang), rad*exp(-1i*ang)]));   % [1 a1 a2]
     bTrue = [1.0 0.5];
@@ -122,39 +125,57 @@ function testAr2armaRoundTrip(tc)
     rTarget = lsqvce.kernel.armaACV(aTrue, bTrue, nACV);              % s2 = 1
 
     [aHi, s2Hi] = lsqvce.kernel.levinsonDurbin(rTarget, 60);
-    opt = struct('armaP', 8, 'armaN', 4096);
-    [a, b, s2] = lsqvce.kernel.ar2arma(aHi, s2Hi, 1, opt);
+    opt = struct('armaP', 2, 'armaN', 4096);
+    [a, b, s2] = verifyWarningFree(tc, @() lsqvce.kernel.ar2arma(aHi, s2Hi, 1, opt));
 
-    % tol: a(1)=1 exact by construction; 1e-12 = house factorisation round-trip
-    tc.verifyEqual(a(1), 1, 'AbsTol', 1e-12);                  % normalisation
-    tc.verifyEqual(b(1), 1, 'AbsTol', 1e-12);               % tol: same source
-    tc.verifyLessThan(max(abs(roots(a))), 1);                 % stationary
-
+    % tol: 1e-9 -- the AR(60) truncates the ARMA's 1/B(z) tail at 0.5^60
+    % (1e-18), so what remains is the Levinson / least-squares rounding the
+    % mirror measures at 1e-14; four orders of headroom across platforms
+    tc.verifyEqual(a, aTrue, 'AbsTol', 1e-9);
+    tc.verifyEqual(b, bTrue, 'AbsTol', 1e-9);               % tol: same source
     rArma  = s2 * lsqvce.kernel.armaACV(a, b, nACV);
     relErr = norm(rArma - rTarget) / norm(rTarget);
-    % Docstring target is < 1e-3; loosened to 5e-2 so the test is robust to the
-    % Hankel-fit conditioning across releases. v8verify.py measures 1.3e-14.
-    tc.verifyLessThan(relErr, 5e-2);
+    tc.verifyLessThan(relErr, 1e-9);                         % tol: same source
+end
+
+function testAr2armaNonInvertibleMaFallsBackToTheAr(tc)
+% categories: robustness, contract
+% WP-126: an ARMA(1,2) whose MA part is reduced to q = 1 is fitted with a
+% NON-INVERTIBLE B(z) (mirror: b = [1 1.160], root 1.16; the AR part 0.940 is
+% stationary, so only the new guard catches it). The whitener A(z)/B(z)
+% would be unstable, and COVMODEL refuses such a law -- the reduction must
+% fall back to the input AR with lsqvce:ar2arma:nonInvertibleMA, not fail.
+    rTarget = lsqvce.kernel.armaACV([1 -0.9], [1 1.2 0.81], 256);
+    [aHi, s2Hi] = lsqvce.kernel.levinsonDurbin(rTarget, 60);
+    opt = struct('armaP', 1, 'armaN', 1024);
+    tc.verifyWarning(@() lsqvce.kernel.ar2arma(aHi, s2Hi, 1, opt), 'lsqvce:ar2arma:nonInvertibleMA');
+    muteWarn(tc, 'lsqvce:ar2arma:nonInvertibleMA');   % provoked on purpose here (gate rule 7)
+    [a, b, s2] = lsqvce.kernel.ar2arma(aHi, s2Hi, 1, opt);
+    tc.verifyEqual(a, aHi(:).', 'the fallback is the input AR');
+    tc.verifyEqual(b, 1);
+    tc.verifyEqual(s2, s2Hi);
 end
 
 function testAr2armaSmoothFloorStaysStable(tc)
 % categories: precision, robustness
-% On a smooth coloured floor (a plain AR(2), no lines) the reduction must still
-% return a normalised, stationary model -- or fall back to the AR with a
-% warning. Either way the returned AR part must be stationary.
-    muteWarn(tc, 'lsqvce:ar2arma:unstable');   % provoked on purpose here (WP-47, gate rule 7)
-    muteWarn(tc, 'MATLAB:rankDeficientMatrix');   % provoked on purpose here (WP-47, gate rule 7)
+% On a smooth coloured floor (a plain AR(2), no lines) an ARMA(6,1) is
+% over-parameterised: the Hankel system is rank-deficient and the fit may
+% come back non-stationary or non-invertible. Whatever comes back must be
+% usable as a whitener: normalised, a stationary AR part and an invertible MA
+% part -- the fitted model, or the input AR after a warning.
+    muteWarn(tc, 'lsqvce:ar2arma:unstable');          % provoked on purpose here (WP-47, gate rule 7)
+    muteWarn(tc, 'lsqvce:ar2arma:nonInvertibleMA');   % provoked on purpose here (WP-126)
+    muteWarn(tc, 'MATLAB:rankDeficientMatrix');       % provoked on purpose here (WP-47, gate rule 7)
     aAR = [1 -0.6 0.1];                        % smooth AR(2)
     rTarget = lsqvce.kernel.armaACV(aAR, 1, 128);
     [aHi, s2Hi] = lsqvce.kernel.levinsonDurbin(rTarget, 40);
     opt = struct('armaP', 6, 'armaN', 2048);
-    % R7-45: a mute on 'lsqvce:ar2arma:nonStationary' stood here -- no code
-    % raises that id, and it was restored to 'on' instead of its prior state
     [a, b, ~] = lsqvce.kernel.ar2arma(aHi, s2Hi, 1, opt);
     % tol: normalisation exact by construction; house round-trip bound 1e-12
     tc.verifyEqual(a(1), 1, 'AbsTol', 1e-12);
     tc.verifyEqual(b(1), 1, 'AbsTol', 1e-12);               % tol: same source
     tc.verifyLessThan(max(abs(roots(a))), 1);
+    if numel(b) > 1, tc.verifyLessThan(max(abs(roots(b))), 1); end
 end
 
 %% =================================================================== contract

@@ -648,6 +648,7 @@ end
         % the kernel's default robust mean -- the 'MeanType' option that chose it
         % is retired (WP-118 part 2, user decision 2026-10-10).
         av = struct('gamma2', nan(nArc, 1), 'sigma2', nan(nArc, 1), 'gammaBar', []);
+        lvl = containers.Map('KeyType', 'char', 'ValueType', 'double');   % pooled level per stream
         for sk = unique(streamOf(:)).'
             cols = strcmp(streamOf, sk{1});
             % R7 WP-111 part 3: the arc's component is its WHOLE covariance, so
@@ -658,6 +659,7 @@ end
             % rejection point -- divided by its Gaussian truncation factor tau
             % (1 without a robust pass, or for Huber)
             av.gamma2(cols) = avk.gamma2 / tauRow(tauMap, sk);
+            lvl(sk{1}) = avk.pooled / tauRow(tauMap, sk);   % WP-125/126: the stream's level
             if isfinite(avk.gammaBar) && avk.gammaBar > 0
                 av.sigma2(cols) = avk.sigma2 * avk.gammaBar^2 / tauRow(tauMap, sk);   % the clamped gamma2_m
             else
@@ -683,7 +685,8 @@ end
         % factor per stream. Found by the gravity demo: planted 1 / 2 / 0.5
         % came back 1 / 1 / 1 without it.
         % WP-125 (user decision 2026-10-12): the level is the POOLED Helmert
-        % factor of the stream, sigma2 * sum_m q_m / sum_m t_m -- the Helmert
+        % factor of the stream, sigma2 * sum_m q_m / sum_m t_m (arcVarianceFactors'
+        % .pooled since WP-126, where it is unit-tested) -- the Helmert
         % estimator of ONE component over all its arcs -- not the mean of the
         % arcs' ratios, which weights a 30-epoch arc like a 3000-epoch one and,
         % with probe redundancies, is biased by E[1/t] > 1/E[t]. MEASURED
@@ -694,9 +697,7 @@ end
         for sk = unique(streamOf(:)).'
             cols = strcmp(streamOf, sk{1}) & ~strcmp(polOf, 'none') & ~arcFactorsOf(o.ArcFactors, sk{1});
             if ~any(cols), continue, end
-            ok = cols(:) & isfinite(qa(:)) & isfinite(ta(:)) & ta(:) > 0 & isfinite(s2Applied(:));
-            f = sum(reshape(qa(ok), [], 1) .* reshape(s2Applied(ok), [], 1)) / sum(ta(ok)) / tauRow(tauMap, sk);
-            if any(ok) && isfinite(f) && f > 0, fStream(sk{1}) = f; end
+            if isfinite(lvl(sk{1})) && lvl(sk{1}) > 0, fStream(sk{1}) = lvl(sk{1}); end   % .pooled
         end
         for kk = 1:nArc
             if strcmp(polOf{kk}, 'none'), continue, end
