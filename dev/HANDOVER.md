@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-12 — WP-119 OPEN (tier B, model Claude Opus 5.5; user: "continue fixing the known limitations" -- the three residues §12.48 recorded, one WP each, 119 -> 120 -> 121): the datum test runs per declared prior GROUP -- a datum stacked with a regularising group gets the minimum-constraint covariance s0^2 pinv(N + Ki'Ki); a group only partly in the null space stays information (by design, stated); version 6.11.0; §12.49.
+Last substantive update: 2026-10-12 — WP-119 DONE (PR #138, merge 49a27ec; CI GREEN on f856a63); WP-120 OPEN (tier B, model Claude Opus 5.5; user decision: K = 20 STAYS): the Ljung-Box lag count measured, not changed -- a larger K loses short-lag power (0.45 -> 0.11 at K 540) and gains only on a correlation at an isolated long lag; the blind spot stated in Manual 7.7 with the numbers; no code, no version; §12.50.
+Preceding entry: Last substantive update: 2026-10-12 — WP-119 OPEN (tier B, model Claude Opus 5.5; user: "continue fixing the known limitations" -- the three residues §12.48 recorded, one WP each, 119 -> 120 -> 121): the datum test runs per declared prior GROUP -- a datum stacked with a regularising group gets the minimum-constraint covariance s0^2 pinv(N + Ki'Ki); a group only partly in the null space stays information (by design, stated); version 6.11.0; §12.49.
 Preceding entry: Last substantive update: 2026-10-11 — WP-114 DONE (PR #136, merge 4bdcfe5; CI GREEN on 4c31b83); R7 TRACK CLOSED (model Claude Opus 5.5, user decision): every WP 111-118 merged, 45 of 46 findings fixed in the tree (R7-46 is the review skill's own instrument); the residues are recorded, not opened; no code change, no version; §12.48.
 Preceding entry: Last substantive update: 2026-10-11 — WP-113 DONE (PR #135, merge 2ec85d6); WP-114 OPEN (tier B, model Claude Opus 5.5): R7-05 / R7-15 -- a datum prior's covariance is the minimum-constraint one (sigma-independent), residuals() / redundancy() count a common prior; version 6.10.0; §12.47.
 Preceding entry: Last substantive update: 2026-10-11 — WP-112 DONE (PR #134, merge ec4625a); WP-113 OPEN (tier B, model Claude Opus 5.5): R7-14 / R7-04 -- Gauss-Newton damps the common block (Marquardt rows), shifts the prior to x, checks descent from pass 1 on the declared objective, returns the best accepted point; version 6.9.0; §12.46.
@@ -8908,7 +8909,7 @@ WP or a new review.
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 119 | §12.48 residue 1: the datum test per declared prior GROUP (`CommonPrior.group`, `BlockAccumulator.datumPart`) -- a datum stacked with a regularising group gets s0^2 pinv(N + Ki'Ki); a group only partly in the null space stays information; **version 6.11.0** | R7 closed (PR #137 merged 58e3561) | OPEN (tier B; CI is the gate) |
+| 119 | §12.48 residue 1: the datum test per declared prior GROUP (`CommonPrior.group`, `BlockAccumulator.datumPart`) -- a datum stacked with a regularising group gets s0^2 pinv(N + Ki'Ki); a group only partly in the null space stays information; **version 6.11.0** | R7 closed (PR #137 merged 58e3561) | DONE (2026-10-12, PR #138, merge 49a27ec; CI GREEN on f856a63 after one red round: ci_gate 623/623) |
 
 **The user's request (2026-10-12):** "continue fixing the known limitations" -- the three
 residues §12.48 recorded. One WP each, in order: 119 the partial / stacked datum, 120 the
@@ -8961,3 +8962,33 @@ NORMAL backend at datum sigma 1e6 N + K'K/s^2 has cond 4.6e12 -- sum r + r_prior
 of normal equations that WP-114's test (QR only) never met, not of the datum part. Fix
 (0c9c1f0): on the normal backend the identities are checked up to sigma 1e3; the covariance
 assertions (the new code) stay on both backends at every sigma.
+
+### 12.50 WP-120 — the Ljung-Box lag count, measured (2026-10-12, model Claude Opus 5.5)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 120 | §12.48 residue 2: the joint whiteness test's K = 20 measured against K tied to the Grid and a two-scale test; K = 20 stays (user decision), the blind spot (an isolated long-lag correlation) stated in Manual 7.7 with the numbers; no code, no version | 119 (PR #138 merged 49a27ec) | OPEN (records only; CI is the gate) |
+
+**The question (§12.41, §12.48):** on 2160-epoch arcs K = 20 sees only the shortest lags;
+should K be tied to the Grid (the law's resolution)? A power question, so measured first.
+
+**Mirror** (`dev/reviews/R7_2026-10-09/mirrors/wp120/whiteness_power.py`, the shipped pooled
+statistic, seed 7): rejection rate at alpha 0.05, 8 arcs x 2160 epochs, 300 trials --
+
+| misfit | K 20 | K 60 | K 120 | K 200 | K 540 | K 20 + K 120 (Bonferroni) |
+|---|---|---|---|---|---|---|
+| white (size) | 0.043 | 0.053 | 0.050 | 0.057 | 0.057 | 0.053 |
+| AR(1) phi 0.025 | **0.453** | 0.270 | 0.200 | 0.153 | 0.113 | 0.380 |
+| sinusoid, period 200, amp 0.04 | 0.070 | 0.073 | 0.107 | 0.117 | 0.117 | 0.117 |
+| low-frequency excess 0.05 | 0.157 | 0.163 | 0.183 | 0.140 | 0.120 | 0.150 |
+| correlation at lag 150 only | 0.047 | 0.063 | 0.053 | **1.000** | 0.903 | 0.050 |
+
+and 9 x 256 epochs (K 20 / 60): size 0.058 / 0.052, no misfit separates the two. A
+sinusoid or a low-frequency excess already shows at short lags, so a larger K does not help
+it; a larger K dilutes the short-lag power; only a correlation that lives ONLY at a long lag
+needs K beyond that lag -- and a two-scale test catches it only inside its long window.
+
+**User decision (2026-10-12): "Keep K = 20, record it."** Not chosen: the two-scale test
+(short-lag power 0.45 -> 0.38), K tied to the Grid alone (0.45 -> 0.20). Recorded in Manual
+7.7 (the table, the blind spot, `R.systematic('Lags', L)` as the user's own long-lag check).
+The residue is CLOSED BY MEASUREMENT. No code change, no version (6.11.0 stays).
