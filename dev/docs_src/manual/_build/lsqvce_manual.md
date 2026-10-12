@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.11.1 — User Manual"
+title: "lsqvce 6.12.0 — User Manual"
 subtitle: "least-squares adjustment with variance component estimation"
 date: "built from the sources; the single documentation authority"
 ---
@@ -86,7 +86,7 @@ lsqvce_setup('uninstall')  % removes the two path entries, saves the path, delet
 |---|---|
 | `+lsqvce/` | the package: user tier (`fit`, `Options`, `Results`, `report`, `layout`), `+engine`, `+kernel`, `+util` |
 | `examples/` | the demos (`demo_workflow`, `demo_fit`, `demo_grace`, `demo_gravity`, `demo_gravfire`, ...) |
-| `template/` | `gravfire_data.m` (a GRACE bundle to the data struct), `lsqvce_template.m` |
+| `template/` | `gravfire_data.m` (a GRACE bundle to the data struct), `kbr_variational.m` (GRACE-FO L1B range-rates and orbits by the variational equations, §3.8), `lsqvce_template.m` |
 | `html/` | this manual (`lsqvce_manual.html`) and one page per public unit (`doc lsqvce.<name>`) |
 | `lsqvce_theory.pdf`, `lsqvce_manual.pdf` | the theory and this manual as PDF |
 | `RELEASE_NOTES.md` | what changed, with the migration table |
@@ -669,6 +669,14 @@ R.report
 ```
 
 ---
+
+A complete, runnable builder of this shape for REAL data is `template/kbr_variational.m`
+(6.12.0): it reads the GRACE-FO Level-1B files (GNV1B, KBR1B, ACT1B, SCA1B) of a day, integrates
+each arc's orbit with its variational equations against a reference field (an ICGEM `.gfc`),
+and returns the range-rate and position streams with arc-wise initial states and KBR
+empiricals and day-wise accelerometer calibration — `[data, kit] = kbr_variational(cfg)`,
+then `lsqvce.fit(data, opts)`. Its help states what it does not model (the Earth-rotation
+stand-in, the forces beyond the static field and the accelerometer).
 
 ### 9. What `fit` does internally — the equivalent direct engine calls
 

@@ -30,7 +30,7 @@ jobs:
         timeout-minutes: 2
       - uses: matlab-actions/run-command@bfa857648f4895aa98a446fe41c85e0788421ed5 # v3
         with:
-          command: cd('dev/validation'); wp111_measure(6, 'wp111_measure.txt')
+          command: cd('dev/validation'); wp122_measure('wp122_measure.txt')
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
-        with: { name: wp111_measure, path: dev/validation/wp111_measure.txt }
+        with: { name: wp122_measure, path: dev/validation/wp122_measure.txt }

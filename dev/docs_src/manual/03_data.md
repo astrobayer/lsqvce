@@ -575,6 +575,14 @@ R.report
 
 ---
 
+A complete, runnable builder of this shape for REAL data is `template/kbr_variational.m`
+(6.12.0): it reads the GRACE-FO Level-1B files (GNV1B, KBR1B, ACT1B, SCA1B) of a day, integrates
+each arc's orbit with its variational equations against a reference field (an ICGEM `.gfc`),
+and returns the range-rate and position streams with arc-wise initial states and KBR
+empiricals and day-wise accelerometer calibration — `[data, kit] = kbr_variational(cfg)`,
+then `lsqvce.fit(data, opts)`. Its help states what it does not model (the Earth-rotation
+stand-in, the forces beyond the static field and the accelerometer).
+
 ### 9. What `fit` does internally — the equivalent direct engine calls
 
 ```matlab
