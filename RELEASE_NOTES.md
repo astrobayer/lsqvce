@@ -1,5 +1,17 @@
 # lsqvce release notes
 
+## 6.11.1 — 2026-10-12 (WP-121: diagnose reads the data once)
+
+- **`diagnose` sweeps the observations once** (the residue §12.48 of review R7 recorded).
+  The robust check (the MAD scale and the contamination gauge `fhat`, on by default) had
+  its own sweep: every batch was re-read through the loader and its O(nc²) `halfRows`
+  computed twice. Its raw scores (P v)ᵢ / sqrt((P Qvv P)ᵢᵢ) are now formed in the main pass
+  from the same quantities -- one read and one `halfRows` per row, results bitwise
+  unchanged. Only `'Test', "mad"`, which needs the robust scale before it can classify,
+  still sweeps first.
+- Corrected record: snoop's clean re-solve (`Reaccumulate=true`) has rebuilt the
+  block-arrow system since 6.4.0 (WP-86 part 3); §12.48 had listed it as still dense.
+
 ## 6.11.0 — 2026-10-12 (WP-119: a datum beside a regulariser)
 
 - **The datum test runs per declared prior group** (the residue §12.48 of review R7

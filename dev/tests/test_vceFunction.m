@@ -284,6 +284,29 @@ function testBlockCofactorContract(tc)
     tc.verifyEqual(flat.u, size(Rc, 1));
 end
 
+function testDiagnoseReadsTheDataOnce(tc)
+% categories: metamorphic, contract | tags: diagnostics
+% R7 WP-121: diagnose's robust check (the MAD scale, the contamination gauge)
+% is formed in the main pass for every test but 'mad' -- each batch is read
+% ONCE (before: twice, with the O(nc^2) halfRows per row computed twice). The
+% scale is the same either way: 'mad' still sweeps first, from the same raw
+% scores, so the two routes agree bitwise.
+    cfg = tc.TestData.cfg;
+    acc = buildVceAcc(cfg, 1:2, [1 2.5]);
+    sol = acc.solve();
+    [dsol, bf, nB] = lsqvce.engine.verdict.source(acc, sol);
+    cnt = containers.Map({'n'}, {0});
+    D1 = lsqvce.engine.verdict.diagnose(dsol, @(k) countedBatch(bf, k, cnt), 'nBatch', nB);
+    tc.verifyEqual(cnt('n'), nB, 'one read per batch');
+    tc.assertTrue(D1.madAvailable, 'the robust check ran');
+    cnt('n') = 0;
+    D2 = lsqvce.engine.verdict.diagnose(dsol, @(k) countedBatch(bf, k, cnt), 'nBatch', nB, 'Test', "mad");
+    tc.verifyEqual(cnt('n'), 2 * nB, '''mad'' needs its scale first: two reads');
+    % bitwise: the same raw scores, the same median
+    tc.verifyEqual(D1.robustScale, D2.robustScale, 'the fused scale is the swept one');
+    tc.verifyEqual(D1.fhat, D2.fhat, 'the fused gauge is the swept one');
+end
+
 function testSnoopBlockDowndateMatchesCleanResolve(tc)
 % categories: precision | tags: diagnostics
 % snoop on a fit WITH locals: its downdated estimate (block cofactor + closed
@@ -392,4 +415,10 @@ function cfg = makeCfg()
     cfg.trueSigma.kbr = 2.5;
     cfg.cov.pos = struct('type','diag', 'sigma', cfg.trueSigma.pos);
     cfg.cov.kbr = struct('type','diag', 'sigma', cfg.trueSigma.kbr);
+end
+
+function [A, l, p] = countedBatch(bf, k, cnt)
+%COUNTEDBATCH  bf(k), counting the reads in the handle cnt (WP-121).
+    cnt('n') = cnt('n') + 1;
+    [A, l, p] = bf(k);
 end
