@@ -38,6 +38,9 @@ function setupOnce(tc)
     % The SH design generator lives in examples/ so the demo and this suite
     % share ONE implementation (WP-51) -- same route TEST_ADJUSTVCE uses to
     % reach DEMO_GRACE_DATALOADER.
+    % WP-122: template/kbr_variational (the variational-equation builder) is
+    % tested here, against its own physical oracles
+    addpath(fullfile(root, 'template'));                     %#ok<MCAP>
     exDir = fullfile(root, 'examples');
     if exist(fullfile(exDir, 'demo_gravity_design.m'), 'file') == 2
         addpath(exDir);                                      %#ok<MCAP>
@@ -427,4 +430,149 @@ function testDemoGravityUsesTheNativeRaggedPath(tc)
     src = fileread(fullfile(exDir, 'demo_gravity_dataLoader.m'));
     tc.verifyEmpty(regexp(src, '\.closure\s*=', 'once'), ...
         'the demo must not wrap the loader closure any more');
+end
+
+%% ------------------------------- WP-122: the variational-equation range-rate template
+function testKbrHarmonicsAccelerationAndGradient(tc)
+% categories: reference, precision
+% template/kbr_variational: the normalized solid harmonics of the Cartesian
+% recursion against MATLAB's legendre (Condon-Shortley phase removed) --
+% near the pole too; the acceleration of a C00 + C20 field against the
+% closed-form J2 acceleration; the analytic gradient against central
+% differences of the acceleration.
+    kit = kbrKit();
+    GM = 3.986004415e14;  R = 6378136.3;
+    pts = [6.8e6 1.2e6 -2.0e6; 10 -20 6.87e6; -3.1e6 4.4e6 4.9e6].';
+    L = 20;  worst = 0;
+    for p = pts
+        [V, W] = kit.harmonics(p, L, R);
+        r = norm(p);  lam = atan2(p(2), p(1));
+        for n = 0:L
+            P = legendre(n, p(3) / r);
+            for m = 0:n
+                Pb = (-1)^m * P(m + 1) * sqrt((2 - (m == 0)) * (2*n + 1) * factorial(n - m) / factorial(n + m));
+                ref = max(abs(V(:)));
+                worst = max([worst, abs(V(n+1, m+1) - (R/r)^(n+1) * Pb * cos(m*lam)) / ref, ...
+                                    abs(W(n+1, m+1) - (R/r)^(n+1) * Pb * sin(m*lam)) / ref]);
+            end
+        end
+    end
+    % tol: 1e-9 -- the recursion vs legendre + factorials (mirror vs scipy: 7e-11)
+    tc.verifyLessThan(worst, 1e-9, 'harmonics vs legendre');
+    [nn, mm, cs] = kit.coeffIndex(4);
+    c = zeros(25, 1);  c(nn == 0) = 1;  C20 = -4.841694573e-4;  c(nn == 2 & mm == 0 & cs == 0) = C20;
+    F = kit.makeField(c, 4, find(nn == 2 & mm == 0 & cs == 0), GM, R);
+    for p = pts
+        [a, G] = kit.fieldEval(F, p);
+        r = norm(p);  J2 = -sqrt(5) * C20;  f = 1.5 * J2 * GM * R^2 / r^5;  z2 = 5 * p(3)^2 / r^2;
+        aJ2 = -GM * p / r^3 + f * [p(1) * (z2 - 1); p(2) * (z2 - 1); p(3) * (z2 - 3)];
+        % tol: 1e-13 relative -- two closed forms of one field (mirror: 2e-16)
+        tc.verifyEqual(a, aJ2, 'RelTol', 1e-13, 'acceleration vs closed-form J2');
+        Gfd = zeros(3);
+        for j = 1:3
+            e = zeros(3, 1);  e(j) = 1;
+            Gfd(:, j) = (kit.fieldEval(F, p + e) - kit.fieldEval(F, p - e)) / 2;
+        end
+        % tol: 1e-7 of |G| -- central differences at 1 m (mirror: 8e-10)
+        tc.verifyLessThan(max(abs(G(:) - Gfd(:))) / max(abs(G(:))), 1e-7, 'gradient vs differences');
+    end
+end
+
+function testKbrIntegratorAgainstKepler(tc)
+% categories: reference, precision
+% The ABM8 PECE integrator of the template on a point-mass field, six hours
+% at 5 s, against Kepler's equation.
+    kit = kbrKit();
+    GM = 3.986004415e14;  R = 6378136.3;
+    [nn, ~, ~] = kit.coeffIndex(2);
+    c = double(nn == 0);
+    F = kit.makeField(c, 2, zeros(0, 1), GM, R);
+    y0 = kbrLeo(GM, R, 0.4);
+    st = kit.propagate(F, @(t) eye(3), @(t) deal(eye(3), zeros(3, 1)), zeros(3, 1), ones(3, 1), 0, y0, 5, 4320);
+    rk = keplerPosition(GM, y0(1:3), y0(4:6), 5 * 4320);
+    % tol: 1e-4 m after 6 h -- ABM8 at 5 s (mirror: 6e-6 m after a full day)
+    tc.verifyLessThan(norm(st(end, 1:3).' - rk), 1e-4, 'integrator vs Kepler');
+end
+
+function testKbrPartialsAgainstReintegration(tc)
+% categories: precision, metamorphic
+% The variational equations: Psi times a small change of the initial state,
+% of one coefficient, of the ACC bias and scale equals the change of the
+% re-integrated state (1.5 h, degree 6, attitude and ACC signal on).
+    kit = kbrKit();
+    GM = 3.986004415e14;  R = 6378136.3;  N = 6;
+    [nn, mm, cs] = kit.coeffIndex(N);
+    c = zeros(numel(nn), 1);  c(nn == 0) = 1;
+    c(nn == 2 & mm == 0 & cs == 0) = -4.841694573e-4;
+    rs = RandStream('mt19937ar', 'Seed', 3);
+    k3 = nn >= 3;  c(k3) = 1e-6 * randn(rs, nnz(k3), 1) ./ nn(k3).^2;
+    est = find(nn >= 2);  np = numel(est);
+    y0 = kbrLeo(GM, R, 0.4);
+    run = @(cc, yy, b, s) kit.propagate(kit.makeField(cc, N, est, GM, R), @(t) eye(3), @kbrAcc, b, s, 0, yy, 5, 1080);
+    [Y, Psi] = run(c, y0, zeros(3, 1), ones(3, 1));
+    j = find(est == find(nn == 5 & mm == 3 & cs == 1));
+    cases = {'IC x',    1,         @() run(c, y0 + [1; 0; 0; 0; 0; 0], zeros(3, 1), ones(3, 1)), 1;
+             'IC vy',   5,         @() run(c, y0 + [0; 0; 0; 0; 1e-3; 0], zeros(3, 1), ones(3, 1)), 1e-3;
+             'S53',     6 + j,     @() run(c + 1e-9 * ((1:numel(c)).' == est(j)), y0, zeros(3, 1), ones(3, 1)), 1e-9;
+             'bias y',  6 + np + 2, @() run(c, y0, [0; 1e-8; 0], ones(3, 1)), 1e-8;
+             'scale x', 9 + np + 1, @() run(c, y0, zeros(3, 1), [1.1; 1; 1]), 0.1};
+    for k = 1:size(cases, 1)
+        Y2 = cases{k, 3}();
+        d = (Y2(end, :) - Y(end, :)).';
+        col = cases{k, 2};             % Psi columns: [r0 v0 | SH | bias | scale]
+        % tol: 1e-4 relative -- second-order terms and rounding (mirror: 2e-7..3e-6)
+        tc.verifyLessThan(norm(Psi(:, col) * cases{k, 4} - d) / norm(d), 1e-4, cases{k, 1});
+    end
+end
+
+function testKbrClosedLoopThroughFit(tc)
+% categories: metamorphic, contract
+% The whole template on one synthetic day of GRACE-FO L1B files (the real
+% ASCII layouts, written by fixture_kbr_l1b): a planted correction of
+% degrees 2..6 and a 1-3 % ACC scale error, two 12 h arcs, KBR + both
+% positions through lsqvce.fit -- the field comes back. And the template's
+% own contract: a missing required field and a missing file are refused by name.
+    dataDir = tempname;  mkdir(dataDir);
+    tc.addTeardown(@() rmdir(dataDir, 's'));
+    [cfg, truth] = fixture_kbr_l1b(dataDir);
+    [data, kit] = kbr_variational(cfg);
+    tc.verifyEqual(size(data.commonParams, 1), numel(truth.dc), 'degrees 2..6: 45 coefficients');
+    R = lsqvce.fit(data, Verbose=false);
+    dc = kit.unitCommon .* R.x(:);
+    % tol: 1e-3 of |dc| -- one linearization at the a-priori ACC calibration
+    % (mirror, one day, degree 8, the same planted errors: 3.5e-5)
+    tc.verifyLessThan(norm(dc - truth.dc) / norm(truth.dc), 1e-3, 'the planted field comes back');
+    tc.verifyError(@() kbr_variational(rmfield(cfg, 'trf2crf')), 'kbrvar:badConfig');
+    tc.verifyError(@() kit.readL1B(fullfile(dataDir, 'none.txt'), struct('fmt', '%f', 't', 1)), 'kbrvar:noFile');
+end
+
+function kit = kbrKit()
+%KBRKIT  The template's physics kit (a declaration that reads no data file).
+    gf = struct('GM', 3.986004415e14, 'R', 6378136.3, 'C', blkdiag(1, zeros(2)), 'S', zeros(3));
+    [~, kit] = kbr_variational(struct('days', 60000, 'dataDir', tempdir, 'gravityField', gf, ...
+                                      'trf2crf', @(t) eye(3), 'degree', [2 2]));
+end
+
+function y0 = kbrLeo(GM, R, u)
+%KBRLEO  A circular 490 km, 89 deg orbit at argument of latitude u.
+    a = R + 490e3;  vc = sqrt(GM / a);  i = deg2rad(89);
+    y0 = [a * [cos(u); sin(u) * cos(i); sin(u) * sin(i)]; vc * [-sin(u); cos(u) * cos(i); cos(u) * sin(i)]];
+end
+
+function [Q, acc] = kbrAcc(t)
+%KBRACC  A turning attitude and a drag-like ACC signal (SRF, m/s^2).
+    th = 2 * pi / 5650 * t + 0.2;
+    Q = [cos(th) -sin(th) 0; sin(th) cos(th) 0; 0 0 1] * [1 0 0; 0 cos(0.3) -sin(0.3); 0 sin(0.3) cos(0.3)];
+    acc = [-1e-7 * (1 + 0.3 * cos(th)); 2e-8 * sin(th); 5e-8 * cos(2 * th)];
+end
+
+function r = keplerPosition(GM, r0, v0, dt)
+%KEPLERPOSITION  The oracle: two-body position after dt by Kepler's equation.
+    rn = norm(r0);  a = 1 / (2 / rn - (v0.' * v0) / GM);  n = sqrt(GM / a^3);
+    ecosE = 1 - rn / a;  esinE = (r0.' * v0) / sqrt(GM * a);
+    E0 = atan2(esinE, ecosE);  e = hypot(ecosE, esinE);
+    M = E0 - esinE + n * dt;  E = M;
+    for k = 1:50, E = E - (E - e * sin(E) - M) / (1 - e * cos(E)); end
+    dE = E - E0;
+    r = (1 - a / rn * (1 - cos(dE))) * r0 + (dt - (dE - sin(dE)) / n) * v0;
 end

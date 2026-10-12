@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.11.1 — User Manual</title>
+  <title>lsqvce 6.12.0 — User Manual</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.11.1 — User Manual</h1>
+<h1 class="title">lsqvce 6.12.0 — User Manual</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 <p class="date">built from the sources; the single documentation
@@ -372,7 +372,8 @@ folder</h2>
 <tr class="odd">
 <td><code>template/</code></td>
 <td><code>gravfire_data.m</code> (a GRACE bundle to the data struct),
-<code>lsqvce_template.m</code></td>
+<code>kbr_variational.m</code> (GRACE-FO L1B range-rates and orbits by
+the variational equations, §3.8), <code>lsqvce_template.m</code></td>
 </tr>
 <tr class="even">
 <td><code>html/</code></td>
@@ -1455,6 +1456,17 @@ class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb13-1"><a h
 <span id="cb13-49"><a href="#cb13-49" aria-hidden="true" tabindex="-1"></a><span class="va">R</span> <span class="op">=</span> <span class="va">lsqvce</span>.<span class="va">fit</span>(<span class="va">data</span><span class="op">,</span> <span class="va">opts</span>)<span class="op">;</span></span>
 <span id="cb13-50"><a href="#cb13-50" aria-hidden="true" tabindex="-1"></a><span class="va">R</span>.<span class="va">report</span></span></code></pre></div>
 <hr />
+<p>A complete, runnable builder of this shape for REAL data is
+<code>template/kbr_variational.m</code> (6.12.0): it reads the GRACE-FO
+Level-1B files (GNV1B, KBR1B, ACT1B, SCA1B) of a day, integrates each
+arc’s orbit with its variational equations against a reference field (an
+ICGEM <code>.gfc</code>), and returns the range-rate and position
+streams with arc-wise initial states and KBR empiricals and day-wise
+accelerometer calibration —
+<code>[data, kit] = kbr_variational(cfg)</code>, then
+<code>lsqvce.fit(data, opts)</code>. Its help states what it does not
+model (the Earth-rotation stand-in, the forces beyond the static field
+and the accelerometer).</p>
 <h3 data-number="3.0.13"
 id="what-fit-does-internally-the-equivalent-direct-engine-calls"><span
 class="header-section-number">3.0.13</span> 9. What <code>fit</code>

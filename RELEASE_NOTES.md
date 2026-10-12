@@ -1,5 +1,26 @@
 # lsqvce release notes
 
+## 6.12.0 — 2026-10-12 (WP-122: a variational-equation range-rate builder for real data)
+
+- **`template/kbr_variational.m`** — a runnable `buildDay` for the GRACE-FO C/D pair:
+  - Reads a day of Level-1B files (GNV1B, KBR1B, ACT1B, SCA1B; the v04 ASCII layouts, all
+    overridable) and a reference field from an ICGEM `.gfc`.
+  - Integrates every arc's orbit together with its variational equations
+    Psi = d[r v]/d[r0 v0 | C_nm S_nm | ACC bias | ACC scale] (Adams–Bashforth–Moulton 8,
+    exact coefficients).
+  - Returns the range-rate rows d rho_dot = [h' e'] · (Psi_D - Psi_C) and the position rows as
+    `lsqvce` streams, with arc-wise initial states and KBR empiricals and day-wise ACC calibration.
+  - Acceleration, gravity gradient and da/dC_nm are analytic: normalized solid harmonics by
+    the Cartesian (pole-safe) recursion, and exact sparse derivative operators degree n -> n+1.
+  - Every column carries a declared unit (1e-10 for C_nm, S_nm, ...), so the QR rank decision
+    sees O(1) columns; physical value = unit .* estimate (`kit.unitCommon .* R.x`).
+  - Validated against oracles not built here (a Python numerical twin in dev/validation and
+    four new gate tests): Legendre functions, closed-form J2, Kepler, re-integration, finite
+    differences, and a closed loop through `lsqvce.fit` on synthetic L1B files.
+  - What it does not model is stated in its help: the Earth-rotation stand-in (use the IERS
+    2010 transformation on real data), forces beyond the static field and the accelerometer
+    (`cfg.background`), and the product conventions to check against the handbook.
+
 ## 6.11.1 — 2026-10-12 (WP-121: diagnose reads the data once)
 
 - **`diagnose` sweeps the observations once** (the residue §12.48 of review R7 recorded).

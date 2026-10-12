@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-12 — WP-121 DONE (PR #140, merge 2a85acf; CI GREEN on 47555ef); the three §12.48 residues CLOSED (user decision: closure PR): 119 fixed (v6.11.0), 120 measured and kept (K = 20), 121 fixed (v6.11.1); no code change, no version; §12.52.
+Last substantive update: 2026-10-12 — WP-122 OPEN (tier B, model Claude Opus 5.5; user: "a real-life buildDay for range-rate observations using a variational equation approach", scope decision: SELF-CONTAINED): template/kbr_variational.m -- GRACE-FO L1B (GNV1B, KBR1B, ACT1B, SCA1B) + ICGEM .gfc -> range-rate and position streams by the variational equations (analytic a, G, da/dC_nm from normalized solid harmonics and exact sparse derivative operators; ABM8 PECE), declared column units; mirror dev/validation/kbr_variational_mirror.py; 4 gate tests in test_physOracle; version 6.12.0; §12.53.
+Preceding entry: Last substantive update: 2026-10-12 — WP-121 DONE (PR #140, merge 2a85acf; CI GREEN on 47555ef); the three §12.48 residues CLOSED (user decision: closure PR): 119 fixed (v6.11.0), 120 measured and kept (K = 20), 121 fixed (v6.11.1); no code change, no version; §12.52.
 Preceding entry: Last substantive update: 2026-10-12 — WP-120 DONE (PR #139, merge 99e3dff; CI GREEN on 1017d42); WP-121 OPEN (tier B, model Claude Opus 5.5): diagnose's robust check formed in the main pass -- one read of the data and one halfRows per row instead of two (bitwise the same scale); the §12.48 claim that snoop's Reaccumulate=true re-solve is dense corrected (block-arrow since WP-86 part 3, 6.4.0); version 6.11.1; §12.51. With it the three §12.48 residues are closed.
 Preceding entry: Last substantive update: 2026-10-12 — WP-119 DONE (PR #138, merge 49a27ec; CI GREEN on f856a63); WP-120 OPEN (tier B, model Claude Opus 5.5; user decision: K = 20 STAYS): the Ljung-Box lag count measured, not changed -- a larger K loses short-lag power (0.45 -> 0.11 at K 540) and gains only on a correlation at an isolated long lag; the blind spot stated in Manual 7.7 with the numbers; no code, no version; §12.50.
 Preceding entry: Last substantive update: 2026-10-12 — WP-119 OPEN (tier B, model Claude Opus 5.5; user: "continue fixing the known limitations" -- the three residues §12.48 recorded, one WP each, 119 -> 120 -> 121): the datum test runs per declared prior GROUP -- a datum stacked with a regularising group gets the minimum-constraint covariance s0^2 pinv(N + Ki'Ki); a group only partly in the null space stays information (by design, stated); version 6.11.0; §12.49.
@@ -9052,3 +9053,63 @@ On the normal backend at a datum sigma of 1e6 the solve's own cofactor carries c
 **What the next session could be wrong for not reading.** The last subsection of §12 is
 this closure, not a round in progress: nothing is open on `main` until the user opens a WP
 or a new review.
+
+### 12.53 WP-122 — a variational-equation range-rate builder for real data (2026-10-12, model Claude Opus 5.5)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 122 | `template/kbr_variational.m`: GRACE-FO Level-1B range-rates (and GNV1B positions) as `lsqvce` streams by the variational equations -- reference field from an ICGEM `.gfc`, arc-wise initial states and KBR empiricals, day-wise ACC bias / scale, declared column units; numerical twin `dev/validation/kbr_variational_mirror.py`; **version 6.12.0** | the §12.48 residues closed (§12.52) | OPEN (tier B; CI is the gate) |
+
+**The user's request (2026-10-12):** "Provide a real-life buildDay function for range-rate
+observations using a variational equation approach." Scope decision (AskUserQuestion):
+SELF-CONTAINED -- the template reads the L1B files and integrates the variational equations
+itself; not the GRAVFIRE DesignFcn (that needs the layout of niPhi / niZhi, which is not in
+the repository).
+
+**What is built.** `[data, kit] = kbr_variational(cfg)`:
+- the declaration (`commonParams` C_nm, S_nm for cfg.degree; `localParams` 'arc' r0 v0 of C and
+  D + 4 KBR empiricals, 'day' ACC bias / scale of C and D; a static schedule `arcsPerDay`;
+  covariance kbr diag sigma, positions diag 1 with `Cep` per-axis sigmas) and `buildKbrDay`,
+  which reads the day, integrates each arc of the pair ONCE (cached for the three streams of
+  the day) and forms the rows on the fly -- Psi is never stored (degree 60: 3 GB per
+  satellite-day otherwise);
+- physics: normalized solid harmonics by the Cartesian recursion (pole-safe); the exact sparse
+  operators R d/dx_i, degree n -> n+1, so the acceleration, the full gradient and da/dC_nm
+  come out of ONE harmonic sweep per force evaluation; ABM8 PECE with the exact rational
+  coefficients (/120960), RK4 start at h/20; ACC rotated by the SCA1B quaternion; every
+  other force through `cfg.background`;
+- **declared column units** (1e-10 for C_nm, 1 m, 1 mm/s, 1e-9 m/s^2, 1e-3, 1e-7 m/s): the
+  toolbox does not equilibrate columns, and its QR rank decision (1e3 eps of the largest
+  pivot) would otherwise meet a pivot spread of 1.4e-11 on one day (mirror); with the units
+  4.1e-7.
+
+**Mirror** (`dev/validation/kbr_variational_mirror.py`, oracles not built here): harmonics vs
+scipy's lpmv 6.8e-11 (incl. 1e-6 rad off the pole); operators vs central differences 1.6e-9;
+acceleration of C00 + C20 vs closed-form J2 2.1e-16; gradient vs differences of a 8.3e-10;
+ABM8 at 5 s vs Kepler after one day 6.3e-6 m; Psi vs re-integration 2e-7..3e-6 (the scale
+residual scales as 1/delta: rounding, ~1e-7 m); range-rate partial vs difference 8.7e-5
+(rounding of rho_dot); closed loop (one day, degree 8, 2 % ACC scale error planted):
+3.5e-5 of the planted field after one linearization, 8.3e-6 after a second.
+Two lessons the mirror paid for:
+- 1.5 h (ONE revolution, one ground track) cannot separate the orders of degree 8 -- cond
+  1e9; one day (16 revolutions): 3.6e4.
+- the first closed loop stalled at 2.3e-3 through a second iteration: numpy's lstsq truncated
+  singular values at eps * sigma_max of the UNSCALED matrix and dropped exactly the weak
+  common-mode ACC scale direction. Equilibrated: 3.5e-5. That is why the template declares
+  units.
+
+**Tests (640 = 636 + 4, test_physOracle):** `testKbrHarmonicsAccelerationAndGradient`
+(legendre, J2, differences), `testKbrIntegratorAgainstKepler` (6 h), `testKbrPartialsAgainst
+Reintegration` (IC x, IC vy, S53, ACC bias y, scale x; 1.5 h, degree 6),
+`testKbrClosedLoopThroughFit` (fixture_kbr_l1b writes one synthetic day in the L1B ASCII
+layouts -- two 12 h arcs, degrees 2..6, 1-3 % ACC scale error -- and lsqvce.fit recovers the
+planted field to 1e-3; plus kbrvar:badConfig and kbrvar:noFile). Manual 2 (template table)
+and 3 section 8 point at the template; release notes 6.12.0.
+
+**Stated, not built (the help's LIMITATIONS):** the Earth-rotation stand-in `kit.eraRotation`
+(no precession-nutation, no polar motion -- `cfg.trf2crf` is REQUIRED so nobody runs real data
+on it unknowingly); the L1B column layouts, the quaternion direction and the ACC frame as
+declared defaults to check against the handbook; forces beyond the field and the ACC via
+`cfg.background`; GNV1B is reduced-dynamic (swap in a kinematic orbit); KBR quality flags not
+screened; one linearization per call (iterate with `fieldUpdate` and the ACC a-priori).
+NOT validated before CI: no MATLAB in the container.

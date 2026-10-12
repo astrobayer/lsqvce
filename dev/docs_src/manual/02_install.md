@@ -37,7 +37,7 @@ lsqvce_setup('uninstall')  % removes the two path entries, saves the path, delet
 |---|---|
 | `+lsqvce/` | the package: user tier (`fit`, `Options`, `Results`, `report`, `layout`), `+engine`, `+kernel`, `+util` |
 | `examples/` | the demos (`demo_workflow`, `demo_fit`, `demo_grace`, `demo_gravity`, `demo_gravfire`, ...) |
-| `template/` | `gravfire_data.m` (a GRACE bundle to the data struct), `lsqvce_template.m` |
+| `template/` | `gravfire_data.m` (a GRACE bundle to the data struct), `kbr_variational.m` (GRACE-FO L1B range-rates and orbits by the variational equations, §3.8), `lsqvce_template.m` |
 | `html/` | this manual (`lsqvce_manual.html`) and one page per public unit (`doc lsqvce.<name>`) |
 | `lsqvce_theory.pdf`, `lsqvce_manual.pdf` | the theory and this manual as PDF |
 | `RELEASE_NOTES.md` | what changed, with the migration table |
