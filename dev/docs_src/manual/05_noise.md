@@ -18,7 +18,9 @@ is applied in batches of up to 20 000 rows that overlap by the memory of the fil
 `arma` law with an MA part, until its impulse response has decayed to rounding), so the
 batching does not change the result. A dense law (`acf`, `custom`, a `psd` whitened as
 Toeplitz) is factorised over the whole arc: exact, at a cost of O(m³) and m² memory for an
-arc of m rows — for arcs of many thousand epochs prefer a filter law.
+arc of m rows — for arcs of many thousand epochs prefer a filter law. Above 20 000 epochs a
+dense law is refused (`lsqvce:covModel:denseArcTooLong`, 3.2 GB for the factor alone at that
+length); the field `maxDenseArc` on the covariance spec raises the limit deliberately.
 
 ## What to declare
 

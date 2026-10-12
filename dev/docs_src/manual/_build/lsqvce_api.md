@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.13.0 — API Reference"
+title: "lsqvce 6.14.0 — API Reference"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 
@@ -304,9 +304,16 @@ keeps its own level.
 - Filter laws are applied in batches of up to 20 000 rows that overlap by the filter
   memory (for an MA part, until the impulse response of 1/B(z) has decayed to rounding),
   so the result does not depend on the batching. Dense laws (`acf`, `custom`, Toeplitz
-  `psd`) are factorised over the whole arc (exact; O(m³), m² memory).
+  `psd`) are factorised over the whole arc (exact; O(m³), m² memory: 3.2 GB at 20 000
+  epochs). An arc longer than the spec's `maxDenseArc` (default 20 000 epochs) is refused
+  (`lsqvce:covModel:denseArcTooLong`): give a `psd` law a filter (`Whitener = "ar"`), cut
+  the arcs shorter, or raise `maxDenseArc` when the memory is there.
 - An `arma` law whose MA polynomial has a root on or outside the unit circle is refused
   (`lsqvce:covModel:maNotInvertible`).
+- `Whitener = "arma"` reduces the AR fit of the spectrum to an ARMA (Durbin's method,
+  `lsqvce.kernel.ar2arma`). A reduction that comes back non-stationary or with a
+  non-invertible MA part falls back to the AR fit, with the warning
+  `lsqvce:ar2arma:unstable` or `lsqvce:ar2arma:nonInvertibleMA`.
 - Under `estimate = "law"` the declared law contributes only its `sigma` (the starting
   level): the shape is estimated from a white start.
 
@@ -1189,6 +1196,7 @@ Every identifier the package raises (generated from the identifier catalogue, wh
 | `lsqvce:applyReg:unknown` | engine.applyRegularisation | error | v4.0 |
 | `lsqvce:ar2arma:degenerate` | kernel.ar2arma | error | v4.0 |
 | `lsqvce:ar2arma:degenerateMA` | kernel.ar2arma | warning | v4.0 |
+| `lsqvce:ar2arma:nonInvertibleMA` | kernel.ar2arma | warning | v6.14.0 |
 | `lsqvce:ar2arma:tooShort` | kernel.ar2arma | error | v4.0 |
 | `lsqvce:ar2arma:unstable` | kernel.ar2arma | warning | v4.0 |
 | `lsqvce:arcVarianceFactors:arcMismatch` | engine.arcVarianceFactors | error | v4.0 |
@@ -1218,6 +1226,7 @@ Every identifier the package raises (generated from the identifier catalogue, wh
 | `lsqvce:covModel:badSigma` | engine.covModel | error | v4.0 |
 | `lsqvce:covModel:badWhitenMode` | engine.covModel | error | v4.0 |
 | `lsqvce:covModel:cepOnVar` | engine.covModel | error | v5.3 |
+| `lsqvce:covModel:denseArcTooLong` | engine.covModel | error | v6.14.0 |
 | `lsqvce:covModel:degeneratePSD` | engine.covModel | error | v4.0 |
 | `lsqvce:covModel:maNotInvertible` | engine.covModel | error | v6.13.0 |
 | `lsqvce:covModel:negativePSD` | engine.covModel | warning | v4.0 |

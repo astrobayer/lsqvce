@@ -510,6 +510,32 @@ function test_arcVarianceFactors_plain_mean_normalises_to_one(tc)
         'the plain mean must normalise mean(gamma_m/gammaBar) to 1');
 end
 
+function test_arcVarianceFactors_pooled_level_weighs_by_redundancy(tc)
+% categories: precision, metamorphic
+    % WP-126 (finding F3 of the WP-125 review): .pooled is the joint
+    % estimator's stream level, sum_m q_m sigma2_m / sum_m t_m. Two arcs, a
+    % short noisy one (t = 30, ratio 2) and a long one (t = 2000, ratio 1):
+    % the pooled factor follows the long arc (2060/2030), the mean of the
+    % ratios does not (1.5) -- the difference WP-125 introduced, invisible on
+    % equal arcs. A non-finite arc is left out; equal arcs give the mean.
+    q  = [60, 2000, NaN];  t = [30, 2000, 50];  s2 = [1; 1; 1];
+    a  = lsqvce.engine.arcVarianceFactors(q, t, s2, 'MeanType', 'plain');
+    % tol: two sums and one division of exact integers, eps-level
+    verifyEqual(tc, a.pooled, 2060 / 2030, 'RelTol', 4 * eps);
+    verifyGreaterThan(tc, abs(mean(a.gamma2(1:2)) - a.pooled), 0.4, ...
+        'the pooled level is not the mean of the arc ratios');
+    % the applied factors enter as weights of the numerator: halving every
+    % sigma2 halves the pooled level (scale equivariance, exact)
+    b  = lsqvce.engine.arcVarianceFactors(q, t, s2 / 2, 'MeanType', 'plain');
+    verifyEqual(tc, b.pooled, a.pooled / 2, 'RelTol', 4 * eps);   % tol: same source
+    % equal arcs: the pooled factor IS the mean of the ratios
+    c  = lsqvce.engine.arcVarianceFactors([30 45], [30 30], [1; 1], 'MeanType', 'plain');
+    verifyEqual(tc, c.pooled, mean(c.gamma2), 'RelTol', 4 * eps);  % tol: same source
+    % no usable arc: NaN, which the caller skips
+    d  = lsqvce.engine.arcVarianceFactors([NaN 1], [1 0], [1; 1], 'MeanType', 'plain');
+    verifyTrue(tc, isnan(d.pooled));
+end
+
 function test_arcVarianceFactors_robust_resists_outliers(tc)
 % categories: contract
     % The robust central-half mean must sit below the outlier-inflated plain mean

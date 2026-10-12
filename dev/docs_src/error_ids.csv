@@ -74,6 +74,7 @@ lsqvce:applyReg:sizeMismatch,engine.applyRegularisation,error,v4.0
 lsqvce:applyReg:unknown,engine.applyRegularisation,error,v4.0
 lsqvce:ar2arma:degenerate,kernel.ar2arma,error,v4.0
 lsqvce:ar2arma:degenerateMA,kernel.ar2arma,warning,v4.0
+lsqvce:ar2arma:nonInvertibleMA,kernel.ar2arma,warning,v6.14.0
 lsqvce:ar2arma:tooShort,kernel.ar2arma,error,v4.0
 lsqvce:ar2arma:unstable,kernel.ar2arma,warning,v4.0
 lsqvce:arcVarianceFactors:arcMismatch,engine.arcVarianceFactors,error,v4.0
@@ -103,6 +104,7 @@ lsqvce:covModel:badPsdMode,engine.covModel,error,v4.0
 lsqvce:covModel:badSigma,engine.covModel,error,v4.0
 lsqvce:covModel:badWhitenMode,engine.covModel,error,v4.0
 lsqvce:covModel:cepOnVar,engine.covModel,error,v5.3
+lsqvce:covModel:denseArcTooLong,engine.covModel,error,v6.14.0
 lsqvce:covModel:degeneratePSD,engine.covModel,error,v4.0
 lsqvce:covModel:maNotInvertible,engine.covModel,error,v6.13.0
 lsqvce:covModel:negativePSD,engine.covModel,warning,v4.0

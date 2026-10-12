@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.13.0 — User Manual"
+title: "lsqvce 6.14.0 — User Manual"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 
@@ -396,7 +396,9 @@ is applied in batches of up to 20 000 rows that overlap by the memory of the fil
 `arma` law with an MA part, until its impulse response has decayed to rounding), so the
 batching does not change the result. A dense law (`acf`, `custom`, a `psd` whitened as
 Toeplitz) is factorised over the whole arc: exact, at a cost of O(m³) and m² memory for an
-arc of m rows — for arcs of many thousand epochs prefer a filter law.
+arc of m rows — for arcs of many thousand epochs prefer a filter law. Above 20 000 epochs a
+dense law is refused (`lsqvce:covModel:denseArcTooLong`, 3.2 GB for the factor alone at that
+length); the field `maxDenseArc` on the covariance spec raises the limit deliberately.
 
 ## What to declare
 
@@ -2057,7 +2059,7 @@ those inside your `buildDay` closure instead.
 
 | setting | effect |
 |---|---|
-| `Noise.Whitener = "ar"` | whitens a long arc in O(m·p) instead of the O(m³) of the dense Toeplitz factor, which is formed over the whole arc (m² memory); check the AR fit once with `lsqvce.engine.checkPSD` |
+| `Noise.Whitener = "ar"` | whitens a long arc in O(m·p) instead of the O(m³) of the dense Toeplitz factor, which is formed over the whole arc (m² memory, refused above `maxDenseArc` = 20 000 epochs); check the AR fit once with `lsqvce.engine.checkPSD` |
 | `Probes` | the cost of the redundancy sweep grows linearly with it; 100 is the standard, fewer gives noisier redundancies |
 | `Parallel = struct('Mode', "parfor", 'DistributeDays', true)` | distributes the day loop of the accumulation over workers; the result is bitwise identical to the serial run |
 | `MaxPasses`, `Tolerance` | the number of passes of an iterative run |

@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.13.0 — API Reference</title>
+  <title>lsqvce 6.14.0 — API Reference</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.13.0 — API Reference</h1>
+<h1 class="title">lsqvce 6.14.0 — API Reference</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 </header>
@@ -1063,10 +1063,20 @@ by the filter memory (for an MA part, until the impulse response of
 1/B(z) has decayed to rounding), so the result does not depend on the
 batching. Dense laws (<code>acf</code>, <code>custom</code>, Toeplitz
 <code>psd</code>) are factorised over the whole arc (exact; O(m³), m²
-memory).</li>
+memory: 3.2 GB at 20 000 epochs). An arc longer than the spec’s
+<code>maxDenseArc</code> (default 20 000 epochs) is refused
+(<code>lsqvce:covModel:denseArcTooLong</code>): give a <code>psd</code>
+law a filter (<code>Whitener = "ar"</code>), cut the arcs shorter, or
+raise <code>maxDenseArc</code> when the memory is there.</li>
 <li>An <code>arma</code> law whose MA polynomial has a root on or
 outside the unit circle is refused
 (<code>lsqvce:covModel:maNotInvertible</code>).</li>
+<li><code>Whitener = "arma"</code> reduces the AR fit of the spectrum to
+an ARMA (Durbin’s method, <code>lsqvce.kernel.ar2arma</code>). A
+reduction that comes back non-stationary or with a non-invertible MA
+part falls back to the AR fit, with the warning
+<code>lsqvce:ar2arma:unstable</code> or
+<code>lsqvce:ar2arma:nonInvertibleMA</code>.</li>
 <li>Under <code>estimate = "law"</code> the declared law contributes
 only its <code>sigma</code> (the starting level): the shape is estimated
 from a white start.</li>
@@ -3040,178 +3050,190 @@ listed, nothing is listed that is not raised).</p>
 <td>v4.0</td>
 </tr>
 <tr class="even">
+<td><code>lsqvce:ar2arma:nonInvertibleMA</code></td>
+<td>kernel.ar2arma</td>
+<td>warning</td>
+<td>v6.14.0</td>
+</tr>
+<tr class="odd">
 <td><code>lsqvce:ar2arma:tooShort</code></td>
 <td>kernel.ar2arma</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:ar2arma:unstable</code></td>
 <td>kernel.ar2arma</td>
 <td>warning</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:arcVarianceFactors:arcMismatch</code></td>
 <td>engine.arcVarianceFactors</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:arcVarianceFactors:badMean</code></td>
 <td>engine.arcVarianceFactors</td>
 <td>warning</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:arcVarianceFactors:clamped</code></td>
 <td>engine.arcVarianceFactors</td>
 <td>warning</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:armaACV:nonStationary</code></td>
 <td>kernel.armaACV</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:armaACV:zeroLeadingAR</code></td>
 <td>kernel.armaACV</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:armaWhiten:acvTooShort</code></td>
 <td>kernel.armaWhiten</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:armaWhiten:badSigma</code></td>
 <td>kernel.armaWhiten</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:armaWhiten:sizeMismatch</code></td>
 <td>kernel.armaWhiten</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:armaWhiten:startupNotPD</code></td>
 <td>kernel.armaWhiten</td>
 <td>warning</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:batchSystem:badMatrix</code></td>
 <td>engine.batchSystem</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:batchSystem:badSource</code></td>
 <td>engine.batchSystem</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:batchSystem:weightMatrix</code></td>
 <td>engine.batchSystem</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:callUser:badHandle</code></td>
 <td>util.callUser</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:callUser:threw</code></td>
 <td>util.callUser</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:callUser:tooFew</code></td>
 <td>util.callUser</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:checkPSD:badFit</code></td>
 <td>engine.checkPSD</td>
 <td>warning</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:checkPSD:badModel</code></td>
 <td>engine.checkPSD</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:checkPSD:marginalFit</code></td>
 <td>engine.checkPSD</td>
 <td>warning</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:checkPSD:unstable</code></td>
 <td>engine.checkPSD</td>
 <td>warning</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:collectResiduals:badRes</code></td>
 <td>engine.collectResiduals</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:covComponent:badLag</code></td>
 <td>engine.covComponent</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:covComponent:lagTooLarge</code></td>
 <td>engine.covComponent</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:covModel:badCep</code></td>
 <td>engine.covModel</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:covModel:badPsdMode</code></td>
 <td>engine.covModel</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:covModel:badSigma</code></td>
 <td>engine.covModel</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:covModel:badWhitenMode</code></td>
 <td>engine.covModel</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:covModel:cepOnVar</code></td>
 <td>engine.covModel</td>
 <td>error</td>
 <td>v5.3</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:covModel:denseArcTooLong</code></td>
+<td>engine.covModel</td>
+<td>error</td>
+<td>v6.14.0</td>
 </tr>
 <tr class="odd">
 <td><code>lsqvce:covModel:degeneratePSD</code></td>

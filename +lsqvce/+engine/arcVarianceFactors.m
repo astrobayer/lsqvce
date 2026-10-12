@@ -62,6 +62,14 @@ function out = arcVarianceFactors(Q, T, sigma2, opt)
 %                         (negative or degenerate alpha2) and was clamped to
 %                         it (WP-35, fixes F-05); all-false on healthy input
 %       .meanType char    which mean was applied
+%       .pooled   1x1     the POOLED Helmert factor of the group as ONE
+%                         component, sum_m(alpha2_m-numerator * sigma2_m) /
+%                         sum_m(denominator) = sum_m q_m sigma2_m / sum_m t_m
+%                         over the arcs with a finite, positive denominator
+%                         (NaN when there is none). It is the level of a
+%                         stream without arc factors (LSQVCE.ENGINE.ADJUSTVCEJOINT,
+%                         WP-125/126): long arcs weigh by their redundancy,
+%                         where mean(gamma2) weighs every arc alike
 %
 %   EXAMPLE
 %     a = lsqvce.engine.arcVarianceFactors(qa, ta, sig2);   % qa = r*Omega, ta = r*s
@@ -87,6 +95,9 @@ function out = arcVarianceFactors(Q, T, sigma2, opt)
 %
 %   See also LSQVCE.ENGINE.PSDVCE, LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.ADJUSTVCEJOINT
 %
+%   Updated 2026-10-12 (CEST, UTC+02:00), WP-126: output .pooled, the group's
+%   pooled Helmert factor (the joint estimator's stream level). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 3: no DCT -- the
 %   factor is the column-sum ratio of what the caller passes (the joint
 %   estimator: the arc's whole covariance as one component); 'Norm' retired.
@@ -140,6 +151,9 @@ end
 
     % ---- gamma detour, then normalise                       (6.5.28-6.5.30) --
     gamma2 = alpha2 .* sigma2;
+    okP    = isfinite(num) & isfinite(den) & den > 0 & isfinite(sigma2);
+    pooled = NaN;                                % WP-126: one component over the group
+    if any(okP), pooled = sum(num(okP) .* sigma2(okP)) / sum(den(okP)); end
     gamma  = sqrt(abs(gamma2));                  % magnitudes for the mean
     gammaBar = meanOf(gamma, o.MeanType, o.TrimFrac);
     if ~(isfinite(gammaBar) && gammaBar > 0)
@@ -148,7 +162,7 @@ end
             'anything. Leaving the arc factors unchanged this pass.'], gammaBar);
         out = struct('sigma2', sigma2, 'alpha2', alpha2, 'gamma2', gamma2, ...
                      'gammaBar', gammaBar, 'meanType', lower(o.MeanType), ...
-                     'clamped', false(size(sigma2)));
+                     'clamped', false(size(sigma2)), 'pooled', pooled);
         return
     end
     sigma2Hat = gamma2 / gammaBar^2;
@@ -178,7 +192,7 @@ end
 
     out = struct('sigma2', sigma2Hat, 'alpha2', alpha2, 'gamma2', gamma2, ...
                  'gammaBar', gammaBar, 'meanType', lower(o.MeanType), ...
-                 'clamped', clamped);
+                 'clamped', clamped, 'pooled', pooled);
 end
 
 function s = ternary(cond, a, b)

@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.13.0 — User Manual</title>
+  <title>lsqvce 6.14.0 — User Manual</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.13.0 — User Manual</h1>
+<h1 class="title">lsqvce 6.14.0 — User Manual</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 </header>
@@ -947,7 +947,10 @@ impulse response has decayed to rounding), so the batching does not
 change the result. A dense law (<code>acf</code>, <code>custom</code>, a
 <code>psd</code> whitened as Toeplitz) is factorised over the whole arc:
 exact, at a cost of O(m³) and m² memory for an arc of m rows — for arcs
-of many thousand epochs prefer a filter law.</p>
+of many thousand epochs prefer a filter law. Above 20 000 epochs a dense
+law is refused (<code>lsqvce:covModel:denseArcTooLong</code>, 3.2 GB for
+the factor alone at that length); the field <code>maxDenseArc</code> on
+the covariance spec raises the limit deliberately.</p>
 <h2 data-number="5.2" id="what-to-declare"><span
 class="header-section-number">5.2</span> What to declare</h2>
 <ul>
@@ -3821,8 +3824,9 @@ class="header-section-number">10.2</span> Time</h2>
 <tr class="odd">
 <td><code>Noise.Whitener = "ar"</code></td>
 <td>whitens a long arc in O(m·p) instead of the O(m³) of the dense
-Toeplitz factor, which is formed over the whole arc (m² memory); check
-the AR fit once with <code>lsqvce.engine.checkPSD</code></td>
+Toeplitz factor, which is formed over the whole arc (m² memory, refused
+above <code>maxDenseArc</code> = 20 000 epochs); check the AR fit once
+with <code>lsqvce.engine.checkPSD</code></td>
 </tr>
 <tr class="even">
 <td><code>Probes</code></td>

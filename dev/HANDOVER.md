@@ -8,8 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-12 — WP-124 DONE (PR #145, merge ace5131; CI GREEN on 1a89d48); WP-125 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-125"; decisions: dense laws whitened whole, Noise.Whitener everywhere, pooled Helmert level): the twelve code findings of §12.56 -- report / Results / contribution fixes, ARMA overlap from the decay of 1/B(z), dense laws over the whole arc, Noise.Whitener for declared psd laws, the pooled level; 6 tests; version 6.13.0; §12.57.
-Preceding entry: Last substantive update: 2026-10-12 — WP-124 OPEN (tier B, model Claude Opus 5.5; user: "The manual shall be a step-by-step guide ... The theory shall describe only the underlying mathematical framework. Function and interface description belong to an API document"; decisions: API generated + PDF, theory stays LaTeX, ONE PR): three documents, each with one job -- Manual rewritten as a user guide, new API reference (lsqvce_api), theory rewritten to the code; the R5 record archived; no computation changed; version 6.12.2; §12.56.
+Last substantive update: 2026-10-12 — WP-125 DONE (PR #146, merge 8382eab; CI GREEN on 9e20f7a); WP-126 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-126 mit der Längengrenze"): the review of the WP-125 diff -- a dense law refuses an arc above cm.maxDenseArc (default 20 000 epochs, `lsqvce:covModel:denseArcTooLong`); ar2arma fits the AR part forwards (it returned reciprocal roots) and a non-invertible MA part falls back to the AR (`lsqvce:ar2arma:nonInvertibleMA`); arcVarianceFactors.pooled; 4 tests; version 6.14.0; §12.58.
+Preceding entry: Last substantive update: 2026-10-12 — WP-124 DONE (PR #145, merge ace5131; CI GREEN on 1a89d48); WP-125 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-125"; decisions: dense laws whitened whole, Noise.Whitener everywhere, pooled Helmert level): the twelve code findings of §12.56 -- report / Results / contribution fixes, ARMA overlap from the decay of 1/B(z), dense laws over the whole arc, Noise.Whitener for declared psd laws, the pooled level; 6 tests; version 6.13.0; §12.57.
 Preceding entry: Last substantive update: 2026-10-12 — WP-123 DONE (PR #143, merge cebbfd1; CI GREEN on e617a95, first round); closure PR (user decision: "Ja, mach den Abschluss-PR"): the ledger row and §12.55, no code change, no version (6.12.1 stays, 641 tests).
 Preceding entry: Last substantive update: 2026-10-12 — WP-122 DONE (PR #142, merge 1d8c89b; CI GREEN on ac4bfa4); WP-123 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-123"): the kernel whiteners (separableWhiten, varWhiten, armaWhiten) take a sparse A / B / l -- the dense filter runs on the non-zero columns only (private kernel helper activeColumns), sparse in, sparse out; the dense path unchanged; template/kbr_variational returns its position B sparse again; 1 gate test; version 6.12.1; §12.54.
 Preceding entry: Last substantive update: 2026-10-12 — WP-122 OPEN (tier B, model Claude Opus 5.5; user: "a real-life buildDay for range-rate observations using a variational equation approach", scope decision: SELF-CONTAINED): template/kbr_variational.m -- GRACE-FO L1B (GNV1B, KBR1B, ACT1B, SCA1B) + ICGEM .gfc -> range-rate and position streams by the variational equations (analytic a, G, da/dC_nm from normalized solid harmonics and exact sparse derivative operators; ABM8 PECE), declared column units; mirror dev/validation/kbr_variational_mirror.py; 4 gate tests in test_physOracle; version 6.12.0; §12.53.
@@ -9271,7 +9271,7 @@ NOT validated before CI: no MATLAB in the container (the changes touch help text
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 125 | the twelve findings of §12.56: report (contamination check outside the Bonferroni branch, PASS text, Backend remedies, the loop's own pass count and name), Results (convergence stop-rule columns, summary arOrder doc), contribution (share = common trace t_g, `red.group.tcc`), ARMA overlap from the decay of 1/B(z) + `lsqvce:covModel:maNotInvertible`, dense laws factorised over the whole arc, `Noise.Whitener` for declared psd laws, the pooled Helmert level; **version 6.13.0** | 124 (PR #145 merged ace5131) | OPEN (tier B; CI is the gate) |
+| 125 | the twelve findings of §12.56: report (contamination check outside the Bonferroni branch, PASS text, Backend remedies, the loop's own pass count and name), Results (convergence stop-rule columns, summary arOrder doc), contribution (share = common trace t_g, `red.group.tcc`), ARMA overlap from the decay of 1/B(z) + `lsqvce:covModel:maNotInvertible`, dense laws factorised over the whole arc, `Noise.Whitener` for declared psd laws, the pooled Helmert level; **version 6.13.0** | 124 (PR #145 merged ace5131) | DONE (2026-10-12, PR #146, merge 8382eab; CI GREEN on 9e20f7a) |
 
 **The user's decisions (2026-10-12, AskUserQuestion):** dense laws -> "Whiten whole arc" (not the
 recommended warning); psd whitener -> "Whitener applies everywhere"; level -> "Pooled ratio".
@@ -9318,3 +9318,51 @@ ceilings by compressing the new lines. Docs: theory (whole-arc dense factor, ARM
 level, contribution trace), Manual 05 / 07 / 10, API 03 / 04 / 06.
 **Tests 647 = 641 + 6.** NOT validated before CI: no MATLAB in the container.
 
+### 12.58 WP-126 — the review findings on WP-125 (2026-10-12, model Claude Opus 5.5)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 126 | the three findings of the review of the WP-125 diff: a dense law refuses an arc above `cm.maxDenseArc` epochs (`lsqvce:covModel:denseArcTooLong`, default 20 000); `ar2arma` fits the AR part forwards and a non-invertible MA part falls back to the AR (`lsqvce:ar2arma:nonInvertibleMA`); `arcVarianceFactors.pooled` (the stream level, unit-tested) and an end-to-end test of `Noise.Whitener` on a declared psd law; **version 6.14.0** | 125 (PR #146 merged 8382eab) | OPEN (tier B; CI is the gate) |
+
+**The user's request (2026-10-12):** a review of the WP-125 diff for correctness, security, data
+integrity, concurrency, backwards compatibility and missing tests; three findings (F1-F3, all
+medium); then "Ja, mach WP-126 mit der Längengrenze" -- the length limit, not an empty
+`Noise.Whitener` default.
+
+**F1 -- unbounded dense factor.** WP-125 factorises a dense law over the whole arc, and
+`Noise.Whitener` (default `"toeplitz"`) now reaches declared psd laws, which used to take covModel's
+AR(30). A 1 Hz day (86 400 epochs) needs 60 GB for the factor. `covModel>denseArcGuard` refuses an arc
+longer than `cm.maxDenseArc` epochs (default 20 000: the largest dense factor formed before WP-125,
+one batch; 3.2 GB) with the routes out (`Whitener = "ar"`, shorter arcs, raise the limit). The limit
+lives on the declared law, the one place `fit` reaches. Nothing that ran before is newly refused for
+a Toeplitz psd law: before WP-125 its ACV stopped at BatchSize + overlap, so the joint sweep's
+`Cfcn(1:m)` failed above 20 000 anyway; an `acf` / `custom` law above 20 000 epochs, batched
+inexactly before, is now refused by name. The cost table and `info.cost` say O(m^3).
+Test `test_reliability>testCovModelRefusesADenseArcAboveTheLimit` (boundary m == limit runs,
+limit + 1 and the default refuse, a filter law is unbounded, a bad limit refuses).
+
+**F2 -- a fitted MA part can be non-invertible; and ar2arma was backwards.** Porting ar2arma to
+find a test case showed the Hankel regression ran the recursion backwards: row i is h(q+i..q+i+p),
+and the code regressed the FIRST column on the later ones, which returns the reciprocal roots
+(0.94 -> 1.064). The stationarity guard therefore fired on almost every input -- both ar2arma tests
+muted `lsqvce:ar2arma:unstable` as "provoked on purpose" and passed on the fallback AR(60) -- so
+`Whitener = "arma"` never used an ARMA. Fixed (`-fliplr(H(:,1:end-1)) \ H(:,end)`); the round-trip
+test now demands the true ARMA(2,1) back (1e-9; mirror 8e-16 / 2e-14) warning-free. With a working
+fit the MA part CAN come back non-invertible (over-parameterised or mis-specified fits), which
+`filterMemoryOf` (WP-125) would turn into a hard `maNotInvertible` mid-run; ar2arma now falls back
+to the AR with `lsqvce:ar2arma:nonInvertibleMA`, as for the AR part. `maNotInvertible` stays for a
+DECLARED arma law. Mirror `dev/validation/wp126_ar2arma_mirror.py`; tests
+`test_signalCore>testAr2armaRoundTrip` (rewritten), `>testAr2armaNonInvertibleMaFallsBackToTheAr`
+(ARMA(1,2) reduced to (1,1): b = [1 1.160]), `>testAr2armaSmoothFloorStaysStable` (also asserts an
+invertible MA part).
+
+**F3 -- untested numbers.** The pooled level moved into `arcVarianceFactors` as `.pooled` (the
+function the joint estimator already calls per stream; `adjustVCEjoint` reads it), unit-tested by
+`test_ellmer>test_arcVarianceFactors_pooled_level_weighs_by_redundancy` (2060/2030 vs a mean of 1.5,
+scale equivariance, equal arcs = the mean, NaN without a usable arc). The Whitener route is tested
+end to end by `test_fit>testWhitenerReachesADeclaredPsdLaw` (toeplitz vs ar differ, both within 1 %,
+GLS and IRLS).
+
+**Registries:** error_ids.csv +2 rows (v6.14.0); covModel and adjustVCEjoint kept at their code-line
+ceilings by joining lines. Docs: API 03 (the limit, the arma fallback), Manual 05 / 10.
+**Tests 651 = 647 + 4.** NOT validated before CI: no MATLAB in the container.

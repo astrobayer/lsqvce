@@ -30,10 +30,14 @@ function [a, b, s2] = ar2arma(aHi, s2Hi, q, opt)
 %     compact rational form B(z)/A(z) using a Hankel least-squares solve.
 %
 %   STABILITY IS NOT GUARANTEED
-%     The Hankel fit can produce a non-stationary AR part. That is detected
-%     here and the function falls back to the input AR with a warning rather
-%     than returning a model whose autocovariance does not exist. If you see
-%     that warning, lower armaP or q, or simply use the pure AR.
+%     The Hankel fit can produce a non-stationary AR part, or a non-invertible
+%     MA part (a root of B(z) on or outside the unit circle, which makes the
+%     whitener A(z)/B(z) unstable). Both are detected here and the function
+%     falls back to the input AR with a warning rather than returning a model
+%     whose autocovariance does not exist or that cannot whiten. If you see
+%     either warning, lower armaP or q, or simply use the pure AR. An
+%     over-parameterised fit (armaP above the true order) is where the MA part
+%     goes non-invertible.
 %
 %   ALWAYS VERIFY
 %     ARMA reduction is the least robust step in this toolbox. Check it:
@@ -57,11 +61,16 @@ function [a, b, s2] = ar2arma(aHi, s2Hi, q, opt)
 %   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 %     lsqvce:ar2arma:degenerateMA                [warning] The MA fit is degenerate; falling back to the AR model
 %     lsqvce:ar2arma:unstable                    [warning] The ARMA reduction produced a non-stationary AR part (max |root| = X)
+%     lsqvce:ar2arma:nonInvertibleMA             [warning] The ARMA reduction produced a non-invertible MA part
 %
 %   See also LSQVCE.KERNEL.LEVINSONDURBIN, LSQVCE.KERNEL.ARMAACV, LSQVCE.ENGINE.CHECKPSD
 %
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
+%   Updated 2026-10-12 (CEST, UTC+02:00), WP-126: the Hankel fit runs the
+%   recursion forwards (it returned reciprocal roots); a non-invertible MA part
+%   falls back to the AR (lsqvce:ar2arma:nonInvertibleMA). With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+kernel (R4 decision R4-D1,
 %   WP-64a): the KERNEL tier leaves the USER surface; every qualified
 %   reference was rewritten mechanically by docs_src/refactor_tiers.py.
@@ -98,7 +107,14 @@ function [a, b, s2] = ar2arma(aHi, s2Hi, q, opt)
               'The Hankel system is underdetermined (%d rows, %d unknowns).', ...
               size(H,1), p);
     end
-    aa = -H(:,2:end) \ H(:,1);
+    % Row i of H is h(q+i .. q+i+p). For n > q the ARMA impulse response obeys
+    % h(n) + a_1 h(n-1) + ... + a_p h(n-p) = 0: the LAST column is the target
+    % and a_k multiplies column p+1-k. WP-126: the fit used to regress the
+    % FIRST column on the later ones -- the recursion run backwards, whose
+    % roots are the reciprocals of the true ones (0.94 -> 1.064), so the
+    % stationarity guard below fired on almost every input and the 'arma'
+    % route silently returned the long AR.
+    aa = -fliplr(H(:,1:end-1)) \ H(:,end);
     a  = [1; aa(:)].';
 
     % --- MA part from the filtered impulse response ------------------------
@@ -120,6 +136,21 @@ function [a, b, s2] = ar2arma(aHi, s2Hi, q, opt)
             ['The ARMA reduction produced a non-stationary AR part (max |root| ' ...
              '= %.6f). Falling back to the input AR(%d). Lower armaP or q, or ' ...
              'just use the pure AR.'], max(abs(rts)), numel(aHi)-1);
+        a = aHi;  b = 1;  s2 = s2Hi;
+        return
+    end
+
+    % --- invertibility guard (WP-126) -----------------------------------------
+    % The whitener is A(z)/B(z): a root of B(z) on or outside the unit circle
+    % makes 1/B(z) unstable (LSQVCE.ENGINE.COVMODEL refuses such a law). The
+    % MA part is a fit, not a declaration, so the reduction falls back to the
+    % input AR -- as for the AR part above -- instead of failing the run.
+    rtb = roots(b);
+    if ~isempty(rtb) && max(abs(rtb)) >= 1
+        lsqvce.util.log.warn('lsqvce:ar2arma:nonInvertibleMA', ...
+            ['The ARMA reduction produced a non-invertible MA part (max |root| ' ...
+             '= %.6f). Falling back to the input AR(%d). Lower q or armaP, or ' ...
+             'just use the pure AR.'], max(abs(rtb)), numel(aHi)-1);
         a = aHi;  b = 1;  s2 = s2Hi;
     end
 end
