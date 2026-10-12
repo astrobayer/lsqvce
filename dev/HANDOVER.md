@@ -9412,10 +9412,14 @@ would trip `arcMismatch` instead. Now `oneArc` calls an empty prior pseudo-arc '
 level, white = false, p = NaN). Test: an extension of `test_fit>testLocalPriorsAreTheCounterpartOfDataPriors`.
 
 **5 -- Gauss-Newton's final step.** Converged on TolX in formal-error units, the run applied one
-undamped step unevaluated; on a logistic plateau the reviewer's mirror (reproduced) took F from
-29.0 to 2.8e15. The step is evaluated and kept only when F does not rise (1e-10 relative rounding
-allowance); `state('x')` is restored before the diagnostics replay the batches. Test
-`test_fit>testGaussNewtonNeverReturnsAnUnevaluatedPoint` (three plateau starts).
+undamped step unevaluated; near a logistic plateau the reviewer's mirror (reproduced) took F from
+28.8 to 49.6 (start [1 -5 0.1]). The step is evaluated and kept only when F does not rise (1e-10
+relative rounding allowance); `state('x')` is restored before the diagnostics replay the batches.
+Test `test_fit>testGaussNewtonNeverReturnsAnUnevaluatedPoint` (three starts with a well-conditioned
+final linearisation). CI round 1 (f48cb87): the first choice of starts sat DEEP on the plateau, where
+the undamped linearisation at the converged point is singular (pivot ratio 1e-24..1e-30) and the
+pre-existing final solve refuses with `lsqvce:qr:singularR` -- an error by name, not a wrong number;
+the starts were replaced (the review's 2.8e15 case is one of those).
 
 **8, 11.** `.gitignore`: `dev/references/local/` and `dev/validation/*_measure.txt` (checked with
 `git check-ignore`). `validateArc` refuses a non-finite A or B (a NaN in A of a local-free system

@@ -23,8 +23,9 @@ of any fit with a datum prior (marked **numbers**).
   stream after it, which broke the per-pass record. Inactive arcs are no longer skips; the
   record has one column per stream of pass 1.
 - **Gauss–Newton checks its final step.** A converged run applied one undamped step without
-  evaluating it; on a plateau that took F from 29 to 2.8e15. The step is kept only when F
-  does not rise.
+  evaluating it; near a plateau that took F from 28.8 to 49.6 (a logistic fit). The step is
+  kept only when F does not rise. Deeper on the plateau the undamped linearisation is singular
+  and the run is refused by name (`lsqvce:qr:singularR`), as before.
 - **A NaN or Inf in A or B is refused** (`lsqvce:accum:arcNotFinite`), as one in l already was.
 - `.gitignore` covers `dev/references/local/` (the folder moved to `dev/`) and every
   `dev/validation/*_measure.txt`.

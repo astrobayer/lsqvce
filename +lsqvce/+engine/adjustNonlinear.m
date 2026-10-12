@@ -204,7 +204,7 @@ end
     if converged
         % WP-127: the final undamped step is CHECKED like every other. On a
         % plateau sigX is huge, so a tiny damped step meets TolX, and the
-        % undamped step from there took F from 29.0 to 2.8e15 in the mirror of
+        % undamped step from there took F from 28.8 to 49.6 in the mirror of
         % a logistic fit -- "converged" on a point never evaluated
         xF = x + dsol.x(:);
         [~, FF] = accumulate(L, days, xF, state, opt);

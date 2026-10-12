@@ -1184,18 +1184,21 @@ function testGaussNewtonNeverReturnsAnUnevaluatedPoint(tc)
 % categories: robustness, metamorphic
     % WP-127: TolX measures the step in formal-error units; on a plateau the
     % formal errors are huge, so a tiny DAMPED step "converges", and the final
-    % UNDAMPED step was applied without evaluating F -- a logistic fit started
-    % on the saturated side returned F = 2.8e15 against an accepted 29.0
-    % (mirror of this loop, scratch of the review; starts on c = -5 and a
-    % wide s). Whatever the start, the returned point's F is no worse than
-    % the best accepted one (default Tolerance, the setting that exposed it).
+    % UNDAMPED step was applied without evaluating F. Mirror of this loop
+    % (the review's, reproduced): a logistic fit from [1 -2 0.1] returned
+    % F = 24.7 against an accepted 21.9, from [1 -5 0.1] 49.6 against 28.8,
+    % from [0.5 15 0.3] 69.0 against 68.4. Starts whose final linearisation is
+    % singular (pivots ~1e-28 deep on the plateau) are refused by name
+    % (lsqvce:qr:singularR) and are not used here. Whatever the start, the
+    % returned point's F is no worse than the best accepted one (default
+    % Tolerance, the setting that exposed it).
     t = linspace(0, 10, 40).';  y = 2 ./ (1 + exp(-(t - 5)/0.7)) + 0.02*sin(3*t);
     g  = @(x) 1 ./ (1 + exp(-(t - x(2))/x(3)));
     bf = @(k, x) deal([g(x), -x(1)*g(x).^2.*exp(-(t - x(2))/x(3))/x(3), ...
                        -x(1)*g(x).^2.*exp(-(t - x(2))/x(3)).*(t - x(2))/x(3)^2], y - x(1)*g(x), []);
     F  = @(x) sum((y - x(1)*g(x)).^2);
     muteWarn(tc, 'lsqvce:adjustNonlinear:maxIter');
-    for x0 = {[0.5; -5; 0.3], [2; -5; 0.3], [0.5; 2; 10]}
+    for x0 = {[1; -2; 0.1], [1; -5; 0.1], [0.5; 15; 0.3]}
         R = lsqvce.fit(struct('batchFcn', bf, 'numBatches', 1, 'x0', x0{1}), ...
                        lsqvce.Options(MaxPasses=30, Verbose=false));
         ok = [R.history.accepted];
