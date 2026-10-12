@@ -430,11 +430,9 @@ function arc = computeArc(span, S, kb, po, info, arcId)
     arc.kbr = struct('A', AK, 'B', sparse(iK, jK, vK, mK, nl), 'l', lK, 't', tK(:));
     for k = 1:2
         nE = numel(tP{k});
-        % B DENSE on the multi-axis streams: the toolbox's per-epoch whitener of
-        % a stream with Cep reshapes B to 3-D (lsqvce.kernel.separableWhiten>tfilt),
-        % which MATLAB refuses for sparse arrays (MATLAB:reshape:sparseNDmatrix,
-        % WP-122 CI round 1) -- although the Manual allows a sparse B
-        arc.(['pos' sats{k}]) = struct('A', AP{k}, 'B', full(sparse(iP{k}, jP{k}, vP{k}, 3 * nE, nl)), ...
+        % B sparse like the KBR stream's (the kernel whiteners take sparse
+        % blocks since WP-123; WP-122 had to return it dense here)
+        arc.(['pos' sats{k}]) = struct('A', AP{k}, 'B', sparse(iP{k}, jP{k}, vP{k}, 3 * nE, nl), ...
             'l', lP{k}, 't', repelem(tP{k}(:), 3), 'Cep', po.sigma.pos * ones(nE, 3));
     end
 

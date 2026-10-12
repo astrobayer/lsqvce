@@ -430,6 +430,51 @@ function testSeparableRejectsPartialEpoch(tc)
                    'lsqvce:separable:notWholeEpochs');
 end
 
+function testKernelWhitenersAcceptSparseBlocks(tc)
+% categories: contract, precision
+% WP-123: makeLoader allows a sparse B, but separableWhiten (N-D reshape)
+% raised MATLAB:reshape:sparseNDmatrix on a multi-axis stream -- found by the
+% WP-122 template (template/kbr_variational), whose position streams carried
+% a sparse B. Every kernel whitener must take sparse A/B/l, return them
+% sparse, keep the all-zero columns zero, and agree with the dense path.
+    rs = RandStream('mt19937ar', 'Seed', 123);
+    d = 3;  nE = 30;  m = nE*d;
+    a = [1 -0.9 0.2];  s = 0.8;
+    r = s^2 * lsqvce.kernel.armaACV(a, 1, nE);
+    Ce = zeros(nE, d, d);
+    for k = 1:nE
+        Q = 0.2*randn(rs, d, d) + diag([1 1 2.5]);
+        Ce(k, :, :) = Q*Q.';
+    end
+    Avar = cat(3, 0.5*eye(d) + 0.05*randn(rs, d), 0.1*eye(d));
+    Sg = eye(d) + 0.2*ones(d);
+    Gv = lsqvce.kernel.varACV(Avar, Sg, 3);
+    A = randn(rs, m, 4);
+    B = zeros(m, 7);
+    B(1:2*d, 2) = randn(rs, 2*d, 1);              % two arcs' columns live in
+    B(:, 5) = randn(rs, m, 1);                    % this batch, five are zero
+    l = randn(rs, m, 1);
+    W = {@(A, B, l) lsqvce.kernel.separableWhiten(a, s, r, Ce, d, A, B, l, true), ...
+         @(A, B, l) lsqvce.kernel.varWhiten(Avar, Sg, Gv, d, A, B, l, true), ...
+         @(A, B, l) lsqvce.kernel.armaWhiten(a, 1, s, r, A, B, l, true)};
+    for k = 1:numel(W)
+        [Ad, Bd, ld] = W{k}(A, B, l);
+        [As, Bs, ls] = W{k}(sparse(A), sparse(B), l);
+        tc.verifyTrue(issparse(As) && issparse(Bs) && ~issparse(ls), ...
+            sprintf('whitener %d: sparse in, sparse out (l stays dense)', k));
+        tc.verifySize(Bs, size(B));
+        tc.verifyEqual(nnz(Bs(:, [1 3 4 6 7])), 0, ...
+            sprintf('whitener %d: an all-zero column stays zero', k));
+        % tol: the same column-wise row operator on a subset of the columns;
+        % only the BLAS blocking of the multi-RHS solves may differ (eps level)
+        tc.verifyEqual(full(Bs), Bd, 'AbsTol', 1e-12 * max(abs(Bd(:))));
+        tc.verifyEqual(full(As), Ad, 'AbsTol', 1e-12 * max(abs(Ad(:))));
+        tc.verifyEqual(ls, ld, 'AbsTol', 1e-12 * max(abs(ld)));   % tol: as above
+        [~, Bz, ~] = W{k}(A, sparse(m, 3), l);        % no active column at all
+        tc.verifyTrue(issparse(Bz) && isequal(size(Bz), [m 3]) && nnz(Bz) == 0);
+    end
+end
+
 %% ================================================== cross-correlation
 function testCrossCorrWhiteIsOK(tc)
 % categories: contract | tags: diagnostics
