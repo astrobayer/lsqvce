@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-12 — WP-119 DONE (PR #138, merge 49a27ec; CI GREEN on f856a63); WP-120 OPEN (tier B, model Claude Opus 5.5; user decision: K = 20 STAYS): the Ljung-Box lag count measured, not changed -- a larger K loses short-lag power (0.45 -> 0.11 at K 540) and gains only on a correlation at an isolated long lag; the blind spot stated in Manual 7.7 with the numbers; no code, no version; §12.50.
+Last substantive update: 2026-10-12 — WP-120 DONE (PR #139, merge 99e3dff; CI GREEN on 1017d42); WP-121 OPEN (tier B, model Claude Opus 5.5): diagnose's robust check formed in the main pass -- one read of the data and one halfRows per row instead of two (bitwise the same scale); the §12.48 claim that snoop's Reaccumulate=true re-solve is dense corrected (block-arrow since WP-86 part 3, 6.4.0); version 6.11.1; §12.51. With it the three §12.48 residues are closed.
+Preceding entry: Last substantive update: 2026-10-12 — WP-119 DONE (PR #138, merge 49a27ec; CI GREEN on f856a63); WP-120 OPEN (tier B, model Claude Opus 5.5; user decision: K = 20 STAYS): the Ljung-Box lag count measured, not changed -- a larger K loses short-lag power (0.45 -> 0.11 at K 540) and gains only on a correlation at an isolated long lag; the blind spot stated in Manual 7.7 with the numbers; no code, no version; §12.50.
 Preceding entry: Last substantive update: 2026-10-12 — WP-119 OPEN (tier B, model Claude Opus 5.5; user: "continue fixing the known limitations" -- the three residues §12.48 recorded, one WP each, 119 -> 120 -> 121): the datum test runs per declared prior GROUP -- a datum stacked with a regularising group gets the minimum-constraint covariance s0^2 pinv(N + Ki'Ki); a group only partly in the null space stays information (by design, stated); version 6.11.0; §12.49.
 Preceding entry: Last substantive update: 2026-10-11 — WP-114 DONE (PR #136, merge 4bdcfe5; CI GREEN on 4c31b83); R7 TRACK CLOSED (model Claude Opus 5.5, user decision): every WP 111-118 merged, 45 of 46 findings fixed in the tree (R7-46 is the review skill's own instrument); the residues are recorded, not opened; no code change, no version; §12.48.
 Preceding entry: Last substantive update: 2026-10-11 — WP-113 DONE (PR #135, merge 2ec85d6); WP-114 OPEN (tier B, model Claude Opus 5.5): R7-05 / R7-15 -- a datum prior's covariance is the minimum-constraint one (sigma-independent), residuals() / redundancy() count a common prior; version 6.10.0; §12.47.
@@ -8967,7 +8968,7 @@ assertions (the new code) stay on both backends at every sigma.
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 120 | §12.48 residue 2: the joint whiteness test's K = 20 measured against K tied to the Grid and a two-scale test; K = 20 stays (user decision), the blind spot (an isolated long-lag correlation) stated in Manual 7.7 with the numbers; no code, no version | 119 (PR #138 merged 49a27ec) | OPEN (records only; CI is the gate) |
+| 120 | §12.48 residue 2: the joint whiteness test's K = 20 measured against K tied to the Grid and a two-scale test; K = 20 stays (user decision), the blind spot (an isolated long-lag correlation) stated in Manual 7.7 with the numbers; no code, no version | 119 (PR #138 merged 49a27ec) | DONE (2026-10-12, PR #139, merge 99e3dff; CI GREEN on 1017d42) |
 
 **The question (§12.41, §12.48):** on 2160-epoch arcs K = 20 sees only the shortest lags;
 should K be tied to the Grid (the law's resolution)? A power question, so measured first.
@@ -8992,3 +8993,41 @@ needs K beyond that lag -- and a two-scale test catches it only inside its long 
 (short-lag power 0.45 -> 0.38), K tied to the Grid alone (0.45 -> 0.20). Recorded in Manual
 7.7 (the table, the blind spot, `R.systematic('Lags', L)` as the user's own long-lag check).
 The residue is CLOSED BY MEASUREMENT. No code change, no version (6.11.0 stays).
+
+### 12.51 WP-121 — diagnose reads the data once (2026-10-12, model Claude Opus 5.5)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 121 | §12.48 residue 3: `verdict.diagnose` forms the robust check's raw scores in the main pass (one read, one `halfRows` per row; only `'Test', "mad"` sweeps first); the stale snoop claim corrected; **version 6.11.1** | 120 (PR #139 merged 99e3dff) | OPEN (tier B; CI is the gate) |
+
+**Residue 3 read against the code first.** It named two things.
+- "snoop's `Reaccumulate=true` re-solve still builds a dense commons factor" -- STALE.
+  §12.48 copied the WP-86 *part 2* note (§12.42); part 3 (6.4.0, `blockResolveAccumulator`)
+  already rebuilds the block-arrow systems, pinned by test_vceFunction's snoop point
+  (`solR.Q.nc == nc`). Nothing to build; the record is corrected here.
+- "the verdict re-reads the data in its two diagnose sweeps" -- REAL, and not the collector
+  rewrite round 4d decided down: the first sweep existed only for the robust check (on by
+  default), recomputed the same `Q.halfRows(A)` (O(nc^2) per row, the dominant cost, ~4e14
+  flops per diagnose at a GRAVFIRE month, §12.42) and re-read every batch through the
+  loader. Its raw score (P v)_i / sqrt((P Qvv P)_ii) is the main pass's own Pvk / qpp, and
+  the classification's scale is known before the sweep for every test but 'mad' (s0 or the
+  a-priori sigma0).
+
+**Built.** `fuseRobust = robustCheck && test ~= 'mad'`: the main pass writes the raw scores
+(same qpp clamp, same Pvk -- bitwise the separate sweep's) and the MAD / fhat are formed
+after it; 'mad' keeps its first sweep. The MAD block became the local function
+`robustScaleOf` (one copy for both paths). Comments and the 'robustCheck' help line say
+which path sweeps. Test (636 = 635 + 1): `test_vceFunction>testDiagnoseReadsTheDataOnce`
+counts the batch reads (nB by default, 2 nB under 'mad') and pins robustScale and fhat
+bitwise equal across the two routes. The `engine.verdict,metamorphic` category exemption
+was deleted (the audit called it stale once the new test covered it). Memory: the raw-score
+vector (n x 1) existed before in the first sweep; nothing new is held.
+NOT validated before CI: no MATLAB in the container.
+
+**The three §12.48 residues are closed** -- 119 fixed (a datum group beside a regulariser),
+120 measured and kept (K = 20, user decision), 121 fixed (one read) with the stale half
+corrected. Nothing is open on `main` until the user opens a WP or a new review.
+CI round 1 (a65c3eb): 623/624; the new test green, `test_vcePolicy>testCacheDaysCountsTheBuilds`
+red -- the end-to-end build count through `lsqvce.fit` (CacheDays 1, a VCE run of n passes)
+pinned 2n+3, of which one was diagnose's robust-check sweep. That is the WP's effect seen
+from the loader, not a regression: the pin is 2n+2 now, its comment says why.

@@ -229,11 +229,12 @@ function testCacheDaysCountsTheBuilds(tc)
 % categories: contract, speed
     % R5 M4 4d: the number a sweep level is judged by. A two-stage pass builds
     % every (day, obsType) twice (accumulate + sweep) and a VCE run of n
-    % passes 2n+3 times: + the accumulation under the RETURNED model (R7-11,
-    % WP-116: the solution used to be one pass behind it) + diagnose's two
-    % sweeps (the robust-check sweep and the main one), which RE-READ the data
-    % since WP-86 part 1 instead of replaying stored rows -- the price of not
-    % keeping n x u_full doubles (2n+2 while the rows were stored). The
+    % passes 2n+2 times: + the accumulation under the RETURNED model (R7-11,
+    % WP-116: the solution used to be one pass behind it) + diagnose's ONE
+    % sweep, which RE-READS the data since WP-86 part 1 instead of replaying
+    % stored rows (the price of not keeping n x u_full doubles). Since WP-121
+    % the robust check is formed in that sweep (2n+3 while it swept on its
+    % own; only Test "mad" still sweeps first). The
     % diagnostic source's own enumeration pass (part 1: 2n+4) is gone since
     % part 2: its index comes from the loaders' memoised meta answers and its
     % row count from the accumulator. With CacheDays = Inf the calendar stays
@@ -250,9 +251,9 @@ function testCacheDaysCountsTheBuilds(tc)
     cnts = cellfun(@(s) s.counter, {data.systems.processingOptions}, 'UniformOutput', false);
     lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=n, Noise=struct('Grid', 16), Seed=3, Verbose=false, CacheDays=1));
     v1 = cell2mat(cellfun(@(c) cell2mat(values(c)), cnts, 'UniformOutput', false));
-    tc.verifyEqual(unique(v1), 2*n + 3, ['CacheDays 1: accumulate + sweep per pass, + the ' ...
-                   'solve under the returned model (R7-11), + diagnose''s two re-reading ' ...
-                   'sweeps (WP-86 part 1); the source reads no data itself (part 2)']);
+    tc.verifyEqual(unique(v1), 2*n + 2, ['CacheDays 1: accumulate + sweep per pass, + the ' ...
+                   'solve under the returned model (R7-11), + diagnose''s one re-reading ' ...
+                   'sweep (WP-86 part 1, WP-121); the source reads no data itself (part 2)']);
     for c = cnts, remove(c{1}, keys(c{1})); end
     lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=n, Noise=struct('Grid', 16), Seed=3, Verbose=false, CacheDays=Inf));
     vInf = cell2mat(cellfun(@(c) cell2mat(values(c)), cnts, 'UniformOutput', false));

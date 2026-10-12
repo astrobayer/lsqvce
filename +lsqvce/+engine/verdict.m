@@ -329,7 +329,8 @@ function D = diagnose(sol, batchFcn, opt)
 %     'nWorst'      how many worst-|w| observations to retain under
 %                   'store','flagged'                        (default 1000)
 %     'robustCheck' also form the MAD scale and the contamination gauge
-%                   (one extra sweep; always on for 'test','mad') (default true)
+%                   (in the main pass; 'test','mad' needs the scale first and
+%                   sweeps once more; always on for 'mad') (default true)
 %     'progress'    print a progress line every ~2 s     (default false)
 %
 %   ON BONFERRONI
@@ -385,6 +386,10 @@ function D = diagnose(sol, batchFcn, opt)
 %   See also LSQVCE.ENGINE.VERDICT.SOURCE, LSQVCE.REPORT, LSQVCE.ENGINE.VERDICT.SNOOP,
 %   LSQVCE.ENGINE.BLOCKCOFACTOR.
 %
+%   Updated 2026-10-12 (CEST, UTC+02:00), R7 WP-121: the robust check's raw
+%   scores are formed in the main pass -- one read of the data and one
+%   halfRows per row instead of two; only 'test','mad' sweeps first. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-86 part 2 (R7-24): the
 %   cofactor comes as blocks (sol.Q); the dense R, Qxx and correlation matrix
 %   (D.R, D.Qxx, D.corr) and the largeU warning about them are retired. With
@@ -584,13 +589,22 @@ end
 % A large disagreement between s0 and the MAD scale is a direct symptom of
 % contamination, and is reported even when the user has chosen 'pope'.
 %
-% The MAD needs the raw standardised residuals, so it requires its own sweep.
-% That sweep is cheap: it reuses the same triangular solves and stores nothing.
+% The MAD needs the raw standardised residuals of EVERY observation before its
+% scale exists. For 'pope' / 'baarda' they are formed in the main pass (WP-121);
+% only 'mad', whose test needs that scale, sweeps the data once more first.
 
 robustScale = NaN;
 madAvailable = false;
 fhat = NaN;
-if o.robustCheck || strcmp(testName, 'mad')
+% WP-121 (the residue §12.48 recorded): for every test but 'mad' the scale the
+% classification needs is known before the sweep (s0, or the a-priori sigma0),
+% so the raw scores are formed IN the main pass from its own (P Qvv P)_ii and
+% P v -- one read of the data and one halfRows per row instead of two, values
+% bitwise those of the separate sweep. Only 'mad' needs the robust scale before
+% it can classify, and keeps its own first sweep.
+fuseRobust = o.robustCheck && ~strcmp(testName, 'mad');
+if fuseRobust, rawAll = zeros(n, 1); end
+if strcmp(testName, 'mad')
     rawAll = zeros(n, 1);
     pos = 0;
     for k = 1:nB
@@ -633,39 +647,7 @@ if o.robustCheck || strcmp(testName, 'mad')
         pos = pos + nk;
     end
 
-    if ~isempty(rawAll) && pos == n
-        nz = rawAll(isfinite(rawAll) & rawAll ~= 0);
-        if numel(nz) >= 3
-            med = median(nz);
-            % 1.4826 makes the MAD consistent for the normal distribution.
-            robustScale = 1.4826 * median(abs(nz - med));
-            if isfinite(robustScale) && robustScale > 0
-                madAvailable = true;
-
-                % ---- CONTAMINATION FRACTION (the gauge) ----------------
-                % fhat = fraction of observations whose ROBUSTLY-standardised
-                % residual exceeds a FIXED cut. The cut is 2.5, deliberately
-                % NOT the Bonferroni critical value: we want a scale-free
-                % COUNT of how much of the data looks bad, not a hypothesis
-                % test. A test answers "is this observation an outlier?";
-                % fhat answers "what fraction of my data is unusable?", and
-                % those call for completely different responses.
-                %
-                % Measured accuracy (n=300, u=8, 20-sigma blunders):
-                %     true f :  0%    5%   10%   20%   30%   40%
-                %     fhat   : 0.015 0.059 0.106 0.201 0.300 0.388
-                % i.e. |fhat - f| <= 0.015 for f <= 30%, with a ~1.5% floor on
-                % clean data (the expected count beyond 2.5 sigma).
-                %
-                % ABOVE ~40% fhat COLLAPSES TO ZERO. This is not a bug: at 50%
-                % contamination the MAD locks onto the BLUNDER population and
-                % the good data become "the outliers". Every scale-based
-                % indicator fails this way, which is why fhat alone is not
-                % enough -- see contamBackstop below.
-                fhat = mean(abs(nz / robustScale) > 2.5);
-            end
-        end
-    end
+    [robustScale, madAvailable, fhat] = robustScaleOf(rawAll, pos == n);
 end
 
 if strcmp(testName, 'mad')
@@ -800,6 +782,11 @@ for k = 1:nB
         rk = min(rk, 1);               % leverage complement: valid only here
     end
     qpp = max(qpp, 0);
+    if fuseRobust                      % the robust check's raw score (WP-121)
+        rawK = zeros(nk, 1);  okq = qpp > 0;
+        rawK(okq) = Pvk(okq) ./ sqrt(qpp(okq));
+        rawAll(nSeen + (1:nk)) = rawK;
+    end
 
     % --- normalised / studentised residual, Baarda's generalised form
     %       w_i = (P v)_i / ( scale * sqrt( (P Qvv P)_ii ) )
@@ -992,6 +979,9 @@ if nSeen ~= n
         ['The second pass replayed %d observations but the accumulator saw ' ...
          '%d. batchFcn must reproduce the SAME batches in the SAME order.'], ...
          nSeen, n);
+end
+if fuseRobust
+    [robustScale, madAvailable, fhat] = robustScaleOf(rawAll, true);
 end
 
 % ============================================================ integrity check
@@ -2741,6 +2731,52 @@ function [bestW, bestI, bestR, bestV, bestP, vPv, nFlag, bestA, sizes, sysOf] = 
         end
         nSeen = nSeen + nk;
     end
+end
+
+%==========================================================================
+function [robustScale, madAvailable, fhat] = robustScaleOf(rawAll, complete)
+%ROBUSTSCALEOF  The MAD scale of the raw scores (P v)_i / sqrt((P Qvv P)_ii) and
+%   the contamination gauge fhat, from either sweep of diagnose (WP-121: the
+%   main pass for every test but 'mad', the separate first sweep for 'mad').
+%   INPUT  rawAll   n x 1 double  the raw scores (0 where uncontrolled)
+%          complete 1x1 logical   every observation was swept
+%   OUTPUT robustScale (NaN if not formed), madAvailable, fhat (NaN if not formed)
+robustScale = NaN;
+madAvailable = false;
+fhat = NaN;
+if ~isempty(rawAll) && complete
+    nz = rawAll(isfinite(rawAll) & rawAll ~= 0);
+    if numel(nz) >= 3
+        med = median(nz);
+        % 1.4826 makes the MAD consistent for the normal distribution.
+        robustScale = 1.4826 * median(abs(nz - med));
+        if isfinite(robustScale) && robustScale > 0
+            madAvailable = true;
+
+            % ---- CONTAMINATION FRACTION (the gauge) ----------------
+            % fhat = fraction of observations whose ROBUSTLY-standardised
+            % residual exceeds a FIXED cut. The cut is 2.5, deliberately
+            % NOT the Bonferroni critical value: we want a scale-free
+            % COUNT of how much of the data looks bad, not a hypothesis
+            % test. A test answers "is this observation an outlier?";
+            % fhat answers "what fraction of my data is unusable?", and
+            % those call for completely different responses.
+            %
+            % Measured accuracy (n=300, u=8, 20-sigma blunders):
+            %     true f :  0%    5%   10%   20%   30%   40%
+            %     fhat   : 0.015 0.059 0.106 0.201 0.300 0.388
+            % i.e. |fhat - f| <= 0.015 for f <= 30%, with a ~1.5% floor on
+            % clean data (the expected count beyond 2.5 sigma).
+            %
+            % ABOVE ~40% fhat COLLAPSES TO ZERO. This is not a bug: at 50%
+            % contamination the MAD locks onto the BLUNDER population and
+            % the good data become "the outliers". Every scale-based
+            % indicator fails this way, which is why fhat alone is not
+            % enough -- see contamBackstop in diagnose.
+            fhat = mean(abs(nz / robustScale) > 2.5);
+        end
+    end
+end
 end
 
 %==========================================================================
