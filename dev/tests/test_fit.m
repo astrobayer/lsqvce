@@ -268,6 +268,27 @@ function testRobustReportSaysTheFitIsRobust(tc)
     tc.verifyFalse(any(strcmp(codes0, 'ROBUST_FIT')), 'a least-squares fit does not');
 end
 
+function testRobustReportCountsItsOwnPasses(tc)
+% categories: contract | tags: diagnostics
+    % WP-125: the settled/unsettled line read history.nIter, which only the
+    % noise loop records -- an IRLS run reported "1 pass(es)" and called its
+    % loop "the stochastic model". The pass count is the number of records,
+    % and the line names the loop that iterated.
+    rs = RandStream('mt19937ar', 'Seed', 18);
+    A = [ones(200, 1), randn(rs, 200, 2)];  l = A*[1; 2; 3] + randn(rs, 200, 1);
+    l(7) = l(7) + 30;                                      % something to re-weight
+    Rr = lsqvce.fit(struct('A', A, 'l', l), lsqvce.Options(Robust="huber", Verbose=false));
+    tc.assumeGreaterThan(numel(Rr.history), 1, 'IRLS took more than one pass');
+    V = Rr.report('Verbose', false);
+    codes = cellfun(@(f) f.code, V.findings, 'UniformOutput', false);
+    k = find(startsWith(codes, 'NOISE_'), 1);
+    tc.assertNotEmpty(k, 'an iterative run says whether its loop settled');
+    msg = V.findings{k}.msg;
+    tc.verifyTrue(contains(msg, 'robust re-weighting'), 'it names the loop that iterated');
+    tc.verifyTrue(contains(msg, sprintf('%d pass', numel(Rr.history))), ...
+                  'and counts its passes from the pass record');
+end
+
 function testRobustWarnsAtTheBreakdownPoint(tc)
 % categories: robustness | tags: diagnostics
     % User decision 2026-10-10 (HANDOVER 12.34 option 2, R7 WP-115): the
@@ -486,8 +507,10 @@ function testArmaAndPsdLawsAgreeNoWorseUnderIrls(tc)
 % categories: metamorphic, precision
     % Issue #110 test 5. The same process declared two ways -- the ARMA
     % itself, and the PSD evaluated from it -- is NOT the same model: 'psd'
-    % fits an AR(30) to the sampled spectrum, so the two disagree at the
-    % AR-order level whatever the estimator. The issue asks for agreement
+    % is the SAMPLED spectrum, piecewise linear between 4096 ordinates (and
+    % whitened by Noise.Whitener: exact Toeplitz by default since WP-125, an
+    % AR(30) fit before), so the two disagree at that level whatever the
+    % estimator. The issue asks for agreement
     % "within the AR-order tolerance", which is a number this session cannot
     % know; so the point MEASURES that tolerance as the GLS gap between the
     % two declarations and asks the only question IRLS can answer: does

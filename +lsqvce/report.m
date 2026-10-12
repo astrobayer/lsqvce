@@ -30,7 +30,8 @@ function V = report(D, opt)
 %                      release, and creation time. R.report() forwards it
 %                      automatically; a bare lsqvce.report(D) prints none.
 %     'Iteration'  struct()  the loop state of an ITERATIVE run:
-%                      .converged, .stopReason, .nIter. When non-empty and the
+%                      .converged, .stopReason, .nIter and optionally .what
+%                      (the loop's name; default 'stochastic model'). When non-empty and the
 %                      run was not a single solve, ONE level-1 line says
 %                      whether the stochastic model settled -- 'NOISE_SETTLED'
 %                      (NOTE) or 'NOISE_UNSETTLED' (WARN). Every number from
@@ -66,6 +67,11 @@ function V = report(D, opt)
 %
 %   See also LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SYSTEMATIC.
 %
+%   Updated 2026-10-12 (CEST, UTC+02:00), WP-125: the contamination cross-check
+%   runs whatever the Bonferroni setting; the PASS text claims only what
+%   REL_EXTERNAL measures; the remedies name Backend = "qr"; Iteration.what
+%   names the loop that iterated. With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
 %   typed `arguments` signature, canonical UpperCamelCase option names
 %   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
@@ -172,7 +178,7 @@ if isfinite(D.vPvAccum) && D.vPvAccum > 0 && D.vPvRelDiff > 1e-6
          'nearly equal large numbers. When the fit is tight this cancellation ' ...
          'destroys the result. The recomputed value is the trustworthy one and ' ...
          'is what this report uses. If you need the cheap path to be right, ' ...
-         're-run the Accumulator with ''method'',''qr''.'], ...
+         're-run with Backend = "qr" (lsqvce.Options).'], ...
          D.vPvSource, D.vPvAccum, D.vPv, D.vPvRelDiff);
 end
 
@@ -210,19 +216,19 @@ if isfield(opt.Iteration, 'influence') && ~isempty(opt.Iteration.influence)
          char(opt.Iteration.influence));
 end
 if ~isempty(fieldnames(opt.Iteration))
-    it = opt.Iteration;
+    it = opt.Iteration;  what = char(lsqvce.util.getfielddef(it, 'what', 'stochastic model'));
     if ~strcmp(char(it.stopReason), 'single')
         if it.converged
             push(1, 'NOTE', 'NOISE_SETTLED', ...
-                'The stochastic model settled in %d pass(es).', it.nIter);
+                'The %s settled in %d pass(es).', what, it.nIter);
         else
             push(1, 'WARN', 'NOISE_UNSETTLED', ...
-                ['The stochastic model did NOT settle: the loop stopped after %d ' ...
+                ['The %s did NOT settle: the loop stopped after %d ' ...
                  'pass(es), stopReason "%s". The weights every number below rests ' ...
                  'on were still moving, so read what follows as provisional. Raise ' ...
                  'MaxPasses or loosen Tolerance and run this report again; ' ...
                  'R.convergence() shows what was still changing.'], ...
-                 it.nIter, char(it.stopReason));
+                 what, it.nIter, char(it.stopReason));
         end
     end
 end
@@ -309,7 +315,6 @@ end
 
 %% ====================================================== LEVEL 2: LOCALISE
 if integrityOK
-    if D.bonferroni
     % ---- CONTAMINATION CROSS-CHECK ------------------------------------
     % Pope's tau studentises by s0, s0 is estimated from data that CONTAIN the
     % blunders, and so a group of blunders inflates the denominator and hides
@@ -426,6 +431,7 @@ if integrityOK
              D.robustScale, D.s0);
     end
 
+    if D.bonferroni
         push(2, 'NOTE', 'SNOOP_SETUP', ...
             ['Data snooping: %s test, alpha = %.1e per test, Bonferroni-' ...
              'corrected to %.2e for n = %d simultaneous tests.\n' ...
@@ -725,8 +731,8 @@ if integrityOK
              'correct digits in the parameters. The standard deviations printed ' ...
              'below are FICTION.\n' ...
              'Rescale the parameters so their columns have comparable norm, ' ...
-             'and/or use ''method'',''qr'' which avoids squaring the condition ' ...
-             'number.'], D.condN);
+             'and/or run with Backend = "qr" (lsqvce.Options), which avoids squaring ' ...
+             'the condition number.'], D.condN);
     elseif D.condN > 1e10
         push(4, 'WARN', 'PAR_ILLCOND', ...
             ['cond(N) = %.2e: roughly %.0f of the 16 significant digits are ' ...
@@ -804,9 +810,9 @@ elseif nWarn > 0
             'defend them.'];
 else
     verdict = 'PASS';
-    vmsg = ['All checks passed: the model is consistent, no outliers, every ' ...
-            'observation is controlled, and no undetectable blunder can move a ' ...
-            'parameter by more than half its sigma.'];
+    vmsg = ['All checks passed: the model is consistent, no outliers, every observation ' ...
+            'is controlled, and the worst undetectable blunder moves a parameter no more ' ...
+            'than this geometry leads one to expect (its size: the REL_EXTERNAL line).'];
 end
 
 V = struct('verdict', verdict, 'message', vmsg, 'findings', {F}, ...

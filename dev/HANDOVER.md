@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-12 — WP-124 OPEN (tier B, model Claude Opus 5.5; user: "The manual shall be a step-by-step guide ... The theory shall describe only the underlying mathematical framework. Function and interface description belong to an API document"; decisions: API generated + PDF, theory stays LaTeX, ONE PR): three documents, each with one job -- Manual rewritten as a user guide, new API reference (lsqvce_api), theory rewritten to the code; the R5 record archived; no computation changed; version 6.12.2; §12.56.
+Last substantive update: 2026-10-12 — WP-124 DONE (PR #145, merge ace5131; CI GREEN on 1a89d48); WP-125 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-125"; decisions: dense laws whitened whole, Noise.Whitener everywhere, pooled Helmert level): the twelve code findings of §12.56 -- report / Results / contribution fixes, ARMA overlap from the decay of 1/B(z), dense laws over the whole arc, Noise.Whitener for declared psd laws, the pooled level; 6 tests; version 6.13.0; §12.57.
+Preceding entry: Last substantive update: 2026-10-12 — WP-124 OPEN (tier B, model Claude Opus 5.5; user: "The manual shall be a step-by-step guide ... The theory shall describe only the underlying mathematical framework. Function and interface description belong to an API document"; decisions: API generated + PDF, theory stays LaTeX, ONE PR): three documents, each with one job -- Manual rewritten as a user guide, new API reference (lsqvce_api), theory rewritten to the code; the R5 record archived; no computation changed; version 6.12.2; §12.56.
 Preceding entry: Last substantive update: 2026-10-12 — WP-123 DONE (PR #143, merge cebbfd1; CI GREEN on e617a95, first round); closure PR (user decision: "Ja, mach den Abschluss-PR"): the ledger row and §12.55, no code change, no version (6.12.1 stays, 641 tests).
 Preceding entry: Last substantive update: 2026-10-12 — WP-122 DONE (PR #142, merge 1d8c89b; CI GREEN on ac4bfa4); WP-123 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-123"): the kernel whiteners (separableWhiten, varWhiten, armaWhiten) take a sparse A / B / l -- the dense filter runs on the non-zero columns only (private kernel helper activeColumns), sparse in, sparse out; the dense path unchanged; template/kbr_variational returns its position B sparse again; 1 gate test; version 6.12.1; §12.54.
 Preceding entry: Last substantive update: 2026-10-12 — WP-122 OPEN (tier B, model Claude Opus 5.5; user: "a real-life buildDay for range-rate observations using a variational equation approach", scope decision: SELF-CONTAINED): template/kbr_variational.m -- GRACE-FO L1B (GNV1B, KBR1B, ACT1B, SCA1B) + ICGEM .gfc -> range-rate and position streams by the variational equations (analytic a, G, da/dC_nm from normalized solid harmonics and exact sparse derivative operators; ABM8 PECE), declared column units; mirror dev/validation/kbr_variational_mirror.py; 4 gate tests in test_physOracle; version 6.12.0; §12.53.
@@ -9183,7 +9184,7 @@ dormant until the next measurement repoints it.
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 124 | the Manual rewritten as a step-by-step user guide (10 chapters, no history); a new API reference (`dev/docs_src/api/*.md` + generated help / tiers / identifiers -> `html/lsqvce_api.html`, `lsqvce_api.pdf`); the theory rewritten as the mathematical framework only, matched to the code (`dev/docs_src/theory/`); the R5 LaTeX record moved to `dev/reviews/R5_2026-09-01/theory_r5/`; user-tier help blocks freed of development history; **version 6.12.2** | 123 (PR #143, closure #144 merged 8dd0d3a) | OPEN (tier B; CI is the gate) |
+| 124 | the Manual rewritten as a step-by-step user guide (10 chapters, no history); a new API reference (`dev/docs_src/api/*.md` + generated help / tiers / identifiers -> `html/lsqvce_api.html`, `lsqvce_api.pdf`); the theory rewritten as the mathematical framework only, matched to the code (`dev/docs_src/theory/`); the R5 LaTeX record moved to `dev/reviews/R5_2026-09-01/theory_r5/`; user-tier help blocks freed of development history; **version 6.12.2** | 123 (PR #143, closure #144 merged 8dd0d3a) | DONE (2026-10-12, PR #145, merge ace5131; CI GREEN on 1a89d48 in the first round: ci_gate 629/629) |
 
 **The user's request (2026-10-12):** "Review the lsqvce_manual and lsqvce_theory documents. They are a
 mixture of handover, development document and their actual intention. The manual shall be a
@@ -9265,4 +9266,55 @@ and API 03). Proposed as a follow-up WP once the user has seen them.
 Fact sheets (not in the tree): the theory fact sheet and the two chapter drafts lived in the session
 scratchpad; the theory chapters cite no code lines on purpose.
 NOT validated before CI: no MATLAB in the container (the changes touch help text only).
+
+### 12.57 WP-125 — the code findings of the documentation review (2026-10-12, model Claude Opus 5.5)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 125 | the twelve findings of §12.56: report (contamination check outside the Bonferroni branch, PASS text, Backend remedies, the loop's own pass count and name), Results (convergence stop-rule columns, summary arOrder doc), contribution (share = common trace t_g, `red.group.tcc`), ARMA overlap from the decay of 1/B(z) + `lsqvce:covModel:maNotInvertible`, dense laws factorised over the whole arc, `Noise.Whitener` for declared psd laws, the pooled Helmert level; **version 6.13.0** | 124 (PR #145 merged ace5131) | OPEN (tier B; CI is the gate) |
+
+**The user's decisions (2026-10-12, AskUserQuestion):** dense laws -> "Whiten whole arc" (not the
+recommended warning); psd whitener -> "Whitener applies everywhere"; level -> "Pooled ratio".
+
+**Per finding (§12.56 numbering).**
+1. report has no `Level` option -- resolved in WP-124 (the docs and the Results EXAMPLE); no code.
+2. Contamination cross-check: `if D.bonferroni` now wraps only SNOOP_SETUP / SNOOP_NOBONF.
+   Test `test_lsqvce_ext>test_contamination_flag_fires_without_bonferroni`.
+3. PASS text: "the worst undetectable blunder moves a parameter no more than this geometry leads one
+   to expect (its size: the REL_EXTERNAL line)" -- no "half a sigma".
+4. `Results.report`: a history without nIter (IRLS, Gauss-Newton) counts its passes (max pass, as GN
+   records rejected steps) and names its loop (`Iteration.what`; report prints "The %s settled").
+   Test `test_fit>testRobustReportCountsItsOwnPasses`.
+5. `convergence()`: maxSigmaOffset described as the stream levels; the stop-rule columns maxDev and
+   levelDev added (local `perPass`, NaN-padded).
+6. VPV_MISMATCH / PAR_ILLCOND remedies name `Backend = "qr"`.
+7. Dense laws (no filter form: acf, custom, Toeplitz psd, whitenMode chol): `covModel` sets
+   `info.wholeArc`, makeLoader / synthLoader carry it, `arcBatchWhiten` makes a Cfcn / W arc ONE batch
+   and also an arc whose overlap does not fit a batch; the psd Toeplitz ACV reaches every lag of the
+   arc. Test `test_lsqAccum>testDenseLawIsBatchInvariant` (BatchSize 50 vs whole, 1e-9).
+8. ARMA with an MA part: `filterMemoryOf(p, b)` = p + the samples until |h(1/B)| <= eps max|h|
+   (doubling from log(eps)/log(rho)); `lsqvce:covModel:maNotInvertible` for rho >= 1 (catalogue row
+   added). Tests `test_lsqAccum>testArmaWithMaIsBatchInvariant`,
+   `test_reliability>testCovModelMaPartExtendsTheFilterMemory`.
+9. `Noise.Whitener` -> `engineArgs` passes `PsdMode` to adjustBlock and adjustRobust (new NV, default ""
+   = covModel's AR(30) at the engine tier), which put `psdMode` on the loaders' UserOpt. Test
+   `test_options` (mapping). The comment of `test_fit>testArmaAndPsdLawsAgreeNoWorseUnderIrls` updated
+   (its GLS gap is now the sampling of the spectrum, not an AR(30) fit -- smaller).
+10. Pooled level: `fStream = sum(q .* s2Applied) / sum(t) / tau` over the stream's arcs. MEASURED
+   (`dev/validation/wp125_level_mirror.py`, 4000 draws, 20 arcs, 6 locals): mixed arcs (10 x 30,
+   10 x 2000) sd 0.047 -> 0.010; 10 % probe noise on t: bias +0.0105 -> +0.0011; equal arcs equal.
+   No MATLAB unit test of its own (a statistical property; the physical-oracle level tests cover it).
+11. `contribution`: Level-1 share = t_g / sum t_g with t_g the common term of the leverage summed over
+   the group (`BlockCofactor.leverage` second output, `redundancy` field `tcc`); the help's "cc-trace
+   under the historical name .r" and the never-written `R.history.contribution` are gone; `.t` added,
+   `.r` is the redundancy. Test `test_contribution>test_contribution_level1_trace_is_exact`
+   (sum t = nc to 1e-9; each t_g vs the 4000-probe streamed trace). The two stale `reference`
+   exemption rows (contribution, streamContribution) deleted.
+12. `summary().arOrder` documented as NaN for the joint estimator.
+
+**Registries:** covModel and redundancy passed 400 lines -> rows in long_functions.csv (code-line
+ceilings 159 and 182, reasons and seams written); adjustVCEjoint and report kept under their
+ceilings by compressing the new lines. Docs: theory (whole-arc dense factor, ARMA memory, pooled
+level, contribution trace), Manual 05 / 07 / 10, API 03 / 04 / 06.
+**Tests 647 = 641 + 6.** NOT validated before CI: no MATLAB in the container.
 

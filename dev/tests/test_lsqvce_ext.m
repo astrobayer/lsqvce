@@ -353,6 +353,29 @@ function test_contamination_flag_fires(tc)
         'the contamination cross-check did not fire');
 end
 
+function test_contamination_flag_fires_without_bonferroni(tc)
+% categories: robustness | tags: diagnostics
+    % WP-125: the contamination cross-check used to sit inside the Bonferroni
+    % branch of report, so 'bonferroni', false silenced it on exactly the data
+    % above. It is a property of the scale, not of the test family size.
+    rs = RandStream('mt19937ar','Seed',10000);
+    n = 50; u = 8;
+    A = randn(rs, n, u);
+    xt = randn(rs, u, 1);
+    p = ones(n,1);
+    l = A*xt + randn(rs, n, 1);
+    l([6 13 15 20 43]) = l([6 13 15 20 43]) + 25;
+
+    B = chop(A, l, p, 2);
+    [~, ~, V] = flatAdjust(u, srcOf(B), 2, 'verbose', false, 'bonferroni', false);
+
+    codes = cellfun(@(f) f.code, V.findings, 'UniformOutput', false);
+    verifyTrue(tc, ismember('SNOOP_CONTAMINATED', codes), ...
+        'the contamination cross-check must run whatever the Bonferroni setting');
+    verifyTrue(tc, ismember('SNOOP_NOBONF', codes), ...
+        'the uncorrected-alpha warning must still be there');
+end
+
 function test_contamination_flag_quiet_on_clean_data(tc)
 % categories: robustness
     % It must not cry wolf: measured 0/300 false alarms.

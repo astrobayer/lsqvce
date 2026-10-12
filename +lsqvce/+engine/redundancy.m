@@ -55,6 +55,8 @@ function red = redundancy(acc, sol, opt)
 %     red.group(k).m         observations in the group
 %     red.group(k).r         redundancy r_g = sum(r_i)
 %     red.group(k).vtv       weighted residual square sum
+%     red.group(k).tcc       common trace tr(inv(N) N_g^cc): the group's share
+%                            of the common solution (sums to nc over the data)
 %     red.group(k).s0sq      vtv / r    -- the variance component of this group
 %     red.group(k).sigma0    sqrt(s0sq)
 %     red.obs(j).h, .r       per-observation, if Collect
@@ -123,6 +125,9 @@ function red = redundancy(acc, sol, opt)
 %
 %   See also LSQVCE.ENGINE.BLOCKCOFACTOR, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.OUTLIERS, LSQVCE.ENGINE.RESIDUALS
 %
+%   Updated 2026-10-12 (CEST, UTC+02:00), WP-125: group(k).tcc, the common trace
+%   tr(inv(N) N_g^cc) of the group. With assistance from Claude (Anthropic),
+%   model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-114 (R7-15): the identity counts a common
 %   prior (red.priorRedundancy). With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3 (R7-24): the
@@ -315,7 +320,7 @@ end
     G = struct([]);
     for k = 1:numel(P.keys)
         e = struct('key', P.keyVals{k}, 'm', P.m(k), 'r', P.r(k), ...
-                   'vtv', P.vtv(k));
+                   'vtv', P.vtv(k), 'tcc', P.tcc(k));
         e.s0sq   = e.vtv / max(e.r, realmin);
         e.sigma0 = sqrt(e.s0sq);
         if isempty(G), G = e; else, G(end+1) = e; end            %#ok<AGROW>
@@ -410,12 +415,12 @@ function t = arcTask(tk, st, Q, s, y, x, keyFcn, collect)
         return
     end
 
-    [h, v] = arcLeverageAndResidual(arc, x, y, uo, Q, s);
+    [h, v, hc] = arcLeverageAndResidual(arc, x, y, uo, Q, s);
     r = 1 - h;
 
     key = keyFcn(st.sysID, tk.obsType, tk.arc, tk.day);
     t = struct('ckey', char(string(key)), 'key', key, 'm', numel(v), ...
-               'r', sum(r), 'vtv', v.'*v, 'h', sum(h), 'rec', []);
+               'r', sum(r), 'vtv', v.'*v, 'h', sum(h), 'tcc', sum(hc), 'rec', []);
     if collect
         t.rec = struct('sysID', st.sysID, 'obsType', tk.obsType, ...
                        'day', tk.day, 'arc', tk.arc, 'h', h, 'r', r, ...
@@ -433,10 +438,11 @@ function P = emptyPartial()
 %            .m       0x1 double  per-group observation counts
 %            .r       0x1 double  per-group summed redundancy
 %            .vtv     0x1 double  per-group weighted residual sum of squares
+%            .tcc     0x1 double  per-group common trace tr(inv(N) N_g^cc)
 %            .hTot    1x1 double  total leverage accumulated (0)
 %            .mTot    1x1 double  total observations accumulated (0)
 %            .obs     1x0 cell    per-observation records (when stored)
-    P = struct('keys', {{}}, 'keyVals', {{}}, 'm', [], 'r', [], 'vtv', [], ...
+    P = struct('keys', {{}}, 'keyVals', {{}}, 'm', [], 'r', [], 'vtv', [], 'tcc', [], ...
                'hTot', 0, 'mTot', 0, 'obs', {{}});
 end
 
@@ -448,12 +454,13 @@ function P = foldTask(P, t)
     if ~tf
         P.keys{end+1}    = t.ckey;
         P.keyVals{end+1} = t.key;
-        P.m(end+1) = 0;  P.r(end+1) = 0;  P.vtv(end+1) = 0;
+        P.m(end+1) = 0;  P.r(end+1) = 0;  P.vtv(end+1) = 0;  P.tcc(end+1) = 0;
         k = numel(P.keys);
     end
     P.m(k)   = P.m(k)   + t.m;
     P.r(k)   = P.r(k)   + t.r;
     P.vtv(k) = P.vtv(k) + t.vtv;
+    P.tcc(k) = P.tcc(k) + t.tcc;
     P.hTot   = P.hTot + t.h;
     P.mTot   = P.mTot + t.m;
     if ~isempty(t.rec)
@@ -468,12 +475,13 @@ function P = combinePartials(P, Q)
         if ~tf
             P.keys{end+1}    = Q.keys{k};
             P.keyVals{end+1} = Q.keyVals{k};
-            P.m(end+1) = 0;  P.r(end+1) = 0;  P.vtv(end+1) = 0;
+            P.m(end+1) = 0;  P.r(end+1) = 0;  P.vtv(end+1) = 0;  P.tcc(end+1) = 0;
             j = numel(P.keys);
         end
         P.m(j)   = P.m(j)   + Q.m(k);
         P.r(j)   = P.r(j)   + Q.r(k);
         P.vtv(j) = P.vtv(j) + Q.vtv(k);
+        P.tcc(j) = P.tcc(j) + Q.tcc(k);
     end
     P.hTot = P.hTot + Q.hTot;
     P.mTot = P.mTot + Q.mTot;
@@ -483,7 +491,7 @@ end
 %==========================================================================
 
 %==========================================================================
-function [h, v] = arcLeverageAndResidual(arc, x, y, uo, Q, s)
+function [h, v, hc] = arcLeverageAndResidual(arc, x, y, uo, Q, s)
 %ARCLEVERAGEANDRESIDUAL  Whiten one arc, then get h and v, batched.
 %   WP-38 (fixes F-08): the batch/overlap/whitening skeleton lives in the
 %   ONE private arcBatchWhiten; this callback keeps the numeric payload
@@ -492,14 +500,17 @@ function [h, v] = arcLeverageAndResidual(arc, x, y, uo, Q, s)
     m = size(arc.A, 1);
     h = zeros(m, 1);
     v = zeros(m, 1);
+    hc = zeros(m, 1);
     arcBatchWhiten(arc, uo, @perBatch);
 
     function perBatch(rows, keep, Ab, Bb, lb)
         % the block cofactor's leverage of system s's rows; h in [0,1] up to
         % rounding (the sum(r) = m - u identity below is the integrity check)
-        hb = min(max(Q.leverage(s, Ab, Bb), 0), 1);
+        [hb, hcb] = Q.leverage(s, Ab, Bb);
+        hb = min(max(hb, 0), 1);
         vb = lb - Ab*x - Bb*y;
         h(rows) = hb(keep);
+        hc(rows) = hcb(keep);
         v(rows) = vb(keep);
     end
 end

@@ -69,7 +69,6 @@ engine.collectResiduals,reference,no closed form of its own beyond the dense ref
 engine.collectResiduals,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
 engine.collectResiduals,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
 engine.collectResiduals,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path
-engine.contribution,reference,no closed form of its own beyond the dense references its callers are pinned against
 engine.contribution,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
 engine.contribution,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
 engine.contribution,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path
@@ -135,7 +134,6 @@ engine.sharedProbe,metamorphic,the scaling / partition / permutation invariances
 kernel.stat,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
 kernel.stat,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
 kernel.stat,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path
-engine.streamContribution,reference,no closed form of its own beyond the dense references its callers are pinned against
 engine.streamContribution,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
 engine.streamContribution,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
 engine.streamContribution,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path

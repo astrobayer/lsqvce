@@ -95,6 +95,8 @@ case-sensitive lowercase.)
 red.group(k).m         observations in the group
 red.group(k).r         redundancy r_g = sum(r_i)
 red.group(k).vtv       weighted residual square sum
+red.group(k).tcc       common trace tr(inv(N) N_g^cc): the group&#x27;s share
+                       of the common solution (sums to nc over the data)
 red.group(k).s0sq      vtv / r    -- the variance component of this group
 red.group(k).sigma0    sqrt(s0sq)
 red.obs(j).h, .r       per-observation, if Collect
@@ -159,6 +161,9 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 
 See also LSQVCE.ENGINE.BLOCKCOFACTOR, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.OUTLIERS, LSQVCE.ENGINE.RESIDUALS
 
+Updated 2026-10-12 (CEST, UTC+02:00), WP-125: group(k).tcc, the common trace
+tr(inv(N) N_g^cc) of the group. With assistance from Claude (Anthropic),
+model Claude Opus 5.5.
 Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-114 (R7-15): the identity counts a common
 prior (red.priorRedundancy). With assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3 (R7-24): the

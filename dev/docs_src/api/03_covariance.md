@@ -8,14 +8,14 @@ as C = D (R_t ⊗ I_d) D. Full reference: `doc lsqvce.engine.covModel`.
 
 ## Laws
 
-| `type` | fields | describes | whitening cost per batch of b rows |
+| `type` | fields | describes | whitening cost (b rows per batch, m per arc) |
 |---|---|---|---|
 | `'diag'` | `sigma` (scalar, or a vector of per-row standard deviations) | white noise | O(b) |
 | `'arma'` | `ar` = `[1 a₁ … a_p]`, `ma` (default 1), `sigma` (innovation std) | a known whitening filter | O(b·p) |
-| `'psd'` | `f` (n_f×1, Hz, one-sided), `S` (n_f×1, unit²/Hz) | a measured noise spectrum | O(b·p) (AR filter) |
-| `'acf'` | `acf = @(dt, opt)`, `sigma` | correlation as a function of the lag | O(b³) |
+| `'psd'` | `f` (n_f×1, Hz, one-sided), `S` (n_f×1, unit²/Hz) | a measured noise spectrum | O(m³) per arc (Toeplitz) or O(b·p) (AR filter) |
+| `'acf'` | `acf = @(dt, opt)`, `sigma` | correlation as a function of the lag | O(m³) per arc |
 | `'var'` | `ar` (d×d×p), `sigma` (d×d) | vector AR: cross-axis temporal correlation (no `Cep`) | O(b·p·d²) |
-| `'custom'` | `fcn = @(t, opt)` | any dense covariance | O(b³) |
+| `'custom'` | `fcn = @(t, opt)` | any dense covariance | O(m³) per arc |
 
 `sigma` is always a **standard deviation**, never a variance.
 
@@ -36,13 +36,15 @@ keeps its own level.
 
 ## How a law is whitened
 
-- A declared `psd` law is whitened by an AR(30) filter fitted to its autocovariance;
-  `Noise.Whitener` selects the route of the law the joint estimator estimates
-  (`"toeplitz"`, `"ar"`, `"arma"`). Check an AR fit with `lsqvce.engine.checkPSD` (the
-  relative error of the reproduced autocovariance should be below 1e-3).
-- An arc is whitened in batches of up to 20 000 rows. Filter laws overlap consecutive
-  batches by their memory, so the result does not depend on the batching; dense laws
-  (`acf`, `custom`, Toeplitz) are factorised per batch, and the correlation between
-  batches of a longer arc is dropped.
+- `Options.Noise.Whitener` selects how every `psd` law whitens — the estimated law and
+  every declared one: `"toeplitz"` (default, exact), `"ar"` or `"arma"` (a fitted
+  filter). Check an AR fit with `lsqvce.engine.checkPSD` (the relative error of the
+  reproduced autocovariance should be below 1e-3).
+- Filter laws are applied in batches of up to 20 000 rows that overlap by the filter
+  memory (for an MA part, until the impulse response of 1/B(z) has decayed to rounding),
+  so the result does not depend on the batching. Dense laws (`acf`, `custom`, Toeplitz
+  `psd`) are factorised over the whole arc (exact; O(m³), m² memory).
+- An `arma` law whose MA polynomial has a root on or outside the unit circle is refused
+  (`lsqvce:covModel:maNotInvertible`).
 - Under `estimate = "law"` the declared law contributes only its `sigma` (the starting
   level): the shape is estimated from a white start.

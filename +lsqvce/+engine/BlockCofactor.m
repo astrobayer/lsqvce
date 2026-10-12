@@ -90,6 +90,9 @@ classdef BlockCofactor
 %   See also LSQVCE.ENGINE.VERDICT.SOURCE, LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SNOOP,
 %   LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-10-12 (CEST, UTC+02:00), WP-125: leverage() returns the common
+%   term hc as its second output. With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
 %   Updated 2026-10-12 (CEST, UTC+02:00), R7 WP-119: the datum part may sit
 %   beside regularising prior groups (BlockAccumulator.datumPart per group).
 %   With assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -166,17 +169,23 @@ classdef BlockCofactor
         end
 
         %------------------------------------------------------------------
-        function h = leverage(Q, s, Ac, B)
+        function [h, hc] = leverage(Q, s, Ac, B)
         %LEVERAGE  h_i = a_i'*Qxx*a_i for rows [Ac B] of system s (s = 0 or an
         %   empty B: local-free rows), without widening them to u columns:
         %   h = ||Rc' \ (Ac' - G_s'*B')||^2 + ||H_s*B'||^2 per column.
+        %   hc (optional) is the first, COMMON term alone: z_i'*inv(N_red)*z_i
+        %   with z_i the row reduced by the elimination, so its sum over a group
+        %   is tr(inv(N_red)*N_g^red), the group's share of the common solution
+        %   (WP-125: LSQVCE.ENGINE.CONTRIBUTION's Level-1 share).
             Z = Ac.';
             if s > 0 && ~isempty(B)
                 Bt = B.';
                 Z = Z - Q.sys(s).G.' * Bt;
-                h = sum((Q.Rc.' \ Z).^2, 1).' + sum((Q.sys(s).H * Bt).^2, 1).';
+                hc = sum((Q.Rc.' \ Z).^2, 1).';
+                h = hc + sum((Q.sys(s).H * Bt).^2, 1).';
             else
-                h = sum((Q.Rc.' \ Z).^2, 1).';
+                hc = sum((Q.Rc.' \ Z).^2, 1).';
+                h = hc;
             end
         end
 

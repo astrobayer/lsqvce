@@ -682,13 +682,21 @@ end
         % the shape is normalised, so the level must be absolute). One common
         % factor per stream. Found by the gravity demo: planted 1 / 2 / 0.5
         % came back 1 / 1 / 1 without it.
+        % WP-125 (user decision 2026-10-12): the level is the POOLED Helmert
+        % factor of the stream, sigma2 * sum_m q_m / sum_m t_m -- the Helmert
+        % estimator of ONE component over all its arcs -- not the mean of the
+        % arcs' ratios, which weights a 30-epoch arc like a 3000-epoch one and,
+        % with probe redundancies, is biased by E[1/t] > 1/E[t]. MEASURED
+        % (dev/validation/wp125_level_mirror.py, 20 arcs, 6 locals each): on
+        % mixed arcs (10 x 30, 10 x 2000) sd 0.047 -> 0.010; with 10 % probe
+        % noise on t the bias +0.0105 -> +0.0011. Equal arcs: no change.
         fStream = containers.Map('KeyType', 'char', 'ValueType', 'double');
         for sk = unique(streamOf(:)).'
             cols = strcmp(streamOf, sk{1}) & ~strcmp(polOf, 'none') & ~arcFactorsOf(o.ArcFactors, sk{1});
             if ~any(cols), continue, end
-            g2 = av.gamma2(cols);
-            g2 = g2(isfinite(g2) & g2 > 0);
-            if ~isempty(g2), fStream(sk{1}) = mean(g2); end
+            ok = cols(:) & isfinite(qa(:)) & isfinite(ta(:)) & ta(:) > 0 & isfinite(s2Applied(:));
+            f = sum(reshape(qa(ok), [], 1) .* reshape(s2Applied(ok), [], 1)) / sum(ta(ok)) / tauRow(tauMap, sk);
+            if any(ok) && isfinite(f) && f > 0, fStream(sk{1}) = f; end
         end
         for kk = 1:nArc
             if strcmp(polOf{kk}, 'none'), continue, end

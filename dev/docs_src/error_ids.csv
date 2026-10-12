@@ -104,6 +104,7 @@ lsqvce:covModel:badSigma,engine.covModel,error,v4.0
 lsqvce:covModel:badWhitenMode,engine.covModel,error,v4.0
 lsqvce:covModel:cepOnVar,engine.covModel,error,v5.3
 lsqvce:covModel:degeneratePSD,engine.covModel,error,v4.0
+lsqvce:covModel:maNotInvertible,engine.covModel,error,v6.13.0
 lsqvce:covModel:negativePSD,engine.covModel,warning,v4.0
 lsqvce:covModel:noACF,engine.covModel,error,v4.0
 lsqvce:covModel:noAR,engine.covModel,error,v4.0

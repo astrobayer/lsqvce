@@ -1,5 +1,33 @@
 # lsqvce release notes
 
+## 6.13.0 — 2026-10-12 (WP-125: the code findings of the documentation review)
+
+Numbers change for three of the items below (marked **numbers**).
+
+- **Dense laws are whitened over the whole arc (numbers).** An `acf`, `custom` or Toeplitz
+  `psd` law was factorised per batch of 20 000 rows, so an arc longer than one batch lost the
+  correlation between batches. The arc is now factorised whole (exact; O(m³), m² memory).
+  A filter law whose overlap does not fit in a batch is also whitened as one batch.
+- **`Noise.Whitener` governs every `psd` law (numbers).** A declared `psd` law was whitened by
+  a fixed AR(30) filter in single solves and the stand-alone IRLS; it now follows
+  `Noise.Whitener` like the estimated law (default `"toeplitz"`: exact).
+- **The level of a stream without arc factors is the pooled Helmert factor (numbers),**
+  sigma² · Σq / Σt over its arcs, instead of the mean of the arcs' ratios. Measured in
+  dev/validation/wp125_level_mirror.py: on mixed arc lengths the scatter drops from 0.047 to
+  0.010, and the bias from probe noise from +1 % to +0.1 %; equal arcs are unchanged.
+- **ARMA laws with an MA part overlap their batches by the decay of 1/B(z).** The overlap used
+  to count the AR order only, so the restart transient of the recursive part leaked into every
+  batch after the first. A non-invertible MA part is refused
+  (`lsqvce:covModel:maNotInvertible`).
+- **`R.contribution()` shares the common solution by its trace** t_g = tr(N⁻¹N_g), computed
+  exactly in the redundancy sweep (`red.group.tcc`). It used to divide the groups'
+  REDUNDANCIES, which rank the groups nearly upside down on the information they carry.
+- **The report:** the contamination cross-check runs whatever the `Bonferroni` setting; the
+  PASS text no longer promises "half a sigma"; the remedies name `Backend = "qr"`; an IRLS or
+  Gauss–Newton run reports its own pass count and names its loop.
+- **`R.convergence()`** adds the two stop-rule quantities `maxDev` and `levelDev`;
+  `maxSigmaOffset` is described as what it is (the stream levels, not the stop rule).
+
 ## 6.12.2 — 2026-10-12 (WP-124: three documents, each with one job)
 
 No change to any computation.

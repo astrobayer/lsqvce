@@ -203,6 +203,38 @@ function testBatchSizeInvariance(tc)
     end
 end
 
+function testArmaWithMaIsBatchInvariant(tc)
+% categories: precision, vectorisation
+% WP-125: an MA part makes the whitener A(z)/B(z) an IIR filter. The overlap
+% used to count the AR order alone, so the restart transient of 1/B(z) leaked
+% into every batch after the first. With the overlap taken from the decay of
+% 1/B(z) (covModel filterMemory) small batches reproduce the whole arc.
+    cfg = tc.TestData.cfg;
+    cfg.cov.pos = struct('type','arma','ar',[1 -0.5],'ma',[1 0.4],'sigma',0.7);
+    ref = runIt(cfg, 1:2, 'Backend','qr','BatchSize',1e9, 'Verbose',false);
+    bat = runIt(cfg, 1:2, 'Backend','qr','BatchSize',120, 'Verbose',false);
+    % tol: the same exact whitening in batches vs whole; summation order only, 1e-9 relative
+    tc.verifyEqual(bat.x, ref.x, 'RelTol', 1e-9);
+end
+
+function testDenseLawIsBatchInvariant(tc)
+% categories: precision, vectorisation
+% WP-125 (user decision 2026-10-12): a dense law cannot be joined across
+% batches by an overlap; it is now factorised over the whole arc, so the
+% BatchSize no longer changes the answer (before: one Cholesky per batch,
+% the correlation between batches dropped).
+    cfg = tc.TestData.cfg;
+    a = [1 -1.6 0.9 -0.25];  s = 0.7;  dt = cfg.dt;
+    f = linspace(1e-9, 0.5/dt, 4096).';
+    H = 1 ./ (exp(-1i*2*pi*f*dt*(0:3)) * a(:));
+    cfg.cov.pos = struct('type','psd', 'f',f, 'S', s^2*dt*2*abs(H).^2);
+    oTP = struct('psdMode','toeplitz');
+    ref = runIt(cfg, 1:2, 'Backend','qr','BatchSize',1e9, 'UserOpt',oTP, 'Verbose',false);
+    bat = runIt(cfg, 1:2, 'Backend','qr','BatchSize',50,  'UserOpt',oTP, 'Verbose',false);
+    % tol: identical whole-arc factorisation; summation order only, 1e-9 relative
+    tc.verifyEqual(bat.x, ref.x, 'RelTol', 1e-9);
+end
+
 %% ------------------------------------------------------ PSD -> AR pathway
 function testPSDModeMatchesToeplitz(tc)
 % categories: precision, vectorisation

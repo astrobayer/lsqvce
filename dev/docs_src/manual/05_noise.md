@@ -13,11 +13,12 @@ specifications*); the mathematics is in the theory.
 | the **level** of that law | `covariance.<type>.sigma` (a standard deviation) | yes |
 | the **per-epoch accuracy** — what the preprocessing knows about each observation | `D.Cep`, returned by `buildDay` | never: it is data |
 
-The toolbox combines them per arc. An arc is whitened in batches of up to 20 000 rows. For
-a filter law (`diag`, `arma`, an AR-whitened `psd`, `var`) consecutive batches overlap by the
-memory of the filter, so batching does not change the result. A dense law (`acf`,
-`custom`, a `psd` whitened as Toeplitz) is factorised per batch: on an arc longer than one
-batch the correlation between batches is dropped — cut such arcs, or use a filter law.
+The toolbox combines them per arc. A filter law (`diag`, `arma`, an AR-whitened `psd`, `var`)
+is applied in batches of up to 20 000 rows that overlap by the memory of the filter (for an
+`arma` law with an MA part, until its impulse response has decayed to rounding), so the
+batching does not change the result. A dense law (`acf`, `custom`, a `psd` whitened as
+Toeplitz) is factorised over the whole arc: exact, at a cost of O(m³) and m² memory for an
+arc of m rows — for arcs of many thousand epochs prefer a filter law.
 
 ## What to declare
 
@@ -55,7 +56,7 @@ The choices that matter:
 | `Pool` | streams of the same physics may share a shape (`"obsType"`: both satellites' range-rate); never pool streams of different physics or units — positions with range-rate drives the normal matrix towards singularity |
 | `ArcFactors` | on when arcs are numerous and long enough to carry their own variance; off for few or short arcs |
 | `Noise.Grid` | the spectral resolution of the estimated law; finer grids resolve narrow spectral features but give each bin less redundancy per pass |
-| `Noise.Whitener` | `"ar"` for long arcs (cost O(b·p) instead of O(b³)); `"toeplitz"` when the spectrum has narrow features a low-order filter cannot follow |
+| `Noise.Whitener` | how every `psd` law — the estimated one and any you declare — whitens an arc: `"ar"` for long arcs (cost O(m·p) instead of O(m³)); `"toeplitz"` (the default, exact) when the spectrum has narrow features a low-order filter cannot follow |
 | `Probes`, `Seed` | the redundancies are estimated with random probes: 100 probes are the standard; a fixed `Seed` makes the run reproducible |
 
 **Run one pass with `Estimate = "none"` first.** If σ₀ is near 1 the declared weights are

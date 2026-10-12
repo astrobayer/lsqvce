@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.12.2 — User Manual"
+title: "lsqvce 6.13.0 — User Manual"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 
@@ -391,11 +391,12 @@ specifications*); the mathematics is in the theory.
 | the **level** of that law | `covariance.<type>.sigma` (a standard deviation) | yes |
 | the **per-epoch accuracy** — what the preprocessing knows about each observation | `D.Cep`, returned by `buildDay` | never: it is data |
 
-The toolbox combines them per arc. An arc is whitened in batches of up to 20 000 rows. For
-a filter law (`diag`, `arma`, an AR-whitened `psd`, `var`) consecutive batches overlap by the
-memory of the filter, so batching does not change the result. A dense law (`acf`,
-`custom`, a `psd` whitened as Toeplitz) is factorised per batch: on an arc longer than one
-batch the correlation between batches is dropped — cut such arcs, or use a filter law.
+The toolbox combines them per arc. A filter law (`diag`, `arma`, an AR-whitened `psd`, `var`)
+is applied in batches of up to 20 000 rows that overlap by the memory of the filter (for an
+`arma` law with an MA part, until its impulse response has decayed to rounding), so the
+batching does not change the result. A dense law (`acf`, `custom`, a `psd` whitened as
+Toeplitz) is factorised over the whole arc: exact, at a cost of O(m³) and m² memory for an
+arc of m rows — for arcs of many thousand epochs prefer a filter law.
 
 ## What to declare
 
@@ -433,7 +434,7 @@ The choices that matter:
 | `Pool` | streams of the same physics may share a shape (`"obsType"`: both satellites' range-rate); never pool streams of different physics or units — positions with range-rate drives the normal matrix towards singularity |
 | `ArcFactors` | on when arcs are numerous and long enough to carry their own variance; off for few or short arcs |
 | `Noise.Grid` | the spectral resolution of the estimated law; finer grids resolve narrow spectral features but give each bin less redundancy per pass |
-| `Noise.Whitener` | `"ar"` for long arcs (cost O(b·p) instead of O(b³)); `"toeplitz"` when the spectrum has narrow features a low-order filter cannot follow |
+| `Noise.Whitener` | how every `psd` law — the estimated one and any you declare — whitens an arc: `"ar"` for long arcs (cost O(m·p) instead of O(m³)); `"toeplitz"` (the default, exact) when the spectrum has narrow features a low-order filter cannot follow |
 | `Probes`, `Seed` | the redundancies are estimated with random probes: 100 probes are the standard; a fixed `Seed` makes the run reproducible |
 
 **Run one pass with `Estimate = "none"` first.** If σ₀ is near 1 the declared weights are
@@ -749,7 +750,7 @@ Level 1 checks whether the functional and stochastic model are consistent overal
 
 | code | severity | meaning | action |
 |---|---|---|---|
-| `NOISE_SETTLED` | NOTE | the loop met its stop rule | — |
+| `NOISE_SETTLED` | NOTE | the loop met its stop rule; the line names the loop (the stochastic model, the robust re-weighting or the Gauss–Newton iteration) and its number of passes | — |
 | `NOISE_UNSETTLED` | WARN | the loop stopped on `"maxPasses"` or `"userStop"` before it settled. Every number below rests on weights that were still moving | Treat the result as provisional. Raise `MaxPasses` or loosen `Tolerance` and run again. `R.convergence()` shows what was still changing (see "When the loop did not settle" below). |
 | `ROBUST_FIT` | NOTE | the run used a robust influence (`Robust = "huber"`, `"igg3"` or `"bisquare"`) | `sigma0` and the covariance belong to the **reweighted** problem. They are not an M-estimator's scale or sandwich covariance, so the global test and the parameter bounds are approximate in both directions. |
 
@@ -792,7 +793,7 @@ the share of residuals beyond 2.5 robust sigmas. On clean data `fhat` sits near
 `P(|Z| > 2.5) = 0.0124`. As a backstop it also prints `s0/sigma0`, which contamination
 cannot suppress but which is only as good as your declared sigma0.
 
-The cross-check appears only with `Bonferroni = true` and `RobustCheck = true`. Exactly
+The cross-check appears whenever `RobustCheck = true`, whatever the `Bonferroni` setting. Exactly
 one of these lines is printed:
 
 | code | severity | condition | action |
@@ -818,8 +819,8 @@ In addition:
   value `|w| > k` and the number of false alarms expected by chance (`Alpha` under
   Bonferroni).
 * `SNOOP_NOBONF` (WARN) replaces it when `Bonferroni = false`. It prints the uncorrected
-  level and roughly how many good observations will be flagged by chance. With Bonferroni
-  off, the contamination cross-check above is not printed either. Set `Bonferroni = true`.
+  level and roughly how many good observations will be flagged by chance. Set
+  `Bonferroni = true`.
 * `SNOOP_VACUOUS` (**ERROR**, Pope only) appears when the critical value exceeds the upper
   bound `sqrt(r)` of Pope's statistic. No residual can ever be flagged, so an empty list is
   guaranteed. Accept a weaker `Alpha` or a weaker family-wise correction, or accept that
@@ -971,7 +972,8 @@ The loop stops when two conditions hold: `max|α² − 1|` over frequencies and 
 the largest relative change of an arc factor, are both ≤ `Tolerance`. Each pass records
 these two numbers in `R.history.maxDev` and `R.history.levelDev`. `R.convergence()` gives
 one row per pass with `pass`, `maxSigmaOffset` (the largest `|sigma − 1|` of the
-per-stream level factors), `nWhite`, `minWhitePval` and `converged`.
+per-stream level factors: a reading, not the stop rule), `nWhite`, `minWhitePval`,
+`converged`, and the two stop-rule quantities `maxDev` and `levelDev`.
 `R.convergence(Plot=true)` and `R.plot("convergence")` draw the same record.
 
 With `stopReason = "maxPasses"`:
@@ -2055,7 +2057,7 @@ those inside your `buildDay` closure instead.
 
 | setting | effect |
 |---|---|
-| `Noise.Whitener = "ar"` | whitens a long arc in O(m·p) instead of the O(m³) of the dense Toeplitz factor; check the AR fit once with `lsqvce.engine.checkPSD` |
+| `Noise.Whitener = "ar"` | whitens a long arc in O(m·p) instead of the O(m³) of the dense Toeplitz factor, which is formed over the whole arc (m² memory); check the AR fit once with `lsqvce.engine.checkPSD` |
 | `Probes` | the cost of the redundancy sweep grows linearly with it; 100 is the standard, fewer gives noisier redundancies |
 | `Parallel = struct('Mode', "parfor", 'DistributeDays', true)` | distributes the day loop of the accumulation over workers; the result is bitwise identical to the serial run |
 | `MaxPasses`, `Tolerance` | the number of passes of an iterative run |

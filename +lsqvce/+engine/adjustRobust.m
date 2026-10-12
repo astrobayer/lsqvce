@@ -24,6 +24,9 @@ function R = adjustRobust(systems, days, opt)
 %     days     1xD double          the calendar
 %   NAME-VALUE
 %     'Backend'    "qr" | "normal"                          default "qr"
+%     'PsdMode'    "toeplitz" | "ar" | "arma" | ""           how a declared 'psd'
+%                  law whitens (default "": the covariance model's AR(30));
+%                  LSQVCE.FIT passes Options.Noise.Whitener
 %     'Influence'  "huber" | "igg3" | "bisquare"            default "huber"
 %     'Tuning'     [] | constants of the influence          default [] (its default)
 %     'MaxIter'    passes (>= 1)                            default 30
@@ -79,6 +82,9 @@ function R = adjustRobust(systems, days, opt)
 %   See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.KERNEL.ROBUSTWEIGHTS,
 %            LSQVCE.ENGINE.RESIDUALS, LSQVCE.FIT
 %
+%   Updated 2026-10-12 (CEST, UTC+02:00), WP-125: 'PsdMode' -- how a declared
+%   psd law whitens (fit passes Options.Noise.Whitener). With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 4: the verdict comes
 %   from lsqvce.engine.verdict.fromAccumulator (diagnoseAccum + diagnose
 %   absorbed). With assistance from Claude (Anthropic), model Claude Opus
@@ -112,6 +118,7 @@ arguments
     systems
     days (1,:) double
     opt.Backend  (1,1) string {mustBeMember(opt.Backend, ["normal","qr"])} = "qr"
+    opt.PsdMode  (1,1) string {mustBeMember(opt.PsdMode, ["","toeplitz","ar","arma"])} = ""
     opt.Influence (1,1) string {mustBeMember(opt.Influence, ["huber","igg3","bisquare"])} = "huber"
     opt.Tuning double = []
     opt.MaxIter (1,1) double {mustBeInteger, mustBePositive} = 30
@@ -224,6 +231,13 @@ function acc = newAcc(nc, specs, opt, W)
               'KeepLocal', true, 'Verbose', false, ...
               'Parallel', char(opt.Parallel), 'DistributeDays', opt.DistributeDays, ...
               'ParallelThreshold', opt.ParallelThreshold, ...
-              'UserOpt', struct('rowWeights', W));
+              'UserOpt', withPsd(struct('rowWeights', W), opt.PsdMode));
     acc.addSystems(specs);
+end
+
+%==========================================================================
+function uo = withPsd(uo, md)
+%WITHPSD  Add the psd whitening route to the loader UserOpt (WP-125); an
+%   empty md leaves the covariance model's own default.
+    if strlength(md) > 0, uo.psdMode = char(md); end
 end

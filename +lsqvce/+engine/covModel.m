@@ -144,6 +144,9 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 %       lsqvce:covModel:noPSD          .psd missing          ('psd')
 %       lsqvce:covModel:noVAR          .ar/.sigma missing    ('var')
 %       lsqvce:covModel:noFcn          .fcn missing          ('custom')
+%       lsqvce:covModel:maNotInvertible the MA part ('arma', or a psd law in
+%                                      'arma' mode) has a root on or outside the
+%                                      unit circle: its whitener is not stable
 %
 %     The per-epoch error information does not fit the arc (R6 WP-90)
 %       lsqvce:covModel:badCep         .Cep is neither nEpoch x d nor nEpoch x d x d,
@@ -180,6 +183,10 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 %   See also LSQVCE.ENGINE.CHECKPSD, LSQVCE.KERNEL.ARMAWHITEN, LSQVCE.KERNEL.SEPARABLEWHITEN,
 %            LSQVCE.KERNEL.DECORRFACTOR, LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.MAKELOADER
 %
+%   Updated 2026-10-12 (CEST, UTC+02:00), WP-125: a dense law is whitened over
+%   the whole arc (info.wholeArc); an MA part extends filterMemory by the decay
+%   of 1/B(z); lsqvce:covModel:maNotInvertible. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 2 (R7-01): the
 %   'toeplitz' PSD law is no longer resampled onto floor(m/2)+1 points; its
 %   ACV is psd2acv's exact integral (no circulant). With assistance from
@@ -319,7 +326,7 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
         Wfcn = @(idx,A,B,l,o) lsqvce.kernel.armaWhiten(a, b, s, r, A, B, l, idx(1)==1);
         Cfcn = @(idx,o) s^2 * toeplitz(lsqvce.kernel.armaACV(a, b, numel(idx)));
 
-        info.filterMemory = p;
+        info.filterMemory = filterMemoryOf(p, b);  % WP-125: an MA part makes it IIR
         info.arOrder      = p;
         info.sigma        = s;
         info.acv          = r;
@@ -389,6 +396,17 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
     elseif ~strcmp(mode, 'auto')
         error('lsqvce:covModel:badWhitenMode', ...
               'whitenMode must be ''auto'', ''filter'' or ''chol'' (got ''%s'').', mode);
+    end
+
+    %------------------------------------------- a dense law is whitened whole
+    % WP-125 (user decision 2026-10-12): a law without a filter form (acf,
+    % custom, psd 'toeplitz', or whitenMode 'chol') is factorised per batch by
+    % the iterator; batches of a dense law cannot be joined by an overlap (the
+    % conditional on a finite past is not the conditional on the whole past),
+    % so an arc longer than one batch lost the correlation between batches.
+    % The arc is now factorised whole -- exact, at O(m^3) and m^2 memory.
+    if isempty(Wfcn) && ~isempty(Cfcn)
+        info.wholeArc = true;
     end
 
     %------------------------------------------------ the composition (WP-90)
@@ -630,9 +648,9 @@ function [Cfcn, Wfcn, info] = psdModel(cm, t, dt, opt, info)
 
     switch md
     case 'toeplitz'
-        nmax = lsqvce.util.getfielddef(opt, 'BatchSize', 20000) + ...
-               lsqvce.util.getfielddef(opt, 'BatchOverlap', 0);
-        nmax = min(nmax, numel(t));
+        % WP-125: a dense law is factorised over the WHOLE arc (info.wholeArc
+        % below), so its ACV must reach every lag of the arc, not one batch
+        nmax = numel(t);
         % RESOLUTION (R7 WP-111 part 2, finding R7-01). The ACV is the EXACT
         % integral of the piecewise-linear spectrum through the given
         % ordinates (LSQVCE.KERNEL.PSD2ACV): no lag period, so a coarse law
@@ -669,7 +687,7 @@ function [Cfcn, Wfcn, info] = psdModel(cm, t, dt, opt, info)
         Wfcn = @(idx,A,B,l,o) lsqvce.kernel.armaWhiten(a, b, s, rr, A, B, l, idx(1)==1);
         Cfcn = @(idx,o) s2 * toeplitz(lsqvce.kernel.armaACV(a, b, numel(idx)));
 
-        info.filterMemory = pEf;
+        info.filterMemory = filterMemoryOf(pEf, b);   % WP-125: an MA part makes it IIR
         info.arOrder      = pEf;
         info.sigma        = s;
         info.acv          = rr;
@@ -679,6 +697,40 @@ function [Cfcn, Wfcn, info] = psdModel(cm, t, dt, opt, info)
         error('lsqvce:covModel:badPsdMode', ...
               'psdMode must be ''ar'', ''arma'' or ''toeplitz'' (got ''%s'').', md);
     end
+end
+
+%==========================================================================
+function n = filterMemoryOf(p, b)
+%FILTERMEMORYOF  The batch overlap that makes the whitening filter A(z)/B(z) exact.
+%   The whitener filter(a, b, x) restarts from zero state at the start of
+%   every overlap. With B = 1 (pure AR) it is FIR of length p+1, and p rows of
+%   overlap reproduce the whole-arc output exactly. An MA part B(z) puts
+%   1/B(z) -- an IIR filter -- behind it, whose memory is infinite: the
+%   overlap is p plus the number of samples after which the impulse response
+%   of 1/B(z) has decayed below eps of its peak (WP-125; before, the overlap
+%   counted p alone and the restart transient of the MA part leaked into
+%   every batch after the first).
+%
+%   INPUT   p  1x1  AR order;  b  1x(q+1)  MA polynomial [1 b1 ... bq]
+%   OUTPUT  n  1x1  rows of overlap (p when q = 0)
+%   ERRORS  lsqvce:covModel:maNotInvertible  a root of B(z) on or outside the
+%           unit circle: the whitening filter 1/B(z) is not stable
+    n = p;
+    b = b(:).';
+    if numel(b) < 2 || all(b(2:end) == 0), return, end
+    rho = max(abs(roots(b)));
+    if ~(rho < 1)
+        error('lsqvce:covModel:maNotInvertible', ...
+              ['The MA polynomial has a root of modulus %.6g >= 1: the whitening ' ...
+               'filter 1/B(z) is not stable. Give an invertible MA part.'], rho);
+    end
+    N = max(16, ceil(log(eps) / log(rho)));
+    for it = 1:12                                   % doubling; 16 * 2^12 > 65 000
+        h = filter(1, b, [1; zeros(N - 1, 1)]);
+        if all(abs(h(end - numel(b) + 2:end)) <= eps * max(abs(h))), break, end
+        N = 2 * N;
+    end
+    n = p + N;
 end
 
 %==========================================================================

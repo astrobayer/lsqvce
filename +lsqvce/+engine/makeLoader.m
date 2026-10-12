@@ -1332,7 +1332,9 @@ function out = batchOf(dayFcn, arcs, cov, day, obsType, arcID, opt)
     end
     if isfield(info, 'nugget') && ~isempty(info.nugget)
         out.nugget   = info.nugget;                  % for the joint sweep (adjustVCEjoint>oneArc)
-        out.wholeArc = true;                         % for arcBatchWhiten: ONE batch
+    end
+    if lsqvce.util.getfielddef(info, 'wholeArc', false)
+        out.wholeArc = true;                         % a nugget arc or a dense law (WP-125): ONE batch
         out.filterMemory = numel(out.l);             % the window the accumulator records
     end
 

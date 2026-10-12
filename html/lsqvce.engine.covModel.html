@@ -181,6 +181,9 @@ info.filterMemory      % = 20 -&gt; the accumulator overlaps by 20 rows</pre>
     lsqvce:covModel:noPSD          .psd missing          (&#x27;psd&#x27;)
     lsqvce:covModel:noVAR          .ar/.sigma missing    (&#x27;var&#x27;)
     lsqvce:covModel:noFcn          .fcn missing          (&#x27;custom&#x27;)
+    lsqvce:covModel:maNotInvertible the MA part (&#x27;arma&#x27;, or a psd law in
+                                   &#x27;arma&#x27; mode) has a root on or outside the
+                                   unit circle: its whitener is not stable
 
   The per-epoch error information does not fit the arc (R6 WP-90)
     lsqvce:covModel:badCep         .Cep is neither nEpoch x d nor nEpoch x d x d,
@@ -216,6 +219,10 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 See also LSQVCE.ENGINE.CHECKPSD, LSQVCE.KERNEL.ARMAWHITEN, LSQVCE.KERNEL.SEPARABLEWHITEN,
          LSQVCE.KERNEL.DECORRFACTOR, LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.MAKELOADER
 
+Updated 2026-10-12 (CEST, UTC+02:00), WP-125: a dense law is whitened over
+the whole arc (info.wholeArc); an MA part extends filterMemory by the decay
+of 1/B(z); lsqvce:covModel:maNotInvertible. With assistance from Claude
+(Anthropic), model Claude Opus 5.5.
 Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 2 (R7-01): the
 &#x27;toeplitz&#x27; PSD law is no longer resampled onto floor(m/2)+1 points; its
 ACV is psd2acv&#x27;s exact integral (no circulant). With assistance from

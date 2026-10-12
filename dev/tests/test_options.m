@@ -91,6 +91,11 @@ function testEngineArgumentLists(tc)
     p = lsqvce.Options(Parallel=struct('Mode', "parfor", 'Threshold', 2)).engineArgs("adjustBlock");
     tc.verifyEqual(p.nv{find(strcmp(p.nv, 'Parallel')) + 1}, "parfor");
     tc.verifyEqual(p.nv{find(strcmp(p.nv, 'ParallelThreshold')) + 1}, 2);
+    % WP-125: Noise.Whitener reaches the declared psd laws of a single solve
+    % and of the stand-alone IRLS, not only the joint estimator's law
+    tc.verifyEqual(p.nv{find(strcmp(p.nv, 'PsdMode')) + 1}, "toeplitz");
+    w = lsqvce.Options(Robust="huber", Noise=struct('Whitener', "ar")).engineArgs("adjustRobust");
+    tc.verifyEqual(w.nv{find(strcmp(w.nv, 'PsdMode')) + 1}, "ar");
     id = '';
     try, o.engineArgs("nope"); catch e, id = e.identifier; end
     tc.verifyEqual(id, 'lsqvce:Options:badTarget');
