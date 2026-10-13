@@ -183,9 +183,10 @@ classdef BlockCofactor
                     % cholupdate needs a Cholesky factor (WP-129).
                     % WP-133 (review 3 finding 3): FULL -- a sparse B leaves the QR
                     % factor sparse, and cholupdate takes full matrices only
-                    sg = sign(diag(b.Rll));  sg(sg == 0) = 1;
-                    Rl = full(sg .* b.Rll);  H = zeros(size(Rl));  G = zeros(size(Rl, 1), nc);
-                    if ~isempty(Rl)                       % WP-133: rank 0 solves nothing
+                    Rl = zeros(0);  H = zeros(0);  G = zeros(0, nc);   % WP-133: rank 0 solves nothing
+                    if isfield(b, 'Rll') && ~isempty(b.Rll)
+                        sg = sign(diag(b.Rll));  sg(sg == 0) = 1;
+                        Rl = full(sg .* b.Rll);
                         H = Rl.' \ eye(size(Rl, 1));  G = Rl \ full(sg .* b.Rlc);
                     end
                     if size(Vb, 1) > 0

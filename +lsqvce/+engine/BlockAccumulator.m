@@ -756,8 +756,8 @@ classdef BlockAccumulator < handle
             end
 
             if lsqvce.engine.BlockAccumulator.onFactor(s)   % WP-128: on the QR factor,
-                k  = size(s.Rll, 1);  Ri = zeros(k);  G = zeros(size(s.Rlc));   % never the squared Nll
-                if k > 0, Ri = s.Rll \ eye(k);  G = s.Rll \ s.Rlc; end   % WP-133: rank 0 solves nothing
+                k  = size(s.Rlc, 1);  Ri = zeros(k);  G = zeros(k, obj.nc);   % never the squared Nll
+                if ~isempty(s.Rll), Ri = s.Rll \ eye(k);  G = s.Rll \ s.Rlc; end   % WP-133: rank 0 solves nothing
                 Qll = Ri * Ri.';
                 V = lsqvce.engine.BlockAccumulator.keptBasis(s);
                 if size(V, 1) > 0                       % WP-130: the solve's pinv
@@ -1098,15 +1098,17 @@ classdef BlockAccumulator < handle
         %   INPUT  st  a store element;  x  nc x 1 commons, or [] (y = [])
             p = 0;  Ll = [];
             if lsqvce.engine.BlockAccumulator.onFactor(st)
-                sg = sign(diag(st.Rll));  sg(sg == 0) = 1;     % positive pivots: R = Ll'
-                R = sg .* st.Rll;  Rlc = sg .* st.Rlc;  rl = sg .* st.rl;
-                % WP-133: a block of rank 0 (R 0 x 0) solves nothing -- y and G
-                % are empty on the kept basis, the zero block once lifted
-                y = [];  if ~isempty(x), y = zeros(size(R, 1), 1); end
-                G = zeros(size(Rlc));  Ll = R.';
-                if size(R, 1) > 0
+                % WP-133: a block of rank 0 (no factor) solves nothing -- y and G
+                % are empty on the kept basis, the zero block once lifted; no
+                % diag/sign of the empty factor (its shape does not broadcast)
+                k = size(st.Rlc, 1);
+                y = [];  if ~isempty(x), y = zeros(k, 1); end
+                G = zeros(k, size(st.Nlc, 2));  Ll = zeros(k);
+                if ~isempty(st.Rll)
+                    sg = sign(diag(st.Rll));  sg(sg == 0) = 1;     % positive pivots: R = Ll'
+                    R = sg .* st.Rll;  Rlc = sg .* st.Rlc;  rl = sg .* st.rl;
                     if ~isempty(x), y = R \ (rl - Rlc * x(:)); end
-                    G = R \ Rlc;
+                    G = R \ Rlc;  Ll = R.';
                 end
                 V = lsqvce.engine.BlockAccumulator.keptBasis(st);
                 if size(V, 1) > 0        % WP-130: a rank-deficient block, on its kept
@@ -1822,6 +1824,7 @@ classdef BlockAccumulator < handle
             keep = struct('Nll_r', Nll_r, 'Nlc', Nlc, 'nl_r', nl_r, 'ltl', ltl, 'mObs', mObs, ...
                           's0sq_hint', max(red.ltl, 0)/max(mObs - k, 1), ...
                           'Rll', diag(sv(kp)), 'Rlc', U1.' * R12, 'rl', U1.' * r1, 'Vll', V1);
+            if k == 0, keep.Rll = zeros(0); end   % WP-133: rank 0 -- an explicit 0 x 0, not diag of 0 x 1
             dg.regUsed = 'pinv-fallback';  dg.lambdaUsed = lsqvce.engine.QRSystem.RankTol;
             dg.rankDef = size(R11, 2) - k;
         end

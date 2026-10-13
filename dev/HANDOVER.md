@@ -9972,3 +9972,11 @@ the joint robust check with the nugget rotation included. (b) `test_speedBudget>
 armaACV(4n)/armaACV(n) = 16.4 (band 14.4-32.4) against the bound 8 -- also red on `main` on that
 machine (17.1), green on A8 in every run; `armaACV` is untouched here. A property of that machine (the
 65536-point FFT out of cache, most likely), recorded for WP-134 (kernel lane), not this PR.
+
+**Round 3 (de70381; A8 back online, and the user's second machine): 673 / 674 on A8, the rank-0 test
+ERRORED** -- the second machine's log named it: `localSolveOf`'s `sg .* st.Rll; Rlc = sg .* st.Rlc`
+raised `MATLAB:sizeDimensionsMustMatch`. Now that `onFactor` saw the block, the factor arithmetic ran
+on the empty factor (`diag(sv(kp))` of a 0 x 1, then `sign(diag(...))`), whose shape does not
+broadcast against Rlc (0 x nc). Rank 0 now skips the factor arithmetic (`isempty(Rll)`; the sizes come
+from Rlc and Nlc) in `localSolveOf`, `localCovariance` and `BlockCofactor`, and `rankReduced` stores
+an explicit 0 x 0. The speed point read 12.0 (11.4-13.5) on the second machine, green on A8.
