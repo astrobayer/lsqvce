@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-13 — WP-130 DONE (PR #152, merge b441ff3; CI GREEN on a1e1859, first round: ci_gate 650/650); WP-131 OPEN (tier B, model Claude Opus 5.5): the noise model, the kernel and the contributions of the second whole-code review -- Level 2 on the leverage split (user decision), a psd override's own axis, Smooth > 0 converging, the Toeplitz structure probe, armaACV's tail, crossCorr on correlations, no "robust (none)", late priors reported, seven lows fixed, five recorded, two by user decision (prior_* refused, snoop inherits R.diag's test); 11 tests; version 6.18.0; §12.64.
+Last substantive update: 2026-10-13 — WP-131 DONE (PR #153, merge cbf5852; CI GREEN on 9c99b4f after the red round 1 on c7ff67b: ci_gate 661/661); closure PR (user decision: "Gemergt, mach den Abschluss-PR"): the ledger rows and §12.65 -- the second whole-code review track (§12.63, WP-130/131) closed: 14 findings and 12 lows fixed (two lows by user decision), five lows recorded with their reasons (19, 22, 23, 24, 30); no code change, no version (6.18.0 stays, 673 tests).
+Preceding entry: Last substantive update: 2026-10-13 — WP-130 DONE (PR #152, merge b441ff3; CI GREEN on a1e1859, first round: ci_gate 650/650); WP-131 OPEN (tier B, model Claude Opus 5.5): the noise model, the kernel and the contributions of the second whole-code review -- Level 2 on the leverage split (user decision), a psd override's own axis, Smooth > 0 converging, the Toeplitz structure probe, armaACV's tail, crossCorr on correlations, no "robust (none)", late priors reported, seven lows fixed, five recorded, two by user decision (prior_* refused, snoop inherits R.diag's test); 11 tests; version 6.18.0; §12.64.
 Preceding entry: Last substantive update: 2026-10-13 — second whole-code review (correctness and missing tests; six parallel reviewers, every material finding re-checked: 14 medium/high + 17 low, §12.63); WP-130 OPEN (tier B, model Claude Opus 5.5; user: "Go ahead. Change to the leverage fit"): the solve core and the diagnostics -- a rank-deficient local block reduced on its factor, Gauss-Newton evaluated at the returned point, the datum test invariant to units, 'mad' without datum scores, snoop after rejection; 4 tests; version 6.17.0; WP-131 (noise model, kernel, contributions; Level 2 on the leverage split) follows.
 Preceding entry: Last substantive update: 2026-10-13 — WP-129 DONE (PR #150, merge f706681; CI GREEN on 3e9086e, first round: ci_gate 646/646); closure PR (user decision: "Ja, mach den Abschluss-PR"): the ledger row and §12.62 -- the whole-code review track (§12.59, WP-127/128/129) closed, all twelve findings fixed, no residue; no code change, no version (6.16.1 stays, 658 tests).
 Preceding entry: Last substantive update: 2026-10-13 — WP-128 DONE (PR #149, merge 839ec11; CI GREEN on 170612c); WP-129 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-129 mit dem downdate-Rest"): the WP-128 residue -- BlockCofactor.downdate of a local block kept on its QR factor downdates that factor (cholupdate of Rll) instead of refactoring the squared Nll, which lost the weak direction after one rejection (mirror: sum h 6 instead of 7, Qll 100 % off at cond(B) 1.3e8); 1 test; version 6.16.1; §12.61.
@@ -9549,7 +9550,7 @@ made. Mirrors kept: `dev/validation/wp128_local_block_mirror.py`,
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
 | 130 | review findings 1, 2, 3, 9, 12, 14 and lows 15, 17, 28: a rank-deficient local block reduced ON its factor (`BlockAccumulator.rankReduced`, SVD of R11 at `RankTol`; the normal-form fallback keeps its pseudo-inverse; store `Vll`, `localRankOf`; dof, redundancy, residuals and `source` count the rank; `BlockCofactor` on the kept basis, downdate there and with the block's own cut); Gauss-Newton evaluated at the returned point (`atZeroStep`, `D.x` the estimate, `stopReason` "diverged"); `datumRows` against the product's own rounding bound; 'mad' and `scanWorst` without datum scores; snoop's Bonferroni n and caps without datum rows, sol after rejection on both paths, `Reaccumulate=false` re-diagnosed over the survivors (`afterRejection`), `REJ.history` kCrit; **version 6.17.0** | 129 (closure PR #151 merged 84300a2) | DONE (2026-10-13, PR #152, merge b441ff3; CI GREEN on a1e1859 in the first round: ci_gate 650/650) |
-| 131 | review findings 4-8, 10, 11, 13 (noise model, kernel, contributions; finding 8 on the leverage split, user decision) and the remaining lows | 130 | OPEN (§12.64) |
+| 131 | review findings 4-8, 10, 11, 13 (noise model, kernel, contributions; finding 8 on the leverage split, user decision) and the remaining lows | 130 | DONE (2026-10-13, PR #153, merge cbf5852; §12.64) |
 
 **The user's request (2026-10-13):** "REVIEW THE ENTIRE CODE FOR correctness and missing tests",
 then "Go ahead. Change to the leverage fit" (finding 8: Level 2 moves to the leverage-consistent
@@ -9627,7 +9628,7 @@ went down to 594 (the advice moved to `unsettledAdvice`), its row lowered.
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 131 | review findings 4, 5, 6, 7, 8 (Level 2 on the leverage split, user decision), 10, 11, 13, lows 16, 18, 20, 21, 25, 26, 29 and, by user decision, 27 (prior_* refused) and 31 (snoop inherits R.diag's test): a psd override's own frequency axis (`applyCovOverride>mergeLayer`); `psdVCE` maxDev on the shape change when smoothing; `redundancyLags` structure probe (`toeplitzTimes`); `armaACV` tail energy; `streamContribution` on N_g = Z_g'Z_g with localAbsorbed = tr(Qll Mll_g); `crossCorr` on correlations (`c.Rcorr`); no "robust (none)" note; `priorNotActive` when the loop ends before a `from`; the correlated MDB; `residuals` scalars always whitened; `outliers` under spmd; fit's pairs merged onto opts; `toTable` without localParams; a one-argument arc resolver; **version 6.18.0** | 130 (PR #152 merged b441ff3) | OPEN (tier B; CI is the gate) |
+| 131 | review findings 4, 5, 6, 7, 8 (Level 2 on the leverage split, user decision), 10, 11, 13, lows 16, 18, 20, 21, 25, 26, 29 and, by user decision, 27 (prior_* refused) and 31 (snoop inherits R.diag's test): a psd override's own frequency axis (`applyCovOverride>mergeLayer`); `psdVCE` maxDev on the shape change when smoothing; `redundancyLags` structure probe (`toeplitzTimes`); `armaACV` tail energy; `streamContribution` on N_g = Z_g'Z_g with localAbsorbed = tr(Qll Mll_g); `crossCorr` on correlations (`c.Rcorr`); no "robust (none)" note; `priorNotActive` when the loop ends before a `from`; the correlated MDB; `residuals` scalars always whitened; `outliers` under spmd; fit's pairs merged onto opts; `toTable` without localParams; a one-argument arc resolver; **version 6.18.0** | 130 (PR #152 merged b441ff3) | DONE (2026-10-13, PR #153, merge cbf5852; CI GREEN on 9c99b4f after the red round 1 on c7ff67b: ci_gate 661/661) |
 
 **The user's request (2026-10-13):** "Go ahead. Change to the leverage fit" (§12.63).
 
@@ -9691,3 +9692,21 @@ against the store.
 
 **Tests 673 = 662 + 11.** NOT validated before CI: no MATLAB in the container.
 
+### 12.65 The second whole-code review track closed: WP-130, WP-131 (2026-10-13, model Claude Opus 5.5)
+
+**The user's decision (2026-10-13):** "Gemergt, mach den Abschluss-PR" -- the WP-131 ledger rows,
+this note, no code change, no version (6.18.0 stays, 673 tests).
+
+| WP | what | PR | merge | version |
+|----|------|----|-------|---------|
+| 130 | solve core and diagnostics: findings 1, 2, 3, 9, 12, 14; lows 15, 17, 28 | #152 | b441ff3 | 6.17.0 |
+| 131 | noise model, kernel, contributions: findings 4-8, 10, 11, 13 (8 on the leverage split, user decision); lows 16, 18, 20, 21, 25-27, 29, 31 (27, 31 by user decision) | #153 | cbf5852 | 6.18.0 |
+
+**State after the track.** All fourteen medium/high findings of the review (§12.63) are fixed in the
+tree, each with a test that fails on the old code. Of the seventeen lows, twelve are fixed; 26 and 29
+by reading only (no fixture exercises them). Five are recorded, not opened, each with its reason in
+§12.64: 19 (residuals' Cyy after a NaN-poisoned solve), 22 (a non-uniform `Sigma2_0` on pass 1, engine
+tier only), 23 (the arc factor's Toeplitz assumption, an efficiency loss), 24 (`adjustRobust`'s
+recorded factor at a MaxPasses exit), 30 (`stat.chi2Inv` below p ~ 1e-40, no caller). Mirrors kept:
+`dev/validation/wp130_pinv_fallback_mirror.py`, `wp130_datum_scale_mirror.py`,
+`wp131_level2_split_mirror.py`, `wp131_kernel_mirror.py`.
