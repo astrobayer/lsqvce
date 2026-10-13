@@ -19,8 +19,11 @@ a group of its own:
 data.priors(1) = struct('L', Nnull.', 'x0', 0, 'sigma', 1, 'name', 'datum');
 ```
 
-The solution and its covariance are the minimum-constraint ones for any σ. Without a datum
-a rank-deficient system is refused by name; the toolbox never guesses one.
+The solution and its covariance are the minimum-constraint ones for any σ, also when the
+datum is declared as several groups (for instance translation and rotation separately).
+The datum rows are constraints, not observations: the report does not count them as
+uncontrolled. Without a datum a rank-deficient system is refused by name; the toolbox never
+guesses one.
 
 **A Kaula rule on a gravity field.** One group per rule, σ estimated:
 

@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.14.0 — API Reference</title>
+  <title>lsqvce 6.15.0 — API Reference</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.14.0 — API Reference</h1>
+<h1 class="title">lsqvce 6.15.0 — API Reference</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 </header>
@@ -1566,11 +1566,17 @@ has redundancy ≤ 1; its σ is left unchanged and flagged in
 <li><strong>Local rows live in one day.</strong> Every row of a local
 group has its non-zero columns inside one day’s local block or the
 system block; days are coupled through common parameters only.</li>
-<li><strong>A datum is a group of its own.</strong> Minimum constraints
-<code>L = Bᵀ</code> on the null space, <code>x0 = 0</code>, give the
-minimum-constraint solution and covariance for any σ. A group that only
-partly lies in the null space, or overlaps another group, is
-information.</li>
+<li><strong>A datum is a group of its own, or several.</strong> Minimum
+constraints <code>L = Bᵀ</code> on the null space, <code>x0 = 0</code>,
+give the minimum-constraint solution and covariance for any σ. The datum
+may be split over groups (translation and rotation declared separately):
+every group the data cannot see belongs to it, as long as it does not
+overlap a group the data does see. A group that only partly lies in the
+null space, or overlaps an information group, is information.</li>
+<li><strong>Datum rows are not observations.</strong> Their redundancy
+is 0 by construction; the diagnostics keep them in Σr and vPv but do not
+test or count them (<code>D.nTests</code>, <code>D.datumRows</code>;
+quadrant <code>"datum"</code> in <code>R.reliability()</code>).</li>
 </ul>
 <h2 data-number="5.3" id="where-the-result-is-reported"><span
 class="header-section-number">5.3</span> Where the result is

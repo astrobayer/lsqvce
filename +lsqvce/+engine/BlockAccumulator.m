@@ -237,6 +237,10 @@ classdef BlockAccumulator < handle
 %
 %   See also LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.RESIDUALS, LSQVCE.ENGINE.CHECKPSD, LSQVCE.ENGINE.QRSYSTEM
 %
+%   Updated 2026-10-12 (CEST, UTC+02:00), WP-127: datumRows -- a datum may
+%   span several prior groups (blind groups need orthogonality only to the
+%   groups the data sees); Dm with pinv; arcNotFinite also for A and B. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-12 (CEST, UTC+02:00), R7 WP-119: datumPart tests each
 %   declared prior GROUP (CommonPrior.group) -- a datum stacked with a
 %   regularising group gets the minimum-constraint covariance too. With
@@ -861,11 +865,12 @@ classdef BlockAccumulator < handle
         %DATUMPART  The minimum-constraint cofactor's pieces when the common
         %   prior holds a DATUM, else [] (R7 WP-114, R7-05; per group since
         %   WP-119). The unit is the declared GROUP (CommonPrior.group, one per
-        %   data.priors(k)): group g is a datum when the data AND every other
-        %   group are blind to its rows,
+        %   data.priors(k)): group g is a datum (DATUMROWS) when the data AND
+        %   every group the data can see are blind to its rows,
         %       |N Kg'| <= 1e-10 |N| |Kg|    (on the QR backend |R Kg'| <= 1e-8 |R| |Kg|
         %                                     on its factor, N never formed)
-        %       |Ko Kg'| <= 1e-10 |Ko| |Kg|  (Ko: the other groups' rows)
+        %       |Ko Kg'| <= 1e-10 |Ko| |Kg|  (Ko: the non-blind groups' rows; a
+        %                                     datum may span several groups, WP-127)
         %   -- with every term PSD, the same as Kg in the null space of N plus
         %   the other groups. Kd = the datum groups' rows, Ki = the rest,
         %   Ni = N + Ki'Ki: span(Kd') is the null space of Ni, so x is Ni's
@@ -874,7 +879,7 @@ classdef BlockAccumulator < handle
         %   re-weighted to the data's scale, c = sqrt(|Ni|_F) / |Kd|_F
         %   (|R|_F / |Kd|_F on the QR backend):
         %       pinv(Ni) = inv(Rm'Rm) - Dm*Dm',  Rm'Rm = Ni + c^2 Kd'Kd,
-        %       Dm = Kd'(Kd Kd')^-1 / c
+        %       Dm = Kd' pinv(Kd Kd') / c
         %   (both terms O(1/|N|); subtracting sigma^2 Kd'(Kd Kd')^-2 Kd from the
         %   solve's cofactor instead cancels: 5e-5 off at sigma 1e6 in the
         %   mirror, mirrors/wp114/datum_cofactor.py, against 3e-16 here;
@@ -885,24 +890,10 @@ classdef BlockAccumulator < handle
         %   OUTPUT  dp  [] | struct .Rm (nc x nc upper) .Dm (nc x nd)
             dp = [];
             if isempty(obj.prior), return, end
-            K = full(obj.prior.K) / obj.prior.sigma;
-            grp = obj.prior.group;
-            isQR = strcmp(obj.backend, 'qr');
-            if isQR                                      % on the factor
-                S = obj.sys.squareRoot();  tolS = 1e-8;
-            else
-                S = obj.sys.commonBlocks();  S = (S + S.')/2;  tolS = 1e-10;
-            end
-            nS = norm(S, 'fro');
-            isDatum = false(size(grp));
-            for g = unique(grp).'
-                in = grp == g;  Kg = K(in, :);  Ko = K(~in, :);
-                nKg = norm(Kg, 'fro');
-                if norm(S * Kg.', 'fro') > tolS * nS * nKg, continue, end
-                if ~isempty(Ko) && norm(Ko * Kg.', 'fro') > 1e-10 * norm(Ko, 'fro') * nKg, continue, end
-                isDatum(in) = true;
-            end
+            [isDatum, S, nS] = obj.datumRows();
             if ~any(isDatum), return, end
+            K = full(obj.prior.K) / obj.prior.sigma;
+            isQR = strcmp(obj.backend, 'qr');
             Kd = K(isDatum, :);  Ki = K(~isDatum, :);
             if isQR
                 c = nS / norm(Kd, 'fro');
@@ -914,7 +905,49 @@ classdef BlockAccumulator < handle
                 [Rm, fail] = chol((Ni + Ni.')/2 + c^2 * (Kd.' * Kd));
                 if fail > 0, return, end
             end
-            dp = struct('Rm', Rm, 'Dm', (Kd.' / (Kd * Kd.')) / c);
+            dp = struct('Rm', Rm, 'Dm', (Kd.' * pinv(Kd * Kd.')) / c);   % pinv: WP-127
+        end
+
+        function [isDatum, S, nS] = datumRows(obj)
+        %DATUMROWS  Which rows of the common prior are a DATUM (WP-127).
+        %   A group is BLIND when the data cannot see its rows (|S Kg'| <=
+        %   tolS |S| |Kg|, S the factor on QR, N on the normal backend); a blind
+        %   group is a datum when it is also orthogonal to the rows of every
+        %   NON-blind group. WP-119 asked orthogonality to ALL other groups, so
+        %   a datum split over two groups (translation and rotation of a
+        %   free network: Kt Kr' = -sum y_i, nonzero unless the net is centred)
+        %   failed for both halves and the covariance fell back to
+        %   inv(N + K'K/sigma^2), growing with sigma (0.9 at sigma 1, 9e5 at
+        %   1e3; dev/validation/wp127_datum_split_mirror.py).
+        %   OUTPUT  isDatum  nk x 1 logical over obj.prior's rows (all false
+        %                    without a prior); S, nS the data block and its norm
+            isDatum = false(0, 1);  S = [];  nS = 0;
+            if isempty(obj.prior), return, end
+            K = full(obj.prior.K) / obj.prior.sigma;
+            grp = obj.prior.group(:);
+            if strcmp(obj.backend, 'qr')                 % on the factor
+                S = obj.sys.squareRoot();  tolS = 1e-8;
+            else
+                S = obj.sys.commonBlocks();  S = (S + S.')/2;  tolS = 1e-10;
+            end
+            nS = norm(S, 'fro');
+            gs = unique(grp).';
+            blind = false(size(grp));
+            for g = gs
+                in = grp == g;  Kg = K(in, :);
+                blind(in) = norm(S * Kg.', 'fro') <= tolS * nS * norm(Kg, 'fro');
+            end
+            isDatum = false(size(grp));
+            Ko = K(~blind, :);                           % the groups the data CAN see
+            for g = gs
+                in = grp == g;
+                if ~blind(find(in, 1)), continue, end
+                Kg = K(in, :);
+                if ~isempty(Ko) && norm(Ko * Kg.', 'fro') > 1e-10 * norm(Ko, 'fro') * norm(Kg, 'fro')
+                    continue
+                end
+                isDatum(in) = true;
+            end
         end
     end
 
@@ -1296,6 +1329,14 @@ classdef BlockAccumulator < handle
                 error('lsqvce:accum:arcNotFinite', ...
                     ['%s: l contains NaN or Inf. Remove the bad epochs in the ' ...
                      'loader -- the accumulator cannot know which are valid.'], ctx);
+            end
+            % WP-127: A and B too -- a NaN in A of a system without locals went
+            % through the QR into every pivot and came out as x = NaN, blamed
+            % on cancellation (the only finiteness check sat in the local block)
+            if ~all(isfinite(arc.A(:))) || ~all(isfinite(arc.B(:)))
+                error('lsqvce:accum:arcNotFinite', ...
+                    ['%s: the design (A or B) contains NaN or Inf. Remove the bad ' ...
+                     'epochs in the loader.'], ctx);
             end
         end
 

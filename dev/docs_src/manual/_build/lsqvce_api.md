@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.14.0 — API Reference"
+title: "lsqvce 6.15.0 — API Reference"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 
@@ -456,9 +456,15 @@ Malformed fields, or an `L` of the wrong width, are refused by name
 - **Local rows live in one day.** Every row of a local group has its non-zero columns
   inside one day's local block or the system block; days are coupled through common
   parameters only.
-- **A datum is a group of its own.** Minimum constraints `L = Bᵀ` on the null space,
-  `x0 = 0`, give the minimum-constraint solution and covariance for any σ. A group that
-  only partly lies in the null space, or overlaps another group, is information.
+- **A datum is a group of its own, or several.** Minimum constraints `L = Bᵀ` on the null
+  space, `x0 = 0`, give the minimum-constraint solution and covariance for any σ. The datum
+  may be split over groups (translation and rotation declared separately): every group the
+  data cannot see belongs to it, as long as it does not overlap a group the data does see.
+  A group that only partly lies in the null space, or overlaps an information group, is
+  information.
+- **Datum rows are not observations.** Their redundancy is 0 by construction; the
+  diagnostics keep them in Σr and vPv but do not test or count them (`D.nTests`,
+  `D.datumRows`; quadrant `"datum"` in `R.reliability()`).
 
 ## Where the result is reported
 

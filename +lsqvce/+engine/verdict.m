@@ -79,7 +79,8 @@ function [diagSol, batchFcn, nBatch] = source(acc, sol)
 %   [diagSol, batchFcn, nBatch] = LSQVCE.ENGINE.VERDICT.SOURCE(acc, sol) returns exactly what
 %   lsqvce.engine.verdict.diagnose / lsqvce.engine.verdict.snoop expect:
 %       diagSol   struct with fields {x, Q, n, u, r, rank, defect, sigma0, s0sq,
-%                 vPv, vPvSource, condR, condN, condIsBound, nBatch}; Q is the
+%                 vPv, vPvSource, condR, condN, condIsBound, nBatch, datumRows}
+%                 (datumRows: the prior's datum rows, WP-127); Q is the
 %                 LSQVCE.ENGINE.BLOCKCOFACTOR of the full parameter set
 %       batchFcn  @(k) -> [A, l, p]   the k-th WHITENED batch (one arc), unit weight
 %       nBatch    number of batches (the arcs, then the prior's pseudo-batch)
@@ -153,6 +154,10 @@ function [diagSol, batchFcn, nBatch] = source(acc, sol)
 %   See also LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SNOOP, LSQVCE.REPORT, LSQVCE.ENGINE.REDUNDANCY,
 %   LSQVCE.ENGINE.BLOCKCOFACTOR
 %
+%   Updated 2026-10-12 (CEST, UTC+02:00), WP-127: diagSol.datumRows -- the
+%   global indices of the prior's datum rows (BlockAccumulator.datumRows),
+%   which diagnose does not test or count. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-86 part 2 (R7-24): the dense
 %   full-width factor replaced by the block cofactor; one batch per arc,
 %   indexed from the meta answers, n from the accumulator -- the bridge reads
@@ -269,7 +274,8 @@ function [diagSol, batchFcn, nBatch] = source(acc, sol)
         'condR',  sqrt(kN), ...
         'condN',  kN, ...
         'condIsBound', true, ...
-        'nBatch', nBatch);
+        'nBatch', nBatch, ...
+        'datumRows', datumRowsOf(acc, n));
 
     % ---- batchFcn: replay the k-th whitened batch --------------------------
     % A local function (not deal) so a caller may take 1, 2, or 3 outputs:
@@ -386,6 +392,11 @@ function D = diagnose(sol, batchFcn, opt)
 %   See also LSQVCE.ENGINE.VERDICT.SOURCE, LSQVCE.REPORT, LSQVCE.ENGINE.VERDICT.SNOOP,
 %   LSQVCE.ENGINE.BLOCKCOFACTOR.
 %
+%   Updated 2026-10-12 (CEST, UTC+02:00), WP-127: a prior's datum rows
+%   (sol.datumRows; r = 0 by construction) stay in sum(r) and vPv but are not
+%   tested or counted -- uncontrolled, MDB, quadrants, the smallest r and the
+%   Bonferroni n (D.nTests, D.datumRows); every free network was SUSPECT.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-12 (CEST, UTC+02:00), R7 WP-121: the robust check's raw
 %   scores are formed in the main pass -- one read of the data and one
 %   halfRows per row instead of two; only 'test','mad' sweeps first. With
@@ -447,9 +458,12 @@ u  = sol.u;
 rdf = sol.r;                          % redundancy = n - u
 
 % -------------------------------------------------------------- test setup
+% WP-127: the datum rows of a prior (r = 0 by construction) are constraints,
+% not observations: kept in sum(r) and vPv, left out of the tests and counts
+exIdx = lsqvce.util.getfielddef(sol, 'datumRows', zeros(0, 1));  nTest = n - numel(exIdx);
 alphaEff = o.alpha;
 if o.bonferroni
-    alphaEff = o.alpha / max(n, 1);
+    alphaEff = o.alpha / max(nTest, 1);
 end
 
 testName = lower(o.test);
@@ -538,10 +552,7 @@ qxxDiag = Q.diagonal();
 
 % A parameter that lies almost entirely in the datum null space can come out
 % a few eps negative. Clamp rather than emit a complex sigma.
-negQ = qxxDiag < 0;
-if any(negQ)
-    qxxDiag(negQ) = 0;
-end
+qxxDiag(qxxDiag < 0) = 0;
 sigX    = sqrt(max(qxxDiag, 0));
 extMax  = 0;  extMax_idx = 0;  extMax_par = 0;
 
@@ -730,6 +741,7 @@ for k = 1:nB
 
     % --- residuals
     vk = Ak * x - lk;
+    ex = ismember(nSeen + (1:nk).', exIdx);   % the prior's datum rows (WP-127)
 
     % --- redundancy numbers and the denominator of the test statistic
     W  = Q.halfRows(Ak);               % u x nk, W'W = A Qxx A'
@@ -783,7 +795,7 @@ for k = 1:nB
     end
     qpp = max(qpp, 0);
     if fuseRobust                      % the robust check's raw score (WP-121)
-        rawK = zeros(nk, 1);  okq = qpp > 0;
+        rawK = zeros(nk, 1);  okq = qpp > 0 & ~ex;
         rawK(okq) = Pvk(okq) ./ sqrt(qpp(okq));
         rawAll(nSeen + (1:nk)) = rawK;
     end
@@ -804,7 +816,7 @@ for k = 1:nB
     denom = scl * sqrt(qpp);
 
     wk = zeros(nk, 1);
-    ctrl = rk > o.rMin & qpp > 0;      % controlled observations only
+    ctrl = rk > o.rMin & qpp > 0 & ~ex;  % controlled observations only
     wk(ctrl) = Pvk(ctrl) ./ denom(ctrl);
     % Uncontrolled: w is 0/0. Report 0, and record the index -- an uncontrolled
     % observation is not "fine", it is UNTESTABLE, which is a different and
@@ -876,8 +888,8 @@ for k = 1:nB
     loR = rk < o.rWeak;                       % includes uncontrolled
     nQ_cleanOut  = nQ_cleanOut  + sum(hiW & ~loR);
     nQ_ambiguous = nQ_ambiguous + sum(hiW &  loR);
-    nQ_verified  = nQ_verified  + sum(~hiW & ~loR);
-    nQ_untested  = nQ_untested  + sum(~hiW &  loR);
+    nQ_verified  = nQ_verified  + sum(~hiW & ~loR & ~ex);
+    nQ_untested  = nQ_untested  + sum(~hiW &  loR & ~ex);
 
     % ---- MDB distribution. Quoting only the worst case is misleading in both
     % directions: it hides that most of the network is fine, AND (because the
@@ -890,7 +902,7 @@ for k = 1:nB
     % every value -- a few thousand uniform samples give quantiles to well
     % within the accuracy anyone acts on.
     mfin = isfinite(mdbk);
-    nMdbInf = nMdbInf + sum(~mfin);
+    nMdbInf = nMdbInf + sum(~mfin & ~ex);
     mv = mdbk(mfin);
     for q = 1:numel(mv)
         nMdbSeen = nMdbSeen + 1;
@@ -904,15 +916,15 @@ for k = 1:nB
         end
     end
 
-    nUnc = sum(~ctrl);
+    nUnc = sum(~ctrl & ~ex);
     if nUnc > 0
         nUncontrolled = nUncontrolled + nUnc;
         if numel(idxUncontrolled) < 1000
-            idxUncontrolled = [idxUncontrolled; nSeen + find(~ctrl)]; %#ok<AGROW>
+            idxUncontrolled = [idxUncontrolled; nSeen + find(~ctrl & ~ex)]; %#ok<AGROW>
         end
     end
 
-    [rlo, ilo] = min(rk);
+    rkT = rk;  rkT(ex) = inf;  [rlo, ilo] = min(rkT);   % a datum row's r = 0 is not a finding
     if rlo < rmin_seen
         rmin_seen = rlo;  rmin_idx = nSeen + ilo;
     end
@@ -1165,7 +1177,8 @@ D.flagR   = flagR;
 D.flagV   = flagV;
 D.flagMDB = flagMDB;
 D.nFlag   = numel(flagIdx);
-D.nExpectedFalse = alphaEff * n;      % how many flags are chance alone
+D.nExpectedFalse = alphaEff * nTest;  % how many flags are chance alone
+D.nTests = nTest;  D.datumRows = exIdx;   % WP-127: n less the prior's datum rows, which are not tested
 
 D.rMin        = o.rMin;
 D.rWeak       = o.rWeak;
@@ -2480,6 +2493,21 @@ end   % classdef
 % ---------------------------------------------- source (formerly lsqvce.engine.verdict.source)
 
 %==========================================================================
+function idx = datumRowsOf(acc, n)
+%DATUMROWSOF  Global row indices of the prior's DATUM rows (WP-127), [] if none.
+%   The prior is the LAST batch (rows n-nk+1..n); a datum row has r = 0 by
+%   construction -- a constraint on the null space, not an observation -- so
+%   diagnose keeps it in sum(r) and vPv but not in the per-observation
+%   verdict (it was counted as an uncontrolled observation: every free
+%   network came back SUSPECT).
+%   INPUT  acc the accumulator; n the total row count (data + prior)
+%   OUTPUT idx k x 1 double
+    idx = zeros(0, 1);
+    if isempty(acc.prior), return, end
+    isD = acc.datumRows();
+    idx = (n - numel(isD)) + find(isD(:));
+end
+
 function [A, l, p] = batchOf(src, k)
 %BATCHOF  The k-th whitened batch (one arc), unit weight. Tolerates nargout 1..3.
 %   Rebuilt from its address (WP-86 part 1): the arc is re-read through the

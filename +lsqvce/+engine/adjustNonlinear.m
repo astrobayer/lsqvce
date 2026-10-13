@@ -70,6 +70,10 @@ function R = adjustNonlinear(u, batchFcn, nBatch, x0, opt)
 %   See also LSQVCE.ENGINE.BATCHSYSTEM,
 %            LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.FIT
 %
+%   Updated 2026-10-12 (CEST, UTC+02:00), WP-127: a converged run's final
+%   undamped step is kept only when F does not rise (on a plateau TolX met a
+%   tiny damped step and the undamped one was never evaluated). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-113 (R7-14, R7-04): the step
 %   damps the common block (Marquardt rows) and shifts the prior to x; the
 %   descent check runs from pass 1 on the declared objective; a rejected step
@@ -192,11 +196,27 @@ end
     acc = finalAcc(L, days, x, state, opt);
     dsol = acc.solve();
     % R7-14: a converged run takes the final undamped step (below TolX, or
-    % with a settled F); an UNconverged one returns the best ACCEPTED point x --
-    % never x plus a step the loop had just rejected. The covariance and the
+    % with a settled F) when it does not raise F (WP-127); an UNconverged one
+    % returns the best ACCEPTED point x -- never x plus a step the loop had
+    % just rejected. The covariance and the
     % diagnostics are those of the linearised problem at x either way.
-    sol  = dsol;
-    if converged, sol.x = x + dsol.x(:); else, sol.x = x; end
+    sol  = dsol;  sol.x = x;
+    if converged
+        % WP-127: the final undamped step is CHECKED like every other. On a
+        % plateau sigX is huge, so a tiny damped step meets TolX, and the
+        % undamped step from there took F from 28.8 to 49.6 in the mirror of
+        % a logistic fit -- "converged" on a point never evaluated
+        xF = x + dsol.x(:);
+        [~, FF] = accumulate(L, days, xF, state, opt);
+        state('x') = x;                       % the diagnostics replay the batches at x
+        % tol: a rise below 1e-10 relative is the rounding of F's sum over the
+        % rows (~n eps up to n ~ 1e6), not ascent -- at the optimum the step is ~0
+        if isfinite(FF) && FF <= F * (1 + 1e-10)
+            sol.x = xF;
+        else
+            reason = [reason '; final step rejected'];
+        end
+    end
     [D, dsol2, batchFcn, nB] = lsqvce.engine.verdict.fromAccumulator(acc, dsol, opt.Diagnostics{:});
     R = lsqvce.Results(sol, D, acc, dsol2, batchFcn, nB, [], lsqvce.engine.runMeta(struct(), prov));
     sr = "";  if userStop, sr = "userStop"; end

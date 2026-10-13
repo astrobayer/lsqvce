@@ -308,7 +308,8 @@ Level 3 shows which observations the tests could not check at all.
 
 A residual shows only the fraction `r_i` of an error in its observation. A small `|w|` on a
 low-`r` observation is therefore no evidence of health. `R.reliability()` gives the same
-quadrant per observation.
+quadrant per observation; the rows of a datum prior carry the label `"datum"` and are not
+counted in any quadrant.
 
 | code | severity | condition | action |
 |---|---|---|---|

@@ -53,7 +53,10 @@ O(m*(p+q)) and never forms the m x m covariance.</pre>
 <pre class="example">a             1 x (p+1)  AR polynomial [1 a1 ... ap]
 b             1 x (q+1)  MA polynomial [1 b1 ... bq]; use 1 for pure AR
 s             scalar     innovation std, &gt; 0
-r             &gt;= p x 1   autocovariance r(0..), already scaled by s^2
+r             &gt;= p x 1   autocovariance r(0..), already scaled by s^2; with
+                         an MA part its length K is the exact startup:
+                         pass it over the filter memory p + N, N the
+                         decay of 1/B(z) (LSQVCE.ENGINE.COVMODEL does)
 A, B          m x *      design blocks (either may be m x 0 or sparse; sparse in, sparse out)
 l             m x 1      observation vector
 isFirstBatch  logical    true for the first batch of an arc</pre>
@@ -84,6 +87,10 @@ EXACTNESS
   assumes x(k) = 0 for k &lt; 1. Those rows are replaced by the exact
   stationary whitener chol(toeplitz(r(1:p)))^-1, which is the leading
   p x p block of chol(C)^-1. Only done when isFirstBatch is true.
+  With an MA part the recursion 1/B(z) carries state, so the exact block
+  covers K = numel(r) rows and the recursion continues from their exact
+  innovations u_k = L(k,k) w_k (WP-127); for K &gt;= p + the decay of 1/B(z)
+  to eps the operator is chol(C)^-1 to ~1e-13. Cost O(K^3) once per arc.
 
 BATCH OVERLAP IS MANDATORY
   On any batch after the first, the filter restarts from zero state and
@@ -116,6 +123,11 @@ Opus 4.8.
 Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+kernel (R4 decision R4-D1,
 WP-64a): the KERNEL tier leaves the USER surface; every qualified
 reference was rewritten mechanically by docs_src/refactor_tiers.py.
+
+Updated 2026-10-12 (CEST, UTC+02:00), WP-127: with an MA part the exact
+startup covers numel(r) rows and the recursion continues from their exact
+innovations (the rows after p were not chol(C)^-1). With assistance from
+Claude (Anthropic), model Claude Opus 5.5.
 
 Sparse blocks: 2026-10-12 (CEST, UTC+02:00) with assistance from Claude
 (Anthropic), model Claude Opus 5.5 -- WP-123.</pre>

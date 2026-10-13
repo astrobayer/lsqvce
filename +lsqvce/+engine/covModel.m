@@ -193,6 +193,10 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 %   See also LSQVCE.ENGINE.CHECKPSD, LSQVCE.KERNEL.ARMAWHITEN, LSQVCE.KERNEL.SEPARABLEWHITEN,
 %            LSQVCE.KERNEL.DECORRFACTOR, LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.MAKELOADER
 %
+%   Updated 2026-10-12 (CEST, UTC+02:00), WP-127: an ARMA law with an MA part
+%   passes the whitener its ACV over the whole filter memory (the exact
+%   startup; the psd 'arma' route the ARMA's own ACV). With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-12 (CEST, UTC+02:00), WP-126: a dense law refuses an arc
 %   longer than cm.maxDenseArc epochs (lsqvce:covModel:denseArcTooLong); the
 %   cost table states the whole-arc factor. With assistance from Claude
@@ -334,13 +338,13 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
             error('lsqvce:covModel:badSigma', '''arma'' requires a positive cm.sigma.');
         end
 
-        p = numel(a) - 1;
-        r = s^2 * lsqvce.kernel.armaACV(a, b, max(p, 2));      % errors if non-stationary
+        p  = numel(a) - 1;  fm = filterMemoryOf(p, b);   % WP-125: an MA part makes it IIR
+        r  = s^2 * lsqvce.kernel.armaACV(a, b, max(fm, 2));    % WP-127: the exact startup spans fm
 
         Wfcn = @(idx,A,B,l,o) lsqvce.kernel.armaWhiten(a, b, s, r, A, B, l, idx(1)==1);
         Cfcn = @(idx,o) s^2 * toeplitz(lsqvce.kernel.armaACV(a, b, numel(idx)));
 
-        info.filterMemory = filterMemoryOf(p, b);  % WP-125: an MA part makes it IIR
+        info.filterMemory = fm;
         info.arOrder      = p;
         info.sigma        = s;
         info.acv          = r;
@@ -696,12 +700,17 @@ function [Cfcn, Wfcn, info] = psdModel(cm, t, dt, opt, info)
 
         s   = sqrt(s2);
         pEf = numel(a) - 1;                       % may be < p if truncated
-        rr  = lsqvce.kernel.psd2acv(f, S, dt, max(pEf, 2)); % exact stationary startup
+        fm  = filterMemoryOf(pEf, b);             % WP-125: an MA part makes it IIR
+        if numel(b) > 1                           % WP-127: the ARMA's own ACV over fm,
+            rr = s2 * lsqvce.kernel.armaACV(a, b, max(fm, 2));   % so Wfcn and Cfcn agree
+        else
+            rr = lsqvce.kernel.psd2acv(f, S, dt, max(pEf, 2));  % exact stationary startup
+        end
 
         Wfcn = @(idx,A,B,l,o) lsqvce.kernel.armaWhiten(a, b, s, rr, A, B, l, idx(1)==1);
         Cfcn = @(idx,o) s2 * toeplitz(lsqvce.kernel.armaACV(a, b, numel(idx)));
 
-        info.filterMemory = filterMemoryOf(pEf, b);   % WP-125: an MA part makes it IIR
+        info.filterMemory = fm;
         info.arOrder      = pEf;
         info.sigma        = s;
         info.acv          = rr;

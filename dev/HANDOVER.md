@@ -8,8 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-12 — WP-125 DONE (PR #146, merge 8382eab; CI GREEN on 9e20f7a); WP-126 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-126 mit der Längengrenze"): the review of the WP-125 diff -- a dense law refuses an arc above cm.maxDenseArc (default 20 000 epochs, `lsqvce:covModel:denseArcTooLong`); ar2arma fits the AR part forwards (it returned reciprocal roots) and a non-invertible MA part falls back to the AR (`lsqvce:ar2arma:nonInvertibleMA`); arcVarianceFactors.pooled; 4 tests; version 6.14.0; §12.58.
-Preceding entry: Last substantive update: 2026-10-12 — WP-124 DONE (PR #145, merge ace5131; CI GREEN on 1a89d48); WP-125 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-125"; decisions: dense laws whitened whole, Noise.Whitener everywhere, pooled Helmert level): the twelve code findings of §12.56 -- report / Results / contribution fixes, ARMA overlap from the decay of 1/B(z), dense laws over the whole arc, Noise.Whitener for declared psd laws, the pooled level; 6 tests; version 6.13.0; §12.57.
+Last substantive update: 2026-10-12 — WP-126 DONE (PR #147, merge 7e44406; CI GREEN on f6d685c); WP-127 OPEN (tier B, model Claude Opus 5.5; user: a review of the entire code, then "Go ahead"): the confirmed findings -- the ARMA whitener with an MA part made exact, datum rows out of the diagnostics counts, a datum over several groups, the joint loop with a late local prior, the Gauss-Newton final step checked, NaN/Inf in A/B refused, .gitignore; 3 tests; version 6.15.0; §12.59.
+Preceding entry: Last substantive update: 2026-10-12 — WP-125 DONE (PR #146, merge 8382eab; CI GREEN on 9e20f7a); WP-126 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-126 mit der Längengrenze"): the review of the WP-125 diff -- a dense law refuses an arc above cm.maxDenseArc (default 20 000 epochs, `lsqvce:covModel:denseArcTooLong`); ar2arma fits the AR part forwards (it returned reciprocal roots) and a non-invertible MA part falls back to the AR (`lsqvce:ar2arma:nonInvertibleMA`); arcVarianceFactors.pooled; 4 tests; version 6.14.0; §12.58.
 Preceding entry: Last substantive update: 2026-10-12 — WP-123 DONE (PR #143, merge cebbfd1; CI GREEN on e617a95, first round); closure PR (user decision: "Ja, mach den Abschluss-PR"): the ledger row and §12.55, no code change, no version (6.12.1 stays, 641 tests).
 Preceding entry: Last substantive update: 2026-10-12 — WP-122 DONE (PR #142, merge 1d8c89b; CI GREEN on ac4bfa4); WP-123 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-123"): the kernel whiteners (separableWhiten, varWhiten, armaWhiten) take a sparse A / B / l -- the dense filter runs on the non-zero columns only (private kernel helper activeColumns), sparse in, sparse out; the dense path unchanged; template/kbr_variational returns its position B sparse again; 1 gate test; version 6.12.1; §12.54.
 Preceding entry: Last substantive update: 2026-10-12 — WP-122 OPEN (tier B, model Claude Opus 5.5; user: "a real-life buildDay for range-rate observations using a variational equation approach", scope decision: SELF-CONTAINED): template/kbr_variational.m -- GRACE-FO L1B (GNV1B, KBR1B, ACT1B, SCA1B) + ICGEM .gfc -> range-rate and position streams by the variational equations (analytic a, G, da/dC_nm from normalized solid harmonics and exact sparse derivative operators; ABM8 PECE), declared column units; mirror dev/validation/kbr_variational_mirror.py; 4 gate tests in test_physOracle; version 6.12.0; §12.53.
@@ -9322,7 +9322,7 @@ level, contribution trace), Manual 05 / 07 / 10, API 03 / 04 / 06.
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 126 | the three findings of the review of the WP-125 diff: a dense law refuses an arc above `cm.maxDenseArc` epochs (`lsqvce:covModel:denseArcTooLong`, default 20 000); `ar2arma` fits the AR part forwards and a non-invertible MA part falls back to the AR (`lsqvce:ar2arma:nonInvertibleMA`); `arcVarianceFactors.pooled` (the stream level, unit-tested) and an end-to-end test of `Noise.Whitener` on a declared psd law; **version 6.14.0** | 125 (PR #146 merged 8382eab) | OPEN (tier B; CI is the gate) |
+| 126 | the three findings of the review of the WP-125 diff: a dense law refuses an arc above `cm.maxDenseArc` epochs (`lsqvce:covModel:denseArcTooLong`, default 20 000); `ar2arma` fits the AR part forwards and a non-invertible MA part falls back to the AR (`lsqvce:ar2arma:nonInvertibleMA`); `arcVarianceFactors.pooled` (the stream level, unit-tested) and an end-to-end test of `Noise.Whitener` on a declared psd law; **version 6.14.0** | 125 (PR #146 merged 8382eab) | DONE (2026-10-12, PR #147, merge 7e44406; CI GREEN on f6d685c) |
 
 **The user's request (2026-10-12):** a review of the WP-125 diff for correctness, security, data
 integrity, concurrency, backwards compatibility and missing tests; three findings (F1-F3, all
@@ -9366,3 +9366,66 @@ GLS and IRLS).
 **Registries:** error_ids.csv +2 rows (v6.14.0); covModel and adjustVCEjoint kept at their code-line
 ceilings by joining lines. Docs: API 03 (the limit, the arma fallback), Manual 05 / 10.
 **Tests 651 = 647 + 4.** NOT validated before CI: no MATLAB in the container.
+
+### 12.59 WP-127 — findings of the whole-code review (2026-10-12, model Claude Opus 5.5)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 127 | the confirmed findings of the whole-code review: `armaWhiten` exact with an MA part (startup over the filter memory, recursion from the exact innovations); a prior's datum rows not tested or counted (`D.nTests`, `D.datumRows`, quadrant "datum"); `BlockAccumulator.datumRows` -- a datum over several groups; the joint loop with a local prior `from >= 2` (inactive arcs are not skips; one record column per pinned stream); the Gauss-Newton final step checked; `arcNotFinite` for A and B; `.gitignore` `dev/references/local/`; **version 6.15.0** | 126 (PR #147 merged 7e44406) | OPEN (tier B; CI is the gate) |
+
+**The user's request (2026-10-12):** a review of the entire code for correctness, security, data
+integrity, concurrency, backwards compatibility and missing tests. Five parallel reviewers (one
+per layer), every finding re-checked by hand or by an own mirror: 12 material findings, two high.
+User: "Go ahead" -- the confirmed ones (1-5, 8, 11) in this WP; the five marked plausible (snoop
+re-solve without the datum prior, snoop's two index spaces, a local `from > 1` silently dropped in a
+single solve, the truncated local block of the diagnostics cofactor, the MAD test's tau critical
+value) to be re-derived by own mirrors before they are fixed.
+
+**1 -- ARMA with an MA part (high).** `armaWhiten` replaced only rows 1..p by the exact start; the
+recursion 1/B(z) kept the state of the zero-state transient, so F'F was off inv(C) by 1.6 % (a =
+[1 -0.5], b = [1 0.4]) and the whitened variance of row 2 was 10.7 (b = [1 0.8]) -- own mirror. The
+tests only ever used b = 1; WP-125's batch-invariance test compared two runs of the same wrong
+operator. Now rows 1..K (K = numel(r), covModel passes the ACV over its `filterMemoryOf` = p + the
+decay of 1/B(z)) are exact and the recursion continues from their exact innovations; the psd 'arma'
+route takes the ARMA's own ACV for the start. Mirror `dev/validation/wp127_arma_whiten_mirror.py`:
+|F - chol(C)^-1| <= 3e-13, batched = whole. Test `test_precision>testArmaWithMaWhitenerIsTheCholeskyFactor`.
+
+**2 -- datum rows in the diagnostics (high).** `verdict.source` appends the prior as the last batch;
+datum rows have r = 0 and were counted as uncontrolled, MDB = Inf, untested -- REL_UNCONTROLLED and
+REL_MDBINF ERRORs, SUSPECT on every free network. `source` now passes `datumRows` (from
+`BlockAccumulator.datumRows`); `diagnose` keeps them in sum(r) and vPv and leaves them out of the
+uncontrolled / MDB / quadrant / smallest-r counts, the robust raw scores and the Bonferroni n
+(`D.nTests`); `report` prints nTests; `reliability` labels them "datum".
+
+**4 -- a datum over several groups.** WP-119 asked each group to be orthogonal to EVERY other group;
+translation and rotation of an off-centre net overlap (Kt Kr' = [-51 121] in the fixture), so neither
+was a datum and the covariance grew with sigma (0.9 at 1, 9e5 at 1e3). `datumRows`: blind groups need
+orthogonality only to the non-blind ones; `Dm` with pinv. Mirror
+`dev/validation/wp127_datum_split_mirror.py` (8e-11 after; a ridge group the data sees stays
+information). Test `test_fit>testDatumSplitOverGroupsIsOneDatum` (both backends, sigma 1 / 1e3, and
+the report / reliability side of 2).
+
+**3 -- the joint loop with a late local prior.** First attempt (priorArcsOfDay honouring the pass)
+REVERTED before commit: the arc identity is pinned on pass 1, so an arc appearing at pass `from`
+would trip `arcMismatch` instead. Now `oneArc` calls an empty prior pseudo-arc 'inactive' and
+`sweepArcs` does not count it as a skip; `whitenessRow` fills the PINNED streams (absent ones: their
+level, white = false, p = NaN). Test: an extension of `test_fit>testLocalPriorsAreTheCounterpartOfDataPriors`.
+
+**5 -- Gauss-Newton's final step.** Converged on TolX in formal-error units, the run applied one
+undamped step unevaluated; near a logistic plateau the reviewer's mirror (reproduced) took F from
+28.8 to 49.6 (start [1 -5 0.1]). The step is evaluated and kept only when F does not rise (1e-10
+relative rounding allowance); `state('x')` is restored before the diagnostics replay the batches.
+Test `test_fit>testGaussNewtonNeverReturnsAnUnevaluatedPoint` (three starts with a well-conditioned
+final linearisation). CI round 1 (f48cb87): the first choice of starts sat DEEP on the plateau, where
+the undamped linearisation at the converged point is singular (pivot ratio 1e-24..1e-30) and the
+pre-existing final solve refuses with `lsqvce:qr:singularR` -- an error by name, not a wrong number;
+the starts were replaced (the review's 2.8e15 case is one of those).
+
+**8, 11.** `.gitignore`: `dev/references/local/` and `dev/validation/*_measure.txt` (checked with
+`git check-ignore`). `validateArc` refuses a non-finite A or B (a NaN in A of a local-free system
+came out as x = NaN); test extends `test_reliability>testAccumulatorRejectsNaNObservations`.
+
+**Not changed, recorded:** the self-hosted runner runs PR code; the repository is private with forks
+off today, so nothing is exposed -- before it goes public, restrict the self-hosted jobs to same-repo
+PRs.
+**Tests 654 = 651 + 3.** NOT validated before CI: no MATLAB in the container.

@@ -110,6 +110,10 @@ objective (test_fit, R7 WP-113).</pre>
 See also LSQVCE.ENGINE.BATCHSYSTEM,
          LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.FIT
 
+Updated 2026-10-12 (CEST, UTC+02:00), WP-127: a converged run&#x27;s final
+undamped step is kept only when F does not rise (on a plateau TolX met a
+tiny damped step and the undamped one was never evaluated). With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-113 (R7-14, R7-04): the step
 damps the common block (Marquardt rows) and shifts the prior to x; the
 descent check runs from pass 1 on the declared objective; a rejected step

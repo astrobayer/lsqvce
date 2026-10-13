@@ -1,5 +1,36 @@
 # lsqvce release notes
 
+## 6.15.0 — 2026-10-12 (WP-127: findings of the whole-code review)
+
+Numbers change for ARMA laws with an MA part, for split datum groups and for the report
+of any fit with a datum prior (marked **numbers**).
+
+- **The ARMA whitener with an MA part is exact (numbers).** The recursion 1/B(z) carries
+  state; only the first p rows were replaced by the exact start, so the rows after them were
+  not chol(C)⁻¹ (F'F off inv(C) by 1.6 % at a = [1 −0.5], b = [1 0.4]; whitened variance 10.7
+  instead of 1 at row 2 for b = [1 0.8]). The exact start now spans the filter memory and the
+  recursion continues from its exact innovations: chol(C)⁻¹ to 3e-13.
+- **A datum may span several prior groups (numbers).** Translation and rotation declared as
+  two groups were both refused as datum (they overlap off-centre), and the covariance grew
+  with the datum σ. Groups the data cannot see now need orthogonality only to the groups it
+  can see.
+- **Datum rows are not observations (numbers, report).** Their redundancy is 0 by
+  construction; they were counted as uncontrolled observations with MDB = ∞, so every free
+  network's report said SUSPECT. The diagnostics keep them in Σr and vPv but do not test or
+  count them; new fields `D.nTests`, `D.datumRows`; quadrant `"datum"` in `R.reliability()`.
+- **The joint estimator runs with a local prior that starts late** (`from ≥ 2`). Its
+  pseudo-arc was a "gap" skip before `from` (counted against `SkipThreshold`) and one more
+  stream after it, which broke the per-pass record. Inactive arcs are no longer skips; the
+  record has one column per stream of pass 1.
+- **Gauss–Newton checks its final step.** A converged run applied one undamped step without
+  evaluating it; near a plateau that took F from 28.8 to 49.6 (a logistic fit). The step is
+  kept only when F does not rise. Deeper on the plateau the undamped linearisation is singular
+  and the run is refused by name (`lsqvce:qr:singularR`), as before.
+- **A NaN or Inf in A or B is refused** (`lsqvce:accum:arcNotFinite`), as one in l already was.
+- `.gitignore` covers `dev/references/local/` (the folder moved to `dev/`) and every
+  `dev/validation/*_measure.txt`.
+- Tests: 654 (+3).
+
 ## 6.14.0 — 2026-10-12 (WP-126: the review findings on WP-125)
 
 Numbers change for `Noise.Whitener = "arma"` with an MA order (marked **numbers**).

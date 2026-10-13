@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.14.0 — User Manual</title>
+  <title>lsqvce 6.15.0 — User Manual</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.14.0 — User Manual</h1>
+<h1 class="title">lsqvce 6.15.0 — User Manual</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 </header>
@@ -1109,8 +1109,11 @@ Declare the datum as a group of its own:</p>
 <div class="sourceCode" id="cb19"><pre
 class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="va">data</span>.<span class="va">priors</span>(<span class="fl">1</span>) <span class="op">=</span> <span class="va">struct</span>(<span class="ss">&#39;L&#39;</span><span class="op">,</span> <span class="va">Nnull</span><span class="op">.&#39;,</span> <span class="ss">&#39;x0&#39;</span><span class="op">,</span> <span class="fl">0</span><span class="op">,</span> <span class="ss">&#39;sigma&#39;</span><span class="op">,</span> <span class="fl">1</span><span class="op">,</span> <span class="ss">&#39;name&#39;</span><span class="op">,</span> <span class="ss">&#39;datum&#39;</span>)<span class="op">;</span></span></code></pre></div>
 <p>The solution and its covariance are the minimum-constraint ones for
-any σ. Without a datum a rank-deficient system is refused by name; the
-toolbox never guesses one.</p>
+any σ, also when the datum is declared as several groups (for instance
+translation and rotation separately). The datum rows are constraints,
+not observations: the report does not count them as uncontrolled.
+Without a datum a rank-deficient system is refused by name; the toolbox
+never guesses one.</p>
 <p><strong>A Kaula rule on a gravity field.</strong> One group per rule,
 σ estimated:</p>
 <div class="sourceCode" id="cb20"><pre
@@ -2005,8 +2008,9 @@ critical value; <code>r</code> is low when it is below
 <p>A residual shows only the fraction <code>r_i</code> of an error in
 its observation. A small <code>|w|</code> on a low-<code>r</code>
 observation is therefore no evidence of health.
-<code>R.reliability()</code> gives the same quadrant per
-observation.</p>
+<code>R.reliability()</code> gives the same quadrant per observation;
+the rows of a datum prior carry the label <code>"datum"</code> and are
+not counted in any quadrant.</p>
 <table>
 <colgroup>
 <col style="width: 25%" />
