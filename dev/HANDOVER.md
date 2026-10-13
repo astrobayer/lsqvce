@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-13 — WP-132 OPEN (tier B, model Claude Opus 5.5; user: "Go ahead and fix the open issues"): the five lows §12.65 recorded -- chi2Inv converges in the far lower tail (small-x seed, Newton on log F, a bracket), robust IRLS returns the factors its solve used, residuals' Cyy carry the repaired s0^2 after a refused vtv (BlockAccumulator.commonCofactor), Sigma2_0 weights pass 1 per arc (the arcs pinned on an enumeration first), the arc factor takes the whole law as its component in closed form (redundancyLags .sLaw/.omegaLaw; no Toeplitz assumption); 4 tests; version 6.19.0; §12.66.
+Last substantive update: 2026-10-13 — WP-132 DONE (PR #155, merge 019c839; CI GREEN on 8005dbe, first round: ci_gate 665/665); closure PR (user decision: "Gemergt, mach den Abschluss-PR"): the ledger row and §12.67 -- the second whole-code review (§12.63) is closed without residue: all 14 findings and all 17 lows fixed in the tree; no code change, no version (6.19.0 stays, 677 tests).
+Preceding entry: Last substantive update: 2026-10-13 — WP-132 OPEN (tier B, model Claude Opus 5.5; user: "Go ahead and fix the open issues"): the five lows §12.65 recorded -- chi2Inv converges in the far lower tail (small-x seed, Newton on log F, a bracket), robust IRLS returns the factors its solve used, residuals' Cyy carry the repaired s0^2 after a refused vtv (BlockAccumulator.commonCofactor), Sigma2_0 weights pass 1 per arc (the arcs pinned on an enumeration first), the arc factor takes the whole law as its component in closed form (redundancyLags .sLaw/.omegaLaw; no Toeplitz assumption); 4 tests; version 6.19.0; §12.66.
 Preceding entry: Last substantive update: 2026-10-13 — WP-131 DONE (PR #153, merge cbf5852; CI GREEN on 9c99b4f after the red round 1 on c7ff67b: ci_gate 661/661); closure PR (user decision: "Gemergt, mach den Abschluss-PR"): the ledger rows and §12.65 -- the second whole-code review track (§12.63, WP-130/131) closed: 14 findings and 12 lows fixed (two lows by user decision), five lows recorded with their reasons (19, 22, 23, 24, 30); no code change, no version (6.18.0 stays, 673 tests).
 Preceding entry: Last substantive update: 2026-10-13 — WP-130 DONE (PR #152, merge b441ff3; CI GREEN on a1e1859, first round: ci_gate 650/650); WP-131 OPEN (tier B, model Claude Opus 5.5): the noise model, the kernel and the contributions of the second whole-code review -- Level 2 on the leverage split (user decision), a psd override's own axis, Smooth > 0 converging, the Toeplitz structure probe, armaACV's tail, crossCorr on correlations, no "robust (none)", late priors reported, seven lows fixed, five recorded, two by user decision (prior_* refused, snoop inherits R.diag's test); 11 tests; version 6.18.0; §12.64.
 Preceding entry: Last substantive update: 2026-10-13 — second whole-code review (correctness and missing tests; six parallel reviewers, every material finding re-checked: 14 medium/high + 17 low, §12.63); WP-130 OPEN (tier B, model Claude Opus 5.5; user: "Go ahead. Change to the leverage fit"): the solve core and the diagnostics -- a rank-deficient local block reduced on its factor, Gauss-Newton evaluated at the returned point, the datum test invariant to units, 'mad' without datum scores, snoop after rejection; 4 tests; version 6.17.0; WP-131 (noise model, kernel, contributions; Level 2 on the leverage split) follows.
@@ -9716,7 +9717,7 @@ recorded factor at a MaxPasses exit), 30 (`stat.chi2Inv` below p ~ 1e-40, no cal
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 132 | review lows 19, 22, 23, 24, 30 (recorded, not opened, in §12.64/§12.65): `chi2Inv` in the far lower tail; `adjustRobust`'s returned factor; `residuals`' Cyy after a refused vtv (`BlockAccumulator.commonCofactor`); `Sigma2_0` weighting pass 1 per arc (`enumerateArcs`, `pinFactors`); the arc factor on the whole law (`redundancyLags` `.sLaw` / `.omegaLaw`); **version 6.19.0** | 131 (PR #153 merged cbf5852; closure #154) | OPEN (tier B; CI is the gate) |
+| 132 | review lows 19, 22, 23, 24, 30 (recorded, not opened, in §12.64/§12.65): `chi2Inv` in the far lower tail; `adjustRobust`'s returned factor; `residuals`' Cyy after a refused vtv (`BlockAccumulator.commonCofactor`); `Sigma2_0` weighting pass 1 per arc (`enumerateArcs`, `pinFactors`); the arc factor on the whole law (`redundancyLags` `.sLaw` / `.omegaLaw`); **version 6.19.0** | 131 (PR #153 merged cbf5852; closure #154) | DONE (2026-10-13, PR #155, merge 019c839; CI GREEN on 8005dbe in the first round: ci_gate 665/665) |
 
 **The user's request (2026-10-13):** "Go ahead and fix the open issues" -- the five lows §12.65 left
 recorded. Each re-derived before the fix; 30 and 23 by an own mirror.
@@ -9774,3 +9775,19 @@ to the lag-sum form; per-row sigma 1..10 over 60 epochs, factor 1.7: lag-sum sd 
 baseline row deleted).
 
 **Tests 677 = 673 + 4.** NOT validated before CI: no MATLAB in the container.
+
+### 12.67 The second whole-code review closed without residue: WP-130, WP-131, WP-132 (2026-10-13, model Claude Opus 5.5)
+
+**The user's decision (2026-10-13):** "Gemergt, mach den Abschluss-PR" -- the WP-132 ledger row, this
+note, no code change, no version (6.19.0 stays, 677 tests).
+
+| WP | what | PR | merge | version |
+|----|------|----|-------|---------|
+| 130 | solve core and diagnostics: findings 1, 2, 3, 9, 12, 14; lows 15, 17, 28 | #152 | b441ff3 | 6.17.0 |
+| 131 | noise model, kernel, contributions: findings 4-8, 10, 11, 13; lows 16, 18, 20, 21, 25-27, 29, 31 | #153 | cbf5852 | 6.18.0 |
+| 132 | the five lows §12.65 had recorded: 19, 22, 23, 24, 30 | #155 | 019c839 | 6.19.0 |
+
+**State after the review.** Every finding of §12.63 -- 14 medium/high, 17 low -- is fixed in the tree;
+26 and 29 by reading only (no fixture exercises them), every other with a test that fails on the old
+code. §12.65's "recorded, not opened" list is discharged by WP-132; no residue is open. Mirrors added
+by WP-132: `dev/validation/wp132_chi2inv_mirror.py`, `wp132_arc_component_mirror.py`.
