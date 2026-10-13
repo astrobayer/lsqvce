@@ -77,10 +77,17 @@ classdef Options
 %                                      lag for any Grid
 %                  Whitener "toeplitz"|"ar"|"arma"  how a PSD law whitens:
 %                                                   the estimated law and every
-%                                                   declared 'psd' law
+%                                                   declared 'psd' law; under
+%                                                   Estimate "noise" a filter
+%                                                   speeds up the SOLVE only (the
+%                                                   sweep forms each arc's law
+%                                                   densely, maxDenseArc), and
+%                                                   "ar" approximates the
+%                                                   estimated shape (WP-134)
 %                  Smooth 0                         moving average on the PSD
 %                  FreezeRedundancy 1               components below it hold
-%                  SkipThreshold 0.2                skip RATE that refuses the pass
+%                  SkipThreshold 0.2                skip RATE of ONE stream's arcs
+%                                                   that refuses the pass
 %     RobustOpts   Tuning [], MaxIter 30, Tol 1e-8
 %     Diagnostics  Alpha 1e-3, Bonferroni true, Beta 0.2, RMin 0.01, RWeak 0.1,
 %                  Test "auto"|"pope"|"baarda"|"mad", RobustCheck true,
@@ -118,6 +125,9 @@ classdef Options
 %
 %   See also LSQVCE.FIT, LSQVCE.RESULTS, the API reference, RELEASE_NOTES.md
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-134: Noise.Whitener's cost under
+%   Estimate "noise" and SkipThreshold per stream stated. With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-12 (CEST, UTC+02:00), WP-125: Noise.Whitener also governs
 %   declared psd laws (engineArgs passes PsdMode to adjustBlock and
 %   adjustRobust). With assistance from Claude (Anthropic), model Claude Opus

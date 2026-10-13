@@ -312,3 +312,7 @@ lsqvce:redundancyLags:badNugget,kernel.redundancyLags,error,v6.6.0
 lsqvce:accum:noRedundancy,engine.BlockAccumulator,error,v6.20.0
 lsqvce:accum:notBlockDiagonal,engine.BlockAccumulator,warning,v6.20.0
 lsqvce:prior:zeroRow,engine.CommonPrior,error,v6.20.0
+lsqvce:arcVarianceFactors:held,engine.arcVarianceFactors,warning,v6.21.0
+lsqvce:armaACV:truncated,kernel.armaACV,warning,v6.21.0
+lsqvce:covModel:unevenGrid,engine.covModel,warning,v6.21.0
+lsqvce:crossCorr:badLength,kernel.crossCorr,error,v6.21.0

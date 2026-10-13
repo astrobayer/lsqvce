@@ -14,6 +14,8 @@ function tests = test_vcePolicy
 %
 %   See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTVCEJOINT, TEST_ELLMER, TEST_PHYSORACLE
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (third review): the common prior group is in the stop rule.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: a late prior beyond the last
 %   pass is reported; a non-robust noise run is not called robust. With
 %   assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -1267,4 +1269,34 @@ function D = arcFactorDay(cfg, day)
     D.arcIdx = arrayfun(@(a) (a-1)*cfg.mArc + (1:cfg.mArc), 1:cfg.arcs, ...
                         'UniformOutput', false);
     D = arcCells(D);                                 % v6: the cells are the arcs
+end
+
+%% ------------------------------------- WP-134: the prior is in the stop rule
+function testCommonPriorIsInTheStopRule(tc)
+% categories: contract, robustness | tags: diagnostics
+    % WP-134 (review 3 finding 1): with every stream at estimate "none" the
+    % law and the levels have nothing to move, and the loop declared itself
+    % converged on pass 1 -- before the common prior group with estimate
+    % "scale" was ever updated (its first Koch-Kusche step is on the pass after
+    % it enters the solve): the sigma came back as declared, R.converged true,
+    % no warning. The prior is in the stop rule now: it is updated, and a
+    % converged run means its last change was below the Tolerance too.
+    data = tc.TestData.data;
+    for k = 1:numel(data.systems)
+        for f = fieldnames(data.systems(k).covariance).'
+            data.systems(k).covariance.(f{1}).estimate = "none";
+        end
+    end
+    nc = numel(tc.TestData.Rv.x);
+    data.priors = struct('L', eye(nc), 'x0', zeros(nc, 1), 'sigma', 0.01, 'name', 'damping', 'estimate', "scale");
+    R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=6, ...
+                     Noise=struct('Grid', 16), Seed=3, Verbose=false));
+    tc.verifyGreaterThanOrEqual(R.history.nIter, 2, 'no convergence before the prior was updated');
+    tc.verifyNotEmpty(R.noise.priorHistory, 'the prior was updated');
+    tc.verifyNotEqual(R.noise.priors(1).sigma, 0.01, 'the declared sigma moved');
+    tc.verifyEqual(numel(R.history.priorDev), R.history.nIter, 'one prior change per pass');
+    if R.converged
+        % tol: the Tolerance default (1e-2) -- the stop rule's own bound
+        tc.verifyLessThanOrEqual(R.history.priorDev(end), 1e-2, 'converged: the prior settled too');
+    end
 end

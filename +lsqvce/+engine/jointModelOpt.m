@@ -35,7 +35,11 @@ function uo = jointModelOpt(model, streams, opt)
 %                                      cycles per sample, LSQVCE.KERNEL.HATACV;
 %                                      .Sgroups the same per pool group
 %                             .sigma2  M x 1     current arc variance factors
-%                             .iter    1x1       iteration number
+%                             .iter    1x1       iteration number -> uo.pass
+%                                      (the local priors' 'from' reads it)
+%                             .rowWeights containers.Map (optional) the robust
+%                                      pass's per-epoch factors -> uo.epochWeights
+%                                      (the loader's nugget, before the law)
 %                             .arcFactor containers.Map (optional)
 %                                      LSQVCE.UTIL.ROWWEIGHTKEY -> the arc's
 %                                      variance factor RELATIVE to its stream's
@@ -60,6 +64,13 @@ function uo = jointModelOpt(model, streams, opt)
 %                         .covOverride.bySys.(satKey).(obsType) = spec
 %                         .covOverride.byArc  (when model.arcFactor is given)
 %                         .psdMode
+%                         .pass          model.iter (1 without it)
+%                         .epochWeights  model.rowWeights, when it holds any
+%                       WP-134: .pass and .epochWeights were added by LSQVCE.FIT
+%                       alone, so an engine caller following the EXAMPLE below
+%                       never activated a local prior with from > 1 and never
+%                       applied the robust factors (while the loop still divided
+%                       the levels by their truncation factor)
 %
 %   EXAMPLE
 %     streams = {'x1|posC', 'x1|posD', 'x1|rr', 'x2|posE'};
@@ -87,6 +98,10 @@ function uo = jointModelOpt(model, streams, opt)
 %
 %   See also LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.MAKELOADER
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-134: the pass number and the
+%   robust factors ride on the UserOpt here (uo.pass, uo.epochWeights), the one
+%   place for every caller; LSQVCE.FIT's withPass is gone. With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 3 (R7-02): the law
 %   arrives as the bin spectrum model.S / .Sgroups and leaves as the 'psd'
 %   spec with ordinates 2 S on fNorm = f_j -- exactly the hat-basis law, with
@@ -222,6 +237,15 @@ end
     end
     uo = struct('covOverride', ovr, ...
                 'psdMode', lower(char(o.PsdMode)));      % convention 3
+    % WP-134: the pass rides on the UserOpt (the local priors' 'from',
+    % makeLoader>priorArc), and so do the robust factors of the previous pass
+    % (R6 WP-105: model.rowWeights -> UserOpt.epochWeights, the additive nugget
+    % makeLoader>batchOf composes BEFORE the temporal law -- the Koch convention)
+    uo.pass = 1;
+    if isfield(model, 'iter') && ~isempty(model.iter), uo.pass = model.iter; end
+    if isfield(model, 'rowWeights') && ~isempty(model.rowWeights) && model.rowWeights.Count > 0
+        uo.epochWeights = model.rowWeights;
+    end
 end
 
 %==========================================================================

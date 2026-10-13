@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-13 — WP-133 DONE (PR #157, merge 6c24668; CI GREEN on 5eedff9 in round 4, after three red rounds on c111b16 / 8185116 / de70381, every cause in WP-133's own code: ci_gate 674/674); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.68; no code change, no version (6.20.0 stays, 686 tests); WP-134 (VCE + kernel) is next, WP-135 (front end, loader, diagnostics) after it.
+Last substantive update: 2026-10-13 — WP-134 OPEN (tier B, model Claude Opus 5.5; the plan the user accepted with "Ja, mach WP-133 so wie vorgeschlagen", started after the closure #158): the noise estimator and the kernel of the third whole-code review -- a common prior with estimate "scale" is in the stop rule (PriorDev; pending until its first update), the probe uses acc.commonFactor() (not chol of the squared normals), a filter law's dense form is guarded by maxDenseArc (and the Manual corrected), the robust scale's near-tie reference is the 75th percentile, VAR(1) declarable, SkipThreshold per stream, an arc without redundancy held; the lows (armaACV to its decay, VAR(0), crossCorr, ar2arma, acf per-row sigma, uneven grid, Sigma2_0, AvgTail, jointModelOpt pass/factors, robust sweep without prior arcs, seedUsed, se for one probe, the per-group Hutchinson check, smallGroups, vce:badAccFcn); 19 tests; version 6.21.0; WP-135 next.
+Preceding entry: Last substantive update: 2026-10-13 — WP-133 DONE (PR #157, merge 6c24668; CI GREEN on 5eedff9 in round 4, after three red rounds on c111b16 / 8185116 / de70381, every cause in WP-133's own code: ci_gate 674/674); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.68; no code change, no version (6.20.0 stays, 686 tests); WP-134 (VCE + kernel) is next, WP-135 (front end, loader, diagnostics) after it.
 Preceding entry: Last substantive update: 2026-10-13 — third whole-code review (correctness and missing tests; six lane reviewers against v6.19.0, every finding re-checked: 1 high + 19 medium + ~50 low, §12.68); WP-133 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-133 so wie vorgeschlagen"): the solve core, robust and Gauss-Newton -- a row of weight 0 is no observation (out of the dof, "rejected" in the verdict; weights >= 0 and finite), the nugget whitener rotates a deleted epoch onto its own rows, adjustRobust's replay is the returned solve's, tsvd truncates and a ridge counts m - u + tr(Q Lambda) without its penalty, Gauss-Newton's residuals at the estimate and a non-finite trial step rejected, the joint hard solution's truncation reaches residuals, a sparse B, a rank-0 local block, a prior without redundancy, a zero prior row, a coupled LocalBlockSize; 9 tests; version 6.20.0; WP-134 (VCE + kernel) and WP-135 (front end, loader, diagnostics) planned.
 Preceding entry: Last substantive update: 2026-10-13 — WP-132 DONE (PR #155, merge 019c839; CI GREEN on 8005dbe, first round: ci_gate 665/665); closure PR (user decision: "Gemergt, mach den Abschluss-PR"): the ledger row and §12.67 -- the second whole-code review (§12.63) is closed without residue: all 14 findings and all 17 lows fixed in the tree; no code change, no version (6.19.0 stays, 677 tests).
 Preceding entry: Last substantive update: 2026-10-13 — WP-132 OPEN (tier B, model Claude Opus 5.5; user: "Go ahead and fix the open issues"): the five lows §12.65 recorded -- chi2Inv converges in the far lower tail (small-x seed, Newton on log F, a bracket), robust IRLS returns the factors its solve used, residuals' Cyy carry the repaired s0^2 after a refused vtv (BlockAccumulator.commonCofactor), Sigma2_0 weights pass 1 per arc (the arcs pinned on an enumeration first), the arc factor takes the whole law as its component in closed form (redundancyLags .sLaw/.omegaLaw; no Toeplitz assumption); 4 tests; version 6.19.0; §12.66.
@@ -9799,7 +9800,7 @@ by WP-132: `dev/validation/wp132_chi2inv_mirror.py`, `wp132_arc_component_mirror
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
 | 133 | review 3 findings 2, 3, 4, 6, 14, 17, 18 and the solve-core lows: rows of weight 0 out of the dof and "rejected" in the verdict (`arc.excluded`: `makeLoader` day field and robust / epoch factor 0, `batchSystem` p = 0; `QRSystem`/`NormalEqSystem.discount`, `BlockAccumulator.excludedRows`; `residuals`, `redundancy`, `streamContribution`, `verdict.source` p = 0, `diagnose` `D.excludedIdx` / `D.quad.rejected`, `snoop`, `Results.reliability`, `report`); weights >= 0 and finite; the nugget whitener's deletion rotation (`covModel>nuggetRows`); `adjustRobust` `copyMap`; tsvd truncation, ridge dof and penalty (`regularisationDefect`, `ridgePenalty`, `sol.regDefect`); Gauss-Newton `sol.xLin` and `trialAccumulate`; joint `hardSolution` `sol.truncation`; full factors in `BlockCofactor`/`rankReduced`; `onFactor` (rank-0 block); `noRedundancy`; `zeroRow`; `notBlockDiagonal`; `decorrFactor` help (lower triangular); **version 6.20.0** | 132 (PR #155 merged 019c839; closure #156) | DONE (2026-10-13, PR #157, merge 6c24668; CI GREEN on 5eedff9 in round 4: ci_gate 674/674) |
-| 134 | review 3 findings 1, 7, 8, 9, 10, 15, 20 and the VCE / kernel lows (finding 8: a named refusal above `maxDenseArc` and the Manual corrected -- user decision; a structured sweep path would be its own WP) | 133 (PR #157 merged 6c24668) | PLANNED |
+| 134 | review 3 findings 1, 7, 8, 9, 10, 15, 20 and the VCE / kernel lows (finding 8: a named refusal above `maxDenseArc` and the Manual corrected -- user decision; a structured sweep path would be its own WP): `adjustVCEjoint` PriorDev / `probeFactor` / `skipGuard` / AvgTail per group / Sigma2_0 values / robust sweep without `prior_*` arcs; `fit>priorFor` dev and pending; `covModel` guarded dense form, VAR(1), acf per-row sigma, arma scalar sigma, `unevenGrid`; `arcVarianceFactors` `.held`; `robustWeights` 75th-percentile reference and tuning; `armaACV` to its decay and `truncated`; `varACV` p = 0; `crossCorr:badLength`; `ar2arma` normalised; `jointModelOpt` .pass / .epochWeights (fit>withPass gone); `streamContribution` .seedUsed, se NaN for one probe; `redundancy` per-group Hutchinson check, `.smallGroups`; `vce:badAccFcn` reachable; **version 6.21.0** | 133 (PR #157 merged 6c24668) | OPEN (2026-10-13, tier B) |
 | 135 | review 3 findings 5, 11, 12, 13, 16, 19 and the front-end / loader / diagnostics lows (finding 19: an n-dependent recalibration of the contamination ladder, a measurement; the MDB under the MAD test labelled the Baarda value -- user decisions) | 133 (PR #157 merged 6c24668) | PLANNED |
 
 **The user's request (2026-10-13):** "REVIEW THE ENTIRE CODE FOR correctness and missing tests", then
@@ -9993,3 +9994,87 @@ it also takes `test_speedBudget>testArmaACVIsNearLinearInLags`, red on the user'
 `main` there, green on A8 -- a measurement first, the bound is not widened), then WP-135 (front end,
 loader, diagnostics: findings 5, 11, 12, 13, 16, 19 and their lows). Mirrors added by WP-133:
 `dev/validation/wp133_nugget_rotation_mirror.py`, `wp133_regularised_dof_mirror.py`.
+
+### WP-134, finding by finding (2026-10-13, model Claude Opus 5.5)
+
+**Start.** Tier B: no MATLAB in the container; the numerical claims rest on the review's mirrors
+(lane 3, lane 5, lane 6 in the session scratchpad), on `dev/validation/wp134_kernel_mirror.py` (new)
+and on CI. Scope frozen on the review record above: findings 1, 7, 8, 9, 10, 15, 20, the VCE and
+kernel lows, and the redundancy / contribution lows of lane 6 except `outliers.mask` (WP-135, a
+diagnostics contract). The armaACV speed point of the user's second machine is taken here (kernel).
+
+**1 (high) -- the common prior in the stop rule.** `adjustVCEjoint` takes `PriorDev`, @() [dev,
+pending]: the change of the components the accFcn updates itself. `fit` passes the prior groups'
+largest |Omega/r - 1| of the pass's Koch-Kusche step and `pending` = a "scale" group in this solve
+but not yet updated (from == pass); `fit>priorFor` leaves both in priState. The loop converges only
+when dev <= Tol and nothing is pending; `out.history.priorDev`. Theory (stop rule with the prior and
+the smoothed-shape criterion), Manual ch. 5 and fit's help say so. Tests: the engine plumbing
+(`test_ellmer>test_joint_prior_dev_is_in_the_stop_rule`: a "none" stream converges on pass 1, pending
+or dev 0.5 keep the loop going) and the fit path (`test_vcePolicy>testCommonPriorIsInTheStopRule`:
+every stream "none", a damping prior at 0.01 -- updated, nIter >= 2, priorDev <= Tol when converged).
+
+**7 -- the probe's factor.** `adjustVCEjoint>probeFactor`: `acc.commonFactor()` (QR's R1 with the prior
+folded in by QR; the normal backend's chol) instead of chol of the squared reduced normals; notPD on a
+pivot below 1e3 eps (QRSystem.RankTol -- the loop refuses nothing the solve accepted). Test: a common
+column scaled by 1e-8 (cond ~ 1e8: chol of R'R fails) is an exact reparametrisation -- law, factors
+and the scaled x agree with the unscaled run to 1e-8 (`test_joint_common_factor_is_scale_equivariant`).
+`redundancy` and `streamContribution` keep their chol of N (lane 6: Level 2's drift is the
+conditioning of diag(N^-1 N_g) itself, not the squaring) -- recorded, not changed.
+
+**8 -- the dense sweep (user decision: a named refusal, the Manual corrected).** `covModel` wraps a
+filter law's Cfcn in the `maxDenseArc` guard at the size it is asked for (`guardedForm`, rows / d for
+'var'); `denseArcGuard` has a 'sweep' message. Only the joint sweep builds that form. Manual ch. 5 and
+ch. 10, `Options` help: under Estimate "noise" a filter speeds up the solve only. Test:
+`test_reliability>testFilterLawDenseFormIsGuardedToo`. A structured sweep path stays its own WP.
+
+**9 -- the robust scale.** The near-tie reference is the 75th percentile of the deviations, not the
+largest (the worst blunder). Mirror: a 5e12 / 1e13 blunder stays on the MAD path (s 1.05, Huber x
++0.026, 8-sigma rows 0.175) where the old rule went to the std (s 1.6e11, x +2.1e8, factors 1); the
+R7-21 tie and near-tie fixtures still fall back. Tuning values validated (finite, > 0, igg3 k0 < k1;
+`badTuning`). Test: `test_errorDoctrine>testRobustWeightsSurviveAnExtremeBlunder`.
+
+**10 -- VAR(1).** `covModel 'var'` refuses ndims > 3 only (a d x d x 1 is ndims 2). `varACV` takes a
+VAR(0) (white). Test: `test_signalCore>testCovModelTakesAVar1` (whitener against the dense
+decorrelation of its own Cfcn, whittle(G, 1)'s output, the VAR(0)).
+
+**15 -- skips per stream.** `adjustVCEjoint>skipGuard`: the rate is per stream and checked before
+`noArcs` (whose message now says "none enumerated, or every one skipped or inactive"). Test: two
+streams of five arcs, two of kbr's non-PD in pass 2 -- 20 % overall (the old rule passed), 40 % of
+the stream: refused at 0.2, passed at 0.4 (`test_joint_skip_rate_is_per_stream`).
+
+**20 -- an arc without redundancy.** `arcVarianceFactors`: a denominator <= 0 holds the arc (alpha2 =
+1, `.held`, `arcVarianceFactors:held` once); a negative one reached the clamp and gave the arc 1e8 the
+weight. Test: `test_arcVarianceFactors_holds_an_arc_without_redundancy`; the pooled-level test now
+names the held arcs.
+
+**Lows.** Kernel: `armaACV` grows the response from 512 to its decay or 2^20 for ANY n, one FFT of nh +
+n - 1 points, and reports a truncation at the cap (`armaACV:truncated`, rho^(2 nh) > eps). Mirror:
+0.99995 at n = 2 was 1.4e-3 low, now 1.4e-13; 0.99999 (27 % low) now 7.8e-10 and reported; the same
+r for every n. The speed point now times FFTs of 16 384 / 4 096 points instead of 65 536 / 16 384 --
+the out-of-cache size the second machine paid 12-17x for; a prediction, measured on CI and the user's
+machines, the bound 8 not widened (`test_precision>testArmaAcvOfANearUnitRootIsTheSameLawForAnyN`).
+`crossCorr:badLength` (partial epoch, one epoch); `ar2arma` normalises aHi(1) (bitwise metamorphic
+test, c = 2); `armaWhiten`'s overlap note names the MA memory. VCE: `jointModelOpt` sets uo.pass and
+uo.epochWeights (fit's `withPass` deleted -- one place); the robust sweep leaves `prior_*` arcs out
+(`test_fit>testRobustJointSweepLeavesThePriorArcsOut`); Sigma2_0 values validated; AvgTail averages
+every pool group (`tailAverage`); `acf` honours a per-row sigma (C = D R D), `arma` refuses a vector
+sigma by name, a psd / arma law on an uneven grid is reported (`covModel:unevenGrid`; the Manual's
+advice to remove rejected epochs replaced by "zero them and mark them excluded"); the "ar" whitener
+under "noise" is documented as an approximation of the estimated shape (lane 3: AR(1) 1.4 %, 1/f up
+to 90 % per bin) -- documented, not changed. Help nits: `arcVarianceFactors` (the closed-form pair, the
+absolute factors), `notPD` / `noArcs` texts, `traceEstimate`'s seed, `vce:badAccFcn` reachable (accFcn
+untyped in the arguments block). Redundancy / contribution: `streamContribution` .se NaN for one probe
+and `.seedUsed` (contribution's Level 2 passes it on), its help on the sums with a common prior and
+the per-group memory; `redundancy`'s 'hutchinson' check is the streamed per-group trace against the
+exact .tcc (it estimated tr(I), exact for Rademacher probes whatever the conditioning);
+`red.smallGroups`.
+
+**Bookkeeping.** New identifiers `arcVarianceFactors:held`, `armaACV:truncated`, `covModel:unevenGrid`
+(warnings), `crossCorr:badLength`; fired now: `ar2arma:degenerate`, `vce:badAccFcn` (baseline rows
+deleted); six stale category exemptions deleted (ar2arma / metamorphic, crossCorr / robustness,
+levinsonDurbin / metamorphic, robustWeights / precision, util.log / precision and reference); ceilings:
+`adjustVCEjoint` 288 (the new blocks are local functions: probeFactor, skipGuard, logLaws,
+tailAverage), `redundancy` 178; `covModel`'s new pieces are local functions (rowSigma, gridGuard,
+guardedForm) and it stays within 159; `streamContribution`'s help kept at 400 lines.
+
+**Tests 705 = 686 + 19.** NOT validated before CI: no MATLAB in the container (tier B).

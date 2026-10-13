@@ -15,6 +15,8 @@ function tests = test_fit
 %
 %   Run: runtests('tests/test_fit')
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (third review): the robust joint sweep leaves the prior pseudo-arcs out.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: zero weights are rejected
 %   rows, robust rejections leave the dof, Gauss-Newton residuals and a
 %   non-finite trial point (review 3 findings 2, 4, 14, 17). With assistance from Claude
@@ -2267,4 +2269,22 @@ function testDemoPriorsIsTheWorkedLayoutExample(tc)
     tc.verifyLessThan(s.datumGap, 1e-6, 'moving the datum does not move the signal');
     tc.verifyLessThan(max(abs(s.zSignal)), 3, 'the signal is recovered within 3 sigma');
     tc.verifyGreaterThan(s.priorLevel, 0, 'the prior group is a stream with a level');
+end
+
+function testRobustJointSweepLeavesThePriorArcsOut(tc)
+% categories: contract, robustness
+    % WP-134 (review 3 low): the robust joint sweep counted a local prior
+    % group's pseudo-arc as live epochs -- in the collapse guard, the
+    % breakdown fraction and the hard solution's tau (the WP-108 defect that
+    % adjustRobust had fixed). The sweep leaves them out: their factor stays 1
+    % (no key), and R.noise.robust lists the data epochs only.
+    [d, e, cj] = priorFixture();
+    d.systems(1).priors = struct('L', e(cj), 'x0', 0, 'sigma', 1e6, ...
+                                 'from', 1, 'name', 'loose', 'estimate', "none");
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % MaxPasses 2: a contract point
+    R = lsqvce.fit(d, lsqvce.Options(Robust="huber", Estimate="noise", Pool="stream", ...
+                                     ArcFactors=false, MaxPasses=2, Verbose=false));
+    obsT = string(R.noise.robust.keys(:, 2));
+    tc.verifyFalse(any(startsWith(obsT, "prior_")), 'no prior pseudo-arc in the robust sweep');
+    tc.verifyEqual(numel(R.noise.robust.factor), 2 * 3 * 2 * 300, 'one factor per data epoch');
 end

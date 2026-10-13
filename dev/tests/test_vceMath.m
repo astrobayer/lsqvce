@@ -15,6 +15,8 @@ function tests = test_vceMath
 %
 %   See also TEST_PRECISION, TEST_RELIABILITY, TEST_SPEED
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (third review): crossCorr refuses a partial epoch.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: an all-zero prior row is
 %   refused (lsqvce:prior:zeroRow). With assistance from Claude
 %   (Anthropic), model Claude Opus 5.5.
@@ -665,4 +667,13 @@ function Q = cofactorOf(Ncc_red, Nll, Nlc)
         col = col + nl;
     end
     Q = lsqvce.engine.BlockCofactor(chol((Ncc_red + Ncc_red.') / 2), blocks);
+end
+
+function testCrossCorrRefusesPartialEpochs(tc)
+% categories: contract, robustness
+    % WP-134 (review 3 low): a trailing partial epoch was dropped silently,
+    % and a single epoch raised an unnamed index error; both are refused by
+    % name (lsqvce:crossCorr:badLength).
+    tc.verifyError(@() lsqvce.kernel.crossCorr(sin((1:151).'), 3), 'lsqvce:crossCorr:badLength');
+    tc.verifyError(@() lsqvce.kernel.crossCorr([1; 2; 3], 3), 'lsqvce:crossCorr:badLength');
 end

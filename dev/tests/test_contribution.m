@@ -13,6 +13,9 @@ function tests = test_contribution
 %   by test_reliability (three systems, obsTypes pos/kbr), built through
 %   synthLoader so the arcs are deterministic across passes.
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (third review): one probe has no se, seedUsed replays; the hutchinson check is
+%   per group; vce:badAccFcn is reachable.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: Level 2 against Level 1
 %   grouped by obsType (the exact local term and the streamed trace). With
 %   assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -540,4 +543,55 @@ function specs = specsFor(cfg)
         specs(end+1) = struct('sysID', s, 'nl', cfg.nl, 'nc', cfg.nc, ...
                               'loader', binder(cfg, s)); %#ok<AGROW>
     end
+end
+
+%% ===================================================== WP-134 (third review)
+function test_stream_one_probe_has_no_se_and_the_seed_replays(tc)
+% categories: contract, robustness | tags: provenance
+    % WP-134 (review 3 lows): with one probe std() of a scalar is 0, so .se and
+    % .relSE read 0 -- the Monte-Carlo estimate reported as exact; NaN now.
+    % And an unseeded run returns the seed it drew (.seedUsed): passing it
+    % back replays the probes bitwise.
+    [acc, sol] = solvedProblem(tc);
+    s1 = lsqvce.engine.streamContribution(acc, sol, 'Probes', 1, 'Seed', 3, 'WantDiag', false);
+    verifyTrue(tc, all(isnan([s1.group.se])) && all(isnan([s1.group.relSE])), 'one draw has no spread');
+    verifyEqual(tc, s1.seedUsed, 3);
+    a = lsqvce.engine.streamContribution(acc, sol, 'Probes', 20, 'WantDiag', false);
+    verifyNotEmpty(tc, a.seedUsed);
+    b = lsqvce.engine.streamContribution(acc, sol, 'Probes', 20, 'Seed', a.seedUsed, 'WantDiag', false);
+    % tol: 0 -- the same seed, the same probes, the same arithmetic
+    verifyEqual(tc, [b.group.trace], [a.group.trace], 'AbsTol', 0, 'the returned seed replays the run');
+end
+
+function test_redundancy_hutchinson_checks_the_group_traces(tc)
+% categories: contract, reference
+    % WP-134 (review 3 low): the 'hutchinson' check estimated
+    % tr(U^-T N U^-1) = tr(I) = nc, which Rademacher probes return EXACTLY
+    % (z'z = nc) whatever the probe count -- it checked nothing but chol's
+    % rounding. It is the streamed per-group trace against the exact one now:
+    % the numbers streamContribution gives with the same seed, against
+    % red.group.tcc. The small groups are reported without Verbose.
+    [acc, sol] = solvedProblem(tc);
+    muteWarn(tc, 'lsqvce:redundancy:hutchinsonExperimental');
+    red = lsqvce.engine.redundancy(acc, sol, 'GroupBy', 'obsType', 'TraceMethod', 'hutchinson', ...
+              'Probes', 200, 'TraceSeed', 7, 'Verbose', false);
+    te = red.traceEstimate;
+    verifyEqual(tc, te.expected, [red.group.tcc]);
+    sc = lsqvce.engine.streamContribution(acc, sol, 'GroupBy', 'obsType', 'Groups', {red.group.key}, ...
+              'Probes', 200, 'Seed', 7, 'WantDiag', false);
+    % tol: 0 -- the one Hutchinson path, the same seed
+    verifyEqual(tc, te.value, [sc.group.trace], 'AbsTol', 0);
+    verifyEqual(tc, te.seedUsed, 7);
+    % tol: 1e-12 relative -- the documented norm ratio of the two vectors above
+    verifyEqual(tc, te.relErr, norm(te.value - te.expected) / norm(te.expected), 'RelTol', 1e-12);
+    verifyTrue(tc, iscell(red.smallGroups));
+end
+
+function test_vce_rejects_a_non_handle(tc)
+% categories: contract
+    % WP-134 (review 3 low): lsqvce:vce:badAccFcn was documented but never
+    % reachable -- the arguments block typed accFcn and refused first, with a
+    % MATLAB identifier. accFcn is untyped there now, so the documented
+    % identifier is the one a caller sees.
+    verifyError(tc, @() lsqvce.engine.vce(42), 'lsqvce:vce:badAccFcn');
 end

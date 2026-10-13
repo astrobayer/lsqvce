@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.20.0 — API Reference"
+title: "lsqvce 6.21.0 — API Reference"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 
@@ -574,7 +574,9 @@ LSQVCE.FIT  Fit a least-squares adjustment (optionally with VCE) to declared dat
     Estimate "noise"   the joint variance-component estimator (adjustVCEjoint):
                        one spectral shape per Pool group, one level per stream,
                        per-arc factors when ArcFactors; prior groups with
-                       estimate "scale" get their sigma by Helmert / Koch-Kusche
+                       estimate "scale" get their sigma by Helmert / Koch-Kusche,
+                       one step per pass from the previous solution, and the
+                       loop converges only when that step is below Tolerance too
     Robust "huber" | "igg3" | "bisquare"   IRLS on the same loop: alone it is
                        adjustRobust; with Estimate "noise" the robust pass runs
                        INSIDE the joint loop, R.noise.robust carries
@@ -756,10 +758,17 @@ LSQVCE.OPTIONS  The one settings object for LSQVCE.FIT: 12 knobs and 5 groups.
                                      lag for any Grid
                  Whitener "toeplitz"|"ar"|"arma"  how a PSD law whitens:
                                                   the estimated law and every
-                                                  declared 'psd' law
+                                                  declared 'psd' law; under
+                                                  Estimate "noise" a filter
+                                                  speeds up the SOLVE only (the
+                                                  sweep forms each arc's law
+                                                  densely, maxDenseArc), and
+                                                  "ar" approximates the
+                                                  estimated shape
                  Smooth 0                         moving average on the PSD
                  FreezeRedundancy 1               components below it hold
-                 SkipThreshold 0.2                skip RATE that refuses the pass
+                 SkipThreshold 0.2                skip RATE of ONE stream's arcs
+                                                  that refuses the pass
     RobustOpts   Tuning [], MaxIter 30, Tol 1e-8
     Diagnostics  Alpha 1e-3, Bonferroni true, Beta 0.2, RMin 0.01, RWeak 0.1,
                  Test "auto"|"pope"|"baarda"|"mad", RobustCheck true,
@@ -1445,3 +1454,7 @@ Every identifier the package raises (generated from the identifier catalogue, wh
 | `lsqvce:accum:noRedundancy` | engine.BlockAccumulator | error | v6.20.0 |
 | `lsqvce:accum:notBlockDiagonal` | engine.BlockAccumulator | warning | v6.20.0 |
 | `lsqvce:prior:zeroRow` | engine.CommonPrior | error | v6.20.0 |
+| `lsqvce:arcVarianceFactors:held` | engine.arcVarianceFactors | warning | v6.21.0 |
+| `lsqvce:armaACV:truncated` | kernel.armaACV | warning | v6.21.0 |
+| `lsqvce:covModel:unevenGrid` | engine.covModel | warning | v6.21.0 |
+| `lsqvce:crossCorr:badLength` | kernel.crossCorr | error | v6.21.0 |

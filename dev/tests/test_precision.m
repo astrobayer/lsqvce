@@ -8,6 +8,8 @@ function tests = test_precision
 %
 %   See also TEST_RELIABILITY, TEST_SPEED, TEST_LSQACCUM
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (third review): armaACV of a near-unit root is the same law for any n.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: armaACV of a sparse AR
 %   polynomial. With assistance from Claude (Anthropic), model Claude Opus 5.5.
     tests = functiontests(localfunctions);
@@ -944,4 +946,32 @@ function addAllSystems(acc, cfg, days)
     for s = cfg.sats
         acc.addSystem(s, cfg.nl, binder(cfg, s), days);
     end
+end
+
+function testArmaAcvOfANearUnitRootIsTheSameLawForAnyN(tc)
+% categories: precision, reference, robustness
+% WP-134 (review 3 low): the impulse response started at max(4n, 512) and
+% doubled at most 7 times, so for n <= 128 it stopped at 65 536 samples, not
+% the 2^20 the cap promised: an AR(1) at 0.99995 gave r(0) 1.4e-3 low at
+% n = 2 and right at n = 1000 -- one law, two covariances
+% (dev/validation/wp134_kernel_mirror.py). The length follows the decay
+% alone now. Reference: the AR(1), r(k) = phi^k / (1 - phi^2).
+    phi = 0.99995;
+    r2 = lsqvce.kernel.armaACV([1 -phi], 1, 2);
+    % tol: 1e-10 relative -- the response decays to eps^2 of its energy within
+    % the cap (mirror: 1.4e-13), the rest is FFT rounding on r(0) = 1e4
+    tc.verifyEqual(r2, [1; phi] / (1 - phi^2), 'RelTol', 1e-10);
+    r1000 = lsqvce.kernel.armaACV([1 -phi], 1, 1000);
+    % tol: 1e-12 relative -- the same response (it no longer depends on n)
+    tc.verifyEqual(r1000(1:2), r2, 'RelTol', 1e-12);
+    % beyond the cap (|root| 0.99999) the response is truncated at 2^20
+    % samples, r(0) low by phi^(2^21) = 7.6e-10 relative -- and it is said
+    muteWarn(tc, 'lsqvce:armaACV:truncated');
+    lsqvce.util.log.inventory('reset');
+    p5 = 0.99999;
+    r5 = lsqvce.kernel.armaACV([1 -p5], 1, 2);
+    tc.verifyTrue(any(strcmp(lsqvce.util.log.inventory(), 'lsqvce:armaACV:truncated')));
+    % tol: 1e-8 relative -- the reported truncation, p5^(2^21) = 7.6e-10
+    tc.verifyEqual(r5(1), 1 / (1 - p5^2), 'RelTol', 1e-8);
+    lsqvce.util.log.inventory('reset');
 end

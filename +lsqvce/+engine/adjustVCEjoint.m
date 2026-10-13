@@ -27,7 +27,9 @@ function out = adjustVCEjoint(accFcn, opt)
 %     1-3  build Delta_l, A; form Sigma from the current model; decorrelate
 %            -> the caller's accFcn does this (see INPUT below)
 %     4-5  accumulate N, n; factor N = U'U and solve
-%            -> acc.solve() and chol(acc.reducedNormalMatrix())
+%            -> acc.solve() and acc.commonFactor() (the backend's own
+%               square root, the prior folded in -- WP-134; chol of the
+%               squared normals before)
 %     6    draw Zbar and form U^-1 Zbar ONCE for all arcs
 %            -> LSQVCE.ENGINE.SHAREDPROBE
 %     7    decorrelated residuals ebar = W^-T (l - A x - B y), the FULL
@@ -82,7 +84,8 @@ function out = adjustVCEjoint(accFcn, opt)
 %     'Sigma2_0'  M x 1 | [] starting arc factors (default all ones, eq. 6.5.62),
 %                            aligned to out.arcKeys; they weight pass 1 per arc
 %                            (WP-132), at the price of one extra accumulation
-%                            that enumerates the arcs first
+%                            that enumerates the arcs first; finite and > 0
+%                            (WP-134: a 0 reached the clamp, a NaN stayed)
 %     'MaxIter'   1x1 int    outer iterations (default 10)
 %     'Tol'       1x1        convergence on max|alpha2 - 1| (default 1e-2)
 %     'Probes'    1x1 int    Z Hutchinson probes (default 100, Ellmer's value)
@@ -157,7 +160,9 @@ function out = adjustVCEjoint(accFcn, opt)
 %              production guidance is open loop or <= 3 damped passes.
 %              'none' is bitwise the old behaviour.
 %     'AvgTail' 1x1 integer >= 0, default 0.  Polyak averaging of the
-%              RETURNED spectrum over the last AvgTail passes (log domain);
+%              RETURNED spectrum over the last AvgTail passes (log domain) --
+%              every pool group's law (out.Sgroups / Cgroups, which the final
+%              solve reads), not only out.S (WP-134);
 %              (honest r6 claim: helps the damped loop settle; cannot
 %              rescue an undamped collapse, and longer tails average over
 %              late-pass drift -- keep it <= 4) and does nothing useful
@@ -173,6 +178,18 @@ function out = adjustVCEjoint(accFcn, opt)
 %                return false to stop after this pass)           default []
 %     'OnPassContext' struct  fields merged into every ctx (lsqvce.fit
 %                passes .data and .processingOptions)            default struct()
+%     'SkipThreshold' 1x1 in [0, 1]  the largest fraction of ONE STREAM's arcs a
+%                pass may skip (gap / nonPD) before it is refused (default 0.2;
+%                WP-134: it was the rate over all arcs, so a small stream could
+%                be skipped whole among large ones, silently)
+%     'PriorDev' [] | @() [dev, pending]  components the accFcn updates itself
+%                -- lsqvce.fit's common prior groups with estimate "scale"
+%                (Koch-Kusche, from model.lastSol): dev the largest relative
+%                variance change of this pass's update, pending true while a
+%                group is in the solve but not yet updated. The loop converges
+%                only when dev <= Tol and nothing is pending (WP-134, review 3
+%                finding 1: the prior was outside the stop rule, and a loop that
+%                settled on pass 1 never estimated it).   default []
 %
 %   OUTPUT
 %     out  1x1 struct
@@ -206,9 +223,11 @@ function out = adjustVCEjoint(accFcn, opt)
 %                             its previous factor
 %       .acc       1x1        the final accumulator
 %       .sol       1x1        the final solution struct
-%       .converged 1x1 logical whether max|alpha2-1| fell below Tol
+%       .converged 1x1 logical whether max|alpha2-1|, every factor's change
+%                             and PriorDev's change fell below Tol
 %       .nIter     1x1        outer iterations actually run
-%       .history   struct     .maxDev (nIter x 1), .S (nIter x L)
+%       .history   struct     .maxDev (nIter x 1), .S (nIter x L), .levelDev,
+%                             .priorDev (nIter x 1, 0 without PriorDev)
 %
 %   EXAMPLE
 %     accFcn = @(model) buildAccumulatorWithModel(cfg, model);
@@ -220,17 +239,22 @@ function out = adjustVCEjoint(accFcn, opt)
 %     lsqvce:adjustVCEjoint:needCfcn  the joint mode needs a cross-covariance
 %                                     function and none was supplied
 %     lsqvce:adjustVCEjoint:badS0     the starting spectrum is malformed
-%     lsqvce:adjustVCEjoint:notPD     the joint covariance is not positive
-%                                     definite, so it cannot be factored
+%     lsqvce:adjustVCEjoint:notPD     the reduced common normal matrix (the
+%                                     prior included) has no factor: singular to
+%                                     the QR solve's own pivot tolerance, or not
+%                                     positive definite on the normal backend
 %     lsqvce:adjustVCEjoint:skipThreshold  a pass skipped more than
-%                                   SkipThreshold of the enumerated arcs (R5 M1)
+%                                   SkipThreshold of one stream's arcs (R5 M1;
+%                                   per stream since WP-134)
 %     lsqvce:adjustVCEjoint:badAxisRows  a multi-axis arc whose row count is not a
 %                                   multiple of its axis count (R6 WP-90: an arc
 %                                   carrying a per-epoch Cep, scalar or multi-axis,
 %                                   is descaled per epoch before its lag statistics;
 %                                   the former noCep refusal is gone -- the loader
 %                                   composes D = I and says so once)
-%     lsqvce:adjustVCEjoint:noArcs    a system declares no arcs
+%     lsqvce:adjustVCEjoint:noArcs    no arc produced statistics in a pass: none
+%                                     was enumerated, or every one was skipped
+%                                     or inactive under SkipThreshold = 1
 %     lsqvce:adjustVCEjoint:collapsed the influence function left fewer live
 %                                     EPOCHS than parameters + 1: a bodily
 %                                     residual offset or near-total
@@ -267,6 +291,14 @@ function out = adjustVCEjoint(accFcn, opt)
 %   See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
 %            LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (third review, findings 1, 7,
+%   15 and lows): PriorDev puts the accFcn's own components (fit's prior
+%   groups) into the stop rule; the shared probe uses acc.commonFactor(),
+%   not chol of the squared normals (notPD on cond(A) ~ 3e8 the QR solve
+%   accepts); SkipThreshold is per stream and checked before noArcs; the
+%   robust sweep leaves the prior pseudo-arcs out (they counted as live
+%   epochs); Sigma2_0 values validated; AvgTail averages every pool group.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-133 (review 3 finding 18): the
 %   hard solution's rejected rows leave sol.dof through the loader's
 %   arc.excluded, and sol.truncation carries tau, so lsqvce.engine.residuals
@@ -379,7 +411,8 @@ function out = adjustVCEjoint(accFcn, opt)
 %                                        is a SKIP, a vanished enumeration
 %                                        entry is an identity error) (WP-34)
 %     lsqvce:adjustVCEjoint:badSigma2_0  Sigma2_0 does not match the pass-1
-%                                        arc count (align to out.arcKeys)
+%                                        arc count (align to out.arcKeys), or
+%                                        holds a value not finite and > 0
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
 %   WP-64a): the ENGINE tier leaves the USER surface; every qualified
 %   reference was rewritten mechanically by docs_src/refactor_tiers.py.
@@ -423,6 +456,7 @@ arguments
                                  % with the ctx below (see lsqvce.util.onPass); return
                                  % false to stop the loop (stopReason "userStop")
     opt.OnPassContext struct = struct()   % extra ctx fields (fit: data, processingOptions)
+    opt.PriorDev = []            % WP-134: @() [dev, pending] of the accFcn's own components
     opt.Verbose  (1,1) logical = false
 end
     o = opt;
@@ -447,10 +481,17 @@ end
              'S0 must be %d finite non-negative bin amplitudes, not all zero (got %d entries).', nLag, numel(S));
     end
     S = S / (Kc(1, :) * S);  C = Kc * S;     % r(0) = 1: the law is a shape
+    if ~isempty(o.Sigma2_0) && ~all(isfinite(o.Sigma2_0(:)) & o.Sigma2_0(:) > 0)
+        % WP-134: a 0 skipped the arc in arcFactorMap but reached the clamp
+        % (1e8 times the weight next pass); a NaN stayed NaN in out.sigma2
+        error('lsqvce:adjustVCEjoint:badSigma2_0', ...
+              'Sigma2_0 must hold finite factors > 0 (got %s).', mat2str(o.Sigma2_0(:).', 3));
+    end
     sigma2 = o.Sigma2_0(:);              % may be empty; sized on first sweep
 
     hist = struct('maxDev', [], 'S', [], 'skips', {cell(0,3)}, ...
-                  'streams', {{}}, 'sigma', [], 'white', [], 'whitePval', [], 'levelDev', []);
+                  'streams', {{}}, 'sigma', [], 'white', [], 'whitePval', [], 'levelDev', [], ...
+                  'priorDev', []);
     converged = false;  userStop = false;
     accF = []; solF = [];
     Smap = containers.Map('KeyType', 'char', 'ValueType', 'any');   % R5 M3 3d: the law per pool group
@@ -462,6 +503,7 @@ end
     spreadHist = containers.Map('KeyType', 'char', 'ValueType', 'any');   % R6 WP-97 (F-01)
 
     shatTail = {};                               % WP-40 r2: AvgTail buffer
+    gTail = {};                                  % WP-134: ... and every pool group's law
     lastSol = [];                                % R5 M7 7b: the previous pass's solution
     robust = ~strcmp(o.Influence, "none");       % R6 WP-105
     W = containers.Map('KeyType', 'char', 'ValueType', 'any');   % per-epoch factors
@@ -518,18 +560,19 @@ end
                        'lastSol', lastSol, 'rowWeights', W);   % R6 WP-105: the robust factors
         acc   = accFcn(model);
         sol   = acc.solve();
+        % WP-134 (third review, finding 1): components the accFcn updates itself
+        % -- fit's common prior groups, one Koch-Kusche step per pass from the
+        % previous solution -- belong to the stop rule. The loop stopped on the
+        % arc factors and the law alone, and a run that settled on pass 1 (the
+        % group is first updated on pass 2) never estimated the prior at all:
+        % declared sigma 100 returned as 100, |x - x_true| 154 against 5.4.
+        priorDev = 0;  priorPending = false;
+        if ~isempty(o.PriorDev), [priorDev, priorPending] = o.PriorDev(); end
         lastSol = struct('x', sol.x(:), 'Cxx', sol.Cxx, 's0sq', sol.s0sq);
         accF  = acc;  solF = sol;
         s2Prev = sigma2;                     % R7-11: the levels this pass was weighted with
 
-        N = acc.reducedNormalMatrix();
-        [U, pd] = chol((N + N.')/2);      % upper: N = U'*U  (Ellmer's U)
-        if pd > 0
-            error('lsqvce:adjustVCEjoint:notPD', ...
-                 ['The reduced normal matrix is not positive definite at outer ' ...
-                  'iteration %d. Add constraints or a prior before estimating ' ...
-                  'the stochastic model.'], it);
-        end
+        U = probeFactor(acc, it);            % WP-134: the backend's own N = U'U (finding 7)
 
         % ---- step 6: the shared probe, ONCE for every arc -----------------
         sp = lsqvce.engine.sharedProbe(U, 'numProbes', o.Probes, 'seed', o.Seed);
@@ -540,23 +583,21 @@ end
         % one skip can no longer shift every later arc's factor by position.
         [Qb, Tb, qa, ta, keys, keysAll, skips, wstats, rowAll, streamAll, streamOf] = ...
             sweepArcs(acc, sol, sp.UiZ, nLag, v);
-        nArc = numel(keys);
-        if nArc == 0
-            error('lsqvce:adjustVCEjoint:noArcs', ...
-                  'No arcs were enumerated -- nothing to estimate from.');
-        end
         % R5 M1: a skip RATE above the threshold is a refusal, not a smaller
         % estimate. The skipped arcs keep their factors and the run continues
         % on the rest only while they are few; beyond SkipThreshold the law
         % estimated from the survivors would describe a different data set.
-        nAll = numel(keysAll);
-        if nAll > 0 && size(skips, 1) / nAll > o.SkipThreshold
-            error('lsqvce:adjustVCEjoint:skipThreshold', ...
-                 ['Pass %d skipped %d of %d arcs (%.0f %% > SkipThreshold %.0f %%): ' ...
-                  '%s. A noise law estimated from the remaining arcs would not ' ...
-                  'describe the data; fix the covariance model or raise ' ...
-                  'Options.SkipThreshold deliberately.'], it, size(skips, 1), nAll, ...
-                  100*size(skips, 1)/nAll, 100*o.SkipThreshold, skipSummary(skips));
+        % WP-134 (third review, finding 15): the rate is PER STREAM, as the
+        % Manual and the theory state -- over all arcs, a small stream skipped
+        % whole among large ones (10 of 110 arcs: 9 %) kept its declared level
+        % and could report converged; and it is checked BEFORE noArcs, whose
+        % "nothing enumerated" hid an all-skipped pass.
+        skipGuard(skips, keysAll, streamAll, it, o.SkipThreshold);
+        nArc = numel(keys);
+        if nArc == 0
+            error('lsqvce:adjustVCEjoint:noArcs', ...
+                  ['No arc produced statistics in pass %d: none was enumerated, or every ' ...
+                   'one was skipped or inactive (SkipThreshold %g).'], it, o.SkipThreshold);
         end
         if isempty(pinnedKeys)
             % Pass 1: pin the arc identity on the ENUMERATION (skipped arcs
@@ -673,8 +714,9 @@ end
         lvl = containers.Map('KeyType', 'char', 'ValueType', 'double');   % pooled level per stream
         for sk = unique(streamOf(:)).'
             cols = strcmp(streamOf, sk{1});
-            % R7 WP-111 part 3: the arc's component is its WHOLE covariance, so
-            % alpha2_m = r' Omega / r' s over all lags (qa / ta from sweepArcs)
+            % R7 WP-111 part 3: the arc's component is its WHOLE covariance T, so
+            % alpha2_m = etilde' T etilde / trace(Rbar T) (qa / ta from sweepArcs:
+            % redundancyLags .omegaLaw / .sLaw, WP-132)
             avk = lsqvce.engine.arcVarianceFactors(qa(cols), ta(cols), s2Applied(cols));   % 1 x M rows
             % R7 WP-115 part 3b (R7-12): the sweep deleted the REJECTED epochs, so
             % the stream's Helmert factor is that of a sample truncated at the
@@ -696,6 +738,7 @@ end
         % averaging cannot rescue an undamped collapse; mirror grid).
         if o.AvgTail > 0
             shatTail{end+1} = log(max(S, realmin));          %#ok<AGROW>
+            gTail{end+1} = logLaws(Smap);                    %#ok<AGROW>  WP-134: every group
         end
         % R5 M4 4b: a stream WITHOUT arc factors still needs its LEVEL estimated
         % (the PSD shape is normalised; the level rode on the arc factors).
@@ -774,6 +817,7 @@ end
         levelDev = 0;
         if any(okL), levelDev = max(abs(sigma2(okL) ./ s2Prev(okL) - 1)); end
         hist.levelDev(it,1) = levelDev;              %#ok<AGROW>
+        hist.priorDev(it,1) = priorDev;              %#ok<AGROW>  WP-134
         hist.S(it,:)       = S(:).';                 %#ok<AGROW>
         % R5 M4 4a: the per-stream pass record Results.convergence reads --
         % the stream's level factor and its Ljung-Box whiteness on the
@@ -801,7 +845,7 @@ end
         userStop = ~lsqvce.util.onPass(opt.OnPass, opt.OnPassContext, ctx);
 
         % ---- step 10: converged? -----------------------------------------
-        if pv.maxDev <= o.Tol && levelDev <= o.Tol
+        if pv.maxDev <= o.Tol && levelDev <= o.Tol && priorDev <= o.Tol && ~priorPending
             converged = true;
             break
         end
@@ -811,11 +855,11 @@ end
     if ~converged && ~userStop
         lsqvce.util.log.warn('lsqvce:adjustVCEjoint:notConverged', ...
            ['The joint stochastic model did not settle in %d outer iterations ' ...
-            '(last max|alpha2-1| = %.3e, last max level change %.3e, tol %.1e). ' ...
-            'Inspect out.history.S and out.history.levelDev: a spectrum that keeps ' ...
-            'moving usually means too few arcs per frequency, or a starting ' ...
-            'covariance far from the data.'], ...
-            o.MaxIter, hist.maxDev(end), hist.levelDev(end), o.Tol);
+            '(last max|alpha2-1| = %.3e, last max level change %.3e, last prior change ' ...
+            '%.3e, tol %.1e). Inspect out.history.S, .levelDev and .priorDev: a spectrum ' ...
+            'that keeps moving usually means too few arcs per frequency, a prior that ' ...
+            'keeps moving a declared sigma far from the data.'], ...
+            o.MaxIter, hist.maxDev(end), hist.levelDev(end), hist.priorDev(end), o.Tol);
     end
 
     arcSpreadGuard(spreadHist);          % R6 WP-97 (F-01): report, never silence
@@ -823,6 +867,10 @@ end
     if o.AvgTail > 0 && numel(shatTail) >= o.AvgTail
         S = exp(mean(cat(2, shatTail{end-o.AvgTail+1:end}), 2));
         S = S / (Kc(1, :) * S);  C = Kc * S;
+        % WP-134: every pool group's law too -- out.Sgroups kept the raw last
+        % pass (out.Sgroups('all') ~= out.S), and under Pool ~= "all" the final
+        % solve reads the groups, so the average never reached it
+        [Smap, Cmap] = tailAverage(Smap, Cmap, gTail(end-o.AvgTail+1:end), Kc);
     end
 
     % R7-11: the returned SOLUTION under the returned MODEL. The loop's last
@@ -1091,6 +1139,9 @@ function [uEp, keys, sizes, qEp, dEp] = epochResiduals(res)
 %   by an accuracy that carried its own zero weight made it look perfect,
 %   and the weights flipped on and off every pass, round 8: nZero 60 / 0 /
 %   55 / 0 ...).
+%   The local prior groups' pseudo-arcs (obsType prior_*) are left out
+%   (WP-134): their factor stays 1 (no key in the map), and they are not
+%   epochs of the collapse guard, the breakdown count or tau.
 %   OUTPUT uEp n_epochs x 1 (d = 1: the descaled residual; d > 1: the sign
 %          of the axes' sum, +1 for a zero sum -- chiCalibrated supplies the
 %          magnitude); keys A x 4 {sysID, obsType, day, arc}; sizes 1 x A
@@ -1101,6 +1152,10 @@ function [uEp, keys, sizes, qEp, dEp] = epochResiduals(res)
         S = res.sys(k);
         for j = 1:numel(S.obs)
             o = S.obs(j);
+            % WP-134: a local prior group's pseudo-arc is never re-weighted, and
+            % it is no epoch: it counted in the collapse guard's live epochs,
+            % the breakdown fraction and the hard solution's tau
+            if startsWith(char(string(o.obsType)), 'prior_'), continue, end
             v = o.v(:);  d = o.nAxis;  m = numel(v);
             if ~isempty(o.Cep)
                 Cep = o.Cep;
@@ -1412,6 +1467,73 @@ function s = skipSummary(skips)
     parts = cell(1, numel(why));
     for k = 1:numel(why), parts{k} = sprintf('%s: %d', why{k}, n(k)); end
     s = strjoin(parts, ', ');
+end
+
+function U = probeFactor(acc, it)
+%PROBEFACTOR  The square root N = U'U the shared probe uses (WP-134, review 3
+%   finding 7): acc.commonFactor(), the backend's own factor -- QR's R1 with
+%   the prior folded in by QR, or the chol the normal backend's solve() used.
+%   The probe needs ANY square root of N; chol of the SQUARED reduced normals
+%   refused runs of cond(A) ~ 3e8 that the QR solve accepts (up to ~4e12),
+%   and where it succeeded the probe term carried its error (4-25 %).
+%   ERRORS  lsqvce:adjustVCEjoint:notPD  no factor, or a pivot the solve refuses
+    why = '';
+    try
+        U = acc.commonFactor();
+    catch ME
+        U = NaN;  why = sprintf(' (%s)', ME.message);    % the normal backend's chol refused
+    end
+    dU = abs(diag(U));
+    % tol: 1e3*eps relative pivot -- QRSystem.RankTol, the pivot the solve
+    % itself refuses, so the loop refuses nothing the solve accepted
+    if isempty(dU) || ~all(isfinite(U(:))) || min(dU) <= 1e3 * eps * max(dU)
+        error('lsqvce:adjustVCEjoint:notPD', ...
+             ['The reduced common normal matrix (the prior included) has no factor at ' ...
+              'outer iteration %d%s: it is singular to the solve''s own pivot tolerance. ' ...
+              'Add constraints or a prior before estimating the stochastic model.'], it, why);
+    end
+end
+
+function skipGuard(skips, keysAll, streamAll, it, thr)
+%SKIPGUARD  Refuse a pass that skipped more than thr of ONE stream's arcs
+%   (WP-134, review 3 finding 15: the rate was over all arcs). skips S x 2
+%   {key, reason}; keysAll 1 x M and streamAll M x 1 aligned (sweepArcs).
+    if isempty(skips) || isempty(keysAll), return, end
+    [~, at] = ismember(skips(:, 1), keysAll);
+    skStream = streamAll(at);
+    for sk = unique(skStream(:)).'
+        nS = sum(strcmp(streamAll, sk{1}));
+        mine = strcmp(skStream, sk{1});
+        if nnz(mine) / nS > thr
+            error('lsqvce:adjustVCEjoint:skipThreshold', ...
+                 ['Pass %d skipped %d of the %d arcs of stream %s (%.0f %% > SkipThreshold ' ...
+                  '%.0f %%): %s. A noise law or level estimated from its remaining arcs would ' ...
+                  'not describe the stream; fix its covariance model or raise ' ...
+                  'Options.SkipThreshold deliberately.'], it, nnz(mine), nS, sk{1}, ...
+                  100 * nnz(mine) / nS, 100 * thr, skipSummary(skips(mine, :)));
+        end
+    end
+end
+
+function L = logLaws(Smap)
+%LOGLAWS  A snapshot of every pool group's law, log domain (AvgTail, WP-134).
+    L = containers.Map('KeyType', 'char', 'ValueType', 'any');
+    for g = keys(Smap)
+        L(g{1}) = log(max(Smap(g{1}), realmin));
+    end
+end
+
+function [Smap, Cmap] = tailAverage(Smap, Cmap, tail, Kc)
+%TAILAVERAGE  Polyak average of every pool group's law over the tail passes
+%   (log domain, r(0) = 1 again); a group not estimated on every tail pass
+%   keeps its last law (WP-134).
+    for g = keys(Smap)
+        if ~all(cellfun(@(t) isKey(t, g{1}), tail)), continue, end
+        Lg = cellfun(@(t) t(g{1}), tail, 'UniformOutput', false);
+        Sg = exp(mean(cat(2, Lg{:}), 2));
+        Smap(g{1}) = Sg / (Kc(1, :) * Sg);
+        Cmap(g{1}) = Kc * Smap(g{1});
+    end
 end
 
 function [keysAll, rowAll, streamAll] = enumerateArcs(acc)

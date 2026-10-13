@@ -38,12 +38,15 @@ function out = arcVarianceFactors(Q, T, sigma2, opt)
 %   INPUT
 %     Q        K x M double     per-arc numerators, one COLUMN per arc; the
 %                               joint estimator passes ONE row, the arc's whole
-%                               covariance as the component: Q = r' Omega,
-%                               T = r' s (r the arc's ACV, Omega / s its lag
-%                               sums) -- the exact Helmert factor of the arc
-%                               (R7 WP-111 part 3; it was the DCT-summed
-%                               C-weighted lag vector, Ellmer's eq. 6.5.27).
-%     T        K x M double     the matching denominators.
+%                               law T as the component: Q = etilde' T etilde,
+%                               T = trace(Rbar T) (LSQVCE.KERNEL.REDUNDANCYLAGS
+%                               .omegaLaw / .sLaw, WP-132; r' Omega / r' s
+%                               before, which assumed T Toeplitz) -- the exact
+%                               Helmert factor of the arc.
+%     T        K x M double     the matching denominators -- a redundancy,
+%                               which a probe estimate can make <= 0 on a short
+%                               arc with local parameters: such an arc is HELD
+%                               (alpha2 = 1, .held; WP-134)
 %     sigma2   M x 1 double     the CURRENT arc variance factors sigma2_m that
 %                               were used in the weighting (eq. 6.5.28 needs them).
 %
@@ -59,8 +62,16 @@ function out = arcVarianceFactors(Q, T, sigma2, opt)
 %       .gamma2   M x 1   the intermediate gamma2_m (eq. 6.5.28)
 %       .gammaBar 1x1     the normalising mean actually used
 %       .clamped  M x 1 logical  true where sigma2hat_m fell below ClampEps
-%                         (negative or degenerate alpha2) and was clamped to
-%                         it (WP-35, fixes F-05); all-false on healthy input
+%                         (a degenerate alpha2) and was clamped to it (WP-35,
+%                         fixes F-05); all-false on healthy input
+%       .held     M x 1 logical  true where the denominator was not positive
+%                         (no redundancy to estimate from): alpha2 = 1, the arc
+%                         keeps sigma2_m (WP-134; before, a negative probe
+%                         redundancy gave alpha2 < 0, the clamp floored the
+%                         VARIANCE at 1e-8 and the arc got 1e8 times the weight)
+%       NOTE  the joint estimator reads the ABSOLUTE factors gamma2_m (R7-09,
+%             WP-116: .sigma2 * gammaBar^2) -- its law is a shape, so the level
+%             lives in the factors; the relative form above is Ellmer's
 %       .meanType char    which mean was applied
 %       .pooled   1x1     the POOLED Helmert factor of the group as ONE
 %                         component, sum_m(alpha2_m-numerator * sigma2_m) /
@@ -92,9 +103,17 @@ function out = arcVarianceFactors(Q, T, sigma2, opt)
 %
 %   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 %     lsqvce:arcVarianceFactors:badMean          [warning] The normalising mean of the arc factors is X, which cannot scale anyt...
+%     lsqvce:arcVarianceFactors:held             [warning] arcs without a positive redundancy keep their
+%                                                factor this pass (WP-134) -- once per run
 %
 %   See also LSQVCE.ENGINE.PSDVCE, LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.ADJUSTVCEJOINT
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (third review, finding 20):
+%   an arc whose denominator (its probe-estimated redundancy) is not positive
+%   is held (alpha2 = 1, .held, warned once) -- a negative one passed and the
+%   clamp gave the arc 1e8 times the weight; the help names the closed-form
+%   pair and the absolute factors the joint estimator reads. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-12 (CEST, UTC+02:00), WP-126: output .pooled, the group's
 %   pooled Helmert factor (the joint estimator's stream level). With
 %   assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -145,9 +164,21 @@ end
     den     = sum(T, 1).';                       % M x 1
 
     alpha2      = ones(M,1);
-    ok          = isfinite(num) & isfinite(den) & (abs(den) > 0);
+    % WP-134 (third review, finding 20): the denominator is a redundancy; a
+    % probe estimate of it can be <= 0 on a short arc with locals (15-81 % of
+    % runs at a mean per-arc redundancy 0.33-0.5). There is nothing to estimate
+    % from: the arc is HELD (alpha2 = 1), as psdVCE holds such a bin.
+    ok          = isfinite(num) & isfinite(den) & den > 0;
+    held        = ~ok;
     alpha2(ok)  = num(ok) ./ den(ok);
     alpha2(~isfinite(alpha2)) = 1;
+    noRed = isfinite(num) & isfinite(den) & den <= 0;
+    if any(noRed)
+        lsqvce.util.log.warnOnce('lsqvce:arcVarianceFactors:held', ...
+            ['%d of %d arcs have no positive redundancy estimate (short arcs with local ' ...
+             'parameters, or too few probes): their factors are held this pass.'], ...
+            nnz(noRed), M);
+    end
 
     % ---- gamma detour, then normalise                       (6.5.28-6.5.30) --
     gamma2 = alpha2 .* sigma2;
@@ -162,7 +193,7 @@ end
             'anything. Leaving the arc factors unchanged this pass.'], gammaBar);
         out = struct('sigma2', sigma2, 'alpha2', alpha2, 'gamma2', gamma2, ...
                      'gammaBar', gammaBar, 'meanType', lower(o.MeanType), ...
-                     'clamped', false(size(sigma2)), 'pooled', pooled);
+                     'clamped', false(size(sigma2)), 'pooled', pooled, 'held', held);
         return
     end
     sigma2Hat = gamma2 / gammaBar^2;
@@ -192,7 +223,7 @@ end
 
     out = struct('sigma2', sigma2Hat, 'alpha2', alpha2, 'gamma2', gamma2, ...
                  'gammaBar', gammaBar, 'meanType', lower(o.MeanType), ...
-                 'clamped', clamped, 'pooled', pooled);
+                 'clamped', clamped, 'pooled', pooled, 'held', held);
 end
 
 function s = ternary(cond, a, b)

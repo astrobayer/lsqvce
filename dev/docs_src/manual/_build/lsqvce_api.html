@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.20.0 — API Reference</title>
+  <title>lsqvce 6.21.0 — API Reference</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.20.0 — API Reference</h1>
+<h1 class="title">lsqvce 6.21.0 — API Reference</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 </header>
@@ -1848,7 +1848,9 @@ declared data.</p>
     Estimate &quot;noise&quot;   the joint variance-component estimator (adjustVCEjoint):
                        one spectral shape per Pool group, one level per stream,
                        per-arc factors when ArcFactors; prior groups with
-                       estimate &quot;scale&quot; get their sigma by Helmert / Koch-Kusche
+                       estimate &quot;scale&quot; get their sigma by Helmert / Koch-Kusche,
+                       one step per pass from the previous solution, and the
+                       loop converges only when that step is below Tolerance too
     Robust &quot;huber&quot; | &quot;igg3&quot; | &quot;bisquare&quot;   IRLS on the same loop: alone it is
                        adjustRobust; with Estimate &quot;noise&quot; the robust pass runs
                        INSIDE the joint loop, R.noise.robust carries
@@ -2026,10 +2028,17 @@ groups.</p>
                                      lag for any Grid
                  Whitener &quot;toeplitz&quot;|&quot;ar&quot;|&quot;arma&quot;  how a PSD law whitens:
                                                   the estimated law and every
-                                                  declared &#39;psd&#39; law
+                                                  declared &#39;psd&#39; law; under
+                                                  Estimate &quot;noise&quot; a filter
+                                                  speeds up the SOLVE only (the
+                                                  sweep forms each arc&#39;s law
+                                                  densely, maxDenseArc), and
+                                                  &quot;ar&quot; approximates the
+                                                  estimated shape
                  Smooth 0                         moving average on the PSD
                  FreezeRedundancy 1               components below it hold
-                 SkipThreshold 0.2                skip RATE that refuses the pass
+                 SkipThreshold 0.2                skip RATE of ONE stream&#39;s arcs
+                                                  that refuses the pass
     RobustOpts   Tuning [], MaxIter 30, Tol 1e-8
     Diagnostics  Alpha 1e-3, Bonferroni true, Beta 0.2, RMin 0.01, RWeak 0.1,
                  Test &quot;auto&quot;|&quot;pope&quot;|&quot;baarda&quot;|&quot;mad&quot;, RobustCheck true,
@@ -4495,6 +4504,30 @@ listed, nothing is listed that is not raised).</p>
 <td>engine.CommonPrior</td>
 <td>error</td>
 <td>v6.20.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:arcVarianceFactors:held</code></td>
+<td>engine.arcVarianceFactors</td>
+<td>warning</td>
+<td>v6.21.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:armaACV:truncated</code></td>
+<td>kernel.armaACV</td>
+<td>warning</td>
+<td>v6.21.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:covModel:unevenGrid</code></td>
+<td>engine.covModel</td>
+<td>warning</td>
+<td>v6.21.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:crossCorr:badLength</code></td>
+<td>kernel.crossCorr</td>
+<td>error</td>
+<td>v6.21.0</td>
 </tr>
 </tbody>
 </table>

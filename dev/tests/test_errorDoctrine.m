@@ -18,6 +18,8 @@ function tests = test_errorDoctrine
 %
 %   See also LSQVCE.UTIL.CALLUSER, LSQVCE.UTIL.LOG, LSQVCE.RESULTS, TEST_CI_GATE
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (third review): robustWeights survives an extreme blunder; tuning validated.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: weights >= 0 and finite, a
 %   zero weight / a day's .excluded marks its rows; the joint hard solution's
 %   residual pass and verdict agree (review 3 findings 14, 17, 18). With assistance from Claude
@@ -523,4 +525,31 @@ function testResultsRefusalsByName(tc)
     verifyError(tc, @() Rb.residuals(), 'lsqvce:Results:noAccumulator');
     verifyError(tc, @() Rb.contribution(), 'lsqvce:Results:noAccumulator');
     verifyError(tc, @() Rb.compare(Rb), 'lsqvce:Results:noVPv');
+end
+
+function testRobustWeightsSurviveAnExtremeBlunder(tc)
+% categories: robustness, precision
+    % WP-134 (review 3 finding 9): the near-tie test compared the MAD with the
+    % LARGEST deviation -- the worst blunder. One residual beyond 1/(1e3 eps)
+    % ~ 4.5e12 MAD switched the scale to the std it inflates: s 1.6e11, the
+    % Huber estimate moved by 2e8, 8-sigma rows kept factor 1
+    % (dev/validation/wp134_kernel_mirror.py). The reference is the 75th
+    % percentile of the deviations now, which no blunder in the upper quarter
+    % moves; the R7-21 tie fixtures above still fall back.
+    rs = RandStream('mt19937ar', 'Seed', 134);
+    vw = [randn(rs, 999, 1); 1e13];
+    lsqvce.util.log.inventory('reset');
+    [fac, s, ~, p] = lsqvce.kernel.robustWeights(vw, 'huber', []);
+    tc.verifyEqual(p, 'mad');
+    % tol: 10 % -- the normalised MAD of 999 N(0,1) draws estimates 1 to ~3 %
+    tc.verifyEqual(s, 1, 'RelTol', 0.1);
+    % tol: Huber's c / |w| at 1e13 MAD is ~1.3e-13, well below 1e-11
+    tc.verifyLessThan(fac(end), 1e-11);
+    tc.verifyFalse(any(strcmp(lsqvce.util.log.inventory(), 'lsqvce:robustWeights:scaleFallback')));
+    % tuning values are validated: a c <= 0 zeroed or negated every factor,
+    % an igg3 with k0 >= k1 became a hard 0/1 rejection
+    tc.verifyError(@() lsqvce.kernel.robustWeights(vw, 'huber', 0), 'lsqvce:robustWeights:badTuning');
+    tc.verifyError(@() lsqvce.kernel.robustWeights(vw, 'bisquare', NaN), 'lsqvce:robustWeights:badTuning');
+    tc.verifyError(@() lsqvce.kernel.robustWeights(vw, 'igg3', [3 1.5]), 'lsqvce:robustWeights:badTuning');
+    lsqvce.util.log.inventory('reset');
 end

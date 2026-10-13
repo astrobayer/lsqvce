@@ -19,7 +19,8 @@ function G = varACV(A, Sigma, K)
 %     * Matches the empirical ACV of a 4e5-sample simulation to a few percent.
 %
 %   INPUT
-%     A       d x d x p   coefficient matrices A_1..A_p
+%     A       d x d x p   coefficient matrices A_1..A_p; p = 0 (d x d x 0)
+%                         is white noise: Gamma(0) = Sigma, zero beyond
 %     Sigma   d x d       innovation covariance (symmetric positive definite)
 %     K       scalar      highest lag
 %
@@ -37,6 +38,10 @@ function G = varACV(A, Sigma, K)
 %
 %   See also LSQVCE.KERNEL.WHITTLE, LSQVCE.KERNEL.VARWHITEN, LSQVCE.KERNEL.ARMAACV
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-134: a VAR(0) (whittle(G, 0)'s
+%   d x d x 0) is white noise; the companion form of order 0 grew to d x 0
+%   and eig raised an unnamed MATLAB error. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+kernel (R4 decision R4-D1,
@@ -52,6 +57,10 @@ function G = varACV(A, Sigma, K)
     validateattributes(K, {'numeric'}, {'scalar','integer','nonnegative'}, ...
                        'lsqvce.kernel.varACV', 'K', 3);
     Sigma = (Sigma + Sigma.')/2;
+    if p == 0                                   % VAR(0): white, no companion
+        G = zeros(d, d, K+1);  G(:,:,1) = Sigma;
+        return
+    end
 
     % ---- companion form -----------------------------------------------
     n = p*d;

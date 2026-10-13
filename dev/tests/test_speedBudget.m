@@ -21,6 +21,8 @@ function tests = test_speedBudget
 %
 %   See also TIMEPAIR, TEST_INSTRUMENTS, dev/DEVELOPMENT.md (WP-79 table)
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (third review): the armaACV point's cost model (the response follows its decay).
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Created 2026-09-03 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.1 -- R5 Level M7, WP-89.
     tests = functiontests(localfunctions);
@@ -111,9 +113,11 @@ end
 
 function testArmaACVIsNearLinearInLags(tc)
 % categories: speed
-    % lsqvce.kernel.armaACV: an impulse response of max(4n, 512) taps and one
-    % FFT -- O(n log n). tol: 4x the lags may cost at most 8x (DERIVED: n log n
-    % gives ~4.6x; a quadratic regression gives 16x)
+    % lsqvce.kernel.armaACV: an impulse response as long as its decay (WP-134:
+    % it was max(4n, 512) taps, an 8n-point FFT -- 65 536 points at n = 8000,
+    % out of cache on some machines: 12-17x there, HANDOVER 12.68) and one
+    % FFT of nh + n points -- O(n log n). tol: 4x the lags may cost at most 8x
+    % (DERIVED: n log n gives ~4.6x; a quadratic regression gives 16x)
     a = [1 -1.6 0.9 -0.25];
     rec = timePair(@() lsqvce.kernel.armaACV(a, 1, 8000), @() lsqvce.kernel.armaACV(a, 1, 2000), ...
                    'Inner', 5, 'Label', 'armaACV 4n/n');

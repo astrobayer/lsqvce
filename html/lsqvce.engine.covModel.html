@@ -53,12 +53,14 @@ handles the model parameters again.</pre>
 <pre class="example">  cm   struct, .type selects the model:
     &#x27;diag&#x27;    .sigma   scalar or m x 1 standard deviation
     &#x27;acf&#x27;     .acf     @(dt, opt) -&gt; correlation at lag dt
-              .sigma   scalar
+              .sigma   scalar, or m x 1 per row: C = D R D with
+                       D = diag(sigma) (WP-134; it was averaged)
     &#x27;psd&#x27;     .f       nf x 1 frequency grid [Hz], one-sided
               .S       nf x 1 PSD [unit^2/Hz]
     &#x27;arma&#x27;    .ar      [1 a1 ... ap]
               .ma      [1 b1 ... bq]   (optional, default 1)
-              .sigma   innovation std
+              .sigma   innovation std, ONE positive scalar (a per-row
+                       std is a &#x27;diag&#x27; or &#x27;acf&#x27; law, or the day&#x27;s Cep)
     &#x27;var&#x27;     .ar      d x d x p coefficient matrices (vector AR)
               .sigma   d x d innovation covariance
               .acv     d x d x &gt;=p Gamma(0..), optional (else computed
@@ -109,10 +111,17 @@ handles the model parameters again.</pre>
                whitenMode &#x27;chol&#x27;) is factorised over: the factor is
                whole-arc, O(m^3) and 8 m^2 bytes (3.2 GB at 20 000). A
                longer arc is refused (lsqvce:covModel:denseArcTooLong);
-               raise it deliberately when the memory is there.
+               raise it deliberately when the memory is there. The dense
+               form Cfcn of a FILTER law is guarded by the same limit at
+               the size it is asked for (WP-134): only the joint noise
+               estimator builds it, per arc, whatever the whitener.
 
   t    m x 1  epochs of the current arc [s] (epoch-major with Cep: every
-              d-th value is one epoch)
+              d-th value is one epoch). A &#x27;psd&#x27; or &#x27;arma&#x27; law counts its
+              lags in SAMPLES at the median step: a step above 1.5 times
+              the median (a removed epoch) is treated as one step and
+              reported (lsqvce:covModel:unevenGrid, WP-134) -- give a
+              rejected epoch weight 0 instead of removing it
   opt  struct runtime options (see below)
 
 OPTIONS (opt)
@@ -187,7 +196,8 @@ info.filterMemory      % = 20 -&gt; the accumulator overlaps by 20 rows</pre>
 
   A required field for the CHOSEN type is missing or malformed
     lsqvce:covModel:noSigma        .sigma missing        (most types)
-    lsqvce:covModel:badSigma       .sigma not a positive scalar
+    lsqvce:covModel:badSigma       .sigma not finite and positive (&#x27;arma&#x27;,
+                                   &#x27;psd&#x27;: not ONE positive scalar)
     lsqvce:covModel:sigmaLength    per-observation .sigma has the wrong length
     lsqvce:covModel:noAR           .ar missing           (&#x27;arma&#x27;)
     lsqvce:covModel:noACF          .acv missing          (&#x27;acf&#x27;)
@@ -199,7 +209,9 @@ info.filterMemory      % = 20 -&gt; the accumulator overlaps by 20 rows</pre>
                                    unit circle: its whitener is not stable
     lsqvce:covModel:denseArcTooLong a law without a filter form (acf, custom,
                                    psd &#x27;toeplitz&#x27;, whitenMode &#x27;chol&#x27;) on an arc
-                                   longer than .maxDenseArc epochs, or a
+                                   longer than .maxDenseArc epochs, the dense
+                                   form of a filter law asked for over more
+                                   (the joint noise sweep, WP-134), or a
                                    .maxDenseArc that is not a positive number
 
   The per-epoch error information does not fit the arc (R6 WP-90)
@@ -223,7 +235,10 @@ info.filterMemory      % = 20 -&gt; the accumulator overlaps by 20 rows</pre>
 
 IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
   lsqvce:covModel:negativePSD                [warning] The PSD has X negative values (min X)
-  lsqvce:covModel:psdSanitationEscape        PSD sanitation escape</pre>
+  lsqvce:covModel:psdSanitationEscape        PSD sanitation escape
+  lsqvce:covModel:unevenGrid                 [warning] a &#x27;psd&#x27; / &#x27;arma&#x27; arc
+                                             whose largest step exceeds 1.5x
+                                             the median (WP-134) -- once per run</pre>
 <h3>Accuracy</h3>
 <pre class="example">  The whiteners are exact factors of the covariance they are built from
   (the filter IS the Cholesky inverse factor, see above): diag / arma /
@@ -273,7 +288,13 @@ Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
 WP-64a): the ENGINE tier leaves the USER surface; every qualified
 reference was rewritten mechanically by docs_src/refactor_tiers.py.
 Updated 2026-10-12 (CEST, UTC+02:00), WP-124: Cep reference -&gt; API reference.
-With assistance from Claude (Anthropic), model Claude Opus 5.5.</pre>
+With assistance from Claude (Anthropic), model Claude Opus 5.5.
+Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (third review, finding 10 and
+lows): &#x27;var&#x27; takes a VAR(1)&#x27;s d x d ar (ndims 2 -- every VAR(1) was
+refused); &#x27;acf&#x27; honours a per-row sigma (C = D R D; it was averaged
+silently); &#x27;arma&#x27; refuses a non-scalar sigma by name (an unnamed ||
+error); an uneven epoch grid under an index-lag law is reported. With
+assistance from Claude (Anthropic), model Claude Opus 5.5.</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>
 <div class="footer">lsqvce 1.0 &mdash; consolidated diagnostics + streaming VCE toolbox. Page generated from the function help block with assistance from Claude (Anthropic), Claude Opus 4.8, 2026-07-18.</div>
 </body></html>

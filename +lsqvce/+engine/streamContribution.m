@@ -16,8 +16,11 @@ function out = streamContribution(acc, sol, opt)
 %   Z_g = A_g - B_g G the group's rows reduced by the local elimination -- the
 %   LEVERAGE split, the one Level 1 uses (WP-131), so t_g is in expectation the
 %   group's common leverage sum_{i in g} z_i' N^-1 z_i and the diagonal sums to
-%   it. The group-summed invariants hold EXACTLY (up to probe noise): sum_g t_g
-%   = nc and sum_g diag(C_g) = ones(nc,1), because sum_g N_g^cc = N.
+%   it. The group-summed invariants hold EXACTLY (up to probe noise) without a
+%   common prior: sum_g t_g = nc and sum_g diag(C_g) = ones(nc,1), because
+%   sum_g N_g^cc = N. N includes a common prior's normals K'K / sigma^2, which
+%   belong to no data group: then sum_g t_g = nc - tr(N^-1 K'K) / sigma^2
+%   (WP-134: the help claimed nc regardless).
 %
 %   MEMORY-HONEST DESIGN (why this exists)
 %     N_g^cc is nc x nc and a group can span many arcs, so holding all G of them
@@ -93,7 +96,8 @@ function out = streamContribution(acc, sol, opt)
 %                   .trace  1x1     estimate of tr(N^-1 N_g^cc)
 %                   .diag   nc x 1  estimate of diag(N^-1 N_g^cc), or [] if
 %                                   'WantDiag' is false
-%                   .se     1x1     Monte-Carlo standard error of .trace
+%                   .se     1x1     Monte-Carlo standard error of .trace (NaN
+%                                   for one probe -- WP-134, it read 0)
 %                   .relSE  1x1     .se / |.trace|  (NaN if .trace == 0)
 %                   .n      1x1     observation rows in the group (exact count
 %                                   from the same sweep)
@@ -108,20 +112,28 @@ function out = streamContribution(acc, sol, opt)
 %                   .r      1x1     STREAMED REDUNDANCY (WP-32, fixes F-01):
 %                                   r_g = .n - .localAbsorbed - .trace
 %                                   == n_g - sum_{i in g} h_i in expectation,
-%                                   with sum_g .r = m - u. THIS is the Helmert
+%                                   with sum_g .r = m - u without a common
+%                                   prior, and sum_g .r + r_K = m + nk - u with
+%                                   one (r_K its nk rows' redundancy,
+%                                   LSQVCE.ENGINE.REDUNDANCY). THIS is the Helmert
 %                                   denominator; .trace alone is only the
 %                                   cc-attribution (sums to nc, NOT m-u).
 %                   .rSE    1x1     Monte-Carlo se of .r (== .se: the local
 %                                   term and the count are exact)
 %       .nc       1x1        common-parameter count (size of the probe space)
 %       .probes   1x1        Z actually used
-%       .traceSum 1x1        sum_g .trace  (should be ~ nc; the sanity check)
+%       .traceSum 1x1        sum_g .trace  (~ nc without a common prior; the
+%                            sanity check)
+%       .seedUsed 1x1        the probe seed (the given Seed, or the one the
+%                            private stream drew -- passing it back replays the
+%                            run; WP-134)
 %       .note     char       provenance string
 %
 %   COST
 %     One (batched) data sweep, plus Z triangular solves of size nc against the
 %     shared Lc. Total O(passes*nnz + Z*nc^2). Memory is the probe block (nc x Z)
-%     plus, transiently, one nc x Z group accumulator -- NOT O(G*nc^2).
+%     plus ONE nc x Z accumulator PER GROUP for the whole sweep: O(G*nc*Z), not
+%     O(G*nc^2) -- 24 GB for 10^4 arcs, nc = 3000, Z = 100 (WP-134: it said one).
 %
 %   EXAMPLE
 %     acc = lsqvce.engine.BlockAccumulator(nc, 'KeepLocal', true);
@@ -145,6 +157,10 @@ function out = streamContribution(acc, sol, opt)
 %   See also LSQVCE.ENGINE.CONTRIBUTION, LSQVCE.ENGINE.REDUNDANCY, LSQVCE.ENGINE.BLOCKCOFACTOR,
 %            LSQVCE.ENGINE.TRACEESTIMATE, LSQVCE.ENGINE.VCE
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (review 3 lows): se is NaN
+%   for one probe (it read 0, the estimate as if exact); out.seedUsed; the
+%   help states the sums with a common prior and the per-group memory. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: n_g counts observations,
 %   not the rows of weight 0 (arc.excluded). With assistance from Claude
 %   (Anthropic), model Claude Opus 5.5.
@@ -229,7 +245,7 @@ end
     %   draws once from the package-private session stream -- the global RNG
     %   is untouched (the promise this comment made before the fix while the
     %   code advanced the global stream).
-    Z = probeMatrix(nc, o.Probes, 'rademacher', o.Seed);
+    [Z, seedUsed] = probeMatrix(nc, o.Probes, 'rademacher', o.Seed);   % WP-134: the seed returned
 
     % ---- per-system broadcast state (serial, cheap) ----------------------
     %   G_s = inv(Nll_s) Nlc_s (nl x nc), the per-system Schur factor, identical
@@ -353,7 +369,8 @@ end
         % Hutchinson trace: mean_z z'(N^-1 N_g Z);  per-probe values for the se.
         perProbe = sum(Z .* W, 1);                    % 1 x Z
         tG       = mean(perProbe);
-        se       = std(perProbe) / sqrt(o.Probes);
+        se       = NaN;                               % WP-134: one draw has no spread
+        if o.Probes > 1, se = std(perProbe) / sqrt(o.Probes); end
         if tG ~= 0, rse = se / abs(tG); else, rse = NaN; end
         if wantDiag
             dG = mean(Z .* W, 2);                     % nc x 1
@@ -368,10 +385,10 @@ end
     end
 
     out = struct('group', grp, 'nc', nc, 'probes', o.Probes, ...
-                 'traceSum', traceSum, ...
+                 'traceSum', traceSum, 'seedUsed', seedUsed, ...
                  'note', sprintf(['streaming Hutchinson N^-1 N_g^cc over %d ' ...
-                          'probe(s); sum_g trace = %.6g (target nc = %d)'], ...
-                          o.Probes, traceSum, nc));
+                          'probe(s); sum_g trace = %.6g (nc = %d less a common ' ...
+                          'prior''s share)'], o.Probes, traceSum, nc));
 
     if o.Verbose
         lsqvce.util.log.msg(['%s%d group(s), sum trace = %.4f ' ...
