@@ -8,7 +8,7 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-13 — WP-127 DONE (PR #148, merge 4873783; CI GREEN on e8fac67); WP-128 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-128"): the five findings of the whole-code review marked plausible, each re-derived by an own mirror -- all five confirmed and fixed: snoop keeps the prior a prior and returns one index space, the MAD test on Student t (nu = 0.367 r), the local block's cofactor from the QR factor, a late local prior reported; 3 tests; version 6.16.0; §12.60.
+Last substantive update: 2026-10-13 — WP-127 DONE (PR #148, merge 4873783; CI GREEN on e8fac67); WP-128 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-128"): the five findings of the whole-code review marked plausible, each re-derived by an own mirror -- all five confirmed and fixed: snoop keeps the prior a prior and returns one index space, the MAD test on a calibrated Student t, the local block's cofactor from the QR factor (all store readers through localSolveOf), a late local prior reported; MAD critical value t(r/2) by user decision; 3 tests; version 6.16.0; §12.60.
 Preceding entry: Last substantive update: 2026-10-12 — WP-126 DONE (PR #147, merge 7e44406; CI GREEN on f6d685c); WP-127 OPEN (tier B, model Claude Opus 5.5; user: a review of the entire code, then "Go ahead"): the confirmed findings -- the ARMA whitener with an MA part made exact, datum rows out of the diagnostics counts, a datum over several groups, the joint loop with a late local prior, the Gauss-Newton final step checked, NaN/Inf in A/B refused, .gitignore; 3 tests; version 6.15.0; §12.59.
 Preceding entry: Last substantive update: 2026-10-12 — WP-123 DONE (PR #143, merge cebbfd1; CI GREEN on e617a95, first round); closure PR (user decision: "Ja, mach den Abschluss-PR"): the ledger row and §12.55, no code change, no version (6.12.1 stays, 641 tests).
 Preceding entry: Last substantive update: 2026-10-12 — WP-122 DONE (PR #142, merge 1d8c89b; CI GREEN on ac4bfa4); WP-123 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-123"): the kernel whiteners (separableWhiten, varWhiten, armaWhiten) take a sparse A / B / l -- the dense filter runs on the non-zero columns only (private kernel helper activeColumns), sparse in, sparse out; the dense path unchanged; template/kbr_variational returns its position B sparse again; 1 gate test; version 6.12.1; §12.54.
@@ -9434,7 +9434,7 @@ PRs.
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 128 | the five findings of the whole-code review (§12.59) marked plausible, each re-derived by an own mirror, all confirmed: `snoop`'s clean re-solve keeps the prior a prior and never rejects its rows; its D in one (original) index space (`D.obsIdx`); `kernel.stat.madCrit` (t, nu = 0.367 r) for Test 'mad'; a QR-eliminated local block's cofactor / solution / covariance from its factor (store `Rll`, `Rlc`, `rl`); `priorNotActive` counts late local groups; **version 6.16.0** | 127 (PR #148 merged 4873783) | OPEN (tier B; CI is the gate) |
+| 128 | the five findings of the whole-code review (§12.59) marked plausible, each re-derived by an own mirror, all confirmed: `snoop`'s clean re-solve keeps the prior a prior and never rejects its rows; its D in one (original) index space (`D.obsIdx`); `kernel.stat.madCrit` (t, nu = r/2, user decision) for Test 'mad'; a QR-eliminated local block's cofactor / solution / covariance from its factor (store `Rll`, `Rlc`, `rl`); `priorNotActive` counts late local groups; **version 6.16.0** | 127 (PR #148 merged 4873783) | OPEN (tier B; CI is the gate) |
 
 **The user's request (2026-10-13):** "Ja, mach WP-128" -- re-derive the five plausible findings,
 fix the confirmed ones.
@@ -9466,12 +9466,24 @@ in the poorly determined direction -- but `\` on the squared block warns nearlyS
 `test_reliability>testCofactorOfAnIllConditionedLocalBlockIsExact` (red.check, Cyy vs a QR reference).
 Residue: `BlockCofactor.downdate` (snoop on a local block) still refactors from Nll.
 
-**12 -- the MAD test's critical value (confirmed by simulation).** tau is bounded by sqrt(r) because
-s0 contains the tested residual; a MAD scale does not. Family-wise false alarms at alpha 1e-3
-Bonferroni, 40 000 null fits (`dev/validation/wp128_mad_crit_mirror.py`): tau 0.063 / 0.032 / 0.0057
-at n = 30 / 50 / 200; the normal value 0.023 / 0.014 / 0.0043 (the MAD's own noise); Student t with
-nu = 0.367 r (the MAD's variance efficiency) 1e-4 / 1.5e-4 / 1.2e-3 -- chosen
-(`lsqvce.kernel.stat.madCrit`; diagnose 'mad' and snoop 'mad'). Test
-`test_lsqvce>test_madCrit_is_student_t_on_the_mad_efficiency` (scipy reference values).
+**12 -- the MAD test's critical value (confirmed by simulation; user decision on the value).** tau
+is bounded by sqrt(r) because s0 contains the tested residual; a MAD scale does not. Family-wise
+false alarms at alpha 1e-3 Bonferroni (null fits) / power (>= all-but-one of 10 % blunders at 25
+sigma), n = 30 / 50 / 200, `dev/validation/wp128_mad_crit_mirror.py`:
+tau 0.063 / 0.031 / 0.0053 -- 0.91 / 0.94 / 1.00; normal 0.023 / 0.013 / 0.0037 -- 0.81 / 0.88 /
+1.00; t(r) 0.0040 / 0.0038 / 0.0020; t(r/2) 0.0005 / 0.0006 / 0.0012 -- 0.34 / 0.62 / 1.00;
+t(0.367 r) (the MAD's efficiency; the first push) 0.0001 / 0.0001 / 0.0008 -- 0.17 / 0.45 / 1.00.
+CI round 1 (e9566fe) failed `test_lsqvce_ext>test_pope_breaks_down_and_mad_does_not` (n = 50, >= 4 of
+5 found): the valid level costs power on SHORT contaminated networks. Put to the user
+(AskUserQuestion, 2026-10-13) with the table: **t(r/2)** -- at the nominal level for every n.
+`lsqvce.kernel.stat.madCrit` = t(1 - a/2, r/2) for diagnose 'mad' and snoop 'mad'. The breakdown test
+moved to n = 200 (20 blunders), the regime of its claim: Pope 0 in every one of 1000 mirror draws,
+MAD >= 19/20 in every one; asserted >= 19. Snooping with 'mad' does not recover the lost power at
+n = 50 (mirror: 63 % >= 4/5) -- the Manual says so instead of claiming it. Test
+`test_lsqvce>test_madCrit_is_student_t_on_half_the_redundancy` (scipy reference values).
+
+**CI round 1, the second cause:** a new warning id `MATLAB:nearlySingularMatrix` -- redundancy,
+residuals, streamContribution and adjustVCEjoint solved a store's local block from the squared Nll_r
+directly; `BlockAccumulator.localSolveOf` (static, hidden) is now the one place (QR factor when kept).
 
 **Tests 657 = 654 + 3.** NOT validated before CI: no MATLAB in the container.

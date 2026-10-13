@@ -399,7 +399,7 @@ function D = diagnose(sol, batchFcn, opt)
 %   LSQVCE.ENGINE.BLOCKCOFACTOR.
 %
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-128: Test 'mad' uses
-%   lsqvce.kernel.stat.madCrit (Student t, nu = 0.367 r), not Pope's tau.
+%   lsqvce.kernel.stat.madCrit (Student t, nu = r/2), not Pope's tau.
 %   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-12 (CEST, UTC+02:00), WP-127: a prior's datum rows
 %   (sol.datumRows; r = 0 by construction) stay in sum(r) and vPv but are not
@@ -484,7 +484,7 @@ switch testName
     case 'mad'
         % WP-128: NOT Pope's tau. tau holds only when the scale contains the
         % tested residual; a MAD scale does not, and its own noise makes the
-        % statistic Student t with nu = 0.367 r (lsqvce.kernel.stat.madCrit):
+        % statistic Student t with nu = r/2 (lsqvce.kernel.stat.madCrit, calibrated):
         % the tau threshold gave 63x the nominal false-alarm rate at n = 30.
         % (Previously: "The MAD statistic is still a STUDENTISED residual --
         % only the scale in the denominator is robust. It remains

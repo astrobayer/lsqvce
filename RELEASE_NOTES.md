@@ -13,9 +13,11 @@ diagnostics of a local block with a badly conditioned design (marked **numbers**
   original observation numbers; `D.obsIdx` names the original number of each per-observation
   entry.
 - **The MAD-scaled test uses its own critical value (numbers).** Pope's τ holds only when
-  the scale contains the tested residual; for a MAD scale the statistic is Student t with
-  0.367·r degrees of freedom (`lsqvce.kernel.stat.madCrit`). The τ value gave 63 times the
-  nominal family-wise false-alarm rate at n = 30, 5.7 times at n = 200.
+  the scale contains the tested residual. The MAD test now uses Student t with r/2 degrees
+  of freedom (`lsqvce.kernel.stat.madCrit`), calibrated to the nominal family-wise level
+  (user decision). The τ value gave 63 times the nominal false-alarm rate at n = 30, 5.3
+  times at n = 200. On short networks under heavy contamination one pass finds fewer
+  blunders than before (n = 50, 10 % at 25σ: 60 % of runs find ≥ 4 of 5, against 93 %).
 - **The diagnostics of a badly conditioned local block are exact (numbers).** A local block
   the QR backend eliminates exactly (cond(B) up to ~4.5e12) was re-inverted from the squared
   `Nll` for the cofactor, which cut eigenvalues from cond(B) ≈ 7e7 on: a quadratic local

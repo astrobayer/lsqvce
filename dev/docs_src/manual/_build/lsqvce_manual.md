@@ -788,8 +788,11 @@ on its normalised residual
 The `scale` is the estimated `s0` (Pope), the a-priori sigma0 (Baarda) or the robust MAD
 scale. With `Bonferroni = true` the level of each test is `Alpha / n`. The critical value
 follows the scale: Pope's tau, the normal distribution, and for the MAD a Student t with
-0.367·r degrees of freedom (the MAD's efficiency) -- Pope's tau there gave many times the
-nominal false alarms on small networks.
+r/2 degrees of freedom (calibrated to the nominal level; Pope's tau there gave up to 60 times
+the nominal false alarms on small networks). The price of the valid level is power on short
+networks under heavy contamination: with 50 observations and 10 % blunders of 25 sigma, four
+or more of five are found in about 60 % of cases (snooping with `Test="mad"` does not change
+that); from about 200 observations all of them.
 
 ### The contamination cross-check
 
