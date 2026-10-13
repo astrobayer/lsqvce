@@ -81,9 +81,15 @@ re-triangularisation with the local columns first,
 \[
 \begin{bmatrix}\mat R_{11}&\mat R_{12}&\vc r_1\\ & \mat R_{22}&\vc r_2\\ && \rho\end{bmatrix},
 \]
-whose trailing rows $[\mat R_{22}\ \vc r_2;\ \vc 0\T\ \rho]$ are the reduced contribution; it is
-accepted only if the local block passes the pivot test. Each system contributes $m_s-n_{l,s}$
-degrees of freedom.
+whose trailing rows $[\mat R_{22}\ \vc r_2;\ \vc 0\T\ \rho]$ are the reduced contribution, and
+$\mat R_{11},\mat R_{12},\vc r_1$ give the local solution and cofactor without forming
+$\mat N_{ll}$. Each system contributes $m_s-n_{l,s}$ degrees of freedom. A local block that fails
+the pivot test is rank-deficient: with $\mat R_{11}=\mat U\mat S\mat V\T$ and $k$ the singular values
+above the rank tolerance, the locals live on $\mat V_1$ (the minimum-norm $\hat{\vc y}$, with
+$\mat N_{ll}^{-1}$ read as the pseudo-inverse $\mat V_1\mat S_1^{-2}\mat V_1\T$ below), the rows
+$\mat U_2\T[\mat R_{12}\ \vc r_1]$ join the reduced contribution, and the system contributes
+$m_s-k$ degrees of freedom. Forming $\mat N_{ll}$ and cutting its eigenvalues instead loses a
+weak but determined direction together with the null one.
 
 Back-substitution recovers
 \begin{equation}\label{eq:backsub}
@@ -125,13 +131,15 @@ r_k=p_k-\tr\bigl(\mat L_k\mat N_\lambda^{-1}\mat L_k\T\bigr)/\sigma_k^2 .
 
 \subsection{The datum of a free network}\label{sec:datum}
 A rank defect --- a datum that no observation fixes --- is removed by a prior on the null space.
-Let $\mat K_g$ be the rows of group $g$. The group is a \emph{datum} if both the data and every
-other group are blind to it,
+Let $\mat K_g$ be the rows of group $g$. The data are \emph{blind} to the group when
 \[
-\|\mat N\mat K_g\T\|_F\le\epsilon\,\|\mat N\|_F\|\mat K_g\|_F,\qquad
-\|\mat K_o\mat K_g\T\|_F\le\epsilon\,\|\mat K_o\|_F\|\mat K_g\|_F\quad(o\ne g),
+\|\mat N\mat K_g\T\|_F\le\epsilon\,\bigl\|\,|\mat N|\,|\mat K_g\T|\,\bigr\|_F
 \]
-(on the square-root backend the first test is evaluated on the factor). With $\mat K_d$ the rows
+(elementwise absolute values: the product against its own rounding bound, which does not change
+with the units of the parameters; on the square-root backend $\mat N$ is replaced by the factor).
+A blind group is a \emph{datum} when it is also orthogonal to the rows $\mat K_o$ of every group
+the data see, $\|\mat K_o\mat K_g\T\|_F\le\epsilon\,\|\mat K_o\|_F\|\mat K_g\|_F$; a datum may be
+split over several groups. With $\mat K_d$ the rows
 of all datum groups and $\mat K_i$ the rest, $\mat N_i=\mat N+\mat K_i\T\mat K_i$. Because the range
 of the data and the null space are orthogonal, the estimate $\hat{\vc x}$ is the
 minimum-constraint solution for any datum weight, and its covariance is that of the

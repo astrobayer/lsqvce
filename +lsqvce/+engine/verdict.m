@@ -156,6 +156,9 @@ function [diagSol, batchFcn, nBatch] = source(acc, sol)
 %   See also LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SNOOP, LSQVCE.REPORT, LSQVCE.ENGINE.REDUNDANCY,
 %   LSQVCE.ENGINE.BLOCKCOFACTOR
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-130: r and rank count a
+%   rank-deficient local block by its rank. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-128: diagSol.prior and
 %   .priorBatch -- snoop re-solves with the prior instead of as data rows.
 %   With assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -207,6 +210,7 @@ function [diagSol, batchFcn, nBatch] = source(acc, sol)
     col         = nc;
     stores      = cell(1, nSys);
     n           = 0;
+    defL        = 0;                                % WP-130: locals the solve could not estimate
     for iSys = 1:nSys
         st = acc.systemStore(sysIds(iSys));
         stores{iSys}     = st;
@@ -214,6 +218,7 @@ function [diagSol, batchFcn, nBatch] = source(acc, sol)
         localCount(iSys)  = st.nl;
         kept = acc.getStore(sysIds(iSys));
         n   = n + kept.mObs;                           % rows the accumulator folded
+        defL = defL + st.nl - lsqvce.engine.BlockAccumulator.localRankOf(kept);
         col = col + st.nl;
     end
     uFull = col;                                    % nc + sum(nl)
@@ -269,8 +274,8 @@ function [diagSol, batchFcn, nBatch] = source(acc, sol)
         'Q',      Q, ...
         'n',      n, ...
         'u',      uFull, ...
-        'r',      n - uFull, ...
-        'rank',   uFull, ...
+        'r',      n - uFull + defL, ...
+        'rank',   uFull - defL, ...
         'defect', 0, ...
         'sigma0', 1, ...
         's0sq',   sol.s0sq, ...
@@ -398,6 +403,10 @@ function D = diagnose(sol, batchFcn, opt)
 %   See also LSQVCE.ENGINE.VERDICT.SOURCE, LSQVCE.REPORT, LSQVCE.ENGINE.VERDICT.SNOOP,
 %   LSQVCE.ENGINE.BLOCKCOFACTOR.
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-130: Test 'mad' leaves the datum
+%   rows out of its scale (as the fused path does since WP-127); D.rank is the
+%   solve's rank. With assistance from Claude (Anthropic), model Claude Opus
+%   5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-128: Test 'mad' uses
 %   lsqvce.kernel.stat.madCrit (Student t, nu = r/2), not Pope's tau.
 %   With assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -664,7 +673,9 @@ if strcmp(testName, 'mad')
         end
         qpk = max(qpk, 0);
 
-        good = qpk > 0;
+        % WP-130: a datum row (r = 0, qpk ~ +-eps) is no score -- as in the
+        % fused path (WP-127), or its near-zero raw value pulls the MAD down
+        good = qpk > 0 & ~ismember(pos + (1:nk).', exIdx);
         rk_ = zeros(nk, 1);
         rk_(good) = Pvk(good) ./ sqrt(qpk(good));
         rawAll(pos + (1:nk)) = rk_;
@@ -1247,7 +1258,7 @@ end
 
 % --- datum / free-network reporting: a datum is a prior inside Q (above)
 D.defect  = 0;
-D.rank    = u;
+D.rank    = lsqvce.util.getfielddef(sol, 'rank', u);   % WP-130: < u when a local block is rank-deficient
 D.datumB  = zeros(u, 0);
 
 if storeAll
@@ -1369,7 +1380,8 @@ function [sol, D, REJ] = snoop(sol, D, batchFcn, opt)
 %     .refused    indices that tripped the test but were REFUSED (low r_i)
 %     .nIter      iterations performed
 %     .converged  true if snooping terminated cleanly
-%     .history    per-iteration [nFlag, maxAbsW, s0sq]
+%     .history    per-iteration [nFlag, maxAbsW, s0sq, kCrit] (kCrit: the
+%                 critical value tested against, WP-130)
 %
 %   EXAMPLE
 %       data = struct('batchFcn', src, 'numUnknowns', u, 'numBatches', 4);
@@ -1404,6 +1416,12 @@ function [sol, D, REJ] = snoop(sol, D, batchFcn, opt)
 %                                  estimate has broken down; the data are not
 %                                  a few blunders on a good model
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-130: the Bonferroni n and the caps
+%   leave the datum rows out (diagnose's nTests); 'mad' forms no datum score;
+%   sol (n, r, vPv, s0sq, datumRows) is the solution after rejection on both
+%   paths, and Reaccumulate=false re-diagnoses D on the downdated cofactor over
+%   the survivors (.rejectedIdx); REJ.history carries kCrit. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-128: the clean re-solve keeps a
 %   prior as a prior (it went in as data rows: a datum's cofactor grew with its
 %   sigma); a prior row is never a rejection candidate; the returned D counts
@@ -1474,10 +1492,8 @@ nB = o.nBatch;
 if isempty(nB), nB = D.nBatch; end
 
 n0 = sol.n;
-maxRej = o.maxReject;
-if isempty(maxRej)
-    maxRej = max(10, ceil(0.01 * n0));
-end
+dRows = lsqvce.util.getfielddef(sol, 'datumRows', zeros(0, 1));  nObs0 = n0 - numel(dRows);   % WP-130
+maxRej = o.maxReject;  if isempty(maxRej), maxRej = max(10, ceil(0.01 * nObs0)); end
 
 if sol.defect > 0 && o.verbose
     lsqvce.util.log.msg(['\nNote: this is a free network (datum defect %d). Rejection is\n' ...
@@ -1582,7 +1598,7 @@ end
 
 % The hard ceiling. Independent of every estimator above.
 maxRejFrac = o.maxRejectFrac;
-hardCap = floor(maxRejFrac * n0);
+hardCap = floor(maxRejFrac * nObs0);
 
 for it = 1:(maxRej + 1)
 
@@ -1599,14 +1615,14 @@ for it = 1:(maxRej + 1)
     end
 
     alphaEff = o.alpha;
-    if o.bonferroni, alphaEff = o.alpha / max(nAlive, 1); end
+    if o.bonferroni, alphaEff = o.alpha / max(nAlive - numel(dRows), 1); end   % WP-130: diagnose's nTests
     kCrit = snoopCrit(useRobust, alphaEff, rdf);   % WP-128: madCrit for 'mad', tau otherwise
 
     [bestW, bestI, bestR, bestV, bestP, vPvCur, nFlag, bestA, sizes, sysOf] = ...
-        scanWorst(batchFcn, nB, Q, sol.x, rejected, rdf, kCrit, useRobust, priorBatch);
+        scanWorst(batchFcn, nB, Q, sol.x, rejected, rdf, kCrit, useRobust, priorBatch, dRows);
 
     s0cur = sqrt(max(vPvCur / max(rdf, 1), 0));
-    REJ.history(end+1, :) = [nFlag, bestW, s0cur^2]; %#ok<AGROW>
+    REJ.history(end+1, :) = [nFlag, bestW, s0cur^2, kCrit]; %#ok<AGROW> (kCrit: WP-130)
 
     if nFlag == 0 || ~isfinite(bestW) || bestW <= kCrit
         converged = true;
@@ -1719,6 +1735,7 @@ REJ.nIter     = size(REJ.history, 1);
 REJ.converged = converged;
 REJ.rejected  = rejected;
 sol.Q         = Q;               % the downdated cofactor, consistent with sol.x
+if ~isempty(REJ.idx), [sol, D] = afterRejection(sol, D, REJ.idx, rejected, vPvCur, dRows, batchFcn, nB, sizes, o); end
 
 % ------------------------------------------------------------ final solution
 % Re-accumulate from scratch. Two reasons: it purges any accumulated downdate
@@ -1746,7 +1763,8 @@ if o.reaccumulate && ~isempty(REJ.idx)
     % the returned sol keeps the caller's fields and carries the clean solve
     sol.x = dsol.x(:);  sol.s0sq = solB.s0sq;  sol.sigma0 = solB.sigma0;   % commons + locals
     if isfield(solB, 'Cxx'), sol.Cxx = solB.Cxx; end
-    sol.n = dsol.n;  sol.dof = solB.dof;  sol.Q = dsol.Q;
+    sol.n = dsol.n;  sol.dof = solB.dof;  sol.Q = dsol.Q;  sol.r = dsol.r;  sol.vPv = dsol.vPv;
+    sol.datumRows = dsol.datumRows;                    % WP-130: r, vPv, datum rows follow too
 end
 
 if lsqvce.util.verbosity.progress(o.verbose)
@@ -2652,8 +2670,30 @@ end
 
 %% ======================================================== helpers
 
+function [sol, D] = afterRejection(sol, D, rejIdx, rejected, vPvCur, dRows, batchFcn, nB, sizes, o)
+%AFTERREJECTION  WP-130: the returned sol is the solution AFTER rejection on
+%   either path -- vPvCur (the 1/r_i identity) was computed and dropped, so
+%   with Reaccumulate=false s0sq, n, r and vPv still held the blunders. Without
+%   the re-solve, D is re-diagnosed on the downdated cofactor over the
+%   SURVIVING rows (masked batches, no re-accumulation), in the original
+%   indices; before, D was the input D -- rejected rows still flagged, no
+%   .rejectedIdx. (The re-solve overwrites both.)
+    obsIdx = find(~rejected);
+    sol.n = numel(obsIdx);  sol.r = sol.n - sol.rank;  sol.vPv = vPvCur;
+    sol.s0sq = vPvCur / max(sol.r, 1);
+    sol.datumRows = find(ismember(obsIdx, dRows));   % in the survivors' numbering
+    if o.reaccumulate, return, end
+    edges = [0; cumsum(sizes(:))];
+    D = lsqvce.engine.verdict.diagnose(sol, @(k) maskedBatch(batchFcn, k, rejected, edges), ...
+                           'nBatch', nB, 'alpha', o.alpha, 'bonferroni', o.bonferroni, ...
+                           'test', o.test, 'rMin', lsqvce.util.getfielddef(D, 'rMin', 0.01), ...
+                           'rWeak', lsqvce.util.getfielddef(D, 'rWeak', 0.10), ...
+                           'beta', lsqvce.util.getfielddef(D, 'beta', 0.20));
+    D = toOriginalIndex(D, obsIdx);  D.rejectedIdx = rejIdx;   % in rejection order, as REJ.idx
+end
+
 function [bestW, bestI, bestR, bestV, bestP, vPv, nFlag, bestA, sizes, sysOf] = ...
-        scanWorst(batchFcn, nB, Q, x, rejected, rdf, kCrit, useRobust, priorBatch)
+        scanWorst(batchFcn, nB, Q, x, rejected, rdf, kCrit, useRobust, priorBatch, dRows)
 %SCANWORST  One streaming pass over all batches to find the single worst
 %   (largest |w|) surviving observation and accumulate vPv honestly.
 %   INPUT
@@ -2666,6 +2706,8 @@ function [bestW, bestI, bestR, bestV, bestP, vPv, nFlag, bestA, sizes, sysOf] = 
 %     rdf       1x1 double  residual degrees of freedom (for s0)
 %     kCrit     1x1 double  critical value for flagging (|w| threshold)
 %     useRobust 1x1 log     use a robust (MAD) scale for w
+%     priorBatch 1x1        the prior's batch (never a candidate), 0: none
+%     dRows     k x 1       the datum rows (global index; no robust score, WP-130)
 %   OUTPUT
 %     bestW  1x1  the largest |w| found among surviving observations
 %     bestI  1x1  its global observation index (0 if none)
@@ -2747,7 +2789,7 @@ function [bestW, bestI, bestR, bestV, bestP, vPv, nFlag, bestA, sizes, sysOf] = 
                 Wa = Q.halfRows(Aa);
                 qva = 1 ./ pk(alive) - sum(Wa.^2, 1).';
                 qva(qva < 0) = 0;
-                gd = qva > 0;
+                gd = qva > 0 & ~ismember(idx(alive).', dRows);   % WP-130: no datum score
                 tmp = vk(gd) ./ sqrt(qva(gd));
                 rawPool = [rawPool; tmp]; %#ok<AGROW>
             end

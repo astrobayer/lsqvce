@@ -9,6 +9,11 @@ function tests = test_reliability
 %   Run:  results = runtests('tests/test_reliability');  disp(table(results))
 %
 %   See also TEST_PRECISION, TEST_SPEED, TEST_LSQACCUM
+%
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-130: a rank-deficient local
+%   block reduced on the factor (x, dof, sigma0, B y, Cyy, the redundancy
+%   identity, the downdate). With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
     tests = functiontests(localfunctions);
 end
 
@@ -287,6 +292,60 @@ function testCofactorOfAnIllConditionedLocalBlockIsExact(tc)
     % tol: 1e-6 relative -- two factorisations of a design at cond 1.3e8:
     % eps * cond ~ 3e-8 on these entries, with headroom
     tc.verifyEqual(diag(Cyy), sol.s0sq * diag(Qf(1:3, 1:3)), 'RelTol', 1e-6);
+end
+
+function testRankDeficientLocalBlockIsReducedOnTheFactor(tc)
+% categories: precision, robustness
+% WP-130: one duplicated local column (B = [1 t t^2 1], t over 1e4 s) fails
+% R11's pivots, and the fallback squared the block: pinv(Nll, 1e-10 norm) cut
+% the weak but DETERMINED t^2 direction with the null one (eig(Nll)/max = 2e-31,
+% 1e-16, 1e-9, 1), dof counted mObs - nl, and y / Cyy were solved with
+% backslash on the singular Nll_r, not with the pinv: x 31 formal sd off,
+% sigma0 35x (dev/validation/wp130_pinv_fallback_mirror.py). Now the rank is
+% decided on the factor (SVD of R11, QRSystem.RankTol) and every reader of the
+% block uses the solve's pseudo-inverse. Reference: the design without the
+% duplicate, whose locals are the same estimable functions.
+    muteWarn(tc, 'lsqvce:accum:pinvFallback');   % provoked on purpose here (WP-47, gate rule 7)
+    rs = RandStream('mt19937ar', 'Seed', 130);
+    m = 200;  nc = 4;  t = linspace(0, 1e4, m).';
+    A = randn(rs, m, nc);  B = [ones(m, 1), t, t.^2, ones(m, 1)];
+    l = A*randn(rs, nc, 1) + B(:, 1:3)*[1; 1e-3; 1e-7] + 1e-2*randn(rs, m, 1);
+    function out = dupPoly(d, ot, a, uo)                          %#ok<INUSD>
+        if ischar(d) || isstring(d), out = struct('obsTypes', {{'x'}}, 'arcs', {{1}}); return, end
+        out = struct('A', A, 'B', B, 'l', l);
+    end
+    acc = lsqvce.engine.BlockAccumulator(nc, 'Backend', 'qr', 'KeepLocal', true, 'Verbose', false);
+    acc.addSystem(1, 4, @dupPoly, 1);
+    tc.assertEqual(acc.diag(1).regUsed, 'pinv-fallback', 'the fixture reaches the fallback');
+    sol = acc.solve();
+    Dl = [A, B(:, 1:3)];  [~, Rf] = qr(Dl, 0);  xr = Rf \ (Rf.' \ (Dl.' * l));
+    vr = l - Dl*xr;  dofR = m - nc - 3;  Ri = Rf \ eye(nc + 3);  Cr = (vr.'*vr / dofR) * (Ri * Ri.');
+    tc.verifyEqual(sol.dof, dofR, 'dof counts the rank, not nl');
+    % tol: 1e-6 formal sd -- two factorisations of a design at cond 1.3e8
+    % (eps * cond ~ 3e-8 relative); the cut route was 31 sd off
+    tc.verifyLessThan(max(abs(sol.x - xr(1:nc)) ./ sqrt(diag(Cr(1:nc, 1:nc)))), 1e-6, 'x');
+    % tol: 1e-8 relative -- the same residual sum over the same dof
+    tc.verifyEqual(sol.s0sq, vr.'*vr / dofR, 'RelTol', 1e-8, 'sigma0^2');
+    y = acc.backSubstitute(1, sol.x);
+    % tol: 1e-8 relative -- the estimable local function B*y, two routes
+    tc.verifyEqual(B*y, B(:, 1:3)*xr(nc+1:end), 'RelTol', 1e-8, 'B y is the estimable local signal');
+    % tol: 1e-10 absolute -- the minimum-norm y splits the duplicate equally
+    tc.verifyEqual(y(1), y(4), 'AbsTol', 1e-10 * max(abs(y)), 'minimum-norm y');
+    Cyy = acc.localCovariance(1, sol.Cxx, sol.s0sq);
+    % tol: 1e-6 relative -- the covariance of the estimable local signal B y
+    % from the kept pseudo-inverse vs the reference's (was 2.8e14-scale garbage)
+    tc.verifyEqual(diag(B*Cyy*B.'), diag(B(:, 1:3)*Cr(nc+1:end, nc+1:end)*B(:, 1:3).'), 'RelTol', 1e-6);
+    red = acc.redundancy(sol, 'Verbose', false);
+    % tol: 1e-8 -- sum(r_i) = m - rank with the solve's pseudo-inverse (identityViolated before)
+    tc.verifyLessThan(red.check, 1e-8, 'the redundancy identity counts the rank');
+    % snoop's downdate on the kept basis: sum h over the survivors = the rank
+    Q = lsqvce.engine.BlockCofactor.fromAccumulator(acc);
+    [Q, ok] = Q.downdate([A(57, :), B(57, :)], 1);
+    tc.assertTrue(ok);
+    keep = (1:m).' ~= 57;
+    % tol: 1e-8 -- the identity on the downdated factor
+    tc.verifyEqual(sum(Q.leverage(1, A(keep, :), B(keep, :))), nc + 3, 'AbsTol', 1e-8, ...
+        'sum h over the survivors = nc + rank after a downdate');
 end
 
 function testAccumulatorRejectsNaNObservations(tc)

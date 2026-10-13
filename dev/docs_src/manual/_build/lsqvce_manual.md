@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.16.1 — User Manual"
+title: "lsqvce 6.17.0 — User Manual"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 
@@ -756,7 +756,7 @@ Level 1 checks whether the functional and stochastic model are consistent overal
 | code | severity | meaning | action |
 |---|---|---|---|
 | `NOISE_SETTLED` | NOTE | the loop met its stop rule; the line names the loop (the stochastic model, the robust re-weighting or the Gauss–Newton iteration) and its number of passes | — |
-| `NOISE_UNSETTLED` | WARN | the loop stopped on `"maxPasses"` or `"userStop"` before it settled. Every number below rests on weights that were still moving | Treat the result as provisional. Raise `MaxPasses` or loosen `Tolerance` and run again. `R.convergence()` shows what was still changing (see "When the loop did not settle" below). |
+| `NOISE_UNSETTLED` | WARN | the loop stopped on `"maxPasses"` or `"userStop"` before it settled, or a Gauss-Newton fit stopped on `"diverged"` (no downhill step). Every number below rests on weights or a point that were still moving | Treat the result as provisional. Raise `MaxPasses` or loosen `Tolerance` and run again. `R.convergence()` shows what was still changing (see "When the loop did not settle" below). For `"diverged"` more passes cannot help: check the start point and the Jacobian. |
 | `ROBUST_FIT` | NOTE | the run used a robust influence (`Robust = "huber"`, `"igg3"` or `"bisquare"`) | `sigma0` and the covariance belong to the **reweighted** problem. They are not an M-estimator's scale or sandwich covariance, so the global test and the parameter bounds are approximate in both directions. |
 
 **The global test.** Two lines always appear:
@@ -1036,6 +1036,7 @@ them with a Pope or MAD snooping run before you remove anything permanently.
 |---|---|---|
 | `INVALID` (`SUM_R`, `VPV_*`, `NO_REDUNDANCY`) | setup or arithmetic | Make the data source deterministic, use `Backend = "qr"`, add redundancy. Read nothing else. |
 | `NOISE_UNSETTLED`, `stopReason = "maxPasses"` | budget or poorly separable components | `R.convergence()`, then raise `MaxPasses`, loosen `Tolerance` or coarsen `Pool` / `Noise.Grid` |
+| `NOISE_UNSETTLED`, `stopReason = "diverged"` | Gauss-Newton found no downhill step | check the start point `x0` and the Jacobian against a finite difference |
 | `GLOBAL_HIGH`, flags present | outliers | `R.snoop()`, one at a time |
 | `GLOBAL_HIGH`, no flags | systematics or optimistic weights | `R.systematic(Covariates=...)`; if clean and structureless, `Estimate = "noise"` or correct `sigma` |
 | `GLOBAL_LOW` | pessimistic weights or over-parameterisation | correct `sigma` / `Estimate = "noise"`; `R.compare(Rred)`; Level-4 correlations |

@@ -237,6 +237,13 @@ classdef BlockAccumulator < handle
 %
 %   See also LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.RESIDUALS, LSQVCE.ENGINE.CHECKPSD, LSQVCE.ENGINE.QRSYSTEM
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-130: a local block whose factor
+%   fails RankTol is reduced ON the factor (rankReduced: SVD of R11, the
+%   solve's pseudo-inverse kept as Rll/Vll, dof = mObs - rank); the normal-form
+%   fallback keeps its pseudo-inverse too; localSolveOf / localCovariance use
+%   it; datumRows tests a group against the product's own rounding bound
+%   (invariant to parameter units). With assistance from Claude (Anthropic),
+%   model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-128: a local block eliminated on
 %   the QR factor keeps that factor (store fields Rll, Rlc, rl); its cofactor,
 %   solution and covariance come from it, never from the squared Nll. With
@@ -709,6 +716,10 @@ classdef BlockAccumulator < handle
             if ~isempty(s.Rll)                          % WP-128: on the QR factor,
                 Ri = s.Rll \ eye(size(s.Rll, 1));       % never the squared Nll
                 G = s.Rll \ s.Rlc;  Qll = Ri * Ri.';
+                V = lsqvce.util.getfielddef(s, 'Vll', []);
+                if ~isempty(V)                          % WP-130: the solve's pinv
+                    G = V * G;  Qll = V * Qll * V.';
+                end
             else
                 G   = s.Nll_r \ s.Nlc;                     % nl x nc
                 Qll = s.Nll_r \ eye(size(s.Nll_r,1));      % cofactor matrix
@@ -919,8 +930,10 @@ classdef BlockAccumulator < handle
 
         function [isDatum, S, nS] = datumRows(obj)
         %DATUMROWS  Which rows of the common prior are a DATUM (WP-127).
-        %   A group is BLIND when the data cannot see its rows (|S Kg'| <=
-        %   tolS |S| |Kg|, S the factor on QR, N on the normal backend); a blind
+        %   A group is BLIND when the data cannot see its rows (||S Kg'|| <=
+        %   tolS || |S| |Kg'| ||, the product against its own rounding bound,
+        %   invariant to parameter units -- WP-130; S the factor on QR, N on
+        %   the normal backend); a blind
         %   group is a datum when it is also orthogonal to the rows of every
         %   NON-blind group. WP-119 asked orthogonality to ALL other groups, so
         %   a datum split over two groups (translation and rotation of a
@@ -944,7 +957,11 @@ classdef BlockAccumulator < handle
             blind = false(size(grp));
             for g = gs
                 in = grp == g;  Kg = K(in, :);
-                blind(in) = norm(S * Kg.', 'fro') <= tolS * nS * norm(Kg, 'fro');
+                % WP-130: against the product's OWN rounding bound |S||Kg'|, not
+                % the whole system's norm -- invariant to parameter units (a
+                % column 1e-7 of the typical one passed as blind: sd 0 instead
+                % of 1.9e5; dev/validation/wp130_datum_scale_mirror.py)
+                blind(in) = norm(S * Kg.', 'fro') <= tolS * norm(abs(S) * abs(Kg.'), 'fro');
             end
             isDatum = false(size(grp));
             Ko = K(~blind, :);                           % the groups the data CAN see
@@ -969,8 +986,10 @@ classdef BlockAccumulator < handle
         %   inv(Nll) Nlc and the lower Cholesky factor Ll of Nll (p > 0: not
         %   PD) -- on the QR factor when the store keeps it (WP-128: Rll,
         %   Rlc, rl; the squared Nll lost the weak direction from cond(B) ~
-        %   7e7 and warned nearlySingular), else on Nll_r as before. The ONE
-        %   place every reader of a store's locals goes through.
+        %   7e7 and warned nearlySingular), else on Nll_r as before. A rank-
+        %   deficient block (WP-130: Vll, the kept basis of the solve's
+        %   pseudo-inverse) gives the minimum-norm y, G = pinv(Nll) Nlc and
+        %   p = 1. The ONE place every reader of a store's locals goes through.
         %   INPUT  st  a store element;  x  nc x 1 commons, or [] (y = [])
             p = 0;  Ll = [];
             if ~isempty(lsqvce.util.getfielddef(st, 'Rll', []))
@@ -978,11 +997,26 @@ classdef BlockAccumulator < handle
                 R = sg .* st.Rll;  Rlc = sg .* st.Rlc;  rl = sg .* st.rl;
                 y = [];  if ~isempty(x), y = R \ (rl - Rlc * x(:)); end
                 G = R \ Rlc;  Ll = R.';
+                V = lsqvce.util.getfielddef(st, 'Vll', []);
+                if ~isempty(V)           % WP-130: a rank-deficient block, on its kept
+                    if ~isempty(y), y = V * y; end   % basis (minimum-norm y);
+                    G = V * G;  Ll = [];  p = 1;     % Nll has no Cholesky factor
+                end
                 return
             end
             y = [];  if ~isempty(x), y = st.Nll_r \ (st.nl_r - st.Nlc * x(:)); end
             G = st.Nll_r \ st.Nlc;
             if nargout > 2, [Ll, p] = chol((st.Nll_r + st.Nll_r.')/2, 'lower'); end
+        end
+
+        %------------------------------------------------------------------
+        function k = localRankOf(st)
+        %LOCALRANKOF  The number of local parameters the solve estimated: nl,
+        %   or the rank of a block it reduced by the pseudo-inverse (WP-130) --
+        %   the u of every redundancy identity.
+            k = st.nl;
+            V = lsqvce.util.getfielddef(st, 'Vll', []);
+            if ~isempty(V), k = size(V, 2); end
         end
     end
 
@@ -1429,7 +1463,7 @@ classdef BlockAccumulator < handle
                 keep = struct('Nll_r', zeros(0,0), 'Nlc', zeros(0,nc), ...
                               'nl_r', zeros(0,1), 'ltl', ltl, 'mObs', mObs, ...
                               's0sq_hint', max(ltl,0)/max(mObs,1), ...
-                              'Rll', zeros(0), 'Rlc', zeros(0, nc), 'rl', zeros(0, 1));
+                              'Rll', zeros(0), 'Rlc', zeros(0, nc), 'rl', zeros(0, 1), 'Vll', []);
                 if lsqvce.util.verbosity.detail(opt.Verbose)
                     lsqvce.util.log.msg('%s', lsqvce.util.verbosity.fieldBlock(sprintf('System %s "%s"', string(sysID), sysName), ...
                         {'observations',   sprintf('%d', mObs); ...
@@ -1461,7 +1495,7 @@ classdef BlockAccumulator < handle
                     keep = struct('Nll_r', Nll_r, 'Nlc', Nlc, 'nl_r', nl_r, ...
                                   'ltl', ltl, 'mObs', mObs, ...
                                   's0sq_hint', max(red.ltl, 0)/max(mObs - nl, 1), ...
-                                  'Rll', R11, 'Rlc', R12, 'rl', r1);   % WP-128: the exact factor
+                                  'Rll', R11, 'Rlc', R12, 'rl', r1, 'Vll', []);   % WP-128: the exact factor
                     if lsqvce.util.verbosity.detail(opt.Verbose)
                         hdr = sprintf('System %s "%s"', string(sysID), sysName);
                         lsqvce.util.log.msg('%s', lsqvce.util.verbosity.fieldBlock(hdr, ...
@@ -1471,6 +1505,13 @@ classdef BlockAccumulator < handle
                     end
                     return
                 end
+                % WP-130: a pivot below RankTol -- the rank is decided ON the
+                % factor and the block stays there (rankReduced), instead of
+                % the pinv of the squared Nll below
+                [red, keep, dg] = lsqvce.engine.BlockAccumulator.rankReduced(R11, R12, r1, rows, ...
+                                      mObs, Nll_r, Nlc, nl_r, ltl, dg);
+                lsqvce.engine.BlockAccumulator.warnPinv(sysID, opt, dg);
+                return
             end
 
             % Arc-wise local parameters make Nll BLOCK-DIAGONAL: arc a only
@@ -1510,7 +1551,7 @@ classdef BlockAccumulator < handle
                     keep = struct('Nll_r', Nll_r, 'Nlc', Nlc, 'nl_r', nl_r, ...
                                   'ltl', ltl, 'mObs', mObs, ...
                                   's0sq_hint', max(ltl_red,0)/max(dof_red,1), ...
-                                  'Rll', zeros(0), 'Rlc', zeros(0, nc), 'rl', zeros(0, 1));
+                                  'Rll', zeros(0), 'Rlc', zeros(0, nc), 'rl', zeros(0, 1), 'Vll', []);
                     if lsqvce.util.verbosity.detail(opt.Verbose)
                         lsqvce.util.log.msg('%s', lsqvce.util.verbosity.fieldBlock(sprintf('System %s "%s"', string(sysID), sysName), ...
                             {'observations',    sprintf('%d', mObs); ...
@@ -1525,18 +1566,22 @@ classdef BlockAccumulator < handle
                      'dense Schur complement.'], string(sysID));
             end
 
+            kPinv = struct('Rll', zeros(0), 'Rlc', zeros(0, nc), 'rl', zeros(0, 1), 'Vll', []);
+            nRank = nl;
             if ~all(isfinite(Nll_r(:))) || rcond(Nll_r) < eps
-                Z = pinv(Nll_r, opt.TruncTol*norm(Nll_r)) * RHS;
+                % WP-130: the pseudo-inverse the solve uses is KEPT -- Rll =
+                % D1^1/2 on the kept eigenvectors Vll -- so y, G, Cyy, the
+                % cofactor and snoop's downdate use this one (they solved the
+                % singular Nll_r with backslash), and dof counts the rank
+                [Vn, dn] = eig((Nll_r + Nll_r.')/2, 'vector');
+                kp = dn > opt.TruncTol * max(dn);
+                V1 = Vn(:, kp);  s1 = sqrt(dn(kp));  nRank = nnz(kp);
+                Z  = V1 * ((V1.' * RHS) ./ dn(kp));
+                kPinv = struct('Rll', diag(s1), 'Rlc', (V1.' * Nlc) ./ s1, ...
+                               'rl', (V1.' * nl_r) ./ s1, 'Vll', V1);
                 dg.regUsed    = 'pinv-fallback';
                 dg.lambdaUsed = opt.TruncTol;
-                lsqvce.util.log.warn('lsqvce:accum:pinvFallback', ...
-                    ['System %s: the local block is still singular after ''%s'' ' ...
-                     'regularisation (cond %.3e). Falling back to the pseudo-' ...
-                     'inverse. The local parameters are not separately estimable; ' ...
-                     'the weakest direction is\n    [%s]\nConsider removing a ' ...
-                     'parameter rather than damping it.'], ...
-                     string(sysID), opt.Reg, dg.condNll, ...
-                     strjoin(compose('%+.3f', dg.nullDir(:).'), ' '));
+                lsqvce.engine.BlockAccumulator.warnPinv(sysID, opt, dg);
             else
                 Z = Nll_r \ RHS;
             end
@@ -1544,7 +1589,7 @@ classdef BlockAccumulator < handle
             Ncc_red = Ncc    - Nlc.'*Z(:,1:nc);
             ncc_red = nc_rhs - Nlc.'*Z(:,end);
             ltl_red = ltl    - nl_r.'*Z(:,end);
-            dof_red = mObs   - nl;
+            dof_red = mObs   - nRank;
 
             Ncc_red = (Ncc_red + Ncc_red.')/2;
 
@@ -1553,7 +1598,7 @@ classdef BlockAccumulator < handle
             keep = struct('Nll_r', Nll_r, 'Nlc', Nlc, 'nl_r', nl_r, ...
                           'ltl', ltl, 'mObs', mObs, ...
                           's0sq_hint', max(ltl_red, 0)/max(dof_red, 1), ...
-                          'Rll', zeros(0), 'Rlc', zeros(0, nc), 'rl', zeros(0, 1));
+                          'Rll', kPinv.Rll, 'Rlc', kPinv.Rlc, 'rl', kPinv.rl, 'Vll', kPinv.Vll);
 
             if lsqvce.util.verbosity.detail(opt.Verbose)
                 lsqvce.util.log.msg('%s', lsqvce.util.verbosity.fieldBlock(sprintf('System %s "%s"', string(sysID), sysName), ...
@@ -1564,6 +1609,44 @@ classdef BlockAccumulator < handle
                      'regularisation',  sprintf('%s (lambda = %.3e)', ...
                                                 char(dg.regUsed), dg.lambdaUsed)}));
             end
+        end
+
+        %------------------------------------------------------------------
+        function [red, keep, dg] = rankReduced(R11, R12, r1, rows, mObs, Nll_r, Nlc, nl_r, ltl, dg)
+        %RANKREDUCED  WP-130: a local factor whose pivots fail RankTol, reduced
+        %   ON the factor. R11 = U S V'; the rank k counts the singular values
+        %   above QRSystem.RankTol * max. The locals live on V1 (the minimum-
+        %   norm y = V1 S1^-1 (U1'r1 - U1'R12 x)); the rows U2'[R12 r1], which
+        %   R11 leaves (~0 on the locals), join the commons' reduced rows;
+        %   dof = mObs - k. The pinv of the squared Nll at TruncTol * max cut
+        %   the weak but determined direction of a t^2 local together with the
+        %   null one, and counted dof = mObs - nl: x 23-30 formal sd off for one
+        %   duplicated local column (dev/validation/wp130_pinv_fallback_mirror.py).
+            [U, Sg, V] = svd(R11);
+            sv = diag(Sg);  ns = numel(sv);
+            kp = sv > lsqvce.engine.QRSystem.RankTol * max(sv);
+            Us = U(:, 1:ns);  U2 = [Us(:, ~kp), U(:, ns+1:end)];  U1 = Us(:, kp);
+            V1 = V(:, 1:ns);  V1 = V1(:, kp);  k = nnz(kp);
+            red = lsqvce.engine.ReducedContribution([], [], [], mObs - k, [U2.' * [R12, r1]; rows]);
+            keep = struct('Nll_r', Nll_r, 'Nlc', Nlc, 'nl_r', nl_r, 'ltl', ltl, 'mObs', mObs, ...
+                          's0sq_hint', max(red.ltl, 0)/max(mObs - k, 1), ...
+                          'Rll', diag(sv(kp)), 'Rlc', U1.' * R12, 'rl', U1.' * r1, 'Vll', V1);
+            dg.regUsed = 'pinv-fallback';  dg.lambdaUsed = lsqvce.engine.QRSystem.RankTol;
+            dg.rankDef = size(R11, 2) - k;
+        end
+
+        %------------------------------------------------------------------
+        function warnPinv(sysID, opt, dg)
+        %WARNPINV  The one pinvFallback warning (the QR factor's and the
+        %   normal form's fallback say the same thing).
+            lsqvce.util.log.warn('lsqvce:accum:pinvFallback', ...
+                ['System %s: the local block is still singular after ''%s'' ' ...
+                 'regularisation (cond %.3e). Falling back to the pseudo-' ...
+                 'inverse. The local parameters are not separately estimable; ' ...
+                 'the weakest direction is\n    [%s]\nConsider removing a ' ...
+                 'parameter rather than damping it.'], ...
+                 string(sysID), opt.Reg, dg.condNll, ...
+                 strjoin(compose('%+.3f', dg.nullDir(:).'), ' '));
         end
     end
 end

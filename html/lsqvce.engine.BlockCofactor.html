@@ -135,6 +135,10 @@ C = Q.block([1 2]);                            % 2 x 2 cofactor of x(1:2)</pre>
 See also LSQVCE.ENGINE.VERDICT.SOURCE, LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SNOOP,
 LSQVCE.ENGINE.BLOCKACCUMULATOR
 
+Updated 2026-10-13 (CEST, UTC+02:00), WP-130: a block reduced by the
+solve&#x27;s pseudo-inverse (blocks .Vll) gives H, G on its kept basis and
+downdates there; an eigen block downdates with its own cut (sys .tol). With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-13 (CEST, UTC+02:00), WP-129: downdate of a block kept
 on its QR factor downdates that factor (cholupdate of Rll), no longer
 the squared Nll. With assistance from Claude (Anthropic), model Claude

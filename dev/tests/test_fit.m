@@ -36,6 +36,11 @@ function tests = test_fit
 %   Created 2026-08-31 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5 -- R4 Level L2, WP-56.
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-130: Gauss-Newton sigma0 / vPv /
+%   D.x at the returned point; the datum test under a change of parameter
+%   units; snoop without the re-solve and its critical value; the mad scale
+%   without datum rows. With assistance from Claude (Anthropic), model Claude
+%   Opus 5.5.
 %   Updated 2026-10-12 (CEST, UTC+02:00), WP-124: references to the data
 %   contract point at the API reference. With assistance from Claude
 %   (Anthropic), model Claude Opus 5.5.
@@ -1206,6 +1211,14 @@ function testGaussNewtonNeverReturnsAnUnevaluatedPoint(tc)
         % tol: 1e-10 relative -- the rounding allowance of the final-step check
         tc.verifyLessThanOrEqual(F(R.x), Fbest * (1 + 1e-10), ...
             sprintf('start [%g %g %g]: R.x is no worse than the best evaluated point', x0{1}));
+        % WP-130: sigma0 and the diagnostics are those of R.x, not of the linear
+        % prediction at x + dx (sigma0 0.19 against sqrt(F/r) = 0.77 from the
+        % first start), and D.x is the estimate, not the final increment.
+        % tol: 1e-9 relative -- the same sum of squares, accumulated vs closed form
+        tc.verifyEqual(R.sigma0^2 * R.diag.r, F(R.x), 'RelTol', 1e-9, ...
+            sprintf('start [%g %g %g]: sigma0^2 r = F(R.x)', x0{1}));
+        tc.verifyEqual(R.diag.vPv, F(R.x), 'RelTol', 1e-9, 'the diagnostics replay R.x');
+        tc.verifyEqual(R.diag.x(1:3), R.x, 'D.x is the estimate (report, ellipse centre)');
     end
 end
 function testGaussNewtonPriorIsOnXNotOnTheStep(tc)
@@ -1382,6 +1395,39 @@ function testDatumSplitOverGroupsIsOneDatum(tc)
     tc.verifyEqual(T.quadrant(m + 1 : end), repmat("datum", 3, 1));
 end
 
+function testDatumTestIsInvariantToParameterUnits(tc)
+% categories: metamorphic, robustness
+    % WP-130: the datum test compared |S Kg'| with the norm of the WHOLE
+    % system, so a parameter in small units passed as "blind": with a prior
+    % group of its own it got the minimum-constraint covariance, sd 0
+    % (dev/validation/wp130_datum_scale_mirror.py). Now the product is held
+    % against its own rounding bound |S||Kg'|. Metamorphic: rescaling
+    % parameter 6 by c (column A(:,6) c, its prior sigma / c) rescales its sd
+    % by 1/c and leaves every other sd unchanged; the datum on 1..4 stays one.
+    rs = RandStream('mt19937ar', 'Seed', 130);
+    pairs = [1 2; 2 3; 3 4; 4 1; 1 3];
+    A = zeros(size(pairs, 1) + 3, 6);
+    for k = 1:size(pairs, 1)
+        A(k, pairs(k, 1)) = -1;  A(k, pairs(k, 2)) = 1;  A(k, 5) = 0.3*k;  A(k, 6) = (-1)^k;
+    end
+    A(size(pairs, 1) + 1:end, 5:6) = randn(rs, 3, 2);
+    l = A*[0; 1.5; -0.7; 2.2; 0.2; -0.1] + 0.01*randn(rs, size(A, 1), 1);
+    c = 1e-9;  As = A;  As(:, 6) = c * A(:, 6);
+    pri = @(s6) struct('L', {[1 1 1 1 0 0], [0 0 0 0 0 1]}, 'sigma', {1, s6}, 'name', {'datum', 'p6'});
+    R1 = lsqvce.fit(struct('A', A,  'l', l, 'priors', pri(0.5)),     Verbose=false);
+    R2 = lsqvce.fit(struct('A', As, 'l', l, 'priors', pri(0.5 / c)), Verbose=false);
+    sd1 = sqrt(diag(R1.sol.Cxx));  sd2 = sqrt(diag(R2.sol.Cxx));
+    % tol: 1e-6 relative -- one QR of a design whose column 6 is 1e-9 of the
+    % others, against one of the unscaled design (eps * 1/c is not involved:
+    % the scaling is exact in the factor's column)
+    tc.verifyEqual(sd2(6) * c, sd1(6), 'RelTol', 1e-6, 'sd(x6) rescales by 1/c (it was 0)');
+    % tol: as above
+    tc.verifyEqual(sd2(1:5), sd1(1:5), 'RelTol', 1e-6, 'the other parameters do not see the units');
+    tc.verifyGreaterThan(sd2(6), 0);
+    % tol: as above -- the diagnostics' cofactor from the same factor
+    tc.verifyEqual(R2.diag.sigX(6) * c, R1.diag.sigX(6), 'RelTol', 1e-6, 'the diagnostics'' cofactor too');
+end
+
 function testSnoopKeepsTheDatumAndTheOriginalIndex(tc)
 % categories: precision, contract, robustness
     % WP-128. (1) snoop's clean re-solve re-accumulated a prior as rows of
@@ -1409,6 +1455,87 @@ function testSnoopKeepsTheDatumAndTheOriginalIndex(tc)
     tc.verifyEqual(D.obsIdx(:), [1:2, 4:m, m + 1].', 'survivors, then the prior row, by original index');
     tc.verifyEqual(D.datumRows, m + 1, 'the datum row keeps its original index');
     tc.verifyFalse(ismember(3, D.flagIdx), 'the rejected observation is not flagged again');
+end
+
+function testSnoopAfterRejectionWithoutTheReSolve(tc)
+% categories: precision, contract, metamorphic
+    % WP-130. (1) With Reaccumulate=false snoop returned the INPUT D (the
+    % rejected observation still flagged, no .rejectedIdx) and sol.s0sq / n /
+    % r / vPv from before the rejection (the blunder still in s0): the 1/r_i
+    % identity was computed and dropped. Now D is re-diagnosed on the
+    % downdated cofactor over the survivors and sol is after rejection; both
+    % agree with the clean re-solve. (2) snoop's Bonferroni n counted the
+    % datum row, diagnose's did not: the first-iteration critical value is
+    % now R.diag.kCrit exactly.
+    rs = RandStream('mt19937ar', 'Seed', 5);
+    pairs = repmat([1 2; 2 3; 3 4; 4 1; 1 3; 2 4], 7, 1);  m = size(pairs, 1);
+    A = zeros(m, 4);  A(sub2ind(size(A), (1:m).', pairs(:, 1))) = -1;
+    A(sub2ind(size(A), (1:m).', pairs(:, 2))) = 1;
+    l = A*[0; 1.5; -0.7; 2.2] + 0.01*randn(rs, m, 1);  l(3) = l(3) + 0.2;   % a 20-sigma blunder
+    R = lsqvce.fit(struct('A', A, 'l', l, 'priors', struct('L', ones(1, 4), 'sigma', 1e3, 'name', 'datum')), ...
+                   Verbose=false);
+    [Dt, REJt, solT] = R.snoop('Verbose', false);
+    [Df, REJf, solF] = R.snoop('Verbose', false, 'Reaccumulate', false);
+    tc.assertEqual([REJt.idx, REJf.idx], [3 3], 'the blunder, both ways');
+    % tol: 1e-8 relative -- the 1/r_i identity on the downdated cofactor vs the clean re-solve
+    tc.verifyEqual(solF.s0sq, solT.s0sq, 'RelTol', 1e-8, 's0^2 after rejection');
+    tc.verifyEqual([solF.n, solF.r], [solT.n, solT.r], 'n and r after rejection');
+    tc.verifyEqual(Df.rejectedIdx, 3);
+    tc.verifyFalse(ismember(3, Df.flagIdx), 'the rejected observation is not flagged again');
+    tc.verifyEqual(Df.obsIdx(:), Dt.obsIdx(:), 'one index space either way');
+    % tol: as above -- the downdated cofactor vs the re-solved one
+    tc.verifyEqual(Df.sigX, Dt.sigX, 'RelTol', 1e-8);
+    % tol: as above
+    tc.verifyEqual(Df.rNum(:), Dt.rNum(:), 'AbsTol', 1e-8, 'the redundancies of the survivors');
+    % (2) tol: 1e-12 relative -- the same tau of the same alpha / nTests and r
+    tc.verifyEqual(REJt.history(1, 4), R.diag.kCrit, 'RelTol', 1e-12, ...
+        'snoop tests at diagnose''s critical value (the datum row is no test)');
+end
+
+function testMadScaleLeavesTheDatumRowsOut(tc)
+% categories: metamorphic, contract
+    % WP-130: Test "mad" formed its scale in a separate sweep that kept the
+    % datum rows (r = 0, but qv ~ +-eps by rounding, so a near-zero raw score
+    % about half the time) -- the WP-127 exclusion sat in the fused path only;
+    % the scale came out low (median 0.85 of the fused one, 0.37 at worst,
+    % in the reviewer's mirror). The two sweeps form the SAME raw scores, so
+    % the scales are bitwise equal; snoop's 'mad' scale is that one too
+    % (its first |w| is diagnose's). Over two backends and two sigmas, twelve
+    % datum rows: a rounding pattern that hides the old defect has p ~ 2^-12.
+    rs = RandStream('mt19937ar', 'Seed', 27);
+    P  = [20 5; 28 6; 30 13; 24 16; 19 11];
+    pairs = nchoosek(1:5, 2);  m = size(pairs, 1);
+    A = zeros(m, 10);
+    for k = 1:m
+        e = P(pairs(k, 2), :) - P(pairs(k, 1), :);  e = e / norm(e);
+        A(k, 2*pairs(k, 1) - [1 0]) = -e;  A(k, 2*pairs(k, 2) - [1 0]) = e;
+    end
+    l  = A * randn(rs, 10, 1) + 0.01 * randn(rs, m, 1);
+    Kt = kron(ones(1, 5), eye(2));  Kr = reshape([-P(:, 2).'; P(:, 1).'], 1, []);
+    for bk = ["qr" "normal"]
+        for sg = [1 1e3]
+            pri = struct('L', {Kt, Kr}, 'sigma', {sg, sg}, 'name', {'trans', 'rot'});
+            R = lsqvce.fit(struct('A', A, 'l', l, 'priors', pri), Verbose=false, Backend=bk);
+            Dm = lsqvce.engine.verdict.diagnose(R.source, R.batchFcn, 'nBatch', R.nBatch, 'Test', "mad");
+            msg = sprintf('%s, datum sigma %g', bk, sg);
+            tc.verifyEqual(Dm.robustScale, R.diag.robustScale, ['the mad sweep is the fused one: ' msg]);
+            tc.verifyEqual(Dm.fhat, R.diag.fhat, msg);
+        end
+    end
+    % snoop 'mad' on the levelling net with a datum: its first |w| is diagnose's
+    rs = RandStream('mt19937ar', 'Seed', 5);
+    pairs = repmat([1 2; 2 3; 3 4; 4 1; 1 3; 2 4], 7, 1);  m = size(pairs, 1);
+    A = zeros(m, 4);  A(sub2ind(size(A), (1:m).', pairs(:, 1))) = -1;
+    A(sub2ind(size(A), (1:m).', pairs(:, 2))) = 1;
+    l = A*[0; 1.5; -0.7; 2.2] + 0.01*randn(rs, m, 1);  l(3) = l(3) + 0.2;
+    R = lsqvce.fit(struct('A', A, 'l', l, 'priors', struct('L', ones(1, 4), 'sigma', 1e3, 'name', 'datum')), ...
+                   Verbose=false);
+    Dm = lsqvce.engine.verdict.diagnose(R.source, R.batchFcn, 'nBatch', R.nBatch, 'Test', "mad");
+    [~, REJ] = R.snoop('Verbose', false, 'Test', "mad");
+    tc.assertEqual(REJ.idx(1), 3, 'the blunder');
+    % tol: 1e-10 relative -- the same raw score over the same MAD, two sweeps
+    tc.verifyEqual(REJ.history(1, 2), abs(Dm.w(3)), 'RelTol', 1e-10, ...
+        'snoop''s mad scale is diagnose''s (no datum score)');
 end
 
 function testDatumIsADeclaredPrior(tc)
