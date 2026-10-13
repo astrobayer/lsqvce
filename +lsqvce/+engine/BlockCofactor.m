@@ -38,7 +38,10 @@ classdef BlockCofactor
 %                        vector), .Nll (the REGULARISED local block the solve
 %                        used), .Nlc, optionally .truncTol (the relative
 %                        eigenvalue cut of the solve's pinv fallback, the
-%                        accumulator's TruncTol); [] for a local-free problem
+%                        accumulator's TruncTol), optionally .Rll / .Rlc (the
+%                        local factor and coupling of a block eliminated on the
+%                        QR factor; used instead of .Nll, WP-128); [] for a
+%                        local-free problem
 %
 %     Q = LSQVCE.ENGINE.BLOCKCOFACTOR.fromAccumulator(acc)
 %       the cofactor of a solved lsqvce.engine.BlockAccumulator ('KeepLocal'),
@@ -90,6 +93,10 @@ classdef BlockCofactor
 %   See also LSQVCE.ENGINE.VERDICT.SOURCE, LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SNOOP,
 %   LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-128: a local block the solve
+%   eliminated on the QR factor (blocks .Rll, .Rlc) gives H and G from that
+%   factor, not from the eigen pseudo-inverse of the squared Nll. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-12 (CEST, UTC+02:00), WP-125: leverage() returns the common
 %   term hc as its second output. With assistance from Claude (Anthropic), model
 %   Claude Opus 5.5.
@@ -150,7 +157,16 @@ classdef BlockCofactor
                 end
                 tol = [];
                 if isfield(b, 'truncTol'), tol = b.truncTol; end
-                [H, G] = lsqvce.engine.BlockCofactor.localBlock(b.Nll, b.Nlc, tol);
+                if isfield(b, 'Rll') && ~isempty(b.Rll)
+                    % WP-128: the block the solve eliminated EXACTLY on its QR
+                    % factor: H = R11^-T, G = R11^-1 R12 (H'H = inv(Nll)). The
+                    % squared Nll took the eigen branch from cond(B) ~ 7e7 and cut
+                    % at 1e-10 max -- one redundancy unit lost per cut direction
+                    % (a t^2 term over 1e4 s; dev/validation/wp128_local_block_mirror.py)
+                    H = b.Rll.' \ eye(nl);  G = b.Rll \ b.Rlc;
+                else
+                    [H, G] = lsqvce.engine.BlockCofactor.localBlock(b.Nll, b.Nlc, tol);
+                end
                 Q.sys(end+1) = struct('cols', b.cols(:).', 'Nll', b.Nll, 'H', H, 'G', G);
                 u = u + nl;
             end
@@ -383,13 +399,16 @@ classdef BlockCofactor
         %   system order -- the layout of lsqvce.engine.verdict.source.
             ids = acc.systems();
             nc = acc.nc;
-            blocks = struct('cols', cell(1, numel(ids)), 'Nll', [], 'Nlc', [], 'truncTol', []);
+            blocks = struct('cols', cell(1, numel(ids)), 'Nll', [], 'Nlc', [], 'truncTol', [], ...
+                            'Rll', [], 'Rlc', []);
             col = nc;
             for k = 1:numel(ids)
                 st = acc.getStore(ids(k));
                 nl = size(st.Nll_r, 1);
                 blocks(k) = struct('cols', col + (1:nl), 'Nll', st.Nll_r, 'Nlc', st.Nlc, ...
-                                   'truncTol', acc.opt.TruncTol);   % the solve's pinv cut
+                                   'truncTol', acc.opt.TruncTol, ...   % the solve's pinv cut
+                                   'Rll', lsqvce.util.getfielddef(st, 'Rll', []), ...
+                                   'Rlc', lsqvce.util.getfielddef(st, 'Rlc', []));
                 col = col + nl;
             end
             Q = lsqvce.engine.BlockCofactor(acc.commonFactor(), blocks, acc.datumPart());

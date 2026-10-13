@@ -258,6 +258,37 @@ function testAccumulatorDetectsWrongArcDimensions(tc)
                    'lsqvce:accum:arcRowMismatch');
 end
 
+function testCofactorOfAnIllConditionedLocalBlockIsExact(tc)
+% categories: precision, robustness
+% WP-128: the QR backend eliminates a local block exactly on its factor up to
+% cond(B) ~ 4.5e12; the diagnostics cofactor was rebuilt from the SQUARED
+% block Nll = B'B and, from cond(B) ~ 7e7, cut its eigenvalues at 1e-10 max --
+% one redundancy unit lost per cut direction while the solve kept them all.
+% A quadratic local polynomial in raw seconds over 1e4 s (cond(B) = 1.3e8) is
+% enough (dev/validation/wp128_local_block_mirror.py: sum h 6 instead of 7).
+% Integrity identity: sum(r_i) = m - u, through acc.redundancy.
+    rs = RandStream('mt19937ar', 'Seed', 128);
+    m = 200;  nc = 4;  t = linspace(0, 1e4, m).';
+    A = randn(rs, m, nc);  B = [ones(m, 1), t, t.^2];
+    l = A*randn(rs, nc, 1) + B*[1; 1e-3; 1e-7] + 1e-3*randn(rs, m, 1);
+    function out = poly(d, ot, a, uo)                          %#ok<INUSD>
+        if ischar(d) || isstring(d), out = struct('obsTypes', {{'x'}}, 'arcs', {{1}}); return, end
+        out = struct('A', A, 'B', B, 'l', l);
+    end
+    acc = lsqvce.engine.BlockAccumulator(nc, 'Backend', 'qr', 'KeepLocal', true, 'Verbose', false);
+    acc.addSystem(1, 3, @poly, 1);
+    sol = acc.solve();
+    red = acc.redundancy(sol, 'Verbose', false);
+    % tol: 1e-8 -- the identity holds to rounding on the factor; the cut lost a whole unit
+    tc.verifyLessThan(red.check, 1e-8, 'sum(r_i) = m - u with the exact local cofactor');
+    % and the local covariance from the factor equals the dense reference
+    Cyy = acc.localCovariance(1, sol.Cxx, sol.s0sq);
+    [~, Rf] = qr([B, A], 0);  Ri = Rf \ eye(nc + 3);  Qf = Ri * Ri.';   % the reference, on a factor
+    % tol: 1e-6 relative -- two factorisations of a design at cond 1.3e8:
+    % eps * cond ~ 3e-8 on these entries, with headroom
+    tc.verifyEqual(diag(Cyy), sol.s0sq * diag(Qf(1:3, 1:3)), 'RelTol', 1e-6);
+end
+
 function testAccumulatorRejectsNaNObservations(tc)
 % categories: contract, robustness
 % NaN in l would propagate into the normal matrix and poison everything. The

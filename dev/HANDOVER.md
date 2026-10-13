@@ -8,8 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-12 — WP-126 DONE (PR #147, merge 7e44406; CI GREEN on f6d685c); WP-127 OPEN (tier B, model Claude Opus 5.5; user: a review of the entire code, then "Go ahead"): the confirmed findings -- the ARMA whitener with an MA part made exact, datum rows out of the diagnostics counts, a datum over several groups, the joint loop with a late local prior, the Gauss-Newton final step checked, NaN/Inf in A/B refused, .gitignore; 3 tests; version 6.15.0; §12.59.
-Preceding entry: Last substantive update: 2026-10-12 — WP-125 DONE (PR #146, merge 8382eab; CI GREEN on 9e20f7a); WP-126 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-126 mit der Längengrenze"): the review of the WP-125 diff -- a dense law refuses an arc above cm.maxDenseArc (default 20 000 epochs, `lsqvce:covModel:denseArcTooLong`); ar2arma fits the AR part forwards (it returned reciprocal roots) and a non-invertible MA part falls back to the AR (`lsqvce:ar2arma:nonInvertibleMA`); arcVarianceFactors.pooled; 4 tests; version 6.14.0; §12.58.
+Last substantive update: 2026-10-13 — WP-127 DONE (PR #148, merge 4873783; CI GREEN on e8fac67); WP-128 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-128"): the five findings of the whole-code review marked plausible, each re-derived by an own mirror -- all five confirmed and fixed: snoop keeps the prior a prior and returns one index space, the MAD test on Student t (nu = 0.367 r), the local block's cofactor from the QR factor, a late local prior reported; 3 tests; version 6.16.0; §12.60.
+Preceding entry: Last substantive update: 2026-10-12 — WP-126 DONE (PR #147, merge 7e44406; CI GREEN on f6d685c); WP-127 OPEN (tier B, model Claude Opus 5.5; user: a review of the entire code, then "Go ahead"): the confirmed findings -- the ARMA whitener with an MA part made exact, datum rows out of the diagnostics counts, a datum over several groups, the joint loop with a late local prior, the Gauss-Newton final step checked, NaN/Inf in A/B refused, .gitignore; 3 tests; version 6.15.0; §12.59.
 Preceding entry: Last substantive update: 2026-10-12 — WP-123 DONE (PR #143, merge cebbfd1; CI GREEN on e617a95, first round); closure PR (user decision: "Ja, mach den Abschluss-PR"): the ledger row and §12.55, no code change, no version (6.12.1 stays, 641 tests).
 Preceding entry: Last substantive update: 2026-10-12 — WP-122 DONE (PR #142, merge 1d8c89b; CI GREEN on ac4bfa4); WP-123 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-123"): the kernel whiteners (separableWhiten, varWhiten, armaWhiten) take a sparse A / B / l -- the dense filter runs on the non-zero columns only (private kernel helper activeColumns), sparse in, sparse out; the dense path unchanged; template/kbr_variational returns its position B sparse again; 1 gate test; version 6.12.1; §12.54.
 Preceding entry: Last substantive update: 2026-10-12 — WP-122 OPEN (tier B, model Claude Opus 5.5; user: "a real-life buildDay for range-rate observations using a variational equation approach", scope decision: SELF-CONTAINED): template/kbr_variational.m -- GRACE-FO L1B (GNV1B, KBR1B, ACT1B, SCA1B) + ICGEM .gfc -> range-rate and position streams by the variational equations (analytic a, G, da/dC_nm from normalized solid harmonics and exact sparse derivative operators; ABM8 PECE), declared column units; mirror dev/validation/kbr_variational_mirror.py; 4 gate tests in test_physOracle; version 6.12.0; §12.53.
@@ -9371,7 +9371,7 @@ ceilings by joining lines. Docs: API 03 (the limit, the arma fallback), Manual 0
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 127 | the confirmed findings of the whole-code review: `armaWhiten` exact with an MA part (startup over the filter memory, recursion from the exact innovations); a prior's datum rows not tested or counted (`D.nTests`, `D.datumRows`, quadrant "datum"); `BlockAccumulator.datumRows` -- a datum over several groups; the joint loop with a local prior `from >= 2` (inactive arcs are not skips; one record column per pinned stream); the Gauss-Newton final step checked; `arcNotFinite` for A and B; `.gitignore` `dev/references/local/`; **version 6.15.0** | 126 (PR #147 merged 7e44406) | OPEN (tier B; CI is the gate) |
+| 127 | the confirmed findings of the whole-code review: `armaWhiten` exact with an MA part (startup over the filter memory, recursion from the exact innovations); a prior's datum rows not tested or counted (`D.nTests`, `D.datumRows`, quadrant "datum"); `BlockAccumulator.datumRows` -- a datum over several groups; the joint loop with a local prior `from >= 2` (inactive arcs are not skips; one record column per pinned stream); the Gauss-Newton final step checked; `arcNotFinite` for A and B; `.gitignore` `dev/references/local/`; **version 6.15.0** | 126 (PR #147 merged 7e44406) | DONE (2026-10-13, PR #148, merge 4873783; CI GREEN on e8fac67) |
 
 **The user's request (2026-10-12):** a review of the entire code for correctness, security, data
 integrity, concurrency, backwards compatibility and missing tests. Five parallel reviewers (one
@@ -9429,3 +9429,49 @@ came out as x = NaN); test extends `test_reliability>testAccumulatorRejectsNaNOb
 off today, so nothing is exposed -- before it goes public, restrict the self-hosted jobs to same-repo
 PRs.
 **Tests 654 = 651 + 3.** NOT validated before CI: no MATLAB in the container.
+
+### 12.60 WP-128 — the remaining findings of the whole-code review (2026-10-13, model Claude Opus 5.5)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 128 | the five findings of the whole-code review (§12.59) marked plausible, each re-derived by an own mirror, all confirmed: `snoop`'s clean re-solve keeps the prior a prior and never rejects its rows; its D in one (original) index space (`D.obsIdx`); `kernel.stat.madCrit` (t, nu = 0.367 r) for Test 'mad'; a QR-eliminated local block's cofactor / solution / covariance from its factor (store `Rll`, `Rlc`, `rl`); `priorNotActive` counts late local groups; **version 6.16.0** | 127 (PR #148 merged 4873783) | OPEN (tier B; CI is the gate) |
+
+**The user's request (2026-10-13):** "Ja, mach WP-128" -- re-derive the five plausible findings,
+fix the confirmed ones.
+
+**6 -- snoop's re-solve dropped the datum (confirmed by reading + mirror).** `source` sets
+`defect = 0`, so `blockResolveAccumulator`'s setPrior branch was dead; the prior's pseudo-batch
+(sysOf 0) went into the local-free system as DATA: cofactor inv(N + K'K/s^2), sigX 250 instead of
+0.164 at sigma 1e3 on a levelling net. `source` now hands `prior` / `priorBatch`; the re-solve skips
+that batch and calls `setPrior`; `scanWorst` never picks a prior row (a ridge row could be rejected).
+
+**7 -- two index spaces (confirmed by reading).** The re-diagnosis numbers survivors in the
+re-solve's order (systems, local-free last, prior last); `D.rejectedIdx` counts the original rows.
+`blockResolveAccumulator` returns `obsIdx`; `toOriginalIndex` maps flagIdx, idxUncontrolled,
+worstIdx, datumRows, rMinIdx, maxAbsWIdx, extMaxIdx; the per-observation vectors stay in the
+re-solve's order with `D.obsIdx`. Test `test_fit>testSnoopKeepsTheDatumAndTheOriginalIndex`.
+
+**9 -- a late local prior in a single solve (confirmed by reading).** `fit` counted only
+`data.priors`; `nLateLocal` adds `data.systems(k).priors`. Test: the late-group step of
+`testLocalPriorsAreTheCounterpartOfDataPriors` now asserts the id in `R.meta.warnings`.
+
+**10 -- the local block's cofactor (confirmed by mirror).** The QR backend eliminates a local block
+exactly while R11's pivots pass RankTol (cond(B) to ~4.5e12); `BlockCofactor.localBlock` re-inverted
+the squared Nll and, from cond(B) ~ 7e7 (rcond < eps), took the eigen branch with the 1e-10 cut:
+`dev/validation/wp128_local_block_mirror.py`, a t^2 local over 1e4 s: sum h 6 instead of 7 (5 at
+5e4 s). `QRSystem.reducedRows` returns R12 and r1; the QR store keeps `Rll`, `Rlc`, `rl` (empty on
+the other paths); the cofactor takes H = R11^-T, G = R11^-1 R12; `backSubstitute` and
+`localCovariance` solve on the factor too (the residuals were right either way -- the error lives
+in the poorly determined direction -- but `\` on the squared block warns nearlySingular). Test
+`test_reliability>testCofactorOfAnIllConditionedLocalBlockIsExact` (red.check, Cyy vs a QR reference).
+Residue: `BlockCofactor.downdate` (snoop on a local block) still refactors from Nll.
+
+**12 -- the MAD test's critical value (confirmed by simulation).** tau is bounded by sqrt(r) because
+s0 contains the tested residual; a MAD scale does not. Family-wise false alarms at alpha 1e-3
+Bonferroni, 40 000 null fits (`dev/validation/wp128_mad_crit_mirror.py`): tau 0.063 / 0.032 / 0.0057
+at n = 30 / 50 / 200; the normal value 0.023 / 0.014 / 0.0043 (the MAD's own noise); Student t with
+nu = 0.367 r (the MAD's variance efficiency) 1e-4 / 1.5e-4 / 1.2e-3 -- chosen
+(`lsqvce.kernel.stat.madCrit`; diagnose 'mad' and snoop 'mad'). Test
+`test_lsqvce>test_madCrit_is_student_t_on_the_mad_efficiency` (scipy reference values).
+
+**Tests 657 = 654 + 3.** NOT validated before CI: no MATLAB in the container.

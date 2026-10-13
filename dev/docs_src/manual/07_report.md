@@ -219,7 +219,10 @@ on its normalised residual
   `w_i = (P v)_i / (scale · sqrt((P Qvv P)_ii))`.
 
 The `scale` is the estimated `s0` (Pope), the a-priori sigma0 (Baarda) or the robust MAD
-scale. With `Bonferroni = true` the level of each test is `Alpha / n`.
+scale. With `Bonferroni = true` the level of each test is `Alpha / n`. The critical value
+follows the scale: Pope's tau, the normal distribution, and for the MAD a Student t with
+0.367·r degrees of freedom (the MAD's efficiency) -- Pope's tau there gave many times the
+nominal false alarms on small networks.
 
 ### The contamination cross-check
 
@@ -284,7 +287,11 @@ REJ.idx      % rejected, in order;  REJ.refused  % tripped but r_i < RMinReject 
 `R.snoop` takes its own `Test` (`"pope"` or `"mad"`), `Alpha` (1e-3) and `Bonferroni` (`true`)
 name-values; it does not read `Options.Diagnostics`. It caps the number of rejections at
 `max(10, 0.01·n)` and stops at a fraction of 0.25 (`MaxRejectFrac`). It refuses observations with `r_i < RMinReject`, re-solves cleanly
-over the survivors at the end, and leaves `R` unchanged. It cannot reject single rows of a
+over the survivors at the end, and leaves `R` unchanged. The prior's rows are never
+rejected, and the re-solve keeps the prior as a prior (a datum stays a datum). The returned
+`D2` counts in the original observation numbers (`D2.flagIdx`, `D2.rejectedIdx`, ...); its
+per-observation vectors cover the survivors, and `D2.obsIdx` names their original numbers.
+It cannot reject single rows of a
 correlated batch (`lsqvce:snoop:correlatedBatch`): there, remove the epoch in `buildDay`
 or use `Robust`.
 

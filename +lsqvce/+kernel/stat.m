@@ -15,6 +15,8 @@ classdef stat
 %     tauInv(p,r)           Pope tau quantile (two-sided p is NOT applied here;
 %                           pass the upper-tail probability directly)
 %     tauCrit(alpha,r)      two-sided Pope tau critical value
+%     madCrit(alpha,r)      two-sided critical value of a residual scaled by
+%                           a MAD (Student t, nu = 0.367 r; WP-128)
 %     normCrit(alpha)       two-sided normal critical value
 %     delta0(alpha,beta)    MDB non-centrality parameter
 %     fInv(p,d1,d2)         F quantile
@@ -38,6 +40,9 @@ classdef stat
 %
 %   See also LSQVCE.ENGINE.VERDICT.DIAGNOSE.
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-128: madCrit, the critical value
+%   of a MAD-scaled residual. With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 4: moved from the
 %   ENGINE to the KERNEL tier (the distributions; the tests live
 %   in lsqvce.engine.verdict). With assistance from Claude (Anthropic),
@@ -211,6 +216,24 @@ function tc = tauCrit(alpha, r)
     ra = r(act);  aa = alpha(act);
     t  = lsqvce.kernel.stat.tInv(1 - aa ./ 2, ra - 1);
     tc(act) = t .* sqrt(ra) ./ sqrt(ra - 1 + t.^2);
+end
+
+function k = madCrit(alpha, r)
+    %MADCRIT  Two-sided critical value of a residual standardised by a MAD
+    %   scale (WP-128). Pope's tau holds only when the scale CONTAINS the
+    %   tested residual (that is what bounds it by sqrt(r)); a robust scale is
+    %   all but independent of it, and its own sampling error is that of a
+    %   variance estimate with the MAD's asymptotic efficiency 0.367 -- so the
+    %   statistic is Student t with nu = 0.367 r. MEASURED (40 000 null fits,
+    %   dev/validation/wp128_mad_crit_mirror.py, alpha 1e-3 Bonferroni):
+    %   family-wise false alarms with tauCrit 0.066 / 0.030 / 0.0055 at
+    %   n = 30 / 50 / 200 (63x / 32x / 5.7x nominal), with madCrit 1e-4 /
+    %   1.5e-4 / 1.2e-3 (nominal within the simulation's noise from n ~ 100;
+    %   conservative on short networks).
+    [alpha, r] = lsqvce.kernel.stat.expand(alpha, r);
+    k = inf(size(r));
+    act = r > 1;
+    if any(act(:)), k(act) = lsqvce.kernel.stat.tInv(1 - alpha(act) ./ 2, 0.367 * r(act)); end
 end
 
 %% ------------------------------------------------------------------- MDB

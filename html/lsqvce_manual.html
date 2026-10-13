@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.15.0 — User Manual</title>
+  <title>lsqvce 6.16.0 — User Manual</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.15.0 — User Manual</h1>
+<h1 class="title">lsqvce 6.16.0 — User Manual</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 </header>
@@ -1797,7 +1797,10 @@ test per observation on its normalised residual</p>
 <p>The <code>scale</code> is the estimated <code>s0</code> (Pope), the
 a-priori sigma0 (Baarda) or the robust MAD scale. With
 <code>Bonferroni = true</code> the level of each test is
-<code>Alpha / n</code>.</p>
+<code>Alpha / n</code>. The critical value follows the scale: Pope’s
+tau, the normal distribution, and for the MAD a Student t with 0.367·r
+degrees of freedom (the MAD’s efficiency) – Pope’s tau there gave many
+times the nominal false alarms on small networks.</p>
 <h3 data-number="7.6.1" id="the-contamination-cross-check"><span
 class="header-section-number">7.6.1</span> The contamination
 cross-check</h3>
@@ -1941,10 +1944,15 @@ read <code>Options.Diagnostics</code>. It caps the number of rejections
 at <code>max(10, 0.01·n)</code> and stops at a fraction of 0.25
 (<code>MaxRejectFrac</code>). It refuses observations with
 <code>r_i &lt; RMinReject</code>, re-solves cleanly over the survivors
-at the end, and leaves <code>R</code> unchanged. It cannot reject single
-rows of a correlated batch (<code>lsqvce:snoop:correlatedBatch</code>):
-there, remove the epoch in <code>buildDay</code> or use
-<code>Robust</code>.</p>
+at the end, and leaves <code>R</code> unchanged. The prior’s rows are
+never rejected, and the re-solve keeps the prior as a prior (a datum
+stays a datum). The returned <code>D2</code> counts in the original
+observation numbers (<code>D2.flagIdx</code>,
+<code>D2.rejectedIdx</code>, …); its per-observation vectors cover the
+survivors, and <code>D2.obsIdx</code> names their original numbers. It
+cannot reject single rows of a correlated batch
+(<code>lsqvce:snoop:correlatedBatch</code>): there, remove the epoch in
+<code>buildDay</code> or use <code>Robust</code>.</p>
 <h2 data-number="7.7"
 id="level-3-reliability-what-can-you-not-check"><span
 class="header-section-number">7.7</span> Level 3 — RELIABILITY (what can

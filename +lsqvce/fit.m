@@ -99,7 +99,8 @@ function R = fit(data, opts, nv)
 %                                  by its Cholesky factor -- raised
 %                                  by lsqvce.engine.batchSystem
 %       lsqvce:fit:priorNotActive  (warning) a prior with from > 1 in a
-%                                  single-pass run is not applied
+%                                  single-pass run is not applied (a common
+%                                  or a local group, WP-128)
 %       lsqvce:fit:badPrior        data.priors is malformed (unknown
 %                                  field, L not p x nc, sigma not a positive scalar,
 %                                  x0 of the wrong length)
@@ -126,6 +127,9 @@ function R = fit(data, opts, nv)
 %            LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT,
 %            LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTNONLINEAR
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-128: lsqvce:fit:priorNotActive also
+%   counts a late LOCAL group (data.systems(k).priors). With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-114 (R7-05): priorsOf notes
 %   that a datum's covariance is weight-independent too. With assistance from
 %   Claude (Anthropic), model Claude Opus 5.5.
@@ -196,11 +200,13 @@ end
     [spec, systems] = lsqvce.engine.declaration(data, opts.CacheDays);   % R5-D8 4: the one declaration step
     days = spec.days;
     [pri, priorGroups] = priorsOf(data, lsqvce.engine.resolveNc(systems), spec);   % R5 M5 5b / D8-6: data.priors
-    if strcmp(opts.Estimate, "none") && ~isempty(priorGroups) && any([priorGroups.from] > 1)
+    nLate = nLateLocal(data);                         % WP-128: the local groups too
+    if ~isempty(priorGroups), nLate = nLate + sum([priorGroups.from] > 1); end
+    if strcmp(opts.Estimate, "none") && nLate > 0
         lsqvce.util.log.warnOnce('lsqvce:fit:priorNotActive', ...
             ['%d prior group(s) declare from > 1 and a single solve (Estimate="none") has one pass: ' ...
-             'they are not applied. Use Estimate="noise" for a pass schedule.'], sum([priorGroups.from] > 1));
-        pri = stackPriors(priorGroups, 1);
+             'they are not applied. Use Estimate="noise" for a pass schedule.'], nLate);
+        if ~isempty(priorGroups), pri = stackPriors(priorGroups, 1); end
     end
 
     % R5 M2 2b: robust IRLS is a POLICY on the block path -- on the streaming
@@ -234,6 +240,19 @@ end
 end
 
 %==========================================================================
+function n = nLateLocal(data)
+%NLATELOCAL  Local prior groups (data.systems(k).priors) with from > 1 (WP-128).
+%   A single solve has one pass, so the loader leaves them out (priorArc,
+%   from > pass); only data.priors were counted for the warning, and a late
+%   LOCAL group vanished without a word.
+    n = 0;
+    for k = 1:numel(data.systems)
+        if ~isfield(data.systems(k), 'priors') || isempty(data.systems(k).priors), continue, end
+        P = data.systems(k).priors;
+        if isfield(P, 'from'), n = n + sum([P.from] > 1); end
+    end
+end
+
 function R = fitMatrix(data, opts)
 %FITMATRIX  Kind B: in-memory A, l (, p) -> one-batch driver -> Results.
     rejectUnknown(fieldnames(data), {'A', 'l', 'p', 'priors'}, 'data');

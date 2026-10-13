@@ -58,6 +58,8 @@ Static methods
   tauInv(p,r)           Pope tau quantile (two-sided p is NOT applied here;
                         pass the upper-tail probability directly)
   tauCrit(alpha,r)      two-sided Pope tau critical value
+  madCrit(alpha,r)      two-sided critical value of a residual scaled by
+                        a MAD (Student t, nu = 0.367 r; WP-128)
   normCrit(alpha)       two-sided normal critical value
   delta0(alpha,beta)    MDB non-centrality parameter
   fInv(p,d1,d2)         F quantile
@@ -79,6 +81,9 @@ lsqvce.kernel.stat.tauCrit(1e-8, 5) &lt; sqrt(5)      % always true</pre>
 
 See also LSQVCE.ENGINE.VERDICT.DIAGNOSE.
 
+Updated 2026-10-13 (CEST, UTC+02:00), WP-128: madCrit, the critical value
+of a MAD-scaled residual. With assistance from Claude (Anthropic), model
+Claude Opus 5.5.
 Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 4: moved from the
 ENGINE to the KERNEL tier (the distributions; the tests live
 in lsqvce.engine.verdict). With assistance from Claude (Anthropic),
