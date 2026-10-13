@@ -37,12 +37,15 @@ function L = batchSystem(u, batchFcn, nBatch, opt)
 %     lsqvce:batchSystem:badSource   batchFcn is not a function handle
 %     lsqvce:batchSystem:badMatrix   a batch returned A/l of inconsistent size
 %     lsqvce:batchSystem:weightMatrix a batch returned a weight argument that is
-%                                    neither m x 1 nor an m x m SPD matrix
+%                                    neither m x 1 nor an m x m SPD matrix, or
+%                                    m x 1 weights that are negative or not finite
 %     + whatever batchFcn throws, as lsqvce:callUser:threw with the cause
 %
 %   ACCURACY  exact: pre-whitening by sqrt(p) is the diagonal-P GLS identity;
 %   the per-observation residual the block path reports is the whitened one,
 %   sqrt(p) .* v.
+%   A row of weight p = 0 keeps its index but is NOT an observation (WP-133):
+%   it leaves the degrees of freedom and the verdict calls it 'rejected'.
 %
 %   EXAMPLE
 %     L = lsqvce.engine.batchSystem(3, @(k) deal(A, l, p), 1);
@@ -50,6 +53,9 @@ function L = batchSystem(u, batchFcn, nBatch, opt)
 %
 %   See also LSQVCE.FIT, LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTNONLINEAR
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: m x 1 weights must be >= 0
+%   and finite; a zero weight marks its row excluded (out of the dof). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3 (R7-24):
 %   'LocalColumns' / 'SystemId': a batch source of full-width rows can stand
 %   for a system WITH locals (snoop's block re-solve). With assistance from
@@ -97,7 +103,7 @@ function D = batchDay(day, ~, ~, ~, po, ~)
         x = po.state('x');
         [~, A, l, p] = lsqvce.util.callUser(po.batchFcn, 2, 3, 'batchFcn(k, x)', day, x);
     end
-    l = l(:);  m = numel(l);
+    l = l(:);  m = numel(l);  ex = {};
     width = max([po.nc, po.cols]);                % full-width rows when locals are sliced
     badWidth = size(A, 2) < width || (isempty(po.cols) && size(A, 2) ~= width);
     if ~isnumeric(A) || size(A, 1) ~= m || badWidth
@@ -107,8 +113,17 @@ function D = batchDay(day, ~, ~, ~, po, ~)
     end
     if ~isempty(p)
         if isvector(p) && numel(p) == m
+            % WP-133 (review 3 finding 17): a negative weight made the rows
+            % complex (the QR and normal backends then disagreed: |p| against
+            % p); a zero weight deletes the row but kept it in the count --
+            % sigma0 0.753 for 0.949 with 10 of 30 rows at weight 0
+            if any(~isfinite(p(:))) || any(p(:) < 0)
+                error('lsqvce:batchSystem:weightMatrix', ...
+                      'batch %d returned weights that are negative or not finite; a weight is >= 0.', day);
+            end
             s = sqrt(p(:));
             A = s .* A;  l = s .* l;
+            if any(p(:) == 0), ex = {p(:) == 0}; end
         elseif ismatrix(p) && isequal(size(p), [m m])
             % a full weight matrix P = W'W (correlated rows within the batch):
             % whitening by W is the exact GLS identity (R5 M5 5b'); P must be SPD
@@ -126,4 +141,5 @@ function D = batchDay(day, ~, ~, ~, po, ~)
     end
     B = A(:, po.cols);  A = A(:, 1:po.nc);        % whitened together, then split
     D.A = {A};  D.B = {B};  D.l = {l};  D.t = {(1:m).'};   % v6: one cell = one arc
+    if ~isempty(ex), D.excluded = ex; end         % weight 0: kept for its index, not an observation
 end

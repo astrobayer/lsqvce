@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.19.0 — API Reference</title>
+  <title>lsqvce 6.20.0 — API Reference</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.19.0 — API Reference</h1>
+<h1 class="title">lsqvce 6.20.0 — API Reference</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 </header>
@@ -762,6 +762,14 @@ the lags)</td>
 <td><em>optional</em> — the axis count of a multi-axis stream without
 <code>Cep</code></td>
 </tr>
+<tr class="odd">
+<td><code>excluded</code></td>
+<td>m_a × 1 logical</td>
+<td><em>optional</em> — rows of <strong>weight 0</strong>: zero in
+<code>A</code>, <code>B</code> and <code>l</code>, kept for their index
+(residuals, diagnostics) but not observations — out of the degrees of
+freedom, <code>rejected</code> in the verdict</td>
+</tr>
 </tbody>
 </table>
 <p>Arc lengths may differ freely. An arc whose cells have 0 rows is a
@@ -875,7 +883,8 @@ class="header-section-number">2.5</span> Checks while reading</h2>
 <tr class="even">
 <td><code>lsqvce:makeLoader:badDay</code></td>
 <td>a required field is missing or not a 1×nArc cell, or an unknown
-field is present</td>
+field is present, or <code>excluded</code> marks a row that is not
+zero</td>
 </tr>
 <tr class="odd">
 <td><code>lsqvce:makeLoader:dayShape</code></td>
@@ -4468,6 +4477,24 @@ listed, nothing is listed that is not raised).</p>
 <td>kernel.redundancyLags</td>
 <td>error</td>
 <td>v6.6.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:accum:noRedundancy</code></td>
+<td>engine.BlockAccumulator</td>
+<td>error</td>
+<td>v6.20.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:accum:notBlockDiagonal</code></td>
+<td>engine.BlockAccumulator</td>
+<td>warning</td>
+<td>v6.20.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:prior:zeroRow</code></td>
+<td>engine.CommonPrior</td>
+<td>error</td>
+<td>v6.20.0</td>
 </tr>
 </tbody>
 </table>

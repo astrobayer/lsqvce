@@ -53,7 +53,7 @@ arc by arc. The loader is called with exactly the same (day, obsType, arc)
 sequence as during accumulation and MUST return the same data.</pre>
 <h3>Input</h3>
 <pre class="example">acc   the LSQVCE.ENGINE.BLOCKACCUMULATOR, constructed with &#x27;KeepLocal&#x27;, true
-sol   the struct returned by acc.solve()</pre>
+sol   acc.solve()&#x27;s struct (.xLin: GN&#x27;s linearisation point; .truncation: s0^2&#x27;s divisor)</pre>
 <h3>Options</h3>
 <pre class="example">&#x27;whitened&#x27;   true (default)  also return w = W*v, whose sum of squares is
                              the quadratic form v&#x27;*inv(C)*v; false keeps
@@ -71,9 +71,9 @@ sol   the struct returned by acc.solve()</pre>
                           when the backend refused a cancellation-destroyed
                           vtv (sol.s0sq NaN; WP-132)
   res.sys(k).vtv          weighted residual square sum of this system
-  res.sys(k).m            number of observations
+  res.sys(k).m            number of observations (not the rows of weight 0)
   res.sys(k).rms          sqrt(vtv/m), in units of sigma0
-  res.sys(k).obs(j)       .obsType .day .arc .t .v .w .nAxis .Cep
+  res.sys(k).obs(j)       .obsType .day .arc .t .v .w .nAxis .Cep .excluded (weight 0)
                           (.nAxis, .Cep: the arc&#x27;s axis count and its
                           per-epoch error information as the loader
                           returned them -- the joint estimator&#x27;s robust
@@ -163,6 +163,9 @@ case-sensitive lowercase). With assistance from Claude (Anthropic),
 model Claude Fable 5.
 See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.CHECKPSD
 
+Updated 2026-10-13 (CEST, UTC+02:00), WP-133: GN&#x27;s zero step (sol.xLin), the rows
+of weight 0 out of m and dof, a ridge&#x27;s defect in dof, s0^2 / sol.truncation.
+With assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-13 (CEST, UTC+02:00), WP-132: after a refused vtv the
 local covariances Cyy carry THIS pass&#x27;s s0^2 (they were all NaN). With
 assistance from Claude (Anthropic), model Claude Opus 5.5.

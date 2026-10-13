@@ -20,7 +20,6 @@ lsqvce:adjustBlock:badLoader,engine.private.normalizeSystems
 lsqvce:adjustBlock:badSystems,engine.private.normalizeSystems
 lsqvce:adjustBlock:noDays,engine.private.normalizeSystems
 lsqvce:adjustNonlinear:diverged,engine.adjustNonlinear
-lsqvce:adjustNonlinear:nonFinite,engine.adjustNonlinear
 lsqvce:adjustVCEjoint:badAxisRows,engine.adjustVCEjoint
 lsqvce:adjustVCEjoint:collapsed,engine.adjustVCEjoint
 lsqvce:adjustVCEjoint:localNotPD,engine.adjustVCEjoint

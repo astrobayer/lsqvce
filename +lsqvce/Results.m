@@ -122,6 +122,9 @@ classdef Results < handle
 %   See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.REPORT,
 %            LSQVCE.ENGINE.VERDICT, LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: reliability() labels a row
+%   of weight 0 "rejected" (R.diag.excludedIdx). With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: snoop() defaults Alpha,
 %   Bonferroni and Test to R.diag's (user decision). With assistance from
 %   Claude (Anthropic), model Claude Opus 5.5.
@@ -552,9 +555,11 @@ classdef Results < handle
         %   (minimal detectable bias in the observation's units; Inf where the
         %   network does not control it) and quadrant -- "cleanOutlier"
         %   (|w| > kCrit, r >= rWeak), "ambiguous" (|w| > kCrit, r < rWeak),
-        %   "verified" (|w| <= kCrit, r >= rWeak), "untested" (r < rWeak), and
+        %   "verified" (|w| <= kCrit, r >= rWeak), "untested" (r < rWeak),
         %   "datum" for the rows of a prior that only fixes the datum (r = 0 by
-        %   construction; not tested, not counted -- WP-127).
+        %   construction; not tested, not counted -- WP-127), and "rejected"
+        %   for a row of weight 0 -- a robust rejection, a zero data weight:
+        %   kept for its index, not an observation (WP-133).
         %   Needs the per-observation diagnostics (Diagnostics.Store = "all",
         %   the default).
         %   ERRORS  lsqvce:Results:noPerObservation  R.diag keeps no per-
@@ -574,6 +579,7 @@ classdef Results < handle
             q(hiW &  loR) = "ambiguous";
             q(~hiW & loR) = "untested";
             q(lsqvce.util.getfielddef(D, 'datumRows', zeros(0, 1))) = "datum";   % WP-127
+            q(lsqvce.util.getfielddef(D, 'excludedIdx', zeros(0, 1))) = "rejected";   % WP-133
             T = table((1:numel(r)).', D.v(:), r, w, D.mdb(:), q, ...
                       'VariableNames', {'obs', 'v', 'r', 'w', 'mdb', 'quadrant'});
         end

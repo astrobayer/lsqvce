@@ -79,12 +79,17 @@ function [diagSol, batchFcn, nBatch] = source(acc, sol)
 %   [diagSol, batchFcn, nBatch] = LSQVCE.ENGINE.VERDICT.SOURCE(acc, sol) returns exactly what
 %   lsqvce.engine.verdict.diagnose / lsqvce.engine.verdict.snoop expect:
 %       diagSol   struct with fields {x, Q, n, u, r, rank, defect, sigma0, s0sq,
-%                 vPv, vPvSource, condR, condN, condIsBound, nBatch, datumRows,
-%                 prior, priorBatch} (datumRows: the prior's datum rows, WP-127;
+%                 vPv, vPvSource, condR, condN, condIsBound, nBatch, nExcluded,
+%                 datumRows, prior, priorBatch} (n: every replayed row, r: the
+%                 live rows' redundancy -- n - nExcluded - rank plus a ridge's
+%                 defect sum tr(Q_ll Lambda), WP-133; nExcluded: the rows of
+%                 weight 0, which batchFcn replays with p = 0;
+%                 datumRows: the prior's datum rows, WP-127;
 %                 prior / priorBatch: the CommonPrior and its batch index, 0
 %                 without one, WP-128); Q is the
 %                 LSQVCE.ENGINE.BLOCKCOFACTOR of the full parameter set
-%       batchFcn  @(k) -> [A, l, p]   the k-th WHITENED batch (one arc), unit weight
+%       batchFcn  @(k) -> [A, l, p]   the k-th WHITENED batch (one arc), unit
+%                 weight, p = 0 on the arc's excluded rows (WP-133)
 %       nBatch    number of batches (the arcs, then the prior's pseudo-batch)
 %
 %   so you can run the full five-level lsqvce verdict on a gravity-recovery
@@ -156,6 +161,10 @@ function [diagSol, batchFcn, nBatch] = source(acc, sol)
 %   See also LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SNOOP, LSQVCE.REPORT, LSQVCE.ENGINE.REDUNDANCY,
 %   LSQVCE.ENGINE.BLOCKCOFACTOR
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: the rows of weight 0
+%   (arc.excluded) are replayed with p = 0 and leave r (diagSol.nExcluded);
+%   r adds a regularised local block's defect. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-130: r and rank count a
 %   rank-deficient local block by its rank. With assistance from Claude
 %   (Anthropic), model Claude Opus 5.5.
@@ -211,13 +220,16 @@ function [diagSol, batchFcn, nBatch] = source(acc, sol)
     stores      = cell(1, nSys);
     n           = 0;
     defL        = 0;                                % WP-130: locals the solve could not estimate
+    nExcl       = 0;                                % WP-133: rows of weight 0 (replayed, not observations)
     for iSys = 1:nSys
         st = acc.systemStore(sysIds(iSys));
         stores{iSys}     = st;
         localOffset(iSys) = col;
         localCount(iSys)  = st.nl;
         kept = acc.getStore(sysIds(iSys));
-        n   = n + kept.mObs;                           % rows the accumulator folded
+        mEx = lsqvce.util.getfielddef(kept, 'mExcl', 0);
+        n   = n + kept.mObs + mEx;                     % rows the replay serves
+        nExcl = nExcl + mEx;
         defL = defL + st.nl - lsqvce.engine.BlockAccumulator.localRankOf(kept);
         col = col + st.nl;
     end
@@ -274,7 +286,7 @@ function [diagSol, batchFcn, nBatch] = source(acc, sol)
         'Q',      Q, ...
         'n',      n, ...
         'u',      uFull, ...
-        'r',      n - uFull + defL, ...
+        'r',      n - nExcl - uFull + defL + acc.regularisationDefect(), ...
         'rank',   uFull - defL, ...
         'defect', 0, ...
         'sigma0', 1, ...
@@ -285,6 +297,7 @@ function [diagSol, batchFcn, nBatch] = source(acc, sol)
         'condN',  kN, ...
         'condIsBound', true, ...
         'nBatch', nBatch, ...
+        'nExcluded', nExcl, ...
         'datumRows', datumRowsOf(acc, n), ...
         'prior', {acc.prior}, 'priorBatch', nBatch * ~isempty(acc.prior));   % WP-128: snoop re-solves with it
 
@@ -365,7 +378,12 @@ function D = diagnose(sol, batchFcn, opt)
 %                    contamination gauge -- everything LSQVCE.REPORT reads.
 %                    The parameter cofactor is D.Q (D.Q.block(idx) is
 %                    Qxx(idx, idx)); D.sigX / D.qxxDiag its diagonal, and
-%                    D.corrMax / D.corrMaxPar the strongest correlation
+%                    D.corrMax / D.corrMaxPar the strongest correlation.
+%                    A row of weight 0 (p = 0 in its batch: a robust
+%                    rejection, a zero data weight -- WP-133) keeps its index
+%                    but is no observation: r = 0, not tested, not in sum(r)
+%                    or D.nTests (sol.nExcluded), D.quad.rejected counts it
+%                    and D.excludedIdx names it
 %
 %   EXAMPLE
 %       % The SAME batch source must be replayed -- this is checked. On the
@@ -403,6 +421,11 @@ function D = diagnose(sol, batchFcn, opt)
 %   See also LSQVCE.ENGINE.VERDICT.SOURCE, LSQVCE.REPORT, LSQVCE.ENGINE.VERDICT.SNOOP,
 %   LSQVCE.ENGINE.BLOCKCOFACTOR.
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-133 (review 3 finding 14): a row
+%   of weight 0 is "rejected" -- not tested, not counted, its own quadrant
+%   (D.quad.rejected, D.excludedIdx); a robust fit's rejections were
+%   "verified" and in the dof. With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: the MDB of a correlated
 %   batch is delta0 / sqrt((P Qvv P)_ii), the generalised test's own (it was
 %   the diagonal-P formula). With assistance from Claude (Anthropic), model
@@ -482,7 +505,11 @@ rdf = sol.r;                          % redundancy = n - u
 % -------------------------------------------------------------- test setup
 % WP-127: the datum rows of a prior (r = 0 by construction) are constraints,
 % not observations: kept in sum(r) and vPv, left out of the tests and counts
-exIdx = lsqvce.util.getfielddef(sol, 'datumRows', zeros(0, 1));  nTest = n - numel(exIdx);
+% WP-133 (review 3 finding 14): rows of weight 0 (a batch's p = 0: a robust
+% rejection, a zero data weight) are not observations either -- not tested,
+% not in sum(r) or nTests; sol.r already leaves them out (sol.nExcluded)
+exIdx = lsqvce.util.getfielddef(sol, 'datumRows', zeros(0, 1));
+nTest = n - numel(exIdx) - lsqvce.util.getfielddef(sol, 'nExcluded', 0);
 alphaEff = o.alpha;
 if o.bonferroni
     alphaEff = o.alpha / max(nTest, 1);
@@ -544,7 +571,7 @@ sumR       = 0;      % must equal n - u
 nSeen      = 0;
 
 % Streaming collectors that never grow with n
-flagIdx = [];  flagW = [];  flagR = [];  flagV = [];  flagMDB = [];
+flagIdx = [];  flagW = [];  flagR = [];  flagV = [];  flagMDB = [];  exclIdx = zeros(0, 1);
 worstW  = -inf(min(o.nWorst, n), 1);
 worstI  = zeros(numel(worstW), 1);
 
@@ -671,7 +698,7 @@ if strcmp(testName, 'mad')
         else
             pk  = pk(:);
             qvk = 1 ./ pk - sum(Wk.^2, 1).';
-            qvk(qvk < 0) = 0;
+            qvk(qvk < 0 | pk == 0) = 0;              % WP-133: a weight-0 row is no score
             qpk = pk.^2 .* qvk;
             Pvk = pk .* vk;
         end
@@ -743,9 +770,7 @@ for k = 1:nB
     % (verified: the two agree to 4.4e-16), so there is one code path, not two.
     isCorr = ~isempty(pk) && ~isvector(pk);
 
-    if isempty(pk)
-        pk = ones(nk, 1);
-    end
+    if isempty(pk), pk = ones(nk, 1); end
 
     if isCorr
         if ~isequal(size(pk), [nk nk])
@@ -770,6 +795,8 @@ for k = 1:nB
     % --- residuals
     vk = Ak * x - lk;
     ex = ismember(nSeen + (1:nk).', exIdx);   % the prior's datum rows (WP-127)
+    rej = false(nk, 1);  if ~isCorr, rej = pk == 0; end   % WP-133: the rows of weight 0
+    exclIdx = [exclIdx; nSeen + find(rej)];  ex = ex | rej;   %#ok<AGROW> neither is tested or counted
 
     % --- redundancy numbers and the denominator of the test statistic
     W  = Q.halfRows(Ak);               % u x nk, W'W = A Qxx A'
@@ -789,7 +816,7 @@ for k = 1:nB
     else
         qx  = sum(W.^2, 1).';          % a_i' Qxx a_i
         qv  = 1 ./ pk - qx;
-        qv(qv < 0) = 0;                % CLAMP -- see the note below
+        qv(qv < 0 | pk == 0) = 0;      % CLAMP -- see the note below; weight 0: no r (WP-133)
         rk  = pk .* qv;
         % For diagonal P the generalised denominator is p_i^2 * qv_i, and the
         % numerator is p_i * v_i, so w reduces to v_i / sqrt(qv_i * ...) exactly
@@ -1061,11 +1088,8 @@ D.s0Fallback   = s0Fallback;
 %   user ran the (contaminable) Pope test, which is exactly when they need it.
 D.robustScale   = robustScale;
 D.madAvailable  = madAvailable;
-if madAvailable && isfinite(D.s0) && robustScale > 0
-    D.scaleRatio = D.s0 / robustScale;
-else
-    D.scaleRatio = NaN;
-end
+D.scaleRatio = NaN;
+if madAvailable && isfinite(D.s0) && robustScale > 0, D.scaleRatio = D.s0 / robustScale; end
 % Expected spread of the ratio under a CLEAN model. sd(s0) ~ 1/sqrt(2r) and
 % sd(MAD) ~ 0.085 at n=200 (measured); combine conservatively. Anything beyond
 % ~1.3 is not sampling noise, it is contamination.
@@ -1208,7 +1232,9 @@ D.flagV   = flagV;
 D.flagMDB = flagMDB;
 D.nFlag   = numel(flagIdx);
 D.nExpectedFalse = alphaEff * nTest;  % how many flags are chance alone
-D.nTests = nTest;  D.datumRows = exIdx;   % WP-127: n less the prior's datum rows, which are not tested
+% WP-127: n less the prior's datum rows, which are not tested; WP-133: the
+% rows of weight 0 (snoop's own D.rejectedIdx are its deletions)
+D.nTests = nTest;  D.datumRows = exIdx;  D.excludedIdx = exclIdx;
 
 D.rMin        = o.rMin;
 D.rWeak       = o.rWeak;
@@ -1228,7 +1254,8 @@ D.quad = struct( ...
     'cleanOutlier', nQ_cleanOut, ...   % |w| high, r high -> reject confidently
     'ambiguous',    nQ_ambiguous, ...  % |w| high, r low  -> coin flip, re-measure
     'verified',     nQ_verified, ...   % |w| low,  r high -> tested, and passed
-    'untested',     nQ_untested);      % |w| low,  r low  -> the SILENT quadrant
+    'untested',     nQ_untested, ...   % |w| low,  r low  -> the SILENT quadrant
+    'rejected',     numel(exclIdx));   % weight 0: not an observation (WP-133)
 
 D.mdbInf = nMdbInf;                    % MDB = Inf: cannot be tested at all
 if ~isempty(mdbPool)
@@ -1422,6 +1449,11 @@ function [sol, D, REJ] = snoop(sol, D, batchFcn, opt)
 %                                  estimate has broken down; the data are not
 %                                  a few blunders on a good model
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: a row of weight 0 (p = 0,
+%   sol.nExcluded) is no rejection candidate and is out of the Bonferroni n,
+%   the caps and the MAD pool (its score was a 0 there); rdf is sol.r less the
+%   rejections, so a ridge's defect stays in. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-130: the Bonferroni n and the caps
 %   leave the datum rows out (diagnose's nTests); 'mad' forms no datum score;
 %   sol (n, r, vPv, s0sq, datumRows) is the solution after rejection on both
@@ -1498,7 +1530,10 @@ nB = o.nBatch;
 if isempty(nB), nB = D.nBatch; end
 
 n0 = sol.n;
-dRows = lsqvce.util.getfielddef(sol, 'datumRows', zeros(0, 1));  nObs0 = n0 - numel(dRows);   % WP-130
+% WP-130: the datum rows; WP-133: the rows of weight 0, replayed (p = 0) but no
+% observations -- not candidates (scanWorst), not in the ceiling or Bonferroni's n
+dRows = lsqvce.util.getfielddef(sol, 'datumRows', zeros(0, 1));
+nExcl = lsqvce.util.getfielddef(sol, 'nExcluded', 0);  nObs0 = n0 - numel(dRows) - nExcl;
 maxRej = o.maxReject;  if isempty(maxRej), maxRej = max(10, ceil(0.01 * nObs0)); end
 
 if sol.defect > 0 && o.verbose
@@ -1611,8 +1646,7 @@ for it = 1:(maxRej + 1)
     % ---- find the worst CURRENTLY-flagged observation, using the current R.
     % One streaming pass. We do not need full diagnostics here, only the worst
     % candidate, so this is cheaper than a call to diagnose().
-    nAlive = n0 - sum(rejected);
-    rdf    = nAlive - sol.rank;
+    nAlive = n0 - nExcl - sum(rejected);  rdf = sol.r - sum(rejected);   % WP-133: sol.r has a ridge's defect
     if rdf <= 0
         if lsqvce.util.verbosity.progress(o.verbose)
             lsqvce.util.log.msg('  Redundancy exhausted. Stopping.\n');
@@ -2556,7 +2590,7 @@ function D = toOriginalIndex(D, obsIdx)
 %   re-solve's order and D.obsIdx names their original index.
 %   INPUT  D the re-diagnosis; obsIdx the original index of each of its rows
     D.obsIdx = obsIdx(:);
-    for f = {'flagIdx', 'idxUncontrolled', 'worstIdx', 'datumRows', ...
+    for f = {'flagIdx', 'idxUncontrolled', 'worstIdx', 'datumRows', 'excludedIdx', ...
              'rMinIdx', 'maxAbsWIdx', 'extMaxIdx'}
         if ~isfield(D, f{1}) || isempty(D.(f{1})), continue, end
         v = D.(f{1});  ok = v >= 1 & v <= numel(obsIdx);   % 0 = "none"
@@ -2593,19 +2627,22 @@ function [A, l, p] = batchOf(src, k)
     key = sprintf('%d|%s|%s|%s', e{1}, num2str(e{2}, 17), e{3}, num2str(e{4}, 17));
     c = src.cache;
     if ~(isKey(c, 'key') && strcmp(c('key'), key))
-        [Ak, lk] = arcRows(src, e{1}, e{2}, e{3}, e{4});
-        c('key') = key;  c('A') = Ak;  c('l') = lk;
+        [Ak, lk, pk] = arcRows(src, e{1}, e{2}, e{3}, e{4});
+        c('key') = key;  c('A') = Ak;  c('l') = lk;  c('p') = pk;
     end
-    A = c('A');  l = c('l');  p = ones(size(A, 1), 1);
+    A = c('A');  l = c('l');  p = c('p');
 end
 
-function [A, l] = arcRows(src, iSys, day, obsType, arcId)
+function [A, l, p] = arcRows(src, iSys, day, obsType, arcId)
 %ARCROWS  One arc's whitened rows placed into the columns [common | this
-%   system's locals], every kept row of every iterator batch, in order.
+%   system's locals], every kept row of every iterator batch, in order; p is
+%   1 per row and 0 on the rows of weight 0 (arc.excluded, WP-133) -- the
+%   iterator keeps every row once and in order, so the arc's mask is the
+%   replay's (a whitener is causal: whitened row i is observation i's).
     st = src.stores{iSys};
     uo = st.uo;  uo.obsType = obsType;  uo.day = day;  uo.arc = arcId;
     arc = st.dataFcn(day, obsType, arcId, uo);
-    A = zeros(0, src.uFull);  l = zeros(0, 1);
+    A = zeros(0, src.uFull);  l = zeros(0, 1);  p = zeros(0, 1);
     if isempty(arc) || ~isfield(arc, 'l') || isempty(arc.l)
         return
     end
@@ -2619,6 +2656,9 @@ function [A, l] = arcRows(src, iSys, day, obsType, arcId)
     As = cellfun(@(c) c{1}, parts, 'UniformOutput', false);
     ls = cellfun(@(c) c{2}, parts, 'UniformOutput', false);
     A = vertcat(A, As{:});  l = vertcat(l, ls{:});
+    p = ones(size(A, 1), 1);
+    ex = lsqvce.util.getfielddef(arc, 'excluded', []);
+    if any(ex), p(logical(ex(:))) = 0; end
 end
 
 function keepBatch(got, keepRows, Ablk, Bblk, lblk, colLocal, nc, uFull)
@@ -2685,7 +2725,8 @@ function [sol, D] = afterRejection(sol, D, rejIdx, rejected, vPvCur, dRows, batc
 %   indices; before, D was the input D -- rejected rows still flagged, no
 %   .rejectedIdx. (The re-solve overwrites both.)
     obsIdx = find(~rejected);
-    sol.n = numel(obsIdx);  sol.r = sol.n - sol.rank;  sol.vPv = vPvCur;
+    sol.r = sol.r - numel(rejIdx);   % WP-133: keeps the weight-0 rows and a regularisation out
+    sol.n = numel(obsIdx);  sol.vPv = vPvCur;
     sol.s0sq = vPvCur / max(sol.r, 1);
     sol.datumRows = find(ismember(obsIdx, dRows));   % in the survivors' numbering
     if o.reaccumulate, return, end
@@ -2783,7 +2824,7 @@ function [bestW, bestI, bestR, bestV, bestP, vPv, nFlag, bestA, sizes, sysOf] = 
         end
         pk = pk(:);
         idx = nSeen + (1:nk);
-        alive = ~rejected(idx);
+        alive = ~rejected(idx) & pk > 0;            % WP-133: a weight-0 row is no observation
         if any(alive)
             Aa = Ak(alive,:);
             vk = Aa * x - lk(alive);
@@ -2825,7 +2866,7 @@ function [bestW, bestI, bestR, bestV, bestP, vPv, nFlag, bestA, sizes, sysOf] = 
         if isempty(pk), pk = ones(nk,1); end
         pk = pk(:);
         idx = nSeen + (1:nk);
-        alive = ~rejected(idx);
+        alive = ~rejected(idx) & pk > 0;            % WP-133: a weight-0 row is no candidate
         if ~any(alive), nSeen = nSeen + nk; continue; end
 
         if k == priorBatch, nSeen = nSeen + nk; continue; end   % WP-128: a prior row is a

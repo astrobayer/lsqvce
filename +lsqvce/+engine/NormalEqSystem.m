@@ -18,6 +18,7 @@ classdef NormalEqSystem < handle
 %
 %   METHODS
 %     add(A, l)             accumulate one (already whitened) batch
+%     discount(k)           take k weight-0 rows out of the count m (WP-133)
 %     blocks(ic, il)        split into common/local blocks for pre-elimination
 %     merge(red)            fold in a reduced contribution (LSQVCE.ENGINE.REDUCEDCONTRIBUTION)
 %     solve()               [x, Cxx, s0sq, dof, vtv]
@@ -69,6 +70,9 @@ classdef NormalEqSystem < handle
 %
 %   See also LSQVCE.ENGINE.QRSYSTEM, LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: discount(k) takes k rows of
+%   weight 0 out of the count m (mExcl keeps them; merge adds them). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-08-20 (CEST, UTC+02:00), WP-49: a poisoned vtv is returned
 %   as NaN (negative OR > 8 digits lost), never clamped to 0 or left as a
 %   wrong plausible number; both warnings name the lsqvce.engine.residuals repair
@@ -83,7 +87,8 @@ classdef NormalEqSystem < handle
         N                       % dim x dim normal matrix
         n                       % dim x 1   right-hand side
         ltl = 0                 % scalar    l'*l
-        m   = 0                 % scalar    observation count
+        m   = 0                 % scalar    observation count (weight-0 rows out, WP-133)
+        mExcl = 0               % scalar    rows of weight 0 discounted from m (WP-133)
         dim                     % scalar    parameter count
     end
 
@@ -146,6 +151,15 @@ classdef NormalEqSystem < handle
             o.n   = o.n   + other.n;
             o.ltl = o.ltl + other.ltl;
             o.m   = o.m   + other.m;
+            o.mExcl = o.mExcl + other.mExcl;
+        end
+
+        function discount(o, k)
+        %DISCOUNT  Take k rows of weight 0 out of the observation count
+        %   (WP-133): they were added (their whitened rows are ~0) but are not
+        %   observations -- a robust rejection, a zero data weight.
+        %   INPUT  k  1x1 nonnegative integer
+            o.m = o.m - k;  o.mExcl = o.mExcl + k;
         end
 
         function [x, Cxx, s0sq, dof, vtv] = solve(o)

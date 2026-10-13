@@ -86,6 +86,11 @@ function R = adjustRobust(systems, days, opt)
 %   See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.KERNEL.ROBUSTWEIGHTS,
 %            LSQVCE.ENGINE.RESIDUALS, LSQVCE.FIT
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: each pass writes its
+%   factors into a new map, so the returned accumulator keeps the weights its
+%   solve used; rejected rows (factor 0) leave the degrees of freedom
+%   (makeLoader marks them excluded). With assistance from Claude (Anthropic),
+%   model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-132: history(end).factor holds
 %   the weights the RETURNED solve used (read back from the arc map), not the
 %   next pass's -- R.x is the weighted solution on them at every stop. With
@@ -206,7 +211,13 @@ end
             break
         end
         if userStop, break, end
-        % write the factors for the next pass
+        % write the factors for the next pass -- into a NEW map (WP-133, review
+        % 3 finding 2): W is a handle that this pass's accumulator holds as
+        % UserOpt.rowWeights and its loader reads on every call, so writing into
+        % it re-weighted the RETURNED acc after the fact; at a maxPasses exit
+        % R.diag, R.residuals, the redundancy and snoop replayed the next
+        % pass's weights (sigma0 4.80 against 2.87 after one pass)
+        W = copyMap(W);
         off = 0;
         for k = 1:size(keys, 1)
             n = sizes(k);
@@ -249,6 +260,15 @@ function f = appliedFactors(W, keys, sizes)
         if W.isKey(key), f(off + (1:n)) = W(key); end
         off = off + n;
     end
+end
+
+%==========================================================================
+function M = copyMap(W)
+%COPYMAP  A new containers.Map with W's entries (WP-133): the accumulator a
+%   pass built keeps its own, never written again.
+    M = containers.Map('KeyType', 'char', 'ValueType', 'any');
+    ks = keys(W);
+    for i = 1:numel(ks), M(ks{i}) = W(ks{i}); end
 end
 
 %==========================================================================

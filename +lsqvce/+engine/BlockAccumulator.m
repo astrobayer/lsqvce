@@ -87,6 +87,9 @@ classdef BlockAccumulator < handle
 %         .Wfcn          @(idx,A,B,l,opt) -> whitened A,B,l   (preferred)
 %         .Cfcn          @(idx,opt) -> dense batch covariance (fallback)
 %         .filterMemory  required BatchOverlap (set by LSQVCE.ENGINE.COVMODEL)
+%         .excluded      m x 1 logical, optional: rows of weight 0 (their
+%                        whitened rows ~0) -- added, but out of the count m and
+%                        the dof (WP-133; LSQVCE.ENGINE.MAKELOADER sets it)
 %
 %     The accumulator visits day -> obsType -> arc and releases each arc
 %     immediately. Return an empty arc (l = []) for a data gap; it is skipped.
@@ -215,6 +218,11 @@ classdef BlockAccumulator < handle
 %       lsqvce:accum:badCxx           likewise for the covariance
 %       lsqvce:accum:localNotRedundant  an arc's local block has no redundancy,
 %                                     so its variance factor is undefined
+%       lsqvce:accum:noRedundancy     a solve with a prior has no redundancy
+%                                     (m + nk <= nc): sigma0 is undefined (WP-133)
+%       lsqvce:accum:notBlockDiagonal (warning) LocalBlockSize declared, but the
+%                                     local normal matrix couples its blocks:
+%                                     the dense Schur complement is used (WP-133)
 %
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-112 (R7-03, R7-16): on the
 %   QR backend the whole path stays square-root -- locals eliminated on the
@@ -237,6 +245,16 @@ classdef BlockAccumulator < handle
 %
 %   See also LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.RESIDUALS, LSQVCE.ENGINE.CHECKPSD, LSQVCE.ENGINE.QRSYSTEM
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-133 (review 3 findings 3, 6, 14,
+%   17 and the solve-core lows): arc.excluded rows leave the count (dof live,
+%   excludedRows); Reg "tsvd" truncates (dof counts the kept rank) and
+%   "tikhonov" / "lm" count the effective dof m - u + sum tr(Q_ll Lambda)
+%   (regularisationDefect, sol.regDefect) and the data's residual mass, the
+%   penalty y'Lambda y out (ridgePenalty; s0sq and Cxx follow); a local block
+%   of rank 0 keeps nl x 0; the factor's SVD runs on a full copy; a prior with
+%   no redundancy left is refused (lsqvce:accum:noRedundancy); a LocalBlockSize
+%   whose off-blocks couple is warned and solved whole
+%   (lsqvce:accum:notBlockDiagonal). With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-132: commonCofactor, the solve's
 %   cofactor of the commons (sol.Cxx = sol.s0sq * Q), for the residual pass's
 %   repair of a refused vtv. With assistance from Claude (Anthropic), model
@@ -557,6 +575,10 @@ classdef BlockAccumulator < handle
                          'space of the data.']);
                 end
 
+                % WP-133: no redundancy is refused first -- the exact fit's v'Pv ~ 0
+                % would read as cancellation below
+                dof  = m + obj.prior.nk - obj.nc;
+                lsqvce.engine.BlockAccumulator.needRedundancy(dof, m, obj.prior.nk, obj.nc);
                 x   = Lc.' \ (Lc \ n);
                 vtv = ltl + obj.prior.x0.'*obj.prior.x0/obj.prior.sigma^2 - n.'*x;
                 % WP-49: same rule and same guard as the backends -- one
@@ -577,8 +599,7 @@ classdef BlockAccumulator < handle
                 end
 
                 [rK, priorAbsorbed] = obj.prior.redundancy(Lc);
-                dof  = m + obj.prior.nk - obj.nc;
-                s0sq = vtv / max(dof, 1);
+                s0sq = vtv / dof;
 
                 Ri  = Lc \ eye(obj.nc);
                 Cxx = s0sq * (Ri.' * Ri);
@@ -595,9 +616,26 @@ classdef BlockAccumulator < handle
                 Cxx = s0sq * (Rmi * Rmi.' - dp.Dm * dp.Dm.');
                 Cxx = (Cxx + Cxx.')/2;
             end
+            % WP-133 (review 3 finding 6): a ridge on a local block (Reg
+            % "tikhonov" / "lm") takes tr(Q Lambda) out of the hat matrix's
+            % trace -- the redundancy is m + nk - u + that defect, not m + nk - u
+            % (the verdict's own sum(r) check read SUM_R ERROR and INVALID for
+            % every regularised solve; dev/validation/wp133_regularised_dof_mirror.py)
+            % The normal-form vtv of a ridge solve is the PENALISED objective
+            % |v|^2 + y'Lambda y; the data's residual mass (the residual pass's,
+            % the verdict's) leaves the penalty out -- else residuals() warned
+            % sigma0Mismatch on y'Lambda y / vtv (same mirror)
+            regDef = obj.regularisationDefect();
+            if regDef > 0
+                dof  = dof + regDef;
+                vtv  = vtv - obj.ridgePenalty(x);
+                s0sq = vtv / dof;
+                Cxx  = s0sq * obj.commonCofactor();       % sol.Cxx = sol.s0sq * Q (WP-132)
+            end
             sol = struct('x', x, 'Cxx', Cxx, 's0sq', s0sq, 'sigma0', sqrt(s0sq), ...
                          'dof', dof, 'vtv', vtv, 'diag', obj.diag, ...
-                         'priorAbsorbed', priorAbsorbed, 'priorRedundancy', rK);
+                         'priorAbsorbed', priorAbsorbed, 'priorRedundancy', rK, ...
+                         'regDefect', regDef);
 
             if lsqvce.util.verbosity.detail(obj.opt.Verbose)
                 % Conditioning: rcond is MATLAB's cheap 1-norm reciprocal
@@ -611,7 +649,7 @@ classdef BlockAccumulator < handle
                     lsqvce.util.log.msg('%srcond(N) = %.3e   (no regularisation applied)\n', ...
                         lsqvce.util.verbosity.banner('Conditioning'), rc0);
                 end
-                lsqvce.util.log.msg(['           nc = %d   dof = %d (redundancy = obs - params)   ' ...
+                lsqvce.util.log.msg(['           nc = %d   dof = %.6g (redundancy = obs - params)   ' ...
                         'sigma0 = %.6g\n'], obj.nc, dof, sqrt(s0sq));
                 lsqvce.util.log.msg(['           sigma0 is the a-posteriori variance factor; ' ...
                         'it should be ~1 (>1 => noise larger than the model says).\n']);
@@ -717,11 +755,12 @@ classdef BlockAccumulator < handle
                 error('lsqvce:accum:badCxx', 'Cxx must be %d x %d.', obj.nc, obj.nc);
             end
 
-            if ~isempty(s.Rll)                          % WP-128: on the QR factor,
-                Ri = s.Rll \ eye(size(s.Rll, 1));       % never the squared Nll
-                G = s.Rll \ s.Rlc;  Qll = Ri * Ri.';
-                V = lsqvce.util.getfielddef(s, 'Vll', []);
-                if ~isempty(V)                          % WP-130: the solve's pinv
+            if lsqvce.engine.BlockAccumulator.onFactor(s)   % WP-128: on the QR factor,
+                k  = size(s.Rlc, 1);  Ri = zeros(k);  G = zeros(k, obj.nc);   % never the squared Nll
+                if ~isempty(s.Rll), Ri = s.Rll \ eye(k);  G = s.Rll \ s.Rlc; end   % WP-133: rank 0 solves nothing
+                Qll = Ri * Ri.';
+                V = lsqvce.engine.BlockAccumulator.keptBasis(s);
+                if size(V, 1) > 0                       % WP-130: the solve's pinv
                     G = V * G;  Qll = V * Qll * V.';
                 end
             else
@@ -932,6 +971,49 @@ classdef BlockAccumulator < handle
             dp = struct('Rm', Rm, 'Dm', (Kd.' * pinv(Kd * Kd.')) / c);   % pinv: WP-127
         end
 
+        function def = regularisationDefect(obj)
+        %REGULARISATIONDEFECT  tr(Q Lambda) over the local blocks a ridge
+        %   regularised (Reg "tikhonov" / "lm"; WP-133): per system
+        %   tr(Q_ll Lambda_s), Q_ll the local block of the FULL cofactor --
+        %   localCovariance(id, commonCofactor(), 1). The redundancy identity of
+        %   a regularised solve is sum(r) + r_K = m + nk - u + def. 0 without a
+        %   regularised block (or without kept stores).
+        %   OUTPUT  def  1x1 double >= 0
+            def = 0;
+            if isempty(obj.store) || ~isfield(obj.store, 'NllReg'), return, end
+            has = arrayfun(@(s) ~isempty(s.NllReg), obj.store);
+            if ~any(has), return, end
+            Qcc = obj.commonCofactor();
+            for k = find(has)
+                Qll = obj.localCovariance(obj.store(k).sysID, Qcc, 1);
+                def = def + sum(sum(Qll .* obj.store(k).NllReg));
+            end
+        end
+
+        function pen = ridgePenalty(obj, x)
+        %RIDGEPENALTY  sum_s y_s' Lambda_s y_s at the commons x: what a ridge on
+        %   the local blocks (Reg "tikhonov" / "lm"; WP-133) adds to the
+        %   normal-form residual mass, so vtv - pen is the data's |v|^2.
+        %   INPUT  x  nc x 1 the commons;  OUTPUT  pen  1x1 double >= 0
+            pen = 0;
+            if isempty(obj.store) || ~isfield(obj.store, 'NllReg'), return, end
+            for k = find(arrayfun(@(s) ~isempty(s.NllReg), obj.store))
+                y = obj.backSubstitute(obj.store(k).sysID, x);
+                pen = pen + y.' * obj.store(k).NllReg * y;
+            end
+        end
+
+        function n = excludedRows(obj)
+        %EXCLUDEDROWS  Rows the loaders marked as weight 0 (arc.excluded: a
+        %   rejected robust row, a zero data weight; WP-133), over every kept
+        %   system. They are NOT observations -- the solve's dof leaves them out
+        %   -- but they are still rows of the replay (residuals, verdict).
+        %   OUTPUT  n  1x1 double
+            n = 0;
+            if isempty(obj.store) || ~isfield(obj.store, 'mExcl'), return, end
+            n = sum([obj.store.mExcl]);
+        end
+
         function Q = commonCofactor(obj)
         %COMMONCOFACTOR  The solve's cofactor of the commons: sol.Cxx = sol.s0sq * Q
         %   (WP-132, review low 19). inv(Rc'Rc) on commonFactor (the prior folded
@@ -1015,14 +1097,22 @@ classdef BlockAccumulator < handle
         %   p = 1. The ONE place every reader of a store's locals goes through.
         %   INPUT  st  a store element;  x  nc x 1 commons, or [] (y = [])
             p = 0;  Ll = [];
-            if ~isempty(lsqvce.util.getfielddef(st, 'Rll', []))
-                sg = sign(diag(st.Rll));  sg(sg == 0) = 1;     % positive pivots: R = Ll'
-                R = sg .* st.Rll;  Rlc = sg .* st.Rlc;  rl = sg .* st.rl;
-                y = [];  if ~isempty(x), y = R \ (rl - Rlc * x(:)); end
-                G = R \ Rlc;  Ll = R.';
-                V = lsqvce.util.getfielddef(st, 'Vll', []);
-                if ~isempty(V)           % WP-130: a rank-deficient block, on its kept
-                    if ~isempty(y), y = V * y; end   % basis (minimum-norm y);
+            if lsqvce.engine.BlockAccumulator.onFactor(st)
+                % WP-133: a block of rank 0 (no factor) solves nothing -- y and G
+                % are empty on the kept basis, the zero block once lifted; no
+                % diag/sign of the empty factor (its shape does not broadcast)
+                k = size(st.Rlc, 1);
+                y = [];  if ~isempty(x), y = zeros(k, 1); end
+                G = zeros(k, size(st.Nlc, 2));  Ll = zeros(k);
+                if ~isempty(st.Rll)
+                    sg = sign(diag(st.Rll));  sg(sg == 0) = 1;     % positive pivots: R = Ll'
+                    R = sg .* st.Rll;  Rlc = sg .* st.Rlc;  rl = sg .* st.rl;
+                    if ~isempty(x), y = R \ (rl - Rlc * x(:)); end
+                    G = R \ Rlc;  Ll = R.';
+                end
+                V = lsqvce.engine.BlockAccumulator.keptBasis(st);
+                if size(V, 1) > 0        % WP-130: a rank-deficient block, on its kept
+                    if ~isempty(x), y = V * y; end   % basis (minimum-norm y);
                     G = V * G;  Ll = [];  p = 1;     % Nll has no Cholesky factor
                 end
                 return
@@ -1038,8 +1128,45 @@ classdef BlockAccumulator < handle
         %   or the rank of a block it reduced by the pseudo-inverse (WP-130) --
         %   the u of every redundancy identity.
             k = st.nl;
-            V = lsqvce.util.getfielddef(st, 'Vll', []);
-            if ~isempty(V), k = size(V, 2); end
+            V = lsqvce.engine.BlockAccumulator.keptBasis(st);
+            if size(V, 1) > 0, k = size(V, 2); end   % WP-133: nl x 0 (rank 0) counts 0
+        end
+
+        %------------------------------------------------------------------
+        function needRedundancy(dof, m, nk, nc)
+        %NEEDREDUNDANCY  Refuse a prior solve without redundancy (WP-133, review
+        %   3): the backends refuse dof <= 0 (noRedundancy), the prior paths
+        %   returned s0sq = 0 / max(dof, 1) = 0 and Cxx = 0 -- formal errors of
+        %   exactly zero for, e.g., a free levelling net on a spanning tree
+        %   plus its datum.
+            if dof <= 0
+                error('lsqvce:accum:noRedundancy', ...
+                    ['Redundancy is %d (m = %d observations + %d prior rows, %d ' ...
+                     'parameters after the local elimination). sigma0 is undefined.'], ...
+                     dof, m, nk, nc);
+            end
+        end
+
+        %------------------------------------------------------------------
+        function V = keptBasis(st)
+        %KEPTBASIS  The store's kept basis Vll AS STORED ([] when absent). Not
+        %   getfielddef, which returns its default for an EMPTY value: a block
+        %   of rank 0 keeps Vll nl x 0, and only that shape tells it from a
+        %   block kept in normal form (WP-133; CI round 2 -- read through
+        %   getfielddef, the rank-0 block went to the singular Nll_r).
+            V = [];  if isstruct(st) && isfield(st, 'Vll'), V = st.Vll; end
+        end
+
+        %------------------------------------------------------------------
+        function tf = onFactor(st)
+        %ONFACTOR  Whether a store keeps its local block on a factor (Rll, or
+        %   the kept basis Vll of a rank-reduced block). WP-133 (review 3): a
+        %   block the data never saw reduces to rank 0 -- Rll 0 x 0 and Vll
+        %   nl x 0, both EMPTY -- and the isempty tests sent it to the singular
+        %   Nll_r (NaN locals, NaN residuals of that system); the shape of Vll
+        %   tells the two apart.
+            tf = ~isempty(lsqvce.util.getfielddef(st, 'Rll', [])) || ...
+                 size(lsqvce.engine.BlockAccumulator.keptBasis(st), 1) > 0;
         end
     end
 
@@ -1196,6 +1323,14 @@ classdef BlockAccumulator < handle
             keep.dataFcn = dataFcn;
             keep.dayList = dayList;
             keep.uo      = uo;
+            % WP-133: the rows of weight 0 (out of mObs, still in the replay) and
+            % a ridge's increment Lambda = Nll_r - Nll (regularisationDefect)
+            keep.mExcl   = loc.mExcl;
+            keep.NllReg  = [];
+            if any(strcmp(dg.regUsed, {'tikhonov', 'lm'}))
+                Nll0 = loc.blocks(1:nc, nc + (1:nl));
+                keep.NllReg = keep.Nll_r - (Nll0 + Nll0.')/2;
+            end
 
             out = struct('red', red, 'dg', dg, 'keep', keep, 'window', window);
         end
@@ -1314,14 +1449,15 @@ classdef BlockAccumulator < handle
                      'positive definite. The prior does not span the null ' ...
                      'space of the data.']);
             end
+            dof = obj.sys.m + obj.prior.nk - nc;          % WP-133: refused before any vtv
+            lsqvce.engine.BlockAccumulator.needRedundancy(dof, obj.sys.m, obj.prior.nk, nc);
             R1  = G(1:nc, 1:nc);
             x   = R1 \ G(1:nc, end);
             vtv = 0;
             if size(G, 1) > nc, vtv = G(nc + 1, end)^2; end
             if obj.sys.vtvPoisoned, vtv = NaN; end           % warned at merge()
             [rK, absorbed] = obj.prior.redundancy(R1.');     % lower: R1' R1 = N
-            dof  = obj.sys.m + obj.prior.nk - nc;
-            s0sq = vtv / max(dof, 1);
+            s0sq = vtv / dof;
             Ri   = R1 \ eye(nc);
             Cxx  = s0sq * (Ri * Ri.');
             Cxx  = (Cxx + Cxx.')/2;
@@ -1445,6 +1581,11 @@ classdef BlockAccumulator < handle
             % accumulation order byte-identical.
             arcBatchWhiten(arc, uo, ...
                 @(rows, keep, Ab, Bb, lb) acc.add([Ab(keep,:), Bb(keep,:)], lb(keep)));
+            % WP-133 (review 3 findings 14/17): rows of weight 0 -- a robust
+            % rejection, a zero data weight -- ride along (their whitened rows are
+            % ~0) but are NOT observations: out of the count, so dof = live rows
+            ex = lsqvce.util.getfielddef(arc, 'excluded', []);
+            if any(ex), acc.discount(nnz(ex)); end
         end
 
         %------------------------------------------------------------------
@@ -1544,8 +1685,29 @@ classdef BlockAccumulator < handle
             % memory, agreement 7e-16. At full mission length the dense path is
             % simply not viable while the block path stays flat.
             blkSize = opt.LocalBlockSize;
+            isTsvd  = strcmp(dg.regUsed, 'tsvd');
             useBlk  = ~isempty(blkSize) && blkSize > 0 && mod(nl, blkSize) == 0 ...
-                      && nl > blkSize;
+                      && nl > blkSize && ~isTsvd;
+            if useBlk
+                % WP-133 (review 3): the block solve IGNORES the coupling between
+                % blocks -- a local column that spans two blocks put x 27 formal
+                % sd off without a word. Verify the declared structure first.
+                off = Nll_r;
+                for b = 1:nl / blkSize
+                    ib = (b-1)*blkSize + (1:blkSize);
+                    off(ib, ib) = 0;
+                end
+                % tol: the Schur complement's own rounding is ~eps |Nll|; 1e-12
+                % relative leaves 4 orders for accumulated rounding of the blocks
+                if norm(off, 'fro') > 1e-12 * norm(Nll_r, 'fro')
+                    lsqvce.util.log.warn('lsqvce:accum:notBlockDiagonal', ...
+                        ['System %s: LocalBlockSize = %d but the local normal matrix couples ' ...
+                         'its blocks (off-block norm %.2e of %.2e); the dense Schur ' ...
+                         'complement is used instead.'], string(sysID), blkSize, ...
+                         norm(off, 'fro'), norm(Nll_r, 'fro'));
+                    useBlk = false;
+                end
+            end
 
             % Pre-elimination must never abort. Ordinary ill conditioning is the
             % QR backend's job and the regularisation above; only a genuinely
@@ -1591,20 +1753,28 @@ classdef BlockAccumulator < handle
 
             kPinv = struct('Rll', zeros(0), 'Rlc', zeros(0, nc), 'rl', zeros(0, 1), 'Vll', []);
             nRank = nl;
-            if ~all(isfinite(Nll_r(:))) || rcond(Nll_r) < eps
+            if isTsvd || ~all(isfinite(Nll_r(:))) || rcond(Nll_r) < eps
                 % WP-130: the pseudo-inverse the solve uses is KEPT -- Rll =
                 % D1^1/2 on the kept eigenvectors Vll -- so y, G, Cyy, the
                 % cofactor and snoop's downdate use this one (they solved the
-                % singular Nll_r with backslash), and dof counts the rank
-                [Vn, dn] = eig((Nll_r + Nll_r.')/2, 'vector');
+                % singular Nll_r with backslash), and dof counts the rank.
+                % WP-133 (review 3 finding 6): Reg "tsvd" is this truncation on
+                % the UNFLOORED Nll -- "equivalent to pinv", as its help says; the
+                % floor kept the null directions as 1/floor and counted nl in dof
+                Ne = Nll_r;  if isTsvd, Ne = Nll; end
+                [Vn, dn] = eig((Ne + Ne.')/2, 'vector');
                 kp = dn > opt.TruncTol * max(dn);
                 V1 = Vn(:, kp);  s1 = sqrt(dn(kp));  nRank = nnz(kp);
                 Z  = V1 * ((V1.' * RHS) ./ dn(kp));
                 kPinv = struct('Rll', diag(s1), 'Rlc', (V1.' * Nlc) ./ s1, ...
                                'rl', (V1.' * nl_r) ./ s1, 'Vll', V1);
-                dg.regUsed    = 'pinv-fallback';
-                dg.lambdaUsed = opt.TruncTol;
-                lsqvce.engine.BlockAccumulator.warnPinv(sysID, opt, dg);
+                if isTsvd
+                    dg.rankDef = nl - nRank;
+                else
+                    dg.regUsed    = 'pinv-fallback';
+                    dg.lambdaUsed = opt.TruncTol;
+                    lsqvce.engine.BlockAccumulator.warnPinv(sysID, opt, dg);
+                end
             else
                 Z = Nll_r \ RHS;
             end
@@ -1645,7 +1815,7 @@ classdef BlockAccumulator < handle
         %   the weak but determined direction of a t^2 local together with the
         %   null one, and counted dof = mObs - nl: x 23-30 formal sd off for one
         %   duplicated local column (dev/validation/wp130_pinv_fallback_mirror.py).
-            [U, Sg, V] = svd(R11);
+            [U, Sg, V] = svd(full(R11));   % WP-133: a sparse B leaves R11 sparse; svd takes full only
             sv = diag(Sg);  ns = numel(sv);
             kp = sv > lsqvce.engine.QRSystem.RankTol * max(sv);
             Us = U(:, 1:ns);  U2 = [Us(:, ~kp), U(:, ns+1:end)];  U1 = Us(:, kp);
@@ -1654,6 +1824,7 @@ classdef BlockAccumulator < handle
             keep = struct('Nll_r', Nll_r, 'Nlc', Nlc, 'nl_r', nl_r, 'ltl', ltl, 'mObs', mObs, ...
                           's0sq_hint', max(red.ltl, 0)/max(mObs - k, 1), ...
                           'Rll', diag(sv(kp)), 'Rlc', U1.' * R12, 'rl', U1.' * r1, 'Vll', V1);
+            if k == 0, keep.Rll = zeros(0); end   % WP-133: rank 0 -- an explicit 0 x 0, not diag of 0 x 1
             dg.regUsed = 'pinv-fallback';  dg.lambdaUsed = lsqvce.engine.QRSystem.RankTol;
             dg.rankDef = size(R11, 2) - k;
         end

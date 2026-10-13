@@ -126,6 +126,10 @@ function red = redundancy(acc, sol, opt)
 %
 %   See also LSQVCE.ENGINE.BLOCKCOFACTOR, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.OUTLIERS, LSQVCE.ENGINE.RESIDUALS
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: rows of weight 0
+%   (arc.excluded) carry no redundancy and no count; the identity adds the
+%   ridge's defect of a regularised local block. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-130: the identity's u counts a
 %   rank-deficient local block by its rank (BlockAccumulator.localRankOf). With
 %   assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -377,7 +381,7 @@ end
     % a common prior's rows and their redundancy r_K, on the solve's factor) --
     nk = 0;  red.priorRedundancy = 0;
     if ~isempty(acc.prior), nk = acc.prior.nk;  red.priorRedundancy = acc.prior.redundancy(acc.commonFactor().'); end
-    rExp      = mTot + nk - nParTot;
+    rExp      = mTot + nk - nParTot + acc.regularisationDefect();   % WP-133: a ridge's defect
     red.check = abs(red.rTotal + red.priorRedundancy - rExp);
     relChk    = red.check / max(rExp, 1);
 
@@ -421,9 +425,14 @@ function t = arcTask(tk, st, Q, s, y, x, keyFcn, collect)
 
     [h, v, hc] = arcLeverageAndResidual(arc, x, y, uo, Q, s);
     r = 1 - h;
+    % WP-133: a row of weight 0 (arc.excluded) is not an observation -- no
+    % redundancy, no count (its h is ~0, so r = 1 - h counted it as a whole
+    % observation and the identity against the solve's dof failed)
+    ex = logical(lsqvce.util.getfielddef(arc, 'excluded', false(numel(v), 1)));
+    r(ex) = 0;
 
     key = keyFcn(st.sysID, tk.obsType, tk.arc, tk.day);
-    t = struct('ckey', char(string(key)), 'key', key, 'm', numel(v), ...
+    t = struct('ckey', char(string(key)), 'key', key, 'm', numel(v) - nnz(ex), ...
                'r', sum(r), 'vtv', v.'*v, 'h', sum(h), 'tcc', sum(hc), 'rec', []);
     if collect
         t.rec = struct('sysID', st.sysID, 'obsType', tk.obsType, ...

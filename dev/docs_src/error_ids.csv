@@ -309,3 +309,6 @@ lsqvce:whittle:notPD,kernel.whittle,error,v4.0
 lsqvce:covModel:badNugget,engine.covModel,error,v6.6.0
 lsqvce:covModel:nuggetNeedsWholeArc,engine.covModel,error,v6.6.0
 lsqvce:redundancyLags:badNugget,kernel.redundancyLags,error,v6.6.0
+lsqvce:accum:noRedundancy,engine.BlockAccumulator,error,v6.20.0
+lsqvce:accum:notBlockDiagonal,engine.BlockAccumulator,warning,v6.20.0
+lsqvce:prior:zeroRow,engine.CommonPrior,error,v6.20.0

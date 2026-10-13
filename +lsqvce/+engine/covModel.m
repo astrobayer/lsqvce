@@ -54,7 +54,14 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 %                  F, then a rank-k correction G = I - Q V diag(g) V' Q' over
 %                  the k nugget epochs (Q R = qr(F U), Woodbury), O(m k + k^3).
 %                  Cfcn stays the LAW; the nugget travels as info.nugget for
-%                  the joint sweep, which composes it itself.
+%                  the joint sweep, which composes it itself. A DELETION
+%                  (q > 1e11: the loader floors a factor 0 at 1e-12, the
+%                  joint sweep's own line) is then rotated onto its own row:
+%                  an orthogonal T (k Householder reflections) maps the
+%                  deleted directions span(F U_del) onto the unit rows, so
+%                  the deleted epoch's rows whiten to ~0 in place and a
+%                  row-wise consumer (redundancy, the verdict) counts the
+%                  rest exactly; the normals are unchanged (WP-133).
 %         .maxDenseArc  1x1 epochs (default 20000; WP-126)  the longest arc a
 %                  law WITHOUT a filter form (acf, custom, psd 'toeplitz',
 %                  whitenMode 'chol') is factorised over: the factor is
@@ -193,6 +200,10 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 %   See also LSQVCE.ENGINE.CHECKPSD, LSQVCE.KERNEL.ARMAWHITEN, LSQVCE.KERNEL.SEPARABLEWHITEN,
 %            LSQVCE.KERNEL.DECORRFACTOR, LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.MAKELOADER
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: a deleted nugget epoch is
+%   rotated onto its own rows (the normals unchanged), so row-wise consumers
+%   count the live rows exactly. With assistance from Claude (Anthropic),
+%   model Claude Opus 5.5.
 %   Updated 2026-10-12 (CEST, UTC+02:00), WP-127: an ARMA law with an MA part
 %   passes the whitener its ACV over the whole filter memory (the exact
 %   startup; the psd 'arma' route the ARMA's own ACV). With assistance from
@@ -544,11 +555,47 @@ function [A, B, l] = nuggetRows(Wc, Wlaw, Ct, q, d, idx, A, B, l, varargin)
     [V, beta] = eig((Bm + Bm.') / 2, 'vector');
     g = 1 - sqrt(max(1 - beta, 0));
     P = Q * V;
+    % WP-133 (review 3 finding 14): G F is not causal -- a deleted epoch's
+    % direction F e_j spreads over the rows j, j+1, ..., so a consumer that
+    % takes row j as the excluded one missed part of sum(r) = m_live - u
+    % (0.05-0.17 at phi 0.5-0.9, dev/validation/wp133_nugget_rotation_mirror.py).
+    % T maps the deleted directions onto their rows; T'T = I keeps the normals.
+    dl = q(z) > 1e11;                                % tol: the deletions -- the loader's 1e-12 floor
+    Vh = zeros(mE, 0);                               % is q ~ 1e12, adjustVCEjoint's line is 1e11
+    if any(dl)
+        [Qd, ~] = qr(FU(:, dl), 0);
+        Vh = deletionReflectors(Qd, z(dl));
+    end
     for j = 1:d
         rows = j:d:mE * d;
-        A(rows, :) = A(rows, :) - P * (g .* (P.' * A(rows, :)));
-        B(rows, :) = B(rows, :) - P * (g .* (P.' * B(rows, :)));
-        l(rows)    = l(rows)    - P * (g .* (P.' * l(rows)));
+        A(rows, :) = reflectRows(Vh, A(rows, :) - P * (g .* (P.' * A(rows, :))));
+        B(rows, :) = reflectRows(Vh, B(rows, :) - P * (g .* (P.' * B(rows, :))));
+        l(rows)    = reflectRows(Vh, l(rows)    - P * (g .* (P.' * l(rows))));
+    end
+end
+
+function Vh = deletionReflectors(Qd, zd)
+%DELETIONREFLECTORS  The unit Householder vectors v_1..v_k of T = H_k ... H_1,
+%   H_i = I - 2 v_i v_i', with T Qd(:, i) = -+e_zd(i) (WP-133): column i, once
+%   the earlier reflections are applied, is orthogonal to e_zd(1..i-1), and so
+%   is v_i -- each H_i leaves the rows already placed where they are.
+%   INPUT  Qd mE x k orthonormal (the deleted directions); zd k x 1 their epochs
+    k = numel(zd);
+    Vh = zeros(size(Qd, 1), k);
+    for i = 1:k
+        v = Qd(:, i);
+        s = 1;  if v(zd(i)) < 0, s = -1; end
+        v(zd(i)) = v(zd(i)) + s;                     % x + s e: |v|^2 = 2 + 2|x_z| >= 2
+        v = v / norm(v);
+        Qd = Qd - 2 * v * (v.' * Qd);
+        Vh(:, i) = v;
+    end
+end
+
+function X = reflectRows(Vh, X)
+%REFLECTROWS  T X with T = H_k ... H_1 (deletionReflectors); Vh mE x 0: X.
+    for i = 1:size(Vh, 2)
+        X = X - 2 * Vh(:, i) * (Vh(:, i).' * X);
     end
 end
 

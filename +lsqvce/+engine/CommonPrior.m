@@ -81,8 +81,13 @@ classdef CommonPrior
 %   ERRORS
 %     lsqvce:prior:badTarget        the prior target has the wrong length
 %     lsqvce:prior:badGroup         group is not nk positive integers
+%     lsqvce:prior:zeroRow          a row of K is all zero (it constrains nothing)
 %
 %   See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.APPLYREGULARISATION
+%
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: an all-zero row of K is
+%   refused (lsqvce:prior:zeroRow). With assistance from Claude (Anthropic),
+%   model Claude Opus 5.5.
 %
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
@@ -112,6 +117,14 @@ classdef CommonPrior
             validateattributes(sigma, {'double'}, {'scalar','positive','finite'}, ...
                                'lsqvce.engine.CommonPrior', 'sigma', 3);
 
+            if any(all(K == 0, 2))
+                % WP-133 (review 3): a zero row constrains nothing; it passed the
+                % blind test as a datum and on the QR backend its re-weighting
+                % c = |S| / |Kd| = Inf made Cxx all NaN
+                error('lsqvce:prior:zeroRow', ...
+                    'Row(s) %s of K are all zero: a prior row must constrain a parameter.', ...
+                    mat2str(find(all(K == 0, 2)).'));
+            end
             o.K  = K;
             o.nk = size(K,1);
             o.nc = size(K,2);

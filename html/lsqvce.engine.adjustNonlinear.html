@@ -67,7 +67,9 @@ unchanged until MaxIter (review R7, dom_lsq F2 / F3).
 STEP CONTROL. F(x) = l&#x27;Pl(x) + |(K x - x0)/sigma|^2, the DECLARED objective.
 A step that raises F is rejected -- from the first pass on -- and lam
 grows tenfold (0 -&gt; 1e-3; above 1e12 -&gt; diverged), the shorter step
-re-solved on the SAME accumulation; an accepted step shrinks lam tenfold
+re-solved on the SAME accumulation -- so does a trial point where the
+model returns non-finite rows (F = Inf there, WP-133); an accepted step
+shrinks lam tenfold
 (below 1e-12 -&gt; 0, pure Gauss-Newton). Convergence when max|dx_j/sigma_j|
 &lt; TolX, or the relative change of F &lt; TolF. A converged run returns x plus
 the final UNDAMPED step; an unconverged one returns the best ACCEPTED point
@@ -96,6 +98,8 @@ the per-pass hook (lsqvce.util.onPass) with &#x27;OnPassContext&#x27; struct()</
 <h3>Errors</h3>
 <pre class="example">  lsqvce:adjustNonlinear:badX0       x0 is not u x 1
   lsqvce:adjustNonlinear:nonFinite   the model returned non-finite residuals
+                                     at x0 (at a trial point it is a
+                                     rejected step, WP-133)
 WARNINGS
   lsqvce:adjustNonlinear:diverged    damping reached 1e12 without a downhill step
   lsqvce:adjustNonlinear:maxIter     MaxIter reached (stopReason &quot;maxPasses&quot;)
@@ -110,6 +114,11 @@ objective (test_fit, R7 WP-113).</pre>
 See also LSQVCE.ENGINE.BATCHSYSTEM,
          LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.FIT
 
+Updated 2026-10-13 (CEST, UTC+02:00), WP-133 (review 3): a non-finite trial
+point is a rejected step, not an abort; R.sol.xLin names the
+linearisation point, so R.residuals() measures the residuals at x (it
+applied the increments&#x27; rows to the full x: sigma0 off by orders). With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-13 (CEST, UTC+02:00), WP-130: sigma0, Cxx and the
 diagnostics are evaluated AT the returned point (its linearisation, a zero
 step, vtv = F); D.x is the estimate; a diverged run&#x27;s stopReason is

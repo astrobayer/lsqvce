@@ -1,9 +1,11 @@
 function [W, info] = decorrFactor(C, tol)
 %LSQVCE.KERNEL.DECORRFACTOR  Decorrelation factor W with W'*W = inv(C).
 %
-%   W = LSQVCE.KERNEL.DECORRFACTOR(C) returns the upper-triangular W = chol(C)^-1, so
-%   that whitening a batch is Aw = W*A and the weighted normals A'*inv(C)*A
-%   become Aw'*Aw.
+%   W = LSQVCE.KERNEL.DECORRFACTOR(C) returns the LOWER-triangular W = L^-1 of the
+%   lower Cholesky factor C = L*L', so that whitening a batch is Aw = W*A and
+%   the weighted normals A'*inv(C)*A become Aw'*Aw. Lower triangular means
+%   causal: whitened row i combines rows 1..i only, so row i stays observation
+%   i's (a row of weight 0 whitens to a row of ~0 in its own place).
 %
 %   [W, info] = LSQVCE.KERNEL.DECORRFACTOR(C) also returns
 %     info.method   'chol' | 'eig-floored'
@@ -41,7 +43,8 @@ function [W, info] = decorrFactor(C, tol)
 %     if you understand why the covariance was indefinite.
 %
 %   OUTPUT
-%     W     m x m  upper triangular, W'*W = inv(C)
+%     W     m x m  lower triangular (method 'chol'; the eig rescue is not
+%                  triangular), W'*W = inv(C)
 %     info  1x1 struct  .method ('chol' | 'eig-floored'), .rcond, .floored
 %
 %   EXAMPLE
@@ -55,6 +58,9 @@ function [W, info] = decorrFactor(C, tol)
 %
 %   See also LSQVCE.KERNEL.ARMAWHITEN, LSQVCE.ENGINE.COVMODEL
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: the factor is documented as
+%   what it is, L^-1 (lower triangular; the help said upper). With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-37: diagnostics (incl. the
 %   condest estimate) are computed only when info is requested
 %   (nargout > 1) -- the per-batch hot path pays nothing. With assistance

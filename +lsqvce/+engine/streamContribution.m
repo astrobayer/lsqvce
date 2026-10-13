@@ -145,6 +145,9 @@ function out = streamContribution(acc, sol, opt)
 %   See also LSQVCE.ENGINE.CONTRIBUTION, LSQVCE.ENGINE.REDUNDANCY, LSQVCE.ENGINE.BLOCKCOFACTOR,
 %            LSQVCE.ENGINE.TRACEESTIMATE, LSQVCE.ENGINE.VCE
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: n_g counts observations,
+%   not the rows of weight 0 (arc.excluded). With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: the leverage split
 %   N_g = Z_g'Z_g (Level 1's) replaces the symmetric half-Schur split, so a
 %   group's Level-2 diagonal sums to its Level-1 share and is non-negative;
@@ -406,7 +409,7 @@ function [AZ, Nlc, Mll, nRows] = arcCommonProbe(st, obsType, arc, day, uo, Z)
     AZ    = zeros(nc, size(Z, 2));
     Nlc   = zeros(nl, nc);
     Mll   = zeros(nl, nl);
-    nRows = m;
+    nRows = m - nnz(lsqvce.util.getfielddef(a, 'excluded', []));   % WP-133: weight-0 rows are not observations
     arcBatchWhiten(a, uo, @perBatch);
 
     function perBatch(~, keep, Ab, Bb, ~)

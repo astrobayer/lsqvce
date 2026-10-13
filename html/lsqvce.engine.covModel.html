@@ -96,7 +96,14 @@ handles the model parameters again.</pre>
                F, then a rank-k correction G = I - Q V diag(g) V&#x27; Q&#x27; over
                the k nugget epochs (Q R = qr(F U), Woodbury), O(m k + k^3).
                Cfcn stays the LAW; the nugget travels as info.nugget for
-               the joint sweep, which composes it itself.
+               the joint sweep, which composes it itself. A DELETION
+               (q &gt; 1e11: the loader floors a factor 0 at 1e-12, the
+               joint sweep&#x27;s own line) is then rotated onto its own row:
+               an orthogonal T (k Householder reflections) maps the
+               deleted directions span(F U_del) onto the unit rows, so
+               the deleted epoch&#x27;s rows whiten to ~0 in place and a
+               row-wise consumer (redundancy, the verdict) counts the
+               rest exactly; the normals are unchanged (WP-133).
       .maxDenseArc  1x1 epochs (default 20000; WP-126)  the longest arc a
                law WITHOUT a filter form (acf, custom, psd &#x27;toeplitz&#x27;,
                whitenMode &#x27;chol&#x27;) is factorised over: the factor is
@@ -229,6 +236,10 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 See also LSQVCE.ENGINE.CHECKPSD, LSQVCE.KERNEL.ARMAWHITEN, LSQVCE.KERNEL.SEPARABLEWHITEN,
          LSQVCE.KERNEL.DECORRFACTOR, LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.MAKELOADER
 
+Updated 2026-10-13 (CEST, UTC+02:00), WP-133: a deleted nugget epoch is
+rotated onto its own rows (the normals unchanged), so row-wise consumers
+count the live rows exactly. With assistance from Claude (Anthropic),
+model Claude Opus 5.5.
 Updated 2026-10-12 (CEST, UTC+02:00), WP-127: an ARMA law with an MA part
 passes the whitener its ACV over the whole filter memory (the exact
 startup; the psd &#x27;arma&#x27; route the ARMA&#x27;s own ACV). With assistance from

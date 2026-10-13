@@ -94,6 +94,10 @@ classdef BlockCofactor
 %   See also LSQVCE.ENGINE.VERDICT.SOURCE, LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SNOOP,
 %   LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-133 (review 3 finding 3): the
+%   local factor is made full (a sparse B left it sparse and the downdate's
+%   cholupdate failed); a block of rank 0 (kept basis nl x 0) is a zero block,
+%   not a full-rank one. With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-130: a block reduced by the
 %   solve's pseudo-inverse (blocks .Vll) gives H, G on its kept basis and
 %   downdates there; an eigen block downdates with its own cut (sys .tol). With
@@ -144,7 +148,7 @@ classdef BlockCofactor
         %------------------------------------------------------------------
         function Q = BlockCofactor(Rc, blocks, datum)
             nc = size(Rc, 1);
-            Q.Rc = Rc;
+            Q.Rc = full(Rc);                         % WP-133: cholupdate (downdate) takes full only
             Q.nc = nc;
             Q.Dm = zeros(nc, 0);
             if nargin > 2 && ~isempty(datum)
@@ -168,7 +172,8 @@ classdef BlockCofactor
                 end
                 tol = [];  Rl = [];  Vl = [];
                 if isfield(b, 'truncTol'), tol = b.truncTol; end
-                if isfield(b, 'Rll') && ~isempty(b.Rll)
+                Vb = [];  if isfield(b, 'Vll'), Vb = b.Vll; end
+                if (isfield(b, 'Rll') && ~isempty(b.Rll)) || size(Vb, 1) > 0   % WP-133: k = 0 keeps nl x 0
                     % WP-128: the block the solve eliminated EXACTLY on its QR
                     % factor: H = R11^-T, G = R11^-1 R12 (H'H = inv(Nll)). The
                     % squared Nll took the eigen branch from cond(B) ~ 7e7 and cut
@@ -176,16 +181,21 @@ classdef BlockCofactor
                     % (a t^2 term over 1e4 s; dev/validation/wp128_local_block_mirror.py)
                     % Kept with POSITIVE pivots (R'R unchanged): downdate's
                     % cholupdate needs a Cholesky factor (WP-129).
-                    sg = sign(diag(b.Rll));  sg(sg == 0) = 1;
-                    Rl = sg .* b.Rll;
-                    H = Rl.' \ eye(size(Rl, 1));  G = Rl \ (sg .* b.Rlc);
-                    if isfield(b, 'Vll') && ~isempty(b.Vll)
+                    % WP-133 (review 3 finding 3): FULL -- a sparse B leaves the QR
+                    % factor sparse, and cholupdate takes full matrices only
+                    Rl = zeros(0);  H = zeros(0);  G = zeros(0, nc);   % WP-133: rank 0 solves nothing
+                    if isfield(b, 'Rll') && ~isempty(b.Rll)
+                        sg = sign(diag(b.Rll));  sg(sg == 0) = 1;
+                        Rl = full(sg .* b.Rll);
+                        H = Rl.' \ eye(size(Rl, 1));  G = Rl \ full(sg .* b.Rlc);
+                    end
+                    if size(Vb, 1) > 0
                         % WP-130: a rank-deficient block reduced by the solve's
                         % pseudo-inverse on the kept basis Vll: H'H = pinv(Nll)
                         Vl = b.Vll;  H = [H * Vl.'; zeros(nl - size(Vl, 2), nl)];  G = Vl * G;
                     end
                 else
-                    [H, G] = lsqvce.engine.BlockCofactor.localBlock(b.Nll, b.Nlc, tol);
+                    [H, G] = lsqvce.engine.BlockCofactor.localBlock(full(b.Nll), full(b.Nlc), tol);
                 end
                 Q.sys(end+1) = struct('cols', b.cols(:).', 'Nll', b.Nll, 'H', H, 'G', G, 'Rll', Rl, ...
                                       'Vll', Vl, 'tol', tol);
@@ -358,7 +368,7 @@ classdef BlockCofactor
                 end
                 pt = p / d;
                 if ~isempty(S.Rll)
-                    bb = b;  if ~isempty(S.Vll), bb = S.Vll.' * b; end   % WP-130: on the kept basis
+                    bb = b;  if size(S.Vll, 1) > 0, bb = S.Vll.' * b; end   % WP-130: on the kept basis
                     [Rl2, fl] = cholupdate(S.Rll, sqrt(p) * bb, '-');
                     if fl ~= 0, ok = false;  return, end
                 end
@@ -376,9 +386,10 @@ classdef BlockCofactor
             if ~isempty(hit)
                 S.Nll = S.Nll - p * (b * b.');
                 nlb = numel(b);
-                if isempty(S.Rll)                        % the block's own cut (WP-130)
+                if isempty(S.Rll) && size(S.Vll, 1) > 0  % rank 0 (WP-133): stays the zero block
+                elseif isempty(S.Rll)                    % the block's own cut (WP-130)
                     S.H = lsqvce.engine.BlockCofactor.localBlock(S.Nll, zeros(nlb, 0), S.tol);
-                elseif isempty(S.Vll)
+                elseif size(S.Vll, 1) == 0
                     S.Rll = Rl2;  S.H = Rl2.' \ eye(nlb);         % WP-129: on the factor
                 else
                     S.Rll = Rl2;  k = size(Rl2, 1);
@@ -448,7 +459,7 @@ classdef BlockCofactor
                                    'truncTol', acc.opt.TruncTol, ...   % the solve's pinv cut
                                    'Rll', lsqvce.util.getfielddef(st, 'Rll', []), ...
                                    'Rlc', lsqvce.util.getfielddef(st, 'Rlc', []), ...
-                                   'Vll', lsqvce.util.getfielddef(st, 'Vll', []));
+                                   'Vll', lsqvce.engine.BlockAccumulator.keptBasis(st));   % its shape (WP-133)
                 col = col + nl;
             end
             Q = lsqvce.engine.BlockCofactor(acc.commonFactor(), blocks, acc.datumPart());

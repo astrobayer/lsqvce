@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-13 — WP-132 DONE (PR #155, merge 019c839; CI GREEN on 8005dbe, first round: ci_gate 665/665); closure PR (user decision: "Gemergt, mach den Abschluss-PR"): the ledger row and §12.67 -- the second whole-code review (§12.63) is closed without residue: all 14 findings and all 17 lows fixed in the tree; no code change, no version (6.19.0 stays, 677 tests).
+Last substantive update: 2026-10-13 — third whole-code review (correctness and missing tests; six lane reviewers against v6.19.0, every finding re-checked: 1 high + 19 medium + ~50 low, §12.68); WP-133 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-133 so wie vorgeschlagen"): the solve core, robust and Gauss-Newton -- a row of weight 0 is no observation (out of the dof, "rejected" in the verdict; weights >= 0 and finite), the nugget whitener rotates a deleted epoch onto its own rows, adjustRobust's replay is the returned solve's, tsvd truncates and a ridge counts m - u + tr(Q Lambda) without its penalty, Gauss-Newton's residuals at the estimate and a non-finite trial step rejected, the joint hard solution's truncation reaches residuals, a sparse B, a rank-0 local block, a prior without redundancy, a zero prior row, a coupled LocalBlockSize; 9 tests; version 6.20.0; WP-134 (VCE + kernel) and WP-135 (front end, loader, diagnostics) planned.
+Preceding entry: Last substantive update: 2026-10-13 — WP-132 DONE (PR #155, merge 019c839; CI GREEN on 8005dbe, first round: ci_gate 665/665); closure PR (user decision: "Gemergt, mach den Abschluss-PR"): the ledger row and §12.67 -- the second whole-code review (§12.63) is closed without residue: all 14 findings and all 17 lows fixed in the tree; no code change, no version (6.19.0 stays, 677 tests).
 Preceding entry: Last substantive update: 2026-10-13 — WP-132 OPEN (tier B, model Claude Opus 5.5; user: "Go ahead and fix the open issues"): the five lows §12.65 recorded -- chi2Inv converges in the far lower tail (small-x seed, Newton on log F, a bracket), robust IRLS returns the factors its solve used, residuals' Cyy carry the repaired s0^2 after a refused vtv (BlockAccumulator.commonCofactor), Sigma2_0 weights pass 1 per arc (the arcs pinned on an enumeration first), the arc factor takes the whole law as its component in closed form (redundancyLags .sLaw/.omegaLaw; no Toeplitz assumption); 4 tests; version 6.19.0; §12.66.
 Preceding entry: Last substantive update: 2026-10-13 — WP-131 DONE (PR #153, merge cbf5852; CI GREEN on 9c99b4f after the red round 1 on c7ff67b: ci_gate 661/661); closure PR (user decision: "Gemergt, mach den Abschluss-PR"): the ledger rows and §12.65 -- the second whole-code review track (§12.63, WP-130/131) closed: 14 findings and 12 lows fixed (two lows by user decision), five lows recorded with their reasons (19, 22, 23, 24, 30); no code change, no version (6.18.0 stays, 673 tests).
 Preceding entry: Last substantive update: 2026-10-13 — WP-130 DONE (PR #152, merge b441ff3; CI GREEN on a1e1859, first round: ci_gate 650/650); WP-131 OPEN (tier B, model Claude Opus 5.5): the noise model, the kernel and the contributions of the second whole-code review -- Level 2 on the leverage split (user decision), a psd override's own axis, Smooth > 0 converging, the Toeplitz structure probe, armaACV's tail, crossCorr on correlations, no "robust (none)", late priors reported, seven lows fixed, five recorded, two by user decision (prior_* refused, snoop inherits R.diag's test); 11 tests; version 6.18.0; §12.64.
@@ -9791,3 +9792,191 @@ note, no code change, no version (6.19.0 stays, 677 tests).
 26 and 29 by reading only (no fixture exercises them), every other with a test that fails on the old
 code. §12.65's "recorded, not opened" list is discharged by WP-132; no residue is open. Mirrors added
 by WP-132: `dev/validation/wp132_chi2inv_mirror.py`, `wp132_arc_component_mirror.py`.
+
+### 12.68 The third whole-code review, and WP-133 — the solve core, robust and Gauss-Newton (2026-10-13, model Claude Opus 5.5)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 133 | review 3 findings 2, 3, 4, 6, 14, 17, 18 and the solve-core lows: rows of weight 0 out of the dof and "rejected" in the verdict (`arc.excluded`: `makeLoader` day field and robust / epoch factor 0, `batchSystem` p = 0; `QRSystem`/`NormalEqSystem.discount`, `BlockAccumulator.excludedRows`; `residuals`, `redundancy`, `streamContribution`, `verdict.source` p = 0, `diagnose` `D.excludedIdx` / `D.quad.rejected`, `snoop`, `Results.reliability`, `report`); weights >= 0 and finite; the nugget whitener's deletion rotation (`covModel>nuggetRows`); `adjustRobust` `copyMap`; tsvd truncation, ridge dof and penalty (`regularisationDefect`, `ridgePenalty`, `sol.regDefect`); Gauss-Newton `sol.xLin` and `trialAccumulate`; joint `hardSolution` `sol.truncation`; full factors in `BlockCofactor`/`rankReduced`; `onFactor` (rank-0 block); `noRedundancy`; `zeroRow`; `notBlockDiagonal`; `decorrFactor` help (lower triangular); **version 6.20.0** | 132 (PR #155 merged 019c839; closure #156) | OPEN (2026-10-13, tier B) |
+| 134 | review 3 findings 1, 7, 8, 9, 10, 15, 20 and the VCE / kernel lows (finding 8: a named refusal above `maxDenseArc` and the Manual corrected -- user decision; a structured sweep path would be its own WP) | 133 | PLANNED |
+| 135 | review 3 findings 5, 11, 12, 13, 16, 19 and the front-end / loader / diagnostics lows (finding 19: an n-dependent recalibration of the contamination ladder, a measurement; the MDB under the MAD test labelled the Baarda value -- user decisions) | 133 | PLANNED |
+
+**The user's request (2026-10-13):** "REVIEW THE ENTIRE CODE FOR correctness and missing tests", then
+"Ja, mach WP-133 so wie vorgeschlagen" -- the plan and the four proposals of the review report accepted:
+(1) finding 8 gets a named refusal and a Manual correction (WP-134); (2) weights < 0 or non-finite are
+refused, rows of weight 0 and robust-rejected rows leave the degrees of freedom and get their own quadrant
+label "rejected"; (3) finding 19 is recalibrated n-dependently (WP-135); (4) the MDB under the MAD test
+is labelled the Baarda value in the report (WP-135).
+
+**The review.** Six lane reviewers (solve core; joint VCE; kernel; front end and loader; diagnostics;
+redundancy and contributions), each against v6.19.0 with everything in §12.59-§12.67 excluded, no change
+to the repository (their ports in the session scratchpad). Evidence per finding: R reproduced by a
+reviewer's Python port, C confirmed on the code by the session, I inferred from the code path (MATLAB
+behaviour not executed). Two findings are holes in this session's own fixes: 2 (WP-132's finding-24 fix)
+and 3 (a regression of WP-129/130).
+
+| # | finding | symptom | evidence | WP |
+|---|---------|---------|----------|----|
+| 1 | a common prior with estimate "scale" is not in the VCE loop's stop rule; `priorFor` updates from pass 2 only | converged in pass 1: prior sigma stays 100 (0.92), \|x - x_true\| 154 (5.4), `R.converged` true, no warning | R, C | 134 |
+| 2 | `adjustRobust` overwrote the factor map its returned accumulator still reads | at MaxIter `R.diag`, `R.residuals`, redundancy, snoop on the next pass's factors (sigma0 4.80 against 2.87) | R, C | 133 |
+| 3 | a sparse B (the KBR template's advice) keeps the QR factor sparse: `svd` of R11 (rank-deficient block) and snoop's `cholupdate` take full matrices only | an error instead of a result | I, C | 133 |
+| 4 | `R.residuals()` of a Gauss-Newton fit took the absolute xR as the increment | sigma0 0.570 against 9.15e-4 (x 623) | R, C | 133 |
+| 5 | local prior groups get neither the datum rule (WP-127) nor the rejection guard (WP-128) | a local datum makes the verdict SUSPECT; snoop rejects a local prior row (\|w\| 7.3) | R, C | 135 |
+| 6 | a regularised local block (`Reg` tsvd / tikhonov / lm / auto) counted nl, not its rank / effective dof | `report` SUM_R error, verdict INVALID; sigma0 biased | R, C | 133 |
+| 7 | the VCE loop factors the SQUARED reduced normals although `commonFactor` is at hand | `notPD` from cond(A) ~ 3e8 while the QR solve runs; the Hutchinson term 4-25 % off | R, C | 134 |
+| 8 | the VCE sweep builds and factors a dense m x m Sigma per arc, even under `Whitener "ar"`, past `maxDenseArc` | out of memory on long arcs instead of a named refusal | I, C | 134 |
+| 9 | `robustWeights`: one outlier beyond 4.5e12 MAD switches the scale to the standard deviation | robustness gone: Huber x 2e8 (0.01), 8-sigma rows factor 1.0 | R, C | 134 |
+| 10 | `covModel 'var'` refuses every VAR(1) (`ndims(0.5*eye(3))` is 2) | VAR(1) cannot be declared | C | 134 |
+| 11 | duplicate days in `data.days` / `systems.days` are accumulated twice, silently | x biased, sd 0.071 (0.080), dof 198 (148) | R, C | 135 |
+| 12 | mixed text and numeric system ids become text in `[store.sysID]` | robust factors under the wrong keys, never applied to numeric systems but reported as applied | I, C | 135 |
+| 13 | `lsqvce.layout` fails on a system without `localParams` (`plan = []`; WP-131 low 26 fixed `toTable` only) | the Manual's chapter 6 example does not run | C | 135 |
+| 14 | robust fit: rejected rows (factor 1e-12) are "verified" in `R.diag` and count in the dof | s0^2 x 0.896 too small; 20 rejected rows have the best MDB of the net | R | 133 |
+| 15 | `SkipThreshold` is global, documented per stream | a fully skipped small stream is not estimated, silently; under `Pool "stream"` it gets another stream's law | I, C | 134 |
+| 16 | `gcvLambda` is not GCV (wrong functional) and a singular `RegMatrix` gives a wrong grid (engine tier) | \|y - y_true\| 109 (1.8) | R | 135 |
+| 17 | direct matrix / batch input: p = 0 counts as an observation, p < 0 makes x complex | sigma0 0.753 (0.949) with 10 of 30 rows at weight 0 | R | 133 |
+| 18 | robust noise fit (igg3 / bisquare): `R.residuals` warns `sigma0Mismatch` falsely, the report's s0 differs from `R.sigma0` (found by two lanes) | a false warning and a wrong advice on the sigma0 to quote | R | 133 |
+| 19 | the contamination ladder fails at small n | n = 30 clean: 3.1 % ERROR; sigma declared 3.5x off: 50 % "breakdown", snoop aborts | R | 135 |
+| 20 | a negative probe-estimated arc redundancy is clamped to a factor 1e-8 | the arc gets 1e8 times the weight; 15-81 % likely on short arcs with locals | R, C | 134 |
+
+*Lows (abridged; ~50).* Solve core (WP-133): Gauss-Newton aborts on a non-finite trial step (2 of 40
+starts); `LocalBlockSize` does not check block-diagonality (x 27 sd off, silently); a prior at zero
+redundancy returns sigma0 = 0; an unobserved local block gives NaN residuals; a zero-row prior group
+makes Cxx NaN on the QR backend; `decorrFactor`'s help says upper triangular (it is lower). VCE
+(WP-134): `Whitener "ar"` under noise biased (1/f: spectrum up to 90 % off, no convergence);
+`jointModelOpt` drops `iter` / `rowWeights` for engine callers; local priors' pseudo-epochs in the
+robust sweep; `Sigma2_0` values unvalidated; `AvgTail` averages `out.S` only; `acf` averages a per-row
+sigma silently; gaps in the time grid unreported for psd / arma / ar. Kernel (WP-134): `armaACV` capped
+at 65 536 samples (rho 0.99999: r(0) 27 % small); VAR(0) crashes `varACV`; `robustWeights` tuning
+unvalidated; `crossCorr` input-shape edges; `armaWhiten`'s overlap note. Front end (WP-135):
+`R.convergence().converged` always false; NOISE_UNSETTLED advice wrong for IRLS / Gauss-Newton and
+`convergence()` fails there; `makeLoader:buildDay` documented but not raised, `badArcId` absent;
+duplicate local prior group names and `from` unvalidated, the last pass's prior update one off;
+`Noise.Whitener` unvalidated on the noise path; duplicate static arc ids accepted; `synthLoader` ignores
+robust factors; documentation (local prior sigma relative, the Manual on snoop, `diverged` missing from
+the stopReason lists). Diagnostics (WP-135): the MDB under 'mad' uses the normal delta0 (50 % optimistic
+at n = 30); a tiny effective alpha gives a NaN / Inf critical value; `snoopVacuous` dead; `compare`
+ignores `D.rank`; `systematic` takes prior rows; snoop's re-diagnosis loses options and `Reg`;
+`scanWorst` and `diagnose` use different rMin. Redundancy and contributions (WP-134/135): Level 2 with
+`Probes = 1` reports se = 0; `seedUsed` not returned without a seed; `streamContribution`'s help stale
+on nc / prior and memory; the Hutchinson check in `redundancy` trivial; `outliers.mask` returns indices;
+`smallGroup` warns under `Verbose` only. Missing tests: one named per finding, plus the ~60 identifiers of
+`unfired_ids_baseline.csv` (riskiest: `separable:sigmaLength` / `epochNotPD`, `adjustVCEjoint:notPD` /
+`collapsed`, `snoop:breakdown`).
+
+**WP-133, finding by finding.**
+
+*14 / 17 (one mechanism).* A row of weight 0 -- a zero data weight, a robust factor 0, a rejected epoch
+of the joint estimator -- carries no information but stayed a row of every count. It is now marked on
+the arc, `arc.excluded` (m x 1 logical): a day may return `.excluded` (the rows must be zero in A, B and
+l, else `makeLoader:badDay`); `makeLoader` ORs in a robust row factor 0 (`rowWeights`) and an epoch weight
+0 (`epochWeights`, its d rows); `batchSystem` marks p = 0 and refuses p < 0 or non-finite
+(`batchSystem:weightMatrix`; a negative weight made the rows complex, the QR and normal backends then
+disagreed). The accumulator adds the rows (their whitened rows are ~0) and `discount`s them from m
+(`mExcl` per store, `excludedRows`), so `sol.dof` counts live rows; `residuals` (`m`, `dof`,
+`obs.excluded`), `redundancy` (r = 0, not counted) and `streamContribution` count the same;
+`verdict.source` replays them with p = 0 (`diagSol.nExcluded`, r without them); `diagnose` gives them
+r = 0, tests none, keeps them out of `nTests` and Bonferroni's n, lists them as `D.excludedIdx` and
+counts them in `D.quad.rejected`; `snoop` never takes one as a candidate nor counts it in its caps;
+`R.reliability()` labels them "rejected"; the report's quadrant table lists them. The row-wise mapping
+needs the excluded row's whitened row to be ~0 IN PLACE. A robust row factor is applied after the law
+whitener (Yang 1994), so that holds; `decorrFactor`'s L^-1 is causal (its help said upper triangular --
+corrected). The joint estimator's nugget whitener G F is not causal: a deleted epoch's direction F e_j
+spreads over the rows j, j+1, ... (AR(1): q_j^2 = 1/(1+phi^2)), and a row-wise count missed 0.05-0.17 of
+sum(r) -- R.diag INVALID. `covModel>nuggetRows` now applies an orthogonal T (k Householder reflections,
+`deletionReflectors`) that maps the deleted directions span(F U_del) (nugget q > 1e11, the joint sweep's
+own line) onto their unit rows: normals unchanged (T'T = I), the deleted rows ~0 in place. Mirror
+`dev/validation/wp133_nugget_rotation_mirror.py`: normals to 1e-15, deleted rows <= 4e-7 of the largest,
+live sum(r) = m - k - u to 1e-9 (phi 0.5 / 0.9, with and without partial factors). Tests
+`test_fit>testZeroWeightRowsAreRejectedNotObservations` (x, dof, sigma0 against the dense GLS without the
+rows; D.r, D.excludedIdx, quad.rejected, nTests, sum(r), reliability, residuals), `test_errorDoctrine`'s
+batchSystem contract (p = 0 marked and zeroed; -1 / NaN / Inf refused; a day's `.excluded` on a live row
+refused), `test_streamUtils>test_epoch_weights_are_an_additive_nugget` (the zeroed epoch marked, its
+whitened rows ~0 in place, dof m - 3 - nc - nl).
+
+*2.* `adjustRobust` wrote the next pass's factors INTO the map the pass's accumulator held as
+`UserOpt.rowWeights`, so every later read of the returned acc (R.diag at construction already) replayed
+them. The next factors go into a copy (`copyMap`). Test
+`test_fit>testRobustRejectionsLeaveTheDofAndAreLabelled` (MaxIter 2 and 30, bisquare: vPv of the replay
+against sol.vtv to 1e-9, the rejection out of the dof and named, sum(r), residuals' sigma0 to 1e-8).
+
+*18.* `hardSolution` corrected sigma0 for the truncation, dof - nRej and tau, which `residuals` did not
+know: it cross-checked against the corrected number and warned on every igg3 / bisquare noise run. The
+rejected epochs now leave `sol.dof` through the loader (`nLeft = nRej - excludedRows`, normally 0) and
+`sol.truncation = tau`, which `residuals` applies to its own s0^2. `test_errorDoctrine>testJointRobustPassKeepsCleanMultiAxisEpochs`
+extended (residuals agree, `supersedesSol` false; quad.rejected iff an epoch was zeroed; sum(r) < 1e-6).
+
+*6.* `Reg` "tsvd" floored the null directions at TruncTol * max (its help says "equivalent to pinv") and
+counted nl; it now truncates on the kept eigenbasis of the UNFLOORED Nll (the pinv fallback's machinery,
+`Vll`; no pinvFallback warning -- truncation is what was asked for; excluded from the `LocalBlockSize`
+path), so the dof counts the rank. A ridge (tikhonov / lm) changes the hat matrix's trace to
+u - tr(Q Lambda): `regularisationDefect` sums tr(Q_ll Lambda_s) over the stores that keep
+`NllReg = Nll_r - Nll` (Q_ll = `localCovariance(id, commonCofactor(), 1)`), and `solve`, `residuals`,
+`redundancy` and `verdict.source` add it to the dof. The solve's normal-form vtv of a ridge is the
+PENALISED objective |v|^2 + y'Lambda y; the penalty (`ridgePenalty`) is subtracted, so s0^2 is the data's
+mass over the effective dof and agrees with the residual pass. Mirror
+`dev/validation/wp133_regularised_dof_mirror.py`: sum r + r_K = m + nk - u + defect to 1e-12 (ridge, lm,
+prior; without the defect off by 1e-2); the normal-form vtv = |v|^2 + |v_K|^2 + y'Lambda y to 1e-9; tsvd
+on the kept basis = lstsq to 2e-16. Tests `test_lsqAccum>testTSVDHandlesExactRankDeficiency` (extended;
+its pinvFallback mute removed -- it cannot fire now) and `testRidgeCountsItsEffectiveRedundancy`.
+
+*4.* A Gauss-Newton solution carries `sol.xLin` (the linearisation point = sol.x); `residuals` measures
+the zero step there. `test_fit>testGaussNewtonResidualsAreThoseOfTheEstimate`.
+
+*3.* `rankReduced` takes the SVD of `full(R11)`; `BlockCofactor` keeps `Rc`, `Rll`, `G` full (and the
+normal-form block's `Nll`/`Nlc`). `test_lsqAccum>testSparseLocalDesignSolvesAndSnoops` (a sparse B gives
+the full B's x, snoop's rejection and its clean re-solve; a duplicated sparse column its rank).
+
+*Solve-core lows.* A non-finite trial point is a rejected step (`trialAccumulate`: `accum:arcNotFinite`
+-> F = Inf; the final undamped step too); only x0 is refused (`adjustNonlinear:nonFinite`, now fired) --
+`test_fit>testGaussNewtonRejectsANonFiniteTrialPoint`. `LocalBlockSize` verifies the off-blocks (1e-12
+relative) and otherwise warns `accum:notBlockDiagonal` and solves whole --
+`test_lsqAccum>testLocalBlockSizeRefusesACoupledBlock`. A prior solve with m + nk <= nc is refused
+(`accum:noRedundancy`, both backends) -- `testPriorWithoutRedundancyIsRefused`. A local block the data
+never see (rank 0: Rll 0 x 0, Vll nl x 0) is told apart from "no factor" by the shape of Vll
+(`onFactor`): y = 0, no dof, finite residuals -- `testUnobservedLocalBlockIsRankZero`. An all-zero prior
+row is refused (`prior:zeroRow`) -- `test_vceMath>testPriorRejectsBadTarget`.
+
+**Bookkeeping.** New identifiers `accum:noRedundancy`, `accum:notBlockDiagonal` (warning),
+`prior:zeroRow` (catalogued, fired); `adjustNonlinear:nonFinite` fired (baseline row deleted); five stale
+category exemptions deleted (BlockAccumulator / metamorphic, batchSystem / metamorphic and robustness,
+residuals / metamorphic and precision); `diagnose`'s ceiling lowered to 464 code lines (the new branches
+compacted; `snoop` and `report` within theirs, `residuals` back to 400 lines). The report prints r as a
+real number (a ridge's redundancy) and its SUM_R line says "redundancy" for n - u. API reference
+(buildDay) names `.excluded`.
+
+**Tests 686 = 677 + 9.** NOT validated before CI: no MATLAB in the container (tier B); the numerical
+claims rest on the two mirrors and on the CI run.
+
+**CI round 1 (c111b16): RED, 2 of 674 (gated) + two new warning identifiers -- all three causes in this
+WP's own code.** (a) `testUnobservedLocalBlockIsRankZero`: `localSolveOf` lifted y onto the kept basis
+only when `~isempty(y)`, and a rank-0 block's y IS empty (0 x 1), so `backSubstitute` returned 0 x 1 and
+`residuals` failed on B*y; the 0 x 0 triangular solves of that block (`localSolveOf`,
+`localCovariance`) raised `MATLAB:singularMatrix`. Rank 0 now solves nothing (zeros on the kept basis,
+then the lift) in both, in `BlockCofactor`'s constructor and in its downdate (which also told the
+kept basis by `isempty(Vll)`, true for nl x 0). (b) `testSparseLocalDesignSolvesAndSnoops`: the QR
+factor stayed sparse, so `sol.x` came back SPARSE and differed in class from the full-B run -- the
+finding-3 symptom one level up. `QRSystem.add` keeps the factor full (it is (dim+1)^2 and dense after
+one batch; the batch itself stays sparse for the QR). (c) `lsqvce:accum:cancellation`: the normal
+backend's prior path checked the residual mass before the redundancy, and at dof = 0 the exact fit's
+v'Pv ~ 1e-15 reads as cancellation; both prior paths now refuse `noRedundancy` first.
+
+**Round 2 (8185116): the user's local `ci_gate` on a second machine (A8 was offline, the CI job queued
+for hours): 672 / 674.** (a) `testUnobservedLocalBlockIsRankZero` still red, and its log names the
+line: the normal-form branch of `localSolveOf`, so `onFactor` was false, and D.r = 25 for 27, so
+`localRankOf` counted nl. Cause: `lsqvce.util.getfielddef` returns its DEFAULT for an empty value, and
+the rank-0 block's kept basis Vll (nl x 0) is empty -- every reader received [] and lost the one shape
+that marks the block. All five readers (`onFactor`, `localRankOf`, `localSolveOf`, `localCovariance`,
+`BlockCofactor.fromAccumulator`) now read it through `BlockAccumulator.keptBasis`, the field as stored.
+Every other WP-133 test passed there, the sparse one, the robust / Gauss-Newton / zero-weight ones and
+the joint robust check with the nugget rotation included. (b) `test_speedBudget>testArmaACVIsNearLinearInLags`:
+armaACV(4n)/armaACV(n) = 16.4 (band 14.4-32.4) against the bound 8 -- also red on `main` on that
+machine (17.1), green on A8 in every run; `armaACV` is untouched here. A property of that machine (the
+65536-point FFT out of cache, most likely), recorded for WP-134 (kernel lane), not this PR.
+
+**Round 3 (de70381; A8 back online, and the user's second machine): 673 / 674 on A8, the rank-0 test
+ERRORED** -- the second machine's log named it: `localSolveOf`'s `sg .* st.Rll; Rlc = sg .* st.Rlc`
+raised `MATLAB:sizeDimensionsMustMatch`. Now that `onFactor` saw the block, the factor arithmetic ran
+on the empty factor (`diag(sv(kp))` of a 0 x 1, then `sign(diag(...))`), whose shape does not
+broadcast against Rlc (0 x nc). Rank 0 now skips the factor arithmetic (`isempty(Rll)`; the sizes come
+from Rlc and Nlc) in `localSolveOf`, `localCovariance` and `BlockCofactor`, and `rankReduced` stores
+an explicit 0 x 0. The speed point read 12.0 (11.4-13.5) on the second machine, green on A8.

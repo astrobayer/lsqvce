@@ -55,7 +55,6 @@ engine.arcVarianceFactors,vectorisation,the data loop lives in the accumulator /
 engine.arcVarianceFactors,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
 engine.batchSystem,precision,the numbers it produces are pinned at the fit level against dense closed forms (test_fit, test_lsqvce*, test_physOracle); the driver adds plumbing, not arithmetic
 engine.batchSystem,reference,no closed form of its own beyond the dense references its callers are pinned against
-engine.batchSystem,robustness,its refusals are named identifiers pinned under contract; no numerical edge regime beyond those
 engine.batchSystem,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
 engine.batchSystem,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
 engine.checkPSD,precision,the numbers it produces are pinned at the fit level against dense closed forms (test_fit, test_lsqvce*, test_physOracle); the driver adds plumbing, not arithmetic
@@ -112,10 +111,8 @@ engine.psdVCE,metamorphic,the scaling / partition / permutation invariances are 
 engine.redundancy,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
 engine.redundancy,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
 engine.redundancy,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path
-engine.residuals,precision,the numbers it produces are pinned at the fit level against dense closed forms (test_fit, test_lsqvce*, test_physOracle); the driver adds plumbing, not arithmetic
 engine.residuals,reference,no closed form of its own beyond the dense references its callers are pinned against
 engine.residuals,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
-engine.residuals,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path
 engine.resolveNc,precision,the numbers it produces are pinned at the fit level against dense closed forms (test_fit, test_lsqvce*, test_physOracle); the driver adds plumbing, not arithmetic
 engine.resolveNc,reference,no closed form of its own beyond the dense references its callers are pinned against
 engine.resolveNc,robustness,its refusals are named identifiers pinned under contract; no numerical edge regime beyond those
@@ -270,9 +267,7 @@ util.toolboxVersion,robustness,returns unknown when the line is missing (its onl
 util.toolboxVersion,vectorisation,no data
 util.toolboxVersion,speed,one file read
 util.toolboxVersion,metamorphic,none
-engine.BlockAccumulator,metamorphic,batch-partition invariance (1 / 3 / 7 batches give one solve) pinned through lsqvce.fit in test_metamorphic (R7-27: the matrix credits code only; the unit is driven on every block-path solve there but not called by name)
 engine.QRSystem,metamorphic,batch-partition and row-permutation invariance pinned through lsqvce.fit in test_metamorphic (R7-27: the matrix credits code only; the unit is driven on every block-path solve there but not called by name) -- QR is that accumulator's default backend
-engine.batchSystem,metamorphic,batch-partition invariance pinned through lsqvce.fit in test_metamorphic (R7-27: the matrix credits code only; the unit is driven on every block-path solve there but not called by name) -- batchSystem is fit's adapter for the batched and in-memory kinds
 engine.adjustNonlinear,reference,the dense Gauss-Newton fixed point (exponential decay; x to 1e-8) is pinned through lsqvce.fit in test_fit; the driver is reached only through fit (R7-27: no longer credited from the comment that names it)
 Results,reference,R.x / Cxx / sigma0 against dense references are pinned on the Results lsqvce.fit returns (test_fit / test_adjustBlock); Results holds what the drivers compute -- the one method with arithmetic of its own (compare) has an open finding (R7-19 / WP-118) and gets its reference there
 engine.makeLoader,speed,timed inside test_speedBudget testFitAddsLittleToTheBlockDriver (both sides build the loaders through lsqvce.engine.declaration) but not called by name there; a budget of its own would time the same work twice

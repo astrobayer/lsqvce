@@ -2,6 +2,10 @@ function tests = test_lsqAccum
 %TEST_LSQACCUM  Unit tests for the lsq accumulation toolbox.
 %   Run:  results = runtests('tests/test_lsqAccum');  disp(table(results))
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: tsvd / ridge dof, a coupled
+%   LocalBlockSize, a prior without redundancy, a rank-0 local block, a
+%   sparse B through snoop (review 3 findings 3, 6 and the lows). With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: residuals 'Whitened',
 %   false keeps the whitened scalars. With assistance from Claude
 %   (Anthropic), model Claude Opus 5.5.
@@ -343,9 +347,13 @@ function testAutoRegSelectsByStatus(tc)
 end
 
 function testTSVDHandlesExactRankDeficiency(tc)
-% categories: robustness
+% categories: robustness, contract
 % Exactly duplicated local column -> singular Nll. TSVD must still solve.
-    muteWarn(tc, 'lsqvce:accum:pinvFallback');   % provoked on purpose here (WP-47, gate rule 7)
+% WP-133 (review 3 finding 6): "tsvd" TRUNCATES -- the help's "equivalent to
+% pinv" -- so the dof counts the kept rank and the verdict's identity holds;
+% it floored the null direction at 1e-10 max and counted nl (sum(r) off by
+% one per system: SUM_R ERROR, INVALID). No pinvFallback warning: truncation
+% is what was asked for.
     cfg = tc.TestData.cfg;
     cfg.collinear = true;  cfg.collinearEps = 0;      % exact duplication
     acc = lsqvce.engine.BlockAccumulator(cfg.nc,'Backend','qr','Reg','tsvd','Verbose',false);
@@ -353,6 +361,42 @@ function testTSVDHandlesExactRankDeficiency(tc)
     sol = acc.solve();
     tc.verifyTrue(all(isfinite(sol.x)));
     tc.verifyGreaterThanOrEqual(acc.diag(1).rankDef, 1);
+    D = lsqvce.engine.verdict.fromAccumulator(acc, sol);
+    kept = numel(cfg.sats) * cfg.nl - sum([acc.diag.rankDef]);
+    tc.verifyEqual(sol.dof, D.n - cfg.nc - kept, 'the dof counts the kept rank');
+    tc.verifyEqual(D.r, sol.dof, 'the verdict counts the same');
+    % tol: the report's own integrity line (report.m: SUM_R > 1e-6 is INVALID)
+    tc.verifyLessThan(D.sumRRelErr, 1e-6, 'sum(r) = n - (nc + kept rank)');
+end
+
+function testRidgeCountsItsEffectiveRedundancy(tc)
+% categories: precision, metamorphic
+% WP-133 (review 3 finding 6): a ridge on a local block ("tikhonov", "lm")
+% takes tr(Q Lambda) out of the hat matrix's trace, so the redundancy is
+% m - u + sum tr(Q_ll Lambda), not m - u: the verdict's sum(r) identity read
+% SUM_R ERROR / INVALID for every regularised solve. The solve, the residual
+% pass and the verdict count the same effective dof, and s0^2 = vtv / dof
+% (mirror: dev/validation/wp133_regularised_dof_mirror.py, 1e-12).
+    cfg = tc.TestData.cfg;
+    cfg.collinear = true;  cfg.collinearEps = 1e-10;
+    for reg = {'tikhonov', 'lm'}
+        acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Backend', 'qr', 'Reg', reg{1}, ...
+                                             'RegLambda', 1e-3, 'Verbose', false);
+        for s = cfg.sats, acc.addSystem(s, cfg.nl, binder(cfg,s), 1:2); end
+        sol = acc.solve();
+        tc.verifyGreaterThan(sol.regDefect, 0, [reg{1} ': the ridge has a defect']);
+        D = lsqvce.engine.verdict.fromAccumulator(acc, sol);
+        tc.verifyGreaterThan(sol.dof, D.n - D.u, [reg{1} ': more than m - u']);
+        % tol: 1e-12 relative -- the same defect summed by the solve and the bridge
+        tc.verifyEqual(D.r, sol.dof, 'RelTol', 1e-12);
+        % tol: 1e-12 relative -- s0^2 is vtv / dof by construction, two products
+        tc.verifyEqual(sol.s0sq * sol.dof, sol.vtv, 'RelTol', 1e-12);
+        % tol: the report's own integrity line (SUM_R > 1e-6 is INVALID)
+        tc.verifyLessThan(D.sumRRelErr, 1e-6, [reg{1} ': sum(r) = m - u + tr(Q Lambda)']);
+        res = tc.verifyWarningFree(@() lsqvce.engine.residuals(acc, sol, 'Verbose', false));
+        % tol: 1e-12 relative -- the residual pass counts the same dof
+        tc.verifyEqual(res.dof, sol.dof, 'RelTol', 1e-12);
+    end
 end
 
 %% ----------------------------------------------------------------- residuals
@@ -571,4 +615,136 @@ function [x, w, Aw] = batchedSweeps(L, nc, nl, bs)
         Ak = batchFcn(k);
         Aw = [Aw; Ak];                                            %#ok<AGROW>
     end
+end
+
+%% ---------------------------------- WP-133 (review 3): the solve core's edges
+function L = rowsLoader(A, B, l)
+%ROWSLOADER  One system, one day, one arc of unit-weight rows [A | B] -> l.
+    m = numel(l);
+    D = struct('A', {{A}}, 'B', {{B}}, 'l', {{l}}, 't', {{(1:m).'}});
+    cov.obs = struct('type', 'diag', 'sigma', 1);
+    L = lsqvce.engine.makeLoader(@(day, ot) D, 'ObservationTypes', {'obs'}, 'Covariance', cov, ...
+                                 'Arcs', 1, 'SystemId', 1, 'NumLocal', size(B, 2), ...
+                                 'NumCommon', size(A, 2), 'Days', 1);
+end
+
+function testLocalBlockSizeRefusesACoupledBlock(tc)
+% categories: robustness, metamorphic
+% WP-133 (review 3): LocalBlockSize = k solves the local block as nl/k
+% independent blocks and IGNORES whatever couples them -- a local column
+% spanning two blocks put x 27 formal sd off without a word. Declared
+% structure is now verified: a coupled block is warned and solved whole
+% (bitwise the undeclared solve); a truly block-diagonal one keeps the fast
+% path and the dense answer.
+    rs = RandStream('mt19937ar', 'Seed', 1332);
+    nc = 3;  m = 40;
+    A = {randn(rs, m, nc), randn(rs, m, nc)};  l = {randn(rs, m, 1), randn(rs, m, 1)};
+    Bdiag = {[randn(rs, m, 2), zeros(m, 2)], [zeros(m, 2), randn(rs, m, 2)]};
+    Bfull = {randn(rs, m, 4), randn(rs, m, 4)};
+    for coupled = [false true]
+        Bk = Bdiag;  if coupled, Bk = Bfull; end
+        L = lsqvce.engine.batchSystem(nc, @(k) deal([A{k}, Bk{k}], l{k}), 2, 'LocalColumns', nc + (1:4));
+        x = cell(1, 2);  lbs = [0 2];                 % 0: undeclared (the dense Schur)
+        for blk = 1:2
+            acc = lsqvce.engine.BlockAccumulator(nc, 'Backend', 'normal', 'Verbose', false, ...
+                                                 'LocalBlockSize', lbs(blk));
+            if blk == 2 && coupled
+                tc.verifyWarning(@() acc.addSystem(L.sysID, 4, L.closure, 1:2), ...
+                                 'lsqvce:accum:notBlockDiagonal');
+            else
+                acc.addSystem(L.sysID, 4, L.closure, 1:2);
+            end
+            sol = acc.solve();  x{blk} = sol.x;
+        end
+        if coupled
+            tc.verifyEqual(x{2}, x{1}, 'a coupled block is solved whole, as if undeclared');
+        else
+            % tol: 1e-12 relative -- block vs dense inverse of the same
+            % well-conditioned 4 x 4 (cond ~ 10), rounding only
+            tc.verifyEqual(x{2}, x{1}, 'RelTol', 1e-12, 'a block-diagonal block keeps its answer');
+        end
+    end
+end
+
+function testPriorWithoutRedundancyIsRefused(tc)
+% categories: contract, robustness
+% WP-133 (review 3): with a prior the dof is m + nk - nc; at 0 the backends
+% themselves refuse (noRedundancy), but the prior paths returned
+% s0sq = 0 / max(dof, 1) = 0 and Cxx = 0 -- formal errors of exactly zero.
+    A = [1 0 0.3; 0 1 -0.2];  l = [1; 2];               % 2 rows, 3 commons
+    L = lsqvce.engine.batchSystem(3, @(k) deal(A, l), 1);
+    for be = {'qr', 'normal'}
+        acc = lsqvce.engine.BlockAccumulator(3, 'Backend', be{1}, 'Verbose', false);
+        acc.addSystem(L.sysID, 0, L.closure, 1);
+        acc.setPrior(lsqvce.engine.CommonPrior([0 0 1], 0.5, 1));   % 2 + 1 - 3 = 0
+        tc.verifyError(@() acc.solve(), 'lsqvce:accum:noRedundancy', be{1});
+    end
+end
+
+function testUnobservedLocalBlockIsRankZero(tc)
+% categories: robustness, precision
+% WP-133 (review 3): a local block the data never see reduces on the factor
+% to rank 0 -- Rll 0 x 0 and Vll nl x 0, both EMPTY -- and every reader's
+% isempty test sent it to the singular Nll_r: NaN locals, NaN residuals of
+% the system. Rank 0 is a zero block: y = 0 (minimum norm), no dof spent,
+% the commons those of the data alone.
+    muteWarn(tc, 'lsqvce:accum:pinvFallback');   % the rank-0 block IS the pinv case (WP-47, gate rule 7)
+    rs = RandStream('mt19937ar', 'Seed', 1334);
+    A = randn(rs, 30, 3);  l = A * [1; 2; 3] + 0.1 * randn(rs, 30, 1);
+    L = rowsLoader(A, zeros(30, 2), l);
+    acc = lsqvce.engine.BlockAccumulator(3, 'Backend', 'qr', 'Verbose', false);
+    acc.addSystem(1, 2, L.closure, 1);
+    sol = acc.solve();
+    % tol: 1e-12 relative -- one QR of the same 30 x 3 rows, cond ~ 2
+    tc.verifyEqual(sol.x, A \ l, 'RelTol', 1e-12, 'the commons of the data alone');
+    tc.verifyEqual(sol.dof, 30 - 3, 'an unseen block spends no dof');
+    tc.verifyEqual(acc.backSubstitute(1, sol.x), zeros(2, 1), 'the minimum-norm locals');
+    res = lsqvce.engine.residuals(acc, sol, 'Verbose', false);
+    tc.verifyTrue(all(isfinite(res.sys(1).obs(1).v)), 'the residuals are finite');
+    D = lsqvce.engine.verdict.fromAccumulator(acc, sol);
+    tc.verifyEqual(D.r, 27);
+    % tol: the leverages of 30 rows on a cond ~ 2 design, rounding only
+    tc.verifyLessThan(D.sumRRelErr, 1e-12);
+end
+
+function testSparseLocalDesignSolvesAndSnoops(tc)
+% categories: robustness, metamorphic
+% WP-133 (review 3 finding 3): buildDay may return a SPARSE B (the API
+% reference says so), but the QR factor then stays sparse, and the rank
+% decision's svd and snoop's cholupdate take full matrices only -- both
+% died. A sparse B gives the full B's answer: a full-rank block through
+% snoop's downdate, a rank-deficient one through the factor's SVD.
+    rs = RandStream('mt19937ar', 'Seed', 1333);
+    m = 60;  A = randn(rs, m, 3);  B = randn(rs, m, 2);
+    l = A * [1; -2; 0.5] + B * [0.3; -0.7] + randn(rs, m, 1);
+    l(17) = l(17) + 20;                                 % one blunder for snoop to remove
+    out = cell(1, 2);
+    for k = 1:2
+        Bk = B;  if k == 2, Bk = sparse(B); end
+        L = rowsLoader(A, Bk, l);
+        acc = lsqvce.engine.BlockAccumulator(3, 'Backend', 'qr', 'Verbose', false);
+        acc.addSystem(1, 2, L.closure, 1);
+        sol = acc.solve();
+        [D, dsol, bf] = lsqvce.engine.verdict.fromAccumulator(acc, sol);
+        [solS, ~, REJ] = lsqvce.engine.verdict.snoop(dsol, D, bf, 'Verbose', false);
+        out{k} = struct('x', sol.x, 'xs', solS.x, 'idx', REJ.idx);
+    end
+    tc.verifyEqual(out{1}.idx(1), 17, 'the planted blunder goes first');
+    tc.verifyEqual(out{2}.idx, out{1}.idx, 'sparse B: snoop rejects the same observations');
+    % tol: 1e-10 relative -- the same rows, sparse vs full storage of B
+    tc.verifyEqual(out{2}.x, out{1}.x, 'RelTol', 1e-10);
+    tc.verifyEqual(out{2}.xs, out{1}.xs, 'RelTol', 1e-10);   % tol: as above
+    % a duplicated local column: the rank is decided on the (sparse) factor
+    muteWarn(tc, 'lsqvce:accum:pinvFallback');   % the rank-deficient block IS the pinv case
+    Bd = [B(:, 1), B(:, 1)];
+    xd = cell(1, 2);
+    for k = 1:2
+        Bk = Bd;  if k == 2, Bk = sparse(Bd); end
+        L = rowsLoader(A, Bk, l);
+        acc = lsqvce.engine.BlockAccumulator(3, 'Backend', 'qr', 'Verbose', false);
+        acc.addSystem(1, 2, L.closure, 1);
+        sol = acc.solve();  xd{k} = sol.x;
+        tc.verifyEqual(sol.dof, m - 3 - 1, 'the duplicated column costs one dof, not two');
+    end
+    tc.verifyEqual(xd{2}, xd{1}, 'RelTol', 1e-10);   % tol: as above
 end

@@ -88,6 +88,10 @@ classdef QRSystem < handle
 %
 %   See also LSQVCE.ENGINE.NORMALEQSYSTEM, LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: discount(k) takes k rows of
+%   weight 0 out of the count m (mExcl keeps them; merge adds them); the
+%   factor is kept full whatever the batch. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-128: reducedRows also returns the
 %   local block's coupling R12 and right-hand side r1. With assistance from
 %   Claude (Anthropic), model Claude Opus 5.5.
@@ -112,7 +116,8 @@ classdef QRSystem < handle
 
     properties (SetAccess = private)
         R                       % triangular factor of [A l]
-        m   = 0                 % observation count
+        m   = 0                 % observation count (weight-0 rows out, WP-133)
+        mExcl = 0               % rows of weight 0 discounted from m (WP-133)
         dim                     % parameter count
         vtvPoisoned = false     % WP-50: a merge() fold destroyed the residual
                                 % mass by cancellation; solve() returns
@@ -145,7 +150,11 @@ classdef QRSystem < handle
             end
             if isempty(l), return, end
 
-            o.R = triu(qr([o.R ; [A, l(:)]], 0));
+            % WP-133 (review 3 finding 3): the factor is kept FULL -- a sparse
+            % batch (a sparse B) made it sparse, and with it x, vtv, the local
+            % factor (svd, cholupdate take full only); it is (dim+1)^2 and dense
+            % after one batch anyway, the batch itself stays sparse for the QR
+            o.R = full(triu(qr([o.R ; [A, l(:)]], 0)));
             k   = min(size(o.R,1), o.dim+1);
             o.R = o.R(1:k, :);
             o.m = o.m + numel(l);
@@ -172,6 +181,15 @@ classdef QRSystem < handle
             k   = min(size(o.R,1), o.dim+1);
             o.R = o.R(1:k, :);
             o.m = o.m + other.m;
+            o.mExcl = o.mExcl + other.mExcl;
+        end
+
+        function discount(o, k)
+        %DISCOUNT  Take k rows of weight 0 out of the observation count
+        %   (WP-133): they were added (their whitened rows are ~0) but are not
+        %   observations -- a robust rejection, a zero data weight.
+        %   INPUT  k  1x1 nonnegative integer
+            o.m = o.m - k;  o.mExcl = o.mExcl + k;
         end
 
         function [Nll,Nlc,Ncc,nl,nc,ltl,m] = blocks(o, ic, il)        %BLOCKS  Recover the normal-equation blocks from R.

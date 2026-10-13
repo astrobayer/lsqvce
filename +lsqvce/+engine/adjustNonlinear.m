@@ -24,7 +24,9 @@ function R = adjustNonlinear(u, batchFcn, nBatch, x0, opt)
 %   STEP CONTROL. F(x) = l'Pl(x) + |(K x - x0)/sigma|^2, the DECLARED objective.
 %   A step that raises F is rejected -- from the first pass on -- and lam
 %   grows tenfold (0 -> 1e-3; above 1e12 -> diverged), the shorter step
-%   re-solved on the SAME accumulation; an accepted step shrinks lam tenfold
+%   re-solved on the SAME accumulation -- so does a trial point where the
+%   model returns non-finite rows (F = Inf there, WP-133); an accepted step
+%   shrinks lam tenfold
 %   (below 1e-12 -> 0, pure Gauss-Newton). Convergence when max|dx_j/sigma_j|
 %   < TolX, or the relative change of F < TolF. A converged run returns x plus
 %   the final UNDAMPED step; an unconverged one returns the best ACCEPTED point
@@ -55,6 +57,8 @@ function R = adjustNonlinear(u, batchFcn, nBatch, x0, opt)
 %   ERRORS
 %     lsqvce:adjustNonlinear:badX0       x0 is not u x 1
 %     lsqvce:adjustNonlinear:nonFinite   the model returned non-finite residuals
+%                                        at x0 (at a trial point it is a
+%                                        rejected step, WP-133)
 %   WARNINGS
 %     lsqvce:adjustNonlinear:diverged    damping reached 1e12 without a downhill step
 %     lsqvce:adjustNonlinear:maxIter     MaxIter reached (stopReason "maxPasses")
@@ -70,6 +74,11 @@ function R = adjustNonlinear(u, batchFcn, nBatch, x0, opt)
 %   See also LSQVCE.ENGINE.BATCHSYSTEM,
 %            LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.FIT
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-133 (review 3): a non-finite trial
+%   point is a rejected step, not an abort; R.sol.xLin names the
+%   linearisation point, so R.residuals() measures the residuals at x (it
+%   applied the increments' rows to the full x: sigma0 off by orders). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-130: sigma0, Cxx and the
 %   diagnostics are evaluated AT the returned point (its linearisation, a zero
 %   step, vtv = F); D.x is the estimate; a diverged run's stopReason is
@@ -135,17 +144,22 @@ end
     % linearisation at once); the STEP is a solve on that accumulation with the
     % prior shifted to the current x and the damping on the common block, so
     % a rejected step is re-solved at the same x without re-reading the data.
-    [acc, F, d] = accumulate(L, days, x, state, opt);
+    [acc, F, d] = trialAccumulate(L, days, x, state, opt);
+    if ~isfinite(F)
+        error('lsqvce:adjustNonlinear:nonFinite', ...
+              ['The model returned non-finite residuals at the starting point x0 -- ' ...
+               'no step can be measured from there; start where the model is defined.']);
+    end
     sol = stepSolve(acc, x, lam, d, opt);
     for it = 1:opt.MaxIter
         dx   = sol.x(:);
         xNew = x + dx;
-        [accNew, FNew, dNew] = accumulate(L, days, xNew, state, opt);  % evaluation AND next linearisation
-        if ~isfinite(FNew) && ~isnan(FNew)
-            error('lsqvce:adjustNonlinear:nonFinite', ...
-                  'The model returned non-finite residuals at pass %d.', it);
-        end
-        if FNew > F                                           % R7-14: checked from pass 1
+        % WP-133 (review 3): a trial point where the model overflows (exp of a
+        % far step, say) is a REJECTED step, F = Inf -- not an abort; the
+        % damping exists for exactly that (2 of 40 starts of an exponential
+        % decay stopped with arcNotFinite)
+        [accNew, FNew, dNew] = trialAccumulate(L, days, xNew, state, opt);  % evaluation AND next linearisation
+        if ~(FNew <= F)                                       % R7-14: checked from pass 1; NaN / Inf rejected
             if lam == 0, lam = 1e-3; else, lam = lam * 10; end   % rejected: do not move
             hist(end+1) = struct('pass', it, 'vPv', FNew, 'dxRel', NaN, 'lambda', lam, 'accepted', false); %#ok<AGROW>
             if opt.Verbose, lsqvce.util.log.msg('  %4d %16.8e %14s %12.1e   step rejected\n', it, FNew, '-', lam); end
@@ -209,8 +223,13 @@ end
     if converged
         dsol = acc.solve();
         xF = x + dsol.x(:);
-        accF = finalAcc(L, days, xF, state, opt);
-        FF = objectiveOf(accF, xF, opt);
+        try
+            accF = finalAcc(L, days, xF, state, opt);
+            FF = objectiveOf(accF, xF, opt);
+        catch e                                % WP-133: a model undefined there is a
+            if ~strcmp(e.identifier, 'lsqvce:accum:arcNotFinite'), rethrow(e), end
+            FF = Inf;                          % rejected final step, as in the loop
+        end
         % tol: a rise below 1e-10 relative is the rounding of F's sum over the
         % rows (~n eps up to n ~ 1e6), not ascent -- at the optimum the step is ~0
         if isfinite(FF) && FF <= F * (1 + 1e-10)
@@ -222,6 +241,7 @@ end
     state('x') = xR;                          % the diagnostics replay the batches at xR
     dsol = acc.solve();                       % the linearisation at xR (prior shifted to xR)
     sol  = atZeroStep(dsol, xR, FR);
+    sol.xLin = xR;   % WP-133 (review 3 finding 4): acc's rows are increments about xR
     [D, dsol2, batchFcn, nB] = lsqvce.engine.verdict.fromAccumulator(acc, ...
         atZeroStep(dsol, zeros(size(dsol.x)), FR), opt.Diagnostics{:});
     D.x(1:u) = xR;                            % the estimate, not the (zero) increment
@@ -229,6 +249,18 @@ end
     sr = "";
     if userStop, sr = "userStop"; elseif strcmp(reason, 'diverged'), sr = "diverged"; end   % WP-130
     R.setIterative(hist, struct('x0', x0, 'reason', reason, 'kind', 'nonlinear'), converged, sr);
+end
+
+function [acc, F, d] = trialAccumulate(L, days, x, state, opt)
+%TRIALACCUMULATE  accumulate at x, a non-finite model there reported as F =
+%   Inf (WP-133): validateArc refuses non-finite rows by name
+%   (lsqvce:accum:arcNotFinite); any other error is the user's and propagates.
+    try
+        [acc, F, d] = accumulate(L, days, x, state, opt);
+    catch e
+        if ~strcmp(e.identifier, 'lsqvce:accum:arcNotFinite'), rethrow(e), end
+        acc = [];  F = Inf;  d = [];
+    end
 end
 
 function s = atZeroStep(dsol, x, F)
