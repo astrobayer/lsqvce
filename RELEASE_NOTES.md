@@ -25,7 +25,11 @@ Numbers change for the cases marked **numbers**.
   `residuals(..., 'Whitened', false)` keeps the whitened σ₀; `outliers` under `'spmd'`;
   `fit`'s Name=Value groups override the given Options field by field; `toTable` without
   `localParams`; a one-argument arc resolver with day-scoped common parameters.
-- Tests: 671 (+9).
+- **A data stream named `prior_*` is refused** (`lsqvce:makeLoader:priorType`): the name is
+  reserved for the prior pseudo-streams, and such a stream was dropped silently (user decision).
+- **`R.snoop` tests at `R.diag`'s Alpha, Bonferroni and Test** unless told otherwise (user
+  decision): an observation `R.diag` flagged at Alpha 0.01 could pass `R.snoop` as clean.
+- Tests: 673 (+11).
 
 ## 6.17.0 — 2026-10-13 (WP-130: the solve core and the diagnostics of the second whole-code review)
 

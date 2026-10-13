@@ -76,7 +76,6 @@ lsqvce:makeKeyFcn:badGroupBy,engine.private.makeKeyFcn
 lsqvce:makeLoader:buildDay,engine.makeLoader
 lsqvce:makeLoader:ncConflict,engine.makeLoader
 lsqvce:makeLoader:noArcs,engine.makeLoader
-lsqvce:makeLoader:priorType,engine.makeLoader
 lsqvce:makeLoader:rowWeightSize,engine.makeLoader
 lsqvce:mapreduce:badTask,engine.mapreduce
 lsqvce:normalEq:badWidth,engine.NormalEqSystem

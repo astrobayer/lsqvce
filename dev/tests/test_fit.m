@@ -36,6 +36,9 @@ function tests = test_fit
 %   Created 2026-08-31 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5 -- R4 Level L2, WP-56.
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: a declared physical psd under
+%   Estimate "noise"; a stream named prior_* refused; snoop inherits R.diag's
+%   test. With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-130: Gauss-Newton sigma0 / vPv /
 %   D.x at the returned point; the datum test under a change of parameter
 %   units; snoop without the re-solve and its critical value; the mad scale
@@ -581,6 +584,23 @@ function testNoiseEstimatesADeclaredPhysicalPsdLaw(tc)
     % is RE-ESTIMATED on a 16-bin grid over three passes; a law on the wrong
     % axis (the equal-length failure) whitens a different process
     tc.verifyLessThan(norm(R.x - xA), 5e-2 * norm(xA), 'the estimated law models the same process');
+end
+
+function testStreamNamedLikeAPriorIsRefused(tc)
+% categories: contract
+    % WP-131 (user decision): 'prior_*' names the prior pseudo-streams. A data
+    % stream so named was taken for one: no arcs were read for it, yet it was
+    % listed in R.noise.stream -- data dropped without a word. It is refused by
+    % makeLoader (relabelled under lsqvce:fit, the original as the cause).
+    d = declaration();
+    d.systems(1).covariance.prior_pos = d.systems(1).covariance.pos;
+    try
+        lsqvce.fit(d, Verbose=false);
+        tc.verifyFail('a stream named prior_* must be refused');
+    catch e
+        tc.verifyEqual(e.identifier, 'lsqvce:fit:priorType');
+        tc.verifyEqual(e.cause{1}.identifier, 'lsqvce:makeLoader:priorType');
+    end
 end
 
 function d = withPsdLaw(d, cfg)
@@ -1513,6 +1533,26 @@ function testSnoopAfterRejectionWithoutTheReSolve(tc)
     % (2) tol: 1e-12 relative -- the same tau of the same alpha / nTests and r
     tc.verifyEqual(REJt.history(1, 4), R.diag.kCrit, 'RelTol', 1e-12, ...
         'snoop tests at diagnose''s critical value (the datum row is no test)');
+end
+
+function testSnoopInheritsTheDiagnosticsTest(tc)
+% categories: contract
+    % WP-131 (user decision): R.snoop tested at its own defaults (Alpha 1e-3,
+    % Pope) whatever R.diag had used -- an observation R.diag flagged at
+    % Alpha 0.01 could pass R.snoop "clean". Alpha, Bonferroni and Test now
+    % default to R.diag's; an explicit pair still wins.
+    rs = RandStream('mt19937ar', 'Seed', 5);
+    pairs = repmat([1 2; 2 3; 3 4; 4 1; 1 3; 2 4], 7, 1);  m = size(pairs, 1);
+    A = zeros(m, 4);  A(sub2ind(size(A), (1:m).', pairs(:, 1))) = -1;
+    A(sub2ind(size(A), (1:m).', pairs(:, 2))) = 1;
+    l = A*[0; 1.5; -0.7; 2.2] + 0.01*randn(rs, m, 1);  l(3) = l(3) + 0.2;
+    data = struct('A', A, 'l', l, 'priors', struct('L', ones(1, 4), 'sigma', 1e3, 'name', 'datum'));
+    R = lsqvce.fit(data, lsqvce.Options(Diagnostics=struct('Alpha', 0.01), Verbose=false));
+    [~, REJ] = R.snoop('Verbose', false);
+    % tol: 1e-12 relative -- the same tau of the same alpha / nTests and r
+    tc.verifyEqual(REJ.history(1, 4), R.diag.kCrit, 'RelTol', 1e-12, 'snoop tests at R.diag''s Alpha');
+    [~, REJ2] = R.snoop('Verbose', false, 'Alpha', 1e-3);
+    tc.verifyGreaterThan(REJ2.history(1, 4), REJ.history(1, 4), 'an explicit Alpha still wins');
 end
 
 function testMadScaleLeavesTheDatumRowsOut(tc)

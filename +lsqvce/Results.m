@@ -122,6 +122,9 @@ classdef Results < handle
 %   See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.REPORT,
 %            LSQVCE.ENGINE.VERDICT, LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: snoop() defaults Alpha,
+%   Bonferroni and Test to R.diag's (user decision). With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: report() passes no
 %   influence for a joint run that recorded "none" (it said "a robust (none)
 %   fit"); toTable reads an absent localParams as none. With assistance from
@@ -524,11 +527,22 @@ classdef Results < handle
         %   repeat; a clean re-solve over the survivors at the end (default).
         %   R itself is NOT changed. Name-Value pairs (Test, Alpha,
         %   Bonferroni, MaxReject, MaxRejectFrac, RMinReject, Reaccumulate,
-        %   Force, Verbose) pass to LSQVCE.ENGINE.VERDICT.SNOOP.
+        %   Force, Verbose) pass to LSQVCE.ENGINE.VERDICT.SNOOP; Alpha,
+        %   Bonferroni and Test default to R.diag's (WP-131, user decision:
+        %   the observation R.diag flags is the one R.snoop tests), "baarda"
+        %   read as "pope".
         %   OUTPUT  D    1x1 struct  the diagnostics after rejection (.rejectedIdx)
         %           REJ  1x1 struct  the rejection record (.idx .w .r .refused ...)
         %           sol  1x1 struct  the solution after rejection (.x .Q .s0sq ...)
-            [sol, D, REJ] = lsqvce.engine.verdict.snoop(obj.source, obj.diag, obj.batchFcn, varargin{:});
+            dflt = {};
+            if isstruct(obj.diag) && isfield(obj.diag, 'alpha')
+                t = "pope";  if strcmp(lsqvce.util.getfielddef(obj.diag, 'test', ''), 'mad'), t = "mad"; end
+                dflt = {'Alpha', obj.diag.alpha, 'Bonferroni', logical(obj.diag.bonferroni), 'Test', t};
+                given = lower(string(varargin(1:2:end)));
+                keep = ~ismember(lower(string(dflt(1:2:end))), given);
+                dflt = reshape(dflt, 2, []);  dflt = reshape(dflt(:, keep), 1, []);
+            end
+            [sol, D, REJ] = lsqvce.engine.verdict.snoop(obj.source, obj.diag, obj.batchFcn, dflt{:}, varargin{:});
         end
 
         function T = reliability(obj)

@@ -8,7 +8,7 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-13 — WP-130 DONE (PR #152, merge b441ff3; CI GREEN on a1e1859, first round: ci_gate 650/650); WP-131 OPEN (tier B, model Claude Opus 5.5): the noise model, the kernel and the contributions of the second whole-code review -- Level 2 on the leverage split (user decision), a psd override's own axis, Smooth > 0 converging, the Toeplitz structure probe, armaACV's tail, crossCorr on correlations, no "robust (none)", late priors reported, seven lows fixed and seven recorded; 9 tests; version 6.18.0; §12.64.
+Last substantive update: 2026-10-13 — WP-130 DONE (PR #152, merge b441ff3; CI GREEN on a1e1859, first round: ci_gate 650/650); WP-131 OPEN (tier B, model Claude Opus 5.5): the noise model, the kernel and the contributions of the second whole-code review -- Level 2 on the leverage split (user decision), a psd override's own axis, Smooth > 0 converging, the Toeplitz structure probe, armaACV's tail, crossCorr on correlations, no "robust (none)", late priors reported, seven lows fixed, five recorded, two by user decision (prior_* refused, snoop inherits R.diag's test); 11 tests; version 6.18.0; §12.64.
 Preceding entry: Last substantive update: 2026-10-13 — second whole-code review (correctness and missing tests; six parallel reviewers, every material finding re-checked: 14 medium/high + 17 low, §12.63); WP-130 OPEN (tier B, model Claude Opus 5.5; user: "Go ahead. Change to the leverage fit"): the solve core and the diagnostics -- a rank-deficient local block reduced on its factor, Gauss-Newton evaluated at the returned point, the datum test invariant to units, 'mad' without datum scores, snoop after rejection; 4 tests; version 6.17.0; WP-131 (noise model, kernel, contributions; Level 2 on the leverage split) follows.
 Preceding entry: Last substantive update: 2026-10-13 — WP-129 DONE (PR #150, merge f706681; CI GREEN on 3e9086e, first round: ci_gate 646/646); closure PR (user decision: "Ja, mach den Abschluss-PR"): the ledger row and §12.62 -- the whole-code review track (§12.59, WP-127/128/129) closed, all twelve findings fixed, no residue; no code change, no version (6.16.1 stays, 658 tests).
 Preceding entry: Last substantive update: 2026-10-13 — WP-128 DONE (PR #149, merge 839ec11; CI GREEN on 170612c); WP-129 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-129 mit dem downdate-Rest"): the WP-128 residue -- BlockCofactor.downdate of a local block kept on its QR factor downdates that factor (cholupdate of Rll) instead of refactoring the squared Nll, which lost the weak direction after one rejection (mirror: sum h 6 instead of 7, Qll 100 % off at cond(B) 1.3e8); 1 test; version 6.16.1; §12.61.
@@ -9627,7 +9627,7 @@ went down to 594 (the advice moved to `unsettledAdvice`), its row lowered.
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 131 | review findings 4, 5, 6, 7, 8 (Level 2 on the leverage split, user decision), 10, 11, 13 and lows 16, 18, 20, 21, 25, 26, 29: a psd override's own frequency axis (`applyCovOverride>mergeLayer`); `psdVCE` maxDev on the shape change when smoothing; `redundancyLags` structure probe (`toeplitzTimes`); `armaACV` tail energy; `streamContribution` on N_g = Z_g'Z_g with localAbsorbed = tr(Qll Mll_g); `crossCorr` on correlations (`c.Rcorr`); no "robust (none)" note; `priorNotActive` when the loop ends before a `from`; the correlated MDB; `residuals` scalars always whitened; `outliers` under spmd; fit's pairs merged onto opts; `toTable` without localParams; a one-argument arc resolver; **version 6.18.0** | 130 (PR #152 merged b441ff3) | OPEN (tier B; CI is the gate) |
+| 131 | review findings 4, 5, 6, 7, 8 (Level 2 on the leverage split, user decision), 10, 11, 13, lows 16, 18, 20, 21, 25, 26, 29 and, by user decision, 27 (prior_* refused) and 31 (snoop inherits R.diag's test): a psd override's own frequency axis (`applyCovOverride>mergeLayer`); `psdVCE` maxDev on the shape change when smoothing; `redundancyLags` structure probe (`toeplitzTimes`); `armaACV` tail energy; `streamContribution` on N_g = Z_g'Z_g with localAbsorbed = tr(Qll Mll_g); `crossCorr` on correlations (`c.Rcorr`); no "robust (none)" note; `priorNotActive` when the loop ends before a `from`; the correlated MDB; `residuals` scalars always whitened; `outliers` under spmd; fit's pairs merged onto opts; `toTable` without localParams; a one-argument arc resolver; **version 6.18.0** | 130 (PR #152 merged b441ff3) | OPEN (tier B; CI is the gate) |
 
 **The user's request (2026-10-13):** "Go ahead. Change to the leverage fit" (§12.63).
 
@@ -9670,13 +9670,19 @@ say the shares sum to nc less a common prior's share; 21: `outliers` runs the re
 none; 29: `declaration` calls a one-argument arc resolver with the day alone (26 and 29 by reading:
 both are the documented makeLoader behaviour, no fixture exercises them -- recorded).
 
+*User decisions after the PR went up (2026-10-13: "27 ablehnen, 31 übernehmen").* 27 -- a data stream
+whose name starts with `prior_` is refused by makeLoader (`lsqvce:makeLoader:priorType`, the existing
+id; the two name checks live in `checkStreamNames`, makeLoader's ceiling lowered to 150); test
+`test_fit>testStreamNamedLikeAPriorIsRefused` (fires the id: its unfired-baseline row deleted).
+31 -- `Results.snoop` defaults Alpha, Bonferroni and Test to R.diag's ("baarda" read as "pope"), an
+explicit pair wins; test `test_fit>testSnoopInheritsTheDiagnosticsTest` (REJ.history kCrit = R.diag.kCrit
+at Alpha 0.01).
+
 *Lows recorded, not changed.* 19 -- residuals' Cyy after a NaN-poisoned solve (the poisoning is warned;
 the repair belongs with that path); 22 -- a non-uniform `Sigma2_0` on pass 1 (engine tier only, no
 fit route; pass 2 corrects it); 23 -- the arc factor's Toeplitz assumption (unbiased, an efficiency
 loss for non-Toeplitz arcs); 24 -- `adjustRobust`'s recorded factor at a MaxPasses exit is the next
-pass's; 27 -- an obsType named `prior_*` collides with the prior pseudo-streams (a refusal would add an
-id; to be decided); 30 -- `stat.chi2Inv` below p ~ 1e-40 (no caller); 31 -- `R.snoop` does not inherit
-R.diag's Alpha / Test (a design choice to put to the user).
+pass's; 30 -- `stat.chi2Inv` below p ~ 1e-40 (no caller).
 
-**Tests 671 = 662 + 9.** NOT validated before CI: no MATLAB in the container.
+**Tests 673 = 662 + 11.** NOT validated before CI: no MATLAB in the container.
 
