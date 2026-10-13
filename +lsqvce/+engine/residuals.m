@@ -11,7 +11,7 @@ function res = residuals(acc, sol, opt)
 %
 %   INPUT
 %     acc   the LSQVCE.ENGINE.BLOCKACCUMULATOR, constructed with 'KeepLocal', true
-%     sol   the struct returned by acc.solve()
+%     sol   acc.solve()'s struct (.xLin: GN's linearisation point; .truncation: s0^2's divisor)
 %
 %   OPTIONS
 %     'whitened'   true (default)  also return w = W*v, whose sum of squares is
@@ -31,9 +31,9 @@ function res = residuals(acc, sol, opt)
 %                             when the backend refused a cancellation-destroyed
 %                             vtv (sol.s0sq NaN; WP-132)
 %     res.sys(k).vtv          weighted residual square sum of this system
-%     res.sys(k).m            number of observations
+%     res.sys(k).m            number of observations (not the rows of weight 0)
 %     res.sys(k).rms          sqrt(vtv/m), in units of sigma0
-%     res.sys(k).obs(j)       .obsType .day .arc .t .v .w .nAxis .Cep
+%     res.sys(k).obs(j)       .obsType .day .arc .t .v .w .nAxis .Cep .excluded (weight 0)
 %                             (.nAxis, .Cep: the arc's axis count and its
 %                             per-epoch error information as the loader
 %                             returned them -- the joint estimator's robust
@@ -127,6 +127,9 @@ function res = residuals(acc, sol, opt)
 %   model Claude Fable 5.
 %   See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.CHECKPSD
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: GN's zero step (sol.xLin), the rows
+%   of weight 0 out of m and dof, a ridge's defect in dof, s0^2 / sol.truncation.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-132: after a refused vtv the
 %   local covariances Cyy carry THIS pass's s0^2 (they were all NaN). With
 %   assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -164,7 +167,9 @@ end
         error('lsqvce:residuals:badSol', 'sol must be the struct returned by acc.solve().');
     end
 
-    x   = sol.x(:);
+    % WP-133 (finding 4): Gauss-Newton rows are increments about sol.xLin (= sol.x):
+    % the zero step's residuals (the absolute x as the step: sigma0 623x too large)
+    x   = sol.x(:) - lsqvce.util.getfielddef(sol, 'xLin', zeros(size(sol.x(:))));
     ids = acc.systemIDs();
     if isempty(ids)
         error('lsqvce:residuals:noStore', ...
@@ -230,16 +235,18 @@ end
                     end
 
                     [v, w] = arcResiduals(arc, x, y, uo, o);
+                    % WP-133: rows of weight 0 keep their place, not the solve's count
+                    ex  = lsqvce.util.getfielddef(arc, 'excluded', []);  nEx = nnz(ex);
 
                     S.vtv = S.vtv + w.'*w;
-                    S.m   = S.m   + numel(v);
+                    S.m   = S.m   + numel(v) - nEx;
 
                     if ~otMap.isKey(uo.obsType)
                         otMap(uo.obsType) = struct('m', 0, 'vtv', 0);
                         otKeys{end+1} = uo.obsType;            %#ok<AGROW>
                     end
                     g = otMap(uo.obsType);
-                    g.m   = g.m + numel(v);
+                    g.m   = g.m + numel(v) - nEx;
                     g.vtv = g.vtv + w.'*w;
                     otMap(uo.obsType) = g;
 
@@ -248,6 +255,7 @@ end
                                    't', lsqvce.util.getfielddef(arc,'t',[]), ...
                                    'nAxis', lsqvce.util.getfielddef(arc, 'nAxis', 1), ...   % R6 WP-105
                                    'Cep', lsqvce.util.getfielddef(arc, 'Cep', []), ...
+                                   'excluded', logical(ex(:)), ...                       % WP-133
                                    'v', v, 'w', []);
                         if o.whitened, e.w = w; end
                         if isempty(S.obs), S.obs = e; else, S.obs(end+1) = e; end
@@ -304,8 +312,9 @@ end
         res.prior = struct('nk', acc.prior.nk, 'vtv', acc.prior.vtv(x));
         vtvTot = vtvTot + res.prior.vtv;  res.vtv = vtvTot;  nk = acc.prior.nk;
     end
-    res.dof    = mTot + nk - nParTot;
-    res.s0sq   = vtvTot / max(res.dof, 1);
+    % WP-133: + a ridge's defect (the solve counts it); / the joint hard solution's tau
+    res.dof    = mTot + nk - nParTot + acc.regularisationDefect();
+    res.s0sq   = vtvTot / max(res.dof, 1) / lsqvce.util.getfielddef(sol, 'truncation', 1);
     res.sigma0 = sqrt(res.s0sq);
 
     % WP-132 (review low 19): a backend that refused a cancellation-destroyed

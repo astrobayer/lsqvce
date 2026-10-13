@@ -78,18 +78,24 @@ nBatch    1x1 double          number of batches (&gt;= 1)</pre>
 <pre class="example">  lsqvce:batchSystem:badSource   batchFcn is not a function handle
   lsqvce:batchSystem:badMatrix   a batch returned A/l of inconsistent size
   lsqvce:batchSystem:weightMatrix a batch returned a weight argument that is
-                                 neither m x 1 nor an m x m SPD matrix
+                                 neither m x 1 nor an m x m SPD matrix, or
+                                 m x 1 weights that are negative or not finite
   + whatever batchFcn throws, as lsqvce:callUser:threw with the cause
 
 ACCURACY  exact: pre-whitening by sqrt(p) is the diagonal-P GLS identity;
 the per-observation residual the block path reports is the whitened one,
-sqrt(p) .* v.</pre>
+sqrt(p) .* v.
+A row of weight p = 0 keeps its index but is NOT an observation (WP-133):
+it leaves the degrees of freedom and the verdict calls it &#x27;rejected&#x27;.</pre>
 <h3>Example</h3>
 <pre class="example">  L = lsqvce.engine.batchSystem(3, @(k) deal(A, l, p), 1);
   R = lsqvce.engine.adjustBlock({L}, 1);
 
 See also LSQVCE.FIT, LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTNONLINEAR
 
+Updated 2026-10-13 (CEST, UTC+02:00), WP-133: m x 1 weights must be &gt;= 0
+and finite; a zero weight marks its row excluded (out of the dof). With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3 (R7-24):
 &#x27;LocalColumns&#x27; / &#x27;SystemId&#x27;: a batch source of full-width rows can stand
 for a system WITH locals (snoop&#x27;s block re-solve). With assistance from

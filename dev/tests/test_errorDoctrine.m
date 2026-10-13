@@ -18,6 +18,10 @@ function tests = test_errorDoctrine
 %
 %   See also LSQVCE.UTIL.CALLUSER, LSQVCE.UTIL.LOG, LSQVCE.RESULTS, TEST_CI_GATE
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: weights >= 0 and finite, a
+%   zero weight / a day's .excluded marks its rows; the joint hard solution's
+%   residual pass and verdict agree (review 3 findings 14, 17, 18). With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Created 2026-09-02 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.1 -- R5 Level M1, WP-80.
     tests = functiontests(localfunctions);
@@ -273,6 +277,20 @@ function testJointRobustPassKeepsCleanMultiAxisEpochs(tc)
     % which make up most of the demo's epochs
     tc.verifyLessThan(mean(fac == 0), 0.05, sprintf( ...
         'clean data: %.1f %% of the epochs zeroed (want < 5 %%)', 100 * mean(fac == 0)));
+    % WP-133 (review 3 finding 18): the hard solution's sigma0 carries the
+    % truncation correction and its rejected epochs leave the dof; the
+    % residual pass applies the same (sol.truncation) and counts the same
+    % rows -- it warned sigma0Mismatch on every igg3 / bisquare noise run
+    res = R.residuals('Verbose', false);
+    tc.verifyFalse(res.supersedesSol, 'the residual pass agrees with the hard solution');
+    % tol: the residual pass's own mismatch line (1e-6), not met by rounding
+    tc.verifyEqual(res.sigma0, R.sigma0, 'RelTol', 1e-6);
+    % (14) the rejected epochs are "rejected" in the verdict, and its sum(r)
+    % identity holds: the nugget whitener rotates a deleted epoch onto its own
+    % rows (dev/validation/wp133_nugget_rotation_mirror.py)
+    tc.verifyEqual(R.diag.quad.rejected > 0, any(fac == 0), 'a zeroed epoch is rejected in R.diag');
+    % tol: the report's own integrity line (SUM_R > 1e-6 is INVALID)
+    tc.verifyLessThan(R.diag.sumRRelErr, 1e-6);
 end
 
 %% ============================================================ R5 M2 2b: IRLS kernel
@@ -368,6 +386,35 @@ function testBatchSystemContract(tc)
     % a wrong A shape is named
     Lw = lsqvce.engine.batchSystem(4, @(k) deal(A, l), 1);
     verifyError(tc, @() Lw.closure(1, 'obs', 1, uo), 'lsqvce:batchSystem:badMatrix');
+    % WP-133 (review 3 finding 17): m x 1 weights are >= 0 and finite (a
+    % negative one made the rows complex: the QR and normal backends then
+    % disagreed); a zero weight zeroes its row and marks it excluded -- kept
+    % for its index, out of the dof
+    pz = p;  pz(3) = 0;
+    Lz = lsqvce.engine.batchSystem(3, @(k) deal(A, l, pz), 1);
+    arcZ = Lz.closure(1, 'obs', 1, uo);
+    ex = false(12, 1);  ex(3) = true;
+    tc.verifyEqual(arcZ.excluded, ex, 'a zero weight marks its row excluded');
+    tc.verifyEqual(arcZ.A(3, :), zeros(1, 3), 'and zeroes it');
+    for bad = [-1, NaN, Inf]
+        pb = p;  pb(5) = bad;
+        Lbad = lsqvce.engine.batchSystem(3, @(k) deal(A, l, pb), 1);
+        verifyError(tc, @() Lbad.closure(1, 'obs', 1, uo), 'lsqvce:batchSystem:weightMatrix');
+    end
+    % the day contract's .excluded marks rows that ARE zero; a live row is refused
+    verifyError(tc, @() excludedDay(A, l, ex, uo), 'lsqvce:makeLoader:badDay');
+    arcX = excludedDay(A .* ~ex, l .* ~ex, ex, uo);
+    tc.verifyEqual(arcX.excluded, ex, 'a zeroed row marked excluded travels with the arc');
+end
+
+function arc = excludedDay(A, l, ex, uo)
+%EXCLUDEDDAY  One arc of a day that declares rows excluded (WP-133).
+    D = struct('A', {{A}}, 'B', {{zeros(size(A, 1), 0)}}, 'l', {{l}}, ...
+               't', {{(1:numel(l)).'}}, 'excluded', {{ex}});
+    cov.obs = struct('type', 'diag', 'sigma', 1);
+    L = lsqvce.engine.makeLoader(@(day, ot) D, 'ObservationTypes', {'obs'}, 'Covariance', cov, ...
+                                 'Arcs', 1, 'SystemId', 1, 'NumLocal', 0, 'NumCommon', size(A, 2), 'Days', 1);
+    arc = L.closure(1, 'obs', 1, uo);
 end
 
 %% ============================================================ R7-27: contract points the audit had credited from comments

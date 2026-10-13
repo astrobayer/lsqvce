@@ -76,6 +76,12 @@ buildDay(day, obsType, common, local, procOpt, info) -&gt; struct   (with the la
     .nAxis   1x1       the axis count of a multi-axis stream WITHOUT Cep
                        (rows epoch-major, m_a = nEpoch_a * nAxis); derived
                        from Cep when that is present and must then agree
+    .excluded {1 x nArc} OPTIONAL: each m_a x 1 logical -- rows of weight 0,
+                       already ZERO in A, B and l (WP-133): they keep their
+                       index (residuals, verdict) but are not observations --
+                       out of the degrees of freedom, &#x27;rejected&#x27; in the
+                       verdict. LSQVCE.ENGINE.BATCHSYSTEM sets it for a zero
+                       data weight.
   An EMPTY cell (0 rows in A, B, l, t) is a DATA GAP: that arc of the
   schedule is skipped by every engine. Any other field is an error --
   in particular the v5 fields arcIdx / arcId, whose job the cells do.
@@ -273,6 +279,10 @@ R6 WP-102), and an arc&#x27;s Cep is its own cell (finding E-01 cannot recur).</
 See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.DECLARATION,
          LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.ENGINE.SYNTHLOADER
 
+Updated 2026-10-13 (CEST, UTC+02:00), WP-133 (review 3 findings 14, 17,
+18): the day may carry .excluded (rows of weight 0, zero in A, B, l); a
+robust row factor 0 and an epoch weight 0 mark their rows excluded on the
+arc (out of the dof, &#x27;rejected&#x27; in the verdict). With assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-13 (CEST, UTC+02:00), WP-131: a stream named &#x27;prior_*&#x27; is
 refused (lsqvce:makeLoader:priorType; it was dropped silently). With
 assistance from Claude (Anthropic), model Claude Opus 5.5.

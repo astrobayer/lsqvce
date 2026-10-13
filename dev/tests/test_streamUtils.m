@@ -11,6 +11,10 @@ function tests = test_streamUtils
 %     results = runtests('tests/test_streamUtils');  disp(table(results))
 %
 %   See also LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.COLLECTRESIDUALS
+%
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: a zero epoch weight is
+%   excluded and whitens to ~0 in place (the nugget rotation). With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
     tests = functiontests(localfunctions);
 end
 
@@ -342,6 +346,15 @@ function test_epoch_weights_are_an_additive_nugget(tc)
     tc.verifyEqual(Aw.'*Aw, Ad.'*Ad, 'RelTol', 1e-8);
     tc.verifyEqual(Aw.'*lw, Ad.'*ld, 'RelTol', 1e-8);     % tol: same source
     tc.verifyEqual(Bw.'*Bw, Bd.'*Bd, 'RelTol', 1e-8);     % tol: same source
+    % WP-133 (review 3 finding 14): the zero-weight epoch 11 is excluded -- its
+    % d rows -- and its whitened rows are ~0 IN PLACE (G F spread the deleted
+    % direction over the next epochs; the rotation puts it back on its rows)
+    ex = false(m, 1);  ex(31:33) = true;
+    tc.verifyEqual(arc.excluded, ex, 'the rejected epoch''s rows are marked excluded');
+    % tol: the floor keeps sqrt(1e-12) ~ 1e-6 of the epoch's weight (the
+    % mirror wp133_nugget_rotation_mirror.py: <= 4e-7 of the largest row)
+    rowNorm = vecnorm([Aw Bw lw], 2, 2);
+    tc.verifyLessThan(max(rowNorm(ex)) / max(rowNorm), 1e-5, 'the deleted rows whiten to ~0 in place');
     tc.verifyError(@() arc.Wfcn(1:m-d, arc.A(1:m-d, :), arc.B(1:m-d, :), arc.l(1:m-d), struct()), ...
         'lsqvce:covModel:nuggetNeedsWholeArc');
     % the batch iterator honours wholeArc: BatchSize 7 accumulates the same
@@ -355,6 +368,7 @@ function test_epoch_weights_are_an_additive_nugget(tc)
     end
     % tol: one QR of the same whitened rows, merged in two orders
     tc.verifyEqual(sols{1}.x, sols{2}.x, 'RelTol', 1e-10, 'BatchSize does not touch a nugget arc');
+    tc.verifyEqual(sols{1}.dof, m - 3 - 6, 'the 3 rejected rows leave the dof (m - 3 - nc - nl)');
 end
 
 function test_nugget_refusals_by_name(tc)

@@ -135,6 +135,10 @@ C = Q.block([1 2]);                            % 2 x 2 cofactor of x(1:2)</pre>
 See also LSQVCE.ENGINE.VERDICT.SOURCE, LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SNOOP,
 LSQVCE.ENGINE.BLOCKACCUMULATOR
 
+Updated 2026-10-13 (CEST, UTC+02:00), WP-133 (review 3 finding 3): the
+local factor is made full (a sparse B left it sparse and the downdate&#x27;s
+cholupdate failed); a block of rank 0 (kept basis nl x 0) is a zero block,
+not a full-rank one. With assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-13 (CEST, UTC+02:00), WP-130: a block reduced by the
 solve&#x27;s pseudo-inverse (blocks .Vll) gives H, G on its kept basis and
 downdates there; an eigen block downdates with its own cut (sys .tol). With

@@ -128,6 +128,9 @@ METHODS
     .Wfcn          @(idx,A,B,l,opt) -&gt; whitened A,B,l   (preferred)
     .Cfcn          @(idx,opt) -&gt; dense batch covariance (fallback)
     .filterMemory  required BatchOverlap (set by LSQVCE.ENGINE.COVMODEL)
+    .excluded      m x 1 logical, optional: rows of weight 0 (their
+                   whitened rows ~0) -- added, but out of the count m and
+                   the dof (WP-133; LSQVCE.ENGINE.MAKELOADER sets it)
 
 The accumulator visits day -&gt; obsType -&gt; arc and releases each arc
 immediately. Return an empty arc (l = []) for a data gap; it is skipped.
@@ -253,6 +256,11 @@ lsqvce.util.log.msg(&#x27;sigma0 = %.4f (want ~1)\n&#x27;, sol.sigma0);</pre>
     lsqvce:accum:badCxx           likewise for the covariance
     lsqvce:accum:localNotRedundant  an arc&#x27;s local block has no redundancy,
                                   so its variance factor is undefined
+    lsqvce:accum:noRedundancy     a solve with a prior has no redundancy
+                                  (m + nk &lt;= nc): sigma0 is undefined (WP-133)
+    lsqvce:accum:notBlockDiagonal (warning) LocalBlockSize declared, but the
+                                  local normal matrix couples its blocks:
+                                  the dense Schur complement is used (WP-133)
 
 Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-112 (R7-03, R7-16): on the
 QR backend the whole path stays square-root -- locals eliminated on the
@@ -275,6 +283,16 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 
 See also LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.RESIDUALS, LSQVCE.ENGINE.CHECKPSD, LSQVCE.ENGINE.QRSYSTEM
 
+Updated 2026-10-13 (CEST, UTC+02:00), WP-133 (review 3 findings 3, 6, 14,
+17 and the solve-core lows): arc.excluded rows leave the count (dof live,
+excludedRows); Reg &quot;tsvd&quot; truncates (dof counts the kept rank) and
+&quot;tikhonov&quot; / &quot;lm&quot; count the effective dof m - u + sum tr(Q_ll Lambda)
+(regularisationDefect, sol.regDefect) and the data&#x27;s residual mass, the
+penalty y&#x27;Lambda y out (ridgePenalty; s0sq and Cxx follow); a local block
+of rank 0 keeps nl x 0; the factor&#x27;s SVD runs on a full copy; a prior with
+no redundancy left is refused (lsqvce:accum:noRedundancy); a LocalBlockSize
+whose off-blocks couple is warned and solved whole
+(lsqvce:accum:notBlockDiagonal). With assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-13 (CEST, UTC+02:00), WP-132: commonCofactor, the solve&#x27;s
 cofactor of the commons (sol.Cxx = sol.s0sq * Q), for the residual pass&#x27;s
 repair of a refused vtv. With assistance from Claude (Anthropic), model

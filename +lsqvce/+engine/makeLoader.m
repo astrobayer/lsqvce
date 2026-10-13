@@ -33,6 +33,12 @@ function L = makeLoader(buildDay, opt)
 %         .nAxis   1x1       the axis count of a multi-axis stream WITHOUT Cep
 %                            (rows epoch-major, m_a = nEpoch_a * nAxis); derived
 %                            from Cep when that is present and must then agree
+%         .excluded {1 x nArc} OPTIONAL: each m_a x 1 logical -- rows of weight 0,
+%                            already ZERO in A, B and l (WP-133): they keep their
+%                            index (residuals, verdict) but are not observations --
+%                            out of the degrees of freedom, 'rejected' in the
+%                            verdict. LSQVCE.ENGINE.BATCHSYSTEM sets it for a zero
+%                            data weight.
 %       An EMPTY cell (0 rows in A, B, l, t) is a DATA GAP: that arc of the
 %       schedule is skipped by every engine. Any other field is an error --
 %       in particular the v5 fields arcIdx / arcId, whose job the cells do.
@@ -236,6 +242,10 @@ function L = makeLoader(buildDay, opt)
 %   See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.DECLARATION,
 %            LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.ENGINE.SYNTHLOADER
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-133 (review 3 findings 14, 17,
+%   18): the day may carry .excluded (rows of weight 0, zero in A, B, l); a
+%   robust row factor 0 and an epoch weight 0 mark their rows excluded on the
+%   arc (out of the dof, 'rejected' in the verdict). With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: a stream named 'prior_*' is
 %   refused (lsqvce:makeLoader:priorType; it was dropped silently). With
 %   assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -1106,7 +1116,7 @@ function D = validateDay(D, day, obsType)
 %   (arcIdx / arcId are the v5 way of saying what the cells say). Checked
 %   HERE, at the day, with day and stream in the message, before any shape
 %   could surface per arc in a kernel id. OUTPUT D the checked day.
-    allowed = {'A', 'B', 'l', 't', 'Cep', 'nAxis'};
+    allowed = {'A', 'B', 'l', 't', 'Cep', 'nAxis', 'excluded'};
     bad = setdiff(fieldnames(D), allowed);
     if ~isempty(bad)
         hint = '';
@@ -1146,6 +1156,31 @@ function D = validateDay(D, day, obsType)
         end
         D.l{a} = D.l{a}(:);  D.t{a} = D.t{a}(:);
         mArc(a) = m;
+    end
+    % WP-133: rows of weight 0, kept for their index, not observations
+    if isfield(D, 'excluded') && ~isempty(D.excluded)
+        if ~iscell(D.excluded) || numel(D.excluded) ~= nArc
+            error('lsqvce:makeLoader:badDay', ...
+                  'buildDay(%s,''%s''): D.excluded must be a 1 x nArc cell like A (the day has %d arcs).', ...
+                  string(day), obsType, nArc);
+        end
+        D.excluded = reshape(D.excluded, 1, []);
+        for a = 1:nArc
+            e = D.excluded{a};
+            if isempty(e), continue, end
+            if ~(islogical(e) || isnumeric(e)) || numel(e) ~= mArc(a)
+                error('lsqvce:makeLoader:badDay', ...
+                      'buildDay(%s,''%s''): excluded{%d} must be %d x 1 logical (one per row).', ...
+                      string(day), obsType, a, mArc(a));
+            end
+            e = logical(e(:));
+            if any(any(D.A{a}(e, :))) || any(any(D.B{a}(e, :))) || any(D.l{a}(e))
+                error('lsqvce:makeLoader:badDay', ...
+                      ['buildDay(%s,''%s''): arc %d marks rows as excluded that are not zero in A, ' ...
+                       'B and l -- an excluded row carries weight 0.'], string(day), obsType, a);
+            end
+            D.excluded{a} = e;
+        end
     end
     % R6 WP-90: the ERROR INFORMATION of the day -- per arc since v6. An
     % entry is nEpoch x 1 (a scalar stream's per-epoch sigma), nEpoch x d
@@ -1251,6 +1286,9 @@ function out = batchOf(dayFcn, arcs, cov, day, obsType, arcID, opt)
     out.B = D.B{pos};
     out.l = D.l{pos};
     out.t = D.t{pos};
+    if isfield(D, 'excluded') && ~isempty(D.excluded) && any(D.excluded{pos})
+        out.excluded = D.excluded{pos};              % WP-133: rows of weight 0
+    end
 
     cm = cov.(obsType);
     if isfield(opt,'covOverride')
@@ -1285,7 +1323,9 @@ function out = batchOf(dayFcn, arcs, cov, day, obsType, arcID, opt)
     if isfield(opt, 'epochWeights') && ~isempty(opt.epochWeights)
         key = lsqvce.util.rowWeightKey(opt.sysID, day, obsType, arcID);
         if isKey(opt.epochWeights, key)
-            epochW = max(opt.epochWeights(key), 1e-12);
+            epochW = opt.epochWeights(key);
+            exEp   = epochW(:) <= 0;                  % WP-133: a rejected epoch (factor 0)
+            epochW = max(epochW, 1e-12);
             if numel(epochW) ~= numel(out.l) / d
                 error('lsqvce:makeLoader:rowWeightSize', ...
                       ['epochWeights(%s) has %d entries; the arc has %d epochs -- the ' ...
@@ -1328,6 +1368,11 @@ function out = batchOf(dayFcn, arcs, cov, day, obsType, arcID, opt)
     end
     [out.Cfcn, out.Wfcn, info] = lsqvce.engine.covModel(cm, out.t, optC);
     out.filterMemory = info.filterMemory;
+    if ~isempty(epochW) && ~isVar && any(exEp)          % the nugget above was applied
+        % WP-133 (review 3 findings 14/18): the d rows of a rejected epoch are
+        % not observations -- out of the solve's dof, 'rejected' in the verdict
+        out.excluded = excludedOr(out, reshape(repmat(exEp(:).', d, 1), [], 1));
+    end
     if isfield(info, 'Cep') && ~isempty(info.Cep)
         out.Cep = info.Cep;                          % the per-epoch descale travels with the arc
     end
@@ -1350,13 +1395,15 @@ function out = batchOf(dayFcn, arcs, cov, day, obsType, arcID, opt)
     if isfield(opt, 'rowWeights') && ~isempty(opt.rowWeights)
         key = lsqvce.util.rowWeightKey(opt.sysID, day, obsType, arcID);
         if isKey(opt.rowWeights, key)
-            fac = max(opt.rowWeights(key), 1e-12);
+            fac = opt.rowWeights(key);
             if numel(fac) ~= numel(out.l)
                 error('lsqvce:makeLoader:rowWeightSize', ...
                       ['rowWeights(%s) has %d entries; the arc has %d rows -- the ' ...
                        'builder must return the same arc on every call.'], ...
                       key, numel(fac), numel(out.l));
             end
+            out.excluded = excludedOr(out, fac(:) <= 0);   % WP-133: a rejected row (factor 0)
+            fac = max(fac, 1e-12);
             % R6 WP-105: a DENSE law (psd 'toeplitz', acf, custom) has no
             % filter Wfcn -- the batch iterator decorrelates it from Cfcn. The
             % factors then wrap that same dense step, so a robust pass works on
@@ -1397,6 +1444,16 @@ function out = batchOf(dayFcn, arcs, cov, day, obsType, arcID, opt)
         out.nAxis = d;
     elseif isfield(info, 'nAxis') && info.nAxis > 1
         out.nAxis = info.nAxis;
+    end
+end
+
+%==========================================================================
+function ex = excludedOr(out, ex)
+%EXCLUDEDOR  arc.excluded (m x 1 logical: the rows of weight 0, WP-133) OR'ed
+%   with the rows ex marks -- a robust row factor and an epoch weight may both
+%   reject one row.
+    if isfield(out, 'excluded') && ~isempty(out.excluded)
+        ex = out.excluded(:) | ex(:);
     end
 end
 

@@ -64,6 +64,7 @@ a day without data returns empty cells.
 | `t` | m_a × 1 | epoch of each row in **seconds** (the whitener needs the lags) |
 | `Cep` | n_a×1, n_a×d or n_a×d×d | *optional* — the per-epoch accuracy of the arc (below) |
 | `nAxis` | scalar | *optional* — the axis count of a multi-axis stream without `Cep` |
+| `excluded` | m_a × 1 logical | *optional* — rows of **weight 0**: zero in `A`, `B` and `l`, kept for their index (residuals, diagnostics) but not observations — out of the degrees of freedom, `rejected` in the verdict |
 
 Arc lengths may differ freely. An arc whose cells have 0 rows is a **data gap** and is
 skipped. Return **raw, unwhitened** matrices: the toolbox whitens every arc from the
@@ -103,7 +104,7 @@ as an empty cell. `'arc'` template rows require a declared schedule.
 | identifier | meaning |
 |---|---|
 | `lsqvce:makeLoader:buildDay` | `buildDay` threw; its error is attached as the cause |
-| `lsqvce:makeLoader:badDay` | a required field is missing or not a 1×nArc cell, or an unknown field is present |
+| `lsqvce:makeLoader:badDay` | a required field is missing or not a 1×nArc cell, or an unknown field is present, or `excluded` marks a row that is not zero |
 | `lsqvce:makeLoader:dayShape` | the cells disagree in number, or an arc's `A`, `B`, `l`, `t` disagree in rows |
 | `lsqvce:accum:arcBadNc` / `arcBadNl` | `A` or `B` has the wrong number of columns |
 | `lsqvce:makeLoader:arcCount` | a declared schedule names n arcs and the day returned a different number of cells |

@@ -44,9 +44,11 @@ a { color: #0b5ea8; }
 <h1>lsqvce.kernel.decorrFactor</h1>
 <div class="purpose">Decorrelation factor W with W&#x27;*W = inv(C).</div>
 <h2>Description</h2>
-<pre class="example">W = LSQVCE.KERNEL.DECORRFACTOR(C) returns the upper-triangular W = chol(C)^-1, so
-that whitening a batch is Aw = W*A and the weighted normals A&#x27;*inv(C)*A
-become Aw&#x27;*Aw.
+<pre class="example">W = LSQVCE.KERNEL.DECORRFACTOR(C) returns the LOWER-triangular W = L^-1 of the
+lower Cholesky factor C = L*L&#x27;, so that whitening a batch is Aw = W*A and
+the weighted normals A&#x27;*inv(C)*A become Aw&#x27;*Aw. Lower triangular means
+causal: whitened row i combines rows 1..i only, so row i stays observation
+i&#x27;s (a row of weight 0 whitens to a row of ~0 in its own place).
 
 [W, info] = LSQVCE.KERNEL.DECORRFACTOR(C) also returns
   info.method   &#x27;chol&#x27; | &#x27;eig-floored&#x27;
@@ -81,7 +83,8 @@ NOT POSITIVE DEFINITE
   ~1e-1. The default 1e-10 gives ~1e-7, which is usable. Tighten tol only
   if you understand why the covariance was indefinite.</pre>
 <h3>Output</h3>
-<pre class="example">W     m x m  upper triangular, W&#x27;*W = inv(C)
+<pre class="example">W     m x m  lower triangular (method &#x27;chol&#x27;; the eig rescue is not
+             triangular), W&#x27;*W = inv(C)
 info  1x1 struct  .method (&#x27;chol&#x27; | &#x27;eig-floored&#x27;), .rcond, .floored</pre>
 <h3>Example</h3>
 <pre class="example">r = lsqvce.kernel.armaACV([1 -0.9], 1, 100);
@@ -93,6 +96,9 @@ norm(W.&#x27;*W - inv(toeplitz(r))) / norm(inv(toeplitz(r)))    % ~ 1e-14</pre>
 
 See also LSQVCE.KERNEL.ARMAWHITEN, LSQVCE.ENGINE.COVMODEL
 
+Updated 2026-10-13 (CEST, UTC+02:00), WP-133: the factor is documented as
+what it is, L^-1 (lower triangular; the help said upper). With assistance
+from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-08-19 (CEST, UTC+02:00), WP-37: diagnostics (incl. the
 condest estimate) are computed only when info is requested
 (nargout &gt; 1) -- the per-batch hot path pays nothing. With assistance

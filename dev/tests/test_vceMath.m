@@ -15,6 +15,9 @@ function tests = test_vceMath
 %
 %   See also TEST_PRECISION, TEST_RELIABILITY, TEST_SPEED
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: an all-zero prior row is
+%   refused (lsqvce:prior:zeroRow). With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: the crossCorr verdict is
 %   scale-free. With assistance from
 %   Claude (Anthropic), model Claude Opus 5.5.
@@ -362,6 +365,10 @@ function testPriorRejectsBadTarget(tc)
     pri = lsqvce.engine.CommonPrior(K, [], 1, [1; 1; 2; 2; 2; 3]);
     tc.verifyEqual(pri.withSigma(2).group, [1; 1; 2; 2; 2; 3], 'withSigma keeps the groups');
     tc.verifyEqual(lsqvce.engine.CommonPrior(K).group, ones(6, 1), 'the default is one group');
+    % WP-133 (review 3): an all-zero row constrains nothing -- it passed the
+    % datum test as a datum row and its re-weighting c = |S| / |Kd| = Inf made
+    % Cxx all NaN on the QR backend
+    tc.verifyError(@() lsqvce.engine.CommonPrior([K(1:2, :); zeros(1, 6)]), 'lsqvce:prior:zeroRow');
 end
 
 %% ================================================== separable multi-axis

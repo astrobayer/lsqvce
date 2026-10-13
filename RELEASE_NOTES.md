@@ -1,5 +1,35 @@
 # lsqvce release notes
 
+## 6.20.0 — 2026-10-13 (WP-133: the solve core of the third whole-code review)
+
+Numbers change for the cases marked **numbers**.
+
+- **A row of weight 0 is not an observation (numbers).** A zero data weight (`data.p`, a
+  batch source's `p`), a robust rejection (`Robust` "igg3" / "bisquare", factor 0) and a
+  rejected epoch of the joint estimator deleted the row's information but kept it in the
+  degrees of freedom — σ₀ 0.753 against 0.949 with 10 of 30 rows at weight 0 — and the
+  verdict called it "verified". Such a row now keeps its index but leaves the dof, Σr, the
+  tests and Bonferroni's n; the verdict counts it in its own quadrant, **"rejected"**
+  (`R.diag.quad.rejected`, `R.diag.excludedIdx`, `R.reliability()`). Weights must be ≥ 0 and
+  finite (`lsqvce:batchSystem:weightMatrix`); a day may mark rows with `.excluded`.
+- **A robust fit's diagnostics replay the returned solve.** At a `maxPasses` exit the
+  verdict, `residuals` and `snoop` replayed the next pass's weights (the factor map was
+  shared and overwritten).
+- **Regularised local blocks count their effective redundancy (numbers).** `Reg` "tsvd" now
+  truncates (the dof counts the kept rank, as its help promised); "tikhonov" / "lm" count
+  m − u + Σ tr(Q_ll Λ) and the data's residual mass without the penalty y'Λy. The verdict's
+  Σr identity read INVALID for every regularised solve.
+- **Gauss-Newton:** `R.residuals()` measures the residuals at the estimate (it took the
+  absolute x as a step: σ₀ off by orders); a trial point where the model is non-finite is a
+  rejected step, not an abort (`lsqvce:adjustNonlinear:nonFinite` only at x0).
+- **The joint robust hard solution:** its σ₀ correction (truncation) reaches `residuals`,
+  which no longer warns `sigma0Mismatch` on every igg3 / bisquare noise run.
+- **Smaller:** a sparse local design no longer stops the rank decision or `snoop`'s
+  downdate; a local block the data never see is a zero block (it gave NaN locals); a prior
+  that leaves no redundancy is refused (`lsqvce:accum:noRedundancy`, it gave Cxx = 0); an
+  all-zero prior row is refused (`lsqvce:prior:zeroRow`); a `LocalBlockSize` whose blocks are
+  coupled is warned and solved whole (`lsqvce:accum:notBlockDiagonal`).
+
 ## 6.19.0 — 2026-10-13 (WP-132: the five recorded lows of the second whole-code review)
 
 Numbers change for the cases marked **numbers**.

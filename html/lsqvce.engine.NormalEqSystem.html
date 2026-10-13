@@ -61,6 +61,7 @@ PROPERTIES (read-only)
 
 METHODS
   add(A, l)             accumulate one (already whitened) batch
+  discount(k)           take k weight-0 rows out of the count m (WP-133)
   blocks(ic, il)        split into common/local blocks for pre-elimination
   merge(red)            fold in a reduced contribution (LSQVCE.ENGINE.REDUCEDCONTRIBUTION)
   solve()               [x, Cxx, s0sq, dof, vtv]</pre>
@@ -108,6 +109,9 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 
 See also LSQVCE.ENGINE.QRSYSTEM, LSQVCE.ENGINE.BLOCKACCUMULATOR
 
+Updated 2026-10-13 (CEST, UTC+02:00), WP-133: discount(k) takes k rows of
+weight 0 out of the count m (mExcl keeps them; merge adds them). With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-08-20 (CEST, UTC+02:00), WP-49: a poisoned vtv is returned
 as NaN (negative OR &gt; 8 digits lost), never clamped to 0 or left as a
 wrong plausible number; both warnings name the lsqvce.engine.residuals repair

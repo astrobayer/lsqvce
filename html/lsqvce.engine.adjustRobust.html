@@ -127,6 +127,11 @@ which the flat driver could not express.</pre>
 See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.KERNEL.ROBUSTWEIGHTS,
          LSQVCE.ENGINE.RESIDUALS, LSQVCE.FIT
 
+Updated 2026-10-13 (CEST, UTC+02:00), WP-133: each pass writes its
+factors into a new map, so the returned accumulator keeps the weights its
+solve used; rejected rows (factor 0) leave the degrees of freedom
+(makeLoader marks them excluded). With assistance from Claude (Anthropic),
+model Claude Opus 5.5.
 Updated 2026-10-13 (CEST, UTC+02:00), WP-132: history(end).factor holds
 the weights the RETURNED solve used (read back from the arc map), not the
 next pass&#x27;s -- R.x is the weighted solution on them at every stop. With

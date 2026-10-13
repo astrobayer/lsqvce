@@ -15,6 +15,10 @@ function tests = test_fit
 %
 %   Run: runtests('tests/test_fit')
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: zero weights are rejected
+%   rows, robust rejections leave the dof, Gauss-Newton residuals and a
+%   non-finite trial point (review 3 findings 2, 4, 14, 17). With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-09-09 (CEST, UTC+02:00), v6 (R6 WP-102): THE CELLS ARE THE
 %   ARCS -- every fixture day is cut by the test-private arcCells into the
 %   1 x nArc cell contract; NEW points: the schedule is optional on the fit
@@ -1192,6 +1196,73 @@ function testRobustFactorsAreTheReturnedSolvesWeights(tc)
         end
     end
 end
+function testZeroWeightRowsAreRejectedNotObservations(tc)
+% categories: reference, contract
+    % WP-133 (review 3 finding 17): a zero weight deletes its row's
+    % information, but the row stayed in the count -- sigma0 0.753 against
+    % 0.949 with 10 of 30 rows at weight 0 -- and in the verdict as a
+    % "verified" observation. It keeps its index now and is "rejected": out of
+    % the dof, sum(r), the tests and Bonferroni's n. (A negative weight is
+    % refused by name: test_errorDoctrine.)
+    [A, l, p] = matrixFixture();
+    z = [4; 11; 23];  p(z) = 0;  l(z) = l(z) + 100;     % weight 0: their values must not matter
+    R = lsqvce.fit(struct('A', A, 'l', l, 'p', p), lsqvce.Options(Verbose=false));
+    k = true(numel(l), 1);  k(z) = false;
+    P = diag(p(k));  xd = (A(k,:).'*P*A(k,:)) \ (A(k,:).'*P*l(k));  vd = A(k,:)*xd - l(k);
+    dof = nnz(k) - size(A, 2);
+    % tol: 1e-12 relative -- as testMatrixKindReproducesAdjust (block QR vs
+    % dense normal equations, cond ~ 1e1)
+    tc.verifyEqual(R.x, xd, 'RelTol', 1e-12, 'the zero-weight rows carry no information');
+    tc.verifyEqual(R.sol.dof, dof, 'the zero-weight rows leave the dof');
+    tc.verifyEqual(R.sigma0, sqrt((vd.'*P*vd) / dof), 'RelTol', 1e-12);   % tol: as above
+    D = R.diag;
+    tc.verifyEqual(D.r, dof, 'the verdict counts the same redundancy');
+    tc.verifyEqual(D.excludedIdx(:), z, 'their indices are kept');
+    tc.verifyEqual(D.quad.rejected, numel(z));
+    tc.verifyEqual(D.nTests, nnz(k), 'not tested, not in the Bonferroni n');
+    tc.verifyEqual(D.rNum(z), zeros(numel(z), 1));
+    % tol: 1e-10 -- sum(r) against n - excluded - u, 30 leverages on cond ~ 1e1
+    tc.verifyLessThan(D.sumRRelErr, 1e-10, 'sum(r) counts the live rows');
+    T = R.reliability();
+    tc.verifyEqual(T.quadrant(z), repmat("rejected", numel(z), 1));
+    tc.verifyFalse(any(T.quadrant(k) == "rejected"));
+    res = tc.verifyWarningFree(@() R.residuals('Verbose', false));
+    tc.verifyEqual(res.dof, dof, 'the residual pass counts the same dof');
+end
+
+function testRobustRejectionsLeaveTheDofAndAreLabelled(tc)
+% categories: robustness, metamorphic
+    % WP-133 (review 3 findings 2 and 14). (2) adjustRobust handed the
+    % verdict the SAME containers.Map it then overwrote with the next pass's
+    % factors: at a maxPasses exit the diagnostics replayed weights the
+    % returned solve never used (vPv against sol.vtv off). (14) A rejected row
+    % (factor 0) stayed in the dof and the verdict called it "verified". Now
+    % the replay is the returned solve's (vPv equal), the rejected rows are
+    % "rejected", out of the dof and sum(r), and the residual pass agrees.
+    [A, l, p] = matrixFixture();
+    l(7) = l(7) + 25;                                   % one gross error: bisquare zeroes it
+    data = struct('A', A, 'l', l, 'p', p);
+    muteWarn(tc, 'lsqvce:adjustRobust:notConverged');   % MaxIter 2 stops early by design
+    for maxIter = [2 30]
+        R = lsqvce.fit(data, lsqvce.Options(Robust="bisquare", ...
+                       RobustOpts=struct('MaxIter', maxIter), Verbose=false));
+        fac = R.history(end).factor;  z = find(fac == 0);
+        tc.verifyTrue(ismember(7, z), sprintf('MaxIter %d: the blunder is rejected', maxIter));
+        D = R.diag;
+        % tol: 1e-9 relative -- the replay drops the rejected rows (p = 0) the
+        % solve kept at weight 1e-12: (1e-6 * 25)^2 against v'v ~ 30
+        tc.verifyLessThan(D.vPvRelDiff, 1e-9, sprintf('MaxIter %d: the replay is the returned solve''s', maxIter));
+        tc.verifyEqual(R.sol.dof, numel(l) - numel(z) - size(A, 2), 'the rejected rows leave the dof');
+        tc.verifyEqual(D.excludedIdx(:), z(:), 'and are named');
+        tc.verifyEqual(D.quad.rejected, numel(z));
+        % tol: the report's own integrity line; the 1e-12-weight rows move sum(r) by ~1e-12
+        tc.verifyLessThan(D.sumRRelErr, 1e-9);
+        res = tc.verifyWarningFree(@() R.residuals('Verbose', false));
+        % tol: 1e-8 relative -- two routes to the same weighted v'Pv over the same dof
+        tc.verifyEqual(res.sigma0, R.sigma0, 'RelTol', 1e-8);
+    end
+end
+
 function testBatchKindNonlinearReproducesSolveNonlinear(tc)
 % categories: reference, contract
     % R5 M2 2c': kind C with x0 is Gauss-Newton on the BLOCK path
@@ -1295,6 +1366,53 @@ function testGaussNewtonNeverReturnsAnUnevaluatedPoint(tc)
         tc.verifyEqual(R.diag.x(1:3), R.x, 'D.x is the estimate (report, ellipse centre)');
     end
 end
+function testGaussNewtonResidualsAreThoseOfTheEstimate(tc)
+% categories: metamorphic, contract
+    % WP-133 (review 3 finding 4): the accumulator a Gauss-Newton fit returns
+    % holds the rows linearised AT the estimate, i.e. increments about it, and
+    % R.residuals() applied the absolute x to them as if it were the step --
+    % sigma0 623x too large and a sigma0Mismatch warning on every nonlinear
+    % fit. sol.xLin names the linearisation point; the residual pass now
+    % measures the zero step and agrees with R.sigma0.
+    rs = RandStream('mt19937ar', 'Seed', 5);
+    t  = linspace(0, 1, 40).';
+    lobs = exp(0.7*t) - 0.2 + 1e-3*randn(rs, 40, 1);
+    bf = @(k, x) deal([t.*exp(x(1)*t), ones(40, 1)], lobs - (exp(x(1)*t) + x(2)), []);
+    R = lsqvce.fit(struct('batchFcn', bf, 'numBatches', 1, 'x0', [0.5; 0]), ...
+                   lsqvce.Options(MaxPasses=15, Tolerance=1e-9, Verbose=false));
+    tc.verifyEqual(R.sol.xLin, R.x, 'the linearisation point is the estimate');
+    res = tc.verifyWarningFree(@() R.residuals('Verbose', false));
+    % tol: 1e-9 relative -- the same whitened rows at the zero step, summed twice
+    tc.verifyEqual(res.sigma0, R.sigma0, 'RelTol', 1e-9);
+    w = lobs - (exp(R.x(1)*t) + R.x(2));
+    % tol: as above -- the residual pass's mass is F(R.x) itself
+    tc.verifyEqual(res.vtv, w.'*w, 'RelTol', 1e-9);
+end
+
+function testGaussNewtonRejectsANonFiniteTrialPoint(tc)
+% categories: robustness, contract
+    % WP-133 (review 3): a trial point where the model is not defined (an
+    % exp that overflows on a far step, here x^3 past |x| = 10) stopped the
+    % fit with lsqvce:accum:arcNotFinite -- 2 of 40 starts of an exponential
+    % decay. It is a REJECTED step now (F = Inf, the damping grows), which is
+    % what the damping is for; only a starting point the model cannot
+    % evaluate is refused (lsqvce:adjustNonlinear:nonFinite).
+    y  = 1 + [0.01; -0.02; 0.015; -0.005; 0.01];        % five looks at x^3, truth 1
+    f  = @(x) x.^3 ./ (abs(x) <= 10);                   % Inf past |x| = 10
+    bf = @(k, x) deal(3*x^2 ./ (abs(x) <= 10) * ones(5, 1), y - f(x), []);
+    R = lsqvce.fit(struct('batchFcn', bf, 'numBatches', 1, 'x0', 0.1), ...
+                   lsqvce.Options(MaxPasses=60, Tolerance=1e-10, Verbose=false));
+    h = R.history;
+    tc.verifyTrue(any(~[h.accepted] & isinf([h.vPv])), ...
+        'the first undamped step (to x ~ 33) is rejected with F = Inf, not an abort');
+    tc.verifyEqual(R.stopReason, "converged");
+    % tol: 1e-8 relative -- the least-squares optimum of x^3 against y is
+    % mean(y)^(1/3); TolX 1e-10 formal sd and the final undamped step
+    tc.verifyEqual(R.x, mean(y)^(1/3), 'RelTol', 1e-8);
+    tc.verifyError(@() lsqvce.fit(struct('batchFcn', bf, 'numBatches', 1, 'x0', 20), ...
+                   lsqvce.Options(Verbose=false)), 'lsqvce:adjustNonlinear:nonFinite');
+end
+
 function testGaussNewtonPriorIsOnXNotOnTheStep(tc)
 % categories: precision, reference
     % R7 WP-113 (review R7-04): a prior K x ~ x0 on a NONLINEAR problem enters

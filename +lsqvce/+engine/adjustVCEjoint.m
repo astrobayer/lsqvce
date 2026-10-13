@@ -267,6 +267,11 @@ function out = adjustVCEjoint(accFcn, opt)
 %   See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
 %            LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-133 (review 3 finding 18): the
+%   hard solution's rejected rows leave sol.dof through the loader's
+%   arc.excluded, and sol.truncation carries tau, so lsqvce.engine.residuals
+%   cross-checks against the same number (sigma0Mismatch fired on every
+%   igg3 / bisquare noise run). With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-132: Sigma2_0 weights pass 1 per
 %   arc (the arcs are enumerated and pinned first); the arc factor's Helmert
 %   pair takes the whole law as its component in closed form (redundancyLags
@@ -840,7 +845,7 @@ end
                         'Sgroups', Smap, 'Cgroups', Cmap, 'Pool', char(o.Pool), 'Estimate', o.Estimate, ...
                         'lastSol', lastSol, 'rowWeights', hardWeights(W));
         accF = accFcn(modelF);
-        solF = hardSolution(accF.solve(), hardFix);
+        solF = hardSolution(accF.solve(), hardFix, accF.excludedRows());
     end
     out = struct('S', S, 'C', C, 'sigma2', sigma2, 'acc', accF, ...
                  'userStop', userStop, 'Sgroups', Smap, 'Cgroups', Cmap, ...
@@ -989,17 +994,25 @@ function H = hardWeights(W)
     end
 end
 
-function sol = hardSolution(sol, hardFix)
+function sol = hardSolution(sol, hardFix, nExcl)
 %HARDSOLUTION  sigma0, s0sq and Cxx of the hard solution, corrected for the
-%   truncation: the rejected rows still count in sol.dof (a nugget deletes
-%   their content, not their row), and the kept rows are a Gaussian sample
-%   truncated at the rejection point, E = tau. So s0sq * dof / ((dof - nRej)
-%   tau). hardFix = [] (no robust pass): unchanged.
+%   truncation: the kept rows are a Gaussian sample truncated at the
+%   rejection point, E = tau. The rejected rows leave sol.dof already when
+%   the loader marked them (WP-133: makeLoader's arc.excluded, nExcl of them
+%   in the accumulator); any the loader did not mark are taken out here, as
+%   before. So s0sq * dof / ((dof - (nRej - nExcl)) tau), and sol.dof is the
+%   live count. sol.truncation = tau, which lsqvce.engine.residuals applies
+%   to ITS s0^2 (review 3 finding 18: it cross-checked against the corrected
+%   number and warned sigma0Mismatch on every igg3 / bisquare noise run).
+%   hardFix = [] (no robust pass): unchanged.
     if isempty(hardFix) || ~isfinite(sol.s0sq), return, end
-    f = sol.dof / max(sol.dof - hardFix.nRej, 1) / hardFix.tau;
+    nLeft = max(hardFix.nRej - nExcl, 0);
+    f = sol.dof / max(sol.dof - nLeft, 1) / hardFix.tau;
+    sol.dof = sol.dof - nLeft;
     sol.s0sq = sol.s0sq * f;
     sol.sigma0 = sqrt(sol.s0sq);
     sol.Cxx = sol.Cxx * f;
+    sol.truncation = hardFix.tau;
 end
 
 function t = tauRow(tauMap, streams)

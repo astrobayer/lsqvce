@@ -303,6 +303,11 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
          LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 
+Updated 2026-10-13 (CEST, UTC+02:00), WP-133 (review 3 finding 18): the
+hard solution&#x27;s rejected rows leave sol.dof through the loader&#x27;s
+arc.excluded, and sol.truncation carries tau, so lsqvce.engine.residuals
+cross-checks against the same number (sigma0Mismatch fired on every
+igg3 / bisquare noise run). With assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-13 (CEST, UTC+02:00), WP-132: Sigma2_0 weights pass 1 per
 arc (the arcs are enumerated and pinned first); the arc factor&#x27;s Helmert
 pair takes the whole law as its component in closed form (redundancyLags
