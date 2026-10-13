@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.16.1 — API Reference</title>
+  <title>lsqvce 6.17.0 — API Reference</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.16.1 — API Reference</h1>
+<h1 class="title">lsqvce 6.17.0 — API Reference</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 </header>
@@ -2073,7 +2073,8 @@ provenance.</p>
     x          nc x 1   double   Common-parameter estimate (the field).
     sigma0     1x1      double   A-posteriori variance factor (global).
     stopReason 1x1      string   Why the loop stopped: &quot;single&quot; |
-                                 &quot;converged&quot; | &quot;maxPasses&quot;. Convergence
+                                 &quot;converged&quot; | &quot;maxPasses&quot; | &quot;userStop&quot; |
+                                 &quot;diverged&quot; (Gauss-Newton). Convergence
                                  failure is a RESULT: the last pass is
                                  returned with its covariance and one warning.
     converged  1x1      logical  Did the pipeline converge? (true for a single

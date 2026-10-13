@@ -1,5 +1,30 @@
 # lsqvce release notes
 
+## 6.17.0 — 2026-10-13 (WP-130: the solve core and the diagnostics of the second whole-code review)
+
+Numbers change for the cases marked **numbers**.
+
+- **A rank-deficient local block is solved on its factor (numbers).** One accidentally
+  duplicated local column made the QR pivots fail, and the fallback squared the block: the
+  pseudo-inverse cut a weak but determined direction together with the null one (x 31 formal
+  sd off for a quadratic in raw seconds), the degrees of freedom counted every local, and the
+  local solution and covariance were solved without the pseudo-inverse. The rank is now
+  decided on the factor; the solution, σ₀, the local covariance, the diagnostics and snoop all
+  use the same pseudo-inverse, and the degrees of freedom count the rank.
+- **Gauss-Newton reports the point it returns (numbers).** σ₀, the covariance and the
+  diagnostics belonged to the linear prediction at x + dx, even when that step was rejected
+  (σ₀ 0.19 against 0.77: formal errors up to 4× too small). They are now evaluated at the
+  returned x; `R.diag.x` is the estimate (the report's x column and the ellipse centre read
+  the final increment, ~0); a diverged run says `stopReason = "diverged"`.
+- **The datum test does not depend on parameter units (numbers).** A parameter in small units
+  with a prior group of its own was taken for a datum and reported sd 0.
+- **`Test = "mad"` leaves the datum rows out of its scale (numbers).** Rounding gave them
+  near-zero scores about half the time, which pulled the MAD down.
+- **`R.snoop` after rejection.** With `Reaccumulate = false` it returned the input `D` and the
+  pre-rejection σ₀; both now describe the survivors. Its Bonferroni count leaves the datum
+  rows out, as `diagnose` does; `REJ.history` carries the critical value.
+- Tests: 662 (+4).
+
 ## 6.16.1 — 2026-10-13 (WP-129: snoop's downdate of a local block on its QR factor)
 
 - **`R.snoop` keeps a badly conditioned local block exact after a rejection (numbers).**

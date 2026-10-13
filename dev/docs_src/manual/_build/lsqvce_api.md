@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.16.1 — API Reference"
+title: "lsqvce 6.17.0 — API Reference"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 
@@ -815,7 +815,8 @@ LSQVCE.RESULTS  The outcome of a recovery: solution, diagnostics, provenance.
     x          nc x 1   double   Common-parameter estimate (the field).
     sigma0     1x1      double   A-posteriori variance factor (global).
     stopReason 1x1      string   Why the loop stopped: "single" |
-                                 "converged" | "maxPasses". Convergence
+                                 "converged" | "maxPasses" | "userStop" |
+                                 "diverged" (Gauss-Newton). Convergence
                                  failure is a RESULT: the last pass is
                                  returned with its covariance and one warning.
     converged  1x1      logical  Did the pipeline converge? (true for a single

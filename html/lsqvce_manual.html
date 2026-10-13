@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.16.1 — User Manual</title>
+  <title>lsqvce 6.17.0 — User Manual</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.16.1 — User Manual</h1>
+<h1 class="title">lsqvce 6.17.0 — User Manual</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 </header>
@@ -1697,12 +1697,14 @@ number of passes</td>
 <td><code>NOISE_UNSETTLED</code></td>
 <td>WARN</td>
 <td>the loop stopped on <code>"maxPasses"</code> or
-<code>"userStop"</code> before it settled. Every number below rests on
-weights that were still moving</td>
+<code>"userStop"</code> before it settled, or a Gauss-Newton fit stopped
+on <code>"diverged"</code> (no downhill step). Every number below rests
+on weights or a point that were still moving</td>
 <td>Treat the result as provisional. Raise <code>MaxPasses</code> or
 loosen <code>Tolerance</code> and run again.
 <code>R.convergence()</code> shows what was still changing (see “When
-the loop did not settle” below).</td>
+the loop did not settle” below). For <code>"diverged"</code> more passes
+cannot help: check the start point and the Jacobian.</td>
 </tr>
 <tr class="odd">
 <td><code>ROBUST_FIT</code></td>
@@ -2362,80 +2364,87 @@ loosen <code>Tolerance</code> or coarsen <code>Pool</code> /
 <code>Noise.Grid</code></td>
 </tr>
 <tr class="odd">
+<td><code>NOISE_UNSETTLED</code>,
+<code>stopReason = "diverged"</code></td>
+<td>Gauss-Newton found no downhill step</td>
+<td>check the start point <code>x0</code> and the Jacobian against a
+finite difference</td>
+</tr>
+<tr class="even">
 <td><code>GLOBAL_HIGH</code>, flags present</td>
 <td>outliers</td>
 <td><code>R.snoop()</code>, one at a time</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>GLOBAL_HIGH</code>, no flags</td>
 <td>systematics or optimistic weights</td>
 <td><code>R.systematic(Covariates=...)</code>; if clean and
 structureless, <code>Estimate = "noise"</code> or correct
 <code>sigma</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>GLOBAL_LOW</code></td>
 <td>pessimistic weights or over-parameterisation</td>
 <td>correct <code>sigma</code> / <code>Estimate = "noise"</code>;
 <code>R.compare(Rred)</code>; Level-4 correlations</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>GLOBAL_HIGH</code>/<code>LOW</code> with
 <code>GLOBAL_SHARP</code></td>
 <td>very large <code>r</code></td>
 <td>judge the ratio and the confidence interval, not the rejection</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>SNOOP_MODERATE</code> / <code>SNOOP_CONTAMINATED</code></td>
 <td>contamination masks Pope</td>
 <td><code>Diagnostics.Test = "mad"</code>,
 <code>R.snoop(Test="mad")</code>, or <code>Robust</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>SNOOP_REFUSE</code> / <code>SNOOP_BREAKDOWN</code></td>
 <td>model error, or wrong sigma0</td>
 <td>reject nothing; fix the functional model or the declared sigma</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>SNOOP_VACUOUS</code></td>
 <td>redundancy too small for the corrected level</td>
 <td>weaker <code>Alpha</code>, or accept that blunders cannot be
 detected</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>SNOOP_LOWR</code>, <code>REL_AMBIGUOUS</code></td>
 <td>weak geometry</td>
 <td>re-measure, do not reject</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>REL_UNCONTROLLED</code>, <code>REL_MDBINF</code>,
 <code>REL_SILENT</code>, <code>REL_WEAK</code></td>
 <td>untestable observations</td>
 <td>strengthen the geometry; validate those observations externally</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>REL_EXTERNAL</code> WARN/ERROR</td>
 <td>one observation with excessive leverage</td>
 <td>find it (minimum <code>r_i</code>, named observation); distrust the
 formal sigmas</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>PAR_ILLCOND</code></td>
 <td>scaling or rank defect</td>
 <td>rescale columns, <code>Backend = "qr"</code>, declare a datum
 prior</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>PAR_CORR</code> ERROR</td>
 <td>inseparable parameters</td>
 <td>fix or reparameterise, or add separating observations</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>PAR_SCALE</code></td>
 <td>variance factor ≠ 1</td>
 <td>resolve Levels 1–2 before quoting either sigma column</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>a stream not white in <code>R.summary()</code></td>
 <td>stream’s law or the functional model</td>
 <td><code>estimate = "law"</code>, finer <code>Pool</code> /

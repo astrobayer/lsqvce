@@ -107,6 +107,9 @@ function res = residuals(acc, sol, opt)
 %     lsqvce:residuals:badSol       the solution is not from this accumulator
 %     lsqvce:residuals:noStore      nothing was retained; re-run with 'store','all'
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-130: dof counts a rank-deficient
+%   local block by its rank (BlockAccumulator.localRankOf). With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
 %   typed `arguments` signature, canonical UpperCamelCase option names
 %   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
@@ -262,7 +265,7 @@ end
         S.rms   = sqrt(S.vtv / max(S.m,1));
         vtvTot  = vtvTot + S.vtv;
         mTot    = mTot   + S.m;
-        nParTot = nParTot + st.nl;
+        nParTot = nParTot + lsqvce.engine.BlockAccumulator.localRankOf(st);   % WP-130: the rank
 
         if isempty(res.sys), res.sys = S; else, res.sys(end+1) = S; end
 

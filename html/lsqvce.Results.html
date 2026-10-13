@@ -57,7 +57,8 @@ PROPERTIES (read-only)
   x          nc x 1   double   Common-parameter estimate (the field).
   sigma0     1x1      double   A-posteriori variance factor (global).
   stopReason 1x1      string   Why the loop stopped: &quot;single&quot; |
-                               &quot;converged&quot; | &quot;maxPasses&quot;. Convergence
+                               &quot;converged&quot; | &quot;maxPasses&quot; | &quot;userStop&quot; |
+                               &quot;diverged&quot; (Gauss-Newton). Convergence
                                failure is a RESULT: the last pass is
                                returned with its covariance and one warning.
   converged  1x1      logical  Did the pipeline converge? (true for a single
@@ -161,6 +162,9 @@ lsqvce:Results:noPerObservation reliability() on a fit whose diagnostics
 See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.REPORT,
          LSQVCE.ENGINE.VERDICT, LSQVCE.ENGINE.BLOCKACCUMULATOR
 
+Updated 2026-10-13 (CEST, UTC+02:00), WP-130: stopReason lists &quot;userStop&quot;
+and &quot;diverged&quot;. With assistance from Claude (Anthropic), model Claude Opus
+5.5.
 Updated 2026-10-12 (CEST, UTC+02:00), WP-127: reliability() marks a prior&#x27;s
 datum rows &quot;datum&quot;. With assistance from Claude (Anthropic), model Claude
 Opus 5.5.

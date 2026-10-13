@@ -125,6 +125,9 @@ function red = redundancy(acc, sol, opt)
 %
 %   See also LSQVCE.ENGINE.BLOCKCOFACTOR, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.OUTLIERS, LSQVCE.ENGINE.RESIDUALS
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-130: the identity's u counts a
+%   rank-deficient local block by its rank (BlockAccumulator.localRankOf). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-12 (CEST, UTC+02:00), WP-125: group(k).tcc, the common trace
 %   tr(inv(N) N_g^cc) of the group. With assistance from Claude (Anthropic),
 %   model Claude Opus 5.5.
@@ -238,7 +241,7 @@ end
         ys{k}     = lsqvce.engine.BlockAccumulator.localSolveOf(st, x);   % WP-128
         stores{k} = struct('sysID', st.sysID, 'dataFcn', st.dataFcn, ...
                            'uo', st.uo, 'dayList', st.dayList);
-        nParTot   = nParTot + st.nl;
+        nParTot   = nParTot + lsqvce.engine.BlockAccumulator.localRankOf(st);   % WP-130: the rank
     end
 
     % ---- phase 2: enumerate the independent arc-tasks (meta calls only) ---

@@ -67,6 +67,9 @@ function V = report(D, opt)
 %
 %   See also LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SYSTEMATIC.
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-130: a Gauss-Newton fit that
+%   diverged gets its own advice in NOISE_UNSETTLED (more passes cannot help).
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-12 (CEST, UTC+02:00), WP-127: the snooping lines count the
 %   tested observations (D.nTests: n less a prior's datum rows). With
 %   assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -226,12 +229,10 @@ if ~isempty(fieldnames(opt.Iteration))
                 'The %s settled in %d pass(es).', what, it.nIter);
         else
             push(1, 'WARN', 'NOISE_UNSETTLED', ...
-                ['The %s did NOT settle: the loop stopped after %d ' ...
-                 'pass(es), stopReason "%s". The weights every number below rests ' ...
-                 'on were still moving, so read what follows as provisional. Raise ' ...
-                 'MaxPasses or loosen Tolerance and run this report again; ' ...
-                 'R.convergence() shows what was still changing.'], ...
-                 what, it.nIter, char(it.stopReason));
+                ['The %s did NOT settle: the loop stopped after %d pass(es), stopReason ' ...
+                 '"%s". The weights every number below rests on were still moving, so ' ...
+                 'read what follows as provisional. %s'], ...
+                 what, it.nIter, char(it.stopReason), unsettledAdvice(it.stopReason));
         end
     end
 end
@@ -863,6 +864,18 @@ lsqvce.util.log.msg('%s\n\n', repmat('=', 1, W));
 end
 
 %% ----------------------------------------------------------------- helpers
+function s = unsettledAdvice(stopReason)
+%UNSETTLEDADVICE  What to do about an unsettled loop: more passes, or (WP-130)
+%   for a Gauss-Newton fit that DIVERGED -- no downhill step -- not that.
+    if strcmp(char(stopReason), 'diverged')
+        s = ['More passes cannot help: check the start point, the Jacobian against a ' ...
+             'finite difference, and whether the model is identifiable there.'];
+    else
+        s = ['Raise MaxPasses or loosen Tolerance and run this report again; ' ...
+             'R.convergence() shows what was still changing.'];
+    end
+end
+
 function printWrapped(tag, msg, W)
 %PRINTWRAPPED  Word-wrap a message to width W under a hanging label, via the log.
 %   Emits msg through lsqvce.util.log.msg, wrapping prose lines so the tag prints

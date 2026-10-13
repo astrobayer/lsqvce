@@ -13,7 +13,8 @@ classdef Results < handle
 %     x          nc x 1   double   Common-parameter estimate (the field).
 %     sigma0     1x1      double   A-posteriori variance factor (global).
 %     stopReason 1x1      string   Why the loop stopped: "single" |
-%                                  "converged" | "maxPasses". Convergence
+%                                  "converged" | "maxPasses" | "userStop" |
+%                                  "diverged" (Gauss-Newton). Convergence
 %                                  failure is a RESULT: the last pass is
 %                                  returned with its covariance and one warning.
 %     converged  1x1      logical  Did the pipeline converge? (true for a single
@@ -121,6 +122,9 @@ classdef Results < handle
 %   See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.REPORT,
 %            LSQVCE.ENGINE.VERDICT, LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-130: stopReason lists "userStop"
+%   and "diverged". With assistance from Claude (Anthropic), model Claude Opus
+%   5.5.
 %   Updated 2026-10-12 (CEST, UTC+02:00), WP-127: reliability() marks a prior's
 %   datum rows "datum". With assistance from Claude (Anthropic), model Claude
 %   Opus 5.5.
@@ -194,7 +198,8 @@ classdef Results < handle
                                % solve, nothing iterated), "converged" (every
                                % criterion met), "maxPasses" (budget exhausted;
                                % the last pass is returned WITH a warning),
-                               % "userStop" (Options.OnPass returned false, R5 M5)
+                               % "userStop" (Options.OnPass returned false, R5 M5),
+                               % "diverged" (Gauss-Newton found no downhill step, WP-130)
         history    = struct([]);
         noise      = struct([]);
     end

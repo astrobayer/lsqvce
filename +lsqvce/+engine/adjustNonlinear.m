@@ -70,6 +70,10 @@ function R = adjustNonlinear(u, batchFcn, nBatch, x0, opt)
 %   See also LSQVCE.ENGINE.BATCHSYSTEM,
 %            LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.FIT
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-130: sigma0, Cxx and the
+%   diagnostics are evaluated AT the returned point (its linearisation, a zero
+%   step, vtv = F); D.x is the estimate; a diverged run's stopReason is
+%   "diverged". With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-12 (CEST, UTC+02:00), WP-127: a converged run's final
 %   undamped step is kept only when F does not rise (on a plateau TolX met a
 %   tiny damped step and the undamped one was never evaluated). With
@@ -193,34 +197,56 @@ end
 
     prov = opt.Provenance;
     if isempty(fieldnames(prov)), prov = rmfield(rmfield(rmfield(rmfield(rmfield(opt, 'Provenance'), 'Prior'), 'Diagnostics'), 'OnPass'), 'OnPassContext'); end
-    acc = finalAcc(L, days, x, state, opt);
-    dsol = acc.solve();
-    % R7-14: a converged run takes the final undamped step (below TolX, or
-    % with a settled F) when it does not raise F (WP-127); an UNconverged one
-    % returns the best ACCEPTED point x -- never x plus a step the loop had
-    % just rejected. The covariance and the
-    % diagnostics are those of the linearised problem at x either way.
-    sol  = dsol;  sol.x = x;
+    % R7-14 / WP-127: a converged run takes the final undamped step when it
+    % does not raise F; an UNconverged one returns the best ACCEPTED point x.
+    % WP-130: whichever point xR is returned, sigma0, Cxx and the diagnostics
+    % are evaluated AT xR -- the linearisation at xR with a ZERO step, vtv =
+    % F(xR). Before, sol = dsol carried vtv of the linear PREDICTION at x + dx
+    % even when that step was rejected (sigma0 0.19 against sqrt(F/r) = 0.77
+    % on a logistic plateau: formal errors 4x too small), and D.x was the
+    % increment, so the report's x column and the ellipse centre read ~0.
+    acc = finalAcc(L, days, x, state, opt);  xR = x;  FR = F;
     if converged
-        % WP-127: the final undamped step is CHECKED like every other. On a
-        % plateau sigX is huge, so a tiny damped step meets TolX, and the
-        % undamped step from there took F from 28.8 to 49.6 in the mirror of
-        % a logistic fit -- "converged" on a point never evaluated
+        dsol = acc.solve();
         xF = x + dsol.x(:);
-        [~, FF] = accumulate(L, days, xF, state, opt);
-        state('x') = x;                       % the diagnostics replay the batches at x
+        accF = finalAcc(L, days, xF, state, opt);
+        FF = objectiveOf(accF, xF, opt);
         % tol: a rise below 1e-10 relative is the rounding of F's sum over the
         % rows (~n eps up to n ~ 1e6), not ascent -- at the optimum the step is ~0
         if isfinite(FF) && FF <= F * (1 + 1e-10)
-            sol.x = xF;
+            acc = accF;  xR = xF;  FR = FF;
         else
             reason = [reason '; final step rejected'];
         end
     end
-    [D, dsol2, batchFcn, nB] = lsqvce.engine.verdict.fromAccumulator(acc, dsol, opt.Diagnostics{:});
+    state('x') = xR;                          % the diagnostics replay the batches at xR
+    dsol = acc.solve();                       % the linearisation at xR (prior shifted to xR)
+    sol  = atZeroStep(dsol, xR, FR);
+    [D, dsol2, batchFcn, nB] = lsqvce.engine.verdict.fromAccumulator(acc, ...
+        atZeroStep(dsol, zeros(size(dsol.x)), FR), opt.Diagnostics{:});
+    D.x(1:u) = xR;                            % the estimate, not the (zero) increment
     R = lsqvce.Results(sol, D, acc, dsol2, batchFcn, nB, [], lsqvce.engine.runMeta(struct(), prov));
-    sr = "";  if userStop, sr = "userStop"; end
+    sr = "";
+    if userStop, sr = "userStop"; elseif strcmp(reason, 'diverged'), sr = "diverged"; end   % WP-130
     R.setIterative(hist, struct('x0', x0, 'reason', reason, 'kind', 'nonlinear'), converged, sr);
+end
+
+function s = atZeroStep(dsol, x, F)
+%ATZEROSTEP  The solution AT the linearisation point (WP-130): x given, the
+%   residual mass the declared objective F there, s0^2 = F / dof, and Cxx the
+%   solve's cofactor rescaled to that s0^2 (the cofactor of the linearisation
+%   at x is what the solve formed; only its scale was the prediction's).
+    s = dsol;  s.x = x;  s.vtv = F;
+    s.s0sq = F / max(dsol.dof, 1);  s.sigma0 = sqrt(s.s0sq);
+    if isfield(dsol, 'Cxx') && isfinite(dsol.s0sq) && dsol.s0sq > 0
+        s.Cxx = dsol.Cxx * (s.s0sq / dsol.s0sq);
+    end
+end
+
+function F = objectiveOf(acc, x, opt)
+%OBJECTIVEOF  F(x) = l'Pl(x) + |(K x - x0)/s|^2 from an accumulation at x.
+    [~, ~, F] = acc.sys.commonBlocks();
+    if ~isempty(opt.Prior), F = F + opt.Prior.vtv(x); end
 end
 
 function acc = finalAcc(L, days, x, state, opt)
@@ -245,8 +271,8 @@ function [acc, F, d] = accumulate(L, days, x, state, opt)
               'Verbose', false, 'Parallel', char(opt.Parallel), 'DistributeDays', opt.DistributeDays, ...
               'ParallelThreshold', opt.ParallelThreshold);
     acc.addSystem(L.sysID, L.nl, L.closure, days);
-    [N, ~, F] = acc.sys.commonBlocks();          % l'Pl at x (data)
-    if ~isempty(opt.Prior), F = F + opt.Prior.vtv(x); end
+    N = acc.sys.commonBlocks();
+    F = objectiveOf(acc, x, opt);                 % l'Pl at x (data) + the prior's
     d = diag(N);
 end
 
