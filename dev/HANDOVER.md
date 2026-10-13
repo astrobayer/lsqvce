@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-13 — WP-128 DONE (PR #149, merge 839ec11; CI GREEN on 170612c); WP-129 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-129 mit dem downdate-Rest"): the WP-128 residue -- BlockCofactor.downdate of a local block kept on its QR factor downdates that factor (cholupdate of Rll) instead of refactoring the squared Nll, which lost the weak direction after one rejection (mirror: sum h 6 instead of 7, Qll 100 % off at cond(B) 1.3e8); 1 test; version 6.16.1; §12.61.
+Last substantive update: 2026-10-13 — WP-129 DONE (PR #150, merge f706681; CI GREEN on 3e9086e, first round: ci_gate 646/646); closure PR (user decision: "Ja, mach den Abschluss-PR"): the ledger row and §12.62 -- the whole-code review track (§12.59, WP-127/128/129) closed, all twelve findings fixed, no residue; no code change, no version (6.16.1 stays, 658 tests).
+Preceding entry: Last substantive update: 2026-10-13 — WP-128 DONE (PR #149, merge 839ec11; CI GREEN on 170612c); WP-129 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-129 mit dem downdate-Rest"): the WP-128 residue -- BlockCofactor.downdate of a local block kept on its QR factor downdates that factor (cholupdate of Rll) instead of refactoring the squared Nll, which lost the weak direction after one rejection (mirror: sum h 6 instead of 7, Qll 100 % off at cond(B) 1.3e8); 1 test; version 6.16.1; §12.61.
 Preceding entry: Last substantive update: 2026-10-13 — WP-127 DONE (PR #148, merge 4873783; CI GREEN on e8fac67); WP-128 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-128"): the five findings of the whole-code review marked plausible, each re-derived by an own mirror -- all five confirmed and fixed: snoop keeps the prior a prior and returns one index space, the MAD test on a calibrated Student t, the local block's cofactor from the QR factor (all store readers through localSolveOf), a late local prior reported; MAD critical value t(r/2) by user decision; 3 tests; version 6.16.0; §12.60.
 Preceding entry: Last substantive update: 2026-10-12 — WP-126 DONE (PR #147, merge 7e44406; CI GREEN on f6d685c); WP-127 OPEN (tier B, model Claude Opus 5.5; user: a review of the entire code, then "Go ahead"): the confirmed findings -- the ARMA whitener with an MA part made exact, datum rows out of the diagnostics counts, a datum over several groups, the joint loop with a late local prior, the Gauss-Newton final step checked, NaN/Inf in A/B refused, .gitignore; 3 tests; version 6.15.0; §12.59.
 Preceding entry: Last substantive update: 2026-10-12 — WP-123 DONE (PR #143, merge cebbfd1; CI GREEN on e617a95, first round); closure PR (user decision: "Ja, mach den Abschluss-PR"): the ledger row and §12.55, no code change, no version (6.12.1 stays, 641 tests).
@@ -9493,7 +9494,7 @@ directly; `BlockAccumulator.localSolveOf` (static, hidden) is now the one place 
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 129 | the WP-128 residue: `BlockCofactor.downdate` of a local block kept on its QR factor downdates THAT factor (`cholupdate` of `Rll` with sqrt(p) b; positive pivots kept by the constructor) instead of refactoring the squared `Nll`; **version 6.16.1** | 128 (PR #149 merged 839ec11) | OPEN (tier B; CI is the gate) |
+| 129 | the WP-128 residue: `BlockCofactor.downdate` of a local block kept on its QR factor downdates THAT factor (`cholupdate` of `Rll` with sqrt(p) b; positive pivots kept by the constructor) instead of refactoring the squared `Nll`; **version 6.16.1** | 128 (PR #149 merged 839ec11) | DONE (2026-10-13, PR #150, merge f706681; CI GREEN on 3e9086e in the first round: ci_gate 646/646) |
 
 **The user's request (2026-10-13):** "Ja, mach WP-129 mit dem downdate-Rest" -- the residue §12.60
 recorded under finding 10.
@@ -9522,3 +9523,21 @@ a fresh QR of the survivors (1e-6 relative). Before the fix the sum is 6 (mirror
 Notes 6.16.1; the BlockCofactor help (downdate, Rll in `sys`).
 
 **Tests 658 = 657 + 1.** NOT validated before CI: no MATLAB in the container.
+
+### 12.62 The whole-code review track closed: WP-127, WP-128, WP-129 (2026-10-13, model Claude Opus 5.5)
+
+**The user's decision (2026-10-13):** "Ja, mach den Abschluss-PR" -- the WP-129 ledger row, this
+note, no code change, no version (6.16.1 stays, 658 tests).
+
+| WP | what | PR | merge | version |
+|----|------|----|-------|---------|
+| 127 | the seven findings of the whole-code review confirmed on reading (1-5, 8, 11) | #148 | 4873783 | 6.15.0 |
+| 128 | the five marked plausible (6, 7, 9, 10, 12), each re-derived by an own mirror, all confirmed | #149 | 839ec11 | 6.16.0 |
+| 129 | 128's residue: snoop's downdate of a local block on its QR factor | #150 | f706681 | 6.16.1 |
+
+**State after the track.** All twelve findings of the review (§12.59) are fixed in the tree, each
+with a test that fails on the old code. No residue is open: the one WP-128 recorded is WP-129. The
+normal-equations path of `BlockCofactor.downdate` still refactors from `Nll` -- by design, not a
+residue: that solve squared the block itself, so the cofactor stays the cofactor of the solve
+made. Mirrors kept: `dev/validation/wp128_local_block_mirror.py`,
+`wp128_mad_crit_mirror.py`, `wp129_local_downdate_mirror.py`.
