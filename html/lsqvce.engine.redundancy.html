@@ -64,7 +64,10 @@ casings still match -- MATLAB NV semantics -- and enum VALUES are
 case-sensitive lowercase.)
   &#x27;GroupBy&#x27;    &#x27;arc&#x27; (default) | &#x27;obsType&#x27; | &#x27;system&#x27; | &#x27;day&#x27; | function handle
                @(sysID, obsType, arc, day) -&gt; group key (numeric or string)
-  &#x27;MinRedundancy&#x27;  warn if any group has r_g below this (default 50)
+  &#x27;MinRedundancy&#x27;  r_g below this marks a group small: red.smallGroups lists
+               it always, and with Verbose on lsqvce:redundancy:smallGroup
+               warns (default 50; WP-134: the help promised a warning that
+               only Verbose gave, and every internal caller runs quiet)
   &#x27;Collect&#x27;    also return the per-observation h and r (default true)
   &#x27;Verbose&#x27;    default true
   &#x27;Parallel&#x27;   &#x27;serial&#x27; | &#x27;parfor&#x27; | &#x27;spmd&#x27;. Default: the accumulator&#x27;s
@@ -104,11 +107,17 @@ red.obs(j).h, .r       per-observation, if Collect
 red.rTotal             sum over all groups
 red.priorRedundancy    r_K of a common prior&#x27;s nk rows (0 without one)
 red.check              |sum(r_g) + r_K - (m + nk - u)|, must be ~0
+red.smallGroups        1 x K cell  the keys of the groups with r_g &lt;
+                       MinRedundancy (WP-134)
 red.traceEstimate      present only with &#x27;TraceMethod&#x27;,&#x27;hutchinson&#x27;: a
-                       struct (.value/.expected/.relErr/.se/.relSE/.probes/
-                       .note) with the Hutchinson estimate of tr(N^-1 N) on
-                       the reduced common normal (a known = nc machinery
-                       check on THIS adjustment&#x27;s conditioning).</pre>
+                       struct (.value / .expected / .se / .relSE, 1 x G;
+                       .relErr, .probes, .seedUsed, .note) -- the streamed
+                       Hutchinson estimate of every group&#x27;s tr(N^-1 N_g)
+                       (LSQVCE.ENGINE.STREAMCONTRIBUTION) against the exact
+                       .tcc: what the probes cost on THIS adjustment&#x27;s
+                       conditioning (WP-134; it estimated tr(I) = nc, which
+                       Rademacher probes return exactly, so it checked
+                       nothing but chol&#x27;s rounding)</pre>
 <h3>The Global Check</h3>
 <pre class="example">sum(r_i) over ALL observations must equal m - u exactly. This is the
 strongest available test that the block-arrow inverse algebra is right,
@@ -162,6 +171,11 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 
 See also LSQVCE.ENGINE.BLOCKCOFACTOR, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.OUTLIERS, LSQVCE.ENGINE.RESIDUALS
 
+Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (review 3 lows): the
+&#x27;hutchinson&#x27; check compares the streamed per-group traces with the exact
+ones (it estimated tr(I)); red.smallGroups reports the small groups
+without Verbose. With assistance from Claude (Anthropic), model Claude
+Opus 5.5.
 Updated 2026-10-13 (CEST, UTC+02:00), WP-133: rows of weight 0
 (arc.excluded) carry no redundancy and no count; the identity adds the
 ridge&#x27;s defect of a regularised local block. With assistance from Claude

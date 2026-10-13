@@ -69,7 +69,9 @@ JOINT, NOT ALTERNATING -- WHY
 <pre class="example">1-3  build Delta_l, A; form Sigma from the current model; decorrelate
        -&gt; the caller&#x27;s accFcn does this (see INPUT below)
 4-5  accumulate N, n; factor N = U&#x27;U and solve
-       -&gt; acc.solve() and chol(acc.reducedNormalMatrix())
+       -&gt; acc.solve() and acc.commonFactor() (the backend&#x27;s own
+          square root, the prior folded in -- WP-134; chol of the
+          squared normals before)
 6    draw Zbar and form U^-1 Zbar ONCE for all arcs
        -&gt; LSQVCE.ENGINE.SHAREDPROBE
 7    decorrelated residuals ebar = W^-T (l - A x - B y), the FULL
@@ -122,7 +124,8 @@ OPTIONS (Name/Value)
   &#x27;Sigma2_0&#x27;  M x 1 | [] starting arc factors (default all ones, eq. 6.5.62),
                          aligned to out.arcKeys; they weight pass 1 per arc
                          (WP-132), at the price of one extra accumulation
-                         that enumerates the arcs first
+                         that enumerates the arcs first; finite and &gt; 0
+                         (WP-134: a 0 reached the clamp, a NaN stayed)
   &#x27;MaxIter&#x27;   1x1 int    outer iterations (default 10)
   &#x27;Tol&#x27;       1x1        convergence on max|alpha2 - 1| (default 1e-2)
   &#x27;Probes&#x27;    1x1 int    Z Hutchinson probes (default 100, Ellmer&#x27;s value)
@@ -197,7 +200,9 @@ OPTIONS (Name/Value)
            production guidance is open loop or &lt;= 3 damped passes.
            &#x27;none&#x27; is bitwise the old behaviour.
   &#x27;AvgTail&#x27; 1x1 integer &gt;= 0, default 0.  Polyak averaging of the
-           RETURNED spectrum over the last AvgTail passes (log domain);
+           RETURNED spectrum over the last AvgTail passes (log domain) --
+           every pool group&#x27;s law (out.Sgroups / Cgroups, which the final
+           solve reads), not only out.S (WP-134);
            (honest r6 claim: helps the damped loop settle; cannot
            rescue an undamped collapse, and longer tails average over
            late-pass drift -- keep it &lt;= 4) and does nothing useful
@@ -212,7 +217,19 @@ OPTIONS (Name/Value)
   &#x27;OnPass&#x27;   [] | @(ctx)  the per-pass inspection hook (lsqvce.util.onPass:
              return false to stop after this pass)           default []
   &#x27;OnPassContext&#x27; struct  fields merged into every ctx (lsqvce.fit
-             passes .data and .processingOptions)            default struct()</pre>
+             passes .data and .processingOptions)            default struct()
+  &#x27;SkipThreshold&#x27; 1x1 in [0, 1]  the largest fraction of ONE STREAM&#x27;s arcs a
+             pass may skip (gap / nonPD) before it is refused (default 0.2;
+             WP-134: it was the rate over all arcs, so a small stream could
+             be skipped whole among large ones, silently)
+  &#x27;PriorDev&#x27; [] | @() [dev, pending]  components the accFcn updates itself
+             -- lsqvce.fit&#x27;s common prior groups with estimate &quot;scale&quot;
+             (Koch-Kusche, from model.lastSol): dev the largest relative
+             variance change of this pass&#x27;s update, pending true while a
+             group is in the solve but not yet updated. The loop converges
+             only when dev &lt;= Tol and nothing is pending (WP-134, review 3
+             finding 1: the prior was outside the stop rule, and a loop that
+             settled on pass 1 never estimated it).   default []</pre>
 <h3>Output</h3>
 <pre class="example">out  1x1 struct
   .S         L x 1      the converged law: the bin spectrum on
@@ -245,9 +262,11 @@ OPTIONS (Name/Value)
                         its previous factor
   .acc       1x1        the final accumulator
   .sol       1x1        the final solution struct
-  .converged 1x1 logical whether max|alpha2-1| fell below Tol
+  .converged 1x1 logical whether max|alpha2-1|, every factor&#x27;s change
+                        and PriorDev&#x27;s change fell below Tol
   .nIter     1x1        outer iterations actually run
-  .history   struct     .maxDev (nIter x 1), .S (nIter x L)</pre>
+  .history   struct     .maxDev (nIter x 1), .S (nIter x L), .levelDev,
+                        .priorDev (nIter x 1, 0 without PriorDev)</pre>
 <h3>Example</h3>
 <pre class="example">accFcn = @(model) buildAccumulatorWithModel(cfg, model);
 r = lsqvce.engine.adjustVCEjoint(accFcn, &#x27;NumLags&#x27;, 60, &#x27;MaxIter&#x27;, 8);
@@ -257,17 +276,22 @@ plot(r.sigma2);            % the arc-wise weights</pre>
 <pre class="example">  lsqvce:adjustVCEjoint:needCfcn  the joint mode needs a cross-covariance
                                   function and none was supplied
   lsqvce:adjustVCEjoint:badS0     the starting spectrum is malformed
-  lsqvce:adjustVCEjoint:notPD     the joint covariance is not positive
-                                  definite, so it cannot be factored
+  lsqvce:adjustVCEjoint:notPD     the reduced common normal matrix (the
+                                  prior included) has no factor: singular to
+                                  the QR solve&#x27;s own pivot tolerance, or not
+                                  positive definite on the normal backend
   lsqvce:adjustVCEjoint:skipThreshold  a pass skipped more than
-                                SkipThreshold of the enumerated arcs (R5 M1)
+                                SkipThreshold of one stream&#x27;s arcs (R5 M1;
+                                per stream since WP-134)
   lsqvce:adjustVCEjoint:badAxisRows  a multi-axis arc whose row count is not a
                                 multiple of its axis count (R6 WP-90: an arc
                                 carrying a per-epoch Cep, scalar or multi-axis,
                                 is descaled per epoch before its lag statistics;
                                 the former noCep refusal is gone -- the loader
                                 composes D = I and says so once)
-  lsqvce:adjustVCEjoint:noArcs    a system declares no arcs
+  lsqvce:adjustVCEjoint:noArcs    no arc produced statistics in a pass: none
+                                  was enumerated, or every one was skipped
+                                  or inactive under SkipThreshold = 1
   lsqvce:adjustVCEjoint:collapsed the influence function left fewer live
                                   EPOCHS than parameters + 1: a bodily
                                   residual offset or near-total
@@ -303,6 +327,14 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
          LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 
+Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (third review, findings 1, 7,
+15 and lows): PriorDev puts the accFcn&#x27;s own components (fit&#x27;s prior
+groups) into the stop rule; the shared probe uses acc.commonFactor(),
+not chol of the squared normals (notPD on cond(A) ~ 3e8 the QR solve
+accepts); SkipThreshold is per stream and checked before noArcs; the
+robust sweep leaves the prior pseudo-arcs out (they counted as live
+epochs); Sigma2_0 values validated; AvgTail averages every pool group.
+With assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-13 (CEST, UTC+02:00), WP-133 (review 3 finding 18): the
 hard solution&#x27;s rejected rows leave sol.dof through the loader&#x27;s
 arc.excluded, and sol.truncation carries tau, so lsqvce.engine.residuals
@@ -415,7 +447,8 @@ Claude (Anthropic), model Claude Fable 5.
                                      is a SKIP, a vanished enumeration
                                      entry is an identity error) (WP-34)
   lsqvce:adjustVCEjoint:badSigma2_0  Sigma2_0 does not match the pass-1
-                                     arc count (align to out.arcKeys)
+                                     arc count (align to out.arcKeys), or
+                                     holds a value not finite and &gt; 0
 Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
 WP-64a): the ENGINE tier leaves the USER surface; every qualified
 reference was rewritten mechanically by docs_src/refactor_tiers.py.</pre>

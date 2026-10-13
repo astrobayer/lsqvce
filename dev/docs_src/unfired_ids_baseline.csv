@@ -30,7 +30,6 @@ lsqvce:applyReg:badLambda,engine.applyRegularisation
 lsqvce:applyReg:notPD,engine.applyRegularisation
 lsqvce:applyReg:sizeMismatch,engine.applyRegularisation
 lsqvce:applyReg:unknown,engine.applyRegularisation
-lsqvce:ar2arma:degenerate,kernel.ar2arma
 lsqvce:ar2arma:degenerateMA,kernel.ar2arma
 lsqvce:arcVarianceFactors:badMean,engine.arcVarianceFactors
 lsqvce:armaWhiten:acvTooShort,kernel.armaWhiten
@@ -125,7 +124,6 @@ lsqvce:traceEstimate:sizeMismatch,engine.traceEstimate
 lsqvce:util:log:badKey,util.log
 lsqvce:varACV:badA,kernel.varACV
 lsqvce:varWhiten:badStartup,kernel.varWhiten
-lsqvce:vce:badAccFcn,engine.vce
 lsqvce:vce:badSigma0,engine.vce
 lsqvce:vce:groupMismatch,engine.vce
 lsqvce:vce:hutchGroupMismatch,engine.vce

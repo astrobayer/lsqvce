@@ -94,11 +94,15 @@ EXACTNESS
 
 BATCH OVERLAP IS MANDATORY
   On any batch after the first, the filter restarts from zero state and
-  the first p rows are transient garbage. The caller must overlap batches
-  by at least p rows and discard the overlap. With overlap = p the batched
-  result is identical to filtering the whole arc; with overlap = 0 the
-  relative error in the solution is ~1e-3 instead of ~1e-15.
-  LSQVCE.ENGINE.BLOCKACCUMULATOR does this automatically from arc.filterMemory.</pre>
+  its first rows are transient garbage. The caller must overlap batches
+  by the filter&#x27;s memory and discard the overlap: p rows for a pure AR
+  (b = 1); with an MA part, p plus the samples after which the impulse
+  response of 1/B(z) has decayed below eps (WP-134: the help said p, which
+  holds for the AR part only). With that overlap the batched result is
+  identical to filtering the whole arc; with overlap = 0 the relative
+  error in the solution is ~1e-3 instead of ~1e-15.
+  LSQVCE.ENGINE.BLOCKACCUMULATOR does this automatically from
+  arc.filterMemory, which LSQVCE.ENGINE.COVMODEL computes this way.</pre>
 <h3>Example</h3>
 <pre class="example">a = [1 -1.6 0.9 -0.25];  s = 0.7;  n = 200;
 r = s^2 * lsqvce.kernel.armaACV(a, 1, n);
@@ -118,6 +122,9 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 
 See also LSQVCE.KERNEL.DECORRFACTOR, LSQVCE.ENGINE.COVMODEL, LSQVCE.KERNEL.LEVINSONDURBIN
 
+Updated 2026-10-13 (CEST, UTC+02:00), WP-134: the overlap note names the
+MA part&#x27;s memory (p plus the decay of 1/B(z)). With assistance from
+Claude (Anthropic), model Claude Opus 5.5.
 Generated with assistance from Claude (Anthropic), model Claude
 Opus 4.8.
 Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+kernel (R4 decision R4-D1,

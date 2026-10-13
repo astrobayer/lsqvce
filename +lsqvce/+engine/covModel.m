@@ -11,12 +11,14 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 %     cm   struct, .type selects the model:
 %       'diag'    .sigma   scalar or m x 1 standard deviation
 %       'acf'     .acf     @(dt, opt) -> correlation at lag dt
-%                 .sigma   scalar
+%                 .sigma   scalar, or m x 1 per row: C = D R D with
+%                          D = diag(sigma) (WP-134; it was averaged)
 %       'psd'     .f       nf x 1 frequency grid [Hz], one-sided
 %                 .S       nf x 1 PSD [unit^2/Hz]
 %       'arma'    .ar      [1 a1 ... ap]
 %                 .ma      [1 b1 ... bq]   (optional, default 1)
-%                 .sigma   innovation std
+%                 .sigma   innovation std, ONE positive scalar (a per-row
+%                          std is a 'diag' or 'acf' law, or the day's Cep)
 %       'var'     .ar      d x d x p coefficient matrices (vector AR)
 %                 .sigma   d x d innovation covariance
 %                 .acv     d x d x >=p Gamma(0..), optional (else computed
@@ -67,10 +69,17 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 %                  whitenMode 'chol') is factorised over: the factor is
 %                  whole-arc, O(m^3) and 8 m^2 bytes (3.2 GB at 20 000). A
 %                  longer arc is refused (lsqvce:covModel:denseArcTooLong);
-%                  raise it deliberately when the memory is there.
+%                  raise it deliberately when the memory is there. The dense
+%                  form Cfcn of a FILTER law is guarded by the same limit at
+%                  the size it is asked for (WP-134): only the joint noise
+%                  estimator builds it, per arc, whatever the whitener.
 %
 %     t    m x 1  epochs of the current arc [s] (epoch-major with Cep: every
-%                 d-th value is one epoch)
+%                 d-th value is one epoch). A 'psd' or 'arma' law counts its
+%                 lags in SAMPLES at the median step: a step above 1.5 times
+%                 the median (a removed epoch) is treated as one step and
+%                 reported (lsqvce:covModel:unevenGrid, WP-134) -- give a
+%                 rejected epoch weight 0 instead of removing it
 %     opt  struct runtime options (see below)
 %
 %   OPTIONS (opt)
@@ -150,7 +159,8 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 %
 %     A required field for the CHOSEN type is missing or malformed
 %       lsqvce:covModel:noSigma        .sigma missing        (most types)
-%       lsqvce:covModel:badSigma       .sigma not a positive scalar
+%       lsqvce:covModel:badSigma       .sigma not finite and positive ('arma',
+%                                      'psd': not ONE positive scalar)
 %       lsqvce:covModel:sigmaLength    per-observation .sigma has the wrong length
 %       lsqvce:covModel:noAR           .ar missing           ('arma')
 %       lsqvce:covModel:noACF          .acv missing          ('acf')
@@ -162,7 +172,9 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 %                                      unit circle: its whitener is not stable
 %       lsqvce:covModel:denseArcTooLong a law without a filter form (acf, custom,
 %                                      psd 'toeplitz', whitenMode 'chol') on an arc
-%                                      longer than .maxDenseArc epochs, or a
+%                                      longer than .maxDenseArc epochs, the dense
+%                                      form of a filter law asked for over more
+%                                      (the joint noise sweep, WP-134), or a
 %                                      .maxDenseArc that is not a positive number
 %
 %     The per-epoch error information does not fit the arc (R6 WP-90)
@@ -187,6 +199,9 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 %   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 %     lsqvce:covModel:negativePSD                [warning] The PSD has X negative values (min X)
 %     lsqvce:covModel:psdSanitationEscape        PSD sanitation escape
+%     lsqvce:covModel:unevenGrid                 [warning] a 'psd' / 'arma' arc
+%                                                whose largest step exceeds 1.5x
+%                                                the median (WP-134) -- once per run
 %
 %   ACCURACY
 %     The whiteners are exact factors of the covariance they are built from
@@ -238,6 +253,12 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
 %   reference was rewritten mechanically by docs_src/refactor_tiers.py.
 %   Updated 2026-10-12 (CEST, UTC+02:00), WP-124: Cep reference -> API reference.
 %   With assistance from Claude (Anthropic), model Claude Opus 5.5.
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (third review, finding 10 and
+%   lows): 'var' takes a VAR(1)'s d x d ar (ndims 2 -- every VAR(1) was
+%   refused); 'acf' honours a per-row sigma (C = D R D; it was averaged
+%   silently); 'arma' refuses a non-scalar sigma by name (an unnamed ||
+%   error); an uneven epoch grid under an index-lag law is reported. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 
     narginchk(2,3);
     if nargin < 3 || isempty(opt), opt = struct(); end
@@ -285,6 +306,7 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
     if m < 2 || ~isfinite(dt) || dt <= 0
         dt = 1;
     end
+    gridGuard(cm.type, t, dt);                       % WP-134: an uneven grid is said
 
     Cfcn = [];
     Wfcn = [];
@@ -321,14 +343,9 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
         if ~isfield(cm,'acf') || ~isa(cm.acf,'function_handle')
             error('lsqvce:covModel:noACF', '''acf'' requires cm.acf as a function handle.');
         end
-        s = lsqvce.util.getfielddef(cm, 'sigma', 1);
-        if ~isscalar(s), s = mean(s(:)); end
-        if s <= 0
-            error('lsqvce:covModel:badSigma', 'cm.sigma must be positive.');
-        end
-
-        Cfcn = @(idx,o) (s^2) * cm.acf( t(idx) - t(idx).', o );
-        info.sigma = s;
+        s = rowSigma(cm, m);                         % WP-134: per row, C = D R D
+        Cfcn = @(idx,o) (s(idx) .* s(idx).') .* cm.acf( t(idx) - t(idx).', o );
+        info.sigma = mean(s);
         info.cost  = 'O(m^3)';
 
     %------------------------------------------------------------------- psd
@@ -345,8 +362,10 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
         b = lsqvce.util.getfielddef(cm, 'ma', 1);
         b = b(:).';
         s = lsqvce.util.getfielddef(cm, 'sigma', []);
-        if isempty(s) || s <= 0
-            error('lsqvce:covModel:badSigma', '''arma'' requires a positive cm.sigma.');
+        if isempty(s) || ~isscalar(s) || ~isfinite(s) || s <= 0     % WP-134: a vector hit ||
+            error('lsqvce:covModel:badSigma', ...
+                  ['''arma'' requires ONE positive innovation std cm.sigma; a per-row ' ...
+                   'standard deviation is a ''diag'' or ''acf'' law, or the day''s Cep.']);
         end
 
         p  = numel(a) - 1;  fm = filterMemoryOf(p, b);   % WP-125: an MA part makes it IIR
@@ -367,9 +386,12 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
     % nAxis = d so the accumulator batches on whole epochs.
     case 'var'
         Av = lsqvce.util.getfielddef(cm, 'ar', []);
-        if isempty(Av) || ndims(Av) ~= 3 || size(Av,1) ~= size(Av,2)
+        % WP-134 (third review, finding 10): MATLAB drops a trailing
+        % singleton, so a VAR(1)'s d x d x 1 has ndims 2 -- 'ndims ~= 3'
+        % refused every VAR(1), whittle(G, 1)'s own output included
+        if isempty(Av) || ndims(Av) > 3 || size(Av,1) ~= size(Av,2)
             error('lsqvce:covModel:noVAR', ...
-                  '''var'' requires cm.ar as a d x d x p array.');
+                  '''var'' requires cm.ar as a d x d x p array (p >= 1; d x d is a VAR(1)).');
         end
         d  = size(Av, 1);
         p  = size(Av, 3);
@@ -435,8 +457,17 @@ function [Cfcn, Wfcn, info] = covModel(cm, t, opt)
     % so an arc longer than one batch lost the correlation between batches.
     % The arc is now factorised whole -- exact, at O(m^3) and m^2 memory.
     if isempty(Wfcn) && ~isempty(Cfcn)
-        denseArcGuard(cm, m, info.type);  info.wholeArc = true;   % WP-126: refuse before memory runs out
+        denseArcGuard(cm, m, info.type, 'whiten');  info.wholeArc = true;   % WP-126: refuse before memory runs out
     end
+
+    %----------------------------------- a filter law's dense form is guarded too
+    % WP-134 (third review, finding 8; user decision): a filter law's Cfcn is
+    % the dense m x m covariance, and the joint noise estimator's sweep
+    % (Estimate = "noise") builds and factors it per arc, whatever the
+    % whitener -- past the limit that protects a dense law, a long arc ran out
+    % of memory instead of being refused. Every dense build of a filter law now
+    % passes the same guard, at the epochs it is asked for (rows / d for 'var').
+    if ~isempty(Wfcn) && ~isempty(Cfcn), Cfcn = guardedForm(Cfcn, cm, info); end
 
     %------------------------------------------------ the composition (WP-90)
     if hasCep
@@ -770,7 +801,7 @@ function [Cfcn, Wfcn, info] = psdModel(cm, t, dt, opt, info)
 end
 
 %==========================================================================
-function denseArcGuard(cm, m, type)
+function denseArcGuard(cm, m, type, purpose)
 %DENSEARCGUARD  Refuse a dense whole-arc factor longer than cm.maxDenseArc epochs.
 %   WP-126: a dense law is factorised over the whole arc (WP-125), at O(m^3)
 %   and 8 m^2 bytes -- 3.2 GB at the default 20 000 epochs, 60 GB at 86 400.
@@ -780,21 +811,83 @@ function denseArcGuard(cm, m, type)
 %   (one place, reachable from LSQVCE.FIT): raise it deliberately with
 %   covariance.<type>.maxDenseArc.
 %
+%   WP-134: the same limit guards the dense form of a FILTER law, which only
+%   the joint noise estimator's sweep builds (purpose 'sweep').
+%
 %   INPUT   cm  1x1 struct  the law (optional .maxDenseArc, epochs, default 20000)
 %           m   1x1 double  epochs in the arc;  type  1xk char  the law's type
+%           purpose  1xk char  'whiten' (a dense law's whitening factor) |
+%                    'sweep' (a filter law's dense form)
 %   ERRORS  lsqvce:covModel:denseArcTooLong  m > cm.maxDenseArc
     mx = lsqvce.util.getfielddef(cm, 'maxDenseArc', 20000);
     if ~(isnumeric(mx) && isscalar(mx) && mx >= 1)
         error('lsqvce:covModel:denseArcTooLong', ...
               'cm.maxDenseArc must be a positive number of epochs.');
     end
-    if m > mx
+    if m > mx && strcmp(purpose, 'whiten')
         error('lsqvce:covModel:denseArcTooLong', ...
               ['The ''%s'' law has no filter form, so it is factorised over the whole arc: ' ...
                '%d epochs need %.3g GB for the factor alone, above the limit of %d epochs ' ...
                '(cm.maxDenseArc). Give a ''psd'' law a filter (Noise.Whitener = "ar" or ' ...
                '"arma"), cut the arcs shorter, or raise covariance.<type>.maxDenseArc if the ' ...
                'memory is there.'], type, m, 8 * m^2 / 1e9, mx);
+    elseif m > mx
+        error('lsqvce:covModel:denseArcTooLong', ...
+              ['The dense covariance of a ''%s'' arc of %d epochs was requested (%.3g GB, ' ...
+               'and its factor as much again): the joint noise estimator (Estimate = "noise") ' ...
+               'forms it per arc whatever the whitener, and %d epochs is above the limit of ' ...
+               '%d (cm.maxDenseArc). Cut the arcs shorter, or raise ' ...
+               'covariance.<type>.maxDenseArc if the memory is there.'], ...
+               type, m, 8 * m^2 / 1e9, m, mx);
+    end
+end
+
+%==========================================================================
+function Cfcn = guardedForm(C0, cm, info)
+%GUARDEDFORM  A filter law's dense covariance behind the maxDenseArc guard
+%   (WP-134): the guard runs at the size requested, in epochs (rows / d).
+    d = max(info.nAxis, 1);
+    Cfcn = @(idx, o) guardedDense(C0, cm, info.type, d, idx, o);
+end
+
+function C = guardedDense(C0, cm, type, d, idx, o)
+%GUARDEDDENSE  One guarded dense build (see GUARDEDFORM).
+    denseArcGuard(cm, numel(idx) / d, type, 'sweep');
+    C = C0(idx, o);
+end
+
+%==========================================================================
+function s = rowSigma(cm, m)
+%ROWSIGMA  An 'acf' law's sigma as m x 1 per row (WP-134): a per-row sigma is
+%   C = D R D with D = diag(sigma) -- it was averaged silently, and the fit
+%   path hands one over for a stream whose declared sigma is per row (a fixed
+%   structure, level only). A scalar is every row's.
+%   ERRORS  lsqvce:covModel:sigmaLength, lsqvce:covModel:badSigma
+    s = lsqvce.util.getfielddef(cm, 'sigma', 1);
+    if isscalar(s), s = s * ones(m, 1); else, s = s(:); end
+    if numel(s) ~= m
+        error('lsqvce:covModel:sigmaLength', ...
+              'cm.sigma has %d entries but the arc has %d epochs.', numel(s), m);
+    end
+    if any(~isfinite(s)) || any(s <= 0)
+        error('lsqvce:covModel:badSigma', 'cm.sigma must be finite and strictly positive.');
+    end
+end
+
+%==========================================================================
+function gridGuard(type, t, dt)
+%GRIDGUARD  Report an uneven epoch grid under a 'psd' / 'arma' law (WP-134):
+%   such a law counts lags in samples at the median step, so a removed epoch
+%   makes a gap the law takes for one step, silently.
+%   WARNINGS  lsqvce:covModel:unevenGrid (once per run)
+    % tol: 1.5 dt -- a missing epoch doubles the step, a jittered stamp stays
+    % well inside half a step
+    if any(strcmpi(type, {'psd', 'arma'})) && numel(t) >= 3 && max(diff(t)) > 1.5 * dt
+        lsqvce.util.log.warnOnce('lsqvce:covModel:unevenGrid', ...
+            ['The epochs of an arc are not equally spaced (largest step %.4g, median %.4g): ' ...
+             'a ''%s'' law counts lags in samples, so the gap is taken for ONE step. Give a ' ...
+             'rejected epoch weight 0 (rowWeights, or buildDay''s excluded) instead of ' ...
+             'removing it, or split the arc at the gap.'], max(diff(t)), dt, lower(type));
     end
 end
 

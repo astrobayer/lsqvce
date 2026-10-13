@@ -52,7 +52,8 @@ diagnose exactly WHICH part of the model is wrong -- and the four cases call
 for four different fixes, which is why a single &quot;is it white&quot; test is not
 enough.</pre>
 <h3>Input</h3>
-<pre class="example">w    m x 1     whitened residuals, EPOCH-MAJOR: [x1 y1 z1 x2 y2 z2 ...]
+<pre class="example">w    m x 1     whitened residuals, EPOCH-MAJOR: [x1 y1 z1 x2 y2 z2 ...];
+               whole epochs (m a multiple of d), at least two
 d    scalar    number of axes (3 for a 3-D position)</pre>
 <h3>Options</h3>
 <pre class="example">&#x27;maxLag&#x27;  default 20 epochs
@@ -102,12 +103,21 @@ Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
 typed `arguments` signature, canonical UpperCamelCase option names
 (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
 case-sensitive lowercase). With assistance from Claude (Anthropic),
-model Claude Fable 5.
+model Claude Fable 5.</pre>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:crossCorr:badLength   numel(w) is not a whole number of epochs
+                               of d axes, or fewer than two epochs (WP-134:
+                               a partial epoch was dropped silently, and
+                               one epoch raised an unnamed index error)
+
 IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
   lsqvce:crossCorr:shortSeries               [warning] Only X epochs for a max lag of X. The cross-covariance estimates will...
 
 See also LSQVCE.ENGINE.RESIDUALS, LSQVCE.ENGINE.COVMODEL
 
+Updated 2026-10-13 (CEST, UTC+02:00), WP-134: a partial epoch or fewer
+than two epochs is refused by name (lsqvce:crossCorr:badLength). With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-13 (CEST, UTC+02:00), WP-131: the verdict tests the
 correlation (c.Rcorr) against the band, not the covariance -- it no longer
 depends on the residuals&#x27; variance. With assistance from Claude

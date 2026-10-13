@@ -63,8 +63,17 @@ METHOD
   from the recursive Yule-Walker equations. This is deliberate: the
   recursion loses accuracy for near-unit-root AR polynomials, which is
   exactly the regime of a steep low-frequency noise floor. The impulse
-  response is truncated once it has decayed below eps relative to its
-  peak, so the FFT length adapts to the decay rate.</pre>
+  response grows from 512 samples by doubling until the energy of its
+  last max(p,q)+1 samples is below eps^2 of the whole, capped at 2^20
+  samples; its length follows the decay alone, so r is the same law for
+  any n, and one FFT of nh + n - 1 points (no wrap) gives every lag.
+  COST: O((nh + n) log(nh + n)) -- linear-logarithmic in n.</pre>
+<h3>Accuracy</h3>
+<pre class="example">r(0) to a few eps relative while the response decays within 2^20
+samples (|root| below about 0.99998); beyond, the truncation is
+rho^(2^21) of r(0), rho the largest root modulus, and it is reported
+(lsqvce:armaACV:truncated). Lags beyond the decay length are below
+eps * r(0) absolute (the FFT&#x27;s roundoff floor).</pre>
 <h3>Best Practice</h3>
 <pre class="example">The process must be stationary: all roots of a(z) strictly inside the
 unit circle. A near-unit root (|root| -&gt; 1) means an extremely long
@@ -82,9 +91,18 @@ assert(abs(r(1)-r0)/r0 &lt; 1e-8 &amp;&amp; abs(r(2)-r1)/r1 &lt; 1e-8)</pre>
 <pre class="example">  lsqvce:armaACV:zeroLeadingAR  the AR polynomial does not start with 1
   lsqvce:armaACV:nonStationary  the AR part has a root on or inside the unit
                                 circle, so no stationary ACV exists
+WARNINGS
+  lsqvce:armaACV:truncated      the response had not decayed at 2^20
+                                samples; r(0) is low by rho^(2^21) -- once
+                                per run
 
 See also LSQVCE.KERNEL.LEVINSONDURBIN, LSQVCE.KERNEL.ARMAWHITEN, LSQVCE.KERNEL.PSD2ACV
 
+Updated 2026-10-13 (CEST, UTC+02:00), WP-134: the response length follows
+its decay alone (from 512, doubling to the 2^20 cap for any n -- the old
+loop stopped at 65 536 for n &lt;= 128), one FFT of nh + n - 1 points, and
+a truncation at the cap is reported. With assistance from Claude
+(Anthropic), model Claude Opus 5.5.
 Updated 2026-10-13 (CEST, UTC+02:00), WP-131: the impulse response stops
 on the energy of its last max(p,q)+1 samples, not on one sample (a sparse
 AR polynomial is exactly 0 there long before it has decayed). With

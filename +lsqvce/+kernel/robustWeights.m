@@ -9,9 +9,12 @@ function [fac, s, w, scalePath, kReject] = robustWeights(vw, influence, tuning)
 %
 %   The robust scale is the normalised MAD of the whitened residuals,
 %   s = 1.4826 * median(|vw - median(vw)|). When the MAD is degenerate --
-%   zero, not finite, or below 1e3*eps of the largest |vw - median(vw)|
-%   (half the residuals tied, e.g. quantised data or zero-redundancy rows)
-%   -- it falls back to std(vw), then 1, SAYS SO once per run
+%   zero, not finite, or below 1e3*eps of the 75th percentile of
+%   |vw - median(vw)| (half the residuals tied, e.g. quantised data or
+%   zero-redundancy rows; the percentile is the bulk's spread, which a
+%   blunder in the upper quarter cannot move, where the largest deviation
+%   IS the worst blunder) -- it falls back to std(vw), then 1, SAYS SO once
+%   per run
 %   (lsqvce:robustWeights:scaleFallback) and returns the path taken; the
 %   std is inflated by the very blunders the MAD exists to expose, so a
 %   fallback result is a weaker robust fit. The standardised residual is
@@ -24,7 +27,8 @@ function [fac, s, w, scalePath, kReject] = robustWeights(vw, influence, tuning)
 %   INPUT
 %     vw         n x 1 double   whitened (law-standardised) residuals
 %     influence  char/string    'huber' | 'igg3' | 'bisquare'
-%     tuning     [] | 1xK double  tuning constants; [] = the defaults above
+%     tuning     [] | 1xK double  tuning constants; [] = the defaults above;
+%                finite and positive, igg3 with k0 < k1
 %   OUTPUT
 %     fac  n x 1 double  weight factors in [0, 1]
 %     s    1x1 double    the robust scale used
@@ -38,7 +42,9 @@ function [fac, s, w, scalePath, kReject] = robustWeights(vw, influence, tuning)
 %   ERRORS
 %     lsqvce:robustWeights:badInfluence  unknown influence name
 %     lsqvce:robustWeights:badTuning     tuning has the wrong length for the
-%                                        influence (huber/bisquare 1, igg3 2)
+%                                        influence (huber/bisquare 1, igg3 2),
+%                                        a value not finite and positive, or
+%                                        igg3 with k0 >= k1
 %   WARNINGS
 %     lsqvce:robustWeights:scaleFallback  the MAD was degenerate; s is the
 %                                        std (or 1) -- once per run
@@ -50,6 +56,13 @@ function [fac, s, w, scalePath, kReject] = robustWeights(vw, influence, tuning)
 %
 %   See also LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTVCEJOINT
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (third review, finding 9):
+%   the near-tie test measured the MAD against the LARGEST deviation, the
+%   worst blunder -- one residual beyond ~4.5e12 MAD switched the scale to
+%   the std it inflates (Huber's estimate x 2e8, 8-sigma rows factor 1);
+%   the reference is the 75th percentile now. Tuning values are validated
+%   (a c <= 0 zeroed or negated every factor). With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-115 part 3b: the rejection
 %   point kReject is returned (one table of tuning constants). With
 %   assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -82,6 +95,11 @@ function [fac, s, w, scalePath, kReject] = robustWeights(vw, influence, tuning)
                   '%s takes %d tuning constant(s); %d given.', infl, numel(tune), numel(tuning));
         end
         tune = tuning(:).';
+        if ~all(isfinite(tune) & tune > 0) || (strcmp(infl, 'igg3') && tune(1) >= tune(2))
+            error('lsqvce:robustWeights:badTuning', ...
+                  ['%s tuning constants must be finite and positive (igg3: k0 < k1); ' ...
+                   'got [%s].'], infl, num2str(tune));
+        end
     end
 
     switch infl
@@ -93,7 +111,12 @@ function [fac, s, w, scalePath, kReject] = robustWeights(vw, influence, tuning)
     dev = abs(vw - med);
     s   = 1.4826 * median(dev);
     scalePath = 'mad';
-    if ~isfinite(s) || s <= 1e3 * eps * max(dev)       % zero OR a near-tie (R7-21)
+    ds  = sort(dev);
+    q75 = 0;  if ~isempty(ds), q75 = ds(ceil(0.75 * numel(ds))); end   % the bulk's spread
+    % tol: 1e3*eps -- a MAD this far below the bulk's spread is a tie, not a
+    % scale (R7-21); the 75th percentile, not max(dev): one blunder beyond
+    % 1/(1e3 eps) ~ 4.5e12 MAD moved the max and switched the scale (WP-134)
+    if ~isfinite(s) || s <= 1e3 * eps * q75
         s = std(vw);
         scalePath = 'std';
         if s <= 0 || ~isfinite(s), s = 1;  scalePath = 'unit'; end

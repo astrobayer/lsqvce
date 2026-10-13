@@ -53,9 +53,11 @@ function [t, info] = traceEstimate(M, opt)
 %     'numProbes' 1x1 int       Z, number of probes (default 100, Ellmer's value).
 %     'size'      1x1 int       P, required when M is a function handle (ignored
 %                               when M is an explicit matrix or 'probes' is given).
-%     'seed'      1x1 int|[]    RNG seed for reproducible probes (default []: use
-%                               the global stream). Uses a private RandStream so
-%                               it never disturbs the global RNG state.
+%     'seed'      1x1 int|[]    RNG seed for reproducible probes (default []: one
+%                               draw from the package-private session stream).
+%                               Either way the global RNG state is untouched
+%                               (WP-36; WP-134: the help still said "the global
+%                               stream").
 %     'distribution' char       'rademacher' (default) | 'gaussian'. Ellmer uses
 %                               rademacher; gaussian is offered for comparison.
 %
@@ -124,6 +126,9 @@ function [t, info] = traceEstimate(M, opt)
 %
 %   See also LSQVCE.ENGINE.REDUNDANCY, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.BLOCKCOFACTOR, LSQVCE.KERNEL.DECORRFACTOR
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-134: the 'seed' help names the
+%   private stream an empty seed draws from. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3 (R7-24): the
 %   retired leverage references point at lsqvce.engine.BlockCofactor. With
 %   assistance from Claude (Anthropic), model Claude Opus 5.5.

@@ -1,5 +1,42 @@
 # lsqvce release notes
 
+## 6.21.0 — 2026-10-13 (WP-134: the noise estimator and the kernel of the third whole-code review)
+
+Numbers change for the cases marked **numbers**.
+
+- **A common prior with `estimate = "scale"` is in the stop rule (numbers).** The joint loop
+  stopped on the law and the levels alone, and a run that settled on pass 1 — before the
+  group's first update — returned the declared σ unestimated (σ 100 against 0.92, the
+  solution 154 against 5.4 off in the review's case) with `R.converged` true. The loop now
+  waits for the group's update and converges only when its change is below `Tolerance`
+  (`R.history.priorDev`).
+- **The noise estimator no longer squares the normals.** Its probe used chol of the reduced
+  normal matrix and refused, as `lsqvce:adjustVCEjoint:notPD`, problems the QR solve takes
+  (cond(A) from ~3e8); where chol succeeded the probe term was 4–25 % off. It uses the
+  solve's own factor now (numbers on ill-conditioned problems).
+- **A long arc is refused under `Estimate = "noise"`, not run out of memory.** The estimator
+  forms each arc's covariance densely whatever `Noise.Whitener` says; the `maxDenseArc`
+  limit (20 000 epochs by default) now guards that too (`lsqvce:covModel:denseArcTooLong`).
+  The Manual's cost claim for `"ar"` is corrected: it speeds up the solve, not the estimator.
+- **One blunder no longer switches off robustness (numbers).** A single residual beyond
+  ~4.5e12 MAD switched the robust scale to the standard deviation it inflates (Huber's
+  estimate moved by 2e8, 8σ rows kept full weight). Tuning constants are validated.
+- **`SkipThreshold` is per stream**, as documented: a small stream can no longer be skipped
+  whole among large ones and keep its declared level silently.
+- **An arc without redundancy keeps its factor (numbers).** A probe-estimated redundancy ≤ 0
+  (short arcs with locals) gave the arc 1e8 times the weight of the others; it is held now
+  (`lsqvce:arcVarianceFactors:held`).
+- **A `var` law of order 1 can be declared** (`ar` d×d was refused); a VAR(0) is white noise.
+- **Smaller:** `armaACV` follows the impulse response to its decay for any lag count (a
+  near-unit root came out up to 27 % low, depending on n; beyond 2^20 samples the
+  truncation is reported); an `acf` law honours a per-row σ (it was averaged); an uneven
+  epoch grid under a `psd` / `arma` law is reported (`lsqvce:covModel:unevenGrid`);
+  `crossCorr` refuses a partial epoch; `ar2arma` normalises its input; the robust joint
+  sweep leaves local prior rows out; `Sigma2_0` values are validated; `AvgTail` averages
+  every pool group's law; `jointModelOpt` carries the pass and the robust factors for engine
+  callers; `streamContribution` returns its probe seed and no standard error for one probe;
+  `redundancy`'s Hutchinson check compares the per-group traces.
+
 ## 6.20.0 — 2026-10-13 (WP-133: the solve core of the third whole-code review)
 
 Numbers change for the cases marked **numbers**.

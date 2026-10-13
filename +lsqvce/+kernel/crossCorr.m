@@ -12,7 +12,8 @@ function c = crossCorr(w, d, opt)
 %   enough.
 %
 %   INPUT
-%     w    m x 1     whitened residuals, EPOCH-MAJOR: [x1 y1 z1 x2 y2 z2 ...]
+%     w    m x 1     whitened residuals, EPOCH-MAJOR: [x1 y1 z1 x2 y2 z2 ...];
+%                    whole epochs (m a multiple of d), at least two
 %     d    scalar    number of axes (3 for a 3-D position)
 %
 %   OPTIONS
@@ -66,11 +67,20 @@ function c = crossCorr(w, d, opt)
 %   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
 %   case-sensitive lowercase). With assistance from Claude (Anthropic),
 %   model Claude Fable 5.
+%   ERRORS
+%     lsqvce:crossCorr:badLength   numel(w) is not a whole number of epochs
+%                                  of d axes, or fewer than two epochs (WP-134:
+%                                  a partial epoch was dropped silently, and
+%                                  one epoch raised an unnamed index error)
+%
 %   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 %     lsqvce:crossCorr:shortSeries               [warning] Only X epochs for a max lag of X. The cross-covariance estimates will...
 %
 %   See also LSQVCE.ENGINE.RESIDUALS, LSQVCE.ENGINE.COVMODEL
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-134: a partial epoch or fewer
+%   than two epochs is refused by name (lsqvce:crossCorr:badLength). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: the verdict tests the
 %   correlation (c.Rcorr) against the band, not the covariance -- it no longer
 %   depends on the residuals' variance. With assistance from Claude
@@ -105,6 +115,11 @@ end
     w  = w(:);
     d  = double(d);
     nE = floor(numel(w)/d);
+    if mod(numel(w), d) ~= 0 || nE < 2
+        error('lsqvce:crossCorr:badLength', ...
+              ['w has %d values: %d whole epochs of %d axes are needed (rows epoch-major), ' ...
+               'and at least two of them.'], numel(w), nE, d);
+    end
     if nE < 10*o.maxLag
         lsqvce.util.log.warn('lsqvce:crossCorr:shortSeries', ...
             ['Only %d epochs for a max lag of %d. The cross-covariance estimates ' ...

@@ -23,7 +23,10 @@ function red = redundancy(acc, sol, opt)
 %   case-sensitive lowercase.)
 %     'GroupBy'    'arc' (default) | 'obsType' | 'system' | 'day' | function handle
 %                  @(sysID, obsType, arc, day) -> group key (numeric or string)
-%     'MinRedundancy'  warn if any group has r_g below this (default 50)
+%     'MinRedundancy'  r_g below this marks a group small: red.smallGroups lists
+%                  it always, and with Verbose on lsqvce:redundancy:smallGroup
+%                  warns (default 50; WP-134: the help promised a warning that
+%                  only Verbose gave, and every internal caller runs quiet)
 %     'Collect'    also return the per-observation h and r (default true)
 %     'Verbose'    default true
 %     'Parallel'   'serial' | 'parfor' | 'spmd'. Default: the accumulator's
@@ -64,11 +67,17 @@ function red = redundancy(acc, sol, opt)
 %     red.rTotal             sum over all groups
 %     red.priorRedundancy    r_K of a common prior's nk rows (0 without one)
 %     red.check              |sum(r_g) + r_K - (m + nk - u)|, must be ~0
+%     red.smallGroups        1 x K cell  the keys of the groups with r_g <
+%                            MinRedundancy (WP-134)
 %     red.traceEstimate      present only with 'TraceMethod','hutchinson': a
-%                            struct (.value/.expected/.relErr/.se/.relSE/.probes/
-%                            .note) with the Hutchinson estimate of tr(N^-1 N) on
-%                            the reduced common normal (a known = nc machinery
-%                            check on THIS adjustment's conditioning).
+%                            struct (.value / .expected / .se / .relSE, 1 x G;
+%                            .relErr, .probes, .seedUsed, .note) -- the streamed
+%                            Hutchinson estimate of every group's tr(N^-1 N_g)
+%                            (LSQVCE.ENGINE.STREAMCONTRIBUTION) against the exact
+%                            .tcc: what the probes cost on THIS adjustment's
+%                            conditioning (WP-134; it estimated tr(I) = nc, which
+%                            Rademacher probes return exactly, so it checked
+%                            nothing but chol's rounding)
 %
 %   THE GLOBAL CHECK
 %     sum(r_i) over ALL observations must equal m - u exactly. This is the
@@ -126,6 +135,11 @@ function red = redundancy(acc, sol, opt)
 %
 %   See also LSQVCE.ENGINE.BLOCKCOFACTOR, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.OUTLIERS, LSQVCE.ENGINE.RESIDUALS
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (review 3 lows): the
+%   'hutchinson' check compares the streamed per-group traces with the exact
+%   ones (it estimated tr(I)); red.smallGroups reports the small groups
+%   without Verbose. With assistance from Claude (Anthropic), model Claude
+%   Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: rows of weight 0
 %   (arc.excluded) carry no redundancy and no count; the identity adds the
 %   ridge's defect of a regularised local block. With assistance from Claude
@@ -187,22 +201,16 @@ end
     useHutch = strcmpi(o.traceMethod, 'hutchinson');
     if useHutch
         % The exact per-arc path yields per-OBSERVATION r_i (needed for snooping,
-        % the sum(r_i)=m-u identity, and the (w,r) diagnostics). The Hutchinson
-        % estimator yields only a per-GROUP scalar trace, so it cannot replace the
-        % per-arc path wholesale. In this release the estimator is wired as an
-        % OPT-IN GLOBAL cross-check (a stochastic estimate of the total common
-        % redundancy) computed alongside the exact per-group r_g, which remain
-        % authoritative. The estimate is returned in red.traceEstimate for the
-        % caller to compare. Set nc large and compare cost/accuracy before relying
-        % on it. Full per-group estimator substitution is future work (it needs a
-        % group-level common-normal assembly; see HISTORY_v1.md).
+        % the sum(r_i)=m-u identity, and the (w,r) diagnostics); the Hutchinson
+        % estimator a per-GROUP trace only, so it runs as an opt-in cross-check
+        % beside the exact r_g, which remain authoritative (red.traceEstimate).
         lsqvce.util.log.warn('lsqvce:redundancy:hutchinsonExperimental', ...
             ['''TraceMethod'',''hutchinson'' is EXPERIMENTAL: the exact per-arc ' ...
              'redundancies are still computed and remain authoritative; the ' ...
-             'Hutchinson estimator (Ellmer 2018 6.5.6) is returned in ' ...
-             'red.traceEstimate as a stochastic estimate of the TOTAL common ' ...
-             'redundancy for comparison. See LSQVCE.ENGINE.TRACEESTIMATE and the ' ...
-             'accuracy note in LSQVCE.ENGINE.BLOCKCOFACTOR.']);
+             'streamed Hutchinson estimate of every group''s common trace is returned ' ...
+             'in red.traceEstimate against the exact one. See ' ...
+             'LSQVCE.ENGINE.STREAMCONTRIBUTION and the accuracy note in ' ...
+             'LSQVCE.ENGINE.BLOCKCOFACTOR.']);
     end
 
     % the execution mode: explicit option > accumulator option > serial
@@ -338,41 +346,32 @@ end
                  'rTotal', sum([G.r]), 'm', mTot, 'u', nParTot);
 
     % ---- optional Hutchinson trace estimator (Ellmer 2018 6.5.6) ----------
-    % Opt-in, EXPERIMENTAL. Demonstrates the estimator on the reduced common
-    % normal against a KNOWN answer: tr(Ncc_red^-1 * Ncc_red) = nc exactly, so
-    % the estimate must return ~nc. This validates the estimator machinery end
-    % to end on the actual normal matrix of THIS adjustment (probe count,
-    % conditioning) without yet replacing the exact per-group r_g. A future
-    % release will estimate the per-group tr(N^-1 N_g^cc) directly (needs a
-    % group-level common-normal assembly). The exact r_g above are unchanged.
+    % Opt-in, EXPERIMENTAL: the streamed per-group estimate of t_g =
+    % tr(N^-1 N_g) (LSQVCE.ENGINE.STREAMCONTRIBUTION, the one Hutchinson path)
+    % against the exact leverage traces .tcc of THIS pass -- what the probe
+    % count and this adjustment's conditioning cost. WP-134 (review 3 low): the
+    % check used to estimate tr(U^-T N U^-1) = tr(I) = nc, which Rademacher
+    % probes return exactly (z'z = nc) whatever the probe count or the
+    % conditioning; it checked chol's rounding only. The exact r_g stand.
     if useHutch
-        Ncc_red = acc.reducedNormalMatrix();      % TOTAL, summed over all systems
         try
-            U = chol((Ncc_red + Ncc_red.')/2);        % Ncc_red = U'*U
-            nc = size(Ncc_red, 1);
-            % tr(N^-1 N) = tr(U^-1 (U'U) U^-T) = tr(I) = nc. With N = U'U the
-            % identity operator is U^-T N U^-1 (NOT U^-1 N U^-T, which is a
-            % similarity that is not the identity and biases the trace): apply
-            % the upper solve on the LEFT and the transpose solve on the RIGHT.
-            Xfun = @(V) U.' \ (Ncc_red * (U \ V));     % U^-T N U^-1 = I, matrix-free
-            [tEst, tInfo] = lsqvce.engine.traceEstimate(Xfun, 'Size', nc, ...
-                                'NumProbes', o.probes, 'Seed', o.traceSeed);
-            red.traceEstimate = struct('value', tEst, 'expected', nc, ...
-                'relErr', abs(tEst - nc)/max(nc,1), 'se', tInfo.se, ...
-                'relSE', tInfo.relse, 'probes', o.probes, ...
-                'note', ['machinery check on Ncc_red: tr(N^-1 N)=nc; not a ' ...
-                         'per-group redundancy (see help)']);
+            sc = lsqvce.engine.streamContribution(acc, sol, 'GroupBy', o.groupBy, ...
+                     'Groups', {G.key}, 'Probes', o.probes, 'Seed', o.traceSeed, 'WantDiag', false);
+            est = [sc.group.trace];  ex = [G.tcc];
+            red.traceEstimate = struct('value', est, 'expected', ex, ...
+                'relErr', norm(est - ex) / max(norm(ex), realmin), 'se', [sc.group.se], ...
+                'relSE', [sc.group.relSE], 'probes', o.probes, 'seedUsed', sc.seedUsed, ...
+                'note', 'streamed Hutchinson tr(N^-1 N_g) per group against the exact .tcc');
             if lsqvce.util.verbosity.progress(o.verbose)
-                lsqvce.util.log.msg(['%sHutchinson check: tr(N^-1 N) est %.2f ' ...
-                    'vs nc = %d  (relErr %.2e, relSE %.2e, Z = %d)\n'], lsqvce.util.verbosity.banner('Redundancy'), ...
-                    tEst, nc, red.traceEstimate.relErr, tInfo.relse, o.probes);
+                lsqvce.util.log.msg('%sHutchinson check: per-group traces relErr %.2e (Z = %d)\n', ...
+                    lsqvce.util.verbosity.banner('Redundancy'), red.traceEstimate.relErr, o.probes);
             end
         catch ME
             lsqvce.util.log.warn('lsqvce:redundancy:hutchFailed', ...
                 'Hutchinson trace check failed (%s); exact r_g are unaffected.', ...
                 ME.identifier);
-            red.traceEstimate = struct('value', NaN, 'expected', size(Ncc_red,1), ...
-                'relErr', NaN, 'se', NaN, 'relSE', NaN, 'probes', o.probes, ...
+            red.traceEstimate = struct('value', NaN, 'expected', [G.tcc], ...
+                'relErr', NaN, 'se', NaN, 'relSE', NaN, 'probes', o.probes, 'seedUsed', [], ...
                 'note', 'estimator failed; see warning');
         end
     end
@@ -399,6 +398,7 @@ end
 
     % ---- small-group warning ---------------------------------------------
     small = find([G.r] < o.minRedundancy);
+    red.smallGroups = {G(small).key};               % WP-134: reported always, warned with Verbose
     if ~isempty(small) && o.verbose
         lsqvce.util.log.warn('lsqvce:redundancy:smallGroup', ...
             ['%d group(s) have redundancy below %g. The variance component of ' ...

@@ -122,6 +122,10 @@ function vc = vce(accFcn, opt)
 %
 %   See also LSQVCE.ENGINE.REDUNDANCY, LSQVCE.ENGINE.BLOCKCOFACTOR, LSQVCE.ENGINE.OUTLIERS
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-134: accFcn is untyped in the
+%   arguments block, so lsqvce:vce:badAccFcn -- documented, never reachable
+%   behind the block's own type check -- is what a non-handle raises. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3 (R7-24): the
 %   retired leverage references point at lsqvce.engine.BlockCofactor. With
 %   assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -150,7 +154,7 @@ function vc = vce(accFcn, opt)
 %   WP-64a): the ENGINE tier leaves the USER surface; every qualified
 %   reference was rewritten mechanically by docs_src/refactor_tiers.py.
 arguments
-    accFcn (1,1) function_handle
+    accFcn                       % WP-134: untyped, so lsqvce:vce:badAccFcn (below) can fire
     opt.Groups = []
     opt.GroupBy = 'arc'
     opt.Sigma0 double = []

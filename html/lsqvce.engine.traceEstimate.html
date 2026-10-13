@@ -94,9 +94,11 @@ OPTIONS (Name/Value)
   &#x27;numProbes&#x27; 1x1 int       Z, number of probes (default 100, Ellmer&#x27;s value).
   &#x27;size&#x27;      1x1 int       P, required when M is a function handle (ignored
                             when M is an explicit matrix or &#x27;probes&#x27; is given).
-  &#x27;seed&#x27;      1x1 int|[]    RNG seed for reproducible probes (default []: use
-                            the global stream). Uses a private RandStream so
-                            it never disturbs the global RNG state.
+  &#x27;seed&#x27;      1x1 int|[]    RNG seed for reproducible probes (default []: one
+                            draw from the package-private session stream).
+                            Either way the global RNG state is untouched
+                            (WP-36; WP-134: the help still said &quot;the global
+                            stream&quot;).
   &#x27;distribution&#x27; char       &#x27;rademacher&#x27; (default) | &#x27;gaussian&#x27;. Ellmer uses
                             rademacher; gaussian is offered for comparison.</pre>
 <h3>Output</h3>
@@ -161,6 +163,9 @@ Ellmer, M. (2018). Contributions to GRACE Gravity Field Recovery.
 
 See also LSQVCE.ENGINE.REDUNDANCY, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.BLOCKCOFACTOR, LSQVCE.KERNEL.DECORRFACTOR
 
+Updated 2026-10-13 (CEST, UTC+02:00), WP-134: the &#x27;seed&#x27; help names the
+private stream an empty seed draws from. With assistance from Claude
+(Anthropic), model Claude Opus 5.5.
 Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3 (R7-24): the
 retired leverage references point at lsqvce.engine.BlockCofactor. With
 assistance from Claude (Anthropic), model Claude Opus 5.5.

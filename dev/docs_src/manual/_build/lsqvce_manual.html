@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.20.0 — User Manual</title>
+  <title>lsqvce 6.21.0 — User Manual</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.20.0 — User Manual</h1>
+<h1 class="title">lsqvce 6.21.0 — User Manual</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 </header>
@@ -950,7 +950,10 @@ exact, at a cost of O(m³) and m² memory for an arc of m rows — for arcs
 of many thousand epochs prefer a filter law. Above 20 000 epochs a dense
 law is refused (<code>lsqvce:covModel:denseArcTooLong</code>, 3.2 GB for
 the factor alone at that length); the field <code>maxDenseArc</code> on
-the covariance spec raises the limit deliberately.</p>
+the covariance spec raises the limit deliberately. Under
+<code>Estimate = "noise"</code> the estimator’s sweep forms every arc’s
+covariance densely whatever the whitener, so there the same limit
+applies to every law, a filter law included.</p>
 <h2 data-number="5.2" id="what-to-declare"><span
 class="header-section-number">5.2</span> What to declare</h2>
 <ul>
@@ -984,7 +987,9 @@ once for its whitened residuals and their redundancies, and updates the
 spectral shape of every pool group, the level of every stream, the
 factor of every arc and the σ of every prior with
 <code>estimate = "scale"</code>. It stops when no component changes by
-more than <code>Tolerance</code>, or after <code>MaxPasses</code>.</p>
+more than <code>Tolerance</code> — the σ of a prior group included,
+which is first updated on the pass after it enters the solve, so the
+loop does not stop before — or after <code>MaxPasses</code>.</p>
 <p>The choices that matter:</p>
 <table>
 <colgroup>
@@ -1019,8 +1024,14 @@ narrow spectral features but give each bin less redundancy per pass</td>
 <td><code>Noise.Whitener</code></td>
 <td>how every <code>psd</code> law — the estimated one and any you
 declare — whitens an arc: <code>"ar"</code> for long arcs (cost O(m·p)
-instead of O(m³)); <code>"toeplitz"</code> (the default, exact) when the
-spectrum has narrow features a low-order filter cannot follow</td>
+instead of O(m³) in the solve); <code>"toeplitz"</code> (the default,
+exact) when the spectrum has narrow features a low-order filter cannot
+follow. Under <code>Estimate = "noise"</code> <code>"ar"</code> saves
+the solve only — the sweep forms each arc’s covariance densely (above) —
+and the estimated spectrum is then whitened by an AR(30) that
+approximates it: exact enough for short-memory noise (an AR(1) law to
+about 1 %), biased where AR(30) cannot follow the shape (a 1/f floor:
+tens of percent per bin, and the loop need not settle)</td>
 </tr>
 <tr class="odd">
 <td><code>Probes</code>, <code>Seed</code></td>
@@ -1081,9 +1092,12 @@ of the epochs warns that it has reached the breakdown point.</li>
 <li><strong>Diagnose, then decide.</strong> Read the outlier tests in
 <code>R.report</code>, repair or remove the observations in
 <code>buildDay</code> and run again. Weights taken from a robust run can
-be made data: remove rejected epochs (a gap) in <code>buildDay</code>;
-store the weights, never recompute them inside
-<code>buildDay</code>.</li>
+be made data: zero the rejected epochs’ rows and mark them
+<code>excluded</code> in the day <code>buildDay</code> returns (removing
+them leaves a gap that a <code>psd</code> or <code>arma</code> law,
+which counts lags in samples, takes for one step —
+<code>lsqvce:covModel:unevenGrid</code> says so); store the weights,
+never recompute them inside <code>buildDay</code>.</li>
 </ol>
 <p>With <code>Estimate = "none"</code>, <code>Robust</code> runs a
 stand-alone iteratively re-weighted solve on the whitened innovations,
@@ -3852,7 +3866,12 @@ class="header-section-number">10.2</span> Time</h2>
 <td>whitens a long arc in O(m·p) instead of the O(m³) of the dense
 Toeplitz factor, which is formed over the whole arc (m² memory, refused
 above <code>maxDenseArc</code> = 20 000 epochs); check the AR fit once
-with <code>lsqvce.engine.checkPSD</code></td>
+with <code>lsqvce.engine.checkPSD</code>. It speeds up the SOLVE: under
+<code>Estimate = "noise"</code> the estimator’s sweep still forms every
+arc’s covariance densely (m² memory, O(m³) per arc and pass), and the
+same <code>maxDenseArc</code> refuses a longer arc there — cut long
+arcs, or estimate the law on a subset and solve the whole with
+<code>Estimate = "none"</code></td>
 </tr>
 <tr class="even">
 <td><code>Probes</code></td>

@@ -12,6 +12,10 @@ function tests = test_ellmer
 %
 %   Run with:  results = runtests('tests/test_ellmer.m')
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (third review): the stop rule's PriorDev, the common factor's scale equivariance, the
+%   per-stream skip rate, AvgTail on every group, Sigma2_0 values, jointModelOpt's
+%   pass and factors, an arc without redundancy held.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: a per-row sigma takes the
 %   general lag-sum path; Smooth > 0 converges. With assistance from
 %   Claude (Anthropic), model Claude Opus 5.5.
@@ -556,9 +560,12 @@ function test_arcVarianceFactors_pooled_level_weighs_by_redundancy(tc)
     % equal arcs: the pooled factor IS the mean of the ratios
     c  = lsqvce.engine.arcVarianceFactors([30 45], [30 30], [1; 1], 'MeanType', 'plain');
     verifyEqual(tc, c.pooled, mean(c.gamma2), 'RelTol', 4 * eps);  % tol: same source
-    % no usable arc: NaN, which the caller skips
+    % no usable arc: NaN, which the caller skips; the arc with t = 0 has no
+    % redundancy and is held (WP-134), the NaN arc too
+    muteWarn(tc, 'lsqvce:arcVarianceFactors:held');
     d  = lsqvce.engine.arcVarianceFactors([NaN 1], [1 0], [1; 1], 'MeanType', 'plain');
     verifyTrue(tc, isnan(d.pooled));
+    verifyEqual(tc, d.held(:).', [true true]);
 end
 
 function test_arcVarianceFactors_robust_resists_outliers(tc)
@@ -1836,5 +1843,178 @@ function V = denseVn(N, n)
             V(i, i+n) = 1;
             V(i+n, i) = 1;
         end
+    end
+end
+
+%% ================================================ WP-134 (third review, VCE)
+function test_joint_common_factor_is_scale_equivariant(tc)
+% categories: metamorphic, robustness
+    % WP-134 (review 3 finding 7): the shared probe needs ANY square root of N.
+    % The loop factored the SQUARED reduced normals, so a run whose common
+    % design the QR solve takes at cond(A) ~ 1e8 (one column scaled by 1e-8)
+    % was refused as notPD (mirror: chol of R'R fails from cond ~ 3e8, and
+    % where it succeeds the probe term is 4-25 % off). acc.commonFactor() is
+    % the QR factor itself, and scaling a common column is an exact
+    % reparametrisation (R -> R D, x -> D^-1 x): the law, the factors and the
+    % scaled estimate must not move.
+    cfg = jointCfg();
+    run = @(c) lsqvce.engine.adjustVCEjoint(@(m) jointAccScaled(cfg, m, c), ...
+              'NumLags', 6, 'MaxIter', 2, 'Probes', 50, 'Seed', 5, 'Verbose', false);
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % MaxIter 2: a contract point
+    r1 = run(1);
+    r8 = run(1e-8);
+    % tol: 1e-8 relative -- an exact reparametrisation in exact arithmetic;
+    % Householder QR is column-scaling equivariant, so what is left is the
+    % rounding of the factors and solves (eps-level), with ample headroom
+    tc.verifyEqual(r8.sigma2, r1.sigma2, 'RelTol', 1e-8);
+    tc.verifyEqual(r8.S, r1.S, 'RelTol', 1e-8);                      % tol: same source
+    tc.verifyEqual(r8.sol.x(1) * 1e-8, r1.sol.x(1), 'RelTol', 1e-8);   % tol: same source
+end
+
+function test_joint_skip_rate_is_per_stream(tc)
+% categories: contract, robustness
+    % WP-134 (review 3 finding 15): SkipThreshold is a rate PER STREAM, as the
+    % Manual and the theory state. Two streams of five arcs; pass 2 makes two
+    % of kbr's arcs non-PD: 2 of 10 arcs overall (20 %, which the old global
+    % rate let through) but 2 of kbr's 5 (40 % > 20 %) -- refused. At a
+    % threshold of 40 % the same run passes and records the two skips.
+    muteWarn(tc, 'lsqvce:decorrFactor:notPD');            % the indefinite arcs, on purpose
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');
+    cfg = jointCfg();
+    cfg.obsTypes = {'pos', 'kbr'};
+    cfg.cov.kbr = struct('type', 'diag', 'sigma', 0.5);
+    cfg.arcsPerDay = 5;
+    cfg.seed = 9134;                                      % a distinct cache key: arcsPerDay is not in it
+    run = @(thr) lsqvce.engine.adjustVCEjoint(@(m) jointAccSkipKbr(cfg, m, 2, [1 2]), ...
+              'NumLags', 6, 'MaxIter', 2, 'Probes', 60, 'Seed', 5, 'Verbose', false, ...
+              'SkipThreshold', thr);
+    tc.verifyError(@() run(0.2), 'lsqvce:adjustVCEjoint:skipThreshold');
+    out = run(0.4);                                       % exactly the stream's rate: not refused
+    tc.verifyEqual(size(out.skips, 1), 2);
+end
+
+function test_joint_prior_dev_is_in_the_stop_rule(tc)
+% categories: contract
+    % WP-134 (review 3 finding 1): a component the accFcn updates itself (fit's
+    % common prior groups, one Koch-Kusche step per pass) is in the stop rule
+    % through PriorDev. With the one stream at "none" nothing else moves, and
+    % the loop declared itself converged on pass 1 -- before such a group was
+    % ever updated (declared sigma 100 came back as 100, |x - x_true| 154
+    % against 5.4 in the review's mirror). A pending group blocks convergence,
+    % a change above Tol keeps the loop going, dev 0 converges as before.
+    cfg = jointCfg();
+    E = containers.Map({'x91|pos'}, {'none'});
+    run = @(pd) lsqvce.engine.adjustVCEjoint(@(m) jointAcc(cfg, m), 'NumLags', 6, 'MaxIter', 3, ...
+              'Probes', 40, 'Seed', 3, 'Verbose', false, 'Estimate', E, 'PriorDev', pd);
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');
+    r0 = run(@() deal(0, false));
+    tc.verifyTrue(r0.converged);
+    tc.verifyEqual(r0.nIter, 1, 'nothing moves: pass 1 converges');
+    r1 = run(@() deal(0, true));
+    tc.verifyFalse(r1.converged, 'pending: a group in the solve not yet updated');
+    tc.verifyEqual(r1.nIter, 3);
+    r2 = run(@() deal(0.5, false));
+    tc.verifyFalse(r2.converged);
+    tc.verifyEqual(r2.history.priorDev, 0.5 * ones(3, 1));
+end
+
+function test_joint_avgtail_averages_every_pool_group(tc)
+% categories: contract
+    % WP-134 (review 3 low): AvgTail averaged out.S only; out.Sgroups kept the
+    % raw last pass (out.Sgroups('all') ~= out.S), and under Pool ~= "all" the
+    % final solve reads the groups, so the average never reached it.
+    cfg = jointCfg();
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % Tol 1e-12: three passes by design
+    out = lsqvce.engine.adjustVCEjoint(@(m) jointAcc(cfg, m), 'NumLags', 6, 'MaxIter', 3, ...
+              'Tol', 1e-12, 'AvgTail', 2, 'Probes', 40, 'Seed', 3, 'Verbose', false);
+    tc.verifyEqual(out.nIter, 3);
+    % tol: 1e-12 relative -- the same average of the same two passes
+    tc.verifyEqual(out.Sgroups('all'), out.S, 'RelTol', 1e-12);
+    tc.verifyEqual(out.Cgroups('all'), out.C, 'RelTol', 1e-12);       % tol: same source
+end
+
+function test_joint_sigma2_0_values_are_validated(tc)
+% categories: contract
+    % WP-134 (review 3 low): a 0 in Sigma2_0 skipped the arc in arcFactorMap
+    % but reached the clamp (1e8 times the weight next pass); a NaN stayed NaN
+    % in out.sigma2. Refused before any accumulation.
+    never = @(m) error('test:notCalled', 'the refusal comes before any accumulation');
+    tc.verifyError(@() lsqvce.engine.adjustVCEjoint(never, 'Sigma2_0', [1; 0; 1], 'Verbose', false), ...
+                   'lsqvce:adjustVCEjoint:badSigma2_0');
+    tc.verifyError(@() lsqvce.engine.adjustVCEjoint(never, 'Sigma2_0', [1; NaN], 'Verbose', false), ...
+                   'lsqvce:adjustVCEjoint:badSigma2_0');
+end
+
+function test_jointModelOpt_carries_the_pass_and_the_robust_factors(tc)
+% categories: contract
+    % WP-134 (review 3 low): uo.pass and uo.epochWeights were added by
+    % lsqvce.fit alone (its withPass); an engine caller following
+    % jointModelOpt's EXAMPLE never activated a local prior with from > 1 and
+    % never applied the robust factors, while the loop still divided the
+    % levels by their truncation factor.
+    S = ones(6, 1);
+    W = containers.Map({'k'}, {[1; 0.5]});
+    uo = lsqvce.engine.jointModelOpt(struct('S', S, 'iter', 3, 'rowWeights', W), {'x1|pos'});
+    tc.verifyEqual(uo.pass, 3);
+    tc.verifySameHandle(uo.epochWeights, W);
+    uo1 = lsqvce.engine.jointModelOpt(struct('S', S), {'x1|pos'});
+    tc.verifyEqual(uo1.pass, 1);
+    tc.verifyFalse(isfield(uo1, 'epochWeights'), 'no factors: no field');
+end
+
+function test_arcVarianceFactors_holds_an_arc_without_redundancy(tc)
+% categories: robustness, contract
+    % WP-134 (review 3 finding 20): a probe-estimated arc redundancy t_m can be
+    % <= 0 on a short arc with locals; alpha2 = q/t < 0 then reached the
+    % clamp, which floored the VARIANCE at 1e-8 -- the arc got 1e8 times the
+    % weight of the others next pass (15-81 % likely at a mean per-arc
+    % redundancy 0.33-0.5, the review's mirror). Such an arc is held:
+    % alpha2 = 1, its factor unchanged, and it is said once.
+    q = [1.2 0.9 1.1 0.4];  t = [1 1 1 -0.05];  s2 = [1; 1; 1; 2];
+    muteWarn(tc, 'lsqvce:arcVarianceFactors:held');
+    lsqvce.util.log.inventory('reset');
+    a = lsqvce.engine.arcVarianceFactors(q, t, s2, 'MeanType', 'plain');
+    tc.verifyEqual(a.held(:).', [false false false true]);
+    tc.verifyEqual(a.alpha2(4), 1);
+    tc.verifyFalse(a.clamped(4), 'held, not clamped');
+    % tol: 4 eps relative -- gamma2 = 1 * 2 divided by gammaBar^2 and back
+    tc.verifyEqual(a.sigma2(4) * a.gammaBar^2, 2, 'RelTol', 4 * eps);
+    tc.verifyTrue(any(strcmp(lsqvce.util.log.inventory(), 'lsqvce:arcVarianceFactors:held')));
+    lsqvce.util.log.inventory('reset');
+end
+
+function acc = jointAccScaled(cfg, model, c)
+    % jointAcc with common column 1 of every arc scaled by c (WP-134): an exact
+    % reparametrisation of the same problem. The meta call passes through.
+    uo = withArcFactors(struct(), model);
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'KeepLocal', true, 'Verbose', false, ...
+                                  'UserOpt', uo);
+    for s = cfg.sats
+        acc.addSystem(s, cfg.nl, ...
+            @(d,ot,a,uo2) scaleCommon(lsqvce.engine.synthLoader(cfg, s, d, ot, a, uo2), c), 1);
+    end
+end
+
+function a = scaleCommon(a, c)
+    if isstruct(a) && isfield(a, 'A') && ~isempty(a.A), a.A(:, 1) = c * a.A(:, 1); end
+end
+
+function acc = jointAccSkipKbr(cfg, model, badIter, badArcs)
+    % jointAcc whose kbr arcs badArcs are indefinite on pass badIter (WP-134):
+    % the accumulator survives (decorrFactor floors them), the sweep's strict
+    % chol skips them -- the pdToggleCov trigger, on one stream only.
+    it = 0;
+    if ~isempty(model) && isfield(model, 'iter'), it = model.iter; end
+    bad = it == badIter;
+    fcn = @(tb, o) skipCov(numel(tb), o, bad, badArcs);
+    cfgO = cfg;
+    cfgO.override = struct('covOverride', struct('kbr', struct('type', 'custom', 'fcn', fcn, 'sigma', 1)));
+    acc = jointAcc(cfgO, model);
+end
+
+function Sig = skipCov(m, o, bad, badArcs)
+    Sig = 0.25 * eye(m);                       % the generating law of kbr (sigma 0.5)
+    if bad && isfield(o, 'arc') && any(o.arc == badArcs)
+        Sig(1, 1) = -0.5;                      % indefinite: chol fails, eig-max > 0
     end
 end

@@ -52,9 +52,12 @@ the MAD scale are defined once. Pure kernel: arrays in, arrays out.
 
 The robust scale is the normalised MAD of the whitened residuals,
 s = 1.4826 * median(|vw - median(vw)|). When the MAD is degenerate --
-zero, not finite, or below 1e3*eps of the largest |vw - median(vw)|
-(half the residuals tied, e.g. quantised data or zero-redundancy rows)
--- it falls back to std(vw), then 1, SAYS SO once per run
+zero, not finite, or below 1e3*eps of the 75th percentile of
+|vw - median(vw)| (half the residuals tied, e.g. quantised data or
+zero-redundancy rows; the percentile is the bulk&#x27;s spread, which a
+blunder in the upper quarter cannot move, where the largest deviation
+IS the worst blunder) -- it falls back to std(vw), then 1, SAYS SO once
+per run
 (lsqvce:robustWeights:scaleFallback) and returns the path taken; the
 std is inflated by the very blunders the MAD exists to expose, so a
 fallback result is a weaker robust fit. The standardised residual is
@@ -66,7 +69,8 @@ w = vw / s; the factor multiplies the observation&#x27;s weight:
 <h3>Input</h3>
 <pre class="example">vw         n x 1 double   whitened (law-standardised) residuals
 influence  char/string    &#x27;huber&#x27; | &#x27;igg3&#x27; | &#x27;bisquare&#x27;
-tuning     [] | 1xK double  tuning constants; [] = the defaults above</pre>
+tuning     [] | 1xK double  tuning constants; [] = the defaults above;
+           finite and positive, igg3 with k0 &lt; k1</pre>
 <h3>Output</h3>
 <pre class="example">fac  n x 1 double  weight factors in [0, 1]
 s    1x1 double    the robust scale used
@@ -79,7 +83,9 @@ kReject    1x1 double  the rejection point in units of s: the |w|
 <h3>Errors</h3>
 <pre class="example">  lsqvce:robustWeights:badInfluence  unknown influence name
   lsqvce:robustWeights:badTuning     tuning has the wrong length for the
-                                     influence (huber/bisquare 1, igg3 2)
+                                     influence (huber/bisquare 1, igg3 2),
+                                     a value not finite and positive, or
+                                     igg3 with k0 &gt;= k1
 WARNINGS
   lsqvce:robustWeights:scaleFallback  the MAD was degenerate; s is the
                                      std (or 1) -- once per run
@@ -90,6 +96,13 @@ ACCURACY  exact arithmetic on the inputs; no tolerance of its own.</pre>
 
 See also LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTVCEJOINT
 
+Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (third review, finding 9):
+the near-tie test measured the MAD against the LARGEST deviation, the
+worst blunder -- one residual beyond ~4.5e12 MAD switched the scale to
+the std it inflates (Huber&#x27;s estimate x 2e8, 8-sigma rows factor 1);
+the reference is the 75th percentile now. Tuning values are validated
+(a c &lt;= 0 zeroed or negated every factor). With assistance from Claude
+(Anthropic), model Claude Opus 5.5.
 Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-115 part 3b: the rejection
 point kReject is returned (one table of tuning constants). With
 assistance from Claude (Anthropic), model Claude Opus 5.5.

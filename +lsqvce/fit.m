@@ -32,7 +32,9 @@ function R = fit(data, opts, nv)
 %     Estimate "noise"   the joint variance-component estimator (adjustVCEjoint):
 %                        one spectral shape per Pool group, one level per stream,
 %                        per-arc factors when ArcFactors; prior groups with
-%                        estimate "scale" get their sigma by Helmert / Koch-Kusche
+%                        estimate "scale" get their sigma by Helmert / Koch-Kusche,
+%                        one step per pass from the previous solution, and the
+%                        loop converges only when that step is below Tolerance too
 %     Robust "huber" | "igg3" | "bisquare"   IRLS on the same loop: alone it is
 %                        adjustRobust; with Estimate "noise" the robust pass runs
 %                        INSIDE the joint loop, R.noise.robust carries
@@ -129,6 +131,11 @@ function R = fit(data, opts, nv)
 %            LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT,
 %            LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTNONLINEAR
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (review 3 finding 1): a common
+%   prior group with estimate "scale" is in the joint loop's stop rule (its
+%   change, and no convergence while it is in the solve but not yet updated)
+%   -- it was outside, and a loop that settled on pass 1 never estimated it.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: lsqvce:fit:priorNotActive also
 %   when the joint loop ends before a group's from. With assistance from
 %   Claude (Anthropic), model Claude Opus 5.5.
@@ -369,12 +376,17 @@ function R = fitEllmer(systems, days, opts, pri, opc, priorGroups, froms)
     % pass (from the previous pass's solution) and the prior is re-stacked
     priState = containers.Map('KeyType', 'char', 'ValueType', 'any');
     priState('groups') = priorGroups;  priState('pri') = pri;  priState('rec') = {};
+    priState('dev') = 0;  priState('pending') = false;
     accFcn = @(model) jointAccumulator(nc, specs, opts, ...
-                 withPass(lsqvce.engine.jointModelOpt(model, streams, 'PsdMode', psdMode), model), ...
+                 lsqvce.engine.jointModelOpt(model, streams, 'PsdMode', psdMode), ...   % WP-134: + pass, epochWeights
                  priorFor(priState, model));
     nvj = a.nv;
+    % WP-134 (review 3 finding 1): the prior groups' change is part of the
+    % joint loop's stop rule (PriorDev), and a group in the solve but not yet
+    % updated keeps the loop from converging
     out = lsqvce.engine.adjustVCEjoint(accFcn, nvj{:}, 'Estimate', estMap, 'ArcFactors', afMap, ...
-                                       'OnPassContext', opc);
+                                       'OnPassContext', opc, ...
+                                       'PriorDev', @() deal(priState('dev'), priState('pending')));
     % WP-131: a group activates at pass `from`; a loop that converged, ran
     % out of MaxPasses or was stopped before it never applied the group --
     % R.noise.priors still listed it with its sigma, and nothing said so
@@ -753,7 +765,12 @@ end
 function pri = priorFor(priState, model)
 %PRIORFOR  The stacked prior for THIS pass: the groups updated from the
 %   previous pass's solution when they carry estimate "scale" (R5 M7 7b).
+%   WP-134: it also leaves the update's largest relative variance change
+%   (|Omega/r - 1| over the updated groups) in priState('dev') and whether a
+%   "scale" group is in this solve but not yet updated (from == pass) in
+%   priState('pending') -- the joint loop's PriorDev reads both.
     groups = priState('groups');
+    priState('dev') = 0;  priState('pending') = false;
     if isempty(groups), pri = [];  return, end
     pass = 1;
     if isfield(model, 'iter'), pass = model.iter; end
@@ -762,23 +779,12 @@ function pri = priorFor(priState, model)
         [groups(active), rec] = priorUpdate(groups(active), model.lastSol);
         priState('groups') = groups;
         recs = priState('rec');  recs{end+1} = rec;  priState('rec') = recs;
+        up = [rec.updated];
+        if any(up), priState('dev') = max(abs([rec(up).omega] ./ [rec(up).r] - 1)); end
     end
+    priState('pending') = any(strcmp({groups.estimate}, 'scale') & [groups.from] == pass);
     pri = stackPriors(groups, pass);                   % R5-D8: activation by pass (from)
     priState('pri') = pri;
-end
-
-function uo = withPass(uo, model)
-%WITHPASS  The pass number rides on the loader's UserOpt (R5-D8 round 2: the
-%   local priors' 'from' is honoured by lsqvce.engine.makeLoader>priorArc),
-%   and so do the robust factors of the previous pass (R6 WP-105:
-%   model.rowWeights -> UserOpt.epochWeights, folded into every arc's
-%   per-epoch error information BEFORE the temporal law by
-%   lsqvce.engine.makeLoader>batchOf -- the Koch convention).
-    uo.pass = 1;
-    if isfield(model, 'iter'), uo.pass = model.iter; end
-    if isfield(model, 'rowWeights') && ~isempty(model.rowWeights) && model.rowWeights.Count > 0
-        uo.epochWeights = model.rowWeights;     % per epoch, BEFORE the temporal law (Koch; makeLoader>batchOf)
-    end
 end
 
 function rejectUnknown(names, allowed, where)

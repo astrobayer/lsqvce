@@ -14,7 +14,10 @@ function [a, b, s2] = ar2arma(aHi, s2Hi, q, opt)
 %     of moderate order is simpler, always stationary, and just as accurate.
 %
 %   INPUT
-%     aHi   1 x (P+1)  high-order AR polynomial (P >> p), from LSQVCE.KERNEL.LEVINSONDURBIN
+%     aHi   1 x (P+1)  high-order AR polynomial (P >> p), from LSQVCE.KERNEL.LEVINSONDURBIN;
+%                      a leading coefficient c ~= 1 is normalised on entry
+%                      (aHi / c with innovation variance s2Hi / c^2 -- the
+%                      same process; WP-134)
 %     s2Hi  scalar     its innovation variance
 %     q     scalar     desired MA order, >= 1
 %     opt   struct     .armaP  desired AR order (default 10)
@@ -56,7 +59,8 @@ function [a, b, s2] = ar2arma(aHi, s2Hi, q, opt)
 %   ERRORS
 %     lsqvce:ar2arma:tooShort    opt.armaN is too short to fit the requested
 %                                ARMA(p,q); at least 4*(p+q+1) is needed
-%     lsqvce:ar2arma:degenerate  the reduction produced a degenerate MA part
+%     lsqvce:ar2arma:degenerate  aHi(1) = 0, or the Hankel system of the
+%                                reduction is underdetermined
 %
 %   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 %     lsqvce:ar2arma:degenerateMA                [warning] The MA fit is degenerate; falling back to the AR model
@@ -67,6 +71,9 @@ function [a, b, s2] = ar2arma(aHi, s2Hi, q, opt)
 %
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-134: aHi is normalised on entry
+%   (b and s2 carried 1/aHi(1) and its square when aHi(1) ~= 1). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-12 (CEST, UTC+02:00), WP-126: the Hankel fit runs the
 %   recursion forwards (it returned reciprocal roots); a non-invertible MA part
 %   falls back to the AR (lsqvce:ar2arma:nonInvertibleMA). With assistance from
@@ -82,6 +89,10 @@ function [a, b, s2] = ar2arma(aHi, s2Hi, q, opt)
     validateattributes(aHi,  {'double'}, {'row','finite','nonempty'}, mfilename, 'aHi', 1);
     validateattributes(s2Hi, {'double'}, {'scalar','finite','positive'}, mfilename, 's2Hi', 2);
     validateattributes(q,    {'numeric'}, {'scalar','integer','positive'}, mfilename, 'q', 3);
+    if aHi(1) == 0
+        error('lsqvce:ar2arma:degenerate', 'aHi(1) must be nonzero (the AR polynomial''s leading term).');
+    end
+    s2Hi = s2Hi / aHi(1)^2;  aHi = aHi / aHi(1);   % WP-134: the same process, normalised
 
     p = lsqvce.util.getfielddef(opt, 'armaP', 10);
     n = lsqvce.util.getfielddef(opt, 'armaN', 4096);

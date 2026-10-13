@@ -108,9 +108,13 @@ case-sensitive lowercase.)
              .relSE  1x1     relative MC standard error of the streamed
                              trace (Level 2 only, else NaN)
   .u        1x1        total parameters (m - redundancy = sum of r plus ...)
-  .rTotal   1x1        sum_g r_g = m - u_full (the exact denominator)
+  .rTotal   1x1        sum_g r_g: m - u_full without a common prior, m + nk -
+                       u_full - r_K with one (r_K the prior rows&#x27;
+                       redundancy, LSQVCE.ENGINE.REDUNDANCY; WP-134)
   .level    1x1        1 or 2 (what was computed)
   .nc       1x1        common-parameter count (Level 2; else [])
+  .seedUsed 1x1        the Level-2 probe seed (replays the run; [] at
+                       Level 1) -- WP-134
   .note     char       provenance / weight-dependence reminder</pre>
 <h3>Example</h3>
 <pre class="example">  R   = lsqvce.fit(data, Estimate=&quot;noise&quot;);   % converged; R.acc, R.sol
@@ -122,6 +126,9 @@ case-sensitive lowercase.)
 See also LSQVCE.ENGINE.STREAMCONTRIBUTION, LSQVCE.ENGINE.REDUNDANCY, LSQVCE.ENGINE.VCE,
          LSQVCE.RESULTS
 
+Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (review 3 lows): .seedUsed
+(Level 2) and .rTotal&#x27;s value with a common prior documented. With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-13 (CEST, UTC+02:00), WP-131: Level 2 streams the same
 (leverage) split as Level 1 -- before, its half-Schur split differed per
 group whenever a system&#x27;s locals spanned several groups. With assistance

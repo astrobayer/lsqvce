@@ -117,10 +117,16 @@ Each pass of the joint estimator
 \end{enumerate}
 The iteration stops when
 \begin{equation}
-\max_j|\alpha_j^2-1|\le\varepsilon\qquad\text{and}\qquad\max_m\Bigl|\frac{\sigma^2_{m,\mathrm{new}}}{\sigma^2_{m,\mathrm{old}}}-1\Bigr|\le\varepsilon ,
+\max_j|\alpha_j^2-1|\le\varepsilon,\qquad\max_m\Bigl|\frac{\sigma^2_{m,\mathrm{new}}}{\sigma^2_{m,\mathrm{old}}}-1\Bigr|\le\varepsilon
+\qquad\text{and}\qquad\max_k\Bigl|\frac{\Omega_k}{r_k}-1\Bigr|\le\varepsilon ,
 \end{equation}
-or after the pass budget. After the loop the system is accumulated once more under the final
-model; that solution is the result.
+the last over the estimable prior groups (\S\ref{sec:priorvce}), each of which must have been
+updated at least once: a group enters the solve on its activation pass and is first updated on the
+next, so the loop does not stop before. With a smoothed spectral update the first criterion is the
+change of the normalised shape, $\max_j|S_{j,\mathrm{new}}/S_{j,\mathrm{old}}-1|$ at $r_0=1$: at the
+fixed point of a smoothed update $\alpha_j^2\ne1$ wherever the spectrum is not smooth. The loop
+otherwise ends after the pass budget. After the loop the system is accumulated once more under the
+final model; that solution is the result.
 
 \paragraph{Pooling.} Streams of a pool group share one spectrum $\vc S$; every stream keeps its own
 level. Pooling more streams gives each bin more redundancy per pass; pooling streams of different
@@ -182,7 +188,9 @@ level by \eqref{eq:simplified}.
 
 An arc without data, or whose covariance is not positive definite, is skipped in a pass and keeps
 its previous factor. A pass in which more than a set share of a stream's arcs is skipped is refused
-rather than estimated on a fraction of the data.
+rather than estimated on a fraction of the data; the share is counted per stream, so a small stream
+cannot be skipped whole among large ones. An arc whose probe-estimated redundancy $t_m$ is not
+positive has nothing to estimate from and keeps its factor as well ($\alpha_m^2=1$).
 
 \section{What the data can resolve}
 

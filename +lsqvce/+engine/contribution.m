@@ -67,9 +67,13 @@ function con = contribution(acc, sol, opt)
 %                  .relSE  1x1     relative MC standard error of the streamed
 %                                  trace (Level 2 only, else NaN)
 %       .u        1x1        total parameters (m - redundancy = sum of r plus ...)
-%       .rTotal   1x1        sum_g r_g = m - u_full (the exact denominator)
+%       .rTotal   1x1        sum_g r_g: m - u_full without a common prior, m + nk -
+%                            u_full - r_K with one (r_K the prior rows'
+%                            redundancy, LSQVCE.ENGINE.REDUNDANCY; WP-134)
 %       .level    1x1        1 or 2 (what was computed)
 %       .nc       1x1        common-parameter count (Level 2; else [])
+%       .seedUsed 1x1        the Level-2 probe seed (replays the run; [] at
+%                            Level 1) -- WP-134
 %       .note     char       provenance / weight-dependence reminder
 %
 %   EXAMPLE
@@ -82,6 +86,9 @@ function con = contribution(acc, sol, opt)
 %   See also LSQVCE.ENGINE.STREAMCONTRIBUTION, LSQVCE.ENGINE.REDUNDANCY, LSQVCE.ENGINE.VCE,
 %            LSQVCE.RESULTS
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (review 3 lows): .seedUsed
+%   (Level 2) and .rTotal's value with a common prior documented. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: Level 2 streams the same
 %   (leverage) split as Level 1 -- before, its half-Schur split differed per
 %   group whenever a system's locals spanned several groups. With assistance
@@ -138,14 +145,14 @@ end
                       'share', shares(k), 'diag', [], 'relSE', NaN); %#ok<AGROW>
     end
 
-    ncOut = [];
+    ncOut = [];  seedUsed = [];
     if o.Level >= 2
         % ---- Level 2: streamed per-parameter diagonal --------------------
         % Pin the group order to the Level-1 keys so diag aligns with share.
         sc = lsqvce.engine.streamContribution(acc, sol, 'GroupBy', o.GroupBy, ...
                     'Groups', {red.group.key}, 'Probes', o.Probes, ...
                     'Seed', o.Seed, 'WantDiag', true, 'Verbose', logical(o.Verbose));
-        ncOut = sc.nc;
+        ncOut = sc.nc;  seedUsed = sc.seedUsed;
         scKeys = cellfun(@(k) char(string(k)), {sc.group.key}, ...
                          'UniformOutput', false);
         for k = 1:numel(G)
@@ -159,7 +166,7 @@ end
     end
 
     con = struct('group', G, 'u', red.u, 'rTotal', rTot, ...
-                 'level', o.Level, 'nc', ncOut, ...
+                 'level', o.Level, 'nc', ncOut, 'seedUsed', seedUsed, ...
                  'note', ['contribution is weight-dependent -- meaningful only ' ...
                           'at the converged variance components (compute once, ' ...
                           'at the end). Level 1 share is exact; Level 2 diagonal ' ...

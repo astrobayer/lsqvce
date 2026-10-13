@@ -14,6 +14,9 @@ function tests = test_signalCore
 %     results = runtests('tests/test_signalCore');  disp(table(results))
 %
 %   See also TEST_V7, LSQVCE.ENGINE.OUTLIERS, LSQVCE.KERNEL.VARWHITEN, LSQVCE.KERNEL.AR2ARMA
+%
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (third review): covModel takes a VAR(1), varACV a VAR(0); ar2arma normalises aHi(1).
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
     tests = functiontests(localfunctions);
 end
 
@@ -274,4 +277,50 @@ function cfg = makeCfg()
     cfg.trueSigma.kbr = 2.5;
     cfg.cov.pos = struct('type','diag', 'sigma', cfg.trueSigma.pos);
     cfg.cov.kbr = struct('type','diag', 'sigma', cfg.trueSigma.kbr);
+end
+
+%% ============================================ WP-134: a VAR(1), a VAR(0)
+function testCovModelTakesAVar1(tc)
+% categories: contract, precision
+% WP-134 (review 3 finding 10): MATLAB drops a trailing singleton, so a
+% VAR(1)'s d x d x 1 coefficient array has ndims 2 -- covModel tested
+% ndims ~= 3 and refused every VAR(1), whittle(G, 1)'s own output included.
+% Reference: the factory's whitener against the dense decorrelation of its own
+% Cfcn (as test_parallel does for a VAR(2)). A VAR(0) is white noise in varACV
+% (the companion form of order 0 raised an unnamed eig error).
+    A1 = 0.5 * eye(3);  Sig = [1 0.2 0; 0.2 1 0.1; 0 0.1 1];
+    d = 3;  nE = 30;  m = nE * d;
+    [Cfcn, Wfcn, info] = lsqvce.engine.covModel(struct('type','var', 'ar',A1, 'sigma',Sig), ...
+                                                (1:m).', struct());
+    tc.verifyEqual(info.arOrder, 1);
+    rs = RandStream('mt19937ar', 'Seed', 134);
+    Ad = randn(rs, m, 3);
+    [Aw, ~, ~] = Wfcn(1:m, Ad, zeros(m, 0), zeros(m, 1), struct());
+    W = lsqvce.kernel.decorrFactor(Cfcn(1:m, struct()));
+    % tol: as testVarWhitenEqualsDenseDecorrelation -- quadratic forms agree
+    % at eps*cond; 1e-9 house headroom
+    tc.verifyEqual(Aw.' * Aw, (W * Ad).' * (W * Ad), 'RelTol', 1e-9);
+    [Ah, Sh] = lsqvce.kernel.whittle(lsqvce.kernel.varACV(A1, Sig, 3), 1);
+    [~, W2] = lsqvce.engine.covModel(struct('type','var', 'ar',Ah, 'sigma',Sh), (1:m).', struct());
+    tc.verifyNotEmpty(W2, 'whittle(G, 1)''s output is accepted');
+    G0 = lsqvce.kernel.varACV(zeros(3, 3, 0), Sig, 4);
+    tc.verifyEqual(G0(:, :, 1), Sig);
+    tc.verifyEqual(G0(:, :, 2:end), zeros(3, 3, 4));
+end
+
+function testAr2armaNormalisesTheLeadingCoefficient(tc)
+% categories: metamorphic, contract
+% WP-134 (review 3 low): b and s2 carried 1/aHi(1) and its square when
+% aHi(1) ~= 1. c aHi with innovation variance c^2 s2Hi is the same process,
+% so the reduction must return the same (a, b, s2) -- bitwise for c = 2,
+% whose normalisation is exact. aHi(1) = 0 is refused by name.
+    rad = 0.94;  ang = 2*pi*0.12;
+    aTrue = real(poly([rad*exp(1i*ang), rad*exp(-1i*ang)]));
+    r = lsqvce.kernel.armaACV(aTrue, [1 0.5], 256);
+    [aHi, s2Hi] = lsqvce.kernel.levinsonDurbin(r, 60);
+    opt = struct('armaP', 2, 'armaN', 4096);
+    [a1, b1, s1] = lsqvce.kernel.ar2arma(aHi, s2Hi, 1, opt);
+    [a2, b2, s2] = lsqvce.kernel.ar2arma(2 * aHi, 4 * s2Hi, 1, opt);
+    tc.verifyEqual([a2, b2, s2], [a1, b1, s1]);
+    tc.verifyError(@() lsqvce.kernel.ar2arma([0, aHi(2:end)], s2Hi, 1, opt), 'lsqvce:ar2arma:degenerate');
 end

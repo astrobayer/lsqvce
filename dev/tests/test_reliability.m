@@ -10,6 +10,8 @@ function tests = test_reliability
 %
 %   See also TEST_PRECISION, TEST_SPEED, TEST_LSQACCUM
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (third review): a filter law's dense form is guarded; per-row sigma, uneven grid.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-130: a rank-deficient local
 %   block reduced on the factor (x, dof, sigma0, B y, Cyy, the redundancy
 %   identity, the downdate). With assistance from Claude (Anthropic), model
@@ -697,4 +699,41 @@ function testSignalKernelsRejectNonFiniteAtTheDoor(tc)
                    'MATLAB:armaACV:expectedFinite');
     tc.verifyError(@() lsqvce.kernel.armaACV([1 -0.5], [1 Inf], 8), ...
                    'MATLAB:armaACV:expectedFinite');
+end
+
+function testFilterLawDenseFormIsGuardedToo(tc)
+% categories: contract, robustness
+% WP-134 (review 3 finding 8, user decision): the joint noise estimator's
+% sweep builds a FILTER law's dense Cfcn per arc, whatever the whitener --
+% past maxDenseArc a long arc ran out of memory instead of being refused. The
+% dense form is guarded at the size it is asked for, the filter is not.
+    ar = struct('type','arma', 'ar',[1 -0.5], 'sigma',0.7, 'maxDenseArc',10);
+    t  = (0:99).'*5;
+    [Cf, Wf] = lsqvce.engine.covModel(ar, t, struct());
+    tc.verifyNotEmpty(Wf, 'the filter is not bounded');
+    tc.verifySize(Cf(1:10, struct()), [10 10]);
+    tc.verifyError(@() Cf(1:11, struct()), 'lsqvce:covModel:denseArcTooLong');
+end
+
+function testCovModelSigmaPerRowAndUnevenGrid(tc)
+% categories: contract, precision
+% WP-134 (review 3 lows): 'acf' averaged a per-row sigma silently -- it is
+% C = D R D now; 'arma' refused a vector sigma with an unnamed || error --
+% by name now; a psd / arma law on an uneven grid (a removed epoch) takes the
+% gap for one step -- reported.
+    t = (0:19).'*5;  s = linspace(0.5, 2, 20).';
+    acf = @(dt, o) exp(-abs(dt)/10);
+    Cf = lsqvce.engine.covModel(struct('type','acf', 'acf',acf, 'sigma',s), t, struct());
+    R  = acf(t - t.', []);
+    % tol: 4 eps relative -- the same two products per entry
+    tc.verifyEqual(Cf(1:20, struct()), (s .* s.') .* R, 'RelTol', 4*eps);
+    tc.verifyError(@() lsqvce.engine.covModel(struct('type','acf', 'acf',acf, 'sigma',s(1:5)), t, struct()), ...
+                   'lsqvce:covModel:sigmaLength');
+    tc.verifyError(@() lsqvce.engine.covModel(struct('type','arma', 'ar',[1 -0.5], 'sigma',s), t, struct()), ...
+                   'lsqvce:covModel:badSigma');
+    muteWarn(tc, 'lsqvce:covModel:unevenGrid');
+    lsqvce.util.log.inventory('reset');
+    lsqvce.engine.covModel(struct('type','arma', 'ar',[1 -0.5], 'sigma',1), t([1:9 11:20]), struct());
+    tc.verifyTrue(any(strcmp(lsqvce.util.log.inventory(), 'lsqvce:covModel:unevenGrid')));
+    lsqvce.util.log.inventory('reset');
 end

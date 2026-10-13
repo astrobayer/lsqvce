@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.20.0 — User Manual"
+title: "lsqvce 6.21.0 — User Manual"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 
@@ -398,7 +398,9 @@ batching does not change the result. A dense law (`acf`, `custom`, a `psd` white
 Toeplitz) is factorised over the whole arc: exact, at a cost of O(m³) and m² memory for an
 arc of m rows — for arcs of many thousand epochs prefer a filter law. Above 20 000 epochs a
 dense law is refused (`lsqvce:covModel:denseArcTooLong`, 3.2 GB for the factor alone at that
-length); the field `maxDenseArc` on the covariance spec raises the limit deliberately.
+length); the field `maxDenseArc` on the covariance spec raises the limit deliberately. Under
+`Estimate = "noise"` the estimator's sweep forms every arc's covariance densely whatever the
+whitener, so there the same limit applies to every law, a filter law included.
 
 ## What to declare
 
@@ -426,8 +428,9 @@ R = lsqvce.fit(data, opts);
 Per pass the toolbox solves under the current laws, sweeps every arc once for its
 whitened residuals and their redundancies, and updates the spectral shape of every pool
 group, the level of every stream, the factor of every arc and the σ of every prior with
-`estimate = "scale"`. It stops when no component changes by more than `Tolerance`, or
-after `MaxPasses`.
+`estimate = "scale"`. It stops when no component changes by more than `Tolerance` — the
+σ of a prior group included, which is first updated on the pass after it enters the solve,
+so the loop does not stop before — or after `MaxPasses`.
 
 The choices that matter:
 
@@ -436,7 +439,7 @@ The choices that matter:
 | `Pool` | streams of the same physics may share a shape (`"obsType"`: both satellites' range-rate); never pool streams of different physics or units — positions with range-rate drives the normal matrix towards singularity |
 | `ArcFactors` | on when arcs are numerous and long enough to carry their own variance; off for few or short arcs |
 | `Noise.Grid` | the spectral resolution of the estimated law; finer grids resolve narrow spectral features but give each bin less redundancy per pass |
-| `Noise.Whitener` | how every `psd` law — the estimated one and any you declare — whitens an arc: `"ar"` for long arcs (cost O(m·p) instead of O(m³)); `"toeplitz"` (the default, exact) when the spectrum has narrow features a low-order filter cannot follow |
+| `Noise.Whitener` | how every `psd` law — the estimated one and any you declare — whitens an arc: `"ar"` for long arcs (cost O(m·p) instead of O(m³) in the solve); `"toeplitz"` (the default, exact) when the spectrum has narrow features a low-order filter cannot follow. Under `Estimate = "noise"` `"ar"` saves the solve only — the sweep forms each arc's covariance densely (above) — and the estimated spectrum is then whitened by an AR(30) that approximates it: exact enough for short-memory noise (an AR(1) law to about 1 %), biased where AR(30) cannot follow the shape (a 1/f floor: tens of percent per bin, and the loop need not settle) |
 | `Probes`, `Seed` | the redundancies are estimated with random probes: 100 probes are the standard; a fixed `Seed` makes the run reproducible |
 
 **Run one pass with `Estimate = "none"` first.** If σ₀ is near 1 the declared weights are
@@ -484,8 +487,11 @@ Gross outliers belong to preprocessing. Inside the adjustment there are three to
    it has reached the breakdown point.
 3. **Diagnose, then decide.** Read the outlier tests in `R.report`, repair or remove the
    observations in `buildDay` and run again. Weights taken from a robust run can be made
-   data: remove rejected epochs (a gap) in `buildDay`; store the weights, never recompute
-   them inside `buildDay`.
+   data: zero the rejected epochs' rows and mark them `excluded` in the day `buildDay`
+   returns (removing them
+   leaves a gap that a `psd` or `arma` law, which counts lags in samples, takes for one
+   step — `lsqvce:covModel:unevenGrid` says so); store the weights, never recompute them
+   inside `buildDay`.
 
 With `Estimate = "none"`, `Robust` runs a stand-alone iteratively re-weighted solve on the
 whitened innovations, with its own budget `RobustOpts`.
@@ -2074,7 +2080,7 @@ those inside your `buildDay` closure instead.
 
 | setting | effect |
 |---|---|
-| `Noise.Whitener = "ar"` | whitens a long arc in O(m·p) instead of the O(m³) of the dense Toeplitz factor, which is formed over the whole arc (m² memory, refused above `maxDenseArc` = 20 000 epochs); check the AR fit once with `lsqvce.engine.checkPSD` |
+| `Noise.Whitener = "ar"` | whitens a long arc in O(m·p) instead of the O(m³) of the dense Toeplitz factor, which is formed over the whole arc (m² memory, refused above `maxDenseArc` = 20 000 epochs); check the AR fit once with `lsqvce.engine.checkPSD`. It speeds up the SOLVE: under `Estimate = "noise"` the estimator's sweep still forms every arc's covariance densely (m² memory, O(m³) per arc and pass), and the same `maxDenseArc` refuses a longer arc there — cut long arcs, or estimate the law on a subset and solve the whole with `Estimate = "none"` |
 | `Probes` | the cost of the redundancy sweep grows linearly with it; 100 is the standard, fewer gives noisier redundancies |
 | `Parallel = struct('Mode', "parfor", 'DistributeDays', true)` | distributes the day loop of the accumulation over workers; the result is bitwise identical to the serial run |
 | `MaxPasses`, `Tolerance` | the number of passes of an iterative run |
