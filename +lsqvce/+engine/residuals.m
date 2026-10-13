@@ -27,6 +27,9 @@ function res = residuals(acc, sol, opt)
 %     res.sys(k).sysID
 %     res.sys(k).y            local parameter estimate
 %     res.sys(k).Cyy          its covariance (commons' uncertainty propagated)
+%                             -- with THIS pass's s0^2 and the solve's cofactor
+%                             when the backend refused a cancellation-destroyed
+%                             vtv (sol.s0sq NaN; WP-132)
 %     res.sys(k).vtv          weighted residual square sum of this system
 %     res.sys(k).m            number of observations
 %     res.sys(k).rms          sqrt(vtv/m), in units of sigma0
@@ -123,6 +126,10 @@ function res = residuals(acc, sol, opt)
 %   case-sensitive lowercase). With assistance from Claude (Anthropic),
 %   model Claude Fable 5.
 %   See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.CHECKPSD
+%
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-132: after a refused vtv the
+%   local covariances Cyy carry THIS pass's s0^2 (they were all NaN). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-114 (R7-15): the common prior
 %   enters vtv and dof (res.prior), one estimator, one sigma0. With
@@ -300,6 +307,16 @@ end
     res.dof    = mTot + nk - nParTot;
     res.s0sq   = vtvTot / max(res.dof, 1);
     res.sigma0 = sqrt(res.s0sq);
+
+    % WP-132 (review low 19): a backend that refused a cancellation-destroyed
+    % vtv returns s0sq = NaN and with it Cxx = NaN * Q, so every Cyy above was
+    % NaN while THIS pass repairs s0sq. Rescale the solve's own cofactor by it.
+    if ~isfinite(sol.s0sq) && isfinite(res.s0sq)
+        Cxx = res.s0sq * acc.commonCofactor();
+        for k = 1:numel(res.sys)
+            res.sys(k).Cyy = acc.localCovariance(res.sys(k).sysID, Cxx, res.s0sq);
+        end
+    end
 
     % ---- per-obsType sigma0 QUICK-LOOK -------------------------------------
     % rms = sqrt(vtv/m) uses m, not the exact redundancy r, so it is biased

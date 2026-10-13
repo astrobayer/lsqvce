@@ -127,6 +127,31 @@ function test_chi2Inv_singular_density(tc)
     verifyEqual(tc, lsqvce.kernel.stat.chi2Cdf(x, 1), 1e-6, 'RelTol', 1e-9);
 end
 
+function test_chi2Inv_far_lower_tail(tc)
+% categories: precision, robustness
+    % WP-132 (review low 30): below p ~ 1e-40 the damped Newton from
+    % Wilson-Hilferty's fallback seed ran out of its 100 steps and stopped
+    % wherever it was (r = 1, p = 1e-60: 9e31 times too large;
+    % dev/validation/wp132_chi2inv_mirror.py). Round trip down to 1e-300.
+    for r = [0.5 1 2 10 100 1e3 1e4]
+        for p = [1e-45 1e-60 1e-100 1e-200 1e-300]
+            x = lsqvce.kernel.stat.chi2Inv(p, r);
+            if x < realmin, continue, end      % below realmin: the case below
+            % tol: quantile/CDF round-trip through gammainc, whose relative error
+            % in the series regime is ~1e-14; the bound leaves headroom
+            verifyEqual(tc, lsqvce.kernel.stat.chi2Cdf(x, r), p, 'RelTol', 1e-8, ...
+                sprintf('chi2Inv round-trip failed at r=%g p=%g', r, p));
+        end
+    end
+    % a quantile below realmin is the series' leading term, pi/2 p^2 at r = 1
+    % (1.6e-400 here): it underflows to 0, never a finite wrong number
+    verifyEqual(tc, lsqvce.kernel.stat.chi2Inv(1e-200, 1), 0);
+    % and the closed form where it is representable: r = 2 is exponential,
+    % x = -2 log(1 - p) = 2p (1 + p/2 + ...)
+    % tol: the closed form 2p is exact to O(p) relative; 1e-12 bounds the solver
+    verifyEqual(tc, lsqvce.kernel.stat.chi2Inv(1e-150, 2), 2e-150, 'RelTol', 1e-12);
+end
+
 function test_tau_is_bounded_by_sqrt_r(tc)
 % categories: reference
     % Pope's tau cannot exceed sqrt(r). This is the formal statement that a

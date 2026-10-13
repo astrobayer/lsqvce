@@ -7,7 +7,7 @@
 +lsqvce/+engine/QRSystem.m,1
 +lsqvce/+engine/adjustNonlinear.m,1
 +lsqvce/+engine/adjustRobust.m,2
-+lsqvce/+engine/adjustVCEjoint.m,3
++lsqvce/+engine/adjustVCEjoint.m,2
 +lsqvce/+engine/arcVarianceFactors.m,1
 +lsqvce/+engine/checkPSD.m,1
 +lsqvce/+engine/declaration.m,1

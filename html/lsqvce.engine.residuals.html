@@ -67,6 +67,9 @@ sol   the struct returned by acc.solve()</pre>
 <pre class="example">  res.sys(k).sysID
   res.sys(k).y            local parameter estimate
   res.sys(k).Cyy          its covariance (commons&#x27; uncertainty propagated)
+                          -- with THIS pass&#x27;s s0^2 and the solve&#x27;s cofactor
+                          when the backend refused a cancellation-destroyed
+                          vtv (sol.s0sq NaN; WP-132)
   res.sys(k).vtv          weighted residual square sum of this system
   res.sys(k).m            number of observations
   res.sys(k).rms          sqrt(vtv/m), in units of sigma0
@@ -159,6 +162,10 @@ typed `arguments` signature, canonical UpperCamelCase option names
 case-sensitive lowercase). With assistance from Claude (Anthropic),
 model Claude Fable 5.
 See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.CHECKPSD
+
+Updated 2026-10-13 (CEST, UTC+02:00), WP-132: after a refused vtv the
+local covariances Cyy carry THIS pass&#x27;s s0^2 (they were all NaN). With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 
 Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-114 (R7-15): the common prior
 enters vtv and dof (res.prior), one estimator, one sigma0. With

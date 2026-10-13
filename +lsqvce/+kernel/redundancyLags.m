@@ -98,6 +98,12 @@ function out = redundancyLags(Abar, W, UiZ, ebar, nMaxLag, opt)
 %                              an indefinite product, not a variance.
 %       .omega    nMaxLag x 1  the per-lag residual sums Omega_n (NaN if ebar
 %                              was empty)
+%       .sLaw     1x1          trace(Rbar T), the redundancy of the arc's WHOLE
+%                              law T as one component (T = Sigma, or the law
+%                              without 'Nugget'); closed form, any T (WP-132)
+%       .omegaLaw 1x1          etilde' T etilde, its residual sum (NaN if ebar
+%                              was empty). For a Toeplitz T these equal
+%                              T(:,1)' s and T(:,1)' omega over all N lags
 %       .N        1x1          the arc length used
 %       .probes   1x1          Z, the probe count implied by UiZ
 %       .Rbar     N x N | []   dense Rbar if 'WantRbar' was true, else []
@@ -106,6 +112,7 @@ function out = redundancyLags(Abar, W, UiZ, ebar, nMaxLag, opt)
 %     s_0     == trace(Rbar)
 %     s_n     == trace(Rbar * V_n) for the explicit V_n (LSQVCE.ENGINE.COVCOMPONENT)
 %     Omega_n == etilde' * V_n * etilde == ehat' Sigma^-T V_n Sigma^-1 ehat
+%     sLaw    == trace(Rbar * T),  omegaLaw == etilde' * T * etilde
 %     Rbar    -> Sigma^-1 - Sigma^-1 A N^-1 A' Sigma^-1  as Z -> inf  (nl = 0)
 %     Rbar    -> Sigma^-1 - Sigma^-1 [A B] Njoint^-1 [A B]' Sigma^-1 as Z ->
 %                inf, when 'LocalBbar'/'LocalLl' are given with AtilBar
@@ -136,6 +143,10 @@ function out = redundancyLags(Abar, W, UiZ, ebar, nMaxLag, opt)
 %   See also LSQVCE.ENGINE.COVCOMPONENT, LSQVCE.KERNEL.TOEPLITZCOFACTOR, LSQVCE.KERNEL.DCTI,
 %            LSQVCE.ENGINE.TRACEESTIMATE, LSQVCE.ENGINE.STREAMCONTRIBUTION
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-132: .sLaw / .omegaLaw, the
+%   Helmert pair of the arc's whole law as one component in closed form (the
+%   joint estimator's arc factor; it assumed a Toeplitz law before). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: the Toeplitz fast path
 %   is taken only after a structure probe (Sigma y against toeplitz(c1) y);
 %   three probe columns let a per-row sigma or a gap through. With assistance
@@ -243,7 +254,8 @@ end
     %   With locals, Abar must be the REDUCED AtilBar = W^-T (A - B G): only
     %   then is the probed operator the one U factors (see the block identity
     %   above).
-    Rt = W \ (Abar * UiZ);                       % N x Z
+    AU = Abar * UiZ;                             % N x Z
+    Rt = W \ AU;
 
     % ---- s_n WITHOUT forming the dense Rbar                (eqs. 6.5.51-6.5.52)
     %   Rbar = Sigma^-1 - Rt*Rt', and we only ever need its n-th sub-diagonal:
@@ -296,7 +308,41 @@ end
         omega(2:nMaxLag) = 2 * acf(2:nMaxLag);
     end
 
-    out = struct('s', s, 'omega', omega, 'N', N, 'probes', Z, 'Rbar', []);
+    % ---- the WHOLE law as one component (WP-132, review low 23) -------------
+    %   The arc factor's Helmert pair with the arc's law T as the component:
+    %       sLaw = trace(Rbar T),  omegaLaw = etilde' T etilde,
+    %   in closed form, so no Toeplitz assumption. Without a nugget T = Sigma =
+    %   W'W: trace(Sigma^-1 T) = N, |W Rt|^2 = |Abar UiZ|^2, |W K|^2 =
+    %   |LocalBbar Ll^-T|^2, etilde' Sigma etilde = ebar'ebar. With the nugget
+    %   Sigma = T + diag(Nugget), T = LawW'LawW: trace(Sigma^-1 T) = N -
+    %   sum_i Nugget_i (Sigma^-1)_ii over the nugget rows. The joint estimator
+    %   formed it as r' omega / r' s (r = Sigma(:,1)) -- the same numbers for a
+    %   Toeplitz T, but for any other T the ratio of a different component:
+    %   unbiased, not efficient (per-row sigma 1..10 over 60 epochs: sd of the
+    %   factor 0.62 against the BIQUE's 0.32;
+    %   dev/validation/wp132_arc_component_mirror.py).
+    hasNug = ~isempty(o.Nugget) && any(o.Nugget(:) > 0);
+    if hasLocal, KL = o.LocalBbar / o.LocalLl.'; else, KL = zeros(N, 0); end
+    if ~hasNug
+        sLaw = N - sum(AU(:).^2) - sum(KL(:).^2);
+    else
+        nug = o.Nugget(:);  rej = find(nug > 0);
+        dSi = zeros(numel(rej), 1);              % (Sigma^-1)_ii = |W^-T e_i|^2
+        for j = 1:numel(rej)
+            ej = zeros(N, 1);  ej(rej(j)) = 1;
+            u = W.' \ ej;
+            dSi(j) = u.' * u;
+        end
+        LR = o.LawW * Rt;  LK = o.LawW * (W \ KL);
+        sLaw = N - sum(nug(rej) .* dSi) - sum(LR(:).^2) - sum(LK(:).^2);
+    end
+    omegaLaw = NaN;
+    if ~isempty(ebar)
+        if hasNug, Le = o.LawW * et; omegaLaw = Le.' * Le; else, omegaLaw = ebar.' * ebar; end
+    end
+
+    out = struct('s', s, 'omega', omega, 'sLaw', sLaw, 'omegaLaw', omegaLaw, ...
+                 'N', N, 'probes', Z, 'Rbar', []);
     if logical(o.WantRbar)
         % Testing/diagnostic path ONLY: this is the dense N x N object the main
         % path deliberately avoids (and, since WP-37, never builds otherwise).

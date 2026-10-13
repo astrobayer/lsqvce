@@ -21,9 +21,7 @@ lsqvce:adjustBlock:badSystems,engine.private.normalizeSystems
 lsqvce:adjustBlock:noDays,engine.private.normalizeSystems
 lsqvce:adjustNonlinear:diverged,engine.adjustNonlinear
 lsqvce:adjustNonlinear:nonFinite,engine.adjustNonlinear
-lsqvce:adjustRobust:notConverged,engine.adjustRobust
 lsqvce:adjustVCEjoint:badAxisRows,engine.adjustVCEjoint
-lsqvce:adjustVCEjoint:badSigma2_0,engine.adjustVCEjoint
 lsqvce:adjustVCEjoint:collapsed,engine.adjustVCEjoint
 lsqvce:adjustVCEjoint:localNotPD,engine.adjustVCEjoint
 lsqvce:adjustVCEjoint:needCfcn,engine.adjustVCEjoint

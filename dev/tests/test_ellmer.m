@@ -723,6 +723,41 @@ function test_adjustVCEjoint_default_start_is_white(tc)
     % tol: 1e-12 relative -- the same shape, rescaled
     verifyEqual(tc, m2.S / m2.S(end), [5; 4; 3; 2; 1], 'RelTol', 1e-12);
 end
+function test_adjustVCEjoint_sigma2_0_weights_pass_1_per_arc(tc)
+% categories: contract
+    % WP-132 (review low 22): pass 1 ran before any arc was pinned, so the model
+    % it was weighted with carried neither stream levels nor arc factors and
+    % jointModelOpt applied the MEAN of Sigma2_0 to every arc -- while eq.
+    % 6.5.28 multiplied each arc's own start factor. Now the arcs are pinned on
+    % an enumeration first and pass 1's model carries Sigma2_0 per arc: the
+    % stream level is its mean, each arc's factor relative to it.
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % two passes on purpose
+    cfg = jointCfg();                                     % one stream, two arcs
+    rec = containers.Map('KeyType', 'double', 'ValueType', 'any');
+    lsqvce.engine.adjustVCEjoint(@(model) recordEvery(rec, cfg, model), 'NumLags', 5, ...
+        'MaxIter', 2, 'Probes', 20, 'Seed', 11, 'Tol', 1e-12, 'Sigma2_0', [4; 1]);
+    iters = cellfun(@(k) rec(k).iter, keys(rec));
+    m1 = rec(find(iters == 1, 1, 'last'));                % the model pass 1 accumulated with
+    tc.assertTrue(isfield(m1, 'arcFactor') && m1.arcFactor.Count == 2, ...
+        'pass 1 must carry the per-arc start factors');
+    f = sort(cell2mat(values(m1.arcFactor)));
+    % tol: 1e-12 -- 4 and 1 over their mean 2.5, one division each
+    tc.verifyEqual(f, [0.4 1.6], 'AbsTol', 1e-12, 'each arc relative to its stream''s level');
+    % tol: 1e-12 -- the mean of 4 and 1
+    tc.verifyEqual(cell2mat(values(m1.streamSigma2)), 2.5, 'AbsTol', 1e-12, 'the level is their mean');
+    % and a Sigma2_0 that does not match the enumeration is refused by name
+    tc.verifyError(@() lsqvce.engine.adjustVCEjoint(@(model) jointAcc(cfg, model), ...
+        'NumLags', 5, 'MaxIter', 1, 'Probes', 20, 'Seed', 11, 'Sigma2_0', [1; 2; 3]), ...
+        'lsqvce:adjustVCEjoint:badSigma2_0');
+end
+
+function acc = recordEvery(rec, cfg, model)
+    % Record EVERY model the driver passes, in call order (recordAndBuild keeps
+    % the first per pass), then build the accumulator.
+    rec(rec.Count + 1) = model;                           % containers.Map is a handle
+    acc = jointAcc(cfg, model);
+end
+
 function test_adjustVCEjoint_rejects_bad_S0(tc)
 % categories: contract
     cfg = jointCfg();
@@ -1333,6 +1368,54 @@ function test_lags_per_row_sigma_is_not_toeplitz(tc)
     % tol: independent dense reference, same-precision algebra (as the test above)
     verifyEqual(tc, r.s, sRef, 'RelTol', 1e-12, 'AbsTol', 1e-12, ...
         'a per-row sigma takes the general path: s_n match the dense reference');
+end
+
+function test_lags_whole_law_component_for_any_sigma(tc)
+% categories: precision, metamorphic
+    % WP-132 (review low 23): the joint estimator's arc factor took the WHOLE
+    % law T as its component through the lag sums, r' omega / r' s with
+    % r = T(:,1) -- exact only for a Toeplitz T. .omegaLaw / .sLaw give the pair
+    % in closed form for any T: against the dense trace(Rbar T) and
+    % etilde' T etilde on a per-row sigma (with locals) and on a law plus a
+    % nugget; and equal to the lag-sum form on a Toeplitz T (the metamorphic
+    % half: the two routes agree where both are valid).
+    % dev/validation/wp132_arc_component_mirror.py
+    rng(132);
+    N = 30;  P = 3;  nl = 2;  t = (0:N-1).';
+    A = randn(N, P);  B = [ones(N, 1), t / N];  Ll = chol(B.'*B + eye(nl), 'lower');
+    e = randn(N, 1);
+    UiZ = randn(P, 40) / sqrt(40);                  % any probe block: the identities are algebraic
+    sg = linspace(1, 3, N).';
+    cases = {2 * 0.8.^abs(t - t.'), (sg * sg.') .* 0.6.^abs(t - t.')};
+    for c = 1:2
+        T = cases{c};  W = chol(T);
+        Abar = W.' \ A;  Bbar = W.' \ B;  ebar = W.' \ e;
+        r = lsqvce.kernel.redundancyLags(Abar, W, UiZ, ebar, N, ...
+            'LocalBbar', Bbar, 'LocalLl', Ll, 'WantRbar', true);
+        et = W \ ebar;
+        % tol: closed form against the dense product, same-precision algebra on
+        % a 30-row arc with cond(T) < 1e3
+        verifyEqual(tc, r.sLaw, trace(r.Rbar * T), 'RelTol', 1e-10);
+        verifyEqual(tc, r.omegaLaw, et.' * T * et, 'RelTol', 1e-10);   % tol: as above
+        if c == 1
+            % tol: as above -- the lag-sum route over all N lags, valid for a Toeplitz T
+            verifyEqual(tc, [r.sLaw r.omegaLaw], T(:, 1).' * [r.s r.omega], 'RelTol', 1e-10, ...
+                'a Toeplitz law: the closed form is the lag-sum form');
+        else
+            verifyGreaterThan(tc, abs(T(:, 1).' * r.omega / r.omegaLaw - 1), 0.1, ...
+                'a per-row sigma: the lag-sum form is a different component');
+        end
+    end
+    % a law plus a nugget on three rows: T (without the nugget) is the component
+    T = cases{2};  nug = zeros(N, 1);  nug([4 15 27]) = [1e3; 40; 6];
+    W = chol(T + diag(nug));  WL = chol(T);
+    Abar = W.' \ A;  Bbar = W.' \ B;  ebar = W.' \ e;
+    r = lsqvce.kernel.redundancyLags(Abar, W, UiZ, ebar, N, 'LocalBbar', Bbar, 'LocalLl', Ll, ...
+        'Nugget', nug, 'LawW', WL, 'WantRbar', true);
+    et = W \ ebar;
+    % tol: as above
+    verifyEqual(tc, r.sLaw, trace(r.Rbar * T), 'RelTol', 1e-10, 'the nugget is not the component');
+    verifyEqual(tc, r.omegaLaw, et.' * T * et, 'RelTol', 1e-10);         % tol: as above
 end
 
 function test_lags_long_arc_speed_no_cubic_term(tc)

@@ -237,6 +237,10 @@ classdef BlockAccumulator < handle
 %
 %   See also LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.RESIDUALS, LSQVCE.ENGINE.CHECKPSD, LSQVCE.ENGINE.QRSYSTEM
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-132: commonCofactor, the solve's
+%   cofactor of the commons (sol.Cxx = sol.s0sq * Q), for the residual pass's
+%   repair of a refused vtv. With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-130: a local block whose factor
 %   fails RankTol is reduced ON the factor (rankReduced: SVD of R11, the
 %   solve's pseudo-inverse kept as Rll/Vll, dof = mObs - rank); the normal-form
@@ -926,6 +930,25 @@ classdef BlockAccumulator < handle
                 if fail > 0, return, end
             end
             dp = struct('Rm', Rm, 'Dm', (Kd.' * pinv(Kd * Kd.')) / c);   % pinv: WP-127
+        end
+
+        function Q = commonCofactor(obj)
+        %COMMONCOFACTOR  The solve's cofactor of the commons: sol.Cxx = sol.s0sq * Q
+        %   (WP-132, review low 19). inv(Rc'Rc) on commonFactor (the prior folded
+        %   in), the minimum-constraint pinv when the prior holds a datum
+        %   (datumPart) -- the two forms solve() scales. The residual pass
+        %   rescales it by ITS s0^2 when the backend refused a
+        %   cancellation-destroyed vtv (sol.s0sq and every entry of sol.Cxx NaN).
+        %   OUTPUT  Q  nc x nc double, symmetric
+            dp = obj.datumPart();
+            if isempty(dp)
+                Ri = obj.commonFactor() \ eye(obj.nc);
+                Q = Ri * Ri.';
+            else
+                Ri = dp.Rm \ eye(obj.nc);
+                Q = Ri * Ri.' - dp.Dm * dp.Dm.';
+            end
+            Q = (Q + Q.')/2;
         end
 
         function [isDatum, S, nS] = datumRows(obj)

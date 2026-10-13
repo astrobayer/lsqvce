@@ -164,7 +164,6 @@ kernel.levinsonDurbin,vectorisation,already the vectorised form (matrix ops / FF
 kernel.levinsonDurbin,metamorphic,the invariance that applies (scaling / linearity) is pinned through the caller in test_metamorphic; a second copy per kernel would repeat it
 kernel.psd2acv,vectorisation,already the vectorised form (matrix ops / FFT); a loop reference would be the slower twin, and the speed budget pins the fast one where it matters (redundancyLags)
 kernel.redundancyLags,reference,covered by the metamorphic and precision points of its callers (test_metamorphic / test_vceMath / test_ellmer name the kernel through them); a standalone textbook value would repeat the same arithmetic
-kernel.redundancyLags,metamorphic,the invariance that applies (scaling / linearity) is pinned through the caller in test_metamorphic; a second copy per kernel would repeat it
 kernel.robustWeights,precision,argued in M7: precision does not apply to a kernel unit of this kind
 kernel.robustWeights,vectorisation,already the vectorised form (matrix ops / FFT); a loop reference would be the slower twin, and the speed budget pins the fast one where it matters (redundancyLags)
 kernel.robustWeights,speed,its cost is inside its caller's budget (test_speedBudget: the lag sums; test_instruments: the timing instrument); a standalone budget would pin BLAS, not the toolbox

@@ -17,7 +17,9 @@ function R = adjustRobust(systems, days, opt)
 %   reweighted problem and is scaled by the reweighted sigma0 (report() says
 %   so). The pass record is R.history (scale, max|dx|, counts); the final
 %   factors are R.history(end).factor, one per observation in sweep order,
-%   with R.history(end).keys naming the (sys, obsType, day, arc) rows.
+%   with R.history(end).keys naming the (sys, obsType, day, arc) rows. They
+%   are the weights the RETURNED solve used (WP-132): R.x is the weighted
+%   GLS solution on them, at every stop reason.
 %
 %   INPUT
 %     systems  1xM cell | struct  as for LSQVCE.ENGINE.ADJUSTBLOCK
@@ -44,7 +46,9 @@ function R = adjustRobust(systems, days, opt)
 %   OUTPUT
 %     R  1x1 lsqvce.Results   stopReason "converged" | "maxPasses"; history(k):
 %        .pass .scale .dx .nDown (0 < factor < 0.5) .nZero (factor == 0)
-%        .factor (last pass: n x 1) .keys (last pass: n x 4 cell)
+%        (scale, nDown, nZero: what pass k derived from its residuals for
+%        the next pass) .factor (last pass: n x 1, the weights the returned
+%        solve used) .keys (last pass: n x 4 cell)
 %
 %   ERRORS
 %     lsqvce:adjustRobust:collapsed   fewer live observations than nc + 1
@@ -82,6 +86,10 @@ function R = adjustRobust(systems, days, opt)
 %   See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.KERNEL.ROBUSTWEIGHTS,
 %            LSQVCE.ENGINE.RESIDUALS, LSQVCE.FIT
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-132: history(end).factor holds
+%   the weights the RETURNED solve used (read back from the arc map), not the
+%   next pass's -- R.x is the weighted solution on them at every stop. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-12 (CEST, UTC+02:00), WP-125: 'PsdMode' -- how a declared
 %   psd law whitens (fit passes Options.Noise.Whitener). With assistance from
 %   Claude (Anthropic), model Claude Opus 5.5.
@@ -156,6 +164,7 @@ end
         % the next factors back where they belong
         [vw, keys, sizes] = lawWhitenedResiduals(res, W);   % engine-private, THIS driver's alone (WP-108: adjustVCEjoint has its own producer and its own prior exclusion)
         [fac, s] = lsqvce.kernel.robustWeights(vw, opt.Influence, opt.Tuning);
+        facUsed = appliedFactors(W, keys, sizes);   % WP-132: what THIS solve was weighted with
 
         nAlive = sum(fac > 0);
         if nAlive < nc + 1
@@ -201,11 +210,15 @@ end
         off = 0;
         for k = 1:size(keys, 1)
             n = sizes(k);
-            W(lsqvce.util.rowWeightKey(keys{k,1}, keys{k,3}, keys{k,2}, keys{k,4})) = fac(off + (1:n));
+            W(weightKey(keys(k, :))) = fac(off + (1:n));
             off = off + n;
         end
     end
-    hist(end).factor = fac;
+    % WP-132 (review low 24): the factors the RETURNED solve was weighted
+    % with, read from W before the pass overwrote it. fac is the next pass's
+    % (derived from this solve's residuals), one step ahead of sol / D at a
+    % maxPasses or userStop exit, and a Lipschitz step ahead even at convergence.
+    hist(end).factor = facUsed;
     hist(end).keys   = keys;
 
     if ~converged && ~userStop
@@ -222,6 +235,26 @@ end
                        lsqvce.engine.runMeta(struct(), prov));
     reason = "";  if userStop, reason = "userStop"; end
     R.setIterative(hist, struct('influence', char(opt.Influence), 'scale', s), converged, reason);
+end
+
+%==========================================================================
+function f = appliedFactors(W, keys, sizes)
+%APPLIEDFACTORS  The factors the last accumulation applied, in sweep order
+%   (WP-132): W's entry per arc, 1 for an arc W does not hold (pass 1 is
+%   unweighted). INPUT W containers.Map, keys n x 4 cell, sizes n x 1.
+%   OUTPUT f sum(sizes) x 1 double.
+    f = ones(sum(sizes), 1);  off = 0;
+    for k = 1:size(keys, 1)
+        n = sizes(k);  key = weightKey(keys(k, :));
+        if W.isKey(key), f(off + (1:n)) = W(key); end
+        off = off + n;
+    end
+end
+
+%==========================================================================
+function key = weightKey(row)
+%WEIGHTKEY  W's key of one (sys, obsType, day, arc) row of keys.
+    key = lsqvce.util.rowWeightKey(row{1}, row{3}, row{2}, row{4});
 end
 
 %==========================================================================

@@ -140,9 +140,15 @@ The covariance of arc $m$ of stream $s$ is
 composed with the arc's per-epoch accuracy \eqref{eq:separable}. The Helmert factor of the arc's
 whole covariance (Ellmer 6.5.27) is
 \begin{equation}
-\alpha_m^2=\frac{q_m}{t_m},\qquad q_m=\vc r_m\T\vc\Omega^{(m)},\quad t_m=\vc r_m\T\vc s^{(m)},
+\alpha_m^2=\frac{q_m}{t_m},\qquad q_m=\tilde{\vc e}_m\T\mat T_m\tilde{\vc e}_m,\quad
+t_m=\operatorname{tr}(\bar{\mat R}_m\mat T_m),
 \end{equation}
-with $\vc r_m$ the first column of the arc's temporal covariance, and the updated factor is
+with $\mat T_m$ the arc's temporal law covariance (without a robust nugget), in closed form:
+without a nugget $\mat T_m=\mat\Sigma_m$, so $q_m=\bar{\vc e}_m\T\bar{\vc e}_m$ and $t_m$ is the arc's
+length less its share of the probed leverage. For a Toeplitz $\mat T_m$ these equal
+$\vc r_m\T\vc\Omega^{(m)}$ and $\vc r_m\T\vc s^{(m)}$ over all lags, $\vc r_m$ its first column; for
+any other law that lag-sum form is the factor of a \emph{different} component, unbiased but not
+efficient (WP-132). The updated factor is
 $\gamma_m^2=\alpha_m^2\sigma_m^2$ (Ellmer 6.5.28). The factors are \emph{absolute}: they weight the
 solve, so $\sigma_m^2$ is the arc's variance relative to its declaration and $\hat\sigma_0$ settles
 near one. A factor is clamped below at $10^{-8}\bar\gamma^2$, with $\bar\gamma^2$ the mean of the
