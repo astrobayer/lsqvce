@@ -9684,5 +9684,10 @@ fit route; pass 2 corrects it); 23 -- the arc factor's Toeplitz assumption (unbi
 loss for non-Toeplitz arcs); 24 -- `adjustRobust`'s recorded factor at a MaxPasses exit is the next
 pass's; 30 -- `stat.chi2Inv` below p ~ 1e-40 (no caller).
 
+**CI round 1 (c7ff67b):** 13 points of `test_contribution` errored -- the leverage split dropped `Nlc`
+from `streamContribution`'s per-system stores, but its group buffers were still sized from `st.Nlc`.
+Sized from `st.G` (the same nl x nc) in 2c63441; every other field the function reads was checked
+against the store.
+
 **Tests 673 = 662 + 11.** NOT validated before CI: no MATLAB in the container.
 
