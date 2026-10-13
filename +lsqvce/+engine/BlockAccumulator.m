@@ -575,6 +575,10 @@ classdef BlockAccumulator < handle
                          'space of the data.']);
                 end
 
+                % WP-133: no redundancy is refused first -- the exact fit's v'Pv ~ 0
+                % would read as cancellation below
+                dof  = m + obj.prior.nk - obj.nc;
+                lsqvce.engine.BlockAccumulator.needRedundancy(dof, m, obj.prior.nk, obj.nc);
                 x   = Lc.' \ (Lc \ n);
                 vtv = ltl + obj.prior.x0.'*obj.prior.x0/obj.prior.sigma^2 - n.'*x;
                 % WP-49: same rule and same guard as the backends -- one
@@ -595,8 +599,6 @@ classdef BlockAccumulator < handle
                 end
 
                 [rK, priorAbsorbed] = obj.prior.redundancy(Lc);
-                dof  = m + obj.prior.nk - obj.nc;
-                lsqvce.engine.BlockAccumulator.needRedundancy(dof, m, obj.prior.nk, obj.nc);
                 s0sq = vtv / dof;
 
                 Ri  = Lc \ eye(obj.nc);
@@ -754,8 +756,9 @@ classdef BlockAccumulator < handle
             end
 
             if lsqvce.engine.BlockAccumulator.onFactor(s)   % WP-128: on the QR factor,
-                Ri = s.Rll \ eye(size(s.Rll, 1));       % never the squared Nll
-                G = s.Rll \ s.Rlc;  Qll = Ri * Ri.';
+                k  = size(s.Rll, 1);  Ri = zeros(k);  G = zeros(size(s.Rlc));   % never the squared Nll
+                if k > 0, Ri = s.Rll \ eye(k);  G = s.Rll \ s.Rlc; end   % WP-133: rank 0 solves nothing
+                Qll = Ri * Ri.';
                 V = lsqvce.util.getfielddef(s, 'Vll', []);
                 if size(V, 1) > 0                       % WP-130: the solve's pinv
                     G = V * G;  Qll = V * Qll * V.';
@@ -1097,11 +1100,17 @@ classdef BlockAccumulator < handle
             if lsqvce.engine.BlockAccumulator.onFactor(st)
                 sg = sign(diag(st.Rll));  sg(sg == 0) = 1;     % positive pivots: R = Ll'
                 R = sg .* st.Rll;  Rlc = sg .* st.Rlc;  rl = sg .* st.rl;
-                y = [];  if ~isempty(x), y = R \ (rl - Rlc * x(:)); end
-                G = R \ Rlc;  Ll = R.';
+                % WP-133: a block of rank 0 (R 0 x 0) solves nothing -- y and G
+                % are empty on the kept basis, the zero block once lifted
+                y = [];  if ~isempty(x), y = zeros(size(R, 1), 1); end
+                G = zeros(size(Rlc));  Ll = R.';
+                if size(R, 1) > 0
+                    if ~isempty(x), y = R \ (rl - Rlc * x(:)); end
+                    G = R \ Rlc;
+                end
                 V = lsqvce.util.getfielddef(st, 'Vll', []);
                 if size(V, 1) > 0        % WP-130: a rank-deficient block, on its kept
-                    if ~isempty(y), y = V * y; end   % basis (minimum-norm y);
+                    if ~isempty(x), y = V * y; end   % basis (minimum-norm y);
                     G = V * G;  Ll = [];  p = 1;     % Nll has no Cholesky factor
                 end
                 return
@@ -1428,14 +1437,14 @@ classdef BlockAccumulator < handle
                      'positive definite. The prior does not span the null ' ...
                      'space of the data.']);
             end
+            dof = obj.sys.m + obj.prior.nk - nc;          % WP-133: refused before any vtv
+            lsqvce.engine.BlockAccumulator.needRedundancy(dof, obj.sys.m, obj.prior.nk, nc);
             R1  = G(1:nc, 1:nc);
             x   = R1 \ G(1:nc, end);
             vtv = 0;
             if size(G, 1) > nc, vtv = G(nc + 1, end)^2; end
             if obj.sys.vtvPoisoned, vtv = NaN; end           % warned at merge()
             [rK, absorbed] = obj.prior.redundancy(R1.');     % lower: R1' R1 = N
-            dof  = obj.sys.m + obj.prior.nk - nc;
-            lsqvce.engine.BlockAccumulator.needRedundancy(dof, obj.sys.m, obj.prior.nk, nc);
             s0sq = vtv / dof;
             Ri   = R1 \ eye(nc);
             Cxx  = s0sq * (Ri * Ri.');

@@ -9946,3 +9946,16 @@ real number (a ridge's redundancy) and its SUM_R line says "redundancy" for n - 
 
 **Tests 686 = 677 + 9.** NOT validated before CI: no MATLAB in the container (tier B); the numerical
 claims rest on the two mirrors and on the CI run.
+
+**CI round 1 (c111b16): RED, 2 of 674 (gated) + two new warning identifiers -- all three causes in this
+WP's own code.** (a) `testUnobservedLocalBlockIsRankZero`: `localSolveOf` lifted y onto the kept basis
+only when `~isempty(y)`, and a rank-0 block's y IS empty (0 x 1), so `backSubstitute` returned 0 x 1 and
+`residuals` failed on B*y; the 0 x 0 triangular solves of that block (`localSolveOf`,
+`localCovariance`) raised `MATLAB:singularMatrix`. Rank 0 now solves nothing (zeros on the kept basis,
+then the lift) in both, in `BlockCofactor`'s constructor and in its downdate (which also told the
+kept basis by `isempty(Vll)`, true for nl x 0). (b) `testSparseLocalDesignSolvesAndSnoops`: the QR
+factor stayed sparse, so `sol.x` came back SPARSE and differed in class from the full-B run -- the
+finding-3 symptom one level up. `QRSystem.add` keeps the factor full (it is (dim+1)^2 and dense after
+one batch; the batch itself stays sparse for the QR). (c) `lsqvce:accum:cancellation`: the normal
+backend's prior path checked the residual mass before the redundancy, and at dof = 0 the exact fit's
+v'Pv ~ 1e-15 reads as cancellation; both prior paths now refuse `noRedundancy` first.

@@ -89,8 +89,9 @@ classdef QRSystem < handle
 %   See also LSQVCE.ENGINE.NORMALEQSYSTEM, LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: discount(k) takes k rows of
-%   weight 0 out of the count m (mExcl keeps them; merge adds them). With
-%   assistance from Claude (Anthropic), model Claude Opus 5.5.
+%   weight 0 out of the count m (mExcl keeps them; merge adds them); the
+%   factor is kept full whatever the batch. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-128: reducedRows also returns the
 %   local block's coupling R12 and right-hand side r1. With assistance from
 %   Claude (Anthropic), model Claude Opus 5.5.
@@ -149,7 +150,11 @@ classdef QRSystem < handle
             end
             if isempty(l), return, end
 
-            o.R = triu(qr([o.R ; [A, l(:)]], 0));
+            % WP-133 (review 3 finding 3): the factor is kept FULL -- a sparse
+            % batch (a sparse B) made it sparse, and with it x, vtv, the local
+            % factor (svd, cholupdate take full only); it is (dim+1)^2 and dense
+            % after one batch anyway, the batch itself stays sparse for the QR
+            o.R = full(triu(qr([o.R ; [A, l(:)]], 0)));
             k   = min(size(o.R,1), o.dim+1);
             o.R = o.R(1:k, :);
             o.m = o.m + numel(l);

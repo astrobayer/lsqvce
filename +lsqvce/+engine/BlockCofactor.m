@@ -184,8 +184,10 @@ classdef BlockCofactor
                     % WP-133 (review 3 finding 3): FULL -- a sparse B leaves the QR
                     % factor sparse, and cholupdate takes full matrices only
                     sg = sign(diag(b.Rll));  sg(sg == 0) = 1;
-                    Rl = full(sg .* b.Rll);
-                    H = Rl.' \ eye(size(Rl, 1));  G = Rl \ full(sg .* b.Rlc);
+                    Rl = full(sg .* b.Rll);  H = zeros(size(Rl));  G = zeros(size(b.Rlc));
+                    if ~isempty(Rl)                       % WP-133: rank 0 solves nothing
+                        H = Rl.' \ eye(size(Rl, 1));  G = Rl \ full(sg .* b.Rlc);
+                    end
                     if size(Vb, 1) > 0
                         % WP-130: a rank-deficient block reduced by the solve's
                         % pseudo-inverse on the kept basis Vll: H'H = pinv(Nll)
@@ -365,7 +367,7 @@ classdef BlockCofactor
                 end
                 pt = p / d;
                 if ~isempty(S.Rll)
-                    bb = b;  if ~isempty(S.Vll), bb = S.Vll.' * b; end   % WP-130: on the kept basis
+                    bb = b;  if size(S.Vll, 1) > 0, bb = S.Vll.' * b; end   % WP-130: on the kept basis
                     [Rl2, fl] = cholupdate(S.Rll, sqrt(p) * bb, '-');
                     if fl ~= 0, ok = false;  return, end
                 end
@@ -383,9 +385,10 @@ classdef BlockCofactor
             if ~isempty(hit)
                 S.Nll = S.Nll - p * (b * b.');
                 nlb = numel(b);
-                if isempty(S.Rll)                        % the block's own cut (WP-130)
+                if isempty(S.Rll) && size(S.Vll, 1) > 0  % rank 0 (WP-133): stays the zero block
+                elseif isempty(S.Rll)                    % the block's own cut (WP-130)
                     S.H = lsqvce.engine.BlockCofactor.localBlock(S.Nll, zeros(nlb, 0), S.tol);
-                elseif isempty(S.Vll)
+                elseif size(S.Vll, 1) == 0
                     S.Rll = Rl2;  S.H = Rl2.' \ eye(nlb);         % WP-129: on the factor
                 else
                     S.Rll = Rl2;  k = size(Rl2, 1);
