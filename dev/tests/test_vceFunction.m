@@ -13,6 +13,9 @@ function tests = test_vceFunction
 %   See also TEST_V3, TEST_V4, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.VERDICT.SOURCE,
 %   LSQVCE.ENGINE.BLOCKCOFACTOR
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-129: the downdate of a local
+%   block kept on its QR factor is pinned against a fresh QR of the
+%   survivors. With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3: systemOf, and
 %   snoop's clean re-solve keeps the block structure. With assistance from
 %   Claude (Anthropic), model Claude Opus 5.5.
@@ -208,6 +211,37 @@ function testBlockCofactorDowndateMatchesDense(tc)
         % tol: Sherman-Morrison update vs a fresh solve; ~cond*eps
         tc.verifyEqual(x, xd, 'AbsTol', 1e-9 * max(1, max(abs(xd))));
     end
+end
+
+function testBlockCofactorDowndateOfAnIllConditionedLocalBlockIsExact(tc)
+% categories: precision, robustness | tags: diagnostics
+% WP-129: a local block the QR solve kept on its factor (a quadratic in raw
+% seconds over 1e4 s, cond(B) = 1.3e8) is downdated ON that factor. The old
+% refactor of the squared Nll took the eigen branch and lost the weak
+% direction: after one rejection the leverage sum over the survivors was 6,
+% not u = 7, and Qll was 100 % off (dev/validation/wp129_local_downdate_mirror.py).
+    rs = RandStream('mt19937ar', 'Seed', 129);
+    m = 200;  nc = 4;  t = linspace(0, 1e4, m).';
+    A = randn(rs, m, nc);  B = [ones(m, 1), t, t.^2];
+    l = A*randn(rs, nc, 1) + B*[1; 1e-3; 1e-7] + 1e-3*randn(rs, m, 1);
+    function out = poly(d, ot, a, uo)                          %#ok<INUSD>
+        if ischar(d) || isstring(d), out = struct('obsTypes', {{'x'}}, 'arcs', {{1}}); return, end
+        out = struct('A', A, 'B', B, 'l', l);
+    end
+    acc = lsqvce.engine.BlockAccumulator(nc, 'Backend', 'qr', 'KeepLocal', true, 'Verbose', false);
+    acc.addSystem(1, 3, @poly, 1);
+    acc.solve();
+    Q = lsqvce.engine.BlockCofactor.fromAccumulator(acc);
+    out = 57;  keep = (1:m).' ~= out;
+    [Q, ok] = Q.downdate([A(out, :), B(out, :)], 1);
+    tc.assertTrue(ok, 'the row is not the only information on a local');
+    h = Q.leverage(1, A(keep, :), B(keep, :));
+    % tol: 1e-8 -- the identity holds to rounding on the factor; the refactor lost a whole unit
+    tc.verifyEqual(sum(h), nc + 3, 'AbsTol', 1e-8, 'sum h over the survivors = u');
+    [~, Rf] = qr([A(keep, :), B(keep, :)], 0);  Ri = Rf \ eye(nc + 3);   % the reference, on a factor
+    % tol: 1e-6 relative -- two factorisations of a design at cond 1.3e8:
+    % eps * cond ~ 3e-8 on these entries, with headroom
+    tc.verifyEqual(Q.diagonal(), sum(Ri.^2, 2), 'RelTol', 1e-6);
 end
 
 function testBlockCofactorScaleEquivariance(tc)

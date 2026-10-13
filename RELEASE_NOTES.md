@@ -1,5 +1,14 @@
 # lsqvce release notes
 
+## 6.16.1 — 2026-10-13 (WP-129: snoop's downdate of a local block on its QR factor)
+
+- **`R.snoop` keeps a badly conditioned local block exact after a rejection (numbers).**
+  6.16.0 built the diagnostics cofactor of a local block from its QR factor, but snoop's
+  rank-one downdate rebuilt that block from the squared `Nll` again: from cond(B) ≈ 7e7 one
+  rejection lost the weak direction (a quadratic local polynomial in raw seconds over 10⁴ s:
+  the leverage sum over the survivors 6 instead of 7). The downdate now runs on the factor.
+- Tests: 658 (+1).
+
 ## 6.16.0 — 2026-10-13 (WP-128: the remaining findings of the whole-code review)
 
 Numbers change for `R.snoop` after a rejection, for the MAD-scaled test, and for the

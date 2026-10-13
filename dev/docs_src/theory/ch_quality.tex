@@ -57,7 +57,11 @@ with $\vc z=\vc a_c-\mat G\T\vc b$ and $\delta=1-p\,\vc b\T\mat N_{ll}^{-1}\vc b
 \mat N_{ll}\leftarrow\mat N_{ll}-p\,\vc b\vc b\T,\qquad
 \hat{\vc x}\leftarrow\hat{\vc x}+p\,\bar v_i\,\mat Q_{xx}\vc a_i ,
 \end{equation}
-and $\bar{\vc v}\T\bar{\vc v}$ decreases by $p\bar v_i^2/r_i$. Observations with low redundancy are not
+and $\bar{\vc v}\T\bar{\vc v}$ decreases by $p\bar v_i^2/r_i$. A local block the solve eliminated on its
+QR factor $\mat R_{ll}$ downdates that factor,
+$\mat R_{ll}\leftarrow\operatorname{cholupdate}(\mat R_{ll},\sqrt p\,\vc b,-)$, and is never
+refactored from the squared $\mat N_{ll}$, which loses its weak direction from
+$\operatorname{cond}(\mat B)\approx7\cdot10^{7}$. Observations with low redundancy are not
 rejected, and the number of rejections is capped; the final model is re-accumulated from the
 surviving data.
 

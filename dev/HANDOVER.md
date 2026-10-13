@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-13 — WP-127 DONE (PR #148, merge 4873783; CI GREEN on e8fac67); WP-128 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-128"): the five findings of the whole-code review marked plausible, each re-derived by an own mirror -- all five confirmed and fixed: snoop keeps the prior a prior and returns one index space, the MAD test on a calibrated Student t, the local block's cofactor from the QR factor (all store readers through localSolveOf), a late local prior reported; MAD critical value t(r/2) by user decision; 3 tests; version 6.16.0; §12.60.
+Last substantive update: 2026-10-13 — WP-128 DONE (PR #149, merge 839ec11; CI GREEN on 170612c); WP-129 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-129 mit dem downdate-Rest"): the WP-128 residue -- BlockCofactor.downdate of a local block kept on its QR factor downdates that factor (cholupdate of Rll) instead of refactoring the squared Nll, which lost the weak direction after one rejection (mirror: sum h 6 instead of 7, Qll 100 % off at cond(B) 1.3e8); 1 test; version 6.16.1; §12.61.
+Preceding entry: Last substantive update: 2026-10-13 — WP-127 DONE (PR #148, merge 4873783; CI GREEN on e8fac67); WP-128 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-128"): the five findings of the whole-code review marked plausible, each re-derived by an own mirror -- all five confirmed and fixed: snoop keeps the prior a prior and returns one index space, the MAD test on a calibrated Student t, the local block's cofactor from the QR factor (all store readers through localSolveOf), a late local prior reported; MAD critical value t(r/2) by user decision; 3 tests; version 6.16.0; §12.60.
 Preceding entry: Last substantive update: 2026-10-12 — WP-126 DONE (PR #147, merge 7e44406; CI GREEN on f6d685c); WP-127 OPEN (tier B, model Claude Opus 5.5; user: a review of the entire code, then "Go ahead"): the confirmed findings -- the ARMA whitener with an MA part made exact, datum rows out of the diagnostics counts, a datum over several groups, the joint loop with a late local prior, the Gauss-Newton final step checked, NaN/Inf in A/B refused, .gitignore; 3 tests; version 6.15.0; §12.59.
 Preceding entry: Last substantive update: 2026-10-12 — WP-123 DONE (PR #143, merge cebbfd1; CI GREEN on e617a95, first round); closure PR (user decision: "Ja, mach den Abschluss-PR"): the ledger row and §12.55, no code change, no version (6.12.1 stays, 641 tests).
 Preceding entry: Last substantive update: 2026-10-12 — WP-122 DONE (PR #142, merge 1d8c89b; CI GREEN on ac4bfa4); WP-123 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-123"): the kernel whiteners (separableWhiten, varWhiten, armaWhiten) take a sparse A / B / l -- the dense filter runs on the non-zero columns only (private kernel helper activeColumns), sparse in, sparse out; the dense path unchanged; template/kbr_variational returns its position B sparse again; 1 gate test; version 6.12.1; §12.54.
@@ -9434,7 +9435,7 @@ PRs.
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 128 | the five findings of the whole-code review (§12.59) marked plausible, each re-derived by an own mirror, all confirmed: `snoop`'s clean re-solve keeps the prior a prior and never rejects its rows; its D in one (original) index space (`D.obsIdx`); `kernel.stat.madCrit` (t, nu = r/2, user decision) for Test 'mad'; a QR-eliminated local block's cofactor / solution / covariance from its factor (store `Rll`, `Rlc`, `rl`); `priorNotActive` counts late local groups; **version 6.16.0** | 127 (PR #148 merged 4873783) | OPEN (tier B; CI is the gate) |
+| 128 | the five findings of the whole-code review (§12.59) marked plausible, each re-derived by an own mirror, all confirmed: `snoop`'s clean re-solve keeps the prior a prior and never rejects its rows; its D in one (original) index space (`D.obsIdx`); `kernel.stat.madCrit` (t, nu = r/2, user decision) for Test 'mad'; a QR-eliminated local block's cofactor / solution / covariance from its factor (store `Rll`, `Rlc`, `rl`); `priorNotActive` counts late local groups; **version 6.16.0** | 127 (PR #148 merged 4873783) | DONE (2026-10-13, PR #149, merge 839ec11; CI GREEN on 170612c) |
 
 **The user's request (2026-10-13):** "Ja, mach WP-128" -- re-derive the five plausible findings,
 fix the confirmed ones.
@@ -9464,7 +9465,7 @@ the other paths); the cofactor takes H = R11^-T, G = R11^-1 R12; `backSubstitute
 `localCovariance` solve on the factor too (the residuals were right either way -- the error lives
 in the poorly determined direction -- but `\` on the squared block warns nearlySingular). Test
 `test_reliability>testCofactorOfAnIllConditionedLocalBlockIsExact` (red.check, Cyy vs a QR reference).
-Residue: `BlockCofactor.downdate` (snoop on a local block) still refactors from Nll.
+Residue: `BlockCofactor.downdate` (snoop on a local block) still refactors from Nll (-> WP-129, §12.61).
 
 **12 -- the MAD test's critical value (confirmed by simulation; user decision on the value).** tau
 is bounded by sqrt(r) because s0 contains the tested residual; a MAD scale does not. Family-wise
@@ -9487,3 +9488,37 @@ residuals, streamContribution and adjustVCEjoint solved a store's local block fr
 directly; `BlockAccumulator.localSolveOf` (static, hidden) is now the one place (QR factor when kept).
 
 **Tests 657 = 654 + 3.** NOT validated before CI: no MATLAB in the container.
+
+### 12.61 WP-129 — snoop's downdate of a local block on its QR factor (2026-10-13, model Claude Opus 5.5)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 129 | the WP-128 residue: `BlockCofactor.downdate` of a local block kept on its QR factor downdates THAT factor (`cholupdate` of `Rll` with sqrt(p) b; positive pivots kept by the constructor) instead of refactoring the squared `Nll`; **version 6.16.1** | 128 (PR #149 merged 839ec11) | OPEN (tier B; CI is the gate) |
+
+**The user's request (2026-10-13):** "Ja, mach WP-129 mit dem downdate-Rest" -- the residue §12.60
+recorded under finding 10.
+
+**The defect (confirmed by mirror).** WP-128 built the cofactor's local half H = R11^-T from the QR
+factor, but `downdate` -- snoop's step on a row with locals -- set H = localBlock(Nll - p b b'):
+the squared block again. From cond(B) ~ 7e7 its rcond is below eps and the eigen branch runs; the
+weak eigenvalue (~ eps max) comes back wrong or is cut. `dev/validation/wp129_local_downdate_mirror.py`
+(the WP-128 fixture, t^2 over 1e4 s, row 57 removed): sum h over the survivors 6 instead of 7 and
+max |Qll - Qll_ref| / max |Qll_ref| = 1.0 at cond(B) 1.3e8 and 3.3e9; the factor downdate gives
+7.0000 and ~1e-15. Below 7e7 both agree (the Cholesky branch).
+
+**The fix.** `Q.sys` gains `Rll` ([] on the normal-equations path and for local-free systems): the
+constructor keeps the store's factor with POSITIVE pivots (R'R unchanged; `cholupdate` needs a
+Cholesky factor) and derives H, G from it as before. `downdate` cholupdates `Rll` by sqrt(p) b
+BEFORE touching the commons (a failed local downdate leaves Q unchanged, ok = false) and sets
+H = Rll~^-T; the commons update, G's rank-one update and Nll's update are unchanged. The
+normal-equations path (no factor kept) refactors from Nll as before -- that path squared the block
+in the solve already, so the cofactor stays the cofactor of the solve made.
+
+**Test** `test_vceFunction>testBlockCofactorDowndateOfAnIllConditionedLocalBlockIsExact`: QR
+accumulator on the fixture, one downdate, sum h over the survivors = 7 (1e-8) and diag(Qxx) against
+a fresh QR of the survivors (1e-6 relative). Before the fix the sum is 6 (mirror).
+
+**Docs.** Theory `ch_quality.tex` (iterative data snooping) names the factor downdate; Release
+Notes 6.16.1; the BlockCofactor help (downdate, Rll in `sys`).
+
+**Tests 658 = 657 + 1.** NOT validated before CI: no MATLAB in the container.

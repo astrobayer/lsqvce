@@ -61,6 +61,7 @@ classdef BlockCofactor
 %     [c, ij] = maxCorrelation(Q)  the largest |corr| off the diagonal, its pair
 %     k = condLowerBound(Q)        a LOWER bound on cond(N) (Rayleigh quotients)
 %     [Q, ok] = downdate(Q, a, p)  remove one row a (weight p): snoop's step
+%                                  (a block kept on its QR factor: on that factor)
 %
 %   A NOTE ON WHAT DOES NOT WORK (moved here from the retired leverage unit,
 %   WP-86 part 3). A stochastic (Hutchinson) trace estimator looks attractive
@@ -93,6 +94,10 @@ classdef BlockCofactor
 %   See also LSQVCE.ENGINE.VERDICT.SOURCE, LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SNOOP,
 %   LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-129: downdate of a block kept
+%   on its QR factor downdates that factor (cholupdate of Rll), no longer
+%   the squared Nll. With assistance from Claude (Anthropic), model Claude
+%   Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-128: a local block the solve
 %   eliminated on the QR factor (blocks .Rll, .Rlc) gives H and G from that
 %   factor, not from the eigen pseudo-inverse of the squared Nll. With
@@ -123,7 +128,8 @@ classdef BlockCofactor
         Rc          % nc x nc upper triangular, Rc'*Rc = N_red (prior included)
         nc          % number of common parameters
         u           % full parameter count nc + sum(nl)
-        sys         % 1 x S struct: cols, Nll, H (H'*H = pinv(Nll)), G = pinv(Nll)*Nlc;
+        sys         % 1 x S struct: cols, Nll, H (H'*H = pinv(Nll)), G = pinv(Nll)*Nlc,
+                    % Rll ([] or the local QR factor, positive pivots: downdate's);
                     % a local-free system keeps its slot (empty cols), so s indexes
                     % the systems in the order given
         Rm = []     % [] | nc x nc, Rm'*Rm = N_red + Ki'Ki + c^2 Kd'Kd (the datum re-weighted, R7 WP-114/119)
@@ -140,14 +146,14 @@ classdef BlockCofactor
             if nargin > 2 && ~isempty(datum)
                 Q.Rm = datum.Rm;  Q.Dm = datum.Dm;
             end
-            Q.sys = struct('cols', {}, 'Nll', {}, 'H', {}, 'G', {});
+            Q.sys = struct('cols', {}, 'Nll', {}, 'H', {}, 'G', {}, 'Rll', {});
             u = nc;
             for s = 1:numel(blocks)
                 b = blocks(s);
                 nl = numel(b.cols);
                 if nl == 0                               % local-free: keeps its index
                     Q.sys(end+1) = struct('cols', zeros(1, 0), 'Nll', zeros(0), ...
-                                          'H', zeros(0), 'G', zeros(0, nc));
+                                          'H', zeros(0), 'G', zeros(0, nc), 'Rll', []);
                     continue
                 end
                 if ~isequal(size(b.Nll), [nl nl]) || ~isequal(size(b.Nlc), [nl nc])
@@ -155,7 +161,7 @@ classdef BlockCofactor
                         ['block %d: Nll is %s and Nlc %s for %d local columns and ' ...
                          '%d commons.'], s, mat2str(size(b.Nll)), mat2str(size(b.Nlc)), nl, nc);
                 end
-                tol = [];
+                tol = [];  Rl = [];
                 if isfield(b, 'truncTol'), tol = b.truncTol; end
                 if isfield(b, 'Rll') && ~isempty(b.Rll)
                     % WP-128: the block the solve eliminated EXACTLY on its QR
@@ -163,11 +169,15 @@ classdef BlockCofactor
                     % squared Nll took the eigen branch from cond(B) ~ 7e7 and cut
                     % at 1e-10 max -- one redundancy unit lost per cut direction
                     % (a t^2 term over 1e4 s; dev/validation/wp128_local_block_mirror.py)
-                    H = b.Rll.' \ eye(nl);  G = b.Rll \ b.Rlc;
+                    % Kept with POSITIVE pivots (R'R unchanged): downdate's
+                    % cholupdate needs a Cholesky factor (WP-129).
+                    sg = sign(diag(b.Rll));  sg(sg == 0) = 1;
+                    Rl = sg .* b.Rll;
+                    H = Rl.' \ eye(nl);  G = Rl \ (sg .* b.Rlc);
                 else
                     [H, G] = lsqvce.engine.BlockCofactor.localBlock(b.Nll, b.Nlc, tol);
                 end
-                Q.sys(end+1) = struct('cols', b.cols(:).', 'Nll', b.Nll, 'H', H, 'G', G);
+                Q.sys(end+1) = struct('cols', b.cols(:).', 'Nll', b.Nll, 'H', H, 'G', G, 'Rll', Rl);
                 u = u + nl;
             end
             Q.u = u;
@@ -312,9 +322,14 @@ classdef BlockCofactor
         %   with z = a_c - G_s'*b, c = inv(Nll_s)*b and d = 1 - p*b'*c,
         %       N_red <- N_red - (p/d) z z'      (cholupdate of Rc)
         %       Nll_s <- Nll_s - p b b',   G_s <- G_s - (p/d) c z'
+        %   A block kept on its QR factor Rll downdates THAT factor (cholupdate
+        %   of Rll with sqrt(p) b); refactoring the squared Nll lost its weak
+        %   direction from cond(B) ~ 7e7 -- after one rejection the leverage
+        %   sum missed u by a whole unit (WP-129;
+        %   dev/validation/wp129_local_downdate_mirror.py).
         %   ok = false (Q unchanged) when the removal would make the system
-        %   singular: d ~ 0 (the row is the only information on a local) or
-        %   the downdated Rc collapses.
+        %   singular: d ~ 0 (the row is the only information on a local), the
+        %   downdated local factor fails, or the downdated Rc collapses.
             [Z, Bs] = splitRows(Q, a);
             hit = find(~cellfun(@isempty, Bs));
             if numel(hit) > 1
@@ -331,6 +346,10 @@ classdef BlockCofactor
                     ok = false;  return
                 end
                 pt = p / d;
+                if ~isempty(S.Rll)
+                    [Rl2, fl] = cholupdate(S.Rll, sqrt(p) * b, '-');
+                    if fl ~= 0, ok = false;  return, end
+                end
             end
             [Rn, flag] = cholupdate(Q.Rc, sqrt(pt) * Z, '-');
             dg = abs(diag(Rn));
@@ -344,7 +363,11 @@ classdef BlockCofactor
             Q.Rc = Rn;
             if ~isempty(hit)
                 S.Nll = S.Nll - p * (b * b.');
-                S.H = lsqvce.engine.BlockCofactor.localBlock(S.Nll, zeros(numel(b), 0), []);
+                if isempty(S.Rll)
+                    S.H = lsqvce.engine.BlockCofactor.localBlock(S.Nll, zeros(numel(b), 0), []);
+                else
+                    S.Rll = Rl2;  S.H = Rl2.' \ eye(numel(b));      % WP-129: on the factor
+                end
                 S.G = S.G - pt * (c * Z.');
                 Q.sys(hit) = S;
             end
