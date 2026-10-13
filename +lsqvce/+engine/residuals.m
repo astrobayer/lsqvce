@@ -176,7 +176,7 @@ end
         st = acc.getStore(ids(k));
 
         % ---- back-substitution of the local block ------------------------
-        y   = st.Nll_r \ (st.nl_r - st.Nlc * x);
+        y   = lsqvce.engine.BlockAccumulator.localSolveOf(st, x);   % WP-128: on the factor if kept
         Cyy = acc.localCovariance(ids(k), sol.Cxx, sol.s0sq);   % R7-40: the ONE formula
 
         S = struct('sysID', ids(k), 'y', y, 'Cyy', Cyy, ...

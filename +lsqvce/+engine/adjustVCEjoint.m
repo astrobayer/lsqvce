@@ -1162,9 +1162,7 @@ function [Qb, Tb, qa, ta, keys, keysAll, skips, wstats, rowAll, streamAll, keySt
         % the exact local block via jointArcParts + redundancyLags.
         nlS = size(st.Nlc, 1);
         if nlS > 0
-            ySys = st.Nll_r \ (st.nl_r - st.Nlc * x);
-            Gsys = st.Nll_r \ st.Nlc;
-            [LlS, plS] = chol((st.Nll_r + st.Nll_r.')/2, 'lower');
+            [ySys, Gsys, LlS, plS] = lsqvce.engine.BlockAccumulator.localSolveOf(st, x);   % WP-128
             if plS > 0
                 error('lsqvce:adjustVCEjoint:localNotPD', ...
                      ['System %s: the local normal matrix is not positive ' ...

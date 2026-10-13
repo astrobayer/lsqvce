@@ -679,11 +679,7 @@ classdef BlockAccumulator < handle
                 error('lsqvce:accum:badX', 'x has %d elements, expected %d.', ...
                       numel(x), obj.nc);
             end
-            if ~isempty(s.Rll)                          % WP-128: on the QR factor
-                y = s.Rll \ (s.rl - s.Rlc * x(:));
-            else
-                y = s.Nll_r \ (s.nl_r - s.Nlc * x(:));
-            end
+            y = lsqvce.engine.BlockAccumulator.localSolveOf(s, x);   % WP-128: on the factor if kept
         end
 
         %------------------------------------------------------------------
@@ -966,6 +962,30 @@ classdef BlockAccumulator < handle
 
     %======================================================================
     %======================================================================
+    methods (Static, Hidden)
+        %------------------------------------------------------------------
+        function [y, G, Ll, p] = localSolveOf(st, x)
+        %LOCALSOLVEOF  One store's local block: y = inv(Nll)(nl - Nlc x), G =
+        %   inv(Nll) Nlc and the lower Cholesky factor Ll of Nll (p > 0: not
+        %   PD) -- on the QR factor when the store keeps it (WP-128: Rll,
+        %   Rlc, rl; the squared Nll lost the weak direction from cond(B) ~
+        %   7e7 and warned nearlySingular), else on Nll_r as before. The ONE
+        %   place every reader of a store's locals goes through.
+        %   INPUT  st  a store element;  x  nc x 1 commons, or [] (y = [])
+            p = 0;  Ll = [];
+            if ~isempty(lsqvce.util.getfielddef(st, 'Rll', []))
+                sg = sign(diag(st.Rll));  sg(sg == 0) = 1;     % positive pivots: R = Ll'
+                R = sg .* st.Rll;  Rlc = sg .* st.Rlc;  rl = sg .* st.rl;
+                y = [];  if ~isempty(x), y = R \ (rl - Rlc * x(:)); end
+                G = R \ Rlc;  Ll = R.';
+                return
+            end
+            y = [];  if ~isempty(x), y = st.Nll_r \ (st.nl_r - st.Nlc * x(:)); end
+            G = st.Nll_r \ st.Nlc;
+            if nargout > 2, [Ll, p] = chol((st.Nll_r + st.Nll_r.')/2, 'lower'); end
+        end
+    end
+
     methods (Static, Hidden)   % public so the mapreduce worker context can
                                % invoke it; hidden because it is not user API
 

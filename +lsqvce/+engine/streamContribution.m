@@ -226,7 +226,7 @@ end
     stores = cell(nSys, 1);
     for k = 1:nSys
         st = acc.getStore(ids(k));
-        G  = st.Nll_r \ st.Nlc;                      % nl x nc
+        [~, G] = lsqvce.engine.BlockAccumulator.localSolveOf(st, []);   % nl x nc (WP-128)
         % WP-32: the exact local-absorbed term needs the two leverage-block
         % identities inv(N)_ll = Nll^-1 + G Sxx G' and inv(N)_lc = -G Sxx
         % (LSQVCE.ENGINE.BLOCKCOFACTOR). One nc-solve per system yields X = Sxx G';
