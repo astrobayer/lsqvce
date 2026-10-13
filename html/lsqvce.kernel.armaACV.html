@@ -85,6 +85,10 @@ assert(abs(r(1)-r0)/r0 &lt; 1e-8 &amp;&amp; abs(r(2)-r1)/r1 &lt; 1e-8)</pre>
 
 See also LSQVCE.KERNEL.LEVINSONDURBIN, LSQVCE.KERNEL.ARMAWHITEN, LSQVCE.KERNEL.PSD2ACV
 
+Updated 2026-10-13 (CEST, UTC+02:00), WP-131: the impulse response stops
+on the energy of its last max(p,q)+1 samples, not on one sample (a sparse
+AR polynomial is exactly 0 there long before it has decayed). With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Generated with assistance from Claude (Anthropic), model Claude
 Opus 4.8.
 Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+kernel (R4 decision R4-D1,

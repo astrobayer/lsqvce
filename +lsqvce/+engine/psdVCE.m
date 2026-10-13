@@ -56,7 +56,10 @@ function out = psdVCE(Q, T, Sprior, opt)
 %       .frozen  L x 1  logical, the bins that held their value
 %       .Sprior  L x 1  the prior, as given
 %       .maxDev  1x1    max |alpha2 - 1| over EVERY bin (there is no
-%                       zero-frequency rule left to exclude one: R7-20)
+%                       zero-frequency rule left to exclude one: R7-20);
+%                       with Smooth > 0 the change of the SHAPE, max |Shat./
+%                       Sprior - 1| at r(0) = 1 -- a smoothed update's fixed
+%                       point has alpha2 ~= 1 (WP-131)
 %
 %   EXAMPLE
 %     K = lsqvce.kernel.hatACV(L, m);         % per arc length
@@ -70,6 +73,9 @@ function out = psdVCE(Q, T, Sprior, opt)
 %   See also LSQVCE.KERNEL.HATACV, LSQVCE.KERNEL.REDUNDANCYLAGS,
 %            LSQVCE.ENGINE.ARCVARIANCEFACTORS, LSQVCE.ENGINE.ADJUSTVCEJOINT
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: with Smooth > 0 maxDev
+%   measures the change of the spectrum's shape, so a smoothed loop can
+%   converge. With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 3 (R7-02, R7-20):
 %   REWRITTEN for positive components -- the inputs are per-bin statistics
 %   (K' Omega, K' s), the prior is the bin spectrum; the DCT ('Norm'), the
@@ -117,8 +123,21 @@ end
         Shat = smoothSpectrum(Shat, opt.Smooth);
     end
     Shat = max(Shat, 1e-10 * max(Shat));              % the ONE numerical floor, relative
+    maxDev = max(abs(alpha2 - 1));
+    if opt.Smooth > 0
+        % WP-131: at the fixed point of a SMOOTHED update S = smooth(alpha2 S)
+        % alpha2 is not 1 wherever the true spectrum is not smooth, so
+        % max|alpha2 - 1| never met Tol (0.35 at every pass from 5 on, 30 passes,
+        % "not converged"). The smoothed loop has settled when the SHAPE stops
+        % moving: the change of S at r(0) = 1 (c the hatACV weights; the level
+        % is the joint loop's levelDev).
+        c = 2 * ones(L, 1);  c([1 L]) = 1;
+        in = Sprior > 0;
+        rho = (Shat(in) ./ Sprior(in)) * ((c.' * Sprior) / (c.' * Shat));
+        maxDev = max(abs(rho - 1));
+    end
     out = struct('Shat', Shat, 'alpha2', alpha2, 'frozen', frozen, 'Sprior', Sprior, ...
-                 'maxDev', max(abs(alpha2 - 1)));
+                 'maxDev', maxDev);
 end
 
 function S = smoothSpectrum(S, h)

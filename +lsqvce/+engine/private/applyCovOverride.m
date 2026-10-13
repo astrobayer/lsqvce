@@ -35,7 +35,9 @@ function cm = applyCovOverride(cm, ovr, obsType, opt, day, arcID)
 %     arcID    1x1          the arc's id      (optional, with day)
 %
 %   OUTPUT
-%     cm       1x1  struct  the merged spec, fields of ovr winning over cm
+%     cm       1x1  struct  the merged spec, fields of ovr winning over cm; a
+%                           layer with its own frequency axis (fNorm or f)
+%                           replaces the other one (WP-131)
 %
 %   ERRORS
 %     none of its own; LSQVCE.UTIL.MERGESTRUCT errors on non-struct layers
@@ -43,6 +45,9 @@ function cm = applyCovOverride(cm, ovr, obsType, opt, day, arcID)
 %   See also LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.SYNTHLOADER, LSQVCE.ENGINE.ADJUSTVCEJOINT,
 %            LSQVCE.ENGINE.JOINTMODELOPT, LSQVCE.UTIL.MERGESTRUCT, LSQVCE.UTIL.ROWWEIGHTKEY
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: a layer with its own
+%   frequency axis replaces the declared one (mergeLayer). With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-116 part 2 (R7-13): layer (3),
 %   the per-arc factor, so the joint estimator's arc factors weight the
 %   solve. With assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -50,12 +55,12 @@ function cm = applyCovOverride(cm, ovr, obsType, opt, day, arcID)
 %   (Anthropic), model Claude Fable 5 -- R4 G-06, Level L1. Moved verbatim
 %   from the makeLoader local function so there is ONE implementation.
     if isfield(ovr, obsType)
-        cm = lsqvce.util.mergeStruct(cm, ovr.(obsType));
+        cm = mergeLayer(cm, ovr.(obsType));
     end
     if isfield(ovr, 'bySys') && isfield(opt, 'sysID')
         [~, satKey] = lsqvce.util.streamKey(opt.sysID);
         if isfield(ovr.bySys, satKey) && isfield(ovr.bySys.(satKey), obsType)
-            cm = lsqvce.util.mergeStruct(cm, ovr.bySys.(satKey).(obsType));
+            cm = mergeLayer(cm, ovr.bySys.(satKey).(obsType));
         end
     end
     % R5 M3 3b: an override may carry a RELATIVE level, sigmaScale, instead of
@@ -74,3 +79,17 @@ function cm = applyCovOverride(cm, ovr, obsType, opt, day, arcID)
         cm = rmfield(cm, 'sigmaScale');
     end
 end
+
+function cm = mergeLayer(cm, layer)
+%MERGELAYER  One override layer onto the spec, fields of the layer winning.
+%   WP-131: a 'psd' layer brings its OWN frequency axis -- the joint estimator
+%   emits fNorm (cycles per sample) -- so a declared physical f must go, or
+%   covModel, which takes f whenever it is present, paired the declared f
+%   (4096 points) with the 60-bin S (an unnamed numel error) or, at equal
+%   length, integrated the law on the wrong axis (r = 0.2 x at dt = 5).
+%   The same holds the other way round.
+    cm = lsqvce.util.mergeStruct(cm, layer);
+    if isfield(layer, 'fNorm') && ~isfield(layer, 'f') && isfield(cm, 'f'), cm = rmfield(cm, 'f'); end
+    if isfield(layer, 'f') && ~isfield(layer, 'fNorm') && isfield(cm, 'fNorm'), cm = rmfield(cm, 'fNorm'); end
+end
+

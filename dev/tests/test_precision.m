@@ -7,6 +7,9 @@ function tests = test_precision
 %   Run:  results = runtests('tests/test_precision');  disp(table(results))
 %
 %   See also TEST_RELIABILITY, TEST_SPEED, TEST_LSQACCUM
+%
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: armaACV of a sparse AR
+%   polynomial. With assistance from Claude (Anthropic), model Claude Opus 5.5.
     tests = functiontests(localfunctions);
 end
 
@@ -92,6 +95,24 @@ function testArmaWithMaWhitenerIsTheCholeskyFactor(tc)
             sprintf('ARMA(%d,%d), n = %d: the filter is chol(C)^-1', numel(a)-1, numel(b)-1, n));
     end
 end
+function testArmaAcvOfASparseArPolynomial(tc)
+% categories: precision, reference
+% WP-131: armaACV stopped the impulse response when ONE sample was below eps
+% max|h|; for a sparse AR polynomial h is exactly 0 at every other sample long
+% before it has decayed, so a = [1 0 0.998] stopped at 512 samples: r(0) 160.5
+% instead of 250.25 (dev/validation/wp131_kernel_mirror.py). Reference, the
+% AR(2) with a1 = 0: r(0) = 1/(1 - phi^2), r(1) = 0, r(2) = -phi r(0).
+    phi = 0.998;
+    r = lsqvce.kernel.armaACV([1 0 phi], 1, 3);
+    % tol: 1e-10 relative -- the FFT autocorrelation of an impulse response
+    % truncated where its energy is below eps^2 of the total
+    tc.verifyEqual(r, [1; 0; -phi] / (1 - phi^2), 'RelTol', 1e-10, 'AbsTol', 1e-9);
+    % the seasonal form: x_t = phi4 x_{t-4} + e_t, r(0) = 1/(1 - phi4^2), r(4) = phi4 r(0)
+    p4 = 0.995;  r4 = lsqvce.kernel.armaACV([1 0 0 0 -p4], 1, 5);
+    % tol: as above
+    tc.verifyEqual(r4([1 5]), [1; p4] / (1 - p4^2), 'RelTol', 1e-10);
+end
+
 function testSteadyStateRowsAreTheARCoefficients(tc)
 % categories: precision
 % Explicit structural check: away from the startup block, row k of the whitener

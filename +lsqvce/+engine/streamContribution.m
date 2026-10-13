@@ -12,9 +12,12 @@ function out = streamContribution(acc, sol, opt)
 %       diag(C_g) = diag( N^-1 N_g^cc )   (nc x 1) per-parameter information share
 %
 %   where N = Ncc_red = sum_g N_g^cc is the TOTAL reduced common normal (already
-%   factored once as chol) and N_g^cc is group g's contribution to it. The
-%   group-summed invariants hold EXACTLY (up to probe noise): sum_g t_g = nc and
-%   sum_g diag(C_g) = ones(nc,1), because sum_g N_g^cc = N.
+%   factored once as chol) and N_g^cc = Z_g'Z_g is group g's contribution to it,
+%   Z_g = A_g - B_g G the group's rows reduced by the local elimination -- the
+%   LEVERAGE split, the one Level 1 uses (WP-131), so t_g is in expectation the
+%   group's common leverage sum_{i in g} z_i' N^-1 z_i and the diagonal sums to
+%   it. The group-summed invariants hold EXACTLY (up to probe noise): sum_g t_g
+%   = nc and sum_g diag(C_g) = ones(nc,1), because sum_g N_g^cc = N.
 %
 %   MEMORY-HONEST DESIGN (why this exists)
 %     N_g^cc is nc x nc and a group can span many arcs, so holding all G of them
@@ -24,12 +27,13 @@ function out = streamContribution(acc, sol, opt)
 %     group g's contribution to a mat-vec, re-accumulated by STREAMING that
 %     group's arcs -- mirroring the exact leverage path in LSQVCE.ENGINE.REDUNDANCY:
 %
-%       N_g^cc Z = sum_{arc in g} A_arc' (A_arc Z)   -   Nlc_s' ( G_s Z )
+%       N_g^cc Z = sum_{arc in g} A_arc'(A_arc Z) - Nlc_g'(G_s Z) - G_s'(Nlc_g Z)
+%                  + G_s' Mll_g (G_s Z)
 %
-%     with A_arc the whitened common design of the arc (m x nc), G_s = inv(Nll_s)
-%     Nlc_s the per-SYSTEM Schur factor (built once, shared by all that system's
-%     arcs, identical to the G of LSQVCE.ENGINE.BLOCKCOFACTOR). The first term streams per arc;
-%     the second is a single per-system correction applied once. All groups are
+%     with A_arc the whitened common design of the arc (m x nc), Nlc_g / Mll_g
+%     the group's cross block B'A and local Gram B'B (streamed with it), and
+%     G_s = inv(Nll_s) Nlc_s the per-SYSTEM Schur factor (built once, identical
+%     to the G of LSQVCE.ENGINE.BLOCKCOFACTOR). All groups are
 %     accumulated in ONE sweep -- each arc routes its A'(A Z) into its own group's
 %     nc x Z accumulator, so the cost is a handful of data passes independent of G.
 %
@@ -93,14 +97,14 @@ function out = streamContribution(acc, sol, opt)
 %                   .relSE  1x1     .se / |.trace|  (NaN if .trace == 0)
 %                   .n      1x1     observation rows in the group (exact count
 %                                   from the same sweep)
-%                   .localAbsorbed 1x1  EXACT local dof absorbed by the group:
-%                                   local_g = tr((Nll^-1 + G Sxx G') B_g'B_g)
-%                                           - tr(B_g'A_g Sxx G')
-%                                   from the leverage-block identities
-%                                   inv(N)_ll = Nll^-1 + G Sxx G' and
-%                                   inv(N)_lc = -G Sxx (LSQVCE.ENGINE.BLOCKCOFACTOR); a
-%                                   whole-system group gives exactly nl_s. No
-%                                   probes enter this term.
+%                   .localAbsorbed 1x1  EXACT local leverage of the group,
+%                                   local_g = tr(Qll B_g'B_g), Qll = inv(Nll)
+%                                   (its pseudo-inverse for a rank-deficient
+%                                   block), the second term of the block
+%                                   leverage h = z'Sxx z + b'Qll b
+%                                   (LSQVCE.ENGINE.BLOCKCOFACTOR, WP-131); a
+%                                   whole-system group gives exactly the local
+%                                   rank. No probes enter this term.
 %                   .r      1x1     STREAMED REDUNDANCY (WP-32, fixes F-01):
 %                                   r_g = .n - .localAbsorbed - .trace
 %                                   == n_g - sum_{i in g} h_i in expectation,
@@ -141,6 +145,11 @@ function out = streamContribution(acc, sol, opt)
 %   See also LSQVCE.ENGINE.CONTRIBUTION, LSQVCE.ENGINE.REDUNDANCY, LSQVCE.ENGINE.BLOCKCOFACTOR,
 %            LSQVCE.ENGINE.TRACEESTIMATE, LSQVCE.ENGINE.VCE
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: the leverage split
+%   N_g = Z_g'Z_g (Level 1's) replaces the symmetric half-Schur split, so a
+%   group's Level-2 diagonal sums to its Level-1 share and is non-negative;
+%   localAbsorbed = tr(Qll Mll_g) on the solve's local cofactor. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3 (R7-24): the
 %   retired leverage / leverageBlocks references point at
 %   lsqvce.engine.BlockCofactor. With assistance from Claude (Anthropic),
@@ -227,16 +236,13 @@ end
     for k = 1:nSys
         st = acc.getStore(ids(k));
         [~, G] = lsqvce.engine.BlockAccumulator.localSolveOf(st, []);   % nl x nc (WP-128)
-        % WP-32: the exact local-absorbed term needs the two leverage-block
-        % identities inv(N)_ll = Nll^-1 + G Sxx G' and inv(N)_lc = -G Sxx
-        % (LSQVCE.ENGINE.BLOCKCOFACTOR). One nc-solve per system yields X = Sxx G';
-        % everything else is nl x nl.
-        X   = Lc.' \ (Lc \ G.');                    % Sxx G', nc x nl
-        GSG = G * X;                                 % G Sxx G', nl x nl
+        % WP-131: the exact local leverage of a group is tr(Qll Mll_g), Qll the
+        % solve's local cofactor (on its factor, or its pseudo-inverse: the
+        % accumulator's localCovariance with Cxx = 0, s0^2 = 1)
+        Qll = acc.localCovariance(st.sysID, zeros(nc), 1);
         stores{k} = struct('sysID', st.sysID, 'dataFcn', st.dataFcn, ...
                            'uo', st.uo, 'dayList', st.dayList, ...
-                           'Nlc', st.Nlc, 'Nllr', st.Nll_r, 'GZ', G * Z, ...
-                           'X', X, 'GSG', GSG);
+                           'G', G, 'GZ', G * Z, 'Qll', Qll);
     end
 
     % ---- group bookkeeping (pinned order if 'Groups' given) --------------
@@ -248,21 +254,22 @@ end
         keys    = cellfun(@(k) char(string(k)), keyVals, 'UniformOutput', false);
     end
     nG0   = numel(keys);
-    AccAZ = repmat({zeros(nc, o.Probes)}, 1, nG0);    % sum_arc A'(A Z), nc x Z
-    Corr  = repmat({zeros(nc, o.Probes)}, 1, nG0);    % -1/2 Schur term, nc x Z
+    AccAZ = repmat({zeros(nc, o.Probes)}, 1, nG0);    % N_g Z (the leverage split), nc x Z
     nObs  = zeros(1, nG0);                            % n_g, rows per group
     locA  = zeros(1, nG0);                            % exact local absorbed
 
-    % ---- ONE data sweep: symmetric Schur decomposition -------------------
-    %   N_g^cc = Ncc_g - 1/2 ( Nlc_g' inv(Nll_s) Nlc_s + Nlc_s' inv(Nll_s) Nlc_g )
-    %   which partitions EXACTLY (sum_g N_g^cc = N) and is INDEPENDENT of arc
-    %   ordering -- the only correct split when a system's arcs span several
-    %   groups (e.g. obsType grouping of a merged pair-system). Its matvec is
-    %       N_g^cc Z = sum_{arc in g} A'(A Z)
-    %                  - 1/2 ( Nlc_g' (G_s Z) + Nlc_s' (G_g Z) ),   G_g=inv(Nll)Nlc_g
-    %   accumulated per (group, system): within a system's pass we build that
-    %   group's cross block Nlc_g^(s) = sum_{arc in g, sys s} B'A and apply the
-    %   two half-terms, so systems never cross-contaminate.
+    % ---- ONE data sweep: the LEVERAGE split of N (WP-131) ----------------
+    %   N_g = Z_g' Z_g,  Z_g = A_g - B_g G_s  (the rows reduced by the local
+    %   elimination) -- the split Level 1 uses (BlockCofactor.leverage's hc,
+    %   t_g = sum_{i in g} z_i' Sxx z_i). It sums to N over the groups of a
+    %   system (G_s' Nll_s G_s = G_s' Nlc_s), is positive semidefinite per
+    %   group, and its matvec is assembled from the per-arc pieces:
+    %       N_g Z = A_g'A_g Z - Nlc_g' (G Z) - G' (Nlc_g Z) + G' Mll_g (G Z).
+    %   The symmetric half-Schur split used before also summed to N but not
+    %   group by group to Level 1's t_g (off by tr(Sxx G' B_g'(A_g - B_g G)),
+    %   zero only for a whole system): a group's Level-2 diagonal did not sum
+    %   to its share, and could be negative
+    %   (dev/validation/wp131_level2_split_mirror.py).
     for k = 1:nSys
         st = stores{k};
         uo = st.uo;
@@ -285,7 +292,6 @@ end
                         keyVals{end+1} = key;         %#ok<AGROW>
                         gi = numel(keys);
                         AccAZ{gi} = zeros(nc, o.Probes); %#ok<AGROW>
-                        Corr{gi}  = zeros(nc, o.Probes); %#ok<AGROW>
                         nObs(gi)  = 0;                   %#ok<AGROW>
                         locA(gi)  = 0;                   %#ok<AGROW>
                     end
@@ -294,8 +300,8 @@ end
                         gIdx(end+1) = gi;            %#ok<AGROW>
                         lg          = numel(gIdx);
                         gAZ{lg}     = zeros(nc, o.Probes);   %#ok<AGROW>
-                        gNlc{lg}    = zeros(size(st.Nlc));    %#ok<AGROW> % nl x nc
-                        gMll{lg}    = zeros(size(st.Nlc,1));  %#ok<AGROW> % nl x nl
+                        gNlc{lg}    = zeros(size(st.G));      %#ok<AGROW> % nl x nc
+                        gMll{lg}    = zeros(size(st.G,1));    %#ok<AGROW> % nl x nl
                         gN(lg)      = 0;                      %#ok<AGROW>
                     end
                     [AZ, NlcArc, MllArc, nArc] = arcCommonProbe(st, obsType, a, d, uo, Z);
@@ -308,24 +314,15 @@ end
                 end
             end
         end
-        % Fold this system's per-group pieces into the global accumulators,
-        % applying the symmetric half-Schur correction now (G_s Z is st.GZ).
+        % Fold this system's per-group pieces into the global accumulators:
+        % the leverage-split matvec and the exact local leverage tr(Qll Mll_g)
         for lg = 1:numel(gIdx)
             gi   = gIdx(lg);
             NlcG = gNlc{lg};                          % Nlc_g^(s), nl x nc
-            GgZ  = st.Nllr \ (NlcG * Z);              % inv(Nll_s) Nlc_g Z, nl x Z
-            half = 0.5 * ( NlcG.' * st.GZ + st.Nlc.' * GgZ );   % nc x Z
-            AccAZ{gi} = AccAZ{gi} + gAZ{lg};
-            Corr{gi}  = Corr{gi}  + half;
-            % WP-32: the EXACT local dof absorbed by this group (no probes):
-            %   local_g = tr((Nll^-1 + G Sxx G') Mll_g) - tr(Nlc_g Sxx G')
-            % from the leverage-block identities. For a whole-system group it
-            % collapses to nl_s exactly; per group it completes the streamed
-            % cc-attribution to the true absorbed dof sum_{i in g} h_i.
-            MllG     = gMll{lg};                      % B_g'B_g, nl x nl
-            locA(gi) = locA(gi) + trace(st.Nllr \ MllG) ...
-                                + trace(st.GSG * MllG) ...
-                                - trace(NlcG * st.X);
+            MllG = gMll{lg};                          % B_g'B_g,   nl x nl
+            AccAZ{gi} = AccAZ{gi} + gAZ{lg} - NlcG.' * st.GZ - st.G.' * (NlcG * Z) ...
+                                  + st.G.' * (MllG * st.GZ);
+            locA(gi)  = locA(gi) + sum(sum(st.Qll .* MllG));   % tr(Qll Mll_g), both symmetric
             nObs(gi) = nObs(gi) + gN(lg);
         end
         if o.Verbose
@@ -348,7 +345,7 @@ end
                  'n', {}, 'localAbsorbed', {}, 'r', {}, 'rSE', {});
     traceSum = 0;
     for gi = 1:nG
-        NgZ  = AccAZ{gi} - Corr{gi};                  % N_g^cc Z, nc x Z
+        NgZ  = AccAZ{gi};                             % N_g Z (leverage split), nc x Z
         W    = Lc.' \ (Lc \ NgZ);                     % N^-1 N_g^cc Z, nc x Z
         % Hutchinson trace: mean_z z'(N^-1 N_g Z);  per-probe values for the se.
         perProbe = sum(Z .* W, 1);                    % 1 x Z

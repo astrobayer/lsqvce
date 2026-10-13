@@ -15,6 +15,9 @@ function tests = test_vceMath
 %
 %   See also TEST_PRECISION, TEST_RELIABILITY, TEST_SPEED
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: the crossCorr verdict is
+%   scale-free. With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3: the leverage
 %   points run on lsqvce.engine.BlockCofactor (leverage / leverageBlocks
 %   retired). With assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -481,6 +484,24 @@ function testCrossCorrWhiteIsOK(tc)
     rs = RandStream('mt19937ar','Seed',41);
     c = lsqvce.kernel.crossCorr(randn(rs, 4000*3, 1), 3, 'MaxLag', 15);
     tc.verifyEqual(c.verdict, 'ok');
+end
+
+function testCrossCorrVerdictIsScaleFree(tc)
+% categories: metamorphic, contract | tags: diagnostics
+% WP-131: the verdict tested the covariance R(tau) against z/sqrt(nE), the
+% band of a CORRELATION -- white noise at sigma 2 came out 'ar-order-low' every
+% time, a real AR(1) leftover at sigma 0.5 was never seen
+% (dev/validation/wp131_kernel_mirror.py). It tests c.Rcorr now; c.R is
+% still the covariance.
+    rs = RandStream('mt19937ar','Seed',131);
+    c = lsqvce.kernel.crossCorr(2 * randn(rs, 4000*3, 1), 3, 'MaxLag', 15);
+    tc.verifyEqual(c.verdict, 'ok', 'white noise at sigma 2 is white');
+    % tol: 0.15 relative -- R(0) of 4000 samples of variance 4 (se ~2 % per entry)
+    tc.verifyEqual(diag(squeeze(c.R(1,:,:))), 4 * ones(3, 1), 'RelTol', 0.15, 'c.R stays the covariance');
+    W = 0.5 * filter(1, [1 -0.2], randn(rs, 4000, 3), [], 1);
+    c = tc.verifyWarning(@() lsqvce.kernel.crossCorr(reshape(W.', [], 1), 3), ...
+                         'lsqvce:crossCorr:ar_order_low');
+    tc.verifyEqual(c.verdict, 'ar-order-low', 'an AR(1) leftover at sigma 0.5 is seen');
 end
 
 function testCrossCorrDetectsCrossAxis(tc)

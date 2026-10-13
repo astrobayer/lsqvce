@@ -22,7 +22,9 @@ function c = crossCorr(w, d, opt)
 %
 %   OUTPUT
 %     c.R        (maxLag+1) x d x d   empirical cross-covariance R(tau)
-%     c.band     significance band per element
+%     c.Rcorr    (maxLag+1) x d x d   the same as a correlation,
+%                R(tau)_ij / sqrt(R(0)_ii R(0)_jj) -- what the verdict tests
+%     c.band     significance band per element of c.Rcorr
 %     c.verdict  'ok' | 'cross-axis-zero-lag' | 'ar-order-low' | 'needs-var'
 %     c.advice   what to do about it
 %
@@ -57,7 +59,7 @@ function c = crossCorr(w, d, opt)
 %     c   = lsqvce.kernel.crossCorr(w, 3, 'plot', true);
 %
 %     lsqvce.util.log.msg('%s: %s\n', c.verdict, c.advice);
-%     disp(squeeze(c.R(1,:,:)))          % R(0) -- should be the identity
+%     disp(squeeze(c.Rcorr(1,:,:)))      % R(0) as a correlation -- ~ the identity
 %
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
 %   typed `arguments` signature, canonical UpperCamelCase option names
@@ -69,6 +71,10 @@ function c = crossCorr(w, d, opt)
 %
 %   See also LSQVCE.ENGINE.RESIDUALS, LSQVCE.ENGINE.COVMODEL
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: the verdict tests the
+%   correlation (c.Rcorr) against the band, not the covariance -- it no longer
+%   depends on the residuals' variance. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): the
 %   deleted SELECTARORDER references removed. With assistance from Claude
 %   (Anthropic), model Claude Opus 5.5.
@@ -116,12 +122,20 @@ end
     zcrit = norminvApprox(1 - o.alpha/2);
     band  = zcrit / sqrt(nE);
 
-    R0     = squeeze(R(1,:,:));
+    % WP-131: the band z/sqrt(nE) is that of a CORRELATION; the verdict tested
+    % the covariance R, so its false-alarm rate and power scaled with the
+    % residuals' variance (white noise at sigma 2 failed every time, a real
+    % AR(1) leftover at sigma 0.5 was never seen; dev/validation/wp131_kernel_mirror.py).
+    % The verdict reads Rn = R(tau)_ij / sqrt(R0_ii R0_jj); c.R stays the covariance.
+    sd = sqrt(max(diag(reshape(R(1,:,:), d, d)), realmin));
+    Rn = R ./ reshape(sd * sd.', [1 d d]);
+
+    R0     = reshape(Rn(1,:,:), d, d);
     cross0 = max(max(abs(R0 - diag(diag(R0)))));
 
     diagT  = 0;  crossT = 0;
     for t = 2:mx+1
-        Rt     = squeeze(R(t,:,:));
+        Rt     = reshape(Rn(t,:,:), d, d);
         diagT  = max(diagT,  max(abs(diag(Rt))));
         crossT = max(crossT, max(max(abs(Rt - diag(diag(Rt))))));
     end
@@ -143,7 +157,7 @@ end
         advice  = 'leftover temporal correlation -- raise the AR order';
     end
 
-    c = struct('R', R, 'band', band, 'verdict', verdict, 'advice', advice, ...
+    c = struct('R', R, 'Rcorr', Rn, 'band', band, 'verdict', verdict, 'advice', advice, ...
                'cross0', cross0, 'diagT', diagT, 'crossT', crossT, ...
                'nEpoch', nE, 'd', d);
 
@@ -157,9 +171,9 @@ end
         for i = 1:d
             for j = 1:d
                 subplot(d, d, (i-1)*d + j);
-                stem(0:mx, squeeze(R(:,i,j)), '.'); hold on
+                stem(0:mx, squeeze(Rn(:,i,j)), '.'); hold on
                 yline([-1 1]*band, 'r--');
-                grid on;  ylim([-1 1]*max(0.3, 1.2*max(abs(squeeze(R(:,i,j))))));
+                grid on;  ylim([-1 1]*max(0.3, 1.2*max(abs(squeeze(Rn(:,i,j))))));
                 title(sprintf('R_{%d%d}', i, j));
                 if i == d, xlabel('lag [epochs]'); end
             end

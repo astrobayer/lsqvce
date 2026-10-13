@@ -140,7 +140,9 @@ Name, Value          any property of lsqvce.Options</pre>
                                by lsqvce.engine.batchSystem
     lsqvce:fit:priorNotActive  (warning) a prior with from &gt; 1 in a
                                single-pass run is not applied (a common
-                               or a local group, WP-128)
+                               or a local group, WP-128), or its from lies
+                               beyond the passes the joint loop ran
+                               (WP-131)
     lsqvce:fit:badPrior        data.priors is malformed (unknown
                                field, L not p x nc, sigma not a positive scalar,
                                x0 of the wrong length)
@@ -167,6 +169,9 @@ See also LSQVCE.OPTIONS, LSQVCE.RESULTS, LSQVCE.LAYOUT, LSQVCE.ENGINE.DECLARATIO
          LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT,
          LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTNONLINEAR
 
+Updated 2026-10-13 (CEST, UTC+02:00), WP-131: lsqvce:fit:priorNotActive also
+when the joint loop ends before a group&#x27;s from. With assistance from
+Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-13 (CEST, UTC+02:00), WP-128: lsqvce:fit:priorNotActive also
 counts a late LOCAL group (data.systems(k).priors). With assistance from
 Claude (Anthropic), model Claude Opus 5.5.

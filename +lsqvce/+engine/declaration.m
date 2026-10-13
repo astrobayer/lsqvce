@@ -21,6 +21,9 @@ function [spec, systems] = declaration(data, cacheDays)
 %
 %   See also LSQVCE.FIT, LSQVCE.ENGINE.MAKELOADER, LSQVCE.RESULTS
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: a one-argument arc
+%   resolver @(day) works with day-scoped commonParams (it threw "too many
+%   inputs"). With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): points
 %   at lsqvce.fit's ERRORS, which now lists badParamColumns. With assistance
 %   from Claude (Anthropic), model Claude Opus 5.5.
@@ -227,7 +230,10 @@ function tf = calendarDayHasArcs(sys, day)
                 aj = a.(types{j});
             end
             if isa(aj, 'function_handle')
-                if ~isempty(aj(day, types{j})), tf = true;  return, end
+                % WP-131: a resolver may take the day alone, as makeLoader's
+                % resolveArcSpec accepts -- @(d) ... threw "too many inputs" here
+                if nargin(aj) == 1, arcs = aj(day); else, arcs = aj(day, types{j}); end
+                if ~isempty(arcs), tf = true;  return, end
             elseif isnumeric(aj)
                 if (isscalar(aj) && aj >= 1) || (~isscalar(aj) && ~isempty(aj))
                     tf = true;  return

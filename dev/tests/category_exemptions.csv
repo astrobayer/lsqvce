@@ -71,7 +71,6 @@ engine.collectResiduals,speed,covered by the fit-level solve budget (test_speedB
 engine.collectResiduals,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path
 engine.contribution,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
 engine.contribution,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
-engine.contribution,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path
 engine.covComponent,robustness,its refusals are named identifiers pinned under contract; no numerical edge regime beyond those
 engine.covComponent,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
 engine.covComponent,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
@@ -136,7 +135,6 @@ kernel.stat,speed,covered by the fit-level solve budget (test_speedBudget) and t
 kernel.stat,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path
 engine.streamContribution,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
 engine.streamContribution,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
-engine.streamContribution,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path
 engine.synthLoader,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path
 engine.traceEstimate,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
 engine.traceEstimate,metamorphic,the scaling / partition / permutation invariances are asserted through fit in test_metamorphic, which exercises this unit on the block path
@@ -155,7 +153,6 @@ kernel.crossCorr,reference,covered by the metamorphic and precision points of it
 kernel.crossCorr,robustness,pure array arithmetic with validated shapes; the edge regime (non-PD, non-stationary) is a named refusal pinned under contract
 kernel.crossCorr,vectorisation,already the vectorised form (matrix ops / FFT); a loop reference would be the slower twin, and the speed budget pins the fast one where it matters (redundancyLags)
 kernel.crossCorr,speed,its cost is inside its caller's budget (test_speedBudget: the lag sums; test_instruments: the timing instrument); a standalone budget would pin BLAS, not the toolbox
-kernel.crossCorr,metamorphic,the invariance that applies (scaling / linearity) is pinned through the caller in test_metamorphic; a second copy per kernel would repeat it
 kernel.dctI,speed,its cost is inside its caller's budget (test_speedBudget: the lag sums; test_instruments: the timing instrument); a standalone budget would pin BLAS, not the toolbox
 kernel.dctI,robustness,no caller in the package since R7 WP-111 part 3 (the joint law left the DCT domain); its robustness was the joint driver's, and it stays only as a documented transform with its own precision and contract tests
 kernel.hatACV,speed,one outer product (m x L) or, in the projection form the joint sweep uses, a fold and one FFT of length 2(L-1) per arc; its cost is inside the sweep's budget (test_speedBudget), a standalone budget would pin the FFT

@@ -236,7 +236,8 @@ R6 WP-102), and an arc&#x27;s Cep is its own cell (finding E-01 cannot recur).</
     lsqvce:makeLoader:badValidity  ValidityColumns out of range or a bad entry
     lsqvce:makeLoader:badPrior     a Priors group is malformed (fields, width,
                                    pattern, a row coupling two days)
-    lsqvce:makeLoader:priorType    a stream name collides with a prior group&#x27;s
+    lsqvce:makeLoader:priorType    a stream name collides with a prior group&#x27;s,
+                                   or starts with &#x27;prior_&#x27; (reserved, WP-131)
 
   Raised while READING a day (your buildDay is wrong):
     lsqvce:makeLoader:buildDay     your buildDay itself threw; the original error
@@ -272,6 +273,9 @@ R6 WP-102), and an arc&#x27;s Cep is its own cell (finding E-01 cannot recur).</
 See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.DECLARATION,
          LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.ENGINE.SYNTHLOADER
 
+Updated 2026-10-13 (CEST, UTC+02:00), WP-131: a stream named &#x27;prior_*&#x27; is
+refused (lsqvce:makeLoader:priorType; it was dropped silently). With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-115 part 3b (R7-10): the
 epoch weights compose as an additive nugget (cm.nugget, whole-arc
 whitening) instead of the fold into Cep (inflateCep retired). With

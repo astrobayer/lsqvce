@@ -403,6 +403,10 @@ function D = diagnose(sol, batchFcn, opt)
 %   See also LSQVCE.ENGINE.VERDICT.SOURCE, LSQVCE.REPORT, LSQVCE.ENGINE.VERDICT.SNOOP,
 %   LSQVCE.ENGINE.BLOCKCOFACTOR.
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: the MDB of a correlated
+%   batch is delta0 / sqrt((P Qvv P)_ii), the generalised test's own (it was
+%   the diagonal-P formula). With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-130: Test 'mad' leaves the datum
 %   rows out of its scale (as the fused path does since WP-127); D.rank is the
 %   solve's rank. With assistance from Claude (Anthropic), model Claude Opus
@@ -849,7 +853,9 @@ for k = 1:nB
 
     % --- MDB.
     mdbk  = inf(nk, 1);
-    mdbk(ctrl) = sig_i(ctrl) .* delta0 ./ sqrt(rk(ctrl));
+    % WP-131: the w-test's noncentrality under a bias nabla_i is nabla_i sqrt((P Qvv P)_ii),
+    % so MDB_i = delta0 / sqrt(qpp_i); sigma_i delta0 / sqrt(r_i) is that only for diagonal P
+    if isCorr, mdbk(ctrl) = delta0 ./ sqrt(qpp(ctrl)); else, mdbk(ctrl) = sig_i(ctrl) .* delta0 ./ sqrt(rk(ctrl)); end
 
     % --- external reliability: an undetected bias mdb_i in obs i shifts x by
     %       dx = Qxx * (P e_i) * mdb_i

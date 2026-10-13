@@ -1,5 +1,36 @@
 # lsqvce release notes
 
+## 6.18.0 — 2026-10-13 (WP-131: noise model, kernel and contributions of the second whole-code review)
+
+Numbers change for the cases marked **numbers**.
+
+- **Level-2 contributions on the Level-1 split (numbers).** `contribution(..., 'Level', 2)`
+  split the reduced normal matrix differently from Level 1 whenever a system's locals spanned
+  several groups (`GroupBy` "obsType" or "day"): a group's diagonal did not sum to its share
+  and could be negative. Both levels now use the leverage split N_g = Z_g'Z_g (user decision).
+- **A declared PSD law with a physical frequency axis works under `Estimate = "noise"`.** The
+  estimator's law (on normalised frequency) kept the declared axis and failed on pass 1, or at
+  equal lengths integrated on the wrong axis.
+- **`Noise.Smooth > 0` can converge.** The stop test read the unsmoothed factors, which are
+  not 1 at a smoothed fixed point; it now reads the change of the spectrum's shape.
+- **The lag sums of a non-stationary covariance are exact (numbers).** A per-row sigma, a
+  down-weighted epoch or a gap after mid-arc was taken for a Toeplitz covariance.
+- **`armaACV` of a sparse AR polynomial (numbers).** A polynomial such as `[1 0 0.998]` or a
+  seasonal one stopped its impulse response early (r(0) 36 % low).
+- **`crossCorr`'s verdict is scale-free.** It tested covariances against a correlation band.
+- **A non-robust `Estimate = "noise"` run is no longer reported as "a robust (none) fit".**
+- **A prior beyond the last pass is reported** (`lsqvce:fit:priorNotActive`) instead of being
+  dropped silently when the joint loop ends before its `from`.
+- Smaller fixes: the MDB of a correlated batch (direct `diagnose` calls, **numbers**);
+  `residuals(..., 'Whitened', false)` keeps the whitened σ₀; `outliers` under `'spmd'`;
+  `fit`'s Name=Value groups override the given Options field by field; `toTable` without
+  `localParams`; a one-argument arc resolver with day-scoped common parameters.
+- **A data stream named `prior_*` is refused** (`lsqvce:makeLoader:priorType`): the name is
+  reserved for the prior pseudo-streams, and such a stream was dropped silently (user decision).
+- **`R.snoop` tests at `R.diag`'s Alpha, Bonferroni and Test** unless told otherwise (user
+  decision): an observation `R.diag` flagged at Alpha 0.01 could pass `R.snoop` as clean.
+- Tests: 673 (+11).
+
 ## 6.17.0 — 2026-10-13 (WP-130: the solve core and the diagnostics of the second whole-code review)
 
 Numbers change for the cases marked **numbers**.

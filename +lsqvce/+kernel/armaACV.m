@@ -47,6 +47,10 @@ function r = armaACV(a, b, n)
 %
 %   See also LSQVCE.KERNEL.LEVINSONDURBIN, LSQVCE.KERNEL.ARMAWHITEN, LSQVCE.KERNEL.PSD2ACV
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: the impulse response stops
+%   on the energy of its last max(p,q)+1 samples, not on one sample (a sparse
+%   AR polynomial is exactly 0 there long before it has decayed). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+kernel (R4 decision R4-D1,
@@ -79,7 +83,13 @@ function r = armaACV(a, b, n)
     nh = max(4*n, 512);
     for k = 1:8
         h = filter(b, a, [1; zeros(nh-1,1)]);
-        if abs(h(end)) < eps*max(abs(h)) || nh >= 2^20, break, end
+        % WP-131: the TAIL's energy over max(p,q)+1 samples, not one sample --
+        % a sparse AR polynomial ([1 0 phi], a seasonal [1 0..0 -phi]) has an
+        % h that is exactly 0 at most samples long before it has decayed: the
+        % one-sample test stopped at 512 and r(0) of [1 0 0.998] came out 36 %
+        % low (dev/validation/wp131_kernel_mirror.py)
+        K = min(nh, max(numel(a), numel(b)));
+        if sum(h(end-K+1:end).^2) < eps^2 * sum(h.^2) || nh >= 2^20, break, end
         nh = 2*nh;
     end
 

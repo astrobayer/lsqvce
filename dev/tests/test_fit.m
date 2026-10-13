@@ -36,6 +36,9 @@ function tests = test_fit
 %   Created 2026-08-31 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5 -- R4 Level L2, WP-56.
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: a declared physical psd under
+%   Estimate "noise"; a stream named prior_* refused; snoop inherits R.diag's
+%   test. With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-130: Gauss-Newton sigma0 / vPv /
 %   D.x at the returned point; the datum test under a change of parameter
 %   units; snoop without the re-solve and its critical value; the mad scale
@@ -558,6 +561,46 @@ function testWhitenerReachesADeclaredPsdLaw(tc)
     rT = lsqvce.fit(dPsd, lsqvce.Options(Robust="huber", Noise=struct('Whitener', "toeplitz"), Verbose=false)).x;
     rR = lsqvce.fit(dPsd, lsqvce.Options(Robust="huber", Noise=struct('Whitener', "ar"), Verbose=false)).x;
     tc.verifyNotEqual(rT, rR, 'the Whitener must reach the declared law under IRLS too');
+end
+
+function testNoiseEstimatesADeclaredPhysicalPsdLaw(tc)
+% categories: contract, robustness
+    % WP-131: under Estimate="noise" a declared 'psd' law with a physical
+    % frequency axis f (covModel's own EXAMPLE form) takes policy "law"; the
+    % estimator's override brings fNorm and a Grid-bin S, but the merge kept
+    % the declared f, and covModel takes f whenever it is present: the 4096
+    % ordinates of f met the 16 of S and pass 1 died in an unnamed numel
+    % error (at equal lengths: the law on the wrong axis, r 0.2x at dt = 5).
+    % The override's axis now replaces the declared one (applyCovOverride).
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % three passes on purpose (gate rule 7)
+    [dArma, cfg] = declaration();
+    dPsd = withPsdLaw(dArma, cfg);
+    o = lsqvce.Options(Estimate="noise", MaxPasses=3, Noise=struct('Grid', 16), Verbose=false);
+    R = lsqvce.fit(dPsd, o);                          % errored on pass 1 before
+    tc.verifyEqual(R.stopReason == "converged" || R.stopReason == "maxPasses", true);
+    xA = lsqvce.fit(dArma, Verbose=false).x;
+    % tol: 5 % -- the premise of testArmaAndPsdLawsAgreeNoWorseUnderIrls (1 %
+    % between two fixed spellings of one law), widened because here the law
+    % is RE-ESTIMATED on a 16-bin grid over three passes; a law on the wrong
+    % axis (the equal-length failure) whitens a different process
+    tc.verifyLessThan(norm(R.x - xA), 5e-2 * norm(xA), 'the estimated law models the same process');
+end
+
+function testStreamNamedLikeAPriorIsRefused(tc)
+% categories: contract
+    % WP-131 (user decision): 'prior_*' names the prior pseudo-streams. A data
+    % stream so named was taken for one: no arcs were read for it, yet it was
+    % listed in R.noise.stream -- data dropped without a word. It is refused by
+    % makeLoader (relabelled under lsqvce:fit, the original as the cause).
+    d = declaration();
+    d.systems(1).covariance.prior_pos = d.systems(1).covariance.pos;
+    try
+        lsqvce.fit(d, Verbose=false);
+        tc.verifyFail('a stream named prior_* must be refused');
+    catch e
+        tc.verifyEqual(e.identifier, 'lsqvce:fit:priorType');
+        tc.verifyEqual(e.cause{1}.identifier, 'lsqvce:makeLoader:priorType');
+    end
 end
 
 function d = withPsdLaw(d, cfg)
@@ -1490,6 +1533,26 @@ function testSnoopAfterRejectionWithoutTheReSolve(tc)
     % (2) tol: 1e-12 relative -- the same tau of the same alpha / nTests and r
     tc.verifyEqual(REJt.history(1, 4), R.diag.kCrit, 'RelTol', 1e-12, ...
         'snoop tests at diagnose''s critical value (the datum row is no test)');
+end
+
+function testSnoopInheritsTheDiagnosticsTest(tc)
+% categories: contract
+    % WP-131 (user decision): R.snoop tested at its own defaults (Alpha 1e-3,
+    % Pope) whatever R.diag had used -- an observation R.diag flagged at
+    % Alpha 0.01 could pass R.snoop "clean". Alpha, Bonferroni and Test now
+    % default to R.diag's; an explicit pair still wins.
+    rs = RandStream('mt19937ar', 'Seed', 5);
+    pairs = repmat([1 2; 2 3; 3 4; 4 1; 1 3; 2 4], 7, 1);  m = size(pairs, 1);
+    A = zeros(m, 4);  A(sub2ind(size(A), (1:m).', pairs(:, 1))) = -1;
+    A(sub2ind(size(A), (1:m).', pairs(:, 2))) = 1;
+    l = A*[0; 1.5; -0.7; 2.2] + 0.01*randn(rs, m, 1);  l(3) = l(3) + 0.2;
+    data = struct('A', A, 'l', l, 'priors', struct('L', ones(1, 4), 'sigma', 1e3, 'name', 'datum'));
+    R = lsqvce.fit(data, lsqvce.Options(Diagnostics=struct('Alpha', 0.01), Verbose=false));
+    [~, REJ] = R.snoop('Verbose', false);
+    % tol: 1e-12 relative -- the same tau of the same alpha / nTests and r
+    tc.verifyEqual(REJ.history(1, 4), R.diag.kCrit, 'RelTol', 1e-12, 'snoop tests at R.diag''s Alpha');
+    [~, REJ2] = R.snoop('Verbose', false, 'Alpha', 1e-3);
+    tc.verifyGreaterThan(REJ2.history(1, 4), REJ.history(1, 4), 'an explicit Alpha still wins');
 end
 
 function testMadScaleLeavesTheDatumRowsOut(tc)

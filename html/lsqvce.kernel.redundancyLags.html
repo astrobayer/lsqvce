@@ -173,6 +173,10 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 See also LSQVCE.ENGINE.COVCOMPONENT, LSQVCE.KERNEL.TOEPLITZCOFACTOR, LSQVCE.KERNEL.DCTI,
          LSQVCE.ENGINE.TRACEESTIMATE, LSQVCE.ENGINE.STREAMCONTRIBUTION
 
+Updated 2026-10-13 (CEST, UTC+02:00), WP-131: the Toeplitz fast path
+is taken only after a structure probe (Sigma y against toeplitz(c1) y);
+three probe columns let a per-row sigma or a gap through. With assistance
+from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 3: the general
 (non-Toeplitz) Sigma^-1 lag sums run in BLAS-3 column blocks -- the
 joint estimator now asks for every lag of an arc. With assistance from

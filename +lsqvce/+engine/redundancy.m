@@ -56,7 +56,8 @@ function red = redundancy(acc, sol, opt)
 %     red.group(k).r         redundancy r_g = sum(r_i)
 %     red.group(k).vtv       weighted residual square sum
 %     red.group(k).tcc       common trace tr(inv(N) N_g^cc): the group's share
-%                            of the common solution (sums to nc over the data)
+%                            of the common solution (sums to nc over the data,
+%                            less what a common prior absorbs, tr(N^-1 K'K))
 %     red.group(k).s0sq      vtv / r    -- the variance component of this group
 %     red.group(k).sigma0    sqrt(s0sq)
 %     red.obs(j).h, .r       per-observation, if Collect

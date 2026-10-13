@@ -199,7 +199,8 @@ function L = makeLoader(buildDay, opt)
 %       lsqvce:makeLoader:badValidity  ValidityColumns out of range or a bad entry
 %       lsqvce:makeLoader:badPrior     a Priors group is malformed (fields, width,
 %                                      pattern, a row coupling two days)
-%       lsqvce:makeLoader:priorType    a stream name collides with a prior group's
+%       lsqvce:makeLoader:priorType    a stream name collides with a prior group's,
+%                                      or starts with 'prior_' (reserved, WP-131)
 %
 %     Raised while READING a day (your buildDay is wrong):
 %       lsqvce:makeLoader:buildDay     your buildDay itself threw; the original error
@@ -235,6 +236,9 @@ function L = makeLoader(buildDay, opt)
 %   See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.DECLARATION,
 %            LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.ENGINE.SYNTHLOADER
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: a stream named 'prior_*' is
+%   refused (lsqvce:makeLoader:priorType; it was dropped silently). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-115 part 3b (R7-10): the
 %   epoch weights compose as an additive nugget (cm.nugget, whole-arc
 %   whitening) instead of the fold into Cep (inflateCep retired). With
@@ -451,12 +455,9 @@ end
     % accumulator, the elimination, the sweeps and the redundancy count treat
     % them exactly as data (Koch: a prior is a group with a redundancy).
     L.priors = validatePriors(o.priors, plan, o.sysID, o.local, o.nameColumn);
+    checkStreamNames(obsTypes, L.priors);
     for g = 1:numel(L.priors)
         ot = L.priors(g).obsType;
-        if any(strcmp(obsTypes, ot))
-            error('lsqvce:makeLoader:priorType', ...
-                  '''%s'' is reserved for prior group %d; rename your stream or the group.', ot, g);
-        end
         obsTypes{end+1} = ot;                                     %#ok<AGROW>
         o.cov.(ot) = struct('type', 'diag', 'sigma', 1, 'estimate', L.priors(g).estimate, 'arcFactors', false);
     end
@@ -1460,3 +1461,25 @@ function m = toMjd(v)
     if numel(v) == 2, m = double(v(1)) + double(v(2)) / 86400;  return, end
     error('lsqvce:makeLoader:badValidity', 'a validity entry must be [], a fractional MJD, or [MJD seconds].');
 end
+
+function checkStreamNames(obsTypes, priors)
+%CHECKSTREAMNAMES  The data streams' names against the prior pseudo-streams.
+%   'prior_*' names the prior pseudo-streams (WP-131, user decision): a data
+%   stream so named was taken for one and dropped silently -- no arcs read,
+%   yet listed in R.noise.stream. A name equal to a prior group's stream was
+%   refused before; both are lsqvce:makeLoader:priorType.
+    isPri = startsWith(obsTypes, 'prior_');
+    if any(isPri)
+        error('lsqvce:makeLoader:priorType', ...
+              ['''%s'': stream names starting with ''prior_'' are reserved for the prior ' ...
+               'pseudo-streams; rename the stream.'], obsTypes{find(isPri, 1)});
+    end
+    for g = 1:numel(priors)
+        if any(strcmp(obsTypes, priors(g).obsType))
+            error('lsqvce:makeLoader:priorType', ...
+                  '''%s'' is reserved for prior group %d; rename your stream or the group.', ...
+                  priors(g).obsType, g);
+        end
+    end
+end
+

@@ -10,6 +10,9 @@ function tests = test_lsqvce_opts
 %
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: the MDB of a correlated
+%   batch is the generalised test's own. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 
 tests = functiontests(localfunctions);
 end
@@ -482,6 +485,31 @@ function test_correlated_diagnostics_match_dense(tc)
     verifyEqual(tc, D.vPv, vd.' * Pfull * vd, 'RelTol', 1e-8, 'v''Pv is frame-invariant');
     verifyEqual(tc, D.n, n);
 end
+function test_correlated_mdb_is_the_tests_own(tc)
+% categories: precision, reference
+    % WP-131: for a batch with a full P (diagnose on the raw source -- fit
+    % whitens it) the MDB used sigma_i delta0 / sqrt(r_i), the diagonal-P
+    % formula; the generalised w-test's noncentrality under a bias nabla_i is
+    % nabla_i sqrt((P Qvv P)_ii), so MDB_i = delta0 / sqrt(qpp_i). The two
+    % agree only for diagonal P (reviewer's mirror, AR(1) 0.8: 4.98-16.9
+    % against 2.24-3.77 -- the test's power at the reported MDB was 1.000,
+    % not 1 - beta).
+    rs = RandStream('mt19937ar','Seed', 131);
+    nb = 3; nk = 12; u = 3;  n = nb*nk;
+    A = randn(rs, n, u);
+    Pb = cell(nb,1);  idx = (0:nk-1);
+    for k = 1:nb, Pb{k} = inv(0.8 .^ abs(idx - idx.')); end
+    l = A*randn(rs, u, 1) + randn(rs, n, 1);
+    src = @(k) deal(A((k-1)*nk+(1:nk), :), l((k-1)*nk+(1:nk)), Pb{k});
+    R = lsqvce.fit(struct('batchFcn', src, 'numUnknowns', u, 'numBatches', nb), Verbose=false);
+    D = lsqvce.engine.verdict.diagnose(R.source, src, 'nBatch', nb);
+    ok = isfinite(D.mdb);
+    tc.assertTrue(any(ok), 'controlled observations exist');
+    % tol: 1e-10 relative -- one product of the stored quantities
+    tc.verifyEqual(D.mdb(ok) .* sqrt(D.qpp(ok)), D.delta0 * ones(nnz(ok), 1), 'RelTol', 1e-10, ...
+        'the noncentrality at the MDB is delta0');
+end
+
 function test_correlated_integrity_identity(tc)
 % categories: precision, robustness
     % sum(r_i) == n - u must hold for correlated observations too.

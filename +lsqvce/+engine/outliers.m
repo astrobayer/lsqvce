@@ -59,6 +59,10 @@ function out = outliers(acc, sol, opt)
 %     acc2 = buildAccumulator(cfg, opt);
 %     sol2 = acc2.solve();
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: an 'spmd' accumulator
+%   runs the redundancy pass as 'parfor' here, so the per-observation series
+%   (and the flags) exist. With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
 %   typed `arguments` signature, canonical UpperCamelCase option names
 %   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
@@ -91,8 +95,14 @@ end
     % semantics; enum VALUES case-sensitive lowercase).
     o = struct('threshold', opt.Threshold, 'groupBy', opt.GroupBy, 'minRedundancy', opt.MinRedundancy, 'verbose', opt.Verbose);
 
+    % WP-131: outliers NEEDS the per-observation series; an accumulator in
+    % 'spmd' mode made redundancy drop it (Collect forced false) and this
+    % reported "0 flagged, 0 untestable" -- clean-looking data. spmd becomes
+    % parfor here (the same per-arc work, the series shipped back).
+    pm = '';
+    if strcmpi(lsqvce.util.getfielddef(acc.opt, 'Parallel', 'serial'), 'spmd'), pm = 'parfor'; end
     red = lsqvce.engine.redundancy(acc, sol, 'GroupBy', o.groupBy, ...
-                         'Collect', true, 'Verbose', false);
+                         'Collect', true, 'Verbose', false, 'Parallel', pm);
 
     F = struct([]);
     nUn = 0;

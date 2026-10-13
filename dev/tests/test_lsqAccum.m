@@ -1,6 +1,10 @@
 function tests = test_lsqAccum
 %TEST_LSQACCUM  Unit tests for the lsq accumulation toolbox.
 %   Run:  results = runtests('tests/test_lsqAccum');  disp(table(results))
+%
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: residuals 'Whitened',
+%   false keeps the whitened scalars. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
     tests = functiontests(localfunctions);
 end
 
@@ -363,6 +367,11 @@ function testResidualsReproduceSigma0(tc)
     res = acc.residuals(sol, 'Verbose', false);
     % tol: two backends on one well-conditioned problem; difference ~ cond*eps, bound with release-drift headroom
     tc.verifyEqual(sqrt(res.s0sq), sol.sigma0, 'RelTol', 1e-8);
+    % WP-131: 'Whitened', false only leaves e.w out -- it made vtv / sigma0 the
+    % RAW sums, warned sigma0Mismatch and set supersedesSol (coloured arcs here)
+    res2 = tc.verifyWarningFree(@() acc.residuals(sol, 'Verbose', false, 'Whitened', false));
+    % tol: 1e-12 relative -- the same whitened sum, formed twice
+    tc.verifyEqual(res2.s0sq, res.s0sq, 'RelTol', 1e-12, 'the scalars are the whitened ones');
 end
 
 function testResidualsAreWhite(tc)
