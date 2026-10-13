@@ -306,29 +306,33 @@ function test_pope_breaks_down_and_mad_does_not(tc)
 % categories: reference, robustness
     % THE blind spot. With 10% contamination, Pope's tau is BLIND: the
     % blunders inflate s0, and tau divides by s0, so they hide one another.
-    % Measured: at 10% contamination Pope detects 0%, MAD detects 100%.
+    % WP-128 (user decision 2026-10-13): the MAD test's critical value is now
+    % calibrated (Student t, nu = r/2) instead of Pope's tau, which gave 30x
+    % the nominal false alarms at n = 50. The price is power on SHORT
+    % contaminated networks -- this test ran at n = 50, where the calibrated
+    % test finds >= 4 of 5 blunders in 63 % of draws only. It now runs at
+    % n = 200 (20 blunders, 10 %, 25 sigma), the regime the claim is about:
+    % mirror over 1000 draws, Pope finds 0 in every one, MAD >= 19 of 20 in
+    % every one (dev/validation/wp128_mad_crit_mirror.py documents both).
     rs = RandStream('mt19937ar','Seed',10000);
-    n = 50; u = 8;
+    n = 200; u = 8;
     A = randn(rs, n, u);
     xt = randn(rs, u, 1);
     p = ones(n,1);
     l = A*xt + randn(rs, n, 1);
-    bad = [6 13 15 20 43];
-    l(bad) = l(bad) + 25;                 % 5/50 = 10% contamination, 25 sigma
+    bad = 7:10:n;                         % 20/200 = 10% contamination
+    l(bad) = l(bad) + 25;                 % 25 sigma
 
     B = chop(A, l, p, 2);
     [~, Dp] = flatAdjust(u, srcOf(B), 2, 'verbose', false, 'test', 'pope');
     [~, Dm] = flatAdjust(u, srcOf(B), 2, 'verbose', false, 'test', 'mad');
 
-    % Pope is blind here in 40/40 measured seeds -- that part is robust.
     verifyEmpty(tc, intersect(Dp.flagIdx, bad), ...
         ['Pope was expected to be BLIND here. If this now finds them, the ' ...
          'breakdown analysis needs revisiting.']);
-
-    % MAD recovers ALL five in 31/40 seeds and at least four in 40/40. So we
-    % assert >= 4, not == 5: the point is that MAD sees what Pope cannot,
-    % not that it is infallible. A test that demands 5 would be flaky.
-    verifyGreaterThanOrEqual(tc, numel(intersect(Dm.flagIdx, bad)), 4, ...
+    % >= 19, not 20: the point is that MAD sees what Pope cannot (mirror:
+    % 20/20 in 99.9 % of draws, >= 19 in all), not that it is infallible
+    verifyGreaterThanOrEqual(tc, numel(intersect(Dm.flagIdx, bad)), 19, ...
         'the robust (MAD) test must recover the blunders Pope is blind to');
 end
 

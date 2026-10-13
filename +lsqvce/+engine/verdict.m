@@ -79,8 +79,10 @@ function [diagSol, batchFcn, nBatch] = source(acc, sol)
 %   [diagSol, batchFcn, nBatch] = LSQVCE.ENGINE.VERDICT.SOURCE(acc, sol) returns exactly what
 %   lsqvce.engine.verdict.diagnose / lsqvce.engine.verdict.snoop expect:
 %       diagSol   struct with fields {x, Q, n, u, r, rank, defect, sigma0, s0sq,
-%                 vPv, vPvSource, condR, condN, condIsBound, nBatch, datumRows}
-%                 (datumRows: the prior's datum rows, WP-127); Q is the
+%                 vPv, vPvSource, condR, condN, condIsBound, nBatch, datumRows,
+%                 prior, priorBatch} (datumRows: the prior's datum rows, WP-127;
+%                 prior / priorBatch: the CommonPrior and its batch index, 0
+%                 without one, WP-128); Q is the
 %                 LSQVCE.ENGINE.BLOCKCOFACTOR of the full parameter set
 %       batchFcn  @(k) -> [A, l, p]   the k-th WHITENED batch (one arc), unit weight
 %       nBatch    number of batches (the arcs, then the prior's pseudo-batch)
@@ -154,6 +156,9 @@ function [diagSol, batchFcn, nBatch] = source(acc, sol)
 %   See also LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SNOOP, LSQVCE.REPORT, LSQVCE.ENGINE.REDUNDANCY,
 %   LSQVCE.ENGINE.BLOCKCOFACTOR
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-128: diagSol.prior and
+%   .priorBatch -- snoop re-solves with the prior instead of as data rows.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-12 (CEST, UTC+02:00), WP-127: diagSol.datumRows -- the
 %   global indices of the prior's datum rows (BlockAccumulator.datumRows),
 %   which diagnose does not test or count. With assistance from Claude
@@ -275,7 +280,8 @@ function [diagSol, batchFcn, nBatch] = source(acc, sol)
         'condN',  kN, ...
         'condIsBound', true, ...
         'nBatch', nBatch, ...
-        'datumRows', datumRowsOf(acc, n));
+        'datumRows', datumRowsOf(acc, n), ...
+        'prior', {acc.prior}, 'priorBatch', nBatch * ~isempty(acc.prior));   % WP-128: snoop re-solves with it
 
     % ---- batchFcn: replay the k-th whitened batch --------------------------
     % A local function (not deal) so a caller may take 1, 2, or 3 outputs:
@@ -392,6 +398,9 @@ function D = diagnose(sol, batchFcn, opt)
 %   See also LSQVCE.ENGINE.VERDICT.SOURCE, LSQVCE.REPORT, LSQVCE.ENGINE.VERDICT.SNOOP,
 %   LSQVCE.ENGINE.BLOCKCOFACTOR.
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-128: Test 'mad' uses
+%   lsqvce.kernel.stat.madCrit (Student t, nu = r/2), not Pope's tau.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-12 (CEST, UTC+02:00), WP-127: a prior's datum rows
 %   (sol.datumRows; r = 0 by construction) stay in sum(r) and vPv but are not
 %   tested or counted -- uncontrolled, MDB, quadrants, the smallest r and the
@@ -473,9 +482,13 @@ switch testName
     case 'pope'
         kCrit = lsqvce.kernel.stat.tauCrit(alphaEff, rdf);
     case 'mad'
-        % The MAD statistic is still a STUDENTISED residual -- only the scale in
-        % the denominator is robust. It remains tau-distributed, so the critical
-        % value is Pope's.
+        % WP-128: NOT Pope's tau. tau holds only when the scale contains the
+        % tested residual; a MAD scale does not, and its own noise makes the
+        % statistic Student t with nu = r/2 (lsqvce.kernel.stat.madCrit, calibrated):
+        % the tau threshold gave 63x the nominal false-alarm rate at n = 30.
+        % (Previously: "The MAD statistic is still a STUDENTISED residual --
+        % only the scale in the denominator is robust. It remains
+        % tau-distributed, so the critical value is Pope's.")
         %
         % THIS CASE WAS MISSING. kCrit was simply never assigned on the 'mad'
         % path, and diagnose died with "Unrecognized function or variable
@@ -483,7 +496,7 @@ switch testName
         % Pope's breakdown -- was therefore DEAD ON ARRIVAL. The Python port
         % computed kCrit separately and so structurally could not see it.
         % Caught only by finally running the suite in MATLAB.
-        kCrit = lsqvce.kernel.stat.tauCrit(alphaEff, rdf);
+        kCrit = lsqvce.kernel.stat.madCrit(alphaEff, rdf);
     case 'baarda'
         kCrit = lsqvce.kernel.stat.normCrit(alphaEff);
     otherwise
@@ -1391,6 +1404,12 @@ function [sol, D, REJ] = snoop(sol, D, batchFcn, opt)
 %                                  estimate has broken down; the data are not
 %                                  a few blunders on a good model
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-128: the clean re-solve keeps a
+%   prior as a prior (it went in as data rows: a datum's cofactor grew with its
+%   sigma); a prior row is never a rejection candidate; the returned D counts
+%   in the ORIGINAL observation indices (D.obsIdx maps its per-observation
+%   vectors); Test 'mad' uses madCrit. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
 %   typed `arguments` signature, canonical UpperCamelCase option names
 %   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
@@ -1481,7 +1500,7 @@ if lsqvce.util.verbosity.progress(o.verbose)
 end
 
 converged = false;
-useRobust = strcmpi(o.test, 'mad');
+useRobust = strcmpi(o.test, 'mad');  priorBatch = lsqvce.util.getfielddef(sol, 'priorBatch', 0);   % WP-128
 
 % ---------------------------------------------------------------------------
 % CONTAMINATION GUARDS
@@ -1581,10 +1600,10 @@ for it = 1:(maxRej + 1)
 
     alphaEff = o.alpha;
     if o.bonferroni, alphaEff = o.alpha / max(nAlive, 1); end
-    kCrit = lsqvce.kernel.stat.tauCrit(alphaEff, rdf);
+    kCrit = snoopCrit(useRobust, alphaEff, rdf);   % WP-128: madCrit for 'mad', tau otherwise
 
     [bestW, bestI, bestR, bestV, bestP, vPvCur, nFlag, bestA, sizes, sysOf] = ...
-        scanWorst(batchFcn, nB, Q, sol.x, rejected, rdf, kCrit, useRobust);
+        scanWorst(batchFcn, nB, Q, sol.x, rejected, rdf, kCrit, useRobust, priorBatch);
 
     s0cur = sqrt(max(vPvCur / max(rdf, 1), 0));
     REJ.history(end+1, :) = [nFlag, bestW, s0cur^2]; %#ok<AGROW>
@@ -1712,7 +1731,7 @@ if o.reaccumulate && ~isempty(REJ.idx)
                  'result is a clean solve, not a\n  sequence of subtractions).\n'], ...
                  n0 - numel(REJ.idx));
     end
-    acc = blockResolveAccumulator(sol, Q, batchFcn, nB, rejected, sizes, sysOf);
+    [acc, obsIdx] = blockResolveAccumulator(sol, Q, batchFcn, nB, rejected, sizes, sysOf);
     solB = acc.solve();
     [dsol, bf, nBd] = lsqvce.engine.verdict.source(acc, solB);
     % R7-35: the re-diagnosis classifies with the SAME thresholds as the D it
@@ -1723,7 +1742,7 @@ if o.reaccumulate && ~isempty(REJ.idx)
                            'test', o.test, 'rMin', lsqvce.util.getfielddef(D, 'rMin', 0.01), ...
                            'rWeak', lsqvce.util.getfielddef(D, 'rWeak', 0.10), ...
                            'beta', lsqvce.util.getfielddef(D, 'beta', 0.20));
-    D.rejectedIdx = REJ.idx;
+    D = toOriginalIndex(D, obsIdx);  D.rejectedIdx = REJ.idx;   % WP-128: the original indices
     % the returned sol keeps the caller's fields and carries the clean solve
     sol.x = dsol.x(:);  sol.s0sq = solB.s0sq;  sol.sigma0 = solB.sigma0;   % commons + locals
     if isfield(solB, 'Cxx'), sol.Cxx = solB.Cxx; end
@@ -2493,6 +2512,34 @@ end   % classdef
 % ---------------------------------------------- source (formerly lsqvce.engine.verdict.source)
 
 %==========================================================================
+function k = snoopCrit(useRobust, alphaEff, rdf)
+%SNOOPCRIT  The snooping threshold: Student t on the MAD's efficiency for a
+%   robust scale (lsqvce.kernel.stat.madCrit, WP-128), Pope's tau otherwise.
+    if useRobust
+        k = lsqvce.kernel.stat.madCrit(alphaEff, rdf);
+    else
+        k = lsqvce.kernel.stat.tauCrit(alphaEff, rdf);
+    end
+end
+
+function D = toOriginalIndex(D, obsIdx)
+%TOORIGINALINDEX  Map the re-diagnosis' row indices back to the original
+%   observations (WP-128). The clean re-solve numbers its rows in its own
+%   order (survivors only, systems in order, local-free last, prior last),
+%   while D.rejectedIdx and every caller count the original rows: after one
+%   rejection "observation 399" was observation 400. The index fields are
+%   mapped; the per-observation vectors (v, rNum, w, mdb, ...) stay in the
+%   re-solve's order and D.obsIdx names their original index.
+%   INPUT  D the re-diagnosis; obsIdx the original index of each of its rows
+    D.obsIdx = obsIdx(:);
+    for f = {'flagIdx', 'idxUncontrolled', 'worstIdx', 'datumRows', ...
+             'rMinIdx', 'maxAbsWIdx', 'extMaxIdx'}
+        if ~isfield(D, f{1}) || isempty(D.(f{1})), continue, end
+        v = D.(f{1});  ok = v >= 1 & v <= numel(obsIdx);   % 0 = "none"
+        v(ok) = obsIdx(v(ok));  D.(f{1}) = v;
+    end
+end
+
 function idx = datumRowsOf(acc, n)
 %DATUMROWSOF  Global row indices of the prior's DATUM rows (WP-127), [] if none.
 %   The prior is the LAST batch (rows n-nk+1..n); a datum row has r = 0 by
@@ -2606,7 +2653,7 @@ end
 %% ======================================================== helpers
 
 function [bestW, bestI, bestR, bestV, bestP, vPv, nFlag, bestA, sizes, sysOf] = ...
-        scanWorst(batchFcn, nB, Q, x, rejected, rdf, kCrit, useRobust)
+        scanWorst(batchFcn, nB, Q, x, rejected, rdf, kCrit, useRobust, priorBatch)
 %SCANWORST  One streaming pass over all batches to find the single worst
 %   (largest |w|) surviving observation and accumulate vPv honestly.
 %   INPUT
@@ -2733,6 +2780,8 @@ function [bestW, bestI, bestR, bestV, bestP, vPv, nFlag, bestA, sizes, sysOf] = 
         alive = ~rejected(idx);
         if ~any(alive), nSeen = nSeen + nk; continue; end
 
+        if k == priorBatch, nSeen = nSeen + nk; continue; end   % WP-128: a prior row is a
+                                                                 % declaration, never rejected
         Aa = Ak(alive,:); la = lk(alive); pa = pk(alive);
         ia = idx(alive);
 
@@ -2808,7 +2857,7 @@ end
 end
 
 %==========================================================================
-function acc = blockResolveAccumulator(sol, Q, batchFcn, nB, rejected, sizes, sysOf)
+function [acc, obsIdx] = blockResolveAccumulator(sol, Q, batchFcn, nB, rejected, sizes, sysOf)
 %BLOCKRESOLVEACCUMULATOR  The surviving rows, accumulated on the block-arrow
 %   structure the cofactor Q describes (WP-86 part 3): one system per
 %   original system (its surviving batches, its own local columns), the
@@ -2816,6 +2865,14 @@ function acc = blockResolveAccumulator(sol, Q, batchFcn, nB, rejected, sizes, sy
 %   INPUT  sol (method / defect / datumB), Q, batchFcn, nB, the rejected
 %          mask, the batch sizes and each batch's system (scanWorst)
 %   OUTPUT acc  1x1 lsqvce.engine.BlockAccumulator (KeepLocal), not solved
+%          obsIdx  the ORIGINAL index of every row of acc, in acc's order
+%                  (systems in order, local-free last, the prior's rows at
+%                  the end) -- WP-128: the re-diagnosis numbers its rows in
+%                  that order, the caller maps them back
+%   WP-128: the prior is not a batch of data here. It was re-accumulated
+%   as rows of the local-free system (sol.defect is 0 from SOURCE, so the
+%   setPrior branch never ran): the clean cofactor became inv(N + K'K/s^2)
+%   instead of the datum's minimum-constraint one, growing with sigma.
     % The clean re-solve rebuilds the BLOCK-ARROW system the cofactor
     % describes (WP-86 part 3): each original system becomes one system
     % again -- its surviving batches, its own local columns -- and the
@@ -2827,6 +2884,9 @@ function acc = blockResolveAccumulator(sol, Q, batchFcn, nB, rejected, sizes, sy
     % concatenated (n x u at full width -- R7-24 once more).
     edges = [0; cumsum(sizes)];
     alive = arrayfun(@(k) any(~rejected(edges(k)+1:edges(k+1))), (1:nB).');
+    pb = lsqvce.util.getfielddef(sol, 'priorBatch', 0);
+    if pb > 0, alive(pb) = false; end                   % the prior goes in by setPrior
+    obsIdx = zeros(0, 1);
     backend = 'qr';
     if isfield(sol, 'method') && strcmpi(char(sol.method), 'normal'), backend = 'normal'; end
     acc = lsqvce.engine.BlockAccumulator(Q.nc, 'Backend', backend, 'KeepLocal', true, 'Verbose', false);
@@ -2842,6 +2902,13 @@ function acc = blockResolveAccumulator(sol, Q, batchFcn, nB, rejected, sizes, sy
         L = lsqvce.engine.batchSystem(Q.nc, @(j) maskedBatch(batchFcn, kept(j), rejected, edges), ...
                 numel(kept), 'LocalColumns', cols, 'SystemId', sid, 'Name', 'snoop');
         acc.addSystem(L.sysID, numel(cols), L.closure, 1:numel(kept));   % one day per kept batch
+        for k = kept(:).'
+            obsIdx = [obsIdx; edges(k) + find(~rejected(edges(k)+1:edges(k+1)))]; %#ok<AGROW>
+        end
+    end
+    if pb > 0
+        acc.setPrior(sol.prior);
+        obsIdx = [obsIdx; (edges(pb)+1 : edges(pb+1)).'];
     end
 end
 

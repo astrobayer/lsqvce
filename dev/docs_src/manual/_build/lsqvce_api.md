@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.15.0 — API Reference"
+title: "lsqvce 6.16.0 — API Reference"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 
@@ -640,7 +640,8 @@ LSQVCE.FIT  Fit a least-squares adjustment (optionally with VCE) to declared dat
                                  by its Cholesky factor -- raised
                                  by lsqvce.engine.batchSystem
       lsqvce:fit:priorNotActive  (warning) a prior with from > 1 in a
-                                 single-pass run is not applied
+                                 single-pass run is not applied (a common
+                                 or a local group, WP-128)
       lsqvce:fit:badPrior        data.priors is malformed (unknown
                                  field, L not p x nc, sigma not a positive scalar,
                                  x0 of the wrong length)

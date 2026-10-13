@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.15.0 — User Manual"
+title: "lsqvce 6.16.0 — User Manual"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 
@@ -786,7 +786,13 @@ on its normalised residual
   `w_i = (P v)_i / (scale · sqrt((P Qvv P)_ii))`.
 
 The `scale` is the estimated `s0` (Pope), the a-priori sigma0 (Baarda) or the robust MAD
-scale. With `Bonferroni = true` the level of each test is `Alpha / n`.
+scale. With `Bonferroni = true` the level of each test is `Alpha / n`. The critical value
+follows the scale: Pope's tau, the normal distribution, and for the MAD a Student t with
+r/2 degrees of freedom (calibrated to the nominal level; Pope's tau there gave up to 60 times
+the nominal false alarms on small networks). The price of the valid level is power on short
+networks under heavy contamination: with 50 observations and 10 % blunders of 25 sigma, four
+or more of five are found in about 60 % of cases (snooping with `Test="mad"` does not change
+that); from about 200 observations all of them.
 
 ### The contamination cross-check
 
@@ -851,7 +857,11 @@ REJ.idx      % rejected, in order;  REJ.refused  % tripped but r_i < RMinReject 
 `R.snoop` takes its own `Test` (`"pope"` or `"mad"`), `Alpha` (1e-3) and `Bonferroni` (`true`)
 name-values; it does not read `Options.Diagnostics`. It caps the number of rejections at
 `max(10, 0.01·n)` and stops at a fraction of 0.25 (`MaxRejectFrac`). It refuses observations with `r_i < RMinReject`, re-solves cleanly
-over the survivors at the end, and leaves `R` unchanged. It cannot reject single rows of a
+over the survivors at the end, and leaves `R` unchanged. The prior's rows are never
+rejected, and the re-solve keeps the prior as a prior (a datum stays a datum). The returned
+`D2` counts in the original observation numbers (`D2.flagIdx`, `D2.rejectedIdx`, ...); its
+per-observation vectors cover the survivors, and `D2.obsIdx` names their original numbers.
+It cannot reject single rows of a
 correlated batch (`lsqvce:snoop:correlatedBatch`): there, remove the epoch in `buildDay`
 or use `Robust`.
 

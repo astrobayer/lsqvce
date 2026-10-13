@@ -237,6 +237,10 @@ classdef BlockAccumulator < handle
 %
 %   See also LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.RESIDUALS, LSQVCE.ENGINE.CHECKPSD, LSQVCE.ENGINE.QRSYSTEM
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-128: a local block eliminated on
+%   the QR factor keeps that factor (store fields Rll, Rlc, rl); its cofactor,
+%   solution and covariance come from it, never from the squared Nll. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-12 (CEST, UTC+02:00), WP-127: datumRows -- a datum may
 %   span several prior groups (blind groups need orthogonality only to the
 %   groups the data sees); Dm with pinv; arcNotFinite also for A and B. With
@@ -675,7 +679,7 @@ classdef BlockAccumulator < handle
                 error('lsqvce:accum:badX', 'x has %d elements, expected %d.', ...
                       numel(x), obj.nc);
             end
-            y = s.Nll_r \ (s.nl_r - s.Nlc * x(:));
+            y = lsqvce.engine.BlockAccumulator.localSolveOf(s, x);   % WP-128: on the factor if kept
         end
 
         %------------------------------------------------------------------
@@ -702,8 +706,13 @@ classdef BlockAccumulator < handle
                 error('lsqvce:accum:badCxx', 'Cxx must be %d x %d.', obj.nc, obj.nc);
             end
 
-            G   = s.Nll_r \ s.Nlc;                     % nl x nc
-            Qll = s.Nll_r \ eye(size(s.Nll_r,1));      % cofactor matrix
+            if ~isempty(s.Rll)                          % WP-128: on the QR factor,
+                Ri = s.Rll \ eye(size(s.Rll, 1));       % never the squared Nll
+                G = s.Rll \ s.Rlc;  Qll = Ri * Ri.';
+            else
+                G   = s.Nll_r \ s.Nlc;                     % nl x nc
+                Qll = s.Nll_r \ eye(size(s.Nll_r,1));      % cofactor matrix
+            end
             Cyy = s0sq * Qll + G * Cxx * G.';
             Cyy = (Cyy + Cyy.')/2;
         end
@@ -953,6 +962,30 @@ classdef BlockAccumulator < handle
 
     %======================================================================
     %======================================================================
+    methods (Static, Hidden)
+        %------------------------------------------------------------------
+        function [y, G, Ll, p] = localSolveOf(st, x)
+        %LOCALSOLVEOF  One store's local block: y = inv(Nll)(nl - Nlc x), G =
+        %   inv(Nll) Nlc and the lower Cholesky factor Ll of Nll (p > 0: not
+        %   PD) -- on the QR factor when the store keeps it (WP-128: Rll,
+        %   Rlc, rl; the squared Nll lost the weak direction from cond(B) ~
+        %   7e7 and warned nearlySingular), else on Nll_r as before. The ONE
+        %   place every reader of a store's locals goes through.
+        %   INPUT  st  a store element;  x  nc x 1 commons, or [] (y = [])
+            p = 0;  Ll = [];
+            if ~isempty(lsqvce.util.getfielddef(st, 'Rll', []))
+                sg = sign(diag(st.Rll));  sg(sg == 0) = 1;     % positive pivots: R = Ll'
+                R = sg .* st.Rll;  Rlc = sg .* st.Rlc;  rl = sg .* st.rl;
+                y = [];  if ~isempty(x), y = R \ (rl - Rlc * x(:)); end
+                G = R \ Rlc;  Ll = R.';
+                return
+            end
+            y = [];  if ~isempty(x), y = st.Nll_r \ (st.nl_r - st.Nlc * x(:)); end
+            G = st.Nll_r \ st.Nlc;
+            if nargout > 2, [Ll, p] = chol((st.Nll_r + st.Nll_r.')/2, 'lower'); end
+        end
+    end
+
     methods (Static, Hidden)   % public so the mapreduce worker context can
                                % invoke it; hidden because it is not user API
 
@@ -1395,7 +1428,8 @@ classdef BlockAccumulator < handle
                 end
                 keep = struct('Nll_r', zeros(0,0), 'Nlc', zeros(0,nc), ...
                               'nl_r', zeros(0,1), 'ltl', ltl, 'mObs', mObs, ...
-                              's0sq_hint', max(ltl,0)/max(mObs,1));
+                              's0sq_hint', max(ltl,0)/max(mObs,1), ...
+                              'Rll', zeros(0), 'Rlc', zeros(0, nc), 'rl', zeros(0, 1));
                 if lsqvce.util.verbosity.detail(opt.Verbose)
                     lsqvce.util.log.msg('%s', lsqvce.util.verbosity.fieldBlock(sprintf('System %s "%s"', string(sysID), sysName), ...
                         {'observations',   sprintf('%d', mObs); ...
@@ -1420,13 +1454,14 @@ classdef BlockAccumulator < handle
             % (the regularisation is defined on Nll) and for a local factor
             % whose pivots fail QRSystem.RankTol (the pinv fallback's case).
             if isa(loc, 'lsqvce.engine.QRSystem') && strcmp(dg.regUsed, 'none')
-                [rows, R11] = loc.reducedRows(nl);
+                [rows, R11, R12, r1] = loc.reducedRows(nl);
                 dR = abs(diag(R11));
                 if numel(dR) == nl && min(dR) > lsqvce.engine.QRSystem.RankTol * max(dR)
                     red  = lsqvce.engine.ReducedContribution([], [], [], mObs - nl, rows);
                     keep = struct('Nll_r', Nll_r, 'Nlc', Nlc, 'nl_r', nl_r, ...
                                   'ltl', ltl, 'mObs', mObs, ...
-                                  's0sq_hint', max(red.ltl, 0)/max(mObs - nl, 1));
+                                  's0sq_hint', max(red.ltl, 0)/max(mObs - nl, 1), ...
+                                  'Rll', R11, 'Rlc', R12, 'rl', r1);   % WP-128: the exact factor
                     if lsqvce.util.verbosity.detail(opt.Verbose)
                         hdr = sprintf('System %s "%s"', string(sysID), sysName);
                         lsqvce.util.log.msg('%s', lsqvce.util.verbosity.fieldBlock(hdr, ...
@@ -1474,7 +1509,8 @@ classdef BlockAccumulator < handle
                     red  = lsqvce.engine.ReducedContribution(Ncc_red, ncc_red, ltl_red, dof_red);
                     keep = struct('Nll_r', Nll_r, 'Nlc', Nlc, 'nl_r', nl_r, ...
                                   'ltl', ltl, 'mObs', mObs, ...
-                                  's0sq_hint', max(ltl_red,0)/max(dof_red,1));
+                                  's0sq_hint', max(ltl_red,0)/max(dof_red,1), ...
+                                  'Rll', zeros(0), 'Rlc', zeros(0, nc), 'rl', zeros(0, 1));
                     if lsqvce.util.verbosity.detail(opt.Verbose)
                         lsqvce.util.log.msg('%s', lsqvce.util.verbosity.fieldBlock(sprintf('System %s "%s"', string(sysID), sysName), ...
                             {'observations',    sprintf('%d', mObs); ...
@@ -1516,7 +1552,8 @@ classdef BlockAccumulator < handle
 
             keep = struct('Nll_r', Nll_r, 'Nlc', Nlc, 'nl_r', nl_r, ...
                           'ltl', ltl, 'mObs', mObs, ...
-                          's0sq_hint', max(ltl_red, 0)/max(dof_red, 1));
+                          's0sq_hint', max(ltl_red, 0)/max(dof_red, 1), ...
+                          'Rll', zeros(0), 'Rlc', zeros(0, nc), 'rl', zeros(0, 1));
 
             if lsqvce.util.verbosity.detail(opt.Verbose)
                 lsqvce.util.log.msg('%s', lsqvce.util.verbosity.fieldBlock(sprintf('System %s "%s"', string(sysID), sysName), ...

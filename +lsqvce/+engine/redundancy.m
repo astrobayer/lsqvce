@@ -235,7 +235,7 @@ end
     nParTot = numel(x);
     for k = 1:nSys
         st        = acc.getStore(ids(k));
-        ys{k}     = st.Nll_r \ (st.nl_r - st.Nlc * x);
+        ys{k}     = lsqvce.engine.BlockAccumulator.localSolveOf(st, x);   % WP-128
         stores{k} = struct('sysID', st.sysID, 'dataFcn', st.dataFcn, ...
                            'uo', st.uo, 'dayList', st.dayList);
         nParTot   = nParTot + st.nl;

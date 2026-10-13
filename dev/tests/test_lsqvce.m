@@ -146,6 +146,21 @@ function test_tau_tends_to_normal(tc)
                     lsqvce.kernel.stat.normCrit(0.001), 'AbsTol', 1e-3);
 end
 
+function test_madCrit_is_student_t_on_half_the_redundancy(tc)
+% categories: precision, reference, contract
+    % WP-128: a MAD-scaled residual is not Pope's tau (63x the nominal
+    % family-wise false alarms at n = 30); madCrit is Student t with nu = r/2,
+    % calibrated to the nominal level (dev/validation/wp128_mad_crit_mirror.py;
+    % user decision 2026-10-13). Reference values: scipy.stats.t.ppf(1 - a/2, r/2).
+    % tol: 1e-9 -- tInv inverts betaincinv to ~1e-12; scipy agrees to rounding
+    verifyEqual(tc, lsqvce.kernel.stat.madCrit(1e-3, 100), 3.496012881811176, 'AbsTol', 1e-9);
+    verifyEqual(tc, lsqvce.kernel.stat.madCrit(2e-5, 42), 5.468561135266299, 'AbsTol', 1e-9);
+    % it is NOT bounded by sqrt(r) like tau, and lies above the normal value
+    verifyGreaterThan(tc, lsqvce.kernel.stat.madCrit(2e-5, 42), lsqvce.kernel.stat.tauCrit(2e-5, 42));
+    verifyGreaterThan(tc, lsqvce.kernel.stat.madCrit(2e-5, 42), lsqvce.kernel.stat.normCrit(2e-5));
+    verifyEqual(tc, lsqvce.kernel.stat.madCrit(1e-3, 1), Inf, 'no redundancy: nothing is testable');
+end
+
 %% ================================================ accumulator
 function test_redundancy_sum_identity(tc)
 % categories: precision

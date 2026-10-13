@@ -42,8 +42,11 @@ w_i=\frac{\bar v_i}{\hat s\sqrt{r_i}},
 with $\hat s=\hat\sigma_0$ (Pope's test, $\sigma_0$ estimated), $\hat s=\sigma_0$ (Baarda's test,
 $\sigma_0$ known) or a robust MAD scale; observations below $r_{\min}$ are uncontrolled and not
 tested. Under Pope's test $w_i$ follows the $\tau$ distribution,
-$\tau_r=t_{r-1}\sqrt r/\sqrt{r-1+t_{r-1}^2}$, bounded by $\sqrt r$. With $n$ tests the family-wise level
-is controlled by Bonferroni, $\alpha'=\alpha/n$.
+$\tau_r=t_{r-1}\sqrt r/\sqrt{r-1+t_{r-1}^2}$, bounded by $\sqrt r$, because $\hat\sigma_0$ contains the
+tested residual. A robust scale does not, and carries its own sampling noise: with the MAD the
+critical value is that of Student's $t$ with $\nu=r/2$ degrees of freedom, calibrated by simulation
+to the nominal family-wise level. With $n$ tests the family-wise
+level is controlled by Bonferroni, $\alpha'=\alpha/n$.
 
 \paragraph{Iterative data snooping.} The observation with the largest $|w_i|$ above the critical
 value is removed, the solution is updated, and the test is repeated with $\alpha$ divided by the

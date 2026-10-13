@@ -1,5 +1,32 @@
 # lsqvce release notes
 
+## 6.16.0 — 2026-10-13 (WP-128: the remaining findings of the whole-code review)
+
+Numbers change for `R.snoop` after a rejection, for the MAD-scaled test, and for the
+diagnostics of a local block with a badly conditioned design (marked **numbers**).
+
+- **`R.snoop` keeps a prior a prior (numbers).** The clean re-solve after a rejection put the
+  prior's rows in as data, so a datum's covariance grew with its σ (sigX 250 instead of
+  0.164 at σ = 1e3 on a levelling net). The prior's rows are never rejection candidates.
+- **`R.snoop` returns one index space.** The re-diagnosis numbered the surviving rows, while
+  `D.rejectedIdx` numbered the original ones. All index fields of the returned `D` are now
+  original observation numbers; `D.obsIdx` names the original number of each per-observation
+  entry.
+- **The MAD-scaled test uses its own critical value (numbers).** Pope's τ holds only when
+  the scale contains the tested residual. The MAD test now uses Student t with r/2 degrees
+  of freedom (`lsqvce.kernel.stat.madCrit`), calibrated to the nominal family-wise level
+  (user decision). The τ value gave 63 times the nominal false-alarm rate at n = 30, 5.3
+  times at n = 200. On short networks under heavy contamination one pass finds fewer
+  blunders than before (n = 50, 10 % at 25σ: 60 % of runs find ≥ 4 of 5, against 93 %).
+- **The diagnostics of a badly conditioned local block are exact (numbers).** A local block
+  the QR backend eliminates exactly (cond(B) up to ~4.5e12) was re-inverted from the squared
+  `Nll` for the cofactor, which cut eigenvalues from cond(B) ≈ 7e7 on: a quadratic local
+  polynomial in raw seconds over 10⁴ s lost one redundancy unit. The cofactor, the local
+  solution and the local covariance now come from the QR factor.
+- **A late local prior is reported in a single solve.** `lsqvce:fit:priorNotActive` counted
+  `data.priors` only; a local group with `from > 1` vanished silently.
+- Tests: 657 (+3).
+
 ## 6.15.0 — 2026-10-12 (WP-127: findings of the whole-code review)
 
 Numbers change for ARMA laws with an MA part, for split datum groups and for the report

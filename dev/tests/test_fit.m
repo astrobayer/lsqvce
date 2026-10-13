@@ -1382,6 +1382,35 @@ function testDatumSplitOverGroupsIsOneDatum(tc)
     tc.verifyEqual(T.quadrant(m + 1 : end), repmat("datum", 3, 1));
 end
 
+function testSnoopKeepsTheDatumAndTheOriginalIndex(tc)
+% categories: precision, contract, robustness
+    % WP-128. (1) snoop's clean re-solve re-accumulated a prior as rows of
+    % DATA (the setPrior branch never ran): with a datum the cofactor became
+    % inv(N + K'K/s^2), sigX 250 against the minimum-constraint 0.164 at
+    % sigma 1e3 on this net (mirror). (2) The re-diagnosis numbered the
+    % SURVIVING rows while D.rejectedIdx counts the original ones -- after
+    % one rejection "observation 399" was 400. (3) A prior row is never a
+    % rejection candidate.
+    rs = RandStream('mt19937ar', 'Seed', 5);
+    pairs = repmat([1 2; 2 3; 3 4; 4 1; 1 3; 2 4], 7, 1);  m = size(pairs, 1);
+    A = zeros(m, 4);  A(sub2ind(size(A), (1:m).', pairs(:, 1))) = -1;
+    A(sub2ind(size(A), (1:m).', pairs(:, 2))) = 1;
+    l = A*[0; 1.5; -0.7; 2.2] + 0.01*randn(rs, m, 1);  l(3) = l(3) + 0.2;   % a 20-sigma blunder
+    Ar = A([1:2, 4:m], :);
+    R = lsqvce.fit(struct('A', A, 'l', l, 'priors', struct('L', ones(1, 4), 'sigma', 1e3, 'name', 'datum')), ...
+                   Verbose=false);
+    [D, REJ] = R.snoop('Verbose', false);
+    tc.verifyEqual(REJ.idx, 3, 'the blunder, by its original index');
+    tc.verifyEqual(D.rejectedIdx, 3);
+    % tol: 1e-8 relative -- the minimum-constraint cofactor of the surviving
+    % rows from the re-weighted factor vs the dense pseudo-inverse
+    tc.verifyEqual(D.sigX(:), sqrt(diag(pinv(Ar.' * Ar))), 'RelTol', 1e-8, ...
+        'the clean re-solve keeps the datum (minimum-constraint cofactor)');
+    tc.verifyEqual(D.obsIdx(:), [1:2, 4:m, m + 1].', 'survivors, then the prior row, by original index');
+    tc.verifyEqual(D.datumRows, m + 1, 'the datum row keeps its original index');
+    tc.verifyFalse(ismember(3, D.flagIdx), 'the rejected observation is not flagged again');
+end
+
 function testDatumIsADeclaredPrior(tc)
 % categories: contract, reference, robustness
     % R5 M5 5b: a free network's DATUM is a declared prior on the null space
@@ -1782,8 +1811,13 @@ function testLocalPriorsAreTheCounterpartOfDataPriors(tc)
     tc.verifyEqual(Rl.x, R0.x, 'RelTol', 1e-8);
     % from gates the group out of a single solve
     data.systems(1).priors = struct('L', e(cj), 'x0', target, 'sigma', 1e-6, 'from', 2, 'name', 'late');
+    muteWarn(tc, 'lsqvce:fit:priorNotActive');   % provoked on purpose (gate rule 7)
     R2 = lsqvce.fit(data, Verbose=false);
     tc.verifyEqual(R2.diag.n, R0.diag.n);
+    % WP-128: and SAYS so -- only data.priors were counted, a late local
+    % group vanished without a word
+    tc.verifyTrue(any(strcmp(R2.meta.warnings, 'lsqvce:fit:priorNotActive')), ...
+        'a late local group is reported, as a late common one is');
     % WP-127: and through the joint loop. Pass 1 lists the group's pseudo-arc
     % (the arc identity is pinned) but it carries no rows: an INACTIVE arc,
     % not a 'gap' skip; from pass 2 it is one more stream in the per-pass

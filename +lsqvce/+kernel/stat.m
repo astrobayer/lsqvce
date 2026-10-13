@@ -15,6 +15,8 @@ classdef stat
 %     tauInv(p,r)           Pope tau quantile (two-sided p is NOT applied here;
 %                           pass the upper-tail probability directly)
 %     tauCrit(alpha,r)      two-sided Pope tau critical value
+%     madCrit(alpha,r)      two-sided critical value of a residual scaled by
+%                           a MAD (Student t, nu = r/2; WP-128)
 %     normCrit(alpha)       two-sided normal critical value
 %     delta0(alpha,beta)    MDB non-centrality parameter
 %     fInv(p,d1,d2)         F quantile
@@ -38,6 +40,9 @@ classdef stat
 %
 %   See also LSQVCE.ENGINE.VERDICT.DIAGNOSE.
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-128: madCrit, the critical value
+%   of a MAD-scaled residual. With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 4: moved from the
 %   ENGINE to the KERNEL tier (the distributions; the tests live
 %   in lsqvce.engine.verdict). With assistance from Claude (Anthropic),
@@ -211,6 +216,29 @@ function tc = tauCrit(alpha, r)
     ra = r(act);  aa = alpha(act);
     t  = lsqvce.kernel.stat.tInv(1 - aa ./ 2, ra - 1);
     tc(act) = t .* sqrt(ra) ./ sqrt(ra - 1 + t.^2);
+end
+
+function k = madCrit(alpha, r)
+    %MADCRIT  Two-sided critical value of a residual standardised by a MAD
+    %   scale (WP-128): Student t with nu = r/2. Pope's tau holds only when the
+    %   scale CONTAINS the tested residual (that is what bounds it by sqrt(r));
+    %   a robust scale is all but independent of it and carries its own
+    %   sampling noise, so the statistic has heavier tails than the normal.
+    %   CALIBRATED (user decision 2026-10-13) on null fits,
+    %   dev/validation/wp128_mad_crit_mirror.py, alpha 1e-3 Bonferroni:
+    %   family-wise false alarms at n = 30 / 50 / 200 --
+    %       tau        0.063 / 0.031 / 0.0053   (the old value, 63x nominal)
+    %       normal     0.023 / 0.013 / 0.0037
+    %       t(r/2)     0.0005 / 0.0006 / 0.0012 (at the nominal level)
+    %       t(0.367 r) 0.0001 / 0.0001 / 0.0008 (the MAD's asymptotic
+    %                  efficiency: 10x conservative on short networks)
+    %   The price of a valid level is power on short contaminated networks
+    %   (10 % at 25 sigma, >= n-1 of n blunders found: n = 50 0.60 against
+    %   tau's 0.93); from n ~ 200 it is 1.00 for every value.
+    [alpha, r] = lsqvce.kernel.stat.expand(alpha, r);
+    k = inf(size(r));
+    act = r > 1;
+    if any(act(:)), k(act) = lsqvce.kernel.stat.tInv(1 - alpha(act) ./ 2, r(act) / 2); end
 end
 
 %% ------------------------------------------------------------------- MDB

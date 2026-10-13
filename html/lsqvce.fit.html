@@ -139,7 +139,8 @@ Name, Value          any property of lsqvce.Options</pre>
                                by its Cholesky factor -- raised
                                by lsqvce.engine.batchSystem
     lsqvce:fit:priorNotActive  (warning) a prior with from &gt; 1 in a
-                               single-pass run is not applied
+                               single-pass run is not applied (a common
+                               or a local group, WP-128)
     lsqvce:fit:badPrior        data.priors is malformed (unknown
                                field, L not p x nc, sigma not a positive scalar,
                                x0 of the wrong length)
@@ -166,6 +167,9 @@ See also LSQVCE.OPTIONS, LSQVCE.RESULTS, LSQVCE.LAYOUT, LSQVCE.ENGINE.DECLARATIO
          LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT,
          LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTNONLINEAR
 
+Updated 2026-10-13 (CEST, UTC+02:00), WP-128: lsqvce:fit:priorNotActive also
+counts a late LOCAL group (data.systems(k).priors). With assistance from
+Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-114 (R7-05): priorsOf notes
 that a datum&#x27;s covariance is weight-independent too. With assistance from
 Claude (Anthropic), model Claude Opus 5.5.

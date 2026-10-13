@@ -88,6 +88,9 @@ classdef QRSystem < handle
 %
 %   See also LSQVCE.ENGINE.NORMALEQSYSTEM, LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-128: reducedRows also returns the
+%   local block's coupling R12 and right-hand side r1. With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-112 (R7-03, R7-16):
 %   reducedRows (local elimination on the factor), merge takes square-root
 %   rows, the rank decision is RankTol on the pivots. With assistance from
@@ -195,7 +198,7 @@ classdef QRSystem < handle
             m = o.m;
         end
 
-        function [rows, R11] = reducedRows(o, nl)
+        function [rows, R11, R12, r1] = reducedRows(o, nl)
         %REDUCEDROWS  The square root of the contribution with the LAST nl
         %   columns (the locals) eliminated -- on the factor, never in normal
         %   form (R7 WP-112, R7-03).
@@ -208,11 +211,15 @@ classdef QRSystem < handle
         %                              contribution's pseudo-observations
         %     R11                      the local block's factor (its pivots
         %                              decide whether the elimination is sound)
+        %     R12, r1                  its coupling to the commons and its
+        %                              right-hand side (WP-128: the local block's
+        %                              cofactor and solution are formed from
+        %                              R11, R12, r1, never from the squared Nll)
         %   nl = 0 returns R itself and an empty R11.
             d  = o.dim;
             nc = d - nl;
             if nl == 0
-                rows = o.R;  R11 = zeros(0, 0);
+                rows = o.R;  R11 = zeros(0, 0);  R12 = zeros(0, d);  r1 = zeros(0, 1);
                 return
             end
             Rp  = triu(qr(o.R(:, [nc+1:d, 1:nc, d+1]), 0));
@@ -220,6 +227,7 @@ classdef QRSystem < handle
             Rp  = Rp(1:k, :);
             kl  = min(nl, k);
             R11 = Rp(1:kl, 1:nl);
+            R12 = Rp(1:kl, nl+1:d);  r1 = Rp(1:kl, d+1);
             rows = Rp(kl+1:k, nl+1:end);
         end
 
