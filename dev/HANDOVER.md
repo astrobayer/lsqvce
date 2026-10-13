@@ -9959,3 +9959,16 @@ finding-3 symptom one level up. `QRSystem.add` keeps the factor full (it is (dim
 one batch; the batch itself stays sparse for the QR). (c) `lsqvce:accum:cancellation`: the normal
 backend's prior path checked the residual mass before the redundancy, and at dof = 0 the exact fit's
 v'Pv ~ 1e-15 reads as cancellation; both prior paths now refuse `noRedundancy` first.
+
+**Round 2 (8185116): the user's local `ci_gate` on a second machine (A8 was offline, the CI job queued
+for hours): 672 / 674.** (a) `testUnobservedLocalBlockIsRankZero` still red, and its log names the
+line: the normal-form branch of `localSolveOf`, so `onFactor` was false, and D.r = 25 for 27, so
+`localRankOf` counted nl. Cause: `lsqvce.util.getfielddef` returns its DEFAULT for an empty value, and
+the rank-0 block's kept basis Vll (nl x 0) is empty -- every reader received [] and lost the one shape
+that marks the block. All five readers (`onFactor`, `localRankOf`, `localSolveOf`, `localCovariance`,
+`BlockCofactor.fromAccumulator`) now read it through `BlockAccumulator.keptBasis`, the field as stored.
+Every other WP-133 test passed there, the sparse one, the robust / Gauss-Newton / zero-weight ones and
+the joint robust check with the nugget rotation included. (b) `test_speedBudget>testArmaACVIsNearLinearInLags`:
+armaACV(4n)/armaACV(n) = 16.4 (band 14.4-32.4) against the bound 8 -- also red on `main` on that
+machine (17.1), green on A8 in every run; `armaACV` is untouched here. A property of that machine (the
+65536-point FFT out of cache, most likely), recorded for WP-134 (kernel lane), not this PR.

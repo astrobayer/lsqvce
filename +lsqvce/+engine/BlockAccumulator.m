@@ -759,7 +759,7 @@ classdef BlockAccumulator < handle
                 k  = size(s.Rll, 1);  Ri = zeros(k);  G = zeros(size(s.Rlc));   % never the squared Nll
                 if k > 0, Ri = s.Rll \ eye(k);  G = s.Rll \ s.Rlc; end   % WP-133: rank 0 solves nothing
                 Qll = Ri * Ri.';
-                V = lsqvce.util.getfielddef(s, 'Vll', []);
+                V = lsqvce.engine.BlockAccumulator.keptBasis(s);
                 if size(V, 1) > 0                       % WP-130: the solve's pinv
                     G = V * G;  Qll = V * Qll * V.';
                 end
@@ -1108,7 +1108,7 @@ classdef BlockAccumulator < handle
                     if ~isempty(x), y = R \ (rl - Rlc * x(:)); end
                     G = R \ Rlc;
                 end
-                V = lsqvce.util.getfielddef(st, 'Vll', []);
+                V = lsqvce.engine.BlockAccumulator.keptBasis(st);
                 if size(V, 1) > 0        % WP-130: a rank-deficient block, on its kept
                     if ~isempty(x), y = V * y; end   % basis (minimum-norm y);
                     G = V * G;  Ll = [];  p = 1;     % Nll has no Cholesky factor
@@ -1126,7 +1126,7 @@ classdef BlockAccumulator < handle
         %   or the rank of a block it reduced by the pseudo-inverse (WP-130) --
         %   the u of every redundancy identity.
             k = st.nl;
-            V = lsqvce.util.getfielddef(st, 'Vll', []);
+            V = lsqvce.engine.BlockAccumulator.keptBasis(st);
             if size(V, 1) > 0, k = size(V, 2); end   % WP-133: nl x 0 (rank 0) counts 0
         end
 
@@ -1146,6 +1146,16 @@ classdef BlockAccumulator < handle
         end
 
         %------------------------------------------------------------------
+        function V = keptBasis(st)
+        %KEPTBASIS  The store's kept basis Vll AS STORED ([] when absent). Not
+        %   getfielddef, which returns its default for an EMPTY value: a block
+        %   of rank 0 keeps Vll nl x 0, and only that shape tells it from a
+        %   block kept in normal form (WP-133; CI round 2 -- read through
+        %   getfielddef, the rank-0 block went to the singular Nll_r).
+            V = [];  if isstruct(st) && isfield(st, 'Vll'), V = st.Vll; end
+        end
+
+        %------------------------------------------------------------------
         function tf = onFactor(st)
         %ONFACTOR  Whether a store keeps its local block on a factor (Rll, or
         %   the kept basis Vll of a rank-reduced block). WP-133 (review 3): a
@@ -1154,7 +1164,7 @@ classdef BlockAccumulator < handle
         %   Nll_r (NaN locals, NaN residuals of that system); the shape of Vll
         %   tells the two apart.
             tf = ~isempty(lsqvce.util.getfielddef(st, 'Rll', [])) || ...
-                 size(lsqvce.util.getfielddef(st, 'Vll', []), 1) > 0;
+                 size(lsqvce.engine.BlockAccumulator.keptBasis(st), 1) > 0;
         end
     end
 

@@ -184,7 +184,7 @@ classdef BlockCofactor
                     % WP-133 (review 3 finding 3): FULL -- a sparse B leaves the QR
                     % factor sparse, and cholupdate takes full matrices only
                     sg = sign(diag(b.Rll));  sg(sg == 0) = 1;
-                    Rl = full(sg .* b.Rll);  H = zeros(size(Rl));  G = zeros(size(b.Rlc));
+                    Rl = full(sg .* b.Rll);  H = zeros(size(Rl));  G = zeros(size(Rl, 1), nc);
                     if ~isempty(Rl)                       % WP-133: rank 0 solves nothing
                         H = Rl.' \ eye(size(Rl, 1));  G = Rl \ full(sg .* b.Rlc);
                     end
@@ -458,7 +458,7 @@ classdef BlockCofactor
                                    'truncTol', acc.opt.TruncTol, ...   % the solve's pinv cut
                                    'Rll', lsqvce.util.getfielddef(st, 'Rll', []), ...
                                    'Rlc', lsqvce.util.getfielddef(st, 'Rlc', []), ...
-                                   'Vll', lsqvce.util.getfielddef(st, 'Vll', []));
+                                   'Vll', lsqvce.engine.BlockAccumulator.keptBasis(st));   % its shape (WP-133)
                 col = col + nl;
             end
             Q = lsqvce.engine.BlockCofactor(acc.commonFactor(), blocks, acc.datumPart());
