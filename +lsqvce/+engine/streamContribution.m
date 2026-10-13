@@ -300,8 +300,8 @@ end
                         gIdx(end+1) = gi;            %#ok<AGROW>
                         lg          = numel(gIdx);
                         gAZ{lg}     = zeros(nc, o.Probes);   %#ok<AGROW>
-                        gNlc{lg}    = zeros(size(st.Nlc));    %#ok<AGROW> % nl x nc
-                        gMll{lg}    = zeros(size(st.Nlc,1));  %#ok<AGROW> % nl x nl
+                        gNlc{lg}    = zeros(size(st.G));      %#ok<AGROW> % nl x nc
+                        gMll{lg}    = zeros(size(st.G,1));    %#ok<AGROW> % nl x nl
                         gN(lg)      = 0;                      %#ok<AGROW>
                     end
                     [AZ, NlcArc, MllArc, nArc] = arcCommonProbe(st, obsType, a, d, uo, Z);
