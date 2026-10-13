@@ -1,5 +1,29 @@
 # lsqvce release notes
 
+## 6.19.0 — 2026-10-13 (WP-132: the five recorded lows of the second whole-code review)
+
+Numbers change for the cases marked **numbers**.
+
+- **`chi2Inv` converges in the far lower tail (numbers).** Below p ≈ 1e-40 the iteration ran
+  out of steps and returned wherever it stopped (r = 1, p = 1e-60: 9e31 times too large). It
+  now starts from the small-x expansion where that is closer, iterates on log F below the
+  median, and brackets its steps; a quantile below `realmin` comes back as 0 or a subnormal.
+  The quantiles the toolbox uses (p ≥ 0.005) move by at most 1e-14.
+- **Robust IRLS returns the factors its solution used.** `R.history(end).factor` was the
+  next pass's factor, one step ahead of the returned x, Cxx and diagnostics. It is now the
+  weights the returned solve used, so R.x is the weighted solution on them at every stop.
+- **The local covariances survive a refused v'Pv.** After the normal backend refused a
+  cancellation-destroyed v'Pv, `residuals` repaired σ₀ but returned every `Cyy` as NaN; they
+  now carry the repaired σ₀² and the solve's cofactor (`BlockAccumulator.commonCofactor`).
+- **`Sigma2_0` weights the first pass per arc** (engine tier, `adjustVCEjoint`). Pass 1 was
+  weighted with the mean of the start factors while the update multiplied each arc's own; the
+  arcs are now enumerated and pinned first (one extra accumulation when `Sigma2_0` is given).
+- **The arc factor takes the whole law as its component, for any law (numbers).** It assumed
+  the arc's covariance Toeplitz; for a non-stationary law (a per-row sigma, say) that is a
+  different, less efficient component (sd 0.62 against 0.32 on a 1..10 sigma ramp). The pair
+  is now in closed form (`redundancyLags` `.sLaw` / `.omegaLaw`); Toeplitz laws are unchanged
+  to rounding.
+
 ## 6.18.0 — 2026-10-13 (WP-131: noise model, kernel and contributions of the second whole-code review)
 
 Numbers change for the cases marked **numbers**.

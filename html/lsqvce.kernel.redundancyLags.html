@@ -137,6 +137,12 @@ case-sensitive lowercase.)
                            an indefinite product, not a variance.
     .omega    nMaxLag x 1  the per-lag residual sums Omega_n (NaN if ebar
                            was empty)
+    .sLaw     1x1          trace(Rbar T), the redundancy of the arc&#x27;s WHOLE
+                           law T as one component (T = Sigma, or the law
+                           without &#x27;Nugget&#x27;); closed form, any T (WP-132)
+    .omegaLaw 1x1          etilde&#x27; T etilde, its residual sum (NaN if ebar
+                           was empty). For a Toeplitz T these equal
+                           T(:,1)&#x27; s and T(:,1)&#x27; omega over all N lags
     .N        1x1          the arc length used
     .probes   1x1          Z, the probe count implied by UiZ
     .Rbar     N x N | []   dense Rbar if &#x27;WantRbar&#x27; was true, else []
@@ -145,6 +151,7 @@ INVARIANTS (tested)
   s_0     == trace(Rbar)
   s_n     == trace(Rbar * V_n) for the explicit V_n (LSQVCE.ENGINE.COVCOMPONENT)
   Omega_n == etilde&#x27; * V_n * etilde == ehat&#x27; Sigma^-T V_n Sigma^-1 ehat
+  sLaw    == trace(Rbar * T),  omegaLaw == etilde&#x27; * T * etilde
   Rbar    -&gt; Sigma^-1 - Sigma^-1 A N^-1 A&#x27; Sigma^-1  as Z -&gt; inf  (nl = 0)
   Rbar    -&gt; Sigma^-1 - Sigma^-1 [A B] Njoint^-1 [A B]&#x27; Sigma^-1 as Z -&gt;
              inf, when &#x27;LocalBbar&#x27;/&#x27;LocalLl&#x27; are given with AtilBar
@@ -173,6 +180,10 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 See also LSQVCE.ENGINE.COVCOMPONENT, LSQVCE.KERNEL.TOEPLITZCOFACTOR, LSQVCE.KERNEL.DCTI,
          LSQVCE.ENGINE.TRACEESTIMATE, LSQVCE.ENGINE.STREAMCONTRIBUTION
 
+Updated 2026-10-13 (CEST, UTC+02:00), WP-132: .sLaw / .omegaLaw, the
+Helmert pair of the arc&#x27;s whole law as one component in closed form (the
+joint estimator&#x27;s arc factor; it assumed a Toeplitz law before). With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-13 (CEST, UTC+02:00), WP-131: the Toeplitz fast path
 is taken only after a structure probe (Sigma y against toeplitz(c1) y);
 three probe columns let a per-row sigma or a gap through. With assistance

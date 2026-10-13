@@ -61,7 +61,9 @@ The result is NOT a least-squares result: its covariance is that of the
 reweighted problem and is scaled by the reweighted sigma0 (report() says
 so). The pass record is R.history (scale, max|dx|, counts); the final
 factors are R.history(end).factor, one per observation in sweep order,
-with R.history(end).keys naming the (sys, obsType, day, arc) rows.</pre>
+with R.history(end).keys naming the (sys, obsType, day, arc) rows. They
+are the weights the RETURNED solve used (WP-132): R.x is the weighted
+GLS solution on them, at every stop reason.</pre>
 <h3>Input</h3>
 <pre class="example">systems  1xM cell | struct  as for LSQVCE.ENGINE.ADJUSTBLOCK
 days     1xD double          the calendar</pre>
@@ -87,7 +89,9 @@ days     1xD double          the calendar</pre>
 <h3>Output</h3>
 <pre class="example">R  1x1 lsqvce.Results   stopReason &quot;converged&quot; | &quot;maxPasses&quot;; history(k):
    .pass .scale .dx .nDown (0 &lt; factor &lt; 0.5) .nZero (factor == 0)
-   .factor (last pass: n x 1) .keys (last pass: n x 4 cell)</pre>
+   (scale, nDown, nZero: what pass k derived from its residuals for
+   the next pass) .factor (last pass: n x 1, the weights the returned
+   solve used) .keys (last pass: n x 4 cell)</pre>
 <h3>Errors</h3>
 <pre class="example">  lsqvce:adjustRobust:collapsed   fewer live observations than nc + 1
                                   after reweighting -- ALMOST EVERY row
@@ -123,6 +127,10 @@ which the flat driver could not express.</pre>
 See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.KERNEL.ROBUSTWEIGHTS,
          LSQVCE.ENGINE.RESIDUALS, LSQVCE.FIT
 
+Updated 2026-10-13 (CEST, UTC+02:00), WP-132: history(end).factor holds
+the weights the RETURNED solve used (read back from the arc map), not the
+next pass&#x27;s -- R.x is the weighted solution on them at every stop. With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-12 (CEST, UTC+02:00), WP-125: &#x27;PsdMode&#x27; -- how a declared
 psd law whitens (fit passes Options.Noise.Whitener). With assistance from
 Claude (Anthropic), model Claude Opus 5.5.

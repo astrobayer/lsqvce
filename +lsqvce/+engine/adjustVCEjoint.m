@@ -79,7 +79,10 @@ function out = adjustVCEjoint(accFcn, opt)
 %     'NumLags'   1x1 int    L, the number of spectral bins (default 60)
 %     'S0'        L x 1 | [] starting spectrum (>= 0, not all zero). Default
 %                            ones: white noise (Ellmer's eq. 6.5.62)
-%     'Sigma2_0'  M x 1 | [] starting arc factors (default all ones, eq. 6.5.62)
+%     'Sigma2_0'  M x 1 | [] starting arc factors (default all ones, eq. 6.5.62),
+%                            aligned to out.arcKeys; they weight pass 1 per arc
+%                            (WP-132), at the price of one extra accumulation
+%                            that enumerates the arcs first
 %     'MaxIter'   1x1 int    outer iterations (default 10)
 %     'Tol'       1x1        convergence on max|alpha2 - 1| (default 1e-2)
 %     'Probes'    1x1 int    Z Hutchinson probes (default 100, Ellmer's value)
@@ -264,6 +267,11 @@ function out = adjustVCEjoint(accFcn, opt)
 %   See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
 %            LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-132: Sigma2_0 weights pass 1 per
+%   arc (the arcs are enumerated and pinned first); the arc factor's Helmert
+%   pair takes the whole law as its component in closed form (redundancyLags
+%   .omegaLaw / .sLaw), no longer r'Omega / r's, which assumed it Toeplitz.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-12 (CEST, UTC+02:00), WP-127: a local prior arc before its
 %   group's from pass is inactive, not a skip; the per-pass record has one
 %   column per pinned stream (a stream absent in one pass broke it). With
@@ -454,6 +462,22 @@ end
     W = containers.Map('KeyType', 'char', 'ValueType', 'any');   % per-epoch factors
     fac = [];  rkeys = cell(0, 4);  rscale = [];  rstreams = {};  tauMap = [];  hardFix = [];
     hist.robustScale = [];  hist.nDown = [];  hist.nZero = [];
+    if ~isempty(o.Sigma2_0)
+        % WP-132 (review low 22): Sigma2_0 weights pass 1 PER ARC. Pass 1 used to
+        % run before anything was pinned, so jointModelOpt saw neither stream
+        % levels nor arc factors and weighted every arc with the MEAN of
+        % Sigma2_0 -- while eq. 6.5.28 multiplied each arc's own start factor:
+        % a non-uniform start computed pass 1 wrong, and a warm start at the
+        % fixed point left it. The arcs are now pinned on an enumeration first
+        % (the loader's 'meta' calls, which need the stores of one accumulation
+        % under the old pass-1 model).
+        accE = accFcn(struct('S', S, 'C', C, 'sigma2', sigma2, 'iter', 1, 'streamSigma2', [], ...
+                             'Sgroups', Smap, 'Cgroups', Cmap, 'Pool', char(o.Pool), 'Estimate', o.Estimate, ...
+                             'lastSol', [], 'rowWeights', W));
+        [pinnedKeys, pinnedRow, pinnedStream] = enumerateArcs(accE);
+        s2Map = pinFactors(pinnedKeys, o.Sigma2_0);
+        accE = [];                                   %#ok<NASGU> release its stores
+    end
     if robust
         % PASS 0 (round 10, measured): the first robust sweep runs BEFORE the
         % first spectral update. Started without it, pass 1 fitted the law to
@@ -462,7 +486,9 @@ end
         % passes (0.006 -> 0.08); the control that declared the blunders from
         % the start converged. So: one accumulation under the start model,
         % one residual sweep, the factors -- and only then the loop.
-        model0 = struct('S', S, 'C', C, 'sigma2', sigma2, 'iter', 1, 'streamSigma2', [], ...   % iter 1: priors with from = 1 active
+        model0 = struct('S', S, 'C', C, 'sigma2', sigma2, 'iter', 1, ...   % iter 1: priors with from = 1 active
+                        'streamSigma2', streamMeans(pinnedStream, sigma2), ...
+                        'arcFactor', arcFactorMap(pinnedStream, pinnedRow, sigma2, o), ...   % WP-132: Sigma2_0
                         'Sgroups', Smap, 'Cgroups', Cmap, 'Pool', char(o.Pool), 'Estimate', o.Estimate, ...
                         'lastSol', [], 'rowWeights', W);
         acc0 = accFcn(model0);
@@ -533,20 +559,7 @@ end
             pinnedKeys = keysAll;
             pinnedStream = streamAll;
             pinnedRow = rowAll;
-            s2Map = containers.Map('KeyType','char', 'ValueType','double');
-            if isempty(o.Sigma2_0)
-                for kk = 1:numel(pinnedKeys), s2Map(pinnedKeys{kk}) = 1; end
-            else
-                if numel(o.Sigma2_0) ~= numel(pinnedKeys)
-                    error('lsqvce:adjustVCEjoint:badSigma2_0', ...
-                        ['Sigma2_0 has %d entries but pass 1 enumerated %d ' ...
-                         'arcs (see out.arcKeys for the pinned order).'], ...
-                         numel(o.Sigma2_0), numel(pinnedKeys));
-                end
-                for kk = 1:numel(pinnedKeys)
-                    s2Map(pinnedKeys{kk}) = o.Sigma2_0(kk);
-                end
-            end
+            s2Map = pinFactors(pinnedKeys, o.Sigma2_0);   % Sigma2_0 empty here: all ones
         elseif ~isequal(sort(keysAll), sort(pinnedKeys))
             missing = setdiff(pinnedKeys, keysAll);
             newk    = setdiff(keysAll, pinnedKeys);
@@ -1112,9 +1125,11 @@ function [Qb, Tb, qa, ta, keys, keysAll, skips, wstats, rowAll, streamAll, keySt
 %       and lambda_m = r_m(0) the arc's own law variance (level x factor, as
 %       weighted): the bin component of the arc is lambda_m S_j toeplitz(K_j);
 %       K' is applied in hatACV's projection form (fold + one FFT, no m x L K)
-%     qa(m) = r_m' Omega^m,  ta(m) = r_m' s^m                        (1 x M)
-%       the arc's numerator / denominator with its WHOLE covariance r_m (its
-%       law's first column) as the component -- the arc factor (eq. 6.5.27).
+%     qa(m) = etilde' T etilde,  ta(m) = trace(Rbar T)              (1 x M)
+%       the arc's numerator / denominator with its WHOLE law covariance T as
+%       the component -- the arc factor (eq. 6.5.27), in closed form
+%       (redundancyLags .omegaLaw / .sLaw, WP-132; r_m' Omega^m / r_m' s^m
+%       before, which assumed T Toeplitz)
 %   Mirrors the arc enumeration used by LSQVCE.ENGINE.REDUNDANCY and
 %   LSQVCE.ENGINE.STREAMCONTRIBUTION, so grouping and whitening stay consistent.
 %   WP-34 (fixes F-02): every arc is KEYED s<sys>_<obsType>_d<day>_a<arc>
@@ -1182,8 +1197,8 @@ function [Qb, Tb, qa, ta, keys, keysAll, skips, wstats, rowAll, streamAll, keySt
                     keysAll{end+1} = key;                    %#ok<AGROW>
                     streamAll{end+1, 1} = sk;                %#ok<AGROW>
                     rowAll{end+1, 1} = lsqvce.util.rowWeightKey(st.sysID, d, obsType, a); %#ok<AGROW>
-                    [om, sn, r, why, wsum, wm] = oneArc(st, obsType, a, d, uo, UiZ, ...
-                                                        x, ySys, Gsys, LlS);
+                    [om, sn, r, why, wsum, wm, qw, tw] = oneArc(st, obsType, a, d, uo, UiZ, ...
+                                                                x, ySys, Gsys, LlS);
                     if isempty(om)
                         % an inactive prior arc is not a skip (WP-127): it counted
                         % against SkipThreshold before its group's 'from' pass
@@ -1197,8 +1212,8 @@ function [Qb, Tb, qa, ta, keys, keysAll, skips, wstats, rowAll, streamAll, keySt
                     keyStream{end+1} = sk;                   %#ok<AGROW>
                     qt = r(1) * lsqvce.kernel.hatACV(L, numel(om), [om sn]);   % lambda_m K' [Omega s]
                     Qb(:, nArc) = qt(:, 1);  Tb(:, nArc) = qt(:, 2);           %#ok<AGROW>
-                    qa(nArc) = r.' * om;                     %#ok<AGROW>
-                    ta(nArc) = r.' * sn;                     %#ok<AGROW>
+                    qa(nArc) = qw;                           %#ok<AGROW>  WP-132: the whole law,
+                    ta(nArc) = tw;                           %#ok<AGROW>  no Toeplitz assumption
                 end
             end
         end
@@ -1209,7 +1224,7 @@ function [Qb, Tb, qa, ta, keys, keysAll, skips, wstats, rowAll, streamAll, keySt
 end
 
 %==========================================================================
-function [om, sn, r, why, wsum, wm] = oneArc(st, obsType, arc, day, uo, UiZ, x, ySys, Gsys, LlS)
+function [om, sn, r, why, wsum, wm, qw, tw] = oneArc(st, obsType, arc, day, uo, UiZ, x, ySys, Gsys, LlS)
 %ONEARC  Decorrelate one arc, form its residual, and return the per-lag Omega
 %   and s from LSQVCE.KERNEL.REDUNDANCYLAGS over ALL the arc's lags, and r, the
 %   first column of the arc's law covariance (without the robust nugget; R7
@@ -1220,11 +1235,14 @@ function [om, sn, r, why, wsum, wm] = oneArc(st, obsType, arc, day, uo, UiZ, x, 
 %   local Cholesky (computed once per pass by sweepArcs); the residual is
 %   ebar = W^-T(l - A x - B y) and the projector absorbs the local block
 %   exactly (jointArcParts + redundancyLags 'LocalBbar'/'LocalLl').
+%   qw / tw: the arc factor's Helmert pair with the arc's WHOLE law as the
+%   component (redundancyLags .omegaLaw / .sLaw, WP-132), summed over the axes.
     uo.obsType = obsType;
     uo.day     = day;
     uo.arc     = arc;
     why = '';
     wsum = zeros(WHITE_LAGS + 1, 1);  wm = zeros(WHITE_LAGS + 1, 1);   % R5 M4 4a / R7-38: sums and pair counts
+    qw = 0;  tw = 0;
     a = st.dataFcn(day, obsType, arc, uo);
     if isempty(a) || ~isfield(a, 'l') || isempty(a.l)
         % WP-127: a local prior group's pseudo-arc is listed on every pass (the
@@ -1299,6 +1317,7 @@ function [om, sn, r, why, wsum, wm] = oneArc(st, obsType, arc, day, uo, UiZ, x, 
                                        'LocalBbar', Bbar, 'LocalLl', LlS, 'Nugget', cN, 'LawW', WL);
             om = om + finiteOf(rl.omega);
             sn = sn + finiteOf(rl.s);
+            qw = qw + rl.omegaLaw;  tw = tw + rl.sLaw;      % WP-132: the whole law
             wsum = wsum + whiteLagSums(ebar);  wm = wm + lagPairs(numel(ebar));
         end
         return
@@ -1335,6 +1354,7 @@ function [om, sn, r, why, wsum, wm] = oneArc(st, obsType, arc, day, uo, UiZ, x, 
     om = finiteOf(rl.omega);
     sn = finiteOf(rl.s);
     r  = Sig(:, 1);
+    qw = rl.omegaLaw;  tw = rl.sLaw;                    % WP-132: the whole law
     wsum = whiteLagSums(ebar);  wm = lagPairs(numel(ebar));
 end
 
@@ -1379,6 +1399,49 @@ function s = skipSummary(skips)
     parts = cell(1, numel(why));
     for k = 1:numel(why), parts{k} = sprintf('%s: %d', why{k}, n(k)); end
     s = strjoin(parts, ', ');
+end
+
+function [keysAll, rowAll, streamAll] = enumerateArcs(acc)
+%ENUMERATEARCS  The arc identity sweepArcs pins -- arc keys, loader keys and
+%   stream keys of every enumerated arc, in sweepArcs' order -- from the
+%   loader's 'meta' calls alone (WP-132: lets Sigma2_0 weight pass 1). Any
+%   disagreement with sweepArcs' own enumeration is refused by pass 1's
+%   arcMismatch check. OUTPUT keysAll 1 x M cell, rowAll / streamAll M x 1 cell.
+    keysAll = {};  rowAll = {};  streamAll = {};
+    ids = acc.systemIDs();
+    for k = 1:numel(ids)
+        st = acc.getStore(ids(k));
+        for d = st.dayList(:).'
+            meta = st.dataFcn('meta', d, [], st.uo);
+            for ot = 1:numel(meta.obsTypes)
+                obsType = meta.obsTypes{ot};
+                for a = meta.arcs{ot}(:).'
+                    keysAll{end+1} = lsqvce.util.arcKey(st.sysID, obsType, d, a);        %#ok<AGROW>
+                    streamAll{end+1, 1} = lsqvce.util.streamKey(st.sysID, obsType);       %#ok<AGROW>
+                    rowAll{end+1, 1} = lsqvce.util.rowWeightKey(st.sysID, d, obsType, a); %#ok<AGROW>
+                end
+            end
+        end
+    end
+end
+
+function s2Map = pinFactors(pinnedKeys, sigma2_0)
+%PINFACTORS  The keyed start factors: Sigma2_0 aligned to the pinned arcs, or
+%   all ones without it. Raises badSigma2_0 on a count mismatch.
+    s2Map = containers.Map('KeyType', 'char', 'ValueType', 'double');
+    if isempty(sigma2_0)
+        for kk = 1:numel(pinnedKeys), s2Map(pinnedKeys{kk}) = 1; end
+        return
+    end
+    if numel(sigma2_0) ~= numel(pinnedKeys)
+        error('lsqvce:adjustVCEjoint:badSigma2_0', ...
+            ['Sigma2_0 has %d entries but pass 1 enumerated %d ' ...
+             'arcs (see out.arcKeys for the pinned order).'], ...
+             numel(sigma2_0), numel(pinnedKeys));
+    end
+    for kk = 1:numel(pinnedKeys)
+        s2Map(pinnedKeys{kk}) = sigma2_0(kk);
+    end
 end
 
 function M = streamMeans(arcStreams, sigma2)

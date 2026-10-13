@@ -488,12 +488,11 @@ function testRobustFixedPointOnTheBatchKind(tc)
     % the issue names and the one no robust point covered; the kind-B pin
     % testMatrixKindRobustReproducesRobust is its counterpart.
     %
-    % The issue asks for 1e-10. THAT BOUND IS NOT REACHABLE IN PRINCIPLE and
-    % the kind-B point says why: the factors returned by the last pass were
-    % computed from the PREVIOUS estimate, so x and the closed form on those
-    % factors differ by the influence's Lipschitz constant times the final
-    % step. 1e-6 is the bound that point measured, and this one inherits it
-    % rather than stating a second number for the same fact.
+    % The issue asks for 1e-10. Until WP-132 that bound was not reachable: the
+    % factors returned were the NEXT pass's (derived from the last estimate),
+    % one Lipschitz step from the weights x was solved with. Since WP-132
+    % (review low 24) history(end).factor IS the returned solve's weights, so
+    % x and the closed form on them agree to rounding.
     [A, l, p] = matrixFixture();
     l(7) = l(7) + 25;  l(22) = l(22) - 18;           % two gross errors
     idx  = {1:15, 16:30};
@@ -506,9 +505,10 @@ function testRobustFixedPointOnTheBatchKind(tc)
     tc.verifyEqual(numel(fac), numel(l), 'one factor per observation, batches in order');
     tc.verifyLessThan(fac([7 22]), 0.2, 'both planted errors are down-weighted');
     Pw = diag(p(:) .* fac(:));  xd = (A.'*Pw*A) \ (A.'*Pw*l);
-    % tol: 1e-6 relative -- the bound testMatrixKindRobustReproducesRobust
-    % measured for this same fixed-point identity, for the reason above
-    tc.verifyEqual(R.x, xd, 'RelTol', 1e-6);
+    % tol: 1e-10 relative -- the same weights on both sides; what is left is
+    % the QR solve against the normal-equation closed form on a 30 x 3 design
+    % with cond ~ 3, i.e. rounding
+    tc.verifyEqual(R.x, xd, 'RelTol', 1e-10);
 end
 
 function testArmaAndPsdLawsAgreeNoWorseUnderIrls(tc)
@@ -1147,19 +1147,50 @@ function testMatrixKindRobustReproducesRobust(tc)
     tc.verifyEqual(numel(fac), numel(l));
     tc.verifyLessThan(fac(7), 0.2, 'the planted 25-sigma error is down-weighted');
     tc.verifyEqual(R.stopReason, "converged");
-    % the fixed point: x = argmin sum fac_i p_i v_i^2 with fac from the LAST pass
+    % the estimate: x = argmin sum fac_i p_i v_i^2 with fac the weights the
+    % returned solve used (WP-132: history(end).factor)
     Pw = diag(p(:) .* fac(:));  xd = (A.'*Pw*A) \ (A.'*Pw*l);
-    % tol: 1e-6 relative -- the last factors were computed from the PREVIOUS
-    % estimate; at Tol 1e-12 on x the two differ by the influence's Lipschitz
-    % constant times the step, well below 1e-6
-    tc.verifyEqual(R.x, xd, 'RelTol', 1e-6);
+    % tol: 1e-10 relative -- the same weights on both sides; QR against the
+    % normal-equation closed form on a cond ~ 3 design, i.e. rounding
+    tc.verifyEqual(R.x, xd, 'RelTol', 1e-10);
     % and the factors are Huber's on the standardised whitened residuals
     vw = sqrt(p(:)) .* (A*R.x - l);
     facDef = lsqvce.kernel.robustWeights(vw, 'huber', []);
-    % tol: 1e-6 absolute -- as above
+    % tol: 1e-6 absolute -- the factors were derived from the PREVIOUS
+    % estimate; at Tol 1e-12 on x the two differ by the influence's Lipschitz
+    % constant times the last step, well below 1e-6
     tc.verifyEqual(fac, facDef, 'AbsTol', 1e-6);
     tc.verifyEqual(R.meta.options.kind, 'matrix');
     tc.verifyNotEmpty(R.acc, 'kind B robust carries the accumulator too');
+end
+function testRobustFactorsAreTheReturnedSolvesWeights(tc)
+% categories: contract, metamorphic
+    % WP-132 (review low 24): R.history(end).factor was the NEXT pass's factor
+    % (derived from the returned solve's residuals), so at a maxPasses exit the
+    % returned x was NOT the weighted solution on the returned factors -- one
+    % IRLS step apart. Now they are the weights the returned solve used: one
+    % pass returns the unweighted solve with all factors 1, three passes the
+    % weighted solution on the factors pass 2 derived.
+    [A, l, p] = matrixFixture();
+    l(7) = l(7) + 25;                                   % gross error
+    data = struct('A', A, 'l', l, 'p', p);
+    muteWarn(tc, 'lsqvce:adjustRobust:notConverged');   % both runs stop early by design
+    for maxIter = [1 3]
+        R = lsqvce.fit(data, lsqvce.Options(Robust="huber", ...
+                       RobustOpts=struct('MaxIter', maxIter), Verbose=false));
+        fac = R.history(end).factor;
+        Pw = diag(p(:) .* fac(:));  xd = (A.'*Pw*A) \ (A.'*Pw*l);
+        % tol: 1e-10 relative -- the same weights on both sides; QR against the
+        % normal-equation closed form on a cond ~ 3 design, i.e. rounding
+        tc.verifyEqual(R.x, xd, 'RelTol', 1e-10, ...
+            sprintf('MaxIter %d: x must be the weighted solution on the returned factors', maxIter));
+        if maxIter == 1
+            tc.verifyEqual(R.stopReason, "maxPasses");
+            tc.verifyEqual(fac, ones(numel(l), 1), 'pass 1 solves unweighted');
+        else
+            tc.verifyLessThan(fac(7), 0.5, 'by pass 3 the planted error is down-weighted');
+        end
+    end
 end
 function testBatchKindNonlinearReproducesSolveNonlinear(tc)
 % categories: reference, contract

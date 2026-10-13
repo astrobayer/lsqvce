@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-13 — WP-131 DONE (PR #153, merge cbf5852; CI GREEN on 9c99b4f after the red round 1 on c7ff67b: ci_gate 661/661); closure PR (user decision: "Gemergt, mach den Abschluss-PR"): the ledger rows and §12.65 -- the second whole-code review track (§12.63, WP-130/131) closed: 14 findings and 12 lows fixed (two lows by user decision), five lows recorded with their reasons (19, 22, 23, 24, 30); no code change, no version (6.18.0 stays, 673 tests).
+Last substantive update: 2026-10-13 — WP-132 OPEN (tier B, model Claude Opus 5.5; user: "Go ahead and fix the open issues"): the five lows §12.65 recorded -- chi2Inv converges in the far lower tail (small-x seed, Newton on log F, a bracket), robust IRLS returns the factors its solve used, residuals' Cyy carry the repaired s0^2 after a refused vtv (BlockAccumulator.commonCofactor), Sigma2_0 weights pass 1 per arc (the arcs pinned on an enumeration first), the arc factor takes the whole law as its component in closed form (redundancyLags .sLaw/.omegaLaw; no Toeplitz assumption); 4 tests; version 6.19.0; §12.66.
+Preceding entry: Last substantive update: 2026-10-13 — WP-131 DONE (PR #153, merge cbf5852; CI GREEN on 9c99b4f after the red round 1 on c7ff67b: ci_gate 661/661); closure PR (user decision: "Gemergt, mach den Abschluss-PR"): the ledger rows and §12.65 -- the second whole-code review track (§12.63, WP-130/131) closed: 14 findings and 12 lows fixed (two lows by user decision), five lows recorded with their reasons (19, 22, 23, 24, 30); no code change, no version (6.18.0 stays, 673 tests).
 Preceding entry: Last substantive update: 2026-10-13 — WP-130 DONE (PR #152, merge b441ff3; CI GREEN on a1e1859, first round: ci_gate 650/650); WP-131 OPEN (tier B, model Claude Opus 5.5): the noise model, the kernel and the contributions of the second whole-code review -- Level 2 on the leverage split (user decision), a psd override's own axis, Smooth > 0 converging, the Toeplitz structure probe, armaACV's tail, crossCorr on correlations, no "robust (none)", late priors reported, seven lows fixed, five recorded, two by user decision (prior_* refused, snoop inherits R.diag's test); 11 tests; version 6.18.0; §12.64.
 Preceding entry: Last substantive update: 2026-10-13 — second whole-code review (correctness and missing tests; six parallel reviewers, every material finding re-checked: 14 medium/high + 17 low, §12.63); WP-130 OPEN (tier B, model Claude Opus 5.5; user: "Go ahead. Change to the leverage fit"): the solve core and the diagnostics -- a rank-deficient local block reduced on its factor, Gauss-Newton evaluated at the returned point, the datum test invariant to units, 'mad' without datum scores, snoop after rejection; 4 tests; version 6.17.0; WP-131 (noise model, kernel, contributions; Level 2 on the leverage split) follows.
 Preceding entry: Last substantive update: 2026-10-13 — WP-129 DONE (PR #150, merge f706681; CI GREEN on 3e9086e, first round: ci_gate 646/646); closure PR (user decision: "Ja, mach den Abschluss-PR"): the ledger row and §12.62 -- the whole-code review track (§12.59, WP-127/128/129) closed, all twelve findings fixed, no residue; no code change, no version (6.16.1 stays, 658 tests).
@@ -9710,3 +9711,66 @@ tier only), 23 (the arc factor's Toeplitz assumption, an efficiency loss), 24 (`
 recorded factor at a MaxPasses exit), 30 (`stat.chi2Inv` below p ~ 1e-40, no caller). Mirrors kept:
 `dev/validation/wp130_pinv_fallback_mirror.py`, `wp130_datum_scale_mirror.py`,
 `wp131_level2_split_mirror.py`, `wp131_kernel_mirror.py`.
+
+### 12.66 WP-132 — the five recorded lows of the second whole-code review (2026-10-13, model Claude Opus 5.5)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 132 | review lows 19, 22, 23, 24, 30 (recorded, not opened, in §12.64/§12.65): `chi2Inv` in the far lower tail; `adjustRobust`'s returned factor; `residuals`' Cyy after a refused vtv (`BlockAccumulator.commonCofactor`); `Sigma2_0` weighting pass 1 per arc (`enumerateArcs`, `pinFactors`); the arc factor on the whole law (`redundancyLags` `.sLaw` / `.omegaLaw`); **version 6.19.0** | 131 (PR #153 merged cbf5852; closure #154) | OPEN (tier B; CI is the gate) |
+
+**The user's request (2026-10-13):** "Go ahead and fix the open issues" -- the five lows §12.65 left
+recorded. Each re-derived before the fix; 30 and 23 by an own mirror.
+
+*30.* `stat.chi2Inv` seeded its damped log-space Newton (|dy| <= 2) from Wilson-Hilferty and, where WH
+is non-positive, from max(0.1 r, 1e-3); below p ~ 1e-40 the root lies further than 100 steps away and
+the iteration returned wherever it stopped. Mirror `dev/validation/wp132_chi2inv_mirror.py` (a line-for-
+line port, scipy's chi2.ppf the reference, r 0.1..1e6, p 1e-307..1-1e-6): old 70 cases off by more than
+1e-11 (r = 1, p = 1e-60: 1.4e-88 for 1.6e-120); new 0, worst 5.8e-12, at most 34 iterations. The fix:
+a second seed, the root of the series' leading term F(x) <= (x/2)^a / Gamma(a+1), taken when closer in
+log F; Newton on log F below the median (log F(e^y) is concave -- the log-gamma density is
+log-concave); a bracket with bisection; a quantile below realmin returned as that leading term (0 or a
+subnormal). The central range (p 1e-3..0.995, r >= 1) moves by at most 4.4e-15. Test
+`test_lsqvce>test_chi2Inv_far_lower_tail`.
+
+*24.* `adjustRobust` stored as `history(end).factor` the factors the last pass DERIVED (for the next
+pass): at a maxPasses or userStop exit one IRLS step ahead of the returned x / Cxx / diagnostics, at
+convergence a Lipschitz step. It now stores the weights the returned solve used (`appliedFactors`, read
+back from the arc map; all ones after one pass); scale / nDown / nZero stay what each pass derived (help
+says so). New `test_fit>testRobustFactorsAreTheReturnedSolvesWeights` (MaxIter 1 and 3: R.x is the
+weighted solution on the returned factors to 1e-10); `testRobustFixedPointOnTheBatchKind` and
+`testMatrixKindRobustReproducesRobust` tightened from 1e-6 to 1e-10 on that identity (their comments
+named the lag as the reason the issue's 1e-10 was out of reach); the fixed-point check of the factors
+themselves keeps its 1e-6.
+
+*19.* After the normal backend refused a cancellation-destroyed vtv (s0sq = NaN, so Cxx = NaN * Q),
+`residuals` repaired s0sq but returned every `Cyy` as NaN. `BlockAccumulator.commonCofactor` returns the
+solve's cofactor Q (sol.Cxx = sol.s0sq * Q: inv(Rc'Rc) on commonFactor, the minimum-constraint pinv
+with a datum); the residual pass rescales it by its own s0^2. `test_precision>testResidualPassSupersedesPoisonedSigma0`
+extended: every Cyy finite and within 3e-3 of the QR backend's.
+
+*22.* Pass 1 of `adjustVCEjoint` ran before any arc was pinned, so its model carried neither stream
+levels nor arc factors and `jointModelOpt` applied the MEAN of `Sigma2_0` to every arc, while eq. 6.5.28
+multiplied each arc's own start factor. With `Sigma2_0` the arcs are now enumerated (`enumerateArcs`:
+the loader's 'meta' calls on one accumulation under the old pass-1 model) and pinned first
+(`pinFactors`, which also raises `badSigma2_0`), so pass 1 (and the robust pass 0) weight each arc with
+its start factor; pass 1's arcMismatch check guards the two enumerations against each other. Cost: one
+accumulation, only when `Sigma2_0` is given. Test `test_ellmer>test_adjustVCEjoint_sigma2_0_weights_pass_1_per_arc`
+(fires `badSigma2_0`: its unfired-baseline row deleted).
+
+*23.* The arc factor (eq. 6.5.27) took the whole law T as its component through the lag sums,
+r' Omega / r' s with r = T(:,1) -- exact for a Toeplitz T, for any other T the ratio of a different
+component: unbiased, not efficient. `redundancyLags` returns the pair in closed form, `.sLaw` =
+trace(Rbar T) and `.omegaLaw` = etilde' T etilde (without a nugget N - |Abar UiZ|^2 - |Bbar Ll^-T|^2
+and ebar'ebar; with one, T = LawW'LawW and trace(Sigma^-1 T) = N - sum nugget_i (Sigma^-1)_ii), and
+`sweepArcs` uses it. Mirror `dev/validation/wp132_arc_component_mirror.py`: closed form against the
+dense trace to 2e-15 (Toeplitz, per-row sigma, nugget; locals and probes in); on a Toeplitz T equal
+to the lag-sum form; per-row sigma 1..10 over 60 epochs, factor 1.7: lag-sum sd 0.616, whole law sd
+0.315 (BIQUE 0.321), both unbiased. Test `test_ellmer>test_lags_whole_law_component_for_any_sigma`
+(covers the kernel's metamorphic category: its exemption row deleted). Theory `ch_vce.tex`
+§arcfactors brought to the closed form.
+
+**Bookkeeping.** `adjustVCEjoint`'s ceiling lowered to 290 code lines (the pass-1 pinning moved into
+`pinFactors`), its long-line row to 2; `lsqvce:adjustRobust:notConverged` is now fired by a test (its
+baseline row deleted).
+
+**Tests 677 = 673 + 4.** NOT validated before CI: no MATLAB in the container.

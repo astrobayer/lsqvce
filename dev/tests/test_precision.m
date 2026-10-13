@@ -865,12 +865,26 @@ function testResidualPassSupersedesPoisonedSigma0(tc)
     tc.verifyTrue(res.supersedesSol);
     tc.verifyTrue(isfinite(res.sigma0) && res.sigma0 > 0);
 
-    solQ = runAcc(cfg, 1:2, 'Backend','qr', 'Verbose',false);
+    accQ = lsqvce.engine.BlockAccumulator(cfg.nc, 'Backend','qr', ...
+                                   'KeepLocal',true, 'Verbose',false);
+    addAllSystems(accQ, cfg, 1:2);
+    solQ = accQ.solve();
     % tol: MEASURED 8.0e-5 here (3.2e-3 on a harder 1-sat probe), 2026-08-20:
     % the pass inherits the normal-path x-hat (2nd-order penalty); well
     % below sigma0's sampling scatter 1/sqrt(2*dof) ~ 1.4e-2
     tc.verifyEqual(res.sigma0, solQ.sigma0, 'RelTol', 1e-3, ...
         'the superseding number must match the stable backend');
+    % WP-132 (review low 19): the local covariances carry the repaired s0^2 --
+    % they were all NaN (Cxx = NaN * Q) while res.s0sq was repaired
+    for k = 1:numel(res.sys)
+        Cyy = res.sys(k).Cyy;
+        tc.verifyTrue(all(isfinite(Cyy(:))), 'Cyy must carry the repaired s0^2');
+        CyyQ = accQ.localCovariance(res.sys(k).sysID, solQ.Cxx, solQ.s0sq);
+        % tol: s0^2 differs by twice sigma0's 1e-3 bound above; the two cofactors
+        % (chol of N against the QR factor) agree to cond*eps, far below it
+        tc.verifyLessThan(norm(Cyy - CyyQ, 'fro'), 3e-3 * norm(CyyQ, 'fro'), ...
+            'the repaired Cyy must match the stable backend''s');
+    end
 end
 
 %% ================================================== WP-50: honest vtv, QR

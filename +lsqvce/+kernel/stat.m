@@ -40,6 +40,9 @@ classdef stat
 %
 %   See also LSQVCE.ENGINE.VERDICT.DIAGNOSE.
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-132: chi2Inv converges in the
+%   far lower tail (a small-x seed, Newton on log F, a bracket). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-128: madCrit, the critical value
 %   of a MAD-scaled residual. With assistance from Claude (Anthropic), model
 %   Claude Opus 5.5.
@@ -86,7 +89,9 @@ end
 function x = chi2Inv(p, r)
     %CHI2INV  Chi-square quantile without the Statistics Toolbox.
     %
-    %   Wilson-Hilferty seed, polished by safeguarded Newton on F(x) = p.
+    %   Wilson-Hilferty seed (or, in the far lower tail, the root of the
+    %   series' leading term), polished by safeguarded Newton on F(x) = p --
+    %   on log F(x) = log p below the median (WP-132).
     %
     %   The iteration is performed in y = log(x), NOT in x. This is not a
     %   stylistic choice. The chi-square density behaves like x^(r/2 - 1) near
@@ -97,12 +102,16 @@ function x = chi2Inv(p, r)
     %       dF/dy = x * pdf(x)  ~  x^(r/2)  ->  0
     %
     %   which is smooth and bounded, and the iteration converges to machine
-    %   precision for every r >= 1 including the singular cases. The step is
+    %   precision for every r > 0 including the singular cases. The step is
     %   damped to |dy| <= 2 (a factor of e^2 per iteration) so a bad seed
-    %   cannot fly off to overflow.
+    %   cannot fly off to overflow, and bracketed so it cannot oscillate.
     %
     %   ACCURACY (verified against an independent implementation):
-    %     r <= 1e7   : |F(x_returned) - p| / p  <  1e-11   (machine precision)
+    %     r <= 1e7   : |F(x_returned) - p| / p  <  1e-11   (machine precision),
+    %                  for every p in (0,1) down to realmin (WP-132: it
+    %                  stopped unconverged below p ~ 1e-40 before); a
+    %                  quantile below realmin comes back as the series'
+    %                  leading term, a subnormal or 0
     %     r  > 1e7   : ~1e-6 relative, limited by gammainc itself, not by this
     %                  solver: at r = 1e9 the CDF is so steep that a one-ulp
     %                  change in x moves F by ~1e-11. The returned quantile
@@ -124,32 +133,55 @@ function x = chi2Inv(p, r)
     act = ~(lo | hi);
     if ~any(act(:)), return; end
 
-    pa = p(act);  ra = r(act);
+    pa = p(act);  ra = r(act);  a = ra ./ 2;
 
-    % --- Wilson-Hilferty seed
+    % --- seeds (WP-132, review low 30). Wilson-Hilferty for the bulk; for the
+    % far lower tail the root of the series' leading term,
+    %     F(x) <= (x/2)^a / Gamma(a+1)      (equality as x -> 0),
+    % whichever lands closer in log F. From WH's fallback seed the damped
+    % iteration needed > 100 steps below p ~ 1e-40 (r = 1) and stopped
+    % wherever it was: r = 1, p = 1e-60 came back 9e31 times too large
+    % (dev/validation/wp132_chi2inv_mirror.py).
     z  = lsqvce.kernel.stat.normInv(pa);
     x0 = ra .* (1 - 2 ./ (9 .* ra) + z .* sqrt(2 ./ (9 .* ra))).^3;
-    % WH can return a non-positive seed for small r and small p.
-    bad = ~(x0 > 0) | ~isfinite(x0);
-    x0(bad) = max(ra(bad) .* 0.1, 1e-3);
+    y  = log(2) + (log(pa) + gammaln(a + 1)) ./ a;      % the small-x root
+    wh = x0 > 0 & isfinite(x0);
+    yW = log(x0(wh));
+    mW = abs(log(gammainc(exp(yW) ./ 2, a(wh), 'lower')) - log(pa(wh)));
+    mS = abs(log(gammainc(exp(y(wh)) ./ 2, a(wh), 'lower')) - log(pa(wh)));
+    yWh = y(wh);  yWh(mW <= mS) = yW(mW <= mS);  y(wh) = yWh;
 
-    % --- damped Newton in log-space
-    y = log(x0);
+    % A quantile below realmin: the leading term IS the answer (relative
+    % error O(x)), returned as a subnormal or 0; the iteration cannot resolve it.
+    tiny = log(2) + (log(pa) + gammaln(a + 1)) ./ a < log(realmin);
+
+    % --- damped, bracketed Newton in log-space. In the lower tail on log F:
+    % log F(e^y) is concave (the log-gamma density is log-concave), so its
+    % Newton iterates approach the root monotonically once left of it. The
+    % bracket [yLo, yHi] catches a step that leaves it (bisection there).
+    lowTail = pa < 0.5;
+    yLo = -Inf(size(y));  yHi = Inf(size(y));
     for it = 1:100
         xc = exp(y);
-        F  = gammainc(xc ./ 2, ra ./ 2, 'lower') - pa;
+        Fc = gammainc(xc ./ 2, a, 'lower');
+        below = Fc < pa;
+        yLo(below) = y(below);  yHi(~below) = y(~below);
 
         % dF/dy = x * pdf(x). Both factors are formed in logs so that neither
         % the x^(r/2-1) nor the exp(-x/2) term can under/overflow at large r.
-        logpdf = (ra ./ 2 - 1) .* log(xc) - xc ./ 2 ...
-                 - gammaln(ra ./ 2) - (ra ./ 2) .* log(2);
+        logpdf = (a - 1) .* log(xc) - xc ./ 2 - gammaln(a) - a .* log(2);
         dFdy = exp(logpdf + log(xc));
 
-        step = F ./ dFdy;
+        step = (Fc - pa) ./ dFdy;
+        step(lowTail) = (log(Fc(lowTail)) - log(pa(lowTail))) .* Fc(lowTail) ./ dFdy(lowTail);
+        step(lowTail & Fc == 0) = -2;       % F underflowed: move right
         step(~isfinite(step)) = 0;          % derivative underflow: freeze
         step = max(min(step, 2), -2);       % damp: at most e^2 per iteration
+        step(tiny) = 0;
 
         yn = y - step;
+        out = ~tiny & isfinite(yLo) & isfinite(yHi) & ~(yn > yLo & yn < yHi);
+        yn(out) = (yLo(out) + yHi(out)) ./ 2;
         if all(abs(yn - y) <= 1e-15 .* max(abs(y), 1))
             y = yn;  break;
         end
