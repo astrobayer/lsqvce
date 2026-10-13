@@ -109,9 +109,11 @@ its trace
 t_g=\tr\bigl(\mat N^{-1}\mat N_g\bigr)=\sum_{i\in g}\vc z_i\T\mat N^{-1}\vc z_i ,
 \end{equation}
 the common term of the leverage \eqref{eq:leverage} summed over the group's rows; the $t_g$ of the
-data sum to $n_c$. It is computed exactly in the redundancy sweep. The per-parameter contribution
-$\bigl[\mat N^{-1}\mat N_g\bigr]_{jj}$, which sums to one over the groups and to $t_g$ over the
-parameters, is estimated with random probes.
+data sum to $n_c$ less the share $\tr(\mat N^{-1}\mat K\T\mat K)$ a common prior absorbs. It is
+computed exactly in the redundancy sweep. The per-parameter contribution
+$\bigl[\mat N^{-1}\mat N_g\bigr]_{jj}$, on the same split $\mat N_g=\mat Z_g\T\mat Z_g$ of the
+reduced normal matrix ($\mat Z_g=\mat A_g-\mat B_g\mat G$), sums to $t_g$ over the parameters and,
+with the prior's share, to one over the groups; it is estimated with random probes.
 
 \paragraph{Nested models.} A full model with $u_F$ parameters against a reduced one with $u_R<u_F$ on
 the same $n$ observations:

@@ -12,6 +12,9 @@ function tests = test_ellmer
 %
 %   Run with:  results = runtests('tests/test_ellmer.m')
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: a per-row sigma takes the
+%   general lag-sum path; Smooth > 0 converges. With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-34: two tests + fixtures for
 %   the keyed arc identity in adjustVCEjoint (F-02) -- induced mid-run
 %   non-PD skip with keyed alignment/kept-factor/skip-report assertions,
@@ -488,6 +491,28 @@ function test_psdVCE_freeze_redundancy_holds_weak_bins(tc)
     k = find(strcmp(a.nv(1:2:end), 'Smooth'));
     tc.verifyEqual(a.nv{2*k}, 2);
 end
+function test_psdVCE_smoothed_fixed_point_settles(tc)
+% categories: robustness, contract
+    % WP-131: with Smooth > 0 the state S is smoothed but maxDev was max|alpha2
+    % - 1|, which is not ~0 at the fixed point S = smooth(alpha2 S) wherever
+    % the spectrum is not smooth -- a smoothed joint loop could never meet Tol
+    % (0.35 at every pass from 5 on, "not converged" after MaxPasses). maxDev
+    % now measures the change of the shape. Fixed bin statistics make the
+    % update a power iteration that settles (mirror: 1e-8 by 100, eps by 200).
+    rs = RandStream('mt19937ar', 'Seed', 131);
+    L = 16;  a2 = 0.5 + rand(rs, L, 1);  T = ones(L, 1);  Q = a2 .* T;
+    S = ones(L, 1);
+    for it = 1:400
+        p = lsqvce.engine.psdVCE(Q, T, S, 'Smooth', 2);
+        S = p.Shat / sum(p.Shat);
+    end
+    % tol: 1e-8 -- the iteration's own contraction after 400 steps (mirror: eps by 200)
+    tc.verifyLessThan(p.maxDev, 1e-8, 'the smoothed shape has settled');
+    tc.verifyGreaterThan(max(abs(p.alpha2 - 1)), 0.1, 'though alpha2 stays away from 1');
+    p0 = lsqvce.engine.psdVCE(Q, T, S);
+    tc.verifyEqual(p0.maxDev, max(abs(p0.alpha2 - 1)), 'Smooth 0 keeps max|alpha2 - 1|');
+end
+
 function test_psdVCE_rejects_bad_shapes(tc)
 % categories: contract
     S = ones(6, 1);
@@ -1277,6 +1302,37 @@ function test_lags_structured_sums_match_dense_general(tc)
     % tol: independent dense reference, same-precision algebra; eps*cond headroom (house bounds, HANDOVER 6.1.2)
     verifyEqual(tc, r.s, sRef, 'RelTol', 1e-12, ...
         'fallback-path s_n must match the dense reference at 1e-12');
+end
+
+function test_lags_per_row_sigma_is_not_toeplitz(tc)
+% categories: precision, robustness
+    % WP-131: the Toeplitz test compared three columns of Sigma (1, 2 and
+    % N/2); a per-row sigma that changes only after N/2 passed, and the lag
+    % sums came from inv(toeplitz(c1)) -- trace 40 instead of 31.1 for this
+    % Sigma (dev/validation/wp131_kernel_mirror.py). A structure probe now
+    % sends it to the general path; the dense reference as in the test above.
+    rng(373);
+    N = 40;  P = 3;
+    s = ones(N, 1);  s(31:end) = 3;                % columns 1, 2, 20 look Toeplitz
+    Sig = diag(s.^2);
+    W = chol(Sig);
+    A = randn(N, P);
+    U = chol(A.'*(Sig\A));
+    sp = lsqvce.engine.sharedProbe(U, 'numProbes', 30, 'seed', 11);
+    Abar = W.'\A;
+    r = lsqvce.kernel.redundancyLags(Abar, W, sp.UiZ, [], 5);
+    X  = W \ eye(N);
+    Rt = W \ (Abar * sp.UiZ);
+    sRef = zeros(5,1);
+    sRef(1) = sum(X(:).^2) - sum(Rt(:).^2);
+    for n = 1:4
+        idx = 1:(N-n);
+        sRef(n+1) = 2*sum( sum(X(idx+n,:).*X(idx,:),2) ...
+                         - sum(Rt(idx+n,:).*Rt(idx,:),2) );
+    end
+    % tol: independent dense reference, same-precision algebra (as the test above)
+    verifyEqual(tc, r.s, sRef, 'RelTol', 1e-12, 'AbsTol', 1e-12, ...
+        'a per-row sigma takes the general path: s_n match the dense reference');
 end
 
 function test_lags_long_arc_speed_no_cubic_term(tc)

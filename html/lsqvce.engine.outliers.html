@@ -97,6 +97,10 @@ REJECT AND RE-SOLVE
   acc2 = buildAccumulator(cfg, opt);
   sol2 = acc2.solve();
 
+Updated 2026-10-13 (CEST, UTC+02:00), WP-131: an &#x27;spmd&#x27; accumulator
+runs the redundancy pass as &#x27;parfor&#x27; here, so the per-observation series
+(and the flags) exist. With assistance from Claude (Anthropic), model
+Claude Opus 5.5.
 Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
 typed `arguments` signature, canonical UpperCamelCase option names
 (legacy casings keep matching -- MATLAB NV semantics; enum VALUES

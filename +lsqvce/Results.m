@@ -122,6 +122,10 @@ classdef Results < handle
 %   See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.REPORT,
 %            LSQVCE.ENGINE.VERDICT, LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: report() passes no
+%   influence for a joint run that recorded "none" (it said "a robust (none)
+%   fit"); toTable reads an absent localParams as none. With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-130: stopReason lists "userStop"
 %   and "diverged". With assistance from Claude (Anthropic), model Claude Opus
 %   5.5.
@@ -263,8 +267,9 @@ classdef Results < handle
             if isstruct(obj.noise) && isfield(obj.noise, 'influence')
                 it.influence = char(obj.noise.influence);
             elseif isstruct(obj.noise) && isfield(obj.noise, 'robust') && ...
-                    isstruct(obj.noise.robust) && isfield(obj.noise.robust, 'influence')
-                it.influence = char(obj.noise.robust.influence);
+                    isstruct(obj.noise.robust) && isfield(obj.noise.robust, 'influence') && ...
+                    ~strcmp(char(obj.noise.robust.influence), 'none')    % WP-131: the joint loop
+                it.influence = char(obj.noise.robust.influence);          % records "none" too
             end
             V = lsqvce.report(obj.diag, 'Provenance', obj.meta, 'Iteration', it, ...
                               varargin{:});
@@ -432,7 +437,7 @@ classdef Results < handle
             K = numel(systems);  L = cell(1, K);  ml = cell(1, K);
             for k = 1:K
                 Lk = systems{k};  plan = Lk.plan;
-                Tl = data.systems(k).localParams;
+                Tl = lsqvce.util.getfielddef(data.systems(k), 'localParams', {});   % WP-131: optional
                 if isempty(Tl), L{k} = cell(0, W);  ml{k} = struct('row', {}, 'day', {}, 'arc', {});  continue, end
                 s = res.sys(k);                                 % the accumulator's system order = data.systems order
                 y = s.y(:);  sy = sqrt(max(real(diag(s.Cyy)), 0));

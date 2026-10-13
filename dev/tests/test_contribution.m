@@ -13,6 +13,9 @@ function tests = test_contribution
 %   by test_reliability (three systems, obsTypes pos/kbr), built through
 %   synthLoader so the arcs are deterministic across passes.
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: Level 2 against Level 1
+%   grouped by obsType (the exact local term and the streamed trace). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-40 (F-10): the freezeR
 %   freeze-and-warn test. With assistance from Claude (Anthropic), model
 %   Claude Fable 5.
@@ -175,6 +178,33 @@ function test_contribution_level2_diagonal(tc)
         'Level-2 diagonals must sum to one across groups');
     % tol: normalisation identity (a sum divided by itself); house exact-identity bound
     verifyEqual(tc, sum([con.group.share]), 1, 'AbsTol', 1e-10);
+end
+
+function test_contribution_level2_is_level1_split_by_obsType(tc)
+% categories: precision, reference, metamorphic
+    % WP-131: Level 2 streamed the symmetric half-Schur split of N, Level 1
+    % the leverage split Z_g'Z_g; they agree only when a group is a whole
+    % system. Grouped by obsType (pos and kbr share each system's locals) a
+    % group's Level-2 diagonal did not sum to its Level-1 share and could be
+    % negative (dev/validation/wp131_level2_split_mirror.py: 0.64 vs 0.48).
+    % Now both use the leverage split: the exact local term is the local
+    % leverage tr(Qll Mll_g), so n_g - localAbsorbed - t_g IS the exact r_g
+    % (deterministic: no probe enters), and the streamed trace estimates t_g.
+    [acc, sol] = solvedProblem(tc);
+    c1 = lsqvce.engine.contribution(acc, sol, 'GroupBy', 'obsType', 'Level', 1);
+    sc = lsqvce.engine.streamContribution(acc, sol, 'GroupBy', 'obsType', 'Probes', 2000, 'Seed', 13);
+    [tf, loc] = ismember(cellstr(string({c1.group.key})), cellstr(string({sc.group.key})));
+    tc.assertTrue(all(tf) && numel(tf) == 2, 'pos and kbr, both ways');
+    for k = 1:numel(c1.group)
+        g = sc.group(loc(k));
+        % tol: 1e-8 relative to n_g -- an exact identity (sum h = sum z'Sxx z +
+        % sum b'Qll b) up to the rounding of the two exact routes
+        tc.verifyEqual(g.n - g.localAbsorbed - c1.group(k).t, c1.group(k).r, ...
+            'AbsTol', 1e-8 * g.n, sprintf('%s: n - local - t_g = r_g exactly', c1.group(k).key));
+        % tol: Monte-Carlo probe noise, 6 se or 5 % (as test_contribution_level1_trace_is_exact)
+        tc.verifyEqual(g.trace, c1.group(k).t, 'AbsTol', max(6 * g.se, 0.05 * abs(c1.group(k).t)), ...
+            sprintf('%s: the streamed trace estimates the Level-1 share', c1.group(k).key));
+    end
 end
 
 %% ===================================================== vce hutchinson wiring

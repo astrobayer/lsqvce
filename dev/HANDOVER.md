@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-13 — second whole-code review (correctness and missing tests; six parallel reviewers, every material finding re-checked: 14 medium/high + 17 low, §12.63); WP-130 OPEN (tier B, model Claude Opus 5.5; user: "Go ahead. Change to the leverage fit"): the solve core and the diagnostics -- a rank-deficient local block reduced on its factor, Gauss-Newton evaluated at the returned point, the datum test invariant to units, 'mad' without datum scores, snoop after rejection; 4 tests; version 6.17.0; WP-131 (noise model, kernel, contributions; Level 2 on the leverage split) follows.
+Last substantive update: 2026-10-13 — WP-130 DONE (PR #152, merge b441ff3; CI GREEN on a1e1859, first round: ci_gate 650/650); WP-131 OPEN (tier B, model Claude Opus 5.5): the noise model, the kernel and the contributions of the second whole-code review -- Level 2 on the leverage split (user decision), a psd override's own axis, Smooth > 0 converging, the Toeplitz structure probe, armaACV's tail, crossCorr on correlations, no "robust (none)", late priors reported, seven lows fixed and seven recorded; 9 tests; version 6.18.0; §12.64.
+Preceding entry: Last substantive update: 2026-10-13 — second whole-code review (correctness and missing tests; six parallel reviewers, every material finding re-checked: 14 medium/high + 17 low, §12.63); WP-130 OPEN (tier B, model Claude Opus 5.5; user: "Go ahead. Change to the leverage fit"): the solve core and the diagnostics -- a rank-deficient local block reduced on its factor, Gauss-Newton evaluated at the returned point, the datum test invariant to units, 'mad' without datum scores, snoop after rejection; 4 tests; version 6.17.0; WP-131 (noise model, kernel, contributions; Level 2 on the leverage split) follows.
 Preceding entry: Last substantive update: 2026-10-13 — WP-129 DONE (PR #150, merge f706681; CI GREEN on 3e9086e, first round: ci_gate 646/646); closure PR (user decision: "Ja, mach den Abschluss-PR"): the ledger row and §12.62 -- the whole-code review track (§12.59, WP-127/128/129) closed, all twelve findings fixed, no residue; no code change, no version (6.16.1 stays, 658 tests).
 Preceding entry: Last substantive update: 2026-10-13 — WP-128 DONE (PR #149, merge 839ec11; CI GREEN on 170612c); WP-129 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-129 mit dem downdate-Rest"): the WP-128 residue -- BlockCofactor.downdate of a local block kept on its QR factor downdates that factor (cholupdate of Rll) instead of refactoring the squared Nll, which lost the weak direction after one rejection (mirror: sum h 6 instead of 7, Qll 100 % off at cond(B) 1.3e8); 1 test; version 6.16.1; §12.61.
 Preceding entry: Last substantive update: 2026-10-13 — WP-127 DONE (PR #148, merge 4873783; CI GREEN on e8fac67); WP-128 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-128"): the five findings of the whole-code review marked plausible, each re-derived by an own mirror -- all five confirmed and fixed: snoop keeps the prior a prior and returns one index space, the MAD test on a calibrated Student t, the local block's cofactor from the QR factor (all store readers through localSolveOf), a late local prior reported; MAD critical value t(r/2) by user decision; 3 tests; version 6.16.0; §12.60.
@@ -9547,8 +9548,8 @@ made. Mirrors kept: `dev/validation/wp128_local_block_mirror.py`,
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 130 | review findings 1, 2, 3, 9, 12, 14 and lows 15, 17, 28: a rank-deficient local block reduced ON its factor (`BlockAccumulator.rankReduced`, SVD of R11 at `RankTol`; the normal-form fallback keeps its pseudo-inverse; store `Vll`, `localRankOf`; dof, redundancy, residuals and `source` count the rank; `BlockCofactor` on the kept basis, downdate there and with the block's own cut); Gauss-Newton evaluated at the returned point (`atZeroStep`, `D.x` the estimate, `stopReason` "diverged"); `datumRows` against the product's own rounding bound; 'mad' and `scanWorst` without datum scores; snoop's Bonferroni n and caps without datum rows, sol after rejection on both paths, `Reaccumulate=false` re-diagnosed over the survivors (`afterRejection`), `REJ.history` kCrit; **version 6.17.0** | 129 (closure PR #151 merged 84300a2) | OPEN (tier B; CI is the gate) |
-| 131 | review findings 4-8, 10, 11, 13 (noise model, kernel, contributions; finding 8 on the leverage split, user decision) and the remaining lows | 130 | PLANNED |
+| 130 | review findings 1, 2, 3, 9, 12, 14 and lows 15, 17, 28: a rank-deficient local block reduced ON its factor (`BlockAccumulator.rankReduced`, SVD of R11 at `RankTol`; the normal-form fallback keeps its pseudo-inverse; store `Vll`, `localRankOf`; dof, redundancy, residuals and `source` count the rank; `BlockCofactor` on the kept basis, downdate there and with the block's own cut); Gauss-Newton evaluated at the returned point (`atZeroStep`, `D.x` the estimate, `stopReason` "diverged"); `datumRows` against the product's own rounding bound; 'mad' and `scanWorst` without datum scores; snoop's Bonferroni n and caps without datum rows, sol after rejection on both paths, `Reaccumulate=false` re-diagnosed over the survivors (`afterRejection`), `REJ.history` kCrit; **version 6.17.0** | 129 (closure PR #151 merged 84300a2) | DONE (2026-10-13, PR #152, merge b441ff3; CI GREEN on a1e1859 in the first round: ci_gate 650/650) |
+| 131 | review findings 4-8, 10, 11, 13 (noise model, kernel, contributions; finding 8 on the leverage split, user decision) and the remaining lows | 130 | OPEN (§12.64) |
 
 **The user's request (2026-10-13):** "REVIEW THE ENTIRE CODE FOR correctness and missing tests",
 then "Go ahead. Change to the leverage fit" (finding 8: Level 2 moves to the leverage-consistent
@@ -9621,4 +9622,61 @@ indices, `.rejectedIdx`); `REJ.history` gains kCrit. Tests `test_fit>testSnoopAf
 went down to 594 (the advice moved to `unsettledAdvice`), its row lowered.
 
 **Tests 662 = 658 + 4.** NOT validated before CI: no MATLAB in the container.
+
+### 12.64 WP-131 — the second whole-code review: noise model, kernel, contributions (2026-10-13, model Claude Opus 5.5)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 131 | review findings 4, 5, 6, 7, 8 (Level 2 on the leverage split, user decision), 10, 11, 13 and lows 16, 18, 20, 21, 25, 26, 29: a psd override's own frequency axis (`applyCovOverride>mergeLayer`); `psdVCE` maxDev on the shape change when smoothing; `redundancyLags` structure probe (`toeplitzTimes`); `armaACV` tail energy; `streamContribution` on N_g = Z_g'Z_g with localAbsorbed = tr(Qll Mll_g); `crossCorr` on correlations (`c.Rcorr`); no "robust (none)" note; `priorNotActive` when the loop ends before a `from`; the correlated MDB; `residuals` scalars always whitened; `outliers` under spmd; fit's pairs merged onto opts; `toTable` without localParams; a one-argument arc resolver; **version 6.18.0** | 130 (PR #152 merged b441ff3) | OPEN (tier B; CI is the gate) |
+
+**The user's request (2026-10-13):** "Go ahead. Change to the leverage fit" (§12.63).
+
+*8 (user decision: the leverage split).* `streamContribution` streams N_g Z = A_g'A_g Z - Nlc_g'(G Z) -
+G'(Nlc_g Z) + G'Mll_g(G Z) from the per-arc pieces it already had, and localAbsorbed = tr(Qll Mll_g) on
+the solve's local cofactor (`acc.localCovariance(id, 0, 1)` -- factor or pseudo-inverse); the
+half-Schur `Corr` term and the `X` / `GSG` / `Nllr` store fields are gone (and with them the solve on
+the squared Nll_r the WP-128 residue noted). Mirror `dev/validation/wp131_level2_split_mirror.py`:
+Level-1 t_g 0.4779 / 3.5221, half-Schur 0.6424 / 3.3576, leverage 0.4779 / 3.5221; n - local - t =
+the exact r_g. Test `test_contribution>test_contribution_level2_is_level1_split_by_obsType`
+(deterministic: n_g - localAbsorbed - t_g = r_g; and the streamed trace within 6 se of t_g).
+
+*4.* `applyCovOverride` merges each layer through `mergeLayer`: a layer with `fNorm` (and no `f`)
+drops the declared `f`, and vice versa. Test `test_fit>testNoiseEstimatesADeclaredPhysicalPsdLaw`.
+
+*5.* `psdVCE`: with Smooth > 0, maxDev = max |(Shat./Sprior) (c'Sprior)/(c'Shat) - 1| (the shape at
+r(0) = 1; the level is the loop's levelDev); Smooth 0 keeps max |alpha2 - 1| bitwise. Test
+`test_ellmer>test_psdVCE_smoothed_fixed_point_settles` (a power iteration on fixed statistics).
+
+*6, 7, 13.* Mirror `dev/validation/wp131_kernel_mirror.py`: (6) a per-row sigma from row 31 of 40 passed
+the three-column test, trace 40 vs 31.1 -- the deterministic probe y = sin(sqrt(2) j^1.5), Sigma y
+against the circulant-embedded toeplitz(c1) y, refuses it, a true Toeplitz Sigma passes; (7) r(0) of
+[1 0 0.998] 160.46 -> 250.25, of [1 0 0 0 -0.995] 72.47 -> 100.25; (13) white noise at sigma 2:
+non-ok 50/50 -> 0/50, an AR(1) leftover at sigma 0.5 now seen. Tests
+`test_ellmer>test_lags_per_row_sigma_is_not_toeplitz`, `test_precision>testArmaAcvOfASparseArPolynomial`,
+`test_vceMath>testCrossCorrVerdictIsScaleFree`.
+
+*10.* `Results.report` passes no influence when the joint loop recorded "none"; asserted in
+`test_vcePolicy>testReportSaysWhetherTheStochasticModelSettled`.
+
+*11.* `fit` collects every group's `from` (common and local, `localFroms`) and, after the joint loop,
+warns `priorNotActive` for any from > out.nIter. Test `test_vcePolicy>testLatePriorBeyondTheLastPassIsReported`.
+
+*Lows fixed.* 16: `diagnose`'s MDB of a correlated batch is delta0 / sqrt(qpp) (test
+`test_lsqvce_opts>test_correlated_mdb_is_the_tests_own`); 18: `residuals` always whitens the scalars,
+'Whitened' governs e.w only (`test_lsqAccum>testResidualsReproduceSigma0`); 20: the help and the theory
+say the shares sum to nc less a common prior's share; 21: `outliers` runs the redundancy pass as
+'parfor' under an 'spmd' accumulator; 25: `fit` merges a group pair onto opts' group
+(`test_options>testFitPairsOverrideOptsFieldByField`); 26: `toTable` reads an absent `localParams` as
+none; 29: `declaration` calls a one-argument arc resolver with the day alone (26 and 29 by reading:
+both are the documented makeLoader behaviour, no fixture exercises them -- recorded).
+
+*Lows recorded, not changed.* 19 -- residuals' Cyy after a NaN-poisoned solve (the poisoning is warned;
+the repair belongs with that path); 22 -- a non-uniform `Sigma2_0` on pass 1 (engine tier only, no
+fit route; pass 2 corrects it); 23 -- the arc factor's Toeplitz assumption (unbiased, an efficiency
+loss for non-Toeplitz arcs); 24 -- `adjustRobust`'s recorded factor at a MaxPasses exit is the next
+pass's; 27 -- an obsType named `prior_*` collides with the prior pseudo-streams (a refusal would add an
+id; to be decided); 30 -- `stat.chi2Inv` below p ~ 1e-40 (no caller); 31 -- `R.snoop` does not inherit
+R.diag's Alpha / Test (a design choice to put to the user).
+
+**Tests 671 = 662 + 9.** NOT validated before CI: no MATLAB in the container.
 

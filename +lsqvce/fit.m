@@ -100,7 +100,9 @@ function R = fit(data, opts, nv)
 %                                  by lsqvce.engine.batchSystem
 %       lsqvce:fit:priorNotActive  (warning) a prior with from > 1 in a
 %                                  single-pass run is not applied (a common
-%                                  or a local group, WP-128)
+%                                  or a local group, WP-128), or its from lies
+%                                  beyond the passes the joint loop ran
+%                                  (WP-131)
 %       lsqvce:fit:badPrior        data.priors is malformed (unknown
 %                                  field, L not p x nc, sigma not a positive scalar,
 %                                  x0 of the wrong length)
@@ -127,6 +129,9 @@ function R = fit(data, opts, nv)
 %            LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT,
 %            LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTNONLINEAR
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: lsqvce:fit:priorNotActive also
+%   when the joint loop ends before a group's from. With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-128: lsqvce:fit:priorNotActive also
 %   counts a late LOCAL group (data.systems(k).priors). With assistance from
 %   Claude (Anthropic), model Claude Opus 5.5.
@@ -177,7 +182,15 @@ arguments
     nv.?lsqvce.Options
 end
     f = fieldnames(nv);
-    for k = 1:numel(f), opts.(f{k}) = nv.(f{k}); end
+    for k = 1:numel(f)
+        % WP-131: a partial GROUP struct overrides the fields it names on OPTS,
+        % as the help says; the group setter alone merges onto the defaults,
+        % so fit(data, Options(Noise=struct('Whitener',"ar")), Noise=struct('Grid',16))
+        % ran with the default whitener
+        v = nv.(f{k});
+        if isstruct(v) && isstruct(opts.(f{k})), v = lsqvce.util.mergeStruct(opts.(f{k}), v); end
+        opts.(f{k}) = v;
+    end
 
     % R5 M1: this run's warning inventory -- reset ONCE, here, before anything
     % can warn. R7-23: kinds B / C reset inside runBatch, AFTER its
@@ -200,8 +213,9 @@ end
     [spec, systems] = lsqvce.engine.declaration(data, opts.CacheDays);   % R5-D8 4: the one declaration step
     days = spec.days;
     [pri, priorGroups] = priorsOf(data, lsqvce.engine.resolveNc(systems), spec);   % R5 M5 5b / D8-6: data.priors
-    nLate = nLateLocal(data);                         % WP-128: the local groups too
-    if ~isempty(priorGroups), nLate = nLate + sum([priorGroups.from] > 1); end
+    froms = localFroms(data);                         % WP-128: the local groups too
+    if ~isempty(priorGroups), froms = [froms; [priorGroups.from].']; end
+    nLate = sum(froms > 1);
     if strcmp(opts.Estimate, "none") && nLate > 0
         lsqvce.util.log.warnOnce('lsqvce:fit:priorNotActive', ...
             ['%d prior group(s) declare from > 1 and a single solve (Estimate="none") has one pass: ' ...
@@ -235,21 +249,22 @@ end
             %             fitted to the BIASED raw residual ACV (finding H-03)
             %   "pooled"  one law for all streams (Pool "all"), no arc factors
             % (the separate-mode engine adjustVCE was deleted in M4 4c)
-            R = fitEllmer(systems, days, opts, pri, onPassContext(data, systems), priorGroups);
+            R = fitEllmer(systems, days, opts, pri, onPassContext(data, systems), priorGroups, froms);
     end
 end
 
 %==========================================================================
-function n = nLateLocal(data)
-%NLATELOCAL  Local prior groups (data.systems(k).priors) with from > 1 (WP-128).
-%   A single solve has one pass, so the loader leaves them out (priorArc,
-%   from > pass); only data.priors were counted for the warning, and a late
-%   LOCAL group vanished without a word.
-    n = 0;
+function f = localFroms(data)
+%LOCALFROMS  The activation passes of the local prior groups (data.systems(k).
+%   priors), as a column (WP-128: counted for priorNotActive -- a single solve
+%   has one pass, so the loader leaves a group with from > 1 out (priorArc,
+%   from > pass), and a late LOCAL group vanished without a word; WP-131: the
+%   joint loop's last pass too).
+    f = zeros(0, 1);
     for k = 1:numel(data.systems)
         if ~isfield(data.systems(k), 'priors') || isempty(data.systems(k).priors), continue, end
         P = data.systems(k).priors;
-        if isfield(P, 'from'), n = n + sum([P.from] > 1); end
+        if isfield(P, 'from'), f = [f; [P.from].']; end %#ok<AGROW> -- a handful of groups
     end
 end
 
@@ -333,10 +348,11 @@ function R = runBatch(u, batchFcn, nBatch, x0, opts, kind, data)
     R = lsqvce.engine.adjustNonlinear(u, batchFcn, nBatch, x0, a.nv{:}, 'Provenance', prov, 'Prior', pri, ...
                                       'OnPassContext', struct('data', data, 'processingOptions', {{}}));
 end
-function R = fitEllmer(systems, days, opts, pri, opc, priorGroups)
+function R = fitEllmer(systems, days, opts, pri, opc, priorGroups, froms)
     if nargin < 4, pri = []; end
     if nargin < 5, opc = struct(); end
     if nargin < 6, priorGroups = []; end
+    if nargin < 7, froms = zeros(0, 1); end
 %FITELLMER  Model "ellmer": LSQVCE.ENGINE.ADJUSTVCEJOINT over the built systems.
 %   Two bridges (R4 WP-56c): (1) the accFcn the driver wants -- a fresh
 %   BlockAccumulator per outer pass whose UserOpt carries the current model
@@ -359,6 +375,15 @@ function R = fitEllmer(systems, days, opts, pri, opc, priorGroups)
     nvj = a.nv;
     out = lsqvce.engine.adjustVCEjoint(accFcn, nvj{:}, 'Estimate', estMap, 'ArcFactors', afMap, ...
                                        'OnPassContext', opc);
+    % WP-131: a group activates at pass `from`; a loop that converged, ran
+    % out of MaxPasses or was stopped before it never applied the group --
+    % R.noise.priors still listed it with its sigma, and nothing said so
+    if any(froms > out.nIter)
+        lsqvce.util.log.warnOnce('lsqvce:fit:priorNotActive', ...
+            ['%d prior group(s) declare a from beyond the %d pass(es) the loop ran: they were ' ...
+             'not applied in the final solve. Lower from, or raise MaxPasses (a loop that ' ...
+             'converges early stops before them).'], sum(froms > out.nIter), out.nIter);
+    end
 
     [D, dsol, batchFcn, nB] = lsqvce.engine.verdict.fromAccumulator(out.acc, out.sol, ...
                                   opts.engineArgs("diagnose").nv{:});

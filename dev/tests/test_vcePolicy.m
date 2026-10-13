@@ -14,6 +14,10 @@ function tests = test_vcePolicy
 %
 %   See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTVCEJOINT, TEST_ELLMER, TEST_PHYSORACLE
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: a late prior beyond the last
+%   pass is reported; a non-robust noise run is not called robust. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
+%
 %   Created 2026-09-03 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.1 -- R5 Level M4, WP-85 round 4c.
     tests = functiontests(localfunctions);
@@ -180,6 +184,9 @@ function testReportSaysWhetherTheStochasticModelSettled(tc)
     tc.verifyEqual(f.severity, 'WARN', 'a WARN: it qualifies every level below, it does not void them');
     tc.verifyEqual(f.level, 1, 'level 1 -- the weights are what level 1 judges');
     tc.verifyTrue(contains(f.msg, 'maxPasses'), 'and it says WHY the loop stopped');
+    % WP-131: the joint loop records influence "none" for a non-robust run;
+    % the report called every such run "a robust (none) fit"
+    tc.verifyEmpty(codesOf(Vu, 'ROBUST_'), 'a non-robust noise run is not called robust');
 end
 
 function codes = codesOf(V, prefix)
@@ -488,6 +495,36 @@ function testPriorActivationAndGroupPattern(tc)
     lsqvce.fit(data, Verbose=false);
     [~, wid] = lastwarn;
     tc.verifyEqual(wid, 'lsqvce:fit:priorNotActive');
+end
+
+function testLatePriorBeyondTheLastPassIsReported(tc)
+% categories: contract
+    % WP-131: a prior group activates at pass `from`; a joint loop that ended
+    % before it (MaxPasses < from, early convergence, a user stop) never
+    % applied the group -- R.noise.priors still listed it with its sigma and
+    % nothing was said (reviewer's mirror: x pinned to 0 +- 1e-6 came out
+    % 0.4995). priorNotActive now reports it; a loop that reaches the pass
+    % applies it.
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % two passes on purpose (gate rule 7)
+    muteWarn(tc, 'lsqvce:fit:priorNotActive');            % provoked on purpose; read from the inventory
+    data = tc.TestData.data;
+    nc = numel(lsqvce.fit(data, Verbose=false).x);
+    e3 = double((1:nc) == 3);
+    data.priors = struct('L', e3, 'x0', 0, 'sigma', 1e-6, 'name', 'pin', 'from', 3);
+    o = @(np) lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
+                             MaxPasses=np, Noise=struct('Grid', 16), Seed=3, Verbose=false);
+    R2 = lsqvce.fit(data, o(2));
+    tc.verifyTrue(any(strcmp(R2.meta.warnings, 'lsqvce:fit:priorNotActive')), ...
+        'a group beyond the last pass is reported');
+    R5 = lsqvce.fit(data, o(5));
+    if R5.history.nIter >= 3
+        % tol: 1e-4 -- the pinning prior (sigma 1e-6) against an unpinned x(3) of O(1)
+        tc.verifyLessThan(abs(R5.x(3)), 1e-4, 'a loop that reaches pass 3 applies the group');
+        tc.verifyFalse(any(strcmp(R5.meta.warnings, 'lsqvce:fit:priorNotActive')));
+    else
+        tc.verifyTrue(any(strcmp(R5.meta.warnings, 'lsqvce:fit:priorNotActive')), ...
+            'a loop that converged before pass 3 says so');
+    end
 end
 
 %% ------------------------------------------------- R5-D8 round 4: the write-back

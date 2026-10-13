@@ -14,7 +14,8 @@ function con = contribution(acc, sol, opt)
 %     by the elimination of the locals): the fraction of the common solution
 %     attributable to group g. Exact, from the same sweep as the redundancy
 %     (LSQVCE.ENGINE.REDUNDANCY, field tcc); no probing. Over the data the
-%     t_g sum to nc, and the shares to 1.
+%     t_g sum to nc less what a common prior absorbs, tr(N^-1 K'K) (WP-131:
+%     the help said nc), and the shares, relative to the DATA's part, to 1.
 %
 %   LEVEL 2 -- the per-parameter DIAGONAL (opt-in, streamed, approximate).
 %     diag(C_g) = diag(N^-1 N_g^cc), one value per common parameter: the fraction
@@ -22,7 +23,8 @@ function con = contribution(acc, sol, opt)
 %     GRACE view -- e.g. which system pins the low degrees vs the high). Computed
 %     matrix-free by LSQVCE.ENGINE.STREAMCONTRIBUTION (Hutchinson probes over one data
 %     sweep), so it never forms N_g^cc. The diagonals sum to ones(nc,1) across
-%     groups (exactly, up to probe noise, because sum_g N_g^cc = N). This is a
+%     groups (exactly, up to probe noise, because sum_g N_g^cc = N) -- less
+%     diag(N^-1 K'K) when a common prior carries a share. This is a
 %     stochastic estimate: check con.group(k).relSE.
 %
 %   WEIGHT DEPENDENCE (read this)
@@ -52,11 +54,16 @@ function con = contribution(acc, sol, opt)
 %     con   1x1 struct with fields
 %       .group   1xG struct, in GroupBy order:
 %                  .key    the group key
-%                  .t      1x1     exact common trace t_g = tr(N^-1 N_g^cc)
+%                  .t      1x1     exact common trace t_g = tr(N^-1 N_g^cc),
+%                                  N_g^cc = Z_g'Z_g, Z_g = A_g - B_g G (the
+%                                  rows reduced by the local elimination)
 %                  .r      1x1     the group's redundancy r_g = sum(1 - h_i)
 %                  .share  1x1     t_g / sum_g t_g (sums to 1); the Level-2
-%                                  diagonal of the same group sums to t_g
-%                  .diag   nc x 1  diag(N^-1 N_g^cc) (Level 2 only, else [])
+%                                  diagonal of the same group sums to t_g up to
+%                                  the probe noise (.relSE) -- both levels use
+%                                  this ONE split of N (WP-131)
+%                  .diag   nc x 1  diag(N^-1 N_g^cc), each entry >= 0 in
+%                                  expectation (Level 2 only, else [])
 %                  .relSE  1x1     relative MC standard error of the streamed
 %                                  trace (Level 2 only, else NaN)
 %       .u        1x1        total parameters (m - redundancy = sum of r plus ...)
@@ -75,6 +82,10 @@ function con = contribution(acc, sol, opt)
 %   See also LSQVCE.ENGINE.STREAMCONTRIBUTION, LSQVCE.ENGINE.REDUNDANCY, LSQVCE.ENGINE.VCE,
 %            LSQVCE.RESULTS
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: Level 2 streams the same
+%   (leverage) split as Level 1 -- before, its half-Schur split differed per
+%   group whenever a system's locals spanned several groups. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-12 (CEST, UTC+02:00), WP-125: the Level-1 share is the
 %   common trace t_g = tr(inv(N) N_g^cc), not the redundancy. With assistance
 %   from Claude (Anthropic), model Claude Opus 5.5.

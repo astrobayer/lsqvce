@@ -560,6 +560,29 @@ function testWhitenerReachesADeclaredPsdLaw(tc)
     tc.verifyNotEqual(rT, rR, 'the Whitener must reach the declared law under IRLS too');
 end
 
+function testNoiseEstimatesADeclaredPhysicalPsdLaw(tc)
+% categories: contract, robustness
+    % WP-131: under Estimate="noise" a declared 'psd' law with a physical
+    % frequency axis f (covModel's own EXAMPLE form) takes policy "law"; the
+    % estimator's override brings fNorm and a Grid-bin S, but the merge kept
+    % the declared f, and covModel takes f whenever it is present: the 4096
+    % ordinates of f met the 16 of S and pass 1 died in an unnamed numel
+    % error (at equal lengths: the law on the wrong axis, r 0.2x at dt = 5).
+    % The override's axis now replaces the declared one (applyCovOverride).
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % three passes on purpose (gate rule 7)
+    [dArma, cfg] = declaration();
+    dPsd = withPsdLaw(dArma, cfg);
+    o = lsqvce.Options(Estimate="noise", MaxPasses=3, Noise=struct('Grid', 16), Verbose=false);
+    R = lsqvce.fit(dPsd, o);                          % errored on pass 1 before
+    tc.verifyEqual(R.stopReason == "converged" || R.stopReason == "maxPasses", true);
+    xA = lsqvce.fit(dArma, Verbose=false).x;
+    % tol: 5 % -- the premise of testArmaAndPsdLawsAgreeNoWorseUnderIrls (1 %
+    % between two fixed spellings of one law), widened because here the law
+    % is RE-ESTIMATED on a 16-bin grid over three passes; a law on the wrong
+    % axis (the equal-length failure) whitens a different process
+    tc.verifyLessThan(norm(R.x - xA), 5e-2 * norm(xA), 'the estimated law models the same process');
+end
+
 function d = withPsdLaw(d, cfg)
 %WITHPSDLAW  The declaration with 'pos' declared as a PSD instead of the ARMA.
 %   Only the DECLARED law changes: buildDay still closes over the ARMA cfg,

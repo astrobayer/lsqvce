@@ -12,9 +12,31 @@ function tests = test_options
 %
 %   See also LSQVCE.OPTIONS, LSQVCE.FIT, TEST_FIT
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: fit's pairs override opts
+%   field by field. With assistance from Claude (Anthropic), model Claude
+%   Opus 5.5.
 %   Created 2026-09-03 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.1 -- R5 Level M5, WP-87.
     tests = functiontests(localfunctions);
+end
+
+function testFitPairsOverrideOptsFieldByField(tc)
+% categories: contract
+    % WP-131: fit's help says the Name=Value pairs override OPTS. A partial
+    % group struct went through the group setter, which merges onto the
+    % DEFAULTS: fit(data, Options(Noise=struct('Whitener',"ar")),
+    % Noise=struct('Grid',16)) ran with the default whitener. fit now merges
+    % the pair onto opts' group first; the Options object itself keeps its
+    % documented semantics (a partial struct onto the defaults).
+    rs = RandStream('mt19937ar', 'Seed', 131);
+    A = randn(rs, 30, 3);  l = A*[1; 2; 3] + 0.1*randn(rs, 30, 1);
+    o = lsqvce.Options(Noise=struct('Whitener', "ar"), Verbose=false);
+    R = lsqvce.fit(struct('A', A, 'l', l), o, Noise=struct('Grid', 16));
+    tc.verifyEqual(string(R.meta.options.Noise.Whitener), "ar", 'the field opts set survives');
+    tc.verifyEqual(R.meta.options.Noise.Grid, 16, 'the field the pair set wins');
+    o2 = lsqvce.Options(Noise=struct('Whitener', "ar"));
+    o2.Noise = struct('Grid', 16);
+    tc.verifyEqual(string(o2.Noise.Whitener), "toeplitz", 'the object keeps merging onto the defaults');
 end
 
 function testKnobCountIsDeliberate(tc)

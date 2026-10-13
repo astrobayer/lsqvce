@@ -15,7 +15,10 @@ function res = residuals(acc, sol, opt)
 %
 %   OPTIONS
 %     'whitened'   true (default)  also return w = W*v, whose sum of squares is
-%                                  the quadratic form v'*inv(C)*v
+%                                  the quadratic form v'*inv(C)*v; false keeps
+%                                  e.w out of the series only -- vtv, sigma0
+%                                  and rms are the whitened sums either way
+%                                  (WP-131)
 %     'collect'    true (default)  return the per-observation residual series.
 %                                  Set false for a memory-light sigma0 check.
 %     'verbose'    true (default)
@@ -107,6 +110,10 @@ function res = residuals(acc, sol, opt)
 %     lsqvce:residuals:badSol       the solution is not from this accumulator
 %     lsqvce:residuals:noStore      nothing was retained; re-run with 'store','all'
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: 'Whitened', false no
+%   longer changes vtv / sigma0 / rms (they are the solve's weighted sums);
+%   it only leaves e.w out. With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-130: dof counts a rank-deficient
 %   local block by its rank (BlockAccumulator.localRankOf). With assistance
 %   from Claude (Anthropic), model Claude Opus 5.5.
@@ -369,11 +376,10 @@ function [v, w] = arcResiduals(arc, x, y, uo, o)
 
     m = size(arc.A,1);
     v = arc.l(:) - arc.A*x - arc.B*y;      % raw residuals, original metric
-    w = v;                                 % overwritten below if whitened
-
-    if ~o.whitened
-        return
-    end
+    w = v;                                 % overwritten below when the arc has a law
+    % WP-131: always whitened -- res.vtv / sigma0 / rms are the WEIGHTED sums the
+    % solve formed; 'Whitened', false made them the raw ones, then warned
+    % sigma0Mismatch and set supersedesSol. The option governs only e.w now.
 
     hasW = isfield(arc,'Wfcn') && ~isempty(arc.Wfcn);
     hasC = isfield(arc,'Cfcn') && ~isempty(arc.Cfcn);

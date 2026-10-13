@@ -136,6 +136,10 @@ function out = redundancyLags(Abar, W, UiZ, ebar, nMaxLag, opt)
 %   See also LSQVCE.ENGINE.COVCOMPONENT, LSQVCE.KERNEL.TOEPLITZCOFACTOR, LSQVCE.KERNEL.DCTI,
 %            LSQVCE.ENGINE.TRACEESTIMATE, LSQVCE.ENGINE.STREAMCONTRIBUTION
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: the Toeplitz fast path
+%   is taken only after a structure probe (Sigma y against toeplitz(c1) y);
+%   three probe columns let a per-row sigma or a gap through. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 3: the general
 %   (non-Toeplitz) Sigma^-1 lag sums run in BLAS-3 column blocks -- the
 %   joint estimator now asks for every lag of an arc. With assistance from
@@ -332,6 +336,16 @@ function dS = sigmaInvSubdiagSums(W, nL)
                  max(abs(cm(jm:N) - c1(1:N-jm+1))) <= tol && ...
                  max(abs(cm(1:jm) - c1(jm:-1:1))) <= tol;
     end
+    if isToep
+        % WP-131: three columns cannot see a change of structure that misses
+        % them (a per-row sigma after N/2, a down-weighted epoch, a gap): the
+        % fast path then summed the inverse of toeplitz(c1), not of Sigma (+29 %
+        % trace; dev/validation/wp131_kernel_mirror.py). One deterministic
+        % probe, O(N^2) like the columns: Sigma y against the Toeplitz product.
+        y  = sin(sqrt(2) * (1:N).'.^1.5);              % generic, no RNG state
+        Sy = W.' * (W * y);
+        isToep = norm(Sy - toeplitzTimes(c1, y)) <= 1e-10 * norm(abs(W.') * (abs(W) * abs(y)));
+    end
 
     if isToep
         x  = toeplitzInvFirstCol(c1);            % Sigma^-1 e_1, O(N^2)
@@ -420,3 +434,14 @@ function d = columnLagSums(X, nL)
     r = ifft(P, 'symmetric');                     % lag sums, lag 0 first
     d = r(1:nL);
 end
+
+function z = toeplitzTimes(c, y)
+%TOEPLITZTIMES  toeplitz(c) * y for a symmetric Toeplitz matrix, O(N log N) by
+%   the circulant embedding of size 2N (WP-131: the structure probe of
+%   sigmaInvSubdiagSums; N x N would cost N^2 memory per arc).
+    N = numel(c);
+    e = [c(:); 0; c(N:-1:2)];
+    z = ifft(fft(e) .* fft([y(:); zeros(N, 1)]), 'symmetric');
+    z = z(1:N);
+end
+

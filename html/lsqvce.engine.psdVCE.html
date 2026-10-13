@@ -97,7 +97,10 @@ OPTIONS (Name/Value)
   .frozen  L x 1  logical, the bins that held their value
   .Sprior  L x 1  the prior, as given
   .maxDev  1x1    max |alpha2 - 1| over EVERY bin (there is no
-                  zero-frequency rule left to exclude one: R7-20)</pre>
+                  zero-frequency rule left to exclude one: R7-20);
+                  with Smooth &gt; 0 the change of the SHAPE, max |Shat./
+                  Sprior - 1| at r(0) = 1 -- a smoothed update&#x27;s fixed
+                  point has alpha2 ~= 1 (WP-131)</pre>
 <h3>Example</h3>
 <pre class="example">K = lsqvce.kernel.hatACV(L, m);         % per arc length
 Q(:, a) = lam(a) * (K&#x27; * r.omega);  T(:, a) = lam(a) * (K&#x27; * r.s);
@@ -109,6 +112,9 @@ p = lsqvce.engine.psdVCE(Q, T, S);  S = p.Shat;</pre>
 See also LSQVCE.KERNEL.HATACV, LSQVCE.KERNEL.REDUNDANCYLAGS,
          LSQVCE.ENGINE.ARCVARIANCEFACTORS, LSQVCE.ENGINE.ADJUSTVCEJOINT
 
+Updated 2026-10-13 (CEST, UTC+02:00), WP-131: with Smooth &gt; 0 maxDev
+measures the change of the spectrum&#x27;s shape, so a smoothed loop can
+converge. With assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-111 part 3 (R7-02, R7-20):
 REWRITTEN for positive components -- the inputs are per-bin statistics
 (K&#x27; Omega, K&#x27; s), the prior is the bin spectrum; the DCT (&#x27;Norm&#x27;), the

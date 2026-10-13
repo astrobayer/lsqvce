@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.17.0 — API Reference</title>
+  <title>lsqvce 6.18.0 — API Reference</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.17.0 — API Reference</h1>
+<h1 class="title">lsqvce 6.18.0 — API Reference</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 </header>
@@ -1907,7 +1907,9 @@ declared data.</p>
                                  by lsqvce.engine.batchSystem
       lsqvce:fit:priorNotActive  (warning) a prior with from &gt; 1 in a
                                  single-pass run is not applied (a common
-                                 or a local group, WP-128)
+                                 or a local group, WP-128), or its from lies
+                                 beyond the passes the joint loop ran
+                                
       lsqvce:fit:badPrior        data.priors is malformed (unknown
                                  field, L not p x nc, sigma not a positive scalar,
                                  x0 of the wrong length)
