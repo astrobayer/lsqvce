@@ -41,8 +41,9 @@ classdef verdict
 %   the diagnostics lows): local prior groups get the datum rule and the no-
 %   rejection rule; the contamination ladder is calibrated for every n;
 %   snoopVacuous is a practical criterion; systematic leaves the priors' rows
-%   out; snoop keeps the caller's options. With assistance from Claude
-%   (Anthropic), model Claude Opus 5.5.
+%   out; snoop keeps the caller's options. CI round: P(K = 0) of the ladder's
+%   null law is the closed form at every n (the normal limit read an empty
+%   table). With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Created 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 4 (user decision:
 %   the full absorption): diagnoseAccum, diagnose, snoop, systematic, ftest
 %   and ellipse are this class's static methods, their bodies unchanged but
@@ -3105,8 +3106,7 @@ function [tol, pZero] = contamNull(nS, p)
 %   1.69 mu. tol = the 99.75 % point of K / nS; pZero = P(K = 0).
 %   INPUT  nS 1x1 the scored residuals; p 1x1 = 2 Phi(-2.5)
     if nS < 1, tol = Inf;  pZero = 1;  return, end
-    [mu, cdf] = contamCdf(nS, p, []);
-    pZero = cdf(1);
+    [mu, cdf, pZero] = contamCdf(nS, p, []);
     if mu > 200                                   % the normal limit
         tol = (mu + 2.807033768343811 * sqrt(1.69 * mu)) / nS;   % normInv(0.9975)
     else
@@ -3128,14 +3128,18 @@ function tf = fhatCollapsed(fhat, nS, p)
     end
 end
 
-function [mu, cdf] = contamCdf(nS, p, kMax)
+function [mu, cdf, pZero] = contamCdf(nS, p, kMax)
 %CONTAMCDF  P(K <= k), k = 0..kMax, of the negative binomial of mean mu =
 %   nS p (1 + 27/nS) and variance 1.69 mu (log-space recursion); kMax = []
-%   runs to 12 sd above the mean. Empty for mu > 200 (the normal limit).
+%   runs to 12 sd above the mean. Empty for mu > 200 (the normal limit);
+%   pZero = P(K = 0) at every mu, from the closed form (WP-135: contamNull
+%   read cdf(1) of the empty table and every run of more than ~16 000 scored
+%   residuals stopped in diagnose).
     mu = nS * p * (1 + 27 / nS);
+    r = mu / 0.69;  q = mu / (r + mu);
+    pZero = exp(r * log1p(-q));
     cdf = [];
     if mu > 200, return, end
-    r = mu / 0.69;  q = mu / (r + mu);
     if isempty(kMax), kMax = ceil(mu + 12 * sqrt(1.69 * mu) + 20); end
     k = (1:kMax).';
     lp = r * log1p(-q) + [0; cumsum(log((r + k - 1) ./ k * q))];

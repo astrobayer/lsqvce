@@ -213,7 +213,8 @@ function L = makeLoader(buildDay, opt)
 %
 %     Raised while READING a day (your buildDay is wrong):
 %       lsqvce:makeLoader:buildDay     your buildDay itself threw; the original error
-%                                      is attached as the cause
+%                                      is attached as the cause (an lsqvce:* error
+%                                      passes unchanged: it names its cause already)
 %       lsqvce:makeLoader:badDay       a required field (.A .B .l .t) is missing or is not
 %                                      a 1 x nArc cell, or the day carries a field that is
 %                                      not .A .B .l .t .Cep .nAxis (the v5 arcIdx / arcId
@@ -247,7 +248,9 @@ function L = makeLoader(buildDay, opt)
 %
 %   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lane 4): a throwing
 %   buildDay is raised as lsqvce:makeLoader:buildDay with the day and stream,
-%   its error the cause (documented, never raised); a local prior group's from
+%   its error the cause (documented, never raised) -- an lsqvce:* error passes
+%   unchanged (batchSystem's badMatrix / weightMatrix, raised inside the
+%   builder it wraps, are documented ids); a local prior group's from
 %   is a pass number >= 1 and two groups on one stream are refused (badPrior); a
 %   static arcs id vector is checked like a resolver's (badArcs); a validity
 %   entry of another type or a NaN is refused (badValidity), it read as "always
@@ -1125,7 +1128,9 @@ function D = callBuildDay(buildDay, day, obsType, common, local, procOpt, arcInf
 %   per-day local-block plan; empty unless 'localsPerArc' was declared).
 %   Anything buildDay throws is re-raised as lsqvce:makeLoader:buildDay with
 %   the day and stream in the message and the user's error as the cause
-%   (WP-135: documented, but the raw error arrived without its context).
+%   (WP-135: documented, but the raw error arrived without its context). An
+%   lsqvce:* error passes unchanged: it is a toolbox id that names its cause
+%   (batchSystem's builder raises badMatrix / weightMatrix, documented there).
     n = nargin(buildDay);
     args = {day, obsType, common, local, procOpt, arcInfo};
     try
@@ -1135,6 +1140,7 @@ function D = callBuildDay(buildDay, day, obsType, common, local, procOpt, arcInf
             D = buildDay(args{1:max(2,n)});    % pass exactly what it declares (>=2)
         end
     catch ME
+        if startsWith(ME.identifier, 'lsqvce:'), rethrow(ME), end
         E = MException('lsqvce:makeLoader:buildDay', ...
                        'buildDay threw on day %s, stream ''%s'': %s (%s)', ...
                        string(day), char(obsType), ME.message, ME.identifier);

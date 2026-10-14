@@ -250,7 +250,8 @@ R6 WP-102), and an arc&#x27;s Cep is its own cell (finding E-01 cannot recur).</
 
   Raised while READING a day (your buildDay is wrong):
     lsqvce:makeLoader:buildDay     your buildDay itself threw; the original error
-                                   is attached as the cause
+                                   is attached as the cause (an lsqvce:* error
+                                   passes unchanged: it names its cause already)
     lsqvce:makeLoader:badDay       a required field (.A .B .l .t) is missing or is not
                                    a 1 x nArc cell, or the day carries a field that is
                                    not .A .B .l .t .Cep .nAxis (the v5 arcIdx / arcId
@@ -284,7 +285,9 @@ See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.DECLAR
 
 Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lane 4): a throwing
 buildDay is raised as lsqvce:makeLoader:buildDay with the day and stream,
-its error the cause (documented, never raised); a local prior group&#x27;s from
+its error the cause (documented, never raised) -- an lsqvce:* error passes
+unchanged (batchSystem&#x27;s badMatrix / weightMatrix, raised inside the
+builder it wraps, are documented ids); a local prior group&#x27;s from
 is a pass number &gt;= 1 and two groups on one stream are refused (badPrior); a
 static arcs id vector is checked like a resolver&#x27;s (badArcs); a validity
 entry of another type or a NaN is refused (badValidity), it read as &quot;always

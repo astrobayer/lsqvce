@@ -14,8 +14,8 @@ function tests = test_lsqvce_ext
 %   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (third review, finding 19 and
 %   lane 1): the contamination ladder's n-dependent band, 'indeterminate',
 %   breakdown at n = 600, SNOOP_VACUOUS from the share of v'Pv, the mad
-%   replay's batchMismatch. With assistance from Claude (Anthropic), model
-%   Claude Opus 5.5.
+%   replay's batchMismatch; the band's normal limit at n = 20 000. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
 
@@ -566,6 +566,17 @@ function test_ladder_band_follows_n(tc)
     verifyEqual(tc, D.contamLevel, 'clean');
     codes = cellfun(@(f) f.code, V.findings, 'UniformOutput', false);
     verifyFalse(tc, any(ismember({'SNOOP_CONTAMINATED', 'SNOOP_MODERATE'}, codes)));
+    % The normal limit (mu > 200: above ~16 000 scored residuals) -- the port
+    % read P(K = 0) from the table it does not build there, and every run that
+    % large stopped in diagnose (CI, 6.22.0). Normal quantiles, n = 20 000.
+    n = 20000;
+    z = lsqvce.kernel.stat.normInv(((1:n).' - 0.5) / n);
+    [~, D] = flatAdjust(1, srcOf(chop(ones(n, 1), z, ones(n, 1), 2)), 2, 'verbose', false);
+    P = 2 * lsqvce.kernel.stat.normCdf(-2.5);  mu = n * P * (1 + 27 / n);
+    % tol: the same closed form (normInv(0.9975) to 16 digits), rounding only
+    verifyEqual(tc, D.fhatTol, (mu + 2.807033768343811 * sqrt(1.69 * mu)) / n, 'RelTol', 1e-14);
+    verifyTrue(tc, D.collapseDetectable, 'P(K = 0) ~ exp(-0.76 mu): a collapse is visible');
+    verifyEqual(tc, D.contamLevel, 'clean');
 end
 
 function test_indeterminate_when_collapse_cannot_be_judged(tc)

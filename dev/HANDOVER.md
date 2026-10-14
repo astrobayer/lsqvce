@@ -10208,3 +10208,19 @@ passes; the risk points are the RNG-free contamination cases (checked in the por
 D.s0 = R.sigma0 assertion (D.r against sol.dof) and the final-pass prior test (the loop must not settle on
 pass 1).
 
+
+**CI round 1 (11945cf, RED: 663/715, 52 failed).** The prediction missed, and the causes are all in WP-135's own
+code: (1) `verdict>contamNull` read P(K = 0) as `cdf(1)` of the negative binomial table, which `contamCdf`
+does not build in the normal limit (mu > 200, i.e. above ~16 000 scored residuals) -- every diagnose that
+large stopped on an index error: the demo's 24 000 rows (test_vcePolicy's setup, 41 points; the examples;
+the speed budgets; test_fit's demo-based and 3000-epoch fixtures; the KBR closed loop; the multi-axis
+Ellmer runs). The port set P(K = 0) := 0 there, so it never ran this path. Fix: `contamCdf` returns P(K = 0)
+from the closed form at every mu (bitwise the old value below 200); `test_ladder_band_follows_n` gained the
+normal-limit point (n = 20 000: tol from the normal quantile, collapse detectable, clean). (2)
+`callBuildDay` re-labelled every error, so `batchSystem`'s own `badMatrix` / `weightMatrix` (raised inside
+the builder it wraps) arrived as `makeLoader:buildDay` (testBatchSystemContract); an `lsqvce:*` error now
+passes unchanged. (3) Two test errors: tauCrit(1e-300, 5) rounds to exactly sqrt(5) ((r-1)/t^2 ~ 1e-150),
+so `<` became `<=` plus `isfinite`; the throwing buildDay of testCharacterIdsAndATrowingBuildDay was an
+anonymous `@(varargin) error(...)`, which asked for an output throws MATLAB:TooManyOutputs, not the user's
+error -- now a named function. Lesson recorded: a mirror that short-cuts a branch (`p0 = 0.0`) does not
+cover the port of that branch; the large-n case needs its own test. Count unchanged (727 / CI 715).

@@ -242,7 +242,7 @@ as an empty cell. `'arc'` template rows require a declared schedule.
 
 | identifier | meaning |
 |---|---|
-| `lsqvce:makeLoader:buildDay` | `buildDay` threw; its error is attached as the cause |
+| `lsqvce:makeLoader:buildDay` | `buildDay` threw; its error is attached as the cause (an `lsqvce:*` error passes unchanged) |
 | `lsqvce:makeLoader:badDay` | a required field is missing or not a 1×nArc cell, or an unknown field is present, or `excluded` marks a row that is not zero |
 | `lsqvce:makeLoader:dayShape` | the cells disagree in number, or an arc's `A`, `B`, `l`, `t` disagree in rows |
 | `lsqvce:accum:arcBadNc` / `arcBadNl` | `A` or `B` has the wrong number of columns |

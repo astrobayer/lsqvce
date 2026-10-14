@@ -39,7 +39,8 @@ marked **verdict**.
 - **A joint robust run's report quotes `R.sigma0` (numbers).** Its s0, χ² test and scaled
   parameter column read the hard solution's vPv without the truncation correction.
 - **Smaller:** a throwing `buildDay` is reported as `lsqvce:makeLoader:buildDay` with the
-  day and stream (documented, never raised); a local prior group's `from` and name are
+  day and stream (documented, never raised; a toolbox `lsqvce:*` error raised inside it
+  passes unchanged); a local prior group's `from` and name are
   validated; a "scale" group activated on the last pass is scaled in the closing solve; a
   system without own days claims only `data.days`; `Noise.Whitener` is validated in any
   case (`lsqvce:Options:badWhitener`); validity entries of another type and static arc-id

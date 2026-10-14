@@ -8,7 +8,8 @@ function tests = test_lsqvce
 %   formulae and against Monte-Carlo sampling theory. They are not guesses.
 %
 %   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (third review, lane 1): the
-%   critical values in the far tail (alpha 1e-17). With assistance from
+%   critical values in the far tail (alpha 1e-17; tau's bound sqrt(r) is
+%   attained in floating point at 1e-300, so <=). With assistance from
 %   Claude (Anthropic), model Claude Opus 5.5.
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
@@ -206,7 +207,10 @@ function test_critical_values_hold_in_the_far_tail(tc)
     verifyEqual(tc, lsqvce.kernel.stat.madCrit(a, 30), 47.18282507188198, 'RelTol', 1e-9); % tol: as above
     % tol: delta0's bisection stops at 1e-12 absolute
     verifyEqual(tc, lsqvce.kernel.stat.delta0(a, 0.20), 9.415565310293797, 'AbsTol', 1e-9);
-    verifyLessThan(tc, lsqvce.kernel.stat.tauCrit(1e-300, 5), sqrt(5));   % the bound, finite
+    % the bound, finite: at 1e-300, (r-1)/t^2 ~ 1e-150 and tau rounds to sqrt(5)
+    tauFar = lsqvce.kernel.stat.tauCrit(1e-300, 5);
+    verifyTrue(tc, isfinite(tauFar));
+    verifyLessThanOrEqual(tc, tauFar, sqrt(5));
     % the textbook value is unchanged by the upper-tail form
     % tol: two exact forms of the same quantile, rounding only
     verifyEqual(tc, lsqvce.kernel.stat.normCrit(1e-3), 3.2905267314918945, 'RelTol', 1e-14);

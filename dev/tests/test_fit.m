@@ -18,9 +18,10 @@ function tests = test_fit
 %   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (third review findings 5,
 %   11, 12, 13 and the loader lows): duplicate days, one id kind, 'i' / 'j',
 %   validity entries, local prior from / names refused; a throwing buildDay
-%   named; layout without localParams; the calendar of a system without
-%   days; a local datum, a local prior row never rejected; systematic over
-%   the data rows. With assistance from Claude (Anthropic), model Claude Opus 5.5.
+%   named (the bomb a named function); layout without localParams; the
+%   calendar of a system without days; a local datum, a local prior row never
+%   rejected; systematic over the data rows. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (third review): the robust joint sweep leaves the prior pseudo-arcs out.
 %   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: zero weights are rejected
@@ -245,8 +246,10 @@ function testCharacterIdsAndATrowingBuildDay(tc)
     % duplicateSystem); a buildDay that throws is lsqvce:makeLoader:buildDay,
     % with the day and the stream, the user's error the cause (documented,
     % never raised). Past validation, the bomb is the first read.
+    % The bomb is a named function: an anonymous @(varargin) error(...) asked
+    % for D throws MATLAB:TooManyOutputs, not the user's error (CI, 6.22.0).
     [data, ~] = declaration();
-    data.systems(1).buildDay = @(varargin) error('test:reached', 'the user''s error');
+    data.systems(1).buildDay = @throwingBuildDay;
     data.systems(1).id = 'i';  data.systems(2) = data.systems(1);  data.systems(2).id = 'j';
     try
         lsqvce.fit(data, Verbose=false);
@@ -256,6 +259,11 @@ function testCharacterIdsAndATrowingBuildDay(tc)
         tc.verifyEqual(e.cause{1}.identifier, 'test:reached');
         tc.verifyTrue(contains(e.message, 'day') && contains(e.message, 'the user''s error'));
     end
+end
+
+function D = throwingBuildDay(varargin) %#ok<STOUT> -- it throws, by design
+%THROWINGBUILDDAY  A user's buildDay that fails (testCharacterIdsAndATrowingBuildDay).
+    error('test:reached', 'the user''s error');
 end
 
 function testLayoutOfASystemWithoutLocals(tc)
