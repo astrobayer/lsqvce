@@ -44,24 +44,45 @@ a { color: #0b5ea8; }
 <h1>lsqvce.engine.gcvLambda</h1>
 <div class="purpose">Generalised cross-validation choice of the Tikhonov weight.</div>
 <h2>Description</h2>
-<pre class="example">lam = LSQVCE.ENGINE.GCVLAMBDA(N, n, L) minimises the GCV functional over a log grid,
-for the regularised problem (N + lambda*L&#x27;*L) y = n.
+<pre class="example">lam = LSQVCE.ENGINE.GCVLAMBDA(N, n, L, m, ltl) minimises the GCV functional
+(Golub, Heath &amp; Wahba 1979) of the local least-squares problem
+    min ||B y - l||^2 + lambda ||L y||^2,   N = B&#x27;B, n = B&#x27;l, ltl = l&#x27;l,
+over a log grid:
+    G(lambda) = ||B y_lambda - l||^2 / (m - tr H_lambda)^2.
+The commons enter at their a-priori values (x = 0 of the linearised
+problem): lambda is chosen per system, before x is known.
 
 [lam, gcv, grid] = LSQVCE.ENGINE.GCVLAMBDA(...) also returns the GCV curve, so you
 can check that the minimum is a real trough and not a grid endpoint.</pre>
 <h3>Input</h3>
-<pre class="example">N   nl x nl  local normal matrix (symmetric positive semidefinite)
-n   nl x 1   local right-hand side
-L   nl x nl  regularisation matrix (default identity)</pre>
+<pre class="example">N    nl x nl  local normal matrix B&#x27;B (symmetric positive semidefinite)
+n    nl x 1   local right-hand side B&#x27;l
+L    q x nl   regularisation matrix ([] = identity); it may have a null
+              space (a first difference, a subset): those directions
+              are fitted freely at every lambda
+m    1x1      rows of the local problem (whitened observations)
+ltl  1x1      l&#x27;l of the whitened observations</pre>
 <h3>Output</h3>
 <pre class="example">  lam   scalar   selected weight
   gcv   ng x 1   GCV functional over the grid
-  grid  ng x 1   the lambda grid (80 points, log-spaced)
+  grid  ng x 1   the lambda grid (80 points, log-spaced over the
+                 eigenvalues of the penalised part, 1e-12 * max .. max)
 
 METHOD
-  Uses the generalised eigendecomposition of (N, L&#x27;*L), which diagonalises
-  both matrices simultaneously, so every lambda on the grid costs O(nl)
-  instead of a fresh factorisation.
+  The standard form (Elden 1977): the eigenvectors of L&#x27;L split nl into
+  null(L) (eigenvalues below 1e3 nl eps |L&#x27;L|) and its complement W. The
+  null(L) part is unpenalised and eliminated like a common (a Schur step
+  on N, n and l&#x27;l); on W, L&#x27;L = diag(e), and one symmetric eig of
+  diag(e)^-1/2 N_W diag(e)^-1/2 = Q diag(d) Q&#x27; diagonalises the rest. With
+  b = Q&#x27; diag(e)^-1/2 n_W and f = lambda ./ (d + lambda):
+      ||B y - l||^2 = rss_perp + sum (b.^2 ./ d) .* f.^2,
+      tr H          = nl - sum f,
+  rss_perp the unregularised residual. Every lambda costs O(nl).</pre>
+<h3>Accuracy</h3>
+<pre class="example">  The curve equals the dense GCV (direct solves of N + lambda L&#x27;L) to
+  1e-9 relative up to cond(N) ~ 1e10 and selects the same grid point, for
+  L = I, a first difference and a subset
+  (dev/validation/wp135_gcv_mirror.py).
 
 WHEN GCV FAILS
   GCV assumes the residuals are white. After only approximate whitening
@@ -75,17 +96,30 @@ WHEN GCV FAILS
   regularisation drifts between days and the estimated common parameters
   inherit that drift as a spurious time signal.</pre>
 <h3>Example</h3>
-<pre class="example">  [lam, gcv, grid] = lsqvce.engine.gcvLambda(Nll, nl, eye(size(Nll,1)));
-  loglog(grid, gcv); xline(lam,&#x27;r--&#x27;); xlabel(&#x27;\lambda&#x27;); ylabel(&#x27;GCV&#x27;);
+<pre class="example">B = [ones(50,1), (1:50).&#x27;/50];  l = B*[1; 2] + 0.1*randn(50,1);
+[lam, gcv, grid] = lsqvce.engine.gcvLambda(B.&#x27;*B, B.&#x27;*l, [], 50, l.&#x27;*l);
+loglog(grid, gcv); xline(lam,&#x27;r--&#x27;); xlabel(&#x27;\lambda&#x27;); ylabel(&#x27;GCV&#x27;);</pre>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:gcvLambda:badData    m is not an integer &gt; nl, or ltl is not a
+                              finite scalar &gt;= 0
+  lsqvce:gcvLambda:nullUnobserved  the data do not determine a direction
+                              of null(L): no lambda regularises it
 
 IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
   lsqvce:gcv:atLowerBound                    [warning] GCV selected the smallest lambda on the grid (X), i.e
   lsqvce:gcv:atUpperBound                    [warning] GCV selected the largest lambda on the grid (X)
-  lsqvce:gcv:degenerate                      [warning] The local block has no positive generalised eigenvalue; lambda = 0
-  lsqvce:gcvLambda:qzFallback                [warning] eig(N, L&#x27;L, &#x27;chol&#x27;) failed (X); using the QZ form
+  lsqvce:gcv:degenerate                      [warning] L penalises no direction, or the data none; lambda = 0
 
 See also LSQVCE.ENGINE.APPLYREGULARISATION
 
+Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3 finding 16): the
+GCV of the local least-squares problem (it minimised ||f.*b||^2/(sum
+f)^2 of N y = n, as if N were the design: |y - y_true| 9 to 2770 times the
+GCV choice&#x27;s), with m and l&#x27;l from the pre-elimination; the standard form
+for a RegMatrix with a null space (the eps ridge put the whole grid above
+1e3 |N| and corrupted the finite eigenvalues); the QZ fallback is gone
+(one symmetric eig). With assistance from Claude (Anthropic), model
+Claude Opus 5.5.
 Generated with assistance from Claude (Anthropic), model Claude
 Opus 4.8.
 Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,

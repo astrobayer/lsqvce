@@ -18,6 +18,9 @@ function tests = test_errorDoctrine
 %
 %   See also LSQVCE.UTIL.CALLUSER, LSQVCE.UTIL.LOG, LSQVCE.RESULTS, TEST_CI_GATE
 %
+%   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (third review, lanes 1 and 4):
+%   ftest takes the redundancy; the joint robust report's s0 is R.sigma0.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (third review): robustWeights survives an extreme blunder; tuning validated.
 %   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: weights >= 0 and finite, a
@@ -293,6 +296,12 @@ function testJointRobustPassKeepsCleanMultiAxisEpochs(tc)
     tc.verifyEqual(R.diag.quad.rejected > 0, any(fac == 0), 'a zeroed epoch is rejected in R.diag');
     % tol: the report's own integrity line (SUM_R > 1e-6 is INVALID)
     tc.verifyLessThan(R.diag.sumRRelErr, 1e-6);
+    % WP-135 (review 3, lane 4): the REPORT's s0 is the hard solution's too --
+    % D.s0 read vPv / r without the truncation (sqrt(tau) off R.sigma0, and the
+    % chi^2 test and the scaled PAR_TABLE column with it)
+    tc.verifyLessThan(R.diag.truncation, 1, 'an igg3 run truncates');
+    % tol: the report's vPv integrity line (1e-6 relative; s0 takes its root)
+    tc.verifyEqual(R.diag.s0, R.sigma0, 'RelTol', 1e-6);
 end
 
 %% ============================================================ R5 M2 2b: IRLS kernel
@@ -491,6 +500,13 @@ function testFtestContract(tc)
                 'lsqvce:ftest:zeroVariance');
     verifyError(tc, @() lsqvce.engine.verdict.ftest(s(3, 10, 2), s(2, 10, 3), 'Alpha', 2), ...
                 'MATLAB:validators:mustBeLessThan');
+    % WP-135 (review 3, lane 1): the full model's redundancy where it carries
+    % one -- rows of weight 0 and a rank-deficient local block make it differ
+    % from n - rank (compare() passes R.diag.r)
+    sr = s(3, 10, 2);  sr.r = 6;
+    F = lsqvce.engine.verdict.ftest(sr, s(2, 10, 3), 'Verbose', false);
+    verifyEqual(tc, F.df2, 6);
+    verifyEqual(tc, F.df1, 1);
 end
 
 function testAdjustRobustContract(tc)

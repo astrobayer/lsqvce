@@ -107,6 +107,9 @@ away x5e7 (review R7, R7-02; HANDOVER 12.44). Ellmer&#x27;s white start (eq.
                                record; .Cgroups likewise)
             .sigma2  M x 1     the current arc variance factors
             .iter    1x1       the iteration number (1 on the first call)
+            .final   1x1 logical  true on the closing accumulation under the
+                               returned model (same .iter as the last pass;
+                               WP-135: .lastSol is then THAT pass&#x27;s solve)
             .streamSigma2, .arcFactor  the per-stream level and the per-arc
                                factor relative to it (R7-13, since 6.1.6);
                                LSQVCE.ENGINE.JOINTMODELOPT turns the whole
@@ -327,6 +330,10 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
          LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 
+Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lane 4): the closing
+accumulation&#x27;s model carries .final = true, so an accFcn that updates its
+own components (fit&#x27;s prior groups) knows .lastSol is the last pass&#x27;s own
+solve. With assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (third review, findings 1, 7,
 15 and lows): PriorDev puts the accFcn&#x27;s own components (fit&#x27;s prior
 groups) into the stop rule; the shared probe uses acc.commonFactor(),

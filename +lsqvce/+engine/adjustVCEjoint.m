@@ -67,6 +67,9 @@ function out = adjustVCEjoint(accFcn, opt)
 %                                  record; .Cgroups likewise)
 %               .sigma2  M x 1     the current arc variance factors
 %               .iter    1x1       the iteration number (1 on the first call)
+%               .final   1x1 logical  true on the closing accumulation under the
+%                                  returned model (same .iter as the last pass;
+%                                  WP-135: .lastSol is then THAT pass's solve)
 %               .streamSigma2, .arcFactor  the per-stream level and the per-arc
 %                                  factor relative to it (R7-13, since 6.1.6);
 %                                  LSQVCE.ENGINE.JOINTMODELOPT turns the whole
@@ -291,6 +294,10 @@ function out = adjustVCEjoint(accFcn, opt)
 %   See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
 %            LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 %
+%   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lane 4): the closing
+%   accumulation's model carries .final = true, so an accFcn that updates its
+%   own components (fit's prior groups) knows .lastSol is the last pass's own
+%   solve. With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (third review, findings 1, 7,
 %   15 and lows): PriorDev puts the accFcn's own components (fit's prior
 %   groups) into the stop rule; the shared probe uses acc.commonFactor(),
@@ -891,7 +898,7 @@ end
                         'streamSigma2', streamMeans(pinnedStream, sigma2), ...
                         'arcFactor', arcFactorMap(pinnedStream, pinnedRow, sigma2, o), ...   % R7-13
                         'Sgroups', Smap, 'Cgroups', Cmap, 'Pool', char(o.Pool), 'Estimate', o.Estimate, ...
-                        'lastSol', lastSol, 'rowWeights', hardWeights(W));
+                        'lastSol', lastSol, 'rowWeights', hardWeights(W), 'final', true);
         accF = accFcn(modelF);
         solF = hardSolution(accF.solve(), hardFix, accF.excludedRows());
     end

@@ -14,6 +14,9 @@ function tests = test_vcePolicy
 %
 %   See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTVCEJOINT, TEST_ELLMER, TEST_PHYSORACLE
 %
+%   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (third review, lane 4): the
+%   converged column reads R.converged; a prior from the last pass is scaled
+%   in the closing solve. With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (third review): the common prior group is in the stop rule.
 %   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: a late prior beyond the last
@@ -49,6 +52,43 @@ function testConvergenceTableShape(tc)
     tc.verifyEqual(size(R.history.sigma, 2), numel(R.history.streams));
     tc.verifyEqual(size(R.history.white), size(R.history.sigma));
     tc.verifyEqual(size(R.history.whitePval), size(R.history.sigma));
+end
+
+function testConvergenceTableReadsTheConvergedFlag(tc)
+% categories: contract | tags: diagnostics
+    % WP-135 (review 3, lane 4): the converged column read h.converged, which
+    % no producer writes -- false on every row of a converged run. With every
+    % stream at estimate "none" the loop settles on pass 1.
+    data = tc.TestData.data;
+    for k = 1:numel(data.systems)
+        for f = fieldnames(data.systems(k).covariance).'
+            data.systems(k).covariance.(f{1}).estimate = "none";
+        end
+    end
+    R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=4, ...
+                     Noise=struct('Grid', 16), Seed=3, Verbose=false));
+    tc.assumeTrue(R.converged, 'a model with nothing to estimate settles');
+    T = R.convergence();
+    tc.verifyTrue(T.converged(end), 'the last row of a converged run');
+    tc.verifyFalse(any(T.converged(1:end-1)), 'only the last row can be true');
+    tc.verifyEqual(tc.TestData.Rv.convergence().converged(end), tc.TestData.Rv.converged);
+end
+
+function testPriorFromTheLastPassIsScaledInTheClosingSolve(tc)
+% categories: contract | tags: diagnostics
+    % WP-135 (review 3, lane 4): the closing solve repeats the last pass's
+    % index and updated only groups with from < pass, so a "scale" group that
+    % entered on the last pass came back with its declared sigma. MaxPasses = 2
+    % and from = 2: the group is in pass 2 (pending, so no convergence there)
+    % and must take its first update in the closing solve (model.final).
+    data = tc.TestData.data;
+    nc = numel(tc.TestData.Rv.x);
+    data.priors = struct('L', eye(nc), 'x0', zeros(nc, 1), 'sigma', 0.01, 'from', 2, ...
+                         'name', 'late', 'estimate', "scale");
+    R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=2, ...
+                     Noise=struct('Grid', 16), Seed=3, Verbose=false));
+    tc.verifyEqual(R.history.nIter, 2);
+    tc.verifyNotEqual(R.noise.priors(1).sigma, 0.01, 'the late group is scaled in the closing solve');
 end
 
 function testSummaryIsPerStream(tc)

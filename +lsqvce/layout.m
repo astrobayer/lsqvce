@@ -31,6 +31,10 @@ function lay = layout(data)
 %
 %   See also LSQVCE.FIT, LSQVCE.RESULTS/TOTABLE, the API reference
 %
+%   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3 finding 13): a
+%   system without localParams gets nl = 0 and an empty column table (it
+%   stopped on the loader's empty plan). With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Created 2026-09-03 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.1 -- R5-D8 round 5.
 %
@@ -51,9 +55,8 @@ function lay = layout(data)
     end
     K = numel(systems);  S = struct('nl', cell(1, K), 'local', cell(1, K), 'col', cell(1, K));
     for k = 1:K
-        plan = systems{k}.plan;
-        loc = lsqvce.engine.localColumns(plan);
-        S(k).nl = plan.nl;  S(k).local = loc;
+        loc = lsqvce.engine.localColumns(systems{k}.plan);   % [] plan: nl = 0 (WP-135)
+        S(k).nl = systems{k}.nl;  S(k).local = loc;
         S(k).col = @(row, day, arc) findCol(loc, row, day, arc);
     end
     lay = struct('nc', cp.nc, 'common', common, 'systems', S, ...

@@ -95,9 +95,16 @@ function out = synthLoader(cfg, sat, day, obsType, arcID, opt)
 %   ERRORS
 %     lsqvce:synthLoader:badArc          the arc index is out of range
 %     lsqvce:synthLoader:noNoiseModel    the configuration declares no noise model
+%     lsqvce:synthLoader:robustFactors   opt.rowWeights / epochWeights carry factors
+%                                        for the arc: the template applies none
+%                                        (makeLoader does)
 %
 %   See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.COVMODEL
 %
+%   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lane 4): robust
+%   factors for an arc are refused (lsqvce:synthLoader:robustFactors) -- the
+%   template ignored them while the driver reported them applied. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-102 (v6): the internal day
 %   is cut into arc CELLS (the v6 day contract; the raw closure's arc slice
 %   is a cell pick). With assistance from Claude (Anthropic), model Claude
@@ -151,6 +158,19 @@ function out = synthLoader(cfg, sat, day, obsType, arcID, opt)
         error('lsqvce:synthLoader:badArc', ...
               'Arc %d does not exist (day %d has %d arcs).', ...
               arcID, day, numel(D.A));
+    end
+
+    % WP-135 (review 3, lane 4): the template applies no robust factors --
+    % makeLoader does (epochWeights as a nugget before the law, rowWeights
+    % after it). A factor meant for this arc was ignored while the driver
+    % reported it applied; it is refused instead.
+    rk = lsqvce.util.rowWeightKey(lsqvce.util.getfielddef(opt, 'sysID', sat), day, obsType, arcID);
+    for f = {'rowWeights', 'epochWeights'}
+        if isfield(opt, f{1}) && ~isempty(opt.(f{1})) && isKey(opt.(f{1}), rk)
+            error('lsqvce:synthLoader:robustFactors', ...
+                  ['opt.%s carries factors for arc %s, which the template does not apply. ' ...
+                   'Wrap your buildDay with lsqvce.engine.makeLoader for a robust pass.'], f{1}, rk);
+        end
     end
 
     out.A = D.A{arcID};                         % v6: the cells are the arcs

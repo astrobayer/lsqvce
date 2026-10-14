@@ -1,5 +1,54 @@
 # lsqvce release notes
 
+## 6.22.0 — 2026-10-14 (WP-135: the front end, the loader and the diagnostics of the third whole-code review)
+
+Numbers change for the cases marked **numbers**; the diagnostics' verdict changes where
+marked **verdict**.
+
+- **A repeated day is refused.** `data.days = [1:15, 15:30]` (or an overlap in a system's
+  `days`) accumulated day 15 twice, silently: x pulled toward it, σ too small, dof inflated
+  (`lsqvce:fit:duplicateDay`; the accumulator refuses it too, `lsqvce:accum:duplicateDay`).
+- **System ids are of one kind.** A character id next to a number (an index default is a
+  number) made the accumulator's id list a character row: robust factors went under keys the
+  loader never read and were reported as applied (`lsqvce:fit:badId`,
+  `lsqvce:accum:mixedIdTypes`). Ids `'i'` / `'j'` stay characters (they parsed as 1i).
+- **`lsqvce.layout` works with a system without `localParams`** (it stopped; the Manual's
+  own example).
+- **Local prior groups follow the common prior's rules (verdict).** A local group's row the
+  data cannot see is a datum row — not tested or counted (it made the verdict SUSPECT) — and
+  `R.snoop()` never rejects a prior row, common or local. `R.systematic()` leaves the priors'
+  rows out of its sequences; a covariate may be given over the data rows only.
+- **The contamination ladder is calibrated for every n (verdict).** Its null band was
+  measured at n ≈ 300; at n = 30 clean data raised `SNOOP_CONTAMINATED` / `SNOOP_REFUSE`
+  (ERRORs) in 3 % of fits, and a σ0 declared 3.5× too small read "breakdown" in half the
+  fits, with `R.snoop` refusing. The band now follows the measured null law of `fhat` at
+  every n (false alarms ≤ 0.25 %), "breakdown" needs `fhat` implausibly low for clean data,
+  and where n is too small to tell a captured robust scale from a σ0 declared too small the
+  report says so (`SNOOP_INDETERMINATE`, a WARN). The price: below n ≈ 200, a 10 %
+  contamination is no longer flagged by the gauge alone (the outlier test still sees the
+  blunders themselves).
+- **GCV is the GCV of the data (numbers).** `Reg = "tikhonov"` with `RegLambda = 0` chose
+  λ from a functional of the normal equations, not of the data (‖y − y_true‖ up to 2770
+  against 1.0); a `RegMatrix` with a null space (a first difference) put every candidate λ
+  above 10³‖N‖. Both fixed; `gcvLambda` takes m and l'l.
+- **Diagnostics in the far tail.** Below a Bonferroni level of ~1e-16 the critical values
+  came back Inf / NaN and the test switched itself off; they are formed from the upper tail
+  now (`lsqvce.kernel.stat.tCrit`). `SNOOP_VACUOUS` fires when a residual must carry ≥ 90 %
+  of v'Pv to be flagged (the old criterion could never fire). Under `Test = "mad"` the MDB
+  is labelled the Baarda (known-σ) value.
+- **A joint robust run's report quotes `R.sigma0` (numbers).** Its s0, χ² test and scaled
+  parameter column read the hard solution's vPv without the truncation correction.
+- **Smaller:** a throwing `buildDay` is reported as `lsqvce:makeLoader:buildDay` with the
+  day and stream (documented, never raised); a local prior group's `from` and name are
+  validated; a "scale" group activated on the last pass is scaled in the closing solve; a
+  system without own days claims only `data.days`; `Noise.Whitener` is validated in any
+  case (`lsqvce:Options:badWhitener`); validity entries of another type and static arc-id
+  vectors with repeats are refused; `synthLoader` refuses robust factors it cannot apply;
+  `R.convergence().converged` reads `R.converged`; an unsettled IRLS run is advised on
+  `RobustOpts`; `R.compare` uses the solve's rank and redundancy; snoop's re-diagnosis keeps
+  `Store` / `NWorst` / `RobustCheck` and its re-solve the solve's `Reg`;
+  `outliers.mask` is a logical mask.
+
 ## 6.21.0 — 2026-10-13 (WP-134: the noise estimator and the kernel of the third whole-code review)
 
 Numbers change for the cases marked **numbers**.

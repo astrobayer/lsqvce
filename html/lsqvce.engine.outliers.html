@@ -74,7 +74,9 @@ out.nUntestable    r_i below MinRedundancy: no local redundancy, so a
                    blunder there is INVISIBLE. This is a design weakness
                    in the observation geometry, not a data problem.
 out.byGroup        count per group
-out.mask           @(sysID,obsType,day,arc) -&gt; logical mask for the loader</pre>
+out.mask           @(sysID,obsType,day,arc) -&gt; m_arc x 1 logical, true on
+                   the arc&#x27;s flagged rows (all false: none flagged; []:
+                   an arc the redundancy pass did not see)</pre>
 <h3>The Untestable Observations Matter</h3>
 <pre class="example">  If r_i ~ 0 the observation is not checked by any other -- an error in it
   passes straight into the parameters undetected. A large nUntestable means
@@ -108,6 +110,9 @@ case-sensitive lowercase). With assistance from Claude (Anthropic),
 model Claude Fable 5.
 See also LSQVCE.ENGINE.REDUNDANCY, LSQVCE.ENGINE.BLOCKCOFACTOR, LSQVCE.ENGINE.VCE
 
+Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lane 6): out.mask
+returns the arc&#x27;s logical mask (it returned row indices). With assistance
+from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3 (R7-24): See also
 names lsqvce.engine.BlockCofactor (leverage retired). With assistance
 from Claude (Anthropic), model Claude Opus 5.5.

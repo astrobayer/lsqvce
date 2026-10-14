@@ -142,10 +142,12 @@ if ~R.converged, lsqvce.util.log.warn(&#x27;did not converge&#x27;); end
 x = R.x;   s0 = R.sigma0;</pre>
 <h3>Errors</h3>
 <pre class="example">lsqvce:Results:noVPv          compare() on a Results without a finite v&#x27;Pv
-lsqvce:Results:noHistory      an iteration reader was called on a
-                              single-solve Results (adjustBlock does not
-                              iterate); use the result of an iterating
-                              fit (Estimate = &quot;noise&quot;, Robust, Nonlinear)
+lsqvce:Results:noHistory      convergence() / summary() / plot(&quot;convergence&quot;)
+                              on a Results without the noise loop&#x27;s
+                              per-stream history: a single solve, or a
+                              stand-alone Robust / Nonlinear run (their
+                              passes are R.history, one record each --
+                              WP-135); use Estimate = &quot;noise&quot;
 lsqvce:Results:noCovariance   coefficients() on a Results whose sol
                               carries no Cxx
 lsqvce:Results:noAccumulator  residuals()/contribution() on a Results
@@ -162,6 +164,12 @@ lsqvce:Results:noPerObservation reliability() on a fit whose diagnostics
 See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.REPORT,
          LSQVCE.ENGINE.VERDICT, LSQVCE.ENGINE.BLOCKACCUMULATOR
 
+Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lanes 1 and 4):
+compare() takes the solve&#x27;s rank and redundancy (D.rank, D.r);
+convergence().converged is R.converged (false on every row before);
+noHistory says when a Robust / Nonlinear run iterated without a per-stream
+history; the convergence plot labels max|sigma - 1|; summary&#x27;s sigma is a
+level. With assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-13 (CEST, UTC+02:00), WP-133: reliability() labels a row
 of weight 0 &quot;rejected&quot; (R.diag.excludedIdx). With assistance from Claude
 (Anthropic), model Claude Opus 5.5.

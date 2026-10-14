@@ -15,6 +15,9 @@ function tests = test_signalCore
 %
 %   See also TEST_V7, LSQVCE.ENGINE.OUTLIERS, LSQVCE.KERNEL.VARWHITEN, LSQVCE.KERNEL.AR2ARMA
 %
+%   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (third review, lane 6):
+%   outliers.mask is a logical mask. With assistance from Claude (Anthropic),
+%   model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (third review): covModel takes a VAR(1), varACV a VAR(0); ar2arma normalises aHi(1).
 %   With assistance from Claude (Anthropic), model Claude Opus 5.5.
     tests = functiontests(localfunctions);
@@ -56,6 +59,16 @@ function testOutliersFlagsInjectedBlunder(tc)
         end
     end
     tc.verifyTrue(hit, 'the injected blunder was not flagged in its own arc');
+    % WP-135 (review 3, lane 6): out.mask is the arc's LOGICAL mask -- it
+    % returned the flagged row INDICES, and a loader applying ~mask kept the
+    % wrong rows
+    m = out.mask(f.sysID, f.obsType, f.day, f.arc);
+    tc.verifyClass(m, 'logical');
+    tc.verifyNumElements(m, cfg.mArc);
+    inArc = arrayfun(@(g) isequal(g.sysID, f.sysID) && strcmp(char(g.obsType), char(f.obsType)) && ...
+                          g.day == f.day && g.arc == f.arc, out.flagged);
+    tc.verifyEqual(find(m), sort([out.flagged(inArc).idx]).');
+    tc.verifyEmpty(out.mask(99, 'pos', 1, 1), 'an arc the pass did not see');
 end
 
 function testOutliersCleanDataNoFalseStorm(tc)

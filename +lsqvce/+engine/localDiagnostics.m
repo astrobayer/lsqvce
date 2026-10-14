@@ -61,6 +61,10 @@ function dg = localDiagnostics(Nll, opt)
 %
 %   See also LSQVCE.ENGINE.APPLYREGULARISATION, LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lane 1): rankDef
+%   counts eigenvalues at or below TruncTol * max(lambda_max, 0) -- an all-zero
+%   block read 0 deficient directions while its status said rank-deficient. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
@@ -91,7 +95,7 @@ function dg = localDiagnostics(Nll, opt)
     dg.eig      = ev;
     dg.V        = V;
     dg.condNll  = ev(1) / max(abs(ev(end)), realmin);
-    dg.rankDef  = sum(ev < tolT*ev(1));
+    dg.rankDef  = sum(ev <= tolT*max(ev(1), 0));   % WP-135: an all-zero block is nl deficient (it read 0)
     dg.spd      = all(ev > 0);
     dg.nullDir  = V(:, end);
 

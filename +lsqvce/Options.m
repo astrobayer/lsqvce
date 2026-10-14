@@ -112,6 +112,8 @@ classdef Options
 %     lsqvce:Options:badGrid       Noise.Grid is not an integer >= 2
 %     lsqvce:Options:badVerbose    Verbose is neither logical nor an integer 0..2
 %     lsqvce:Options:badOnPass     OnPass is neither [] nor a function handle
+%     lsqvce:Options:badWhitener   Noise.Whitener is not "toeplitz" | "ar" | "arma"
+%                                  (any case)
 %     lsqvce:Options:badGroupField a group struct carries an unknown field
 %     lsqvce:Options:badTarget     engineArgs target is unknown
 %
@@ -125,6 +127,10 @@ classdef Options
 %
 %   See also LSQVCE.FIT, LSQVCE.RESULTS, the API reference, RELEASE_NOTES.md
 %
+%   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lane 4):
+%   Noise.Whitener is validated (lsqvce:Options:badWhitener, any case) -- it
+%   was forwarded raw and an upper-case value died mid-run under Estimate
+%   "noise". With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-134: Noise.Whitener's cost under
 %   Estimate "noise" and SkipThreshold per stream stated. With assistance from
 %   Claude (Anthropic), model Claude Opus 5.5.
@@ -233,6 +239,17 @@ classdef Options
             end
             if ~isempty(obj.OnPass) && ~isa(obj.OnPass, 'function_handle')
                 error('lsqvce:Options:badOnPass', 'OnPass must be [] or a function handle @(ctx).');
+            end
+            % WP-135: checked here, case-insensitively, like Estimate / Robust.
+            % It was forwarded raw: "AR" worked under Estimate "none" and died
+            % mid-run (MATLAB:validators) under "noise"; "foo" ran until an
+            % engine refused it.
+            w = obj.Noise.Whitener;
+            if ~((ischar(w) || (isstring(w) && isscalar(w))) && ...
+                    any(strcmpi(char(w), {'toeplitz', 'ar', 'arma'})))
+                error('lsqvce:Options:badWhitener', ...
+                    'Noise.Whitener must be "toeplitz", "ar" or "arma" (got %s).', ...
+                    lsqvce.Options.fmt(w));
             end
             groups = {'Noise', 'RobustOpts', 'Diagnostics', 'Parallel', 'GaussNewton'};
             d = lsqvce.Options.groupDefaults();

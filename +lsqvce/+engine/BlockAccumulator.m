@@ -184,6 +184,9 @@ classdef BlockAccumulator < handle
 %                                     fields
 %       lsqvce:accum:duplicateSystem  two systems share a sysID; ids must be
 %                                     unique and numeric or a SINGLE char
+%       lsqvce:accum:mixedIdTypes     numeric and character sysIDs mixed: one
+%                                     kind per accumulator (WP-135)
+%       lsqvce:accum:duplicateDay     a day list names a day twice (WP-135)
 %       lsqvce:accum:badLoader        a spec's loader is not a function handle
 %       lsqvce:accum:noArcs           a system declares no arcs
 %       lsqvce:accum:noDays           no day list and none derivable
@@ -245,6 +248,11 @@ classdef BlockAccumulator < handle
 %
 %   See also LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.RESIDUALS, LSQVCE.ENGINE.CHECKPSD, LSQVCE.ENGINE.QRSYSTEM
 %
+%   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3 findings 11, 12):
+%   addSystem / addSystems refuse a day list that names a day twice
+%   (lsqvce:accum:duplicateDay) and numeric next to character sysIDs
+%   (lsqvce:accum:mixedIdTypes) -- both were accumulated silently. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-133 (review 3 findings 3, 6, 14,
 %   17 and the solve-core lows): arc.excluded rows leave the count (dof live,
 %   excludedRows); Reg "tsvd" truncates (dof counts the kept rank) and
@@ -402,6 +410,9 @@ classdef BlockAccumulator < handle
                 error('lsqvce:accum:duplicateSystem', ...
                       'System %s has already been added.', string(sysID));
             end
+            oldIDs = {};
+            if ~isempty(obj.diag), oldIDs = {obj.diag.sysID}; end
+            lsqvce.engine.BlockAccumulator.checkSpec([oldIDs, {sysID}], sysID, dayList);
 
             out = lsqvce.engine.BlockAccumulator.processSystem(obj.nc, obj.backend, obj.opt, ...
                                                 sysID, nl, dataFcn, dayList);
@@ -456,6 +467,11 @@ classdef BlockAccumulator < handle
                     any(ismember(newIDs, oldIDs))
                 error('lsqvce:accum:duplicateSystem', ...
                       'Duplicate system IDs in specs or already added.');
+            end
+            allIDs = {specs.sysID};
+            if ~isempty(obj.diag), allIDs = [{obj.diag.sysID}, allIDs]; end
+            for s = 1:numel(specs)
+                lsqvce.engine.BlockAccumulator.checkSpec(allIDs, specs(s).sysID, specs(s).dayList);
             end
 
             mode = lower(obj.opt.Parallel);
@@ -1502,6 +1518,26 @@ classdef BlockAccumulator < handle
 
     %======================================================================
     methods (Static, Access = private)
+        function checkSpec(allIDs, sysID, dayList)
+        %CHECKSPEC  A system's id among all ids, and its day list (WP-135).
+        %   The ids are of ONE kind: [store.sysID] concatenates them, and a
+        %   char next to a number turned 3 into char(3) -- robust factors
+        %   went under keys the loader never reads (finding 12). Each day is
+        %   listed once: a repeated day was accumulated twice, silently --
+        %   x pulled toward it, sd too small, dof inflated (finding 11).
+        %   INPUT  allIDs 1xK cell; sysID 1x1; dayList 1xD
+            isNum = cellfun(@isnumeric, allIDs);
+            if any(isNum) && ~all(isNum)
+                error('lsqvce:accum:mixedIdTypes', ...
+                      ['System ids must be all numeric or all single characters ' ...
+                       '(system %s joins ids of the other kind).'], string(sysID));
+            end
+            if numel(unique(dayList(:))) < numel(dayList)
+                error('lsqvce:accum:duplicateDay', ...
+                      'System %s lists a day more than once in its day list.', string(sysID));
+            end
+        end
+
 
         %------------------------------------------------------------------
         function s = newSysFor(backend, n)
@@ -1643,7 +1679,7 @@ classdef BlockAccumulator < handle
             end
 
             dg = lsqvce.engine.localDiagnostics(Nll, opt);
-            [Nll_r, nl_r, dg] = lsqvce.engine.applyRegularisation(Nll, nl_rhs, dg, opt);
+            [Nll_r, nl_r, dg] = lsqvce.engine.applyRegularisation(Nll, nl_rhs, dg, opt, mObs, ltl);
 
             % R7 WP-112 (R7-03): on the QR backend an UNREGULARISED local block
             % is eliminated on the factor (QRSystem.reducedRows) -- the reduced

@@ -11,6 +11,11 @@ function tests = test_lsqvce_ext
 %   implementation against dense formulae, brute-force simulation, or sampling
 %   theory. They are measurements, not guesses.
 %
+%   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (third review, finding 19 and
+%   lane 1): the contamination ladder's n-dependent band, 'indeterminate',
+%   breakdown at n = 600, SNOOP_VACUOUS from the share of v'Pv, the mad
+%   replay's batchMismatch. With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
 
@@ -338,13 +343,19 @@ end
 
 function test_contamination_flag_fires(tc)
 % categories: robustness | tags: diagnostics
+    % WP-135 (review 3 finding 19): 10 % at n = 150 (it ran at n = 50, where 5
+    % of 50 residuals beyond 2.5 robust sigmas happen on CLEAN data in 2.1 % of
+    % draws -- the old band alarmed there, an ERROR at 2 % false alarms; the
+    % calibrated band holds 0.25 % and needs 8 of 50,
+    % dev/validation/wp135_contamination_mirror.py)
     rs = RandStream('mt19937ar','Seed',10000);
-    n = 50; u = 8;
+    n = 150; u = 8;
     A = randn(rs, n, u);
     xt = randn(rs, u, 1);
     p = ones(n,1);
     l = A*xt + randn(rs, n, 1);
-    l([6 13 15 20 43]) = l([6 13 15 20 43]) + 25;
+    bad = 6:10:n;                         % 15/150 = 10% contamination
+    l(bad) = l(bad) + 25;
 
     B = chop(A, l, p, 2);
     [~, D, V] = flatAdjust(u, srcOf(B), 2, 'verbose', false);
@@ -363,12 +374,13 @@ function test_contamination_flag_fires_without_bonferroni(tc)
     % branch of report, so 'bonferroni', false silenced it on exactly the data
     % above. It is a property of the scale, not of the test family size.
     rs = RandStream('mt19937ar','Seed',10000);
-    n = 50; u = 8;
+    n = 150; u = 8;                       % WP-135: n = 150, see test_contamination_flag_fires
     A = randn(rs, n, u);
     xt = randn(rs, u, 1);
     p = ones(n,1);
     l = A*xt + randn(rs, n, 1);
-    l([6 13 15 20 43]) = l([6 13 15 20 43]) + 25;
+    bad = 6:10:n;
+    l(bad) = l(bad) + 25;
 
     B = chop(A, l, p, 2);
     [~, ~, V] = flatAdjust(u, srcOf(B), 2, 'verbose', false, 'bonferroni', false);
@@ -513,8 +525,11 @@ function test_breakdown_detected_by_backstop(tc)
     % collapses to 0, because the MAD has adopted the blunders as its reference
     % population. Only the A PRIORI backstop still signals -- and it must,
     % otherwise the report would say "clean" at total breakdown.
+    % WP-135: at n = 600 -- fhat = 0 is a collapse only where clean data
+    % rarely show it (P(fhat = 0) <= 1 %: from n ~ 450; at n = 300 it is 4.6 %,
+    % and the level there is 'indeterminate', test_indeterminate_...)
     rs = RandStream('mt19937ar','Seed', 2200);
-    n = 300; u = 8;
+    n = 600; u = 8;
     A = randn(rs, n, u);  xt = randn(rs, u, 1);
     l = A*xt + randn(rs, n, 1);
     idx = randperm(rs, n, round(0.55*n));
@@ -524,10 +539,95 @@ function test_breakdown_detected_by_backstop(tc)
     [~, D] = flatAdjust(u, srcOf(B), 4, 'verbose', false);
 
     verifyEqual(tc, D.contamLevel, 'breakdown');
+    verifyTrue(tc, D.collapseDetectable);
     verifyLessThan(tc, D.fhat, 0.02, ...
         'fhat should have collapsed -- that is the signature');
     verifyGreaterThan(tc, D.backstop, 5, ...
         'the a-priori backstop must still be shouting');
+end
+
+function test_ladder_band_follows_n(tc)
+% categories: precision, robustness | tags: diagnostics
+    % WP-135 (review 3 finding 19): the band was calibrated at n ~ 300 and
+    % escalated n = 30 CLEAN data to severe / refuse in 3.1 % of fits. 4 of 30
+    % residuals beyond 2.5 robust sigmas (fhat 0.133) happen on clean data in
+    % 2.9 % of draws: the old band read 'severe' (an ERROR); the measured law
+    % (K negative binomial, mean 30 P (1 + 27/30), variance 1.69 x) puts the
+    % 0.25 % point at 6 of 30. Deterministic data: the normal quantiles, the
+    % two smallest and largest moved to -3.2 / 3.2, u = 1 (every row scored).
+    n = 30;
+    z = lsqvce.kernel.stat.normInv(((1:n).' - 0.5) / n);
+    z([1 2]) = -3.2;  z([n-1 n]) = 3.2;
+    B = chop(ones(n, 1), z, ones(n, 1), 2);
+    [~, D, V] = flatAdjust(1, srcOf(B), 2, 'verbose', false);
+    % tol: four of thirty counted, an exact share
+    verifyEqual(tc, D.fhat, 4 / 30, 'AbsTol', 1e-15);
+    verifyEqual(tc, D.fhatTol, 6 / 30, 'AbsTol', 1e-15);   % the law's 99.75 % point
+    verifyEqual(tc, D.contamLevel, 'clean');
+    codes = cellfun(@(f) f.code, V.findings, 'UniformOutput', false);
+    verifyFalse(tc, any(ismember({'SNOOP_CONTAMINATED', 'SNOOP_MODERATE'}, codes)));
+end
+
+function test_indeterminate_when_collapse_cannot_be_judged(tc)
+% categories: robustness, contract | tags: diagnostics
+    % WP-135 (review 3 finding 19): fhat = 0 with a large backstop read
+    % 'breakdown' at any n -- and fhat = 0 is what 44 % of clean samples of
+    % n = 60 show. A sigma0 declared 3.5x too small on CLEAN data then got
+    % "more than half the data are bad" (an ERROR) and snoop refused. Below
+    % n ~ 450 the two causes cannot be told apart: the level says so
+    % ('indeterminate', a WARN), and snoop runs. Deterministic data: the
+    % normal quantiles scaled by 3.5 against a declared sigma of 1.
+    n = 60;
+    z = 3.5 * lsqvce.kernel.stat.normInv(((1:n).' - 0.5) / n);
+    B = chop(ones(n, 1), z, ones(n, 1), 2);
+    src = srcOf(B);
+    [sol, D, V] = flatAdjust(1, src, 2, 'verbose', false);
+    verifyEqual(tc, D.fhat, 0);
+    verifyGreaterThan(tc, D.backstop, 3);
+    verifyFalse(tc, D.collapseDetectable);
+    verifyEqual(tc, D.contamLevel, 'indeterminate');
+    codes = cellfun(@(f) f.code, V.findings, 'UniformOutput', false);
+    verifyTrue(tc, ismember('SNOOP_INDETERMINATE', codes));
+    verifyFalse(tc, any(ismember({'SNOOP_BREAKDOWN', 'SNOOP_BACKSTOP'}, codes)));
+    [~, ~, REJ] = lsqvce.engine.verdict.snoop(sol, D, src, 'verbose', false);   % no refusal
+    verifyEmpty(tc, REJ.idx);
+end
+
+function test_snoop_vacuous_reads_the_share_of_vpv(tc)
+% categories: contract, robustness | tags: diagnostics
+    % WP-135 (review 3, lane 1): tau < sqrt(r) for every r > 1, so the old test
+    % kCrit >= sqrt(r) never fired. r = 5, n = 20, Bonferroni: kCrit = 2.218,
+    % a residual must carry 98 % of v'Pv to be flagged -- vacuous in practice.
+    rs = RandStream('mt19937ar', 'Seed', 135);
+    n = 20;  u = 15;
+    A = randn(rs, n, u);  l = A * randn(rs, u, 1) + randn(rs, n, 1);
+    B = chop(A, l, ones(n, 1), 2);
+    [~, D, V] = flatAdjust(u, srcOf(B), 2, 'verbose', false, 'test', 'pope');
+    % tol: kCrit^2 / r recombined from the stored fields
+    verifyEqual(tc, D.vacuityShare, D.kCrit^2 / D.r, 'RelTol', 1e-12);
+    verifyGreaterThan(tc, D.vacuityShare, 0.9);
+    verifyTrue(tc, D.snoopVacuous);
+    codes = cellfun(@(f) f.code, V.findings, 'UniformOutput', false);
+    verifyTrue(tc, ismember('SNOOP_VACUOUS', codes));
+end
+
+function test_mad_replay_mismatch_is_named(tc)
+% categories: contract | tags: diagnostics
+    % WP-135 (review 3, lane 1): a replay that serves fewer rows on the 'mad'
+    % path surfaced as noRobustScale ("cannot be formed"); it is batchMismatch.
+    rs = RandStream('mt19937ar', 'Seed', 136);
+    n = 60;  u = 3;
+    A = randn(rs, n, u);  l = A * randn(rs, u, 1) + randn(rs, n, 1);
+    B = chop(A, l, ones(n, 1), 2);
+    R = lsqvce.fit(struct('batchFcn', srcOf(B), 'numUnknowns', u, 'numBatches', 2), Verbose=false);
+    short = @(k) shortBatch(R.batchFcn, k);
+    verifyError(tc, @() lsqvce.engine.verdict.diagnose(R.source, short, 'nBatch', R.nBatch, ...
+                'test', 'mad'), 'lsqvce:diagnose:batchMismatch');
+end
+
+function [A, l, p] = shortBatch(f, k)
+    [A, l, p] = f(k);
+    if k == 1, A = A(1:end-1, :);  l = l(1:end-1);  p = p(1:end-1); end
 end
 
 function test_snoop_refuses_when_too_contaminated(tc)

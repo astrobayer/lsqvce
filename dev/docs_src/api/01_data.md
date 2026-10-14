@@ -19,7 +19,7 @@ ignored silently.
 | field | type / size | required | meaning |
 |---|---|---|---|
 | `commonParams` | cell R×C, C ≥ 1 | yes | the common parameter **templates** (below) |
-| `days` | double 1×D | unless every system has its own `days` | the default calendar: integer day identifiers (the loader cache is keyed on them) |
+| `days` | double 1×D | unless every system has its own `days` | the default calendar: integer day identifiers, each once (the loader cache is keyed on them; a repeated day is refused, `lsqvce:fit:duplicateDay`) |
 | `systems` | struct 1×M, M ≥ 1 | yes | one entry per observing system (below) |
 | `priors` | struct array | no | prior groups on the common parameters (chapter Priors) |
 | `paramColumns` | struct | no | which table columns hold a row's validity and its name (below) |
@@ -53,8 +53,8 @@ All entries share the same fields; fill an unused optional field with `[]`.
 | `covariance` | struct | *(required)* | one field per observation type holding a covariance spec (chapter Covariance specifications). **The fieldnames are the observation types**, in processing order; `buildDay` is called once per (day, type). |
 | `localParams` | cell R×C | `{}` | the local parameter templates (below); not declared → nl = 0 |
 | `arcs` | double, struct or function handle | *(none)* | the arc schedule (chapter `buildDay`); required only by `'arc'` template rows |
-| `days` | double 1×D | `data.days` | this system's calendar |
-| `id` | double scalar or single char | the index k | identifier, unique across systems |
+| `days` | double 1×D | `data.days` | this system's calendar: integers, each once (`lsqvce:fit:duplicateDay`) |
+| `id` | finite double scalar or single char | the index k | identifier, unique across systems; all ids of one kind -- numbers or characters (the index default is a number: give every system an id, or none; `lsqvce:fit:badId`) |
 | `name` | char / string | `''` | label used in reports |
 | `processingOptions` | struct | `struct()` | anything `buildDay` needs (paths, force models); its 5th argument |
 | `priors` | struct array | none | prior groups on this system's local parameters (chapter Priors) |
@@ -87,7 +87,7 @@ counts are an engine-tier feature (`lsqvce.engine.makeLoader` with `LocalsPerArc
 
 | field | meaning |
 |---|---|
-| `start`, `end` | the columns of both tables that hold a row's validity (`[MJD seconds]` pairs or fractional MJD; `[]` = always valid). A `'day'` / `'arc'` row is then instantiated only on calendar days its validity overlaps (start < d+1 and end > d); `'common'` / `'system'` rows are always present. |
+| `start`, `end` | the columns of both tables that hold a row's validity (`[MJD seconds]` pairs or fractional MJD; `[]` = always valid; any other entry, or a start after its end, is refused: `lsqvce:fit:badValidity`). A `'day'` / `'arc'` row is then instantiated only on calendar days its validity overlaps (start < d+1 and end > d); `'common'` / `'system'` rows are always present. |
 | `name` | the column holding a row's name, matched by the `group` field of a prior (default 2) |
 
 Without `paramColumns` every row is valid always. `buildDay`'s `info` then lists which

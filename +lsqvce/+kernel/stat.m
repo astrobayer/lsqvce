@@ -17,11 +17,15 @@ classdef stat
 %     tauCrit(alpha,r)      two-sided Pope tau critical value
 %     madCrit(alpha,r)      two-sided critical value of a residual scaled by
 %                           a MAD (Student t, nu = r/2; WP-128)
+%     tCrit(alpha,nu)       two-sided Student-t critical value (upper tail)
 %     normCrit(alpha)       two-sided normal critical value
 %     delta0(alpha,beta)    MDB non-centrality parameter
 %     fInv(p,d1,d2)         F quantile
 %
 %   All functions are elementwise where it makes sense and validate inputs.
+%   The two-sided critical values (normCrit, tCrit, tauCrit, madCrit) are
+%   formed from the upper tail, so they stay finite and exact for any alpha in
+%   (0, 1] -- a Bonferroni alpha / n below 1e-16 included (WP-135).
 %
 %   EXAMPLE
 %       lsqvce.kernel.stat.normCrit(1e-3)          % 3.2905  Baarda's threshold
@@ -40,6 +44,11 @@ classdef stat
 %
 %   See also LSQVCE.ENGINE.VERDICT.DIAGNOSE.
 %
+%   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lane 1): the
+%   critical values come from the upper tail (normCrit = -Phi^-1(alpha/2), the
+%   new tCrit); 1 - alpha/2 rounded to 1 below alpha ~ 1.1e-16 and Pope's tau
+%   came back NaN, Baarda's Inf -- the test switched itself off. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-132: chi2Inv converges in the
 %   far lower tail (a small-x seed, Newton on log F, a bracket). With
 %   assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -75,8 +84,10 @@ function z = normInv(p)
 end
 
 function k = normCrit(alpha)
-    % Two-sided critical value: P(|Z| > k) = alpha.
-    k = lsqvce.kernel.stat.normInv(1 - alpha / 2);
+    % Two-sided critical value: P(|Z| > k) = alpha. WP-135: from the upper
+    % tail, -Phi^-1(alpha/2) -- 1 - alpha/2 rounds to 1 below alpha ~ 1.1e-16
+    % and gave Inf (alpha 1e-16: Inf against the exact 8.29).
+    k = -lsqvce.kernel.stat.normInv(alpha / 2);
 end
 
 %% ------------------------------------------------------------ chi-square
@@ -225,6 +236,21 @@ function t = tInv(p, nu)
     t(act)  = tt;
 end
 
+function t = tCrit(alpha, nu)
+    %TCRIT  Two-sided Student-t critical value, P(|T| > t) = alpha, from the
+    %   upper tail (WP-135): P(|T| > t) = I_x(nu/2, 1/2), x = nu/(nu + t^2),
+    %   so x = betaincinv(alpha, nu/2, 1/2) -- no 1 - alpha/2, which rounds to
+    %   1 below alpha ~ 1.1e-16 (tInv then returned Inf, and Pope's tau NaN).
+    lsqvce.kernel.stat.mustBeProb(alpha, 'tCrit');
+    if any(nu(:) <= 0)
+        error('lsqvce:stat:badDof', 'tCrit: degrees of freedom must be > 0.');
+    end
+    [alpha, nu] = lsqvce.kernel.stat.expand(alpha, nu);
+    xb = betaincinv(alpha, nu ./ 2, 0.5);
+    xb = min(max(xb, realmin), 1);   % keep the sqrt real
+    t  = sqrt(nu .* (1 - xb) ./ xb);
+end
+
 %% ------------------------------------------------------------- Pope's tau
 function tc = tauCrit(alpha, r)
     %TAUCRIT  Two-sided critical value of Pope's tau distribution.
@@ -246,8 +272,10 @@ function tc = tauCrit(alpha, r)
     if ~any(act(:)), return; end
 
     ra = r(act);  aa = alpha(act);
-    t  = lsqvce.kernel.stat.tInv(1 - aa ./ 2, ra - 1);
-    tc(act) = t .* sqrt(ra) ./ sqrt(ra - 1 + t.^2);
+    t  = lsqvce.kernel.stat.tCrit(aa, ra - 1);
+    % t sqrt(r) / sqrt(r - 1 + t^2), written so that t^2 cannot overflow
+    % (WP-135: a tiny alpha gave Inf / Inf = NaN; the bound sqrt(r) is the limit)
+    tc(act) = sqrt(ra) ./ sqrt(1 + (ra - 1) ./ t.^2);
 end
 
 function k = madCrit(alpha, r)
@@ -270,7 +298,7 @@ function k = madCrit(alpha, r)
     [alpha, r] = lsqvce.kernel.stat.expand(alpha, r);
     k = inf(size(r));
     act = r > 1;
-    if any(act(:)), k(act) = lsqvce.kernel.stat.tInv(1 - alpha(act) ./ 2, r(act) / 2); end
+    if any(act(:)), k(act) = lsqvce.kernel.stat.tCrit(alpha(act), r(act) / 2); end
 end
 
 %% ------------------------------------------------------------------- MDB

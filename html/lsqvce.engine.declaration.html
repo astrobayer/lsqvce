@@ -64,6 +64,14 @@ ERRORS  lsqvce:fit:noSystems / noCommon / unknownField / badScope / badId /
 
 See also LSQVCE.FIT, LSQVCE.ENGINE.MAKELOADER, LSQVCE.RESULTS
 
+Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3 findings 11, 12 and
+the declaration lows): day lists are unique integers
+(lsqvce:fit:duplicateDay); the system ids are of one kind, &#x27;i&#x27; / &#x27;j&#x27; stay
+characters and a numeric id is finite (lsqvce:fit:badId); a system without
+its own days claims only data.days for the common &#x27;day&#x27; blocks; a common
+validity entry of another type, or a start after its end, is refused
+(lsqvce:fit:badValidity). With assistance from Claude (Anthropic), model
+Claude Opus 5.5.
 Updated 2026-10-13 (CEST, UTC+02:00), WP-131: a one-argument arc
 resolver @(day) works with day-scoped commonParams (it threw &quot;too many
 inputs&quot;). With assistance from Claude (Anthropic), model Claude Opus 5.5.

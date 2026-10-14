@@ -78,11 +78,13 @@ a 12.5% error in s0^2 -- easily enough to fail a global test that should
 have passed, and to send you hunting for outliers that do not exist.</pre>
 <h3>Input</h3>
 <pre class="example">N         u x u  numeric  the normal matrix (may be singular)
-varargin  Name/Value: &#x27;tol&#x27; (rank tolerance), &#x27;type&#x27; (&#x27;auto&#x27; | explicit)</pre>
+varargin  Name/Value: &#x27;datumB&#x27;, &#x27;tol&#x27;, &#x27;verbose&#x27; (the NAME-VALUE above)</pre>
 <h3>Output</h3>
 <pre class="example">B     u x k  numeric  basis of the null space -- the datum defect
-info  1x1    struct   .rank, .defect, .tol, .detected (true when the
-                      defect was found automatically rather than supplied)</pre>
+info  1x1    struct   .defect, .rank, .method (&#x27;user&#x27; | &#x27;auto&#x27; |
+                      &#x27;none&#x27;), .evRatio, .residual (OUTPUT info above;
+                      WP-135: the help named .tol, .detected and a
+                      &#x27;type&#x27; option that never existed)</pre>
 <h3>Example</h3>
 <pre class="example">% A levelling network measures only HEIGHT DIFFERENCES, so the overall
 % level is unobservable: exactly one datum defect.
@@ -121,6 +123,10 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 
 See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.ADJUSTBLOCK.
 
+Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lane 1): the INPUT /
+OUTPUT help names the real options and info fields (it named .tol, .detected
+and a &#x27;type&#x27; option that never existed). With assistance from Claude
+(Anthropic), model Claude Opus 5.5.
 Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): See also
 names the live accumulator and driver. With assistance from Claude
 (Anthropic), model Claude Opus 5.5.

@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-13 — WP-134 DONE (PR #159, merge ea31692; CI GREEN on ff1f0d1 in the first round: ci_gate 693/693, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.68; no code change, no version (6.21.0 stays, 705 tests); WP-135 (front end, loader, diagnostics) is next and closes the third review.
+Last substantive update: 2026-10-14 — WP-135 OPEN (tier B, model Claude Opus 5.5; the last package of the third review, the plan the user accepted with "Ja, mach WP-133 so wie vorgeschlagen", started after the closure #160): front end, loader and diagnostics -- repeated days and mixed id kinds refused, layout without localParams, local prior groups under the common prior's datum and no-rejection rules, the contamination ladder calibrated for every n from fhat's measured null law (user decision; 'indeterminate' where n cannot tell a captured scale from a sigma0 too small), gcvLambda the GCV of the data and a null-space RegMatrix, the critical values from the upper tail, SNOOP_VACUOUS from the share of v'Pv, the MDB under 'mad' labelled Baarda's (user decision), the joint robust report on R.sigma0; the loader and report lows; ~40 tests; version 6.22.0.
+Preceding entry: Last substantive update: 2026-10-13 — WP-134 DONE (PR #159, merge ea31692; CI GREEN on ff1f0d1 in the first round: ci_gate 693/693, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.68; no code change, no version (6.21.0 stays, 705 tests); WP-135 (front end, loader, diagnostics) is next and closes the third review.
 Preceding entry: Last substantive update: 2026-10-13 — WP-134 OPEN (tier B, model Claude Opus 5.5; the plan the user accepted with "Ja, mach WP-133 so wie vorgeschlagen", started after the closure #158): the noise estimator and the kernel of the third whole-code review -- a common prior with estimate "scale" is in the stop rule (PriorDev; pending until its first update), the probe uses acc.commonFactor() (not chol of the squared normals), a filter law's dense form is guarded by maxDenseArc (and the Manual corrected), the robust scale's near-tie reference is the 75th percentile, VAR(1) declarable, SkipThreshold per stream, an arc without redundancy held; the lows (armaACV to its decay, VAR(0), crossCorr, ar2arma, acf per-row sigma, uneven grid, Sigma2_0, AvgTail, jointModelOpt pass/factors, robust sweep without prior arcs, seedUsed, se for one probe, the per-group Hutchinson check, smallGroups, vce:badAccFcn); 19 tests; version 6.21.0; WP-135 next.
 Preceding entry: Last substantive update: 2026-10-13 — WP-133 DONE (PR #157, merge 6c24668; CI GREEN on 5eedff9 in round 4, after three red rounds on c111b16 / 8185116 / de70381, every cause in WP-133's own code: ci_gate 674/674); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.68; no code change, no version (6.20.0 stays, 686 tests); WP-134 (VCE + kernel) is next, WP-135 (front end, loader, diagnostics) after it.
 Preceding entry: Last substantive update: 2026-10-13 — third whole-code review (correctness and missing tests; six lane reviewers against v6.19.0, every finding re-checked: 1 high + 19 medium + ~50 low, §12.68); WP-133 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-133 so wie vorgeschlagen"): the solve core, robust and Gauss-Newton -- a row of weight 0 is no observation (out of the dof, "rejected" in the verdict; weights >= 0 and finite), the nugget whitener rotates a deleted epoch onto its own rows, adjustRobust's replay is the returned solve's, tsvd truncates and a ridge counts m - u + tr(Q Lambda) without its penalty, Gauss-Newton's residuals at the estimate and a non-finite trial step rejected, the joint hard solution's truncation reaches residuals, a sparse B, a rank-0 local block, a prior without redundancy, a zero prior row, a coupled LocalBlockSize; 9 tests; version 6.20.0; WP-134 (VCE + kernel) and WP-135 (front end, loader, diagnostics) planned.
@@ -9802,7 +9803,7 @@ by WP-132: `dev/validation/wp132_chi2inv_mirror.py`, `wp132_arc_component_mirror
 |----|-------|-----------|--------|
 | 133 | review 3 findings 2, 3, 4, 6, 14, 17, 18 and the solve-core lows: rows of weight 0 out of the dof and "rejected" in the verdict (`arc.excluded`: `makeLoader` day field and robust / epoch factor 0, `batchSystem` p = 0; `QRSystem`/`NormalEqSystem.discount`, `BlockAccumulator.excludedRows`; `residuals`, `redundancy`, `streamContribution`, `verdict.source` p = 0, `diagnose` `D.excludedIdx` / `D.quad.rejected`, `snoop`, `Results.reliability`, `report`); weights >= 0 and finite; the nugget whitener's deletion rotation (`covModel>nuggetRows`); `adjustRobust` `copyMap`; tsvd truncation, ridge dof and penalty (`regularisationDefect`, `ridgePenalty`, `sol.regDefect`); Gauss-Newton `sol.xLin` and `trialAccumulate`; joint `hardSolution` `sol.truncation`; full factors in `BlockCofactor`/`rankReduced`; `onFactor` (rank-0 block); `noRedundancy`; `zeroRow`; `notBlockDiagonal`; `decorrFactor` help (lower triangular); **version 6.20.0** | 132 (PR #155 merged 019c839; closure #156) | DONE (2026-10-13, PR #157, merge 6c24668; CI GREEN on 5eedff9 in round 4: ci_gate 674/674) |
 | 134 | review 3 findings 1, 7, 8, 9, 10, 15, 20 and the VCE / kernel lows (finding 8: a named refusal above `maxDenseArc` and the Manual corrected -- user decision; a structured sweep path would be its own WP): `adjustVCEjoint` PriorDev / `probeFactor` / `skipGuard` / AvgTail per group / Sigma2_0 values / robust sweep without `prior_*` arcs; `fit>priorFor` dev and pending; `covModel` guarded dense form, VAR(1), acf per-row sigma, arma scalar sigma, `unevenGrid`; `arcVarianceFactors` `.held`; `robustWeights` 75th-percentile reference and tuning; `armaACV` to its decay and `truncated`; `varACV` p = 0; `crossCorr:badLength`; `ar2arma` normalised; `jointModelOpt` .pass / .epochWeights (fit>withPass gone); `streamContribution` .seedUsed, se NaN for one probe; `redundancy` per-group Hutchinson check, `.smallGroups`; `vce:badAccFcn` reachable; **version 6.21.0** | 133 (PR #157 merged 6c24668) | DONE (2026-10-13, PR #159, merge ea31692; CI GREEN on ff1f0d1 in the first round: ci_gate 693/693) |
-| 135 | review 3 findings 5, 11, 12, 13, 16, 19 and the front-end / loader / diagnostics lows (finding 19: an n-dependent recalibration of the contamination ladder, a measurement; the MDB under the MAD test labelled the Baarda value -- user decisions) | 134 (PR #159 merged ea31692) | PLANNED |
+| 135 | review 3 findings 5, 11, 12, 13, 16, 19 and the front-end / loader / diagnostics lows (finding 19: an n-dependent recalibration of the contamination ladder, a measurement; the MDB under the MAD test labelled the Baarda value -- user decisions): `declaration` / `BlockAccumulator` day lists and id kinds; `localColumns` empty plan; `makeLoader` buildDay wrapper, prior from / names, static arcs, validity types; `fit>priorFor` final pass; `Options` Whitener; `synthLoader` robust factors; `verdict` local prior datum rows / priorRows / snoopScope, `contaminationOf` (fhat's null law), vacuityShare, truncation, rediagnoseNV / accOpt, systematic over data rows, ftest r; `stat.tCrit` and the upper-tail critical values; `gcvLambda` (data GCV, standard form); `report` SNOOP_INDETERMINATE, Baarda label, advice per loop; `Results` convergence / compare / noHistory; `outliers.mask`; **version 6.22.0** | 134 (PR #159 merged ea31692) | OPEN (2026-10-14, tier B) |
 
 **The user's request (2026-10-13):** "REVIEW THE ENTIRE CODE FOR correctness and missing tests", then
 "Ja, mach WP-133 so wie vorgeschlagen" -- the plan and the four proposals of the review report accepted:
@@ -10093,3 +10094,117 @@ each finding with a test that fails on the old code; recorded, not changed: `red
 an approximation. OPEN: WP-135 (front end, loader, diagnostics: findings 5, 11, 12, 13, 16, 19 and
 their lows, `outliers.mask` among them) -- the last package of the third review. Mirror added by
 WP-134: `dev/validation/wp134_kernel_mirror.py`.
+
+### WP-135, finding by finding (2026-10-14, model Claude Opus 5.5)
+
+**Start.** Tier B: no MATLAB in the container; the numerical claims rest on the review's mirrors
+(lane 1, lane 2, lane 4 in the session scratchpad), on the mirrors this package commits under
+`dev/validation/` and on CI. Scope frozen on the review record above -- the last package of the third
+review: findings 5, 11, 12, 13, 16, 19 and the front-end, loader and diagnostics lows of lanes 1 and 4,
+plus `outliers.mask` (lane 6). Already closed elsewhere and NOT repeated: lane 4's zero / negative
+weights (finding 17, WP-133), SkipThreshold per stream (finding 15, WP-134); lane 1's regularised
+local dof (finding 6, WP-133) and robust-rejected rows (finding 14, WP-133). Lane 4's low 20 (the joint
+robust REPORT's s0) was listed here as closed by finding 18 -- wrong on reading the code: WP-133 gave the
+truncation to `residuals`, not to `diagnose`; it is taken here (see below). User decisions carried in: finding 19 is an n-dependent recalibration of the
+contamination ladder (a measurement, mirrored before the code changes); the MDB under the MAD test is
+labelled the Baarda (known-sigma) value in the report, not recomputed. Frozen list:
+- loader / declaration: 11 duplicate days refused (`fit:duplicateDay`, `accum:duplicateDay`); 12 one
+  id kind per declaration (`fit:badId`, `accum:mixedIdTypes`), 'i' / 'j' stay characters, a numeric id
+  finite; 13 `layout` without `localParams`; `makeLoader:buildDay` raised with the day and stream as
+  the cause wrapper, `badArcId` out of the help; local prior groups: duplicate obsTypes refused, `from`
+  validated, the final solve's activation `<=`; a system without own `days` claims only `data.days`;
+  `Noise.Whitener` validated and lowercased once; validity entries of an unsupported type refused;
+  static `arcs` id vectors unique; `synthLoader` applies the robust row / epoch factors.
+- diagnostics: 5 local prior rows -- a local datum in `D.datumRows`, a local prior row never a snoop
+  candidate; 19 the ladder's fhat credibility n-dependent; the stat tail from the upper tail
+  (alphaEff < 1e-16); `snoopVacuous` a practical criterion; `compare` on `D.rank` / `D.r`;
+  `systematic` without prior rows; snoop's re-diagnosis keeps the caller's options; `scanWorst` on
+  `rMin`; dead code and help (`badTest`, `storeNone`, `Ck`, `nBatch`, the ftest upper tail, `datum`'s
+  help, `localDiagnostics` rankDef); `outliers.mask` a logical mask.
+- 16 `gcvLambda`: the GCV functional of the data (m, l'l), the grid from the finite generalised
+  eigenvalues.
+- Results / report: `convergence().converged`; NOISE_UNSETTLED advice per driver, `convergence()` on
+  IRLS / Gauss-Newton results; documents (local prior sigma relative, one-row group, the Manual on
+  snoop, "diverged" in the stopReason lists, the convergence plot's label, `summary`'s sigma, the
+  arity retry of `callUser`).
+
+**11 / 12 -- the declaration.** `declaration>dayListOf`: `data.days` and every `systems(k).days` are
+integers, each once (`lsqvce:fit:duplicateDay`; a repeated day was accumulated twice). `oneIdKind`: the
+resolved ids are all numbers or all characters (`lsqvce:fit:badId`, naming the index default); `idValue`
+keeps 'i' / 'j' characters (they parsed as 1i), a numeric id is finite. The accumulator guards both for
+the engine tier (`BlockAccumulator>checkSpec`: `lsqvce:accum:duplicateDay`, `lsqvce:accum:mixedIdTypes`)
+-- the concatenation `[store.sysID]` is where the kinds collided.
+
+**13 -- layout.** `localColumns([])` is the 0 x 1 table; `layout` takes nl from the loader.
+
+**5 -- local prior groups.** `verdict.source` lists the local groups' pseudo-arcs
+(`diagSol.localPriorBatches`). `diagnose` replays only those batches before the pass (`localDatumOf`):
+a row with r_i <= 1e-6 is a datum row -- not tested, not counted, Bonferroni's n without it,
+`D.datumRows` (a true datum's r is 0 to rounding, ~1e-11 on the factor, ~1e-7 on squared normals; a
+prior 1e6 times stronger than the data along its row is a constraint in practice). Every prior row is
+listed (`D.priorRows`, mapped by `toOriginalIndex`). snoop (`snoopScope`) never takes a prior batch as a
+candidate, common or local, counts the local datum rows like the common ones, and takes candidates
+above `D.rMin` (scanWorst used 1e-6: an uncontrolled row could be the worst and stop the snooping as
+lowRedundancy). The re-solve maps the local prior batches into its new order (`blockResolveAccumulator`
+returns `order`). `systematic` leaves `D.priorRows` out of the sequences and accepts a covariate over the
+data rows.
+
+**19 -- the contamination ladder (user decision: a measurement).** Mirror
+`dev/validation/wp135_contamination_mirror.py` (the diagnose port, 6000-20000 clean draws per n): the mean
+of fhat is P (1 + 27/n) and the count K = n fhat is over-dispersed by a constant 1.30^2 for n = 20..2000,
+so K is negative binomial (mean mu, variance 1.69 mu); P(fhat = 0) agrees with the law to 0.01 at every
+n. `contaminationOf` (lifted out of diagnose): `D.fhatTol` = the law's 99.75 % point (false alarms
+0.06-0.25 % measured, it was 3.2 % at n = 30), `fhatCollapsed` = P(K <= n fhat) <= 1 %,
+`D.collapseDetectable` = P(K = 0) <= 1 % (from n ~ 450). Order: breakdown (big backstop AND collapsed),
+clean (fhat in the band, whatever the backstop), 'indeterminate' (in the band, big backstop, collapse
+undetectable: WARN SNOOP_INDETERMINATE, snoop runs), refuse / severe / moderate. Measured before -> after:
+n = 30 clean any alarm 3.25 % -> 0.18 %; sigma 3.5x off 'breakdown' 48.5 % -> 0 % (n = 500: 7.6 % ->
+0.6 %). **The price, stated:** below n ~ 200 a 10 % contamination is no longer flagged by the gauge (5
+of 50 beyond 2.5 robust sigmas happen on clean data in 2.1 % of draws -- the old band alarmed there as an
+ERROR); the w-test still sees the blunders themselves. `test_contamination_flag_fires` (and its
+no-Bonferroni twin) moved from n = 50 to n = 150 (10 %, detectable), `test_breakdown_detected_by_backstop`
+from n = 300 to 600 (fhat = 0 is 4.6 % of clean samples at 300). A follow-up the record keeps: a
+magnitude gauge (the share beyond ~5 robust sigmas) would detect gross contamination at small n without
+the false alarms -- not built here.
+
+**MDB under 'mad' (user decision).** `report` REL_HEAD says that the MDB, the envelope and the external
+reliability are the Baarda values under Test "mad" (+50 % at n = 30, +25 % at n = 50, +6 % at n = 200 for
+the t(r/2) threshold, lane 1's port); not recomputed.
+
+**16 -- gcvLambda.** Mirror `dev/validation/wp135_gcv_mirror.py`: the GCV of the local problem
+||B y - l||^2 + lambda ||L y||^2, (rss_perp + sum (b^2/d) f^2) / (m - nl + sum f)^2, with m and l'l from
+the pre-elimination (`applyRegularisation(..., mObs, ltl)`); the commons at their a-priori values. The
+standard form: null(L) eliminated like a common (a Schur step), on the complement L'L = diag(e) and one
+symmetric eig -- the eps ridge's Cholesky form corrupted the finite eigenvalues (one negative for a PSD N)
+besides the grid. Curve = dense GCV to 1e-9 up to cond 1e10, the same grid point for L = I, a first
+difference and a subset; the old choice's |y - y_true| was 9 to 2770. `gcvLambda:qzFallback` is gone
+(no Cholesky pencil left); `gcvLambda:badData`, `nullUnobserved` new.
+
+**Diagnostics lows.** `stat.tCrit` and `normCrit` from the upper tail (tauCrit, madCrit, delta0 finite at
+alpha 1e-17, references from scipy); `D.vacuityShare = kCrit^2 / r`, SNOOP_VACUOUS from 0.9; `compare` /
+`ftest` on the solve's rank and r; snoop's re-diagnosis keeps Store / NWorst / RobustCheck
+(`rediagnoseNV`), its re-solve the solve's Backend and Reg (`diagSol.accOpt`); `diagSol.truncation` /
+`D.truncation`: the joint robust report's s0, chi^2 and scaled column on R.sigma0; the dead badTest branch,
+`storeNone` and the inv(P) diagonal removed; the mad replay mismatch is batchMismatch; the ftest p-value
+from betainc's upper tail; `datum`'s help; `localDiagnostics` rankDef of a zero block; `outliers.mask`
+logical. Recorded, not changed: `datum`'s rankDeficientB tolerance (lane 1, low).
+
+**Front end and loader lows.** `makeLoader>callBuildDay` raises `lsqvce:makeLoader:buildDay` (day, stream,
+the user's error as the cause); `badArcId` out of fit's help; local prior `from` and duplicate streams
+(`badPrior`); `toMjd` / `declaration>mjdOf` refuse other types and a start after its end
+(`lsqvce:fit:badValidity`); static arc ids checked (`badArcs`); `calendarDayHasArcs` takes a system without
+days to data.days; `Options` validates `Noise.Whitener` (`badWhitener`), fit lowercases it; `synthLoader`
+refuses robust factors (`robustFactors`) rather than copy makeLoader's application; the closing solve's
+`model.final` lets a "scale" group from the last pass take its update; `R.convergence().converged` reads
+R.converged; NOISE_UNSETTLED per loop and noHistory names IRLS / Gauss-Newton; the documents (local prior
+sigma relative, the one-row group, the Manual on snoop, "diverged", the plot label, `summary`'s sigma,
+`callUser`'s probe limitation).
+
+**Gates (tier B).** Audit CLEAN (`audit_tree.py`), selftest green; ceilings lowered (diagnose 452,
+snoop 227, report 527 -- the contamination blocks lifted into `contaminationOf` /
+`contaminationFindings`); registries: 8 ids added, `diagnose:badTest` and `gcvLambda:qzFallback` removed,
+4 unfired ids now fired, 5 stale exemptions deleted; 727 tests (CI 715). Prediction for CI: every new test
+passes; the risk points are the RNG-free contamination cases (checked in the port), the joint robust
+D.s0 = R.sigma0 assertion (D.r against sol.dof) and the final-pass prior test (the loop must not settle on
+pass 1).
+

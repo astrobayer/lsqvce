@@ -17,6 +17,12 @@ function [nOut, varargout] = callUser(fh, minOut, maxOut, ctx, varargin)
 %        0-output hook is probed for free. The call's outputs are RETURNED, so the trial is
 %        never wasted, and the caller stores nOut and passes minOut == maxOut
 %        == nOut from then on (no probing ever again).
+%        LIMITATION: the trial cannot tell where the arity identifier came
+%        from. An anonymous handle whose BODY raises one of the four (a
+%        hook calling a function with too many outputs) is called again
+%        with fewer outputs -- its side effects run twice (WP-135, review
+%        3 lane 4). Give such a hook a named function, whose nargout is
+%        asked, not probed.
 %     2. ANY OTHER exception inside the user's function is re-raised as
 %        lsqvce:callUser:threw with the call context in the message and the
 %        user's exception attached UNMODIFIED as the cause (ME.cause{1}), so
@@ -54,6 +60,10 @@ function [nOut, varargout] = callUser(fh, minOut, maxOut, ctx, varargin)
 %
 %   See also NARGOUT, LSQVCE.ENGINE.MAKELOADER
 %
+%   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lane 4): the
+%   probe's limitation documented (a body raising an arity identifier is
+%   called twice). With assistance from Claude (Anthropic), model Claude
+%   Opus 5.5.
 %   Created 2026-09-02 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.1 -- R5 Level M1, WP-80.
 

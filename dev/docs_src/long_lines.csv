@@ -11,7 +11,6 @@
 +lsqvce/+engine/arcVarianceFactors.m,1
 +lsqvce/+engine/checkPSD.m,1
 +lsqvce/+engine/declaration.m,1
-+lsqvce/+engine/gcvLambda.m,1
 +lsqvce/+engine/makeLoader.m,15
 +lsqvce/+engine/mapreduce.m,2
 +lsqvce/+engine/outliers.m,2
