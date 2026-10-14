@@ -1,26 +1,48 @@
-function [lam, gcv, grid] = gcvLambda(N, n, L)
+function [lam, gcv, grid] = gcvLambda(N, n, L, m, ltl)
 %LSQVCE.ENGINE.GCVLAMBDA  Generalised cross-validation choice of the Tikhonov weight.
 %
-%   lam = LSQVCE.ENGINE.GCVLAMBDA(N, n, L) minimises the GCV functional over a log grid,
-%   for the regularised problem (N + lambda*L'*L) y = n.
+%   lam = LSQVCE.ENGINE.GCVLAMBDA(N, n, L, m, ltl) minimises the GCV functional
+%   (Golub, Heath & Wahba 1979) of the local least-squares problem
+%       min ||B y - l||^2 + lambda ||L y||^2,   N = B'B, n = B'l, ltl = l'l,
+%   over a log grid:
+%       G(lambda) = ||B y_lambda - l||^2 / (m - tr H_lambda)^2.
+%   The commons enter at their a-priori values (x = 0 of the linearised
+%   problem): lambda is chosen per system, before x is known.
 %
 %   [lam, gcv, grid] = LSQVCE.ENGINE.GCVLAMBDA(...) also returns the GCV curve, so you
 %   can check that the minimum is a real trough and not a grid endpoint.
 %
 %   INPUT
-%     N   nl x nl  local normal matrix (symmetric positive semidefinite)
-%     n   nl x 1   local right-hand side
-%     L   nl x nl  regularisation matrix (default identity)
+%     N    nl x nl  local normal matrix B'B (symmetric positive semidefinite)
+%     n    nl x 1   local right-hand side B'l
+%     L    q x nl   regularisation matrix ([] = identity); it may have a null
+%                   space (a first difference, a subset): those directions
+%                   are fitted freely at every lambda
+%     m    1x1      rows of the local problem (whitened observations)
+%     ltl  1x1      l'l of the whitened observations
 %
 %   OUTPUT
 %     lam   scalar   selected weight
 %     gcv   ng x 1   GCV functional over the grid
-%     grid  ng x 1   the lambda grid (80 points, log-spaced)
+%     grid  ng x 1   the lambda grid (80 points, log-spaced over the
+%                    eigenvalues of the penalised part, 1e-12 * max .. max)
 %
 %   METHOD
-%     Uses the generalised eigendecomposition of (N, L'*L), which diagonalises
-%     both matrices simultaneously, so every lambda on the grid costs O(nl)
-%     instead of a fresh factorisation.
+%     The standard form (Elden 1977): the eigenvectors of L'L split nl into
+%     null(L) (eigenvalues below 1e3 nl eps |L'L|) and its complement W. The
+%     null(L) part is unpenalised and eliminated like a common (a Schur step
+%     on N, n and l'l); on W, L'L = diag(e), and one symmetric eig of
+%     diag(e)^-1/2 N_W diag(e)^-1/2 = Q diag(d) Q' diagonalises the rest. With
+%     b = Q' diag(e)^-1/2 n_W and f = lambda ./ (d + lambda):
+%         ||B y - l||^2 = rss_perp + sum (b.^2 ./ d) .* f.^2,
+%         tr H          = nl - sum f,
+%     rss_perp the unregularised residual. Every lambda costs O(nl).
+%
+%   ACCURACY
+%     The curve equals the dense GCV (direct solves of N + lambda L'L) to
+%     1e-9 relative up to cond(N) ~ 1e10 and selects the same grid point, for
+%     L = I, a first difference and a subset
+%     (dev/validation/wp135_gcv_mirror.py).
 %
 %   WHEN GCV FAILS
 %     GCV assumes the residuals are white. After only approximate whitening
@@ -35,60 +57,95 @@ function [lam, gcv, grid] = gcvLambda(N, n, L)
 %     inherit that drift as a spurious time signal.
 %
 %   EXAMPLE
-%     [lam, gcv, grid] = lsqvce.engine.gcvLambda(Nll, nl, eye(size(Nll,1)));
+%     B = [ones(50,1), (1:50).'/50];  l = B*[1; 2] + 0.1*randn(50,1);
+%     [lam, gcv, grid] = lsqvce.engine.gcvLambda(B.'*B, B.'*l, [], 50, l.'*l);
 %     loglog(grid, gcv); xline(lam,'r--'); xlabel('\lambda'); ylabel('GCV');
+%
+%   ERRORS
+%     lsqvce:gcvLambda:badData    m is not an integer > nl, or ltl is not a
+%                                 finite scalar >= 0
+%     lsqvce:gcvLambda:nullUnobserved  the data do not determine a direction
+%                                 of null(L): no lambda regularises it
 %
 %   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 %     lsqvce:gcv:atLowerBound                    [warning] GCV selected the smallest lambda on the grid (X), i.e
 %     lsqvce:gcv:atUpperBound                    [warning] GCV selected the largest lambda on the grid (X)
-%     lsqvce:gcv:degenerate                      [warning] The local block has no positive generalised eigenvalue; lambda = 0
-%     lsqvce:gcvLambda:qzFallback                [warning] eig(N, L'L, 'chol') failed (X); using the QZ form
+%     lsqvce:gcv:degenerate                      [warning] L penalises no direction, or the data none; lambda = 0
 %
 %   See also LSQVCE.ENGINE.APPLYREGULARISATION
 %
+%   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3 finding 16): the
+%   GCV of the local least-squares problem (it minimised ||f.*b||^2/(sum
+%   f)^2 of N y = n, as if N were the design: |y - y_true| 9 to 2770 times the
+%   GCV choice's), with m and l'l from the pre-elimination; the standard form
+%   for a RegMatrix with a null space (the eps ridge put the whole grid above
+%   1e3 |N| and corrupted the finite eigenvalues); the QZ fallback is gone
+%   (one symmetric eig). With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
 %   WP-64a): the ENGINE tier leaves the USER surface; every qualified
 %   reference was rewritten mechanically by docs_src/refactor_tiers.py.
 
-    narginchk(2,3);
+    narginchk(5,5);
     nlp = size(N,1);
-    if nargin < 3 || isempty(L), L = eye(nlp); end
+    if isempty(L), L = eye(nlp); end
 
     validateattributes(N, {'double'}, {'2d','square','finite'}, mfilename, 'N', 1);
     validateattributes(n, {'double'}, {'vector','finite','numel',nlp}, mfilename, 'n', 2);
+    if ~(isnumeric(m) && isscalar(m) && isfinite(m) && m == round(m) && m > nlp) || ...
+            ~(isnumeric(ltl) && isscalar(ltl) && isfinite(ltl) && ltl >= 0)
+        error('lsqvce:gcvLambda:badData', ...
+              'm must be an integer > nl (%d) and ltl a finite scalar >= 0.', nlp);
+    end
+    m = double(m);  ltl = double(ltl);
 
     N   = (N + N.')/2;
     LtL = L.'*L;
-    LtL = (LtL + LtL.')/2 + eps*eye(nlp);       % guarantee PD for the chol form
-
-    try
-        [V, D] = eig(N, LtL, 'chol');
-    catch ME
-        % The Cholesky form needs an SPD L'L; when it is not (numerically),
-        % the QZ form is the exact same problem solved more slowly -- a named,
-        % reported fallback, not a silent one (R5 M1).
-        lsqvce.util.log.warn('lsqvce:gcvLambda:qzFallback', ...
-            'eig(N, L''L, ''chol'') failed (%s); using the QZ form.', ME.identifier);
-        [V, D] = eig(N, LtL);
-    end
-    d = real(diag(D));
-    b = real(V.') * n(:);
-
-    dmax = max(d);
-    if ~isfinite(dmax) || dmax <= 0
+    [U, e] = eig((LtL + LtL.')/2, 'vector');
+    e = real(e);  U = real(U);
+    emax = max([e; 0]);
+    pen = e > 1e3 * nlp * eps * emax;          % tol: eig(L'L) is exact to ~nl eps |L'L|
+    if emax <= 0 || ~any(pen)
         lsqvce.util.log.warn('lsqvce:gcv:degenerate', ...
-            'The local block has no positive generalised eigenvalue; lambda = 0.');
+            'L penalises no direction, or the data none; lambda = 0.');
         lam = 0;  gcv = [];  grid = [];
         return
     end
+    W = U(:, pen);  Z = U(:, ~pen);  sc = 1 ./ sqrt(e(pen));
+    Nw = W.'*N*W;  nw = W.'*n(:);
+    if ~isempty(Z)                              % null(L): fitted freely -- a Schur step
+        [cz, p] = chol(Z.'*N*Z);
+        if p ~= 0
+            error('lsqvce:gcvLambda:nullUnobserved', ...
+                  ['The data do not determine a direction L leaves unpenalised: no ' ...
+                   'lambda regularises it. Penalise it (extend L) or remove it.']);
+        end
+        G  = cz.' \ (Z.'*N*W);                % cz' \ Nzw
+        g  = cz.' \ (Z.'*n(:));
+        Nw = Nw - G.'*G;  nw = nw - G.'*g;  ltl = ltl - g.'*g;
+    end
+    S = sc .* Nw .* sc.';
+    [Q, d] = eig((S + S.')/2, 'vector');
+    d = real(d);  b = real(Q).' * (sc .* nw);
+    dmax = max(d);
+    if ~(dmax > 0)
+        lsqvce.util.log.warn('lsqvce:gcv:degenerate', ...
+            'L penalises no direction, or the data none; lambda = 0.');
+        lam = 0;  gcv = [];  grid = [];
+        return
+    end
+    ok = d > nlp * eps * dmax;                  % identified by the data
+    q  = zeros(size(d));  q(ok) = b(ok).^2 ./ d(ok);
+    rssPerp = max(ltl - sum(q), 0);             % the unregularised residual
 
     grid = logspace(log10(dmax*1e-12), log10(dmax), 80).';
     gcv  = zeros(size(grid));
     for k = 1:numel(grid)
-        f      = grid(k) ./ (d + grid(k));       % residual filter factors
-        gcv(k) = norm(f.*b)^2 / max(sum(f)^2, realmin);
+        f = ones(size(d));                      % an unidentified direction: fully damped
+        f(ok) = grid(k) ./ (d(ok) + grid(k));   % residual filter factors
+        gcv(k) = (rssPerp + sum(q .* f.^2)) / max((m - nlp + sum(f))^2, realmin);
     end
 
     [~, k] = min(gcv);

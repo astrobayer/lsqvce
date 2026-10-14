@@ -21,6 +21,14 @@ function [spec, systems] = declaration(data, cacheDays)
 %
 %   See also LSQVCE.FIT, LSQVCE.ENGINE.MAKELOADER, LSQVCE.RESULTS
 %
+%   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3 findings 11, 12 and
+%   the declaration lows): day lists are unique integers
+%   (lsqvce:fit:duplicateDay); the system ids are of one kind, 'i' / 'j' stay
+%   characters and a numeric id is finite (lsqvce:fit:badId); a system without
+%   its own days claims only data.days for the common 'day' blocks; a common
+%   validity entry of another type, or a start after its end, is refused
+%   (lsqvce:fit:badValidity). With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: a one-argument arc
 %   resolver @(day) works with day-scoped commonParams (it threw "too many
 %   inputs"). With assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -81,10 +89,7 @@ function spec = validateData(data)
     % ---- days
     days = [];
     if isfield(data, 'days') && ~isempty(data.days)
-        days = double(data.days(:).');
-        if ~all(isfinite(days) & days == round(days))
-            error('lsqvce:fit:noDays', 'data.days must be numeric integers (the loader cache is keyed on them).');
-        end
+        days = dayListOf(data.days, 'data.days');
     end
 
     % ---- systems
@@ -120,16 +125,19 @@ function spec = validateData(data)
         end
         if isfield(s, 'id') && ~isempty(s.id)
             id = s.id;
-            if ~((isnumeric(id) && isscalar(id)) || (ischar(id) && isscalar(id)) || ...
+            if ~((isnumeric(id) && isscalar(id) && isreal(id) && isfinite(id)) || ...
+                 (ischar(id) && isscalar(id)) || ...
                  (isstring(id) && isscalar(id) && strlength(id) == 1))
                 error('lsqvce:fit:badId', ...
-                    'data.systems(%d).id must be a numeric scalar or a single character.', k);
+                    'data.systems(%d).id must be a finite numeric scalar or a single character.', k);
             end
             ids{k} = char(string(id));
         else
             ids{k} = char(string(k));               % the index default
         end
-        if isempty(days) && ~(isfield(s, 'days') && ~isempty(s.days))
+        if isfield(s, 'days') && ~isempty(s.days)
+            dayListOf(s.days, sprintf('data.systems(%d).days', k));
+        elseif isempty(days)
             error('lsqvce:fit:noDays', ...
                 'no day list: set data.days or data.systems(%d).days.', k);
         end
@@ -138,6 +146,7 @@ function spec = validateData(data)
         error('lsqvce:fit:duplicateSystem', ...
             'system ids must be unique across data.systems (explicit ids and index defaults share one namespace).');
     end
+    oneIdKind(ids, arrayfun(@(t) isfield(t, 'id') && ~isempty(t.id), sys));
     spec = struct('commonParams', {data.commonParams}, 'days', days, ...
                   'systems', sys, 'ids', {ids});
     spec.validityColumns = [];
@@ -193,7 +202,7 @@ function plan = buildCommonPlan(spec)
         for i = 1:D
             rows = iDay(arrayfun(@(r) valid(r, cal(i)), iDay));
             dayRowsOf{i} = rows;
-            if calendarDayHasArcs(spec.systems, cal(i)) && ~isempty(rows)
+            if calendarDayHasArcs(spec.systems, cal(i), spec.days) && ~isempty(rows)
                 dayOffset(i) = off;  dayCount(i) = numel(rows);
                 off = off + numel(rows);
             end
@@ -204,19 +213,24 @@ function plan = buildCommonPlan(spec)
                   'rows', struct('common', iCommon, 'day', iDay), 'dayRowsOf', {dayRowsOf});
 end
 
-function tf = calendarDayHasArcs(sys, day)
+function tf = calendarDayHasArcs(sys, day, globalDays)
 %CALENDARDAYHASARCS  Does at least one system's SCHEDULE carry an arc on DAY?
 %   Mirrors the engine's arc resolution on the declared forms (count; id
 %   vector; per-type struct; @(day,obsType) resolver) -- resolvable pre-run
 %   by contract. A system WITHOUT a schedule (v6, R6 WP-102: the cells its
 %   buildDay returns are its arcs) claims every day of its calendar -- the
 %   calendar is the declaration, and a day that then returns no data is
-%   refused at its 'meta' probe (lsqvce:makeLoader:emptyDay).
+%   refused at its 'meta' probe (lsqvce:makeLoader:emptyDay). A system
+%   without its own days reads data.days only (buildSystems), so it claims
+%   no other day (WP-135: it claimed every calendar day, and a 'day' block
+%   nobody observed made the solve singular).
     tf = false;
     for k = 1:numel(sys)
         s = sys(k);
-        if isfield(s, 'days') && ~isempty(s.days) && ~any(double(s.days) == day)
-            continue                                   % this system skips the day
+        if isfield(s, 'days') && ~isempty(s.days)
+            if ~any(double(s.days) == day), continue, end   % this system skips the day
+        elseif ~any(globalDays == day)
+            continue                                   % its loader reads data.days only
         end
         if ~isfield(s, 'arcs') || isempty(s.arcs)
             tf = true;  return                         % no schedule: the calendar is
@@ -240,6 +254,42 @@ function tf = calendarDayHasArcs(sys, day)
                 end
             end
         end
+    end
+end
+
+function days = dayListOf(v, where)
+%DAYLISTOF  A declared day list: numeric integers, each day ONCE (WP-135,
+%   finding 11 of the third review: a repeated day was accumulated twice,
+%   silently -- x pulled toward it, sd too small, dof inflated by its rows).
+%   INPUT  v 1xD numeric; where 1xN char (the field, for the message)
+%   OUTPUT days 1xD double
+    days = double(v(:).');
+    if ~isnumeric(v) || ~all(isfinite(days) & days == round(days))
+        error('lsqvce:fit:noDays', '%s must be numeric integers (the loader cache is keyed on them).', where);
+    end
+    [u, ~, j] = unique(days);
+    if numel(u) < numel(days)
+        twice = u(accumarray(j(:), 1) > 1);
+        error('lsqvce:fit:duplicateDay', ...
+            '%s lists day %d more than once; every listing would be accumulated.', where, twice(1));
+    end
+end
+
+function oneIdKind(ids, explicit)
+%ONEIDKIND  The system ids of a declaration are of ONE kind (WP-135, finding
+%   12): the accumulator concatenates them ([store.sysID]), and a character
+%   next to a number turned the number into a control character -- robust
+%   factors went under keys the loader never reads, reported as applied.
+%   INPUT  ids 1xM cellstr (resolved); explicit 1xM logical (id declared)
+    isNum = cellfun(@(c) isnumeric(idValue(c)), ids);
+    if any(isNum) && ~all(isNum)
+        kc = find(~isNum, 1);  kn = find(isNum, 1);
+        how = '';
+        if ~explicit(kn), how = ' (its index default: it declares no id)'; end
+        error('lsqvce:fit:badId', ...
+            ['system ids must be all numbers or all single letters: data.systems(%d) has ' ...
+             'the id ''%s'', data.systems(%d) the number %s%s. Give every system an id ' ...
+             'of one kind.'], kc, ids{kc}, kn, ids{kn}, how);
     end
 end
 
@@ -311,7 +361,7 @@ function v = idValue(idChar)
 %   char is a number ('1' -> 1, index defaults and explicit numerics), the
 %   single char otherwise ('C' -> 'C').
     n = str2double(idChar);
-    if isscalar(idChar) && isnan(n)
+    if isscalar(idChar) && (isnan(n) || ~isreal(n))    % WP-135: 'i' / 'j' parse as 1i
         v = idChar;
     else
         v = n;
@@ -331,12 +381,25 @@ function f = commonValidity(tbl, valCols)
     n = size(tbl, 1);  t0 = -inf(n, 1);  t1 = inf(n, 1);
     for r = 1:n
         a = tbl{r, valCols(1)};  b = tbl{r, valCols(2)};
-        if ~isempty(a), t0(r) = mjdOf(a); end
-        if ~isempty(b), t1(r) = mjdOf(b); end
+        if ~isempty(a), t0(r) = mjdOf(a, r); end
+        if ~isempty(b), t1(r) = mjdOf(b, r); end
+        if t0(r) > t1(r)                  % WP-135: the row silently never existed
+            error('lsqvce:fit:badValidity', ...
+                  'data.commonParams row %d: validity start %g is after end %g.', r, t0(r), t1(r));
+        end
     end
     f = @(row, day) t0(row) < day + 1 && t1(row) > day;
 end
 
-function m = mjdOf(v)
-    if isscalar(v), m = double(v); else, m = double(v(1)) + double(v(2)) / 86400; end
+function m = mjdOf(v, r)
+%MJDOF  A validity entry as fractional MJD, the loader's rule (WP-135: a char
+%   was read by its code points, a longer vector by its first two elements).
+    if isnumeric(v) && ~any(isnan(v(:))) && isscalar(v)
+        m = double(v);
+    elseif isnumeric(v) && ~any(isnan(v(:))) && numel(v) == 2
+        m = double(v(1)) + double(v(2)) / 86400;
+    else
+        error('lsqvce:fit:badValidity', ['data.commonParams row %d: a validity entry ' ...
+              'must be [], a fractional MJD, or [MJD seconds].'], r);
+    end
 end

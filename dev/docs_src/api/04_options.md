@@ -61,7 +61,7 @@ is merged onto the defaults; an unknown field is refused
 | field | default | meaning |
 |---|---|---|
 | `Grid` | 60 | spectral bins of the estimated law between 0 and Nyquist (its resolution), an integer ≥ 2; the law is exact at every lag of every arc whatever the Grid |
-| `Whitener` | `"toeplitz"` | how every `psd` law (the estimated one and the declared ones) whitens an arc: exact Toeplitz Cholesky over the whole arc, or a fitted AR / ARMA filter (`"ar"`, `"arma"`) |
+| `Whitener` | `"toeplitz"` | how every `psd` law (the estimated one and the declared ones) whitens an arc: exact Toeplitz Cholesky over the whole arc, or a fitted AR / ARMA filter (`"ar"`, `"arma"`; any case; another value is refused, `lsqvce:Options:badWhitener`) |
 | `Smooth` | 0 | moving-average half-width on the estimated spectrum (0 = none) |
 | `FreezeRedundancy` | 1 | a bin whose redundancy is below this keeps its value instead of being updated |
 | `SkipThreshold` | 0.2 | the share of skipped arcs of a stream above which a pass is refused |

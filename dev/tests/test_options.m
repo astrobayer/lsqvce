@@ -12,6 +12,8 @@ function tests = test_options
 %
 %   See also LSQVCE.OPTIONS, LSQVCE.FIT, TEST_FIT
 %
+%   Updated 2026-10-14 (CEST, UTC+02:00), WP-135: Noise.Whitener validated in
+%   any case. With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: fit's pairs override opts
 %   field by field. With assistance from Claude (Anthropic), model Claude
 %   Opus 5.5.
@@ -61,6 +63,18 @@ function testTypedRefusalsAtAssignment(tc)
     tc.verifyError(@() lsqvce.Options(Backend="lu"),     'MATLAB:validators:mustBeMember');
     tc.verifyError(@() lsqvce.Options(Verbose=7),        'lsqvce:Options:badVerbose');
     tc.verifyError(@() lsqvce.Options(Noise=struct('Grid', "lots")), 'lsqvce:Options:badGrid');
+end
+
+function testWhitenerIsValidatedInAnyCase(tc)
+% categories: contract, robustness
+    % WP-135 (review 3, lane 4): Noise.Whitener was forwarded raw -- "AR"
+    % worked under Estimate "none" and died mid-run under "noise"
+    % (jointModelOpt's mustBeMember), "foo" ran until an engine refused it.
+    tc.verifyError(@() lsqvce.Options(Noise=struct('Whitener', "foo")), 'lsqvce:Options:badWhitener');
+    tc.verifyError(@() lsqvce.Options(Noise=struct('Whitener', 3)), 'lsqvce:Options:badWhitener');
+    o = lsqvce.Options(Noise=struct('Whitener', "AR"));
+    a = o.engineArgs('adjustBlock');
+    tc.verifyEqual(a.nv{find(strcmp(a.nv(1:2:end), 'PsdMode')) * 2}, "ar");
 end
 
 function testGroupMergeOntoDefaults(tc)

@@ -34,7 +34,9 @@ function out = outliers(acc, sol, opt)
 %                        blunder there is INVISIBLE. This is a design weakness
 %                        in the observation geometry, not a data problem.
 %     out.byGroup        count per group
-%     out.mask           @(sysID,obsType,day,arc) -> logical mask for the loader
+%     out.mask           @(sysID,obsType,day,arc) -> m_arc x 1 logical, true on
+%                        the arc's flagged rows (all false: none flagged; []:
+%                        an arc the redundancy pass did not see)
 %
 %   THE UNTESTABLE OBSERVATIONS MATTER
 %     If r_i ~ 0 the observation is not checked by any other -- an error in it
@@ -70,6 +72,9 @@ function out = outliers(acc, sol, opt)
 %   model Claude Fable 5.
 %   See also LSQVCE.ENGINE.REDUNDANCY, LSQVCE.ENGINE.BLOCKCOFACTOR, LSQVCE.ENGINE.VCE
 %
+%   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lane 6): out.mask
+%   returns the arc's logical mask (it returned row indices). With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3 (R7-24): See also
 %   names lsqvce.engine.BlockCofactor (leverage retired). With assistance
 %   from Claude (Anthropic), model Claude Opus 5.5.
@@ -106,6 +111,7 @@ end
 
     F = struct([]);
     nUn = 0;
+    masks = containers.Map('KeyType','char','ValueType','any');   % WP-135: per arc
     keyCount = containers.Map('KeyType','char','ValueType','double');
 
     for k = 1:numel(red.obs)
@@ -120,6 +126,8 @@ end
         w(testable) = abs(vi(testable)) ./ sqrt(ri(testable));
 
         idx = find(w > o.threshold);
+        mk = false(numel(vi), 1);  mk(idx) = true;
+        masks(lsqvce.util.rowWeightKey(e.sysID, e.day, e.obsType, e.arc)) = mk;
         for j = idx(:).'
             rec = struct('sysID',e.sysID, 'obsType',e.obsType, 'day',e.day, ...
                          'arc',e.arc, 'idx',j, 'w',w(j), 'v',vi(j), ...
@@ -135,7 +143,7 @@ end
     out = struct('flagged', F, 'nFlagged', numel(F), 'nUntestable', nUn, ...
                  'threshold', o.threshold, 'byGroup', keyCount, ...
                  'red', red);
-    out.mask = @(s,ot,d,a) buildMask(F, s, ot, d, a);
+    out.mask = @(s,ot,d,a) maskOf(masks, s, ot, d, a);
 
     if lsqvce.util.verbosity.progress(o.verbose)
         lsqvce.util.log.msg('%s%d flagged at w > %.2f   (%d untestable, r_i < %.3f)\n', lsqvce.util.verbosity.banner('Data snooping'), ...
@@ -149,11 +157,12 @@ end
 end
 
 %==========================================================================
-function m = buildMask(F, s, ot, d, a)
-%BUILDMASK  Logical rejection mask for one arc, for the loader to apply.
+function m = maskOf(masks, s, ot, d, a)
+%MASKOF  The logical rejection mask of one arc (true = flagged), for the loader
+%   to apply; [] for an arc the redundancy pass did not see. WP-135 (review 3,
+%   lane 6): it returned the flagged ROW INDICES while documented as a logical
+%   mask -- a loader applying ~mask kept the wrong rows.
     m = [];
-    if isempty(F), return, end
-    hit = arrayfun(@(f) isequal(f.sysID,s) && strcmp(char(string(f.obsType)), ...
-                       char(string(ot))) && isequal(f.day,d) && isequal(f.arc,a), F);
-    m = [F(hit).idx];
+    key = lsqvce.util.rowWeightKey(s, d, ot, a);
+    if isKey(masks, key), m = masks(key); end
 end

@@ -7,6 +7,10 @@ function tests = test_lsqvce
 %   independent implementation of the same algorithms against dense textbook
 %   formulae and against Monte-Carlo sampling theory. They are not guesses.
 %
+%   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (third review, lane 1): the
+%   critical values in the far tail (alpha 1e-17; tau's bound sqrt(r) is
+%   attained in floating point at 1e-300, so <=). With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
 
@@ -184,6 +188,32 @@ function test_madCrit_is_student_t_on_half_the_redundancy(tc)
     verifyGreaterThan(tc, lsqvce.kernel.stat.madCrit(2e-5, 42), lsqvce.kernel.stat.tauCrit(2e-5, 42));
     verifyGreaterThan(tc, lsqvce.kernel.stat.madCrit(2e-5, 42), lsqvce.kernel.stat.normCrit(2e-5));
     verifyEqual(tc, lsqvce.kernel.stat.madCrit(1e-3, 1), Inf, 'no redundancy: nothing is testable');
+end
+
+function test_critical_values_hold_in_the_far_tail(tc)
+% categories: precision, reference, robustness
+    % WP-135 (review 3, lane 1): the critical values are formed from the upper
+    % tail. 1 - alpha/2 rounds to 1 below alpha ~ 1.1e-16 (a Bonferroni
+    % alpha / n at n ~ 1e13, or Alpha = 1e-8 at n = 1e8): normCrit and madCrit
+    % came back Inf, Pope's tau NaN (Inf / Inf) -- the test switched itself off.
+    % Reference values: scipy.stats (norm.isf, t.isf; tau = sqrt(r) /
+    % sqrt(1 + (r-1)/t^2)) at alpha = 1e-17.
+    % tol: 1e-9 relative -- erfcinv / betaincinv invert to ~1e-12 in the far
+    % tail; scipy agrees to rounding
+    a = 1e-17;
+    verifyEqual(tc, lsqvce.kernel.stat.normCrit(a), 8.573944076720883, 'RelTol', 1e-9);
+    verifyEqual(tc, lsqvce.kernel.stat.tCrit(a, 29), 18.704488771359433, 'RelTol', 1e-9);   % tol: as above
+    verifyEqual(tc, lsqvce.kernel.stat.tauCrit(a, 30), 5.26342326817721, 'RelTol', 1e-9);  % tol: as above
+    verifyEqual(tc, lsqvce.kernel.stat.madCrit(a, 30), 47.18282507188198, 'RelTol', 1e-9); % tol: as above
+    % tol: delta0's bisection stops at 1e-12 absolute
+    verifyEqual(tc, lsqvce.kernel.stat.delta0(a, 0.20), 9.415565310293797, 'AbsTol', 1e-9);
+    % the bound, finite: at 1e-300, (r-1)/t^2 ~ 1e-150 and tau rounds to sqrt(5)
+    tauFar = lsqvce.kernel.stat.tauCrit(1e-300, 5);
+    verifyTrue(tc, isfinite(tauFar));
+    verifyLessThanOrEqual(tc, tauFar, sqrt(5));
+    % the textbook value is unchanged by the upper-tail form
+    % tol: two exact forms of the same quantile, rounding only
+    verifyEqual(tc, lsqvce.kernel.stat.normCrit(1e-3), 3.2905267314918945, 'RelTol', 1e-14);
 end
 
 %% ================================================ accumulator

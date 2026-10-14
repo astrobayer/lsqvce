@@ -222,6 +222,9 @@ lsqvce.util.log.msg(&#x27;sigma0 = %.4f (want ~1)\n&#x27;, sol.sigma0);</pre>
                                   fields
     lsqvce:accum:duplicateSystem  two systems share a sysID; ids must be
                                   unique and numeric or a SINGLE char
+    lsqvce:accum:mixedIdTypes     numeric and character sysIDs mixed: one
+                                  kind per accumulator (WP-135)
+    lsqvce:accum:duplicateDay     a day list names a day twice (WP-135)
     lsqvce:accum:badLoader        a spec&#x27;s loader is not a function handle
     lsqvce:accum:noArcs           a system declares no arcs
     lsqvce:accum:noDays           no day list and none derivable
@@ -283,6 +286,11 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 
 See also LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.RESIDUALS, LSQVCE.ENGINE.CHECKPSD, LSQVCE.ENGINE.QRSYSTEM
 
+Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3 findings 11, 12):
+addSystem / addSystems refuse a day list that names a day twice
+(lsqvce:accum:duplicateDay) and numeric next to character sysIDs
+(lsqvce:accum:mixedIdTypes) -- both were accumulated silently. With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-13 (CEST, UTC+02:00), WP-133 (review 3 findings 3, 6, 14,
 17 and the solve-core lows): arc.excluded rows leave the count (dof live,
 excludedRows); Reg &quot;tsvd&quot; truncates (dof counts the kept rank) and

@@ -37,6 +37,13 @@ classdef verdict
 %
 %   See also LSQVCE.RESULTS, LSQVCE.REPORT, LSQVCE.ENGINE.BLOCKCOFACTOR, LSQVCE.KERNEL.STAT
 %
+%   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3 findings 5, 19 and
+%   the diagnostics lows): local prior groups get the datum rule and the no-
+%   rejection rule; the contamination ladder is calibrated for every n;
+%   snoopVacuous is a practical criterion; systematic leaves the priors' rows
+%   out; snoop keeps the caller's options. CI round: P(K = 0) of the ladder's
+%   null law is the closed form at every n (the normal limit read an empty
+%   table). With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Created 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 4 (user decision:
 %   the full absorption): diagnoseAccum, diagnose, snoop, systematic, ftest
 %   and ellipse are this class's static methods, their bodies unchanged but
@@ -86,7 +93,10 @@ function [diagSol, batchFcn, nBatch] = source(acc, sol)
 %                 weight 0, which batchFcn replays with p = 0;
 %                 datumRows: the prior's datum rows, WP-127;
 %                 prior / priorBatch: the CommonPrior and its batch index, 0
-%                 without one, WP-128); Q is the
+%                 without one, WP-128; localPriorBatches: the batches of
+%                 the local prior groups' pseudo-arcs, accOpt: the solve's
+%                 Backend / Reg options for snoop's re-solve, truncation: a
+%                 hard robust solution's tau (1 otherwise), WP-135); Q is the
 %                 LSQVCE.ENGINE.BLOCKCOFACTOR of the full parameter set
 %       batchFcn  @(k) -> [A, l, p]   the k-th WHITENED batch (one arc), unit
 %                 weight, p = 0 on the arc's excluded rows (WP-133)
@@ -161,6 +171,11 @@ function [diagSol, batchFcn, nBatch] = source(acc, sol)
 %   See also LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SNOOP, LSQVCE.REPORT, LSQVCE.ENGINE.REDUNDANCY,
 %   LSQVCE.ENGINE.BLOCKCOFACTOR
 %
+%   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3 finding 5, lane 1):
+%   diagSol.localPriorBatches (a local prior group's rows: a datum in
+%   diagnose, never a snoop candidate) and diagSol.accOpt (snoop re-solves
+%   with the solve's Backend and Reg). With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: the rows of weight 0
 %   (arc.excluded) are replayed with p = 0 and leave r (diagSol.nExcluded);
 %   r adds a regularised local block's defect. With assistance from Claude
@@ -299,7 +314,11 @@ function [diagSol, batchFcn, nBatch] = source(acc, sol)
         'nBatch', nBatch, ...
         'nExcluded', nExcl, ...
         'datumRows', datumRowsOf(acc, n), ...
-        'prior', {acc.prior}, 'priorBatch', nBatch * ~isempty(acc.prior));   % WP-128: snoop re-solves with it
+        'prior', {acc.prior}, 'priorBatch', nBatch * ~isempty(acc.prior), ...   % WP-128: snoop re-solves with it
+        'localPriorBatches', find(startsWith(index(:, 3), 'prior_')), ...   % WP-135: the local groups' arcs
+        'truncation', lsqvce.util.getfielddef(sol, 'truncation', 1), ...   % WP-135: a hard robust solution's tau
+        'accOpt', struct('Backend', acc.backend, 'Reg', acc.opt.Reg, 'RegLambda', acc.opt.RegLambda, ...
+                         'RegMatrix', acc.opt.RegMatrix, 'TruncTol', acc.opt.TruncTol));   % WP-135: snoop's re-solve
 
     % ---- batchFcn: replay the k-th whitened batch --------------------------
     % A local function (not deal) so a caller may take 1, 2, or 3 outputs:
@@ -349,7 +368,7 @@ function D = diagnose(sol, batchFcn, opt)
 %                   the same as Options.Diagnostics.RMin -- R7-35)
 %     'rWeak'       redundancy below which an observation is flagged as
 %                   weakly controlled                        (default 0.10)
-%     'test'        'auto' | 'pope' | 'baarda'   (default 'auto')
+%     'test'        'auto' | 'pope' | 'baarda' | 'mad'   (default 'auto')
 %                   'baarda' assumes sigma0 is known a priori; 'pope'
 %                   studentises with the estimated s0. 'auto' picks pope,
 %                   because in practice sigma0 is essentially never known.
@@ -402,14 +421,13 @@ function D = diagnose(sol, batchFcn, opt)
 %       % Dm.mdb        -> largest error that could hide in each observation
 %
 %   ERRORS
-%     lsqvce:diagnose:nBatch          nBatch disagrees with what the solve used
+%     lsqvce:diagnose:nBatch          nBatch not given and sol carries none
 %     lsqvce:diagnose:batchMismatch   batchFcn returned DIFFERENT data on this
 %                                     second pass. It is called twice -- once to
 %                                     accumulate, once to diagnose -- and must
 %                                     be deterministic
 %     lsqvce:diagnose:badPmatrix      a full weight matrix where a diagonal was
 %                                     expected
-%     lsqvce:diagnose:badTest         'test' is not 'auto', 'pope' or 'baarda'
 %     lsqvce:diagnose:noRobustScale   a robust scale was requested but the
 %                                     residuals cannot support one
 %
@@ -421,6 +439,16 @@ function D = diagnose(sol, batchFcn, opt)
 %   See also LSQVCE.ENGINE.VERDICT.SOURCE, LSQVCE.REPORT, LSQVCE.ENGINE.VERDICT.SNOOP,
 %   LSQVCE.ENGINE.BLOCKCOFACTOR.
 %
+%   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3 findings 5, 19, lane
+%   1): a local prior group's row with r_i <= 1e-6 is a datum row (D.datumRows,
+%   not tested or counted; it made the verdict SUSPECT); D.priorRows; the
+%   contamination ladder from fhat's measured null law at every n (D.fhatTol,
+%   D.collapseDetectable, the level 'indeterminate' -- n = 30 clean data raised
+%   severe in 3 %, a sigma0 3.5x too small read 'breakdown' in 50 %);
+%   D.snoopVacuous from kCrit^2 / r >= 0.9 (D.vacuityShare; the old test could
+%   not fire); a mad replay that differs is batchMismatch; the dead badTest
+%   branch and the unused inv(P) diagonal removed. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-133 (review 3 finding 14): a row
 %   of weight 0 is "rejected" -- not tested, not counted, its own quadrant
 %   (D.quad.rejected, D.excludedIdx); a robust fit's rejections were
@@ -509,7 +537,16 @@ rdf = sol.r;                          % redundancy = n - u
 % rejection, a zero data weight) are not observations either -- not tested,
 % not in sum(r) or nTests; sol.r already leaves them out (sol.nExcluded)
 exIdx = lsqvce.util.getfielddef(sol, 'datumRows', zeros(0, 1));
-nTest = n - numel(exIdx) - lsqvce.util.getfielddef(sol, 'nExcluded', 0);
+% WP-135 (review 3 finding 5): a LOCAL prior group's rows ride as pseudo-arcs
+% of their system (sol.localPriorBatches). A row the data cannot see is a
+% datum like the common prior's (WP-127): r_i = 0 by construction, and it was
+% counted as an uncontrolled observation (REL_UNCONTROLLED, verdict SUSPECT).
+% Found before the pass -- the prior batches are cheap -- so Bonferroni's n
+% is right; tol: r_i <= 1e-6 -- a true datum's r is 0 to rounding (~1e-11 on
+% the factor, ~1e-7 on squared normals), and a prior a million times
+% stronger than the data along its row is a constraint in practice.
+[locDatum, nLocDatum] = localDatumOf(batchFcn, Q, lsqvce.util.getfielddef(sol, 'localPriorBatches', []));
+nTest = n - numel(exIdx) - nLocDatum - lsqvce.util.getfielddef(sol, 'nExcluded', 0);
 alphaEff = o.alpha;
 if o.bonferroni
     alphaEff = o.alpha / max(nTest, 1);
@@ -537,24 +574,26 @@ switch testName
         % computed kCrit separately and so structurally could not see it.
         % Caught only by finally running the suite in MATLAB.
         kCrit = lsqvce.kernel.stat.madCrit(alphaEff, rdf);
-    case 'baarda'
+    otherwise   % 'baarda' -- the arguments block admits nothing else (WP-135:
+                % the unknown-test error branch here was unreachable)
         kCrit = lsqvce.kernel.stat.normCrit(alphaEff);
-    otherwise
-        error('lsqvce:diagnose:badTest', ...
-              'Unknown test "%s". Use pope, baarda or mad.', testName);
 end
 delta0 = lsqvce.kernel.stat.delta0(alphaEff, o.beta);
 
-% Pope's tau is bounded by sqrt(rdf). Under a hard Bonferroni correction the
-% requested critical value can exceed that bound, in which case NO residual can
-% ever be flagged and the snooping is vacuous. Say so rather than silently
-% returning an empty outlier list.
+% Pope's tau is bounded by sqrt(rdf): under a hard Bonferroni correction on a
+% weak network the critical value creeps up to that bound, and the snooping
+% becomes vacuous. Say so rather than silently returning an empty outlier
+% list. WP-135 (review 3, lane 1): tauCrit < sqrt(r) for every r > 1, so the
+% old test kCrit >= sqrt(r) could never fire. The practical measure: a
+% residual of full redundancy (r_i = 1) is flagged only if it carries
+% kCrit^2 / r of v'Pv; from 90 % on only a blunder that dominates the whole
+% adjustment can be seen (r = 5, n = 20: 98 %; r = 10, n = 40: 87 %).
 tauBound = sqrt(rdf);
-snoopVacuous = strcmp(testName, 'pope') && kCrit >= tauBound;
+vacuityShare = kCrit^2 / max(rdf, 1);
+snoopVacuous = strcmp(testName, 'pope') && (rdf <= 1 || vacuityShare >= 0.9);
 
 % ---------------------------------------------------------- allocate output
-storeAll = strcmpi(o.store, 'all');
-storeNone = strcmpi(o.store, 'none');
+storeAll = strcmpi(o.store, 'all');   % 'none' stores what 'flagged' does
 if storeAll
     v_all  = zeros(n, 1);
     r_all  = zeros(n, 1);
@@ -572,6 +611,10 @@ nSeen      = 0;
 
 % Streaming collectors that never grow with n
 flagIdx = [];  flagW = [];  flagR = [];  flagV = [];  flagMDB = [];  exclIdx = zeros(0, 1);
+locIdx = zeros(0, 1);                          % WP-135: the local prior groups' datum rows
+priIdx = zeros(0, 1);                          % WP-135: every prior row (systematic leaves them out)
+priBatches = [reshape(lsqvce.util.getfielddef(sol, 'priorBatch', 0), [], 1); ...
+              reshape(lsqvce.util.getfielddef(sol, 'localPriorBatches', []), [], 1)];
 worstW  = -inf(min(o.nWorst, n), 1);
 worstI  = zeros(numel(worstW), 1);
 
@@ -660,6 +703,7 @@ end
 robustScale = NaN;
 madAvailable = false;
 fhat = NaN;
+nScored = 0;
 % WP-121 (the residue §12.48 recorded): for every test but 'mad' the scale the
 % classification needs is known before the sweep (s0, or the a-priori sigma0),
 % so the raw scores are formed IN the main pass from its own (P Qvv P)_ii and
@@ -707,13 +751,19 @@ if strcmp(testName, 'mad')
         % WP-130: a datum row (r = 0, qpk ~ +-eps) is no score -- as in the
         % fused path (WP-127), or its near-zero raw value pulls the MAD down
         good = qpk > 0 & ~ismember(pos + (1:nk).', exIdx);
+        if isKey(locDatum, k), good = good & ~locDatum(k); end   % WP-135
         rk_ = zeros(nk, 1);
         rk_(good) = Pvk(good) ./ sqrt(qpk(good));
         rawAll(pos + (1:nk)) = rk_;
         pos = pos + nk;
     end
 
-    [robustScale, madAvailable, fhat] = robustScaleOf(rawAll, pos == n);
+    if pos ~= n          % WP-135: a replay that differs is batchMismatch, not noRobustScale
+        error('lsqvce:diagnose:batchMismatch', ...
+            ['The second pass replayed %d observations but the accumulator saw ' ...
+             '%d. batchFcn must reproduce the SAME batches in the SAME order.'], pos, n);
+    end
+    [robustScale, madAvailable, fhat, nScored] = robustScaleOf(rawAll, true);
 end
 
 if strcmp(testName, 'mad')
@@ -795,6 +845,11 @@ for k = 1:nB
     % --- residuals
     vk = Ak * x - lk;
     ex = ismember(nSeen + (1:nk).', exIdx);   % the prior's datum rows (WP-127)
+    if ismember(k, priBatches), priIdx = [priIdx; nSeen + (1:nk).']; end   %#ok<AGROW> prior rows
+    if isKey(locDatum, k)                      % a local prior group's datum rows (WP-135)
+        ex = ex | locDatum(k);
+        locIdx = [locIdx; nSeen + find(locDatum(k))];   %#ok<AGROW> a handful of rows
+    end
     rej = false(nk, 1);  if ~isCorr, rej = pk == 0; end   % WP-133: the rows of weight 0
     exclIdx = [exclIdx; nSeen + find(rej)];  ex = ex | rej;   %#ok<AGROW> neither is tested or counted
 
@@ -809,10 +864,8 @@ for k = 1:nB
         qpp = diag(Pk) - sum(WG.^2, 1).';
         % Pv, the numerator of the generalised statistic
         Pvk = Pk * vk;
-        % sigma_i of the OBSERVATION (for the MDB) is sqrt of the diagonal of
-        % the covariance = inv(P). We need only the diagonal, so solve once.
-        Ck    = Pk \ eye(nk);
-        sig_i = sqrt(max(diag(Ck), 0));
+        % (WP-135: the inv(P) diagonal formed here -- O(nk^3) -- went unused
+        % since WP-131's MDB delta0 / sqrt(qpp); removed)
     else
         qx  = sum(W.^2, 1).';          % a_i' Qxx a_i
         qv  = 1 ./ pk - qx;
@@ -1050,7 +1103,7 @@ if nSeen ~= n
          nSeen, n);
 end
 if fuseRobust
-    [robustScale, madAvailable, fhat] = robustScaleOf(rawAll, true);
+    [robustScale, madAvailable, fhat, nScored] = robustScaleOf(rawAll, true);
 end
 
 % ============================================================ integrity check
@@ -1075,10 +1128,15 @@ D.vPv          = vPv_direct;          % the trustworthy one
 D.vPvAccum     = sol.vPv;             % what the accumulator reported
 D.vPvSource    = sol.vPvSource;
 D.vPvRelDiff   = vPvRel;
-D.s0sq         = s0sq_direct;
-D.s0           = sqrt(max(s0sq_direct, 0));
+% WP-135 (review 3, lane 4): a joint robust run's hard solution corrects its
+% s0^2 for the truncation of the rejected epochs (sol.truncation = tau,
+% adjustVCEjoint>hardSolution; WP-133 gave it to residuals) -- the report's
+% s0, its chi^2 test and the scaled PAR_TABLE column read R.sigma0 / sqrt(tau)
+D.truncation   = lsqvce.util.getfielddef(sol, 'truncation', 1);
+D.s0sq         = s0sq_direct / D.truncation;
+D.s0           = sqrt(max(D.s0sq, 0));
 D.sigma0       = sol.sigma0;
-D.varRatio     = s0sq_direct / sol.sigma0^2;
+D.varRatio     = D.s0sq / sol.sigma0^2;
 D.s0Fallback   = s0Fallback;
 
 % --- robust scale and the contamination symptom
@@ -1142,80 +1200,15 @@ end
 % model, so 3 sigma is a fair "this is not sampling noise" line.
 D.backstopTol = 1 + 3 / sqrt(max(2 * rdf, 1));
 
-% ---- fhat's NULL DISTRIBUTION -------------------------------------------
-% fhat counts residuals beyond 2.5 robust sigmas, so on PERFECTLY CLEAN data it
-% does not go to zero -- it goes to the tail mass of the normal:
-%       P(|Z| > 2.5) = 0.0124
-% and it fluctuates around that. A FIXED threshold of 0.02 sits INSIDE that
-% null distribution and cries wolf: it escalated 87 of 300 clean datasets (29%)
-% before this was corrected.
-%
-% Two corrections, both measured rather than assumed:
-%
-% (1) SD INFLATION. The naive binomial sd, sqrt(f(1-f)/n), is TOO SMALL. The
-%     residuals are not independent -- they satisfy u linear constraints, and
-%     they are standardised by a MAD estimated from the same sample. Measured
-%     ratio of true sd to binomial sd, over n = 100..5000:
-%         1.52, 1.21, 1.26, 1.24, 1.20, 1.33   -> mean 1.29
-%     We use 1.30.
-%
-% (2) THE MULTIPLIER. Measured trade-off (false-alarm rate on clean data vs
-%     detection at low contamination):
-%         k=3 : 1.75% false alarms,  97% detection at 3%, 100% at 5%
-%         k=4 : 0.25% false alarms,  49% detection at 3%, 100% at 5%
-%         k=5 : 0.12% false alarms,  25% detection at 3%, 100% at 5%
-%     k=4 is the knee: it cuts false alarms sevenfold against k=3 while STILL
-%     detecting 5% contamination every time -- and 5% is precisely where Pope's
-%     tau begins to fail (detection 23%). Below that level the contamination
-%     does not yet endanger the classical test, so missing some of it is a
-%     cheap price for a quiet report.
-FHAT_FLOOR = 2 * lsqvce.kernel.stat.normCdf(-2.5);      % = 0.012419, exactly
-FHAT_SD_INFLATION = 1.30;                          % measured, see above
-FHAT_K = 4;                                        % measured, see above
-fhatSd = FHAT_SD_INFLATION * ...
-         sqrt(FHAT_FLOOR * (1 - FHAT_FLOOR) / max(n, 1));
-D.fhatFloor = FHAT_FLOOR;
-D.fhatTol   = FHAT_FLOOR + FHAT_K * fhatSd;       % n-dependent, calibrated
-
-% The EXCESS is what actually matters: how much contamination is there beyond
-% what a clean normal sample would produce anyway?
-if isfinite(fhat)
-    D.fhatExcess = max(fhat - FHAT_FLOOR, 0);
-else
-    D.fhatExcess = NaN;
-end
-
-% Escalation. Use fhat where it is credible; fall back to the backstop where
-% fhat has collapsed (which is itself a signal: fhat ~ 0 together with a large
-% backstop means the MAD has broken down entirely).
-fhatCredible = isfinite(fhat) && fhat > 0.005;
-bigBackstop  = isfinite(D.backstop) && D.backstop > max(3, 2 * D.backstopTol);
-
-if ~madAvailable
-    D.contamLevel = 'unknown';
-elseif ~fhatCredible && bigBackstop
-    % fhat says zero but the a-priori backstop says the residuals are enormous.
-    % That combination is the fingerprint of TOTAL breakdown: the robust scale
-    % has been captured by the blunders.
-    D.contamLevel = 'breakdown';
-elseif isfinite(fhat) && fhat <= D.fhatTol && ~bigBackstop
-    % Within the null distribution: this is what CLEAN data looks like.
-    D.contamLevel = 'clean';
-elseif fhat >= 0.25
-    D.contamLevel = 'refuse';
-elseif fhat >= 0.10
-    D.contamLevel = 'severe';
-elseif fhat > D.fhatTol
-    D.contamLevel = 'moderate';
-else
-    D.contamLevel = 'clean';
-end
+% ---- fhat's null law and the escalation (contaminationOf, WP-135)
+D = contaminationOf(D, fhat, nScored, madAvailable);
 
 D.sumR       = sumR;
 D.sumRExpect = sumR_expect;
 D.sumRRelErr = sumR_err;
 
 D.test        = testName;  D.store = o.store;   % store: what R.reliability can read
+D.nWorst      = o.nWorst;  D.robustCheck = o.robustCheck;   % WP-135: snoop's re-diagnosis keeps them
 D.alpha       = o.alpha;
 D.alphaEff    = alphaEff;
 D.bonferroni  = o.bonferroni;
@@ -1223,6 +1216,7 @@ D.beta        = o.beta;
 D.kCrit       = kCrit;
 D.delta0      = delta0;
 D.tauBound    = tauBound;
+D.vacuityShare = vacuityShare;     % WP-135: the share of v'Pv a residual must carry
 D.snoopVacuous = snoopVacuous;
 
 D.flagIdx = flagIdx;
@@ -1234,7 +1228,8 @@ D.nFlag   = numel(flagIdx);
 D.nExpectedFalse = alphaEff * nTest;  % how many flags are chance alone
 % WP-127: n less the prior's datum rows, which are not tested; WP-133: the
 % rows of weight 0 (snoop's own D.rejectedIdx are its deletions)
-D.nTests = nTest;  D.datumRows = exIdx;  D.excludedIdx = exclIdx;
+D.nTests = nTest;  D.datumRows = sort([exIdx(:); locIdx]);  D.excludedIdx = exclIdx;
+D.priorRows = priIdx;                          % WP-135: pseudo-observations, not data
 
 D.rMin        = o.rMin;
 D.rWeak       = o.rWeak;
@@ -1483,6 +1478,12 @@ function [sol, D, REJ] = snoop(sol, D, batchFcn, opt)
 %
 %   See also LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SYSTEMATIC.
 %
+%   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3 finding 5, lane 1): a
+%   local prior group's row is never a candidate (the common prior's rule,
+%   WP-128), its datum rows count like the common prior's; candidates are the
+%   rows diagnose calls controlled (r > D.rMin, not 1e-6); the re-diagnosis
+%   keeps D's Store / NWorst / RobustCheck and the re-solve the solve's Backend
+%   and Reg. With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3 (R7-24): the clean
 %   re-solve rebuilds the block-arrow system (each system from its surviving
 %   batches, with its locals) instead of re-solving every parameter as a
@@ -1533,7 +1534,11 @@ n0 = sol.n;
 % WP-130: the datum rows; WP-133: the rows of weight 0, replayed (p = 0) but no
 % observations -- not candidates (scanWorst), not in the ceiling or Bonferroni's n
 dRows = lsqvce.util.getfielddef(sol, 'datumRows', zeros(0, 1));
-nExcl = lsqvce.util.getfielddef(sol, 'nExcluded', 0);  nObs0 = n0 - numel(dRows) - nExcl;
+% WP-135 (review 3 finding 5): D.datumRows adds the local prior groups' datum
+% rows (diagnose finds them; sol carries the common prior's only); no prior
+% row, common or local, is a candidate; candidates are rows above D.rMin
+[dRowsAll, priorBatches, rMinCand] = snoopScope(sol, D, dRows);
+nExcl = lsqvce.util.getfielddef(sol, 'nExcluded', 0);  nObs0 = n0 - numel(dRowsAll) - nExcl;
 maxRej = o.maxReject;  if isempty(maxRej), maxRej = max(10, ceil(0.01 * nObs0)); end
 
 if sol.defect > 0 && o.verbose
@@ -1557,7 +1562,7 @@ if lsqvce.util.verbosity.progress(o.verbose)
 end
 
 converged = false;
-useRobust = strcmpi(o.test, 'mad');  priorBatch = lsqvce.util.getfielddef(sol, 'priorBatch', 0);   % WP-128
+useRobust = strcmpi(o.test, 'mad');
 
 % ---------------------------------------------------------------------------
 % CONTAMINATION GUARDS
@@ -1655,11 +1660,11 @@ for it = 1:(maxRej + 1)
     end
 
     alphaEff = o.alpha;
-    if o.bonferroni, alphaEff = o.alpha / max(nAlive - numel(dRows), 1); end   % WP-130: diagnose's nTests
+    if o.bonferroni, alphaEff = o.alpha / max(nAlive - numel(dRowsAll), 1); end   % WP-130: diagnose's nTests
     kCrit = snoopCrit(useRobust, alphaEff, rdf);   % WP-128: madCrit for 'mad', tau otherwise
 
     [bestW, bestI, bestR, bestV, bestP, vPvCur, nFlag, bestA, sizes, sysOf] = ...
-        scanWorst(batchFcn, nB, Q, sol.x, rejected, rdf, kCrit, useRobust, priorBatch, dRows);
+        scanWorst(batchFcn, nB, Q, sol.x, rejected, rdf, kCrit, useRobust, priorBatches, dRowsAll, rMinCand);
 
     s0cur = sqrt(max(vPvCur / max(rdf, 1), 0));
     REJ.history(end+1, :) = [nFlag, bestW, s0cur^2, kCrit]; %#ok<AGROW> (kCrit: WP-130)
@@ -1788,17 +1793,19 @@ if o.reaccumulate && ~isempty(REJ.idx)
                  'result is a clean solve, not a\n  sequence of subtractions).\n'], ...
                  n0 - numel(REJ.idx));
     end
-    [acc, obsIdx] = blockResolveAccumulator(sol, Q, batchFcn, nB, rejected, sizes, sysOf);
+    [acc, obsIdx, order] = blockResolveAccumulator(sol, Q, batchFcn, nB, rejected, sizes, sysOf);
     solB = acc.solve();
     [dsol, bf, nBd] = lsqvce.engine.verdict.source(acc, solB);
+    % WP-135: the re-solve's batches are the kept originals in a new order; the
+    % local prior groups' batches keep their role there
+    dsol.localPriorBatches = find(ismember(order, lsqvce.util.getfielddef(sol, 'localPriorBatches', [])));
     % R7-35: the re-diagnosis classifies with the SAME thresholds as the D it
     % was handed (rMin / rWeak / beta), not diagnose's defaults -- before, R.diag
     % and snoop's D could call one observation controlled and uncontrolled.
-    D   = lsqvce.engine.verdict.diagnose(dsol, bf, 'nBatch', nBd, ...
-                           'alpha', o.alpha, 'bonferroni', o.bonferroni, ...
-                           'test', o.test, 'rMin', lsqvce.util.getfielddef(D, 'rMin', 0.01), ...
-                           'rWeak', lsqvce.util.getfielddef(D, 'rWeak', 0.10), ...
-                           'beta', lsqvce.util.getfielddef(D, 'beta', 0.20));
+    % WP-135: and with its Store / NWorst / RobustCheck (Store "flagged" came
+    % back "all": five n-sized vectors at the scale it was chosen to avoid)
+    nvR = rediagnoseNV(D, o);
+    D   = lsqvce.engine.verdict.diagnose(dsol, bf, 'nBatch', nBd, nvR{:});
     D = toOriginalIndex(D, obsIdx);  D.rejectedIdx = REJ.idx;   % WP-128: the original indices
     % the returned sol keeps the caller's fields and carries the clean solve
     sol.x = dsol.x(:);  sol.s0sq = solB.s0sq;  sol.sigma0 = solB.sigma0;   % commons + locals
@@ -1869,7 +1876,10 @@ function S = systematic(D, opt)
 %   warns when u/n > 0.05, and it leads with the binned test, which is exact.
 %
 %   NAME-VALUE
-%     'covariates'  struct: each field is an n x 1 vector to bin against.
+%     'covariates'  struct: each field is an n x 1 vector to bin against
+%                   (or one entry per DATA row: the priors' pseudo-
+%                   observations, D.priorRows, are no residual sequence and
+%                   are left out of every test -- WP-135).
 %                   e.g. struct('time', t, 'elev', e, 'azim', az)
 %                   THIS IS THE IMPORTANT ONE. Supply everything you have.
 %     'nbins'       bins per covariate (default 10)
@@ -1931,6 +1941,10 @@ function S = systematic(D, opt)
 %
 %   See also LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.FTEST.
 %
+%   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lane 1): the priors'
+%   pseudo-observations (D.priorRows) leave every sequence test, and a covariate
+%   may be given over the data rows only. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
@@ -1970,6 +1984,13 @@ if isfield(D, 'rNum')
 else
     ctrl = true(n, 1);
 end
+% WP-135 (review 3, lane 1): the priors' pseudo-observations (the common
+% prior's rows last, a local group's inside its system) are no residual
+% sequence -- they entered the runs and Ljung-Box statistics
+pr = lsqvce.util.getfielddef(D, 'priorRows', zeros(0, 1));
+if isfield(D, 'obsIdx') && ~isempty(D.obsIdx), pr = find(ismember(D.obsIdx, pr)); end   % a snooped D
+isData = true(n, 1);  isData(pr) = false;
+ctrl = ctrl & isData;
 wc = w(ctrl);
 nc = numel(wc);
 
@@ -2057,11 +2078,15 @@ bins = struct('name', {}, 'z', {}, 'p', {}, 'worstBin', {}, 'worstZ', {}, ...
 for ii = 1:numel(names)
     cv = o.covariates.(names{ii});
     cv = cv(:);
+    if numel(cv) == sum(isData) && sum(isData) < n   % WP-135: over the DATA rows
+        cvAll = nan(n, 1);  cvAll(isData) = cv;  cv = cvAll;
+    end
     if numel(cv) ~= n
         error('lsqvce:systematic:badCovariate', ...
             ['Covariate ''%s'' has %d elements but there are %d ' ...
-             'observations. It must be aligned with the observation order ' ...
-             'the batch function produced.'], names{ii}, numel(cv), n);
+             'observations (%d without the priors'' rows). It must be aligned ' ...
+             'with the observation order the batch function produced.'], ...
+             names{ii}, numel(cv), n, sum(isData));
     end
     cvc = cv(ctrl);
     good = isfinite(cvc);
@@ -2214,7 +2239,8 @@ function F = ftest(solFull, solRed, opt)
 %   INPUT
 %     solFull  1x1 struct  solution of the FULL model (from lsqvce.engine.adjustBlock /
 %                          Accumulator.solve); uses .vtv (or .vPv), .m/.n,
-%                          .u/.rank and .sigma0/.s0 as available.
+%                          .u/.rank, .r (the redundancy; n - rank without
+%                          it) and .sigma0/.s0 as available.
 %     solRed   1x1 struct  solution of the nested REDUCED model, same fields.
 %
 %   NAME-VALUE
@@ -2259,6 +2285,9 @@ function F = ftest(solFull, solRed, opt)
 %
 %   See also LSQVCE.ENGINE.VERDICT.SYSTEMATIC, LSQVCE.ENGINE.ADJUSTBLOCK.
 %
+%   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lane 1): the p-value
+%   is betainc's upper tail (1 - lower lost every p below ~1e-16). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): the
 %   deleted engine.adjust reference replaced. With assistance from Claude
 %   (Anthropic), model Claude Opus 5.5.
@@ -2293,7 +2322,9 @@ if solFull.n ~= solRed.n
 end
 
 df1 = uF - uR;
-df2 = solFull.n - uF;
+% WP-135: the full model's redundancy where it carries one (sol.r: the rows
+% of weight 0 and a ridge's defect counted, WP-133) -- n - rank otherwise
+df2 = lsqvce.util.getfielddef(solFull, 'r', solFull.n - uF);
 
 if df1 <= 0
     error('lsqvce:ftest:notNested', ...
@@ -2330,7 +2361,7 @@ Fstat = (dvPv / df1) / s0sqF;
 crit  = lsqvce.kernel.stat.fInv(1 - o.alpha, df1, df2);
 % p-value from the F CDF, via the incomplete beta
 xb = (df1 * Fstat) / (df1 * Fstat + df2);
-pval = 1 - betainc(xb, df1/2, df2/2);
+pval = betainc(xb, df1/2, df2/2, 'upper');   % WP-135: 1 - lower lost every p below ~1e-16
 
 F = struct('F', Fstat, 'p', pval, 'df1', df1, 'df2', df2, ...
            'crit', crit, 'alpha', o.alpha, 'dvPv', dvPv, ...
@@ -2591,7 +2622,7 @@ function D = toOriginalIndex(D, obsIdx)
 %   INPUT  D the re-diagnosis; obsIdx the original index of each of its rows
     D.obsIdx = obsIdx(:);
     for f = {'flagIdx', 'idxUncontrolled', 'worstIdx', 'datumRows', 'excludedIdx', ...
-             'rMinIdx', 'maxAbsWIdx', 'extMaxIdx'}
+             'rMinIdx', 'maxAbsWIdx', 'extMaxIdx', 'priorRows'}   % priorRows: WP-135
         if ~isfield(D, f{1}) || isempty(D.(f{1})), continue, end
         v = D.(f{1});  ok = v >= 1 & v <= numel(obsIdx);   % 0 = "none"
         v(ok) = obsIdx(v(ok));  D.(f{1}) = v;
@@ -2611,6 +2642,25 @@ function idx = datumRowsOf(acc, n)
     if isempty(acc.prior), return, end
     isD = acc.datumRows();
     idx = (n - numel(isD)) + find(isD(:));
+end
+
+function [mask, nD] = localDatumOf(batchFcn, Q, kList)
+%LOCALDATUMOF  The datum rows of the local prior groups' batches (WP-135):
+%   r_i = 1 - a_i' Qxx a_i <= 1e-6 (unit weight; the threshold is diagnose's).
+%   INPUT  batchFcn, Q the cofactor, kList the batches (sol.localPriorBatches)
+%   OUTPUT mask containers.Map batch -> nk x 1 logical (only batches with a
+%          datum row); nD 1x1 their count
+    mask = containers.Map('KeyType', 'double', 'ValueType', 'any');  nD = 0;
+    for k = kList(:).'
+        [Ak, ~, pk] = batchFcn(k);
+        nk = size(Ak, 1);
+        if nk == 0 || (~isempty(pk) && ~isvector(pk)), continue, end
+        if isempty(pk), pk = ones(nk, 1); end
+        pk = pk(:);
+        rk = pk .* (1 ./ max(pk, realmin) - sum(Q.halfRows(Ak).^2, 1).');
+        dm = pk > 0 & rk <= 1e-6;           % tol: see diagnose (WP-135)
+        if any(dm), mask(k) = dm;  nD = nD + sum(dm); end
+    end
 end
 
 function [A, l, p] = batchOf(src, k)
@@ -2716,6 +2766,31 @@ end
 
 %% ======================================================== helpers
 
+function [dRowsAll, priorBatches, rMin] = snoopScope(sol, D, dRows)
+%SNOOPSCOPE  What snoop leaves out (WP-135, review 3 finding 5 and lane 1):
+%   the datum rows of the common prior (sol) and of the local groups (D);
+%   the batches of every prior -- a prior row is a declaration, never a
+%   candidate (snoop rejected an inconsistent soft local prior row, |w| 7.3);
+%   and the rows diagnose calls uncontrolled (r <= D.rMin, not 1e-6).
+    dRowsAll = unique([dRows(:); reshape(lsqvce.util.getfielddef(D, 'datumRows', zeros(0, 1)), [], 1)]);
+    pb = lsqvce.util.getfielddef(sol, 'priorBatch', 0);
+    priorBatches = [pb(pb > 0); reshape(lsqvce.util.getfielddef(sol, 'localPriorBatches', []), [], 1)];
+    rMin = lsqvce.util.getfielddef(D, 'rMin', 0.01);
+end
+
+function nv = rediagnoseNV(D, o)
+%REDIAGNOSENV  The Name-Value list of snoop's re-diagnosis: snoop's alpha /
+%   Bonferroni / test, and the thresholds and storage of the D it was handed
+%   (R7-35: rMin / rWeak / beta; WP-135: store / nWorst / robustCheck).
+    nv = {'alpha', o.alpha, 'bonferroni', o.bonferroni, 'test', o.test, ...
+          'rMin', lsqvce.util.getfielddef(D, 'rMin', 0.01), ...
+          'rWeak', lsqvce.util.getfielddef(D, 'rWeak', 0.10), ...
+          'beta', lsqvce.util.getfielddef(D, 'beta', 0.20), ...
+          'store', lsqvce.util.getfielddef(D, 'store', 'all'), ...
+          'nWorst', lsqvce.util.getfielddef(D, 'nWorst', 1000), ...
+          'robustCheck', lsqvce.util.getfielddef(D, 'robustCheck', true)};
+end
+
 function [sol, D] = afterRejection(sol, D, rejIdx, rejected, vPvCur, dRows, batchFcn, nB, sizes, o)
 %AFTERREJECTION  WP-130: the returned sol is the solution AFTER rejection on
 %   either path -- vPvCur (the 1/r_i identity) was computed and dropped, so
@@ -2731,16 +2806,14 @@ function [sol, D] = afterRejection(sol, D, rejIdx, rejected, vPvCur, dRows, batc
     sol.datumRows = find(ismember(obsIdx, dRows));   % in the survivors' numbering
     if o.reaccumulate, return, end
     edges = [0; cumsum(sizes(:))];
+    nvR = rediagnoseNV(D, o);
     D = lsqvce.engine.verdict.diagnose(sol, @(k) maskedBatch(batchFcn, k, rejected, edges), ...
-                           'nBatch', nB, 'alpha', o.alpha, 'bonferroni', o.bonferroni, ...
-                           'test', o.test, 'rMin', lsqvce.util.getfielddef(D, 'rMin', 0.01), ...
-                           'rWeak', lsqvce.util.getfielddef(D, 'rWeak', 0.10), ...
-                           'beta', lsqvce.util.getfielddef(D, 'beta', 0.20));
+                           'nBatch', nB, nvR{:});
     D = toOriginalIndex(D, obsIdx);  D.rejectedIdx = rejIdx;   % in rejection order, as REJ.idx
 end
 
 function [bestW, bestI, bestR, bestV, bestP, vPv, nFlag, bestA, sizes, sysOf] = ...
-        scanWorst(batchFcn, nB, Q, x, rejected, rdf, kCrit, useRobust, priorBatch, dRows)
+        scanWorst(batchFcn, nB, Q, x, rejected, rdf, kCrit, useRobust, priorBatches, dRows, rMin)
 %SCANWORST  One streaming pass over all batches to find the single worst
 %   (largest |w|) surviving observation and accumulate vPv honestly.
 %   INPUT
@@ -2753,8 +2826,13 @@ function [bestW, bestI, bestR, bestV, bestP, vPv, nFlag, bestA, sizes, sysOf] = 
 %     rdf       1x1 double  residual degrees of freedom (for s0)
 %     kCrit     1x1 double  critical value for flagging (|w| threshold)
 %     useRobust 1x1 log     use a robust (MAD) scale for w
-%     priorBatch 1x1        the prior's batch (never a candidate), 0: none
+%     priorBatches p x 1    the batches of the common and the local priors
+%                           (never a candidate; WP-128, WP-135)
 %     dRows     k x 1       the datum rows (global index; no robust score, WP-130)
+%     rMin      1x1         diagnose's controlled threshold: a row at r <= rMin
+%                           is no candidate (WP-135: r > 1e-6 made an
+%                           uncontrolled row the worst one, refused, and the
+%                           snooping stopped)
 %   OUTPUT
 %     bestW  1x1  the largest |w| found among surviving observations
 %     bestI  1x1  its global observation index (0 if none)
@@ -2869,8 +2947,8 @@ function [bestW, bestI, bestR, bestV, bestP, vPv, nFlag, bestA, sizes, sysOf] = 
         alive = ~rejected(idx) & pk > 0;            % WP-133: a weight-0 row is no candidate
         if ~any(alive), nSeen = nSeen + nk; continue; end
 
-        if k == priorBatch, nSeen = nSeen + nk; continue; end   % WP-128: a prior row is a
-                                                                 % declaration, never rejected
+        if ismember(k, priorBatches), nSeen = nSeen + nk; continue; end   % WP-128 / WP-135: a prior
+                                                                           % row is a declaration
         Aa = Ak(alive,:); la = lk(alive); pa = pk(alive);
         ia = idx(alive);
 
@@ -2882,7 +2960,7 @@ function [bestW, bestI, bestR, bestV, bestP, vPv, nFlag, bestA, sizes, sysOf] = 
         rk = min(max(pa .* qv, 0), 1);
 
         wk = zeros(numel(la), 1);
-        ok = rk > 1e-6;
+        ok = rk > rMin;
         wk(ok) = vk(ok) ./ sqrt(s0sq * qv(ok));
 
         fl = ok & (abs(wk) > kCrit);
@@ -2900,18 +2978,22 @@ function [bestW, bestI, bestR, bestV, bestP, vPv, nFlag, bestA, sizes, sysOf] = 
 end
 
 %==========================================================================
-function [robustScale, madAvailable, fhat] = robustScaleOf(rawAll, complete)
+function [robustScale, madAvailable, fhat, nScored] = robustScaleOf(rawAll, complete)
 %ROBUSTSCALEOF  The MAD scale of the raw scores (P v)_i / sqrt((P Qvv P)_ii) and
 %   the contamination gauge fhat, from either sweep of diagnose (WP-121: the
 %   main pass for every test but 'mad', the separate first sweep for 'mad').
 %   INPUT  rawAll   n x 1 double  the raw scores (0 where uncontrolled)
 %          complete 1x1 logical   every observation was swept
-%   OUTPUT robustScale (NaN if not formed), madAvailable, fhat (NaN if not formed)
+%   OUTPUT robustScale (NaN if not formed), madAvailable, fhat (NaN if not
+%          formed), nScored (the scores fhat counts over; WP-135: the n of its
+%          null law)
 robustScale = NaN;
 madAvailable = false;
 fhat = NaN;
+nScored = 0;
 if ~isempty(rawAll) && complete
     nz = rawAll(isfinite(rawAll) & rawAll ~= 0);
+    nScored = numel(nz);
     if numel(nz) >= 3
         med = median(nz);
         % 1.4826 makes the MAD consistent for the normal distribution.
@@ -2945,8 +3027,127 @@ if ~isempty(rawAll) && complete
 end
 end
 
+function D = contaminationOf(D, fhat, nScored, madAvailable)
+%CONTAMINATIONOF  The contamination ladder of diagnose (WP-135: lifted out of
+%   diagnose with its calibration): D.fhatFloor, .fhatTol, .collapseDetectable,
+%   .fhatExcess and .contamLevel from fhat over nScored scored residuals and
+%   the backstop already on D (.backstop, .backstopTol).
+    % ---- fhat's NULL DISTRIBUTION -------------------------------------------
+    % fhat counts residuals beyond 2.5 robust sigmas, so on PERFECTLY CLEAN data it
+    % does not go to zero -- it goes to the tail mass of the normal:
+    %       P(|Z| > 2.5) = 0.0124
+    % and it fluctuates around that. A FIXED threshold of 0.02 sits INSIDE that
+    % null distribution and cries wolf: it escalated 87 of 300 clean datasets (29%)
+    % before this was corrected.
+    %
+    % WP-135 (review 3 finding 19; user decision: an n-dependent recalibration,
+    % measured -- dev/validation/wp135_contamination_mirror.py). The band was
+    % calibrated at n ~ 300 (P + 4 * 1.30 * binomial sd) and failed at small n:
+    % n = 30 clean data raised severe / refuse in 3.1 % (claimed 0.25 %), and
+    % "fhat <= 0.005" -- the breakdown fingerprint -- is what HALF of all clean
+    % samples of n = 30 show (P(fhat = 0) = 59 %), so a sigma0 declared 3.5x too
+    % small read "breakdown" in 50 % and snoop refused. Measured on clean data,
+    % n = 20..2000:
+    %   * the mean of fhat is P (1 + 27/n): a small sample's MAD is biased low;
+    %   * around it the count K = n fhat is over-dispersed by a CONSTANT 1.30^2
+    %     (the 1.30 measured at n ~ 300 was the same thing);
+    % so K is negative binomial, mean mu = n P (1 + 27/n), variance 1.69 mu
+    % (P(fhat = 0) to within 0.01 at every n). Both tails come from that law,
+    % n = the scored residuals (contamNull):
+    %   fhatTol    = the 99.75 % point (false alarms <= 0.25 %, the rate the
+    %                k = 4 band always claimed; measured 0.06-0.25 %)
+    %   collapsed  = P(K <= n fhat) <= 1 %: fhat implausibly LOW for clean data.
+    %                Below n ~ 450 even fhat = 0 is not; there a robust scale
+    %                captured by the blunders cannot be told from a sigma0
+    %                declared too small, and the level says so: 'indeterminate'.
+    FHAT_FLOOR = 2 * lsqvce.kernel.stat.normCdf(-2.5);      % = 0.012419, exactly
+    D.fhatFloor = FHAT_FLOOR;
+    [D.fhatTol, pZero] = contamNull(nScored, FHAT_FLOOR);
+    D.collapseDetectable = pZero <= 0.01;
+
+    % The EXCESS is what actually matters: how much contamination is there beyond
+    % what a clean normal sample would produce anyway?
+    if isfinite(fhat)
+        D.fhatExcess = max(fhat - FHAT_FLOOR, 0);
+    else
+        D.fhatExcess = NaN;
+    end
+
+    % Escalation. fhat collapsed below its own null together with a large
+    % backstop is the fingerprint of TOTAL breakdown. Within the null band the
+    % data look clean -- a uniformly inflated residual is the global test's
+    % finding, not contamination (WP-135: the band now wins over the backstop) --
+    % unless the backstop is large and the collapse is undetectable at this n.
+    bigBackstop = isfinite(D.backstop) && D.backstop > max(3, 2 * D.backstopTol);
+    if ~madAvailable
+        D.contamLevel = 'unknown';
+    elseif bigBackstop && fhatCollapsed(fhat, nScored, FHAT_FLOOR)
+        % fhat says zero but the a-priori backstop says the residuals are enormous:
+        % the robust scale has been captured by the blunders.
+        D.contamLevel = 'breakdown';
+    elseif fhat <= D.fhatTol
+        if bigBackstop && ~D.collapseDetectable
+            D.contamLevel = 'indeterminate';   % captured scale or sigma0 too small?
+        else
+            D.contamLevel = 'clean';           % within the null distribution
+        end
+    elseif fhat >= 0.25
+        D.contamLevel = 'refuse';
+    elseif fhat >= 0.10
+        D.contamLevel = 'severe';
+    else
+        D.contamLevel = 'moderate';
+    end
+end
+
+function [tol, pZero] = contamNull(nS, p)
+%CONTAMNULL  fhat's null law on clean data (WP-135, measured, see diagnose):
+%   K = nS fhat negative binomial, mean mu = nS p (1 + 27/nS), variance
+%   1.69 mu. tol = the 99.75 % point of K / nS; pZero = P(K = 0).
+%   INPUT  nS 1x1 the scored residuals; p 1x1 = 2 Phi(-2.5)
+    if nS < 1, tol = Inf;  pZero = 1;  return, end
+    [mu, cdf, pZero] = contamCdf(nS, p, []);
+    if mu > 200                                   % the normal limit
+        tol = (mu + 2.807033768343811 * sqrt(1.69 * mu)) / nS;   % normInv(0.9975)
+    else
+        tol = (find(cdf >= 1 - 0.0025, 1) - 1) / nS;
+    end
+end
+
+function tf = fhatCollapsed(fhat, nS, p)
+%FHATCOLLAPSED  P(K <= nS fhat) <= 1 % under contamNull's law: fhat is
+%   implausibly low for clean data (WP-135; it was fhat <= 0.005 at any n).
+    tf = false;
+    if ~isfinite(fhat) || nS < 1, return, end
+    k = round(fhat * nS);
+    [mu, cdf] = contamCdf(nS, p, k);
+    if mu > 200
+        tf = lsqvce.kernel.stat.normCdf((k + 0.5 - mu) / sqrt(1.69 * mu)) <= 0.01;
+    else
+        tf = cdf(k + 1) <= 0.01;
+    end
+end
+
+function [mu, cdf, pZero] = contamCdf(nS, p, kMax)
+%CONTAMCDF  P(K <= k), k = 0..kMax, of the negative binomial of mean mu =
+%   nS p (1 + 27/nS) and variance 1.69 mu (log-space recursion); kMax = []
+%   runs to 12 sd above the mean. Empty for mu > 200 (the normal limit);
+%   pZero = P(K = 0) at every mu, from the closed form (WP-135: contamNull
+%   read cdf(1) of the empty table and every run of more than ~16 000 scored
+%   residuals stopped in diagnose).
+    mu = nS * p * (1 + 27 / nS);
+    r = mu / 0.69;  q = mu / (r + mu);
+    pZero = exp(r * log1p(-q));
+    cdf = [];
+    if mu > 200, return, end
+    if isempty(kMax), kMax = ceil(mu + 12 * sqrt(1.69 * mu) + 20); end
+    k = (1:kMax).';
+    lp = r * log1p(-q) + [0; cumsum(log((r + k - 1) ./ k * q))];
+    cdf = cumsum(exp(lp));
+end
+
 %==========================================================================
-function [acc, obsIdx] = blockResolveAccumulator(sol, Q, batchFcn, nB, rejected, sizes, sysOf)
+function [acc, obsIdx, order] = blockResolveAccumulator(sol, Q, batchFcn, nB, rejected, sizes, sysOf)
 %BLOCKRESOLVEACCUMULATOR  The surviving rows, accumulated on the block-arrow
 %   structure the cofactor Q describes (WP-86 part 3): one system per
 %   original system (its surviving batches, its own local columns), the
@@ -2958,6 +3159,10 @@ function [acc, obsIdx] = blockResolveAccumulator(sol, Q, batchFcn, nB, rejected,
 %                  (systems in order, local-free last, the prior's rows at
 %                  the end) -- WP-128: the re-diagnosis numbers its rows in
 %                  that order, the caller maps them back
+%          order   the ORIGINAL batch of every batch of acc (WP-135)
+%   WP-135: the accumulator carries the solve's Backend and Reg options
+%   (sol.accOpt) -- the re-solve of a regularised fit was unregularised, and
+%   a singular local block took the pinv fallback.
 %   WP-128: the prior is not a batch of data here. It was re-accumulated
 %   as rows of the local-free system (sol.defect is 0 from SOURCE, so the
 %   setPrior branch never ran): the clean cofactor became inv(N + K'K/s^2)
@@ -2975,10 +3180,17 @@ function [acc, obsIdx] = blockResolveAccumulator(sol, Q, batchFcn, nB, rejected,
     alive = arrayfun(@(k) any(~rejected(edges(k)+1:edges(k+1))), (1:nB).');
     pb = lsqvce.util.getfielddef(sol, 'priorBatch', 0);
     if pb > 0, alive(pb) = false; end                   % the prior goes in by setPrior
-    obsIdx = zeros(0, 1);
+    obsIdx = zeros(0, 1);  order = zeros(0, 1);
     backend = 'qr';
     if isfield(sol, 'method') && strcmpi(char(sol.method), 'normal'), backend = 'normal'; end
-    acc = lsqvce.engine.BlockAccumulator(Q.nc, 'Backend', backend, 'KeepLocal', true, 'Verbose', false);
+    ao = lsqvce.util.getfielddef(sol, 'accOpt', struct());
+    regNV = {};
+    if isfield(ao, 'Backend'), backend = ao.Backend; end
+    if isfield(ao, 'Reg')
+        regNV = {'Reg', ao.Reg, 'RegLambda', ao.RegLambda, 'RegMatrix', ao.RegMatrix, 'TruncTol', ao.TruncTol};
+    end
+    acc = lsqvce.engine.BlockAccumulator(Q.nc, 'Backend', backend, 'KeepLocal', true, ...
+                                         'Verbose', false, regNV{:});
     if isfield(sol, 'defect') && sol.defect > 0 && isfield(sol, 'datumB') && ~isempty(sol.datumB)
         acc.setPrior(lsqvce.engine.CommonPrior(sol.datumB.', zeros(size(sol.datumB, 2), 1), 1));
     end
@@ -2994,6 +3206,7 @@ function [acc, obsIdx] = blockResolveAccumulator(sol, Q, batchFcn, nB, rejected,
         for k = kept(:).'
             obsIdx = [obsIdx; edges(k) + find(~rejected(edges(k)+1:edges(k+1)))]; %#ok<AGROW>
         end
+        order = [order; kept(:)];                      %#ok<AGROW> one batch per kept batch
     end
     if pb > 0
         acc.setPrior(sol.prior);

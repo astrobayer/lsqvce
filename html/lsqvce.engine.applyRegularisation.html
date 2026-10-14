@@ -44,7 +44,7 @@ a { color: #0b5ea8; }
 <h1>lsqvce.engine.applyRegularisation</h1>
 <div class="purpose">Regularise a local block before pre-elimination.</div>
 <h2>Description</h2>
-<pre class="example">[Nr, nr, dg] = LSQVCE.ENGINE.APPLYREGULARISATION(Nll, nl, dg, opt)
+<pre class="example">[Nr, nr, dg] = LSQVCE.ENGINE.APPLYREGULARISATION(Nll, nl, dg, opt, mObs, ltl)
 
 METHODS (opt.Reg)
   &#x27;none&#x27;      no action
@@ -59,7 +59,9 @@ METHODS (opt.Reg)
 <pre class="example">Nll  nl x nl  local normal matrix
 nl   nl x 1   local right-hand side
 dg   struct   from LSQVCE.ENGINE.LOCALDIAGNOSTICS
-opt  struct   .Reg, .RegLambda, .RegMatrix, .TruncTol</pre>
+opt  struct   .Reg, .RegLambda, .RegMatrix, .TruncTol
+mObs 1x1      rows of the system (whitened observations) -- GCV&#x27;s m
+ltl  1x1      l&#x27;l of the whitened observations -- GCV&#x27;s residual</pre>
 <h3>Output</h3>
 <pre class="example">  Nr, nr        regularised block and rhs (nr is unchanged by all current
                 methods; it is returned for symmetry with damped-prior
@@ -91,7 +93,8 @@ CHOOSING THE METHOD
             wildly different units and L = I would be meaningless.
 
 CHOOSING LAMBDA
-  If RegLambda is 0 or empty, Tikhonov calls LSQVCE.ENGINE.GCVLAMBDA. GCV is
+  If RegLambda is 0 or empty, Tikhonov calls LSQVCE.ENGINE.GCVLAMBDA (the GCV of
+  the system&#x27;s local problem, the commons at their a-priori values). GCV is
   automatic but not infallible -- it can under-regularise when the noise
   is correlated (which it is, here, after whitening only approximately).
   For production runs, fix lambda from an L-curve on one representative
@@ -101,7 +104,7 @@ CHOOSING LAMBDA
 <pre class="example">opt = struct(&#x27;Reg&#x27;,&#x27;tikhonov&#x27;, &#x27;RegLambda&#x27;,0, ...      % 0 -&gt; GCV
              &#x27;RegMatrix&#x27;,[], &#x27;TruncTol&#x27;,1e-10);
 dg  = lsqvce.engine.localDiagnostics(Nll, opt);
-[Nr, nr, dg] = lsqvce.engine.applyRegularisation(Nll, nl, dg, opt);
+[Nr, nr, dg] = lsqvce.engine.applyRegularisation(Nll, nl, dg, opt, mObs, ltl);
 lsqvce.util.log.msg(&#x27;%s, lambda = %.3e\n&#x27;, dg.regUsed, dg.lambdaUsed);</pre>
 <h3>Errors</h3>
 <pre class="example">  lsqvce:applyReg:badLambda     lambda is not a non-negative scalar
@@ -115,6 +118,10 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 
 See also LSQVCE.ENGINE.LOCALDIAGNOSTICS, LSQVCE.ENGINE.GCVLAMBDA, LSQVCE.ENGINE.BLOCKACCUMULATOR
 
+Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3 finding 16): takes
+mObs and l&#x27;l and hands them to gcvLambda, whose functional is now the
+GCV of the data (it read N as the design). With assistance from Claude
+(Anthropic), model Claude Opus 5.5.
 Generated with assistance from Claude (Anthropic), model Claude
 Opus 4.8.
 Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,

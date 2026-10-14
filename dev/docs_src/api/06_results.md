@@ -10,7 +10,7 @@ the map.
 |---|---|---|
 | `x` | nc×1 | the common-parameter estimate |
 | `sigma0` | scalar | a-posteriori standard deviation of unit weight |
-| `stopReason` | string | `"single"`, `"converged"`, `"maxPasses"` or `"userStop"` |
+| `stopReason` | string | `"single"`, `"converged"`, `"maxPasses"`, `"userStop"` or `"diverged"` (Gauss–Newton found no downhill step) |
 | `converged` | logical | whether the iteration converged (true for a single solve) |
 | `sol` | struct | the solve: `.x`, `.sigma0`, `.Cxx` (covariance scaled by σ₀²), … |
 | `diag` | struct | per-observation diagnostics: residuals in the whitened frame, redundancy numbers, test statistics, minimal detectable biases, the robust check |

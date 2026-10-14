@@ -60,11 +60,15 @@ Static methods
   tauCrit(alpha,r)      two-sided Pope tau critical value
   madCrit(alpha,r)      two-sided critical value of a residual scaled by
                         a MAD (Student t, nu = r/2; WP-128)
+  tCrit(alpha,nu)       two-sided Student-t critical value (upper tail)
   normCrit(alpha)       two-sided normal critical value
   delta0(alpha,beta)    MDB non-centrality parameter
   fInv(p,d1,d2)         F quantile
 
-All functions are elementwise where it makes sense and validate inputs.</pre>
+All functions are elementwise where it makes sense and validate inputs.
+The two-sided critical values (normCrit, tCrit, tauCrit, madCrit) are
+formed from the upper tail, so they stay finite and exact for any alpha in
+(0, 1] -- a Bonferroni alpha / n below 1e-16 included (WP-135).</pre>
 <h3>Example</h3>
 <pre class="example">lsqvce.kernel.stat.normCrit(1e-3)          % 3.2905  Baarda&#x27;s threshold
 lsqvce.kernel.stat.delta0(1e-3, 0.20)      % 4.1321  MDB non-centrality
@@ -81,6 +85,11 @@ lsqvce.kernel.stat.tauCrit(1e-8, 5) &lt; sqrt(5)      % always true</pre>
 
 See also LSQVCE.ENGINE.VERDICT.DIAGNOSE.
 
+Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lane 1): the
+critical values come from the upper tail (normCrit = -Phi^-1(alpha/2), the
+new tCrit); 1 - alpha/2 rounded to 1 below alpha ~ 1.1e-16 and Pope&#x27;s tau
+came back NaN, Baarda&#x27;s Inf -- the test switched itself off. With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-13 (CEST, UTC+02:00), WP-132: chi2Inv converges in the
 far lower tail (a small-x seed, Newton on log F, a bracket). With
 assistance from Claude (Anthropic), model Claude Opus 5.5.

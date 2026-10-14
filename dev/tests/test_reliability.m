@@ -10,6 +10,12 @@ function tests = test_reliability
 %
 %   See also TEST_PRECISION, TEST_SPEED, TEST_LSQACCUM
 %
+%   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (third review findings 11,
+%   12, 16 and lows): gcvLambda is the data's GCV (against direct solves), a
+%   null-space L, its refusals; the accumulator refuses repeated days and
+%   mixed ids; static arc ids are checked; the template refuses robust
+%   factors; a zero local block is wholly rank deficient. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (third review): a filter law's dense form is guarded; per-row sigma, uneven grid.
 %   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-130: a rank-deficient local
@@ -535,17 +541,139 @@ function testRegMatrixDimensionIsChecked(tc)
     dg  = lsqvce.engine.localDiagnostics(Nll, struct('TruncTol',1e-10));
     opt = struct('Reg','tikhonov', 'RegLambda',1, 'RegMatrix',eye(3), ...
                  'TruncTol',1e-10);
-    tc.verifyError(@() lsqvce.engine.applyRegularisation(Nll, nl, dg, opt), ...
+    tc.verifyError(@() lsqvce.engine.applyRegularisation(Nll, nl, dg, opt, 10, 4), ...
                    'lsqvce:applyReg:badRegMatrix');
+end
+
+function testAccumulatorRefusesMixedIdsAndRepeatedDays(tc)
+% categories: contract
+    % WP-135 (review 3 findings 11, 12): a repeated day was accumulated twice,
+    % silently; a character id next to a number made [store.sysID] a char row
+    % (3 became char(3), robust factors keyed under it were never read).
+    cfg = tc.TestData.cfg;
+    acc = lsqvce.engine.BlockAccumulator(cfg.nc, 'Verbose', false);
+    tc.verifyError(@() acc.addSystem(1, cfg.nl, binder(cfg, 1), [1 2 2]), 'lsqvce:accum:duplicateDay');
+    acc.addSystem('C', cfg.nl, binder(cfg, 1), 1:2);
+    tc.verifyError(@() acc.addSystem(3, cfg.nl, binder(cfg, 1), 1:2), 'lsqvce:accum:mixedIdTypes');
+    specs = struct('sysID', 3, 'nl', cfg.nl, 'dataFcn', binder(cfg, 1), 'dayList', 1:2);
+    tc.verifyError(@() acc.addSystems(specs), 'lsqvce:accum:mixedIdTypes');
+end
+
+function testStaticArcIdsAreChecked(tc)
+% categories: contract
+    % WP-135 (review 3, lane 4): arcs = [1 1 2] read cell 1 twice and cell 2
+    % never (find(ids == arcID, 1)), silently -- a resolver's list was checked.
+    tc.verifyError(@() staticArcsMeta([1 1 2]), 'lsqvce:makeLoader:badArcs');
+    m = staticArcsMeta([3 1 2]);                      % unique ids, any order
+    tc.verifyEqual(m.arcs{1}, [3 1 2]);
+end
+
+function m = staticArcsMeta(ids)
+    L = lsqvce.engine.makeLoader(@(d, ot) error('test:reached', 'no read'), ...
+            'ObservationTypes', {'kbr'}, 'Covariance', struct('kbr', struct('type', 'diag', 'sigma', 1)), ...
+            'Arcs', ids, 'NumLocal', 0, 'NumCommon', 2, 'Days', 1);
+    m = L.meta(1);
+end
+
+function testRobustFactorsAreRefusedByTheTemplate(tc)
+% categories: contract
+    % WP-135 (review 3, lane 4): synthLoader -- the loader template -- applied
+    % no robust factors while the driver reported them applied.
+    cfg = tc.TestData.cfg;
+    key = lsqvce.util.rowWeightKey(1, 1, cfg.obsTypes{1}, 1);
+    opt = struct('sysID', 1, 'rowWeights', containers.Map({key}, {ones(cfg.mArc, 1)}));
+    tc.verifyError(@() lsqvce.engine.synthLoader(cfg, 1, 1, cfg.obsTypes{1}, 1, opt), ...
+                   'lsqvce:synthLoader:robustFactors');
+    opt.rowWeights = containers.Map({'1|99|x|1'}, {1});           % another arc's: not this one's
+    out = lsqvce.engine.synthLoader(cfg, 1, 1, cfg.obsTypes{1}, 1, opt);
+    tc.verifyNumElements(out.l, cfg.mArc);
+end
+
+function testAZeroLocalBlockIsWhollyRankDeficient(tc)
+% categories: robustness
+    % WP-135 (review 3, lane 1): an all-zero block read rankDef 0 (ev < tol * 0
+    % is never true) while its status said rank-deficient.
+    dg = lsqvce.engine.localDiagnostics(zeros(3), struct('TruncTol', 1e-10));
+    tc.verifyEqual(dg.rankDef, 3);
+    tc.verifyEqual(dg.status, 'rank-deficient');
 end
 
 function testGCVWarnsAtGridBoundary(tc)
 % categories: contract
 % GCV under-regularises when the residuals are still correlated. It must say so
-% rather than silently returning lambda ~ 0.
-    N = diag([1 1 1 1]);          % perfectly conditioned -> no regularisation wanted
-    n = ones(4,1);
-    tc.verifyWarning(@() lsqvce.engine.gcvLambda(N, n, eye(4)), 'lsqvce:gcv:atLowerBound');
+% rather than silently returning lambda ~ 0. WP-135: the functional is the
+% data's -- an exactly fitting block (l'l = n'N^-1 n, no residual) wants no
+% regularisation; a block that explains nothing (n = 0) wants the most.
+    N = diag([1 1 1 1]);  n = ones(4,1);
+    tc.verifyWarning(@() lsqvce.engine.gcvLambda(N, n, eye(4), 10, 4), 'lsqvce:gcv:atLowerBound');
+    tc.verifyWarning(@() lsqvce.engine.gcvLambda(N, zeros(4,1), eye(4), 10, 4), ...
+                     'lsqvce:gcv:atUpperBound');
+end
+
+function testGcvLambdaRefusesWhatItCannotChoose(tc)
+% categories: contract, robustness
+% WP-135: m and l'l are the data's (m > nl, l'l >= 0); an L that penalises
+% nothing warns and returns 0; a direction L leaves free that the data do not
+% see is refused -- no lambda regularises it.
+    N = eye(4);  n = ones(4,1);
+    tc.verifyError(@() lsqvce.engine.gcvLambda(N, n, [], 4, 4), 'lsqvce:gcvLambda:badData');
+    tc.verifyError(@() lsqvce.engine.gcvLambda(N, n, [], 10, -1), 'lsqvce:gcvLambda:badData');
+    lam = tc.verifyWarning(@() lsqvce.engine.gcvLambda(N, n, zeros(4), 10, 4), 'lsqvce:gcv:degenerate');
+    tc.verifyEqual(lam, 0);
+    tc.verifyError(@() lsqvce.engine.gcvLambda(diag([1 1 1 0]), [1;1;1;0], [eye(3), zeros(3,1)], 10, 4), ...
+                   'lsqvce:gcvLambda:nullUnobserved');
+end
+
+function testGcvLambdaIsTheGcvOfTheData(tc)
+% categories: precision, reference
+% WP-135 (review 3 finding 16): the curve is Golub-Heath-Wahba's
+% ||B y - l||^2 / (m - tr H)^2 of the local problem -- the code minimised
+% ||f.*b||^2/(sum f)^2 of N y = n, and on a cond 1.5e10 polynomial block
+% |y - y_true| was 2770 at its lambda (1.0 at GCV's). A RegMatrix with a
+% null space (first difference) gets a grid below |N| (it started 1.5e4 |N|
+% above it). Reference: direct solves of (N + lambda L'L) on the same grid.
+    % a first-difference L puts the trough on the grid's edge in ~3 % of draws
+    % (8 of 300, the mirror): the edge warnings are not this test's subject
+    muteWarn(tc, 'lsqvce:gcv:atLowerBound');
+    muteWarn(tc, 'lsqvce:gcv:atUpperBound');
+    rs = RandStream('mt19937ar', 'Seed', 135);
+    m = 500;  t = linspace(0, 1, m).';
+    B = t .^ (0:5);
+    l = B * randn(rs, 6, 1) + randn(rs, m, 1);
+    N = B.'*B;  n = B.'*l;
+    for Lc = {eye(6), diff(eye(6))}
+        L = Lc{1};
+        [lam, g, grid] = lsqvce.engine.gcvLambda(N, n, L, m, l.'*l);
+        gd = zeros(size(grid));
+        for k = 1:numel(grid)
+            M = N + grid(k) * (L.'*L);
+            r = B * (M \ n) - l;
+            gd(k) = (r.'*r) / (m - trace(M \ N))^2;
+        end
+        [~, kd] = min(gd);
+        % tol: the eigenbasis curve against direct solves of a cond ~1e7 block;
+        % the dense trace / solve lose ~cond*eps relative, 1e-6 bounds both
+        tc.verifyEqual(g, gd, 'RelTol', 1e-6);
+        tc.verifyEqual(lam, grid(kd));
+        tc.verifyLessThan(grid(1), 1e-6 * norm(N));
+        if isequal(L, eye(6))                 % L = I: an interior trough in 300 of 300 draws
+            tc.verifyTrue(kd > 1 && kd < numel(grid), 'GCV''s trough is interior for L = I');
+        end
+    end
+end
+
+function testGcvLambdaScalesWithTheData(tc)
+% categories: metamorphic
+% WP-135: B -> c B, l -> c l scales N, n and l'l by c^2: the GCV curve scales
+% by c^2 (m - tr H is scale-free) and lambda by c^2 -- the same grid index.
+    t = linspace(0, 1, 200).';  B = t .^ (0:3);  l = B * [1; -2; 0.5; 3] + 0.1 * cos(40 * t);
+    [lam1, ~, g1] = lsqvce.engine.gcvLambda(B.'*B, B.'*l, [], 200, l.'*l);
+    c2 = 9;
+    [lam2, ~, g2] = lsqvce.engine.gcvLambda(c2 * (B.'*B), c2 * (B.'*l), [], 200, c2 * (l.'*l));
+    [~, k1] = min(g1);  [~, k2] = min(g2);
+    tc.verifyEqual(k2, k1);
+    % tol: log10 / logspace of a grid end scaled by 9 round to a few ulp
+    tc.verifyEqual(lam2, c2 * lam1, 'RelTol', 1e-12);
 end
 
 %% ============================================ loader contract

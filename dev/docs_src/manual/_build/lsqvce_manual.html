@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.21.0 — User Manual</title>
+  <title>lsqvce 6.22.0 — User Manual</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.21.0 — User Manual</h1>
+<h1 class="title">lsqvce 6.22.0 — User Manual</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 </header>
@@ -1251,7 +1251,7 @@ replayable batch source (for expert use)</td>
 </tr>
 </tbody>
 </table>
-<p><code>R.stopReason</code> takes one of four values:</p>
+<p><code>R.stopReason</code> takes one of five values:</p>
 <table>
 <colgroup>
 <col style="width: 50%" />
@@ -1282,6 +1282,10 @@ covariance and one warning: this is a result, not an error</td>
 <td><code>"userStop"</code></td>
 <td>your <code>Options.OnPass</code> hook returned
 <code>false</code></td>
+</tr>
+<tr class="odd">
+<td><code>"diverged"</code></td>
+<td>Gauss–Newton found no downhill step; more passes cannot help</td>
 </tr>
 </tbody>
 </table>
@@ -1714,11 +1718,14 @@ number of passes</td>
 <code>"userStop"</code> before it settled, or a Gauss-Newton fit stopped
 on <code>"diverged"</code> (no downhill step). Every number below rests
 on weights or a point that were still moving</td>
-<td>Treat the result as provisional. Raise <code>MaxPasses</code> or
-loosen <code>Tolerance</code> and run again.
+<td>Treat the result as provisional. The noise loop and Gauss–Newton:
+raise <code>MaxPasses</code> or loosen <code>Tolerance</code>; the
+robust re-weighting: raise <code>RobustOpts.MaxIter</code> or loosen
+<code>RobustOpts.Tol</code>. For the noise loop
 <code>R.convergence()</code> shows what was still changing (see “When
-the loop did not settle” below). For <code>"diverged"</code> more passes
-cannot help: check the start point and the Jacobian.</td>
+the loop did not settle” below); a robust or Gauss–Newton run lists its
+passes in <code>R.history</code>. For <code>"diverged"</code> more
+passes cannot help: check the start point and the Jacobian.</td>
 </tr>
 <tr class="odd">
 <td><code>ROBUST_FIT</code></td>
@@ -1835,6 +1842,17 @@ share of residuals beyond 2.5 robust sigmas. On clean data
 <code>fhat</code> sits near <code>P(|Z| &gt; 2.5) = 0.0124</code>. As a
 backstop it also prints <code>s0/sigma0</code>, which contamination
 cannot suppress but which is only as good as your declared sigma0.</p>
+<p>The null band is measured, for every <code>n</code> (the scored
+residuals): on clean data the count <code>n·fhat</code> is negative
+binomial with mean <code>n · 0.0124 · (1 + 27/n)</code> (a small
+sample’s MAD is biased low) and variance 1.69 times that mean.
+<code>D.fhatTol</code> is its 99.75 % point (false alarms ≤ 0.25 %), and
+<code>fhat</code> counts as <em>collapsed</em> only where it is
+implausibly low for clean data (<code>P(K ≤ n·fhat) ≤ 1 %</code>). Below
+<code>n ≈ 450</code> even <code>fhat = 0</code> is common on clean data
+(59 % at <code>n = 30</code>), so there a captured robust scale cannot
+be told from a sigma0 declared too small
+(<code>D.collapseDetectable = false</code>).</p>
 <p>The cross-check appears whenever <code>RobustCheck = true</code>,
 whatever the <code>Bonferroni</code> setting. Exactly one of these lines
 is printed:</p>
@@ -1858,12 +1876,22 @@ is printed:</p>
 <td><code>SNOOP_SCALECHECK</code></td>
 <td>NOTE</td>
 <td><code>clean</code>: <code>fhat</code> within its null band
-<code>0.0124 + 4 · 1.30 · sqrt(0.0124 · 0.9876 / n)</code> and no large
-backstop</td>
+<code>D.fhatTol</code></td>
 <td><code>s0</code> and the robust scale agree, so the flag list can be
 believed. (This line is omitted under <code>Test = "mad"</code>.)</td>
 </tr>
 <tr class="even">
+<td><code>SNOOP_INDETERMINATE</code></td>
+<td>WARN</td>
+<td><code>fhat</code> within its null band,
+<code>s0/sigma0 &gt; max(3, 2·(1 + 3/sqrt(2r)))</code>, and a collapse
+undetectable at this <code>n</code></td>
+<td>Either sigma0 is declared too small (the common case: then the flag
+list can be believed) or more than half the data are bad and the robust
+scale is captured (then it cannot). Check sigma0 first; if it is
+trustworthy, fix the functional model before rejecting anything.</td>
+</tr>
+<tr class="odd">
 <td><code>SNOOP_MODERATE</code></td>
 <td>WARN</td>
 <td><code>fhat</code> above the null band, below 0.10</td>
@@ -1871,7 +1899,7 @@ believed. (This line is omitted under <code>Test = "mad"</code>.)</td>
 <code>Test = "mad"</code>, and reject one observation at a time
 (<code>R.snoop(Test="mad")</code>).</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>SNOOP_CONTAMINATED</code></td>
 <td><strong>ERROR</strong></td>
 <td><code>0.10 ≤ fhat &lt; 0.25</code></td>
@@ -1880,7 +1908,7 @@ Pope run is not evidence of clean data, and iterating does not help. Use
 <code>Test = "mad"</code>, or refit with <code>Robust = "huber"</code>
 (<code>"igg3"</code> / <code>"bisquare"</code> for gross blunders).</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>SNOOP_REFUSE</code></td>
 <td><strong>ERROR</strong></td>
 <td><code>fhat ≥ 0.25</code></td>
@@ -1889,17 +1917,17 @@ outliers. Rejecting them would produce a confidently wrong result, and
 the flag list is incomplete anyway. Run <code>R.systematic()</code> and
 fix the functional model before rejecting anything.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>SNOOP_BREAKDOWN</code></td>
 <td><strong>ERROR</strong></td>
-<td><code>fhat ≤ 0.005</code> while
+<td><code>fhat</code> collapsed below its null band while
 <code>s0/sigma0 &gt; max(3, 2·(1 + 3/sqrt(2r)))</code></td>
 <td>The robust scale has adopted the blunders as its reference (more
 than about half the data are bad). <strong>Reject nothing</strong> and
 trust no flag list in this report. Either the declared sigma or the
 functional model is badly wrong; fix that first.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>SNOOP_NOCHECK</code></td>
 <td>NOTE</td>
 <td>no robust scale could be formed (too few usable residuals, or
@@ -1913,9 +1941,10 @@ loses power without warning.</td>
 <ul>
 <li><code>SNOOP_BACKSTOP</code> (NOTE) appears whenever
 <code>s0/sigma0</code> exceeds its clean-data tolerance
-<code>1 + 3/sqrt(2r)</code>. It is not printed in the breakdown case,
-which already reports the backstop. If your sigma0 is trustworthy, the
-residuals really are that much larger than promised.</li>
+<code>1 + 3/sqrt(2r)</code>. It is not printed in the breakdown and
+indeterminate cases, which already report the backstop. If your sigma0
+is trustworthy, the residuals really are that much larger than
+promised.</li>
 <li><code>SNOOP_MAD</code> (NOTE) states that the robust scale replaced
 <code>s0</code> (<code>Test = "mad"</code>).</li>
 </ul>
@@ -1931,11 +1960,14 @@ chance (<code>Alpha</code> under Bonferroni).</li>
 roughly how many good observations will be flagged by chance. Set
 <code>Bonferroni = true</code>.</li>
 <li><code>SNOOP_VACUOUS</code> (<strong>ERROR</strong>, Pope only)
-appears when the critical value exceeds the upper bound
-<code>sqrt(r)</code> of Pope’s statistic. No residual can ever be
-flagged, so an empty list is guaranteed. Accept a weaker
-<code>Alpha</code> or a weaker family-wise correction, or accept that
-this network cannot detect its own blunders.</li>
+appears when the critical value comes so close to the upper bound
+<code>sqrt(r)</code> of Pope’s statistic that a residual must carry at
+least 90 % of <code>vPv</code> to be flagged
+(<code>k^2 / r &gt;= 0.9</code>, <code>D.vacuityShare</code>). Only a
+blunder that dominates the whole adjustment can then be found, and an
+empty list says nothing. Accept a weaker <code>Alpha</code> or a weaker
+family-wise correction, or accept that this network cannot detect its
+own blunders.</li>
 <li><code>SNOOP_CLEAN</code> (NOTE) means nothing exceeds the critical
 value. It prints the largest <code>|w|</code> and its observation
 index.</li>
@@ -1958,22 +1990,25 @@ other and a single pass misses some of them:</li>
 class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a>[<span class="va">D2</span><span class="op">,</span> <span class="va">REJ</span><span class="op">,</span> <span class="va">sol2</span>] <span class="op">=</span> <span class="va">R</span>.<span class="va">snoop</span>()<span class="op">;</span>               <span class="co">% Pope, Bonferroni, one at a time</span></span>
 <span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>[<span class="va">D2</span><span class="op">,</span> <span class="va">REJ</span><span class="op">,</span> <span class="va">sol2</span>] <span class="op">=</span> <span class="va">R</span>.<span class="va">snoop</span>(<span class="va">Test</span><span class="op">=</span><span class="st">&quot;mad&quot;</span>)<span class="op">;</span>     <span class="co">% under contamination</span></span>
 <span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a><span class="va">REJ</span>.<span class="va">idx</span>      <span class="co">% rejected, in order;  REJ.refused  % tripped but r_i &lt; RMinReject (0.10)</span></span></code></pre></div>
-<p><code>R.snoop</code> takes its own <code>Test</code>
-(<code>"pope"</code> or <code>"mad"</code>), <code>Alpha</code> (1e-3)
-and <code>Bonferroni</code> (<code>true</code>) name-values; it does not
-read <code>Options.Diagnostics</code>. It caps the number of rejections
-at <code>max(10, 0.01·n)</code> and stops at a fraction of 0.25
-(<code>MaxRejectFrac</code>). It refuses observations with
+<p><code>R.snoop</code> takes <code>Test</code> (<code>"pope"</code> or
+<code>"mad"</code>), <code>Alpha</code> and <code>Bonferroni</code>
+name-values; left out, they are <code>R.diag</code>’s, so
+<code>Options.Diagnostics</code> reaches them. It caps the number of
+rejections at <code>max(10, 0.01·n)</code> and stops at a fraction of
+0.25 (<code>MaxRejectFrac</code>). It refuses observations with
 <code>r_i &lt; RMinReject</code>, re-solves cleanly over the survivors
-at the end, and leaves <code>R</code> unchanged. The prior’s rows are
-never rejected, and the re-solve keeps the prior as a prior (a datum
-stays a datum). The returned <code>D2</code> counts in the original
-observation numbers (<code>D2.flagIdx</code>,
-<code>D2.rejectedIdx</code>, …); its per-observation vectors cover the
-survivors, and <code>D2.obsIdx</code> names their original numbers. It
-cannot reject single rows of a correlated batch
-(<code>lsqvce:snoop:correlatedBatch</code>): there, remove the epoch in
-<code>buildDay</code> or use <code>Robust</code>.</p>
+at the end, and leaves <code>R</code> unchanged. A prior’s rows, common
+or local, are never rejected, and the re-solve keeps the prior as a
+prior (a datum stays a datum); the re-diagnosis keeps
+<code>R.diag</code>’s thresholds and storage (<code>Store</code>,
+<code>NWorst</code>, <code>RobustCheck</code>). The returned
+<code>D2</code> counts in the original observation numbers
+(<code>D2.flagIdx</code>, <code>D2.rejectedIdx</code>, …); its
+per-observation vectors cover the survivors, and <code>D2.obsIdx</code>
+names their original numbers. It cannot reject single rows of a
+correlated batch (<code>lsqvce:snoop:correlatedBatch</code>): there,
+remove the epoch in <code>buildDay</code> or use
+<code>Robust</code>.</p>
 <h2 data-number="7.7"
 id="level-3-reliability-what-can-you-not-check"><span
 class="header-section-number">7.7</span> Level 3 — RELIABILITY (what can
@@ -1986,7 +2021,13 @@ and its observation, the mean redundancy <code>r/n</code>, and the MDB
 non-centrality <code>delta0</code>. <code>delta0</code> is computed at
 the <strong>Bonferroni-corrected</strong> level and <code>Beta</code>:
 4.13 at a level of 1e-3 with <code>Beta = 0.2</code>, and larger as
-<code>n</code> grows.</li>
+<code>n</code> grows. It is the normal (Baarda, known-sigma) value.
+Under <code>Test = "mad"</code> the threshold is Student t with
+<code>r/2</code> degrees of freedom, so the bias that can hide from that
+test is larger (about +50 % at <code>n = 30</code>, +25 % at
+<code>n = 50</code>, +6 % at <code>n = 200</code>); the line then says
+that the MDB, the envelope and the external reliability are the Baarda
+values.</li>
 <li><code>REL_QUADRANTS</code> (NOTE) counts the observations in each
 cell of the (|w|, r) table. <code>|w|</code> is high when it exceeds the
 critical value; <code>r</code> is low when it is below
@@ -2588,9 +2629,9 @@ class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb32-1"><a h
 <p>Each call returns one figure handle; nothing is exported by the
 toolbox. <code>R.stopReason</code> says why the loop ended
 (<code>"single"</code>, <code>"converged"</code>,
-<code>"maxPasses"</code>, <code>"userStop"</code>), and
-<code>R.meta.warnings</code> lists every warning identifier the run
-raised.</p>
+<code>"maxPasses"</code>, <code>"userStop"</code>,
+<code>"diverged"</code>), and <code>R.meta.warnings</code> lists every
+warning identifier the run raised.</p>
 <h2 data-number="8.3" id="reproducing-a-run"><span
 class="header-section-number">8.3</span> Reproducing a run</h2>
 <p><code>R.meta</code> records the toolbox version, the MATLAB release,

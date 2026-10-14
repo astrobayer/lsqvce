@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.21.0 — User Manual"
+title: "lsqvce 6.22.0 — User Manual"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 
@@ -603,7 +603,7 @@ All properties are read-only.
 | `R.meta` | run provenance: `.toolboxVersion`, `.matlabRelease`, `.createdUTC`, `.seeds`, `.options` (as resolved), `.warnings` |
 | `R.acc`, `R.source`, `R.batchFcn`, `R.nBatch`, `R.systems` | the accumulator, the diagnosed full-parameter solution and its replayable batch source (for expert use) |
 
-`R.stopReason` takes one of four values:
+`R.stopReason` takes one of five values:
 
 | value | meaning |
 |---|---|
@@ -611,6 +611,7 @@ All properties are read-only.
 | `"converged"` | every stop criterion was met |
 | `"maxPasses"` | the pass budget ran out. The last pass is returned with its covariance and one warning: this is a result, not an error |
 | `"userStop"` | your `Options.OnPass` hook returned `false` |
+| `"diverged"` | Gauss–Newton found no downhill step; more passes cannot help |
 
 ### Methods
 
@@ -762,7 +763,7 @@ Level 1 checks whether the functional and stochastic model are consistent overal
 | code | severity | meaning | action |
 |---|---|---|---|
 | `NOISE_SETTLED` | NOTE | the loop met its stop rule; the line names the loop (the stochastic model, the robust re-weighting or the Gauss–Newton iteration) and its number of passes | — |
-| `NOISE_UNSETTLED` | WARN | the loop stopped on `"maxPasses"` or `"userStop"` before it settled, or a Gauss-Newton fit stopped on `"diverged"` (no downhill step). Every number below rests on weights or a point that were still moving | Treat the result as provisional. Raise `MaxPasses` or loosen `Tolerance` and run again. `R.convergence()` shows what was still changing (see "When the loop did not settle" below). For `"diverged"` more passes cannot help: check the start point and the Jacobian. |
+| `NOISE_UNSETTLED` | WARN | the loop stopped on `"maxPasses"` or `"userStop"` before it settled, or a Gauss-Newton fit stopped on `"diverged"` (no downhill step). Every number below rests on weights or a point that were still moving | Treat the result as provisional. The noise loop and Gauss–Newton: raise `MaxPasses` or loosen `Tolerance`; the robust re-weighting: raise `RobustOpts.MaxIter` or loosen `RobustOpts.Tol`. For the noise loop `R.convergence()` shows what was still changing (see "When the loop did not settle" below); a robust or Gauss–Newton run lists its passes in `R.history`. For `"diverged"` more passes cannot help: check the start point and the Jacobian. |
 | `ROBUST_FIT` | NOTE | the run used a robust influence (`Robust = "huber"`, `"igg3"` or `"bisquare"`) | `sigma0` and the covariance belong to the **reweighted** problem. They are not an M-estimator's scale or sandwich covariance, so the global test and the parameter bounds are approximate in both directions. |
 
 **The global test.** Two lines always appear:
@@ -810,23 +811,32 @@ the share of residuals beyond 2.5 robust sigmas. On clean data `fhat` sits near
 `P(|Z| > 2.5) = 0.0124`. As a backstop it also prints `s0/sigma0`, which contamination
 cannot suppress but which is only as good as your declared sigma0.
 
+The null band is measured, for every `n` (the scored residuals): on clean data the count
+`n·fhat` is negative binomial with mean `n · 0.0124 · (1 + 27/n)` (a small sample's MAD is
+biased low) and variance 1.69 times that mean. `D.fhatTol` is its 99.75 % point (false
+alarms ≤ 0.25 %), and `fhat` counts as *collapsed* only where it is implausibly low for
+clean data (`P(K ≤ n·fhat) ≤ 1 %`). Below `n ≈ 450` even `fhat = 0` is common on clean
+data (59 % at `n = 30`), so there a captured robust scale cannot be told from a sigma0
+declared too small (`D.collapseDetectable = false`).
+
 The cross-check appears whenever `RobustCheck = true`, whatever the `Bonferroni` setting. Exactly
 one of these lines is printed:
 
 | code | severity | condition | action |
 |---|---|---|---|
-| `SNOOP_SCALECHECK` | NOTE | `clean`: `fhat` within its null band `0.0124 + 4 · 1.30 · sqrt(0.0124 · 0.9876 / n)` and no large backstop | `s0` and the robust scale agree, so the flag list can be believed. (This line is omitted under `Test = "mad"`.) |
+| `SNOOP_SCALECHECK` | NOTE | `clean`: `fhat` within its null band `D.fhatTol` | `s0` and the robust scale agree, so the flag list can be believed. (This line is omitted under `Test = "mad"`.) |
+| `SNOOP_INDETERMINATE` | WARN | `fhat` within its null band, `s0/sigma0 > max(3, 2·(1 + 3/sqrt(2r)))`, and a collapse undetectable at this `n` | Either sigma0 is declared too small (the common case: then the flag list can be believed) or more than half the data are bad and the robust scale is captured (then it cannot). Check sigma0 first; if it is trustworthy, fix the functional model before rejecting anything. |
 | `SNOOP_MODERATE` | WARN | `fhat` above the null band, below 0.10 | Pope's test is starting to lose power. Re-diagnose with `Test = "mad"`, and reject one observation at a time (`R.snoop(Test="mad")`). |
 | `SNOOP_CONTAMINATED` | **ERROR** | `0.10 ≤ fhat < 0.25` | Pope's test is **blind**: an empty flag list from a Pope run is not evidence of clean data, and iterating does not help. Use `Test = "mad"`, or refit with `Robust = "huber"` (`"igg3"` / `"bisquare"` for gross blunders). |
 | `SNOOP_REFUSE` | **ERROR** | `fhat ≥ 0.25` | So large a fraction of "outliers" points to a model error, not to outliers. Rejecting them would produce a confidently wrong result, and the flag list is incomplete anyway. Run `R.systematic()` and fix the functional model before rejecting anything. |
-| `SNOOP_BREAKDOWN` | **ERROR** | `fhat ≤ 0.005` while `s0/sigma0 > max(3, 2·(1 + 3/sqrt(2r)))` | The robust scale has adopted the blunders as its reference (more than about half the data are bad). **Reject nothing** and trust no flag list in this report. Either the declared sigma or the functional model is badly wrong; fix that first. |
+| `SNOOP_BREAKDOWN` | **ERROR** | `fhat` collapsed below its null band while `s0/sigma0 > max(3, 2·(1 + 3/sqrt(2r)))` | The robust scale has adopted the blunders as its reference (more than about half the data are bad). **Reject nothing** and trust no flag list in this report. Either the declared sigma or the functional model is badly wrong; fix that first. |
 | `SNOOP_NOCHECK` | NOTE | no robust scale could be formed (too few usable residuals, or `RobustCheck = false`) | Pope's test is used unchecked. Above about 5 % contamination it loses power without warning. |
 
 In addition:
 
 * `SNOOP_BACKSTOP` (NOTE) appears whenever `s0/sigma0` exceeds its clean-data tolerance
-  `1 + 3/sqrt(2r)`. It is not printed in the breakdown case, which already reports the
-  backstop. If your sigma0 is trustworthy, the residuals really are that much larger than
+  `1 + 3/sqrt(2r)`. It is not printed in the breakdown and indeterminate cases, which
+  already report the backstop. If your sigma0 is trustworthy, the residuals really are that much larger than
   promised.
 * `SNOOP_MAD` (NOTE) states that the robust scale replaced `s0` (`Test = "mad"`).
 
@@ -838,10 +848,12 @@ In addition:
 * `SNOOP_NOBONF` (WARN) replaces it when `Bonferroni = false`. It prints the uncorrected
   level and roughly how many good observations will be flagged by chance. Set
   `Bonferroni = true`.
-* `SNOOP_VACUOUS` (**ERROR**, Pope only) appears when the critical value exceeds the upper
-  bound `sqrt(r)` of Pope's statistic. No residual can ever be flagged, so an empty list is
-  guaranteed. Accept a weaker `Alpha` or a weaker family-wise correction, or accept that
-  this network cannot detect its own blunders.
+* `SNOOP_VACUOUS` (**ERROR**, Pope only) appears when the critical value comes so close to
+  the upper bound `sqrt(r)` of Pope's statistic that a residual must carry at least 90 % of
+  `vPv` to be flagged (`k^2 / r >= 0.9`, `D.vacuityShare`). Only a blunder that dominates
+  the whole adjustment can then be found, and an empty list says nothing. Accept a weaker
+  `Alpha` or a weaker family-wise correction, or accept that this network cannot detect its
+  own blunders.
 * `SNOOP_CLEAN` (NOTE) means nothing exceeds the critical value. It prints the largest
   `|w|` and its observation index.
 * `SNOOP_FLAGS` (WARN) gives the number flagged, the number expected by chance, and so
@@ -860,11 +872,13 @@ In addition:
 REJ.idx      % rejected, in order;  REJ.refused  % tripped but r_i < RMinReject (0.10)
 ```
 
-`R.snoop` takes its own `Test` (`"pope"` or `"mad"`), `Alpha` (1e-3) and `Bonferroni` (`true`)
-name-values; it does not read `Options.Diagnostics`. It caps the number of rejections at
+`R.snoop` takes `Test` (`"pope"` or `"mad"`), `Alpha` and `Bonferroni` name-values; left out,
+they are `R.diag`'s, so `Options.Diagnostics` reaches them. It caps the number of rejections at
 `max(10, 0.01·n)` and stops at a fraction of 0.25 (`MaxRejectFrac`). It refuses observations with `r_i < RMinReject`, re-solves cleanly
-over the survivors at the end, and leaves `R` unchanged. The prior's rows are never
-rejected, and the re-solve keeps the prior as a prior (a datum stays a datum). The returned
+over the survivors at the end, and leaves `R` unchanged. A prior's rows, common or local,
+are never rejected, and the re-solve keeps the prior as a prior (a datum stays a datum);
+the re-diagnosis keeps `R.diag`'s thresholds and storage (`Store`, `NWorst`,
+`RobustCheck`). The returned
 `D2` counts in the original observation numbers (`D2.flagIdx`, `D2.rejectedIdx`, ...); its
 per-observation vectors cover the survivors, and `D2.obsIdx` names their original numbers.
 It cannot reject single rows of a
@@ -878,7 +892,11 @@ Level 3 shows which observations the tests could not check at all.
 * `REL_HEAD` (NOTE) prints the smallest redundancy number and its observation, the mean
   redundancy `r/n`, and the MDB non-centrality `delta0`. `delta0` is computed at the
   **Bonferroni-corrected** level and `Beta`: 4.13 at a level of 1e-3 with `Beta = 0.2`,
-  and larger as `n` grows.
+  and larger as `n` grows. It is the normal (Baarda, known-sigma) value. Under
+  `Test = "mad"` the threshold is Student t with `r/2` degrees of freedom, so the bias that
+  can hide from that test is larger (about +50 % at `n = 30`, +25 % at `n = 50`, +6 % at
+  `n = 200`); the line then says that the MDB, the envelope and the external reliability
+  are the Baarda values.
 * `REL_QUADRANTS` (NOTE) counts the observations in each cell of the (|w|, r) table.
   `|w|` is high when it exceeds the critical value; `r` is low when it is below `RWeak`.
 
@@ -1174,7 +1192,8 @@ R.plot("contribution")   % which stream determines which parameter
 ```
 
 Each call returns one figure handle; nothing is exported by the toolbox. `R.stopReason`
-says why the loop ended (`"single"`, `"converged"`, `"maxPasses"`, `"userStop"`), and
+says why the loop ended (`"single"`, `"converged"`, `"maxPasses"`, `"userStop"`,
+`"diverged"`), and
 `R.meta.warnings` lists every warning identifier the run raised.
 
 ## Reproducing a run

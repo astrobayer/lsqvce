@@ -38,12 +38,14 @@ function [B, info] = datum(N, opt)
 %
 %   INPUT
 %     N         u x u  numeric  the normal matrix (may be singular)
-%     varargin  Name/Value: 'tol' (rank tolerance), 'type' ('auto' | explicit)
+%     varargin  Name/Value: 'datumB', 'tol', 'verbose' (the NAME-VALUE above)
 %
 %   OUTPUT
 %     B     u x k  numeric  basis of the null space -- the datum defect
-%     info  1x1    struct   .rank, .defect, .tol, .detected (true when the
-%                           defect was found automatically rather than supplied)
+%     info  1x1    struct   .defect, .rank, .method ('user' | 'auto' |
+%                           'none'), .evRatio, .residual (OUTPUT info above;
+%                           WP-135: the help named .tol, .detected and a
+%                           'type' option that never existed)
 %
 %   EXAMPLE
 %       % A levelling network measures only HEIGHT DIFFERENCES, so the overall
@@ -84,6 +86,10 @@ function [B, info] = datum(N, opt)
 %
 %   See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.ADJUSTBLOCK.
 %
+%   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lane 1): the INPUT /
+%   OUTPUT help names the real options and info fields (it named .tol, .detected
+%   and a 'type' option that never existed). With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): See also
 %   names the live accumulator and driver. With assistance from Claude
 %   (Anthropic), model Claude Opus 5.5.

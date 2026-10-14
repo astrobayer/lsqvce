@@ -15,6 +15,13 @@ function tests = test_fit
 %
 %   Run: runtests('tests/test_fit')
 %
+%   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (third review findings 5,
+%   11, 12, 13 and the loader lows): duplicate days, one id kind, 'i' / 'j',
+%   validity entries, local prior from / names refused; a throwing buildDay
+%   named (the bomb a named function); layout without localParams; the
+%   calendar of a system without days; a local datum, a local prior row never
+%   rejected; systematic over the data rows. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (third review): the robust joint sweep leaves the prior pseudo-arcs out.
 %   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: zero weights are rejected
@@ -199,6 +206,137 @@ function testDeclarationRulesFireBeforeAnyRead(tc)
     end
 end
 
+function testDeclarationRulesOfTheThirdReview(tc)
+% categories: contract
+    % WP-135 (review 3 findings 11, 12 and lane 4): refused before any read --
+    % the builder THROWS if reached, and the old code reached it (or the
+    % accumulator) on every one of these declarations.
+    [data, ~] = declaration();
+    bomb = @(varargin) error('test:reached', 'buildDay must not be called during validation');
+    data.systems(1).buildDay = bomb;
+    % finding 11: a repeated day was accumulated twice
+    d = data;  d.days = [1 2 2 3];
+    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:duplicateDay');
+    d = data;  d.systems(1).days = [1 1 2];
+    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:duplicateDay');
+    d = data;  d.systems(1).days = [1 2.5];
+    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:noDays');
+    % finding 12: a character id next to an index default (a number)
+    d = data;  d.systems(1).id = 'C';  d.systems(2) = d.systems(1);  d.systems(2).id = [];
+    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:badId');
+    d = data;  d.systems(1).id = NaN;
+    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:badId');
+    % a common validity entry of another type, or a start after its end
+    d = data;  d.paramColumns = struct('start', 3, 'end', 4);
+    d.commonParams(:, 3:4) = {[]};  d.systems(1).localParams(:, 3:4) = {[]};
+    d.commonParams{1, 3} = 'tomorrow';
+    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:badValidity');
+    d.commonParams{1, 3} = 10;  d.commonParams{1, 4} = 5;
+    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:badValidity');
+    % local prior groups: from a pass number, and one stream per group
+    d = data;  d.systems(1).priors = struct('L', [1 0 0 0], 'x0', 0, 'sigma', 1, 'from', NaN);
+    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:badPrior');
+    d = data;  d.systems(1).priors = struct('L', {[1 0 0 0], [0 1 0 0]}, 'x0', 0, 'sigma', 1, 'name', 'a');
+    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:badPrior');
+end
+
+function testCharacterIdsAndATrowingBuildDay(tc)
+% categories: contract
+    % WP-135: ids 'i' / 'j' parsed as the complex 1i (both: an opaque
+    % duplicateSystem); a buildDay that throws is lsqvce:makeLoader:buildDay,
+    % with the day and the stream, the user's error the cause (documented,
+    % never raised). Past validation, the bomb is the first read.
+    % The bomb is a named function: an anonymous @(varargin) error(...) asked
+    % for D throws MATLAB:TooManyOutputs, not the user's error (CI, 6.22.0).
+    [data, ~] = declaration();
+    data.systems(1).buildDay = @throwingBuildDay;
+    data.systems(1).id = 'i';  data.systems(2) = data.systems(1);  data.systems(2).id = 'j';
+    try
+        lsqvce.fit(data, Verbose=false);
+        tc.verifyFail('the builder throws');
+    catch e
+        tc.verifyEqual(e.identifier, 'lsqvce:makeLoader:buildDay');
+        tc.verifyEqual(e.cause{1}.identifier, 'test:reached');
+        tc.verifyTrue(contains(e.message, 'day') && contains(e.message, 'the user''s error'));
+    end
+end
+
+function D = throwingBuildDay(varargin) %#ok<STOUT> -- it throws, by design
+%THROWINGBUILDDAY  A user's buildDay that fails (testCharacterIdsAndATrowingBuildDay).
+    error('test:reached', 'the user''s error');
+end
+
+function testLayoutOfASystemWithoutLocals(tc)
+% categories: contract, robustness
+    % WP-135 (review 3 finding 13): a system without localParams has no plan;
+    % lsqvce.layout stopped on plan.nl (the Manual's chapter 6 example).
+    [data, ~] = declaration();
+    data.systems = rmfield(data.systems, 'localParams');
+    lay = lsqvce.layout(data);
+    tc.verifyEqual(lay.systems(1).nl, 0);
+    tc.verifyEmpty(lay.systems(1).local);
+    tc.verifyEqual(lay.systems(1).col(1, 1, []), 0, 'no instance: column 0');
+    tc.verifyEqual(lay.colCommon(1, []), 1);
+end
+
+function testSystemWithoutDaysClaimsOnlyTheGlobalCalendar(tc)
+% categories: contract, robustness
+    % WP-135 (review 3, lane 4): a system without its own days reads
+    % data.days only, but claimed every calendar day for the common 'day'
+    % blocks -- day 3 below got a block nobody observes (singular solve).
+    [data, ~] = declaration();
+    bomb = @(varargin) error('test:reached', 'layout reads no data');
+    data.commonParams = {'common', 1; 'day', 2};
+    data.days = 1:2;
+    data.systems(1).buildDay = bomb;
+    data.systems(1).id = 1;  data.systems(1).days = [];   % no own days: data.days
+    s2 = data.systems(1);  s2.id = 2;  s2.days = 1:3;
+    s2.arcs = @(day, obsType) 1:(day < 3);           % no arc on day 3
+    data.systems(2) = s2;
+    lay = lsqvce.layout(data);
+    tc.verifyEqual(lay.nc, 3, 'one common row and a day row on days 1 and 2 only');
+    tc.verifyEqual(lay.colCommon(2, 3), 0, 'no day-3 block');
+end
+
+function testLocalPriorRowsFollowTheCommonPriorsRules(tc)
+% categories: contract, robustness | tags: diagnostics
+    % WP-135 (review 3 finding 5): a LOCAL prior group got neither the datum
+    % rule (WP-127) nor the no-rejection rule (WP-128). (a) Locals 3 and 4
+    % enter only as their sum; "y3 - y4 = 0" is a datum the data cannot see:
+    % r = 0, and it was an uncontrolled observation (REL_UNCONTROLLED, verdict
+    % SUSPECT). (b) A soft local prior 10 sigma off the data's estimate was a
+    % snoop candidate and rejected.
+    [data, cfg] = declaration();
+    data.systems(1).buildDay = @(d, ot) twinLocals(buildDayImpl(cfg, d, ot));
+    data.systems(1).priors = struct('L', [0 0 1 -1], 'x0', 0, 'sigma', 1, 'name', 'twin');
+    R = lsqvce.fit(data, Verbose=false);
+    D = R.diag;
+    tc.verifyNumElements(D.priorRows, 1, 'the one prior row');
+    tc.verifyEqual(D.datumRows, D.priorRows, 'the blind local prior row is a datum row');
+    tc.verifyEqual(D.nUncontrolled, 0, 'no uncontrolled observation');
+    tc.verifyEqual(D.nTests, D.n - 1, 'the datum row is not tested');
+    % (b) a soft local prior the data contradict
+    [data, ~] = declaration();
+    R0 = lsqvce.fit(data, Verbose=false);
+    y0 = R0.residuals('Verbose', false).sys(1).y;
+    data.systems(1).priors = struct('L', [0 1 0 0], 'x0', y0(2) + 10, 'sigma', 1, 'name', 'off');
+    R1 = lsqvce.fit(data, Verbose=false);
+    pr = R1.diag.priorRows;
+    tc.verifyNumElements(pr, 1);
+    tc.verifyTrue(ismember(pr, R1.diag.flagIdx), 'the inconsistent prior row is flagged (tested)');
+    [~, REJ] = R1.snoop('Verbose', false);
+    tc.verifyFalse(any(ismember(REJ.idx, pr)), 'a prior row is a declaration, never rejected');
+    % systematic leaves the prior row out: a covariate over the DATA rows works
+    t = (1:(R1.diag.n - 1)).';
+    S = R1.systematic('Covariates', struct('t', t), 'Verbose', false);
+    tc.verifyEqual(S.n, R1.diag.n);
+end
+
+function D = twinLocals(D)
+% locals 3 and 4 enter every arc identically: only their sum is observed
+    for a = 1:numel(D.B), D.B{a}(:, 4) = D.B{a}(:, 3); end
+end
+
 function testNotYetPathsAreRefusedExplicitly(tc)
 % categories: contract
     % R5 M2 2b: Robust IRLS RUNS on the streaming kind (a policy on the block
@@ -301,6 +439,34 @@ function testRobustReportCountsItsOwnPasses(tc)
     tc.verifyTrue(contains(msg, 'robust re-weighting'), 'it names the loop that iterated');
     tc.verifyTrue(contains(msg, sprintf('%d pass', numel(Rr.history))), ...
                   'and counts its passes from the pass record');
+end
+
+function testUnsettledRobustRunAdvisesItsOwnOptions(tc)
+% categories: contract | tags: diagnostics
+    % WP-135 (review 3, lane 4): an unsettled IRLS run was told to raise
+    % MaxPasses / Tolerance (they do not govern it) and pointed at
+    % R.convergence(), which refused it with "a single solve does not iterate".
+    rs = RandStream('mt19937ar', 'Seed', 18);
+    A = [ones(200, 1), randn(rs, 200, 2)];  l = A*[1; 2; 3] + randn(rs, 200, 1);
+    l(7) = l(7) + 30;
+    muteWarn(tc, 'lsqvce:adjustRobust:notConverged');
+    Rr = lsqvce.fit(struct('A', A, 'l', l), lsqvce.Options(Robust="huber", ...
+                    RobustOpts=struct('MaxIter', 1), Verbose=false));
+    tc.assumeFalse(Rr.converged, 'one IRLS pass does not settle');
+    V = Rr.report('Verbose', false);
+    codes = cellfun(@(f) f.code, V.findings, 'UniformOutput', false);
+    k = find(strcmp(codes, 'NOISE_UNSETTLED'), 1);
+    tc.assertNotEmpty(k);
+    tc.verifyTrue(contains(V.findings{k}.msg, 'RobustOpts.MaxIter'));
+    tc.verifyFalse(contains(V.findings{k}.msg, 'R.convergence()'));
+    try
+        Rr.convergence();
+        tc.verifyFail('an IRLS run has no per-stream history');
+    catch e
+        tc.verifyEqual(e.identifier, 'lsqvce:Results:noHistory');
+        tc.verifyTrue(contains(e.message, 'R.history'));
+        tc.verifyFalse(contains(e.message, 'a single solve does not iterate'));
+    end
 end
 
 function testRobustWarnsAtTheBreakdownPoint(tc)
@@ -1704,6 +1870,32 @@ function testSnoopInheritsTheDiagnosticsTest(tc)
     tc.verifyEqual(REJ.history(1, 4), R.diag.kCrit, 'RelTol', 1e-12, 'snoop tests at R.diag''s Alpha');
     [~, REJ2] = R.snoop('Verbose', false, 'Alpha', 1e-3);
     tc.verifyGreaterThan(REJ2.history(1, 4), REJ.history(1, 4), 'an explicit Alpha still wins');
+end
+
+function testSnoopReDiagnosisKeepsTheCallersStorage(tc)
+% categories: contract | tags: diagnostics
+    % WP-135 (review 3, lane 1): snoop's re-diagnosis forwarded only alpha /
+    % Bonferroni / test / thresholds: Store "flagged" came back "all" (five
+    % n-sized vectors at the scale "flagged" exists for). And under Test "mad"
+    % the report labels the MDB as the Baarda value (user decision): it is the
+    % normal delta0, and the bias that hides from the t(r/2) threshold is larger.
+    rs = RandStream('mt19937ar', 'Seed', 5);
+    pairs = repmat([1 2; 2 3; 3 4; 4 1; 1 3; 2 4], 7, 1);  m = size(pairs, 1);
+    A = zeros(m, 4);  A(sub2ind(size(A), (1:m).', pairs(:, 1))) = -1;
+    A(sub2ind(size(A), (1:m).', pairs(:, 2))) = 1;
+    l = A*[0; 1.5; -0.7; 2.2] + 0.01*randn(rs, m, 1);  l(3) = l(3) + 0.2;
+    data = struct('A', A, 'l', l, 'priors', struct('L', ones(1, 4), 'sigma', 1e3, 'name', 'datum'));
+    R = lsqvce.fit(data, lsqvce.Options(Diagnostics=struct('Store', "flagged"), Verbose=false));
+    tc.verifyEqual(R.diag.store, 'flagged');
+    [D2, REJ] = R.snoop('Verbose', false);
+    tc.verifyEqual(REJ.idx, 3, 'the blunder is rejected, so snoop re-diagnoses');
+    tc.verifyEqual(D2.store, 'flagged', 'the re-diagnosis keeps R.diag''s Store');
+    Rm = lsqvce.fit(data, lsqvce.Options(Diagnostics=struct('Test', "mad"), Verbose=false));
+    V = Rm.report('Verbose', false);
+    codes = cellfun(@(f) f.code, V.findings, 'UniformOutput', false);
+    k = find(strcmp(codes, 'REL_HEAD'), 1);
+    tc.assertNotEmpty(k);
+    tc.verifyTrue(contains(V.findings{k}.msg, 'Baarda'), 'the MDB under the MAD test is labelled');
 end
 
 function testMadScaleLeavesTheDatumRowsOut(tc)

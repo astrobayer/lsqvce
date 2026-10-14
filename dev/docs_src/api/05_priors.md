@@ -25,8 +25,10 @@ Malformed fields, or an `L` of the wrong width, are refused by name
 
 ## Rules
 
-- **Several rows make σ estimable.** A group with one row has redundancy ≤ 1; its σ is
-  left unchanged and flagged in `R.noise.priorHistory`.
+- **Several rows make σ estimable.** A group with one row has redundancy ≤ 1: its σ is
+  re-estimated every pass from that one residual (only a group with redundancy r ≤ 0 is
+  left unchanged, flagged in `R.noise.priorHistory`). Give a `"scale"` group several rows,
+  or declare it `"none"`.
 - **Local rows live in one day.** Every row of a local group has its non-zero columns
   inside one day's local block or the system block; days are coupled through common
   parameters only.
@@ -38,14 +40,17 @@ Malformed fields, or an `L` of the wrong width, are refused by name
   information.
 - **Datum rows are not observations.** Their redundancy is 0 by construction; the
   diagnostics keep them in Σr and vPv but do not test or count them (`D.nTests`,
-  `D.datumRows`; quadrant `"datum"` in `R.reliability()`).
+  `D.datumRows`; quadrant `"datum"` in `R.reliability()`). A local group's row counts as a
+  datum row when the data see less than a millionth of it (r ≤ 10⁻⁶).
+- **Prior rows are declarations.** `R.snoop()` never rejects a prior row, common or local,
+  and `R.systematic()` leaves the priors' rows out of its sequences (`D.priorRows`).
 
 ## Where the result is reported
 
 | | common groups | local groups |
 |---|---|---|
-| σ per pass | `R.noise.priorHistory` | `R.noise.model{k}.sigma` of stream `satKey|prior_<name>` |
-| final | `R.noise.priors` | the same stream entry |
+| σ per pass | `R.noise.priorHistory` | `R.history.sigma`, column `satKey|prior_<name>` |
+| final σ | `R.noise.priors` (absolute) | `R.noise.model{k}.sigma` of stream `satKey|prior_<name>`: the factor **relative** to the group's declared σ (σ_final = declared σ × this factor) |
 
 The rows of every prior enter `R.residuals()` and the redundancy count.
 

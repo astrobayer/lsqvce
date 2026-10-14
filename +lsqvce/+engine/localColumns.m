@@ -13,8 +13,21 @@ function loc = localColumns(plan)
 %                 of B (per day: arc blocks then the day block; then the
 %                 system block)
 %
+%   A system without localParams has no plan (makeLoader sets L.plan = [],
+%   nl = 0): its table is 0 x 1.
+%
+%   See also LSQVCE.LAYOUT, LSQVCE.RESULTS/TOTABLE, LSQVCE.ENGINE.MAKELOADER
+%
+%   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3 finding 13): an
+%   empty plan gives the 0 x 1 table -- lsqvce.layout stopped on plan.nl for
+%   every declaration with a system without localParams (the Manual's own
+%   workflow). With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Created 2026-09-03 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.1 -- R5-D8 round 6.
+    if isempty(plan)
+        loc = struct('row', cell(0, 1), 'day', cell(0, 1), 'arc', cell(0, 1));
+        return
+    end
     loc = struct('row', cell(plan.nl, 1), 'day', cell(plan.nl, 1), 'arc', cell(plan.nl, 1));
     for i = 1:numel(plan.days)
         d = plan.days(i);

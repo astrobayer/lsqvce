@@ -35,7 +35,8 @@ R.plot("contribution")   % which stream determines which parameter
 ```
 
 Each call returns one figure handle; nothing is exported by the toolbox. `R.stopReason`
-says why the loop ended (`"single"`, `"converged"`, `"maxPasses"`, `"userStop"`), and
+says why the loop ended (`"single"`, `"converged"`, `"maxPasses"`, `"userStop"`,
+`"diverged"`), and
 `R.meta.warnings` lists every warning identifier the run raised.
 
 ## Reproducing a run

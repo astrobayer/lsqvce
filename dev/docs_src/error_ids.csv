@@ -10,6 +10,7 @@ lsqvce:Options:badGroupField,Options,error,v4.0
 lsqvce:Options:badOnPass,Options,error,v4.0
 lsqvce:Options:badTarget,Options,error,v4.0
 lsqvce:Options:badVerbose,Options,error,v4.0
+lsqvce:Options:badWhitener,Options,error,v6.22.0
 lsqvce:Results:badPlotKind,Results,error,v4.0
 lsqvce:Results:noAccumulator,Results,error,v4.0
 lsqvce:Results:noCovariance,Results,error,v4.0
@@ -130,7 +131,6 @@ lsqvce:datum:zeroN,engine.datum,error,v4.0
 lsqvce:dctI:tooShort,kernel.dctI,error,v4.0
 lsqvce:decorrFactor:notPD,kernel.decorrFactor,mixed,v4.0
 lsqvce:diagnose:badPmatrix,engine.verdict,error,v4.0
-lsqvce:diagnose:badTest,engine.verdict,error,v4.0
 lsqvce:diagnose:batchMismatch,engine.verdict,error,v4.0
 lsqvce:diagnose:nBatch,engine.verdict,error,v4.0
 lsqvce:diagnose:noRobustScale,engine.verdict,error,v4.0
@@ -158,6 +158,8 @@ lsqvce:fit:priorNotActive,fit,warning,v4.0
 lsqvce:fit:uCount,fit,error,v4.0
 lsqvce:fit:varUnderNoise,fit,error,v6.1.5
 lsqvce:fit:unknownField,engine.declaration;fit,error,v4.0
+lsqvce:fit:badValidity,engine.declaration,error,v6.22.0
+lsqvce:fit:duplicateDay,engine.declaration,error,v6.22.0
 lsqvce:ftest:differentData,engine.verdict,error,v4.0
 lsqvce:ftest:invalidPremise,engine.verdict,warning,v4.0
 lsqvce:ftest:noRedundancy,engine.verdict,error,v4.0
@@ -166,7 +168,6 @@ lsqvce:ftest:zeroVariance,engine.verdict,error,v4.0
 lsqvce:gcv:atLowerBound,engine.gcvLambda,warning,v4.0
 lsqvce:gcv:atUpperBound,engine.gcvLambda,warning,v4.0
 lsqvce:gcv:degenerate,engine.gcvLambda,warning,v4.0
-lsqvce:gcvLambda:qzFallback,engine.gcvLambda,warning,v4.0
 lsqvce:hatACV:badX,kernel.hatACV,error,v6.7.0
 lsqvce:jointArcParts:sizeMismatch,engine.private.jointArcParts,error,v4.0
 lsqvce:jointModelOpt:badS,engine.jointModelOpt,error,v6.7.0
@@ -278,6 +279,7 @@ lsqvce:streamContribution:noArcs,engine.streamContribution,error,v4.0
 lsqvce:streamContribution:noStore,engine.streamContribution,error,v4.0
 lsqvce:synthLoader:badArc,engine.synthLoader,error,v4.0
 lsqvce:synthLoader:noNoiseModel,engine.synthLoader,error,v4.0
+lsqvce:synthLoader:robustFactors,engine.synthLoader,error,v6.22.0
 lsqvce:systematic:badCovariate,engine.verdict,error,v4.0
 lsqvce:systematic:lbUnreliable,engine.verdict,warning,v4.0
 lsqvce:systematic:noResiduals,engine.verdict,error,v4.0
@@ -311,8 +313,12 @@ lsqvce:covModel:nuggetNeedsWholeArc,engine.covModel,error,v6.6.0
 lsqvce:redundancyLags:badNugget,kernel.redundancyLags,error,v6.6.0
 lsqvce:accum:noRedundancy,engine.BlockAccumulator,error,v6.20.0
 lsqvce:accum:notBlockDiagonal,engine.BlockAccumulator,warning,v6.20.0
+lsqvce:accum:duplicateDay,engine.BlockAccumulator,error,v6.22.0
+lsqvce:accum:mixedIdTypes,engine.BlockAccumulator,error,v6.22.0
 lsqvce:prior:zeroRow,engine.CommonPrior,error,v6.20.0
 lsqvce:arcVarianceFactors:held,engine.arcVarianceFactors,warning,v6.21.0
 lsqvce:armaACV:truncated,kernel.armaACV,warning,v6.21.0
 lsqvce:covModel:unevenGrid,engine.covModel,warning,v6.21.0
 lsqvce:crossCorr:badLength,kernel.crossCorr,error,v6.21.0
+lsqvce:gcvLambda:badData,engine.gcvLambda,error,v6.22.0
+lsqvce:gcvLambda:nullUnobserved,engine.gcvLambda,error,v6.22.0

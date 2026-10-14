@@ -131,9 +131,16 @@ opt      1x1 struct  runtime options</pre>
 <h3>Errors</h3>
 <pre class="example">  lsqvce:synthLoader:badArc          the arc index is out of range
   lsqvce:synthLoader:noNoiseModel    the configuration declares no noise model
+  lsqvce:synthLoader:robustFactors   opt.rowWeights / epochWeights carry factors
+                                     for the arc: the template applies none
+                                     (makeLoader does)
 
 See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.COVMODEL
 
+Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lane 4): robust
+factors for an arc are refused (lsqvce:synthLoader:robustFactors) -- the
+template ignored them while the driver reported them applied. With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-102 (v6): the internal day
 is cut into arc CELLS (the v6 day contract; the raw closure&#x27;s arc slice
 is a cell pick). With assistance from Claude (Anthropic), model Claude

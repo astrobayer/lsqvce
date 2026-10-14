@@ -101,10 +101,12 @@ classdef Results < handle
 %
 %   ERRORS
 %     lsqvce:Results:noVPv          compare() on a Results without a finite v'Pv
-%     lsqvce:Results:noHistory      an iteration reader was called on a
-%                                   single-solve Results (adjustBlock does not
-%                                   iterate); use the result of an iterating
-%                                   fit (Estimate = "noise", Robust, Nonlinear)
+%     lsqvce:Results:noHistory      convergence() / summary() / plot("convergence")
+%                                   on a Results without the noise loop's
+%                                   per-stream history: a single solve, or a
+%                                   stand-alone Robust / Nonlinear run (their
+%                                   passes are R.history, one record each --
+%                                   WP-135); use Estimate = "noise"
 %     lsqvce:Results:noCovariance   coefficients() on a Results whose sol
 %                                   carries no Cxx
 %     lsqvce:Results:noAccumulator  residuals()/contribution() on a Results
@@ -122,6 +124,12 @@ classdef Results < handle
 %   See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.REPORT,
 %            LSQVCE.ENGINE.VERDICT, LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lanes 1 and 4):
+%   compare() takes the solve's rank and redundancy (D.rank, D.r);
+%   convergence().converged is R.converged (false on every row before);
+%   noHistory says when a Robust / Nonlinear run iterated without a per-stream
+%   history; the convergence plot labels max|sigma - 1|; summary's sigma is a
+%   level. With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: reliability() labels a row
 %   of weight 0 "rejected" (R.diag.excludedIdx). With assistance from Claude
 %   (Anthropic), model Claude Opus 5.5.
@@ -510,8 +518,13 @@ classdef Results < handle
                 % eliminated locals (diag.u; numel(Rk.x) is the commons only).
                 % With the commons alone df2 was too large, s0^2 of the full
                 % model too small, and F too large: 7.4 % false positives at 5 %.
+                % WP-135 (review 3, lane 1): the rank and the redundancy are the
+                % solve's (D.rank, D.r) -- a rank-deficient local block made
+                % df2 = n - u too small, s0^2 too large and F too small
                 u = Rk.diag.u;  n = Rk.diag.n;
-                s = struct('vPv', Rk.sol.vtv, 'n', n, 'u', u, 'rank', u, 'r', n - u);
+                rk = lsqvce.util.getfielddef(Rk.diag, 'rank', u);
+                s = struct('vPv', Rk.sol.vtv, 'n', n, 'u', u, 'rank', rk, ...
+                           'r', lsqvce.util.getfielddef(Rk.diag, 'r', n - rk));
             end
         end
 
@@ -712,8 +725,10 @@ classdef Results < handle
             else
                 minP = nan(nPass, 1);
             end
-            conv = false(nPass, 1);
-            if isfield(h, 'converged'), conv(end) = logical(h.converged); end
+            % WP-135 (review 3, lane 4): R.converged is the one authority -- the
+            % history carries no .converged, and the column was false on every
+            % row of a converged run
+            conv = false(nPass, 1);  conv(end) = logical(obj.converged);
 
             T = table((1:nPass).', maxOff(:), nWhite(:), minP(:), conv(:), ...
                       perPass(h, 'maxDev', nPass), perPass(h, 'levelDev', nPass), ...
@@ -744,7 +759,9 @@ classdef Results < handle
         %   OUTPUT
         %     T   table  one row per stream, with columns:
         %                stream   string   'satKey|obsType'
-        %                sigma    double   final variance factor (want ~1)
+        %                sigma    double   final level: sqrt of the stream's mean
+        %                                  arc variance factor (want ~1; WP-135:
+        %                                  it said "variance factor")
         %                arOrder  double   fitted AR order (0 = white); NaN for
         %                                  the joint estimator, whose law is a
         %                                  spectrum (R.noise.Sgroups)
@@ -870,11 +887,17 @@ classdef Results < handle
         %     lsqvce:Results:noHistory
             h = obj.history;
             if isempty(h) || ~isfield(h, 'sigma') || isempty(h.sigma)
+                % WP-135 (review 3, lane 4): say which -- a stand-alone IRLS or
+                % Gauss-Newton run DID iterate (it was told "a single solve")
+                why = 'a single solve does not iterate';
+                if ~isempty(h)
+                    why = ['this run''s passes (robust re-weighting or Gauss-Newton) are ' ...
+                           'R.history, one record per pass, with no per-stream levels'];
+                end
                 error('lsqvce:Results:noHistory', ...
-                    ['R.%s needs an iteration history, and this Results has ' ...
-                     'none (a single solve does not iterate). Use the RESULTS ' ...
-                     'from a run with Estimate = "noise".'], ...
-                     caller);
+                    ['R.%s reads the noise loop''s per-stream history, and this Results ' ...
+                     'has none (%s). Use the Results of a run with Estimate = "noise".'], ...
+                     caller, why);
             end
         end
     end
@@ -909,8 +932,8 @@ classdef Results < handle
                      'LineWidth', 1.2);
             grid(ax1, 'on');
             xlabel(ax1, 'iteration');
-            ylabel(ax1, 'max|\sigma_g^2 - 1|');
-            title(ax1, 'Variance components (the loop stops when this is small)');
+            ylabel(ax1, 'max|\sigma_g - 1|');      % WP-135: what is plotted (it read sigma^2)
+            title(ax1, 'Stream levels (a reading; the stop rule is maxDev / levelDev)');
 
             ax2 = subplot(2, 1, 2, 'Parent', fh);
             hold(ax2, 'on');

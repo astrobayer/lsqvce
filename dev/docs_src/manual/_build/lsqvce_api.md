@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.21.0 — API Reference"
+title: "lsqvce 6.22.0 — API Reference"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 
@@ -24,7 +24,7 @@ ignored silently.
 | field | type / size | required | meaning |
 |---|---|---|---|
 | `commonParams` | cell R×C, C ≥ 1 | yes | the common parameter **templates** (below) |
-| `days` | double 1×D | unless every system has its own `days` | the default calendar: integer day identifiers (the loader cache is keyed on them) |
+| `days` | double 1×D | unless every system has its own `days` | the default calendar: integer day identifiers, each once (the loader cache is keyed on them; a repeated day is refused, `lsqvce:fit:duplicateDay`) |
 | `systems` | struct 1×M, M ≥ 1 | yes | one entry per observing system (below) |
 | `priors` | struct array | no | prior groups on the common parameters (chapter Priors) |
 | `paramColumns` | struct | no | which table columns hold a row's validity and its name (below) |
@@ -58,8 +58,8 @@ All entries share the same fields; fill an unused optional field with `[]`.
 | `covariance` | struct | *(required)* | one field per observation type holding a covariance spec (chapter Covariance specifications). **The fieldnames are the observation types**, in processing order; `buildDay` is called once per (day, type). |
 | `localParams` | cell R×C | `{}` | the local parameter templates (below); not declared → nl = 0 |
 | `arcs` | double, struct or function handle | *(none)* | the arc schedule (chapter `buildDay`); required only by `'arc'` template rows |
-| `days` | double 1×D | `data.days` | this system's calendar |
-| `id` | double scalar or single char | the index k | identifier, unique across systems |
+| `days` | double 1×D | `data.days` | this system's calendar: integers, each once (`lsqvce:fit:duplicateDay`) |
+| `id` | finite double scalar or single char | the index k | identifier, unique across systems; all ids of one kind -- numbers or characters (the index default is a number: give every system an id, or none; `lsqvce:fit:badId`) |
 | `name` | char / string | `''` | label used in reports |
 | `processingOptions` | struct | `struct()` | anything `buildDay` needs (paths, force models); its 5th argument |
 | `priors` | struct array | none | prior groups on this system's local parameters (chapter Priors) |
@@ -92,7 +92,7 @@ counts are an engine-tier feature (`lsqvce.engine.makeLoader` with `LocalsPerArc
 
 | field | meaning |
 |---|---|
-| `start`, `end` | the columns of both tables that hold a row's validity (`[MJD seconds]` pairs or fractional MJD; `[]` = always valid). A `'day'` / `'arc'` row is then instantiated only on calendar days its validity overlaps (start < d+1 and end > d); `'common'` / `'system'` rows are always present. |
+| `start`, `end` | the columns of both tables that hold a row's validity (`[MJD seconds]` pairs or fractional MJD; `[]` = always valid; any other entry, or a start after its end, is refused: `lsqvce:fit:badValidity`). A `'day'` / `'arc'` row is then instantiated only on calendar days its validity overlaps (start < d+1 and end > d); `'common'` / `'system'` rows are always present. |
 | `name` | the column holding a row's name, matched by the `group` field of a prior (default 2) |
 
 Without `paramColumns` every row is valid always. `buildDay`'s `info` then lists which
@@ -242,7 +242,7 @@ as an empty cell. `'arc'` template rows require a declared schedule.
 
 | identifier | meaning |
 |---|---|
-| `lsqvce:makeLoader:buildDay` | `buildDay` threw; its error is attached as the cause |
+| `lsqvce:makeLoader:buildDay` | `buildDay` threw; its error is attached as the cause (an `lsqvce:*` error passes unchanged) |
 | `lsqvce:makeLoader:badDay` | a required field is missing or not a 1×nArc cell, or an unknown field is present, or `excluded` marks a row that is not zero |
 | `lsqvce:makeLoader:dayShape` | the cells disagree in number, or an arc's `A`, `B`, `l`, `t` disagree in rows |
 | `lsqvce:accum:arcBadNc` / `arcBadNl` | `A` or `B` has the wrong number of columns |
@@ -382,7 +382,7 @@ is merged onto the defaults; an unknown field is refused
 | field | default | meaning |
 |---|---|---|
 | `Grid` | 60 | spectral bins of the estimated law between 0 and Nyquist (its resolution), an integer ≥ 2; the law is exact at every lag of every arc whatever the Grid |
-| `Whitener` | `"toeplitz"` | how every `psd` law (the estimated one and the declared ones) whitens an arc: exact Toeplitz Cholesky over the whole arc, or a fitted AR / ARMA filter (`"ar"`, `"arma"`) |
+| `Whitener` | `"toeplitz"` | how every `psd` law (the estimated one and the declared ones) whitens an arc: exact Toeplitz Cholesky over the whole arc, or a fitted AR / ARMA filter (`"ar"`, `"arma"`; any case; another value is refused, `lsqvce:Options:badWhitener`) |
 | `Smooth` | 0 | moving-average half-width on the estimated spectrum (0 = none) |
 | `FreezeRedundancy` | 1 | a bin whose redundancy is below this keeps its value instead of being updated |
 | `SkipThreshold` | 0.2 | the share of skipped arcs of a stream above which a pass is refused |
@@ -452,8 +452,10 @@ Malformed fields, or an `L` of the wrong width, are refused by name
 
 ## Rules
 
-- **Several rows make σ estimable.** A group with one row has redundancy ≤ 1; its σ is
-  left unchanged and flagged in `R.noise.priorHistory`.
+- **Several rows make σ estimable.** A group with one row has redundancy ≤ 1: its σ is
+  re-estimated every pass from that one residual (only a group with redundancy r ≤ 0 is
+  left unchanged, flagged in `R.noise.priorHistory`). Give a `"scale"` group several rows,
+  or declare it `"none"`.
 - **Local rows live in one day.** Every row of a local group has its non-zero columns
   inside one day's local block or the system block; days are coupled through common
   parameters only.
@@ -465,14 +467,17 @@ Malformed fields, or an `L` of the wrong width, are refused by name
   information.
 - **Datum rows are not observations.** Their redundancy is 0 by construction; the
   diagnostics keep them in Σr and vPv but do not test or count them (`D.nTests`,
-  `D.datumRows`; quadrant `"datum"` in `R.reliability()`).
+  `D.datumRows`; quadrant `"datum"` in `R.reliability()`). A local group's row counts as a
+  datum row when the data see less than a millionth of it (r ≤ 10⁻⁶).
+- **Prior rows are declarations.** `R.snoop()` never rejects a prior row, common or local,
+  and `R.systematic()` leaves the priors' rows out of its sequences (`D.priorRows`).
 
 ## Where the result is reported
 
 | | common groups | local groups |
 |---|---|---|
-| σ per pass | `R.noise.priorHistory` | `R.noise.model{k}.sigma` of stream `satKey|prior_<name>` |
-| final | `R.noise.priors` | the same stream entry |
+| σ per pass | `R.noise.priorHistory` | `R.history.sigma`, column `satKey|prior_<name>` |
+| final σ | `R.noise.priors` (absolute) | `R.noise.model{k}.sigma` of stream `satKey|prior_<name>`: the factor **relative** to the group's declared σ (σ_final = declared σ × this factor) |
 
 The rows of every prior enter `R.residuals()` and the redundancy count.
 
@@ -496,7 +501,7 @@ the map.
 |---|---|---|
 | `x` | nc×1 | the common-parameter estimate |
 | `sigma0` | scalar | a-posteriori standard deviation of unit weight |
-| `stopReason` | string | `"single"`, `"converged"`, `"maxPasses"` or `"userStop"` |
+| `stopReason` | string | `"single"`, `"converged"`, `"maxPasses"`, `"userStop"` or `"diverged"` (Gauss–Newton found no downhill step) |
 | `converged` | logical | whether the iteration converged (true for a single solve) |
 | `sol` | struct | the solve: `.x`, `.sigma0`, `.Cxx` (covariance scaled by σ₀²), … |
 | `diag` | struct | per-observation diagnostics: residuals in the whitened frame, redundancy numbers, test statistics, minimal detectable biases, the robust check |
@@ -619,10 +624,19 @@ LSQVCE.FIT  Fit a least-squares adjustment (optionally with VCE) to declared dat
                                  start / end, or a column the table lacks
       lsqvce:fit:missingField    a required system field is absent, or
                                  covariance carries no observation type
-      lsqvce:fit:noDays          no day list anywhere
-      lsqvce:fit:badId           id is not a numeric scalar or single char
+      lsqvce:fit:noDays          no day list anywhere, or a day list that is
+                                 not numeric integers
+      lsqvce:fit:duplicateDay    data.days or a system's days names a day
+                                 twice (it was accumulated twice; WP-135)
+      lsqvce:fit:badId           id is not a finite numeric scalar or single
+                                 char, or the ids mix numbers and characters
+                                 (an index default is a number; WP-135)
       lsqvce:fit:duplicateSystem two systems share an id (explicit or
                                  index default)
+      lsqvce:fit:badValidity     a commonParams validity entry is not [], a
+                                 fractional MJD or [MJD seconds], or its start
+                                 is after its end (WP-135; localParams: the
+                                 makeLoader id, relabelled)
       lsqvce:fit:builderKind     buildDay is not a function handle
       lsqvce:fit:badArcs         arcs is a string (omit arcs: the cells are
                                  the arcs), or a
@@ -663,8 +677,9 @@ LSQVCE.FIT  Fit a least-squares adjustment (optionally with VCE) to declared dat
       lsqvce:fit:uCount          kind C carries BOTH x0 and numUnknowns --
                                  u is stated once (numel(x0))
     Your buildDay is wrong (raised WHILE READING, by the engine, ids
-    unchanged): lsqvce:makeLoader:badDay / dayShape / badArc / badArcId /
-    buildDay / badDayCep / axisConflict / cepTwice (the day's Cep and
+    unchanged): lsqvce:makeLoader:badDay / dayShape / badArc / buildDay
+    (your buildDay threw: the day, the stream and your error as the cause) /
+    badDayCep / axisConflict / cepTwice (the day's Cep and
     axis count), lsqvce:covModel:cepOnVar, lsqvce:accum:arcBadNc / arcBadNl;
     lsqvce:makeLoader:noCep is a once-per-run warning (a multi-axis day
     without Cep is composed with D = I)
@@ -793,6 +808,8 @@ LSQVCE.OPTIONS  The one settings object for LSQVCE.FIT: 12 knobs and 5 groups.
     lsqvce:Options:badGrid       Noise.Grid is not an integer >= 2
     lsqvce:Options:badVerbose    Verbose is neither logical nor an integer 0..2
     lsqvce:Options:badOnPass     OnPass is neither [] nor a function handle
+    lsqvce:Options:badWhitener   Noise.Whitener is not "toeplitz" | "ar" | "arma"
+                                 (any case)
     lsqvce:Options:badGroupField a group struct carries an unknown field
     lsqvce:Options:badTarget     engineArgs target is unknown
 
@@ -915,10 +932,12 @@ LSQVCE.RESULTS  The outcome of a recovery: solution, diagnostics, provenance.
 
   ERRORS
     lsqvce:Results:noVPv          compare() on a Results without a finite v'Pv
-    lsqvce:Results:noHistory      an iteration reader was called on a
-                                  single-solve Results (adjustBlock does not
-                                  iterate); use the result of an iterating
-                                  fit (Estimate = "noise", Robust, Nonlinear)
+    lsqvce:Results:noHistory      convergence() / summary() / plot("convergence")
+                                  on a Results without the noise loop's
+                                  per-stream history: a single solve, or a
+                                  stand-alone Robust / Nonlinear run (their
+                                  passes are R.history, one record each --
+                                  WP-135); use Estimate = "noise"
     lsqvce:Results:noCovariance   coefficients() on a Results whose sol
                                   carries no Cxx
     lsqvce:Results:noAccumulator  residuals()/contribution() on a Results
@@ -1152,6 +1171,7 @@ Every identifier the package raises (generated from the identifier catalogue, wh
 | `lsqvce:Options:badOnPass` | Options | error | v4.0 |
 | `lsqvce:Options:badTarget` | Options | error | v4.0 |
 | `lsqvce:Options:badVerbose` | Options | error | v4.0 |
+| `lsqvce:Options:badWhitener` | Options | error | v6.22.0 |
 | `lsqvce:Results:badPlotKind` | Results | error | v4.0 |
 | `lsqvce:Results:noAccumulator` | Results | error | v4.0 |
 | `lsqvce:Results:noCovariance` | Results | error | v4.0 |
@@ -1272,7 +1292,6 @@ Every identifier the package raises (generated from the identifier catalogue, wh
 | `lsqvce:dctI:tooShort` | kernel.dctI | error | v4.0 |
 | `lsqvce:decorrFactor:notPD` | kernel.decorrFactor | mixed | v4.0 |
 | `lsqvce:diagnose:badPmatrix` | engine.verdict | error | v4.0 |
-| `lsqvce:diagnose:badTest` | engine.verdict | error | v4.0 |
 | `lsqvce:diagnose:batchMismatch` | engine.verdict | error | v4.0 |
 | `lsqvce:diagnose:nBatch` | engine.verdict | error | v4.0 |
 | `lsqvce:diagnose:noRobustScale` | engine.verdict | error | v4.0 |
@@ -1300,6 +1319,8 @@ Every identifier the package raises (generated from the identifier catalogue, wh
 | `lsqvce:fit:uCount` | fit | error | v4.0 |
 | `lsqvce:fit:varUnderNoise` | fit | error | v6.1.5 |
 | `lsqvce:fit:unknownField` | engine.declaration, fit | error | v4.0 |
+| `lsqvce:fit:badValidity` | engine.declaration | error | v6.22.0 |
+| `lsqvce:fit:duplicateDay` | engine.declaration | error | v6.22.0 |
 | `lsqvce:ftest:differentData` | engine.verdict | error | v4.0 |
 | `lsqvce:ftest:invalidPremise` | engine.verdict | warning | v4.0 |
 | `lsqvce:ftest:noRedundancy` | engine.verdict | error | v4.0 |
@@ -1308,7 +1329,6 @@ Every identifier the package raises (generated from the identifier catalogue, wh
 | `lsqvce:gcv:atLowerBound` | engine.gcvLambda | warning | v4.0 |
 | `lsqvce:gcv:atUpperBound` | engine.gcvLambda | warning | v4.0 |
 | `lsqvce:gcv:degenerate` | engine.gcvLambda | warning | v4.0 |
-| `lsqvce:gcvLambda:qzFallback` | engine.gcvLambda | warning | v4.0 |
 | `lsqvce:hatACV:badX` | kernel.hatACV | error | v6.7.0 |
 | `lsqvce:jointArcParts:sizeMismatch` | engine.private.jointArcParts | error | v4.0 |
 | `lsqvce:jointModelOpt:badS` | engine.jointModelOpt | error | v6.7.0 |
@@ -1420,6 +1440,7 @@ Every identifier the package raises (generated from the identifier catalogue, wh
 | `lsqvce:streamContribution:noStore` | engine.streamContribution | error | v4.0 |
 | `lsqvce:synthLoader:badArc` | engine.synthLoader | error | v4.0 |
 | `lsqvce:synthLoader:noNoiseModel` | engine.synthLoader | error | v4.0 |
+| `lsqvce:synthLoader:robustFactors` | engine.synthLoader | error | v6.22.0 |
 | `lsqvce:systematic:badCovariate` | engine.verdict | error | v4.0 |
 | `lsqvce:systematic:lbUnreliable` | engine.verdict | warning | v4.0 |
 | `lsqvce:systematic:noResiduals` | engine.verdict | error | v4.0 |
@@ -1453,8 +1474,12 @@ Every identifier the package raises (generated from the identifier catalogue, wh
 | `lsqvce:redundancyLags:badNugget` | kernel.redundancyLags | error | v6.6.0 |
 | `lsqvce:accum:noRedundancy` | engine.BlockAccumulator | error | v6.20.0 |
 | `lsqvce:accum:notBlockDiagonal` | engine.BlockAccumulator | warning | v6.20.0 |
+| `lsqvce:accum:duplicateDay` | engine.BlockAccumulator | error | v6.22.0 |
+| `lsqvce:accum:mixedIdTypes` | engine.BlockAccumulator | error | v6.22.0 |
 | `lsqvce:prior:zeroRow` | engine.CommonPrior | error | v6.20.0 |
 | `lsqvce:arcVarianceFactors:held` | engine.arcVarianceFactors | warning | v6.21.0 |
 | `lsqvce:armaACV:truncated` | kernel.armaACV | warning | v6.21.0 |
 | `lsqvce:covModel:unevenGrid` | engine.covModel | warning | v6.21.0 |
 | `lsqvce:crossCorr:badLength` | kernel.crossCorr | error | v6.21.0 |
+| `lsqvce:gcvLambda:badData` | engine.gcvLambda | error | v6.22.0 |
+| `lsqvce:gcvLambda:nullUnobserved` | engine.gcvLambda | error | v6.22.0 |

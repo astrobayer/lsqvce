@@ -77,10 +77,19 @@ function R = fit(data, opts, nv)
 %                                  start / end, or a column the table lacks
 %       lsqvce:fit:missingField    a required system field is absent, or
 %                                  covariance carries no observation type
-%       lsqvce:fit:noDays          no day list anywhere
-%       lsqvce:fit:badId           id is not a numeric scalar or single char
+%       lsqvce:fit:noDays          no day list anywhere, or a day list that is
+%                                  not numeric integers
+%       lsqvce:fit:duplicateDay    data.days or a system's days names a day
+%                                  twice (it was accumulated twice; WP-135)
+%       lsqvce:fit:badId           id is not a finite numeric scalar or single
+%                                  char, or the ids mix numbers and characters
+%                                  (an index default is a number; WP-135)
 %       lsqvce:fit:duplicateSystem two systems share an id (explicit or
 %                                  index default)
+%       lsqvce:fit:badValidity     a commonParams validity entry is not [], a
+%                                  fractional MJD or [MJD seconds], or its start
+%                                  is after its end (WP-135; localParams: the
+%                                  makeLoader id, relabelled)
 %       lsqvce:fit:builderKind     buildDay is not a function handle
 %       lsqvce:fit:badArcs         arcs is a string (omit arcs: the cells are
 %                                  the arcs), or a
@@ -121,8 +130,9 @@ function R = fit(data, opts, nv)
 %       lsqvce:fit:uCount          kind C carries BOTH x0 and numUnknowns --
 %                                  u is stated once (numel(x0))
 %     Your buildDay is wrong (raised WHILE READING, by the engine, ids
-%     unchanged): lsqvce:makeLoader:badDay / dayShape / badArc / badArcId /
-%     buildDay / badDayCep / axisConflict / cepTwice (the day's Cep and
+%     unchanged): lsqvce:makeLoader:badDay / dayShape / badArc / buildDay
+%     (your buildDay threw: the day, the stream and your error as the cause) /
+%     badDayCep / axisConflict / cepTwice (the day's Cep and
 %     axis count), lsqvce:covModel:cepOnVar, lsqvce:accum:arcBadNc / arcBadNl;
 %     lsqvce:makeLoader:noCep is a once-per-run warning (a multi-axis day
 %     without Cep is composed with D = I)
@@ -131,6 +141,12 @@ function R = fit(data, opts, nv)
 %            LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT,
 %            LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTNONLINEAR
 %
+%   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lane 4): the closing
+%   solve updates a common prior group activated on the last pass (from <= pass
+%   on model.final; it was never scaled); Noise.Whitener reaches the joint path
+%   lowercased; ERRORS: duplicateDay, badValidity, the id-kind rule, buildDay's
+%   cause, badArcId (never raised) removed. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (review 3 finding 1): a common
 %   prior group with estimate "scale" is in the joint loop's stop rule (its
 %   change, and no convergence while it is in the solve but not yet updated)
@@ -369,7 +385,7 @@ function R = fitEllmer(systems, days, opts, pri, opc, priorGroups, froms)
     specs = accSpecs(systems, days);
     streams = streamKeys(systems, specs);
     a = opts.engineArgs("adjustVCEjoint");
-    psdMode = char(opts.Noise.Whitener);
+    psdMode = lower(char(opts.Noise.Whitener));     % WP-135: as engineArgs lowers it
     pool = opts.Pool;  afDefault = opts.ArcFactors;      % R5 M5: explicit policy knobs
     [estMap, afMap] = streamPolicy(systems, specs, streams, afDefault);   % R5 M3 3d (R5-D4)
     % R5 M7 7b: prior groups with estimate "scale" get one Helmert step per
@@ -775,7 +791,11 @@ function pri = priorFor(priState, model)
     pass = 1;
     if isfield(model, 'iter'), pass = model.iter; end
     if isfield(model, 'lastSol') && ~isempty(model.lastSol) && any(strcmp({groups.estimate}, 'scale'))
-        active = [groups.from] < pass;                 % only groups that were IN the last solve
+        % only groups that were IN the last solve: from < pass inside the loop;
+        % the closing solve repeats the last pass's index, so there from <= pass
+        % (WP-135: a group activated on the last pass was never scaled)
+        active = [groups.from] < pass;
+        if lsqvce.util.getfielddef(model, 'final', false), active = [groups.from] <= pass; end
         [groups(active), rec] = priorUpdate(groups(active), model.lastSol);
         priState('groups') = groups;
         recs = priState('rec');  recs{end+1} = rec;  priState('rec') = recs;

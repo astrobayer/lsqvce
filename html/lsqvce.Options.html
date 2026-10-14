@@ -153,6 +153,8 @@ METHODS
 lsqvce:Options:badGrid       Noise.Grid is not an integer &gt;= 2
 lsqvce:Options:badVerbose    Verbose is neither logical nor an integer 0..2
 lsqvce:Options:badOnPass     OnPass is neither [] nor a function handle
+lsqvce:Options:badWhitener   Noise.Whitener is not &quot;toeplitz&quot; | &quot;ar&quot; | &quot;arma&quot;
+                             (any case)
 lsqvce:Options:badGroupField a group struct carries an unknown field
 lsqvce:Options:badTarget     engineArgs target is unknown</pre>
 <h3>Example</h3>
@@ -165,6 +167,10 @@ lsqvce:Options:badTarget     engineArgs target is unknown</pre>
 
 See also LSQVCE.FIT, LSQVCE.RESULTS, the API reference, RELEASE_NOTES.md
 
+Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lane 4):
+Noise.Whitener is validated (lsqvce:Options:badWhitener, any case) -- it
+was forwarded raw and an upper-case value died mid-run under Estimate
+&quot;noise&quot;. With assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-13 (CEST, UTC+02:00), WP-134: Noise.Whitener&#x27;s cost under
 Estimate &quot;noise&quot; and SkipThreshold per stream stated. With assistance from
 Claude (Anthropic), model Claude Opus 5.5.

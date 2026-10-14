@@ -1,7 +1,7 @@
-function [Nr, nr, dg] = applyRegularisation(Nll, nl, dg, opt)
+function [Nr, nr, dg] = applyRegularisation(Nll, nl, dg, opt, mObs, ltl)
 %LSQVCE.ENGINE.APPLYREGULARISATION  Regularise a local block before pre-elimination.
 %
-%   [Nr, nr, dg] = LSQVCE.ENGINE.APPLYREGULARISATION(Nll, nl, dg, opt)
+%   [Nr, nr, dg] = LSQVCE.ENGINE.APPLYREGULARISATION(Nll, nl, dg, opt, mObs, ltl)
 %
 %   METHODS (opt.Reg)
 %     'none'      no action
@@ -18,6 +18,8 @@ function [Nr, nr, dg] = applyRegularisation(Nll, nl, dg, opt)
 %     nl   nl x 1   local right-hand side
 %     dg   struct   from LSQVCE.ENGINE.LOCALDIAGNOSTICS
 %     opt  struct   .Reg, .RegLambda, .RegMatrix, .TruncTol
+%     mObs 1x1      rows of the system (whitened observations) -- GCV's m
+%     ltl  1x1      l'l of the whitened observations -- GCV's residual
 %
 %   OUTPUT
 %     Nr, nr        regularised block and rhs (nr is unchanged by all current
@@ -50,7 +52,8 @@ function [Nr, nr, dg] = applyRegularisation(Nll, nl, dg, opt)
 %               wildly different units and L = I would be meaningless.
 %
 %   CHOOSING LAMBDA
-%     If RegLambda is 0 or empty, Tikhonov calls LSQVCE.ENGINE.GCVLAMBDA. GCV is
+%     If RegLambda is 0 or empty, Tikhonov calls LSQVCE.ENGINE.GCVLAMBDA (the GCV of
+%     the system's local problem, the commons at their a-priori values). GCV is
 %     automatic but not infallible -- it can under-regularise when the noise
 %     is correlated (which it is, here, after whitening only approximately).
 %     For production runs, fix lambda from an L-curve on one representative
@@ -61,7 +64,7 @@ function [Nr, nr, dg] = applyRegularisation(Nll, nl, dg, opt)
 %     opt = struct('Reg','tikhonov', 'RegLambda',0, ...      % 0 -> GCV
 %                  'RegMatrix',[], 'TruncTol',1e-10);
 %     dg  = lsqvce.engine.localDiagnostics(Nll, opt);
-%     [Nr, nr, dg] = lsqvce.engine.applyRegularisation(Nll, nl, dg, opt);
+%     [Nr, nr, dg] = lsqvce.engine.applyRegularisation(Nll, nl, dg, opt, mObs, ltl);
 %     lsqvce.util.log.msg('%s, lambda = %.3e\n', dg.regUsed, dg.lambdaUsed);
 %
 %   ERRORS
@@ -76,13 +79,17 @@ function [Nr, nr, dg] = applyRegularisation(Nll, nl, dg, opt)
 %
 %   See also LSQVCE.ENGINE.LOCALDIAGNOSTICS, LSQVCE.ENGINE.GCVLAMBDA, LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3 finding 16): takes
+%   mObs and l'l and hands them to gcvLambda, whose functional is now the
+%   GCV of the data (it read N as the design). With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,
 %   WP-64a): the ENGINE tier leaves the USER surface; every qualified
 %   reference was rewritten mechanically by docs_src/refactor_tiers.py.
 
-    narginchk(4,4);
+    narginchk(6,6);
 
     nlp = size(Nll,1);
     if numel(nl) ~= nlp
@@ -120,7 +127,7 @@ function [Nr, nr, dg] = applyRegularisation(Nll, nl, dg, opt)
     case 'tikhonov'
         lam = lsqvce.util.getfielddef(opt, 'RegLambda', 0);
         if isempty(lam) || all(lam == 0)
-            lam = lsqvce.engine.gcvLambda(Nll, nl, L);
+            lam = lsqvce.engine.gcvLambda(Nll, nl, L, mObs, ltl);   % WP-135: the data's GCV
         end
         if isscalar(lam)
             validateattributes(lam, {'double'}, {'scalar','finite','nonnegative'}, ...

@@ -229,8 +229,9 @@ R6 WP-102), and an arc&#x27;s Cep is its own cell (finding E-01 cannot recur).</
     lsqvce:makeLoader:noCov        &#x27;Covariance&#x27; missing, or no entry for a stream
     lsqvce:makeLoader:noArcs       a per-stream &#x27;Arcs&#x27; struct has no field for a stream
     lsqvce:makeLoader:badArcs      &#x27;Arcs&#x27; is a string (the v5 &#x27;fromDay&#x27; -- omit &#x27;Arcs&#x27;
-                                   instead), or a resolver returned something that is
-                                   not unique positive integers (WP-52)
+                                   instead), or a resolver returned -- or a static id
+                                   vector is (WP-135) -- something that is not unique
+                                   positive integers (WP-52)
     lsqvce:makeLoader:localPlan    &#x27;LocalsPerArc&#x27; / scoped rows without &#x27;Days&#x27;, &#x27;arc&#x27;
                                    rows or &#x27;LocalsPerArc&#x27; without a declared &#x27;Arcs&#x27;
                                    schedule, or a bad count
@@ -241,13 +242,16 @@ R6 WP-102), and an arc&#x27;s Cep is its own cell (finding E-01 cannot recur).</
     lsqvce:makeLoader:nlConflict   NumLocal disagrees with the table / plan
     lsqvce:makeLoader:badValidity  ValidityColumns out of range or a bad entry
     lsqvce:makeLoader:badPrior     a Priors group is malformed (fields, width,
-                                   pattern, a row coupling two days)
+                                   pattern, a row coupling two days, from not a
+                                   pass number &gt;= 1, a stream an earlier group
+                                   already names -- WP-135)
     lsqvce:makeLoader:priorType    a stream name collides with a prior group&#x27;s,
                                    or starts with &#x27;prior_&#x27; (reserved, WP-131)
 
   Raised while READING a day (your buildDay is wrong):
     lsqvce:makeLoader:buildDay     your buildDay itself threw; the original error
-                                   is attached as the cause
+                                   is attached as the cause (an lsqvce:* error
+                                   passes unchanged: it names its cause already)
     lsqvce:makeLoader:badDay       a required field (.A .B .l .t) is missing or is not
                                    a 1 x nArc cell, or the day carries a field that is
                                    not .A .B .l .t .Cep .nAxis (the v5 arcIdx / arcId
@@ -279,6 +283,15 @@ R6 WP-102), and an arc&#x27;s Cep is its own cell (finding E-01 cannot recur).</
 See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.DECLARATION,
          LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.ENGINE.SYNTHLOADER
 
+Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lane 4): a throwing
+buildDay is raised as lsqvce:makeLoader:buildDay with the day and stream,
+its error the cause (documented, never raised) -- an lsqvce:* error passes
+unchanged (batchSystem&#x27;s badMatrix / weightMatrix, raised inside the
+builder it wraps, are documented ids); a local prior group&#x27;s from
+is a pass number &gt;= 1 and two groups on one stream are refused (badPrior); a
+static arcs id vector is checked like a resolver&#x27;s (badArcs); a validity
+entry of another type or a NaN is refused (badValidity), it read as &quot;always
+valid&quot;. With assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-13 (CEST, UTC+02:00), WP-133 (review 3 findings 14, 17,
 18): the day may carry .excluded (rows of weight 0, zero in A, B, l); a
 robust row factor 0 and an epoch weight 0 mark their rows excluded on the

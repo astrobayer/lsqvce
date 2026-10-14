@@ -192,8 +192,9 @@ function L = makeLoader(buildDay, opt)
 %       lsqvce:makeLoader:noCov        'Covariance' missing, or no entry for a stream
 %       lsqvce:makeLoader:noArcs       a per-stream 'Arcs' struct has no field for a stream
 %       lsqvce:makeLoader:badArcs      'Arcs' is a string (the v5 'fromDay' -- omit 'Arcs'
-%                                      instead), or a resolver returned something that is
-%                                      not unique positive integers (WP-52)
+%                                      instead), or a resolver returned -- or a static id
+%                                      vector is (WP-135) -- something that is not unique
+%                                      positive integers (WP-52)
 %       lsqvce:makeLoader:localPlan    'LocalsPerArc' / scoped rows without 'Days', 'arc'
 %                                      rows or 'LocalsPerArc' without a declared 'Arcs'
 %                                      schedule, or a bad count
@@ -204,13 +205,16 @@ function L = makeLoader(buildDay, opt)
 %       lsqvce:makeLoader:nlConflict   NumLocal disagrees with the table / plan
 %       lsqvce:makeLoader:badValidity  ValidityColumns out of range or a bad entry
 %       lsqvce:makeLoader:badPrior     a Priors group is malformed (fields, width,
-%                                      pattern, a row coupling two days)
+%                                      pattern, a row coupling two days, from not a
+%                                      pass number >= 1, a stream an earlier group
+%                                      already names -- WP-135)
 %       lsqvce:makeLoader:priorType    a stream name collides with a prior group's,
 %                                      or starts with 'prior_' (reserved, WP-131)
 %
 %     Raised while READING a day (your buildDay is wrong):
 %       lsqvce:makeLoader:buildDay     your buildDay itself threw; the original error
-%                                      is attached as the cause
+%                                      is attached as the cause (an lsqvce:* error
+%                                      passes unchanged: it names its cause already)
 %       lsqvce:makeLoader:badDay       a required field (.A .B .l .t) is missing or is not
 %                                      a 1 x nArc cell, or the day carries a field that is
 %                                      not .A .B .l .t .Cep .nAxis (the v5 arcIdx / arcId
@@ -242,6 +246,15 @@ function L = makeLoader(buildDay, opt)
 %   See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.DECLARATION,
 %            LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.ENGINE.SYNTHLOADER
 %
+%   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lane 4): a throwing
+%   buildDay is raised as lsqvce:makeLoader:buildDay with the day and stream,
+%   its error the cause (documented, never raised) -- an lsqvce:* error passes
+%   unchanged (batchSystem's badMatrix / weightMatrix, raised inside the
+%   builder it wraps, are documented ids); a local prior group's from
+%   is a pass number >= 1 and two groups on one stream are refused (badPrior); a
+%   static arcs id vector is checked like a resolver's (badArcs); a validity
+%   entry of another type or a NaN is refused (badValidity), it read as "always
+%   valid". With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-133 (review 3 findings 14, 17,
 %   18): the day may carry .excluded (rows of weight 0, zero in A, B, l); a
 %   robust row factor 0 and an epoch weight 0 mark their rows excluded on the
@@ -657,7 +670,12 @@ function P = validatePriors(P, plan, sysID, localParams, nameCol)
                 error('lsqvce:makeLoader:badPrior', 'system %s, Priors(%d): x0 must have %d entries (or be a scalar).', char(string(sysID)), g, q);
             end
         end
-        fr = 1;  if isfield(e, 'from') && ~isempty(e.from), fr = double(e.from); end
+        fr = 1;  frRaw = 1;
+        if isfield(e, 'from') && ~isempty(e.from), frRaw = e.from;  fr = double(frRaw); end
+        if ~isnumeric(frRaw) || ~isscalar(fr) || ~isfinite(fr) || fr < 1 || fr ~= round(fr)
+            error('lsqvce:makeLoader:badPrior', ...      % WP-135: fit>priorsOf's rule (NaN was always active)
+                  'system %s, Priors(%d): from must be a pass number >= 1.', char(string(sysID)), g);
+        end
         nm = sprintf('prior%d', g);
         if isfield(e, 'name') && ~isempty(e.name), nm = char(string(e.name)); end
         est = 'none';
@@ -684,6 +702,14 @@ function P = validatePriors(P, plan, sysID, localParams, nameCol)
         end
         out(end+1) = struct('L', Lg, 'x0', x0, 'sigma', s, 'from', fr, 'name', nm, 'estimate', est, ...
                             'obsType', ['prior_' matlab.lang.makeValidName(nm)], 'dayOf', dayOf); %#ok<AGROW>
+        if any(strcmp({out(1:end-1).obsType}, out(end).obsType))
+            % WP-135: two groups on one pseudo-stream -- the first was applied
+            % twice (find(...,1)) and the second never
+            error('lsqvce:makeLoader:badPrior', ...
+                  ['system %s, Priors(%d): its stream ''%s'' is an earlier group''s (equal names, ' ...
+                   'or patterns that map to one valid name); give the groups distinct names.'], ...
+                  char(string(sysID)), g, out(end).obsType);
+        end
     end
     P = out;
 end
@@ -792,7 +818,9 @@ function v = resolveArcSpec(spec, obsType, day)
     elseif isscalar(spec) && isnumeric(spec)
         v = 1:spec;
     else
-        v = spec(:).';
+        % WP-135: a static id vector gets the resolver's rule -- [1 1 2] read
+        % cell 1 twice (find(ids == arcID, 1)) and cell 2 never, silently
+        v = checkArcIds(spec(:).', obsType, day, 'the static ''arcs'' vector');
     end
 end
 
@@ -1098,12 +1126,25 @@ function D = callBuildDay(buildDay, day, obsType, common, local, procOpt, arcInf
 %   fixed nargin; a named function that uses varargin reports a negative
 %   nargin, in which case we pass all six. WP-52 added the 6th (arcInfo, the
 %   per-day local-block plan; empty unless 'localsPerArc' was declared).
+%   Anything buildDay throws is re-raised as lsqvce:makeLoader:buildDay with
+%   the day and stream in the message and the user's error as the cause
+%   (WP-135: documented, but the raw error arrived without its context). An
+%   lsqvce:* error passes unchanged: it is a toolbox id that names its cause
+%   (batchSystem's builder raises badMatrix / weightMatrix, documented there).
     n = nargin(buildDay);
     args = {day, obsType, common, local, procOpt, arcInfo};
-    if n < 0 || n >= 6
-        D = buildDay(args{:});                 % varargin, or takes all six
-    else
-        D = buildDay(args{1:max(2,n)});        % pass exactly what it declares (>=2)
+    try
+        if n < 0 || n >= 6
+            D = buildDay(args{:});             % varargin, or takes all six
+        else
+            D = buildDay(args{1:max(2,n)});    % pass exactly what it declares (>=2)
+        end
+    catch ME
+        if startsWith(ME.identifier, 'lsqvce:'), rethrow(ME), end
+        E = MException('lsqvce:makeLoader:buildDay', ...
+                       'buildDay threw on day %s, stream ''%s'': %s (%s)', ...
+                       string(day), char(obsType), ME.message, ME.identifier);
+        throw(addCause(E, ME));
     end
 end
 
@@ -1512,10 +1553,15 @@ function f = validityOf(tbl, valCols)
 end
 
 function m = toMjd(v)
+%TOMJD  A validity entry as fractional MJD; [] = always. WP-135: an entry of
+%   another type (a datetime, a char) or a NaN was read as [] -- "always
+%   valid", silently -- and is now refused like a wrong length.
     m = [];
-    if isempty(v) || ~isnumeric(v), return, end
-    if isscalar(v), m = double(v);  return, end
-    if numel(v) == 2, m = double(v(1)) + double(v(2)) / 86400;  return, end
+    if isempty(v), return, end
+    if isnumeric(v) && ~any(isnan(v(:)))
+        if isscalar(v), m = double(v);  return, end
+        if numel(v) == 2, m = double(v(1)) + double(v(2)) / 86400;  return, end
+    end
     error('lsqvce:makeLoader:badValidity', 'a validity entry must be [], a fractional MJD, or [MJD seconds].');
 end
 
