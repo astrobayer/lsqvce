@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-15 — WP-140 DONE (PR #171, merge 6c100c9; CI GREEN on 99e3c8f in the first round: ci_gate 723/723, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.73; no code change, no version (6.24.2 stays, 735 tests).
+Last substantive update: 2026-10-15 — WP-141 OPEN (tier B, model Claude Opus 5.5; user: a hook "before calling buildDay" that does the calculations common to all streams of a day -- the partials of both satellites for the whole day, shared by the kinematic-orbit and range-rate streams; decisions: per system, named prepareDay, its result reaches buildDay inside procOpt): data.systems(k).prepareDay, called once per (system, day), its result procOpt.prepared, resident as long as the day; version 6.25.0.
+Preceding entry: Last substantive update: 2026-10-15 — WP-140 DONE (PR #171, merge 6c100c9; CI GREEN on 99e3c8f in the first round: ci_gate 723/723, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.73; no code change, no version (6.24.2 stays, 735 tests).
 Preceding entry: Last substantive update: 2026-10-15 — WP-140 OPEN (tier B, model Claude Opus 5.5; user: "Mach die Beobachtungen aus §12.72 als WP-140"): the nine observations WP-139's research recorded -- copy-pasted and wrong `% tol:` comments, a circular test, applyRegularisation's and mapreduce's help, two unpinned help claims, misplaced stamps and sections, a loose mirror tolerance, a test in the wrong category, an untraced path; version 6.24.2.
 Preceding entry: Last substantive update: 2026-10-15 — WP-139 DONE (PR #169, merge 9cb491f; CI GREEN on 470c45b in the first round: ci_gate 723/723, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.72; no code change, no version (6.24.1 stays, 735 tests).
 Preceding entry: Last substantive update: 2026-10-15 — WP-139 OPEN (tier B, model Claude Opus 5.5; user decision: "In diesem Fall die fehlenden ACCURACY Blöcke bitte gesammelt ergänzen" -- it lifts 6.2.1's "no bulk migration" for this one sweep): an ACCURACY block for each of the 48 units accuracy_baseline.csv froze, every number traced to a test or a recorded measurement, "Not applicable" with its reason where a unit computes nothing; the baseline emptied, check 34 kept as the rule for new units; version 6.24.1.
@@ -10638,3 +10639,42 @@ job green, v10review with rtol 0 included.
 merge: the ledger row, this note; no code change, no version -- 6.24.2 stays, 735 tests). The nine
 observations of §12.72 are acted on; none is left recorded-only. No package is open; the next step
 is the user's.
+
+### 12.74 WP-141 — prepareDay: what all streams of a day share (2026-10-15, model Claude Opus 5.5)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 141 | `data.systems(k).prepareDay` (makeLoader `PrepareDay`): a hook called ONCE per (system, day) before the day's first stream is built; its result reaches every `buildDay` of that day as `procOpt.prepared`, resident as long as the day (`CacheDays`; with `Cache = false` the current day's result is still kept); `lsqvce:makeLoader:prepareDay` (not a handle / it threw), `prepareUnused` (buildDay takes no procOpt), `preparedField` (processingOptions already has `prepared`); template/kbr_variational on the hook (its own day cache retired); API reference, Manual, fit / declaration / makeLoader help; **version 6.25.0** | 140 (PR #171 merged 6c100c9; closure #172) | OPEN (2026-10-15, tier B) |
+
+**The user's request (2026-10-15):** "I need another hook before calling buildDay. This hook allows
+to process the common calculations for all streams. Particularly, I want to calculate partial
+derivatives of position and velocities for both satellites for the entire day. These are then used
+by each stream, i.e. kinematic orbits and range-rate or other. As far as I understand it, the
+calculation will currently be done each time a buildDay is called." -- **Correct**: buildDay runs
+once per (system, day, stream), and with `CacheDays = 1` again in every pass (2n+2 builds of a day in
+an n-pass VCE run, test_vcePolicy testCacheDaysCountsTheBuilds). template/kbr_variational works
+around it with its own containers.Map in processingOptions.
+**Decisions (AskUserQuestion, 2026-10-15):** per system (Recommended) -- the C/D pair is one system
+with streams kbr, posC, posD; named `prepareDay` (Recommended); the hand-over is "part of procOpt"
+(the user's choice over a 7th argument or a field of info): `procOpt.prepared`.
+**The contract, read in the code before writing it:**
+1. `P = prepareDay(day, common, local, procOpt, info)` -- called with as many arguments as it
+   declares, like buildDay; `info` is the day's expansion slice, the same one buildDay gets (it
+   depends on the day only, makeLoader dayOf). Called lazily: the first build of a stream of that
+   day (the discovery probe included) calls it; the prior pseudo-streams never do.
+2. Every buildDay of that day receives `procOpt` with the field `prepared = P`; prepareDay itself
+   receives the plain processingOptions. A processingOptions that already has a field `prepared`
+   is refused (`preparedField`) -- the toolbox never overwrites the user's field. A buildDay that
+   declares fewer than 5 arguments never sees procOpt, so P would be dropped: refused
+   (`prepareUnused`; a varargin builder receives all).
+3. Lifetime: a cache of `max(1, Cache * CacheDays)` days, FIFO, beside the (day, stream) cache.
+   The engines read the streams of a day one after another (BlockAccumulator: per day, per stream,
+   per arc), so one resident day means one call per day-visit; `CacheDays = Inf` means once per run.
+4. Deterministic like buildDay (it is called again when its day was evicted). A throw is
+   `lsqvce:makeLoader:prepareDay` naming the day, the user's error the cause; not a function handle
+   is the same id at construction (`lsqvce:fit:builderKind` through fit, like buildDay).
+**Tests planned:** makeLoader-level (one call for both streams of a day; eviction and recall under
+`CacheDays = 1`; `Cache = false` keeps the current day; the three ids, the throw with its cause),
+fit-level (the same declaration with and without the hook gives bitwise the same x; `CacheDays = Inf`
+calls it once per day per run; a non-handle is builderKind), and testKbrClosedLoopThroughFit on the
+migrated template. Predicted count: 735 + new test points (set when written), CI = local - 12.
