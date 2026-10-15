@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.22.1 — User Manual"
+title: "lsqvce 6.23.0 — User Manual"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 
@@ -827,7 +827,7 @@ one of these lines is printed:
 | code | severity | condition | action |
 |---|---|---|---|
 | `SNOOP_SCALECHECK` | NOTE | `clean`: `fhat` within its null band `D.fhatTol` | `s0` and the robust scale agree, so the flag list can be believed. (This line is omitted under `Test = "mad"`.) |
-| `SNOOP_INDETERMINATE` | WARN | `fhat` within its null band, `s0/sigma0 > max(3, 2·(1 + 3/sqrt(2r)))`, and a collapse undetectable at this `n` | Either sigma0 is declared too small (the common case: then the flag list can be believed) or more than half the data are bad and the robust scale is captured (then it cannot). Check sigma0 first; if it is trustworthy, fix the functional model before rejecting anything. |
+| `SNOOP_INDETERMINATE` | WARN | `fhat` within its null band, `s0/sigma0 > max(3, 2·(1 + 3/sqrt(2r)))`, and a collapse undetectable at this `n` | Either sigma0 is declared too small (the common case: then the flag list can be believed) or more than half the data are bad and the robust scale is captured (then it cannot). Check sigma0 first; if it is trustworthy, fix the functional model before rejecting anything. `R.snoop` runs here with a warning (`lsqvce:snoop:indeterminate`), its rejections capped at `MaxRejectFrac`. |
 | `SNOOP_MODERATE` | WARN | `fhat` above the null band, below 0.10 | Pope's test is starting to lose power. Re-diagnose with `Test = "mad"`, and reject one observation at a time (`R.snoop(Test="mad")`). |
 | `SNOOP_CONTAMINATED` | **ERROR** | `0.10 ≤ fhat < 0.25` | Pope's test is **blind**: an empty flag list from a Pope run is not evidence of clean data, and iterating does not help. Use `Test = "mad"`, or refit with `Robust = "huber"` (`"igg3"` / `"bisquare"` for gross blunders). |
 | `SNOOP_REFUSE` | **ERROR** | `fhat ≥ 0.25` | So large a fraction of "outliers" points to a model error, not to outliers. Rejecting them would produce a confidently wrong result, and the flag list is incomplete anyway. Run `R.systematic()` and fix the functional model before rejecting anything. |
@@ -876,7 +876,11 @@ REJ.idx      % rejected, in order;  REJ.refused  % tripped but r_i < RMinReject 
 
 `R.snoop` takes `Test` (`"pope"` or `"mad"`), `Alpha` and `Bonferroni` name-values; left out,
 they are `R.diag`'s, so `Options.Diagnostics` reaches them. It caps the number of rejections at
-`max(10, 0.01·n)` and stops at a fraction of 0.25 (`MaxRejectFrac`). It refuses observations with `r_i < RMinReject`, re-solves cleanly
+`max(10, 0.01·n)` and stops at a fraction of 0.25 (`MaxRejectFrac`). It refuses to run at
+`SNOOP_BREAKDOWN` and `SNOOP_REFUSE` (`Force = true` proceeds with a warning), warns at
+`SNOOP_INDETERMINATE` (and at `SNOOP_CONTAMINATED` under Pope's test), and tests only what
+`R.diag` tests (`r_i > RMin`). It refuses
+observations with `r_i < RMinReject`, re-solves cleanly
 over the survivors at the end, and leaves `R` unchanged. A prior's rows, common or local,
 are never rejected, and the re-solve keeps the prior as a prior (a datum stays a datum);
 the re-diagnosis keeps `R.diag`'s thresholds and storage (`Store`, `NWorst`,

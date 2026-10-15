@@ -10,6 +10,10 @@ function tests = test_reliability
 %
 %   See also TEST_PRECISION, TEST_SPEED, TEST_LSQACCUM
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-137 (code review of WP-135): the
+%   GCV test on deterministic data, no muted id, its tolerance at its source;
+%   snoop's re-solve keeps the solve's Reg. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (third review findings 11,
 %   12, 16 and lows): gcvLambda is the data's GCV (against direct solves), a
 %   null-space L, its refusals; the accumulator refuses repeated days and
@@ -632,18 +636,17 @@ function testGcvLambdaIsTheGcvOfTheData(tc)
 % |y - y_true| was 2770 at its lambda (1.0 at GCV's). A RegMatrix with a
 % null space (first difference) gets a grid below |N| (it started 1.5e4 |N|
 % above it). Reference: direct solves of (N + lambda L'L) on the same grid.
-    % a first-difference L puts the trough on the grid's edge in ~3 % of draws
-    % (8 of 300, the mirror): the edge warnings are not this test's subject
-    muteWarn(tc, 'lsqvce:gcv:atLowerBound');
-    muteWarn(tc, 'lsqvce:gcv:atUpperBound');
-    rs = RandStream('mt19937ar', 'Seed', 135);
+% WP-137 (code review of WP-135): deterministic data whose troughs are
+% interior for both L (grid index 51 of 80, the mirror on the same numbers),
+% so no edge warning can fire -- the two muted ids could not, the input was
+% fixed (HANDOVER 6.1.3: never mute an id that cannot fire); now asserted.
     m = 500;  t = linspace(0, 1, m).';
     B = t .^ (0:5);
-    l = B * randn(rs, 6, 1) + randn(rs, m, 1);
+    l = B * [1; -2; 0.5; 3; -1; 0.7] + 0.4 * sin(2*pi*23*t) + 0.4 * cos(2*pi*61*t);
     N = B.'*B;  n = B.'*l;
     for Lc = {eye(6), diff(eye(6))}
         L = Lc{1};
-        [lam, g, grid] = lsqvce.engine.gcvLambda(N, n, L, m, l.'*l);
+        [lam, g, grid] = tc.verifyWarningFree(@() lsqvce.engine.gcvLambda(N, n, L, m, l.'*l));
         gd = zeros(size(grid));
         for k = 1:numel(grid)
             M = N + grid(k) * (L.'*L);
@@ -651,15 +654,56 @@ function testGcvLambdaIsTheGcvOfTheData(tc)
             gd(k) = (r.'*r) / (m - trace(M \ N))^2;
         end
         [~, kd] = min(gd);
-        % tol: the eigenbasis curve against direct solves of a cond ~1e7 block;
-        % the dense trace / solve lose ~cond*eps relative, 1e-6 bounds both
-        tc.verifyEqual(g, gd, 'RelTol', 1e-6);
+        % the eigenbasis curve against direct solves of cond(N) = 1.5e7: worst
+        % case cond*eps = 3e-9 relative, measured 9.4e-13 on these data
+        % (dev/validation/wp135_gcv_mirror.py, HANDOVER 6.1.4)
+        % tol: 1e-9 -- 1000x the measured for another BLAS, under the worst case
+        tc.verifyEqual(g, gd, 'RelTol', 1e-9);
         tc.verifyEqual(lam, grid(kd));
         tc.verifyLessThan(grid(1), 1e-6 * norm(N));
-        if isequal(L, eye(6))                 % L = I: an interior trough in 300 of 300 draws
-            tc.verifyTrue(kd > 1 && kd < numel(grid), 'GCV''s trough is interior for L = I');
-        end
+        tc.verifyTrue(kd > 1 && kd < numel(grid), 'the trough is interior (no edge warning)');
     end
+end
+
+function testSnoopReSolveKeepsTheSolvesRegularisation(tc)
+% categories: metamorphic, contract
+% WP-137 (code review of WP-135, its lane-1 low "snoop's re-diagnosis loses
+% options and Reg"): snoop's clean re-solve built its accumulator with the
+% default options, so a fit whose local block was regularised (Reg,
+% RegLambda) was re-solved WITHOUT it -- x after snoop jumped to the
+% unregularised estimate. diagSol.accOpt carries the solve's options since
+% WP-135; nothing tested it. Reference: the same regularised accumulation
+% with the rejected rows at weight 0 (a zero row is a no-op in the QR).
+    rs = RandStream('mt19937ar', 'Seed', 137);
+    nc = 2;  nl = 3;  nB = 4;  mB = 60;
+    blk = cell(nB, 1);
+    for k = 1:nB
+        Ak = [randn(rs, mB, nc), randn(rs, mB, nl)];
+        blk{k} = {Ak, Ak * [1; -1; 0.5; 2; -0.3] + 0.1 * randn(rs, mB, 1)};
+    end
+    blk{2}{2}(17) = blk{2}{2}(17) + 5;                   % a 50-sigma blunder, row mB + 17
+    lam = 0.5 * nB * mB;                                 % a ridge of half |N_ll|: y moves by O(1)
+    function acc = regAcc(p)
+        acc = lsqvce.engine.BlockAccumulator(nc, 'Backend', 'qr', 'Reg', 'tikhonov', ...
+                                             'RegLambda', lam, 'Verbose', false);
+        L = lsqvce.engine.batchSystem(nc, @(k) deal(blk{k}{1}, blk{k}{2}, p{k}), nB, ...
+                                      'LocalColumns', nc + (1:nl));
+        acc.addSystem(L.sysID, nl, L.closure, 1:nB);
+    end
+    acc = regAcc(repmat({ones(mB, 1)}, nB, 1));
+    [D, dsol, bf] = lsqvce.engine.verdict.fromAccumulator(acc, acc.solve());
+    [solS, ~, REJ] = lsqvce.engine.verdict.snoop(dsol, D, bf, 'verbose', false);
+    tc.assertTrue(ismember(mB + 17, REJ.idx), 'the fixture: the blunder is rejected');
+    p = repmat({ones(mB, 1)}, nB, 1);
+    for i = REJ.idx(:).'
+        k = ceil(i / mB);  p{k}(i - (k - 1) * mB) = 0;
+    end
+    accR = regAcc(p);
+    solR = accR.solve();
+    % tol: two QR accumulations of the same rows under the same ridge (the
+    % zeroed rows are no-op reflectors) -- eps-level; the unregularised
+    % re-solve was off by O(lam / |N_ll|) = O(1) relative in y
+    tc.verifyEqual(solS.x, [solR.x; accR.backSubstitute(1, solR.x)], 'RelTol', 1e-10);
 end
 
 function testGcvLambdaScalesWithTheData(tc)

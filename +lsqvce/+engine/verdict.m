@@ -1440,10 +1440,20 @@ function [sol, D, REJ] = snoop(sol, D, batchFcn, opt)
 %     lsqvce:snoop:tooContaminated the contamination gauge is past the point
 %                                  where tau is meaningful -- switch to
 %                                  'test','mad', or use LSQVCE.ENGINE.ADJUSTROBUST
-%     lsqvce:snoop:breakdown       the rejection cap was reached and the scale
-%                                  estimate has broken down; the data are not
-%                                  a few blunders on a good model
+%     lsqvce:snoop:breakdown       the contamination level is 'breakdown': fhat
+%                                  collapsed below its clean null while the
+%                                  backstop is large -- the robust scale has
+%                                  adopted the blunders ('Force' warns instead)
+%   WARNINGS
+%     lsqvce:snoop:indeterminate   the level is 'indeterminate' (n too small to
+%                                  tell a captured robust scale from a sigma0
+%                                  declared too small): snoop proceeds under its
+%                                  hard cap (WP-137, user decision)
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-137: the level 'indeterminate'
+%   (WP-135) has its case -- a warning, lsqvce:snoop:indeterminate, and snoop
+%   proceeds (it ran on in silence); ERRORS names breakdown's real trigger.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: a row of weight 0 (p = 0,
 %   sol.nExcluded) is no rejection candidate and is out of the Bonferroni n,
 %   the caps and the MAD pool (its score was a 0 there); rdf is sol.r less the
@@ -1472,6 +1482,7 @@ function [sol, D, REJ] = snoop(sol, D, batchFcn, opt)
 %     lsqvce:snoop:forcedBreakdown               [warning] snoop
 %     lsqvce:snoop:forcedContaminated            [warning] snoop
 %     lsqvce:snoop:forcedOverCap                 [warning] snoop
+%     lsqvce:snoop:indeterminate                 [warning] snoop
 %     lsqvce:snoop:lowRedundancy                 [warning] Observation X has the largest |w| (X) but its redundancy is only X. T...
 %     lsqvce:snoop:maxReject                     [warning] Reached the rejection cap (X)
 %     lsqvce:snoop:rejectFraction                [warning] STOPPING
@@ -1588,59 +1599,7 @@ useRobust = strcmpi(o.test, 'mad');
 % does not depend on any: COUNTING. "You are asking me to delete a third of
 % your data" is a statement no amount of contamination can falsify.
 
-if isfield(D, 'contamLevel')
-    switch D.contamLevel
-    case 'breakdown'
-        if o.force
-            lsqvce.util.log.warn('lsqvce:snoop:forcedBreakdown', ...
-                ['snoop: proceeding under ''force'' despite total breakdown ' ...
-                 'of the outlier machinery. The rejections below are very ' ...
-                 'likely to be GOOD observations.']);
-        else
-        error('lsqvce:snoop:breakdown', ...
-            ['snoop: REFUSING TO RUN. The outlier machinery has broken down ' ...
-             'completely.\n' ...
-             'The robust scale reports almost no outliers (fhat = %.3f) while ' ...
-             'the a-priori backstop says the residuals are %.1fx larger than ' ...
-             'sigma0 promised. Those are only compatible if MORE THAN HALF the ' ...
-             'data are bad -- at which point the robust scale has been captured ' ...
-             'by the blunders and is calling the GOOD observations outliers.\n' ...
-             'Rejecting here would delete the good data. Fix sigma0 or the ' ...
-             'functional model first.'], D.fhat, D.backstop);
-        end
-
-    case 'refuse'
-        if o.force
-            lsqvce.util.log.warn('lsqvce:snoop:forcedContaminated', ...
-                ['snoop: proceeding under ''force'' with an estimated %.0f%% ' ...
-                 'contamination. The surviving parameters will be confidently ' ...
-                 'wrong.'], 100 * D.fhat);
-        else
-        error('lsqvce:snoop:tooContaminated', ...
-            ['snoop: REFUSING TO RUN. An estimated %.0f%% of the observations ' ...
-             '(fhat = %.3f) are inconsistent with the rest.\n' ...
-             'If a quarter of your data are "outliers", they are not outliers. ' ...
-             'Rejecting them launders a MODEL error into a plausible-looking ' ...
-             'result. Run R.systematic() and fix the functional model.\n' ...
-             'If you have a specific reason to proceed anyway, pass ' ...
-             '''force'',true -- but understand that the surviving parameters ' ...
-             'will be confidently wrong.'], 100 * D.fhat, D.fhat);
-        end
-
-    case 'severe'
-        if ~useRobust
-            lsqvce.util.log.warn('lsqvce:snoop:contaminated', ...
-                ['snoop: an estimated %.0f%% of observations are bad, and you ' ...
-                 'are using Pope''s tau, which is BLIND at this level: the ' ...
-                 'blunders inflate s0 and divide themselves back below the ' ...
-                 'threshold. Iterating will NOT rescue this -- if nothing trips ' ...
-                 'the threshold on pass one, this loop exits immediately and ' ...
-                 'returns a "clean" result that is entirely spurious.\n' ...
-                 'Re-run with ''test'',''mad''. Proceeding, but treat an empty ' ...
-                 'rejection list as MEANINGLESS.'], 100 * D.fhat);
-        end
-    end
-end
+guardContamination(D, o, useRobust, nObs0);   % WP-137: lifted out of snoop
 
 % The hard ceiling. Independent of every estimator above.
 maxRejFrac = o.maxRejectFrac;
@@ -2766,6 +2725,87 @@ end
 
 %% ======================================================== helpers
 
+function guardContamination(D, o, useRobust, nObs0)
+%GUARDCONTAMINATION  snoop's guard on diagnose's contamination level (WP-137:
+%   lifted out of snoop, which gained the 'indeterminate' case): breakdown and
+%   refuse stop snoop unless o.force (then a warning), indeterminate warns and
+%   proceeds (user decision), severe warns under Pope's tau. Raises snoop's
+%   identifiers unchanged.
+%   INPUT  D (contamLevel, fhat, backstop), o (snoop's options: force,
+%          maxRejectFrac), useRobust 1x1 logical (Test 'mad'), nObs0 the
+%          observations snoop may reject from
+    if isfield(D, 'contamLevel')
+        switch D.contamLevel
+        case 'breakdown'
+            if o.force
+                lsqvce.util.log.warn('lsqvce:snoop:forcedBreakdown', ...
+                    ['snoop: proceeding under ''force'' despite total breakdown ' ...
+                     'of the outlier machinery. The rejections below are very ' ...
+                     'likely to be GOOD observations.']);
+            else
+            error('lsqvce:snoop:breakdown', ...
+                ['snoop: REFUSING TO RUN. The outlier machinery has broken down ' ...
+                 'completely.\n' ...
+                 'The robust scale reports almost no outliers (fhat = %.3f) while ' ...
+                 'the a-priori backstop says the residuals are %.1fx larger than ' ...
+                 'sigma0 promised. Those are only compatible if MORE THAN HALF the ' ...
+                 'data are bad -- at which point the robust scale has been captured ' ...
+                 'by the blunders and is calling the GOOD observations outliers.\n' ...
+                 'Rejecting here would delete the good data. Fix sigma0 or the ' ...
+                 'functional model first.'], D.fhat, D.backstop);
+            end
+
+        case 'indeterminate'
+            % WP-137 (user decision: warn and proceed). fhat lies in its clean band
+            % while the backstop is large, and at this n a robust scale captured by
+            % the blunders cannot be told from a sigma0 declared too small
+            % (contaminationOf: P(fhat = 0) > 1 % on clean data below n ~ 450).
+            % Refusing would stop every clean run with a mis-declared sigma0; the
+            % hard cap below bounds the damage of the other cause. It ran on in
+            % silence (WP-135 added the level, not its case here).
+            lsqvce.util.log.warn('lsqvce:snoop:indeterminate', ...
+                ['snoop: the residuals are %.1fx larger than sigma0 promised, yet the ' ...
+                 'robust scale sees no excess of outliers (fhat = %.3f). With %d ' ...
+                 'observations the two causes cannot be told apart: sigma0 declared too ' ...
+                 'small (the rejections below are sound) or more than half the data bad, ' ...
+                 'the robust scale captured by them (the rejections are GOOD ' ...
+                 'observations). Proceeding, at most %.0f%% of the data; check sigma0 ' ...
+                 'first.'], D.backstop, D.fhat, nObs0, 100 * o.maxRejectFrac);
+
+        case 'refuse'
+            if o.force
+                lsqvce.util.log.warn('lsqvce:snoop:forcedContaminated', ...
+                    ['snoop: proceeding under ''force'' with an estimated %.0f%% ' ...
+                     'contamination. The surviving parameters will be confidently ' ...
+                     'wrong.'], 100 * D.fhat);
+            else
+            error('lsqvce:snoop:tooContaminated', ...
+                ['snoop: REFUSING TO RUN. An estimated %.0f%% of the observations ' ...
+                 '(fhat = %.3f) are inconsistent with the rest.\n' ...
+                 'If a quarter of your data are "outliers", they are not outliers. ' ...
+                 'Rejecting them launders a MODEL error into a plausible-looking ' ...
+                 'result. Run R.systematic() and fix the functional model.\n' ...
+                 'If you have a specific reason to proceed anyway, pass ' ...
+                 '''force'',true -- but understand that the surviving parameters ' ...
+                 'will be confidently wrong.'], 100 * D.fhat, D.fhat);
+            end
+
+        case 'severe'
+            if ~useRobust
+                lsqvce.util.log.warn('lsqvce:snoop:contaminated', ...
+                    ['snoop: an estimated %.0f%% of observations are bad, and you ' ...
+                     'are using Pope''s tau, which is BLIND at this level: the ' ...
+                     'blunders inflate s0 and divide themselves back below the ' ...
+                     'threshold. Iterating will NOT rescue this -- if nothing trips ' ...
+                     'the threshold on pass one, this loop exits immediately and ' ...
+                     'returns a "clean" result that is entirely spurious.\n' ...
+                     'Re-run with ''test'',''mad''. Proceeding, but treat an empty ' ...
+                     'rejection list as MEANINGLESS.'], 100 * D.fhat);
+            end
+        end
+    end
+end
+
 function [dRowsAll, priorBatches, rMin] = snoopScope(sol, D, dRows)
 %SNOOPSCOPE  What snoop leaves out (WP-135, review 3 finding 5 and lane 1):
 %   the datum rows of the common prior (sol) and of the local groups (D);
@@ -3060,15 +3100,15 @@ function D = contaminationOf(D, fhat, nScored, madAvailable)
     %                Below n ~ 450 even fhat = 0 is not; there a robust scale
     %                captured by the blunders cannot be told from a sigma0
     %                declared too small, and the level says so: 'indeterminate'.
-    FHAT_FLOOR = 2 * lsqvce.kernel.stat.normCdf(-2.5);      % = 0.012419, exactly
-    D.fhatFloor = FHAT_FLOOR;
-    [D.fhatTol, pZero] = contamNull(nScored, FHAT_FLOOR);
-    D.collapseDetectable = pZero <= 0.01;
+    law = contamLaw();
+    D.fhatFloor = law.p;
+    [D.fhatTol, pZero] = contamNull(nScored, law);
+    D.collapseDetectable = pZero <= law.aLo;
 
     % The EXCESS is what actually matters: how much contamination is there beyond
     % what a clean normal sample would produce anyway?
     if isfinite(fhat)
-        D.fhatExcess = max(fhat - FHAT_FLOOR, 0);
+        D.fhatExcess = max(fhat - law.p, 0);
     else
         D.fhatExcess = NaN;
     end
@@ -3081,7 +3121,7 @@ function D = contaminationOf(D, fhat, nScored, madAvailable)
     bigBackstop = isfinite(D.backstop) && D.backstop > max(3, 2 * D.backstopTol);
     if ~madAvailable
         D.contamLevel = 'unknown';
-    elseif bigBackstop && fhatCollapsed(fhat, nScored, FHAT_FLOOR)
+    elseif bigBackstop && fhatCollapsed(fhat, nScored, law)
         % fhat says zero but the a-priori backstop says the residuals are enormous:
         % the robust scale has been captured by the blunders.
         D.contamLevel = 'breakdown';
@@ -3100,47 +3140,62 @@ function D = contaminationOf(D, fhat, nScored, madAvailable)
     end
 end
 
-function [tol, pZero] = contamNull(nS, p)
-%CONTAMNULL  fhat's null law on clean data (WP-135, measured, see diagnose):
-%   K = nS fhat negative binomial, mean mu = nS p (1 + 27/nS), variance
-%   1.69 mu. tol = the 99.75 % point of K / nS; pZero = P(K = 0).
-%   INPUT  nS 1x1 the scored residuals; p 1x1 = 2 Phi(-2.5)
+function law = contamLaw()
+%CONTAMLAW  The ONE statement of the contamination ladder's null law (WP-135,
+%   measured in dev/validation/wp135_contamination_mirror.py; WP-137: named --
+%   its numbers were spelled out in four functions). On clean data the count
+%   K = n fhat is negative binomial, mean mu = n p (1 + bias / n), variance
+%   phi mu.
+%   OUTPUT law 1x1 struct  .p .bias .phi .normalMu .aHi .zHi .aLo
+    law = struct( ...
+        'p',        2 * lsqvce.kernel.stat.normCdf(-2.5), ... % P(|Z| > 2.5) = 0.012419
+        'bias',     27, ...                    % measured: the small-sample MAD's excess
+        'phi',      1.69, ...                  % measured: the over-dispersion, 1.30^2
+        'normalMu', 200, ...                   % above this mean: the normal limit
+        'aHi',      0.0025, ...                % fhatTol: the false-alarm rate
+        'zHi',      2.807033768343811, ...     % normInv(1 - aHi), to 16 digits
+        'aLo',      0.01);                     % collapsed: P(K <= n fhat) at most this
+end
+
+function [tol, pZero] = contamNull(nS, law)
+%CONTAMNULL  fhat's null law on clean data (contamLaw): tol = the (1 - aHi)
+%   point of K / nS; pZero = P(K = 0).
+%   INPUT  nS 1x1 the scored residuals; law 1x1 struct (contamLaw)
     if nS < 1, tol = Inf;  pZero = 1;  return, end
-    [mu, cdf, pZero] = contamCdf(nS, p, []);
-    if mu > 200                                   % the normal limit
-        tol = (mu + 2.807033768343811 * sqrt(1.69 * mu)) / nS;   % normInv(0.9975)
+    [mu, cdf, pZero] = contamCdf(nS, law, []);
+    if mu > law.normalMu                          % the normal limit
+        tol = (mu + law.zHi * sqrt(law.phi * mu)) / nS;
     else
-        tol = (find(cdf >= 1 - 0.0025, 1) - 1) / nS;
+        tol = (find(cdf >= 1 - law.aHi, 1) - 1) / nS;
     end
 end
 
-function tf = fhatCollapsed(fhat, nS, p)
-%FHATCOLLAPSED  P(K <= nS fhat) <= 1 % under contamNull's law: fhat is
-%   implausibly low for clean data (WP-135; it was fhat <= 0.005 at any n).
+function tf = fhatCollapsed(fhat, nS, law)
+%FHATCOLLAPSED  P(K <= nS fhat) <= aLo under contamLaw: fhat is implausibly
+%   low for clean data (WP-135; it was fhat <= 0.005 at any n).
     tf = false;
     if ~isfinite(fhat) || nS < 1, return, end
     k = round(fhat * nS);
-    [mu, cdf] = contamCdf(nS, p, k);
-    if mu > 200
-        tf = lsqvce.kernel.stat.normCdf((k + 0.5 - mu) / sqrt(1.69 * mu)) <= 0.01;
+    [mu, cdf] = contamCdf(nS, law, k);
+    if mu > law.normalMu
+        tf = lsqvce.kernel.stat.normCdf((k + 0.5 - mu) / sqrt(law.phi * mu)) <= law.aLo;
     else
-        tf = cdf(k + 1) <= 0.01;
+        tf = cdf(k + 1) <= law.aLo;
     end
 end
 
-function [mu, cdf, pZero] = contamCdf(nS, p, kMax)
-%CONTAMCDF  P(K <= k), k = 0..kMax, of the negative binomial of mean mu =
-%   nS p (1 + 27/nS) and variance 1.69 mu (log-space recursion); kMax = []
-%   runs to 12 sd above the mean. Empty for mu > 200 (the normal limit);
-%   pZero = P(K = 0) at every mu, from the closed form (WP-135: contamNull
-%   read cdf(1) of the empty table and every run of more than ~16 000 scored
-%   residuals stopped in diagnose).
-    mu = nS * p * (1 + 27 / nS);
-    r = mu / 0.69;  q = mu / (r + mu);
+function [mu, cdf, pZero] = contamCdf(nS, law, kMax)
+%CONTAMCDF  P(K <= k), k = 0..kMax, of contamLaw's negative binomial (log-space
+%   recursion); kMax = [] runs to 12 sd above the mean. Empty above
+%   law.normalMu (the normal limit); pZero = P(K = 0) at every mu, from the
+%   closed form (WP-135: contamNull read cdf(1) of the empty table and every
+%   run of more than ~16 000 scored residuals stopped in diagnose).
+    mu = nS * law.p * (1 + law.bias / nS);
+    r = mu / (law.phi - 1);  q = mu / (r + mu);  % 1.69 - 1 is 0.69 exactly
     pZero = exp(r * log1p(-q));
     cdf = [];
-    if mu > 200, return, end
-    if isempty(kMax), kMax = ceil(mu + 12 * sqrt(1.69 * mu) + 20); end
+    if mu > law.normalMu, return, end
+    if isempty(kMax), kMax = ceil(mu + 12 * sqrt(law.phi * mu) + 20); end
     k = (1:kMax).';
     lp = r * log1p(-q) + [0; cumsum(log((r + k - 1) ./ k * q))];
     cdf = cumsum(exp(lp));

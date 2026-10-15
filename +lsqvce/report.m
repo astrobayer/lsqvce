@@ -67,6 +67,9 @@ function V = report(D, opt)
 %
 %   See also LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SYSTEMATIC.
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-137: SNOOP_INDETERMINATE says that
+%   R.snoop proceeds there with a warning (lsqvce:snoop:indeterminate; it ran on
+%   in silence). With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3 findings 19 and lanes
 %   1, 4): SNOOP_INDETERMINATE (WARN) when the backstop is large and the
 %   collapse cannot be judged at this n; SNOOP_VACUOUS reads the share of v'Pv a
@@ -980,7 +983,8 @@ function f = contaminationFindings(D)
              'believed), or more than half the data bad, the robust scale ' ...
              'captured by the blunders (then it cannot). Check sigma0 first; if ' ...
              'it is trustworthy, fix the functional model before rejecting ' ...
-             'anything.'], D.backstop, D.backstop, D.fhat, D.n);
+             'anything. R.snoop runs here with a warning, its rejections capped ' ...
+             'at MaxRejectFrac.'], D.backstop, D.backstop, D.fhat, D.n);
 
     case 'clean'
         if ~strcmp(D.test, 'mad')

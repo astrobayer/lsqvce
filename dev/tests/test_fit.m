@@ -15,6 +15,10 @@ function tests = test_fit
 %
 %   Run: runtests('tests/test_fit')
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-137 (code review of WP-135): the
+%   Whitener's case on the noise path, an unsettled Gauss-Newton run's advice;
+%   the throwing-buildDay test's name. With assistance from Claude (Anthropic),
+%   model Claude Opus 5.5.
 %   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (third review findings 5,
 %   11, 12, 13 and the loader lows): duplicate days, one id kind, 'i' / 'j',
 %   validity entries, local prior from / names refused; a throwing buildDay
@@ -240,7 +244,7 @@ function testDeclarationRulesOfTheThirdReview(tc)
     tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:badPrior');
 end
 
-function testCharacterIdsAndATrowingBuildDay(tc)
+function testCharacterIdsAndAThrowingBuildDay(tc)
 % categories: contract
     % WP-135: ids 'i' / 'j' parsed as the complex 1i (both: an opaque
     % duplicateSystem); a buildDay that throws is lsqvce:makeLoader:buildDay,
@@ -262,8 +266,30 @@ function testCharacterIdsAndATrowingBuildDay(tc)
 end
 
 function D = throwingBuildDay(varargin) %#ok<STOUT> -- it throws, by design
-%THROWINGBUILDDAY  A user's buildDay that fails (testCharacterIdsAndATrowingBuildDay).
+%THROWINGBUILDDAY  A user's buildDay that fails (testCharacterIdsAndAThrowingBuildDay).
     error('test:reached', 'the user''s error');
+end
+
+function testUnsettledGaussNewtonRunAdvisesItsOwnRecord(tc)
+% categories: contract | tags: diagnostics
+    % WP-137 (code review of WP-135): the per-loop advice of NOISE_UNSETTLED had
+    % its IRLS case tested only. An unsettled Gauss-Newton run (maxPasses, not
+    % diverged) is pointed at R.history, its pass record -- R.convergence()
+    % refuses a run without the noise loop's history. The fixture of
+    % testGaussNewtonDampsAndKeepsTheBestPoint: ten passes from a far start.
+    t = linspace(0, 4, 30).';  y = 3*exp(-1.3*t) + 0.05*sin(7*t);
+    bf = @(k, x) deal([exp(x(2)*t), x(1)*t.*exp(x(2)*t)], y - x(1)*exp(x(2)*t), []);
+    muteWarn(tc, 'lsqvce:adjustNonlinear:maxIter');
+    R = lsqvce.fit(struct('batchFcn', bf, 'numBatches', 1, 'x0', [0.1; 1]), ...
+                   lsqvce.Options(MaxPasses=10, Tolerance=1e-10, Verbose=false));
+    tc.assumeEqual(R.stopReason, "maxPasses", 'ten passes do not settle from this start');
+    V = R.report('Verbose', false);
+    codes = cellfun(@(f) f.code, V.findings, 'UniformOutput', false);
+    k = find(strcmp(codes, 'NOISE_UNSETTLED'), 1);
+    tc.assertNotEmpty(k);
+    tc.verifyTrue(contains(V.findings{k}.msg, 'Gauss-Newton iteration'), 'it names the loop');
+    tc.verifyTrue(contains(V.findings{k}.msg, 'R.history lists every step'));
+    tc.verifyFalse(contains(V.findings{k}.msg, 'R.convergence()'));
 end
 
 function testLayoutOfASystemWithoutLocals(tc)
@@ -733,6 +759,24 @@ function testWhitenerReachesADeclaredPsdLaw(tc)
     rT = lsqvce.fit(dPsd, lsqvce.Options(Robust="huber", Noise=struct('Whitener', "toeplitz"), Verbose=false)).x;
     rR = lsqvce.fit(dPsd, lsqvce.Options(Robust="huber", Noise=struct('Whitener', "ar"), Verbose=false)).x;
     tc.verifyNotEqual(rT, rR, 'the Whitener must reach the declared law under IRLS too');
+end
+
+function testWhitenerIsCaseFreeOnTheNoisePath(tc)
+% categories: metamorphic, contract
+    % WP-137 (code review of WP-135, its lane-4 low "Noise.Whitener unvalidated
+    % on the noise path"): Options checks the Whitener in any case and its
+    % engineArgs lower it, but fit's joint path passed char(Noise.Whitener)
+    % raw to jointModelOpt, whose 'PsdMode' takes lowercase only -- "AR" ran
+    % under Estimate "none" and died on pass 1 under "noise". The two spellings
+    % are now one run, bitwise.
+    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');   % two passes on purpose (gate rule 7)
+    [dArma, cfg] = declaration();
+    dPsd = withPsdLaw(dArma, cfg);
+    xLo = lsqvce.fit(dPsd, lsqvce.Options(Estimate="noise", MaxPasses=2, Seed=3, ...
+                     Noise=struct('Grid', 16, 'Whitener', "ar"), Verbose=false)).x;
+    xUp = lsqvce.fit(dPsd, lsqvce.Options(Estimate="noise", MaxPasses=2, Seed=3, ...
+                     Noise=struct('Grid', 16, 'Whitener', "AR"), Verbose=false)).x;
+    tc.verifyEqual(xUp, xLo, 'the Whitener''s case does not matter on the noise path');
 end
 
 function testNoiseEstimatesADeclaredPhysicalPsdLaw(tc)

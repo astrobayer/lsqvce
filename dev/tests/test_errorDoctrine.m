@@ -18,6 +18,9 @@ function tests = test_errorDoctrine
 %
 %   See also LSQVCE.UTIL.CALLUSER, LSQVCE.UTIL.LOG, LSQVCE.RESULTS, TEST_CI_GATE
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-137 (code review of WP-135):
+%   Results.compare reads the solve's rank and redundancy. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (third review, lanes 1 and 4):
 %   ftest takes the redundancy; the joint robust report's s0 is R.sigma0.
 %   With assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -541,6 +544,26 @@ function testResultsRefusalsByName(tc)
     verifyError(tc, @() Rb.residuals(), 'lsqvce:Results:noAccumulator');
     verifyError(tc, @() Rb.contribution(), 'lsqvce:Results:noAccumulator');
     verifyError(tc, @() Rb.compare(Rb), 'lsqvce:Results:noVPv');
+end
+
+function testCompareUsesTheSolvesRankAndRedundancy(tc)
+% categories: contract
+    % WP-137 (code review of WP-135, its lane-1 low "compare ignores D.rank"):
+    % Results.compare handed the engine rank = u and r = n - u, so a fit whose
+    % local block is not fully estimable (D.rank < u, the pinv fallback) got
+    % df2 one short, s0^2 too large and F too small. testFtestContract pins
+    % the engine; here compare passes D's numbers. Hand-built Results:
+    % u = 6 with one local direction not estimable (rank 5, r = 45 of n = 50).
+    DF = struct('u', 6, 'n', 50, 'rank', 5, 'r', 45);
+    DR = struct('u', 5, 'n', 50, 'rank', 4, 'r', 46);
+    solF = struct('x', zeros(2, 1), 'sigma0', 1, 'vtv', 10);
+    solR = struct('x', zeros(1, 1), 'sigma0', 1, 'vtv', 14);
+    RF = lsqvce.Results(solF, DF, [], struct(), @() deal([], [], []), 0, []);
+    RR = lsqvce.Results(solR, DR, [], struct(), @() deal([], [], []), 0, []);
+    F = RF.compare(RR);
+    verifyEqual(tc, [F.df1, F.df2], [1, 45], 'df from the solve''s rank and redundancy');
+    % tol: the closed form ((14 - 10) / 1) / (10 / 45) = 18, rounding only
+    verifyEqual(tc, F.F, 18, 'RelTol', 1e-14);
 end
 
 function testRobustWeightsSurviveAnExtremeBlunder(tc)
