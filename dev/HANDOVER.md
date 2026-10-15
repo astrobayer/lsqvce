@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-15 — WP-136 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach das als kleines Doku-WP", after the question how a user provides different buildDay functions to lsqvce.fit): the API chapter buildDay says where the handle goes -- one per entry of data.systems, a setup through processingOptions or a closure, separate fit calls for data that share no common parameters; fit's help and the Manual one sentence each; no computation changed; version 6.22.1.
+Last substantive update: 2026-10-15 — WP-136 DONE (PR #163, merge 327d705; CI GREEN on 79a3c06 in the first round: ci_gate 715/715, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.69; no code change, no version (6.22.1 stays, 727 tests).
+Preceding entry: Last substantive update: 2026-10-15 — WP-136 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach das als kleines Doku-WP", after the question how a user provides different buildDay functions to lsqvce.fit): the API chapter buildDay says where the handle goes -- one per entry of data.systems, a setup through processingOptions or a closure, separate fit calls for data that share no common parameters; fit's help and the Manual one sentence each; no computation changed; version 6.22.1.
 Preceding entry: Last substantive update: 2026-10-14 — WP-135 DONE (PR #161, merge 17748fb; CI GREEN on 91ba351 in round 2, after one red round on 11945cf whose four causes were all WP-135's own code: ci_gate 715/715, warning inventory lsqvce:internal:testProbe only); closure PR (user: "Gemergt, mach den Abschluss-PR"): the ledger row and the closure note in §12.68 -- the third whole-code review is closed; no code change, no version (6.22.0 stays, 727 tests).
 Preceding entry: Last substantive update: 2026-10-14 — WP-135 OPEN (tier B, model Claude Opus 5.5; the last package of the third review, the plan the user accepted with "Ja, mach WP-133 so wie vorgeschlagen", started after the closure #160): front end, loader and diagnostics -- repeated days and mixed id kinds refused, layout without localParams, local prior groups under the common prior's datum and no-rejection rules, the contamination ladder calibrated for every n from fhat's measured null law (user decision; 'indeterminate' where n cannot tell a captured scale from a sigma0 too small), gcvLambda the GCV of the data and a null-space RegMatrix, the critical values from the upper tail, SNOOP_VACUOUS from the share of v'Pv, the MDB under 'mad' labelled Baarda's (user decision), the joint robust report on R.sigma0; the loader and report lows; ~40 tests; version 6.22.0.
 Preceding entry: Last substantive update: 2026-10-13 — WP-134 DONE (PR #159, merge ea31692; CI GREEN on ff1f0d1 in the first round: ci_gate 693/693, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.68; no code change, no version (6.21.0 stays, 705 tests); WP-135 (front end, loader, diagnostics) is next and closes the third review.
@@ -10248,7 +10249,7 @@ No package is open; the next step is the user's.
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 136 | the API chapter `buildDay` gains *Where the handle goes — one per system* (one handle per entry of `data.systems`; one reader for several setups through `processingOptions` or a closure, with the `nargin` rule; separate `fit` calls for data without shared common parameters; `builderKind`); `fit`'s help and the Manual's *Several systems* one sentence each; **version 6.22.1** | 135 (PR #161 merged 17748fb; closure #162) | OPEN (2026-10-15, tier B) |
+| 136 | the API chapter `buildDay` gains *Where the handle goes — one per system* (one handle per entry of `data.systems`; one reader for several setups through `processingOptions` or a closure, with the `nargin` rule; separate `fit` calls for data without shared common parameters; `builderKind`); `fit`'s help and the Manual's *Several systems* one sentence each; **version 6.22.1** | 135 (PR #161 merged 17748fb; closure #162) | DONE (2026-10-15, PR #163, merge 327d705; CI GREEN on 79a3c06 in the first round: ci_gate 715/715) |
 
 **The user's question (2026-10-15):** "How to provide different "buildDay" to lsqvce.fit? A user may have
 different setups and different data to process. For OnPass, one can provide a function handle but I did
@@ -10265,3 +10266,12 @@ code block for each pattern, the `nargin` rule for a closure, the determinism an
 for what a closure captures). `+lsqvce/fit.m`: the streaming kind's help line. `manual/04_declaring.md`:
 one sentence under *Several systems*. The Manual and the API reference rebuilt; RELEASE_NOTES 6.22.1;
 `Contents.m` / README 6.22.1. No code path, test or registry changes; the test count stays 727 (CI 715).
+
+**CI round 1 (79a3c06): GREEN on A8** -- `ci_gate` 715 / 715, 27 / 27 suites, the warning inventory
+`lsqvce:internal:testProbe` only; the audit job green (the rebuilt Manual and API reference match the
+CI runner's pandoc byte for byte).
+
+**Closure (2026-10-15).** WP-136 DONE: PR #163 merged as 327d705 (the loop's record step after the
+merge: the ledger row, this note; no code change, no version -- 6.22.1 stays, 727 tests). The API
+chapter `buildDay` now says where the handle goes and how a setup reaches it. No package is open; the
+next step is the user's.
