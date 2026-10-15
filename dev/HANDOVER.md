@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-15 — WP-139 DONE (PR #169, merge 9cb491f; CI GREEN on 470c45b in the first round: ci_gate 723/723, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.72; no code change, no version (6.24.1 stays, 735 tests).
+Last substantive update: 2026-10-15 — WP-140 OPEN (tier B, model Claude Opus 5.5; user: "Mach die Beobachtungen aus §12.72 als WP-140"): the nine observations WP-139's research recorded -- copy-pasted and wrong `% tol:` comments, a circular test, applyRegularisation's and mapreduce's help, two unpinned help claims, misplaced stamps and sections, a loose mirror tolerance, a test in the wrong category, an untraced path; version 6.24.2.
+Preceding entry: Last substantive update: 2026-10-15 — WP-139 DONE (PR #169, merge 9cb491f; CI GREEN on 470c45b in the first round: ci_gate 723/723, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.72; no code change, no version (6.24.1 stays, 735 tests).
 Preceding entry: Last substantive update: 2026-10-15 — WP-139 OPEN (tier B, model Claude Opus 5.5; user decision: "In diesem Fall die fehlenden ACCURACY Blöcke bitte gesammelt ergänzen" -- it lifts 6.2.1's "no bulk migration" for this one sweep): an ACCURACY block for each of the 48 units accuracy_baseline.csv froze, every number traced to a test or a recorded measurement, "Not applicable" with its reason where a unit computes nothing; the baseline emptied, check 34 kept as the rule for new units; version 6.24.1.
 Preceding entry: Last substantive update: 2026-10-15 — WP-138 DONE (PR #167, merge 9586fc5; CI GREEN on f85d02b in the first round: ci_gate 723/723, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.71; no code change, no version (6.24.0 stays, 735 tests).
 Preceding entry: Last substantive update: 2026-10-15 — WP-138 OPEN (tier B, model Claude Opus 5.5; user: "Mach die Review-Kandidaten aus §12.70 als WP-138"): the code review's judgement calls -- one validity rule and one id/day rule for both front doors, a non-integer day list is lsqvce:fit:badDays and mixed id kinds lsqvce:fit:mixedIdTypes, one name for the prior pseudo-streams (lsqvce.util.priorStream), the GCV ids under one segment, the prior batches assembled once, snoop reads D's thresholds instead of restating diagnose's defaults, a local prior batch with a full weight matrix judged instead of skipped, the contamination gauge in its own file, the report branching on a loop code (Iteration.loop) instead of a display label, addF named, ACCURACY blocks for verdict's methods and an audit ratchet for units without one; version 6.24.0.
@@ -10553,3 +10554,47 @@ with the tightened heading rule and an empty baseline).
 merge: the ledger row, this note; no code change, no version -- 6.24.1 stays, 735 tests). Every
 public unit states its ACCURACY and check 34 holds for all of them. The nine observations above are
 recorded, not scheduled; no package is open; the next step is the user's.
+
+### 12.73 WP-140 — the observations of §12.72 (2026-10-15, model Claude Opus 5.5)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 140 | the nine observations WP-139's research recorded (§12.72): the `% tol:` comments that describe another assertion (test_ellmer x2, test_parallel) or a wrong number (test_precision: cond 20 -> 345, the mirror's 1.7e-13 -> its worst 2.6e-13); testPriorAbsorbedDoFBounds against a dense trace instead of the identity rK = nk - absorbed; applyRegularisation's 'tsvd' text (truncation, not the floor); mapreduce's determinism paragraph (why parfor is not bitwise); outliers' and vce's unpinned claims replaced by what a test pins; stamps before See also moved after it (six files), arcVarianceFactors, separableWhiten and varWhiten one section each, the bare H1 lines (nine units), whittle's move into +kernel recorded; v10review T5 with rtol 0; testCheckPSDVerdicts a precision test (its exemption row retired); ReducedContribution's path traced; **version 6.24.2** | 139 (PR #169 merged 9cb491f; closure #170) | OPEN (2026-10-15, tier B) |
+
+**The user's decision (2026-10-15):** "Mach die Beobachtungen aus §12.72 als WP-140". What each of the
+nine becomes, read in the code before this scope was written:
+1. **Copy-pasted `% tol:`.** test_ellmer.m:469 (sigma2 = gamma2 / gammaBar^2) and :594 (gamma2 =
+   alpha2 .* sigma2) both carry "fixed-point identity om==s -> alpha2=1"; testWhittleRecoversGenerator
+   carries "quantile/CDF round-trip". Each gets the comment of its own assertion.
+2. **The circular check.** CommonPrior.redundancy computes rK = nk - absorbed, so the test's
+   `verifyEqual(rK, nk - absorbed)` cannot fail. Its reference becomes the dense trace
+   trace((A'A + Nk) \ K'K) / sigma^2 -- the Python port of the fixture agrees with the Cholesky route
+   to 0.0 at sigma 0.01 and 100 (cond 1.02 and 2.29).
+3. **Wrong numbers in comments.** testDecorrFactorIsExact: cond(C) of the AR(1) phi = 0.9, n = 120
+   Toeplitz is 345 (the limit ((1+phi)/(1-phi))^2 = 361), not ~20. testArmaWithMaWhitenerIsTheCholeskyFactor:
+   the mirror's worst over the test's three cases is 2.6e-13 ([1 -1.6 0.9 -0.25] / [1 0.5 0.3]).
+4. **applyRegularisation 'tsvd'.** It returns Nr floored at TruncTol*lambda_max, but the accumulator
+   (preeliminate, since WP-133) solves on the truncated eigenbasis of the UNFLOORED Nll and counts the
+   rank in dof; the floored Nr is a placeholder no reader inverts. METHODS and CHOOSING say so.
+5. **mapreduce.** The help is right that serial and parfor reduce in the same order; it does not say why
+   parfor still differs: a worker runs single-threaded, the client multithreaded, so a task's BLAS result
+   can differ in its last bits -- the reason test_parallel allows 1e-14. Said; its stale
+   `validation/v4verify.py` path is `dev/validation/v4verify.py`.
+6. **Unpinned claims.** outliers' "4/4 injected, 0 false alarms" points to its ACCURACY block instead;
+   vce's "3x wrong weight in 2 iterations" becomes what testVceConvergesFast pins: from unit weights
+   against a true ratio 1 : 2.5, converged within 5 iterations.
+7. **Help structure.** Every public unit scanned: six carry stamps before their See also (BlockAccumulator,
+   datum, mapreduce, outliers, residuals, crossCorr) -- moved after it, in date order; nine public units
+   have a bare H1 (`%RUNMETA`, `%STREAMKEY`, ...) -- `%LSQVCE.<PKG>.<NAME>` as 6.2.1 says;
+   arcVarianceFactors' second OPTIONS block joins the first; separableWhiten's and varWhiten's two INPUT
+   blocks become one; whittle's "moved into +engine" stays (it is history) and its stamp records the
+   R5 M2 move into +kernel (WP-82, 2026-09-02) that no stamp carried.
+8. **v10review T5.** `np.allclose` with numpy's default rtol 1e-5 bounded X X = I's diagonal at ~1e-5
+   only; T5a and T5b get rtol 0 (measured 3.2e-15 and 1.6e-15 against atol 1e-12). CI runs this mirror.
+9. **Categories and a trace.** testCheckPSDVerdicts asserts acvRelErr < 1e-3 (checkPSD's own 'good'
+   bound) on a known AR(3) spectrum: a precision test, so checkPSD's precision exemption row goes.
+   ReducedContribution: traced -- the QR backend without regularisation builds it from Rows
+   (BlockAccumulator.preeliminate), the path both cited tests take; the normal backend's (N, n, ltl)
+   form is pinned against it by testBackendsAgreeWhenWellConditioned. Its ACCURACY block says so.
+No estimate changes. Test count unchanged (735 local / 723 CI): one test's reference replaced, one
+test's category widened, no test added or removed.
