@@ -60,14 +60,19 @@ function [y, X] = dctI(x, opt)
 %     test_dctI_ortho_round_trip)) and to 1e-12 at N = 64 (test_metamorphic
 %     (testSpectralRoundTripIsTheIdentity)); 'ellmer' round-trips to 1e-10
 %     at cond(X) < 5 (test_dctI_ellmer_norm_invertible). Convention: HANDOVER
-%     6.1.4, the Ellmer (2018) row; the R2 Python mirror v10review.py (T5):
-%     'ortho' self-inverse, 'ellmer' cond 1.478 (HANDOVER 8.1). WP-139.
+%     6.1.4, the Ellmer (2018) row; the R2 Python mirror v10review.py (T5,
+%     run by CI): 'ortho' X X = I to 3.2e-15 at N = 33 and 'ellmer' cond
+%     1.478, round trip 2.9e-15 (atol 1e-12, rtol 0 since WP-140). WP-139.
 %
 %   ERRORS
 %     lsqvce:dctI:tooShort          the series is shorter than the transform needs
 %
 %   See also LSQVCE.KERNEL.PSD2ACV, LSQVCE.KERNEL.TOEPLITZCOFACTOR, LSQVCE.ENGINE.COVCOMPONENT
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-140: the mirror figures of the
+%   accuracy statement are measured with rtol 0 (v10review T5 had bounded the
+%   diagonal of X X = I at ~1e-5 only). With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
 %   accuracy, every number traced to the test that pins it. With assistance
 %   from Claude (Anthropic), model Claude Opus 5.5.

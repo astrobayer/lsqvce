@@ -15,6 +15,10 @@ function tests = test_vceMath
 %
 %   See also TEST_PRECISION, TEST_RELIABILITY, TEST_SPEED
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-140: testPriorAbsorbedDoFBounds
+%   checks the absorbed DoF against the dense trace; it checked the identity
+%   rK = nk - absorbed, which could not fail. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (third review): crossCorr refuses a partial epoch.
 %   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: an all-zero prior row is
@@ -292,8 +296,14 @@ function testPriorAbsorbedDoFBounds(tc)
 
         tc.verifyGreaterThanOrEqual(absorbed(k), -1e-8);
         tc.verifyLessThanOrEqual(absorbed(k), pri.nk + 1e-8);
-        % tol: dense trace/quadratic-form reference of the same algebra; eps*cond headroom (house bounds)
-        tc.verifyEqual(rK, pri.nk - absorbed(k), 'AbsTol', 1e-10);
+        % WP-140: the reference is the DENSE trace trace((A'A + Nk)^-1 K'K) / sigma^2, not
+        % the identity rK = nk - absorbed the unit computes (that check could not fail)
+        absRef = trace((A.'*A + Nk) \ (K.'*K)) / sigs(k)^2;
+        % tol: Cholesky solve vs a dense solve of one 12 x 12 system, cond ~1 at sigma 0.01 and
+        % ~2-3 at 100 (A'A of 200 Gaussian rows); a Python port of the fixture (its own draws:
+        % cond 1.02 / 2.29) agrees to 0.0 -- 1e-10 is the house bound (HANDOVER 6.1.2)
+        tc.verifyEqual(absorbed(k), absRef, 'AbsTol', 1e-10);
+        tc.verifyEqual(rK, pri.nk - absRef, 'AbsTol', 1e-10);   % tol: same source
     end
 
     tc.verifyGreaterThan(absorbed(1), 0.9*nc, 'a strong prior must absorb nearly all DoF');

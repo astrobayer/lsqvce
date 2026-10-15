@@ -82,11 +82,13 @@ classdef CommonPrior
 %     The prior's normals are the stacked rows (K/sigma) x ~ x0/sigma: the
 %     Schur-reduced solve with them equals the dense least-squares solve of
 %     the augmented system to 1e-8 relative (test_vceMath
-%     (testPriorEqualsAugmentedLeastSquares)). The absorbed DoF is pinned by
-%     its bounds, not by a dense trace: in [0, nk] to 1e-8 for an identity,
-%     Kaula, first-difference and subset K; > 0.9 nc at sigma 0.01 and
-%     < 0.1 nc at sigma 100 for K = I (test_vceMath
-%     (testPriorIsBasisAgnostic, testPriorAbsorbedDoFBounds)). WP-139.
+%     (testPriorEqualsAugmentedLeastSquares)). The absorbed DoF equals the
+%     dense trace trace((A'A + Nk)^-1 K'K) / sigma^2 to 1e-10 for K = I at
+%     sigma 0.01 and 100, where it reads > 0.9 nc and < 0.1 nc (test_vceMath
+%     (testPriorAbsorbedDoFBounds); before WP-140 that test pinned only the
+%     identity rK = nk - absorbed), and lies in [0, nk] to 1e-8 for an
+%     identity, Kaula, first-difference and subset K (test_vceMath
+%     (testPriorIsBasisAgnostic)). WP-139, WP-140.
 %
 %   ERRORS
 %     lsqvce:prior:badTarget        the prior target has the wrong length
@@ -95,6 +97,10 @@ classdef CommonPrior
 %
 %   See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.APPLYREGULARISATION
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-140: the absorbed DoF of the
+%   accuracy statement is pinned against the dense trace trace((A'A + Nk)^-1
+%   K'K) / sigma^2 (its test had checked only the identity rK = nk -
+%   absorbed). With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
 %   accuracy, every number traced to the test that pins it. With assistance
 %   from Claude (Anthropic), model Claude Opus 5.5.

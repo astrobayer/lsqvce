@@ -34,7 +34,12 @@ classdef ReducedContribution
 %     the reduced x_c equals the monolithic joint solve to 1e-9 relative
 %     (test_precision (testPreeliminationEqualsJointSolve)), and the carried
 %     ltl keeps sigma0 at 1 within 0.07 (test_precision
-%     (testQrMergeFoldKeepsTheResidualMass)). WP-139.
+%     (testQrMergeFoldKeepsTheResidualMass)). Both run the QR backend without
+%     regularisation, which builds this from Rows
+%     (LSQVCE.ENGINE.BLOCKACCUMULATOR, preeliminate; traced in WP-140); the
+%     normal backend's (N, n, ltl) form matches it to 1e-8 relative in x and
+%     1e-7 in sigma0 (test_precision (testBackendsAgreeWhenWellConditioned)).
+%     WP-139, WP-140.
 %
 %   ERRORS
 %     lsqvce:reduced:notSquare     the contribution block is not square
@@ -42,6 +47,10 @@ classdef ReducedContribution
 %
 %   See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.QRSYSTEM, LSQVCE.ENGINE.NORMALEQSYSTEM
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-140: the accuracy statement names
+%   the traced path (the QR backend builds this from Rows) and the pin of the
+%   normal backend's form. With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
 %   accuracy, every number traced to the test that pins it. With assistance
 %   from Claude (Anthropic), model Claude Opus 5.5.

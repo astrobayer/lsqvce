@@ -45,6 +45,10 @@ function [A, Sigma, info] = whittle(G, p)
 %
 %   See also LSQVCE.KERNEL.VARACV, LSQVCE.KERNEL.VARWHITEN, LSQVCE.KERNEL.LEVINSONDURBIN
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-140: the 'Moved ... into
+%   +lsqvce/+engine' line below is history: R5 M2 (WP-82, 2026-09-02) moved
+%   whittle on into +lsqvce/+kernel, unstamped until now. With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
 %   accuracy, every number traced to the test that pins it. With assistance
 %   from Claude (Anthropic), model Claude Opus 5.5.

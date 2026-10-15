@@ -36,16 +36,6 @@ function [Aw, Bw, lw] = separableWhiten(a, s, r, sigEpoch, d, A, B, l, isFirstBa
 %   batch must never split an epoch (LSQVCE.ENGINE.BLOCKACCUMULATOR rounds BatchSize down to a
 %   multiple of d).
 %
-%   INPUT
-%     a          1 x (p+1)  scalar temporal AR polynomial, shared by all axes
-%     s          scalar     innovation std of the temporal model
-%     r          >= p x 1   temporal autocovariance (already scaled by s^2)
-%     sigEpoch   nEpoch x d          per-epoch, per-axis sigma      (diagonal D)
-%             or nEpoch x d x d      per-epoch full covariance      (D = chol)
-%     d          number of axes
-%     A, B, l    the arc's design blocks and observations, epoch-major
-%     isFirstBatch  true for the first batch of the arc (stationary startup)
-%
 %   USE THE FULL d x d IF YOU HAVE IT
 %     A kinematic PPP solution gives you a full 3x3 per-epoch covariance: the
 %     vertical is 2-3x worse than horizontal AND correlated with it. Passing only
@@ -69,15 +59,20 @@ function [Aw, Bw, lw] = separableWhiten(a, s, r, sigEpoch, d, A, B, l, isFirstBa
 %     [Aw,Bw,lw] = lsqvce.kernel.separableWhiten(a, sqrt(s2), r, Cep, d, A, B, l, true);
 %
 %   INPUT
-%     a            1x(p+1) double  temporal AR polynomial [1 a1 ... ap]
+%     a            1x(p+1) double  temporal AR polynomial [1 a1 ... ap], shared
+%                                  by all axes
 %     s            1x1     double  innovation std of the temporal law
-%     r            1xL     double  temporal ACV for the stationary startup
-%     sigEpoch     nEp x d | nEp x d x d  the per-epoch scaling D
+%     r            L-vector double temporal ACV for the stationary startup,
+%                                  L >= p, already scaled by s^2
+%     sigEpoch     nEp x d | nEp x d x d  the per-epoch scaling D: a sigma per
+%                                  axis (diagonal D) or a full covariance per
+%                                  epoch (D = its Cholesky factor)
 %     d            1x1     double  axes per epoch
 %     A            m x nc  double  common design rows (EPOCH-MAJOR)
 %     B            m x nl  double  local design rows  (may be [] or sparse; sparse in, sparse out)
 %     l            m x 1   double  observations
-%     isFirstBatch 1x1     logical apply the stationary startup
+%     isFirstBatch 1x1     logical true for the arc's first batch: apply the
+%                                  stationary startup
 %
 %   OUTPUT
 %     Aw, Bw, lw   the same arrays, whitened: solving with them is equivalent
@@ -107,6 +102,9 @@ function [Aw, Bw, lw] = separableWhiten(a, s, r, sigEpoch, d, A, B, l, isFirstBa
 %
 %   See also LSQVCE.KERNEL.CROSSCORR, LSQVCE.KERNEL.ARMAWHITEN, LSQVCE.ENGINE.COVMODEL
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-140: one input block: there were
+%   two, and the first one's details now sit in the second. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
 %   accuracy, every number traced to the test that pins it. With assistance
 %   from Claude (Anthropic), model Claude Opus 5.5.

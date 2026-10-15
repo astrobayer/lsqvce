@@ -1,5 +1,5 @@
 function out = synthLoader(cfg, sat, day, obsType, arcID, opt)
-%SYNTHLOADER  Synthetic ground-truth loader -- and the loader TEMPLATE.
+%LSQVCE.ENGINE.SYNTHLOADER  Synthetic ground-truth loader -- and the loader TEMPLATE.
 %
 %   Bind it as a closure over cfg and the satellite, so the accumulator sees
 %   the four-argument signature it expects:
@@ -110,6 +110,10 @@ function out = synthLoader(cfg, sat, day, obsType, arcID, opt)
 %
 %   See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.COVMODEL
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-140: the H1 line names the unit
+%   in full, lsqvce.engine.synthLoader, as HANDOVER 6.2.1 asks (it read the
+%   bare name). With assistance from Claude (Anthropic), model Claude Opus
+%   5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
 %   accuracy, every number traced to the test that pins it. With assistance
 %   from Claude (Anthropic), model Claude Opus 5.5.

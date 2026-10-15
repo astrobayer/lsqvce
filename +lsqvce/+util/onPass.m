@@ -1,5 +1,5 @@
 function go = onPass(hook, ctxExtra, ctx)
-%ONPASS  Fire the user's per-pass inspection hook (R5 M5 5c').
+%LSQVCE.UTIL.ONPASS  Fire the user's per-pass inspection hook (R5 M5 5c').
 %   go = lsqvce.util.onPass(hook, ctxExtra, ctx)
 %
 %   THE one place every iterative driver (the joint estimator, IRLS,
@@ -23,6 +23,10 @@ function go = onPass(hook, ctxExtra, ctx)
 %           Not applicable: it merges a context struct and calls the hook.
 %           WP-139.
 %   ERRORS  lsqvce:callUser:threw  the hook threw (its error is the cause)
+%
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-140: the H1 line names the unit
+%   in full, lsqvce.util.onPass, as HANDOVER 6.2.1 asks (it read the bare
+%   name). With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
 %   accuracy, "Not applicable" with its reason. With assistance from Claude

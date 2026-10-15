@@ -1,5 +1,5 @@
 function [key, satKey] = streamKey(sysID, obsType)
-%STREAMKEY  The one key of a stream: 'satKey|obsType', and its satKey.
+%LSQVCE.UTIL.STREAMKEY  The one key of a stream: 'satKey|obsType', and its satKey.
 %   [key, satKey] = lsqvce.util.streamKey(sysID, obsType)
 %   [key, satKey] = lsqvce.util.streamKey(sysID)        key = satKey
 %
@@ -27,6 +27,9 @@ function [key, satKey] = streamKey(sysID, obsType)
 %   See also LSQVCE.UTIL.ARCKEY, LSQVCE.UTIL.ROWWEIGHTKEY,
 %            LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.ENGINE.JOINTMODELOPT
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-140: the H1 line names the unit
+%   in full, lsqvce.util.streamKey, as HANDOVER 6.2.1 asks (it read the bare
+%   name). With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
 %   accuracy, "Not applicable" with its reason. With assistance from Claude
 %   (Anthropic), model Claude Opus 5.5.

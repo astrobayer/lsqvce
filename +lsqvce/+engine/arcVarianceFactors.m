@@ -54,6 +54,15 @@ function out = arcVarianceFactors(Q, T, sigma2, opt)
 %     'MeanType'  char    'robust' (default) | 'plain'   (see above)
 %     'TrimFrac'  1x1     fraction trimmed from EACH tail for 'robust'
 %                         (default 0.25, i.e. Ellmer's central half)
+%     'ClampEps'  1x1     floor for the NORMALISED arc factors (> 0, default
+%                         1e-8; sigma2hat is already divided by gammaBar^2, so
+%                         healthy factors are O(1)): any sigma2hat_m below it --
+%                         negative gamma2 from a negative alpha2, or a
+%                         degenerate ratio -- is clamped to ClampEps, warned
+%                         about with the arc indices (id
+%                         lsqvce:arcVarianceFactors:clamped) and flagged in
+%                         .clamped. A negative variance factor must never leave
+%                         this function: it weights a covariance downstream.
 %
 %   OUTPUT
 %     out   1x1 struct
@@ -85,16 +94,6 @@ function out = arcVarianceFactors(Q, T, sigma2, opt)
 %   EXAMPLE
 %     a = lsqvce.engine.arcVarianceFactors(qa, ta, sig2);   % qa = r*Omega, ta = r*s
 %     sig2 = a.sigma2;                 % feed back into the next iteration
-%
-%   OPTIONS (Name/Value, in addition to 'MeanType'/'TrimFrac')
-%     'ClampEps' 1x1 double > 0, default 1e-8.  Floor for the NORMALISED arc
-%                factors (sigma2hat is already divided by gammaBar^2, so
-%                healthy factors are O(1)): any sigma2hat_m below it --
-%                negative gamma2 from a negative alpha2, or a degenerate
-%                ratio -- is clamped to ClampEps, warned about with the arc
-%                indices (id lsqvce:arcVarianceFactors:clamped) and flagged
-%                in .clamped. A negative variance factor must never leave
-%                this function: it weights a covariance downstream.
 %     mean(sqrt(a.sigma2))             % == 1 exactly only for 'plain'
 %
 %   ACCURACY
@@ -118,6 +117,9 @@ function out = arcVarianceFactors(Q, T, sigma2, opt)
 %
 %   See also LSQVCE.ENGINE.PSDVCE, LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.ADJUSTVCEJOINT
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-140: one options block: ClampEps
+%   had a second one after the example, which had lost its last line to it.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
 %   accuracy, every number traced to the test that pins it. With assistance
 %   from Claude (Anthropic), model Claude Opus 5.5.

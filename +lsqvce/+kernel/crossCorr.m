@@ -72,11 +72,6 @@ function c = crossCorr(w, d, opt)
 %     lsqvce.util.log.msg('%s: %s\n', c.verdict, c.advice);
 %     disp(squeeze(c.Rcorr(1,:,:)))      % R(0) as a correlation -- ~ the identity
 %
-%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
-%   typed `arguments` signature, canonical UpperCamelCase option names
-%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
-%   case-sensitive lowercase). With assistance from Claude (Anthropic),
-%   model Claude Fable 5.
 %   ERRORS
 %     lsqvce:crossCorr:badLength   numel(w) is not a whole number of epochs
 %                                  of d axes, or fewer than two epochs (WP-134:
@@ -88,6 +83,9 @@ function c = crossCorr(w, d, opt)
 %
 %   See also LSQVCE.ENGINE.RESIDUALS, LSQVCE.ENGINE.COVMODEL
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-140: the 2026-08-19 stamp that
+%   sat between the example and the error list moved after See also. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
 %   accuracy, every number traced to the test that pins it. With assistance
 %   from Claude (Anthropic), model Claude Opus 5.5.
@@ -101,6 +99,11 @@ function c = crossCorr(w, d, opt)
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): the
 %   deleted SELECTARORDER references removed. With assistance from Claude
 %   (Anthropic), model Claude Opus 5.5.
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
+%   typed `arguments` signature, canonical UpperCamelCase option names
+%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+%   case-sensitive lowercase). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+kernel (R4 decision R4-D1,

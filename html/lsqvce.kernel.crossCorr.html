@@ -101,18 +101,12 @@ reads &#x27;ok&#x27; at sigma 1 and 2 and each of the three departures is named
 testCrossCorrDetectsCrossAxis, testCrossCorrDetectsARTooLow,
 testCrossCorrDetectsNeedsVAR)). WP-139.</pre>
 <h3>Example</h3>
-<pre class="example">  res = acc.residuals(sol);
-  w   = vertcat(res.sys(1).obs.w);
-  c   = lsqvce.kernel.crossCorr(w, 3, &#x27;plot&#x27;, true);
+<pre class="example">res = acc.residuals(sol);
+w   = vertcat(res.sys(1).obs.w);
+c   = lsqvce.kernel.crossCorr(w, 3, &#x27;plot&#x27;, true);
 
-  lsqvce.util.log.msg(&#x27;%s: %s\n&#x27;, c.verdict, c.advice);
-  disp(squeeze(c.Rcorr(1,:,:)))      % R(0) as a correlation -- ~ the identity
-
-Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
-typed `arguments` signature, canonical UpperCamelCase option names
-(legacy casings keep matching -- MATLAB NV semantics; enum VALUES
-case-sensitive lowercase). With assistance from Claude (Anthropic),
-model Claude Fable 5.</pre>
+lsqvce.util.log.msg(&#x27;%s: %s\n&#x27;, c.verdict, c.advice);
+disp(squeeze(c.Rcorr(1,:,:)))      % R(0) as a correlation -- ~ the identity</pre>
 <h3>Errors</h3>
 <pre class="example">  lsqvce:crossCorr:badLength   numel(w) is not a whole number of epochs
                                of d axes, or fewer than two epochs (WP-134:
@@ -124,6 +118,9 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 
 See also LSQVCE.ENGINE.RESIDUALS, LSQVCE.ENGINE.COVMODEL
 
+Updated 2026-10-15 (CEST, UTC+02:00), WP-140: the 2026-08-19 stamp that
+sat between the example and the error list moved after See also. With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
 accuracy, every number traced to the test that pins it. With assistance
 from Claude (Anthropic), model Claude Opus 5.5.
@@ -137,6 +134,11 @@ depends on the residuals&#x27; variance. With assistance from Claude
 Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): the
 deleted SELECTARORDER references removed. With assistance from Claude
 (Anthropic), model Claude Opus 5.5.
+Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
+typed `arguments` signature, canonical UpperCamelCase option names
+(legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+case-sensitive lowercase). With assistance from Claude (Anthropic),
+model Claude Fable 5.
 Generated with assistance from Claude (Anthropic), model Claude
 Opus 4.8.
 Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+kernel (R4 decision R4-D1,

@@ -12,6 +12,10 @@ function tests = test_ellmer
 %
 %   Run with:  results = runtests('tests/test_ellmer.m')
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-140: two copied tol comments
+%   ("fixed-point identity om==s") replaced by the source of their own
+%   assertions. With assistance from Claude (Anthropic), model Claude Opus
+%   5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (third review): the stop rule's PriorDev, the common factor's scale equivariance, the
 %   per-stream skip rate, AvgTail on every group, Sigma2_0 values, jointModelOpt's
 %   pass and factors, an arc without redundancy held.
@@ -466,7 +470,8 @@ function test_arcVarianceFactors_noop_on_healthy(tc)
     verifyFalse(tc, any(a.clamped), 'healthy input must not clamp');
     gamma2   = alpha2 .* sig2;
     gammaBar = mean(sqrt(abs(gamma2)));
-    % tol: fixed-point identity om==s -> alpha2=1 by the update law; fp division noise only, house exact-identity bound
+    % tol: 4 eps -- the closed form gamma2 / gammaBar^2 (eqs. 6.5.28-6.5.30) is the unit's own
+    % arithmetic in another summation order; CI measured 2.6e-16 (WP-140: the comment was a copy)
     verifyEqual(tc, a.sigma2, gamma2 / gammaBar^2, 'RelTol', 4*eps, ...
         ['converged results on healthy inputs must match the closed ' ...
          'formula (4 eps: summation-order ULPs, CI-measured 2.6e-16)']);
@@ -591,7 +596,8 @@ function test_arcVarianceFactors_gamma_detour_shapes(tc)
     a = lsqvce.engine.arcVarianceFactors(rand(N,M)+0.5, rand(N,M)+0.5, sig2);
     verifySize(tc, a.sigma2, [M 1]);
     verifySize(tc, a.alpha2, [M 1]);
-    % tol: fixed-point identity om==s -> alpha2=1 by the update law; fp division noise only, house exact-identity bound
+    % tol: gamma2 = alpha2 .* sigma2 (eq. 6.5.28) is one product per arc, ~1 eps; 1e-10 is the
+    % house exact-identity bound (HANDOVER 6.1.2) (WP-140: the comment was a copy)
     verifyEqual(tc, a.gamma2, a.alpha2 .* sig2, 'RelTol', 1e-10, ...
         'gamma2 must be alpha2 .* sigma2 (eq. 6.5.28)');
     verifyTrue(tc, all(a.sigma2 >= 0), 'variance factors must be non-negative');

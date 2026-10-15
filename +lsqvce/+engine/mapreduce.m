@@ -13,9 +13,10 @@ function [out, info] = mapreduce(nTask, taskFcn, opt)
 %   WHY THIS IS EXACT
 %     Every parallelised quantity in this toolbox is a plain SUM (or ordered
 %     collection) of independent per-task contributions -- proven in
-%     validation/v4verify.py: partial sums over any partition reconstruct the
+%     dev/validation/v4verify.py: partial sums over any partition reconstruct the
 %     serial result. Changing the schedule changes WHICH core computes a term,
-%     never the terms themselves.
+%     never the formula of a term (its last bits can still move -- see
+%     DETERMINISM).
 %
 %   INPUT
 %     nTask    number of independent tasks
@@ -51,11 +52,16 @@ function [out, info] = mapreduce(nTask, taskFcn, opt)
 %     'serial' and 'parfor' share the IDENTICAL reduction order: parfor only
 %     scrambles which worker computes a task; the per-task results are then
 %     reduced on the client in task order. Differences against serial can
-%     therefore come only from multithreaded BLAS inside a task, not from the
-%     schedule. 'spmd' reduces on the workers (that is its point -- per-task
-%     results are never shipped), so its summation order differs and results
-%     match serial only to ~1e-10 relative, NOT bit-identical. Regression
-%     tests against 'spmd' need a tolerance, never isequal.
+%     therefore come only from the arithmetic inside a task, not from the
+%     schedule -- and they do come: a worker runs single-threaded, the client
+%     multithreaded, so a task's matrix products and large sums can differ in
+%     their last bits. Hence parfor
+%     matches serial to 1e-14 relative, NOT bitwise (test_parallel
+%     (testMapreduceParforMatchesSerial); WP-140). 'spmd' reduces on the
+%     workers (that is its point -- per-task results are never shipped), so
+%     its summation order differs and results match serial only to ~1e-10
+%     relative. Regression tests against 'parfor' or 'spmd' need a tolerance,
+%     never isequal.
 %
 %   EXAMPLE
 %     % sum of expensive per-task scalars, exactly like the redundancy pass
@@ -77,13 +83,13 @@ function [out, info] = mapreduce(nTask, taskFcn, opt)
 %     lsqvce:mapreduce:serialFallback  [warning, once per run] a parallel mode was
 %                                   requested but no pool could be used (R5 M1)
 %
-%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (c) c1 (F-07):
-%   typed `arguments` signature, canonical UpperCamelCase option names
-%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
-%   case-sensitive lowercase). With assistance from Claude (Anthropic),
-%   model Claude Fable 5.
 %   See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.REDUNDANCY, LSQVCE.ENGINE.VCE
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-140: the determinism paragraph
+%   says why parfor is not bitwise (single-threaded workers, a multithreaded
+%   client: 1e-14 in test_parallel); v4verify's path is dev/validation; the
+%   2026-08-19 stamp moved after See also. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
 %   accuracy, every number traced to the test that pins it. With assistance
 %   from Claude (Anthropic), model Claude Opus 5.5.
@@ -91,6 +97,11 @@ function [out, info] = mapreduce(nTask, taskFcn, opt)
 %   queue is handed to every parfor task and spmd block, and their warning
 %   ids are merged into the run inventory in task order. With assistance
 %   from Claude (Anthropic), model Claude Opus 5.5.
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (c) c1 (F-07):
+%   typed `arguments` signature, canonical UpperCamelCase option names
+%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+%   case-sensitive lowercase). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,

@@ -49,7 +49,11 @@ a { color: #0b5ea8; }
 METHODS (opt.Reg)
   &#x27;none&#x27;      no action
   &#x27;tikhonov&#x27;  Nr = Nll + lambda*L&#x27;*L        lambda by GCV if not supplied
-  &#x27;tsvd&#x27;      spectral floor at TruncTol*lambda_max (equivalent to pinv)
+  &#x27;tsvd&#x27;      truncation (pinv): LSQVCE.ENGINE.BLOCKACCUMULATOR solves on
+              the eigenvectors of the UNFLOORED Nll above TruncTol*lambda_max
+              and counts that rank in dof (WP-133). The Nr returned here is
+              Nll floored at TruncTol*lambda_max -- an invertible
+              placeholder no reader inverts (dg.lambdaUsed is the floor)
   &#x27;lm&#x27;        Nr = Nll + lambda*diag(Nll)   Levenberg-Marquardt scaling
   &#x27;auto&#x27;      dispatch on dg.status:
                  &#x27;ok&#x27;              -&gt; none
@@ -87,8 +91,9 @@ CHOOSING THE METHOD
             a first-difference L penalises roughness. Use when the block is
             weakly determined but the parameters are physically meaningful.
   tsvd      No prior: you simply refuse to invert the null space. Use when
-            the block is rank deficient by construction. The floored
-            directions are left at zero rather than being fitted to noise.
+            the block is rank deficient by construction. The truncated
+            directions are left at zero (the minimum-norm solution) rather
+            than being fitted to noise.
   lm        Scale-invariant damping. Use when the local parameters have
             wildly different units and L = I would be meaningless.
 
@@ -127,6 +132,10 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 
 See also LSQVCE.ENGINE.LOCALDIAGNOSTICS, LSQVCE.ENGINE.GCVLAMBDA, LSQVCE.ENGINE.BLOCKACCUMULATOR
 
+Updated 2026-10-15 (CEST, UTC+02:00), WP-140: &#x27;tsvd&#x27; is described as what
+it is, the accumulator&#x27;s truncation of the unfloored Nll (WP-133); the
+floored Nr returned here is a placeholder no reader inverts. With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
 accuracy, every number traced to the test that pins it. With assistance
 from Claude (Anthropic), model Claude Opus 5.5.
