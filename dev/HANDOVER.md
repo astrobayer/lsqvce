@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-15 — WP-140 OPEN (tier B, model Claude Opus 5.5; user: "Mach die Beobachtungen aus §12.72 als WP-140"): the nine observations WP-139's research recorded -- copy-pasted and wrong `% tol:` comments, a circular test, applyRegularisation's and mapreduce's help, two unpinned help claims, misplaced stamps and sections, a loose mirror tolerance, a test in the wrong category, an untraced path; version 6.24.2.
+Last substantive update: 2026-10-15 — WP-140 DONE (PR #171, merge 6c100c9; CI GREEN on 99e3c8f in the first round: ci_gate 723/723, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.73; no code change, no version (6.24.2 stays, 735 tests).
+Preceding entry: Last substantive update: 2026-10-15 — WP-140 OPEN (tier B, model Claude Opus 5.5; user: "Mach die Beobachtungen aus §12.72 als WP-140"): the nine observations WP-139's research recorded -- copy-pasted and wrong `% tol:` comments, a circular test, applyRegularisation's and mapreduce's help, two unpinned help claims, misplaced stamps and sections, a loose mirror tolerance, a test in the wrong category, an untraced path; version 6.24.2.
 Preceding entry: Last substantive update: 2026-10-15 — WP-139 DONE (PR #169, merge 9cb491f; CI GREEN on 470c45b in the first round: ci_gate 723/723, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.72; no code change, no version (6.24.1 stays, 735 tests).
 Preceding entry: Last substantive update: 2026-10-15 — WP-139 OPEN (tier B, model Claude Opus 5.5; user decision: "In diesem Fall die fehlenden ACCURACY Blöcke bitte gesammelt ergänzen" -- it lifts 6.2.1's "no bulk migration" for this one sweep): an ACCURACY block for each of the 48 units accuracy_baseline.csv froze, every number traced to a test or a recorded measurement, "Not applicable" with its reason where a unit computes nothing; the baseline emptied, check 34 kept as the rule for new units; version 6.24.1.
 Preceding entry: Last substantive update: 2026-10-15 — WP-138 DONE (PR #167, merge 9586fc5; CI GREEN on f85d02b in the first round: ci_gate 723/723, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.71; no code change, no version (6.24.0 stays, 735 tests).
@@ -10559,7 +10560,7 @@ recorded, not scheduled; no package is open; the next step is the user's.
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 140 | the nine observations WP-139's research recorded (§12.72): the `% tol:` comments that describe another assertion (test_ellmer x2, test_parallel) or a wrong number (test_precision: cond 20 -> 345, the mirror's 1.7e-13 -> its worst 2.6e-13); testPriorAbsorbedDoFBounds against a dense trace instead of the identity rK = nk - absorbed; applyRegularisation's 'tsvd' text (truncation, not the floor); mapreduce's determinism paragraph (why parfor is not bitwise); outliers' and vce's unpinned claims replaced by what a test pins; stamps before See also moved after it (six files), arcVarianceFactors, separableWhiten and varWhiten one section each, the bare H1 lines (nine units), whittle's move into +kernel recorded; v10review T5 with rtol 0; testCheckPSDVerdicts a precision test (its exemption row retired); ReducedContribution's path traced; **version 6.24.2** | 139 (PR #169 merged 9cb491f; closure #170) | OPEN (2026-10-15, tier B) |
+| 140 | the nine observations WP-139's research recorded (§12.72): the `% tol:` comments that describe another assertion (test_ellmer x2, test_parallel) or a wrong number (test_precision: cond 20 -> 345, the mirror's 1.7e-13 -> its worst 2.6e-13); testPriorAbsorbedDoFBounds against a dense trace instead of the identity rK = nk - absorbed; applyRegularisation's 'tsvd' text (truncation, not the floor); mapreduce's determinism paragraph (why parfor is not bitwise); outliers' and vce's unpinned claims replaced by what a test pins; stamps before See also moved after it (six files), arcVarianceFactors, separableWhiten and varWhiten one section each, the bare H1 lines (nine units), whittle's move into +kernel recorded; v10review T5 with rtol 0; testCheckPSDVerdicts a precision test (its exemption row retired); ReducedContribution's path traced; **version 6.24.2** | 139 (PR #169 merged 9cb491f; closure #170) | DONE (2026-10-15, PR #171, merge 6c100c9; CI GREEN on 99e3c8f in the first round: ci_gate 723/723) |
 
 **The user's decision (2026-10-15):** "Mach die Beobachtungen aus §12.72 als WP-140". What each of the
 nine becomes, read in the code before this scope was written:
@@ -10627,3 +10628,13 @@ test's category widened, no test added or removed.
   - MATLAB draws its own matrix, so the port's cond values (1.02 / 2.29) are indicative, not identical.
   - Everything else is comments, help and one category.
 - **Gates:** audit CLEAN; selftest every fault caught; CI and the local ci_gate are pending.
+
+**CI round 1 (99e3c8f): GREEN on A8** -- `ci_gate` 723 / 723, 27 / 27 suites, the warning inventory
+`lsqvce:internal:testProbe` only, as predicted. The one changed assertion pair held: test_vceMath
+22 / 22 with testPriorAbsorbedDoFBounds against the dense trace; test_precision 40 / 40. The audit
+job green, v10review with rtol 0 included.
+
+**Closure (2026-10-15).** WP-140 DONE: PR #171 merged as 6c100c9 (the loop's record step after the
+merge: the ledger row, this note; no code change, no version -- 6.24.2 stays, 735 tests). The nine
+observations of §12.72 are acted on; none is left recorded-only. No package is open; the next step
+is the user's.
