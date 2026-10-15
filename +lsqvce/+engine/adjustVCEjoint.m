@@ -238,6 +238,16 @@ function out = adjustVCEjoint(accFcn, opt)
 %     semilogy(r.S);             % the estimated noise spectrum (the bins)
 %     plot(r.sigma2);            % the arc-wise weights
 %
+%   ACCURACY
+%     The update is Ellmer's PSD-VCE law (HANDOVER 6.1.4, the Ellmer (2018)
+%     row: test_ellmer's references, and its recorded refutation of the
+%     closed-loop alternation, F-15). The per-lag sums it consumes
+%     (LSQVCE.KERNEL.REDUNDANCYLAGS) equal the dense trace(Rbar V_n) to 1e-8
+%     relative, the nugget route the general one to 1e-9 of s_0
+%     (test_ellmer). The levels and laws are statistical estimates: their
+%     measured sampling error and bias are stated with the options above
+%     (R7-12, HANDOVER 12.43). WP-138.
+%
 %   ERRORS
 %     lsqvce:adjustVCEjoint:needCfcn  the joint mode needs a cross-covariance
 %                                     function and none was supplied
@@ -294,6 +304,10 @@ function out = adjustVCEjoint(accFcn, opt)
 %   See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
 %            LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135): the
+%   prior pseudo-streams are recognised by lsqvce.util.priorStream on their
+%   obsType (the stream key was parsed for '|prior_'); ACCURACY. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lane 4): the closing
 %   accumulation's model carries .final = true, so an accFcn that updates its
 %   own components (fit's prior groups) knows .lastSol is the last pass's own
@@ -997,8 +1011,10 @@ function [fac, scale, streams, kReject, rowsOf] = perStreamWeights(vw, keys, siz
     for kk = 1:size(keys, 1)
         skey{kk} = lsqvce.util.streamKey(keys{kk,1}, keys{kk,2});
     end
-    streams = unique(skey).';
-    streams = streams(~startsWith(streams, 'prior_') & ~contains(streams, '|prior_'));
+    % prior pseudo-streams keep factor 1 -- judged on the obsType each key was
+    % built from (WP-138: the key was parsed for '|prior_')
+    isPri = cellfun(@(t) lsqvce.util.priorStream.is(char(string(t))), keys(:, 2));
+    streams = unique(skey(~isPri)).';
     scale = nan(1, numel(streams));
     rowsOf = cell(1, numel(streams));
     kReject = Inf;
@@ -1162,7 +1178,7 @@ function [uEp, keys, sizes, qEp, dEp] = epochResiduals(res)
             % WP-134: a local prior group's pseudo-arc is never re-weighted, and
             % it is no epoch: it counted in the collapse guard's live epochs,
             % the breakdown fraction and the hard solution's tau
-            if startsWith(char(string(o.obsType)), 'prior_'), continue, end
+            if lsqvce.util.priorStream.is(char(string(o.obsType))), continue, end
             v = o.v(:);  d = o.nAxis;  m = numel(v);
             if ~isempty(o.Cep)
                 Cep = o.Cep;
@@ -1323,7 +1339,7 @@ function [om, sn, r, why, wsum, wm, qw, tw] = oneArc(st, obsType, arc, day, uo, 
         % WP-127: a local prior group's pseudo-arc is listed on every pass (the
         % arc identity is pinned on pass 1) but carries rows only from its
         % 'from' pass on -- empty before that is INACTIVE, not a data gap
-        why = 'gap';  if startsWith(obsType, 'prior_'), why = 'inactive'; end
+        why = 'gap';  if lsqvce.util.priorStream.is(obsType), why = 'inactive'; end
         om = [];  sn = [];  r = [];  return
     end
 

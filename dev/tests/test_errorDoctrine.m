@@ -18,6 +18,9 @@ function tests = test_errorDoctrine
 %
 %   See also LSQVCE.UTIL.CALLUSER, LSQVCE.UTIL.LOG, LSQVCE.RESULTS, TEST_CI_GATE
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135):
+%   verdict.ftest's p-value and critical value against the closed form of F(2,
+%   r). With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-137 (code review of WP-135):
 %   Results.compare reads the solve's rank and redundancy. With assistance
 %   from Claude (Anthropic), model Claude Opus 5.5.
@@ -488,6 +491,23 @@ function testReducedContributionContract(tc)
                 'lsqvce:reduced:sizeMismatch');
     c = lsqvce.engine.ReducedContribution(eye(2), [1 2], 3, 4);
     tc.verifyEqual(c.n, [1; 2], 'n is stored as a column');
+end
+
+function testFtestMatchesTheClosedFormOfF2(tc)
+% categories: reference, precision
+    % WP-138 (verdict.ftest's ACCURACY): with df1 = 2 the F distribution has
+    % closed forms that need neither betainc nor betaincinv:
+    %   P(F > f) = (1 + 2 f / r)^(-r/2),   F_crit = (r/2) (alpha^(-2/r) - 1).
+    s = @(u, n, v) struct('rank', u, 'u', u, 'n', n, 'vPv', v);
+    F = lsqvce.engine.verdict.ftest(s(4, 30, 20), s(2, 30, 26), 'Verbose', false);
+    r = 26;
+    tc.assertEqual([F.df1, F.df2], [2, r]);
+    % tol: 1e-14 relative -- (6 / 2) / (20 / 26) = 3.9, rounding only
+    tc.verifyEqual(F.F, 3.9, 'RelTol', 1e-14);
+    % tol: 1e-12 relative -- betainc's upper tail against the closed form
+    tc.verifyEqual(F.p, (1 + 2 * F.F / r)^(-r / 2), 'RelTol', 1e-12);
+    % tol: 1e-10 relative -- betaincinv inverts to ~1e-12 (as the ellipse's 2F(2, r))
+    tc.verifyEqual(F.crit, (r / 2) * (0.05^(-2 / r) - 1), 'RelTol', 1e-10);
 end
 
 function testFtestContract(tc)

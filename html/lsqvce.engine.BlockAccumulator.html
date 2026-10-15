@@ -211,6 +211,13 @@ res = acc.residuals(sol);              % second pass
 disp(acc.report())
 
 lsqvce.util.log.msg(&#x27;sigma0 = %.4f (want ~1)\n&#x27;, sol.sigma0);</pre>
+<h3>Accuracy</h3>
+<pre class="example">The reduced solution equals the monolithic solve of [x_c; y_1; ...] to
+1e-8 relative and the back-substituted locals to 1e-7 (test_lsqAccum,
+against Af \ lf of the assembled whitened system: cond*eps with
+headroom); a block-diagonal local block keeps the dense answer to
+1e-12 (cond ~ 10). The rounding depends on the order systems are
+added, the result does not (the merge is ordered). WP-138.</pre>
 <h3>Errors</h3>
 <pre class="example">  The system declaration is wrong (raised at construction)
     lsqvce:accum:cancellation     (warning) v&#x27;Pv on the prior-folded
@@ -286,6 +293,11 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 
 See also LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.RESIDUALS, LSQVCE.ENGINE.CHECKPSD, LSQVCE.ENGINE.QRSYSTEM
 
+Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135): ids
+of one kind and each day once are the private idDayRules, the
+declaration&#x27;s rules too; the kinds are judged before the duplicate-system
+test (67 after &#x27;C&#x27; read as a duplicate of char(67)); ACCURACY. With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3 findings 11, 12):
 addSystem / addSystems refuse a day list that names a day twice
 (lsqvce:accum:duplicateDay) and numeric next to character sysIDs

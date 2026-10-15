@@ -30,8 +30,11 @@ function V = report(D, opt)
 %                      release, and creation time. R.report() forwards it
 %                      automatically; a bare lsqvce.report(D) prints none.
 %     'Iteration'  struct()  the loop state of an ITERATIVE run:
-%                      .converged, .stopReason, .nIter and optionally .what
-%                      (the loop's name; default 'stochastic model'). When non-empty and the
+%                      .converged, .stopReason, .nIter and optionally .loop
+%                      (which loop iterated: 'noise' -- the default, the
+%                      stochastic model -- 'irls' or 'gaussNewton'; WP-138:
+%                      a code, it was the display label .what; another value
+%                      is refused, lsqvce:report:badIteration). When non-empty and the
 %                      run was not a single solve, ONE level-1 line says
 %                      whether the stochastic model settled -- 'NOISE_SETTLED'
 %                      (NOTE) or 'NOISE_UNSETTLED' (WARN). Every number from
@@ -65,8 +68,25 @@ function V = report(D, opt)
 %           error('Pope is blind here -- re-run with test=mad.');
 %       end
 %
+%   ACCURACY
+%     Not applicable to the verdict: it reads D (LSQVCE.ENGINE.VERDICT.DIAGNOSE
+%     states the accuracy of every number it prints) and forms one band of
+%     its own, the variance factor's chi2(r) / r at 0.5 % / 99.5 %, by
+%     LSQVCE.KERNEL.STAT.CHI2INV (|F(x) - p| / p < 1e-11 for r <= 1e7; its
+%     own ACCURACY). WP-138.
+%
+%   ERRORS
+%     lsqvce:report:badIteration  Iteration.loop names no loop the report
+%                                 knows ('noise', 'irls', 'gaussNewton'), or
+%                                 Iteration carries the retired .what
+%
 %   See also LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SYSTEMATIC.
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135):
+%   Iteration.loop, a code ('noise' / 'irls' / 'gaussNewton'), replaces the
+%   display label .what -- the report owns the wording and refuses an unknown
+%   loop (lsqvce:report:badIteration); addF is appendFinding; ACCURACY. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-137: SNOOP_INDETERMINATE says that
 %   R.snoop proceeds there with a warning (lsqvce:snoop:indeterminate; it ran on
 %   in silence). With assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -237,7 +257,7 @@ if isfield(opt.Iteration, 'influence') && ~isempty(opt.Iteration.influence)
          char(opt.Iteration.influence));
 end
 if ~isempty(fieldnames(opt.Iteration))
-    it = opt.Iteration;  what = char(lsqvce.util.getfielddef(it, 'what', 'stochastic model'));
+    it = opt.Iteration;  [what, loop] = loopOf(it);    % WP-138: a code, worded here
     if ~strcmp(char(it.stopReason), 'single')
         if it.converged
             push(1, 'NOTE', 'NOISE_SETTLED', ...
@@ -247,7 +267,7 @@ if ~isempty(fieldnames(opt.Iteration))
                 ['The %s did NOT settle: the loop stopped after %d pass(es), stopReason ' ...
                  '"%s". The weights every number below rests on were still moving, so ' ...
                  'read what follows as provisional. %s'], ...
-                 what, it.nIter, char(it.stopReason), unsettledAdvice(it.stopReason, what));
+                 what, it.nIter, char(it.stopReason), unsettledAdvice(it.stopReason, loop));
         end
     end
 end
@@ -807,19 +827,40 @@ lsqvce.util.log.msg('%s\n\n', repmat('=', 1, W));
 end
 
 %% ----------------------------------------------------------------- helpers
-function s = unsettledAdvice(stopReason, what)
+function [s, loop] = loopOf(it)
+%LOOPOF  The loop of an iterative run -- its code, Iteration.loop ('noise' when
+%   absent) -- and its display name. WP-138: the wording lives here; Results
+%   passes the code -- report branched on Results' display labels, and a
+%   third copy sat in Results' noHistory message. An unknown code is refused.
+    if isfield(it, 'what')             % the retired label: refused, not ignored
+        error('lsqvce:report:badIteration', ['Iteration.what (a display label) is retired: ' ...
+              'pass Iteration.loop, "noise" | "irls" | "gaussNewton".']);
+    end
+    loop = char(lsqvce.util.getfielddef(it, 'loop', 'noise'));
+    switch loop
+        case 'noise',       s = 'stochastic model';
+        case 'irls',        s = 'robust re-weighting';
+        case 'gaussNewton', s = 'Gauss-Newton iteration';
+        otherwise
+            error('lsqvce:report:badIteration', ...
+                  'Iteration.loop must be "noise", "irls" or "gaussNewton" (got "%s").', loop);
+    end
+end
+
+function s = unsettledAdvice(stopReason, loop)
 %UNSETTLEDADVICE  What to do about an unsettled loop: more passes, or (WP-130)
 %   for a Gauss-Newton fit that DIVERGED -- no downhill step -- not that.
 %   WP-135 (review 3, lane 4): per loop -- IRLS is governed by RobustOpts.MaxIter
 %   and .Tol, not MaxPasses / Tolerance, and R.convergence() reads the noise
 %   loop's history only (it refused on IRLS and Gauss-Newton results).
+%   WP-138: on the loop's code, not its label.
     if strcmp(char(stopReason), 'diverged')
         s = ['More passes cannot help: check the start point, the Jacobian against a ' ...
              'finite difference, and whether the model is identifiable there.'];
-    elseif strcmp(what, 'robust re-weighting')
+    elseif strcmp(loop, 'irls')
         s = ['Raise RobustOpts.MaxIter or loosen RobustOpts.Tol and run this report ' ...
              'again; R.history lists the factors of every pass.'];
-    elseif strcmp(what, 'Gauss-Newton iteration')
+    elseif strcmp(loop, 'gaussNewton')
         s = ['Raise MaxPasses or loosen Tolerance and run this report again; ' ...
              'R.history lists every step (accepted and rejected).'];
     else
@@ -914,7 +955,7 @@ function f = contaminationFindings(D)
         % alarm has gone quiet -- but the a-priori backstop says the
         % residuals are enormous. The robust scale has been CAPTURED by the
         % blunders and is now calling the good data outliers.
-        f = addF(f, 'ERROR', 'SNOOP_BREAKDOWN', ...
+        f = appendFinding(f, 'ERROR', 'SNOOP_BREAKDOWN', ...
             ['TOTAL BREAKDOWN OF THE OUTLIER MACHINERY.\n' ...
              'The robust scale reports almost no outliers (fhat = %.3f) ' ...
              'while the a-priori backstop says the residuals are %.1fx ' ...
@@ -932,7 +973,7 @@ function f = contaminationFindings(D)
              D.fhat, D.backstop);
 
     case 'refuse'
-        f = addF(f, 'ERROR', 'SNOOP_REFUSE', ...
+        f = appendFinding(f, 'ERROR', 'SNOOP_REFUSE', ...
             ['REFUSING TO TREAT THIS AS AN OUTLIER PROBLEM. An estimated ' ...
              '%.0f%% of the observations (fhat = %.3f) are inconsistent ' ...
              'with the rest.\n' ...
@@ -948,7 +989,7 @@ function f = contaminationFindings(D)
              100 * D.fhat, D.fhat);
 
     case 'severe'
-        f = addF(f, 'ERROR', 'SNOOP_CONTAMINATED', ...
+        f = appendFinding(f, 'ERROR', 'SNOOP_CONTAMINATED', ...
             ['CONTAMINATION: an estimated %.0f%% of observations are bad ' ...
              '(fhat = %.3f). s0 = %.4f against a robust scale of %.4f.\n' ...
              'At this level Pope''s tau is BLIND: the blunders inflate s0, ' ...
@@ -963,7 +1004,7 @@ function f = contaminationFindings(D)
              100 * D.fhat, D.fhat, D.s0, D.robustScale);
 
     case 'moderate'
-        f = addF(f, 'WARN', 'SNOOP_MODERATE', ...
+        f = appendFinding(f, 'WARN', 'SNOOP_MODERATE', ...
             ['An estimated %.0f%% of observations are outlying (fhat = ' ...
              '%.3f). s0 = %.4f, robust scale = %.4f.\n' ...
              'This is enough to start degrading Pope''s tau (detection ' ...
@@ -975,7 +1016,7 @@ function f = contaminationFindings(D)
         % WP-135 (review 3 finding 19): the backstop is large, fhat lies in
         % its clean band, and at this n a collapsed fhat cannot be told
         % from a clean one (P(fhat = 0) > 1 % on clean data below n ~ 450)
-        f = addF(f, 'WARN', 'SNOOP_INDETERMINATE', ...
+        f = appendFinding(f, 'WARN', 'SNOOP_INDETERMINATE', ...
             ['The residuals are %.1fx larger than sigma0 promised (s0/sigma0 = %.2f), ' ...
              'and the robust scale agrees with s0 (fhat = %.3f, in the clean band).\n' ...
              'Two causes fit, and %d residuals cannot tell them apart: sigma0 ' ...
@@ -988,7 +1029,7 @@ function f = contaminationFindings(D)
 
     case 'clean'
         if ~strcmp(D.test, 'mad')
-            f = addF(f, 'NOTE', 'SNOOP_SCALECHECK', ...
+            f = appendFinding(f, 'NOTE', 'SNOOP_SCALECHECK', ...
                 ['Scale cross-check: s0 = %.4f, robust scale = %.4f ' ...
                  '(ratio %.3f), estimated contamination %.1f%%. They agree, ' ...
                  'so s0 is not being inflated by bad data and the flag list ' ...
@@ -997,7 +1038,7 @@ function f = contaminationFindings(D)
         end
 
     otherwise   % 'unknown' -- correlated batches, too few residuals
-        f = addF(f, 'NOTE', 'SNOOP_NOCHECK', ...
+        f = appendFinding(f, 'NOTE', 'SNOOP_NOCHECK', ...
             ['No robust scale could be formed (correlated batches, or too ' ...
              'few usable residuals), so the contamination cross-check is ' ...
              'unavailable. Pope''s tau is used unchecked -- be aware it goes ' ...
@@ -1008,7 +1049,7 @@ function f = contaminationFindings(D)
     % it is the ONE indicator contamination cannot switch off.
     if isfinite(D.backstop) && D.backstop > D.backstopTol ...
             && ~any(strcmp(D.contamLevel, {'breakdown', 'indeterminate'}))
-        f = addF(f, 'NOTE', 'SNOOP_BACKSTOP', ...
+        f = appendFinding(f, 'NOTE', 'SNOOP_BACKSTOP', ...
             ['A-priori backstop: s0/sigma0 = %.2f (clean-data tolerance ' ...
              '%.2f). This indicator is monotone in the contamination and ' ...
              'cannot be suppressed by it -- but it is only as good as your ' ...
@@ -1018,7 +1059,8 @@ function f = contaminationFindings(D)
     end
 end
 
-function f = addF(f, sev, code, fmt, varargin)
-%ADDF  Append one {severity, code, message} row (the push of report, local).
+function f = appendFinding(f, sev, code, fmt, varargin)
+%APPENDFINDING  Append one {severity, code, message} row to a findings list --
+%   report's push, for a local function (WP-138: named; it was addF).
     f{end+1} = {sev, code, sprintf(fmt, varargin{:})};
 end

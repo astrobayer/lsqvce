@@ -510,6 +510,20 @@ case('33 a new line over 120 characters fires', audit.check_length_ratchets, 'le
                       'function zzzSelftest()\n%ZZZSELFTEST  x.\n    y = ' + '1 + ' * 40 + '1;\nend\n'))
 
 
+# ---- 34 (WP-138): the ACCURACY ratchet ----------------------------------------
+case('34 a new unit without an ACCURACY block fires', audit.check_accuracy_ratchet, 'accuracy',
+     lambda d: append(os.path.join(d, ZZZ_UNIT),
+                      'function zzzSelftest()\n%ZZZSELFTEST  x.\n%\n%   See also LSQVCE.FIT\nend\n'))
+case('34 a new unit that states its ACCURACY is silent', audit.check_accuracy_ratchet, 'accuracy',
+     lambda d: append(os.path.join(d, ZZZ_UNIT),
+                      'function zzzSelftest()\n%ZZZSELFTEST  x.\n%\n%   ACCURACY\n'
+                      '%     Not applicable: no arithmetic.\nend\n'),
+     expect_fire=False)
+case('34 a frozen row whose unit states its ACCURACY is stale and fires',
+     audit.check_accuracy_ratchet, 'accuracy',
+     lambda d: append(os.path.join(d, 'dev/docs_src/accuracy_baseline.csv'), 'engine.verdict,v6.24.0\n'))
+
+
 def main():
     failures = 0
     print('audit self-test: %d cases' % len(CASES))

@@ -1,5 +1,35 @@
 # lsqvce release notes
 
+## 6.24.0 — 2026-10-15 (WP-138: the code review's judgement calls)
+
+No estimate changes. Identifiers change where marked **ids**.
+
+- **ids** A day list that is not numeric integers is `lsqvce:fit:badDays` (it was `noDays`, the
+  identifier of a missing list). System ids of two kinds are `lsqvce:fit:mixedIdTypes` (it was
+  `badId`, which keeps an id that is no number or single letter), the accumulator's reason name.
+  The accumulator judges the kinds before its duplicate test: `addSystem(67)` after `'C'` was
+  called a duplicate (`char(67)` is `'C'`); it is `lsqvce:accum:mixedIdTypes`.
+- **ids** `gcvLambda`'s two errors sit under the segment of its warnings: `lsqvce:gcv:badData`,
+  `lsqvce:gcv:nullUnobserved` (6.22.0–6.23.0: `lsqvce:gcvLambda:*`).
+- **ids** `lsqvce.report` takes `Iteration.loop` — `"noise"` (the default), `"irls"`,
+  `"gaussNewton"` — and owns the wording; the display label `Iteration.what` it branched on is
+  retired. Another value, or `.what`, is refused (`lsqvce:report:badIteration`). `R.report()`
+  passes the code.
+- One definition each where the code had several: `lsqvce.util.priorStream` makes and
+  recognises the prior pseudo-streams' observation type (nine sites spelled the prefix, and `fit`
+  parsed stream keys for it); the parameter templates' validity rule (`declaration` and
+  `makeLoader` each had one); the rules "ids of one kind, each day once" (`declaration` and the
+  accumulator); the verdict's redundancy formula (four copies) and its list of prior batches.
+  `R.snoop` re-diagnoses with the thresholds of the `R.diag` it was handed, read rather than
+  restated. The contamination gauge has its own file.
+- A local prior batch with a full weight matrix — reachable only by a direct caller of
+  `lsqvce.engine.verdict.diagnose` — is judged by the generalised redundancy; it was skipped
+  without a word and its datum row counted as uncontrolled.
+- Every method of `lsqvce.engine.verdict` states its ACCURACY, `ftest`'s p-value and critical
+  value now pinned against the closed form of F(2, r); so do the other units this release
+  touched. The audit freezes the units still without one (check 34): a new unit must state its
+  accuracy.
+
 ## 6.23.0 — 2026-10-15 (WP-137: the code review of WP-135)
 
 Only `R.snoop` behaves differently (**verdict**); no estimate changes.

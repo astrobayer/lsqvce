@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-15 — WP-137 DONE (PR #165, merge 1049cf0; CI GREEN on c5d879d in round 2, after one red round on 56c2cc9 whose cause was the new compare test's own fixture: ci_gate 720/720, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.70; no code change, no version (6.23.0 stays, 732 tests).
+Last substantive update: 2026-10-15 — WP-138 OPEN (tier B, model Claude Opus 5.5; user: "Mach die Review-Kandidaten aus §12.70 als WP-138"): the code review's judgement calls -- one validity rule and one id/day rule for both front doors, a non-integer day list is lsqvce:fit:badDays and mixed id kinds lsqvce:fit:mixedIdTypes, one name for the prior pseudo-streams (lsqvce.util.priorStream), the GCV ids under one segment, the prior batches assembled once, snoop reads D's thresholds instead of restating diagnose's defaults, a local prior batch with a full weight matrix judged instead of skipped, the contamination gauge in its own file, the report branching on a loop code (Iteration.loop) instead of a display label, addF named, ACCURACY blocks for verdict's methods and an audit ratchet for units without one; version 6.24.0.
+Preceding entry: Last substantive update: 2026-10-15 — WP-137 DONE (PR #165, merge 1049cf0; CI GREEN on c5d879d in round 2, after one red round on 56c2cc9 whose cause was the new compare test's own fixture: ci_gate 720/720, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.70; no code change, no version (6.23.0 stays, 732 tests).
 Preceding entry: Last substantive update: 2026-10-15 — WP-137 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-137 so wie vorgeschlagen und warne/weitermachen beim snoop-Fall", after a two-axis code review of a52cd40...f616324, WP-135 + WP-136): snoop's case for the level 'indeterminate' (a warning, lsqvce:snoop:indeterminate, and it proceeds -- it ran on in silence), snoop:breakdown and forcedBreakdown fired by a test, the GCV test without a dead mute and with its tolerance at its source, gcvLambda's ACCURACY and the 6.1.4 rows of the third review's authorities, the contamination mirror faithful to the code, five tests for WP-135 fixes that had none, the ladder's constants named once; version 6.23.0.
 Preceding entry: Last substantive update: 2026-10-15 — WP-136 DONE (PR #163, merge 327d705; CI GREEN on 79a3c06 in the first round: ci_gate 715/715, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.69; no code change, no version (6.22.1 stays, 727 tests).
 Preceding entry: Last substantive update: 2026-10-15 — WP-136 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach das als kleines Doku-WP", after the question how a user provides different buildDay functions to lsqvce.fit): the API chapter buildDay says where the handle goes -- one per entry of data.systems, a setup through processingOptions or a closure, separate fit calls for data that share no common parameters; fit's help and the Manual one sentence each; no computation changed; version 6.22.1.
@@ -2352,7 +2353,7 @@ and confirmed / ☐ open; the refutation discipline is the valuable half.)*
 | Python mirrors (second language): v8verify.py, v9verify.py, v10review.py, wp33_loop_mirror.py | measured tolerances and loop behaviour pre-port | tol: comments in test_signalCore/test_streamUtils/test_precision; §9 WP-33/40 round notes | ☑ v8: 2e-16 (whitening); WP-37 GS/Levinson 1e-14 pre-port; wp33 mirror: the F-15 instrument — NOTE its own r6 lesson: an unfaithful mirror declaration path produced false accuracy promises, faithfulness is part of the oracle |
 | GROOPS / SINEX NEQ files (real data exchange) | neqExchange round-trip | WP-27 suite | ☑ round-trip green since WP-27 |
 | Analytic SH algebra (fully-normalised Legendre: addition theorem, closed forms P̄10/P̄20/P̄22) | the shDesign partial generator of the WP-48 physical oracle | test_physOracle (reference tests) | ☑ 2026-08-20: addition theorem to 4.3e-14 at nmax 12, closed forms to 1e-14 (measured, user machine) |
-| Python mirrors of the third review: `dev/validation/wp135_gcv_mirror.py`, `wp135_contamination_mirror.py` (WP-135; faithful to `verdict>contaminationOf` since WP-137) | gcvLambda's curve against dense GCV; the contamination ladder's null law (K = n fhat negative binomial, mean nP(1+27/n), variance 1.69 x) and its before / after rates | gcvLambda ACCURACY, test_reliability (testGcvLambdaIsTheGcvOfTheData, 1e-9), test_lsqvce_ext (test_ladder_band_follows_n, test_indeterminate_..., test_breakdown_...) | ☑ 2026-10-14: GCV curve 9e-13 at cond 1.5e7, 6e-10 at 1.5e10; false alarms <= 0.25 % for n = 20..2000. REFUTATION 2026-10-15 (WP-137, code review): the WP-135 ladder port lacked 'indeterminate' -- its 55 % column read 0 % breakdown below n ~ 450 without saying where the runs went (to a level snoop passed in silence) |
+| Python mirrors of the third review: `dev/validation/wp135_gcv_mirror.py`, `wp135_contamination_mirror.py` (WP-135; faithful to the ladder since WP-137 -- `+engine/private/contaminationOf.m` since WP-138, `verdict>contaminationOf` before) | gcvLambda's curve against dense GCV; the contamination ladder's null law (K = n fhat negative binomial, mean nP(1+27/n), variance 1.69 x) and its before / after rates | gcvLambda ACCURACY, test_reliability (testGcvLambdaIsTheGcvOfTheData, 1e-9), test_lsqvce_ext (test_ladder_band_follows_n, test_indeterminate_..., test_breakdown_...) | ☑ 2026-10-14: GCV curve 9e-13 at cond 1.5e7, 6e-10 at 1.5e10; false alarms <= 0.25 % for n = 20..2000. REFUTATION 2026-10-15 (WP-137, code review): the WP-135 ladder port lacked 'indeterminate' -- its 55 % column read 0 % breakdown below n ~ 450 without saying where the runs went (to a level snoop passed in silence) |
 | scipy.stats (`norm.isf`, `t.isf`) | the critical values in the far tail (normCrit, tCrit, tauCrit, madCrit, delta0 at alpha = 1e-17) | test_lsqvce (test_critical_values_hold_in_the_far_tail) | ☑ 2026-10-14 (WP-135): agreement to 1e-9 relative |
 | Published GRACE-FO monthly solution (release to be named) | end-to-end sign/magnitude/pattern of a real month through the SINEX path | WP-48 tier (b) | ☐ user to supply files + name the release |
 | Real GRACE-FO L1B-derived NEQ month | the same, input side | WP-48 tier (b) | ☐ user to supply |
@@ -2374,8 +2375,10 @@ is malformed" / "your assembleDay does not fit"), every id real; a runnable
 `Created <date> (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model <version>.` — updates append an `Updated <date> ...` line.
 ROLLOUT RULE for the ACCURACY block: binding for every NEW function and
-every function TOUCHED from 2026-08-20 on; NO bulk migration of the ~80
-existing help blocks — the source handover's own record (a 94-file
+every function TOUCHED from 2026-08-20 on (*since WP-138, 2026-10-15, audit
+check 34 enforces the NEW half: `dev/docs_src/accuracy_baseline.csv` freezes
+the units without a block, one way; the TOUCHED half stays a review duty*);
+NO bulk migration of the ~80 existing help blocks — the source handover's own record (a 94-file
 help-text mutation producing three defects found only by reading the
 applied diff) is the pinned rationale, and it matches our WP-43 r2
 bulk-annotation lessons.
@@ -10359,3 +10362,95 @@ merge: the ledger row, this note; no code change, no version -- 6.23.0 stays, 73
 longer passes the contamination level 'indeterminate' in silence; the five WP-135 fixes that had no
 test have one. The review's judgement calls stay recorded above as WP candidates. No package is open;
 the next step is the user's.
+
+### 12.71 WP-138 — the code review's judgement calls (2026-10-15, model Claude Opus 5.5)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 138 | the twelve judgement calls §12.70 recorded from the code review of WP-135: one validity rule (`private/validityOf`) and one id/day rule (`private/idDayRules`) for `declaration` and `BlockAccumulator`; `lsqvce:fit:badDays` (a non-integer day list) and `lsqvce:fit:mixedIdTypes` (ids of two kinds); `lsqvce.util.priorStream` (the prefix once); `gcv:badData` / `gcv:nullUnobserved`; `verdict>priorBatchesOf`; snoop reads D's thresholds; `localDatumOf` on a full weight matrix; `private/contaminationOf` (the gauge's null law and ladder); `Iteration.loop` and `lsqvce:report:badIteration`; `appendFinding`; ACCURACY for verdict's methods and audit check 34 (the ACCURACY ratchet); **version 6.24.0** | 137 (PR #165 merged 1049cf0; closure #166) | OPEN (2026-10-15, tier B) |
+
+**The user's request (2026-10-15):** "Mach die Review-Kandidaten aus §12.70 als WP-138" -- the code
+review's judgement calls that WP-137 recorded and did not change.
+
+**Scope, frozen before the code (one row per candidate, what will be true):**
+1. *`mjdOf` duplicates `toMjd`.* The validity rule (a cell is [], a fractional MJD or [MJD seconds];
+   start <= end; the half-open day overlap) lives once, in `+engine/private/validityOf.m` (makeLoader's,
+   moved, with the row in every message). `declaration>commonValidity` checks its own columns
+   (`fit:badParamColumns`) and relabels the rule's `makeLoader:badValidity` as `fit:badValidity`.
+2. *`dayListOf` / `oneIdKind` repeat `checkSpec`.* The two rules (ids of one kind; each day once) live
+   once, in `+engine/private/idDayRules.m`, which returns the first clash; each door raises its own id
+   with its own context. The reason names agree across the doors: `fit:mixedIdTypes` /
+   `accum:mixedIdTypes`, `fit:duplicateDay` / `accum:duplicateDay`. The accumulator judges the kinds
+   BEFORE its duplicate-system test: `addSystem(67)` after `'C'` read as a duplicate of 'C' (char(67)).
+3. *`fit:noDays` for a non-integer day list.* It is `lsqvce:fit:badDays`; `noDays` keeps "no day list".
+4. *The prior batches assembled twice.* `verdict>priorBatchesOf(sol)` -- diagnose and snoop read it.
+5. *`rediagnoseNV` restates diagnose's defaults.* D is diagnose's output (snoop already reads
+   `D.nBatch`); snoop's re-diagnosis and its candidate floor read `D.rMin` ... `D.robustCheck` directly.
+6. *report branches on Results' display labels.* `Iteration.loop` is a code -- "noise" (default),
+   "irls", "gaussNewton" -- set by Results from the history it holds; report owns the label and the
+   advice per code and refuses an unknown one (`lsqvce:report:badIteration`). `.what` is retired; the
+   noHistory message no longer copies the labels.
+7. *`startsWith(..., 'prior_')` at nine sites.* `lsqvce.util.priorStream`: `.of(name)` makes the
+   obsType, `.is(names)` tests it; every site calls it. fit marks the prior streams from their obsType
+   instead of parsing the stream key.
+8. *`addF`.* `appendFinding`.
+9. *`gcv:` beside `gcvLambda:`.* One segment: `gcvLambda:badData` / `nullUnobserved` (6.22.0) become
+   `gcv:badData` / `gcv:nullUnobserved`, beside the warnings `gcv:*` users mute since v4.0.
+10. *`localDatumOf` skips a full-weight batch silently.* It judges it with diagnose's generalised
+    redundancy, r_i = 1 - (A Qxx A' P)_ii; no batch is skipped.
+11. *`verdict.m` edited for many reasons.* The class stays one (WP-86 part 4, user decision); the
+    contamination gauge -- fhat's null law and the ladder, the part WP-135 and WP-137 changed -- moves
+    to `+engine/private/contaminationOf.m`.
+12. *No ACCURACY in `diagnose` / `ftest` (codebase-wide).* verdict's methods get their ACCURACY blocks
+    (ftest's p-value and critical value pinned by a new test against the closed form of F(2, r)); the
+    rollout rule of 6.2.1 becomes mechanical for NEW units: audit check 34 freezes the units without an
+    ACCURACY block in `dev/docs_src/accuracy_baseline.csv` (one-way, a unit that gains one leaves it);
+    "touched" stays a review duty -- no bulk migration (6.2.1).
+Also: `testDeclarationRulesOfTheThirdReview` is named for what it tests.
+
+**What changed (each row of the scope, in the code).**
+- `+engine/private/validityOf.m` (makeLoader's rule, moved verbatim, the row in every message);
+  `declaration>commonValidity` checks its columns (now integers too) and relabels the rule's
+  refusal as `fit:badValidity` with the rule's error as the cause; `mjdOf` / `toMjd` are gone.
+- `+engine/private/idDayRules.m` returns the first clash (`[kChar kNum]`, the first repeated day);
+  `declaration>dayListOf` / `>oneIdKind` and `BlockAccumulator.checkSpec` raise from it. The
+  accumulator calls `checkSpec` before its duplicate-system test in `addSystem` and `addSystems`.
+  New ids `lsqvce:fit:badDays`, `lsqvce:fit:mixedIdTypes`; a cell `data.days` is `badDays` too
+  (it died in `double()`).
+- `lsqvce.util.priorStream` (KERNEL; static `of` / `is`, the prefix a private constant): makeLoader
+  (4 sites), adjustVCEjoint (3), `private/lawWhitenedResiduals`, `verdict.source`; `fit>streamKeys`
+  returns the prior flag per stream from the obsType and `streamPolicy` takes it (no key parsing).
+- `gcvLambda`: `lsqvce:gcv:badData` / `lsqvce:gcv:nullUnobserved`.
+- `verdict`: `priorBatchesOf(sol)` (diagnose, snoopScope); `snoopScope` / `rediagnoseNV` read
+  `D.datumRows`, `D.rMin` ... `D.robustCheck` (diagnose sets every one unconditionally);
+  `redundancyNumbers(Q, A, P, isCorr)` is the one formula -- diagnose's main pass, its mad
+  pre-pass, `localDatumOf` and snoop's `scanWorst` call it with the arithmetic they had (the
+  clamps stay with the callers, so every r, w and qpp is the same expression as before);
+  `localDatumOf` judges a full weight matrix (a malformed one is left to the main pass's
+  `badPmatrix`); the gauge's five functions are `+engine/private/contaminationOf.m`.
+- `Results.report` sets `Iteration.loop` ("noise" | "irls" | "gaussNewton"); `report>loopOf` words
+  it and refuses another value or the retired `.what` (`lsqvce:report:badIteration`);
+  `unsettledAdvice` branches on the code; `addF` is `appendFinding`; the noHistory message no
+  longer lists the labels.
+- ACCURACY: the seven `verdict` methods, `declaration`, `BlockAccumulator`, `fit`, `report`,
+  `adjustVCEjoint`, the new `util.priorStream` and the three new private files. Audit check 34
+  (`check_accuracy_ratchet`, `dev/docs_src/accuracy_baseline.csv`, 48 units) with three self-test
+  cases (a new unit without a block fires; one with a block is silent; a stale row fires).
+- Tests: `testPriorStreamIsNamedOnce` (test_streamUtils), `test_local_datum_under_a_full_weight_matrix`
+  (test_lsqvce_opts; fails on the old code: the row counted uncontrolled),
+  `testFtestMatchesTheClosedFormOfF2` (test_errorDoctrine); `testDeclarationIsRefusedBeforeAnyRead`
+  expects `badDays` / `mixedIdTypes`; the accumulator test adds 67 after 'C' (old code:
+  duplicateSystem); the Gauss-Newton advice test refuses a label and `.what` as Iteration.
+
+**Bookkeeping.** New ids `fit:badDays`, `fit:mixedIdTypes`, `report:badIteration`; renamed
+`gcv:badData`, `gcv:nullUnobserved`; `makeLoader:badValidity` raised by `private.validityOf`; every
+new id fired by a test (check 30 silent). `tiers.csv` + `util.priorStream`; five category
+exemptions (precision, reference, robustness, vectorisation, speed -- contract and metamorphic
+tested); `long_functions.csv` diagnose 452 -> 444; report's ceiling held (527: the loop lookup is
+`loopOf`). Version 6.24.0; tests 735 = 732 + 3 (CI 723). Audit CLEAN, self-test green (incl. 34),
+both mirrors pass.
+NOT validated before CI (tier B). Risk points: the full-P fixture through kind B (`fit` with one
+vector-weighted and one full-P batch, then diagnose on the raw source -- the pattern of
+test_correlated_mdb_is_the_tests_own); the ftest tolerances (p 1e-12, crit 1e-10); a Constant
+private property read by the class's static methods and `@lsqvce.util.priorStream.of` in cellfun;
+`redundancyNumbers` (bitwise by construction -- every diagnose test is its check).

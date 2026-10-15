@@ -164,6 +164,11 @@ lsqvce:Results:noPerObservation reliability() on a fit whose diagnostics
 See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.REPORT,
          LSQVCE.ENGINE.VERDICT, LSQVCE.ENGINE.BLOCKACCUMULATOR
 
+Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135):
+report() hands the iterating loop as a code (Iteration.loop) and no longer
+as the label the report branched on; the noHistory message does not repeat
+the labels. With assistance from Claude (Anthropic), model Claude Opus
+5.5.
 Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lanes 1 and 4):
 compare() takes the solve&#x27;s rank and redundancy (D.rank, D.r);
 convergence().converged is R.converged (false on every row before);

@@ -124,6 +124,11 @@ classdef Results < handle
 %   See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.REPORT,
 %            LSQVCE.ENGINE.VERDICT, LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135):
+%   report() hands the iterating loop as a code (Iteration.loop) and no longer
+%   as the label the report branched on; the noHistory message does not repeat
+%   the labels. With assistance from Claude (Anthropic), model Claude Opus
+%   5.5.
 %   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lanes 1 and 4):
 %   compare() takes the solve's rank and redundancy (D.rank, D.r);
 %   convergence().converged is R.converged (false on every row before);
@@ -258,24 +263,25 @@ classdef Results < handle
         %   2026-10-10 with assistance from Claude (Anthropic), model Claude
         %   Opus 5.5).
             nPass = 1;                       % a single solve is one pass
-            what = 'stochastic model';       % the noise loop (adjustVCEjoint)
+            loop = 'noise';                  % the noise loop (adjustVCEjoint)
             h = obj.history;
             if ~isempty(h) && isfield(h, 'nIter')
                 nPass = h.nIter;
             elseif ~isempty(h)
                 % WP-125: the stand-alone IRLS and Gauss-Newton keep ONE record
                 % per pass (a struct array) and no nIter -- count the records,
-                % and name the loop that actually iterated
+                % and name the loop that actually iterated. WP-138: by a code;
+                % the report owns the wording (it branched on these labels)
                 nPass = numel(h);
                 if isfield(h, 'pass'), nPass = max([h.pass]); end   % GN records rejected steps too
                 if isfield(h, 'lambda') || isfield(h, 'vPv')
-                    what = 'Gauss-Newton iteration';
+                    loop = 'gaussNewton';
                 else
-                    what = 'robust re-weighting';
+                    loop = 'irls';
                 end
             end
             it = struct('converged', obj.converged, 'stopReason', obj.stopReason, ...
-                        'nIter', nPass, 'influence', '', 'what', what);
+                        'nIter', nPass, 'influence', '', 'loop', loop);
             % R7-18: a robust fit says so -- adjustRobust records the influence
             % in R.noise.influence, the joint loop's robust pass in R.noise.robust
             if isstruct(obj.noise) && isfield(obj.noise, 'influence')
@@ -891,8 +897,8 @@ classdef Results < handle
                 % Gauss-Newton run DID iterate (it was told "a single solve")
                 why = 'a single solve does not iterate';
                 if ~isempty(h)
-                    why = ['this run''s passes (robust re-weighting or Gauss-Newton) are ' ...
-                           'R.history, one record per pass, with no per-stream levels'];
+                    why = ['this run''s passes are R.history, one record per pass, ' ...
+                           'with no per-stream levels'];
                 end
                 error('lsqvce:Results:noHistory', ...
                     ['R.%s reads the noise loop''s per-stream history, and this Results ' ...

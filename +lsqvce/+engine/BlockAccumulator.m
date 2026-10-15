@@ -173,6 +173,14 @@ classdef BlockAccumulator < handle
 %
 %     lsqvce.util.log.msg('sigma0 = %.4f (want ~1)\n', sol.sigma0);
 %
+%   ACCURACY
+%     The reduced solution equals the monolithic solve of [x_c; y_1; ...] to
+%     1e-8 relative and the back-substituted locals to 1e-7 (test_lsqAccum,
+%     against Af \ lf of the assembled whitened system: cond*eps with
+%     headroom); a block-diagonal local block keeps the dense answer to
+%     1e-12 (cond ~ 10). The rounding depends on the order systems are
+%     added, the result does not (the merge is ordered). WP-138.
+%
 %   ERRORS
 %     The system declaration is wrong (raised at construction)
 %       lsqvce:accum:cancellation     (warning) v'Pv on the prior-folded
@@ -248,6 +256,11 @@ classdef BlockAccumulator < handle
 %
 %   See also LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.RESIDUALS, LSQVCE.ENGINE.CHECKPSD, LSQVCE.ENGINE.QRSYSTEM
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135): ids
+%   of one kind and each day once are the private idDayRules, the
+%   declaration's rules too; the kinds are judged before the duplicate-system
+%   test (67 after 'C' read as a duplicate of char(67)); ACCURACY. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3 findings 11, 12):
 %   addSystem / addSystems refuse a day list that names a day twice
 %   (lsqvce:accum:duplicateDay) and numeric next to character sysIDs
@@ -406,13 +419,15 @@ classdef BlockAccumulator < handle
                 error('lsqvce:accum:noDays', 'dayList is empty for system %s.', ...
                       string(sysID));
             end
+            % WP-138: the kinds first -- [obj.diag.sysID] == 67 matched a 'C'
+            % (char(67)) and called a mixed id a duplicate
+            oldIDs = {};
+            if ~isempty(obj.diag), oldIDs = {obj.diag.sysID}; end
+            lsqvce.engine.BlockAccumulator.checkSpec([oldIDs, {sysID}], sysID, dayList);
             if ~isempty(obj.diag) && any([obj.diag.sysID] == sysID)
                 error('lsqvce:accum:duplicateSystem', ...
                       'System %s has already been added.', string(sysID));
             end
-            oldIDs = {};
-            if ~isempty(obj.diag), oldIDs = {obj.diag.sysID}; end
-            lsqvce.engine.BlockAccumulator.checkSpec([oldIDs, {sysID}], sysID, dayList);
 
             out = lsqvce.engine.BlockAccumulator.processSystem(obj.nc, obj.backend, obj.opt, ...
                                                 sysID, nl, dataFcn, dayList);
@@ -460,6 +475,13 @@ classdef BlockAccumulator < handle
                     'specs must be a struct array with fields %s.', ...
                     strjoin(need, ', '));
             end
+            % WP-138: the kinds first -- [specs.sysID] concatenated a 'C' and a
+            % 67 into 'CC' and called a mixed id a duplicate
+            allIDs = {specs.sysID};
+            if ~isempty(obj.diag), allIDs = [{obj.diag.sysID}, allIDs]; end
+            for s = 1:numel(specs)
+                lsqvce.engine.BlockAccumulator.checkSpec(allIDs, specs(s).sysID, specs(s).dayList);
+            end
             newIDs = [specs.sysID];
             oldIDs = [];
             if ~isempty(obj.diag), oldIDs = [obj.diag.sysID]; end
@@ -467,11 +489,6 @@ classdef BlockAccumulator < handle
                     any(ismember(newIDs, oldIDs))
                 error('lsqvce:accum:duplicateSystem', ...
                       'Duplicate system IDs in specs or already added.');
-            end
-            allIDs = {specs.sysID};
-            if ~isempty(obj.diag), allIDs = [{obj.diag.sysID}, allIDs]; end
-            for s = 1:numel(specs)
-                lsqvce.engine.BlockAccumulator.checkSpec(allIDs, specs(s).sysID, specs(s).dayList);
             end
 
             mode = lower(obj.opt.Parallel);
@@ -1519,22 +1536,20 @@ classdef BlockAccumulator < handle
     %======================================================================
     methods (Static, Access = private)
         function checkSpec(allIDs, sysID, dayList)
-        %CHECKSPEC  A system's id among all ids, and its day list (WP-135).
-        %   The ids are of ONE kind: [store.sysID] concatenates them, and a
-        %   char next to a number turned 3 into char(3) -- robust factors
-        %   went under keys the loader never reads (finding 12). Each day is
-        %   listed once: a repeated day was accumulated twice, silently --
-        %   x pulled toward it, sd too small, dof inflated (finding 11).
+        %CHECKSPEC  A system's id among all ids, and its day list (WP-135):
+        %   ids of ONE kind (finding 12), each day once (finding 11). The two
+        %   rules are the private idDayRules -- one definition with the
+        %   declaration's (WP-138); this door raises its own identifiers.
         %   INPUT  allIDs 1xK cell; sysID 1x1; dayList 1xD
-            isNum = cellfun(@isnumeric, allIDs);
-            if any(isNum) && ~all(isNum)
+            [mixed, twice] = idDayRules(allIDs, dayList);
+            if ~isempty(mixed)
                 error('lsqvce:accum:mixedIdTypes', ...
                       ['System ids must be all numeric or all single characters ' ...
                        '(system %s joins ids of the other kind).'], string(sysID));
             end
-            if numel(unique(dayList(:))) < numel(dayList)
+            if ~isempty(twice)
                 error('lsqvce:accum:duplicateDay', ...
-                      'System %s lists a day more than once in its day list.', string(sysID));
+                      'System %s lists day %s more than once in its day list.', string(sysID), string(twice));
             end
         end
 

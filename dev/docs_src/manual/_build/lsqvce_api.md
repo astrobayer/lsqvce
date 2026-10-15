@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.23.0 — API Reference"
+title: "lsqvce 6.24.0 — API Reference"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 
@@ -24,7 +24,7 @@ ignored silently.
 | field | type / size | required | meaning |
 |---|---|---|---|
 | `commonParams` | cell R×C, C ≥ 1 | yes | the common parameter **templates** (below) |
-| `days` | double 1×D | unless every system has its own `days` | the default calendar: integer day identifiers, each once (the loader cache is keyed on them; a repeated day is refused, `lsqvce:fit:duplicateDay`) |
+| `days` | double 1×D | unless every system has its own `days` | the default calendar: integer day identifiers, each once (the loader cache is keyed on them: a non-integer list is refused, `lsqvce:fit:badDays`, a repeated day too, `lsqvce:fit:duplicateDay`) |
 | `systems` | struct 1×M, M ≥ 1 | yes | one entry per observing system (below) |
 | `priors` | struct array | no | prior groups on the common parameters (chapter Priors) |
 | `paramColumns` | struct | no | which table columns hold a row's validity and its name (below) |
@@ -59,7 +59,7 @@ All entries share the same fields; fill an unused optional field with `[]`.
 | `localParams` | cell R×C | `{}` | the local parameter templates (below); not declared → nl = 0 |
 | `arcs` | double, struct or function handle | *(none)* | the arc schedule (chapter `buildDay`); required only by `'arc'` template rows |
 | `days` | double 1×D | `data.days` | this system's calendar: integers, each once (`lsqvce:fit:duplicateDay`) |
-| `id` | finite double scalar or single char | the index k | identifier, unique across systems; all ids of one kind -- numbers or characters (the index default is a number: give every system an id, or none; `lsqvce:fit:badId`) |
+| `id` | finite double scalar or single char | the index k | identifier, unique across systems; all ids of one kind -- numbers or characters (the index default is a number: give every system an id, or none; `lsqvce:fit:mixedIdTypes`) |
 | `name` | char / string | `''` | label used in reports |
 | `processingOptions` | struct | `struct()` | anything `buildDay` needs (paths, force models); its 5th argument |
 | `priors` | struct array | none | prior groups on this system's local parameters (chapter Priors) |
@@ -295,7 +295,8 @@ as an empty cell. `'arc'` template rows require a declared schedule.
 
 Errors in the declaration itself are raised by `fit` before any data is read and carry
 `lsqvce:fit:` identifiers (`unknownField`, `noSystems`, `noCommon`, `missingField`,
-`noDays`, `badId`, `duplicateSystem`, `builderKind`, `badArcs`, `badScope`, …).
+`noDays`, `badDays`, `duplicateDay`, `badId`, `mixedIdTypes`, `duplicateSystem`, `builderKind`,
+`badArcs`, `badScope`, …).
 
 
 # Covariance specifications
@@ -649,6 +650,14 @@ LSQVCE.FIT  Fit a least-squares adjustment (optionally with VCE) to declared dat
                                 methods report, summary, convergence, residuals,
                                 contribution, compare, plot, toTable, coefficients
 
+  ACCURACY
+    fit adds no arithmetic of its own: the estimate is the block
+    accumulator's (LSQVCE.ENGINE.BLOCKACCUMULATOR: the monolithic solve to
+    1e-8 relative), the verdict LSQVCE.ENGINE.VERDICT's and the noise
+    model LSQVCE.ENGINE.ADJUSTVCEJOINT's -- see theirs. End to end, the
+    matrix kind (data.A / .l / .p) reproduces the dense normal equations to
+    1e-12 relative (test_fit). WP-138.
+
   ERRORS
     Your declaration is wrong (raised BEFORE any data is read):
       lsqvce:fit:unknownField    a field name the contract does not know
@@ -667,13 +676,16 @@ LSQVCE.FIT  Fit a least-squares adjustment (optionally with VCE) to declared dat
                                  start / end, or a column the table lacks
       lsqvce:fit:missingField    a required system field is absent, or
                                  covariance carries no observation type
-      lsqvce:fit:noDays          no day list anywhere, or a day list that is
-                                 not numeric integers
+      lsqvce:fit:noDays          no day list anywhere
+      lsqvce:fit:badDays         a day list that is not numeric integers
+                                 (WP-138; it was noDays)
       lsqvce:fit:duplicateDay    data.days or a system's days names a day
                                  twice (it was accumulated twice; WP-135)
       lsqvce:fit:badId           id is not a finite numeric scalar or single
-                                 char, or the ids mix numbers and characters
-                                 (an index default is a number; WP-135)
+                                 char
+      lsqvce:fit:mixedIdTypes    the ids mix numbers and characters (an
+                                 index default is a number; WP-135, its own
+                                 id since WP-138 -- it was badId)
       lsqvce:fit:duplicateSystem two systems share an id (explicit or
                                  index default)
       lsqvce:fit:badValidity     a commonParams validity entry is not [], a
@@ -1036,8 +1048,11 @@ LSQVCE.REPORT  Judge a least-squares adjustment and say so in words.
                      release, and creation time. R.report() forwards it
                      automatically; a bare lsqvce.report(D) prints none.
     'Iteration'  struct()  the loop state of an ITERATIVE run:
-                     .converged, .stopReason, .nIter and optionally .what
-                     (the loop's name; default 'stochastic model'). When non-empty and the
+                     .converged, .stopReason, .nIter and optionally .loop
+                     (which loop iterated: 'noise' -- the default, the
+                     stochastic model -- 'irls' or 'gaussNewton'; WP-138:
+                     a code, it was the display label .what; another value
+                     is refused, lsqvce:report:badIteration). When non-empty and the
                      run was not a single solve, ONE level-1 line says
                      whether the stochastic model settled -- 'NOISE_SETTLED'
                      (NOTE) or 'NOISE_UNSETTLED' (WARN). Every number from
@@ -1070,6 +1085,18 @@ LSQVCE.REPORT  Judge a least-squares adjustment and say so in words.
       if ismember('SNOOP_CONTAMINATED', codes)
           error('Pope is blind here -- re-run with test=mad.');
       end
+
+  ACCURACY
+    Not applicable to the verdict: it reads D (LSQVCE.ENGINE.VERDICT.DIAGNOSE
+    states the accuracy of every number it prints) and forms one band of
+    its own, the variance factor's chi2(r) / r at 0.5 % / 99.5 %, by
+    LSQVCE.KERNEL.STAT.CHI2INV (|F(x) - p| / p < 1e-11 for r <= 1e7; its
+    own ACCURACY). WP-138.
+
+  ERRORS
+    lsqvce:report:badIteration  Iteration.loop names no loop the report
+                                knows ('noise', 'irls', 'gaussNewton'), or
+                                Iteration carries the retired .what
 
   See also LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SYSTEMATIC.
 ```
@@ -1195,6 +1222,7 @@ What `fit` dispatches to and what it is built from: one line per public unit, fr
 | `onPass` | fire the per-pass inspection hook (Options.OnPass) |
 | `rowWeightKey` | the one key convention for per-arc robust weights |
 | `streamKey` | the one stream key 'satKey|obsType' |
+| `priorStream` | the prior pseudo-streams' obsType, made and recognised once |
 | `arcKey` | the one arc key of the joint estimator |
 | `log` | toolbox-wide logging state |
 | `mergeStruct` | struct merge (later wins) |
@@ -1222,6 +1250,7 @@ Every identifier the package raises (generated from the identifier catalogue, wh
 | `lsqvce:Results:noPerObservation` | Results | error | v6.5.0 |
 | `lsqvce:Results:noVPv` | Results | error | v4.0 |
 | `lsqvce:Results:tableMismatch` | Results | error | v4.0 |
+| `lsqvce:report:badIteration` | report | error | v6.24.0 |
 | `lsqvce:accum:arcBadNc` | engine.BlockAccumulator | error | v4.0 |
 | `lsqvce:accum:arcBadNl` | engine.BlockAccumulator | error | v4.0 |
 | `lsqvce:accum:arcNotFinite` | engine.BlockAccumulator | error | v4.0 |
@@ -1364,6 +1393,8 @@ Every identifier the package raises (generated from the identifier catalogue, wh
 | `lsqvce:fit:unknownField` | engine.declaration, fit | error | v4.0 |
 | `lsqvce:fit:badValidity` | engine.declaration | error | v6.22.0 |
 | `lsqvce:fit:duplicateDay` | engine.declaration | error | v6.22.0 |
+| `lsqvce:fit:badDays` | engine.declaration | error | v6.24.0 |
+| `lsqvce:fit:mixedIdTypes` | engine.declaration | error | v6.24.0 |
 | `lsqvce:ftest:differentData` | engine.verdict | error | v4.0 |
 | `lsqvce:ftest:invalidPremise` | engine.verdict | warning | v4.0 |
 | `lsqvce:ftest:noRedundancy` | engine.verdict | error | v4.0 |
@@ -1390,7 +1421,7 @@ Every identifier the package raises (generated from the identifier catalogue, wh
 | `lsqvce:makeLoader:badDayCep` | engine.makeLoader | error | v4.0 |
 | `lsqvce:makeLoader:badPrior` | engine.makeLoader | error | v4.0 |
 | `lsqvce:makeLoader:badScope` | engine.makeLoader | error | v4.0 |
-| `lsqvce:makeLoader:badValidity` | engine.makeLoader | error | v4.0 |
+| `lsqvce:makeLoader:badValidity` | engine.private.validityOf | error | v4.0 |
 | `lsqvce:makeLoader:cepTwice` | engine.makeLoader | error | v5.3 |
 | `lsqvce:makeLoader:buildDay` | engine.makeLoader | error | v4.0 |
 | `lsqvce:makeLoader:dayShape` | engine.makeLoader | error | v4.0 |
@@ -1525,5 +1556,5 @@ Every identifier the package raises (generated from the identifier catalogue, wh
 | `lsqvce:armaACV:truncated` | kernel.armaACV | warning | v6.21.0 |
 | `lsqvce:covModel:unevenGrid` | engine.covModel | warning | v6.21.0 |
 | `lsqvce:crossCorr:badLength` | kernel.crossCorr | error | v6.21.0 |
-| `lsqvce:gcvLambda:badData` | engine.gcvLambda | error | v6.22.0 |
-| `lsqvce:gcvLambda:nullUnobserved` | engine.gcvLambda | error | v6.22.0 |
+| `lsqvce:gcv:badData` | engine.gcvLambda | error | v6.24.0 |
+| `lsqvce:gcv:nullUnobserved` | engine.gcvLambda | error | v6.24.0 |

@@ -50,6 +50,9 @@ WHAT IT CHECKS
     27 every public Options property has a consumer: engineArgs, or somewhere
        in +lsqvce outside Options.m (R6 WP-101; MinPasses and LogFile shipped
        dead for a whole review)
+    34 every public unit states an ACCURACY block, or is one of the frozen
+       exceptions in dev/docs_src/accuracy_baseline.csv (WP-138; HANDOVER
+       6.2.1: binding for every new unit, no bulk migration -- one way)
     THE AUTHORITATIVE LIST is the order of calls in main(); this summary is a
        reading aid and was already four checks behind when 26 was added.
     Self-test: dev/docs_src/audit_selftest.py injects one fault per new
@@ -1585,6 +1588,47 @@ def check_length_ratchets():
     print('   %d functions over 400 lines (all recorded), %d lines over 120 characters' % (nf, nl))
 
 
+ACCURACY_BASELINE = os.path.join('dev', 'docs_src', 'accuracy_baseline.csv')
+_ACCURACY_HEAD = re.compile(r'^\s*%\s+ACCURACY\b', re.M)
+
+
+def accuracy_missing():
+    """{unit: path} for every PUBLIC unit (not private, not Contents) whose help
+    text carries no ACCURACY heading anywhere -- a class counts once."""
+    out = {}
+    for f in sorted(pglob(PKG_GLOB, recursive=True)):
+        if '/private/' in f or f.endswith('Contents.m'):
+            continue
+        if not _ACCURACY_HEAD.search(open(f, encoding='utf-8', errors='replace').read()):
+            out[_unit_of(f)] = f
+    return out
+
+
+def check_accuracy_ratchet():
+    print('\n34. every public unit states its ACCURACY, or is a frozen exception (WP-138)')
+    # WHY (HANDOVER 6.2.1): the ACCURACY block -- the function's numerical
+    # claim, its authority by its 6.1.4 row, the tolerance achieved -- is
+    # binding for every NEW function and every function TOUCHED since
+    # 2026-08-20, with NO bulk migration. Nothing enforced it: the code review
+    # of WP-135 found verdict.diagnose and verdict.ftest changing their
+    # numerical claims without one, and 54 of 75 public files had none. The
+    # units without one are FROZEN in accuracy_baseline.csv: a new unit
+    # without one is a finding; a frozen unit that gains one must leave the
+    # list (one way, like checks 19 and 30). "Touched" stays a review duty --
+    # the audit cannot see which help block a change should have extended.
+    base = {row[0] for row in _read_baseline(ACCURACY_BASELINE, 2) if row[0] != 'unit'}
+    missing = accuracy_missing()
+    for u in sorted(set(missing) - base):
+        note('accuracy', '%s has no ACCURACY block -- state its numerical claim, its '
+             'authority (HANDOVER 6.1.4) and its tolerance, or "Not applicable: ..." '
+             '(HANDOVER 6.2.1)' % missing[u])
+    for u in sorted(base - set(missing)):
+        note('accuracy', 'accuracy_baseline.csv row %s is STALE (the unit states its '
+             'ACCURACY now, or is gone): delete it' % u)
+    print('   %d public units without an ACCURACY block, all frozen in the baseline'
+          % len(missing))
+
+
 def _prose(line):
     """A help/markdown line without its comment marker and outer blanks."""
     return re.sub(r'^\s*%+\s?', '', line).strip()
@@ -1653,6 +1697,7 @@ def main():
     check_nv_options_documented()
     check_unit_references_resolve()
     check_length_ratchets()
+    check_accuracy_ratchet()
     print('\n' + '=' * 60)
     if FINDINGS:
         print('%d finding(s).' % len(FINDINGS))

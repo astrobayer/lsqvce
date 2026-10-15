@@ -10,6 +10,10 @@ function tests = test_reliability
 %
 %   See also TEST_PRECISION, TEST_SPEED, TEST_LSQACCUM
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135): the
+%   accumulator judges id kinds before duplicates (67 after 'C'); the GCV
+%   errors under lsqvce:gcv:*. With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-137 (code review of WP-135): the
 %   GCV test on deterministic data, no muted id, its tolerance at its source;
 %   snoop's re-solve keeps the solve's Reg. With assistance from Claude
@@ -561,6 +565,11 @@ function testAccumulatorRefusesMixedIdsAndRepeatedDays(tc)
     tc.verifyError(@() acc.addSystem(3, cfg.nl, binder(cfg, 1), 1:2), 'lsqvce:accum:mixedIdTypes');
     specs = struct('sysID', 3, 'nl', cfg.nl, 'dataFcn', binder(cfg, 1), 'dayList', 1:2);
     tc.verifyError(@() acc.addSystems(specs), 'lsqvce:accum:mixedIdTypes');
+    % WP-138: the kinds are judged before the duplicate test -- 67 is char(67)
+    % = 'C', and [obj.diag.sysID] == 67 / [specs.sysID] called it a duplicate
+    tc.verifyError(@() acc.addSystem(67, cfg.nl, binder(cfg, 1), 1:2), 'lsqvce:accum:mixedIdTypes');
+    specs.sysID = 67;
+    tc.verifyError(@() acc.addSystems(specs), 'lsqvce:accum:mixedIdTypes');
 end
 
 function testStaticArcIdsAreChecked(tc)
@@ -620,12 +629,12 @@ function testGcvLambdaRefusesWhatItCannotChoose(tc)
 % nothing warns and returns 0; a direction L leaves free that the data do not
 % see is refused -- no lambda regularises it.
     N = eye(4);  n = ones(4,1);
-    tc.verifyError(@() lsqvce.engine.gcvLambda(N, n, [], 4, 4), 'lsqvce:gcvLambda:badData');
-    tc.verifyError(@() lsqvce.engine.gcvLambda(N, n, [], 10, -1), 'lsqvce:gcvLambda:badData');
+    tc.verifyError(@() lsqvce.engine.gcvLambda(N, n, [], 4, 4), 'lsqvce:gcv:badData');
+    tc.verifyError(@() lsqvce.engine.gcvLambda(N, n, [], 10, -1), 'lsqvce:gcv:badData');
     lam = tc.verifyWarning(@() lsqvce.engine.gcvLambda(N, n, zeros(4), 10, 4), 'lsqvce:gcv:degenerate');
     tc.verifyEqual(lam, 0);
     tc.verifyError(@() lsqvce.engine.gcvLambda(diag([1 1 1 0]), [1;1;1;0], [eye(3), zeros(3,1)], 10, 4), ...
-                   'lsqvce:gcvLambda:nullUnobserved');
+                   'lsqvce:gcv:nullUnobserved');
 end
 
 function testGcvLambdaIsTheGcvOfTheData(tc)

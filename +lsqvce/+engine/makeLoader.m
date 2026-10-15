@@ -246,6 +246,11 @@ function L = makeLoader(buildDay, opt)
 %   See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.DECLARATION,
 %            LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.ENGINE.SYNTHLOADER
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135): the
+%   validity rule moved to the private validityOf, one definition with the
+%   declaration's, the row named in every message; the prior pseudo-streams
+%   are made and recognised by lsqvce.util.priorStream. With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lane 4): a throwing
 %   buildDay is raised as lsqvce:makeLoader:buildDay with the day and stream,
 %   its error the cause (documented, never raised) -- an lsqvce:* error passes
@@ -551,7 +556,7 @@ function out = dispatch(L, arcs, day, obsType, arcID, opt)
         out = metaOf(L.obsTypes, arcs, obsType, L.discover, L);
         return
     end
-    if startsWith(obsType, 'prior_')                  % R5-D8 round 5: a local prior group's pseudo-arc
+    if lsqvce.util.priorStream.is(obsType)            % R5-D8 round 5: a local prior group's pseudo-arc
         out = priorArc(L, day, obsType, arcID, opt, L.cov);
         return
     end
@@ -570,7 +575,7 @@ function m = metaOf(obsTypes, arcs, day, disc, L)
     m.arcs     = cell(1, numel(obsTypes));
     nData = 0;
     for k = 1:numel(obsTypes)
-        if startsWith(obsTypes{k}, 'prior_')
+        if lsqvce.util.priorStream.is(obsTypes{k})
             m.arcs{k} = priorArcsOfDay(L, day, obsTypes{k});   % R5-D8 round 5: one arc, or none
         else
             m.arcs{k} = arcVec(arcs, obsTypes{k}, day, disc);
@@ -701,7 +706,7 @@ function P = validatePriors(P, plan, sysID, localParams, nameCol)
             dayOf(r) = d(1);
         end
         out(end+1) = struct('L', Lg, 'x0', x0, 'sigma', s, 'from', fr, 'name', nm, 'estimate', est, ...
-                            'obsType', ['prior_' matlab.lang.makeValidName(nm)], 'dayOf', dayOf); %#ok<AGROW>
+                            'obsType', lsqvce.util.priorStream.of(nm), 'dayOf', dayOf); %#ok<AGROW>
         if any(strcmp({out(1:end-1).obsType}, out(end).obsType))
             % WP-135: two groups on one pseudo-stream -- the first was applied
             % twice (find(...,1)) and the second never
@@ -1035,7 +1040,7 @@ function plan = buildScopePlan(tbl, arcs, obsTypes, days, valCols)
     % R5-D8 round 3: validity-aware expansion -- a 'day'/'arc' template row is
     % instantiated only on the days its validity overlaps (valCols name the
     % columns; [] = every row is valid always, the v4 behaviour)
-    valid = validityOf(tbl, valCols);              % @(row, day) -> logical
+    valid = validityOf(tbl, valCols);              % @(row, day) -> logical (private, WP-138)
     off = 0;  ord = 0;
     for i = 1:D
         d = days(i);
@@ -1525,53 +1530,13 @@ function [A, B, l] = denseRows(C, A, B, l)
     A = W * A;  B = W * B;  l = W * l;
 end
 
-%==========================================================================
-function f = validityOf(tbl, valCols)
-%VALIDITYOF  @(row, day) -> is template row valid on calendar day `day`?
-%   valCols = [cStart cEnd] (1-based columns of the table); a cell holds
-%   [MJD sec] (-> MJD + sec/86400), a scalar fractional MJD, or [] (always).
-%   Overlap rule: start < day + 1 && end > day (half-open day). R5-D8 round 3.
-    if isempty(valCols)
-        f = @(row, day) true;
-        return
-    end
-    if numel(valCols) ~= 2 || any(valCols < 1) || any(valCols > size(tbl, 2)) || any(valCols ~= round(valCols))
-        error('lsqvce:makeLoader:badValidity', ...
-              'ValidityColumns must be [cStart cEnd] within 1..%d (got %s).', size(tbl, 2), mat2str(valCols));
-    end
-    n = size(tbl, 1);
-    t0 = -inf(n, 1);  t1 = inf(n, 1);
-    for r = 1:n
-        a = toMjd(tbl{r, valCols(1)});  b = toMjd(tbl{r, valCols(2)});
-        if ~isempty(a), t0(r) = a; end
-        if ~isempty(b), t1(r) = b; end
-        if t0(r) > t1(r)
-            error('lsqvce:makeLoader:badValidity', 'row %d: validity start %g is after end %g.', r, t0(r), t1(r));
-        end
-    end
-    f = @(row, day) t0(row) < day + 1 && t1(row) > day;
-end
-
-function m = toMjd(v)
-%TOMJD  A validity entry as fractional MJD; [] = always. WP-135: an entry of
-%   another type (a datetime, a char) or a NaN was read as [] -- "always
-%   valid", silently -- and is now refused like a wrong length.
-    m = [];
-    if isempty(v), return, end
-    if isnumeric(v) && ~any(isnan(v(:)))
-        if isscalar(v), m = double(v);  return, end
-        if numel(v) == 2, m = double(v(1)) + double(v(2)) / 86400;  return, end
-    end
-    error('lsqvce:makeLoader:badValidity', 'a validity entry must be [], a fractional MJD, or [MJD seconds].');
-end
-
 function checkStreamNames(obsTypes, priors)
 %CHECKSTREAMNAMES  The data streams' names against the prior pseudo-streams.
 %   'prior_*' names the prior pseudo-streams (WP-131, user decision): a data
 %   stream so named was taken for one and dropped silently -- no arcs read,
 %   yet listed in R.noise.stream. A name equal to a prior group's stream was
 %   refused before; both are lsqvce:makeLoader:priorType.
-    isPri = startsWith(obsTypes, 'prior_');
+    isPri = lsqvce.util.priorStream.is(obsTypes);
     if any(isPri)
         error('lsqvce:makeLoader:priorType', ...
               ['''%s'': stream names starting with ''prior_'' are reserved for the prior ' ...

@@ -58,12 +58,21 @@ INPUT   data       1x1 struct   the kind-A declaration (the API reference)
         cacheDays  1x1 double   resident built days per system (default 1)
 OUTPUT  spec       1x1 struct   the validated declaration: .commonParams .days
                                 .systems .ids .commonPlan .validityColumns .nc ...
-        systems    1xK cell     Loader structs (isLoader true; .plan, .nc, .nl, ...)
+        systems    1xK cell     Loader structs (isLoader true; .plan, .nc, .nl, ...)</pre>
+<h3>Accuracy</h3>
+<pre class="example">        Not applicable: validation and plan construction; the one number it
+        forms, a validity entry&#x27;s MJD, is the private validityOf&#x27;s.
 ERRORS  lsqvce:fit:noSystems / noCommon / unknownField / badScope / badId /
         badParamColumns / ...  (lsqvce.fit&#x27;s ERRORS lists them)
 
 See also LSQVCE.FIT, LSQVCE.ENGINE.MAKELOADER, LSQVCE.RESULTS
 
+Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135): the
+validity rule is the private validityOf (mjdOf retired: one rule, the
+loader&#x27;s), the id and day rules the private idDayRules (the accumulator&#x27;s
+too); a non-integer day list is lsqvce:fit:badDays (it was noDays), ids of
+two kinds lsqvce:fit:mixedIdTypes (it was badId); ACCURACY. With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3 findings 11, 12 and
 the declaration lows): day lists are unique integers
 (lsqvce:fit:duplicateDay); the system ids are of one kind, &#x27;i&#x27; / &#x27;j&#x27; stay

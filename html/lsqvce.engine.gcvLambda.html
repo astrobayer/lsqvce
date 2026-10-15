@@ -101,10 +101,12 @@ WHEN GCV FAILS
 [lam, gcv, grid] = lsqvce.engine.gcvLambda(B.&#x27;*B, B.&#x27;*l, [], 50, l.&#x27;*l);
 loglog(grid, gcv); xline(lam,&#x27;r--&#x27;); xlabel(&#x27;\lambda&#x27;); ylabel(&#x27;GCV&#x27;);</pre>
 <h3>Errors</h3>
-<pre class="example">  lsqvce:gcvLambda:badData    m is not an integer &gt; nl, or ltl is not a
+<pre class="example">  lsqvce:gcv:badData          m is not an integer &gt; nl, or ltl is not a
                               finite scalar &gt;= 0
-  lsqvce:gcvLambda:nullUnobserved  the data do not determine a direction
+  lsqvce:gcv:nullUnobserved   the data do not determine a direction
                               of null(L): no lambda regularises it
+  (WP-138: one segment, gcv, beside the warnings; both were raised as
+  lsqvce:gcvLambda:* in 6.22.0 - 6.23.0)
 
 IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
   lsqvce:gcv:atLowerBound                    [warning] GCV selected the smallest lambda on the grid (X), i.e
@@ -113,6 +115,10 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 
 See also LSQVCE.ENGINE.APPLYREGULARISATION
 
+Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135): its
+errors under the one segment of its warnings, lsqvce:gcv:badData and
+lsqvce:gcv:nullUnobserved (they were lsqvce:gcvLambda:*). With assistance
+from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-15 (CEST, UTC+02:00), WP-137: ACCURACY states the
 measured and the worst-case error and cites its HANDOVER 6.1.4 row. With
 assistance from Claude (Anthropic), model Claude Opus 5.5.

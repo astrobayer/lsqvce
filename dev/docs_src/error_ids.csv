@@ -18,6 +18,7 @@ lsqvce:Results:noHistory,Results,error,v4.0
 lsqvce:Results:noPerObservation,Results,error,v6.5.0
 lsqvce:Results:noVPv,Results,error,v4.0
 lsqvce:Results:tableMismatch,Results,error,v4.0
+lsqvce:report:badIteration,report,error,v6.24.0
 lsqvce:accum:arcBadNc,engine.BlockAccumulator,error,v4.0
 lsqvce:accum:arcBadNl,engine.BlockAccumulator,error,v4.0
 lsqvce:accum:arcNotFinite,engine.BlockAccumulator,error,v4.0
@@ -160,6 +161,8 @@ lsqvce:fit:varUnderNoise,fit,error,v6.1.5
 lsqvce:fit:unknownField,engine.declaration;fit,error,v4.0
 lsqvce:fit:badValidity,engine.declaration,error,v6.22.0
 lsqvce:fit:duplicateDay,engine.declaration,error,v6.22.0
+lsqvce:fit:badDays,engine.declaration,error,v6.24.0
+lsqvce:fit:mixedIdTypes,engine.declaration,error,v6.24.0
 lsqvce:ftest:differentData,engine.verdict,error,v4.0
 lsqvce:ftest:invalidPremise,engine.verdict,warning,v4.0
 lsqvce:ftest:noRedundancy,engine.verdict,error,v4.0
@@ -186,7 +189,7 @@ lsqvce:makeLoader:badDay,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:badDayCep,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:badPrior,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:badScope,engine.makeLoader,error,v4.0
-lsqvce:makeLoader:badValidity,engine.makeLoader,error,v4.0
+lsqvce:makeLoader:badValidity,engine.private.validityOf,error,v4.0
 lsqvce:makeLoader:cepTwice,engine.makeLoader,error,v5.3
 lsqvce:makeLoader:buildDay,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:dayShape,engine.makeLoader,error,v4.0
@@ -321,5 +324,5 @@ lsqvce:arcVarianceFactors:held,engine.arcVarianceFactors,warning,v6.21.0
 lsqvce:armaACV:truncated,kernel.armaACV,warning,v6.21.0
 lsqvce:covModel:unevenGrid,engine.covModel,warning,v6.21.0
 lsqvce:crossCorr:badLength,kernel.crossCorr,error,v6.21.0
-lsqvce:gcvLambda:badData,engine.gcvLambda,error,v6.22.0
-lsqvce:gcvLambda:nullUnobserved,engine.gcvLambda,error,v6.22.0
+lsqvce:gcv:badData,engine.gcvLambda,error,v6.24.0
+lsqvce:gcv:nullUnobserved,engine.gcvLambda,error,v6.24.0

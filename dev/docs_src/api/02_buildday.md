@@ -156,4 +156,5 @@ as an empty cell. `'arc'` template rows require a declared schedule.
 
 Errors in the declaration itself are raised by `fit` before any data is read and carry
 `lsqvce:fit:` identifiers (`unknownField`, `noSystems`, `noCommon`, `missingField`,
-`noDays`, `badId`, `duplicateSystem`, `builderKind`, `badArcs`, `badScope`, …).
+`noDays`, `badDays`, `duplicateDay`, `badId`, `mixedIdTypes`, `duplicateSystem`, `builderKind`,
+`badArcs`, `badScope`, …).
