@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-15 — WP-139 OPEN (tier B, model Claude Opus 5.5; user decision: "In diesem Fall die fehlenden ACCURACY Blöcke bitte gesammelt ergänzen" -- it lifts 6.2.1's "no bulk migration" for this one sweep): an ACCURACY block for each of the 48 units accuracy_baseline.csv froze, every number traced to a test or a recorded measurement, "Not applicable" with its reason where a unit computes nothing; the baseline emptied, check 34 kept as the rule for new units; version 6.24.1.
+Last substantive update: 2026-10-15 — WP-139 DONE (PR #169, merge 9cb491f; CI GREEN on 470c45b in the first round: ci_gate 723/723, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.72; no code change, no version (6.24.1 stays, 735 tests).
+Preceding entry: Last substantive update: 2026-10-15 — WP-139 OPEN (tier B, model Claude Opus 5.5; user decision: "In diesem Fall die fehlenden ACCURACY Blöcke bitte gesammelt ergänzen" -- it lifts 6.2.1's "no bulk migration" for this one sweep): an ACCURACY block for each of the 48 units accuracy_baseline.csv froze, every number traced to a test or a recorded measurement, "Not applicable" with its reason where a unit computes nothing; the baseline emptied, check 34 kept as the rule for new units; version 6.24.1.
 Preceding entry: Last substantive update: 2026-10-15 — WP-138 DONE (PR #167, merge 9586fc5; CI GREEN on f85d02b in the first round: ci_gate 723/723, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.71; no code change, no version (6.24.0 stays, 735 tests).
 Preceding entry: Last substantive update: 2026-10-15 — WP-138 OPEN (tier B, model Claude Opus 5.5; user: "Mach die Review-Kandidaten aus §12.70 als WP-138"): the code review's judgement calls -- one validity rule and one id/day rule for both front doors, a non-integer day list is lsqvce:fit:badDays and mixed id kinds lsqvce:fit:mixedIdTypes, one name for the prior pseudo-streams (lsqvce.util.priorStream), the GCV ids under one segment, the prior batches assembled once, snoop reads D's thresholds instead of restating diagnose's defaults, a local prior batch with a full weight matrix judged instead of skipped, the contamination gauge in its own file, the report branching on a loop code (Iteration.loop) instead of a display label, addF named, ACCURACY blocks for verdict's methods and an audit ratchet for units without one; version 6.24.0.
 Preceding entry: Last substantive update: 2026-10-15 — WP-137 DONE (PR #165, merge 1049cf0; CI GREEN on c5d879d in round 2, after one red round on 56c2cc9 whose cause was the new compare test's own fixture: ci_gate 720/720, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.70; no code change, no version (6.23.0 stays, 732 tests).
@@ -10477,7 +10478,7 @@ call acted on (WP-138). No package is open; the next step is the user's.
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 139 | an ACCURACY block for each of the 48 units `dev/docs_src/accuracy_baseline.csv` froze (WP-138): the numerical claim, its authority (a 6.1.4 row, a closed form or a dense reference) and the tolerance a named test pins, or "Not applicable" with the reason; the baseline emptied (check 34 stays: every unit states its ACCURACY); the help stamps; **version 6.24.1** | 138 (PR #167 merged 9586fc5; closure #168) | OPEN (2026-10-15, tier B) |
+| 139 | an ACCURACY block for each of the 48 units `dev/docs_src/accuracy_baseline.csv` froze (WP-138): the numerical claim, its authority (a 6.1.4 row, a closed form or a dense reference) and the tolerance a named test pins, or "Not applicable" with the reason; the baseline emptied (check 34 stays: every unit states its ACCURACY); the help stamps; **version 6.24.1** | 138 (PR #167 merged 9586fc5; closure #168) | DONE (2026-10-15, PR #169, merge 9cb491f; CI GREEN on 470c45b in the first round: ci_gate 723/723) |
 
 **The user's decision (2026-10-15):** "In diesem Fall die fehlenden ACCURACY Blöcke bitte gesammelt
 ergänzen" -- after WP-138 left 48 units frozen without one. It lifts 6.2.1's ROLLOUT RULE ("NO bulk
@@ -10543,3 +10544,12 @@ produced three defects found only by reading the applied diff -- shapes how it i
    diagonal is bounded at ~1e-5 only; the dctI block cites the MATLAB tests' 1e-12 instead.
 9. checkPSD's tests are categorised contract, not precision; ReducedContribution's path through the
    Rows constructor was inferred from reading, not traced.
+
+**CI round 1 (470c45b): GREEN on A8** -- `ci_gate` 723 / 723, 27 / 27 suites, the warning inventory
+`lsqvce:internal:testProbe` only, as predicted (no test file touched); the audit job green (check 34
+with the tightened heading rule and an empty baseline).
+
+**Closure (2026-10-15).** WP-139 DONE: PR #169 merged as 9cb491f (the loop's record step after the
+merge: the ledger row, this note; no code change, no version -- 6.24.1 stays, 735 tests). Every
+public unit states its ACCURACY and check 34 holds for all of them. The nine observations above are
+recorded, not scheduled; no package is open; the next step is the user's.
