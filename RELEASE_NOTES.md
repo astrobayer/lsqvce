@@ -1,5 +1,25 @@
 # lsqvce release notes
 
+## 6.25.0 — 2026-10-15 (WP-141: prepareDay, what all streams of a day share)
+
+New, optional: `data.systems(k).prepareDay`. No estimate changes; nothing changes for a
+declaration without it.
+
+- `buildDay` runs once per (day, observation type), so work that several streams of a day
+  need was repeated for each of them, and again in every pass — or cached by hand, as
+  `template/kbr_variational` did. `prepareDay(day, common, local, procOpt, info)` runs
+  **once per day**, before the first stream of that day is built; every `buildDay` of the day
+  receives its result as `procOpt.prepared`. It stays resident as long as the day
+  (`Options.CacheDays`, at least the current day): with `CacheDays = Inf`, once per day per run.
+- Refused while building the loader: a `prepareDay` that is not a function handle
+  (`lsqvce:fit:builderKind`), a `buildDay` with fewer than five arguments, which never sees
+  `procOpt` (`lsqvce:makeLoader:prepareUnused`), and a `processingOptions` that already has a
+  field `prepared` (`lsqvce:makeLoader:preparedField`) -- `fit` reports both under its
+  own prefix, the original as the cause. A `prepareDay` that throws is
+  `lsqvce:makeLoader:prepareDay`, naming the day, with your error as the cause.
+- `template/kbr_variational` integrates the C/D pair in `prepareDay` and picks each stream in
+  `buildDay`; its own day cache is gone.
+
 ## 6.24.2 — 2026-10-15 (WP-140: the observations of WP-139)
 
 Documentation and test bookkeeping only: no estimate, interface or identifier changes.

@@ -67,6 +67,10 @@ ERRORS  lsqvce:fit:noSystems / noCommon / unknownField / badScope / badId /
 
 See also LSQVCE.FIT, LSQVCE.ENGINE.MAKELOADER, LSQVCE.RESULTS
 
+Updated 2026-10-15 (CEST, UTC+02:00), WP-141: data.systems(k).prepareDay
+is a known field, refused by builderKind when it is not a function handle,
+and handed to makeLoader as PrepareDay. With assistance from Claude
+(Anthropic), model Claude Opus 5.5.
 Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135): the
 validity rule is the private validityOf (mjdOf retired: one rule, the
 loader&#x27;s), the id and day rules the private idDayRules (the accumulator&#x27;s

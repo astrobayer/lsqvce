@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.24.2 — API Reference"
+title: "lsqvce 6.25.0 — API Reference"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 
@@ -62,6 +62,7 @@ All entries share the same fields; fill an unused optional field with `[]`.
 | `id` | finite double scalar or single char | the index k | identifier, unique across systems; all ids of one kind -- numbers or characters (the index default is a number: give every system an id, or none; `lsqvce:fit:mixedIdTypes`) |
 | `name` | char / string | `''` | label used in reports |
 | `processingOptions` | struct | `struct()` | anything `buildDay` needs (paths, force models); its 5th argument |
+| `prepareDay` | function handle | none | the work every stream of a day shares, run once per day before its first stream is built; its result reaches `buildDay` as `procOpt.prepared`, inside its 5th argument (chapter `buildDay`, *What all streams of a day share*) |
 | `priors` | struct array | none | prior groups on this system's local parameters (chapter Priors) |
 
 `buildDay` + `covariance` is a complete system.
@@ -165,9 +166,10 @@ that by its passes. Hence two rules:
 
 1. **Determinism.** The same arguments must give byte-identical output: no random
    numbers, clocks or mutable globals.
-2. **Cache expensive reads yourself.** The toolbox keeps `Options.CacheDays` built days
-   resident (default one); a raw file read shared by several observation types belongs
-   in your own cache, in the closure that binds `buildDay`.
+2. **Share the day's common work through `prepareDay`.** The toolbox keeps
+   `Options.CacheDays` built days resident (default one). Work that several observation
+   types of a day need — reading a file, integrating the orbits and their partials — goes
+   into the system's `prepareDay`, which runs once per day for all of them (next section).
 
 ## Where the handle goes — one per system
 
@@ -206,6 +208,41 @@ A closure declares its own argument count, and that count is what `fit` passes
 called again on every pass (rule 1) — and it is the place for your own cache (rule 2).
 `buildDay` that is not a function handle is refused before any data is read
 (`lsqvce:fit:builderKind`).
+
+## What all streams of a day share — `prepareDay`
+
+`buildDay` is called once per (day, observation type). When the streams of a day rest on
+one expensive computation — the reference orbits and the variational partials of both
+satellites, used by the kinematic orbits **and** the range-rates — give the system a
+`prepareDay` handle. `fit` calls it **once per day**, before the first stream of that day
+is built, and hands its result to every `buildDay` of that day as `procOpt.prepared`:
+
+```matlab
+s.prepareDay = @prepareGrace;       % P = prepareGrace(day, common, local, procOpt, info)
+s.buildDay   = @buildDayGrace;      % D = buildDayGrace(day, obsType, common, local, procOpt, info)
+
+function P = prepareGrace(day, ~, ~, procOpt, info)
+    P.C = integrateWithPartials('C', day, procOpt, info);   % r, v and d[r;v]/dp, whole day
+    P.D = integrateWithPartials('D', day, procOpt, info);
+end
+
+function D = buildDayGrace(day, obsType, ~, ~, procOpt, info)
+    P = procOpt.prepared;               % what prepareGrace returned for this day
+    switch obsType
+        case 'posC', D = kinematicRows(P.C, day, info);
+        case 'posD', D = kinematicRows(P.D, day, info);
+        case 'kbr',  D = rangeRateRows(P.C, P.D, day, info);
+    end
+end
+```
+
+| rule | |
+|---|---|
+| arguments | as many of `(day, common, local, procOpt, info)` as the handle declares; `info` is the same day slice `buildDay` gets, `procOpt` the plain `processingOptions` |
+| how often | once per day and visit: the result stays resident as long as its day — `Options.CacheDays` days (at least the current one, also with caching off); `CacheDays = Inf` runs it once per day per run |
+| determinism | like `buildDay`: it runs again whenever its day was evicted |
+| refused | a handle of another class (`lsqvce:fit:builderKind`); a `buildDay` that declares fewer than five arguments and so never sees `procOpt` (`lsqvce:makeLoader:prepareUnused`); a `processingOptions` that already has a field `prepared` (`lsqvce:makeLoader:preparedField`) — `fit` reports both under its own prefix, the original attached as the cause |
+| when it fails | `lsqvce:makeLoader:prepareDay` names the day; your error is the cause |
 
 ## The `info` argument
 
@@ -611,7 +648,10 @@ LSQVCE.FIT  Fit a least-squares adjustment (optionally with VCE) to declared dat
                     systems; one reader for several setups takes the setup
                     through processingOptions (its 5th argument) or a
                     closure; data that share no common parameters are
-                    separate fit calls
+                    separate fit calls. What every stream of a day needs
+                    (orbits and partials of a satellite pair) goes in the
+                    system's optional prepareDay: called once per day, its
+                    result reaches each buildDay as procOpt.prepared
     (B) in memory   data.A (m x u), data.l (m x 1), optional data.p (m x 1
                     weights); optional data.priors. A FULL m x m SPD weight
                     matrix is kind C's: return it from batchFcn
@@ -692,7 +732,8 @@ LSQVCE.FIT  Fit a least-squares adjustment (optionally with VCE) to declared dat
                                  fractional MJD or [MJD seconds], or its start
                                  is after its end (WP-135; localParams: the
                                  makeLoader id, relabelled)
-      lsqvce:fit:builderKind     buildDay is not a function handle
+      lsqvce:fit:builderKind     buildDay or prepareDay is not a function
+                                 handle
       lsqvce:fit:badArcs         arcs is a string (omit arcs: the cells are
                                  the arcs), or a
                                  resolver returned something that is not
@@ -734,6 +775,7 @@ LSQVCE.FIT  Fit a least-squares adjustment (optionally with VCE) to declared dat
     Your buildDay is wrong (raised WHILE READING, by the engine, ids
     unchanged): lsqvce:makeLoader:badDay / dayShape / badArc / buildDay
     (your buildDay threw: the day, the stream and your error as the cause) /
+    prepareDay (your prepareDay threw: the day and your error as the cause) /
     badDayCep / axisConflict / cepTwice (the day's Cep and
     axis count), lsqvce:covModel:cepOnVar, lsqvce:accum:arcBadNc / arcBadNl;
     lsqvce:makeLoader:noCep is a once-per-run warning (a multi-axis day
@@ -1446,6 +1488,9 @@ Every identifier the package raises (generated from the identifier catalogue, wh
 | `lsqvce:makeLoader:noCov` | engine.makeLoader | error | v4.0 |
 | `lsqvce:makeLoader:noObsTypes` | engine.makeLoader | error | v4.0 |
 | `lsqvce:makeLoader:paramType` | engine.makeLoader | error | v4.0 |
+| `lsqvce:makeLoader:prepareDay` | engine.makeLoader | error | v6.25.0 |
+| `lsqvce:makeLoader:prepareUnused` | engine.makeLoader | error | v6.25.0 |
+| `lsqvce:makeLoader:preparedField` | engine.makeLoader | error | v6.25.0 |
 | `lsqvce:makeLoader:priorType` | engine.makeLoader | error | v4.0 |
 | `lsqvce:makeLoader:rowWeightSize` | engine.makeLoader | error | v4.0 |
 | `lsqvce:mapreduce:badTask` | engine.mapreduce | error | v4.0 |

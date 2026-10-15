@@ -26,9 +26,10 @@ that by its passes. Hence two rules:
 
 1. **Determinism.** The same arguments must give byte-identical output: no random
    numbers, clocks or mutable globals.
-2. **Cache expensive reads yourself.** The toolbox keeps `Options.CacheDays` built days
-   resident (default one); a raw file read shared by several observation types belongs
-   in your own cache, in the closure that binds `buildDay`.
+2. **Share the day's common work through `prepareDay`.** The toolbox keeps
+   `Options.CacheDays` built days resident (default one). Work that several observation
+   types of a day need — reading a file, integrating the orbits and their partials — goes
+   into the system's `prepareDay`, which runs once per day for all of them (next section).
 
 ## Where the handle goes — one per system
 
@@ -67,6 +68,41 @@ A closure declares its own argument count, and that count is what `fit` passes
 called again on every pass (rule 1) — and it is the place for your own cache (rule 2).
 `buildDay` that is not a function handle is refused before any data is read
 (`lsqvce:fit:builderKind`).
+
+## What all streams of a day share — `prepareDay`
+
+`buildDay` is called once per (day, observation type). When the streams of a day rest on
+one expensive computation — the reference orbits and the variational partials of both
+satellites, used by the kinematic orbits **and** the range-rates — give the system a
+`prepareDay` handle. `fit` calls it **once per day**, before the first stream of that day
+is built, and hands its result to every `buildDay` of that day as `procOpt.prepared`:
+
+```matlab
+s.prepareDay = @prepareGrace;       % P = prepareGrace(day, common, local, procOpt, info)
+s.buildDay   = @buildDayGrace;      % D = buildDayGrace(day, obsType, common, local, procOpt, info)
+
+function P = prepareGrace(day, ~, ~, procOpt, info)
+    P.C = integrateWithPartials('C', day, procOpt, info);   % r, v and d[r;v]/dp, whole day
+    P.D = integrateWithPartials('D', day, procOpt, info);
+end
+
+function D = buildDayGrace(day, obsType, ~, ~, procOpt, info)
+    P = procOpt.prepared;               % what prepareGrace returned for this day
+    switch obsType
+        case 'posC', D = kinematicRows(P.C, day, info);
+        case 'posD', D = kinematicRows(P.D, day, info);
+        case 'kbr',  D = rangeRateRows(P.C, P.D, day, info);
+    end
+end
+```
+
+| rule | |
+|---|---|
+| arguments | as many of `(day, common, local, procOpt, info)` as the handle declares; `info` is the same day slice `buildDay` gets, `procOpt` the plain `processingOptions` |
+| how often | once per day and visit: the result stays resident as long as its day — `Options.CacheDays` days (at least the current one, also with caching off); `CacheDays = Inf` runs it once per day per run |
+| determinism | like `buildDay`: it runs again whenever its day was evicted |
+| refused | a handle of another class (`lsqvce:fit:builderKind`); a `buildDay` that declares fewer than five arguments and so never sees `procOpt` (`lsqvce:makeLoader:prepareUnused`); a `processingOptions` that already has a field `prepared` (`lsqvce:makeLoader:preparedField`) — `fit` reports both under its own prefix, the original attached as the cause |
+| when it fails | `lsqvce:makeLoader:prepareDay` names the day; your error is the cause |
 
 ## The `info` argument
 

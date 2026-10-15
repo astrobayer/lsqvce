@@ -54,6 +54,20 @@ function L = makeLoader(buildDay, opt)
 %     all six. common / local have ONE ROW per template and C columns of YOUR
 %     convention; nc and nl are DERIVED (see 'CommonParams' / 'LocalParams').
 %
+%   WHAT ALL STREAMS OF A DAY SHARE -- 'PrepareDay' (WP-141)
+%     P = prepareDay(day, common, local, procOpt, info)
+%       is called ONCE per day, before the first stream of that day is built,
+%       with as many of its five arguments as it declares (info: the same
+%       expansion slice buildDay gets). Every buildDay of that day receives
+%       procOpt.prepared = P -- the place for what several streams need (the
+%       variational partials of a satellite pair, a file every stream reads).
+%       P stays resident as long as its day: max(1, Cache * CacheDays) days,
+%       so one call per visit of the day, one per run with CacheDays = Inf.
+%       It must be deterministic like buildDay (it runs again when its day
+%       was evicted). Refused: a buildDay that declares fewer than 5 arguments
+%       (it never sees procOpt, P would be dropped) and a ProcessingOptions
+%       that already has a field 'prepared' (the toolbox never overwrites it).
+%
 %   INPUT
 %     buildDay   1x1 function_handle   the day builder above. Required.
 %     Name, Value options ([] or omitted -> defaults; canonical UpperCamelCase,
@@ -118,6 +132,9 @@ function L = makeLoader(buildDay, opt)
 %                                   nc derived from the rows (v3) or the plan (v4)
 %       'LocalParams'  RxC cell     the local templates, piped to buildDay (4th arg)
 %       'ProcessingOptions' struct  free-form options piped to buildDay (5th arg)
+%       'PrepareDay'   function_handle  the per-day hook above (WP-141); its result
+%                                   reaches every buildDay of the day as
+%                                   procOpt.prepared                 (default [])
 %       'Days'         1xD          default day list carried on L        (default [])
 %       'Name'         char/string  display name                         (default '')
 %       'Cache'        1x1 logical  keep built days resident             (default true)
@@ -210,11 +227,19 @@ function L = makeLoader(buildDay, opt)
 %                                      already names -- WP-135)
 %       lsqvce:makeLoader:priorType    a stream name collides with a prior group's,
 %                                      or starts with 'prior_' (reserved, WP-131)
+%       lsqvce:makeLoader:prepareDay   'PrepareDay' is not a function handle (WP-141)
+%       lsqvce:makeLoader:prepareUnused  'PrepareDay' is declared but buildDay takes fewer
+%                                      than 5 arguments: procOpt.prepared would never
+%                                      reach it
+%       lsqvce:makeLoader:preparedField  'ProcessingOptions' already has a field
+%                                      'prepared', the name the hook's result takes
 %
 %     Raised while READING a day (your buildDay is wrong):
 %       lsqvce:makeLoader:buildDay     your buildDay itself threw; the original error
 %                                      is attached as the cause (an lsqvce:* error
 %                                      passes unchanged: it names its cause already)
+%       lsqvce:makeLoader:prepareDay   your prepareDay threw; the day in the message,
+%                                      the original error the cause (WP-141)
 %       lsqvce:makeLoader:badDay       a required field (.A .B .l .t) is missing or is not
 %                                      a 1 x nArc cell, or the day carries a field that is
 %                                      not .A .B .l .t .Cep .nAxis (the v5 arcIdx / arcId
@@ -246,6 +271,12 @@ function L = makeLoader(buildDay, opt)
 %   See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.DECLARATION,
 %            LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.ENGINE.SYNTHLOADER
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-141: the per-day hook PrepareDay
+%   -- called once per day before the day's first stream is built, its result
+%   procOpt.prepared for every buildDay of that day, resident as long as the
+%   day; the ids prepareDay, prepareUnused and preparedField; the dead
+%   narginchk retired (the arguments block refuses a call without buildDay).
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135): the
 %   validity rule moved to the private validityOf, one definition with the
 %   declaration's, the row named in every message; the prior pseudo-streams
@@ -337,11 +368,14 @@ arguments
     opt.CommonParams cell = {}
     opt.LocalParams cell = {}
     opt.ProcessingOptions (1,1) struct = struct()
+    opt.PrepareDay = []           % WP-141: @(day, common, local, procOpt, info) -> P, once per day;
+                                  % every buildDay of that day gets procOpt.prepared = P
     opt.Scoped (1,1) logical = false
     opt.CommonPlan = []
 end
 
-    narginchk(1, inf);
+    % (WP-141: narginchk(1, inf) retired -- buildDay is a required positional
+    % argument of the arguments block, which refuses a call without it)
     if ~isa(buildDay, 'function_handle')
         error('lsqvce:makeLoader:buildDay', 'buildDay must be a function handle.');
     end
@@ -355,7 +389,7 @@ end
                'priors', opt.Priors, 'nameColumn', opt.NameColumn, ...
                'validityColumns', opt.ValidityColumns, 'commonParams', {opt.CommonParams}, ...
                'localParams', {opt.LocalParams}, 'processingOptions', opt.ProcessingOptions, ...
-               'scoped', opt.Scoped, 'commonPlan', opt.CommonPlan);
+               'scoped', opt.Scoped, 'commonPlan', opt.CommonPlan, 'prepareDay', {opt.PrepareDay});
 
     % ---- map long option names onto the short internal fields -------------
     % Canonical long names only. The resolved value is written onto the SHORT
@@ -368,7 +402,7 @@ end
     o.nc       = o.numCommon;
     o.common   = o.commonParams;
     o.local    = o.localParams;
-    o.procOpt  = o.processingOptions;
+    [o.procOpt, prep] = preparedSpec(o.prepareDay, buildDay, o.processingOptions, o.cache, o.cacheDays);
 
     obsTypes = cellstr(o.obsTypes);
     if isempty(obsTypes)
@@ -522,7 +556,7 @@ end
     % without a declared schedule (R6 WP-102), and an anonymous function
     % cannot capture a struct field that does not exist yet.
     dayAccessor = @(day, obsType) dayOf(buildDay, cache, arcCounts, capacity, day, obsType, ...
-                                        o.common, o.local, o.procOpt, plan, o.commonPlan);
+                                        o.common, o.local, o.procOpt, plan, o.commonPlan, prep);
     disc = struct('dayFcn', dayAccessor, 'counts', arcCounts);   % the discovery instrument
     L.meta    = @(varargin) metaOf(obsTypes, o.arcs, ...
                                    metaDay(varargin, o.days), disc, L);
@@ -1085,16 +1119,19 @@ function v = checkArcIds(v, obsType, day, who)
     end
 end
 
-function D = dayOf(buildDay, cache, arcCounts, capacity, day, obsType, common, local, procOpt, plan, commonPlan)
+function D = dayOf(buildDay, cache, arcCounts, capacity, day, obsType, common, local, procOpt, plan, commonPlan, prep)
 %DAYOF  Return the built+validated day struct for (day,obsType), using a
 %   cache of CAPACITY resident (day, stream) slots (0 = none; CacheDays x
 %   streams; Inf = every day of the run -- R5 M4 4d: a two-stage pass builds
 %   every day twice, accumulate + sweep, and a VCE run 2n+1 times; with the
 %   calendar resident it is ONCE per run). Eviction is FIFO by the sequence
 %   number stored with each entry (R6 WP-102). Every build memoises the
-%   day's arc count in ARCCOUNTS for the discovery probe.
+%   day's arc count in ARCCOUNTS for the discovery probe. PREP is the per-day
+%   hook (WP-141, preparedSpec): its result for the day rides into buildDay
+%   as procOpt.prepared, computed once per resident day (preparedOf).
 %   OUTPUT D 1x1 struct  the day data.
     if nargin < 11, commonPlan = []; end
+    if nargin < 12, prep = struct('fcn', []); end
     key = dayKey(day, obsType);
     useCache = capacity > 0;
     if useCache && isKey(cache, key)
@@ -1102,6 +1139,9 @@ function D = dayOf(buildDay, cache, arcCounts, capacity, day, obsType, common, l
     end
     arcInfo = arcInfoOf(plan, day);           % WP-52: [] unless a plan exists
     arcInfo = addCommonInfo(arcInfo, commonPlan, day);   % L11: v4 common slice
+    if ~isempty(prep.fcn)                                  % WP-141: what all streams share
+        procOpt.prepared = preparedOf(prep, day, common, local, procOpt, arcInfo);
+    end
     D = callBuildDay(buildDay, day, obsType, common, local, procOpt, arcInfo);
     D = validateDay(D, day, obsType);
     arcCounts(key) = numel(D.A);             %#ok<NASGU>  the memo (handle Map)
@@ -1122,6 +1162,73 @@ end
 function key = dayKey(day, obsType)
 %DAYKEY  The ONE key of a (day, stream) in the cache and the arc-count memo.
     key = sprintf('%d|%s', day, obsType);
+end
+
+function [procOpt, prep] = preparedSpec(fcn, buildDay, procOpt, useCache, cacheDays)
+%PREPAREDSPEC  The processing options (returned as given) and the per-day hook
+%   (WP-141) validated against them and buildDay, with its own day cache of
+%   max(1, Cache * CacheDays) resident days: one at least, because the
+%   engines read the streams of a day one after another and the hook exists
+%   to run once for all of them. fcn = [] -> no hook (prep.fcn empty).
+    prep = struct('fcn', [], 'cache', [], 'capacity', 0);
+    if isempty(fcn), return, end
+    if ~isa(fcn, 'function_handle')
+        error('lsqvce:makeLoader:prepareDay', ...
+              'PrepareDay must be a function handle (or [] for none), not a %s.', class(fcn));
+    end
+    n = nargin(buildDay);
+    if n >= 0 && n < 5
+        error('lsqvce:makeLoader:prepareUnused', ...
+              ['PrepareDay is declared, but buildDay takes %d argument(s): the hook''s result ' ...
+               'reaches buildDay as procOpt.prepared, its 5th argument -- declare ' ...
+               'buildDay(day, obsType, common, local, procOpt[, info]).'], n);
+    end
+    if isfield(procOpt, 'prepared')
+        error('lsqvce:makeLoader:preparedField', ...
+              ['ProcessingOptions already has a field ''prepared'', the name the result of ' ...
+               'PrepareDay takes in procOpt -- rename your field.']);
+    end
+    prep.fcn      = fcn;
+    prep.cache    = containers.Map('KeyType', 'char', 'ValueType', 'any');   % handle: mutable
+    prep.capacity = 1;                                   % Cache false: the current day
+    if useCache, prep.capacity = max(1, cacheDays); end  % (0 * Inf would be NaN)
+end
+
+function P = preparedOf(prep, day, common, local, procOpt, arcInfo)
+%PREPAREDOF  The per-day hook's result for DAY (WP-141): from its day cache, or
+%   computed once -- with as many of (day, common, local, procOpt, info) as
+%   the hook declares, a varargin hook all five -- and kept FIFO among
+%   prep.capacity days (the day cache's eviction rule). Anything it throws is
+%   lsqvce:makeLoader:prepareDay with the day, the user's error the cause;
+%   an lsqvce:* error passes unchanged, as in callBuildDay.
+    key = sprintf('%d', day);
+    if isKey(prep.cache, key)
+        e = prep.cache(key);  P = e.P;  return
+    end
+    args = {day, common, local, procOpt, arcInfo};
+    n = nargin(prep.fcn);
+    try
+        if n < 0 || n >= 5
+            P = prep.fcn(args{:});
+        else
+            P = prep.fcn(args{1:max(1, n)});
+        end
+    catch ME
+        if startsWith(ME.identifier, 'lsqvce:'), rethrow(ME), end
+        E = MException('lsqvce:makeLoader:prepareDay', 'prepareDay threw on day %s: %s (%s)', ...
+                       string(day), ME.message, ME.identifier);
+        throw(addCause(E, ME));
+    end
+    seq = 0;
+    if prep.cache.Count > 0
+        ks = prep.cache.keys;  seqs = cellfun(@(x) x.seq, prep.cache.values);   % same order
+        seq = max(seqs);
+        while numel(ks) >= prep.capacity        % evict the OLDEST day (FIFO)
+            [~, i] = min(seqs);
+            remove(prep.cache, ks{i});  seqs(i) = [];  ks(i) = [];
+        end
+    end
+    prep.cache(key) = struct('P', P, 'seq', seq + 1);   %#ok<NASGU> the handle Map
 end
 
 function D = callBuildDay(buildDay, day, obsType, common, local, procOpt, arcInfo)

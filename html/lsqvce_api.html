@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.24.2 — API Reference</title>
+  <title>lsqvce 6.25.0 — API Reference</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.24.2 — API Reference</h1>
+<h1 class="title">lsqvce 6.25.0 — API Reference</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 </header>
@@ -117,19 +117,23 @@ class="toc-section-number">2.1</span> Signature</a></li>
 id="toc-where-the-handle-goes-one-per-system"><span
 class="toc-section-number">2.2</span> Where the handle goes — one per
 system</a></li>
+<li><a href="#what-all-streams-of-a-day-share-prepareday"
+id="toc-what-all-streams-of-a-day-share-prepareday"><span
+class="toc-section-number">2.3</span> What all streams of a day share —
+<code>prepareDay</code></a></li>
 <li><a href="#the-info-argument" id="toc-the-info-argument"><span
-class="toc-section-number">2.3</span> The <code>info</code>
+class="toc-section-number">2.4</span> The <code>info</code>
 argument</a></li>
 <li><a href="#the-return-value-one-cell-per-arc"
 id="toc-the-return-value-one-cell-per-arc"><span
-class="toc-section-number">2.4</span> The return value: one cell per
+class="toc-section-number">2.5</span> The return value: one cell per
 arc</a></li>
 <li><a href="#the-arc-schedule-systemsk.arcs"
 id="toc-the-arc-schedule-systemsk.arcs"><span
-class="toc-section-number">2.5</span> The arc schedule —
+class="toc-section-number">2.6</span> The arc schedule —
 <code>systems(k).arcs</code></a></li>
 <li><a href="#checks-while-reading" id="toc-checks-while-reading"><span
-class="toc-section-number">2.6</span> Checks while reading</a></li>
+class="toc-section-number">2.7</span> Checks while reading</a></li>
 </ul></li>
 <li><a href="#covariance-specifications"
 id="toc-covariance-specifications"><span
@@ -440,6 +444,15 @@ none; <code>lsqvce:fit:mixedIdTypes</code>)</td>
 argument</td>
 </tr>
 <tr class="odd">
+<td><code>prepareDay</code></td>
+<td>function handle</td>
+<td>none</td>
+<td>the work every stream of a day shares, run once per day before its
+first stream is built; its result reaches <code>buildDay</code> as
+<code>procOpt.prepared</code>, inside its 5th argument (chapter
+<code>buildDay</code>, <em>What all streams of a day share</em>)</td>
+</tr>
+<tr class="even">
 <td><code>priors</code></td>
 <td>struct array</td>
 <td>none</td>
@@ -695,10 +708,13 @@ that by its passes. Hence two rules:</p>
 <li><strong>Determinism.</strong> The same arguments must give
 byte-identical output: no random numbers, clocks or mutable
 globals.</li>
-<li><strong>Cache expensive reads yourself.</strong> The toolbox keeps
-<code>Options.CacheDays</code> built days resident (default one); a raw
-file read shared by several observation types belongs in your own cache,
-in the closure that binds <code>buildDay</code>.</li>
+<li><strong>Share the day’s common work through
+<code>prepareDay</code>.</strong> The toolbox keeps
+<code>Options.CacheDays</code> built days resident (default one). Work
+that several observation types of a day need — reading a file,
+integrating the orbits and their partials — goes into the system’s
+<code>prepareDay</code>, which runs once per day for all of them (next
+section).</li>
 </ol>
 <h2 data-number="2.2" id="where-the-handle-goes-one-per-system"><span
 class="header-section-number">2.2</span> Where the handle goes — one per
@@ -767,28 +783,106 @@ during the run — it is called again on every pass (rule 1) — and it is
 the place for your own cache (rule 2). <code>buildDay</code> that is not
 a function handle is refused before any data is read
 (<code>lsqvce:fit:builderKind</code>).</p>
-<h2 data-number="2.3" id="the-info-argument"><span
-class="header-section-number">2.3</span> The <code>info</code>
-argument</h2>
+<h2 data-number="2.3"
+id="what-all-streams-of-a-day-share-prepareday"><span
+class="header-section-number">2.3</span> What all streams of a day share
+— <code>prepareDay</code></h2>
+<p><code>buildDay</code> is called once per (day, observation type).
+When the streams of a day rest on one expensive computation — the
+reference orbits and the variational partials of both satellites, used
+by the kinematic orbits <strong>and</strong> the range-rates — give the
+system a <code>prepareDay</code> handle. <code>fit</code> calls it
+<strong>once per day</strong>, before the first stream of that day is
+built, and hands its result to every <code>buildDay</code> of that day
+as <code>procOpt.prepared</code>:</p>
 <div class="sourceCode" id="cb4"><pre
-class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">arcId</span>            <span class="co">% 1xA  ids of this day&#39;s arcs</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">offsetOf</span>         <span class="co">% @(arcId) -&gt; column offset of that arc&#39;s block in B</span></span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">count</span>            <span class="co">% 1xA  columns of each arc block (= number of &#39;arc&#39; rows)</span></span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">dayOffset</span>        <span class="co">% 1x1  this day&#39;s &#39;day&#39; block offset in B ([] if none)</span></span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">dayCount</span>         <span class="co">% 1x1  its width (0 if none)</span></span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">sysOffset</span>        <span class="co">% 1x1  the &#39;system&#39; block offset in B</span></span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">sysCount</span>         <span class="co">% 1x1  its width</span></span>
-<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">nl</span>               <span class="co">% 1x1  total local count of the system</span></span>
-<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">nc</span>               <span class="co">% 1x1  total common count</span></span>
-<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">commonCount</span>      <span class="co">% 1x1  width of A&#39;s leading &#39;common&#39; block</span></span>
-<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">commonDayOffset</span>  <span class="co">% 1x1  this day&#39;s common day-block offset in A ([] if none)</span></span>
-<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">commonDayCount</span>   <span class="co">% 1x1  its width (0 if none)</span></span>
-<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">arcRows</span><span class="op">,</span> <span class="va">info</span>.<span class="va">dayRows</span><span class="op">,</span> <span class="va">info</span>.<span class="va">sysRows</span><span class="op">,</span> <span class="va">info</span>.<span class="va">commonDayRows</span></span>
-<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>                      <span class="co">%      template rows that exist on this day (with paramColumns)</span></span></code></pre></div>
+class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="va">s</span>.<span class="va">prepareDay</span> <span class="op">=</span> <span class="op">@</span><span class="va">prepareGrace</span><span class="op">;</span>       <span class="co">% P = prepareGrace(day, common, local, procOpt, info)</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="va">s</span>.<span class="va">buildDay</span>   <span class="op">=</span> <span class="op">@</span><span class="va">buildDayGrace</span><span class="op">;</span>      <span class="co">% D = buildDayGrace(day, obsType, common, local, procOpt, info)</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="va">P</span> <span class="op">=</span> <span class="va">prepareGrace</span>(<span class="va">day</span><span class="op">,</span> <span class="op">~,</span> <span class="op">~,</span> <span class="va">procOpt</span><span class="op">,</span> <span class="va">info</span>)</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    <span class="va">P</span>.<span class="va">C</span> <span class="op">=</span> <span class="va">integrateWithPartials</span>(<span class="ss">&#39;C&#39;</span><span class="op">,</span> <span class="va">day</span><span class="op">,</span> <span class="va">procOpt</span><span class="op">,</span> <span class="va">info</span>)<span class="op">;</span>   <span class="co">% r, v and d[r;v]/dp, whole day</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    <span class="va">P</span>.<span class="va">D</span> <span class="op">=</span> <span class="va">integrateWithPartials</span>(<span class="ss">&#39;D&#39;</span><span class="op">,</span> <span class="va">day</span><span class="op">,</span> <span class="va">procOpt</span><span class="op">,</span> <span class="va">info</span>)<span class="op">;</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="va">D</span> <span class="op">=</span> <span class="va">buildDayGrace</span>(<span class="va">day</span><span class="op">,</span> <span class="va">obsType</span><span class="op">,</span> <span class="op">~,</span> <span class="op">~,</span> <span class="va">procOpt</span><span class="op">,</span> <span class="va">info</span>)</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    <span class="va">P</span> <span class="op">=</span> <span class="va">procOpt</span>.<span class="va">prepared</span><span class="op">;</span>               <span class="co">% what prepareGrace returned for this day</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>    <span class="kw">switch</span> <span class="va">obsType</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>        <span class="kw">case</span> <span class="ss">&#39;posC&#39;</span><span class="op">,</span> <span class="va">D</span> <span class="op">=</span> <span class="va">kinematicRows</span>(<span class="va">P</span>.<span class="va">C</span><span class="op">,</span> <span class="va">day</span><span class="op">,</span> <span class="va">info</span>)<span class="op">;</span></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>        <span class="kw">case</span> <span class="ss">&#39;posD&#39;</span><span class="op">,</span> <span class="va">D</span> <span class="op">=</span> <span class="va">kinematicRows</span>(<span class="va">P</span>.<span class="va">D</span><span class="op">,</span> <span class="va">day</span><span class="op">,</span> <span class="va">info</span>)<span class="op">;</span></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>        <span class="kw">case</span> <span class="ss">&#39;kbr&#39;</span><span class="op">,</span>  <span class="va">D</span> <span class="op">=</span> <span class="va">rangeRateRows</span>(<span class="va">P</span>.<span class="va">C</span><span class="op">,</span> <span class="va">P</span>.<span class="va">D</span><span class="op">,</span> <span class="va">day</span><span class="op">,</span> <span class="va">info</span>)<span class="op">;</span></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>    <span class="kw">end</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span></code></pre></div>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>rule</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>arguments</td>
+<td>as many of <code>(day, common, local, procOpt, info)</code> as the
+handle declares; <code>info</code> is the same day slice
+<code>buildDay</code> gets, <code>procOpt</code> the plain
+<code>processingOptions</code></td>
+</tr>
+<tr class="even">
+<td>how often</td>
+<td>once per day and visit: the result stays resident as long as its day
+— <code>Options.CacheDays</code> days (at least the current one, also
+with caching off); <code>CacheDays = Inf</code> runs it once per day per
+run</td>
+</tr>
+<tr class="odd">
+<td>determinism</td>
+<td>like <code>buildDay</code>: it runs again whenever its day was
+evicted</td>
+</tr>
+<tr class="even">
+<td>refused</td>
+<td>a handle of another class (<code>lsqvce:fit:builderKind</code>); a
+<code>buildDay</code> that declares fewer than five arguments and so
+never sees <code>procOpt</code>
+(<code>lsqvce:makeLoader:prepareUnused</code>); a
+<code>processingOptions</code> that already has a field
+<code>prepared</code> (<code>lsqvce:makeLoader:preparedField</code>) —
+<code>fit</code> reports both under its own prefix, the original
+attached as the cause</td>
+</tr>
+<tr class="odd">
+<td>when it fails</td>
+<td><code>lsqvce:makeLoader:prepareDay</code> names the day; your error
+is the cause</td>
+</tr>
+</tbody>
+</table>
+<h2 data-number="2.4" id="the-info-argument"><span
+class="header-section-number">2.4</span> The <code>info</code>
+argument</h2>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">arcId</span>            <span class="co">% 1xA  ids of this day&#39;s arcs</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">offsetOf</span>         <span class="co">% @(arcId) -&gt; column offset of that arc&#39;s block in B</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">count</span>            <span class="co">% 1xA  columns of each arc block (= number of &#39;arc&#39; rows)</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">dayOffset</span>        <span class="co">% 1x1  this day&#39;s &#39;day&#39; block offset in B ([] if none)</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">dayCount</span>         <span class="co">% 1x1  its width (0 if none)</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">sysOffset</span>        <span class="co">% 1x1  the &#39;system&#39; block offset in B</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">sysCount</span>         <span class="co">% 1x1  its width</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">nl</span>               <span class="co">% 1x1  total local count of the system</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">nc</span>               <span class="co">% 1x1  total common count</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">commonCount</span>      <span class="co">% 1x1  width of A&#39;s leading &#39;common&#39; block</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">commonDayOffset</span>  <span class="co">% 1x1  this day&#39;s common day-block offset in A ([] if none)</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">commonDayCount</span>   <span class="co">% 1x1  its width (0 if none)</span></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">arcRows</span><span class="op">,</span> <span class="va">info</span>.<span class="va">dayRows</span><span class="op">,</span> <span class="va">info</span>.<span class="va">sysRows</span><span class="op">,</span> <span class="va">info</span>.<span class="va">commonDayRows</span></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>                      <span class="co">%      template rows that exist on this day (with paramColumns)</span></span></code></pre></div>
 <p>Fill <code>B(rows, info.offsetOf(id) + (1:k))</code> and
 <code>A(:, info.commonDayOffset + (1:w))</code>.</p>
-<h2 data-number="2.4" id="the-return-value-one-cell-per-arc"><span
-class="header-section-number">2.4</span> The return value: one cell per
+<h2 data-number="2.5" id="the-return-value-one-cell-per-arc"><span
+class="header-section-number">2.5</span> The return value: one cell per
 arc</h2>
 <p>Every field is a <strong>1 × nArc cell</strong>; cell a is arc a. A
 day with one arc returns <code>{A}</code>; a day without data returns
@@ -854,8 +948,8 @@ freedom, <code>rejected</code> in the verdict</td>
 unwhitened</strong> matrices: the toolbox whitens every arc from the
 covariance spec and reweights it during the variance-component loop. No
 other field is allowed (<code>lsqvce:makeLoader:badDay</code>).</p>
-<h3 data-number="2.4.1" id="cep-the-per-epoch-accuracy"><span
-class="header-section-number">2.4.1</span> <code>Cep</code> — the
+<h3 data-number="2.5.1" id="cep-the-per-epoch-accuracy"><span
+class="header-section-number">2.5.1</span> <code>Cep</code> — the
 per-epoch accuracy</h3>
 <table>
 <colgroup>
@@ -898,8 +992,8 @@ absolute accuracy. A multi-axis day without <code>Cep</code> is whitened
 with D = I and reported once per run
 (<code>lsqvce:makeLoader:noCep</code>); a <code>var</code> law takes no
 <code>Cep</code>.</p>
-<h2 data-number="2.5" id="the-arc-schedule-systemsk.arcs"><span
-class="header-section-number">2.5</span> The arc schedule —
+<h2 data-number="2.6" id="the-arc-schedule-systemsk.arcs"><span
+class="header-section-number">2.6</span> The arc schedule —
 <code>systems(k).arcs</code></h2>
 <table>
 <colgroup>
@@ -939,8 +1033,8 @@ refused (<code>lsqvce:makeLoader:emptyDay</code>).</td>
 number of cells must match (<code>lsqvce:makeLoader:arcCount</code>). An
 arc a scheduled day does not carry is returned as an empty cell.
 <code>'arc'</code> template rows require a declared schedule.</p>
-<h2 data-number="2.6" id="checks-while-reading"><span
-class="header-section-number">2.6</span> Checks while reading</h2>
+<h2 data-number="2.7" id="checks-while-reading"><span
+class="header-section-number">2.7</span> Checks while reading</h2>
 <table>
 <colgroup>
 <col style="width: 50%" />
@@ -1177,10 +1271,10 @@ type, a range and a default, checked at assignment
 (<code>lsqvce:Options:*</code>). It says <em>how to run</em>; everything
 about the problem, including regularisation, is declared on
 <code>data</code>. Three equivalent spellings:</p>
-<div class="sourceCode" id="cb5"><pre
-class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="va">opts</span> <span class="op">=</span> <span class="va">lsqvce</span>.<span class="va">Options</span>(<span class="va">Estimate</span><span class="op">=</span><span class="st">&quot;noise&quot;</span><span class="op">,</span> <span class="va">MaxPasses</span><span class="op">=</span><span class="fl">6</span>)<span class="op">;</span>   <span class="va">R</span> <span class="op">=</span> <span class="va">lsqvce</span>.<span class="va">fit</span>(<span class="va">data</span><span class="op">,</span> <span class="va">opts</span>)<span class="op">;</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="va">opts</span>.<span class="va">Noise</span>.<span class="va">Grid</span> <span class="op">=</span> <span class="fl">120</span><span class="op">;</span>                                   <span class="co">% change one later (validated)</span></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="va">R</span> <span class="op">=</span> <span class="va">lsqvce</span>.<span class="va">fit</span>(<span class="va">data</span><span class="op">,</span> <span class="va">Estimate</span><span class="op">=</span><span class="st">&quot;noise&quot;</span><span class="op">,</span> <span class="va">MaxPasses</span><span class="op">=</span><span class="fl">6</span>)<span class="op">;</span>     <span class="co">% name-value pairs straight on fit</span></span></code></pre></div>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="va">opts</span> <span class="op">=</span> <span class="va">lsqvce</span>.<span class="va">Options</span>(<span class="va">Estimate</span><span class="op">=</span><span class="st">&quot;noise&quot;</span><span class="op">,</span> <span class="va">MaxPasses</span><span class="op">=</span><span class="fl">6</span>)<span class="op">;</span>   <span class="va">R</span> <span class="op">=</span> <span class="va">lsqvce</span>.<span class="va">fit</span>(<span class="va">data</span><span class="op">,</span> <span class="va">opts</span>)<span class="op">;</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="va">opts</span>.<span class="va">Noise</span>.<span class="va">Grid</span> <span class="op">=</span> <span class="fl">120</span><span class="op">;</span>                                   <span class="co">% change one later (validated)</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="va">R</span> <span class="op">=</span> <span class="va">lsqvce</span>.<span class="va">fit</span>(<span class="va">data</span><span class="op">,</span> <span class="va">Estimate</span><span class="op">=</span><span class="st">&quot;noise&quot;</span><span class="op">,</span> <span class="va">MaxPasses</span><span class="op">=</span><span class="fl">6</span>)<span class="op">;</span>     <span class="co">% name-value pairs straight on fit</span></span></code></pre></div>
 <p><code>disp(opts)</code> lists every knob, marking the defaults with
 <code>*</code>.</p>
 <h2 data-number="4.1" id="what-to-estimate"><span
@@ -1587,9 +1681,9 @@ by 10 (from 0: 1e-3), an accepted one divides it (below 1e-12: 0)</td>
 class="header-section-number">5</span> Priors</h1>
 <p>A prior is a group of pseudo-observations <code>L·x = x₀ + v</code>
 with weight <code>1/σ²</code>, declared in your columns:</p>
-<div class="sourceCode" id="cb6"><pre
-class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="va">data</span>.<span class="va">priors</span>(<span class="va">j</span>)            <span class="op">=</span> <span class="va">struct</span>(<span class="op">...</span>)   <span class="co">% on the common parameters: L in the columns of A</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="va">data</span>.<span class="va">systems</span>(<span class="va">k</span>).<span class="va">priors</span>(<span class="va">l</span>) <span class="op">=</span> <span class="va">struct</span>(<span class="op">...</span>)   <span class="co">% on system k&#39;s local parameters: L in the columns of B</span></span></code></pre></div>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="va">data</span>.<span class="va">priors</span>(<span class="va">j</span>)            <span class="op">=</span> <span class="va">struct</span>(<span class="op">...</span>)   <span class="co">% on the common parameters: L in the columns of A</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="va">data</span>.<span class="va">systems</span>(<span class="va">k</span>).<span class="va">priors</span>(<span class="va">l</span>) <span class="op">=</span> <span class="va">struct</span>(<span class="op">...</span>)   <span class="co">% on system k&#39;s local parameters: L in the columns of B</span></span></code></pre></div>
 <h2 data-number="5.1" id="fields"><span
 class="header-section-number">5.1</span> Fields</h2>
 <table>
@@ -1934,7 +2028,10 @@ declared data.</p>
                     systems; one reader for several setups takes the setup
                     through processingOptions (its 5th argument) or a
                     closure; data that share no common parameters are
-                    separate fit calls
+                    separate fit calls. What every stream of a day needs
+                    (orbits and partials of a satellite pair) goes in the
+                    system&#39;s optional prepareDay: called once per day, its
+                    result reaches each buildDay as procOpt.prepared
     (B) in memory   data.A (m x u), data.l (m x 1), optional data.p (m x 1
                     weights); optional data.priors. A FULL m x m SPD weight
                     matrix is kind C&#39;s: return it from batchFcn
@@ -2015,7 +2112,8 @@ declared data.</p>
                                  fractional MJD or [MJD seconds], or its start
                                  is after its end (WP-135; localParams: the
                                  makeLoader id, relabelled)
-      lsqvce:fit:builderKind     buildDay is not a function handle
+      lsqvce:fit:builderKind     buildDay or prepareDay is not a function
+                                 handle
       lsqvce:fit:badArcs         arcs is a string (omit arcs: the cells are
                                  the arcs), or a
                                  resolver returned something that is not
@@ -2057,6 +2155,7 @@ declared data.</p>
     Your buildDay is wrong (raised WHILE READING, by the engine, ids
     unchanged): lsqvce:makeLoader:badDay / dayShape / badArc / buildDay
     (your buildDay threw: the day, the stream and your error as the cause) /
+    prepareDay (your prepareDay threw: the day and your error as the cause) /
     badDayCep / axisConflict / cepTwice (the day&#39;s Cep and
     axis count), lsqvce:covModel:cepOnVar, lsqvce:accum:arcBadNc / arcBadNl;
     lsqvce:makeLoader:noCep is a once-per-run warning (a multi-axis day
@@ -4000,744 +4099,762 @@ listed, nothing is listed that is not raised).</p>
 <td>v4.0</td>
 </tr>
 <tr class="even">
+<td><code>lsqvce:makeLoader:prepareDay</code></td>
+<td>engine.makeLoader</td>
+<td>error</td>
+<td>v6.25.0</td>
+</tr>
+<tr class="odd">
+<td><code>lsqvce:makeLoader:prepareUnused</code></td>
+<td>engine.makeLoader</td>
+<td>error</td>
+<td>v6.25.0</td>
+</tr>
+<tr class="even">
+<td><code>lsqvce:makeLoader:preparedField</code></td>
+<td>engine.makeLoader</td>
+<td>error</td>
+<td>v6.25.0</td>
+</tr>
+<tr class="odd">
 <td><code>lsqvce:makeLoader:priorType</code></td>
 <td>engine.makeLoader</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:makeLoader:rowWeightSize</code></td>
 <td>engine.makeLoader</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:mapreduce:badTask</code></td>
 <td>engine.mapreduce</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:mapreduce:serialFallback</code></td>
 <td>engine.mapreduce</td>
 <td>warning</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:normalEq:badMerge</code></td>
 <td>engine.NormalEqSystem</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:normalEq:badWidth</code></td>
 <td>engine.NormalEqSystem</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:normalEq:cancellation</code></td>
 <td>engine.NormalEqSystem</td>
 <td>warning</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:normalEq:noData</code></td>
 <td>engine.NormalEqSystem</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:normalEq:noRedundancy</code></td>
 <td>engine.NormalEqSystem</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:normalEq:notSPD</code></td>
 <td>engine.NormalEqSystem</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:normalEq:sizeMismatch</code></td>
 <td>engine.NormalEqSystem</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:prior:badGroup</code></td>
 <td>engine.CommonPrior</td>
 <td>error</td>
 <td>v6.11.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:prior:badTarget</code></td>
 <td>engine.CommonPrior</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:probeMatrix:badDist</code></td>
 <td>engine.private.probeMatrix</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:psd2acv:aboveNyquist</code></td>
 <td>kernel.psd2acv</td>
 <td>warning</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:psd2acv:nonPositiveVariance</code></td>
 <td>kernel.psd2acv</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:psd2acv:tooFewPoints</code></td>
 <td>kernel.psd2acv</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:psdVCE:arcMismatch</code></td>
 <td>engine.psdVCE</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:psdVCE:shapeMismatch</code></td>
 <td>engine.psdVCE</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:qr:badMerge</code></td>
 <td>engine.QRSystem</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:qr:badWidth</code></td>
 <td>engine.QRSystem</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:qr:cancellation</code></td>
 <td>engine.QRSystem</td>
 <td>warning</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:qr:noData</code></td>
 <td>engine.QRSystem</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:qr:noRedundancy</code></td>
 <td>engine.QRSystem</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:qr:rankDeficient</code></td>
 <td>engine.QRSystem</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:qr:singularR</code></td>
 <td>engine.QRSystem</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:qr:sizeMismatch</code></td>
 <td>engine.QRSystem</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:reduced:notSquare</code></td>
 <td>engine.ReducedContribution</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:reduced:sizeMismatch</code></td>
 <td>engine.ReducedContribution</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:redundancy:hutchFailed</code></td>
 <td>engine.redundancy</td>
 <td>warning</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:redundancy:hutchinsonExperimental</code></td>
 <td>engine.redundancy</td>
 <td>warning</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:redundancy:identityViolated</code></td>
 <td>engine.redundancy</td>
 <td>warning</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:redundancy:noStore</code></td>
 <td>engine.redundancy</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:redundancy:smallGroup</code></td>
 <td>engine.redundancy</td>
 <td>warning</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:redundancy:spmdNoCollect</code></td>
 <td>engine.redundancy</td>
 <td>warning</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:redundancyLags:badEbar</code></td>
 <td>kernel.redundancyLags</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:redundancyLags:badLocal</code></td>
 <td>kernel.redundancyLags</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:redundancyLags:badUiZ</code></td>
 <td>kernel.redundancyLags</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:redundancyLags:badW</code></td>
 <td>kernel.redundancyLags</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:residuals:badSol</code></td>
 <td>engine.residuals</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:residuals:noStore</code></td>
 <td>engine.residuals</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:residuals:sigma0Mismatch</code></td>
 <td>engine.residuals</td>
 <td>warning</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:residuals:supersedesSol</code></td>
 <td>engine.residuals</td>
 <td>warning</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:resolveNc:conflict</code></td>
 <td>engine.resolveNc</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:resolveNc:empty</code></td>
 <td>engine.resolveNc</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:resolveNc:missing</code></td>
 <td>engine.resolveNc</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:robust:atBreakdown</code></td>
 <td>engine.private.warnAtBreakdown</td>
 <td>warning</td>
 <td>v6.1.4</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:robustWeights:badInfluence</code></td>
 <td>kernel.robustWeights</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:robustWeights:badTuning</code></td>
 <td>kernel.robustWeights</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:robustWeights:scaleFallback</code></td>
 <td>kernel.robustWeights</td>
 <td>warning</td>
 <td>v6.1.4</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:runMeta:badArg</code></td>
 <td>engine.runMeta</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:separable:acvTooShort</code></td>
 <td>kernel.separableWhiten</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:separable:badSigma</code></td>
 <td>kernel.separableWhiten</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:separable:badSigmaShape</code></td>
 <td>kernel.separableWhiten</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:separable:epochNotPD</code></td>
 <td>kernel.separableWhiten</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:separable:notWholeEpochs</code></td>
 <td>kernel.separableWhiten</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:separable:sigmaLength</code></td>
 <td>kernel.separableWhiten</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:separable:startupNotPD</code></td>
 <td>kernel.separableWhiten</td>
 <td>warning</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:sharedProbe:badProbes</code></td>
 <td>engine.sharedProbe</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:sharedProbe:notSquare</code></td>
 <td>engine.sharedProbe</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:snoop:breakdown</code></td>
 <td>engine.verdict</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:snoop:contaminated</code></td>
 <td>engine.verdict</td>
 <td>warning</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:snoop:correlatedBatch</code></td>
 <td>engine.verdict</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:snoop:downdateFailed</code></td>
 <td>engine.verdict</td>
 <td>warning</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:snoop:forcedBreakdown</code></td>
 <td>engine.verdict</td>
 <td>warning</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:snoop:forcedContaminated</code></td>
 <td>engine.verdict</td>
 <td>warning</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:snoop:forcedOverCap</code></td>
 <td>engine.verdict</td>
 <td>warning</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:snoop:indeterminate</code></td>
 <td>engine.verdict</td>
 <td>warning</td>
 <td>v6.23.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:snoop:lowRedundancy</code></td>
 <td>engine.verdict</td>
 <td>warning</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:snoop:maxReject</code></td>
 <td>engine.verdict</td>
 <td>warning</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:snoop:rejectFraction</code></td>
 <td>engine.verdict</td>
 <td>warning</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:snoop:tooContaminated</code></td>
 <td>engine.verdict</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:stat:badDof</code></td>
 <td>kernel.stat</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:stat:badProb</code></td>
 <td>kernel.stat</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:stat:sizeMismatch</code></td>
 <td>kernel.stat</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:streamContribution:badSol</code></td>
 <td>engine.streamContribution</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:streamContribution:cNotPD</code></td>
 <td>engine.streamContribution</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:streamContribution:noArcs</code></td>
 <td>engine.streamContribution</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:streamContribution:noStore</code></td>
 <td>engine.streamContribution</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:synthLoader:badArc</code></td>
 <td>engine.synthLoader</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:synthLoader:noNoiseModel</code></td>
 <td>engine.synthLoader</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:synthLoader:robustFactors</code></td>
 <td>engine.synthLoader</td>
 <td>error</td>
 <td>v6.22.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:systematic:badCovariate</code></td>
 <td>engine.verdict</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:systematic:lbUnreliable</code></td>
 <td>engine.verdict</td>
 <td>warning</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:systematic:noResiduals</code></td>
 <td>engine.verdict</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:systematic:tooFew</code></td>
 <td>engine.verdict</td>
 <td>warning</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:toeplitzCofactor:badVariance</code></td>
 <td>kernel.toeplitzCofactor</td>
 <td>warning</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:toeplitzCofactor:empty</code></td>
 <td>kernel.toeplitzCofactor</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:toeplitzCofactor:notACV</code></td>
 <td>kernel.toeplitzCofactor</td>
 <td>warning</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:traceEstimate:badOperator</code></td>
 <td>engine.traceEstimate</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:traceEstimate:needSize</code></td>
 <td>engine.traceEstimate</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:traceEstimate:notSquare</code></td>
 <td>engine.traceEstimate</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:traceEstimate:sizeMismatch</code></td>
 <td>engine.traceEstimate</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:util:log:badKey</code></td>
 <td>util.log</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:varACV:badA</code></td>
 <td>kernel.varACV</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:varACV:notStationary</code></td>
 <td>kernel.varACV</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:varWhiten:badA</code></td>
 <td>kernel.varWhiten</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:varWhiten:badSigma</code></td>
 <td>kernel.varWhiten</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:varWhiten:badStartup</code></td>
 <td>kernel.varWhiten</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:varWhiten:notWholeEpochs</code></td>
 <td>kernel.varWhiten</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:vce:badAccFcn</code></td>
 <td>engine.vce</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:vce:badSigma0</code></td>
 <td>engine.vce</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:vce:groupMismatch</code></td>
 <td>engine.vce</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:vce:hutchGroupMismatch</code></td>
 <td>engine.vce</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:vce:lowRedundancy</code></td>
 <td>engine.vce</td>
 <td>warning</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:vce:notConverged</code></td>
 <td>engine.vce</td>
 <td>warning</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:verbosity:badLevel</code></td>
 <td>util.verbosity</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:verbosity:badTag</code></td>
 <td>util.verbosity</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:whittle:badG</code></td>
 <td>kernel.whittle</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:whittle:notPD</code></td>
 <td>kernel.whittle</td>
 <td>error</td>
 <td>v4.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:covModel:badNugget</code></td>
 <td>engine.covModel</td>
 <td>error</td>
 <td>v6.6.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:covModel:nuggetNeedsWholeArc</code></td>
 <td>engine.covModel</td>
 <td>error</td>
 <td>v6.6.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:redundancyLags:badNugget</code></td>
 <td>kernel.redundancyLags</td>
 <td>error</td>
 <td>v6.6.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:accum:noRedundancy</code></td>
 <td>engine.BlockAccumulator</td>
 <td>error</td>
 <td>v6.20.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:accum:notBlockDiagonal</code></td>
 <td>engine.BlockAccumulator</td>
 <td>warning</td>
 <td>v6.20.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:accum:duplicateDay</code></td>
 <td>engine.BlockAccumulator</td>
 <td>error</td>
 <td>v6.22.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:accum:mixedIdTypes</code></td>
 <td>engine.BlockAccumulator</td>
 <td>error</td>
 <td>v6.22.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:prior:zeroRow</code></td>
 <td>engine.CommonPrior</td>
 <td>error</td>
 <td>v6.20.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:arcVarianceFactors:held</code></td>
 <td>engine.arcVarianceFactors</td>
 <td>warning</td>
 <td>v6.21.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:armaACV:truncated</code></td>
 <td>kernel.armaACV</td>
 <td>warning</td>
 <td>v6.21.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:covModel:unevenGrid</code></td>
 <td>engine.covModel</td>
 <td>warning</td>
 <td>v6.21.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:crossCorr:badLength</code></td>
 <td>kernel.crossCorr</td>
 <td>error</td>
 <td>v6.21.0</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>lsqvce:gcv:badData</code></td>
 <td>engine.gcvLambda</td>
 <td>error</td>
 <td>v6.24.0</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>lsqvce:gcv:nullUnobserved</code></td>
 <td>engine.gcvLambda</td>
 <td>error</td>

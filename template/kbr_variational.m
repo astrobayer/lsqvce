@@ -82,12 +82,16 @@ function [data, kit] = kbr_variational(cfg)
 %
 %   OUTPUT
 %     data  1x1 struct  the lsqvce declaration: commonParams, days, systems(1)
-%           (id 1, name 'GRACE-FO', buildDay, covariance, arcs, localParams,
-%           processingOptions) -- R = lsqvce.fit(data, opts)
+%           (id 1, name 'GRACE-FO', prepareDay, buildDay, covariance, arcs,
+%           localParams, processingOptions) -- R = lsqvce.fit(data, opts).
+%           prepareDay integrates every arc of the pair ONCE per day and forms
+%           the rows of every stream; buildDay picks its stream out of
+%           procOpt.prepared (WP-141 -- the template kept its own day cache
+%           before the toolbox had the hook)
 %     kit   1x1 struct  the physics as function handles, for tests and for a
 %           second iteration: unitCommon, unitLocal, coeffIndex, harmonics,
 %           makeField, fieldEval, propagate, accModel, eraRotation, readGfc,
-%           readL1B, buildDay
+%           readL1B, prepareDay, buildDay
 %
 %   ACCURACY (dev/validation/kbr_variational_mirror.py, the numerical twin)
 %     harmonics vs Legendre functions 7e-11; d/dx operators vs differences
@@ -139,6 +143,11 @@ function [data, kit] = kbr_variational(cfg)
 %
 %   See also LSQVCE.FIT, LSQVCE.OPTIONS, LSQVCE.LAYOUT, GRAVFIRE_DATA
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-141: on the toolbox's prepareDay
+%   hook -- prepareKbrDay integrates every arc of the pair once per day,
+%   buildKbrDay picks its stream from procOpt.prepared; the template's own day
+%   cache is retired. With assistance from Claude (Anthropic), model Claude
+%   Opus 5.5.
 %   Created 2026-10-12 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Opus 5.5 -- WP-122.
 %
@@ -205,15 +214,15 @@ end
         end
     end
 
-    % ---- what buildDay needs, bound once (cache: a handle, one day resident)
+    % ---- what prepareDay needs, bound once (WP-141: the toolbox keeps the day)
     po = cfg;
     po.field = F;  po.np = np;  po.unitSh = unitSh;
     po.unitIc = icUnit;  po.unitAcc = accUnit;
-    po.cache = containers.Map('KeyType', 'double', 'ValueType', 'any');
 
     s = struct();
     s.id = 1;
     s.name = 'GRACE-FO';
+    s.prepareDay = @prepareKbrDay;
     s.buildDay = @buildKbrDay;
     s.covariance = cov;
     if isempty(cfg.arcs), s.arcs = cfg.arcsPerDay; else, s.arcs = cfg.arcs; end
@@ -225,7 +234,7 @@ end
                  'coeffIndex', @coeffIndex, 'harmonics', @harmonics, 'makeField', @makeField, ...
                  'fieldEval', @fieldEval, 'propagate', @propagate, 'accModel', @accModel, ...
                  'eraRotation', @eraRotation, 'readGfc', @readGfc, 'readL1B', @readL1B, ...
-                 'buildDay', @buildKbrDay, 'field', F);
+                 'prepareDay', @prepareKbrDay, 'buildDay', @buildKbrDay, 'field', F);
 end
 
 % ==========================================================================
@@ -297,16 +306,17 @@ end
 % ==========================================================================
 %  THE DAY BUILDER
 % ==========================================================================
-function D = buildKbrDay(day, obsType, ~, ~, po, info)
-%BUILDKBRDAY  One (day, stream): A, B, l, t (+ Cep) -- one cell per arc. The
-%   whole day (every stream) is built by ONE integration of each arc and kept
-%   in po.cache; the other streams of the day are served from it.
-    if ~isKey(po.cache, day)
-        if po.cache.Count > 0, remove(po.cache, keys(po.cache)); end   % one day resident
-        po.cache(day) = computeDay(day, po, info);
-    end
-    built = po.cache(day);
-    D = built.(obsType);
+function P = prepareKbrDay(day, ~, ~, po, info)
+%PREPAREKBRDAY  The day's prepareDay (WP-141): ONE integration of every arc of
+%   the pair, the rows of every stream -- called once per day by the toolbox,
+%   which hands the result to every buildDay of the day as procOpt.prepared.
+    P = computeDay(day, po, info);
+end
+
+function D = buildKbrDay(~, obsType, ~, ~, po, ~)
+%BUILDKBRDAY  One (day, stream): A, B, l, t (+ Cep) -- one cell per arc, picked
+%   out of what prepareKbrDay built for the day (procOpt.prepared, WP-141).
+    D = po.prepared.(obsType);
 end
 
 function out = computeDay(day, po, info)

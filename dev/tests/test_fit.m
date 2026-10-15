@@ -15,6 +15,10 @@ function tests = test_fit
 %
 %   Run: runtests('tests/test_fit')
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-141: three tests of prepareDay --
+%   one call per resident day for every stream (CacheDays 1, Cache off, Inf),
+%   bitwise the same fit with the hook, the refusals and the wrapped throw.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135): a
 %   non-integer day list is lsqvce:fit:badDays, ids of two kinds
 %   lsqvce:fit:mixedIdTypes; the declaration test named for what it tests; the
@@ -276,6 +280,114 @@ end
 
 function D = throwingBuildDay(varargin) %#ok<STOUT> -- it throws, by design
 %THROWINGBUILDDAY  A user's buildDay that fails (testCharacterIdsAndAThrowingBuildDay).
+    error('test:reached', 'the user''s error');
+end
+
+function testPrepareDayRunsOncePerDayForEveryStream(tc)
+% categories: contract
+    % WP-141: the per-day hook runs ONCE per resident day, whatever the number
+    % of streams that read the day, and its result reaches buildDay as
+    % procOpt.prepared. Read through the loader's own day accessor (L.day):
+    % both streams of day 1 cost one call; with CacheDays = 1 the two
+    % streams of day 2 evict day 1, so day 1 again is a second call;
+    % Cache = false still keeps the current day (one call for two reads);
+    % CacheDays = Inf keeps the calendar (day 1 stays one call).
+    [data, cfg] = declaration();
+    s = data.systems;
+    base = {'ObservationTypes', fieldnames(s.covariance).', 'Covariance', s.covariance, ...
+            'NumLocal', cfg.nl, 'NumCommon', cfg.nc, 'Arcs', cfg.arcsPerDay, 'Days', data.days};
+    L0 = lsqvce.engine.makeLoader(@(d, ot) buildDayImpl(cfg, d, ot), base{:});
+    for setup = {{true, 1, 2}, {false, 1, 2}, {true, Inf, 1}}
+        [useCache, cacheDays, want] = setup{1}{:};
+        cnt = containers.Map('KeyType', 'double', 'ValueType', 'double');
+        L = lsqvce.engine.makeLoader(@(d, ot, c, l, po) preparedStream(po, ot), base{:}, ...
+                'Cache', useCache, 'CacheDays', cacheDays, ...
+                'PrepareDay', @(d) prepareCounted(cnt, cfg, d));
+        tc.verifyEqual(L.day(1, 'pos'), L0.day(1, 'pos'), 'buildDay reads procOpt.prepared');
+        tc.verifyEqual(L.day(1, 'kbr'), L0.day(1, 'kbr'));
+        L.day(1, 'pos');
+        tc.verifyEqual(cnt(1), 1, 'one call serves every stream and re-read of the day');
+        L.day(2, 'pos');  L.day(2, 'kbr');  L.day(1, 'pos');
+        tc.verifyEqual(cnt(1), want, sprintf('Cache %d, CacheDays %g: day 1 after day 2', ...
+                       useCache, cacheDays));
+        tc.verifyEqual(cnt(2), 1);
+    end
+end
+
+function testPrepareDayGivesTheSameFitOnceADay(tc)
+% categories: metamorphic, contract
+    % WP-141: moving the shared work of a day into prepareDay moves work, not
+    % numbers -- the same declaration with the day built in the hook and
+    % picked per stream gives bitwise the same x and sigma0 -- and with
+    % CacheDays = Inf the hook runs exactly once per day of the run.
+    [data, cfg] = declaration();
+    R0 = lsqvce.fit(data, Verbose=false);
+    cnt = containers.Map('KeyType', 'double', 'ValueType', 'double');
+    d = data;
+    d.systems.buildDay   = @(day, ot, c, l, po) preparedStream(po, ot);
+    d.systems.prepareDay = @(day) prepareCounted(cnt, cfg, day);
+    R1 = lsqvce.fit(d, Verbose=false);
+    tc.verifyEqual(R1.x, R0.x, 'bitwise: the same rows in the same order');
+    tc.verifyEqual(R1.sigma0, R0.sigma0);
+    remove(cnt, keys(cnt));
+    lsqvce.fit(d, lsqvce.Options(Verbose=false, CacheDays=Inf));
+    tc.verifyEqual(cell2mat(values(cnt, num2cell(data.days))), ones(1, numel(data.days)), ...
+                   'CacheDays Inf: one call per day per run');
+end
+
+function testPrepareDayRefusals(tc)
+% categories: contract
+    % WP-141: a hook that is not a function handle, a buildDay that never sees
+    % procOpt (the result would be dropped), a processingOptions that already
+    % has 'prepared' (never overwritten) -- refused while building the loader,
+    % relabelled under lsqvce:fit by fit; a hook that throws is
+    % lsqvce:makeLoader:prepareDay with the day, the user's error the cause.
+    [data, cfg] = declaration();
+    s = data.systems;
+    base = {'ObservationTypes', fieldnames(s.covariance).', 'Covariance', s.covariance, ...
+            'NumLocal', cfg.nl, 'NumCommon', cfg.nc, 'Arcs', cfg.arcsPerDay, 'Days', data.days};
+    picker = @(d, ot, c, l, po) preparedStream(po, ot);
+    tc.verifyError(@() lsqvce.engine.makeLoader(picker, base{:}, 'PrepareDay', 5), ...
+                   'lsqvce:makeLoader:prepareDay');
+    tc.verifyError(@() lsqvce.engine.makeLoader(@(d, ot) buildDayImpl(cfg, d, ot), base{:}, ...
+                   'PrepareDay', @(d) d), 'lsqvce:makeLoader:prepareUnused');
+    tc.verifyError(@() lsqvce.engine.makeLoader(picker, base{:}, 'PrepareDay', @(d) d, ...
+                   'ProcessingOptions', struct('prepared', 1)), 'lsqvce:makeLoader:preparedField');
+    L = lsqvce.engine.makeLoader(picker, base{:}, 'PrepareDay', @throwingPrepareDay);
+    try
+        L.day(2, 'pos');
+        tc.verifyFail('the hook throws');
+    catch e
+        tc.verifyEqual(e.identifier, 'lsqvce:makeLoader:prepareDay');
+        tc.verifyEqual(e.cause{1}.identifier, 'test:reached');
+        tc.verifyTrue(contains(e.message, 'day 2'));
+    end
+    d = data;  d.systems.prepareDay = 'notAHandle';
+    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:builderKind');
+    d = data;  d.systems.prepareDay = @(day) day;     % the fixture's buildDay is @(d, ot)
+    try
+        lsqvce.fit(d);
+        tc.verifyFail('a buildDay without procOpt must refuse the hook');
+    catch e
+        tc.verifyEqual(e.identifier, 'lsqvce:fit:prepareUnused');
+        tc.verifyEqual(e.cause{1}.identifier, 'lsqvce:makeLoader:prepareUnused');
+    end
+end
+
+function D = preparedStream(po, obsType)
+%PREPAREDSTREAM  A buildDay that picks its stream out of procOpt.prepared (WP-141).
+    D = po.prepared.(obsType);
+end
+
+function P = prepareCounted(cnt, cfg, day)
+%PREPARECOUNTED  A prepareDay that builds both streams of the day at once and
+%   counts its calls per day in the handle map CNT (WP-141 tests).
+    if isKey(cnt, day), cnt(day) = cnt(day) + 1; else, cnt(day) = 1; end
+    P = struct('pos', buildDayImpl(cfg, day, 'pos'), 'kbr', buildDayImpl(cfg, day, 'kbr'));
+end
+
+function P = throwingPrepareDay(varargin) %#ok<STOUT> -- it throws, by design
+%THROWINGPREPAREDAY  A prepareDay that fails (testPrepareDayRefusals).
     error('test:reached', 'the user''s error');
 end
 

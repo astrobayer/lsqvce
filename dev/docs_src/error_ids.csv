@@ -202,6 +202,9 @@ lsqvce:makeLoader:noArcs,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:noCov,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:noObsTypes,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:paramType,engine.makeLoader,error,v4.0
+lsqvce:makeLoader:prepareDay,engine.makeLoader,error,v6.25.0
+lsqvce:makeLoader:prepareUnused,engine.makeLoader,error,v6.25.0
+lsqvce:makeLoader:preparedField,engine.makeLoader,error,v6.25.0
 lsqvce:makeLoader:priorType,engine.makeLoader,error,v4.0
 lsqvce:makeLoader:rowWeightSize,engine.makeLoader,error,v4.0
 lsqvce:mapreduce:badTask,engine.mapreduce,error,v4.0
