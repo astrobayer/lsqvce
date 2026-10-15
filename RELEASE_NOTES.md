@@ -1,5 +1,18 @@
 # lsqvce release notes
 
+## 6.22.1 — 2026-10-15 (WP-136: where `buildDay` goes)
+
+No change to any computation.
+
+- **The API reference, chapter `buildDay`, says where the handle goes** (*Where the handle goes —
+  one per system*): every entry of `data.systems` carries its own `buildDay`; several readers in
+  one adjustment are several systems; one reader for several setups takes the setup as data,
+  through `processingOptions` (its 5th argument) or a closure; data sets that share no common
+  parameters are separate `fit` calls. The chapter gave the signature only, so a reader looking
+  for the handle next to `Options.OnPass` did not find it (user question, 2026-10-15).
+- `fit`'s help and the Manual (*Declaring your problem*, *Several systems*) say the same in one
+  sentence each.
+
 ## 6.22.0 — 2026-10-14 (WP-135: the front end, the loader and the diagnostics of the third whole-code review)
 
 Numbers change for the cases marked **numbers**; the diagnostics' verdict changes where

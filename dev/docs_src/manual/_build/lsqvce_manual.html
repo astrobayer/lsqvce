@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.22.0 — User Manual</title>
+  <title>lsqvce 6.22.1 — User Manual</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.22.0 — User Manual</h1>
+<h1 class="title">lsqvce 6.22.1 — User Manual</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 </header>
@@ -827,7 +827,10 @@ covariance specs, local parameters and calendar. Systems share only the
 common parameters. An observation that depends on the local parameters
 of two satellites — the range-rate between two GRACE spacecraft —
 belongs to <strong>one</strong> system whose local table holds both
-satellites’ parameters.</p>
+satellites’ parameters. One reader for several setups takes the setup as
+data: plain values in <code>processingOptions</code>, its 5th argument,
+or a closure that binds a configuration (API reference, chapter
+<code>buildDay</code>, <em>Where the handle goes</em>).</p>
 <h2 data-number="4.6"
 id="multi-axis-observations-and-their-accuracy"><span
 class="header-section-number">4.6</span> Multi-axis observations and
