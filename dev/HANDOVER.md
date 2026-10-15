@@ -10678,3 +10678,31 @@ with streams kbr, posC, posD; named `prepareDay` (Recommended); the hand-over is
 fit-level (the same declaration with and without the hook gives bitwise the same x; `CacheDays = Inf`
 calls it once per day per run; a non-handle is builderKind), and testKbrClosedLoopThroughFit on the
 migrated template. Predicted count: 735 + new test points (set when written), CI = local - 12.
+
+**Round note (2026-10-15, WP-141 implemented, tier B).**
+- **makeLoader.**
+  - New option `PrepareDay` ([] = none). `preparedSpec` validates it against buildDay's nargin and the processing options, and builds its own day cache: `max(1, CacheDays)` days with caching on, 1 day with caching off.
+  - `dayOf` sets `procOpt.prepared` from `preparedOf` before every buildDay call.
+  - `preparedOf` follows `callBuildDay`'s conventions:
+    - it passes as many of `(day, common, local, procOpt, info)` as the hook declares;
+    - a throw becomes `lsqvce:makeLoader:prepareDay` with the user's error as the cause, while an `lsqvce:*` error passes unchanged;
+    - eviction is FIFO, the day cache's own rule.
+  - All engine reads go through `L.day` (closure → batch → day accessor), so no engine sees a day without the hook.
+  - The new option costs one code line in the arguments block. The function's ceiling stays at 150: the dead `narginchk(1, inf)` is retired, since the arguments block already refuses a call without buildDay, and no test pinned it.
+- **declaration.** `prepareDay` is an allowed system field; a non-handle is refused with `lsqvce:fit:builderKind`; the value is mapped to `PrepareDay`.
+- **fit.** The help names the hook and its identifiers.
+- **Template.**
+  - `template/kbr_variational` uses the hook: `prepareKbrDay` integrates the day, and `buildKbrDay` picks its stream out of `procOpt.prepared`.
+  - The `po.cache` containers.Map is gone; kit exports `prepareDay` too.
+  - testKbrClosedLoopThroughFit drives the migrated template through fit end to end.
+- **Documentation.**
+  - API reference: a `prepareDay` row in the systems table, and a new section in chapter buildDay with the GRACE pattern (P.C, P.D for posC / posD / kbr). Rule 2 now points to the hook instead of "cache it yourself".
+  - The Manual has a paragraph under *Several systems*.
+  - The API cites the thrown makeLoader ids; check 20 refuses an id no code throws, which the fit-relabelled names are.
+- **Tests** (test_fit, +3: 738 local / 726 CI predicted):
+  - testPrepareDayRunsOncePerDayForEveryStream: the loader's `L.day` under Cache on / off and CacheDays 1 / Inf. One call serves both streams and a re-read; day 1 after day 2 costs a second call except at Inf.
+  - testPrepareDayGivesTheSameFitOnceADay: bitwise x and sigma0 with and without the hook; one call per day per run at CacheDays Inf.
+  - testPrepareDayRefusals: the three ids, the wrapped throw, builderKind, and the fit relabelling with its cause.
+- **Registries and docs.** error_ids.csv gained 3 rows (v6.25.0), each fired by a gated test. Stamps on makeLoader, declaration, fit, the template and test_fit. Docs rebuilt. **Version 6.25.0.**
+- **Gates:** audit CLEAN; selftest every fault caught; CI and the local ci_gate are pending.
+- **What could make CI red** (MATLAB not run here): the new tests' expectations about cache order. They follow the code paths read above; the D cache keeps day 1's second stream after day 2's first, which is why the test reads both streams of day 2.

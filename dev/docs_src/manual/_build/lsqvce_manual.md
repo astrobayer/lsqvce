@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.24.2 — User Manual"
+title: "lsqvce 6.25.0 — User Manual"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 
@@ -319,6 +319,13 @@ range-rate between two GRACE spacecraft — belongs to **one** system whose loca
 holds both satellites' parameters. One reader for several setups takes the setup as data:
 plain values in `processingOptions`, its 5th argument, or a closure that binds a
 configuration (API reference, chapter `buildDay`, *Where the handle goes*).
+
+When several streams of that system rest on one expensive computation — the orbits of
+both satellites and their partials for the whole day, used by the kinematic orbits and by
+the range-rates — put it in the system's `prepareDay`. It runs once per day, before the
+first stream of the day is built, and every `buildDay` of that day finds its result in
+`procOpt.prepared` (API reference, chapter `buildDay`, *What all streams of a day share*;
+`template/kbr_variational.m` does exactly this).
 
 ## Multi-axis observations and their accuracy
 

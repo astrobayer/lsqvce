@@ -24,6 +24,10 @@ function [spec, systems] = declaration(data, cacheDays)
 %
 %   See also LSQVCE.FIT, LSQVCE.ENGINE.MAKELOADER, LSQVCE.RESULTS
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-141: data.systems(k).prepareDay
+%   is a known field, refused by builderKind when it is not a function handle,
+%   and handed to makeLoader as PrepareDay. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135): the
 %   validity rule is the private validityOf (mjdOf retired: one rule, the
 %   loader's), the id and day rules the private idDayRules (the accumulator's
@@ -104,8 +108,8 @@ function spec = validateData(data)
     % ---- systems
     sysRequired = {'buildDay', 'covariance'};
     sysAllowed  = [sysRequired, {'localParams', 'arcs', 'days', ...
-                   'id', 'name', 'processingOptions', 'priors'}];   % priors: R5-D8 round 5;
-                                                                     % epochCovariance retired R6 WP-90
+                   'id', 'name', 'processingOptions', 'priors', ...  % priors: R5-D8 round 5;
+                   'prepareDay'}];                   % WP-141; epochCovariance retired R6 WP-90
     rejectUnknown(fieldnames(sys), sysAllowed, 'data.systems');
     ids = cell(1, numel(sys));
     for k = 1:numel(sys)
@@ -119,6 +123,10 @@ function spec = validateData(data)
         if ~isa(s.buildDay, 'function_handle')
             error('lsqvce:fit:builderKind', ...
                 'data.systems(%d): buildDay must be a function handle.', k);
+        end
+        if isfield(s, 'prepareDay') && ~isempty(s.prepareDay) && ~isa(s.prepareDay, 'function_handle')
+            error('lsqvce:fit:builderKind', ...                          % WP-141
+                'data.systems(%d): prepareDay must be a function handle.', k);
         end
         if ~isstruct(s.covariance) || ~isscalar(s.covariance) || isempty(fieldnames(s.covariance))
             error('lsqvce:fit:missingField', ...
@@ -327,7 +335,8 @@ function systems = buildSystems(spec, cacheDays)
            'localParams', 'LocalParams'; ...
            'days', 'Days'; 'name', 'Name'; ...
            'processingOptions', 'ProcessingOptions'; ...
-           'priors', 'Priors'};                           % R5-D8 round 5
+           'priors', 'Priors'; ...                        % R5-D8 round 5
+           'prepareDay', 'PrepareDay'};                   % WP-141
     systems = cell(1, numel(sys));
     for k = 1:numel(sys)
         s  = sys(k);

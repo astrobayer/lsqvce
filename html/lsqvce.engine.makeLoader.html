@@ -96,6 +96,19 @@ expansion slice (offsets of every block of A and B, the rows present on
 the day; the API reference, chapter buildDay, info). A varargin builder receives
 all six. common / local have ONE ROW per template and C columns of YOUR
 convention; nc and nl are DERIVED (see &#x27;CommonParams&#x27; / &#x27;LocalParams&#x27;).</pre>
+<h3>WHAT ALL STREAMS OF A DAY SHARE -- &#x27;PrepareDay&#x27; (WP-141)</h3>
+<pre class="example">P = prepareDay(day, common, local, procOpt, info)
+  is called ONCE per day, before the first stream of that day is built,
+  with as many of its five arguments as it declares (info: the same
+  expansion slice buildDay gets). Every buildDay of that day receives
+  procOpt.prepared = P -- the place for what several streams need (the
+  variational partials of a satellite pair, a file every stream reads).
+  P stays resident as long as its day: max(1, Cache * CacheDays) days,
+  so one call per visit of the day, one per run with CacheDays = Inf.
+  It must be deterministic like buildDay (it runs again when its day
+  was evicted). Refused: a buildDay that declares fewer than 5 arguments
+  (it never sees procOpt, P would be dropped) and a ProcessingOptions
+  that already has a field &#x27;prepared&#x27; (the toolbox never overwrites it).</pre>
 <h3>Input</h3>
 <pre class="example">  buildDay   1x1 function_handle   the day builder above. Required.
   Name, Value options ([] or omitted -&gt; defaults; canonical UpperCamelCase,
@@ -160,6 +173,9 @@ convention; nc and nl are DERIVED (see &#x27;CommonParams&#x27; / &#x27;LocalPar
                                 nc derived from the rows (v3) or the plan (v4)
     &#x27;LocalParams&#x27;  RxC cell     the local templates, piped to buildDay (4th arg)
     &#x27;ProcessingOptions&#x27; struct  free-form options piped to buildDay (5th arg)
+    &#x27;PrepareDay&#x27;   function_handle  the per-day hook above (WP-141); its result
+                                reaches every buildDay of the day as
+                                procOpt.prepared                 (default [])
     &#x27;Days&#x27;         1xD          default day list carried on L        (default [])
     &#x27;Name&#x27;         char/string  display name                         (default &#x27;&#x27;)
     &#x27;Cache&#x27;        1x1 logical  keep built days resident             (default true)
@@ -247,11 +263,19 @@ R6 WP-102), and an arc&#x27;s Cep is its own cell (finding E-01 cannot recur).</
                                    already names -- WP-135)
     lsqvce:makeLoader:priorType    a stream name collides with a prior group&#x27;s,
                                    or starts with &#x27;prior_&#x27; (reserved, WP-131)
+    lsqvce:makeLoader:prepareDay   &#x27;PrepareDay&#x27; is not a function handle (WP-141)
+    lsqvce:makeLoader:prepareUnused  &#x27;PrepareDay&#x27; is declared but buildDay takes fewer
+                                   than 5 arguments: procOpt.prepared would never
+                                   reach it
+    lsqvce:makeLoader:preparedField  &#x27;ProcessingOptions&#x27; already has a field
+                                   &#x27;prepared&#x27;, the name the hook&#x27;s result takes
 
   Raised while READING a day (your buildDay is wrong):
     lsqvce:makeLoader:buildDay     your buildDay itself threw; the original error
                                    is attached as the cause (an lsqvce:* error
                                    passes unchanged: it names its cause already)
+    lsqvce:makeLoader:prepareDay   your prepareDay threw; the day in the message,
+                                   the original error the cause (WP-141)
     lsqvce:makeLoader:badDay       a required field (.A .B .l .t) is missing or is not
                                    a 1 x nArc cell, or the day carries a field that is
                                    not .A .B .l .t .Cep .nAxis (the v5 arcIdx / arcId
@@ -283,6 +307,12 @@ R6 WP-102), and an arc&#x27;s Cep is its own cell (finding E-01 cannot recur).</
 See also LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.DECLARATION,
          LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.ENGINE.SYNTHLOADER
 
+Updated 2026-10-15 (CEST, UTC+02:00), WP-141: the per-day hook PrepareDay
+-- called once per day before the day&#x27;s first stream is built, its result
+procOpt.prepared for every buildDay of that day, resident as long as the
+day; the ids prepareDay, prepareUnused and preparedField; the dead
+narginchk retired (the arguments block refuses a call without buildDay).
+With assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135): the
 validity rule moved to the private validityOf, one definition with the
 declaration&#x27;s, the row named in every message; the prior pseudo-streams

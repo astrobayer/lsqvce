@@ -25,7 +25,10 @@ function R = fit(data, opts, nv)
 %                     systems; one reader for several setups takes the setup
 %                     through processingOptions (its 5th argument) or a
 %                     closure; data that share no common parameters are
-%                     separate fit calls
+%                     separate fit calls. What every stream of a day needs
+%                     (orbits and partials of a satellite pair) goes in the
+%                     system's optional prepareDay: called once per day, its
+%                     result reaches each buildDay as procOpt.prepared (WP-141)
 %     (B) in memory   data.A (m x u), data.l (m x 1), optional data.p (m x 1
 %                     weights); optional data.priors. A FULL m x m SPD weight
 %                     matrix is kind C's: return it from batchFcn
@@ -106,7 +109,8 @@ function R = fit(data, opts, nv)
 %                                  fractional MJD or [MJD seconds], or its start
 %                                  is after its end (WP-135; localParams: the
 %                                  makeLoader id, relabelled)
-%       lsqvce:fit:builderKind     buildDay is not a function handle
+%       lsqvce:fit:builderKind     buildDay or prepareDay is not a function
+%                                  handle
 %       lsqvce:fit:badArcs         arcs is a string (omit arcs: the cells are
 %                                  the arcs), or a
 %                                  resolver returned something that is not
@@ -148,6 +152,7 @@ function R = fit(data, opts, nv)
 %     Your buildDay is wrong (raised WHILE READING, by the engine, ids
 %     unchanged): lsqvce:makeLoader:badDay / dayShape / badArc / buildDay
 %     (your buildDay threw: the day, the stream and your error as the cause) /
+%     prepareDay (your prepareDay threw: the day and your error as the cause) /
 %     badDayCep / axisConflict / cepTwice (the day's Cep and
 %     axis count), lsqvce:covModel:cepOnVar, lsqvce:accum:arcBadNc / arcBadNl;
 %     lsqvce:makeLoader:noCep is a once-per-run warning (a multi-axis day
@@ -157,6 +162,10 @@ function R = fit(data, opts, nv)
 %            LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT,
 %            LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTNONLINEAR
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-141: the help names the system's
+%   optional prepareDay (once per day, its result procOpt.prepared) and its
+%   identifiers. With assistance from Claude (Anthropic), model Claude Opus
+%   5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135):
 %   ERRORS name lsqvce:fit:badDays and lsqvce:fit:mixedIdTypes; the prior
 %   streams are marked from their obsType (lsqvce.util.priorStream), not

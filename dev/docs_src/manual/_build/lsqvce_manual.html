@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.24.2 — User Manual</title>
+  <title>lsqvce 6.25.0 — User Manual</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.24.2 — User Manual</h1>
+<h1 class="title">lsqvce 6.25.0 — User Manual</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 </header>
@@ -831,6 +831,14 @@ satellites’ parameters. One reader for several setups takes the setup as
 data: plain values in <code>processingOptions</code>, its 5th argument,
 or a closure that binds a configuration (API reference, chapter
 <code>buildDay</code>, <em>Where the handle goes</em>).</p>
+<p>When several streams of that system rest on one expensive computation
+— the orbits of both satellites and their partials for the whole day,
+used by the kinematic orbits and by the range-rates — put it in the
+system’s <code>prepareDay</code>. It runs once per day, before the first
+stream of the day is built, and every <code>buildDay</code> of that day
+finds its result in <code>procOpt.prepared</code> (API reference,
+chapter <code>buildDay</code>, <em>What all streams of a day share</em>;
+<code>template/kbr_variational.m</code> does exactly this).</p>
 <h2 data-number="4.6"
 id="multi-axis-observations-and-their-accuracy"><span
 class="header-section-number">4.6</span> Multi-axis observations and
