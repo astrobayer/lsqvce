@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-15 — WP-137 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-137 so wie vorgeschlagen und warne/weitermachen beim snoop-Fall", after a two-axis code review of a52cd40...f616324, WP-135 + WP-136): snoop's case for the level 'indeterminate' (a warning, lsqvce:snoop:indeterminate, and it proceeds -- it ran on in silence), snoop:breakdown and forcedBreakdown fired by a test, the GCV test without a dead mute and with its tolerance at its source, gcvLambda's ACCURACY and the 6.1.4 rows of the third review's authorities, the contamination mirror faithful to the code, five tests for WP-135 fixes that had none, the ladder's constants named once; version 6.23.0.
+Last substantive update: 2026-10-15 — WP-137 DONE (PR #165, merge 1049cf0; CI GREEN on c5d879d in round 2, after one red round on 56c2cc9 whose cause was the new compare test's own fixture: ci_gate 720/720, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.70; no code change, no version (6.23.0 stays, 732 tests).
+Preceding entry: Last substantive update: 2026-10-15 — WP-137 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-137 so wie vorgeschlagen und warne/weitermachen beim snoop-Fall", after a two-axis code review of a52cd40...f616324, WP-135 + WP-136): snoop's case for the level 'indeterminate' (a warning, lsqvce:snoop:indeterminate, and it proceeds -- it ran on in silence), snoop:breakdown and forcedBreakdown fired by a test, the GCV test without a dead mute and with its tolerance at its source, gcvLambda's ACCURACY and the 6.1.4 rows of the third review's authorities, the contamination mirror faithful to the code, five tests for WP-135 fixes that had none, the ladder's constants named once; version 6.23.0.
 Preceding entry: Last substantive update: 2026-10-15 — WP-136 DONE (PR #163, merge 327d705; CI GREEN on 79a3c06 in the first round: ci_gate 715/715, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.69; no code change, no version (6.22.1 stays, 727 tests).
 Preceding entry: Last substantive update: 2026-10-15 — WP-136 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach das als kleines Doku-WP", after the question how a user provides different buildDay functions to lsqvce.fit): the API chapter buildDay says where the handle goes -- one per entry of data.systems, a setup through processingOptions or a closure, separate fit calls for data that share no common parameters; fit's help and the Manual one sentence each; no computation changed; version 6.22.1.
 Preceding entry: Last substantive update: 2026-10-14 — WP-135 DONE (PR #161, merge 17748fb; CI GREEN on 91ba351 in round 2, after one red round on 11945cf whose four causes were all WP-135's own code: ci_gate 715/715, warning inventory lsqvce:internal:testProbe only); closure PR (user: "Gemergt, mach den Abschluss-PR"): the ledger row and the closure note in §12.68 -- the third whole-code review is closed; no code change, no version (6.22.0 stays, 727 tests).
@@ -10283,7 +10284,7 @@ next step is the user's.
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 137 | the two-axis code review of WP-135 / WP-136 (a52cd40...f616324): snoop's case for 'indeterminate' (warn and proceed -- user decision; `verdict>guardContamination`, `lsqvce:snoop:indeterminate`), snoop:breakdown / forcedBreakdown fired by a test, the GCV test's dead mutes and tolerance, gcvLambda ACCURACY + the 6.1.4 rows, the contamination mirror faithful to the code (`'indeterminate'`, `'unknown'`), five tests for untested WP-135 fixes (Whitener on the noise path, snoop's re-solve Reg, snoop's rMin, compare's rank, Gauss-Newton's unsettled advice), the ladder's constants named once (`contamLaw`), the test-name typo; **version 6.23.0** | 136 (PR #163 merged 327d705; closure #164) | OPEN (2026-10-15, tier B) |
+| 137 | the two-axis code review of WP-135 / WP-136 (a52cd40...f616324): snoop's case for 'indeterminate' (warn and proceed -- user decision; `verdict>guardContamination`, `lsqvce:snoop:indeterminate`), snoop:breakdown / forcedBreakdown fired by a test, the GCV test's dead mutes and tolerance, gcvLambda ACCURACY + the 6.1.4 rows, the contamination mirror faithful to the code (`'indeterminate'`, `'unknown'`), five tests for untested WP-135 fixes (Whitener on the noise path, snoop's re-solve Reg, snoop's rMin, compare's rank, Gauss-Newton's unsettled advice), the ladder's constants named once (`contamLaw`), the test-name typo; **version 6.23.0** | 136 (PR #163 merged 327d705; closure #164) | DONE (2026-10-15, PR #165, merge 1049cf0; CI GREEN on c5d879d in round 2: ci_gate 720/720) |
 
 **The user's request (2026-10-15):** `/code-review` against a52cd40 (the user's choice: WP-135 + WP-136),
 then "Ja, mach WP-137 so wie vorgeschlagen und warne/weitermachen beim snoop-Fall". The proposal: first
@@ -10349,3 +10350,12 @@ fixtures, Force at n = 600, the Whitener's noise runs); the one failure is the n
 `lsqvce.Results` constructor reads (the established pattern in `testResultsRefusalsByName` carries it).
 The test errored before it asserted anything. Fix: `sigma0 = 1` in both structs. Warning inventory
 `lsqvce:internal:testProbe` only.
+
+**CI round 2 (c5d879d): GREEN on A8** -- `ci_gate` 720 / 720, 27 / 27 suites, the warning inventory
+`lsqvce:internal:testProbe` only; the audit job green.
+
+**Closure (2026-10-15).** WP-137 DONE: PR #165 merged as 1049cf0 (the loop's record step after the
+merge: the ledger row, this note; no code change, no version -- 6.23.0 stays, 732 tests). snoop no
+longer passes the contamination level 'indeterminate' in silence; the five WP-135 fixes that had no
+test have one. The review's judgement calls stay recorded above as WP candidates. No package is open;
+the next step is the user's.
