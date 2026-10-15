@@ -71,10 +71,19 @@ EXAMPLE  (a Tikhonov prior on local row 7 of system 1, on every day)
   for d = data.days
       c = lay.systems(1).col(7, d, []);  r = zeros(1, nl);  r(c) = 1;  rows(end+1, :) = r;
   end
-  data.systems(1).priors = struct(&#x27;L&#x27;, rows, &#x27;x0&#x27;, 0, &#x27;sigma&#x27;, 0.01, &#x27;name&#x27;, &#x27;xaccscale&#x27;, &#x27;estimate&#x27;, &quot;scale&quot;);
+  data.systems(1).priors = struct(&#x27;L&#x27;, rows, &#x27;x0&#x27;, 0, &#x27;sigma&#x27;, 0.01, &#x27;name&#x27;, &#x27;xaccscale&#x27;, &#x27;estimate&#x27;, &quot;scale&quot;);</pre>
+<h3>Accuracy</h3>
+<pre class="example">  Not applicable: it counts and indexes columns -- integers from the
+  declaration&#x27;s plans, the very plans fit builds (declaration); no
+  floating-point result. test_fit pins the columns
+  (testLayoutOfASystemWithoutLocals,
+  testSystemWithoutDaysClaimsOnlyTheGlobalCalendar). WP-139.
 
 See also LSQVCE.FIT, LSQVCE.RESULTS/TOTABLE, the API reference
 
+Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+accuracy, &quot;Not applicable&quot; with its reason. With assistance from Claude
+(Anthropic), model Claude Opus 5.5.
 Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3 finding 13): a
 system without localParams gets nl = 0 and an empty column table (it
 stopped on the loader&#x27;s empty plan). With assistance from Claude

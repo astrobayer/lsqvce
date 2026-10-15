@@ -121,6 +121,16 @@ function red = redundancy(acc, sol, opt)
 %         lsqvce.util.log.msg('%-16s r=%8.1f  sigma=%.4f\n', string(g.key), g.r, g.sigma0);
 %     end
 %
+%   ACCURACY
+%     The exact path (default): per-group r and vtv equal an independent
+%     brute-force pass over the rebuilt normals to 1e-9 relative and
+%     sum(r_i) = m - u to 1e-8 (test_parallel
+%     (testRedundancyMatchesIndependentBruteForce)); red.check < 1e-8 at
+%     cond(B) = 1.3e8 (test_reliability
+%     (testCofactorOfAnIllConditionedLocalBlockIsExact)). s0sq is a
+%     statistical estimate, relative precision sqrt(2/r_g); 'hutchinson'
+%     adds a probe estimate (LSQVCE.ENGINE.STREAMCONTRIBUTION). WP-139.
+%
 %   ERRORS
 %     lsqvce:makeKeyFcn:badGroupBy  the grouping key is not a known name or
 %                   handle (WP-38: the one shared key resolver)
@@ -135,6 +145,9 @@ function red = redundancy(acc, sol, opt)
 %
 %   See also LSQVCE.ENGINE.BLOCKCOFACTOR, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.OUTLIERS, LSQVCE.ENGINE.RESIDUALS
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, every number traced to the test that pins it. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (review 3 lows): the
 %   'hutchinson' check compares the streamed per-group traces with the exact
 %   ones (it estimated tr(I)); red.smallGroups reports the small groups

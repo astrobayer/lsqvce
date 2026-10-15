@@ -58,12 +58,21 @@ maxLag   1x1         integer   Highest lag to test, &gt;= 1. Required.
 <h3>Output</h3>
 <pre class="example">maxCorr  1x1         double    max over lags 1..maxLag of
                                 |sum(x_t x_{t+lag})| / sum(x_t^2), in [0,1].</pre>
+<h3>Accuracy</h3>
+<pre class="example">Plain lag products over the lag-0 energy, no approximation of its own;
+the statistic is a sampling quantity. White noise of n = 4000 stays
+below 3/sqrt(n), an AR(1) with phi = 0.8 lies above it, both inside
+[0, 1] (test_streamUtils (testMaxLagCorrWhiteVsCorrelated)), as in the
+Python mirror v9verify.py (HANDOVER 6.1.4, Python mirrors row). WP-139.</pre>
 <h3>Example</h3>
 <pre class="example">  w = randn(4000,1);
   assert(lsqvce.kernel.whitenessCorr(w, 5) &lt; 3/sqrt(4000));   % white -&gt; below band
 
 See also LSQVCE.ENGINE.COLLECTRESIDUALS, LSQVCE.KERNEL.CROSSCORR
 
+Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+accuracy, every number traced to the test that pins it. With assistance
+from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): the
 deleted SELECTARACV reference removed. With assistance from Claude
 (Anthropic), model Claude Opus 5.5.

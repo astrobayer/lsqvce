@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.24.0 — API Reference</title>
+  <title>lsqvce 6.24.1 — API Reference</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.24.0 — API Reference</h1>
+<h1 class="title">lsqvce 6.24.1 — API Reference</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 </header>
@@ -2176,6 +2176,11 @@ groups.</p>
     toStruct()           every public property as a struct (provenance)
     disp()               grouped display, engine defaults marked *
 
+  ACCURACY
+    Not applicable: a settings object -- typed knobs, their validation at
+    assignment and the forwarding of their values to the engine
+    (engineArgs); it forms no floating-point result. WP-139.
+
   ERRORS
     MATLAB:validators:*          a typed property receives a value outside
                                  its type / set / range (at assignment)
@@ -2443,6 +2448,13 @@ priors in it.</p>
         c = lay.systems(1).col(7, d, []);  r = zeros(1, nl);  r(c) = 1;  rows(end+1, :) = r;
     end
     data.systems(1).priors = struct(&#39;L&#39;, rows, &#39;x0&#39;, 0, &#39;sigma&#39;, 0.01, &#39;name&#39;, &#39;xaccscale&#39;, &#39;estimate&#39;, &quot;scale&quot;);
+
+  ACCURACY
+    Not applicable: it counts and indexes columns -- integers from the
+    declaration&#39;s plans, the very plans fit builds (declaration); no
+    floating-point result. test_fit pins the columns
+    (testLayoutOfASystemWithoutLocals,
+    testSystemWithoutDaysClaimsOnlyTheGlobalCalendar). WP-139.
 
   See also LSQVCE.FIT, LSQVCE.RESULTS/TOTABLE, the API reference</code></pre>
 <h1 data-number="8" id="the-engine-kernel-and-util-tiers"><span

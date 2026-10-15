@@ -52,7 +52,7 @@ WHAT IT CHECKS
        dead for a whole review)
     34 every public unit states an ACCURACY block, or is one of the frozen
        exceptions in dev/docs_src/accuracy_baseline.csv (WP-138; HANDOVER
-       6.2.1: binding for every new unit, no bulk migration -- one way)
+       6.2.1) -- none since WP-139, which wrote the 48 frozen units' blocks
     THE AUTHORITATIVE LIST is the order of calls in main(); this summary is a
        reading aid and was already four checks behind when 26 was added.
     Self-test: dev/docs_src/audit_selftest.py injects one fault per new
@@ -1589,7 +1589,11 @@ def check_length_ratchets():
 
 
 ACCURACY_BASELINE = os.path.join('dev', 'docs_src', 'accuracy_baseline.csv')
-_ACCURACY_HEAD = re.compile(r'^\s*%\s+ACCURACY\b', re.M)
+# A HEADING, not a prose line that starts with the word (WP-139: a wrapped stamp
+# read 'ACCURACY block, ...', and WP-138's read 'ACCURACY; it adds ...' -- each
+# would have passed a unit whose block was gone). Heading forms in the tree:
+# alone, '  text' (compact style), ' (qualifier)', ', AND WHEN ...'.
+_ACCURACY_HEAD = re.compile(r'^\s*%\s+ACCURACY(?:\s*$|\s{2,}\S|\s\(|,\s[A-Z]{2,})', re.M)
 
 
 def accuracy_missing():
@@ -1605,7 +1609,7 @@ def accuracy_missing():
 
 
 def check_accuracy_ratchet():
-    print('\n34. every public unit states its ACCURACY, or is a frozen exception (WP-138)')
+    print('\n34. every public unit states its ACCURACY (WP-138; no frozen exception since WP-139)')
     # WHY (HANDOVER 6.2.1): the ACCURACY block -- the function's numerical
     # claim, its authority by its 6.1.4 row, the tolerance achieved -- is
     # binding for every NEW function and every function TOUCHED since
@@ -1616,6 +1620,8 @@ def check_accuracy_ratchet():
     # without one is a finding; a frozen unit that gains one must leave the
     # list (one way, like checks 19 and 30). "Touched" stays a review duty --
     # the audit cannot see which help block a change should have extended.
+    # WP-139 (user decision, 2026-10-15): the 48 frozen units got their blocks
+    # in one sweep; the baseline is EMPTY, so every public unit must state one.
     base = {row[0] for row in _read_baseline(ACCURACY_BASELINE, 2) if row[0] != 'unit'}
     missing = accuracy_missing()
     for u in sorted(set(missing) - base):
@@ -1625,8 +1631,8 @@ def check_accuracy_ratchet():
     for u in sorted(base - set(missing)):
         note('accuracy', 'accuracy_baseline.csv row %s is STALE (the unit states its '
              'ACCURACY now, or is gone): delete it' % u)
-    print('   %d public units without an ACCURACY block, all frozen in the baseline'
-          % len(missing))
+    print('   %d public units without an ACCURACY block, %d frozen in the baseline'
+          % (len(missing), len(base)))
 
 
 def _prose(line):

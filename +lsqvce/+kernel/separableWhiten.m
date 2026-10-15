@@ -83,6 +83,15 @@ function [Aw, Bw, lw] = separableWhiten(a, s, r, sigEpoch, d, A, B, l, isFirstBa
 %     Aw, Bw, lw   the same arrays, whitened: solving with them is equivalent
 %                  to a GLS solve against C = D (R_t kron I_d) D'
 %
+%   ACCURACY
+%     Reference: the dense decorrelation (LSQVCE.KERNEL.DECORRFACTOR) of the
+%     full covariance C = D (R_t kron I_d) D'. A'A, A'l and B'B agree to 1e-8
+%     relative for a diagonal D (test_vceMath
+%     (testSeparableWhitenEqualsDenseCholesky)), A'A to 1e-8 for a full 3 x 3
+%     per-epoch covariance (testSeparableWithFullEpochCovariance); sparse
+%     blocks reproduce the dense-input result to 1e-12 of its largest entry
+%     (testKernelWhitenersAcceptSparseBlocks). WP-139.
+%
 %   ERRORS
 %     lsqvce:separable:notWholeEpochs  m is not a multiple of d, i.e. the
 %                  batch does not contain whole epochs. Rows MUST be epoch-major
@@ -98,6 +107,9 @@ function [Aw, Bw, lw] = separableWhiten(a, s, r, sigEpoch, d, A, B, l, isFirstBa
 %
 %   See also LSQVCE.KERNEL.CROSSCORR, LSQVCE.KERNEL.ARMAWHITEN, LSQVCE.ENGINE.COVMODEL
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, every number traced to the test that pins it. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+kernel (R4 decision R4-D1,

@@ -76,6 +76,15 @@ function con = contribution(acc, sol, opt)
 %                            Level 1) -- WP-134
 %       .note     char       provenance / weight-dependence reminder
 %
+%   ACCURACY
+%     Level 1 is exact (the redundancy sweep's tcc): without a common prior
+%     the t_g sum to nc to 1e-9 relative, the shares to 1 to 1e-10, and every
+%     t_g lies within max(6 se, 5 %) of a 4000-probe streamed trace
+%     (test_contribution (test_contribution_level1_trace_is_exact,
+%     test_contribution_level1_shares_sum_to_one)). Level 2 is a Hutchinson
+%     estimate (.relSE); its diagonals sum to ones(nc,1) to 1e-8 on one probe
+%     block (test_contribution (test_contribution_level2_diagonal)). WP-139.
+%
 %   EXAMPLE
 %     R   = lsqvce.fit(data, Estimate="noise");   % converged; R.acc, R.sol
 %     con = lsqvce.engine.contribution(R.acc, R.sol, 'GroupBy','obsType', 'Level',2);
@@ -86,6 +95,9 @@ function con = contribution(acc, sol, opt)
 %   See also LSQVCE.ENGINE.STREAMCONTRIBUTION, LSQVCE.ENGINE.REDUNDANCY, LSQVCE.ENGINE.VCE,
 %            LSQVCE.RESULTS
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, every number traced to the test that pins it. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (review 3 lows): .seedUsed
 %   (Level 2) and .rTotal's value with a common prior documented. With
 %   assistance from Claude (Anthropic), model Claude Opus 5.5.

@@ -6,6 +6,13 @@ function v = toolboxVersion()
 %   line of +lsqvce/Contents.m.
 %   INPUT   none
 %   OUTPUT  v  char   e.g. '5.2' ('unknown' when the line is missing)
+%   ACCURACY
+%           Not applicable: the version is read as text from Contents.m.
+%           WP-139.
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, "Not applicable" with its reason. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
+%
 %   Created 2026-09-04 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Fable 5.1 -- v5.2 docs level (lifted from runMeta).
     pkgDir = fileparts(fileparts(mfilename('fullpath')));    % +lsqvce/+util -> +lsqvce

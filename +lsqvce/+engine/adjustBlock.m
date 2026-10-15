@@ -82,6 +82,16 @@ function R = adjustBlock(systems, days, opt)
 %     R.report();          % levels 0-4
 %     xhat = R.x;          % common-parameter estimate
 %
+%   ACCURACY
+%     No arithmetic of its own: the solve is LSQVCE.ENGINE.BLOCKACCUMULATOR's,
+%     the verdict LSQVCE.ENGINE.VERDICT's. End to end (lsqvce.fit's matrix
+%     kind runs through here): x and sigma0 equal the dense normal-equation
+%     closed form to 1e-12 relative, Cxx and the whitened residual
+%     sqrt(p).*v to 1e-10 relative, at cond ~ 1e1 (test_fit
+%     (testMatrixKindReproducesAdjust)); a ragged schedule recovers the
+%     planted truth within 4 formal sigma and sigma0 = 1 within 0.15
+%     (test_adjustBlock (testRaggedScheduleSolvesAndSecondPassAgrees)). WP-139.
+%
 %   ERRORS
 %     lsqvce:adjustBlock:badSystems  systems is neither a struct array nor a
 %                                    cell of loaders
@@ -99,6 +109,9 @@ function R = adjustBlock(systems, days, opt)
 %            LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.VERDICT.SOURCE, LSQVCE.ENGINE.VERDICT.DIAGNOSE,
 %            LSQVCE.REPORT, LSQVCE.RESULTS
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, every number traced to the test that pins it. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-12 (CEST, UTC+02:00), WP-125: 'PsdMode' -- how a declared
 %   psd law whitens (fit passes Options.Noise.Whitener). With assistance from
 %   Claude (Anthropic), model Claude Opus 5.5.

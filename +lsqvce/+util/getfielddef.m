@@ -16,11 +16,19 @@ function v = getfielddef(s, f, d)
 %   OUTPUT
 %     v  any                s.(f) if present and nonempty, otherwise d
 %
+%   ACCURACY
+%     Not applicable: it returns a stored value or the default, unchanged
+%     (test_util pins the cases: present, missing, empty, non-struct).
+%     WP-139.
+%
 %   EXAMPLE
 %     p = lsqvce.util.getfielddef(opt, 'arOrder', 30);
 %
 %   See also LSQVCE.UTIL.MERGESTRUCT, ISFIELD
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, "Not applicable" with its reason. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Opus 4.8.
 

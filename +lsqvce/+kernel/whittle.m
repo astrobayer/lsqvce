@@ -30,6 +30,14 @@ function [A, Sigma, info] = whittle(G, p)
 %     process silently destroys the lead/lag information -- exactly the part
 %     that made a VAR necessary.
 %
+%   ACCURACY
+%     Reference: the generating VAR. On the exact cross-ACV of a VAR(2),
+%     d = 3 (LSQVCE.KERNEL.VARACV) the A_k come back to 1e-8 of norm(A_1) and
+%     Sigma to 1e-9 relative, and an order-4 fit leaves norm(A_3) + norm(A_4)
+%     below 1e-7 of norm(A_1) (test_parallel (testWhittleRecoversGenerator)).
+%     The Python mirror dev/validation/v6verify.py (tests 3-4) asserts 1e-9
+%     on A, 1e-10 on Sigma and 1e-8 on the extra matrices. WP-139.
+%
 %   ERRORS
 %     lsqvce:whittle:badG    the periodogram argument has the wrong shape
 %     lsqvce:whittle:notPD   the fitted innovation covariance is not positive
@@ -37,6 +45,9 @@ function [A, Sigma, info] = whittle(G, p)
 %
 %   See also LSQVCE.KERNEL.VARACV, LSQVCE.KERNEL.VARWHITEN, LSQVCE.KERNEL.LEVINSONDURBIN
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, every number traced to the test that pins it. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): the
 %   deleted SELECTARORDER reference removed. With assistance from Claude
 %   (Anthropic), model Claude Opus 5.5.

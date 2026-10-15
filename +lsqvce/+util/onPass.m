@@ -19,7 +19,14 @@ function go = onPass(hook, ctxExtra, ctx)
 %           ctxExtra struct                 fields merged into ctx (fit's data, processingOptions)
 %           ctx      struct                 the driver's per-pass context
 %   OUTPUT  go       1x1 logical            true = continue, false = stop
+%   ACCURACY
+%           Not applicable: it merges a context struct and calls the hook.
+%           WP-139.
 %   ERRORS  lsqvce:callUser:threw  the hook threw (its error is the cause)
+%
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, "Not applicable" with its reason. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %
 %   Created 2026-09-03 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.1 -- R5 Level M5, WP-87 round 5c'

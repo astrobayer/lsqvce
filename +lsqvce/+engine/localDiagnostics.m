@@ -56,11 +56,24 @@ function dg = localDiagnostics(Nll, opt)
 %         disp(dg.nullDir.')
 %     end
 %
+%   ACCURACY
+%     No reference value is pinned: the spectral outputs come from one
+%     symmetric eig of (Nll + Nll')/2 and serve as a classification. Pinned
+%     by behaviour: near-collinear local columns (collinearEps 1e-9) read
+%     condNll > 1e8 and a status other than 'ok'; at 1e-12 nullDir sits on
+%     the two collinear columns with opposite signs; a zero 3 x 3 block
+%     reads rankDef 3 (test_reliability (testDiagnosticsFlagIllConditioning,
+%     testNullDirectionIdentifiesTheCulprit,
+%     testAZeroLocalBlockIsWhollyRankDeficient)). WP-139.
+%
 %   ERRORS
 %     lsqvce:localDiagnostics:notFinite  a local block carries NaN or Inf
 %
 %   See also LSQVCE.ENGINE.APPLYREGULARISATION, LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, every number traced to the test that pins it. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lane 1): rankDef
 %   counts eigenvalues at or below TruncTol * max(lambda_max, 0) -- an all-zero
 %   block read 0 deficient directions while its status said rank-deficient. With

@@ -71,6 +71,13 @@ STATIONARITY IS CHECKED
   covariance to compute.</pre>
 <h3>Output</h3>
 <pre class="example">G  d x d x (K+1)  Gamma(0..K), the cross-autocovariance sequence</pre>
+<h3>Accuracy</h3>
+<pre class="example">Closed form: the Yule-Walker identities on the returned sequence.
+Gamma(0) - sum A_k Gamma(k)&#x27; = Sigma to 1e-10 relative and Gamma(j) =
+sum A_k Gamma(j-k) to 1e-10 of norm(Gamma(0)) for a VAR(2), d = 3
+(test_parallel (testVarACVYuleWalker)); a VAR(0) returns Sigma and zero
+lags exactly (test_signalCore (testCovModelTakesAVar1)). The Python
+mirror dev/validation/v6verify.py holds both to 1e-11. WP-139.</pre>
 <h3>Errors</h3>
 <pre class="example">  lsqvce:varACV:badA           the coefficient array is not d x d x p
   lsqvce:varACV:notStationary  the VAR process is not stationary, so no
@@ -78,6 +85,9 @@ STATIONARITY IS CHECKED
 
 See also LSQVCE.KERNEL.WHITTLE, LSQVCE.KERNEL.VARWHITEN, LSQVCE.KERNEL.ARMAACV
 
+Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+accuracy, every number traced to the test that pins it. With assistance
+from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-13 (CEST, UTC+02:00), WP-134: a VAR(0) (whittle(G, 0)&#x27;s
 d x d x 0) is white noise; the companion form of order 0 grew to d x 0
 and eig raised an unnamed MATLAB error. With assistance from Claude

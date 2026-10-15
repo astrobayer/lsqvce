@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.24.0 — API Reference"
+title: "lsqvce 6.24.1 — API Reference"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 
@@ -857,6 +857,11 @@ LSQVCE.OPTIONS  The one settings object for LSQVCE.FIT: 12 knobs and 5 groups.
     toStruct()           every public property as a struct (provenance)
     disp()               grouped display, engine defaults marked *
 
+  ACCURACY
+    Not applicable: a settings object -- typed knobs, their validation at
+    assignment and the forwarding of their values to the engine
+    (engineArgs); it forms no floating-point result. WP-139.
+
   ERRORS
     MATLAB:validators:*          a typed property receives a value outside
                                  its type / set / range (at assignment)
@@ -1136,6 +1141,13 @@ LSQVCE.LAYOUT  The column layout fit will use -- so you can declare priors in it
         c = lay.systems(1).col(7, d, []);  r = zeros(1, nl);  r(c) = 1;  rows(end+1, :) = r;
     end
     data.systems(1).priors = struct('L', rows, 'x0', 0, 'sigma', 0.01, 'name', 'xaccscale', 'estimate', "scale");
+
+  ACCURACY
+    Not applicable: it counts and indexes columns -- integers from the
+    declaration's plans, the very plans fit builds (declaration); no
+    floating-point result. test_fit pins the columns
+    (testLayoutOfASystemWithoutLocals,
+    testSystemWithoutDaysClaimsOnlyTheGlobalCalendar). WP-139.
 
   See also LSQVCE.FIT, LSQVCE.RESULTS/TOTABLE, the API reference
 ```

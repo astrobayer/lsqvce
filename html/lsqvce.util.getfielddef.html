@@ -56,11 +56,18 @@ f  1xk  char         field name
 d  any                the default, returned when s.(f) is absent or empty</pre>
 <h3>Output</h3>
 <pre class="example">v  any                s.(f) if present and nonempty, otherwise d</pre>
+<h3>Accuracy</h3>
+<pre class="example">Not applicable: it returns a stored value or the default, unchanged
+(test_util pins the cases: present, missing, empty, non-struct).
+WP-139.</pre>
 <h3>Example</h3>
 <pre class="example">  p = lsqvce.util.getfielddef(opt, &#x27;arOrder&#x27;, 30);
 
 See also LSQVCE.UTIL.MERGESTRUCT, ISFIELD
 
+Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+accuracy, &quot;Not applicable&quot; with its reason. With assistance from Claude
+(Anthropic), model Claude Opus 5.5.
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude
 (Anthropic), model Claude Opus 4.8.</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>

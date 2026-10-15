@@ -50,6 +50,16 @@ function out = outliers(acc, sol, opt)
 %     largest first). Rejecting many at once on a single pass is how good data
 %     gets thrown away.
 %
+%   ACCURACY
+%     w_i = |v_i| / sqrt(r_i) is exact arithmetic on the exact r_i of
+%     LSQVCE.ENGINE.REDUNDANCY; the flag is Baarda's test at the caller's
+%     fixed Threshold (no critical value is computed here). Against planted
+%     data, a +15 sigma blunder is flagged in its own arc and clean data flag
+%     fewer than 0.05 x the total redundancy at 4.0 (test_signalCore
+%     (testOutliersFlagsInjectedBlunder, testOutliersCleanDataNoFalseStorm);
+%     properties first set in v8verify.py, HANDOVER 6.1.4 row "Python mirrors
+%     (second language)"). WP-139.
+%
 %   EXAMPLE
 %     sol = acc.solve();
 %     out = lsqvce.engine.outliers(acc, sol, 'threshold', 4.0);
@@ -72,6 +82,9 @@ function out = outliers(acc, sol, opt)
 %   model Claude Fable 5.
 %   See also LSQVCE.ENGINE.REDUNDANCY, LSQVCE.ENGINE.BLOCKCOFACTOR, LSQVCE.ENGINE.VCE
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, every number traced to the test that pins it. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lane 6): out.mask
 %   returns the arc's logical mask (it returned row indices). With assistance
 %   from Claude (Anthropic), model Claude Opus 5.5.

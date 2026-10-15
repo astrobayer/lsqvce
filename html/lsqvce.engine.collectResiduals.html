@@ -66,12 +66,20 @@ field    1xk   char|string   Which per-arc field to stack:
 <h3>Example</h3>
 <pre class="example">w = lsqvce.engine.collectResiduals(res, &#x27;C&#x27;, &#x27;pos&#x27;);       % GRACE-C, whitened
 vAll = lsqvce.engine.collectResiduals(res, [], &#x27;rr&#x27;, &#x27;v&#x27;); % raw, both satellites</pre>
+<h3>Accuracy</h3>
+<pre class="example">Not applicable: the selected field&#x27;s values are copied unchanged into
+one column (a vertical concatenation, no arithmetic); which arcs are
+taken is pinned by count in test_streamUtils
+(testCollectResidualsFilters). WP-139.</pre>
 <h3>Errors</h3>
 <pre class="example">  lsqvce:collectResiduals:badRes  the residual field is absent or the wrong
                                 shape
 
 See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.KERNEL.WHITENESSCORR
 
+Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+accuracy, &quot;Not applicable&quot; with its reason. With assistance from Claude
+(Anthropic), model Claude Opus 5.5.
 Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): the
 deleted KERNEL.RESIDUALACV reference removed. With assistance from
 Claude (Anthropic), model Claude Opus 5.5.

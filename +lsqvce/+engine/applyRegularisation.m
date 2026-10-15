@@ -67,6 +67,16 @@ function [Nr, nr, dg] = applyRegularisation(Nll, nl, dg, opt, mObs, ltl)
 %     [Nr, nr, dg] = lsqvce.engine.applyRegularisation(Nll, nl, dg, opt, mObs, ltl);
 %     lsqvce.util.log.msg('%s, lambda = %.3e\n', dg.regUsed, dg.lambdaUsed);
 %
+%   ACCURACY
+%     No reference value is pinned: Nr is Nll + lambda*L'*L or
+%     Nll + lambda*diag(Nll) as written, and 'tsvd' floors one symmetric eig
+%     (the accumulator then truncates the UNFLOORED Nll instead, WP-133).
+%     Pinned by behaviour: every branch gives a finite x on near-collinear
+%     local columns (collinearEps 1e-10) and 'auto' leaves a healthy block
+%     alone (test_reliability (testAllRegularisationBranchesRun,
+%     testAutoRegDispatchesOnStatus)). The GCV lambda is
+%     LSQVCE.ENGINE.GCVLAMBDA's (see its ACCURACY). WP-139.
+%
 %   ERRORS
 %     lsqvce:applyReg:badLambda     lambda is not a non-negative scalar
 %     lsqvce:applyReg:badRegMatrix  the regularisation matrix has the wrong size
@@ -79,6 +89,9 @@ function [Nr, nr, dg] = applyRegularisation(Nll, nl, dg, opt, mObs, ltl)
 %
 %   See also LSQVCE.ENGINE.LOCALDIAGNOSTICS, LSQVCE.ENGINE.GCVLAMBDA, LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, every number traced to the test that pins it. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3 finding 16): takes
 %   mObs and l'l and hands them to gcvLambda, whose functional is now the
 %   GCV of the data (it read N as the design). With assistance from Claude
