@@ -84,6 +84,17 @@ classdef BlockCofactor
 %       h = sum(Q.halfRows(A).^2, 1).';                % leverage of batch 1
 %       C = Q.block([1 2]);                            % 2 x 2 cofactor of x(1:2)
 %
+%   ACCURACY
+%     halfRows, qxxTimes, diagonal and block equal the dense inv(N) of the
+%     assembled block-arrow normals (prior rows included) to 1e-10 of
+%     max(1, max|inv(N)|), maxCorrelation to 1e-10 (WP-86 Python mirror:
+%     ~1e-16, HANDOVER 12.42); after a downdate, qxxTimes and the closed-form
+%     x match a dense re-solve to 1e-9; a QR-kept local block at cond(B) =
+%     1.3e8 keeps diag(Qxx) to 1e-6 relative of a fresh QR. test_vceFunction
+%     (testBlockCofactorMatchesDenseInverse,
+%     testBlockCofactorDowndateMatchesDense,
+%     testBlockCofactorDowndateOfAnIllConditionedLocalBlockIsExact). WP-139.
+%
 %   ERRORS
 %     lsqvce:BlockCofactor:badBlocks       a block's sizes disagree with Rc
 %     lsqvce:BlockCofactor:multiSystemRow  downdate (or systemOf) of rows that
@@ -94,6 +105,9 @@ classdef BlockCofactor
 %   See also LSQVCE.ENGINE.VERDICT.SOURCE, LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SNOOP,
 %   LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, every number traced to the test that pins it. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-133 (review 3 finding 3): the
 %   local factor is made full (a sparse B left it sparse and the downdate's
 %   cholupdate failed); a block of rank 0 (kept basis nl x 0) is a zero block,

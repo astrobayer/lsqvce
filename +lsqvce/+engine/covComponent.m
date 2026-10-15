@@ -36,12 +36,23 @@ function y = covComponent(x, n)
 %     x = (1:6).';
 %     lsqvce.engine.covComponent(x, 2)      % = [x3+0; x4+0; x5+x1; x6+x2; 0+x3; 0+x4]
 %
+%   ACCURACY
+%     Exact: each entry is a stored value or the sum of two, one rounding at
+%     most. n = 0 returns x bitwise; every lag matches the dense V_n * x to
+%     1e-12 absolute, and sum_n c(n) V_n x the dense toeplitz(c) * x of Ellmer
+%     eq. 6.5.17 to 1e-12 (test_ellmer (test_covComponent_n0_is_identity,
+%     test_covComponent_matches_dense_Vn, test_covComponent_sums_to_toeplitz)).
+%     WP-139.
+%
 %   ERRORS
 %     lsqvce:covComponent:badLag    the lag is not a non-negative integer
 %     lsqvce:covComponent:lagTooLarge  the lag exceeds the series length
 %
 %   See also LSQVCE.KERNEL.TOEPLITZCOFACTOR, LSQVCE.KERNEL.DCTI, LSQVCE.KERNEL.REDUNDANCYLAGS
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, every number traced to the test that pins it. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Opus 4.8.
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,

@@ -17,6 +17,10 @@ function s = mergeStruct(s, t)
 %   NOTE this is a SHALLOW merge: a struct-valued field of t replaces the whole
 %   corresponding field of s rather than being merged into it recursively.
 %
+%   ACCURACY
+%     Not applicable: field values are copied, not computed (test_util
+%     pins later-wins, added fields and the empty overlay). WP-139.
+%
 %   EXAMPLE
 %     a = struct('type','psd','arOrder',30);
 %     b = struct('arOrder',60);
@@ -24,6 +28,9 @@ function s = mergeStruct(s, t)
 %
 %   See also LSQVCE.UTIL.GETFIELDDEF, FIELDNAMES
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, "Not applicable" with its reason. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Opus 4.8.
 

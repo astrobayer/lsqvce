@@ -29,8 +29,18 @@ function lay = layout(data)
 %     end
 %     data.systems(1).priors = struct('L', rows, 'x0', 0, 'sigma', 0.01, 'name', 'xaccscale', 'estimate', "scale");
 %
+%   ACCURACY
+%     Not applicable: it counts and indexes columns -- integers from the
+%     declaration's plans, the very plans fit builds (declaration); no
+%     floating-point result. test_fit pins the columns
+%     (testLayoutOfASystemWithoutLocals,
+%     testSystemWithoutDaysClaimsOnlyTheGlobalCalendar). WP-139.
+%
 %   See also LSQVCE.FIT, LSQVCE.RESULTS/TOTABLE, the API reference
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, "Not applicable" with its reason. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3 finding 13): a
 %   system without localParams gets nl = 0 and an empty column table (it
 %   stopped on the loader's empty plan). With assistance from Claude

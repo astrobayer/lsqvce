@@ -126,6 +126,18 @@ function out = redundancyLags(Abar, W, UiZ, ebar, nMaxLag, opt)
 %     r = lsqvce.kernel.redundancyLags(Abar, W, UiZ, ebar, 60);
 %     r.s(1)          % s_0
 %
+%   ACCURACY
+%     Independent dense references on the same arc (test_ellmer): s_n and
+%     Omega_n to 1e-8 relative (test_redundancyLags_s_matches_dense_trace,
+%     test_redundancyLags_omega_matches_quadratic); the Toeplitz (Levinson +
+%     Gohberg-Semencul) and general sums to 1e-12
+%     (test_lags_structured_sums_match_dense_toeplitz,
+%     test_lags_structured_sums_match_dense_general; WP-37's mirror 1e-14,
+%     HANDOVER 6.1.4 Python mirrors row); Nugget to 1e-9 of s_0
+%     (test_redundancyLags_nugget_matches_the_general_path); sLaw and
+%     omegaLaw to 1e-10 (test_lags_whole_law_component_for_any_sigma).
+%     WP-139.
+%
 %   ERRORS
 %     lsqvce:redundancyLags:badEbar      the mean-residual argument is malformed
 %     lsqvce:redundancyLags:badW         the weight argument is malformed
@@ -143,6 +155,9 @@ function out = redundancyLags(Abar, W, UiZ, ebar, nMaxLag, opt)
 %   See also LSQVCE.ENGINE.COVCOMPONENT, LSQVCE.KERNEL.TOEPLITZCOFACTOR, LSQVCE.KERNEL.DCTI,
 %            LSQVCE.ENGINE.TRACEESTIMATE, LSQVCE.ENGINE.STREAMCONTRIBUTION
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, every number traced to the test that pins it. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-132: .sLaw / .omegaLaw, the
 %   Helmert pair of the arc's whole law as one component in closed form (the
 %   joint estimator's arc factor; it assumed a Toeplitz law before). With

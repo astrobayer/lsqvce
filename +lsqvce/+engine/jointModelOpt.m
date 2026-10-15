@@ -91,6 +91,15 @@ function uo = jointModelOpt(model, streams, opt)
 %   the loader, so multi-axis and scalar streams need no special case here
 %   (R6 WP-90: the former 'Separable' option is gone).
 %
+%   ACCURACY
+%     Plumbing plus two closed-form steps. The emitted 'psd' spec integrates
+%     (LSQVCE.KERNEL.PSD2ACV) back to the hat-basis law K S / r(0) of
+%     LSQVCE.KERNEL.HATACV to 1e-10 absolute at dt = 1 and 5 (test_ellmer
+%     (test_jointModelOpt_emits_a_psd_on_normalised_frequency)); the levels
+%     are sqrt of the variance factors to 1e-12, and 10 S gives the same spec
+%     to 1e-12 relative (test_ellmer (test_jointModelOpt_takes_sqrt_of_variance,
+%     test_jointModelOpt_psd_is_a_shape)). WP-139.
+%
 %   ERRORS
 %     lsqvce:jointModelOpt:badModel   the model spec is unrecognised
 %     lsqvce:jointModelOpt:badStream  the stream key is unknown
@@ -98,6 +107,9 @@ function uo = jointModelOpt(model, streams, opt)
 %
 %   See also LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.MAKELOADER
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, every number traced to the test that pins it. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-134: the pass number and the
 %   robust factors ride on the UserOpt here (uo.pass, uo.epochWeights), the one
 %   place for every caller; LSQVCE.FIT's withPass is gone. With assistance from

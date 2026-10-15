@@ -181,6 +181,15 @@ sol = acc.solve();
 c   = lsqvce.engine.streamContribution(acc, sol, &#x27;GroupBy&#x27;,&#x27;system&#x27;, &#x27;Probes&#x27;,200);
 share = [c.group.trace] ./ c.traceSum;      % relative info share per system
 bar(c.group(1).diag);                       % per-coeff share of system 1</pre>
+<h3>Accuracy</h3>
+<pre class="example">.trace (with its Monte-Carlo .se) and .diag are Hutchinson estimates;
+.n and .localAbsorbed are exact: with the exact t_g they give the exact
+r_g to 1e-8 n_g, and the streamed trace sits within max(6 se, 5 %) of
+that t_g at 2000 probes (test_contribution
+(test_contribution_level2_is_level1_split_by_obsType)). Without a common
+prior the group diagonals sum to ones(nc,1) to 1e-8 on one probe block
+(test_contribution (test_stream_diag_sums_to_ones)). The exact path
+stays the authority. WP-139.</pre>
 <h3>Errors</h3>
 <pre class="example">  lsqvce:streamContribution:badSol      the solution struct is not from this
                                         accumulator
@@ -195,6 +204,9 @@ bar(c.group(1).diag);                       % per-coeff share of system 1</pre>
 See also LSQVCE.ENGINE.CONTRIBUTION, LSQVCE.ENGINE.REDUNDANCY, LSQVCE.ENGINE.BLOCKCOFACTOR,
          LSQVCE.ENGINE.TRACEESTIMATE, LSQVCE.ENGINE.VCE
 
+Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+accuracy, every number traced to the test that pins it. With assistance
+from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (review 3 lows): se is NaN
 for one probe (it read 0, the estimate as if exact); out.seedUsed; the
 help states the sums with a common prior and the per-group memory. With

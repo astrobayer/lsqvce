@@ -75,6 +75,12 @@ classdef verbosity
 %             lsqvce.util.verbosity.banner('Stochastic model'), key, p);
 %     end
 %
+%   ACCURACY
+%     Not applicable to the levels and banners (text); duration() rounds an
+%     elapsed time to the millisecond and carries the rounding into seconds,
+%     minutes and hours (59.9996 s -> 00:01:00.000; test_util,
+%     testDurationRoundingCarries). WP-139.
+%
 %   ERRORS
 %     lsqvce:verbosity:badLevel  not a scalar, or outside 0..2 (level 3 was
 %                                merged into 2; a silent clamp would leave a
@@ -83,6 +89,9 @@ classdef verbosity
 %
 %   See also LSQVCE.UTIL.LOG, LSQVCE.ENGINE.ADJUSTVCEJOINT
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, "Not applicable" with its reason. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Opus 4.8.
 

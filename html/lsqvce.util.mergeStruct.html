@@ -57,6 +57,9 @@ t  1x1 struct | []   the overlay; empty or a non-struct leaves s untouched</pre>
 
 NOTE this is a SHALLOW merge: a struct-valued field of t replaces the whole
 corresponding field of s rather than being merged into it recursively.</pre>
+<h3>Accuracy</h3>
+<pre class="example">Not applicable: field values are copied, not computed (test_util
+pins later-wins, added fields and the empty overlay). WP-139.</pre>
 <h3>Example</h3>
 <pre class="example">  a = struct(&#x27;type&#x27;,&#x27;psd&#x27;,&#x27;arOrder&#x27;,30);
   b = struct(&#x27;arOrder&#x27;,60);
@@ -64,6 +67,9 @@ corresponding field of s rather than being merged into it recursively.</pre>
 
 See also LSQVCE.UTIL.GETFIELDDEF, FIELDNAMES
 
+Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+accuracy, &quot;Not applicable&quot; with its reason. With assistance from Claude
+(Anthropic), model Claude Opus 5.5.
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude
 (Anthropic), model Claude Opus 4.8.</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>

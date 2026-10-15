@@ -29,11 +29,19 @@ function meta = runMeta(seeds, options)
 %                                            each once (R5 M1; fit resets the
 %                                            inventory at its start)
 %
+%   ACCURACY
+%     Not applicable: it composes strings (version, release, UTC time) and
+%     passes seeds and options through unchanged -- no floating-point
+%     result (test_errorDoctrine (testRunMetaContract)). WP-139.
+%
 %   ERRORS
 %     lsqvce:runMeta:badArg  seeds or options is not a scalar struct
 %
 %   See also LSQVCE.RESULTS, LSQVCE.REPORT
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, "Not applicable" with its reason. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Created 2026-08-19 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.
 %   Moved 2026-09-01 (CEST, UTC+02:00) from +lsqvce/private to the public

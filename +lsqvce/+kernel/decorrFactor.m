@@ -52,12 +52,24 @@ function [W, info] = decorrFactor(C, tol)
 %     W = lsqvce.kernel.decorrFactor(toeplitz(r));
 %     norm(W.'*W - inv(toeplitz(r))) / norm(inv(toeplitz(r)))    % ~ 1e-14
 %
+%   ACCURACY
+%     Reference: the dense inverse. For an AR(1) (phi = 0.9, n = 120) W'W =
+%     C \ I within 1e-10 relative or 1e-9 absolute and W C W' = I to 1e-9
+%     (test_precision (testDecorrFactorIsExact)); W equals the FIR whitener of
+%     LSQVCE.KERNEL.ARMAWHITEN, an independent construction, to 1e-9 absolute
+%     (testWhitenerIsTheCholeskyFactorItself). The eig rescue gives
+%     W Cf W' = I to 1e-6 on the floored Cf (testDecorrFactorRescuePathIsUsable;
+%     the help above says ~1e-7). WP-139.
+%
 %   ERRORS
 %     lsqvce:decorrFactor:notPD     C is not positive definite even after the
 %                                   eigenvalue floor; it cannot be a covariance
 %
 %   See also LSQVCE.KERNEL.ARMAWHITEN, LSQVCE.ENGINE.COVMODEL
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, every number traced to the test that pins it. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: the factor is documented as
 %   what it is, L^-1 (lower triangular; the help said upper). With assistance
 %   from Claude (Anthropic), model Claude Opus 5.5.

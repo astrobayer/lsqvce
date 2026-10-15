@@ -66,6 +66,15 @@ function out = psdVCE(Q, T, Sprior, opt)
 %     Q(:, a) = lam(a) * (K' * r.omega);  T(:, a) = lam(a) * (K' * r.s);
 %     p = lsqvce.engine.psdVCE(Q, T, S);  S = p.Shat;
 %
+%   ACCURACY
+%     The update is exact arithmetic, a ratio of bin sums; the spectrum is a
+%     statistical estimate. Q == T leaves alpha2 = 1 and Shat = Sprior to
+%     1e-10 (test_ellmer (test_psdVCE_identity_when_Q_equals_T)); a smoothed
+%     loop settles to maxDev < 1e-8 (test_ellmer
+%     (test_psdVCE_smoothed_fixed_point_settles)). The positive-component law
+%     converged 18 / 18 with the level 0.91-1.07 x the truth (HANDOVER 12.44:
+%     the candidate before the port, dense exact traces). WP-139.
+%
 %   ERRORS
 %     lsqvce:psdVCE:shapeMismatch   Q or T does not have one row per bin of Sprior
 %     lsqvce:psdVCE:arcMismatch     Q and T disagree on the number of arcs
@@ -73,6 +82,9 @@ function out = psdVCE(Q, T, Sprior, opt)
 %   See also LSQVCE.KERNEL.HATACV, LSQVCE.KERNEL.REDUNDANCYLAGS,
 %            LSQVCE.ENGINE.ARCVARIANCEFACTORS, LSQVCE.ENGINE.ADJUSTVCEJOINT
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, every number traced to the test that pins it. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: with Smooth > 0 maxDev
 %   measures the change of the spectrum's shape, so a smoothed loop can
 %   converge. With assistance from Claude (Anthropic), model Claude Opus 5.5.

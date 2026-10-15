@@ -45,6 +45,15 @@ function [a, s2, refl] = levinsonDurbin(r, p)
 %     [a, s2] = lsqvce.kernel.levinsonDurbin(r, 3);
 %     assert(norm(a - a0) < 1e-10 && abs(sqrt(s2) - s0) < 1e-10)
 %
+%   ACCURACY
+%     Exact for a PD r up to rounding. On the exact ACV of an AR(3)
+%     (LSQVCE.KERNEL.ARMAACV) the generating a comes back to 1e-11 absolute
+%     and sqrt(s2) to 1e-11 relative (test_precision
+%     (testLevinsonExactOnKnownAR)); |refl| < 1 up to order 20
+%     (testLevinsonReflectionCoefficients). Authority: HANDOVER 6.1.4, the
+%     closed-form ARMA(1,1)/AR ACV algebra row; the Python mirror v10review.py
+%     (T4a/b) recovers an AR(2) to 1e-8 and matches Yule-Walker. WP-139.
+%
 %   ERRORS
 %     lsqvce:levinson:notPD          the autocovariance is not positive definite,
 %                                    so it is not a valid ACV sequence
@@ -52,6 +61,9 @@ function [a, s2, refl] = levinsonDurbin(r, p)
 %
 %   See also LSQVCE.KERNEL.ARMAACV, LSQVCE.KERNEL.ARMAWHITEN, LSQVCE.ENGINE.CHECKPSD, LSQVCE.KERNEL.PSD2ACV
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, every number traced to the test that pins it. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+kernel (R4 decision R4-D1,

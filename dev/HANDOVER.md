@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-15 — WP-138 DONE (PR #167, merge 9586fc5; CI GREEN on f85d02b in the first round: ci_gate 723/723, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.71; no code change, no version (6.24.0 stays, 735 tests).
+Last substantive update: 2026-10-15 — WP-139 OPEN (tier B, model Claude Opus 5.5; user decision: "In diesem Fall die fehlenden ACCURACY Blöcke bitte gesammelt ergänzen" -- it lifts 6.2.1's "no bulk migration" for this one sweep): an ACCURACY block for each of the 48 units accuracy_baseline.csv froze, every number traced to a test or a recorded measurement, "Not applicable" with its reason where a unit computes nothing; the baseline emptied, check 34 kept as the rule for new units; version 6.24.1.
+Preceding entry: Last substantive update: 2026-10-15 — WP-138 DONE (PR #167, merge 9586fc5; CI GREEN on f85d02b in the first round: ci_gate 723/723, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.71; no code change, no version (6.24.0 stays, 735 tests).
 Preceding entry: Last substantive update: 2026-10-15 — WP-138 OPEN (tier B, model Claude Opus 5.5; user: "Mach die Review-Kandidaten aus §12.70 als WP-138"): the code review's judgement calls -- one validity rule and one id/day rule for both front doors, a non-integer day list is lsqvce:fit:badDays and mixed id kinds lsqvce:fit:mixedIdTypes, one name for the prior pseudo-streams (lsqvce.util.priorStream), the GCV ids under one segment, the prior batches assembled once, snoop reads D's thresholds instead of restating diagnose's defaults, a local prior batch with a full weight matrix judged instead of skipped, the contamination gauge in its own file, the report branching on a loop code (Iteration.loop) instead of a display label, addF named, ACCURACY blocks for verdict's methods and an audit ratchet for units without one; version 6.24.0.
 Preceding entry: Last substantive update: 2026-10-15 — WP-137 DONE (PR #165, merge 1049cf0; CI GREEN on c5d879d in round 2, after one red round on 56c2cc9 whose cause was the new compare test's own fixture: ci_gate 720/720, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.70; no code change, no version (6.23.0 stays, 732 tests).
 Preceding entry: Last substantive update: 2026-10-15 — WP-137 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-137 so wie vorgeschlagen und warne/weitermachen beim snoop-Fall", after a two-axis code review of a52cd40...f616324, WP-135 + WP-136): snoop's case for the level 'indeterminate' (a warning, lsqvce:snoop:indeterminate, and it proceeds -- it ran on in silence), snoop:breakdown and forcedBreakdown fired by a test, the GCV test without a dead mute and with its tolerance at its source, gcvLambda's ACCURACY and the 6.1.4 rows of the third review's authorities, the contamination mirror faithful to the code, five tests for WP-135 fixes that had none, the ladder's constants named once; version 6.23.0.
@@ -2355,6 +2356,7 @@ and confirmed / ☐ open; the refutation discipline is the valuable half.)*
 | GROOPS / SINEX NEQ files (real data exchange) | neqExchange round-trip | WP-27 suite | ☑ round-trip green since WP-27 |
 | Analytic SH algebra (fully-normalised Legendre: addition theorem, closed forms P̄10/P̄20/P̄22) | the shDesign partial generator of the WP-48 physical oracle | test_physOracle (reference tests) | ☑ 2026-08-20: addition theorem to 4.3e-14 at nmax 12, closed forms to 1e-14 (measured, user machine) |
 | Python mirrors of the third review: `dev/validation/wp135_gcv_mirror.py`, `wp135_contamination_mirror.py` (WP-135; faithful to the ladder since WP-137 -- `+engine/private/contaminationOf.m` since WP-138, `verdict>contaminationOf` before) | gcvLambda's curve against dense GCV; the contamination ladder's null law (K = n fhat negative binomial, mean nP(1+27/n), variance 1.69 x) and its before / after rates | gcvLambda ACCURACY, test_reliability (testGcvLambdaIsTheGcvOfTheData, 1e-9), test_lsqvce_ext (test_ladder_band_follows_n, test_indeterminate_..., test_breakdown_...) | ☑ 2026-10-14: GCV curve 9e-13 at cond 1.5e7, 6e-10 at 1.5e10; false alarms <= 0.25 % for n = 20..2000. REFUTATION 2026-10-15 (WP-137, code review): the WP-135 ladder port lacked 'indeterminate' -- its 55 % column read 0 % breakdown below n ~ 450 without saying where the runs went (to a level snoop passed in silence) |
+| Python mirrors cited by the ACCURACY blocks (WP-139): `dev/validation/v6verify.py`, `wp126_ar2arma_mirror.py`, `wp127_arma_whiten_mirror.py`; the WP-86 BlockCofactor mirror (`dev/reviews/R7_2026-10-09/mirrors/wp86/blockcofactor.py`, §12.42) | varACV's Yule-Walker identities and whittle's recovery (v6verify tests 1-4), varWhiten = dense chol(C)^-1 (tests 5-7); ar2arma's round trip; armaWhiten with an MA part = dense chol(C)^-1; BlockCofactor = dense inv(N) | the ACCURACY blocks of varACV, whittle, varWhiten, ar2arma, armaWhiten, BlockCofactor; tol: comments in test_signalCore (testAr2armaRoundTrip), test_precision (testArmaWithMaWhitenerIsTheCholeskyFactor), test_vceFunction | ☑ 2026-10-15 (WP-139, re-run on scratch copies): v6verify 8/8 PASS; wp126 a 7.8e-16, b and ACV 1.6e-14 (recorded 8e-16 / 2e-14, §12.58); wp127 F vs chol(C)^-1 at most 2.6e-13 relative over its five cases (recorded <= 3e-13, §12.59 -- the test comment's 1.7e-13 is one case); BlockCofactor 1.4e-17 ... 1.8e-15 |
 | scipy.stats (`norm.isf`, `t.isf`) | the critical values in the far tail (normCrit, tCrit, tauCrit, madCrit, delta0 at alpha = 1e-17) | test_lsqvce (test_critical_values_hold_in_the_far_tail) | ☑ 2026-10-14 (WP-135): agreement to 1e-9 relative |
 | Published GRACE-FO monthly solution (release to be named) | end-to-end sign/magnitude/pattern of a real month through the SINEX path | WP-48 tier (b) | ☐ user to supply files + name the release |
 | Real GRACE-FO L1B-derived NEQ month | the same, input side | WP-48 tier (b) | ☐ user to supply |
@@ -2378,11 +2380,16 @@ model <version>.` — updates append an `Updated <date> ...` line.
 ROLLOUT RULE for the ACCURACY block: binding for every NEW function and
 every function TOUCHED from 2026-08-20 on (*since WP-138, 2026-10-15, audit
 check 34 enforces the NEW half: `dev/docs_src/accuracy_baseline.csv` freezes
-the units without a block, one way; the TOUCHED half stays a review duty*);
-NO bulk migration of the ~80 existing help blocks — the source handover's own record (a 94-file
+the units without a block, one way; the TOUCHED half stays a review duty*).
+*Since WP-139 (2026-10-15, user decision) EVERY public unit states one: the
+48 frozen units got theirs in one sweep, the baseline is EMPTY, and check 34
+holds for all units; a row added there is a change of this rule, never a fix.*
+The original "NO bulk migration of the ~80 existing help blocks" was lifted
+for that one sweep only — the source handover's own record (a 94-file
 help-text mutation producing three defects found only by reading the
-applied diff) is the pinned rationale, and it matches our WP-43 r2
-bulk-annotation lessons.
+applied diff) stays the pinned rationale, and it matches our WP-43 r2
+bulk-annotation lessons: a bulk help edit is proven on a scratch copy and its
+applied diff read before it touches the tree (6.2.3), as WP-139 did.
 
 **6.2.2 HTML + manual.** Every public name: a page in `html/` + entries in
 `Contents.m`, `helptoc.xml`, `html/index.html`; zero JavaScript/Java; every
@@ -10465,3 +10472,74 @@ the full-P fixture through kind B, the ftest tolerances, priorStream's constant 
 merge: the ledger row, this note; no code change, no version -- 6.24.0 stays, 735 tests). The code
 review of WP-135 (§12.70) is closed without residue: every finding fixed (WP-137) and every judgement
 call acted on (WP-138). No package is open; the next step is the user's.
+
+### 12.72 WP-139 — the missing ACCURACY blocks, in one sweep (2026-10-15, model Claude Opus 5.5)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 139 | an ACCURACY block for each of the 48 units `dev/docs_src/accuracy_baseline.csv` froze (WP-138): the numerical claim, its authority (a 6.1.4 row, a closed form or a dense reference) and the tolerance a named test pins, or "Not applicable" with the reason; the baseline emptied (check 34 stays: every unit states its ACCURACY); the help stamps; **version 6.24.1** | 138 (PR #167 merged 9586fc5; closure #168) | OPEN (2026-10-15, tier B) |
+
+**The user's decision (2026-10-15):** "In diesem Fall die fehlenden ACCURACY Blöcke bitte gesammelt
+ergänzen" -- after WP-138 left 48 units frozen without one. It lifts 6.2.1's ROLLOUT RULE ("NO bulk
+migration") for this sweep; the rule's rationale -- a 94-file help mutation in the source handover
+produced three defects found only by reading the applied diff -- shapes how it is done:
+1. **No number without a source.** Every figure in a block is a tolerance a named test pins (its
+   `% tol:` line read), a value in the unit's own help, or a recorded measurement (HANDOVER or a
+   mirror); a unit that computes no floating-point result says "Not applicable" and why.
+2. **The insertion is proven on a scratch copy and its applied diff read** before it touches the
+   tree (6.2.3); one block per unit, before its ERRORS (else its EXAMPLE, else See also).
+3. Research is split three ways (kernel; noise model and VCE; solve structure) and every block's
+   evidence is checked against the lines it cites before it is applied.
+
+**Round note (2026-10-15, WP-139 implemented, tier B).**
+- **48 ACCURACY blocks.** 33 state a numerical claim, its reference (a dense solve, a closed form, the
+  generating model, a mirror's recorded measurement) and the tolerance a NAMED test pins; 15 say "Not
+  applicable" with the reason (Options, layout, engine.collectResiduals / localColumns / resolveNc /
+  runMeta, util.arcKey / getfielddef / log / mergeStruct / onPass / rowWeightKey / streamKey /
+  toolboxVersion / verbosity). Every test name was grepped and every figure read at its cited line
+  before a block was applied. Two drafts were tightened on that read: redundancyLags spelled its test
+  names out (the draft used suffix shorthand grep cannot find), BlockCofactor states the bound as the
+  test writes it (1e-10 of max(1, max|inv(N)|), maxCorrelation absolute); armaWhiten's mirror figure
+  is the recorded worst case (<= 3e-13, §12.59), not the one case the test comment quotes (1.7e-13).
+- **Applied as 6.2.3 asks.** Four proposal files through one inserter on a fresh scratch copy (48
+  files, 378 lines, additions only), the applied diff read, then the real tree -- byte-identical to
+  the scratch result. The stamps likewise, proven on a copy first.
+- **Check 34 was blind to a prose line (found while adding its fault case).** The first stamp wording
+  wrapped to a line starting "ACCURACY block, ..."; the heading regex `ACCURACY\b` read that as a
+  heading in all 48 files, so each would have passed with its block deleted. WP-138's own stamps in
+  verdict.m had the same shape seven times ("ACCURACY; it adds ...", "ACCURACY. With ..."). The stamp
+  is reworded, the regex accepts only the heading forms the tree uses (alone, compact `  text`,
+  ` (qualifier)`, `, AND WHEN ...`), and a selftest case deletes onPass's heading while adding such a
+  prose line: it fires (the old regex was silent on it). The doc builder was never fooled (its
+  SECTION rule is anchored at the line end).
+- **Bookkeeping.** accuracy_baseline.csv emptied (48 rows; its header says a new row changes the
+  rule); check 34's texts; 6.2.1's ROLLOUT RULE says every unit now states one; a 6.1.4 row for the
+  four mirrors the blocks cite (v6verify, wp126, wp127, the WP-86 BlockCofactor mirror), each re-run
+  on a scratch copy today; streamContribution crossed 400 lines on help alone (+13) and has its
+  long_functions row (150 code lines). Docs rebuilt (72 pages, Manual, API). **Version 6.24.1.**
+- **Tests unchanged:** no test file touched; predicted 735 local / 723 CI. Gates: audit CLEAN,
+  selftest every fault caught; CI and the local ci_gate pending.
+
+**Observations of the research, recorded, NOT changed (candidates for a later WP).**
+1. Copy-pasted `% tol:` comments that do not describe their assertion: test_ellmer.m:469 and :594;
+   test_parallel (testWhittleRecoversGenerator) reads "quantile/CDF round-trip".
+2. test_vceMath (testPriorAbsorbedDoFBounds) pins rK = nk - absorbed at 1e-10 -- circular, CommonPrior
+   computes rK exactly that way; its comment claims a dense trace reference.
+3. test_precision (testDecorrFactorIsExact) says "cond(C) ~ 20 for AR(1) phi = 0.9"; the spectral
+   bound tends to ((1+phi)/(1-phi))^2 ~ 361 (derived, not run). testArmaWithMaWhitenerIsTheCholeskyFactor
+   quotes the mirror's 1.7e-13 for all three cases; its worst is 2.6e-13.
+4. applyRegularisation's METHODS line still calls 'tsvd' a spectral floor "equivalent to pinv"; the
+   accumulator truncates the UNFLOORED Nll since WP-133.
+5. mapreduce's help promises serial and parfor the IDENTICAL reduction order; its test allows 1e-14
+   and says bitwise is not promised. The block states the test's bound.
+6. Unpinned help claims the blocks do not repeat: outliers' "4/4 injected outliers detected, 0 false
+   alarms" (v8verify plants 2), vce's "recovers the truth from a 3x wrong initial weight in 2
+   iterations".
+7. Help structure: crossCorr has a 2026-08-19 stamp between EXAMPLE and ERRORS, datum one between
+   ERRORS and IDENTIFIERS; outliers' See also sits between its stamps; arcVarianceFactors has its
+   EXAMPLE before a second OPTIONS block; separableWhiten and varWhiten have two INPUT sections;
+   runMeta's H1 reads %RUNMETA; whittle keeps a stale "moved into +engine" stamp.
+8. v10review.py T5's "self-inverse to 1e-12" (8.1) uses np.allclose with its default rtol 1e-5, so the
+   diagonal is bounded at ~1e-5 only; the dctI block cites the MATLAB tests' 1e-12 instead.
+9. checkPSD's tests are categorised contract, not precision; ReducedContribution's path through the
+   Rows constructor was inferred from reading, not traced.

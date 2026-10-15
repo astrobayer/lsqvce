@@ -60,7 +60,10 @@ INPUT   sysID    1x1 double | char | string   the system id
         obsType  char | string                the observation type
                                               (optional)
 OUTPUT  key      1xK char   &#x27;satKey|obsType&#x27; (satKey without obsType)
-        satKey   1xS char   the system&#x27;s struct-field name
+        satKey   1xS char   the system&#x27;s struct-field name</pre>
+<h3>Accuracy</h3>
+<pre class="example">        Not applicable: exact string formatting; test_streamUtils pins every
+        byte (testStreamAndArcKeysAreDefinedOnce). WP-139.
 ERRORS  none of its own
 EXAMPLE lsqvce.util.streamKey(1, &#x27;kbr&#x27;)      -&gt; &#x27;x1|kbr&#x27;
         [~, s] = lsqvce.util.streamKey(&quot;C&quot;)  -&gt; s = &#x27;C&#x27;
@@ -68,6 +71,9 @@ EXAMPLE lsqvce.util.streamKey(1, &#x27;kbr&#x27;)      -&gt; &#x27;x1|kbr&#x27;
 See also LSQVCE.UTIL.ARCKEY, LSQVCE.UTIL.ROWWEIGHTKEY,
          LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.ENGINE.JOINTMODELOPT
 
+Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+accuracy, &quot;Not applicable&quot; with its reason. With assistance from Claude
+(Anthropic), model Claude Opus 5.5.
 Created 2026-10-11 (CEST, UTC+02:00) with assistance from Claude
 (Anthropic), model Claude Opus 5.5 -- R7 WP-115 part 4 (R7-43).</pre>
 <div class="seealso"><b>See also:</b> <a href="index.html">lsqvce function index</a></div>

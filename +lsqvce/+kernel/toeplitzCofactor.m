@@ -52,6 +52,14 @@ function out = toeplitzCofactor(c, opt)
 %     q = lsqvce.kernel.toeplitzCofactor(c, 'Form','apply');
 %     y = q(randn(4, 8));                        % = Q * X, never forms Q
 %
+%   ACCURACY
+%     'dense' is toeplitz(c) itself: equal and symmetric to 1e-14 (test_ellmer
+%     (test_toeplitzCofactor_dense_is_toeplitz)). 'apply' sums c(n) V_n x
+%     (Ellmer eq. 6.5.17; HANDOVER 6.1.4, the Ellmer (2018) row) and equals
+%     toeplitz(c) * x to 1e-12 (test_toeplitzCofactor_apply_matches_dense); a
+%     PD c gives W Q W' = I to 1e-10 through LSQVCE.KERNEL.DECORRFACTOR
+%     (test_toeplitzCofactor_whitens_via_decorr). WP-139.
+%
 %   ERRORS
 %     lsqvce:toeplitzCofactor:empty  the autocovariance is empty
 %
@@ -62,6 +70,9 @@ function out = toeplitzCofactor(c, opt)
 %   See also LSQVCE.ENGINE.COVCOMPONENT, LSQVCE.KERNEL.DCTI, LSQVCE.KERNEL.DECORRFACTOR,
 %            LSQVCE.KERNEL.PSD2ACV
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, every number traced to the test that pins it. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (c) c1 (F-07):
 %   typed `arguments` signature, canonical UpperCamelCase option names
 %   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES

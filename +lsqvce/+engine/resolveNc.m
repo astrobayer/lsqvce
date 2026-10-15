@@ -31,6 +31,11 @@ function [nc, info] = resolveNc(systems)
 %                        ('loader' | 'spec')
 %                        .values   1xM double, each system's claim
 %
+%   ACCURACY
+%     Not applicable: an integer count read from the systems and compared
+%     exactly, no floating-point result (test_errorDoctrine
+%     (testResolveNcContract)). WP-139.
+%
 %   ERRORS
 %     lsqvce:resolveNc:empty        no systems given
 %     lsqvce:resolveNc:missing      a system declares no nc at all
@@ -42,6 +47,9 @@ function [nc, info] = resolveNc(systems)
 %
 %   See also LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, "Not applicable" with its reason. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Opus 4.8.
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,

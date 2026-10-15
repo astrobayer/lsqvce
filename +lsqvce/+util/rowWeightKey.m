@@ -12,12 +12,19 @@ function key = rowWeightKey(sysID, day, obsType, arcId)
 %   INPUT   sysID double|char;  day 1x1 double;  obsType char/string;
 %           arcId 1x1 double|char
 %   OUTPUT  key 1xK char
+%   ACCURACY
+%           Not applicable: exact string formatting -- integers print with
+%           %d, other numbers with %.17g (round-trip exact; R7-06: %g kept
+%           six digits and merged day ids). WP-139.
 %   ERRORS  none of its own
 %   EXAMPLE lsqvce.util.rowWeightKey(1, 59396, 'kbr', 3)     -> '1|59396|kbr|3'
 %           lsqvce.util.rowWeightKey(1, 20260901, 'kbr', 3)  -> '1|20260901|kbr|3'
 %
 %   See also LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.MAKELOADER
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, "Not applicable" with its reason. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-115 (finding R7-06): numbers
 %   were printed with %g, which keeps six significant digits, so day ids of
 %   seven or more digits (YYYYMMDD, Julian Day Numbers) collapsed onto one

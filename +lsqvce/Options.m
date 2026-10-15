@@ -106,6 +106,11 @@ classdef Options
 %     toStruct()           every public property as a struct (provenance)
 %     disp()               grouped display, engine defaults marked *
 %
+%   ACCURACY
+%     Not applicable: a settings object -- typed knobs, their validation at
+%     assignment and the forwarding of their values to the engine
+%     (engineArgs); it forms no floating-point result. WP-139.
+%
 %   ERRORS
 %     MATLAB:validators:*          a typed property receives a value outside
 %                                  its type / set / range (at assignment)
@@ -127,6 +132,9 @@ classdef Options
 %
 %   See also LSQVCE.FIT, LSQVCE.RESULTS, the API reference, RELEASE_NOTES.md
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, "Not applicable" with its reason. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lane 4):
 %   Noise.Whitener is validated (lsqvce:Options:badWhitener, any case) -- it
 %   was forwarded raw and an upper-case value died mid-run under Estimate

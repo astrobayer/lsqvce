@@ -97,6 +97,16 @@ function out = arcVarianceFactors(Q, T, sigma2, opt)
 %                this function: it weights a covariance downstream.
 %     mean(sqrt(a.sigma2))             % == 1 exactly only for 'plain'
 %
+%   ACCURACY
+%     Exact algebra; the statistics live in Q and T (T may be a probe
+%     estimate). .sigma2 equals the closed form of eqs. 6.5.28-6.5.30 (HANDOVER
+%     6.1.4 row "Ellmer (2018) doctoral thesis") to 4 eps relative, CI-measured
+%     2.6e-16 (test_ellmer (test_arcVarianceFactors_noop_on_healthy)); a
+%     per-arc scale of Q and T moves alpha2 by under 1e-12 relative (test_ellmer
+%     (test_arcVarianceFactors_alpha2_is_blind_to_the_arcs_own_factor)); .pooled
+%     is 2060/2030 to 4 eps (test_ellmer
+%     (test_arcVarianceFactors_pooled_level_weighs_by_redundancy)). WP-139.
+%
 %   ERRORS
 %     lsqvce:arcVarianceFactors:arcMismatch  the arc list disagrees with the
 %                                   accumulated arcs
@@ -108,6 +118,9 @@ function out = arcVarianceFactors(Q, T, sigma2, opt)
 %
 %   See also LSQVCE.ENGINE.PSDVCE, LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.ADJUSTVCEJOINT
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, every number traced to the test that pins it. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (third review, finding 20):
 %   an arc whose denominator (its probe-estimated redundancy) is not positive
 %   is held (alpha2 = 1, .held, warned once) -- a negative one passed and the

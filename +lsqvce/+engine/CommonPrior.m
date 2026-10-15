@@ -78,6 +78,16 @@ classdef CommonPrior
 %     sol = acc.solve('Prior', pri);
 %     lsqvce.util.log.msg('prior absorbed %.1f of %d DoF\n', sol.priorAbsorbed, pri.nk);
 %
+%   ACCURACY
+%     The prior's normals are the stacked rows (K/sigma) x ~ x0/sigma: the
+%     Schur-reduced solve with them equals the dense least-squares solve of
+%     the augmented system to 1e-8 relative (test_vceMath
+%     (testPriorEqualsAugmentedLeastSquares)). The absorbed DoF is pinned by
+%     its bounds, not by a dense trace: in [0, nk] to 1e-8 for an identity,
+%     Kaula, first-difference and subset K; > 0.9 nc at sigma 0.01 and
+%     < 0.1 nc at sigma 100 for K = I (test_vceMath
+%     (testPriorIsBasisAgnostic, testPriorAbsorbedDoFBounds)). WP-139.
+%
 %   ERRORS
 %     lsqvce:prior:badTarget        the prior target has the wrong length
 %     lsqvce:prior:badGroup         group is not nk positive integers
@@ -85,6 +95,9 @@ classdef CommonPrior
 %
 %   See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.VCE, LSQVCE.ENGINE.APPLYREGULARISATION
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, every number traced to the test that pins it. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: an all-zero row of K is
 %   refused (lsqvce:prior:zeroRow). With assistance from Claude (Anthropic),
 %   model Claude Opus 5.5.

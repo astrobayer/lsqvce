@@ -16,8 +16,18 @@ function loc = localColumns(plan)
 %   A system without localParams has no plan (makeLoader sets L.plan = [],
 %   nl = 0): its table is 0 x 1.
 %
+%   ACCURACY
+%     Not applicable: integer bookkeeping (template row, day and arc of each
+%     column), no floating-point result. Exercised by the prior-group
+%     expansion (test_streamUtils
+%     (test_prior_group_pattern_builds_L_from_the_name_column)) and its empty
+%     plan by test_fit (testLayoutOfASystemWithoutLocals). WP-139.
+%
 %   See also LSQVCE.LAYOUT, LSQVCE.RESULTS/TOTABLE, LSQVCE.ENGINE.MAKELOADER
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, "Not applicable" with its reason. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3 finding 13): an
 %   empty plan gives the 0 x 1 table -- lsqvce.layout stopped on plan.nl for
 %   every declaration with a system without localParams (the Manual's own

@@ -1,54 +1,6 @@
 # Public units WITHOUT an ACCURACY block, frozen (WP-138, audit check 34).
-# HANDOVER 6.2.1: the block is binding for every NEW unit and every unit
-# TOUCHED since 2026-08-20, with no bulk migration. A new unit without one
-# is a finding; a unit that gains one must leave this list (one way).
-# Touching a listed unit is the moment to write its block and delete its row.
+# EMPTY since WP-139 (2026-10-15): every public unit states its ACCURACY
+# (user decision: the 48 frozen units got theirs in one sweep). A unit
+# without one is a finding; adding a row here is a change of the rule
+# (HANDOVER 6.2.1), never a fix -- write the block instead.
 unit,since
-Options,v6.24.0
-engine.BlockCofactor,v6.24.0
-engine.CommonPrior,v6.24.0
-engine.ReducedContribution,v6.24.0
-engine.adjustBlock,v6.24.0
-engine.applyRegularisation,v6.24.0
-engine.arcVarianceFactors,v6.24.0
-engine.checkPSD,v6.24.0
-engine.collectResiduals,v6.24.0
-engine.contribution,v6.24.0
-engine.covComponent,v6.24.0
-engine.datum,v6.24.0
-engine.jointModelOpt,v6.24.0
-engine.localColumns,v6.24.0
-engine.localDiagnostics,v6.24.0
-engine.mapreduce,v6.24.0
-engine.outliers,v6.24.0
-engine.psdVCE,v6.24.0
-engine.redundancy,v6.24.0
-engine.resolveNc,v6.24.0
-engine.runMeta,v6.24.0
-engine.sharedProbe,v6.24.0
-engine.streamContribution,v6.24.0
-engine.synthLoader,v6.24.0
-engine.vce,v6.24.0
-kernel.ar2arma,v6.24.0
-kernel.armaWhiten,v6.24.0
-kernel.crossCorr,v6.24.0
-kernel.dctI,v6.24.0
-kernel.decorrFactor,v6.24.0
-kernel.levinsonDurbin,v6.24.0
-kernel.redundancyLags,v6.24.0
-kernel.separableWhiten,v6.24.0
-kernel.toeplitzCofactor,v6.24.0
-kernel.varACV,v6.24.0
-kernel.varWhiten,v6.24.0
-kernel.whitenessCorr,v6.24.0
-kernel.whittle,v6.24.0
-layout,v6.24.0
-util.arcKey,v6.24.0
-util.getfielddef,v6.24.0
-util.log,v6.24.0
-util.mergeStruct,v6.24.0
-util.onPass,v6.24.0
-util.rowWeightKey,v6.24.0
-util.streamKey,v6.24.0
-util.toolboxVersion,v6.24.0
-util.verbosity,v6.24.0

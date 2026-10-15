@@ -53,6 +53,16 @@ function [Aw, Bw, lw] = varWhiten(Avar, Sigma, G, d, A, B, l, isFirstBatch)
 %   OUTPUT
 %     Aw, Bw, lw   the same arrays, whitened against the vector-AR model
 %
+%   ACCURACY
+%     Reference: the dense GLS on the block-Toeplitz C of LSQVCE.KERNEL.VARACV.
+%     x and l'C^-1 l agree to 1e-8 relative for a VAR(1), d = 2
+%     (test_signalCore (testVarWhitenMatchesDenseGLS)); the Python mirror
+%     v8verify.py measures 2e-16 (HANDOVER 6.1.4, Python mirrors row). For a
+%     VAR(2), d = 3, through LSQVCE.ENGINE.COVMODEL against the dense factor
+%     of its own Cfcn: A'A and l'l to 1e-9, A'l to 1e-8 (test_parallel
+%     (testVarWhitenEqualsDenseDecorrelation)), two batches the whole arc to
+%     1e-10 (testVarGLSThroughAccumulatorBatched). WP-139.
+%
 %   ERRORS
 %     lsqvce:varWhiten:badA         the VAR coefficient array has the wrong shape
 %     lsqvce:varWhiten:badSigma     the innovation covariance is not d x d
@@ -62,6 +72,9 @@ function [Aw, Bw, lw] = varWhiten(Avar, Sigma, G, d, A, B, l, isFirstBatch)
 %
 %   See also LSQVCE.KERNEL.WHITTLE, LSQVCE.KERNEL.VARACV, LSQVCE.KERNEL.SEPARABLEWHITEN, LSQVCE.KERNEL.ARMAWHITEN
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, every number traced to the test that pins it. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+kernel (R4 decision R4-D1,

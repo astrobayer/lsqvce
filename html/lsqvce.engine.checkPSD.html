@@ -94,6 +94,14 @@ cm = struct(&#x27;type&#x27;,&#x27;psd&#x27;,&#x27;f&#x27;,f,&#x27;S&#x27;, 0.7^
 
 chk = lsqvce.engine.checkPSD(cm, dt, struct(&#x27;arOrder&#x27;,20), true);
 assert(strcmp(chk.verdict,&#x27;good&#x27;), &#x27;raise arOrder&#x27;);</pre>
+<h3>Accuracy</h3>
+<pre class="example">The output is itself the measurement: acvRelErr compares the AR model&#x27;s
+ACV (LSQVCE.KERNEL.ARMAACV) with the PSD&#x27;s own (LSQVCE.KERNEL.PSD2ACV)
+over checkLags lags, kernels of the HANDOVER 6.1.4 row &quot;Closed-form
+ARMA(1,1)/AR ACV algebra&quot; whose ACCURACY blocks state theirs. On a known
+AR(3) spectrum an AR(20) refit gives acvRelErr &lt; 1e-3, verdict &#x27;good&#x27;,
+and an AR(1) refit is rated &#x27;bad&#x27; (test_precision
+(testCheckPSDVerdicts)). WP-139.</pre>
 <h3>Errors</h3>
 <pre class="example">  lsqvce:checkPSD:badModel      the model struct is not a recognisable
                                 spectral model
@@ -105,6 +113,9 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 
 See also LSQVCE.ENGINE.COVMODEL, LSQVCE.KERNEL.LEVINSONDURBIN, LSQVCE.KERNEL.AR2ARMA
 
+Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+accuracy, every number traced to the test that pins it. With assistance
+from Claude (Anthropic), model Claude Opus 5.5.
 Generated with assistance from Claude (Anthropic), model Claude
 Opus 4.8.
 Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,

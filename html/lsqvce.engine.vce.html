@@ -145,6 +145,15 @@ vc = lsqvce.engine.vce(accFcn, &#x27;GroupBy&#x27;,&#x27;arc&#x27;, &#x27;MaxIte
 bar(vc.sigma);  xlabel(&#x27;arc&#x27;);  ylabel(&#x27;\sigma_g&#x27;);
 yline(1, &#x27;r--&#x27;);
 lsqvce.util.log.msg(&#x27;converged in %d iterations\n&#x27;, vc.nIter);</pre>
+<h3>Accuracy</h3>
+<pre class="example">sigma_g^2 = vtv_g / r_g is a statistical estimate; on the exact
+redundancy (LSQVCE.ENGINE.REDUNDANCY) the update is exact arithmetic. A
+planted pos/kbr sigma ratio is recovered to 0.15 and at the fixed point
+each group&#x27;s vtv/r is 1 within 0.10 (test_vceFunction
+(testVceFunctionRecoversComponents, testVceIdentityAtConvergence)).
+&#x27;hutchinson&#x27; agrees with &#x27;exact&#x27; to 20 % in sigma at 1500 probes
+(test_contribution (test_vce_hutchinson_regression_F01), the v10review.py
+T2 port: HANDOVER 6.1.4 row &quot;Python mirrors (second language)&quot;). WP-139.</pre>
 <h3>Errors</h3>
 <pre class="example">  lsqvce:vce:badAccFcn           the accumulator handle is not callable
   lsqvce:vce:badSigma0           the starting variance factor is not positive
@@ -158,6 +167,9 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 
 See also LSQVCE.ENGINE.REDUNDANCY, LSQVCE.ENGINE.BLOCKCOFACTOR, LSQVCE.ENGINE.OUTLIERS
 
+Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+accuracy, every number traced to the test that pins it. With assistance
+from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-13 (CEST, UTC+02:00), WP-134: accFcn is untyped in the
 arguments block, so lsqvce:vce:badAccFcn -- documented, never reachable
 behind the block&#x27;s own type check -- is what a non-handle raises. With

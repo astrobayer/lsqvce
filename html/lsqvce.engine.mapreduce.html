@@ -100,6 +100,14 @@ DETERMINISM -- READ THIS ONCE
 f = @(j) struct(&#x27;r&#x27;, someCostlyThing(j));
 [tot, info] = lsqvce.engine.mapreduce(nArc, f, &#x27;Mode&#x27;, &#x27;parfor&#x27;, ...
                   &#x27;Reduce&#x27;, @(a, t) a + t.r, &#x27;Init&#x27;, 0);</pre>
+<h3>Accuracy</h3>
+<pre class="example">No arithmetic of its own: it schedules taskFcn and applies Reduce in
+task order. The serial schedule equals the hand-written loop exactly
+(test_parallel (testMapreduceSerialOrderedReduce)); parfor equals
+serial to 1e-14 relative and spmd, which reduces on the workers, to
+1e-10 (test_parallel (testMapreduceParforMatchesSerial,
+testMapreduceSpmdMatchesSerialToTolerance); PCT only, HANDOVER 6.1.3).
+WP-139.</pre>
 <h3>Errors</h3>
 <pre class="example">  lsqvce:mapreduce:badTask      a task descriptor is malformed
   lsqvce:mapreduce:serialFallback  [warning, once per run] a parallel mode was
@@ -112,6 +120,9 @@ case-sensitive lowercase). With assistance from Claude (Anthropic),
 model Claude Fable 5.
 See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.REDUNDANCY, LSQVCE.ENGINE.VCE
 
+Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+accuracy, every number traced to the test that pins it. With assistance
+from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 2 (R7-41): the log
 queue is handed to every parfor task and spmd block, and their warning
 ids are merged into the run inventory in task order. With assistance

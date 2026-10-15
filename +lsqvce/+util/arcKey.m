@@ -13,12 +13,18 @@ function key = arcKey(sysID, obsType, day, arc)
 %   INPUT   sysID 1x1 double | char;  obsType char | string;
 %           day 1x1 double;  arc 1x1 double | char
 %   OUTPUT  key 1xK char
+%   ACCURACY
+%           Not applicable: exact string formatting; test_streamUtils pins every
+%           byte (testStreamAndArcKeysAreDefinedOnce). WP-139.
 %   ERRORS  none of its own
 %   EXAMPLE lsqvce.util.arcKey(71, 'pos', 12, 3)   -> 's71_pos_d12_a3'
 %
 %   See also LSQVCE.UTIL.STREAMKEY, LSQVCE.UTIL.ROWWEIGHTKEY,
 %            LSQVCE.ENGINE.ADJUSTVCEJOINT
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, "Not applicable" with its reason. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Created 2026-10-11 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Opus 5.5 -- R7 WP-115 part 4 (R7-43).
     key = sprintf('s%s_%s_d%s_a%s', string(sysID), string(obsType), string(day), string(arc));

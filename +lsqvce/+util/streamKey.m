@@ -17,6 +17,9 @@ function [key, satKey] = streamKey(sysID, obsType)
 %                                                 (optional)
 %   OUTPUT  key      1xK char   'satKey|obsType' (satKey without obsType)
 %           satKey   1xS char   the system's struct-field name
+%   ACCURACY
+%           Not applicable: exact string formatting; test_streamUtils pins every
+%           byte (testStreamAndArcKeysAreDefinedOnce). WP-139.
 %   ERRORS  none of its own
 %   EXAMPLE lsqvce.util.streamKey(1, 'kbr')      -> 'x1|kbr'
 %           [~, s] = lsqvce.util.streamKey("C")  -> s = 'C'
@@ -24,6 +27,9 @@ function [key, satKey] = streamKey(sysID, obsType)
 %   See also LSQVCE.UTIL.ARCKEY, LSQVCE.UTIL.ROWWEIGHTKEY,
 %            LSQVCE.ENGINE.ADJUSTVCEJOINT, LSQVCE.ENGINE.JOINTMODELOPT
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, "Not applicable" with its reason. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Created 2026-10-11 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Opus 5.5 -- R7 WP-115 part 4 (R7-43).
     satKey = matlab.lang.makeValidName(char(string(sysID)));

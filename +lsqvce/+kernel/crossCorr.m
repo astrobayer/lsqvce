@@ -54,6 +54,16 @@ function c = crossCorr(w, d, opt)
 %   RUN THIS BEFORE TRUSTING VCE OR OUTLIER DETECTION
 %     Both assume the weighting is right. If R(0) is far from I, both are biased.
 %
+%   ACCURACY
+%     c.R is a plain mean of lag products and c.Rcorr its normalisation by
+%     the lag-0 standard deviations: no approximation of their own. The
+%     verdict is statistical, its band z(1 - alpha/2)/sqrt(nEpoch) that of
+%     white residuals: on simulated series of 4000-6000 epochs white noise
+%     reads 'ok' at sigma 1 and 2 and each of the three departures is named
+%     (test_vceMath (testCrossCorrWhiteIsOK, testCrossCorrVerdictIsScaleFree,
+%     testCrossCorrDetectsCrossAxis, testCrossCorrDetectsARTooLow,
+%     testCrossCorrDetectsNeedsVAR)). WP-139.
+%
 %   EXAMPLE
 %     res = acc.residuals(sol);
 %     w   = vertcat(res.sys(1).obs.w);
@@ -78,6 +88,9 @@ function c = crossCorr(w, d, opt)
 %
 %   See also LSQVCE.ENGINE.RESIDUALS, LSQVCE.ENGINE.COVMODEL
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, every number traced to the test that pins it. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-134: a partial epoch or fewer
 %   than two epochs is refused by name (lsqvce:crossCorr:badLength). With
 %   assistance from Claude (Anthropic), model Claude Opus 5.5.

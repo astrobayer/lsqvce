@@ -73,6 +73,16 @@ function [Aw, Bw, lw] = armaWhiten(a, b, s, r, A, B, l, isFirstBatch)
 %     W = lsqvce.kernel.decorrFactor(toeplitz(r));
 %     norm(Y.'*Y - (W*X).'*(W*X)) / norm((W*X).'*(W*X))    % ~ 1e-14
 %
+%   ACCURACY
+%     Reference: the dense Cholesky inverse of the same Toeplitz C
+%     (LSQVCE.KERNEL.DECORRFACTOR). Pure AR: F'F = inv(C) to 1e-12 relative
+%     at n = 20, 60 and 300, F = chol(C)^-1 to 1e-9 absolute (test_precision
+%     (testWhitenerIsExactInverseSquareRoot,
+%     testWhitenerIsTheCholeskyFactorItself)). With an MA part, through
+%     LSQVCE.ENGINE.COVMODEL: F = chol(C)^-1 to 1e-9 relative, at most 3e-13
+%     in the mirror dev/validation/wp127_arma_whiten_mirror.py
+%     (testArmaWithMaWhitenerIsTheCholeskyFactor; HANDOVER 12.59). WP-139.
+%
 %   ERRORS
 %     lsqvce:armaWhiten:badSigma      the innovation std is not a positive scalar
 %     lsqvce:armaWhiten:acvTooShort   the autocovariance is shorter than the
@@ -84,6 +94,9 @@ function [Aw, Bw, lw] = armaWhiten(a, b, s, r, A, B, l, isFirstBatch)
 %
 %   See also LSQVCE.KERNEL.DECORRFACTOR, LSQVCE.ENGINE.COVMODEL, LSQVCE.KERNEL.LEVINSONDURBIN
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, every number traced to the test that pins it. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-134: the overlap note names the
 %   MA part's memory (p plus the decay of 1/B(z)). With assistance from
 %   Claude (Anthropic), model Claude Opus 5.5.

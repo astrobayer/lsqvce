@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.24.0 — User Manual"
+title: "lsqvce 6.24.1 — User Manual"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 

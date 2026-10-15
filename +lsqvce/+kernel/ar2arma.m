@@ -56,6 +56,15 @@ function [a, b, s2] = ar2arma(aHi, s2Hi, q, opt)
 %     [a, b, s2] = lsqvce.kernel.ar2arma(aHi, s2, 2, opt);
 %     numel(a)-1, numel(b)-1        % 10, 2  instead of 100
 %
+%   ACCURACY
+%     Reference: the generating model. A resonant ARMA(2,1) (poles at radius
+%     0.94) taken to its exact ACV and an AR(60) comes back as the true a and
+%     b to 1e-9 absolute, its ACV to 1e-9 relative, with no fallback
+%     (test_signalCore (testAr2armaRoundTrip)); the Python mirror
+%     dev/validation/wp126_ar2arma_mirror.py measures 8e-16 on a and 2e-14 on
+%     b and the ACV (HANDOVER 12.58). (2 aHi, 4 s2Hi) returns the same model
+%     bitwise (testAr2armaNormalisesTheLeadingCoefficient). WP-139.
+%
 %   ERRORS
 %     lsqvce:ar2arma:tooShort    opt.armaN is too short to fit the requested
 %                                ARMA(p,q); at least 4*(p+q+1) is needed
@@ -69,6 +78,9 @@ function [a, b, s2] = ar2arma(aHi, s2Hi, q, opt)
 %
 %   See also LSQVCE.KERNEL.LEVINSONDURBIN, LSQVCE.KERNEL.ARMAACV, LSQVCE.ENGINE.CHECKPSD
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, every number traced to the test that pins it. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-134: aHi is normalised on entry

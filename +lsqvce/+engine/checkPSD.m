@@ -55,6 +55,15 @@ function chk = checkPSD(cm, dt, opt, doPlot)
 %     chk = lsqvce.engine.checkPSD(cm, dt, struct('arOrder',20), true);
 %     assert(strcmp(chk.verdict,'good'), 'raise arOrder');
 %
+%   ACCURACY
+%     The output is itself the measurement: acvRelErr compares the AR model's
+%     ACV (LSQVCE.KERNEL.ARMAACV) with the PSD's own (LSQVCE.KERNEL.PSD2ACV)
+%     over checkLags lags, kernels of the HANDOVER 6.1.4 row "Closed-form
+%     ARMA(1,1)/AR ACV algebra" whose ACCURACY blocks state theirs. On a known
+%     AR(3) spectrum an AR(20) refit gives acvRelErr < 1e-3, verdict 'good',
+%     and an AR(1) refit is rated 'bad' (test_precision
+%     (testCheckPSDVerdicts)). WP-139.
+%
 %   ERRORS
 %     lsqvce:checkPSD:badModel      the model struct is not a recognisable
 %                                   spectral model
@@ -66,6 +75,9 @@ function chk = checkPSD(cm, dt, opt, doPlot)
 %
 %   See also LSQVCE.ENGINE.COVMODEL, LSQVCE.KERNEL.LEVINSONDURBIN, LSQVCE.KERNEL.AR2ARMA
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, every number traced to the test that pins it. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,

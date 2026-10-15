@@ -83,6 +83,10 @@ classdef log
 %     for k = 1:nTask, lsqvce.util.log.mergeInventory(ids{k}); end
 %     lsqvce.util.log.stopParallel();  lsqvce.util.log.reset();  fclose(fid);
 %
+%   ACCURACY
+%     Not applicable: it routes text and warnings (file identifier, screen
+%     flag, the worker queue); no number is formed. WP-139.
+%
 %   ERRORS
 %     lsqvce:util:log:badKey        an unknown log option key
 %
@@ -92,6 +96,9 @@ classdef log
 %   See also FPRINTF, WARNING, PARALLEL.POOL.DATAQUEUE, LSQVCE.ENGINE.ADJUSTVCEJOINT,
 %            LSQVCE.ENGINE.MAPREDUCE
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, "Not applicable" with its reason. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 2 (R7-41): the
 %   parallel sink reaches the workers (attachWorker), worker warnings reach
 %   the run inventory (mergeInventory), and a warnOnce id is shown once per

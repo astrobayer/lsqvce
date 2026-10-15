@@ -1,5 +1,16 @@
 # lsqvce release notes
 
+## 6.24.1 — 2026-10-15 (WP-139: every unit states its ACCURACY)
+
+Documentation only: no estimate, interface or identifier changes.
+
+- The 48 public units that 6.24.0 froze without an ACCURACY block (audit check 34) state one
+  now: the numerical claim, the test that pins it with its tolerance, and the reference it is
+  checked against (a dense solve, a closed form, a Python mirror's recorded measurement), or
+  "Not applicable" with the reason where a unit computes nothing (settings, keys, bookkeeping).
+  No number was written without a source in a test, the unit's own help or the project record.
+- The audit's list of frozen units is empty: every public unit must state its ACCURACY.
+
 ## 6.24.0 — 2026-10-15 (WP-138: the code review's judgement calls)
 
 No estimate changes. Identifiers change where marked **ids**.

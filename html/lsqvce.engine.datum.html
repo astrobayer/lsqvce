@@ -106,6 +106,14 @@ R = lsqvce.fit(data);
 % B must span null(N) -- an INNER constraint. &quot;Fix station 3&quot;
 % (B = e_3) is a HARD constraint and is REFUSED: that is a
 % reparameterisation (drop the column), not a datum.</pre>
+<h3>Accuracy</h3>
+<pre class="example">Against the closed form of a levelling net, whose null space is the
+constant shift e = ones(u,1)/sqrt(u): the detected defect is exactly 1,
+|B&#x27;e| = 1 to 1e-8 and ||N*B|| &lt; 1e-8 ||N|| (test_lsqvce_ext
+(test_datum_finds_levelling_defect)); a supplied B meets the same 1e-8
+bound and a full-rank N reports defect 0 (test_lsqvce_opts
+(test_datum_user_supplied_basis, test_datum_no_defect)). Detection is
+a threshold (Tol) and can be fooled, as said above. WP-139.</pre>
 <h3>Errors</h3>
 <pre class="example">  lsqvce:datum:badB             B is not a numeric matrix of the right width
   lsqvce:datum:rankDeficientB   B does not have full column rank, so it is
@@ -123,6 +131,9 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 
 See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.ADJUSTBLOCK.
 
+Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+accuracy, every number traced to the test that pins it. With assistance
+from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lane 1): the INPUT /
 OUTPUT help names the real options and info fields (it named .tol, .detected
 and a &#x27;type&#x27; option that never existed). With assistance from Claude

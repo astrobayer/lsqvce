@@ -26,12 +26,21 @@ function x = collectResiduals(res, satId, obsType, field)
 %     w = lsqvce.engine.collectResiduals(res, 'C', 'pos');       % GRACE-C, whitened
 %     vAll = lsqvce.engine.collectResiduals(res, [], 'rr', 'v'); % raw, both satellites
 %
+%   ACCURACY
+%     Not applicable: the selected field's values are copied unchanged into
+%     one column (a vertical concatenation, no arithmetic); which arcs are
+%     taken is pinned by count in test_streamUtils
+%     (testCollectResidualsFilters). WP-139.
+%
 %   ERRORS
 %     lsqvce:collectResiduals:badRes  the residual field is absent or the wrong
 %                                   shape
 %
 %   See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.KERNEL.WHITENESSCORR
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, "Not applicable" with its reason. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-118 part 1 (R7-34): the
 %   deleted KERNEL.RESIDUALACV reference removed. With assistance from
 %   Claude (Anthropic), model Claude Opus 5.5.

@@ -59,6 +59,15 @@ function out = sharedProbe(U, opt)
 %         r = lsqvce.kernel.redundancyLags(Abar, W, sp.UiZ, ebar, 60);   % reuse sp.UiZ
 %     end
 %
+%   ACCURACY
+%     Exact construction: every Rademacher entry of Zbar is +-1/sqrt(Z) to
+%     1e-12 and UiZ solves U * UiZ = Zbar to 1e-10 (test_ellmer
+%     (test_sharedProbe_rademacher_normalisation,
+%     test_sharedProbe_shapes_and_solve)); a fixed seed reproduces it bitwise.
+%     The traces built on it are Monte-Carlo estimates, scatter ~ 1/sqrt(Z):
+%     at Z = 20000 the probed redundancy matrix is within 0.05 of the exact one
+%     (test_ellmer (test_redundancyLags_Rbar_converges_to_exact)). WP-139.
+%
 %   ERRORS
 %     lsqvce:sharedProbe:notSquare  the operator is not square
 %     lsqvce:sharedProbe:badProbes  the probe count is not a positive integer
@@ -66,6 +75,9 @@ function out = sharedProbe(U, opt)
 %   See also LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.TRACEESTIMATE,
 %            LSQVCE.ENGINE.STREAMCONTRIBUTION
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, every number traced to the test that pins it. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) (F-07): typed
 %   `arguments` signature, canonical UpperCamelCase option names (legacy
 %   casings keep matching; enum VALUES case-sensitive lowercase). With

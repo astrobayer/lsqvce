@@ -54,11 +54,23 @@ function [y, X] = dctI(x, opt)
 %     C2 = lsqvce.kernel.dctI(S);                 % ortho is self-inverse -> C2 == C
 %     max(abs(C - C2))                     % ~ 1e-15
 %
+%   ACCURACY
+%     'ortho': X = X' to 1e-12 and X X = I to 1e-10 at six N from 2 to 33,
+%     the round trip to 1e-10 (test_ellmer (test_dctI_ortho_is_self_inverse,
+%     test_dctI_ortho_round_trip)) and to 1e-12 at N = 64 (test_metamorphic
+%     (testSpectralRoundTripIsTheIdentity)); 'ellmer' round-trips to 1e-10
+%     at cond(X) < 5 (test_dctI_ellmer_norm_invertible). Convention: HANDOVER
+%     6.1.4, the Ellmer (2018) row; the R2 Python mirror v10review.py (T5):
+%     'ortho' self-inverse, 'ellmer' cond 1.478 (HANDOVER 8.1). WP-139.
+%
 %   ERRORS
 %     lsqvce:dctI:tooShort          the series is shorter than the transform needs
 %
 %   See also LSQVCE.KERNEL.PSD2ACV, LSQVCE.KERNEL.TOEPLITZCOFACTOR, LSQVCE.ENGINE.COVCOMPONENT
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, every number traced to the test that pins it. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (c) c1 (F-07):
 %   typed `arguments` signature, canonical UpperCamelCase option names
 %   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES

@@ -522,6 +522,12 @@ case('34 a new unit that states its ACCURACY is silent', audit.check_accuracy_ra
 case('34 a frozen row whose unit states its ACCURACY is stale and fires',
      audit.check_accuracy_ratchet, 'accuracy',
      lambda d: append(os.path.join(d, 'dev/docs_src/accuracy_baseline.csv'), 'engine.verdict,v6.24.0\n'))
+# WP-139: the baseline is empty -- a unit that loses its heading fires, whichever it
+# is, and a prose line that merely starts with the word (a wrapped stamp) is no heading
+case('34 a unit whose ACCURACY heading is gone fires; a prose line starting with the word is none',
+     audit.check_accuracy_ratchet, 'accuracy',
+     lambda d: edit(os.path.join(d, '+lsqvce/+util/onPass.m'), '%   ACCURACY\n',
+                    '%   PRECISION\n%   ACCURACY block, ACCURACY; or ACCURACY, as prose\n'))
 
 
 def main():

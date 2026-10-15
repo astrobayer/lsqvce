@@ -92,6 +92,15 @@ function out = synthLoader(cfg, sat, day, obsType, arcID, opt)
 %   OUTPUT
 %     out  1x1 struct  one batch: .A .B .l .t and the covariance spec
 %
+%   ACCURACY
+%     A generator: its claims are determinism and the declared noise law.
+%     The residual pass re-reads the same day, so sigma0 reproduces to 1e-10
+%     relative (test_precision (testResidualPassReproducesSigma0)); with an
+%     'arma' pos and a 'diag' kbr stream sigma0 = 1 within 0.05 and the
+%     whitened residuals have std 1 within 0.08, lags 1-5 inside 2.5/sqrt(n)
+%     (test_precision (testSigma0IsUnbiased, testWhitenedResidualsAreWhite)).
+%     The 'psd' generator (an AR(200) fit) is not pinned. WP-139.
+%
 %   ERRORS
 %     lsqvce:synthLoader:badArc          the arc index is out of range
 %     lsqvce:synthLoader:noNoiseModel    the configuration declares no noise model
@@ -101,6 +110,9 @@ function out = synthLoader(cfg, sat, day, obsType, arcID, opt)
 %
 %   See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.COVMODEL
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
+%   accuracy, every number traced to the test that pins it. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lane 4): robust
 %   factors for an arc are refused (lsqvce:synthLoader:robustFactors) -- the
 %   template ignored them while the driver reported them applied. With
