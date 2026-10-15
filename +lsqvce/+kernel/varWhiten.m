@@ -31,24 +31,17 @@ function [Aw, Bw, lw] = varWhiten(Avar, Sigma, G, d, A, B, l, isFirstBatch)
 %     scalar filter path; same failure mode if the overlap is forced to 0.
 %
 %   INPUT
-%     Avar    d x d x p     VAR coefficient matrices (LSQVCE.KERNEL.WHITTLE output)
-%     Sigma   d x d         innovation covariance
-%     G       d x d x >=p   Gamma(0..) for the startup block (LSQVCE.KERNEL.VARACV, or
-%                           the empirical cross-ACV the model was fitted on)
-%     d       scalar        number of axes
-%     A, B    m x *         design blocks, epoch-major rows (may be m x 0)
-%     l       m x 1         observations, epoch-major
-%     isFirstBatch          true -> exact stationary startup for epochs 1..p
-%
-%   INPUT
-%     Avar         d x d x p  vector-AR coefficient matrices
+%     Avar         d x d x p  vector-AR coefficient matrices (LSQVCE.KERNEL.WHITTLE
+%                             output)
 %     Sigma        d x d      innovation covariance
-%     G            d x d x >=p  stationary cross-ACV (from LSQVCE.KERNEL.VARACV)
+%     G            d x d x >=p  Gamma(0..), the stationary cross-ACV of the
+%                             startup block (LSQVCE.KERNEL.VARACV, or the
+%                             empirical cross-ACV the model was fitted on)
 %     d            1x1        axes per epoch
-%     A            m x nc     common design rows (EPOCH-MAJOR)
+%     A            m x nc     common design rows (EPOCH-MAJOR; may be m x 0)
 %     B            m x nl     local design rows (may be [] or sparse; sparse in, sparse out)
-%     l            m x 1      observations
-%     isFirstBatch 1x1 logical  apply the exact stationary startup
+%     l            m x 1      observations, epoch-major
+%     isFirstBatch 1x1 logical  true: the exact stationary startup for epochs 1..p
 %
 %   OUTPUT
 %     Aw, Bw, lw   the same arrays, whitened against the vector-AR model
@@ -72,6 +65,9 @@ function [Aw, Bw, lw] = varWhiten(Avar, Sigma, G, d, A, B, l, isFirstBatch)
 %
 %   See also LSQVCE.KERNEL.WHITTLE, LSQVCE.KERNEL.VARACV, LSQVCE.KERNEL.SEPARABLEWHITEN, LSQVCE.KERNEL.ARMAWHITEN
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-140: one input block: there were
+%   two, and the first one's details now sit in the second. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
 %   accuracy, every number traced to the test that pins it. With assistance
 %   from Claude (Anthropic), model Claude Opus 5.5.

@@ -329,13 +329,18 @@ k_o = np.ones(N); k_o[0] = k_o[-1] = 1 / np.sqrt(2)
 k_e = np.ones(N); k_e[0] = 1 / np.sqrt(2)
 Xo = np.sqrt(2 / (N - 1)) * np.outer(k_o, k_o) * np.cos(mI * nI * np.pi / (N - 1))
 Xe = np.sqrt(2 / (N - 1)) * np.outer(k_e, k_e) * np.cos(mI * nI * np.pi / (N - 1))
+# WP-140: rtol=0 -- numpy's default rtol 1e-5 bounded the diagonal of X X = I at
+# ~1e-5 only, while HANDOVER 8.1 recorded "self-inverse to 1e-12"
+errXo = np.abs(Xo @ Xo - np.eye(N)).max()
 check("T5a dctI 'ortho' is self-inverse (X X = I)",
-      np.allclose(Xo @ Xo, np.eye(N), atol=1e-12))
+      np.allclose(Xo @ Xo, np.eye(N), rtol=0, atol=1e-12),
+      f"max |X X - I| = {errXo:.1e}")
 condXe = np.linalg.cond(Xe)
 v = rng.normal(size=N)
+errXe = np.abs(np.linalg.solve(Xe, Xe @ v) - v).max()
 check("T5b dctI 'ellmer' roundtrip via explicit inverse; cond ~ 1.5",
-      np.allclose(np.linalg.solve(Xe, Xe @ v), v) and condXe < 2.0,
-      f"cond = {condXe:.3f}")
+      np.allclose(np.linalg.solve(Xe, Xe @ v), v, rtol=0, atol=1e-12) and condXe < 2.0,
+      f"cond = {condXe:.3f}, max roundtrip error = {errXe:.1e}")
 f = np.linspace(0, 0.1, 4096)
 S = 1 + np.sin(8 * f / 0.1) ** 2
 r0 = np.trapezoid(S * np.cos(2 * np.pi * 0 * f), f)

@@ -10598,3 +10598,32 @@ nine becomes, read in the code before this scope was written:
    form is pinned against it by testBackendsAgreeWhenWellConditioned. Its ACCURACY block says so.
 No estimate changes. Test count unchanged (735 local / 723 CI): one test's reference replaced, one
 test's category widened, no test added or removed.
+
+**Round note (2026-10-15, WP-140 implemented, tier B).**
+- **Tests.**
+  - test_ellmer ×2 and test_parallel (Whittle): the copied `% tol:` comments now name their own assertion's source.
+  - test_precision: cond 345; the mirror figure is its worst case, 2.6e-13; testCheckPSDVerdicts is `contract, precision`, with a `% tol:` naming checkPSD's 'good' bound. checkPSD's precision row in category_exemptions.csv is retired, and check 16 now counts the test.
+  - testPriorAbsorbedDoFBounds checks the absorbed DoF and rK against the dense trace.
+  - CommonPrior's ACCURACY block says so.
+- **Help.**
+  - applyRegularisation, METHODS and CHOOSING: 'tsvd' is the accumulator's truncation; the floored Nr is a placeholder.
+  - mapreduce's determinism paragraph says why parfor is not bitwise: workers single-threaded, the client multithreaded, so 1e-14. Observation 5 was half right: the help had named BLAS, but not why it applies.
+  - outliers and vce: the unpinned claims are replaced by what a test pins.
+  - ReducedContribution's ACCURACY names the traced path and the normal backend's pin.
+  - dctI's mirror figures are measured with rtol 0.
+- **Structure, widened to the whole class by a scan of every public unit.**
+  - Stamps before See also: six files. §12.72 had named three (crossCorr, datum, outliers); the scan added BlockAccumulator, mapreduce and residuals. They are moved after See also in date order by one mover, proven on a scratch copy with its diff read; the real tree is byte-identical to the copy, and a rescan finds none left.
+  - Bare H1 lines: nine units (§12.72 named runMeta).
+  - One OPTIONS block in arcVarianceFactors; its example had lost its last line to the second block.
+  - One INPUT block each in separableWhiten and varWhiten.
+  - whittle's stamp records the R5 M2 move into +kernel.
+- **Mirror.** v10review T5a/T5b use rtol 0: X X = I to 3.2e-15, ellmer round trip 2.9e-15. The scope's 1.6e-15 came from another random draw; this is the mirror's own. CI runs it; it exits 0 here.
+- **Bookkeeping.**
+  - residuals passed 400 lines (402) on its new stamp and has its long_functions row (175 code lines).
+  - 28 stamps: 15 units changed in content or structure, 4 test files, 9 units for the H1 line.
+  - Docs rebuilt. **Version 6.24.2.**
+- **Tests unchanged in number:** predicted 735 local / 723 CI.
+  - The only changed assertions are testPriorAbsorbedDoFBounds's two new ones: a dense solve vs the Cholesky route, both at eps.
+  - MATLAB draws its own matrix, so the port's cond values (1.02 / 2.29) are indicative, not identical.
+  - Everything else is comments, help and one category.
+- **Gates:** audit CLEAN; selftest every fault caught; CI and the local ci_gate are pending.

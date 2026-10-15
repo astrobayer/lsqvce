@@ -6,7 +6,11 @@ function [Nr, nr, dg] = applyRegularisation(Nll, nl, dg, opt, mObs, ltl)
 %   METHODS (opt.Reg)
 %     'none'      no action
 %     'tikhonov'  Nr = Nll + lambda*L'*L        lambda by GCV if not supplied
-%     'tsvd'      spectral floor at TruncTol*lambda_max (equivalent to pinv)
+%     'tsvd'      truncation (pinv): LSQVCE.ENGINE.BLOCKACCUMULATOR solves on
+%                 the eigenvectors of the UNFLOORED Nll above TruncTol*lambda_max
+%                 and counts that rank in dof (WP-133). The Nr returned here is
+%                 Nll floored at TruncTol*lambda_max -- an invertible
+%                 placeholder no reader inverts (dg.lambdaUsed is the floor)
 %     'lm'        Nr = Nll + lambda*diag(Nll)   Levenberg-Marquardt scaling
 %     'auto'      dispatch on dg.status:
 %                    'ok'              -> none
@@ -46,8 +50,9 @@ function [Nr, nr, dg] = applyRegularisation(Nll, nl, dg, opt, mObs, ltl)
 %               a first-difference L penalises roughness. Use when the block is
 %               weakly determined but the parameters are physically meaningful.
 %     tsvd      No prior: you simply refuse to invert the null space. Use when
-%               the block is rank deficient by construction. The floored
-%               directions are left at zero rather than being fitted to noise.
+%               the block is rank deficient by construction. The truncated
+%               directions are left at zero (the minimum-norm solution) rather
+%               than being fitted to noise.
 %     lm        Scale-invariant damping. Use when the local parameters have
 %               wildly different units and L = I would be meaningless.
 %
@@ -89,6 +94,10 @@ function [Nr, nr, dg] = applyRegularisation(Nll, nl, dg, opt, mObs, ltl)
 %
 %   See also LSQVCE.ENGINE.LOCALDIAGNOSTICS, LSQVCE.ENGINE.GCVLAMBDA, LSQVCE.ENGINE.BLOCKACCUMULATOR
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-140: 'tsvd' is described as what
+%   it is, the accumulator's truncation of the unfloored Nll (WP-133); the
+%   floored Nr returned here is a placeholder no reader inverts. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
 %   accuracy, every number traced to the test that pins it. With assistance
 %   from Claude (Anthropic), model Claude Opus 5.5.

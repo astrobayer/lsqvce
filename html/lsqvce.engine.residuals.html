@@ -149,20 +149,11 @@ title(&#x27;ACF of whitened residuals -- should be white&#x27;);</pre>
 <pre class="example">  lsqvce:residuals:badSol       the solution is not from this accumulator
   lsqvce:residuals:noStore      nothing was retained; re-run with &#x27;store&#x27;,&#x27;all&#x27;
 
-Updated 2026-10-13 (CEST, UTC+02:00), WP-131: &#x27;Whitened&#x27;, false no
-longer changes vtv / sigma0 / rms (they are the solve&#x27;s weighted sums);
-it only leaves e.w out. With assistance from Claude (Anthropic), model
-Claude Opus 5.5.
-Updated 2026-10-13 (CEST, UTC+02:00), WP-130: dof counts a rank-deficient
-local block by its rank (BlockAccumulator.localRankOf). With assistance
-from Claude (Anthropic), model Claude Opus 5.5.
-Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
-typed `arguments` signature, canonical UpperCamelCase option names
-(legacy casings keep matching -- MATLAB NV semantics; enum VALUES
-case-sensitive lowercase). With assistance from Claude (Anthropic),
-model Claude Fable 5.
 See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.CHECKPSD
 
+Updated 2026-10-15 (CEST, UTC+02:00), WP-140: the three stamps that sat
+before See also moved after it, in date order. With assistance from Claude
+(Anthropic), model Claude Opus 5.5.
 Updated 2026-10-13 (CEST, UTC+02:00), WP-133: GN&#x27;s zero step (sol.xLin), the rows
 of weight 0 out of m and dof, a ridge&#x27;s defect in dof, s0^2 / sol.truncation.
 With assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -170,6 +161,13 @@ Updated 2026-10-13 (CEST, UTC+02:00), WP-132: after a refused vtv the
 local covariances Cyy carry THIS pass&#x27;s s0^2 (they were all NaN). With
 assistance from Claude (Anthropic), model Claude Opus 5.5.
 
+Updated 2026-10-13 (CEST, UTC+02:00), WP-131: &#x27;Whitened&#x27;, false no
+longer changes vtv / sigma0 / rms (they are the solve&#x27;s weighted sums);
+it only leaves e.w out. With assistance from Claude (Anthropic), model
+Claude Opus 5.5.
+Updated 2026-10-13 (CEST, UTC+02:00), WP-130: dof counts a rank-deficient
+local block by its rank (BlockAccumulator.localRankOf). With assistance
+from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-114 (R7-15): the common prior
 enters vtv and dof (res.prior), one estimator, one sigma0. With
 assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -178,6 +176,11 @@ Updated 2026-08-20 (CEST, UTC+02:00), WP-49: NaN-aware supersede
 logic + res.supersedesSol; this pass is the documented authority for
 a cancellation-poisoned accumulated vtv. With assistance from Claude
 (Anthropic), model Claude Fable 5.
+Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
+typed `arguments` signature, canonical UpperCamelCase option names
+(legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+case-sensitive lowercase). With assistance from Claude (Anthropic),
+model Claude Fable 5.
 Generated with assistance from Claude (Anthropic), model Claude
 Opus 4.8.
 Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,

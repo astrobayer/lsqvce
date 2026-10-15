@@ -1,5 +1,5 @@
 classdef stat
-%STAT  Statistical kernel for lsqvce -- base MATLAB only.
+%LSQVCE.KERNEL.STAT  Statistical kernel for lsqvce -- base MATLAB only.
 %
 %   Deliberately free of the Statistics and Machine Learning Toolbox. Every
 %   quantile / cdf needed by the diagnostics is implemented from erf, gammainc
@@ -44,6 +44,9 @@ classdef stat
 %
 %   See also LSQVCE.ENGINE.VERDICT.DIAGNOSE.
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-140: the H1 line names the unit
+%   in full, lsqvce.kernel.stat, as HANDOVER 6.2.1 asks (it read the bare
+%   name). With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lane 1): the
 %   critical values come from the upper tail (normCrit = -Phi^-1(alpha/2), the
 %   new tCrit); 1 - alpha/2 rounded to 1 below alpha ~ 1.1e-16 and Pope's tau

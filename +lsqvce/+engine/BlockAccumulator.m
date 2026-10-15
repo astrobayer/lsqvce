@@ -235,20 +235,6 @@ classdef BlockAccumulator < handle
 %                                     local normal matrix couples its blocks:
 %                                     the dense Schur complement is used (WP-133)
 %
-%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-112 (R7-03, R7-16): on the
-%   QR backend the whole path stays square-root -- locals eliminated on the
-%   factor (QRSystem.reducedRows), contributions merged as rows, the prior
-%   folded in as rows; the rank decision is QRSystem.RankTol on the pivots.
-%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
-%   Updated 2026-08-31 (CEST, UTC+02:00), R4 G-07 (Level L2): nl = 0 is a
-%   valid system (user decision) -- addSystem accepts it, preeliminate
-%   returns the unreduced common block with consistent empty local shapes.
-%   With assistance from Claude (Anthropic), model Claude Fable 5.
-%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (c) c2 (F-07):
-%   typed `arguments` signatures, canonical UpperCamelCase option names
-%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
-%   case-sensitive lowercase). With assistance from Claude (Anthropic),
-%   model Claude Fable 5.
 %   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 %     lsqvce:accum:blockSchurFailed              [warning] A local block of system X is singular; falling back to the dense Schu...
 %     lsqvce:accum:localSummarySkipped           [warning] locals[X]
@@ -256,6 +242,10 @@ classdef BlockAccumulator < handle
 %
 %   See also LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.RESIDUALS, LSQVCE.ENGINE.CHECKPSD, LSQVCE.ENGINE.QRSYSTEM
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-140: the three stamps that sat
+%   between the error list and the identifiers also raised moved after See
+%   also, in date order. With assistance from Claude (Anthropic), model Claude
+%   Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135): ids
 %   of one kind and each day once are the private idDayRules, the
 %   declaration's rules too; the kinds are judged before the duplicate-system
@@ -306,6 +296,11 @@ classdef BlockAccumulator < handle
 %   reducedNormalMatrix names lsqvce.engine.BlockCofactor (leverageBlocks
 %   retired). With assistance from Claude (Anthropic), model Claude Opus
 %   5.5.
+%   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-112 (R7-03, R7-16): on the
+%   QR backend the whole path stays square-root -- locals eliminated on the
+%   factor (QRSystem.reducedRows), contributions merged as rows, the prior
+%   folded in as rows; the rank decision is QRSystem.RankTol on the pivots.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-10 (CEST, UTC+02:00), R7 WP-86 part 2 (R7-24):
 %   commonFactor, the reduced commons factor of lsqvce.engine.BlockCofactor
 %   (the QR backend's own square root, the prior folded in by QR). With
@@ -314,6 +309,15 @@ classdef BlockAccumulator < handle
 %   R7-40): the deleted COVMODELFACTORY reference replaced, LocalBlockSize
 %   documented, localCovariance takes the solve's s0sq. With assistance from
 %   Claude (Anthropic), model Claude Opus 5.5.
+%   Updated 2026-08-31 (CEST, UTC+02:00), R4 G-07 (Level L2): nl = 0 is a
+%   valid system (user decision) -- addSystem accepts it, preeliminate
+%   returns the unreduced common block with consistent empty local shapes.
+%   With assistance from Claude (Anthropic), model Claude Fable 5.
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (c) c2 (F-07):
+%   typed `arguments` signatures, canonical UpperCamelCase option names
+%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+%   case-sensitive lowercase). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,

@@ -1,5 +1,5 @@
 function key = rowWeightKey(sysID, day, obsType, arcId)
-%ROWWEIGHTKEY  The one key convention for per-arc row weights.
+%LSQVCE.UTIL.ROWWEIGHTKEY  The one key convention for per-arc row weights.
 %   key = lsqvce.util.rowWeightKey(sysID, day, obsType, arcId)
 %
 %   'sysID|day|obsType|arcId' as char, used by lsqvce.engine.adjustRobust
@@ -22,6 +22,10 @@ function key = rowWeightKey(sysID, day, obsType, arcId)
 %
 %   See also LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.MAKELOADER
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-140: the H1 line names the unit
+%   in full, lsqvce.util.rowWeightKey, as HANDOVER 6.2.1 asks (it read the
+%   bare name). With assistance from Claude (Anthropic), model Claude Opus
+%   5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
 %   accuracy, "Not applicable" with its reason. With assistance from Claude
 %   (Anthropic), model Claude Opus 5.5.

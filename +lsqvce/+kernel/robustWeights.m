@@ -1,5 +1,5 @@
 function [fac, s, w, scalePath, kReject] = robustWeights(vw, influence, tuning)
-%ROBUSTWEIGHTS  IRLS weight factors from standardised whitened residuals.
+%LSQVCE.KERNEL.ROBUSTWEIGHTS  IRLS weight factors from standardised whitened residuals.
 %   [fac, s, w, scalePath, kReject] = lsqvce.kernel.robustWeights(vw, influence, tuning)
 %
 %   THE one influence-function evaluation of the toolbox (R5 M2 round 2b):
@@ -56,6 +56,10 @@ function [fac, s, w, scalePath, kReject] = robustWeights(vw, influence, tuning)
 %
 %   See also LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTVCEJOINT
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-140: the H1 line names the unit
+%   in full, lsqvce.kernel.robustWeights, as HANDOVER 6.2.1 asks (it read the
+%   bare name). With assistance from Claude (Anthropic), model Claude Opus
+%   5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (third review, finding 9):
 %   the near-tie test measured the MAD against the LARGEST deviation, the
 %   worst blunder -- one residual beyond ~4.5e12 MAD switched the scale to

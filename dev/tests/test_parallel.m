@@ -17,6 +17,10 @@ function tests = test_parallel
 %
 %   See also TEST_V3, TEST_LSQACCUM, TEST_PRECISION
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-140:
+%   testWhittleRecoversGenerator's copied tol comment ("quantile/CDF round-
+%   trip") replaced by its source, v6verify tests 3-4. With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3: the brute-force
 %   redundancy reference runs on lsqvce.engine.BlockCofactor (leverage /
 %   leverageBlocks retired). With assistance from Claude (Anthropic), model
@@ -519,7 +523,8 @@ function testWhittleRecoversGenerator(tc)
     p = size(A, 3);
     G = lsqvce.kernel.varACV(A, Sig, p+3);
     [Ah, Sh] = lsqvce.kernel.whittle(G, p);
-    % tol: quantile/CDF round-trip through base-MATLAB special functions; their relative error is ~1e-14, bound leaves headroom
+    % tol: Whittle on the EXACT cross-ACV is algebraically exact; the mirror v6verify.py (tests
+    % 3-4) holds A to 1e-9 and Sigma to 1e-10 -- a decade of headroom (WP-140: was a copy)
     tc.verifyEqual(Ah, A, 'AbsTol', 1e-8*norm(A(:,:,1)));
     tc.verifyEqual(Sh, Sig, 'RelTol', 1e-9);
 

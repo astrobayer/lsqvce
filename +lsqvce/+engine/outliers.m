@@ -10,8 +10,9 @@ function out = outliers(acc, sol, opt)
 %   The normalisation by sqrt(r_i) is what makes this correct. A raw residual is
 %   misleading: an observation with high leverage (h_ii near 1) is fitted almost
 %   exactly BY CONSTRUCTION, so its residual is small even when it is badly
-%   wrong. Dividing by sqrt(r_i) removes that effect. Verified: 4/4 injected
-%   outliers detected, 0 false alarms.
+%   wrong. Dividing by sqrt(r_i) removes that effect. What a test pins against
+%   planted blunders -- one flagged in its own arc, clean data without a false
+%   storm -- is under ACCURACY.
 %
 %   INPUT
 %     acc      1x1 lsqvce.engine.BlockAccumulator   after solve
@@ -71,26 +72,30 @@ function out = outliers(acc, sol, opt)
 %     acc2 = buildAccumulator(cfg, opt);
 %     sol2 = acc2.solve();
 %
-%   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: an 'spmd' accumulator
-%   runs the redundancy pass as 'parfor' here, so the per-observation series
-%   (and the flags) exist. With assistance from Claude (Anthropic), model
-%   Claude Opus 5.5.
-%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
-%   typed `arguments` signature, canonical UpperCamelCase option names
-%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
-%   case-sensitive lowercase). With assistance from Claude (Anthropic),
-%   model Claude Fable 5.
 %   See also LSQVCE.ENGINE.REDUNDANCY, LSQVCE.ENGINE.BLOCKCOFACTOR, LSQVCE.ENGINE.VCE
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-140: the unpinned "4/4 injected
+%   outliers detected, 0 false alarms" (no test or record behind it) points to
+%   the accuracy statement instead; two stamps moved after See also. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
 %   accuracy, every number traced to the test that pins it. With assistance
 %   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lane 6): out.mask
 %   returns the arc's logical mask (it returned row indices). With assistance
 %   from Claude (Anthropic), model Claude Opus 5.5.
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: an 'spmd' accumulator
+%   runs the redundancy pass as 'parfor' here, so the per-observation series
+%   (and the flags) exist. With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-86 part 3 (R7-24): See also
 %   names lsqvce.engine.BlockCofactor (leverage retired). With assistance
 %   from Claude (Anthropic), model Claude Opus 5.5.
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
+%   typed `arguments` signature, canonical UpperCamelCase option names
+%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+%   case-sensitive lowercase). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,

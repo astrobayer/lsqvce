@@ -113,20 +113,11 @@ function res = residuals(acc, sol, opt)
 %     lsqvce:residuals:badSol       the solution is not from this accumulator
 %     lsqvce:residuals:noStore      nothing was retained; re-run with 'store','all'
 %
-%   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: 'Whitened', false no
-%   longer changes vtv / sigma0 / rms (they are the solve's weighted sums);
-%   it only leaves e.w out. With assistance from Claude (Anthropic), model
-%   Claude Opus 5.5.
-%   Updated 2026-10-13 (CEST, UTC+02:00), WP-130: dof counts a rank-deficient
-%   local block by its rank (BlockAccumulator.localRankOf). With assistance
-%   from Claude (Anthropic), model Claude Opus 5.5.
-%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
-%   typed `arguments` signature, canonical UpperCamelCase option names
-%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
-%   case-sensitive lowercase). With assistance from Claude (Anthropic),
-%   model Claude Fable 5.
 %   See also LSQVCE.ENGINE.BLOCKACCUMULATOR, LSQVCE.ENGINE.CHECKPSD
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-140: the three stamps that sat
+%   before See also moved after it, in date order. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: GN's zero step (sol.xLin), the rows
 %   of weight 0 out of m and dof, a ridge's defect in dof, s0^2 / sol.truncation.
 %   With assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -134,6 +125,13 @@ function res = residuals(acc, sol, opt)
 %   local covariances Cyy carry THIS pass's s0^2 (they were all NaN). With
 %   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: 'Whitened', false no
+%   longer changes vtv / sigma0 / rms (they are the solve's weighted sums);
+%   it only leaves e.w out. With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
+%   Updated 2026-10-13 (CEST, UTC+02:00), WP-130: dof counts a rank-deficient
+%   local block by its rank (BlockAccumulator.localRankOf). With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-11 (CEST, UTC+02:00), R7 WP-114 (R7-15): the common prior
 %   enters vtv and dof (res.prior), one estimator, one sigma0. With
 %   assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -142,6 +140,11 @@ function res = residuals(acc, sol, opt)
 %   logic + res.supersedesSol; this pass is the documented authority for
 %   a cancellation-poisoned accumulated vtv. With assistance from Claude
 %   (Anthropic), model Claude Fable 5.
+%   Updated 2026-08-19 (CEST, UTC+02:00), WP-39 stage (b) b2 (F-07):
+%   typed `arguments` signature, canonical UpperCamelCase option names
+%   (legacy casings keep matching -- MATLAB NV semantics; enum VALUES
+%   case-sensitive lowercase). With assistance from Claude (Anthropic),
+%   model Claude Fable 5.
 %   Generated with assistance from Claude (Anthropic), model Claude
 %   Opus 4.8.
 %   Moved 2026-09-01 (CEST, UTC+02:00) into +lsqvce/+engine (R4 decision R4-D1,

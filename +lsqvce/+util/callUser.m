@@ -1,5 +1,5 @@
 function [nOut, varargout] = callUser(fh, minOut, maxOut, ctx, varargin)
-%CALLUSER  Call a user-supplied function: outputs counted ONCE, errors wrapped.
+%LSQVCE.UTIL.CALLUSER  Call a user-supplied function: outputs counted ONCE, errors wrapped.
 %   [nOut, out1, ..., outMax] = lsqvce.util.callUser(fh, minOut, maxOut, ctx, args...)
 %
 %   THE one place the toolbox calls a function the user wrote (batch sources,
@@ -60,6 +60,9 @@ function [nOut, varargout] = callUser(fh, minOut, maxOut, ctx, varargin)
 %
 %   See also NARGOUT, LSQVCE.ENGINE.MAKELOADER
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-140: the H1 line names the unit
+%   in full, lsqvce.util.callUser, as HANDOVER 6.2.1 asks (it read the bare
+%   name). With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lane 4): the
 %   probe's limitation documented (a body raising an arity identifier is
 %   called twice). With assistance from Claude (Anthropic), model Claude

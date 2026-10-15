@@ -1,5 +1,5 @@
 function meta = runMeta(seeds, options)
-%RUNMETA  Compose the run-provenance struct carried by LSQVCE.RESULTS (WP-44).
+%LSQVCE.ENGINE.RUNMETA  Compose the run-provenance struct carried by LSQVCE.RESULTS (WP-44).
 %   meta = lsqvce.engine.runMeta(seeds, options)
 %
 %   THE ONE COMPOSER (rule 3): every lsqvce.Results receives its .meta from
@@ -39,6 +39,9 @@ function meta = runMeta(seeds, options)
 %
 %   See also LSQVCE.RESULTS, LSQVCE.REPORT
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-140: the H1 line names the unit
+%   in full, lsqvce.engine.runMeta, as HANDOVER 6.2.1 asks (it read the bare
+%   name). With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
 %   accuracy, "Not applicable" with its reason. With assistance from Claude
 %   (Anthropic), model Claude Opus 5.5.

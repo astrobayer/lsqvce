@@ -1,5 +1,5 @@
 function key = arcKey(sysID, obsType, day, arc)
-%ARCKEY  The one key of an arc in the joint estimator: 's<sys>_<obsType>_d<day>_a<arc>'.
+%LSQVCE.UTIL.ARCKEY  The one key of an arc in the joint estimator: 's<sys>_<obsType>_d<day>_a<arc>'.
 %   key = lsqvce.util.arcKey(sysID, obsType, day, arc)
 %
 %   The identity the joint estimator pins its arc factors on (WP-34:
@@ -22,6 +22,9 @@ function key = arcKey(sysID, obsType, day, arc)
 %   See also LSQVCE.UTIL.STREAMKEY, LSQVCE.UTIL.ROWWEIGHTKEY,
 %            LSQVCE.ENGINE.ADJUSTVCEJOINT
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-140: the H1 line names the unit
+%   in full, lsqvce.util.arcKey, as HANDOVER 6.2.1 asks (it read the bare
+%   name). With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
 %   accuracy, "Not applicable" with its reason. With assistance from Claude
 %   (Anthropic), model Claude Opus 5.5.

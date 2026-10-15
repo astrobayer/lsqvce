@@ -93,7 +93,16 @@ covariance function carries the absolute magnitude and structure.</pre>
 OPTIONS (Name/Value)
   &#x27;MeanType&#x27;  char    &#x27;robust&#x27; (default) | &#x27;plain&#x27;   (see above)
   &#x27;TrimFrac&#x27;  1x1     fraction trimmed from EACH tail for &#x27;robust&#x27;
-                      (default 0.25, i.e. Ellmer&#x27;s central half)</pre>
+                      (default 0.25, i.e. Ellmer&#x27;s central half)
+  &#x27;ClampEps&#x27;  1x1     floor for the NORMALISED arc factors (&gt; 0, default
+                      1e-8; sigma2hat is already divided by gammaBar^2, so
+                      healthy factors are O(1)): any sigma2hat_m below it --
+                      negative gamma2 from a negative alpha2, or a
+                      degenerate ratio -- is clamped to ClampEps, warned
+                      about with the arc indices (id
+                      lsqvce:arcVarianceFactors:clamped) and flagged in
+                      .clamped. A negative variance factor must never leave
+                      this function: it weights a covariance downstream.</pre>
 <h3>Output</h3>
 <pre class="example">out   1x1 struct
   .sigma2   M x 1   the updated arc variance factors sigma2hat_m
@@ -121,19 +130,9 @@ OPTIONS (Name/Value)
                     WP-125/126): long arcs weigh by their redundancy,
                     where mean(gamma2) weighs every arc alike</pre>
 <h3>Example</h3>
-<pre class="example">  a = lsqvce.engine.arcVarianceFactors(qa, ta, sig2);   % qa = r*Omega, ta = r*s
-  sig2 = a.sigma2;                 % feed back into the next iteration
-
-OPTIONS (Name/Value, in addition to &#x27;MeanType&#x27;/&#x27;TrimFrac&#x27;)
-  &#x27;ClampEps&#x27; 1x1 double &gt; 0, default 1e-8.  Floor for the NORMALISED arc
-             factors (sigma2hat is already divided by gammaBar^2, so
-             healthy factors are O(1)): any sigma2hat_m below it --
-             negative gamma2 from a negative alpha2, or a degenerate
-             ratio -- is clamped to ClampEps, warned about with the arc
-             indices (id lsqvce:arcVarianceFactors:clamped) and flagged
-             in .clamped. A negative variance factor must never leave
-             this function: it weights a covariance downstream.
-  mean(sqrt(a.sigma2))             % == 1 exactly only for &#x27;plain&#x27;</pre>
+<pre class="example">a = lsqvce.engine.arcVarianceFactors(qa, ta, sig2);   % qa = r*Omega, ta = r*s
+sig2 = a.sigma2;                 % feed back into the next iteration
+mean(sqrt(a.sigma2))             % == 1 exactly only for &#x27;plain&#x27;</pre>
 <h3>Accuracy</h3>
 <pre class="example">Exact algebra; the statistics live in Q and T (T may be a probe
 estimate). .sigma2 equals the closed form of eqs. 6.5.28-6.5.30 (HANDOVER
@@ -154,6 +153,9 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 
 See also LSQVCE.ENGINE.PSDVCE, LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.ADJUSTVCEJOINT
 
+Updated 2026-10-15 (CEST, UTC+02:00), WP-140: one options block: ClampEps
+had a second one after the example, which had lost its last line to it.
+With assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
 accuracy, every number traced to the test that pins it. With assistance
 from Claude (Anthropic), model Claude Opus 5.5.

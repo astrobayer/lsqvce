@@ -8,6 +8,10 @@ function tests = test_precision
 %
 %   See also TEST_RELIABILITY, TEST_SPEED, TEST_LSQACCUM
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-140: testDecorrFactorIsExact's
+%   cond is 345, not ~20; the MA whitener's mirror figure is its worst case,
+%   2.6e-13; testCheckPSDVerdicts is a precision test. With assistance from
+%   Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-134 (third review): armaACV of a near-unit root is the same law for any n.
 %   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: armaACV of a sparse AR
@@ -80,7 +84,7 @@ function testArmaWithMaWhitenerIsTheCholeskyFactor(tc)
 % against the dense Cholesky inverse of its own Cfcn, on an arc longer than
 % the exact startup (K = p + the decay of 1/B(z), 325 rows here) and on one
 % shorter (all rows exact). Mirror: dev/validation/wp127_arma_whiten_mirror.py,
-% 1.7e-13 relative.
+% at most 2.6e-13 relative over these three cases (WP-140: 1.7e-13 is case 1).
     cases = {[1 -0.9], [1 0.8], 1.3, 600;  [1 -1.6 0.9 -0.25], [1 0.5 0.3], 0.5, 400; ...
              [1 -0.5], [1 0.4], 0.7, 20};
     for k = 1:size(cases, 1)
@@ -91,8 +95,8 @@ function testArmaWithMaWhitenerIsTheCholeskyFactor(tc)
         [~, ~, F] = Wfcn(1:n, z, z, eye(n), struct());
         W = lsqvce.kernel.decorrFactor(Cfcn(1:n, struct()));
         % tol: both are Cholesky inverse factors of the same Toeplitz C (cond
-        % up to ~1e4 here); the mirror measures 1.7e-13 relative, 1e-9 leaves
-        % four decades for the platform's rounding
+        % up to ~1e4 here); the mirror measures at most 2.6e-13 relative, 1e-9
+        % leaves three decades for the platform's rounding
         tc.verifyLessThan(norm(F - W, 'fro') / norm(W, 'fro'), 1e-9, ...
             sprintf('ARMA(%d,%d), n = %d: the filter is chol(C)^-1', numel(a)-1, numel(b)-1, n));
     end
@@ -140,7 +144,8 @@ function testDecorrFactorIsExact(tc)
     r = lsqvce.kernel.armaACV([1 -0.9], 1, 120);
     C = toeplitz(r);
     W = lsqvce.kernel.decorrFactor(C);
-    % tol: exact identity through a solve with cond(C) ~ 20 for AR(1) phi=0.9;
+    % tol: exact identity through a solve with cond(C) = 345 for AR(1) phi=0.9, n=120
+    % (limit ((1+phi)/(1-phi))^2 = 361; WP-140: the comment said ~20);
     % house exact-identity bound 1e-10 rel (HANDOVER 6.1.2)
     tc.verifyEqual(W.'*W, C \ eye(120), 'RelTol', 1e-10, 'AbsTol', 1e-9);
     tc.verifyEqual(W*C*W.', eye(120), 'AbsTol', 1e-9);   % tol: same source
@@ -275,7 +280,7 @@ function testCovModelToeplitzLawIsNotCirculant(tc)
 end
 
 function testCheckPSDVerdicts(tc)
-% categories: contract | tags: diagnostics
+% categories: contract, precision | tags: diagnostics
     dt = 5;  a = [1 -1.6 0.9 -0.25];
     f  = linspace(0, 0.5/dt, 4096).';
     H  = 1 ./ (exp(-1i*2*pi*f*dt*(0:3)) * a(:));
@@ -284,6 +289,8 @@ function testCheckPSDVerdicts(tc)
     chk = lsqvce.engine.checkPSD(cm, dt, struct('arOrder',20), false);
     tc.verifyEqual(chk.verdict, 'good');
     tc.verifyTrue(chk.stable);
+    % tol: checkPSD's own 'good' bound (acvRelErr < 1e-3); an AR(20) contains the AR(3) that
+    % generated the spectrum, so the refit must land inside it (WP-140: a precision test)
     tc.verifyLessThan(chk.acvRelErr, 1e-3);
 
     % AR(1) is far too low an order for an AR(3) spectrum

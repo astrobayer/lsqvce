@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.24.1 — API Reference"
+title: "lsqvce 6.24.2 — API Reference"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 

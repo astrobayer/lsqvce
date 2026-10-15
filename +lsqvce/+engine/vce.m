@@ -7,9 +7,10 @@ function vc = vce(accFcn, opt)
 %
 %       sigma_g^2 = vtv_g / r_g
 %
-%   re-whitening the data with the updated sigmas at each step. Converges in
-%   2-4 iterations from a badly wrong start (verified: recovers the truth from
-%   a 3x wrong initial weight in 2 iterations).
+%   re-whitening the data with the updated sigmas at each step. From unit
+%   weights against a true pos : kbr sigma ratio of 1 : 2.5 it converges within
+%   5 iterations (test_vceFunction (testVceConvergesFast)) and recovers the
+%   ratio to 0.15 (see ACCURACY).
 %
 %   WHY YOU WANT THIS
 %     The relative weighting of observation types -- 'pos' versus 'kbr' -- is
@@ -132,6 +133,11 @@ function vc = vce(accFcn, opt)
 %
 %   See also LSQVCE.ENGINE.REDUNDANCY, LSQVCE.ENGINE.BLOCKCOFACTOR, LSQVCE.ENGINE.OUTLIERS
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-140: the unpinned "recovers the
+%   truth from a 3x wrong initial weight in 2 iterations" is replaced by what
+%   testVceConvergesFast pins: within 5 iterations from unit weights, true
+%   ratio 1 : 2.5. With assistance from Claude (Anthropic), model Claude Opus
+%   5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-139: the help states its
 %   accuracy, every number traced to the test that pins it. With assistance
 %   from Claude (Anthropic), model Claude Opus 5.5.

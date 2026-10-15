@@ -57,7 +57,6 @@ engine.batchSystem,precision,the numbers it produces are pinned at the fit level
 engine.batchSystem,reference,no closed form of its own beyond the dense references its callers are pinned against
 engine.batchSystem,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates
 engine.batchSystem,speed,covered by the fit-level solve budget (test_speedBudget) and the WP-79 measurements pinned in dev/DEVELOPMENT.md; a per-driver budget would double-count
-engine.checkPSD,precision,the numbers it produces are pinned at the fit level against dense closed forms (test_fit, test_lsqvce*, test_physOracle); the driver adds plumbing, not arithmetic
 engine.checkPSD,reference,no closed form of its own beyond the dense references its callers are pinned against
 engine.checkPSD,robustness,its refusals are named identifiers pinned under contract; no numerical edge regime beyond those
 engine.checkPSD,vectorisation,the data loop lives in the accumulator / kernels (vectorised there); this unit orchestrates

@@ -1,5 +1,21 @@
 # lsqvce release notes
 
+## 6.24.2 — 2026-10-15 (WP-140: the observations of WP-139)
+
+Documentation and test bookkeeping only: no estimate, interface or identifier changes.
+
+- Help text that said what the code does not: `applyRegularisation`'s `'tsvd'` is the accumulator's
+  truncation of the unfloored local block (since 6.20.0), not a floor; `mapreduce` says why
+  `'parfor'` matches `'serial'` to 1e-14 rather than bitwise (single-threaded workers); the claims
+  "4/4 injected outliers detected" (`outliers`) and "2 iterations from a 3x wrong weight" (`vce`)
+  had nothing behind them and give way to what a test pins.
+- Help structure: stamps that sat inside a help block (six files), one OPTIONS block in
+  `arcVarianceFactors`, one INPUT block in `separableWhiten` and `varWhiten`, every public unit's
+  H1 line in full (`%LSQVCE.ENGINE.RUNMETA`, ...).
+- Tests: a check that compared CommonPrior's absorbed DoF with itself now compares it with a dense
+  trace; copied or wrong tolerance comments say their own source; the checkPSD verdict test counts
+  as a precision test. The R2 Python mirror's spectral check uses an absolute tolerance only.
+
 ## 6.24.1 — 2026-10-15 (WP-139: every unit states its ACCURACY)
 
 Documentation only: no estimate, interface or identifier changes.
