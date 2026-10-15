@@ -72,8 +72,11 @@ LEVELS
                    release, and creation time. R.report() forwards it
                    automatically; a bare lsqvce.report(D) prints none.
   &#x27;Iteration&#x27;  struct()  the loop state of an ITERATIVE run:
-                   .converged, .stopReason, .nIter and optionally .what
-                   (the loop&#x27;s name; default &#x27;stochastic model&#x27;). When non-empty and the
+                   .converged, .stopReason, .nIter and optionally .loop
+                   (which loop iterated: &#x27;noise&#x27; -- the default, the
+                   stochastic model -- &#x27;irls&#x27; or &#x27;gaussNewton&#x27;; WP-138:
+                   a code, it was the display label .what; another value
+                   is refused, lsqvce:report:badIteration). When non-empty and the
                    run was not a single solve, ONE level-1 line says
                    whether the stochastic model settled -- &#x27;NOISE_SETTLED&#x27;
                    (NOTE) or &#x27;NOISE_UNSETTLED&#x27; (WARN). Every number from
@@ -92,21 +95,36 @@ OUTPUT V
 <pre class="example">D         1x1 struct  diagnostics from LSQVCE.ENGINE.VERDICT.DIAGNOSE
 varargin  Name/Value: &#x27;verbose&#x27;, &#x27;width&#x27;, &#x27;alpha&#x27;, &#x27;rWeak&#x27;, ...</pre>
 <h3>Example</h3>
-<pre class="example">    data = struct(&#x27;batchFcn&#x27;, src, &#x27;numUnknowns&#x27;, u, &#x27;numBatches&#x27;, 4);
-    R = lsqvce.fit(data, Verbose=false);
-    V = lsqvce.report(R.diag);         % prints the five levels (= R.report)
+<pre class="example">data = struct(&#x27;batchFcn&#x27;, src, &#x27;numUnknowns&#x27;, u, &#x27;numBatches&#x27;, 4);
+R = lsqvce.fit(data, Verbose=false);
+V = lsqvce.report(R.diag);         % prints the five levels (= R.report)
 
-    % V.verdict    &#x27;PASS&#x27; | &#x27;PASS WITH WARNINGS&#x27; | &#x27;SUSPECT&#x27; | &#x27;INVALID&#x27;
-    % V.findings   machine-readable: {level, severity, code, msg}
+% V.verdict    &#x27;PASS&#x27; | &#x27;PASS WITH WARNINGS&#x27; | &#x27;SUSPECT&#x27; | &#x27;INVALID&#x27;
+% V.findings   machine-readable: {level, severity, code, msg}
 
-    % Drive a pipeline off the codes rather than the text:
-    codes = cellfun(@(f) f.code, V.findings, &#x27;UniformOutput&#x27;, false);
-    if ismember(&#x27;SNOOP_CONTAMINATED&#x27;, codes)
-        error(&#x27;Pope is blind here -- re-run with test=mad.&#x27;);
-    end
+% Drive a pipeline off the codes rather than the text:
+codes = cellfun(@(f) f.code, V.findings, &#x27;UniformOutput&#x27;, false);
+if ismember(&#x27;SNOOP_CONTAMINATED&#x27;, codes)
+    error(&#x27;Pope is blind here -- re-run with test=mad.&#x27;);
+end</pre>
+<h3>Accuracy</h3>
+<pre class="example">Not applicable to the verdict: it reads D (LSQVCE.ENGINE.VERDICT.DIAGNOSE
+states the accuracy of every number it prints) and forms one band of
+its own, the variance factor&#x27;s chi2(r) / r at 0.5 % / 99.5 %, by
+LSQVCE.KERNEL.STAT.CHI2INV (|F(x) - p| / p &lt; 1e-11 for r &lt;= 1e7; its
+own ACCURACY). WP-138.</pre>
+<h3>Errors</h3>
+<pre class="example">  lsqvce:report:badIteration  Iteration.loop names no loop the report
+                              knows (&#x27;noise&#x27;, &#x27;irls&#x27;, &#x27;gaussNewton&#x27;), or
+                              Iteration carries the retired .what
 
 See also LSQVCE.ENGINE.VERDICT.DIAGNOSE, LSQVCE.ENGINE.VERDICT.SYSTEMATIC.
 
+Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135):
+Iteration.loop, a code (&#x27;noise&#x27; / &#x27;irls&#x27; / &#x27;gaussNewton&#x27;), replaces the
+display label .what -- the report owns the wording and refuses an unknown
+loop (lsqvce:report:badIteration); addF is appendFinding; ACCURACY. With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-15 (CEST, UTC+02:00), WP-137: SNOOP_INDETERMINATE says that
 R.snoop proceeds there with a warning (lsqvce:snoop:indeterminate; it ran on
 in silence). With assistance from Claude (Anthropic), model Claude Opus 5.5.

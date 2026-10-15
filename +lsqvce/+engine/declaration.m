@@ -16,11 +16,20 @@ function [spec, systems] = declaration(data, cacheDays)
 %   OUTPUT  spec       1x1 struct   the validated declaration: .commonParams .days
 %                                   .systems .ids .commonPlan .validityColumns .nc ...
 %           systems    1xK cell     Loader structs (isLoader true; .plan, .nc, .nl, ...)
+%   ACCURACY
+%           Not applicable: validation and plan construction; the one number it
+%           forms, a validity entry's MJD, is the private validityOf's.
 %   ERRORS  lsqvce:fit:noSystems / noCommon / unknownField / badScope / badId /
 %           badParamColumns / ...  (lsqvce.fit's ERRORS lists them)
 %
 %   See also LSQVCE.FIT, LSQVCE.ENGINE.MAKELOADER, LSQVCE.RESULTS
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135): the
+%   validity rule is the private validityOf (mjdOf retired: one rule, the
+%   loader's), the id and day rules the private idDayRules (the accumulator's
+%   too); a non-integer day list is lsqvce:fit:badDays (it was noDays), ids of
+%   two kinds lsqvce:fit:mixedIdTypes (it was badId); ACCURACY. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3 findings 11, 12 and
 %   the declaration lows): day lists are unique integers
 %   (lsqvce:fit:duplicateDay); the system ids are of one kind, 'i' / 'j' stay
@@ -258,35 +267,36 @@ function tf = calendarDayHasArcs(sys, day, globalDays)
 end
 
 function days = dayListOf(v, where)
-%DAYLISTOF  A declared day list: numeric integers, each day ONCE (WP-135,
-%   finding 11 of the third review: a repeated day was accumulated twice,
-%   silently -- x pulled toward it, sd too small, dof inflated by its rows).
+%DAYLISTOF  A declared day list: numeric integers (lsqvce:fit:badDays --
+%   WP-138: it was noDays, the reason for a list that is absent), each day
+%   ONCE (lsqvce:fit:duplicateDay, WP-135: a repeated day was accumulated
+%   twice). The repeat rule is the accumulator's too: private idDayRules.
 %   INPUT  v 1xD numeric; where 1xN char (the field, for the message)
 %   OUTPUT days 1xD double
-    days = double(v(:).');
-    if ~isnumeric(v) || ~all(isfinite(days) & days == round(days))
-        error('lsqvce:fit:noDays', '%s must be numeric integers (the loader cache is keyed on them).', where);
+    days = NaN;                                  % a cell / char is no day list
+    if isnumeric(v), days = double(v(:).'); end
+    if ~all(isfinite(days) & days == round(days))
+        error('lsqvce:fit:badDays', '%s must be numeric integers (the loader cache is keyed on them).', where);
     end
-    [u, ~, j] = unique(days);
-    if numel(u) < numel(days)
-        twice = u(accumarray(j(:), 1) > 1);
+    [~, twice] = idDayRules({}, days);
+    if ~isempty(twice)
         error('lsqvce:fit:duplicateDay', ...
-            '%s lists day %d more than once; every listing would be accumulated.', where, twice(1));
+            '%s lists day %d more than once; every listing would be accumulated.', where, twice);
     end
 end
 
 function oneIdKind(ids, explicit)
 %ONEIDKIND  The system ids of a declaration are of ONE kind (WP-135, finding
-%   12): the accumulator concatenates them ([store.sysID]), and a character
-%   next to a number turned the number into a control character -- robust
-%   factors went under keys the loader never reads, reported as applied.
+%   12; the rule is the accumulator's too: private idDayRules). WP-138: its
+%   own identifier, lsqvce:fit:mixedIdTypes (the accumulator's reason name;
+%   it was badId, which keeps an id that is no number or letter at all).
 %   INPUT  ids 1xM cellstr (resolved); explicit 1xM logical (id declared)
-    isNum = cellfun(@(c) isnumeric(idValue(c)), ids);
-    if any(isNum) && ~all(isNum)
-        kc = find(~isNum, 1);  kn = find(isNum, 1);
+    mixed = idDayRules(cellfun(@idValue, ids, 'UniformOutput', false), []);
+    if ~isempty(mixed)
+        kc = mixed(1);  kn = mixed(2);
         how = '';
         if ~explicit(kn), how = ' (its index default: it declares no id)'; end
-        error('lsqvce:fit:badId', ...
+        error('lsqvce:fit:mixedIdTypes', ...
             ['system ids must be all numbers or all single letters: data.systems(%d) has ' ...
              'the id ''%s'', data.systems(%d) the number %s%s. Give every system an id ' ...
              'of one kind.'], kc, ids{kc}, kn, ids{kn}, how);
@@ -371,35 +381,20 @@ end
 %========================================================== kinds B / C
 function f = commonValidity(tbl, valCols)
 %COMMONVALIDITY  @(row, day) validity of a commonParams row on a calendar day
-%   (R5-D8 round 3; the same rule as the loader's: [MJD sec] or fractional
-%   MJD in the named columns, [] = always, half-open day overlap).
+%   (R5-D8 round 3): the loader's rule on the named columns -- the private
+%   validityOf, ONE definition since WP-138 (it was re-implemented here as
+%   mjdOf). Its refusal is relabelled lsqvce:fit:badValidity, the rule's
+%   error attached as the cause; the columns themselves are fit's to judge.
     if isempty(valCols), f = @(row, day) true;  return, end
-    if numel(valCols) ~= 2 || any(valCols < 1) || any(valCols > size(tbl, 2))
+    if numel(valCols) ~= 2 || any(valCols < 1) || any(valCols > size(tbl, 2)) || any(valCols ~= round(valCols))
         error('lsqvce:fit:badParamColumns', ...
               'data.paramColumns names columns %s; commonParams has %d columns.', mat2str(valCols), size(tbl, 2));
     end
-    n = size(tbl, 1);  t0 = -inf(n, 1);  t1 = inf(n, 1);
-    for r = 1:n
-        a = tbl{r, valCols(1)};  b = tbl{r, valCols(2)};
-        if ~isempty(a), t0(r) = mjdOf(a, r); end
-        if ~isempty(b), t1(r) = mjdOf(b, r); end
-        if t0(r) > t1(r)                  % WP-135: the row silently never existed
-            error('lsqvce:fit:badValidity', ...
-                  'data.commonParams row %d: validity start %g is after end %g.', r, t0(r), t1(r));
-        end
-    end
-    f = @(row, day) t0(row) < day + 1 && t1(row) > day;
-end
-
-function m = mjdOf(v, r)
-%MJDOF  A validity entry as fractional MJD, the loader's rule (WP-135: a char
-%   was read by its code points, a longer vector by its first two elements).
-    if isnumeric(v) && ~any(isnan(v(:))) && isscalar(v)
-        m = double(v);
-    elseif isnumeric(v) && ~any(isnan(v(:))) && numel(v) == 2
-        m = double(v(1)) + double(v(2)) / 86400;
-    else
-        error('lsqvce:fit:badValidity', ['data.commonParams row %d: a validity entry ' ...
-              'must be [], a fractional MJD, or [MJD seconds].'], r);
+    try
+        f = validityOf(tbl, valCols);
+    catch e
+        if ~strcmp(e.identifier, 'lsqvce:makeLoader:badValidity'), rethrow(e), end
+        e2 = MException('lsqvce:fit:badValidity', 'data.commonParams %s', e.message);
+        throw(addCause(e2, e));
     end
 end

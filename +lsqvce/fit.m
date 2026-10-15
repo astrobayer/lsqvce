@@ -64,6 +64,14 @@ function R = fit(data, opts, nv)
 %                                 methods report, summary, convergence, residuals,
 %                                 contribution, compare, plot, toTable, coefficients
 %
+%   ACCURACY
+%     fit adds no arithmetic of its own: the estimate is the block
+%     accumulator's (LSQVCE.ENGINE.BLOCKACCUMULATOR: the monolithic solve to
+%     1e-8 relative), the verdict LSQVCE.ENGINE.VERDICT's and the noise
+%     model LSQVCE.ENGINE.ADJUSTVCEJOINT's -- see theirs. End to end, the
+%     matrix kind (data.A / .l / .p) reproduces the dense normal equations to
+%     1e-12 relative (test_fit). WP-138.
+%
 %   ERRORS
 %     Your declaration is wrong (raised BEFORE any data is read):
 %       lsqvce:fit:unknownField    a field name the contract does not know
@@ -82,13 +90,16 @@ function R = fit(data, opts, nv)
 %                                  start / end, or a column the table lacks
 %       lsqvce:fit:missingField    a required system field is absent, or
 %                                  covariance carries no observation type
-%       lsqvce:fit:noDays          no day list anywhere, or a day list that is
-%                                  not numeric integers
+%       lsqvce:fit:noDays          no day list anywhere
+%       lsqvce:fit:badDays         a day list that is not numeric integers
+%                                  (WP-138; it was noDays)
 %       lsqvce:fit:duplicateDay    data.days or a system's days names a day
 %                                  twice (it was accumulated twice; WP-135)
 %       lsqvce:fit:badId           id is not a finite numeric scalar or single
-%                                  char, or the ids mix numbers and characters
-%                                  (an index default is a number; WP-135)
+%                                  char
+%       lsqvce:fit:mixedIdTypes    the ids mix numbers and characters (an
+%                                  index default is a number; WP-135, its own
+%                                  id since WP-138 -- it was badId)
 %       lsqvce:fit:duplicateSystem two systems share an id (explicit or
 %                                  index default)
 %       lsqvce:fit:badValidity     a commonParams validity entry is not [], a
@@ -146,6 +157,11 @@ function R = fit(data, opts, nv)
 %            LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT,
 %            LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTNONLINEAR
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135):
+%   ERRORS name lsqvce:fit:badDays and lsqvce:fit:mixedIdTypes; the prior
+%   streams are marked from their obsType (lsqvce.util.priorStream), not
+%   parsed out of the stream key; ACCURACY. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-136: the help says where buildDay
 %   goes (one handle per system; a setup through processingOptions or a
 %   closure). With assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -391,11 +407,11 @@ function R = fitEllmer(systems, days, opts, pri, opc, priorGroups, froms)
 %   driver's out struct -> a Results with the streaming contract.
     nc    = lsqvce.engine.resolveNc(systems);
     specs = accSpecs(systems, days);
-    streams = streamKeys(systems, specs);
+    [streams, isPrior] = streamKeys(systems, specs);
     a = opts.engineArgs("adjustVCEjoint");
     psdMode = lower(char(opts.Noise.Whitener));     % WP-135: as engineArgs lowers it
     pool = opts.Pool;  afDefault = opts.ArcFactors;      % R5 M5: explicit policy knobs
-    [estMap, afMap] = streamPolicy(systems, specs, streams, afDefault);   % R5 M3 3d (R5-D4)
+    [estMap, afMap] = streamPolicy(systems, specs, streams, isPrior, afDefault);   % R5 M3 3d (R5-D4)
     % R5 M7 7b: prior groups with estimate "scale" get one Helmert step per
     % pass (from the previous pass's solution) and the prior is re-stacked
     priState = containers.Map('KeyType', 'char', 'ValueType', 'any');
@@ -461,14 +477,17 @@ function specs = accSpecs(systems, days)
     end
 end
 
-function keys = streamKeys(systems, specs)
+function [keys, isPrior] = streamKeys(systems, specs)
 %STREAMKEYS  'satKey|obsType' for every (system, observation type) stream --
-%   the names LSQVCE.ENGINE.JOINTMODELOPT / LSQVCE.ENGINE.ADJUSTVCEJOINT use.
-    keys = {};
+%   the names LSQVCE.ENGINE.JOINTMODELOPT / LSQVCE.ENGINE.ADJUSTVCEJOINT use --
+%   and whether it is a prior pseudo-stream (WP-138: read from the obsType
+%   it was built from, not parsed back out of the key).
+    keys = {};  isPrior = false(1, 0);
     for k = 1:numel(specs)
         ot = cellstr(systems{k}.obsTypes);
         for j = 1:numel(ot)
             keys{end+1} = lsqvce.util.streamKey(specs(k).sysID, ot{j});  %#ok<AGROW>
+            isPrior(end+1) = lsqvce.util.priorStream.is(ot{j});         %#ok<AGROW>
         end
     end
 end
@@ -656,7 +675,7 @@ function R = runBatchOnBlockPath(u, batchFcn, nBatch, opts, kind, pri, data)
     end
 end
 
-function [estMap, afMap] = streamPolicy(systems, specs, streams, afDefault)
+function [estMap, afMap] = streamPolicy(systems, specs, streams, isPrior, afDefault)
 %STREAMPOLICY  Per-stream 'estimate' / 'arcFactors' from the covariance specs.
 %   R5 M3 3d (WP-83, R5-D4): a stream spec may carry
 %     .estimate    "none" | "scale" | "law"   default "law"
@@ -671,10 +690,9 @@ function [estMap, afMap] = streamPolicy(systems, specs, streams, afDefault)
         % The default "law" is then stated ONCE, here, instead of being restated
         % by every reader of the map (R1: one authority per fact).
         estMap(char(string(streams{k}))) = 'law';
-        afMap(char(string(streams{k}))) = logical(afDefault);
-        if contains(char(string(streams{k})), '|prior_')     % R5-D8 round 5: a local prior group is a
-            afMap(char(string(streams{k}))) = false;          % stream; its estimate policy comes from
-        end                                                   % its cov spec (the group's "estimate")
+        % R5-D8 round 5: a local prior group is a stream without arc factors;
+        % its estimate policy comes from its cov spec (the group's "estimate")
+        afMap(char(string(streams{k}))) = logical(afDefault) && ~isPrior(k);
     end
     for k = 1:numel(systems)
         L = systems{k};

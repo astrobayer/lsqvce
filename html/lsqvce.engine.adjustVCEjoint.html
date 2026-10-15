@@ -275,6 +275,15 @@ OPTIONS (Name/Value)
 r = lsqvce.engine.adjustVCEjoint(accFcn, &#x27;NumLags&#x27;, 60, &#x27;MaxIter&#x27;, 8);
 semilogy(r.S);             % the estimated noise spectrum (the bins)
 plot(r.sigma2);            % the arc-wise weights</pre>
+<h3>Accuracy</h3>
+<pre class="example">The update is Ellmer&#x27;s PSD-VCE law (HANDOVER 6.1.4, the Ellmer (2018)
+row: test_ellmer&#x27;s references, and its recorded refutation of the
+closed-loop alternation, F-15). The per-lag sums it consumes
+(LSQVCE.KERNEL.REDUNDANCYLAGS) equal the dense trace(Rbar V_n) to 1e-8
+relative, the nugget route the general one to 1e-9 of s_0
+(test_ellmer). The levels and laws are statistical estimates: their
+measured sampling error and bias are stated with the options above
+(R7-12, HANDOVER 12.43). WP-138.</pre>
 <h3>Errors</h3>
 <pre class="example">  lsqvce:adjustVCEjoint:needCfcn  the joint mode needs a cross-covariance
                                   function and none was supplied
@@ -330,6 +339,10 @@ IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 See also LSQVCE.ENGINE.PSDVCE, LSQVCE.ENGINE.ARCVARIANCEFACTORS,
          LSQVCE.KERNEL.REDUNDANCYLAGS, LSQVCE.ENGINE.SHAREDPROBE
 
+Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135): the
+prior pseudo-streams are recognised by lsqvce.util.priorStream on their
+obsType (the stream key was parsed for &#x27;|prior_&#x27;); ACCURACY. With
+assistance from Claude (Anthropic), model Claude Opus 5.5.
 Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lane 4): the closing
 accumulation&#x27;s model carries .final = true, so an accFcn that updates its
 own components (fit&#x27;s prior groups) knows .lastSol is the last pass&#x27;s own

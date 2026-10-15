@@ -19,7 +19,7 @@ ignored silently.
 | field | type / size | required | meaning |
 |---|---|---|---|
 | `commonParams` | cell R×C, C ≥ 1 | yes | the common parameter **templates** (below) |
-| `days` | double 1×D | unless every system has its own `days` | the default calendar: integer day identifiers, each once (the loader cache is keyed on them; a repeated day is refused, `lsqvce:fit:duplicateDay`) |
+| `days` | double 1×D | unless every system has its own `days` | the default calendar: integer day identifiers, each once (the loader cache is keyed on them: a non-integer list is refused, `lsqvce:fit:badDays`, a repeated day too, `lsqvce:fit:duplicateDay`) |
 | `systems` | struct 1×M, M ≥ 1 | yes | one entry per observing system (below) |
 | `priors` | struct array | no | prior groups on the common parameters (chapter Priors) |
 | `paramColumns` | struct | no | which table columns hold a row's validity and its name (below) |
@@ -54,7 +54,7 @@ All entries share the same fields; fill an unused optional field with `[]`.
 | `localParams` | cell R×C | `{}` | the local parameter templates (below); not declared → nl = 0 |
 | `arcs` | double, struct or function handle | *(none)* | the arc schedule (chapter `buildDay`); required only by `'arc'` template rows |
 | `days` | double 1×D | `data.days` | this system's calendar: integers, each once (`lsqvce:fit:duplicateDay`) |
-| `id` | finite double scalar or single char | the index k | identifier, unique across systems; all ids of one kind -- numbers or characters (the index default is a number: give every system an id, or none; `lsqvce:fit:badId`) |
+| `id` | finite double scalar or single char | the index k | identifier, unique across systems; all ids of one kind -- numbers or characters (the index default is a number: give every system an id, or none; `lsqvce:fit:mixedIdTypes`) |
 | `name` | char / string | `''` | label used in reports |
 | `processingOptions` | struct | `struct()` | anything `buildDay` needs (paths, force models); its 5th argument |
 | `priors` | struct array | none | prior groups on this system's local parameters (chapter Priors) |

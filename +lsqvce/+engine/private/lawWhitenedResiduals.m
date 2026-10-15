@@ -42,6 +42,9 @@ function [vw, keys, sizes] = lawWhitenedResiduals(res, W)
 %   See also LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTVCEJOINT,
 %            LSQVCE.KERNEL.ROBUSTWEIGHTS, LSQVCE.UTIL.ROWWEIGHTKEY
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135): the
+%   prior pseudo-streams are recognised by lsqvce.util.priorStream. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Created 2026-09-09 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.1 -- R6 WP-105 (lifted verbatim from
 %   adjustRobust>collectWhitened, where it lived since R5 M2 2b).
@@ -52,7 +55,7 @@ function [vw, keys, sizes] = lawWhitenedResiduals(res, W)
         S = res.sys(k);
         for j = 1:numel(S.obs)
             o = S.obs(j);
-            if startsWith(string(o.obsType), "prior_")
+            if lsqvce.util.priorStream.is(string(o.obsType))
                 continue       % R6 WP-108 (issue #110): see PRIOR STREAMS above
             end
             w = o.w(:);

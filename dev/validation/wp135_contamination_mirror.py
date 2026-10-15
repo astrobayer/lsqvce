@@ -134,7 +134,8 @@ def collapse_detectable(n):
 
 
 def ladder_new(fhat, big, n, mad_available=True):
-    """verdict>contaminationOf, every level (WP-137: 'unknown', 'indeterminate')."""
+    """+engine/private/contaminationOf.m (verdict>contaminationOf until WP-138),
+    every level (WP-137: 'unknown', 'indeterminate')."""
     if not mad_available:
         return 'unknown'
     if big and collapsed(fhat, n):

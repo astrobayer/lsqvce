@@ -8,6 +8,10 @@ function tests = test_lsqvce_opts
 %
 %   Run with:  results = runtests('tests/test_lsqvce_opts.m')
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135): a
+%   local prior batch with a full weight matrix -- its datum row is a datum
+%   row, not an uncontrolled observation. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-131: the MDB of a correlated
@@ -594,6 +598,38 @@ function test_correlated_reduces_to_diagonal(tc)
     verifyEqual(tc, DM.w,    DV.w,    'AbsTol', 1e-8, ...   % tol: same source
         'the generalised w must REDUCE to the classical w for diagonal P');
     verifyEqual(tc, DM.vPv,  DV.vPv,  'RelTol', 1e-10);   % tol: same source
+end
+
+function test_local_datum_under_a_full_weight_matrix(tc)
+% categories: robustness | tags: diagnostics
+    % WP-138 (code review of WP-135): diagnose's datum pre-pass skipped a
+    % local prior batch with a full weight MATRIX without a word, so its datum
+    % row -- r = 0 by construction -- counted as an uncontrolled observation.
+    % Batch 2 is such a batch: its second row is the only one that sees
+    % parameter 3 (r = 0; the first row, on parameter 2, has r = 0.72), and
+    % the two rows are correlated.
+    rs = RandStream('mt19937ar', 'Seed', 138);
+    m = 12;  u = 3;
+    A1 = [randn(rs, m, 2), zeros(m, 1)];
+    l1 = A1 * [1; 2; 0] + 0.1 * randn(rs, m, 1);
+    A2 = [0 1 0; 0 0 1];  l2 = [2.05; 0.3];  P2 = [2 0.5; 0.5 1];
+    src = @(k) twoBatches(k, A1, l1, A2, l2, P2);
+    R = lsqvce.fit(struct('batchFcn', src, 'numUnknowns', u, 'numBatches', 2), Verbose=false);
+    dsol = R.source;
+    dsol.localPriorBatches = 2;               % as source marks a local group's arc
+    D = lsqvce.engine.verdict.diagnose(dsol, src, 'nBatch', 2);
+    tc.verifyEqual(D.datumRows, m + 2, 'the blind row of the full-weight batch is a datum row');
+    tc.verifyEqual(D.nUncontrolled, 0, 'and not an uncontrolled observation');
+    tc.verifyEqual(D.nTests, D.n - 1, 'the datum row is not tested');
+end
+
+function [A, l, p] = twoBatches(k, A1, l1, A2, l2, P2)
+%TWOBATCHES  Batch 1: diagonal data rows; batch 2: two rows under a full P.
+    if k == 1
+        A = A1;  l = l1;  p = ones(size(l1));
+    else
+        A = A2;  l = l2;  p = P2;
+    end
 end
 
 function test_snoop_refuses_correlated(tc)

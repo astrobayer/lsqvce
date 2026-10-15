@@ -65,6 +65,7 @@ util.toolboxVersion,KERNEL,the version string from Contents.m (runMeta provenanc
 util.onPass,KERNEL,fires Options.OnPass with the merged per-pass context
 util.rowWeightKey,KERNEL,key convention for per-arc robust weights
 util.streamKey,KERNEL,the one stream key satKey|obsType (R7-43)
+util.priorStream,KERNEL,the prior pseudo-streams' obsType: made and recognised in one place (WP-138)
 util.arcKey,KERNEL,the one arc key of the joint estimator (R7-43)
 util.log,KERNEL,toolbox-wide logging state
 util.mergeStruct,KERNEL,struct merge (later wins)

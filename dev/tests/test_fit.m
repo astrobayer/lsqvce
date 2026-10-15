@@ -15,6 +15,11 @@ function tests = test_fit
 %
 %   Run: runtests('tests/test_fit')
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135): a
+%   non-integer day list is lsqvce:fit:badDays, ids of two kinds
+%   lsqvce:fit:mixedIdTypes; the declaration test named for what it tests; the
+%   report refuses a loop label as Iteration.loop. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-137 (code review of WP-135): the
 %   Whitener's case on the noise path, an unsettled Gauss-Newton run's advice;
 %   the throwing-buildDay test's name. With assistance from Claude (Anthropic),
@@ -175,8 +180,10 @@ function testDeclarationRulesFireBeforeAnyRead(tc)
     tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:noCommon');
     d = rmfield(data, 'days');
     tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:noDays');
-    d = data;  d.days = [1 2.5];
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:noDays');
+    d = data;  d.days = [1 2.5];                                  % WP-138: not noDays
+    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:badDays');
+    d = data;  d.days = {1, 2};                                   % a cell is no day list
+    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:badDays');
     d = data;  d.systems(1).id = 7;  d.systems(2) = d.systems(1);   % same explicit id
     tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:duplicateSystem');
     d = data;  d.systems(1).id = 2;  d.systems(2) = d.systems(1);
@@ -210,11 +217,12 @@ function testDeclarationRulesFireBeforeAnyRead(tc)
     end
 end
 
-function testDeclarationRulesOfTheThirdReview(tc)
+function testDeclarationIsRefusedBeforeAnyRead(tc)
 % categories: contract
     % WP-135 (review 3 findings 11, 12 and lane 4): refused before any read --
     % the builder THROWS if reached, and the old code reached it (or the
-    % accumulator) on every one of these declarations.
+    % accumulator) on every one of these declarations. (WP-138: named for what
+    % it tests, not for the review that found it.)
     [data, ~] = declaration();
     bomb = @(varargin) error('test:reached', 'buildDay must not be called during validation');
     data.systems(1).buildDay = bomb;
@@ -224,10 +232,11 @@ function testDeclarationRulesOfTheThirdReview(tc)
     d = data;  d.systems(1).days = [1 1 2];
     tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:duplicateDay');
     d = data;  d.systems(1).days = [1 2.5];
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:noDays');
-    % finding 12: a character id next to an index default (a number)
+    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:badDays');
+    % finding 12: a character id next to an index default (a number); WP-138:
+    % its own id, the accumulator's reason name
     d = data;  d.systems(1).id = 'C';  d.systems(2) = d.systems(1);  d.systems(2).id = [];
-    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:badId');
+    tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:mixedIdTypes');
     d = data;  d.systems(1).id = NaN;
     tc.verifyEqual(idOf(@() lsqvce.fit(d)), 'lsqvce:fit:badId');
     % a common validity entry of another type, or a start after its end
@@ -290,6 +299,16 @@ function testUnsettledGaussNewtonRunAdvisesItsOwnRecord(tc)
     tc.verifyTrue(contains(V.findings{k}.msg, 'Gauss-Newton iteration'), 'it names the loop');
     tc.verifyTrue(contains(V.findings{k}.msg, 'R.history lists every step'));
     tc.verifyFalse(contains(V.findings{k}.msg, 'R.convergence()'));
+    % WP-138: Results hands the loop as a code (Iteration.loop) and the report
+    % owns the wording -- it branched on Results' display label; a label is no
+    % code, and an unknown loop is refused
+    it = struct('converged', false, 'stopReason', "maxPasses", 'nIter', 10, ...
+                'loop', 'Gauss-Newton iteration');
+    tc.verifyError(@() lsqvce.report(R.diag, 'Verbose', false, 'Iteration', it), ...
+                   'lsqvce:report:badIteration');
+    it = rmfield(it, 'loop');  it.what = 'Gauss-Newton iteration';   % the retired field
+    tc.verifyError(@() lsqvce.report(R.diag, 'Verbose', false, 'Iteration', it), ...
+                   'lsqvce:report:badIteration');
 end
 
 function testLayoutOfASystemWithoutLocals(tc)

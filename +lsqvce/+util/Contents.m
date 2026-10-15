@@ -6,6 +6,7 @@
 %   onPass             - fire the per-pass inspection hook (Options.OnPass)
 %   rowWeightKey       - the one key convention for per-arc robust weights
 %   streamKey          - the one stream key 'satKey|obsType'
+%   priorStream        - the prior pseudo-streams' obsType, made and recognised once
 %   arcKey             - the one arc key of the joint estimator
 %   log                - toolbox-wide logging state
 %   mergeStruct        - struct merge (later wins)

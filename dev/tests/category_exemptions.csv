@@ -216,6 +216,11 @@ util.streamKey,robustness,no numerical edge regime exists; inputs are formatted,
 util.streamKey,vectorisation,no loop over observations or lags -- scalar/struct plumbing
 util.streamKey,speed,O(1) per call; no data-sized work to budget
 util.streamKey,metamorphic,no invariance beyond the identity already pinned by its contract
+util.priorStream,precision,exact string formatting and a prefix test: the contract test pins every byte
+util.priorStream,reference,no closed form: the unit formats and tests a name, it does not compute
+util.priorStream,robustness,no numerical edge regime exists; names are formatted, not validated
+util.priorStream,vectorisation,is() is startsWith on the array it is handed; no loop of its own
+util.priorStream,speed,O(1) per name; no data-sized work to budget
 util.arcKey,precision,exact string formatting: the contract test pins every byte
 util.arcKey,reference,no closed form: the unit transports values, it does not compute
 util.arcKey,robustness,no numerical edge regime exists; inputs are formatted, not validated

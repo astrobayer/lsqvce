@@ -63,10 +63,12 @@ function [lam, gcv, grid] = gcvLambda(N, n, L, m, ltl)
 %     loglog(grid, gcv); xline(lam,'r--'); xlabel('\lambda'); ylabel('GCV');
 %
 %   ERRORS
-%     lsqvce:gcvLambda:badData    m is not an integer > nl, or ltl is not a
+%     lsqvce:gcv:badData          m is not an integer > nl, or ltl is not a
 %                                 finite scalar >= 0
-%     lsqvce:gcvLambda:nullUnobserved  the data do not determine a direction
+%     lsqvce:gcv:nullUnobserved   the data do not determine a direction
 %                                 of null(L): no lambda regularises it
+%     (WP-138: one segment, gcv, beside the warnings; both were raised as
+%     lsqvce:gcvLambda:* in 6.22.0 - 6.23.0)
 %
 %   IDENTIFIERS ALSO RAISED (R5 M1, documented = raised; audit check 20)
 %     lsqvce:gcv:atLowerBound                    [warning] GCV selected the smallest lambda on the grid (X), i.e
@@ -75,6 +77,10 @@ function [lam, gcv, grid] = gcvLambda(N, n, L, m, ltl)
 %
 %   See also LSQVCE.ENGINE.APPLYREGULARISATION
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135): its
+%   errors under the one segment of its warnings, lsqvce:gcv:badData and
+%   lsqvce:gcv:nullUnobserved (they were lsqvce:gcvLambda:*). With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-137: ACCURACY states the
 %   measured and the worst-case error and cites its HANDOVER 6.1.4 row. With
 %   assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -100,7 +106,7 @@ function [lam, gcv, grid] = gcvLambda(N, n, L, m, ltl)
     validateattributes(n, {'double'}, {'vector','finite','numel',nlp}, mfilename, 'n', 2);
     if ~(isnumeric(m) && isscalar(m) && isfinite(m) && m == round(m) && m > nlp) || ...
             ~(isnumeric(ltl) && isscalar(ltl) && isfinite(ltl) && ltl >= 0)
-        error('lsqvce:gcvLambda:badData', ...
+        error('lsqvce:gcv:badData', ...
               'm must be an integer > nl (%d) and ltl a finite scalar >= 0.', nlp);
     end
     m = double(m);  ltl = double(ltl);
@@ -122,7 +128,7 @@ function [lam, gcv, grid] = gcvLambda(N, n, L, m, ltl)
     if ~isempty(Z)                              % null(L): fitted freely -- a Schur step
         [cz, p] = chol(Z.'*N*Z);
         if p ~= 0
-            error('lsqvce:gcvLambda:nullUnobserved', ...
+            error('lsqvce:gcv:nullUnobserved', ...
                   ['The data do not determine a direction L leaves unpenalised: no ' ...
                    'lambda regularises it. Penalise it (extend L) or remove it.']);
         end

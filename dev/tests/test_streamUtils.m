@@ -12,6 +12,9 @@ function tests = test_streamUtils
 %
 %   See also LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.COVMODEL, LSQVCE.ENGINE.COLLECTRESIDUALS
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135):
+%   lsqvce.util.priorStream makes and recognises the prior pseudo-streams.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-13 (CEST, UTC+02:00), WP-133: a zero epoch weight is
 %   excluded and whitens to ~0 in place (the nugget rotation). With assistance from Claude
 %   (Anthropic), model Claude Opus 5.5.
@@ -93,6 +96,23 @@ function testStreamAndArcKeysAreDefinedOnce(tc)
     tc.verifyEqual(lsqvce.util.arcKey(71, 'pos', 12, 3), 's71_pos_d12_a3');
     tc.verifyEqual(lsqvce.util.arcKey(1, 'acc_x', 20260901, 2), 's1_acc_x_d20260901_a2', ...
         'a YYYYMMDD day prints exactly; an underscore in the obsType is carried, not parsed');
+end
+
+function testPriorStreamIsNamedOnce(tc)
+% categories: contract, metamorphic
+    % WP-138 (code review of WP-135): the prior pseudo-streams' prefix was
+    % spelled out at nine places (and fit parsed a stream key for '|prior_');
+    % lsqvce.util.priorStream makes the obsType and recognises it.
+    tc.verifyEqual(lsqvce.util.priorStream.of('gravity field'), 'prior_gravityField');
+    tc.verifyEqual(lsqvce.util.priorStream.of("datum"), 'prior_datum');
+    tc.verifyTrue(lsqvce.util.priorStream.is('prior_x'));
+    tc.verifyEqual(lsqvce.util.priorStream.is({'prior_x', 'kbr', 'priorx'}), [true false false]);
+    % metamorphic: every name it makes, it recognises; the array call equals
+    % the per-name calls
+    names = {'a', 'gravity field', '1st', 'x_y'};
+    made = cellfun(@lsqvce.util.priorStream.of, names, 'UniformOutput', false);
+    tc.verifyTrue(all(lsqvce.util.priorStream.is(made)));
+    tc.verifyEqual(lsqvce.util.priorStream.is(made), cellfun(@lsqvce.util.priorStream.is, made));
 end
 
 %% =================================================================== helpers

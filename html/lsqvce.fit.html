@@ -104,6 +104,13 @@ Name, Value          any property of lsqvce.Options</pre>
                             meta (options as resolved, warnings, seeds, version);
                             methods report, summary, convergence, residuals,
                             contribution, compare, plot, toTable, coefficients</pre>
+<h3>Accuracy</h3>
+<pre class="example">fit adds no arithmetic of its own: the estimate is the block
+accumulator&#x27;s (LSQVCE.ENGINE.BLOCKACCUMULATOR: the monolithic solve to
+1e-8 relative), the verdict LSQVCE.ENGINE.VERDICT&#x27;s and the noise
+model LSQVCE.ENGINE.ADJUSTVCEJOINT&#x27;s -- see theirs. End to end, the
+matrix kind (data.A / .l / .p) reproduces the dense normal equations to
+1e-12 relative (test_fit). WP-138.</pre>
 <h3>Errors</h3>
 <pre class="example">  Your declaration is wrong (raised BEFORE any data is read):
     lsqvce:fit:unknownField    a field name the contract does not know
@@ -122,13 +129,16 @@ Name, Value          any property of lsqvce.Options</pre>
                                start / end, or a column the table lacks
     lsqvce:fit:missingField    a required system field is absent, or
                                covariance carries no observation type
-    lsqvce:fit:noDays          no day list anywhere, or a day list that is
-                               not numeric integers
+    lsqvce:fit:noDays          no day list anywhere
+    lsqvce:fit:badDays         a day list that is not numeric integers
+                               (WP-138; it was noDays)
     lsqvce:fit:duplicateDay    data.days or a system&#x27;s days names a day
                                twice (it was accumulated twice; WP-135)
     lsqvce:fit:badId           id is not a finite numeric scalar or single
-                               char, or the ids mix numbers and characters
-                               (an index default is a number; WP-135)
+                               char
+    lsqvce:fit:mixedIdTypes    the ids mix numbers and characters (an
+                               index default is a number; WP-135, its own
+                               id since WP-138 -- it was badId)
     lsqvce:fit:duplicateSystem two systems share an id (explicit or
                                index default)
     lsqvce:fit:badValidity     a commonParams validity entry is not [], a
@@ -186,6 +196,11 @@ See also LSQVCE.OPTIONS, LSQVCE.RESULTS, LSQVCE.LAYOUT, LSQVCE.ENGINE.DECLARATIO
          LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT,
          LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTNONLINEAR
 
+Updated 2026-10-15 (CEST, UTC+02:00), WP-138 (code review of WP-135):
+ERRORS name lsqvce:fit:badDays and lsqvce:fit:mixedIdTypes; the prior
+streams are marked from their obsType (lsqvce.util.priorStream), not
+parsed out of the stream key; ACCURACY. With assistance from Claude
+(Anthropic), model Claude Opus 5.5.
 Updated 2026-10-15 (CEST, UTC+02:00), WP-136: the help says where buildDay
 goes (one handle per system; a setup through processingOptions or a
 closure). With assistance from Claude (Anthropic), model Claude Opus 5.5.
