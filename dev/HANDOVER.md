@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-15 — WP-138 DONE (PR #167, merge 9586fc5; CI GREEN on f85d02b in the first round: ci_gate 723/723, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.71; no code change, no version (6.24.0 stays, 735 tests).
+Last substantive update: 2026-10-15 — WP-139 OPEN (tier B, model Claude Opus 5.5; user decision: "In diesem Fall die fehlenden ACCURACY Blöcke bitte gesammelt ergänzen" -- it lifts 6.2.1's "no bulk migration" for this one sweep): an ACCURACY block for each of the 48 units accuracy_baseline.csv froze, every number traced to a test or a recorded measurement, "Not applicable" with its reason where a unit computes nothing; the baseline emptied, check 34 kept as the rule for new units; version 6.24.1.
+Preceding entry: Last substantive update: 2026-10-15 — WP-138 DONE (PR #167, merge 9586fc5; CI GREEN on f85d02b in the first round: ci_gate 723/723, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.71; no code change, no version (6.24.0 stays, 735 tests).
 Preceding entry: Last substantive update: 2026-10-15 — WP-138 OPEN (tier B, model Claude Opus 5.5; user: "Mach die Review-Kandidaten aus §12.70 als WP-138"): the code review's judgement calls -- one validity rule and one id/day rule for both front doors, a non-integer day list is lsqvce:fit:badDays and mixed id kinds lsqvce:fit:mixedIdTypes, one name for the prior pseudo-streams (lsqvce.util.priorStream), the GCV ids under one segment, the prior batches assembled once, snoop reads D's thresholds instead of restating diagnose's defaults, a local prior batch with a full weight matrix judged instead of skipped, the contamination gauge in its own file, the report branching on a loop code (Iteration.loop) instead of a display label, addF named, ACCURACY blocks for verdict's methods and an audit ratchet for units without one; version 6.24.0.
 Preceding entry: Last substantive update: 2026-10-15 — WP-137 DONE (PR #165, merge 1049cf0; CI GREEN on c5d879d in round 2, after one red round on 56c2cc9 whose cause was the new compare test's own fixture: ci_gate 720/720, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.70; no code change, no version (6.23.0 stays, 732 tests).
 Preceding entry: Last substantive update: 2026-10-15 — WP-137 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-137 so wie vorgeschlagen und warne/weitermachen beim snoop-Fall", after a two-axis code review of a52cd40...f616324, WP-135 + WP-136): snoop's case for the level 'indeterminate' (a warning, lsqvce:snoop:indeterminate, and it proceeds -- it ran on in silence), snoop:breakdown and forcedBreakdown fired by a test, the GCV test without a dead mute and with its tolerance at its source, gcvLambda's ACCURACY and the 6.1.4 rows of the third review's authorities, the contamination mirror faithful to the code, five tests for WP-135 fixes that had none, the ladder's constants named once; version 6.23.0.
@@ -10465,3 +10466,21 @@ the full-P fixture through kind B, the ftest tolerances, priorStream's constant 
 merge: the ledger row, this note; no code change, no version -- 6.24.0 stays, 735 tests). The code
 review of WP-135 (§12.70) is closed without residue: every finding fixed (WP-137) and every judgement
 call acted on (WP-138). No package is open; the next step is the user's.
+
+### 12.72 WP-139 — the missing ACCURACY blocks, in one sweep (2026-10-15, model Claude Opus 5.5)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 139 | an ACCURACY block for each of the 48 units `dev/docs_src/accuracy_baseline.csv` froze (WP-138): the numerical claim, its authority (a 6.1.4 row, a closed form or a dense reference) and the tolerance a named test pins, or "Not applicable" with the reason; the baseline emptied (check 34 stays: every unit states its ACCURACY); the help stamps; **version 6.24.1** | 138 (PR #167 merged 9586fc5; closure #168) | OPEN (2026-10-15, tier B) |
+
+**The user's decision (2026-10-15):** "In diesem Fall die fehlenden ACCURACY Blöcke bitte gesammelt
+ergänzen" -- after WP-138 left 48 units frozen without one. It lifts 6.2.1's ROLLOUT RULE ("NO bulk
+migration") for this sweep; the rule's rationale -- a 94-file help mutation in the source handover
+produced three defects found only by reading the applied diff -- shapes how it is done:
+1. **No number without a source.** Every figure in a block is a tolerance a named test pins (its
+   `% tol:` line read), a value in the unit's own help, or a recorded measurement (HANDOVER or a
+   mirror); a unit that computes no floating-point result says "Not applicable" and why.
+2. **The insertion is proven on a scratch copy and its applied diff read** before it touches the
+   tree (6.2.3); one block per unit, before its ERRORS (else its EXAMPLE, else See also).
+3. Research is split three ways (kernel; noise model and VCE; solve structure) and every block's
+   evidence is checked against the lines it cites before it is applied.
