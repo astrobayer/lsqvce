@@ -20,7 +20,12 @@ function R = fit(data, opts, nv)
 %                     (buildDay returns one CELL per arc -- A, B, l, t,
 %                     Cep as 1 x nArc cells -- and the cells are the schedule
 %                     unless `arcs` declares one); optional data.priors,
-%                     data.paramColumns
+%                     data.paramColumns. buildDay is a function handle of
+%                     each system: several readers in one run are several
+%                     systems; one reader for several setups takes the setup
+%                     through processingOptions (its 5th argument) or a
+%                     closure; data that share no common parameters are
+%                     separate fit calls
 %     (B) in memory   data.A (m x u), data.l (m x 1), optional data.p (m x 1
 %                     weights); optional data.priors. A FULL m x m SPD weight
 %                     matrix is kind C's: return it from batchFcn
@@ -141,6 +146,9 @@ function R = fit(data, opts, nv)
 %            LSQVCE.ENGINE.MAKELOADER, LSQVCE.ENGINE.ADJUSTBLOCK, LSQVCE.ENGINE.ADJUSTVCEJOINT,
 %            LSQVCE.ENGINE.ADJUSTROBUST, LSQVCE.ENGINE.ADJUSTNONLINEAR
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-136: the help says where buildDay
+%   goes (one handle per system; a setup through processingOptions or a
+%   closure). With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3, lane 4): the closing
 %   solve updates a common prior group activated on the last pass (from <= pass
 %   on model.final; it was never scaled); Noise.Whitener reaches the joint path

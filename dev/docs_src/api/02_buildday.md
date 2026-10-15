@@ -30,6 +30,44 @@ that by its passes. Hence two rules:
    resident (default one); a raw file read shared by several observation types belongs
    in your own cache, in the closure that binds `buildDay`.
 
+## Where the handle goes — one per system
+
+`buildDay` is not an option of `fit`; it is part of the data. Every entry of
+`data.systems` carries its own handle in the field `buildDay`, next to its own
+`covariance`, `localParams`, `days`, `arcs` and `processingOptions`, and `fit` calls each
+system's handle on that system's calendar only. `lsqvce.Options` says how one run
+proceeds (`OnPass` among it); the `data` struct says what is read and by whom.
+
+| your situation | what to do |
+|---|---|
+| several instruments or satellites in **one** adjustment | one entry of `data.systems` each, each with its own handle; they share only the common parameters |
+| **one reader**, several setups (data directory, background models, editing thresholds) | pass the setup in as data: plain values in `processingOptions` (the 5th argument), or a closure that binds a configuration object |
+| data sets that do **not** share common parameters | one `data` struct each, one `fit` call each |
+
+```matlab
+% two instruments, two readers, one adjustment
+data.systems(1).buildDay = @buildDayKbr;
+data.systems(1).covariance.kbr = struct('type', 'diag', 'sigma', 1e-7);
+data.systems(2).buildDay = @buildDayPos;
+data.systems(2).covariance.pos = struct('type', 'diag', 'sigma', 0.02);
+
+% one reader, the setup as data: processingOptions is the 5th argument ...
+s.buildDay          = @myBuildDay;     % D = myBuildDay(day, obsType, common, local, procOpt)
+s.processingOptions = struct('dataDir', '/data/setupA', 'gravityModel', 'GOCO06s');
+
+% ... or bound by a closure (the examples do this)
+cfg = mySetup('setupB');
+s.buildDay = @(day, obsType, common, local, procOpt, info) ...
+                 myBuildDay(cfg, day, obsType, common, local, procOpt, info);
+```
+
+A closure declares its own argument count, and that count is what `fit` passes
+(`nargin`, above): declare `info` when your rows need the column offsets of local or
+`'day'` parameters. What the handle captures must not change during the run — it is
+called again on every pass (rule 1) — and it is the place for your own cache (rule 2).
+`buildDay` that is not a function handle is refused before any data is read
+(`lsqvce:fit:builderKind`).
+
 ## The `info` argument
 
 ```matlab

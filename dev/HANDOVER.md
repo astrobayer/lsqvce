@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-14 — WP-135 DONE (PR #161, merge 17748fb; CI GREEN on 91ba351 in round 2, after one red round on 11945cf whose four causes were all WP-135's own code: ci_gate 715/715, warning inventory lsqvce:internal:testProbe only); closure PR (user: "Gemergt, mach den Abschluss-PR"): the ledger row and the closure note in §12.68 -- the third whole-code review is closed; no code change, no version (6.22.0 stays, 727 tests).
+Last substantive update: 2026-10-15 — WP-136 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach das als kleines Doku-WP", after the question how a user provides different buildDay functions to lsqvce.fit): the API chapter buildDay says where the handle goes -- one per entry of data.systems, a setup through processingOptions or a closure, separate fit calls for data that share no common parameters; fit's help and the Manual one sentence each; no computation changed; version 6.22.1.
+Preceding entry: Last substantive update: 2026-10-14 — WP-135 DONE (PR #161, merge 17748fb; CI GREEN on 91ba351 in round 2, after one red round on 11945cf whose four causes were all WP-135's own code: ci_gate 715/715, warning inventory lsqvce:internal:testProbe only); closure PR (user: "Gemergt, mach den Abschluss-PR"): the ledger row and the closure note in §12.68 -- the third whole-code review is closed; no code change, no version (6.22.0 stays, 727 tests).
 Preceding entry: Last substantive update: 2026-10-14 — WP-135 OPEN (tier B, model Claude Opus 5.5; the last package of the third review, the plan the user accepted with "Ja, mach WP-133 so wie vorgeschlagen", started after the closure #160): front end, loader and diagnostics -- repeated days and mixed id kinds refused, layout without localParams, local prior groups under the common prior's datum and no-rejection rules, the contamination ladder calibrated for every n from fhat's measured null law (user decision; 'indeterminate' where n cannot tell a captured scale from a sigma0 too small), gcvLambda the GCV of the data and a null-space RegMatrix, the critical values from the upper tail, SNOOP_VACUOUS from the share of v'Pv, the MDB under 'mad' labelled Baarda's (user decision), the joint robust report on R.sigma0; the loader and report lows; ~40 tests; version 6.22.0.
 Preceding entry: Last substantive update: 2026-10-13 — WP-134 DONE (PR #159, merge ea31692; CI GREEN on ff1f0d1 in the first round: ci_gate 693/693, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.68; no code change, no version (6.21.0 stays, 705 tests); WP-135 (front end, loader, diagnostics) is next and closes the third review.
 Preceding entry: Last substantive update: 2026-10-13 — WP-134 OPEN (tier B, model Claude Opus 5.5; the plan the user accepted with "Ja, mach WP-133 so wie vorgeschlagen", started after the closure #158): the noise estimator and the kernel of the third whole-code review -- a common prior with estimate "scale" is in the stop rule (PriorDev; pending until its first update), the probe uses acc.commonFactor() (not chol of the squared normals), a filter law's dense form is guarded by maxDenseArc (and the Manual corrected), the robust scale's near-tie reference is the 75th percentile, VAR(1) declarable, SkipThreshold per stream, an arc without redundancy held; the lows (armaACV to its decay, VAR(0), crossCorr, ar2arma, acf per-row sigma, uneven grid, Sigma2_0, AvgTail, jointModelOpt pass/factors, robust sweep without prior arcs, seedUsed, se for one probe, the per-group Hutchinson check, smallGroups, vce:badAccFcn); 19 tests; version 6.21.0; WP-135 next.
@@ -10242,3 +10243,25 @@ alone (finding 19's price -- a magnitude gauge would be its own WP). Mirrors add
 `dev/validation/wp135_contamination_mirror.py`, `wp135_gcv_mirror.py`. The lesson of its CI round: a
 mirror that short-cuts a branch (the normal limit's `p0 = 0.0`) does not cover the port of that branch.
 No package is open; the next step is the user's.
+
+### 12.69 WP-136 — where `buildDay` goes (documentation, 2026-10-15, model Claude Opus 5.5)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 136 | the API chapter `buildDay` gains *Where the handle goes — one per system* (one handle per entry of `data.systems`; one reader for several setups through `processingOptions` or a closure, with the `nargin` rule; separate `fit` calls for data without shared common parameters; `builderKind`); `fit`'s help and the Manual's *Several systems* one sentence each; **version 6.22.1** | 135 (PR #161 merged 17748fb; closure #162) | OPEN (2026-10-15, tier B) |
+
+**The user's question (2026-10-15):** "How to provide different "buildDay" to lsqvce.fit? A user may have
+different setups and different data to process. For OnPass, one can provide a function handle but I did
+not see this in the documentation for "buildDay"." Answered in the session (the handle is a field of each
+system, not an option; three patterns), then "Ja, mach das als kleines Doku-WP". The gap was real: the
+data chapter's table lists `buildDay | function handle | (required)` and the Manual's workflow shows
+`s.buildDay = @myBuildDay`, but the chapter a reader opens for `buildDay` gave the signature and the return
+value only -- nothing on where the handle goes or how a setup reaches it, although the examples bind their
+setup by a closure (`demo_grace_dataLoader`, `demo_gravity_dataLoader`, `demo_noisePolicy`, `demo_priors`;
+`demo_combine` and `demo_sensors` through a `makeBuildDay` factory).
+
+**What changed.** `dev/docs_src/api/02_buildday.md`: the new section (a table of the three situations, a
+code block for each pattern, the `nargin` rule for a closure, the determinism and cache rules restated
+for what a closure captures). `+lsqvce/fit.m`: the streaming kind's help line. `manual/04_declaring.md`:
+one sentence under *Several systems*. The Manual and the API reference rebuilt; RELEASE_NOTES 6.22.1;
+`Contents.m` / README 6.22.1. No code path, test or registry changes; the test count stays 727 (CI 715).

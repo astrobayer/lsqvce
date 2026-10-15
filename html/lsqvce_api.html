@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.22.0 — API Reference</title>
+  <title>lsqvce 6.22.1 — API Reference</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.22.0 — API Reference</h1>
+<h1 class="title">lsqvce 6.22.1 — API Reference</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 </header>
@@ -113,19 +113,23 @@ you write</a>
 <ul>
 <li><a href="#signature" id="toc-signature"><span
 class="toc-section-number">2.1</span> Signature</a></li>
+<li><a href="#where-the-handle-goes-one-per-system"
+id="toc-where-the-handle-goes-one-per-system"><span
+class="toc-section-number">2.2</span> Where the handle goes — one per
+system</a></li>
 <li><a href="#the-info-argument" id="toc-the-info-argument"><span
-class="toc-section-number">2.2</span> The <code>info</code>
+class="toc-section-number">2.3</span> The <code>info</code>
 argument</a></li>
 <li><a href="#the-return-value-one-cell-per-arc"
 id="toc-the-return-value-one-cell-per-arc"><span
-class="toc-section-number">2.3</span> The return value: one cell per
+class="toc-section-number">2.4</span> The return value: one cell per
 arc</a></li>
 <li><a href="#the-arc-schedule-systemsk.arcs"
 id="toc-the-arc-schedule-systemsk.arcs"><span
-class="toc-section-number">2.4</span> The arc schedule —
+class="toc-section-number">2.5</span> The arc schedule —
 <code>systems(k).arcs</code></a></li>
 <li><a href="#checks-while-reading" id="toc-checks-while-reading"><span
-class="toc-section-number">2.5</span> Checks while reading</a></li>
+class="toc-section-number">2.6</span> Checks while reading</a></li>
 </ul></li>
 <li><a href="#covariance-specifications"
 id="toc-covariance-specifications"><span
@@ -695,28 +699,95 @@ globals.</li>
 file read shared by several observation types belongs in your own cache,
 in the closure that binds <code>buildDay</code>.</li>
 </ol>
-<h2 data-number="2.2" id="the-info-argument"><span
-class="header-section-number">2.2</span> The <code>info</code>
-argument</h2>
+<h2 data-number="2.2" id="where-the-handle-goes-one-per-system"><span
+class="header-section-number">2.2</span> Where the handle goes — one per
+system</h2>
+<p><code>buildDay</code> is not an option of <code>fit</code>; it is
+part of the data. Every entry of <code>data.systems</code> carries its
+own handle in the field <code>buildDay</code>, next to its own
+<code>covariance</code>, <code>localParams</code>, <code>days</code>,
+<code>arcs</code> and <code>processingOptions</code>, and
+<code>fit</code> calls each system’s handle on that system’s calendar
+only. <code>lsqvce.Options</code> says how one run proceeds
+(<code>OnPass</code> among it); the <code>data</code> struct says what
+is read and by whom.</p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>your situation</th>
+<th>what to do</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>several instruments or satellites in <strong>one</strong>
+adjustment</td>
+<td>one entry of <code>data.systems</code> each, each with its own
+handle; they share only the common parameters</td>
+</tr>
+<tr class="even">
+<td><strong>one reader</strong>, several setups (data directory,
+background models, editing thresholds)</td>
+<td>pass the setup in as data: plain values in
+<code>processingOptions</code> (the 5th argument), or a closure that
+binds a configuration object</td>
+</tr>
+<tr class="odd">
+<td>data sets that do <strong>not</strong> share common parameters</td>
+<td>one <code>data</code> struct each, one <code>fit</code> call
+each</td>
+</tr>
+</tbody>
+</table>
 <div class="sourceCode" id="cb3"><pre
-class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">arcId</span>            <span class="co">% 1xA  ids of this day&#39;s arcs</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">offsetOf</span>         <span class="co">% @(arcId) -&gt; column offset of that arc&#39;s block in B</span></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">count</span>            <span class="co">% 1xA  columns of each arc block (= number of &#39;arc&#39; rows)</span></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">dayOffset</span>        <span class="co">% 1x1  this day&#39;s &#39;day&#39; block offset in B ([] if none)</span></span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">dayCount</span>         <span class="co">% 1x1  its width (0 if none)</span></span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">sysOffset</span>        <span class="co">% 1x1  the &#39;system&#39; block offset in B</span></span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">sysCount</span>         <span class="co">% 1x1  its width</span></span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">nl</span>               <span class="co">% 1x1  total local count of the system</span></span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">nc</span>               <span class="co">% 1x1  total common count</span></span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">commonCount</span>      <span class="co">% 1x1  width of A&#39;s leading &#39;common&#39; block</span></span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">commonDayOffset</span>  <span class="co">% 1x1  this day&#39;s common day-block offset in A ([] if none)</span></span>
-<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">commonDayCount</span>   <span class="co">% 1x1  its width (0 if none)</span></span>
-<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">arcRows</span><span class="op">,</span> <span class="va">info</span>.<span class="va">dayRows</span><span class="op">,</span> <span class="va">info</span>.<span class="va">sysRows</span><span class="op">,</span> <span class="va">info</span>.<span class="va">commonDayRows</span></span>
-<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>                      <span class="co">%      template rows that exist on this day (with paramColumns)</span></span></code></pre></div>
+class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co">% two instruments, two readers, one adjustment</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="va">data</span>.<span class="va">systems</span>(<span class="fl">1</span>).<span class="va">buildDay</span> <span class="op">=</span> <span class="op">@</span><span class="va">buildDayKbr</span><span class="op">;</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="va">data</span>.<span class="va">systems</span>(<span class="fl">1</span>).<span class="va">covariance</span>.<span class="va">kbr</span> <span class="op">=</span> <span class="va">struct</span>(<span class="ss">&#39;type&#39;</span><span class="op">,</span> <span class="ss">&#39;diag&#39;</span><span class="op">,</span> <span class="ss">&#39;sigma&#39;</span><span class="op">,</span> <span class="fl">1e-7</span>)<span class="op">;</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="va">data</span>.<span class="va">systems</span>(<span class="fl">2</span>).<span class="va">buildDay</span> <span class="op">=</span> <span class="op">@</span><span class="va">buildDayPos</span><span class="op">;</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="va">data</span>.<span class="va">systems</span>(<span class="fl">2</span>).<span class="va">covariance</span>.<span class="va">pos</span> <span class="op">=</span> <span class="va">struct</span>(<span class="ss">&#39;type&#39;</span><span class="op">,</span> <span class="ss">&#39;diag&#39;</span><span class="op">,</span> <span class="ss">&#39;sigma&#39;</span><span class="op">,</span> <span class="fl">0.02</span>)<span class="op">;</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="co">% one reader, the setup as data: processingOptions is the 5th argument ...</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="va">s</span>.<span class="va">buildDay</span>          <span class="op">=</span> <span class="op">@</span><span class="va">myBuildDay</span><span class="op">;</span>     <span class="co">% D = myBuildDay(day, obsType, common, local, procOpt)</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="va">s</span>.<span class="va">processingOptions</span> <span class="op">=</span> <span class="va">struct</span>(<span class="ss">&#39;dataDir&#39;</span><span class="op">,</span> <span class="ss">&#39;/data/setupA&#39;</span><span class="op">,</span> <span class="ss">&#39;gravityModel&#39;</span><span class="op">,</span> <span class="ss">&#39;GOCO06s&#39;</span>)<span class="op">;</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="co">% ... or bound by a closure (the examples do this)</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="va">cfg</span> <span class="op">=</span> <span class="va">mySetup</span>(<span class="ss">&#39;setupB&#39;</span>)<span class="op">;</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a><span class="va">s</span>.<span class="va">buildDay</span> <span class="op">=</span> <span class="op">@</span>(<span class="va">day</span><span class="op">,</span> <span class="va">obsType</span><span class="op">,</span> <span class="va">common</span><span class="op">,</span> <span class="va">local</span><span class="op">,</span> <span class="va">procOpt</span><span class="op">,</span> <span class="va">info</span>) <span class="op">...</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>                 <span class="va">myBuildDay</span>(<span class="va">cfg</span><span class="op">,</span> <span class="va">day</span><span class="op">,</span> <span class="va">obsType</span><span class="op">,</span> <span class="va">common</span><span class="op">,</span> <span class="va">local</span><span class="op">,</span> <span class="va">procOpt</span><span class="op">,</span> <span class="va">info</span>)<span class="op">;</span></span></code></pre></div>
+<p>A closure declares its own argument count, and that count is what
+<code>fit</code> passes (<code>nargin</code>, above): declare
+<code>info</code> when your rows need the column offsets of local or
+<code>'day'</code> parameters. What the handle captures must not change
+during the run — it is called again on every pass (rule 1) — and it is
+the place for your own cache (rule 2). <code>buildDay</code> that is not
+a function handle is refused before any data is read
+(<code>lsqvce:fit:builderKind</code>).</p>
+<h2 data-number="2.3" id="the-info-argument"><span
+class="header-section-number">2.3</span> The <code>info</code>
+argument</h2>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">arcId</span>            <span class="co">% 1xA  ids of this day&#39;s arcs</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">offsetOf</span>         <span class="co">% @(arcId) -&gt; column offset of that arc&#39;s block in B</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">count</span>            <span class="co">% 1xA  columns of each arc block (= number of &#39;arc&#39; rows)</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">dayOffset</span>        <span class="co">% 1x1  this day&#39;s &#39;day&#39; block offset in B ([] if none)</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">dayCount</span>         <span class="co">% 1x1  its width (0 if none)</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">sysOffset</span>        <span class="co">% 1x1  the &#39;system&#39; block offset in B</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">sysCount</span>         <span class="co">% 1x1  its width</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">nl</span>               <span class="co">% 1x1  total local count of the system</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">nc</span>               <span class="co">% 1x1  total common count</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">commonCount</span>      <span class="co">% 1x1  width of A&#39;s leading &#39;common&#39; block</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">commonDayOffset</span>  <span class="co">% 1x1  this day&#39;s common day-block offset in A ([] if none)</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">commonDayCount</span>   <span class="co">% 1x1  its width (0 if none)</span></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a><span class="va">info</span>.<span class="va">arcRows</span><span class="op">,</span> <span class="va">info</span>.<span class="va">dayRows</span><span class="op">,</span> <span class="va">info</span>.<span class="va">sysRows</span><span class="op">,</span> <span class="va">info</span>.<span class="va">commonDayRows</span></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>                      <span class="co">%      template rows that exist on this day (with paramColumns)</span></span></code></pre></div>
 <p>Fill <code>B(rows, info.offsetOf(id) + (1:k))</code> and
 <code>A(:, info.commonDayOffset + (1:w))</code>.</p>
-<h2 data-number="2.3" id="the-return-value-one-cell-per-arc"><span
-class="header-section-number">2.3</span> The return value: one cell per
+<h2 data-number="2.4" id="the-return-value-one-cell-per-arc"><span
+class="header-section-number">2.4</span> The return value: one cell per
 arc</h2>
 <p>Every field is a <strong>1 × nArc cell</strong>; cell a is arc a. A
 day with one arc returns <code>{A}</code>; a day without data returns
@@ -782,8 +853,8 @@ freedom, <code>rejected</code> in the verdict</td>
 unwhitened</strong> matrices: the toolbox whitens every arc from the
 covariance spec and reweights it during the variance-component loop. No
 other field is allowed (<code>lsqvce:makeLoader:badDay</code>).</p>
-<h3 data-number="2.3.1" id="cep-the-per-epoch-accuracy"><span
-class="header-section-number">2.3.1</span> <code>Cep</code> — the
+<h3 data-number="2.4.1" id="cep-the-per-epoch-accuracy"><span
+class="header-section-number">2.4.1</span> <code>Cep</code> — the
 per-epoch accuracy</h3>
 <table>
 <colgroup>
@@ -826,8 +897,8 @@ absolute accuracy. A multi-axis day without <code>Cep</code> is whitened
 with D = I and reported once per run
 (<code>lsqvce:makeLoader:noCep</code>); a <code>var</code> law takes no
 <code>Cep</code>.</p>
-<h2 data-number="2.4" id="the-arc-schedule-systemsk.arcs"><span
-class="header-section-number">2.4</span> The arc schedule —
+<h2 data-number="2.5" id="the-arc-schedule-systemsk.arcs"><span
+class="header-section-number">2.5</span> The arc schedule —
 <code>systems(k).arcs</code></h2>
 <table>
 <colgroup>
@@ -867,8 +938,8 @@ refused (<code>lsqvce:makeLoader:emptyDay</code>).</td>
 number of cells must match (<code>lsqvce:makeLoader:arcCount</code>). An
 arc a scheduled day does not carry is returned as an empty cell.
 <code>'arc'</code> template rows require a declared schedule.</p>
-<h2 data-number="2.5" id="checks-while-reading"><span
-class="header-section-number">2.5</span> Checks while reading</h2>
+<h2 data-number="2.6" id="checks-while-reading"><span
+class="header-section-number">2.6</span> Checks while reading</h2>
 <table>
 <colgroup>
 <col style="width: 50%" />
@@ -1104,10 +1175,10 @@ type, a range and a default, checked at assignment
 (<code>lsqvce:Options:*</code>). It says <em>how to run</em>; everything
 about the problem, including regularisation, is declared on
 <code>data</code>. Three equivalent spellings:</p>
-<div class="sourceCode" id="cb4"><pre
-class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="va">opts</span> <span class="op">=</span> <span class="va">lsqvce</span>.<span class="va">Options</span>(<span class="va">Estimate</span><span class="op">=</span><span class="st">&quot;noise&quot;</span><span class="op">,</span> <span class="va">MaxPasses</span><span class="op">=</span><span class="fl">6</span>)<span class="op">;</span>   <span class="va">R</span> <span class="op">=</span> <span class="va">lsqvce</span>.<span class="va">fit</span>(<span class="va">data</span><span class="op">,</span> <span class="va">opts</span>)<span class="op">;</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="va">opts</span>.<span class="va">Noise</span>.<span class="va">Grid</span> <span class="op">=</span> <span class="fl">120</span><span class="op">;</span>                                   <span class="co">% change one later (validated)</span></span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="va">R</span> <span class="op">=</span> <span class="va">lsqvce</span>.<span class="va">fit</span>(<span class="va">data</span><span class="op">,</span> <span class="va">Estimate</span><span class="op">=</span><span class="st">&quot;noise&quot;</span><span class="op">,</span> <span class="va">MaxPasses</span><span class="op">=</span><span class="fl">6</span>)<span class="op">;</span>     <span class="co">% name-value pairs straight on fit</span></span></code></pre></div>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="va">opts</span> <span class="op">=</span> <span class="va">lsqvce</span>.<span class="va">Options</span>(<span class="va">Estimate</span><span class="op">=</span><span class="st">&quot;noise&quot;</span><span class="op">,</span> <span class="va">MaxPasses</span><span class="op">=</span><span class="fl">6</span>)<span class="op">;</span>   <span class="va">R</span> <span class="op">=</span> <span class="va">lsqvce</span>.<span class="va">fit</span>(<span class="va">data</span><span class="op">,</span> <span class="va">opts</span>)<span class="op">;</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="va">opts</span>.<span class="va">Noise</span>.<span class="va">Grid</span> <span class="op">=</span> <span class="fl">120</span><span class="op">;</span>                                   <span class="co">% change one later (validated)</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="va">R</span> <span class="op">=</span> <span class="va">lsqvce</span>.<span class="va">fit</span>(<span class="va">data</span><span class="op">,</span> <span class="va">Estimate</span><span class="op">=</span><span class="st">&quot;noise&quot;</span><span class="op">,</span> <span class="va">MaxPasses</span><span class="op">=</span><span class="fl">6</span>)<span class="op">;</span>     <span class="co">% name-value pairs straight on fit</span></span></code></pre></div>
 <p><code>disp(opts)</code> lists every knob, marking the defaults with
 <code>*</code>.</p>
 <h2 data-number="4.1" id="what-to-estimate"><span
@@ -1514,9 +1585,9 @@ by 10 (from 0: 1e-3), an accepted one divides it (below 1e-12: 0)</td>
 class="header-section-number">5</span> Priors</h1>
 <p>A prior is a group of pseudo-observations <code>L·x = x₀ + v</code>
 with weight <code>1/σ²</code>, declared in your columns:</p>
-<div class="sourceCode" id="cb5"><pre
-class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="va">data</span>.<span class="va">priors</span>(<span class="va">j</span>)            <span class="op">=</span> <span class="va">struct</span>(<span class="op">...</span>)   <span class="co">% on the common parameters: L in the columns of A</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="va">data</span>.<span class="va">systems</span>(<span class="va">k</span>).<span class="va">priors</span>(<span class="va">l</span>) <span class="op">=</span> <span class="va">struct</span>(<span class="op">...</span>)   <span class="co">% on system k&#39;s local parameters: L in the columns of B</span></span></code></pre></div>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="va">data</span>.<span class="va">priors</span>(<span class="va">j</span>)            <span class="op">=</span> <span class="va">struct</span>(<span class="op">...</span>)   <span class="co">% on the common parameters: L in the columns of A</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="va">data</span>.<span class="va">systems</span>(<span class="va">k</span>).<span class="va">priors</span>(<span class="va">l</span>) <span class="op">=</span> <span class="va">struct</span>(<span class="op">...</span>)   <span class="co">% on system k&#39;s local parameters: L in the columns of B</span></span></code></pre></div>
 <h2 data-number="5.1" id="fields"><span
 class="header-section-number">5.1</span> Fields</h2>
 <table>
@@ -1856,7 +1927,12 @@ declared data.</p>
                     (buildDay returns one CELL per arc -- A, B, l, t,
                     Cep as 1 x nArc cells -- and the cells are the schedule
                     unless `arcs` declares one); optional data.priors,
-                    data.paramColumns
+                    data.paramColumns. buildDay is a function handle of
+                    each system: several readers in one run are several
+                    systems; one reader for several setups takes the setup
+                    through processingOptions (its 5th argument) or a
+                    closure; data that share no common parameters are
+                    separate fit calls
     (B) in memory   data.A (m x u), data.l (m x 1), optional data.p (m x 1
                     weights); optional data.priors. A FULL m x m SPD weight
                     matrix is kind C&#39;s: return it from batchFcn

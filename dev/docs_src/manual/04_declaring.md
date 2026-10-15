@@ -83,7 +83,9 @@ Each satellite or instrument is one entry of `data.systems`, with its own `build
 covariance specs, local parameters and calendar. Systems share only the common
 parameters. An observation that depends on the local parameters of two satellites — the
 range-rate between two GRACE spacecraft — belongs to **one** system whose local table
-holds both satellites' parameters.
+holds both satellites' parameters. One reader for several setups takes the setup as data:
+plain values in `processingOptions`, its 5th argument, or a closure that binds a
+configuration (API reference, chapter `buildDay`, *Where the handle goes*).
 
 ## Multi-axis observations and their accuracy
 
