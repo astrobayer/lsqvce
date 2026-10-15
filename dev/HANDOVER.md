@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-15 — WP-141 OPEN (tier B, model Claude Opus 5.5; user: a hook "before calling buildDay" that does the calculations common to all streams of a day -- the partials of both satellites for the whole day, shared by the kinematic-orbit and range-rate streams; decisions: per system, named prepareDay, its result reaches buildDay inside procOpt): data.systems(k).prepareDay, called once per (system, day), its result procOpt.prepared, resident as long as the day; version 6.25.0.
+Last substantive update: 2026-10-15 — WP-141 DONE (PR #173, merge 8902a2a; CI GREEN on 234b113 in the first round: ci_gate 726/726, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.74; no code change, no version (6.25.0 stays, 738 tests).
+Preceding entry: Last substantive update: 2026-10-15 — WP-141 OPEN (tier B, model Claude Opus 5.5; user: a hook "before calling buildDay" that does the calculations common to all streams of a day -- the partials of both satellites for the whole day, shared by the kinematic-orbit and range-rate streams; decisions: per system, named prepareDay, its result reaches buildDay inside procOpt): data.systems(k).prepareDay, called once per (system, day), its result procOpt.prepared, resident as long as the day; version 6.25.0.
 Preceding entry: Last substantive update: 2026-10-15 — WP-140 DONE (PR #171, merge 6c100c9; CI GREEN on 99e3c8f in the first round: ci_gate 723/723, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.73; no code change, no version (6.24.2 stays, 735 tests).
 Preceding entry: Last substantive update: 2026-10-15 — WP-140 OPEN (tier B, model Claude Opus 5.5; user: "Mach die Beobachtungen aus §12.72 als WP-140"): the nine observations WP-139's research recorded -- copy-pasted and wrong `% tol:` comments, a circular test, applyRegularisation's and mapreduce's help, two unpinned help claims, misplaced stamps and sections, a loose mirror tolerance, a test in the wrong category, an untraced path; version 6.24.2.
 Preceding entry: Last substantive update: 2026-10-15 — WP-139 DONE (PR #169, merge 9cb491f; CI GREEN on 470c45b in the first round: ci_gate 723/723, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.72; no code change, no version (6.24.1 stays, 735 tests).
@@ -10644,7 +10645,7 @@ is the user's.
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 141 | `data.systems(k).prepareDay` (makeLoader `PrepareDay`): a hook called ONCE per (system, day) before the day's first stream is built; its result reaches every `buildDay` of that day as `procOpt.prepared`, resident as long as the day (`CacheDays`; with `Cache = false` the current day's result is still kept); `lsqvce:makeLoader:prepareDay` (not a handle / it threw), `prepareUnused` (buildDay takes no procOpt), `preparedField` (processingOptions already has `prepared`); template/kbr_variational on the hook (its own day cache retired); API reference, Manual, fit / declaration / makeLoader help; **version 6.25.0** | 140 (PR #171 merged 6c100c9; closure #172) | OPEN (2026-10-15, tier B) |
+| 141 | `data.systems(k).prepareDay` (makeLoader `PrepareDay`): a hook called ONCE per (system, day) before the day's first stream is built; its result reaches every `buildDay` of that day as `procOpt.prepared`, resident as long as the day (`CacheDays`; with `Cache = false` the current day's result is still kept); `lsqvce:makeLoader:prepareDay` (not a handle / it threw), `prepareUnused` (buildDay takes no procOpt), `preparedField` (processingOptions already has `prepared`); template/kbr_variational on the hook (its own day cache retired); API reference, Manual, fit / declaration / makeLoader help; **version 6.25.0** | 140 (PR #171 merged 6c100c9; closure #172) | DONE (2026-10-15, PR #173, merge 8902a2a; CI GREEN on 234b113 in the first round: ci_gate 726/726) |
 
 **The user's request (2026-10-15):** "I need another hook before calling buildDay. This hook allows
 to process the common calculations for all streams. Particularly, I want to calculate partial
@@ -10706,3 +10707,13 @@ migrated template. Predicted count: 735 + new test points (set when written), CI
 - **Registries and docs.** error_ids.csv gained 3 rows (v6.25.0), each fired by a gated test. Stamps on makeLoader, declaration, fit, the template and test_fit. Docs rebuilt. **Version 6.25.0.**
 - **Gates:** audit CLEAN; selftest every fault caught; CI and the local ci_gate are pending.
 - **What could make CI red** (MATLAB not run here): the new tests' expectations about cache order. They follow the code paths read above; the D cache keeps day 1's second stream after day 2's first, which is why the test reads both streams of day 2.
+
+**CI round 1 (234b113): GREEN on A8** -- `ci_gate` 726 / 726, 27 / 27 suites, the warning inventory
+`lsqvce:internal:testProbe` only, as predicted (738 - 12). The named risk held: test_fit 82 / 82 with
+the three prepareDay tests, the cache-order expectations of testPrepareDayRunsOncePerDayForEveryStream
+included, and testKbrClosedLoopThroughFit on the migrated template. The audit job green.
+
+**Closure (2026-10-15).** WP-141 DONE: PR #173 merged as 8902a2a (the loop's record step after the
+merge: the ledger row, this note; no code change, no version -- 6.25.0 stays, 738 tests). The user's
+request is met: the work all streams of a day share runs once per (system, day) in `prepareDay` and
+reaches every buildDay as `procOpt.prepared`. No package is open; the next step is the user's.
