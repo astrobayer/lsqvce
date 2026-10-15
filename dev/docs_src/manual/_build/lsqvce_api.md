@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.22.1 — API Reference"
+title: "lsqvce 6.23.0 — API Reference"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 
@@ -1470,6 +1470,7 @@ Every identifier the package raises (generated from the identifier catalogue, wh
 | `lsqvce:snoop:forcedBreakdown` | engine.verdict | warning | v4.0 |
 | `lsqvce:snoop:forcedContaminated` | engine.verdict | warning | v4.0 |
 | `lsqvce:snoop:forcedOverCap` | engine.verdict | warning | v4.0 |
+| `lsqvce:snoop:indeterminate` | engine.verdict | warning | v6.23.0 |
 | `lsqvce:snoop:lowRedundancy` | engine.verdict | warning | v4.0 |
 | `lsqvce:snoop:maxReject` | engine.verdict | warning | v4.0 |
 | `lsqvce:snoop:rejectFraction` | engine.verdict | warning | v4.0 |

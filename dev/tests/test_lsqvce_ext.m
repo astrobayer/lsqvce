@@ -11,6 +11,10 @@ function tests = test_lsqvce_ext
 %   implementation against dense formulae, brute-force simulation, or sampling
 %   theory. They are measurements, not guesses.
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-137 (code review of WP-135): snoop
+%   warns at 'indeterminate' and refuses at 'breakdown' (forced: a warning);
+%   snoop tests what diagnose tests (rMin); the normal limit against normInv.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (third review, finding 19 and
 %   lane 1): the contamination ladder's n-dependent band, 'indeterminate',
 %   breakdown at n = 600, SNOOP_VACUOUS from the share of v'Pv, the mad
@@ -536,9 +540,16 @@ function test_breakdown_detected_by_backstop(tc)
     l(idx) = l(idx) + 20 * sign(randn(rs, numel(idx), 1));
 
     B = chop(A, l, ones(n,1), 4);
-    [~, D] = flatAdjust(u, srcOf(B), 4, 'verbose', false);
+    src = srcOf(B);
+    [sol, D] = flatAdjust(u, src, 4, 'verbose', false);
 
     verifyEqual(tc, D.contamLevel, 'breakdown');
+    % WP-137: the level's consequence -- snoop refuses (it had no test: the
+    % review's "riskiest" trigger), and 'force' proceeds with a warning
+    verifyError(tc, @() lsqvce.engine.verdict.snoop(sol, D, src, 'verbose', false), ...
+                'lsqvce:snoop:breakdown');
+    verifyWarning(tc, @() lsqvce.engine.verdict.snoop(sol, D, src, 'verbose', false, 'force', true), ...
+                  'lsqvce:snoop:forcedBreakdown');
     verifyTrue(tc, D.collapseDetectable);
     verifyLessThan(tc, D.fhat, 0.02, ...
         'fhat should have collapsed -- that is the signature');
@@ -573,8 +584,11 @@ function test_ladder_band_follows_n(tc)
     z = lsqvce.kernel.stat.normInv(((1:n).' - 0.5) / n);
     [~, D] = flatAdjust(1, srcOf(chop(ones(n, 1), z, ones(n, 1), 2)), 2, 'verbose', false);
     P = 2 * lsqvce.kernel.stat.normCdf(-2.5);  mu = n * P * (1 + 27 / n);
-    % tol: the same closed form (normInv(0.9975) to 16 digits), rounding only
-    verifyEqual(tc, D.fhatTol, (mu + 2.807033768343811 * sqrt(1.69 * mu)) / n, 'RelTol', 1e-14);
+    % WP-137: the quantile from the kernel, not the law's own 16-digit literal
+    % (the test re-typed the code's formula and checked it against itself)
+    zHi = lsqvce.kernel.stat.normInv(1 - 0.0025);
+    % tol: erfcinv against the literal, both to ~1e-16; rounding only
+    verifyEqual(tc, D.fhatTol, (mu + zHi * sqrt(1.69 * mu)) / n, 'RelTol', 1e-12);
     verifyTrue(tc, D.collapseDetectable, 'P(K = 0) ~ exp(-0.76 mu): a collapse is visible');
     verifyEqual(tc, D.contamLevel, 'clean');
 end
@@ -600,8 +614,33 @@ function test_indeterminate_when_collapse_cannot_be_judged(tc)
     codes = cellfun(@(f) f.code, V.findings, 'UniformOutput', false);
     verifyTrue(tc, ismember('SNOOP_INDETERMINATE', codes));
     verifyFalse(tc, any(ismember({'SNOOP_BREAKDOWN', 'SNOOP_BACKSTOP'}, codes)));
-    [~, ~, REJ] = lsqvce.engine.verdict.snoop(sol, D, src, 'verbose', false);   % no refusal
+    % WP-137 (user decision: warn and proceed): snoop names the ambiguity -- it
+    % ran on in silence, with no case for the level -- and runs, no refusal
+    [~, ~, REJ] = verifyWarning(tc, @() lsqvce.engine.verdict.snoop(sol, D, src, 'verbose', false), ...
+                                'lsqvce:snoop:indeterminate');
     verifyEmpty(tc, REJ.idx);
+end
+
+function test_snoop_tests_what_diagnose_tests(tc)
+% categories: contract, robustness | tags: diagnostics
+    % WP-137 (code review of WP-135, its lane-1 low "scanWorst uses a different
+    % rMin"): snoop's scan took every row with r > 1e-6 as a candidate while
+    % diagnose leaves r <= D.rMin untested (uncontrolled), so snoop rejected
+    % rows the verdict had declared beyond the test. The scan reads D.rMin
+    % (snoopScope). x2 is seen by three rows (r = 2/3), one with a 20-sigma
+    % blunder: rejected under rMin = 0.01, neither tested nor rejected under 0.7.
+    rs = RandStream('mt19937ar', 'Seed', 137);
+    A = [ones(100, 1), zeros(100, 1); zeros(3, 1), ones(3, 1)];
+    l = A * [1; 2] + randn(rs, 103, 1);
+    l(102) = l(102) + 20;
+    src = srcOf(chop(A, l, ones(103, 1), 2));
+    [sol, D] = flatAdjust(2, src, 2, 'verbose', false);
+    [~, ~, REJ] = lsqvce.engine.verdict.snoop(sol, D, src, 'verbose', false);
+    verifyTrue(tc, ismember(102, REJ.idx), 'controlled (r = 2/3 > 0.01): the blunder is rejected');
+    [sol, D] = flatAdjust(2, src, 2, 'verbose', false, 'rMin', 0.7);
+    verifyFalse(tc, ismember(102, D.flagIdx), 'diagnose leaves r = 2/3 <= 0.7 untested');
+    [~, ~, REJ] = lsqvce.engine.verdict.snoop(sol, D, src, 'verbose', false);
+    verifyFalse(tc, ismember(102, REJ.idx), 'and snoop leaves it alone');
 end
 
 function test_snoop_vacuous_reads_the_share_of_vpv(tc)

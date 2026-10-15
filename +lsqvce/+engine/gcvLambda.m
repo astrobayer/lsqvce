@@ -39,10 +39,11 @@ function [lam, gcv, grid] = gcvLambda(N, n, L, m, ltl)
 %     rss_perp the unregularised residual. Every lambda costs O(nl).
 %
 %   ACCURACY
-%     The curve equals the dense GCV (direct solves of N + lambda L'L) to
-%     1e-9 relative up to cond(N) ~ 1e10 and selects the same grid point, for
-%     L = I, a first difference and a subset
-%     (dev/validation/wp135_gcv_mirror.py).
+%     The curve against the dense GCV (direct solves of N + lambda L'L):
+%     worst case ~cond(N) eps relative, measured 9e-13 at cond(N) = 1.5e7 and
+%     6e-10 at 1.5e10; the same grid point for L = I, a first difference and a
+%     subset. Authority: HANDOVER 6.1.4, the row of the third review's mirrors
+%     (dev/validation/wp135_gcv_mirror.py); the test pins 1e-9 at 1.5e7.
 %
 %   WHEN GCV FAILS
 %     GCV assumes the residuals are white. After only approximate whitening
@@ -74,6 +75,9 @@ function [lam, gcv, grid] = gcvLambda(N, n, L, m, ltl)
 %
 %   See also LSQVCE.ENGINE.APPLYREGULARISATION
 %
+%   Updated 2026-10-15 (CEST, UTC+02:00), WP-137: ACCURACY states the
+%   measured and the worst-case error and cites its HANDOVER 6.1.4 row. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (review 3 finding 16): the
 %   GCV of the local least-squares problem (it minimised ||f.*b||^2/(sum
 %   f)^2 of N y = n, as if N were the design: |y - y_true| 9 to 2770 times the

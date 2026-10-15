@@ -96,10 +96,8 @@ lsqvce:separable:epochNotPD,kernel.separableWhiten
 lsqvce:separable:sigmaLength,kernel.separableWhiten
 lsqvce:separable:startupNotPD,kernel.separableWhiten
 lsqvce:sharedProbe:badProbes,engine.sharedProbe
-lsqvce:snoop:breakdown,engine.verdict
 lsqvce:snoop:contaminated,engine.verdict
 lsqvce:snoop:downdateFailed,engine.verdict
-lsqvce:snoop:forcedBreakdown,engine.verdict
 lsqvce:snoop:forcedOverCap,engine.verdict
 lsqvce:snoop:lowRedundancy,engine.verdict
 lsqvce:snoop:rejectFraction,engine.verdict

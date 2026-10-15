@@ -1,5 +1,27 @@
 # lsqvce release notes
 
+## 6.23.0 — 2026-10-15 (WP-137: the code review of WP-135)
+
+Only `R.snoop` behaves differently (**verdict**); no estimate changes.
+
+- **`R.snoop` warns at the contamination level `indeterminate` (verdict).** WP-135 added the
+  level — the residuals are far larger than sigma0 promised, the robust scale sees no excess of
+  outliers, and below n ≈ 450 a sigma0 declared too small cannot be told from a robust scale
+  captured by more than half the data — but `R.snoop` had no case for it and ran on in silence.
+  Measured on the mirror: with 55 % blunders, n = 30…200 lands there in 100 % of draws, so a
+  real breakdown went unchallenged. It now warns (`lsqvce:snoop:indeterminate`), names both
+  causes, and proceeds under its `MaxRejectFrac` cap (user decision: warn, not refuse — a clean
+  run with a mis-declared sigma0 lands in the same level). The report's `SNOOP_INDETERMINATE`
+  says so.
+- **Tests for what WP-135 changed without one:** `R.snoop` refusing at `breakdown`
+  (`lsqvce:snoop:breakdown`, never fired by a test before) and proceeding under `Force` with a
+  warning; snoop's re-solve keeping a regularised local block's `Reg`; snoop testing only the
+  rows `R.diag` tests (`RMin`); `R.compare` reading the solve's rank and redundancy;
+  `Noise.Whitener` in any case on the noise path; the advice of an unsettled Gauss-Newton run.
+- `gcvLambda`'s ACCURACY states the measured and the worst-case error and cites its authority;
+  its test no longer mutes warnings that could not fire, and its tolerance sits at its stated
+  source. The contamination mirror is the code's ladder in full.
+
 ## 6.22.1 — 2026-10-15 (WP-136: where `buildDay` goes)
 
 No change to any computation.

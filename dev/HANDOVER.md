@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-15 — WP-136 DONE (PR #163, merge 327d705; CI GREEN on 79a3c06 in the first round: ci_gate 715/715, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.69; no code change, no version (6.22.1 stays, 727 tests).
+Last substantive update: 2026-10-15 — WP-137 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach WP-137 so wie vorgeschlagen und warne/weitermachen beim snoop-Fall", after a two-axis code review of a52cd40...f616324, WP-135 + WP-136): snoop's case for the level 'indeterminate' (a warning, lsqvce:snoop:indeterminate, and it proceeds -- it ran on in silence), snoop:breakdown and forcedBreakdown fired by a test, the GCV test without a dead mute and with its tolerance at its source, gcvLambda's ACCURACY and the 6.1.4 rows of the third review's authorities, the contamination mirror faithful to the code, five tests for WP-135 fixes that had none, the ladder's constants named once; version 6.23.0.
+Preceding entry: Last substantive update: 2026-10-15 — WP-136 DONE (PR #163, merge 327d705; CI GREEN on 79a3c06 in the first round: ci_gate 715/715, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.69; no code change, no version (6.22.1 stays, 727 tests).
 Preceding entry: Last substantive update: 2026-10-15 — WP-136 OPEN (tier B, model Claude Opus 5.5; user: "Ja, mach das als kleines Doku-WP", after the question how a user provides different buildDay functions to lsqvce.fit): the API chapter buildDay says where the handle goes -- one per entry of data.systems, a setup through processingOptions or a closure, separate fit calls for data that share no common parameters; fit's help and the Manual one sentence each; no computation changed; version 6.22.1.
 Preceding entry: Last substantive update: 2026-10-14 — WP-135 DONE (PR #161, merge 17748fb; CI GREEN on 91ba351 in round 2, after one red round on 11945cf whose four causes were all WP-135's own code: ci_gate 715/715, warning inventory lsqvce:internal:testProbe only); closure PR (user: "Gemergt, mach den Abschluss-PR"): the ledger row and the closure note in §12.68 -- the third whole-code review is closed; no code change, no version (6.22.0 stays, 727 tests).
 Preceding entry: Last substantive update: 2026-10-14 — WP-135 OPEN (tier B, model Claude Opus 5.5; the last package of the third review, the plan the user accepted with "Ja, mach WP-133 so wie vorgeschlagen", started after the closure #160): front end, loader and diagnostics -- repeated days and mixed id kinds refused, layout without localParams, local prior groups under the common prior's datum and no-rejection rules, the contamination ladder calibrated for every n from fhat's measured null law (user decision; 'indeterminate' where n cannot tell a captured scale from a sigma0 too small), gcvLambda the GCV of the data and a null-space RegMatrix, the critical values from the upper tail, SNOOP_VACUOUS from the share of v'Pv, the MDB under 'mad' labelled Baarda's (user decision), the joint robust report on R.sigma0; the loader and report lows; ~40 tests; version 6.22.0.
@@ -2350,6 +2351,8 @@ and confirmed / ☐ open; the refutation discipline is the valuable half.)*
 | Python mirrors (second language): v8verify.py, v9verify.py, v10review.py, wp33_loop_mirror.py | measured tolerances and loop behaviour pre-port | tol: comments in test_signalCore/test_streamUtils/test_precision; §9 WP-33/40 round notes | ☑ v8: 2e-16 (whitening); WP-37 GS/Levinson 1e-14 pre-port; wp33 mirror: the F-15 instrument — NOTE its own r6 lesson: an unfaithful mirror declaration path produced false accuracy promises, faithfulness is part of the oracle |
 | GROOPS / SINEX NEQ files (real data exchange) | neqExchange round-trip | WP-27 suite | ☑ round-trip green since WP-27 |
 | Analytic SH algebra (fully-normalised Legendre: addition theorem, closed forms P̄10/P̄20/P̄22) | the shDesign partial generator of the WP-48 physical oracle | test_physOracle (reference tests) | ☑ 2026-08-20: addition theorem to 4.3e-14 at nmax 12, closed forms to 1e-14 (measured, user machine) |
+| Python mirrors of the third review: `dev/validation/wp135_gcv_mirror.py`, `wp135_contamination_mirror.py` (WP-135; faithful to `verdict>contaminationOf` since WP-137) | gcvLambda's curve against dense GCV; the contamination ladder's null law (K = n fhat negative binomial, mean nP(1+27/n), variance 1.69 x) and its before / after rates | gcvLambda ACCURACY, test_reliability (testGcvLambdaIsTheGcvOfTheData, 1e-9), test_lsqvce_ext (test_ladder_band_follows_n, test_indeterminate_..., test_breakdown_...) | ☑ 2026-10-14: GCV curve 9e-13 at cond 1.5e7, 6e-10 at 1.5e10; false alarms <= 0.25 % for n = 20..2000. REFUTATION 2026-10-15 (WP-137, code review): the WP-135 ladder port lacked 'indeterminate' -- its 55 % column read 0 % breakdown below n ~ 450 without saying where the runs went (to a level snoop passed in silence) |
+| scipy.stats (`norm.isf`, `t.isf`) | the critical values in the far tail (normCrit, tCrit, tauCrit, madCrit, delta0 at alpha = 1e-17) | test_lsqvce (test_critical_values_hold_in_the_far_tail) | ☑ 2026-10-14 (WP-135): agreement to 1e-9 relative |
 | Published GRACE-FO monthly solution (release to be named) | end-to-end sign/magnitude/pattern of a real month through the SINEX path | WP-48 tier (b) | ☐ user to supply files + name the release |
 | Real GRACE-FO L1B-derived NEQ month | the same, input side | WP-48 tier (b) | ☐ user to supply |
 
@@ -10275,3 +10278,67 @@ CI runner's pandoc byte for byte).
 merge: the ledger row, this note; no code change, no version -- 6.22.1 stays, 727 tests). The API
 chapter `buildDay` now says where the handle goes and how a setup reaches it. No package is open; the
 next step is the user's.
+
+### 12.70 WP-137 — the code review of WP-135 (2026-10-15, model Claude Opus 5.5)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 137 | the two-axis code review of WP-135 / WP-136 (a52cd40...f616324): snoop's case for 'indeterminate' (warn and proceed -- user decision; `verdict>guardContamination`, `lsqvce:snoop:indeterminate`), snoop:breakdown / forcedBreakdown fired by a test, the GCV test's dead mutes and tolerance, gcvLambda ACCURACY + the 6.1.4 rows, the contamination mirror faithful to the code (`'indeterminate'`, `'unknown'`), five tests for untested WP-135 fixes (Whitener on the noise path, snoop's re-solve Reg, snoop's rMin, compare's rank, Gauss-Newton's unsettled advice), the ladder's constants named once (`contamLaw`), the test-name typo; **version 6.23.0** | 136 (PR #163 merged 327d705; closure #164) | OPEN (2026-10-15, tier B) |
+
+**The user's request (2026-10-15):** `/code-review` against a52cd40 (the user's choice: WP-135 + WP-136),
+then "Ja, mach WP-137 so wie vorgeschlagen und warne/weitermachen beim snoop-Fall". The proposal: first
+the snoop case, a test that fires `snoop:breakdown`, the dead mute; then the missing tests, the 6.1.4
+table and the mirror; the smells optional. User decision: at 'indeterminate' snoop WARNS and proceeds.
+
+**The review (two axes, separate reviewers; the Spec from §12.68 / §12.69).** Spec: everything in ledger
+row 135 is in the code and each finding's test fails on the old code, but (1) finding 19's new level
+'indeterminate' had no case in snoop's guard -- snoop ran on in silence, and below n ~ 450 a real
+breakdown (55 % blunders) lands there in 100 % of draws (the reviewer's port; confirmed here, and by the
+corrected mirror); (2) the mirror's ladder lacked the level, so its 55 % column read "0 % breakdown"
+without saying where the runs went; (3) five WP-135 fixes had no test; (4) `snoop:breakdown`, the
+review's "riskiest" trigger, was never fired by a test. Standards: (a) `test_reliability` muted both GCV
+edge warnings on a seeded input where at most one could fire (6.1.3); (b) gcvLambda's ACCURACY cited a
+mirror, not a 6.1.4 row, and the table lacked the wp135 mirrors and scipy (6.1.4, 6.2.1); (c) the GCV
+tolerance (1e-6) was looser than its own stated source (cond*eps ~ 3e-9); and judgement calls (below).
+
+**What changed.**
+- `verdict.snoop`: the contamination guard is a local function, `guardContamination` (snoop 236 -> 177
+  code lines, ceiling lowered), with the case `'indeterminate'`: a warning naming both causes, n and the
+  cap, then on. `ERRORS` names breakdown's real trigger; `WARNINGS` the new id. report's
+  `SNOOP_INDETERMINATE` and the Manual (07: the row and the snoop paragraph, which also states snoop's
+  refusals and its rMin) say so.
+- `verdict>contamLaw`: the null law's numbers (p, bias 27, phi 1.69, the normal limit 200, aHi, zHi, aLo)
+  in one struct; `contamNull` / `fhatCollapsed` / `contamCdf` read it (r = mu / (phi - 1): 1.69 - 1 is
+  0.69 exactly in double, so every value is bitwise the old one).
+- Tests: `test_indeterminate_...` expects the warning; `test_breakdown_detected_by_backstop` fires
+  `snoop:breakdown` and, forced, `snoop:forcedBreakdown` (both off the unfired baseline);
+  `testGcvLambdaIsTheGcvOfTheData` on deterministic data (troughs at grid index 51 of 80 for both L, the
+  mirror on the same numbers), `verifyWarningFree`, no mute, RelTol 1e-9 (measured 9.4e-13, worst case
+  3e-9); `test_ladder_band_follows_n`'s normal limit against `stat.normInv(0.9975)`, not the code's own
+  literal. New: `testWhitenerIsCaseFreeOnTheNoisePath` (test_fit; "AR" and "ar" bitwise, the old code
+  died on pass 1), `testUnsettledGaussNewtonRunAdvisesItsOwnRecord` (test_fit),
+  `test_snoop_tests_what_diagnose_tests` (test_lsqvce_ext; rMin 0.7 leaves an r = 2/3 blunder alone),
+  `testCompareUsesTheSolvesRankAndRedundancy` (test_errorDoctrine; df2 45, old 44),
+  `testSnoopReSolveKeepsTheSolvesRegularisation` (test_reliability; snoop's x = the regularised solve
+  without the rejected rows, to 1e-10). The throwing-buildDay test's name corrected.
+- gcvLambda ACCURACY: measured 9e-13 at cond 1.5e7, 6e-10 at 1.5e10, worst case ~cond eps, the 6.1.4 row.
+  §6.1.4 gains two rows: the third review's mirrors (with the WP-137 refutation) and scipy.stats.
+- `dev/validation/wp135_contamination_mirror.py`: `ladder_new` is the MATLAB ladder in full; the table
+  counts 'indeterminate' (55 % blunders: 100 % at n = 30..200, breakdown 100 % at n = 500; sigma 3.5x:
+  82-99.6 % indeterminate at n <= 200, i.e. a warning); the check asserts a 55 % contamination is never
+  'clean'.
+
+**Recorded, not changed (the review's judgement calls, optional by the proposal):** `declaration>mjdOf`
+duplicates `makeLoader>toMjd`, and `dayListOf` / `oneIdKind` the accumulator's `checkSpec` (two front
+doors, two ids each); the prior batches assembled in `diagnose` and in `snoopScope`; `rediagnoseNV`
+repeats diagnose's defaults; report branches on Results' display labels; `startsWith(..., 'prior_')` at
+8+ sites; `addF`; `fit:noDays` for a non-integer day list; `gcv:` beside `gcvLambda:` ids; `localDatumOf`
+skips a full-weight batch silently; `verdict.m` edited for many reasons; no ACCURACY block in `diagnose`
+/ `ftest` (codebase-wide). Each is a candidate for its own WP.
+
+**Bookkeeping.** New id `lsqvce:snoop:indeterminate` (warning, error_ids.csv); `snoop:breakdown` and
+`snoop:forcedBreakdown` off the unfired baseline; snoop's ceiling 227 -> 177. Tests 732 = 727 + 5 (CI 720).
+NOT validated before CI (tier B). Risk points: the GCV data in MATLAB (an interior trough, the mirror's
+argument), the snoop fixtures (the r = 2/3 blunder rejected under rMin 0.01; the regularised re-solve to
+1e-10 against zeroed rows), `Force` at n = 600 (warnings besides forcedBreakdown are expected inside
+verifyWarning), and the two-pass noise runs of the Whitener test.

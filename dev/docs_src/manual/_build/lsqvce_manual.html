@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.22.1 — User Manual</title>
+  <title>lsqvce 6.23.0 — User Manual</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.22.1 — User Manual</h1>
+<h1 class="title">lsqvce 6.23.0 — User Manual</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 </header>
@@ -1892,7 +1892,10 @@ undetectable at this <code>n</code></td>
 <td>Either sigma0 is declared too small (the common case: then the flag
 list can be believed) or more than half the data are bad and the robust
 scale is captured (then it cannot). Check sigma0 first; if it is
-trustworthy, fix the functional model before rejecting anything.</td>
+trustworthy, fix the functional model before rejecting anything.
+<code>R.snoop</code> runs here with a warning
+(<code>lsqvce:snoop:indeterminate</code>), its rejections capped at
+<code>MaxRejectFrac</code>.</td>
 </tr>
 <tr class="odd">
 <td><code>SNOOP_MODERATE</code></td>
@@ -1998,7 +2001,12 @@ class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb28-1"><a h
 name-values; left out, they are <code>R.diag</code>’s, so
 <code>Options.Diagnostics</code> reaches them. It caps the number of
 rejections at <code>max(10, 0.01·n)</code> and stops at a fraction of
-0.25 (<code>MaxRejectFrac</code>). It refuses observations with
+0.25 (<code>MaxRejectFrac</code>). It refuses to run at
+<code>SNOOP_BREAKDOWN</code> and <code>SNOOP_REFUSE</code>
+(<code>Force = true</code> proceeds with a warning), warns at
+<code>SNOOP_INDETERMINATE</code> (and at <code>SNOOP_CONTAMINATED</code>
+under Pope’s test), and tests only what <code>R.diag</code> tests
+(<code>r_i &gt; RMin</code>). It refuses observations with
 <code>r_i &lt; RMinReject</code>, re-solves cleanly over the survivors
 at the end, and leaves <code>R</code> unchanged. A prior’s rows, common
 or local, are never rejected, and the re-solve keeps the prior as a

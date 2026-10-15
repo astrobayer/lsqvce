@@ -31,9 +31,22 @@ Before / after (clean data, 4000+ draws per cell):
   correct sigma, any alarm   n = 30: 3.2 % -> <= 0.3 %
   sigma 3.5x off, breakdown  n = 30: ~50 % -> 0 %;  n = 500: 8.6 % -> <= 1 %
 
+WP-137 (the code review of WP-135): ladder_new is now the MATLAB ladder in
+full -- 'unknown' without a robust scale, and 'indeterminate' (backstop big,
+fhat in its clean band, a collapse undetectable at this n) before 'clean'.
+The WP-135 port lacked both, so its "after" rates were measured on a ladder
+the code does not run, and its 55 % column read 0 % breakdown below n ~ 450
+without saying where those runs went: to 'indeterminate', which snoop then
+passed in silence. The table now counts both levels, and the check asserts
+that a 55 % contamination is never 'clean' (breakdown -> snoop refuses,
+indeterminate -> snoop warns, WP-137).
+
 Run:  python3 dev/validation/wp135_contamination_mirror.py
 Created 2026-10-14 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Opus 5.5 -- WP-135.
+Updated 2026-10-15 (CEST, UTC+02:00), WP-137: ladder_new is the MATLAB ladder in
+full ('unknown', 'indeterminate'); the 55 % cell counts both. With assistance
+from Claude (Anthropic), model Claude Opus 5.5.
 """
 import math
 import numpy as np
@@ -114,11 +127,20 @@ def ladder_old(fhat, big, n):
     return 'moderate' if fhat > tol else 'clean'
 
 
-def ladder_new(fhat, big, n):
+def collapse_detectable(n):
+    """P(K = 0) <= 1 %: fhat = 0 is a collapse only where clean data rarely show it."""
+    mu, r = nb_law(n)
+    return math.exp(r * math.log1p(-mu / (r + mu))) <= A_LO
+
+
+def ladder_new(fhat, big, n, mad_available=True):
+    """verdict>contaminationOf, every level (WP-137: 'unknown', 'indeterminate')."""
+    if not mad_available:
+        return 'unknown'
     if big and collapsed(fhat, n):
         return 'breakdown'
     if fhat <= fhat_tol(n):
-        return 'clean'
+        return 'indeterminate' if big and not collapse_detectable(n) else 'clean'
     if fhat >= 0.25:
         return 'refuse'
     return 'severe' if fhat >= 0.10 else 'moderate'
@@ -156,15 +178,21 @@ def main():
             res[name] = (cnt_o, cnt_n)
         alarm = lambda c: sum(v for k, v in c.items() if k != 'clean') / 4000
         bd = lambda c: c.get('breakdown', 0) / 4000
+        ind = lambda c: c.get('indeterminate', 0) / 4000
         det = lambda c: sum(v for k, v in c.items() if k in ('moderate', 'severe', 'refuse')) / 4000
         print(f'  n {n:4d}: clean any alarm {100 * alarm(res["clean"][0]):5.2f} % -> '
               f'{100 * alarm(res["clean"][1]):5.2f} %;  sigma 3.5x breakdown '
               f'{100 * bd(res["sigma 3.5x"][0]):5.1f} % -> {100 * bd(res["sigma 3.5x"][1]):4.1f} %;  '
               f'5 % blunders detected {100 * det(res["5 % blunders"][0]):5.1f} % -> '
               f'{100 * det(res["5 % blunders"][1]):5.1f} %;  55 % breakdown '
-              f'{100 * bd(res["55 % blunders"][0]):5.1f} % -> {100 * bd(res["55 % blunders"][1]):5.1f} %')
+              f'{100 * bd(res["55 % blunders"][0]):5.1f} % -> {100 * bd(res["55 % blunders"][1]):5.1f} % '
+              f'(+ indeterminate {100 * ind(res["55 % blunders"][1]):5.1f} %);  sigma 3.5x '
+              f'indeterminate {100 * ind(res["sigma 3.5x"][1]):5.1f} %')
         # tol: binomial sd of a rate over 4000 draws <= 0.25 % at these levels
         ok &= alarm(res['clean'][1]) <= 0.006 and bd(res['sigma 3.5x'][1]) <= 0.015
+        # WP-137: a 55 % contamination is never 'clean' -- breakdown (snoop
+        # refuses) or indeterminate (snoop warns); tol: as above
+        ok &= bd(res['55 % blunders'][1]) + ind(res['55 % blunders'][1]) >= 0.99
     print('ALL CHECKS PASS' if ok else 'A CHECK FAILED')
     return 0 if ok else 1
 

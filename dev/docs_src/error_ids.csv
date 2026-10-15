@@ -266,6 +266,7 @@ lsqvce:snoop:downdateFailed,engine.verdict,warning,v4.0
 lsqvce:snoop:forcedBreakdown,engine.verdict,warning,v4.0
 lsqvce:snoop:forcedContaminated,engine.verdict,warning,v4.0
 lsqvce:snoop:forcedOverCap,engine.verdict,warning,v4.0
+lsqvce:snoop:indeterminate,engine.verdict,warning,v6.23.0
 lsqvce:snoop:lowRedundancy,engine.verdict,warning,v4.0
 lsqvce:snoop:maxReject,engine.verdict,warning,v4.0
 lsqvce:snoop:rejectFraction,engine.verdict,warning,v4.0
