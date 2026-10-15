@@ -10342,3 +10342,10 @@ NOT validated before CI (tier B). Risk points: the GCV data in MATLAB (an interi
 argument), the snoop fixtures (the r = 2/3 blunder rejected under rMin 0.01; the regularised re-solve to
 1e-10 against zeroed rows), `Force` at n = 600 (warnings besides forcedBreakdown are expected inside
 verifyWarning), and the two-pass noise runs of the Whitener test.
+
+**CI round 1 (56c2cc9): RED, 719 / 720** -- every risk point passed (the GCV data in MATLAB, both snoop
+fixtures, Force at n = 600, the Whitener's noise runs); the one failure is the new
+`testCompareUsesTheSolvesRankAndRedundancy`: its hand-built solutions lacked `sigma0`, which the
+`lsqvce.Results` constructor reads (the established pattern in `testResultsRefusalsByName` carries it).
+The test errored before it asserted anything. Fix: `sigma0 = 1` in both structs. Warning inventory
+`lsqvce:internal:testProbe` only.

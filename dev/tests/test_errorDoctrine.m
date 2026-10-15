@@ -556,8 +556,10 @@ function testCompareUsesTheSolvesRankAndRedundancy(tc)
     % u = 6 with one local direction not estimable (rank 5, r = 45 of n = 50).
     DF = struct('u', 6, 'n', 50, 'rank', 5, 'r', 45);
     DR = struct('u', 5, 'n', 50, 'rank', 4, 'r', 46);
-    RF = lsqvce.Results(struct('x', zeros(2, 1), 'vtv', 10), DF, [], struct(), @() deal([], [], []), 0, []);
-    RR = lsqvce.Results(struct('x', zeros(1, 1), 'vtv', 14), DR, [], struct(), @() deal([], [], []), 0, []);
+    solF = struct('x', zeros(2, 1), 'sigma0', 1, 'vtv', 10);
+    solR = struct('x', zeros(1, 1), 'sigma0', 1, 'vtv', 14);
+    RF = lsqvce.Results(solF, DF, [], struct(), @() deal([], [], []), 0, []);
+    RR = lsqvce.Results(solR, DR, [], struct(), @() deal([], [], []), 0, []);
     F = RF.compare(RR);
     verifyEqual(tc, [F.df1, F.df2], [1, 45], 'df from the solve''s rank and redundancy');
     % tol: the closed form ((14 - 10) / 1) / (10 / 45) = 18, rounding only
