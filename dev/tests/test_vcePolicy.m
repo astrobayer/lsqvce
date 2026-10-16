@@ -14,6 +14,9 @@ function tests = test_vcePolicy
 %
 %   See also LSQVCE.FIT, LSQVCE.ENGINE.ADJUSTVCEJOINT, TEST_ELLMER, TEST_PHYSORACLE
 %
+%   Updated 2026-10-16 (CEST, UTC+02:00), WP-145: demo_noisePolicy must
+%   converge; the captures echo their warnings. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-14 (CEST, UTC+02:00), WP-135 (third review, lane 4): the
 %   converged column reads R.converged; a prior from the last pass is scaled
 %   in the closing solve. With assistance from Claude (Anthropic), model Claude Opus 5.5.
@@ -243,6 +246,7 @@ function testVerboseZeroIsSilent(tc)
     data = tc.TestData.data;
     o = lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=1, Noise=struct('Grid', 16), Seed=3, Verbose=0);
     out = evalc('lsqvce.fit(data, o);');
+    echoWarnings(out);   % WP-145: its warnings reach the gate
     tc.verifyEmpty(strtrim(out), 'Verbose 0 prints nothing');
 end
 
@@ -251,6 +255,7 @@ function testVerboseOnePrintsThePassRecord(tc)
     data = tc.TestData.data;
     o = lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=1, Noise=struct('Grid', 16), Seed=3, Verbose=1);
     out = evalc('lsqvce.fit(data, o);');
+    echoWarnings(out);   % WP-145: its warnings reach the gate
     tc.verifyNotEmpty(strtrim(out), 'Verbose 1 prints the run''s progress');
 end
 
@@ -669,6 +674,7 @@ function testDemoNoisePolicyIsTheWorkedPolicyExample(tc)
     % and arcFactors must isolate the one degraded arc -- all in ONE run since
     % WP-98 fixed F-01, which is itself part of what this test now pins.
     out = evalc('[R, s] = demo_noisePolicy();');
+    echoWarnings(out);   % WP-145: its warnings reach the gate
     tc.verifyClass(R, 'lsqvce.Results');
     tc.verifyTrue(contains(out, 'arc factors'), 'the arc-factor section is printed');
     % R6 WP-98: the demo used to need TWO runs because a "law" stream and an
@@ -676,6 +682,9 @@ function testDemoNoisePolicyIsTheWorkedPolicyExample(tc)
     % run at once, so the level for mag comes from the SAME Results as the rest
     tc.verifyNumElements(s.passes, 1, 'one run, one pass count');
     tc.verifyEqual(numel(s.stream), 4, 'all four streams in one run');
+    % WP-145: the figures below are a fixed point's only if the loop reached
+    % one -- it used to stop on its budget (12 passes; the plain law needed 14)
+    tc.verifyTrue(R.converged, sprintf('the shipped run must converge (stopReason %s)', R.stopReason));
 
     tc.verifyTrue(s.noneFixed, 'estimate "none" leaves the declared sigma exactly alone');
     % tol: 10 % relative -- one level per stream from 9 arcs of 256 epochs has
@@ -684,7 +693,7 @@ function testDemoNoisePolicyIsTheWorkedPolicyExample(tc)
     tc.verifyEqual(s.level(2), s.truth(2), 'RelTol', 0.10, ...
                    '"scale" on the psd shape finds the planted level');
     % tol: the same 10 % relative band, for the same reason -- the level of a
-    % stream whose shape was fitted too (measured 5.1 % high on this fixture)
+    % stream whose shape was fitted too (measured 3.5 % high on this fixture)
     tc.verifyEqual(s.level(3), s.truth(3), 'RelTol', 0.10, ...
                    '"law" finds the level of the colour it fitted');
     % tol: the fitted lag-1 correlation of an AR(1) from 9 arcs; +-0.15 keeps

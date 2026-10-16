@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-16 — whole-repository code review of v6.25.1 and the handover to a tier-A session (cloud container, no MATLAB; model Claude Opus 5.5; user: "/code-review xhigh - fix" on WP-143, then "I want you to review the repo and the code using /code-review", then "Prepare a handover. I can start a new session on this computer so that you have access to Matlab"): nine repository findings (A1-A9) and nine build_manual.py findings (B1-B9), each with its verification state and its tier-A reproduction step; WP-144 (package and template), WP-145 (test tooling), WP-146 (build_manual.py) PROPOSED, not opened; no code change, no version (6.25.1 stays, 740 tests); §12.77.
+Last substantive update: 2026-10-16 — WP-145 OPEN (tier A: MATLAB R2026a through the bridge and matlab -batch, the Manual under WSL; model Claude Opus 5.5; user: "open WP-145 as §12.77 proposes ... start with the measurement of which warnings the 15 examples raise today, then reproduce A1, A5, A8 and A9 before fixing them", then "Figure out, why they do not converge. The task is to have working examples that ensure and test precision and reliability", then "Coarser law" and "Find the day, then levels"): A1/A5/A8/A9 reproduced and fixed in dev/tests (example warnings reach the gate through private/echoWarnings and a capture probe, rule 5 bound to the run, run_lsqvce on dev/tests with a working LogFile=''); the fixed gate went RED on four unconverged examples; diagnosed (bins the data barely determine) and fixed (Smooth 1 / Grid 8, all converge in 3-7 passes, demo_sensors finds its bad day before the levels -- its levels had been 32-46 % off); version 6.25.2; ci_gate GREEN 738/738 locally; §12.78.
+Preceding entry: Last substantive update: 2026-10-16 — whole-repository code review of v6.25.1 and the handover to a tier-A session (cloud container, no MATLAB; model Claude Opus 5.5; user: "/code-review xhigh - fix" on WP-143, then "I want you to review the repo and the code using /code-review", then "Prepare a handover. I can start a new session on this computer so that you have access to Matlab"): nine repository findings (A1-A9) and nine build_manual.py findings (B1-B9), each with its verification state and its tier-A reproduction step; WP-144 (package and template), WP-145 (test tooling), WP-146 (build_manual.py) PROPOSED, not opened; no code change, no version (6.25.1 stays, 740 tests); §12.77.
 Preceding entry: Last substantive update: 2026-10-16 — WP-143 DONE (PR #177, merge 04eef58; CI GREEN on 43c4002 in the first round: ci_gate 728/728, warning inventory lsqvce:internal:testProbe only, the audit job green); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.76; no code change, no version (6.25.1 stays, 740 tests).
 Preceding entry: Last substantive update: 2026-10-16 — WP-143 OPEN (tier A for the tool: Python runs here; model Claude Opus 5.5; user: "What failed in build_manual.py?" -- nothing yet, a latent short-circuit -- then "Yes, do it as WP-143"): build_manual.py builds every document also after a failure, and writes a document's HTML and PDF together, only when both built; no +lsqvce change, no version (6.25.1 stays, 740 tests).
 Preceding entry: Last substantive update: 2026-10-16 — WP-142 DONE (PR #175, merge f59e6bd; CI GREEN on ec78e37 in the first round: ci_gate 728/728, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.75; no code change, no version (6.25.1 stays, 740 tests).
@@ -10894,7 +10895,7 @@ recorded-only observation of §12.75 is acted on. No package is open; the next s
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
 | 144 | The package and template findings A2, A3, A4, A6 and the coverage gap A7 below: the one-day cache key of `lsqvce.engine.synthLoader`, `Results.plot("psd")` on a log axis, the local Tikhonov groups of `template/gravfire_data.m`, `fit`'s prior "scale" update after a refused v'Pv, and a generated GRAVFIRE bundle fixture that runs `gravfire_data` end to end; each fix with a test that fails without it; version by precedent (fixes alone a patch, 6.25.2 as WP-142; a new identifier a minor, 6.26.0 as WP-137) | 143 (closure #178 merged ba5b4cd) | PROPOSED (not opened; the user's go opens it) |
-| 145 | The test-tooling findings A1, A5, A8, A9 below: example warnings reach the gate's warning inventory, `run_lsqvce` on the `dev/tests` layout with a working `LogFile=''`, the gate's log check bound to this run; `dev/tests` only, no version | 143 | PROPOSED (not opened) |
+| 145 | The test-tooling findings A1, A5, A8, A9 below: example warnings reach the gate's warning inventory, `run_lsqvce` on the `dev/tests` layout with a working `LogFile=''`, the gate's log check bound to this run; `dev/tests` only, no version | 143 | OPENED 2026-10-16 -- its row and status live in §12.78 |
 | 146 | The `build_manual.py` findings B1-B9 below (the review of WP-143): every exception caught per document in `main()`, the tracked `_build` intermediates and both targets written only on success (staged beside the targets, then `os.replace`), pandoc's output decoded as UTF-8, a committed test of build mode, the docstring without history and with the stamp; no version | 143 | PROPOSED (not opened) |
 
 **The user's requests (2026-10-16):** "/code-review xhigh - fix" -- a review of WP-143's diff
@@ -11030,3 +11031,165 @@ reproduce before fixing. (2) A1's fix can turn the gate red on today's examples:
 instrument working. (3) `synthLoader` is the loader template (its help says copy it): the key rule
 goes into its help as well as its code. (4) No package is open: the three rows above are PROPOSED;
 the user's go opens one, and its scope goes into its ledger row first (the loop).
+
+### 12.78 WP-145 — the test tooling: example warnings reach the gate, run_lsqvce on dev/tests, the log bound to its run (2026-10-16, model Claude Opus 5.5, tier A)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 145 | The test-tooling findings A1, A5, A8, A9 of §12.77: (A1) a warning raised inside an example's or a demo's inner `evalc` reaches `run_all_lsqvce`'s capture and so the gate's warning inventory -- a shared `private/echoWarnings` re-emits the MATLAB-framed warning blocks of an inner capture, every capture site in `dev/tests` uses it (a static lock refuses a new one without it), and `test_examples` carries the probe identifier that rule 7 requires, so a blind example capture is red; (A5) `run_lsqvce` resolves its shortcuts, its pattern search and its default log in `dev/tests`; (A8) `LogFile=''` switches the log off (not given ≠ empty); (A9) rule 5 of `gateVerdict` requires a log written by THIS run (its modification time not before the run's start, which `ci_gate` passes); each fix with a test that fails without it. EXTENDED 2026-10-16 (user: "working examples that ensure and test precision and reliability, not to just have them pass"; then "Coarser law" and "Find the day, then levels"): the four examples the fixed gate found unconverged converge -- demo_gravity, demo_grace, demo_noisePolicy, demo_sensors each on the coarsest Noise.Grid / Smooth that keeps its measured accuracy, the reason in its help, its ACCURACY block re-measured; demo_sensors isolates the bad day with arc factors BEFORE it estimates the levels, and its table shows every stream against its truth; the guarding tests assert convergence (test_physOracle without MaxPasses 1); the Manual chapter 09 follows; version 6.25.2 (fixes alone a patch, as WP-142) | 143 | IN PROGRESS |
+
+**The user's request (2026-10-16, tier-A session on the PC):** "Run the baseline ... Then open WP-145
+as §12.77 proposes: scope it in the ledger first. Start with the measurement of which warnings the 15
+examples raise today, then reproduce A1, A5, A8 and A9 before fixing them."
+
+**Baseline (tier A, main e483142, `matlab -batch "cd('dev/tests'); ci_gate"` detached):** GREEN,
+728 / 728, 27 / 27 suites (0 skipped, 1 excluded), warning inventory `lsqvce:internal:testProbe`
+only, 328 s. The local gate counts 728, the same as CI: the "740 local" of the rounds since WP-141
+(and §12.77's handover) is the STATIC count of declared points (audit check 17, `dev/DEVELOPMENT.md`),
+which includes the 12 points of the benchmark `test_speed` that `ci_gate` excludes -- not a local
+run. Since WP-103 the local and the CI gate run the same 27 suites with no skip: 728 both.
+
+**Measurement (step 1): the warnings the 15 examples raise today,** each call of `exampleCalls`
+run under `evalc` with `warning on verbose` as `run_all_lsqvce` sets it (scratch script, not
+committed), the Warning lines of the inner capture printed:
+
+| example | warnings in the inner capture |
+|---|---|
+| demo_grace | `lsqvce:adjustVCEjoint:notConverged` (6 outer iterations, max abs(alpha2-1) 5.1e-2, tol 1e-3) |
+| demo_gravity | `lsqvce:adjustVCEjoint:notConverged` (4 iterations, 1.3e-1, tol 1e-2) |
+| demo_noisePolicy | `lsqvce:adjustVCEjoint:notConverged` (12 iterations, 1.3e-2, tol 1e-2) |
+| demo_sensors | `lsqvce:adjustVCEjoint:notConverged` (10 iterations, 2.5e-1, tol 1e-2) |
+| demo_messaging | three `Warning:` lines that are NOT MATLAB warnings: the demo replays the log sink's text on screen (MaxPasses 1 on purpose) |
+| the other ten | none |
+
+None of the four reaches the gate today: that is A1, measured. demo_gravity and demo_noisePolicy
+document the stop on MaxPasses in their help (ACCURACY: "the loop stops on maxPasses"); demo_grace's
+help says it "settles visibly (Tolerance 1e-3)" and does not -- a claim of the example's text, out of
+this WP's scope (`dev/tests` only), recorded for the user. demo_messaging's replayed lines show why the
+echo must not copy every line that starts with "Warning:": MATLAB frames a real warning in a capture
+as `[\b Warning: ... ]\b` (measured, also in a nested `evalc`), the replayed text has no frame.
+
+**Reproductions (step 2, tier A, before any fix):**
+- **A1 -- reproduced, with a correction to §12.77's step.** The step planted
+  `warning('lsqvce:probe:fromExample', ...)` in `examples/demo_fit.m` and expected the gate GREEN.
+  It went RED on that id -- through **test_fit**, which calls `demo_fit` without a capture
+  (`testDemoFitRuns`, line 1537), while test_examples reported nothing. The blind spot is the inner
+  capture, so the clean reproduction plants the probe in an example only test_examples runs
+  (`demo_combine`): test_examples alone through `run_all_lsqvce` gave `warnIds = {}` -- the warning
+  vanished. Together with the measurement above (four examples' `notConverged`, never inventoried):
+  A1 confirmed.
+- **A5 -- reproduced.** `run_lsqvce('ellmer')` and `run_lsqvce('*psdVCE*')`: "run ERRORED",
+  `lsqvce:run_lsqvce:noLog` on `<root>/tests/last_run_ellmer.txt`, 0 results. Also found: the
+  shortcut `messaging` filters `*Messaging*`, a name no test carries (the tests are `testVerbose*`),
+  so it could never run anything.
+- **A8 -- reproduced.** `run_lsqvce(<file>, 'LogFile', '')` took the logging branch with the default
+  path (the `noLog` warning names it); the no-log branch, the only place `Quiet` acts, never ran.
+- **A9 -- reproduced** in the same run as A1: `last_run_all.txt` made read-only (16:10:00), the gate
+  ran 332 s, the log kept its 16:10:00 bytes, and the verdict named the warning only -- no log reason.
+
+**The fix (step 3, `dev/tests`).** `private/echoWarnings.m` re-emits the MATLAB-framed warning blocks
+of a capture; `test_examples`' `runOne` hands its capture to it (`runScript` now runs inside runOne's
+capture without one of its own), and so do the nine other captures of the suites (test_adjustBlock x3,
+test_fit, test_options, test_physOracle, test_vcePolicy x3); `test_ci_gate` locks it (an `evalc` with
+no `echoWarnings(` on its line or the next is named). test_examples carries the capture probe and
+gateVerdict rule 7 requires it (`BLIND: test_examples`). Rule 5 takes `runStart` from `ci_gate` and
+reds on a log older than the run; `run_all_lsqvce` says so on stderr when it cannot open the log.
+`run_lsqvce`: every target and the default log in `dev/tests`, the suites' path set temporarily as
+run_all sets it, `LogFile` not given vs `''` told apart by `inputParser.UsingDefaults`, "no test
+matched" no longer reported as "ERRORED", the `messaging` filter `*Verbose*`. Tests: test_ci_gate
++4, test_examples +1, test_instruments +5 (750 declared, 738 run). With the probe in demo_combine the
+fixed test_examples reported `lsqvce:probe:fromExample` and `notConverged`, and nothing
+`<unidentified>` from demo_messaging. Linux audit (WSL, Debian pandoc) CLEAN, selftest every fault.
+
+**The fixed gate is RED -- the instrument working (tier A, 343 s):** 738 / 738 passed, inventory
+`lsqvce:adjustVCEjoint:notConverged` from test_examples (demo_grace, demo_gravity, demo_noisePolicy,
+demo_sensors) and test_physOracle (`demo_gravity('MaxPasses', 1)`). Offered "declare the documented
+warnings / make the demos converge / mute", the user answered: "Figure out, why they do not
+converge. The task is to have working examples that ensure and test precision and reliability, not
+to just have them pass."
+
+**Diagnosis (step 4, tier A; scratch copies of the demos, the engine instrumented in a scratch edit
+reverted at once).** Each demo run with a large pass budget, the per-bin record of `psdVCE` (the
+Helmert factor alpha2_j and the bin's redundancy S_j * sum T_j) per pass and pool group:
+- **What fails is ONE criterion.** The levels settle within ~10 passes everywhere (levelDev 1e-4);
+  `max|alpha2-1|` -- the WORST of 60 spectral bins -- does not. demo_gravity converges at pass 72
+  (it runs 4), demo_grace at 27 (runs 6), demo_noisePolicy at 14 (runs 12), demo_sensors at 168
+  (runs the default 10).
+- **The slow bins are the low-information ones.** demo_gravity: the zero-frequency bin, redundancy
+  5-6 against a median of 48 per bin (the per-arc locals absorb an arc's mean), contracting by 0.977
+  per pass. demo_sensors: bins of redundancy 1-4 (medians 9-20) sinking toward zero (KBR bins at
+  3e-4 of the maximum, alpha2 0.987 and falling) -- 60 free bins on arcs of 60 samples (`nk = 60`)
+  for WHITE planted noise. A bin with r ~ 2 has a relative standard error ~ sqrt(2/r) ~ 100 %; the
+  stop rule asks its iteration step to fall below 1 %.
+- **What it costs the estimate (demo_gravity, the 72-pass fixed point as reference):** x after 4
+  passes is within 0.29 sigma_x of it (rms 0.10), after 10 within 0.10; sigma0 and the levels agree
+  to 3 digits; mean z^2 0.894 / 0.920, max |z| 2.32 / 2.28. A coarser law converges in 4-15 passes
+  (Grid 30: 15, Grid 16: 10, Grid 8: 6, Smooth 1 or 2: 4) with mean z^2 0.85-0.87, max |z| 2.2-2.4,
+  the planted anomaly at 1.1 sigma; those solutions differ from the 60-bin one by <= 0.8 sigma_x --
+  a model choice, every one as close to the truth.
+- **demo_sensors does not recover what it says it recovers.** Its own table prints LRI -33.1 % and
+  GPS -31.7 % and then "the components recovered the sensor noise ratios". The cause is not the
+  loop: the demo plants a 6-sigma offset on GRACE-C / KBR / day 7 for its STEP 5 (the bad-day hunt)
+  and runs STEP 4's variance components on the contaminated data; C|KBR comes back +46 %, and with
+  Pool "obsType" the shared KBR shape carries it into D|KBR (+43 %); the table normalises on C|KBR,
+  so the error shows up on the OTHER sensors. With the offset removed, every stream is within 4 % of
+  the truth for every setting (Grid 60 / 16 / 8 / 2, Smooth 2), and Grid 8 / Smooth 2 converge in
+  4-6 passes instead of 168. With ArcFactors = true and Grid 8 the bad day is isolated in the same
+  run (factor 16.8 on C_KBR_d7, every other KBR arc ~ 1), but the stream-level summary then averages
+  it in (C|KBR +60 %).
+- **Stale claims found on the way.** demo_gravity's ACCURACY quotes sigma0 1.0381, ratios 1.183 /
+  1.044 / 1.014, mean z^2 0.842 (2026-09-07, v5.3); today's same call gives 1.0003, 1.170 / 1.042 /
+  1.016, 0.894. demo_grace's help says it "settles visibly". demo_gravity's potC +17 % in every
+  setting is the documented shape/level bias on a short coloured record (bounded at 25 % by
+  test_vcePolicy) -- a recorded property, not this finding.
+- **A package-level observation, not acted on here:** the default `Noise.Grid` 60 with the default
+  `MaxPasses` 10 cannot meet the default tolerance on short or low-information arcs (demo_sensors:
+  168 passes), and a step-size stop rule says little about the distance to the fixed point when a
+  bin contracts at 0.977 per pass (remaining distance ~ 42 x the last step).
+
+**The user's decisions (2026-10-16):** "Coarser law" (per demo, the law that converges and keeps its
+measured accuracy) and "Find the day, then levels" (demo_sensors).
+
+**The examples' fix (step 5, tier A; every figure the shipped call, measured after the edit).**
+
+| example | law | budget | passes | what it finds (planted) |
+|---|---|---|---|---|
+| demo_gravity | Smooth 1 | 10 (was 4) | 4 (60-bin: 72) | ratios 1.172 / 1.045 / 1.016; mean z^2 0.850, max abs z 2.32, anomaly 1.10 sigma |
+| demo_grace | Smooth 1, Tol 1e-3 | 10 (was 6) | 4 (60-bin: 27) | posC 0.895 / posD 1.383 / rr 1.628 / posE 1.149 (0.8 / 1.3 / 1.6 / 1.1) |
+| demo_noisePolicy | Smooth 1 | 10 (was 12) | 3 (60-bin: 14) | acc 0.4913 (0.5), rr 1.195 (1.155), mag 0.5728 (0.5745), arc ratio 9.45 (9) |
+| demo_sensors | Grid 8 | 20 (factors) / 10 | 14 / 7 (60-bin: 168) | the event 15.9 x its stream's median; levels within 4.1 % |
+
+Every estimate is the 60-bin fixed point's to three digits (demo_gravity: the coarser laws within
+0.8 sigma_x of it, equally close to the truth). demo_sensors is restructured: STEP 4 finds the bad
+day with one variance factor per sensor-day, each read against its stream's median through
+`lsqvce.util.arcKey` (KERNEL tier, the one definition of the key that `R.noise.arcKeys` carries --
+not re-implemented in the demo, R7-43); the flagged arc leaves the store, so the resolver returns
+no arc for it, as for an outage; STEP 5 estimates the levels without it and prints `R.summary()`'s
+sigma per stream against its truth. Each demo's help states the reason and the measured values
+(demo_gravity's and demo_noisePolicy's ACCURACY blocks re-measured, demo_sensors' new); the Manual
+chapter 09 follows. The guards assert convergence: test_physOracle runs demo_gravity as shipped
+(it used MaxPasses 1 and so could never see the budget stop) with bands set by the statistics'
+distributions (mean z^2 within 3 sd = 3 sqrt(2/77), max abs z < 4, anomaly within 3 sigma);
+test_vcePolicy requires demo_noisePolicy's R.converged. The audit's balance check counted the
+demo's first variable name `events` as the classdef keyword; it is `flagged`. Two mutes in test_fit
+hid nothing and are gone: demo_priors converges, and demo_fit mutes its own two-pass run.
+Version 6.25.2 (Contents.m, README, RELEASE_NOTES; the Manual and the API rebuilt under WSL).
+
+**Gates (tier A, before the commit):** `ci_gate` GREEN 738 / 738, 27 / 27 suites, inventory
+`lsqvce:internal:testProbe` only, 289 s (the baseline 328 s: the examples converge sooner); Linux
+audit CLEAN, selftest every fault caught. Tests: 750 declared (DEVELOPMENT.md), 738 run locally
+and on CI (test_speed's 12 excluded).
+
+**Observations, recorded, not acted on (the user decides):**
+1. `demo_fit` runs a deliberate two-pass noise run (the OnPass hook) and MUTES its own
+   `notConverged` warning, printing instead that two passes did not settle -- an example that
+   silences a warning the gate would otherwise judge.
+2. The package default (`Noise.Grid` 60, `MaxPasses` 10, `Tolerance` 1e-2) cannot settle on short
+   or low-information arcs; a step-size stop rule says little about the remaining distance when a
+   bin contracts slowly. A candidate WP: a stop rule relative to each bin's redundancy, or a
+   warning that names the bins that keep moving.
+3. demo_gravity's potC +17 % and demo_grace's posC +12 % are the same in every law tried: what
+   the estimator finds on those records, stated in the helps; not studied further here.
+4. On this PC Windows now has pandoc 3.11: the Windows audit reports check 23 twice ("differs")
+   and REWRITES the four tracked `_build` files (B7 of §12.77, seen live) -- restore them with
+   `git checkout dev/docs_src/manual/_build/`; the WSL run is the instrument.

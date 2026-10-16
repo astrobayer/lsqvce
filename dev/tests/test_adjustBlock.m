@@ -64,6 +64,7 @@ function testSystemWithoutLocalUnknownsIsValid(tc)
     st = R0.acc.systemStore(1);
     tc.verifyEqual(st.nl, 0);
     V = evalc('R0.report();');                                 % the verdict still prints
+    echoWarnings(V);   % WP-145: its warnings reach the gate
     tc.verifyTrue(~isempty(V));
 
     L1 = lsqvce.engine.makeLoader(buildOne, ...
@@ -626,6 +627,7 @@ function testReportPrintsTheProvenanceLine(tc)
     R = lsqvce.engine.adjustBlock({L}, 1:2);
 
     out = evalc('V = R.report();');
+    echoWarnings(out);   % WP-145: its warnings reach the gate
     tc.verifyTrue(contains(out, 'run: lsqvce'), ...
         'the printed report must carry the provenance line');
     tc.verifyTrue(contains(out, R.meta.toolboxVersion));
@@ -635,6 +637,7 @@ function testReportPrintsTheProvenanceLine(tc)
 
     % the standalone report has no provenance -- no line, no finding
     out0 = evalc('V0 = lsqvce.report(R.diag);');
+    echoWarnings(out0);   % WP-145: its warnings reach the gate
     tc.verifyFalse(contains(out0, 'run: lsqvce'));
     codes0 = cellfun(@(f) f.code, V0.findings, 'UniformOutput', false);
     tc.verifyFalse(any(strcmp(codes0, 'PROVENANCE')));

@@ -1,7 +1,8 @@
-function verdict = gateVerdict(results, skipped, onDisk, excluded, logFile)
+function verdict = gateVerdict(results, skipped, onDisk, excluded, logFile, runStart)
 %GATEVERDICT  Decide green/red for one full-suite run. Pure logic, no I/O.
 %
 %   verdict = gateVerdict(results, skipped, onDisk, excluded, logFile)
+%   verdict = gateVerdict(results, skipped, onDisk, excluded, logFile, runStart)
 %
 %   The ONE place the CI verdict is decided (rule 3). CI_GATE gathers the
 %   inputs (runs the suite, globs the disk) and this function judges them;
@@ -18,15 +19,22 @@ function verdict = gateVerdict(results, skipped, onDisk, excluded, logFile)
 %        not on disk (coverage in BOTH directions: a forgotten new suite
 %        file and a stale runner entry both trip),
 %     5. the log file exists and is non-empty (the artifact the CI uploads
-%        and the postflight quotes must never be missing),
+%        and the postflight quotes must never be missing), and -- when
+%        runStart is given -- it was written by THIS run: its modification
+%        time is not before runStart (WP-145, A9: run_all_lsqvce skips the
+%        log when fopen fails, so a read-only log, or one held open by an
+%        editor on Windows, used to pass as this run's; reproduced),
 %     6. every suite EXECUTED exactly the points it DECLARES (WP-47,
 %        results.declared vs .total; a suite that runs fewer points than
 %        it declares is hiding tests),
 %     7. the warning inventory holds NO identifier other than
-%        lsqvce:internal:testProbe, and when test_ci_gate ran its probe
-%        MUST be present (an empty inventory there means the capture is
-%        blind, not that the code is warning-free). Rules 6/7 apply only
-%        when the fields exist -- pre-WP-47 result structs stay judgeable.
+%        lsqvce:internal:testProbe, and every PROBE SUITE that ran must
+%        have reported it: test_ci_gate (the suite capture) and, since
+%        WP-145, test_examples (the examples' inner capture, which until
+%        then discarded every warning an example raised). An empty
+%        inventory there means the capture is blind, not that the code is
+%        warning-free. Rules 6/7 apply only when the fields exist --
+%        pre-WP-47 result structs stay judgeable.
 %
 %   INPUT
 %     results   1xF struct   as returned by RUN_ALL_LSQVCE: fields .name
@@ -44,7 +52,10 @@ function verdict = gateVerdict(results, skipped, onDisk, excluded, logFile)
 %     excluded  1xE cell     suite names DOCUMENTED as never gate-relevant
 %                            (currently the benchmark test_speed). May be {}.
 %     logFile   1x1 char     absolute path of the run log
-%                            (tests/last_run_all.txt).
+%                            (dev/tests/last_run_all.txt).
+%     runStart  1x1 double   OPTIONAL: the datenum at which the run began
+%                            (CI_GATE takes it before it calls the runner).
+%                            Omitted or [], rule 5 checks presence only.
 %
 %   OUTPUT
 %     verdict   1x1 struct   .ok       1x1 logical  true = green
@@ -63,8 +74,11 @@ function verdict = gateVerdict(results, skipped, onDisk, excluded, logFile)
 %     v = gateVerdict(r, {}, {'test_util','test_speed'}, {'test_speed'}, f);
 %     assert(v.ok)
 %
-%   See also CI_GATE, RUN_ALL_LSQVCE
+%   See also CI_GATE, RUN_ALL_LSQVCE, ECHOWARNINGS
 %
+%   Updated 2026-10-16 (CEST, UTC+02:00), WP-145: rule 5 binds the log to
+%   this run (runStart), rule 7 requires the probe of test_examples too.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-08-20 (CEST, UTC+02:00), WP-47: rules 6 (declared vs
 %   executed, external handover 2.6.4) and 7 (single-allowed-identifier
 %   warning gate + capture-health probe, 2.5). With assistance from
@@ -84,6 +98,11 @@ function verdict = gateVerdict(results, skipped, onDisk, excluded, logFile)
         error('gateVerdict:badInput', 'logFile must be a char row or string.');
     end
     logFile = char(logFile);
+    if nargin < 6, runStart = []; end
+    if ~(isempty(runStart) || (isnumeric(runStart) && isscalar(runStart) ...
+            && isfinite(runStart)))
+        error('gateVerdict:badInput', 'runStart must be a finite datenum scalar or [].');
+    end
 
     reasons = {};
 
@@ -126,6 +145,13 @@ function verdict = gateVerdict(results, skipped, onDisk, excluded, logFile)
     d = dir(logFile);
     if isempty(d) || d.bytes == 0
         reasons{end+1} = sprintf('log file missing or empty: %s.', logFile);
+    elseif ~isempty(runStart) && d.datenum < runStart - 2/86400
+        % 2 s of slack for a file system that stores coarse times (FAT);
+        % a full run takes minutes, so a stale log is never inside it
+        reasons{end+1} = sprintf(['log file was NOT written by this run: %s ' ...
+            '(last written %s, the run started %s) -- read-only or held open?'], ...
+            logFile, datestr(d.datenum, 'yyyy-mm-dd HH:MM:SS'), ...
+            datestr(runStart, 'yyyy-mm-dd HH:MM:SS')); %#ok<DATST>
     end
 
     % 6. declared vs executed, per suite (WP-47, external handover 2.6.4):
@@ -158,11 +184,14 @@ function verdict = gateVerdict(results, skipped, onDisk, excluded, logFile)
                 'new warning identifier(s) in the inventory: %s.', ...
                 strjoin(foreign, ', '));
         end
-        ci = strcmp({results.name}, 'test_ci_gate');
-        if any(ci) && ~isnan(results(ci).total) ...
-                && ~ismember('lsqvce:internal:testProbe', results(ci).warnIds)
-            reasons{end+1} = ['warning capture is BLIND: test_ci_gate ran ' ...
-                'but its probe identifier never reached the inventory.'];
+        for probeSuite = {'test_ci_gate', 'test_examples'}
+            ci = strcmp({results.name}, probeSuite{1});
+            if any(ci) && ~isnan(results(ci).total) ...
+                    && ~ismember('lsqvce:internal:testProbe', results(ci).warnIds)
+                reasons{end+1} = sprintf(['warning capture is BLIND: %s ran ' ...
+                    'but its probe identifier never reached the inventory.'], ...
+                    probeSuite{1}); %#ok<AGROW>
+            end
         end
     end
 

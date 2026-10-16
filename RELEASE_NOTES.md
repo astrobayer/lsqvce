@@ -1,5 +1,26 @@
 # lsqvce release notes
 
+## 6.25.2 — 2026-10-16 (WP-145: the examples converge, and the gate hears them)
+
+Corrections to four examples and to the test tooling. Nothing in `+lsqvce` changes, so no
+estimate of the toolbox changes.
+
+- `demo_gravity`, `demo_grace`, `demo_noisePolicy` and `demo_sensors` stopped on their pass
+  budget without converging (`lsqvce:adjustVCEjoint:notConverged`). Measured cause: spectral
+  bins that the data barely determine — the zero-frequency bin that per-arc locals absorb, or
+  60 bins on 60-sample arcs of white noise — settle slowly or decay toward zero, so the worst
+  bin never meets the tolerance. They now use `Noise.Smooth = 1` (gravity, grace, noisePolicy)
+  or `Noise.Grid = 8` (sensors) with the toolbox budget of 10 passes, and converge in 3–7 passes
+  (`demo_sensors`' per-arc run in 14 of 20) on the same estimates. Their help states the measured values.
+- `demo_sensors` estimated its per-sensor noise levels on data that still held the bad day it
+  plants, and reported them as recovered while its table showed LRI and GPS 32 % off. It now
+  finds the bad day first (one variance factor per sensor-day), leaves that day out, and shows
+  every stream against its truth (all within 4 %).
+- The test gate: a warning raised inside an example is now part of the gate's warning
+  inventory (it used to be discarded with the example's printed text); the gate's log must be
+  written by the run it judges; `dev/tests/run_lsqvce` finds the suites in `dev/tests` again,
+  and `LogFile=''` switches its log off.
+
 ## 6.25.1 — 2026-10-16 (WP-142: the code review of WP-141)
 
 Corrections to `prepareDay` (6.25.0). No estimate changes.

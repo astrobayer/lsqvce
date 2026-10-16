@@ -43,7 +43,8 @@ function [R, s] = demo_noisePolicy(varargin)
 %   One run is now the honest demonstration; two would be a memorial.
 %
 %   INPUT  (Name-Value, all optional)
-%     maxPasses 1x1 double   passes of the loop (default 12)
+%     maxPasses 1x1 double   pass BUDGET of the loop; it settles in 3
+%                            (default 10)
 %     verbose   1x1 logical  print the engine log (default false)
 %   OUTPUT
 %     R         1x1 lsqvce.Results   the run, with R.history / R.noise attached
@@ -59,21 +60,24 @@ function [R, s] = demo_noisePolicy(varargin)
 %       .passes       1x1 double   passes the loop took
 %       .badEstimate  1x1 string   the identifier a misspelt policy raises
 %
-%   ACCURACY  (MEASURED 2026-09-08 on R2026a, all four streams in ONE run. The
-%   fixture noise is drawn from a stream seeded on (day, obsType) and two
-%   consecutive runs reproduced every figure below, so this demo repeats.)
+%   ACCURACY  (MEASURED 2026-10-16 on R2026a, v6.25.2, all four streams in ONE
+%   run. The fixture noise is drawn from a stream seeded on (day, obsType) and
+%   two consecutive runs reproduced every figure below, so this demo repeats.)
 %     Levels: gps 0.2000 against its declared 0.2000 EXACTLY -- "none" does not
-%       move; acc 0.4906 against the planted 0.5000 ("scale" on a given psd
-%       shape); rr 1.214 against the planted 1.1547 = 1/sqrt(1-phi^2), 5 % high,
-%       which is what one AR(1) shape fitted from nine arcs of 256 epochs is
-%       worth; mag 0.5691 against 0.5745 = 0.30*sqrt(mean([1 9 1])).
-%     The shape rr found: lag-1 correlation 0.559 against the planted 0.500
+%       move; acc 0.4913 against the planted 0.5000 ("scale" on a given psd
+%       shape); rr 1.195 against the planted 1.1547 = 1/sqrt(1-phi^2), 3.5 %
+%       high, which is what one AR(1) shape fitted from nine arcs of 256 epochs
+%       is worth; mag 0.5728 against 0.5745 = 0.30*sqrt(mean([1 9 1])).
+%     The shape rr found: lag-1 correlation 0.550 against the planted 0.500
 %       (R.noise.Cgroups, 60 lags).
-%     Arc factors of mag: 0.97, 8.90, 0.92 -- the bad arc is 9.4x the good ones
-%       against a planted 9 (a VARIANCE ratio: arc 2 is 3x in sigma). The level
-%       absorbs their mean, so only that RATIO is identifiable.
-%     sigma0 = 0.997; the loop stops on maxPasses (12), the shape still moving
-%       in its last digits.
+%     Arc factors of mag: 0.978, 9.03, 0.932 -- the bad arc is 9.45x the good
+%       ones against a planted 9 (a VARIANCE ratio: arc 2 is 3x in sigma). The
+%       level absorbs their mean, so only that RATIO is identifiable.
+%     sigma0 = 0.9956; the loop CONVERGES in 3 passes (R.stopReason
+%       "converged") with Noise.Smooth = 1. WP-145, measured: the plain 60-bin
+%       law needed 14 passes, more than the 12 this demo spent, and settled on
+%       the same figures to three digits (rr 1.199) -- the smoothing changes
+%       when the loop may stop, not what it finds.
 %
 %   LIMITATIONS  (v5.3, MEASURED -- HANDOVER 12.20, 12.21, 12.22)
 %     * Of a stream's per-arc factors only the RATIO is identifiable: the
@@ -101,9 +105,12 @@ function [R, s] = demo_noisePolicy(varargin)
 %   Updated 2026-10-12 (CEST, UTC+02:00), WP-124: references to the data
 %   contract point at the API reference. With assistance from Claude
 %   (Anthropic), model Claude Opus 5.5.
+%   Updated 2026-10-16 (CEST, UTC+02:00), WP-145: the run converges
+%   (Noise.Smooth 1, budget 10, settles in 3), ACCURACY re-measured. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 
     p = inputParser;
-    p.addParameter('maxPasses', 12);
+    p.addParameter('maxPasses', 10);
     p.addParameter('verbose', false);
     p.parse(varargin{:});
     o = p.Results;
@@ -121,11 +128,15 @@ function [R, s] = demo_noisePolicy(varargin)
     % ---- THE RUN: all four policies at once ------------------------------
     % ArcFactors=false in Options is the POLICY DEFAULT for the whole run; the
     % ONE stream that needs per-arc factors overrides it on its own spec.
+    % Noise.Smooth 1 (WP-145, measured): the plain 60-bin law of rr stopped
+    % on the old budget of 12 passes with bins still creeping; it needed 14.
+    % Averaging each bin with its neighbours leaves every figure below the
+    % same to three digits and settles in 3.
     sel = 1:numel(cfg.streams);
     R = lsqvce.fit(policyData(cfg, sel), ...
                    lsqvce.Options(Estimate="noise", Pool="stream", ...
                                   ArcFactors=false, MaxPasses=o.maxPasses, ...
-                                  Verbose=o.verbose));
+                                  Noise=struct('Smooth', 1), Verbose=o.verbose));
     [s.stream, s.declared, s.level, s.truth] = levels(cfg, R);
     s.passes = R.history.nIter;
     % Look every stream up BY NAME. R.noise.stream follows the covariance

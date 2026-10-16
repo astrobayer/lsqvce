@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.25.1 — User Manual</title>
+  <title>lsqvce 6.25.2 — User Manual</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.25.1 — User Manual</h1>
+<h1 class="title">lsqvce 6.25.2 — User Manual</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 </header>
@@ -3046,7 +3046,7 @@ chapter <em>Choosing the stochastic model</em>.</p>
 <p><strong>Run.</strong></p>
 <div class="sourceCode" id="cb35"><pre
 class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a>[<span class="va">R</span><span class="op">,</span> <span class="va">s</span>] <span class="op">=</span> <span class="va">demo_noisePolicy</span>()<span class="op">;</span></span>
-<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a>[<span class="va">R</span><span class="op">,</span> <span class="va">s</span>] <span class="op">=</span> <span class="va">demo_noisePolicy</span>(<span class="ss">&#39;maxPasses&#39;</span><span class="op">,</span> <span class="fl">20</span><span class="op">,</span> <span class="ss">&#39;verbose&#39;</span><span class="op">,</span> <span class="va">true</span>)<span class="op">;</span>   <span class="co">% defaults: 12, false</span></span></code></pre></div>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a>[<span class="va">R</span><span class="op">,</span> <span class="va">s</span>] <span class="op">=</span> <span class="va">demo_noisePolicy</span>(<span class="ss">&#39;maxPasses&#39;</span><span class="op">,</span> <span class="fl">20</span><span class="op">,</span> <span class="ss">&#39;verbose&#39;</span><span class="op">,</span> <span class="va">true</span>)<span class="op">;</span>   <span class="co">% defaults: 10, false</span></span></code></pre></div>
 <p><code>R</code> is the <code>lsqvce.Results</code>. <code>s</code>
 summarises what was measured:</p>
 <ul>
@@ -3117,9 +3117,11 @@ bias column, and it returns one cell per arc.</li>
 seeded on day and stream, so that <code>buildDay</code> is
 deterministic.</li>
 <li>All four policies run in one call with
-<code>Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=12)</code>.
+<code>Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=o.maxPasses, Noise=struct('Smooth', 1))</code>.
 <code>ArcFactors=false</code> is the run default. <code>mag</code>
-overrides it on its own spec.</li>
+overrides it on its own spec. The loop converges in 3 passes. Without
+the smoothing, the 60-bin law of <code>rr</code> needed 14 passes and
+settled on the same values to three digits.</li>
 </ul>
 <p><strong>Output.</strong></p>
 <ul>
@@ -3137,7 +3139,7 @@ the good arcs (planted: 9).</li>
 </ul>
 <p>The help block records the measured values of one run. For example,
 <code>gps</code> keeps its declared 0.2 exactly, and the bad-arc
-variance ratio is 9.4 against the planted 9. Only the ratio between arc
+variance ratio is 9.45 against the planted 9. Only the ratio between arc
 factors is identifiable, because the level absorbs their mean.</p>
 <h2 data-number="9.9"
 id="demo_priors-regularisation-in-the-announced-layout"><span
@@ -3261,9 +3263,10 @@ hierarchy:</p>
 <code>covariance</code>;</li>
 <li>a day is an entry of <code>data.days</code>.</li>
 </ul>
-<p>It shows a data gap, estimates per-sensor noise levels, and finds a
-bad day through the attribution that <code>R.residuals()</code>
-carries.</p>
+<p>It shows a data gap, finds a bad day through one variance factor per
+sensor-day, and then estimates the per-sensor noise levels without that
+day. The order is the point: a variance component is an average over its
+stream, so an event inside the stream corrupts the level.</p>
 <p><strong>Run.</strong> <code>demo_sensors()</code> takes no arguments
 and returns nothing.</p>
 <p><strong>The case.</strong> There are six common unknowns and two
@@ -3287,16 +3290,28 @@ system.</li>
 is how a data gap is declared.</li>
 <li>Solve once with <code>Options(Verbose=false)</code> and print
 <code>R.sigma0</code> (the symptom).</li>
-<li>Run
-<code>Options(Estimate="noise", Pool="obsType", ArcFactors=false)</code>.
+<li>Find the bad day. Run
+<code>Options(Estimate="noise", Pool="obsType", ArcFactors=true, MaxPasses=20, Noise=struct('Grid', 8))</code>.
+Every arc, here one system, sensor and day, gets its own variance
+factor. The demo looks each factor up by <code>lsqvce.util.arcKey</code>
+in <code>R.noise.arcKeys</code> and prints it divided by the median of
+its stream, because the factors are absolute against the claimed sigma
+1. An arc above 5 times its stream’s median is marked
+<code>&lt;&lt;&lt; EVENT</code>.</li>
+<li>Remove each event’s arc from the store, so the arc resolver returns
+no arc for it, as for an outage. Then run
+<code>Options(Estimate="noise", Pool="obsType", ArcFactors=false, Noise=struct('Grid', 8))</code>.
 The KBR streams of both systems share one spectral shape, and every
-stream keeps its own level. The demo prints the recovered sigma per
-sensor, normalised on the first sensor, against the truth.</li>
-<li>Use <code>res = R.residuals()</code>. Select system <code>C</code>
-and type <code>KBR</code> and print the RMS residual per day. A day is
-marked <code>&lt;&lt;&lt; EVENT</code> when its RMS exceeds three times
-the median.</li>
+stream keeps its own level. The demo prints
+<code>R.summary().sigma</code> per stream against its truth.</li>
 </ol>
+<p><code>Noise.Grid 8</code> is used because an arc holds only 60
+samples. With the default 60-bin law, the bins that the data barely
+determine decay toward zero, and the loop needed 168 passes. The help
+block records the measured values: the event is 15.9 times its stream’s
+median, every other sensor-day lies between 0.5 and 1.8, and the levels
+come back within 4.1 % of the truth. Estimated with the event still in
+the data, C|KBR came back 46 % high.</p>
 <h2 data-number="9.12"
 id="demo_grace-and-demo_grace_dataloader-the-noise-loop-on-multi-axis-streams"><span
 class="header-section-number">9.12</span> <code>demo_grace</code> and
@@ -3311,7 +3326,7 @@ point. To use it on your data, replace the loader with your own
 <code>buildDay</code> and <code>data</code>.</p>
 <p><strong>Run.</strong></p>
 <div class="sourceCode" id="cb37"><pre
-class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="va">R</span> <span class="op">=</span> <span class="va">demo_grace</span>()<span class="op">;</span>                                  <span class="co">% maxPasses 6, verbose true</span></span>
+class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="va">R</span> <span class="op">=</span> <span class="va">demo_grace</span>()<span class="op">;</span>                                  <span class="co">% maxPasses 10, verbose true</span></span>
 <span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a><span class="va">R</span> <span class="op">=</span> <span class="va">demo_grace</span>(<span class="ss">&#39;maxPasses&#39;</span><span class="op">,</span> <span class="fl">8</span><span class="op">,</span> <span class="ss">&#39;verbose&#39;</span><span class="op">,</span> <span class="va">false</span>)<span class="op">;</span></span>
 <span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a>[<span class="va">cfg</span><span class="op">,</span> <span class="va">data</span>] <span class="op">=</span> <span class="va">demo_grace_dataLoader</span>()<span class="op">;</span>             <span class="co">% the declaration alone</span></span></code></pre></div>
 <p><strong>Outline.</strong> <code>demo_grace</code> holds the run and
@@ -3348,9 +3363,11 @@ follow this demo’s own convention, listed in the loader’s help.
 the temporal law. Rows are in epoch-major order. <code>buildDay</code>
 returns one cell per arc.</p>
 <p><strong>Run options and output.</strong> The run uses
-<code>Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=o.maxPasses, Tolerance=1e-3)</code>.
-The comments note that <code>Tolerance=1e-3</code> is a choice for demo
-speed. The demo prints:</p>
+<code>Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=o.maxPasses, Tolerance=1e-3, Noise=struct('Smooth', 1))</code>.
+<code>Tolerance=1e-3</code> shows the settled values in more digits.
+With <code>Noise.Smooth 1</code> the loop converges in 4 passes. The
+plain 60-bin law needed 27 passes and settled on the same levels. The
+demo prints:</p>
 <ul>
 <li>the true sigmas;</li>
 <li><code>R.history.sigma</code>, one row per iteration and one column
@@ -3383,7 +3400,7 @@ class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb38-1"><a h
 <span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a><span class="va">R</span> <span class="op">=</span> <span class="va">demo_gravity</span>(<span class="ss">&#39;Plots&#39;</span><span class="op">,</span> <span class="va">true</span><span class="op">,</span> <span class="ss">&#39;ExportDir&#39;</span><span class="op">,</span> <span class="ss">&#39;/tmp/figs&#39;</span>)<span class="op">;</span>   <span class="co">% two figures, saved as PNG</span></span></code></pre></div>
 <p>The name-value options are:</p>
 <ul>
-<li><code>MaxPasses</code> (default 4);</li>
+<li><code>MaxPasses</code> (default 10; the run converges in 4);</li>
 <li><code>Verbose</code> (default <code>false</code>);</li>
 <li><code>Plots</code> (default <code>false</code>);</li>
 <li><code>ExportDir</code> (default <code>''</code>).</li>
@@ -3399,7 +3416,7 @@ class="sourceCode matlab"><code class="sourceCode matlab"><span id="cb38-1"><a h
 <li><code>.degree</code> and <code>.degRatio</code>.</li>
 </ul>
 <p>An <code>ExportDir</code> that does not exist is an error. The help
-states a cost of about 1.5 s: 5 days, 16 arcs, 3 streams, 77 common and
+states a cost of about 1.6 s: 5 days, 16 arcs, 3 streams, 77 common and
 96 local unknowns.</p>
 <p><strong>Outline.</strong> There are three files:</p>
 <ul>
@@ -3468,8 +3485,10 @@ planted sigmas are 1.0, 2.0 and 0.5.</p>
 <code>arcInfo.nl</code> and <code>arcInfo.offsetOf(a)</code> and returns
 one cell per scheduled arc.</p>
 <p><strong>Run options and output.</strong> The run uses
-<code>Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=4)</code>.
-The demo prints three sections:</p>
+<code>Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=opt.MaxPasses, Noise=struct('Smooth', 1))</code>.
+It converges in 4 passes. The per-arc locals absorb the zero-frequency
+bin of the 60-bin law, so without the smoothing that bin settled slowly
+and the loop needed 72 passes. The demo prints three sections:</p>
 <ol type="1">
 <li><strong>The problem:</strong> sizes, schedule and local counts.</li>
 <li><strong>The weights:</strong> planted and recovered sigma per stream

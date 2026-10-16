@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.25.1 — User Manual"
+title: "lsqvce 6.25.2 — User Manual"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 
@@ -1465,7 +1465,7 @@ For the policy semantics, see the chapter *Choosing the stochastic model*.
 
 ```matlab
 [R, s] = demo_noisePolicy();
-[R, s] = demo_noisePolicy('maxPasses', 20, 'verbose', true);   % defaults: 12, false
+[R, s] = demo_noisePolicy('maxPasses', 20, 'verbose', true);   % defaults: 10, false
 ```
 
 `R` is the `lsqvce.Results`. `s` summarises what was measured:
@@ -1498,9 +1498,11 @@ bias. There are four streams:
 - `policyNoise` draws the planted noise from a stream seeded on day and
   stream, so that `buildDay` is deterministic.
 - All four policies run in one call with
-  `Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=12)`.
+  `Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=o.maxPasses, Noise=struct('Smooth', 1))`.
   `ArcFactors=false` is the run default. `mag` overrides it on its own
-  spec.
+  spec. The loop converges in 3 passes. Without the smoothing, the 60-bin
+  law of `rr` needed 14 passes and settled on the same values to three
+  digits.
 
 **Output.**
 
@@ -1513,7 +1515,7 @@ bias. There are four streams:
 - `R.summary()`.
 
 The help block records the measured values of one run. For example, `gps`
-keeps its declared 0.2 exactly, and the bad-arc variance ratio is 9.4
+keeps its declared 0.2 exactly, and the bad-arc variance ratio is 9.45
 against the planted 9. Only the ratio between arc factors is identifiable,
 because the level absorbs their mean.
 
@@ -1617,8 +1619,10 @@ local only if exactly one data set observes it.
 - a sensor is an observation type, one field of `covariance`;
 - a day is an entry of `data.days`.
 
-It shows a data gap, estimates per-sensor noise levels, and finds a bad day
-through the attribution that `R.residuals()` carries.
+It shows a data gap, finds a bad day through one variance factor per
+sensor-day, and then estimates the per-sensor noise levels without that day.
+The order is the point: a variance component is an average over its stream,
+so an event inside the stream corrupts the level.
 
 **Run.** `demo_sensors()` takes no arguments and returns nothing.
 
@@ -1639,13 +1643,27 @@ sigma 1. GRACE-D's LRI is missing on days 4–5, and GRACE-C's KBR carries a
    returns no arcs on an outage day, which is how a data gap is declared.
 3. Solve once with `Options(Verbose=false)` and print `R.sigma0` (the
    symptom).
-4. Run `Options(Estimate="noise", Pool="obsType", ArcFactors=false)`. The
-   KBR streams of both systems share one spectral shape, and every stream
-   keeps its own level. The demo prints the recovered sigma per sensor,
-   normalised on the first sensor, against the truth.
-5. Use `res = R.residuals()`. Select system `C` and type `KBR` and print
-   the RMS residual per day. A day is marked `<<< EVENT` when its RMS
-   exceeds three times the median.
+4. Find the bad day. Run
+   `Options(Estimate="noise", Pool="obsType", ArcFactors=true, MaxPasses=20, Noise=struct('Grid', 8))`.
+   Every arc, here one system, sensor and day, gets its own variance
+   factor. The demo looks each factor up by `lsqvce.util.arcKey` in
+   `R.noise.arcKeys` and prints it divided by the median of its stream,
+   because the factors are absolute against the claimed sigma 1. An arc
+   above 5 times its stream's median is marked `<<< EVENT`.
+5. Remove each event's arc from the store, so the arc resolver returns no
+   arc for it, as for an outage. Then run
+   `Options(Estimate="noise", Pool="obsType", ArcFactors=false, Noise=struct('Grid', 8))`.
+   The KBR streams of both systems share one spectral shape, and every
+   stream keeps its own level. The demo prints `R.summary().sigma` per
+   stream against its truth.
+
+`Noise.Grid 8` is used because an arc holds only 60 samples. With the
+default 60-bin law, the bins that the data barely determine decay toward
+zero, and the loop needed 168 passes. The help block records the measured
+values: the event is 15.9 times its stream's median, every other sensor-day
+lies between 0.5 and 1.8, and the levels come back within 4.1 % of the
+truth. Estimated with the event still in the data, C|KBR came back 46 %
+high.
 
 ## `demo_grace` and `demo_grace_dataLoader`: the noise loop on multi-axis streams
 
@@ -1659,7 +1677,7 @@ your own `buildDay` and `data`.
 **Run.**
 
 ```matlab
-R = demo_grace();                                  % maxPasses 6, verbose true
+R = demo_grace();                                  % maxPasses 10, verbose true
 R = demo_grace('maxPasses', 8, 'verbose', false);
 [cfg, data] = demo_grace_dataLoader();             % the declaration alone
 ```
@@ -1695,9 +1713,10 @@ as `D.Cep`, and the toolbox combines it with the temporal law. Rows are in
 epoch-major order. `buildDay` returns one cell per arc.
 
 **Run options and output.** The run uses
-`Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=o.maxPasses, Tolerance=1e-3)`.
-The comments note that `Tolerance=1e-3` is a choice for demo speed. The
-demo prints:
+`Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=o.maxPasses, Tolerance=1e-3, Noise=struct('Smooth', 1))`.
+`Tolerance=1e-3` shows the settled values in more digits. With
+`Noise.Smooth 1` the loop converges in 4 passes. The plain 60-bin law
+needed 27 passes and settled on the same levels. The demo prints:
 
 - the true sigmas;
 - `R.history.sigma`, one row per iteration and one column per stream;
@@ -1728,7 +1747,7 @@ R = demo_gravity('Plots', true, 'ExportDir', '/tmp/figs');   % two figures, save
 
 The name-value options are:
 
-- `MaxPasses` (default 4);
+- `MaxPasses` (default 10; the run converges in 4);
 - `Verbose` (default `false`);
 - `Plots` (default `false`);
 - `ExportDir` (default `''`).
@@ -1741,7 +1760,7 @@ The name-value options are:
 - `.anomaly` (`.true`, `.est`, `.sigma`, `.z`);
 - `.degree` and `.degRatio`.
 
-An `ExportDir` that does not exist is an error. The help states a cost of about 1.5 s:
+An `ExportDir` that does not exist is an error. The help states a cost of about 1.6 s:
 5 days, 16 arcs, 3 streams, 77 common and 96 local unknowns.
 
 **Outline.** There are three files:
@@ -1783,8 +1802,10 @@ sigmas are 1.0, 2.0 and 0.5.
 `arcInfo.offsetOf(a)` and returns one cell per scheduled arc.
 
 **Run options and output.** The run uses
-`Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=4)`.
-The demo prints three sections:
+`Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=opt.MaxPasses, Noise=struct('Smooth', 1))`.
+It converges in 4 passes. The per-arc locals absorb the zero-frequency bin
+of the 60-bin law, so without the smoothing that bin settled slowly and the
+loop needed 72 passes. The demo prints three sections:
 
 1. **The problem:** sizes, schedule and local counts.
 2. **The weights:** planted and recovered sigma per stream from

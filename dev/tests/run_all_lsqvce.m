@@ -58,6 +58,9 @@ function results = run_all_lsqvce(root, skip)
 %
 %   Created 2026-07-16 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Opus 4.8.
+%   Updated 2026-10-16 (CEST, UTC+02:00), WP-145: a log that cannot be
+%   written is reported, not skipped in silence (CI_GATE reds on it). With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-09-20 (CEST, UTC+02:00), R6 WP-109: a failing suite NAMES
 %   its points on the console and a warning is printed with its MESSAGE, not
 %   only into last_run_all.txt. The artifact is not always reachable, and
@@ -307,6 +310,10 @@ function results = run_all_lsqvce(root, skip)
             fprintf(fid, '%s', capture{i});
         end
         fprintf('full log: %s\n', logFile);
+    else
+        % WP-145 (A9): said, not skipped in silence -- the log on disk is
+        % then an OLDER run's, and CI_GATE's rule 5 reds on its date
+        fprintf(2, 'full log NOT written: cannot open %s (read-only or held open?)\n', logFile);
     end
 end
 
