@@ -10894,7 +10894,7 @@ recorded-only observation of §12.75 is acted on. No package is open; the next s
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
 | 144 | The package and template findings A2, A3, A4, A6 and the coverage gap A7 below: the one-day cache key of `lsqvce.engine.synthLoader`, `Results.plot("psd")` on a log axis, the local Tikhonov groups of `template/gravfire_data.m`, `fit`'s prior "scale" update after a refused v'Pv, and a generated GRAVFIRE bundle fixture that runs `gravfire_data` end to end; each fix with a test that fails without it; version by precedent (fixes alone a patch, 6.25.2 as WP-142; a new identifier a minor, 6.26.0 as WP-137) | 143 (closure #178 merged ba5b4cd) | PROPOSED (not opened; the user's go opens it) |
-| 145 | The test-tooling findings A1, A5, A8, A9 below: example warnings reach the gate's warning inventory, `run_lsqvce` on the `dev/tests` layout with a working `LogFile=''`, the gate's log check bound to this run; `dev/tests` only, no version | 143 | PROPOSED (not opened) |
+| 145 | The test-tooling findings A1, A5, A8, A9 below: example warnings reach the gate's warning inventory, `run_lsqvce` on the `dev/tests` layout with a working `LogFile=''`, the gate's log check bound to this run; `dev/tests` only, no version | 143 | OPENED 2026-10-16 -- its row and status live in §12.78 |
 | 146 | The `build_manual.py` findings B1-B9 below (the review of WP-143): every exception caught per document in `main()`, the tracked `_build` intermediates and both targets written only on success (staged beside the targets, then `os.replace`), pandoc's output decoded as UTF-8, a committed test of build mode, the docstring without history and with the stamp; no version | 143 | PROPOSED (not opened) |
 
 **The user's requests (2026-10-16):** "/code-review xhigh - fix" -- a review of WP-143's diff
@@ -11030,3 +11030,39 @@ reproduce before fixing. (2) A1's fix can turn the gate red on today's examples:
 instrument working. (3) `synthLoader` is the loader template (its help says copy it): the key rule
 goes into its help as well as its code. (4) No package is open: the three rows above are PROPOSED;
 the user's go opens one, and its scope goes into its ledger row first (the loop).
+
+### 12.78 WP-145 — the test tooling: example warnings reach the gate, run_lsqvce on dev/tests, the log bound to its run (2026-10-16, model Claude Opus 5.5, tier A)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 145 | The test-tooling findings A1, A5, A8, A9 of §12.77: (A1) a warning raised inside an example's or a demo's inner `evalc` reaches `run_all_lsqvce`'s capture and so the gate's warning inventory -- a shared `private/echoWarnings` re-emits the MATLAB-framed warning blocks of an inner capture, every capture site in `dev/tests` uses it (a static lock refuses a new one without it), and `test_examples` carries the probe identifier that rule 7 requires, so a blind example capture is red; (A5) `run_lsqvce` resolves its shortcuts, its pattern search and its default log in `dev/tests`; (A8) `LogFile=''` switches the log off (not given ≠ empty); (A9) rule 5 of `gateVerdict` requires a log written by THIS run (its modification time not before the run's start, which `ci_gate` passes); each fix with a test that fails without it; `dev/tests` only, no version | 143 | IN PROGRESS |
+
+**The user's request (2026-10-16, tier-A session on the PC):** "Run the baseline ... Then open WP-145
+as §12.77 proposes: scope it in the ledger first. Start with the measurement of which warnings the 15
+examples raise today, then reproduce A1, A5, A8 and A9 before fixing them."
+
+**Baseline (tier A, main e483142, `matlab -batch "cd('dev/tests'); ci_gate"` detached):** GREEN,
+728 / 728, 27 / 27 suites (0 skipped, 1 excluded), warning inventory `lsqvce:internal:testProbe`
+only, 328 s. The local gate counts 728, the same as CI: the "740 local / CI = local - 12" carried
+by the rounds since WP-141 (and §12.77's handover) was a prediction, never a measurement -- since
+WP-103 the local and the CI gate run the same 27 suites with no skip.
+
+**Measurement (step 1): the warnings the 15 examples raise today,** each call of `exampleCalls`
+run under `evalc` with `warning on verbose` as `run_all_lsqvce` sets it (scratch script, not
+committed), the Warning lines of the inner capture printed:
+
+| example | warnings in the inner capture |
+|---|---|
+| demo_grace | `lsqvce:adjustVCEjoint:notConverged` (6 outer iterations, max abs(alpha2-1) 5.1e-2, tol 1e-3) |
+| demo_gravity | `lsqvce:adjustVCEjoint:notConverged` (4 iterations, 1.3e-1, tol 1e-2) |
+| demo_noisePolicy | `lsqvce:adjustVCEjoint:notConverged` (12 iterations, 1.3e-2, tol 1e-2) |
+| demo_sensors | `lsqvce:adjustVCEjoint:notConverged` (10 iterations, 2.5e-1, tol 1e-2) |
+| demo_messaging | three `Warning:` lines that are NOT MATLAB warnings: the demo replays the log sink's text on screen (MaxPasses 1 on purpose) |
+| the other ten | none |
+
+None of the four reaches the gate today: that is A1, measured. demo_gravity and demo_noisePolicy
+document the stop on MaxPasses in their help (ACCURACY: "the loop stops on maxPasses"); demo_grace's
+help says it "settles visibly (Tolerance 1e-3)" and does not -- a claim of the example's text, out of
+this WP's scope (`dev/tests` only), recorded for the user. demo_messaging's replayed lines show why the
+echo must not copy every line that starts with "Warning:": MATLAB frames a real warning in a capture
+as `[\b Warning: ... ]\b` (measured, also in a nested `evalc`), the replayed text has no frame.
