@@ -11288,5 +11288,5 @@ settled when abs(alpha2_j - 1) <= max(Tolerance, 0.1 sqrt(2 / r_j)) -- stopped o
 R1 at tau 0.1 on all four traces (gravity 12, sensors 25, noisePolicy 8, grace 10; x within 0.093 /
 0.100 / 0.000 / 0.029 sigma_x of the fixed point). It keeps `Tolerance`'s meaning for every bin whose
 standard error is below 10 Tolerance (r_j > 200 at the default), relaxes only the bins the data
-barely determine, and implies today's rule -- so no run stops later than before, and v5's "one
+barely determine, and is implied by today's rule -- so no run stops later than before, and v5's "one
 tolerance for every iterative run" holds.
