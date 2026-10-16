@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-16 — WP-143 DONE (PR #177, merge 04eef58; CI GREEN on 43c4002 in the first round: ci_gate 728/728, warning inventory lsqvce:internal:testProbe only, the audit job green); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.76; no code change, no version (6.25.1 stays, 740 tests).
+Last substantive update: 2026-10-16 — whole-repository code review of v6.25.1 and the handover to a tier-A session (cloud container, no MATLAB; model Claude Opus 5.5; user: "/code-review xhigh - fix" on WP-143, then "I want you to review the repo and the code using /code-review", then "Prepare a handover. I can start a new session on this computer so that you have access to Matlab"): nine repository findings (A1-A9) and nine build_manual.py findings (B1-B9), each with its verification state and its tier-A reproduction step; WP-144 (package and template), WP-145 (test tooling), WP-146 (build_manual.py) PROPOSED, not opened; no code change, no version (6.25.1 stays, 740 tests); §12.77.
+Preceding entry: Last substantive update: 2026-10-16 — WP-143 DONE (PR #177, merge 04eef58; CI GREEN on 43c4002 in the first round: ci_gate 728/728, warning inventory lsqvce:internal:testProbe only, the audit job green); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.76; no code change, no version (6.25.1 stays, 740 tests).
 Preceding entry: Last substantive update: 2026-10-16 — WP-143 OPEN (tier A for the tool: Python runs here; model Claude Opus 5.5; user: "What failed in build_manual.py?" -- nothing yet, a latent short-circuit -- then "Yes, do it as WP-143"): build_manual.py builds every document also after a failure, and writes a document's HTML and PDF together, only when both built; no +lsqvce change, no version (6.25.1 stays, 740 tests).
 Preceding entry: Last substantive update: 2026-10-16 — WP-142 DONE (PR #175, merge f59e6bd; CI GREEN on ec78e37 in the first round: ci_gate 728/728, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.75; no code change, no version (6.25.1 stays, 740 tests).
 Preceding entry: Last substantive update: 2026-10-16 — WP-142 OPEN (tier B, model Claude Opus 5.5; user: "/code-review Check also if all pdfs are in sync" -- two review runs of WP-141, then "Go ahead. No content check in audit. I check it visually"): a hook declared with no argument was called with one; the hook's result is kept for the current day only (it was kept CacheDays days, dead memory); one call-and-wrap helper for buildDay and prepareDay (a handle that does not resolve is the documented id); the documentation of the hook's frequency, memory and WP-141's stale lines; the relabelled lsqvce:fit family in the identifier appendix; the PDFs are in sync and stay title-checked only (the user checks them visually); version 6.25.1.
@@ -10887,3 +10888,145 @@ driving the changed module in check mode.
 **Closure (2026-10-16).** WP-143 DONE: PR #177 merged as 04eef58 (the loop's record step after the
 merge: the ledger row, this note; no code change, no version -- 6.25.1 stays, 740 tests). The last
 recorded-only observation of §12.75 is acted on. No package is open; the next step is the user's.
+
+### 12.77 Whole-repository code review of v6.25.1, and the handover to a tier-A session (2026-10-16, model Claude Opus 5.5)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 144 | The package and template findings A2, A3, A4, A6 and the coverage gap A7 below: the one-day cache key of `lsqvce.engine.synthLoader`, `Results.plot("psd")` on a log axis, the local Tikhonov groups of `template/gravfire_data.m`, `fit`'s prior "scale" update after a refused v'Pv, and a generated GRAVFIRE bundle fixture that runs `gravfire_data` end to end; each fix with a test that fails without it; version by precedent (fixes alone a patch, 6.25.2 as WP-142; a new identifier a minor, 6.26.0 as WP-137) | 143 (closure #178 merged ba5b4cd) | PROPOSED (not opened; the user's go opens it) |
+| 145 | The test-tooling findings A1, A5, A8, A9 below: example warnings reach the gate's warning inventory, `run_lsqvce` on the `dev/tests` layout with a working `LogFile=''`, the gate's log check bound to this run; `dev/tests` only, no version | 143 | PROPOSED (not opened) |
+| 146 | The `build_manual.py` findings B1-B9 below (the review of WP-143): every exception caught per document in `main()`, the tracked `_build` intermediates and both targets written only on success (staged beside the targets, then `os.replace`), pandoc's output decoded as UTF-8, a committed test of build mode, the docstring without history and with the stamp; no version | 143 | PROPOSED (not opened) |
+
+**The user's requests (2026-10-16):** "/code-review xhigh - fix" -- a review of WP-143's diff
+(`build_manual.py`), section B; then "You reviewed the documentation building. I want you to review
+the repo and the code using /code-review" -- the whole tree at ba5b4cd, section A; then "Prepare a
+handover. I can start a new session on this computer so that you have access to Matlab" -- this
+subsection.
+
+**How far each finding is established.** Both reviews ran in the cloud container: no MATLAB,
+Python available. Section A: the reviewer's findings re-read against the code by this session;
+"read" = the code path is confirmed by reading, "plausible" = the failure depends on run order or
+run-time state and was not reproduced. NOTHING in section A has run in MATLAB. Section B: B1 and B3
+reproduced in a scratch copy (`git archive HEAD`, xelatex faked); the rest read.
+
+**A. The repository review (`+lsqvce`, `template/`, `examples/`, `dev/tests` at ba5b4cd; nine
+findings, most severe first).** Each item names the tier-A step that reproduces it BEFORE any fix
+(diagnosis order: configuration, criterion, code).
+
+- **A1 `dev/tests/test_examples.m:131` -- example warnings never reach the gate (read).**
+  `runOne` runs `evalc('fh()')`, `runScript` runs `evalc(name)`: a warning an example raises is
+  printed into that inner capture and discarded, so `run_all_lsqvce`'s outer `evalc` (line 169),
+  whose text the warning inventory parses, never sees it. The same pattern wraps demos in
+  `test_fit`, `test_physOracle` and `test_vcePolicy`. A new warning id raised inside an example
+  leaves `ci_gate` GREEN, although `gateVerdict` rule 7 is meant to fail on it. Tier A: put
+  `warning('lsqvce:probe:fromExample','probe')` at the top of `examples/demo_fit.m` (scratch, not
+  committed) and run `ci_gate`: expected GREEN today, the id absent from the inventory. Measure
+  FIRST what the 15 examples raise today (print the inner capture's Warning lines): the fix can
+  turn the gate red, which is a finding, not a reason to keep the blind spot. Fix direction:
+  re-emit the inner capture's Warning blocks to the outer console, so the existing parser sees them.
+- **A2 `+lsqvce/+engine/synthLoader.m:164` -- the persistent one-day cache key misses
+  design-changing fields (plausible).** The key holds sat, day, obsType, forceModelTag, nc, nl and
+  seed; `x_c`, `y`, `cov`, `mArc`, `arcsPerDay`, `dt`, `collinear`, `collinearEps` are missing,
+  against the comment above it ("Everything that can change A, B or l belongs in the key"). A run
+  that differs only there and whose first read meets the key the previous run left is handed the
+  previous day, silently (R4). This file is also the loader TEMPLATE its help tells users to copy.
+  Tier A: two direct calls with the same (sat, day, obsType, nc, nl, seed) and `cfg.mArc` 400, then
+  2: the second returns 400-row arcs. Then whether the suite is order-dependent: `test_reliability`
+  alone versus after `test_fit` (the reviewer named `testNoRedundancyIsAnError`, mArc = 2,
+  arcsPerDay = 1). Fix direction: key on the whole cfg (a stored cfg compared with `isequal`, or a
+  digest of `getByteStreamFromArray(cfg)`), and state the rule in the help.
+- **A3 `+lsqvce/Results.m:374` -- `plot("psd")` draws per-group spectra on a linear axis
+  (read).** `hold(ax,'on')` on a fresh axes before `semilogy`; with hold on, `semilogy` does not
+  switch YScale. The single-group fallback (no hold) does draw log. Tier A: any noise fit,
+  `R.plot("psd","Visible","off")`, then `get(gca,'YScale')` -> 'linear'. Fix:
+  `set(ax,'YScale','log')` before the loop; the test reads the axes' YScale.
+- **A4 `template/gravfire_data.m:380` -- a labelled local Tikhonov group keeps its first member's
+  x0 and fromPass (read).** Later members are checked for sigma only; their a-priori value (column
+  11) and fromPass are dropped, while the ERRORS block says a disagreement on the activation pass
+  is refused (`gravfire:badConstraint`). Fix: refuse a differing fromPass as the common table does;
+  for x0 refuse or carry one x0 per member (a design question: read the common-table path first).
+  Tested through A7's fixture.
+- **A5 `dev/tests/run_lsqvce.m:93` -- the convenience runner still uses the pre-L8 layout
+  (read).** Every shortcut target (lines 93-118), the bare-pattern search folder (146) and the
+  default log (172) are `fullfile(root,'tests',...)`; the tests live in `dev/tests` since L8. Tier
+  A: `run_lsqvce('ellmer')` -> "RUN ERRORED" and no log. `run_lsqvce` runs one suite for
+  convenience; the gate stays `ci_gate`.
+- **A6 `+lsqvce/fit.m:663` -- the prior "scale" update is skipped when s0sq is NaN
+  (plausible).** `priorUpdate` takes N^-1 = Cxx / max(s0sq, realmin). When the normal backend
+  refuses a cancelled v'Pv (`lsqvce:normalEq:cancellation`, vtv = NaN), r is NaN, `upd` is false
+  for every group, `PriorDev` stays 0 and `R.noise.priors` reports the declared sigma as if
+  estimated. Not fully silent: the cancellation itself warns; nothing says that the "scale" group
+  was held. Tier A: Backend = "normal", a tight fit (l'Pl / v'Pv > 1e8), a common prior with
+  estimate "scale"; read `R.noise.priors` and the warnings. Fix direction: N^-1 from the finite
+  cofactor (`BlockAccumulator.commonCofactor`, as WP-132 did for Cyy), or a warning that the group
+  was held.
+- **A7 `dev/tests/test_examples.m:111` -- `template/gravfire_data.m` runs in no test (read).** Its
+  only caller is `demo_gravfire` with a path that cannot exist (deliberate, the comment at line 100:
+  the same suite on every tier), so only the no-bundle print runs; the ~400-line template (prior
+  mapping, Cep reshaping, piece cutting) is untested. Fix: a small synthetic bundle written to a
+  temporary file by the test and run with DryRun = true (generated, so no measurement data enters
+  the repo).
+- **A8 `dev/tests/run_lsqvce.m:168` -- `LogFile=''` cannot switch the log off (read).** An empty
+  LogFile is replaced by the default path, so the no-log branch (lines 187-199, the only place
+  `Quiet` acts) never runs. Fix: tell "not given" from `''` (R5; e.g. `inputParser.UsingDefaults`).
+- **A9 `dev/tests/private/gateVerdict.m:126` -- a stale log satisfies rule 5 (plausible).** Rule 5
+  checks only that `last_run_all.txt` exists with bytes; `run_all_lsqvce` (line 269) skips writing
+  it when `fopen` fails, so a log that is read-only or open in an editor on Windows passes as this
+  run's. Tier A: make the log read-only, run `ci_gate`. Fix: delete the log before the run, or
+  compare the log's `when` line with the run's own stamp.
+
+**B. The review of WP-143 (`dev/docs_src/build_manual.py`, d1e6e5d..a714bd1; nine findings).**
+None needs MATLAB; WP-146 can run in any tier.
+
+- B1 (reproduced) `shutil.copyfile(built, pdf)` (line 159) raises on an unwritable PDF (open in
+  Acrobat on Windows): uncaught, `main()`'s list stops and the API is never built -- the
+  short-circuit WP-143 removed, back through a new path.
+- B2 (read) the "every document" contract covers a non-zero xelatex code only: the HTML pandoc call
+  (`check=True`), `assemble`, `help_block` and `appendix_errors` can raise and abort the loop. Fix
+  it at the right level: `try/except Exception` per document in `main()`.
+- B3 (reproduced) the tracked intermediates `manual/_build/lsqvce_<doc>.md` / `.html` are
+  rewritten before the PDF is built, so a failed build leaves them new beside an old `html/` page
+  and PDF; the "left as they were" message is not true of them.
+- B4 (read) the pair is not one unit: the PDF is overwritten in place (copyfile truncates) and the
+  HTML written after it; a failure between them leaves the reverse mismatch, an interrupted copy a
+  truncated PDF. Stage both beside their targets, `os.replace` after both built.
+- B5 (read) no committed test covers build mode; check mode returns before every changed line, so
+  "the audit drives the changed module" (§12.76) covers none of lines 148-175 (§0 rule 4). The
+  fault-injection script of §12.76 was not committed.
+- B6 (read) `subprocess.run(..., text=True)` decodes pandoc's stderr in the locale encoding with
+  strict errors: on cp1252 Windows a '₁' (E2 82 81) in a message raises UnicodeDecodeError. Pass
+  `encoding='utf-8', errors='replace'`.
+- B7 (read) the `build_one` docstring says check mode only reports, but it rewrites the tracked
+  `_build/*` files: the static audit (check 23) modifies tracked files whenever a document is stale.
+- B8 (read) the module carries no Claude stamp although WP-142 and WP-143 touched it (CLAUDE.md,
+  §6.2.1).
+- B9 (read) the module docstring carries WP history ("(Before, all() over a generator ...)"),
+  which §12.76 records: one place per decision (§0 rule 3).
+
+**Recommended order:** WP-145 first -- it repairs the instrument (A1, A9) that judges the other two,
+and it starts with the measurement of what the examples raise today; then WP-144; WP-146 at any
+point (no MATLAB). The user decides.
+
+**The tier-A session (handover).** The user starts a local session on the PC that hosts MATLAB
+R2026a, the MATLAB MCP bridge (tier A) and the self-hosted runner (tier B), §0.
+- Start: `git fetch origin && git switch main && git pull` once this PR is merged; read §0, §1 and
+  this subsection.
+- Baseline before any change: `cd('dev/tests'); ci_gate` -> 740 / 740 locally (CI reports 728:
+  CI = local - 12, as every round since WP-141 predicted). The bridge's call window is about four
+  minutes: detach the gate as `matlab -batch "cd('dev/tests'); ci_gate"` writing a result file and
+  poll with `isfile` (CLAUDE.md).
+- Then the tier-A steps of A1-A9, each recorded as reproduced / not reproduced in the WP's round
+  note before its fix.
+- Audit: `python dev/docs_src/audit_tree.py` and `python dev/docs_src/audit_selftest.py`; on Windows
+  without pandoc the honest baseline is exactly one finding (check 23); the Manual is rebuilt with
+  the Debian pandoc under WSL (CLAUDE.md).
+- Branch: one WP = one branch `claude/wp-NN` = one PR, a DRAFT right after the first push
+  (CLAUDE.md); the cloud sessions' harness branch `ccr-e0276092-1b95jg` is not needed locally.
+  Pushes go through Git Credential Manager; `--no-verify` is forbidden.
+
+**What the next session could be wrong for not reading.** (1) Nothing in section A has run in
+MATLAB: three items are plausible only, and A6's "silent" is partial (the cancellation warns);
+reproduce before fixing. (2) A1's fix can turn the gate red on today's examples: that is the
+instrument working. (3) `synthLoader` is the loader template (its help says copy it): the key rule
+goes into its help as well as its code. (4) No package is open: the three rows above are PROPOSED;
+the user's go opens one, and its scope goes into its ledger row first (the loop).
