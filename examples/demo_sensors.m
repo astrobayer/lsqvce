@@ -17,15 +17,40 @@ function demo_sensors()
 %   No batching logic is yours to write: fit streams (system, sensor, day)
 %   in whatever order it likes, and the solution is invariant to that order.
 %
-%   What the hierarchy DOES buy you is attribution: "LRI, day 14, 3 flags"
-%   instead of "observation 4193" -- R.residuals() carries system, sensor and
-%   day on every record.
+%   What the hierarchy DOES buy you is attribution: "GRACE-C, KBR, day 7"
+%   instead of "observation 4193" -- every arc is one (system, sensor, day),
+%   and so is its variance factor.
+%
+%   WHAT IT SHOWS, in order: the layout; the symptom (sigma0 far from 1
+%   under the claimed weights); the bad day, found FIRST -- one variance
+%   factor per sensor-day, read against its stream's median; then the
+%   per-sensor variance components with that day left out, each stream
+%   against its planted truth. The order is the lesson: a component is an
+%   average over its stream, so an event inside it corrupts the level.
+%
+%   ACCURACY  (MEASURED 2026-10-16, R2026a, v6.25.2; the data are seeded)
+%     The planted event (a 6-sigma offset on GRACE-C / KBR / day 7) comes
+%     back at 15.9 x its stream's median factor; every other sensor-day lies
+%     between 0.5 and 1.8. Without it, the levels are C|GPS 2.536, C|KBR
+%     0.987, C|LRI 0.400, D|KBR 0.988, D|LRI 0.416 against the planted 2.5 /
+%     1.0 / 0.4 / 1.0 / 0.4 -- within 4.1 %, sigma0 1.000, converged in 7
+%     passes (the factor run in about 14 of its 20). WP-145 measured what the
+%     earlier order cost: the levels estimated WITH the event in the data
+%     came back C|KBR +46 % and D|KBR +43 % (the shared KBR shape carries
+%     it), and the table, normalised on C|KBR, showed LRI and GPS 32 % low
+%     while it said they were recovered. Noise.Grid 8 because an arc holds 60
+%     samples: the default 60-bin law needed 168 passes on this white noise.
 %
 %   INPUT   none
-%   OUTPUT  none (prints the walk-through; ~seconds)
+%   OUTPUT  none (prints the walk-through; ~3 s)
 %
 %   Generated with assistance from Claude (Anthropic), Claude Opus 4.8,
 %   2026-07-11.
+%   Updated 2026-10-16 (CEST, UTC+02:00), WP-145: the bad day is found
+%   (per-arc factors) BEFORE the variance components, which are estimated
+%   without it and shown against the truth stream by stream; Noise.Grid 8;
+%   both runs converge. With assistance from Claude (Anthropic), model
+%   Claude Opus 5.5.
 %   Updated 2026-09-07 (CEST, UTC+02:00), R6 WP-95: the declaration is named
 %   the v5 data struct (help block and the STEP 2 banner).
 %   With assistance from Claude (Anthropic), model Claude Opus 5.
@@ -130,68 +155,85 @@ fprintf('  sigma0 = %.4f   (we CLAIMED sigma0 = 1)\n', R.sigma0);
 fprintf('  -> far from 1, so at least one sensor is mis-weighted.\n');
 
 %% ------------------------------------------------------------------------
-% STEP 4 -- PER-SENSOR VARIANCE COMPONENTS
+% STEP 4 -- HUNT THE BAD DAY FIRST. This is what the hierarchy buys you.
 % -------------------------------------------------------------------------
-% Both satellites' KBR are the same INSTRUMENT TYPE, so they may share one
-% estimated spectral SHAPE: Pool="obsType" pools the streams of one
-% observation type across systems (v5). Every stream keeps its OWN level
-% regardless -- that is the variance component. (Pool="stream" gives every
-% (system, sensor) pair its own shape as well -- a modelling choice the
-% toolbox will not make for you.)
-Rv = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="obsType", ArcFactors=false, Verbose=false));
-
-sig = Rv.history.sigma(end, :);
-fprintf('\nPER-SENSOR COMPONENTS (one level per stream)\n');
-fprintf('  %-8s %12s %12s %10s\n', 'sensor', 'recovered', 'truth', 'error');
-fprintf('  %s\n', repmat('-', 1, 46));
-allSensors = unique([sens{:}], 'stable');
-ref = [];
-for gg = 1:numel(allSensors)
-    k = find(contains(Rv.history.streams, allSensors{gg}), 1);
-    if isempty(ref), ref = sig(k) / sigTrue(allSensors{1}); end
-    got = sig(k) / ref;                      % normalise on the first sensor
-    tru = sigTrue(allSensors{gg});
-    fprintf('  %-8s %12.4f %12.4f %9.1f%%\n', ...
-            allSensors{gg}, got, tru, 100*(got-tru)/tru);
+% A variance component is an AVERAGE over its stream: one corrupted day inside
+% it is averaged in, and the level comes back wrong for every sensor read
+% against it. (WP-145, measured: run on the data below with the day-7 event
+% still in it, C|KBR came back 46 % high, D|KBR -- which shares the KBR shape
+% -- 43 %, and a table normalised on C|KBR showed LRI and GPS 32 % low.) So the
+% event is found BEFORE the levels are estimated. ArcFactors=true gives every
+% arc -- here one (system, sensor, day) -- its own variance factor; read
+% against the MEDIAN of its own stream (the factors are absolute against the
+% claimed sigma 1, so a GPS arc sits at ~6 legitimately), a clean arc is near
+% 1 and an event stands out. The run needs more passes than the toolbox's 10
+% -- one factor per arc is many components -- so it gets a budget of 20 (it
+% settles in about 14). Noise.Grid 8: an arc holds only nk = 60 samples, too
+% few to resolve the default 60 spectral bins (bins the data barely determine
+% creep toward zero and the loop needed 168 passes).
+fprintf('\n%s\n', repmat('=', 1, 72));
+fprintf('  IS THERE A BAD DAY?  (one variance factor per sensor-day)\n');
+fprintf('%s\n', repmat('=', 1, 72));
+Rh = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="obsType", ArcFactors=true, ...
+        MaxPasses=20, Noise=struct('Grid', 8), Verbose=false));
+factor = containers.Map(Rh.noise.arcKeys, num2cell(Rh.noise.sigma2(:)));
+flagged = {};
+fprintf('  %-9s %-6s %s\n', 'system', 'sensor', 'factor / stream median, days 1..10');
+for i = 1:numel(sysN)
+    for s = 1:numel(sens{i})
+        rel = nan(1, numel(days));
+        for d = days
+            k = lsqvce.util.arcKey(sysId{i}, sens{i}{s}, d, 1);   % the toolbox's one arc key
+            if isKey(factor, k), rel(d) = factor(k); end
+        end
+        rel = rel / median(rel, 'omitnan');
+        fprintf('  %-9s %-6s %s\n', sysN{i}, sens{i}{s}, sprintf('%5.1f', rel));
+        % a clean arc's factor scatters by about sqrt(2/60) = 0.18 around 1;
+        % 5 is twenty such widths away
+        for d = find(rel > 5)
+            flagged(end+1, :) = {i, sens{i}{s}, d, rel(d)}; %#ok<AGROW>
+        end
+    end
 end
-fprintf(['\n  -> the components recovered the sensor noise ratios from the\n' ...
-         '     data, rescaled the covariances and re-solved (sigma0 = %.3f).\n'], ...
-        Rv.sigma0);
-fprintf(['  RESOLUTION: with a few hundred redundancies per group you cannot\n' ...
-         '  resolve a sigma ratio better than a few percent. A 5%% "correction"\n' ...
-         '  is NOISE -- read the report before believing a small one.\n']);
+for e = 1:size(flagged, 1)
+    fprintf('  <<< EVENT: %s / %s / day %d, %.1f x its stream''s median\n', ...
+            sysN{flagged{e,1}}, flagged{e,2}, flagged{e,3}, flagged{e,4});
+end
+fprintf(['  -> One sensor-day stands out. That is not a set of independent\n' ...
+         '     blunders, it is an EVENT. Investigate the cause; do not snoop it\n' ...
+         '     away -- and keep it OUT of the noise estimate below.\n']);
 
 %% ------------------------------------------------------------------------
-% STEP 5 -- HUNT THE BAD DAY. This is what the hierarchy buys you.
+% STEP 5 -- PER-SENSOR VARIANCE COMPONENTS, without the event
 % -------------------------------------------------------------------------
-% A single day with many flags is usually an EVENT (manoeuvre, eclipse,
-% thermal transient), not a set of independent blunders. Rejecting the
-% observations one by one treats the symptom. R.residuals() carries system,
-% sensor and day on every record, so the attribution is one loop.
-fprintf('\n%s\n', repmat('=', 1, 72));
-fprintf('  IS THERE A BAD DAY?\n');
-fprintf('%s\n', repmat('=', 1, 72));
+% The event's arc leaves the declaration the way an outage does (STEP 2): the
+% arc resolver returns no arc for it, nothing else changes. Both satellites'
+% KBR are the same INSTRUMENT TYPE, so they may share one estimated spectral
+% SHAPE: Pool="obsType" pools the streams of one observation type across
+% systems (v5). Every stream keeps its OWN level regardless -- that is the
+% variance component. (Pool="stream" gives every (system, sensor) pair its own
+% shape as well -- a modelling choice the toolbox will not make for you.)
+for e = 1:size(flagged, 1)
+    remove(store{flagged{e,1}}, sprintf('%s|%d', flagged{e,2}, flagged{e,3}));
+end
+Rv = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="obsType", ArcFactors=false, ...
+        Noise=struct('Grid', 8), Verbose=false));
 
-res = R.residuals();                        % verbosity inherited from the run
-iC  = find(cellfun(@(x) isequal(x, 'C'), {res.sys.sysID}), 1);
-if isempty(iC), iC = 1; end
-obs = res.sys(iC).obs;
-obs = obs(strcmp({obs.obsType}, 'KBR'));
-fprintf('  GRACE-C / KBR, by day:\n');
-fprintf('  %6s %10s\n', 'day', 'rms v');
-fprintf('  %s\n', repmat('-', 1, 20));
-rmsAll = zeros(1, numel(days));
-for d = days
-    v = vertcat(obs([obs.day] == d).v);
-    rmsAll(d) = sqrt(mean(v.^2));
+T = Rv.summary();
+fprintf('\nPER-SENSOR COMPONENTS (one level per stream, the event left out)\n');
+fprintf('  %-8s %12s %12s %10s\n', 'stream', 'recovered', 'truth', 'error');
+fprintf('  %s\n', repmat('-', 1, 46));
+for k = 1:height(T)
+    tru = sigTrue(char(extractAfter(T.stream(k), '|')));
+    fprintf('  %-8s %12.4f %12.4f %9.1f%%\n', T.stream(k), T.sigma(k), tru, ...
+            100*(T.sigma(k) - tru)/tru);
 end
-for d = days
-    mark = '';
-    if rmsAll(d) > 3 * median(rmsAll), mark = '   <<< EVENT'; end
-    fprintf('  %6d %10.4f%s\n', d, rmsAll(d), mark);
-end
-fprintf(['\n  -> Day 7 stands out. That is not a set of independent blunders,\n' ...
-         '     it is an EVENT. Investigate the cause; do not snoop it away.\n\n']);
+fprintf(['\n  -> the components recovered every sensor''s noise from the data,\n' ...
+         '     rescaled the covariances and re-solved (sigma0 = %.3f, %d passes,\n' ...
+         '     converged: %d).\n'], Rv.sigma0, Rv.history.nIter, Rv.converged);
+fprintf(['  RESOLUTION: with a few hundred redundancies per group you cannot\n' ...
+         '  resolve a sigma ratio better than a few percent. A 5%% "correction"\n' ...
+         '  is NOISE -- read the report before believing a small one.\n\n']);
 
 end
 

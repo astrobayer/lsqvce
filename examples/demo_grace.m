@@ -26,14 +26,20 @@ function R = demo_grace(varargin)
 %   one level per stream -- four levels, one each for posC, posD, rr, posE.
 %
 %   INPUT  (Name-Value, all optional)
-%     maxPasses 1x1 double   passes of the loop (default 6)
+%     maxPasses 1x1 double   pass BUDGET of the loop; it settles in 4
+%                            (default 10)
 %     verbose   1x1 logical  print the engine log (default true)
 %   OUTPUT
 %     R         1x1 lsqvce.Results   with R.history / R.noise attached
 %
 %   WHAT TO LOOK FOR
 %     * sigma moves AWAY from 1 on the first pass (the misweighting is
-%       detected) and settles NEAR the planted values by the last pass.
+%       detected) and settles NEAR the planted values: R.converged is true
+%       after 4 passes (measured 2026-10-16, R2026a, v6.25.2) with posC
+%       0.895 / posD 1.383 / rr 1.628 / posE 1.149 against the planted 0.8 /
+%       1.3 / 1.6 / 1.1, sigma0 1.0000. posC lands 12 % high, posD 6 %, posE
+%       4.5 %, rr 2 % -- the colour of the position streams is fitted from
+%       few arcs; the unsmoothed law settles on the same four values.
 %     * the 'rr' stream's true noise IS white; the 'pos' streams carry
 %       injected colour, which the loop recovers as the estimated spectral
 %       shape (R.plot("psd") / R.noise.S) and reports in the white and
@@ -74,9 +80,13 @@ function R = demo_grace(varargin)
 %   Updated 2026-10-12 (CEST, UTC+02:00), WP-124: references to the data
 %   contract point at the API reference. With assistance from Claude
 %   (Anthropic), model Claude Opus 5.5.
+%   Updated 2026-10-16 (CEST, UTC+02:00), WP-145: the run converges
+%   (Noise.Smooth 1, budget 10, settles in 4; it stopped unconverged on 6),
+%   the settled values measured. With assistance from Claude (Anthropic),
+%   model Claude Opus 5.5.
 
     p = inputParser;
-    p.addParameter('maxPasses', 6);
+    p.addParameter('maxPasses', 10);
     p.addParameter('verbose',  true);
     p.parse(varargin{:});
     o = p.Results;
@@ -95,16 +105,21 @@ function R = demo_grace(varargin)
     disp(cfg.trueSigma);
     fprintf('a-priori start: sigma = 1, white (deliberately wrong)\n');
 
-    % THE OVERRIDES BELOW ARE DEMO-SPEED CHOICES, NOT RECOMMENDATIONS. The
-    % toolbox defaults are MaxPasses 10, Tolerance 1e-2 (v5: one budget, one
-    % tolerance for every iterative run); this demo runs a few passes and
-    % settles visibly (Tolerance 1e-3). For your own case, start from the
-    % defaults -- just omit them -- and change one only when a diagnostic
-    % tells you to. Estimate="noise" with Pool="stream" and ArcFactors=false is
-    % v4's Model "vce": one spectral shape and one level per stream.
+    % THE CHOICES BELOW, and why. The toolbox defaults are MaxPasses 10,
+    % Tolerance 1e-2 (v5: one budget, one tolerance for every iterative run);
+    % this demo keeps the budget and asks for a tighter Tolerance 1e-3, so the
+    % settled values are visible in more digits. Noise.Smooth 1 (WP-145,
+    % measured): the plain 60-bin law met 1e-3 only after 27 passes -- bins
+    % the data barely determine creep -- and this demo stopped on its old
+    % budget of 6, unconverged. Averaging each bin with its neighbours settles
+    % in 4 passes on the same levels to three digits. For your own case, start
+    % from the defaults -- just omit them -- and change one only when a
+    % diagnostic tells you to (R.converged, R.stopReason, R.history.maxDev).
+    % Estimate="noise" with Pool="stream" and ArcFactors=false is v4's Model
+    % "vce": one spectral shape and one level per stream.
     R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, ...
             MaxPasses=o.maxPasses, Verbose=o.verbose, ...
-            Tolerance=1e-3));
+            Tolerance=1e-3, Noise=struct('Smooth', 1)));
 
     fprintf('\n--- sigma trajectory (rows = iterations, cols = streams) ---\n');
     fprintf('streams: %s\n', strjoin(R.history.streams, '  '));

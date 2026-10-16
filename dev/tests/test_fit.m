@@ -15,6 +15,10 @@ function tests = test_fit
 %
 %   Run: runtests('tests/test_fit')
 %
+%   Updated 2026-10-16 (CEST, UTC+02:00), WP-145: two mutes that hid nothing
+%   removed (demo_fit mutes its own two-pass run, demo_priors converges); the
+%   demo capture echoes its warnings. With assistance from Claude
+%   (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-16 (CEST, UTC+02:00), WP-142 (code review of WP-141): two
 %   tests of prepareDay -- the hand-off (no, five and varargin arguments; the
 %   hook sees what buildDay sees, procOpt without 'prepared'; a varargin
@@ -1524,8 +1528,9 @@ end
 function testDemoFitRuns(tc)
 % categories: contract, robustness | tags: diagnostics
     % R5 M4 4b: the demo's two-pass vce run is the joint estimator now and
-    % says honestly that two passes did not settle (gate rule 7: muted here)
-    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');
+    % says honestly that two passes did not settle. WP-145: the demo mutes
+    % that warning itself (and restores it), so it cannot reach this test --
+    % the mute that stood here hid nothing, and muteWarn is not for that
     % R4 Level L7: examples/demo_fit.m is the 2.0 user path on all three data
     % kinds. It is a template users copy, so it must keep running: every
     % Results it returns is checked here (the demo mutes the two convergence
@@ -2735,7 +2740,7 @@ function testDemoPriorsIsTheWorkedLayoutExample(tc)
     exDir = fullfile(here, '..', '..', 'examples');    % dev/tests -> root (L8)
     addpath(exDir);
     tc.addTeardown(@() rmpath(exDir));
-    muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');
+    % WP-145: no mute -- demo_priors converges (measured: it raises nothing)
     out = evalc('[R, s] = demo_priors();');
     echoWarnings(out);   % WP-145: its warnings reach the gate
 

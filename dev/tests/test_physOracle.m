@@ -23,6 +23,9 @@ function tests = test_physOracle
 %
 %   Created 2026-08-20 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.
+%   Updated 2026-10-16 (CEST, UTC+02:00), WP-145: demo_gravity runs as
+%   shipped and must converge; its statistics are banded. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
     tests = functiontests(localfunctions);
 end
 
@@ -370,12 +373,25 @@ function testDemoGravityFixtureStructure(tc)
 end
 
 function testDemoGravityRunsEndToEnd(tc)
-% categories: robustness
-% WP-51: the driver must actually RUN -- a demo nobody executes rots. Kept to
-% MaxPasses 1 for cost; the numbers it prints are exercised, not asserted (no
-% band is pinned here that was not measured).
-    out = evalc('[Rg, sc] = demo_gravity(''MaxPasses'', 1);');
+% categories: robustness, reference
+% WP-51: the driver must actually RUN -- a demo nobody executes rots. WP-145:
+% and it must run AS SHIPPED, to convergence. This test used MaxPasses 1 for
+% cost, so it could never see that the demo's own run stopped on its budget
+% (the plain 60-bin law needed 72 passes; HANDOVER 12.78). The default run
+% settles in 4 passes (~1.6 s); its statistics are checked against bands set
+% by their DISTRIBUTIONS, not by the measured values.
+    out = evalc('[Rg, sc] = demo_gravity();');
     echoWarnings(out);   % WP-145: its warnings reach the gate
+    tc.verifyTrue(Rg.converged, sprintf('the shipped run must converge (stopReason %s)', Rg.stopReason));
+    tc.verifyEqual(string(Rg.stopReason), "converged");
+    % tol: mean z^2 over 77 coefficients has sd sqrt(2/77) = 0.161 if the
+    % formal errors are right; 3 sd either side (measured 0.850)
+    tc.verifyLessThan(abs(sc.zMeanSq - 1), 3 * sqrt(2/77), sprintf('mean z^2 = %.3f', sc.zMeanSq));
+    % tol: P(max |z| > 4) over 77 independent N(0,1) is 0.5 %, and the help
+    % calls 5 alarming (measured 2.32)
+    tc.verifyLessThan(sc.zMax, 4, sprintf('max |z| = %.2f', sc.zMax));
+    % tol: the planted anomaly within 3 of its own formal sigma (measured 1.10)
+    tc.verifyLessThan(abs(sc.anomaly.z), 3, sprintf('anomaly z = %.2f', sc.anomaly.z));
     tc.verifyTrue(contains(out, 'The problem'));
     tc.verifyTrue(contains(out, 'The weights'));
     tc.verifyClass(Rg, 'lsqvce.Results');
@@ -384,9 +400,8 @@ function testDemoGravityRunsEndToEnd(tc)
     tc.verifyNumElements(Rg.x, 77);
 
     % WP-53: the printed self-assessment is also RETURNED, so it can be
-    % checked instead of read. Structural contract only -- the statistics of
-    % the default run are quoted in the demo's ACCURACY block, not asserted
-    % here (this call uses MaxPasses 1 and would not reproduce them anyway).
+    % checked instead of read. The structural contract; the statistics are
+    % banded above, their measured values quoted in the demo's ACCURACY block.
     tc.verifyClass(sc, 'struct');
     documented = {'sigma0','stream','sigmaPlanted','sigmaRecovered', ...
                   'sigmaRatio','zMax','zMeanSq','anomaly','degree','degRatio'};

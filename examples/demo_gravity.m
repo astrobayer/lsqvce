@@ -33,7 +33,8 @@ function [R, score] = demo_gravity(opt)
 %        variances against their formal expectation.
 %
 %   OPTIONS
-%     'MaxPasses'  1x1 double   passes of the estimator          (default 4)
+%     'MaxPasses'  1x1 double   pass BUDGET of the estimator; the default
+%                               run settles in 4             (default 10)
 %     'Verbose'    1x1 logical  print the toolbox's own report (default false)
 %     'Plots'      1x1 logical  draw the two summary figures   (default false)
 %     'ExportDir'  1xK char     if non-empty, save the figures there as PNG
@@ -60,34 +61,43 @@ function [R, score] = demo_gravity(opt)
 %
 %   ACCURACY
 %     MEASURED on the default configuration -- the run this file performs
-%     (Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=4) --
-%     on 2026-09-07, MATLAB R2026a, v5.3, on the author's machine:
-%       sigma0                     1.0381
+%     (Estimate="noise", Pool="stream", ArcFactors=false, Noise.Smooth=1,
+%     MaxPasses=10) -- on 2026-10-16, MATLAB R2026a, v6.25.2:
+%       passes                     4, R.stopReason "converged"
+%       sigma0                     1.0000
 %       stream sigmas    planted   1.0 / 2.0 / 0.5
-%                        recovered 1.1825 / 2.0880 / 0.5068
-%                        ratios    1.183 / 1.044 / 1.014
-%       max |z| over 77 coefficients   2.26   (5 would be alarming)
-%       mean z^2                       0.842  (1.00 ideal; sd = sqrt(2/77)
-%                                              = 0.161, so this is 1 sd low)
-%       planted anomaly (5,3,C)   truth +0.1764, estimate +0.2705 +- 0.0879
-%                                 -> 1.07 sigma, comfortably recovered
+%                        recovered 1.1719 / 2.0892 / 0.5080
+%                        ratios    1.172 / 1.045 / 1.016
+%       max |z| over 77 coefficients   2.32   (5 would be alarming)
+%       mean z^2                       0.850  (1.00 ideal; sd = sqrt(2/77)
+%                                              = 0.161, so this is 0.9 sd low)
+%       planted anomaly (5,3,C)   truth +0.1764, estimate +0.2742 +- 0.0887
+%                                 -> 1.10 sigma, comfortably recovered
 %       error degree variance / formal, by degree
-%         n=2 0.09  n=3 1.01  n=4 0.53  n=5 0.71  n=6 0.79  n=7 0.97  n=8 0.88
-%     The loop spends the default four passes and stops on the pass budget,
-%     not on the tolerance: R.stopReason is "maxPasses".
+%         n=2 0.18  n=3 0.98  n=4 0.62  n=5 0.64  n=6 0.87  n=7 1.00  n=8 0.80
+%     WHY Noise.Smooth = 1 (WP-145, measured). With the plain 60-bin law the
+%     loop did not settle in the four passes this demo used to spend: the
+%     zero-frequency bin is what the per-arc locals absorb (redundancy 5-6
+%     against a median of 48 per bin), and the update crept toward it at
+%     0.977 per pass -- 72 passes to meet the tolerance. Its estimate was
+%     statistically as good long before (x within 0.29 sigma_x of the 72-pass
+%     fixed point after 4 passes), so the stop was the issue, not the
+%     solution. Smoothing each bin with its neighbours costs nothing on these
+%     smooth AR spectra (the numbers above match the 60-bin fixed point's:
+%     mean z^2 0.920, max |z| 2.28, the same ratios to 1 %) and settles.
 %     REPEATABILITY: the noise realisation is seeded, but the Hutchinson
 %     probes are NOT (this demo sets no Options.Seed), so the last decimals
-%     move -- a second run gave 1.1824 / 2.0880 / 0.5068, max |z| 2.2611,
-%     mean z^2 0.8426 and the same sigma0.
+%     move -- a second run gave 1.1716 / 2.0892 / 0.5080, max |z| 2.3175,
+%     mean z^2 0.8507, sigma0 0.9999, again 4 passes.
 %     Reading: the RELATIVE weights come back under REAL column correlation.
-%     potD lands 4.4 % high and kbr 1.4 %; potC, the strongly coloured stream
-%     (ar [1 -0.6 0.2]), comes back 18 % high -- the bias the shape/level
+%     potD lands 4.5 % high and kbr 1.6 %; potC, the strongly coloured stream
+%     (ar [1 -0.6 0.2]), comes back 17 % high -- the bias the shape/level
 %     split carries on a short record, the same magnitude the suite bounds at
 %     25 % (dev/tests/test_vcePolicy, testRecoversPlantedRelativeWeights).
-%     mean z^2 one sd BELOW 1 means the realised errors are SMALLER than the
+%     mean z^2 about one sd BELOW 1 means the realised errors are SMALLER than the
 %     formal ones: the formal errors are mildly conservative, not
 %     over-optimistic, and within the scatter the value is consistent with 1.
-%     The n=2 ratio, 0.09 over a degree with only five coefficients, is the
+%     The n=2 ratio, 0.18 over a degree with only five coefficients, is the
 %     least stable of the seven and is quoted as measured, not explained away.
 %     These are the numbers of ONE run; they are quoted, not asserted -- the
 %     tests assert the structural claims and leave the statistics to the
@@ -98,19 +108,24 @@ function [R, score] = demo_gravity(opt)
 %                                     not exist and could not be created
 %
 %   EXAMPLE
-%     R = demo_gravity();                 % ~1.5 s, prints the three sections
+%     R = demo_gravity();                 % ~1.6 s, prints the three sections
 %     [R, score] = demo_gravity();        % ... and hand the numbers back
 %     R.report();                         % the toolbox's own verdict
 %
 %   COST
 %     Five days, 16 arcs, three streams, 77 common unknowns and 96 local ones:
-%     about 1.5 s (measured 2026-09-07, R2026a, the default four passes). The
+%     about 1.6 s (measured 2026-10-16, R2026a, the four passes the default
+%     run settles in). The
 %     SH partials are recomputed per arc rather than
 %     cached, which is the honest streaming behaviour and still cheap here.
 %
 %   See also DEMO_GRAVITY_DATALOADER, DEMO_GRAVITY_DESIGN, DEMO_GRACE,
 %   LSQVCE.FIT, LSQVCE.OPTIONS
 %
+%   Updated 2026-10-16 (CEST, UTC+02:00), WP-145: the run converges --
+%   Noise.Smooth 1 and the toolbox's pass budget 10 (it settles in 4; the
+%   plain 60-bin law needed 72), the ACCURACY block re-measured. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-09-07 (CEST, UTC+02:00), R6 WP-95: the ACCURACY block
 %   re-measured on the run this file performs today (v5.3, MATLAB R2026a),
 %   the documented option name is MaxPasses, and See also drops the deleted
@@ -135,7 +150,7 @@ function [R, score] = demo_gravity(opt)
 %   (Anthropic), model Claude Fable 5.
 
 arguments
-    opt.MaxPasses (1,1) double {mustBePositive, mustBeInteger} = 4
+    opt.MaxPasses (1,1) double {mustBePositive, mustBeInteger} = 10
     opt.Verbose (1,1) logical = false
     opt.Plots (1,1) logical = false
     opt.ExportDir (1,:) char = ''
@@ -170,8 +185,13 @@ end
              '                   absent BY ID, the way a real schedule is\n']);
 
     % ---- run ------------------------------------------------------------
+    % Noise.Smooth 1 (WP-145, measured): the zero-frequency bin of the 60-bin
+    % law is what the per-arc locals absorb (redundancy 5-6 against a median
+    % of 48 per bin), so the unsmoothed loop crept toward it at 0.977 per pass
+    % and needed 72 passes. Averaging each bin with its two neighbours costs
+    % nothing on these smooth AR spectra and settles in 4 passes.
     R = lsqvce.fit(data, lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=opt.MaxPasses, ...
-            Verbose=opt.Verbose));
+            Noise=struct('Smooth', 1), Verbose=opt.Verbose));
 
     % ---- 2. the weights --------------------------------------------------
     section('2. The weights VCE had to find');
