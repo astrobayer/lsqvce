@@ -84,14 +84,16 @@ function [data, kit] = kbr_variational(cfg)
 %     data  1x1 struct  the lsqvce declaration: commonParams, days, systems(1)
 %           (id 1, name 'GRACE-FO', prepareDay, buildDay, covariance, arcs,
 %           localParams, processingOptions) -- R = lsqvce.fit(data, opts).
-%           prepareDay integrates every arc of the pair ONCE per day and forms
-%           the rows of every stream; buildDay picks its stream out of
-%           procOpt.prepared (WP-141 -- the template kept its own day cache
-%           before the toolbox had the hook)
+%           prepareDay integrates every arc of the pair ONCE per build of
+%           the day and forms the rows of every stream; buildDay picks its
+%           stream out of procOpt.prepared (WP-141 -- the template kept its
+%           own day cache before the toolbox had the hook)
 %     kit   1x1 struct  the physics as function handles, for tests and for a
 %           second iteration: unitCommon, unitLocal, coeffIndex, harmonics,
 %           makeField, fieldEval, propagate, accModel, eraRotation, readGfc,
-%           readL1B, prepareDay, buildDay
+%           readL1B, prepareDay, buildDay. Called directly (since 6.25.0),
+%           kit.buildDay(day, obsType, [], [], po) needs po.prepared =
+%           kit.prepareDay(day, [], [], po, info)
 %
 %   ACCURACY (dev/validation/kbr_variational_mirror.py, the numerical twin)
 %     harmonics vs Legendre functions 7e-11; d/dx operators vs differences
@@ -143,6 +145,9 @@ function [data, kit] = kbr_variational(cfg)
 %
 %   See also LSQVCE.FIT, LSQVCE.OPTIONS, LSQVCE.LAYOUT, GRAVFIRE_DATA
 %
+%   Updated 2026-10-16 (CEST, UTC+02:00), WP-142: the hook runs once per
+%   build of the day; kit.buildDay called directly needs po.prepared (since
+%   6.25.0). With assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-10-15 (CEST, UTC+02:00), WP-141: on the toolbox's prepareDay
 %   hook -- prepareKbrDay integrates every arc of the pair once per day,
 %   buildKbrDay picks its stream from procOpt.prepared; the template's own day
@@ -308,8 +313,9 @@ end
 % ==========================================================================
 function P = prepareKbrDay(day, ~, ~, po, info)
 %PREPAREKBRDAY  The day's prepareDay (WP-141): ONE integration of every arc of
-%   the pair, the rows of every stream -- called once per day by the toolbox,
-%   which hands the result to every buildDay of the day as procOpt.prepared.
+%   the pair, the rows of every stream -- called once per build of the day by
+%   the toolbox, which hands the result to every buildDay of the day as
+%   procOpt.prepared.
     P = computeDay(day, po, info);
 end
 

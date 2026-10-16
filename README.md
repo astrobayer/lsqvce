@@ -1,4 +1,4 @@
-# lsqvce v6.25.0 — least-squares adjustment with variance component estimation
+# lsqvce v6.25.1 — least-squares adjustment with variance component estimation
 
 Declare your problem as a plain `data` struct, `fit` it, and get a judged
 result: estimates with formal errors, per-observation diagnostics, and a
@@ -148,7 +148,7 @@ verdict:
 Level 3 is the one people skip and the one that decides whether the result can
 be trusted. A `sigma0` of `NaN` means the quadratic form cancelled in double
 precision — the toolbox reports that instead of clamping
-(`lsqvce_theory.pdf`, section 7).
+(`lsqvce_theory.pdf`, section 1.3).
 
 **Combining several data sets.** Add one system per satellite / instrument via
 `data.systems(k)`; common parameters are stated once, each system's arc-local

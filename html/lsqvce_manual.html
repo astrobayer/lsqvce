@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>lsqvce 6.25.0 — User Manual</title>
+  <title>lsqvce 6.25.1 — User Manual</title>
   <style>
     code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
@@ -90,7 +90,7 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">lsqvce 6.25.0 — User Manual</h1>
+<h1 class="title">lsqvce 6.25.1 — User Manual</h1>
 <p class="subtitle">least-squares adjustment with variance component
 estimation</p>
 </header>
@@ -834,10 +834,11 @@ or a closure that binds a configuration (API reference, chapter
 <p>When several streams of that system rest on one expensive computation
 — the orbits of both satellites and their partials for the whole day,
 used by the kinematic orbits and by the range-rates — put it in the
-system’s <code>prepareDay</code>. It runs once per day, before the first
-stream of the day is built, and every <code>buildDay</code> of that day
-finds its result in <code>procOpt.prepared</code> (API reference,
-chapter <code>buildDay</code>, <em>What all streams of a day share</em>;
+system’s <code>prepareDay</code>. It runs once per build of a day,
+before the first stream of the day is built, and every
+<code>buildDay</code> of that day finds its result in
+<code>procOpt.prepared</code> (API reference, chapter
+<code>buildDay</code>, <em>What all streams of a day share</em>;
 <code>template/kbr_variational.m</code> does exactly this).</p>
 <h2 data-number="4.6"
 id="multi-axis-observations-and-their-accuracy"><span
@@ -3742,7 +3743,8 @@ terms;</li>
 <li><code>'day'</code> rows: accelerometer bias and scale per
 satellite;</li>
 <li><code>arcs</code>, <code>covariance</code>,
-<code>processingOptions</code> and <code>buildDay</code>.</li>
+<code>processingOptions</code>, <code>prepareDay</code> and
+<code>buildDay</code>.</li>
 </ul></li>
 </ul>
 <p>Every column carries a declared unit, so the physical value is
@@ -3754,12 +3756,17 @@ satellite;</li>
 <li><code>coeffIndex</code>, <code>harmonics</code>,
 <code>makeField</code> and <code>fieldEval</code>;</li>
 <li><code>propagate</code> and <code>accModel</code>;</li>
-<li><code>eraRotation</code>, <code>readGfc</code>, <code>readL1B</code>
-and <code>buildDay</code>.</li>
+<li><code>eraRotation</code>, <code>readGfc</code>,
+<code>readL1B</code>, <code>prepareDay</code> and
+<code>buildDay</code>.</li>
 </ul>
-<p><code>buildKbrDay</code> integrates the whole day once and caches it,
-keeping one day in memory. It then serves every stream of that day from
-the cache.</p>
+<p><code>prepareKbrDay</code>, the system’s <code>prepareDay</code>,
+integrates the whole day once each time the day is built and forms the
+rows of every stream; <code>buildKbrDay</code> picks its stream out of
+<code>procOpt.prepared</code>. Only the current day’s integration is
+kept; <code>CacheDays</code> keeps the built rows. Called directly,
+<code>kit.buildDay</code> needs <code>procOpt.prepared</code> set to
+what <code>kit.prepareDay</code> returns for the day.</p>
 <p><strong>Limitations.</strong> The help lists these:</p>
 <ul>
 <li><code>kit.eraRotation</code> is a stand-in for synthetic data
@@ -3905,8 +3912,11 @@ at degree 60 about 190 MB for a six-hour three-axis arc.</p>
 <p><code>CacheDays</code> (default 1) is the number of built days kept
 resident per system. An iterative run reads every day twice per pass;
 <code>CacheDays = Inf</code> builds each day once per run if the
-calendar fits in memory. If reading the raw files is the expensive part,
-cache those inside your <code>buildDay</code> closure instead.</p>
+calendar fits in memory. A system’s <code>prepareDay</code> result is
+kept for the current day only, whatever <code>CacheDays</code>: it adds
+one day’s worth, and runs again whenever a day is rebuilt. If reading
+the raw files is the expensive part, cache those inside your
+<code>buildDay</code> closure instead.</p>
 <h2 data-number="10.2" id="time"><span
 class="header-section-number">10.2</span> Time</h2>
 <table>

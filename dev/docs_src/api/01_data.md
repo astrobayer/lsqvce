@@ -57,7 +57,7 @@ All entries share the same fields; fill an unused optional field with `[]`.
 | `id` | finite double scalar or single char | the index k | identifier, unique across systems; all ids of one kind -- numbers or characters (the index default is a number: give every system an id, or none; `lsqvce:fit:mixedIdTypes`) |
 | `name` | char / string | `''` | label used in reports |
 | `processingOptions` | struct | `struct()` | anything `buildDay` needs (paths, force models); its 5th argument |
-| `prepareDay` | function handle | none | the work every stream of a day shares, run once per day before its first stream is built; its result reaches `buildDay` as `procOpt.prepared`, inside its 5th argument (chapter `buildDay`, *What all streams of a day share*) |
+| `prepareDay` | function handle | none | the work every stream of a day shares, run once per build of the day, before its first stream (not once per stream); its result reaches `buildDay` as `procOpt.prepared`, inside its 5th argument (chapter `buildDay`, *What all streams of a day share*) |
 | `priors` | struct array | none | prior groups on this system's local parameters (chapter Priors) |
 
 `buildDay` + `covariance` is a complete system.

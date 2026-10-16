@@ -10784,3 +10784,43 @@ testPrepareDayHandOff (no / varargin arguments; a varargin buildDay takes the ho
 the hook gets buildDay's common, local, info and the plain processingOptions); testPrepareDayRefusals
 widened (lsqvce:* pass-through, unresolvable hook and buildDay, the fit messages name the
 fields). Predicted 740 local / 728 CI.
+
+**Round note (2026-10-16, WP-142 implemented, tier B).**
+- **makeLoader.**
+  - `preparedSpec(fcn, buildDay, procOpt)` returns the hook with a one-entry slot (a handle
+    containers.Map: 'day', 'P'); `preparedOf` reads the slot or drops it, calls the hook and
+    refills it. The FIFO copy and its scan are gone with it.
+  - `callDeclared` replaces callBuildDay and the hook's own wrapper: `nargin` inside the `try`,
+    the message format unchanged ("buildDay threw on day 2, stream 'pos': ..."), the name taken
+    from the id's reason (buildDay / prepareDay -- one authority).
+  - `o.procOpt` was an alias of `o.processingOptions`: retired, the main function's code lines
+    stay at their ceiling of 150; the two dead `nargin` defaults in dayOf retired (one caller,
+    twelve arguments).
+  - The messages say `prepareDay` and `processingOptions` -- valid casings of makeLoader's
+    options and the fields a fit user writes, so the relabelled message reads right in both.
+  - Help: the hook's section (frequency, slot, the snoop exception, per-worker copies),
+    CacheDays, the ERRORS rows (buildDay at construction; both reading rows name an
+    unresolvable handle); stamp.
+- **Documentation.** API ch. buildDay (the procOpt row, rule 2, the closure sentence, the
+  section's "once per build", the how-often / memory / when-it-fails rows), ch. data and ch.
+  options; Manual ch. 4, 9 (the template: prepareKbrDay integrates, buildKbrDay picks,
+  kit.buildDay needs procOpt.prepared) and 10 (memory); fit, Options and the template's help
+  with stamps; the identifier appendix (build_manual.py) names the relabelled family; README
+  section 1.3. Docs rebuilt. **Version 6.25.1.**
+- **Tests** (test_fit 82 -> 84; 740 local / 728 CI predicted):
+  - testPrepareDayKeepsOnlyTheCurrentDay: CacheDays = Inf, (1,pos), (2,pos), (1,kbr) -> day 1
+    costs two calls, day 2 one; a built stream none; day 2's unbuilt kbr a second call.
+  - testPrepareDayHandOff: `@() P1` works; a varargin hook records five arguments; a varargin
+    buildDay takes the hook; through fit, per day, the hook's (common, local, info) equal the
+    day's first build's and its procOpt is the declared processingOptions, buildDay's minus
+    `prepared` the same. Recorded from the first call per day only: info carries an anonymous
+    `offsetOf`, equal only to itself, and the first build is the one in which the hook ran.
+  - testPrepareDayRefusals: an `lsqvce:test:passThrough` from the hook passes; `str2func` of a
+    missing function as the hook (prepareDay, "day 1") and as buildDay (construction with a
+    hook; the first read without one); the fit messages start with "data.systems(1):
+    prepareDay is declared" / "processingOptions already has".
+- **Gates:** audit CLEAN; selftest every fault caught; CI and the local ci_gate are pending.
+- **What could make CI red** (MATLAB not run here): `nargin` of a handle to a missing function
+  must throw (MATLAB:narginout:functionDoesnotExist), else the construction refusal of an
+  unresolvable buildDay does not fire; `remove` is guarded by Count; the fit hand-off test
+  assumes the first build of a day is the one in which the hook ran (dayOf: hook, then build).

@@ -17,7 +17,7 @@ D = buildDay(day, obsType, common, local, procOpt, info)
 | `obsType` | one entry of `fieldnames(covariance)` (char) |
 | `common` | `data.commonParams` |
 | `local` | this system's `localParams` (or `{}`) |
-| `procOpt` | this system's `processingOptions` |
+| `procOpt` | this system's `processingOptions`; with a `prepareDay`, also the field `prepared` (its result — the name is then reserved) |
 | `info` | this day's expansion: every column offset of A and B (below); `[]` when nothing is scoped |
 
 `fit` calls `buildDay` once per (day, observation type). Every pass over the data reads
@@ -29,7 +29,8 @@ that by its passes. Hence two rules:
 2. **Share the day's common work through `prepareDay`.** The toolbox keeps
    `Options.CacheDays` built days resident (default one). Work that several observation
    types of a day need — reading a file, integrating the orbits and their partials — goes
-   into the system's `prepareDay`, which runs once per day for all of them (next section).
+   into the system's `prepareDay`, which runs once for all of them each time the day is
+   built (next section).
 
 ## Where the handle goes — one per system
 
@@ -65,7 +66,9 @@ s.buildDay = @(day, obsType, common, local, procOpt, info) ...
 A closure declares its own argument count, and that count is what `fit` passes
 (`nargin`, above): declare `info` when your rows need the column offsets of local or
 `'day'` parameters. What the handle captures must not change during the run — it is
-called again on every pass (rule 1) — and it is the place for your own cache (rule 2).
+called again on every pass (rule 1). It is also the place for a cache of your own that
+outlives a pass — the raw files of a day, say, when they are smaller than the built rows;
+what the streams of one day share goes into `prepareDay` (rule 2).
 `buildDay` that is not a function handle is refused before any data is read
 (`lsqvce:fit:builderKind`).
 
@@ -74,8 +77,9 @@ called again on every pass (rule 1) — and it is the place for your own cache (
 `buildDay` is called once per (day, observation type). When the streams of a day rest on
 one expensive computation — the reference orbits and the variational partials of both
 satellites, used by the kinematic orbits **and** the range-rates — give the system a
-`prepareDay` handle. `fit` calls it **once per day**, before the first stream of that day
-is built, and hands its result to every `buildDay` of that day as `procOpt.prepared`:
+`prepareDay` handle. `fit` calls it **once per build of a day**, before the first stream of
+that day is built, and hands its result to every `buildDay` of that day as
+`procOpt.prepared`:
 
 ```matlab
 s.prepareDay = @prepareGrace;       % P = prepareGrace(day, common, local, procOpt, info)
@@ -98,11 +102,12 @@ end
 
 | rule | |
 |---|---|
-| arguments | as many of `(day, common, local, procOpt, info)` as the handle declares; `info` is the same day slice `buildDay` gets, `procOpt` the plain `processingOptions` |
-| how often | once per day and visit: the result stays resident as long as its day — `Options.CacheDays` days (at least the current one, also with caching off); `CacheDays = Inf` runs it once per day per run |
-| determinism | like `buildDay`: it runs again whenever its day was evicted |
+| arguments | as many of `(day, common, local, procOpt, info)` as the handle declares, none to all five; `info` is the same day slice `buildDay` gets, `procOpt` the plain `processingOptions` |
+| how often | once each time the day is built, for all its streams: once per run with `Options.CacheDays = Inf`; with the default `CacheDays = 1` a day is built twice per pass (accumulation, residual sweep), so the hook runs as often; with `Options.Parallel` every worker holds its own copy of the loader, so it runs on every worker that builds the day |
+| memory | the result of the current day only, whatever `CacheDays`: the toolbox keeps the built streams, not the result |
+| determinism | like `buildDay`: it runs again whenever its day is built again |
 | refused | a handle of another class (`lsqvce:fit:builderKind`); a `buildDay` that declares fewer than five arguments and so never sees `procOpt` (`lsqvce:makeLoader:prepareUnused`); a `processingOptions` that already has a field `prepared` (`lsqvce:makeLoader:preparedField`) — `fit` reports both under its own prefix, the original attached as the cause |
-| when it fails | `lsqvce:makeLoader:prepareDay` names the day; your error is the cause |
+| when it fails | `lsqvce:makeLoader:prepareDay` names the day; your error is the cause (an `lsqvce:*` error passes unchanged); a handle that does not resolve is reported the same way |
 
 ## The `info` argument
 

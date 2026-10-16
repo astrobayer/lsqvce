@@ -89,8 +89,8 @@ configuration (API reference, chapter `buildDay`, *Where the handle goes*).
 
 When several streams of that system rest on one expensive computation — the orbits of
 both satellites and their partials for the whole day, used by the kinematic orbits and by
-the range-rates — put it in the system's `prepareDay`. It runs once per day, before the
-first stream of the day is built, and every `buildDay` of that day finds its result in
+the range-rates — put it in the system's `prepareDay`. It runs once per build of a day,
+before the first stream of the day is built, and every `buildDay` of that day finds its result in
 `procOpt.prepared` (API reference, chapter `buildDay`, *What all streams of a day share*;
 `template/kbr_variational.m` does exactly this).
 

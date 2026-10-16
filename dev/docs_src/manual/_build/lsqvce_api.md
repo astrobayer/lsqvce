@@ -1,5 +1,5 @@
 ---
-title: "lsqvce 6.25.0 — API Reference"
+title: "lsqvce 6.25.1 — API Reference"
 subtitle: "least-squares adjustment with variance component estimation"
 ---
 
@@ -62,7 +62,7 @@ All entries share the same fields; fill an unused optional field with `[]`.
 | `id` | finite double scalar or single char | the index k | identifier, unique across systems; all ids of one kind -- numbers or characters (the index default is a number: give every system an id, or none; `lsqvce:fit:mixedIdTypes`) |
 | `name` | char / string | `''` | label used in reports |
 | `processingOptions` | struct | `struct()` | anything `buildDay` needs (paths, force models); its 5th argument |
-| `prepareDay` | function handle | none | the work every stream of a day shares, run once per day before its first stream is built; its result reaches `buildDay` as `procOpt.prepared`, inside its 5th argument (chapter `buildDay`, *What all streams of a day share*) |
+| `prepareDay` | function handle | none | the work every stream of a day shares, run once per build of the day, before its first stream (not once per stream); its result reaches `buildDay` as `procOpt.prepared`, inside its 5th argument (chapter `buildDay`, *What all streams of a day share*) |
 | `priors` | struct array | none | prior groups on this system's local parameters (chapter Priors) |
 
 `buildDay` + `covariance` is a complete system.
@@ -157,7 +157,7 @@ D = buildDay(day, obsType, common, local, procOpt, info)
 | `obsType` | one entry of `fieldnames(covariance)` (char) |
 | `common` | `data.commonParams` |
 | `local` | this system's `localParams` (or `{}`) |
-| `procOpt` | this system's `processingOptions` |
+| `procOpt` | this system's `processingOptions`; with a `prepareDay`, also the field `prepared` (its result — the name is then reserved) |
 | `info` | this day's expansion: every column offset of A and B (below); `[]` when nothing is scoped |
 
 `fit` calls `buildDay` once per (day, observation type). Every pass over the data reads
@@ -169,7 +169,8 @@ that by its passes. Hence two rules:
 2. **Share the day's common work through `prepareDay`.** The toolbox keeps
    `Options.CacheDays` built days resident (default one). Work that several observation
    types of a day need — reading a file, integrating the orbits and their partials — goes
-   into the system's `prepareDay`, which runs once per day for all of them (next section).
+   into the system's `prepareDay`, which runs once for all of them each time the day is
+   built (next section).
 
 ## Where the handle goes — one per system
 
@@ -205,7 +206,9 @@ s.buildDay = @(day, obsType, common, local, procOpt, info) ...
 A closure declares its own argument count, and that count is what `fit` passes
 (`nargin`, above): declare `info` when your rows need the column offsets of local or
 `'day'` parameters. What the handle captures must not change during the run — it is
-called again on every pass (rule 1) — and it is the place for your own cache (rule 2).
+called again on every pass (rule 1). It is also the place for a cache of your own that
+outlives a pass — the raw files of a day, say, when they are smaller than the built rows;
+what the streams of one day share goes into `prepareDay` (rule 2).
 `buildDay` that is not a function handle is refused before any data is read
 (`lsqvce:fit:builderKind`).
 
@@ -214,8 +217,9 @@ called again on every pass (rule 1) — and it is the place for your own cache (
 `buildDay` is called once per (day, observation type). When the streams of a day rest on
 one expensive computation — the reference orbits and the variational partials of both
 satellites, used by the kinematic orbits **and** the range-rates — give the system a
-`prepareDay` handle. `fit` calls it **once per day**, before the first stream of that day
-is built, and hands its result to every `buildDay` of that day as `procOpt.prepared`:
+`prepareDay` handle. `fit` calls it **once per build of a day**, before the first stream of
+that day is built, and hands its result to every `buildDay` of that day as
+`procOpt.prepared`:
 
 ```matlab
 s.prepareDay = @prepareGrace;       % P = prepareGrace(day, common, local, procOpt, info)
@@ -238,11 +242,12 @@ end
 
 | rule | |
 |---|---|
-| arguments | as many of `(day, common, local, procOpt, info)` as the handle declares; `info` is the same day slice `buildDay` gets, `procOpt` the plain `processingOptions` |
-| how often | once per day and visit: the result stays resident as long as its day — `Options.CacheDays` days (at least the current one, also with caching off); `CacheDays = Inf` runs it once per day per run |
-| determinism | like `buildDay`: it runs again whenever its day was evicted |
+| arguments | as many of `(day, common, local, procOpt, info)` as the handle declares, none to all five; `info` is the same day slice `buildDay` gets, `procOpt` the plain `processingOptions` |
+| how often | once each time the day is built, for all its streams: once per run with `Options.CacheDays = Inf`; with the default `CacheDays = 1` a day is built twice per pass (accumulation, residual sweep), so the hook runs as often; with `Options.Parallel` every worker holds its own copy of the loader, so it runs on every worker that builds the day |
+| memory | the result of the current day only, whatever `CacheDays`: the toolbox keeps the built streams, not the result |
+| determinism | like `buildDay`: it runs again whenever its day is built again |
 | refused | a handle of another class (`lsqvce:fit:builderKind`); a `buildDay` that declares fewer than five arguments and so never sees `procOpt` (`lsqvce:makeLoader:prepareUnused`); a `processingOptions` that already has a field `prepared` (`lsqvce:makeLoader:preparedField`) — `fit` reports both under its own prefix, the original attached as the cause |
-| when it fails | `lsqvce:makeLoader:prepareDay` names the day; your error is the cause |
+| when it fails | `lsqvce:makeLoader:prepareDay` names the day; your error is the cause (an `lsqvce:*` error passes unchanged); a handle that does not resolve is reported the same way |
 
 ## The `info` argument
 
@@ -433,7 +438,7 @@ R = lsqvce.fit(data, Estimate="noise", MaxPasses=6);     % name-value pairs stra
 | knob | values | default | meaning |
 |---|---|---|---|
 | `Backend` | `"qr"`, `"normal"` | `"qr"` | square-root information (Householder QR) or normal equations (Cholesky); the same numbers to rounding, QR the safer on ill-conditioned common blocks |
-| `CacheDays` | > 0 | 1 | built days kept resident per system; `Inf` keeps the calendar and builds each day once per run (a built type-day is m × nc doubles) |
+| `CacheDays` | > 0 | 1 | built days kept resident per system; `Inf` keeps the calendar and builds each day once per run (a built type-day is m × nc doubles); a system's `prepareDay` result is the current day's only, whatever `CacheDays` |
 | `Verbose` | logical | `false` | screen messages: 0 silent, 1 progress |
 | `OnPass` | `[]` or `@(ctx)` | `[]` | inspection hook called after every pass of every iterative run (below) |
 
@@ -650,7 +655,8 @@ LSQVCE.FIT  Fit a least-squares adjustment (optionally with VCE) to declared dat
                     closure; data that share no common parameters are
                     separate fit calls. What every stream of a day needs
                     (orbits and partials of a satellite pair) goes in the
-                    system's optional prepareDay: called once per day, its
+                    system's optional prepareDay: called once per build
+                    of a day (the current day's result only is kept), its
                     result reaches each buildDay as procOpt.prepared
     (B) in memory   data.A (m x u), data.l (m x 1), optional data.p (m x 1
                     weights); optional data.priors. A FULL m x m SPD weight
@@ -841,7 +847,9 @@ LSQVCE.OPTIONS  The one settings object for LSQVCE.FIT: 12 knobs and 5 groups.
                                   exact route, so 0 is refused
     Seed       [] | double        RNG seed for the probes (recorded)
     CacheDays  double  1          built days kept resident per system; Inf =
-                                  the whole calendar (one build per run)
+                                  the whole calendar (one build per run). A
+                                  system's prepareDay result is the current
+                                  day's only, whatever CacheDays
     Verbose    logical | 0 | 1    screen messages: 0 silent, 1 progress. The
                                   value is passed to every driver as a flag
                                   (logical(Verbose)), so 2 behaves as 1
@@ -1285,7 +1293,7 @@ What `fit` dispatches to and what it is built from: one line per public unit, fr
 
 # Error and warning identifiers
 
-Every identifier the package raises (generated from the identifier catalogue, which is kept closed both ways: nothing is raised that is not listed, nothing is listed that is not raised).
+Every identifier the package raises (generated from the identifier catalogue, which is kept closed both ways: nothing is raised that is not listed, nothing is listed that is not raised). One family is not listed by name: an `lsqvce:makeLoader:<reason>` raised while `fit` builds a system's loader reaches you as `lsqvce:fit:<reason>`, with the original attached as the cause.
 
 | identifier | raised by | kind | introduced |
 |---|---|---|---|

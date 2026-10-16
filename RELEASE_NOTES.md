@@ -1,5 +1,30 @@
 # lsqvce release notes
 
+## 6.25.1 — 2026-10-16 (WP-142: the code review of WP-141)
+
+Corrections to `prepareDay` (6.25.0). No estimate changes.
+
+- A `prepareDay` that declares no argument (`@() load(...)`) is called with none; 6.25.0 passed
+  it one and failed with "Too many input arguments".
+- Its result is kept for the **current day only**, whatever `Options.CacheDays`: the engines
+  read every stream of a day together, and `CacheDays` keeps the built streams. 6.25.0 kept
+  `CacheDays` results, never read again once the day's streams were built — with
+  `CacheDays = Inf` every day's result (whole-day partials, say) stayed in memory to the end.
+- How often it runs, said exactly: once each time a day is built, for all its streams — once
+  per run with `CacheDays = Inf`, twice per pass with the default `CacheDays = 1`, and on every
+  parallel worker that builds the day. 6.25.0 said "once per day".
+- A `buildDay` or `prepareDay` handle that does not resolve is `lsqvce:makeLoader:buildDay` /
+  `lsqvce:makeLoader:prepareDay` with the day, like any error they throw (it escaped as a
+  raw MATLAB error); with a `prepareDay`, an unresolvable `buildDay` is refused while the
+  loader is built. Through `fit`, the refusals name the fields you wrote (`prepareDay`,
+  `processingOptions`), not makeLoader's option names.
+- Since 6.25.0, `template/kbr_variational`'s `kit.buildDay` called directly needs
+  `procOpt.prepared` set to what `kit.prepareDay` returns for the day.
+- Documentation: the API's buildDay chapter, the Manual (the template's design, the memory of
+  large runs) and `Options.CacheDays` say the above; the identifier appendix names the
+  `lsqvce:fit:<reason>` family relabelled from makeLoader; the README's theory reference is
+  section 1.3.
+
 ## 6.25.0 — 2026-10-15 (WP-141: prepareDay, what all streams of a day share)
 
 New, optional: `data.systems(k).prepareDay`. No estimate changes; nothing changes for a
