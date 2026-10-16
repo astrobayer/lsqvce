@@ -11207,7 +11207,7 @@ run). Observation 2 above is opened as WP-147 (§12.79, user: "Erledige diese Au
 
 | WP | title | depends on | status |
 |----|-------|-----------|--------|
-| 147 | Observation 2 of §12.78: with the package defaults (`Noise.Grid` 60, `MaxPasses` 10, `Tolerance` 1e-2) the joint noise loop often cannot meet its stop rule on short or low-information arcs -- the rule is max abs(alpha2_j - 1) over EVERY bin, and bins with redundancy ~1-6 (the zero-frequency bin the per-arc locals absorb; 60 bins on 60-sample arcs) contract at ~0.98 per pass or decay toward zero, while the solution is long settled. PART 1 (this round): a MEASUREMENT-based design note -- per-pass traces of x, the levels and every bin's alpha2 and redundancy on the four fixtures of §12.78 in their original configuration, the candidate rules evaluated against the fixed point (when each would stop, and how far x and the levels then are from the fixed point in their own standard errors), the candidate defaults (FreezeRedundancy, Grid, Smooth) run live; options and a recommendation; NO code change before the user picks. PART 2: the chosen option, with tests that fail without it; version by precedent (a changed default or stop rule: a minor) | 145 (closure #181) | IN PROGRESS (part 1) |
+| 147 | Observation 2 of §12.78: with the package defaults (`Noise.Grid` 60, `MaxPasses` 10, `Tolerance` 1e-2) the joint noise loop often cannot meet its stop rule on short or low-information arcs -- the rule is max abs(alpha2_j - 1) over EVERY bin, and bins with redundancy ~1-6 (the zero-frequency bin the per-arc locals absorb; 60 bins on 60-sample arcs) contract at ~0.98 per pass or decay toward zero, while the solution is long settled. PART 1 (this round): a MEASUREMENT-based design note -- per-pass traces of x, the levels and every bin's alpha2 and redundancy on the four fixtures of §12.78 in their original configuration, the candidate rules evaluated against the fixed point (when each would stop, and how far x and the levels then are from the fixed point in their own standard errors), the candidate defaults (FreezeRedundancy, Grid, Smooth) run live; options and a recommendation; NO code change before the user picks. PART 2: the chosen option, with tests that fail without it; version by precedent (a changed default or stop rule: a minor). PART 1 merged (#182, 40b6144). PART 2 (user, 2026-10-16: "Continue as suggested" = options A + B): a spectral bin is settled when abs(alpha2_j - 1) <= max(Tolerance, 0.1 sqrt(2 / r_j)) -- Tolerance unchanged for well-determined bins, a tenth of the bin's own standard error where the data say little; no new option, a run never stops later than before; the not-converged warning names the bins that still move (group, bin, redundancy against the median) and x's last step in sigma_x; psdVCE returns the redundancy and the deviation per bin; tests that fail without it; the suite's assertions on nIter / converged / stopReason inventoried; version 6.26.0 | 145 (closure #181) | IN PROGRESS (part 2) |
 
 **The user's request (2026-10-16):** "Erledige diese Aufgabe hier: „Noise stop rule for low-information
 spectral bins“" -- the proposal card of §12.78 (observation 2), done in this session.
@@ -11281,3 +11281,12 @@ shortest arcs.
 Part 2's cost, not yet measured: every suite fixture with an Estimate "noise" run under the
 default stop rule can change its pass count (A), so the suite's assertions on nIter / converged /
 stopReason are the part-2 inventory.
+
+**Part 2 opened (2026-10-16; user: "Continue as suggested" -- options A + B).** The open point of
+option A (one knob or two) is settled by measurement, not by a new name: rule R1' -- a bin is
+settled when abs(alpha2_j - 1) <= max(Tolerance, 0.1 sqrt(2 / r_j)) -- stopped on the same pass as
+R1 at tau 0.1 on all four traces (gravity 12, sensors 25, noisePolicy 8, grace 10; x within 0.093 /
+0.100 / 0.000 / 0.029 sigma_x of the fixed point). It keeps `Tolerance`'s meaning for every bin whose
+standard error is below 10 Tolerance (r_j > 200 at the default), relaxes only the bins the data
+barely determine, and implies today's rule -- so no run stops later than before, and v5's "one
+tolerance for every iterative run" holds.
