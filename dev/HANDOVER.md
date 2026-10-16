@@ -8,7 +8,8 @@ architecture, the task list, and the implementation prompts — lives HERE.
 
 Created 2026-07-19 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 model Claude Fable 5.
-Last substantive update: 2026-10-16 — WP-142 DONE (PR #175, merge f59e6bd; CI GREEN on ec78e37 in the first round: ci_gate 728/728, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.75; no code change, no version (6.25.1 stays, 740 tests).
+Last substantive update: 2026-10-16 — WP-143 OPEN (tier A for the tool: Python runs here; model Claude Opus 5.5; user: "What failed in build_manual.py?" -- nothing yet, a latent short-circuit -- then "Yes, do it as WP-143"): build_manual.py builds every document also after a failure, and writes a document's HTML and PDF together, only when both built; no +lsqvce change, no version (6.25.1 stays, 740 tests).
+Preceding entry: Last substantive update: 2026-10-16 — WP-142 DONE (PR #175, merge f59e6bd; CI GREEN on ec78e37 in the first round: ci_gate 728/728, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.75; no code change, no version (6.25.1 stays, 740 tests).
 Preceding entry: Last substantive update: 2026-10-16 — WP-142 OPEN (tier B, model Claude Opus 5.5; user: "/code-review Check also if all pdfs are in sync" -- two review runs of WP-141, then "Go ahead. No content check in audit. I check it visually"): a hook declared with no argument was called with one; the hook's result is kept for the current day only (it was kept CacheDays days, dead memory); one call-and-wrap helper for buildDay and prepareDay (a handle that does not resolve is the documented id); the documentation of the hook's frequency, memory and WP-141's stale lines; the relabelled lsqvce:fit family in the identifier appendix; the PDFs are in sync and stay title-checked only (the user checks them visually); version 6.25.1.
 Preceding entry: Last substantive update: 2026-10-15 — WP-141 DONE (PR #173, merge 8902a2a; CI GREEN on 234b113 in the first round: ci_gate 726/726, warning inventory lsqvce:internal:testProbe only); closure PR (the loop's record step after the merge): the ledger row and the closure note in §12.74; no code change, no version (6.25.0 stays, 738 tests).
 Preceding entry: Last substantive update: 2026-10-15 — WP-141 OPEN (tier B, model Claude Opus 5.5; user: a hook "before calling buildDay" that does the calculations common to all streams of a day -- the partials of both satellites for the whole day, shared by the kinematic-orbit and range-rate streams; decisions: per system, named prepareDay, its result reaches buildDay inside procOpt): data.systems(k).prepareDay, called once per (system, day), its result procOpt.prepared, resident as long as the day; version 6.25.0.
@@ -10836,3 +10837,44 @@ job green.
 merge: the ledger row, this note; no code change, no version -- 6.25.1 stays, 740 tests). The
 findings of both review runs of WP-141 are acted on, except build_manual.py's `all()` short-circuit,
 recorded above as not asked for. No package is open; the next step is the user's.
+
+### 12.76 WP-143 — build_manual.py: every document, HTML and PDF together (2026-10-16, model Claude Opus 5.5)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 143 | `dev/docs_src/build_manual.py`: `main()` built the documents with `all(build_one(...) for n in DOCS)`, which stops at the first failure, and `build_one` wrote `html/lsqvce_<doc>.html` BEFORE it built the PDF -- a failed xelatex run on the Manual left its HTML new and its PDF old, and never built the API (recorded in §12.75 as "not acted on", from review 2 of WP-141); now every document is built, the PDF goes to a temporary directory (outside the tree: `_build` is tracked) and both targets are written only when both built, a failure names the document and says its pair was left as it was, the exit code stays 1 when any failed; check mode (audit check 23) unchanged; no `+lsqvce` change, so no version bump | 142 (PR #175 merged f59e6bd; closure #176 merged d1e6e5d) | OPEN (2026-10-16, tier A for the tool) |
+
+**The user's request (2026-10-16):** "What failed in build_manual.py?" -- nothing has failed; the
+answer named the short-circuit and the HTML-before-PDF order -- then "Yes, do it as WP-143".
+**Contract:** a document's HTML and PDF are written together or not at all; every document is
+attempted; `main()` returns all(written), the CLI exits 1 when any document failed; `check` mode
+returns the stale names as before (it builds no PDF). The built documents do not change.
+**Evidence planned:** the old and the new builder under one fault injection (the Manual's xelatex
+call made to fail, a marker line appended to a Manual and an API source so a rebuild is visible),
+each in a scratch copy of the tree (`git archive HEAD`); a healthy build compared with the
+committed documents; `build_manual.py check`; audit and selftest.
+
+**Round note (2026-10-16, WP-143 implemented, tier A for the tool).**
+- **build_manual.py.** `main()` collects `[build_one(n, ver, False) for n in DOCS]` and returns
+  `all()` of the list, so every document is attempted. `build_one` builds the PDF into a
+  `tempfile.TemporaryDirectory()` (outside the tree: `dev/docs_src/manual/_build` is tracked, a
+  stray PDF there would be committed by `git add -A`), copies it over the committed PDF only on
+  success, and writes `html/lsqvce_<doc>.html` after that. A failure prints "PDF build failed
+  (<doc>); html/lsqvce_<doc>.html and lsqvce_<doc>.pdf left as they were". Check mode unchanged.
+  The module docstring says it.
+- **Fault injection** (the Manual's xelatex call made to fail through a wrapped `subprocess.run`;
+  a marker line appended to the first Manual chapter and to api/01_data.md; each builder in its
+  own scratch copy from `git archive HEAD`; the script is not committed):
+
+  | builder | main() | Manual html | Manual pdf | API html | API pdf |
+  |---|---|---|---|---|---|
+  | before (main d1e6e5d) | False | REWRITTEN | unchanged | unchanged | unchanged |
+  | after (WP-143) | False | unchanged | unchanged | REWRITTEN | REWRITTEN |
+
+  The first row is the defect: the Manual's pair disagrees and the API, whose source changed,
+  was never built. The second is the contract.
+- **Healthy build** (scratch copy, no injection): exit 0; both HTML byte-identical to the
+  committed ones, both PDFs' pdftotext identical to the committed ones. `build_manual.py check`
+  in the tree: "both documents are fresh". The committed documents are not rebuilt by this WP.
+- **Gates:** audit CLEAN (check 23 drives check mode through the changed module); selftest every
+  fault caught. Tests unchanged (740 local / 728 CI); CI runs the audit job and the gate.
