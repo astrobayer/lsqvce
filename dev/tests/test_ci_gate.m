@@ -10,10 +10,13 @@ function tests = test_ci_gate
 %   Run:
 %     results = runtests('tests/test_ci_gate');  disp(table(results))
 %
-%   See also CI_GATE, GATEVERDICT, RUN_ALL_LSQVCE
+%   See also CI_GATE, GATEVERDICT, RUN_ALL_LSQVCE, ECHOWARNINGS
 %
 %   Created 2026-08-18 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.
+%   Updated 2026-10-16 (CEST, UTC+02:00), WP-145: rule 5 bound to the run's
+%   start, the probe of test_examples, and the lock on uncaught captures.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
     tests = functiontests(localfunctions);
 end
 
@@ -265,6 +268,67 @@ function testWarningProbeFires(tc)
     warning('lsqvce:internal:testProbe', ...
         'gate probe: this warning proves the inventory capture works');
     tc.verifyTrue(true);
+end
+
+%% --------------------------------------- WP-145: rule 5 and rule 7 (A9, A1)
+function testStaleLogIsRed(tc)
+% categories: contract, robustness | tags: diagnostics
+% A9: run_all_lsqvce skips the log when fopen fails, so a read-only log (or
+% one an editor holds open on Windows) passed rule 5 as this run's --
+% reproduced on main e483142 with the log made read-only. With the run's
+% start given, a log older than the run is red; one written after it is not.
+    f = liveLog(tc);
+    v = gateVerdict(greenRun(), {}, {'test_a','test_b'}, {}, f, datenum(datetime('now')) + 1);
+    tc.verifyFalse(v.ok);
+    tc.verifyTrue(any(contains(v.reasons, 'NOT written by this run')));
+    v = gateVerdict(greenRun(), {}, {'test_a','test_b'}, {}, f, datenum(datetime('now')) - 1);
+    tc.verifyTrue(v.ok, 'a log written after the run started is this run''s');
+end
+
+function testBadRunStartErrors(tc)
+% categories: contract
+    tc.verifyError(@() gateVerdict(greenRun(), {}, {'test_a','test_b'}, {}, liveLog(tc), 'now'), ...
+                   'gateVerdict:badInput');
+end
+
+function testExamplesProbeIsRequired(tc)
+% categories: contract, robustness | tags: diagnostics
+% A1: test_examples carries a probe since WP-145, because its inner capture
+% discarded every warning the examples raised. When it ran without
+% reporting the probe, its capture is deaf again -- red, named.
+    r = greenRun47();
+    r(3) = struct('name','test_examples','passed',3,'total',3, ...
+                  'failed',0,'incomplete',0,'secs',20, ...
+                  'declared',3,'warnIds',{{'lsqvce:internal:testProbe'}});
+    onDisk = {'test_a','test_b','test_examples'};
+    tc.verifyTrue(gateVerdict(r, {}, onDisk, {}, liveLog(tc)).ok);
+    r(3).warnIds = {};
+    v = gateVerdict(r, {}, onDisk, {}, liveLog(tc));
+    tc.verifyFalse(v.ok);
+    tc.verifyTrue(any(contains(v.reasons, 'BLIND: test_examples')));
+end
+
+function testEveryCaptureInTheSuitesEchoesItsWarnings(tc)
+% categories: contract | tags: diagnostics
+% The LOCK of WP-145 (A1): a suite that captures code with evalc and drops
+% the text drops its warnings too, unless the capture goes to echoWarnings
+% on the same or the next line. A new capture without it is named here.
+    here = fileparts(mfilename('fullpath'));
+    d = dir(fullfile(here, 'test_*.m'));
+    call = ['evalc' '('];                       % split: this file is scanned too
+    bad = {};
+    for k = 1:numel(d)
+        L = splitlines(fileread(fullfile(here, d(k).name)));
+        for i = 1:numel(L)
+            if startsWith(strtrim(L{i}), '%') || ~contains(L{i}, call), continue, end
+            nxt = '';
+            if i < numel(L), nxt = L{i+1}; end
+            if ~contains([L{i} nxt], 'echoWarnings(')
+                bad{end+1} = sprintf('%s:%d', d(k).name, i); %#ok<AGROW>
+            end
+        end
+    end
+    tc.verifyEmpty(bad, sprintf('captures whose warnings are dropped: %s', strjoin(bad, ', ')));
 end
 
 function r = greenRun47()

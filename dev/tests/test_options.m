@@ -159,6 +159,7 @@ function testDisplayMarksDefaults(tc)
     o = lsqvce.Options();
     o.MaxPasses = 4;
     txt = evalc('disp(o)');
+    echoWarnings(txt);   % WP-145: its warnings reach the gate
     tc.verifyTrue(contains(txt, 'lsqvce.Options'));
     tc.verifyTrue(contains(txt, '     MaxPasses'), 'a changed value is listed');
     tc.verifyFalse(contains(txt, '   * MaxPasses'), 'a changed value must NOT carry the star');

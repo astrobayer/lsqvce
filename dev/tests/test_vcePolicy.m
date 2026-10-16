@@ -243,6 +243,7 @@ function testVerboseZeroIsSilent(tc)
     data = tc.TestData.data;
     o = lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=1, Noise=struct('Grid', 16), Seed=3, Verbose=0);
     out = evalc('lsqvce.fit(data, o);');
+    echoWarnings(out);   % WP-145: its warnings reach the gate
     tc.verifyEmpty(strtrim(out), 'Verbose 0 prints nothing');
 end
 
@@ -251,6 +252,7 @@ function testVerboseOnePrintsThePassRecord(tc)
     data = tc.TestData.data;
     o = lsqvce.Options(Estimate="noise", Pool="stream", ArcFactors=false, MaxPasses=1, Noise=struct('Grid', 16), Seed=3, Verbose=1);
     out = evalc('lsqvce.fit(data, o);');
+    echoWarnings(out);   % WP-145: its warnings reach the gate
     tc.verifyNotEmpty(strtrim(out), 'Verbose 1 prints the run''s progress');
 end
 
@@ -669,6 +671,7 @@ function testDemoNoisePolicyIsTheWorkedPolicyExample(tc)
     % and arcFactors must isolate the one degraded arc -- all in ONE run since
     % WP-98 fixed F-01, which is itself part of what this test now pins.
     out = evalc('[R, s] = demo_noisePolicy();');
+    echoWarnings(out);   % WP-145: its warnings reach the gate
     tc.verifyClass(R, 'lsqvce.Results');
     tc.verifyTrue(contains(out, 'arc factors'), 'the arc-factor section is printed');
     % R6 WP-98: the demo used to need TWO runs because a "law" stream and an

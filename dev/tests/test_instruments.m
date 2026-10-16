@@ -15,10 +15,16 @@ function tests = test_instruments
 %   band that a bad minute can leave is a flake, not a test, so every bound
 %   here is wide (0.5x .. 2x) and states why.
 %
-%   See also TIMEPAIR, RUN_ALL_LSQVCE, TEST_SPEED
+%   Since WP-145 also the two instruments of the capture and the iteration
+%   loop: ECHOWARNINGS (an inner evalc's warnings reach the gate) and
+%   RUN_LSQVCE (its shortcuts find dev/tests, LogFile '' means no log).
+%
+%   See also TIMEPAIR, ECHOWARNINGS, RUN_LSQVCE, RUN_ALL_LSQVCE, TEST_SPEED
 %
 %   Created 2026-09-01 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Fable 5.1 -- R5 Level M0, WP-78.
+%   Updated 2026-10-16 (CEST, UTC+02:00), WP-145: echoWarnings and
+%   run_lsqvce. With assistance from Claude (Anthropic), model Claude Opus 5.5.
     tests = functiontests(localfunctions);
 end
 
@@ -115,4 +121,83 @@ function testInnerBatchingDoesNotMoveTheRatio(tc)
     % ratio is a property of the workloads -- agreement to a factor 2
     tc.verifyGreaterThanOrEqual(r3.ratio / r1.ratio, 0.5, sprintf('inner1 %.2f inner3 %.2f', r1.ratio, r3.ratio));
     tc.verifyLessThanOrEqual(r3.ratio / r1.ratio, 2.0, sprintf('inner1 %.2f inner3 %.2f', r1.ratio, r3.ratio));
+end
+
+%% ------------------------------------------- WP-145: echoWarnings (A1)
+function testEchoWarningsReemitsWhatAnInnerCaptureSwallowed(tc)
+% categories: contract, robustness | tags: diagnostics
+    % The defect, then the repair, in one capture-inside-a-capture -- the
+    % shape of test_examples inside run_all_lsqvce. Without the echo the
+    % identifier never reaches the outer text; with it, both warnings do,
+    % framed as MATLAB frames them, and the line that merely STARTS with
+    % "Warning:" (demo_messaging replays its log sink like that) does not.
+    probe = 'lsqvce:instruments:echoProbe';
+    vb = warning('query', 'verbose');  warning('on', 'verbose');
+    tc.addTeardown(@() warning(vb.state, 'verbose'));
+    raise = sprintf(['warning(''%s'', ''with an id''); warning(''without an id''); ' ...
+                     'fprintf(''Warning: printed text, not a warning\\n'');'], probe);
+    deaf  = evalc('inner = evalc(raise);');
+    echoWarnings(deaf);   % the lock's rule; deaf holds nothing to echo
+    tc.verifyFalse(contains(deaf, probe), 'an inner capture alone swallows the warning');
+    heard = evalc('inner = evalc(raise); blocks = echoWarnings(inner);');
+    tc.verifyTrue(contains(heard, ['warning off ' probe]), ...
+        'the identifier hint reaches the outer capture, where the inventory parses it');
+    tc.verifyNumElements(blocks, 2, 'both warnings, the one without an id included');
+    tc.verifyFalse(contains(heard, 'printed text'), 'printed text is not a warning');
+end
+
+function testEchoWarningsRejectsANonText(tc)
+% categories: contract
+    tc.verifyError(@() echoWarnings(42), 'lsqvce:echoWarnings:badCapture');
+    tc.verifyEmpty(echoWarnings(''), 'an empty capture holds no warning');
+end
+
+%% --------------------------------------- WP-145: run_lsqvce (A5, A8)
+function testRunLsqvceShortcutRunsItsSuite(tc)
+% categories: contract | tags: diagnostics
+    % A5: every shortcut resolved to the root tests/ folder that L8 removed,
+    % so run_lsqvce('streams') ran NOTHING and printed "RUN ERRORED"
+    % (reproduced on main e483142). One cheap point through a shortcut, its
+    % log in a temporary file, so the session's own logs stay untouched.
+    f = [tempname '.txt'];
+    tc.addTeardown(@() deleteIfThere(f));
+    out = evalc('r = run_lsqvce(''streams'', ''Name'', ''*MaxLagCorrShortSeries*'', ''LogFile'', f);');
+    echoWarnings(out);
+    tc.verifyNumElements(r, 1, 'the shortcut finds its suite in dev/tests');
+    tc.verifyTrue(all([r.Passed]), out);
+    tc.verifyTrue(isfile(f), 'the chosen log is written');
+end
+
+function testRunLsqvceEmptyLogFileWritesNoLog(tc)
+% categories: contract, robustness
+    % A8: '' was replaced by the default path, so it could not switch the
+    % log off and the no-log branch (the only place Quiet acts) never ran.
+    % Not given and given empty are two requests.
+    here = fileparts(mfilename('fullpath'));
+    dflt = fullfile(here, 'last_run_streams.txt');
+    before = dir(dflt);
+    out = evalc('r = run_lsqvce(''streams'', ''Name'', ''*MaxLagCorrShortSeries*'', ''LogFile'', '''');');
+    echoWarnings(out);
+    tc.verifyNumElements(r, 1);
+    after = dir(dflt);
+    tc.verifyEqual(numel(after), numel(before), 'no default log appears');
+    if ~isempty(after)
+        tc.verifyEqual(after.datenum, before.datenum, 'the default log is not rewritten');
+    end
+    tc.verifyFalse(contains(out, 'full log:'), 'the summary names no log');
+end
+
+function testRunLsqvceSaysWhenNoTestMatched(tc)
+% categories: contract
+    % A filter that matches nothing is not an error, and is not reported as one.
+    out = evalc('r = run_lsqvce(''streams'', ''Name'', ''*noSuchTestName*'', ''LogFile'', '''');');
+    echoWarnings(out);
+    tc.verifyEmpty(r);
+    tc.verifyTrue(contains(out, 'no test matched'), out);
+    tc.verifyFalse(contains(out, 'ERRORED'), out);
+end
+
+function deleteIfThere(f)
+%DELETEIFTHERE  Teardown helper: a log the test may or may not have written.
+    if isfile(f), delete(f); end
 end

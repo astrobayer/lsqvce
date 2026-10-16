@@ -30,11 +30,19 @@ function tests = test_examples
 %   function or variable 'nm'". Each call therefore runs inside its own
 %   function (runOne / runScript) and figures are closed between them.
 %
-%   See also RUN_ALL_LSQVCE, CI_GATE, TEST_PHYSORACLE
+%   WARNINGS ARE HEARD (WP-145). runOne silences an example's printed text,
+%   not its warnings: ECHOWARNINGS hands them to run_all_lsqvce's capture, so
+%   GATEVERDICT rule 7 judges them, and testExampleCaptureReachesTheGate is the
+%   probe that proves the path is open on every run.
+%
+%   See also RUN_ALL_LSQVCE, CI_GATE, TEST_PHYSORACLE, ECHOWARNINGS
 %
 %   Created 2026-09-08 (CEST, UTC+02:00) with assistance from Claude
 %   (Anthropic), model Claude Opus 5 -- R6 WP-99: the example harness had lived
 %   in a scratch directory all review long (HANDOVER 12.23).
+%   Updated 2026-10-16 (CEST, UTC+02:00), WP-145: the examples' warnings
+%   reach the gate, and the suite carries its capture probe. With assistance
+%   from Claude (Anthropic), model Claude Opus 5.5.
     tests = functiontests(localfunctions);
 end
 
@@ -87,6 +95,18 @@ function testEveryExampleRuns(tc)
     tc.verifyEmpty(bad, sprintf('examples that failed to run: %s', strjoin(bad, ' | ')));
 end
 
+function testExampleCaptureReachesTheGate(tc)
+% categories: robustness | tags: diagnostics
+    % THE PROBE of this suite's capture (WP-145, A1). A warning raised inside
+    % runOne must leave this suite's capture, so gateVerdict requires the one
+    % allowed identifier from test_examples as it does from test_ci_gate: if
+    % runOne ever swallows warnings again, the gate reports the capture BLIND
+    % instead of judging fifteen examples it cannot hear. It must NOT be muted.
+    runOne(@() warning('lsqvce:internal:testProbe', ...
+        'gate probe: a warning inside an example''s capture reaches the inventory'));
+    tc.verifyTrue(true);
+end
+
 %==========================================================================
 function varargout = exampleCalls(exDir, what)
 %EXAMPLECALLS  THE table: one row per file in examples/, with the call that
@@ -127,13 +147,19 @@ function varargout = exampleCalls(exDir, what)
 end
 
 function runOne(fh)
-%RUNONE  One example, silently, in a workspace of its own.
-    evalc('fh()');
+%RUNONE  One example, silently, in a workspace of its own -- but not deaf.
+%   WP-145 (A1): the capture used to be discarded whole, warnings included,
+%   so a warning an example raised never reached run_all_lsqvce's inventory
+%   (measured: four examples raised one and the gate stayed green). Its
+%   printed text is still dropped; its warnings are handed back out.
+    capt = evalc('fh()');
+    echoWarnings(capt);
 end
 
 function runScript(name)
 %RUNSCRIPT  A SCRIPT example: it needs a workspace to write its variables into,
 %   and this function is it. Sharing one would let a script overwrite the
-%   harness's own variables -- measured, it did.
-    evalc(name);
+%   harness's own variables -- measured, it did. No capture of its own: it
+%   always runs inside runOne, whose capture already silences it (WP-145).
+    eval(name);
 end

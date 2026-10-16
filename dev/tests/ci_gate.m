@@ -23,8 +23,9 @@ function ci_gate()
 %          guards tests that open figures).
 %        A skip, should one ever be reinstated here, is PRINTED by run_all
 %        and recorded in the log, never silent.
-%     3. Globs tests/test_*.m and hands run + skip + disk + the documented
-%        benchmark exclusion (test_speed) to GATEVERDICT.
+%     3. Globs dev/tests/test_*.m and hands run + skip + disk + the
+%        documented benchmark exclusion (test_speed) + the time the run
+%        started (WP-145: the log must be THIS run's) to GATEVERDICT.
 %     4. Prints the verdict; on red it ERRORS so the CI job (and any
 %        -batch invocation) exits non-zero.
 %
@@ -40,8 +41,10 @@ function ci_gate()
 %   ERRORS
 %     ci_gate:red   the run is not green: >0 failed, >0 incomplete, a suite
 %                   failed to load, a test_*.m file on disk was neither run
-%                   nor skipped/excluded, a phantom suite ran, or the log
-%                   was not written. The message lists every reason.
+%                   nor skipped/excluded, a phantom suite ran, the log
+%                   was not written by this run, a new warning identifier
+%                   was inventoried or a probe suite's capture is blind.
+%                   The message lists every reason.
 %
 %   EXAMPLE
 %     % local postflight, exactly what the CI runs:
@@ -50,6 +53,9 @@ function ci_gate()
 %
 %   See also RUN_ALL_LSQVCE, GATEVERDICT, LSQVCE_SETUP
 %
+%   Updated 2026-10-16 (CEST, UTC+02:00), WP-145: the run's start time goes
+%   to GATEVERDICT, so a stale log cannot pass as this run's. With
+%   assistance from Claude (Anthropic), model Claude Opus 5.5.
 %   Updated 2026-09-09 (CEST, UTC+02:00), R6 WP-103: the CI skip of
 %   test_parallel and the 2-worker pool cap removed -- the self-hosted
 %   runner has the PCT (user, 2026-09-09). With assistance from Claude
@@ -76,6 +82,7 @@ function ci_gate()
     end
 
     % --- run --------------------------------------------------------------
+    runStart = datenum(datetime('now'));           % WP-145 (A9): rule 5's reference
     results = run_all_lsqvce(root, skip);
 
     % --- gather the coverage evidence ------------------------------------
@@ -86,7 +93,7 @@ function ci_gate()
     logFile = fullfile(here, 'last_run_all.txt');
 
     % --- judge ------------------------------------------------------------
-    v = gateVerdict(results, skip, onDisk, excluded, logFile);
+    v = gateVerdict(results, skip, onDisk, excluded, logFile, runStart);
     fprintf('\nci_gate: %s\n', v.summary);
     if ~v.ok
         error('ci_gate:red', 'ci_gate RED:\n  %s', ...

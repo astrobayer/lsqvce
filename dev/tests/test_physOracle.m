@@ -375,6 +375,7 @@ function testDemoGravityRunsEndToEnd(tc)
 % MaxPasses 1 for cost; the numbers it prints are exercised, not asserted (no
 % band is pinned here that was not measured).
     out = evalc('[Rg, sc] = demo_gravity(''MaxPasses'', 1);');
+    echoWarnings(out);   % WP-145: its warnings reach the gate
     tc.verifyTrue(contains(out, 'The problem'));
     tc.verifyTrue(contains(out, 'The weights'));
     tc.verifyClass(Rg, 'lsqvce.Results');

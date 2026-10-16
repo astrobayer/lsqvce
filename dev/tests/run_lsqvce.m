@@ -5,8 +5,9 @@ function results = run_lsqvce(what, varargin)
 %   results = run_lsqvce(what)
 %   results = run_lsqvce(what, 'Name', pattern)
 %
-%   RUN_ALL_LSQVCE runs everything (498 tests, ~130 s) and is the gate before
-%   shipping; `run_lsqvce('all')` is the same run under this function's name.
+%   RUN_ALL_LSQVCE runs everything (the whole suite, several minutes) and
+%   CI_GATE judges it -- that is the gate before shipping; `run_lsqvce('all')`
+%   is the same run under this function's name.
 %   While iterating on one area that is cumbersome, so this runner takes a
 %   shortcut name (or a file path, or a name pattern) and runs only that,
 %   printing a one-line summary instead of a wall of output.
@@ -15,18 +16,18 @@ function results = run_lsqvce(what, varargin)
 %     what  char   one of the shortcuts below, OR a path to a test .m file, OR
 %                  a '*pattern*' matched against test NAMES across the suite:
 %
-%       'joint'      the joint/vceMode end-to-end tests (tests/test_adjustVCE)
-%       'ellmer'     the Ellmer primitives    (tests/test_ellmer.m, ~47 tests)
-%       'contrib'    the contribution tests   (tests/test_contribution.m)
-%       'adjustvce'  the whole adjustVCE file (tests/test_adjustVCE.m)
-%       'messaging'  the verbosity wiring tests (levels 0-3, captured text)
-%       'accum'      the accumulation layer   (tests/test_lsqAccum.m)
-%       'block'      adjustBlock/Results/makeLoader (tests/test_adjustBlock.m)
-%       'parallel'   mapreduce + PSD iteration (tests/test_parallel.m)
-%       'vce'        lsqvce.engine.vce contract      (tests/test_vceFunction.m)
-%       'vcemath'    VCE mathematics by hand  (tests/test_vceMath.m)
-%       'signal'     outliers/varWhiten/ar2arma (tests/test_signalCore.m)
-%       'streams'    per-stream helpers       (tests/test_streamUtils.m)
+%       'joint'      the joint/vceMode end-to-end tests (dev/tests/test_vcePolicy.m)
+%       'ellmer'     the Ellmer primitives    (dev/tests/test_ellmer.m, ~47 tests)
+%       'contrib'    the contribution tests   (dev/tests/test_contribution.m)
+%       'adjustvce'  the whole test_vcePolicy file (dev/tests/test_vcePolicy.m)
+%       'messaging'  the verbosity wiring tests (Verbose 0 and 1, captured text)
+%       'accum'      the accumulation layer   (dev/tests/test_lsqAccum.m)
+%       'block'      adjustBlock/Results/makeLoader (dev/tests/test_adjustBlock.m)
+%       'parallel'   mapreduce + PSD iteration (dev/tests/test_parallel.m)
+%       'vce'        lsqvce.engine.vce contract      (dev/tests/test_vceFunction.m)
+%       'vcemath'    VCE mathematics by hand  (dev/tests/test_vceMath.m)
+%       'signal'     outliers/varWhiten/ar2arma (dev/tests/test_signalCore.m)
+%       'streams'    per-stream helpers       (dev/tests/test_streamUtils.m)
 %       'all'        the whole suite -- delegates to RUN_ALL_LSQVCE (see OUTPUT)
 %
 %   OPTIONS (Name/Value)
@@ -37,11 +38,12 @@ function results = run_lsqvce(what, varargin)
 %                        suite deliberately provokes warnings in failure-mode
 %                        tests, which otherwise bury the result.
 %     'LogFile' char     ALSO write the full console output -- warnings, failure
-%                        diagnostics, stack traces -- to this file. Default is
-%                        'tests/last_run_<target>.txt', so runs of DIFFERENT
-%                        targets do not overwrite each other and several can be
-%                        inspected after the fact. Pass '' to disable, or a path
-%                        to choose your own.
+%                        diagnostics, stack traces -- to this file. NOT GIVEN,
+%                        it is 'dev/tests/last_run_<target>.txt', so runs of
+%                        DIFFERENT targets do not overwrite each other and
+%                        several can be inspected after the fact. GIVEN AS ''
+%                        it is switched off (the run prints to the console and
+%                        'Quiet' applies); a path chooses your own.
 %                        With a LogFile, 'Quiet' is IGNORED for the file: the
 %                        warnings are captured there even though the console
 %                        stays clean.
@@ -62,15 +64,26 @@ function results = run_lsqvce(what, varargin)
 %     run_lsqvce('ellmer', 'Name', '*psdVCE*')   % just the PSD VCE tests
 %     run_lsqvce('*degenerate*')                 % that test wherever it lives
 %
-%   Each run writes tests/last_run_<target>.txt, so successive runs of different
+%   Each run writes dev/tests/last_run_<target>.txt, so successive runs of different
 %   targets can all be inspected afterwards.
 %
 %   See also RUN_ALL_LSQVCE (the full gate), RUNTESTS
 %
+%   ERRORS
+%     lsqvce:runLsqvce:allTakesNoFilter   'all' was given a 'Name' filter.
+%     lsqvce:run_lsqvce:unknownTarget     what is no shortcut, file or pattern.
+%
 %   Created 2026-07-18 (CEST, UTC+02:00) with assistance from Claude (Anthropic),
 %   model Claude Opus 4.8.
+%   Updated 2026-10-16 (CEST, UTC+02:00), WP-145: every target and the
+%   default log in dev/tests (the layout since L8; every shortcut used to
+%   resolve to the root tests/, which no longer exists, and "RUN ERRORED"),
+%   the suites' path set temporarily as RUN_ALL_LSQVCE sets it, LogFile ''
+%   really switches the log off, and a run in which no test matched says so.
+%   With assistance from Claude (Anthropic), model Claude Opus 5.5.
 
-    root = fileparts(fileparts(fileparts(mfilename('fullpath'))));   % .../dev/tests -> toolbox root (L8)
+    here = fileparts(mfilename('fullpath'));    % .../dev/tests: the suites and their logs
+    root = fileparts(fileparts(here));          % the toolbox root (L8)
 
     if nargin < 1 || isempty(what)
         printShortcuts();
@@ -85,37 +98,42 @@ function results = run_lsqvce(what, varargin)
     p.parse(varargin{:});
     o = p.Results;
     logFile = char(o.LogFile);
+    % WP-145 (A8): NOT GIVEN and GIVEN EMPTY are two requests -- the default
+    % log versus no log -- and only the parser can tell them apart
+    wantDefaultLog = ismember('LogFile', p.UsingDefaults);
 
     % ---- resolve the shortcut to a target + optional name filter ----------
     nameFilter = char(o.Name);
     switch lower(char(what))
         case 'joint'
-            target = fullfile(root,'tests','test_vcePolicy.m');
+            target = fullfile(here,'test_vcePolicy.m');
             if isempty(nameFilter), nameFilter = '*joint*'; end
         case 'ellmer'
-            target = fullfile(root,'tests','test_ellmer.m');
+            target = fullfile(here,'test_ellmer.m');
         case 'contrib'
-            target = fullfile(root,'tests','test_contribution.m');
+            target = fullfile(here,'test_contribution.m');
         case 'adjustvce'
-            target = fullfile(root,'tests','test_vcePolicy.m');
+            target = fullfile(here,'test_vcePolicy.m');
         case 'messaging'
-            % The verbosity wiring: levels 0-3 asserted on captured log text.
-            target = fullfile(root,'tests','test_vcePolicy.m');
-            if isempty(nameFilter), nameFilter = '*Messaging*'; end
+            % The verbosity wiring, asserted on captured log text. WP-145: the
+            % filter was '*Messaging*', which no test name carries -- the
+            % shortcut ran nothing; the tests are named testVerbose*
+            target = fullfile(here,'test_vcePolicy.m');
+            if isempty(nameFilter), nameFilter = '*Verbose*'; end
         case 'accum'
-            target = fullfile(root,'tests','test_lsqAccum.m');
+            target = fullfile(here,'test_lsqAccum.m');
         case 'block'
-            target = fullfile(root,'tests','test_adjustBlock.m');
+            target = fullfile(here,'test_adjustBlock.m');
         case 'parallel'
-            target = fullfile(root,'tests','test_parallel.m');
+            target = fullfile(here,'test_parallel.m');
         case 'vce'
-            target = fullfile(root,'tests','test_vceFunction.m');
+            target = fullfile(here,'test_vceFunction.m');
         case 'vcemath'
-            target = fullfile(root,'tests','test_vceMath.m');
+            target = fullfile(here,'test_vceMath.m');
         case 'signal'
-            target = fullfile(root,'tests','test_signalCore.m');
+            target = fullfile(here,'test_signalCore.m');
         case 'streams'
-            target = fullfile(root,'tests','test_streamUtils.m');
+            target = fullfile(here,'test_streamUtils.m');
         case 'all'
             % DELEGATES to RUN_ALL_LSQVCE -- it does not re-implement it.
             %
@@ -143,7 +161,7 @@ function results = run_lsqvce(what, varargin)
             if exist(w, 'file') == 2
                 target = w;                       % an explicit file path
             elseif contains(w, '*')
-                target = fullfile(root,'tests');  % a bare pattern: search all
+                target = here;                    % a bare pattern: search all
                 if isempty(nameFilter), nameFilter = w; end
             else
                 printShortcuts();
@@ -165,26 +183,34 @@ function results = run_lsqvce(what, varargin)
     % run_lsqvce('joint') do not overwrite each other and both can be read
     % afterwards. Non-alphanumerics in a pattern target are squashed so the
     % name stays a valid filename.
-    if isempty(logFile)
+    if wantDefaultLog
         tag = regexprep(lower(char(what)), '[^a-z0-9]+', '_');
         tag = regexprep(tag, '^_+|_+$', '');
         if isempty(tag), tag = 'run'; end
-        logFile = fullfile(root, 'tests', sprintf('last_run_%s.txt', tag));
+        logFile = fullfile(here, sprintf('last_run_%s.txt', tag));
     end
+
+    % ---- the suites' path, TEMPORARY as in RUN_ALL_LSQVCE -----------------
+    pathBefore  = path();
+    restorePath = onCleanup(@() path(pathBefore));   %#ok<NASGU>
+    addpath(root);  addpath(fullfile(root, 'examples'));  addpath(here);
 
     % ---- run, capturing everything when a log file is wanted --------------
     %   With a LogFile we deliberately do NOT mute warnings: the whole point of
     %   the file is to preserve the failure diagnostics and the warnings that
     %   explain them. The console still gets only the summary.
     if ~isempty(logFile)
+        ranOk = true;
         try
             captured = evalc('results = runtests(args{:});');
         catch ME
             captured = sprintf('RUN ERRORED: %s\n%s\n', ME.identifier, ME.message);
             results = matlab.unittest.TestResult.empty;
+            ranOk = false;
         end
         writeLog(logFile, what, nameFilter, captured, results);
     else
+        ranOk = true;                   % an error here is rethrown, never summarised
         ws = [];
         if logical(o.Quiet)
             ws = warning('off','all');
@@ -199,7 +225,10 @@ function results = run_lsqvce(what, varargin)
     end
 
     % ---- one-line summary -------------------------------------------------
-    if isempty(results)
+    if isempty(results) && ranOk
+        fprintf('\n==== %s : no test matched ====\n', char(what));
+        return
+    elseif isempty(results)
         fprintf('\n==== %s : run ERRORED, see the log ====\n', char(what));
         if ~isempty(logFile), fprintf('full log: %s\n', logFile); end
         return
@@ -281,7 +310,7 @@ function printShortcuts()
              '  run_lsqvce(''ellmer'')     Ellmer primitives (~47)\n' ...
              '  run_lsqvce(''contrib'')    contribution tests\n' ...
              '  run_lsqvce(''adjustvce'')  the whole test_vcePolicy file (adjustVCE retired, R5 M4)\n' ...
-             '  run_lsqvce(''messaging'')  verbosity wiring, levels 0-3\n' ...
+             '  run_lsqvce(''messaging'')  verbosity wiring, Verbose 0 and 1\n' ...
              '  run_lsqvce(''accum'')      accumulation layer\n' ...
              '  run_lsqvce(''block'')      adjustBlock / Results / makeLoader\n' ...
              '  run_lsqvce(''parallel'')   mapreduce + PSD iteration\n' ...

@@ -11043,9 +11043,10 @@ examples raise today, then reproduce A1, A5, A8 and A9 before fixing them."
 
 **Baseline (tier A, main e483142, `matlab -batch "cd('dev/tests'); ci_gate"` detached):** GREEN,
 728 / 728, 27 / 27 suites (0 skipped, 1 excluded), warning inventory `lsqvce:internal:testProbe`
-only, 328 s. The local gate counts 728, the same as CI: the "740 local / CI = local - 12" carried
-by the rounds since WP-141 (and §12.77's handover) was a prediction, never a measurement -- since
-WP-103 the local and the CI gate run the same 27 suites with no skip.
+only, 328 s. The local gate counts 728, the same as CI: the "740 local" of the rounds since WP-141
+(and §12.77's handover) is the STATIC count of declared points (audit check 17, `dev/DEVELOPMENT.md`),
+which includes the 12 points of the benchmark `test_speed` that `ci_gate` excludes -- not a local
+run. Since WP-103 the local and the CI gate run the same 27 suites with no skip: 728 both.
 
 **Measurement (step 1): the warnings the 15 examples raise today,** each call of `exampleCalls`
 run under `evalc` with `warning on verbose` as `run_all_lsqvce` sets it (scratch script, not
@@ -11066,3 +11067,81 @@ help says it "settles visibly (Tolerance 1e-3)" and does not -- a claim of the e
 this WP's scope (`dev/tests` only), recorded for the user. demo_messaging's replayed lines show why the
 echo must not copy every line that starts with "Warning:": MATLAB frames a real warning in a capture
 as `[\b Warning: ... ]\b` (measured, also in a nested `evalc`), the replayed text has no frame.
+
+**Reproductions (step 2, tier A, before any fix):**
+- **A1 -- reproduced, with a correction to §12.77's step.** The step planted
+  `warning('lsqvce:probe:fromExample', ...)` in `examples/demo_fit.m` and expected the gate GREEN.
+  It went RED on that id -- through **test_fit**, which calls `demo_fit` without a capture
+  (`testDemoFitRuns`, line 1537), while test_examples reported nothing. The blind spot is the inner
+  capture, so the clean reproduction plants the probe in an example only test_examples runs
+  (`demo_combine`): test_examples alone through `run_all_lsqvce` gave `warnIds = {}` -- the warning
+  vanished. Together with the measurement above (four examples' `notConverged`, never inventoried):
+  A1 confirmed.
+- **A5 -- reproduced.** `run_lsqvce('ellmer')` and `run_lsqvce('*psdVCE*')`: "run ERRORED",
+  `lsqvce:run_lsqvce:noLog` on `<root>/tests/last_run_ellmer.txt`, 0 results. Also found: the
+  shortcut `messaging` filters `*Messaging*`, a name no test carries (the tests are `testVerbose*`),
+  so it could never run anything.
+- **A8 -- reproduced.** `run_lsqvce(<file>, 'LogFile', '')` took the logging branch with the default
+  path (the `noLog` warning names it); the no-log branch, the only place `Quiet` acts, never ran.
+- **A9 -- reproduced** in the same run as A1: `last_run_all.txt` made read-only (16:10:00), the gate
+  ran 332 s, the log kept its 16:10:00 bytes, and the verdict named the warning only -- no log reason.
+
+**The fix (step 3, `dev/tests`).** `private/echoWarnings.m` re-emits the MATLAB-framed warning blocks
+of a capture; `test_examples`' `runOne` hands its capture to it (`runScript` now runs inside runOne's
+capture without one of its own), and so do the nine other captures of the suites (test_adjustBlock x3,
+test_fit, test_options, test_physOracle, test_vcePolicy x3); `test_ci_gate` locks it (an `evalc` with
+no `echoWarnings(` on its line or the next is named). test_examples carries the capture probe and
+gateVerdict rule 7 requires it (`BLIND: test_examples`). Rule 5 takes `runStart` from `ci_gate` and
+reds on a log older than the run; `run_all_lsqvce` says so on stderr when it cannot open the log.
+`run_lsqvce`: every target and the default log in `dev/tests`, the suites' path set temporarily as
+run_all sets it, `LogFile` not given vs `''` told apart by `inputParser.UsingDefaults`, "no test
+matched" no longer reported as "ERRORED", the `messaging` filter `*Verbose*`. Tests: test_ci_gate
++4, test_examples +1, test_instruments +5 (750 declared, 738 run). With the probe in demo_combine the
+fixed test_examples reported `lsqvce:probe:fromExample` and `notConverged`, and nothing
+`<unidentified>` from demo_messaging. Linux audit (WSL, Debian pandoc) CLEAN, selftest every fault.
+
+**The fixed gate is RED -- the instrument working (tier A, 343 s):** 738 / 738 passed, inventory
+`lsqvce:adjustVCEjoint:notConverged` from test_examples (demo_grace, demo_gravity, demo_noisePolicy,
+demo_sensors) and test_physOracle (`demo_gravity('MaxPasses', 1)`). Offered "declare the documented
+warnings / make the demos converge / mute", the user answered: "Figure out, why they do not
+converge. The task is to have working examples that ensure and test precision and reliability, not
+to just have them pass."
+
+**Diagnosis (step 4, tier A; scratch copies of the demos, the engine instrumented in a scratch edit
+reverted at once).** Each demo run with a large pass budget, the per-bin record of `psdVCE` (the
+Helmert factor alpha2_j and the bin's redundancy S_j * sum T_j) per pass and pool group:
+- **What fails is ONE criterion.** The levels settle within ~10 passes everywhere (levelDev 1e-4);
+  `max|alpha2-1|` -- the WORST of 60 spectral bins -- does not. demo_gravity converges at pass 72
+  (it runs 4), demo_grace at 27 (runs 6), demo_noisePolicy at 14 (runs 12), demo_sensors at 168
+  (runs the default 10).
+- **The slow bins are the low-information ones.** demo_gravity: the zero-frequency bin, redundancy
+  5-6 against a median of 48 per bin (the per-arc locals absorb an arc's mean), contracting by 0.977
+  per pass. demo_sensors: bins of redundancy 1-4 (medians 9-20) sinking toward zero (KBR bins at
+  3e-4 of the maximum, alpha2 0.987 and falling) -- 60 free bins on arcs of 60 samples (`nk = 60`)
+  for WHITE planted noise. A bin with r ~ 2 has a relative standard error ~ sqrt(2/r) ~ 100 %; the
+  stop rule asks its iteration step to fall below 1 %.
+- **What it costs the estimate (demo_gravity, the 72-pass fixed point as reference):** x after 4
+  passes is within 0.29 sigma_x of it (rms 0.10), after 10 within 0.10; sigma0 and the levels agree
+  to 3 digits; mean z^2 0.894 / 0.920, max |z| 2.32 / 2.28. A coarser law converges in 4-15 passes
+  (Grid 30: 15, Grid 16: 10, Grid 8: 6, Smooth 1 or 2: 4) with mean z^2 0.85-0.87, max |z| 2.2-2.4,
+  the planted anomaly at 1.1 sigma; those solutions differ from the 60-bin one by <= 0.8 sigma_x --
+  a model choice, every one as close to the truth.
+- **demo_sensors does not recover what it says it recovers.** Its own table prints LRI -33.1 % and
+  GPS -31.7 % and then "the components recovered the sensor noise ratios". The cause is not the
+  loop: the demo plants a 6-sigma offset on GRACE-C / KBR / day 7 for its STEP 5 (the bad-day hunt)
+  and runs STEP 4's variance components on the contaminated data; C|KBR comes back +46 %, and with
+  Pool "obsType" the shared KBR shape carries it into D|KBR (+43 %); the table normalises on C|KBR,
+  so the error shows up on the OTHER sensors. With the offset removed, every stream is within 4 % of
+  the truth for every setting (Grid 60 / 16 / 8 / 2, Smooth 2), and Grid 8 / Smooth 2 converge in
+  4-6 passes instead of 168. With ArcFactors = true and Grid 8 the bad day is isolated in the same
+  run (factor 16.8 on C_KBR_d7, every other KBR arc ~ 1), but the stream-level summary then averages
+  it in (C|KBR +60 %).
+- **Stale claims found on the way.** demo_gravity's ACCURACY quotes sigma0 1.0381, ratios 1.183 /
+  1.044 / 1.014, mean z^2 0.842 (2026-09-07, v5.3); today's same call gives 1.0003, 1.170 / 1.042 /
+  1.016, 0.894. demo_grace's help says it "settles visibly". demo_gravity's potC +17 % in every
+  setting is the documented shape/level bias on a short coloured record (bounded at 25 % by
+  test_vcePolicy) -- a recorded property, not this finding.
+- **A package-level observation, not acted on here:** the default `Noise.Grid` 60 with the default
+  `MaxPasses` 10 cannot meet the default tolerance on short or low-information arcs (demo_sensors:
+  168 passes), and a step-size stop rule says little about the distance to the fixed point when a
+  bin contracts at 0.977 per pass (remaining distance ~ 42 x the last step).

@@ -2737,6 +2737,7 @@ function testDemoPriorsIsTheWorkedLayoutExample(tc)
     tc.addTeardown(@() rmpath(exDir));
     muteWarn(tc, 'lsqvce:adjustVCEjoint:notConverged');
     out = evalc('[R, s] = demo_priors();');
+    echoWarnings(out);   % WP-145: its warnings reach the gate
 
     tc.verifyClass(R, 'lsqvce.Results');
     tc.verifyTrue(contains(out, 'lsqvce.layout says'), 'it prints the layout census');
