@@ -11202,3 +11202,12 @@ and release jobs green. The local postflight on the same commit: GREEN 738 / 738
 **Closure (2026-10-16).** WP-145 DONE: PR #180 merged as e7c1d16 (the loop's record step after the
 merge: the ledger row, this note; no code change, no version -- 6.25.2 stays, 750 declared / 738
 run). Observation 2 above is opened as WP-147 (§12.79, user: "Erledige diese Aufgabe hier").
+
+### 12.79 WP-147 — a stop rule that low-information spectral bins can meet (2026-10-16, model Claude Opus 5.5, tier A)
+
+| WP | title | depends on | status |
+|----|-------|-----------|--------|
+| 147 | Observation 2 of §12.78: with the package defaults (`Noise.Grid` 60, `MaxPasses` 10, `Tolerance` 1e-2) the joint noise loop often cannot meet its stop rule on short or low-information arcs -- the rule is max abs(alpha2_j - 1) over EVERY bin, and bins with redundancy ~1-6 (the zero-frequency bin the per-arc locals absorb; 60 bins on 60-sample arcs) contract at ~0.98 per pass or decay toward zero, while the solution is long settled. PART 1 (this round): a MEASUREMENT-based design note -- per-pass traces of x, the levels and every bin's alpha2 and redundancy on the four fixtures of §12.78 in their original configuration, the candidate rules evaluated against the fixed point (when each would stop, and how far x and the levels then are from the fixed point in their own standard errors), the candidate defaults (FreezeRedundancy, Grid, Smooth) run live; options and a recommendation; NO code change before the user picks. PART 2: the chosen option, with tests that fail without it; version by precedent (a changed default or stop rule: a minor) | 145 (closure #181) | IN PROGRESS (part 1) |
+
+**The user's request (2026-10-16):** "Erledige diese Aufgabe hier: „Noise stop rule for low-information
+spectral bins“" -- the proposal card of §12.78 (observation 2), done in this session.
